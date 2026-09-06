@@ -80,7 +80,7 @@ import { goTo, placeOf } from "../hub/route.js";
 import { joinTable, type Table } from "../online/table.js";
 import type { Teardown } from "../hub/catalogue.js";
 import { installTableLook } from "../look/surfaces.js";
-import { isTableGame, mapFor, TABLE_SEATS, type TableGame } from "./mapFor.js";
+import { isTableGame, mapFor, syncSeatChairs, TABLE_SEATS, type TableGame } from "./mapFor.js";
 import { hubAvatarsTransport, hubSeats, inkOf, SEAT_INKS, type HubAvatarsTransport } from "./people.js";
 
 /** A far hand's cursor, over the glass and never on the desk — the catalog's own `DOT` size. */
@@ -562,6 +562,21 @@ export function startTable(container: HTMLElement): Teardown {
         const onDown = (): void => idle?.input();
         container.addEventListener("pointerdown", onDown, true);
         stopIdlePointer = () => container.removeEventListener("pointerdown", onDown, true);
+        // A DESK OPENS AT ITS OWN PLACE — the same reason the catalog's `Live/Cards` asks its own
+        // idle glide home on the first frame rather than leaving the eye on the room's middle: home
+        // is the view `isHome` reads (`presence.ts`), and a desk that opened there instead would
+        // draw its own reader as having wandered off before anybody had touched anything. After the
+        // stage has laid its own glass out, which is what the glide's zoom is measured against —
+        // one frame of the hub's own clock (`guard.one-clock`), not a second `requestAnimationFrame`.
+        let openedHome = false;
+        const leaveOpenHome = cameraClock.join(() => {
+          if (!openedHome) {
+            openedHome = true;
+            idle?.goHome();
+          }
+          leaveOpenHome();
+          return false;
+        });
         // THE SAME CLOCK THE FLING BORROWS, joined for the whole life of the table rather than only
         // while something is moving: the idle countdown has to keep counting while the view is dead
         // still, which is exactly what the camera's own borrow (`clock` above) never does.
@@ -631,11 +646,13 @@ export function startTable(container: HTMLElement): Teardown {
         goHome: () => idle?.goHome(),
       });
       seated = table.roster.map((one) => one.seat).filter((s): s is string => typeof s === "string");
+      if (game === "cards") syncSeatChairs(live.host.root, seated);
       peopleWire.roster(table.roster);
       avatars.publish();
       redraw();
       unbindOnRoster = table.onRoster((roster) => {
         seated = roster.map((one) => one.seat).filter((s): s is string => typeof s === "string");
+        if (game === "cards") syncSeatChairs(live.host.root, seated);
         const gone = peopleWire?.roster(roster) ?? [];
         for (const s of gone) avatars?.forget(s);
         avatars?.publish();
