@@ -1,0 +1,37 @@
+apps/hub/src/table/mapFor.ts
+  s_cc7fc0eed75428::t_13b17a0e771735 4-5,35-40,48-52,54,59-65,67-70
+apps/hub/src/table/mapFor.test.ts
+  s_cc7fc0eed75428::t_b6f567f32ac5da 49,56-57,64-65,77,90,92,97-98
+  s_cc7fc0eed75428::t_e4cfc80303118d 1-2,6-13,70-76,78-89,91,93-96,100-101
+  s_cc7fc0eed75428::t_2b1a2f89a8e1b8 99,102
+apps/hub/src/table/index.ts
+  s_cc7fc0eed75428::t_875bcdbdfd3ded 420-422
+  s_cc7fc0eed75428::t_c42db45fa37a2d 16-17,22,151-153,155,189-192,195-197
+  s_cc7fc0eed75428::t_cd3118432db1f9 272-277,472-482,484-490,492-497,553
+  s_cc7fc0eed75428::t_b81e41ae06f033 424-437
+  s_cc7fc0eed75428::t_fa50f614237257 158-160,162-169,171-174,177,179-185,418-419
+  s_cc7fc0eed75428::t_0b8e621d701bef 75,78,306-308,556,562
+  s_cc7fc0eed75428::t_6d36313075cf62 176,178,194,423
+apps/hub/src/table/glass.test.ts
+  s_cc7fc0eed75428::t_7a9a911fd423f7 3-6,9-10
+apps/hub/src/table/home.test.ts
+  s_cc7fc0eed75428::t_f519b5b333d3c5 18-19
+  s_cc7fc0eed75428::t_f1651128ae3032 1-12,14-15,17,22,24,27,29-31,33-38,42-44,46-51,53-56,58,66,69-71,73,76-77,82-86,88-93
+  s_cc7fc0eed75428::t_afaa39e5b87556 16,21,25,28,32,59-65,72,74-75,79-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "709ed9f31944ab50038a6d657a7a88f2c96bdeaa",
+  "prompts": {},
+  "sessions": {
+    "s_cc7fc0eed75428": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e250383-ce71-495d-b55f-a0e0fe96fb7b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
