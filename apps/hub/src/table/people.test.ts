@@ -120,6 +120,32 @@ describe("hubAvatarsTransport: the hub's relay in place of a local screen", () =
     expect(seen).toEqual({ seat: "p2", name: "Bob", ink: "alert", state: "online", holding: false, view: VIEW });
   });
 
+  it("says my view again the first time a seat is heard from — a newcomer heard none of it", () => {
+    // THE BUG THIS IS ABOUT: the first player says their view while they are alone in the room, and
+    // then nothing about it ever changes. The second player joins, says their own, and the first
+    // hears it and republishes — but the wire is compared against what was last SAID, so the first
+    // player's view is never repeated and the second screen never learns where they are looking.
+    // Its ring stays empty for a person who is sitting right there.
+    const clock = { ms: 1000 };
+    const { wiring, sent } = build("p1", clock);
+    wiring.roster(ROSTER);
+    const mine = wiring.transport.mine()[0]!;
+
+    // Said into an empty room: nobody was there to hear it.
+    wiring.transport.say(mine);
+    expect(sent).toHaveLength(1);
+
+    // `p2` arrives and says where THEY are looking; the wiring republishes with the same view.
+    wiring.transport.hear(() => wiring.transport.say(mine));
+    wiring.heard({ kind: "presence", from: "p2", view: VIEW, state: "online", holding: false } as unknown as RelayMessage);
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatchObject({ kind: "presence", seat: "p1", view: VIEW });
+
+    // ...and only the FIRST time: a seat already heard from has the news already.
+    wiring.heard({ kind: "presence", from: "p2", view: VIEW, state: "online", holding: false } as unknown as RelayMessage);
+    expect(sent).toHaveLength(2);
+  });
+
   it("state() changes what mine() reports, ready for the next publish", () => {
     const clock = { ms: 0 };
     const { wiring } = build("p1", clock);

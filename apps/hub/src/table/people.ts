@@ -86,6 +86,17 @@ export function hubAvatarsTransport(o: HubAvatarsTransportOptions): HubAvatarsTr
   /** What was last put on the wire, so a view that did not move is not news. */
   let lastWire = "";
   let lastState: PresenceState | undefined;
+  /**
+   * EVERY SEAT THIS SCREEN HAS EVER HEARD FROM — what makes "not news" mean "news to everybody".
+   *
+   * `say` compares against what was last SAID, and a view that nobody moved is said exactly once.
+   * The first player says theirs into an empty room; the second joins a whole minute later and there
+   * is nothing left to arrive, because nothing about the first player has changed since. Their ring
+   * stood empty on the newcomer's screen for somebody sitting right there.
+   *
+   * So a seat heard from for the FIRST time makes my own last word stale: it was never told to them.
+   */
+  const knownEars = new Set<string>();
 
   return {
     transport: {
@@ -131,6 +142,13 @@ export function hubAvatarsTransport(o: HubAvatarsTransportOptions): HubAvatarsTr
       if (typeof seat !== "string" || seat === o.mine()) return true;
       const wire = msg as unknown as Presence;
       if (!wire.view) return true;
+      // SOMEBODY NEW IS LISTENING, so my own view has to go out again — see `knownEars`. Before the
+      // callbacks below, because they are what publishes, and publishing is what calls `say`.
+      if (!knownEars.has(seat)) {
+        knownEars.add(seat);
+        lastWire = "";
+        lastSent = 0;
+      }
       // THE NAME IS THE ROOM'S, not the wire's — a presence never carried one in the old design
       // either, and asking the sender to repeat their own name on every view would be a second
       // source for the one word the roster already owns.
