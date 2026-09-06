@@ -1,0 +1,48 @@
+game-kit/src/render/avatars.test.ts
+  s_74a0fea1c18595::t_686e8c87c0d266 1-214
+game-kit/src/index.ts
+  s_74a0fea1c18595::t_99a15996aed0d0 737-744
+game-kit/docs/test-plan/67-live.md
+  s_d8fcf86eb002e4::t_fe3fc87b1b8c26 9-15
+game-kit/src/render/avatars.ts
+  s_74a0fea1c18595::t_30a0fba2f9f946 237
+  s_d8fcf86eb002e4::t_c3c95b6c7716fe 185,210,234
+  s_74a0fea1c18595::t_8baebc82eb8839 48-50
+  s_74a0fea1c18595::t_5bbebd4df1d16e 255-256
+  s_d8fcf86eb002e4::t_6cc37db4a7e636 64-71
+  s_74a0fea1c18595::t_c4aedce873f6b1 152,161-163,167-178
+  s_74a0fea1c18595::t_a5e789d18fb1c8 1-25,27-47,51-63,72-140,142-151,153-160,164-166,179-184,186-209,211-233,235-236,238-254,257-298
+  s_d8fcf86eb002e4::t_0a04cf366391ee 141
+  s_74a0fea1c18595::t_e64e81895df426 26
+game-kit/.storybook/stories/avatars.ts
+  s_74a0fea1c18595::t_78f899412133bb 86-88
+  s_74a0fea1c18595::t_286f9a9ed2bfad 1,3-8,12-14,35,37,39,41,62-68,72-75,79-82,104,112-121,123-131,134-137,142-144,165-167,169-173,177,179-180
+  s_74a0fea1c18595::t_15c434b716fd2f 122
+  s_74a0fea1c18595::t_5815a7ea878216 151,154-155,159
+  s_d8fcf86eb002e4::t_034ee27088ee7c 138-141
+  s_74a0fea1c18595::t_b4b1e397547cd4 145-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "574325cbfc8e57ccc764a77678f80c3a497a72f5",
+  "prompts": {},
+  "sessions": {
+    "s_74a0fea1c18595": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f11adb5-dd1b-47eb-bbbe-0cdb885237a0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_d8fcf86eb002e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b860e2bd-ce91-40dc-a2f4-396663e880d6",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
