@@ -8,6 +8,7 @@ import { extentOf, type BoundedFields } from "../core/atoms/bounded.js";
 import { Transformable, type TransformableFields } from "../core/atoms/transformable.js";
 import { Coated, NO_COAT } from "../core/atoms/coated.js";
 import { mark } from "../core/atoms/marked.js";
+import { screened } from "../core/atoms/screened.js";
 import { type ValuedFields } from "../core/atoms/valued.js";
 import { apply, compose as composeTransforms, type Vec } from "../core/transform.js";
 import { polar, velocityOf, type BoxWalls, type Walls } from "../core/ballistic.js";
@@ -803,7 +804,12 @@ export function letFall(
   let marked = false;
   if (s.actor && !willFly && items[0]) {
     const lead = byId(s.host.root, items[0].id);
-    if (lead) {
+    // A CONTROL IS NOT MARKED. A mark is a note about a PIECE — who moved it and from where — and
+    // the far screen paints the owner's ink around whatever carries one. A seat's own ring, a
+    // handle, an avatar: none of them is a thing lying on the felt, so a hand that shifted one made
+    // no move to report. Read off the atom that already says "held at its size on the glass"
+    // (`Screened`), never off a name — a desk names its own furniture and the kit parses none of it.
+    if (lead && !screened(lead)) {
       const from = fromPositions.get(items[0].id);
       mark(lead, { by: s.actor, mark: "moved", ...(from ? { from } : {}) });
       marked = true;
@@ -833,7 +839,8 @@ export function letFall(
     const flight = seat ?? (hand ? flightOf(hand, feel.throwGain) : { speed: 0, angle: 0 });
     if (s.actor && flight.speed > 0 && !marked) {
       const piece = byId(s.host.root, id);
-      if (piece) {
+      // NOT A CONTROL, on this path either — see the calm release above.
+      if (piece && !screened(piece)) {
         const from = fromPositions.get(id);
         mark(piece, { by: s.actor, mark: "thrown", ...(from ? { from } : {}) });
         marked = true;

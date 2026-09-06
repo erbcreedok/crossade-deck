@@ -343,6 +343,40 @@ describe("the live desk", () => {
     live.stop();
   });
 
+  it("liveTable.a-control-earns-no-mark — a moved ring says nothing about who touched it, a moved card does", () => {
+    // A MARK IS A NOTE ABOUT A PIECE, and a control is not one. The partner's screen paints the
+    // owner's ink around anything carrying a `Marked` (`markQuads.ts`), so a ring nudged by its own
+    // owner came up glowing on every other desk — a seat's own furniture reported as a move made
+    // in the game. Only what lies on the felt is marked; see `isControl` in `liveTable.ts`.
+    const { root } = deskWithRing();
+    const c = fakeClock();
+    const shell = stage(root, c.clock, false);
+    // The actor lives on the STAGE for `fall.ts`, the way `scene()` wires a real page.
+    (shell as unknown as { actor?: string }).actor = "south";
+    const live = liveTable(shell.el.ownerDocument.body, root, { stage: shell, letGo: "drop", actor: "south" });
+
+    const ringAt = 300 + 2 * shell.host.unit();
+    shell.el.dispatchEvent(finger("pointerdown", ringAt, 200, 0));
+    for (let i = 1; i <= 4; i += 1) {
+      shell.el.dispatchEvent(finger("pointermove", ringAt + i * 4, 200, i * 200));
+      c.tick(1);
+    }
+    shell.el.dispatchEvent(finger("pointerup", ringAt + 16, 200, 1000));
+    c.tick(120);
+    expect(fieldsOf<MarkedFields>(byId(shell.host.root, "ring")!, "Marked"), "a carried ring carries no mark").toBeUndefined();
+
+    // THE SAME GESTURE ON A CARD STILL MARKS — the guard is about controls, not about drops.
+    shell.el.dispatchEvent(finger("pointerdown", 300, 200, 2000));
+    for (let i = 1; i <= 4; i += 1) {
+      shell.el.dispatchEvent(finger("pointermove", 300 + i * 4, 200, 2000 + i * 200));
+      c.tick(1);
+    }
+    shell.el.dispatchEvent(finger("pointerup", 316, 200, 3000));
+    c.tick(120);
+    expect(fieldsOf<MarkedFields>(byId(shell.host.root, "card")!, "Marked")?.mark, "a carried card still says who moved it").toBe("moved");
+    live.stop();
+  });
+
   it("liveTable.a-flick-survives-a-mirror-that-rewrites-the-desk — the far screen is told, the card still flies", () => {
     // A DESK WITH PEOPLE ON IT ANSWERS THE HAND REPORT BY REDRAWING ITSELF — the avatars are placed,
     // the chairs stood, the hands regrown, and every screen told (`avatars.ts`). That report is made

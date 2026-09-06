@@ -646,7 +646,10 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     const actor = w.opts.actor ?? s.actor;
     if (actor && items[0]) {
       const lead = byId(root, items[0].id);
-      if (lead) {
+      // A CONTROL IS NOT MARKED — a ring, a handle, an avatar is not a piece that was moved, and a
+      // mark on one comes up as the owner's glow on every other screen (`markQuads.ts`). The atom
+      // that says "held at its size on the glass" is the whole of the question; see `fall.ts`.
+      if (lead && !screened(lead)) {
         const leftBoard = dragInfo?.fromParent && dragInfo.fromParent !== root;
         mark(lead, { by: actor, mark: leftBoard ? "removed" : "moved", ...(dragInfo?.fromPos ? { from: dragInfo.fromPos } : {}) });
       }
