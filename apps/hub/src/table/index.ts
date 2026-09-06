@@ -56,9 +56,11 @@ import {
   installStockSurfaces,
   installTheme,
   liveTable,
+  withAvatars,
   Camera,
   setRev,
   t,
+  type Avatars,
   type CameraContent,
   type Palette,
   type IdleReturnTracker,
@@ -79,7 +81,7 @@ import { joinTable, type Table } from "../online/table.js";
 import type { Teardown } from "../hub/catalogue.js";
 import { installTableLook } from "../look/surfaces.js";
 import { isTableGame, mapFor, TABLE_SEATS, type TableGame } from "./mapFor.js";
-import { hubPeople, inkOf, SEAT_INKS, type HubPeople } from "./people.js";
+import { hubAvatarsTransport, hubSeats, inkOf, SEAT_INKS, type HubAvatarsTransport } from "./people.js";
 
 /** A far hand's cursor, over the glass and never on the desk — the catalog's own `DOT` size. */
 const CURSOR_DOT = 18;
@@ -355,10 +357,22 @@ export function startTable(container: HTMLElement): Teardown {
   let leaveIdleClock: (() => void) | undefined;
   let stopIdlePointer: (() => void) | undefined;
   /** The people at this desk, once the room has said who they are. */
-  let people: HubPeople | undefined;
+  let avatars: Avatars | undefined;
+  let peopleWire: HubAvatarsTransport | undefined;
+  /** Everybody the room has named, in seat order — read by `farDot`'s own ink. */
+  let seated: readonly string[] = [];
   let stopWatching: (() => void) | undefined;
   let unbindOnRelay: (() => void) | undefined;
   let unbindOnRoster: (() => void) | undefined;
+  /**
+   * A DISPOSABLE MARKER, watched by the kit's own `Avatars` for when to stop listening — `container`
+   * itself is the hub's persistent stage (`stage.replaceChildren()` empties it between games, but the
+   * element is never removed from the document), so a wiring told to watch `container` would never
+   * see it disconnect and would go on listening for the relay for every game played after this one.
+   */
+  const peopleWall = document.createElement("div");
+  peopleWall.style.display = "none";
+  container.appendChild(peopleWall);
   /**
    * THE FAR SCREENS, ONE PER SEAT — this glass, wearing somebody else's name.
    *
@@ -382,7 +396,7 @@ export function startTable(container: HTMLElement): Teardown {
         `pointer-events:none;display:none;transform:translate(-50%,-50%);` +
         // SEAT INKS ARE ALWAYS PALETTE TOKENS (`SEAT_INKS`), the widened `Paint` return type just
         // does not say so — the same narrowing the catalog's own `SEATS as const` gets for free.
-        `background:${t(inkOf(seat, people?.seats() ?? []) as keyof Palette)};box-shadow:0 0 0 2px ${t("sunkBg")}`;
+        `background:${t(inkOf(seat, seated) as keyof Palette)};box-shadow:0 0 0 2px ${t("sunkBg")}`;
       container.appendChild(dot);
       farDots.set(seat, dot);
     }
@@ -421,6 +435,14 @@ export function startTable(container: HTMLElement): Teardown {
     if (!camera) return undefined;
     return { target: camera.target, zoom: camera.pixelsPerUnit, rotation: camera.rotation, glass: camera.glass };
   };
+  /**
+   * THE DESK IS TOLD TO DRAW ITSELF AGAIN — `Avatars` writes discs, rings and hands straight into
+   * `standing.host.root` (the same tree, by the thunk it was handed), and a write to the tree is not
+   * by itself a repaint: nothing else here re-renders on a timer while the camera stands still.
+   */
+  const redraw = (): void => {
+    if (standing) standing.setRoot(standing.host.root, "net");
+  };
   const mirror: Mirror<LiveStage> = {
     ready: () => {},
     changed: () => {
@@ -428,7 +450,8 @@ export function startTable(container: HTMLElement): Teardown {
     },
     hand: (items, at, done, feel) => {
       currentTable?.sendRelay({ kind: "hand", items: items as unknown as CarryItem[], at, done, feel });
-      people?.handed(items, at, done);
+      if (seat) avatars?.handed(seat, items, at, done);
+      redraw();
     },
   };
 
@@ -455,10 +478,16 @@ export function startTable(container: HTMLElement): Teardown {
     // WHERE SOMEBODY IS LOOKING IS PART OF THIS DESK, so a view that moved is news — it is what
     // puts the far reader's own disc where they are actually sitting — or takes it off the felt
     // altogether, once they are looking at their own place again.
-    onView: () => people?.publish(),
+    onView: () => {
+      avatars?.publish();
+      redraw();
+    },
     // A HAND THAT CHANGED SIZE without anybody having moved: a card landing in one is a change to
     // the furniture alone, and the ring has to be re-measured against what is now in it.
-    onDeskChanged: () => people?.settled(),
+    onDeskChanged: () => {
+      avatars?.settled();
+      redraw();
+    },
     // A SHUT HAND CANNOT BE REACHED INTO. Refused at the PICK and not at the drop, because what a
     // shut hand refuses is the gesture ever starting — a card that lifted out and flew back would
     // read as the desk having dropped it.
@@ -467,7 +496,7 @@ export function startTable(container: HTMLElement): Teardown {
     may: (n: Node) => (seat ? mayTake(n, seat) : true),
     // A TAP ON ONE'S OWN RING TAKES THAT READER HOME. Anything else falls through to whatever this
     // desk already does with a tap.
-    taps: (piece: Node) => people?.tapped(piece) === true,
+    taps: (piece: Node) => (seat ? avatars?.tapped(seat, piece) === true : false),
   });
   standing = live;
 
@@ -510,7 +539,7 @@ export function startTable(container: HTMLElement): Teardown {
           // WHERE MY PLACE IS NOW, asked every step and never remembered: a chair can be dragged,
           // and a home read once would bring the eye back to a seat I have since got up from.
           () => {
-            const home = people?.placeOf(seat ?? "") ?? place;
+            const home = avatars?.placeOf(seat ?? "") ?? place;
             return {
               seat: "",
               place: home,
@@ -570,35 +599,54 @@ export function startTable(container: HTMLElement): Teardown {
         // THE PEOPLE GO BACK ON THE TREE THAT JUST ARRIVED. The discs travel with it — every screen
         // places the same set out of the same messages — but the tree that came in was written a
         // round trip ago, and the reader whose view moved since is standing where they were then.
-        people?.publish();
+        avatars?.publish();
+        redraw();
       });
 
       // THE PEOPLE AT THIS DESK, once the room can be asked who they are. Their discs and their
-      // rings are the catalog's (`Live/Cards — with avatars`); what differs is only where the
-      // answers come from — the wire, and not a second pane in this document.
-      people = hubPeople({
-        desk: () => live.host.root,
+      // rings are the kit's own (`withAvatars`); what differs is only where the answers come from —
+      // the wire (`peopleWire`, a relay transport), and not a second pane in this document.
+      peopleWire = hubAvatarsTransport({
         mine: () => seat,
-        places: placesFor(game),
         view: () => viewNow(),
+        send: (msg) => table.sendRelay(msg),
+      });
+      avatars = withAvatars({
+        desk: () => live.host.root,
+        seats: hubSeats(TABLE_SEATS),
+        transport: peopleWire.transport,
+        places: placesFor(game),
         // A HAND PER PERSON ON THE CARD TABLE, and none on a board: a piece on a board is on a
         // square, and a patch of felt beside a player would be a place the game has no word for.
         ...(game === "cards" ? { hands: ROUND_R } : {}),
-        send: (msg) => table.sendRelay(msg),
-        draw: () => {
-          live.setRoot(live.host.root, "net");
-        },
+        wall: peopleWall,
         // A TAP ON ONE'S OWN RING IS "TAKE ME BACK THERE" — the same glide the idle return runs, on
         // this screen's own tracker, asked for instead of fallen into.
         goHome: () => idle?.goHome(),
       });
-      people.roster(table.roster);
-      unbindOnRoster = table.onRoster((roster) => people?.roster(roster));
+      seated = table.roster.map((one) => one.seat).filter((s): s is string => typeof s === "string");
+      peopleWire.roster(table.roster);
+      avatars.publish();
+      redraw();
+      unbindOnRoster = table.onRoster((roster) => {
+        seated = roster.map((one) => one.seat).filter((s): s is string => typeof s === "string");
+        const gone = peopleWire?.roster(roster) ?? [];
+        for (const s of gone) avatars?.forget(s);
+        avatars?.publish();
+        redraw();
+      });
       // A HIDDEN TAB IS NOBODY'S SCREEN — the one piece of state a browser will actually tell us.
-      stopWatching = watchPresence(document, (state) => people?.state(state));
+      stopWatching = watchPresence(document, (state) => {
+        peopleWire?.state(state);
+        avatars?.publish();
+        redraw();
+      });
 
       unbindOnRelay = table.onRelay((msg) => {
-        if (people?.heard(msg)) return;
+        if (peopleWire?.heard(msg)) {
+          redraw();
+          return;
+        }
         if (msg.kind !== "hand" || typeof msg.from !== "string") return;
         // A FAR HAND, DRAWN WITH THE SAME CALLS THE NEAR ONE MAKES — and with the same feel: told
         // only the anchor, this screen would slide a piece where the other one lifts and leans it.
@@ -625,6 +673,9 @@ export function startTable(container: HTMLElement): Teardown {
     stopIdlePointer?.();
     cameraClock.stop();
     for (const dot of farDots.values()) dot.remove();
+    // TELLS THE KIT'S OWN `Avatars` TO STOP LISTENING — see the marker's own comment above: without
+    // this, the persistent `#stage` never disconnects and the wiring goes on hearing the relay.
+    peopleWall.remove();
     live.stop();
     stopHold();
   };
