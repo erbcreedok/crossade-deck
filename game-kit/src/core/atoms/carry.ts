@@ -20,20 +20,45 @@ import { apply, compose, move, pose, rotate, type Transform, type Vec } from "..
 import { clampAbs } from "../spring.js";
 import { defineAtom } from "../atom.js";
 import { fieldsOf, type Node } from "../node.js";
+import { screened } from "./screened.js";
 
 export interface CarryFields {
   readonly orient?: "holder" | "keep" | undefined;
+  /**
+   * WHERE THIS TRAVELS WHILE A FINGER HAS IT — in the HAND, off the felt, or ON the felt.
+   *
+   * A piece is lifted: it pops, it banks, a picture of where it will land is drawn under it, and
+   * letting go of it in motion throws it. A ring is not lifted. It slides along the sukno the way a
+   * beer mat does, so there is nothing for a fall to be a fall from and no landing to draw a picture
+   * of — it is simply wherever the finger left it.
+   *
+   * Said in the positive and by the thing itself, because the other way of telling the two apart —
+   * "is it held at its size on the glass" (`Screened`) — is about SIZE and stopped being true of a
+   * ring the day the ring grew to hold cards. A control that is felt-sized is still a control.
+   */
+  readonly ride?: "hand" | "felt" | undefined;
 }
 
 export const Carry = defineAtom<CarryFields>({
   name: "Carry",
-  classes: { orient: "own" },
+  classes: { orient: "own", ride: "own" },
   requires: [],
-  defaults: { orient: "keep" },
+  defaults: { orient: "keep", ride: "hand" },
 });
 
 export function carryOrientOf(n: Node): "holder" | "keep" {
   return fieldsOf<CarryFields>(n, "Carry")?.orient ?? "keep";
+}
+
+/**
+ * IS THIS CARRIED ALONG THE FELT — no lift, no flight, and no picture of a landing under it.
+ *
+ * Two ways of saying one thing, and both are read here so there is one answer to the question. A
+ * node held at its size on the glass (`Screened`) was never lying on the felt at all — a handle, an
+ * avatar — and a node that says `ride: "felt"` is lying on it and never leaves it.
+ */
+export function ridesFelt(n: Node): boolean {
+  return screened(n) || fieldsOf<CarryFields>(n, "Carry")?.ride === "felt";
 }
 
 /**

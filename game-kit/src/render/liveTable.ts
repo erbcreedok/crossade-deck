@@ -19,12 +19,11 @@ import { draggable } from "../core/atoms/draggable.js";
 import { facing, setFacing } from "../core/atoms/flippable.js";
 import { mark } from "../core/atoms/marked.js";
 import { Private } from "../core/atoms/private.js";
-import { screened } from "../core/atoms/screened.js";
 import { Transformable, type TransformableFields } from "../core/atoms/transformable.js";
 import { type Walls } from "../core/ballistic.js";
 import { DEFAULT_TUNING, installStockEasings } from "../core/motion.js";
 import { byId, caps, compose, fieldsOf, type Node } from "../core/node.js";
-import { carryOrientOf, holderTurn } from "../core/atoms/carry.js";
+import { carryOrientOf, holderTurn, ridesFelt } from "../core/atoms/carry.js";
 import { type Vec } from "../core/transform.js";
 import { type ViewerSettings } from "../core/viewer.js";
 import { attachMotion, type CarryItem, type Motions } from "./animator/index.js";
@@ -104,19 +103,24 @@ const HANDLE_IS_THE_GRAB = {
 } as const;
 
 /**
- * A CONTROL, TOLD FROM A PIECE — and told by the one thing that is already true of every control on
- * a desk: it is held at its size on the GLASS (`Screened`) and so was never lying on the felt.
+ * A CONTROL, TOLD FROM A PIECE — and told by the one thing that is true of every control on a desk:
+ * it travels ALONG the felt and is never lifted off it (`ridesFelt`).
  *
  * A handle is one, an avatar is one, and a seat's own ring is one. What follows is the same sentence
  * twice: there is nothing for a fall to be a fall FROM, so it is not thrown (`onRelease` reads the
- * same atom), and there is no place for it to come down at, so no picture of one is drawn under it.
- * The pop and the bank are already off it one file over — the carry reads this very atom to make a
- * held control `still` (`drag.ts`). It goes where the finger put it and stays there.
+ * same question), and there is no place for it to come down at, so no picture of one is drawn under
+ * it. The pop and the bank are already off it one file over — the carry asks the same question to
+ * make a held control `still` (`drag.ts`). It goes where the finger put it and stays there.
+ *
+ * ASKED OF THE CARRY AND NOT OF THE SIZE. It used to be `Screened` alone — "held at its size on the
+ * glass" — and a ring that grew to hold cards had to give that atom up, so every seat's own ring
+ * came back to being a piece: lifted, thrown, and with the picture of a landing drawn under it. Size
+ * on the glass is one way of being a control and not the definition of one.
  *
  * Read off the atom and never off a name — a desk names its own furniture and the kit parses none of
  * it (`guard.id-is-opaque`).
  */
-const isControl = (n: Node): boolean => screened(n);
+const isControl = (n: Node): boolean => ridesFelt(n);
 
 /**
  * THE BARRIER THAT NEVER LOSES.
@@ -633,6 +637,17 @@ export function liveTable<S extends LiveStage = LiveStage>(
   // How high the hand is actually holding it, once the switch and the consumer have both had their say.
   const held = lift ?? (physics ? DEFAULT_TUNING.lift : 1);
   const landingPic = landingPicture(built, { shown: landingShown, onChange: () => mirror?.changed() });
+  /**
+   * THE TURN THIS RUN WILL COME DOWN AT — the drop's own number, asked here so the picture of the
+   * landing and the landing cannot disagree.
+   *
+   * A piece that asked to lie the way its holder held it (`Carry: "holder"`) lands at the holder's
+   * turn, which is the view's turn negated (`holderTurn`) — the very number `drag.ts` writes on its
+   * drop and `letFall` writes on a throw. Anything else lands as it lay, and a picture of it is
+   * upright because the landing is.
+   */
+  const heldTurn = (n: Node | undefined): number =>
+    n && carryOrientOf(n) === "holder" ? holderTurn(built.camera?.transform()) : 0;
   /** What is in the air or in a hand — never in a heap, on any screen. */
   const airborne = (): ((id: string) => boolean) => {
     const inTheHand = inHand ? heaps.get(inHand) : undefined;
@@ -819,7 +834,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
               // than a hand carrying thirty-six: the card is lifted, so it is drawn bigger and
               // higher than it will lie.
               landingPic.end();
-              const alone = landingPic.mark([hit], [{ x: 0, y: 0 }], seatIn(hit));
+              const alone = landingPic.mark([hit], [{ x: 0, y: 0 }], seatIn(hit), heldTurn(hit));
               return alone ? [hit, alone] : [hit];
             }
             // ...AND IT BECOMES THE LANDING MARK for as long as the run is up. The tab takes no
@@ -854,7 +869,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
             // IS the answer rather than a hint at it. It follows the finger for free — a carry is an
             // override, and an override costs the tree nothing while the hand is moving.
             landingPic.end(); // whatever the last gesture left, if anything ever does
-            const drawnMark = landingPic.mark(run, stackSeats(run, grip.w), seatIn(hit));
+            const drawnMark = landingPic.mark(run, stackSeats(run, grip.w), seatIn(hit), heldTurn(run[0] ?? hit));
             const posed = isPlaceGrip(hit) ? rule?.fan?.(run, grip.w, seenWide()) : undefined;
             posed?.forEach((seat, i) => {
               const piece = run[i];
@@ -932,7 +947,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
             if (isControl(hit)) return [...run];
             const lead = run[0];
             const seats = pieces.offsetOf?.(root, hit, run) ?? run.map(() => ({ x: 0, y: 0 }));
-            const drawnMark = lead ? landingPic.mark(run, seats, seatIn(lead)) : undefined;
+            const drawnMark = lead ? landingPic.mark(run, seats, seatIn(lead), heldTurn(lead)) : undefined;
             return drawnMark ? [...run, drawnMark] : [...run];
           },
           stillOf: (_root: Node, _hit: Node, run: readonly Node[]) => run.map((n) => isDrawn(n)),
@@ -1044,7 +1059,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
             // picture is taken off the desk below and can no longer be told from a piece.
             const falling = items.filter((one) => {
               const n = byId(built.host.root, one.id);
-              return n !== undefined && !isMark(n) && !screened(n);
+              return n !== undefined && !isMark(n) && !ridesFelt(n);
             });
             // HOW FAR THE LOAD WAS HANGING, read BEFORE the picture is taken off the desk: the
             // landing is the picture's place, so the number that says where the picture WAS is the

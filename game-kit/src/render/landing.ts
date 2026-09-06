@@ -80,10 +80,21 @@ export const CARRY_CLEAR = 0.32;
  * no lift, so it stays on the felt, and at the seat the run's first card will take — it follows the
  * finger for free, every frame, without a single write to the tree while the hand is moving.
  */
-export function landingMark(at: Vec, box: { readonly w: number; readonly h: number }, nth: number, seat?: string): Node {
+export function landingMark(
+  at: Vec,
+  box: { readonly w: number; readonly h: number; readonly shape?: Shape },
+  nth: number,
+  seat?: string,
+  /**
+   * THE TURN THE LANDING WILL HAVE (`holderTurn`), because the picture is of the LANDING and not of
+   * north. A piece that lies the way its holder held it comes down at the camera's own turn, and a
+   * square drawn upright beside it is a picture of a different drop from the one about to happen.
+   */
+  angle = 0,
+): Node {
   return node(
     `landing mark ${nth}`,
-    Bounded({ bounds: roundedRect(box.w, box.h, Math.min(box.w, box.h) * 0.08) }),
+    Bounded({ bounds: box.shape ?? roundedRect(box.w, box.h, Math.min(box.w, box.h) * 0.08) }),
     // WHOSE PICTURE IT IS. A seat that is known opens the mark to that seat alone; a desk with no
     // seats (a single-screen story) leaves it open, because there is nobody to hide it from.
     ...(seat ? [Private({ access: [seat] })] : []),
@@ -93,7 +104,7 @@ export function landingMark(at: Vec, box: { readonly w: number; readonly h: numb
     // own, the mark is the newest child and lands on TOP of the very cards it is a picture for, and
     // a hand of thirty-six is read through a cage. Below them it is a shape on the felt, which is
     // what it is: the load leans over it and the outline still reads all the way round.
-    Transformable({ at, z: MARK_UNDER }),
+    Transformable({ at, angle, z: MARK_UNDER }),
     Valued({ values: { mark: nth } }),
   );
 }
@@ -145,7 +156,7 @@ export function landingAt(anchor: Vec, seat: Vec, zone: Node | undefined, box?: 
 export function landingBox(
   run: readonly Node[],
   seats: readonly Vec[],
-): { readonly at: Vec; readonly w: number; readonly h: number } {
+): { readonly at: Vec; readonly w: number; readonly h: number; readonly shape?: Shape } {
   const shape = run[0] ? fieldsOf<BoundedFields>(run[0], "Bounded")?.bounds : undefined;
   const own = shape ? extentOf(shape) : { w: 1, h: 1.4 };
   const xs = seats.map((seat) => seat.x);
@@ -154,7 +165,16 @@ export function landingBox(
   const x1 = Math.max(...xs) + own.w / 2;
   const y0 = Math.min(...ys) - own.h / 2;
   const y1 = Math.max(...ys) + own.h / 2;
-  return { at: { x: (x0 + x1) / 2, y: (y0 + y1) / 2 }, w: x1 - x0, h: y1 - y0 };
+  const w = x1 - x0;
+  const h = y1 - y0;
+  // ...AND IN THE SHAPE OF WHAT WILL BE LYING THERE. One piece leaves the outline of that piece: a
+  // round man leaves a circle, a card a card. Drawn as a box either way, the picture said "something
+  // rectangular lands here" about a checker, and the one thing the outline is for is recognising
+  // what it is a picture OF. A run that SWEEPS is a pile, and the silhouette of a pile of anything
+  // is the box its sweep takes — there is no one piece left to take the shape from.
+  const swept = w > own.w + 1e-9 || h > own.h + 1e-9;
+  const outline = !swept && shape ? shape : roundedRect(w, h, Math.min(w, h) * 0.08);
+  return { at: { x: (x0 + x1) / 2, y: (y0 + y1) / 2 }, w, h, shape: outline };
 }
 
 /**
@@ -265,14 +285,17 @@ export function landingPicture(
    * very arithmetic the landing will use: the outline is those seats swept by one piece's box, and
    * its middle is offset from the anchor by whatever that sweep works out to.
    */
-  const mark = (run: readonly Node[], seats: readonly Vec[], anchorAt: Vec): Node | undefined => {
+  const mark = (run: readonly Node[], seats: readonly Vec[], anchorAt: Vec, angle = 0): Node | undefined => {
     if (!opts.shown || run.length === 0) return undefined;
     const box = landingBox(run, seats);
     // FOR THIS PAIR OF EYES. The picture is scenery for the hand that is carrying, and the other
     // player has no use for where somebody else's card might come down — a second outline gliding
     // about their desk is noise at best and, mirrored a frame late, a lie. So the mark is opened to
     // its own seat only, and a screen that knows whose it is draws nothing for anyone else.
-    const markNode = landingMark({ x: anchorAt.x + box.at.x, y: anchorAt.y + box.at.y }, box, marksDrawn++, scene.host.viewer().marks?.me);
+    // AT THE TURN THE DROP WILL WRITE. The mark rides the hand as one more carried thing and it is
+    // `still`, so the carry leaves its own pose alone (`layCarry`) — the angle written here is the
+    // angle drawn for the whole of the gesture, and it is the very number `letFall` lands at.
+    const markNode = landingMark({ x: anchorAt.x + box.at.x, y: anchorAt.y + box.at.y }, box, marksDrawn++, scene.host.viewer().marks?.me, angle);
     add(scene.host.root, markNode);
     // ...AND THE LOAD IS PUSHED CLEAR OF IT. The finger holds the handle and the picture of where
     // this is going; the load hangs above them both, because a load drawn ON the finger covers the

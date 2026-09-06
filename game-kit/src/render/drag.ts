@@ -22,7 +22,7 @@ import { wearKeen, wearInvite } from "../core/atoms/inviting.js";
 import { wearInvites } from "../core/invite.js";
 import { mark } from "../core/atoms/marked.js";
 import { applyMove, planMove } from "../core/move.js";
-import { carryOrientOf, holderTurn } from "../core/atoms/carry.js";
+import { carryOrientOf, holderTurn, ridesFelt } from "../core/atoms/carry.js";
 import { landingRecord, type OccupiedOutcome } from "../core/atoms/occupied.js";
 import { type Transform, type Vec } from "../core/transform.js";
 import { glassOf, pick, toUnits } from "./pointer.js";
@@ -441,7 +441,7 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
       // never lying on the felt (`Screened`). Read off the capability rather than asked of the
       // scene, so a desk that grew one gets it right without knowing it had to say so — an avatar
       // dragged with the pieces' physics on it grew in the hand and leaned away from the finger.
-      const still = own?.[i] || screened(c) ? { still: true } : {};
+      const still = own?.[i] || ridesFelt(c) ? { still: true } : {};
       const seat = arranged?.[i];
       if (seat) return { id: c.id, offset: seat, ...still };
       const t = poses.get(c.id) ?? at;
@@ -645,9 +645,9 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     if (actor && items[0]) {
       const lead = byId(root, items[0].id);
       // A CONTROL IS NOT MARKED — a ring, a handle, an avatar is not a piece that was moved, and a
-      // mark on one comes up as the owner's glow on every other screen (`markQuads.ts`). The atom
-      // that says "held at its size on the glass" is the whole of the question; see `fall.ts`.
-      if (lead && !screened(lead)) {
+      // mark on one comes up as the owner's glow on every other screen (`markQuads.ts`). What says
+      // it is a control is that it never leaves the felt (`ridesFelt`); see `fall.ts`.
+      if (lead && !ridesFelt(lead)) {
         const leftBoard = dragInfo?.fromParent && dragInfo.fromParent !== root;
         mark(lead, { by: actor, mark: leftBoard ? "removed" : "moved", ...(dragInfo?.fromPos ? { from: dragInfo.fromPos } : {}) });
       }

@@ -8,9 +8,9 @@ import { extentOf, type BoundedFields } from "../core/atoms/bounded.js";
 import { Transformable, type TransformableFields } from "../core/atoms/transformable.js";
 import { Coated, NO_COAT } from "../core/atoms/coated.js";
 import { mark } from "../core/atoms/marked.js";
-import { screened } from "../core/atoms/screened.js";
+import { ridesFelt } from "../core/atoms/carry.js";
 import { type ValuedFields } from "../core/atoms/valued.js";
-import { apply, compose as composeTransforms, type Vec } from "../core/transform.js";
+import { apply, compose as composeTransforms, rotate, type Vec } from "../core/transform.js";
 import { polar, velocityOf, type BoxWalls, type Walls } from "../core/ballistic.js";
 import { RISE, type CarryItem, type Motions } from "./animator/index.js";
 import { type Host } from "./host.js";
@@ -762,6 +762,24 @@ export function letFall(
   // had hold of goes to the holder's turn, and the rest are moved by the same amount, so a fan let
   // go of turned is the same fan. Read afterwards it would be the turn already written.
   const base0 = orientDeg === undefined ? 0 : angleIn(byId(root, items[0]?.id ?? ""));
+  // THE CLEARANCE AS THE HAND WAS APPLYING IT. The load hangs clear of the picture of its landing by
+  // `hover`, and a run that lies the way its holder held it hangs clear of it ON THE HOLDER'S GLASS:
+  // the carry turns the offset with the run (`rigidCarry`), so the gap on the felt is `hover` turned
+  // by the very same angle. Taken off unturned, the piece came down a whole clearance to one side of
+  // the outline that promised where it was going — and the more the camera was turned, the further.
+  const held = orientDeg === undefined ? hover : apply(rotate(orientDeg - base0), hover);
+  /**
+   * WHERE A BODY THAT HAS STOPPED ACTUALLY BELONGS — its resting point with that clearance taken off.
+   *
+   * A flight starts WHERE THE PIECE IS DRAWN: the runtime seats the body on the glass at takeoff so
+   * that nothing jumps out of the hand. What is drawn is the load HANGING clear of the picture of
+   * its landing, so the body carries the clearance the whole way and reports it at the end — and
+   * written back unaltered it overrules the seat this release just wrote, and the piece comes to
+   * rest a clearance away from the outline that promised where it was going. Taken off here too, the
+   * two readings are one number and the settle glides the piece onto its own picture.
+   */
+  const rested = (n: Node | undefined, stop: { readonly at: Vec; readonly angle: number }) =>
+    !n || isDrawn(n) ? stop : { ...stop, at: { x: stop.at.x - held.x, y: stop.at.y - held.y } };
   for (const it of items) {
     const n = byId(root, it.id);
     const pose = drawn.get(it.id);
@@ -774,7 +792,7 @@ export function letFall(
     const own = fieldsOf<TransformableFields>(n, "Transformable");
     compose(n, Transformable({
       ...(own ?? {}),
-      at: isDrawn(n) ? at : { x: at.x - hover.x, y: at.y - hover.y },
+      at: isDrawn(n) ? at : { x: at.x - held.x, y: at.y - held.y },
       // NOT READ BACK OFF THE DRAWN POSE. A carried pose is the piece's resting pose with the style
       // composed onto it, so a face-down card's mirror is in the matrix and `atan2` reads it as a
       // half circle — the same trap `landed` names below. The turn is DATA, and it is handed in.
@@ -834,9 +852,9 @@ export function letFall(
     // A CONTROL IS NOT MARKED. A mark is a note about a PIECE — who moved it and from where — and
     // the far screen paints the owner's ink around whatever carries one. A seat's own ring, a
     // handle, an avatar: none of them is a thing lying on the felt, so a hand that shifted one made
-    // no move to report. Read off the atom that already says "held at its size on the glass"
-    // (`Screened`), never off a name — a desk names its own furniture and the kit parses none of it.
-    if (lead && !screened(lead)) {
+    // no move to report. Read off what says it never leaves the felt (`ridesFelt`), never off a
+    // name — a desk names its own furniture and the kit parses none of it.
+    if (lead && !ridesFelt(lead)) {
       const from = fromPositions.get(items[0].id);
       mark(lead, { by: s.actor, mark: "moved", ...(from ? { from } : {}) });
       marked = true;
@@ -867,7 +885,7 @@ export function letFall(
     if (s.actor && flight.speed > 0 && !marked) {
       const piece = byId(s.host.root, id);
       // NOT A CONTROL, on this path either — see the calm release above.
-      if (piece && !screened(piece)) {
+      if (piece && !ridesFelt(piece)) {
         const from = fromPositions.get(id);
         mark(piece, { by: s.actor, mark: "thrown", ...(from ? { from } : {}) });
         marked = true;
@@ -905,7 +923,7 @@ export function letFall(
     m.slide(id, {
       ...body,
       onDone: (at) => {
-        landed(s, id, at);
+        landed(s, id, rested(byId(s.host.root, id), at));
         if (--left <= 0) after?.();
       },
     });

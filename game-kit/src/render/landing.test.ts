@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { add, byId, node, Bounded, Container, pileLayout, rect, registerLayout, Transformable, fieldsOf, extentOf, type Node, type BoundedFields } from "../../src/index.js";
+import { add, byId, circle, node, outlineOf, Bounded, Container, pileLayout, rect, registerLayout, Transformable, fieldsOf, extentOf, type Node, type BoundedFields, type TransformableFields } from "../../src/index.js";
 import { landingBox, landingAt, landingMark, landingPicture, throwGate } from "./landing.js";
 import { type Host } from "./host.js";
 
@@ -129,5 +129,37 @@ describe("landing mark shape", () => {
     const ext = extentOf(shape!);
     expect(ext.w).toBeCloseTo(1, 6);
     expect(ext.h).toBeCloseTo(1.4, 6);
+  });
+
+  it("landing.the-mark-takes-the-shape-of-what-lands — a round man leaves a round outline, a pile a box", () => {
+    // A CHECKER IS NOT A CARD. The picture is of what will BE lying there, and a rectangle drawn
+    // under a disc is a picture of some other game's piece: the one job an outline has is being
+    // recognised as the thing it stands for.
+    const man = node("m", Bounded({ bounds: circle(0.5) }));
+    const round = landingBox([man], [{ x: 0, y: 0 }]);
+    const drawn = fieldsOf<BoundedFields>(landingMark(round.at, round, 0), "Bounded")?.bounds;
+    // A CIRCLE HAS NO CORNERS, and that is what tells the two paths apart without reading a tag off
+    // either: the farthest point of a circle is its own radius, while a box reaches past that into
+    // its diagonal. Measured against the outline's own extent, so the size of the piece is not in it.
+    const corners = (shape: typeof drawn): number => {
+      const points = outlineOf(shape!);
+      const ext = extentOf(shape!);
+      return Math.max(...points.map((p) => Math.hypot(p.x, p.y))) / (Math.max(ext.w, ext.h) / 2);
+    };
+    expect(corners(drawn), "the outline of a round man is round").toBeLessThan(1.02);
+
+    // ...AND A RUN THAT SWEEPS IS A PILE. There is no one piece left to take the shape from, so the
+    // silhouette is the box the sweep takes — the answer this always gave.
+    const pile = landingBox([man, man, man], [{ x: 0, y: 0 }, { x: 0, y: 0.2 }, { x: 0, y: 0.4 }]);
+    expect(corners(fieldsOf<BoundedFields>(landingMark(pile.at, pile, 1), "Bounded")?.bounds), "a pile is a box, not a circle").toBeGreaterThan(1.1);
+  });
+
+  it("landing.the-mark-wears-the-turn-the-drop-will-write — the picture is of the landing, not of north", () => {
+    // A card let go of under a turned camera lands at the holder's own turn (`holderTurn`), and the
+    // picture of that landing has to be drawn at the same angle or it is a picture of a drop that is
+    // not about to happen.
+    const mark = landingMark({ x: 0, y: 0 }, { w: 1, h: 1.4 }, 0, undefined, 270);
+    expect(fieldsOf<TransformableFields>(mark, "Transformable")?.angle).toBe(270);
+    expect(fieldsOf<TransformableFields>(landingMark({ x: 0, y: 0 }, { w: 1, h: 1.4 }, 1), "Transformable")?.angle ?? 0).toBe(0);
   });
 });

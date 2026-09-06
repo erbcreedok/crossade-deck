@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 import {
   add,
+  apply,
   attachMotion,
   byId,
   Bounded,
@@ -174,6 +175,27 @@ function deskFacingHolder(): { root: Node } {
     Carry({ orient: "holder" }),
   );
   add(root, card);
+  return { root };
+}
+
+/**
+ * A DESK WITH A RING THAT IS FELT-SIZED — the seat's own chair as it really is (`seatPlace.ts`).
+ *
+ * It holds cards, so it cannot be `Screened`: a hand that kept its pixels through a zoom would
+ * swallow the table seen whole. What makes it a control is that it never leaves the sukno
+ * (`Carry: { ride: "felt" }`), and that is the question the wiring has to be asking.
+ */
+function deskWithFeltRing(): { root: Node } {
+  const { root } = desk();
+  const ring = node(
+    "ring",
+    Bounded({ bounds: rect(0.9, 0.9) }),
+    Surfaced(),
+    Transformable({ at: { x: 2, y: 0 } }),
+    Carry({ ride: "felt" }),
+    Draggable({ onReject: "stay" }),
+  );
+  add(root, ring);
   return { root };
 }
 
@@ -719,6 +741,79 @@ describe("the live desk", () => {
     shell.el.dispatchEvent(finger("pointerup", 500, 200, 96));
     c.tick(200);
     expect(turnOf(shell.host.root, "card"), "the angle the game gave it is its own").toBeCloseTo(30, 5);
+    live.stop();
+  });
+
+  it("liveTable.the-picture-of-a-landing-is-the-landing — same point, same turn, under a turned camera", () => {
+    // THE CONTOUR IS A PROMISE. A card lands at the holder's own turn (`holderTurn`), and the
+    // outline drawn under the hand used to be a rectangle facing north standing somewhere else: two
+    // answers to one question, and the one the player was shown was the wrong one.
+    const { root } = deskFacingHolder();
+    const c = fakeClock();
+    const shell = stage(root, c.clock);
+    shell.camera!.setScreen(600, 400);
+    shell.camera!.setContent({ x: -4, y: -4, w: 8, h: 8 }, shell.host.unit());
+    shell.camera!.turnTo(90);
+    const live = liveTable(shell.el.ownerDocument.body, root, { stage: shell, letGo: "drop", stacking: true });
+
+    // SLOWLY, so the hand is never judged to be throwing — a throw takes the picture off the desk.
+    shell.el.dispatchEvent(finger("pointerdown", 300, 200, 0));
+    for (let i = 1; i <= 4; i += 1) {
+      shell.el.dispatchEvent(finger("pointermove", 300 + i * 8, 200, i * 200));
+      c.tick(1);
+    }
+    c.tick(40); // let the springs arrive, so the drawn picture is where it is aiming
+    const mark = shell.host.root.children.find((n) => fieldsOf<ValuedFields>(n, "Valued")?.values?.["mark"] !== undefined);
+    expect(mark, "a picture of the landing is drawn under a lifted card").toBeDefined();
+    const shown = shell.motions!.poses()!.get(mark!.id)!;
+    const at = apply(shown, { x: 0, y: 0 });
+    const turn = fieldsOf<TransformableFields>(mark!, "Transformable")?.angle ?? 0;
+
+    shell.el.dispatchEvent(finger("pointerup", 332, 200, 1000));
+    c.tick(60);
+    expect(turnOf(shell.host.root, "card"), "the card came down at the holder's turn").toBeCloseTo(270, 5);
+    expect(((turn % 360) + 360) % 360, "…and the picture was drawn at that very turn").toBeCloseTo(270, 5);
+    // MEASURED AS A GAP AND NOT TO THE LAST DECIMAL: a hand still carries a little of its own bank
+    // at the moment it lets go, and that lean rides the drawn pose the landing is read off. What is
+    // being guarded is a whole CLEARANCE (`CARRY_CLEAR` of a card's height, and under a turned
+    // camera the same distance sideways) — the card used to come down two thirds of its own height
+    // from the outline that promised where it was going.
+    const seat = seatOf(shell.host.root, "card");
+    expect(Math.hypot(seat.x - at.x, seat.y - at.y), "…at the point the picture stood on").toBeLessThan(0.15);
+    live.stop();
+  });
+
+  it("liveTable.a-felt-sized-ring-is-still-a-control — no picture of a landing under a dragged seat", () => {
+    // THE RING GAVE UP `Screened` the day it grew to hold cards, and with it the only thing the
+    // wiring had to tell a control from a piece: a contour appeared round a dragged seat and a
+    // flicked one flew off across the desk. What it is is asked of the carry now (`ridesFelt`).
+    const { root } = deskWithFeltRing();
+    const c = fakeClock();
+    const shell = stage(root, c.clock, false);
+    const live = liveTable(shell.el.ownerDocument.body, root, { stage: shell, letGo: "throw", stacking: true });
+
+    const from = 300 + 2 * shell.host.unit();
+    shell.el.dispatchEvent(finger("pointerdown", from, 200, 0));
+    for (let i = 1; i <= 4; i += 1) {
+      shell.el.dispatchEvent(finger("pointermove", from + i * 4, 200, i * 200));
+      c.tick(1);
+    }
+    const marks = shell.host.root.children.filter((n) => fieldsOf<ValuedFields>(n, "Valued")?.values?.["mark"] !== undefined);
+    expect(marks.length, "no picture of a landing is drawn under a ring").toBe(0);
+    shell.el.dispatchEvent(finger("pointerup", from + 16, 200, 1000));
+
+    // ...AND IT IS NOT THROWN EITHER — the same two sentences a screened control has always had.
+    const back = from + 16;
+    shell.el.dispatchEvent(finger("pointerdown", back, 200, 2000));
+    for (let i = 1; i <= 5; i += 1) {
+      shell.el.dispatchEvent(finger("pointermove", back + i * 40, 200, 2000 + i * 16));
+      c.tick(1);
+    }
+    shell.el.dispatchEvent(finger("pointerup", back + 200, 200, 2096));
+    const atRelease = seatOf(shell.host.root, "ring").x;
+    c.tick(120);
+    expect(seatOf(shell.host.root, "ring").x, "a flicked ring stays where the finger let it go").toBeCloseTo(atRelease, 5);
+    expect(fieldsOf<MarkedFields>(byId(shell.host.root, "ring")!, "Marked"), "…and earns no mark of a touch").toBeUndefined();
     live.stop();
   });
 
