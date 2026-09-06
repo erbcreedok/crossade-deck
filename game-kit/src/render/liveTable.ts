@@ -1122,6 +1122,11 @@ export function liveTable<S extends LiveStage = LiveStage>(
     ...(tracker ? { idle: tracker } : {}),
     setRoot(next: Node, from: "me" | "net") {
       if (from === "net") {
+        // THE LANDING PICTURE FOLLOWS THE TREE THAT JUST ARRIVED, before anything else reads it —
+        // `next` is a parse off the wire, so the node this screen's own gesture is tracking is not
+        // the one now standing; left alone, `hide`/`end` finish the gesture against a tree nobody
+        // is drawn from and the mark this screen wrote never leaves the one that is.
+        landingPic.retree(next);
         // THE TABS IN A TREE THAT ARRIVED ARE WHICHEVER SCREEN MADE THE CHANGE'S OWN, already
         // sitting in it — `regrasp` only relabels which pieces each already holds, so a tab this
         // screen's finger is on is never pulled out from under it mid-gesture.

@@ -360,11 +360,36 @@ export function landingPicture(
 
   const end = () => show(undefined, undefined, {} as CarryFeel, []);
 
+  /**
+   * A NETWORKED TREE REPLACES THE WHOLE ROOT, and the picture's own node must follow it there or
+   * `hide`/`end` spend the rest of the gesture aimed at a tree nobody is looking at any more.
+   *
+   * `next` is a PARSE OFF THE WIRE: it answers to the same ids this screen wrote, but none of its
+   * nodes is `===` the one `mark` built — `remove` compares by identity (`indexOf`), so a `hide`
+   * that still held the old object would find nothing in `next` to take out, report success, and
+   * leave the very node on the glass untouched. Read back by id, the reference here start pointing
+   * at the tree that is actually drawn again; missing from what arrived, the picture is already
+   * gone server-side and this only says so on this screen too.
+   */
+  const retree = (next: Node): void => {
+    if (!landing) return;
+    const found = byId(next, landing.node.id);
+    if (!found) {
+      landing = undefined;
+      parked = undefined;
+      hidden = false;
+      return;
+    }
+    landing = { ...landing, node: found };
+    parked = parked ? byId(next, parked.id) : parked;
+  };
+
   return {
     mark,
     hide,
     show,
     end,
+    retree,
     get current() {
       return landing;
     },

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { add, node, Bounded, Container, pileLayout, rect, registerLayout, Transformable, fieldsOf, extentOf, type Node, type BoundedFields } from "../../src/index.js";
-import { landingBox, landingAt, landingMark, throwGate } from "./landing.js";
+import { add, byId, node, Bounded, Container, pileLayout, rect, registerLayout, Transformable, fieldsOf, extentOf, type Node, type BoundedFields } from "../../src/index.js";
+import { landingBox, landingAt, landingMark, landingPicture, throwGate } from "./landing.js";
+import { type Host } from "./host.js";
 
 const piece = (w: number, h: number): Node => node("p", Bounded({ bounds: rect(w, h) }));
 
@@ -62,6 +63,58 @@ describe("landing", () => {
     // below half -> false
     speed = 4;
     expect(gate({ x: 4, y: 0 })).toBe(false);
+  });
+});
+
+describe("landing picture across a networked tree", () => {
+  it("landing.a-net-tree-carries-the-picture-with-it — hide reaches the node that just arrived, not the one that lifted", () => {
+    const piece = node("card", Bounded({ bounds: rect(1, 1.4) }));
+    let root = node("root");
+    const host = {
+      get root() {
+        return root;
+      },
+      setRoot: (n: Node) => {
+        root = n;
+      },
+      viewer: () => ({}) as ReturnType<Host["viewer"]>,
+    } as unknown as Host;
+    const pic = landingPicture({ host }, { shown: true });
+
+    pic.mark([piece], [{ x: 0, y: 0 }], { x: 0, y: 0 });
+    const markId = pic.current!.node.id;
+    expect(byId(host.root, markId), "the mark stands on the tree it was drawn into").toBeDefined();
+
+    // A NETWORKED TREE ARRIVES MID-GESTURE — same id, a node this screen never built (a parse off
+    // the wire, standing for what `liveTable.setRoot(next, "net")` hands `retree`).
+    const arrived = node("root");
+    add(arrived, node(markId));
+    pic.retree(arrived);
+    host.setRoot(arrived);
+
+    pic.hide();
+    expect(byId(host.root, markId), "hide took out the node actually on the glass, not a stale one").toBeUndefined();
+  });
+
+  it("landing.a-net-tree-without-the-mark-forgets-it — not the picture that was", () => {
+    const piece = node("card", Bounded({ bounds: rect(1, 1.4) }));
+    let root = node("root");
+    const host = {
+      get root() {
+        return root;
+      },
+      setRoot: (n: Node) => {
+        root = n;
+      },
+      viewer: () => ({}) as ReturnType<Host["viewer"]>,
+    } as unknown as Host;
+    const pic = landingPicture({ host }, { shown: true });
+
+    pic.mark([piece], [{ x: 0, y: 0 }], { x: 0, y: 0 });
+    expect(pic.current).toBeDefined();
+
+    pic.retree(node("root"));
+    expect(pic.current, "gone from the tree that arrived, gone from this screen too").toBeUndefined();
   });
 });
 
