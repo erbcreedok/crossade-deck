@@ -1,0 +1,50 @@
+game-kit/docs/test-plan/78-live-table.md
+  s_ae3d443694655a::t_8807a031c386fc 16-17
+  s_ae3d443694655a::t_6c53cf41eee321 3
+game-kit/docs/test-plan/72-landing.md
+  s_ae3d443694655a::t_6c53cf41eee321 3
+  s_ae3d443694655a::t_8807a031c386fc 14-15
+game-kit/docs/test-plan/README.md
+  s_ae3d443694655a::t_8807a031c386fc 100,105
+  s_ae3d443694655a::t_6c53cf41eee321 10
+game-kit/src/core/atoms/carry.ts
+  s_ae3d443694655a::t_a3f7dc49d0ed67 23,27-39,44,46,53-61
+  s_ae3d443694655a::t_756dd95f0867ca 62-63
+game-kit/src/render/landing.ts
+  s_ae3d443694655a::t_ad2f435f10ad27 83-94,97,107,159,168-177,288,295-298
+game-kit/src/render/liveTable.ts
+  s_ae3d443694655a::t_7c440b0d7fb179 640-650
+  s_ae3d443694655a::t_322b3a721fd1b7 26,106-107,111-118,123,837,872,950,1062
+game-kit/src/render/drag.ts
+  s_ae3d443694655a::t_3e93903cc8acb0 25,444,648-650
+game-kit/src/render/fall.ts
+  s_ae3d443694655a::t_467e325aacf733 13,765-770,795
+  s_ae3d443694655a::t_ccaf36cf26b9d4 11,855-857,888
+  s_ae3d443694655a::t_15a66e40d11a39 771-782,926
+game-kit/src/render/landing.test.ts
+  s_ae3d443694655a::t_4679810e485656 141-149,154
+  s_ae3d443694655a::t_51da719865bda3 2
+  s_ae3d443694655a::t_0a31fe60b0ee9b 133-140,150-153,155-164
+game-kit/src/render/liveTable.test.ts
+  s_ae3d443694655a::t_df228fe914a0a7 756
+  s_ae3d443694655a::t_59ced5ea0f39c6 776-782
+  s_ae3d443694655a::t_b3880321940ce8 13,181-201,747-755,757-772,774-775,783-818
+  s_ae3d443694655a::t_14babf3fd6ec8e 773
+  s_ae3d443694655a::t_c6b01b2ea4745e 819
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b3598728db5cc82ffe13c366d775da4c4eaf8ca3",
+  "prompts": {},
+  "sessions": {
+    "s_ae3d443694655a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1da1af8-53ea-4433-8e8b-56c40d2b11bc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
