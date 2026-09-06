@@ -1,27 +1,19 @@
-// THE PEOPLE AT A LIVE DESK — the wiring every live page needs and none should write twice.
+// THE PEOPLE AT A LIVE DESK — the catalog's own thin wrapper over the kit's shared `withAvatars`.
 //
-// `Live/Avatars` built it once to teach where a person stands, and `Live/Hands` built it again to
-// hang a patch of felt off each disc. Then every live desk on the shelf wanted the same thing —
-// cards, chess, nardy — and a third and a fourth copy of it would be four answers to "where does
-// this person stand", which on a shared desk is the one question two screens may not disagree about.
-//
-// So it lives here, beside `liveScreens.ts` and for its reason: a cursor is what a hand is DOING and
-// an avatar is the person doing it, both belong to every live page, and a bug in either is one bug.
-//
-// WHAT A PAGE STILL DECIDES is only what it is a page about: which seats, where their places are on
-// ITS felt, and whether this desk has hands at all. A board has none — a chess piece is on a square
-// and nowhere else — and a card table has one per person.
+// The kit's engine (`../../src/render/avatars.ts`) answers the four questions every live desk with
+// people on it grows — who is here, where do they stand, what does their hand look like, and who
+// just touched the glass — off a `Presence[]` it is handed by a transport. What is left here is
+// what only the catalog knows: both screens live in one document, so their cameras are read live
+// and synchronously (`mine()`), nothing ever arrives from outside (`hear`/`say` are no-ops), and the
+// page's own prose (`docs.<page>.name.<seat>`) fills in the `name` the kit's `Presence` carries.
 
 import {
-  byId,
-  isHome,
-  placeAvatars,
-  registerTextStyle,
   watchPresence,
-  PRESENCE_TEXT,
+  withAvatars as withKitAvatars,
+  type AvatarSeat,
+  type AvatarsTransport,
   type CarryItem,
   type Node,
-  type Paint,
   type Presence,
   type PresenceState,
   type PresenceView,
@@ -29,18 +21,8 @@ import {
   type Vec,
 } from "../../src/index.js";
 import { type Screen } from "./liveScreens.js";
-import { chairId, dressChair, growHand, standChair } from "@game-presets/desks";
 import { currentSettings, onSettingsChange } from "../devtools/catalogSettings.js";
 import { loadPage, type PageText } from "../locales/pages.js";
-
-/** The name under a disc: small, quiet and the desk's own face. */
-const NAME_STYLE = { family: "ui-sans-serif, system-ui, sans-serif", size: 0.14, weight: 600, lineHeight: 1.2, fill: "text" };
-
-/** One place at a live desk: who sits there and in what colour they are drawn. */
-export interface AvatarSeat {
-  readonly seat: string;
-  readonly ink: Paint;
-}
 
 export interface AvatarsOptions {
   /** The one tree the screens share — the people are placed INTO it, like everything else on it. */
@@ -50,36 +32,13 @@ export interface AvatarsOptions {
   readonly screens: readonly Screen[];
   /** The prose bundle whose `docs.<page>.name.<seat>` the discs wear. */
   readonly page: string;
-  /**
-   * THE SEAT'S OWN PLACE at this desk — the shelf's `seatPlaces(n)`, by index, and the ANCHOR of
-   * everything below: the ring stands there, the cards dealt to that player lie in it, and
-   * `liveTable`'s idle glide returns a wandered view to it. Only the OPENING place: its owner may drag their chair
-   * somewhere else, after which `placeOf` is the answer and this list is only where they started.
-   * Absent, no `Presence` here carries a `place` and nothing about idle return changes: this is the
-   * same desk without a seat, not a broken one.
-   */
+  /** See the kit's `AvatarsOptions.places` — the seat's own opening place at this desk. */
   readonly places?: readonly SeatPlace[];
-  /**
-   * THE RIM A HAND IS MEASURED AGAINST, when this desk has hands. Absent, it has none — which is
-   * every board on the shelf: a piece on a board is on a square, and a patch of felt beside a
-   * player would be a place the game has no word for.
-   */
+  /** See the kit's `AvatarsOptions.hands` — the rim a hand is measured against, when this desk has one. */
   readonly hands?: number;
-  /**
-   * WHOSE HAND IS SHUT WHEN THE PAGE OPENS, by seat index — a page with a knob for it hands it in.
-   *
-   * The opening state and, for now, the only one: a tap on one's own ring is "take me home"
-   * (`goHome`), so nothing at the desk turns the lock while the page is running. Absent, every hand
-   * opens open, which is every page that has no knob.
-   */
+  /** See the kit's `AvatarsOptions.locked` — whose hand is shut when the page opens, by seat index. */
   readonly locked?: readonly boolean[];
-  /**
-   * TAKE THIS SEAT'S OWN VIEW HOME — the camera's glide, asked of whoever holds the camera.
-   *
-   * A tap on one's own ring means "put me back at my place", and the place is already known here
-   * while the camera is not: a page owns its screens, this owns the people. Absent, a tap on a ring
-   * does nothing, which is every page whose panes have no camera to move.
-   */
+  /** See the kit's `AvatarsOptions.goHome` — take this seat's own view home. */
   readonly goHome?: (seat: string) => void;
   /** The story's own element — the listeners below are dropped when it leaves the document. */
   readonly wall: HTMLElement;
@@ -100,31 +59,32 @@ export interface Avatars {
   readonly placeOf: (seat: string) => SeatPlace | undefined;
 }
 
+/** What one screen's camera is worth as a message — see `PresenceView` on why the scale is total. */
+const viewOf = (one: Screen): PresenceView | undefined => {
+  const camera = one.scene?.camera;
+  if (!camera) return undefined;
+  return { target: camera.target, zoom: camera.pixelsPerUnit, rotation: camera.rotation, glass: camera.glass };
+};
+
 /**
  * THE PEOPLE, WIRED INTO A LIVE PAGE — one call, and the page hands its own pieces back in.
  *
- * Everything below is the two pages' own wiring with the page-specific parts lifted out. It is
- * deliberately not a scene: a page builds its panes and its `grabScene` exactly as it did before,
- * and this only answers the four questions a desk with people on it grows — who is here, where do
- * they stand, what does their hand look like, and who just touched the glass.
+ * Everything below is the page-specific parts the kit's own `withAvatars` does not know: fetching
+ * a page's prose for two names, and reading Pixi cameras straight off the page's own screens. The
+ * four questions themselves — who is here, where do they stand, what is in their hand, who tapped
+ * the glass — are answered by the kit.
  */
 export function withAvatars(o: AvatarsOptions): Avatars {
-  registerTextStyle(PRESENCE_TEXT, NAME_STYLE);
   /**
-   * WHERE EACH SEAT'S PLACE STANDS RIGHT NOW — the opening one, until its owner drags their chair.
-   *
-   * The one truth on this page about who sits where: the ring is put here, the idle glide returns
-   * here, and the far screen reads it off `Presence.place`.
-   * Kept beside the tree rather than read out of it, because a tree is rebuilt and a place is not.
+   * A FINGER CAME DOWN IN THIS PANE — the stand-in for "mine" where one tree serves two screens.
+   * Not part of the kit's own contract: the kit reads every screen's camera through `mine()`
+   * regardless of which pane a finger is in, and this is here only because the earlier catalog
+   * `Avatars` carried a `claim` the stories still call.
    */
-  const placed = new Map<string, SeatPlace>(
-    o.seats.flatMap(({ seat }, i) => (o.places?.[i] ? [[seat, o.places[i]!] as [string, SeatPlace]] : [])),
-  );
-  const states = new Map<string, PresenceState>(o.seats.map(({ seat }) => [seat, "online"]));
-  const holding = new Set<string>();
-  /** Whose hand is shut. Turned by its owner's tap, and only on a desk that has hands at all. */
-  const shut = new Map<string, boolean>(o.seats.map(({ seat }, i) => [seat, o.locked?.[i] === true]));
   let mine: string = o.seats[0]!.seat;
+
+  /** Whose tab this is, for every seat alike — both screens live in the one document. */
+  const states = new Map<string, PresenceState>(o.seats.map(({ seat }) => [seat, "online"]));
 
   /**
    * THE PAGE'S OWN WORDS, FETCHED BY THE PAGE. The catalog hands a story the CHROME's bundle; a
@@ -141,169 +101,82 @@ export function withAvatars(o: AvatarsOptions): Avatars {
     void loadPage(o.page, locale).then((text) => {
       if (currentSettings().text.locale !== locale) return;
       said = text;
-      publish();
+      kit.publish();
     });
-  };
-
-  /** What a screen's camera is worth as a message — see `PresenceView` on why the scale is total. */
-  const viewOf = (one: Screen): PresenceView | undefined => {
-    const camera = one.scene?.camera;
-    if (!camera) return undefined;
-    return { target: camera.target, zoom: camera.pixelsPerUnit, rotation: camera.rotation, glass: camera.glass };
-  };
-
-  const presences = (): Presence[] =>
-    o.screens.flatMap((one) => {
-      const view = viewOf(one);
-      if (!view) return [];
-      // THE SEAT'S OWN PLACE, by the SEAT and not by the screen's position in the array — a screen
-      // is filled in as a page opens its panes, and the order they arrive in is not the order the
-      // seats were declared in.
-      const place = placed.get(one.seat);
-      return [
-        {
-          seat: one.seat,
-          name: words(`docs.${o.page}.name.${one.seat}`),
-          ink: one.ink,
-          state: states.get(one.seat)!,
-          holding: holding.has(one.seat),
-          view,
-          ...(place ? { place } : {}),
-        },
-      ];
-    });
-
-  /**
-   * EVERY PLACE, RE-DRESSED — what is true of it, and how big what is in it has made it.
-   */
-  const layHands = (): void => {
-    for (const { seat } of o.seats) {
-      const ring = byId(o.desk, chairId(seat));
-      if (!ring) continue;
-      // THE RING IS THE HAND, so there is nothing to put beside anything: it stands where its owner
-      // sits and it is the size of what is in it. Both facts are written in ONE call, because they
-      // are one picture — see `dressChair`.
-      dressChair(ring, { shut: o.hands !== undefined && shut.get(seat) === true, home: home.has(seat) });
-      if (o.hands !== undefined) growHand(ring);
-    }
-  };
-
-  /**
-   * WHO IS LOOKING AT THEIR OWN PLACE — worked out for EVERYBODY off what they said, not just for
-   * this screen. A reader has to be able to see that the other player has come home, and the only
-   * thing that says so is their own view against their own place (`isHome`).
-   */
-  const home = new Set<string>();
-  const readHome = (all: readonly Presence[]): void => {
-    home.clear();
-    for (const p of all) if (p.place && isHome(p.view, p.place)) home.add(p.seat);
-  };
-
-  /** Every chair, stood where its place now is — the owner's drag written back onto both screens. */
-  const layChairs = (): void => {
-    for (const { seat } of o.seats) {
-      const place = placed.get(seat);
-      if (place) standChair(o.desk, seat, place.at);
-    }
   };
 
   const tellScreens = (): void => {
     for (const one of o.screens) one.scene?.setRoot(o.desk);
   };
 
-  /**
-   * ONE PUBLICATION AT A TIME, and only when something is actually different.
-   *
-   * Placing the people writes the tree, writing the tree wakes every screen, and a woken screen
-   * reports that its view was touched — which is another publication. Without the latch that is
-   * a loop with no floor, and it hangs the page before the first frame; without the comparison it
-   * is a whole tree rebuilt per pointer event for a desk where nobody moved.
-   */
-  let placing = false;
-  let last = "";
-  const publish = (): void => {
-    if (placing) return;
-    const all = presences();
-    if (all.length === 0) return;
-    const now = JSON.stringify([all, [...shut]]);
-    if (now === last) return;
-    last = now;
-    placing = true;
-    try {
-      readHome(all);
-      placeAvatars(o.desk, all);
-      layChairs();
-      layHands();
-      tellScreens();
-    } finally {
-      placing = false;
-    }
+  const transport: AvatarsTransport = {
+    mine: (): Presence[] =>
+      o.screens.flatMap((one) => {
+        const view = viewOf(one);
+        if (!view) return [];
+        return [
+          {
+            seat: one.seat,
+            name: words(`docs.${o.page}.name.${one.seat}`),
+            ink: one.ink,
+            state: states.get(one.seat)!,
+            holding: false,
+            view,
+          },
+        ];
+      }),
+    // NOTHING EVER ARRIVES FROM OUTSIDE — a catalog page keeps both panes in one document, so
+    // everything there is to know is already in `mine()`.
+    say: () => {},
+    hear: () => () => {},
   };
 
-  /**
-   * THE DESK CAME TO REST — the one moment a hand can have changed size without anybody moving.
-   *
-   * Published without the latch above, because nothing about the PEOPLE changed and the latch
-   * compares people: a card landing in a hand is a change to the furniture alone.
-   */
-  const settled = (): void => {
-    readHome(presences());
-    layChairs();
-    layHands();
-    tellScreens();
-  };
+  const kit = withKitAvatars({
+    desk: o.desk,
+    seats: o.seats,
+    transport,
+    ...(o.places ? { places: o.places } : {}),
+    ...(o.hands !== undefined ? { hands: o.hands } : {}),
+    ...(o.locked ? { locked: o.locked } : {}),
+    ...(o.goHome ? { goHome: o.goHome } : {}),
+    wall: o.wall,
+  });
+
+  const stopFollowing = onSettingsChange(() => readNames());
+  readNames();
 
   /** A hidden tab is nobody's screen, so everybody sitting in it goes quiet at once. */
   const stopWatching = watchPresence(document, (state) => {
     for (const { seat } of o.seats) states.set(seat, state);
-    publish();
+    kit.publish();
   });
-  const stopFollowing = onSettingsChange(() => readNames());
-  readNames();
 
-  // The story's element is thrown away whole on a re-render; the two listeners above are not, and
-  // an unremoved one goes on placing avatars into a tree nobody is drawing.
+  // The story's element is thrown away whole on a re-render; the two listeners above are not,
+  // and an unremoved one goes on fetching prose or watching visibility for a page nobody draws.
   const observer = new MutationObserver(() => {
     if (o.wall.isConnected) return;
-    stopWatching();
     stopFollowing();
+    stopWatching();
     observer.disconnect();
   });
   observer.observe(document.body, { childList: true, subtree: true });
 
   return {
-    publish,
-    settled,
-    handed: (seat, items, at, done) => {
-      // A HAND WITH SOMETHING IN IT IS A STATE, and one's own chair is not "something".
-      const carryingSeat = items.some((it) => it.id === chairId(seat));
-      // WHERE THE FINGER PUT THE CHAIR IS WHERE THIS PERSON NOW SITS — written straight into the
-      // place, in the desk's own units, which is what a carry speaks and what a place is kept in.
-      // The facing is NOT touched: dragging a chair moves a seat, it does not turn it round.
-      const was = placed.get(seat);
-      if (carryingSeat && at && was) placed.set(seat, { at, facing: was.facing });
-      if (done) holding.delete(seat);
-      else if (!carryingSeat) holding.add(seat);
-      if (carryingSeat || done) publish();
+    publish: () => {
+      kit.publish();
+      tellScreens();
     },
+    settled: () => {
+      kit.settled();
+      tellScreens();
+    },
+    handed: (seat, items, at, done) => kit.handed(seat, items, at, done),
     claim: (seat) => {
       if (mine === seat) return;
       mine = seat;
-      publish();
+      kit.publish();
     },
-    tapped: (seat, piece) => {
-      // A TAP ON ONE'S OWN RING IS "TAKE ME BACK THERE". On the RING, because the ring is the thing
-      // on this desk that means "you": it is the only node a reader may pick up that is theirs, so
-      // it is the only one a tap can be about without asking whose it is. Not on the disc — nothing
-      // a finger does reaches the disc at all.
-      //
-      // The glide is the camera's and so is asked of the camera (`o.goHome`): this wiring holds
-      // numbers and nodes, and a screen is neither. Coming home fills the ring and takes the disc
-      // off the felt, and that is read back off the view like everybody else's (`readHome`).
-      if (piece.id !== chairId(seat)) return false;
-      o.goHome?.(seat);
-      return true;
-    },
-    placeOf: (seat) => placed.get(seat),
+    tapped: (seat, piece) => kit.tapped(seat, piece),
+    placeOf: (seat) => kit.placeOf(seat),
   };
 }

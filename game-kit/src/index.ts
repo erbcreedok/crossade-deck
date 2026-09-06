@@ -734,3 +734,11 @@ export * from "./render/heaps.js";
 export * from "./render/grips.js";
 // THE LIVE DESK — one wiring for every carrying desk, catalog and product alike.
 export * from "./render/liveTable.js";
+// THE PEOPLE AT A LIVE DESK — one engine for the catalog and the hub, fed by a transport each own.
+export {
+  withAvatars,
+  type AvatarSeat,
+  type AvatarsTransport,
+  type AvatarsOptions,
+  type Avatars,
+} from "./render/avatars.js";
