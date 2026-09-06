@@ -1,0 +1,32 @@
+apps/hub/src/table/index.ts
+  s_d8fcf86eb002e4::t_4573549064cf22 360-363,367-375
+  s_d8fcf86eb002e4::t_67069af1722f2d 59,63,84
+  s_d8fcf86eb002e4::t_cd9747a0ebf786 438-445,454
+  s_d8fcf86eb002e4::t_954ecbdeec207c 453,499,542
+  s_d8fcf86eb002e4::t_ba5d0e2b47af4e 399
+  s_d8fcf86eb002e4::t_c04a2250b501f0 648
+  s_d8fcf86eb002e4::t_6ed4b830af8e43 602-603,607-609,612-618,622,627-637,639-643,646-647,649
+  s_d8fcf86eb002e4::t_d13b6a1e316eae 481-484,487-490
+  s_d8fcf86eb002e4::t_0fa56b320bfb7d 676-678
+apps/hub/src/table/people.test.ts
+  s_d8fcf86eb002e4::t_b91e534336ec83 1-7,9-10,20,22,28,31-36,38,40-45,47-49,51,53-54,56-58,60-64,66-68,71,73,75-76,80-81,86,88-90,93,95,97,99-101,104-106,108-111,114,116,118-119
+apps/hub/src/table/people.ts
+  s_d8fcf86eb002e4::t_72e584ca399075 126-128,131
+  s_d8fcf86eb002e4::t_dd3634a61c82f7 1-2,5-9,11,28,41,52-60,67,70,74-75,80,83-110,113,117,124,129-130,132,135,137-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "fa2044ea7deb9b2d0990acd328d617ad411aa8c6",
+  "prompts": {},
+  "sessions": {
+    "s_d8fcf86eb002e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b860e2bd-ce91-40dc-a2f4-396663e880d6",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
