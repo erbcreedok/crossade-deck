@@ -136,8 +136,10 @@ describe("the people at a live desk", () => {
     expect(people.placeOf(seat)?.facing, "let go, it faces the way its owner was looking").toBe(was + 90);
     // ...AND THE TICK ON THE RIM SAYS SO. The facing is only visible as that one bar: a place whose
     // number turned while its mark did not is a desk that says two things about one seat.
+    // Level on its owner's glass, which turns the desk by the facing — so on the desk it stands at
+    // MINUS the facing, the disc's own law (`avatarNode`, `tickPose`).
     const tick = byId(desk, chairTickId(seat))!;
-    expect(fieldsOf<TransformableFields>(tick, "Transformable")?.angle).toBe(was + 90);
+    expect(fieldsOf<TransformableFields>(tick, "Transformable")?.angle).toBe(-(was + 90));
   });
 
   it("live.at-home-the-ring-is-the-person — filled, and no disc drawn over it", () => {

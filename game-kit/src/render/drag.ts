@@ -492,6 +492,15 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     const lead = items.map((it) => byId(root, it.id)).find((n) => n !== undefined && !isDrawn(n));
     const orient = lead ? carryOrientOf(lead) : "keep";
     const orientDeg = orient === "holder" ? holderTurn(w.opts.view?.()) : undefined;
+    // THE HANDLE TAKES THAT TURN TOO, on the desk, before the clock reads what it is. A tab is
+    // `still` — no pop, no bank, and so no orient either: left at the angle the last `regrip` drew
+    // it, it stood crooked against the very cards it was lifting, for the whole of the carry. It is
+    // the picture of THIS pile, and the pile is about to lie at the holder's turn; a picture is
+    // where it is said to be (`layCarry`), so it is said here.
+    if (orientDeg !== undefined && isDrawn(hit)) {
+      const own = fieldsOf<TransformableFields>(hit, "Transformable");
+      compose(hit, Transformable({ ...(own ?? {}), angle: orientDeg }));
+    }
     const felt: Omit<CarryOptions, "anchor" | "walls" | "onWall" | "onSnap"> = { ...feel, ...(feelOf?.(root, hit) ?? {}), ...(orientDeg !== undefined ? { orientDeg } : {}) };
     w.drag = { ...w.drag, tray, feel: felt };
     motions.grab(items, {

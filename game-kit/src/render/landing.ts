@@ -7,7 +7,6 @@ import { Surfaced } from "../core/atoms/surfaced.js";
 import { Valued } from "../core/atoms/valued.js";
 import { apply, rotate, type Vec } from "../core/transform.js";
 
- // Wait, is isDrawn used? No, only in handOver which we are not moving. Wait, zoneFor uses isDrawn? No, zoneFor doesn't.
 import { type CarryItem, type CarryOptions, type Motions } from "./animator/index.js";
 import { bumped, dropOf, restsAt, type Bump, type LetGo } from "./fall.js";
 import { type Host } from "./host.js";

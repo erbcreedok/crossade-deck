@@ -36,7 +36,7 @@ import { Surfaced } from "../core/atoms/surfaced.js";
 import { Screened } from "../core/atoms/screened.js";
 import { Forgiving } from "../core/atoms/forgiving.js";
 import { Draggable } from "../core/atoms/draggable.js";
-import { heapBox, heapsOf, type HeapRule, TOUCHING } from "./heaps.js";
+import { heapBox, heapFrame, heapsOf, type HeapRule, TOUCHING } from "./heaps.js";
 
 /**
  * WHAT A PIECE IS, off what it carries and never off its name — `guard.id-is-opaque`, which caught
@@ -159,13 +159,16 @@ let handlesDrawn = 0;
 const GRIP_SURFACE = "gesture.map.grip";
 
 function gripFor(root: Node, under: readonly Node[], nth: number, spec: GripSpec, ofPlace = false): Node {
-  const { mid, bottom } = heapBox(root, under);
+  const box = heapBox(root, under);
   const h = spec.w / GRIP_RATIO;
   return node(
     `stack handle ${handlesDrawn++}`,
     Bounded({ bounds: roundedRect(spec.w, h, h / 2) }),
     Surfaced({ surface: GRIP_SURFACE }),
-    Transformable({ at: { x: mid, y: bottom + GRIP_GAP + h / 2 } }),
+    // UNDER THE PILE IN THE PILE'S OWN FRAME, and turned with it: a handle is the picture of THIS
+    // heap, so a heap lying turned has a turned handle under its own low edge — straight below the
+    // cards on the glass that dropped them, and one body with them on everybody else's (`heapBox`).
+    Transformable({ at: heapFrame(box, { x: box.mid, y: box.bottom + GRIP_GAP + h / 2 }), angle: box.turn }),
     Valued({ values: ofPlace ? { grip: nth, place: 1 } : { grip: nth } }),
     // A HANDLE IS SIZED FOR THE FINGER, not for the desk: the same pixels at every zoom, the way
     // every drag handle in every application anybody has ever used is drawn.

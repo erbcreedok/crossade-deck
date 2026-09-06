@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { regrip, isGrip, GRIP } from "./grips.js";
+import { regrip, isGrip, GRIP, GRIP_GAP } from "./grips.js";
 import { heapBox } from "./heaps.js";
 import { node, Bounded, Transformable, rect, Valued, Flippable, type Node, fieldsOf, caps, type ValuedFields, type TransformableFields, extentOf, type BoundedFields } from "../index.js";
 
@@ -29,6 +29,26 @@ describe("regrip", () => {
     expect(seat.y).toBeGreaterThan(box.bottom + GRIP.h / 2);
   });
   
+  it("grips.a-handle-hangs-in-the-heaps-own-frame — under a turned pile it is turned with it, not left square on the desk", () => {
+    // A DECK DROPPED UNDER A TURNED CAMERA LIES TURNED, and its handle is the picture of THAT pile:
+    // it hangs under the pile's own low edge, at the pile's own angle, so on the holder's glass it
+    // is straight below the cards exactly as it was before the turn — and on everybody else's it
+    // goes round with the cards as one body. Measured on the desk's axes, a tab under a pile lying
+    // at 90° stood off to the side of it, square, living a life of its own.
+    const desk = node("desk");
+    const card = (id: string, x: number) => node(id, Bounded({ bounds: rect(0.5, 0.8) }), Transformable({ at: { x, y: 0 }, angle: 90 }), Flippable({ flip: "" }));
+    desk.children.push(card("c1", 0), card("c2", 0.2));
+    const held = regrip(desk, kindOf);
+    expect(held.size).toBe(1);
+    const tab = desk.children.find(isGrip)!;
+    const pose = fieldsOf<TransformableFields>(tab, "Transformable")!;
+    expect(pose.angle ?? 0).toBeCloseTo(90);
+    // In the pile's frame the low edge is 0.4 below the first card; turned by 90° that edge lies on
+    // the desk's LEFT, so the tab stands at (-(0.4 + gap + h/2), 0) — the pile's middle, its side.
+    expect(pose.at!.y).toBeCloseTo(0, 5);
+    expect(pose.at!.x).toBeCloseTo(-(0.4 + GRIP_GAP + GRIP.h / 2), 5);
+  });
+
   it("grips.a-handle-in-a-hand-is-not-redrawn — what is being held may not be replaced under the hand", () => {
     const desk = node("desk");
     const p1 = piece("p1", "chip", 0, 0);

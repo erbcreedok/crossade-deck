@@ -1,6 +1,6 @@
 import { type Node, fieldsOf } from "../core/node.js";
 import { transformsOf } from "./scenePlan/index.js";
-import { type Vec } from "../core/transform.js";
+import { apply, rotate, type Vec } from "../core/transform.js";
 import { Bounded, type BoundedFields, outlineOf } from "../core/atoms/bounded.js";
 import { placedOutline, islands, outlinesTouch } from "../core/overlap.js";
 import { stackSeats } from "./fall.js";
@@ -158,9 +158,21 @@ export function heapsOf(root: Node, kind: (n: Node) => string, aloft: (id: strin
 /**
  * The box a heap covers, in root units — what "the common perimeter" means when the answer has to
  * be a place a handle can stand.
+ *
+ * MEASURED IN THE HEAP'S OWN FRAME. A pile dropped under a turned camera lies turned (`holderTurn`),
+ * and "under the middle of what it covers" is under ITS low edge, not under the low edge of a box
+ * drawn on the desk's axes around it: measured square, a pile lying at 90° had its handle standing
+ * off to one side of it, level, while the cards lay turned — the picture of a tab that belonged to
+ * some other pile. So the outline is taken back through the pile's turn (`turn`, read off the first
+ * piece), the box is found there, and the caller puts the handle back through the same turn
+ * (`heapFrame`). A heap of pieces lying at different angles is measured at the first one's; a tab
+ * a little off a crooked pile is still a tab under that pile.
  */
-export function heapBox(root: Node, group: readonly Node[]): { readonly mid: number; readonly bottom: number } {
+export function heapBox(root: Node, group: readonly Node[]): { readonly mid: number; readonly bottom: number; readonly turn: number } {
   const poses = transformsOf(root);
+  const lead = group.map((n) => poses.get(n.id)).find((t) => t !== undefined);
+  const turn = lead ? (Math.atan2(lead.b, lead.a) * 180) / Math.PI : 0;
+  const back = rotate(-turn);
   let x0 = Infinity;
   let x1 = -Infinity;
   let y1 = -Infinity;
@@ -168,11 +180,17 @@ export function heapBox(root: Node, group: readonly Node[]): { readonly mid: num
     const shape = fieldsOf<BoundedFields>(n, "Bounded")?.bounds;
     const at = poses.get(n.id);
     if (!shape || !at) continue;
-    for (const p of placedOutline(outlineOf(shape), at)) {
+    for (const placed of placedOutline(outlineOf(shape), at)) {
+      const p = apply(back, placed);
       if (p.x < x0) x0 = p.x;
       if (p.x > x1) x1 = p.x;
       if (p.y > y1) y1 = p.y;
     }
   }
-  return { mid: (x0 + x1) / 2, bottom: y1 };
+  return { mid: (x0 + x1) / 2, bottom: y1, turn };
+}
+
+/** A point given in a heap's own frame (`heapBox`), put back onto the desk. */
+export function heapFrame(box: { readonly turn: number }, p: Vec): Vec {
+  return apply(rotate(box.turn), p);
 }

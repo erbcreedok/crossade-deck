@@ -61,6 +61,9 @@ const person = (seat: string, ink: string): Presence => ({
   view: { target: { x: 0, y: 0 }, zoom: 50, rotation: 0, glass: { w: 400, h: 800 } },
 });
 const poseOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!.at!;
+const angleOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!.angle ?? 0;
+/** Two turns as one number: 180 and -180 are the same lie. */
+const apart = (a: number, b: number) => Math.abs((((a - b) % 360) + 540) % 360 - 180);
 const inkOf = (n: Node): unknown =>
   surfaceRecord(fieldsOf<SurfacedFields>(n, "Surfaced")!.surface)?.stroke?.color;
 // The name is a NODE OF ITS OWN beside the ring, not a child of it: the ring arranges what is in it
@@ -202,9 +205,15 @@ describe("a seat is drawn", () => {
       expect(tick, `${seat} says which way it looks`).toBeDefined();
       const place = places[i]!;
       const rad = (place.facing * Math.PI) / 180;
-      // ON THE RIM, in the direction of the look — the up-vector of a glass turned by `facing`.
-      expect(poseOf(tick!).x).toBeCloseTo(place.at.x + Math.sin(rad) * CHAIR_TICK.at);
+      // ON THE RIM, in the direction of the look — the desk point that a glass turned by `facing`
+      // puts straight ahead: `rotate(-facing)` of screen-up, which is (-sin, -cos). Written with the
+      // sign the other way, a place at the right of the felt wore its tick on the OUTSIDE of the
+      // ring, looking away from the desk it was sat at.
+      expect(poseOf(tick!).x).toBeCloseTo(place.at.x - Math.sin(rad) * CHAIR_TICK.at);
       expect(poseOf(tick!).y).toBeCloseTo(place.at.y - Math.cos(rad) * CHAIR_TICK.at);
+      // ...AND LYING ACROSS THE LOOK: level on its owner's own glass, which turns the desk by
+      // `facing`, so on the desk it stands at `-facing` — the disc's own law (`avatarNode`).
+      expect(apart(angleOf(tick!), -place.facing)).toBeCloseTo(0);
       // NOT A CHILD OF THE RING. The ring arranges what is IN it (`handLayout`), so a tick made a
       // child would be dealt into somebody's hand — the caption's own reason, twice over.
       expect(tick!.parent).not.toBe(byId(desk, chairId(seat)));
@@ -217,8 +226,15 @@ describe("a seat is drawn", () => {
     const moved = { x: 2, y: -3 };
     standChair(desk, SEATS[0]!.seat, moved);
     const rad0 = (places[0]!.facing * Math.PI) / 180;
-    expect(poseOf(byId(desk, chairTickId(SEATS[0]!.seat))!).x).toBeCloseTo(moved.x + Math.sin(rad0) * CHAIR_TICK.at);
+    expect(poseOf(byId(desk, chairTickId(SEATS[0]!.seat))!).x).toBeCloseTo(moved.x - Math.sin(rad0) * CHAIR_TICK.at);
     expect(poseOf(byId(desk, chairTickId(SEATS[0]!.seat))!).y).toBeCloseTo(moved.y - Math.cos(rad0) * CHAIR_TICK.at);
+    // ...AND TOLD A FACING, it goes round: the holder let go of the ring looking from 90°, and the
+    // tick has to sit where THAT glass looks — on the ring's left on the desk, level on that glass.
+    standChair(desk, SEATS[0]!.seat, moved, 90);
+    const tick90 = byId(desk, chairTickId(SEATS[0]!.seat))!;
+    expect(poseOf(tick90).x).toBeCloseTo(moved.x - CHAIR_TICK.at);
+    expect(poseOf(tick90).y).toBeCloseTo(moved.y);
+    expect(apart(angleOf(tick90), -90)).toBeCloseTo(0);
   });
 
   it("seat.the-avatar-opens-on-its-own-chair — the disc stands IN the ring, not beside it", () => {

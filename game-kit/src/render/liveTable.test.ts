@@ -860,6 +860,11 @@ describe("the live desk", () => {
     expect(load.y - hand.y, "…and so does the load").toBeCloseTo(0, 2);
     expect(outline.x, "the outline is clear of the finger, along the holder's own up").toBeLessThan(hand.x);
     expect(load.x, "…and the load is clear of the outline").toBeLessThan(outline.x);
+    // ...AND ONE TURN. The handle is the hand's own and takes no bank, but it is still the picture
+    // of THIS pile: drawn square while the cards under the finger lay at the holder's turn, the tab
+    // stood crooked against its own deck for the whole of the carry — a handle living its own life.
+    const drawnTurn = (id: string) => ((Math.atan2(poses.get(id)!.b, poses.get(id)!.a) * 180) / Math.PI + 360) % 360;
+    expect(drawnTurn(tab.id), "the handle is carried at the holder's turn").toBeCloseTo(270, 3);
 
     shell.el.dispatchEvent(finger("pointerup", on.x + 32, on.y, 1000));
     c.tick(60);
@@ -868,6 +873,14 @@ describe("the live desk", () => {
     expect(turnOf(shell.host.root, "card0"), "the deck came down at the holder's turn").toBeCloseTo(270, 5);
     const seat = seatOf(shell.host.root, "card0");
     expect(Math.hypot(seat.x - outline.x, seat.y - outline.y), "…at the point the picture stood on").toBeLessThan(0.15);
+    // ...AND THE TAB DRAWN AFRESH UNDER THE LANDED DECK LIES WITH IT: under the pile's own low edge,
+    // at the pile's own turn — straight below the cards on the glass that dropped them (`heapBox`).
+    const again = shell.host.root.children.find((n) => fieldsOf<ValuedFields>(n, "Valued")?.values?.["grip"] !== undefined)!;
+    expect(again, "the landed deck has a handle again").toBeDefined();
+    expect(turnOf(shell.host.root, again.id), "…turned with the deck").toBeCloseTo(270, 3);
+    const tabAt = seatOf(shell.host.root, again.id);
+    expect(tabAt.y - seat.y, "…on the pile's own down, which is the desk's +x under this turn").toBeCloseTo(0, 1);
+    expect(tabAt.x, "…below the deck's low edge").toBeGreaterThan(seat.x);
     live.stop();
   });
 

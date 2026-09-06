@@ -292,14 +292,21 @@ export function seatChair(seat: string, place: { readonly at: Vec }, look?: Seat
  * WHERE THE TICK SITS AND HOW IT LIES — on the rim, in the direction the place looks.
  *
  * `facing` is the angle that place's own camera opens at, clockwise on the glass, and a screen
- * turned by it puts the felt straight ahead at the TOP. So the direction of the look on the felt is
- * the up-vector turned by `facing`, and the bar lies across it — which is the same turn again.
+ * turned by it puts the felt straight ahead at the TOP. The camera draws the desk through
+ * `rotate(facing)`, so the desk direction that lands on screen-up is screen-up taken BACK through
+ * that turn — `rotate(-facing)` of (0, -1), which is (-sin, -cos). And a bar lying level on that
+ * glass stands at `-facing` on the desk, exactly as the disc does (`avatarNode`): a thing that has
+ * to look upright to its owner is turned the opposite way from the owner's screen.
+ *
+ * Written the other way round — `+sin`, `+facing` — a place at the right of the felt wore its tick
+ * on the outside of its ring, looking away from the desk, and a ring let go under a turned camera
+ * pointed anywhere but where its holder was looking.
  */
 function tickPose(place: { readonly at: Vec }, facing: number): { readonly at: Vec; readonly angle: number } {
   const rad = (facing * Math.PI) / 180;
   return {
-    at: { x: place.at.x + Math.sin(rad) * CHAIR_TICK.at, y: place.at.y - Math.cos(rad) * CHAIR_TICK.at },
-    angle: facing,
+    at: { x: place.at.x - Math.sin(rad) * CHAIR_TICK.at, y: place.at.y - Math.cos(rad) * CHAIR_TICK.at },
+    angle: -facing,
   };
 }
 

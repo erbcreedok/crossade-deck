@@ -888,7 +888,13 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         return owner ? orientationOf(contextFor(owner, 1)) === "viewer" : false;
       });
       const bases = new Map(items.map((it) => [it.id, transformsOf(host.root).get(it.id) ?? IDENTITY]));
-      const base0 = items[0] ? (bases.get(items[0].id) ?? IDENTITY) : IDENTITY;
+      // MEASURED FROM THE FIRST PIECE THAT IS NOT A CONTROL. The orient is the turn the LOAD has
+      // still to make to lie at `orientDeg`; a run led by a handle has the handle first, and the
+      // handle is `still` — it takes no orient at all and, told the holder's turn on the desk
+      // already (`drag.ts`), it would report a turn of nothing left to make, and the cards under it
+      // would come down square. Nothing but controls in hand is measured from the first of them.
+      const lead = items.find((it) => !it.still) ?? items[0];
+      const base0 = lead ? (bases.get(lead.id) ?? IDENTITY) : IDENTITY;
       const targetOrient = opts.orientDeg !== undefined ? shortWay(opts.orientDeg - turnOf(base0)) : 0;
 
       const cy: Carry = {
