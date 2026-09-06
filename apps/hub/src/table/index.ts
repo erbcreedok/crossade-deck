@@ -54,6 +54,7 @@ import {
   installStockSurfaces,
   installTheme,
   liveTable,
+  liveCameraHud,
   ROUND_HOME_SPAN,
   withAvatars,
   setRev,
@@ -489,6 +490,10 @@ export function startTable(container: HTMLElement): Teardown {
     taps: (piece: Node) => (seat ? avatars?.tapped(seat, piece) === true : false),
   });
   standing = live;
+  // THE CAMERA'S OWN TWO CONTROLS IN THE CORNER — the kit's, wired in one line. North is on every
+  // desk; the place button appears because this desk names seats, and it asks for exactly what a tap
+  // on one's own ring asks for, so the two can never take a reader to two different places.
+  const hud = liveCameraHud(live);
 
   joinTable({
     game,
@@ -633,6 +638,7 @@ export function startTable(container: HTMLElement): Teardown {
     // TELLS THE KIT'S OWN `Avatars` TO STOP LISTENING — see the marker's own comment above: without
     // this, the persistent `#stage` never disconnects and the wiring goes on hearing the relay.
     peopleWall.remove();
+    hud?.stop();
     live.stop();
     stopHold();
   };

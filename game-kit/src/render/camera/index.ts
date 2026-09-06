@@ -38,6 +38,15 @@ export * from "./limits.js";
 export * from "./wheel.js";
 
 /**
+ * HOW NEAR A MARK COUNTS AS ALREADY ON IT, in degrees — see `glideTurnTo`.
+ *
+ * Not zero: a view a hundredth of a degree off north would ease for six hundred milliseconds to
+ * arrive at a picture nobody can tell from the one it left, and the reader would read that as the
+ * button having done something they cannot see.
+ */
+const TURN_ARRIVED = 0.05;
+
+/**
  * THE CAMERA. Its state is `{ target, zoom, rotation }` and nothing else: `target` is the point of
  * the DESK that sits in the middle of the glass, and a turn goes AROUND it.
  *
@@ -91,6 +100,11 @@ export class Camera {
    * instant the fingers left, which reads as a lurch rather than as a continuation.
    */
   private coast: { glass: Point; desk: Point } | undefined;
+  /**
+   * A TURN ASKED FOR RATHER THAN THROWN — where it started, how far it goes, how long it takes and
+   * how far into it the clock has carried it. Absent when nothing has asked (see `glideTurnTo`).
+   */
+  private turning: { from: number; delta: number; ms: number; at: number } | undefined;
   /** Whether a throw is still running. Read by the clock to know if there is another frame to draw. */
   flinging = false;
 
@@ -287,6 +301,40 @@ export class Camera {
     this.clamp();
   }
 
+  /**
+   * HOW LONG A TURN ASKED FOR TAKES, in ms. The same reading as the idle glide's, because they are
+   * the same movement seen from two sides — one asked for, one fallen into — and a view that swung
+   * to north faster than it comes home would read as two different cameras.
+   */
+  static readonly TURN_GLIDE_MS = 600;
+
+  /**
+   * TURN THE VIEW TO A MARK, EASED — `turnTo` said over the clock instead of in one jump.
+   *
+   * It rides the FLING, and that is the whole of its wiring: every consumer already steps a coasting
+   * view and already stops when it comes to rest (`CameraControl.step`), so a turn that is stepped
+   * by the same call needs no second clock and no heartbeat of its own (`guard.one-clock`).
+   *
+   * THE SHORT WAY ROUND, always: a view at 350° asked for north goes forward ten degrees, never back
+   * three hundred and fifty. Nothing else moves — the aim and the zoom are untouched, so this is a
+   * view turning where it stands and not a journey home.
+   */
+  glideTurnTo(deg: number, ms: number = Camera.TURN_GLIDE_MS): void {
+    let delta = (deg - this.rotation) % 360;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    // A turn already thrown is dropped: the two would write the same field on the same step, and
+    // the desk would spin past the mark it was asked to stop on.
+    this.vr = 0;
+    if (ms <= 0 || Math.abs(delta) < TURN_ARRIVED) {
+      this.turning = undefined;
+      this.turnTo(deg);
+      return;
+    }
+    this.turning = { from: this.rotation, delta, ms, at: 0 };
+    this.flinging = true;
+  }
+
   /** Set the zoom outright, about the middle of the glass. */
   setZoom(z: number): void {
     this.zoom = clamp(z, this.limits.minZoom, this.limits.maxZoom);
@@ -454,6 +502,7 @@ export class Camera {
 
   stopFling(): void {
     this.flinging = false;
+    this.turning = undefined;
     this.vx = 0;
     this.vy = 0;
     this.vz = 0;
@@ -471,6 +520,15 @@ export class Camera {
    */
   stepFling(dtSeconds: number): boolean {
     if (!this.flinging) return false;
+    // A TURN THAT WAS ASKED FOR, before the thrown one: it is the exact answer, and it ends on the
+    // degree it named rather than wherever a decay ran out.
+    if (this.turning) {
+      const t = this.turning;
+      t.at += dtSeconds * 1000;
+      const p = Math.min(1, t.ms <= 0 ? 1 : t.at / t.ms);
+      this.turnTo(t.from + t.delta * (1 - Math.pow(1 - p, 3))); // easeOutCubic, the idle glide's own
+      if (p >= 1) this.turning = undefined;
+    }
     // THE ZOOM AND THE TURN FIRST, and both about the point the fingers left — a coast that swung
     // the desk about the middle of the glass instead would lurch at the very moment the hand let go.
     if (this.vz !== 0 || this.vr !== 0) {
@@ -502,7 +560,7 @@ export class Camera {
     }
     if (Math.abs(this.vz) < this.zoomFling.floor) this.vz = 0;
     if (Math.abs(this.vr) < this.turnFling.floor) this.vr = 0;
-    this.flinging = this.vx !== 0 || this.vy !== 0 || this.vz !== 0 || this.vr !== 0;
+    this.flinging = this.vx !== 0 || this.vy !== 0 || this.vz !== 0 || this.vr !== 0 || this.turning !== undefined;
     return this.flinging;
   }
 
