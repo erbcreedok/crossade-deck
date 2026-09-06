@@ -100,6 +100,6 @@
 | [UNIT · landing — картинка приземления](72-landing.md) | `vitest` | 5 | 5 |
 | [UNIT · mirror — чужая рука на своём экране](74-mirror.md) | `vitest + jsdom + фейковые часы` | 2 | 2 |
 | [UNIT · handover — передача рана в зону](75-handover.md) | `vitest + jsdom` | 1 | 1 |
-| [UNIT · presence — кто за столом](76-presence.md) | `vitest (headless, no WebGL) + jsdom` | 5 | 5 |
+| [UNIT · presence — кто за столом](76-presence.md) | `vitest (headless, no WebGL) + jsdom` | 6 | 6 |
 | [UNIT · idleReturn — возврат камеры](77-idle-return.md) | `vitest (headless, no WebGL)` | 3 | 3 |
 | [UNIT · liveTable — живой стол целиком](78-live-table.md) | `vitest + jsdom + фейковые часы` | 6 | 6 |

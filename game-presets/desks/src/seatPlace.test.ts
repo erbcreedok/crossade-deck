@@ -7,9 +7,13 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  AVATAR_VALUE,
   avatarId,
   avatarNode,
   byId,
+  placeAvatars,
+  type Presence,
+  type ValuedFields,
   caps,
   fieldsOf,
   grippableBy,
@@ -25,7 +29,21 @@ import { roundMap, seatPlaces as roundPlaces } from "./roundMap.js";
 import { SEATS } from "./liveMap.js";
 import { chairId, chairSurface, isChair, seatChair, standChair } from "./seatPlace.js";
 
-const chairs = (desk: Node): Node[] => desk.children.filter(isChair);
+const walk = (n: Node): Node[] => [n, ...n.children.flatMap(walk)];
+// Walked and not read off `desk.children`: a ring lives in the seats' own layer (`CHAIR_LAYER`), so
+// that it is never a piece of the desk to whatever reads the desk's children.
+const chairs = (desk: Node): Node[] => walk(desk).filter(isChair);
+/** A disc says it is one; the layer test reads that and never the shape of an id. */
+const isAvatar = (n: Node): boolean => Boolean(fieldsOf<ValuedFields>(n, "Valued")?.values[AVATAR_VALUE]);
+/** Somebody sitting at a place and looking at it — the opening state of every live page. */
+const person = (seat: string, ink: string): Presence => ({
+  seat,
+  name: seat,
+  ink,
+  state: "online",
+  holding: false,
+  view: { target: { x: 0, y: 0 }, zoom: 50, rotation: 0, glass: { w: 400, h: 800 } },
+});
 const poseOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!.at!;
 const inkOf = (n: Node): unknown =>
   surfaceRecord(fieldsOf<SurfacedFields>(n, "Surfaced")!.surface)?.stroke?.color;
@@ -74,7 +92,6 @@ describe("a seat is drawn", () => {
       // chair added after the pieces is an outline drawn over the very board it belongs to. Walked
       // and not read off `desk.children`, because a man stands in a cell and a card in a hand — a
       // piece is rarely the desk's own child, and a comparison of siblings would pass vacuously.
-      const walk = (n: Node): Node[] => [n, ...n.children.flatMap(walk)];
       const order = walk(desk);
       const last = chairs(desk).reduce((n, chair) => Math.max(n, order.indexOf(chair)), -1);
       // The chairs themselves are draggable now (their own owner moves them), so "a piece" is what
@@ -82,6 +99,41 @@ describe("a seat is drawn", () => {
       const pieces = order.filter((n) => caps(n).has("Draggable") && !isChair(n));
       expect(pieces.length, "a desk with nothing on it proves nothing about what is under what").toBeGreaterThan(0);
       for (const piece of pieces) expect(order.indexOf(piece)).toBeGreaterThan(last);
+    });
+
+    it(`seat.people-are-not-pieces — ${name} keeps discs and rings out of the game's own tree`, () => {
+      // THE FAULT THIS EXISTS FOR: a disc placed among the desk's own children is a piece to
+      // everything that reads them — an arrangement seats it, a square's `Displacer` sends whoever
+      // stands there away, an `Acceptor` counts it as what is now in the place. On a board that is
+      // an avatar standing on e4 instead of a man. Parentage is the whole of the answer, so it is
+      // parentage that is checked: neither the desk itself nor anything that holds a piece may own
+      // a disc or a ring.
+      const desk = build();
+      placeAvatars(desk, seats.map(({ seat, ink }) => person(seat, ink)));
+
+      const people = walk(desk).filter((n) => isChair(n) || isAvatar(n));
+      expect(people.length, "the desk seats somebody at all").toBe(seats.length * 2);
+      for (const one of people) {
+        const owner = one.parent!;
+        expect(owner, `${one.id} does not stand in the desk's own list`).not.toBe(desk);
+        for (const sibling of owner.children) {
+          expect(isChair(sibling) || isAvatar(sibling), `${owner.id} holds people only`).toBe(true);
+        }
+        // ...and the layer is not a place either: nothing arranges what is in it and nothing may be
+        // dropped in it, or the layer would be the same fault one node further down.
+        for (const atom of ["Container", "Acceptor", "Displacer", "Grabber", "Keeper"]) {
+          expect(caps(owner).has(atom), `${owner.id} has no ${atom}`).toBe(false);
+        }
+      }
+
+      // AND THE BOARD IS STILL WHOLE. Every man that was on a square is on the square he was on:
+      // a disc that took a place would show up here as a piece short.
+      const holders = walk(desk).filter((n) => caps(n).has("Acceptor"));
+      for (const holder of holders) {
+        for (const child of holder.children) {
+          expect(isChair(child) || isAvatar(child), `${holder.id} holds only what is played`).toBe(false);
+        }
+      }
     });
   }
 
