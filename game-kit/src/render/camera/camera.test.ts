@@ -463,4 +463,14 @@ describe("the camera", () => {
     floored.setContent({ x: 0, y: 0, w: 2000, h: 2000 }, 1);
     expect(floored.fitZoom(), "a fit below the limit is still the limit").toBe(0.5);
   });
+
+  it("camera.span-overflows-the-glass-on-purpose — unlike fit, which shrinks to stay inside it", () => {
+    const c = new Camera({ minZoom: 0.01, maxZoom: 50 });
+    c.setScreen(393, 800);
+    c.setContent({ x: -12.5, y: -12.5, w: 25, h: 25 }, 1); // roundRoom(), a 393×800 phone
+    // 1.5× the glass's own width, in pixels, on the content's own width — the round table's ask.
+    expect(c.spanZoom(1.5) * 25).toBeCloseTo(393 * 1.5, 6);
+    // A fit shows the WHOLE room; a span of 1.5 is well past that — the felt overflows the glass.
+    expect(c.spanZoom(1.5)).toBeGreaterThan(c.fitZoom());
+  });
 });

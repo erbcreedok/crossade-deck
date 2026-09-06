@@ -51,6 +51,13 @@ import { type Mirror } from "./mirror.js";
 import { type Painter } from "./painter.js";
 import { type Presence } from "./presence.js";
 
+/**
+ * THE ROUND TABLE'S OWN HOME SPAN — table diameter = 1.5× the glass (owner ask), for `seats.homeSpan`.
+ * Named here and not restated at each call site, so a consumer of a round desk (catalog, hub) reads
+ * the owner's own number rather than carrying a `1.5` of its own that could drift from this one.
+ */
+export const ROUND_HOME_SPAN = 1.5;
+
 /** One place at a desk — the shelf's own `seatPlaces(n)` answer, read here without knowing the game. */
 export interface SeatPlace {
   readonly at: Vec;
@@ -369,6 +376,18 @@ export interface LiveTableOptions<S extends LiveStage = LiveStage> {
     readonly placeNow?: () => SeatPlace | undefined;
     /** Absent, the idle glide's own defaults (6000ms/600ms). `false` turns it off. */
     readonly idleReturn?: { readonly afterMs?: number; readonly glideMs?: number } | false;
+    /**
+     * HOME AS `Camera.spanZoom(homeSpan)` RATHER THAN A FIT — the round table's own ask (owner:
+     * table diameter = 1.5× the glass, `ROUND_HOME_SPAN`), where a fit shows the whole room, rim
+     * and all, and the seat asked for ends up barely bigger than a coin. Absent, home is the fit it
+     * always was (`camera.fitZoom()`) — every board on the shelf, where the room already IS the
+     * felt plus its own margin and a fit is the picture wanted.
+     *
+     * The SAME number decides both moments a view can arrive home: the glide (`idleReturn`'s own
+     * `homeZoom`) and the opening zoom below (`buildStage`'s `openView`) — asked once here and read
+     * by both, or the desk would open at one zoom and glide to another the first time anybody left.
+     */
+    readonly homeSpan?: number;
   };
 }
 
@@ -477,6 +496,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
     opts.stage ??
     (buildStage(container, desk, {
       ...opts,
+      ...(seats?.homeSpan !== undefined ? { homeSpan: seats.homeSpan } : {}),
       onView: () => {
         idleOnPan.current?.();
         opts.onView?.();
@@ -511,7 +531,10 @@ export function liveTable<S extends LiveStage = LiveStage>(
               view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 0, h: 0 } },
             };
           },
-          seats.idleReturn === false ? { afterMs: Infinity } : (seats.idleReturn ?? {}),
+          {
+            ...(seats.idleReturn === false ? { afterMs: Infinity } : (seats.idleReturn ?? {})),
+            ...(seats.homeSpan !== undefined ? { homeZoom: () => built.camera!.spanZoom(seats.homeSpan!) } : {}),
+          },
         )
       : undefined;
   // ANY POINTER DOWN ON THIS GLASS IS AN INPUT, whatever it lands on: a pan across bare felt starts
@@ -1069,6 +1092,8 @@ interface StageOptions {
   readonly turn?: number;
   readonly onView?: () => void;
   readonly open?: (ctx: { readonly root: Node; readonly room: CameraContent; readonly unit: number; readonly view: Viewport }) => number | undefined;
+  /** THE SAME `seats.homeSpan`, read here too — see `LiveTableOptions.seats.homeSpan`. */
+  readonly homeSpan?: number;
 }
 
 /**
@@ -1161,9 +1186,12 @@ function buildStage(container: HTMLElement, desk: Node, opts: StageOptions): Bui
     tellUnit();
     control.refresh(); // the glass and the room must be known before a fit is measured
     const wish = opts.open?.({ root: host.root, room, unit: unitOf(), view: v });
+    // HOME, WHEN THE DESK NAMED ONE (`homeSpan`) — the same reading `idleReturn`'s own glide lands
+    // on, so the desk opens exactly where a tap on the ring would take it right back to.
+    const home = opts.homeSpan !== undefined ? camera.spanZoom(opts.homeSpan) : camera.fitZoom();
     // A WISH IS NOT A WAY OUT OF THE LIMITS: whatever the desk asks for is held between the zoom
     // that fits the room and the furthest the camera is allowed in.
-    camera.setZoom(Math.max(camera.fitZoom(), Math.min(wish ?? camera.fitZoom(), limits.maxZoom)));
+    camera.setZoom(Math.max(camera.fitZoom(), Math.min(wish ?? home, limits.maxZoom)));
     camera.lookAt({ x: room.x + room.w / 2, y: room.y + room.h / 2 });
     if (opts.turn !== undefined) camera.turnTo(opts.turn);
     repaint();

@@ -335,6 +335,20 @@ export class Camera {
     return clamp(want, this.limits.minZoom, this.limits.maxZoom);
   }
 
+  /**
+   * THE ZOOM AT WHICH THE CONTENT'S OWN WIDTH SPANS `span` GLASS-WIDTHS — `fitZoom` shrinks the
+   * content to fit inside the glass, this instead lets it overflow the glass on purpose, by exactly
+   * `span`. The round felt's own home (owner: table diameter = 1.5× the glass) is this at `1.5`, not
+   * a fit: fit shows the whole room, rim and all, and the seat asked for is barely bigger than a coin.
+   *
+   * Measured at zoom 1 with the unit folded in, same as `fitZoom` — but NOT the turn: only a square
+   * room ever calls this (the round table's), where a turn changes nothing about the width.
+   */
+  spanZoom(span: number): number {
+    const w = Math.max(1, this.screenW);
+    return clamp((w * span) / (this.content.w * this.unit), this.limits.minZoom, this.limits.maxZoom);
+  }
+
   // ---- the throw --------------------------------------------------------------------------
 
   /**

@@ -273,6 +273,36 @@ describe("the live desk", () => {
     live.stop();
   });
 
+  it("liveTable.seats-home-span — a round desk opens at `spanZoom`, not merely fitted, and the glide lands on the same number", () => {
+    // OWNER: the round table's diameter is 1.5× the glass, on the FIRST frame — not eased into
+    // starting from a fit. `roundRoom()` for a 393-wide phone would be the real numbers; a plainer
+    // 25×25 room here keeps the arithmetic checkable by hand.
+    const { root } = desk();
+    const div = document.createElement("div");
+    glass(div); // 600×400, from the test's own stub
+    document.body.appendChild(div);
+
+    const live = liveTable(div, root, {
+      painter: () => stubPainter(),
+      room: { x: -12.5, y: -12.5, w: 25, h: 25 },
+      unit: 1,
+      limits: { minZoom: 0.01, maxZoom: 50 },
+      seats: { places: [{ at: { x: 0, y: 0 }, facing: 0 }], mine: 0, homeSpan: 1.5 },
+    });
+    const camera = live.camera!;
+    const spanZoom = (600 * 1.5) / 25; // glass.w × 1.5 ÷ room.w, at unit 1
+    expect(camera.zoom, "opened at the span, not the fit").toBeCloseTo(spanZoom, 5);
+    expect(camera.zoom).toBeGreaterThan(camera.fitZoom());
+
+    // ...AND THE GLIDE HOME LANDS ON THE SAME NUMBER — one reading, asked by both moments.
+    camera.lookAt({ x: 5, y: 5 });
+    camera.setZoom(1);
+    live.idle!.goHome();
+    live.idle!.step(600);
+    expect(camera.zoom).toBeCloseTo(spanZoom, 5);
+    live.stop();
+  });
+
   it("liveTable.a-plain-desks-drop-tells-the-mirror — a calm release resyncs the far screen, mark and all", () => {
     // A DESK THAT NEITHER STACKS NOR NAMES ITS OWN RUNS (the shelf's `Live/Cards` with avatars, at
     // `stacking: false`) used to answer `settle()` only if a consumer passed `onDeskChanged`, and

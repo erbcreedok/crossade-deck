@@ -142,4 +142,30 @@ describe("idleReturn", () => {
     expect(cam.rotation).toBeCloseTo(0);
     expect(cam.zoom).toBeCloseTo(cam.fitZoom());
   });
+
+  it("idleReturn.home-zoom-is-asked-not-assumed — a desk that names its own reading glides to that, not to fitZoom", () => {
+    // THE ROUND TABLE'S OWN ASK (owner: table diameter = 1.5× the glass, `Camera.spanZoom`): a fit
+    // shows the whole room, rim and all, and home is meant to be closer in than that.
+    const cam = new Camera({ minZoom: 0.01, maxZoom: 50 });
+    cam.setScreen(393, 800);
+    cam.setContent({ x: -12.5, y: -12.5, w: 25, h: 25 }, 1);
+    cam.lookAt({ x: 0, y: 0 });
+    const tracker = idleReturn(
+      cam,
+      (): Presence => ({
+        seat: "white",
+        place: { at: { x: 0, y: 0 }, facing: 0 },
+        name: "Player",
+        ink: "white",
+        state: "online",
+        holding: false,
+        view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 393, h: 800 } },
+      }),
+      { afterMs: Infinity, glideMs: 600, homeZoom: () => cam.spanZoom(1.5) },
+    );
+    expect(cam.spanZoom(1.5)).toBeGreaterThan(cam.fitZoom()); // the guard's own proof the two differ
+    tracker.goHome();
+    tracker.step(700);
+    expect(cam.zoom).toBeCloseTo(cam.spanZoom(1.5));
+  });
 });

@@ -5,6 +5,12 @@ export interface IdleReturnOpts {
   /** How long a view may sit untouched before it glides home. `Infinity` never glides on its own. */
   afterMs?: number;
   glideMs?: number;
+  /**
+   * WHAT ZOOM HOME IS AT — absent, `camera.fitZoom()`, the whole room shown. A desk whose home is
+   * not a fit (the round table's `Camera.spanZoom`, owner: table diameter = 1.5× the glass) hands
+   * its own reading in here, so the glide lands where `liveTable`'s own opening zoom already put it.
+   */
+  homeZoom?: () => number;
 }
 
 export interface IdleReturnTracker {
@@ -28,6 +34,7 @@ export function idleReturn(
 ): IdleReturnTracker {
   const afterMs = opts.afterMs ?? 6000;
   const glideMs = opts.glideMs ?? 600;
+  const homeZoom = opts.homeZoom ?? ((): number => camera.fitZoom());
 
   let idleMs = 0;
   let glideProgress = 0;
@@ -66,7 +73,7 @@ export function idleReturn(
       const p = presence();
       if (!p || !p.place) return;
       const { at, facing } = p.place;
-      const targetZoom = camera.fitZoom();
+      const targetZoom = homeZoom();
       // WHERE THE EYE HAS TO BE AIMED for the place to stand on the home anchor — the camera's own
       // word for its aim is the MIDDLE of the glass, and home is the low middle (`HOME_ANCHOR`).
       // Worked out at the zoom and turn the glide is HEADING FOR and not at the ones it is leaving,
