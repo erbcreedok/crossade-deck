@@ -1,0 +1,38 @@
+game-kit/docs/test-plan/11-catalog-shell.md
+  h_2b92b67d011bfc 3,98
+game-kit/docs/test-plan/67-live.md
+  h_2b92b67d011bfc 22
+game-kit/docs/test-plan/README.md
+  h_2b92b67d011bfc 10,39
+game-kit/src/render/animator/index.ts
+  h_2b92b67d011bfc 891-897
+game-kit/src/render/avatars.test.ts
+  h_2b92b67d011bfc 139-140,142
+game-kit/src/render/drag.ts
+  h_2b92b67d011bfc 495-503
+game-kit/src/render/grips.test.ts
+  h_2b92b67d011bfc 2,32-51
+game-kit/src/render/grips.ts
+  h_2b92b67d011bfc 39,162,168-171
+game-kit/src/render/heaps.ts
+  h_2b92b67d011bfc 3,161-169,171,173-175,183-184,190-195
+game-kit/src/render/liveTable.test.ts
+  h_2b92b67d011bfc 863-867,876-883
+game-presets/desks/docs/test-plan.md
+  h_2b92b67d011bfc 83,98
+game-presets/desks/src/seatPlace.test.ts
+  h_2b92b67d011bfc 64-66,208-212,214-216,229,231-237
+game-presets/desks/src/seatPlace.ts
+  h_2b92b67d011bfc 295-303,308-309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7c99148da9a94a8d52dccbbd183216e53f89c6ee",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
