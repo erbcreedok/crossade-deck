@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import type { Presence, PresenceView } from "game-kit";
-import { hubAvatarsTransport, PRESENCE_EVERY_MS } from "./people.js";
+import { hubAvatarsTransport, inkOf, PRESENCE_EVERY_MS } from "./people.js";
 import type { RelayMessage } from "../online/table.js";
 
 const VIEW: PresenceView = { target: { x: 0, y: 0 }, zoom: 56, rotation: 0, glass: { w: 393, h: 800 } };
@@ -27,6 +27,15 @@ function build(mine: string | null, clock: { ms: number }) {
   });
   return { wiring, sent };
 }
+
+describe("inkOf: a seat's colour is the seat's own, never a roster's order", () => {
+  it("reads the seat's own number, not its position in whatever list happened to be asked", () => {
+    // `p2` seen alone (the picture on `p2`'s own screen the instant it opens, before `p1` is in its
+    // local roster) must still be `p2`'s ink and not `p1`'s.
+    expect(inkOf("p2")).toBe("alert");
+    expect(inkOf("p1")).toBe("accent");
+  });
+});
 
 describe("hubAvatarsTransport: the hub's relay in place of a local screen", () => {
   it("mine() is empty until the room has said who I am and my view has laid out", () => {

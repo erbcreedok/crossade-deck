@@ -301,8 +301,6 @@ export function startTable(container: HTMLElement): Teardown {
   /** The people at this desk, once the room has said who they are. */
   let avatars: Avatars | undefined;
   let peopleWire: HubAvatarsTransport | undefined;
-  /** Everybody the room has named, in seat order — read by `farDot`'s own ink. */
-  let seated: readonly string[] = [];
   /** THE SAME PEOPLE, WITH THE NAME THE ROOM CALLS THEM BY — what stands under a ring on the felt. */
   const sitting = (roster: readonly RosterItem[]): readonly SeatedPerson[] =>
     roster.flatMap((one) => (one.seat ? [{ seat: one.seat, name: one.name }] : []));
@@ -341,7 +339,7 @@ export function startTable(container: HTMLElement): Teardown {
         `pointer-events:none;display:none;transform:translate(-50%,-50%);` +
         // SEAT INKS ARE ALWAYS PALETTE TOKENS (`SEAT_INKS`), the widened `Paint` return type just
         // does not say so — the same narrowing the catalog's own `SEATS as const` gets for free.
-        `background:${t(inkOf(seat, seated) as keyof Palette)};box-shadow:0 0 0 2px ${t("sunkBg")}`;
+        `background:${t(inkOf(seat) as keyof Palette)};box-shadow:0 0 0 2px ${t("sunkBg")}`;
       container.appendChild(dot);
       farDots.set(seat, dot);
     }
@@ -552,13 +550,11 @@ export function startTable(container: HTMLElement): Teardown {
         // this screen's own tracker, asked for instead of fallen into.
         goHome: () => live.idle?.goHome(),
       });
-      seated = table.roster.map((one) => one.seat).filter((s): s is string => typeof s === "string");
       if (game === "cards") syncSeatChairs(live.host.root, sitting(table.roster));
       peopleWire.roster(table.roster);
       avatars.publish();
       redraw();
       unbindOnRoster = table.onRoster((roster) => {
-        seated = roster.map((one) => one.seat).filter((s): s is string => typeof s === "string");
         if (game === "cards") syncSeatChairs(live.host.root, sitting(roster));
         const gone = peopleWire?.roster(roster) ?? [];
         for (const s of gone) avatars?.forget(s);

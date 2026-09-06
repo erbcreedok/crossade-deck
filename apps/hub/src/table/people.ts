@@ -29,10 +29,18 @@ export function hubSeats(n: number): readonly AvatarSeat[] {
   return Array.from({ length: n }, (_, i) => ({ seat: `p${i + 1}`, ink: SEAT_INKS[i % SEAT_INKS.length]! }));
 }
 
-/** Which of the inks a seat wears — `p1` is the first, `p2` the second, and so on round the desk. */
-export function inkOf(seat: string, seats: readonly string[]): Paint {
-  const i = seats.indexOf(seat);
-  return SEAT_INKS[(i < 0 ? 0 : i) % SEAT_INKS.length]!;
+/**
+ * Which of the inks a seat wears — `p1` is the first, `p2` the second, and so on round the desk.
+ *
+ * Read off the SEAT ITSELF, never off a roster's order: the room hands out `p1`, `p2`… once and for
+ * good, but two screens build their OWN copy of who has joined so far at different moments — a roster
+ * of one, seen the instant `p2` opens their own screen, put `p2` first and coloured them `p1`'s ink,
+ * and the same ring showed a different colour on each side of the desk it stood on.
+ */
+export function inkOf(seat: string): Paint {
+  const n = Number(/^p(\d+)$/.exec(seat)?.[1]);
+  const i = Number.isInteger(n) ? n - 1 : 0;
+  return SEAT_INKS[((i % SEAT_INKS.length) + SEAT_INKS.length) % SEAT_INKS.length]!;
 }
 
 /** How often this screen's own view may be told to the room, in ms — a hand moves faster than this. */
@@ -85,7 +93,7 @@ export function hubAvatarsTransport(o: HubAvatarsTransportOptions): HubAvatarsTr
         const seat = o.mine();
         const view = o.view();
         if (!seat || !view) return [];
-        return [{ seat, name: names.get(seat) ?? seat, ink: inkOf(seat, seated), state: myState, holding: false, view }];
+        return [{ seat, name: names.get(seat) ?? seat, ink: inkOf(seat), state: myState, holding: false, view }];
       },
       /**
        * MY OWN VIEW, ON THE WIRE — no oftener than `PRESENCE_EVERY_MS`, and never twice the same. A
@@ -129,7 +137,7 @@ export function hubAvatarsTransport(o: HubAvatarsTransportOptions): HubAvatarsTr
       const presence: Presence = {
         seat,
         name: names.get(seat) ?? seat,
-        ink: wire.ink ?? inkOf(seat, seated),
+        ink: wire.ink ?? inkOf(seat),
         state: wire.state ?? "online",
         holding: wire.holding === true,
         view: wire.view,
