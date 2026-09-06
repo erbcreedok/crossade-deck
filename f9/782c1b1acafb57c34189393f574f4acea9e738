@@ -1,0 +1,38 @@
+game-kit/src/render/camera/camera.test.ts
+  s_15fd8c001d463e::t_da48142b7134fe 466-467,469-475
+  s_15fd8c001d463e::t_c1f73fc0c31ba0 468
+game-kit/src/render/liveTable.test.ts
+  s_15fd8c001d463e::t_f38ade144c191a 276-305
+game-kit/src/render/liveTable.ts
+  s_15fd8c001d463e::t_910729256e4c52 54-60
+  s_15fd8c001d463e::t_17b38047f36dff 534-537
+  s_15fd8c001d463e::t_66870bf4b0ba0c 1095-1096
+  s_15fd8c001d463e::t_74f4b0b4777942 1189-1191,1194
+  s_15fd8c001d463e::t_57ca0ac98b93ce 499
+  s_15fd8c001d463e::t_8b171ed25b941a 379-390
+game-kit/src/render/idleReturn.ts
+  s_15fd8c001d463e::t_fe32e5c76f2f49 8-13
+  s_15fd8c001d463e::t_83a0866907ec05 37
+  s_15fd8c001d463e::t_080ba86bc400f1 76
+game-kit/src/render/idleReturn.test.ts
+  s_15fd8c001d463e::t_c10c4978044f08 149
+  s_15fd8c001d463e::t_468e8bb257fcfc 145-148,150-170
+game-kit/src/render/camera/index.ts
+  s_15fd8c001d463e::t_343b518f122e16 338-351
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f9782c1b1acafb57c34189393f574f4acea9e738",
+  "prompts": {},
+  "sessions": {
+    "s_15fd8c001d463e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fa3bd2a-522b-48b9-9006-4dc26d0bef1e",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
