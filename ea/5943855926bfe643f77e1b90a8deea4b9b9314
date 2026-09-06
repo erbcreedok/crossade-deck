@@ -1,0 +1,26 @@
+game-kit/.storybook/stories/avatars.test.ts
+  s_0a8bfe9f816683::t_e4d53e091533d2 210-232
+game-kit/docs/test-plan/README.md
+  s_0a8bfe9f816683::t_0e5f60cf5964bc 10,95
+game-kit/docs/test-plan/67-live.md
+  s_0a8bfe9f816683::t_4a7ba19da9280a 3,26
+game-kit/.storybook/stories/avatars.ts
+  s_0a8bfe9f816683::t_74f7b1e021451c 177-184,187-194
+  s_0a8bfe9f816683::t_4ec8634342c8d3 112-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "ea5943855926bfe643f77e1b90a8deea4b9b9314",
+  "prompts": {},
+  "sessions": {
+    "s_0a8bfe9f816683": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cfb31417-6df8-4b4d-bed8-fe35a69e1131",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
