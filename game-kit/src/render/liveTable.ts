@@ -95,6 +95,21 @@ const HANDLE_IS_THE_GRAB = {
 } as const;
 
 /**
+ * A CONTROL, TOLD FROM A PIECE — and told by the one thing that is already true of every control on
+ * a desk: it is held at its size on the GLASS (`Screened`) and so was never lying on the felt.
+ *
+ * A handle is one, an avatar is one, and a seat's own ring is one. What follows is the same sentence
+ * twice: there is nothing for a fall to be a fall FROM, so it is not thrown (`onRelease` reads the
+ * same atom), and there is no place for it to come down at, so no picture of one is drawn under it.
+ * The pop and the bank are already off it one file over — the carry reads this very atom to make a
+ * held control `still` (`drag.ts`). It goes where the finger put it and stays there.
+ *
+ * Read off the atom and never off a name — a desk names its own furniture and the kit parses none of
+ * it (`guard.id-is-opaque`).
+ */
+const isControl = (n: Node): boolean => screened(n);
+
+/**
  * THE BARRIER THAT NEVER LOSES.
  *
  * The kit gives a carry two ways to end AT a wall, and this wiring closes both. SHOVED in hard
@@ -572,6 +587,19 @@ export function liveTable<S extends LiveStage = LiveStage>(
     return view ? Math.hypot(view.a, view.b) : built.host.unit();
   };
 
+  /**
+   * ONE ID, AS THE THING THE HAND HAS HOLD OF — for the desk that writes no `carried` of its own.
+   *
+   * `still` and not a bare id, because the far screen is drawing this too: a control takes no pop
+   * and no bank on THIS screen (`drag.ts` reads the atom at the pick), and told nothing about it the
+   * other screen picked the same ring up with a card's physics — a seat's ring that swelled and
+   * leaned on the partner's desk while standing quietly on its owner's. See `isControl`.
+   */
+  const inTheHand = (id: string): CarryItem => {
+    const n = byId(built.host.root, id);
+    return { id, offset: { x: 0, y: 0 }, ...(n && isControl(n) ? { still: true } : {}) };
+  };
+
   const flickVector = (v?: Vec): Vec | undefined =>
     letGo === "throw" ? flickOf(v, glassScale(), built.motions?.tuning().friction ?? 0) : undefined;
   const wouldFly = (v?: Vec): boolean => flickVector(v) !== undefined;
@@ -596,7 +624,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
     // WHAT THE HAND IS ACTUALLY HOLDING. `carried` is written by a desk that stacks, and carries the
     // seats a run stands in; a desk without stacking never writes it, and the wiring's own list of
     // ids is the whole of what is in the hand there. Only the ids and the seats are read either way.
-    const run = carried.length > 0 ? carried : ids.map((id) => ({ id, offset: { x: 0, y: 0 } }));
+    const run = carried.length > 0 ? carried : ids.map(inTheHand);
     // THE ANCHOR'S OWN POINT, which is where the hand is: a carry is anchored ON the thing the hand
     // has hold of, so `at` is the tab's point for a run carried by its tab and the piece's own for a
     // run of one. Nothing to add and nothing to look up.
@@ -617,7 +645,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
       // stacking never writes it, and told an empty run the far screen showed a cursor gliding about
       // and the piece standing perfectly still — which is what the board did. The wiring's own list
       // of ids is the whole of what is in the hand there.
-      mirror?.hand(carried.length > 0 ? carried : ids.map((id) => ({ id, offset: { x: 0, y: 0 } })), at, done, feel);
+      mirror?.hand(carried.length > 0 ? carried : ids.map(inTheHand), at, done, feel);
       // ...AND THE PICTURE OF WHERE IT LANDS GOES WHERE THAT IS — asked by the very question that
       // lights the zone, so the light and the picture can never say two different things.
       // A FINGER THAT RESTS EMITS NOTHING. The hand is judged on every move, and a hand that flew
@@ -664,6 +692,13 @@ export function liveTable<S extends LiveStage = LiveStage>(
             inHand = isGrip(hit) ? hit.id : undefined;
             if (!isGrip(hit)) {
               liftedFrom = hit.parent && caps(hit.parent).has("Acceptor") ? hit.parent : undefined;
+              // A CONTROL IS CARRIED BARE — see `isControl`. Nothing is drawn under it and nothing
+              // is arranged around it: the run is the one thing the finger has hold of.
+              if (isControl(hit)) {
+                liftedFrom = undefined;
+                landingPic.end();
+                return [hit];
+              }
               // A CARD LIFTED ALONE GETS ONE TOO. It is the same question — where will this be when
               // I let go — and a hand carrying one card in the air is no better placed to answer it
               // than a hand carrying thirty-six: the card is lifted, so it is drawn bigger and
@@ -778,6 +813,8 @@ export function liveTable<S extends LiveStage = LiveStage>(
             // it came from is simply on that point again, and the wiring puts it back for us.
             liftedFrom = undefined;
             landingPic.end();
+            // A CONTROL IS CARRIED BARE — see `isControl`.
+            if (isControl(hit)) return [...run];
             const lead = run[0];
             const seats = pieces.offsetOf?.(root, hit, run) ?? run.map(() => ({ x: 0, y: 0 }));
             const drawnMark = lead ? landingPic.mark(run, seats, seatIn(lead)) : undefined;
