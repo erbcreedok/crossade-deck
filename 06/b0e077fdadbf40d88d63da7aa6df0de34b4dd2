@@ -1,0 +1,38 @@
+apps/hub/src/hub/shell.ts
+  s_5b703f4700e37e::t_257757ba78c0a5 31
+  s_5b703f4700e37e::t_00298d02c5e597 144,151,156-157
+  s_5b703f4700e37e::t_16bb8caf145c74 111-124
+  s_5b703f4700e37e::t_9f274c4062cd70 33
+  s_5b703f4700e37e::t_7bb930ae985c08 197-201
+apps/hub/src/look/palette.ts
+  s_5b703f4700e37e::t_2922ecdd3c4b91 61-63,65
+apps/hub/src/hub/drift.ts
+  s_5b703f4700e37e::t_ee0b1ff2e66889 21-27,33-40,43,52,56,58-59
+apps/hub/src/look/surfaces.ts
+  s_5b703f4700e37e::t_9ed5d12f91e8ee 83
+  s_5b703f4700e37e::t_ee79cfe3ffc862 75-82,84-88,91-94,96-102,105
+  s_5b703f4700e37e::t_494273ee2bd869 95
+apps/hub/src/hub/drift.test.ts
+  s_5b703f4700e37e::t_85d967eb0cfdba 52-62
+  s_5b703f4700e37e::t_3c3d2f22d34a09 8
+apps/hub/src/look/surfaces.test.ts
+  s_5b703f4700e37e::t_39ee62f85062d2 6
+  s_5b703f4700e37e::t_1117f2ae0e8349 50,54
+  s_5b703f4700e37e::t_a2f8ad262070a1 1-5,7-49,51-53,55-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "06b0e077fdadbf40d88d63da7aa6df0de34b4dd2",
+  "prompts": {},
+  "sessions": {
+    "s_5b703f4700e37e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff377796-1d26-43d8-a4c4-3da52b5eec48",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
