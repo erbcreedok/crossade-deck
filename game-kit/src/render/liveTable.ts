@@ -29,7 +29,7 @@ import { type ViewerSettings } from "../core/viewer.js";
 import { attachMotion, type CarryItem, type Motions } from "./animator/index.js";
 import { Camera, type CameraContent, type CameraLimits } from "./camera/index.js";
 import { wireCamera } from "./cameraInput.js";
-import { unwireDrag, wireDrag } from "./drag.js";
+import { fingerOf, refollow, unwireDrag, wireDrag } from "./drag.js";
 import {
   flickOf,
   letFall,
@@ -147,6 +147,15 @@ const DESK_ZOOM: CameraLimits = { minZoom: 0.5, maxZoom: 2.5 };
 
 /** How long a hand that was throwing has to stay still before it is a hand that has stopped. */
 const HAND_AT_REST_MS = 120;
+
+/**
+ * THE RIM OF THE GLASS, where a carried piece asks the view to come to it — see `rimPan`.
+ *
+ * `share` of the shorter side, never less than `least` pixels (a fingertip: a rim thinner than the
+ * finger holding the piece cannot be aimed at); `speed` in glass pixels a second at the very edge,
+ * the old table's own numbers.
+ */
+export const RIM_PAN = { share: 0.12, least: 48, speed: 780 } as const;
 
 /**
  * IS A HANDLE AMONG WHAT IS BEING HANDED TO A ZONE — asked of `items` as they stand in the tree
@@ -1153,6 +1162,70 @@ export function liveTable<S extends LiveStage = LiveStage>(
       : {}),
   }).el;
 
+  /**
+   * THE RIM PAN — a finger holding a piece against the edge of the glass brings the desk to it.
+   *
+   * The old table had this and the desk had lost it: getting a card to somewhere off the glass
+   * meant putting it down, panning, and picking it up again. So a carry inside the RIM of the glass
+   * — a twelfth of its shorter side, never less than a fingertip — drives the view towards that
+   * edge for as long as it stays there: gently at the rim's inner border, hard at the edge itself,
+   * squared so a hand that is merely near the border is not pulled about (`RIM_PAN`). The piece
+   * rides UNDER THE FINGER the whole way (`refollow`): the finger has not moved, but the desk point
+   * under it has, and a run left where the last move put it would be a run left behind on felt
+   * that slid away.
+   *
+   * ON THE CONSUMER'S HEARTBEAT (`clock`, the same seam a fling runs on — `guard.one-clock`), joined
+   * by a carry that reaches the rim and left the moment it stops asking: the finger away from the
+   * rim, the view already pressed against its own bound, or the hand opened. Not the camera's own
+   * fingers: the camera stood down for this gesture (`claims`), and the rim pan is the carry's.
+   */
+  const rimPan = (dt: number): boolean => {
+    const cam = built.camera;
+    const g = fingerOf(el);
+    if (!cam || !g) return false;
+    const { w, h } = cam.glass;
+    if (w <= 0 || h <= 0) return false;
+    const rim = Math.max(RIM_PAN.least, Math.min(w, h) * RIM_PAN.share);
+    const ramp = (d: number): number => {
+      const r = Math.min(1, Math.max(0, d / rim));
+      return r * r;
+    };
+    let dx = 0;
+    let dy = 0;
+    if (g.x < rim) dx = ramp(rim - g.x);
+    else if (g.x > w - rim) dx = -ramp(g.x - (w - rim));
+    if (g.y < rim) dy = ramp(rim - g.y);
+    else if (g.y > h - rim) dy = -ramp(g.y - (h - rim));
+    if (dx === 0 && dy === 0) return false;
+    const was = { x: cam.x, y: cam.y };
+    cam.panBy(dx * RIM_PAN.speed * dt, dy * RIM_PAN.speed * dt);
+    // PRESSED AGAINST ITS OWN BOUND, the view has nothing to give and the heartbeat is let go.
+    if (Math.abs(cam.x - was.x) < 1e-9 && Math.abs(cam.y - was.y) < 1e-9) return false;
+    refollow(el);
+    opts.onView?.();
+    return true;
+  };
+  let leaveRim: (() => void) | undefined;
+  const rimWake = (): void => {
+    if (!opts.clock || leaveRim) return;
+    leaveRim = opts.clock((dt) => {
+      const going = rimPan(dt);
+      built.motions?.redraw();
+      if (!going) {
+        leaveRim?.();
+        leaveRim = undefined;
+      }
+      return going;
+    });
+  };
+  // WOKEN BY THE CARRY'S OWN MOVES, and only when a hand is closed: a finger crossing bare felt
+  // is the camera's already, and joining the heartbeat for it would be a frame spent on nothing.
+  const rimOnMove = (): void => {
+    if (fingerOf(el)) rimWake();
+  };
+  el.addEventListener("pointermove", rimOnMove);
+  const stopRim = (): void => el.removeEventListener("pointermove", rimOnMove);
+
   return {
     el: built.el,
     host: built.host,
@@ -1178,6 +1251,9 @@ export function liveTable<S extends LiveStage = LiveStage>(
     },
     stop() {
       stopReseating?.();
+      stopRim();
+      leaveRim?.();
+      leaveRim = undefined;
       if (rest !== undefined) clearTimeout(rest);
       unwireDrag(el);
       own?.stop();
@@ -1289,6 +1365,9 @@ function buildStage(container: HTMLElement, desk: Node, opts: StageOptions): Bui
     // THE ARBITRATION, as one predicate: whatever can be picked up takes its own finger, and over
     // bare felt the same finger drives the view. The two never argue about a hand.
     claims: draggable,
+    // ...THROUGH THE CLOCK'S MAP, the one the drag wiring picks through: a card in flight is
+    // reached where it is drawn, and a finger on it is the card's — not the desk's under it.
+    reach: () => motions.reach(),
     onView: wake,
   });
 

@@ -24,6 +24,7 @@ import {
   isHandleAmong as isHandleAmongInKit,
   letFall as letFallInKit,
   type LiveTable,
+  type LiveClock,
   type Mirror as KitMirror,
   type CarryItem,
   type Node,
@@ -66,6 +67,27 @@ const MAP_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
  * own number in, and then the height is that number on both settings of the switch — otherwise the
  * `Lift` page would answer "no lift at all" to a reader who turned the physics off on it.
  */
+/**
+ * FRAMES WHILE ASKED FOR — a `LiveClock` on `requestAnimationFrame`, joined by a tick that answers
+ * `true` for as long as it wants another frame and dropped the moment it answers `false` or the
+ * caller lets go. `dt` in seconds, capped so a tab that slept does not wake up to a one-second step.
+ */
+const frames: LiveClock = (tick) => {
+  let on = true;
+  let last = performance.now();
+  const step = (now: number): void => {
+    if (!on) return;
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    if (tick(dt)) requestAnimationFrame(step);
+    else on = false;
+  };
+  requestAnimationFrame(step);
+  return () => {
+    on = false;
+  };
+};
+
 export function grabScene(
   physics: boolean,
   lift?: number,
@@ -218,6 +240,10 @@ export function grabScene(
   // arrangement — has to be written again here, or the knob would only take effect on a page reload.
   const live = liveTable<Scene>(built.el, built.host.root, {
     stage: built,
+    // A HEARTBEAT FOR THE RIM PAN (`liveTable.ts`'s `rimPan`): the catalog runs the camera's clock
+    // because the kit refuses to (`guard.one-clock`), and a piece held against the edge of the
+    // glass is one more thing that needs frames while nothing else is moving.
+    clock: frames,
     physics,
     ...(lift === undefined ? {} : { lift }),
     ...(letGo ? { letGo } : {}),

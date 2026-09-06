@@ -634,6 +634,9 @@ export function scene(
       onView: wake,
       ...(cam.unit === undefined ? {} : { unit: () => cam!.unit! }),
       ...(cam.claims ? { claims: (n) => cam!.claims!(n) } : {}),
+      // ...THROUGH THE CLOCK'S MAP, the one the drag wiring picks through: a card in flight is
+      // reached where it is drawn, and a finger on it is the card's — not the desk's under it.
+      ...(motions ? { reach: () => motions.reach() } : {}),
       ...(cam.sensitivity === undefined ? {} : { sensitivity: cam.sensitivity }),
     });
     // WHERE THE VIEW OPENS — once, and not before there is a glass to open it on.

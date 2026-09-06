@@ -297,6 +297,14 @@ interface Wiring {
    * A hand's speed on a screen is a thing that is simply known: two points and the time between them.
    */
   swing: { v: Point; at: Point; ms: number } | undefined;
+  /**
+   * WHERE THE CARRYING FINGER LAST WAS, on the glass. Kept so the run can be laid under it again
+   * WITHOUT a move — when the view slides under a still finger (`refollow`), the finger's desk
+   * point has changed although the finger has not, and the run must go where the finger now is.
+   */
+  finger: Point | undefined;
+  /** The whole of a move, minus the reading of the event — see `refollow`. */
+  follow: ((g: Point) => void) | undefined;
 }
 
 const WIRED = new WeakMap<HTMLElement, Wiring>();
@@ -363,7 +371,7 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     standing.opts = opts; // the same canvas, new knobs — never a second set of listeners
     return s;
   }
-  const w: Wiring = { opts, drag: undefined, turn: undefined, undoInvites: undefined, keen: undefined, swing: undefined };
+  const w: Wiring = { opts, drag: undefined, turn: undefined, undoInvites: undefined, keen: undefined, swing: undefined, finger: undefined, follow: undefined };
   WIRED.set(s.el, w);
   const view = s.host.view;
 
@@ -463,6 +471,7 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
       fromPos: anchor,
       fromParent: hit.parent ?? undefined,
     };
+    w.finger = g;
     // Dress every willing zone BEFORE the grab draws: its first frame already shows the invites.
     const willing = w.opts.willing ? w.opts.willing(root, hit, run) : undefined;
     if (willing) {
@@ -812,7 +821,17 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     }
     if (!w.drag || w.drag.pointer !== e.pointerId || !s.motions) return;
     trackSwing(w, glassOf(view, e), e.timeStamp);
-    const p = toUnits(s.host, glassOf(view, e), w.opts.view?.());
+    follow(glassOf(view, e));
+  };
+
+  /**
+   * LAY THE RUN UNDER A POINT ON THE GLASS — a move without the event, so the view can slide under
+   * a finger that has not moved (`refollow`) and the run still goes where the finger now is.
+   */
+  const follow = (g: Point): void => {
+    if (!w.drag || !s.motions) return;
+    w.finger = g;
+    const p = toUnits(s.host, g, w.opts.view?.());
     const at = { x: p.x + w.drag.delta.x, y: p.y + w.drag.delta.y };
     s.motions.dragTo(at);
     const ids = w.drag.items.map((it) => it.id);
@@ -823,9 +842,10 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     // THE ZONE THAT WOULD TAKE IT SAYS SO, and it says so by the same answer the release will use —
     // a light with its own idea of "near enough" promises a zone that then does not take the card,
     // and a reader believes the light over the outcome.
-    aim(aimed(ids, held, glassOf(view, e)));
+    aim(aimed(ids, held, g));
     w.opts.onCarry?.({ ids, at, done: false, feel: w.drag.feel, ...(w.swing?.v ? { swing: w.swing.v } : {}) });
   };
+  w.follow = follow;
 
   const onUp = (e: PointerEvent): void => {
     DOWN.get(s.el)?.delete(e.pointerId);
@@ -894,6 +914,28 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
  *
  * Safe to call even if `wireDrag` was never called for this element — it is a no-op then.
  */
+/**
+ * WHERE THE FINGER CARRYING SOMETHING IS, on the glass — or nothing, when no hand is closed on this
+ * element. The one question the edge of the glass has to ask (`liveTable`'s rim pan): a finger
+ * holding a card against the border wants the desk to come to it.
+ */
+export function fingerOf(el: HTMLElement): Point | undefined {
+  const w = WIRED.get(el);
+  return w?.drag && w.finger ? w.finger : undefined;
+}
+
+/**
+ * LAY THE RUN UNDER THE FINGER AGAIN, where the finger already is. The view moved and the finger
+ * did not: a still finger names a new desk point now, and the run in it has to be there and not
+ * where the last move put it. Answers `false` when nothing is in hand.
+ */
+export function refollow(el: HTMLElement): boolean {
+  const w = WIRED.get(el);
+  if (!w?.drag || !w.finger || !w.follow) return false;
+  w.follow(w.finger);
+  return true;
+}
+
 export function unwireDrag(el: HTMLElement): void {
   const w = WIRED.get(el);
   if (!w?.handlers) return;

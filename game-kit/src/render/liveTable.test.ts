@@ -209,13 +209,13 @@ function deskWithFeltRing(): { root: Node } {
  * no art, and a node whose surface nobody registered is left out of the plan — which means left out
  * of the pick, and a tab no finger can land on.
  */
-function deskWithADeck(): { root: Node } {
+function deskWithADeck(side = 8): { root: Node } {
   installStockSurfaces();
   installStockGrabs();
   registerLayout("live.free", freeLayout);
   registerSurface("gesture.map.grip", { layers: [] });
   registerSurface("gesture.map.mark", { layers: [] });
-  const root = node("desk", Bounded({ bounds: rect(8, 8) }), Container({ layout: "live.free" }), Grabber());
+  const root = node("desk", Bounded({ bounds: rect(side, side) }), Container({ layout: "live.free" }), Grabber());
   for (let i = 0; i < 3; i += 1) {
     add(
       root,
@@ -881,6 +881,78 @@ describe("the live desk", () => {
     const tabAt = seatOf(shell.host.root, again.id);
     expect(tabAt.y - seat.y, "…on the pile's own down, which is the desk's +x under this turn").toBeCloseTo(0, 1);
     expect(tabAt.x, "…below the deck's low edge").toBeGreaterThan(seat.x);
+    live.stop();
+  });
+
+  it("liveTable.a-piece-held-against-the-rim-brings-the-desk-to-it — the view pans under a still finger, and the piece stays under it", () => {
+    // THE OLD TABLE DID THIS and the desk had lost it: carrying a card to somewhere off the glass
+    // meant dropping it, panning, and picking it up again. A finger holding a piece inside the rim
+    // of the glass drives the view towards that edge — gently at the rim's inner border, hard at
+    // the edge itself — for as long as it stays there, and the piece rides under the finger the
+    // whole way rather than being left behind on the felt that slid away.
+    // A DESK WIDER THAN THE GLASS — the whole point: there is somewhere off the glass to carry to.
+    const { root } = deskWithADeck(40);
+    const c = fakeClock();
+    const shell = stage(root, c.clock);
+    shell.camera!.setScreen(600, 400);
+    shell.camera!.setContent({ x: -20, y: -20, w: 40, h: 40 }, shell.host.unit());
+    shell.camera!.lookAt({ x: 0, y: 0 });
+    // THE CONSUMER'S HEARTBEAT, joined by the wiring only while something is moving: it is the
+    // same seam a fling runs on (`clock`), and the rim pan is one more thing that keeps it lit.
+    let beating: ((dt: number) => boolean) | undefined;
+    const live = liveTable(shell.el.ownerDocument.body, root, {
+      stage: shell,
+      letGo: "drop",
+      stacking: true,
+      heapKindOf: (n: Node) => (fieldsOf<BoundedFields>(n, "Bounded") && !isDrawn(n) ? "card" : ""),
+      grip: GRIP_SPEC,
+      // ...AND A ROOM AS WIDE, or the walls hold the hand inside the shelf's stock eight units.
+      room: { x: -20, y: -20, w: 40, h: 40 },
+      clock: (tick) => {
+        beating = tick;
+        return () => {
+          beating = undefined;
+        };
+      },
+    });
+    const on = apply(shell.camera!.transform(), { x: 0, y: 0 });
+    const wasX = shell.camera!.x;
+    // A SLOW CARRY to just inside the left edge of the glass, and then the finger stays put.
+    shell.el.dispatchEvent(finger("pointerdown", on.x, on.y, 0));
+    const rim = { x: 6, y: on.y };
+    for (let i = 1; i <= 4; i += 1) {
+      shell.el.dispatchEvent(finger("pointermove", on.x + ((rim.x - on.x) * i) / 4, on.y, i * 200));
+      c.tick(1);
+    }
+    expect(beating, "a finger at the rim lights the heartbeat").toBeDefined();
+    // THE VIEW COMES, frame by frame, and towards the finger: the left rim shows what lies left.
+    for (let i = 0; i < 20; i += 1) {
+      const going = beating?.(1 / 60);
+      c.tick(1);
+      expect(going, "…and keeps the heartbeat lit while the finger stays there").toBe(true);
+    }
+    expect(shell.camera!.x, "the view has panned").not.toBeCloseTo(wasX, 3);
+    c.tick(40); // let the chase springs arrive, so what is drawn is what is aimed at
+    // ...AND THE PIECE IS STILL UNDER THE FINGER: drawn where the finger's desk point is NOW, not
+    // where the last move left it.
+    const poses = shell.motions!.poses()!;
+    // WHICHEVER CARD THE HAND CLOSED ON — the one the clock is moving that is a piece and not the
+    // hand's own picture of the landing (`mark`).
+    const held = [...poses.keys()].find((id) => {
+      const n = byId(shell.host.root, id);
+      return n !== undefined && !isDrawn(n) && fieldsOf<ValuedFields>(n, "Valued")?.values?.["mark"] === undefined;
+    })!;
+    expect(held, "a card is in the hand").toBeDefined();
+    const drawnOnGlass = apply(shell.camera!.transform(), apply(poses.get(held)!, { x: 0, y: 0 }));
+    expect(Math.abs(drawnOnGlass.x - rim.x), "the load stays with the finger across the pan").toBeLessThan(40);
+    // BACK IN THE MIDDLE, the desk stops: a finger away from the rim asks nothing of the view.
+    shell.el.dispatchEvent(finger("pointermove", 300, on.y, 1200));
+    c.tick(1);
+    const settledX = shell.camera!.x;
+    for (let i = 0; i < 5; i += 1) beating?.(1 / 60);
+    expect(shell.camera!.x, "away from the rim the view rests").toBeCloseTo(settledX, 6);
+    shell.el.dispatchEvent(finger("pointerup", 300, on.y, 1400));
+    c.tick(60);
     live.stop();
   });
 

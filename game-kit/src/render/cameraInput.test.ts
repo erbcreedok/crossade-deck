@@ -16,6 +16,7 @@ import { Bounded } from "../core/atoms/bounded.js";
 import { add, node, type Node } from "../core/node.js";
 import { DEFAULT_VIEWER } from "../core/viewer.js";
 import { rect } from "../presets/shapes.js";
+import { move, type Transform } from "../core/transform.js";
 import { installStockSurfaces } from "../presets/surfaces.js";
 import { resetSurfaces } from "./surfaces.js";
 import { type Host } from "./host.js";
@@ -77,7 +78,7 @@ interface Bench {
  * every axis has somewhere to go. One card sits at the origin for the arbitration to find.
  */
 function bench(
-  options: { claims?: (n: Node) => boolean; inDocument?: boolean; fling?: boolean; input?: CameraInput } = {},
+  options: { claims?: (n: Node) => boolean; inDocument?: boolean; fling?: boolean; input?: CameraInput; reach?: () => ReadonlyMap<string, Transform> | undefined } = {},
 ): Bench {
   const root = node("desk", Container({ layout: "free" }));
   add(root, node("card", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
@@ -103,6 +104,7 @@ function bench(
     content: () => ({ x: -10, y: -10, w: 20, h: 20 }),
     onView: () => void (painted += 1),
     ...(options.claims ? { claims: options.claims } : {}),
+    ...(options.reach ? { reach: options.reach } : {}),
     ...(options.inDocument === undefined ? {} : { inDocument: options.inDocument }),
   });
   camera.lookAt({ x: 0, y: 0 });
@@ -144,6 +146,26 @@ describe("the camera's fingers", () => {
     b.hand.up(1, 100, 150, 32);
     b.hand.down(2, 380, 40);
     b.hand.move(2, 340, 40, 48);
+    expect(b.wiring.gesture()).toBe("pan");
+    expect(b.camera.x).toBeCloseTo(was - 40, 6);
+  });
+
+  it("cameraInput.a-finger-on-a-piece-in-flight-is-not-the-camera-s — the arbitration reads what the eye sees", () => {
+    // A PIECE THE CLOCK IS MOVING RESTS SOMEWHERE IT LEFT LONG AGO. The drag wiring picks through
+    // the clock's own map (`Motions.reach`) and closes on the card where it is DRAWN; the camera,
+    // picking through the tree alone, found bare felt under the same finger and took the gesture
+    // too — one finger moving a card and the desk under it at once. Both readers ask the same map.
+    const flying = new Map([["card", move(2, 0)]]); // drawn two units right of where it rests
+    const b = bench({ claims: (n) => n.id === "card", reach: () => flying });
+    const was = b.camera.x;
+    b.hand.down(1, 400, 150); // over the card as DRAWN — the tree says empty desk here
+    b.hand.move(1, 300, 150, 16);
+    expect(b.wiring.gesture()).toBe("given");
+    expect(b.camera.x).toBe(was);
+    b.hand.up(1, 300, 150, 32);
+    // …and where the tree says the card is, the eye sees felt now, and the finger pans.
+    b.hand.down(2, 200, 150);
+    b.hand.move(2, 160, 150, 48);
     expect(b.wiring.gesture()).toBe("pan");
     expect(b.camera.x).toBeCloseTo(was - 40, 6);
   });

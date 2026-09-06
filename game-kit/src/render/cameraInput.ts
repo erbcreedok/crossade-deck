@@ -17,6 +17,7 @@
 
 import { type Node } from "../core/node.js";
 import { type Point } from "../core/atoms/bounded.js";
+import { type Transform } from "../core/transform.js";
 import { type Host } from "./host.js";
 import { glassOf, pick } from "./pointer.js";
 import {
@@ -51,6 +52,14 @@ export interface CameraGestures {
    * gesture is the desk's.
    */
   readonly claims?: ((n: Node) => boolean) | undefined;
+  /**
+   * WHERE THE PIECES CAN BE REACHED RIGHT NOW — the clock's own map (`Motions.reach`), the same one
+   * the drag wiring picks through. A piece the clock is moving rests somewhere it left long ago:
+   * asked of the tree alone, the camera found bare felt under a finger that the drag wiring had
+   * just closed on a card, and one finger moved the card and the desk under it at once. Absent,
+   * the tree is the map — a desk with no clock has nothing in flight.
+   */
+  readonly reach?: (() => ReadonlyMap<string, Transform> | undefined) | undefined;
   /** The view moved — repaint. Called for gestures and for every step of a throw. */
   readonly onView?: (() => void) | undefined;
   /**
@@ -193,7 +202,7 @@ export function wireCamera(w: CameraGestures): CameraControl {
     }
     sync();
     // The arbitration, in one line: over an element the camera stands down for the whole gesture.
-    if (w.claims && pick(w.host, w.host.root, g, w.claims, w.camera.transform())) {
+    if (w.claims && pick(w.host, w.host.root, g, w.claims, w.camera.transform(), w.reach?.())) {
       gesture = "given";
       return;
     }
