@@ -1,0 +1,34 @@
+game-kit/.storybook/devtools/scene.ts
+  h_2b92b67d011bfc 637-639
+game-kit/.storybook/stories/gestureScene.ts
+  h_2b92b67d011bfc 27,70-90,243-246
+game-kit/docs/test-plan/53-camera-input.md
+  h_2b92b67d011bfc 3,23
+game-kit/docs/test-plan/78-live-table.md
+  h_2b92b67d011bfc 3,18
+game-kit/docs/test-plan/README.md
+  h_2b92b67d011bfc 10,81,105
+game-kit/src/index.ts
+  h_2b92b67d011bfc 209
+game-kit/src/render/cameraInput.test.ts
+  h_2b92b67d011bfc 19,81,107,153-172
+game-kit/src/render/cameraInput.ts
+  h_2b92b67d011bfc 20,55-62,205
+game-kit/src/render/drag.ts
+  h_2b92b67d011bfc 300-307,374,474,824-834,845,848,917-938
+game-kit/src/render/liveTable.test.ts
+  h_2b92b67d011bfc 212,218,887-958
+game-kit/src/render/liveTable.ts
+  h_2b92b67d011bfc 32,151-159,1165-1228,1254-1256,1368-1370
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "304ddbbe2aef15006aad3c10e229935c9003db92",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
