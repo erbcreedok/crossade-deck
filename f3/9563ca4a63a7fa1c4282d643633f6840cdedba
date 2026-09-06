@@ -1,0 +1,14 @@
+game-kit/docs/test-plan/08-per-atom-contract.md
+  h_2b92b67d011bfc 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f39563ca4a63a7fa1c4282d643633f6840cdedba",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
