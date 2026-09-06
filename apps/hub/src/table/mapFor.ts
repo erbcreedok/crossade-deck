@@ -1,15 +1,12 @@
 // WHICH BOARD A TABLE BUILDS — one function of the `game` id the server hands back in `welcome`
 // (or, on the very first frame before it arrives, the id already carried in the URL). Kept apart
 // from `index.ts` so a unit test can hit it without mounting a host or opening a socket.
-import { chairId, chessMap, nardyMap, roundMap, roundPlaces, seatChair } from "@game-presets/desks";
-import { add, byId, node, remove, type Node } from "game-kit";
+import { chairId, chairNameId, chessMap, nardyMap, roundMap, roundPlaces, seatChairs } from "@game-presets/desks";
+import { byId, remove, type Node } from "game-kit";
 import { hubSeats } from "./people.js";
 
 /** How many people this shelf's desks seat — the same two the room is created with. */
 export const TABLE_SEATS = 2;
-
-/** The layer the round table's rings stand in — see `syncSeatChairs` below. */
-const SEAT_LAYER = "seat layer";
 
 export type TableGame = "cards" | "chess" | "nardy";
 
@@ -35,6 +32,12 @@ export function mapFor(id: string | undefined): Node {
   return roundMap([]);
 }
 
+/** Who the room says is sitting at this desk — the seat it named them, and what it calls them. */
+export interface SeatedPerson {
+  readonly seat: string;
+  readonly name: string;
+}
+
 /**
  * THE RINGS, MADE TO MATCH WHO IS ACTUALLY HERE — one per seat in `present`, standing in the SAME
  * slot that seat always has (`roundPlaces(TABLE_SEATS)`, by index), never fewer and never more.
@@ -42,22 +45,29 @@ export function mapFor(id: string | undefined): Node {
  * Called locally by every screen off its OWN copy of the roster, exactly as the discs and the
  * chairs' dressing already are (`withAvatars`) — never sent over the wire, so two screens that
  * read the same roster draw the same rings without a byte spent saying so.
+ *
+ * THE SHELF'S OWN CONSTRUCTOR BUILDS IT (`seatChairs`), one place at a time, and that is the whole
+ * point of the call: a ring built here by hand was a ring without the two things the constructor
+ * gives every other desk on the shelf — the HAND atoms that make it the patch its owner's cards lie
+ * in, and the NAME node that stands beside it. Both were missing on this desk alone.
  */
-export function syncSeatChairs(desk: Node, present: readonly string[]): void {
+export function syncSeatChairs(desk: Node, present: readonly SeatedPerson[]): void {
   const places = roundPlaces(TABLE_SEATS);
   const seats = hubSeats(TABLE_SEATS);
-  let layer = byId(desk, SEAT_LAYER);
   for (const [i, { seat, ink }] of seats.entries()) {
     const there = byId(desk, chairId(seat));
-    const should = present.includes(seat);
-    if (should && !there) {
-      if (!layer) {
-        layer = node(SEAT_LAYER);
-        add(desk, layer);
-      }
-      add(layer, seatChair(seat, places[i]!, { ink, name: seat }));
-    } else if (!should && there) {
+    const sitting = present.find((one) => one.seat === seat);
+    if (sitting && !there) {
+      // ONE PLACE AND ONE SEAT, so the ring lands in the slot this seat always has rather than in
+      // the slot its position in the roster happens to be. THE ROUND DESK DEALS, so the ring is
+      // also its owner's hand — which is the only kind of hand this desk has (`handZone.ts`).
+      seatChairs(desk, [places[i]!], [{ seat, ink, name: sitting.name }], true);
+    } else if (!sitting && there) {
       remove(there.parent!, there);
+      // THE NAME GOES WITH THE RING. It is a node of its own so the ring can arrange cards without
+      // arranging words, and a caption left behind is a player's name lying on felt they got up from.
+      const name = byId(desk, chairNameId(seat));
+      if (name) remove(name.parent!, name);
     }
   }
 }

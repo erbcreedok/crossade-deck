@@ -13,14 +13,16 @@
 import {
   chessPlaces,
   chessRoom,
+  CHESS_UNIT,
+  LIVE_UNIT,
   mayThrow,
   nardyPlaces,
   nardyRoom,
   NARDY_BUMP,
+  NARDY_UNIT,
   ROUND_R,
   roundPlaces,
   runOf,
-  seatOf,
   seatsOf,
   settled,
   squareAt,
@@ -35,8 +37,6 @@ import {
 } from "@game-presets/desks";
 import { throwDie } from "@game-presets/dice";
 import {
-  byId,
-  caps,
   DEFAULT_TUNING,
   follow,
   watchPresence,
@@ -44,12 +44,9 @@ import {
   type CarryItem,
   type PresenceView,
   type Screen,
-  extentOf,
-  footprint,
   GRIP_SPEC,
   heapOf,
   holdThePage,
-  idleReturn,
   installStockCarries,
   installStockFlips,
   installStockLayouts,
@@ -57,13 +54,11 @@ import {
   installTheme,
   liveTable,
   withAvatars,
-  Camera,
   setRev,
   t,
   type Avatars,
   type CameraContent,
   type Palette,
-  type IdleReturnTracker,
   type LiveClock,
   type LiveStage,
   type LiveTableOptions,
@@ -77,10 +72,10 @@ import { pixiPainter } from "game-kit/pixi";
 import { storedAccount } from "../account/account.js";
 import { beat } from "../hub/beat.js";
 import { goTo, placeOf } from "../hub/route.js";
-import { joinTable, type Table } from "../online/table.js";
+import { joinTable, type RosterItem, type Table } from "../online/table.js";
 import type { Teardown } from "../hub/catalogue.js";
 import { installTableLook } from "../look/surfaces.js";
-import { isTableGame, mapFor, syncSeatChairs, TABLE_SEATS, type TableGame } from "./mapFor.js";
+import { isTableGame, mapFor, syncSeatChairs, TABLE_SEATS, type SeatedPerson, type TableGame } from "./mapFor.js";
 import { hubAvatarsTransport, hubSeats, inkOf, SEAT_INKS, type HubAvatarsTransport } from "./people.js";
 
 /** A far hand's cursor, over the glass and never on the desk — the catalog's own `DOT` size. */
@@ -152,123 +147,54 @@ function placesFor(game: TableGame): readonly SeatPlace[] {
 /** How far the view may zoom, either way — the same range the catalog's map opens with. */
 const CAM_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
 
-/** Room round the board's own room, in units, so there is somewhere to lay a piece taken off it. */
-const CAM_MARGIN = 2.5;
-/** Felt shown round the board when the table opens, units — room for a piece taken off it. */
-const OPEN_RIM = 1.2;
-
-/** How far the round table's circle overfills the glass at opening, cards only — no side seen. */
-const CARDS_OVERFILL = 1.5;
+/**
+ * HOW LONG THE GLIDE HOME TAKES, in ms — the kit's own default, named here because the OPENING is
+ * the same glide run to its end in one step (see `startTable`), and a number known to one of the two
+ * would open the desk part of the way to a place it then eased the rest of the way into.
+ */
+const HOME_GLIDE_MS = 600;
 
 /**
- * THE STRETCH THE CAMERA IS HELD INSIDE — the board's own room (each desk on this shelf draws a
- * felt wider than the board face) plus a further margin, wide enough that a captured piece or a
- * thrown die has somewhere to land beside the board rather than off the glass.
+ * THE STRETCH THE CAMERA IS HELD INSIDE — each desk's OWN room (`roundRoom`, `chessRoom`,
+ * `nardyRoom`, exactly as the catalog's `Live/*` story hands it in), widened until every seat at it
+ * can actually be brought under the reader on THIS glass.
  *
- * A desk with no room of its own falls back to its own footprint with the margin round it.
+ * THE ROOM IS THE ONLY THING THAT DECIDES WHETHER A PLAYER CAN SIT DOWN. A place is on the rim, and
+ * sitting at it means having it in the MIDDLE of one's own glass — which is what `isHome` reads,
+ * what the ring fills for and what the disc comes off the felt for. But `Camera.lookAt` clamps: a
+ * room narrower than the glass is CENTRED rather than pinned, so the eye asked for a seat is put
+ * back in the middle of the desk and nobody at it is ever home. The shelf's own margin (`roundMap`'s
+ * `RIM`) is measured for the catalog's short pane; on a phone held upright, half the glass is
+ * thirteen units of felt and the room ran out after six — the glide ran, clamped, and came to rest
+ * in the middle, which is the picture the table opened with on the hub and only on the hub.
+ *
+ * So the room is the desk's own plus half a glass BEHIND the furthest seat, measured at the widest
+ * the view may ever be (`CAM_ZOOM.minZoom`), which is the widest the clamp ever has to give way to.
+ * It is the same sentence the shelf already writes, with this glass's number in it instead of a
+ * pane's.
  */
-function roomFor(game: TableGame, root: Node): CameraContent {
-  const room = game === "chess" ? chessRoom() : game === "nardy" ? nardyRoom() : game === "cards" ? roundRoom() : undefined;
-  if (room) {
-    return {
-      x: room.x - CAM_MARGIN,
-      y: room.y - CAM_MARGIN,
-      w: room.w + CAM_MARGIN * 2,
-      h: room.h + CAM_MARGIN * 2,
-    };
-  }
-  const shape = footprint(root);
-  const { w, h } = shape ? extentOf(shape) : { w: 0, h: 0 };
-  return { x: -w / 2 - CAM_MARGIN, y: -h / 2 - CAM_MARGIN, w: w + CAM_MARGIN * 2, h: h + CAM_MARGIN * 2 };
+export function roomOfDesk(game: TableGame, glass: { readonly width: number; readonly height: number }): CameraContent {
+  const room = game === "chess" ? chessRoom() : game === "nardy" ? nardyRoom() : roundRoom();
+  const behind = Math.max(glass.width, glass.height) / 2 / (unitOfDesk(game) * CAM_ZOOM.minZoom);
+  const reach = Math.max(...placesFor(game).map(({ at }) => Math.hypot(at.x, at.y))) + behind;
+  // GROWN ROUND THE ROOM'S OWN MIDDLE, never shrunk: a desk that already declares more felt than
+  // this asks for is a desk that has its own reason to, and half a glass is a floor, not a size.
+  const cx = room.x + room.w / 2;
+  const cy = room.y + room.h / 2;
+  const half = { w: Math.max(room.w / 2, reach), h: Math.max(room.h / 2, reach) };
+  return { x: cx - half.w, y: cy - half.h, w: half.w * 2, h: half.h * 2 };
 }
 
 /**
- * THE VIEW OPENS AT ITS OWN PLACE, INSTANTLY — no glide.
- *
- * `idle.goHome()` eases from wherever the camera already stands over its own `glideMs`, which is
- * right for a reader who wandered off and is being brought back. The FIRST frame is a different
- * question: `avatars.publish()` runs synchronously right after `joinTable` resolves, and reads
- * whatever the camera is worth AT THAT MOMENT (`presence.ts`'s `isHome`) — a view still easing home
- * fails it, so the ring stays empty and a stray disc is drawn instead, sized for the camera the
- * desk opened on rather than the one it is about to settle at.
+ * WHAT ONE UNIT IS WORTH ON THIS DESK, in pixels — the shelf's own etalon per desk, the very number
+ * the catalog's story passes. A unit worked out here from the glass would be a second etalon, and a
+ * `Screened` node measured against one while the camera used the other draws itself to make up the
+ * difference.
  */
-export function snapHome(camera: Camera, place: SeatPlace, zoom: number): void {
-  // ZOOM AND TURN FIRST: `lookAt`'s own `clamp()` measures the desk against the CURRENT zoom and
-  // rotation, and a desk smaller than the glass is not pinned to the asked-for point but CENTRED
-  // (`Camera.clamp`) — called at the wide-open room zoom, `lookAt(place.at)` would have been thrown
-  // away and the room's own middle kept instead.
-  camera.setZoom(zoom);
-  camera.turnTo(place.facing);
-  camera.lookAt(place.at);
-}
-
-/**
- * WHERE THE VIEW OPENS on this desk — the zoom, and only the zoom; the point is the room's middle,
- * which is the kit's own answer and the same on every desk here.
- *
- * THE ROOM IS WHERE THE EYE MAY GO; THE BOARD IS WHAT IT OPENS ON. Fitted to the whole room a chess
- * board came up a third of a phone wide — the room is the felt, the zone under it and the margins,
- * most of it empty on the first frame. So the opening zoom fits the BOARD plus a rim of `OPEN_RIM`
- * units — enough to see a taken piece set down beside it — and the room stays the limit a pan runs
- * into, not the picture.
- */
-function openZoom(
-  game: TableGame,
-  ctx: { readonly root: Node; readonly room: CameraContent; readonly unit: number; readonly view: { readonly width: number; readonly height: number } },
-): number {
-  // ...AND A DESK WHOSE ROOT IS THE PLAYING AREA HAS NO SEPARATE FACE. The round table is one felt:
-  // asked for a "board face" it has none, and the fit fell back to the whole ROOM — the circle plus
-  // two margins — which opens a table twelve units across on a glass measured for twenty. Its own
-  // footprint is the face, and it is the same picture the other two open on.
-  const face = byId(ctx.root, "board face");
-  const box = face ? footprint(face) : game === "cards" ? footprint(ctx.root) : undefined;
-  let { w: bw, h: bh } = box ? extentOf(box) : { w: ctx.room.w, h: ctx.room.h };
-  // THE DICE LIVE OUTSIDE THE BOARD — in the band beside it — and an opening fitted to the board
-  // alone put them past the edge of a phone. The view opens centred on the board, so the farthest
-  // die counts twice: as far as it sits on one side, that much room on the other.
-  for (const piece of ctx.root.children) {
-    if (!caps(piece).has("Rollable")) continue;
-    const { x, y } = seatOf(piece);
-    bw = Math.max(bw, 2 * (Math.abs(x) + 0.8));
-    bh = Math.max(bh, 2 * (Math.abs(y) + 0.8));
-  }
-  // THE ROUND TABLE OPENS OVERFILLING THE GLASS ON PURPOSE — a fit that shows the whole rim reads
-  // as a coin on a phone; the owner wants the circle wider than the screen, its sides run off the
-  // edges and only the top is ever in view. `bw` here is the circle's own diameter (its footprint
-  // is square), so the target is that diameter times `CARDS_OVERFILL`, not the usual board+rim fit.
-  return game === "cards"
-    ? (ctx.view.width * CARDS_OVERFILL) / (bw * ctx.unit)
-    : Math.min(ctx.view.width / ((bw + OPEN_RIM * 2) * ctx.unit), ctx.view.height / ((bh + OPEN_RIM * 2) * ctx.unit));
-}
-
-/**
- * A UNIT IS WHAT MAKES THE ROOM FILL THE GLASS AT ZOOM 1 — see the `unit` option below, which is
- * where the number is actually handed to the wiring. Named here because the idle glide has to work
- * out the same opening zoom the view opened on, and an opening measured against a second, slightly
- * different etalon would come home to a picture the desk never opened on.
- */
-function unitFor(game: TableGame, root: Node, view: { readonly width: number; readonly height: number }): number {
-  const room = roomFor(game, root);
-  return Math.max(1, Math.min(view.width / room.w, view.height / room.h));
-}
-
-/**
- * THE CAMERA THE IDLE GLIDE IS GIVEN — this very one, answering ONE question differently.
- *
- * `idleReturn` brings a view nobody has touched home to `camera.fitZoom()`: the whole room on the
- * glass. That is home for a desk that OPENS fitted, and it is not home for any desk here — the
- * round table opens overfilling the glass on purpose (`CARDS_OVERFILL`) and a board opens on the
- * board rather than on the room. Left to the fit, a table nobody had touched for six seconds shrank
- * to a coin by itself, undoing the opening while the player watched.
- *
- * So the glide is handed a view of this same camera whose "fit" is the zoom the desk actually opened
- * on. Every other read and every write goes straight through to the camera itself — the glide still
- * moves the eye to its seat and turns it the seat's way.
- */
-export function homeAt(camera: Camera, zoom: () => number): Camera {
-  return new Proxy(camera, {
-    get: (target, key) => (key === "fitZoom" ? zoom : Reflect.get(target, key, target)),
-  });
+export function unitOfDesk(game: TableGame): number {
+  if (game === "chess") return CHESS_UNIT;
+  if (game === "nardy") return NARDY_UNIT;
+  return LIVE_UNIT;
 }
 
 /**
@@ -343,8 +269,12 @@ export function startTable(container: HTMLElement): Teardown {
    * than that on any connection worth calling one) — so the turn is applied where the seat arrives.
    */
   let seat: string | null = null;
-  /** Chess only: the second seat looks at the SAME board turned 180°, own back rank nearest it. */
-  const seatTurn = (): number => (game === "chess" && seat === "p2" ? 180 : 0);
+  /**
+   * WHICH OF THE DESK'S PLACES THIS GLASS SITS AT — the seat's own slot, and `0` until the room has
+   * said. Only the fallback: once somebody is actually at the desk their ring is the answer, and a
+   * ring can be dragged (`Avatars.placeOf`).
+   */
+  const mySeatIndex = (): number => (seat === "p2" ? 1 : 0);
 
   let initialRoot = buildInitialDesk(game);
 
@@ -367,20 +297,15 @@ export function startTable(container: HTMLElement): Teardown {
    * been assigned yet. There is no room to tell at that moment either: the wire is joined later.
    */
   let standing: ReturnType<typeof liveTable> | undefined;
-  /**
-   * THE IDLE GLIDE, once the seat is known — the hub has no avatar to hand `liveTable`'s own `seats`
-   * option (that option asks for a `mine` INDEX at construction time, and the seat only arrives from
-   * `joinTable` afterwards), so it is built directly on the same camera and joined to the same clock
-   * the hub already runs its fling on. Absent until `joinTable` resolves.
-   */
-  let idle: IdleReturnTracker | undefined;
   let leaveIdleClock: (() => void) | undefined;
-  let stopIdlePointer: (() => void) | undefined;
   /** The people at this desk, once the room has said who they are. */
   let avatars: Avatars | undefined;
   let peopleWire: HubAvatarsTransport | undefined;
   /** Everybody the room has named, in seat order — read by `farDot`'s own ink. */
   let seated: readonly string[] = [];
+  /** THE SAME PEOPLE, WITH THE NAME THE ROOM CALLS THEM BY — what stands under a ring on the felt. */
+  const sitting = (roster: readonly RosterItem[]): readonly SeatedPerson[] =>
+    roster.flatMap((one) => (one.seat ? [{ seat: one.seat, name: one.name }] : []));
   let stopWatching: (() => void) | undefined;
   let unbindOnRelay: (() => void) | undefined;
   let unbindOnRoster: (() => void) | undefined;
@@ -490,17 +415,26 @@ export function startTable(container: HTMLElement): Teardown {
     // Re-dresses the board's own backdrop in the hub's look — AFTER the map has registered its own,
     // so the override is the one left standing.
     look: installTableLook,
-    room: (root) => roomFor(game, root),
-    // A UNIT IS WHAT MAKES THE ROOM FILL THE GLASS AT ZOOM 1. The host's own unit is the shelf's
-    // (tuned for a hand of cards), and a nardy desk measured in it wants a zoom of a quarter to fit —
-    // below the floor the limits allow, so the clamp left the board four times too big. Sized off
-    // the room instead, "fit" is zoom 1 and the limits are a real range round it.
-    unit: (root, view) => unitFor(game, root, view),
-    // ...AND THE SAME NUMBER IS THE HUD ETALON. A `Screened` node (the dice handle) measures itself
-    // against the host's own, several times the camera's: told the view had shrunk sixfold it grew
-    // sixfold to make up for it, a bar across half the glass.
-    hudUnit: true,
-    open: (ctx) => openZoom(game, ctx),
+    // THE GLASS AS IT STANDS NOW, and not as it stood when the desk was built: the room is re-read
+    // on every resize (`control.refresh`), and a phone turned on its side is a different glass with
+    // a different amount of felt behind its seats. Read off the CONTAINER and not off the host,
+    // because the very first read happens inside the call that is still building the host.
+    room: () => roomOfDesk(game, { width: container.clientWidth, height: container.clientHeight }),
+    unit: unitOfDesk(game),
+    // WHERE THE SEATS ARE, AND THAT AN UNTOUCHED VIEW COMES BACK TO MINE — the kit's own, the same
+    // option the catalog's `Live/*` stories pass. It is what makes the ring fill and the disc come
+    // off the felt (`isHome`), and it carries the TURN with it: the second place faces 180°, so a
+    // screen sitting at it looks at the desk from the other side without anybody turning a camera.
+    //
+    // `mine` is the fallback and `placeNow` is the answer: which seat this glass is arrives from
+    // `joinTable`, after the desk is already up, and where that seat STANDS moves again whenever
+    // its owner drags their ring. Both are asked every step, so neither is a number kept here.
+    seats: {
+      places: placesFor(game),
+      mine: 0,
+      placeNow: () => avatars?.placeOf(seat ?? "") ?? placesFor(game)[mySeatIndex()],
+      idleReturn: { glideMs: HOME_GLIDE_MS },
+    },
     // WHERE SOMEBODY IS LOOKING IS PART OF THIS DESK, so a view that moved is news — it is what
     // puts the far reader's own disc where they are actually sitting — or takes it off the felt
     // altogether, once they are looking at their own place again.
@@ -526,18 +460,6 @@ export function startTable(container: HTMLElement): Teardown {
   });
   standing = live;
 
-  /**
-   * THE ZOOM THIS DESK OPENED ON, worked out again from the glass as it stands now — the very sum
-   * `liveTable`'s own opening does (`open`, then held between the room's fit and the far limit),
-   * so "home" and "opening" cannot drift apart into two different pictures.
-   */
-  const openHome = (): number => {
-    const view = live.host.viewport();
-    const root = live.host.root;
-    const wish = openZoom(game, { root, room: roomFor(game, root), unit: unitFor(game, root, view), view });
-    return live.camera ? Math.max(live.camera.fitZoom(), Math.min(wish, CAM_ZOOM.maxZoom)) : wish;
-  };
-
   joinTable({
     game,
     ...(currentPlace.room ? { room: currentPlace.room } : {}),
@@ -547,60 +469,32 @@ export function startTable(container: HTMLElement): Teardown {
     .then((table) => {
       currentTable = table;
       seat = table.seat;
-      // THE TURN, NOW THAT THE SEAT IS ACTUALLY KNOWN — the glass was already open and looking at
-      // the board from the wrong side of it for however long the round trip took.
-      live.camera?.turnTo(seatTurn());
+      // THE DESK OPENS AT ITS OWN PLACE, and it opens there NOW: which seat this glass is only
+      // arrives here, and until it did the view was standing in the middle of the room looking at
+      // the desk from nobody's side of it.
+      //
+      // The kit's own glide is what moves it (`live.idle`, built from the `seats` option above), so
+      // "where home is" is one answer and not two — the same one a tap on the ring and a view left
+      // alone both go to. IN ONE STEP, not eased: `avatars.publish()` runs synchronously a few lines
+      // below and reads whatever the camera is worth AT THAT MOMENT (`isHome`), and a view still
+      // easing home fails it — the ring stays empty and a stray disc is drawn instead.
+      live.idle?.goHome();
+      live.idle?.step(HOME_GLIDE_MS);
       live.motions?.redraw();
-      // ...AND THE IDLE GLIDE, ON THE SAME SEAT — WITHOUT AN AVATAR ON THE FELT. This is the "only
-      // idle return" half of `seats`, built straight off `idleReturn` rather than off `liveTable`'s
-      // own option, for the reason above the declaration.
-      const seatIndex = seat === "p2" ? 1 : 0;
-      const place = placesFor(game)[seatIndex];
-      if (live.camera && place) {
-        idle = idleReturn(
-          // HOME IS WHERE THE VIEW OPENED, not the fit — see `homeAt`. Measured afresh on each
-          // step rather than remembered from the opening, because the glass may have been turned
-          // over since, and a remembered number would bring the eye home to the old phone.
-          homeAt(live.camera, () => openHome()),
-          // WHERE MY PLACE IS NOW, asked every step and never remembered: a chair can be dragged,
-          // and a home read once would bring the eye back to a seat I have since got up from.
-          () => {
-            const home = avatars?.placeOf(seat ?? "") ?? place;
-            return {
-              seat: "",
-              place: home,
-              name: "",
-              ink: "accent",
-              state: "online",
-              holding: false,
-              view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 0, h: 0 } },
-            };
-          },
-          {},
-        );
-        // ANY POINTER DOWN ON THIS GLASS IS AN INPUT — see `liveTable.ts`'s own listener for `seats`.
-        const onDown = (): void => idle?.input();
-        container.addEventListener("pointerdown", onDown, true);
-        stopIdlePointer = () => container.removeEventListener("pointerdown", onDown, true);
-        // A DESK OPENS AT ITS OWN PLACE — the same reason the catalog's `Live/Cards` asks its own
-        // idle glide home on the first frame rather than leaving the eye on the room's middle: home
-        // is the view `isHome` reads (`presence.ts`), and a desk that opened there instead would
-        // draw its own reader as having wandered off before anybody had touched anything.
-        // INSTANTLY, not through the glide (`snapHome`) — `avatars.publish()` below reads this same
-        // camera synchronously, before the idle clock has run a single tick.
-        snapHome(live.camera, place, openHome());
+      // THE SAME CLOCK THE FLING BORROWS, joined for the whole life of the table rather than only
+      // while something is moving: the idle countdown has to keep counting while the view is dead
+      // still, which is exactly what the camera's own borrow (`clock` above) never does.
+      leaveIdleClock = cameraClock.join((_seconds, dt) => {
+        live.idle?.step(dt * 1000);
+        // THE GLIDE MOVES THE CAMERA DIRECTLY (`idleReturn`), never through `wake`'s own repaint —
+        // that path only runs while a fling is being stepped, and this join outlives every fling.
         live.motions?.redraw();
-        // THE SAME CLOCK THE FLING BORROWS, joined for the whole life of the table rather than only
-        // while something is moving: the idle countdown has to keep counting while the view is dead
-        // still, which is exactly what the camera's own borrow (`clock` above) never does.
-        leaveIdleClock = cameraClock.join((_seconds, dt) => {
-          idle?.step(dt * 1000);
-          // THE GLIDE MOVES THE CAMERA DIRECTLY (`idleReturn`), never through `wake`'s own repaint —
-          // that path only runs while a fling is being stepped, and this join outlives every fling.
-          live.motions?.redraw();
-          return false;
-        });
-      }
+        // ...AND WHERE SOMEBODY IS LOOKING IS PART OF THIS DESK. `onView` is the FINGER's report and
+        // the glide is not a finger: without this the view arrives home and the desk goes on drawing
+        // this reader as having wandered off, disc and all.
+        avatars?.publish();
+        return false;
+      });
       // WHOSE HAND DID WHAT, in a colour the desk actually has. The server names seats `p1`, `p2`…
       // and a mark is drawn in its actor's ink; asked for a paint called "p1" the painter threw, and
       // the throw happened inside `setRoot` — before the tree was ever sent, so the other player saw
@@ -656,16 +550,16 @@ export function startTable(container: HTMLElement): Teardown {
         wall: peopleWall,
         // A TAP ON ONE'S OWN RING IS "TAKE ME BACK THERE" — the same glide the idle return runs, on
         // this screen's own tracker, asked for instead of fallen into.
-        goHome: () => idle?.goHome(),
+        goHome: () => live.idle?.goHome(),
       });
       seated = table.roster.map((one) => one.seat).filter((s): s is string => typeof s === "string");
-      if (game === "cards") syncSeatChairs(live.host.root, seated);
+      if (game === "cards") syncSeatChairs(live.host.root, sitting(table.roster));
       peopleWire.roster(table.roster);
       avatars.publish();
       redraw();
       unbindOnRoster = table.onRoster((roster) => {
         seated = roster.map((one) => one.seat).filter((s): s is string => typeof s === "string");
-        if (game === "cards") syncSeatChairs(live.host.root, seated);
+        if (game === "cards") syncSeatChairs(live.host.root, sitting(roster));
         const gone = peopleWire?.roster(roster) ?? [];
         for (const s of gone) avatars?.forget(s);
         avatars?.publish();
@@ -706,7 +600,6 @@ export function startTable(container: HTMLElement): Teardown {
     stopWatching?.();
     currentTable?.leave();
     leaveIdleClock?.();
-    stopIdlePointer?.();
     cameraClock.stop();
     for (const dot of farDots.values()) dot.remove();
     // TELLS THE KIT'S OWN `Avatars` TO STOP LISTENING — see the marker's own comment above: without

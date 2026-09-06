@@ -1,51 +1,95 @@
-// THE OPENING SNAP — a desk opens looking at its own place from frame one, not partway through a
-// glide (see `snapHome` in `index.ts`). Checked against the kit's own `isHome` (`presence.ts`),
-// which is what `avatars.publish()` reads to decide whether a reader's ring is filled or a disc is
-// drawn — the very thing a mid-glide camera failed.
+// THE DESK OPENS AT ITS OWN PLACE, AND THROUGH THE KIT'S OWN GLIDE.
+//
+// The hub used to answer this itself — its own opening zoom, its own stand-in for "home", its own
+// `idleReturn` built on the side — and every one of those was a second answer to a question the kit
+// had already answered for the catalog's `Live/*` pages. Where the two disagreed nobody had looked:
+// the view opened in the middle of the room instead of at the reader's place, so `isHome` was false
+// on the first frame, the ring stayed empty and a disc was drawn on the felt instead.
+//
+// Two guards, and they are about different things. The first is the PICTURE — the glide the kit
+// builds, run to its end in one step, leaves a view `isHome` already reads as home. The second is
+// that the hub owns none of the machinery any more: a SCAN of the file, because a rule that only
+// held where somebody looked is a rule that comes back the next time this desk is touched.
 
-import { describe, it, expect } from "vitest";
-import { Camera, isHome, type SeatPlace } from "game-kit";
-import { snapHome } from "./index.js";
+import { readFileSync } from "node:fs";
+import { chessPlaces, nardyPlaces, roundPlaces } from "@game-presets/desks";
+import { Camera, idleReturn, isHome, type CameraContent, type Presence, type SeatPlace } from "game-kit";
+import { describe, expect, it } from "vitest";
+import { roomOfDesk, unitOfDesk } from "./index.js";
+import { type TableGame } from "./mapFor.js";
 
-const PLACE: SeatPlace = { at: { x: 3, y: -2 }, facing: 90 };
+/** A phone held upright — the glass every one of these numbers is measured against. */
+const GLASS = { w: 393, h: 744 };
 
-function openCamera(): Camera {
+/** The glide `liveTable`'s `seats` option builds, standing on this camera at this place. */
+function openedAt(place: SeatPlace, room: CameraContent, unit: number): Camera {
   const camera = new Camera({ minZoom: 0.5, maxZoom: 2.5 });
-  camera.setScreen(400, 800);
-  camera.setContent({ x: -20, y: -20, w: 40, h: 40 }, 40);
+  camera.setScreen(GLASS.w, GLASS.h);
+  camera.setContent(room, unit);
+  // WHERE `liveTable` LEAVES IT: fitted to the room and looking at the room's middle. The seat only
+  // arrives from `joinTable` afterwards, which is when the glide is asked to take the view home.
+  camera.setZoom(camera.fitZoom());
+  camera.lookAt({ x: room.x + room.w / 2, y: room.y + room.h / 2 });
+  const sitting = (): Presence => ({ seat: "p1", place, name: "", ink: "accent", state: "online", holding: false, view: { target: { x: 0, y: 0 }, zoom: 1, rotation: 0, glass: { w: 0, h: 0 } } });
+  const glide = idleReturn(camera, sitting, { glideMs: 600 });
+  glide.goHome();
+  // THE WHOLE GLIDE IN ONE STEP — the desk opens home rather than easing there, because the people
+  // are published synchronously right after and `isHome` reads the camera at that very moment.
+  glide.step(600);
   return camera;
 }
 
-describe("snapHome: the desk opens at its own place, instantly", () => {
-  it("moves the camera straight to the place — no glide left to finish", () => {
-    const camera = openCamera();
-    camera.lookAt({ x: 0, y: 0 });
-    camera.turnTo(0);
+function viewOf(camera: Camera): Presence["view"] {
+  return { target: camera.target, zoom: camera.pixelsPerUnit, rotation: camera.rotation, glass: GLASS };
+}
 
-    snapHome(camera, PLACE, 1.4);
+/** Every desk on this shelf, with the places it seats — one loop, because none of them is special. */
+const DESKS: readonly (readonly [TableGame, readonly SeatPlace[]])[] = [
+  ["cards", roundPlaces(2)],
+  ["chess", chessPlaces(2)],
+  ["nardy", nardyPlaces(2)],
+];
 
-    expect(camera.target).toEqual(PLACE.at);
-    expect(camera.rotation).toBe(PLACE.facing);
-    expect(camera.zoom).toBe(1.4);
+const glassOf = (game: TableGame): { room: CameraContent; unit: number } => ({
+  room: roomOfDesk(game, { width: GLASS.w, height: GLASS.h }),
+  unit: unitOfDesk(game),
+});
+
+describe("the desk opens at this screen's own place", () => {
+  it("hub.opens-home — every seat at every desk is home on the first frame", () => {
+    for (const [game, places] of DESKS) {
+      const { room, unit } = glassOf(game);
+      for (const place of places) {
+        const camera = openedAt(place, room, unit);
+        expect(isHome(viewOf(camera), place), `${game}: a seat the eye cannot be put at is a seat nobody sits at`).toBe(true);
+      }
+    }
   });
 
-  it("leaves a view isHome() already reads as home, before any publish", () => {
-    const camera = openCamera();
-    camera.lookAt({ x: 10, y: 10 });
-
-    snapHome(camera, PLACE, 1.4);
-
-    const view = { target: camera.target, zoom: camera.pixelsPerUnit, rotation: camera.rotation, glass: { w: 400, h: 800 } };
-    expect(isHome(view, PLACE)).toBe(true);
+  it("hub.the-far-seat-turns-with-its-place — 180° comes off `places[1].facing`, not off a branch", () => {
+    // Chess is the desk that cares: the second seat looks at the SAME board from the other side. The
+    // turn is the PLACE's, so the glide brings it along and nothing here asks which game it is.
+    for (const [game, places] of DESKS) {
+      expect(places[1]!.facing).toBe(180);
+      const { room, unit } = glassOf(game);
+      expect(openedAt(places[1]!, room, unit).rotation).toBe(180);
+    }
   });
 
-  it("still lands on the place when opening at the whole-room fit — `lookAt` centres a box smaller than the glass instead of pinning it, so zooming in AFTER looking would have thrown the place away", () => {
-    const camera = openCamera();
-    camera.setZoom(camera.fitZoom());
-    camera.lookAt({ x: 0, y: 0 });
+  it("hub.the-shelf's-own-room-is-too-narrow-for-a-phone — the guard's own proof it can fail", () => {
+    // The round desk's own room, unwidened: half a glass held upright is thirteen units of felt and
+    // it declares six, so `lookAt` centres the eye instead of pinning it and the seat is unreachable.
+    const place = roundPlaces(2)[0]!;
+    const camera = openedAt(place, { x: -12.5, y: -12.5, w: 25, h: 25 }, unitOfDesk("cards"));
+    expect(isHome(viewOf(camera), place)).toBe(false);
+  });
+});
 
-    snapHome(camera, PLACE, 1.4);
-
-    expect(camera.target).toEqual(PLACE.at);
+describe("the hub keeps no camera of its own", () => {
+  it("hub.no-camera-of-its-own — every lever the kit already has is the kit's here too", () => {
+    const raw = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
+    for (const own of ["CARDS_OVERFILL", "hudUnit", "snapHome"]) {
+      expect(raw.split(own).length - 1, `\`${own}\` is the kit's answer, not this desk's`).toBe(0);
+    }
   });
 });
