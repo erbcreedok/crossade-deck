@@ -1,0 +1,58 @@
+game-presets/desks/src/felt.test.ts
+  s_577679fb8a8b23::t_4a6ba41495366c 1-33
+game-kit/docs/test-plan/11-catalog-shell.md
+  s_577679fb8a8b23::t_30643865a8f4c3 94
+game-kit/.storybook/stories/mergeMap.ts
+  s_577679fb8a8b23::t_a4c5fca87db548 56
+game-presets/desks/src/nardyMap.ts
+  s_577679fb8a8b23::t_a4c5fca87db548 70
+game-kit/src/render/painter.ts
+  s_577679fb8a8b23::t_a5683934b759dc 35-48
+game-kit/.storybook/stories/gestureMap.test.ts
+  s_577679fb8a8b23::t_bddeb2843b32a0 11,161-163,165,168-169
+  s_577679fb8a8b23::t_87f72c28934b14 164,167
+game-kit/src/render/pixi/index.ts
+  s_577679fb8a8b23::t_e8dda1f09f7a36 643-649
+game-kit/src/index.ts
+  s_577679fb8a8b23::t_6141218f3138c2 364
+game-kit/src/render/stage.ts
+  s_577679fb8a8b23::t_7cc8d188ea33da 177
+  s_577679fb8a8b23::t_f6873d67a3d10e 12,158-175
+game-kit/src/render/animator/index.ts
+  s_577679fb8a8b23::t_6141218f3138c2 43
+  s_577679fb8a8b23::t_334980cbd16b0b 94-96
+game-kit/.storybook/stories/collisionMap.ts
+  s_577679fb8a8b23::t_a4c5fca87db548 36
+game-kit/.storybook/stories/gestureMap.ts
+  s_577679fb8a8b23::t_a4c5fca87db548 97-98
+game-kit/docs/test-plan/22-lifecycle-and-performance.md
+  s_577679fb8a8b23::t_30643865a8f4c3 3,12-14
+game-kit/docs/test-plan/README.md
+  s_577679fb8a8b23::t_30643865a8f4c3 50
+  s_577679fb8a8b23::t_a29391a7282795 10
+game-kit/src/render/warm.test.ts
+  s_577679fb8a8b23::t_c97d0e8588b0e6 1-7,9-59
+  s_577679fb8a8b23::t_87f72c28934b14 8
+game-presets/desks/src/chessMap.ts
+  s_577679fb8a8b23::t_84753c0510500b 60
+game-kit/.storybook/stories/magnetMap.ts
+  s_577679fb8a8b23::t_a4c5fca87db548 59
+game-presets/desks/src/roundMap.ts
+  s_577679fb8a8b23::t_a4c5fca87db548 47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b450a5454ccc488a8f853f085cbb56b9e77f5513",
+  "prompts": {},
+  "sessions": {
+    "s_577679fb8a8b23": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "587be924-fad5-42a4-ae6e-69b786b9f72f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
