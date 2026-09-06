@@ -183,6 +183,26 @@ function roomFor(game: TableGame, root: Node): CameraContent {
 }
 
 /**
+ * THE VIEW OPENS AT ITS OWN PLACE, INSTANTLY — no glide.
+ *
+ * `idle.goHome()` eases from wherever the camera already stands over its own `glideMs`, which is
+ * right for a reader who wandered off and is being brought back. The FIRST frame is a different
+ * question: `avatars.publish()` runs synchronously right after `joinTable` resolves, and reads
+ * whatever the camera is worth AT THAT MOMENT (`presence.ts`'s `isHome`) — a view still easing home
+ * fails it, so the ring stays empty and a stray disc is drawn instead, sized for the camera the
+ * desk opened on rather than the one it is about to settle at.
+ */
+export function snapHome(camera: Camera, place: SeatPlace, zoom: number): void {
+  // ZOOM AND TURN FIRST: `lookAt`'s own `clamp()` measures the desk against the CURRENT zoom and
+  // rotation, and a desk smaller than the glass is not pinned to the asked-for point but CENTRED
+  // (`Camera.clamp`) — called at the wide-open room zoom, `lookAt(place.at)` would have been thrown
+  // away and the room's own middle kept instead.
+  camera.setZoom(zoom);
+  camera.turnTo(place.facing);
+  camera.lookAt(place.at);
+}
+
+/**
  * WHERE THE VIEW OPENS on this desk — the zoom, and only the zoom; the point is the room's middle,
  * which is the kit's own answer and the same on every desk here.
  *
@@ -565,18 +585,11 @@ export function startTable(container: HTMLElement): Teardown {
         // A DESK OPENS AT ITS OWN PLACE — the same reason the catalog's `Live/Cards` asks its own
         // idle glide home on the first frame rather than leaving the eye on the room's middle: home
         // is the view `isHome` reads (`presence.ts`), and a desk that opened there instead would
-        // draw its own reader as having wandered off before anybody had touched anything. After the
-        // stage has laid its own glass out, which is what the glide's zoom is measured against —
-        // one frame of the hub's own clock (`guard.one-clock`), not a second `requestAnimationFrame`.
-        let openedHome = false;
-        const leaveOpenHome = cameraClock.join(() => {
-          if (!openedHome) {
-            openedHome = true;
-            idle?.goHome();
-          }
-          leaveOpenHome();
-          return false;
-        });
+        // draw its own reader as having wandered off before anybody had touched anything.
+        // INSTANTLY, not through the glide (`snapHome`) — `avatars.publish()` below reads this same
+        // camera synchronously, before the idle clock has run a single tick.
+        snapHome(live.camera, place, openHome());
+        live.motions?.redraw();
         // THE SAME CLOCK THE FLING BORROWS, joined for the whole life of the table rather than only
         // while something is moving: the idle countdown has to keep counting while the view is dead
         // still, which is exactly what the camera's own borrow (`clock` above) never does.
