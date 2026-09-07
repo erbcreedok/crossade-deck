@@ -30,6 +30,7 @@ import { attachMotion, type CarryItem, type Motions } from "./animator/index.js"
 import { Camera, type CameraContent, type CameraLimits } from "./camera/index.js";
 import { wireCamera } from "./cameraInput.js";
 import { fingerOf, refollow, unwireDrag, wireDrag } from "./drag.js";
+import { pick } from "./pointer.js";
 import { wireButtons, type Meaning } from "./buttons.js";
 import {
   flickOf,
@@ -1206,6 +1207,13 @@ export function liveTable<S extends LiveStage = LiveStage>(
     const cam = built.camera;
     const g = fingerOf(el);
     if (!cam || !g) return false;
+    // A FINGER OVER SOMETHING ON THE GLASS IS NOT A FINGER AT THE EDGE OF THE DESK. The screen root
+    // holds the controls and the places a carried thing can be dropped onto (a hand pinned to the
+    // foot of the glass, the anchor that pins it there) — and those live exactly where this rim is.
+    // Without this, holding a ring over the anchor at the bottom of the screen sails the desk away
+    // underneath it for as long as the reader hovers, which is the one moment they are trying to aim.
+    const screen = built.host.hudRoot;
+    if (screen && pick(built.host, screen, g, () => true)) return false;
     const { w, h } = cam.glass;
     if (w <= 0 || h <= 0) return false;
     const rim = Math.max(RIM_PAN.least, Math.min(w, h) * RIM_PAN.share);

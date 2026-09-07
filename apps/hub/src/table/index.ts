@@ -82,8 +82,8 @@ import { installTableLook } from "../look/surfaces.js";
 import { isTableGame, mapFor, syncSeatChairs, TABLE_SEATS, type SeatedPerson, type TableGame } from "./mapFor.js";
 import { curtain } from "./curtain.js";
 import { hubAvatarsTransport, hubSeats, inkOf, SEAT_INKS, type HubAvatarsTransport } from "./people.js";
-import { handHud, type HandHud } from "@game-presets/desks";
-import { type CameraHud } from "game-kit";
+import { chairId, handHud, type HandHud } from "@game-presets/desks";
+import { apply, type CameraHud } from "game-kit";
 
 /** A far hand's cursor, over the glass and never on the desk — the catalog's own `DOT` size. */
 const CURSOR_DOT = 18;
@@ -467,8 +467,46 @@ export function startTable(container: HTMLElement): Teardown {
     hand: (items, at, done, feel) => {
       currentTable?.sendRelay({ kind: "hand", items: items as unknown as CarryItem[], at, done, feel });
       if (seat) avatars?.handed(seat, items, at, done);
+      ringToGlass(items, at, done);
       redraw();
     },
+  };
+
+  /**
+   * CARRYING ONE'S OWN PLACE TO THE FOOT OF THE GLASS — the gesture that pins the hand there, and
+   * takes it off again (`handHud`'s anchor).
+   *
+   * ONLY ONE'S OWN RING, because a ring is the one node on this desk that is its owner's (`mayTake`)
+   * and the glass is theirs alone; anything else being carried near the bottom of the screen is a
+   * card being played, and the anchor must not appear under it.
+   *
+   * AND THE PLACE GOES BACK WHERE IT STOOD. A drop is a drop — the wiring has already left the ring
+   * wherever the finger was, which for this gesture is at the very foot of the felt. The reader
+   * moved their hand to their SCREEN, not their seat across the table, so the seat is put back where
+   * the carry started (`Avatars.handed`, the same call the drop itself goes through).
+   */
+  let ringFrom: SeatPlace | undefined;
+  const ringToGlass = (items: readonly { readonly id: string }[], at: Vec | undefined, done: boolean): void => {
+    const mySeat = seat;
+    if (!hand || !mySeat) return;
+    const mine = items.some((it) => it.id === chairId(mySeat));
+    if (!mine) {
+      if (!done) hand.carrying(undefined);
+      return;
+    }
+    const glass = at && live.camera ? apply(live.camera.transform(), at) : undefined;
+    if (!done) {
+      ringFrom = ringFrom ?? avatars?.placeOf(mySeat);
+      hand.carrying(glass);
+      return;
+    }
+    const took = hand.dropped(glass);
+    if (took && ringFrom) avatars?.handed(mySeat, [{ id: chairId(mySeat) }] as never, ringFrom.at, true);
+    ringFrom = undefined;
+    if (took) {
+      hud?.fit();
+      redraw();
+    }
   };
 
   // THE PLAYER'S OWN HAND AT THE FOOT OF THE GLASS (`handHud`) and the camera's own pair in the

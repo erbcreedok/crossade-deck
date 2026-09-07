@@ -34,6 +34,7 @@ import {
   byId,
   node,
   registerLayout,
+  registerSurface,
   remove,
   roundedRect,
   setFacing,
@@ -54,11 +55,21 @@ import { chairId } from "./seatPlace.js";
 /** The nodes this file makes, by the names a reader sees in the inspector. */
 export const HAND_HUD = "hud/hand";
 export const HAND_HUD_BOX = "hud/hand/box";
+export const HAND_HUD_ANCHOR = "hud/hand/anchor";
 const HAND_HUD_FREE = "hud/hand/free";
 const HAND_HUD_SCREEN = "hud/hand/screen";
 
 /** How far the strip stands off the foot of the glass, in HUD units, before the device's own inset. */
 export const HAND_HUD_MARGIN = 0.14;
+
+/** What the anchor is, in HUD units, when there is no hand to measure it against yet. */
+const ANCHOR_EMPTY = { w: 3, h: 1.7 };
+
+/** The two faces of the anchor: a dotted outline while it is only offered, filled while it is aimed at. */
+const ANCHOR_OPEN = "hud/hand/anchor/open";
+function anchorKeen(seat: string): string {
+  return `hud/hand/anchor/keen/${seat}`;
+}
 
 /**
  * The id a shown card answers to. Built here and never parsed back (`guard.id-is-opaque`): which
@@ -101,6 +112,22 @@ export interface HandHud {
   width(): number;
   /** How much of the foot of the glass it has taken, in device pixels. Nothing, holding nothing. */
   floor(): number;
+  /** Whether the hand is pinned to this glass. A hand starts on the felt, where every player's is. */
+  attached(): boolean;
+  /** Pin it or let it go — the state itself, for a consumer that remembers one across sessions. */
+  attach(on: boolean): void;
+  /**
+   * A RING IS IN HAND, at this point on the glass — or nothing, when none is. Puts the anchor up
+   * while one is being carried and answers whether the finger is over it, so the reader is told
+   * where the drop will land BEFORE they let go rather than by what happens after.
+   */
+  carrying(glass: { readonly x: number; readonly y: number } | undefined): boolean;
+  /**
+   * THE RING WAS LET GO at this point. Over the anchor it is the switch — on if it was off, off if
+   * it was on: one place and one act, both ways. Anywhere else it is a ring being moved on the felt
+   * and says nothing about the glass. Answers whether anything changed.
+   */
+  dropped(glass: { readonly x: number; readonly y: number } | undefined): boolean;
   stop(): void;
 }
 
@@ -113,6 +140,19 @@ export interface HandHud {
  */
 export function handHud(host: Host, o: HandHudOptions): HandHud {
   registerLayout(HAND_HUD_FREE, freeLayout);
+  // A PLACE TO PUT SOMETHING, drawn the way a plan drawing says it: a dotted outline. Aimed at, it
+  // stops being an offer and becomes the answer — filled in the seat's own ink, the same light every
+  // zone on the felt wears when a hand is over it (`zoneKeen`).
+  registerSurface(ANCHOR_OPEN, {
+    layers: [],
+    radius: HAND.pad,
+    stroke: { color: "textFaint", width: 0.03, opacity: 0.85, dash: { on: 0.12, off: 0.1 } },
+  });
+  registerSurface(anchorKeen(o.seat), {
+    layers: [{ paint: o.ink, opacity: 0.22 }],
+    radius: HAND.pad,
+    stroke: { color: o.ink, width: 0.03, opacity: 0.9 },
+  });
   const screen = o.screen ?? node(HAND_HUD_SCREEN, Container({ layout: HAND_HUD_FREE }));
   const ownScreen = o.screen === undefined;
   const previous = host.hudRoot;
@@ -189,6 +229,10 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
 
   let floorPx = 0;
   let wide = 0;
+  let pinned = false;
+  /** The anchor, while a ring is in hand — made and taken down with the gesture, never left standing. */
+  let anchor: Node | undefined;
+  let aimed = false;
   /** WHICH FELT CARD EACH PICTURE IS OF, in the order they are drawn — the manifest, kept beside the
    * tree because an id is a name and nothing reads a fact out of one. */
   let manifest: string[] = [];
@@ -199,7 +243,7 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     for (const old of [...strip.children]) remove(strip, old);
     // NOTHING HELD IS NOTHING DRAWN. An empty strip across the foot of a phone is glass spent on a
     // fact the felt already shows, and the controls with it: there is nothing to shut or turn over.
-    const show = cards.length > 0;
+    const show = pinned && cards.length > 0;
     manifest = show ? cards.map((c) => c.id) : [];
     if (show) for (const card of cards) add(strip, shownOf(card));
 
@@ -228,14 +272,77 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
   };
   refresh();
 
+  /** WHERE THE ANCHOR STANDS AND HOW BIG IT IS, in HUD units — where the strip is, or would be. */
+  function anchorBox(): { readonly w: number; readonly h: number; readonly at: { x: number; y: number } } {
+    const u = host.unit();
+    const v = host.viewport();
+    const box = footprint(strip);
+    const size = pinned && box ? extentOf(box) : { w: ANCHOR_EMPTY.w, h: ANCHOR_EMPTY.h };
+    const low = u > 0 ? v.height / u / 2 - size.h / 2 - HAND_HUD_MARGIN : 0;
+    return { w: size.w, h: size.h, at: { x: 0, y: low } };
+  }
+
+  /** Is this point on the glass over the anchor? Asked in pixels, because a finger is measured in them. */
+  function over(glass: { readonly x: number; readonly y: number }): boolean {
+    const u = host.unit();
+    const v = host.viewport();
+    if (u <= 0) return false;
+    const box = anchorBox();
+    const mid = { x: v.width / 2 + box.at.x * u, y: v.height / 2 + box.at.y * u };
+    return Math.abs(glass.x - mid.x) <= (box.w * u) / 2 && Math.abs(glass.y - mid.y) <= (box.h * u) / 2;
+  }
+
+  const showAnchor = (on: boolean, keen: boolean): void => {
+    if (!on) {
+      if (anchor) remove(screen, anchor);
+      anchor = undefined;
+      aimed = false;
+      return;
+    }
+    const box = anchorBox();
+    if (!anchor) {
+      anchor = node(HAND_HUD_ANCHOR, Bounded({ bounds: roundedRect(box.w, box.h, HAND.pad) }), Surfaced({ surface: ANCHOR_OPEN }), Transformable({ at: box.at }));
+      add(screen, anchor);
+    }
+    compose(anchor, Bounded({ bounds: roundedRect(box.w, box.h, HAND.pad) }));
+    compose(anchor, Transformable({ at: box.at }));
+    if (keen !== aimed) {
+      aimed = keen;
+      compose(anchor, Surfaced({ surface: keen ? anchorKeen(o.seat) : ANCHOR_OPEN }));
+    }
+  };
+
   return {
     root,
     refresh,
+    attached: () => pinned,
+    attach: (on: boolean) => {
+      pinned = on;
+      refresh();
+    },
+    carrying: (glass) => {
+      if (!glass) {
+        showAnchor(false, false);
+        return false;
+      }
+      const keen = over(glass);
+      showAnchor(true, keen);
+      return keen;
+    },
+    dropped: (glass) => {
+      const keen = glass !== undefined && over(glass);
+      showAnchor(false, false);
+      if (!keen) return false;
+      pinned = !pinned;
+      refresh();
+      return true;
+    },
     cards: () => manifest,
     faces: () => strip.children.map((n) => facing(n)),
     width: () => wide,
     floor: () => floorPx,
     stop() {
+      showAnchor(false, false);
       remove(screen, root);
       if (ownScreen && host.hudRoot === screen) host.setHudRoot(previous);
     },

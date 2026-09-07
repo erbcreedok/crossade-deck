@@ -949,6 +949,20 @@ describe("the live desk", () => {
     expect(held, "a card is in the hand").toBeDefined();
     const drawnOnGlass = apply(shell.camera!.transform(), apply(poses.get(held)!, { x: 0, y: 0 }));
     expect(Math.abs(drawnOnGlass.x - rim.x), "the load stays with the finger across the pan").toBeLessThan(40);
+    // A FINGER OVER SOMETHING ON THE GLASS ASKS NOTHING EITHER. The screen holds the places a
+    // carried thing is dropped onto — a hand pinned to the foot, the anchor that pins it there — and
+    // they sit exactly where this rim is: without the refusal, aiming at one sails the desk away
+    // underneath the reader for as long as they hover over it.
+    const screen = node("screen", Container({ layout: "live.free" }));
+    add(screen, node("dock", Bounded({ bounds: rect(20, 4) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
+    shell.host.setHudRoot(screen);
+    const overIt = { x: 6, y: 200 };
+    shell.el.dispatchEvent(finger("pointermove", overIt.x, overIt.y, 1100));
+    c.tick(1);
+    const parked = shell.camera!.x;
+    for (let i = 0; i < 5; i += 1) beating?.(1 / 60);
+    expect(shell.camera!.x, "over the glass's own furniture the view rests").toBeCloseTo(parked, 6);
+    shell.host.setHudRoot(undefined);
     // BACK IN THE MIDDLE, the desk stops: a finger away from the rim asks nothing of the view.
     shell.el.dispatchEvent(finger("pointermove", 300, on.y, 1200));
     c.tick(1);
