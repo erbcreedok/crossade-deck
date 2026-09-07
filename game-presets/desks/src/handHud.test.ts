@@ -183,6 +183,16 @@ describe("the hand on the glass", () => {
     expect(hud.cards()).toEqual(["a"]);
     expect(byId(b.host.hudRoot!, HAND_HUD_ANCHOR), "and the anchor goes down with the gesture").toBeUndefined();
 
+    // ...AND WHILE THE ANCHOR IS UP IT CATCHES WHAT IS LET GO ON IT. A hand carried to the glass by
+    // its own handle is a run in the air, and a run let go at the foot of the screen belongs to this
+    // hand: without this it is spilled onto the felt at the moment it was being put away.
+    hud.attach(false);
+    hud.carrying(onIt);
+    expect(hud.overHand(onIt), "the anchor catches what is dropped on it").toBe(true);
+    hud.carrying(undefined);
+    expect(hud.overHand(onIt), "…and catches nothing once it is down").toBe(false);
+    hud.attach(true);
+
     // ...AND THE SAME GESTURE TAKES IT BACK OFF: one place, one act, both ways.
     hud.carrying(onIt);
     expect(hud.dropped(onIt)).toBe(true);

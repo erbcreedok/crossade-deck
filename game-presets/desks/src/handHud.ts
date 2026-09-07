@@ -121,7 +121,13 @@ export interface HandHud {
    * one card, it lies in its owner's place, and this is a way of reaching it.
    */
   standFor(shown: Node): Node | undefined;
-  /** Is this point on the glass over the cards? What a drop aimed at the strip is asked (`zoneAt`). */
+  /**
+   * IS THIS POINT ON THE GLASS AIMED AT THIS HAND — over the strip while it is pinned there, or over
+   * the ANCHOR while one is up. Both, because they are one place: a run let go at the foot of the
+   * screen is a run given to this hand, whether the hand is already there or is arriving with it.
+   * Without the anchor half, carrying a hand to the glass by its own handle drops the cards on the
+   * felt at the bottom of the table, which is a hand spilled at the moment it was being put away.
+   */
   overHand(glass: { readonly x: number; readonly y: number }): boolean;
   /**
    * WHAT IS IN THE AIR RIGHT NOW, by the ids of the cards on the felt — left out of the picture for
@@ -342,6 +348,7 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
       const u = host.unit();
       const v = host.viewport();
       const box = footprint(strip);
+      if (anchor && over(glass)) return true;
       if (!pinned || u <= 0 || !box) return false;
       const size = extentOf(box);
       const at = fieldsOf<TransformableFields>(root, "Transformable")?.at ?? { x: 0, y: 0 };

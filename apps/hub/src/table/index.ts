@@ -82,8 +82,8 @@ import { installTableLook } from "../look/surfaces.js";
 import { isTableGame, mapFor, syncSeatChairs, TABLE_SEATS, type SeatedPerson, type TableGame } from "./mapFor.js";
 import { curtain } from "./curtain.js";
 import { hubAvatarsTransport, hubSeats, inkOf, SEAT_INKS, type HubAvatarsTransport } from "./people.js";
-import { chairId, handHud, type HandHud } from "@game-presets/desks";
-import { apply, byId, type CameraHud } from "game-kit";
+import { barPress, chairId, gripOwner, handHud, type HandHud } from "@game-presets/desks";
+import { apply, byId, isPlaceGrip, type CameraHud } from "game-kit";
 
 /** A far hand's cursor, over the glass and never on the desk — the catalog's own `DOT` size. */
 const CURSOR_DOT = 18;
@@ -501,22 +501,43 @@ export function startTable(container: HTMLElement): Teardown {
    * the carry started (`Avatars.handed`, the same call the drop itself goes through).
    */
   let ringFrom: SeatPlace | undefined;
+  let lastAt: Vec | undefined;
   const ringToGlass = (items: readonly { readonly id: string }[], at: Vec | undefined, done: boolean): void => {
     const mySeat = seat;
     if (!hand || !mySeat) return;
-    const mine = items.some((it) => it.id === chairId(mySeat));
+    // ONE'S OWN PLACE, OR ONE'S OWN HAND BY ITS HANDLE. The ring is the place and the handle is what
+    // is IN it, and either of them carried to the foot of the glass means the same thing: put my
+    // hand on my screen. The handle matters more than it looks — a ring with cards in it is nearly
+    // all cards, so the only part of it a finger can land on is a sliver of rim, and a PINNED place
+    // refuses the finger altogether (`mayTake`), which left a reader who had pinned their chair with
+    // no way of ever pinning their hand to the glass.
+    // ANY of the items, not the first: a run lifted by a handle is the CARDS with the handle riding
+    // along among them, and which end of the list it sits at is the desk's business, not this one's.
+    const byMyHandle = items.some((it) => {
+      const n = byId(live.host.root, it.id);
+      return n !== undefined && isPlaceGrip(n) && gripOwner(n) === mySeat;
+    });
+    const mine = items.some((it) => it.id === chairId(mySeat)) || byMyHandle;
     if (!mine) {
       if (!done) hand.carrying(undefined);
       return;
     }
-    const glass = at && live.camera ? apply(live.camera.transform(), at) : undefined;
+    // WHERE THE HAND WAS LAST SEEN. The release reports no point at all — a hand that has let go is
+    // nowhere — so the drop is judged where the last move left it, which is where the finger was.
+    if (at) lastAt = at;
+    const point = at ?? lastAt;
+    const glass = point && live.camera ? apply(live.camera.transform(), point) : undefined;
     if (!done) {
       ringFrom = ringFrom ?? avatars?.placeOf(mySeat);
       hand.carrying(glass);
       return;
     }
     const took = hand.dropped(glass);
-    if (took && ringFrom) avatars?.handed(mySeat, [{ id: chairId(mySeat) }] as never, ringFrom.at, true);
+    lastAt = undefined;
+    // THE PLACE GOES BACK ONLY IF IT WAS THE PLACE THAT WAS CARRIED: a hand carried by its handle
+    // never moved the chair, and putting it "back" would move a seat nobody touched.
+    const wasRing = items.some((it) => it.id === chairId(mySeat));
+    if (took && wasRing && ringFrom) avatars?.handed(mySeat, [{ id: chairId(mySeat) }] as never, ringFrom.at, true);
     ringFrom = undefined;
     if (took) {
       hud?.fit();
@@ -596,7 +617,23 @@ export function startTable(container: HTMLElement): Teardown {
     taps: (piece: Node) => (seat ? avatars?.tapped(seat, piece) === true : false),
     // THE BAR ABOVE ONE'S OWN HAND — shut, hide, turn over, pin — answered for the owner only; the
     // wiring tells the room the way it tells it a drop (`settle`).
-    presses: (_meaning, control: Node) => (seat ? avatars?.pressed(seat, control) === true : false),
+    presses: (_meaning, control: Node) => {
+      if (!seat) return false;
+      // WHERE MY OWN HAND IS DRAWN IS THIS SCREEN'S BUSINESS, not the desk's: the control that puts
+      // it on the glass is answered here and never sent to the room, because nothing about the felt
+      // changed. Everything else on the bar is a fact about the desk and goes to the people wiring.
+      const press = barPress(control);
+      if (press?.seat === seat && press.what === "glass") {
+        handOnGlass();
+        if (hand) {
+          hand.attach(!hand.attached());
+          hud?.fit();
+          redraw();
+        }
+        return false;
+      }
+      return avatars?.pressed(seat, control) === true;
+    },
   });
   standing = live;
   /**
@@ -613,7 +650,9 @@ export function startTable(container: HTMLElement): Teardown {
    * for by pointing at its picture. There is one hand, so there is one answer: the chair.
    */
   const handUnderFinger = (at: Vec): Node | undefined => {
-    if (!hand?.attached() || !seat || !live.camera) return undefined;
+    // NOT GATED ON THE HAND BEING PINNED YET: while the anchor is up the drop belongs here too, and
+    // `overHand` is the one that knows which of the two is under the finger.
+    if (!hand || !seat || !live.camera) return undefined;
     return hand.overHand(apply(live.camera.transform(), at)) ? byId(live.host.root, chairId(seat)) : undefined;
   };
   const handOnGlass = (): void => {

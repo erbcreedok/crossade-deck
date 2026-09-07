@@ -1,4 +1,4 @@
-// THE BAR ABOVE A HAND — four controls on the far rim of the owner's place, and the one place a
+// THE BAR ABOVE A HAND — the controls on the far rim of the owner's place, and the one place a
 // finger says "shut my hand", "hide it", "turn it over", "nobody moves my chair".
 //
 // Arithmetic and data: where the controls stand comes off the chair's own pose and reach, what
@@ -18,7 +18,7 @@ const poseOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!.a
 const apart = (a: number, b: number) => Math.abs((((a - b) % 360) + 540) % 360 - 180);
 
 describe("the bar above a hand", () => {
-  it("bar.four-controls-stand-above-the-box-on-the-far-rim — in a row across the owner's look, outside the outline", () => {
+  it("bar.the-controls-stand-above-the-box-on-the-far-rim — in a row across the owner's look, outside the outline", () => {
     const desk = roundMap();
     const places = roundPlaces(SEATS.length);
     for (const [i, { seat }] of SEATS.entries()) {
@@ -39,7 +39,7 @@ describe("the bar above a hand", () => {
       // of that edge — so a bar held on the glass grows away from the box at every zoom.
       expect(d.x * look.x + d.y * look.y).toBeCloseTo(chairReach(chair) + BAR.gap);
       expect(d.x * across.x + d.y * across.y, "centred on the look").toBeCloseTo(0);
-      const ids = (["lock", "hide", "flip", "pin"] as const).map((what) => chairButtonId(seat, what));
+      const ids = (["lock", "hide", "flip", "pin", "glass"] as const).map((what) => chairButtonId(seat, what));
       const controls = ids.map((id) => byId(desk, id)!);
       for (const c of controls) {
         expect(c, `${seat} has its controls`).toBeDefined();
@@ -52,7 +52,7 @@ describe("the bar above a hand", () => {
       for (let k = 1; k < along.length; k += 1) expect(along[k]! - along[k - 1]!).toBeCloseTo(BAR.size + BAR.gap);
       expect(along.reduce((s, x) => s + x, 0)).toBeCloseTo(0);
       // ...AND EACH SAYS WHAT IT IS FOR, and whose: the press reads it back and never parses an id.
-      expect(controls.map((c) => barPress(c))).toEqual((["lock", "hide", "flip", "pin"] as const).map((what) => ({ seat, what })));
+      expect(controls.map((c) => barPress(c))).toEqual((["lock", "hide", "flip", "pin", "glass"] as const).map((what) => ({ seat, what })));
     }
     // A PLACE NOBODY HOLDS HAS NO BAR: there is nobody to press it.
     expect(byId(roundMap([]), chairBarId("0"))).toBeUndefined();
@@ -81,13 +81,13 @@ describe("the bar above a hand", () => {
     const desk = roundMap();
     const seat = SEATS[0]!.seat;
     const chair = byId(desk, chairId(seat))!;
-    const lit = (what: "lock" | "hide" | "flip" | "pin"): boolean => fieldsOf<CoatedFields>(byId(desk, chairButtonId(seat, what))!, "Coated") !== undefined;
-    expect([lit("lock"), lit("hide"), lit("flip"), lit("pin")]).toEqual([false, false, false, false]);
+    const lit = (what: "lock" | "hide" | "flip" | "pin" | "glass"): boolean => fieldsOf<CoatedFields>(byId(desk, chairButtonId(seat, what))!, "Coated") !== undefined;
+    expect([lit("lock"), lit("hide"), lit("flip"), lit("pin"), lit("glass")]).toEqual([false, false, false, false, false]);
     setHandLock(chair, true);
     setHandHidden(chair, true);
     setChairPin(chair, true);
     dressBar(desk, seat);
-    expect([lit("lock"), lit("hide"), lit("flip"), lit("pin")]).toEqual([true, true, false, true]);
+    expect([lit("lock"), lit("hide"), lit("flip"), lit("pin"), lit("glass")]).toEqual([true, true, false, true, false]);
     setHandLock(chair, false);
     dressBar(desk, seat);
     expect([lit("lock"), lit("hide"), lit("pin")]).toEqual([false, true, true]);

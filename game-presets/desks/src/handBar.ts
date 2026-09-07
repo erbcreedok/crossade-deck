@@ -1,10 +1,12 @@
-// THE BAR ABOVE A HAND — four controls on the far rim of a held place, outside its outline.
+// THE BAR ABOVE A HAND — five controls on the far rim of a held place, outside its outline.
 //
-// A hand has three things its owner may say about it and one about the chair it is in: SHUT it
-// (nobody else reaches in — the lock), HIDE it (everybody else sees backs), TURN IT OVER (every
-// card in place, order untouched), and PIN the chair (nobody moves it, its owner included). The
-// first two and the last are STATES and their controls stay lit while they hold; a flip is an act,
-// and its control has nothing to light.
+// A hand has three things its owner may say about it, one about the chair it is in, and one about
+// their own screen: SHUT it (nobody else reaches in — the lock), HIDE it (everybody else sees
+// backs), TURN IT OVER (every card in place, order untouched), PIN the chair (nobody moves it, its
+// owner included), and put the hand ON THE GLASS (`handHud` — at the foot of their own screen,
+// where a thumb reaches it). The first two and the pin are STATES and their controls stay lit while
+// they hold; a flip is an act and a glass is a fact about one screen, and neither has anything the
+// felt could light truthfully for everybody.
 //
 // THEY STAND ON THE DESK, in the chair's own frame: past the far rim — the side away from the owner,
 // where they cover no card and no name — in a row across the owner's look, sized for the finger
@@ -47,9 +49,9 @@ import {
 import { chairId, chairPinned, chairReach, isChair } from "./seatPlace.js";
 import { handHidden, handLocked, isHand } from "./handZone.js";
 
-/** What a control is for — the four, in the order they stand. */
-export type BarWhat = "lock" | "hide" | "flip" | "pin";
-export const BAR_WHATS: readonly BarWhat[] = ["lock", "hide", "flip", "pin"];
+/** What a control is for — the five, in the order they stand. */
+export type BarWhat = "lock" | "hide" | "flip" | "pin" | "glass";
+export const BAR_WHATS: readonly BarWhat[] = ["lock", "hide", "flip", "pin", "glass"];
 
 /**
  * THE BAR'S MEASURE, in units at zoom 1 — held on the glass (`Screened`), so a control is a tap
@@ -108,6 +110,14 @@ const FLIP_ICON = svg(
     '<path d="M5 9V6.5h2.5"/><path d="M5 6.5 7.4 8.9"/>' +
     '<path d="M19 15v2.5h-2.5"/><path d="M19 17.5 16.6 15.1"/></g>',
 );
+/** A PHONE — the hand on one's own screen. */
+const GLASS_ICON = svg(
+  24,
+  24,
+  '<g fill="none" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="6.5" y="3" width="11" height="18" rx="2.2"/>' +
+    '<path d="M9.5 16.5h5"/></g>',
+);
 /** A PIN. */
 const PIN_ICON = svg(
   24,
@@ -121,6 +131,7 @@ const ICONS: Record<BarWhat, { readonly asset: string; readonly src: string }> =
   hide: { asset: "seat.bar.hide", src: HIDE_ICON },
   flip: { asset: "seat.bar.flip", src: FLIP_ICON },
   pin: { asset: "seat.bar.pin", src: PIN_ICON },
+  glass: { asset: "seat.bar.glass", src: GLASS_ICON },
 };
 
 /** Register what the bar's nodes point at by name. Idempotent — a re-render calls it again. */
@@ -134,7 +145,7 @@ export function installBarArt(): void {
 }
 
 /**
- * THE FOUR CONTROLS FOR ONE HAND, built and not yet placed — `fitBar` puts them along a rim.
+ * THE CONTROLS FOR ONE HAND, built and not yet placed — `fitBar` puts them along a rim.
  *
  * Only for a chair that is a HAND: a board's place has no cards to shut, hide or turn, and a pin on
  * a place that already refuses every other finger would be a control that does nothing. And only
@@ -222,6 +233,11 @@ export function dressBar(where: Node, seat: string, chair: Node | undefined = by
     hide: handHidden(chair),
     flip: false,
     pin: chairPinned(chair),
+    // NOT LIT, like the flip: where a reader's own hand is drawn is a fact about THEIR screen and
+    // not about this desk — nothing on the felt could light it truthfully for anybody else, and a
+    // light that is wrong on every screen but one is worse than no light at all. They can see where
+    // their hand is: it is either at the foot of their glass or it is not.
+    glass: false,
   };
   const bar = byId(desk, chairBarId(seat));
   const ink = bar ? fieldsOf<ValuedFields>(bar, "Valued")?.values[BAR_INK] : undefined;
