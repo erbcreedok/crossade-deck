@@ -24,6 +24,7 @@
 import {
   add,
   Bounded,
+  circle,
   compose,
   Container,
   extentOf,
@@ -33,6 +34,7 @@ import {
   freeLayout,
   byId,
   node,
+  registerAsset,
   registerLayout,
   registerSurface,
   remove,
@@ -40,6 +42,7 @@ import {
   setFacing,
   Flippable,
   Surfaced,
+  svg,
   Transformable,
   type BoundedFields,
   type FlippableFields,
@@ -63,14 +66,35 @@ const HAND_HUD_SCREEN = "hud/hand/screen";
 /** How far the strip stands off the foot of the glass, in HUD units, before the device's own inset. */
 export const HAND_HUD_MARGIN = 0.14;
 
-/** What the anchor is, in HUD units, when there is no hand to measure it against yet. */
-const ANCHOR_EMPTY = { w: 3, h: 1.7 };
+/**
+ * THE ANCHOR, in HUD units — a small dotted CIRCLE with an anchor drawn in it, and nothing more.
+ *
+ * `d` is what is DRAWN and `catch` is what it answers to. They differ on purpose: the mark is a
+ * neat little thing because it appears over the reader's own cards and is only ever offered for the
+ * length of one gesture, while the thing being aimed at it is a whole hand carried by a finger that
+ * cannot see under itself. Drawn as big as it catches, it is a hole in the middle of the screen;
+ * catching only what it draws, it is a target nobody can hit on a phone.
+ */
+const ANCHOR = { d: 0.62, catch: 1.5 };
 
 /** The two faces of the anchor: a dotted outline while it is only offered, filled while it is aimed at. */
 const ANCHOR_OPEN = "hud/hand/anchor/open";
+const ANCHOR_MARK = "hud/hand/anchor/mark";
 function anchorKeen(seat: string): string {
   return `hud/hand/anchor/keen/${seat}`;
 }
+
+/** AN ANCHOR — a ring, a shank and two flukes. What "put it down here" is drawn as, everywhere. */
+const ANCHOR_GLYPH = svg(
+  40,
+  40,
+  // DRAWN IN THE MIDDLE OF A LARGER SQUARE, so the mark sits INSIDE its ring with room around it: an
+  // image is fitted to the node's box, and a glyph drawn edge to edge would touch the outline.
+  '<g transform="translate(8 8)" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<circle cx="12" cy="4.6" r="2.1"/>' +
+    '<path d="M12 6.7V20"/><path d="M8 9.4h8"/>' +
+    '<path d="M4.4 14.2c0 3.7 3.4 6.2 7.6 6.2s7.6-2.5 7.6-6.2"/></g>',
+);
 
 /**
  * The id a shown card answers to. Built here and never parsed back (`guard.id-is-opaque`): which
@@ -164,15 +188,19 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
   // A PLACE TO PUT SOMETHING, drawn the way a plan drawing says it: a dotted outline. Aimed at, it
   // stops being an offer and becomes the answer — filled in the seat's own ink, the same light every
   // zone on the felt wears when a hand is over it (`zoneKeen`).
+  registerAsset(ANCHOR_MARK, { src: ANCHOR_GLYPH, w: ANCHOR.d, h: ANCHOR.d });
+  // A PLATE UNDER BOTH, the same one the controls wear: the mark appears over whatever the reader
+  // happens to have at the foot of their screen — their own filled ring, their own cards — and a
+  // dotted outline alone is invisible on half of them.
   registerSurface(ANCHOR_OPEN, {
-    layers: [],
-    radius: HAND.pad,
-    stroke: { color: "textFaint", width: 0.03, opacity: 0.85, dash: { on: 0.12, off: 0.1 } },
+    layers: [{ paint: "panelBg", opacity: 0.72 }, { image: ANCHOR_MARK, fit: "contain", opacity: 0.75 }],
+    radius: ANCHOR.d / 2,
+    stroke: { color: "textFaint", width: 0.02, opacity: 0.9, dash: { on: 0.075, off: 0.06 } },
   });
   registerSurface(anchorKeen(o.seat), {
-    layers: [{ paint: o.ink, opacity: 0.22 }],
-    radius: HAND.pad,
-    stroke: { color: o.ink, width: 0.03, opacity: 0.9 },
+    layers: [{ paint: "panelBg", opacity: 0.72 }, { paint: o.ink, opacity: 0.3 }, { image: ANCHOR_MARK, fit: "contain", opacity: 1 }],
+    radius: ANCHOR.d / 2,
+    stroke: { color: o.ink, width: 0.03, opacity: 0.95 },
   });
   const screen = o.screen ?? node(HAND_HUD_SCREEN, Container({ layout: HAND_HUD_FREE }));
   const ownScreen = o.screen === undefined;
@@ -295,14 +323,23 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
   };
   refresh();
 
-  /** WHERE THE ANCHOR STANDS AND HOW BIG IT IS, in HUD units — where the strip is, or would be. */
+  /**
+   * WHERE THE ANCHOR STANDS, in HUD units — over the middle of the strip, or of where it would be.
+   *
+   * The same point either way, because it is the same place: the mark that says "your hand goes
+   * here" and the mark that says "take it back off" are one target and are aimed at alike.
+   */
   function anchorBox(): { readonly w: number; readonly h: number; readonly at: { x: number; y: number } } {
     const u = host.unit();
     const v = host.viewport();
     const box = footprint(strip);
-    const size = pinned && box ? extentOf(box) : { w: ANCHOR_EMPTY.w, h: ANCHOR_EMPTY.h };
-    const low = u > 0 ? v.height / u / 2 - size.h / 2 - HAND_HUD_MARGIN : 0;
-    return { w: size.w, h: size.h, at: { x: 0, y: low } };
+    // AT THE VERY FOOT while there is no hand there yet, and over the middle of the strip once there
+    // is. Low enough to be clear of the ring at its own home: the thing being carried at it is the
+    // ring, and a target that already covers where the ring STARTS would light up before the reader
+    // had aimed at anything.
+    const tall = pinned && box ? extentOf(box).h : ANCHOR.d;
+    const low = u > 0 ? v.height / u / 2 - tall / 2 - HAND_HUD_MARGIN : 0;
+    return { w: ANCHOR.catch, h: ANCHOR.catch, at: { x: 0, y: low } };
   }
 
   /** Is this point on the glass over the anchor? Asked in pixels, because a finger is measured in them. */
@@ -324,10 +361,9 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     }
     const box = anchorBox();
     if (!anchor) {
-      anchor = node(HAND_HUD_ANCHOR, Bounded({ bounds: roundedRect(box.w, box.h, HAND.pad) }), Surfaced({ surface: ANCHOR_OPEN }), Transformable({ at: box.at }));
+      anchor = node(HAND_HUD_ANCHOR, Bounded({ bounds: circle(ANCHOR.d / 2) }), Surfaced({ surface: ANCHOR_OPEN }), Transformable({ at: box.at }));
       add(screen, anchor);
     }
-    compose(anchor, Bounded({ bounds: roundedRect(box.w, box.h, HAND.pad) }));
     compose(anchor, Transformable({ at: box.at }));
     if (keen !== aimed) {
       aimed = keen;
