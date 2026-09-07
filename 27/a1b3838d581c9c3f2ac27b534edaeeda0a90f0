@@ -1,0 +1,26 @@
+apps/hub/src/table/index.ts
+  h_2b92b67d011bfc 85-86,504,508-520,525-529,536-540,620-636,653-655
+game-kit/.storybook/stories/gestureScene.ts
+  h_2b92b67d011bfc 19,34,267,272-274,281-293,295-296,307-308,311,355-369
+game-presets/desks/docs/test-plan.md
+  h_2b92b67d011bfc 104,106
+game-presets/desks/src/handBar.test.ts
+  h_2b92b67d011bfc 1,21,42,55,84-85,90
+game-presets/desks/src/handBar.ts
+  h_2b92b67d011bfc 1,3-9,52-54,113-120,134,148,236-240
+game-presets/desks/src/handHud.test.ts
+  h_2b92b67d011bfc 186-195
+game-presets/desks/src/handHud.ts
+  h_2b92b67d011bfc 124-130,351
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "27a1b3838d581c9c3f2ac27b534edaeeda0a90f0",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
