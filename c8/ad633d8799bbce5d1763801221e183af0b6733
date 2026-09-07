@@ -1,0 +1,21 @@
+apps/hub/src/table/index.ts
+  s_e575269e68011a::t_87d9e87984e124 85-86,470,475-511
+game-presets/desks/src/handHud.ts
+  s_e575269e68011a::t_9d58c62690d09b 37,58,65-73,115-130,143-155,232-235,246,275-314,318-339,345
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "c8ad633d8799bbce5d1763801221e183af0b6733",
+  "prompts": {},
+  "sessions": {
+    "s_e575269e68011a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8994a0d-6cec-4b5a-af09-b315dc3e5c7d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
