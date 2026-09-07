@@ -1,0 +1,36 @@
+apps/hub/src/table/index.ts
+  h_2b92b67d011bfc 86,133-143,152-153,280-281,483-485,537-540,611-618
+game-kit/docs/test-plan/53-camera-input.md
+  h_2b92b67d011bfc 3,24
+game-kit/docs/test-plan/78-live-table.md
+  h_2b92b67d011bfc 3,20
+game-kit/docs/test-plan/README.md
+  h_2b92b67d011bfc 10,81,105
+game-kit/src/render/cameraInput.test.ts
+  h_2b92b67d011bfc 74,90-95,108,119-128,190-213
+game-kit/src/render/cameraInput.ts
+  h_2b92b67d011bfc 205-213
+game-kit/src/render/drag.ts
+  h_2b92b67d011bfc 177-188,432-447,449,484-488,514
+game-kit/src/render/liveTable.test.ts
+  h_2b92b67d011bfc 1016-1056
+game-kit/src/render/liveTable.ts
+  h_2b92b67d011bfc 339-344,489,794
+game-presets/desks/docs/test-plan.md
+  h_2b92b67d011bfc 112,126
+game-presets/desks/src/handHud.test.ts
+  h_2b92b67d011bfc 199-233
+game-presets/desks/src/handHud.ts
+  h_2b92b67d011bfc 50,118-131,210,248-249,336-356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "42fcf49667abd8acc73115a4dd38ed19499530fd",
+  "prompts": {},
+  "humans": {
+    "h_2b92b67d011bfc": {
+      "author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
