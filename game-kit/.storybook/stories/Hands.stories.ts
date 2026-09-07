@@ -186,6 +186,9 @@ export const Hands: StoryObj<HandArgs> = {
           undefined,
           // THE BAR ABOVE ONE'S OWN HAND — shut, hide, turn over, pin — answered for the owner only.
           (_meaning, control: Node) => people.pressed(seat, control),
+          // ...AND THIS PANE'S OWN PLAYER: their hand goes to the foot of THEIR glass, and the other
+          // pane's to the foot of the other — two screens, two hands, one desk under both.
+          { seat, ink },
         ),
       );
       pane.appendChild(dot);

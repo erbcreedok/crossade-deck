@@ -234,6 +234,9 @@ function liveCards(a: CardsArgs): HTMLElement {
           : undefined,
         // THE BAR ABOVE ONE'S OWN HAND — shut, hide, turn over, pin — answered for the owner only.
         people ? (_meaning, control: Node) => people.pressed(seat, control) : undefined,
+        // ...AND THIS PANE'S OWN PLAYER, so their hand can be carried to the foot of their own glass
+        // (`handHud`): pick the ring up, put it down on the anchor, and the cards are under the thumb.
+        a.avatars ? { seat, ink } : undefined,
       ),
     );
     pane.appendChild(dot);

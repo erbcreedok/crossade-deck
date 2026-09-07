@@ -16,6 +16,7 @@
 // scene is fed rather than rebuilt in (`scene()`). Everything below is that shell plus a call.
 
 import { heapKindOf } from "./gestureMap.js";
+import { chairId, handHud, standChair, type HandHud } from "@game-presets/desks";
 import {
   type Walls,
   draggable,
@@ -25,6 +26,11 @@ import {
   letFall as letFallInKit,
   type LiveTable,
   type LiveClock,
+  type Camera,
+  type CameraHud,
+  type Paint,
+  apply,
+  byId,
   type Meaning,
   type Mirror as KitMirror,
   type CarryItem,
@@ -213,6 +219,12 @@ export function grabScene(
    * of its own, which is every page on the shelf that seats nobody.
    */
   presses?: (meaning: Meaning, control: Node) => boolean,
+  /**
+   * THIS PANE'S OWN PLAYER, and their hand at the foot of their own glass (`handHud`) — the seat
+   * whose place this screen belongs to, and the ink it is drawn in. Absent, the glass holds nothing
+   * but the camera's own pair, which is every page here that seats nobody.
+   */
+  handOnGlass?: { readonly seat: string; readonly ink: Paint },
 ): HTMLElement {
   // A DESK HANDED OVER AS A FACTORY IS BUILT ONCE and is the reader's from then on — turning a knob
   // must not sweep away the cards they dealt. See `scene`.
@@ -245,6 +257,41 @@ export function grabScene(
   // ...AND THE PANEL'S NUMBERS ARE RE-APPLIED TO THE DESK THAT IS ALREADY STANDING. The desk is not
   // rebuilt on an argument change, so anything a control writes INTO it — a zone's reach, a named
   // arrangement — has to be written again here, or the knob would only take effect on a page reload.
+  // THE HAND ON THE GLASS, once there is a desk to read it off — named here because everything
+  // below reads it and nothing below can be named after it (`liveTable` reports its first change
+  // from inside the call that builds it).
+  let glass: HandHud | undefined;
+  let camHud: CameraHud | undefined;
+  let ringFrom: SeatPlace | undefined;
+  const view = (): ReturnType<Camera["transform"]> | undefined => built.camera?.transform();
+  /** A drop aimed at the strip on the glass is a drop into the box on the felt: one hand, one answer. */
+  const glassZone = (root: Node, at: Vec): Node | undefined => {
+    const t = view();
+    if (!glass?.attached() || !handOnGlass || !t) return undefined;
+    return glass.overHand(apply(t, at)) ? byId(root, chairId(handOnGlass.seat)) : undefined;
+  };
+  /** Carrying one's own ring to the foot of the glass is what pins the hand there, and unpins it. */
+  const ringToGlass = (items: readonly CarryItem[], at: Vec | undefined, done: boolean): void => {
+    if (!glass || !handOnGlass) return;
+    glass.lifting(done ? [] : items.map((it) => it.id));
+    const mine = items.some((it) => it.id === chairId(handOnGlass.seat));
+    const t = view();
+    const point = at && t ? apply(t, at) : undefined;
+    if (!mine) {
+      if (!done) glass.carrying(undefined);
+      return;
+    }
+    if (!done) {
+      ringFrom = ringFrom ?? seats?.placeNow?.();
+      glass.carrying(point);
+      return;
+    }
+    const took = glass.dropped(point);
+    // AND THE PLACE GOES BACK WHERE IT STOOD: the reader moved their hand to their SCREEN, not
+    // their seat across the table (the drop itself has already left the ring at the foot of the felt).
+    if (took && ringFrom) standChair(built.host.root, handOnGlass.seat, ringFrom.at);
+    ringFrom = undefined;
+  };
   const live = liveTable<Scene>(built.el, built.host.root, {
     stage: built,
     // A HEARTBEAT FOR THE RIM PAN (`liveTable.ts`'s `rimPan`): the catalog runs the camera's clock
@@ -261,8 +308,25 @@ export function grabScene(
     showsEnough,
     ...(rule ? { rule } : {}),
     ...(bump ? { bump } : {}),
-    ...(zones ? { zones } : {}),
-    ...(mirror ? { mirror } : {}),
+    // THE STRIP ON THE GLASS IS ASKED FIRST, because it is drawn over everything: a card let go on
+    // top of it must not fall through to whatever happens to be lying on the felt underneath.
+    ...(zones || handOnGlass
+      ? { zones: (root: Node, at: Vec, lead: Node) => glassZone(root, at) ?? zones?.(root, at, lead) }
+      : {}),
+    // A PICTURE OF A CARD ON THE GLASS IS A WAY OF REACHING THE CARD (`DragOptions.standIn`).
+    ...(handOnGlass ? { standIn: (n: Node) => glass?.standFor(n) } : {}),
+    ...(mirror || handOnGlass
+      ? {
+          mirror: {
+            ready: (s2: Scene, grasp: () => void) => mirror?.ready(s2, grasp),
+            changed: () => mirror?.changed(),
+            hand: (items: readonly CarryItem[], at: Vec | undefined, done: boolean, feel: Parameters<NonNullable<KitMirror["hand"]>>[3]) => {
+              mirror?.hand?.(items, at, done, feel);
+              ringToGlass(items, at, done);
+            },
+          } as KitMirror,
+        }
+      : {}),
     landingShown,
     ...(room ? { room } : {}),
     ...(actor ? { actor } : {}),
@@ -270,7 +334,17 @@ export function grabScene(
     ...(may ? { may } : {}),
     ...(taps ? { taps } : {}),
     ...(presses ? { presses } : {}),
-    ...(onDeskChanged ? { onDeskChanged } : {}),
+    ...(onDeskChanged || handOnGlass
+      ? {
+          onDeskChanged: (root: Node) => {
+            onDeskChanged?.(root);
+            // THE PICTURE IS THE SIZE OF WHAT IS IN THE HAND, and the camera's controls stand clear
+            // of whatever that came to.
+            glass?.refresh();
+            camHud?.fit();
+          },
+        }
+      : {}),
     ...(seats ? { seats } : {}),
     // WHAT A PIECE HEAPS BY — the shelf's own answer, off what a piece carries and never off its
     // name (`guard.id-is-opaque`).
@@ -287,7 +361,17 @@ export function grabScene(
   //
   // It is hung for as long as the desk stands and taken down with it: the desk is built ONCE per
   // page and handed to the reader, so a teardown of its own would have nothing to fire on.
-  liveCameraHud(live);
+  camHud = liveCameraHud(live, { floor: () => glass?.floor() ?? 0 });
+  if (handOnGlass && camHud) {
+    glass = handHud(live.host, {
+      seat: handOnGlass.seat,
+      desk: () => live.host.root,
+      ink: handOnGlass.ink,
+      screen: camHud.root,
+    });
+    glass.refresh();
+    camHud.fit();
+  }
   return live.el;
 }
 
