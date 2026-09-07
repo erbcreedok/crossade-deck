@@ -111,3 +111,4 @@ export {
   ZONE_SPREAD,
   type Spread,
 } from "./felt.js";
+export { handHud, HAND_HUD, HAND_HUD_BOX, HAND_HUD_MARGIN, type HandHud, type HandHudOptions } from "./handHud.js";

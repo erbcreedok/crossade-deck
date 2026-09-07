@@ -82,6 +82,8 @@ import { installTableLook } from "../look/surfaces.js";
 import { isTableGame, mapFor, syncSeatChairs, TABLE_SEATS, type SeatedPerson, type TableGame } from "./mapFor.js";
 import { curtain } from "./curtain.js";
 import { hubAvatarsTransport, hubSeats, inkOf, SEAT_INKS, type HubAvatarsTransport } from "./people.js";
+import { handHud, type HandHud } from "@game-presets/desks";
+import { type CameraHud } from "game-kit";
 
 /** A far hand's cursor, over the glass and never on the desk — the catalog's own `DOT` size. */
 const CURSOR_DOT = 18;
@@ -469,6 +471,15 @@ export function startTable(container: HTMLElement): Teardown {
     },
   };
 
+  // THE PLAYER'S OWN HAND AT THE FOOT OF THE GLASS (`handHud`) and the camera's own pair in the
+  // corner — both named HERE, above the desk that will report to them.
+  //
+  // A desk reports its first change from INSIDE the call that builds it (the deck's handles are
+  // drawn before a frame is), so `onDeskChanged` runs while this function is still on its way up:
+  // named after the desk, these two would be read in the dead zone before their bindings exist and
+  // the whole table would fall over on the way up — which is exactly how it fell over once.
+  let hand: HandHud | undefined;
+  let hud: CameraHud | undefined;
   const live = liveTable<LiveStage>(container, initialRoot, {
     ...playFor(game, () => seat),
     painter: (view, size) => pixiPainter(view, size),
@@ -512,6 +523,10 @@ export function startTable(container: HTMLElement): Teardown {
     // the furniture alone, and the ring has to be re-measured against what is now in it.
     onDeskChanged: () => {
       avatars?.settled();
+      // ...AND THE PICTURE OF IT ON THE GLASS with it: the strip is the size of what is in the hand,
+      // and the camera's own controls stand clear of whatever that came to (`floor`).
+      hand?.refresh();
+      hud?.fit();
       redraw();
     },
     // A SHUT HAND CANNOT BE REACHED INTO. Refused at the PICK and not at the drop, because what a
@@ -536,7 +551,13 @@ export function startTable(container: HTMLElement): Teardown {
   // THE CAMERA'S OWN TWO CONTROLS IN THE CORNER — the kit's, wired in one line. North is on every
   // desk; the place button appears because this desk names seats, and it asks for exactly what a tap
   // on one's own ring asks for, so the two can never take a reader to two different places.
-  const hud = liveCameraHud(live);
+  hud = liveCameraHud(live, { floor: () => hand?.floor() ?? 0 });
+  const handOnGlass = (): void => {
+    if (hand || !seat || game !== "cards" || !hud) return;
+    hand = handHud(live.host, { seat, desk: () => live.host.root, ink: inkOf(seat), screen: hud.root });
+    hand.refresh();
+    hud.fit();
+  };
 
   joinTable({
     game,
@@ -558,6 +579,8 @@ export function startTable(container: HTMLElement): Teardown {
       // easing home fails it — the ring stays empty and a stray disc is drawn instead.
       live.idle?.goHome();
       live.idle?.step(HOME_GLIDE_MS);
+      // ...AND THE PLAYER'S OWN HAND ON THE GLASS, now that this screen knows whose it is.
+      handOnGlass();
       live.motions?.redraw();
       // THE SAME CLOCK THE FLING BORROWS, joined for the whole life of the table rather than only
       // while something is moving: the idle countdown has to keep counting while the view is dead
@@ -606,6 +629,10 @@ export function startTable(container: HTMLElement): Teardown {
         // places the same set out of the same messages — but the tree that came in was written a
         // round trip ago, and the reader whose view moved since is standing where they were then.
         avatars?.publish();
+        // ...AND THE HAND ON THE GLASS IS A PICTURE OF THAT TREE: a card somebody else dealt into
+        // this hand arrives as a revision and nowhere else, so this is where the strip hears of it.
+        hand?.refresh();
+        hud?.fit();
         redraw();
       });
 
@@ -633,6 +660,11 @@ export function startTable(container: HTMLElement): Teardown {
       if (game === "cards") syncSeatChairs(live.host.root, sitting(table.roster));
       peopleWire.roster(table.roster);
       avatars.publish();
+      // ...AND THE HAND ON THE GLASS, now that the chairs are standing: the strip is a picture of a
+      // chair, and a picture drawn before there was one is an empty foot of the screen for ever.
+      handOnGlass();
+      hand?.refresh();
+      hud?.fit();
       redraw();
       unbindOnRoster = table.onRoster((roster) => {
         if (game === "cards") syncSeatChairs(live.host.root, sitting(roster));
@@ -692,6 +724,7 @@ export function startTable(container: HTMLElement): Teardown {
     // this, the persistent `#stage` never disconnects and the wiring goes on hearing the relay.
     cover.raise();
     peopleWall.remove();
+    hand?.stop();
     hud?.stop();
     live.stop();
     stopHold();

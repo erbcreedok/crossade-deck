@@ -206,12 +206,17 @@ export function fitBar(desk: Node, seat: string, at: { readonly x: number; reado
 }
 
 /**
- * THE STATES, SHOWN ON THE CONTROLS — lit while on, plain while off, read off the chair itself so
- * both screens light the same controls. The flip has nothing to read and is never lit.
+ * THE STATES, SHOWN ON THE CONTROLS — lit while on, plain while off, read off the CHAIR so every
+ * copy of the bar lights the same controls. The flip has nothing to read and is never lit.
+ *
+ * `where` is the tree the controls stand in and `chair` the one the states are read from, because
+ * they are not always the same tree: the bar on the glass (`handHud`) hangs on the screen root while
+ * the hand it belongs to stands on the felt. Told only a desk, it finds the chair in it, which is
+ * every caller on the table side.
  */
-export function dressBar(desk: Node, seat: string): void {
-  const chair = byId(desk, chairId(seat));
+export function dressBar(where: Node, seat: string, chair: Node | undefined = byId(where, chairId(seat))): void {
   if (!chair) return;
+  const desk = where;
   const on: Record<BarWhat, boolean> = {
     lock: handLocked(chair),
     hide: handHidden(chair),

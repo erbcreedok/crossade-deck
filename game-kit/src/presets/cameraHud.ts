@@ -107,11 +107,26 @@ export interface CameraHudOptions {
   readonly home?: (() => void) | undefined;
   /** PUT NORTH UP. Always drawn: every desk with a camera has an angle, and a reader may lose it. */
   readonly north: () => void;
+  /**
+   * HOW MUCH OF THE FOOT OF THE GLASS IS ALREADY SPOKEN FOR, in device pixels — a hand laid across
+   * the bottom (`handHud`), and nothing else so far. The column stands above it.
+   *
+   * ASKED FRESH, like the corner itself: a hand grows and shrinks with what is dealt into it, and a
+   * number read once would put the controls over the cards the moment somebody was dealt a fourth.
+   * Absent, nothing is there, which is every desk that does not deal.
+   */
+  readonly floor?: (() => number) | undefined;
 }
 
 export interface CameraHud {
   /** The screen the pair hangs on — the host's HUD root for as long as this is up. */
   readonly root: Node;
+  /**
+   * FIND THE CORNER AGAIN — for the one thing the host does not announce: what stands at the foot
+   * of the glass has changed size (`floor`). A glass that changed size announces itself and is
+   * re-read without anybody asking; a hand that grew a card does not, and whoever grew it says so.
+   */
+  fit(): void;
   stop(): void;
 }
 
@@ -158,7 +173,7 @@ export function cameraHud(host: Host, opts: CameraHudOptions): CameraHud {
     const inset = deviceInsets(host.view);
     const r = CAMERA_HUD_SIZE / 2;
     const x = view.width / u / 2 - r - CAMERA_HUD_MARGIN - inset.right / u;
-    const low = view.height / u / 2 - r - CAMERA_HUD_MARGIN - inset.bottom / u;
+    const low = view.height / u / 2 - r - CAMERA_HUD_MARGIN - inset.bottom / u - (opts.floor?.() ?? 0) / u;
     compose(north, Transformable({ at: { x, y: low } }));
     if (home) compose(home, Transformable({ at: { x, y: low - CAMERA_HUD_SIZE - CAMERA_HUD_GAP } }));
   };
@@ -189,6 +204,7 @@ export function cameraHud(host: Host, opts: CameraHudOptions): CameraHud {
 
   return {
     root: screen,
+    fit: seat,
     stop() {
       stopPressing();
       stopFitting();
@@ -235,11 +251,12 @@ function deviceInsets(el: HTMLElement): { readonly right: number; readonly botto
  *
  * A desk with no camera gets nothing at all: there is no view to turn and no corner that stays put.
  */
-export function liveCameraHud(live: LiveTable): CameraHud | undefined {
+export function liveCameraHud(live: LiveTable, opts: Pick<CameraHudOptions, "floor"> = {}): CameraHud | undefined {
   const camera = live.camera;
   if (!camera) return undefined;
   const idle = live.idle;
   return cameraHud(live.host, {
+    ...(opts.floor ? { floor: opts.floor } : {}),
     north: () => {
       camera.glideTurnTo(0);
       live.motions?.redraw();

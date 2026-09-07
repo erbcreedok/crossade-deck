@@ -120,6 +120,24 @@ describe("the camera's own two controls", () => {
     hud.stop();
   });
 
+  it("hudCamera.the-column-stands-clear-of-what-is-already-at-the-foot", () => {
+    // A HAND ON THE GLASS TAKES THE FOOT OF IT (`handHud`), and a pair of controls laid over that is
+    // two things in one place: the cards under a button nobody can reach past. So the pair is told
+    // how many pixels of the bottom are already spoken for and stands above them — asked FRESH, like
+    // the corner itself, because a hand grows and shrinks with what is dealt into it.
+    const b = bench();
+    let taken = 0;
+    const hud = cameraHud(b.host, { north: () => {}, home: () => {}, floor: () => taken });
+    const low = glassSeat(b.host, CAMERA_HUD_NORTH).y;
+    taken = 200;
+    hud.fit(); // the glass has not changed; what stands at its foot has, and it says so
+    const lifted = glassSeat(b.host, CAMERA_HUD_NORTH).y;
+    expect(lifted).toBeCloseTo(low - 200, 6);
+    // ...AND THE COLUMN KEEPS ITS ORDER: home still stands over north.
+    expect(glassSeat(b.host, CAMERA_HUD_HOME).y).toBeLessThan(lifted);
+    hud.stop();
+  });
+
   it("hudCamera.a-press-reaches-its-own-function-and-no-other", () => {
     const b = bench();
     const said: string[] = [];
