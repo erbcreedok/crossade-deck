@@ -71,6 +71,7 @@ interface Bench {
   readonly wiring: CameraControl;
   readonly painted: () => number;
   readonly root: Node;
+  readonly setHud: (next: Node | undefined) => void;
 }
 
 /**
@@ -86,6 +87,12 @@ function bench(
   const host = {
     view: hand.el,
     root,
+    get hudRoot() {
+      return hud;
+    },
+    setHudRoot: (next: Node | undefined) => {
+      hud = next;
+    },
     unit: () => 100,
     viewport: () => ({ width: 400, height: 300, dpr: 1 }),
     viewer: () => DEFAULT_VIEWER,
@@ -98,6 +105,7 @@ function bench(
     ...(options.input ? { input: options.input } : {}),
   });
   let painted = 0;
+  let hud: Node | undefined;
   const wiring = wireCamera({
     host,
     camera,
@@ -108,7 +116,16 @@ function bench(
     ...(options.inDocument === undefined ? {} : { inDocument: options.inDocument }),
   });
   camera.lookAt({ x: 0, y: 0 });
-  return { camera, hand, wiring, painted: () => painted, root };
+  return {
+    camera,
+    hand,
+    wiring,
+    painted: () => painted,
+    root,
+    setHud: (next: Node | undefined) => {
+      hud = next;
+    },
+  };
 }
 
 beforeEach(() => {
@@ -166,6 +183,30 @@ describe("the camera's fingers", () => {
     // …and where the tree says the card is, the eye sees felt now, and the finger pans.
     b.hand.down(2, 200, 150);
     b.hand.move(2, 160, 150, 48);
+    expect(b.wiring.gesture()).toBe("pan");
+    expect(b.camera.x).toBeCloseTo(was - 40, 6);
+  });
+
+  it("cameraInput.a-finger-on-the-glass-s-own-furniture-is-not-the-camera-s — the screen stands over the desk", () => {
+    // A SCREEN SITS OVER THE DESK and the finger meets it first. Everything on it — a button, a hand
+    // pinned to the foot of the glass, the anchor that pins it there — is an element in the arbitration's
+    // own sense, and over an element the camera stands down (`docs/design/camera.md`). Without this a
+    // press on a control also pans the desk under it, and a card taken off the picture of a hand
+    // takes the whole table with it.
+    const b = bench({ claims: () => false });
+    const screen = node("screen", Container({ layout: "free" }));
+    add(screen, node("plate", Bounded({ bounds: rect(2, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 1 } })));
+    b.setHud(screen);
+    const was = b.camera.x;
+    b.hand.down(1, 200, 250); // the plate sits a unit below the middle of a 400×300 glass
+    b.hand.move(1, 100, 250, 16);
+    expect(b.wiring.gesture()).toBe("given");
+    expect(b.camera.x).toBe(was);
+    b.hand.up(1, 100, 250, 32);
+    // …and bare felt beside it still moves the view.
+    b.setHud(undefined);
+    b.hand.down(2, 200, 250);
+    b.hand.move(2, 160, 250, 48);
     expect(b.wiring.gesture()).toBe("pan");
     expect(b.camera.x).toBeCloseTo(was - 40, 6);
   });

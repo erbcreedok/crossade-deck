@@ -175,6 +175,18 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    */
   readonly underFinger?: boolean | undefined;
   /**
+   * A NODE ON THE GLASS THAT STANDS FOR ONE ON THE DESK — the answer, or nothing for a node that is
+   * only itself (a button, a plate), which is every node on a screen until one of them is a picture
+   * of a piece.
+   *
+   * A hand pinned to the foot of the glass (`handHud`) draws pictures of the cards lying in its
+   * owner's place, and a finger that lands on one of those means the card: there is one card and it
+   * is on the felt, so the gesture that starts here is a gesture on the felt, and everything after
+   * the pick — the run, the zones, the drop — happens where the card actually is. Absent, the screen
+   * holds nothing a finger can carry, which is every desk that has no hand on its glass.
+   */
+  readonly standIn?: ((n: Node) => Node | undefined) | undefined;
+  /**
    * THE DROP, TAKEN OVER — called once a zone has been found and before anything is moved. Return
    * `true` and the wiring does nothing else: the scene has taken the drop.
    *
@@ -417,16 +429,24 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     // through to the card beneath — a fast hand would turn over two and then three. See
     // `Motions.reach`. Where a piece has genuinely MOVED — carried, thrown — it is still reached
     // where it is, which is the same map.
-    const hit = pick(
-      s.host,
-      root,
-      g,
-      (n) => draggable(n) && (w.opts.may?.(n) ?? true),
-      w.opts.view?.(),
-      s.motions?.reach(),
-      w.opts.showsEnough,
-    );
+    // THE GLASS IS ASKED FIRST, and only about pictures of pieces (`standIn`). A screen sits over the
+    // desk and the finger meets it first; a picture of a card is a way of reaching THE card, so what
+    // the gesture takes hold of is the piece on the felt and every line below is unchanged.
+    const shown = s.host.hudRoot && w.opts.standIn ? pick(s.host, s.host.hudRoot, g, (n) => w.opts.standIn!(n) !== undefined) : undefined;
+    const stood = shown ? w.opts.standIn?.(shown) : undefined;
+    const hit =
+      stood ??
+      pick(
+        s.host,
+        root,
+        g,
+        (n) => draggable(n) && (w.opts.may?.(n) ?? true),
+        w.opts.view?.(),
+        s.motions?.reach(),
+        w.opts.showsEnough,
+      );
     if (!hit) return;
+    if (stood && !(draggable(hit) && (w.opts.may?.(hit) ?? true))) return;
     const run = w.opts.runOf ? w.opts.runOf(root, hit) : [hit];
     // WHERE THE PIECES ARE DRAWN, not where they rest: the hand closes on what it can see. A piece
     // the clock is moving rests somewhere it left long ago, and an anchor taken from the tree would
@@ -461,7 +481,11 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     // The finger-to-origin delta rides the whole gesture, so the card does not jump under the hand.
     w.drag = {
       items,
-      delta: w.opts.underFinger ? { x: 0, y: 0 } : { x: anchor.x - p.x, y: anchor.y - p.y },
+      // A PIECE TAKEN BY ITS PICTURE COMES TO THE FINGER. The picture is somewhere else entirely —
+      // the foot of the glass, while the card lies in a box across the desk — so the offset between
+      // the two is not a grip, it is the width of the screen: kept, the card would be dragged about
+      // a hand's length away from the hand holding it.
+      delta: w.opts.underFinger || stood ? { x: 0, y: 0 } : { x: anchor.x - p.x, y: anchor.y - p.y },
       pointer: e.pointerId,
       tray: undefined,
       feel: {},
@@ -487,7 +511,7 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     const {
       runOf: _runOf, offsetOf: _offsetOf, stillOf: _stillOf, onTap: _onTap, showsEnough: _shows, feelOf, may: _may,
       onRelease: _onRelease, view: _view, trayOf, onWall: _onWall, onCarry: _onCarry, onSettled: _onSettled,
-      onDrop: _onDrop, zoneAt: _zoneAt, aimAt: _aimAt, underFinger: _under,
+      onDrop: _onDrop, zoneAt: _zoneAt, aimAt: _aimAt, underFinger: _under, standIn: _standIn,
       ...feel
     } = w.opts;
     const tray = trayOf?.(root, hit);

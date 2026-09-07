@@ -337,6 +337,12 @@ export interface LiveTableOptions<S extends LiveStage = LiveStage> {
    */
   readonly presses?: (meaning: Meaning, control: Node) => boolean;
   /**
+   * A NODE ON THE GLASS THAT STANDS FOR A PIECE ON THE DESK — a hand pinned to the foot of the
+   * screen draws pictures of its owner's cards, and a finger on one of those means the card
+   * (`DragOptions.standIn`). Threaded through unchanged.
+   */
+  readonly standIn?: (n: Node) => Node | undefined;
+  /**
    * THE DESK CAME TO REST AND THE PAGE HAS SOMETHING TO SAY ABOUT IT.
    *
    * A page whose furniture is DERIVED from the tree — a hand that is the size of what is in it —
@@ -480,6 +486,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
     may,
     taps,
     presses,
+    standIn,
     onDeskChanged,
     heapKindOf,
     trayOf,
@@ -784,6 +791,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
   settle();
   const el = wireDrag(built, {
     ...(built.camera ? { view: () => built.camera!.transform() } : {}),
+    ...(standIn ? { standIn } : {}),
     // MY HAND, TOLD TO THE OTHER SCREENS — with its FEEL, or it is not the same hand over there —
     // and the picture of where it lands, moved under it.
     onCarry: ({ ids, at, done, feel, swing }) => {

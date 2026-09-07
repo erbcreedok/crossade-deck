@@ -83,7 +83,7 @@ import { isTableGame, mapFor, syncSeatChairs, TABLE_SEATS, type SeatedPerson, ty
 import { curtain } from "./curtain.js";
 import { hubAvatarsTransport, hubSeats, inkOf, SEAT_INKS, type HubAvatarsTransport } from "./people.js";
 import { chairId, handHud, type HandHud } from "@game-presets/desks";
-import { apply, type CameraHud } from "game-kit";
+import { apply, byId, type CameraHud } from "game-kit";
 
 /** A far hand's cursor, over the glass and never on the desk — the catalog's own `DOT` size. */
 const CURSOR_DOT = 18;
@@ -130,7 +130,17 @@ function heapKindOf(n: Node): string {
 }
 
 /** The zone a run is over, per game — the same question `zoneAt` and a drop both ask. */
-function zoneAtFor(game: TableGame, seat: () => string | null): ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined {
+function zoneAtFor(
+  game: TableGame,
+  seat: () => string | null,
+  /**
+   * THE HAND ON THE GLASS, asked FIRST — a drop aimed at the strip at the foot of the screen is a
+   * drop into the box on the felt (`handHud`). It comes first because it is the aim the reader can
+   * SEE they are making: the picture is over everything, and a card let go on top of it must not
+   * fall through to whatever happens to be lying on the felt underneath.
+   */
+  onGlass: (at: Vec) => Node | undefined = () => undefined,
+): ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined {
   if (game === "chess") return (root, at) => squareAt(root, at);
   if (game === "nardy") return (root, at, lead) => pointUnder(root, at, lead);
   // THE NEAREST HAND WITHIN REACH, AND ONLY IF IT WOULD TAKE THE CARD FROM THIS SEAT. One question
@@ -139,6 +149,8 @@ function zoneAtFor(game: TableGame, seat: () => string | null): ((root: Node, at
   return (root, at, lead) => {
     const mine = seat();
     if (!mine) return undefined;
+    const shown = onGlass(at);
+    if (shown && handTakes(shown, lead, mine)) return shown;
     const zone = zoneNear(root, at, lead);
     return zone && isHand(zone) && handTakes(zone, lead, mine) ? zone : undefined;
   };
@@ -265,8 +277,8 @@ export function unitOfDesk(game: TableGame): number {
  * by, so "the hub plays the desk the shelf shows" is something a reader can check line by line
  * rather than take on trust.
  */
-function playFor(game: TableGame, seat: () => string | null): LiveTableOptions<LiveStage> {
-  const zones = zoneAtFor(game, seat);
+function playFor(game: TableGame, seat: () => string | null, onGlass: (at: Vec) => Node | undefined): LiveTableOptions<LiveStage> {
+  const zones = zoneAtFor(game, seat, onGlass);
   if (game === "cards") {
     return {
       ...(zones ? { zones } : {}),
@@ -468,6 +480,9 @@ export function startTable(container: HTMLElement): Teardown {
       currentTable?.sendRelay({ kind: "hand", items: items as unknown as CarryItem[], at, done, feel });
       if (seat) avatars?.handed(seat, items, at, done);
       ringToGlass(items, at, done);
+      // ...AND WHAT IS IN THE AIR IS OUT OF THE PICTURE while it is: a card drawn under the finger
+      // and still lying in the strip is one card shown twice.
+      hand?.lifting(done ? [] : items.map((it) => it.id));
       redraw();
     },
   };
@@ -519,7 +534,10 @@ export function startTable(container: HTMLElement): Teardown {
   let hand: HandHud | undefined;
   let hud: CameraHud | undefined;
   const live = liveTable<LiveStage>(container, initialRoot, {
-    ...playFor(game, () => seat),
+    ...playFor(game, () => seat, (at) => handUnderFinger(at)),
+    // A PICTURE OF A CARD ON THE GLASS IS A WAY OF REACHING THE CARD: a finger landing on the strip
+    // at the foot of the screen takes the card that lies in the box on the felt (`handHud`).
+    standIn: (n: Node) => hand?.standFor(n),
     painter: (view, size) => pixiPainter(view, size),
     clock,
     mirror,
@@ -590,6 +608,14 @@ export function startTable(container: HTMLElement): Teardown {
   // desk; the place button appears because this desk names seats, and it asks for exactly what a tap
   // on one's own ring asks for, so the two can never take a reader to two different places.
   hud = liveCameraHud(live, { floor: () => hand?.floor() ?? 0 });
+  /**
+   * A DROP AIMED AT THE STRIP ON THE GLASS IS A DROP INTO THE HAND ON THE FELT — the same box, asked
+   * for by pointing at its picture. There is one hand, so there is one answer: the chair.
+   */
+  const handUnderFinger = (at: Vec): Node | undefined => {
+    if (!hand?.attached() || !seat || !live.camera) return undefined;
+    return hand.overHand(apply(live.camera.transform(), at)) ? byId(live.host.root, chairId(seat)) : undefined;
+  };
   const handOnGlass = (): void => {
     if (hand || !seat || game !== "cards" || !hud) return;
     hand = handHud(live.host, { seat, desk: () => live.host.root, ink: inkOf(seat), screen: hud.root });

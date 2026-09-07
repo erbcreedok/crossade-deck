@@ -1013,6 +1013,47 @@ describe("the live desk", () => {
     live.stop();
   });
 
+  it("liveTable.a-picture-on-the-glass-carries-the-piece-it-stands-for — the finger takes the felt card, under the finger", () => {
+    // A SCREEN SITS OVER THE DESK and the finger meets it first. A picture of a card on it (a hand
+    // pinned to the foot of the glass) is a way of REACHING that card: there is one card, it is on
+    // the felt, and the gesture that starts on the glass is a gesture on the felt — same run, same
+    // zones, same drop. Without this the finger falls through the picture onto whatever happens to
+    // be lying under it, which is the felt at the bottom of the screen.
+    const { root } = desk();
+    const c = fakeClock();
+    const shell = stage(root, c.clock);
+    shell.camera!.setScreen(600, 400);
+    shell.camera!.setContent({ x: -4, y: -4, w: 8, h: 8 }, shell.host.unit());
+    const screen = node("screen", Container({ layout: "live.free" }));
+    const picture = node("picture", Bounded({ bounds: rect(1, 1.4) }), Surfaced(), Transformable({ at: { x: 0, y: 2 } }));
+    add(screen, picture);
+    shell.host.setHudRoot(screen);
+    const live = liveTable(shell.el.ownerDocument.body, root, {
+      stage: shell,
+      letGo: "drop",
+      standIn: (n: Node) => (n.id === "picture" ? byId(shell.host.root, "card") : undefined),
+    });
+    const u = shell.host.unit();
+    const on = { x: 300 + 0 * u, y: 200 + 2 * u };
+    shell.el.dispatchEvent(finger("pointerdown", on.x, on.y, 0));
+    for (let i = 1; i <= 4; i += 1) {
+      shell.el.dispatchEvent(finger("pointermove", on.x - i * 10, on.y - i * 6, i * 200));
+      c.tick(1);
+    }
+    c.tick(40);
+    // THE CARD IS IN THE HAND, and it is UNDER THE FINGER: the picture is half a screen away from
+    // the card, so the offset between them is not a grip — kept, the card would be dragged about a
+    // hand's length from the hand holding it.
+    const held = shell.motions!.poses()!.get("card");
+    expect(held, "the card the picture stands for is the one in the air").toBeDefined();
+    const drawn = apply(shell.camera!.transform(), apply(held!, { x: 0, y: 0 }));
+    expect(Math.hypot(drawn.x - (on.x - 40), drawn.y - (on.y - 24))).toBeLessThan(24);
+    shell.el.dispatchEvent(finger("pointerup", on.x - 40, on.y - 24, 1000));
+    c.tick(60);
+    live.stop();
+    shell.host.setHudRoot(undefined);
+  });
+
   it("liveTable.a-felt-sized-ring-is-still-a-control — no picture of a landing under a dragged seat", () => {
     // THE RING GAVE UP `Screened` the day it grew to hold cards, and with it the only thing the
     // wiring had to tell a control from a piece: a contour appeared round a dragged seat and a

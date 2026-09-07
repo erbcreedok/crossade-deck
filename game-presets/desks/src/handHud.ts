@@ -47,6 +47,7 @@ import {
   type Node,
   type Paint,
   type SurfacedFields,
+  type TransformableFields,
 } from "game-kit";
 import { BAR, dressBar, fitBar, seatBar } from "./handBar.js";
 import { HAND, HAND_LAYOUT, handRoom, handWidth } from "./handZone.js";
@@ -114,6 +115,20 @@ export interface HandHud {
   floor(): number;
   /** Whether the hand is pinned to this glass. A hand starts on the felt, where every player's is. */
   attached(): boolean;
+  /**
+   * THE CARD A PICTURE ON THE GLASS IS OF — the node on the FELT, or nothing for anything else on
+   * the screen. What a finger landing on the strip takes hold of (`DragOptions.standIn`): there is
+   * one card, it lies in its owner's place, and this is a way of reaching it.
+   */
+  standFor(shown: Node): Node | undefined;
+  /** Is this point on the glass over the cards? What a drop aimed at the strip is asked (`zoneAt`). */
+  overHand(glass: { readonly x: number; readonly y: number }): boolean;
+  /**
+   * WHAT IS IN THE AIR RIGHT NOW, by the ids of the cards on the felt — left out of the picture for
+   * as long as it is: a card drawn under the finger AND still lying in the strip is one card shown
+   * twice, and the reader cannot tell which of them they are holding.
+   */
+  lifting(ids: readonly string[]): void;
   /** Pin it or let it go — the state itself, for a consumer that remembers one across sessions. */
   attach(on: boolean): void;
   /**
@@ -192,7 +207,7 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
   /** What is in the hand right now — the chair's own children, which is the array itself. */
   function held(): readonly Node[] {
     const chair = chairOf();
-    return chair ? chair.children : [];
+    return chair ? chair.children.filter((c) => !aloft.has(c.id)) : [];
   }
 
   /**
@@ -230,6 +245,8 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
   let floorPx = 0;
   let wide = 0;
   let pinned = false;
+  /** The cards a hand is holding in the AIR — not drawn here for as long as they are (`lifting`). */
+  let aloft = new Set<string>();
   /** The anchor, while a ring is in hand — made and taken down with the gesture, never left standing. */
   let anchor: Node | undefined;
   let aimed = false;
@@ -316,6 +333,27 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     root,
     refresh,
     attached: () => pinned,
+    standFor: (shown: Node) => {
+      const i = strip.children.indexOf(shown);
+      const id = i >= 0 ? manifest[i] : undefined;
+      return id === undefined ? undefined : byId(o.desk(), id);
+    },
+    overHand: (glass) => {
+      const u = host.unit();
+      const v = host.viewport();
+      const box = footprint(strip);
+      if (!pinned || u <= 0 || !box) return false;
+      const size = extentOf(box);
+      const at = fieldsOf<TransformableFields>(root, "Transformable")?.at ?? { x: 0, y: 0 };
+      const mid = { x: v.width / 2 + at.x * u, y: v.height / 2 + at.y * u };
+      return Math.abs(glass.x - mid.x) <= (size.w * u) / 2 && Math.abs(glass.y - mid.y) <= (size.h * u) / 2;
+    },
+    lifting: (ids) => {
+      const next = new Set(ids);
+      if (next.size === aloft.size && [...next].every((id) => aloft.has(id))) return;
+      aloft = next;
+      refresh();
+    },
     attach: (on: boolean) => {
       pinned = on;
       refresh();

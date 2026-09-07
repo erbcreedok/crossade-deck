@@ -196,4 +196,39 @@ describe("the hand on the glass", () => {
     expect(byId(b.host.hudRoot!, HAND_HUD_ANCHOR)).toBeUndefined();
     hud.stop();
   });
+
+  it("hud.a-picture-on-the-glass-is-a-way-of-reaching-the-card — the finger takes the card off the felt, and the picture steps aside", () => {
+    // ONE CARD, TWO PLACES TO REACH IT. A finger that lands on the strip means the card that lies in
+    // the box on the felt: `standFor` is what the drag wiring asks (`DragOptions.standIn`), so the
+    // gesture that starts on the glass happens where the card actually is — the same run, the same
+    // zones, the same drop, and nothing here has to know what any of them do.
+    const b = bench();
+    const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
+    hud.attach(true);
+    for (const id of ["a", "b"]) add(b.chair, card(id));
+    growHand(b.chair);
+    hud.refresh();
+    const shown = byId(hud.root, HAND_HUD_BOX)!.children;
+    expect(hud.standFor(shown[0]!)).toBe(byId(b.desk, "a"));
+    expect(hud.standFor(shown[1]!)).toBe(byId(b.desk, "b"));
+    // ...AND NOTHING ELSE ON THE SCREEN IS A CARD: a button is only ever itself.
+    expect(hud.standFor(byId(hud.root, chairButtonId("south", "lock"))!)).toBeUndefined();
+
+    // WHAT IS IN THE AIR IS OUT OF THE PICTURE. A card drawn under the finger AND still lying in the
+    // strip is one card shown twice, and the reader cannot tell which of them they are holding.
+    hud.lifting(["a"]);
+    expect(hud.cards()).toEqual(["b"]);
+    hud.lifting([]);
+    expect(hud.cards()).toEqual(["a", "b"]);
+
+    // A DROP AIMED AT THE STRIP IS A DROP INTO THE HAND — asked in glass pixels, because that is
+    // what a finger is measured in, and only while the hand is actually pinned there.
+    const v = b.host.viewport();
+    const onIt = { x: v.width / 2, y: v.height - 60 };
+    expect(hud.overHand(onIt)).toBe(true);
+    expect(hud.overHand({ x: 20, y: 40 })).toBe(false);
+    hud.attach(false);
+    expect(hud.overHand(onIt), "a hand that is not on the glass catches nothing dropped at it").toBe(false);
+    hud.stop();
+  });
 });

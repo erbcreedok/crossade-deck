@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**79 слоёв · 1705 кейсов заявлено · 1532 расписано поимённо.**
+**79 слоёв · 1707 кейсов заявлено · 1534 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -78,7 +78,7 @@
 | [UNIT · контролы — `Pressable`, пресет `button`, проводка](50-controls.md) | `vitest` | 33 | 33 |
 | [UNIT · пыль цензуры — облако без единого пикселя](51-censor-dust.md) | `vitest (headless, no WebGL)` | 21 | 21 |
 | [UNIT · камера — как на холст смотрят](52-camera.md) | `vitest (headless, no renderer)` | 35 | 35 |
-| [UNIT · руки на столе — жесты камеры и арбитраж](53-camera-input.md) | `vitest (headless, no renderer)` | 14 | 14 |
+| [UNIT · руки на столе — жесты камеры и арбитраж](53-camera-input.md) | `vitest (headless, no renderer)` | 15 | 15 |
 | [UNIT · грани позы покоя — что зона делает с прилетевшим](54-pose-grains.md) | `vitest` | 28 | 28 |
 | [UNIT · проекция места — что показывают одному зрителю](55-seat-projection.md) | `vitest` | 12 | 12 |
 | [UNIT · ход, ждущий человека — запись, замок и второй суд](56-pending.md) | `vitest` | 8 | 8 |
@@ -102,6 +102,6 @@
 | [UNIT · handover — передача рана в зону](75-handover.md) | `vitest + jsdom` | 1 | 1 |
 | [UNIT · presence — кто за столом](76-presence.md) | `vitest (headless, no WebGL) + jsdom` | 11 | 11 |
 | [UNIT · idleReturn — возврат камеры](77-idle-return.md) | `vitest (headless, no WebGL)` | 5 | 5 |
-| [UNIT · liveTable — живой стол целиком](78-live-table.md) | `vitest + jsdom + фейковые часы` | 23 | 23 |
+| [UNIT · liveTable — живой стол целиком](78-live-table.md) | `vitest + jsdom + фейковые часы` | 24 | 24 |
 | [UNIT · HUD камеры — две кнопки в углу](79-camera-hud.md) | `vitest + jsdom` | 7 | 7 |
 | [UNIT · homeZoom — дом, который влезает в стекло](80-home-view.md) | `vitest (headless, no WebGL)` | 5 | 5 |

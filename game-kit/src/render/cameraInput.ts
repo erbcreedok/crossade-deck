@@ -202,6 +202,15 @@ export function wireCamera(w: CameraGestures): CameraControl {
     }
     sync();
     // The arbitration, in one line: over an element the camera stands down for the whole gesture.
+    //
+    // THE GLASS'S OWN FURNITURE IS AN ELEMENT TOO, and it is asked first because it stands over the
+    // desk: a control, a hand pinned to the foot of the screen, the anchor that pins it there. A
+    // press on a button that also panned the desk under it, or a card taken off the picture of a
+    // hand that took the whole table with it, is one finger doing two things.
+    if (w.host.hudRoot && pick(w.host, w.host.hudRoot, g, () => true)) {
+      gesture = "given";
+      return;
+    }
     if (w.claims && pick(w.host, w.host.root, g, w.claims, w.camera.transform(), w.reach?.())) {
       gesture = "given";
       return;
