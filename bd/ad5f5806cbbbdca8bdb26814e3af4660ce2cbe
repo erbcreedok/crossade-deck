@@ -1,0 +1,25 @@
+game-presets/desks/docs/test-plan.md
+  s_2049b128b4ff77::t_1ef3dcb09ec7f0 119,132
+game-presets/desks/src/handHud.ts
+  s_2049b128b4ff77::t_285c5c4d5894f0 56,76-85,130-131,169-170,172-179,260,262,289,291-292,304-311,313,327-329,342,375,385-386
+game-presets/desks/src/handHud.test.ts
+  s_2049b128b4ff77::t_4692ccb9464d08 24-25,182-188,197,202
+  s_2049b128b4ff77::t_1ef3dcb09ec7f0 42,169-181,189-196,198-201,203-204
+  s_2049b128b4ff77::t_c9375c604345eb 205-206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bdad5f5806cbbbdca8bdb26814e3af4660ce2cbe",
+  "prompts": {},
+  "sessions": {
+    "s_2049b128b4ff77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f5ba828-d84d-455f-8f95-01ad6b176644",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
