@@ -1,0 +1,32 @@
+game-kit/src/render/liveTable.ts
+  s_2049b128b4ff77::t_d5d7e4585e4cc5 367-372
+game-kit/docs/test-plan/71-fall.md
+  s_2049b128b4ff77::t_c8e62ce6c6df77 17
+game-kit/docs/test-plan/78-live-table.md
+  s_2049b128b4ff77::t_c8e62ce6c6df77 18
+game-kit/src/render/fall.ts
+  s_2049b128b4ff77::t_503e856f133182 822-825,837,843
+apps/hub/src/table/index.ts
+  s_2049b128b4ff77::t_d5d7e4585e4cc5 323-325
+game-kit/src/render/liveTable.test.ts
+  s_2049b128b4ff77::t_8566424af3fa06 1269-1271
+  s_2049b128b4ff77::t_503e856f133182 1263-1268
+  s_2049b128b4ff77::t_ffbcba036c913e 1232-1236
+  s_2049b128b4ff77::t_d5d7e4585e4cc5 1245-1246,1258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "47f51a24f0bc4b937f02c78f029cfd555f712469",
+  "prompts": {},
+  "sessions": {
+    "s_2049b128b4ff77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f5ba828-d84d-455f-8f95-01ad6b176644",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
