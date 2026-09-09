@@ -36,7 +36,9 @@ describe("game-presets/cards guards", () => {
     // (SVG data-URIs), and those carry real colour — that is the one exemption, penned to
     // `textures/`. Everywhere else (suits, sets, skins, the builder) a colour is a theme token or
     // a `spin` param, so this package never re-opens the 261-hex swamp client2 died of.
-    const skip = (rel: string): boolean => rel.endsWith(".test.ts") || rel.startsWith("textures/");
+    // `decks/` is the second exemption: the deck design's own paper, inks and cloths — content,
+    // drawn into pictures, the same way `textures/` is.
+    const skip = (rel: string): boolean => rel.endsWith(".test.ts") || rel.startsWith("textures/") || rel.startsWith("decks/");
     expect(hits(/#[0-9a-fA-F]{3,8}\b|\brgba?\(/, skip)).toEqual([]);
   });
 });

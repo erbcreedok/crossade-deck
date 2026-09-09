@@ -9,6 +9,9 @@
 import { deck, type Node } from "game-kit";
 import { crossade } from "./crossade.js";
 import { BACK_SURFACE, faceSurface, installClassicSkin } from "./skin.classic.js";
+import { type BackName } from "./decks/backs.js";
+import { deckBackSurface, deckFaceSurface, installDeckBacks, installDeckSkin, type DeckSource } from "./decks/skin.js";
+import type { DeckStyle } from "./decks/style.js";
 
 export interface CardsOptions {
   /** The size every card is cut to, in units. Default 1×1.4. */
@@ -34,6 +37,41 @@ export function cards(opts: CardsOptions = {}): Node[] {
  */
 export function deckByCardId(opts: CardsOptions = {}): Map<string, Node> {
   const nodes = cards(opts);
+  const specs = crossade();
+  return new Map(specs.map((spec, i) => [spec.id, nodes[i]!]));
+}
+
+export interface DeckCardsOptions extends CardsOptions {
+  /** The look the cards wear — one of the deck design's styles. */
+  readonly style: DeckStyle;
+  /** The back every card turns over to. Default `plaid`. */
+  readonly back?: BackName;
+  /** Baked raster (what a game ships) or the live vector (what the raster is baked from). Default raster. */
+  readonly source?: DeckSource;
+}
+
+/**
+ * The same 55 cards, wearing a DECK STYLE instead of the classic skin — the user's own drawn deck
+ * (see `decks/`). The same shape as `cards()`, a separate pair rather than a branch in it, so
+ * picking a look stays a call, never a flag threaded through the engine.
+ */
+export function deckCards(opts: DeckCardsOptions): Node[] {
+  const back = opts.back ?? "plaid";
+  if (opts.install ?? true) {
+    installDeckSkin(opts.style, opts.source);
+    installDeckBacks(opts.source);
+  }
+  const specs = crossade().map((card) => ({
+    face: deckFaceSurface(card, opts.style),
+    back: deckBackSurface(back),
+    values: card.values,
+  }));
+  return deck(specs, opts.size ? { size: opts.size } : {});
+}
+
+/** `deckByCardId()`, wearing a deck style — see `deckCards()`. */
+export function deckCardsById(opts: DeckCardsOptions): Map<string, Node> {
+  const nodes = deckCards(opts);
   const specs = crossade();
   return new Map(specs.map((spec, i) => [spec.id, nodes[i]!]));
 }

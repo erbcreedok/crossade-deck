@@ -28,3 +28,28 @@ Laws of the add-on, each with the guard that enforces it (born fail-first). One 
 | `shuffle.is-deterministic-under-a-seeded-rng` | a seeded rng | `shuffled` | same rng → same permutation; `() => 0` gives a known non-identity order |
 | `classic.a-number-shows-that-many-pips` | a number card 2..10 | its face SVG | exactly `rank` pips plus the two corner marks — the pip layout is complete for every rank |
 | `classic.a-court-is-framed` | J/Q/K vs a number | rects in the face | a court wears one extra panel — its centre is framed, a number's is not |
+| `face.a-number-shows-that-many-pips` | a deck style, a number 2..10 | its face SVG | `rank` + 2 `<use>`s of ONE `#pip` path — no pip drawn twice |
+| `face.the-ace-is-one-big-pip` | an ace | its face | one centre mark and the two corners |
+| `face.a-court-wears-its-figure` | J/Q/K with its art | classic face | the figure nested at `figurePlacement`, `color` = the style's accent; only diamonds turn orange under four colours |
+| `face.a-court-without-art-is-still-a-face` | a court, no art | classic face | frame and indices, nothing thrown |
+| `face.minimal-is-one-index-and-one-mark` | any card, courts included | minimal face | one index, one mark, no figure |
+| `face.cyrillic-is-a-label` | `cyrillic` | faces | Т В Д К, «Джокер»; numbers unchanged; keys stay Latin |
+| `face.four-colours-is-one-ink-per-suit` | `fourColour` | faces | spades blue, diamonds orange, hearts red, clubs black |
+| `face.the-jokers-wear-their-own-ink` | either joker, either layout | face | red or black ink, the word twice, the hat, no pips |
+| `face.every-style-draws-every-card` | 8 styles × 55 cards | `faceSvg` | a document each, distinct within a style |
+| `face.the-brand-card-keeps-the-classic-texture` | the brand | any style | the generated classic texture (no art in the design) |
+| `style.ids-round-trip` | every style | `deckStyleId` / `deckStyleOf` | speaking ids, resolving back; an unknown id is `undefined` |
+| `backs.six-and-their-own` | the six backs | `backSvg` | documents; woven backs carry no crest, tiled ones do |
+| `figures.twelve-courts-are-sourced` | `art/courts/` | files | J/Q/K × 4 suits, a viewBox each, `currentColor` accent, no c2pa |
+| `figures.the-padded-viewbox-lands-the-ink-where-the-inline-does` | each figure | `paddedViewBox` vs `figurePlacement` | the same rect through both doors |
+| `figures.the-figure-sits-inside-the-rule` | each figure | placement | inside the inset box, touching it on one axis |
+| `figures.inline-keeps-the-drawing-and-sets-the-colour` | a figure | `inlineFigure` | nested svg at its placement, `color` set, drawing kept |
+| `figures.a-standalone-file-carries-its-paint` | a figure | `standaloneFigure` | no `currentColor` left, viewBox padded to the paper's proportion |
+| `marks.are-the-art's-own-paths` | `SUIT_MARKS`, `JOKER_HAT` | vs `art/suits/*.svg` | equal, shape for shape |
+| `marks.seat-fits-whole` | a tall mark, a square box | `seat` | limited by height, centred |
+| `lettering.is-rects-of-the-captured-font` | a text | `lettering` | one em per glyph, runs merged, an unknown letter throws |
+| `skin.every-style-registers-every-face` | each style, both sources | `installDeckSkin` | 55 surfaces and assets, 1×1.4 units |
+| `skin.raster-is-baked` | each style, each card, each back | the baked folder | a WebP file exists — `scripts/bake.ts` was run |
+| `skin.vector-courts-are-two-layers` | a classic court, vector | its surface | the paper and the figure file, the figure `contain`ed |
+| `skin.backs-are-their-own-slot` | the six backs | `installDeckBacks` | a surface each, no style in the name |
+
