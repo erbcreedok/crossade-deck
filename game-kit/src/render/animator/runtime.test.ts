@@ -104,6 +104,29 @@ describe("the motion runtime", () => {
     expect(c.idle()).toBe(true); // idle-gate: no frame is scheduled once nothing is in flight
   });
 
+  it("motion.the-hud-settles-too — a node on the screen eases to its new rest like one on the desk", () => {
+    // THE SCREEN IS A TREE LIKE THE DESK, and a hand drawn on it is re-laid at every deal — the one
+    // place a snap is felt most, under the thumb. Its rests are read with the desk's; its
+    // arrangement's settle is honoured; and it is told through the host like any change.
+    const b = bench();
+    const c = fakeClock();
+    const screen = node("screen", Container({ layout: "free" }));
+    const pic = node("pic", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } }));
+    add(screen, pic);
+    b.host.setHudRoot(screen);
+    attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
+    const restX = b.xOf("pic");
+    compose(pic, Transformable({ at: { x: 4, y: 0 } }));
+    b.host.setHudRoot(screen);
+    expect(b.xOf("pic"), "frame zero: still where it was").toBeCloseTo(restX);
+    c.tick(50);
+    const midX = b.xOf("pic");
+    expect(midX).toBeGreaterThan(restX);
+    c.tick(100);
+    expect(b.xOf("pic")).toBeGreaterThan(midX);
+    expect(c.idle()).toBe(true);
+  });
+
   // ── how a zone lets a pose relax into rest ──────────────────────────────────────────────────
   //
   // The rest pose is one thing and the road to it another. A mat that squares a card up and a mat

@@ -22,8 +22,11 @@ import {
   compose,
   Container,
   Draggable,
+  facing,
   fieldsOf,
+  Flippable,
   freeLayout,
+  installStockFlips,
   Grabber,
   Screened,
   installStockGrabs,
@@ -1010,6 +1013,37 @@ describe("the live desk", () => {
     tap("nope");
     expect(pressed).toEqual(["shut", "nope"]);
     expect(changed, "a declined press is not").toBe(told + 1);
+    live.stop();
+  });
+
+  it("liveTable.a-tap-that-turns-a-card-is-a-changed-desk — the flip reaches onDeskChanged, with the card already turned", () => {
+    // A HAND DRAWN ON THE GLASS is a picture of the felt, redrawn when the desk says it changed. A
+    // card turned over by a tap changed the desk — and used to tell the mirror and nobody else, so
+    // the picture went on showing the side the card no longer showed until something ELSE moved.
+    installStockFlips();
+    const { root, card } = desk();
+    compose(card, Flippable({ flip: "turnOver", back: "" }));
+    const c = fakeClock();
+    const shell = stage(root, c.clock);
+    shell.camera!.setScreen(600, 400);
+    shell.camera!.setContent({ x: -4, y: -4, w: 8, h: 8 }, shell.host.unit());
+    const seen: string[] = [];
+    const live = liveTable(shell.el.ownerDocument.body, root, {
+      stage: shell,
+      flipping: true,
+      onDeskChanged: (tree: Node) => seen.push(facing(byId(tree, "card")!)),
+    });
+    const on = apply(shell.camera!.transform(), { x: 0, y: 0 });
+    shell.el.dispatchEvent(finger("pointerdown", on.x, on.y, 0));
+    shell.el.dispatchEvent(finger("pointerup", on.x, on.y, 80));
+    // The release itself is a settle and says "changed" with the card still face up; the turn
+    // lands later on the clock, and THAT is the change the picture has to hear.
+    const released = seen.length;
+    expect(facing(card), "released, not yet turned").toBe("up");
+    for (let i = 1; i <= 40; i += 1) c.tick(80 + i * 16);
+    expect(facing(card), "the tap turned the card").toBe("down");
+    expect(seen.length, "and the desk said so once more").toBe(released + 1);
+    expect(seen.at(-1), "with the card already turned").toBe("down");
     live.stop();
   });
 

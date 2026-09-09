@@ -7,7 +7,7 @@
 Идентификатор — `scope.scenario.condition`, стабильный: по упавшему id сразу видно сценарий и
 состояние. Строка — Дано / Когда / Тогда.
 
-**79 слоёв · 1708 кейсов заявлено · 1535 расписано поимённо.**
+**79 слоёв · 1710 кейсов заявлено · 1537 расписано поимённо.**
 Разница — однотипные варианты внутри кейса (значения перечислений, темы, вьюпорты); слой не
 закрыт, пока не расписаны все, а пропущенное называется явно (`matrix.dropped`).
 
@@ -65,7 +65,7 @@
 | [UNIT · paint — the colour as data](37-paint.md) | `vitest` | 6 | 6 |
 | [UNIT · Coated — the runtime coat over a surface](38-coated.md) | `vitest` | 34 | 34 |
 | [UNIT · flips — the registry and the flip effect](39-flips.md) | `vitest` | 16 | 16 |
-| [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 52 | 52 |
+| [UNIT · motion — the settle clock](40-motion.md) | `vitest + a fake clock` | 53 | 53 |
 | [UNIT · pointer — glass, units and the pick](41-input.md) | `vitest (headless, no WebGL)` | 12 | 12 |
 | [UNIT · drag feel — the spring and the carry styles](42-drag-feel.md) | `vitest (headless, no WebGL)` | 17 | 17 |
 | [UNIT · ShadowCaster и Lit — тень и единственный свет](43-shadow-and-light.md) | `vitest` | 9 | 9 |
@@ -102,6 +102,6 @@
 | [UNIT · handover — передача рана в зону](75-handover.md) | `vitest + jsdom` | 1 | 1 |
 | [UNIT · presence — кто за столом](76-presence.md) | `vitest (headless, no WebGL) + jsdom` | 11 | 11 |
 | [UNIT · idleReturn — возврат камеры](77-idle-return.md) | `vitest (headless, no WebGL)` | 5 | 5 |
-| [UNIT · liveTable — живой стол целиком](78-live-table.md) | `vitest + jsdom + фейковые часы` | 24 | 24 |
+| [UNIT · liveTable — живой стол целиком](78-live-table.md) | `vitest + jsdom + фейковые часы` | 25 | 25 |
 | [UNIT · HUD камеры — две кнопки в углу](79-camera-hud.md) | `vitest + jsdom` | 7 | 7 |
 | [UNIT · homeZoom — дом, который влезает в стекло](80-home-view.md) | `vitest (headless, no WebGL)` | 5 | 5 |

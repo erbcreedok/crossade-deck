@@ -485,12 +485,24 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       }
     };
     walk(host.root);
+    // THE HUD SETTLES TOO. Its arrangements name a road into rest like any other, and a hand on
+    // the glass re-laid at every deal is the one place a snap is felt most: the cards are under the
+    // thumb. Its poses are in ITS units, and that is fine — the plan of each root reads the
+    // overrides for its own nodes in its own space, and an id is in one tree only.
+    if (host.hudRoot) walk(host.hudRoot);
     return out;
   };
 
-  /** Read the tree's new rest poses and start a spring for every node whose pose moved. */
+  /** Every rest pose the two roots hold, by id — the desk's in root units, the HUD's in its own. */
+  const rests = (): Map<NodeId, Transform> => {
+    const out = transformsOf(host.root);
+    if (host.hudRoot) for (const [id, t] of transformsOf(host.hudRoot)) out.set(id, t);
+    return out;
+  };
+
+  /** Read the trees' new rest poses and start a spring for every node whose pose moved. */
   const reconcile = (): void => {
-    const target = transformsOf(host.root);
+    const target = rests();
     const posed = choreographed();
     const road = settles();
     for (const [id, to] of target) {

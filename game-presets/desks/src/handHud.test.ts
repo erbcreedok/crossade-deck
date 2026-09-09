@@ -204,7 +204,7 @@ describe("the hand on the glass", () => {
     // ...AND INSIDE THE GLASS SIDEWAYS, on the glass's own pixels.
     const u = b.host.unit();
     const v = b.host.viewport();
-    expect((fan[14]!.x - fan[0]!.x + 1) * u * hud.scale()).toBeLessThanOrEqual(v.width);
+    expect((fan[14]!.x - fan[0]!.x + 1) * u * hud.scale()).toBeLessThanOrEqual(v.width + 1e-6);
     // SHUT, THE CARDS PRESS INTO EACH OTHER — the more of them, the harder — at the same size.
     setHandPose(b.chair, { side: "side", fold: "shrink" });
     hud.refresh();
@@ -216,6 +216,101 @@ describe("the hand on the glass", () => {
     hud.refresh();
     const packedMore = laid();
     expect(packedMore[1]!.x - packedMore[0]!.x).toBeLessThan(packed[1]!.x - packed[0]!.x);
+    hud.stop();
+  });
+
+  it("hud.the-fan-runs-edge-to-edge-and-few-cards-keep-together — the arc's ends on the glass's edges, a cap on the step, the middle always the middle", () => {
+    // THE OWNER'S TWO RULES OF THE FAN. A full hand's arc is PINNED TO THE EDGES of the glass:
+    // the outer cards stand at its sides, on a shallow arc (a wide radius). And few cards do NOT
+    // spread to the edges to do it: two or three stand a card apart in the middle, because the
+    // distance between neighbours has a ceiling, not only a floor.
+    const b = bench();
+    const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
+    setHandPose(b.chair, { side: "front", fold: "fan" });
+    const laid = (): { x: number; y: number }[] => {
+      const strip = byId(hud.root, HAND_HUD_BOX)!;
+      const name = fieldsOf<{ layout: string }>(strip, "Container")!.layout;
+      return layoutRecord(name)!.place(layoutChildren(strip), footprint(strip)).map((p) => ({ x: p!.x, y: p!.y }));
+    };
+    const deal = (n: number): void => {
+      for (const old of [...b.chair.children]) if (old.id.startsWith("c")) remove(b.chair, old);
+      for (let i = 0; i < n; i += 1) add(b.chair, card(`c${i}`));
+      layHand(b.chair);
+      hud.refresh();
+    };
+    const u = b.host.unit();
+    const glassW = b.host.viewport().width / u / hud.scale();
+    // TWO CARDS: side by side in the middle, a card and a hair apart — not one at each edge.
+    deal(2);
+    const two = laid();
+    expect(two[1]!.x - two[0]!.x).toBeLessThan(1.1);
+    expect(two[1]!.x - two[0]!.x).toBeGreaterThan(1);
+    expect(two[0]!.x + two[1]!.x).toBeCloseTo(0, 6);
+    // THREE: the same step, still centred — the middle one dead centre.
+    deal(3);
+    const three = laid();
+    expect(three[1]!.x).toBeCloseTo(0, 6);
+    expect(three[2]!.x - three[1]!.x).toBeCloseTo(two[1]!.x - two[0]!.x, 1);
+    // A FULL HAND: the outer cards' centres half a card in from the glass's edges — the chord is the glass.
+    deal(12);
+    const full = laid();
+    expect(full[11]!.x - full[0]!.x).toBeCloseTo(glassW - 1, 2);
+    expect(full[0]!.x + full[11]!.x).toBeCloseTo(0, 6);
+    // ...ON A SHALLOW ARC: the outer cards drop, but less than half a card.
+    expect(full[0]!.y - full[5]!.y).toBeGreaterThan(0);
+    expect(full[0]!.y - full[5]!.y).toBeLessThan(0.7);
+    // AND MORE CARDS STILL PRESS TOGETHER INSIDE THE SAME CHORD, never past the edges.
+    deal(15);
+    const more = laid();
+    expect(more[14]!.x - more[0]!.x).toBeCloseTo(glassW - 1, 2);
+    hud.stop();
+  });
+
+  it("hud.the-cards-glide-between-lays — a picture keeps its name across refreshes, and every fold names a road", () => {
+    // A CARD DEALT INTO THE HAND MOVES THE REST OVER, and they are seen moving: what the animator
+    // eases is a node whose NAME survived and whose rest changed. A picture rebuilt under a fresh
+    // name every refresh is a new card that appears where it lands — so the same felt card keeps
+    // the same picture name, the arrangements say how a move is eased, and the screen is told it
+    // changed, so the eased road starts on THIS frame and not the next reconcile's.
+    const b = bench();
+    const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
+    const shown = (): Map<string, string> => {
+      const strip = byId(hud.root, HAND_HUD_BOX)!;
+      return new Map(strip.children.map((c, i) => [hud.cards()[i]!, c.id]));
+    };
+    add(b.chair, card("c0"));
+    add(b.chair, card("c1"));
+    layHand(b.chair);
+    hud.refresh();
+    const before = shown();
+    let told = 0;
+    const stopListening = b.host.onChange(() => (told += 1));
+    add(b.chair, card("c2"));
+    layHand(b.chair);
+    hud.refresh();
+    const after = shown();
+    expect(after.get("c0")).toBe(before.get("c0"));
+    expect(after.get("c1")).toBe(before.get("c1"));
+    expect(after.get("c2")).toBeDefined();
+    expect(told, "the host heard the screen change").toBeGreaterThan(0);
+    // A CARD PLAYED: the survivors keep their names, the gone one's is not handed to a newcomer.
+    remove(b.chair, byId(b.chair, "c1")!);
+    layHand(b.chair);
+    hud.refresh();
+    const played = shown();
+    expect(played.get("c0")).toBe(before.get("c0"));
+    expect(played.get("c2")).toBe(after.get("c2"));
+    expect(played.has("c1")).toBe(false);
+    // EVERY FOLD NAMES ITS ROAD — an eased one, not a snap.
+    for (const fold of ["fan", "shrink", "tuck"] as const) {
+      setHandPose(b.chair, { side: "front", fold });
+      hud.refresh();
+      const strip = byId(hud.root, HAND_HUD_BOX)!;
+      const road = layoutRecord(fieldsOf<{ layout: string }>(strip, "Container")!.layout)!.settle;
+      expect(road, `the ${fold} fold eases`).toBeDefined();
+      expect(road!.ms).toBeGreaterThan(0);
+    }
+    stopListening();
     hud.stop();
   });
 

@@ -1044,6 +1044,9 @@ export function liveTable<S extends LiveStage = LiveStage>(
                 mark(piece, { by: actor, mark: "flipped" });
               }
               built.host.setRoot(built.host.root);
+              // A TURNED CARD IS A CHANGED DESK: whatever mirrors the desk — a hand drawn on the
+              // glass — is told, or it goes on showing the side the card no longer shows.
+              onDeskChanged?.(built.host.root);
               mirror?.changed();
             });
           },

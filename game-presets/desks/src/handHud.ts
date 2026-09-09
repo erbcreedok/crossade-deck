@@ -82,19 +82,24 @@ const TUCK_TIP = 0.45;
 const HUD_CARDS = 6;
 const HUD_GAP = 0.06;
 /**
- * THE FAN ON THE GLASS — a real one: the cards stand on an arc round a pivot below them, so the
- * outer ones sit LOWER and lean further out, and past a wide spread they may run under the bar.
- * `radius` is the pivot's distance from the cards' middle, in card heights; `spread` the most the
- * whole fan opens, in degrees; the arc otherwise opens as far as the glass allows.
+ * THE FAN ON THE GLASS — a real one: the cards stand on an arc round a pivot well below them, so
+ * the outer ones sit a little LOWER and lean out, and the arc's ends are PINNED TO THE EDGES of the
+ * glass: a full hand runs from one side to the other. `radius` is the pivot's distance from the
+ * cards' middle, in card heights — far, so the arc is shallow and the outer cards drop a third of a
+ * card, no more. Few cards do not spread to the edges: neighbours stand at most `apart` card widths
+ * apart along the arc, so two or three sit together in the middle.
  */
-const HUD_FAN = { radius: 2.2, spread: 70 };
+const HUD_FAN = { radius: 7, apart: 1.06 };
 
 /** Where every card of a fan of `n` stands, in strip units — its lean is its angle on the arc. */
 function fanPlan(n: number, w: number, h: number, roomU: number): readonly { readonly x: number; readonly y: number; readonly angle: number }[] {
   const R = HUD_FAN.radius * h;
+  // The whole arc: the chord that reaches the glass's edges, less a card so the outer ones stay on it.
   const chord = Math.max(0, Math.min(1, (roomU - w) / (2 * R)));
-  const total = n > 1 ? Math.min(HUD_FAN.spread, (2 * Math.asin(chord) * 180) / Math.PI) : 0;
-  const step = n > 1 ? total / (n - 1) : 0;
+  const widest = n > 1 ? (2 * Math.asin(chord) * 180) / Math.PI : 0;
+  // ...BUT NEVER FURTHER APART THAN A CARD AND A GAP: few cards keep together in the middle.
+  const most = (2 * Math.asin(Math.min(1, (HUD_FAN.apart * w) / (2 * R))) * 180) / Math.PI;
+  const step = n > 1 ? Math.min(most, widest / (n - 1)) : 0;
   const mid = (n - 1) / 2;
   return Array.from({ length: n }, (_, i) => {
     const angle = (i - mid) * step;
@@ -112,6 +117,12 @@ function fanDrop(n: number, w: number, h: number, roomU: number): number {
  * wider than `SHRINK.span` cards, so the step is what that span allows, down to `SHRINK.least`.
  */
 const SHRINK = { most: 0.55, span: 3, least: 0.08 };
+/**
+ * HOW THE HAND MOVES BETWEEN TWO LAYS — a card dealt, one played, a fold switched: the cards glide
+ * to their new places rather than jump. The kit's own settle, named on the arrangement; the shown
+ * cards keep their nodes between refreshes (`shownId`), which is what gives the glide something to go from.
+ */
+const HUD_SETTLE = { hold: 0, ms: 220, ease: "easeOut" };
 /** The step of a shut row, in card widths. */
 function shrinkStep(n: number): number {
   return n > 1 ? Math.max(SHRINK.least, Math.min(SHRINK.most, SHRINK.span / (n - 1))) : 0;
@@ -206,8 +217,8 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
       return children.map((_c, i) => ({ x: from + step * i, y: -handRoom() / 2 }));
     },
   };
-  registerLayout(foldLayout("shrink"), shut);
-  registerLayout(foldLayout("tuck"), shut);
+  registerLayout(foldLayout("shrink"), { ...shut, settle: HUD_SETTLE });
+  registerLayout(foldLayout("tuck"), { ...shut, settle: HUD_SETTLE });
   // THE FAN: cards on an arc, the middle one highest. The lean is written by `refresh` off the
   // same plan, so every card leans exactly as far as it has swung.
   registerLayout(foldLayout("fan"), {
@@ -215,10 +226,11 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
       const n = children.length;
       const widest = children.reduce((w, c) => Math.max(w, c.footprint ? extentOf(c.footprint).w : 1), 1);
       const tallest = children.reduce((h, c) => Math.max(h, c.footprint ? extentOf(c.footprint).h : 1.4), 1.4);
-      const roomU = box ? extentOf(box).w - 2 * HAND.pad : 0;
+      const roomU = box ? extentOf(box).w : 0;
       const plan = fanPlan(n, widest, tallest, roomU);
       return plan.map((p) => ({ x: p.x, y: -handRoom() / 2 + p.y }));
     },
+    settle: HUD_SETTLE,
   });
   const screen = o.screen ?? node(HAND_HUD_SCREEN, Container({ layout: HAND_HUD_FREE }));
   const ownScreen = o.screen === undefined;
@@ -276,12 +288,24 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
    * over it. This screen belongs to the player whose hand it is — what the hiding does to everybody
    * ELSE (`Poser.others`) is not theirs to be shown.
    */
+  /**
+   * THE NAME EACH FELT CARD'S PICTURE KEEPS between refreshes. A picture is rebuilt at every refresh
+   * (the felt card may have turned, or moved in the hand), but under the SAME name for the same card:
+   * a name that survives is what lets the animator see the picture's old place and glide it to the
+   * new one, where a fresh name at every deal would be a fresh card that appears where it lands.
+   */
+  const named = new Map<string, string>();
   function shownOf(card: Node): Node {
     const bounds = fieldsOf<BoundedFields>(card, "Bounded")?.bounds ?? roundedRect(1, 1.4, 0.06);
     const surf = fieldsOf<SurfacedFields>(card, "Surfaced");
     const flip = fieldsOf<FlippableFields>(card, "Flippable");
+    let name = named.get(card.id);
+    if (!name) {
+      name = shownId();
+      named.set(card.id, name);
+    }
     const shown = node(
-      shownId(),
+      name,
       Bounded({ bounds }),
       ...(surf ? [Surfaced({ ...surf })] : []),
       ...(flip ? [Flippable({ ...flip, turns: 0 })] : []),
@@ -319,6 +343,7 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     // place at the foot of the glass that says this screen plays cards. The desk that has no hand
     // (a board) hangs no strip at all, which is the whole of that difference.
     manifest = cards.map((c) => c.id);
+    for (const id of [...named.keys()]) if (!manifest.includes(id)) named.delete(id);
     for (const card of cards) add(strip, shownOf(card));
     // EMPTY, A DASHED PLACE THE SIZE OF A CARD stands where the cards would — laid by the same
     // arrangement, tucked under the bar the same way — and nothing else: holding a card, the cards
@@ -342,15 +367,15 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     // and the same for one card or fifteen. Everything below is in the strip's own units; the scale
     // carries it onto the glass.
     scale = glass.w > 0 ? Math.min(1, room() / (HUD_CARDS * widest * (1 + HUD_GAP))) : 1;
-    // THE BOX IS THE ROOM, as wide as the glass allows in strip units: the fan opens as far as it
-    // can in it, the shut row presses together in its middle.
-    wide = Math.max(1, room() / scale);
+    // THE BOX IS THE GLASS, in strip units: the fan opens to its very edges, the shut row presses
+    // together in its middle.
+    wide = Math.max(1, (u > 0 ? v.width / u : 1) / scale);
     // A FAN IS TALLER THAN ITS CARD — the outer cards drop below the middle one — and the box holds the lot.
-    const fanned = fold === "fan" ? fanDrop(strip.children.length, widest, tallest, wide - 2 * HAND.pad) : 0;
+    const fanned = fold === "fan" ? fanDrop(strip.children.length, widest, tallest, wide) : 0;
     high = tallest + fanned + 2 * HAND.pad + handRoom();
     compose(strip, Bounded({ bounds: roundedRect(wide, Math.max(high, 1), HAND.pad) }));
     if (fold === "fan") {
-      const plan = fanPlan(strip.children.length, widest, tallest, wide - 2 * HAND.pad);
+      const plan = fanPlan(strip.children.length, widest, tallest, wide);
       strip.children.forEach((c, i) => compose(c, Transformable({ ...(fieldsOf<TransformableFields>(c, "Transformable") ?? {}), angle: plan[i]?.angle ?? 0 })));
     }
 
@@ -372,6 +397,10 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     // ...AND THE SHADE, from the bar's top edge up, as wide as the glass.
     compose(fade, Bounded({ bounds: roundedRect(Math.max(1, glass.w), BAR.fade, 0) }));
     compose(fade, Transformable({ at: { x: 0, y: barTop - BAR.fade / 2 } }));
+    // ...AND THE SCREEN IS TOLD IT CHANGED. The strip was re-laid in place, and whoever eases a
+    // moved node to its new rest (the animator) reads rests when the host speaks — told now, the
+    // cards glide from where they were; not told, the next reconcile finds them already there.
+    host.setHudRoot(host.hudRoot ?? screen);
   };
   /**
    * HOW MUCH OF THE FOOT IS SPOKEN FOR, in device pixels — read off the glass AS IT IS NOW and not
