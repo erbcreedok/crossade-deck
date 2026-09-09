@@ -1,0 +1,35 @@
+game-presets/desks/src/handHud.ts
+  s_2049b128b4ff77::t_6ddaa7eb630718 87-90,94
+game-kit/src/render/scenePlan/index.ts
+  s_2049b128b4ff77::t_6ddaa7eb630718 117,138-141,157-158
+game-presets/desks/src/handHud.test.ts
+  s_2049b128b4ff77::t_6ddaa7eb630718 367-368,370-372
+game-kit/docs/test-plan/README.md
+  s_2049b128b4ff77::t_ff494ef8fa10b0 10,36
+game-presets/desks/docs/test-plan.md
+  s_2049b128b4ff77::t_ff494ef8fa10b0 135
+game-kit/src/render/stage.test.ts
+  s_2049b128b4ff77::t_6ddaa7eb630718 14,96-129
+game-kit/docs/test-plan/08-per-atom-contract.md
+  s_2049b128b4ff77::t_ff494ef8fa10b0 3,25
+game-kit/src/render/stage.ts
+  s_2049b128b4ff77::t_6ddaa7eb630718 137-141
+game-kit/src/render/scenePlan/quads.ts
+  s_2049b128b4ff77::t_6ddaa7eb630718 109-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "265d7c1445145cfb1ef9ac730c30033fb362b807",
+  "prompts": {},
+  "sessions": {
+    "s_2049b128b4ff77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f5ba828-d84d-455f-8f95-01ad6b176644",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
