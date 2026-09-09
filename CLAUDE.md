@@ -10,6 +10,7 @@ Details live next to the code and load when you work there.
 | `apps/*` | standalone games (`klondike`) and the `hub` they are started from | the app's own header |
 | `server/` | Crossade Deck server — Colyseus, custom accounts | `server/CLAUDE.md` |
 | `deploy/`, `scripts/` | Fly.io: two apps (server, hub) + the catalogue on GitHub Pages; build and deploy are SEPARATE steps | `DEPLOY.md` |
+| `design/` | local design stands — plain HTML pages with knobs the owner tunes a screen on before it is built (`design/hud`: the sandbox HUD); served by `hud-stand` in `.claude/launch.json` | the page itself |
 
 The two previous client generations (`client/`, `client2/`) were deleted once the kit replaced them.
 They are named all over the kit's comments as the SOURCE of a ported mechanic or of a trap already

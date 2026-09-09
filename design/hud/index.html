@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HUD песочницы — стенд</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Handjet&family=Press+Start+2P&family=Tiny5&display=swap" rel="stylesheet">
+<script src="card-kit.js"></script>
+<script src="table-kit.js"></script>
+<style>
+  body { margin: 0; background: #0d2118; color: #cdb98f; font: 400 16px/1.45 'Handjet', monospace; }
+  a { color: #f2c14e; }
+  .page { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; padding: 32px; }
+  .phone { flex: none; width: 390px; height: 844px; position: relative; overflow: hidden; border-radius: 44px; background: #173d2d; box-shadow: inset 0 0 0 3px #0b0704; }
+  .panel { flex: 1; min-width: 320px; max-width: 460px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font: 400 26px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .sec { padding: 12px 14px; background: #123527; box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #3a2a1d; display: flex; flex-direction: column; gap: 6px; }
+  .sec h2 { margin: 0 0 4px; font: 400 16px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .row { display: grid; grid-template-columns: 150px 1fr 56px; align-items: center; gap: 8px; }
+  .row label { color: #f5ead0; }
+  .row input[type=range] { width: 100%; }
+  .row select, .row input[type=checkbox] { justify-self: start; }
+  .row .val { color: #f2c14e; text-align: right; font: 400 14px 'Press Start 2P', monospace; }
+  .nums { font-size: 15px; }
+  .nums b { color: #f2c14e; font-weight: 400; }
+  .bad { color: #e0483f; }
+  .links { display: flex; gap: 14px; }
+  button.reset { align-self: flex-start; font: inherit; color: #f2c14e; background: none; border: 2px solid #f2c14e; padding: 4px 10px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="phone" id="phone"></div>
+  <div class="panel">
+    <h1>HUD песочницы — стенд</h1>
+    <div>Все ручки ниже. Стул на сукне зеркалит позу и права. Внизу экрана считается, влезают ли группы. Состояние ручек живёт в адресе страницы: скопируй ссылку — получишь тот же экран.</div>
+    <div id="controls"></div>
+    <div class="nums" id="nums"></div>
+    <button class="reset" id="reset">сбросить к дизайну</button>
+  </div>
+</div>
+<script>
+(function () {
+  const K = window.CardKit, TK = window.TableKit, T = TK.T;
+  const W = 390;
+
+  // ---- РУЧКИ: как в панели Claude Design, но свои ----
+  const SPEC = [
+    ["Мера", [
+      ["cardW", "карта, px", "int", 74, 44, 120],
+      ["btn", "кнопка, px", "int", 46, 28, 72],
+      ["gap", "зазор, px", "int", 8, 0, 24],
+      ["margin", "поле, px", "int", 16, 0, 40],
+      ["bottom", "низ кнопок, px", "int", 44, 14, 120],
+    ]],
+    ["Кнопки", [
+      ["labels", "подписи", "enum", "иконки", ["иконки", "подписи", "иконка + подпись"]],
+      ["flip", "кнопка «перевернуть»", "bool", false],
+      ["rightsLayout", "права", "enum", "в ряд", ["в ряд", "столбик"]],
+      ["posesLayout", "позы", "enum", "веер+сжать / спрятать", ["веер+сжать / спрятать", "в ряд", "столбик"]],
+      ["camera", "пара камеры", "enum", "над позами", ["нет", "над позами", "справа сверху"]],
+      ["global", "глобальный HUD", "bool", true],
+    ]],
+    ["Права", [
+      ["pin", "пин", "bool", false],
+      ["lock", "лок", "bool", true],
+      ["hide", "скрыть", "bool", false],
+    ]],
+    ["Рука", [
+      ["handSize", "карт", "int", 5, 0, 14],
+      ["pose", "поза", "enum", "веер", ["веер", "сжато", "спрятано"]],
+      ["handBottom", "низ руки, px", "int", 112, 40, 320],
+      ["fanTilt", "наклон в веере, °/карту", "int", 7, 0, 20],
+      ["fanStep", "шаг веера, px", "int", 44, 8, 120],
+      ["fanLift", "подъём середины, px", "int", 10, 0, 40],
+      ["shrinkStep", "шаг сжатой, px", "int", 18, 4, 60],
+      ["tuckTip", "кончик спрятанной, px", "int", 26, 8, 80],
+      ["emptyBox", "пустая рука держит место", "bool", true],
+    ]],
+  ];
+  const DEFAULTS = {};
+  for (const [, rows] of SPEC) for (const [key, , , def] of rows) DEFAULTS[key] = def;
+
+  const readHash = () => {
+    const out = { ...DEFAULTS };
+    const h = location.hash.replace(/^#/, "");
+    if (!h) return out;
+    for (const pair of h.split("&")) {
+      const [k, v] = pair.split("=").map(decodeURIComponent);
+      if (!(k in DEFAULTS)) continue;
+      const def = DEFAULTS[k];
+      out[k] = typeof def === "number" ? Number(v) : typeof def === "boolean" ? v === "1" : v;
+    }
+    return out;
+  };
+  const writeHash = (P) => {
+    const parts = [];
+    for (const k in DEFAULTS) if (P[k] !== DEFAULTS[k]) parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(typeof P[k] === "boolean" ? (P[k] ? "1" : "0") : P[k])}`);
+    history.replaceState(null, "", parts.length ? `#${parts.join("&")}` : location.pathname);
+  };
+
+  let P = readHash();
+
+  // ---- ПАНЕЛЬ ----
+  const controls = document.getElementById("controls");
+  const build = () => {
+    controls.innerHTML = "";
+    for (const [title, rows] of SPEC) {
+      const sec = document.createElement("div");
+      sec.className = "sec";
+      sec.innerHTML = `<h2>${title}</h2>`;
+      for (const [key, label, kind, , a, b] of rows) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const lab = document.createElement("label");
+        lab.textContent = label;
+        row.appendChild(lab);
+        let input;
+        const val = document.createElement("span");
+        val.className = "val";
+        if (kind === "int") {
+          input = document.createElement("input");
+          input.type = "range"; input.min = a; input.max = b; input.step = 1; input.value = P[key];
+          val.textContent = P[key];
+          input.oninput = () => { P[key] = Number(input.value); val.textContent = input.value; apply(); };
+        } else if (kind === "enum") {
+          input = document.createElement("select");
+          for (const opt of a) { const o = document.createElement("option"); o.value = opt; o.textContent = opt; o.selected = P[key] === opt; input.appendChild(o); }
+          input.onchange = () => { P[key] = input.value; apply(); };
+        } else {
+          input = document.createElement("input");
+          input.type = "checkbox"; input.checked = !!P[key];
+          input.onchange = () => { P[key] = input.checked; apply(); };
+        }
+        row.appendChild(input);
+        row.appendChild(val);
+        sec.appendChild(row);
+      }
+      controls.appendChild(sec);
+    }
+  };
+  document.getElementById("reset").onclick = () => { P = { ...DEFAULTS }; build(); apply(); };
+
+  // ---- ЭКРАН ----
+  const ICON = {
+    pin: TK.ICON.pin, lock: TK.ICON.lock, hide: TK.ICON.hide,
+    flip: "M8.5 5h7v14h-7z M5 9V6.5h2.5 M5 6.5l2.4 2.4 M19 15v2.5h-2.5 M19 17.5l-2.4-2.4",
+    fan: "M9 7h6v10H9z M4 9l5-1.6 M20 9l-5-1.6 M5.5 17.5l3.5-10 M18.5 17.5l-3.5-10",
+    shrink: "M5 6h6v12H5z M9 6h6v12H9z M13 6h6v12h-6z",
+    tuck: "M4 13h16 M9 13V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v7 M4 13v6h16v-6",
+    home: "M4 11l8-7 8 7v9H4z",
+    north: "M12 3l4 9-4-2-4 2z M12 12v9",
+  };
+  const svg = (d, size, color) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"></path></svg>`;
+
+  // ВНУТРИ АТРИБУТА style КАВЫЧКИ ЭКРАНИРУЮТСЯ: маски и рубашки — это url("…"), и без этого
+  // атрибут обрывался на первой кавычке, а карты стояли пустыми.
+  const a = (st) => String(st).replace(/"/g, "&quot;");
+  const cardHtml = (f) => {
+    const pips = f.pips.map((pp) => `<div style="${a(pp.st)}"></div>`).join("");
+    return `<div style="${a(f.wrap)}"><div style="${a(f.faceSt)}"></div><div style="position:absolute;inset:0">`
+      + `<div style="${a(f.corner)}"><div style="${a(f.rankSt)}">${f.rank}</div><div style="${a(f.pipSt)}"></div></div>`
+      + `<div style="${a(f.cornerB)}"><div style="${a(f.rankSt)}">${f.rank}</div><div style="${a(f.pipSt)}"></div></div>`
+      + pips + `<div style="${a(f.figure)}"></div></div></div>`;
+  };
+  const pileHtml = (cards, full) => cards.map((c) => full
+    ? `<div style="${a(c.st)}"><div style="${a(c.corner)}"><div style="${a(c.rankSt)}">${c.rank}</div><div style="${a(c.pipSt)}"></div></div><div style="${a(c.cornerB)}"><div style="${a(c.rankSt)}">${c.rank}</div><div style="${a(c.pipSt)}"></div></div>${c.pips.map((pp) => `<div style="${a(pp.st)}"></div>`).join("")}<div style="${a(c.figure)}"></div></div>`
+    : `<div style="${a(c.st)}"></div>`).join("");
+
+  const apply = () => {
+    writeHash(P);
+    const cardW = P.cardW, btn = P.btn, gap = P.gap, margin = P.margin, bottom = P.bottom;
+    const n = P.handSize, pose = P.pose, labels = P.labels;
+    const cardH = Math.round(cardW * K.ASPECT);
+    const iconOnly = labels === "иконки", both = labels === "иконка + подпись";
+
+    const btnSt = (lit, w, h) => `position:relative;width:${w}px;height:${h}px;border-radius:8px;box-sizing:border-box;display:flex;flex-direction:${both ? "column" : "row"};align-items:center;justify-content:center;gap:2px;`
+      + (lit
+        ? `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6);color:${T.black};`
+        : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px #6b4d2c,0 4px 0 rgba(11,7,4,.6);color:${T.ink};`);
+    const button = (key, text, lit, w, h) => {
+      const color = lit ? T.black : T.ink;
+      const icon = iconOnly || both ? svg(ICON[key], Math.round(h * 0.5), color) : "";
+      const label = iconOnly ? "" : `<span style="font:400 ${both ? 7 : Math.max(8, Math.round(h * 0.2))}px 'Tiny5',monospace;letter-spacing:.02em">${text}</span>`;
+      return `<div style="${a(btnSt(lit, w, h))}">${icon}${label}</div>`;
+    };
+
+    // Права
+    const rightsList = [["pin", "ПИН", !!P.pin], ["lock", "ЛОК", !!P.lock], ["hide", "СКРЫТЬ", !!P.hide]];
+    if (P.flip) rightsList.push(["flip", "ПЕРЕВ", false]);
+    const rightsColumn = P.rightsLayout === "столбик";
+    const rightsW = rightsColumn ? btn : rightsList.length * btn + (rightsList.length - 1) * gap;
+    const rightsH = rightsColumn ? rightsList.length * btn + (rightsList.length - 1) * gap : btn;
+    const rights = `<div style="position:absolute;left:${margin}px;bottom:${bottom}px;display:flex;flex-direction:${rightsColumn ? "column" : "row"};gap:${gap}px;z-index:6">`
+      + rightsList.map(([k, t, lit]) => button(k, t, lit, btn, btn)).join("") + `</div>`;
+
+    // Позы
+    const pl = P.posesLayout;
+    const posesList = [["fan", "ВЕЕР", pose === "веер"], ["shrink", "СЖАТЬ", pose === "сжато"], ["tuck", "СПРЯТАТЬ", pose === "спрятано"]];
+    let poses, posesW, posesH;
+    if (pl === "веер+сжать / спрятать") {
+      const h = Math.round(btn * 0.7), wide = btn * 2 + gap;
+      posesW = wide; posesH = h * 2 + gap;
+      poses = `<div style="position:absolute;right:${margin}px;bottom:${bottom}px;width:${wide}px;display:flex;flex-wrap:wrap;gap:${gap}px;z-index:6">`
+        + button("fan", "ВЕЕР", pose === "веер", btn, h) + button("shrink", "СЖАТЬ", pose === "сжато", btn, h) + button("tuck", "СПРЯТАТЬ", pose === "спрятано", wide, h) + `</div>`;
+    } else if (pl === "в ряд") {
+      posesW = 3 * btn + 2 * gap; posesH = btn;
+      poses = `<div style="position:absolute;right:${margin}px;bottom:${bottom}px;display:flex;gap:${gap}px;z-index:6">` + posesList.map(([k, t, lit]) => button(k, t, lit, btn, btn)).join("") + `</div>`;
+    } else {
+      posesW = btn; posesH = 3 * btn + 2 * gap;
+      poses = `<div style="position:absolute;right:${margin}px;bottom:${bottom}px;display:flex;flex-direction:column;gap:${gap}px;z-index:6">` + posesList.map(([k, t, lit]) => button(k, t, lit, btn, btn)).join("") + `</div>`;
+    }
+    const free = W - 2 * margin - rightsW - posesW;
+
+    // Пара камеры
+    const camBtn = `width:40px;height:40px;border-radius:999px;background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px #6b4d2c,0 4px 0 rgba(11,7,4,.6);display:flex;align-items:center;justify-content:center;`;
+    const camWrap = P.camera === "нет" ? ""
+      : P.camera === "над позами" ? `position:absolute;right:${margin}px;bottom:${bottom + posesH + gap + 4}px;display:flex;flex-direction:column;gap:${gap}px;z-index:6`
+      : `position:absolute;right:${margin}px;top:100px;display:flex;flex-direction:column;gap:${gap}px;z-index:6`;
+    const camera = camWrap ? `<div style="${a(camWrap)}"><div style="${a(camBtn)}">${svg(ICON.home, 18, T.ink)}</div><div style="${a(camBtn)}">${svg(ICON.north, 18, T.ink)}</div></div>` : "";
+
+    // Рука на HUD
+    const seq = [["K", "s"], ["9", "h"], ["A", "d"], ["7", "c"], ["Q", "h"], ["3", "s"], ["J", "d"], ["6", "c"], ["10", "h"], ["2", "d"], ["8", "s"], ["5", "h"], ["4", "c"], ["Q", "s"]];
+    const cards = seq.slice(0, n);
+    const mid = (n - 1) / 2;
+    const step = pose === "веер" ? P.fanStep : P.shrinkStep;
+    const handCards = cards.map(([r, s], i) => {
+      const dist = Math.abs(i - mid);
+      const lift = pose === "веер" ? Math.round(P.fanLift * (1 - dist / Math.max(1, mid))) : 0;
+      const f = K.face(cardW, r, s, { tilt: pose === "веер" ? Math.round((i - mid) * P.fanTilt) : 0, lift });
+      return `<div style="margin-left:${i ? step - cardW : 0}px">${cardHtml(f)}</div>`;
+    }).join("");
+    const handW = n ? cardW + (n - 1) * step : cardW;
+    const drop = pose === "спрятано" ? cardH - P.tuckTip : 0;
+    const empty = n === 0 && P.emptyBox
+      ? `<div style="width:${cardW}px;height:${cardH}px;border-radius:${Math.round(cardW * 0.1)}px;border:2px dashed rgba(245,234,208,.45);box-sizing:border-box"></div>` : "";
+    const hand = `<div style="position:absolute;left:50%;bottom:${P.handBottom - drop}px;transform:translateX(-50%);display:flex;align-items:flex-end;z-index:5">${handCards}${empty}</div>`;
+
+    // Глобальный HUD
+    const topBtn = `width:44px;height:44px;border-radius:8px;background:linear-gradient(#25321f 0%,#16210f 100%);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px #6b4d2c,0 4px 0 rgba(11,7,4,.6);display:flex;align-items:center;justify-content:center;font:400 10px 'Tiny5',monospace;color:${T.ink}`;
+    const global = P.global
+      ? `<div style="position:absolute;left:18px;top:46px;display:flex;gap:9px;z-index:8"><div style="${a(topBtn)}">КОМН</div><div style="${a(topBtn)}">ЧАТ</div></div>`
+        + `<div style="position:absolute;right:18px;top:46px;z-index:8;${topBtn};font-size:13px">···</div>`
+      : "";
+
+    // Сукно и места
+    // СВОЙ СТУЛ ЗЕРКАЛИТ ПОЗУ, чужие лежат стопкой — их поза их дело.
+    const seatPile = (nn, mine) => {
+      const layout = mine && pose === "веер" ? "fan" : "thick";
+      const count = mine && pose === "спрятано" ? Math.min(1, nn) : nn;
+      return K.pile(34, { n: count, look: "back", layout });
+    };
+    const markSt = (k, all) => `position:absolute;left:50%;top:50%;margin:${-34 + (k + (3 - all) / 2) * 22}px 0 0 -60px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;background:${T.black};box-shadow:inset 0 0 0 2px ${T.gold};z-index:5;`;
+    const seat = (o) => {
+      const p = seatPile(o.n, o.mine);
+      const pile = { cards: p.cards, width: p.width, height: Math.round(34 * K.ASPECT * 1.6) };
+      const u = TK.seatUnit({ q: o.q, mine: o.mine, rot: o.rot, state: o.blind ? "hidden" : "seated" });
+      const marks = o.mine ? [P.pin && TK.ICON.pin, P.lock && TK.ICON.lock, P.hide && TK.ICON.hide].filter(Boolean) : [];
+      return `<div style="${u.unit.replace("position:relative;", `position:absolute;left:${o.x}px;top:${o.y}px;z-index:1;`)}">`
+        + `<div style="${a(u.cone)}"></div><div style="${a(u.chair)}"></div><div style="${a(u.ring)}"><div style="${a(u.glyph)}">${o.letter}</div></div>`
+        + `<div style="position:absolute;left:50%;top:${TK.HAND_TOP - pile.height}px;margin-left:${-Math.round(pile.width / 2)}px;width:${pile.width}px;height:${pile.height}px">${pileHtml(pile.cards, false)}</div>`
+        + marks.map((d, k) => `<div style="${a(markSt(k, marks.length))}">${svg(d, 13, T.gold)}</div>`).join("")
+        + `</div>`;
+    };
+    const CX = 195, CY = 470, RX = 150, RY = 250;
+    const at = (t, o) => {
+      const a = t * Math.PI;
+      const x = CX + (o.rx || RX) * Math.cos(a);
+      const y = CY + (o.ry || RY) * Math.sin(a);
+      const deg = Math.round((Math.atan2(CY - y, CX - x) * 180) / Math.PI) + 90;
+      return seat({ ...o, x: Math.round(x) - 86, y: Math.round(y) - 63, rot: deg });
+    };
+    const seats = [
+      at(1.28, { q: 0.1, letter: "К", n: 3 }),
+      at(1.5, { q: 0.3, letter: "Д", n: 4 }),
+      at(1.72, { q: 0.55, letter: "Р", n: 3 }),
+      at(1.92, { q: 0.78, letter: "Л", n: 5, blind: true }),
+      at(0.5, { q: 0, letter: "Я", n, mine: true, ry: 92 }),
+    ].join("");
+
+    const deck = K.face(46, "9", "d", { state: "back" });
+    const shown = K.face(46, "A", "d");
+    const middle = `<div style="position:absolute;left:143px;top:346px;display:flex;gap:12px;align-items:flex-start;z-index:2">${cardHtml(deck)}${cardHtml(shown)}</div>`;
+
+    const warn = free < 0 ? `<div style="position:absolute;left:50%;bottom:${bottom + Math.max(rightsH, posesH) + 6}px;transform:translateX(-50%);padding:3px 8px;background:${T.black};box-shadow:inset 0 0 0 2px #e0483f;font:400 8px 'Press Start 2P',monospace;color:#e0483f;white-space:nowrap;z-index:9">группы пересекаются на ${-free}px</div>` : "";
+
+    document.getElementById("phone").innerHTML =
+      `<div style="position:absolute;left:-330px;top:96px;width:1050px;height:760px;border-radius:50%;background:radial-gradient(60% 60% at 50% 26%,#1b4835,#123527 62%,#0a2117);box-shadow:inset 0 0 0 3px #0b0704,inset 0 0 0 14px #3a2a1d,inset 0 0 0 20px #6b4d2c"></div>`
+      + seats + middle + hand + rights + poses + camera + global + warn
+      + `<div style="position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:132px;height:5px;border-radius:3px;background:#f5ead0;opacity:.5;z-index:7"></div>`
+      + `<div style="position:absolute;left:50%;top:0;transform:translateX(-50%);width:120px;height:30px;background:#0b0704;border-radius:0 0 16px 16px;z-index:9"></div>`;
+
+    document.getElementById("nums").innerHTML =
+      `карта <b>${cardW}×${cardH}</b> · кнопка <b>${btn}</b> · зазор <b>${gap}</b> · поле <b>${margin}</b><br>`
+      + `права <b>${rightsW}</b> px · позы <b>${posesW}</b> px · свободно посередине <b class="${free < 0 ? "bad" : ""}">${free}</b> px<br>`
+      + `рука: низ на <b>${P.handBottom}</b> px от края, размах <b>${handW}</b> px, высота карты <b>${cardH}</b> px`;
+  };
+
+  build();
+  apply();
+  document.fonts?.ready.then(apply);
+})();
+</script>
+</body>
+</html>

@@ -56,6 +56,18 @@
         "dev"
       ],
       "port": 9569
+    },
+    {
+      "name": "hud-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "9573",
+        "--directory",
+        "design/hud"
+      ],
+      "port": 9573
     }
   ]
 }
