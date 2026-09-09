@@ -1,0 +1,58 @@
+game-kit/.storybook/stories/avatars.ts
+  s_7ee13c6564ec9f::t_a5daeda6ac92fb 155-157
+game-presets/desks/src/handHud.ts
+  s_7ee13c6564ec9f::t_2af712c922ef98 302-305,320,347-348,357,361-372,487
+  s_7ee13c6564ec9f::t_d27c06c9ee002c 375-386,489
+game-kit/.storybook/locales/pages/hands/en.json
+  s_7ee13c6564ec9f::t_b83542aead505b 6-9,11-15,18,20-23,25-31,33-34
+game-kit/.storybook/locales/pages/avatars/ru.json
+  s_7ee13c6564ec9f::t_b83542aead505b 16-20,25-28,30-32,34,36
+game-kit/src/render/presence.ts
+  s_7ee13c6564ec9f::t_8c681ac675385b 36,382-392,395-399
+game-kit/.storybook/preview-head.html
+  s_7ee13c6564ec9f::t_a5daeda6ac92fb 1-7
+game-kit/.storybook/stories/Place.stories.ts
+  s_7ee13c6564ec9f::t_f6dc01b2f5667f 78-80,306-307
+  s_7ee13c6564ec9f::t_8c93fabbd65221 214-221
+  s_7ee13c6564ec9f::t_d2191a0fbd8064 1-77,81-213,222-305,308-428
+game-kit/.storybook/locales/pages/place/ru.json
+  s_7ee13c6564ec9f::t_9875f8bc1752c8 1-74
+game-presets/desks/src/handZone.ts
+  s_7ee13c6564ec9f::t_8c93fabbd65221 146
+game-kit/.storybook/preview.ts
+  s_7ee13c6564ec9f::t_a5daeda6ac92fb 186-188
+  s_7ee13c6564ec9f::t_f6dc01b2f5667f 24-27
+  s_7ee13c6564ec9f::t_8c93fabbd65221 28-29
+game-kit/.storybook/locales/pages/place/en.json
+  s_7ee13c6564ec9f::t_c6a26a456957e5 1-74
+game-kit/src/render/avatars.ts
+  s_7ee13c6564ec9f::t_8c681ac675385b 26
+game-kit/.storybook/locales/chrome/ru.json
+  s_7ee13c6564ec9f::t_8b44b155c8a7e6 15,286,365-376
+game-kit/.storybook/stories/Avatars.stories.ts
+  s_7ee13c6564ec9f::t_20d95923efac2d 8,14,17,29-35,61-64,66-68,79,83-93,124-127,137-138,144,148,159-160,163,167-172,192,195-196,202-205
+game-kit/.storybook/locales/chrome/en.json
+  s_7ee13c6564ec9f::t_8b44b155c8a7e6 15,286,361-372
+game-kit/.storybook/locales/pages.ts
+  s_7ee13c6564ec9f::t_a5daeda6ac92fb 28,191,262
+game-kit/.storybook/locales/pages/hands/ru.json
+  s_7ee13c6564ec9f::t_b83542aead505b 7-9,14-15,18,20-22,24-29,31
+game-kit/.storybook/locales/pages/avatars/en.json
+  s_7ee13c6564ec9f::t_b83542aead505b 16-20,25-29,31-32,35-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "d0be952a88d16930b5d5f2771b3060a30f7da839",
+  "prompts": {},
+  "sessions": {
+    "s_7ee13c6564ec9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c8ffa5d-4a0f-42b0-bed5-0d8d8f2b30e0",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
