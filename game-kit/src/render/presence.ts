@@ -111,10 +111,16 @@ export interface PresencePaints {
   readonly keyline: Paint;
   readonly groundHi: Paint;
   readonly groundLo: Paint;
+  /** The initials and the name — the design's cream, whatever the desk's theme. */
+  readonly ink: Paint;
+  /** The ring round a full hand — the design's gold. */
+  readonly gold: Paint;
 }
-let PAINTS: PresencePaints = { keyline: "shadow", groundHi: "panelBg", groundLo: "sunkBg" };
+let PAINTS: PresencePaints = { keyline: "shadow", groundHi: "panelBg", groundLo: "sunkBg", ink: "text", gold: "accent" };
 export function setPresencePaints(paints: PresencePaints): void {
   PAINTS = paints;
+  // The faces carry the ink, so they are registered again with the next disc.
+  facesInstalled = false;
 }
 export function presencePaints(): PresencePaints {
   return PAINTS;
@@ -386,16 +392,14 @@ export function initials(name: string): string {
  * them under the same names after the first disc is made.
  */
 const PIXEL_FACE = "'Press Start 2P', ui-monospace, monospace";
-const NAME_STYLE = { family: PIXEL_FACE, size: PLATE_EM, weight: 400, lineHeight: 1.6, fill: "text" };
-const GLYPH_STYLE = { family: PIXEL_FACE, size: GLYPH_EM, weight: 400, lineHeight: 1, fill: "text" };
 let facesInstalled = false;
 
 /** The pictures and paints this presence is drawn with — re-registered whenever the state moves. */
 function installLook(p: Presence): void {
   if (!facesInstalled) {
     facesInstalled = true;
-    registerTextStyle(PRESENCE_TEXT, NAME_STYLE);
-    registerTextStyle(PRESENCE_GLYPH, GLYPH_STYLE);
+    registerTextStyle(PRESENCE_TEXT, { family: PIXEL_FACE, size: PLATE_EM, weight: 400, lineHeight: 1.6, fill: PAINTS.ink });
+    registerTextStyle(PRESENCE_GLYPH, { family: PIXEL_FACE, size: GLYPH_EM, weight: 400, lineHeight: 1, fill: PAINTS.ink });
   }
   registerSurface(KEYLINE_SURFACE, { layers: [{ paint: PAINTS.keyline }] });
   // THE DISC: the design's dark ground, top to bottom, with the seat's ink as the rim inside the
@@ -407,7 +411,7 @@ function installLook(p: Presence): void {
   // A RING FOR A FULL HAND. The one thing on this disc that is about the moment rather than the
   // person: a hand with something in it is the difference between "they are here" and "they are
   // doing something", and it is the state everybody else is waiting on.
-  registerSurface(haloSurface(p.seat), { layers: [], stroke: { color: "accent", width: HALO.width, alignment: 0, opacity: 0.55 } });
+  registerSurface(haloSurface(p.seat), { layers: [], stroke: { color: PAINTS.gold, width: HALO.width, alignment: 0, opacity: 0.55 } });
   // SCREEN-UP ON THE OWNER'S GLASS is what the disc's own turn already means (see `avatarNode`), so
   // the cone is drawn straight up the node's own local axis and needs no angle of its own.
   registerSurface(coneSurface(p.seat), { layers: [{ paint: p.ink, opacity: CONE.fade }] });

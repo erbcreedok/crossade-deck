@@ -153,7 +153,9 @@ export function s(path: ScaleStep): string {
  */
 type ParamColour = (param: number, palette: Palette) => string;
 const PARAM_COLOURS: Record<string, ParamColour> = {
-  spin: (p) => `hsl(${Math.round((((p % 1) + 1) % 1) * 360)}, 70%, 55%)`,
+  // THE SEAT DESIGN'S WHEEL: a muted arc from blue through violet to red, so N places read as N
+  // inks on one cloth rather than N neon lamps — `hsl(200 + p·250, 38%, 62%)`, the design's own.
+  spin: (p) => `hsl(${Math.round(200 + (((p % 1) + 1) % 1) * 250)}, 38%, 62%)`,
 };
 
 /**

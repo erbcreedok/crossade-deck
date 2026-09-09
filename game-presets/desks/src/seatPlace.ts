@@ -79,13 +79,17 @@ import { ARCH_R, HAND_LAYOUT, HAND_LOCK, HAND_VALUE, handAccept, handLocked, ins
 import { dressMarks, fitMarks } from "./handBar.js";
 
 /**
- * THE SEAT DESIGN'S OWN COLOURS — content, not a theme: the wood of a chair and the keyline round
- * it are the same on a light desk and a dark one, the way a red suit stays red. The gold is the
- * kit's one accent, so it is a token and not a hex.
+ * THE SEAT DESIGN'S OWN COLOURS — content, not a theme: the wood of a chair, the keyline round
+ * it, its gold and its cream are the same on a light desk and a dark one, the way a red suit
+ * stays red. A theme token here was a chair that went brown and unreadable on a light desk.
  */
 export const SEAT_LOOK = {
   /** The keyline round every chair and every disc. */
   black: "#0b0704",
+  /** The one gold: the ring that says "this is me", the marks, the lit control. */
+  gold: "#f2c14e",
+  /** The cream of every word on a plate and every initial in a disc. */
+  ink: "#f5ead0",
   /** The wood of the chair, top to bottom — half strength, so the felt shows through. */
   woodHi: "#6b4d2c",
   woodLo: "#1d1409",
@@ -228,12 +232,12 @@ export function installSeatArt(seat?: string, ink?: Paint): void {
   installHandPoses();
   // THE DISC WEARS THE SAME KEYLINE AS THE CHAIR, and the design's own ground: the kit holds no
   // colour of its own, so the seat design hands its paints over here, once, for every disc.
-  setPresencePaints({ keyline: SEAT_LOOK.black, groundHi: SEAT_LOOK.discHi, groundLo: SEAT_LOOK.discLo });
+  setPresencePaints({ keyline: SEAT_LOOK.black, groundHi: SEAT_LOOK.discHi, groundLo: SEAT_LOOK.discLo, ink: SEAT_LOOK.ink, gold: SEAT_LOOK.gold });
   registerSurface(chairSurface(), {
     layers: [],
     stroke: { color: SEAT_LOOK.cream, width: CHAIR.line, opacity: 0.5, dash: { on: 0.24, off: 0.16 } },
   });
-  registerSurface(RING_SURFACE, { layers: [{ paint: "accent" }] });
+  registerSurface(RING_SURFACE, { layers: [{ paint: SEAT_LOOK.gold }] });
   if (seat === undefined || ink === undefined) return;
   registerSurface(chairSurface(seat), { layers: [{ paint: SEAT_LOOK.black }] });
   registerSurface(chairLidSurface(seat), {

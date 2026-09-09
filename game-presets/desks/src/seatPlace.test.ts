@@ -46,6 +46,7 @@ import {
   isChair,
   mayTake,
   seatChair,
+  SEAT_LOOK,
   seatChairs,
   setHandLock,
   setSeatHome,
@@ -350,7 +351,7 @@ describe("a seat says what is true of it", () => {
     expect(ring).toBeDefined();
     expect(ring.parent).toBe(chair.parent);
     expect(chair.parent!.children.indexOf(ring), "under the chair").toBeLessThan(chair.parent!.children.indexOf(chair));
-    expect(surfaceRecord(fieldsOf<SurfacedFields>(ring, "Surfaced")!.surface)?.layers[0]?.paint).toBe("accent");
+    expect(surfaceRecord(fieldsOf<SurfacedFields>(ring, "Surfaced")!.surface)?.layers[0]?.paint).toBe(SEAT_LOOK.gold);
     expect(poseOf(ring)).toEqual(poseOf(chair));
     // ...AND IT FOLLOWS THE CHAIR, AND COMES DOWN.
     standChair(desk, seat, { x: 2, y: -1 });

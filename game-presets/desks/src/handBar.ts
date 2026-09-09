@@ -157,19 +157,21 @@ export function installBarArt(): void {
     stroke: { color: BAR_LOOK.rim, width: BAR.line * 0.7, alignment: 1 },
   });
   registerSurface(PLATE_ON, {
-    layers: [{ gradient: { stops: [{ at: 0, paint: BAR_LOOK.goldHi }, { at: 0.48, paint: "accent" }, { at: 1, paint: BAR_LOOK.goldLo }], angle: 90 } }],
+    layers: [{ gradient: { stops: [{ at: 0, paint: BAR_LOOK.goldHi }, { at: 0.48, paint: SEAT_LOOK.gold }, { at: 1, paint: BAR_LOOK.goldLo }], angle: 90 } }],
     radius: BAR.radius,
     stroke: { color: SEAT_LOOK.black, width: BAR.line, alignment: 1 },
   });
   registerSurface(MARK_PLATE, {
     layers: [{ paint: SEAT_LOOK.black }],
-    stroke: { color: "accent", width: MARK.line, alignment: 1 },
+    stroke: { color: SEAT_LOOK.gold, width: MARK.line, alignment: 1 },
   });
   for (const what of BAR_WHATS) {
     registerAsset(glyphAsset(what, false), { src: glyph(what, BAR_LOOK.glyph), w: BAR.size, h: BAR.size });
     registerAsset(glyphAsset(what, true), { src: glyph(what, SEAT_LOOK.black), w: BAR.size, h: BAR.size });
   }
-  for (const what of MARKED) registerAsset(markAsset(what), { src: glyph(what, "accent"), w: MARK.size, h: MARK.size });
+  for (const what of MARKED) // A LITERAL, never a token: the glyph is a picture of its own, and a token written into it
+    // resolves against nothing — the mark came out as an empty square.
+    registerAsset(markAsset(what), { src: glyph(what, SEAT_LOOK.gold), w: MARK.size, h: MARK.size });
   registerSurface(markFace(), { layers: [] });
 }
 
