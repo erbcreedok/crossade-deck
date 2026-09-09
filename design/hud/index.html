@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>HUD песочницы — стенд</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,12 +28,29 @@
   .bad { color: #e0483f; }
   .links { display: flex; gap: 14px; }
   button.reset { align-self: flex-start; font: inherit; color: #f2c14e; background: none; border: 2px solid #f2c14e; padding: 4px 10px; cursor: pointer; }
+  .knob { display: none; }
+  .frame { display: block; }
+  /* НА ТЕЛЕФОНЕ ЭКРАН — ЭТО ЭКРАН: без рамки-макета, во весь вьюпорт до краёв, ручки — лист снизу. */
+  @media (max-width: 700px), (pointer: coarse) and (max-width: 1000px) {
+    body { overflow: hidden; }
+    .page { padding: 0; gap: 0; }
+    .phone { position: fixed; inset: 0; width: 100vw; height: 100dvh; border-radius: 0; box-shadow: none; }
+    .frame { display: none; }
+    .panel { position: fixed; left: 0; right: 0; bottom: 0; max-width: none; max-height: 72dvh; overflow: auto; padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); box-sizing: border-box;
+      background: #0d2118; box-shadow: 0 -3px 0 #0b0704, 0 -6px 0 #3a2a1d; transform: translateY(100%); transition: transform .22s cubic-bezier(.2,.85,.25,1); z-index: 30; }
+    .panel.open { transform: none; }
+    .knob { display: flex; position: fixed; right: 14px; top: calc(10px + env(safe-area-inset-top)); z-index: 40; width: 44px; height: 44px; border-radius: 8px; align-items: center; justify-content: center;
+      background: linear-gradient(#25321f, #16210f); box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #6b4d2c, 0 4px 0 rgba(11,7,4,.6); color: #f2c14e; font: 400 9px 'Tiny5', monospace; }
+    h1 { font-size: 20px; }
+    .row { grid-template-columns: 120px 1fr 44px; }
+  }
 </style>
 </head>
 <body>
 <div class="page">
   <div class="phone" id="phone"></div>
-  <div class="panel">
+  <div class="knob" id="knob">РУЧКИ</div>
+  <div class="panel" id="panel">
     <h1>HUD песочницы — стенд</h1>
     <div>Все ручки ниже. Стул на сукне зеркалит позу и права. Внизу экрана считается, влезают ли группы. Состояние ручек живёт в адресе страницы: скопируй ссылку — получишь тот же экран.</div>
     <div id="controls"></div>
@@ -44,7 +61,9 @@
 <script>
 (function () {
   const K = window.CardKit, TK = window.TableKit, T = TK.T;
-  const W = 390;
+  const phone = document.getElementById("phone");
+  /** THE SCREEN AS IT IS: the macbook shows a 390×844 frame, the phone shows itself. */
+  const glass = () => ({ W: phone.clientWidth || 390, H: phone.clientHeight || 844, real: matchMedia("(max-width: 700px), (pointer: coarse) and (max-width: 1000px)").matches });
 
   // ---- РУЧКИ: как в панели Claude Design, но свои ----
   const SPEC = [
@@ -171,6 +190,10 @@
 
   const apply = () => {
     writeHash(P);
+    const { W, H, real } = glass();
+    // НА ТЕЛЕФОНЕ НИЗ — ЭТО БЕЗОПАСНАЯ ЗОНА: свои 14px под индикатор дома, у макета — 44.
+    const safeBottom = real ? "env(safe-area-inset-bottom, 0px)" : "0px";
+    const safeTop = real ? "env(safe-area-inset-top, 0px)" : "0px";
     const cardW = P.cardW, btn = P.btn, gap = P.gap, margin = P.margin, bottom = P.bottom;
     const n = P.handSize, pose = P.pose, labels = P.labels;
     const cardH = Math.round(cardW * K.ASPECT);
@@ -193,7 +216,7 @@
     const rightsColumn = P.rightsLayout === "столбик";
     const rightsW = rightsColumn ? btn : rightsList.length * btn + (rightsList.length - 1) * gap;
     const rightsH = rightsColumn ? rightsList.length * btn + (rightsList.length - 1) * gap : btn;
-    const rights = `<div style="position:absolute;left:${margin}px;bottom:${bottom}px;display:flex;flex-direction:${rightsColumn ? "column" : "row"};gap:${gap}px;z-index:6">`
+    const rights = `<div style="position:absolute;left:${margin}px;bottom:calc(${bottom}px + ${safeBottom});display:flex;flex-direction:${rightsColumn ? "column" : "row"};gap:${gap}px;z-index:6">`
       + rightsList.map(([k, t, lit]) => button(k, t, lit, btn, btn)).join("") + `</div>`;
 
     // Позы
@@ -203,22 +226,22 @@
     if (pl === "веер+сжать / спрятать") {
       const h = Math.round(btn * 0.7), wide = btn * 2 + gap;
       posesW = wide; posesH = h * 2 + gap;
-      poses = `<div style="position:absolute;right:${margin}px;bottom:${bottom}px;width:${wide}px;display:flex;flex-wrap:wrap;gap:${gap}px;z-index:6">`
+      poses = `<div style="position:absolute;right:${margin}px;bottom:calc(${bottom}px + ${safeBottom});width:${wide}px;display:flex;flex-wrap:wrap;gap:${gap}px;z-index:6">`
         + button("fan", "ВЕЕР", pose === "веер", btn, h) + button("shrink", "СЖАТЬ", pose === "сжато", btn, h) + button("tuck", "СПРЯТАТЬ", pose === "спрятано", wide, h) + `</div>`;
     } else if (pl === "в ряд") {
       posesW = 3 * btn + 2 * gap; posesH = btn;
-      poses = `<div style="position:absolute;right:${margin}px;bottom:${bottom}px;display:flex;gap:${gap}px;z-index:6">` + posesList.map(([k, t, lit]) => button(k, t, lit, btn, btn)).join("") + `</div>`;
+      poses = `<div style="position:absolute;right:${margin}px;bottom:calc(${bottom}px + ${safeBottom});display:flex;gap:${gap}px;z-index:6">` + posesList.map(([k, t, lit]) => button(k, t, lit, btn, btn)).join("") + `</div>`;
     } else {
       posesW = btn; posesH = 3 * btn + 2 * gap;
-      poses = `<div style="position:absolute;right:${margin}px;bottom:${bottom}px;display:flex;flex-direction:column;gap:${gap}px;z-index:6">` + posesList.map(([k, t, lit]) => button(k, t, lit, btn, btn)).join("") + `</div>`;
+      poses = `<div style="position:absolute;right:${margin}px;bottom:calc(${bottom}px + ${safeBottom});display:flex;flex-direction:column;gap:${gap}px;z-index:6">` + posesList.map(([k, t, lit]) => button(k, t, lit, btn, btn)).join("") + `</div>`;
     }
     const free = W - 2 * margin - rightsW - posesW;
 
     // Пара камеры
     const camBtn = `width:40px;height:40px;border-radius:999px;background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px #6b4d2c,0 4px 0 rgba(11,7,4,.6);display:flex;align-items:center;justify-content:center;`;
     const camWrap = P.camera === "нет" ? ""
-      : P.camera === "над позами" ? `position:absolute;right:${margin}px;bottom:${bottom + posesH + gap + 4}px;display:flex;flex-direction:column;gap:${gap}px;z-index:6`
-      : `position:absolute;right:${margin}px;top:100px;display:flex;flex-direction:column;gap:${gap}px;z-index:6`;
+      : P.camera === "над позами" ? `position:absolute;right:${margin}px;bottom:calc(${bottom + posesH + gap + 4}px + ${safeBottom});display:flex;flex-direction:column;gap:${gap}px;z-index:6`
+      : `position:absolute;right:${margin}px;top:calc(100px + ${safeTop});display:flex;flex-direction:column;gap:${gap}px;z-index:6`;
     const camera = camWrap ? `<div style="${a(camWrap)}"><div style="${a(camBtn)}">${svg(ICON.home, 18, T.ink)}</div><div style="${a(camBtn)}">${svg(ICON.north, 18, T.ink)}</div></div>` : "";
 
     // Рука на HUD
@@ -236,7 +259,7 @@
     const drop = pose === "спрятано" ? cardH - P.tuckTip : 0;
     const empty = n === 0 && P.emptyBox
       ? `<div style="width:${cardW}px;height:${cardH}px;border-radius:${Math.round(cardW * 0.1)}px;border:2px dashed rgba(245,234,208,.45);box-sizing:border-box"></div>` : "";
-    const hand = `<div style="position:absolute;left:50%;bottom:${P.handBottom - drop}px;transform:translateX(-50%);display:flex;align-items:flex-end;z-index:5">${handCards}${empty}</div>`;
+    const hand = `<div style="position:absolute;left:50%;bottom:calc(${P.handBottom - drop}px + ${safeBottom});transform:translateX(-50%);display:flex;align-items:flex-end;z-index:5">${handCards}${empty}</div>`;
 
     // Глобальный HUD
     const topBtn = `width:44px;height:44px;border-radius:8px;background:linear-gradient(#25321f 0%,#16210f 100%);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px #6b4d2c,0 4px 0 rgba(11,7,4,.6);display:flex;align-items:center;justify-content:center;font:400 10px 'Tiny5',monospace;color:${T.ink}`;
@@ -264,7 +287,8 @@
         + marks.map((d, k) => `<div style="${a(markSt(k, marks.length))}">${svg(d, 13, T.gold)}</div>`).join("")
         + `</div>`;
     };
-    const CX = 195, CY = 470, RX = 150, RY = 250;
+    // СТОЛ И МЕСТА — ДОЛИ ЭКРАНА, а не пиксели макета: на 390×844 это те же числа, что в дизайне.
+    const CX = W / 2, CY = H * 0.557, RX = W * 0.385, RY = H * 0.296;
     const at = (t, o) => {
       const a = t * Math.PI;
       const x = CX + (o.rx || RX) * Math.cos(a);
@@ -277,20 +301,21 @@
       at(1.5, { q: 0.3, letter: "Д", n: 4 }),
       at(1.72, { q: 0.55, letter: "Р", n: 3 }),
       at(1.92, { q: 0.78, letter: "Л", n: 5, blind: true }),
-      at(0.5, { q: 0, letter: "Я", n, mine: true, ry: 92 }),
+      at(0.5, { q: 0, letter: "Я", n, mine: true, ry: H * 0.109 }),
     ].join("");
 
     const deck = K.face(46, "9", "d", { state: "back" });
     const shown = K.face(46, "A", "d");
-    const middle = `<div style="position:absolute;left:143px;top:346px;display:flex;gap:12px;align-items:flex-start;z-index:2">${cardHtml(deck)}${cardHtml(shown)}</div>`;
+    const middle = `<div style="position:absolute;left:${Math.round(W / 2 - 52)}px;top:${Math.round(H * 0.41)}px;display:flex;gap:12px;align-items:flex-start;z-index:2">${cardHtml(deck)}${cardHtml(shown)}</div>`;
 
-    const warn = free < 0 ? `<div style="position:absolute;left:50%;bottom:${bottom + Math.max(rightsH, posesH) + 6}px;transform:translateX(-50%);padding:3px 8px;background:${T.black};box-shadow:inset 0 0 0 2px #e0483f;font:400 8px 'Press Start 2P',monospace;color:#e0483f;white-space:nowrap;z-index:9">группы пересекаются на ${-free}px</div>` : "";
+    const warn = free < 0 ? `<div style="position:absolute;left:50%;bottom:calc(${bottom + Math.max(rightsH, posesH) + 6}px + ${safeBottom});transform:translateX(-50%);padding:3px 8px;background:${T.black};box-shadow:inset 0 0 0 2px #e0483f;font:400 8px 'Press Start 2P',monospace;color:#e0483f;white-space:nowrap;z-index:9">группы пересекаются на ${-free}px</div>` : "";
 
-    document.getElementById("phone").innerHTML =
-      `<div style="position:absolute;left:-330px;top:96px;width:1050px;height:760px;border-radius:50%;background:radial-gradient(60% 60% at 50% 26%,#1b4835,#123527 62%,#0a2117);box-shadow:inset 0 0 0 3px #0b0704,inset 0 0 0 14px #3a2a1d,inset 0 0 0 20px #6b4d2c"></div>`
-      + seats + middle + hand + rights + poses + camera + global + warn
-      + `<div style="position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:132px;height:5px;border-radius:3px;background:#f5ead0;opacity:.5;z-index:7"></div>`
+    // Овал стола — тоже доли: 1050×760 на 390×844 при центре в (195, 476).
+    const felt = `<div style="position:absolute;left:${Math.round(CX - W * 1.346)}px;top:${Math.round(CY - H * 0.45)}px;width:${Math.round(W * 2.692)}px;height:${Math.round(H * 0.9)}px;border-radius:50%;background:radial-gradient(60% 60% at 50% 26%,#1b4835,#123527 62%,#0a2117);box-shadow:inset 0 0 0 3px #0b0704,inset 0 0 0 14px #3a2a1d,inset 0 0 0 20px #6b4d2c"></div>`;
+    // Чёлка и индикатор дома — только у макета: у телефона они свои.
+    const frame = real ? "" : `<div style="position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:132px;height:5px;border-radius:3px;background:#f5ead0;opacity:.5;z-index:7"></div>`
       + `<div style="position:absolute;left:50%;top:0;transform:translateX(-50%);width:120px;height:30px;background:#0b0704;border-radius:0 0 16px 16px;z-index:9"></div>`;
+    phone.innerHTML = felt + seats + middle + hand + rights + poses + camera + global + warn + frame;
 
     document.getElementById("nums").innerHTML =
       `карта <b>${cardW}×${cardH}</b> · кнопка <b>${btn}</b> · зазор <b>${gap}</b> · поле <b>${margin}</b><br>`
@@ -301,6 +326,11 @@
   build();
   apply();
   document.fonts?.ready.then(apply);
+  addEventListener("resize", apply);
+  // РУЧКИ НА ТЕЛЕФОНЕ — ЛИСТ СНИЗУ, по кнопке в углу; тап по экрану его убирает.
+  const panel = document.getElementById("panel");
+  document.getElementById("knob").onclick = () => panel.classList.toggle("open");
+  phone.addEventListener("pointerdown", () => panel.classList.remove("open"));
 })();
 </script>
 </body>
