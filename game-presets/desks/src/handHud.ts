@@ -53,7 +53,7 @@ import {
   type TransformableFields,
 } from "game-kit";
 import { BAR, BAR_FADE, barHeight, chairBarId, dressBar, fitBar, seatBar } from "./handBar.js";
-import { HAND, handPose, handRoom, handWidth, posePlan, type HandFold } from "./handZone.js";
+import { HAND, handPose, handRoom, type HandFold } from "./handZone.js";
 import { handLayout, ZONE_SPREAD } from "./felt.js";
 import { chairId } from "./seatPlace.js";
 
@@ -73,8 +73,16 @@ function foldLayout(fold: HandFold): string {
 }
 /** How much of a tucked hand shows above the bar, in HUD units — the tip that is pulled on. */
 const TUCK_TIP = 0.45;
-/** The fan on the glass — the chair's own front fan, re-centred on the strip. */
-const FAN = { side: "front", fold: "fan" } as const;
+/**
+ * EIGHT CARDS ABREAST, the owner's rule for the hand on a phone: the strip is drawn at the scale
+ * that puts eight cards side by side inside the glass with `HUD_GAP` between them and none of them
+ * over another — a phone 375px wide draws them ~41px each. Wider than that, cards are their own
+ * size. `shrink` still closes them up: that is what the fold is for.
+ */
+const HUD_CARDS = 8;
+const HUD_GAP = 0.06;
+/** The fan on the glass — the stand's: 7° of lean per card round the middle one, a little lift at the middle. */
+const HUD_FAN = { tilt: 7, lift: 0.14 };
 
 /** How far the strip stands in from the sides of the glass, in HUD units. */
 export const HAND_HUD_MARGIN = 0.14;
@@ -119,6 +127,8 @@ export interface HandHud {
   faces(): readonly ("up" | "down")[];
   /** How wide the strip is, in HUD units. */
   width(): number;
+  /** The scale the strip is drawn at — one while the cards are their own size, less on a narrow glass. */
+  scale(): number;
   /** How much of the foot of the glass it has taken, in device pixels. Nothing, holding nothing. */
   floor(): number;
   /**
@@ -156,11 +166,17 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
   // written by `refresh` off the same plan, so the cards stand where their leans say they do.
   registerLayout(foldLayout("shrink"), handLayout(ZONE_SPREAD, HAND.pad, handRoom()));
   registerLayout(foldLayout("tuck"), handLayout(ZONE_SPREAD, HAND.pad, handRoom()));
+  // THE FAN NEVER OVERLAPS UP TO EIGHT: a card's step is the card and a gap while the box has the
+  // room, and closes up only past that. The lean and the lift are written by `refresh`.
   registerLayout(foldLayout("fan"), {
-    place: (children) => {
-      const plan = posePlan(FAN, children);
-      const middle = plan[Math.floor(children.length / 2)]?.at.y ?? 0;
-      return plan.map((p) => ({ x: p.at.x, y: p.at.y - middle - handRoom() / 2 }));
+    place: (children, box) => {
+      const n = children.length;
+      const widest = children.reduce((w, c) => Math.max(w, c.footprint ? extentOf(c.footprint).w : 1), 1);
+      const room = box ? extentOf(box).w - 2 * HAND.pad - widest : 0;
+      const step = n > 1 ? Math.min(widest * (1 + HUD_GAP), Math.max(0, room) / (n - 1)) : 0;
+      const from = -(step * (n - 1)) / 2;
+      const mid = (n - 1) / 2;
+      return children.map((_c, i) => ({ x: from + step * i, y: -handRoom() / 2 - HUD_FAN.lift * (mid > 0 ? 1 - Math.abs(i - mid) / mid : 1) }));
     },
   });
   const screen = o.screen ?? node(HAND_HUD_SCREEN, Container({ layout: HAND_HUD_FREE }));
@@ -241,8 +257,9 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     return u > 0 ? v.width / u - 2 * HAND_HUD_MARGIN : 0;
   }
 
-  /** How tall the strip is right now, in HUD units. */
+  /** How tall the strip is right now, in its own units, and the scale it is drawn on the glass at. */
   let high = 0;
+  let scale = 1;
   let fold: HandFold = "shrink";
   let wide = 0;
   /** The cards a hand is holding in the AIR — not drawn here for as long as they are (`lifting`). */
@@ -269,10 +286,10 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
       add(strip, node(HAND_HUD_EMPTY, Bounded({ bounds: roundedRect(1, 1.4, 0.06) }), Surfaced({ surface: HAND_HUD_EMPTY }), Transformable({ at: { x: 0, y: 0 } })));
     }
     compose(strip, Container({ layout: foldLayout(fold) }));
-    // THE LEAN OF A FAN, off the same plan its positions come from; a row lies level.
+    // THE LEAN OF A FAN — the stand's 7° per card round the middle; a row lies level.
     if (fold === "fan") {
-      const plan = posePlan(FAN, strip.children.map((c) => ({ id: c.id, footprint: fieldsOf<BoundedFields>(c, "Bounded")?.bounds, at: undefined })));
-      strip.children.forEach((c, i) => compose(c, Transformable({ ...(fieldsOf<TransformableFields>(c, "Transformable") ?? {}), angle: plan[i]?.angle ?? 0 })));
+      const mid = (strip.children.length - 1) / 2;
+      strip.children.forEach((c, i) => compose(c, Transformable({ ...(fieldsOf<TransformableFields>(c, "Transformable") ?? {}), angle: (i - mid) * HUD_FAN.tilt })));
     }
 
     const sizes = cards.map((c) => {
@@ -284,11 +301,16 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     const u = host.unit();
     const v = host.viewport();
     const glass = u > 0 ? { w: v.width / u, h: v.height / u } : { w: 0, h: 0 };
-    wide = Math.min(handWidth(Math.max(1, cards.length), widest), Math.max(1, room()));
-    // A FAN IS TALLER THAN ITS CARD — the ends swing down — and a shown hand's box holds the lot.
-    const fanned = fold === "fan" ? (posePlan(FAN, strip.children.map((c) => ({ id: c.id, footprint: fieldsOf<BoundedFields>(c, "Bounded")?.bounds, at: undefined }))).reduce((m, p) => Math.max(m, Math.abs(p.at.y)), 0) * 2) : 0;
+    // THE STRIP'S SCALE: eight cards abreast inside the glass, or the cards' own size, whichever is
+    // smaller. Everything below is in the strip's own units; the scale carries it onto the glass.
+    scale = glass.w > 0 ? Math.min(1, room() / (HUD_CARDS * widest * (1 + HUD_GAP))) : 1;
+    // THE BOX IS THE ROOM: as wide as the glass allows (in strip units), so the arrangement lays
+    // the cards abreast while they fit and closes them up only when they do not.
+    wide = Math.max(1, room() / scale);
+    // A FAN IS TALLER THAN ITS CARD — the middle is lifted, the ends lean — and the box holds the lot.
+    const fanned = fold === "fan" ? HUD_FAN.lift + tallest * 0.12 : 0;
     high = tallest + fanned + 2 * HAND.pad + handRoom();
-    compose(strip, Bounded({ bounds: roundedRect(Math.max(wide, 1), Math.max(high, 1), HAND.pad) }));
+    compose(strip, Bounded({ bounds: roundedRect(wide, Math.max(high, 1), HAND.pad) }));
 
     // THE BAR ACROSS THE FOOT OF THE GLASS, on the device's own inset, and the strip standing on
     // it — the cards' bottom edge `BAR.tuck` UNDER the bar's top edge, drawn beneath it, like under
@@ -302,9 +324,9 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     // The strip's box keeps the grip's room UNDER the row (`handRoom`), so the row's own bottom
     // edge is `handRoom()` above the box's; the box is placed so that edge is `BAR.tuck` below
     // the bar's top.
-    const cardsBottom = barTop + BAR.tuck + (fold === "tuck" ? Math.max(0, high - handRoom() - TUCK_TIP) : 0);
-    const low = cardsBottom + handRoom() - high / 2;
-    compose(root, Transformable({ at: { x: 0, y: low } }));
+    const cardsBottom = barTop + BAR.tuck + (fold === "tuck" ? Math.max(0, (high - handRoom()) * scale - TUCK_TIP) : 0);
+    const low = cardsBottom + (handRoom() - high / 2) * scale;
+    compose(root, Transformable({ at: { x: 0, y: low }, scale }));
     // ...AND THE SHADE, from the bar's top edge up, as wide as the glass.
     compose(fade, Bounded({ bounds: roundedRect(Math.max(1, glass.w), BAR.fade, 0) }));
     compose(fade, Transformable({ at: { x: 0, y: barTop - BAR.fade / 2 } }));
@@ -317,7 +339,7 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
   const floorNow = (): number => {
     const u = host.unit();
     const inset = u > 0 ? deviceInsets(host.view).bottom : 0;
-    const shown = fold === "tuck" ? TUCK_TIP : Math.max(0, high - handRoom() - BAR.tuck);
+    const shown = fold === "tuck" ? TUCK_TIP : Math.max(0, (high - handRoom()) * scale - BAR.tuck);
     return inset + (barHeight() + shown + HAND_HUD_MARGIN) * u;
   };
   refresh();
@@ -350,7 +372,7 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
       const size = extentOf(box);
       const at = fieldsOf<TransformableFields>(root, "Transformable")?.at ?? { x: 0, y: 0 };
       const mid = { x: v.width / 2 + at.x * u, y: v.height / 2 + at.y * u };
-      return Math.abs(glass.x - mid.x) <= (size.w * u) / 2 && Math.abs(glass.y - mid.y) <= (size.h * u) / 2;
+      return Math.abs(glass.x - mid.x) <= (size.w * u * scale) / 2 && Math.abs(glass.y - mid.y) <= (size.h * u * scale) / 2;
     },
     lifting: (ids) => {
       const next = new Set(ids);
@@ -360,7 +382,8 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     },
     cards: () => manifest,
     faces: () => strip.children.map((n) => facing(n)),
-    width: () => wide,
+    width: () => wide * scale,
+    scale: () => scale,
     floor: floorNow,
     stop() {
       stopFitting();

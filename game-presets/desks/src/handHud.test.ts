@@ -21,6 +21,8 @@ import {
   footprint,
   Flippable,
   installStockControls,
+  layoutChildren,
+  layoutRecord,
   installStockSurfaces,
   mount,
   node,
@@ -37,7 +39,7 @@ import {
 } from "game-kit";
 import { barPress, chairBarGroupId, chairBarId, chairButtonId } from "./handBar.js";
 import { handHud, HAND_HUD_BOX } from "./handHud.js";
-import { layHand } from "./handZone.js";
+import { layHand, setHandPose } from "./handZone.js";
 import { chairId, seatChair, setHandLock } from "./seatPlace.js";
 
 function bench() {
@@ -162,6 +164,44 @@ describe("the hand on the glass", () => {
     expect(plate("lock")).not.toBe(plate("flip"));
     hud.stop();
     expect(byId(screen, chairBarId("south")), "and they go down with the hand").toBeUndefined();
+  });
+
+  it("hud.eight-cards-stand-abreast-on-a-phone — the strip is drawn at the scale that fits them, and a fan never overlaps up to eight", () => {
+    // THE OWNER'S RULE: on a phone eight cards fit the hand side by side, none over another. The
+    // strip is scaled to the glass for it, so a 393px glass draws them smaller than their own size;
+    // `shrink` still closes them up, because that is what the fold is for.
+    const b = bench();
+    const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
+    for (let i = 0; i < 8; i += 1) add(b.chair, card(`c${i}`));
+    layHand(b.chair);
+    setHandPose(b.chair, { side: "front", fold: "fan" });
+    hud.refresh();
+    const u = b.host.unit();
+    const v = b.host.viewport();
+    expect(hud.scale()).toBeLessThan(1);
+    // Where the arrangement puts them — the arrangement is read, as the felt's own row is read.
+    const laid = (): number[] => {
+      const strip = byId(hud.root, HAND_HUD_BOX)!;
+      const name = fieldsOf<{ layout: string }>(strip, "Container")!.layout;
+      return layoutRecord(name)!.place(layoutChildren(strip), footprint(strip)).map((p) => p!.x);
+    };
+    const xs = laid();
+    for (let i = 1; i < xs.length; i += 1) expect(xs[i]! - xs[i - 1]!, "a step of at least a card: none over another").toBeGreaterThanOrEqual(1);
+    // ...AND THE LOT INSIDE THE GLASS, on the glass's own pixels.
+    const span = (xs[7]! - xs[0]! + 1) * u * hud.scale();
+    expect(span).toBeLessThanOrEqual(v.width);
+    // A NINTH CLOSES THEM UP rather than pushing one off the glass.
+    add(b.chair, card("c8"));
+    layHand(b.chair);
+    hud.refresh();
+    const nine = laid();
+    expect(nine[1]! - nine[0]!).toBeLessThan(1);
+    // SHRINK CLOSES THEM UP whatever the count: the fold's own meaning.
+    setHandPose(b.chair, { side: "front", fold: "shrink" });
+    hud.refresh();
+    const packed = laid();
+    expect(packed[1]! - packed[0]!).toBeLessThan(1);
+    hud.stop();
   });
 
   it("hud.a-picture-on-the-glass-is-a-way-of-reaching-the-card — the finger takes the card off the felt, and the picture steps aside", () => {
