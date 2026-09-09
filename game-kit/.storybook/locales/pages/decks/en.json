@@ -1,0 +1,30 @@
+{
+  "docs.decks.component": [
+    "The **deck design**, as the add-on ships it: the same 55 cards as *Add-ons / Cards*, wearing a **style**. A style is three switches — the **layout** (`classic` or `minimal`), **four colours** and **Cyrillic** — and every one of the eight combinations is a preset `@game-presets/cards` draws and bakes.",
+    "",
+    "## Two layouts, one paper",
+    "",
+    "**Classic** is the printed card: a black keyline, a cream margin, a faint inner rule; an index in the corner (rank over a small pip) mirrored into the far corner so the card reads upside down; the standard pip grid at centre, one big pip for the ace, and for the courts an engraved figure seated inside the rule. **Minimal** is the kit's own card: the same paper, one index in the corner, one mark at centre — a court is a letter and a mark like any number. The jokers set their word small in both corners (classic) or top and bottom (minimal), and wear the hat at centre in their own ink.",
+    "",
+    "## Four colours and Cyrillic are switches, not decks",
+    "",
+    "Four colours gives each suit an ink of its own — spades blue, diamonds orange, hearts red and clubs black — so a suit is told at a glance in a squeezed hand. The figures keep their engraving: only the diamonds' accent turns orange, through `currentColor`. Cyrillic swaps the labels — Т В Д К and «Джокер» — and nothing else: the keys stay Latin, the numbers are the same glyphs in both alphabets.",
+    "",
+    "## Vector and raster",
+    "",
+    "Every page here carries a `source` switch. **Vector** is what the add-on draws: an SVG per face, its letters set as rects of the captured pixel font (no font is loaded anywhere), its pips one path `<use>`d for every mark. **Raster** is that drawing baked once by `scripts/bake.ts` into a WebP per card — what a game ships. Switch between them and nothing should move: the raster is rendered by the same engine that draws the vector.",
+    "",
+    "## Backs are their own slot",
+    "",
+    "Six backs — plaid, argyle, club, lattice, crest, ink — common to every face set. A game names a style and a back separately; a player's personal set is a different pair of names."
+  ],
+  "docs.decks.card": [
+    "One card, big — the page to compare the two doors on. Switch `source` between vector and raster and the picture must not move by a pixel. Tap the card to turn it over; the back is the panel's own."
+  ],
+  "docs.decks.pile": [
+    "A pile in the kit's `stack()` pose, the same drift a game's deck has: the edge of every card under the top one shows what a stack of this style looks like on the felt. Face up, the paper and its index; face down, the back."
+  ],
+  "docs.decks.gallery": [
+    "The whole deck on one desk — a suit per row, then the jokers and the brand card, then the six backs. The page a style is judged on: every face of the set in the panel's style, through the panel's door."
+  ]
+}

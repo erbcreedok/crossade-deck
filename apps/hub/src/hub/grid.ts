@@ -28,7 +28,7 @@ import {
   Valued,
   type Node,
 } from "game-kit";
-import { BACK_SURFACE, crossade, faceSurface, installClassicSkin } from "@game-presets/cards";
+import { crossade, deckBackSurface, deckFaceSurface, installDeckBacks, installDeckSkin, type DeckStyle } from "@game-presets/cards";
 import { checkerSurface, installChessArt, installNardyArt, pictureOf } from "@game-presets/desks";
 import { die } from "@game-presets/dice";
 import { CATALOGUE, type GameEntry } from "./catalogue.js";
@@ -76,7 +76,8 @@ function installLayouts(): void {
   registerLayout(INSET, { place: (children) => children.map(() => ({ x: 0, y: 0 })) });
   registerLayout(FAN, freeLayout);
   // The games' own art, so a tile shows the same chessman, checker or card back the game plays with.
-  installClassicSkin();
+  installDeckSkin(DECK);
+  installDeckBacks();
   installChessArt();
   installNardyArt();
 }
@@ -92,18 +93,22 @@ function fannedCards(id: string, surfaces: readonly [string, string, string]): N
   return holder;
 }
 
+/** The look the hub shows its card games in: the deck design's classic style, on the plaid back. */
+const DECK: DeckStyle = { layout: "classic", fourColour: false, cyrillic: false };
+const BACK = deckBackSurface("plaid");
+
 /** Three real backs, splayed — what a cascade of patience looks like, face down. */
 function backsOf(id: string): Node {
-  return fannedCards(id, [BACK_SURFACE, BACK_SURFACE, BACK_SURFACE]);
+  return fannedCards(id, [BACK, BACK, BACK]);
 }
 
 /** The set's own faces — an ace, a king and a queen — splayed the way a hand fans out. */
 function facesOf(id: string): Node {
   const specOf = (cardId: string) => crossade().find((c) => c.id === cardId)!;
   return fannedCards(id, [
-    faceSurface(specOf("spade-A")),
-    faceSurface(specOf("heart-K")),
-    faceSurface(specOf("diamond-Q")),
+    deckFaceSurface(specOf("spade-A"), DECK),
+    deckFaceSurface(specOf("heart-K"), DECK),
+    deckFaceSurface(specOf("diamond-Q"), DECK),
   ]);
 }
 

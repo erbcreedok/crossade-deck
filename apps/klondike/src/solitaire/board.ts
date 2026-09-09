@@ -24,7 +24,7 @@ import {
   type TransformableFields,
   type ValuedFields,
 } from "game-kit";
-import { deckByCardId, shuffled } from "@game-presets/cards";
+import { deckCardsById, shuffled, type DeckStyle } from "@game-presets/cards";
 
 /** What a willing pile wears while a legal run hovers the desk — the accent ring, data like any look. */
 export const INVITE = { recipe: "ring", level: 0.7, tint: "accent" } as const;
@@ -199,9 +199,12 @@ export function relayBoard(board: SolitaireBoard, layout: TableLayout): void {
   board.tableau.forEach((p, i) => seat(p, cols[i]!, layout.tableauY));
 }
 
+/** The look the game plays in: the deck design's classic style, on the plaid back. */
+const DECK: DeckStyle = { layout: "classic", fourColour: false, cyrillic: false };
+
 /** The 52 standard pips (jokers and the brand card left out), shuffled. */
 function shuffledPips(): Node[] {
-  const byId = deckByCardId();
+  const byId = deckCardsById({ style: DECK });
   const pips: Node[] = [];
   for (const [id, n] of byId) {
     if (id.includes("joker") || id === "brand") continue;

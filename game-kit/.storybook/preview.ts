@@ -156,7 +156,7 @@ const preview: Preview = {
           // Add-ons stand OUTSIDE the kit: a preset package that ships its own textures and presets
           // (`@game-presets/*`), documented here but explicitly not part of the core the pages above show.
           "Add-ons",
-          ["Cards", "Dice"],
+          ["Cards", "Decks", "Dice"],
           "Engine",
           ["Overview", "The chain", "Sizes", "Inheritance", "Baking nodes", "Presets and records", "Motion", "Gestures", "Fall", "Landing", "Heaps", "Grips"],
           // MECHANICS are the DESK's rules, not the kit's: which pieces belong together, what a heap
