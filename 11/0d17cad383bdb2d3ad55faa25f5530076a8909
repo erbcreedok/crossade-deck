@@ -1,0 +1,32 @@
+game-kit/src/render/pixi/index.ts
+  s_2049b128b4ff77::t_ad5a95b5d861dc 320-325
+  s_2049b128b4ff77::t_c706345d966fb9 16
+game-kit/src/render/presence.ts
+  s_2049b128b4ff77::t_c706345d966fb9 104-108,425-429,497
+  s_2049b128b4ff77::t_d30c4836e8ae70 103
+game-kit/src/render/presence.test.ts
+  s_2049b128b4ff77::t_c706345d966fb9 115-127
+  s_2049b128b4ff77::t_6a40b7f67b1663 37-38
+game-kit/src/render/pixi/same.ts
+  s_2049b128b4ff77::t_c706345d966fb9 63
+game-kit/docs/test-plan/76-presence.md
+  s_2049b128b4ff77::t_d50e1bb79239da 20
+game-kit/src/render/surfaces.ts
+  s_2049b128b4ff77::t_c706345d966fb9 48,53-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "110d17cad383bdb2d3ad55faa25f5530076a8909",
+  "prompts": {},
+  "sessions": {
+    "s_2049b128b4ff77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f5ba828-d84d-455f-8f95-01ad6b176644",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
