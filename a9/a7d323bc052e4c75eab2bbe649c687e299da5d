@@ -1,0 +1,20 @@
+game-kit/.storybook/stories/PresetsDecks.stories.ts
+  s_7ee13c6564ec9f::t_64b7000364f5b4 18,43-45
+  s_7ee13c6564ec9f::t_91c01f5c7f9528 46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "a9a7d323bc052e4c75eab2bbe649c687e299da5d",
+  "prompts": {},
+  "sessions": {
+    "s_7ee13c6564ec9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c8ffa5d-4a0f-42b0-bed5-0d8d8f2b30e0",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
