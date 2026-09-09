@@ -104,24 +104,32 @@ describe("the motion runtime", () => {
     expect(c.idle()).toBe(true); // idle-gate: no frame is scheduled once nothing is in flight
   });
 
-  it("motion.the-hud-settles-too — a node on the screen eases to its new rest like one on the desk", () => {
+  it("motion.the-hud-settles-too — a node on the screen eases to its new rest like one on the desk, and is not lifted for it", () => {
     // THE SCREEN IS A TREE LIKE THE DESK, and a hand drawn on it is re-laid at every deal — the one
     // place a snap is felt most, under the thumb. Its rests are read with the desk's; its
-    // arrangement's settle is honoured; and it is told through the host like any change.
+    // arrangement's settle is honoured; and it is told through the host like any change. But the
+    // LIFT is the desk's alone: a card easing along the glass under a bar stays under the bar for
+    // the whole of the ease — lifted, it rode over the bar it is meant to tuck beneath.
     const b = bench();
     const c = fakeClock();
     const screen = node("screen", Container({ layout: "free" }));
     const pic = node("pic", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } }));
+    const bar = node("bar", Bounded({ bounds: rect(6, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 1 } }));
     add(screen, pic);
+    add(screen, bar);
     b.host.setHudRoot(screen);
     attachMotion(b.host, b.painter, { settleMs: 100, settleEase: "linear", clock: c.clock });
     const restX = b.xOf("pic");
+    const under = (): boolean => b.order().indexOf("pic") < b.order().indexOf("bar");
+    expect(under(), "at rest: the bar over the picture").toBe(true);
     compose(pic, Transformable({ at: { x: 4, y: 0 } }));
     b.host.setHudRoot(screen);
     expect(b.xOf("pic"), "frame zero: still where it was").toBeCloseTo(restX);
+    expect(under(), "in flight: still under the bar").toBe(true);
     c.tick(50);
     const midX = b.xOf("pic");
     expect(midX).toBeGreaterThan(restX);
+    expect(under()).toBe(true);
     c.tick(100);
     expect(b.xOf("pic")).toBeGreaterThan(midX);
     expect(c.idle()).toBe(true);

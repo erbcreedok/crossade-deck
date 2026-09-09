@@ -251,10 +251,18 @@ describe("the hand on the glass", () => {
     const three = laid();
     expect(three[1]!.x).toBeCloseTo(0, 6);
     expect(three[2]!.x - three[1]!.x).toBeCloseTo(two[1]!.x - two[0]!.x, 1);
-    // A FULL HAND: the outer cards' centres half a card in from the glass's edges — the chord is the glass.
+    // A FULL HAND: pinned to the glass's edges — by the outer cards' OUTERMOST CORNERS, which a
+    // leaning card throws further out than its centre: the left card's rank corner stays on the
+    // glass with a tenth of a card to spare, and the right one the same, so the fan is symmetric.
+    const reach = (i: number): number => {
+      const shown = byId(hud.root, HAND_HUD_BOX)!.children;
+      const a = ((fieldsOf<TransformableFields>(shown[i]!, "Transformable")?.angle ?? 0) * Math.PI) / 180;
+      return 0.5 * Math.cos(a) + 0.7 * Math.abs(Math.sin(a));
+    };
     deal(12);
     const full = laid();
-    expect(full[11]!.x - full[0]!.x).toBeCloseTo(glassW - 1, 2);
+    expect(full[0]!.x - reach(0)).toBeCloseTo(-glassW / 2 + 0.1, 2);
+    expect(full[11]!.x + reach(11)).toBeCloseTo(glassW / 2 - 0.1, 2);
     expect(full[0]!.x + full[11]!.x).toBeCloseTo(0, 6);
     // ...ON A SHALLOW ARC: the outer cards drop, but less than half a card.
     expect(full[0]!.y - full[5]!.y).toBeGreaterThan(0);
@@ -262,7 +270,8 @@ describe("the hand on the glass", () => {
     // AND MORE CARDS STILL PRESS TOGETHER INSIDE THE SAME CHORD, never past the edges.
     deal(15);
     const more = laid();
-    expect(more[14]!.x - more[0]!.x).toBeCloseTo(glassW - 1, 2);
+    expect(more[0]!.x - reach(0)).toBeCloseTo(-glassW / 2 + 0.1, 2);
+    expect(more[14]!.x - more[0]!.x).toBeLessThan(full[11]!.x - full[0]!.x + 1e-6);
     hud.stop();
   });
 

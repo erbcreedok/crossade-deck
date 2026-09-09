@@ -88,18 +88,33 @@ const HUD_GAP = 0.06;
  * cards' middle, in card heights — far, so the arc is shallow and the outer cards drop a third of a
  * card, no more. Few cards do not spread to the edges: neighbours stand at most `apart` card widths
  * apart along the arc, so two or three sit together in the middle.
+ *
+ * THE ENDS ARE READ OFF THE OUTER CARD'S OWN CORNER, not off its centre: a leaning card reaches
+ * further out than half its width, and what has to stay on the glass is the corner that names it —
+ * the rank in the top-left of the leftmost card. `edge` is the strip of glass kept clear beyond
+ * that corner, in card widths, and the same on the right, so the fan is symmetric.
  */
-const HUD_FAN = { radius: 7, apart: 1.06 };
+const HUD_FAN = { radius: 7, apart: 1.06, edge: 0.1 };
 
 /** Where every card of a fan of `n` stands, in strip units — its lean is its angle on the arc. */
 function fanPlan(n: number, w: number, h: number, roomU: number): readonly { readonly x: number; readonly y: number; readonly angle: number }[] {
   const R = HUD_FAN.radius * h;
-  // The whole arc: the chord that reaches the glass's edges, less a card so the outer ones stay on it.
-  const chord = Math.max(0, Math.min(1, (roomU - w) / (2 * R)));
-  const widest = n > 1 ? (2 * Math.asin(chord) * 180) / Math.PI : 0;
+  const degrees = (rad: number): number => (rad * 180) / Math.PI;
   // ...BUT NEVER FURTHER APART THAN A CARD AND A GAP: few cards keep together in the middle.
-  const most = (2 * Math.asin(Math.min(1, (HUD_FAN.apart * w) / (2 * R))) * 180) / Math.PI;
-  const step = n > 1 ? Math.min(most, widest / (n - 1)) : 0;
+  const most = degrees(2 * Math.asin(Math.min(1, (HUD_FAN.apart * w) / (2 * R))));
+  // The whole arc: the chord that brings the outer cards' outermost corners `edge` in from the
+  // glass's sides. How far a corner reaches depends on the lean, and the lean on the arc — so the
+  // chord is closed in on three times, which is as many times as it takes to settle within a hair.
+  let step = 0;
+  if (n > 1) {
+    let reach = w / 2;
+    for (let pass = 0; pass < 3; pass += 1) {
+      const chord = Math.max(0, Math.min(1, (roomU - 2 * (reach + HUD_FAN.edge * w)) / (2 * R)));
+      step = Math.min(most, degrees(2 * Math.asin(chord)) / (n - 1));
+      const outer = ((step * (n - 1)) / 2 / 180) * Math.PI;
+      reach = (w / 2) * Math.cos(outer) + (h / 2) * Math.sin(outer);
+    }
+  }
   const mid = (n - 1) / 2;
   return Array.from({ length: n }, (_, i) => {
     const angle = (i - mid) * step;

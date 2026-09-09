@@ -239,9 +239,15 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     for (const ch of choreos.values()) if (ch.rides) for (const id of ch.ids) out.set(id, 0);
     return out.size > 0 ? out : undefined;
   };
+  // ...AND NOTHING ON THE SCREEN IS LIFTED. The lift is for a piece crossing the DESK, above the
+  // piles it passes; a card easing along the hand on the glass crosses nothing, and lifted it would
+  // ride over the very bar it is meant to sit under, for as long as the ease runs. The screen is
+  // painted in its own order, moving or still.
   const raised = (): ReadonlySet<NodeId> | undefined => {
     if (active.size === 0 && held.size === 0 && choreos.size === 0 && flights.size === 0) return undefined;
-    return new Set<NodeId>([...active.keys(), ...held, ...choreographed(), ...flying()]);
+    const lifted = new Set<NodeId>();
+    for (const id of [...active.keys(), ...held, ...choreographed(), ...flying()]) if (!onScreen.has(id)) lifted.add(id);
+    return lifted.size > 0 ? lifted : undefined;
   };
 
   const draw = (): void =>
@@ -493,10 +499,18 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     return out;
   };
 
+  /** What stands on the SCREEN, by id — read with the rests, so the lift below can leave it be. */
+  let onScreen = new Set<NodeId>();
   /** Every rest pose the two roots hold, by id — the desk's in root units, the HUD's in its own. */
   const rests = (): Map<NodeId, Transform> => {
     const out = transformsOf(host.root);
-    if (host.hudRoot) for (const [id, t] of transformsOf(host.hudRoot)) out.set(id, t);
+    onScreen = new Set<NodeId>();
+    if (host.hudRoot) {
+      for (const [id, t] of transformsOf(host.hudRoot)) {
+        out.set(id, t);
+        onScreen.add(id);
+      }
+    }
     return out;
   };
 
