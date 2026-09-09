@@ -75,7 +75,10 @@ export {
 } from "./handZone.js";
 export {
   BAR,
+  BAR_FADE,
   BAR_GROUPS,
+  BAR_PLATE,
+  barHeight,
   BAR_POSES,
   BAR_RIGHTS,
   BAR_WHATS,

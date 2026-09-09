@@ -8,8 +8,8 @@
 // (`Avatars.pressed`), which has its own checks.
 
 import { describe, expect, it } from "vitest";
-import { add, Bounded, byId, caps, fieldsOf, node, rect, Transformable, type Node, type SurfacedFields, type TransformableFields } from "game-kit";
-import { BAR, BAR_POSES, BAR_RIGHTS, barExtent, barPress, chairBarGroupId, chairBarId, chairButtonId, dressBar, fitBar, seatBar, type BarWhat } from "./handBar.js";
+import { add, Bounded, byId, caps, extentOf, fieldsOf, footprint, node, rect, Transformable, type Node, type SurfacedFields, type TransformableFields } from "game-kit";
+import { BAR, BAR_POSES, BAR_RIGHTS, barExtent, barHeight, barPress, chairBarGroupId, chairBarId, chairButtonId, dressBar, fitBar, seatBar, type BarWhat } from "./handBar.js";
 import { handPose, setHandHidden, setHandPose } from "./handZone.js";
 import { chairId, mayTake, roundMap, seatChair, setChairPin, setHandLock, chairPinned } from "./index.js";
 import { SEATS } from "./liveMap.js";
@@ -17,7 +17,7 @@ import { SEATS } from "./liveMap.js";
 const poseOf = (n: Node) => fieldsOf<TransformableFields>(n, "Transformable")!.at!;
 
 describe("the controls of a hand", () => {
-  it("bar.the-controls-stand-in-two-groups-at-the-foot-of-the-glass — the rights on the left, the poses and the glass on the right", () => {
+  it("bar.the-controls-stand-in-two-groups-at-the-foot-of-the-glass — one opaque bar, the rights on its left, the flip and the folds on its right", () => {
     const desk = roundMap();
     const seat = SEATS[0]!.seat;
     const chair = byId(desk, chairId(seat))!;
@@ -38,25 +38,33 @@ describe("the controls of a hand", () => {
     }
     expect(rights.children.map((c) => barPress(c)!.what)).toEqual(BAR_RIGHTS);
     expect(poses.children.map((c) => barPress(c)!.what)).toEqual(BAR_POSES);
-    // THE RIGHTS IN A ROW from the group's left edge, a step apart; the poses two by two from its
-    // right edge — so each group is placed by the corner it stands in.
+    // ONE ROW EACH, on the bar's midline: the rights from the group's left edge, a step apart; the
+    // flip and the folds from the group's right edge — so each group is placed by its own corner.
     const step = BAR.size + BAR.gap;
     rights.children.forEach((c, i) => {
       expect(poseOf(c).x).toBeCloseTo(BAR.size / 2 + step * i);
-      expect(poseOf(c).y).toBeCloseTo(-BAR.size / 2);
+      expect(poseOf(c).y).toBeCloseTo(0);
     });
-    expect(poseOf(poses.children[1]!)).toEqual({ x: -BAR.size / 2, y: -BAR.size / 2 - step });
-    expect(poseOf(poses.children[0]!).x).toBeCloseTo(-BAR.size / 2 - step);
-    expect(poseOf(poses.children[0]!).y).toBeCloseTo(-BAR.size / 2 - step);
-    expect(poseOf(poses.children[2]!), "tuck under the two").toEqual({ x: -BAR.size / 2 - step, y: -BAR.size / 2 });
-    // PUT AT THE FOOT OF A GLASS: the corners, a margin in.
+    poses.children.forEach((c, i) => {
+      expect(poseOf(c).x).toBeCloseTo(-(BAR.size / 2 + step * (BAR_POSES.length - 1 - i)));
+      expect(poseOf(c).y).toBeCloseTo(0);
+    });
+    // LAID ACROSS THE FOOT OF A GLASS: the plate as wide as the glass, standing on the inset; the
+    // groups a margin in from either edge.
     const screen = node("screen");
     add(screen, bar);
     fitBar(screen, seat, { w: 6, h: 12 }, 0.2);
-    expect(poseOf(rights)).toEqual({ x: -3 + 0.2, y: 6 - 0.2 });
-    expect(poseOf(poses)).toEqual({ x: 3 - 0.2, y: 6 - 0.2 });
+    expect(poseOf(bar)).toEqual({ x: 0, y: 6 - 0.2 - barHeight() / 2 });
+    expect(extentOf(footprint(bar)!).w).toBeCloseTo(6);
+    expect(poseOf(rights)).toEqual({ x: -3 + BAR.margin, y: 0 });
+    expect(poseOf(poses)).toEqual({ x: 3 - BAR.margin, y: 0 });
     expect(barExtent("rights").w).toBeCloseTo(BAR.size + step * (BAR_RIGHTS.length - 1));
-    expect(barExtent("poses").h).toBeCloseTo(BAR.size + step);
+    expect(barExtent("poses").w).toBeCloseTo(BAR.size + step * (BAR_POSES.length - 1));
+    // A GLASS NARROWER THAN THE ROW shrinks both groups alike rather than letting them collide.
+    fitBar(screen, seat, { w: 3, h: 12 }, 0);
+    const shrunk = fieldsOf<TransformableFields>(rights, "Transformable")!.scale!;
+    expect(shrunk).toBeLessThan(1);
+    expect(fieldsOf<TransformableFields>(poses, "Transformable")!.scale).toBe(shrunk);
     // A PLACE NOBODY HOLDS HAS NO CONTROLS: there is nobody to press them.
     const free = seatChair("north", { at: { x: 0, y: -5 } });
     expect(seatBar("north", free, "accent")).toHaveLength(0);

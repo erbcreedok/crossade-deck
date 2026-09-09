@@ -223,7 +223,7 @@ export function cameraHud(host: Host, opts: CameraHudOptions): CameraHud {
  * is not `viewport-fit=cover` — and jsdom, which computes nothing — answers with something that is
  * not a length, and the honest reading of that is zero: a screen with no notch has no inset.
  */
-function deviceInsets(el: HTMLElement): { readonly right: number; readonly bottom: number } {
+export function deviceInsets(el: HTMLElement): { readonly right: number; readonly bottom: number } {
   const win = el.ownerDocument?.defaultView;
   if (!win?.getComputedStyle) return { right: 0, bottom: 0 };
   el.style.setProperty("--gk-safe-right", "env(safe-area-inset-right, 0px)");

@@ -9,9 +9,11 @@
 // THE SEAT DESIGN SPLITS THEM IN TWO. On the FELT a place wears MARKS: a column of small badges on
 // the owner's left — a pin, a padlock, a struck eye — one for every state that is on and none for
 // one that is off, so the whole table reads WHY a card will not come out before anybody reaches for
-// it. Nobody presses a mark. The CONTROLS stand on the owner's own HUD, in two groups at the foot
-// of the glass: the rights on the left, the pose on the right. Everybody sees the marks; only the
-// owner has the controls, because only the owner's screen carries them.
+// it. Nobody presses a mark. The CONTROLS stand on the owner's own HUD, on ONE OPAQUE BAR across the
+// foot of the glass — the owner's stand for it (`design/hud`): the rights on the left, the flip and
+// the three folds on the right, one row. The cards of the hand stand above the bar and are drawn
+// UNDER it, tucked under its edge like under a spine. Everybody sees the marks; only the owner has
+// the controls, because only the owner's screen carries them.
 //
 // EVERY CONTROL CARRIES ITS MEANING (`Valued`: which control, whose hand) — the press is the kit's
 // (`wireButtons`) and reports every press on the glass; what it MEANS is read off the control and
@@ -45,12 +47,12 @@ import {
 import { chairId, chairPinned, isChair, SEAT_LOOK } from "./seatPlace.js";
 import { HAND_FOLDS, handHidden, handLocked, handPose, isHand, type HandFold } from "./handZone.js";
 
-/** What a control is for — the four rights and the three folds. */
+/** What a control is for — the three rights, the flip, and the three folds. */
 export type BarWhat = "pin" | "lock" | "hide" | "flip" | HandFold;
 /** The rights, in the order they stand — on the chair as marks and on the HUD as controls. */
-export const BAR_RIGHTS: readonly BarWhat[] = ["pin", "lock", "hide", "flip"];
-/** The folds, in the order they stand on the HUD. */
-export const BAR_POSES: readonly BarWhat[] = [...HAND_FOLDS];
+export const BAR_RIGHTS: readonly BarWhat[] = ["pin", "lock", "hide"];
+/** The flip and the folds, in the order they stand on the HUD — the stand's right group. */
+export const BAR_POSES: readonly BarWhat[] = ["flip", ...HAND_FOLDS];
 export const BAR_WHATS: readonly BarWhat[] = [...BAR_RIGHTS, ...BAR_POSES];
 /** The two groups a bar is, and which controls stand in each. */
 export type BarGroup = "rights" | "poses";
@@ -60,10 +62,16 @@ export const BAR_GROUPS: Readonly<Record<BarGroup, readonly BarWhat[]>> = { righ
 const MARKED: readonly BarWhat[] = ["pin", "lock", "hide"];
 
 /**
- * A CONTROL'S MEASURE, in HUD units — the design's 46px button beside its 74px card, with the
- * design's 3px keyline and 8px corner over it. `gap` is between controls.
+ * THE BAR'S MEASURE, in HUD units — the stand's numbers over its 74px card: a 44px button, a 6px
+ * gap, 16px in from the edges, 8px of bar round the buttons, a 3px keyline and an 8px corner; the
+ * cards tucked 18px under the bar's edge, and 150px of shade behind them, dense at the bar.
  */
-export const BAR = { size: 0.62, gap: 0.08, radius: 0.11, line: 0.04 };
+export const BAR = { size: 0.6, gap: 0.08, margin: 0.22, pad: 0.11, radius: 0.11, line: 0.04, tuck: 0.24, fade: 2, shade: 0.85 };
+
+/** How tall the bar is, in HUD units — the buttons and the bar round them. */
+export function barHeight(): number {
+  return BAR.size + 2 * BAR.pad;
+}
 
 /**
  * A MARK'S MEASURE, in units of the felt — the design's 20px badge beside its 74px arch, in a
@@ -91,6 +99,10 @@ const PLATE_OFF = "desk.bar.off";
 const FACE_OFF = "desk.bar.off.face";
 const PLATE_ON = "desk.bar.on";
 const MARK_PLATE = "desk.seat.mark";
+/** The bar itself — opaque wood with the keyline, drawn over the cards. */
+export const BAR_PLATE = "desk.bar.plate";
+/** The shade behind the cards — from the bar up, dense at the bar, nothing at the top. */
+export const BAR_FADE = "desk.bar.fade";
 
 /** The id a control answers to. Built here, never parsed (`guard.id-is-opaque`). */
 export function chairButtonId(seat: string, what: BarWhat): string {
@@ -112,18 +124,19 @@ export function chairMarkId(seat: string, what: BarWhat): string {
   return `${chairId(seat)} mark ${what}`;
 }
 
-/** THE GLYPHS — the design's own strokes for the rights; the folds and the glass drawn to match. */
+/** THE GLYPHS — the design's own strokes for the rights; the flip and the folds drawn as CARDS (the stand's). */
 const GLYPHS: Readonly<Record<BarWhat, string>> = {
   pin: '<path d="M9 3h6l-1 6h2l1 5H7l1-5h2L9 3z"/><path d="M12 14v7"/>',
   lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3"/><path d="M5 11h14v10H5z"/>',
   hide: '<path d="M3 3l18 18"/><path d="M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5"/><path d="M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9"/>',
-  flip: '<rect x="8.5" y="5" width="7" height="14" rx="1.4"/><path d="M5 9V6.5h2.5"/><path d="M5 6.5 7.4 8.9"/><path d="M19 15v2.5h-2.5"/><path d="M19 17.5 16.6 15.1"/>',
-  // THREE CARDS SPREAD — every one of them showing.
-  fan: '<rect x="9" y="6" width="6" height="10" rx="1" transform="rotate(-24 12 16)"/><rect x="9" y="6" width="6" height="10" rx="1"/><rect x="9" y="6" width="6" height="10" rx="1" transform="rotate(24 12 16)"/>',
-  // THREE CARDS CLOSED UP — a count nobody reads.
-  shrink: '<rect x="5" y="6" width="6" height="12" rx="1"/><rect x="9" y="6" width="6" height="12" rx="1"/><rect x="13" y="6" width="6" height="12" rx="1"/>',
-  // ONE CARD BEHIND A RIM, its tip showing.
-  tuck: '<path d="M4 13h16"/><path d="M9 13V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v7"/><path d="M4 13v6h16v-6"/>',
+  // A CARD AND TWO ARCS ROUND IT — turn over.
+  flip: '<rect x="7.5" y="4" width="9" height="16" rx="1.5"/><path d="M4 9.5A9 9 0 0 1 8.2 4.4"/><path d="M8.6 2.2 8.2 4.4l2.2.5"/><path d="M20 14.5A9 9 0 0 1 15.8 19.6"/><path d="M15.4 21.8l.4-2.2-2.2-.5"/>',
+  // THREE CARDS OUT OF ONE POINT — every one of them showing.
+  fan: '<rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(-28 12 20)"/><rect x="9" y="5" width="6" height="12" rx="1"/><rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(28 12 20)"/>',
+  // A CARD AND ARROWS INTO IT — closed up.
+  shrink: '<rect x="8" y="5" width="8" height="14" rx="1"/><path d="M2 12h4"/><path d="M4 9.5 6.5 12 4 14.5"/><path d="M22 12h-4"/><path d="M20 9.5 17.5 12l2.5 2.5"/>',
+  // A CARD GOING DOWN UNDER THE BAR — put away.
+  tuck: '<path d="M12 2v6"/><path d="M9.5 5.5 12 8l2.5-2.5"/><rect x="8" y="9.5" width="8" height="8" rx="1"/><path d="M3 15h18v5H3z"/>',
 };
 
 /** A glyph as a picture, in one colour — the dark plate wants a light one, the gold plate a dark one. */
@@ -159,6 +172,12 @@ export function installBarArt(): void {
     radius: BAR.radius,
     stroke: { color: SEAT_LOOK.black, width: BAR.line, alignment: 1 },
   });
+  registerSurface(BAR_PLATE, {
+    layers: [{ gradient: { stops: [{ at: 0, paint: BAR_LOOK.rim }, { at: 0.02, paint: SEAT_LOOK.black }, { at: 0.06, paint: BAR_LOOK.rim }, { at: 0.1, paint: "#3a2a1d" }, { at: 1, paint: "#2a1d13" }], angle: 90 } }],
+  });
+  registerSurface(BAR_FADE, {
+    layers: [{ gradient: { stops: [{ at: 0, paint: `rgba(11,7,4,0)` }, { at: 1, paint: `rgba(11,7,4,${BAR.shade})` }], angle: 90 } }],
+  });
   registerSurface(MARK_PLATE, {
     layers: [{ paint: SEAT_LOOK.black }],
     stroke: { color: SEAT_LOOK.gold, width: MARK.line, alignment: 1 },
@@ -193,20 +212,20 @@ function control(seat: string, what: BarWhat, lit: boolean, at: { readonly x: nu
 }
 
 /**
- * Where a control stands in its group — the rights in a row from the group's left edge; the folds
- * from its right edge, the design's own: fan and shrink side by side, tuck under them.
+ * Where a control stands in its group — one row each, on the bar: the rights from the group's
+ * left edge, the flip and the folds from the group's right edge. A group's origin is its outer
+ * edge on the bar's midline, so the two are placed by the corners of the glass.
  */
 function seatOf(group: BarGroup, i: number): { readonly x: number; readonly y: number } {
   const step = BAR.size + BAR.gap;
-  if (group === "rights") return { x: BAR.size / 2 + step * i, y: -BAR.size / 2 };
-  const col = i % 2;
-  const row = Math.floor(i / 2);
-  return { x: -(BAR.size / 2 + step * (1 - col)), y: -(BAR.size / 2 + step * (1 - row)) };
+  if (group === "rights") return { x: BAR.size / 2 + step * i, y: 0 };
+  const n = BAR_GROUPS[group].length;
+  return { x: -(BAR.size / 2 + step * (n - 1 - i)), y: 0 };
 }
 
 /**
- * THE CONTROLS FOR ONE HAND, built and not yet placed — `fitBar` puts the two groups at the foot
- * of a glass.
+ * THE BAR FOR ONE HAND — the opaque plate and its two groups, built and not yet placed: `fitBar`
+ * lays it across the foot of a glass.
  *
  * Only for a chair that is a HAND: a board's place has no cards to shut, hide or turn, and a pin on
  * a place that already refuses every other finger would be a control that does nothing. And only
@@ -215,7 +234,7 @@ function seatOf(group: BarGroup, i: number): { readonly x: number; readonly y: n
 export function seatBar(seat: string, chair: Node, _ink: Paint): Node[] {
   if (!isChair(chair) || !isHand(chair)) return [];
   installBarArt();
-  const bar = node(chairBarId(seat), Transformable({ at: { x: 0, y: 0 } }));
+  const bar = node(chairBarId(seat), Bounded({ bounds: rect(1, barHeight()) }), Surfaced({ surface: BAR_PLATE }), Transformable({ at: { x: 0, y: 0 } }));
   for (const group of ["rights", "poses"] as const) {
     const holder = node(chairBarGroupId(seat, group), Transformable({ at: { x: 0, y: 0 } }));
     BAR_GROUPS[group].forEach((what, i) => add(holder, control(seat, what, false, seatOf(group, i))));
@@ -236,26 +255,33 @@ export function barPress(control: Node): { readonly seat: string; readonly what:
   return BAR_WHATS.includes(what as BarWhat) ? { seat, what: what as BarWhat } : undefined;
 }
 
-/** How wide and how tall each group is, in HUD units — what a screen keeps clear for them. */
+/** How wide a group is, in HUD units. */
 export function barExtent(group: BarGroup): { readonly w: number; readonly h: number } {
   const step = BAR.size + BAR.gap;
   const n = BAR_GROUPS[group].length;
-  return group === "rights" ? { w: BAR.size + step * (n - 1), h: BAR.size } : { w: BAR.size + step, h: BAR.size + step };
+  return { w: BAR.size + step * (n - 1), h: BAR.size };
 }
 
 /**
- * PUT THE TWO GROUPS AT THE FOOT OF A GLASS — the rights at the bottom-left corner, the poses at
- * the bottom-right, each `margin` in from the edges, in the frame whose origin is the glass's
- * middle and whose unit is the HUD's.
+ * LAY THE BAR ACROSS THE FOOT OF A GLASS — the plate as wide as the glass, standing on the
+ * device's own inset (`inset`, HUD units), the rights `BAR.margin` in from its left edge and the
+ * flip and the folds the same in from its right, in the frame whose origin is the glass's middle.
  */
-export function fitBar(where: Node, seat: string, glass: { readonly w: number; readonly h: number }, margin: number): void {
+export function fitBar(where: Node, seat: string, glass: { readonly w: number; readonly h: number }, inset = 0): void {
   const bar = byId(where, chairBarId(seat));
   if (!bar) return;
+  const h = barHeight();
+  compose(bar, Bounded({ bounds: rect(Math.max(1, glass.w), h) }));
+  compose(bar, Transformable({ ...(fieldsOf<TransformableFields>(bar, "Transformable") ?? {}), at: { x: 0, y: glass.h / 2 - inset - h / 2 } }));
   const rights = byId(bar, chairBarGroupId(seat, "rights"));
   const poses = byId(bar, chairBarGroupId(seat, "poses"));
-  const low = glass.h / 2 - margin;
-  if (rights) compose(rights, Transformable({ ...(fieldsOf<TransformableFields>(rights, "Transformable") ?? {}), at: { x: -glass.w / 2 + margin, y: low } }));
-  if (poses) compose(poses, Transformable({ ...(fieldsOf<TransformableFields>(poses, "Transformable") ?? {}), at: { x: glass.w / 2 - margin, y: low } }));
+  // SEVEN CONTROLS HAVE TO FIT THE GLASS. A glass narrower than the row — a phone whose HUD unit
+  // runs bigger than the stand's card — shrinks both groups alike, about their outer edges, rather
+  // than letting the two rows run into each other in the middle.
+  const need = barExtent("rights").w + barExtent("poses").w + 2 * BAR.margin + BAR.gap;
+  const scale = glass.w > 0 && need > glass.w ? Math.max(0.5, glass.w / need) : 1;
+  if (rights) compose(rights, Transformable({ ...(fieldsOf<TransformableFields>(rights, "Transformable") ?? {}), at: { x: -glass.w / 2 + BAR.margin * scale, y: 0 }, scale }));
+  if (poses) compose(poses, Transformable({ ...(fieldsOf<TransformableFields>(poses, "Transformable") ?? {}), at: { x: glass.w / 2 - BAR.margin * scale, y: 0 }, scale }));
 }
 
 /**

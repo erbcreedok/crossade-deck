@@ -16,7 +16,9 @@ import {
   DEFAULT_VIEWER,
   byId,
   caps,
+  extentOf,
   fieldsOf,
+  footprint,
   Flippable,
   installStockControls,
   installStockSurfaces,
@@ -136,16 +138,20 @@ describe("the hand on the glass", () => {
     expect(byId(hud.root, chairButtonId("south", "lock")), "…beside the strip, not in it").toBeUndefined();
     expect(barPress(lock)).toEqual({ seat: "south", what: "lock" });
     expect(caps(lock).has("Pressable")).toBe(true);
-    // AT THE FOOT: the rights in the left corner, the poses in the right, below the glass's middle.
+    // ON ONE BAR AT THE FOOT: the bar below the glass's middle and as wide as it; the rights on its
+    // left, the flip and the folds on its right.
     const v = b.host.viewport();
     const u = b.host.unit();
+    const bar = byId(screen, chairBarId("south"))!;
+    expect(poseOf(bar).y).toBeGreaterThan(0);
+    expect(poseOf(bar).y * u).toBeLessThan(v.height / 2);
+    expect(extentOf(footprint(bar)!).w * u).toBeCloseTo(v.width, 0);
     const rights = poseOf(byId(screen, chairBarGroupId("south", "rights"))!);
     const poses = poseOf(byId(screen, chairBarGroupId("south", "poses"))!);
-    expect(rights.y).toBeGreaterThan(0);
-    expect(rights.y * u).toBeLessThan(v.height / 2);
     expect(rights.x).toBeLessThan(0);
     expect(poses.x).toBeGreaterThan(0);
-    expect(poses.y).toBeCloseTo(rights.y);
+    // ...AND THE STRIP STANDS ON THE BAR, its cards tucked under the bar's top edge.
+    expect(poseOf(hud.root).y).toBeLessThan(poseOf(bar).y);
     // ...AND THE ROOM THEY TAKE IS REPORTED, so the camera's pair stands clear of them.
     expect(hud.floor()).toBeGreaterThan(0);
     // ...AND LIT BY THE CHAIR'S OWN STATE, not by a second one kept here.

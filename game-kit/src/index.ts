@@ -605,6 +605,7 @@ export { idleReturn, type IdleReturnOpts, type IdleReturnTracker } from "./rende
 // for a `liveTable`, and `cameraHud` is the pair itself for a consumer that owns its own screen.
 export {
   cameraHud,
+  deviceInsets,
   CAMERA_HUD,
   CAMERA_HUD_HOME,
   CAMERA_HUD_NORTH,

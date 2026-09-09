@@ -48,10 +48,11 @@ import {
   type Host,
   type Node,
   type Paint,
+  deviceInsets,
   type SurfacedFields,
   type TransformableFields,
 } from "game-kit";
-import { barExtent, chairBarId, dressBar, fitBar, seatBar } from "./handBar.js";
+import { BAR, BAR_FADE, barHeight, chairBarId, dressBar, fitBar, seatBar } from "./handBar.js";
 import { HAND, handPose, handRoom, handWidth, posePlan, type HandFold } from "./handZone.js";
 import { handLayout, ZONE_SPREAD } from "./felt.js";
 import { chairId } from "./seatPlace.js";
@@ -59,6 +60,10 @@ import { chairId } from "./seatPlace.js";
 /** The nodes this file makes, by the names a reader sees in the inspector. */
 export const HAND_HUD = "hud/hand";
 export const HAND_HUD_BOX = "hud/hand/box";
+/** The shade behind the cards — from the bar up, dense at the bar and nothing at the top. */
+export const HAND_HUD_FADE = "hud/hand/fade";
+/** The empty strip's own outline — a dashed place a card is dealt into; nothing once a card is in it. */
+const HAND_HUD_EMPTY = "hud/hand/empty";
 const HAND_HUD_FREE = "hud/hand/free";
 const HAND_HUD_SCREEN = "hud/hand/screen";
 
@@ -66,12 +71,12 @@ const HAND_HUD_SCREEN = "hud/hand/screen";
 function foldLayout(fold: HandFold): string {
   return `hud/hand/${fold}`;
 }
-/** How much of a tucked hand shows above the controls, in HUD units — the tip that is pulled on. */
+/** How much of a tucked hand shows above the bar, in HUD units — the tip that is pulled on. */
 const TUCK_TIP = 0.45;
 /** The fan on the glass — the chair's own front fan, re-centred on the strip. */
 const FAN = { side: "front", fold: "fan" } as const;
 
-/** How far the strip stands off the foot of the glass, in HUD units, before the device's own inset. */
+/** How far the strip stands in from the sides of the glass, in HUD units. */
 export const HAND_HUD_MARGIN = 0.14;
 
 
@@ -145,6 +150,7 @@ export interface HandHud {
  */
 export function handHud(host: Host, o: HandHudOptions): HandHud {
   registerLayout(HAND_HUD_FREE, freeLayout);
+  registerSurface(HAND_HUD_EMPTY, { layers: [], radius: 0.06, stroke: { color: "text", width: 0.03, opacity: 0.45, dash: { on: 0.12, off: 0.08 } } });
   // THE THREE FOLDS ON THE GLASS. A squeezed row and a tucked row are the felt's own row arrangement
   // (`handLayout`); the fan is the chair's front fan brought to the strip's middle, its angles
   // written by `refresh` off the same plan, so the cards stand where their leans say they do.
@@ -165,6 +171,9 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
   // ONE NODE FOR THE WHOLE THING — the box of cards and the controls over it — so it is placed once,
   // measured once, and taken down once. The BOX inside it arranges what it holds in the fold the
   // chair's own pose names (`foldLayout`), so a hand that fans here fans there, by the same numbers.
+  // THE SHADE BEHIND THE CARDS goes in first, so it lies under them and under the bar alike.
+  const fade = node(HAND_HUD_FADE, Bounded({ bounds: roundedRect(1, BAR.fade, 0) }), Surfaced({ surface: BAR_FADE }), Transformable({ at: { x: 0, y: 0 } }));
+  add(screen, fade);
   const root = node(HAND_HUD, Container({ layout: HAND_HUD_FREE }), Transformable({ at: { x: 0, y: 0 } }));
   const strip = node(
     HAND_HUD_BOX,
@@ -253,6 +262,12 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     // (a board) hangs no strip at all, which is the whole of that difference.
     manifest = cards.map((c) => c.id);
     for (const card of cards) add(strip, shownOf(card));
+    // EMPTY, A DASHED PLACE THE SIZE OF A CARD stands where the cards would — laid by the same
+    // arrangement, tucked under the bar the same way — and nothing else: holding a card, the cards
+    // are the place.
+    if (cards.length === 0) {
+      add(strip, node(HAND_HUD_EMPTY, Bounded({ bounds: roundedRect(1, 1.4, 0.06) }), Surfaced({ surface: HAND_HUD_EMPTY }), Transformable({ at: { x: 0, y: 0 } })));
+    }
     compose(strip, Container({ layout: foldLayout(fold) }));
     // THE LEAN OF A FAN, off the same plan its positions come from; a row lies level.
     if (fold === "fan") {
@@ -275,18 +290,25 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     high = tallest + fanned + 2 * HAND.pad + handRoom();
     compose(strip, Bounded({ bounds: roundedRect(Math.max(wide, 1), Math.max(high, 1), HAND.pad) }));
 
-    // THE CONTROLS AT THE FOOT OF THE GLASS, in the two corners, and the strip ABOVE the taller
-    // group of them — worked out from the glass every time and never remembered, because a phone
-    // turned on its side is a different foot (`cameraHud`'s own note). A tucked hand is let down
-    // so only its tip shows above the controls: the tip is what is pulled on to bring it back up.
-    fitBar(screen, o.seat, glass, HAND_HUD_MARGIN);
+    // THE BAR ACROSS THE FOOT OF THE GLASS, on the device's own inset, and the strip standing on
+    // it — the cards' bottom edge `BAR.tuck` UNDER the bar's top edge, drawn beneath it, like under
+    // a spine. Worked out from the glass every time and never remembered, because a phone turned
+    // on its side is a different foot (`cameraHud`'s own note). A tucked hand is let down so only
+    // its tip shows above the bar: the tip is what is pulled on to bring it back up.
+    const inset = u > 0 ? deviceInsets(host.view).bottom / u : 0;
+    fitBar(screen, o.seat, glass, inset);
     dressBar(screen, o.seat, chair);
-    const rest = glass.h / 2 - HAND_HUD_MARGIN - controlsHeight();
-    const low = rest - high / 2 + (fold === "tuck" ? Math.max(0, high - TUCK_TIP) : 0);
+    const barTop = glass.h / 2 - inset - barHeight();
+    // The strip's box keeps the grip's room UNDER the row (`handRoom`), so the row's own bottom
+    // edge is `handRoom()` above the box's; the box is placed so that edge is `BAR.tuck` below
+    // the bar's top.
+    const cardsBottom = barTop + BAR.tuck + (fold === "tuck" ? Math.max(0, high - handRoom() - TUCK_TIP) : 0);
+    const low = cardsBottom + handRoom() - high / 2;
     compose(root, Transformable({ at: { x: 0, y: low } }));
+    // ...AND THE SHADE, from the bar's top edge up, as wide as the glass.
+    compose(fade, Bounded({ bounds: roundedRect(Math.max(1, glass.w), BAR.fade, 0) }));
+    compose(fade, Transformable({ at: { x: 0, y: barTop - BAR.fade / 2 } }));
   };
-  /** The room the two groups take at the foot, in HUD units, and their margin — nothing until they are up. */
-  const controlsHeight = (): number => (barMade ? Math.max(barExtent("rights").h, barExtent("poses").h) + HAND_HUD_MARGIN : 0);
   /**
    * HOW MUCH OF THE FOOT IS SPOKEN FOR, in device pixels — read off the glass AS IT IS NOW and not
    * off a number remembered at the last refresh: the camera's own pair asks this when the glass is
@@ -294,8 +316,9 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
    */
   const floorNow = (): number => {
     const u = host.unit();
-    const strip = (fold === "tuck" ? Math.min(high, TUCK_TIP) : high) + HAND_HUD_MARGIN;
-    return (controlsHeight() + HAND_HUD_MARGIN + strip) * u;
+    const inset = u > 0 ? deviceInsets(host.view).bottom : 0;
+    const shown = fold === "tuck" ? TUCK_TIP : Math.max(0, high - handRoom() - BAR.tuck);
+    return inset + (barHeight() + shown + HAND_HUD_MARGIN) * u;
   };
   refresh();
   // A GLASS THAT CHANGED SIZE IS A DIFFERENT FOOT. The host measures it and tells everyone; the
@@ -344,6 +367,7 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
       remove(screen, root);
       const bar = byId(screen, chairBarId(o.seat));
       if (bar) remove(screen, bar);
+      remove(screen, fade);
       if (ownScreen && host.hudRoot === screen) host.setHudRoot(previous);
     },
   };
