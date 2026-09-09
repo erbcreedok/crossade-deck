@@ -4,7 +4,7 @@
     "",
     "## Two layouts, one paper",
     "",
-    "**Classic** is the printed card: a black keyline, a cream margin, a faint inner rule; an index in the corner (rank over a small pip) mirrored into the far corner so the card reads upside down; the standard pip grid at centre, one big pip for the ace, and for the courts an engraved figure seated inside the rule. **Minimal** is the kit's own card: the same paper, one index in the corner, one mark at centre — a court is a letter and a mark like any number. The jokers set their word small in both corners (classic) or top and bottom (minimal), and wear the hat at centre in their own ink.",
+    "**Classic** is the printed card: a thin white keyline, a cream margin, a faint inner rule; an index in the corner (rank over a small pip) mirrored into the far corner so the card reads upside down; the standard pip grid at centre, one big pip for the ace, and for the courts an engraved figure seated inside the rule. **Minimal** is the kit's own card: the same paper, one index in the corner, one mark at centre — a court is a letter and a mark like any number. The jokers set their word small in both corners (classic) or top and bottom (minimal), and wear the hat at centre in their own ink.",
     "",
     "## Four colours and Cyrillic are switches, not decks",
     "",
@@ -22,7 +22,7 @@
     "One card, big — the page to compare the two doors on. Switch `source` between vector and raster and the picture must not move by a pixel. Tap the card to turn it over; the back is the panel's own."
   ],
   "docs.decks.pile": [
-    "A pile in the kit's `stack()` pose, the same drift a game's deck has: the edge of every card under the top one shows what a stack of this style looks like on the felt. Face up, the paper and its index; face down, the back."
+    "A pile in the kit's `stack()` pose, the same drift a game's deck has: the edge of every card under the top one shows what a stack of this style looks like on the felt. Face up, the paper and its index; face down, the back. The climb is capped by the pose's `thickness` — a pack of 52 and a pile of 500 are the same tidy block, the set dealt again once it runs out."
   ],
   "docs.decks.gallery": [
     "The whole deck on one desk — a suit per row, then the jokers and the brand card, then the six backs. The page a style is judged on: every face of the set in the panel's style, through the panel's door."

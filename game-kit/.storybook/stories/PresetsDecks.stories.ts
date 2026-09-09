@@ -129,26 +129,31 @@ interface PileArgs extends DeckArgs {
   faceUp: boolean;
 }
 
-/** The first `count` cards of the set, in its own order — a run across the suits, courts included. */
+/**
+ * `count` cards in the set's own order, the set dealt again once it runs out — a pile is not
+ * limited to one pack, and 500 cards is a pile the kit's `stack()` keeps to its thickness.
+ */
 function dealt(a: PileArgs, style: DeckStyle): Node[] {
   const back = deckBackSurface(a.back);
-  return crossade()
-    .slice(0, Math.max(0, Math.min(a.count, IDS.length)))
-    .map((spec, i) =>
-      node(
-        spec.id,
-        Bounded({ bounds: rect(1, 1.4) }),
-        Surfaced({ surface: deckFaceSurface(spec, style) }),
-        Flippable({ flip: "turnOver", back, turns: a.faceUp ? 0 : 1 }),
-        Transformable(stack(a.count)[i]),
-      ),
+  const count = Math.max(0, Math.floor(a.count));
+  const specs = crossade();
+  return stack(count).map((pose, i) => {
+    const spec = specs[i % specs.length]!;
+    return node(
+      `${spec.id}#${Math.floor(i / specs.length)}`,
+      Bounded({ bounds: rect(1, 1.4) }),
+      Surfaced({ surface: deckFaceSurface(spec, style) }),
+      Flippable({ flip: "turnOver", back, turns: a.faceUp ? 0 : 1 }),
+      Transformable(pose),
     );
+  });
 }
 
 /**
  * A PILE — the kit's `stack()` pose, the same drift a game's deck has, so the edge of every card
  * under the top one shows what a stack of this style looks like on the felt: face up, the paper
- * and its index; face down, the back.
+ * and its index; face down, the back. The climb is capped by the pose's `thickness`, so a pack of
+ * 52 and a pile of 500 are the same tidy block.
  */
 export const Pile: StoryObj<PileArgs> = {
   render: (a) => {
@@ -158,10 +163,10 @@ export const Pile: StoryObj<PileArgs> = {
     dealt(a, style).forEach((card) => add(pile, card));
     return scene(pile, { flipOnTap: true, camera: fitted(3, 3.6) }).el;
   },
-  args: { ...DECK_ARGS, count: 12, faceUp: true },
+  args: { ...DECK_ARGS, count: 52, faceUp: true },
   argTypes: {
     ...DECK_KNOBS,
-    count: documented("arg.count", { control: { type: "number", min: 0, max: 55, step: 1 } }, "pile"),
+    count: documented("arg.count", { control: { type: "number", min: 0, max: 500, step: 1 } }, "pile"),
     faceUp: documented("arg.faceUp", { control: { type: "boolean" } }, "pile"),
   },
   parameters: { gkDocStory: "decks.pile" },

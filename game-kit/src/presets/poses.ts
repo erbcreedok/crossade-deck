@@ -49,6 +49,11 @@ export function fan(count: number, { spread = 60, radius = 2 }: FanOptions = {})
 export interface StackOptions {
   /** Where each next card lands, relative to the one under it. Default a whisker up-right. */
   readonly drift?: Point;
+  /**
+   * How far the top card may sit from the bottom one, in units, along the drift's LONGER axis.
+   * Default 0.18 of a card: a pack of 52 (or 500) is a pack, not a staircase of a whole card.
+   */
+  readonly thickness?: number;
 }
 
 /**
@@ -57,9 +62,15 @@ export interface StackOptions {
  * Thickness is position — the model's own lesson, dealt: siblings keep tree order, so the card
  * added last already shows on top, and lifting the stack (its container's `z`) lifts every card
  * exactly once.
+ *
+ * AND IT IS CAPPED. The drift is what a few cards climb; past `thickness` the same drift, scaled
+ * down as one vector, is shared out over the whole pack — the direction stays the drift's own, the
+ * climb stays even, and the pack never grows with its count.
  */
-export function stack(count: number, { drift = { x: 0.03, y: -0.03 } }: StackOptions = {}): DealtPose[] {
-  return deal(count, (i) => ({ at: { x: times(i, drift.x), y: times(i, drift.y) }, angle: 0 }));
+export function stack(count: number, { drift = { x: 0.03, y: -0.03 }, thickness = 0.18 }: StackOptions = {}): DealtPose[] {
+  const reach = Math.max(Math.abs(drift.x), Math.abs(drift.y)) * Math.max(0, count - 1);
+  const k = reach > thickness ? thickness / reach : 1;
+  return deal(count, (i) => ({ at: { x: times(i, drift.x * k), y: times(i, drift.y * k) }, angle: 0 }));
 }
 
 export interface CascadeOptions {

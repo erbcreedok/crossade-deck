@@ -29,6 +29,23 @@ describe("pose presets", () => {
     expect(pile[2]!.at.y).toBeCloseTo(-0.04, 10);
   });
 
+  it("pose.a-stack-has-a-thickness — the whole climb is capped, so 500 cards are a pack and not a staircase", () => {
+    // Under the cap the drift is the drift: three cards climb 0.06.
+    expect(stack(3)[2]!.at.x).toBeCloseTo(0.06, 10);
+    // Past it the drift shrinks so the top card sits exactly `thickness` from the bottom one.
+    const pack = stack(52);
+    expect(pack[51]!.at.x).toBeCloseTo(0.18, 10);
+    expect(pack[51]!.at.y).toBeCloseTo(-0.18, 10);
+    const tall = stack(500, { thickness: 0.25 });
+    expect(tall[499]!.at.x).toBeCloseTo(0.25, 10);
+    // The climb stays even: every step is the same shrunken drift.
+    expect(pack[26]!.at.x).toBeCloseTo((0.18 * 26) / 51, 10);
+    // The direction is the drift's own — a wide drift is scaled, not clipped per axis.
+    const wide = stack(100, { drift: { x: 0.04, y: -0.02 }, thickness: 0.2 });
+    expect(wide[99]!.at.x).toBeCloseTo(0.2, 10);
+    expect(wide[99]!.at.y).toBeCloseTo(-0.1, 10);
+  });
+
   it("pose.a-cascade-steps-evenly — the same march, spaced to be read", () => {
     const run = cascade(4, { step: { x: 0.1, y: 0.3 } });
     expect(run.map((p) => p.at)).toEqual([
