@@ -33,6 +33,7 @@ import {
   flickOf,
   flightOf,
   flockTo,
+  homeOf,
   letFall,
   mapWalls,
   restsAt,
@@ -201,6 +202,35 @@ describe("the fall runtime", () => {
     expect(felt.x1, "a wider desk, a wider wall").toBeCloseTo(7 - 0.5, 9);
     expect(felt.y0, "on every side").toBeCloseTo(-(7 - 0.5), 9);
     expect(mapWalls(p, 1.3, { w: 14, h: 14 }).x1).toBeCloseTo(7 - 0.65, 9);
+  });
+
+  it("fall.let-go-outside-its-walls-a-piece-comes-home — to the nearest point inside, at the speed that stops it there", () => {
+    // A HAND MAY CARRY A CARD PAST THE EDGE OF THE PAGE; the release may not leave it there. The
+    // slide it is given is aimed at the nearest point inside its walls and stops exactly there —
+    // `v² = 2·a·d` — with no scatter and no throw in it, whatever the hand's own speed was.
+    const box = { x0: -3, y0: -3, x1: 3, y1: 3 };
+    const out = node("out", Bounded({ bounds: rect(1, 1.4) }), Transformable({ at: { x: 5, y: 1 } }));
+    const feel = dropOf(out, {});
+    const home = homeOf(out, box, feel, 4)!;
+    expect(home, "outside: a slide home").toBeDefined();
+    expect(home.angle, "aimed straight at the wall it is past").toBeCloseTo(180, 5);
+    expect((home.speed * home.speed) / (2 * home.friction), "…stopping exactly on it, two units away").toBeCloseTo(2, 6);
+    expect(homeOf(node("in", Bounded({ bounds: rect(1, 1.4) }), Transformable({ at: { x: 1, y: 1 } })), box, feel, 4), "inside: nothing").toBeUndefined();
+    // ...AND THE DESK FILES EXACTLY THAT SLIDE on a release, however hard the hand flicked.
+    registerLayout("fall.free", freeLayout);
+    const root = node("root", Container({ layout: "fall.free" }));
+    add(root, out);
+    const host = mount(document.createElement("div"), root);
+    const painter = { ready: Promise.resolve(), draw: () => {}, resize: () => {}, destroy: () => {} };
+    const motions = attachMotion(host, painter, { friction: 4 });
+    const filed: { speed: number; angle: number }[] = [];
+    const spied = { ...motions, slide: (id: string, opts: { speed: number; angle: number }) => { filed.push({ speed: opts.speed, angle: opts.angle }); motions.slide(id, opts as never); } };
+    const scene: FallScene = { host, motions: spied as never };
+    motions.grab([{ id: "out", offset: { x: 0, y: 0 } }], { anchor: { x: 5, y: 1 } });
+    expect(letFall(scene, [{ id: "out", offset: { x: 0, y: 0 } }], 1, { x: 900, y: 0 }, undefined, { card: "fall" }, undefined, undefined, undefined, () => box)).toBe(true);
+    expect(filed).toHaveLength(1);
+    expect(filed[0]!.angle, "home, not where the hand flung it").toBeCloseTo(180, 5);
+    expect(filed[0]!.speed).toBeCloseTo(home.speed, 6);
   });
 
   it("fall.toss-goes-over-only-when-thrown — a die set down keeps its face, a die flicked rolls; and the desk may wall the flight", () => {

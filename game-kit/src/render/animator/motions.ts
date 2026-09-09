@@ -333,6 +333,13 @@ export interface Motions {
    * tuning's own lift back. A run nobody is carrying is left alone.
    */
   hoist(id: NodeId, lift?: number): void;
+  /**
+   * RESEAT ONE PIECE OF A CARRIED RUN — its offset from the hand, changed in place, with nothing
+   * else about the carry touched: no spring re-seeded, no gather begun. What a picture riding the
+   * hand needs when where it must stand is decided afresh on every move (a landing clamped to the
+   * walls while the finger roams past them). A piece nobody is carrying is left alone.
+   */
+  reseat(id: NodeId, offset: Vec): void;
   /** The carry's speed right now for the given hand (default "local", root units/s) — what a throw on release inherits. `undefined` when nothing is carried by that hand. */
   velocity(hand?: string): Vec | undefined;
   /**

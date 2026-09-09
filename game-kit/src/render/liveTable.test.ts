@@ -55,7 +55,7 @@ import {
   transformsOf,
 } from "../index.js";
 import { Camera } from "./camera/index.js";
-import { GRIP_SPEC, isDrawn } from "./grips.js";
+import { GRIP_SPEC, isDrawn, isMark } from "./grips.js";
 import { liveTable } from "./liveTable.js";
 import { HOME_ANCHOR, homeTarget, isHome } from "./presence.js";
 
@@ -1222,6 +1222,39 @@ describe("the live desk", () => {
     c.tick(60);
     live.stop();
     shell.host.setHudRoot(undefined);
+  });
+
+  it("liveTable.the-hand-roams-and-the-landing-stays-inside — carried off the page, the picture of the landing stands on it", () => {
+    // THE OWNER'S RULE: a finger holding a card may leave the game zone; the DROP decides. So the
+    // carry has no tray — nothing ends the gesture at the edge and flings the card back — and the
+    // picture of where the card lands is clamped to the walls the desk gives a release: it stands
+    // at the nearest point inside while the finger is outside, where the drop will send the card.
+    const { root } = desk();
+    const c = fakeClock();
+    const shell = stage(root, c.clock, false);
+    const box = { x0: -2, y0: -2, x1: 2, y1: 2 };
+    const live = liveTable(shell.el.ownerDocument.body, root, {
+      stage: shell,
+      stacking: true,
+      letGo: "throw",
+      heapKindOf: (n: Node) => (fieldsOf<BoundedFields>(n, "Bounded") && !isDrawn(n) ? "card" : ""),
+      pieces: { wallsOf: () => box },
+    });
+    const u = shell.host.unit();
+    // Slowly, four units right of the middle — two past the wall.
+    shell.el.dispatchEvent(finger("pointerdown", 300, 200, 0));
+    for (let i = 1; i <= 4; i += 1) {
+      shell.el.dispatchEvent(finger("pointermove", 300 + i * u, 200, i * 200));
+      c.tick(i * 200);
+    }
+    c.tick(900);
+    const held = shell.motions!.poses()!.get("card")!;
+    expect(apply(held, { x: 0, y: 0 }).x, "the card is where the finger is, past the wall").toBeGreaterThan(3);
+    const mark = shell.host.root.children.find((n) => isMark(n))!;
+    expect(mark, "a picture of the landing is up").toBeDefined();
+    const shown = shell.motions!.poses()!.get(mark.id) ?? transformsOf(shell.host.root).get(mark.id)!;
+    expect(apply(shown, { x: 0, y: 0 }).x, "…and it stands on the wall, inside").toBeLessThanOrEqual(2 + 1e-6);
+    live.stop();
   });
 
   it("liveTable.a-felt-sized-ring-is-still-a-control — no picture of a landing under a dragged seat", () => {

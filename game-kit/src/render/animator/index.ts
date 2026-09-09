@@ -1036,6 +1036,17 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         return;
       }
     },
+    reseat(id, offset) {
+      for (const cy of carries.values()) {
+        const i = cy.items.findIndex((it) => it.id === id);
+        if (i < 0) continue;
+        const it = cy.items[i]!;
+        if (it.offset.x === offset.x && it.offset.y === offset.y) return;
+        cy.items = cy.items.map((one, k) => (k === i ? { ...one, offset } : one));
+        ensureLoop();
+        return;
+      }
+    },
     busy(id) {
       if (flights.has(id)) return true;
       for (const ch of choreos.values()) if (ch.ids.includes(id)) return true;

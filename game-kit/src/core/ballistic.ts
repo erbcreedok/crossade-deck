@@ -119,10 +119,18 @@ export type Walls = BoxWalls | RingWalls | TrapWalls;
 const isRing = (w: Walls): w is RingWalls => (w as RingWalls).r !== undefined;
 const isTrap = (w: Walls): w is TrapWalls => (w as TrapWalls).inner !== undefined;
 
-/** The one wall a body at `at` is held by — the trap's ring when it is inside it, its box when not. */
+/**
+ * HOW FAR PAST THE RING A BODY MAY BE AND STILL COUNT AS INSIDE IT, units — the rail's own
+ * thickness. A body is shoved past the ring by a neighbour it landed on, or steps past it within
+ * one frame, and read as "outside" a hair later it would be the box's, sliding off the felt as the
+ * throw died. So the rail is thick: within this of the ring, it is the ring's and comes back.
+ */
+export const TRAP_SLACK = 0.6;
+
+/** The one wall a body at `at` is held by — the trap's ring when it is inside it (or within the rail), its box when not. */
 function wallFor(w: Walls, at: Vec): BoxWalls | RingWalls {
   if (!isTrap(w)) return w;
-  return Math.hypot(at.x - w.inner.cx, at.y - w.inner.cy) <= w.inner.r ? w.inner : w.outer;
+  return Math.hypot(at.x - w.inner.cx, at.y - w.inner.cy) <= w.inner.r + TRAP_SLACK ? w.inner : w.outer;
 }
 
 /**

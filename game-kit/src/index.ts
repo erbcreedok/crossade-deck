@@ -480,6 +480,7 @@ export { permutation, rollDie, seededRng, type Rng } from "./core/rng.js";
 export {
   bodyAt,
   insideWalls,
+  TRAP_SLACK,
   polar,
   slideRests,
   stepFall,

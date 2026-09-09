@@ -313,11 +313,14 @@ function playFor(game: TableGame, seat: () => string | null, onGlass: (at: Vec) 
       letGo: "throw",
       // ...AND A TAP TURNS WHAT IT LANDED ON, which on a closed pile is the top of the deck.
       flipping: true,
-      // THE PAGE IS A WALL AND THE FELT A TRAP (`roundWalls`): a card is carried anywhere on the
-      // page and never off it; a throw on the page bounces off the page's edge and may fly onto the
-      // table, a throw on the table bounces off the felt's edge from inside and never leaves it.
-      // One tray for the hand and the throw — asked twice, the two could differ.
-      trayOf: (_root: Node, hit: Node) => roundWalls(hit),
+      // THE PAGE IS A WALL TO A RELEASE AND THE FELT A TRAP (`roundWalls`) — and NOTHING to a hand:
+      // a card is carried wherever the finger goes, off the page too, and it is the DROP that
+      // decides. Let go over the hand on the glass, it goes into the hand; let go off the page, it
+      // flies back to the nearest point on it (the picture of its landing already stands there);
+      // a throw on the page bounces off the page's edge and may fly onto the table, a throw on the
+      // table bounces off the felt's edge from inside and never leaves it. A tray on the carry
+      // would end the gesture at the page's edge and fling the card back in the moment the finger
+      // crossed it — which is the one thing a finger holding a card must never feel.
       pieces: { wallsOf: (piece: Node) => roundWalls(piece) },
       anchorMark: ANCHOR_MARK,
     };

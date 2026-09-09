@@ -16,6 +16,7 @@
 import { wouldAccept } from "../core/atoms/acceptor.js";
 import { Coated, NO_COAT, type Coat } from "../core/atoms/coated.js";
 import { draggable } from "../core/atoms/draggable.js";
+import { insideWalls } from "../core/ballistic.js";
 import { facing, setFacing } from "../core/atoms/flippable.js";
 import { mark } from "../core/atoms/marked.js";
 import { Private } from "../core/atoms/private.js";
@@ -821,6 +822,20 @@ export function liveTable<S extends LiveStage = LiveStage>(
       // is still when it fires has stopped throwing, whatever its last speed said.
       if (rest !== undefined) clearTimeout(rest);
       rest = undefined;
+      // ...AND WHERE IT LANDS IS INSIDE THE WALLS the desk gives a release, wherever the finger is:
+      // a hand may carry a card off the page, and the picture stands at the nearest point ON it —
+      // which is where the drop will send the card (`letFall`). The desk's own answer, asked with
+      // the lead where it is; a desk that walls nothing lands the card under the finger.
+      const lead = ids[0] ? byId(built.host.root, ids[0]) : undefined;
+      const walled = lead ? pieces?.wallsOf?.(lead, at) : undefined;
+      const put = walled ? insideWalls(walled, at) : at;
+      // The picture rides the hand's own carry as one more item, so it is moved by its OFFSET from
+      // the hand (`reseat`) — the card stays under the finger, the picture stands the clamp's
+      // distance away, and nothing about the carry is re-seeded for it.
+      if (landingPic.current && !done) {
+        const seat = landingPic.current.seat;
+        built.motions?.reseat(landingPic.current.node.id, { x: seat.x + put.x - at.x, y: seat.y + put.y - at.y });
+      }
       if (done) {
         throwingNow(undefined);
         landingPic.end();
@@ -829,10 +844,10 @@ export function liveTable<S extends LiveStage = LiveStage>(
         rest = setTimeout(() => {
           rest = undefined;
           throwingNow(undefined);
-          if (landingPic.current) landingPic.show(at, zones ? zoneAimed(ids, at) : undefined, feel, carried);
+          if (landingPic.current) landingPic.show(at, zones ? zoneAimed(ids, put) : undefined, feel, carried);
         }, HAND_AT_REST_MS);
       } else {
-        landingPic.show(at, zones ? zoneAimed(ids, at) : undefined, feel, carried);
+        landingPic.show(at, zones ? zoneAimed(ids, put) : undefined, feel, carried);
       }
     },
     // ...AND THE ZONE MY HAND IS OVER, TOLD TO ME. The wiring lights it; what it asks is this, and

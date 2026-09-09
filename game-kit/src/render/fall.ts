@@ -11,7 +11,7 @@ import { mark } from "../core/atoms/marked.js";
 import { ridesFelt } from "../core/atoms/carry.js";
 import { type ValuedFields } from "../core/atoms/valued.js";
 import { apply, compose as composeTransforms, rotate, type Vec } from "../core/transform.js";
-import { polar, velocityOf, type BoxWalls, type Walls } from "../core/ballistic.js";
+import { insideWalls, polar, velocityOf, type BoxWalls, type Walls } from "../core/ballistic.js";
 import { RISE, type CarryItem, type Motions } from "./animator/index.js";
 import { type Host } from "./host.js";
 
@@ -350,6 +350,21 @@ export function bumped(feel: DropFeel, piece: Node, bump?: Bump): DropFeel {
  */
 export function shoves(speed: number, holds = true): boolean {
   return !holds || speed > 0;
+}
+
+/**
+ * THE SLIDE THAT BRINGS A PIECE LET GO OUTSIDE ITS WALLS BACK TO THE NEAREST POINT INSIDE — speed,
+ * heading and the drag it will feel — or nothing for a piece already inside. Constant deceleration
+ * `a` stops a body after `v²/2a`, so the speed that stops it exactly at the wall's edge is `√(2·a·d)`.
+ */
+export function homeOf(piece: Node, walls: Walls, feel: DropFeel, friction: number): { readonly speed: number; readonly angle: number; readonly friction: number } | undefined {
+  const from = seatIn(piece);
+  const to = insideWalls(walls, from);
+  const gap = Math.hypot(to.x - from.x, to.y - from.y);
+  if (gap <= 1e-9) return undefined;
+  const drag = feel.friction ?? friction;
+  if (drag <= 0) return undefined;
+  return { speed: Math.sqrt(2 * drag * gap), angle: polar({ x: to.x - from.x, y: to.y - from.y }).angle, friction: drag };
 }
 
 /**
@@ -818,6 +833,11 @@ export function letFall(
     // A desk that says nothing gets the map's own border, as every desk on this shelf did.
     walls: wallsOf?.(piece, seatIn(piece)) ?? mapWalls(piece),
     delayMs,
+    // LET GO OUTSIDE ITS WALLS, A PIECE COMES BACK IN: a hand may carry a card past the edge of
+    // the page, and the release sends it to the nearest point inside — the very point the picture
+    // of its landing stood at — on the desk's own slide, at exactly the speed that comes to rest
+    // there (`v² = 2·a·d`). A throw from out there is not a throw; it is a card coming home.
+    home: homeOf(piece, wallsOf?.(piece, seatIn(piece)) ?? mapWalls(piece), feelOf(piece), s.motions?.tuning().friction ?? 0),
   }));
   const standing = alsoInTheWay(
     root,
@@ -879,9 +899,11 @@ export function letFall(
   }
   after?.();
   let left = dropped.length;
-  for (const { id, feel, walls, delayMs, fan } of dropped) {
-    const seat = flock.get(id);
+  for (const { id, feel, walls, delayMs, fan: scatterAt, home } of dropped) {
+    const seat = home ?? flock.get(id);
     const flight = seat ?? (hand ? flightOf(hand, feel.throwGain) : { speed: 0, angle: 0 });
+    // A card coming home does not scatter: it is aimed, not thrown.
+    const fan = home ? undefined : scatterAt;
     if (s.actor && flight.speed > 0 && !marked) {
       const piece = byId(s.host.root, id);
       // NOT A CONTROL, on this path either — see the calm release above.

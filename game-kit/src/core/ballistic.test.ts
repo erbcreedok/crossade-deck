@@ -183,6 +183,12 @@ describe("ballistic", () => {
     // ...AND NEVER OUT AGAIN: from the step after it entered, it is inside the ring, whatever it does.
     for (const b of inward.slice(entered)) expect(Math.hypot(b.pos.x, b.pos.y)).toBeLessThanOrEqual(2 + 1e-9);
     expect(inward.slice(entered).some((b) => Math.hypot(b.pos.x, b.pos.y) >= 2 - 1e-9), "it met the far edge from inside").toBe(true);
+    // 2b. SHOVED A HAIR PAST THE RING — by a neighbour it landed on, or by one long frame — it is
+    //     still the ring's: pulled back onto the rail, never handed to the box and let slide off.
+    const shoved: Body = { pos: { x: 2.3, y: 0 }, vel: velocityOf(3, 0), angle: 0, spin: 0, up: 0, upVel: 0 };
+    const back = runSlide(shoved, cfg, 300);
+    expect(back[1]!.pos.x, "the first step already puts it back on the rail").toBeLessThanOrEqual(2 + 1e-9);
+    for (const b of back.slice(1)) expect(Math.hypot(b.pos.x, b.pos.y)).toBeLessThanOrEqual(2 + 1e-9);
     // 3. THE HAND IS HELD BY THE PAGE ALONE: clamped, a point on the page is not moved, one off it
     //    comes back to the page's edge — the ring is not a wall to a carry.
     expect(insideWalls(trap, { x: 4, y: 1 })).toEqual({ x: 4, y: 1 });
