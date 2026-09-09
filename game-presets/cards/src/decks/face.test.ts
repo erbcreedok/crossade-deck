@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { crossade, type CardSpec } from "../crossade.js";
 import { backSvg, BACK_NAMES } from "./backs.js";
+import { KEYLINE, px } from "./card.js";
+import { fmt } from "./lettering.js";
 import { faceSvg, isCourt } from "./face.js";
 import { figurePlacement, viewBoxOf } from "./figures.js";
 import { ACCENT_PAINT, deckStyleId, deckStyleOf, DECK_STYLES, FOUR_INK, PAPER, type DeckStyle } from "./style.js";
@@ -129,5 +131,9 @@ describe("decks/face", () => {
     expect(backSvg("plaid")).not.toContain("<path");
     expect(backSvg("club")).toContain("<path");
     expect(backSvg("club")).toContain("<pattern");
+    // The plaid runs to the keyline: no cream ring, its art starts one keyline in.
+    const edge = `<svg x="${fmt(px(KEYLINE.width))}"`;
+    expect(backSvg("plaid")).toContain(edge);
+    expect(backSvg("argyle")).not.toContain(edge);
   });
 });

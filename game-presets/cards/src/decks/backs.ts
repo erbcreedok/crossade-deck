@@ -5,7 +5,7 @@
 // A woven back IS the face: full strength, no crest. A tiled ground sits at half strength under
 // its crest — nothing on a real cloth back sits in the middle of the weave.
 
-import { doc, H, keyline, paperRect, px, R, W } from "./card.js";
+import { doc, H, KEYLINE, keyline, paperRect, px, R, W } from "./card.js";
 import { fmt } from "./lettering.js";
 import { markAt, SUIT_MARKS, type Mark } from "./marks.js";
 import { PAPER } from "./style.js";
@@ -27,6 +27,8 @@ const CLUB = ["..#..#...", ".##..##..", ".###.###.", ".#######.", "#########", "
 
 interface Skin {
   readonly bg: string;
+  /** The cloth runs to the keyline — no cream ring between them. The owner's call for the plaid. */
+  readonly bare?: boolean;
   /** The art, drawn into the inset area — given that area's box. */
   readonly art: (x: number, y: number, w: number, h: number) => string;
   /** The crest at centre, for a tiled back; `undefined` for a woven one. */
@@ -96,7 +98,7 @@ function argyle(): string {
 }
 
 const SKINS: Readonly<Record<BackName, Skin>> = {
-  plaid: { bg: PLAID_BG, art: (x, y, w, h) => woven(plaid(), x, y, w, h) },
+  plaid: { bg: PLAID_BG, bare: true, art: (x, y, w, h) => woven(plaid(), x, y, w, h) },
   argyle: { bg: ARGYLE_BG, art: (x, y, w, h) => woven(argyle(), x, y, w, h) },
   club: {
     bg: RIM_MID,
@@ -120,10 +122,10 @@ const SKINS: Readonly<Record<BackName, Skin>> = {
   },
 };
 
-/** A back, as a whole SVG document: the keyline, a cream ring, the art inset 4px under a rounded clip, the crest. */
+/** A back, as a whole SVG document: the keyline, a cream ring (unless `bare`), the art under a rounded clip, the crest. */
 export function backSvg(name: BackName): string {
   const skin = SKINS[name];
-  const inset = px(4);
+  const inset = skin.bare ? px(KEYLINE.width) : px(4);
   const r = R * 0.6;
   const clip = `<clipPath id="artClip"><rect x="${inset}" y="${inset}" width="${W - 2 * inset}" height="${H - 2 * inset}" rx="${fmt(r)}" ry="${fmt(r)}"/></clipPath>`;
   return doc(
