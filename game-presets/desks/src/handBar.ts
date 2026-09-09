@@ -66,9 +66,10 @@ const MARKED: readonly BarWhat[] = ["pin", "lock", "hide"];
 /**
  * THE BAR'S MEASURE, in HUD units — the stand's numbers over its 74px card: a 44px button, a 6px
  * gap, 16px in from the edges, 8px of bar round the buttons, a 3px keyline and an 8px corner; the
- * cards tucked 18px under the bar's edge, and 150px of shade behind them, dense at the bar.
+ * cards tucked 18px under the bar's edge, and 75px of shade behind them, dense at the bar — half
+ * the stand's: the owner wanted the reach of the foot half as tall.
  */
-export const BAR = { size: 0.6, gap: 0.08, margin: 0.22, pad: 0.11, radius: 0.11, line: 0.04, tuck: 0.24, fade: 2, shade: 0.85 };
+export const BAR = { size: 0.6, gap: 0.08, margin: 0.22, pad: 0.11, radius: 0.11, line: 0.04, tuck: 0.24, fade: 1, shade: 0.85 };
 
 /** How tall the bar is, in HUD units — the buttons and the bar round them. */
 export function barHeight(): number {
