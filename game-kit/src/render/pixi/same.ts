@@ -60,7 +60,7 @@ export function sameGradient(a: QuadGradient | undefined, b: QuadGradient | unde
   if (!a || !b) return false;
   if (a.from.x !== b.from.x || a.from.y !== b.from.y || a.to.x !== b.to.x || a.to.y !== b.to.y) return false;
   if (a.stops.length !== b.stops.length) return false;
-  return a.stops.every((s, i) => s.at === b.stops[i]!.at && samePaint(s.paint, b.stops[i]!.paint));
+  return a.stops.every((s, i) => s.at === b.stops[i]!.at && (s.opacity ?? 1) === (b.stops[i]!.opacity ?? 1) && samePaint(s.paint, b.stops[i]!.paint));
 }
 
 export function sameLayer(a: QuadLayer, b: QuadLayer): boolean {

@@ -34,6 +34,8 @@ import { rect } from "../presets/shapes.js";
 import { Grabber } from "../core/atoms/grab.js";
 import { freeLayout } from "../core/atoms/layouts.js";
 import { type TransformableFields } from "../core/atoms/transformable.js";
+import { type SurfacedFields } from "../core/atoms/surfaced.js";
+import { surfaceRecord } from "./surfaces.js";
 import { apply, type Vec } from "../core/transform.js";
 import { attachMotion } from "./animator/index.js";
 import { mount } from "./host.js";
@@ -110,6 +112,19 @@ describe("presence", () => {
     expect(Math.max(...points.map((p) => Math.abs(p.x))), "it opens outwards").toBeGreaterThan(0.5);
     // ...AND UNDER THE DISC, not over the initials: the first thing drawn, so the face covers it.
     expect(disc.children[0]).toBe(cone);
+    // ...AND UNDER EVERYTHING ON THE FELT: a look is a light over the desk, not a thing on it, so
+    // it sorts below every piece at rest (z under zero), and no finger meets it — it wears nothing a
+    // finger answers to, and every pick falls through it to what it is looking at.
+    expect(fieldsOf<TransformableFields>(cone!, "Transformable")?.z).toBeLessThan(0);
+    for (const atom of ["Draggable", "Pressable", "Grippable", "Acceptor"]) expect(caps(cone!).has(atom), `no ${atom} on a cone`).toBe(false);
+    // ...AND THINNING OUT WITH DISTANCE: solid at the apex, gone at the far edge — a wash of the
+    // seat's own ink whose stops carry the solidity, so the ink stays a token.
+    const wash = surfaceRecord(fieldsOf<SurfacedFields>(cone!, "Surfaced")!.surface)!.layers[0]!;
+    expect(wash.gradient, "a wash, not a flat fill").toBeDefined();
+    const stops = [...wash.gradient!.stops].sort((a, b) => a.at - b.at);
+    expect(stops[0]!.opacity, "the far end (the top of the node, at 0 on a 90° axis) is gone").toBe(0);
+    expect(stops[stops.length - 1]!.opacity ?? 1, "the apex is solid").toBe(1);
+    expect(stops.every((st) => st.paint === person("south").ink), "one ink all the way").toBe(true);
     // ...AND NOT AT ALL for somebody who is at the desk but not looking at it — the design's "not
     // looking": the disc stands, the cone is gone. Somebody gone is not drawn at all.
     expect(byId(avatarNode(person("south", { state: "away" })), avatarConeId("south"))).toBeUndefined();

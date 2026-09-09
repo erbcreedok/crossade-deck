@@ -13,6 +13,7 @@
 import {
   Application,
   Assets,
+  Color,
   Container,
   FillGradient,
   Graphics,
@@ -316,7 +317,12 @@ export function pixiPainter(view: HTMLCanvasElement, options: PixiPainterOptions
                 textureSpace: "global",
                 start: layer.gradient.from,
                 end: layer.gradient.to,
-                colorStops: layer.gradient.stops.map((s) => ({ offset: s.at, color: paint(theme, s.paint) })),
+                // A STOP'S OWN SOLIDITY rides on its colour: the palette's shade, its own alpha (a
+                // stop written with none is a stop at nothing) times the stop's — never in place of it.
+                colorStops: layer.gradient.stops.map((s) => {
+                  const shade = new Color(paint(theme, s.paint));
+                  return { offset: s.at, color: shade.setAlpha(shade.alpha * (s.opacity ?? 1)) };
+                }),
               })
             : undefined;
           g.fill(wash ? { fill: wash, alpha: layer.opacity } : { color: paint(theme, layer.paint ?? "text"), alpha: layer.opacity });

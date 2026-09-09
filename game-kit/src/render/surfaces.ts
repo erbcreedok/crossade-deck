@@ -45,11 +45,18 @@ export type LineJoin = "miter" | "round" | "bevel";
  * repeating ground with an emblem over it. A flat field could describe none of them and could
  * not express order at all.
  */
-/** One colour stop of a gradient: where it sits along the axis, and what it is. */
+/** One colour stop of a gradient: where it sits along the axis, what it is, and how solid it is there. */
 export interface GradientStop {
   /** 0..1 along the axis — 0 at `from`, 1 at `to`. */
   readonly at: number;
   readonly paint: Paint;
+  /**
+   * How solid the colour is AT THIS STOP, 0..1, default 1 — so a wash can thin out to nothing along
+   * its axis while staying the one colour it is: a token, resolved per client, cannot carry an alpha
+   * of its own, and a stop that ended in "transparent" would run through a darker mix on the way.
+   * Multiplied by the layer's own `opacity`.
+   */
+  readonly opacity?: number;
 }
 
 /**

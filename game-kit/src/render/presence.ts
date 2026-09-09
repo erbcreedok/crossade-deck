@@ -101,6 +101,12 @@ const HALO = { width: 0.12, out: 0.06 };
  */
 const CONE = { half: 0.89, length: 1.84, fade: 0.3 };
 /**
+ * THE CONE LIES UNDER EVERYTHING ON THE FELT — a look is not a thing on the desk, it is a light
+ * over it: the cards and the chairs are drawn over it, and a finger never meets it (it wears no
+ * atom a finger answers to, so every pick falls through it to whatever it is looking at).
+ */
+const CONE_Z = -1;
+/**
  * THE CONE FOLLOWS THE CAMERA — its length is how much felt the owner's glass shows AHEAD of the
  * disc: the desk from the home anchor to the top of the glass, in units, through THEIR zoom. Zoom
  * out and the cone reaches further, zoom in and it shortens; `min`..`max` keep it a cone and not a
@@ -416,7 +422,11 @@ function installLook(p: Presence): void {
   registerSurface(haloSurface(p.seat), { layers: [], stroke: { color: PAINTS.gold, width: HALO.width, alignment: 0, opacity: 0.55 } });
   // SCREEN-UP ON THE OWNER'S GLASS is what the disc's own turn already means (see `avatarNode`), so
   // the cone is drawn straight up the node's own local axis and needs no angle of its own.
-  registerSurface(coneSurface(p.seat), { layers: [{ paint: p.ink, opacity: CONE.fade }] });
+  // ...AND THINS OUT WITH DISTANCE: solid at the apex (the disc's centre, the node's +y end), gone
+  // at the far edge — the owner's rule. Said as the stops' own solidity, so the ink stays a token.
+  registerSurface(coneSurface(p.seat), {
+    layers: [{ gradient: { stops: [{ at: 0, paint: p.ink, opacity: 0 }, { at: 1, paint: p.ink, opacity: 1 }], angle: 90 }, opacity: CONE.fade }],
+  });
   registerSurface(plateSurface(p.seat), {
     layers: [{ paint: PAINTS.keyline }],
     stroke: { color: p.ink, width: PLATE.line, alignment: 1 },
@@ -484,7 +494,7 @@ export function avatarNode(p: Presence, pose: { readonly at: Vec; readonly angle
         avatarConeId(p.seat),
         Bounded({ bounds: polyline([{ x: 0, y: 0 }, { x: -CONE.half * reach, y: -CONE.length * reach }, { x: CONE.half * reach, y: -CONE.length * reach }]) }),
         Surfaced({ surface: coneSurface(p.seat) }),
-        Transformable({ at: { x: 0, y: 0 } }),
+        Transformable({ at: { x: 0, y: 0 }, z: CONE_Z }),
       ),
     );
   }
