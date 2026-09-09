@@ -29,7 +29,9 @@ import {
   compose,
   fieldsOf,
   node,
+  NO_COAT,
   Oriented,
+  Pressable,
   rect,
   registerAsset,
   registerSurface,
@@ -234,7 +236,17 @@ function seatOf(group: BarGroup, i: number): { readonly x: number; readonly y: n
 export function seatBar(seat: string, chair: Node, _ink: Paint): Node[] {
   if (!isChair(chair) || !isHand(chair)) return [];
   installBarArt();
-  const bar = node(chairBarId(seat), Bounded({ bounds: rect(1, barHeight()) }), Surfaced({ surface: BAR_PLATE }), Transformable({ at: { x: 0, y: 0 } }));
+  // THE PLATE ANSWERS THE FINGER AND WEARS NOTHING FOR IT: the foot of the glass is the owner's
+  // furniture, a finger that lands between two buttons is on the bar and not on the felt under it —
+  // so it says so (`Pressable`), and the camera that asks the screen who wants the finger stands
+  // down. A press on it means nothing (`barPress` reads no control off it), which is the point.
+  const bar = node(
+    chairBarId(seat),
+    Bounded({ bounds: rect(1, barHeight()) }),
+    Surfaced({ surface: BAR_PLATE }),
+    Pressable({ hover: NO_COAT, held: NO_COAT, sink: 0, nudge: { x: 0, y: 0 } }),
+    Transformable({ at: { x: 0, y: 0 } }),
+  );
   for (const group of ["rights", "poses"] as const) {
     const holder = node(chairBarGroupId(seat, group), Transformable({ at: { x: 0, y: 0 } }));
     BAR_GROUPS[group].forEach((what, i) => add(holder, control(seat, what, false, seatOf(group, i))));

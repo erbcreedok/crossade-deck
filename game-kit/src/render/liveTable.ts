@@ -1332,6 +1332,8 @@ interface StageOptions {
   readonly homeWidth?: number;
   /** THE SAME `seats.insets` — see `LiveTableOptions.seats.insets`. */
   readonly insets?: HomeInsets;
+  /** THE SAME `standIn` — a picture on the screen that stands for a piece claims the finger from the camera. */
+  readonly standIn?: (n: Node) => Node | undefined;
 }
 
 /**
@@ -1408,6 +1410,11 @@ function buildStage(container: HTMLElement, desk: Node, opts: StageOptions): Bui
     // THE ARBITRATION, as one predicate: whatever can be picked up takes its own finger, and over
     // bare felt the same finger drives the view. The two never argue about a hand.
     claims: draggable,
+    // ...AND ON THE SCREEN, WHAT ANSWERS A FINGER: a control (`Pressable` — the bar under a hand
+    // says so too, so the foot of the glass is a wall), or a picture standing in for a piece
+    // (`standIn`). Everything else drawn there — the shade behind the cards, the empty place a card
+    // is dealt into — is glass, and a finger on it drives the view like one on bare felt.
+    screenClaims: (n) => caps(n).has("Pressable") || opts.standIn?.(n) !== undefined,
     // ...THROUGH THE CLOCK'S MAP, the one the drag wiring picks through: a card in flight is
     // reached where it is drawn, and a finger on it is the card's — not the desk's under it.
     reach: () => motions.reach(),

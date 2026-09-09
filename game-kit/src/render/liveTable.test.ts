@@ -27,6 +27,7 @@ import {
   Flippable,
   freeLayout,
   installStockFlips,
+  Pressable,
   Grabber,
   Screened,
   installStockGrabs,
@@ -1044,6 +1045,50 @@ describe("the live desk", () => {
     expect(facing(card), "the tap turned the card").toBe("down");
     expect(seen.length, "and the desk said so once more").toBe(released + 1);
     expect(seen.at(-1), "with the card already turned").toBe("down");
+    live.stop();
+  });
+
+  it("liveTable.a-finger-on-the-glass-between-the-furniture-drives-the-view — the shade is paint, the bar is a wall", () => {
+    // THE OWNER'S COMPLAINT: reaching for the desk to move the camera, the finger landed a little
+    // low — on the shade drawn behind the hand — and nothing moved, while a tap in the same place
+    // reached the card under it. One finger, two laws. The live desk now asks the screen what the
+    // finger asks: a control or a picture of a piece takes it; anything else drawn there is glass.
+    // On a desk of its own, because that is the one with the camera's fingers wired (`buildStage`).
+    const { root } = desk();
+    const div = document.createElement("div");
+    glass(div);
+    document.body.appendChild(div);
+    const live = liveTable(div, root, {
+      painter: () => stubPainter(),
+      // A ROOM WIDER THAN THE GLASS, so a pan is not clamped straight back to the middle.
+      room: { x: -100, y: -100, w: 200, h: 200 },
+      standIn: (n: Node): Node | undefined => (n.id === "picture" ? byId(root, "card") : undefined),
+    });
+    // THE FINGERS LAND ON THE HOST'S OWN VIEW, the element the camera's wiring listens on.
+    const el = live.host.view;
+    glass(el);
+    const screen = node("screen", Container({ layout: "live.free" }));
+    // The host's HUD unit on a 600×400 glass is 64 and its origin the middle: the shade's middle is
+    // at (300, 264), the bar's at (300, 360), the picture's at (100, 264).
+    add(screen, node("shade", Bounded({ bounds: rect(6, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 1 } })));
+    add(screen, node("bar", Bounded({ bounds: rect(6, 0.5) }), Surfaced(), Pressable(), Transformable({ at: { x: 0, y: 2.5 } })));
+    add(screen, node("picture", Bounded({ bounds: rect(1, 1.4) }), Surfaced(), Transformable({ at: { x: -3.1, y: 1 } })));
+    live.host.setHudRoot(screen);
+    const camera = live.camera!;
+    const u = live.host.unit();
+    const swipe = (x: number, y: number, id: number): void => {
+      el.dispatchEvent(finger("pointerdown", x, y, id * 100));
+      el.dispatchEvent(finger("pointermove", x - 40, y, id * 100 + 16));
+      el.dispatchEvent(finger("pointerup", x - 40, y, id * 100 + 32));
+    };
+    const was = { ...camera.target };
+    swipe(300, 200 + u, 1);
+    expect(camera.target.x, "on the shade, the view moved").not.toBeCloseTo(was.x, 5);
+    const moved = { ...camera.target };
+    swipe(300, 200 + 2.5 * u, 2);
+    expect(camera.target.x, "on the bar, it stayed").toBeCloseTo(moved.x, 5);
+    swipe(300 - 3.1 * u, 200 + u, 3);
+    expect(camera.target.x, "on the picture of a card, it stayed").toBeCloseTo(moved.x, 5);
     live.stop();
   });
 

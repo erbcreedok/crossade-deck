@@ -53,6 +53,14 @@ export interface CameraGestures {
    */
   readonly claims?: ((n: Node) => boolean) | undefined;
   /**
+   * WHO ON THE SCREEN MAY WANT THIS FINGER — the same law, asked of the glass's own furniture. A
+   * control, a picture of a card: over those the camera stands down. The rest of the screen — a
+   * shade drawn behind a hand, a box waiting for a card — is glass, and a finger on glass drives
+   * the view exactly as one on bare felt does. Absent, the whole screen claims: a desk that says
+   * nothing about its screen keeps every finger off the desk under it.
+   */
+  readonly screenClaims?: ((n: Node) => boolean) | undefined;
+  /**
    * WHERE THE PIECES CAN BE REACHED RIGHT NOW — the clock's own map (`Motions.reach`), the same one
    * the drag wiring picks through. A piece the clock is moving rests somewhere it left long ago:
    * asked of the tree alone, the camera found bare felt under a finger that the drag wiring had
@@ -204,10 +212,11 @@ export function wireCamera(w: CameraGestures): CameraControl {
     // The arbitration, in one line: over an element the camera stands down for the whole gesture.
     //
     // THE GLASS'S OWN FURNITURE IS AN ELEMENT TOO, and it is asked first because it stands over the
-    // desk: a control, a hand pinned to the foot of the screen, the anchor that pins it there. A
-    // press on a button that also panned the desk under it, or a card taken off the picture of a
-    // hand that took the whole table with it, is one finger doing two things.
-    if (w.host.hudRoot && pick(w.host, w.host.hudRoot, g, () => true)) {
+    // desk: a control, a hand pinned to the foot of the screen. A press on a button that also panned
+    // the desk under it, or a card taken off the picture of a hand that took the whole table with
+    // it, is one finger doing two things. Asked with the SCREEN'S OWN LAW (`screenClaims`), so what
+    // is merely drawn on the glass — a shade behind the hand — is not a wall the view stops at.
+    if (w.host.hudRoot && pick(w.host, w.host.hudRoot, g, w.screenClaims ?? (() => true))) {
       gesture = "given";
       return;
     }

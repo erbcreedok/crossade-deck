@@ -31,6 +31,11 @@ describe("the controls of a hand", () => {
     const poses = byId(bar, chairBarGroupId(seat, "poses"))!;
     expect(rights.children.map((c) => c.id)).toEqual(BAR_RIGHTS.map((what) => chairButtonId(seat, what)));
     expect(poses.children.map((c) => c.id)).toEqual(BAR_POSES.map((what) => chairButtonId(seat, what)));
+    // THE PLATE ITSELF ANSWERS THE FINGER — the foot of the glass is furniture, not felt: a finger
+    // between two buttons is on the bar, and the camera stands down for it. It wears nothing for
+    // the press and means nothing to a press (`barPress`).
+    expect(caps(bar).has("Pressable"), "the plate answers a finger").toBe(true);
+    expect(barPress(bar), "…and means nothing").toBeUndefined();
     for (const c of [...rights.children, ...poses.children]) {
       expect(caps(c).has("Pressable"), "a control answers a finger").toBe(true);
       // ...AND EACH SAYS WHAT IT IS FOR, and whose: the press reads it back and never parses an id.

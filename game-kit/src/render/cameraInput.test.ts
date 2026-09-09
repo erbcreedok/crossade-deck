@@ -13,7 +13,8 @@ import { freeLayout } from "../core/atoms/layouts.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { Bounded } from "../core/atoms/bounded.js";
-import { add, node, type Node } from "../core/node.js";
+import { add, caps, node, type Node } from "../core/node.js";
+import { Pressable } from "../core/atoms/pressable.js";
 import { DEFAULT_VIEWER } from "../core/viewer.js";
 import { rect } from "../presets/shapes.js";
 import { move, type Transform } from "../core/transform.js";
@@ -79,7 +80,14 @@ interface Bench {
  * every axis has somewhere to go. One card sits at the origin for the arbitration to find.
  */
 function bench(
-  options: { claims?: (n: Node) => boolean; inDocument?: boolean; fling?: boolean; input?: CameraInput; reach?: () => ReadonlyMap<string, Transform> | undefined } = {},
+  options: {
+    claims?: (n: Node) => boolean;
+    screenClaims?: (n: Node) => boolean;
+    inDocument?: boolean;
+    fling?: boolean;
+    input?: CameraInput;
+    reach?: () => ReadonlyMap<string, Transform> | undefined;
+  } = {},
 ): Bench {
   const root = node("desk", Container({ layout: "free" }));
   add(root, node("card", Bounded({ bounds: rect(1, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 0 } })));
@@ -112,6 +120,7 @@ function bench(
     content: () => ({ x: -10, y: -10, w: 20, h: 20 }),
     onView: () => void (painted += 1),
     ...(options.claims ? { claims: options.claims } : {}),
+    ...(options.screenClaims ? { screenClaims: options.screenClaims } : {}),
     ...(options.reach ? { reach: options.reach } : {}),
     ...(options.inDocument === undefined ? {} : { inDocument: options.inDocument }),
   });
@@ -209,6 +218,32 @@ describe("the camera's fingers", () => {
     b.hand.move(2, 160, 250, 48);
     expect(b.wiring.gesture()).toBe("pan");
     expect(b.camera.x).toBeCloseTo(was - 40, 6);
+  });
+
+  it("cameraInput.the-screen-is-asked-with-its-own-law — glass under the finger drives the view, a control on it does not", () => {
+    // A SCREEN IS NOT A WALL. Told who on it wants a finger (`screenClaims`), the camera stands down
+    // for those — a control, a picture of a card — and takes the finger anywhere else on the glass,
+    // however much is drawn there: a shade behind a hand is paint, not furniture. Told nothing, the
+    // whole screen claims, as before.
+    const b = bench({ claims: () => false, screenClaims: (n) => caps(n).has("Pressable") });
+    const screen = node("screen", Container({ layout: "free" }));
+    add(screen, node("shade", Bounded({ bounds: rect(4, 1) }), Surfaced(), Transformable({ at: { x: 0, y: 1 } })));
+    add(screen, node("bar", Bounded({ bounds: rect(4, 0.5) }), Surfaced(), Pressable(), Transformable({ at: { x: 0, y: -1 } })));
+    b.setHud(screen);
+    const was = b.camera.x;
+    // ON THE SHADE: paint, and the view moves under it.
+    b.hand.down(1, 200, 250);
+    b.hand.move(1, 160, 250, 16);
+    expect(b.wiring.gesture()).toBe("pan");
+    expect(b.camera.x).toBeCloseTo(was - 40, 6);
+    b.hand.up(1, 160, 250, 32);
+    // ON THE BAR (a unit above the middle: y = 50): furniture, and the view stays.
+    const now = b.camera.x;
+    b.hand.down(2, 200, 50);
+    b.hand.move(2, 100, 50, 64);
+    expect(b.wiring.gesture()).toBe("given");
+    expect(b.camera.x).toBe(now);
+    b.hand.up(2, 100, 50, 80);
   });
 
   it("cameraInput.a-gesture-given-away-is-not-taken-back", () => {
