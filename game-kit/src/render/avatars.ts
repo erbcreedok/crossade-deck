@@ -335,8 +335,6 @@ export function withAvatars(o: AvatarsOptions): Avatars {
       // the pin are numbers on it, hiding is its zone rule, a flip is the cards' own sides, a
       // fold is the hand's pose. Then the place is re-dressed — which puts the marks beside the
       // chair and lights the HUD's controls off those very numbers (`dressMarks`, `dressBar`).
-      // THE GLASS is not this wiring's: where a reader's hand is drawn is a fact of their screen.
-      if (press.what === "glass") return false;
       if (press.what === "lock") dressChair(ring, { shut: !handLocked(ring) });
       else if (press.what === "hide") setHandHidden(ring, !handHidden(ring));
       else if (press.what === "flip") flipHand(ring);

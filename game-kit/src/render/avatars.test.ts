@@ -177,9 +177,11 @@ describe("the people at a live desk", () => {
       expect(chairHome(byId(desk, chairId(seat))!), `${seat}'s chair says home`).toBe(true);
     }
 
-    // ...AND ONE OF THEM LOOKS AWAY. Their disc leaves the arch, on both screens, and their chair
-    // says so; the other player's picture is untouched, which is what makes it a reading and not a mode.
-    screens[0]!.camera!.target = { x: 0, y: 0 };
+    // ...AND ONE OF THEM WALKS OFF — past the far side of the felt, their own chair off the foot of
+    // their glass. Their disc leaves the arch, on both screens, and their chair says so; the other
+    // player's picture is untouched, which is what makes it a reading and not a mode. (Looking at
+    // the MIDDLE of the desk is not walking off: the chair is still low on the glass, and home.)
+    screens[0]!.camera!.target = { x: 0, y: -4 };
     people.publish();
     expect(at(byId(desk, avatarId(SEATS[0]!.seat))!), "away, the disc is under the glass").not.toEqual(places[0]!.at);
     expect(chairHome(byId(desk, chairId(SEATS[0]!.seat))!)).toBe(false);
@@ -227,7 +229,7 @@ describe("the people at a live desk", () => {
     // THE CONTROLS ARE THE GLASS'S, built off the chair; on the felt there are none to press.
     expect(byId(desk, chairButtonId("south", "lock"))).toBeUndefined();
     const bar = seatBar("south", ring, "accent")[0]!;
-    const control = (what: "lock" | "hide" | "flip" | "pin" | "fan" | "glass") => byId(bar, chairButtonId("south", what))!;
+    const control = (what: "lock" | "hide" | "flip" | "pin" | "fan") => byId(bar, chairButtonId("south", what))!;
     const marked = (what: "lock" | "hide" | "pin"): boolean => chairMarks(desk, "south").some((m) => m.id === chairMarkId("south", what));
 
     // NOBODY ELSE'S FINGER: north pressing south's bar is not this wiring's.
@@ -260,10 +262,9 @@ describe("the people at a live desk", () => {
     expect(mayTake(ring, "south"), "a pinned chair moves for nobody").toBe(false);
     expect(marked("pin")).toBe(true);
 
-    // A FOLD IS THE HAND'S POSE, written on the chair like the rest; the glass is not this wiring's.
+    // A FOLD IS THE HAND'S POSE, written on the chair like the rest.
     expect(people.pressed("south", control("fan"))).toBe(true);
     expect(handPose(ring)).toEqual({ side: "side", fold: "fan" });
-    expect(people.pressed("south", control("glass"))).toBe(false);
 
     // ...AND EACH PRESSED AGAIN IS THE STATE OFF AGAIN.
     people.pressed("south", control("lock"));

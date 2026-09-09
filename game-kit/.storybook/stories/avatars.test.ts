@@ -121,9 +121,11 @@ describe("the people at a live desk", () => {
       expect(chairHome(byId(desk, chairId(seat))!), `${seat}'s chair says home`).toBe(true);
     }
 
-    // ...AND ONE OF THEM LOOKS AWAY. Their disc leaves the arch, on both screens, and their chair
-    // says so; the other player's picture is untouched, which is what makes it a reading and not a mode.
-    (screens[0]!.scene!.camera as { target: { x: number; y: number } }).target = { x: 0, y: 0 };
+    // ...AND ONE OF THEM WALKS OFF — past the far side of the felt, their own chair off the foot of
+    // their glass. Their disc leaves the arch, on both screens, and their chair says so; the other
+    // player's picture is untouched, which is what makes it a reading and not a mode. (Looking at
+    // the MIDDLE of the desk is not walking off: the chair is still low on the glass, and home.)
+    (screens[0]!.scene!.camera as { target: { x: number; y: number } }).target = { x: 0, y: -4 };
     people.publish();
     expect(at(byId(desk, avatarId(SEATS[0]!.seat))!), "away, the disc is under the glass").not.toEqual(places[0]!.at);
     expect(chairHome(byId(desk, chairId(SEATS[0]!.seat))!)).toBe(false);

@@ -34,7 +34,7 @@ import {
   type TransformableFields,
 } from "game-kit";
 import { barPress, chairBarGroupId, chairBarId, chairButtonId } from "./handBar.js";
-import { handHud, HAND_HUD_ANCHOR, HAND_HUD_BOX } from "./handHud.js";
+import { handHud, HAND_HUD_BOX } from "./handHud.js";
 import { layHand } from "./handZone.js";
 import { chairId, seatChair, setHandLock } from "./seatPlace.js";
 
@@ -68,11 +68,10 @@ describe("the hand on the glass", () => {
   it("hud.the-hand-on-the-glass-mirrors-the-one-on-the-felt — same cards, same order, and never a card of its own", () => {
     const b = bench();
     const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
-    hud.attach(true);
-    // EMPTY IS NOTHING AT ALL. A permanent strip across the foot of a phone for a player holding
-    // nothing is the glass spent on a fact that is already visible on the felt.
+    // EMPTY IS A PLACE FOR CARDS: the strip stands at the foot holding nothing, with the controls
+    // beside it — this screen plays cards, and a card dealt to it lands here.
     expect(hud.cards()).toEqual([]);
-    // ...BUT THE CONTROLS ARE, and the foot of the glass is theirs: a hand is put here by pressing one.
+    expect(byId(hud.root, HAND_HUD_BOX), "the empty box is there").toBeDefined();
     expect(hud.floor()).toBeGreaterThan(0);
 
     for (const id of ["a", "b", "c"]) add(b.chair, card(id));
@@ -101,7 +100,6 @@ describe("the hand on the glass", () => {
   it("hud.the-hand-on-the-glass-stands-at-the-foot-of-it — in a row across the bottom, and it says what it took", () => {
     const b = bench();
     const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
-    hud.attach(true);
     for (const id of ["a", "b", "c"]) add(b.chair, card(id));
     layHand(b.chair);
     hud.refresh();
@@ -160,67 +158,6 @@ describe("the hand on the glass", () => {
     expect(byId(screen, chairBarId("south")), "and they go down with the hand").toBeUndefined();
   });
 
-  it("hud.a-hand-goes-onto-the-glass-by-being-carried-there — an anchor while a ring is in hand, and the drop is the switch", () => {
-    // HOW A PLAYER PINS THEIR HAND TO THEIR OWN SCREEN, and the only way: they pick their place up
-    // — the one node on this desk that is theirs (`mayTake`) — and put it down at the foot of the
-    // glass. The anchor is drawn only while a ring is actually in hand, because a dashed box across
-    // the bottom of every game a reader is not moving anything in is a control asking to be noticed
-    // for nothing.
-    const b = bench();
-    const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
-    add(b.chair, card("a"));
-    layHand(b.chair);
-    expect(hud.attached(), "a hand starts on the felt, where every player's does").toBe(false);
-    expect(hud.cards(), "…and nothing of it is on the glass").toEqual([]);
-    expect(byId(b.host.hudRoot!, HAND_HUD_ANCHOR), "no ring in hand, no anchor").toBeUndefined();
-
-    // A RING IN HAND: the anchor appears, and it says whether the finger is over it — dashed while
-    // it is not, solid the moment it is, so the reader is told where the drop will land BEFORE they
-    // let go rather than by what happens after.
-    const v = b.host.viewport();
-    const u = b.host.unit();
-    const away = { x: 20, y: 40 };
-    expect(hud.carrying(away)).toBe(false);
-    const anchor = byId(b.host.hudRoot!, HAND_HUD_ANCHOR)!;
-    expect(anchor, "a ring in hand puts the anchor up").toBeDefined();
-    // ABOVE THE CONTROLS, where the strip will be: the anchor stands where the hand lands.
-    const onIt = { x: v.width / 2 + poseOf(anchor).x * u, y: v.height / 2 + poseOf(anchor).y * u };
-    expect(onIt.y).toBeGreaterThan(v.height / 2);
-    expect(onIt.y).toBeLessThan(v.height);
-    const dashed = surfaceOf(anchor);
-    expect(hud.carrying(onIt)).toBe(true);
-    expect(surfaceOf(anchor), "aimed at, it stops being a dotted line").not.toBe(dashed);
-
-    // LET GO OVER IT AND THE HAND IS THERE.
-    expect(hud.dropped(onIt)).toBe(true);
-    expect(hud.attached()).toBe(true);
-    expect(hud.cards()).toEqual(["a"]);
-    expect(byId(b.host.hudRoot!, HAND_HUD_ANCHOR), "and the anchor goes down with the gesture").toBeUndefined();
-
-    // ...AND WHILE THE ANCHOR IS UP IT CATCHES WHAT IS LET GO ON IT. A hand carried to the glass by
-    // its own handle is a run in the air, and a run let go at the foot of the screen belongs to this
-    // hand: without this it is spilled onto the felt at the moment it was being put away.
-    hud.attach(false);
-    hud.carrying(onIt);
-    expect(hud.overHand(onIt), "the anchor catches what is dropped on it").toBe(true);
-    hud.carrying(undefined);
-    expect(hud.overHand(onIt), "…and catches nothing once it is down").toBe(false);
-    hud.attach(true);
-
-    // ...AND THE SAME GESTURE TAKES IT BACK OFF: one place, one act, both ways.
-    hud.carrying(onIt);
-    expect(hud.dropped(onIt)).toBe(true);
-    expect(hud.attached()).toBe(false);
-    expect(hud.cards()).toEqual([]);
-
-    // A RING LET GO ANYWHERE ELSE IS A RING BEING MOVED ON THE FELT, and says nothing about the glass.
-    hud.carrying(away);
-    expect(hud.dropped(away)).toBe(false);
-    expect(hud.attached()).toBe(false);
-    expect(byId(b.host.hudRoot!, HAND_HUD_ANCHOR)).toBeUndefined();
-    hud.stop();
-  });
-
   it("hud.a-picture-on-the-glass-is-a-way-of-reaching-the-card — the finger takes the card off the felt, and the picture steps aside", () => {
     // ONE CARD, TWO PLACES TO REACH IT. A finger that lands on the strip means the card that lies in
     // the box on the felt: `standFor` is what the drag wiring asks (`DragOptions.standIn`), so the
@@ -228,7 +165,6 @@ describe("the hand on the glass", () => {
     // zones, the same drop, and nothing here has to know what any of them do.
     const b = bench();
     const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
-    hud.attach(true);
     for (const id of ["a", "b"]) add(b.chair, card(id));
     layHand(b.chair);
     hud.refresh();
@@ -252,8 +188,6 @@ describe("the hand on the glass", () => {
     const onIt = { x: v.width / 2 + poseOf(hud.root).x * u, y: v.height / 2 + poseOf(hud.root).y * u };
     expect(hud.overHand(onIt)).toBe(true);
     expect(hud.overHand({ x: 20, y: 40 })).toBe(false);
-    hud.attach(false);
-    expect(hud.overHand(onIt), "a hand that is not on the glass catches nothing dropped at it").toBe(false);
     hud.stop();
   });
 });

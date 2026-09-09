@@ -317,40 +317,60 @@ describe("who is at their own place", () => {
     view,
   });
 
-  it("presence.home-is-the-view-on-the-place — position and turn, and the zoom only when it is known", () => {
+  it("presence.home-is-the-place-low-on-the-glass — turned or zoomed a little, still home; walked off, away", () => {
+    // THE OWNER'S OWN RULE: a reader who spun the view or nudged the pinch but still keeps their
+    // chair in the lower part of the glass is on their chair; one who set off across the felt, or
+    // to somewhere else, has left. The turn is never the question — it is worn by the disc.
     expect(isHome(looking, place)).toBe(true);
-    // A HAIR OFF IS STILL HOME. The glide itself stops at a threshold (`idleReturn`), so a stricter
-    // reading here would leave a reader who HAS come home drawn as away for ever.
-    expect(isHome({ ...looking, target: { x: looking.target.x + 0.05, y: looking.target.y } }, place)).toBe(true);
-    expect(isHome({ ...looking, target: { x: looking.target.x + 1, y: looking.target.y } }, place), "a pan away is away").toBe(false);
-    expect(isHome({ ...looking, rotation: 130 }, place), "turned away is away").toBe(false);
-    // Round the back of the circle: 359° from 1° is two degrees apart, not three hundred and fifty.
-    expect(isHome({ ...looking, rotation: 90.5 }, place)).toBe(true);
+    // A TURN IS ABOUT THE MIDDLE OF THE GLASS, so a place low on it swings up as the view spins: a
+    // little turn keeps it low, half a turn puts it at the top — and that is the rule, not the angle.
+    expect(isHome({ ...looking, rotation: looking.rotation + 45 }, place), "turned a little, the place still low on the glass").toBe(true);
+    expect(isHome({ ...looking, rotation: looking.rotation + 180 }, place), "…but upside down the place is at the TOP").toBe(false);
+    // A pan that walks the place up the glass: past the middle it is away.
+    const up = (px: number) => ({ ...looking, target: { x: looking.target.x + px / looking.zoom, y: looking.target.y } });
+    expect(isHome(up(200), place), "a nudge, the place still low").toBe(true);
+    expect(isHome(up(300), place), "walked up past the middle of the glass").toBe(false);
+    expect(isHome({ ...looking, target: { x: looking.target.x, y: looking.target.y + 12 } }, place), "walked off the glass sideways").toBe(false);
     // THE ZOOM IS ONLY ASKED WHEN THE READER CAN SAY WHAT HOME IS WORTH IN PIXELS — only the owner's
-    // own screen knows its etalon, so a far reader compares what it can and says nothing about the rest.
+    // own screen knows its etalon — and it is a wide gate: half to double.
+    // A PINCH ZOOMS ABOUT THE FINGER, so the place stays where it was on the glass: each view here
+    // is re-aimed for its zoom (`homeTarget`), and only the zoom itself is being judged.
+    const zoomed = (zoom: number) => ({ ...looking, zoom, target: homeTarget(place, { zoom, rotation: looking.rotation, glass: GLASS_UP }) });
     expect(isHome(looking, place, 40)).toBe(true);
-    expect(isHome(looking, place, 80), "zoomed right in is not the opening view").toBe(false);
-    expect(isHome({ ...looking, zoom: 41 }, place, 40), "a nudge of the pinch is still home").toBe(true);
+    expect(isHome(zoomed(70), place, 40), "zoomed in, within double").toBe(true);
+    expect(isHome(zoomed(100), place, 40), "zoomed right in").toBe(false);
+    expect(isHome(zoomed(15), place, 40), "zoomed right out").toBe(false);
+    expect(isHome(zoomed(100), place), "…and a far reader, not knowing the etalon, does not ask").toBe(true);
   });
 
-  it("presence.at-home-the-disc-stands-in-the-arch — at the place, turned as the place is; away, under the glass", () => {
+  it("presence.at-home-the-disc-stands-in-the-arch — at the place, turned as the camera is; away, under the glass", () => {
     // TWO PICTURES, ONE NODE. Somebody looking at their own place IS the disc in their chair — at
-    // the place itself and at the place's own turn, whatever their camera's exact numbers — and the
-    // moment they look away the disc is the only thing that says where they went.
+    // the place itself, but turned as their CAMERA is turned and with a cone that reaches as far as
+    // their glass does: the seat is a fact, the look is a reading. The moment they walk off, the
+    // disc is the only thing that says where they went.
     const desk = node("desk");
     const south = seated("south", looking);
-    placeAvatars(desk, [south, seated("north", { ...looking, target: { x: 0, y: 0 } })]);
+    placeAvatars(desk, [south, seated("north", { ...looking, target: { x: -6, y: 6 } })]);
     const home = byId(desk, avatarId("south"))!;
     expect(home, "home").toBeDefined();
     expect(fieldsOf<TransformableFields>(home, "Transformable")?.at).toEqual(south.place!.at);
-    expect(fieldsOf<TransformableFields>(home, "Transformable")?.angle).toBeCloseTo(-south.place!.facing);
+    expect(fieldsOf<TransformableFields>(home, "Transformable")?.angle).toBeCloseTo(-south.view.rotation);
     const away = byId(desk, avatarId("north"))!;
     expect(away, "away").toBeDefined();
     expect(fieldsOf<TransformableFields>(away, "Transformable")?.at).not.toEqual(south.place!.at);
+    // TURNED AT THE SEAT: still in the arch, and the disc turns with the camera.
+    placeAvatars(desk, [seated("south", { ...looking, rotation: looking.rotation + 45 })]);
+    const spun = byId(desk, avatarId("south"))!;
+    expect(fieldsOf<TransformableFields>(spun, "Transformable")?.at).toEqual(south.place!.at);
+    expect(fieldsOf<TransformableFields>(spun, "Transformable")?.angle).toBeCloseTo(-(looking.rotation + 45));
+    // ...AND THE CONE REACHES AS FAR AS THE GLASS SHOWS: zoomed out, further; zoomed in, less.
+    const reachOf = (zoom: number) => Math.max(...outlineOf(fieldsOf<BoundedFields>(byId(avatarNode(seated("south", { ...looking, zoom })), avatarConeId("south"))!, "Bounded")!.bounds).map((q) => -q.y));
+    expect(reachOf(20)).toBeGreaterThan(reachOf(40));
+    expect(reachOf(80)).toBeLessThan(reachOf(40));
 
     // ...AND THE PICTURES SWAP when they swap — the sweep has to work both ways, or a disc left
     // standing at the place is a person in two places.
-    placeAvatars(desk, [seated("south", { ...looking, target: { x: -4, y: 1 } }), seated("north", looking)]);
+    placeAvatars(desk, [seated("south", { ...looking, target: { x: -6, y: 6 } }), seated("north", looking)]);
     expect(fieldsOf<TransformableFields>(byId(desk, avatarId("south"))!, "Transformable")?.at).not.toEqual(south.place!.at);
     expect(fieldsOf<TransformableFields>(byId(desk, avatarId("north"))!, "Transformable")?.at).toEqual(south.place!.at);
     // ...AND SOMEBODY GONE IS NOT DRAWN AT ALL: their chair says the place is held.

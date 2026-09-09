@@ -16,7 +16,7 @@
 // scene is fed rather than rebuilt in (`scene()`). Everything below is that shell plus a call.
 
 import { heapKindOf } from "./gestureMap.js";
-import { barPress, chairId, gripOwner, handHud, standChair, type HandHud } from "@game-presets/desks";
+import { chairId, handHud, type HandHud } from "@game-presets/desks";
 import {
   type Walls,
   draggable,
@@ -31,7 +31,6 @@ import {
   type Paint,
   apply,
   byId,
-  isPlaceGrip,
   type Meaning,
   type Mirror as KitMirror,
   type CarryItem,
@@ -263,53 +262,16 @@ export function grabScene(
   // from inside the call that builds it).
   let glass: HandHud | undefined;
   let camHud: CameraHud | undefined;
-  let ringFrom: SeatPlace | undefined;
-  let lastAt: Vec | undefined;
   const view = (): ReturnType<Camera["transform"]> | undefined => built.camera?.transform();
   /** A drop aimed at the strip on the glass is a drop into the box on the felt: one hand, one answer. */
   const glassZone = (root: Node, at: Vec): Node | undefined => {
     const t = view();
-    // NOT GATED ON THE HAND BEING PINNED YET: while the anchor is up the drop belongs here too, and
-    // `overHand` is the one that knows which of the two is under the finger.
     if (!glass || !handOnGlass || !t) return undefined;
     return glass.overHand(apply(t, at)) ? byId(root, chairId(handOnGlass.seat)) : undefined;
   };
-  /** Carrying one's own ring to the foot of the glass is what pins the hand there, and unpins it. */
-  const ringToGlass = (items: readonly CarryItem[], at: Vec | undefined, done: boolean): void => {
-    if (!glass || !handOnGlass) return;
-    glass.lifting(done ? [] : items.map((it) => it.id));
-    // ONE'S OWN PLACE, OR ONE'S OWN HAND BY ITS HANDLE — either carried to the foot of the glass
-    // means the same thing. The handle matters more than it looks: a ring with cards in it is nearly
-    // all cards, and a PINNED place refuses the finger altogether (`mayTake`).
-    // ANY of the items, not the first: a run lifted by a handle is the CARDS with the handle riding
-    // along among them, and which end of the list it sits at is the desk's business, not this one's.
-    const byMyHandle = items.some((it) => {
-      const n = byId(built.host.root, it.id);
-      return n !== undefined && isPlaceGrip(n) && gripOwner(n) === handOnGlass.seat;
-    });
-    const mine = items.some((it) => it.id === chairId(handOnGlass.seat)) || byMyHandle;
-    // WHERE THE HAND WAS LAST SEEN. The release reports no point at all — a hand that has let go is
-    // nowhere — so the drop is judged where the last move left it, which is where the finger was.
-    if (at) lastAt = at;
-    const t = view();
-    const where = at ?? lastAt;
-    const point = where && t ? apply(t, where) : undefined;
-    if (!mine) {
-      if (!done) glass.carrying(undefined);
-      return;
-    }
-    if (!done) {
-      ringFrom = ringFrom ?? seats?.placeNow?.();
-      glass.carrying(point);
-      return;
-    }
-    const took = glass.dropped(point);
-    lastAt = undefined;
-    const wasRing = items.some((it) => it.id === chairId(handOnGlass.seat));
-    // AND THE PLACE GOES BACK WHERE IT STOOD: the reader moved their hand to their SCREEN, not
-    // their seat across the table (the drop itself has already left the ring at the foot of the felt).
-    if (took && wasRing && ringFrom) standChair(built.host.root, handOnGlass.seat, ringFrom.at);
-    ringFrom = undefined;
+  /** What is in the air is out of the picture on the glass for as long as it is (`handHud`). */
+  const liftedFromGlass = (items: readonly CarryItem[], done: boolean): void => {
+    glass?.lifting(done ? [] : items.map((it) => it.id));
   };
   const live = liveTable<Scene>(built.el, built.host.root, {
     stage: built,
@@ -341,7 +303,7 @@ export function grabScene(
             changed: () => mirror?.changed(),
             hand: (items: readonly CarryItem[], at: Vec | undefined, done: boolean, feel: Parameters<NonNullable<KitMirror["hand"]>>[3]) => {
               mirror?.hand?.(items, at, done, feel);
-              ringToGlass(items, at, done);
+              liftedFromGlass(items, done);
             },
           } as KitMirror,
         }
@@ -352,21 +314,7 @@ export function grabScene(
     ...(pieces ? { pieces } : {}),
     ...(may ? { may } : {}),
     ...(taps ? { taps } : {}),
-    // THE GLASS CONTROL IS THIS SCREEN'S OWN and is answered here; everything else on the bar is a
-    // fact about the desk and goes to whoever was handed the presses.
-    ...(presses || handOnGlass
-      ? {
-          presses: (meaning: Meaning, control: Node) => {
-            const press = handOnGlass ? barPress(control) : undefined;
-            if (press?.seat === handOnGlass?.seat && press?.what === "glass") {
-              glass?.attach(!glass.attached());
-              camHud?.fit();
-              return false;
-            }
-            return presses?.(meaning, control) ?? false;
-          },
-        }
-      : {}),
+    ...(presses ? { presses } : {}),
     ...(onDeskChanged || handOnGlass
       ? {
           onDeskChanged: (root: Node) => {

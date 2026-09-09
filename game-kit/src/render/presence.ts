@@ -100,6 +100,13 @@ const HALO = { width: 0.12, out: 0.06 };
  * the angle costs nothing.
  */
 const CONE = { half: 0.89, length: 1.84, fade: 0.3 };
+/**
+ * THE CONE FOLLOWS THE CAMERA — its length is how much felt the owner's glass shows AHEAD of the
+ * disc: the desk from the home anchor to the top of the glass, in units, through THEIR zoom. Zoom
+ * out and the cone reaches further, zoom in and it shortens; `min`..`max` keep it a cone and not a
+ * needle or a road. Read off the message, so every screen draws the same cone for the same view.
+ */
+const CONE_REACH = { of: 0.28, min: 0.6, max: 6 };
 
 /**
  * WHAT THE DISC IS PAINTED WITH — the keyline round it and the ground under the initials, top to
@@ -279,48 +286,43 @@ export function avatarAt(p: Presence): Vec {
  * Asked twice they would drift, and then a desk would glide a view home and go on drawing the
  * person as away, or stop gliding at a place that never filled the ring.
  */
-export const HOME = { near: 0.1, turn: 1, zoom: 0.05 };
-
-/** How far apart two headings are, in degrees, the short way round — never more than 180. */
-function apart(a: number, b: number): number {
-  let d = (a - b) % 360;
-  if (d > 180) d -= 360;
-  if (d < -180) d += 360;
-  return Math.abs(d);
-}
+/**
+ * WHAT COUNTS AS HOME — the owner's own words: turned the camera, nudged the zoom, but still keeps
+ * their place in the LOWER PART of their glass, and they are still on their chair; started walking
+ * the felt, or off to somewhere else, and the camera has left.
+ *
+ * `band` is the fraction of the glass's height the place may stand in, measured from the foot — the
+ * lower half. `zoomOut` and `zoomIn` bound the zoom against the home zoom, where a screen knows it.
+ */
+export const HOME = { band: 0.5, zoomOut: 0.5, zoomIn: 2 };
 
 /**
- * IS THIS PERSON LOOKING AT THEIR OWN PLACE — the home anchor of their glass on it (`HOME_ANCHOR`,
- * the low middle and not the middle), their screen turned to it, and (when the reader knows what
- * home is worth in pixels) their zoom at it.
+ * IS THIS PERSON STILL ON THEIR CHAIR — their place standing in the lower part of their own glass
+ * (`HOME.band`), whichever way the glass is turned and however the pinch has drifted inside
+ * `HOME.zoomOut`…`HOME.zoomIn` of the home zoom. The turn and the zoom are not the question here:
+ * they are worn by the DISC (`avatarNode`) — the cone turns with the camera and grows with it while
+ * the disc sits in the arch — so a reader who spun their view is still at their seat, and looks it.
  *
  * Read off the MESSAGE and nothing else, so every screen at the desk gets the same answer about
  * everybody, which is the whole point: "who is at their seat" is a fact of the desk, not of the
- * screen asking. A person at home has their ring filled and their disc not drawn at all — the ring
- * IS them while they are in it, and a disc standing in a filled ring would be the same person twice.
+ * screen asking.
  *
  * `homeZoom` is what a fitted view is worth in SCREEN PIXELS PER UNIT on the OWNER'S glass, and it
  * is optional because only the owner's own screen can work it out (`camera.fitZoom`) — a far reader
  * knows the sender's glass but not their etalon. Absent, the zoom is not asked, which is the honest
- * reading: a view aimed at the right point from the right side is home whatever it is magnified to.
+ * reading: a place kept low on the glass is home whatever it is magnified to.
  */
 export function isHome(
   view: PresenceView,
   place: { readonly at: Vec; readonly facing: number },
   homeZoom?: number,
 ): boolean {
-  const aimed = homeTarget(place, view);
-  // HOW FAR THE ANCHOR ITSELF MOVES WHEN THE PINCH IS NUDGED, and the position is given exactly
-  // that much more room. The anchor is a fraction of the GLASS, so where a camera has to be aimed
-  // for a ring to stand on it depends on the zoom — and the zoom is allowed to be `HOME.zoom` off
-  // (below). Judged on `HOME.near` alone, a reader whose pinch drifted inside the tolerance the
-  // very next line grants them would be read as having got up: two rules, disagreeing about one
-  // view. Derived rather than a second number, so the two can never come apart.
-  const drop = Math.hypot(aimed.x - place.at.x, aimed.y - place.at.y);
-  if (Math.hypot(view.target.x - aimed.x, view.target.y - aimed.y) > HOME.near + drop * HOME.zoom) return false;
-  if (apart(view.rotation, place.facing) > HOME.turn) return false;
+  const g = apply(presenceTransform(view), place.at);
+  if (g.x < 0 || g.x > view.glass.w) return false;
+  if (g.y < view.glass.h * (1 - HOME.band) || g.y > view.glass.h) return false;
   if (homeZoom === undefined || homeZoom === 0) return true;
-  return Math.abs(view.zoom - homeZoom) / homeZoom <= HOME.zoom;
+  const ratio = view.zoom / homeZoom;
+  return ratio >= HOME.zoomOut && ratio <= HOME.zoomIn;
 }
 
 /** Whether the person this presence is about is sitting at their own place right now. */
@@ -426,6 +428,13 @@ function installLook(p: Presence): void {
   }
 }
 
+/** How far the cone reaches, as a factor of the design's own — see `CONE_REACH`. */
+export function coneReach(view: PresenceView): number {
+  if (view.zoom <= 0) return 1;
+  const ahead = (view.glass.h * HOME_ANCHOR.y) / view.zoom;
+  return Math.min(CONE_REACH.max, Math.max(CONE_REACH.min, (ahead * CONE_REACH.of) / CONE.length));
+}
+
 /** How wide the plate under a disc is — the pixel face is monospaced, so a name is its length in ems. */
 function plateWidth(name: string): number {
   return Math.max(1, [...name].length * PLATE_EM + 2 * PLATE.padX);
@@ -450,6 +459,7 @@ function plateWidth(name: string): number {
 export function avatarNode(p: Presence, pose: { readonly at: Vec; readonly angle: number } = { at: avatarAt(p), angle: -p.view.rotation }): Node {
   installLook(p);
   const look = lookOf(p.state);
+  const reach = coneReach(p.view);
   const root = node(
     avatarId(p.seat),
     Bounded({ bounds: box(DISC, DISC) }),
@@ -472,7 +482,7 @@ export function avatarNode(p: Presence, pose: { readonly at: Vec; readonly angle
       root,
       node(
         avatarConeId(p.seat),
-        Bounded({ bounds: polyline([{ x: 0, y: 0 }, { x: -CONE.half, y: -CONE.length }, { x: CONE.half, y: -CONE.length }]) }),
+        Bounded({ bounds: polyline([{ x: 0, y: 0 }, { x: -CONE.half * reach, y: -CONE.length * reach }, { x: CONE.half * reach, y: -CONE.length * reach }]) }),
         Surfaced({ surface: coneSurface(p.seat) }),
         Transformable({ at: { x: 0, y: 0 } }),
       ),
@@ -536,8 +546,8 @@ export const PRESENCE_GLYPH = "presence.glyph";
  * repaints it, the view moves it, and a name can be corrected. What is NOT rebuilt is the place in
  * the tree — a node standing under the same id stays the same node to a mirror and to a drag.
  *
- * AT HOME THE DISC STANDS IN THE ARCH — at the place itself and turned as the place is — and away
- * it stands under the owner's glass, turned as the owner is. Two pictures, one node: a person
+ * AT HOME THE DISC STANDS IN THE ARCH — at the place itself — and away it stands under the owner's
+ * glass; either way it is turned as the owner's camera is turned. Two pictures, one node: a person
  * looking at their own place IS the disc in their chair, and the moment they look away the disc is
  * the only thing that says where they went. Gone, they are not drawn at all (`lookOf`).
  */
@@ -555,7 +565,9 @@ export function placeAvatars(
     if (standing?.parent) remove(standing.parent, standing);
     if (!lookOf(p.state).drawn) continue;
     const home = p.place && atHome(p, homeZoom?.(p));
-    add(layer, avatarNode(p, home && p.place ? { at: p.place.at, angle: -p.place.facing } : { at: avatarAt(p), angle: -p.view.rotation }));
+    // AT HOME the disc stands at the place, but it is still turned by its owner's CAMERA and its
+    // cone reaches as far as their glass does: the seat is a fact, the look is a reading.
+    add(layer, avatarNode(p, { at: home && p.place ? p.place.at : avatarAt(p), angle: -p.view.rotation }));
   }
   // WHOEVER IS NO LONGER IN THE MESSAGE IS NO LONGER AT THE DESK. Left standing, a player who closed
   // the tab would sit there for the rest of the evening, which is a lie the desk tells.

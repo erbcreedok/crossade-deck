@@ -45,9 +45,10 @@ describe("the controls of a hand", () => {
       expect(poseOf(c).x).toBeCloseTo(BAR.size / 2 + step * i);
       expect(poseOf(c).y).toBeCloseTo(-BAR.size / 2);
     });
-    expect(poseOf(poses.children[3]!)).toEqual({ x: -BAR.size / 2, y: -BAR.size / 2 });
+    expect(poseOf(poses.children[1]!)).toEqual({ x: -BAR.size / 2, y: -BAR.size / 2 - step });
     expect(poseOf(poses.children[0]!).x).toBeCloseTo(-BAR.size / 2 - step);
     expect(poseOf(poses.children[0]!).y).toBeCloseTo(-BAR.size / 2 - step);
+    expect(poseOf(poses.children[2]!), "tuck under the two").toEqual({ x: -BAR.size / 2 - step, y: -BAR.size / 2 });
     // PUT AT THE FOOT OF A GLASS: the corners, a margin in.
     const screen = node("screen");
     add(screen, bar);
@@ -64,7 +65,7 @@ describe("the controls of a hand", () => {
     expect(seatBar("north", bare, "accent")).toHaveLength(0);
   });
 
-  it("bar.the-states-show-on-the-controls — gold while on, dark while off, read off the chair; a flip and the glass never light", () => {
+  it("bar.the-states-show-on-the-controls — gold while on, dark while off, read off the chair; a flip never lights", () => {
     const desk = roundMap();
     const seat = SEATS[0]!.seat;
     const chair = byId(desk, chairId(seat))!;
@@ -75,13 +76,13 @@ describe("the controls of a hand", () => {
     dressBar(screen, seat, chair);
     // THE FOLD THAT IS ON IS THE HAND'S OWN POSE — a stack on the right, to open with.
     expect(handPose(chair).fold).toBe("shrink");
-    expect([lit("pin"), lit("lock"), lit("hide"), lit("flip"), lit("fan"), lit("shrink"), lit("tuck"), lit("glass")]).toEqual([false, false, false, false, false, true, false, false]);
+    expect([lit("pin"), lit("lock"), lit("hide"), lit("flip"), lit("fan"), lit("shrink"), lit("tuck")]).toEqual([false, false, false, false, false, true, false]);
     setHandLock(chair, true);
     setHandHidden(chair, true);
     setChairPin(chair, true);
     setHandPose(chair, { side: "front", fold: "fan" });
     dressBar(screen, seat, chair);
-    expect([lit("pin"), lit("lock"), lit("hide"), lit("flip"), lit("fan"), lit("shrink"), lit("tuck"), lit("glass")]).toEqual([true, true, true, false, true, false, false, false]);
+    expect([lit("pin"), lit("lock"), lit("hide"), lit("flip"), lit("fan"), lit("shrink"), lit("tuck")]).toEqual([true, true, true, false, true, false, false]);
     // A LIT CONTROL IS THE SAME CONTROL: same id, same meaning, in the same place in its row.
     expect(barPress(byId(screen, chairButtonId(seat, "lock"))!)).toEqual({ seat, what: "lock" });
     expect(byId(screen, chairBarGroupId(seat, "rights"))!.children.map((c) => c.id)).toEqual(BAR_RIGHTS.map((what) => chairButtonId(seat, what)));

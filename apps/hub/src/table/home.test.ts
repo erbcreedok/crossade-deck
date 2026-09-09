@@ -13,7 +13,7 @@
 
 import { readFileSync } from "node:fs";
 import { chessPlaces, nardyPlaces, ROUND_R, roundPlaces } from "@game-presets/desks";
-import { Camera, idleReturn, isHome, ROUND_HOME_SPAN, type CameraContent, type Presence, type SeatPlace } from "game-kit";
+import { Camera, homeTarget, idleReturn, isHome, ROUND_HOME_SPAN, type CameraContent, type Presence, type SeatPlace } from "game-kit";
 import { describe, expect, it } from "vitest";
 import { homeZoomOfDesk, roomOfDesk, unitOfDesk } from "./index.js";
 import { type TableGame } from "./mapFor.js";
@@ -81,7 +81,9 @@ describe("the desk opens at this screen's own place", () => {
     // it declares six, so `lookAt` centres the eye instead of pinning it and the seat is unreachable.
     const place = roundPlaces(2)[0]!;
     const camera = openedAt(place, { x: -12.5, y: -12.5, w: 25, h: 25 }, unitOfDesk("cards"));
-    expect(isHome(viewOf(camera), place)).toBe(false);
+    // The eye is NOT where the seat asks it to be: the ring stands nowhere near the home anchor.
+    const asked = homeTarget(place, viewOf(camera));
+    expect(Math.hypot(camera.target.x - asked.x, camera.target.y - asked.y)).toBeGreaterThan(0.5);
   });
 });
 

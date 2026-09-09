@@ -1,5 +1,7 @@
 // THE HAND ON THE GLASS — the player's own cards drawn at the foot of their screen, where a thumb
-// reaches them, and the controls that go with them.
+// reaches them, and the controls that go with them. ALWAYS: a card desk's HUD is the hand and its
+// controls, and a hand holding nothing keeps its place at the foot — an empty box a card is dealt
+// into — because the place is what says "this screen plays cards".
 //
 // IT IS A PICTURE AND NOT A PLACE. The hand on the felt is the truth (`handZone.ts`): one array, one
 // set of nodes, one set of events that change it (`handRule`). This draws that array on the screen
@@ -24,7 +26,6 @@
 import {
   add,
   Bounded,
-  circle,
   compose,
   Container,
   extentOf,
@@ -34,7 +35,6 @@ import {
   freeLayout,
   byId,
   node,
-  registerAsset,
   registerLayout,
   registerSurface,
   remove,
@@ -42,7 +42,6 @@ import {
   setFacing,
   Flippable,
   Surfaced,
-  svg,
   Transformable,
   type BoundedFields,
   type FlippableFields,
@@ -60,7 +59,6 @@ import { chairId } from "./seatPlace.js";
 /** The nodes this file makes, by the names a reader sees in the inspector. */
 export const HAND_HUD = "hud/hand";
 export const HAND_HUD_BOX = "hud/hand/box";
-export const HAND_HUD_ANCHOR = "hud/hand/anchor";
 const HAND_HUD_FREE = "hud/hand/free";
 const HAND_HUD_SCREEN = "hud/hand/screen";
 
@@ -76,35 +74,6 @@ const FAN = { side: "front", fold: "fan" } as const;
 /** How far the strip stands off the foot of the glass, in HUD units, before the device's own inset. */
 export const HAND_HUD_MARGIN = 0.14;
 
-/**
- * THE ANCHOR, in HUD units — a small dotted CIRCLE with an anchor drawn in it, and nothing more.
- *
- * `d` is what is DRAWN and `catch` is what it answers to. They differ on purpose: the mark is a
- * neat little thing because it appears over the reader's own cards and is only ever offered for the
- * length of one gesture, while the thing being aimed at it is a whole hand carried by a finger that
- * cannot see under itself. Drawn as big as it catches, it is a hole in the middle of the screen;
- * catching only what it draws, it is a target nobody can hit on a phone.
- */
-const ANCHOR = { d: 0.62, catch: 1.5 };
-
-/** The two faces of the anchor: a dotted outline while it is only offered, filled while it is aimed at. */
-const ANCHOR_OPEN = "hud/hand/anchor/open";
-const ANCHOR_MARK = "hud/hand/anchor/mark";
-function anchorKeen(seat: string): string {
-  return `hud/hand/anchor/keen/${seat}`;
-}
-
-/** AN ANCHOR — a ring, a shank and two flukes. What "put it down here" is drawn as, everywhere. */
-const ANCHOR_GLYPH = svg(
-  40,
-  40,
-  // DRAWN IN THE MIDDLE OF A LARGER SQUARE, so the mark sits INSIDE its ring with room around it: an
-  // image is fitted to the node's box, and a glyph drawn edge to edge would touch the outline.
-  '<g transform="translate(8 8)" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
-    '<circle cx="12" cy="4.6" r="2.1"/>' +
-    '<path d="M12 6.7V20"/><path d="M8 9.4h8"/>' +
-    '<path d="M4.4 14.2c0 3.7 3.4 6.2 7.6 6.2s7.6-2.5 7.6-6.2"/></g>',
-);
 
 /**
  * The id a shown card answers to. Built here and never parsed back (`guard.id-is-opaque`): which
@@ -147,8 +116,6 @@ export interface HandHud {
   width(): number;
   /** How much of the foot of the glass it has taken, in device pixels. Nothing, holding nothing. */
   floor(): number;
-  /** Whether the hand is pinned to this glass. A hand starts on the felt, where every player's is. */
-  attached(): boolean;
   /**
    * THE CARD A PICTURE ON THE GLASS IS OF — the node on the FELT, or nothing for anything else on
    * the screen. What a finger landing on the strip takes hold of (`DragOptions.standIn`): there is
@@ -156,11 +123,8 @@ export interface HandHud {
    */
   standFor(shown: Node): Node | undefined;
   /**
-   * IS THIS POINT ON THE GLASS AIMED AT THIS HAND — over the strip while it is pinned there, or over
-   * the ANCHOR while one is up. Both, because they are one place: a run let go at the foot of the
-   * screen is a run given to this hand, whether the hand is already there or is arriving with it.
-   * Without the anchor half, carrying a hand to the glass by its own handle drops the cards on the
-   * felt at the bottom of the table, which is a hand spilled at the moment it was being put away.
+   * IS THIS POINT ON THE GLASS AIMED AT THIS HAND — over the strip at the foot of the screen. A run
+   * let go there is a run given to this hand, which is why a drop asks before it lands on the felt.
    */
   overHand(glass: { readonly x: number; readonly y: number }): boolean;
   /**
@@ -169,20 +133,6 @@ export interface HandHud {
    * twice, and the reader cannot tell which of them they are holding.
    */
   lifting(ids: readonly string[]): void;
-  /** Pin it or let it go — the state itself, for a consumer that remembers one across sessions. */
-  attach(on: boolean): void;
-  /**
-   * A RING IS IN HAND, at this point on the glass — or nothing, when none is. Puts the anchor up
-   * while one is being carried and answers whether the finger is over it, so the reader is told
-   * where the drop will land BEFORE they let go rather than by what happens after.
-   */
-  carrying(glass: { readonly x: number; readonly y: number } | undefined): boolean;
-  /**
-   * THE RING WAS LET GO at this point. Over the anchor it is the switch — on if it was off, off if
-   * it was on: one place and one act, both ways. Anywhere else it is a ring being moved on the felt
-   * and says nothing about the glass. Answers whether anything changed.
-   */
-  dropped(glass: { readonly x: number; readonly y: number } | undefined): boolean;
   stop(): void;
 }
 
@@ -206,23 +156,6 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
       const middle = plan[Math.floor(children.length / 2)]?.at.y ?? 0;
       return plan.map((p) => ({ x: p.at.x, y: p.at.y - middle - handRoom() / 2 }));
     },
-  });
-  // A PLACE TO PUT SOMETHING, drawn the way a plan drawing says it: a dotted outline. Aimed at, it
-  // stops being an offer and becomes the answer — filled in the seat's own ink, the same light every
-  // zone on the felt wears when a hand is over it (`zoneKeen`).
-  registerAsset(ANCHOR_MARK, { src: ANCHOR_GLYPH, w: ANCHOR.d, h: ANCHOR.d });
-  // A PLATE UNDER BOTH, the same one the controls wear: the mark appears over whatever the reader
-  // happens to have at the foot of their screen — their own filled ring, their own cards — and a
-  // dotted outline alone is invisible on half of them.
-  registerSurface(ANCHOR_OPEN, {
-    layers: [{ paint: "panelBg", opacity: 0.72 }, { image: ANCHOR_MARK, fit: "contain", opacity: 0.75 }],
-    radius: ANCHOR.d / 2,
-    stroke: { color: "textFaint", width: 0.02, opacity: 0.9, dash: { on: 0.075, off: 0.06 } },
-  });
-  registerSurface(anchorKeen(o.seat), {
-    layers: [{ paint: "panelBg", opacity: 0.72 }, { paint: o.ink, opacity: 0.3 }, { image: ANCHOR_MARK, fit: "contain", opacity: 1 }],
-    radius: ANCHOR.d / 2,
-    stroke: { color: o.ink, width: 0.03, opacity: 0.95 },
   });
   const screen = o.screen ?? node(HAND_HUD_SCREEN, Container({ layout: HAND_HUD_FREE }));
   const ownScreen = o.screen === undefined;
@@ -299,17 +232,12 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     return u > 0 ? v.width / u - 2 * HAND_HUD_MARGIN : 0;
   }
 
-  /** How tall the strip is right now, in HUD units — nothing while nothing is shown. */
+  /** How tall the strip is right now, in HUD units. */
   let high = 0;
-  let shown = false;
   let fold: HandFold = "shrink";
   let wide = 0;
-  let pinned = false;
   /** The cards a hand is holding in the AIR — not drawn here for as long as they are (`lifting`). */
   let aloft = new Set<string>();
-  /** The anchor, while a ring is in hand — made and taken down with the gesture, never left standing. */
-  let anchor: Node | undefined;
-  let aimed = false;
   /** WHICH FELT CARD EACH PICTURE IS OF, in the order they are drawn — the manifest, kept beside the
    * tree because an id is a name and nothing reads a fact out of one. */
   let manifest: string[] = [];
@@ -320,14 +248,14 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     fold = chair ? handPose(chair).fold : "shrink";
     const cards = held();
     for (const old of [...strip.children]) remove(strip, old);
-    // NOTHING HELD IS NOTHING DRAWN. An empty strip across the foot of a phone is glass spent on a
-    // fact the felt already shows; the controls stay, because they are what puts a hand here.
-    const show = pinned && cards.length > 0;
-    manifest = show ? cards.map((c) => c.id) : [];
-    if (show) for (const card of cards) add(strip, shownOf(card));
+    // THE STRIP IS ALWAYS THERE — holding nothing, it is the one-card box a card is dealt into, the
+    // place at the foot of the glass that says this screen plays cards. The desk that has no hand
+    // (a board) hangs no strip at all, which is the whole of that difference.
+    manifest = cards.map((c) => c.id);
+    for (const card of cards) add(strip, shownOf(card));
     compose(strip, Container({ layout: foldLayout(fold) }));
     // THE LEAN OF A FAN, off the same plan its positions come from; a row lies level.
-    if (show && fold === "fan") {
+    if (fold === "fan") {
       const plan = posePlan(FAN, strip.children.map((c) => ({ id: c.id, footprint: fieldsOf<BoundedFields>(c, "Bounded")?.bounds, at: undefined })));
       strip.children.forEach((c, i) => compose(c, Transformable({ ...(fieldsOf<TransformableFields>(c, "Transformable") ?? {}), angle: plan[i]?.angle ?? 0 })));
     }
@@ -336,16 +264,15 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
       const shape = footprint(c);
       return shape ? extentOf(shape) : { w: 1, h: 1.4 };
     });
-    const widest = sizes.reduce((w, s) => Math.max(w, s.w), 0);
-    const tallest = sizes.reduce((h, s) => Math.max(h, s.h), 0);
+    const widest = sizes.reduce((w, s) => Math.max(w, s.w), 1);
+    const tallest = sizes.reduce((h, s) => Math.max(h, s.h), 1.4);
     const u = host.unit();
     const v = host.viewport();
     const glass = u > 0 ? { w: v.width / u, h: v.height / u } : { w: 0, h: 0 };
-    wide = show ? Math.min(handWidth(cards.length, widest), Math.max(1, room())) : 0;
+    wide = Math.min(handWidth(Math.max(1, cards.length), widest), Math.max(1, room()));
     // A FAN IS TALLER THAN ITS CARD — the ends swing down — and a shown hand's box holds the lot.
-    const fanned = show && fold === "fan" ? (posePlan(FAN, strip.children.map((c) => ({ id: c.id, footprint: fieldsOf<BoundedFields>(c, "Bounded")?.bounds, at: undefined }))).reduce((m, p) => Math.max(m, Math.abs(p.at.y)), 0) * 2) : 0;
-    high = show ? tallest + fanned + 2 * HAND.pad + handRoom() : 0;
-    shown = show;
+    const fanned = fold === "fan" ? (posePlan(FAN, strip.children.map((c) => ({ id: c.id, footprint: fieldsOf<BoundedFields>(c, "Bounded")?.bounds, at: undefined }))).reduce((m, p) => Math.max(m, Math.abs(p.at.y)), 0) * 2) : 0;
+    high = tallest + fanned + 2 * HAND.pad + handRoom();
     compose(strip, Bounded({ bounds: roundedRect(Math.max(wide, 1), Math.max(high, 1), HAND.pad) }));
 
     // THE CONTROLS AT THE FOOT OF THE GLASS, in the two corners, and the strip ABOVE the taller
@@ -356,8 +283,7 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     dressBar(screen, o.seat, chair);
     const rest = glass.h / 2 - HAND_HUD_MARGIN - controlsHeight();
     const low = rest - high / 2 + (fold === "tuck" ? Math.max(0, high - TUCK_TIP) : 0);
-    // Holding nothing, the strip is put OFF the glass rather than drawn empty: absence is the refusal.
-    compose(root, Transformable({ at: { x: 0, y: show ? low : v.height } }));
+    compose(root, Transformable({ at: { x: 0, y: low } }));
   };
   /** The room the two groups take at the foot, in HUD units, and their margin — nothing until they are up. */
   const controlsHeight = (): number => (barMade ? Math.max(barExtent("rights").h, barExtent("poses").h) + HAND_HUD_MARGIN : 0);
@@ -368,7 +294,7 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
    */
   const floorNow = (): number => {
     const u = host.unit();
-    const strip = shown ? (fold === "tuck" ? Math.min(high, TUCK_TIP) : high) + HAND_HUD_MARGIN : 0;
+    const strip = (fold === "tuck" ? Math.min(high, TUCK_TIP) : high) + HAND_HUD_MARGIN;
     return (controlsHeight() + HAND_HUD_MARGIN + strip) * u;
   };
   refresh();
@@ -385,59 +311,9 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     refresh();
   });
 
-  /**
-   * WHERE THE ANCHOR STANDS, in HUD units — over the middle of the strip, or of where it would be.
-   *
-   * The same point either way, because it is the same place: the mark that says "your hand goes
-   * here" and the mark that says "take it back off" are one target and are aimed at alike.
-   */
-  function anchorBox(): { readonly w: number; readonly h: number; readonly at: { x: number; y: number } } {
-    const u = host.unit();
-    const v = host.viewport();
-    const box = footprint(strip);
-    // AT THE VERY FOOT while there is no hand there yet, and over the middle of the strip once there
-    // is. Low enough to be clear of the ring at its own home: the thing being carried at it is the
-    // ring, and a target that already covers where the ring STARTS would light up before the reader
-    // had aimed at anything.
-    const tall = pinned && box ? extentOf(box).h : ANCHOR.d;
-    const controls = barMade ? Math.max(barExtent("rights").h, barExtent("poses").h) + HAND_HUD_MARGIN : 0;
-    const low = u > 0 ? v.height / u / 2 - HAND_HUD_MARGIN - controls - tall / 2 : 0;
-    return { w: ANCHOR.catch, h: ANCHOR.catch, at: { x: 0, y: low } };
-  }
-
-  /** Is this point on the glass over the anchor? Asked in pixels, because a finger is measured in them. */
-  function over(glass: { readonly x: number; readonly y: number }): boolean {
-    const u = host.unit();
-    const v = host.viewport();
-    if (u <= 0) return false;
-    const box = anchorBox();
-    const mid = { x: v.width / 2 + box.at.x * u, y: v.height / 2 + box.at.y * u };
-    return Math.abs(glass.x - mid.x) <= (box.w * u) / 2 && Math.abs(glass.y - mid.y) <= (box.h * u) / 2;
-  }
-
-  const showAnchor = (on: boolean, keen: boolean): void => {
-    if (!on) {
-      if (anchor) remove(screen, anchor);
-      anchor = undefined;
-      aimed = false;
-      return;
-    }
-    const box = anchorBox();
-    if (!anchor) {
-      anchor = node(HAND_HUD_ANCHOR, Bounded({ bounds: circle(ANCHOR.d / 2) }), Surfaced({ surface: ANCHOR_OPEN }), Transformable({ at: box.at }));
-      add(screen, anchor);
-    }
-    compose(anchor, Transformable({ at: box.at }));
-    if (keen !== aimed) {
-      aimed = keen;
-      compose(anchor, Surfaced({ surface: keen ? anchorKeen(o.seat) : ANCHOR_OPEN }));
-    }
-  };
-
   return {
     root,
     refresh,
-    attached: () => pinned,
     standFor: (shown: Node) => {
       const i = strip.children.indexOf(shown);
       const id = i >= 0 ? manifest[i] : undefined;
@@ -447,8 +323,7 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
       const u = host.unit();
       const v = host.viewport();
       const box = footprint(strip);
-      if (anchor && over(glass)) return true;
-      if (!pinned || u <= 0 || !box) return false;
+      if (u <= 0 || !box) return false;
       const size = extentOf(box);
       const at = fieldsOf<TransformableFields>(root, "Transformable")?.at ?? { x: 0, y: 0 };
       const mid = { x: v.width / 2 + at.x * u, y: v.height / 2 + at.y * u };
@@ -460,34 +335,12 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
       aloft = next;
       refresh();
     },
-    attach: (on: boolean) => {
-      pinned = on;
-      refresh();
-    },
-    carrying: (glass) => {
-      if (!glass) {
-        showAnchor(false, false);
-        return false;
-      }
-      const keen = over(glass);
-      showAnchor(true, keen);
-      return keen;
-    },
-    dropped: (glass) => {
-      const keen = glass !== undefined && over(glass);
-      showAnchor(false, false);
-      if (!keen) return false;
-      pinned = !pinned;
-      refresh();
-      return true;
-    },
     cards: () => manifest,
     faces: () => strip.children.map((n) => facing(n)),
     width: () => wide,
     floor: floorNow,
     stop() {
       stopFitting();
-      showAnchor(false, false);
       remove(screen, root);
       const bar = byId(screen, chairBarId(o.seat));
       if (bar) remove(screen, bar);
