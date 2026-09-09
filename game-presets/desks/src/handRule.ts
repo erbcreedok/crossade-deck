@@ -45,7 +45,7 @@ import {
   type TransformableFields,
 } from "game-kit";
 import { fitStep, type Spread } from "./felt.js";
-import { growHand, handLocked, isHand } from "./handZone.js";
+import { layHand, handLocked, isHand } from "./handZone.js";
 
 /**
  * HOW MUCH OF A LOOSE CARD MUST LIE OVER THE BOX for the handle to take it up with the hand.
@@ -164,7 +164,7 @@ function handSettles(): NonNullable<HeapRule["settled"]> {
       compose(piece, Transformable({ ...(own ?? {}), angle: 0 }));
       grown.add(piece.parent);
     }
-    for (const hand of grown) growHand(hand);
+    for (const hand of grown) layHand(hand);
   };
 }
 

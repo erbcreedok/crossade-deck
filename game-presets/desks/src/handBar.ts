@@ -1,197 +1,228 @@
-// THE BAR ABOVE A HAND — five controls on the far rim of a held place, outside its outline.
+// THE RIGHTS OF A PLACE — the marks beside a chair that say what is true of it, and the controls
+// on the owner's own glass that change it.
 //
-// A hand has three things its owner may say about it, one about the chair it is in, and one about
-// their own screen: SHUT it (nobody else reaches in — the lock), HIDE it (everybody else sees
-// backs), TURN IT OVER (every card in place, order untouched), PIN the chair (nobody moves it, its
-// owner included), and put the hand ON THE GLASS (`handHud` — at the foot of their own screen,
-// where a thumb reaches it). The first two and the pin are STATES and their controls stay lit while
-// they hold; a flip is an act and a glass is a fact about one screen, and neither has anything the
-// felt could light truthfully for everybody.
+// A hand has three things its owner may say about it and one about the chair it is in: SHUT it
+// (nobody else reaches in — the lock), HIDE it (everybody else sees backs), TURN IT OVER (every
+// card in place, order untouched) and PIN the chair (nobody moves it, its owner included). And a
+// hand LIES somehow — fanned, squeezed or tucked (`handZone.ts`) — and may be put ON THE GLASS
+// (`handHud`, at the foot of the owner's own screen, where a thumb reaches it).
 //
-// THEY STAND ON THE DESK, in the chair's own frame: past the far rim — the side away from the owner,
-// where they cover no card and no name — in a row across the owner's look, sized for the finger
-// (`Screened`), with their glyphs upright to whoever is looking (`upright`), because a glyph read
-// upside down is a glyph read wrong. They are the chair's furniture, like its tick and its name,
-// and go where the chair goes (`fitChair`).
+// THE SEAT DESIGN SPLITS THEM IN TWO. On the FELT a place wears MARKS: a column of small badges on
+// the owner's left — a pin, a padlock, a struck eye — one for every state that is on and none for
+// one that is off, so the whole table reads WHY a card will not come out before anybody reaches for
+// it. Nobody presses a mark. The CONTROLS stand on the owner's own HUD, in two groups at the foot
+// of the glass: the rights on the left, the pose and the glass on the right. Everybody sees the
+// marks; only the owner has the controls, because only the owner's screen carries them.
 //
-// EVERYBODY SEES THE STATES; ONLY THE OWNER PRESSES. The press is the kit's (`wireButtons`) and it
-// reports every press on the glass; what a press MEANS is on the control (`Valued`: which control,
-// whose hand), and the people wiring answers it only for the seat that owns it (`Avatars.pressed`).
-//
-// ...AND THEY ARE MADE TO BE HUNG ELSEWHERE. A hand mirrored onto a HUD carries the same four
-// controls; `seatBar` builds them from a seat and an ink alone, and `fitBar` puts them along any
-// rim it is given — nothing here knows it is standing on a chair.
+// EVERY CONTROL CARRIES ITS MEANING (`Valued`: which control, whose hand) — the press is the kit's
+// (`wireButtons`) and reports every press on the glass; what it MEANS is read off the control and
+// answered by the people wiring for the seat that owns it (`Avatars.pressed`). A control that is ON
+// is the design's gold button; one that is off is the dark plate. Both are one node rebuilt, never
+// a coat over a plate that stays.
 
 import {
   add,
+  Bounded,
   button,
   byId,
-  circle,
-  Coated,
   compose,
-  decompose,
   fieldsOf,
-  HELD,
   node,
-  NO_COAT,
+  Oriented,
+  rect,
   registerAsset,
   registerSurface,
-  Screened,
-  svg,
+  roundedRect,
+  remove,
+  Surfaced,
   Transformable,
   Valued,
-  type Coat,
+  svg,
   type Node,
   type Paint,
   type TransformableFields,
   type ValuedFields,
 } from "game-kit";
-import { chairId, chairPinned, chairReach, isChair } from "./seatPlace.js";
-import { handHidden, handLocked, isHand } from "./handZone.js";
+import { chairId, chairPinned, isChair, SEAT_LOOK } from "./seatPlace.js";
+import { HAND_FOLDS, handHidden, handLocked, handPose, isHand, type HandFold } from "./handZone.js";
 
-/** What a control is for — the five, in the order they stand. */
-export type BarWhat = "lock" | "hide" | "flip" | "pin" | "glass";
-export const BAR_WHATS: readonly BarWhat[] = ["lock", "hide", "flip", "pin", "glass"];
+/** What a control is for — the four rights, the three folds, and the glass. */
+export type BarWhat = "pin" | "lock" | "hide" | "flip" | HandFold | "glass";
+/** The rights, in the order they stand — on the chair as marks and on the HUD as controls. */
+export const BAR_RIGHTS: readonly BarWhat[] = ["pin", "lock", "hide", "flip"];
+/** The poses and the glass, in the order they stand on the HUD. */
+export const BAR_POSES: readonly BarWhat[] = [...HAND_FOLDS, "glass"];
+export const BAR_WHATS: readonly BarWhat[] = [...BAR_RIGHTS, ...BAR_POSES];
+/** The two groups a bar is, and which controls stand in each. */
+export type BarGroup = "rights" | "poses";
+export const BAR_GROUPS: Readonly<Record<BarGroup, readonly BarWhat[]>> = { rights: BAR_RIGHTS, poses: BAR_POSES };
+
+/** The states a mark can say — the ones that are on or off; a flip is an act and has no mark. */
+const MARKED: readonly BarWhat[] = ["pin", "lock", "hide"];
 
 /**
- * THE BAR'S MEASURE, in units at zoom 1 — held on the glass (`Screened`), so a control is a tap
- * target at every zoom. `gap` is between controls and between the row and the rim.
+ * A CONTROL'S MEASURE, in HUD units — the design's 46px button beside its 74px card, with the
+ * design's 3px keyline and 8px corner over it. `gap` is between controls.
  */
-export const BAR = { size: 0.34, gap: 0.08 };
+export const BAR = { size: 0.62, gap: 0.08, radius: 0.11, line: 0.04 };
+
+/**
+ * A MARK'S MEASURE, in units of the felt — the design's 20px badge beside its 74px arch, in a
+ * column 22px apart, its centre 50px to the owner's left of the arch's centre.
+ */
+export const MARK = { size: 0.6, step: 0.65, x: -1.49, line: 0.06 };
 
 /** The key a control's meaning is written under — read by `barPress`, never parsed out of an id. */
 const BAR_VALUE = "bar";
 const BAR_SEAT = "barSeat";
-const BAR_INK = "barInk";
+/** Whether the control was last built lit — so a re-dressing rebuilds only what changed. */
+const BAR_LIT = "barLit";
 
-/** How strongly a control that is ON is washed in its owner's ink — a status, read across the table. */
-const LIT_WASH = 0.55;
+/** The design's own button colours — content, like the chair's wood (`SEAT_LOOK`). */
+const BAR_LOOK = {
+  plateHi: "#25321f",
+  plateLo: "#16210f",
+  rim: "#6b4d2c",
+  goldHi: "#f8d885",
+  goldLo: "#b08a26",
+  glyph: "white",
+} as const;
 
-const BAR_PLATE = "desk.seat.bar";
+const PLATE_OFF = "desk.bar.off";
+const FACE_OFF = "desk.bar.off.face";
+const PLATE_ON = "desk.bar.on";
+const MARK_PLATE = "desk.seat.mark";
 
 /** The id a control answers to. Built here, never parsed (`guard.id-is-opaque`). */
 export function chairButtonId(seat: string, what: BarWhat): string {
   return `${chairBarId(seat)} ${what}`;
 }
 
-/**
- * THE ID OF THE BAR ITSELF — one node holding the four, and the one that is held on the glass
- * (`Screened`) and turned to the viewer. Sized as a whole so the row scales as a whole: four
- * controls each held on the glass but placed in desk units closed up into one lump the moment the
- * view zoomed out, and spread into a line across the table the moment it zoomed in.
- */
+/** THE ID OF THE BAR ITSELF — one node holding both groups. */
 export function chairBarId(seat: string): string {
   return `${chairId(seat)} bar`;
 }
 
-/** A PADLOCK, shut. */
-const LOCK_ICON = svg(
-  24,
-  24,
-  '<g fill="none" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="5" y="10.5" width="14" height="9.5" rx="2"/>' +
-    '<path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></g>',
-);
-/** AN EYE, STRUCK THROUGH. */
-const HIDE_ICON = svg(
-  24,
-  24,
-  '<g fill="none" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
-    '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/>' +
-    '<circle cx="12" cy="12" r="2.6"/>' +
-    '<path d="M4.5 19.5 19.5 4.5"/></g>',
-);
-/** TWO ARROWS ROUND A CARD — turn over. */
-const FLIP_ICON = svg(
-  24,
-  24,
-  '<g fill="none" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="8.5" y="5" width="7" height="14" rx="1.4"/>' +
-    '<path d="M5 9V6.5h2.5"/><path d="M5 6.5 7.4 8.9"/>' +
-    '<path d="M19 15v2.5h-2.5"/><path d="M19 17.5 16.6 15.1"/></g>',
-);
-/** A PHONE — the hand on one's own screen. */
-const GLASS_ICON = svg(
-  24,
-  24,
-  '<g fill="none" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="6.5" y="3" width="11" height="18" rx="2.2"/>' +
-    '<path d="M9.5 16.5h5"/></g>',
-);
-/** A PIN. */
-const PIN_ICON = svg(
-  24,
-  24,
-  '<g fill="none" stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
-    '<path d="M9 4h6"/><path d="M10 4v5l-3 3v1.5h10V12l-3-3V4"/><path d="M12 13.5V20"/></g>',
-);
+/** The id of one group of the bar — the rights, or the poses and the glass. */
+export function chairBarGroupId(seat: string, group: BarGroup): string {
+  return `${chairBarId(seat)} ${group}`;
+}
 
-const ICONS: Record<BarWhat, { readonly asset: string; readonly src: string }> = {
-  lock: { asset: "seat.bar.lock", src: LOCK_ICON },
-  hide: { asset: "seat.bar.hide", src: HIDE_ICON },
-  flip: { asset: "seat.bar.flip", src: FLIP_ICON },
-  pin: { asset: "seat.bar.pin", src: PIN_ICON },
-  glass: { asset: "seat.bar.glass", src: GLASS_ICON },
+/** The id of one mark beside a chair. */
+export function chairMarkId(seat: string, what: BarWhat): string {
+  return `${chairId(seat)} mark ${what}`;
+}
+
+/** THE GLYPHS — the design's own strokes for the rights; the folds and the glass drawn to match. */
+const GLYPHS: Readonly<Record<BarWhat, string>> = {
+  pin: '<path d="M9 3h6l-1 6h2l1 5H7l1-5h2L9 3z"/><path d="M12 14v7"/>',
+  lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3"/><path d="M5 11h14v10H5z"/>',
+  hide: '<path d="M3 3l18 18"/><path d="M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5"/><path d="M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9"/>',
+  flip: '<rect x="8.5" y="5" width="7" height="14" rx="1.4"/><path d="M5 9V6.5h2.5"/><path d="M5 6.5 7.4 8.9"/><path d="M19 15v2.5h-2.5"/><path d="M19 17.5 16.6 15.1"/>',
+  // THREE CARDS SPREAD — every one of them showing.
+  fan: '<rect x="9" y="6" width="6" height="10" rx="1" transform="rotate(-24 12 16)"/><rect x="9" y="6" width="6" height="10" rx="1"/><rect x="9" y="6" width="6" height="10" rx="1" transform="rotate(24 12 16)"/>',
+  // THREE CARDS CLOSED UP — a count nobody reads.
+  shrink: '<rect x="5" y="6" width="6" height="12" rx="1"/><rect x="9" y="6" width="6" height="12" rx="1"/><rect x="13" y="6" width="6" height="12" rx="1"/>',
+  // ONE CARD BEHIND A RIM, its tip showing.
+  tuck: '<path d="M4 13h16"/><path d="M9 13V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v7"/><path d="M4 13v6h16v-6"/>',
+  glass: '<rect x="6.5" y="3" width="11" height="18" rx="2.2"/><path d="M9.5 16.5h5"/>',
 };
 
-/** Register what the bar's nodes point at by name. Idempotent — a re-render calls it again. */
+/** A glyph as a picture, in one colour — the dark plate wants a light one, the gold plate a dark one. */
+function glyph(what: BarWhat, ink: string): string {
+  return svg(
+    24,
+    24,
+    `<g fill="none" stroke="${ink}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${GLYPHS[what]}</g>`,
+  );
+}
+
+function glyphAsset(what: BarWhat, lit: boolean): string {
+  return `desk.bar.${what}.${lit ? "on" : "off"}`;
+}
+function markAsset(what: BarWhat): string {
+  return `desk.seat.mark.${what}`;
+}
+
+/** Register what the bar's and the marks' nodes point at by name. Idempotent — a re-render calls it again. */
 export function installBarArt(): void {
-  registerSurface(BAR_PLATE, {
-    layers: [{ paint: "panelBg", opacity: 0.78 }],
-    radius: BAR.size / 2,
-    stroke: { color: "panelBorder", width: 0.012, alignment: 1, opacity: 0.8 },
+  registerSurface(PLATE_OFF, {
+    layers: [{ gradient: { stops: [{ at: 0, paint: BAR_LOOK.plateHi }, { at: 1, paint: BAR_LOOK.plateLo }], angle: 90 } }],
+    radius: BAR.radius,
+    stroke: { color: SEAT_LOOK.black, width: BAR.line, alignment: 1 },
   });
-  for (const what of BAR_WHATS) registerAsset(ICONS[what].asset, { src: ICONS[what].src, w: BAR.size, h: BAR.size });
+  registerSurface(FACE_OFF, {
+    layers: [],
+    radius: Math.max(0, BAR.radius - BAR.line),
+    stroke: { color: BAR_LOOK.rim, width: BAR.line * 0.7, alignment: 1 },
+  });
+  registerSurface(PLATE_ON, {
+    layers: [{ gradient: { stops: [{ at: 0, paint: BAR_LOOK.goldHi }, { at: 0.48, paint: "accent" }, { at: 1, paint: BAR_LOOK.goldLo }], angle: 90 } }],
+    radius: BAR.radius,
+    stroke: { color: SEAT_LOOK.black, width: BAR.line, alignment: 1 },
+  });
+  registerSurface(MARK_PLATE, {
+    layers: [{ paint: SEAT_LOOK.black }],
+    stroke: { color: "accent", width: MARK.line, alignment: 1 },
+  });
+  for (const what of BAR_WHATS) {
+    registerAsset(glyphAsset(what, false), { src: glyph(what, BAR_LOOK.glyph), w: BAR.size, h: BAR.size });
+    registerAsset(glyphAsset(what, true), { src: glyph(what, SEAT_LOOK.black), w: BAR.size, h: BAR.size });
+  }
+  for (const what of MARKED) registerAsset(markAsset(what), { src: glyph(what, "accent"), w: MARK.size, h: MARK.size });
+  registerSurface(markFace(), { layers: [] });
+}
+
+function markFace(): string {
+  return "desk.seat.mark.face";
+}
+
+/** One control, built lit or plain — the whole look in one place, so a re-dressing rebuilds and never patches. */
+function control(seat: string, what: BarWhat, lit: boolean, at: { readonly x: number; readonly y: number }): Node {
+  return button(chairButtonId(seat, what), {
+    bounds: roundedRect(BAR.size, BAR.size, BAR.radius),
+    surface: lit ? PLATE_ON : PLATE_OFF,
+    face: lit ? "" : FACE_OFF,
+    inset: BAR.line,
+    icon: glyphAsset(what, lit),
+    iconSize: BAR.size * 0.55,
+    upright: true,
+    means: { [BAR_VALUE]: what, [BAR_SEAT]: seat, [BAR_LIT]: lit ? 1 : 0 },
+    at,
+  });
+}
+
+/** Where a control stands in its group — the rights in a row from the group's left edge, the poses two by two from its right. */
+function seatOf(group: BarGroup, i: number): { readonly x: number; readonly y: number } {
+  const step = BAR.size + BAR.gap;
+  if (group === "rights") return { x: BAR.size / 2 + step * i, y: -BAR.size / 2 };
+  const col = i % 2;
+  const row = Math.floor(i / 2);
+  return { x: -(BAR.size / 2 + step * (1 - col)), y: -(BAR.size / 2 + step * (1 - row)) };
 }
 
 /**
- * THE CONTROLS FOR ONE HAND, built and not yet placed — `fitBar` puts them along a rim.
+ * THE CONTROLS FOR ONE HAND, built and not yet placed — `fitBar` puts the two groups at the foot
+ * of a glass.
  *
  * Only for a chair that is a HAND: a board's place has no cards to shut, hide or turn, and a pin on
  * a place that already refuses every other finger would be a control that does nothing. And only
  * for a held one — a place nobody holds has nobody to press.
  */
-export function seatBar(seat: string, chair: Node, ink: Paint): Node[] {
+export function seatBar(seat: string, chair: Node, _ink: Paint): Node[] {
   if (!isChair(chair) || !isHand(chair)) return [];
   installBarArt();
-  const step = BAR.size + BAR.gap;
-  const from = -(step * (BAR_WHATS.length - 1)) / 2;
-  // THE BAR'S ORIGIN IS ITS NEAR EDGE, not its middle: it is held on the glass (`Screened`) and
-  // scales about its origin, so a bar seated by its middle grew back over the rim it was a gap
-  // away from whenever the view zoomed out. Seated by its near edge, it grows away from the box
-  // at every zoom — the controls stand at `-size/2`, wholly on the far side.
-  //
-  // ...AND IT LIES AS THE CHAIR LIES — not a billboard: a bar stood upright to every viewer stood
-  // over the box for the player opposite, whose "past the far rim" is down their glass. Only the
-  // GLYPHS stand up (`upright`): a padlock read upside down is a padlock read wrong, and the plate
-  // is a circle that does not care.
-  const bar = node(
-    chairBarId(seat),
-    Transformable({ at: { x: 0, y: 0 } }),
-    // SIZED FOR THE FINGER, not the desk: the same pixels at every zoom.
-    Screened({ screened: true }),
-    // WHOSE INK LIGHTS A CONTROL THAT IS ON — the seat's own, kept on the bar for `dressBar`.
-    Valued({ values: { [BAR_INK]: ink } }),
-  );
-  BAR_WHATS.forEach((what, i) => {
-    add(
-      bar,
-      button(chairButtonId(seat, what), {
-        bounds: circle(BAR.size / 2),
-        surface: BAR_PLATE,
-        icon: ICONS[what].asset,
-        iconSize: BAR.size * 0.6,
-        upright: true,
-        means: { [BAR_VALUE]: what, [BAR_SEAT]: seat },
-        at: { x: from + step * i, y: -BAR.size / 2 },
-      }),
-    );
-  });
+  const bar = node(chairBarId(seat), Transformable({ at: { x: 0, y: 0 } }));
+  for (const group of ["rights", "poses"] as const) {
+    const holder = node(chairBarGroupId(seat, group), Transformable({ at: { x: 0, y: 0 } }));
+    BAR_GROUPS[group].forEach((what, i) => add(holder, control(seat, what, false, seatOf(group, i))));
+    add(bar, holder);
+  }
   return [bar];
 }
 
 /**
- * WHAT A PRESSED CONTROL MEANS — which of the four, and whose hand — or nothing for a control that
+ * WHAT A PRESSED CONTROL MEANS — which of the eight, and whose hand — or nothing for a control that
  * is not the bar's. Read off `Valued`, never off an id.
  */
 export function barPress(control: Node): { readonly seat: string; readonly what: BarWhat } | undefined {
@@ -202,51 +233,126 @@ export function barPress(control: Node): { readonly seat: string; readonly what:
   return BAR_WHATS.includes(what as BarWhat) ? { seat, what: what as BarWhat } : undefined;
 }
 
-/**
- * PUT THE ROW ALONG A RIM — its near edge a gap past `reach` from `at` in the direction of the
- * look (`facing`, the chair's own), turned with the chair so the row lies along its top edge.
- */
-export function fitBar(desk: Node, seat: string, at: { readonly x: number; readonly y: number }, facing: number, reach: number): void {
-  const bar = byId(desk, chairBarId(seat));
-  if (!bar) return;
-  const rad = (facing * Math.PI) / 180;
-  const look = { x: -Math.sin(rad), y: -Math.cos(rad) };
-  const out = reach + BAR.gap;
-  const own = fieldsOf<TransformableFields>(bar, "Transformable");
-  compose(bar, Transformable({ ...(own ?? {}), at: { x: at.x + look.x * out, y: at.y + look.y * out }, angle: -facing }));
+/** How wide and how tall each group is, in HUD units — what a screen keeps clear for them. */
+export function barExtent(group: BarGroup): { readonly w: number; readonly h: number } {
+  const step = BAR.size + BAR.gap;
+  const n = BAR_GROUPS[group].length;
+  return group === "rights" ? { w: BAR.size + step * (n - 1), h: BAR.size } : { w: BAR.size + step, h: BAR.size + step };
 }
 
 /**
- * THE STATES, SHOWN ON THE CONTROLS — lit while on, plain while off, read off the CHAIR so every
- * copy of the bar lights the same controls. The flip has nothing to read and is never lit.
+ * PUT THE TWO GROUPS AT THE FOOT OF A GLASS — the rights at the bottom-left corner, the poses at
+ * the bottom-right, each `margin` in from the edges, in the frame whose origin is the glass's
+ * middle and whose unit is the HUD's.
+ */
+export function fitBar(where: Node, seat: string, glass: { readonly w: number; readonly h: number }, margin: number): void {
+  const bar = byId(where, chairBarId(seat));
+  if (!bar) return;
+  const rights = byId(bar, chairBarGroupId(seat, "rights"));
+  const poses = byId(bar, chairBarGroupId(seat, "poses"));
+  const low = glass.h / 2 - margin;
+  if (rights) compose(rights, Transformable({ ...(fieldsOf<TransformableFields>(rights, "Transformable") ?? {}), at: { x: -glass.w / 2 + margin, y: low } }));
+  if (poses) compose(poses, Transformable({ ...(fieldsOf<TransformableFields>(poses, "Transformable") ?? {}), at: { x: glass.w / 2 - margin, y: low } }));
+}
+
+/**
+ * THE STATES, SHOWN ON THE CONTROLS — gold while on, the dark plate while off, read off the CHAIR
+ * so every copy of the bar lights the same controls. A flip and the glass have nothing to read and
+ * are never lit; the fold that is on is the hand's own pose.
  *
  * `where` is the tree the controls stand in and `chair` the one the states are read from, because
- * they are not always the same tree: the bar on the glass (`handHud`) hangs on the screen root while
- * the hand it belongs to stands on the felt. Told only a desk, it finds the chair in it, which is
- * every caller on the table side.
+ * they are not always the same tree: the bar on the glass hangs on the screen root while the hand it
+ * belongs to stands on the felt. Told only a desk, it finds the chair in it.
  */
 export function dressBar(where: Node, seat: string, chair: Node | undefined = byId(where, chairId(seat))): void {
   if (!chair) return;
-  const desk = where;
+  const fold = handPose(chair).fold;
   const on: Record<BarWhat, boolean> = {
+    pin: chairPinned(chair),
     lock: handLocked(chair),
     hide: handHidden(chair),
     flip: false,
-    pin: chairPinned(chair),
+    fan: fold === "fan",
+    shrink: fold === "shrink",
+    tuck: fold === "tuck",
     // NOT LIT, like the flip: where a reader's own hand is drawn is a fact about THEIR screen and
-    // not about this desk — nothing on the felt could light it truthfully for anybody else, and a
-    // light that is wrong on every screen but one is worse than no light at all. They can see where
-    // their hand is: it is either at the foot of their glass or it is not.
+    // not about this desk. They can see where their hand is: it is at the foot of their glass or not.
     glass: false,
   };
-  const bar = byId(desk, chairBarId(seat));
-  const ink = bar ? fieldsOf<ValuedFields>(bar, "Valued")?.values[BAR_INK] : undefined;
-  // LIT IN THE OWNER'S INK — a status the whole table reads, not the press's own dim wash.
-  const lit: Coat = typeof ink === "string" ? { recipe: "wash", level: LIT_WASH, tint: ink } : HELD;
-  for (const what of BAR_WHATS) {
-    const control = byId(desk, chairButtonId(seat, what));
-    if (!control) continue;
-    if (on[what]) compose(control, Coated({ self: NO_COAT, cast: lit }));
-    else decompose(control, "Coated");
+  for (const group of ["rights", "poses"] as const) {
+    const holder = byId(where, chairBarGroupId(seat, group));
+    if (!holder) continue;
+    BAR_GROUPS[group].forEach((what, i) => {
+      const standing = byId(holder, chairButtonId(seat, what));
+      const was = standing ? fieldsOf<ValuedFields>(standing, "Valued")?.values[BAR_LIT] === 1 : undefined;
+      if (was === on[what]) return;
+      const index = standing ? holder.children.indexOf(standing) : holder.children.length;
+      if (standing) remove(holder, standing);
+      const made = control(seat, what, on[what], seatOf(group, i));
+      add(holder, made);
+      const kids = holder.children;
+      kids.splice(index, 0, ...kids.splice(kids.length - 1, 1));
+    });
   }
+}
+
+/**
+ * THE MARKS BESIDE A CHAIR — one per state that is ON, in a column on the owner's left, and none
+ * for a state that is off: absence is the refusal (CANONS §1). Made and taken down HERE, in the
+ * chair's own layer, and placed by `fitMarks`.
+ */
+export function dressMarks(desk: Node, seat: string): void {
+  const chair = byId(desk, chairId(seat));
+  const layer = chair?.parent;
+  if (!chair || !layer || !isHand(chair)) return;
+  installBarArt();
+  const on: Partial<Record<BarWhat, boolean>> = { pin: chairPinned(chair), lock: handLocked(chair), hide: handHidden(chair) };
+  for (const what of MARKED) {
+    const standing = byId(layer, chairMarkId(seat, what));
+    if (on[what] && !standing) {
+      const made = node(chairMarkId(seat, what), Bounded({ bounds: rect(MARK.size, MARK.size) }), Surfaced({ surface: MARK_PLATE }), Transformable({ at: { x: 0, y: 0 } }));
+      // THE GLYPH STANDS UP to whoever is looking: a padlock read upside down is a padlock read wrong.
+      add(
+        made,
+        node(
+          `${chairMarkId(seat, what)} glyph`,
+          Bounded({ bounds: rect(MARK.size * 0.65, MARK.size * 0.65) }),
+          Surfaced({ surface: markGlyph(what) }),
+          Transformable({ at: { x: 0, y: 0 } }),
+          Oriented({ orientation: "viewer" }),
+        ),
+      );
+      add(layer, made);
+    } else if (!on[what] && standing) {
+      remove(layer, standing);
+    }
+  }
+  const pose = fieldsOf<TransformableFields>(chair, "Transformable");
+  fitMarks(desk, seat, pose?.at ?? { x: 0, y: 0 }, pose?.angle ?? 0);
+}
+
+function markGlyph(what: BarWhat): string {
+  const name = `desk.seat.mark.${what}.face`;
+  registerSurface(name, { layers: [{ image: markAsset(what), fit: "contain" }] });
+  return name;
+}
+
+/** The marks that are up for this chair, in the order they stand. */
+export function chairMarks(desk: Node, seat: string): Node[] {
+  return MARKED.map((what) => byId(desk, chairMarkId(seat, what))).filter((n): n is Node => n !== undefined);
+}
+
+/**
+ * PUT THE COLUMN BESIDE THE CHAIR — on the owner's left, centred on the arch's middle, in the
+ * chair's own frame: turned with it, so "left" is the owner's left whichever way the place looks.
+ */
+export function fitMarks(desk: Node, seat: string, at: { readonly x: number; readonly y: number }, angle: number): void {
+  const up = chairMarks(desk, seat);
+  const rad = (angle * Math.PI) / 180;
+  up.forEach((markNode, k) => {
+    const local = { x: MARK.x, y: (k - (up.length - 1) / 2) * MARK.step };
+    const turned = { x: local.x * Math.cos(rad) - local.y * Math.sin(rad), y: local.x * Math.sin(rad) + local.y * Math.cos(rad) };
+    const own = fieldsOf<TransformableFields>(markNode, "Transformable");
+    compose(markNode, Transformable({ ...(own ?? {}), at: { x: at.x + turned.x, y: at.y + turned.y }, angle }));
+  });
 }

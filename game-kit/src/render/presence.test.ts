@@ -12,16 +12,19 @@ import {
   AVATAR_LAYER,
   avatarAt,
   avatarConeId,
+  avatarNameId,
   avatarNode,
   avatarId,
   HOME_ANCHOR,
   homeTarget,
   isHome,
+  lookOf,
   placeAvatars,
   watchPresence,
   type Presence,
   type PresenceDoc,
 } from "./presence.js";
+import { type LabeledFields } from "../core/atoms/labeled.js";
 import { add, byId, caps, fieldsOf, node, type Node } from "../core/node.js";
 import { outlineOf, type BoundedFields } from "../core/atoms/bounded.js";
 import { Acceptor } from "../core/atoms/acceptor.js";
@@ -91,26 +94,36 @@ describe("presence", () => {
     expect(standing.y).toBeCloseTo(place.at.y);
   });
 
-  it("presence.the-disc-wears-the-look-it-is-turned-in — a wedge, and it is not on the initials", () => {
+  it("presence.the-disc-wears-the-look-it-is-turned-in — a cone from its centre, under the disc, and only while looking", () => {
     // A DISC SAYS WHERE SOMEBODY IS AND NOT WHICH WAY THEY ARE TURNED, and on a shared desk that is
     // half of "where they are sitting": two readers standing on the same felt looking opposite ways
     // are looking at two different halves of the game. The disc is already turned by its owner's
-    // camera, so the wedge is a fixed shape drawn straight up its own axis and the angle is free.
+    // camera, so the cone is a fixed shape drawn straight up its own axis and the angle is free.
     const disc = avatarNode(person("south"));
     const cone = byId(disc, avatarConeId("south"));
     expect(cone, "the disc says which way its owner is looking").toBeDefined();
     const points = outlineOf(fieldsOf<BoundedFields>(cone!, "Bounded")!.bounds);
-    // UP THE NODE'S OWN AXIS — every corner above the anchor, and the far end wider than the near
-    // one, which is what makes it a cone opening at the look rather than a needle pointing at it.
-    expect(points.every((p) => p.y < 0), "the wedge points the way the disc is turned").toBe(true);
-    const near = Math.max(...points.map((p) => Math.abs(p.x)).filter((_, i) => i === 0 || i === 3));
-    const far = Math.max(...points.map((p) => Math.abs(p.x)));
-    expect(far, "it opens outwards").toBeGreaterThan(near);
-    // ...AND IT STARTS OFF THE FACE. The disc is a circle with initials in it, and a clin drawn
-    // across them is a badge over somebody's name.
-    expect(Math.min(...points.map((p) => -p.y)), "clear of the initials").toBeGreaterThanOrEqual(
-      Math.max(...points.map((p) => Math.abs(p.x))),
-    );
+    // ITS APEX AT THE DISC'S CENTRE — the seat design's own: a cone that starts in the disc cannot
+    // come apart from it — and opening UP THE NODE'S OWN AXIS, wider at the far end than a point.
+    expect(points.some((p) => p.x === 0 && p.y === 0), "the apex is the centre of the disc").toBe(true);
+    expect(points.every((p) => p.y <= 0), "the cone points the way the disc is turned").toBe(true);
+    expect(Math.max(...points.map((p) => Math.abs(p.x))), "it opens outwards").toBeGreaterThan(0.5);
+    // ...AND UNDER THE DISC, not over the initials: the first thing drawn, so the face covers it.
+    expect(disc.children[0]).toBe(cone);
+    // ...AND NOT AT ALL for somebody who is at the desk but not looking at it — the design's "not
+    // looking": the disc stands, the cone is gone. Somebody gone is not drawn at all.
+    expect(byId(avatarNode(person("south", { state: "away" })), avatarConeId("south"))).toBeUndefined();
+    expect(lookOf("left").drawn).toBe(false);
+    expect(lookOf("offline").drawn).toBe(false);
+    expect(lookOf("away").drawn).toBe(true);
+    // A FULL HAND IS A RING ROUND THE DISC — the one thing on it about the moment, not the person.
+    expect(byId(avatarNode(person("south", { holding: true })), `${avatarId("south")} halo`)).toBeDefined();
+    expect(byId(disc, `${avatarId("south")} halo`)).toBeUndefined();
+    // ...AND THE NAME IS ON A PLATE UNDER IT, upright to whoever is looking.
+    const plate = byId(disc, avatarNameId("south"))!;
+    expect(fieldsOf<LabeledFields>(plate, "Labeled")?.label).toBe(person("south").name);
+    expect(caps(plate).has("Oriented")).toBe(true);
+    expect(fieldsOf<TransformableFields>(plate, "Transformable")?.at?.y).toBeGreaterThan(0);
   });
 
   it("presence.a-hidden-tab-is-away-and-not-gone — the socket is up and the moves still arrive", () => {
@@ -320,19 +333,29 @@ describe("who is at their own place", () => {
     expect(isHome({ ...looking, zoom: 41 }, place, 40), "a nudge of the pinch is still home").toBe(true);
   });
 
-  it("presence.at-home-there-is-no-disc — the place is the person while they are in it", () => {
-    // A DISC ON A FILLED RING IS THE SAME PERSON TWICE. Away it is the only thing that says where
-    // they went; home it is a second picture of somebody already drawn.
+  it("presence.at-home-the-disc-stands-in-the-arch — at the place, turned as the place is; away, under the glass", () => {
+    // TWO PICTURES, ONE NODE. Somebody looking at their own place IS the disc in their chair — at
+    // the place itself and at the place's own turn, whatever their camera's exact numbers — and the
+    // moment they look away the disc is the only thing that says where they went.
     const desk = node("desk");
-    placeAvatars(desk, [seated("south", looking), seated("north", { ...looking, target: { x: 0, y: 0 } })]);
-    expect(byId(desk, avatarId("south")), "home").toBeUndefined();
-    expect(byId(desk, avatarId("north")), "away").toBeDefined();
+    const south = seated("south", looking);
+    placeAvatars(desk, [south, seated("north", { ...looking, target: { x: 0, y: 0 } })]);
+    const home = byId(desk, avatarId("south"))!;
+    expect(home, "home").toBeDefined();
+    expect(fieldsOf<TransformableFields>(home, "Transformable")?.at).toEqual(south.place!.at);
+    expect(fieldsOf<TransformableFields>(home, "Transformable")?.angle).toBeCloseTo(-south.place!.facing);
+    const away = byId(desk, avatarId("north"))!;
+    expect(away, "away").toBeDefined();
+    expect(fieldsOf<TransformableFields>(away, "Transformable")?.at).not.toEqual(south.place!.at);
 
-    // ...AND IT COMES BACK when they look away again, and goes when they come home — the sweep has
-    // to work both ways or a disc left standing is a person in two places.
+    // ...AND THE PICTURES SWAP when they swap — the sweep has to work both ways, or a disc left
+    // standing at the place is a person in two places.
     placeAvatars(desk, [seated("south", { ...looking, target: { x: -4, y: 1 } }), seated("north", looking)]);
-    expect(byId(desk, avatarId("south"))).toBeDefined();
-    expect(byId(desk, avatarId("north"))).toBeUndefined();
+    expect(fieldsOf<TransformableFields>(byId(desk, avatarId("south"))!, "Transformable")?.at).not.toEqual(south.place!.at);
+    expect(fieldsOf<TransformableFields>(byId(desk, avatarId("north"))!, "Transformable")?.at).toEqual(south.place!.at);
+    // ...AND SOMEBODY GONE IS NOT DRAWN AT ALL: their chair says the place is held.
+    placeAvatars(desk, [{ ...seated("south", looking), state: "left" }, seated("north", looking)]);
+    expect(byId(desk, avatarId("south"))).toBeUndefined();
   });
 
   it("presence.a-disc-is-turned-the-way-its-owner-is-turned — the angle IS half the message", () => {

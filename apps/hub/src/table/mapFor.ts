@@ -1,7 +1,7 @@
 // WHICH BOARD A TABLE BUILDS — one function of the `game` id the server hands back in `welcome`
 // (or, on the very first frame before it arrives, the id already carried in the URL). Kept apart
 // from `index.ts` so a unit test can hit it without mounting a host or opening a socket.
-import { chairId, chairNameId, chessMap, nardyMap, roundMap, roundPlaces, seatChairs } from "@game-presets/desks";
+import { chairId, chairLidId, chairMarks, chessMap, nardyMap, roundMap, roundPlaces, seatChairs } from "@game-presets/desks";
 import { byId, remove, type Node } from "game-kit";
 import { hubSeats } from "./people.js";
 
@@ -64,10 +64,9 @@ export function syncSeatChairs(desk: Node, present: readonly SeatedPerson[]): vo
       seatChairs(desk, [places[i]!], [{ seat, ink, name: sitting.name }], true);
     } else if (!sitting && there) {
       remove(there.parent!, there);
-      // THE NAME GOES WITH THE RING. It is a node of its own so the ring can arrange cards without
-      // arranging words, and a caption left behind is a player's name lying on felt they got up from.
-      const name = byId(desk, chairNameId(seat));
-      if (name) remove(name.parent!, name);
+      // ...AND ITS FURNITURE WITH IT: the face over it and the marks beside it — a face left behind
+      // is a chair drawn for somebody who got up.
+      for (const piece of [byId(desk, chairLidId(seat)), ...chairMarks(desk, seat)]) if (piece?.parent) remove(piece.parent, piece);
     }
   }
 }

@@ -22,7 +22,7 @@ import {
   type SurfacedFields,
   type TransformableFields,
 } from "../../src/index.js";
-import { chairHome, chairId, isHand, ROUND_R, roundMap, roundPlaces, SEATS } from "@game-presets/desks";
+import { chairHome, chairId, chairLidId, chairLidSurface, isHand, ROUND_R, roundMap, roundPlaces, SEATS } from "@game-presets/desks";
 import { mayTake } from "@game-presets/desks";
 import { withAvatars } from "./avatars.js";
 import { type Screen } from "./liveScreens.js";
@@ -100,9 +100,9 @@ describe("the people at a live desk", () => {
     expect(at(byId(desk, chairId(seat))!)).toEqual({ x: 0, y: -(ROUND_R - 1) });
   });
 
-  it("live.at-home-the-ring-is-the-person — filled, and no disc drawn over it", () => {
-    // A DISC ON A FILLED RING IS THE SAME PERSON TWICE, at the one moment the two pictures agree
-    // least: the ring says "this seat is taken" and the disc says "somebody is over here".
+  it("live.at-home-the-disc-is-in-the-arch — and away it stands under the glass, the chair left holding the place", () => {
+    // ONE PICTURE FOR HOME: the disc at the place, in the arch, at the place's own turn. Away, the
+    // disc is under the owner's glass and the chair stays, in their ink, saying the place is held.
     const desk = roundMap(SEATS);
     const places = roundPlaces(SEATS.length);
     const screens = SEATS.map(({ seat, ink }, i) => screenOf(seat, ink as string, places[i]!.facing));
@@ -114,18 +114,20 @@ describe("the people at a live desk", () => {
     });
     const people = wire(desk, screens);
     people.publish();
-    for (const { seat } of SEATS) {
-      expect(byId(desk, avatarId(seat)), `${seat} at home has no disc`).toBeUndefined();
-      expect(chairHome(byId(desk, chairId(seat))!), `${seat}'s ring is filled`).toBe(true);
+    for (const [i, { seat }] of SEATS.entries()) {
+      const disc = byId(desk, avatarId(seat))!;
+      expect(disc, `${seat} at home has a disc`).toBeDefined();
+      expect(at(disc), "…in the arch").toEqual(places[i]!.at);
+      expect(chairHome(byId(desk, chairId(seat))!), `${seat}'s chair says home`).toBe(true);
     }
 
-    // ...AND ONE OF THEM LOOKS AWAY. Their disc appears, on both screens, and their ring empties;
-    // the other player's picture is untouched, which is what makes it a reading and not a mode.
+    // ...AND ONE OF THEM LOOKS AWAY. Their disc leaves the arch, on both screens, and their chair
+    // says so; the other player's picture is untouched, which is what makes it a reading and not a mode.
     (screens[0]!.scene!.camera as { target: { x: number; y: number } }).target = { x: 0, y: 0 };
     people.publish();
-    expect(byId(desk, avatarId(SEATS[0]!.seat)), "away, the disc is drawn").toBeDefined();
+    expect(at(byId(desk, avatarId(SEATS[0]!.seat))!), "away, the disc is under the glass").not.toEqual(places[0]!.at);
     expect(chairHome(byId(desk, chairId(SEATS[0]!.seat))!)).toBe(false);
-    expect(byId(desk, avatarId(SEATS[1]!.seat)), "the other one is still home").toBeUndefined();
+    expect(at(byId(desk, avatarId(SEATS[1]!.seat))!), "the other one is still home").toEqual(places[1]!.at);
     expect(chairHome(byId(desk, chairId(SEATS[1]!.seat))!)).toBe(true);
   });
 
@@ -179,10 +181,14 @@ describe("the people at a live desk", () => {
     const inks = SEATS.map(({ ink }) => ink as string);
     SEATS.forEach(({ seat, ink }, i) => {
       const theirs = inks[1 - i]!;
-      for (const id of [chairId(seat), avatarId(seat)]) {
-        const node = byId(desk, id)!;
-        expect(node, id).toBeDefined();
-        const record = surfaceRecord(fieldsOf<SurfacedFields>(node, "Surfaced")!.surface)!;
+      // THE CHAIR'S INK IS THE RIM OF ITS FACE, the disc's the rim of the disc: the chair itself
+      // and the disc's root are the black keyline and a frame, and carry no colour of their own.
+      for (const [id, surface] of [
+        [chairLidId(seat), chairLidSurface(seat)],
+        [avatarId(seat), fieldsOf<SurfacedFields>(byId(byId(desk, avatarId(seat))!, `${avatarId(seat)} disc`)!, "Surfaced")!.surface],
+      ] as const) {
+        expect(byId(desk, id), id).toBeDefined();
+        const record = surfaceRecord(surface)!;
         const paints = [...record.layers.map((l) => l.paint), record.stroke?.color].filter(Boolean);
         // ITS OWN INK IS ON IT, and the other seat's is nowhere on it. Both halves: a node painted
         // in neither colour is as wrong as one painted in the wrong one, and only the first check

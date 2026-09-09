@@ -37,7 +37,7 @@ import {
   type SurfacedFields,
   type TransformableFields,
 } from "../index.js";
-import { chairButtonId, chairHome, chairId, chairPinned, chairTickId, handHidden, handLocked, isHand, ROUND_R, roundMap, roundPlaces, SEATS } from "@game-presets/desks";
+import { chairButtonId, chairHome, chairId, chairLidId, chairLidSurface, chairMarkId, chairMarks, chairPinned, chairRingId, handHidden, handLocked, handPose, isHand, ROUND_R, roundMap, roundPlaces, seatBar, SEATS } from "@game-presets/desks";
 import { mayTake } from "@game-presets/desks";
 
 /** A camera that has nothing else — the one thing `withAvatars` asks a screen for. */
@@ -147,17 +147,17 @@ describe("the people at a live desk", () => {
 
     people.handed(seat, [{ id: chairId(seat) }] as never, { x: 1, y: 1 }, true);
     expect(people.placeOf(seat)?.facing, "let go, it faces the way its owner was looking").toBe(was + 90);
-    // ...AND THE TICK ON THE RIM SAYS SO. The facing is only visible as that one bar: a place whose
-    // number turned while its mark did not is a desk that says two things about one seat.
-    // Level on its owner's glass, which turns the desk by the facing — so on the desk it stands at
-    // MINUS the facing, the disc's own law (`avatarNode`, `tickPose`).
-    const tick = byId(desk, chairTickId(seat))!;
-    expect(fieldsOf<TransformableFields>(tick, "Transformable")?.angle).toBe(-(was + 90));
+    // ...AND THE ARCH SAYS SO. The facing is visible as the way the chair stands: a place whose
+    // number turned while its shape did not is a desk that says two things about one seat. Level
+    // on its owner's glass, which turns the desk by the facing — so on the desk it stands at MINUS
+    // the facing, the disc's own law (`avatarNode`), face and all.
+    expect(fieldsOf<TransformableFields>(byId(desk, chairId(seat))!, "Transformable")?.angle).toBe(-(was + 90));
+    expect(fieldsOf<TransformableFields>(byId(desk, chairLidId(seat))!, "Transformable")?.angle).toBe(-(was + 90));
   });
 
-  it("live.at-home-the-ring-is-the-person — filled, and no disc drawn over it", () => {
-    // A DISC ON A FILLED RING IS THE SAME PERSON TWICE, at the one moment the two pictures agree
-    // least: the ring says "this seat is taken" and the disc says "somebody is over here".
+  it("live.at-home-the-disc-is-in-the-arch — and away it stands under the glass, the chair left holding the place", () => {
+    // ONE PICTURE FOR HOME: the disc at the place, in the arch, at the place's own turn. Away, the
+    // disc is under the owner's glass and the chair stays, in their ink, saying the place is held.
     const desk = roundMap(SEATS);
     const places = roundPlaces(SEATS.length);
     const screens = SEATS.map(({ seat, ink }, i) => screenOf(seat, ink as string, places[i]!.facing));
@@ -169,18 +169,21 @@ describe("the people at a live desk", () => {
     });
     const people = wire(desk, screens);
     people.publish();
-    for (const { seat } of SEATS) {
-      expect(byId(desk, avatarId(seat)), `${seat} at home has no disc`).toBeUndefined();
-      expect(chairHome(byId(desk, chairId(seat))!), `${seat}'s ring is filled`).toBe(true);
+    for (const [i, { seat }] of SEATS.entries()) {
+      const disc = byId(desk, avatarId(seat))!;
+      expect(disc, `${seat} at home has a disc`).toBeDefined();
+      expect(at(disc), "…in the arch").toEqual(places[i]!.at);
+      expect(fieldsOf<TransformableFields>(disc, "Transformable")?.angle).toBeCloseTo(-places[i]!.facing);
+      expect(chairHome(byId(desk, chairId(seat))!), `${seat}'s chair says home`).toBe(true);
     }
 
-    // ...AND ONE OF THEM LOOKS AWAY. Their disc appears, on both screens, and their ring empties;
-    // the other player's picture is untouched, which is what makes it a reading and not a mode.
+    // ...AND ONE OF THEM LOOKS AWAY. Their disc leaves the arch, on both screens, and their chair
+    // says so; the other player's picture is untouched, which is what makes it a reading and not a mode.
     screens[0]!.camera!.target = { x: 0, y: 0 };
     people.publish();
-    expect(byId(desk, avatarId(SEATS[0]!.seat)), "away, the disc is drawn").toBeDefined();
+    expect(at(byId(desk, avatarId(SEATS[0]!.seat))!), "away, the disc is under the glass").not.toEqual(places[0]!.at);
     expect(chairHome(byId(desk, chairId(SEATS[0]!.seat))!)).toBe(false);
-    expect(byId(desk, avatarId(SEATS[1]!.seat)), "the other one is still home").toBeUndefined();
+    expect(at(byId(desk, avatarId(SEATS[1]!.seat))!), "the other one is still home").toEqual(places[1]!.at);
     expect(chairHome(byId(desk, chairId(SEATS[1]!.seat))!)).toBe(true);
   });
 
@@ -206,11 +209,12 @@ describe("the people at a live desk", () => {
     expect(asked).toEqual([mine]);
   });
 
-  it("live.the-bar-is-pressed-by-its-owner-alone — shut, hide, turn over, pin: four writes on the chair, read by every screen", () => {
-    // THE BAR ABOVE A HAND (`handBar.ts`) is the one place a finger says what a hand is. Each press
-    // is one write on the chair — the lock and the pin are numbers on it, hiding is its zone rule,
-    // a flip is the cards' own sides — and the chair is on every screen's tree, so the OTHER screen
-    // reads the state off the same node: lit controls, refused reaches, backs instead of faces.
+  it("live.the-bar-is-pressed-by-its-owner-alone — shut, hide, turn over, pin, fold: five writes on the chair, read by every screen", () => {
+    // THE CONTROLS ON THE OWNER'S GLASS (`handBar.ts`) are the one place a finger says what a hand
+    // is. Each press is one write on the chair — the lock and the pin are numbers on it, hiding is
+    // its zone rule, a flip is the cards' own sides, a fold is its pose — and the chair is on every
+    // screen's tree, so the OTHER screen reads the state off the same node: marks beside the chair,
+    // refused reaches, backs instead of faces.
     installStockFlips();
     const desk = roundMap(SEATS);
     const screens = [screenOf("south", "accent", 0), screenOf("north", "alert", 180)];
@@ -220,7 +224,11 @@ describe("the people at a live desk", () => {
     const card = (id: string) => node(id, Bounded({ bounds: rect(1, 1.4) }), Surfaced({ surface: "front" }), Transformable({ at: { x: 0, y: 0 } }), Flippable({ flip: "turnOver", back: "cardBack" }));
     add(ring, card("ace"));
     add(ring, card("two"));
-    const control = (what: "lock" | "hide" | "flip" | "pin") => byId(desk, chairButtonId("south", what))!;
+    // THE CONTROLS ARE THE GLASS'S, built off the chair; on the felt there are none to press.
+    expect(byId(desk, chairButtonId("south", "lock"))).toBeUndefined();
+    const bar = seatBar("south", ring, "accent")[0]!;
+    const control = (what: "lock" | "hide" | "flip" | "pin" | "fan" | "glass") => byId(bar, chairButtonId("south", what))!;
+    const marked = (what: "lock" | "hide" | "pin"): boolean => chairMarks(desk, "south").some((m) => m.id === chairMarkId("south", what));
 
     // NOBODY ELSE'S FINGER: north pressing south's bar is not this wiring's.
     expect(people.pressed("north", control("lock"))).toBe(false);
@@ -231,7 +239,7 @@ describe("the people at a live desk", () => {
     expect(people.pressed("south", control("lock"))).toBe(true);
     expect(handLocked(ring), "shut").toBe(true);
     expect(grippableBy(byId(desk, "ace")!, "north"), "…and north cannot reach in").toBe(false);
-    expect(fieldsOf<CoatedFields>(control("lock"), "Coated"), "…and the control is lit").toBeDefined();
+    expect(marked("lock"), "…and the padlock stands beside the chair, for every screen").toBe(true);
 
     expect(people.pressed("south", control("hide"))).toBe(true);
     expect(handHidden(ring)).toBe(true);
@@ -245,17 +253,24 @@ describe("the people at a live desk", () => {
     expect(facing(byId(desk, "ace")!)).toBe("down");
     expect(facing(byId(desk, "two")!)).toBe("down");
     expect(ring.children.map((n) => n.id), "the order is untouched").toEqual(["ace", "two"]);
-    expect(fieldsOf<CoatedFields>(control("flip"), "Coated"), "a flip is not a state and lights nothing").toBeUndefined();
+    expect(chairMarks(desk, "south").length, "a flip is not a state and marks nothing").toBe(2);
 
     expect(people.pressed("south", control("pin"))).toBe(true);
     expect(chairPinned(ring)).toBe(true);
     expect(mayTake(ring, "south"), "a pinned chair moves for nobody").toBe(false);
+    expect(marked("pin")).toBe(true);
+
+    // A FOLD IS THE HAND'S POSE, written on the chair like the rest; the glass is not this wiring's.
+    expect(people.pressed("south", control("fan"))).toBe(true);
+    expect(handPose(ring)).toEqual({ side: "side", fold: "fan" });
+    expect(people.pressed("south", control("glass"))).toBe(false);
 
     // ...AND EACH PRESSED AGAIN IS THE STATE OFF AGAIN.
     people.pressed("south", control("lock"));
     people.pressed("south", control("hide"));
     people.pressed("south", control("pin"));
     expect([handLocked(ring), handHidden(ring), chairPinned(ring)]).toEqual([false, false, false]);
+    expect(chairMarks(desk, "south"), "off, the marks come down").toEqual([]);
     expect(shown("north", "ace"), "shown again, north sees the side south set").toBe("cardBack");
   });
 
@@ -285,10 +300,14 @@ describe("the people at a live desk", () => {
     const inks = SEATS.map(({ ink }) => ink as string);
     SEATS.forEach(({ seat, ink }, i) => {
       const theirs = inks[1 - i]!;
-      for (const id of [chairId(seat), avatarId(seat)]) {
-        const node = byId(desk, id)!;
-        expect(node, id).toBeDefined();
-        const record = surfaceRecord(fieldsOf<SurfacedFields>(node, "Surfaced")!.surface)!;
+      // THE CHAIR'S INK IS THE RIM OF ITS FACE, the disc's the rim of the disc: the chair itself
+      // and the disc's root are the black keyline and a frame, and carry no colour of their own.
+      for (const [id, surface] of [
+        [chairLidId(seat), chairLidSurface(seat)],
+        [avatarId(seat), fieldsOf<SurfacedFields>(byId(byId(desk, avatarId(seat))!, `${avatarId(seat)} disc`)!, "Surfaced")!.surface],
+      ] as const) {
+        expect(byId(desk, id), id).toBeDefined();
+        const record = surfaceRecord(surface)!;
         const paints = [...record.layers.map((l) => l.paint), record.stroke?.color].filter(Boolean);
         // ITS OWN INK IS ON IT, and the other seat's is nowhere on it. Both halves: a node painted
         // in neither colour is as wrong as one painted in the wrong one, and only the first check

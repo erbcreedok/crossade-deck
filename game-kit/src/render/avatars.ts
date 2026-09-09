@@ -23,12 +23,17 @@ import { type Paint } from "../core/paint.js";
 import { type Vec } from "../core/transform.js";
 import { type CarryItem } from "./animator/index.js";
 import { type SeatPlace } from "./liveTable.js";
-import { isHome, placeAvatars, PRESENCE_TEXT, type Presence } from "./presence.js";
 import { registerTextStyle } from "./textStyles.js";
-import { barPress, chairId, chairPinned, dressChair, fitChair, flipHand, growHand, handHidden, handLocked, setChairPin, setHandHidden, standChair } from "@game-presets/desks";
+import { isHome, placeAvatars, PRESENCE_GLYPH, PRESENCE_TEXT, type Presence } from "./presence.js";
+import { barPress, chairId, chairPinned, dressChair, fitChair, flipHand, handHidden, handLocked, handPose, layHand, setChairPin, setHandHidden, setHandPose, standChair } from "@game-presets/desks";
 
-/** The name under a disc: small, quiet and the desk's own face. */
-const NAME_STYLE = { family: "ui-sans-serif, system-ui, sans-serif", size: 0.14, weight: 600, lineHeight: 1.2, fill: "text" };
+/**
+ * THE FACES OF THE SEAT DESIGN — the pixel face for the name on its plate and for the initials in
+ * the disc. A ROLE each, so a consumer with its own faces re-registers them under the same names.
+ */
+const PIXEL_FACE = "'Press Start 2P', ui-monospace, monospace";
+const NAME_STYLE = { family: PIXEL_FACE, size: 0.24, weight: 400, lineHeight: 1.6, fill: "text" };
+const GLYPH_STYLE = { family: PIXEL_FACE, size: 0.5, weight: 400, lineHeight: 1, fill: "text" };
 
 /** One place at a live desk: who sits there and in what colour they are drawn. */
 export interface AvatarSeat {
@@ -102,6 +107,13 @@ export interface AvatarsOptions {
    * does nothing, which is every page whose panes have no camera to move.
    */
   readonly goHome?: (seat: string) => void;
+  /**
+   * WHOSE SCREEN THIS IS, asked fresh — the seat whose chair wears the gold ring that says "this
+   * is me". A fact of the screen and not of the desk, which is why it is asked here and never
+   * sent: the hub answers with its own seat, the catalog with the pane last touched. Absent, no
+   * chair wears the ring, which is a page that is nobody's.
+   */
+  readonly me?: () => string | undefined;
   /** Element whose disconnection stops the listeners below — a `MutationObserver` watches this. */
   readonly wall: HTMLElement;
 }
@@ -144,6 +156,7 @@ export interface Avatars {
  */
 export function withAvatars(o: AvatarsOptions): Avatars {
   registerTextStyle(PRESENCE_TEXT, NAME_STYLE);
+  registerTextStyle(PRESENCE_GLYPH, GLYPH_STYLE);
   const desk = (): Node => (typeof o.desk === "function" ? o.desk() : o.desk);
   /**
    * WHERE EACH SEAT'S PLACE STANDS RIGHT NOW — the opening one, until its owner drags their chair.
@@ -200,18 +213,17 @@ export function withAvatars(o: AvatarsOptions): Avatars {
    * EVERY PLACE, RE-DRESSED — what is true of it, and how big what is in it has made it.
    */
   const layHands = (): void => {
+    const me = o.me?.();
     for (const { seat } of o.seats) {
       const ring = byId(desk(), chairId(seat));
       if (!ring) continue;
-      // THE RING IS THE HAND, so there is nothing to put beside anything: it stands where its owner
-      // sits and it is the size of what is in it. Both facts are written in ONE call, because they
-      // are one picture — see `dressChair`.
-      dressChair(ring, { home: home.has(seat) });
-      if (o.hands !== undefined) {
-        growHand(ring);
-        // ...AND THE FURNITURE FOLLOWS THE BOX: the tick back on the rim, the name back under it.
-        fitChair(desk(), seat);
-      }
+      // THE CHAIR IS THE HAND, so there is nothing to put beside anything: it stands where its owner
+      // sits and the cards lie about it in its pose. What is true of it is written in ONE call,
+      // because it is one picture — see `dressChair`.
+      dressChair(ring, { home: home.has(seat), mine: me === seat });
+      if (o.hands !== undefined) layHand(ring);
+      // ...AND THE FURNITURE FOLLOWS THE CHAIR: the face over it, the marks beside it.
+      fitChair(desk(), seat);
     }
   };
 
@@ -330,12 +342,16 @@ export function withAvatars(o: AvatarsOptions): Avatars {
       const ring = byId(desk(), chairId(seat));
       if (!ring) return false;
       // EACH IS ONE WRITE ON THE CHAIR, and the chair is the truth on every screen: the lock and
-      // the pin are numbers on it, hiding is its zone rule, a flip is the cards' own sides. Then
-      // the place is re-dressed — which lights the bar off those very numbers (`dressBar`).
+      // the pin are numbers on it, hiding is its zone rule, a flip is the cards' own sides, a
+      // fold is the hand's pose. Then the place is re-dressed — which puts the marks beside the
+      // chair and lights the HUD's controls off those very numbers (`dressMarks`, `dressBar`).
+      // THE GLASS is not this wiring's: where a reader's hand is drawn is a fact of their screen.
+      if (press.what === "glass") return false;
       if (press.what === "lock") dressChair(ring, { shut: !handLocked(ring) });
       else if (press.what === "hide") setHandHidden(ring, !handHidden(ring));
       else if (press.what === "flip") flipHand(ring);
-      else setChairPin(ring, !chairPinned(ring));
+      else if (press.what === "pin") setChairPin(ring, !chairPinned(ring));
+      else setHandPose(ring, { side: handPose(ring).side, fold: press.what });
       layHands();
       return true;
     },

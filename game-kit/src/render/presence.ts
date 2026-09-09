@@ -25,7 +25,7 @@ import { apply, chain, invert, move, rotate, scale, type Transform, type Vec } f
 import { polyline } from "../core/path.js";
 import { Bounded, type Shape } from "../core/atoms/bounded.js";
 import { Labeled } from "../core/atoms/labeled.js";
-import { Screened } from "../core/atoms/screened.js";
+import { Oriented } from "../core/atoms/oriented.js";
 import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
 import { Valued, type ValuedFields } from "../core/atoms/valued.js";
@@ -33,7 +33,6 @@ import { add, byId, fieldsOf, node, remove, type Node } from "../core/node.js";
 import { type Paint } from "../core/paint.js";
 import { registerAsset } from "./assets.js";
 import { registerSurface } from "./surfaces.js";
-import { svg } from "./svg.js";
 
 /**
  * HOW A PERSON'S VIEW ARRIVES on somebody else's screen — the whole of what the far side needs to
@@ -76,58 +75,70 @@ export interface Presence {
 }
 
 /**
- * THE DISC, in units — and a little over half of one, not a whole one.
+ * THE DISC, in units of the felt — the seat design's 54px disc in its 74px arch, so the disc sits
+ * IN the arch when its owner is at home and is the same thing at every zoom the arch is.
  *
- * The size is on the GLASS in the end (`Screened`), and the etalon a scene holds itself to is sized
- * for a card on a phone. A face drawn a full unit across at that etalon is a hundred pixels of
- * somebody's picture on a four-hundred-pixel screen: it covers the felt it is meant to be standing
- * on, and two of them meeting in a corner hide the desk between them.
+ * Felt-sized and not held on the glass: the chair it stands in is felt-sized, and a disc that kept
+ * its pixels through a zoom would burst out of the arch on a board seen close and drown in it on
+ * one seen whole.
  */
-const DISC = 0.55;
-/** The caption's box under the disc — wide, because a name is longer than a face. */
-const CAPTION = { w: 1.7, h: 0.3, at: 0.48 };
-/** The state's own small mark, on the disc's lower right. */
-const BADGE = { size: 0.18, at: 0.19 };
-/** The face inside the disc, as a fraction of it — under one, so the seat's ink reads all round. */
-const FACE = 0.82;
+export const DISC = 1.6;
+/** The design's own lines over the disc — the keyline round it and the ink rim inside. */
+const LINE = 0.09;
+/** The name plate under the disc: its distance below the centre, its padding and its rule. */
+const PLATE = { at: 1.34, padX: 0.24, padY: 0.09, line: 0.06 };
+/** The glyph inside the disc — one em of the pixel face — and the plate's smaller one. */
+const GLYPH_EM = 0.5;
+const PLATE_EM = 0.24;
+/** The ring round a disc whose hand is full — the design's halo. */
+const HALO = { width: 0.12, out: 0.06 };
 /**
- * THE WEDGE THAT SAYS WHICH WAY THIS PERSON IS FACING — in units, measured out from the disc's
- * middle, and quiet.
- *
- * A disc alone says WHERE somebody is standing and says nothing about which way they are turned,
- * which on a shared desk is half of "where they are sitting": two readers at the same spot looking
- * opposite ways are looking at two different halves of the felt. The disc is already turned by its
- * owner's camera, so the wedge is a fixed shape on it and the angle costs nothing.
- *
- * It starts OUTSIDE the face and not at the anchor: the disc is a circle with initials in it, and a
- * clin drawn across them would be a badge over somebody's name. `spread` widens outwards, so it
- * reads as a cone opening in the direction of the look rather than as a needle pointing at it.
+ * THE CONE THAT SAYS WHICH WAY THIS PERSON IS LOOKING — the design's own: its apex AT the centre
+ * of the disc, so it cannot come apart from it, opening into the desk. In units of the felt, and
+ * quiet. The disc is already turned by its owner's camera, so the cone is a fixed shape on it and
+ * the angle costs nothing.
  */
-const CONE = { from: DISC / 2, to: DISC * 1.15, near: 0.05, spread: 0.17, fade: 0.42 };
+const CONE = { half: 0.89, length: 1.84, fade: 0.3 };
 
 /**
- * A COLOUR THE PICTURE CAN READ. A picture is a data URI — a document of its own — so a theme token
- * written into it resolves against nothing and the letters come out the browser's default black on
- * whatever they are standing on. A CSS name is a colour with a name, and it survives the crossing.
+ * WHAT THE DISC IS PAINTED WITH — the keyline round it and the ground under the initials, top to
+ * bottom. Tokens by default, so the kit holds no colour of its own; a desk with a look of its own
+ * (the seat design's dark green ground and black keyline, shipped by the desks preset) sets them
+ * once (`setPresencePaints`), and every disc on the shelf wears them.
  */
-const INITIALS_INK = "white";
+export interface PresencePaints {
+  readonly keyline: Paint;
+  readonly groundHi: Paint;
+  readonly groundLo: Paint;
+}
+let PAINTS: PresencePaints = { keyline: "shadow", groundHi: "panelBg", groundLo: "sunkBg" };
+export function setPresencePaints(paints: PresencePaints): void {
+  PAINTS = paints;
+}
+export function presencePaints(): PresencePaints {
+  return PAINTS;
+}
 
 /**
  * WHAT EACH STATE LOOKS LIKE, as data. Not a branch: a product that wants a fifth state — idle,
  * thinking, timed out — registers a look for it, and nothing in here is touched.
+ *
+ * The design says a state with the cone and with the disc: somebody LOOKING at the desk wears the
+ * cone; somebody at the desk but looking elsewhere (a hidden tab) wears the disc and no cone;
+ * somebody gone is not drawn at all — their chair stays, in their ink, and says the place is held.
  */
 export interface PresenceLook {
-  /** The disc's own opacity: a person who is not watching is quieter, not gone. */
-  readonly fade: number;
-  /** The badge's colour. */
-  readonly badge: Paint;
+  /** Whether the disc is drawn at all. */
+  readonly drawn: boolean;
+  /** Whether the cone of the look is drawn. */
+  readonly cone: boolean;
 }
 
 const LOOKS = new Map<string, PresenceLook>([
-  ["online", { fade: 1, badge: "accent" }],
-  ["away", { fade: 0.55, badge: "textMuted" }],
-  ["left", { fade: 0.35, badge: "textFaint" }],
-  ["offline", { fade: 0.22, badge: "textFaint" }],
+  ["online", { drawn: true, cone: true }],
+  ["away", { drawn: true, cone: false }],
+  ["left", { drawn: false, cone: false }],
+  ["offline", { drawn: false, cone: false }],
 ]);
 
 /** A look for a state the kit does not ship. Overwriting a stock one is allowed and is the point. */
@@ -137,7 +148,7 @@ export function registerPresenceLook(state: string, look: PresenceLook): void {
 
 /** The look in force. An unregistered state is drawn as present rather than skipped: a person the
  * desk cannot describe is still at the desk, and a blank space would say they had gone. */
-function lookOf(state: string): PresenceLook {
+export function lookOf(state: string): PresenceLook {
   return LOOKS.get(state) ?? LOOKS.get("online")!;
 }
 
@@ -147,6 +158,20 @@ function lookOf(state: string): PresenceLook {
  * A BOX AS A PATH, built here rather than taken from `presets/rect`: the presets stand ABOVE the
  * renderer, and a file down here reaching for one would invert the ladder (`guard.layering`).
  */
+/** A CIRCLE AS A PATH, four cubic arcs — built here for the same reason `box` is. */
+function round(r: number): Shape {
+  const k = 0.5523 * r;
+  return {
+    start: { x: -r, y: 0 },
+    segments: [
+      { c1: { x: -r, y: -k }, c2: { x: -k, y: -r }, to: { x: 0, y: -r } },
+      { c1: { x: k, y: -r }, c2: { x: r, y: -k }, to: { x: r, y: 0 } },
+      { c1: { x: r, y: k }, c2: { x: k, y: r }, to: { x: 0, y: r } },
+      { c1: { x: -k, y: r }, c2: { x: -r, y: k }, to: { x: -r, y: 0 } },
+    ],
+  };
+}
+
 function box(w: number, h: number): Shape {
   return polyline([
     { x: -w / 2, y: -h / 2 },
@@ -298,12 +323,12 @@ export function atHome(p: Presence, homeZoom?: number): boolean {
 
 // ---- the node ------------------------------------------------------------------------------
 
-/** The disc's own surface, one per seat: re-registered as the state changes, so the name is stable. */
+/** The disc's own surfaces, one per seat: re-registered as the state changes, so the name is stable. */
 function discSurface(seat: string): string {
   return `presence.disc.${seat}`;
 }
-function badgeSurface(seat: string): string {
-  return `presence.badge.${seat}`;
+function haloSurface(seat: string): string {
+  return `presence.halo.${seat}`;
 }
 function faceSurface(seat: string): string {
   return `presence.face.${seat}`;
@@ -314,6 +339,11 @@ function faceAsset(seat: string): string {
 function coneSurface(seat: string): string {
   return `presence.cone.${seat}`;
 }
+function plateSurface(seat: string): string {
+  return `presence.plate.${seat}`;
+}
+
+const KEYLINE_SURFACE = "presence.keyline";
 
 /** The id an avatar answers to. Built here, never parsed — an id is a name (`guard.id-is-opaque`). */
 export function avatarId(seat: string): string {
@@ -321,11 +351,16 @@ export function avatarId(seat: string): string {
 }
 
 /**
- * THE ID OF THE WEDGE ON A DISC — built here, never parsed, so a reader that wants the direction
+ * THE ID OF THE CONE ON A DISC — built here, never parsed, so a reader that wants the direction
  * asks for it by name instead of matching the shape of an id (`guard.id-is-opaque`).
  */
 export function avatarConeId(seat: string): string {
   return `${avatarId(seat)} cone`;
+}
+
+/** The id of the name plate under a disc. */
+export function avatarNameId(seat: string): string {
+  return `${avatarId(seat)} name`;
 }
 
 /**
@@ -345,115 +380,123 @@ export function initials(name: string): string {
 
 /** The pictures and paints this presence is drawn with — re-registered whenever the state moves. */
 function installLook(p: Presence): void {
-  const look = lookOf(p.state);
+  registerSurface(KEYLINE_SURFACE, { layers: [{ paint: PAINTS.keyline }] });
+  // THE DISC: the design's dark ground, top to bottom, with the seat's ink as the rim inside the
+  // keyline — the same two lines the chair wears, so a disc in an arch reads as one thing.
   registerSurface(discSurface(p.seat), {
-    layers: [{ paint: p.ink, opacity: look.fade }],
-    radius: DISC / 2,
-    // A RING FOR A FULL HAND. The one thing on this disc that is about the moment rather than the
-    // person: a hand with something in it is the difference between "they are here" and "they are
-    // doing something", and it is the state everybody else is waiting on.
-    ...(p.holding ? { stroke: { color: "accent", width: 0.09, alignment: 0 } } : {}),
+    layers: [{ gradient: { stops: [{ at: 0, paint: PAINTS.groundHi }, { at: 1, paint: PAINTS.groundLo }], angle: 90 } }],
+    stroke: { color: p.ink, width: LINE, alignment: 1 },
   });
+  // A RING FOR A FULL HAND. The one thing on this disc that is about the moment rather than the
+  // person: a hand with something in it is the difference between "they are here" and "they are
+  // doing something", and it is the state everybody else is waiting on.
+  registerSurface(haloSurface(p.seat), { layers: [], stroke: { color: "accent", width: HALO.width, alignment: 0, opacity: 0.55 } });
   // SCREEN-UP ON THE OWNER'S GLASS is what the disc's own turn already means (see `avatarNode`), so
-  // the wedge is drawn straight up the node's own local axis and needs no angle of its own.
-  registerSurface(coneSurface(p.seat), {
-    layers: [{ paint: p.ink, opacity: look.fade * CONE.fade }],
+  // the cone is drawn straight up the node's own local axis and needs no angle of its own.
+  registerSurface(coneSurface(p.seat), { layers: [{ paint: p.ink, opacity: CONE.fade }] });
+  registerSurface(plateSurface(p.seat), {
+    layers: [{ paint: PAINTS.keyline }],
+    stroke: { color: p.ink, width: PLATE.line, alignment: 1 },
   });
-  registerSurface(badgeSurface(p.seat), {
-    layers: [{ paint: look.badge }],
-    radius: BADGE.size / 2,
-    stroke: { color: "sunkBg", width: 0.05, alignment: 1 },
-  });
-  const src =
-    p.picture ??
-    svg(
-      100,
-      100,
-      `<text x="50" y="50" fill="${INITIALS_INK}" font-family="ui-sans-serif, system-ui, sans-serif"` +
-        ` font-size="46" font-weight="600" text-anchor="middle" dominant-baseline="central">${initials(p.name)}</text>`,
-    );
-  registerAsset(faceAsset(p.seat), { src, w: DISC * FACE, h: DISC * FACE });
-  registerSurface(faceSurface(p.seat), {
-    layers: [{ image: faceAsset(p.seat), fit: "contain", opacity: lookOf(p.state).fade }],
-    radius: (DISC * FACE) / 2,
-  });
+  if (p.picture) {
+    const inner = DISC - 2 * LINE;
+    registerAsset(faceAsset(p.seat), { src: p.picture, w: inner, h: inner });
+    registerSurface(faceSurface(p.seat), { layers: [{ image: faceAsset(p.seat), fit: "contain" }], radius: inner / 2 });
+  }
+}
+
+/** How wide the plate under a disc is — the pixel face is monospaced, so a name is its length in ems. */
+function plateWidth(name: string): number {
+  return Math.max(1, [...name].length * PLATE_EM + 2 * PLATE.padX);
 }
 
 /**
- * ONE AVATAR — the disc in the seat's ink, the face inside it, the state's mark on its corner and
- * the name under it.
+ * ONE AVATAR — the seat design's: the cone of the look under a disc in the seat's ink, the initials
+ * in it, a ring round it while the hand is full, and the name on a plate under it.
  *
  * TURNED BY ITS OWNER'S CAMERA, because it is a picture with a TOP and that top is the message: it
  * says which way up that person is holding the desk, and a disc that faced every reader alike would
  * be a person with no direction — the one thing a disc standing away from its seat is for.
- * `Screened` because it is sized for the EYE and not for the felt — a face that shrank with the zoom
- * would be a speck on a board seen whole, which is the one view a desk with four people opens at.
  *
  * NOT `Draggable`, and not one's own either: an avatar is a READING of where its owner is looking,
  * so a finger that moved the disc would be moving a measurement. What a person moves when they want
  * to sit somewhere else is their PLACE (`seatChair`), and the disc follows the camera to it. The
  * absence of the atom is the whole of that refusal (CANONS §1, no negation flags).
+ *
+ * `pose` is where it stands and how it is turned: at the place, in the arch, when its owner is at
+ * home; under their glass otherwise (`placeAvatars` decides, `avatarAt` measures).
  */
-export function avatarNode(p: Presence): Node {
+export function avatarNode(p: Presence, pose: { readonly at: Vec; readonly angle: number } = { at: avatarAt(p), angle: -p.view.rotation }): Node {
   installLook(p);
+  const look = lookOf(p.state);
   const root = node(
     avatarId(p.seat),
     Bounded({ bounds: box(DISC, DISC) }),
-    Surfaced({ surface: discSurface(p.seat) }),
     // TURNED THE WAY ITS OWNER IS TURNED — a disc is not only WHERE somebody is looking from but
     // WHICH WAY UP they are holding the desk, and that is half of "where they are sitting". Their
     // screen turns the desk by `rotation`, so what stands upright on it stands at `-rotation` on the
     // felt, and every other screen adds its own turn to that and reads the difference. Their own
     // screen adds exactly the turn that cancels it, so at home one's own disc is upright.
-    Transformable({ at: avatarAt(p), angle: -p.view.rotation }),
+    Transformable({ at: pose.at, angle: pose.angle }),
     // NOT `Oriented: "viewer"`. A billboard is indifferent to every turn there is, which is right
     // for a caption and wrong for the one node whose whole message is an angle.
-    Screened({ screened: true }),
     // AN AVATAR SAYS IT IS ONE. What makes a node a person at this desk is that it says so, not that
     // it is called something (`guard.id-is-opaque`).
     Valued({ values: { [AVATAR_VALUE]: 1 } }),
   );
+  // THE CONE FIRST, so it lies UNDER the disc: its apex is the disc's centre, and a cone drawn over
+  // the initials would be a badge over somebody's name.
+  if (look.cone) {
+    add(
+      root,
+      node(
+        avatarConeId(p.seat),
+        Bounded({ bounds: polyline([{ x: 0, y: 0 }, { x: -CONE.half, y: -CONE.length }, { x: CONE.half, y: -CONE.length }]) }),
+        Surfaced({ surface: coneSurface(p.seat) }),
+        Transformable({ at: { x: 0, y: 0 } }),
+      ),
+    );
+  }
+  if (p.holding) {
+    add(
+      root,
+      node(
+        `${avatarId(p.seat)} halo`,
+        Bounded({ bounds: round(DISC / 2 + HALO.out) }),
+        Surfaced({ surface: haloSurface(p.seat) }),
+        Transformable({ at: { x: 0, y: 0 } }),
+      ),
+    );
+  }
+  add(root, node(`${avatarId(p.seat)} keyline`, Bounded({ bounds: round(DISC / 2) }), Surfaced({ surface: KEYLINE_SURFACE }), Transformable({ at: { x: 0, y: 0 } })));
+  add(root, node(`${avatarId(p.seat)} disc`, Bounded({ bounds: round(DISC / 2 - LINE) }), Surfaced({ surface: discSurface(p.seat) }), Transformable({ at: { x: 0, y: 0 } })));
+  // THE FACE: a picture when there is one, the initials in the pixel face when there is not. The
+  // letters stand UP to whoever is looking (`Oriented`): a glyph read upside down is read wrong.
+  if (p.picture) {
+    add(root, node(`${avatarId(p.seat)} face`, Bounded({ bounds: round(DISC / 2 - LINE) }), Surfaced({ surface: faceSurface(p.seat) }), Transformable({ at: { x: 0, y: 0 } })));
+  } else {
+    add(
+      root,
+      node(
+        `${avatarId(p.seat)} face`,
+        Bounded({ bounds: box(DISC - 2 * LINE, DISC - 2 * LINE) }),
+        Labeled({ label: initials(p.name), style: PRESENCE_GLYPH }),
+        Transformable({ at: { x: 0, y: 0 } }),
+        Oriented({ orientation: "viewer" }),
+      ),
+    );
+  }
+  // THE NAME, on a plate under the disc — hung on the owner's side of it, in the disc's own frame,
+  // and upright to whoever is looking: a name is a caption, and a caption has a top.
   add(
     root,
     node(
-      avatarConeId(p.seat),
-      Bounded({
-        bounds: polyline([
-          { x: -CONE.near, y: -CONE.from },
-          { x: -CONE.spread, y: -CONE.to },
-          { x: CONE.spread, y: -CONE.to },
-          { x: CONE.near, y: -CONE.from },
-        ]),
-      }),
-      Surfaced({ surface: coneSurface(p.seat) }),
-      Transformable({ at: { x: 0, y: 0 } }),
-    ),
-  );
-  add(
-    root,
-    node(
-      `${avatarId(p.seat)} face`,
-      Bounded({ bounds: box(DISC * FACE, DISC * FACE) }),
-      Surfaced({ surface: faceSurface(p.seat) }),
-      Transformable({ at: { x: 0, y: 0 } }),
-    ),
-  );
-  add(
-    root,
-    node(
-      `${avatarId(p.seat)} badge`,
-      Bounded({ bounds: box(BADGE.size, BADGE.size) }),
-      Surfaced({ surface: badgeSurface(p.seat) }),
-      Transformable({ at: { x: BADGE.at, y: BADGE.at } }),
-    ),
-  );
-  add(
-    root,
-    node(
-      `${avatarId(p.seat)} name`,
-      Bounded({ bounds: box(CAPTION.w, CAPTION.h) }),
+      avatarNameId(p.seat),
+      Bounded({ bounds: box(plateWidth(p.name), PLATE_EM * 1.6 + 2 * PLATE.padY) }),
+      Surfaced({ surface: plateSurface(p.seat) }),
       Labeled({ label: p.name, style: PRESENCE_TEXT }),
-      Transformable({ at: { x: 0, y: CAPTION.at } }),
+      Transformable({ at: { x: 0, y: PLATE.at } }),
+      Oriented({ orientation: "viewer" }),
     ),
   );
   return root;
@@ -461,6 +504,8 @@ export function avatarNode(p: Presence): Node {
 
 /** The caption's role. A NAME, not a font — what it is worth is the theme's to re-decide. */
 export const PRESENCE_TEXT = "presence.name";
+/** The initials' role, inside the disc. */
+export const PRESENCE_GLYPH = "presence.glyph";
 
 /**
  * PUT THE PEOPLE ON THE DESK, and keep them there — one node per seat, rebuilt when its person
@@ -469,6 +514,11 @@ export const PRESENCE_TEXT = "presence.name";
  * A rebuild rather than a patch, because everything about an avatar can move at once: the state
  * repaints it, the view moves it, and a name can be corrected. What is NOT rebuilt is the place in
  * the tree — a node standing under the same id stays the same node to a mirror and to a drag.
+ *
+ * AT HOME THE DISC STANDS IN THE ARCH — at the place itself and turned as the place is — and away
+ * it stands under the owner's glass, turned as the owner is. Two pictures, one node: a person
+ * looking at their own place IS the disc in their chair, and the moment they look away the disc is
+ * the only thing that says where they went. Gone, they are not drawn at all (`lookOf`).
  */
 export function placeAvatars(
   root: Node,
@@ -482,12 +532,9 @@ export function placeAvatars(
   for (const p of presences) {
     const standing = byId(root, avatarId(p.seat));
     if (standing?.parent) remove(standing.parent, standing);
-    // NOBODY IS DRAWN TWICE. A person looking at their own place IS the ring standing there, filled
-    // — and a disc on top of it would be the same person over themselves, at the one moment the two
-    // pictures agree least: the ring says "this seat is occupied" and the disc says "somebody is
-    // over here". Away, the disc is the only thing that says where they went.
-    if (atHome(p, homeZoom?.(p))) continue;
-    add(layer, avatarNode(p));
+    if (!lookOf(p.state).drawn) continue;
+    const home = p.place && atHome(p, homeZoom?.(p));
+    add(layer, avatarNode(p, home && p.place ? { at: p.place.at, angle: -p.place.facing } : { at: avatarAt(p), angle: -p.view.rotation }));
   }
   // WHOEVER IS NO LONGER IN THE MESSAGE IS NO LONGER AT THE DESK. Left standing, a player who closed
   // the tab would sit there for the rest of the evening, which is a lie the desk tells.
@@ -495,7 +542,7 @@ export function placeAvatars(
   // An avatar SAYS SO ON ITSELF and is not recognised by its id — an id is a name and nothing parses
   // one (`guard.id-is-opaque`). Told to look for a shape of id, this would also have swept away
   // whatever else a game happened to have named alike.
-  const here = new Set(presences.filter((p) => !atHome(p, homeZoom?.(p))).map((p) => avatarId(p.seat)));
+  const here = new Set(presences.filter((p) => lookOf(p.state).drawn).map((p) => avatarId(p.seat)));
   for (const child of [...layer.children]) {
     if (!isAvatar(child)) continue;
     if (!here.has(child.id)) remove(layer, child);

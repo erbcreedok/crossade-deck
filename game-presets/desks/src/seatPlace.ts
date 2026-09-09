@@ -8,36 +8,35 @@
 // away: the place they were sitting at vanished with them, and a board with three wandered players
 // read as a board nobody had joined.
 //
-// So the two are separate things and the chair is the permanent one. It is the ANCHOR — flat on the
-// sukno, in the place's own ink — and it is the whole of what "somebody sits here" looks like. Walk
-// the eye away and the ring is still there saying whose place it is; the view glides back to it on
-// idle (`idleReturn`) and on a tap.
+// So the two are separate things and the chair is the permanent one. It is the seat design's ARCH:
+// a half-round front that looks INTO the desk and a flat back where its owner sits, drawn in the
+// place's own ink over a black keyline — and it is the whole of what "somebody sits here" looks
+// like. The shape itself says which way the place looks, so the chair wears no tick.
 //
-// AND THE RING IS THE HAND. On a desk that deals, a player's cards lie INSIDE their own place
-// (`handZone.ts` says what a hand IS), so there is one node saying where somebody sits and one
-// saying what they hold, and they cannot come apart. It grows to what it is holding and shrinks back
-// when the cards leave.
+// AND THE CHAIR IS THE HAND. On a desk that deals, a player's cards lie in their own place
+// (`handZone.ts` says what a hand IS and in which POSE it lies), so there is one node saying where
+// somebody sits and one saying what they hold, and they cannot come apart. The chair does not grow
+// to what it holds: the cards lie AROUND the arch, beside it or in front of it — and, for the
+// poses that tuck them away, BEHIND it, which is why the arch's face is a node of its own drawn
+// over the cards (`chairLidId`).
 //
-// AND IT WEARS ITS OWN DIRECTION — a short tick on the rim where the place looks (`CHAIR_TICK`).
-// A ring is symmetric, so without it a seat says where somebody is and not which way round they are
-// sitting, which on a round felt is the difference between the two ends of the same deal.
+// AN EMPTY CHAIR IS A DIFFERENT PICTURE and not a dimmer one: a dashed outline in cream, with no
+// face, no keyline and no name. Dashed because a place nobody holds is an outline of a place — the
+// same thing a plan drawing says with a dashed line — and drawing it in some seat's colour would be
+// claiming it for a player who is not there. Nothing may be put in one either: an unheld place is
+// nobody's hand.
 //
-// AN EMPTY CHAIR IS A DIFFERENT PICTURE and not a dimmer one: grey and dashed, with no name under
-// it. Dashed because a place nobody holds is an outline of a place — the same thing a plan drawing
-// says with a dashed line — and drawing it in some seat's colour would be claiming it for a player
-// who is not there. Nothing may be put in one either: an unheld place is nobody's hand.
-//
-// HOME AND AWAY ARE THE TWO PICTURES A HELD PLACE HAS. Its owner looking AT it (`isHome`) fills it
-// with their own ink and their disc is not drawn at all — the ring IS them while they are in it.
-// Looked away, the ring is the bare outline and the disc goes off with them.
+// ONE'S OWN PLACE DOES NOT CHANGE COLOUR. The rim is always the place's own ink, or in a room of
+// four nobody could tell their colour from the chair. "This is me" is a SEPARATE gold ring OUTSIDE
+// the keyline (`chairRingId`), written by the screen that knows whose it is (`dressChair`).
 //
 // It is added to the desk BEFORE the pieces, so the document order that ranks equals in the plan
 // puts it under every card and every man on the board.
 //
 // BUT ITS OWNER MAY MOVE IT, and only its owner. Where a person sits is the one thing about a desk
-// that is theirs to decide, and it is decided by dragging the RING — with their cards riding along
-// inside it — never by dragging the disc, which is a reading of their camera and not a thing. The
-// refusal is `mayTake`, not `Grippable`: a grip cuts the whole SUBTREE, so a ring gripped to its
+// that is theirs to decide, and it is decided by dragging the CHAIR — with their cards riding along
+// in it — never by dragging the disc, which is a reading of their camera and not a thing. The
+// refusal is `mayTake`, not `Grippable`: a grip cuts the whole SUBTREE, so a chair gripped to its
 // owner would be a hand nobody else could ever be dealt from, which is what the LOCK is for and not
 // what a place is.
 
@@ -47,99 +46,90 @@ import {
   Bounded,
   byId,
   Carry,
-  circle,
   compose,
   Container,
   decompose,
   Draggable,
-  extentOf,
-  footprint,
   Grabber,
   Grippable,
   grippableBy,
   installStockGrains,
   Inviting,
   isPlaceGrip,
-  Labeled,
   node,
   NO_COAT,
-  Oriented,
   Owned,
   Reaching,
-  rect,
-  registerLayout,
   registerSurface,
-  registerTextStyle,
-  Screened,
+  remove,
+  setPresencePaints,
   Surfaced,
   Transformable,
   Valued,
   fieldsOf,
   type Node,
-  GRIP_SPEC,
-  type GripSpec,
   type Paint,
+  type Shape,
   type TransformableFields,
   type ValuedFields,
   type Vec,
 } from "game-kit";
-import { handLayout, PULL, zoneKeen, ZONE_SPREAD, type Spread } from "./felt.js";
-import { HAND, HAND_LAYOUT, HAND_LOCK, HAND_VALUE, handAccept, handLocked, handRoom } from "./handZone.js";
-import { dressBar, fitBar, seatBar } from "./handBar.js";
+import { PULL, zoneKeen } from "./felt.js";
+import { ARCH_R, HAND_LAYOUT, HAND_LOCK, HAND_VALUE, handAccept, handLocked, installHandPoses, layHand } from "./handZone.js";
+import { dressMarks, fitMarks } from "./handBar.js";
 
 /**
- * HOW BIG AN EMPTY CHAIR IS, in units — and it is the HAND'S own empty size (`HAND.empty`), because
- * they are one node and a place cannot be two sizes.
- *
- * Measured in FELT units and not held on the glass. The ring used to be `Screened` — sized for the
- * eye, like the disc it had to contain — and a container that holds cards cannot be: the cards are
- * felt-sized, and a patch that kept its size through a zoom would be a hand that swallowed the whole
- * table seen whole and a speck under one card seen close.
+ * THE SEAT DESIGN'S OWN COLOURS — content, not a theme: the wood of a chair and the keyline round
+ * it are the same on a light desk and a dark one, the way a red suit stays red. The gold is the
+ * kit's one accent, so it is a token and not a hex.
  */
-export const CHAIR = { d: HAND.empty, line: 0.035, caption: { w: 1.7, h: 0.26, gap: 0.28 } };
+export const SEAT_LOOK = {
+  /** The keyline round every chair and every disc. */
+  black: "#0b0704",
+  /** The wood of the chair, top to bottom — half strength, so the felt shows through. */
+  woodHi: "#6b4d2c",
+  woodLo: "#1d1409",
+  /** The dashed outline of a place nobody holds. */
+  cream: "#cdb98f",
+  /** The ground of a disc, top to bottom — the design's dark green under the initials. */
+  discHi: "#3d4a3a",
+  discLo: "#1b2418",
+} as const;
 
 /**
- * THE TICK ON THE RIM THAT SAYS WHICH WAY THIS PLACE LOOKS — a short bar across the outline, in
- * units, and nothing more than that.
- *
- * A ring is symmetric and so says WHERE somebody sits and not which way they are turned; on a round
- * felt those are two different facts, because the seat opposite is looking at the same cards from
- * the other end. The place's own `facing` is the answer and it is already known here — it is the
- * angle the owner's camera opens at — so the ring wears it.
- *
- * A TICK AND NOT A WEDGE. The wedge belongs to the DISC, which is a reading of where somebody is
- * looking RIGHT NOW and moves whenever they pan; a place's facing never moves at all, and drawing
- * the two alike would be one picture for a fact and for a measurement.
+ * HOW BIG A CHAIR IS, in units — the design's 74px arch beside its 34px cards (`ARCH_R`), and the
+ * design's 3px lines over that arch.
  */
-export const CHAIR_TICK = { w: 0.26, h: 0.07 };
+export const CHAIR = { d: ARCH_R * 2, line: 0.09 };
 
 /**
- * HOW FAR THE RIM IS FROM THE CHAIR'S CENTRE, in the chair's own frame — the ring's radius, or half
- * the height of the box a dealt hand has grown into. The tick stands here and the name hangs past
- * it, and both are re-measured whenever the chair changes size (`fitChair`).
+ * THE ARCH — a half-round front and a flat back, the round side at -y (into the desk when the
+ * chair stands at its facing) and the flat side at +y, where its owner sits. Drawn about the
+ * centre of the round part, which is where the disc sits.
  */
-export function chairReach(chair: Node): number {
-  const shape = footprint(chair);
-  return shape ? extentOf(shape).h / 2 : CHAIR.d / 2;
+export function arch(r: number): Shape {
+  const k = 0.5523 * r;
+  return {
+    start: { x: -r, y: 0 },
+    segments: [
+      { c1: { x: -r, y: -k }, c2: { x: -k, y: -r }, to: { x: 0, y: -r } },
+      { c1: { x: k, y: -r }, c2: { x: r, y: -k }, to: { x: r, y: 0 } },
+      { to: { x: r, y: r } },
+      { to: { x: -r, y: r } },
+      { to: { x: -r, y: 0 } },
+    ],
+  };
+}
+
+/** How far the rim is from the chair's centre — the arch's radius. The marks stand off it. */
+export function chairReach(_chair?: Node): number {
+  return ARCH_R;
 }
 
 /** The mark a chair wears so a desk can find its own again — an id is a name and nothing parses one. */
 export const CHAIR_VALUE = "chair";
 
-/** The surface the facing tick is painted with, one per seat — its owner's own ink. */
-export function chairTickSurface(seat: string): string {
-  return `desk.seat.${seat}.facing`;
-}
-
-/**
- * THE ID OF THE TICK BESIDE A CHAIR — a node of its own, for the caption's own reason: the ring
- * arranges what is IN it (`handLayout`), so a tick made a child would be dealt into somebody's hand.
- */
-export function chairTickId(seat: string): string {
-  return `${chairId(seat)} facing`;
-}
-
-/** Whether its owner is looking AT this place right now. `1` is home; the ring is then filled. */
+/** Whether its owner is looking AT this place right now. `1` is home; the disc then stands in the arch. */
 export const CHAIR_HOME = "home";
 
 /**
@@ -149,34 +139,36 @@ export const CHAIR_HOME = "home";
  */
 export const CHAIR_PIN = "pin";
 
-/** The caption's role. A PLACE'S NAME, not a font — what it is worth is the theme's to re-decide. */
-export const SEAT_TEXT = "desk.seat.name";
-
 /** The id a chair answers to. Built here, never parsed (`guard.id-is-opaque`). */
 export function chairId(seat: string): string {
   return `seat ${seat}`;
 }
 
 /**
- * THE ID OF THE NAME UNDER A CHAIR — a node of its own and not a child of the ring.
- *
- * A child it would be laid out as a CARD: the ring arranges what is in it (`handLayout`), and a
- * caption in that row is a word dealt into somebody's hand. So it stands beside the ring in the
- * seats' layer, and `standChair` moves the two together.
+ * THE ID OF THE ARCH'S FACE — the wood and the ink rim, a node of its own drawn OVER the chair and
+ * so over the cards in it: a tucked card lies behind it and shows only its tip. Not a child of the
+ * chair, which arranges what is in it as cards.
  */
-export function chairNameId(seat: string): string {
-  return `${chairId(seat)} name`;
+export function chairLidId(seat: string): string {
+  return `${chairId(seat)} lid`;
 }
 
-/**
- * The chair's own surface, one per seat and one per state it can be in — plus the one every unheld
- * place shares. `home` fills it with the owner's ink, `shut` washes it in the same ink for the lock;
- * both at once is both, which is the honest picture of a shut hand its owner is sitting at.
- */
-export function chairSurface(seat?: string, state?: { readonly home?: boolean; readonly shut?: boolean }): string {
-  if (seat === undefined) return "desk.seat.empty";
-  return `desk.seat.${seat}${state?.home ? ".home" : ""}${state?.shut ? ".shut" : ""}`;
+/** THE ID OF THE GOLD RING that says "this is me" — under the chair, outside its keyline. */
+export function chairRingId(seat: string): string {
+  return `${chairId(seat)} mine`;
 }
+
+/** The chair's own surface — the keyline plate of a held place, or the dashed outline of a free one. */
+export function chairSurface(seat?: string): string {
+  return seat === undefined ? "desk.seat.empty" : `desk.seat.${seat}`;
+}
+
+/** The face of a held chair, in its owner's ink. */
+export function chairLidSurface(seat: string): string {
+  return `desk.seat.${seat}.lid`;
+}
+
+const RING_SURFACE = "desk.seat.mine";
 
 /** Whether this node is a chair. Read off what it SAYS, never off the shape of its id. */
 export function isChair(n: Node): boolean {
@@ -203,12 +195,12 @@ export function setChairPin(chair: Node, pinned: boolean): void {
  * MAY THIS FINGER LIFT THIS — the seat's whole permission, and the one line a live page hands to
  * `liveTable`'s `may`.
  *
- * Two rules, and they are about different things. A RING is its owner's alone: where a person sits
+ * Two rules, and they are about different things. A CHAIR is its owner's alone: where a person sits
  * is theirs to decide, and a place any passing finger could drag is a player being reseated by
  * somebody else. Everything else is the kit's own grip (`grippableBy`), which is what the LOCK
  * writes when a hand is shut.
  *
- * The ring's own rule cannot be a grip, because a grip cuts the subtree: locked to its owner, the
+ * The chair's own rule cannot be a grip, because a grip cuts the subtree: locked to its owner, the
  * cards lying in it would be unreachable by anybody else for ever, and a hand that can never be
  * dealt from is not an open hand.
  */
@@ -216,67 +208,45 @@ export function mayTake(n: Node, seat: string): boolean {
   // A PINNED CHAIR MOVES FOR NOBODY — its owner included; they unpin it first (`CHAIR_PIN`).
   if (isChair(n) && chairPinned(n)) return false;
   // ...AND SO IS THE HAND'S OWN HANDLE (`handRule`): the tab that lifts a whole hand says whose it
-  // is the way the ring does, and a hand lifted whole by a neighbour is a hand dealt away.
+  // is the way the chair does, and a hand lifted whole by a neighbour is a hand dealt away.
   const owner = isChair(n) || isPlaceGrip(n) ? fieldsOf<{ box: string }>(n, "Owned")?.box : undefined;
   if (owner !== undefined && owner !== "" && owner !== seat) return false;
   return grippableBy(n, seat);
 }
 
-/** How much of the owner's ink a place its owner is sitting at is filled with. */
-const HOME_WASH = 0.34;
-/** How much of the owner's ink a shut hand is washed with — enough to read, not enough to hide a card. */
-const SHUT_WASH = 0.22;
-
 /**
  * Register what a chair points at by name. Idempotent — a re-render calls it again.
  *
- * The contour is what a place IS, so the away-and-open ring has no layers at all: a filled ring
- * would be a coin on the felt. The FILL is the news — "its owner is looking at this" — and it earns
- * the one thing the outline cannot say.
+ * A held chair is two records: the black keyline plate the chair itself wears, and the face drawn
+ * over it — the wood, top to bottom at half strength so the felt shows through, with the place's
+ * ink as the rim inside the keyline. A free place is one dashed outline and nothing else.
  */
-export function installSeatArt(seat?: string, ink?: Paint, look: Spread = ZONE_SPREAD, grip: Pick<GripSpec, "w"> = GRIP_SPEC): void {
-  registerTextStyleOnce();
+export function installSeatArt(seat?: string, ink?: Paint): void {
   // THE SIDE RULES a hidden hand names (`Poser.others: "back"`) are a registry the kit ships and
   // the consumer installs; a desk that forgot would hide nothing, in silence.
   installStockGrains();
-  registerLayout(HAND_LAYOUT, handLayout(look, HAND.pad, handRoom(grip)));
+  installHandPoses();
+  // THE DISC WEARS THE SAME KEYLINE AS THE CHAIR, and the design's own ground: the kit holds no
+  // colour of its own, so the seat design hands its paints over here, once, for every disc.
+  setPresencePaints({ keyline: SEAT_LOOK.black, groundHi: SEAT_LOOK.discHi, groundLo: SEAT_LOOK.discLo });
   registerSurface(chairSurface(), {
     layers: [],
-    stroke: { color: "textFaint", width: CHAIR.line, opacity: 0.8, dash: { on: 0.1, off: 0.08 } },
+    stroke: { color: SEAT_LOOK.cream, width: CHAIR.line, opacity: 0.5, dash: { on: 0.24, off: 0.16 } },
   });
+  registerSurface(RING_SURFACE, { layers: [{ paint: "accent" }] });
   if (seat === undefined || ink === undefined) return;
-  registerSurface(chairTickSurface(seat), { layers: [{ paint: ink, opacity: 0.85 }] });
-  const stroke = { color: ink, width: CHAIR.line, opacity: 0.85 };
-  for (const home of [false, true]) {
-    for (const shut of [false, true]) {
-      registerSurface(chairSurface(seat, { home, shut }), {
-        layers: [
-          ...(home ? [{ paint: ink, opacity: HOME_WASH }] : []),
-          ...(shut ? [{ paint: ink, opacity: SHUT_WASH }] : []),
-        ],
-        stroke,
-      });
-    }
-  }
-}
-
-function registerTextStyleOnce(): void {
-  registerTextStyle(SEAT_TEXT, {
-    family: "ui-sans-serif, system-ui, sans-serif",
-    size: 0.14,
-    weight: 600,
-    lineHeight: 1.2,
-    fill: "text",
+  registerSurface(chairSurface(seat), { layers: [{ paint: SEAT_LOOK.black }] });
+  registerSurface(chairLidSurface(seat), {
+    layers: [{ gradient: { stops: [{ at: 0, paint: SEAT_LOOK.woodHi }, { at: 1, paint: SEAT_LOOK.woodLo }], angle: 90 }, opacity: 0.5 }],
+    stroke: { color: ink, width: CHAIR.line, alignment: 1 },
   });
 }
 
-/** Who sits at a chair, and what the desk calls them — absent altogether is a place nobody holds. */
+/** Who sits at a chair — absent altogether is a place nobody holds. */
 export interface SeatLook {
   readonly ink: Paint;
-  /** A short name under the ring. Absent, the ring alone — a held place the desk has no word for. */
-  readonly name?: string;
   /**
-   * WHETHER THIS DESK DEALS. On, the ring is also its owner's hand and cards may be put in it; off,
+   * WHETHER THIS DESK DEALS. On, the chair is also its owner's hand and cards may be put in it; off,
    * it is the place alone, which is every board — a man is on a square and nowhere else, and a
    * patch of felt beside a player would be a place the game has no word for.
    */
@@ -286,39 +256,33 @@ export interface SeatLook {
 /**
  * ONE CHAIR, standing at one place — and, on a desk that deals, one HAND.
  *
- * The hand atoms are the whole of what "cards go in here" means, and they are the same ones the
- * separate patch used to wear: an arrangement, a rule about what may come in, a grab that takes one
- * card at a time, a reach so a release NEAR the ring still counts as into it, and the light it wears
- * while a hand is aimed at it.
+ * The hand atoms are the whole of what "cards go in here" means: an arrangement (the pose), a rule
+ * about what may come in, a grab that takes one card at a time, a reach so a release NEAR the chair
+ * still counts as into it, and the light it wears while a hand is aimed at it.
  *
- * NOT `Oriented: "viewer"`. The ring is symmetric and would not care, but what is IN it is not: a
- * billboard ring would hold every card square to the reader on a turned screen, which is a hand that
- * spins whenever somebody rotates their view. The NAME is the part with a top, and it is a node of
- * its own (`chairNameId`) so it can be a billboard while the ring is not.
+ * TURNED TO ITS OWNER. The arch has a front and a back, and the cards lie in the chair's own frame
+ * (a fan in front, a stack on the right): the chair stands at `-facing` — the disc's own turn — so
+ * its round front looks into the desk and what lies in it lies level on its owner's glass, one
+ * number on one node inherited by every card. A place nobody holds has no owner to be square to and
+ * stands as built.
  */
 export function seatChair(seat: string, place: { readonly at: Vec; readonly facing?: number }, look?: SeatLook): Node {
   installSeatArt(seat, look?.ink);
   return node(
     chairId(seat),
-    Bounded({ bounds: circle(CHAIR.d / 2) }),
-    Surfaced({ surface: look ? chairSurface(seat, {}) : chairSurface() }),
-    // TURNED TO ITS OWNER. A ring would not care, but the box a dealt place grows into is a row of
-    // cards, and a row laid along the desk's own x is a hand its owner at the side of the table
-    // reads end-on. The chair stands at `-facing` — the tick's and the disc's own turn — so what is
-    // IN it lies level on its owner's glass, one number on one node inherited by every card. A
-    // place nobody holds has no owner to be square to and stands as built.
+    Bounded({ bounds: arch(ARCH_R) }),
+    Surfaced({ surface: look ? chairSurface(seat) : chairSurface() }),
     Transformable({ at: place.at, ...(look && place.facing !== undefined ? { angle: -place.facing } : {}) }),
     Valued({ values: { [CHAIR_VALUE]: 1, [CHAIR_HOME]: 0, ...(look?.hand ? { [HAND_VALUE]: 1, [HAND_LOCK]: 0 } : {}) } }),
     // STAY where the finger let go: a place is wherever its owner put it, and there is no target to
     // refuse it — a chair that flew home on every release could not be moved at all.
     Draggable({ onReject: "stay" }),
-    // ALONG THE SUKNO, never off it. A ring is slid the way a beer mat is: no pop, no bank, no
+    // ALONG THE SUKNO, never off it. A chair is slid the way a beer mat is: no pop, no bank, no
     // picture of a landing under it and no flight when it is let go of in motion — the three things
-    // a carry does for a PIECE, and a place asks none of them. Said by the thing itself, because
-    // the ring stopped being glass-sized the day it grew to hold cards (`ridesFelt`).
+    // a carry does for a PIECE, and a place asks none of them.
     Carry({ ride: "felt" }),
     // WHOSE PLACE IT IS, said on the node — `mayTake` reads it, and so does everything else that
-    // has to know a ring from a card. A place nobody holds is owned by nobody and moved by nobody.
+    // has to know a chair from a card. A place nobody holds is owned by nobody and moved by nobody.
     ...(look ? [Owned({ box: seat })] : []),
     ...(look?.hand
       ? [
@@ -335,67 +299,27 @@ export function seatChair(seat: string, place: { readonly at: Vec; readonly faci
   );
 }
 
-/**
- * WHERE THE TICK SITS AND HOW IT LIES — on the rim, in the direction the place looks.
- *
- * `facing` is the angle that place's own camera opens at, clockwise on the glass, and a screen
- * turned by it puts the felt straight ahead at the TOP. The camera draws the desk through
- * `rotate(facing)`, so the desk direction that lands on screen-up is screen-up taken BACK through
- * that turn — `rotate(-facing)` of (0, -1), which is (-sin, -cos). And a bar lying level on that
- * glass stands at `-facing` on the desk, exactly as the disc does (`avatarNode`): a thing that has
- * to look upright to its owner is turned the opposite way from the owner's screen.
- *
- * Written the other way round — `+sin`, `+facing` — a place at the right of the felt wore its tick
- * on the outside of its ring, looking away from the desk, and a ring let go under a turned camera
- * pointed anywhere but where its holder was looking.
- */
-function tickPose(place: { readonly at: Vec }, facing: number, reach = CHAIR.d / 2): { readonly at: Vec; readonly angle: number } {
-  const rad = (facing * Math.PI) / 180;
-  return {
-    at: { x: place.at.x - Math.sin(rad) * reach, y: place.at.y - Math.cos(rad) * reach },
-    angle: -facing,
-  };
-}
-
-/** WHERE THE NAME HANGS — past the rim on the owner's own side, the way the tick is on the other. */
-function namePose(place: { readonly at: Vec }, facing: number, reach = CHAIR.d / 2): Vec {
-  const rad = (facing * Math.PI) / 180;
-  const d = reach + CHAIR.caption.gap;
-  return { x: place.at.x + Math.sin(rad) * d, y: place.at.y + Math.cos(rad) * d };
-}
-
-/** The tick on a chair's rim — a node of its own, so the ring can arrange cards without arranging it. */
-function seatTick(seat: string, place: { readonly at: Vec }, facing: number): Node {
-  const pose = tickPose(place, facing);
+/** The face over a held chair — the wood and the rim, standing where the chair stands. */
+function seatLid(seat: string, place: { readonly at: Vec; readonly facing?: number }): Node {
   return node(
-    chairTickId(seat),
-    Bounded({ bounds: rect(CHAIR_TICK.w, CHAIR_TICK.h) }),
-    Surfaced({ surface: chairTickSurface(seat) }),
-    Transformable({ at: pose.at, angle: pose.angle }),
+    chairLidId(seat),
+    Bounded({ bounds: arch(ARCH_R - CHAIR.line) }),
+    Surfaced({ surface: chairLidSurface(seat) }),
+    Transformable({ at: place.at, ...(place.facing !== undefined ? { angle: -place.facing } : {}) }),
   );
 }
 
-/** The name under a chair — a billboard, because a caption drawn upside down is a broken picture. */
-function seatName(seat: string, place: { readonly at: Vec; readonly facing?: number }, label: string): Node {
-  return node(
-    chairNameId(seat),
-    Bounded({ bounds: rect(CHAIR.caption.w, CHAIR.caption.h) }),
-    Labeled({ label, style: SEAT_TEXT }),
-    Transformable({ at: namePose(place, place.facing ?? 0) }),
-    Oriented({ orientation: "viewer" }),
-    Screened({ screened: true }),
-  );
-}
-
-/** One seat of a desk, as the maps declare them — and what, if anything, the chair is captioned. */
+/** One seat of a desk, as the maps declare them. */
 export interface SeatOfDesk {
   readonly seat: string;
   readonly ink: Paint;
+  /** A short name — the presence carries it under the disc; the chair itself wears no caption. */
   readonly name?: string;
 }
 
 /**
- * EVERY CHAIR OF A DESK, put on it — one per place, in the order the places came in.
+ * EVERY CHAIR OF A DESK, put on it — one per place, in the order the places came in, each with its
+ * face over it and its marks beside it.
  *
  * Called BEFORE the pieces are added and never after: equals in the plan are ranked by document
  * order, so a chair added last would be an outline drawn over the very cards it is under.
@@ -407,26 +331,17 @@ export function seatChairs(
   desk: Node,
   places: readonly { readonly at: Vec; readonly facing?: number }[],
   seats: readonly SeatOfDesk[],
-  /** Whether this desk DEALS — on, every held ring is also its owner's hand. Off is every board. */
+  /** Whether this desk DEALS — on, every held chair is also its owner's hand. Off is every board. */
   hands = false,
 ): readonly Node[] {
   const layer = chairLayer(desk);
   return places.map((place, i) => {
     const seat = seats[i];
-    const chair = seatChair(
-      seat?.seat ?? `${i}`,
-      place,
-      seat ? { ink: seat.ink, hand: hands, ...(seat.name !== undefined ? { name: seat.name } : {}) } : undefined,
-    );
+    const chair = seatChair(seat?.seat ?? `${i}`, place, seat ? { ink: seat.ink, hand: hands } : undefined);
     add(layer, chair);
-    // A TICK ONLY WHERE THERE IS SOMEBODY TO BE TURNED. An unheld place is an outline of a place
-    // and has no owner to be looking anywhere, so it gets no direction either.
-    if (seat && place.facing !== undefined) add(layer, seatTick(seat.seat, place, place.facing));
-    if (seat?.name !== undefined) add(layer, seatName(seat.seat, place, seat.name));
-    // THE BAR, for a held hand: four controls past the far rim (`handBar.ts`), placed by `fitChair`
-    // like the tick and the name — furniture of the chair, standing beside it in the layer.
+    // THE FACE OVER THE CHAIR, for a held one: a free place is its outline and nothing else.
     if (seat) {
-      for (const control of seatBar(seat.seat, chair, seat.ink)) add(layer, control);
+      add(layer, seatLid(seat.seat, place));
       fitChair(desk, seat.seat);
     }
     return chair;
@@ -434,9 +349,10 @@ export function seatChairs(
 }
 
 /**
- * THE LAYER THE CHAIRS STAND IN — a node of the desk that holds rings and nothing else.
+ * THE LAYER THE CHAIRS STAND IN — a node of the desk that holds chairs and their furniture and
+ * nothing else.
  *
- * A ring is no more a piece than a disc is. Put among the desk's own children it is one to
+ * A chair is no more a piece than a disc is. Put among the desk's own children it is one to
  * everything that reads them: an arrangement seats it, a square's `Displacer` sends whoever stands
  * there away, a drop counts it as what is now in the place. On a board that reads as an outline
  * standing on e4 instead of a man; the layer is what makes it impossible rather than merely untrue
@@ -445,7 +361,7 @@ export function seatChairs(
  * No `Container` on it and no `Acceptor`: nothing arranges what is in it and nothing may be dropped
  * in it, and its children keep the pose `seatChair` wrote. It is made HERE and so is the desk's
  * FIRST child — `seatChairs` is called before the pieces, and equals in the plan are ranked by
- * document order, so every ring is under every card and every man on the board.
+ * document order, so every chair is under every card and every man on the board.
  */
 export const CHAIR_LAYER = "seat layer";
 
@@ -462,67 +378,55 @@ function chairLayer(desk: Node): Node {
  *
  * A place that can be dragged is a place two screens have to agree about, and they agree by both
  * reading the same `Presence.place`: the owner's finger writes it, the wire carries it, and this
- * puts every screen's own ring where it says. Missing chair is skipped rather than thrown — a desk
+ * puts every screen's own chair where it says. Missing chair is skipped rather than thrown — a desk
  * that seats nobody is still a desk (CANONS §1).
  *
- * The NAME goes with it. It is a node of its own so the ring can arrange cards without arranging
- * words, and a caption left behind would be a player's name lying on the felt they got up from.
+ * The furniture goes with it (`fitChair`): a face left behind would be a chair drawn twice.
  */
 export function standChair(desk: Node, seat: string, at: Vec, facing?: number): void {
   const chair = byId(desk, chairId(seat));
   if (!chair) return;
   const own = fieldsOf<TransformableFields>(chair, "Transformable");
-  // ...AND ROUND WITH THE FACING, box and cards together (`seatChair`): a place let go of under a
-  // turned camera faces the way its holder looked.
+  // ...AND ROUND WITH THE FACING, arch and cards together: a place let go of under a turned camera
+  // faces the way its holder looked.
   compose(chair, Transformable({ ...(own ?? {}), at, ...(facing !== undefined ? { angle: -facing } : {}) }));
-  // THE TICK GOES WITH IT, and it goes round with it too: a place is left facing the way its holder
-  // was looking when they let it go (`Avatars.handed`), and a tick still pointing at the angle the
-  // ring was BUILT with is a picture of a seat nobody is sitting at. Told no facing, it keeps the
-  // one it has — a desk that never turns its places has nothing to say here.
   fitChair(desk, seat);
 }
 
 /**
- * THE CHAIR'S FURNITURE, RE-MEASURED OFF THE CHAIR — the tick back on the rim and the name back
- * under it, wherever the chair now stands, however big it now is and whichever way it faces.
- *
- * A chair dealt to is no longer the mark it was built as (`growHand`): left at the ring's own
- * radius, the tick stood inside the box and the name lay across the bottom card. So both are
- * measured off the box the chair IS right now (`chairReach`), in the chair's own frame, on the
- * owner's side of it — and this is the ONE writer of where they stand, called by every move and
- * every re-size.
+ * THE CHAIR'S FURNITURE, PUT WHERE THE CHAIR IS — the face over it, the gold ring under it and the
+ * marks beside it, wherever the chair now stands and whichever way it faces. The ONE writer of
+ * where they stand, called by every move and every re-dressing.
  */
 export function fitChair(desk: Node, seat: string): void {
   const chair = byId(desk, chairId(seat));
   if (!chair) return;
   const pose = fieldsOf<TransformableFields>(chair, "Transformable");
   const at = pose?.at ?? { x: 0, y: 0 };
-  const facing = -(pose?.angle ?? 0);
-  const reach = chairReach(chair);
-  const tick = byId(desk, chairTickId(seat));
-  if (tick) {
-    const own = fieldsOf<TransformableFields>(tick, "Transformable");
-    compose(tick, Transformable({ ...(own ?? {}), ...tickPose({ at }, facing, reach) }));
+  const angle = pose?.angle ?? 0;
+  for (const id of [chairLidId(seat), chairRingId(seat)]) {
+    const piece = byId(desk, id);
+    if (!piece) continue;
+    const own = fieldsOf<TransformableFields>(piece, "Transformable");
+    compose(piece, Transformable({ ...(own ?? {}), at, angle }));
   }
-  const name = byId(desk, chairNameId(seat));
-  if (name) {
-    const its = fieldsOf<TransformableFields>(name, "Transformable");
-    compose(name, Transformable({ ...(its ?? {}), at: namePose({ at }, facing, reach) }));
-  }
-  // ...AND THE BAR along the far rim, lit as the chair's states say.
-  fitBar(desk, seat, at, facing, reach);
-  dressBar(desk, seat);
+  layHand(chair);
+  dressMarks(desk, seat);
+  fitMarks(desk, seat, at, angle);
 }
 
 /**
- * THE PLACE, DRESSED FOR WHAT IS TRUE OF IT — the one writer of the ring's picture.
+ * THE PLACE, DRESSED FOR WHAT IS TRUE OF IT — the one writer of the chair's states.
  *
- * Home and the lock are two facts and one surface, so they are written together: asked separately,
- * the second call would paint over the first and a shut hand would stop being shut the moment its
- * owner looked at it. The state is put on the node as well as into the paint, because both screens
- * read it and a rule nobody can see is a rule a player finds out about by being refused.
+ * Home and the lock are two facts on the node, and they are written together: asked separately,
+ * the second call would overwrite the first. Both screens read them off the node — a rule nobody
+ * can see is a rule a player finds out about by being refused. Neither changes the chair's paint:
+ * home is said by the disc standing in the arch, the lock by the mark beside it (`dressMarks`).
+ *
+ * `mine` is the one thing about a chair that is a fact of the SCREEN and not of the desk: it puts
+ * the gold ring outside the keyline, and only the screen that knows whose it is writes it.
  */
-export function dressChair(chair: Node, state: { readonly home?: boolean; readonly shut?: boolean }): void {
+export function dressChair(chair: Node, state: { readonly home?: boolean; readonly shut?: boolean; readonly mine?: boolean }): void {
   const owner = fieldsOf<{ box: string }>(chair, "Owned")?.box;
   if (owner === undefined) return;
   const values = fieldsOf<ValuedFields>(chair, "Valued")?.values ?? {};
@@ -531,12 +435,38 @@ export function dressChair(chair: Node, state: { readonly home?: boolean; readon
   compose(chair, Valued({ values: { ...values, [CHAIR_HOME]: home ? 1 : 0, ...(HAND_VALUE in values ? { [HAND_LOCK]: shut ? 1 : 0 } : {}) } }));
   // The grip is what stops a hand reaching IN and taking something out, which no `AcceptRule` can
   // say — accept is asked of a drop and a theft is not one. Two atoms, one act, so they cannot come
-  // apart. Only a desk that DEALS has a lock to turn: a board's ring holds nothing to steal.
+  // apart. Only a desk that DEALS has a lock to turn: a board's chair holds nothing to steal.
   if (HAND_VALUE in values) {
     if (shut) compose(chair, Grippable({ by: [owner] }));
     else decompose(chair, "Grippable");
   }
-  compose(chair, Surfaced({ surface: chairSurface(owner, { home, shut }) }));
+  if (state.mine !== undefined && chair.parent) {
+    const layer = chair.parent;
+    const ring = byId(layer, chairRingId(owner));
+    if (state.mine && !ring) {
+      const pose = fieldsOf<TransformableFields>(chair, "Transformable");
+      const made = node(
+        chairRingId(owner),
+        Bounded({ bounds: arch(ARCH_R + CHAIR.line) }),
+        Surfaced({ surface: RING_SURFACE }),
+        Transformable({ at: pose?.at ?? { x: 0, y: 0 }, angle: pose?.angle ?? 0 }),
+      );
+      // UNDER THE CHAIR: a ring outside the keyline is drawn before the plate it surrounds.
+      add(layer, made);
+      const kids = layer.children;
+      kids.splice(kids.indexOf(chair), 0, ...kids.splice(kids.indexOf(made), 1));
+    } else if (!state.mine && ring) {
+      remove(layer, ring);
+    }
+  }
+  const desk = rootOf(chair);
+  if (desk) dressMarks(desk, owner);
+}
+
+function rootOf(n: Node): Node | undefined {
+  let at: Node = n;
+  while (at.parent) at = at.parent;
+  return at === n ? undefined : at;
 }
 
 /** TURN THE LOCK on a place that is also a hand — the home half of the picture is left alone. */

@@ -1,5 +1,5 @@
-import { chairId, chairNameId, chairSurface, isChair, isHand } from "@game-presets/desks";
-import { byId, fieldsOf, type LabeledFields, type Node, type SurfacedFields } from "game-kit";
+import { chairId, chairLidId, chairSurface, isChair, isHand } from "@game-presets/desks";
+import { byId, fieldsOf, type Node, type SurfacedFields } from "game-kit";
 import { describe, it, expect } from "vitest";
 import { isTableGame, mapFor, syncSeatChairs } from "./mapFor.js";
 
@@ -98,18 +98,13 @@ describe("the ring the hub puts up is the shelf's own ring", () => {
     expect(every(mapFor("nardy")).filter(isHand)).toEqual([]);
   });
 
-  it("hub.the-name-under-the-ring-is-the-roster's — not the seat the room numbered it", () => {
-    const desk = mapFor("cards");
-    syncSeatChairs(desk, AT(["p1", "Ana"]));
-    const name = byId(desk, chairNameId("p1"));
-    expect(fieldsOf<LabeledFields>(name!, "Labeled")?.label).toBe("Ana");
-  });
-
-  it("hub.the-name-leaves-with-the-ring — a caption left behind is a name on felt nobody sits at", () => {
+  it("hub.the-face-leaves-with-the-chair — an arch left behind is a chair drawn for somebody who got up", () => {
     const desk = mapFor("cards");
     syncSeatChairs(desk, AT(["p1", "Ana"], ["p2", "Bek"]));
+    expect(byId(desk, chairLidId("p2"))).toBeDefined();
     syncSeatChairs(desk, AT(["p1", "Ana"]));
     expect(byId(desk, chairId("p2"))).toBeUndefined();
-    expect(byId(desk, chairNameId("p2"))).toBeUndefined();
+    expect(byId(desk, chairLidId("p2"))).toBeUndefined();
+    expect(byId(desk, chairLidId("p1")), "the one still sitting keeps theirs").toBeDefined();
   });
 });

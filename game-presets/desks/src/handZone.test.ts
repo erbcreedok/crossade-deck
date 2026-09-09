@@ -21,18 +21,17 @@ import {
   setFacing,
   extentOf,
   footprint,
-  GRIP_SPEC,
   grippableBy,
   layoutChildren,
   layoutRecord,
-  remove,
   installStockCoats,
   node,
   rect,
   Transformable,
   type Node,
+  type TransformableFields,
 } from "game-kit";
-import { flipHand, growHand, HAND, HAND_LAYOUT, handHidden, handLocked, handRoom, handTakes, handWidth, isHand, setHandHidden } from "./handZone.js";
+import { ARCH_R, flipHand, HAND_POSE_DEFAULT, HAND_POSES, handHidden, handLayoutOf, handLocked, handPose, handPoseName, handPoseOf, handTakes, isHand, layHand, setHandHidden, setHandPose, type HandPose } from "./handZone.js";
 import { chairId, seatChair, setHandLock } from "./seatPlace.js";
 import { roundMap, seatPlaces as roundPlaces } from "./roundMap.js";
 import { SEATS } from "./liveMap.js";
@@ -51,47 +50,64 @@ const hand = (seat: string): Node => seatChair(seat, { at: { x: 0, y: 0 } }, { i
 const walk = (n: Node): Node[] => [n, ...n.children.flatMap(walk)];
 
 describe("the hand at the place", () => {
-  it("hand.a-hand-is-a-ring-until-it-holds-a-card — then a box round the row, capped at eight cards, with room below for the grip", () => {
+  it("hand.a-hand-lies-in-a-pose-about-the-arch — six of them, and the chair is one size in every one", () => {
+    // THE CHAIR DOES NOT GROW: dealt to, it is the same arch, and the cards lie ABOUT it in the pose
+    // named on it — beside it or in front of it, spread, squeezed or tucked. The numbers are the
+    // seat design's, measured off the arch (`ARCH_R`), so a change of pose is a change of name.
     const zone = hand("south");
-    // EMPTY IS A MARK, and a RING: a permanent full-size box on the felt is a hole in the table for
-    // a player holding nothing, which on a round desk is most players most of the time.
-    expect(size(zone).w).toBeCloseTo(HAND.empty);
-    expect(size(zone).h).toBeCloseTo(HAND.empty);
-
-    const widths: number[] = [];
-    for (let i = 1; i <= 12; i += 1) {
-      add(zone, card(`card ${i}`));
-      growHand(zone);
-      widths.push(size(zone).w);
-    }
-    // ONE CARD IS A BOX: the ring becomes the rectangle round the card, and every card after it makes
-    // the box at least as wide as the one before — a hand that shrank as it was dealt to would be
-    // reporting the opposite of the truth.
-    expect(widths[0]!).toBeCloseTo(CARD.w + 2 * HAND.pad);
-    for (let i = 1; i < widths.length; i += 1) expect(widths[i]!).toBeGreaterThanOrEqual(widths[i - 1]!);
-    // ...AND IT STOPS AT EIGHT. Past that the CARDS close up instead — which is `handLayout`'s job
-    // and the reason the box is allowed to stop growing at all.
-    expect(widths[7]!).toBeCloseTo(handWidth(8));
-    expect(widths[11]!).toBeCloseTo(widths[7]!);
-    // A BOX, NOT A RING: as tall as the card plus the padding — plus the ROOM UNDER IT for the
-    // hand's own handle (`handRoom`), which is drawn under the cards and must not lie across them.
-    expect(size(zone).h).toBeCloseTo(CARD.h + 2 * HAND.pad + handRoom());
-    expect(size(zone).h).toBeLessThan(size(zone).w);
-    // ...AND THE ROOM IS THE GRIP'S OWN: a wider handle asks for a taller box, so a desk that
-    // changes its tab never has to come and edit the hand.
-    growHand(zone, undefined, { ...GRIP_SPEC, w: GRIP_SPEC.w * 2 });
-    expect(size(zone).h).toBeCloseTo(CARD.h + 2 * HAND.pad + handRoom({ ...GRIP_SPEC, w: GRIP_SPEC.w * 2 }));
-    growHand(zone);
-    // ...AND THE CARDS SIT ABOVE THAT ROOM, not across the middle of the box: the row is laid out in
-    // the part of the box that is the hand's, and the handle hangs in the rest (`handLayout`'s
-    // `below`, registered with the same grip the box is grown for — `installSeatArt`).
-    const rows = layoutRecord(HAND_LAYOUT)!.place(layoutChildren(zone), footprint(zone));
-    for (const at of rows) expect(at!.y).toBeCloseTo(-handRoom() / 2);
-    // EMPTIED, IT IS THE RING AGAIN.
-    for (const c of [...zone.children]) remove(zone, c);
-    growHand(zone);
-    expect(size(zone).w).toBeCloseTo(HAND.empty);
-    expect(size(zone).h).toBeCloseTo(HAND.empty);
+    const before = size(zone);
+    for (let i = 1; i <= 5; i += 1) add(zone, card(`card ${i}`));
+    layHand(zone);
+    expect(size(zone)).toEqual(before);
+    expect(handPose(zone), "a hand opens as a stack on its owner's right").toEqual(HAND_POSE_DEFAULT);
+    const at = (pose: HandPose) => {
+      setHandPose(zone, pose);
+      expect(fieldsOf<{ layout: string }>(zone, "Container")?.layout).toBe(handLayoutOf(pose));
+      const rows = layoutRecord(handLayoutOf(pose))!.place(layoutChildren(zone), footprint(zone));
+      return rows.map((p, i) => ({ x: p!.x, y: p!.y, angle: fieldsOf<TransformableFields>(zone.children[i]!, "Transformable")?.angle ?? 0 }));
+    };
+    // A STACK ON THE RIGHT: every card past the arch's centre on +x, climbing a whisker per card,
+    // level — and the climb capped, so fifty-two of them are a deck and not a ladder.
+    const stacked = at({ side: "side", fold: "shrink" });
+    for (const c of stacked) expect(c.x).toBeGreaterThan(ARCH_R);
+    expect(stacked.every((c) => c.angle === 0)).toBe(true);
+    expect(stacked[4]!.x - stacked[0]!.x).toBeGreaterThan(0);
+    expect(stacked[4]!.x - stacked[0]!.x).toBeLessThanOrEqual(0.18 + 1e-9);
+    // A LADDER ON THE RIGHT: each card a step past the one before, every one showing.
+    const ladder = at({ side: "side", fold: "fan" });
+    for (let i = 1; i < ladder.length; i += 1) expect(ladder[i]!.x - ladder[i - 1]!.x).toBeGreaterThan(0.3);
+    // TUCKED ON THE RIGHT: one spot, most of the card behind the arch, its tip past the rim.
+    const tucked = at({ side: "side", fold: "tuck" });
+    expect(new Set(tucked.map((c) => c.x)).size).toBe(1);
+    expect(tucked[0]!.x).toBeLessThan(ARCH_R);
+    expect(tucked[0]!.x + CARD.w / 2).toBeGreaterThan(ARCH_R);
+    // A FAN IN FRONT: above the arch (-y), symmetric, the ends leaning out either way, the middle
+    // card level and its bottom edge inside the rim — held against the chair.
+    const fanned = at({ side: "front", fold: "fan" });
+    expect(fanned[2]!.angle).toBeCloseTo(0);
+    expect(fanned[0]!.angle).toBeCloseTo(-fanned[4]!.angle);
+    expect(fanned[0]!.angle).toBeLessThan(0);
+    expect(fanned[0]!.x).toBeCloseTo(-fanned[4]!.x);
+    expect(fanned[2]!.y + CARD.h / 2).toBeLessThan(ARCH_R);
+    expect(fanned[2]!.y).toBeLessThan(0);
+    // A SQUEEZED ROW IN FRONT: level, close up, most of every card behind the arch.
+    const row = at({ side: "front", fold: "shrink" });
+    expect(row.every((c) => c.angle === 0)).toBe(true);
+    for (let i = 1; i < row.length; i += 1) expect(row[i]!.x - row[i - 1]!.x).toBeLessThanOrEqual(0.25 + 1e-9);
+    expect(row[2]!.y - CARD.h / 2).toBeLessThan(-ARCH_R);
+    expect(row[2]!.y + CARD.h / 2).toBeGreaterThan(-ARCH_R);
+    // TUCKED IN FRONT: one spot, its tip past the round rim.
+    const front = at({ side: "front", fold: "tuck" });
+    expect(new Set(front.map((c) => c.y)).size).toBe(1);
+    expect(front[0]!.y - CARD.h / 2).toBeLessThan(-ARCH_R);
+    // ...AND BACK TO A FAN, THE LEAN COMES BACK; back to a stack, it comes off.
+    at({ side: "front", fold: "fan" });
+    expect(fieldsOf<TransformableFields>(zone.children[0]!, "Transformable")?.angle).toBeLessThan(0);
+    at(HAND_POSE_DEFAULT);
+    expect(fieldsOf<TransformableFields>(zone.children[0]!, "Transformable")?.angle).toBe(0);
+    // EVERY POSE HAS A NAME AND EVERY NAME A POSE.
+    for (const pose of HAND_POSES) expect(handPoseOf(handPoseName(pose))).toEqual(pose);
+    expect(handPoseOf("upside-down")).toBeUndefined();
   });
 
   it("hand.a-hand-is-the-place-itself — one node, standing where its owner sits", () => {

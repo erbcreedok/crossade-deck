@@ -12,11 +12,11 @@
 // one onto this strip is aimed at the same hand and the same drop happens. Nothing is synchronised,
 // because nothing is duplicated.
 //
-// THE FOUR CONTROLS COME WITH IT, by the same ids and the same meanings (`handBar.ts`): a press on
-// either copy reads back the same `{seat, what}`, so one wiring answers both and there is no second
-// lock to disagree with the first. They stand ABOVE the cards, outside them, exactly as they do on
-// the felt — and the room they take is what `floor` reports, so nothing else on the screen (the
-// camera's own pair) is laid over them.
+// THE CONTROLS COME WITH THE GLASS, not with the cards (`handBar.ts`): the rights at the foot of the
+// screen on the left, the pose and the glass on the right, standing whether or not a hand is drawn
+// between them — a hand is put onto the glass by pressing one of them. The strip lies ABOVE them,
+// in the fold the chair's pose names, and the room they all take is what `floor` reports, so
+// nothing else on the screen (the camera's own pair) is laid over them.
 //
 // WHAT IT IS NOT: a second hand, a second array, or a second state. Every question it answers, it
 // answers by reading the chair.
@@ -52,8 +52,9 @@ import {
   type SurfacedFields,
   type TransformableFields,
 } from "game-kit";
-import { BAR, dressBar, fitBar, seatBar } from "./handBar.js";
-import { HAND, HAND_LAYOUT, handRoom, handWidth } from "./handZone.js";
+import { barExtent, chairBarId, dressBar, fitBar, seatBar } from "./handBar.js";
+import { HAND, handPose, handRoom, handWidth, posePlan, type HandFold } from "./handZone.js";
+import { handLayout, ZONE_SPREAD } from "./felt.js";
 import { chairId } from "./seatPlace.js";
 
 /** The nodes this file makes, by the names a reader sees in the inspector. */
@@ -62,6 +63,15 @@ export const HAND_HUD_BOX = "hud/hand/box";
 export const HAND_HUD_ANCHOR = "hud/hand/anchor";
 const HAND_HUD_FREE = "hud/hand/free";
 const HAND_HUD_SCREEN = "hud/hand/screen";
+
+/** The strip's own arrangements, one per fold — the row the chair's `shrink` is, the fan, and the row again for a tucked hand. */
+function foldLayout(fold: HandFold): string {
+  return `hud/hand/${fold}`;
+}
+/** How much of a tucked hand shows above the controls, in HUD units — the tip that is pulled on. */
+const TUCK_TIP = 0.45;
+/** The fan on the glass — the chair's own front fan, re-centred on the strip. */
+const FAN = { side: "front", fold: "fan" } as const;
 
 /** How far the strip stands off the foot of the glass, in HUD units, before the device's own inset. */
 export const HAND_HUD_MARGIN = 0.14;
@@ -185,6 +195,18 @@ export interface HandHud {
  */
 export function handHud(host: Host, o: HandHudOptions): HandHud {
   registerLayout(HAND_HUD_FREE, freeLayout);
+  // THE THREE FOLDS ON THE GLASS. A squeezed row and a tucked row are the felt's own row arrangement
+  // (`handLayout`); the fan is the chair's front fan brought to the strip's middle, its angles
+  // written by `refresh` off the same plan, so the cards stand where their leans say they do.
+  registerLayout(foldLayout("shrink"), handLayout(ZONE_SPREAD, HAND.pad, handRoom()));
+  registerLayout(foldLayout("tuck"), handLayout(ZONE_SPREAD, HAND.pad, handRoom()));
+  registerLayout(foldLayout("fan"), {
+    place: (children) => {
+      const plan = posePlan(FAN, children);
+      const middle = plan[Math.floor(children.length / 2)]?.at.y ?? 0;
+      return plan.map((p) => ({ x: p.at.x, y: p.at.y - middle - handRoom() / 2 }));
+    },
+  });
   // A PLACE TO PUT SOMETHING, drawn the way a plan drawing says it: a dotted outline. Aimed at, it
   // stops being an offer and becomes the answer — filled in the seat's own ink, the same light every
   // zone on the felt wears when a hand is over it (`zoneKeen`).
@@ -208,14 +230,13 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
   if (ownScreen) host.setHudRoot(screen);
 
   // ONE NODE FOR THE WHOLE THING — the box of cards and the controls over it — so it is placed once,
-  // measured once, and taken down once. The BOX inside it arranges what it holds exactly as the box
-  // on the felt does: one registered arrangement (`HAND_LAYOUT`), so a row that closes up here
-  // closes up there, by the same numbers.
+  // measured once, and taken down once. The BOX inside it arranges what it holds in the fold the
+  // chair's own pose names (`foldLayout`), so a hand that fans here fans there, by the same numbers.
   const root = node(HAND_HUD, Container({ layout: HAND_HUD_FREE }), Transformable({ at: { x: 0, y: 0 } }));
   const strip = node(
     HAND_HUD_BOX,
-    Bounded({ bounds: roundedRect(HAND.empty, HAND.empty, HAND.pad) }),
-    Container({ layout: HAND_LAYOUT }),
+    Bounded({ bounds: roundedRect(1, 1, HAND.pad) }),
+    Container({ layout: foldLayout("shrink") }),
     Transformable({ at: { x: 0, y: 0 } }),
   );
   add(root, strip);
@@ -231,7 +252,9 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     const made = seatBar(o.seat, chair, o.ink);
     if (made.length === 0) return;
     barMade = true;
-    for (const one of made) add(root, one);
+    // ON THE SCREEN, beside the strip and not inside it: the controls stand at the foot of the glass
+    // whether or not a hand is drawn there, and are placed off the glass's own corners (`fitBar`).
+    for (const one of made) add(screen, one);
   };
 
   function chairOf(): Node | undefined {
@@ -290,13 +313,21 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
 
   const refresh = (): void => {
     makeBar();
+    const chair = chairOf();
+    const fold: HandFold = chair ? handPose(chair).fold : "shrink";
     const cards = held();
     for (const old of [...strip.children]) remove(strip, old);
     // NOTHING HELD IS NOTHING DRAWN. An empty strip across the foot of a phone is glass spent on a
-    // fact the felt already shows, and the controls with it: there is nothing to shut or turn over.
+    // fact the felt already shows; the controls stay, because they are what puts a hand here.
     const show = pinned && cards.length > 0;
     manifest = show ? cards.map((c) => c.id) : [];
     if (show) for (const card of cards) add(strip, shownOf(card));
+    compose(strip, Container({ layout: foldLayout(fold) }));
+    // THE LEAN OF A FAN, off the same plan its positions come from; a row lies level.
+    if (show && fold === "fan") {
+      const plan = posePlan(FAN, strip.children.map((c) => ({ id: c.id, footprint: fieldsOf<BoundedFields>(c, "Bounded")?.bounds, at: undefined })));
+      strip.children.forEach((c, i) => compose(c, Transformable({ ...(fieldsOf<TransformableFields>(c, "Transformable") ?? {}), angle: plan[i]?.angle ?? 0 })));
+    }
 
     const sizes = cards.map((c) => {
       const shape = footprint(c);
@@ -304,22 +335,27 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     });
     const widest = sizes.reduce((w, s) => Math.max(w, s.w), 0);
     const tallest = sizes.reduce((h, s) => Math.max(h, s.h), 0);
-    wide = show ? Math.min(handWidth(cards.length, widest), Math.max(HAND.empty, room())) : 0;
-    const high = show ? tallest + 2 * HAND.pad + handRoom() : 0;
-    compose(strip, Bounded({ bounds: roundedRect(Math.max(wide, HAND.empty), Math.max(high, HAND.empty), HAND.pad) }));
-
-    // AT THE FOOT OF THE GLASS, centred — worked out from the glass every time and never remembered,
-    // because a phone turned on its side is a different foot (`cameraHud`'s own note). Holding
-    // nothing, it is put OFF the glass rather than drawn empty: absence is the refusal (CANONS §1).
     const u = host.unit();
     const v = host.viewport();
-    const low = u > 0 ? v.height / u / 2 - high / 2 - HAND_HUD_MARGIN : 0;
+    const glass = u > 0 ? { w: v.width / u, h: v.height / u } : { w: 0, h: 0 };
+    wide = show ? Math.min(handWidth(cards.length, widest), Math.max(1, room())) : 0;
+    // A FAN IS TALLER THAN ITS CARD — the ends swing down — and a shown hand's box holds the lot.
+    const fanned = show && fold === "fan" ? (posePlan(FAN, strip.children.map((c) => ({ id: c.id, footprint: fieldsOf<BoundedFields>(c, "Bounded")?.bounds, at: undefined }))).reduce((m, p) => Math.max(m, Math.abs(p.at.y)), 0) * 2) : 0;
+    const high = show ? tallest + fanned + 2 * HAND.pad + handRoom() : 0;
+    compose(strip, Bounded({ bounds: roundedRect(Math.max(wide, 1), Math.max(high, 1), HAND.pad) }));
+
+    // THE CONTROLS AT THE FOOT OF THE GLASS, in the two corners, and the strip ABOVE the taller
+    // group of them — worked out from the glass every time and never remembered, because a phone
+    // turned on its side is a different foot (`cameraHud`'s own note). A tucked hand is let down
+    // so only its tip shows above the controls: the tip is what is pulled on to bring it back up.
+    fitBar(screen, o.seat, glass, HAND_HUD_MARGIN);
+    dressBar(screen, o.seat, chair);
+    const controls = barMade ? Math.max(barExtent("rights").h, barExtent("poses").h) + HAND_HUD_MARGIN : 0;
+    const rest = glass.h / 2 - HAND_HUD_MARGIN - controls;
+    const low = rest - high / 2 + (fold === "tuck" ? Math.max(0, high - TUCK_TIP) : 0);
+    // Holding nothing, the strip is put OFF the glass rather than drawn empty: absence is the refusal.
     compose(root, Transformable({ at: { x: 0, y: show ? low : v.height } }));
-    // ...AND THE CONTROLS ABOVE THE BOX, on the far side of it from the reader — the same row the
-    // felt's own bar is, placed by the same call, in the group's own frame.
-    fitBar(root, o.seat, { x: 0, y: 0 }, 0, high / 2);
-    dressBar(root, o.seat, chairOf());
-    floorPx = show ? (high / 2 + BAR.size + 2 * BAR.gap + HAND_HUD_MARGIN + high / 2) * u : 0;
+    floorPx = (controls + HAND_HUD_MARGIN + (show ? Math.min(high, TUCK_TIP + (fold === "tuck" ? 0 : high)) + HAND_HUD_MARGIN : 0)) * u;
   };
   refresh();
 
@@ -338,7 +374,8 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     // ring, and a target that already covers where the ring STARTS would light up before the reader
     // had aimed at anything.
     const tall = pinned && box ? extentOf(box).h : ANCHOR.d;
-    const low = u > 0 ? v.height / u / 2 - tall / 2 - HAND_HUD_MARGIN : 0;
+    const controls = barMade ? Math.max(barExtent("rights").h, barExtent("poses").h) + HAND_HUD_MARGIN : 0;
+    const low = u > 0 ? v.height / u / 2 - HAND_HUD_MARGIN - controls - tall / 2 : 0;
     return { w: ANCHOR.catch, h: ANCHOR.catch, at: { x: 0, y: low } };
   }
 
@@ -425,6 +462,8 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     stop() {
       showAnchor(false, false);
       remove(screen, root);
+      const bar = byId(screen, chairBarId(o.seat));
+      if (bar) remove(screen, bar);
       if (ownScreen && host.hudRoot === screen) host.setHudRoot(previous);
     },
   };

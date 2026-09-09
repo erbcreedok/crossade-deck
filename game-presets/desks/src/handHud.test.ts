@@ -33,9 +33,9 @@ import {
   type Node,
   type TransformableFields,
 } from "game-kit";
-import { barPress, chairBarId, chairButtonId } from "./handBar.js";
+import { barPress, chairBarGroupId, chairBarId, chairButtonId } from "./handBar.js";
 import { handHud, HAND_HUD_ANCHOR, HAND_HUD_BOX } from "./handHud.js";
-import { growHand } from "./handZone.js";
+import { layHand } from "./handZone.js";
 import { chairId, seatChair, setHandLock } from "./seatPlace.js";
 
 function bench() {
@@ -72,10 +72,11 @@ describe("the hand on the glass", () => {
     // EMPTY IS NOTHING AT ALL. A permanent strip across the foot of a phone for a player holding
     // nothing is the glass spent on a fact that is already visible on the felt.
     expect(hud.cards()).toEqual([]);
-    expect(hud.floor()).toBe(0);
+    // ...BUT THE CONTROLS ARE, and the foot of the glass is theirs: a hand is put here by pressing one.
+    expect(hud.floor()).toBeGreaterThan(0);
 
     for (const id of ["a", "b", "c"]) add(b.chair, card(id));
-    growHand(b.chair);
+    layHand(b.chair);
     hud.refresh();
     // THE SAME CARDS, IN THE SAME ORDER — read off the chair every time, so a hand dealt to, played
     // from or reordered on the felt is that hand here without anybody telling this file what changed.
@@ -86,7 +87,7 @@ describe("the hand on the glass", () => {
     expect(ids(hud.root)).not.toContain("a");
     // A CARD PLAYED IS GONE FROM THE GLASS TOO.
     b.chair.children.splice(1, 1);
-    growHand(b.chair);
+    layHand(b.chair);
     hud.refresh();
     expect(hud.cards()).toEqual(["a", "c"]);
     // ...AND THE FACE IS THE OWNER'S OWN. This screen belongs to the player whose hand it is: what
@@ -102,7 +103,7 @@ describe("the hand on the glass", () => {
     const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
     hud.attach(true);
     for (const id of ["a", "b", "c"]) add(b.chair, card(id));
-    growHand(b.chair);
+    layHand(b.chair);
     hud.refresh();
     const v = b.host.viewport();
     const u = b.host.unit();
@@ -119,7 +120,7 @@ describe("the hand on the glass", () => {
     // A HAND WIDER THAN THE GLASS IS SQUEEZED, never drawn past the edge: the row closes up exactly
     // as it does in a box on the felt (`handLayout`), because it is the same arrangement.
     for (const id of ["d", "e", "f", "g", "h", "i", "j"]) add(b.chair, card(id));
-    growHand(b.chair);
+    layHand(b.chair);
     hud.refresh();
     expect(fieldsOf<{ bounds: unknown }>(byId(hud.root, HAND_HUD_BOX)!, "Bounded"), "the cards lie in a box of their own").toBeDefined();
     const wide = hud.width() * u;
@@ -127,27 +128,36 @@ describe("the hand on the glass", () => {
     hud.stop();
   });
 
-  it("hud.the-four-controls-come-with-it — the same meaning, above the cards, lit by the same states", () => {
+  it("hud.the-controls-come-with-the-glass — at its foot whether or not a hand is drawn, lit by the chair's own states", () => {
     const b = bench();
     const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
-    hud.attach(true);
-    add(b.chair, card("a"));
-    growHand(b.chair);
-    hud.refresh();
-    // THE SAME FOUR, and they MEAN the same: one press wiring, one answer, whichever copy the finger
-    // found (`barPress`). A second meaning for the same button is two locks that can disagree.
-    const lock = byId(hud.root, chairButtonId("south", "lock"))!;
-    expect(lock, "the bar came with the hand").toBeDefined();
+    const screen = b.host.hudRoot!;
+    // BEFORE ANY HAND IS ON THE GLASS the controls stand: pressing one is how a hand gets there.
+    const lock = byId(screen, chairButtonId("south", "lock"))!;
+    expect(lock, "the controls came with the glass").toBeDefined();
+    expect(byId(hud.root, chairButtonId("south", "lock")), "…beside the strip, not in it").toBeUndefined();
     expect(barPress(lock)).toEqual({ seat: "south", what: "lock" });
     expect(caps(lock).has("Pressable")).toBe(true);
-    // ABOVE THE CARDS: the controls are on the far side of the box from the reader, as on the felt.
-    expect(poseOf(byId(hud.root, chairBarId("south"))!).y).toBeLessThan(0);
+    // AT THE FOOT: the rights in the left corner, the poses in the right, below the glass's middle.
+    const v = b.host.viewport();
+    const u = b.host.unit();
+    const rights = poseOf(byId(screen, chairBarGroupId("south", "rights"))!);
+    const poses = poseOf(byId(screen, chairBarGroupId("south", "poses"))!);
+    expect(rights.y).toBeGreaterThan(0);
+    expect(rights.y * u).toBeLessThan(v.height / 2);
+    expect(rights.x).toBeLessThan(0);
+    expect(poses.x).toBeGreaterThan(0);
+    expect(poses.y).toBeCloseTo(rights.y);
+    // ...AND THE ROOM THEY TAKE IS REPORTED, so the camera's pair stands clear of them.
+    expect(hud.floor()).toBeGreaterThan(0);
     // ...AND LIT BY THE CHAIR'S OWN STATE, not by a second one kept here.
-    expect(fieldsOf<{ cast: unknown }>(lock, "Coated")).toBeUndefined();
+    const plate = (what: "lock" | "flip") => fieldsOf<{ surface: string }>(byId(screen, chairButtonId("south", what))!, "Surfaced")!.surface;
+    expect(plate("lock")).toBe(plate("flip"));
     setHandLock(byId(b.desk, chairId("south"))!, true);
     hud.refresh();
-    expect(fieldsOf<{ cast: unknown }>(byId(hud.root, chairButtonId("south", "lock"))!, "Coated")).toBeDefined();
+    expect(plate("lock")).not.toBe(plate("flip"));
     hud.stop();
+    expect(byId(screen, chairBarId("south")), "and they go down with the hand").toBeUndefined();
   });
 
   it("hud.a-hand-goes-onto-the-glass-by-being-carried-there — an anchor while a ring is in hand, and the drop is the switch", () => {
@@ -159,7 +169,7 @@ describe("the hand on the glass", () => {
     const b = bench();
     const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
     add(b.chair, card("a"));
-    growHand(b.chair);
+    layHand(b.chair);
     expect(hud.attached(), "a hand starts on the felt, where every player's does").toBe(false);
     expect(hud.cards(), "…and nothing of it is on the glass").toEqual([]);
     expect(byId(b.host.hudRoot!, HAND_HUD_ANCHOR), "no ring in hand, no anchor").toBeUndefined();
@@ -168,11 +178,15 @@ describe("the hand on the glass", () => {
     // it is not, solid the moment it is, so the reader is told where the drop will land BEFORE they
     // let go rather than by what happens after.
     const v = b.host.viewport();
+    const u = b.host.unit();
     const away = { x: 20, y: 40 };
-    const onIt = { x: v.width / 2, y: v.height - 40 };
     expect(hud.carrying(away)).toBe(false);
     const anchor = byId(b.host.hudRoot!, HAND_HUD_ANCHOR)!;
     expect(anchor, "a ring in hand puts the anchor up").toBeDefined();
+    // ABOVE THE CONTROLS, where the strip will be: the anchor stands where the hand lands.
+    const onIt = { x: v.width / 2 + poseOf(anchor).x * u, y: v.height / 2 + poseOf(anchor).y * u };
+    expect(onIt.y).toBeGreaterThan(v.height / 2);
+    expect(onIt.y).toBeLessThan(v.height);
     const dashed = surfaceOf(anchor);
     expect(hud.carrying(onIt)).toBe(true);
     expect(surfaceOf(anchor), "aimed at, it stops being a dotted line").not.toBe(dashed);
@@ -216,13 +230,13 @@ describe("the hand on the glass", () => {
     const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
     hud.attach(true);
     for (const id of ["a", "b"]) add(b.chair, card(id));
-    growHand(b.chair);
+    layHand(b.chair);
     hud.refresh();
     const shown = byId(hud.root, HAND_HUD_BOX)!.children;
     expect(hud.standFor(shown[0]!)).toBe(byId(b.desk, "a"));
     expect(hud.standFor(shown[1]!)).toBe(byId(b.desk, "b"));
     // ...AND NOTHING ELSE ON THE SCREEN IS A CARD: a button is only ever itself.
-    expect(hud.standFor(byId(hud.root, chairButtonId("south", "lock"))!)).toBeUndefined();
+    expect(hud.standFor(byId(b.host.hudRoot!, chairButtonId("south", "lock"))!)).toBeUndefined();
 
     // WHAT IS IN THE AIR IS OUT OF THE PICTURE. A card drawn under the finger AND still lying in the
     // strip is one card shown twice, and the reader cannot tell which of them they are holding.
@@ -234,7 +248,8 @@ describe("the hand on the glass", () => {
     // A DROP AIMED AT THE STRIP IS A DROP INTO THE HAND — asked in glass pixels, because that is
     // what a finger is measured in, and only while the hand is actually pinned there.
     const v = b.host.viewport();
-    const onIt = { x: v.width / 2, y: v.height - 60 };
+    const u = b.host.unit();
+    const onIt = { x: v.width / 2 + poseOf(hud.root).x * u, y: v.height / 2 + poseOf(hud.root).y * u };
     expect(hud.overHand(onIt)).toBe(true);
     expect(hud.overHand({ x: 20, y: 40 })).toBe(false);
     hud.attach(false);
