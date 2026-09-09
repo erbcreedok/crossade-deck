@@ -1,0 +1,61 @@
+game-kit/src/render/presence.ts
+  s_2049b128b4ff77::t_25d5885c510eac 103-109,289-297,300-304,308,313,320-322,324-325,431-437,462,485,549-550,568-570
+game-kit/src/render/avatars.test.ts
+  s_2049b128b4ff77::t_2fbcf8f9d4cc73 180-184
+  s_2049b128b4ff77::t_abc3d3b710518e 232,265
+game-kit/.storybook/locales/pages/hands/en.json
+  s_2049b128b4ff77::t_46e447e8f5c979 26
+game-kit/docs/test-plan/76-presence.md
+  s_2049b128b4ff77::t_2fbcf8f9d4cc73 26-27
+game-kit/.storybook/locales/pages/place/ru.json
+  s_2049b128b4ff77::t_46e447e8f5c979 19
+game-presets/desks/docs/test-plan.md
+  s_2049b128b4ff77::t_46e447e8f5c979 113-114,119,129,131
+game-kit/.storybook/locales/pages/hands/ru.json
+  s_2049b128b4ff77::t_46e447e8f5c979 25
+game-presets/desks/src/handBar.test.ts
+  s_2049b128b4ff77::t_abc3d3b710518e 48,51,68,79,85
+apps/hub/src/table/index.ts
+  s_2049b128b4ff77::t_4ba86c080dc89b 490-492
+  s_2049b128b4ff77::t_abc3d3b710518e 85-86,482
+game-kit/docs/test-plan/67-live.md
+  s_2049b128b4ff77::t_46e447e8f5c979 25
+game-kit/.storybook/stories/gestureScene.ts
+  s_2049b128b4ff77::t_abc3d3b710518e 19,306
+  s_2049b128b4ff77::t_2831aa4a2c5577 272-274,317
+apps/hub/src/table/home.test.ts
+  s_2049b128b4ff77::t_2fbcf8f9d4cc73 16,84-86
+game-kit/.storybook/locales/pages/place/en.json
+  s_2049b128b4ff77::t_46e447e8f5c979 19
+game-presets/desks/src/handBar.ts
+  s_2049b128b4ff77::t_49ecbec463f463 7,13-14,48-49,52-53,105,195-198,263-264
+game-kit/.storybook/stories/avatars.test.ts
+  s_2049b128b4ff77::t_2fbcf8f9d4cc73 124-128
+game-presets/desks/src/handHud.ts
+  s_2049b128b4ff77::t_5f60b5ce3368a9 2-4,126-127
+  s_2049b128b4ff77::t_49ecbec463f463 235,258,274-275,286,297
+  s_2049b128b4ff77::t_c68a9b2c3bac70 251-255,267-268,272,326
+game-kit/src/render/presence.test.ts
+  s_2049b128b4ff77::t_2fbcf8f9d4cc73 325-327,361-362,365
+  s_2049b128b4ff77::t_662ddd64dbe7b9 336-338,340-343
+  s_2049b128b4ff77::t_46e447e8f5c979 320-323,328-333,335,346,348-350,353,357,363-364,366-369,373
+game-presets/desks/src/handHud.test.ts
+  s_2049b128b4ff77::t_abc3d3b710518e 37
+  s_2049b128b4ff77::t_46e447e8f5c979 71-72,74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7a27b4d29c70b6163368247046f3fb24dc8dc0e9",
+  "prompts": {},
+  "sessions": {
+    "s_2049b128b4ff77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f5ba828-d84d-455f-8f95-01ad6b176644",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
