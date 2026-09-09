@@ -1,0 +1,46 @@
+game-kit/src/render/liveTable.ts
+  s_2049b128b4ff77::t_0b7abbe359504b 1413-1416
+  s_2049b128b4ff77::t_3225e32a70e425 1335-1336
+  s_2049b128b4ff77::t_91bd60ffdd76bc 1417
+game-kit/src/render/cameraInput.test.ts
+  s_2049b128b4ff77::t_91bd60ffdd76bc 240,242-243,246
+  s_2049b128b4ff77::t_680ea36a8231a0 16-17
+  s_2049b128b4ff77::t_b16ffe21c0decf 83-90,123,223-239,241,244-245
+  s_2049b128b4ff77::t_9d312008cd8310 247-248
+game-kit/src/render/liveTable.test.ts
+  s_2049b128b4ff77::t_3225e32a70e425 1056,1058-1064,1066,1071-1072,1075-1079,1083,1085,1088,1090-1091
+  s_2049b128b4ff77::t_91d5e513028aba 30,1051-1055,1057,1070,1073-1074,1084,1086-1087,1089
+  s_2049b128b4ff77::t_b4e8bccd62f5ca 1065,1067-1069,1080-1082
+  s_2049b128b4ff77::t_c3fa401225a855 1092-1094
+game-presets/desks/src/handBar.test.ts
+  s_2049b128b4ff77::t_91d5e513028aba 34-38
+game-kit/docs/test-plan/78-live-table.md
+  s_2049b128b4ff77::t_5b600e91c4f094 3,17
+game-presets/desks/docs/test-plan.md
+  s_2049b128b4ff77::t_de942d3d9d53fe 113
+game-presets/desks/src/handBar.ts
+  s_2049b128b4ff77::t_0b7abbe359504b 32,34,239-249
+game-kit/docs/test-plan/README.md
+  s_2049b128b4ff77::t_5b600e91c4f094 10,81,105
+game-kit/docs/test-plan/53-camera-input.md
+  s_2049b128b4ff77::t_5b600e91c4f094 3,25
+game-kit/src/render/cameraInput.ts
+  s_2049b128b4ff77::t_0b7abbe359504b 56-62,215-219
+  s_2049b128b4ff77::t_4f0b1f08e85dab 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3a2a2848a315582d621157d74958c7e702fb22a7",
+  "prompts": {},
+  "sessions": {
+    "s_2049b128b4ff77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f5ba828-d84d-455f-8f95-01ad6b176644",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
