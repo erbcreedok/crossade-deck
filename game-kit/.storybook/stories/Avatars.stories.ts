@@ -6,12 +6,14 @@ import {
   installStockMarks,
   presenceTransform,
   t,
+  type LiveTable,
+  type Node,
   type PresenceView,
   type Vec,
 } from "../../src/index.js";
 import { type Mirror, grabScene } from "./gestureScene.js";
 import { follow, type Screen } from "./liveScreens.js";
-import { LIVE_UNIT, roundMap, roundPlaces, roundRoom, SEATS } from "@game-presets/desks";
+import { LIVE_UNIT, mayTake, roundMap, roundPlaces, roundRoom, SEATS } from "@game-presets/desks";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
 import { withAvatars } from "./avatars.js";
@@ -81,6 +83,10 @@ export const Avatars: StoryObj<AvatarArgs> = {
     const held = a.lifted ? a.lift : 1;
     const frames = new Map<string, HTMLElement>();
     const inks = Object.fromEntries(SEATS.map(({ seat, ink }) => [seat, ink]));
+    const places = roundPlaces(SEATS.length);
+    // EVERY PANE'S OWN LIVE DESK, by seat — the one way a tap on a chair can reach the camera that
+    // has to move (`liveTable`'s `idle.goHome`). Filled in as each pane is built, below.
+    const desks = new Map<string, LiveTable>();
     // THE PEOPLE, WIRED THE ONE WAY EVERY LIVE PAGE WIRES THEM (`avatars.ts`). No hands: a chair
     // here is the place alone, and the disc in it — or off it — is the whole of the page.
     const people = withAvatars({
@@ -89,8 +95,18 @@ export const Avatars: StoryObj<AvatarArgs> = {
       screens,
       page: "avatars",
       wall,
-      places: roundPlaces(SEATS.length),
+      places,
+      goHome: (seat) => desks.get(seat)?.idle?.goHome(),
     });
+    // A SIMPLE HEARTBEAT FOR THE OPENING GLIDE — a plain interval per pane, torn down when the
+    // story's own wall leaves the document (`Live/Cards` runs the same one).
+    const idleTimers: (() => void)[] = [];
+    const idleObserver = new MutationObserver(() => {
+      if (wall.isConnected) return;
+      for (const stop of idleTimers.splice(0)) stop();
+      idleObserver.disconnect();
+    });
+    idleObserver.observe(document.body, { childList: true, subtree: true });
 
     /** What a screen's camera is worth as a message — see `PresenceView` on why the scale is total. */
     const viewOf = (one: Screen): PresenceView | undefined => {
@@ -202,6 +218,32 @@ export const Avatars: StoryObj<AvatarArgs> = {
           () => {
             people.publish();
             outlines();
+          },
+          // ONLY THE OWNER MOVES A CHAIR; nothing else on this desk is anybody's to lift.
+          (n: Node) => mayTake(n, seat),
+          // A TAP ON ONE'S OWN CHAIR TAKES THAT READER HOME.
+          (piece: Node) => people.tapped(seat, piece),
+          () => people.settled(),
+          {
+            places,
+            mine: i,
+            placeNow: () => people.placeOf(seat),
+            idleReturn: false,
+          },
+          // A PANE OPENS AT ITS OWN PLACE: the disc is in the arch before anybody has touched
+          // anything, which is the picture this page starts from (`Live/Cards` does the same).
+          (live) => {
+            desks.set(seat, live);
+            requestAnimationFrame(() => live.idle?.goHome());
+            const id = setInterval(() => {
+              live.idle?.step(200);
+              live.motions?.redraw();
+              people.publish();
+              outlines();
+            }, 200);
+            const stop = () => clearInterval(id);
+            idleTimers.push(stop);
+            return stop;
           },
         ),
       );
