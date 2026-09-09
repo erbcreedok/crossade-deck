@@ -24,7 +24,7 @@ import { type Vec } from "../core/transform.js";
 import { type CarryItem } from "./animator/index.js";
 import { type SeatPlace } from "./liveTable.js";
 import { isHome, placeAvatars, type Presence } from "./presence.js";
-import { barPress, chairId, chairPinned, dressChair, fitChair, flipHand, handHidden, handLocked, handPose, layHand, setChairPin, setHandHidden, setHandPose, standChair } from "@game-presets/desks";
+import { barPress, chairId, chairPinned, dressChair, fitChair, flipHand, FOLD_POSES, handHidden, handLocked, layHand, setChairPin, setHandHidden, setHandPose, standChair } from "@game-presets/desks";
 
 
 /** One place at a live desk: who sits there and in what colour they are drawn. */
@@ -339,7 +339,9 @@ export function withAvatars(o: AvatarsOptions): Avatars {
       else if (press.what === "hide") setHandHidden(ring, !handHidden(ring));
       else if (press.what === "flip") flipHand(ring);
       else if (press.what === "pin") setChairPin(ring, !chairPinned(ring));
-      else setHandPose(ring, { side: handPose(ring).side, fold: press.what });
+      // A FOLD IS A WHOLE POSE, on the felt as on the glass: a fan in front, a stack at the side,
+      // put away under the chair (`FOLD_POSES`).
+      else setHandPose(ring, FOLD_POSES[press.what]);
       layHands();
       return true;
     },

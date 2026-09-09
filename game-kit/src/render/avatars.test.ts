@@ -264,7 +264,7 @@ describe("the people at a live desk", () => {
 
     // A FOLD IS THE HAND'S POSE, written on the chair like the rest.
     expect(people.pressed("south", control("fan"))).toBe(true);
-    expect(handPose(ring)).toEqual({ side: "side", fold: "fan" });
+    expect(handPose(ring), "a fan on the glass is a fan in front of the chair").toEqual({ side: "front", fold: "fan" });
 
     // ...AND EACH PRESSED AGAIN IS THE STATE OFF AGAIN.
     people.pressed("south", control("lock"));

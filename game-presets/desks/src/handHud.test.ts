@@ -28,6 +28,7 @@ import {
   node,
   rect,
   registerLayout,
+  remove,
   freeLayout,
   resetSurfaces,
   setFacing,
@@ -179,6 +180,17 @@ describe("the hand on the glass", () => {
     const u = b.host.unit();
     const v = b.host.viewport();
     expect(hud.scale()).toBeLessThan(1);
+    // FEWER CARDS ARE BIGGER: the same strip with five is drawn larger than with eight, and one
+    // card is its own size.
+    const atEight = hud.scale();
+    for (const id of ["c5", "c6", "c7"]) remove(b.chair, byId(b.chair, id)!);
+    layHand(b.chair);
+    hud.refresh();
+    expect(hud.scale()).toBeGreaterThan(atEight);
+    for (const id of ["c5", "c6", "c7"]) add(b.chair, card(id));
+    layHand(b.chair);
+    hud.refresh();
+    expect(hud.scale()).toBeCloseTo(atEight);
     // Where the arrangement puts them — the arrangement is read, as the felt's own row is read.
     const laid = (): number[] => {
       const strip = byId(hud.root, HAND_HUD_BOX)!;
@@ -196,11 +208,16 @@ describe("the hand on the glass", () => {
     hud.refresh();
     const nine = laid();
     expect(nine[1]! - nine[0]!).toBeLessThan(1);
-    // SHRINK CLOSES THEM UP whatever the count: the fold's own meaning.
-    setHandPose(b.chair, { side: "front", fold: "shrink" });
+    // SHUT, THE CARDS PRESS INTO EACH OTHER whatever the count — and the more of them, the harder.
+    setHandPose(b.chair, { side: "side", fold: "shrink" });
     hud.refresh();
     const packed = laid();
-    expect(packed[1]! - packed[0]!).toBeLessThan(1);
+    expect(packed[1]! - packed[0]!).toBeLessThan(0.56);
+    for (const id of ["d0", "d1", "d2", "d3", "d4", "d5"]) add(b.chair, card(id));
+    layHand(b.chair);
+    hud.refresh();
+    const packedMore = laid();
+    expect(packedMore[1]! - packedMore[0]!).toBeLessThan(packed[1]! - packed[0]!);
     hud.stop();
   });
 

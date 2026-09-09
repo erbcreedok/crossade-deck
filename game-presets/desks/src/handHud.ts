@@ -49,12 +49,12 @@ import {
   type Node,
   type Paint,
   deviceInsets,
+  type LayoutChild,
   type SurfacedFields,
   type TransformableFields,
 } from "game-kit";
 import { BAR, BAR_FADE, barHeight, chairBarId, dressBar, fitBar, seatBar } from "./handBar.js";
 import { HAND, handPose, handRoom, type HandFold } from "./handZone.js";
-import { handLayout, ZONE_SPREAD } from "./felt.js";
 import { chairId } from "./seatPlace.js";
 
 /** The nodes this file makes, by the names a reader sees in the inspector. */
@@ -74,15 +74,29 @@ function foldLayout(fold: HandFold): string {
 /** How much of a tucked hand shows above the bar, in HUD units — the tip that is pulled on. */
 const TUCK_TIP = 0.45;
 /**
- * EIGHT CARDS ABREAST, the owner's rule for the hand on a phone: the strip is drawn at the scale
- * that puts eight cards side by side inside the glass with `HUD_GAP` between them and none of them
- * over another — a phone 375px wide draws them ~41px each. Wider than that, cards are their own
- * size. `shrink` still closes them up: that is what the fold is for.
+ * THE CARDS ARE AS BIG AS THE GLASS LETS THEM BE — the owner's rule: eight cards fit a phone side by
+ * side, none over another, and fewer cards are bigger for it, up to their own size. The strip is
+ * drawn at the scale that fits its row into the glass, and never smaller than the size eight
+ * abreast get (`HUD_CARDS`): past eight the row closes up rather than shrinking on.
  */
 const HUD_CARDS = 8;
 const HUD_GAP = 0.06;
 /** The fan on the glass — the stand's: 7° of lean per card round the middle one, a little lift at the middle. */
 const HUD_FAN = { tilt: 7, lift: 0.14 };
+/**
+ * SHUT UP, THE CARDS PRESS INTO EACH OTHER — and the more of them, the harder: the row is never
+ * wider than `SHRINK.span` cards, so the step is what that span allows, down to `SHRINK.least`.
+ */
+const SHRINK = { most: 0.55, span: 3, least: 0.08 };
+/** The step of a shut row, in card widths. */
+function shrinkStep(n: number): number {
+  return n > 1 ? Math.max(SHRINK.least, Math.min(SHRINK.most, SHRINK.span / (n - 1))) : 0;
+}
+/** How wide a row of `n` cards is in this fold, in card widths — what the scale fits into the glass. */
+function rowWidth(fold: HandFold, n: number): number {
+  const count = Math.max(1, n);
+  return fold === "fan" ? count * (1 + HUD_GAP) : 1 + (count - 1) * shrinkStep(count);
+}
 
 /** How far the strip stands in from the sides of the glass, in HUD units. */
 export const HAND_HUD_MARGIN = 0.14;
@@ -161,11 +175,20 @@ export interface HandHud {
 export function handHud(host: Host, o: HandHudOptions): HandHud {
   registerLayout(HAND_HUD_FREE, freeLayout);
   registerSurface(HAND_HUD_EMPTY, { layers: [], radius: 0.06, stroke: { color: "text", width: 0.03, opacity: 0.45, dash: { on: 0.12, off: 0.08 } } });
-  // THE THREE FOLDS ON THE GLASS. A squeezed row and a tucked row are the felt's own row arrangement
-  // (`handLayout`); the fan is the chair's front fan brought to the strip's middle, its angles
-  // written by `refresh` off the same plan, so the cards stand where their leans say they do.
-  registerLayout(foldLayout("shrink"), handLayout(ZONE_SPREAD, HAND.pad, handRoom()));
-  registerLayout(foldLayout("tuck"), handLayout(ZONE_SPREAD, HAND.pad, handRoom()));
+  // THE THREE FOLDS ON THE GLASS: a fan abreast, a shut row pressed together, and the same row put
+  // away under the bar. The lean of the fan is written by `refresh`.
+  // SHUT AND PUT AWAY are the same pressed row, centred; put away is then let down under the bar.
+  const shut = {
+    place: (children: readonly LayoutChild[]) => {
+      const n = children.length;
+      const widest = children.reduce((w, c) => Math.max(w, c.footprint ? extentOf(c.footprint).w : 1), 1);
+      const step = shrinkStep(n) * widest;
+      const from = -(step * (n - 1)) / 2;
+      return children.map((_c, i) => ({ x: from + step * i, y: -handRoom() / 2 }));
+    },
+  };
+  registerLayout(foldLayout("shrink"), shut);
+  registerLayout(foldLayout("tuck"), shut);
   // THE FAN NEVER OVERLAPS UP TO EIGHT: a card's step is the card and a gap while the box has the
   // room, and closes up only past that. The lean and the lift are written by `refresh`.
   registerLayout(foldLayout("fan"), {
@@ -301,9 +324,11 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     const u = host.unit();
     const v = host.viewport();
     const glass = u > 0 ? { w: v.width / u, h: v.height / u } : { w: 0, h: 0 };
-    // THE STRIP'S SCALE: eight cards abreast inside the glass, or the cards' own size, whichever is
-    // smaller. Everything below is in the strip's own units; the scale carries it onto the glass.
-    scale = glass.w > 0 ? Math.min(1, room() / (HUD_CARDS * widest * (1 + HUD_GAP))) : 1;
+    // THE STRIP'S SCALE: this row inside the glass, or the cards' own size, whichever is smaller —
+    // and never smaller than eight abreast get. Everything below is in the strip's own units; the
+    // scale carries it onto the glass.
+    const eight = room() / (HUD_CARDS * widest * (1 + HUD_GAP));
+    scale = glass.w > 0 ? Math.min(1, Math.max(eight, room() / (rowWidth(fold, cards.length) * widest))) : 1;
     // THE BOX IS THE ROOM: as wide as the glass allows (in strip units), so the arrangement lays
     // the cards abreast while they fit and closes them up only when they do not.
     wide = Math.max(1, room() / scale);

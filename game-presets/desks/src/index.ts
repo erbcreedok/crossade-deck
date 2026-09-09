@@ -40,6 +40,7 @@ export {
 } from "./nardyMap.js";
 export {
   ARCH_R,
+  FOLD_POSES,
   HAND,
   HAND_FOLDS,
   HAND_LAYOUT,

@@ -90,8 +90,18 @@ export interface HandPose {
   readonly side: HandSide;
   readonly fold: HandFold;
 }
+/**
+ * WHAT A FOLD ON THE OWNER'S HUD MEANS ON THE CHAIR — the owner's own rule: a fan is a fan in
+ * front of the chair; shut up, the cards go to the side as a stack; put away, they go under the
+ * chair with a tip showing. One press, one pose, on the glass and on the felt alike.
+ */
+export const FOLD_POSES: Readonly<Record<HandFold, HandPose>> = {
+  fan: { side: "front", fold: "fan" },
+  shrink: { side: "side", fold: "shrink" },
+  tuck: { side: "front", fold: "tuck" },
+};
 /** The pose a chair opens in — a stack on the owner's right, the design's own default. */
-export const HAND_POSE_DEFAULT: HandPose = { side: "side", fold: "shrink" };
+export const HAND_POSE_DEFAULT: HandPose = FOLD_POSES.shrink;
 export const HAND_POSES: readonly HandPose[] = HAND_SIDES.flatMap((side) => HAND_FOLDS.map((fold) => ({ side, fold })));
 
 /** The name a pose is written and registered under. */
