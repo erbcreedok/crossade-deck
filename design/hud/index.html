@@ -69,8 +69,8 @@
   const SPEC = [
     ["Мера", [
       ["cardW", "карта, px", "int", 74, 44, 120],
-      ["btn", "кнопка, px", "int", 46, 28, 72],
-      ["gap", "зазор, px", "int", 8, 0, 24],
+      ["btn", "кнопка, px", "int", 44, 28, 72],
+      ["gap", "зазор, px", "int", 6, 0, 24],
       ["margin", "поле, px", "int", 16, 0, 40],
       ["bottom", "низ кнопок, px", "int", 44, 14, 120],
     ]],
@@ -83,8 +83,13 @@
       ["global", "глобальный HUD", "bool", true],
     ]],
     ["Граница HUD", [
-      ["edge", "разделитель", "enum", "градиент", ["нет", "градиент", "линия", "панель", "пунктир", "затемнение", "корешок", "градиент + линия"]],
-      ["edgePad", "запас над рукой, px", "int", 14, 0, 80],
+      ["edge", "разделитель", "enum", "две полосы", ["две полосы", "нет", "градиент", "линия", "панель", "пунктир", "затемнение", "корешок", "градиент + линия"]],
+      ["barPad", "полоса: поле вокруг кнопок, px", "int", 8, 0, 24],
+      ["barLook", "полоса: цвет", "enum", "дерево", ["дерево", "тёмная", "чёрная", "сукно"]],
+      ["tuckUnder", "карты под полосой, px", "int", 18, 0, 80],
+      ["fadeH", "градиент за картами, px", "int", 150, 0, 400],
+      ["fadeA", "градиент: плотность, %", "int", 85, 0, 100],
+      ["edgePad", "запас над рукой (старые варианты), px", "int", 14, 0, 80],
       ["edgeKeen", "карта наведена на HUD", "bool", false],
       ["dragDemo", "карта в руке", "enum", "нет", ["нет", "над столом", "над HUD"]],
     ]],
@@ -222,7 +227,7 @@
     const rightsColumn = P.rightsLayout === "столбик";
     const rightsW = rightsColumn ? btn : rightsList.length * btn + (rightsList.length - 1) * gap;
     const rightsH = rightsColumn ? rightsList.length * btn + (rightsList.length - 1) * gap : btn;
-    const rights = `<div style="position:absolute;left:${margin}px;bottom:calc(${bottom}px + ${safeBottom});display:flex;flex-direction:${rightsColumn ? "column" : "row"};gap:${gap}px;z-index:6">`
+    let rights = `<div style="position:absolute;left:${margin}px;bottom:calc(${bottom}px + ${safeBottom});display:flex;flex-direction:${rightsColumn ? "column" : "row"};gap:${gap}px;z-index:6">`
       + rightsList.map(([k, t, lit]) => button(k, t, lit, btn, btn)).join("") + `</div>`;
 
     // Позы
@@ -241,14 +246,14 @@
       posesW = btn; posesH = 3 * btn + 2 * gap;
       poses = `<div style="position:absolute;right:${margin}px;bottom:calc(${bottom}px + ${safeBottom});display:flex;flex-direction:column;gap:${gap}px;z-index:6">` + posesList.map(([k, t, lit]) => button(k, t, lit, btn, btn)).join("") + `</div>`;
     }
-    const free = W - 2 * margin - rightsW - posesW;
+    let free = W - 2 * margin - rightsW - posesW;
 
     // Пара камеры
     const camBtn = `width:40px;height:40px;border-radius:999px;background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px #6b4d2c,0 4px 0 rgba(11,7,4,.6);display:flex;align-items:center;justify-content:center;`;
     const camWrap = P.camera === "нет" ? ""
       : P.camera === "над позами" ? `position:absolute;right:${margin}px;bottom:calc(${bottom + posesH + gap + 4}px + ${safeBottom});display:flex;flex-direction:column;gap:${gap}px;z-index:6`
       : `position:absolute;right:${margin}px;top:calc(100px + ${safeTop});display:flex;flex-direction:column;gap:${gap}px;z-index:6`;
-    const camera = camWrap ? `<div style="${a(camWrap)}"><div style="${a(camBtn)}">${svg(ICON.home, 18, T.ink)}</div><div style="${a(camBtn)}">${svg(ICON.north, 18, T.ink)}</div></div>` : "";
+    let camera = camWrap ? `<div style="${a(camWrap)}"><div style="${a(camBtn)}">${svg(ICON.home, 18, T.ink)}</div><div style="${a(camBtn)}">${svg(ICON.north, 18, T.ink)}</div></div>` : "";
 
     // Рука на HUD
     const seq = [["K", "s"], ["9", "h"], ["A", "d"], ["7", "c"], ["Q", "h"], ["3", "s"], ["J", "d"], ["6", "c"], ["10", "h"], ["2", "d"], ["8", "s"], ["5", "h"], ["4", "c"], ["Q", "s"]];
@@ -265,7 +270,7 @@
     const drop = pose === "спрятано" ? cardH - P.tuckTip : 0;
     const empty = n === 0 && P.emptyBox
       ? `<div style="width:${cardW}px;height:${cardH}px;border-radius:${Math.round(cardW * 0.1)}px;border:2px dashed rgba(245,234,208,.45);box-sizing:border-box"></div>` : "";
-    const hand = `<div style="position:absolute;left:50%;bottom:calc(${P.handBottom - drop}px + ${safeBottom});transform:translateX(-50%);display:flex;align-items:flex-end;z-index:5">${handCards}${empty}</div>`;
+    let hand = `<div style="position:absolute;left:50%;bottom:calc(${P.handBottom - drop}px + ${safeBottom});transform:translateX(-50%);display:flex;align-items:flex-end;z-index:5">${handCards}${empty}</div>`;
 
     // Глобальный HUD
     const topBtn = `width:44px;height:44px;border-radius:8px;background:linear-gradient(#25321f 0%,#16210f 100%);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px #6b4d2c,0 4px 0 rgba(11,7,4,.6);display:flex;align-items:center;justify-content:center;font:400 10px 'Tiny5',monospace;color:${T.ink}`;
@@ -318,7 +323,7 @@
     // Верх зоны — над самым высоким, что в ней стоит: рука в её позе, группы кнопок, пара камеры.
     const handTop = P.handBottom - drop + cardH + (pose === "веер" ? P.fanLift + Math.round(cardH * 0.08) : 0);
     const camH = P.camera === "над позами" ? 2 * 40 + gap + gap + 4 : 0;
-    const zoneH = Math.max(handTop, bottom + Math.max(rightsH, posesH + camH)) + P.edgePad;
+    let zoneH = Math.max(handTop, bottom + Math.max(rightsH, posesH + camH)) + P.edgePad;
     const keen = !!P.edgeKeen || P.dragDemo === "над HUD";
     const gold = keen ? "#f8d885" : "rgba(242,193,78,.55)";
     const edgeBase = `position:absolute;left:0;right:0;bottom:0;height:calc(${zoneH}px + ${safeBottom});z-index:4;pointer-events:none;`;
@@ -352,14 +357,49 @@
         + `<div style="position:absolute;left:${Math.round(W * 0.62) + dw - 6}px;bottom:calc(${Math.round(y) + Math.round(dw * K.ASPECT) - 10}px + ${safeBottom});width:22px;height:22px;border-radius:999px;border:3px solid ${T.ink};box-shadow:0 0 0 2px rgba(11,7,4,.55);background:rgba(11,7,4,.3);z-index:13"></div>`;
     }
 
-    const warn = free < 0 ? `<div style="position:absolute;left:50%;bottom:calc(${bottom + Math.max(rightsH, posesH) + 6}px + ${safeBottom});transform:translateX(-50%);padding:3px 8px;background:${T.black};box-shadow:inset 0 0 0 2px #e0483f;font:400 8px 'Press Start 2P',monospace;color:#e0483f;white-space:nowrap;z-index:9">группы пересекаются на ${-free}px</div>` : "";
+    // ---- ДВЕ ПОЛОСЫ: непрозрачная полоса с кнопками внизу, карты над ней и ПОД ней, за картами градиент ----
+    let bars = "";
+    let twoBars = P.edge === "две полосы";
+    if (twoBars) {
+      const barPad = P.barPad;
+      const barH = btn + 2 * barPad;
+      const looks = {
+        "дерево": `background:linear-gradient(#3a2a1d,#2a1d13);box-shadow:inset 0 3px 0 ${T.black},inset 0 5px 0 #6b4d2c;`,
+        "тёмная": `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 3px 0 ${T.black},inset 0 5px 0 #6b4d2c;`,
+        "чёрная": `background:${T.black};box-shadow:inset 0 3px 0 #3a2a1d;`,
+        "сукно": `background:#0a2117;box-shadow:inset 0 3px 0 ${T.black},inset 0 5px 0 #6b4d2c;`,
+      };
+      const left = [["pin", "ПИН", !!P.pin], ["lock", "ЛОК", !!P.lock], ["hide", "СКРЫТЬ", !!P.hide]];
+      const right = [["flip", "ФЛИП", false], ["fan", "ВЕЕР", pose === "веер"], ["shrink", "СЖАТЬ", pose === "сжато"], ["tuck", "УБРАТЬ", pose === "спрятано"]];
+      const leftW = left.length * btn + (left.length - 1) * gap;
+      const rightW = right.length * btn + (right.length - 1) * gap;
+      const room = W - 2 * margin - leftW - rightW;
+      bars =
+        // ГРАДИЕНТ ЗА КАРТАМИ: от полосы вверх, плотный у полосы, ничего наверху. Под картами (z 4 < 5).
+        `<div style="position:absolute;left:0;right:0;bottom:calc(${barH}px + ${safeBottom});height:${P.fadeH}px;z-index:4;pointer-events:none;background:linear-gradient(to top,rgba(11,7,4,${(P.fadeA / 100).toFixed(2)}),rgba(11,7,4,0))"></div>`
+        // ПОЛОСА: непрозрачная, поверх карт (z 6 > 5), кнопки на ней.
+        + `<div style="${a(`position:absolute;left:0;right:0;bottom:0;height:calc(${barH}px + ${safeBottom});z-index:6;${looks[P.barLook] || looks["дерево"]}`)}">`
+        + `<div style="position:absolute;left:${margin}px;top:${barPad}px;display:flex;gap:${gap}px">${left.map(([k, t, lit]) => button(k, t, lit, btn, btn)).join("")}</div>`
+        + `<div style="position:absolute;right:${margin}px;top:${barPad}px;display:flex;gap:${gap}px">${right.map(([k, t, lit]) => button(k, t, lit, btn, btn)).join("")}</div>`
+        + (room < 0 ? `<div style="position:absolute;left:50%;top:-22px;transform:translateX(-50%);padding:3px 8px;background:${T.black};box-shadow:inset 0 0 0 2px #e0483f;font:400 8px 'Press Start 2P',monospace;color:#e0483f;white-space:nowrap">не влезает на ${-room}px</div>` : "")
+        + `</div>`;
+      // КАРТЫ: низ уходит под полосу на `tuckUnder`.
+      const handBottomBar = barH - P.tuckUnder - drop;
+      hand = `<div style="position:absolute;left:50%;bottom:calc(${handBottomBar}px + ${safeBottom});transform:translateX(-50%);display:flex;align-items:flex-end;z-index:5">${handCards}${empty}</div>`;
+      // Пара камеры — над полосой справа, над правой группой.
+      camera = camWrap ? `<div style="${a(P.camera === "над позами" ? `position:absolute;right:${margin}px;bottom:calc(${barH + gap + 4}px + ${safeBottom});display:flex;flex-direction:column;gap:${gap}px;z-index:6` : camWrap)}"><div style="${a(camBtn)}">${svg(ICON.home, 18, T.ink)}</div><div style="${a(camBtn)}">${svg(ICON.north, 18, T.ink)}</div></div>` : "";
+      rights = ""; poses = ""; edge = ""; free = room;
+      zoneH = barH + P.fadeH;
+    }
+
+    const warn = free < 0 && !twoBars ? `<div style="position:absolute;left:50%;bottom:calc(${bottom + Math.max(rightsH, posesH) + 6}px + ${safeBottom});transform:translateX(-50%);padding:3px 8px;background:${T.black};box-shadow:inset 0 0 0 2px #e0483f;font:400 8px 'Press Start 2P',monospace;color:#e0483f;white-space:nowrap;z-index:9">группы пересекаются на ${-free}px</div>` : "";
 
     // Овал стола — тоже доли: 1050×760 на 390×844 при центре в (195, 476).
     const felt = `<div style="position:absolute;left:${Math.round(CX - W * 1.346)}px;top:${Math.round(CY - H * 0.45)}px;width:${Math.round(W * 2.692)}px;height:${Math.round(H * 0.9)}px;border-radius:50%;background:radial-gradient(60% 60% at 50% 26%,#1b4835,#123527 62%,#0a2117);box-shadow:inset 0 0 0 3px #0b0704,inset 0 0 0 14px #3a2a1d,inset 0 0 0 20px #6b4d2c"></div>`;
     // Чёлка и индикатор дома — только у макета: у телефона они свои.
     const frame = real ? "" : `<div style="position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:132px;height:5px;border-radius:3px;background:#f5ead0;opacity:.5;z-index:7"></div>`
       + `<div style="position:absolute;left:50%;top:0;transform:translateX(-50%);width:120px;height:30px;background:#0b0704;border-radius:0 0 16px 16px;z-index:9"></div>`;
-    phone.innerHTML = felt + seats + middle + edge + hand + rights + poses + camera + global + demo + warn + frame;
+    phone.innerHTML = felt + seats + middle + edge + bars + hand + rights + poses + camera + global + demo + warn + frame;
 
     document.getElementById("nums").innerHTML =
       `карта <b>${cardW}×${cardH}</b> · кнопка <b>${btn}</b> · зазор <b>${gap}</b> · поле <b>${margin}</b><br>`
