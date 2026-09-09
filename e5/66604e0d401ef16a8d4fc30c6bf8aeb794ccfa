@@ -1,0 +1,30 @@
+game-presets/desks/src/handHud.ts
+  s_2049b128b4ff77::t_696cd466aa36ae 107,111
+  s_2049b128b4ff77::t_eec7dfb4bbbd3f 91-95,97,102,104-106,108-110,112-117
+game-kit/docs/test-plan/40-motion.md
+  s_2049b128b4ff77::t_696cd466aa36ae 58
+game-kit/src/render/animator/index.ts
+  s_2049b128b4ff77::t_696cd466aa36ae 242-245,248-250,502-503,507-513
+game-kit/src/render/animator/runtime.test.ts
+  s_2049b128b4ff77::t_696cd466aa36ae 107,110-112,117,119,123-124,128,132
+game-presets/desks/docs/test-plan.md
+  s_2049b128b4ff77::t_696cd466aa36ae 133
+game-presets/desks/src/handHud.test.ts
+  s_2049b128b4ff77::t_eec7dfb4bbbd3f 254-261,264-265,273-274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e566604e0d401ef16a8d4fc30c6bf8aeb794ccfa",
+  "prompts": {},
+  "sessions": {
+    "s_2049b128b4ff77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f5ba828-d84d-455f-8f95-01ad6b176644",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
