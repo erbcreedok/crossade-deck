@@ -1,4 +1,5 @@
-// THE ROUND DESK — a felt with no corners, and nothing on it but the cards and the table itself.
+// THE ROUND DESK — a felt with no corners on a PAGE (the game zone), and nothing on it but the
+// cards, the chairs and the table itself.
 //
 // A card table is a CIRCLE, and that is not decoration: a rectangle has four places nobody sits and
 // a diagonal along which a piece is furthest from every hand at once. The round felt has one
@@ -39,8 +40,9 @@ import {
   fieldsOf,
   type BoundedFields,
   type Node,
+  rect,
   type Paint,
-  type RingWalls,
+  type TrapWalls,
   type Vec,
 } from "game-kit";
 import { cards as crossadeCards } from "@game-presets/cards";
@@ -49,41 +51,53 @@ import { LIVE, SEATS } from "./liveMap.js";
 import { seatChairs } from "./seatPlace.js";
 
 /** How far the felt reaches from the middle, in units — the one measurement a round desk has. */
-export const ROUND_R = 6;
+export const ROUND_R = 8;
 
 /**
- * Felt the camera may go OUTSIDE the circle, units — and it is nearly a table's worth, on purpose.
- *
- * A modest rim is what the desk OPENS with, and that part has not changed: the opening zoom is the
- * fit, and the fit here bottoms out at the camera's own `minZoom`, so how much room is declared past
- * the felt does not change the picture the table opens on at all.
- *
- * What it changes is where the eye may GO. A player's place is on the RIM (`seatPlaces`, at
- * `ROUND_R - 1`), and sitting at one's own place means having it on the HOME ANCHOR of one's own glass —
- * which is what a tap on the ring asks for and what the idle glide does by itself (`idleReturn`,
- * `isHome`). The camera is held inside this room, so a room that stopped a table's width past the
- * middle stopped the eye a table's width short of the seat: the glide ran, clamped, and came to rest
- * somewhere in the middle of the felt — after which NOBODY at the desk was ever at their own place,
- * and the picture that says so (the filled ring, the disc taken off the felt) could never be seen.
- *
- * So the room is the felt PLUS enough behind a seat to put that seat under the reader: the place's
- * own distance from the middle, plus half a portrait phone's worth of desk at the opening zoom.
+ * THE PAGE — the game zone, and the whole of it: a square of `ROUND_PAGE` half a side round the
+ * felt, the felt standing in the middle of it. A card is carried anywhere on the page and never
+ * off it; a throw bounces off its edge; the camera is held inside it. Nothing lies beyond the page
+ * — "if the camera cannot see it, a card does not fly there" — so the page is the room too.
  */
-const RIM = 6.5;
+export const ROUND_PAGE = ROUND_R + 4;
+
+/**
+ * THE TABLE'S EDGE, as the design draws it — three rings out from the felt: a black keyline, the
+ * dark wood, and a lighter wood inside it, the design's 3, 11 and 6 px over its 74 px chair, in
+ * units of that chair (`ARCH_R`). Drawn as three discs under the felt, largest first.
+ */
+export const ROUND_EDGE = { line: 0.09, dark: 0.33, light: 0.18 } as const;
+/** How far the edge stands out past the felt, in units — the three rings together. */
+export const ROUND_RIM = ROUND_EDGE.line + ROUND_EDGE.dark + ROUND_EDGE.light;
+
+/** The design's own table colours — content, like the chair's wood (`SEAT_LOOK`), never a theme token. */
+export const ROUND_LOOK = {
+  feltHi: "#1b4835",
+  feltMid: "#123527",
+  feltLo: "#0a2117",
+  black: "#0b0704",
+  woodDark: "#3a2a1d",
+  woodLight: "#6b4d2c",
+  /** The page's own edge — the game zone's border, read against the wallpaper behind it. */
+  edge: "#f2c14e",
+} as const;
 
 export const ROUND_SURFACE = "round.felt";
+/** The page, the edge's three rings and the felt, by the names their nodes point at. */
+export const ROUND_PAGE_SURFACE = "round.page";
+const ROUND_LINE_SURFACE = "round.edge.line";
+const ROUND_DARK_SURFACE = "round.edge.dark";
+const ROUND_LIGHT_SURFACE = "round.edge.light";
 const ROUND_LAYOUT = "round.free";
+/** The felt's own node, and the edge's — children of the page, before anything that lies on them. */
+export const ROUND_FELT = "round felt";
 
 /**
- * THE STRETCH THE CAMERA IS HELD INSIDE — the circle and `RIM` of felt round it.
- *
- * A rect, because a camera's content is a rect: the eye may go to the corners of the box the circle
- * is inscribed in, and there is nothing there to look at but the rim. The alternative — a room the
- * width of the circle alone — pins a phone held upright so the felt's top and bottom are unreachable.
+ * THE STRETCH THE CAMERA IS HELD INSIDE — the page, exactly. A room wider than the page would be
+ * felt a card cannot reach; a room narrower would be page the eye cannot see.
  */
 export function roundRoom(): { x: number; y: number; w: number; h: number } {
-  const half = ROUND_R + RIM;
-  return { x: -half, y: -half, w: half * 2, h: half * 2 };
+  return { x: -ROUND_PAGE, y: -ROUND_PAGE, w: ROUND_PAGE * 2, h: ROUND_PAGE * 2 };
 }
 
 /** Register everything the round desk points at by name. Idempotent — a re-render calls it again. */
@@ -91,13 +105,16 @@ export function installRoundArt(): void {
   installMapArt();
   installStockGrabs();
   registerLayout(ROUND_LAYOUT, freeLayout);
-  // NO GRID. The map's felt is ruled because that page is about the map MOVING and a grid is the
-  // only thing an eye can measure that against. Here nothing moves under the cards, and squares
-  // drawn under a round table are the corners the shape was chosen to be rid of.
+  // THE PAGE IS AN EDGE AND NOTHING ELSE: the wallpaper behind it shows through, and the line says
+  // where the game zone ends — the one place a card can never be carried past.
+  registerSurface(ROUND_PAGE_SURFACE, { layers: [], stroke: { color: ROUND_LOOK.edge, width: 0.06, opacity: 0.5, dash: { on: 0.3, off: 0.2 } } });
+  registerSurface(ROUND_LINE_SURFACE, { layers: [{ paint: ROUND_LOOK.black }] });
+  registerSurface(ROUND_DARK_SURFACE, { layers: [{ paint: ROUND_LOOK.woodDark }] });
+  registerSurface(ROUND_LIGHT_SURFACE, { layers: [{ paint: ROUND_LOOK.woodLight }] });
+  // THE FELT, LIT FROM ABOVE THE MIDDLE — the design's radial wash, said as the kit's linear one:
+  // brightest a little above the centre, darkest at the far edge.
   registerSurface(ROUND_SURFACE, {
-    layers: [{ paint: "sunkBg" }],
-    // The felt's own edge, so the wall a card cannot cross is a thing the eye can see it reach.
-    stroke: { color: "panelBorder", width: 0.06 },
+    layers: [{ gradient: { stops: [{ at: 0, paint: ROUND_LOOK.feltMid }, { at: 0.3, paint: ROUND_LOOK.feltHi }, { at: 1, paint: ROUND_LOOK.feltLo }], angle: 90 } }],
   });
 }
 
@@ -109,14 +126,22 @@ export function installRoundArt(): void {
  */
 export function roundMap(seats: readonly { readonly seat: string; readonly ink: Paint }[] = SEATS): Node {
   installRoundArt();
+  // THE DESK IS THE PAGE: the game zone, a square with the table standing in the middle of it. The
+  // table — its edge and its felt — is furniture on the page, drawn first so everything lies on it.
   const desk = node(
     "round desk",
-    Bounded({ bounds: circle(ROUND_R) }),
+    Bounded({ bounds: rect(ROUND_PAGE * 2, ROUND_PAGE * 2) }),
     Container({ layout: ROUND_LAYOUT }),
-    Surfaced({ surface: ROUND_SURFACE }),
+    Surfaced({ surface: ROUND_PAGE_SURFACE }),
     LAMP,
     Grabber({ grab: "one" }),
   );
+  const still = (id: string, r: number, surface: string): Node =>
+    node(id, Bounded({ bounds: circle(r) }), Surfaced({ surface }), Transformable({ at: { x: 0, y: 0 } }));
+  add(desk, still("round edge line", ROUND_R + ROUND_RIM, ROUND_LINE_SURFACE));
+  add(desk, still("round edge dark", ROUND_R + ROUND_EDGE.dark + ROUND_EDGE.light, ROUND_DARK_SURFACE));
+  add(desk, still("round edge light", ROUND_R + ROUND_EDGE.light, ROUND_LIGHT_SURFACE));
+  add(desk, still(ROUND_FELT, ROUND_R, ROUND_SURFACE));
   // A HAND PER PLACE, and it IS the place: the ring a player sits at is the patch their cards lie
   // in (`seatChairs(…, hands)`), so a desk built with nobody at it is still a desk with places on
   // it, and a page that has avatars has nothing further to put anywhere.
@@ -150,7 +175,11 @@ export function seatPlaces(n: number): readonly { readonly at: Vec; readonly fac
 }
 
 /**
- * WHERE A PIECE ON THIS DESK MAY GO — the felt, inset by the piece's own reach from its middle.
+ * WHERE A PIECE ON THIS DESK MAY GO — the page, inset by the piece's own reach from its middle, with
+ * the felt as a TRAP in it (`TrapWalls`): a carry goes anywhere on the page and never off it; a
+ * throw on the page bounces off the page's edge and may fly in over the table's rim; a throw on
+ * the table bounces off the felt's edge from inside and never leaves it — only a hand takes a card
+ * off the table.
  *
  * The inset is the HALF-DIAGONAL and not half the width: a card is carried and thrown at whatever
  * angle the hand left it at, and a border that allowed half its width would let a corner over the
@@ -161,11 +190,12 @@ export function seatPlaces(n: number): readonly { readonly at: Vec; readonly fac
  * and answered twice they would differ, which reads as a card that may be carried somewhere it
  * cannot be thrown.
  */
-export function roundWalls(piece: Node): RingWalls {
+export function roundWalls(piece: Node): TrapWalls {
   const shape = fieldsOf<BoundedFields>(piece, "Bounded")?.bounds;
   const size = shape ? extentOf(shape) : { w: 0, h: 0 };
   const reach = Math.hypot(size.w, size.h) / 2;
-  // A piece bigger than the felt has nowhere to stand: the tray collapses to the middle rather than
+  const page = Math.max(0, ROUND_PAGE - reach);
+  // A piece bigger than the felt has nowhere to stand: the trap collapses to the middle rather than
   // turning inside out, which is what a negative radius would do.
-  return { cx: 0, cy: 0, r: Math.max(0, ROUND_R - reach) };
+  return { outer: { x0: -page, y0: -page, x1: page, y1: page }, inner: { cx: 0, cy: 0, r: Math.max(0, ROUND_R - reach) } };
 }

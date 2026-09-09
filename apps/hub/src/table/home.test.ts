@@ -12,10 +12,10 @@
 // held where somebody looked is a rule that comes back the next time this desk is touched.
 
 import { readFileSync } from "node:fs";
-import { chessPlaces, nardyPlaces, ROUND_R, roundPlaces } from "@game-presets/desks";
+import { chessPlaces, nardyPlaces, ROUND_R, roundPlaces, roundRoom } from "@game-presets/desks";
 import { Camera, homeTarget, idleReturn, isHome, ROUND_HOME_SPAN, type CameraContent, type Presence, type SeatPlace } from "game-kit";
 import { describe, expect, it } from "vitest";
-import { homeZoomOfDesk, roomOfDesk, unitOfDesk } from "./index.js";
+import { homeZoomOfDesk, limitsOf, roomOfDesk, unitOfDesk } from "./index.js";
 import { type TableGame } from "./mapFor.js";
 
 /** A phone held upright — the glass every one of these numbers is measured against. */
@@ -137,5 +137,23 @@ describe("the hub keeps no camera of its own", () => {
     for (const own of ["CARDS_OVERFILL", "hudUnit", "snapHome"]) {
       expect(raw.split(own).length - 1, `\`${own}\` is the kit's answer, not this desk's`).toBe(0);
     }
+  });
+});
+
+describe("the view takes in the whole page", () => {
+  it("hub.the-view-can-take-in-the-whole-page — the zoom floor is let down until the game zone fits the glass", () => {
+    // THE OWNER'S RULE: zoomed all the way out, the whole page — the game zone — is on the glass. A
+    // desk whose page fits at the shelf's own floor keeps that floor; the round desk's page does
+    // not, on a phone, so its floor is lower — and exactly low enough.
+    const glass = { width: GLASS.w, height: GLASS.h };
+    const limits = limitsOf("cards", glass);
+    const room = roomOfDesk("cards", glass);
+    const page = roundRoom();
+    const unit = unitOfDesk("cards");
+    expect(limits.minZoom * unit * page.w, "the page's width fits the glass").toBeLessThanOrEqual(GLASS.w + 1e-6);
+    expect(limits.minZoom * unit * page.h, "…and its height").toBeLessThanOrEqual(GLASS.h + 1e-6);
+    expect(Math.min(GLASS.w / (page.w * unit), GLASS.h / (page.h * unit)), "and no lower than that").toBeCloseTo(limits.minZoom, 6);
+    expect(limits.minZoom).toBeLessThan(0.5);
+    expect(room.w, "the camera's room holds the page").toBeGreaterThanOrEqual(page.w);
   });
 });

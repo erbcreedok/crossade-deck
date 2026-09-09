@@ -173,6 +173,18 @@ function placesFor(game: TableGame): readonly SeatPlace[] {
 const CAM_ZOOM = { minZoom: 0.5, maxZoom: 2.5 };
 
 /**
+ * HOW FAR THIS DESK MAY BE ZOOMED, on THIS glass — the shelf's own limits, and the floor let down
+ * as far as it takes for the WHOLE PAGE to fit the glass: the owner's rule, "the view can take in
+ * the whole game zone". A desk whose page already fits at the shelf's floor keeps the floor.
+ */
+export function limitsOf(game: TableGame, glass: { readonly width: number; readonly height: number }): { readonly minZoom: number; readonly maxZoom: number } {
+  const room = game === "chess" ? chessRoom() : game === "nardy" ? nardyRoom() : roundRoom();
+  const unit = unitOfDesk(game);
+  const fit = Math.min(glass.width / (room.w * unit), glass.height / (room.h * unit));
+  return { minZoom: Math.min(CAM_ZOOM.minZoom, fit > 0 ? fit : CAM_ZOOM.minZoom), maxZoom: CAM_ZOOM.maxZoom };
+}
+
+/**
  * HOW LONG THE GLIDE HOME TAKES, in ms — the kit's own default, named here because the OPENING is
  * the same glide run to its end in one step (see `startTable`), and a number known to one of the two
  * would open the desk part of the way to a place it then eased the rest of the way into.
@@ -200,12 +212,13 @@ const HOME_GLIDE_MS = 600;
  */
 export function roomOfDesk(game: TableGame, glass: { readonly width: number; readonly height: number }): CameraContent {
   const room = game === "chess" ? chessRoom() : game === "nardy" ? nardyRoom() : roundRoom();
-  const behind = Math.max(glass.width, glass.height) / 2 / (unitOfDesk(game) * CAM_ZOOM.minZoom);
+  const floor = limitsOf(game, glass).minZoom;
+  const behind = Math.max(glass.width, glass.height) / 2 / (unitOfDesk(game) * floor);
   // ...AND THE EYE IS NOT AIMED AT THE SEAT. A place stands at the LOW middle of its owner's glass
   // (`HOME_ANCHOR`), so the point the camera is actually asked to look at is that much FURTHER back
   // than the ring — and it is the AIM the clamp refuses, not the ring. Measured at the widest the
   // view may ever be, exactly as `behind` is, because that is where the drop is worth the most felt.
-  const drop = (HOME_ANCHOR.y - 0.5) * glass.height / (unitOfDesk(game) * CAM_ZOOM.minZoom);
+  const drop = (HOME_ANCHOR.y - 0.5) * glass.height / (unitOfDesk(game) * floor);
   const reach = Math.max(...placesFor(game).map(({ at }) => Math.hypot(at.x, at.y))) + behind + drop;
   // GROWN ROUND THE ROOM'S OWN MIDDLE, never shrunk: a desk that already declares more felt than
   // this asks for is a desk that has its own reason to, and half a glass is a floor, not a size.
@@ -300,11 +313,12 @@ function playFor(game: TableGame, seat: () => string | null, onGlass: (at: Vec) 
       letGo: "throw",
       // ...AND A TAP TURNS WHAT IT LANDED ON, which on a closed pile is the top of the deck.
       flipping: true,
-      // THE ROUND FELT IS A WALL AND NOT A DRAWING: a card may be carried to the edge of the circle
-      // and no further, and the tray the hand is held inside is the very one a throw bounces off
-      // (`roundWalls`) — asked twice, the two could differ, and a card carried somewhere it cannot
-      // be thrown is a border in two places.
+      // THE PAGE IS A WALL AND THE FELT A TRAP (`roundWalls`): a card is carried anywhere on the
+      // page and never off it; a throw on the page bounces off the page's edge and may fly onto the
+      // table, a throw on the table bounces off the felt's edge from inside and never leaves it.
+      // One tray for the hand and the throw — asked twice, the two could differ.
       trayOf: (_root: Node, hit: Node) => roundWalls(hit),
+      pieces: { wallsOf: (piece: Node) => roundWalls(piece) },
       anchorMark: ANCHOR_MARK,
     };
   }
@@ -582,7 +596,7 @@ export function startTable(container: HTMLElement): Teardown {
     painter: (view, size) => pixiPainter(view, size),
     clock,
     mirror,
-    limits: CAM_ZOOM,
+    limits: limitsOf(game, { width: container.clientWidth, height: container.clientHeight }),
     // Re-dresses the board's own backdrop in the hub's look — AFTER the map has registered its own,
     // so the override is the one left standing.
     look: installTableLook,

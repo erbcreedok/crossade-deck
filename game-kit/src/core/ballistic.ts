@@ -91,8 +91,23 @@ export interface RingWalls {
   readonly r: number;
 }
 
-/** The tray a carried or sliding body stays inside: a box or a disc. */
-export type Walls = BoxWalls | RingWalls;
+/**
+ * A BOX WITH A TRAP IN IT — a round felt on a page. A body OUTSIDE the ring is held by the box:
+ * thrown anywhere on the page it stays on the page, and it may fly in over the felt's edge. A body
+ * INSIDE the ring is held by the ring: once on the felt a throw never leaves it — the felt's own
+ * edge is a rail from inside and nothing from outside. A hand knows no rail: a carry is clamped to
+ * the box alone, and carries a card off the felt freely (`insideWalls`).
+ *
+ * Which of the two holds a body is read off where the body IS at the start of a step, never off a
+ * flag: a body that crossed in this step is inside for the next, and that is the whole of the trap.
+ */
+export interface TrapWalls {
+  readonly outer: BoxWalls;
+  readonly inner: RingWalls;
+}
+
+/** The tray a carried or sliding body stays inside: a box, a disc, or a box with a disc trap in it. */
+export type Walls = BoxWalls | RingWalls | TrapWalls;
 
 /**
  * WHICH OF THE TWO A TRAY IS — asked HERE and nowhere else.
@@ -102,12 +117,21 @@ export type Walls = BoxWalls | RingWalls;
  * are below. A consumer names a tray and never asks what sort it is.
  */
 const isRing = (w: Walls): w is RingWalls => (w as RingWalls).r !== undefined;
+const isTrap = (w: Walls): w is TrapWalls => (w as TrapWalls).inner !== undefined;
+
+/** The one wall a body at `at` is held by — the trap's ring when it is inside it, its box when not. */
+function wallFor(w: Walls, at: Vec): BoxWalls | RingWalls {
+  if (!isTrap(w)) return w;
+  return Math.hypot(at.x - w.inner.cx, at.y - w.inner.cy) <= w.inner.r ? w.inner : w.outer;
+}
 
 /**
  * THE NEAREST POINT THE TRAY ALLOWS — the clamp a carried run is under, and the one a wall-check
  * measures "how far past it is the finger" from.
  */
 export function insideWalls(w: Walls, at: Vec): Vec {
+  // A HAND IS HELD BY THE BOX ALONE: the trap's ring is a rail to a throw, never to a carry.
+  if (isTrap(w)) return insideWalls(w.outer, at);
   if (!isRing(w)) return { x: Math.min(w.x1, Math.max(w.x0, at.x)), y: Math.min(w.y1, Math.max(w.y0, at.y)) };
   const dx = at.x - w.cx;
   const dy = at.y - w.cy;
@@ -190,7 +214,9 @@ export function stepSlide(b: Body, cfg: SlideConfig, dt: number): Body {
       upVel = hopped ? back : 0;
     }
   }
-  const w = cfg.walls;
+  // THE WALL THIS STEP IS HELD BY — read where the body started it, so a trap that was just flown
+  // into is a rail from the next step on.
+  const w = cfg.walls ? wallFor(cfg.walls, b.pos) : undefined;
   const off = cfg.wallBounce ?? cfg.bounce;
   let kicked = false;
   if (w && isRing(w)) {

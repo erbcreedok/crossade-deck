@@ -164,6 +164,31 @@ describe("ballistic", () => {
     expect(after.vel.x * nx + after.vel.y * ny).toBeLessThan(0);
   });
 
+  it("ballistic.a-trap-lets-a-body-in-and-never-out — outside, the box holds it; inside the ring, the ring does", () => {
+    // A ROUND FELT ON A PAGE: a card thrown on the page bounces off the page's edge and may fly in
+    // over the felt's rim; once on the felt it bounces off the felt's edge from inside and never
+    // leaves — a throw cannot take it off the felt, only a hand can (`insideWalls`).
+    const trap = { outer: { x0: -6, y0: -6, x1: 6, y1: 6 }, inner: { cx: 0, cy: 0, r: 2 } };
+    const cfg = { friction: 2, spinFriction: 0, bounce: 0.5, walls: trap };
+    // 1. OUTSIDE, THROWN AWAY FROM THE FELT: the page's edge turns it, the ring is nothing to it.
+    const away: Body = { pos: { x: 4, y: 0 }, vel: velocityOf(8, 0), angle: 0, spin: 0, up: 0, upVel: 0 };
+    const out = runSlide(away, cfg, 300);
+    for (const b of out) expect(b.pos.x).toBeLessThanOrEqual(6 + 1e-9);
+    expect(out.some((b) => b.pos.x >= 6 - 1e-9), "it reached the page's edge").toBe(true);
+    // 2. OUTSIDE, THROWN AT THE FELT: it flies in over the rim...
+    const at: Body = { pos: { x: 4, y: 0 }, vel: velocityOf(8, 180), angle: 0, spin: 0, up: 0, upVel: 0 };
+    const inward = runSlide(at, cfg, 300);
+    const entered = inward.findIndex((b) => Math.hypot(b.pos.x, b.pos.y) <= 2);
+    expect(entered, "…the rim is nothing from outside").toBeGreaterThan(0);
+    // ...AND NEVER OUT AGAIN: from the step after it entered, it is inside the ring, whatever it does.
+    for (const b of inward.slice(entered)) expect(Math.hypot(b.pos.x, b.pos.y)).toBeLessThanOrEqual(2 + 1e-9);
+    expect(inward.slice(entered).some((b) => Math.hypot(b.pos.x, b.pos.y) >= 2 - 1e-9), "it met the far edge from inside").toBe(true);
+    // 3. THE HAND IS HELD BY THE PAGE ALONE: clamped, a point on the page is not moved, one off it
+    //    comes back to the page's edge — the ring is not a wall to a carry.
+    expect(insideWalls(trap, { x: 4, y: 1 })).toEqual({ x: 4, y: 1 });
+    expect(insideWalls(trap, { x: 9, y: 1 })).toEqual({ x: 6, y: 1 });
+  });
+
   it("ballistic.a-clamp-knows-both-trays — a point outside comes back to the border it crossed", () => {
     // The one answer a carried run is held to, and the one a wall-check measures from.
     expect(insideWalls({ x0: -1, y0: -1, x1: 1, y1: 1 }, { x: 5, y: 0.5 })).toEqual({ x: 1, y: 0.5 });

@@ -132,7 +132,7 @@ export {
   type SeatOfDesk,
 } from "./seatPlace.js";
 export { installLiveArt, LIVE, LIVE_UNIT, liveMap, liveTune, SEATS } from "./liveMap.js";
-export { installRoundArt, ROUND_R, ROUND_SURFACE, roundMap, roundRoom, roundWalls, seatPlaces as roundPlaces } from "./roundMap.js";
+export { installRoundArt, ROUND_EDGE, ROUND_FELT, ROUND_LOOK, ROUND_PAGE, ROUND_PAGE_SURFACE, ROUND_R, ROUND_RIM, ROUND_SURFACE, roundMap, roundRoom, roundWalls, seatPlaces as roundPlaces } from "./roundMap.js";
 export {
   ANCHOR_MARK,
   CASTS,

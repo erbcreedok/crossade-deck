@@ -490,6 +490,7 @@ export {
   type SlideConfig,
   type BoxWalls,
   type RingWalls,
+  type TrapWalls,
   type Walls,
 } from "./core/ballistic.js";
 export {
