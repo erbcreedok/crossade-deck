@@ -1,0 +1,36 @@
+game-presets/desks/src/handBar.ts
+  s_2049b128b4ff77::t_611bc4aa339542 12-16,50,53-55,65-67,69-74,102-105,127,132-139,175-180,215-217,221-223,227-228,237,258,262,266-268,270,273-275
+  s_2049b128b4ff77::t_6083dba5a1e82e 278-284
+game-kit/src/presets/cameraHud.ts
+  s_2049b128b4ff77::t_cf05d2cb9719ca 226
+game-presets/desks/src/handHud.test.ts
+  s_2049b128b4ff77::t_6083dba5a1e82e 19,21,141-142,145-148,153-154
+game-kit/src/index.ts
+  s_2049b128b4ff77::t_cf05d2cb9719ca 608
+game-presets/desks/src/index.ts
+  s_2049b128b4ff77::t_611bc4aa339542 78,80-81
+game-presets/desks/src/handHud.ts
+  s_2049b128b4ff77::t_6083dba5a1e82e 65-66
+  s_2049b128b4ff77::t_682af174604220 51,55,63-64,74,79,174-176,293-299,301-306,308-310,319-321,370
+  s_2049b128b4ff77::t_7773a800138657 153,265-270
+game-presets/desks/docs/test-plan.md
+  s_2049b128b4ff77::t_f2d85ae736bf51 113,131
+game-presets/desks/src/handBar.test.ts
+  s_2049b128b4ff77::t_6083dba5a1e82e 11-12,20,41-42,46,48-53,57-60,62-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "66b80955f9ade99179927974fabfc202f0e6c7f5",
+  "prompts": {},
+  "sessions": {
+    "s_2049b128b4ff77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f5ba828-d84d-455f-8f95-01ad6b176644",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
