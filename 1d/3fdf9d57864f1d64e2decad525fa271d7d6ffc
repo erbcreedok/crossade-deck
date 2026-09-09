@@ -1,0 +1,128 @@
+game-presets/cards/art/courts/spade-J.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/src/decks/lettering.ts
+  s_7ee13c6564ec9f::t_ea11b53b28759a 1-45
+game-presets/cards/src/decks/marks.ts
+  s_7ee13c6564ec9f::t_4612f177ce7363 1-62
+game-presets/cards/src/decks/figures/red/heart-Q.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/src/decks/backs.ts
+  s_7ee13c6564ec9f::t_fb5085ceaee0fb 1-137
+game-presets/cards/src/decks/face.test.ts
+  s_7ee13c6564ec9f::t_0fd735c3dd5fd7 1-127
+game-presets/cards/src/decks/figures/red/diamond-K.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/art/courts/heart-Q.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/src/decks/glyphs.ts
+  s_7ee13c6564ec9f::t_83066f933b43f6 1-8,35
+  s_7ee13c6564ec9f::t_626fe42bfb10b1 9-34
+game-presets/cards/src/decks/figures/red/spade-Q.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/src/decks/figures.ts
+  s_7ee13c6564ec9f::t_8d0191ec880e86 1-15,17-81,84,86-87
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 16,82-83,85
+game-presets/cards/docs/test-plan.md
+  s_7ee13c6564ec9f::t_d253b1fe6395e7 31-55
+game-presets/cards/art/courts/spade-Q.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/art/courts/club-J.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/src/decks/figures/red/heart-J.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/src/decks/figures/red/club-Q.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/src/decks/skin.test.ts
+  s_7ee13c6564ec9f::t_d253b1fe6395e7 1-85
+game-presets/cards/scripts/bake.ts
+  s_7ee13c6564ec9f::t_671785983d8067 1-94
+game-presets/cards/src/decks/figures.test.ts
+  s_7ee13c6564ec9f::t_92f1cb86a3b3ae 69-70
+  s_7ee13c6564ec9f::t_280655fe0bb0f6 1-68,71-72
+game-presets/cards/art/courts/club-Q.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/src/decks/figures/orange/diamond-J.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/src/decks/figures/red/spade-K.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/src/decks/style.ts
+  s_7ee13c6564ec9f::t_23a3da4472e319 1-79
+game-presets/cards/src/decks/card.ts
+  s_7ee13c6564ec9f::t_f17a9db99da87e 1-39
+game-presets/cards/art/courts/spade-K.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/src/decks/figures/red/club-J.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/src/decks/figures/orange/diamond-Q.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/art/suits/diamond.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/src/decks/marks.test.ts
+  s_7ee13c6564ec9f::t_96e5c9aeacae02 1-34
+game-presets/cards/art/suits/joker-hat.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/art/courts/diamond-Q.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/src/decks/figures/orange/diamond-K.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/src/index.ts
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 5-17
+game-presets/cards/art/courts/heart-J.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/scripts/glyphs.mjs
+  s_7ee13c6564ec9f::t_626fe42bfb10b1 25-30,44-46
+  s_7ee13c6564ec9f::t_83066f933b43f6 1-24,31-43,47-86
+game-presets/cards/art/suits/spade.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/src/decks/face.ts
+  s_7ee13c6564ec9f::t_2719742c3a6473 1-187
+game-presets/cards/art/courts/diamond-K.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/scripts/import-art.mjs
+  s_7ee13c6564ec9f::t_585f0766519c06 1-29,41-47,49-59
+  s_7ee13c6564ec9f::t_201d5bf9e4a00d 30-40,48
+game-presets/cards/art/courts/club-K.svg
+  s_7ee13c6564ec9f::t_201d5bf9e4a00d 1
+  s_7ee13c6564ec9f::t_585f0766519c06 2-53
+game-presets/cards/src/guards.test.ts
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 39-41
+game-presets/cards/art/courts/diamond-J.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/art/suits/club.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/src/decks/skin.ts
+  s_7ee13c6564ec9f::t_2495c00e3d7afe 1-82
+game-presets/cards/src/decks/figures/red/heart-K.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/src/decks/figures/red/diamond-Q.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/src/decks/figures/red/spade-J.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/src/decks/figures/red/club-K.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1-53
+game-presets/cards/art/courts/heart-K.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/art/suits/heart.svg
+  s_7ee13c6564ec9f::t_585f0766519c06 1
+game-presets/cards/src/decks/figures/red/diamond-J.svg
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 1
+game-presets/cards/src/cards.ts
+  s_7ee13c6564ec9f::t_f472bc3e8391a6 12-14,43-74,77
+  s_7ee13c6564ec9f::t_a54ed882ebd768 75-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "1d3fdf9d57864f1d64e2decad525fa271d7d6ffc",
+  "prompts": {},
+  "sessions": {
+    "s_7ee13c6564ec9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c8ffa5d-4a0f-42b0-bed5-0d8d8f2b30e0",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
