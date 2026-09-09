@@ -167,57 +167,55 @@ describe("the hand on the glass", () => {
     expect(byId(screen, chairBarId("south")), "and they go down with the hand").toBeUndefined();
   });
 
-  it("hud.eight-cards-stand-abreast-on-a-phone — the strip is drawn at the scale that fits them, and a fan never overlaps up to eight", () => {
-    // THE OWNER'S RULE: on a phone eight cards fit the hand side by side, none over another. The
-    // strip is scaled to the glass for it, so a 393px glass draws them smaller than their own size;
-    // `shrink` still closes them up, because that is what the fold is for.
+  it("hud.the-cards-never-change-size — one size of the glass for any count and any fold; a fan is an arc", () => {
+    // THE OWNER'S RULE: the card on the glass is one size — what six abreast get across it — for
+    // one card, six or fifteen, fanned or shut. A fan is an ARC: the outer cards sit lower and lean
+    // further out, and the whole of it stays inside the glass sideways.
     const b = bench();
     const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
-    for (let i = 0; i < 8; i += 1) add(b.chair, card(`c${i}`));
-    layHand(b.chair);
-    setHandPose(b.chair, { side: "front", fold: "fan" });
-    hud.refresh();
-    const u = b.host.unit();
-    const v = b.host.viewport();
-    expect(hud.scale()).toBeLessThan(1);
-    // FEWER CARDS ARE BIGGER: the same strip with five is drawn larger than with eight, and one
-    // card is its own size.
-    const atEight = hud.scale();
-    for (const id of ["c5", "c6", "c7"]) remove(b.chair, byId(b.chair, id)!);
-    layHand(b.chair);
-    hud.refresh();
-    expect(hud.scale()).toBeGreaterThan(atEight);
-    for (const id of ["c5", "c6", "c7"]) add(b.chair, card(id));
-    layHand(b.chair);
-    hud.refresh();
-    expect(hud.scale()).toBeCloseTo(atEight);
-    // Where the arrangement puts them — the arrangement is read, as the felt's own row is read.
-    const laid = (): number[] => {
+    const scales: number[] = [];
+    const laid = (): { x: number; y: number }[] => {
       const strip = byId(hud.root, HAND_HUD_BOX)!;
       const name = fieldsOf<{ layout: string }>(strip, "Container")!.layout;
-      return layoutRecord(name)!.place(layoutChildren(strip), footprint(strip)).map((p) => p!.x);
+      return layoutRecord(name)!.place(layoutChildren(strip), footprint(strip)).map((p) => ({ x: p!.x, y: p!.y }));
     };
-    const xs = laid();
-    for (let i = 1; i < xs.length; i += 1) expect(xs[i]! - xs[i - 1]!, "a step of at least a card: none over another").toBeGreaterThanOrEqual(1);
-    // ...AND THE LOT INSIDE THE GLASS, on the glass's own pixels.
-    const span = (xs[7]! - xs[0]! + 1) * u * hud.scale();
-    expect(span).toBeLessThanOrEqual(v.width);
-    // A NINTH CLOSES THEM UP rather than pushing one off the glass.
-    add(b.chair, card("c8"));
-    layHand(b.chair);
+    for (let i = 0; i < 15; i += 1) {
+      add(b.chair, card(`c${i}`));
+      layHand(b.chair);
+      hud.refresh();
+      scales.push(hud.scale());
+    }
+    expect(scales[0]).toBeLessThan(1);
+    for (const s of scales) expect(s).toBeCloseTo(scales[0]!, 6);
+    setHandPose(b.chair, { side: "front", fold: "fan" });
     hud.refresh();
-    const nine = laid();
-    expect(nine[1]! - nine[0]!).toBeLessThan(1);
-    // SHUT, THE CARDS PRESS INTO EACH OTHER whatever the count — and the more of them, the harder.
+    expect(hud.scale()).toBeCloseTo(scales[0]!, 6);
+    // THE ARC: middle highest, ends lowest, the lean growing outwards, symmetric about the middle.
+    const fan = laid();
+    const shown = byId(hud.root, HAND_HUD_BOX)!.children;
+    const lean = (i: number) => fieldsOf<TransformableFields>(shown[i]!, "Transformable")?.angle ?? 0;
+    expect(fan[7]!.y).toBeLessThan(fan[0]!.y);
+    expect(fan[7]!.y).toBeLessThan(fan[14]!.y);
+    expect(fan[0]!.y).toBeCloseTo(fan[14]!.y);
+    expect(lean(7)).toBeCloseTo(0);
+    expect(lean(0)).toBeLessThan(lean(1));
+    expect(lean(14)).toBeGreaterThan(lean(13));
+    expect(lean(0)).toBeCloseTo(-lean(14));
+    // ...AND INSIDE THE GLASS SIDEWAYS, on the glass's own pixels.
+    const u = b.host.unit();
+    const v = b.host.viewport();
+    expect((fan[14]!.x - fan[0]!.x + 1) * u * hud.scale()).toBeLessThanOrEqual(v.width);
+    // SHUT, THE CARDS PRESS INTO EACH OTHER — the more of them, the harder — at the same size.
     setHandPose(b.chair, { side: "side", fold: "shrink" });
     hud.refresh();
+    expect(hud.scale()).toBeCloseTo(scales[0]!, 6);
     const packed = laid();
-    expect(packed[1]! - packed[0]!).toBeLessThan(0.56);
+    expect(packed[1]!.x - packed[0]!.x).toBeLessThan(0.56);
     for (const id of ["d0", "d1", "d2", "d3", "d4", "d5"]) add(b.chair, card(id));
     layHand(b.chair);
     hud.refresh();
     const packedMore = laid();
-    expect(packedMore[1]! - packedMore[0]!).toBeLessThan(packed[1]! - packed[0]!);
+    expect(packedMore[1]!.x - packedMore[0]!.x).toBeLessThan(packed[1]!.x - packed[0]!.x);
     hud.stop();
   });
 

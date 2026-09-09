@@ -74,15 +74,39 @@ function foldLayout(fold: HandFold): string {
 /** How much of a tucked hand shows above the bar, in HUD units — the tip that is pulled on. */
 const TUCK_TIP = 0.45;
 /**
- * THE CARDS ARE AS BIG AS THE GLASS LETS THEM BE — the owner's rule: eight cards fit a phone side by
- * side, none over another, and fewer cards are bigger for it, up to their own size. The strip is
- * drawn at the scale that fits its row into the glass, and never smaller than the size eight
- * abreast get (`HUD_CARDS`): past eight the row closes up rather than shrinking on.
+ * THE CARDS ON THE GLASS NEVER CHANGE SIZE — the owner's rule. Their size is ONE number of the
+ * glass: what six cards abreast with a gap would get across it (`HUD_CARDS`), or their own size on
+ * a glass wide enough. One card, six or fifteen: the same card; a fan closes up and a shut row
+ * presses together, and neither is ever drawn smaller for it.
  */
-const HUD_CARDS = 8;
+const HUD_CARDS = 6;
 const HUD_GAP = 0.06;
-/** The fan on the glass — the stand's: 7° of lean per card round the middle one, a little lift at the middle. */
-const HUD_FAN = { tilt: 7, lift: 0.14 };
+/**
+ * THE FAN ON THE GLASS — a real one: the cards stand on an arc round a pivot below them, so the
+ * outer ones sit LOWER and lean further out, and past a wide spread they may run under the bar.
+ * `radius` is the pivot's distance from the cards' middle, in card heights; `spread` the most the
+ * whole fan opens, in degrees; the arc otherwise opens as far as the glass allows.
+ */
+const HUD_FAN = { radius: 2.2, spread: 70 };
+
+/** Where every card of a fan of `n` stands, in strip units — its lean is its angle on the arc. */
+function fanPlan(n: number, w: number, h: number, roomU: number): readonly { readonly x: number; readonly y: number; readonly angle: number }[] {
+  const R = HUD_FAN.radius * h;
+  const chord = Math.max(0, Math.min(1, (roomU - w) / (2 * R)));
+  const total = n > 1 ? Math.min(HUD_FAN.spread, (2 * Math.asin(chord) * 180) / Math.PI) : 0;
+  const step = n > 1 ? total / (n - 1) : 0;
+  const mid = (n - 1) / 2;
+  return Array.from({ length: n }, (_, i) => {
+    const angle = (i - mid) * step;
+    const rad = (angle * Math.PI) / 180;
+    return { x: R * Math.sin(rad), y: R * (1 - Math.cos(rad)), angle };
+  });
+}
+/** How far the outer cards of a fan of `n` drop below the middle one, in strip units. */
+function fanDrop(n: number, w: number, h: number, roomU: number): number {
+  const plan = fanPlan(n, w, h, roomU);
+  return plan.reduce((m, p) => Math.max(m, p.y), 0);
+}
 /**
  * SHUT UP, THE CARDS PRESS INTO EACH OTHER — and the more of them, the harder: the row is never
  * wider than `SHRINK.span` cards, so the step is what that span allows, down to `SHRINK.least`.
@@ -91,11 +115,6 @@ const SHRINK = { most: 0.55, span: 3, least: 0.08 };
 /** The step of a shut row, in card widths. */
 function shrinkStep(n: number): number {
   return n > 1 ? Math.max(SHRINK.least, Math.min(SHRINK.most, SHRINK.span / (n - 1))) : 0;
-}
-/** How wide a row of `n` cards is in this fold, in card widths — what the scale fits into the glass. */
-function rowWidth(fold: HandFold, n: number): number {
-  const count = Math.max(1, n);
-  return fold === "fan" ? count * (1 + HUD_GAP) : 1 + (count - 1) * shrinkStep(count);
 }
 
 /** How far the strip stands in from the sides of the glass, in HUD units. */
@@ -189,17 +208,16 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
   };
   registerLayout(foldLayout("shrink"), shut);
   registerLayout(foldLayout("tuck"), shut);
-  // THE FAN NEVER OVERLAPS UP TO EIGHT: a card's step is the card and a gap while the box has the
-  // room, and closes up only past that. The lean and the lift are written by `refresh`.
+  // THE FAN: cards on an arc, the middle one highest. The lean is written by `refresh` off the
+  // same plan, so every card leans exactly as far as it has swung.
   registerLayout(foldLayout("fan"), {
     place: (children, box) => {
       const n = children.length;
       const widest = children.reduce((w, c) => Math.max(w, c.footprint ? extentOf(c.footprint).w : 1), 1);
-      const room = box ? extentOf(box).w - 2 * HAND.pad - widest : 0;
-      const step = n > 1 ? Math.min(widest * (1 + HUD_GAP), Math.max(0, room) / (n - 1)) : 0;
-      const from = -(step * (n - 1)) / 2;
-      const mid = (n - 1) / 2;
-      return children.map((_c, i) => ({ x: from + step * i, y: -handRoom() / 2 - HUD_FAN.lift * (mid > 0 ? 1 - Math.abs(i - mid) / mid : 1) }));
+      const tallest = children.reduce((h, c) => Math.max(h, c.footprint ? extentOf(c.footprint).h : 1.4), 1.4);
+      const roomU = box ? extentOf(box).w - 2 * HAND.pad : 0;
+      const plan = fanPlan(n, widest, tallest, roomU);
+      return plan.map((p) => ({ x: p.x, y: -handRoom() / 2 + p.y }));
     },
   });
   const screen = o.screen ?? node(HAND_HUD_SCREEN, Container({ layout: HAND_HUD_FREE }));
@@ -309,11 +327,7 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
       add(strip, node(HAND_HUD_EMPTY, Bounded({ bounds: roundedRect(1, 1.4, 0.06) }), Surfaced({ surface: HAND_HUD_EMPTY }), Transformable({ at: { x: 0, y: 0 } })));
     }
     compose(strip, Container({ layout: foldLayout(fold) }));
-    // THE LEAN OF A FAN — the stand's 7° per card round the middle; a row lies level.
-    if (fold === "fan") {
-      const mid = (strip.children.length - 1) / 2;
-      strip.children.forEach((c, i) => compose(c, Transformable({ ...(fieldsOf<TransformableFields>(c, "Transformable") ?? {}), angle: (i - mid) * HUD_FAN.tilt })));
-    }
+    // THE LEAN OF A FAN is its angle on the arc; a row lies level. Written once the box is known.
 
     const sizes = cards.map((c) => {
       const shape = footprint(c);
@@ -324,18 +338,21 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     const u = host.unit();
     const v = host.viewport();
     const glass = u > 0 ? { w: v.width / u, h: v.height / u } : { w: 0, h: 0 };
-    // THE STRIP'S SCALE: this row inside the glass, or the cards' own size, whichever is smaller —
-    // and never smaller than eight abreast get. Everything below is in the strip's own units; the
-    // scale carries it onto the glass.
-    const eight = room() / (HUD_CARDS * widest * (1 + HUD_GAP));
-    scale = glass.w > 0 ? Math.min(1, Math.max(eight, room() / (rowWidth(fold, cards.length) * widest))) : 1;
-    // THE BOX IS THE ROOM: as wide as the glass allows (in strip units), so the arrangement lays
-    // the cards abreast while they fit and closes them up only when they do not.
+    // THE STRIP'S SCALE IS ONE NUMBER OF THE GLASS — six cards abreast across it, or their own size —
+    // and the same for one card or fifteen. Everything below is in the strip's own units; the scale
+    // carries it onto the glass.
+    scale = glass.w > 0 ? Math.min(1, room() / (HUD_CARDS * widest * (1 + HUD_GAP))) : 1;
+    // THE BOX IS THE ROOM, as wide as the glass allows in strip units: the fan opens as far as it
+    // can in it, the shut row presses together in its middle.
     wide = Math.max(1, room() / scale);
-    // A FAN IS TALLER THAN ITS CARD — the middle is lifted, the ends lean — and the box holds the lot.
-    const fanned = fold === "fan" ? HUD_FAN.lift + tallest * 0.12 : 0;
+    // A FAN IS TALLER THAN ITS CARD — the outer cards drop below the middle one — and the box holds the lot.
+    const fanned = fold === "fan" ? fanDrop(strip.children.length, widest, tallest, wide - 2 * HAND.pad) : 0;
     high = tallest + fanned + 2 * HAND.pad + handRoom();
     compose(strip, Bounded({ bounds: roundedRect(wide, Math.max(high, 1), HAND.pad) }));
+    if (fold === "fan") {
+      const plan = fanPlan(strip.children.length, widest, tallest, wide - 2 * HAND.pad);
+      strip.children.forEach((c, i) => compose(c, Transformable({ ...(fieldsOf<TransformableFields>(c, "Transformable") ?? {}), angle: plan[i]?.angle ?? 0 })));
+    }
 
     // THE BAR ACROSS THE FOOT OF THE GLASS, on the device's own inset, and the strip standing on
     // it — the cards' bottom edge `BAR.tuck` UNDER the bar's top edge, drawn beneath it, like under
