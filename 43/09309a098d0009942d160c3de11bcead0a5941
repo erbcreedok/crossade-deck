@@ -1,0 +1,28 @@
+game-presets/cards/docs/test-plan.md
+  s_7ee13c6564ec9f::t_dc6bad767f3623 40
+game-presets/cards/scripts/glyphs.mjs
+  s_7ee13c6564ec9f::t_dc6bad767f3623 15-16
+game-presets/cards/src/decks/face.ts
+  s_7ee13c6564ec9f::t_dc6bad767f3623 14-16,22,37,182-195
+  s_7ee13c6564ec9f::t_3ce063bd7099ca 196-197
+game-presets/cards/src/decks/glyphs.ts
+  s_7ee13c6564ec9f::t_dc6bad767f3623 26-28
+game-presets/cards/src/decks/face.test.ts
+  s_7ee13c6564ec9f::t_dc6bad767f3623 108-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "4309309a098d0009942d160c3de11bcead0a5941",
+  "prompts": {},
+  "sessions": {
+    "s_7ee13c6564ec9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c8ffa5d-4a0f-42b0-bed5-0d8d8f2b30e0",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
