@@ -140,18 +140,24 @@ function zoneAtFor(
    * fall through to whatever happens to be lying on the felt underneath.
    */
   onGlass: (at: Vec) => Node | undefined = () => undefined,
-): ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined {
-  if (game === "chess") return (root, at) => squareAt(root, at);
-  if (game === "nardy") return (root, at, lead) => pointUnder(root, at, lead);
+): ((root: Node, at: Vec, lead: Node, from?: Node) => Node | undefined) | undefined {
+  // A SQUARE OR A POINT A PIECE WAS LIFTED FROM is not put back into by the zone's own hand-over:
+  // the ordinary drop already sets the piece down on the seat it left, and a board's places do not
+  // reach, so there is no pull to give back through.
+  const notFrom = (zone: Node | undefined, from: Node | undefined): Node | undefined => (zone && zone === from ? undefined : zone);
+  if (game === "chess") return (root, at, _lead, from) => notFrom(squareAt(root, at), from);
+  if (game === "nardy") return (root, at, lead, from) => notFrom(pointUnder(root, at, lead), from);
   // THE NEAREST HAND WITHIN REACH, AND ONLY IF IT WOULD TAKE THE CARD FROM THIS SEAT. One question
   // asked once: a hand the drop is going to refuse must not light up inviting the card first, and
-  // both the light and the drop read this line (see the catalog's `Live/Cards`).
-  return (root, at, lead) => {
+  // both the light and the drop read this line (see the catalog's `Live/Cards`). THE HAND A CARD
+  // CAME OUT OF takes it back when it is aimed at — its picture on the glass, or the card put down
+  // on it — and never by its pull (`zoneNear`'s `from`).
+  return (root, at, lead, from) => {
     const mine = seat();
     if (!mine) return undefined;
     const shown = onGlass(at);
     if (shown && handTakes(shown, lead, mine)) return shown;
-    const zone = zoneNear(root, at, lead);
+    const zone = zoneNear(root, at, lead, from);
     return zone && isHand(zone) && handTakes(zone, lead, mine) ? zone : undefined;
   };
 }

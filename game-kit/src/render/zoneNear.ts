@@ -23,8 +23,11 @@ import { transformsOf } from "./scenePlan/index.js";
  *
  * NEAREST and not first-found, because two zones a card's width apart would otherwise be decided by
  * the order somebody added them to the desk, which is not a thing a player can see or predict.
+ *
+ * `from` is the place the run was lifted out of this gesture (`LiveTableOptions.zones`): it is
+ * answered only when the run is genuinely on it, never by its reach — see below.
  */
-export function zoneNear(root: Node, at: Vec, lead: Node): Node | undefined {
+export function zoneNear(root: Node, at: Vec, lead: Node, from?: Node): Node | undefined {
   // THE HANDLE IS EXACTLY WHAT TO ASK ABOUT when there is one. A run carried by its tab is a run
   // whose ANCHOR is that tab: it is the thing the hand has hold of, the thing that lands where it
   // was aimed, and the thing the whole heap comes to rest around. Asked about a card instead, the
@@ -58,6 +61,12 @@ export function zoneNear(root: Node, at: Vec, lead: Node): Node | undefined {
       const pose = poses.get(zone.id);
       if (!box || !pose) continue;
       const gap = gapBetween(piece, placedOutline(outlineOf(box), pose));
+      // THE PLACE THE RUN CAME FROM DOES NOT REACH FOR IT — pulled clear and let go, the card is
+      // still within its pull (that is what a pull IS), and a zone that took back what it just
+      // gave up is a zone nothing can be taken out of. It takes the run back all the same when the
+      // run is put down ON it: a card carried out and carried back is a card put back, and a place
+      // that refused that would be a place a card can leave and never return to in one go.
+      if (zone === from && gap > 0) continue;
       if (gap > reachOf(zone) || gap >= closest) continue;
       closest = gap;
       best = zone;

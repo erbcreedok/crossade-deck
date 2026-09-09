@@ -9,6 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  Acceptor,
   add,
   apply,
   attachMotion,
@@ -28,6 +29,9 @@ import {
   freeLayout,
   installStockFlips,
   Pressable,
+  Reaching,
+  remove,
+  zoneNear,
   Grabber,
   Screened,
   installStockGrabs,
@@ -47,6 +51,8 @@ import {
   type CarryItem,
   type TransformableFields,
   type ValuedFields,
+  type Vec,
+  transformsOf,
 } from "../index.js";
 import { Camera } from "./camera/index.js";
 import { GRIP_SPEC, isDrawn } from "./grips.js";
@@ -1089,6 +1095,81 @@ describe("the live desk", () => {
     expect(camera.target.x, "on the bar, it stayed").toBeCloseTo(moved.x, 5);
     swipe(300 - 3.1 * u, 200 + u, 3);
     expect(camera.target.x, "on the picture of a card, it stayed").toBeCloseTo(moved.x, 5);
+    live.stop();
+  });
+
+  it("liveTable.the-place-a-run-came-from-takes-it-back-on-a-hit-and-not-by-its-pull — out of the hand and back in, in one gesture", () => {
+    // THE OWNER'S BUG: a card lifted out of the hand could not be put back into it in the same
+    // gesture, however squarely it was set down on it — the wiring refused the place a run came
+    // from outright, because that place REACHES and would otherwise take back what it just gave
+    // up. The refusal is the zone's own now (`zoneNear`'s `from`): by its pull, never; on a hit, yes.
+    const { root } = desk();
+    const card = byId(root, "card")!;
+    remove(root, card);
+    const hand = node(
+      "hand",
+      Bounded({ bounds: rect(2, 2) }),
+      Container({ layout: "live.free" }),
+      Acceptor({}),
+      Grabber(),
+      Reaching({ reach: 2 }),
+      Transformable({ at: { x: 3, y: 0 } }),
+    );
+    add(hand, card);
+    add(root, hand);
+    // A TRAY ON THE LEFT, a zone that reaches nowhere, for the card to land in when the hand does not
+    // take it: on a bare test desk nothing else re-homes a card let go of on the felt, and a card
+    // still filed under the hand it left tells nothing. It spans x = -4 … 0.4.
+    add(root, node("tray", Bounded({ bounds: rect(4.4, 4) }), Container({ layout: "live.free" }), Acceptor({}), Grabber(), Transformable({ at: { x: -1.8, y: 0 } })));
+    const c = fakeClock();
+    const shell = stage(root, c.clock, false);
+    // A DESK THAT DROPS, so a release the zone does not take FALLS (`letFall`) — onto the felt, out
+    // of whatever it was filed under — which is how a card put back on the hand it came from can be
+    // told from one that merely fell there: taken back, it is the hand's; fallen, it is the desk's.
+    const live = liveTable(shell.el.ownerDocument.body, root, {
+      stage: shell,
+      stacking: true,
+      letGo: "drop",
+      heapKindOf: (n: Node) => (fieldsOf<BoundedFields>(n, "Bounded") && !isDrawn(n) ? "card" : ""),
+      zones: (r: Node, at: Vec, lead: Node, from?: Node) => zoneNear(r, at, lead, from),
+    });
+    const u = shell.host.unit();
+    // The glass is 600×400 with the desk's origin at its middle; the hand's middle is three units right.
+    const glassX = (x: number): number => 300 + x * u;
+    let clock = 0;
+    /** Where the card is on the desk right now, in root units — wherever it is filed. */
+    const cardAt = (): Vec => apply(transformsOf(shell.host.root).get("card")!, { x: 0, y: 0 });
+    /** A slow carry of the card, from where it is, to desk x `toX` on its own line — never fast enough to be a throw. */
+    const carry = (toX: number): void => {
+      const from = cardAt();
+      const y = 200 + from.y * u;
+      shell.el.dispatchEvent(finger("pointerdown", glassX(from.x), y, clock));
+      for (let i = 1; i <= 4; i += 1) {
+        clock += 200;
+        shell.el.dispatchEvent(finger("pointermove", glassX(from.x + ((toX - from.x) * i) / 4), y, clock));
+        c.tick(clock);
+      }
+      clock += 200;
+      shell.el.dispatchEvent(finger("pointerup", glassX(toX), y, clock));
+      for (let i = 1; i <= 30; i += 1) c.tick(clock + i * 16);
+      clock += 500;
+    };
+    // 1. OUT OF THE HAND, let go within its pull but clear of it: the hand's edge is at x = 2, the
+    //    card set down at 0.5 ends a unit short of it — inside a reach of two, so the pull alone
+    //    would take it straight back. It does not: the card lands in the tray it is lying on.
+    expect(cardAt().x).toBeCloseTo(3, 6);
+    carry(0.5);
+    expect(byId(root, "card")!.parent?.id, "the pull does not take back what it just gave up").toBe("tray");
+    // 2. A FRESH GESTURE out of the tray to within the hand's pull (the card ends at 0.8 … 1.8, a
+    //    fifth of a unit short of the hand, and clear of the tray): the hand takes it, as ever.
+    carry(1.3);
+    expect(byId(root, "card")!.parent?.id, "on the next gesture the same pull takes it").toBe("hand");
+    // 3. OUT OF THE HAND AND SET DOWN ON IT, in one gesture: put back — handed to the hand rather
+    //    than left to FALL, and a fall on this desk lands on the felt (the root), out of the hand.
+    //    (It is FILED under the hand; where it lies is the free layout's business, which keeps the
+    //    seat the tray wrote — a real hand lays its cards. What matters is the place it is lifted from.)
+    carry(3.4);
+    expect(byId(root, "card")!.parent?.id, "put down on the place it came from, it is back in it").toBe("hand");
     live.stop();
   });
 

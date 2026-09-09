@@ -113,7 +113,7 @@ export function grabScene(
   bump?: Bump,
   // WHICH ZONE A RELEASE BELONGS TO. Absent, no release belongs to any — which is what every desk on
   // this shelf said before one of them grew a zone.
-  zones?: (root: Node, at: Vec, lead: Node) => Node | undefined,
+  zones?: (root: Node, at: Vec, lead: Node, from?: Node) => Node | undefined,
   // THE OTHER SCREENS ON THIS DESK, if there are any. Absent, this scene is alone with its tree,
   // which is what every page on the shelf but one is.
   mirror?: Mirror,
@@ -292,7 +292,7 @@ export function grabScene(
     // THE STRIP ON THE GLASS IS ASKED FIRST, because it is drawn over everything: a card let go on
     // top of it must not fall through to whatever happens to be lying on the felt underneath.
     ...(zones || handOnGlass
-      ? { zones: (root: Node, at: Vec, lead: Node) => glassZone(root, at) ?? zones?.(root, at, lead) }
+      ? { zones: (root: Node, at: Vec, lead: Node, from?: Node) => glassZone(root, at) ?? zones?.(root, at, lead, from) }
       : {}),
     // A PICTURE OF A CARD ON THE GLASS IS A WAY OF REACHING THE CARD (`DragOptions.standIn`).
     ...(handOnGlass ? { standIn: (n: Node) => glass?.standFor(n) } : {}),

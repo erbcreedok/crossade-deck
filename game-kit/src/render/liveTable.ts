@@ -259,7 +259,14 @@ export interface LiveTableOptions<S extends LiveStage = LiveStage> {
   readonly bump?: Bump;
   // WHICH ZONE A RELEASE BELONGS TO. Absent, no release belongs to any — which is what every desk on
   // this shelf said before one of them grew a zone.
-  readonly zones?: (root: Node, at: Vec, lead: Node) => Node | undefined;
+  //
+  // `from` IS THE PLACE THE RUN WAS LIFTED OUT OF this gesture, when there is one, and the answer
+  // is the desk's: a zone that REACHES (`zoneNear`) must not reach for what it just gave up, or
+  // nothing could ever be taken out of it — but a run carried out and put back down ON it is put
+  // back, and a place aimed at by pointing at its picture on the glass is aimed at. The wiring no
+  // longer refuses `from` on its own: it could not tell a reach from a hit, and refusing both left
+  // a card that could leave its hand and never come back in one go.
+  readonly zones?: (root: Node, at: Vec, lead: Node, from?: Node) => Node | undefined;
   // THE OTHER SCREENS ON THIS DESK, if there are any. Absent, this scene is alone with its tree,
   // which is what every page on the shelf but one is.
   readonly mirror?: Mirror<S>;
@@ -512,8 +519,10 @@ export function liveTable<S extends LiveStage = LiveStage>(
    * and it takes the card straight back. With two areas near each other the card simply hops from
    * one to the other and there is no way on the desk to put it down anywhere else.
    *
-   * So the place a run CAME from does not take it back in the same gesture. Everything else still
-   * does, including that same place on the next one — this is about a gesture, not a grudge.
+   * So the place a run CAME from is handed to the desk's own answer (`zones`' `from`), which takes
+   * it back only when the run is genuinely put down on it and never by its pull. Everything else
+   * takes it as ever, and so does that same place on the next gesture — this is about a gesture,
+   * not a grudge.
    */
   let liftedFrom: Node | undefined;
   /**
@@ -784,7 +793,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
     // THE ANCHOR'S OWN POINT, which is where the hand is: a carry is anchored ON the thing the hand
     // has hold of, so `at` is the tab's point for a run carried by its tab and the piece's own for a
     // run of one. Nothing to add and nothing to look up.
-    return ((z) => (z && z === liftedFrom ? undefined : z))(zoneFor(built, run, zones, at));
+    return zoneFor(built, run, zones, at, liftedFrom);
   };
   rule?.tune?.(built.host.root);
   mirror?.ready(built, grasp);
@@ -827,8 +836,8 @@ export function liveTable<S extends LiveStage = LiveStage>(
       }
     },
     // ...AND THE ZONE MY HAND IS OVER, TOLD TO ME. The wiring lights it; what it asks is this, and
-    // it is the same question the release answers — down to refusing to hand a run back to the
-    // place it was lifted out of, so a card being pulled OUT of an area never glows to go back in.
+    // it is the same question the release answers — down to naming the place the run was lifted
+    // out of, so a card being pulled OUT of an area never glows to go back in by the area's pull.
     ...(zones ? { aimAt: (_root: Node, ids: readonly string[], at: Vec) => zoneAimed(ids, at) } : {}),
     // A PILE HIDES ALL BUT A SLIVER OF WHAT IS UNDER ITS TOP, and a finger that lands on a sliver
     // gets a card nobody was aiming at. Below this much showing a piece does not answer at all: the
@@ -1060,11 +1069,8 @@ export function liveTable<S extends LiveStage = LiveStage>(
     // the border the carry clamped the piece to, and it is the PIECE a zone is taking.
     ...(zones
       ? {
-          zoneAt: (root: Node, at: Vec, lead: Node) => {
-            const zone = zones(root, aimed ?? at, lead);
-            // ...BUT NOT BACK WHERE IT CAME FROM. See `liftedFrom`.
-            return zone && zone === liftedFrom ? undefined : zone;
-          },
+          // ...TOLD WHERE IT CAME FROM, which takes it back on a hit and not by its pull. See `liftedFrom`.
+          zoneAt: (root: Node, at: Vec, lead: Node) => zones(root, aimed ?? at, lead, liftedFrom),
         }
       : {}),
     ...(letGo
@@ -1127,9 +1133,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
             // so a fall filed here is a fall the zone never gets to see. Answering `false` hands the
             // release back to the ordinary path, which is where zones live — and the piece is taken
             // the moment it leaves the finger rather than flown there and pulled back.
-            const zone = ((z: Node | undefined) => (z && z === cameFrom ? undefined : z))(
-              zoneFor(built, items, zones, aimed),
-            );
+            const zone = zoneFor(built, items, zones, aimed, cameFrom);
             if (zone) {
               // A RUN LED BY A HANDLE IS HANDED OVER HERE; anything else the wiring re-parents
               // itself, with its accept rules and its displacement, which is where that belongs.

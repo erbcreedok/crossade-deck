@@ -192,8 +192,9 @@ export function landingBox(
 export function zoneFor(
   s: { readonly host: Host; readonly motions?: Motions },
   items: readonly CarryItem[],
-  zones: ((root: Node, at: Vec, lead: Node) => Node | undefined) | undefined,
+  zones: ((root: Node, at: Vec, lead: Node, from?: Node) => Node | undefined) | undefined,
   aim: Vec | undefined,
+  from?: Node,
 ): Node | undefined {
   if (!zones) return undefined;
   // THE RUN'S ANCHOR, which is its handle when it has one and the piece itself when it has not — and
@@ -206,7 +207,7 @@ export function zoneFor(
   const it = items[0];
   const lead = it ? byId(s.host.root, it.id) : undefined;
   const drawn = it ? s.motions?.poses()?.get(it.id) : undefined;
-  return drawn && lead ? zones(s.host.root, aim ?? apply(drawn, { x: 0, y: 0 }), lead) : undefined;
+  return drawn && lead ? zones(s.host.root, aim ?? apply(drawn, { x: 0, y: 0 }), lead, from) : undefined;
 }
 
 /** Where the lead of this release will come to rest — the point a zone should be asked about. */
