@@ -364,8 +364,12 @@ export interface LiveTableOptions<S extends LiveStage = LiveStage> {
    * heaps with nothing. Absent, nothing heaps, which is every desk that does not stack.
    */
   readonly heapKindOf?: (n: Node) => string;
-  /** THE BORDER A CARRIED PIECE MAY NOT CROSS. Absent, the desk's own box (`mapWalls`). */
-  readonly trayOf?: (root: Node, hit: Node, lift: number) => Walls;
+  /**
+   * THE BORDER A CARRIED PIECE MAY NOT CROSS. Absent, the desk's own box (`mapWalls`). Answering
+   * `undefined` is a desk with NO border on the carry: the hand goes wherever the finger goes, and
+   * the release's own walls (`pieces.wallsOf`) decide where the piece comes down.
+   */
+  readonly trayOf?: (root: Node, hit: Node, lift: number) => Walls | undefined;
   /** What a handle wears while it IS the landing mark — the desk's own picture, handed in as data. */
   readonly anchorMark?: Coat;
   /** How a `Rollable` piece rolls when it is thrown — the dice add-on's, handed in rather than reached for. */

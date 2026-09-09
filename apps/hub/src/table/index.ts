@@ -320,7 +320,9 @@ function playFor(game: TableGame, seat: () => string | null, onGlass: (at: Vec) 
       // a throw on the page bounces off the page's edge and may fly onto the table, a throw on the
       // table bounces off the felt's edge from inside and never leaves it. A tray on the carry
       // would end the gesture at the page's edge and fling the card back in the moment the finger
-      // crossed it — which is the one thing a finger holding a card must never feel.
+      // crossed it — which is the one thing a finger holding a card must never feel. Said outright
+      // (`trayOf` answering nothing), because a desk that says nothing gets the kit's own box.
+      trayOf: () => undefined,
       pieces: { wallsOf: (piece: Node) => roundWalls(piece) },
       anchorMark: ANCHOR_MARK,
     };

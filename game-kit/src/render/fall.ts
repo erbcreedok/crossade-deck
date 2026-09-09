@@ -818,8 +818,11 @@ export function letFall(
     put.push(n);
   }
   const speed = hand ? Math.hypot(hand.x, hand.y) : 0;
-  const falling = put.filter((n) => thrown(n, speed, ways));
   const feelOf = (n: Node): DropFeel => bumped(dropOf(n, ways), n, bump);
+  const wallsFor = (n: Node): Walls => wallsOf?.(n, seatIn(n)) ?? mapWalls(n);
+  // WHAT FALLS: what the hand threw or dropped — AND whatever was let go of OUTSIDE its walls,
+  // however still the hand was: a piece put down off the page is not put down, it comes home.
+  const falling = put.filter((n) => thrown(n, speed, ways) || homeOf(n, wallsFor(n), feelOf(n), s.motions?.tuning().friction ?? 0) !== undefined);
   const scattering = falling.filter((n) => feelOf(n).scatter > 0);
   const flock = formationOf(s, items, put, falling, hand, feelOf);
   const aim = hand && (hand.x !== 0 || hand.y !== 0) ? polar(hand).angle : DOWN_THE_DESK;
@@ -831,13 +834,13 @@ export function letFall(
     // being let go of, because that is what decides it: a die thrown from beside a board stays beside
     // it, a die thrown on the board stays on the board, and only the point of release tells which.
     // A desk that says nothing gets the map's own border, as every desk on this shelf did.
-    walls: wallsOf?.(piece, seatIn(piece)) ?? mapWalls(piece),
+    walls: wallsFor(piece),
     delayMs,
     // LET GO OUTSIDE ITS WALLS, A PIECE COMES BACK IN: a hand may carry a card past the edge of
     // the page, and the release sends it to the nearest point inside — the very point the picture
     // of its landing stood at — on the desk's own slide, at exactly the speed that comes to rest
     // there (`v² = 2·a·d`). A throw from out there is not a throw; it is a card coming home.
-    home: homeOf(piece, wallsOf?.(piece, seatIn(piece)) ?? mapWalls(piece), feelOf(piece), s.motions?.tuning().friction ?? 0),
+    home: homeOf(piece, wallsFor(piece), feelOf(piece), s.motions?.tuning().friction ?? 0),
   }));
   const standing = alsoInTheWay(
     root,

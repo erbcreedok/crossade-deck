@@ -1229,7 +1229,11 @@ describe("the live desk", () => {
     // carry has no tray — nothing ends the gesture at the edge and flings the card back — and the
     // picture of where the card lands is clamped to the walls the desk gives a release: it stands
     // at the nearest point inside while the finger is outside, where the drop will send the card.
-    const { root } = desk();
+    const { root, card } = desk();
+    // A CARD, not a bare piece: a card let go of by a still hand is PUT DOWN (`settle`), which is
+    // the very release that must still come home from outside — a chip would be thrown anyway.
+    installStockFlips();
+    compose(card, Flippable({ flip: "turnOver", back: "" }));
     const c = fakeClock();
     const shell = stage(root, c.clock, false);
     const box = { x0: -2, y0: -2, x1: 2, y1: 2 };
@@ -1238,6 +1242,8 @@ describe("the live desk", () => {
       stacking: true,
       letGo: "throw",
       heapKindOf: (n: Node) => (fieldsOf<BoundedFields>(n, "Bounded") && !isDrawn(n) ? "card" : ""),
+      // NO TRAY ON THE CARRY, said outright: absent, the kit's own box would clamp the hand.
+      trayOf: () => undefined,
       pieces: { wallsOf: () => box },
     });
     const u = shell.host.unit();
@@ -1249,11 +1255,20 @@ describe("the live desk", () => {
     }
     c.tick(900);
     const held = shell.motions!.poses()!.get("card")!;
-    expect(apply(held, { x: 0, y: 0 }).x, "the card is where the finger is, past the wall").toBeGreaterThan(3);
+    expect(apply(held, { x: 0, y: 0 }).x, "the card is where the finger is, past the wall").toBeGreaterThan(3.7);
     const mark = shell.host.root.children.find((n) => isMark(n))!;
     expect(mark, "a picture of the landing is up").toBeDefined();
     const shown = shell.motions!.poses()!.get(mark.id) ?? transformsOf(shell.host.root).get(mark.id)!;
     expect(apply(shown, { x: 0, y: 0 }).x, "…and it stands on the wall, inside").toBeLessThanOrEqual(2 + 1e-6);
+    // LET GO OUT THERE — CALMLY, a hand that stopped and lifted, a putting-down and no throw at all
+    // — the card still comes home, to the wall where the picture stood, and rests.
+    shell.el.dispatchEvent(finger("pointermove", 300 + 4 * u, 200, 1200));
+    shell.el.dispatchEvent(finger("pointermove", 300 + 4 * u, 200, 1500));
+    shell.el.dispatchEvent(finger("pointerup", 300 + 4 * u, 200, 1800));
+    for (let i = 1; i <= 120; i += 1) c.tick(1800 + i * 16);
+    const rested = seatOf(shell.host.root, "card");
+    expect(rested.x, "home: on the wall, not left outside").toBeLessThanOrEqual(2 + 0.05);
+    expect(rested.x, "…and not flung back across the desk").toBeGreaterThan(1);
     live.stop();
   });
 
