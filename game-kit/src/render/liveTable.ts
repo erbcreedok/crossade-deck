@@ -326,7 +326,7 @@ export interface LiveTableOptions<S extends LiveStage = LiveStage> {
    * usual answer is `grippableBy(n, seat)`; absent, every draggable thing takes every finger, which
    * is every page on the shelf that has no owners.
    */
-  readonly may?: (n: Node) => boolean;
+  readonly may?: (n: Node, via?: Node) => boolean;
   /**
    * THE PAGE'S OWN ANSWER TO A TAP, asked first — `true` means the page took it.
    *
@@ -853,7 +853,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
           // the picture of the landing sat wherever the finger happened to touch the card rather
           // than under the finger doing the aiming.
           underFinger: true,
-          runOf: (_root: Node, hit: Node) => {
+          runOf: (_root: Node, hit: Node, via?: Node) => {
             // Remembered for as long as the gesture lasts, so nothing redraws the tab in the hand.
             inHand = isGrip(hit) ? hit.id : undefined;
             if (!isGrip(hit)) {
@@ -862,6 +862,14 @@ export function liveTable<S extends LiveStage = LiveStage>(
               // is arranged around it: the run is the one thing the finger has hold of.
               if (isControl(hit)) {
                 liftedFrom = undefined;
+                landingPic.end();
+                return [hit];
+              }
+              // A CARD TAKEN THROUGH ITS PICTURE ON THE GLASS gets no picture of a landing: the
+              // mark would stand at the seat it was lifted from — in the box across the desk — and
+              // read as the card still lying there while it is in the hand, which is the one thing
+              // the picture on the glass exists to say is not so.
+              if (via) {
                 landingPic.end();
                 return [hit];
               }

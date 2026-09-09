@@ -1196,6 +1196,16 @@ describe("the live desk", () => {
     const u = shell.host.unit();
     const on = { x: 300 + 0 * u, y: 200 + 2 * u };
     shell.el.dispatchEvent(finger("pointerdown", on.x, on.y, 0));
+    c.tick(1);
+    // ...AND IT IS UNDER THE FINGER FROM THE FIRST FRAME, where its picture was — not at the box
+    // across the desk it lies in, flown over to the hand: the card in the chair and the card under
+    // the finger were one card in two places for as long as the flight took.
+    const first = apply(shell.camera!.transform(), apply(shell.motions!.poses()!.get("card")!, { x: 0, y: 0 }));
+    expect(Math.hypot(first.x - on.x, first.y - on.y), "first frame: at the picture, under the finger").toBeLessThan(24);
+    // ...AND NO PICTURE OF A LANDING STANDS AT THE SEAT IT LEFT: that would be the card still lying
+    // in its box while it is in the hand.
+    const marks = shell.host.root.children.filter((n) => fieldsOf<ValuedFields>(n, "Valued")?.values?.["mark"] !== undefined);
+    expect(marks.length, "no landing mark for a card taken through its picture").toBe(0);
     for (let i = 1; i <= 4; i += 1) {
       shell.el.dispatchEvent(finger("pointermove", on.x - i * 10, on.y - i * 6, i * 200));
       c.tick(1);

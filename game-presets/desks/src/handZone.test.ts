@@ -31,7 +31,7 @@ import {
   type Node,
   type TransformableFields,
 } from "game-kit";
-import { ARCH_R, flipHand, HAND_POSE_DEFAULT, HAND_POSES, handHidden, handLayoutOf, handLocked, handPose, handPoseName, handPoseOf, handTakes, isHand, layHand, setHandHidden, setHandPose, toggledPose, type HandPose } from "./handZone.js";
+import { ARCH_R, flipHand, HAND_POSE_DEFAULT, HAND_POSES, HAND_SCALE, handHidden, handLayoutOf, handLocked, handPose, handPoseName, handPoseOf, handTakes, isHand, layHand, setHandHidden, setHandPose, toggledPose, type HandPose } from "./handZone.js";
 import { chairId, seatChair, setHandLock } from "./seatPlace.js";
 import { roundMap, seatPlaces as roundPlaces } from "./roundMap.js";
 import { SEATS } from "./liveMap.js";
@@ -70,24 +70,32 @@ describe("the hand at the place", () => {
       return rows.map((p, i) => ({ x: p!.x, y: p!.y, angle: fieldsOf<TransformableFields>(zone.children[i]!, "Transformable")?.angle ?? 0 }));
     };
     const off = HAND_POSE_DEFAULT;
-    // A LADDER ON THE RIGHT — nothing on: each card a step past the one before, every one showing.
+    // THE CARDS IN A CHAIR ARE SMALL — `HAND_SCALE` of a card on the felt, written on each card —
+    // and every distance below is in those small cards, so they lie close in to the arch.
+    const w = CARD.w * HAND_SCALE;
+    const h = CARD.h * HAND_SCALE;
+    for (const c of zone.children) expect(fieldsOf<TransformableFields>(c, "Transformable")?.scale).toBe(HAND_SCALE);
+    // A LADDER ON THE RIGHT — nothing on: tucked under the rim (its near edge inside the arch), most
+    // of it past the arch, each card a step past the one before, every one showing.
     const ladder = at(off);
-    for (const c of ladder) expect(c.x).toBeGreaterThan(ARCH_R);
-    for (let i = 1; i < ladder.length; i += 1) expect(ladder[i]!.x - ladder[i - 1]!.x).toBeGreaterThan(0.3);
+    expect(ladder[0]!.x - w / 2).toBeLessThan(ARCH_R);
+    for (const c of ladder) expect(c.x + w / 2).toBeGreaterThan(ARCH_R);
+    for (let i = 1; i < ladder.length; i += 1) expect(ladder[i]!.x - ladder[i - 1]!.x).toBeGreaterThan(0.3 * HAND_SCALE);
     expect(ladder.every((c) => c.angle === 0)).toBe(true);
-    // SHRUNK: a stack on the right, every card past the arch's centre on +x, climbing a whisker per
-    // card, level — and the climb capped, so fifty-two of them are a deck and not a ladder.
+    // SHRUNK: a stack on the right, at the same near edge, climbing a whisker per card, level — and
+    // the climb capped, so fifty-two of them are a deck and not a ladder.
     const stacked = at({ ...off, shrink: true });
-    for (const c of stacked) expect(c.x).toBeGreaterThan(ARCH_R);
+    expect(stacked[0]!.x).toBeCloseTo(ladder[0]!.x, 6);
     expect(stacked.every((c) => c.angle === 0)).toBe(true);
     expect(stacked[4]!.x - stacked[0]!.x).toBeGreaterThan(0);
-    expect(stacked[4]!.x - stacked[0]!.x).toBeLessThanOrEqual(0.18 + 1e-9);
+    expect(stacked[4]!.x - stacked[0]!.x).toBeLessThanOrEqual(0.18 * HAND_SCALE + 1e-9);
     // TUCKED ON THE RIGHT: one spot, most of the card behind the arch, its tip past the rim — and
     // shrunk as well, the same spot: there is no distance to close in one spot.
     const tucked = at({ ...off, tuck: true });
     expect(new Set(tucked.map((c) => c.x)).size).toBe(1);
     expect(tucked[0]!.x).toBeLessThan(ARCH_R);
-    expect(tucked[0]!.x + CARD.w / 2).toBeGreaterThan(ARCH_R);
+    expect(tucked[0]!.x + w / 2).toBeGreaterThan(ARCH_R);
+    expect(tucked[0]!.x + w / 2 - ARCH_R, "a tip, not a card").toBeLessThan(w / 2);
     expect(at({ ...off, tuck: true, shrink: true })).toEqual(tucked);
     // A FAN IN FRONT: above the arch (-y), symmetric, the ends leaning out either way, the middle
     // card level and its bottom edge inside the rim — held against the chair.
@@ -96,7 +104,8 @@ describe("the hand at the place", () => {
     expect(fanned[0]!.angle).toBeCloseTo(-fanned[4]!.angle);
     expect(fanned[0]!.angle).toBeLessThan(0);
     expect(fanned[0]!.x).toBeCloseTo(-fanned[4]!.x);
-    expect(fanned[2]!.y + CARD.h / 2).toBeLessThan(ARCH_R);
+    expect(fanned[2]!.y + h / 2).toBeLessThan(ARCH_R);
+    expect(fanned[2]!.y + h / 2).toBeGreaterThan(-ARCH_R);
     expect(fanned[2]!.y).toBeLessThan(0);
     // A FAN SHRUNK: the same arc closed — the same middle, a sliver of lean, the ends close in.
     const closed = at({ ...off, fan: true, shrink: true });
@@ -108,7 +117,8 @@ describe("the hand at the place", () => {
     const front = at({ ...off, fan: true, tuck: true });
     expect(new Set(front.map((c) => c.y)).size).toBe(1);
     expect(front.every((c) => c.angle === 0)).toBe(true);
-    expect(front[0]!.y - CARD.h / 2).toBeLessThan(-ARCH_R);
+    expect(front[0]!.y - h / 2).toBeLessThan(-ARCH_R);
+    expect(-ARCH_R - (front[0]!.y - h / 2), "a tip, not a card").toBeLessThan(h / 2);
     // ...AND BACK TO A FAN, THE LEAN COMES BACK; back to nothing on, it comes off.
     at({ ...off, fan: true });
     expect(fieldsOf<TransformableFields>(zone.children[0]!, "Transformable")?.angle).toBeLessThan(0);

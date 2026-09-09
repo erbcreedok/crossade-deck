@@ -47,6 +47,7 @@ export {
   HAND_POSE,
   HAND_POSE_DEFAULT,
   HAND_POSES,
+  HAND_SCALE,
   HAND_VALUE,
   handAccept,
   handLayoutOf,
@@ -99,7 +100,7 @@ export {
   type BarGroup,
   type BarWhat,
 } from "./handBar.js";
-export { FAN_SPREAD, FAN_TILT, gripOwner, handFan, handRule, handsOf, HELD_SHARE, heapKindOf } from "./handRule.js";
+export { FAN_SPREAD, FAN_TILT, gripOwner, handFan, handRule, handsOf, heapKindOf } from "./handRule.js";
 export {
   arch,
   CHAIR,

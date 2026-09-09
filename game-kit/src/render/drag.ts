@@ -48,8 +48,12 @@ export interface DragScene {
 export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] | undefined } & {
   /** Who holds the finger on this scene (e.g. seat key). Overrides Scene.actor when set. */
   readonly actor?: string | undefined;
-  /** The run a grabbed node leads. Absent, a card travels alone. */
-  readonly runOf?: ((root: Node, hit: Node) => readonly Node[]) | undefined;
+  /**
+   * The run a grabbed node leads. Absent, a card travels alone. `via` is the picture the piece was
+   * taken through when it was (`standIn`): a piece taken off its picture on the glass has nowhere
+   * on the felt it is "lifted off", and a desk may draw nothing there.
+   */
+  readonly runOf?: ((root: Node, hit: Node, via?: Node) => readonly Node[]) | undefined;
   /**
    * WHERE EACH MEMBER OF THE RUN STANDS while it is carried, relative to the anchor — instead of
    * where it happens to be lying.
@@ -82,7 +86,14 @@ export type DragOptions = { readonly [K in keyof CarryTuning]?: CarryTuning[K] |
    * An EXTRA gate on the pick, beside `draggable` — the seat's permission, usually: a story
    * passes `(n) => grippableBy(n, seat)` and the other player's hand refuses the finger.
    */
-  readonly may?: ((n: Node) => boolean) | undefined;
+  /**
+   * MAY THIS PIECE BE TAKEN — asked of what the finger closed on, with `via` the picture it was
+   * taken THROUGH when it was (a card reached by its picture on the glass, `standIn`) and nothing
+   * when the finger landed on the piece itself. A desk whose hands are an indicator on the felt
+   * refuses the second and allows the first: the cards in a chair are lifted off the glass, never
+   * off the felt.
+   */
+  readonly may?: ((n: Node, via?: Node) => boolean) | undefined;
   /**
    * Called on release BEFORE the ordinary drop, with the finger's speed (root units/s) and the
    * released nodes: a scene that throws on release (a die) does its throw here and returns `true`
@@ -446,8 +457,8 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
         w.opts.showsEnough,
       );
     if (!hit) return;
-    if (stood && !(draggable(hit) && (w.opts.may?.(hit) ?? true))) return;
-    const run = w.opts.runOf ? w.opts.runOf(root, hit) : [hit];
+    if (stood && !(draggable(hit) && (w.opts.may?.(hit, shown) ?? true))) return;
+    const run = w.opts.runOf ? w.opts.runOf(root, hit, shown) : [hit];
     // WHERE THE PIECES ARE DRAWN, not where they rest: the hand closes on what it can see. A piece
     // the clock is moving rests somewhere it left long ago, and an anchor taken from the tree would
     // teleport a caught die back to its seat the instant the finger touched it.
@@ -457,8 +468,13 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
     if (drawn) for (const [id, t] of drawn) if (tree.has(id)) poses.set(id, t);
     const at = poses.get(hit.id);
     if (!at || run.length === 0) return;
-    const anchor = { x: at.e, y: at.f };
+    const origin = { x: at.e, y: at.f };
     const p = toUnits(s.host, g, w.opts.view?.());
+    // A PIECE TAKEN BY ITS PICTURE IS IN THE HAND FROM THE FIRST FRAME — under the finger, where
+    // the picture was, and not flown in from the box across the desk it lies in. The carry seeds its
+    // springs at the anchor, so the anchor is the finger; where the piece rests is kept apart
+    // (`fromPos`), for the mark that says where it came from.
+    const anchor = stood ? p : origin;
     // ARRANGED, when the scene says so, and otherwise as it lies. The offsets are the whole of the
     // difference: the carry lays the run out from them on its very first frame, so a heap lifted by
     // its handle is already a stack before it has travelled a pixel.
@@ -474,7 +490,7 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
       const seat = arranged?.[i];
       if (seat) return { id: c.id, offset: seat, ...still };
       const t = poses.get(c.id) ?? at;
-      return { id: c.id, offset: { x: t.e - anchor.x, y: t.f - anchor.y }, ...still };
+      return { id: c.id, offset: { x: t.e - origin.x, y: t.f - origin.y }, ...still };
     });
     // The hand starts at rest: a finger that has only just landed has thrown nothing.
     w.swing = { v: { x: 0, y: 0 }, at: g, ms: e.timeStamp };
@@ -492,7 +508,7 @@ export function wireDrag<S extends DragScene = DragScene>(s: S, opts: DragOption
       from: g,
       atMs: e.timeStamp,
       hit,
-      fromPos: anchor,
+      fromPos: origin,
       fromParent: hit.parent ?? undefined,
     };
     w.finger = g;

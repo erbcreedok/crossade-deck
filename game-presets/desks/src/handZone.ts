@@ -116,6 +116,14 @@ export function handLayoutOf(pose: HandPose): string {
 export const HAND_LAYOUT = handLayoutOf(HAND_POSE_DEFAULT);
 
 /**
+ * HOW BIG A CARD IN A CHAIR IS DRAWN, against a card on the felt — the owner's rule: the cards at
+ * a chair are an INDICATOR of the hand, smaller than the cards in play and closer in to the arch,
+ * and the pictures on the owner's glass are where the hand is handled. Written on each card as its
+ * own scale by `layHand` and taken off again when it leaves the hand (`handRule`'s `settled`).
+ */
+export const HAND_SCALE = 0.55;
+
+/**
  * THE ARCH THE CARDS LIE AGAINST, in units — the seat design's 74px chair beside its 34px cards,
  * so a felt card (one unit) is the design's card and the chair is 2.2 of them. Read here rather
  * than off the chair, because a pose is measured against the ARCH and not against whatever shape
@@ -133,21 +141,19 @@ export const ARCH_R = 1.1;
  * only its tip past the rim. The design's pixels, over its 74px chair, in units of `ARCH_R`.
  */
 const POSE = {
-  /** A side pose's near edge, past the arch's centre — the design's 30px. */
-  sideEdge: 0.89,
-  /** A side pose's row, a little below the arch's centre — the design's 10px. */
-  sideDrop: 0.3,
-  /** A tucked side card's near edge — the design's 8px: most of it behind the arch. */
-  sideTuck: 0.34,
-  /** How far a front fan's bottom edge sits INSIDE the rim. */
-  fanIn: 0.24,
-  /** How much of a tucked front card shows past the rim — the tip that is pulled on. */
-  tuckOut: 0.25,
+  /** How far a side pose's near edge stands INSIDE the rim — the cards tuck under the arch's edge. */
+  sideIn: 0.35,
+  /** A side pose's row, a little below the arch's centre — in card heights. */
+  sideDrop: 0.2,
+  /** How much of a tucked card shows past the rim — the tip that says a hand is here — in card widths. */
+  tip: 0.25,
+  /** How far a front fan's bottom edge sits INSIDE the rim, in card heights. */
+  fanIn: 0.17,
   /** The fan's arc — the kit's own `fan()`, its width bounded by the spread alone. */
   fan: { spread: 60, radius: 2 },
   /** The fan shrunk — the same arc closed to a sliver of lean per card, so the count is not read. */
   fanShut: { spread: 14, radius: 2 },
-  /** A side ladder's room, and the steps it may take in it. */
+  /** A side ladder's room, and the steps it may take in it — in card widths. */
   ladder: { room: 2.2, look: { gapMin: 0.08, gapMax: 0.55, wideMin: 0, wideMax: 1 } as Spread },
 } as const;
 
@@ -176,20 +182,26 @@ function cardSize(children: readonly LayoutChild[]): { readonly w: number; reado
  */
 export function posePlan(pose: HandPose, children: readonly LayoutChild[]): readonly { readonly at: Point; readonly angle: number }[] {
   const n = children.length;
-  const { w, h } = cardSize(children);
+  // THE CARDS AS THEY ARE DRAWN IN A CHAIR — their own size times `HAND_SCALE` — and every distance
+  // below in those drawn cards, so a smaller card lies closer in and its steps close up with it.
+  const s = HAND_SCALE;
+  const size = cardSize(children);
+  const w = size.w * s;
+  const h = size.h * s;
   if (!pose.fan) {
-    const y = POSE.sideDrop;
-    if (pose.tuck) return children.map(() => ({ at: { x: POSE.sideTuck + w / 2, y }, angle: 0 }));
+    const y = POSE.sideDrop * h;
+    const near = ARCH_R - POSE.sideIn;
+    if (pose.tuck) return children.map(() => ({ at: { x: ARCH_R + POSE.tip * w - w / 2, y }, angle: 0 }));
     if (pose.shrink) {
       const piled = stack(n);
-      return piled.map((p) => ({ at: { x: POSE.sideEdge + w / 2 + p.at.x, y: y + p.at.y }, angle: 0 }));
+      return piled.map((p) => ({ at: { x: near + w / 2 + p.at.x * s, y: y + p.at.y * s }, angle: 0 }));
     }
-    const step = fitStep(n, POSE.ladder.room, POSE.ladder.look);
-    return children.map((_c, i) => ({ at: { x: POSE.sideEdge + w / 2 + step * i, y }, angle: 0 }));
+    const step = fitStep(n, POSE.ladder.room * s, POSE.ladder.look) * s;
+    return children.map((_c, i) => ({ at: { x: near + w / 2 + step * i, y }, angle: 0 }));
   }
-  if (pose.tuck) return children.map(() => ({ at: { x: 0, y: -(ARCH_R + POSE.tuckOut) + h / 2 }, angle: 0 }));
-  const middle = -(ARCH_R - POSE.fanIn) - h / 2;
-  return fan(n, pose.shrink ? POSE.fanShut : POSE.fan).map((p) => ({ at: { x: p.at.x, y: middle + p.at.y }, angle: p.angle }));
+  if (pose.tuck) return children.map(() => ({ at: { x: 0, y: -(ARCH_R + POSE.tip * h) + h / 2 }, angle: 0 }));
+  const middle = -(ARCH_R - POSE.fanIn * h) - h / 2;
+  return fan(n, pose.shrink ? POSE.fanShut : POSE.fan).map((p) => ({ at: { x: p.at.x * s, y: middle + p.at.y * s }, angle: p.angle }));
 }
 
 /**
@@ -239,8 +251,8 @@ export function untuck(zone: Node): boolean {
 }
 
 /**
- * THE HAND, LAID — every card's lean written off the pose's own plan; where each stands is the
- * arrangement's and is read by the plan. Called whenever the hand changed: a card in, a card out,
+ * THE HAND, LAID — every card's lean and size written off the pose's own plan; where each stands is
+ * the arrangement's and is read by the plan. Called whenever the hand changed: a card in, a card out,
  * a pose switched. The chair itself does not change: it is the arch, one size.
  */
 export function layHand(zone: Node): void {
@@ -254,7 +266,10 @@ export function layHand(zone: Node): void {
   zone.children.forEach((card, i) => {
     const own = fieldsOf<TransformableFields>(card, "Transformable");
     const angle = plan[i]?.angle ?? 0;
-    if ((own?.angle ?? 0) !== angle) compose(card, Transformable({ ...(own ?? {}), angle }));
+    // ...AND ITS SIZE IN THE CHAIR (`HAND_SCALE`), written the way the lean is: the card's own
+    // pose, so a card handed to another chair is re-laid there and one put down on the felt has
+    // it taken off (`handRule`).
+    if ((own?.angle ?? 0) !== angle || (own?.scale ?? 1) !== HAND_SCALE) compose(card, Transformable({ ...(own ?? {}), angle, scale: HAND_SCALE }));
   });
 }
 

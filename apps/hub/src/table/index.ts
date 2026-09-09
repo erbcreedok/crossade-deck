@@ -83,7 +83,7 @@ import { isTableGame, mapFor, syncSeatChairs, TABLE_SEATS, type SeatedPerson, ty
 import { curtain } from "./curtain.js";
 import { hubAvatarsTransport, hubSeats, inkOf, SEAT_INKS, type HubAvatarsTransport } from "./people.js";
 import { chairId, courtLift, handHud, HUD_COURT, untuck, type HandHud } from "@game-presets/desks";
-import { apply, byId, composeTransforms, extentOf, footprint, type CameraHud } from "game-kit";
+import { apply, byId, composeTransforms, extentOf, fieldsOf, footprint, type CameraHud, type TransformableFields } from "game-kit";
 
 /** A far hand's cursor, over the glass and never on the desk — the catalog's own `DOT` size. */
 const CURSOR_DOT = 18;
@@ -529,9 +529,13 @@ export function startTable(container: HTMLElement): Teardown {
     const centre = apply(onGlass, { x: 0, y: 0 });
     entered = hand.entering({ y: centre.y - tall / 2, h: tall });
     // THE HAND'S CARD OVER THE FELT'S — the size the card grows to, as a lift over its resting size.
+    // A CARD OUT OF A CHAIR RESTS SMALL (`HAND_SCALE`, its own scale), and the lift is a factor over
+    // that: so its base lift is the ordinary one over its own scale, which is the card at the size
+    // it will have on the felt — hoisted from the first move, not only inside the reach.
     const feltPx = Math.hypot(view.a, view.b) * size.w;
-    const base = liftFeel ?? DEFAULT_TUNING.lift;
-    live.motions?.hoist(lead.id, entered > 0 ? courtLift(entered, base, feltPx > 0 ? hand.cardPx() / feltPx : base) : undefined);
+    const drawnAt = (piece ? fieldsOf<TransformableFields>(piece, "Transformable")?.scale : undefined) ?? 1;
+    const base = (liftFeel ?? DEFAULT_TUNING.lift) / (drawnAt > 0 ? drawnAt : 1);
+    live.motions?.hoist(lead.id, entered > 0 ? courtLift(entered, base, feltPx > 0 ? hand.cardPx() / feltPx : base) : drawnAt !== 1 ? base : undefined);
     if (entered > 0) {
       const chair = byId(live.host.root, chairId(seat));
       if (chair && untuck(chair)) deskWritten();
@@ -618,10 +622,13 @@ export function startTable(container: HTMLElement): Teardown {
     // read as the desk having dropped it.
     // ...and a RING is its owner's alone to move, which is not a grip: a grip cuts the subtree, so a
     // ring gripped to its owner would be a hand nobody could ever be dealt from (`mayTake`).
-    may: (n: Node) => (seat ? mayTake(n, seat) : true),
+    // ...AND THE CARDS AT A CHAIR ARE AN INDICATOR, not pieces to lift off the felt: a card in a
+    // hand is taken through its picture on the owner's glass (`via`) and never off the chair.
+    may: (n: Node, via?: Node) => (via === undefined && n.parent !== null && isHand(n.parent) ? false : seat ? mayTake(n, seat) : true),
     // A TAP ON ONE'S OWN RING TAKES THAT READER HOME. Anything else falls through to whatever this
     // desk already does with a tap.
-    taps: (piece: Node) => (seat ? avatars?.tapped(seat, piece) === true : false),
+    // ...AND A TAP ON A CARD AT A CHAIR TURNS NOTHING: the indicator is looked at, not played.
+    taps: (piece: Node) => (piece.parent !== null && isHand(piece.parent)) || (seat ? avatars?.tapped(seat, piece) === true : false),
     // THE BAR ABOVE ONE'S OWN HAND — shut, hide, turn over, pin — answered for the owner only; the
     // wiring tells the room the way it tells it a drop (`settle`).
     presses: (_meaning, control: Node) => {

@@ -1,26 +1,25 @@
 // WHAT A HAND HOLDS — the rule a dealing desk plays its heaps by, and the whole of what makes a
 // hand an ARRAY rather than a patch of felt.
 //
-// A hand is its owner's cards, and a page that mirrors it — a HUD beside the desk, another screen —
-// has to be able to say exactly which events change it. So the array is the hand's CHILDREN, and
-// exactly three things mutate it: a drop by the outline into the hand (`liveTable`'s `zones`, which
-// re-parents), a lift by the hand's own handle, and a card carried out of it. Nothing else does. A
-// card THROWN onto the hand lands where it lands — on the box, half over the outline, crooked —
-// and it is not in the hand: it is not a child, a HUD never shows it, and the felt's own rule about
-// touching never islands it with the cards inside the box (`joins`). Until:
+// A hand is its owner's cards, and a page that mirrors it — a HUD on the owner's glass, another
+// screen — has to be able to say exactly which events change it. So the array is the hand's
+// CHILDREN, and exactly two things mutate it: a drop by the outline into the hand (`liveTable`'s
+// `zones`, which re-parents — into one's own chair or a neighbour's), and a card carried out of it
+// through its picture on the owner's glass. Nothing else does. A card THROWN onto the hand lands
+// where it lands — on the box, half over the outline, crooked — and it is not in the hand: it is
+// not a child, a HUD never shows it, and the felt's own rule about touching never islands it with
+// the cards inside the box (`joins`). It is a felt heap of its own until somebody drops it in
+// properly, by the outline — the zone's own accept rule decides.
 //
-//   1. somebody drops it in properly, by the outline — the zone's own accept rule decides; or
-//   2. THE OWNER LIFTS THE HAND BY ITS HANDLE. The handle takes the hand's own cards and every card
-//      lying on the box (`held`), and up they come as one run and fall into line — the strays are
-//      merged into the hand by the lift, and when the run comes down in the hand they are children.
+// THE CARDS AT A CHAIR ARE AN INDICATOR. Small (`HAND_SCALE`), close in to the arch, laid in the
+// chair's pose — real nodes that travel with the chair and are seen by everybody — and NOT played
+// with on the felt: no handle lifts them, no finger takes one off the chair, no tap turns one. The
+// hand is played from on its owner's own glass, one picture at a time (`handHud`), and a card
+// taken there is the card in the chair, in the hand from the first frame. The size is the chair's:
+// put on by the lay (`layHand`), taken off by the settle that finds the card somewhere else.
 //
-// LOCKED, THE HAND TAKES NOTHING FROM ABOVE: neither a drop (`handAccept`) nor a lift — a shut hand
-// lifted by its handle is its own cards and not one more.
-//
-// The handle is the OWNER'S. `regrip` writes the place's owner on the tab, and the desk's own
-// permission (`mayTake`) refuses every other finger: a hand lifted whole by a neighbour is a hand
-// dealt away. Other players reach a hand one card at a time, through the box, and only while it
-// is open.
+// LOCKED, THE HAND TAKES NOTHING FROM ABOVE (`handAccept`). Other players reach a hand only by
+// putting a card into it, and only while it is open.
 
 import {
   compose,
@@ -29,15 +28,10 @@ import {
   GRIP_GAP,
   GRIP_RATIO,
   heapOf,
-  isDrawn,
   isPlaceGrip,
-  outlineOf,
-  overlapFraction,
-  placedOutline,
   stackSeats,
   TOUCHING,
   Transformable,
-  transformsOf,
   type BoundedFields,
   type HeapRule,
   type Node,
@@ -45,15 +39,7 @@ import {
   type TransformableFields,
 } from "game-kit";
 import { fitStep, type Spread } from "./felt.js";
-import { layHand, handLocked, isHand } from "./handZone.js";
-
-/**
- * HOW MUCH OF A LOOSE CARD MUST LIE OVER THE BOX for the handle to take it up with the hand.
- *
- * Small on purpose: a card dealt onto a hand by a throw lands crooked and half off the outline, and
- * that is exactly the card the lift is for. A card merely brushing the corner is on the felt.
- */
-export const HELD_SHARE = 0.15;
+import { layHand, isHand } from "./handZone.js";
 
 /** WHAT A HAND LOOKS LIKE IN THE AIR — the fan's spread, and the lean of its outermost card. */
 export const FAN_SPREAD: Spread = { gapMin: 0.05, gapMax: 0.5, wideMin: 0.16, wideMax: 0.62 };
@@ -85,39 +71,6 @@ export function gripOwner(tab: Node): string | undefined {
 /** Whether this piece lies in a hand — the one fact `joins` needs. */
 function inAHand(n: Node): boolean {
   return n.parent !== null && isHand(n.parent);
-}
-
-/**
- * THE HANDS' OWN HANDLES — one per hand holding anything, lifting what is written above.
- *
- * `under` is the hand itself, so the tab always hangs under the box (`heapBox` measures the box in
- * its own frame, so it hangs under the hand's OWN low edge, turned as the hand is); `pieces` is the
- * hand's children first — the order they lie in — and then whatever lies on the box, in the desk's
- * own order, while the hand is open.
- */
-function handHolds(share: number, kind: (n: Node) => string): NonNullable<HeapRule["held"]> {
-  return (root, aloft) => {
-    const poses = transformsOf(root);
-    const out: { under: Node; pieces: Node[] }[] = [];
-    for (const hand of handsOf(root)) {
-      const box = fieldsOf<BoundedFields>(hand, "Bounded")?.bounds;
-      const pose = poses.get(hand.id);
-      if (!box || !pose) continue;
-      const pieces = hand.children.filter((n) => !aloft(n.id) && !isDrawn(n));
-      if (!handLocked(hand)) {
-        const area = placedOutline(outlineOf(box), pose);
-        for (const loose of root.children) {
-          if (aloft(loose.id) || isDrawn(loose) || kind(loose) === "") continue;
-          const shape = fieldsOf<BoundedFields>(loose, "Bounded")?.bounds;
-          const at = poses.get(loose.id);
-          if (!shape || !at) continue;
-          if (overlapFraction(placedOutline(outlineOf(shape), at), area) >= share) pieces.push(loose);
-        }
-      }
-      out.push({ under: hand, pieces });
-    }
-    return out;
-  };
 }
 
 /**
@@ -159,8 +112,17 @@ function handSettles(): NonNullable<HeapRule["settled"]> {
     const grown = new Set<Node>();
     for (const id of ids) {
       const piece = findIn(root, id);
-      if (!piece || !piece.parent || !isHand(piece.parent)) continue;
+      if (!piece || !piece.parent) continue;
       const own = fieldsOf<TransformableFields>(piece, "Transformable");
+      if (!isHand(piece.parent)) {
+        // OUT OF A HAND, A CARD IS ITS OWN SIZE AGAIN: the size a chair drew it at (`HAND_SCALE`)
+        // is the chair's and comes off with the chair.
+        if (own?.scale !== undefined && own.scale !== 1) {
+          const { scale: _drawn, ...rest } = own;
+          compose(piece, Transformable(rest));
+        }
+        continue;
+      }
       compose(piece, Transformable({ ...(own ?? {}), angle: 0 }));
       grown.add(piece.parent);
     }
@@ -179,17 +141,19 @@ function findIn(root: Node, id: string): Node | undefined {
 
 /**
  * THE RULE A DEALING DESK PLAYS BY — the felt's own touching for loose cards, and the hand's own
- * three answers on top of it: what its handle lifts, how it is held, and how it lies.
+ * answers on top of it: how it is held, and how it lies.
+ *
+ * NO HANDLE UNDER A HAND. The cards at a chair are an indicator of the hand, not a heap to lift:
+ * nothing takes them off the felt — one card at a time through their pictures on the owner's glass
+ * is the whole of how a hand is played from. A card thrown onto the box is on the felt, in a heap
+ * of its own if it touches another, until somebody puts it in properly.
  */
-export function handRule(kind: (n: Node) => string = heapKindOf, share = HELD_SHARE): HeapRule {
+export function handRule(kind: (n: Node) => string = heapKindOf): HeapRule {
   const felt = TOUCHING(kind);
   return {
     ...felt,
-    // A CARD IN A HAND IS THE HAND'S: it heaps with nothing on the felt, and nothing on the felt
-    // heaps with it — however closely a thrown card lies over it.
     joins: (a, b) => !inAHand(a) && !inAHand(b) && felt.joins(a, b),
     seats: stackSeats,
-    held: handHolds(share, kind),
     fan: handFan(),
     settled: handSettles(),
   };
