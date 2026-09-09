@@ -5,7 +5,7 @@
 // A woven back IS the face: full strength, no crest. A tiled ground sits at half strength under
 // its crest — nothing on a real cloth back sits in the middle of the weave.
 
-import { doc, H, paperRect, px, R, W } from "./card.js";
+import { doc, H, keyline, paperRect, px, R, W } from "./card.js";
 import { fmt } from "./lettering.js";
 import { markAt, SUIT_MARKS, type Mark } from "./marks.js";
 import { PAPER } from "./style.js";
@@ -120,7 +120,7 @@ const SKINS: Readonly<Record<BackName, Skin>> = {
   },
 };
 
-/** A back, as a whole SVG document: keyline, cream ring, the art inset 4px under a rounded clip, the crest. */
+/** A back, as a whole SVG document: the keyline, a cream ring, the art inset 4px under a rounded clip, the crest. */
 export function backSvg(name: BackName): string {
   const skin = SKINS[name];
   const inset = px(4);
@@ -128,8 +128,7 @@ export function backSvg(name: BackName): string {
   const clip = `<clipPath id="artClip"><rect x="${inset}" y="${inset}" width="${W - 2 * inset}" height="${H - 2 * inset}" rx="${fmt(r)}" ry="${fmt(r)}"/></clipPath>`;
   return doc(
     `<defs>${clip}</defs>` +
-      paperRect(0, `fill="${PAPER.black}"`) +
-      paperRect(px(2), `fill="${PAPER.stock}"`) +
+      keyline(PAPER.stock) +
       paperRect(inset, `fill="${skin.bg}"`) +
       `<g clip-path="url(#artClip)">${skin.art(inset, inset, W - 2 * inset, H - 2 * inset)}</g>` +
       (skin.crest ? skin.crest(W / 2, H / 2, W * 0.3) : ""),

@@ -1,6 +1,6 @@
 // THE FACE OF A CARD, DRAWN FROM A STYLE — the deck design (`Колоды.dc.html`), number for number.
 //
-// CLASSIC: the paper with a black keyline and a faint inner rule, an index in the top-left corner
+// CLASSIC: the paper with a thin white keyline and a faint inner rule, an index in the top-left corner
 // (rank over a small pip) mirrored into the bottom-right so the card reads the same upside down,
 // and the standard pip grid at centre — or one big pip for the ace, or the engraved figure for a
 // court. The joker sets its word small in both corners and wears its hat at centre.
@@ -17,7 +17,7 @@
 
 import type { CardSpec } from "../crossade.js";
 import type { SuitName } from "../suits.js";
-import { doc, H, paperRect, px, R, W } from "./card.js";
+import { doc, H, keyline, paperRect, px, R, W } from "./card.js";
 import { inlineFigure } from "./figures.js";
 import { fmt, lettering, textWidth } from "./lettering.js";
 import { JOKER_HAT, markAt, markDef, markUse, SUIT_MARKS } from "./marks.js";
@@ -50,13 +50,12 @@ export function faceSvg(spec: CardSpec, style: DeckStyle, art: FaceArt = {}): st
 // ---------------------------------------------------------------- classic
 
 /**
- * The classic paper: `inset 0 0 0 2px black, 0 0 0 5px stock, 0 0 0 6px rgba(black,.2)` — a
- * keyline, a cream margin, and the grey rule that bounds the drawing without competing with it.
+ * The classic paper: the keyline (see `card.ts`), a cream margin, and at 6px the grey rule that
+ * bounds the drawing without competing with it — the design's `inset 0 0 0 6px rgba(black,.2)`.
  */
 function classicPaper(): string {
   return (
-    paperRect(0, `fill="${PAPER.black}"`) +
-    paperRect(px(2), `fill="${PAPER.stock}"`) +
+    keyline(PAPER.stock) +
     paperRect(px(5.5), `fill="none" stroke="${PAPER.black}" stroke-opacity="0.2" stroke-width="${px(1)}"`)
   );
 }
@@ -140,11 +139,10 @@ function classicJoker(ink: string, style: DeckStyle): string {
 
 // ---------------------------------------------------------------- minimal
 
-/** The kit's card: a keyline, a cream margin, a fainter rule closer in. */
+/** The kit's card: the keyline, a cream margin, a fainter rule closer in. */
 function minimalPaper(): string {
   return (
-    paperRect(0, `fill="${PAPER.black}"`) +
-    paperRect(px(2), `fill="${PAPER.stock}"`) +
+    keyline(PAPER.stock) +
     paperRect(px(4.5), `fill="none" stroke="${PAPER.black}" stroke-opacity="0.14" stroke-width="${px(1)}"`)
   );
 }

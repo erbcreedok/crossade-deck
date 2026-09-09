@@ -32,6 +32,18 @@ export function dataUri(svg: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+/**
+ * THE KEYLINE — the edge of every face and back. The design drew it 2px black; on the felt a
+ * stack of twenty cards turned that into a black staircase, one edge per card. So it is thin and
+ * WHITE: a single card still has a contour against the dark, and a stack's edges read as paper.
+ */
+export const KEYLINE = { paint: "#ffffff", width: 1 } as const;
+
+/** The paper's edge and its stock: the white keyline, the cream inside it. */
+export function keyline(stock: string): string {
+  return paperRect(0, `fill="${KEYLINE.paint}"`) + paperRect(px(KEYLINE.width), `fill="${stock}"`);
+}
+
 /** A rounded rect inset `inset` units from every edge of the paper, its corner shrunk to match. */
 export function paperRect(inset: number, attrs: string): string {
   const r = Math.max(0, R - inset);
