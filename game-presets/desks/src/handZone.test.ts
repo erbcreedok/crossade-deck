@@ -31,7 +31,7 @@ import {
   type Node,
   type TransformableFields,
 } from "game-kit";
-import { ARCH_R, flipHand, HAND_POSE_DEFAULT, HAND_POSES, handHidden, handLayoutOf, handLocked, handPose, handPoseName, handPoseOf, handTakes, isHand, layHand, setHandHidden, setHandPose, type HandPose } from "./handZone.js";
+import { ARCH_R, flipHand, HAND_POSE_DEFAULT, HAND_POSES, handHidden, handLayoutOf, handLocked, handPose, handPoseName, handPoseOf, handTakes, isHand, layHand, setHandHidden, setHandPose, toggledPose, type HandPose } from "./handZone.js";
 import { chairId, seatChair, setHandLock } from "./seatPlace.js";
 import { roundMap, seatPlaces as roundPlaces } from "./roundMap.js";
 import { SEATS } from "./liveMap.js";
@@ -50,61 +50,74 @@ const hand = (seat: string): Node => seatChair(seat, { at: { x: 0, y: 0 } }, { i
 const walk = (n: Node): Node[] => [n, ...n.children.flatMap(walk)];
 
 describe("the hand at the place", () => {
-  it("hand.a-hand-lies-in-a-pose-about-the-arch — six of them, and the chair is one size in every one", () => {
+  it("hand.a-hand-lies-in-a-pose-about-the-arch — three toggles, eight poses, and the chair is one size in every one", () => {
     // THE CHAIR DOES NOT GROW: dealt to, it is the same arch, and the cards lie ABOUT it in the pose
-    // named on it — beside it or in front of it, spread, squeezed or tucked. The numbers are the
-    // seat design's, measured off the arch (`ARCH_R`), so a change of pose is a change of name.
+    // named on it — three toggles, fan · shrink · tuck, each on or off by itself. Not fanned, the
+    // hand lies on the owner's right (a ladder, or shrunk, a stack); fanned, in front on the arc
+    // (open, or shrunk, closed to a sliver); tucked, under the chair with a tip past the rim. The
+    // numbers are the seat design's, measured off the arch (`ARCH_R`), so a change of pose is a
+    // change of name.
     const zone = hand("south");
     const before = size(zone);
     for (let i = 1; i <= 5; i += 1) add(zone, card(`card ${i}`));
     layHand(zone);
     expect(size(zone)).toEqual(before);
-    expect(handPose(zone), "a hand opens as a stack on its owner's right").toEqual(HAND_POSE_DEFAULT);
+    expect(handPose(zone), "a hand opens with nothing on").toEqual(HAND_POSE_DEFAULT);
     const at = (pose: HandPose) => {
       setHandPose(zone, pose);
       expect(fieldsOf<{ layout: string }>(zone, "Container")?.layout).toBe(handLayoutOf(pose));
       const rows = layoutRecord(handLayoutOf(pose))!.place(layoutChildren(zone), footprint(zone));
       return rows.map((p, i) => ({ x: p!.x, y: p!.y, angle: fieldsOf<TransformableFields>(zone.children[i]!, "Transformable")?.angle ?? 0 }));
     };
-    // A STACK ON THE RIGHT: every card past the arch's centre on +x, climbing a whisker per card,
-    // level — and the climb capped, so fifty-two of them are a deck and not a ladder.
-    const stacked = at({ side: "side", fold: "shrink" });
+    const off = HAND_POSE_DEFAULT;
+    // A LADDER ON THE RIGHT — nothing on: each card a step past the one before, every one showing.
+    const ladder = at(off);
+    for (const c of ladder) expect(c.x).toBeGreaterThan(ARCH_R);
+    for (let i = 1; i < ladder.length; i += 1) expect(ladder[i]!.x - ladder[i - 1]!.x).toBeGreaterThan(0.3);
+    expect(ladder.every((c) => c.angle === 0)).toBe(true);
+    // SHRUNK: a stack on the right, every card past the arch's centre on +x, climbing a whisker per
+    // card, level — and the climb capped, so fifty-two of them are a deck and not a ladder.
+    const stacked = at({ ...off, shrink: true });
     for (const c of stacked) expect(c.x).toBeGreaterThan(ARCH_R);
     expect(stacked.every((c) => c.angle === 0)).toBe(true);
     expect(stacked[4]!.x - stacked[0]!.x).toBeGreaterThan(0);
     expect(stacked[4]!.x - stacked[0]!.x).toBeLessThanOrEqual(0.18 + 1e-9);
-    // A LADDER ON THE RIGHT: each card a step past the one before, every one showing.
-    const ladder = at({ side: "side", fold: "fan" });
-    for (let i = 1; i < ladder.length; i += 1) expect(ladder[i]!.x - ladder[i - 1]!.x).toBeGreaterThan(0.3);
-    // TUCKED ON THE RIGHT: one spot, most of the card behind the arch, its tip past the rim.
-    const tucked = at({ side: "side", fold: "tuck" });
+    // TUCKED ON THE RIGHT: one spot, most of the card behind the arch, its tip past the rim — and
+    // shrunk as well, the same spot: there is no distance to close in one spot.
+    const tucked = at({ ...off, tuck: true });
     expect(new Set(tucked.map((c) => c.x)).size).toBe(1);
     expect(tucked[0]!.x).toBeLessThan(ARCH_R);
     expect(tucked[0]!.x + CARD.w / 2).toBeGreaterThan(ARCH_R);
+    expect(at({ ...off, tuck: true, shrink: true })).toEqual(tucked);
     // A FAN IN FRONT: above the arch (-y), symmetric, the ends leaning out either way, the middle
     // card level and its bottom edge inside the rim — held against the chair.
-    const fanned = at({ side: "front", fold: "fan" });
+    const fanned = at({ ...off, fan: true });
     expect(fanned[2]!.angle).toBeCloseTo(0);
     expect(fanned[0]!.angle).toBeCloseTo(-fanned[4]!.angle);
     expect(fanned[0]!.angle).toBeLessThan(0);
     expect(fanned[0]!.x).toBeCloseTo(-fanned[4]!.x);
     expect(fanned[2]!.y + CARD.h / 2).toBeLessThan(ARCH_R);
     expect(fanned[2]!.y).toBeLessThan(0);
-    // A SQUEEZED ROW IN FRONT: level, close up, most of every card behind the arch.
-    const row = at({ side: "front", fold: "shrink" });
-    expect(row.every((c) => c.angle === 0)).toBe(true);
-    for (let i = 1; i < row.length; i += 1) expect(row[i]!.x - row[i - 1]!.x).toBeLessThanOrEqual(0.25 + 1e-9);
-    expect(row[2]!.y - CARD.h / 2).toBeLessThan(-ARCH_R);
-    expect(row[2]!.y + CARD.h / 2).toBeGreaterThan(-ARCH_R);
-    // TUCKED IN FRONT: one spot, its tip past the round rim.
-    const front = at({ side: "front", fold: "tuck" });
+    // A FAN SHRUNK: the same arc closed — the same middle, a sliver of lean, the ends close in.
+    const closed = at({ ...off, fan: true, shrink: true });
+    expect(closed[2]!.y).toBeCloseTo(fanned[2]!.y);
+    expect(closed[0]!.angle).toBeLessThan(0);
+    expect(Math.abs(closed[0]!.angle)).toBeLessThan(Math.abs(fanned[0]!.angle) / 3);
+    expect(closed[4]!.x - closed[0]!.x).toBeLessThan((fanned[4]!.x - fanned[0]!.x) / 3);
+    // TUCKED IN FRONT — fanned and tucked: one spot, level, its tip past the round rim.
+    const front = at({ ...off, fan: true, tuck: true });
     expect(new Set(front.map((c) => c.y)).size).toBe(1);
+    expect(front.every((c) => c.angle === 0)).toBe(true);
     expect(front[0]!.y - CARD.h / 2).toBeLessThan(-ARCH_R);
-    // ...AND BACK TO A FAN, THE LEAN COMES BACK; back to a stack, it comes off.
-    at({ side: "front", fold: "fan" });
+    // ...AND BACK TO A FAN, THE LEAN COMES BACK; back to nothing on, it comes off.
+    at({ ...off, fan: true });
     expect(fieldsOf<TransformableFields>(zone.children[0]!, "Transformable")?.angle).toBeLessThan(0);
     at(HAND_POSE_DEFAULT);
     expect(fieldsOf<TransformableFields>(zone.children[0]!, "Transformable")?.angle).toBe(0);
+    // ONE PRESS FLIPS ONE TOGGLE and leaves the other two alone.
+    expect(toggledPose(off, "fan")).toEqual({ fan: true, shrink: false, tuck: false });
+    expect(toggledPose({ fan: true, shrink: true, tuck: false }, "fan")).toEqual({ fan: false, shrink: true, tuck: false });
+    expect(HAND_POSES.length, "every combination of the three").toBe(8);
     // EVERY POSE HAS A NAME AND EVERY NAME A POSE.
     for (const pose of HAND_POSES) expect(handPoseOf(handPoseName(pose))).toEqual(pose);
     expect(handPoseOf("upside-down")).toBeUndefined();

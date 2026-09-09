@@ -10,10 +10,10 @@
 // cards fastened to it would slide about under the hand every time they panned.
 //
 // THE CHAIR DOES NOT GROW. It is the arch of the seat design, one size, and the cards lie AROUND it
-// in a POSE — the seat design's six: on the owner's right as a stack, a ladder or one tucked card,
-// or in front of the arch as a fan, a squeezed row or one tucked card. A pose is a NAME on the
-// chair (`HAND_POSE`), and the arrangement it names is registered here (`handPoseLayout`); the
-// owner's HUD switches the FOLD (fan · shrink · tuck), the SIDE is the chair's own setting.
+// in a POSE — three toggles the owner's HUD flips one at a time (fan · shrink · tuck), and the eight
+// combinations they make: on the owner's right as a ladder, a stack or one tucked card, or in front
+// of the arch as a fan, open or closed, or one tucked card. A pose is a NAME on the chair
+// (`HAND_POSE`), and the arrangement it names is registered here (`handPoseLayout`).
 //
 // EVERYBODY SEES EVERY HAND, unless its owner HIDES it — and hiding is the kit's own second axis of
 // facing (`Poser.others`, read by the flip effect for the eyes a screen is drawn for): the owner
@@ -67,7 +67,7 @@ export const HAND_VALUE = "hand";
 /** The key HIDING is written under, on the zone's own `Valued`. `1` is hidden, `0` is shown. */
 export const HAND_HIDE = "hide";
 
-/** The key the POSE is written under — one of `HAND_POSES`, the seat design's six. */
+/** The key the POSE is written under — one of `HAND_POSES`, the eight the three toggles make. */
 export const HAND_POSE = "pose";
 
 /**
@@ -78,37 +78,32 @@ export const HAND_POSE = "pose";
 export const HAND = { cards: 8, pad: 0.16 };
 
 /**
- * THE SEAT DESIGN'S SIX POSES — where the cards lie (`side`: on the owner's right; `front`: past the
- * round rim, into the desk) and how (`fan`: spread out, every card counted; `shrink`: a stack or a
- * squeezed row, not to be counted; `tuck`: one card showing, the rest behind the arch).
+ * THE THREE TOGGLES OF A HAND — the owner's own model, each on or off by itself, and any of the
+ * eight combinations a pose: FAN turns the cards (off, they stand in a row to attention; on, they
+ * spread on an arc); SHRINK closes the distance (off, the ordinary step; on, pressed so hard the
+ * count is hard to read); TUCK drops them (off, where they lie; on, under the bar on the glass with
+ * a sliver showing, under the chair on the felt). One press flips one toggle and nothing else.
  */
-export type HandSide = "side" | "front";
 export type HandFold = "fan" | "shrink" | "tuck";
-export const HAND_SIDES: readonly HandSide[] = ["side", "front"];
 export const HAND_FOLDS: readonly HandFold[] = ["fan", "shrink", "tuck"];
-export interface HandPose {
-  readonly side: HandSide;
-  readonly fold: HandFold;
+export type HandPose = Readonly<Record<HandFold, boolean>>;
+/** The pose a chair opens in — nothing on: a row on the glass, a ladder on the owner's right. */
+export const HAND_POSE_DEFAULT: HandPose = { fan: false, shrink: false, tuck: false };
+/** The eight poses, every combination of the three, the plain one first. */
+export const HAND_POSES: readonly HandPose[] = [false, true].flatMap((tuck) =>
+  [false, true].flatMap((shrink) => [false, true].map((fan) => ({ fan, shrink, tuck }))),
+);
+/** The pose with one toggle flipped — what a press on the glass does to the hand. */
+export function toggledPose(pose: HandPose, fold: HandFold): HandPose {
+  return { ...pose, [fold]: !pose[fold] };
 }
-/**
- * WHAT A FOLD ON THE OWNER'S HUD MEANS ON THE CHAIR — the owner's own rule: a fan is a fan in
- * front of the chair; shut up, the cards go to the side as a stack; put away, they go under the
- * chair with a tip showing. One press, one pose, on the glass and on the felt alike.
- */
-export const FOLD_POSES: Readonly<Record<HandFold, HandPose>> = {
-  fan: { side: "front", fold: "fan" },
-  shrink: { side: "side", fold: "shrink" },
-  tuck: { side: "front", fold: "tuck" },
-};
-/** The pose a chair opens in — a stack on the owner's right, the design's own default. */
-export const HAND_POSE_DEFAULT: HandPose = FOLD_POSES.shrink;
-export const HAND_POSES: readonly HandPose[] = HAND_SIDES.flatMap((side) => HAND_FOLDS.map((fold) => ({ side, fold })));
 
-/** The name a pose is written and registered under. */
+/** The name a pose is written and registered under — the toggles that are on, or `plain`. */
 export function handPoseName(pose: HandPose): string {
-  return `${pose.side}-${pose.fold}`;
+  const on = HAND_FOLDS.filter((fold) => pose[fold]);
+  return on.length === 0 ? "plain" : on.join("+");
 }
-/** The pose a name means, or nothing for a name that is none of the six. */
+/** The pose a name means, or nothing for a name that is none of the eight. */
 export function handPoseOf(name: string): HandPose | undefined {
   return HAND_POSES.find((p) => handPoseName(p) === name);
 }
@@ -129,7 +124,7 @@ export const HAND_LAYOUT = handLayoutOf(HAND_POSE_DEFAULT);
 export const ARCH_R = 1.1;
 
 /**
- * THE SIX POSES, AS NUMBERS — in the chair's own frame, where +y is the owner's side (the flat
+ * THE POSES, AS NUMBERS — in the chair's own frame, where +y is the owner's side (the flat
  * back of the arch) and -y is the desk (the round front), +x the owner's right.
  *
  * Every position is an edge measured off the arch, as the design measures them: a stack whose
@@ -146,16 +141,14 @@ const POSE = {
   sideTuck: 0.34,
   /** How far a front fan's bottom edge sits INSIDE the rim. */
   fanIn: 0.24,
-  /** How far a squeezed front row's top edge shows past the rim. */
-  shrinkOut: 0.3,
   /** How much of a tucked front card shows past the rim — the tip that is pulled on. */
   tuckOut: 0.25,
   /** The fan's arc — the kit's own `fan()`, its width bounded by the spread alone. */
   fan: { spread: 60, radius: 2 },
+  /** The fan shrunk — the same arc closed to a sliver of lean per card, so the count is not read. */
+  fanShut: { spread: 14, radius: 2 },
   /** A side ladder's room, and the steps it may take in it. */
   ladder: { room: 2.2, look: { gapMin: 0.08, gapMax: 0.55, wideMin: 0, wideMax: 1 } as Spread },
-  /** A front row's room, and the steps it may take in it — squeezed, so the count is not read. */
-  row: { room: 1.4, look: { gapMin: 0.06, gapMax: 0.25, wideMin: 0, wideMax: 1 } as Spread },
 } as const;
 
 /** The widest and tallest of the children — a pose is measured off the cards it holds. */
@@ -175,29 +168,28 @@ function cardSize(children: readonly LayoutChild[]): { readonly w: number; reado
  * WHERE EVERY CARD OF A HAND IN THIS POSE LIES, and at what angle — the one arithmetic both the
  * arrangement (`place`) and the lean (`layHand`) read, so a fan's cards stand exactly where their
  * angles say they do.
+ *
+ * WHAT THE TOGGLES MEAN ON THE FELT, where a hand lies ABOUT the arch and not across a glass: a
+ * fanned hand is in FRONT of the chair, on the arc — shrunk, the arc closes to a sliver; a hand
+ * that is not fanned lies on the owner's RIGHT — a ladder, every card showing, or shrunk, a stack;
+ * tucked, it goes under the chair with a tip past the rim, in front if fanned and beside if not.
  */
 export function posePlan(pose: HandPose, children: readonly LayoutChild[]): readonly { readonly at: Point; readonly angle: number }[] {
   const n = children.length;
   const { w, h } = cardSize(children);
-  if (pose.side === "side") {
+  if (!pose.fan) {
     const y = POSE.sideDrop;
-    if (pose.fold === "fan") {
-      const step = fitStep(n, POSE.ladder.room, POSE.ladder.look);
-      return children.map((_c, i) => ({ at: { x: POSE.sideEdge + w / 2 + step * i, y }, angle: 0 }));
+    if (pose.tuck) return children.map(() => ({ at: { x: POSE.sideTuck + w / 2, y }, angle: 0 }));
+    if (pose.shrink) {
+      const piled = stack(n);
+      return piled.map((p) => ({ at: { x: POSE.sideEdge + w / 2 + p.at.x, y: y + p.at.y }, angle: 0 }));
     }
-    if (pose.fold === "tuck") return children.map(() => ({ at: { x: POSE.sideTuck + w / 2, y }, angle: 0 }));
-    const piled = stack(n);
-    return piled.map((p) => ({ at: { x: POSE.sideEdge + w / 2 + p.at.x, y: y + p.at.y }, angle: 0 }));
+    const step = fitStep(n, POSE.ladder.room, POSE.ladder.look);
+    return children.map((_c, i) => ({ at: { x: POSE.sideEdge + w / 2 + step * i, y }, angle: 0 }));
   }
-  if (pose.fold === "fan") {
-    const middle = -(ARCH_R - POSE.fanIn) - h / 2;
-    return fan(n, POSE.fan).map((p) => ({ at: { x: p.at.x, y: middle + p.at.y }, angle: p.angle }));
-  }
-  if (pose.fold === "tuck") return children.map(() => ({ at: { x: 0, y: -(ARCH_R + POSE.tuckOut) + h / 2 }, angle: 0 }));
-  const step = fitStep(n, POSE.row.room, POSE.row.look);
-  const from = -(step * (n - 1)) / 2;
-  const y = -(ARCH_R + POSE.shrinkOut) + h / 2;
-  return children.map((_c, i) => ({ at: { x: from + step * i, y }, angle: 0 }));
+  if (pose.tuck) return children.map(() => ({ at: { x: 0, y: -(ARCH_R + POSE.tuckOut) + h / 2 }, angle: 0 }));
+  const middle = -(ARCH_R - POSE.fanIn) - h / 2;
+  return fan(n, pose.shrink ? POSE.fanShut : POSE.fan).map((p) => ({ at: { x: p.at.x, y: middle + p.at.y }, angle: p.angle }));
 }
 
 /**
@@ -210,7 +202,7 @@ export function handPoseLayout(pose: HandPose): LayoutRecord {
 }
 
 let posesInstalled = false;
-/** Register the six arrangements by name. Idempotent — every desk that seats somebody calls it. */
+/** Register the eight arrangements by name. Idempotent — every desk that seats somebody calls it. */
 export function installHandPoses(): void {
   if (posesInstalled) return;
   posesInstalled = true;

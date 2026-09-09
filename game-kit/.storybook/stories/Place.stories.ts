@@ -352,26 +352,32 @@ export const Avatars: StoryObj = {
   parameters: { gkDocStory: "place.avatars" },
 };
 
-const FRONT_FAN: HandPose = { side: "front", fold: "fan" };
-const FRONT_SHRINK: HandPose = { side: "front", fold: "shrink" };
-const FRONT_TUCK: HandPose = { side: "front", fold: "tuck" };
-const SIDE_FAN: HandPose = { side: "side", fold: "fan" };
-const SIDE_TUCK: HandPose = { side: "side", fold: "tuck" };
+/** The eight poses, by which of the three toggles are on. */
+const posed = (on: Partial<HandPose>): HandPose => ({ ...HAND_POSE_DEFAULT, ...on });
+const FAN = posed({ fan: true });
+const SHRINK = posed({ shrink: true });
+const TUCK = posed({ tuck: true });
+const FAN_SHRINK = posed({ fan: true, shrink: true });
+const FAN_TUCK = posed({ fan: true, tuck: true });
+const SHRINK_TUCK = posed({ shrink: true, tuck: true });
+const ALL_THREE = posed({ fan: true, shrink: true, tuck: true });
 
 /** 2 · THE CHAIR ALONE — a place: its angle, its colour, its hand in every pose, its rights. Nobody in it. */
 export const Chairs: StoryObj = {
   ...gallery([
     { key: "chairs.empty", spot: { q: 0, facing: 0, empty: true } },
     { key: "chairs.held", spot: { q: 0.2, facing: 0, hand: 0 } },
-    { key: "chairs.frontFan", spot: { q: 0.5, facing: 0, hand: 5, pose: FRONT_FAN } },
-    { key: "chairs.frontShrink", spot: { q: 0.55, facing: 0, hand: 5, pose: FRONT_SHRINK } },
-    { key: "chairs.frontTuck", spot: { q: 0.65, facing: 0, hand: 5, pose: FRONT_TUCK } },
-    { key: "chairs.sideFan", spot: { q: 0.7, facing: 0, hand: 5, pose: SIDE_FAN } },
-    { key: "chairs.sideShrink", spot: { q: 0.78, facing: 0, hand: 5 } },
-    { key: "chairs.sideTuck", spot: { q: 0.88, facing: 0, hand: 5, pose: SIDE_TUCK } },
-    { key: "chairs.openFan", spot: { q: 0.42, facing: 0, hand: 5, pose: FRONT_FAN, open: "up" } },
+    { key: "chairs.plain", spot: { q: 0.5, facing: 0, hand: 5 } },
+    { key: "chairs.fan", spot: { q: 0.55, facing: 0, hand: 5, pose: FAN } },
+    { key: "chairs.shrink", spot: { q: 0.65, facing: 0, hand: 5, pose: SHRINK } },
+    { key: "chairs.tuck", spot: { q: 0.7, facing: 0, hand: 5, pose: TUCK } },
+    { key: "chairs.fanShrink", spot: { q: 0.78, facing: 0, hand: 5, pose: FAN_SHRINK } },
+    { key: "chairs.fanTuck", spot: { q: 0.88, facing: 0, hand: 5, pose: FAN_TUCK } },
+    { key: "chairs.shrinkTuck", spot: { q: 0.95, facing: 0, hand: 5, pose: SHRINK_TUCK } },
+    { key: "chairs.allOn", spot: { q: 0.35, facing: 0, hand: 5, pose: ALL_THREE } },
+    { key: "chairs.openFan", spot: { q: 0.42, facing: 0, hand: 5, pose: FAN, open: "up" } },
     { key: "chairs.openSide", spot: { q: 0.52, facing: 0, hand: 5, open: "up" } },
-    { key: "chairs.mixed", spot: { q: 0.62, facing: 0, hand: 6, pose: FRONT_FAN, open: "mix" } },
+    { key: "chairs.mixed", spot: { q: 0.62, facing: 0, hand: 6, pose: FAN, open: "mix" } },
     { key: "chairs.mine", spot: { q: 0, facing: 0, hand: 4, mine: true } },
     { key: "chairs.pin", spot: { q: 0.6, facing: 0, hand: 4, pin: true } },
     { key: "chairs.lock", spot: { q: 0.75, facing: 0, hand: 4, lock: true } },
@@ -385,15 +391,15 @@ export const Chairs: StoryObj = {
 /** 3 · TOGETHER — the avatar in the chair, beside it, or gone from it; the hand in the poses a table sees. */
 export const Together: StoryObj = {
   ...gallery([
-    { key: "together.sideShrink", spot: { q: 0.25, facing: 0, hand: 4, name: "kira", state: "seated" } },
-    { key: "together.frontFan", spot: { q: 0.35, facing: 0, hand: 5, pose: FRONT_FAN, name: "vlad", state: "seated" } },
+    { key: "together.sideShrink", spot: { q: 0.25, facing: 0, hand: 4, pose: SHRINK, name: "kira", state: "seated" } },
+    { key: "together.frontFan", spot: { q: 0.35, facing: 0, hand: 5, pose: FAN, name: "vlad", state: "seated" } },
     { key: "together.turned", spot: { q: 0.45, facing: 26, hand: 4, name: "rita", state: "seated" } },
     { key: "together.adrift", spot: { q: 0.7, facing: 0, hand: 4, name: "lyova", state: "adrift", gaze: 128 } },
     { key: "together.away", spot: { q: 0.9, facing: 0, hand: 4, name: "mark", state: "away" } },
     { key: "together.mineRights", spot: { q: 0, facing: 0, hand: 5, mine: true, pin: true, lock: true, name: "you", state: "seated" } },
-    { key: "together.fiftyTwoSide", spot: { q: 0.15, facing: 0, hand: 52, name: "kira", state: "seated" } },
-    { key: "together.fiftyTwoFan", spot: { q: 0.6, facing: 0, hand: 52, pose: FRONT_FAN, name: "dan", state: "seated" } },
-    { key: "together.fiftyTwoOpen", spot: { q: 0.5, facing: 0, hand: 52, pose: FRONT_FAN, open: "up", name: "rita", state: "seated" } },
+    { key: "together.fiftyTwoSide", spot: { q: 0.15, facing: 0, hand: 52, pose: SHRINK, name: "kira", state: "seated" } },
+    { key: "together.fiftyTwoFan", spot: { q: 0.6, facing: 0, hand: 52, pose: FAN, name: "dan", state: "seated" } },
+    { key: "together.fiftyTwoOpen", spot: { q: 0.5, facing: 0, hand: 52, pose: FAN, open: "up", name: "rita", state: "seated" } },
   ]),
   parameters: { gkDocStory: "place.together" },
 };

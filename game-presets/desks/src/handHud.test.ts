@@ -40,7 +40,7 @@ import {
 } from "game-kit";
 import { barPress, chairBarGroupId, chairBarId, chairButtonId } from "./handBar.js";
 import { handHud, HAND_HUD_BOX } from "./handHud.js";
-import { layHand, setHandPose } from "./handZone.js";
+import { HAND_POSES, handPoseName, layHand, setHandPose } from "./handZone.js";
 import { chairId, seatChair, setHandLock } from "./seatPlace.js";
 
 function bench() {
@@ -167,7 +167,7 @@ describe("the hand on the glass", () => {
     expect(byId(screen, chairBarId("south")), "and they go down with the hand").toBeUndefined();
   });
 
-  it("hud.the-cards-never-change-size — one size of the glass for any count and any fold; a fan is an arc", () => {
+  it("hud.the-cards-never-change-size — one size of the glass for any count and any pose; fan is the angle, shrink the distance, tuck the height", () => {
     // THE OWNER'S RULE: the card on the glass is one size — what six abreast get across it — for
     // one card, six or fifteen, fanned or shut. A fan is an ARC: the outer cards sit lower and lean
     // further out, and the whole of it stays inside the glass sideways.
@@ -187,7 +187,7 @@ describe("the hand on the glass", () => {
     }
     expect(scales[0]).toBeLessThan(1);
     for (const s of scales) expect(s).toBeCloseTo(scales[0]!, 6);
-    setHandPose(b.chair, { side: "front", fold: "fan" });
+    setHandPose(b.chair, { fan: true, shrink: false, tuck: false });
     hud.refresh();
     expect(hud.scale()).toBeCloseTo(scales[0]!, 6);
     // THE ARC: middle highest, ends lowest, the lean growing outwards, symmetric about the middle.
@@ -205,17 +205,37 @@ describe("the hand on the glass", () => {
     const u = b.host.unit();
     const v = b.host.viewport();
     expect((fan[14]!.x - fan[0]!.x + 1) * u * hud.scale()).toBeLessThanOrEqual(v.width + 1e-6);
-    // SHUT, THE CARDS PRESS INTO EACH OTHER — the more of them, the harder — at the same size.
-    setHandPose(b.chair, { side: "side", fold: "shrink" });
+    // NOT FANNED, A ROW TO ATTENTION — level, the same steps as the arc's, pinned to the same edges.
+    setHandPose(b.chair, { fan: false, shrink: false, tuck: false });
+    hud.refresh();
+    expect(hud.scale()).toBeCloseTo(scales[0]!, 6);
+    const row = laid();
+    expect(new Set(row.map((p) => p.y)).size, "level").toBe(1);
+    expect(byId(hud.root, HAND_HUD_BOX)!.children.every((c) => (fieldsOf<TransformableFields>(c, "Transformable")?.angle ?? 0) === 0)).toBe(true);
+    expect(row[0]!.x + row[14]!.x).toBeCloseTo(0, 6);
+    // SHRUNK, THE CARDS PRESS INTO EACH OTHER SO HARD THE COUNT IS HARD TO READ — at the same size,
+    // in a row and on the arc alike.
+    setHandPose(b.chair, { fan: false, shrink: true, tuck: false });
     hud.refresh();
     expect(hud.scale()).toBeCloseTo(scales[0]!, 6);
     const packed = laid();
-    expect(packed[1]!.x - packed[0]!.x).toBeLessThan(0.56);
-    for (const id of ["d0", "d1", "d2", "d3", "d4", "d5"]) add(b.chair, card(id));
-    layHand(b.chair);
+    expect(packed[1]!.x - packed[0]!.x).toBeLessThan(0.15);
+    setHandPose(b.chair, { fan: true, shrink: true, tuck: false });
     hud.refresh();
-    const packedMore = laid();
-    expect(packedMore[1]!.x - packedMore[0]!.x).toBeLessThan(packed[1]!.x - packed[0]!.x);
+    const packedArc = laid();
+    expect(packedArc[8]!.x - packedArc[7]!.x).toBeLessThan(0.15);
+    expect(lean(14)).toBeGreaterThan(0);
+    expect(lean(14)).toBeLessThan(8);
+    // TUCKED, THE STRIP IS LET DOWN UNDER THE BAR with a sliver showing — the height alone: the
+    // same row, the same steps, and less of the foot spoken for.
+    const rootAt = () => fieldsOf<TransformableFields>(hud.root, "Transformable")!.at!.y;
+    const up = rootAt();
+    const floorUp = hud.floor();
+    setHandPose(b.chair, { fan: true, shrink: true, tuck: true });
+    hud.refresh();
+    expect(laid()).toEqual(packedArc);
+    expect(rootAt()).toBeGreaterThan(up);
+    expect(hud.floor()).toBeLessThan(floorUp);
     hud.stop();
   });
 
@@ -226,7 +246,7 @@ describe("the hand on the glass", () => {
     // distance between neighbours has a ceiling, not only a floor.
     const b = bench();
     const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
-    setHandPose(b.chair, { side: "front", fold: "fan" });
+    setHandPose(b.chair, { fan: true, shrink: false, tuck: false });
     const laid = (): { x: number; y: number }[] => {
       const strip = byId(hud.root, HAND_HUD_BOX)!;
       const name = fieldsOf<{ layout: string }>(strip, "Container")!.layout;
@@ -310,13 +330,13 @@ describe("the hand on the glass", () => {
     expect(played.get("c0")).toBe(before.get("c0"));
     expect(played.get("c2")).toBe(after.get("c2"));
     expect(played.has("c1")).toBe(false);
-    // EVERY FOLD NAMES ITS ROAD — an eased one, not a snap.
-    for (const fold of ["fan", "shrink", "tuck"] as const) {
-      setHandPose(b.chair, { side: "front", fold });
+    // EVERY POSE NAMES ITS ROAD — an eased one, not a snap.
+    for (const pose of HAND_POSES) {
+      setHandPose(b.chair, pose);
       hud.refresh();
       const strip = byId(hud.root, HAND_HUD_BOX)!;
       const road = layoutRecord(fieldsOf<{ layout: string }>(strip, "Container")!.layout)!.settle;
-      expect(road, `the ${fold} fold eases`).toBeDefined();
+      expect(road, `the ${handPoseName(pose)} pose eases`).toBeDefined();
       expect(road!.ms).toBeGreaterThan(0);
     }
     stopListening();

@@ -24,7 +24,7 @@ import { type Vec } from "../core/transform.js";
 import { type CarryItem } from "./animator/index.js";
 import { type SeatPlace } from "./liveTable.js";
 import { isHome, placeAvatars, type Presence } from "./presence.js";
-import { barPress, chairId, chairPinned, dressChair, fitChair, flipHand, FOLD_POSES, handHidden, handLocked, layHand, setChairPin, setHandHidden, setHandPose, standChair } from "@game-presets/desks";
+import { barPress, chairId, chairPinned, dressChair, fitChair, flipHand, handHidden, handLocked, handPose, layHand, setChairPin, setHandHidden, setHandPose, standChair, toggledPose } from "@game-presets/desks";
 
 
 /** One place at a live desk: who sits there and in what colour they are drawn. */
@@ -333,15 +333,15 @@ export function withAvatars(o: AvatarsOptions): Avatars {
       if (!ring) return false;
       // EACH IS ONE WRITE ON THE CHAIR, and the chair is the truth on every screen: the lock and
       // the pin are numbers on it, hiding is its zone rule, a flip is the cards' own sides, a
-      // fold is the hand's pose. Then the place is re-dressed — which puts the marks beside the
+      // fold is one toggle of the hand's pose. Then the place is re-dressed — which puts the marks beside the
       // chair and lights the HUD's controls off those very numbers (`dressMarks`, `dressBar`).
       if (press.what === "lock") dressChair(ring, { shut: !handLocked(ring) });
       else if (press.what === "hide") setHandHidden(ring, !handHidden(ring));
       else if (press.what === "flip") flipHand(ring);
       else if (press.what === "pin") setChairPin(ring, !chairPinned(ring));
-      // A FOLD IS A WHOLE POSE, on the felt as on the glass: a fan in front, a stack at the side,
-      // put away under the chair (`FOLD_POSES`).
-      else setHandPose(ring, FOLD_POSES[press.what]);
+      // A FOLD IS ONE TOGGLE OF THE POSE — fan, shrink or tuck flipped and the other two left as
+      // they were — on the felt as on the glass (`toggledPose`).
+      else setHandPose(ring, toggledPose(handPose(ring), press.what));
       layHands();
       return true;
     },

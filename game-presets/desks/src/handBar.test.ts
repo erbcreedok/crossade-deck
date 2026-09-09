@@ -82,15 +82,15 @@ describe("the controls of a hand", () => {
     const plate = (what: BarWhat): string => fieldsOf<SurfacedFields>(byId(screen, chairButtonId(seat, what))!, "Surfaced")!.surface;
     const lit = (what: BarWhat): boolean => plate(what) !== plate("flip");
     dressBar(screen, seat, chair);
-    // THE FOLD THAT IS ON IS THE HAND'S OWN POSE — a stack on the right, to open with.
-    expect(handPose(chair).fold).toBe("shrink");
-    expect([lit("pin"), lit("lock"), lit("hide"), lit("flip"), lit("fan"), lit("shrink"), lit("tuck")]).toEqual([false, false, false, false, false, true, false]);
+    // EACH TOGGLE OF THE POSE LIGHTS ITS OWN CONTROL — nothing on, to open with.
+    expect(handPose(chair)).toEqual({ fan: false, shrink: false, tuck: false });
+    expect([lit("pin"), lit("lock"), lit("hide"), lit("flip"), lit("fan"), lit("shrink"), lit("tuck")]).toEqual([false, false, false, false, false, false, false]);
     setHandLock(chair, true);
     setHandHidden(chair, true);
     setChairPin(chair, true);
-    setHandPose(chair, { side: "front", fold: "fan" });
+    setHandPose(chair, { fan: true, shrink: true, tuck: false });
     dressBar(screen, seat, chair);
-    expect([lit("pin"), lit("lock"), lit("hide"), lit("flip"), lit("fan"), lit("shrink"), lit("tuck")]).toEqual([true, true, true, false, true, false, false]);
+    expect([lit("pin"), lit("lock"), lit("hide"), lit("flip"), lit("fan"), lit("shrink"), lit("tuck")]).toEqual([true, true, true, false, true, true, false]);
     // A LIT CONTROL IS THE SAME CONTROL: same id, same meaning, in the same place in its row.
     expect(barPress(byId(screen, chairButtonId(seat, "lock"))!)).toEqual({ seat, what: "lock" });
     expect(byId(screen, chairBarGroupId(seat, "rights"))!.children.map((c) => c.id)).toEqual(BAR_RIGHTS.map((what) => chairButtonId(seat, what)));

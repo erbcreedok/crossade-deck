@@ -4,7 +4,7 @@
     "",
     "## The chair is a PLACE",
     "",
-    "A container. It stands on the felt, turned to the desk, carries a hand and its rights. It exists by itself: a place may be held while its player is looking at the far end of the room. It is the design's ARCH — a half-round front into the desk, a flat back at the owner — in a black keyline with the place's own ink as the rim inside it. Parameters: position · angle · the place's colour (`spin`) · the hand and its pose · pin · lock · hide · mine or somebody's.",
+    "A container. It stands on the felt, turned to the desk, carries a hand and its rights. It exists by itself: a place may be held while its player is looking at the far end of the room. It is the design's ARCH — a half-round front into the desk, a flat back at the owner — in a black keyline with the place's own ink as the rim inside it. Parameters: position · angle · the place's colour (`spin`) · the hand and its pose (three toggles: fan · shrink · tuck) · pin · lock · hide · mine or somebody's.",
     "",
     "## The avatar is a CAMERA",
     "",
@@ -25,7 +25,7 @@
     "1 · THE AVATAR WITHOUT A CHAIR. A disc, a cone of the look, a name, a ring for a full hand. The avatar knows nothing about furniture and nothing about cards. Looking at the desk; looking aside (the direction is its own parameter, and the cone is part of the disc: its apex at the centre); a full hand (a ring round the disc, seen from across the table); not looking (no cone at all: the player's camera is not on this desk)."
   ],
   "docs.place.chairs": [
-    "2 · THE CHAIR WITHOUT AN AVATAR. A place: angle, the player's colour, the hand, the rights. The player may not be at the screen, and the place stays theirs. Empty — dashed and nobody's: one may sit down. Held — the rim in the player's ink, and a place is held without a card. Then the hand in every pose the design has, in front of the arch (fan · squeezed · tucked) and on the owner's right (ladder · stack · tucked); open — the cards face up, the player has shown the table their hand; part open — a flip of single cards. Mine: the same colour as everybody's, with the gold ring outside — \"this is me\". Pin, lock, hide, and all three at once: the marks stack in a column on the left. Turned: the chair and the hand inherit the angle."
+    "2 · THE CHAIR WITHOUT AN AVATAR. A place: angle, the player's colour, the hand, the rights. The player may not be at the screen, and the place stays theirs. Empty — dashed and nobody's: one may sit down. Held — the rim in the player's ink, and a place is held without a card. Then the hand in the eight poses three toggles make — fan (the angle: a ladder on the owner's right, or an arc in front of the arch), shrink (the distance: a stack beside, the arc closed to a sliver in front), tuck (the height: under the chair with a tip past the rim) — one at a time and combined; open — the cards face up, the player has shown the table their hand; part open — a flip of single cards. Mine: the same colour as everybody's, with the gold ring outside — \"this is me\". Pin, lock, hide, and all three at once: the marks stack in a column on the left. Turned: the chair and the hand inherit the angle."
   ],
   "docs.place.together": [
     "3 · TOGETHER. The avatar sits in the chair: the disc in the arch, the look along the place's angle, the hand at the rim. Gone — the place stays held, the avatar slides the way it is looking. Not looking here — the chair is held, the hand is in place, no cone. Mine with rights: the gold ring outside the keyline, the marks beside the arch. And fifty-two cards: a stack holds its thickness and does not grow into a ladder; a fan holds its arc and its width, the step closes up; open, the same arc face up."
@@ -47,12 +47,14 @@
   "docs.place.avatars.away": "not looking",
   "docs.place.chairs.empty": "place empty",
   "docs.place.chairs.held": "place held",
-  "docs.place.chairs.frontFan": "in front · fanned",
-  "docs.place.chairs.frontShrink": "in front · squeezed",
-  "docs.place.chairs.frontTuck": "in front · tucked",
-  "docs.place.chairs.sideFan": "beside · ladder",
-  "docs.place.chairs.sideShrink": "beside · stack",
-  "docs.place.chairs.sideTuck": "beside · tucked",
+  "docs.place.chairs.plain": "nothing on · ladder",
+  "docs.place.chairs.fan": "fan",
+  "docs.place.chairs.shrink": "shrink · stack",
+  "docs.place.chairs.tuck": "tuck",
+  "docs.place.chairs.fanShrink": "fan + shrink",
+  "docs.place.chairs.fanTuck": "fan + tuck",
+  "docs.place.chairs.shrinkTuck": "shrink + tuck",
+  "docs.place.chairs.allOn": "all three on",
   "docs.place.chairs.openFan": "open · fanned",
   "docs.place.chairs.openSide": "open · beside",
   "docs.place.chairs.mixed": "part open",

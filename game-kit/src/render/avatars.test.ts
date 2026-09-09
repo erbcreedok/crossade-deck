@@ -229,7 +229,7 @@ describe("the people at a live desk", () => {
     // THE CONTROLS ARE THE GLASS'S, built off the chair; on the felt there are none to press.
     expect(byId(desk, chairButtonId("south", "lock"))).toBeUndefined();
     const bar = seatBar("south", ring, "accent")[0]!;
-    const control = (what: "lock" | "hide" | "flip" | "pin" | "fan") => byId(bar, chairButtonId("south", what))!;
+    const control = (what: "lock" | "hide" | "flip" | "pin" | "fan" | "shrink") => byId(bar, chairButtonId("south", what))!;
     const marked = (what: "lock" | "hide" | "pin"): boolean => chairMarks(desk, "south").some((m) => m.id === chairMarkId("south", what));
 
     // NOBODY ELSE'S FINGER: north pressing south's bar is not this wiring's.
@@ -262,9 +262,14 @@ describe("the people at a live desk", () => {
     expect(mayTake(ring, "south"), "a pinned chair moves for nobody").toBe(false);
     expect(marked("pin")).toBe(true);
 
-    // A FOLD IS THE HAND'S POSE, written on the chair like the rest.
+    // A FOLD IS ONE TOGGLE OF THE HAND'S POSE, written on the chair like the rest — and the other
+    // two toggles are left as they were.
     expect(people.pressed("south", control("fan"))).toBe(true);
-    expect(handPose(ring), "a fan on the glass is a fan in front of the chair").toEqual({ side: "front", fold: "fan" });
+    expect(handPose(ring), "a fan on the glass is a fan in front of the chair").toEqual({ fan: true, shrink: false, tuck: false });
+    expect(people.pressed("south", control("shrink"))).toBe(true);
+    expect(handPose(ring), "shrunk as well, still fanned").toEqual({ fan: true, shrink: true, tuck: false });
+    expect(people.pressed("south", control("fan"))).toBe(true);
+    expect(handPose(ring), "the fan off again, the shrink kept").toEqual({ fan: false, shrink: true, tuck: false });
 
     // ...AND EACH PRESSED AGAIN IS THE STATE OFF AGAIN.
     people.pressed("south", control("lock"));

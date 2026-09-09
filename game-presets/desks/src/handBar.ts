@@ -4,14 +4,14 @@
 // A hand has three things its owner may say about it and one about the chair it is in: SHUT it
 // (nobody else reaches in — the lock), HIDE it (everybody else sees backs), TURN IT OVER (every
 // card in place, order untouched) and PIN the chair (nobody moves it, its owner included). And a
-// hand LIES somehow — fanned, squeezed or tucked (`handZone.ts`).
+// hand LIES somehow — three toggles, fan · shrink · tuck, each on or off by itself (`handZone.ts`).
 //
 // THE SEAT DESIGN SPLITS THEM IN TWO. On the FELT a place wears MARKS: a column of small badges on
 // the owner's left — a pin, a padlock, a struck eye — one for every state that is on and none for
 // one that is off, so the whole table reads WHY a card will not come out before anybody reaches for
 // it. Nobody presses a mark. The CONTROLS stand on the owner's own HUD, on ONE OPAQUE BAR across the
 // foot of the glass — the owner's stand for it (`design/hud`): the rights on the left, the flip and
-// the three folds on the right, one row. The cards of the hand stand above the bar and are drawn
+// the three toggles on the right, one row. The cards of the hand stand above the bar and are drawn
 // UNDER it, tucked under its edge like under a spine. Everybody sees the marks; only the owner has
 // the controls, because only the owner's screen carries them.
 //
@@ -47,11 +47,11 @@ import {
 import { chairId, chairPinned, isChair, SEAT_LOOK } from "./seatPlace.js";
 import { HAND_FOLDS, handHidden, handLocked, handPose, isHand, type HandFold } from "./handZone.js";
 
-/** What a control is for — the three rights, the flip, and the three folds. */
+/** What a control is for — the three rights, the flip, and the three toggles of the pose. */
 export type BarWhat = "pin" | "lock" | "hide" | "flip" | HandFold;
 /** The rights, in the order they stand — on the chair as marks and on the HUD as controls. */
 export const BAR_RIGHTS: readonly BarWhat[] = ["pin", "lock", "hide"];
-/** The flip and the folds, in the order they stand on the HUD — the stand's right group. */
+/** The flip and the toggles, in the order they stand on the HUD — the stand's right group. */
 export const BAR_POSES: readonly BarWhat[] = ["flip", ...HAND_FOLDS];
 export const BAR_WHATS: readonly BarWhat[] = [...BAR_RIGHTS, ...BAR_POSES];
 /** The two groups a bar is, and which controls stand in each. */
@@ -287,7 +287,7 @@ export function fitBar(where: Node, seat: string, glass: { readonly w: number; r
 /**
  * THE STATES, SHOWN ON THE CONTROLS — gold while on, the dark plate while off, read off the CHAIR
  * so every copy of the bar lights the same controls. A flip has nothing to read and is never lit;
- * the fold that is on is the hand's own pose.
+ * each toggle of the pose lights its own control, so a fanned and shrunk hand lights two.
  *
  * `where` is the tree the controls stand in and `chair` the one the states are read from, because
  * they are not always the same tree: the bar on the glass hangs on the screen root while the hand it
@@ -295,15 +295,13 @@ export function fitBar(where: Node, seat: string, glass: { readonly w: number; r
  */
 export function dressBar(where: Node, seat: string, chair: Node | undefined = byId(where, chairId(seat))): void {
   if (!chair) return;
-  const fold = handPose(chair).fold;
+  const pose = handPose(chair);
   const on: Record<BarWhat, boolean> = {
     pin: chairPinned(chair),
     lock: handLocked(chair),
     hide: handHidden(chair),
     flip: false,
-    fan: fold === "fan",
-    shrink: fold === "shrink",
-    tuck: fold === "tuck",
+    ...pose,
   };
   for (const group of ["rights", "poses"] as const) {
     const holder = byId(where, chairBarGroupId(seat, group));

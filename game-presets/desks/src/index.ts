@@ -40,7 +40,6 @@ export {
 } from "./nardyMap.js";
 export {
   ARCH_R,
-  FOLD_POSES,
   HAND,
   HAND_FOLDS,
   HAND_LAYOUT,
@@ -48,7 +47,6 @@ export {
   HAND_POSE,
   HAND_POSE_DEFAULT,
   HAND_POSES,
-  HAND_SIDES,
   HAND_VALUE,
   handAccept,
   handLayoutOf,
@@ -67,12 +65,12 @@ export {
   posePlan,
   setHandHidden,
   setHandPose,
+  toggledPose,
   flipHand,
   handTakes,
   isHand,
   type HandFold,
   type HandPose,
-  type HandSide,
 } from "./handZone.js";
 export {
   BAR,
