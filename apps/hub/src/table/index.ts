@@ -82,8 +82,8 @@ import { installTableLook } from "../look/surfaces.js";
 import { isTableGame, mapFor, syncSeatChairs, TABLE_SEATS, type SeatedPerson, type TableGame } from "./mapFor.js";
 import { curtain } from "./curtain.js";
 import { hubAvatarsTransport, hubSeats, inkOf, SEAT_INKS, type HubAvatarsTransport } from "./people.js";
-import { chairId, handHud, type HandHud } from "@game-presets/desks";
-import { apply, byId, type CameraHud } from "game-kit";
+import { chairId, courtLift, handHud, HUD_COURT, untuck, type HandHud } from "@game-presets/desks";
+import { apply, byId, composeTransforms, extentOf, footprint, type CameraHud } from "game-kit";
 
 /** A far hand's cursor, over the glass and never on the desk — the catalog's own `DOT` size. */
 const CURSOR_DOT = 18;
@@ -483,8 +483,54 @@ export function startTable(container: HTMLElement): Teardown {
       // ...AND WHAT IS IN THE AIR IS OUT OF THE PICTURE while it is: a card drawn under the finger
       // and still lying in the strip is one card shown twice.
       hand?.lifting(done ? [] : items.map((it) => it.id));
+      // ...AND A CARD CARRIED DOWN OVER THE HAND ON THE GLASS COURTS IT (`courtHand`).
+      courtHand(items, done, feel.lift);
       redraw();
     },
+  };
+
+  /**
+   * HOW MUCH OF THE CARRIED CARD IS INSIDE THE HUD'S REACH, remembered from the last move — the
+   * drop reads it: past `HUD_COURT`, a release is a release into the hand, wherever the finger is.
+   */
+  let entered = 0;
+  /**
+   * A CARRIED CARD COURTS THE HAND ON THE GLASS — the owner's rule (`handHud`): as the card comes
+   * down over the HUD's reach it is hoisted, rising and growing with how much of it is inside,
+   * until past `HUD_COURT` it is the hand's own card size; the hand shows the outline of the place
+   * it would take, and comes out from under the bar if it was tucked. Measured on the card AS DRAWN
+   * (the clock's own map, through the camera), because that is the card the eye is judging by.
+   */
+  const courtHand = (items: readonly { readonly id: string; readonly still?: boolean | undefined }[], done: boolean, liftFeel: number | undefined): void => {
+    const lead = items.find((it) => !it.still);
+    const camera = live.camera;
+    if (!hand || !seat || !camera || !lead || done) {
+      if (lead) live.motions?.hoist(lead.id);
+      hand?.court(false);
+      entered = 0;
+      return;
+    }
+    const piece = byId(live.host.root, lead.id);
+    const shape = piece ? footprint(piece) : undefined;
+    const drawn = live.motions?.reach().get(lead.id);
+    if (!shape || !drawn) return;
+    const view = camera.transform();
+    const onGlass = composeTransforms(view, drawn);
+    const size = extentOf(shape);
+    const px = Math.hypot(onGlass.a, onGlass.b);
+    const turn = Math.atan2(onGlass.b, onGlass.a);
+    const tall = (Math.abs(size.w * Math.sin(turn)) + Math.abs(size.h * Math.cos(turn))) * px;
+    const centre = apply(onGlass, { x: 0, y: 0 });
+    entered = hand.entering({ y: centre.y - tall / 2, h: tall });
+    // THE HAND'S CARD OVER THE FELT'S — the size the card grows to, as a lift over its resting size.
+    const feltPx = Math.hypot(view.a, view.b) * size.w;
+    const base = liftFeel ?? DEFAULT_TUNING.lift;
+    live.motions?.hoist(lead.id, entered > 0 ? courtLift(entered, base, feltPx > 0 ? hand.cardPx() / feltPx : base) : undefined);
+    if (entered > 0) {
+      const chair = byId(live.host.root, chairId(seat));
+      if (chair && untuck(chair)) deskWritten();
+    }
+    hand.court(entered > 0);
   };
 
   /** What is in the air is out of the picture on the glass for as long as it is (`handHud`). */
@@ -501,6 +547,23 @@ export function startTable(container: HTMLElement): Teardown {
   // the whole table would fall over on the way up — which is exactly how it fell over once.
   let hand: HandHud | undefined;
   let hud: CameraHud | undefined;
+  /**
+   * A HAND THAT CHANGED SIZE without anybody having moved: a card landing in one is a change to
+   * the furniture alone, and the ring has to be re-measured against what is now in it — AND THE
+   * PICTURE OF IT ON THE GLASS with it: the strip is the size of what is in the hand, and the
+   * camera's own controls stand clear of whatever that came to (`floor`).
+   */
+  const deskChanged = (): void => {
+    avatars?.settled();
+    hand?.refresh();
+    hud?.fit();
+    redraw();
+  };
+  /** MY OWN WRITE ON THE DESK outside a gesture — re-dressed here, and told to the room like a drop. */
+  const deskWritten = (): void => {
+    deskChanged();
+    mirror.changed();
+  };
   const live = liveTable<LiveStage>(container, initialRoot, {
     ...playFor(game, () => seat, (at) => handUnderFinger(at)),
     // A PICTURE OF A CARD ON THE GLASS IS A WAY OF REACHING THE CARD: a finger landing on the strip
@@ -543,16 +606,7 @@ export function startTable(container: HTMLElement): Teardown {
       avatars?.publish();
       redraw();
     },
-    // A HAND THAT CHANGED SIZE without anybody having moved: a card landing in one is a change to
-    // the furniture alone, and the ring has to be re-measured against what is now in it.
-    onDeskChanged: () => {
-      avatars?.settled();
-      // ...AND THE PICTURE OF IT ON THE GLASS with it: the strip is the size of what is in the hand,
-      // and the camera's own controls stand clear of whatever that came to (`floor`).
-      hand?.refresh();
-      hud?.fit();
-      redraw();
-    },
+    onDeskChanged: () => deskChanged(),
     // A SHUT HAND CANNOT BE REACHED INTO. Refused at the PICK and not at the drop, because what a
     // shut hand refuses is the gesture ever starting — a card that lifted out and flew back would
     // read as the desk having dropped it.
@@ -590,6 +644,8 @@ export function startTable(container: HTMLElement): Teardown {
     // NOT GATED ON THE HAND BEING PINNED YET: while the anchor is up the drop belongs here too, and
     // `overHand` is the one that knows which of the two is under the finger.
     if (!hand || !seat || !live.camera) return undefined;
+    // A CARD THAT IS MOSTLY IN THE HUD IS THE HAND'S, wherever the finger is (`courtHand`).
+    if (entered >= HUD_COURT) return byId(live.host.root, chairId(seat));
     return hand.overHand(apply(live.camera.transform(), at)) ? byId(live.host.root, chairId(seat)) : undefined;
   };
   const handOnGlass = (): void => {

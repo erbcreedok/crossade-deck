@@ -227,6 +227,18 @@ export function setHandPose(zone: Node, pose: HandPose): void {
 }
 
 /**
+ * A HAND COURTED BY A CARRIED CARD COMES OUT FROM UNDER THE BAR — the owner's rule: a card on its
+ * way into the hand must find the hand up, so the tuck toggle goes off (and stays off: it is the
+ * pose, written on the chair). Answers whether anything was written, so the caller can tell the room.
+ */
+export function untuck(zone: Node): boolean {
+  const pose = handPose(zone);
+  if (!pose.tuck) return false;
+  setHandPose(zone, { ...pose, tuck: false });
+  return true;
+}
+
+/**
  * THE HAND, LAID — every card's lean written off the pose's own plan; where each stands is the
  * arrangement's and is read by the plan. Called whenever the hand changed: a card in, a card out,
  * a pose switched. The chair itself does not change: it is the arch, one size.

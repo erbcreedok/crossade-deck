@@ -66,6 +66,7 @@ export {
   setHandHidden,
   setHandPose,
   toggledPose,
+  untuck,
   flipHand,
   handTakes,
   isHand,
@@ -153,4 +154,4 @@ export {
   ZONE_SPREAD,
   type Spread,
 } from "./felt.js";
-export { handHud, HAND_HUD, HAND_HUD_BOX, HAND_HUD_MARGIN, type HandHud, type HandHudOptions } from "./handHud.js";
+export { courtLift, handHud, HAND_HUD, HAND_HUD_BOX, HAND_HUD_MARGIN, HUD_COURT, type HandHud, type HandHudOptions } from "./handHud.js";

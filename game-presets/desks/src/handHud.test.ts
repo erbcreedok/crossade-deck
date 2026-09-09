@@ -39,8 +39,8 @@ import {
   type TransformableFields,
 } from "game-kit";
 import { barPress, chairBarGroupId, chairBarId, chairButtonId } from "./handBar.js";
-import { handHud, HAND_HUD_BOX } from "./handHud.js";
-import { HAND_POSES, handPoseName, layHand, setHandPose } from "./handZone.js";
+import { courtLift, handHud, HAND_HUD_BOX, HUD_COURT } from "./handHud.js";
+import { HAND_POSES, handPose, handPoseName, layHand, setHandPose, untuck } from "./handZone.js";
 import { chairId, seatChair, setHandLock } from "./seatPlace.js";
 
 function bench() {
@@ -340,6 +340,63 @@ describe("the hand on the glass", () => {
       expect(road!.ms).toBeGreaterThan(0);
     }
     stopListening();
+    hud.stop();
+  });
+
+  it("hud.a-carried-card-courts-the-hand — the reach is a band from the pink line down, the lift grows into the hand's card, the place is outlined, the tuck comes off", () => {
+    // THE OWNER'S RULE: a card carried down over the HUD goes INTO it — the more of it inside the
+    // reach, the higher and bigger; past `HUD_COURT` it is the hand's own card size and a drop is a
+    // drop into the hand; the hand shows the outline of the place it would take; and a hand put
+    // away under the bar comes out to meet it.
+    const b = bench();
+    const hud = handHud(b.host, { seat: "south", desk: () => b.desk, ink: "accent" });
+    add(b.chair, card("c0"));
+    add(b.chair, card("c1"));
+    layHand(b.chair);
+    hud.refresh();
+    const v = b.host.viewport();
+    const top = hud.reach();
+    expect(top).toBeGreaterThan(v.height / 2);
+    expect(top).toBeLessThan(v.height);
+    // THE REACH IS A BAND: a box clear above it is out, one straddling it is in by the part below
+    // the line, one wholly below is all in — the width never matters.
+    expect(hud.entering({ y: top - 200, h: 100 })).toBe(0);
+    expect(hud.entering({ y: top - 75, h: 100 })).toBeCloseTo(0.25, 6);
+    expect(hud.entering({ y: top - 40, h: 100 })).toBeCloseTo(0.6, 6);
+    expect(hud.entering({ y: top + 10, h: 100 })).toBe(1);
+    // THE LIFT ON THE WAY IN: the carry's own with nothing inside, the hand's card at the mark and
+    // past it, and between the two in between.
+    expect(courtLift(0, 1.06, 1.5)).toBeCloseTo(1.06);
+    expect(courtLift(HUD_COURT / 2, 1.06, 1.5)).toBeCloseTo(1.28);
+    expect(courtLift(HUD_COURT, 1.06, 1.5)).toBeCloseTo(1.5);
+    expect(courtLift(1, 1.06, 1.5)).toBeCloseTo(1.5);
+    expect(hud.cardPx(), "a card on the glass, in pixels").toBeCloseTo(b.host.unit() * hud.scale(), 6);
+    // THE OUTLINE OF ITS PLACE: one more child in the strip, laid at the END by the same arrangement,
+    // and gone when the courting stops.
+    const strip = byId(hud.root, HAND_HUD_BOX)!;
+    const before = strip.children.length;
+    const laid = (): { x: number }[] => layoutRecord(fieldsOf<{ layout: string }>(strip, "Container")!.layout)!.place(layoutChildren(strip), footprint(strip)).map((p) => ({ x: p!.x }));
+    hud.court(true);
+    expect(strip.children.length).toBe(before + 1);
+    const outline = strip.children[strip.children.length - 1]!;
+    expect(hud.cards(), "the outline is not a card").toEqual(["c0", "c1"]);
+    expect(hud.standFor(outline)).toBeUndefined();
+    const places = laid();
+    expect(places[2]!.x, "at the end of the hand").toBeGreaterThan(places[1]!.x);
+    expect(places[0]!.x + places[2]!.x, "…and the hand made room, still centred").toBeCloseTo(0, 6);
+    hud.court(false);
+    expect(strip.children.length).toBe(before);
+    // AN EMPTY HAND courted shows the outline alone, not the dashed place beside it.
+    for (const c of [...b.chair.children]) remove(b.chair, c);
+    layHand(b.chair);
+    hud.court(true);
+    expect(byId(hud.root, HAND_HUD_BOX)!.children.length).toBe(1);
+    hud.court(false);
+    // THE TUCK COMES OFF, and says so; a hand not tucked says nothing was written.
+    setHandPose(b.chair, { fan: false, shrink: false, tuck: true });
+    expect(untuck(b.chair)).toBe(true);
+    expect(handPose(b.chair).tuck).toBe(false);
+    expect(untuck(b.chair)).toBe(false);
     hud.stop();
   });
 

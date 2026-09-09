@@ -24,7 +24,8 @@ export interface Carry {
   /** The orient spring, chasing `targetOrient` — the run's base world angle. Degrees. */
   so: SpringState;
   targetOrient: number;
-  readonly liftTo: number;
+  /** The lift the spring chases — the tuning's, unless the run is HOISTED over something (`Motions.hoist`). */
+  liftTo: number;
   readonly follow: SpringConfig;
   readonly liftCfg: SpringConfig;
   readonly bankCfg: SpringConfig;

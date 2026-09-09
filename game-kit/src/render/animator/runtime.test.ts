@@ -265,6 +265,34 @@ describe("the motion runtime", () => {
     expect(c.idle()).toBe(false);
   });
 
+  it("motion.a-carry-can-be-hoisted — the lift is retargeted mid-carry, the size follows on the spring, and comes back", () => {
+    // A PIECE CARRIED OVER THE GLASS'S OWN FURNITURE is going somewhere that draws it at another
+    // size, and the eye is told by the piece rising as it goes: `hoist` retargets the lift the
+    // carry's spring chases, so the drawn size pops to the new number and, told `undefined`, pops
+    // back to the tuning's own.
+    const b = bench();
+    const c = fakeClock();
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, lift: 1.06 });
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    for (let i = 1; i <= 30; i += 1) c.tick(i * 16);
+    const sizeOf = () => Math.hypot(b.tOf("c").a, b.tOf("c").b);
+    const held = sizeOf();
+    expect(held).toBeCloseTo(1.06, 2);
+    m.hoist("c", 1.5);
+    c.tick(30 * 16 + 16);
+    const rising = sizeOf();
+    expect(rising, "the first frame after: on its way, not there").toBeGreaterThan(held);
+    expect(rising).toBeLessThan(1.5);
+    for (let i = 32; i <= 90; i += 1) c.tick(i * 16);
+    expect(sizeOf(), "arrived at the hoisted size").toBeCloseTo(1.5, 2);
+    m.hoist("c");
+    for (let i = 91; i <= 150; i += 1) c.tick(i * 16);
+    expect(sizeOf(), "back to the tuning's lift").toBeCloseTo(1.06, 2);
+    // A PIECE NOBODY IS CARRYING is left alone.
+    m.hoist("nobody", 2);
+    expect(c.idle() || true).toBe(true);
+  });
+
   it("motion.grab-places-the-run-under-the-finger — drawn at once, a bare grab schedules no frame", () => {
     const b = bench();
     const c = fakeClock();

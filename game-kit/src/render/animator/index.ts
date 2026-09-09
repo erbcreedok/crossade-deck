@@ -1026,6 +1026,16 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       // where things can be touched wants an answer, and "nothing is moving" is an empty map.
       return overrides(false) ?? new Map<NodeId, Transform>();
     },
+    hoist(id, lift) {
+      for (const cy of carries.values()) {
+        if (!cy.items.some((it) => it.id === id)) continue;
+        const to = lift ?? tuning.lift;
+        if (cy.liftTo === to) return;
+        cy.liftTo = to;
+        ensureLoop();
+        return;
+      }
+    },
     busy(id) {
       if (flights.has(id)) return true;
       for (const ch of choreos.values()) if (ch.ids.includes(id)) return true;

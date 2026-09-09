@@ -325,6 +325,14 @@ export interface Motions {
   grab(items: readonly CarryItem[], opts: CarryOptions): void;
   /** Move the finger of the given hand (default "local"): retarget the chase springs. The run trails to the new anchor and leans en route. */
   dragTo(anchor: Vec, hand?: string): void;
+  /**
+   * HOIST A CARRIED RUN — retarget its lift, the size it is drawn at, mid-carry. A piece carried
+   * over the glass's own furniture is on its way somewhere that draws it at ANOTHER size (a hand
+   * on the glass), and the eye is told so by the piece rising and growing as it goes: the lift
+   * spring chases the new number, so the change is a pop and not a jump. `undefined` puts the
+   * tuning's own lift back. A run nobody is carrying is left alone.
+   */
+  hoist(id: NodeId, lift?: number): void;
   /** The carry's speed right now for the given hand (default "local", root units/s) — what a throw on release inherits. `undefined` when nothing is carried by that hand. */
   velocity(hand?: string): Vec | undefined;
   /**

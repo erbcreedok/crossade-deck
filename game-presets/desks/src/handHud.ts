@@ -71,6 +71,26 @@ const HAND_HUD_EMPTY = "hud/hand/empty";
 const HAND_HUD_FREE = "hud/hand/free";
 /** DEBUG, TEMPORARY: a line along the top edge of what the HUD takes the finger on. */
 const HAND_HUD_DEBUG_EDGE = "hud/hand/debug-edge";
+/** The outline of the place a carried card would take in the hand — shown while one courts it. */
+const HAND_HUD_COURT = "hud/hand/court";
+
+/**
+ * A CARRIED CARD COURTS THE HAND ON THE GLASS — the owner's rule. As a held piece comes down over
+ * the HUD's reach (the band from `reach()` to the foot of the glass), it goes INTO the HUD: the more
+ * of it is inside, the higher it is held and the bigger it is drawn; past `HUD_COURT` of it inside
+ * it is drawn at the hand's own card size, a drop puts it in the hand, and the hand shows the
+ * outline of the place it would take (`court`). The size on the way is `courtLift`.
+ */
+export const HUD_COURT = 0.4;
+/**
+ * THE LIFT A CARRIED PIECE IS HELD AT while `entered` of it is inside the HUD's reach — from the
+ * carry's own lift (`base`) to the hand's card size relative to the felt's (`hudOverFelt`), reached
+ * at `HUD_COURT` and held there past it. Nothing inside, the carry's own.
+ */
+export function courtLift(entered: number, base: number, hudOverFelt: number): number {
+  const t = Math.max(0, Math.min(1, entered / HUD_COURT));
+  return base + (hudOverFelt - base) * t;
+}
 const HAND_HUD_SCREEN = "hud/hand/screen";
 
 /** The strip's own arrangements, one per pose — the same eight names the chair writes. */
@@ -213,6 +233,23 @@ export interface HandHud {
    * twice, and the reader cannot tell which of them they are holding.
    */
   lifting(ids: readonly string[]): void;
+  /**
+   * WHERE THE HUD'S REACH BEGINS, in glass pixels from the top — the top edge of the band the hand
+   * on the glass takes a carried card into: the shade's top or the strip's, whichever is higher.
+   */
+  reach(): number;
+  /**
+   * HOW MUCH OF THIS BOX IS INSIDE THE REACH, as a fraction of the box's height — the band runs the
+   * whole width of the glass, so only the height counts. `0` clear above it, `1` wholly inside.
+   */
+  entering(box: { readonly y: number; readonly h: number }): number;
+  /** How wide a card is drawn on the glass, in pixels — what a courting piece grows to. */
+  cardPx(): number;
+  /**
+   * SHOW (or take down) THE OUTLINE OF THE PLACE A CARRIED CARD WOULD TAKE — laid by the hand's own
+   * arrangement as one more card, at the end, so the cards make room for it exactly as they will.
+   */
+  court(on: boolean): void;
   stop(): void;
 }
 
@@ -343,6 +380,10 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
   /** WHICH FELT CARD EACH PICTURE IS OF, in the order they are drawn — the manifest, kept beside the
    * tree because an id is a name and nothing reads a fact out of one. */
   let manifest: string[] = [];
+  /** The top of the HUD's reach on the glass, in pixels from the top — written by `refresh`. */
+  let reachTop = 0;
+  /** Whether a carried card is courting the hand — the outline of its place is in the strip. */
+  let courting = false;
 
   const refresh = (): void => {
     makeBar();
@@ -359,7 +400,10 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     // EMPTY, A DASHED PLACE THE SIZE OF A CARD stands where the cards would — laid by the same
     // arrangement, tucked under the bar the same way — and nothing else: holding a card, the cards
     // are the place.
-    if (cards.length === 0) {
+    // ...OR THE PLACE A COURTING CARD WOULD TAKE, at the end of the hand, laid with the rest.
+    if (courting) {
+      add(strip, node(HAND_HUD_COURT, Bounded({ bounds: roundedRect(1, 1.4, 0.06) }), Surfaced({ surface: HAND_HUD_EMPTY }), Transformable({ at: { x: 0, y: 0 } })));
+    } else if (cards.length === 0) {
       add(strip, node(HAND_HUD_EMPTY, Bounded({ bounds: roundedRect(1, 1.4, 0.06) }), Surfaced({ surface: HAND_HUD_EMPTY }), Transformable({ at: { x: 0, y: 0 } })));
     }
     compose(strip, Container({ layout: poseLayout(pose) }));
@@ -415,6 +459,7 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     if (!edge.parent) add(screen, edge);
     compose(edge, Bounded({ bounds: rect(Math.max(1, glass.w), 0.03) }));
     compose(edge, Transformable({ at: { x: 0, y: Math.min(stripTop, shadeTop) } }));
+    reachTop = v.height / 2 + Math.min(stripTop, shadeTop) * u;
     // ...AND THE SCREEN IS TOLD IT CHANGED. The strip was re-laid in place, and whoever eases a
     // moved node to its new rest (the animator) reads rests when the host speaks — told now, the
     // cards glide from where they were; not told, the next reconcile finds them already there.
@@ -462,6 +507,25 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
       const at = fieldsOf<TransformableFields>(root, "Transformable")?.at ?? { x: 0, y: 0 };
       const mid = { x: v.width / 2 + at.x * u, y: v.height / 2 + at.y * u };
       return Math.abs(glass.x - mid.x) <= (size.w * u * scale) / 2 && Math.abs(glass.y - mid.y) <= (size.h * u * scale) / 2;
+    },
+    reach: () => reachTop,
+    entering: (box) => {
+      if (box.h <= 0) return 0;
+      const bottom = box.y + box.h;
+      return Math.max(0, Math.min(1, (bottom - reachTop) / box.h));
+    },
+    cardPx: () => {
+      const u = host.unit();
+      const widest = held().reduce((w, c) => {
+        const shape = footprint(c);
+        return Math.max(w, shape ? extentOf(shape).w : 1);
+      }, 1);
+      return widest * u * scale;
+    },
+    court: (on) => {
+      if (courting === on) return;
+      courting = on;
+      refresh();
     },
     lifting: (ids) => {
       const next = new Set(ids);
