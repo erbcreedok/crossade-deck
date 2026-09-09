@@ -1,0 +1,38 @@
+game-kit/.storybook/preview.ts
+  s_7ee13c6564ec9f::t_ba7d06b9d72fa0 159
+game-kit/.storybook/locales/chrome/en.json
+  s_7ee13c6564ec9f::t_ba7d06b9d72fa0 141-146
+game-kit/.storybook/locales/pages/decks/en.json
+  s_7ee13c6564ec9f::t_1d5271137d5810 1-30
+apps/klondike/src/solitaire/board.ts
+  s_7ee13c6564ec9f::t_ba7d06b9d72fa0 27,202-204,207
+game-kit/.storybook/locales/pages.ts
+  s_7ee13c6564ec9f::t_ba7d06b9d72fa0 26,187,257
+game-kit/.storybook/locales/chrome/ru.json
+  s_7ee13c6564ec9f::t_ba7d06b9d72fa0 141-146
+apps/hub/src/hub/grid.ts
+  s_7ee13c6564ec9f::t_ba7d06b9d72fa0 31,79-80,96-99,102,109-111
+game-kit/.storybook/locales/pages/decks/ru.json
+  s_7ee13c6564ec9f::t_6a651ff3f98d44 1-30
+game-kit/.storybook/stories/PresetsDecks.stories.ts
+  s_7ee13c6564ec9f::t_08541dc0d662de 76-84,154
+  s_7ee13c6564ec9f::t_ce16925aae04d7 1-75,85-108,110-128,141-152,155-187,190-194
+  s_7ee13c6564ec9f::t_86013af76c7c6c 188-189
+  s_7ee13c6564ec9f::t_d253b1fe6395e7 109,129-140,153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "4e4446fd766ddf83703a9b323326ac32f9dc657f",
+  "prompts": {},
+  "sessions": {
+    "s_7ee13c6564ec9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c8ffa5d-4a0f-42b0-bed5-0d8d8f2b30e0",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
