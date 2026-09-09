@@ -174,16 +174,20 @@
   document.getElementById("reset").onclick = () => { P = { ...DEFAULTS }; build(); apply(); };
 
   // ---- ЭКРАН ----
+  // ИКОНКИ — разметка внутри 24×24, обводкой в цвет кнопки. Права — пути дизайна; позы и флип
+  // нарисованы картами: веер — три карты из одной точки, сжать — карта и стрелки внутрь,
+  // убрать — карта уходит под полосу, флип — карта и две дуги вокруг неё.
+  const path = (d) => `<path d="${d}"/>`;
   const ICON = {
-    pin: TK.ICON.pin, lock: TK.ICON.lock, hide: TK.ICON.hide,
-    flip: "M8.5 5h7v14h-7z M5 9V6.5h2.5 M5 6.5l2.4 2.4 M19 15v2.5h-2.5 M19 17.5l-2.4-2.4",
-    fan: "M9 7h6v10H9z M4 9l5-1.6 M20 9l-5-1.6 M5.5 17.5l3.5-10 M18.5 17.5l-3.5-10",
-    shrink: "M5 6h6v12H5z M9 6h6v12H9z M13 6h6v12h-6z",
-    tuck: "M4 13h16 M9 13V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v7 M4 13v6h16v-6",
-    home: "M4 11l8-7 8 7v9H4z",
-    north: "M12 3l4 9-4-2-4 2z M12 12v9",
+    pin: path(TK.ICON.pin), lock: path(TK.ICON.lock), hide: path(TK.ICON.hide),
+    flip: '<rect x="7.5" y="4" width="9" height="16" rx="1.5"/><path d="M4 9.5A9 9 0 0 1 8.2 4.4"/><path d="M8.6 2.2 8.2 4.4l2.2.5"/><path d="M20 14.5A9 9 0 0 1 15.8 19.6"/><path d="M15.4 21.8l.4-2.2-2.2-.5"/>',
+    fan: '<rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(-28 12 20)"/><rect x="9" y="5" width="6" height="12" rx="1"/><rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(28 12 20)"/>',
+    shrink: '<rect x="8" y="5" width="8" height="14" rx="1"/><path d="M2 12h4"/><path d="M4 9.5 6.5 12 4 14.5"/><path d="M22 12h-4"/><path d="M20 9.5 17.5 12l2.5 2.5"/>',
+    tuck: '<path d="M12 2v6"/><path d="M9.5 5.5 12 8l2.5-2.5"/><rect x="8" y="9.5" width="8" height="8" rx="1"/><path d="M3 15h18v5H3z"/>',
+    home: path("M4 11l8-7 8 7v9H4z"),
+    north: path("M12 3l4 9-4-2-4 2z M12 12v9"),
   };
-  const svg = (d, size, color) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"></path></svg>`;
+  const svg = (body, size, color) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
 
   // ВНУТРИ АТРИБУТА style КАВЫЧКИ ЭКРАНИРУЮТСЯ: маски и рубашки — это url("…"), и без этого
   // атрибут обрывался на первой кавычке, а карты стояли пустыми.
@@ -295,7 +299,7 @@
       return `<div style="${u.unit.replace("position:relative;", `position:absolute;left:${o.x}px;top:${o.y}px;z-index:1;`)}">`
         + `<div style="${a(u.cone)}"></div><div style="${a(u.chair)}"></div><div style="${a(u.ring)}"><div style="${a(u.glyph)}">${o.letter}</div></div>`
         + `<div style="position:absolute;left:50%;top:${TK.HAND_TOP - pile.height}px;margin-left:${-Math.round(pile.width / 2)}px;width:${pile.width}px;height:${pile.height}px">${pileHtml(pile.cards, false)}</div>`
-        + marks.map((d, k) => `<div style="${a(markSt(k, marks.length))}">${svg(d, 13, T.gold)}</div>`).join("")
+        + marks.map((d, k) => `<div style="${a(markSt(k, marks.length))}">${svg(path(d), 13, T.gold)}</div>`).join("")
         + `</div>`;
     };
     // СТОЛ И МЕСТА — ДОЛИ ЭКРАНА, а не пиксели макета: на 390×844 это те же числа, что в дизайне.
