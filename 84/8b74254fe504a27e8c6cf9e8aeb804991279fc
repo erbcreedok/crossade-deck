@@ -1,0 +1,20 @@
+design/hud/index.html
+  s_2049b128b4ff77::t_20765b84b06b36 86-92,230,249,256,273,326,360-395,402
+  s_2049b128b4ff77::t_4234d6f55ac82e 72-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "848b74254fe504a27e8c6cf9e8aeb804991279fc",
+  "prompts": {},
+  "sessions": {
+    "s_2049b128b4ff77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f5ba828-d84d-455f-8f95-01ad6b176644",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
