@@ -1,0 +1,41 @@
+game-kit/.storybook/stories/gestureScene.ts
+  s_2049b128b4ff77::t_778e862d4a4641 116,295
+game-kit/src/render/liveTable.ts
+  s_2049b128b4ff77::t_778e862d4a4641 262-269,522-525,796,839-840,1072-1073,1136
+apps/hub/src/table/index.ts
+  s_2049b128b4ff77::t_778e862d4a4641 143-149,152-155,160
+game-kit/docs/test-plan/README.md
+  s_2049b128b4ff77::t_7c80d24ca49190 10,105
+game-kit/src/render/zoneNear.ts
+  s_2049b128b4ff77::t_778e862d4a4641 26-28,30,64-69
+game-kit/src/render/landing.ts
+  s_2049b128b4ff77::t_778e862d4a4641 195,197,210
+game-kit/docs/test-plan/78-live-table.md
+  s_2049b128b4ff77::t_7c80d24ca49190 3,17
+game-kit/src/render/liveTable.test.ts
+  s_2049b128b4ff77::t_239bc27db96c9e 1126-1128,1167-1168
+  s_2049b128b4ff77::t_c242c72578b2b2 1132
+  s_2049b128b4ff77::t_46944d148acdc2 12,32-34,1101-1113,1115-1119,1124-1125,1129-1131,1133,1135-1139,1147-1148,1150-1152,1154-1158,1166,1172
+  s_2049b128b4ff77::t_c00b95a152ad89 55,1140-1146,1149,1153,1160-1161,1165
+  s_2049b128b4ff77::t_fa8276d1cea976 1120-1122,1159,1162-1164
+  s_2049b128b4ff77::t_6e0584a167fd34 1114,1123,1134
+  s_2049b128b4ff77::t_0385286033272d 1169-1171
+  s_2049b128b4ff77::t_786ba77c0e5eb7 54
+  s_2049b128b4ff77::t_7c7d5809f77d24 1173-1175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "05ab71d5814058b405c37630c415617bafc55130",
+  "prompts": {},
+  "sessions": {
+    "s_2049b128b4ff77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f5ba828-d84d-455f-8f95-01ad6b176644",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
