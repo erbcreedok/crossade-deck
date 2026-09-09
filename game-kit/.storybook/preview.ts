@@ -21,6 +21,12 @@ if (typeof document !== "undefined") {
   const style = document.createElement("style");
   style.textContent = `html,body,#storybook-root{height:100%;margin:0;background:${t("stageBg")};color:${t("text")}}`;
   document.head.appendChild(style);
+  // THE PIXEL FACE THE SEAT DESIGN SETS ITS NAMES IN, fetched before a scene asks for it: a canvas
+  // draws no DOM text, so nothing else would ever trigger the download, and every name plate would
+  // stay in the fallback for good. Asked WITH Cyrillic, because a font service ships subsets by
+  // codepoint range and a bare request fetches Latin alone (the hub's own note, `fonts.ts`).
+  const cyrillic = Array.from({ length: 0x44f - 0x430 + 1 }, (_, i) => String.fromCharCode(0x430 + i)).join("");
+  void document.fonts?.load("16px 'Press Start 2P'", `AZaz09 ${cyrillic}`);
 }
 
 // The VIEWER plane is declared here and steered from the catalog settings above the story
@@ -177,7 +183,9 @@ const preview: Preview = {
           // that were there before anything was on them — and it is only worth reading once the
           // desk that has no places at all has been. Nardy last: a board whose places are PILES,
           // which is only worth reading once a board of single places has been.
-          ["Cards", "Chess", "Nardy", "Avatars", "Hands"],
+          // Place first: the furniture every desk below seats people in — the chair and the
+          // avatar in every state, still, before any of them is driven.
+          ["Place", "Cards", "Chess", "Nardy", "Avatars", "Hands"],
           "Canvas",
           ["Camera", "Seats"],
           "Elements",

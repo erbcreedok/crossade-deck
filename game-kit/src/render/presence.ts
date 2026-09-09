@@ -33,6 +33,7 @@ import { add, byId, fieldsOf, node, remove, type Node } from "../core/node.js";
 import { type Paint } from "../core/paint.js";
 import { registerAsset } from "./assets.js";
 import { registerSurface } from "./surfaces.js";
+import { registerTextStyle } from "./textStyles.js";
 
 /**
  * HOW A PERSON'S VIEW ARRIVES on somebody else's screen — the whole of what the far side needs to
@@ -378,8 +379,24 @@ export function initials(name: string): string {
     .join("");
 }
 
+/**
+ * THE FACES OF THE SEAT DESIGN — the pixel face for the name on its plate and for the initials in
+ * the disc. A ROLE each, registered with the disc that wears them so a page that draws a disc by
+ * hand draws it in the same face a live desk does; a consumer with faces of its own re-registers
+ * them under the same names after the first disc is made.
+ */
+const PIXEL_FACE = "'Press Start 2P', ui-monospace, monospace";
+const NAME_STYLE = { family: PIXEL_FACE, size: PLATE_EM, weight: 400, lineHeight: 1.6, fill: "text" };
+const GLYPH_STYLE = { family: PIXEL_FACE, size: GLYPH_EM, weight: 400, lineHeight: 1, fill: "text" };
+let facesInstalled = false;
+
 /** The pictures and paints this presence is drawn with — re-registered whenever the state moves. */
 function installLook(p: Presence): void {
+  if (!facesInstalled) {
+    facesInstalled = true;
+    registerTextStyle(PRESENCE_TEXT, NAME_STYLE);
+    registerTextStyle(PRESENCE_GLYPH, GLYPH_STYLE);
+  }
   registerSurface(KEYLINE_SURFACE, { layers: [{ paint: PAINTS.keyline }] });
   // THE DISC: the design's dark ground, top to bottom, with the seat's ink as the rim inside the
   // keyline — the same two lines the chair wears, so a disc in an arch reads as one thing.

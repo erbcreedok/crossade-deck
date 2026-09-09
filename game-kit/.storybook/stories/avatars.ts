@@ -152,6 +152,9 @@ export function withAvatars(o: AvatarsOptions): Avatars {
     ...(o.hands !== undefined ? { hands: o.hands } : {}),
     ...(o.locked ? { locked: o.locked } : {}),
     ...(o.goHome ? { goHome: o.goHome } : {}),
+    // WHOSE SCREEN THIS IS — the pane last touched, where one tree serves two panes: the gold ring
+    // that says "this is me" follows the finger, which is the honest stand-in a shared tree has.
+    me: () => mine,
     wall: o.wall,
   });
 

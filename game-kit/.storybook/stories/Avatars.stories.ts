@@ -1,28 +1,20 @@
 import type { Meta, StoryObj } from "@storybook/html";
 import {
-  avatarId,
   installStockCarries,
   installStockCoats,
   installStockMarkIcons,
   installStockMarks,
-  placeAvatars,
-  registerTextStyle,
-  t,
-  watchPresence,
-  PRESENCE_TEXT,
   presenceTransform,
-  type Presence,
-  type PresenceState,
+  t,
   type PresenceView,
   type Vec,
 } from "../../src/index.js";
 import { type Mirror, grabScene } from "./gestureScene.js";
 import { follow, type Screen } from "./liveScreens.js";
-import { liveMap, LIVE_UNIT, SEATS } from "@game-presets/desks";
+import { LIVE_UNIT, roundMap, roundPlaces, roundRoom, SEATS } from "@game-presets/desks";
 import { STACK_ARGS, STACK_KNOBS, type StackArgs } from "./gestureKnobs.js";
 import { documented } from "./surfaceControls.js";
-import { currentSettings, onSettingsChange } from "../devtools/catalogSettings.js";
-import { loadPage, type PageText } from "../locales/pages.js";
+import { withAvatars } from "./avatars.js";
 
 // LIVE / AVATARS — the people at the desk, drawn ON it.
 //
@@ -34,8 +26,13 @@ import { loadPage, type PageText } from "../locales/pages.js";
 // is something the game invented — so the avatar's place on the felt is read out of the view that
 // person is looking through, and the SAME arithmetic gives the same answer on every screen.
 //
-// The pictures are discs on purpose. What is coming is a walking crocodile and a knight, and both
-// of those are things standing on the felt; a badge painted over the glass could never become one.
+// THE FURNITURE IS THE SEAT DESIGN'S (`Live/Place`): a chair per place, and the disc in the arch
+// while its owner looks at it. This page has no hands — a chair is the place alone, which is every
+// board on the shelf — so what is left to watch is the one thing the page is about: the disc leaving
+// the arch as the view leaves the place, and coming back into it as the view comes home.
+//
+// The people are wired the ONE way every live page wires them (`avatars.ts`): nothing here is a
+// second answer to who sits where.
 
 installStockCarries();
 installStockCoats();
@@ -51,9 +48,6 @@ export default meta;
 /** How big another hand's cursor is drawn, in screen pixels. */
 const DOT = 18;
 
-/** The name under a disc: small, quiet and the desk's own face. */
-const NAME_STYLE = { family: "ui-sans-serif, system-ui, sans-serif", size: 0.14, weight: 600, lineHeight: 1.2, fill: "text" };
-
 interface AvatarArgs extends StackArgs {
   /** Draw the outline of the far player's view on this one. */
   showBounds: boolean;
@@ -64,56 +58,39 @@ const BOUNDS = documented("arg.avatarBounds", { control: { type: "boolean" } }, 
 /**
  * AVATARS — one desk, two people, and each of them visible to the other.
  *
- * Pan the top screen and its own disc travels the felt with it: the disc stands under the MIDDLE of
- * that reader's glass, so on the bottom screen it moves exactly as far as the view did — which is
- * exactly the message being sent, "I am looking over here now".
+ * Pan the top screen and its own disc leaves its chair and travels the felt with the view: the disc
+ * stands under the LOW MIDDLE of that reader's glass, so on the bottom screen it moves exactly as
+ * far as the view did — which is exactly the message being sent, "I am looking over here now". Tap
+ * your own chair and the view glides home; the disc sits back down in the arch.
  *
- * The state is on the disc. Switch to another tab and both discs go quiet with a muted mark — the
- * tab is the person, and a tab nobody is looking at is a person who is not looking. Pick anything
- * up and the holder's disc takes a ring, which is the one thing everybody else is waiting on.
+ * The state is on the disc. Switch to another tab and both discs lose their cone — the tab is the
+ * person, and a tab nobody is looking at is a person who is not looking. Pick anything up and the
+ * holder's disc takes a ring, which is the one thing everybody else is waiting on.
  *
  * NO SERVER. The two screens are two views of one tree, exactly as on the pages before this one, and
  * the presence travels the same seam a hand does.
  */
 export const Avatars: StoryObj<AvatarArgs> = {
   render: (a) => {
-    registerTextStyle(PRESENCE_TEXT, NAME_STYLE);
     const wall = document.createElement("div");
     wall.style.cssText = "display:grid;grid-template-rows:1fr 1fr;gap:8px;height:100%;min-height:640px";
     // ONE DESK. Not a copy each: the tree IS the desk, and two screens reading two trees would be
     // two desks that happened to agree at the start.
-    const desk = liveMap(0);
+    const desk = roundMap(SEATS);
     const screens: Screen[] = [];
     const held = a.lifted ? a.lift : 1;
     const frames = new Map<string, HTMLElement>();
-    const states = new Map<string, PresenceState>(SEATS.map(({ seat }) => [seat, "online"]));
-    const holding = new Set<string>();
-    /**
-     * WHOSE HAND IS ON THE GLASS. On a real desk each client has a tree of its own and "mine" is
-     * simply who is running it; here two screens share one tree, so the honest stand-in is the pane
-     * the finger last came down on — and the picture that may be dragged is that reader's own.
-     */
-    let mine: string = SEATS[0]!.seat;
-
-    /**
-     * THE PAGE'S OWN WORDS, FETCHED BY THE PAGE. The catalog hands a story the CHROME's bundle; a
-     * page's prose is loaded when somebody opens it, and two player names are that page's prose —
-     * put in the chrome they would be downloaded by every reader of every other page.
-     *
-     * Until they arrive the key itself stands in, which is what the catalog does everywhere else: a
-     * name a moment late is better than a disc that waits for a network round trip to exist.
-     */
-    let said: PageText | undefined;
-    const words = (key: string): string =>
-      said ? said.text(key as Parameters<PageText["text"]>[0]) : key;
-    const readNames = (): void => {
-      const locale = currentSettings().text.locale;
-      void loadPage("avatars", locale).then((text) => {
-        if (currentSettings().text.locale !== locale) return;
-        said = text;
-        publish();
-      });
-    };
+    const inks = Object.fromEntries(SEATS.map(({ seat, ink }) => [seat, ink]));
+    // THE PEOPLE, WIRED THE ONE WAY EVERY LIVE PAGE WIRES THEM (`avatars.ts`). No hands: a chair
+    // here is the place alone, and the disc in it — or off it — is the whole of the page.
+    const people = withAvatars({
+      desk,
+      seats: SEATS,
+      screens,
+      page: "avatars",
+      wall,
+      places: roundPlaces(SEATS.length),
+    });
 
     /** What a screen's camera is worth as a message — see `PresenceView` on why the scale is total. */
     const viewOf = (one: Screen): PresenceView | undefined => {
@@ -121,22 +98,6 @@ export const Avatars: StoryObj<AvatarArgs> = {
       if (!camera) return undefined;
       return { target: camera.target, zoom: camera.pixelsPerUnit, rotation: camera.rotation, glass: camera.glass };
     };
-
-    const presences = (): Presence[] =>
-      screens.flatMap((one) => {
-        const view = viewOf(one);
-        if (!view) return [];
-        return [
-          {
-            seat: one.seat,
-            name: words(`docs.avatars.name.${one.seat}`),
-            ink: one.ink,
-            state: states.get(one.seat)!,
-            holding: holding.has(one.seat),
-            view,
-          },
-        ];
-      });
 
     /**
      * THE FAR VIEW'S OWN RECTANGLE, drawn over this pane — four corners of their glass taken to the
@@ -160,11 +121,10 @@ export const Avatars: StoryObj<AvatarArgs> = {
         { x: view.glass.w, y: 0 },
         { x: view.glass.w, y: view.glass.h },
         { x: 0, y: view.glass.h },
-      ]
-        .map((g) => {
-          const d = deskOf(inv, g);
-          return { x: near.a * d.x + near.c * d.y + near.e, y: near.b * d.x + near.d * d.y + near.f };
-        });
+      ].map((g) => {
+        const d = deskOf(inv, g);
+        return { x: near.a * d.x + near.c * d.y + near.e, y: near.b * d.x + near.d * d.y + near.f };
+      });
       const xs = corners.map((p) => p.x);
       const ys = corners.map((p) => p.y);
       frame.style.display = "block";
@@ -174,70 +134,18 @@ export const Avatars: StoryObj<AvatarArgs> = {
       frame.style.height = `${Math.max(...ys) - Math.min(...ys)}px`;
       frame.style.borderColor = t(far!.ink as Parameters<typeof t>[0]);
     };
-
-    /**
-     * ONE PUBLICATION AT A TIME, and only when something is actually different.
-     *
-     * Placing the people writes the tree, writing the tree wakes every screen, and a woken screen
-     * reports that its view was touched — which is another publication. Without the latch that is
-     * a loop with no floor, and it hangs the page before the first frame; without the comparison it
-     * is a whole tree rebuilt per pointer event for a desk where nobody moved.
-     */
-    let placing = false;
-    let last = "";
-    const publish = (): void => {
-      if (placing) return;
-      const all = presences();
-      if (all.length === 0) return;
-      const now = JSON.stringify(all);
-      if (now === last) return;
-      last = now;
-      placing = true;
-      try {
-        place(all);
-      } finally {
-        placing = false;
-      }
+    const outlines = (): void => {
+      for (const one of screens) outline(one);
     };
-
-    /**
-     * EVERYBODY, PLACED — and then every screen told, because a host is only ever told by being told.
-     *
-     * Rebuilt rather than patched: a state repaints the disc and a view moves it, and both can
-     * happen between two frames.
-     */
-    const place = (all: readonly Presence[]): void => {
-      placeAvatars(desk, all);
-      for (const one of screens) {
-        one.scene?.setRoot(desk);
-        outline(one);
-      }
-    };
-
-    /** A hidden tab is nobody's screen, so everybody sitting in it goes quiet at once. */
-    const stopWatching = watchPresence(document, (state) => {
-      for (const { seat } of SEATS) states.set(seat, state);
-      publish();
-    });
-    const stopFollowing = onSettingsChange(() => readNames());
-    readNames();
 
     SEATS.forEach(({ seat, ink }, i) => {
       const pane = document.createElement("div");
       pane.style.cssText = "position:relative;min-height:300px;overflow:hidden";
-      pane.addEventListener(
-        "pointerdown",
-        () => {
-          if (mine === seat) return;
-          mine = seat;
-          publish();
-        },
-        true,
-      );
+      pane.addEventListener("pointerdown", () => people.claim(seat), true);
       const dot = document.createElement("div");
       dot.style.cssText =
         `position:absolute;z-index:4;width:${DOT}px;height:${DOT}px;border-radius:50%;pointer-events:none;` +
-        `display:none;transform:translate(-50%,-50%);background:${t(ink)};box-shadow:0 0 0 2px ${t("sunkBg")}`;
+        `display:none;transform:translate(-50%,-50%);box-shadow:0 0 0 2px ${t("sunkBg")}`;
       const frame = document.createElement("div");
       frame.style.cssText = "position:absolute;z-index:3;pointer-events:none;display:none;border:2px dashed";
       frames.set(seat, frame);
@@ -248,18 +156,20 @@ export const Avatars: StoryObj<AvatarArgs> = {
         ready: (s, grasp) => {
           mineScreen.scene = s;
           mineScreen.grasp = grasp;
-          publish();
+          people.publish();
+          outlines();
         },
         changed: () => {
+          people.settled();
           for (const one of others()) one.grasp?.();
         },
         hand: (items, at, done, feel) => {
-          for (const one of others()) follow(one, items, at, done, held, feel, mineScreen.seat);
-          // A HAND WITH SOMETHING IN IT IS A STATE, and one's own picture is not "something".
-          const carryingSelf = items.some((it) => it.id === avatarId(seat));
-          if (done) holding.delete(seat);
-          else if (!carryingSelf) holding.add(seat);
-          if (carryingSelf || done) publish();
+          // A CURSOR IS DRAWN IN THE INK OF WHOSE FINGER IT IS, and not of the pane it appears in.
+          for (const one of others()) {
+            one.dot.style.background = t(ink);
+            follow(one, items, at, done, held, feel, mineScreen.seat);
+          }
+          people.handed(seat, items, at, done);
         },
       };
       pane.appendChild(
@@ -279,33 +189,26 @@ export const Avatars: StoryObj<AvatarArgs> = {
           mirror,
           LIVE_UNIT,
           a.landing,
-          undefined,
+          roundRoom(),
           seat,
           i === 0
-            ? { marks: { inks: Object.fromEntries(SEATS.map((s) => [s.seat, s.ink])), showOwn: false, me: seat } }
-            : { marks: { inks: Object.fromEntries(SEATS.map((s) => [s.seat, s.ink])), ttlMs: 5000, showOwn: false, me: seat } },
+            ? { marks: { inks, showOwn: false, me: seat } }
+            : { marks: { inks, ttlMs: 5000, showOwn: false, me: seat } },
           undefined,
           // THE TWO SEATS LOOK AT THE DESK FROM OPPOSITE SIDES, which is what makes the avatars worth
           // drawing: the same lower-left corner of two turned views is two different places on the felt.
           seat === SEATS[1]!.seat ? 180 : undefined,
           // WHERE SOMEBODY IS LOOKING IS PART OF THIS DESK, so a view that moved is news.
-          () => publish(),
+          () => {
+            people.publish();
+            outlines();
+          },
         ),
       );
       pane.appendChild(frame);
       pane.appendChild(dot);
       wall.appendChild(pane);
     });
-
-    // The story's element is thrown away whole on a re-render; the two listeners above are not, and
-    // an unremoved one goes on placing avatars into a tree nobody is drawing.
-    const observer = new MutationObserver(() => {
-      if (wall.isConnected) return;
-      stopWatching();
-      stopFollowing();
-      observer.disconnect();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
     return wall;
   },
   args: { ...STACK_ARGS, lifted: true, dropping: true, throwing: false, stacking: false, landing: false, showBounds: false },

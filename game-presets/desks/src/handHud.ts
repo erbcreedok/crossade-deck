@@ -299,7 +299,10 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     return u > 0 ? v.width / u - 2 * HAND_HUD_MARGIN : 0;
   }
 
-  let floorPx = 0;
+  /** How tall the strip is right now, in HUD units — nothing while nothing is shown. */
+  let high = 0;
+  let shown = false;
+  let fold: HandFold = "shrink";
   let wide = 0;
   let pinned = false;
   /** The cards a hand is holding in the AIR — not drawn here for as long as they are (`lifting`). */
@@ -314,7 +317,7 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
   const refresh = (): void => {
     makeBar();
     const chair = chairOf();
-    const fold: HandFold = chair ? handPose(chair).fold : "shrink";
+    fold = chair ? handPose(chair).fold : "shrink";
     const cards = held();
     for (const old of [...strip.children]) remove(strip, old);
     // NOTHING HELD IS NOTHING DRAWN. An empty strip across the foot of a phone is glass spent on a
@@ -341,7 +344,8 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     wide = show ? Math.min(handWidth(cards.length, widest), Math.max(1, room())) : 0;
     // A FAN IS TALLER THAN ITS CARD — the ends swing down — and a shown hand's box holds the lot.
     const fanned = show && fold === "fan" ? (posePlan(FAN, strip.children.map((c) => ({ id: c.id, footprint: fieldsOf<BoundedFields>(c, "Bounded")?.bounds, at: undefined }))).reduce((m, p) => Math.max(m, Math.abs(p.at.y)), 0) * 2) : 0;
-    const high = show ? tallest + fanned + 2 * HAND.pad + handRoom() : 0;
+    high = show ? tallest + fanned + 2 * HAND.pad + handRoom() : 0;
+    shown = show;
     compose(strip, Bounded({ bounds: roundedRect(Math.max(wide, 1), Math.max(high, 1), HAND.pad) }));
 
     // THE CONTROLS AT THE FOOT OF THE GLASS, in the two corners, and the strip ABOVE the taller
@@ -350,14 +354,36 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     // so only its tip shows above the controls: the tip is what is pulled on to bring it back up.
     fitBar(screen, o.seat, glass, HAND_HUD_MARGIN);
     dressBar(screen, o.seat, chair);
-    const controls = barMade ? Math.max(barExtent("rights").h, barExtent("poses").h) + HAND_HUD_MARGIN : 0;
-    const rest = glass.h / 2 - HAND_HUD_MARGIN - controls;
+    const rest = glass.h / 2 - HAND_HUD_MARGIN - controlsHeight();
     const low = rest - high / 2 + (fold === "tuck" ? Math.max(0, high - TUCK_TIP) : 0);
     // Holding nothing, the strip is put OFF the glass rather than drawn empty: absence is the refusal.
     compose(root, Transformable({ at: { x: 0, y: show ? low : v.height } }));
-    floorPx = (controls + HAND_HUD_MARGIN + (show ? Math.min(high, TUCK_TIP + (fold === "tuck" ? 0 : high)) + HAND_HUD_MARGIN : 0)) * u;
+  };
+  /** The room the two groups take at the foot, in HUD units, and their margin — nothing until they are up. */
+  const controlsHeight = (): number => (barMade ? Math.max(barExtent("rights").h, barExtent("poses").h) + HAND_HUD_MARGIN : 0);
+  /**
+   * HOW MUCH OF THE FOOT IS SPOKEN FOR, in device pixels — read off the glass AS IT IS NOW and not
+   * off a number remembered at the last refresh: the camera's own pair asks this when the glass is
+   * measured, and it may ask before this strip has heard of the measurement.
+   */
+  const floorNow = (): number => {
+    const u = host.unit();
+    const strip = shown ? (fold === "tuck" ? Math.min(high, TUCK_TIP) : high) + HAND_HUD_MARGIN : 0;
+    return (controlsHeight() + HAND_HUD_MARGIN + strip) * u;
   };
   refresh();
+  // A GLASS THAT CHANGED SIZE IS A DIFFERENT FOOT. The host measures it and tells everyone; the
+  // controls stand at the foot of the glass whether or not a hand is drawn there, so they are put
+  // back the moment the glass is measured — the first measurement included, which arrives AFTER
+  // this hangs them (a screen is stood up before its element has a size), and a phone turned on
+  // its side after that. The camera's own pair listens the same way (`cameraHud`).
+  let measured = { w: host.viewport().width, h: host.viewport().height, u: host.unit() };
+  const stopFitting = host.onChange(() => {
+    const now = { w: host.viewport().width, h: host.viewport().height, u: host.unit() };
+    if (now.w === measured.w && now.h === measured.h && now.u === measured.u) return;
+    measured = now;
+    refresh();
+  });
 
   /**
    * WHERE THE ANCHOR STANDS, in HUD units — over the middle of the strip, or of where it would be.
@@ -458,8 +484,9 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     cards: () => manifest,
     faces: () => strip.children.map((n) => facing(n)),
     width: () => wide,
-    floor: () => floorPx,
+    floor: floorNow,
     stop() {
+      stopFitting();
       showAnchor(false, false);
       remove(screen, root);
       const bar = byId(screen, chairBarId(o.seat));

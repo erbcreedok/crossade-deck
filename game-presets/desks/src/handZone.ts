@@ -143,7 +143,7 @@ const POSE = {
   /** The fan's arc — the kit's own `fan()`, its width bounded by the spread alone. */
   fan: { spread: 60, radius: 2 },
   /** A side ladder's room, and the steps it may take in it. */
-  ladder: { room: 3, look: { gapMin: 0.08, gapMax: 0.62, wideMin: 0, wideMax: 1 } as Spread },
+  ladder: { room: 2.2, look: { gapMin: 0.08, gapMax: 0.55, wideMin: 0, wideMax: 1 } as Spread },
   /** A front row's room, and the steps it may take in it — squeezed, so the count is not read. */
   row: { room: 1.4, look: { gapMin: 0.06, gapMax: 0.25, wideMin: 0, wideMax: 1 } as Spread },
 } as const;

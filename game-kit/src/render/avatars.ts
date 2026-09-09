@@ -23,17 +23,9 @@ import { type Paint } from "../core/paint.js";
 import { type Vec } from "../core/transform.js";
 import { type CarryItem } from "./animator/index.js";
 import { type SeatPlace } from "./liveTable.js";
-import { registerTextStyle } from "./textStyles.js";
-import { isHome, placeAvatars, PRESENCE_GLYPH, PRESENCE_TEXT, type Presence } from "./presence.js";
+import { isHome, placeAvatars, type Presence } from "./presence.js";
 import { barPress, chairId, chairPinned, dressChair, fitChair, flipHand, handHidden, handLocked, handPose, layHand, setChairPin, setHandHidden, setHandPose, standChair } from "@game-presets/desks";
 
-/**
- * THE FACES OF THE SEAT DESIGN — the pixel face for the name on its plate and for the initials in
- * the disc. A ROLE each, so a consumer with its own faces re-registers them under the same names.
- */
-const PIXEL_FACE = "'Press Start 2P', ui-monospace, monospace";
-const NAME_STYLE = { family: PIXEL_FACE, size: 0.24, weight: 400, lineHeight: 1.6, fill: "text" };
-const GLYPH_STYLE = { family: PIXEL_FACE, size: 0.5, weight: 400, lineHeight: 1, fill: "text" };
 
 /** One place at a live desk: who sits there and in what colour they are drawn. */
 export interface AvatarSeat {
@@ -155,8 +147,6 @@ export interface Avatars {
  * where do they stand, what does their hand look like, and who just touched the glass.
  */
 export function withAvatars(o: AvatarsOptions): Avatars {
-  registerTextStyle(PRESENCE_TEXT, NAME_STYLE);
-  registerTextStyle(PRESENCE_GLYPH, GLYPH_STYLE);
   const desk = (): Node => (typeof o.desk === "function" ? o.desk() : o.desk);
   /**
    * WHERE EACH SEAT'S PLACE STANDS RIGHT NOW — the opening one, until its owner drags their chair.
