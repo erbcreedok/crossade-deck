@@ -84,12 +84,14 @@ const HAND_HUD_COURT = "hud/hand/court";
 export const HUD_COURT = 0.4;
 /**
  * THE LIFT A CARRIED PIECE IS HELD AT while `entered` of it is inside the HUD's reach — from the
- * carry's own lift (`base`) to the hand's card size relative to the felt's (`hudOverFelt`), reached
- * at `HUD_COURT` and held there past it. Nothing inside, the carry's own.
+ * carry's own lift (`base`) to the hand's card size relative to the felt's (`hudOverFelt`) WITH
+ * that same lift on it, reached at `HUD_COURT` and held there past it: over the hand's cards it is
+ * the lifted one of them, a touch bigger, exactly as it was the lifted one over the felt. Nothing
+ * inside, the carry's own.
  */
 export function courtLift(entered: number, base: number, hudOverFelt: number): number {
   const t = Math.max(0, Math.min(1, entered / HUD_COURT));
-  return base + (hudOverFelt - base) * t;
+  return base * (1 + (hudOverFelt - 1) * t);
 }
 const HAND_HUD_SCREEN = "hud/hand/screen";
 

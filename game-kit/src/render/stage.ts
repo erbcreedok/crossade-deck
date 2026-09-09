@@ -134,7 +134,11 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
   const screen = host.hudRoot
     ? scenePlan({ ...input, root: host.hudRoot, view: undefined, pitch: undefined, rotation: undefined })
     : [];
-  const whole = screen.length === 0 ? desk : [...desk, ...screen];
+  // ...EXCEPT WHAT A FINGER HOLDS, which is over everything, the screen included: a card carried
+  // down over the hand on the glass is above the pictures of the cards already there, and above the
+  // bar they tuck under, not slipped in behind them. It is in the hand, and the hand is nearest the eye.
+  const inHand = screen.length === 0 ? [] : desk.filter((q) => q.held === true);
+  const whole = screen.length === 0 ? desk : [...desk.filter((q) => q.held !== true), ...screen, ...inHand];
   const retain = options.retain === true;
   const plan = retain ? whole.filter((q) => q.layer !== "shadow" && options.raised?.has(q.id)) : whole;
   const bake = options.bake ?? bakeable;

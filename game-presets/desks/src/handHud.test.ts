@@ -364,12 +364,12 @@ describe("the hand on the glass", () => {
     expect(hud.entering({ y: top - 75, h: 100 })).toBeCloseTo(0.25, 6);
     expect(hud.entering({ y: top - 40, h: 100 })).toBeCloseTo(0.6, 6);
     expect(hud.entering({ y: top + 10, h: 100 })).toBe(1);
-    // THE LIFT ON THE WAY IN: the carry's own with nothing inside, the hand's card at the mark and
-    // past it, and between the two in between.
+    // THE LIFT ON THE WAY IN: the carry's own with nothing inside, the hand's card LIFTED at the
+    // mark and past it (the lifted one of them, a touch bigger), and between the two in between.
     expect(courtLift(0, 1.06, 1.5)).toBeCloseTo(1.06);
-    expect(courtLift(HUD_COURT / 2, 1.06, 1.5)).toBeCloseTo(1.28);
-    expect(courtLift(HUD_COURT, 1.06, 1.5)).toBeCloseTo(1.5);
-    expect(courtLift(1, 1.06, 1.5)).toBeCloseTo(1.5);
+    expect(courtLift(HUD_COURT / 2, 1.06, 1.5)).toBeCloseTo(1.06 * 1.25);
+    expect(courtLift(HUD_COURT, 1.06, 1.5)).toBeCloseTo(1.06 * 1.5);
+    expect(courtLift(1, 1.06, 1.5)).toBeCloseTo(1.06 * 1.5);
     expect(hud.cardPx(), "a card on the glass, in pixels").toBeCloseTo(b.host.unit() * hud.scale(), 6);
     // THE OUTLINE OF ITS PLACE: one more child in the strip, laid at the END by the same arrangement,
     // and gone when the courting stops.

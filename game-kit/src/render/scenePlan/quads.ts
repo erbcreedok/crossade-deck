@@ -106,6 +106,14 @@ export interface Quad {
    * `mark`: action mark badges and movement lines.
    */
   readonly layer?: "shadow" | "mark" | undefined;
+  /**
+   * IN A FINGER'S HAND — this quad is of a piece a finger is carrying (`PlanInput.carried`), or of
+   * something riding it: its shadow, its mark, its face. What is in the hand is over EVERYTHING,
+   * the glass's own furniture included: a card carried down over the hand on the screen is above
+   * the pictures of the cards already there, not slipped in behind them. The frame reads this to
+   * paint these last of all (`renderFrame`); a painter needs nothing of it.
+   */
+  readonly held?: boolean | undefined;
   /** Centre, in pixels from the top-left of the view. */
   readonly x: number;
   readonly y: number;

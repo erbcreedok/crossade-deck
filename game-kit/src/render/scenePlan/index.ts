@@ -114,7 +114,7 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, rota
   // the plan only says where: a badge in the corner, a trail from where the piece came.
   const markCtx: MarkContext = { viewer, unit, toView, nodes, overrides, standUp, now };
 
-  const visit = (n: Node): void => {
+  const visit = (n: Node, inHand = false): void => {
     // NOT FOR THESE EYES. Privacy is a fact of the tree and lives in the projection (`project`),
     // and a screen that sits on a projection never meets a `Private` node it may not see. A screen
     // that sits on the TRUTH — two hosts over one desk, as the catalog's live pages do — has no
@@ -135,6 +135,10 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, rota
     // the front's content does not bleed through the back. That is why this is a recursion over
     // what the effects answered, not a walk over the authored tree.
     const { node, coats } = applyEffects(n, ctx);
+    // WHAT THE FINGER HOLDS, AND WHAT RIDES IT: every quad this node puts down — its shadow, its
+    // paint, its marks — is marked held, and so is its subtree's (`Quad.held`).
+    const held = inHand || carried?.has(n.id) === true;
+    const from = out.length;
     if (castsShadow(n)) {
       const cast = shadowQuad(n, node, ctx, lamp);
       if (cast) {
@@ -150,7 +154,8 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, rota
       out.push(q);
       if (raised?.has(n.id)) airborne.add(q.id);
     }
-    for (const child of node.children) visit(child);
+    if (held) for (let i = from; i < out.length; i += 1) out[i] = { ...out[i]!, held: true };
+    for (const child of node.children) visit(child, held);
   };
 
   /**
