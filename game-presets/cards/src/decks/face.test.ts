@@ -105,9 +105,15 @@ describe("decks/face", () => {
     }
   });
 
-  it("face.the-brand-card-keeps-the-classic-texture — no art in the design, so the generated one stands", () => {
-    const svg = faceSvg(by("brand"), MINIMAL);
-    expect(svg).toContain("crossade");
+  it("face.the-brand-card-wears-the-deck's-paper — its two words in the pixel font, a red rule between, never Cyrillic", () => {
+    for (const style of DECK_STYLES) {
+      const svg = faceSvg(by("brand"), style);
+      expect(svg).toContain('data-text="CROSSADE"');
+      expect(svg).toContain('data-text="DECK"');
+      expect(svg).toContain(`fill="${PAPER.red}"`);
+      expect(uses(svg)).toBe(0);
+    }
+    expect(faceSvg(by("brand"), CLASSIC)).not.toBe(faceSvg(by("brand"), MINIMAL));
   });
 
   it("style.ids-round-trip — every preset has a speaking id and resolves back to itself", () => {

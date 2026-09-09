@@ -11,14 +11,15 @@
 // NO PIP IS DRAWN TWICE. A face defines its suit's path once and `<use>`s it for every pip and
 // both corner marks — the whole reason a number card is a few hundred bytes of text.
 //
-// The brand card has no art in the design; it keeps the generated texture of the classic skin.
+// THE BRAND CARD has no art in the design, so it wears the deck's own paper and letters: the two
+// words of its label set in the pixel font, a red rule between them — the same card in both
+// layouts, only the paper changing, and never in Cyrillic: a brand is a name.
 
 import type { CardSpec } from "../crossade.js";
 import type { SuitName } from "../suits.js";
-import { faceSvg as classicFaceSvg } from "../textures/cards.js";
 import { doc, H, paperRect, px, R, W } from "./card.js";
 import { inlineFigure } from "./figures.js";
-import { lettering, textWidth } from "./lettering.js";
+import { fmt, lettering, textWidth } from "./lettering.js";
 import { JOKER_HAT, markAt, markDef, markUse, SUIT_MARKS } from "./marks.js";
 import { ACCENT_PAINT, accentOf, inkOf, jokerWord, PAPER, rankLabel, type DeckStyle } from "./style.js";
 
@@ -33,7 +34,7 @@ const COURT_RANKS: ReadonlySet<string> = new Set(["J", "Q", "K"]);
 
 /** The face, as a whole SVG document. */
 export function faceSvg(spec: CardSpec, style: DeckStyle, art: FaceArt = {}): string {
-  if (spec.kind === "brand") return decodeURIComponent(classicFaceSvg(spec).slice("data:image/svg+xml,".length));
+  if (spec.kind === "brand") return doc((style.layout === "classic" ? classicPaper() : minimalPaper()) + brand(spec));
   if (spec.kind === "joker") {
     const ink = spec.values["colour"] === "red" ? PAPER.red : PAPER.black;
     return doc(style.layout === "classic" ? classicJoker(ink, style) : minimalJoker(ink, style));
@@ -176,6 +177,22 @@ function minimalJoker(ink: string, style: DeckStyle): string {
   const top = lettering(word, x, pad, size, ink);
   const bottom = `<g transform="rotate(180 ${W / 2} ${H / 2})">${top}</g>`;
   return minimalPaper() + top + markAt(JOKER_HAT, W / 2, H / 2, W * 0.5, W * 0.38, ink) + bottom;
+}
+
+/** The brand: its label's words, one above the other, a red rule between — centred on the paper. */
+function brand(spec: CardSpec): string {
+  const [first = "", second = ""] = spec.label.toUpperCase().split(" ");
+  const size = W * 0.09;
+  const gap = W * 0.12;
+  const rule = W * 0.02;
+  const top = H / 2 - size - gap / 2;
+  const line = (word: string, y: number): string => lettering(word, (W - textWidth(word, size)) / 2, y, size, PAPER.black);
+  const ruleWidth = textWidth(first, size);
+  return (
+    line(first, top) +
+    `<rect x="${fmt((W - ruleWidth) / 2)}" y="${fmt(H / 2 - rule / 2)}" width="${fmt(ruleWidth)}" height="${fmt(rule)}" fill="${PAPER.red}"/>` +
+    line(second, H / 2 + gap / 2)
+  );
 }
 
 /** Exposed for the tests and the skin: which ranks are courts under the classic layout. */

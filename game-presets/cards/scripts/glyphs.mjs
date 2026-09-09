@@ -12,8 +12,8 @@ import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
-/** Every character an index can show: Latin ranks and JOKER, the Cyrillic ranks and «Джокер». */
-const CHARS = [..."A2345678910JQK", ..."JOKER", ..."ТВДК", ..."Джокер"];
+/** Every character a face can show: Latin ranks, JOKER and the brand words, the Cyrillic ranks and «Джокер». */
+const CHARS = [..."A2345678910JQK", ..."JOKER", ..."CROSSADE DECK".replace(" ", ""), ..."ТВДК", ..."Джокер"];
 const CELL = 10;
 const OUT = fileURLToPath(new URL("../src/decks/glyphs.ts", import.meta.url));
 

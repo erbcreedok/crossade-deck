@@ -37,7 +37,7 @@ Laws of the add-on, each with the guard that enforces it (born fail-first). One 
 | `face.four-colours-is-one-ink-per-suit` | `fourColour` | faces | spades blue, diamonds orange, hearts red, clubs black |
 | `face.the-jokers-wear-their-own-ink` | either joker, either layout | face | red or black ink, the word twice, the hat, no pips |
 | `face.every-style-draws-every-card` | 8 styles × 55 cards | `faceSvg` | a document each, distinct within a style |
-| `face.the-brand-card-keeps-the-classic-texture` | the brand | any style | the generated classic texture (no art in the design) |
+| `face.the-brand-card-wears-the-deck's-paper` | the brand | every style | CROSSADE over DECK in the pixel font, a red rule between; the layout's paper; never Cyrillic |
 | `style.ids-round-trip` | every style | `deckStyleId` / `deckStyleOf` | speaking ids, resolving back; an unknown id is `undefined` |
 | `backs.six-and-their-own` | the six backs | `backSvg` | documents; woven backs carry no crest, tiled ones do |
 | `figures.twelve-courts-are-sourced` | `art/courts/` | files | J/Q/K × 4 suits, a viewBox each, `currentColor` accent, no c2pa |
