@@ -82,6 +82,12 @@
       ["camera", "пара камеры", "enum", "над позами", ["нет", "над позами", "справа сверху"]],
       ["global", "глобальный HUD", "bool", true],
     ]],
+    ["Граница HUD", [
+      ["edge", "разделитель", "enum", "градиент", ["нет", "градиент", "линия", "панель", "пунктир", "затемнение", "корешок", "градиент + линия"]],
+      ["edgePad", "запас над рукой, px", "int", 14, 0, 80],
+      ["edgeKeen", "карта наведена на HUD", "bool", false],
+      ["dragDemo", "карта в руке", "enum", "нет", ["нет", "над столом", "над HUD"]],
+    ]],
     ["Права", [
       ["pin", "пин", "bool", false],
       ["lock", "лок", "bool", true],
@@ -308,6 +314,44 @@
     const shown = K.face(46, "A", "d");
     const middle = `<div style="position:absolute;left:${Math.round(W / 2 - 52)}px;top:${Math.round(H * 0.41)}px;display:flex;gap:12px;align-items:flex-start;z-index:2">${cardHtml(deck)}${cardHtml(shown)}</div>`;
 
+    // ---- ГРАНИЦА HUD: где кончается стол и начинается рука ----
+    // Верх зоны — над самым высоким, что в ней стоит: рука в её позе, группы кнопок, пара камеры.
+    const handTop = P.handBottom - drop + cardH + (pose === "веер" ? P.fanLift + Math.round(cardH * 0.08) : 0);
+    const camH = P.camera === "над позами" ? 2 * 40 + gap + gap + 4 : 0;
+    const zoneH = Math.max(handTop, bottom + Math.max(rightsH, posesH + camH)) + P.edgePad;
+    const keen = !!P.edgeKeen || P.dragDemo === "над HUD";
+    const gold = keen ? "#f8d885" : "rgba(242,193,78,.55)";
+    const edgeBase = `position:absolute;left:0;right:0;bottom:0;height:calc(${zoneH}px + ${safeBottom});z-index:4;pointer-events:none;`;
+    const EDGES = {
+      "нет": "",
+      "градиент": `background:linear-gradient(to top,rgba(11,7,4,${keen ? .7 : .85}) 0%,rgba(11,7,4,${keen ? .45 : .55}) 55%,rgba(11,7,4,0) 100%);`,
+      "линия": `box-shadow:inset 0 3px 0 ${T.black},inset 0 5px 0 ${gold};`,
+      "панель": `background:rgba(11,7,4,${keen ? .3 : .45});box-shadow:inset 0 3px 0 ${T.black},inset 0 6px 0 ${keen ? "#f2c14e" : "#3a2a1d"};`,
+      "пунктир": `border-top:2px dashed ${gold};box-sizing:border-box;`,
+      "затемнение": `background:rgba(11,7,4,${keen ? .18 : .32});box-shadow:inset 0 14px 18px -10px rgba(0,0,0,.75);`,
+      "градиент + линия": `background:linear-gradient(to top,rgba(11,7,4,.8) 0%,rgba(11,7,4,.35) 70%,rgba(11,7,4,0) 100%);box-shadow:inset 0 2px 0 ${gold};`,
+    };
+    let edge = "";
+    if (P.edge === "корешок") {
+      // ЛИСТ ИЗ КОРЕШКА СТУЛА (набросок 1b): не полоса во весь экран, а поднос под рукой, чуть шире неё.
+      const trayW = Math.min(W - 2 * 8, Math.max(handW + 56, 220));
+      edge = `<div style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:${trayW}px;height:calc(${zoneH}px + ${safeBottom});z-index:4;pointer-events:none;`
+        + `border-radius:18px 18px 0 0;background:rgba(11,7,4,${keen ? .35 : .5});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${keen ? "#f2c14e" : "#3a2a1d"};"></div>`
+        + `<div style="position:absolute;left:50%;bottom:calc(${zoneH - 12}px + ${safeBottom});transform:translateX(-50%);width:44px;height:5px;border-radius:3px;background:${keen ? "#f8d885" : T.inkDim};opacity:.7;z-index:4"></div>`;
+    } else if (EDGES[P.edge]) {
+      edge = `<div style="${a(edgeBase + EDGES[P.edge])}"></div>`;
+    }
+    // ДЕМО-КАРТА В РУКЕ: над столом — ещё на сукне, над HUD — уже летит в руку (ужата и подсвечена).
+    let demo = "";
+    if (P.dragDemo !== "нет") {
+      const over = P.dragDemo === "над HUD";
+      const dw = over ? Math.round(cardW * 0.8) : Math.round(cardW * 0.7);
+      const f = K.face(dw, "J", "d", { tilt: 6, lift: 0, state: over ? "chosen" : "face" });
+      const y = over ? zoneH - Math.round(dw * K.ASPECT) * 0.55 : zoneH + 26;
+      demo = `<div style="position:absolute;left:${Math.round(W * 0.62)}px;bottom:calc(${Math.round(y)}px + ${safeBottom});z-index:12;filter:drop-shadow(10px 18px 0 rgba(0,0,0,.5))">${cardHtml(f)}</div>`
+        + `<div style="position:absolute;left:${Math.round(W * 0.62) + dw - 6}px;bottom:calc(${Math.round(y) + Math.round(dw * K.ASPECT) - 10}px + ${safeBottom});width:22px;height:22px;border-radius:999px;border:3px solid ${T.ink};box-shadow:0 0 0 2px rgba(11,7,4,.55);background:rgba(11,7,4,.3);z-index:13"></div>`;
+    }
+
     const warn = free < 0 ? `<div style="position:absolute;left:50%;bottom:calc(${bottom + Math.max(rightsH, posesH) + 6}px + ${safeBottom});transform:translateX(-50%);padding:3px 8px;background:${T.black};box-shadow:inset 0 0 0 2px #e0483f;font:400 8px 'Press Start 2P',monospace;color:#e0483f;white-space:nowrap;z-index:9">группы пересекаются на ${-free}px</div>` : "";
 
     // Овал стола — тоже доли: 1050×760 на 390×844 при центре в (195, 476).
@@ -315,18 +359,21 @@
     // Чёлка и индикатор дома — только у макета: у телефона они свои.
     const frame = real ? "" : `<div style="position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:132px;height:5px;border-radius:3px;background:#f5ead0;opacity:.5;z-index:7"></div>`
       + `<div style="position:absolute;left:50%;top:0;transform:translateX(-50%);width:120px;height:30px;background:#0b0704;border-radius:0 0 16px 16px;z-index:9"></div>`;
-    phone.innerHTML = felt + seats + middle + hand + rights + poses + camera + global + warn + frame;
+    phone.innerHTML = felt + seats + middle + edge + hand + rights + poses + camera + global + demo + warn + frame;
 
     document.getElementById("nums").innerHTML =
       `карта <b>${cardW}×${cardH}</b> · кнопка <b>${btn}</b> · зазор <b>${gap}</b> · поле <b>${margin}</b><br>`
       + `права <b>${rightsW}</b> px · позы <b>${posesW}</b> px · свободно посередине <b class="${free < 0 ? "bad" : ""}">${free}</b> px<br>`
-      + `рука: низ на <b>${P.handBottom}</b> px от края, размах <b>${handW}</b> px, высота карты <b>${cardH}</b> px`;
+      + `рука: низ на <b>${P.handBottom}</b> px от края, размах <b>${handW}</b> px, высота карты <b>${cardH}</b> px<br>`
+      + `граница HUD на <b>${zoneH}</b> px от низа экрана`;
   };
 
   build();
   apply();
   document.fonts?.ready.then(apply);
   addEventListener("resize", apply);
+  // Ссылка с другими ручками — те же ручки: адрес читается заново, панель перестраивается.
+  addEventListener("hashchange", () => { P = readHash(); build(); apply(); });
   // РУЧКИ НА ТЕЛЕФОНЕ — ЛИСТ СНИЗУ, по кнопке в углу; тап по экрану его убирает.
   const panel = document.getElementById("panel");
   document.getElementById("knob").onclick = () => panel.classList.toggle("open");
