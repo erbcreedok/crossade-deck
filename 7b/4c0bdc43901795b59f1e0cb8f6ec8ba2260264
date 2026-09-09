@@ -1,0 +1,23 @@
+game-presets/cards/src/decks/card.ts
+  s_7ee13c6564ec9f::t_838c0c5235cf3f 35-46
+game-presets/cards/src/decks/face.ts
+  s_7ee13c6564ec9f::t_838c0c5235cf3f 3,20,53-54,58,142,145
+game-presets/cards/src/decks/backs.ts
+  s_7ee13c6564ec9f::t_838c0c5235cf3f 8,123,131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "7b4c0bdc43901795b59f1e0cb8f6ec8ba2260264",
+  "prompts": {},
+  "sessions": {
+    "s_7ee13c6564ec9f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c8ffa5d-4a0f-42b0-bed5-0d8d8f2b30e0",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
