@@ -15,6 +15,7 @@ import {
   Flippable,
   freeLayout,
   gridLayout,
+  installStockFlips,
   node,
   rect,
   registerLayout,
@@ -38,6 +39,10 @@ import {
 } from "@game-presets/cards";
 import { scene } from "../devtools/scene.js";
 import { documented } from "./surfaceControls.js";
+
+// The turn is a stock recipe (`turnOver`): without it installed, a card asked to lie face down
+// keeps showing its face, and a tap turns nothing.
+installStockFlips();
 
 const meta: Meta = {
   title: "Add-ons/Decks",
