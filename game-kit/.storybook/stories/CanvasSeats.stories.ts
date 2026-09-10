@@ -418,7 +418,7 @@ export const Table: StoryObj<SeatsArgs> = {
         key: seat,
         animate: true,
         camera: {
-          limits: { minZoom: 0.4, maxZoom: 3, input: { pan: true, zoom: true, rotate: false } },
+          limits: { minZoom: 0.4, maxZoom: 3, input: { pan: true, zoom: true, rotate: false, tilt: false } },
           content: { x: -4.5, y: -3, w: 9, h: 6 },
           // A SMALL ETALON, because these panes are small. The host's own is sized for one scene
           // filling a page; four of them share that page here, and at the house etalon a nine-unit

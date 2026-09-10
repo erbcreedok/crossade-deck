@@ -22,6 +22,7 @@ import {
   FLING,
   FREE_INPUT,
   INERTIA,
+  MAX_PITCH,
   NO_FLING,
   TURN_FLING,
   ZOOM_FLING,
@@ -123,6 +124,7 @@ export class Camera {
   retune(patch: Partial<CameraLimits>): void {
     this.limits = { ...this.limits, ...patch };
     this.setZoom(this.zoom);
+    this.tiltTo(this.pitch);
   }
 
   /** What the hand may do right now. */
@@ -348,6 +350,21 @@ export class Camera {
    */
   turnTo(deg: number): void {
     this.rotation = deg;
+    this.clamp();
+  }
+
+  /** How far back this desk may be laid — its own ceiling, or the stock one. A READING. */
+  get maxPitch(): number {
+    return this.limits.maxPitch ?? MAX_PITCH;
+  }
+
+  /**
+   * LAY THE VIEW BACK, in degrees — held between straight down and the desk's own ceiling, and put
+   * through the clamp after, because a desk laid back is shorter on the glass and the view may now
+   * be showing felt that is no longer there.
+   */
+  tiltTo(deg: number): void {
+    this.pitch = clamp(deg, 0, this.maxPitch);
     this.clamp();
   }
 

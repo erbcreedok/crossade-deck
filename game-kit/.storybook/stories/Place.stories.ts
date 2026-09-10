@@ -77,7 +77,7 @@ function fitted(w: number, h: number) {
   return {
     // A LOW FLOOR: a gallery is a wall of cells, and a floor sized for one card holds it wider than
     // a phone. The fit itself is what the page opens on; the floor only says how far out it may go.
-    limits: { minZoom: 0.05, maxZoom: 6, input: { zoom: true, pan: true, rotate: false } },
+    limits: { minZoom: 0.05, maxZoom: 6, input: { zoom: true, pan: true, rotate: false, tilt: false } },
     content: { x: -w / 2, y: -h / 2, w, h },
     start: { zoom: "fit" as const },
   };

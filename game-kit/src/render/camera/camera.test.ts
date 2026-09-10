@@ -22,16 +22,18 @@ import { DEFAULT_VIEWER } from "../../core/viewer.js";
 import {
   Camera,
   FLING,
+  MAX_PITCH,
   NO_FLING,
   TURN_FLING,
   ZOOM_FLING,
   wheelGoesToCamera,
   wheelPixels,
   wheelZoomFactor,
+  type CameraLimits,
 } from "./index.js";
 
 /** A desk far bigger than the glass, so every axis has somewhere to go. */
-function bench(limits = { minZoom: 0.25, maxZoom: 4 }): Camera {
+function bench(limits: CameraLimits = { minZoom: 0.25, maxZoom: 4 }): Camera {
   const c = new Camera(limits);
   c.setScreen(400, 300);
   c.setContent({ x: 0, y: 0, w: 2000, h: 2000 }, 1); // 2000 × 2000 units at one pixel each
@@ -502,6 +504,24 @@ describe("the camera", () => {
     expect(c.squash).toBeGreaterThan(0);
     const there = c.toContent(200, 150);
     expect(Number.isFinite(there.x) && Number.isFinite(there.y)).toBe(true);
+  });
+
+  it("camera.a-tilt-is-held-between-flat-and-the-limit — straight down at the least, the desk's own ceiling at the most", () => {
+    // The tilt has a floor and a ceiling the way the zoom has: straight down is as flat as a view
+    // gets, and past the ceiling a desk drawn as a squash stops reading as a desk. The ceiling is
+    // the desk's to set (`maxPitch`), with the stock one where nobody set it.
+    const c = bench();
+    c.tiltTo(-10);
+    expect(c.pitch, "a tilt below flat is flat").toBe(0);
+    c.tiltTo(80);
+    expect(c.pitch, "a tilt past the stock ceiling stops at it").toBe(MAX_PITCH);
+    const low = bench({ minZoom: 0.25, maxZoom: 4, maxPitch: 30 });
+    low.tiltTo(80);
+    expect(low.pitch, "the desk's own ceiling is the ceiling").toBe(30);
+    // …and a ceiling lowered under a standing tilt brings the view back inside it, the way a new
+    // zoom range does — a view left outside its own limits waits for the next gesture to notice.
+    low.retune({ maxPitch: 20 });
+    expect(low.pitch).toBe(20);
   });
 
   it("camera.fit-measures-the-laid-back-desk — a squashed desk needs less height", () => {

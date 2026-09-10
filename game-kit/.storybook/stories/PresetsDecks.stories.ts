@@ -81,7 +81,7 @@ function install(a: DeckArgs): DeckStyle {
 /** A camera that opens fitted to a desk of `w`×`h` units centred on the origin, and lets the reader zoom. */
 function fitted(w: number, h: number) {
   return {
-    limits: { minZoom: 0.2, maxZoom: 6, input: { zoom: true, pan: true, rotate: false } },
+    limits: { minZoom: 0.2, maxZoom: 6, input: { zoom: true, pan: true, rotate: false, tilt: false } },
     content: { x: -w / 2, y: -h / 2, w, h },
     start: { zoom: "fit" as const },
   };

@@ -109,6 +109,30 @@ export interface CameraControl {
 export const TWIST = 12;
 
 /**
+ * HOW FAR TWO FINGERS MUST SLIDE TOGETHER before it counts as a tilt, in screen pixels.
+ *
+ * The map gesture: two fingers drawn up or down the glass with the span between them and the line
+ * they lie on both kept. It is decided ONCE for the gesture, the way the twist is, and against the
+ * same kind of noise — a pinch never spreads along a perfect line, and a slide never keeps a perfect
+ * span. So a hand that spread first (`TILT_SPREAD`) or twisted first (`TWIST`) is zooming or turning
+ * and never tilts, and a hand that slid first is tilting and never zooms. Without the decision every
+ * pinch would tilt a little and every tilt would zoom a little. Subtracted once crossed, as the
+ * twist is, so the desk lays back from where it stood.
+ */
+export const TILT_SLOP = 12;
+
+/** How much the span may change, as a fraction of itself, before a two-finger slide is a pinch. */
+export const TILT_SPREAD = 0.1;
+
+/**
+ * HOW FAST THE DESK LAYS BACK, in degrees per screen pixel the fingers slide — up the glass for a
+ * lower seat, down for straight over the desk. The stock ceiling (`MAX_PITCH`, 45°) is a little over
+ * two hundred pixels of slide: about the half of a phone's glass a thumb crosses in one motion.
+ * Held apart from the threshold because it is the number that gets tuned against a finger.
+ */
+export const TILT_PER_PX = 0.2;
+
+/**
  * `given` is the arbitration made visible: a finger that landed on an element belongs to the
  * element until it is lifted, and the camera does not take it back halfway through.
  */
@@ -139,7 +163,23 @@ export function wireCamera(w: CameraGestures): CameraControl {
    * against, and whether the twist threshold has been crossed yet.
    */
   let pinch:
-    | { anchor: Point; dist: number; zoom: number; angle: number; rotation: number; turning: boolean; mid: Point }
+    | {
+        anchor: Point;
+        dist: number;
+        zoom: number;
+        angle: number;
+        rotation: number;
+        turning: boolean;
+        mid: Point;
+        /** Where the two fingers began, and the pitch they began at — what a tilt is measured against. */
+        from: Point;
+        pitch: number;
+        /**
+         * WHAT THE TWO FINGERS TURNED OUT TO BE DOING — undecided until either the span or the line
+         * moved past its threshold (a pinch) or the pair slid together past `TILT_SLOP` (a tilt).
+         */
+        doing: "pinch" | "tilt" | undefined;
+      }
     | undefined;
 
   const moved = (): void => w.onView?.();
@@ -176,6 +216,9 @@ export function wireCamera(w: CameraGestures): CameraControl {
       rotation: w.camera.rotation,
       turning: false,
       mid: s.mid,
+      from: s.mid,
+      pitch: w.camera.pitch,
+      doing: undefined,
     };
     gesture = "pinch";
     w.camera.grab();
@@ -243,6 +286,27 @@ export function wireCamera(w: CameraGestures): CameraControl {
       sync();
       const s = spanOf();
       const may = w.camera.input;
+      // THE DECISION, made once: a span or a line that moved past its threshold is a pinch, and a
+      // pair that slid together past the slop is a tilt. Until it is made the pair is a pinch —
+      // the zoom has no threshold of its own and is not given one here, because a spread is meant
+      // from its first pixel — and what the undecided pixels zoom is the noise in them. With the
+      // tilt closed there is nothing to decide: the pair is a pinch, as it always was, and the
+      // slide pans.
+      if (pinch.doing === undefined && may.tilt) {
+        const spread = Math.abs(s.dist - pinch.dist) / pinch.dist;
+        const swung = Math.abs(turnOf(s.angle - pinch.angle));
+        if (spread >= TILT_SPREAD || swung >= TWIST) pinch.doing = "pinch";
+        else if (Math.abs(s.mid.y - pinch.from.y) >= TILT_SLOP) pinch.doing = "tilt";
+      }
+      if (pinch.doing === "tilt") {
+        // Up the glass lays the desk back; the slop is taken off so it starts from where it stood.
+        const slid = pinch.from.y - s.mid.y;
+        const past = Math.max(0, Math.abs(slid) - TILT_SLOP) * Math.sign(slid);
+        w.camera.tiltTo(pinch.pitch + past * TILT_PER_PX);
+        pinch.mid = s.mid;
+        moved();
+        return;
+      }
       const turnedFrom = w.camera.rotation;
       if (may.rotate) {
         // The threshold is crossed once and then SUBTRACTED, so the desk starts turning from where

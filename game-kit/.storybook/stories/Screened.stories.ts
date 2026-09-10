@@ -109,7 +109,7 @@ export const Screen: StoryObj<ScreenArgs> = {
 
     return scene(desk, {
       camera: {
-        limits: { minZoom: 0.4, maxZoom: 3, input: { zoom: true, pan: true, rotate: false } },
+        limits: { minZoom: 0.4, maxZoom: 3, input: { zoom: true, pan: true, rotate: false, tilt: false } },
         content: { x: -4, y: -4, w: 8, h: 8 },
       },
     }).el;

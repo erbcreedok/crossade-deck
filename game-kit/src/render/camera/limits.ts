@@ -56,6 +56,13 @@ export const ZOOM_FLING: Fling = { cap: 5, floor: 0.2, decay: 6, smoothing: 0.5,
  */
 export const TURN_FLING: Fling = { cap: 540, floor: 20, decay: 6, smoothing: 0.5, maxGap: 0.1 };
 
+/**
+ * HOW FAR BACK A DESK GOES BY DEFAULT, in degrees — the owner's number: a view laid back by
+ * forty-five reads as the isometric look, and past it the squash (`Camera.pitch`) stops reading as
+ * a desk seen from a seat and starts reading as a desk drawn wrong. Zero is straight down.
+ */
+export const MAX_PITCH = 45;
+
 /** A fling that never happens: the axis stops dead with the finger. Data, so "no inertia" is a setting. */
 export const NO_FLING: Fling = { cap: 0, floor: Infinity, decay: Infinity, smoothing: 0.5, maxGap: 0.1 };
 
@@ -90,12 +97,14 @@ export interface CameraInput {
   readonly pan: boolean;
   readonly zoom: boolean;
   readonly rotate: boolean;
+  /** Two fingers drawn up or down the glass TOGETHER lay the desk back and set it flat again. */
+  readonly tilt: boolean;
 }
 
 /** The hand may do everything — what a desk with nothing to hide starts as. */
-export const FREE_INPUT: CameraInput = { pan: true, zoom: true, rotate: true };
+export const FREE_INPUT: CameraInput = { pan: true, zoom: true, rotate: true, tilt: true };
 /** Look, do not touch: every gesture refused, while the game still moves the view itself. */
-export const LOCKED_INPUT: CameraInput = { pan: false, zoom: false, rotate: false };
+export const LOCKED_INPUT: CameraInput = { pan: false, zoom: false, rotate: false, tilt: false };
 
 /**
  * WHAT THERE IS TO LOOK AT — the stretch of desk the view is held inside, in units.
@@ -121,6 +130,11 @@ export interface CameraLimits {
   readonly inertia?: Partial<Inertia>;
   /** What the player's hand may do. Absent, everything — see `CameraInput`. */
   readonly input?: CameraInput;
+  /**
+   * HOW FAR THE DESK MAY BE LAID BACK, in degrees. Absent, the stock `MAX_PITCH`. Zero is straight
+   * down, and the floor is always zero: a camera does not look at a desk from underneath.
+   */
+  readonly maxPitch?: number;
 }
 
 /** What the view is worth right now — enough to draw a scrollbar without asking anything else. */

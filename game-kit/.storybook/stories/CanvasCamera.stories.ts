@@ -56,6 +56,7 @@ interface ZoneArgs {
   pan: boolean;
   zoom: boolean;
   rotate: boolean;
+  tilt: boolean;
   turn: number;
   pitch: number;
   stand: boolean;
@@ -117,7 +118,7 @@ export const Zone: StoryObj<ZoneArgs> = {
   // past: motion on a plain surface is invisible, and a camera with nothing to measure against
   // reads as a canvas that did not load.
   render: (a) => {
-    const { w, h, pan, zoom, rotate, turn, pitch, stand, minZoom, maxZoom, sensitivity } = a;
+    const { w, h, pan, zoom, rotate, tilt, turn, pitch, stand, minZoom, maxZoom, sensitivity } = a;
     const { fling, cap, floor, decay, smoothing } = a;
     const { zoomFling, zoomCap, zoomFloor, zoomDecay, zoomSmoothing } = a;
     const { turnFling, turnCap, turnFloor, turnDecay, turnSmoothing } = a;
@@ -189,9 +190,9 @@ export const Zone: StoryObj<ZoneArgs> = {
               ? { cap: turnCap, floor: turnFloor, decay: turnDecay, smoothing: turnSmoothing, maxGap: TURN_FLING.maxGap }
               : NO_FLING,
           },
-          // THE THREE GATES, live: a re-render retunes the STANDING camera, so closing one here is
+          // THE FOUR GATES, live: a re-render retunes the STANDING camera, so closing one here is
           // the same call a game's own rule would make in the middle of a turn.
-          input: { pan, zoom, rotate },
+          input: { pan, zoom, rotate, tilt },
         },
         // Applied only when this number changes, so the slider and the fingers do not fight over
         // the angle — twist the desk by hand and the panel leaves it alone until it is moved.
@@ -220,6 +221,7 @@ export const Zone: StoryObj<ZoneArgs> = {
     pan: FREE_INPUT.pan,
     zoom: FREE_INPUT.zoom,
     rotate: FREE_INPUT.rotate,
+    tilt: FREE_INPUT.tilt,
     turn: 0,
     pitch: 0,
     stand: true,
@@ -248,6 +250,7 @@ export const Zone: StoryObj<ZoneArgs> = {
     pan: documented("arg.inputPan", {}, "camera/input"),
     zoom: documented("arg.inputZoom", {}, "camera/input"),
     rotate: documented("arg.inputRotate", {}, "camera/input"),
+    tilt: documented("arg.inputTilt", {}, "camera/input"),
     turn: documented("arg.cameraTurn", { control: { type: "range", min: -180, max: 180, step: 5 } }, "camera"),
     pitch: documented("arg.pitch", { control: { type: "range", min: 0, max: 80, step: 1 } }, "camera"),
     stand: documented("arg.stand", {}, "camera"),

@@ -22,7 +22,7 @@ import { installStockSurfaces } from "../presets/surfaces.js";
 import { resetSurfaces } from "./surfaces.js";
 import { type Host } from "./host.js";
 import { Camera, LOCKED_INPUT, NO_FLING, type CameraInput } from "./camera/index.js";
-import { TWIST, wireCamera, type CameraControl } from "./cameraInput.js";
+import { TILT_PER_PX, TILT_SLOP, TWIST, wireCamera, type CameraControl } from "./cameraInput.js";
 
 /** A view that records its listeners and fires them — the wiring asks it for nothing else. */
 function stubView(): {
@@ -392,7 +392,7 @@ describe("the camera's fingers", () => {
     // The three gates are DATA a rule may change mid-game: a puzzle that pins the view for its last
     // move, a tutorial that will not let the desk turn yet. Nothing is rebuilt and nothing is
     // re-wired — the wiring asks the camera at gesture time, every time.
-    const b = bench({ input: { pan: false, zoom: true, rotate: false } });
+    const b = bench({ input: { pan: false, zoom: true, rotate: false, tilt: true } });
     const was = { x: b.camera.x, y: b.camera.y, zoom: b.camera.zoom };
     b.hand.down(1, 300, 200);
     b.hand.move(1, 200, 120, 16);
@@ -432,7 +432,7 @@ describe("the camera's fingers", () => {
     // …and opening a gate again is one call on the standing camera, not a rebuild.
     b.hand.up(2, 150, 150, 56);
     b.hand.up(3, 350, 250, 56);
-    b.camera.retune({ input: { pan: true, zoom: false, rotate: false } });
+    b.camera.retune({ input: { pan: true, zoom: false, rotate: false, tilt: false } });
     b.hand.down(4, 300, 200, 64);
     b.hand.move(4, 260, 200, 80);
     expect(b.camera.x).toBeCloseTo(was.x - 40, 6);
@@ -450,5 +450,89 @@ describe("the camera's fingers", () => {
     b.wiring.stop();
     expect(b.camera.flinging).toBe(false);
     expect(b.hand.listening()).toEqual([]);
+  });
+
+  /**
+   * Two fingers drawn down the glass TOGETHER, the way a hand actually sends them: one small move
+   * per finger, turn and turn about. One finger jumped the whole way in a single event would open
+   * the span between them mid-flight, and the wiring — rightly — would call that a pinch.
+   */
+  const slide = (b: Bench, ids: [number, number], xs: [number, number], y0: number, y1: number, t0: number): number => {
+    const steps = Math.max(1, Math.ceil(Math.abs(y1 - y0) / 4));
+    let t = t0;
+    for (let i = 1; i <= steps; i += 1) {
+      const y = y0 + ((y1 - y0) * i) / steps;
+      b.hand.move(ids[0], xs[0], y, (t += 4));
+      b.hand.move(ids[1], xs[1], y, (t += 4));
+    }
+    return t;
+  };
+
+  it("cameraInput.two-fingers-sliding-together-lay-the-desk-back — and a pinch that spread never does", () => {
+    // The map gesture: two fingers drawn up the glass TOGETHER — the span between them kept, the line
+    // they lie on kept — tilt the view, up for a lower seat and down for straight over the desk.
+    // Decided once and for the whole gesture, the way the twist is: a hand that spread first is
+    // zooming, and however it drifts after that the desk stays flat; a hand that slid first is
+    // tilting, and however it spreads after that the zoom stays. Without that, every pinch would
+    // tilt a little and every tilt would zoom a little, which is the drift the twist's threshold
+    // already exists to stop.
+    const b = bench();
+    b.hand.down(1, 150, 200);
+    b.hand.down(2, 250, 200);
+    // A small slide, under the threshold: still flat.
+    let t = slide(b, [1, 2], [150, 250], 200, 194, 0);
+    expect(b.camera.pitch).toBe(0);
+    // Past it: the view lays back by the excess, at the stock rate. Until the slide was known for
+    // one the pair was a pinch, and a pinch zooms by the noise in it — fingers never move in step —
+    // but that noise is a fraction of a percent, not a zoom.
+    t = slide(b, [1, 2], [150, 250], 194, 140, t);
+    expect(b.camera.pitch).toBeCloseTo((60 - TILT_SLOP) * TILT_PER_PX, 6);
+    expect(Math.abs(b.camera.zoom - 1), "the undecided pixels zoomed the desk").toBeLessThan(0.005);
+    expect(b.camera.rotation).toBe(0);
+    // Spreading NOW does not zoom, and the middle drifting does not pan: a tilt to the end.
+    const settled = { zoom: b.camera.zoom, target: { ...b.camera.target } };
+    b.hand.move(1, 100, 120, (t += 4));
+    b.hand.move(2, 300, 120, (t += 4));
+    expect(b.camera.zoom, "a settled tilt took a spread for a zoom").toBe(settled.zoom);
+    expect(b.camera.target, "a settled tilt panned under the middle").toEqual(settled.target);
+    // Let go: the tilt stays where the hand left it and nothing coasts.
+    const laid = b.camera.pitch;
+    b.hand.up(1, 100, 120, (t += 4));
+    b.hand.up(2, 300, 120, (t += 4));
+    expect(b.wiring.gesture()).toBe("none");
+    expect(b.camera.flinging).toBe(false);
+    expect(b.camera.pitch).toBe(laid);
+    // Down again, past flat: the floor holds.
+    b.hand.down(3, 150, 100, (t += 4));
+    b.hand.down(4, 250, 100, (t += 4));
+    t = slide(b, [3, 4], [150, 250], 100, 290, t);
+    expect(b.camera.pitch).toBe(0);
+    b.hand.up(3, 150, 290, (t += 4));
+    b.hand.up(4, 250, 290, (t += 4));
+
+    // A hand that SPREAD first is a zoom, and its drift up the glass is not a tilt.
+    b.hand.down(5, 150, 200, (t += 4));
+    b.hand.down(6, 250, 200, (t += 4));
+    b.hand.move(5, 100, 200, (t += 4));
+    b.hand.move(6, 300, 200, (t += 4));
+    const zoomed = b.camera.zoom;
+    expect(zoomed).toBeGreaterThan(1);
+    t = slide(b, [5, 6], [100, 300], 200, 100, t);
+    expect(b.camera.pitch, "a settled zoom took a slide for a tilt").toBe(0);
+    b.hand.up(5, 100, 100, (t += 4));
+    b.hand.up(6, 300, 100, (t += 4));
+  });
+
+  it("cameraInput.a-rule-can-close-the-tilt — and two fingers sliding together then move the desk", () => {
+    // The fourth gate beside pan, zoom and turn: a desk that wants to be looked at from straight
+    // above closes it, and the same slide is then what it was before there was a tilt — a two-finger
+    // pan.
+    const b = bench({ input: { pan: true, zoom: true, rotate: true, tilt: false } });
+    const y = b.camera.y;
+    b.hand.down(1, 150, 200);
+    b.hand.down(2, 250, 200);
+    slide(b, [1, 2], [150, 250], 200, 140, 0);
+    expect(b.camera.pitch).toBe(0);
+    expect(b.camera.y, "with the tilt closed the slide did not pan").toBeCloseTo(y - 60, 6);
   });
 });
