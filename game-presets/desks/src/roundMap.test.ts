@@ -100,4 +100,15 @@ describe("the round desk", () => {
     expect(room.x).toBeCloseTo(-room.w / 2);
     expect(room.y).toBeCloseTo(-room.h / 2);
   });
+
+  it("round.the-felt-lies-under-the-kit's-own-cone — not just under the pieces on it", () => {
+    // THE FELT IS NOT `root` — the page is (`Surfaced` on the desk itself), so the plan's "ground"
+    // rank never catches the felt or its edge rings, and they tie with the kit's presence cone
+    // (`CONE_Z`, -1 in presence.ts) at the plan's default z of 0 the same as any ordinary piece.
+    // A cone sent under every piece on the felt sank under the felt too — the one thing a look is
+    // meant to lie on. z BELOW -1 on the felt and its rings is what keeps that from happening again.
+    const desk = roundMap();
+    const felt = byId(desk, ROUND_FELT)!;
+    expect(fieldsOf<TransformableFields>(felt, "Transformable")?.z).toBeLessThan(-1);
+  });
 });

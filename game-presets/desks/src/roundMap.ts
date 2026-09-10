@@ -136,8 +136,12 @@ export function roundMap(seats: readonly { readonly seat: string; readonly ink: 
     LAMP,
     Grabber({ grab: "one" }),
   );
+  // Z BELOW THE KIT'S OWN PRESENCE CONE (`CONE_Z`, -1 in `presence.ts`): the felt and its edge are
+  // not `root` itself, so the plan's "ground" rank does not catch them, and without a z of their
+  // own they tied at 0 with the cone's -1 the same as any ordinary piece would — a cone sent under
+  // every piece on the felt sank under the felt too, the one thing it was meant to lie on.
   const still = (id: string, r: number, surface: string): Node =>
-    node(id, Bounded({ bounds: circle(r) }), Surfaced({ surface }), Transformable({ at: { x: 0, y: 0 } }));
+    node(id, Bounded({ bounds: circle(r) }), Surfaced({ surface }), Transformable({ at: { x: 0, y: 0 }, z: -2 }));
   add(desk, still("round edge line", ROUND_R + ROUND_RIM, ROUND_LINE_SURFACE));
   add(desk, still("round edge dark", ROUND_R + ROUND_EDGE.dark + ROUND_EDGE.light, ROUND_DARK_SURFACE));
   add(desk, still("round edge light", ROUND_R + ROUND_EDGE.light, ROUND_LIGHT_SURFACE));
