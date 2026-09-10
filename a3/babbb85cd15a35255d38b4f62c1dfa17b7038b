@@ -1,0 +1,52 @@
+game-kit/src/render/camera/camera.test.ts
+  s_cecb3d1b34296b::t_698e2a2868cad0 109-163
+game-kit/src/presets/cameraHud.ts
+  s_cecb3d1b34296b::t_ef9ce3e2949d78 297-298,310-311,313-317
+  s_cecb3d1b34296b::t_a83897df501719 299-306
+  s_cecb3d1b34296b::t_06b33e5ed3594b 332-334,342
+  s_cecb3d1b34296b::t_9bf245d2839ff1 337-339,341,345-348
+game-kit/src/render/liveTable.test.ts
+  s_cecb3d1b34296b::t_484949860ab492 302-307
+  s_cecb3d1b34296b::t_087dabcc254e55 292
+  s_cecb3d1b34296b::t_ad0260acb05ee4 280-291,293-301,308-324
+game-kit/docs/test-plan/README.md
+  s_cecb3d1b34296b::t_8bb8541715351f 80
+  s_cecb3d1b34296b::t_912d379feb8b67 10
+  s_cecb3d1b34296b::t_de8d019d52b7ff 105
+game-kit/docs/test-plan/78-live-table.md
+  s_cecb3d1b34296b::t_b3288156bb722b 12
+  s_cecb3d1b34296b::t_dc1e2ac6a62d05 3
+game-kit/docs/test-plan/52-camera.md
+  s_cecb3d1b34296b::t_92fd0345849f27 53-57
+  s_cecb3d1b34296b::t_a988ca9f6bc36e 3
+game-kit/src/render/camera/index.ts
+  s_cecb3d1b34296b::t_7f125f958514d0 386-394
+  s_cecb3d1b34296b::t_09875ed49909cb 625-631
+  s_cecb3d1b34296b::t_50050e7df8480d 376-378
+  s_cecb3d1b34296b::t_f4a28a60d9f6b3 112-113
+  s_cecb3d1b34296b::t_362598ab388a3b 379-385,395-406
+  s_cecb3d1b34296b::t_b60e04abaf3c58 50-52
+  s_cecb3d1b34296b::t_34a878f2c7c851 586-593
+  s_cecb3d1b34296b::t_682be4acced3dc 559
+game-kit/src/render/liveTable.ts
+  s_cecb3d1b34296b::t_91465a32defaba 192-201
+  s_cecb3d1b34296b::t_e5522245c4e609 467-468
+  s_cecb3d1b34296b::t_4d3bdc71b64a93 1319
+  s_cecb3d1b34296b::t_dec318462637b0 1513
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a3babbb85cd15a35255d38b4f62c1dfa17b7038b",
+  "prompts": {},
+  "sessions": {
+    "s_cecb3d1b34296b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee5d7eaa-3bb1-4818-bda4-e8c72aca3631",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
