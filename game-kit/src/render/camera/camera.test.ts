@@ -106,6 +106,61 @@ describe("the turn asked for", () => {
   });
 });
 
+describe("the lean asked for", () => {
+  // THE TOGGLE'S OWN EASE — `glideTiltTo` is `glideTurnTo` on the other axis, and it is read for the
+  // same reason: a button that snapped the pitch in one frame is indistinguishable, by eye, from a
+  // button that did nothing and a renderer that redrew late. Only stepping it by hand tells the two
+  // apart.
+
+  it("camera.a-lean-asked-for-eases-to-the-mark", () => {
+    const c = bench();
+    c.glideTiltTo(30, 600);
+    expect(c.flinging).toBe(true);
+    c.stepFling(0.3);
+    expect(c.pitch).toBeGreaterThan(0);
+    expect(c.pitch).toBeLessThan(30);
+    expect(c.stepFling(0.3)).toBe(false);
+    expect(c.pitch).toBeCloseTo(30, 6);
+    expect(c.flinging).toBe(false);
+  });
+
+  it("camera.a-lean-asked-for-is-held-to-the-desk-s-own-ceiling", () => {
+    const c = bench({ minZoom: 0.25, maxZoom: 4, maxPitch: 20 });
+    c.glideTiltTo(30, 600); // past the ceiling — the mark itself is clamped, not just the arrival
+    c.stepFling(1);
+    expect(c.pitch).toBeCloseTo(20, 6);
+  });
+
+  it("camera.a-finger-takes-the-lean-back", () => {
+    const c = bench();
+    c.glideTiltTo(30, 600);
+    c.grab(); // a hand landed: whatever the view was doing, it stops under it
+    expect(c.flinging).toBe(false);
+    const held = c.pitch;
+    expect(c.stepFling(1)).toBe(false);
+    expect(c.pitch).toBe(held);
+  });
+
+  it("camera.a-lean-already-there-is-not-a-glide", () => {
+    const c = bench();
+    c.glideTiltTo(0);
+    expect(c.flinging).toBe(false);
+    expect(c.pitch).toBe(0);
+  });
+
+  it("camera.pitch-target-reads-where-a-lean-is-headed-not-where-it-is", () => {
+    const c = bench();
+    expect(c.pitchTarget, "no glide asked — the target is wherever the pitch already sits").toBe(0);
+    c.glideTiltTo(30, 600);
+    expect(c.pitchTarget, "mid-glide — the mark, not the still-departing pitch").toBe(30);
+    expect(c.pitch).toBe(0); // the glide has not stepped yet — this is the exact trap `pitchTarget` exists for
+    c.stepFling(0.3);
+    expect(c.pitchTarget).toBe(30); // still the mark, however far the ease has carried the pitch
+    c.stepFling(1); // run it out
+    expect(c.pitchTarget).toBeCloseTo(c.pitch, 6); // arrived — the two read the same again
+  });
+});
+
 describe("the camera", () => {
   it("camera.the-view-never-leaves-its-bounds — however hard it is pushed", () => {
     const c = bench();

@@ -277,6 +277,51 @@ describe("the live desk", () => {
     live.stop();
   });
 
+  it("liveTable.wake-steps-a-glide-with-no-finger-on-the-glass", () => {
+    // A BUTTON'S `glideTurnTo`/`glideTiltTo` writes a mark onto the camera and nothing else — the
+    // clock that carries it there only runs while `wireCamera` hears a finger. `wake()` is the door
+    // a consumer without one uses to ask that same clock to run anyway, and it must be safe to knock
+    // on twice: a press while a gesture is already coasting must not open a second door onto it.
+    const { root } = desk();
+    const div = document.createElement("div");
+    glass(div);
+    document.body.appendChild(div);
+
+    let tick: ((dt: number) => boolean) | undefined;
+    const live = liveTable(div, root, {
+      painter: () => stubPainter(),
+      room: { x: -5, y: -5, w: 10, h: 10 },
+      clock: (t) => {
+        tick = t;
+        return () => {
+          tick = undefined;
+        };
+      },
+    });
+    const camera = live.camera as Camera;
+    // OPENING THE VIEW ALREADY JOINED THE CLOCK ONCE, to `sync()` the fresh camera to the glass
+    // (`control.refresh()` inside `openView`) — closed here, one no-op step, so the test starts
+    // from the same rest a real frame would have already reached before anyone pressed anything.
+    tick?.(0);
+    expect(tick, "at rest, with nothing flinging, the clock is not joined").toBeUndefined();
+
+    camera.turnTo(40);
+    camera.glideTurnTo(0, 600);
+    expect(tick, "a mark with no finger on the glass asks for nothing on its own").toBeUndefined();
+
+    live.wake?.();
+    expect(tick, "wake joins the borrowed clock").toBeDefined();
+    tick?.(1 / 60);
+    expect(camera.rotation, "one step in — eased, not snapped").toBeGreaterThan(0);
+    expect(camera.rotation).toBeLessThan(40);
+
+    // A SECOND KNOCK WHILE IT IS ALREADY OPEN opens no second door: the same tick comes back.
+    const opened = tick;
+    live.wake?.();
+    expect(tick).toBe(opened);
+    live.stop();
+  });
+
   it("liveTable.a-flick-leaves-the-hand — a thrown card travels past the point it was let go of", () => {
     const { root } = desk();
     const c = fakeClock();

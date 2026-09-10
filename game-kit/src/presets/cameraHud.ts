@@ -18,9 +18,11 @@
 
 import { Container, registerLayout } from "../core/atoms/container.js";
 import { freeLayout } from "../core/atoms/layouts.js";
+import { Surfaced } from "../core/atoms/surfaced.js";
 import { Transformable } from "../core/atoms/transformable.js";
-import { add, compose, node, type Node } from "../core/node.js";
+import { add, byId, compose, node, type Node } from "../core/node.js";
 import { button } from "./button.js";
+import { iconSurface } from "./controls.js";
 import { circle } from "./shapes.js";
 import { registerAsset } from "../render/assets.js";
 import { wireButtons, type Meaning } from "../render/buttons.js";
@@ -29,10 +31,11 @@ import { type LiveTable } from "../render/liveTable.js";
 import { registerSurface } from "../render/surfaces.js";
 import { svg } from "../render/svg.js";
 
-/** The screen the pair hangs on, and the two controls by the names a reader sees in the inspector. */
+/** The screen the pair hangs on, and the three controls by the names a reader sees in the inspector. */
 export const CAMERA_HUD = "hud/camera";
 export const CAMERA_HUD_HOME = "hud/camera/home";
 export const CAMERA_HUD_NORTH = "hud/camera/north";
+export const CAMERA_HUD_TILT = "hud/camera/tilt";
 
 /** The arrangement of the screen itself: it places nobody, because the corner is arithmetic. */
 const CAMERA_HUD_FREE = "hud/camera/free";
@@ -42,6 +45,7 @@ const CAMERA_HUD_PLATE = "hud/camera/plate";
 /** What each control is worth, read off `Valued` at the press — never parsed out of an id. */
 const HOME_MEANS = { does: "camera.home" } as const;
 const NORTH_MEANS = { does: "camera.north" } as const;
+const TILT_MEANS = { does: "camera.tilt" } as const;
 
 /** How wide a control is, in HUD units — a comfortable thumb at the etalon the host hands out. */
 export const CAMERA_HUD_SIZE = 0.34;
@@ -79,6 +83,21 @@ const NORTH_ICON = svg(
 );
 
 /**
+ * A CIRCLE, READ STRAIGHT ON — the disk the felt itself draws at pitch zero, and what the table
+ * becomes the moment this control is pressed while leaned. Shown while the desk is leaned, so the
+ * glyph is a picture of where the press LANDS, not of where the camera already sits.
+ */
+const FLAT_ICON = svg(24, 24, '<circle cx="12" cy="12" r="8.3" fill="none" stroke="white" stroke-width="1.8"/>');
+
+/**
+ * THE SAME CIRCLE, LAID BACK — the exact ellipse the felt draws once the plane leans away from the
+ * eye (`squash`, `camera/index.ts`). Shown flat, so pressing it is pictured before it happens: a
+ * reader sees the oval the desk is about to become, not a generic "3D" glyph the kit would owe no
+ * one an explanation for.
+ */
+const TILT_ICON = svg(24, 24, '<ellipse cx="12" cy="13.3" rx="8.6" ry="4.1" fill="none" stroke="white" stroke-width="1.8"/>');
+
+/**
  * The records the pair is made of. Registered ON DEMAND rather than as an effect of importing this
  * module, the same bargain `iconSurface` strikes: a module whose import matters is a module whose
  * import ORDER matters, and the suites that empty these registries between tests would leave the
@@ -95,6 +114,8 @@ function installCameraHudLook(): void {
   });
   registerAsset("hud.seat", { src: SEAT_ICON, w: CAMERA_HUD_SIZE, h: CAMERA_HUD_SIZE });
   registerAsset("hud.north", { src: NORTH_ICON, w: CAMERA_HUD_SIZE, h: CAMERA_HUD_SIZE });
+  registerAsset("hud.flat", { src: FLAT_ICON, w: CAMERA_HUD_SIZE, h: CAMERA_HUD_SIZE });
+  registerAsset("hud.tilt", { src: TILT_ICON, w: CAMERA_HUD_SIZE, h: CAMERA_HUD_SIZE });
 }
 
 export interface CameraHudOptions {
@@ -107,6 +128,22 @@ export interface CameraHudOptions {
   readonly home?: (() => void) | undefined;
   /** PUT NORTH UP. Always drawn: every desk with a camera has an angle, and a reader may lose it. */
   readonly north: () => void;
+  /**
+   * LEAN THE TABLE BACK, OR STAND IT UP STRAIGHT — the toggle. Always drawn, next to `north`: every
+   * desk with a camera has a pitch as well as a yaw, and the two are lost and found the same way.
+   * Which of the two it does is not this control's question, only `tilted`'s answer.
+   */
+  readonly tilt: () => void;
+  /**
+   * IS THE TABLE LEANED RIGHT NOW. Only the icon reads this — pressed while leaned it shows a flat
+   * disk, pressed while flat it shows the leaned one — and nothing else about the control changes
+   * (CANONS: this pair wears no coat for state, only the north needle already answers "which way").
+   *
+   * ASKED FRESH, the same bargain as `floor`: a two-finger drag on the glass can lean the table
+   * without this pair hearing about it, so the icon is read off the camera again on every `fit()`
+   * rather than remembered from the last press.
+   */
+  readonly tilted: () => boolean;
   /**
    * HOW MUCH OF THE FOOT OF THE GLASS IS ALREADY SPOKEN FOR, in device pixels — a hand laid across
    * the bottom (`handHud`), and nothing else so far. The column stands above it.
@@ -161,12 +198,22 @@ export function cameraHud(host: Host, opts: CameraHudOptions): CameraHud {
     });
   const north = one(CAMERA_HUD_NORTH, "hud.north", NORTH_MEANS);
   // THE ONE THAT IS ASKED FOR MOST SITS LOWEST — nearest the thumb. Home is above it when there is
-  // a place at all; with none, north simply takes the corner and nothing stands over it.
+  // a place at all; with none, north simply takes the corner and nothing stands over it. Tilt takes
+  // the top of the column: yaw and place are read the most, pitch the least.
   const home = opts.home ? one(CAMERA_HUD_HOME, "hud.seat", HOME_MEANS) : undefined;
+  const tilt = one(CAMERA_HUD_TILT, opts.tilted() ? "hud.flat" : "hud.tilt", TILT_MEANS);
+  // THE ICON ALONE CARRIES THE STATE. Found once by the id `button()` gives its picture and never
+  // rebuilt — a fresh button on every toggle would re-wire the press for nothing this pair owns.
+  const tiltIcon = byId(tilt, `${CAMERA_HUD_TILT}/icon`);
+  const refreshTilt = (): void => {
+    if (tiltIcon) compose(tiltIcon, Surfaced({ surface: iconSurface(opts.tilted() ? "hud.flat" : "hud.tilt") }));
+  };
   if (home) add(screen, home);
   add(screen, north);
+  add(screen, tilt);
 
   const seat = (): void => {
+    refreshTilt();
     const view = host.viewport();
     const u = host.unit();
     if (u <= 0) return;
@@ -175,7 +222,9 @@ export function cameraHud(host: Host, opts: CameraHudOptions): CameraHud {
     const x = view.width / u / 2 - r - CAMERA_HUD_MARGIN - inset.right / u;
     const low = view.height / u / 2 - r - CAMERA_HUD_MARGIN - inset.bottom / u - (opts.floor?.() ?? 0) / u;
     compose(north, Transformable({ at: { x, y: low } }));
-    if (home) compose(home, Transformable({ at: { x, y: low - CAMERA_HUD_SIZE - CAMERA_HUD_GAP } }));
+    const homeY = low - CAMERA_HUD_SIZE - CAMERA_HUD_GAP;
+    if (home) compose(home, Transformable({ at: { x, y: homeY } }));
+    compose(tilt, Transformable({ at: { x, y: (home ? homeY : low) - CAMERA_HUD_SIZE - CAMERA_HUD_GAP } }));
   };
   seat();
 
@@ -199,6 +248,12 @@ export function cameraHud(host: Host, opts: CameraHudOptions): CameraHud {
     onPress: (meaning) => {
       if (meaning["does"] === NORTH_MEANS.does) opts.north();
       else if (meaning["does"] === HOME_MEANS.does) opts.home?.();
+      else if (meaning["does"] === TILT_MEANS.does) {
+        opts.tilt();
+        // THE PRESS ITSELF DOES NOT WAIT FOR A GESTURE'S `fit()` — `tiltTo` lands instantly, so the
+        // glyph flips in the same tick as the press that caused it.
+        refreshTilt();
+      }
     },
   });
 
@@ -239,18 +294,33 @@ export function deviceInsets(el: HTMLElement): { readonly right: number; readonl
  * HANG THE PAIR ON A LIVE DESK — the one line a consumer of `liveTable` writes, and the only place
  * that decides what the two mean.
  *
- * NORTH RIDES THE FLING (`Camera.glideTurnTo`) and not a heartbeat: every consumer already steps a
- * coasting view and already stops when it comes to rest, so the turn is stepped by a clock that is
- * running anyway (`guard.one-clock`). The press itself is what wakes that clock — the press wiring
- * writes the tree back, the host tells its listeners, and the camera's own `refresh` reports a moved
- * view, which is exactly what both consumers start their frames on.
+ * NORTH AND TILT BOTH RIDE THE FLING (`Camera.glideTurnTo`, `Camera.glideTiltTo`) rather than
+ * animate on a clock of their own (`guard.one-clock`): each press only WRITES a mark and a duration
+ * onto the camera. Getting there over the next six hundred milliseconds is `camera.stepFling`, and
+ * neither glide steps itself — `wireCamera`'s own clock only runs while a FINGER is on the glass
+ * (joined from `moved()`, the gesture's own report), so a mark written by a button nobody is
+ * touching would sit there until the next unrelated gesture happened to step past it. `live.wake()`
+ * (`LiveStage.wake`) is the fix: it asks that SAME clock to run without a finger on it, and is safe
+ * to call whether or not one already is — the join underneath is a singleton the second ask cannot
+ * duplicate (`guard.one-clock`). A stage with none just repaints once and lands on the mark the next
+ * time a finger happens to touch the glass, same as before this existed.
  *
  * HOME IS THE RING'S OWN ASK (`idle.goHome`), the same call and not a second one, so the button and
  * a tap on one's own place can never take a reader to two different places. A desk with no seat has
- * no tracker, so it gets no place button — which is the whole of "this desk seats nobody".
+ * no tracker, so it gets no place button — which is the whole of "this desk seats nobody". Its own
+ * glide (`IdleReturnTracker`) is a separate mechanism again, stepped by that same borrowed clock.
+ *
+ * TILT NAMES A MARK, NOT A DISTANCE. The two-finger gesture (`cameraInput.ts`) reads a pitch off HOW
+ * FAR a reader slides; the button has no distance to read, so it goes to one answer — flat, or
+ * leaned by `CAMERA_TILT_STEP` — put through the same eased glide `north` uses, read off
+ * `camera.pitchTarget` rather than the instant `pitch` so a second press mid-glide reverses toward
+ * where the lean is HEADED and the toggle's own icon (`cameraHud.ts`) shows that mark immediately.
  *
  * A desk with no camera gets nothing at all: there is no view to turn and no corner that stays put.
  */
+/** How far a PRESS leans the table — the gesture's own ceiling (`MAX_PITCH`) is a slide's answer, not a tap's. */
+export const CAMERA_TILT_STEP = 30;
+
 export function liveCameraHud(live: LiveTable, opts: Pick<CameraHudOptions, "floor"> = {}): CameraHud | undefined {
   const camera = live.camera;
   if (!camera) return undefined;
@@ -259,8 +329,23 @@ export function liveCameraHud(live: LiveTable, opts: Pick<CameraHudOptions, "flo
     ...(opts.floor ? { floor: opts.floor } : {}),
     north: () => {
       camera.glideTurnTo(0);
+      // THE GLIDE NEEDS A CLOCK TO STAND ON, and a press is not a gesture `wireCamera` hears on its
+      // own (`LiveStage.wake`) — without this the mark is written and nothing ever walks to it.
+      live.wake?.();
       live.motions?.redraw();
     },
+    // GLIDES, LIKE NORTH — `camera.pitchTarget` and not bare `pitch`, so a SECOND press mid-glide
+    // reverses toward where the lean is HEADED rather than restarting from wherever it happens to
+    // be caught mid-flight.
+    tilt: () => {
+      camera.glideTiltTo(camera.pitchTarget > 0 ? 0 : CAMERA_TILT_STEP);
+      live.wake?.();
+      live.motions?.redraw();
+    },
+    // THE TARGET, NOT THE INSTANT: right after a press the pitch itself has not moved yet — it is
+    // EASING there over the glide — and an icon read off bare `pitch` would show the wrong picture
+    // for the whole six hundred milliseconds the glide takes.
+    tilted: () => camera.pitchTarget > 0,
     ...(idle
       ? {
           home: (): void => {

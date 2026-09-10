@@ -47,6 +47,9 @@ export * from "./wheel.js";
  */
 const TURN_ARRIVED = 0.05;
 
+/** HOW NEAR A LEAN COUNTS AS ALREADY THERE, in degrees — the same reasoning as `TURN_ARRIVED`. */
+const PITCH_ARRIVED = 0.05;
+
 /**
  * THE CAMERA. Its state is `{ target, zoom, rotation }` and nothing else: `target` is the point of
  * the DESK that sits in the middle of the glass, and a turn goes AROUND it.
@@ -106,6 +109,8 @@ export class Camera {
    * how far into it the clock has carried it. Absent when nothing has asked (see `glideTurnTo`).
    */
   private turning: { from: number; delta: number; ms: number; at: number } | undefined;
+  /** A LEAN ASKED FOR RATHER THAN THROWN — `pitching`'s own `turning`. See `glideTiltTo`. */
+  private pitching: { from: number; delta: number; ms: number; at: number } | undefined;
   /** Whether a throw is still running. Read by the clock to know if there is another frame to draw. */
   flinging = false;
 
@@ -368,6 +373,37 @@ export class Camera {
     this.clamp();
   }
 
+  /** THE SAME READING AS `TURN_GLIDE_MS` — the two are one movement felt on two axes. */
+  static readonly TILT_GLIDE_MS = 600;
+
+  /**
+   * LAY THE VIEW BACK, EASED — `tiltTo` said over the clock instead of in one jump, `glideTurnTo`'s
+   * own bargain: it rides the fling, so it needs no clock of its own (`guard.one-clock`) and a lean
+   * already thrown is dropped rather than fought (`vr`'s own reasoning has no pitch analogue to
+   * drop, because a finger's tilt writes `pitch` directly and never leaves a throw behind it).
+   */
+  glideTiltTo(deg: number, ms: number = Camera.TILT_GLIDE_MS): void {
+    const target = clamp(deg, 0, this.maxPitch);
+    const delta = target - this.pitch;
+    if (ms <= 0 || Math.abs(delta) < PITCH_ARRIVED) {
+      this.pitching = undefined;
+      this.tiltTo(target);
+      return;
+    }
+    this.pitching = { from: this.pitch, delta, ms, at: 0 };
+    this.flinging = true;
+  }
+
+  /**
+   * WHERE THE LEAN IS HEADED, not where it is — `pitch` mid-glide and the mark a glide asked for in
+   * the same breath. A button that reads bare `pitch` right after asking for a glide would read the
+   * degree it is EASING FROM for the six hundred milliseconds the glide takes, and a toggle icon
+   * drawn off that would show the wrong picture for most of every press.
+   */
+  get pitchTarget(): number {
+    return this.pitching ? this.pitching.from + this.pitching.delta : this.pitch;
+  }
+
   /** Put a point of the DESK in the middle of the glass — what "the camera looks at X" means. */
   lookAt(p: Point): void {
     this.target = p;
@@ -520,6 +556,7 @@ export class Camera {
   stopFling(): void {
     this.flinging = false;
     this.turning = undefined;
+    this.pitching = undefined;
     this.vx = 0;
     this.vy = 0;
     this.vz = 0;
@@ -545,6 +582,14 @@ export class Camera {
       const p = Math.min(1, t.ms <= 0 ? 1 : t.at / t.ms);
       this.turnTo(t.from + t.delta * (1 - Math.pow(1 - p, 3))); // easeOutCubic, the idle glide's own
       if (p >= 1) this.turning = undefined;
+    }
+    // A LEAN THAT WAS ASKED FOR, the same bargain as a turn — it ends on the degree it named.
+    if (this.pitching) {
+      const t = this.pitching;
+      t.at += dtSeconds * 1000;
+      const p = Math.min(1, t.ms <= 0 ? 1 : t.at / t.ms);
+      this.tiltTo(t.from + t.delta * (1 - Math.pow(1 - p, 3))); // easeOutCubic, the turn's own curve
+      if (p >= 1) this.pitching = undefined;
     }
     // THE ZOOM AND THE TURN FIRST, and both about the point the fingers left — a coast that swung
     // the desk about the middle of the glass instead would lurch at the very moment the hand let go.
@@ -577,7 +622,13 @@ export class Camera {
     }
     if (Math.abs(this.vz) < this.zoomFling.floor) this.vz = 0;
     if (Math.abs(this.vr) < this.turnFling.floor) this.vr = 0;
-    this.flinging = this.vx !== 0 || this.vy !== 0 || this.vz !== 0 || this.vr !== 0 || this.turning !== undefined;
+    this.flinging =
+      this.vx !== 0 ||
+      this.vy !== 0 ||
+      this.vz !== 0 ||
+      this.vr !== 0 ||
+      this.turning !== undefined ||
+      this.pitching !== undefined;
     return this.flinging;
   }
 
