@@ -294,20 +294,27 @@ export function deviceInsets(el: HTMLElement): { readonly right: number; readonl
  * HANG THE PAIR ON A LIVE DESK — the one line a consumer of `liveTable` writes, and the only place
  * that decides what the two mean.
  *
- * NORTH RIDES THE FLING (`Camera.glideTurnTo`) and not a heartbeat: every consumer already steps a
- * coasting view and already stops when it comes to rest, so the turn is stepped by a clock that is
- * running anyway (`guard.one-clock`). The press itself is what wakes that clock — the press wiring
- * writes the tree back, the host tells its listeners, and the camera's own `refresh` reports a moved
- * view, which is exactly what both consumers start their frames on.
+ * NORTH AND TILT BOTH RIDE THE FLING (`Camera.glideTurnTo`, `Camera.glideTiltTo`) rather than
+ * animate on a clock of their own (`guard.one-clock`): each press only WRITES a mark and a duration
+ * onto the camera. Getting there over the next six hundred milliseconds is `camera.stepFling`, and
+ * neither glide steps itself — `wireCamera`'s own clock only runs while a FINGER is on the glass
+ * (joined from `moved()`, the gesture's own report), so a mark written by a button nobody is
+ * touching would sit there until the next unrelated gesture happened to step past it. `live.wake()`
+ * (`LiveStage.wake`) is the fix: it asks that SAME clock to run without a finger on it, and is safe
+ * to call whether or not one already is — the join underneath is a singleton the second ask cannot
+ * duplicate (`guard.one-clock`). A stage with none just repaints once and lands on the mark the next
+ * time a finger happens to touch the glass, same as before this existed.
  *
  * HOME IS THE RING'S OWN ASK (`idle.goHome`), the same call and not a second one, so the button and
  * a tap on one's own place can never take a reader to two different places. A desk with no seat has
- * no tracker, so it gets no place button — which is the whole of "this desk seats nobody".
+ * no tracker, so it gets no place button — which is the whole of "this desk seats nobody". Its own
+ * glide (`IdleReturnTracker`) is a separate mechanism again, stepped by that same borrowed clock.
  *
- * TILT IS A SNAP, NOT A DRAG. The two-finger gesture (`cameraInput.ts`) reads a pitch off HOW FAR a
- * reader slides; the button has no distance to read, so it goes to one answer — flat, or leaned by
- * `CAMERA_TILT_STEP` — and `tiltTo` is instant already (no glide to ride), so there is nothing to
- * step on a clock here the way `north` needs one.
+ * TILT NAMES A MARK, NOT A DISTANCE. The two-finger gesture (`cameraInput.ts`) reads a pitch off HOW
+ * FAR a reader slides; the button has no distance to read, so it goes to one answer — flat, or
+ * leaned by `CAMERA_TILT_STEP` — put through the same eased glide `north` uses, read off
+ * `camera.pitchTarget` rather than the instant `pitch` so a second press mid-glide reverses toward
+ * where the lean is HEADED and the toggle's own icon (`cameraHud.ts`) shows that mark immediately.
  *
  * A desk with no camera gets nothing at all: there is no view to turn and no corner that stays put.
  */
@@ -322,13 +329,23 @@ export function liveCameraHud(live: LiveTable, opts: Pick<CameraHudOptions, "flo
     ...(opts.floor ? { floor: opts.floor } : {}),
     north: () => {
       camera.glideTurnTo(0);
+      // THE GLIDE NEEDS A CLOCK TO STAND ON, and a press is not a gesture `wireCamera` hears on its
+      // own (`LiveStage.wake`) — without this the mark is written and nothing ever walks to it.
+      live.wake?.();
       live.motions?.redraw();
     },
+    // GLIDES, LIKE NORTH — `camera.pitchTarget` and not bare `pitch`, so a SECOND press mid-glide
+    // reverses toward where the lean is HEADED rather than restarting from wherever it happens to
+    // be caught mid-flight.
     tilt: () => {
-      camera.tiltTo(camera.pitch > 0 ? 0 : CAMERA_TILT_STEP);
+      camera.glideTiltTo(camera.pitchTarget > 0 ? 0 : CAMERA_TILT_STEP);
+      live.wake?.();
       live.motions?.redraw();
     },
-    tilted: () => camera.pitch > 0,
+    // THE TARGET, NOT THE INSTANT: right after a press the pitch itself has not moved yet — it is
+    // EASING there over the glide — and an icon read off bare `pitch` would show the wrong picture
+    // for the whole six hundred milliseconds the glide takes.
+    tilted: () => camera.pitchTarget > 0,
     ...(idle
       ? {
           home: (): void => {

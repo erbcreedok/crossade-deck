@@ -189,6 +189,16 @@ export interface LiveStage {
   readonly host: Host;
   readonly motions?: Motions;
   readonly camera?: Camera;
+  /**
+   * ASK THE CAMERA'S OWN BORROWED CLOCK TO RUN — the one thing a camera move asked for OUTSIDE a
+   * gesture (a button's `glideTurnTo`/`glideTiltTo`) cannot do for itself: `wireCamera` only joins
+   * the clock from its OWN pointer and wheel handlers, so a mark written onto the camera by anything
+   * else sits there until a finger happens to touch the glass, unless whoever wrote it also calls
+   * this. Safe to call while a gesture is already running the clock — the join underneath is a
+   * singleton and answers a second ask with nothing rather than a second subscriber
+   * (`guard.one-clock`). Absent on a stage a consumer built by hand instead of through `buildStage`.
+   */
+  readonly wake?: () => void;
   setRoot(next: Node): void;
   dispose(): void;
 }
@@ -454,6 +464,8 @@ export interface LiveTable {
   readonly host: Host;
   readonly motions?: Motions | undefined;
   readonly camera?: Camera | undefined;
+  /** See `LiveStage.wake` — the same ask, on the desk this wraps. */
+  readonly wake?: (() => void) | undefined;
   /**
    * THE IDLE GLIDE, when `seats` named one — absent otherwise. `input()` is already wired to this
    * screen's own gestures (a pick, a carry); a consumer with a persistent heartbeat calls `step(dtMs)`
@@ -1304,6 +1316,7 @@ export function liveTable<S extends LiveStage = LiveStage>(
     host: built.host,
     ...(built.motions ? { motions: built.motions } : {}),
     ...(built.camera ? { camera: built.camera } : {}),
+    ...(built.wake ? { wake: built.wake } : {}),
     ...(tracker ? { idle: tracker } : {}),
     setRoot(next: Node, from: "me" | "net") {
       if (from === "net") {
@@ -1497,6 +1510,7 @@ function buildStage(container: HTMLElement, desk: Node, opts: StageOptions): Bui
     host,
     motions,
     camera,
+    wake,
     setRoot: (next: Node) => host.setRoot(next),
     stop() {
       leaveClock?.();
