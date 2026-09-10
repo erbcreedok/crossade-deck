@@ -1,0 +1,59 @@
+game-kit/src/render/cameraInput.ts
+  s_2049b128b4ff77::t_dce652124d43a2 290-294
+  s_2049b128b4ff77::t_4d23558705f161 111-134,166-182,219-221,289,295-309
+game-kit/.storybook/stories/Place.stories.ts
+  s_2049b128b4ff77::t_43e4319cc63563 80
+game-kit/docs/design/camera.md
+  s_2049b128b4ff77::t_ee4047a0b512e1 21-24,32,42-45
+game-kit/src/index.ts
+  s_2049b128b4ff77::t_4d23558705f161 595,623
+game-kit/.storybook/locales/chrome/en.json
+  s_2049b128b4ff77::t_4238712f726435 122
+game-kit/src/render/camera/camera.test.ts
+  s_2049b128b4ff77::t_ee4047a0b512e1 32,36
+  s_2049b128b4ff77::t_f3176f19af1bf5 509-526
+  s_2049b128b4ff77::t_34232fa6f92287 25
+game-kit/src/render/camera/limits.ts
+  s_2049b128b4ff77::t_50bc47025c6b5a 59-65,100-101,105,107,133-137
+game-kit/.storybook/locales/chrome/ru.json
+  s_2049b128b4ff77::t_4238712f726435 122
+game-kit/.storybook/stories/PresetsDecks.stories.ts
+  s_2049b128b4ff77::t_d718f399f9516d 84
+game-kit/.storybook/stories/Screened.stories.ts
+  s_2049b128b4ff77::t_d718f399f9516d 112
+game-kit/docs/test-plan/52-camera.md
+  s_2049b128b4ff77::t_69031718064f7d 3,43
+game-kit/src/render/cameraInput.test.ts
+  s_2049b128b4ff77::t_577a50a951eaec 395,435
+  s_2049b128b4ff77::t_17673a8defe57a 454,471-482,484,489,491,498,502-503,505,509,512-513,518-519,521,524-533,535-537
+  s_2049b128b4ff77::t_c8597540f9ec17 455-470,483,488,506-508,510-511,514-517,520,522-523,534
+  s_2049b128b4ff77::t_dce652124d43a2 485-487,490,492-497,499-501,504
+  s_2049b128b4ff77::t_5a723d0b84b598 25
+game-kit/.storybook/stories/CanvasSeats.stories.ts
+  s_2049b128b4ff77::t_43e4319cc63563 421
+game-kit/docs/test-plan/53-camera-input.md
+  s_2049b128b4ff77::t_69031718064f7d 3,34-35
+game-kit/docs/test-plan/README.md
+  s_2049b128b4ff77::t_69031718064f7d 10,80-81
+game-kit/src/render/camera/index.ts
+  s_2049b128b4ff77::t_50bc47025c6b5a 25,127,356-367,369
+  s_2049b128b4ff77::t_1d5eeb3b9d0ba4 368,370
+game-kit/.storybook/stories/CanvasCamera.stories.ts
+  s_2049b128b4ff77::t_4238712f726435 59,121,193,195,224,253
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ff56a02d08e0292697d5b4d28621a173135d9713",
+  "prompts": {},
+  "sessions": {
+    "s_2049b128b4ff77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f5ba828-d84d-455f-8f95-01ad6b176644",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
