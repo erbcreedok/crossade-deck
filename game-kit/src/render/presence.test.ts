@@ -105,11 +105,23 @@ describe("presence", () => {
     const cone = byId(disc, avatarConeId("south"));
     expect(cone, "the disc says which way its owner is looking").toBeDefined();
     const points = outlineOf(fieldsOf<BoundedFields>(cone!, "Bounded")!.bounds);
+    // ITS OWN SHAPE IS CENTRED ON ITS OWN ORIGIN — `layerOf` reads a gradient's axis through the
+    // shape's bounds around that origin, with no word for an offset — and `at` carries the apex
+    // to the disc's centre, so what has to land at (0,0) is the apex PLUS `at`, not the raw point.
+    const at = fieldsOf<TransformableFields>(cone!, "Transformable")!.at;
+    const landed = points.map((p) => ({ x: p.x + at.x, y: p.y + at.y }));
     // ITS APEX AT THE DISC'S CENTRE — the seat design's own: a cone that starts in the disc cannot
     // come apart from it — and opening UP THE NODE'S OWN AXIS, wider at the far end than a point.
-    expect(points.some((p) => p.x === 0 && p.y === 0), "the apex is the centre of the disc").toBe(true);
-    expect(points.every((p) => p.y <= 0), "the cone points the way the disc is turned").toBe(true);
-    expect(Math.max(...points.map((p) => Math.abs(p.x))), "it opens outwards").toBeGreaterThan(0.5);
+    expect(landed.some((p) => p.x === 0 && p.y === 0), "the apex is the centre of the disc").toBe(true);
+    expect(landed.every((p) => p.y <= 0), "the cone points the way the disc is turned").toBe(true);
+    expect(Math.max(...landed.map((p) => Math.abs(p.x))), "it opens outwards").toBeGreaterThan(0.5);
+    // ...AND THE RAW SHAPE ITSELF STAYS CENTRED, apex included — the fix for a real regression:
+    // drawn apex-at-origin instead, `layerOf`'s gradient axis (centred on that same origin, no word
+    // for an offset) spanned only the near half of the triangle; the far half fell outside it and
+    // was clamped to the near stop's alpha (nothing), and the sliver left inside sat under the disc
+    // that draws over it — the cone painted every frame and never once showed on a screen.
+    const ys = points.map((p) => p.y);
+    expect(Math.min(...ys), "the shape's own bounds are symmetric about its own origin").toBeCloseTo(-Math.max(...ys));
     // ...AND UNDER THE DISC, not over the initials: the first thing drawn, so the face covers it.
     expect(disc.children[0]).toBe(cone);
     // ...AND UNDER EVERYTHING ON THE FELT: a look is a light over the desk, not a thing on it, so

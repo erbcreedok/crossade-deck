@@ -487,14 +487,22 @@ export function avatarNode(p: Presence, pose: { readonly at: Vec; readonly angle
   );
   // THE CONE FIRST, so it lies UNDER the disc: its apex is the disc's centre, and a cone drawn over
   // the initials would be a badge over somebody's name.
+  //
+  // ITS OWN SHAPE IS CENTRED ON ITS OWN ORIGIN, apex included, and `at` carries it to the disc —
+  // the same split every other contour in the kit keeps, and not a style: `layerOf` reads a
+  // gradient's axis through the shape's OWN bounds, centred on that origin, with no word for an
+  // offset. Written apex-at-origin instead, half the fade's axis fell outside the triangle
+  // altogether — clamped to the near stop's alpha for the whole reach beyond it — and the sliver
+  // left inside sat under the disc that draws over it. The cone painted; nothing of it showed.
   if (look.cone) {
+    const half = (CONE.length * reach) / 2;
     add(
       root,
       node(
         avatarConeId(p.seat),
-        Bounded({ bounds: polyline([{ x: 0, y: 0 }, { x: -CONE.half * reach, y: -CONE.length * reach }, { x: CONE.half * reach, y: -CONE.length * reach }]) }),
+        Bounded({ bounds: polyline([{ x: 0, y: half }, { x: -CONE.half * reach, y: -half }, { x: CONE.half * reach, y: -half }]) }),
         Surfaced({ surface: coneSurface(p.seat) }),
-        Transformable({ at: { x: 0, y: 0 }, z: CONE_Z }),
+        Transformable({ at: { x: 0, y: -half }, z: CONE_Z }),
       ),
     );
   }
