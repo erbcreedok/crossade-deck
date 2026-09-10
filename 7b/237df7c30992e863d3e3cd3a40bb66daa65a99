@@ -1,0 +1,39 @@
+game-kit/src/presets/cameraHud.ts
+  s_0c0ecf6a9ab3d2::t_34ed3d35320faa 253-255
+  s_0c0ecf6a9ab3d2::t_a538ce2d150fc6 307-311,314-316,327-331
+  s_0c0ecf6a9ab3d2::t_deeed97552fa93 85-99,117-118
+  s_0c0ecf6a9ab3d2::t_11d309fceed30b 48
+  s_0c0ecf6a9ab3d2::t_d90f4c8269f89c 201-202,204-210,213,216,225-227
+  s_0c0ecf6a9ab3d2::t_f790f372878ad2 251-252,256
+  s_0c0ecf6a9ab3d2::t_1a78a168023e14 21,23,25,34,38
+  s_0c0ecf6a9ab3d2::t_e9c4e968e4f575 131-146
+game-kit/docs/test-plan/README.md
+  s_0c0ecf6a9ab3d2::t_924274eb8b3b52 106
+  s_0c0ecf6a9ab3d2::t_191008da85db29 10
+game-kit/docs/test-plan/79-camera-hud.md
+  s_0c0ecf6a9ab3d2::t_a597c927f1ad64 21
+  s_0c0ecf6a9ab3d2::t_12b25eb92a3d25 1,3,5-10
+game-kit/src/presets/cameraHud.test.ts
+  s_0c0ecf6a9ab3d2::t_d7090c2b77451e 93,98,106,110,119-121,129,147,161-166,183-184,192,204,209-237
+  s_0c0ecf6a9ab3d2::t_d40bce464335c1 15,20,25-35
+  s_0c0ecf6a9ab3d2::t_af10d30f66cf16 36
+  s_0c0ecf6a9ab3d2::t_55460ff1c17a5e 238
+apps/hub/src/table/index.ts
+  s_0c0ecf6a9ab3d2::t_4b686694c9d28f 636-638
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7b237df7c30992e863d3e3cd3a40bb66daa65a99",
+  "prompts": {},
+  "sessions": {
+    "s_0c0ecf6a9ab3d2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bc86dd4a-f582-45bc-8a33-f2f3d0beea05",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
