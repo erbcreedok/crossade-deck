@@ -633,6 +633,9 @@ export function startTable(container: HTMLElement): Teardown {
     // altogether, once they are looking at their own place again.
     onView: () => {
       avatars?.publish();
+      // A TWO-FINGER TILT CHANGES THE CAMERA WITHOUT TOUCHING THE BUTTON — `fit()` re-reads
+      // `tilted()` off the camera the same way it already re-reads the hand's own `floor()`.
+      hud?.fit();
       redraw();
     },
     onDeskChanged: () => deskChanged(),
