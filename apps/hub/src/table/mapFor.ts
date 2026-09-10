@@ -1,7 +1,7 @@
 // WHICH BOARD A TABLE BUILDS — one function of the `game` id the server hands back in `welcome`
 // (or, on the very first frame before it arrives, the id already carried in the URL). Kept apart
 // from `index.ts` so a unit test can hit it without mounting a host or opening a socket.
-import { chairId, chairLidId, chairMarks, chessMap, nardyMap, roundMap, roundPlaces, seatChairs } from "@game-presets/desks";
+import { chairId, chairLidId, chairMarks, chessMap, installSeatArt, nardyMap, roundMap, roundPlaces, seatChairs } from "@game-presets/desks";
 import { byId, remove, type Node } from "game-kit";
 import { hubSeats } from "./people.js";
 
@@ -57,6 +57,11 @@ export function syncSeatChairs(desk: Node, present: readonly SeatedPerson[]): vo
   for (const [i, { seat, ink }] of seats.entries()) {
     const there = byId(desk, chairId(seat));
     const sitting = present.find((one) => one.seat === seat);
+    // A CHAIR OFF THE WIRE ARRIVES ALREADY STANDING — a reload's tree has it from the first move on
+    // (`table.send` sends the whole tree) — so the branch that registers its paints never runs on
+    // THIS screen unless asked here too. `installSeatArt` is idempotent, so asking for a seat
+    // already registered costs nothing.
+    if (sitting) installSeatArt(seat, ink);
     if (sitting && !there) {
       // ONE PLACE AND ONE SEAT, so the ring lands in the slot this seat always has rather than in
       // the slot its position in the roster happens to be. THE ROUND DESK DEALS, so the ring is

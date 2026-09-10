@@ -1,5 +1,5 @@
-import { chairId, chairLidId, chairSurface, isChair, isHand } from "@game-presets/desks";
-import { byId, fieldsOf, type Node, type SurfacedFields } from "game-kit";
+import { chairId, chairLidId, chairLidSurface, chairSurface, isChair, isHand } from "@game-presets/desks";
+import { byId, fieldsOf, fromSpec, resetSurfaces, surfaceRecord, toSpec, type Node, type SurfacedFields } from "game-kit";
 import { describe, it, expect } from "vitest";
 import { isTableGame, mapFor, syncSeatChairs } from "./mapFor.js";
 
@@ -78,6 +78,23 @@ describe("syncSeatChairs: the round table's rings, matched to who is actually in
     syncSeatChairs(desk, AT(["p1", "Ana"]));
     expect(byId(desk, chairId("p1"))).toBeTruthy();
     expect(byId(desk, chairId("p2"))).toBeUndefined();
+  });
+
+  it("hub.a-chair-from-the-wire-wears-its-look — a reload sees a chair already standing, not one it just built", () => {
+    // A RELOAD DOES NOT BUILD THE CHAIR — the tree off the wire already has it (rev >= 2, the first
+    // move sent it) — so the branch that registers a chair's own paints (`installSeatArt`, inside
+    // `seatChairs`) never ran on THIS screen. `syncSeatChairs` must register the look for every seat
+    // in the roster on its own, not only for the ones it builds.
+    resetSurfaces();
+    const built = mapFor("cards");
+    syncSeatChairs(built, AT(["p1", "Ana"]));
+    const wired = fromSpec(toSpec(built));
+    resetSurfaces();
+    expect(byId(wired, chairId("p1")), "the chair rode over on the wire").toBeTruthy();
+    syncSeatChairs(wired, AT(["p1", "Ana"]));
+    expect(byId(wired, chairId("p1")), "still the one chair — not rebuilt").toBeTruthy();
+    expect(surfaceRecord(chairSurface("p1"))).toBeDefined();
+    expect(surfaceRecord(chairLidSurface("p1"))).toBeDefined();
   });
 });
 
