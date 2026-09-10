@@ -1,0 +1,23 @@
+apps/hub/src/table/mapFor.ts
+  s_732b139504d365::t_f84e9d535ca082 4
+  s_732b139504d365::t_e318697492dde9 60-64
+apps/hub/src/table/mapFor.test.ts
+  s_732b139504d365::t_0c490bf9fbc0b2 82-98
+  s_732b139504d365::t_588c37ee0c4ef9 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "99fb99a34ddf9111e81423647c1e14c766750c76",
+  "prompts": {},
+  "sessions": {
+    "s_732b139504d365": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e6b259dd-747a-453d-a0a6-4bb2eb865eab",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
