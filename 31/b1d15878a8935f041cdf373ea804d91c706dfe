@@ -1,0 +1,43 @@
+game-kit/src/render/animator/records.ts
+  s_2049b128b4ff77::t_86c00f92fe976f 29-34
+game-kit/src/render/scenePlan/marks.ts
+  s_2049b128b4ff77::t_86c00f92fe976f 50-61
+game-kit/src/render/scenePlan/plan.test.ts
+  s_2049b128b4ff77::t_64ec5b2f4f11ab 375-412
+game-kit/src/render/stage.ts
+  s_2049b128b4ff77::t_86c00f92fe976f 63-64,127
+game-kit/docs/test-plan/10-scene-plan.md
+  s_2049b128b4ff77::t_1e5c40babdcc4b 3,59
+game-kit/src/render/animator/index.ts
+  s_2049b128b4ff77::t_fc8f5a6ae24f85 301,349-350,355
+  s_2049b128b4ff77::t_625514c4599ea1 107-113,260-300,302-313,323,416,682,689,833,885,922,1004-1006,1055,1069
+game-kit/src/render/scenePlan/input.ts
+  s_2049b128b4ff77::t_86c00f92fe976f 79-89
+  s_2049b128b4ff77::t_0623165b7d8444 78
+game-kit/src/render/animator/runtime.test.ts
+  s_2049b128b4ff77::t_feb737ff6dec6e 296-327
+game-kit/docs/design/camera.md
+  s_2049b128b4ff77::t_1e5c40babdcc4b 46-49
+game-kit/src/render/scenePlan/index.ts
+  s_2049b128b4ff77::t_86c00f92fe976f 51,58,64,268-271,273-274,278
+game-kit/docs/test-plan/40-motion.md
+  s_2049b128b4ff77::t_1e5c40babdcc4b 3,19
+game-kit/docs/test-plan/README.md
+  s_2049b128b4ff77::t_1e5c40babdcc4b 10,38,68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "31b1d15878a8935f041cdf373ea804d91c706dfe",
+  "prompts": {},
+  "sessions": {
+    "s_2049b128b4ff77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f5ba828-d84d-455f-8f95-01ad6b176644",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
