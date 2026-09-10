@@ -1,0 +1,21 @@
+game-presets/desks/src/roundMap.ts
+  s_732b139504d365::t_62e63a83dca286 139-142,144
+game-presets/desks/src/roundMap.test.ts
+  s_732b139504d365::t_72b8ce835510ac 103-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8832026b5456329c8c8baa11472f651084e82413",
+  "prompts": {},
+  "sessions": {
+    "s_732b139504d365": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e6b259dd-747a-453d-a0a6-4bb2eb865eab",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
