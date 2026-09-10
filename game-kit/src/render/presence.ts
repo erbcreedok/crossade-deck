@@ -99,7 +99,7 @@ const HALO = { width: 0.12, out: 0.06 };
  * quiet. The disc is already turned by its owner's camera, so the cone is a fixed shape on it and
  * the angle costs nothing.
  */
-const CONE = { half: 0.89, length: 1.84, fade: 0.3 };
+const CONE = { half: 0.89, length: 1.84, fade: 0.85 };
 /**
  * THE CONE LIES UNDER EVERYTHING ON THE FELT — a look is not a thing on the desk, it is a light
  * over it: the cards and the chairs are drawn over it, and a finger never meets it (it wears no
