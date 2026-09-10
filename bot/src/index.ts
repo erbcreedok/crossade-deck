@@ -2,6 +2,7 @@ import { Bot, InlineKeyboard } from "grammy";
 import { loadEnv } from "./env.js";
 import { GAMES, type Game } from "./games.js";
 import { gameOfCommand, gameOfNewArg } from "./commands.js";
+import { resolveHubUrl } from "./hubUrl.js";
 import { createRoom } from "./rooms.js";
 import { roomMessage } from "./links.js";
 
@@ -10,8 +11,8 @@ const bot = new Bot(env.botToken);
 
 async function replyWithNewRoom(ctx: any, game: Game): Promise<void> {
   const by = ctx.from ? String(ctx.from.id) : undefined;
-  const room = await createRoom(env.serverUrl, game, by);
-  const { text, keyboard } = roomMessage(env.hubUrl, room, env.appName);
+  const [room, hubUrl] = await Promise.all([createRoom(env.serverUrl, game, by), resolveHubUrl(env)]);
+  const { text, keyboard } = roomMessage(hubUrl, room, env.appName);
   await ctx.reply(text, { reply_markup: keyboard });
 }
 
@@ -53,7 +54,7 @@ async function main(): Promise<void> {
     { command: "new", description: "Новый стол: /new cards|chess|nardy" },
   ]);
   await bot.api.setChatMenuButton({
-    menu_button: { type: "web_app", text: "Играть", web_app: { url: env.hubUrl } },
+    menu_button: { type: "web_app", text: "Играть", web_app: { url: await resolveHubUrl(env) } },
   });
   console.log(`бот @${me.username} запущен, long polling`);
   await bot.start();

@@ -18,7 +18,8 @@ npm run dev --workspace bot
 |---|---|---|---|
 | `TELEGRAM_BOT_TOKEN` | да | — | токен бота из BotFather |
 | `SERVER_URL` | нет | `http://localhost:2567` | адрес сервера Crossade Deck (`POST /rooms`) |
-| `HUB_URL` | нет | `http://localhost:9569` | адрес хаба, куда ведёт ссылка на стол |
+| `HUB_URL` | нет | `http://localhost:9569` | адрес хаба, куда ведёт ссылка на стол; запасной, если `HUB_TUNNEL` выключен или скрипт не смог ответить |
+| `HUB_TUNNEL` | нет | `0` | `1` — перед каждой ссылкой спрашивать свежий адрес у `scripts/hub-tunnel.sh` (быстрый Cloudflare-туннель на локальный хаб, см. `deploy/local/README.md`) вместо статичного `HUB_URL` |
 | `TELEGRAM_APP_NAME` | нет | — | короткое имя Mini App из BotFather; без неё кнопка в группах ведёт прямо на хаб, а не через `t.me/<bot>/<app>` |
 
 Токен никогда не коммитится и не пишется в логи.
@@ -38,5 +39,7 @@ App (`https://t.me/<bot>/<app>?startapp=<code>`), если `TELEGRAM_APP_NAME` �
 1. `/newapp` → выбрать своего бота → короткое имя `play` → Web App URL = `HUB_URL`.
 2. Задать `TELEGRAM_APP_NAME=play` в `.env` бота (или другое короткое имя, если выбрано другое).
 
-Адрес самого хаба (`HUB_URL`) после этого можно менять без похода в BotFather: кнопка меню
-(`setChatMenuButton`) и `web_app` в личке берут его из переменной окружения бота при каждом старте.
+Адрес самого хаба после этого можно менять без похода в BotFather: `web_app` в личке и ссылка под
+каждым столом берут его заново при каждой команде (`resolveHubUrl` — `HUB_URL` либо, при
+`HUB_TUNNEL=1`, свежий ответ `scripts/hub-tunnel.sh`); кнопка меню (`setChatMenuButton`) — один раз
+при старте бота.

@@ -6,6 +6,10 @@ import { defineConfig } from "vite";
 //
 // The list REPLACES Vite's defaults, so it has to be complete: dropping `browser` or `module` here
 // would silently pick the wrong entry of some third dependency.
+
+/** Where a tunnel hands the hub out from — by suffix, so a fresh address needs nothing edited. */
+const TUNNEL_HOSTS = [".trycloudflare.com", ".ngrok-free.app", ".ngrok.app", ".ts.net"];
+
 export default defineConfig({
   resolve: {
     conditions: ["development", "module", "browser", "import", "default"],
@@ -20,5 +24,10 @@ export default defineConfig({
     // taken, so a stray older server keeps the address and the new one answers on a port nobody was
     // told about.
     strictPort: true,
+    // ...AND ANY HOST THAT REACHES THIS SERVER THROUGH A TUNNEL. Vite answers "403 Invalid host" to
+    // a `Host` header it does not know, which is every trycloudflare / ngrok address — a table
+    // opened from a phone off this WiFi is exactly that (`scripts/hub-tunnel.sh`). Named by suffix,
+    // so a fresh tunnel address (they change on every start) needs nothing edited here.
+    allowedHosts: TUNNEL_HOSTS,
   },
 });

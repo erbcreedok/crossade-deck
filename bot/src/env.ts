@@ -2,6 +2,8 @@ export type BotEnv = {
   botToken: string;
   serverUrl: string;
   hubUrl: string;
+  /** `HUB_URL` is a fallback only: a fresh address is asked of `scripts/hub-tunnel.sh` instead (`hubUrl.ts`). */
+  hubTunnel: boolean;
   appName?: string;
 };
 
@@ -12,6 +14,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): BotEnv {
     botToken,
     serverUrl: source.SERVER_URL || "http://localhost:2567",
     hubUrl: source.HUB_URL || "http://localhost:9569",
+    hubTunnel: source.HUB_TUNNEL === "1",
     appName: source.TELEGRAM_APP_NAME || undefined,
   };
 }
