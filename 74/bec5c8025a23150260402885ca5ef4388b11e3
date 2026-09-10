@@ -1,0 +1,41 @@
+bot/src/hubUrl.ts
+  s_732b139504d365::t_9ce4bf4d5a692f 1-39
+scripts/hub-tunnel.sh
+  s_732b139504d365::t_4d5a9068e6c76f 1-69
+deploy/local/com.crossade.hub.plist
+  s_732b139504d365::t_00997b457c18bd 1-13
+bot/src/hubUrl.test.ts
+  s_732b139504d365::t_02e117636d0695 1-37
+bot/src/index.ts
+  s_732b139504d365::t_70195cf41e0cb7 57
+  s_732b139504d365::t_3f9f64e4647096 5,14-15
+bot/.env.example
+  s_732b139504d365::t_856e82fd187a80 4
+bot/README.md
+  s_732b139504d365::t_6b756c3968684b 42-45
+  s_732b139504d365::t_96e74bc2d1af46 21-22
+apps/hub/vite.config.ts
+  s_732b139504d365::t_60823f1feee158 9-12,27-31
+deploy/local/com.crossade.hub-tunnel.plist
+  s_732b139504d365::t_b28afd57733429 1-13
+deploy/local/README.md
+  s_732b139504d365::t_fa6bdf36a3beb1 1,4-5,10-12,15-18
+bot/src/env.ts
+  s_732b139504d365::t_2a36f3f7d334a1 5-6,17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "74bec5c8025a23150260402885ca5ef4388b11e3",
+  "prompts": {},
+  "sessions": {
+    "s_732b139504d365": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e6b259dd-747a-453d-a0a6-4bb2eb865eab",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
