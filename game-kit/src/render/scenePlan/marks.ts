@@ -47,6 +47,18 @@ export function pitchStand(pitch: number | undefined): Transform | undefined {
   return squash === 1 ? undefined : scale(1, 1 / squash);
 }
 
+/**
+ * PART OF THE WAY UP — the same undo, taken by a fraction of the HEIGHT it would give back: at 0
+ * nothing, at 1 the whole stand, and halfway a piece one and a half times its lying height on a
+ * desk laid back by sixty. About a node's own origin, exactly as `pitchStand` is applied.
+ */
+export function pitchStandBy(pitch: number | undefined, fraction: number): Transform | undefined {
+  if (!pitch || fraction <= 0) return undefined;
+  const squash = Math.max(0.02, Math.cos((pitch * Math.PI) / 180));
+  const up = 1 + (1 / squash - 1) * Math.min(1, fraction);
+  return up === 1 ? undefined : scale(1, up);
+}
+
 export function viewTransform(unit: number, width: number, height: number): Transform {
   return compose(move(width / 2, height / 2), scale(unit));
 }

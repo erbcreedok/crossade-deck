@@ -372,6 +372,44 @@ describe("scenePlan", () => {
     }
   });
 
+  it("plan.a-held-piece-stands-by-its-fraction — halfway up out of the plane, and its shadow keeps lying", () => {
+    // WHAT A HAND HOLDS IS LEVEL TO THE EYE, not to the cloth: a card lifted off a laid-back desk
+    // comes up out of the tilted plane by however far the clock says it has risen (`stood`), and at
+    // one it stands exactly as a billboard does. Its SHADOW is a thing on the desk and lies there
+    // still — the outline under a held card is the picture of where it will land, and that is a
+    // fact about the cloth. A fraction, not a flag, so the stand can be animated by whoever holds
+    // the clock: the plan draws one frame and knows nothing of lifts or drops.
+    const desk = node("desk", Container({ layout: "free" }), Lit({ shadow: { base: 0.4, perZ: 0, lifted: 0, opacity: 0.5 } }));
+    const piece = (id: string, ...more: Parameters<typeof node>[1][]) =>
+      node(id, Bounded({ bounds: rect(1, 1.4) }), Surfaced(), Transformable({ at: { x: 1, y: 2 } }), ShadowCaster(), ...more);
+    add(desk, piece("lying"));
+    add(desk, piece("half"));
+    add(desk, piece("up"));
+    add(desk, piece("board", Oriented({ orientation: "viewer" })));
+    const c = new Camera({ minZoom: 0.1, maxZoom: 8 });
+    c.setScreen(400, 300);
+    c.setContent({ x: -10, y: -10, w: 20, h: 20 }, 40);
+    c.pitch = 60;
+    const quads = scenePlan({
+      root: desk, unit: 40, width: 400, height: 300, viewer: DEFAULT_VIEWER, view: c.transform(), pitch: c.pitch,
+      stood: new Map([["half", 0.5], ["up", 1]]),
+    });
+    const box = (id: string): { h: number; y: number } => {
+      const q = quads.find((k) => k.id === id)!;
+      const ys = q.points.map((p) => apply(q.transform, p).y);
+      return { h: Math.max(...ys) - Math.min(...ys), y: q.y };
+    };
+    const lying = box("lying");
+    // cos 60 is a half: lying is drawn at half height, a full stand at twice that — and halfway
+    // between the two in HEIGHT is one and a half of lying, which is what the fraction means.
+    expect(box("half").h).toBeCloseTo(lying.h * 1.5, 4);
+    expect(box("up").h).toBeCloseTo(box("board").h, 4);
+    expect(box("half").y, "standing up must not walk the piece up the screen").toBeCloseTo(lying.y, 6);
+    // ...and every one of their shadows lies on the cloth, at the lying height.
+    expect(box("half::shadow").h).toBeCloseTo(box("lying::shadow").h, 4);
+    expect(box("up::shadow").h).toBeCloseTo(box("lying::shadow").h, 4);
+  });
+
   it("plan.a-billboard-stands-out-of-a-laid-back-desk — the cloth lies, the cards stand", () => {
     // A desk laid back is drawn short, and everything lying on it with it. What a table actually
     // looks like is the cloth lying and the CARDS standing: full height, where they sit. That is

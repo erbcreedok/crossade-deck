@@ -76,6 +76,18 @@ export interface PlanInput {
    */
   readonly grounded?: ReadonlyMap<NodeId, number> | undefined;
   /**
+   * HOW FAR EACH PIECE HAS STOOD UP OUT OF THE TILTED PLANE, 0…1 — what a hand holds is level to
+   * the EYE, not to the cloth, and it gets there over the lift rather than in one frame.
+   *
+   * A fraction, not a flag, so the clock can animate it: at 0 the piece lies on the desk exactly as
+   * it does with no entry here, at 1 it stands as a billboard does (`Oriented: "viewer"`), and
+   * between the two it is that far along in HEIGHT, about its own origin. Its SHADOW and every mark
+   * under it are things on the cloth and keep lying: the outline under a held card is the picture
+   * of where it lands, and that is a fact about the desk. Absent, or with the desk not laid back at
+   * all, nothing stands and the plan is the plan there always was.
+   */
+  readonly stood?: ReadonlyMap<NodeId, number> | undefined;
+  /**
    * How wide a string is — the one thing the plan cannot compute and must be told (`textMetrics`).
    * Absent, no caption lays out and the plan is byte-for-byte the plan it was before text existed:
    * skipped, not thrown, exactly as an unregistered surface name is.

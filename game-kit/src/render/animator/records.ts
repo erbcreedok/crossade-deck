@@ -26,6 +26,12 @@ export interface Carry {
   targetOrient: number;
   /** The lift the spring chases — the tuning's, unless the run is HOISTED over something (`Motions.hoist`). */
   liftTo: number;
+  /**
+   * THE STAND — how far the run has come up out of a laid-back desk, 0…1, chasing one on the lift's
+   * own spring (`PlanInput.stood`). What a hand holds is level to the eye; it gets there as it is
+   * lifted, and lies back down on the settle's road once it is let go (`standDown` in the runtime).
+   */
+  ss: SpringState;
   readonly follow: SpringConfig;
   readonly liftCfg: SpringConfig;
   readonly bankCfg: SpringConfig;

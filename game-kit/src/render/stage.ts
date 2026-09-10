@@ -60,6 +60,8 @@ export interface PaintOptions {
   readonly carried?: ReadonlySet<NodeId> | undefined;
   /** Nodes the clock is sliding ACROSS the desk, and how high each is — see `PlanInput.grounded`. */
   readonly grounded?: ReadonlyMap<NodeId, number> | undefined;
+  /** How far each held piece has stood up out of a laid-back desk, 0…1 — see `PlanInput.stood`. */
+  readonly stood?: ReadonlyMap<NodeId, number> | undefined;
   /**
    * The glass keeps what it shows and only the FLYING quads (`raised`) are painted, over it, with
    * no clear: the trail of the old solitaire's cascade. Shadows and debug marks are left out of
@@ -122,6 +124,7 @@ export function renderFrame(host: Host, painter: Painter, options: PaintOptions 
     raised: options.raised,
     carried: options.carried,
     grounded: options.grounded,
+    stood: options.stood,
     measure: options.measure,
   };
   // The grid FIRST, so it lies under the outlines rather than over them: a ruler drawn on

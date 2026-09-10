@@ -48,20 +48,20 @@ import { boxOf, layerOf, strokeOf } from "./parts.js";
 import { type Mark, type Quad, type QuadText } from "./quads.js";
 import { shadowQuad, type ShadowLamp } from "./shadows.js";
 import { transformsOf } from "./transforms.js";
-import { pitchStand, viewTransform } from "./marks.js";
+import { pitchStand, pitchStandBy, viewTransform } from "./marks.js";
 import { standing } from "./parts.js";
 import { markQuads, type MarkContext } from "./markQuads.js";
 
 export * from "./quads.js";
 export * from "./input.js";
 export { bakePlan } from "./bake.js";
-export { gridMarks, boundsMarks, pitchStand, viewTransform } from "./marks.js";
+export { gridMarks, boundsMarks, pitchStand, pitchStandBy, viewTransform } from "./marks.js";
 export { markQuads } from "./markQuads.js";
 export { transformsOf } from "./transforms.js";
 export { LAYER_HEIGHT } from "./depth.js";
 export type { ResolveContext };
 
-export function scenePlan({ root, unit, width, height, viewer, view, pitch, rotation, overrides, raised, carried, grounded, measure, now }: PlanInput): Quad[] {
+export function scenePlan({ root, unit, width, height, viewer, view, pitch, rotation, overrides, raised, carried, grounded, stood, measure, now }: PlanInput): Quad[] {
   const nodes = transformsOf(root);
   const toView = view ?? viewTransform(unit, width, height);
   /**
@@ -265,12 +265,17 @@ export function scenePlan({ root, unit, width, height, viewer, view, pitch, rota
     }
     // A node framed to the VIEWER stands out of the tilted plane; everything else lies on it. The
     // stand is about the node's OWN origin, so it gains height without walking up the screen.
+    //
+    // ...AND WHAT A HAND HOLDS STANDS TOO, by however far the clock says it has risen (`stood`):
+    // level to the eye in the hand, level to the cloth on the desk, and on its way between the two
+    // while it is lifted or put down. Its shadow is not asked — a shadow lies on the cloth.
     const billboard = orientationOf(ctx) === "viewer";
-    const stood = standUp && billboard ? standing(lying, standUp) : lying;
+    const risen = standUp && !billboard ? pitchStandBy(pitch, stood?.get(n.id) ?? 0) : undefined;
+    const up = standUp && billboard ? standing(lying, standUp) : risen ? standing(lying, risen) : lying;
     // AND, FOR THE SAME NODE, THE CAMERA'S OWN TURN COMES BACK OFF — about its own origin again, so
     // a chess piece stands upright on the black player's screen exactly as it does on the white
     // player's, whichever way the seat's camera looks at the board.
-    const unturned = unturn && billboard ? standing(stood, unturn) : stood;
+    const unturned = unturn && billboard ? standing(up, unturn) : up;
     // A CONTROL IS MEASURED IN PIXELS — between a floor and a ceiling. The view's own scale is taken
     // back about the node's own ORIGIN, so a handle holds its place on the thing it is a handle for
     // instead of walking across the glass; and only as far as its bounds allow, because a handle

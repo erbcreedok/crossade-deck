@@ -104,6 +104,13 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
   // touches the tree — the carry step only writes here — so a pointer-move costs one paint, not a reconcile.
   const carried = new Set<NodeId>();
   const carries = new Map<string, Carry>();
+  /**
+   * PIECES LYING BACK DOWN — let go of standing (`Carry.ss`), and coming down out of the tilted
+   * plane on the settle's own road, or over their fall when they were dropped from a height. `from`
+   * is how far up they were when the hand opened; `left` is how much of that is still on, and it
+   * only ever falls — a bounce sends a body back up, and a piece must not stand again for it.
+   */
+  const standDown = new Map<NodeId, { from: number; atMs: number; left: number }>();
   // Choreographies keyed by their subject — a node for a turn or a tumble, a container for a shuffle —
   // so a second call on the same subject replaces the first: the latest word wins, as everywhere here.
   const choreos = new Map<NodeId, Choreo>();
@@ -250,6 +257,60 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     return lifted.size > 0 ? lifted : undefined;
   };
 
+  /**
+   * HOW MUCH OF ITS STAND A PIECE LET GO OF IS STILL WEARING, 0…1 — the bank's own road (`leanNow`):
+   * over the fall when it was dropped from a height, over the settle's span otherwise.
+   */
+  const standNow = (id: NodeId, d: { atMs: number }): number => {
+    const f = flights.get(id);
+    if (f && f.started && f.up0 > 0) return leanNow(f);
+    const ms = tuning.settleMs;
+    if (ms <= 0) return 0;
+    const t = (warped - d.atMs) / ms;
+    return t >= 1 ? 0 : 1 - easing(tuning.settleEase)(t <= 0 ? 0 : t);
+  };
+  /**
+   * HOW FAR EACH PIECE HAS STOOD UP OUT OF A LAID-BACK DESK this frame (`PlanInput.stood`) — a held
+   * run on its stand spring, and what was just let go of on its way back down. A piece marked
+   * `still` is not among them: a handle and the outline of a landing are the hand's own pictures,
+   * and the outline is a fact about the cloth — it lies where the card will.
+   */
+  const stood = (): ReadonlyMap<NodeId, number> | undefined => {
+    const out = new Map<NodeId, number>();
+    for (const cy of carries.values()) {
+      const f = Math.min(1, Math.max(0, cy.ss.pos));
+      if (f <= 0) continue;
+      for (const it of cy.items) if (!it.still && !onScreen.has(it.id)) out.set(it.id, f);
+    }
+    for (const [id, d] of [...standDown]) {
+      d.left = Math.min(d.left, standNow(id, d)); // never back up: the road down is the only road
+      const f = d.from * d.left;
+      if (f <= 0) {
+        standDown.delete(id);
+        continue;
+      }
+      out.set(id, f);
+    }
+    return out.size > 0 ? out : undefined;
+  };
+  /**
+   * THE HAND OPENED ON THIS PIECE: whatever stand it had is now coming down. Recorded off the carry
+   * BEFORE the carry forgets it, by every road out of a hand — a release, a throw, the wall.
+   */
+  const standDownFrom = (id: NodeId): void => {
+    if (!laidBack()) return; // flat, there is nothing to come down from
+    for (const cy of carries.values()) {
+      const it = cy.items.find((i) => i.id === id);
+      if (!it || it.still) continue;
+      const from = Math.min(1, Math.max(0, cy.ss.pos));
+      if (from > 0) {
+        standDown.set(id, { from, atMs: warped, left: 1 });
+        ensureLoop();
+      }
+      return;
+    }
+  };
+
   const draw = (): void =>
     renderFrame(host, painter, {
       overrides: overrides(),
@@ -259,6 +320,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       // seat, not standing at a new one.
       carried: carried.size > 0 ? carried : undefined,
       grounded: grounded(),
+      stood: stood(),
       retain: retaining,
       measure: options.measure,
       ...(options.view ? { view: options.view } : {}),
@@ -284,10 +346,13 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
    * The bank is one of them: it outlives the speed that raised it, and a loop that slept on the
    * other three would leave the card standing at whatever angle the last frame caught it at.
    */
+  /** Is the desk laid back at all? Flat, a stand is invisible, and nothing waits on it. */
+  const laidBack = (): boolean => (options.pitch?.() ?? 0) > 0;
   const carrySettled = (cy: Carry): boolean =>
     springSettled(cy.sx, cy.target.x, CARRY_EPS) &&
     springSettled(cy.sy, cy.target.y, CARRY_EPS) &&
     springSettled(cy.sl, cy.liftTo, CARRY_EPS) &&
+    (!laidBack() || springSettled(cy.ss, 1, CARRY_EPS)) &&
     springSettled(cy.sa, wantLean(cy), BANK_EPS) &&
     springSettled(cy.so, cy.targetOrient, BANK_EPS) &&
     gathering(cy) <= 0 &&
@@ -348,6 +413,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
 
   const letGo = (cy: Carry, handKey?: string): void => {
     for (const it of cy.items) {
+      standDownFrom(it.id);
       carried.delete(it.id);
       held.delete(it.id);
     }
@@ -613,12 +679,14 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         cy.sx = springAt(cy.target.x);
         cy.sy = springAt(cy.target.y);
         cy.sl = springAt(cy.liftTo);
+        cy.ss = springAt(1);
         cy.sa = springAt(wantLean(cy));
         cy.so = springAt(cy.targetOrient);
       } else {
         cy.sx = stepSpring(cy.sx, cy.target.x, cy.follow, dt);
         cy.sy = stepSpring(cy.sy, cy.target.y, cy.follow, dt);
         cy.sl = stepSpring(cy.sl, cy.liftTo, cy.liftCfg, dt);
+        cy.ss = stepSpring(cy.ss, 1, cy.liftCfg, dt);
         // The bank chases AFTER the chase spring moved: within one frame the lean is answering the
         // speed this frame has, one step behind it and never a step ahead.
         cy.sa = stepSpring(cy.sa, wantLean(cy), cy.bankCfg, dt);
@@ -762,7 +830,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
     for (const [key, ch] of [...choreos]) if (instant || progressOf(ch) >= 1) choreos.delete(key);
     draw();
     const carriesUnsettled = [...carries.values()].some((cy) => !carrySettled(cy));
-    if (active.size > 0 || choreos.size > 0 || flights.size > 0 || carriesUnsettled) ensureLoop();
+    if (active.size > 0 || choreos.size > 0 || flights.size > 0 || carriesUnsettled || standDown.size > 0) ensureLoop();
   };
 
   const ensureLoop = (): void => {
@@ -814,6 +882,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
 
   /** A flight is filed; the finger lets go of the node at once, and a settle it may be riding runs on until the flight goes. */
   const beginFlight = (id: NodeId, f: Flight): void => {
+    standDownFrom(id);
     flights.set(id, f);
     held.delete(id);
     carried.delete(id);
@@ -850,6 +919,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
       active.delete(id);
     },
     release(id, hand) {
+      standDownFrom(id);
       held.delete(id);
       carried.delete(id);
       if (hand) {
@@ -931,6 +1001,9 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         sx: springAt(anchor.x),
         sy: springAt(anchor.y),
         sl: springAt(1),
+        // FROM WHEREVER IT STANDS: a piece caught on its way back down comes up from there, and a
+        // piece lying on the cloth from nothing — never a jump to level at the touch.
+        ss: springAt(stood()?.get(items[0]!.id) ?? 0),
         // Flat: a card is picked up level, whatever the hand was doing before it closed.
         sa: springAt(0),
         so: springAt(0),
@@ -979,6 +1052,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         cy.sx = oldHandCarry.sx;
         cy.sy = oldHandCarry.sy;
         cy.sl = oldHandCarry.sl;
+        cy.ss = oldHandCarry.ss;
         cy.sa = oldHandCarry.sa;
         cy.so = oldHandCarry.so;
         cy.targetOrient = targetOrient;
@@ -992,6 +1066,7 @@ export function attachMotion(host: Host, painter: Painter, options: MotionOption
         carried.add(it.id);
         held.add(it.id);
         active.delete(it.id);
+        standDown.delete(it.id); // in the hand again: the stand is the carry's to say
       }
       layCarry(cy); // paint the run under the finger at once
       draw();

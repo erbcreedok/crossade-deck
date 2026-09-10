@@ -293,6 +293,38 @@ describe("the motion runtime", () => {
     expect(c.idle() || true).toBe(true);
   });
 
+  it("motion.a-held-piece-stands-as-it-rises-and-lies-as-it-lands — level to the eye in the hand, level to the cloth on the desk", () => {
+    // ON A LAID-BACK DESK a card in the hand is level to the EYE (`PlanInput.stood`), and it gets
+    // there on the lift spring rather than in one frame: it comes up as it is lifted and lies back
+    // down as it lands — on the settle's own road when it is put down, and never by a snap at either
+    // end. A card that stood up the instant it was touched would read as a card that jumped.
+    const b = bench();
+    const c = fakeClock();
+    // No pop: the lift is one, so the only thing the spring animates is the stand.
+    const m = attachMotion(b.host, b.painter, { clock: c.clock, lift: 1, settleMs: 100, settleEase: "linear", pitch: () => 60 });
+    const tall = (): number => {
+      const t = b.tOf("c");
+      return Math.hypot(t.c, t.d) / Math.hypot(t.a, t.b);
+    };
+    expect(tall(), "at rest a card lies on the cloth").toBeCloseTo(1, 6);
+    m.grab([{ id: "c", offset: { x: 0, y: 0 } }], { anchor: { x: 0, y: 0 } });
+    const first = tall();
+    expect(first, "the first frame after the grab: on its way up, not there").toBeLessThan(1.5);
+    for (let i = 1; i <= 60; i += 1) c.tick(i * 16);
+    // cos 60 is a half: level to the eye is twice the lying height.
+    expect(tall(), "held, it stands level to the eye").toBeCloseTo(2, 2);
+    // Let go where it was picked up — no settle to ride, so the stand takes the settle's road alone.
+    m.release("c");
+    b.host.setRoot(b.desk);
+    c.tick(60 * 16 + 50);
+    const halfway = tall();
+    expect(halfway).toBeGreaterThan(1.05);
+    expect(halfway).toBeLessThan(1.95);
+    c.tick(60 * 16 + 100);
+    expect(tall(), "landed, it lies on the cloth again").toBeCloseTo(1, 4);
+    expect(c.idle(), "nothing left to animate").toBe(true);
+  });
+
   it("motion.grab-places-the-run-under-the-finger — drawn at once, a bare grab schedules no frame", () => {
     const b = bench();
     const c = fakeClock();
