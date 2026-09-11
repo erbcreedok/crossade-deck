@@ -13,6 +13,7 @@
     "@apps/klondike": "*",
     "@crossade/wire": "*",
     "@game-presets/cards": "*",
+    "@game-presets/desk": "*",
     "@game-presets/desks": "*",
     "@game-presets/dice": "*",
     "game-kit": "*",

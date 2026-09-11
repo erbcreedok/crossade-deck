@@ -3,7 +3,7 @@
 // from `index.ts` so a unit test can hit it without mounting a host or opening a socket.
 import { chairId, chairLidId, chairMarks, chessMap, installSeatArt, nardyMap, roundMap, roundPlaces, seatChairs } from "@game-presets/desks";
 import { byId, remove, type Node } from "game-kit";
-import { hubSeats } from "./people.js";
+import { deskSeats } from "@game-presets/desk";
 
 /** How many people this shelf's desks seat — the same two the room is created with. */
 export const TABLE_SEATS = 2;
@@ -53,7 +53,7 @@ export interface SeatedPerson {
  */
 export function syncSeatChairs(desk: Node, present: readonly SeatedPerson[]): void {
   const places = roundPlaces(TABLE_SEATS);
-  const seats = hubSeats(TABLE_SEATS);
+  const seats = deskSeats(TABLE_SEATS);
   for (const [i, { seat, ink }] of seats.entries()) {
     const there = byId(desk, chairId(seat));
     const sitting = present.find((one) => one.seat === seat);

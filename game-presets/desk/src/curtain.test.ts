@@ -12,7 +12,7 @@ describe("the desk is covered until it knows where it is looking from", () => {
   it("curtain.covers-the-desk-until-raised — a first frame from nobody's side is not shown", () => {
     const stage = document.createElement("div");
     document.body.appendChild(stage);
-    const cover = curtain(stage);
+    const cover = curtain(stage, "#173d2d");
     expect(cover.down(), "the desk is hidden the moment it is stood up").toBe(true);
     const sheet = stage.firstElementChild as HTMLElement;
     expect(sheet.style.position).toBe("absolute");

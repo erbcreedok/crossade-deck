@@ -1,13 +1,13 @@
 // THE HUB'S OWN TRANSPORT — what only the hub knows: a seat, a camera and a relay, in place of the
 // catalog's own local screens. Everything downstream of a `Presence[]` (placing discs, dressing
 // rings, idle-return, taps) is the kit's own `withAvatars` and is checked there
-// (`game-kit/src/render/avatars.test.ts`); this file checks only that `hubAvatarsTransport` turns a
+// (`game-kit/src/render/avatars.test.ts`); this file checks only that `deskAvatarsTransport` turns a
 // seat and a relay into the four things an `AvatarsTransport` promises — `mine`, `say`, `hear`, plus
 // the hub's own `roster`/`heard`/`state` that feed it.
 
 import { describe, it, expect } from "vitest";
 import type { Presence, PresenceView } from "game-kit";
-import { hubAvatarsTransport, inkOf, PRESENCE_EVERY_MS } from "./people.js";
+import { deskAvatarsTransport, inkOf, PRESENCE_EVERY_MS } from "./presence.js";
 import type { RelayMessage } from "@crossade/wire";
 
 const VIEW: PresenceView = { target: { x: 0, y: 0 }, zoom: 56, rotation: 0, glass: { w: 393, h: 800 } };
@@ -19,7 +19,7 @@ const ROSTER = [
 
 function build(mine: string | null, clock: { ms: number }) {
   const sent: RelayMessage[] = [];
-  const wiring = hubAvatarsTransport({
+  const wiring = deskAvatarsTransport({
     mine: () => mine,
     view: () => VIEW,
     send: (msg) => sent.push(msg),
@@ -37,7 +37,7 @@ describe("inkOf: a seat's colour is the seat's own, never a roster's order", () 
   });
 });
 
-describe("hubAvatarsTransport: the hub's relay in place of a local screen", () => {
+describe("deskAvatarsTransport: the hub's relay in place of a local screen", () => {
   it("mine() is empty until the room has said who I am and my view has laid out", () => {
     const clock = { ms: 0 };
     const { wiring } = build(null, clock);

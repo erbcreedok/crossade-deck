@@ -43,7 +43,7 @@ describe("what the desk opens under", () => {
     // somebody looked: raising the cover one line earlier puts the middle-of-the-room frame back on
     // the glass, and every test that reads a camera would still be green.
     const raw = readFileSync(join(process.cwd(), "src/table/index.ts"), "utf8");
-    expect(raw.includes("curtain(container)"), "the desk is covered while it is still guessing").toBe(true);
+    expect(raw.includes("curtain(container,"), "the desk is covered while it is still guessing").toBe(true);
     const home = raw.indexOf("live.idle?.goHome()");
     expect(home, "the view is taken home from the join").toBeGreaterThan(0);
     const raised = [...raw.matchAll(/cover\.raise\(\)/g)].map((m) => m.index ?? -1);

@@ -1,4 +1,4 @@
-// THE PEOPLE AT THE HUB'S DESK — an `AvatarsTransport` for the kit's shared `withAvatars`, with the
+// THE PEOPLE AT A NETWORKED DESK — an `AvatarsTransport` for the kit's shared `withAvatars`, with the
 // relay in place of the catalog's own panes.
 //
 // The catalog can read every seat's camera because both screens are in one document. Here the other
@@ -20,12 +20,12 @@ import type { RelayMessage, RosterItem } from "@crossade/wire";
 export const SEAT_INKS = ["accent", "alert", "textMuted", "text"] as const;
 
 /**
- * THE SEATS A HUB DESK IS BUILT WITH — `p1`, `p2`…, each in the ink its own mark is drawn in.
+ * THE SEATS A NETWORKED DESK IS BUILT WITH — `p1`, `p2`…, each in the ink its own mark is drawn in.
  *
  * The room names seats and the desk seats hands, and the two have to be the same names: a hand
  * standing beside `south` on a desk whose players are `p1` and `p2` belongs to nobody who is here.
  */
-export function hubSeats(n: number): readonly AvatarSeat[] {
+export function deskSeats(n: number): readonly AvatarSeat[] {
   return Array.from({ length: n }, (_, i) => ({ seat: `p${i + 1}`, ink: SEAT_INKS[i % SEAT_INKS.length]! }));
 }
 
@@ -46,7 +46,7 @@ export function inkOf(seat: string): Paint {
 /** How often this screen's own view may be told to the room, in ms — a hand moves faster than this. */
 export const PRESENCE_EVERY_MS = 100;
 
-export interface HubAvatarsTransportOptions {
+export interface DeskAvatarsTransportOptions {
   /** This screen's own seat, once the room has said. */
   readonly mine: () => string | null;
   /** This screen's camera, as a message. Absent while the glass has not been laid out yet. */
@@ -57,7 +57,7 @@ export interface HubAvatarsTransportOptions {
   readonly now?: () => number;
 }
 
-export interface HubAvatarsTransport {
+export interface DeskAvatarsTransport {
   /** The `AvatarsTransport` itself — handed straight to the kit's `withAvatars`. */
   readonly transport: AvatarsTransport;
   /**
@@ -72,7 +72,7 @@ export interface HubAvatarsTransport {
   state(state: PresenceState): void;
 }
 
-export function hubAvatarsTransport(o: HubAvatarsTransportOptions): HubAvatarsTransport {
+export function deskAvatarsTransport(o: DeskAvatarsTransportOptions): DeskAvatarsTransport {
   const now = o.now ?? (() => Date.now());
 
   /** Everybody the room has named, in seat order — the order the inks are read by. */

@@ -79,9 +79,9 @@ import { goTo, placeOf } from "../hub/route.js";
 import { joinTable, type RosterItem, type Table } from "@crossade/wire";
 import type { Teardown } from "../hub/catalogue.js";
 import { installTableLook } from "../look/surfaces.js";
+import { PALETTE } from "../look/palette.js";
 import { isTableGame, mapFor, syncSeatChairs, TABLE_SEATS, type SeatedPerson, type TableGame } from "./mapFor.js";
-import { curtain } from "./curtain.js";
-import { hubAvatarsTransport, hubSeats, inkOf, SEAT_INKS, type HubAvatarsTransport } from "./people.js";
+import { curtain, deskAvatarsTransport, deskSeats, inkOf, SEAT_INKS, type DeskAvatarsTransport } from "@game-presets/desk";
 import { chairId, courtLift, handHud, HUD_COURT, untuck, type HandHud } from "@game-presets/desks";
 import { apply, byId, composeTransforms, extentOf, fieldsOf, footprint, type CameraHud, type TransformableFields } from "game-kit";
 
@@ -404,7 +404,7 @@ export function startTable(container: HTMLElement): Teardown {
   let leaveIdleClock: (() => void) | undefined;
   /** The people at this desk, once the room has said who they are. */
   let avatars: Avatars | undefined;
-  let peopleWire: HubAvatarsTransport | undefined;
+  let peopleWire: DeskAvatarsTransport | undefined;
   /** THE SAME PEOPLE, WITH THE NAME THE ROOM CALLS THEM BY — what stands under a ring on the felt. */
   const sitting = (roster: readonly RosterItem[]): readonly SeatedPerson[] =>
     roster.flatMap((one) => (one.seat ? [{ seat: one.seat, name: one.name }] : []));
@@ -666,7 +666,7 @@ export function startTable(container: HTMLElement): Teardown {
    * THE DESK IS COVERED UNTIL IT KNOWS WHOSE SIDE IT IS SEEN FROM — raised once the seat has
    * arrived and the view has been taken home, and never before (`curtain.ts`).
    */
-  const cover = curtain(container);
+  const cover = curtain(container, PALETTE.felt);
   // THE CAMERA'S OWN TWO CONTROLS IN THE CORNER — the kit's, wired in one line. North is on every
   // desk; the place button appears because this desk names seats, and it asks for exactly what a tap
   // on one's own ring asks for, so the two can never take a reader to two different places.
@@ -770,14 +770,14 @@ export function startTable(container: HTMLElement): Teardown {
       // THE PEOPLE AT THIS DESK, once the room can be asked who they are. Their discs and their
       // rings are the kit's own (`withAvatars`); what differs is only where the answers come from —
       // the wire (`peopleWire`, a relay transport), and not a second pane in this document.
-      peopleWire = hubAvatarsTransport({
+      peopleWire = deskAvatarsTransport({
         mine: () => seat,
         view: () => viewNow(),
         send: (msg) => table.sendRelay(msg),
       });
       avatars = withAvatars({
         desk: () => live.host.root,
-        seats: hubSeats(TABLE_SEATS),
+        seats: deskSeats(TABLE_SEATS),
         transport: peopleWire.transport,
         places: placesFor(game),
         // A HAND PER PERSON ON THE CARD TABLE, and none on a board: a piece on a board is on a
