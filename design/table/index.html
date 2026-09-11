@@ -76,6 +76,8 @@
       ["vis", "видимость", "enum", "приватная", ["приватная", "для друзей", "публичная"]],
       ["access", "допуск", "enum", "по коду", ["по коду", "по приглашению", "открыто"]],
       ["forever", "вечная комната", "bool", false],
+      ["code", "код комнаты", "text", "0244"],
+      ["roomSeats", "мест за столом", "int", 4, 2, 32],
     ]],
     ["Он (Марат)", [
       ["theyRole", "его роль", "enum", "игрок", R.ROLES],
@@ -143,6 +145,10 @@
           input = document.createElement("select");
           for (const opt of a) { const o = document.createElement("option"); o.value = opt; o.textContent = opt; o.selected = P[key] === opt; input.appendChild(o); }
           input.onchange = () => { P[key] = input.value; apply(); };
+        } else if (kind === "text") {
+          input = document.createElement("input");
+          input.type = "text"; input.value = P[key];
+          input.oninput = () => { P[key] = input.value; apply(); };
         } else {
           input = document.createElement("input");
           input.type = "checkbox"; input.checked = !!P[key];
@@ -212,6 +218,34 @@
       : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 3px 0 rgba(11,7,4,.55);color:${T.ink};`)
     + `">${label}</button>`;
 
+  // ---- КОНТРОЛЫ, ОБЩИЕ С ЭКРАНАМИ СОЗДАНИЯ И ПОИСКА (стенд 9579) ----
+  //
+  // Комната настраивается ДВАЖДЫ: при создании и потом, отсюда. Спрашивать одно и то же двумя
+  // разными способами — значит учить человека заново: там были селекторы и ползунок, здесь были
+  // строки «значение ›», которые надо тыкать по кругу, чтобы увидеть варианты.
+  const label = (t) => `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">${t}</span>`;
+  const block = (t, inner) => `<div style="display:flex;flex-direction:column;gap:9px;padding:14px 0;box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55)">${label(t)}${inner}</div>`;
+
+  const pick = (id, options, now, live) => `<div style="display:flex;gap:6px;flex-wrap:wrap">`
+    + options.map((o) => `<button ${live ? `data-do="${id}:${o}"` : ""} style="flex:1 1 auto;${live ? "cursor:pointer;" : ""}border:0;border-radius:8px;padding:9px 10px;font:400 12px 'Tiny5',monospace;white-space:nowrap;`
+      + (o === now
+        ? `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6);color:${T.black};`
+        : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};color:${T.inkDim};`)
+      + `${live ? "" : "opacity:.6;"}">${o}</button>`).join("") + `</div>`;
+
+  const toggle = (id, on, yes, no, live) => `<button ${live ? `data-do="${id}"` : ""} style="${live ? "cursor:pointer;" : "opacity:.6;"}border:0;background:transparent;display:flex;align-items:center;gap:10px;padding:0">`
+    + `<span style="flex:none;width:52px;height:30px;border-radius:999px;display:flex;align-items:center;padding:0 3px;box-sizing:border-box;`
+    + `background:${on ? T.gold : T.well};box-shadow:inset 0 0 0 3px ${T.black};justify-content:${on ? "flex-end" : "flex-start"}">`
+    + `<span style="width:22px;height:22px;border-radius:50%;background:${on ? T.black : T.wood}"></span></span>`
+    + `<span style="font:400 13px 'Tiny5',monospace;color:${on ? T.ink : T.inkDim};text-align:left">${on ? yes : no}</span></button>`;
+
+  const seatsControl = (id, value, hint, live) => `<div style="display:flex;align-items:center;gap:12px">`
+    + `<button ${live ? `data-do="${id}"` : ""} style="flex:none;${live ? "cursor:pointer;" : "opacity:.6;"}border:0;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};border-radius:10px;`
+    + `padding:11px 16px;font:400 17px 'Press Start 2P',monospace;color:${T.ink}"><span data-g="${id}-value">${value}</span></button>`
+    + (live ? `<input data-slider="${id}" type="range" min="2" max="32" step="1" value="${value}" style="flex:1;accent-color:${T.gold};height:30px">` : "")
+    + `</div>`
+    + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">${hint}</span>`;
+
   const denials = (cant) => !P.explain || !cant.length ? "" :
     `<div style="display:flex;flex-direction:column;gap:3px;padding-top:10px">`
     + `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">НЕЛЬЗЯ</span>`
@@ -225,6 +259,10 @@
     + (back ? `<span style="font:400 15px 'Tiny5',monospace;color:${T.gold};letter-spacing:.08em">${title}</span>` : "")
     + btn("close", "Закрыть", "quiet") + `</div>`
     + `<div style="padding:0 18px 24px">${inner}</div></div></div>`;
+
+  /** Код выдаёт сервер; форма та же: четыре знака без похожих друг на друга. */
+  const CODE_SIGNS = "23456789ACDEFHJKLMNPQRTUVWXY";
+  const freshCode = () => Array.from({ length: 4 }, () => CODE_SIGNS[Math.floor(Math.random() * CODE_SIGNS.length)]).join("");
 
   const PEOPLE = [
     { key: "me", name: "Ербол", title: "Крестоносец", level: 7 },
@@ -243,7 +281,7 @@
       hand: { "piece:lock": false, "piece:pin": false, "piece:hide": false } };
     const them = { ...PEOPLE[1], role: P.theyRole, seat: P.theySeat && P.theyRole !== "зритель", colour: P.theyColour, mine: false, friend: P.friend, away: P.away,
       hand: { "piece:lock": P.theyLock, "piece:pin": P.theyPin, "piece:hide": P.theyHide } };
-    const room = { mode: P.mode, vis: P.vis, access: P.access, forever: P.forever, code: "0244" };
+    const room = { mode: P.mode, vis: P.vis, access: P.access, forever: P.forever, code: P.code };
     const roster = [me, them, ...PEOPLE.slice(2).map((p) => ({ ...p, mine: false, friend: "никто", hand: { "piece:lock": false, "piece:pin": false, "piece:hide": false } }))];
     const who = P.whose === "мой" ? me : them;
     /** Цвета, которые уже носят за этим столом: палитра показывает их занятыми. */
@@ -358,23 +396,29 @@
       + `Эта страница живёт и без стола: её же открывают из хаба и по ссылке. Всё, что про ЭТОТ стол — стул, права, лок и рука — осталось в управлении, там, где стол есть.</div>`;
 
     // ---- КОМНАТА ----
+    //
+    // ТЕ ЖЕ КОНТРОЛЫ, ЧТО И ПРИ СОЗДАНИИ, но теперь у каждого есть право: чего тебе не положено
+    // менять, то стоит тускло и не нажимается, а причина написана внизу, в «нельзя». Прятать
+    // настройку целиком нельзя — человек должен видеть, КАК устроен стол, за которым сидит.
     const roomActs = R.actionsOn("room", me, them, room);
     const allowed = (id) => roomActs.can.find((a) => a.id === id);
-    const roomLine = (label, value, id) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55)">`
-      + `<span style="display:flex;flex-direction:column;gap:3px"><span style="font:400 13px 'Tiny5',monospace;color:${T.inkDim}">${label}</span>`
-      + `<span style="font:400 15px 'Tiny5',monospace;color:${T.ink}">${value}</span></span>`
-      + (allowed(id) ? btn(id, allowed(id).vote ? "Предложить" : "Сменить", "") : "") + `</div>`;
-    const roomScreen = `<div style="display:flex;align-items:center;gap:14px;padding:6px 0 14px">`
-      + `<span style="background:${T.black};box-shadow:inset 0 0 0 3px ${T.gold};border-radius:10px;padding:10px 14px;font:400 20px 'Press Start 2P',monospace;color:${T.gold}">${room.code}</span>`
+    const vote = (id) => allowed(id)?.vote;
+    const roomScreen = `<div style="display:flex;align-items:center;gap:14px;padding:6px 0 12px">`
+      + `<span style="background:${T.black};box-shadow:inset 0 0 0 3px ${T.gold};border-radius:10px;padding:10px 14px;font:400 20px 'Press Start 2P',monospace;color:${T.gold};letter-spacing:.06em">${esc(room.code)}</span>`
       + `<span style="display:flex;flex-direction:column;gap:3px"><span style="font:400 14px 'Tiny5',monospace;color:${T.ink}">Карты</span>`
       + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">${room.forever ? "вечная" : "живёт, пока в ней есть люди"}</span></span></div>`
-      + `<div style="display:flex;gap:8px;padding-bottom:6px">${btn("room:link", "Ссылка на комнату", "gold")}${btn("qr", "QR", "quiet")}</div>`
-      + roomLine("Видимость", room.vis, "room:public")
-      + roomLine("Допуск", room.access, "room:access")
-      + roomLine("Кто решает", room.mode, "room:mode")
-      + roomLine("Код комнаты", room.code, "room:code")
-      + roomLine("Вечная комната", room.forever ? "да" : "нет", "room:forever")
-      + (allowed("room:close") ? `<div style="padding-top:14px">${btn("room:close", "Закрыть комнату", "danger")}</div>` : "")
+      + `<div style="display:flex;gap:8px;padding-bottom:4px">${btn("room:link", "Ссылка на комнату", "gold")}${btn("qr", "QR", "quiet")}`
+      + (allowed("room:code") ? btn("code:new", "↻", "") + btn("code:own", "Свой код", "quiet") : "") + `</div>`
+      + block("ВИДИМОСТЬ" + (vote("room:public") ? " · ГОЛОСОВАНИЕМ" : ""),
+        pick("vis", ["приватная", "для друзей", "публичная"], room.vis, !!allowed("room:public")))
+      + block("ДОПУСК" + (vote("room:access") ? " · ГОЛОСОВАНИЕМ" : ""),
+        pick("access", ["по коду", "по приглашению", "открыто"], room.access, !!allowed("room:access")))
+      + block("МЕСТ ЗА СТОЛОМ", seatsControl("roomSeats", P.roomSeats,
+        allowed("room:access") ? "тяни ползунок или нажми на число — от 2 до 32" : "меняет тот, кто распоряжается", !!allowed("room:access")))
+      + block("КТО РЕШАЕТ" + (vote("room:mode") ? " · ГОЛОСОВАНИЕМ" : ""),
+        pick("mode", R.MODES, room.mode, !!allowed("room:mode")))
+      + block("ВЕЧНАЯ КОМНАТА", toggle("forever", room.forever, "живёт всегда", "закроется, когда все уйдут", !!allowed("room:forever")))
+      + (allowed("room:close") ? `<div style="padding-top:16px">${btn("room:close", allowed("room:close").vote ? "Предложить закрыть комнату" : "Закрыть комнату", "danger")}</div>` : "")
       + denials(roomActs.cant);
 
     const screens = {
@@ -399,6 +443,17 @@
         if (s.key === "me") continue;
         over.insertAdjacentHTML("beforeend", `<button data-do="tip:${s.key}" style="position:absolute;left:${s.x - s.r - 6}px;top:${s.y - s.r - 6}px;width:${(s.r + 6) * 2}px;height:${(s.r + 6) * 2}px;border-radius:50%;border:0;background:transparent;cursor:pointer;z-index:12"></button>`);
       }
+    }
+
+    // Пока тянут — меняется только число: пересборка на каждый пиксель отрывает палец от ползунка.
+    for (const slider of over.querySelectorAll("[data-slider]")) {
+      const id = slider.getAttribute("data-slider");
+      slider.oninput = () => {
+        P[id] = Number(slider.value);
+        const shown = over.querySelector(`[data-g="${id}-value"]`);
+        if (shown) shown.textContent = String(P[id]);
+      };
+      slider.onchange = () => { build(); apply(); };
     }
 
     for (const el of over.querySelectorAll("[data-do]")) {
@@ -428,10 +483,19 @@
         else if (does === "friend:cancel" || does === "friend:decline" || does === "friend:drop") P.friend = "никто";
         else if (does === "friend:accept") P.friend = "друзья";
         else if (does === "owner:pass") { P.theyRole = "оунер"; P.myRole = "админ"; }
-        else if (does === "room:public") P.vis = P.vis === "приватная" ? "для друзей" : P.vis === "для друзей" ? "публичная" : "приватная";
-        else if (does === "room:access") P.access = P.access === "по коду" ? "по приглашению" : P.access === "по приглашению" ? "открыто" : "по коду";
-        else if (does === "room:mode") P.mode = R.MODES[(R.MODES.indexOf(P.mode) + 1) % R.MODES.length];
-        else if (does === "room:forever") P.forever = !P.forever;
+        else if (does.startsWith("vis:")) P.vis = does.slice(4);
+        else if (does.startsWith("access:")) P.access = does.slice(7);
+        else if (does.startsWith("mode:")) P.mode = does.slice(5);
+        else if (does === "forever") P.forever = !P.forever;
+        else if (does === "code:new") P.code = freshCode();
+        else if (does === "code:own") {
+          const got = prompt("Свой код комнаты (2–8 знаков)", P.code);
+          if (got !== null && got.trim()) P.code = got.trim().toUpperCase().slice(0, 8);
+        } else if (does === "roomSeats") {
+          const got = prompt("Сколько мест за столом? (2–32)", String(P.roomSeats));
+          const n = Number(got);
+          if (Number.isFinite(n) && n >= 2 && n <= 32) P.roomSeats = Math.round(n);
+        }
         build();
         apply();
       };
