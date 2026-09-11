@@ -1,0 +1,23 @@
+design/table/rights.js
+  s_357f670d370d4d::t_2eb425452ef00a 25-29,31,35-36,124-125,127
+design/rooms/index.html
+  s_357f670d370d4d::t_2eb425452ef00a 82,87,220,374,399-402
+design/table/index.html
+  s_357f670d370d4d::t_2eb425452ef00a 75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "07bd47b2813200b2cfa6135133b37623df437758",
+  "prompts": {},
+  "sessions": {
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}

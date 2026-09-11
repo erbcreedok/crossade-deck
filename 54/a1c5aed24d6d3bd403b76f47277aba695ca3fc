@@ -1,0 +1,22 @@
+design/hubhome/shelf.js
+  s_357f670d370d4d::t_cbd879d3b8bcae 112-123,130,132-135,142-143
+design/hubhome/index.html
+  s_357f670d370d4d::t_4e221c1b8ddeb0 27-29,417-419
+  s_357f670d370d4d::t_cbd879d3b8bcae 406,410-412
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "54a1c5aed24d6d3bd403b76f47277aba695ca3fc",
+  "prompts": {},
+  "sessions": {
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
