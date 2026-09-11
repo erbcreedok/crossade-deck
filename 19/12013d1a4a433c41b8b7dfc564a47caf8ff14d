@@ -1,0 +1,25 @@
+server/src/app.ts
+  s_9ed0da107cbc4a::t_ce09182c8669c4 26,199-204
+server/src/telegramMe.test.ts
+  s_9ed0da107cbc4a::t_8008c781200dd0 1-72
+server/CLAUDE.md
+  s_9ed0da107cbc4a::t_e087d7d5351e46 7,86-91
+server/src/telegramMe.ts
+  s_9ed0da107cbc4a::t_adc824532a9fc5 1-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1912013d1a4a433c41b8b7dfc564a47caf8ff14d",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
