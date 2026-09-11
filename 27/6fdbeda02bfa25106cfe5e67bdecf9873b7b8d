@@ -1,0 +1,23 @@
+game-presets/tophud/src/topHud.test.ts
+  s_9ed0da107cbc4a::t_ec210b42bd7f99 5,76-77,79-81
+  s_9ed0da107cbc4a::t_376651a1d1df50 78
+  s_9ed0da107cbc4a::t_aadefc26080cdd 82-83
+game-presets/tophud/src/topHud.ts
+  s_9ed0da107cbc4a::t_376651a1d1df50 27-46,94,98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "276fdbeda02bfa25106cfe5e67bdecf9873b7b8d",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
