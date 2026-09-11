@@ -1,0 +1,74 @@
+look/package.json
+  s_357f670d370d4d::t_d657c767429c70 1-29
+package.json
+  s_357f670d370d4d::t_99a77bda588168 7
+game-presets/desk/src/startDesk.ts
+  s_357f670d370d4d::t_dea7b148a36083 226-237,239-249
+apps/hub/src/hub/shell.ts
+  s_357f670d370d4d::t_99a77bda588168 29-31
+look/src/index.ts
+  s_357f670d370d4d::t_490c115c4ebe4e 1-23
+look/tsconfig.json
+  s_357f670d370d4d::t_99a77bda588168 1-21
+apps/hub/src/hub/grid.test.ts
+  s_357f670d370d4d::t_99a77bda588168 9
+apps/cards/vitest.config.ts
+  s_357f670d370d4d::t_230a2e60ca223b 1-8
+apps/cards/src/index.ts
+  s_357f670d370d4d::t_9aaa06b4bd7d8d 1-32
+look/src/palette.test.ts
+  s_357f670d370d4d::t_04e3edd1216580 2,4-62
+apps/cards/package.json
+  s_357f670d370d4d::t_04873755ef54e1 1-34
+apps/hub/src/table/hubHost.ts
+  s_357f670d370d4d::t_19a54369a2065f 1-45
+apps/cards/src/spec.ts
+  s_357f670d370d4d::t_91f25fe069646e 1-20,22-90
+  s_357f670d370d4d::t_2929e00c95c75c 21
+apps/hub/src/table/index.ts
+  s_357f670d370d4d::t_99a77bda588168 81-82
+apps/cards/index.html
+  s_357f670d370d4d::t_ad22b2ce7b78dc 1-30
+apps/cards/src/standalone.test.ts
+  s_357f670d370d4d::t_ccb49a66218e49 73-75,77-78
+  s_357f670d370d4d::t_08b236e70b467e 1-11,14-18,23-26,28-72,76,79-87
+  s_357f670d370d4d::t_d4a135cea73ddc 12-13
+  s_357f670d370d4d::t_036197938928e5 19-22,27
+apps/hub/src/table/open.test.ts
+  s_357f670d370d4d::t_5d124daf9d8e65 12
+apps/cards/tsconfig.json
+  s_357f670d370d4d::t_230a2e60ca223b 1-19
+apps/cards/src/main.ts
+  s_357f670d370d4d::t_3cdf97e141a568 1-29
+apps/hub/src/hub/grid.ts
+  s_357f670d370d4d::t_99a77bda588168 35-36
+apps/cards/vite.config.ts
+  s_357f670d370d4d::t_a8e21b3e99854a 1-19
+apps/hub/package.json
+  s_357f670d370d4d::t_5d124daf9d8e65 13
+  s_357f670d370d4d::t_c08356e5b358a7 15
+apps/hub/src/hub/catalogue.ts
+  s_357f670d370d4d::t_cf1ed1b834c8f7 30-32,35-38
+look/vitest.config.ts
+  s_357f670d370d4d::t_99a77bda588168 1-6
+apps/hub/src/hub/press.ts
+  s_357f670d370d4d::t_99a77bda588168 27
+package-lock.json
+  s_357f670d370d4d::t_0dfb2a698a19ec 11,19-36,41,43,503-515,523-526,593-596
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c4f0f59a4e11adf4eb741a4a27b46b54acc9e0b1",
+  "prompts": {},
+  "sessions": {
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
