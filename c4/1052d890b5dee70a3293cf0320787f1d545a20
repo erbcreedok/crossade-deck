@@ -1,0 +1,39 @@
+server/src/telegramLink.ts
+  s_9ed0da107cbc4a::t_5b2b03ff079e79 37-44,61-72,113,137
+server/src/app.ts
+  s_9ed0da107cbc4a::t_f523f9a9d684b6 256-260
+  s_9ed0da107cbc4a::t_5b2b03ff079e79 29,239-244,247-254
+  s_9ed0da107cbc4a::t_c79d46ebbd0a48 255
+apps/hub/src/home/home.test.ts
+  s_9ed0da107cbc4a::t_bd9112c9ccac38 172,183-196
+  s_9ed0da107cbc4a::t_bafbec6f8621b6 197-199
+server/src/telegramLinkRoutes.test.ts
+  s_9ed0da107cbc4a::t_0715223e8cdc3f 167-186
+wire/src/index.ts
+  s_9ed0da107cbc4a::t_76e9d122d5d94e 27
+apps/hub/src/home/home.ts
+  s_9ed0da107cbc4a::t_76e9d122d5d94e 19,53-54,353-364
+bot/src/link.ts
+  s_9ed0da107cbc4a::t_40e0b20d60439a 18-26,44,49,57-59,62,67-80
+  s_9ed0da107cbc4a::t_d002ed58c64dc8 17
+bot/src/link.test.ts
+  s_9ed0da107cbc4a::t_2dc8b209b84f6c 35,41-50,53,57,77-93
+wire/src/account.ts
+  s_9ed0da107cbc4a::t_76e9d122d5d94e 190-191,193-196,198,205-207,210
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c41052d890b5dee70a3293cf0320787f1d545a20",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
