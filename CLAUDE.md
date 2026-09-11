@@ -6,8 +6,9 @@ Details live next to the code and load when you work there.
 | where | what it is | its doc |
 |---|---|---|
 | `game-kit/` | **active work**: a library of presets and contracts for building board games | `game-kit/CANONS.md` |
-| `game-presets/*` | add-ons built ON the kit and shipped separately — `cards`, `dice` | the package's own header |
-| `apps/*` | standalone games (`klondike`) and the `hub` they are started from | the app's own header |
+| `game-presets/*` | add-ons built ON the kit and shipped separately — `cards`, `dice`, `desks` (maps), `desk` (the networked-desk runtime), `hand` (the card table's hand, as a desk layer) | the package's own header |
+| `wire/`, `look/` | the product's own two: `@crossade/wire` (accounts + the room a desk talks through) and `@crossade/look` (the one palette, its surfaces, the text roles) | the package's own header |
+| `apps/*` | one package per game — `klondike`, `cards`, `chess`, `nardy` — and the `hub` they are started from. EVERY game is standalone: its own `index.html`, its own dev port, and the same one door into the hub, `(container) => Teardown` | the app's own header |
 | `server/` | Crossade Deck server — Colyseus, custom accounts | `server/CLAUDE.md` |
 | `deploy/`, `scripts/` | Fly.io: two apps (server, hub) + the catalogue on GitHub Pages; build and deploy are SEPARATE steps | `DEPLOY.md` |
 | `design/` | local design stands — plain HTML pages with knobs the owner tunes a screen on before it is built (`design/hud`: the sandbox HUD); served by `hud-stand` in `.claude/launch.json` | the page itself |
@@ -16,6 +17,18 @@ The two previous client generations (`client/`, `client2/`) were deleted once th
 They are named all over the kit's comments as the SOURCE of a ported mechanic or of a trap already
 paid for — that history is in git (`git log --diff-filter=D -- client2`), and a mention of it in a
 comment is a citation, not a path to open.
+
+## Adding a game
+
+A table game is a package with a `DeskSpec` in it and nothing else — `map`, `places`, `room`, `unit`,
+`play`, and a layer if it needs one. `@game-presets/desk` runs it; `@crossade/wire` gets it to the
+room; the hub's `catalogue.ts` is the only file in the hub that will ever name it. Copy `apps/chess`
+(the shortest one, 46 lines of spec) rather than starting from the hub.
+
+**The runtime does not know what game is on it, and a guard says so**
+(`desk.the-runtime-knows-no-game`). If something about a new game seems to want a branch inside
+`startDesk`, it belongs in that game's `DeskSpec` or in a `DeskLayer` — that is the whole design, and
+the 863-line file it replaced is what happens when the rule is bent once.
 
 ## Working in game-kit
 

@@ -7,6 +7,13 @@ Two things ship, and they do not know about each other:
 - `apps/hub/` — the HUB: one static page games are started from, built by Vite into
   `apps/hub/dist`. A game is a lazy chunk in that same page, not another site.
 
+  Every game is ALSO its own Vite app (`apps/cards`, `apps/chess`, `apps/nardy`, `apps/klondike`),
+  with its own `index.html` and its own `npm run build` into its own `dist`. Nothing deploys them
+  today and nothing has to: the hub imports each one as a package and bundles it, exactly as before.
+  Their entries exist so a game can be opened, tested and driven by Playwright on its own address —
+  and so the day one of them wants a host of its own, that is a deploy target and not a rewrite.
+  Dev ports: hub 9569, klondike 9568, cards 9570, chess 9574, nardy 9575.
+
 The hub bakes NO address of anything: it talks to nobody. That is what makes its image one image
 for every environment — there is nothing in it to point somewhere else.
 
