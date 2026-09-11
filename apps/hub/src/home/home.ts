@@ -8,7 +8,18 @@
 // Настоящий вход живёт там, где без личности нет ответа: перенос себя, владение комнатой, друзья.
 
 import { FAVOURITE_INKS, PALETTE, tint } from "@crossade/look";
-import { ensureAccount, linkTelegram, myProfile, storedAccount, updateProfile, type Profile } from "@crossade/wire";
+import {
+  ensureAccount,
+  linkTelegram,
+  myProfile,
+  storedAccount,
+  telegramInvite,
+  telegramInviteState,
+  updateProfile,
+  type InviteState,
+  type Profile,
+  type TelegramInvite,
+} from "@crossade/wire";
 import { askInWindow, type Ask } from "./ask.js";
 import { homeLook, type HomeLook } from "./look.js";
 import {
@@ -22,8 +33,12 @@ import {
   swatchesHtml,
   valueHtml,
 } from "./parts.js";
+import { every } from "../hub/beat.js";
 import { transferLink as transferLinkFor } from "./transfer.js";
 import { whoAmI } from "./whoami.js";
+
+/** Как часто страница спрашивает, нажал ли человек «Запустить» в боте. */
+const WATCH_EVERY_MS = 1500;
 
 /** Откуда экран берёт профиль и куда девает правки. Подменяется целиком — в тесте и в Mini App. */
 export interface ProfileGateway {
@@ -34,6 +49,10 @@ export interface ProfileGateway {
   /** Подписанная телеграмом строка, если этот экран открыт внутри Mini App. */
   telegramInitData(): string | undefined;
   linkTelegram(initData: string): Promise<"linked" | "switch" | "conflict" | undefined>;
+  /** Ссылка в бота для обычного браузера. `undefined` — этот путь сейчас не предлагается. */
+  inviteTelegram(): Promise<TelegramInvite | undefined>;
+  /** Чем кончилось ожидание бота. */
+  inviteState(code: string): Promise<InviteState>;
   /** Ссылка, которой человек забирает СЕБЯ на второе устройство. */
   transferLink(): string | undefined;
   /** Положить строку в буфер обмена, если браузер это умеет. */
@@ -57,6 +76,8 @@ export const liveGateway: ProfileGateway = {
   async linkTelegram(initData) {
     return (await linkTelegram(initData))?.kind;
   },
+  inviteTelegram: () => telegramInvite(),
+  inviteState: (code) => telegramInviteState(code),
   transferLink: () => {
     const code = storedAccount()?.recoveryHash;
     return code ? transferLinkFor(code, globalThis.location.href) : undefined;
@@ -102,6 +123,10 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
   let linkShown = false;
   /** Что сказать человеку после действия, которое не видно по экрану. */
   let said = "";
+  /** Ссылка в бота, пока её ждут. */
+  let invite: TelegramInvite | undefined;
+  /** Опрос сервера, пока человек в телеге. Снимается, когда ждать больше нечего. */
+  let waiting: (() => void) | undefined;
   let stopped = false;
 
   const element = document.createElement("div");
@@ -197,13 +222,35 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
    * где телега сама подписывает, кто пришёл. В обычном браузере вход через телегу идёт обратным
    * потоком (код в боте), и он ещё не построен: мёртвая кнопка хуже её отсутствия.
    */
+  /**
+   * ТЕЛЕГРАМ — ДВЕ РАЗНЫЕ ДВЕРИ, И ОБЕ НАСТОЯЩИЕ.
+   *
+   * В Mini App телега уже подписала, кто пришёл (`initData`) — привязка мгновенная. В обычном
+   * браузере наоборот: не мы ищем человека в телеге (бот не может — ни по номеру, ни по
+   * @username), а он открывает бота по ссылке, и телега сама говорит боту, кто он.
+   *
+   * Ссылка появляется только тогда, когда сервер её дал: не настроен бот или общий секрет — путь
+   * не предлагается вовсе, потому что кнопка без двери за ней хуже её отсутствия.
+   */
   const telegramLine = (linked: boolean, r: number): string => {
     if (linked) return lineHtml(labelHtml("Telegram") + valueHtml("привязан"), true);
-    const initData = gate.telegramInitData();
-    return lineHtml(
-      labelHtml("Telegram") + (initData ? buttonHtml("tg", "Привязать", "gold", r) : valueHtml("не привязан")),
-      true,
-    );
+    if (gate.telegramInitData()) {
+      return lineHtml(labelHtml("Telegram") + buttonHtml("tg", "Привязать", "gold", r), true);
+    }
+    if (invite) {
+      return lineHtml(
+        `<div style="display:flex;flex-direction:column;gap:9px;width:100%">` +
+          labelHtml("Telegram") +
+          `<span style="font:400 12px ${FONT};color:${PALETTE.inkDim};line-height:1.5">` +
+          `Открой бота и нажми «Запустить» — вернёшься сюда уже собой. Ссылка живёт пять минут.</span>` +
+          `<a data-g="tg-link" href="${esc(invite.link)}" target="_blank" rel="noreferrer" ` +
+          `style="font:400 13px ${FONT};color:${PALETTE.gold};word-break:break-all">${esc(invite.link)}</a>` +
+          `<div style="display:flex;gap:8px">${buttonHtml("tg-open", "Открыть бота", "gold", r)}${buttonHtml("tg-cancel", "Отмена", "quiet", r)}</div>` +
+          `</div>`,
+        true,
+      );
+    }
+    return lineHtml(labelHtml("Telegram") + buttonHtml("tg-invite", "Привязать", "gold", r), true);
   };
 
   /**
@@ -264,6 +311,9 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
         open = false;
         linkShown = false;
         said = "";
+        // ЗАКРЫЛИ ЭКРАН — ПЕРЕСТАЛИ ЖДАТЬ: ожидание принадлежит открытому экрану, а не вкладке.
+        stopWatching();
+        invite = undefined;
         return draw();
       case "name": {
         const got = await ask("Как тебя звать?", profile?.nameChosen ? (profile?.name ?? "") : "");
@@ -298,6 +348,23 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
         profile = (await gate.read()) ?? profile;
         return draw();
       }
+      case "tg-invite": {
+        invite = await gate.inviteTelegram();
+        said = invite ? "" : "Привязка через бота сейчас не настроена.";
+        watchInvite();
+        return draw();
+      }
+      case "tg-open": {
+        // Открываем сами же ту ссылку, что показана рядом: на телефоне она уводит в приложение, на
+        // маке — в телегу или в веб-версию, и в обоих случаях это одно и то же место.
+        if (invite) globalThis.open?.(invite.link, "_blank", "noreferrer");
+        return;
+      }
+      case "tg-cancel":
+        stopWatching();
+        invite = undefined;
+        said = "";
+        return draw();
       case "link":
         linkShown = true;
         said = "";
@@ -318,6 +385,42 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
   const height = (): number => {
     const head = element.querySelector<HTMLElement>('[data-g="head"]');
     return head ? Math.round(head.getBoundingClientRect().height) : 0;
+  };
+
+  const stopWatching = (): void => {
+    waiting?.();
+    waiting = undefined;
+  };
+
+  /**
+   * ПОКА ЧЕЛОВЕК В ТЕЛЕГЕ, СТРАНИЦА СПРАШИВАЕТ СЕРВЕР. Опрос, а не сокет: ждать тут нечего, кроме
+   * одного ответа, и ради него держать соединение открытым незачем.
+   *
+   * Опрос СНИМАЕТСЯ на любом исходе, включая «ссылка устарела», — иначе вкладка, забытая открытой,
+   * будет стучать в сервер до конца дня.
+   */
+  const watchInvite = (): void => {
+    stopWatching();
+    const code = invite?.code;
+    if (!code) return;
+    waiting = every(WATCH_EVERY_MS, () => {
+      void (async () => {
+        const state: InviteState = await gate.inviteState(code);
+        if (state === "waiting") return;
+        stopWatching();
+        invite = undefined;
+        said =
+          state === "conflict"
+            ? "Этот Telegram уже принадлежит другому аккаунту. Войди им — или отвяжи там."
+            : state === "switch"
+              ? "Это твой аккаунт — вернули тебя в него."
+              : state === "expired"
+                ? "Ссылка устарела. Нажми «Привязать» ещё раз."
+                : "";
+        profile = (await gate.read()) ?? profile;
+        draw();
+      })();
+    });
   };
 
   /**
@@ -344,6 +447,7 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
     height,
     stop() {
       stopped = true;
+      stopWatching();
       element.remove();
     },
   };

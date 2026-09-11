@@ -28,6 +28,8 @@ function gatewayOf(profile: Profile, over: Partial<ProfileGateway> = {}) {
     },
     telegramInitData: () => undefined,
     linkTelegram: async () => "linked",
+    inviteTelegram: async () => ({ code: "CODE", link: "https://t.me/crossade_bot?start=CODE", expiresInMs: 300000 }),
+    inviteState: async () => "waiting",
     transferLink: () => "http://hub.test/?restore=BOVAKI",
     copy: async () => true,
     ...over,
@@ -155,12 +157,26 @@ describe("экран профиля", () => {
 });
 
 describe("home.no-button-without-a-door-behind-it", () => {
-  it("вне Mini App кнопки «Привязать» нет — обратный поток ещё не построен", async () => {
+  it("вне Mini App привязка идёт через бота, и это другая кнопка", async () => {
+    // Mini App подписывает человека сама; браузер — наоборот: человек идёт в бота, и телега там
+    // говорит боту, кто он. Две разные двери, и мгновенной кнопки в браузере быть не может.
     const { gate } = gatewayOf(GUEST);
     const { home } = await openScreen(gate);
 
     expect(q(home.element, '[data-do="tg"]')).toBeNull();
-    expect(home.element.textContent).toContain("не привязан");
+    expect(q(home.element, '[data-do="tg-invite"]')).not.toBeNull();
+    home.stop();
+  });
+
+  it("сервер ссылки не дал — человеку говорят, а не показывают мёртвую ссылку", async () => {
+    const { gate } = gatewayOf(GUEST, { inviteTelegram: async () => undefined });
+    const { home } = await openScreen(gate);
+
+    q(home.element, '[data-do="tg-invite"]')!.click();
+    await settle();
+
+    expect(q(home.element, '[data-g="tg-link"]')).toBeNull();
+    expect(home.element.textContent).toContain("не настроена");
     home.stop();
   });
 
@@ -188,6 +204,85 @@ describe("home.no-button-without-a-door-behind-it", () => {
 
     expect(home.element.textContent).toContain("уже принадлежит другому аккаунту");
     home.stop();
+  });
+});
+
+// СТОРОЖ `home.waiting-for-the-bot-ends`.
+//
+// Страница ждёт человека, ушедшего в телегу, опросом. Ожидание, которое не снимается, — это вкладка,
+// стучащая в сервер до конца дня; поэтому оно кончается на ЛЮБОМ исходе и на закрытии экрана.
+describe("home.waiting-for-the-bot-ends", () => {
+  const withInvite = (state: () => Promise<"waiting" | "linked" | "switch" | "conflict" | "expired">) =>
+    gatewayOf(GUEST, { inviteState: vi.fn(state) });
+
+  it("ссылка в бота показывается по нажатию", async () => {
+    const { gate } = gatewayOf(GUEST);
+    const { home } = await openScreen(gate);
+
+    q(home.element, '[data-do="tg-invite"]')!.click();
+    await settle();
+
+    expect(q(home.element, '[data-g="tg-link"]')!.getAttribute("href")).toBe("https://t.me/crossade_bot?start=CODE");
+    home.stop();
+  });
+
+  it("бот подтвердил — ожидание снимается, и больше сервер никто не дёргает", async () => {
+    vi.useFakeTimers();
+    let state: "waiting" | "linked" = "waiting";
+    const { gate } = withInvite(async () => state);
+    const home = homeProfile(container, { gateway: gate });
+    await vi.advanceTimersByTimeAsync(0);
+    q(home.element, '[data-g="profile"]')!.click();
+    q(home.element, '[data-do="tg-invite"]')!.click();
+    await vi.advanceTimersByTimeAsync(0);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(gate.inviteState).toHaveBeenCalled();
+
+    state = "linked";
+    await vi.advanceTimersByTimeAsync(2000);
+    const asked = (gate.inviteState as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    await vi.advanceTimersByTimeAsync(10000);
+    expect((gate.inviteState as ReturnType<typeof vi.fn>).mock.calls.length).toBe(asked);
+    expect(q(home.element, '[data-g="tg-link"]')).toBeNull();
+    home.stop();
+    vi.useRealTimers();
+  });
+
+  it("ссылка устарела — так и сказано, и ожидание снято", async () => {
+    vi.useFakeTimers();
+    const { gate } = withInvite(async () => "expired");
+    const home = homeProfile(container, { gateway: gate });
+    await vi.advanceTimersByTimeAsync(0);
+    q(home.element, '[data-g="profile"]')!.click();
+    q(home.element, '[data-do="tg-invite"]')!.click();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(home.element.textContent).toContain("устарела");
+    const asked = (gate.inviteState as ReturnType<typeof vi.fn>).mock.calls.length;
+    await vi.advanceTimersByTimeAsync(10000);
+    expect((gate.inviteState as ReturnType<typeof vi.fn>).mock.calls.length).toBe(asked);
+    home.stop();
+    vi.useRealTimers();
+  });
+
+  it("закрыли экран — перестали ждать: ожидание принадлежит экрану, а не вкладке", async () => {
+    vi.useFakeTimers();
+    const { gate } = withInvite(async () => "waiting");
+    const home = homeProfile(container, { gateway: gate });
+    await vi.advanceTimersByTimeAsync(0);
+    q(home.element, '[data-g="profile"]')!.click();
+    q(home.element, '[data-do="tg-invite"]')!.click();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    q(home.element, '[data-do="close"]')!.click();
+    const asked = (gate.inviteState as ReturnType<typeof vi.fn>).mock.calls.length;
+    await vi.advanceTimersByTimeAsync(10000);
+
+    expect((gate.inviteState as ReturnType<typeof vi.fn>).mock.calls.length).toBe(asked);
+    home.stop();
+    vi.useRealTimers();
   });
 });
 

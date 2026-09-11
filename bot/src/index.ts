@@ -5,6 +5,7 @@ import { gameOfCommand, gameOfNewArg } from "./commands.js";
 import { resolveHubUrl } from "./hubUrl.js";
 import { createRoom } from "./rooms.js";
 import { roomMessage } from "./links.js";
+import { claimLink, claimReply, codeOfStart } from "./link.js";
 
 const env = loadEnv();
 const bot = new Bot(env.botToken);
@@ -18,6 +19,23 @@ async function replyWithNewRoom(ctx: any, game: Game): Promise<void> {
 
 bot.command("start", async (ctx) => {
   if (ctx.chat.type !== "private") return;
+  // ССЫЛКА ИЗ ПРОФИЛЯ ПРИХОДИТ СЮДА ЖЕ — телега кладёт код в payload команды. Это тот самый
+  // обратный поток: про человека заранее не известно ничего, а нажав «Запустить», он сообщает
+  // боту свой chat_id, и этого достаточно.
+  const code = codeOfStart(ctx.match);
+  if (code) {
+    if (!env.linkSecret) {
+      await ctx.reply("Привязка не настроена: у бота нет общего секрета с сервером.");
+      return;
+    }
+    const result = await claimLink(
+      { serverUrl: env.serverUrl, secret: env.linkSecret },
+      code,
+      String(ctx.from!.id),
+    );
+    await ctx.reply(claimReply(result));
+    return;
+  }
   const keyboard = new InlineKeyboard()
     .text(GAMES.cards, "start:cards")
     .text(GAMES.chess, "start:chess")

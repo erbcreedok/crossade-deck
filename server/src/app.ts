@@ -11,6 +11,7 @@ import { KitRoom } from "./KitRoom.js";
 import { resolveInviteCode } from "./inviteCodes.js";
 import {
   createAccount,
+  findAccountById,
   findAccountByRecoveryHash,
   findAccountByTelegramId,
   linkTelegram,
@@ -22,6 +23,15 @@ import { listPublicRooms } from "./publicRooms.js";
 import { getLastRoom } from "./lastRooms.js";
 import { getRoomGame } from "./roomGames.js";
 import { verifyTelegramInitData } from "./telegramAuth.js";
+import {
+  issueLinkCode,
+  linkByCode,
+  LINK_CODE_TTL_MS,
+  missedLink,
+  settleLink,
+  takeSettled,
+  tooSoon,
+} from "./telegramLink.js";
 import { BUILD_INFO, formatVersion } from "./version.js";
 
 const { Server, matchMaker } = colyseusPkg;
@@ -174,6 +184,85 @@ export function createApp() {
       return res.status(409).json({ error: "already_linked", account: { id: result.account.id, name: result.account.name } });
     }
     res.json({ kind: result.kind, account: result.account });
+  });
+
+  // ---- ПРИВЯЗКА ТЕЛЕГРАМА ИЗ ОБЫЧНОГО БРАУЗЕРА (`telegramLink.ts`) ----
+  //
+  // Три шага и три маршрута: страница просит код, человек открывает ссылку в боте, бот говорит
+  // серверу «это он», страница забирает исход. Ни номера, ни @username, ни предыдущего `/start`
+  // знать не нужно — бот узнаёт `chat_id` ровно в тот момент, когда его запускают.
+
+  /** Кто зовёт бота. Без имени ссылку не собрать, и тогда весь этот путь просто не предлагается. */
+  const botName = (): string | undefined => process.env.TELEGRAM_BOT_USERNAME?.replace(/^@/, "") || undefined;
+  /** Общий секрет сервера и бота: подтвердить привязку может только наш бот и никто больше. */
+  const linkSecret = (): string | undefined => process.env.TELEGRAM_LINK_SECRET || undefined;
+
+  app.post("/auth/telegram/link-code", (req, res) => {
+    const name = botName();
+    if (!name || !linkSecret()) return res.status(503).json({ error: "telegram_not_configured" });
+
+    const { accountId, recoveryHash } = req.body || {};
+    if (typeof accountId !== "string" || typeof recoveryHash !== "string") {
+      return res.status(400).json({ error: "bad_request" });
+    }
+    const account = findAccountById(accountId);
+    if (!account || account.recoveryHash !== recoveryHash.replace(/[^a-zA-Z0-9]/g, "").toUpperCase()) {
+      return res.status(403).json({ error: "forbidden" });
+    }
+    // ПЕРЕБОР — НЕ ОШИБКА ВВОДА. Код открывает дверь в аккаунт, и раздавать их пачками нельзя.
+    if (tooSoon(accountId)) return res.status(429).json({ error: "too_soon" });
+
+    const pending = issueLinkCode(accountId);
+    res.json({
+      code: pending.code,
+      // Ссылку собирает сервер: он один знает, как зовут бота.
+      link: `https://t.me/${name}?start=${encodeURIComponent(pending.code)}`,
+      expiresInMs: LINK_CODE_TTL_MS,
+    });
+  });
+
+  /**
+   * БОТ ПОДТВЕРЖДАЕТ. Секретом, а не подписью телеги: это наш собственный сервис, и единственное,
+   * что он утверждает, — «этот код принёс мне вот этот chat_id».
+   */
+  app.post("/auth/telegram/claim", (req, res) => {
+    const secret = linkSecret();
+    if (!secret) return res.status(503).json({ error: "telegram_not_configured" });
+
+    const { code, telegramId, secret: given } = req.body || {};
+    if (typeof code !== "string" || typeof telegramId !== "string" || typeof given !== "string") {
+      return res.status(400).json({ error: "bad_request" });
+    }
+    if (given !== secret) return res.status(401).json({ error: "unauthorized" });
+
+    const pending = linkByCode(code);
+    if (!pending) return res.status(404).json({ error: "unknown_code" });
+
+    const account = findAccountById(pending.accountId);
+    if (!account) {
+      missedLink(code);
+      return res.status(404).json({ error: "unknown_code" });
+    }
+    // ПРАВИЛО СЛИЯНИЯ ЖИВЁТ В ОДНОМ МЕСТЕ И ТУТ НЕ ПОВТОРЯЕТСЯ: чистого гостя переключают, две
+    // полноценные стороны не сливают никогда.
+    const result = linkTelegram(account.id, account.recoveryHash, telegramId);
+    if (!result) return res.status(403).json({ error: "forbidden" });
+    settleLink(code, telegramId, result.kind);
+    res.json({ kind: result.kind, name: result.account.name });
+  });
+
+  /** Страница ждёт. Пока бот молчит — `waiting`; исход уносится вместе с ответом. */
+  app.get("/auth/telegram/link-code/:code", (req, res) => {
+    const pending = takeSettled(req.params.code);
+    if (!pending) return res.json({ state: "expired" });
+    if (pending.state === "waiting") return res.json({ state: "waiting" });
+
+    const account = findAccountById(pending.accountId);
+    const linked = pending.telegramId ? findAccountByTelegramId(pending.telegramId) : undefined;
+    // ПЕРЕКЛЮЧЕНИЕ ОТДАЁТ ТОТ АККАУНТ, В КОТОРЫЙ ЧЕЛОВЕК ВОЗВРАЩАЕТСЯ, — это и есть вход; привязка
+    // отдаёт его собственный, чтобы страница обновила себя одним ответом.
+    const account_ = pending.state === "switch" ? linked : account;
+    res.json({ state: pending.state, ...(account_ ? { account: account_ } : {}) });
   });
 
   app.get("/rooms/public", (_req, res) => {

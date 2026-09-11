@@ -20,9 +20,13 @@ export {
   restoreAccount,
   storedAccount,
   telegramAccount,
+  telegramInvite,
+  telegramInviteState,
   updateProfile,
   type Account,
+  type InviteState,
   type LinkOutcome,
+  type TelegramInvite,
   type Profile,
   type Provider,
 } from "./account.js";

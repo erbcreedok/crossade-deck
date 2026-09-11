@@ -174,6 +174,63 @@ export async function renameAccount(name: string): Promise<Account | undefined> 
   return updateProfile({ name });
 }
 
+/**
+ * ССЫЛКА В БОТА, КОТОРОЙ ПРИВЯЗЫВАЮТ ТЕЛЕГРАМ ИЗ ОБЫЧНОГО БРАУЗЕРА.
+ *
+ * Обратный поток: не мы ищем человека в телеге (бот и не может — ни по номеру, ни по @username), а
+ * он открывает бота, и телега сама говорит боту, кто он.
+ */
+export type TelegramInvite = {
+  code: string;
+  link: string;
+  expiresInMs: number;
+};
+
+/**
+ * Попросить ссылку на бота. `undefined` — привязка не настроена (нет бота или общего секрета) или
+ * ссылку просят слишком часто: и то, и другое значит, что предлагать её сейчас нечего.
+ */
+export async function telegramInvite(): Promise<TelegramInvite | undefined> {
+  const current = storedAccount();
+  if (!current) return undefined;
+  try {
+    const res = await fetch(`${serverUrl()}/auth/telegram/link-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accountId: current.id, recoveryHash: current.recoveryHash }),
+    });
+    if (!res.ok) return undefined;
+    return (await res.json()) as TelegramInvite;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Чем кончилось ожидание бота. `waiting` — человек ещё не нажал «Запустить». */
+export type InviteState = "waiting" | "linked" | "switch" | "conflict" | "expired";
+
+/**
+ * СПРОСИТЬ, ЧЕМ КОНЧИЛОСЬ. Исход приходит один раз и уносит код с собой: страница, которая
+ * переспросит, получит `expired` — и это правильно, ожидание кончилось.
+ *
+ * `switch` сохраняется локально, как и у входа через Mini App: человек и правда становится тем
+ * аккаунтом.
+ */
+export async function telegramInviteState(code: string): Promise<InviteState> {
+  try {
+    const res = await fetch(`${serverUrl()}/auth/telegram/link-code/${encodeURIComponent(code)}`);
+    if (!res.ok) return "expired";
+    const body = (await res.json()) as { state: InviteState; account?: Account };
+    if ((body.state === "switch" || body.state === "linked") && body.account) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(body.account));
+    }
+    return body.state;
+  } catch {
+    // Сеть моргнула — ожидание не кончилось, спросим снова.
+    return "waiting";
+  }
+}
+
 /** Чем кончилась попытка привязать телеграм к этому аккаунту. */
 export type LinkOutcome =
   | { kind: "linked"; account: Account }

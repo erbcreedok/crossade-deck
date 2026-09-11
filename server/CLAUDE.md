@@ -76,6 +76,16 @@ keyed by the `telegram` identity (`accounts.ts`). Responds 503 without crashing 
 configured. `POST /accounts/:id/identities/telegram` attaches the same, verified the same way, to an
 account that already exists.
 
+**Linking Telegram from an ordinary browser is the REVERSE flow** (`telegramLink.ts`, and the bot's
+`link.ts`): the page asks for a code (`POST /auth/telegram/link-code`), shows
+`t.me/<bot>?start=<code>`, the person presses Start, and the bot tells the server whose `chat_id`
+brought the code (`POST /auth/telegram/claim`, shared `TELEGRAM_LINK_SECRET`); the page polls
+`GET /auth/telegram/link-code/:code` and logs itself in. It is this way round because a bot cannot
+write first and cannot find a person by phone number or @username — it only ever learns the
+`chat_id` of whoever started it. The code is one-time, five minutes, one per account per thirty
+seconds; `TELEGRAM_BOT_USERNAME` is what the link is built from, and without either variable the
+route answers 503 and the hub offers nothing.
+
 The profile is the account's own fields: `GET /accounts/:id/profile` (name, colour, avatar, created
 date, which providers — never their subjects) and `PATCH /accounts/:id` (name, colour, avatar), both
 trusted the way they always were, by `recoveryHash`.
