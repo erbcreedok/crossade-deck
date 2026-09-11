@@ -1,0 +1,64 @@
+look/src/palette.ts
+  s_9ed0da107cbc4a::t_b25c8ca5cf8c03 37-54
+  s_9ed0da107cbc4a::t_69ac366e1b32aa 55-66
+apps/hub/src/home/whoami.ts
+  s_9ed0da107cbc4a::t_04ce08cce79aac 44
+  s_9ed0da107cbc4a::t_c92d6082e10096 1-43,45-54
+apps/hub/src/hub/grid.ts
+  s_9ed0da107cbc4a::t_57157bb98293fb 242-249
+  s_9ed0da107cbc4a::t_c0ed86e074381d 268,272-276
+wire/src/account.ts
+  s_9ed0da107cbc4a::t_0a0b1932e6d52e 22-26
+game-presets/tophud/src/paint.ts
+  s_9ed0da107cbc4a::t_97042d6c61c84b 5,8
+apps/hub/src/hub/shell.ts
+  s_9ed0da107cbc4a::t_4dcee5e6fc71a3 186-187,193-200,202-203
+  s_9ed0da107cbc4a::t_bd995bd1ed787b 63-66,222-224
+  s_9ed0da107cbc4a::t_d9c8df75e88b0e 35,47,49-52,182-185,190,210-221,225-226,232-235,456
+server/src/db/accountsRepo.ts
+  s_9ed0da107cbc4a::t_427fc8316f296a 86
+  s_9ed0da107cbc4a::t_140b8a4d8aaedf 25-26,36,48,56,60-61,84-85
+server/src/db/migration.test.ts
+  s_9ed0da107cbc4a::t_598bfa222926bd 36-38
+apps/hub/src/home/look.ts
+  s_9ed0da107cbc4a::t_8c6c91cb2c926f 1-48
+apps/hub/src/home/parts.ts
+  s_9ed0da107cbc4a::t_97042d6c61c84b 7
+  s_9ed0da107cbc4a::t_ebe12704860886 1-6,8-103
+server/src/accounts.ts
+  s_9ed0da107cbc4a::t_140b8a4d8aaedf 32-33,45,64,98,101-102,174
+apps/hub/src/home/ask.ts
+  s_9ed0da107cbc4a::t_bc621805068085 1-15
+apps/hub/src/home/home.ts
+  s_9ed0da107cbc4a::t_36b2f0feef33d7 1-9,11-88,93-115,117-160,162-183,185-306
+  s_9ed0da107cbc4a::t_97042d6c61c84b 10
+  s_9ed0da107cbc4a::t_285fefd1f40744 184
+  s_9ed0da107cbc4a::t_25d2edfacc7d3a 89-92,116,161
+apps/hub/src/home/home.test.ts
+  s_9ed0da107cbc4a::t_7243aa2c2f959b 1-185
+server/src/db/migrations.ts
+  s_9ed0da107cbc4a::t_ce396ec4bba1c6 98-109
+apps/hub/src/home/whoami.test.ts
+  s_9ed0da107cbc4a::t_b5deaa059b7b67 1-64
+server/src/accounts.naming.test.ts
+  s_9ed0da107cbc4a::t_7e9c38c8fabf62 1-42
+  s_9ed0da107cbc4a::t_3b3337ccfb916c 43-44
+look/src/index.ts
+  s_9ed0da107cbc4a::t_97042d6c61c84b 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eb29a9366318453b6238f9c72c2b0686cb880481",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
