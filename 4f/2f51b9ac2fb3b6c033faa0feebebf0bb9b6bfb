@@ -1,0 +1,32 @@
+apps/hub/src/hub/routing.test.ts
+  s_357f670d370d4d::t_f62a43a09bfaf1 41,43,47,60,63,67-68,76-77
+  s_357f670d370d4d::t_94690126e7e15f 22-31
+  s_357f670d370d4d::t_7a26b1e24e6078 1-21,32-40,42,44-46,48-59,61-62,64-66,69-75,78-79
+game-presets/desk/src/startDesk.ts
+  s_357f670d370d4d::t_f054b9113d398a 71-72,473
+  s_357f670d370d4d::t_4f0790821f0fa1 322-332,334-336
+  s_357f670d370d4d::t_674c52af2d247b 333
+apps/hub/src/hub/shell.ts
+  s_357f670d370d4d::t_7e115fdf88855d 245-256,259-261,266-268,270-272,278
+  s_357f670d370d4d::t_3598ed586ccd6f 296-301,305,309,313-323,327
+  s_357f670d370d4d::t_ea3c97936947cc 347-360,362-366
+  s_357f670d370d4d::t_fc9d2edebe8003 91-92,95-101
+game-presets/desk/src/layers.test.ts
+  s_357f670d370d4d::t_c60b4f865d1315 51-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4f2f51b9ac2fb3b6c033faa0feebebf0bb9b6bfb",
+  "prompts": {},
+  "sessions": {
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
