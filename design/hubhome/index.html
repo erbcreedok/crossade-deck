@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Хаб: профиль и вход — стенд</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Handjet&family=Press+Start+2P&family=Tiny5&display=swap" rel="stylesheet">
+<script src="shelf.js"></script>
+<style>
+  body { margin: 0; background: #0d2118; color: #cdb98f; font: 400 16px/1.45 'Handjet', monospace; }
+  .page { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; padding: 32px; }
+  .phone { flex: none; width: 390px; height: 844px; position: relative; overflow: hidden; border-radius: 44px; background: #173d2d; box-shadow: inset 0 0 0 3px #0b0704; }
+  .phone canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .panel { flex: 1; min-width: 320px; max-width: 460px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font: 400 26px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .sec { padding: 12px 14px; background: #123527; box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #3a2a1d; display: flex; flex-direction: column; gap: 6px; }
+  .sec h2 { margin: 0 0 4px; font: 400 16px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .row { display: grid; grid-template-columns: 160px 1fr 56px; align-items: center; gap: 8px; }
+  .row label { color: #f5ead0; }
+  .row input[type=range] { width: 100%; }
+  .row select, .row input[type=checkbox] { justify-self: start; }
+  .row .val { color: #f2c14e; text-align: right; font: 400 14px 'Press Start 2P', monospace; }
+  .nums { font-size: 15px; }
+  .nums b { color: #f2c14e; font-weight: 400; }
+  .bad { color: #e0483f; }
+  button.reset { align-self: flex-start; font: inherit; color: #f2c14e; background: none; border: 2px solid #f2c14e; padding: 4px 10px; cursor: pointer; }
+  .knob { display: none; }
+  @media (max-width: 700px), (pointer: coarse) and (max-width: 1000px) {
+    body { overflow: hidden; }
+    .page { padding: 0; gap: 0; }
+    .phone { position: fixed; inset: 0; width: 100vw; height: 100dvh; border-radius: 0; box-shadow: none; }
+    .panel { position: fixed; left: 0; right: 0; bottom: 0; max-width: none; max-height: 72dvh; overflow: auto; padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); box-sizing: border-box;
+      background: #0d2118; box-shadow: 0 -3px 0 #0b0704, 0 -6px 0 #3a2a1d; transform: translateY(100%); transition: transform .22s cubic-bezier(.2,.85,.25,1); z-index: 30; }
+    .panel.open { transform: none; }
+    .knob { display: flex; position: fixed; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 40; width: 46px; height: 46px; border-radius: 8px; align-items: center; justify-content: center;
+      background: linear-gradient(#25321f, #16210f); box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #6b4d2c, 0 4px 0 rgba(11,7,4,.6); color: #f2c14e; font: 400 9px 'Tiny5', monospace; }
+    h1 { font-size: 20px; }
+    .row { grid-template-columns: 130px 1fr 44px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="phone" id="phone"><canvas id="shelf"></canvas><div id="over"></div></div>
+  <div class="knob" id="knob">РУЧКИ</div>
+  <div class="panel" id="panel">
+    <h1>Хаб: профиль и вход — стенд</h1>
+    <div>Полка — холст, как в продукте. Профиль и вход — то, что над ней. Главная ручка тут «кто ты»: гость видит одно, вошедший другое, и вход не должен встречать игрока — он появляется там, где без личности нет ответа. Состояние ручек живёт в адресе.</div>
+    <div id="controls"></div>
+    <div class="nums" id="nums"></div>
+    <button class="reset" id="reset">сбросить к дизайну</button>
+  </div>
+</div>
+<script>
+(function () {
+  const T = window.HubStand.T;
+  const phone = document.getElementById("phone");
+  const over = document.getElementById("over");
+  const real = () => matchMedia("(max-width: 700px), (pointer: coarse) and (max-width: 1000px)").matches;
+  const glass = () => ({ W: phone.clientWidth || 390, H: phone.clientHeight || 844 });
+
+  const SPEC = [
+    ["Кто ты", [
+      ["who", "состояние", "enum", "гость", ["гость", "вошёл"]],
+      ["guestWord", "как зовут гостя", "enum", "Гость 4821", ["Гость 4821", "Новичок", "без имени"]],
+      ["profile", "профиль", "enum", "аватар + имя", ["аватар + имя", "только аватар", "аватар + имя + уровень", "нет"]],
+      ["av", "аватар, px", "int", 34, 22, 52],
+      ["profileSide", "где профиль", "enum", "справа", ["справа", "слева"]],
+    ]],
+    ["Вход", [
+      ["enter", "где кнопка входа", "enum", "в полосе", ["в полосе", "под заголовком", "снизу экрана", "нет"]],
+      ["enterWord", "слово", "enum", "Войти", ["Войти", "Вход", "Войти через Telegram", "Продолжить в Telegram"]],
+      ["enterIcon", "значок телеги", "bool", true],
+      ["enterLook", "вид", "enum", "золотая", ["золотая", "обводка", "плашка кита"]],
+      ["hint", "подсказка гостю", "bool", true],
+      ["soon", "Google и Apple — скоро", "bool", false],
+    ]],
+    ["Полоса", [
+      ["h", "высота полосы, px", "int", 44, 0, 96],
+      ["side", "боковое поле, px", "int", 12, 0, 40],
+      ["gap", "зазор, px", "int", 8, 0, 24],
+      ["radius", "скругление, px", "int", 8, 0, 28],
+      ["fill", "подложка", "enum", "нет", ["нет", "стекло", "дерево", "тёмная", "градиент вниз"]],
+      ["notch", "чёлка (на маке), px", "int", 0, 0, 64],
+    ]],
+    ["Полка", [
+      ["title", "заголовок Crossade", "bool", true],
+      ["titleSize", "заголовок, px", "int", 22, 12, 36],
+      ["columns", "колонок", "int", 2, 1, 2],
+      ["tileGap", "зазор плиток, px", "int", 16, 6, 40],
+      ["margin", "поле полки, px", "int", 20, 6, 48],
+    ]],
+  ];
+  const DEFAULTS = {};
+  for (const [, rows] of SPEC) for (const [key, , , def] of rows) DEFAULTS[key] = def;
+
+  const readHash = () => {
+    const out = { ...DEFAULTS };
+    const h = location.hash.replace(/^#/, "");
+    if (!h) return out;
+    for (const pair of h.split("&")) {
+      const [k, v] = pair.split("=").map(decodeURIComponent);
+      if (!(k in DEFAULTS)) continue;
+      const def = DEFAULTS[k];
+      out[k] = typeof def === "number" ? Number(v) : typeof def === "boolean" ? v === "1" : v;
+    }
+    return out;
+  };
+  const writeHash = (P) => {
+    const parts = [];
+    for (const k in DEFAULTS) if (P[k] !== DEFAULTS[k]) parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(typeof P[k] === "boolean" ? (P[k] ? "1" : "0") : P[k])}`);
+    history.replaceState(null, "", parts.length ? `#${parts.join("&")}` : location.pathname);
+  };
+  let P = readHash();
+
+  const controls = document.getElementById("controls");
+  const build = () => {
+    controls.innerHTML = "";
+    for (const [title, rows] of SPEC) {
+      const sec = document.createElement("div");
+      sec.className = "sec";
+      sec.innerHTML = `<h2>${title}</h2>`;
+      for (const [key, label, kind, , a, b] of rows) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const lab = document.createElement("label");
+        lab.textContent = label;
+        row.appendChild(lab);
+        const val = document.createElement("span");
+        val.className = "val";
+        let input;
+        if (kind === "int") {
+          input = document.createElement("input");
+          input.type = "range"; input.min = a; input.max = b; input.step = 1; input.value = P[key];
+          val.textContent = P[key];
+          input.oninput = () => { P[key] = Number(input.value); val.textContent = input.value; apply(); };
+        } else if (kind === "enum") {
+          input = document.createElement("select");
+          for (const opt of a) { const o = document.createElement("option"); o.value = opt; o.textContent = opt; o.selected = P[key] === opt; input.appendChild(o); }
+          input.onchange = () => { P[key] = input.value; apply(); };
+        } else {
+          input = document.createElement("input");
+          input.type = "checkbox"; input.checked = !!P[key];
+          input.onchange = () => { P[key] = input.checked; apply(); };
+        }
+        row.appendChild(input); row.appendChild(val);
+        sec.appendChild(row);
+      }
+      controls.appendChild(sec);
+    }
+  };
+  document.getElementById("reset").onclick = () => { P = { ...DEFAULTS }; build(); apply(); };
+  const panel = document.getElementById("panel");
+  document.getElementById("knob").onclick = () => panel.classList.toggle("open");
+
+  const ICON = {
+    tg: '<path d="M21 4 3 11l5 2 2 6 3-4 5 4z"/><path d="M8 13l9-6-6 8"/>',
+    person: '<circle cx="12" cy="8.5" r="3.4"/><path d="M5 20c1.2-3.6 4-5.2 7-5.2s5.8 1.6 7 5.2"/>',
+  };
+  const svg = (body, size, color, w) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${color}" stroke-width="${w || 2}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+  const apply = () => {
+    writeHash(P);
+    const { W, H } = glass();
+    const inset = real() ? "env(safe-area-inset-top, 0px)" : P.notch + "px";
+    const h = P.h, r = P.radius, gap = P.gap;
+    const guest = P.who === "гость";
+
+    const FILLS = {
+      "нет": "",
+      "стекло": `background:rgba(11,7,4,.42);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);`,
+      "дерево": `background:linear-gradient(#3a2a1d,#241a11);`,
+      "тёмная": `background:${T.well};`,
+      "градиент вниз": `background:linear-gradient(rgba(11,7,4,.9), rgba(11,7,4,0));`,
+    };
+
+    // ПРОФИЛЬ. У гостя он тоже есть — потому что гость у нас не «никто», а аккаунт без привязанных
+    // дверей: имя, цвет и прогресс копятся с первого касания. Разница только в том, что у гостя
+    // нечем доказать, что это он, и поэтому рядом стоит вход.
+    const av = P.av;
+    const name = guest ? (P.guestWord === "без имени" ? "" : P.guestWord) : "Ербол";
+    const face = guest
+      ? `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%">${svg(ICON.person, Math.round(av * 0.62), T.inkDim)}</span>`
+      : `<span style="font:400 ${Math.round(av * 0.42)}px 'Tiny5',monospace;color:${T.black}">Е</span>`;
+    const avatar = `<span style="flex:none;width:${av}px;height:${av}px;border-radius:50%;display:flex;align-items:center;justify-content:center;`
+      + `background:${guest ? T.well : T.gold};box-shadow:inset 0 0 0 3px ${T.black}${guest ? "" : `,0 0 0 2px ${T.wood}`}">${face}</span>`;
+    const words = P.profile === "только аватар" || !name ? "" :
+      `<span style="display:flex;flex-direction:column;line-height:1.1">`
+      + `<span style="font:400 ${Math.max(11, Math.round(av * 0.42))}px 'Tiny5',monospace;color:${T.ink};white-space:nowrap">${esc(name)}</span>`
+      + (P.profile === "аватар + имя + уровень" ? `<span style="font:400 ${Math.max(8, Math.round(av * 0.3))}px 'Tiny5',monospace;color:${T.inkDim}">${guest ? "гость" : "уровень 7"}</span>` : "")
+      + `</span>`;
+    const profile = P.profile === "нет" ? ""
+      : `<div data-g="profile" style="display:flex;align-items:center;gap:${Math.max(6, gap)}px;cursor:pointer">${avatar}${words}</div>`;
+
+    // ВХОД. Вошедшему он не показывается никогда — это и есть «не настырная»: кнопка живёт ровно
+    // столько, сколько у неё есть смысл.
+    const ENTER_LOOK = {
+      "золотая": `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6);color:${T.black};`,
+      "обводка": `background:transparent;box-shadow:inset 0 0 0 2px ${T.gold};color:${T.gold};`,
+      "плашка кита": `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 3px 0 rgba(11,7,4,.55);color:${T.ink};`,
+    };
+    const enterInk = P.enterLook === "золотая" ? T.black : P.enterLook === "обводка" ? T.gold : T.ink;
+    const enterBtn = (wide) => `<div data-g="enter" style="${ENTER_LOOK[P.enterLook]}border-radius:${r}px;display:${wide ? "flex" : "inline-flex"};`
+      + `align-items:center;justify-content:center;gap:7px;height:${Math.max(32, h ? h - 12 : 40)}px;padding:0 14px;box-sizing:border-box;cursor:pointer">`
+      + (P.enterIcon ? svg(ICON.tg, 17, enterInk, 1.8) : "")
+      + `<span style="font:400 ${Math.max(10, Math.round((h || 44) * 0.24))}px 'Tiny5',monospace;letter-spacing:.04em;white-space:nowrap">${P.enterWord}</span></div>`;
+
+    const hintText = `<div style="font:400 12px 'Tiny5',monospace;color:${T.inkDim};text-align:center;padding:0 18px;line-height:1.5">`
+      + `Играй так — прогресс сохраняется в этом браузере.<br>Вход нужен, чтобы забрать его на другое устройство.</div>`;
+    const soonText = `<div style="font:400 11px 'Tiny5',monospace;color:${T.inkDim};opacity:.7;text-align:center">Google и Apple — скоро</div>`;
+
+    const showEnter = guest && P.enter !== "нет";
+    const band = `position:absolute;left:0;right:0;top:0;padding-top:${inset};z-index:9;${FILLS[P.fill]}`;
+    const rowIn = `display:flex;align-items:center;justify-content:space-between;gap:${gap}px;height:${h}px;padding:0 ${P.side}px;box-sizing:border-box`;
+    const inBand = showEnter && P.enter === "в полосе" ? enterBtn(false) : "";
+    const leftSide = P.profileSide === "слева" ? profile : inBand;
+    const rightSide = P.profileSide === "слева" ? inBand : profile;
+
+    // ПОД ЗАГОЛОВКОМ — единственный блок, который стоит НЕ в шапке, а в дырке между «Crossade» и
+    // плитками. Его высоту холст узнаёт после отрисовки (`afterTitle`), потому что заранее её не
+    // знает никто: она зависит от подсказки и от того, показываем ли «скоро».
+    const underTitle = showEnter && P.enter === "под заголовком"
+      ? `<div data-g="under" style="position:absolute;left:0;right:0;top:calc(${inset} + ${h + 18 + (P.title ? P.titleSize + 12 : 0)}px);display:flex;flex-direction:column;align-items:center;gap:8px;z-index:8">`
+        + enterBtn(false) + (P.hint ? hintText : "") + (P.soon ? soonText : "") + `</div>`
+      : "";
+    const atBottom = showEnter && P.enter === "снизу экрана"
+      ? `<div style="position:absolute;left:${P.side}px;right:${P.side}px;bottom:calc(${real() ? "env(safe-area-inset-bottom, 0px)" : "0px"} + 20px);display:flex;flex-direction:column;gap:10px;z-index:8">`
+        + (P.hint ? hintText : "") + enterBtn(true) + (P.soon ? soonText : "") + `</div>`
+      : "";
+    // ШАПКА — ОДИН БЛОК В ПОТОКЕ, и это не косметика: холст обязан начать полку под ней, а её
+    // высота складывается из полосы, чёлки и подсказки. Пока шапка была тремя absolute-кусками,
+    // заголовок «Crossade» лежал под текстом подсказки.
+    const bandHint = showEnter && P.enter === "в полосе" && P.hint ? hintText : "";
+    over.innerHTML = `<div data-g="head" style="position:absolute;left:0;right:0;top:0;z-index:9">`
+      + (h > 0 || profile ? `<div style="padding-top:${inset};${FILLS[P.fill]}"><div style="${rowIn}">`
+        + `<div style="display:flex;align-items:center;gap:${gap}px">${leftSide}</div>`
+        + `<div style="display:flex;align-items:center;gap:${gap}px">${rightSide}</div>`
+        + `</div></div>` : `<div style="padding-top:${inset}"></div>`)
+      + bandHint + `</div>`
+      + underTitle + atBottom;
+
+    // ---- ЧИСЛА ----
+    const widthOf = (g) => { const el = over.querySelector(`[data-g="${g}"]`); return el ? Math.round(el.getBoundingClientRect().width) : 0; };
+    const heightOf = (g) => { const el = over.querySelector(`[data-g="${g}"]`); return el ? Math.round(el.getBoundingClientRect().height) : 0; };
+    const insetPx = Math.round(parseFloat(getComputedStyle(over.firstElementChild.firstElementChild).paddingTop)) || 0;
+    const wProfile = widthOf("profile"), wEnter = widthOf("enter");
+    const need = wProfile + wEnter + 2 * P.side + (wProfile && wEnter ? gap : 0);
+    const headTop = heightOf("head");
+    document.getElementById("nums").innerHTML =
+      `экран <b>${W}×${H}</b> · шапка <b>${headTop}</b> px, из них чёлка <b>${insetPx}</b>`
+      + (heightOf("under") ? ` · блок под заголовком <b>${heightOf("under")}</b>` : "")
+      + ` · полке остаётся <b>${H - headTop - heightOf("under")}</b> px<br>`
+      + `профиль <b>${wProfile}</b> · вход <b>${wEnter}</b> · с полями <b>${need}</b> из <b>${W}</b><br>`
+      + (need > W ? `<span class="bad">в полосу не влезает: ${need - W} px лишних</span><br>` : "")
+      + (guest ? `гость: вход показан ${P.enter === "нет" ? "нигде" : `«${P.enter}»`}` : `вошёл: входа нет на экране вовсе — кнопке больше нечего делать`);
+
+    window.HubStand.draw(document.getElementById("shelf"), {
+      W, H, top: headTop, afterTitle: heightOf("under"),
+      title: P.title, titleSize: P.titleSize, columns: P.columns, tileGap: P.tileGap, margin: P.margin,
+    });
+  };
+
+  build();
+  apply();
+  addEventListener("hashchange", () => { P = readHash(); build(); apply(); });
+  addEventListener("resize", apply);
+  addEventListener("orientationchange", apply);
+})();
+</script>
+</body>
+</html>

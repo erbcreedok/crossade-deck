@@ -80,6 +80,18 @@
         "design/tophud"
       ],
       "port": 9576
+    },
+    {
+      "name": "hubhome-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "9577",
+        "--directory",
+        "design/hubhome"
+      ],
+      "port": 9577
     }
   ]
 }
