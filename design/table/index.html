@@ -78,6 +78,7 @@
       ["forever", "вечная комната", "bool", false],
       ["code", "код комнаты", "text", "0244"],
       ["roomSeats", "мест за столом", "int", 4, 2, 32],
+      ["foreverPending", "снятие вечности запущено", "bool", false],
     ]],
     ["Он (Марат)", [
       ["theyRole", "его роль", "enum", "игрок", R.ROLES],
@@ -417,7 +418,16 @@
         allowed("room:access") ? "тяни ползунок или нажми на число — от 2 до 32" : "меняет тот, кто распоряжается", !!allowed("room:access")))
       + block("КТО РЕШАЕТ" + (vote("room:mode") ? " · ГОЛОСОВАНИЕМ" : ""),
         pick("mode", R.MODES, room.mode, !!allowed("room:mode")))
-      + block("ВЕЧНАЯ КОМНАТА", toggle("forever", room.forever, "живёт всегда", "закроется, когда все уйдут", !!allowed("room:forever")))
+      + block("ВЕЧНАЯ КОМНАТА", toggle("forever", room.forever && !P.foreverPending, "живёт всегда", "закроется, когда все уйдут", !!allowed("room:forever"))
+        // СНЯТИЕ АДМИНОМ ЖДЁТ СУТКИ, И ЖДАНИЕ ВИДНО. Молчаливый отложенный снос — это сюрприз
+        // через день; строка говорит, когда и чем это кончится, и её же оунер отменяет одним тапом.
+        + (P.foreverPending ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black};border-radius:10px;padding:10px 12px">`
+          + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim};line-height:1.6">Перестанет быть вечной завтра.<br>Пока в ней сидят — живёт как обычная.</span>`
+          + (allowed("room:forever") ? btn("forever:keep", me.role === "оунер" ? "Отменить" : "Вернуть", "gold", true) : "") + `</div>` : ""))
+      + block("ХОЧЕШЬ СВОЮ ТАКУЮ ЖЕ", (allowed("room:fork")
+        ? btn("room:fork", "Сделать свою копию", "")
+          + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim};line-height:1.6">Те же люди и те же права, оунер — ты. Комнат станет две.</span>`
+        : `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim};line-height:1.6">${roomActs.cant.find((d) => d.id === "room:fork")?.why ?? ""}</span>`))
       + (allowed("room:close") ? `<div style="padding-top:16px">${btn("room:close", allowed("room:close").vote ? "Предложить закрыть комнату" : "Закрыть комнату", "danger")}</div>` : "")
       + denials(roomActs.cant);
 
@@ -486,7 +496,14 @@
         else if (does.startsWith("vis:")) P.vis = does.slice(4);
         else if (does.startsWith("access:")) P.access = does.slice(7);
         else if (does.startsWith("mode:")) P.mode = does.slice(5);
-        else if (does === "forever") P.forever = !P.forever;
+        else if (does === "forever") {
+          // Оунер снимает моментально; у админа снятие уходит в сутки ожидания. Включают оба сразу.
+          if (!P.forever) { P.forever = true; P.foreverPending = false; }
+          else if (me.role === "оунер") { P.forever = false; P.foreverPending = false; }
+          else P.foreverPending = true;
+        }
+        else if (does === "forever:keep") P.foreverPending = false;
+        else if (does === "room:fork") alert("Форк: та же комната, те же люди, оунер — ты");
         else if (does === "code:new") P.code = freshCode();
         else if (does === "code:own") {
           const got = prompt("Свой код комнаты (2–8 знаков)", P.code);
