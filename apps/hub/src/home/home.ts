@@ -16,6 +16,7 @@ import {
   telegramInvite,
   telegramInviteState,
   updateProfile,
+  type InviteRefusal,
   type InviteState,
   type Profile,
   type TelegramInvite,
@@ -49,8 +50,8 @@ export interface ProfileGateway {
   /** Подписанная телеграмом строка, если этот экран открыт внутри Mini App. */
   telegramInitData(): string | undefined;
   linkTelegram(initData: string): Promise<"linked" | "switch" | "conflict" | undefined>;
-  /** Ссылка в бота для обычного браузера. `undefined` — этот путь сейчас не предлагается. */
-  inviteTelegram(): Promise<TelegramInvite | undefined>;
+  /** Ссылка в бота для обычного браузера — или причина, почему её сейчас нет. */
+  inviteTelegram(): Promise<TelegramInvite | InviteRefusal>;
   /** Чем кончилось ожидание бота. */
   inviteState(code: string): Promise<InviteState>;
   /** Ссылка, которой человек забирает СЕБЯ на второе устройство. */
@@ -349,8 +350,18 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
         return draw();
       }
       case "tg-invite": {
-        invite = await gate.inviteTelegram();
-        said = invite ? "" : "Привязка через бота сейчас не настроена.";
+        const asked = await gate.inviteTelegram();
+        // ПОЧЕМУ ССЫЛКИ НЕТ — говорится по-разному: на «не настроено» жать бесполезно, на «слишком
+        // часто» надо просто подождать. Одна фраза на оба случая отправляет человека по кругу.
+        invite = typeof asked === "string" ? undefined : asked;
+        said =
+          asked === "not-configured"
+            ? "Привязка через бота сейчас не настроена."
+            : asked === "too-soon"
+              ? "Только что уже просили — подожди полминуты."
+              : asked === "offline"
+                ? "Сервер не ответил. Попробуй ещё раз."
+                : "";
         watchInvite();
         return draw();
       }

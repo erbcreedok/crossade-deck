@@ -187,22 +187,27 @@ export type TelegramInvite = {
 };
 
 /**
- * Попросить ссылку на бота. `undefined` — привязка не настроена (нет бота или общего секрета) или
- * ссылку просят слишком часто: и то, и другое значит, что предлагать её сейчас нечего.
+ * ПОЧЕМУ ССЫЛКИ НЕТ — это разные вещи, и человеку они говорятся по-разному: «не настроено» значит
+ * жать бесполезно, «слишком часто» — подожди полминуты, «нет связи» — попробуй ещё.
  */
-export async function telegramInvite(): Promise<TelegramInvite | undefined> {
+export type InviteRefusal = "not-configured" | "too-soon" | "offline";
+
+/** Попросить ссылку на бота — или узнать, почему её нет. */
+export async function telegramInvite(): Promise<TelegramInvite | InviteRefusal> {
   const current = storedAccount();
-  if (!current) return undefined;
+  if (!current) return "offline";
   try {
     const res = await fetch(`${serverUrl()}/auth/telegram/link-code`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ accountId: current.id, recoveryHash: current.recoveryHash }),
     });
-    if (!res.ok) return undefined;
+    if (res.status === 429) return "too-soon";
+    if (res.status === 503) return "not-configured";
+    if (!res.ok) return "offline";
     return (await res.json()) as TelegramInvite;
   } catch {
-    return undefined;
+    return "offline";
   }
 }
 

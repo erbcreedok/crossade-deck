@@ -164,3 +164,23 @@ describe("весь путь целиком", () => {
     expect(stillFirst.identities).toEqual(["telegram"]);
   });
 });
+
+// ПОВТОРНОЕ НАЖАТИЕ ТОЙ ЖЕ ССЫЛКИ — НЕ ПОЛОМКА. «Устарела» здесь читается как «всё сломалось» и
+// отправляет человека делать заново то, что уже сделано.
+describe("вторая попытка по той же ссылке", () => {
+  it("код уже сработал — 409, а не 404", async () => {
+    const account = await newAccount();
+    const { code } = await codeFor(account);
+
+    await post("/auth/telegram/claim", { code, telegramId: "tg-400", secret: SECRET });
+    const again = await post("/auth/telegram/claim", { code, telegramId: "tg-400", secret: SECRET });
+
+    expect(again.status).toBe(409);
+    expect((await again.json()).kind).toBe("linked");
+  });
+
+  it("код, которого никогда не было, — по-прежнему 404", async () => {
+    const res = await post("/auth/telegram/claim", { code: "такого-не-выдавали", telegramId: "tg-1", secret: SECRET });
+    expect(res.status).toBe(404);
+  });
+});

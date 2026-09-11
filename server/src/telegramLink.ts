@@ -34,6 +34,14 @@ export interface PendingLink {
 
 const pending = new Map<string, PendingLink>();
 const lastIssued = new Map<string, number>();
+/**
+ * КОДЫ, КОТОРЫЕ УЖЕ СРАБОТАЛИ. Человек жмёт ту же кнопку в телеге второй раз — и должен услышать
+ * «уже привязано», а не «ссылка устарела»: второе звучит как поломка и отправляет его начинать
+ * заново то, что уже сделано.
+ */
+const used = new Map<string, { at: number; state: LinkState }>();
+/** Сколько помним отработавший код. Дольше держать незачем: это память ради одной фразы. */
+const USED_MEMORY_MS = 10 * 60 * 1000;
 
 /**
  * КОД — СЛУЧАЙНЫЙ И НЕ ДЛЯ ЧТЕНИЯ ВСЛУХ: его подставляет ссылка, а не человек. Значит и городить
@@ -50,6 +58,18 @@ function fresh(one: PendingLink, now: number): boolean {
 /** Протухшие коды выметаются при каждом обращении: отдельный таймер ради этого не заводим. */
 function sweep(now: number): void {
   for (const [code, one] of pending) if (!fresh(one, now)) pending.delete(code);
+  for (const [code, one] of used) if (now - one.at > USED_MEMORY_MS) used.delete(code);
+}
+
+/** Этот код уже отработал — и вот чем именно. */
+export function usedLink(code: string, now = Date.now()): LinkState | undefined {
+  const one = used.get(code);
+  if (!one) return undefined;
+  if (now - one.at > USED_MEMORY_MS) {
+    used.delete(code);
+    return undefined;
+  }
+  return one.state;
 }
 
 /** Слишком часто — это не ошибка ввода, это перебор. */
@@ -90,6 +110,7 @@ export function settleLink(code: string, telegramId: string, state: LinkState, n
   if (one.state !== "waiting") return undefined;
   one.state = state;
   one.telegramId = telegramId;
+  used.set(code, { at: now, state });
   return one;
 }
 
@@ -113,4 +134,5 @@ export function takeSettled(code: string, now = Date.now()): PendingLink | undef
 export function forgetLinks(): void {
   pending.clear();
   lastIssued.clear();
+  used.clear();
 }

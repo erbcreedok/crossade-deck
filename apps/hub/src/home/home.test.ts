@@ -169,7 +169,7 @@ describe("home.no-button-without-a-door-behind-it", () => {
   });
 
   it("сервер ссылки не дал — человеку говорят, а не показывают мёртвую ссылку", async () => {
-    const { gate } = gatewayOf(GUEST, { inviteTelegram: async () => undefined });
+    const { gate } = gatewayOf(GUEST, { inviteTelegram: async () => "not-configured" });
     const { home } = await openScreen(gate);
 
     q(home.element, '[data-do="tg-invite"]')!.click();
@@ -177,6 +177,23 @@ describe("home.no-button-without-a-door-behind-it", () => {
 
     expect(q(home.element, '[data-g="tg-link"]')).toBeNull();
     expect(home.element.textContent).toContain("не настроена");
+    home.stop();
+  });
+
+  // ПОЧЕМУ ССЫЛКИ НЕТ — РАЗНЫЕ ВЕЩИ. «Не настроено» значит жать бесполезно; «слишком часто» —
+  // подождать полминуты. Одна фраза на оба случая гоняет человека по кругу.
+  it.each([
+    ["too-soon", "подожди"],
+    ["offline", "не ответил"],
+  ])("отказ «%s» объясняется своими словами", async (refusal, said) => {
+    const { gate } = gatewayOf(GUEST, { inviteTelegram: async () => refusal as never });
+    const { home } = await openScreen(gate);
+
+    q(home.element, '[data-do="tg-invite"]')!.click();
+    await settle();
+
+    expect(home.element.textContent).toContain(said);
+    expect(home.element.textContent).not.toContain("не настроена");
     home.stop();
   });
 

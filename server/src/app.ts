@@ -26,6 +26,7 @@ import { verifyTelegramInitData } from "./telegramAuth.js";
 import { botUsername } from "./telegramMe.js";
 import {
   issueLinkCode,
+  usedLink,
   linkByCode,
   LINK_CODE_TTL_MS,
   missedLink,
@@ -235,10 +236,28 @@ export function createApp() {
     if (typeof code !== "string" || typeof telegramId !== "string" || typeof given !== "string") {
       return res.status(400).json({ error: "bad_request" });
     }
-    if (given !== secret) return res.status(401).json({ error: "unauthorized" });
+    if (given !== secret) {
+      // СЕРВЕР И БОТ НЕ ДОГОВОРИЛИСЬ О СЕКРЕТЕ — это настройка, а не устаревшая ссылка, и в логе
+      // это должно быть видно: снаружи оно выглядит как «ничего не работает».
+      console.warn("telegram link: бот пришёл с чужим секретом — TELEGRAM_LINK_SECRET расходится");
+      return res.status(401).json({ error: "unauthorized" });
+    }
 
     const pending = linkByCode(code);
-    if (!pending) return res.status(404).json({ error: "unknown_code" });
+    if (!pending) {
+      // УЖЕ СРАБОТАВШИЙ КОД — НЕ ТО ЖЕ, ЧТО НЕИЗВЕСТНЫЙ: человек нажал ту же кнопку второй раз, и
+      // сказать ему надо «уже привязано», а не «начни заново».
+      const before = usedLink(code);
+      if (before) return res.status(409).json({ error: "already_used", kind: before });
+      console.warn("telegram link: код не найден — выдан другим процессом или уже истёк");
+      return res.status(404).json({ error: "unknown_code" });
+    }
+
+    // ...И ЕЩЁ НЕ ЗАБРАННЫЙ СТРАНИЦЕЙ КОД ТОЖЕ МОГ УЖЕ СРАБОТАТЬ: человек нажал кнопку в телеге
+    // дважды подряд, быстрее, чем страница успела спросить исход.
+    if (pending.state !== "waiting") {
+      return res.status(409).json({ error: "already_used", kind: pending.state });
+    }
 
     const account = findAccountById(pending.accountId);
     if (!account) {

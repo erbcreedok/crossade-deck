@@ -24,6 +24,7 @@ export {
   telegramInviteState,
   updateProfile,
   type Account,
+  type InviteRefusal,
   type InviteState,
   type LinkOutcome,
   type TelegramInvite,
