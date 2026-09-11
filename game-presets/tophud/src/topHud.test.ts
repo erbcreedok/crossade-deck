@@ -2,7 +2,7 @@
 // THE STRIP AS A DOCUMENT: what it puts up, what it takes down, and the one fact a shelf supplies.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { topHud } from "./topHud.js";
+import { topHud, TOP_HUD_VAR } from "./topHud.js";
 import type { TopHudPerson } from "./row.js";
 
 const people: TopHudPerson[] = [
@@ -71,6 +71,14 @@ describe("верхний HUD", () => {
     hud.stop();
     expect(draws).toHaveBeenCalled();
     expect(container.querySelector(".crossade-tophud")).toBeNull();
+  });
+
+  it("чёлка: полоса отступает от неё сама, и сама же говорит странице свою высоту", () => {
+    const hud = topHud(container, { title: "Карты" });
+    expect(document.getElementById("crossade-tophud")!.textContent).toContain("env(safe-area-inset-top");
+    expect(document.documentElement.style.getPropertyValue(TOP_HUD_VAR)).toMatch(/px$/);
+    hud.stop();
+    expect(document.documentElement.style.getPropertyValue(TOP_HUD_VAR)).toBe("");
   });
 
   it("имя и код комнаты приходят как текст, а не как разметка", () => {

@@ -24,6 +24,26 @@ import { peopleRow, type TopHudPerson } from "./row.js";
  */
 export const TOP_HUD_VAR = "--crossade-tophud";
 
+/** One `<style>` for the document, however many strips are raised over its life. */
+const SHEET_ID = "crossade-tophud";
+
+/**
+ * THE NOTCH IS STEPPED ROUND BY THE STRIP ITSELF, so no game has to know it has one: the band is
+ * pushed down by the inset and keeps its own height under it.
+ *
+ * In a sheet rather than on the element, because `env()` is the one declaration that cannot survive
+ * being written as an inline style everywhere it is read — including in the tests that check it.
+ */
+const CSS = `.crossade-tophud { padding-top: env(safe-area-inset-top, 0px); }`;
+
+function installSheet(): void {
+  if (document.getElementById(SHEET_ID)) return;
+  const style = document.createElement("style");
+  style.id = SHEET_ID;
+  style.textContent = CSS;
+  document.head.appendChild(style);
+}
+
 /** Fonts are the product's three, named where they are used rather than guessed at. */
 const LETTER = "Tiny5, monospace";
 const DIGIT = "'Press Start 2P', monospace";
@@ -71,12 +91,11 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
   /** Whether the full list is open. A fact about this screen, and it outlives a redraw. */
   let listOpen = false;
 
+  installSheet();
   const element = document.createElement("div");
   element.className = "crossade-tophud";
-  // THE NOTCH IS STEPPED ROUND BY THE STRIP ITSELF, so no game has to know it has one: the band is
-  // pushed down by the inset and keeps its own height under it.
   element.style.cssText =
-    `position:absolute;left:0;right:0;top:0;z-index:9;padding-top:env(safe-area-inset-top, 0px);` +
+    `position:absolute;left:0;right:0;top:0;z-index:9;` +
     fillCss(look) +
     lineCss(look) +
     shadowCss(look, true);
