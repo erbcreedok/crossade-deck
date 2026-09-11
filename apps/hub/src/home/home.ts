@@ -15,12 +15,15 @@ import {
   storedAccount,
   telegramInvite,
   telegramInviteState,
+  skipTelegramOffer,
+  telegramOffer,
   unlinkTelegram,
   updateProfile,
   type InviteRefusal,
   type InviteState,
   type Profile,
   type TelegramInvite,
+  type TelegramOffer,
 } from "@crossade/wire";
 import { askInWindow, type Ask } from "./ask.js";
 import { homeLook, type HomeLook } from "./look.js";
@@ -53,6 +56,10 @@ export interface ProfileGateway {
   linkTelegram(initData: string): Promise<"linked" | "switch" | "conflict" | undefined>;
   /** Закрыть дверь. Аккаунт остаётся — рядом лежит код переноса. */
   unlinkTelegram(): Promise<boolean>;
+  /** О чём телега сейчас спрашивает: взять ли её имя, взять ли её лицо. */
+  telegramOffer(): Promise<TelegramOffer | undefined>;
+  /** «Оставить своё» — и больше про это не спрашивать. */
+  skipOffer(what: "name" | "photo"): Promise<TelegramOffer | undefined>;
   /** Ссылка в бота для обычного браузера — или причина, почему её сейчас нет. */
   inviteTelegram(): Promise<TelegramInvite | InviteRefusal>;
   /** Чем кончилось ожидание бота. */
@@ -83,6 +90,8 @@ export const liveGateway: ProfileGateway = {
   async unlinkTelegram() {
     return (await unlinkTelegram()) !== undefined;
   },
+  telegramOffer: () => telegramOffer(),
+  skipOffer: (what) => skipTelegramOffer(what),
   inviteTelegram: () => telegramInvite(),
   inviteState: (code) => telegramInviteState(code),
   transferLink: () => {
@@ -132,6 +141,8 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
   let said = "";
   /** Ссылка в бота, пока её ждут. */
   let invite: TelegramInvite | undefined;
+  /** О чём телега спрашивает прямо сейчас. Один вопрос за раз — так решил стенд. */
+  let offer: TelegramOffer | undefined;
   /** Опрос сервера, пока человек в телеге. Снимается, когда ждать больше нечего. */
   let waiting: (() => void) | undefined;
   let stopped = false;
@@ -186,6 +197,7 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
         ? `<span style="font:400 12px ${FONT};color:${me.named ? PALETTE.inkDim : PALETTE.gold}">${esc(me.note)}</span>`
         : "") +
       `</div></div>` +
+      offerHtml(r) +
       lineHtml(
         labelHtml("Имя") +
           valueHtml(me.name) +
@@ -229,6 +241,33 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
    * где телега сама подписывает, кто пришёл. В обычном браузере вход через телегу идёт обратным
    * потоком (код в боте), и он ещё не построен: мёртвая кнопка хуже её отсутствия.
    */
+  /**
+   * ПРЕДЛОЖЕНИЕ ИЗ ТЕЛЕГРАМА — ПО ОДНОМУ ЗА РАЗ: сначала имя, потом лицо. Два вопроса разом читаются
+   * как «прими всё или ничего», а человек чаще хочет чужое имя и своё лицо.
+   */
+  const offerHtml = (r: number): string => {
+    if (!offer || offer.kind === "none") return "";
+    const asking = offer.kind === "name";
+    const face = offer.photo
+      ? `<span style="flex:none;width:34px;height:34px;border-radius:50%;background:${PALETTE.well};` +
+        `box-shadow:inset 0 0 0 3px ${PALETTE.black};overflow:hidden;display:flex;align-items:center;justify-content:center">` +
+        `<img src="${esc(offer.photo)}" alt="" style="width:100%;height:100%;object-fit:cover"></span>`
+      : "";
+    return (
+      `<div data-g="offer" style="background:${PALETTE.well};box-shadow:inset 0 0 0 3px ${PALETTE.black},` +
+      `inset 0 0 0 5px ${PALETTE.panel};border-radius:${r + 4}px;padding:12px 14px;margin:6px 0 14px;` +
+      `display:flex;flex-direction:column;gap:10px">` +
+      `<span style="font:400 14px ${FONT};color:${PALETTE.ink};line-height:1.5">` +
+      (asking
+        ? `В Telegram тебя зовут <b style="color:${PALETTE.gold};font-weight:400">${esc(offer.name ?? "")}</b>. Взять это имя сюда?`
+        : `Взять аватар из Telegram?`) +
+      `</span><div style="display:flex;gap:8px;align-items:center">${face}` +
+      buttonHtml(asking ? "take-name" : "take-face", "Взять", "gold", r) +
+      buttonHtml("skip-offer", "Оставить своё", "quiet", r) +
+      `</div></div>`
+    );
+  };
+
   /**
    * ТЕЛЕГРАМ — ДВЕ РАЗНЫЕ ДВЕРИ, И ОБЕ НАСТОЯЩИЕ.
    *
@@ -308,6 +347,12 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
         open = true;
         said = "";
         draw();
+        // ВОПРОС ПЕРЕЖИВАЕТ ЗАКРЫТЫЙ ЭКРАН: привязал, закрыл, вернулся — телега всё ещё предлагает
+        // своё имя и лицо. Спрошенный только в момент привязки, он исчезал бы навсегда.
+        void (async () => {
+          offer = await gate.telegramOffer();
+          if (open) draw();
+        })();
       };
     }
     for (const button of element.querySelectorAll<HTMLElement>("[data-do]")) {
@@ -364,11 +409,31 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
                 ? ""
                 : "Не вышло привязать.";
         profile = (await gate.read()) ?? profile;
+        offer = await gate.telegramOffer();
+        return draw();
+      }
+      case "take-name": {
+        if (offer?.name) await save({ name: offer.name });
+        offer = await gate.telegramOffer();
+        return draw();
+      }
+      case "take-face": {
+        if (offer?.photo) await save({ avatar: offer.photo });
+        offer = await gate.telegramOffer();
+        return draw();
+      }
+      case "skip-offer": {
+        // ОТКАЗ ПОМНИТ СЕРВЕР: «оставить своё» — решение, а не пропуск вопроса, и после
+        // перезагрузки он не должен воскресать. Следующий вопрос приходит тем же ответом.
+        const what = offer?.kind;
+        if (what !== "name" && what !== "photo") return;
+        offer = (await gate.skipOffer(what)) ?? { kind: "none", silent: false };
         return draw();
       }
       case "tg-off": {
         const gone = await gate.unlinkTelegram();
         said = gone ? "Telegram отвязан. Ты остался собой — код переноса на месте." : "Не вышло отвязать.";
+        offer = undefined;
         profile = (await gate.read()) ?? profile;
         return draw();
       }
@@ -452,6 +517,9 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
                 ? "Ссылка устарела. Нажми «Привязать» ещё раз."
                 : "";
         profile = (await gate.read()) ?? profile;
+        // ПРИВЯЗАЛИ — И СРАЗУ СПРАШИВАЕМ, брать ли тамошнее имя и лицо: человек ещё здесь, а не
+        // ушёл, и это единственный момент, когда вопрос не выглядит взявшимся ниоткуда.
+        offer = state === "linked" || state === "switch" ? await gate.telegramOffer() : undefined;
         draw();
       })();
     });

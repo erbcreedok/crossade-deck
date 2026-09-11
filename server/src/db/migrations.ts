@@ -118,4 +118,24 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec(`ALTER TABLE identities ADD COLUMN label TEXT`);
     },
   },
+  {
+    version: 5,
+    up(db) {
+      // ЧТО ТЕЛЕГА МОЖЕТ ПРЕДЛОЖИТЬ ЧЕЛОВЕКУ: как его зовут ТАМ и его тамошнее лицо.
+      //
+      // Это не профиль и не подменяет его: человек сам решает, брать ли. Поэтому лежит на ДВЕРИ, а
+      // не в аккаунте — аккаунт хранит то, что человек выбрал, дверь помнит, что предлагала.
+      db.exec(`ALTER TABLE identities ADD COLUMN offered_name TEXT`);
+      db.exec(`ALTER TABLE identities ADD COLUMN offered_photo TEXT`);
+    },
+  },
+  {
+    version: 6,
+    up(db) {
+      // «ОСТАВИТЬ СВОЁ» — ЭТО ВЫБОР, И ОН ОБЯЗАН ПЕРЕЖИТЬ ПЕРЕЗАГРУЗКУ. Иначе вопрос воскресает при
+      // каждом открытии профиля, и отказ перестаёт быть отказом.
+      db.exec(`ALTER TABLE identities ADD COLUMN declined_name INTEGER NOT NULL DEFAULT 0`);
+      db.exec(`ALTER TABLE identities ADD COLUMN declined_photo INTEGER NOT NULL DEFAULT 0`);
+    },
+  },
 ];

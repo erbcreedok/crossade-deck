@@ -243,6 +243,47 @@ export async function telegramInviteState(code: string): Promise<InviteState> {
   }
 }
 
+/**
+ * ЧТО ТЕЛЕГА ПРЕДЛАГАЕТ ВЗЯТЬ СЮДА — по одному вопросу за раз: сначала имя, потом лицо.
+ * `silent` — брать было нечего спрашивать, сервер уже взял (у человека не было своего).
+ */
+export type TelegramOffer = {
+  kind: "none" | "name" | "photo";
+  name?: string;
+  photo?: string;
+  silent: boolean;
+};
+
+/** О чём сейчас спросить человека после привязки. */
+export async function telegramOffer(): Promise<TelegramOffer | undefined> {
+  const current = storedAccount();
+  if (!current) return undefined;
+  try {
+    const res = await fetch(`${serverUrl()}/accounts/${current.id}/telegram-offer`);
+    if (!res.ok) return undefined;
+    return (await res.json()) as TelegramOffer;
+  } catch {
+    return undefined;
+  }
+}
+
+/** «ОСТАВИТЬ СВОЁ» — решение, которое переживает перезагрузку. Возвращает следующий вопрос. */
+export async function skipTelegramOffer(what: "name" | "photo"): Promise<TelegramOffer | undefined> {
+  const current = storedAccount();
+  if (!current) return undefined;
+  try {
+    const res = await fetch(`${serverUrl()}/accounts/${current.id}/telegram-offer/skip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recoveryHash: current.recoveryHash, what }),
+    });
+    if (!res.ok) return undefined;
+    return (await res.json()) as TelegramOffer;
+  } catch {
+    return undefined;
+  }
+}
+
 /** ОТВЯЗАТЬ ТЕЛЕГРАМ. Аккаунт остаётся: рядом лежит код восстановления. */
 export async function unlinkTelegram(): Promise<Account | undefined> {
   const current = storedAccount();

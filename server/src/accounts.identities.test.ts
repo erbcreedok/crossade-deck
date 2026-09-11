@@ -132,7 +132,7 @@ describe("профиль", () => {
 // тот ли это его аккаунт. Ключ (subject) при этом наружу по-прежнему не отдаётся.
 describe("дверь подписана, и её можно закрыть", () => {
   it("подпись едет в профиль, ключ — нет", () => {
-    const account = createAccount("Ербол", "70001", "@erbol");
+    const account = createAccount("Ербол", "70001", { label: "@erbol" });
 
     const door = profileOf(account.id)!.identities[0]!;
     expect(door).toEqual({ provider: "telegram", label: "@erbol" });
@@ -145,7 +145,7 @@ describe("дверь подписана, и её можно закрыть", () 
   });
 
   it("отвязал — снова гость, но тот же самый человек", () => {
-    const account = createAccount("Марат", "70003", "@marat");
+    const account = createAccount("Марат", "70003", { label: "@marat" });
 
     const after = unlinkTelegram(account.id, account.recoveryHash);
 
@@ -158,17 +158,52 @@ describe("дверь подписана, и её можно закрыть", () 
   });
 
   it("чужим кодом не отвязать", () => {
-    const account = createAccount("Алия", "70004", "@aliya");
+    const account = createAccount("Алия", "70004", { label: "@aliya" });
     expect(unlinkTelegram(account.id, "WRONGC")).toBeUndefined();
     expect(isGuest(account.id)).toBe(false);
   });
 
   it("отвязанную дверь можно привязать снова — хоть к другому аккаунту", () => {
-    const first = createAccount("Первый", "70005", "@one");
+    const first = createAccount("Первый", "70005", { label: "@one" });
     unlinkTelegram(first.id, first.recoveryHash);
 
     const second = createAccount("Второй");
     expect(linkTelegram(second.id, second.recoveryHash, "70005")?.kind).toBe("linked");
     expect(findAccountByTelegramId("70005")?.id).toBe(second.id);
+  });
+});
+
+// ВОШЁЛ С НУЛЯ — ИМЯ И ЛИЦО ПРОСТО СТАНОВЯТСЯ ЕГО, без вопросов. Спрашивать «взять ли твоё имя» у
+// того, у кого своего ещё нет, незачем: отказ оставил бы его с кличкой, которую он и пришёл менять.
+describe("приёмка имени и лица из телеги", () => {
+  it("у кого ничего своего — берётся молча", () => {
+    const guest = createAccount();
+
+    const result = linkTelegram(guest.id, guest.recoveryHash, "80001", {
+      label: "@erbol",
+      name: "Ербол Сыздык",
+      photo: "https://t.me/i/erbol.jpg",
+    });
+
+    expect(result?.kind).toBe("linked");
+    expect(result?.account.name).toBe("Ербол Сыздык");
+    expect(result?.account.avatar).toBe("https://t.me/i/erbol.jpg");
+    // ...и это больше не кличка: предлагать ему «назваться» теперь незачем.
+    expect(profileOf(guest.id)?.nameChosen).toBe(true);
+  });
+
+  it("у кого своё имя — молча не забирают, спросят отдельно", () => {
+    const named = createAccount("Ерболчик");
+
+    linkTelegram(named.id, named.recoveryHash, "80002", { name: "Ербол Сыздык", photo: "https://t.me/i/e.jpg" });
+
+    expect(profileOf(named.id)?.name).toBe("Ерболчик");
+    expect(profileOf(named.id)?.avatar).toBeNull();
+  });
+
+  it("длинное тамошнее имя обрезается по той же мерке, что и своё", () => {
+    const guest = createAccount();
+    linkTelegram(guest.id, guest.recoveryHash, "80003", { name: "Я".repeat(40) });
+    expect(profileOf(guest.id)!.name.length).toBe(24);
   });
 });

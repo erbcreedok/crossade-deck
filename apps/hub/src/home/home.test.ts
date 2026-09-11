@@ -29,6 +29,8 @@ function gatewayOf(profile: Profile, over: Partial<ProfileGateway> = {}) {
     telegramInitData: () => undefined,
     linkTelegram: async () => "linked",
     unlinkTelegram: async () => true,
+    telegramOffer: async () => ({ kind: "none" as const, silent: false }),
+    skipOffer: async () => ({ kind: "none" as const, silent: false }),
     inviteTelegram: async () => ({ code: "CODE", link: "https://t.me/crossade_bot?start=CODE", expiresInMs: 300000 }),
     inviteState: async () => "waiting",
     transferLink: () => "http://hub.test/?restore=BOVAKI",
@@ -394,6 +396,117 @@ describe("home.a-linked-door-shows-whose-it-is", () => {
 
     expect(off).toHaveBeenCalledOnce();
     expect(home.element.textContent).toContain("код переноса на месте");
+    home.stop();
+  });
+});
+
+// СТОРОЖ `home.the-offer-asks-one-thing-at-a-time`.
+//
+// Стенд решил это раньше кода: два вопроса разом читаются как «прими всё или ничего», а человек
+// чаще хочет чужое имя и своё лицо. И отказ от первого не должен закрывать второй.
+describe("home.the-offer-asks-one-thing-at-a-time", () => {
+  // Человек со СВОИМ именем, который только что привязал телегу: у него и спрашивают.
+  const NAMED: Profile = { ...GUEST, name: "Ерболчик", nameChosen: true };
+
+  const asking = (kind: "name" | "photo") =>
+    gatewayOf(NAMED, {
+      telegramOffer: async () => ({
+        kind,
+        ...(kind === "name" ? { name: "Ербол Сыздык" } : { photo: "https://t.me/i/e.jpg" }),
+        silent: false,
+      }),
+      telegramInitData: () => "signed",
+    });
+
+  it("спрашивает про имя словами человека, а не «примите данные»", async () => {
+    const { gate } = asking("name");
+    const { home } = await openScreen(gate);
+    q(home.element, '[data-do="tg"]')!.click();
+    await settle();
+
+    const card = q(home.element, '[data-g="offer"]')!;
+    expect(card.textContent).toContain("В Telegram тебя зовут");
+    expect(card.textContent).toContain("Ербол Сыздык");
+    expect(q(home.element, '[data-do="take-name"]')).not.toBeNull();
+    home.stop();
+  });
+
+  it("«Взять» записывает именно то, что предложено", async () => {
+    const { gate, saved } = asking("name");
+    const { home } = await openScreen(gate);
+    q(home.element, '[data-do="tg"]')!.click();
+    await settle();
+
+    q(home.element, '[data-do="take-name"]')!.click();
+    await settle();
+
+    expect(saved).toEqual([{ name: "Ербол Сыздык" }]);
+    home.stop();
+  });
+
+  it("аватар предлагается своим вопросом и своей кнопкой", async () => {
+    const { gate, saved } = asking("photo");
+    const { home } = await openScreen(gate);
+    q(home.element, '[data-do="tg"]')!.click();
+    await settle();
+
+    expect(q(home.element, '[data-g="offer"]')!.textContent).toContain("аватар");
+    q(home.element, '[data-do="take-face"]')!.click();
+    await settle();
+
+    expect(saved).toEqual([{ avatar: "https://t.me/i/e.jpg" }]);
+    home.stop();
+  });
+
+  it("отказ от имени не закрывает вопрос про лицо", async () => {
+    const { gate } = gatewayOf(NAMED, {
+      telegramInitData: () => "signed",
+      telegramOffer: async () => ({ kind: "name", name: "Ербол", photo: "https://t.me/i/e.jpg", silent: false }),
+      // Сервер помнит отказ и отвечает следующим вопросом.
+      skipOffer: async () => ({ kind: "photo", photo: "https://t.me/i/e.jpg", silent: false }),
+    });
+    const { home } = await openScreen(gate);
+    q(home.element, '[data-do="tg"]')!.click();
+    await settle();
+
+    q(home.element, '[data-do="skip-offer"]')!.click();
+    await settle();
+
+    expect(q(home.element, '[data-g="offer"]')!.textContent).toContain("аватар");
+    home.stop();
+  });
+
+  it("спрашивать нечего — карточки нет вовсе", async () => {
+    const { gate } = gatewayOf(NAMED, { telegramInitData: () => "signed" });
+    const { home } = await openScreen(gate);
+    q(home.element, '[data-do="tg"]')!.click();
+    await settle();
+
+    expect(q(home.element, '[data-g="offer"]')).toBeNull();
+    home.stop();
+  });
+});
+
+// ОТКАЗ ПЕРЕЖИВАЕТ ПЕРЕЗАГРУЗКУ: «оставить своё» — решение, а не пропуск вопроса. Воскресший при
+// следующем открытии профиля вопрос обесценивает отказ.
+describe("home.a-refusal-is-a-decision", () => {
+  it("отказ уходит на сервер, а не остаётся в памяти экрана", async () => {
+    const { gate } = gatewayOf(
+      { ...GUEST, name: "Ерболчик", nameChosen: true },
+      {
+        telegramInitData: () => "signed",
+        telegramOffer: async () => ({ kind: "name", name: "Ербол", photo: "https://t.me/i/e.jpg", silent: false }),
+        skipOffer: async () => ({ kind: "photo", photo: "https://t.me/i/e.jpg", silent: false }),
+      },
+    );
+    const skip = vi.spyOn(gate, "skipOffer");
+    const { home } = await openScreen(gate);
+    await settle();
+
+    q(home.element, '[data-do="skip-offer"]')!.click();
+    await settle();
+
+    expect(skip).toHaveBeenCalledWith("name");
     home.stop();
   });
 });

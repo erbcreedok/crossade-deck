@@ -11,12 +11,14 @@ import { KitRoom } from "./KitRoom.js";
 import { resolveInviteCode } from "./inviteCodes.js";
 import {
   createAccount,
+  declineTelegramOffer,
   findAccountById,
   findAccountByRecoveryHash,
   findAccountByTelegramId,
   linkTelegram,
   profileOf,
   regenerateRecoveryHash,
+  telegramDoor,
   unlinkTelegram,
   updateProfile,
 } from "./accounts.js";
@@ -25,6 +27,7 @@ import { getLastRoom } from "./lastRooms.js";
 import { getRoomGame } from "./roomGames.js";
 import { verifyTelegramInitData } from "./telegramAuth.js";
 import { botUsername } from "./telegramMe.js";
+import { offerFor } from "./telegramOffer.js";
 import {
   issueLinkCode,
   usedLink,
@@ -56,6 +59,19 @@ const APP_SOURCE = (process.env.APP_SOURCE || "").trim().toLowerCase().replace(/
 
 /** Глаголы, которыми отвечает это приложение. Сверяется со списком маршрутов сторожем. */
 export const ALLOWED_METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"] as const;
+
+/**
+ * ЧТО ТЕЛЕГА ПРЕДЛАГАЕТ ЧЕЛОВЕКУ, как это видно из подписанной `initData`: подпись двери, тамошнее
+ * имя и тамошнее лицо. Ссылка на лицо здесь приходит готовой — у Mini App она есть без токена.
+ */
+function telegramFaceOf(user: { username?: string; first_name?: string; last_name?: string; photo_url?: string }) {
+  const fullName = [user.first_name, user.last_name].filter((part): part is string => Boolean(part?.trim())).join(" ");
+  return {
+    ...(user.username ? { label: `@${user.username}` } : {}),
+    ...(fullName ? { name: fullName } : {}),
+    ...(user.photo_url ? { photo: user.photo_url } : {}),
+  };
+}
 
 export function createApp() {
   const app = express();
@@ -175,7 +191,7 @@ export function createApp() {
     const fullName = [user.first_name, user.last_name].filter((part): part is string => Boolean(part?.trim())).join(" ");
     const account =
       findAccountByTelegramId(telegramId) ??
-      createAccount(fullName || user.username, telegramId, user.username ? `@${user.username}` : undefined);
+      createAccount(fullName || user.username, telegramId, telegramFaceOf(user));
     res.json(account);
   });
 
@@ -196,17 +212,36 @@ export function createApp() {
     const user = verifyTelegramInitData(initData, botToken);
     if (!user) return res.status(401).json({ error: "unauthorized" });
 
-    const result = linkTelegram(
-      req.params.id,
-      recoveryHash,
-      String(user.id),
-      user.username ? `@${user.username}` : undefined,
-    );
+    const result = linkTelegram(req.params.id, recoveryHash, String(user.id), telegramFaceOf(user));
     if (!result) return res.status(403).json({ error: "forbidden" });
     if (result.kind === "conflict") {
       return res.status(409).json({ error: "already_linked", account: { id: result.account.id, name: result.account.name } });
     }
     res.json({ kind: result.kind, account: result.account });
+  });
+
+  /**
+   * ЧТО ТЕЛЕГА ПРЕДЛАГАЕТ ВЗЯТЬ СЮДА — имя и лицо, по одному вопросу за раз (`telegramOffer.ts`).
+   *
+   * Решает человек, поэтому сервер только ОТВЕЧАЕТ, что есть; берёт — обычный `PATCH` профиля, тем
+   * же кодом, что и любую другую правку.
+   */
+  app.get("/accounts/:id/telegram-offer", (req, res) => {
+    const account = findAccountById(req.params.id);
+    if (!account) return res.status(404).json({ error: "not_found" });
+    const profile = profileOf(account.id);
+    res.json(offerFor(account, telegramDoor(account.id), profile?.nameChosen ?? true));
+  });
+
+  /** «ОСТАВИТЬ СВОЁ» — решение человека, и оно переживает перезагрузку. */
+  app.post("/accounts/:id/telegram-offer/skip", (req, res) => {
+    const { recoveryHash, what } = req.body || {};
+    if (typeof recoveryHash !== "string" || (what !== "name" && what !== "photo")) {
+      return res.status(400).json({ error: "bad_request" });
+    }
+    if (!declineTelegramOffer(req.params.id, recoveryHash, what)) return res.status(403).json({ error: "forbidden" });
+    const account = findAccountById(req.params.id)!;
+    res.json(offerFor(account, telegramDoor(account.id), profileOf(account.id)?.nameChosen ?? true));
   });
 
   /** ОТВЯЗАТЬ — та же проверка доверия, что и у любой другой правки профиля: код восстановления. */
@@ -266,7 +301,7 @@ export function createApp() {
     const secret = linkSecret();
     if (!secret) return res.status(503).json({ error: "telegram_not_configured" });
 
-    const { code, telegramId, telegramName, secret: given } = req.body || {};
+    const { code, telegramId, telegramName, offeredName, offeredPhoto, secret: given } = req.body || {};
     if (typeof code !== "string" || typeof telegramId !== "string" || typeof given !== "string") {
       return res.status(400).json({ error: "bad_request" });
     }
@@ -300,12 +335,11 @@ export function createApp() {
     }
     // ПРАВИЛО СЛИЯНИЯ ЖИВЁТ В ОДНОМ МЕСТЕ И ТУТ НЕ ПОВТОРЯЕТСЯ: чистого гостя переключают, две
     // полноценные стороны не сливают никогда.
-    const result = linkTelegram(
-      account.id,
-      account.recoveryHash,
-      telegramId,
-      typeof telegramName === "string" && telegramName ? telegramName : undefined,
-    );
+    const result = linkTelegram(account.id, account.recoveryHash, telegramId, {
+      ...(typeof telegramName === "string" && telegramName ? { label: telegramName } : {}),
+      ...(typeof offeredName === "string" && offeredName ? { name: offeredName } : {}),
+      ...(typeof offeredPhoto === "string" && offeredPhoto ? { photo: offeredPhoto } : {}),
+    });
     if (!result) return res.status(403).json({ error: "forbidden" });
     settleLink(code, telegramId, result.kind);
     res.json({ kind: result.kind, name: result.account.name });

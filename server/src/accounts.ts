@@ -11,6 +11,7 @@
 import { randomUUID, randomInt } from "crypto";
 import {
   accountById,
+  declineOffer,
   unlinkIdentity,
   accountByIdentity,
   accountByRecoveryHash,
@@ -25,6 +26,7 @@ import {
   type Provider,
 } from "./db/accountsRepo.js";
 import { guestName } from "./guestNames.js";
+import { offerFor } from "./telegramOffer.js";
 
 /** Аккаунт, как его отдают наружу. `telegramId` выводится из идентичностей, а не хранится полем. */
 export interface Account {
@@ -58,6 +60,13 @@ export interface Profile {
 }
 
 const MAX_NAME = 24;
+
+/** Лицо двери, как его принимает хранилище: `undefined` и пустая строка — это «нечего предложить». */
+const faceOf = (face: TelegramFace) => ({
+  label: face.label || null,
+  name: face.name || null,
+  photo: face.photo || null,
+});
 
 function normalizeHash(hash: string): string {
   return hash.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
@@ -101,7 +110,17 @@ function freeRecoveryHash(): string {
  * Завести человека. Без имени он получает кличку от сервера («Золотой таракан»), а не номер: имя,
  * которое хочется сменить, — единственное, что просит назваться.
  */
-export function createAccount(name?: string, telegramId?: string, telegramName?: string): Account {
+/** Что телеграм знает о человеке: подпись двери, его тамошнее имя и лицо. */
+export interface TelegramFace {
+  /** `@erbol` — подпись двери. */
+  readonly label?: string | undefined;
+  /** Как его зовут в телеге — предложение, а не факт профиля. */
+  readonly name?: string | undefined;
+  /** Тамошнее лицо: ссылка (Mini App) или ключ файла (бот). */
+  readonly photo?: string | undefined;
+}
+
+export function createAccount(name?: string, telegramId?: string, face: TelegramFace = {}): Account {
   const id = randomUUID();
   const chosen = (name ?? "").trim().length > 0;
   const row = insertAccount({
@@ -113,7 +132,7 @@ export function createAccount(name?: string, telegramId?: string, telegramName?:
     createdAt: Date.now(),
     recoveryHash: freeRecoveryHash(),
   });
-  if (telegramId) linkIdentity(id, "telegram", telegramId, telegramName ?? null);
+  if (telegramId) linkIdentity(id, "telegram", telegramId, faceOf(face));
   return dress(row);
 }
 
@@ -187,6 +206,31 @@ export function profileOf(id: string): Profile | undefined {
   };
 }
 
+/** Дверь этого аккаунта — та, через которую он входит телегой. */
+export function telegramDoor(id: string) {
+  return identitiesOf(id).find((one) => one.provider === "telegram");
+}
+
+/**
+ * ВЗЯТЬ СЕБЕ ТО, ЧТО ПРЕДЛОЖИЛА ТЕЛЕГА. Отдельно от `updateProfile` ровно одним: здесь не нужен код
+ * восстановления второй раз — человек уже доказал, что аккаунт его, когда просил этот экран.
+ */
+export function takeFromTelegram(
+  id: string,
+  recoveryHash: string,
+  what: { name?: string; avatar?: string },
+): Account | undefined {
+  return updateProfile(id, recoveryHash, what);
+}
+
+/** «Оставить своё» — своим кодом, как и всякое другое решение про свой профиль. */
+export function declineTelegramOffer(id: string, recoveryHash: string, what: "name" | "photo"): boolean {
+  const row = mine(id, recoveryHash);
+  if (!row) return false;
+  declineOffer(row.id, "telegram", what);
+  return true;
+}
+
 /** Гость — это ноль дверей, и ничего больше. */
 export function isGuest(id: string): boolean {
   return identityCount(id) === 0;
@@ -213,7 +257,7 @@ export function linkTelegram(
   id: string,
   recoveryHash: string,
   telegramId: string,
-  telegramName?: string,
+  face: TelegramFace = {},
 ): LinkResult | undefined {
   const row = mine(id, recoveryHash);
   if (!row) return undefined;
@@ -225,8 +269,18 @@ export function linkTelegram(
       ? { kind: "switch", account: dress(owner) }
       : { kind: "conflict", account: dress(owner) };
   }
-  linkIdentity(row.id, "telegram", telegramId, telegramName ?? null);
-  return { kind: "linked", account: dress(row) };
+  linkIdentity(row.id, "telegram", telegramId, faceOf(face));
+  // ВОШЁЛ С НУЛЯ — ИМЯ И ЛИЦО ПРОСТО СТАНОВЯТСЯ ЕГО. Спрашивать «взять ли твоё имя» у того, у кого
+  // своего ещё нет, незачем: отказ оставил бы его с кличкой, которую он и пришёл менять.
+  const silently = offerFor(dress(row), telegramDoor(row.id), row.nameChosen);
+  if (silently.silent) {
+    updateAccount(row.id, {
+      ...(silently.name ? { name: silently.name.slice(0, MAX_NAME) } : {}),
+      ...(silently.photo ? { avatar: silently.photo } : {}),
+      ...(silently.name ? { nameChosen: true } : {}),
+    });
+  }
+  return { kind: "linked", account: dress(accountById(row.id) ?? row) };
 }
 
 /**

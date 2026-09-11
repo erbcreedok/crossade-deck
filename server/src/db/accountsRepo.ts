@@ -17,6 +17,12 @@ export interface Identity {
   readonly subject: string;
   /** Как человека зовут за этой дверью — `@erbol`. Подпись для экрана, не ключ. */
   readonly label: string | null;
+  /** Как его зовут ТАМ и его тамошнее лицо — то, что дверь может предложить взять сюда. */
+  readonly offeredName: string | null;
+  readonly offeredPhoto: string | null;
+  /** От чего человек уже отказался: «оставить своё» — решение, а не пропуск вопроса. */
+  readonly declinedName: boolean;
+  readonly declinedPhoto: boolean;
   readonly verifiedAt: number;
 }
 
@@ -79,7 +85,7 @@ export function recoveryHashTaken(hash: string, at: DatabaseSync = db()): boolea
 /** Сменить любое из полей профиля. `undefined` — не трогать, и это не то же, что «очистить». */
 export function updateAccount(
   id: string,
-  patch: { name?: string; color?: string | null; avatar?: string | null; recoveryHash?: string },
+  patch: { name?: string; color?: string | null; avatar?: string | null; recoveryHash?: string; nameChosen?: boolean },
   at: DatabaseSync = db(),
 ): AccountRow | undefined {
   const sets: string[] = [];
@@ -89,15 +95,39 @@ export function updateAccount(
   if (patch.color !== undefined) (sets.push("color = ?"), values.push(patch.color));
   if (patch.avatar !== undefined) (sets.push("avatar = ?"), values.push(patch.avatar));
   if (patch.recoveryHash !== undefined) (sets.push("recovery_hash = ?"), values.push(patch.recoveryHash));
+  // Имя, ВЗЯТОЕ ИЗ ТЕЛЕГИ, тоже своё: человек его не выбирал из списка, но и кличкой оно больше не
+  // является — предлагать ему «назваться» после этого значит не замечать, что он уже назван.
+  if (patch.nameChosen !== undefined) (sets.push("name_chosen = ?"), values.push(patch.nameChosen ? 1 : 0));
   if (sets.length > 0) at.prepare(`UPDATE accounts SET ${sets.join(", ")} WHERE id = ?`).run(...values, id);
   return accountById(id, at);
 }
 
 export function identitiesOf(accountId: string, at: DatabaseSync = db()): readonly Identity[] {
   const rows = at
-    .prepare(`SELECT provider, subject, label, verified_at FROM identities WHERE account_id = ? ORDER BY verified_at`)
-    .all(accountId) as { provider: Provider; subject: string; label: string | null; verified_at: number }[];
-  return rows.map((r) => ({ provider: r.provider, subject: r.subject, label: r.label, verifiedAt: r.verified_at }));
+    .prepare(
+      `SELECT provider, subject, label, offered_name, offered_photo, declined_name, declined_photo, verified_at
+       FROM identities WHERE account_id = ? ORDER BY verified_at`,
+    )
+    .all(accountId) as {
+    provider: Provider;
+    subject: string;
+    label: string | null;
+    offered_name: string | null;
+    offered_photo: string | null;
+    declined_name: number;
+    declined_photo: number;
+    verified_at: number;
+  }[];
+  return rows.map((r) => ({
+    provider: r.provider,
+    subject: r.subject,
+    label: r.label,
+    offeredName: r.offered_name,
+    offeredPhoto: r.offered_photo,
+    declinedName: r.declined_name === 1,
+    declinedPhoto: r.declined_photo === 1,
+    verifiedAt: r.verified_at,
+  }));
 }
 
 export function accountByIdentity(
@@ -115,18 +145,42 @@ export function accountByIdentity(
  * ПРИВЯЗАТЬ ДВЕРЬ. Одна и та же дверь не может вести к двум людям — за этим следит первичный ключ
  * `(provider, subject)`, а не проверка перед вставкой: проверка и вставка это два шага, а ключ один.
  */
+/** Что дверь знает о человеке на той стороне. */
+export interface DoorFace {
+  readonly label?: string | null;
+  /** Как его зовут там — «Ербол Сыздык». */
+  readonly name?: string | null;
+  /** Его тамошнее лицо: ссылка или ключ файла, по которому лицо можно получить. */
+  readonly photo?: string | null;
+}
+
 export function linkIdentity(
   accountId: string,
   provider: Provider,
   subject: string,
-  label: string | null = null,
+  face: DoorFace = {},
   at: DatabaseSync = db(),
 ): Identity {
   const verifiedAt = Date.now();
+  const label = face.label ?? null;
+  const offeredName = face.name ?? null;
+  const offeredPhoto = face.photo ?? null;
   at.prepare(
-    `INSERT INTO identities (provider, subject, account_id, label, verified_at) VALUES (?, ?, ?, ?, ?)`,
-  ).run(provider, subject, accountId, label, verifiedAt);
-  return { provider, subject, label, verifiedAt };
+    `INSERT INTO identities (provider, subject, account_id, label, offered_name, offered_photo, verified_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(provider, subject, accountId, label, offeredName, offeredPhoto, verifiedAt);
+  return { provider, subject, label, offeredName, offeredPhoto, declinedName: false, declinedPhoto: false, verifiedAt };
+}
+
+/** ЧЕЛОВЕК СКАЗАЛ «ОСТАВИТЬ СВОЁ». Дверь это помнит и больше про это не спрашивает. */
+export function declineOffer(
+  accountId: string,
+  provider: Provider,
+  what: "name" | "photo",
+  at: DatabaseSync = db(),
+): void {
+  const column = what === "name" ? "declined_name" : "declined_photo";
+  at.prepare(`UPDATE identities SET ${column} = 1 WHERE account_id = ? AND provider = ?`).run(accountId, provider);
 }
 
 /**
