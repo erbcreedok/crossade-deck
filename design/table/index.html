@@ -7,8 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Handjet&family=Press+Start+2P&family=Tiny5&display=swap" rel="stylesheet">
-<script src="felt.js"></script>
-<script src="rights.js"></script>
+<script src="felt.js?v=09120021"></script>
+<script src="rights.js?v=09120021"></script>
 <style>
   body { margin: 0; background: #0d2118; color: #cdb98f; font: 400 16px/1.45 'Handjet', monospace; }
   .page { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; padding: 32px; }
@@ -82,6 +82,7 @@
       ["theySeat", "у него есть стул", "bool", true],
       ["friend", "дружба", "enum", "никто", ["никто", "исходящий", "входящий", "друзья"]],
       ["away", "отошёл", "bool", false],
+      ["theyColour", "его цвет", "int", 1, 0, 7],
       ["theyLock", "рука на локе", "bool", false],
       ["theyPin", "рука на пине", "bool", true],
       ["theyHide", "рука скрыта", "bool", false],
@@ -89,6 +90,7 @@
     ["Что открыто", [
       ["screen", "экран", "enum", "стол", ["стол", "список", "профиль", "комната"]],
       ["tip", "тултип на сукне", "bool", false],
+      ["picker", "палитра открыта", "bool", false],
       ["open", "раскрыт в списке", "bool", false],
       ["whose", "чей профиль", "enum", "его", ["его", "мой"]],
       ["explain", "показывать запрещённое", "bool", true],
@@ -179,10 +181,29 @@
           : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 3px 0 rgba(11,7,4,.55);`)
     + `"><svg viewBox="0 0 24 24" width="${Math.round(size * 0.5)}" height="${Math.round(size * 0.5)}" fill="none" stroke="${on ? T.black : T.ink}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${GLYPH[id]}"/></svg></button>`;
 
-  /** Цвет — тоже знак: сам цвет и есть иконка. */
-  const colourBtn = (colour, size) => `<button data-do="colour" title="цвет" style="cursor:pointer;border:0;border-radius:8px;width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;`
-    + `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 3px 0 rgba(11,7,4,.55)">`
+  /**
+   * ЦВЕТ — ЗНАК НА СТРОКЕ ИМЕНИ, а не секция и не тап по лицу. Сам цвет и есть иконка: плашка с
+   * кружком стоит справа от имени, там же, где про человека всё остальное, и не смешивается со
+   * статусом его руки.
+   */
+  const colourBtn = (colour, size, open) => `<button data-do="colour" title="сменить цвет" style="flex:none;cursor:pointer;border:0;border-radius:8px;width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;`
+    + `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${open ? T.gold : T.wood},0 3px 0 rgba(11,7,4,.55)">`
     + `<span style="width:${Math.round(size * 0.46)}px;height:${Math.round(size * 0.46)}px;border-radius:50%;background:${PALETTE[colour]};box-shadow:inset 0 0 0 2px ${T.black}"></span></button>`;
+
+  /**
+   * ПАЛИТРА — ВЫБОР, А НЕ ПЕРЕБОР. Восемь кружков, текущий в золотой обводке; занятые соседями
+   * перечёркнуты и не нажимаются, потому что два одинаковых цвета за столом — ровно та беда, от
+   * которой цвет и заведён.
+   */
+  const paletteRow = (one, taken) => `<div data-g="palette" style="display:flex;gap:7px;flex-wrap:wrap;padding:10px 0 2px">`
+    + PALETTE.map((c, i) => {
+      const busy = taken.includes(i) && i !== one.colour;
+      const now = i === one.colour;
+      return `<button ${busy ? "" : `data-do="pick:${i}"`} title="${busy ? "цвет занят" : ""}" style="position:relative;width:30px;height:30px;border:0;border-radius:50%;`
+        + `${busy ? "cursor:not-allowed;opacity:.35;" : "cursor:pointer;"}background:${c};box-shadow:inset 0 0 0 3px ${T.black}${now ? `,0 0 0 3px ${T.gold}` : ""}">`
+        + (busy ? `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:400 15px 'Tiny5',monospace;color:${T.black}">×</span>` : "")
+        + `</button>`;
+    }).join("") + `</div>`;
 
   const btn = (id, label, kind, small) => `<button data-do="${id}" style="font:400 ${small ? 12 : 13}px 'Tiny5',monospace;cursor:pointer;border:0;border-radius:8px;padding:${small ? "7px 9px" : "9px 12px"};`
     + (kind === "gold" ? `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6);color:${T.black};`
@@ -220,11 +241,13 @@
 
     const me = { ...PEOPLE[0], role: P.myRole, seat: P.mySeat && P.myRole !== "зритель", colour: P.myColour, mine: true, friend: "это ты",
       hand: { "piece:lock": false, "piece:pin": false, "piece:hide": false } };
-    const them = { ...PEOPLE[1], role: P.theyRole, seat: P.theySeat && P.theyRole !== "зритель", colour: 1, mine: false, friend: P.friend, away: P.away,
+    const them = { ...PEOPLE[1], role: P.theyRole, seat: P.theySeat && P.theyRole !== "зритель", colour: P.theyColour, mine: false, friend: P.friend, away: P.away,
       hand: { "piece:lock": P.theyLock, "piece:pin": P.theyPin, "piece:hide": P.theyHide } };
     const room = { mode: P.mode, vis: P.vis, access: P.access, forever: P.forever, code: "0244" };
     const roster = [me, them, ...PEOPLE.slice(2).map((p) => ({ ...p, mine: false, friend: "никто", hand: { "piece:lock": false, "piece:pin": false, "piece:hide": false } }))];
     const who = P.whose === "мой" ? me : them;
+    /** Цвета, которые уже носят за этим столом: палитра показывает их занятыми. */
+    const taken = roster.filter((p) => p.key !== "them").map((p) => p.colour);
 
     // ---- ВЕРХНЯЯ ПОЛОСА ----
     const avatars = roster.filter((p) => p.seat).slice(0, 5).map((s, i) => `<span style="margin-left:${i ? -8 : 0}px;z-index:${9 - i}">${ball(30, s.colour, s.name[0], i === 0)}</span>`).join("");
@@ -246,14 +269,14 @@
     const cardsOf = (one) => R.actionsOn("table", me, one, room);
     const controlsFor = (one, small) => {
       const { can } = cardsOf(one);
-      const hand = can.filter((a) => a.id.startsWith("piece:") || a.id === "colour");
-      const rest = can.filter((a) => !a.id.startsWith("piece:") && a.id !== "colour");
+      const hand = can.filter((a) => a.id.startsWith("piece:"));
+      const rest = can.filter((a) => !a.id.startsWith("piece:"));
       const group = (title, inner) => !inner ? "" :
         `<div style="display:flex;flex-direction:column;gap:6px;padding-top:8px">`
         + `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">${title}</span>`
         + `<div style="display:flex;gap:6px;flex-wrap:wrap">${inner}</div></div>`;
       const size = small ? 38 : 42;
-      const handIcons = hand.map((a) => a.id === "colour" ? colourBtn(one.colour, size) : iconBtn(a.id, one.hand[a.id], size)).join("");
+      const handIcons = hand.map((a) => iconBtn(a.id, one.hand[a.id], size)).join("");
       return group("СТАТУС РУКИ", handIcons)
         + group("МЕСТО И ПРАВА", rest.map((a) => btn(a.id, a.label, a.kind, small)).join(""));
     };
@@ -265,9 +288,11 @@
       const below = spot.y < H * 0.45;
       return `<div data-g="tip" style="position:absolute;left:${left}px;${below ? `top:${spot.y + spot.r + 12}px` : `bottom:${H - spot.y + spot.r + 12}px`};width:${w}px;z-index:15;`
         + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px 12px 13px">`
-        + `<div style="display:flex;align-items:center;gap:9px">${ball(30, one.colour, one.name[0], false)}`
-        + `<div style="display:flex;flex-direction:column;gap:3px;min-width:0"><span style="font:400 14px 'Tiny5',monospace;color:${T.ink}">${esc(one.name)}</span>`
-        + `<div style="display:flex;gap:5px;align-items:center">${badge(one.role)}${one.away ? `<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim}">отошёл</span>` : ""}</div></div></div>`
+        + `<div style="display:flex;align-items:center;gap:9px">${ball(32, one.colour, one.name[0], false)}`
+        + `<div style="display:flex;flex-direction:column;gap:3px;min-width:0;flex:1"><span style="font:400 14px 'Tiny5',monospace;color:${T.ink}">${esc(one.name)}</span>`
+        + `<div style="display:flex;gap:5px;align-items:center">${badge(one.role)}${one.away ? `<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim}">отошёл</span>` : ""}</div></div>`
+        + (R.actionsOn("face", me, one, room).can.length ? colourBtn(one.colour, 34, P.picker) : "") + `</div>`
+        + (P.picker && R.actionsOn("face", me, one, room).can.length ? paletteRow(one, taken) : "")
         + controlsFor(one, true)
         + `<div style="padding-top:11px">${btn("profile", "Открыть профиль ›", "quiet", true)}</div></div>`;
     };
@@ -285,12 +310,15 @@
       const isThem = i === 0;
       const open = isThem && P.open;
       return `<div style="box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55)">`
-        + `<button data-do="${isThem ? "expand" : "nope"}" style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 0;cursor:pointer;border:0;background:transparent;text-align:left">`
+        + `<div data-do="${isThem ? "expand" : "nope"}" role="button" style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 0;cursor:pointer;text-align:left">`
         + ball(34, one.colour, one.name[0], false)
         + `<span style="display:flex;flex-direction:column;gap:3px;min-width:0;flex:1">`
         + `<span style="font:400 15px 'Tiny5',monospace;color:${one.seat ? T.ink : T.inkDim}">${esc(one.name)}${one.away ? ` <span style="font-size:11px;color:${T.inkDim}">отошёл</span>` : ""}</span>`
         + `<span style="display:flex;gap:6px;align-items:center">${badge(one.role)}<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim}">${one.seat ? "за столом" : "без стула"}</span></span>`
-        + `</span><span style="font:400 15px 'Tiny5',monospace;color:${T.inkDim};transform:rotate(${open ? 90 : 0}deg);transition:transform .15s">›</span></button>`
+        + `</span>`
+        + (R.actionsOn("face", me, one, room).can.length ? colourBtn(one.colour, 34, isThem && P.picker) : "")
+        + `<span style="font:400 15px 'Tiny5',monospace;color:${T.inkDim};transform:rotate(${open ? 90 : 0}deg);transition:transform .15s">›</span></div>`
+        + (isThem && P.picker && R.actionsOn("face", me, one, room).can.length ? paletteRow(one, taken) : "")
         + (open ? `<div style="padding:0 0 14px">${controlsFor(one, true)}`
           + `<div style="padding-top:11px">${btn("profile", "Открыть профиль ›", "quiet", true)}</div>`
           + denials(cardsOf(one).cant) + `</div>` : "")
@@ -386,6 +414,8 @@
         else if (does === "settings") alert("Настройки профиля — отдельный стенд, 9577");
         else if (does === "back") P.screen = "список";
         else if (does === "close") { P.screen = "стол"; P.tip = false; }
+        else if (does === "colour") P.picker = !P.picker;
+        else if (does.startsWith("pick:")) { P.theyColour = Number(does.slice(5)); P.picker = false; }
         else if (does === "piece:lock") P.theyLock = !P.theyLock;
         else if (does === "piece:pin") P.theyPin = !P.theyPin;
         else if (does === "piece:hide") P.theyHide = !P.theyHide;
