@@ -337,8 +337,10 @@
       + `<span style="font:400 10px 'Tiny5',monospace;color:${c.hot ? T.gold : T.inkDim};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.game} · ${c.said}</span>`
       + `</span></button>`;
 
+    // ПОД ЗАГОЛОВКОМ, А НЕ НАД НИМ. «Crossade» — это имя места, и оно должно встречать первым;
+    // подсказки «куда зайти» идут следом, между именем и полкой, где их и ищут глазами.
     const comeback = !cards.length ? "" :
-      `<div data-g="comeback" style="display:flex;flex-direction:column;gap:7px;padding:6px 0 12px">`
+      `<div data-g="comeback" style="position:absolute;left:0;right:0;top:calc(${inset} + ${h + 18 + (P.title ? P.titleSize + 12 : 0)}px);z-index:8;display:flex;flex-direction:column;gap:7px">`
       + `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.75;padding:0 ${P.side}px">КУДА ЗАЙТИ</span>`
       + `<div style="display:flex;gap:8px;overflow:auto;padding:0 ${P.side}px 2px">${cards.map(card).join("")}</div></div>`;
 
@@ -349,7 +351,7 @@
     // высота складывается из полосы и чёлки. Пока шапка была тремя absolute-кусками, заголовок
     // «Crossade» лежал под тем, что висело ниже полосы.
     over.innerHTML = `<div data-g="head" style="position:absolute;left:0;right:0;top:0;z-index:9">`
-      + `<div style="${band}"><div style="${rowIn}">${profile}</div></div>${comeback}</div>` + screen;
+      + `<div style="${band}"><div style="${rowIn}">${profile}</div></div></div>` + comeback + screen;
 
     // ДЕЙСТВИЯ. Экран пересобирается целиком на каждую правку, поэтому слушатели вешаются после
     // сборки — это дешевле, чем держать узлы живыми ради одного обработчика.
@@ -399,7 +401,7 @@
       + (guest ? `имя выдано столом: <b>${esc(guestName(P.seed))}</b> — оно и есть приглашение назваться` : `вошёл: имя своё, менять нечего`);
 
     window.HubStand.draw(document.getElementById("shelf"), {
-      W, H, top: headTop,
+      W, H, top: headTop, afterTitle: heightOf("comeback"),
       title: P.title, titleSize: P.titleSize, columns: P.columns, tileGap: P.tileGap, margin: P.margin,
     });
   };

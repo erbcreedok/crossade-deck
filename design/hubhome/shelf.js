@@ -85,7 +85,7 @@
    * Полка целиком. `top` — сколько пикселей сверху занято шапкой: плитки начинаются под ней, и
    * именно это число ручки наверху и двигают.
    */
-  function draw(canvas, { W, H, top, title, titleSize, columns, tileGap, margin }) {
+  function draw(canvas, { W, H, top, afterTitle, title, titleSize, columns, tileGap, margin }) {
     const dpr = Math.min(3, globalThis.devicePixelRatio || 1);
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
@@ -116,7 +116,9 @@
       g.textAlign = "center";
       g.textBaseline = "top";
       g.fillText("Crossade", W / 2, y);
-      y += titleSize + 26;
+      // ДЫРА ПОСЛЕ ЗАГОЛОВКА — место под ряд «куда зайти», который живёт разметкой над холстом.
+      // Холст о нём не знает, ему сообщают высоту: иначе плитки лягут прямо на карточки.
+      y += titleSize + 12 + (afterTitle ? afterTitle + 16 : 14);
     }
 
     const cols = columns;
