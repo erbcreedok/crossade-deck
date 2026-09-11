@@ -1,0 +1,49 @@
+game-presets/desk/src/layers.test.ts
+  s_357f670d370d4d::t_efbe1669121d5e 1-44
+game-presets/hand/src/handLayer.test.ts
+  s_357f670d370d4d::t_fbb0512345a2cf 1-93
+apps/hub/src/table/mapFor.ts
+  s_357f670d370d4d::t_b0795156758ad6 4-5,25-26
+apps/hub/src/table/index.ts
+  s_357f670d370d4d::t_0a12acb3e1838f 83-85,793,803
+apps/hub/package.json
+  s_357f670d370d4d::t_8faa3848efc31d 19
+game-presets/hand/src/handLayer.ts
+  s_357f670d370d4d::t_719f6dfb45e302 1-201
+game-presets/hand/vitest.config.ts
+  s_357f670d370d4d::t_b5b555c7fcecbf 1-6
+game-presets/hand/src/seatChairs.ts
+  s_357f670d370d4d::t_e5ef67d95d60eb 1-34
+  s_357f670d370d4d::t_11446ec6a8a978 35-37
+  s_357f670d370d4d::t_8b65ef59e18c42 38-43
+game-presets/hand/src/index.ts
+  s_357f670d370d4d::t_42b53469b5307e 1-8
+game-presets/hand/tsconfig.json
+  s_357f670d370d4d::t_b5b555c7fcecbf 1-21
+game-presets/hand/src/seatChairs.test.ts
+  s_357f670d370d4d::t_4f578510315e9d 1-96,100
+  s_357f670d370d4d::t_69b362cbe3dab9 97-99
+  s_357f670d370d4d::t_6dd3c1c8b2817e 101
+game-presets/hand/package.json
+  s_357f670d370d4d::t_e35ef078290656 1-32
+apps/hub/src/table/mapFor.test.ts
+  s_357f670d370d4d::t_c1b397807e8bda 1-3,5
+package-lock.json
+  s_357f670d370d4d::t_329c7785aea23d 28,452-467,1132-1135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4ea9d970ae4bb5c3b9032b63c8629beb7b7bae03",
+  "prompts": {},
+  "sessions": {
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
