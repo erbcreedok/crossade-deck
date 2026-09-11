@@ -1,0 +1,55 @@
+server/src/db/migrations.ts
+  s_9ed0da107cbc4a::t_f559cba49a069f 110-120
+apps/hub/src/home/home.ts
+  s_9ed0da107cbc4a::t_c307e0d0803781 18,54-55,83-85,208,242-254,369-371
+  s_9ed0da107cbc4a::t_db40337ad94dc7 372-374
+apps/hub/src/home/home.test.ts
+  s_9ed0da107cbc4a::t_d50a27067b8441 31
+  s_9ed0da107cbc4a::t_807f447a18bc7a 360-399
+apps/hub/src/home/whoami.test.ts
+  s_9ed0da107cbc4a::t_d50a27067b8441 56,61-72
+  s_9ed0da107cbc4a::t_c012da745e716b 73
+wire/src/index.ts
+  s_9ed0da107cbc4a::t_ba30ab8dd8b5fe 25,33
+server/src/accounts.identities.test.ts
+  s_9ed0da107cbc4a::t_14a4c5f325e054 52,91,118
+  s_9ed0da107cbc4a::t_d66995c5e06c5f 19,128-173
+  s_9ed0da107cbc4a::t_800e2722538344 174
+server/src/telegramLinkRoutes.test.ts
+  s_9ed0da107cbc4a::t_14a4c5f325e054 162,164
+bot/src/index.ts
+  s_9ed0da107cbc4a::t_ba30ab8dd8b5fe 37-42
+bot/src/link.ts
+  s_9ed0da107cbc4a::t_ba30ab8dd8b5fe 33-38,43,50
+server/src/db/accountsRepo.ts
+  s_9ed0da107cbc4a::t_f559cba49a069f 18-19,98-100,122,126-140
+server/src/app.ts
+  s_9ed0da107cbc4a::t_5533fc98d9bd7c 171
+  s_9ed0da107cbc4a::t_15a43862a0808e 20,169-170,192-197,205-213,262,296-301
+server/src/app.test.ts
+  s_9ed0da107cbc4a::t_14a4c5f325e054 263,304
+server/src/accounts.ts
+  s_9ed0da107cbc4a::t_15a43862a0808e 14,42-49,57,104,116,186,212-217,228,232-243
+  s_9ed0da107cbc4a::t_9e923c6f1618ea 244
+wire/src/account.ts
+  s_9ed0da107cbc4a::t_ba30ab8dd8b5fe 12,15-21,37,246-261
+  s_9ed0da107cbc4a::t_1c760a26af4985 262-264
+apps/hub/src/home/whoami.ts
+  s_9ed0da107cbc4a::t_c307e0d0803781 33-34,40-41,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "06b742edaefd3d4f1b5d3b961a6dabdf3d2d9f6f",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
