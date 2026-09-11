@@ -54,12 +54,19 @@ function isKitGame(value: unknown): value is KitGame {
  */
 const APP_SOURCE = (process.env.APP_SOURCE || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
+/** Глаголы, которыми отвечает это приложение. Сверяется со списком маршрутов сторожем. */
+export const ALLOWED_METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"] as const;
+
 export function createApp() {
   const app = express();
   app.use(express.json());
   app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+    // КАЖДЫЙ ГЛАГОЛ, КОТОРЫМ ЭТО ПРИЛОЖЕНИЕ ОТВЕЧАЕТ, ОБЯЗАН БЫТЬ ЗДЕСЬ. Браузер режет запрос ДО
+    // отправки, если метода нет в этом списке: маршрут при этом жив, тесты зелены, а со страницы
+    // он недостижим — и выглядит это как «сервер не отвечает». Сторож сверяет список с тем, что
+    // приложение и правда зарегистрировало (`cors.test.ts`).
+    res.header("Access-Control-Allow-Methods", ALLOWED_METHODS.join(", "));
     res.header("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") return res.sendStatus(204);
     next();
