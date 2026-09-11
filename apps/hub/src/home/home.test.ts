@@ -20,6 +20,7 @@ function gatewayOf(profile: Profile, over: Partial<ProfileGateway> = {}) {
   const saved: Record<string, string>[] = [];
   const gate: ProfileGateway = {
     read: async () => current,
+    identify: async () => {},
     async save(patch) {
       saved.push(patch as Record<string, string>);
       current = { ...current, ...patch, ...(patch.name ? { nameChosen: true } : {}) } as Profile;
@@ -161,6 +162,41 @@ describe("home.no-button-without-a-door-behind-it", () => {
     await settle();
 
     expect(home.element.textContent).toContain("уже принадлежит другому аккаунту");
+    home.stop();
+  });
+});
+
+// СТОРОЖ `home.an-unknown-account-does-not-leave-a-blank-corner`.
+//
+// В браузере лежит только id: сам человек живёт на сервере. Сервер, который отвечает «такого нет»,
+// оставлял страницу пустой навсегда — профиля нет, а завести новый мешает сохранённый id.
+describe("home.an-unknown-account-does-not-leave-a-blank-corner", () => {
+  it("сервер не знает сохранённого — браузеру заводится новый гость, и угол не пустует", async () => {
+    let known: Profile | undefined;
+    const identify = vi.fn(async () => {
+      known = GUEST;
+    });
+    const { gate } = gatewayOf(GUEST, { read: async () => known, identify });
+
+    const home = homeProfile(container, { gateway: gate });
+    await settle();
+    await settle();
+
+    expect(identify).toHaveBeenCalledOnce();
+    expect(q(home.element, '[data-g="profile"]')).not.toBeNull();
+    home.stop();
+  });
+
+  it("сервер молчит — пробуем один раз и поднимаемся без него", async () => {
+    const identify = vi.fn(async () => {});
+    const { gate } = gatewayOf(GUEST, { read: async () => undefined, identify });
+
+    const home = homeProfile(container, { gateway: gate });
+    await settle();
+    await settle();
+
+    expect(identify).toHaveBeenCalledOnce();
+    expect(q(home.element, '[data-g="head"]')).not.toBeNull();
     home.stop();
   });
 });

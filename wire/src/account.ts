@@ -108,12 +108,34 @@ export async function restoreAccount(code: string): Promise<Account | undefined>
   }
 }
 
-/** Профиль того, кто сидит за этим экраном. */
+/** Забыть, кем этот браузер себя считал. */
+export function forgetAccount(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Приватное окно без хранилища — забывать и нечего.
+  }
+}
+
+/**
+ * Профиль того, кто сидит за этим экраном.
+ *
+ * АККАУНТ, КОТОРОГО СЕРВЕР НЕ ЗНАЕТ, ЗАБЫВАЕТСЯ ЗДЕСЬ ЖЕ. В `localStorage` лежит только id и код —
+ * сам человек живёт на сервере, и «сервер отвечает 404 на меня» значит, что этой записи больше
+ * нет: база сменилась, аккаунт удалили, вкладка старше сервера. Без этого экран оставался бы пустым
+ * НАВСЕГДА: профиля нет, завести новый нечем — сохранённый id мешает, — и человеку нечего нажать.
+ *
+ * 404 — это ответ. Обрыв сети им не является: там мы ничего не знаем и ничего не забываем.
+ */
 export async function myProfile(): Promise<Profile | undefined> {
   const current = storedAccount();
   if (!current) return undefined;
   try {
     const res = await fetch(`${serverUrl()}/accounts/${current.id}/profile`);
+    if (res.status === 404) {
+      forgetAccount();
+      return undefined;
+    }
     if (!res.ok) return undefined;
     return (await res.json()) as Profile;
   } catch {

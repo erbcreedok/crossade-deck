@@ -8,7 +8,7 @@
 // Настоящий вход живёт там, где без личности нет ответа: перенос себя, владение комнатой, друзья.
 
 import { FAVOURITE_INKS, PALETTE, tint } from "@crossade/look";
-import { linkTelegram, myProfile, storedAccount, updateProfile, type Profile } from "@crossade/wire";
+import { ensureAccount, linkTelegram, myProfile, storedAccount, updateProfile, type Profile } from "@crossade/wire";
 import { askInWindow, type Ask } from "./ask.js";
 import { homeLook, type HomeLook } from "./look.js";
 import {
@@ -27,6 +27,8 @@ import { whoAmI } from "./whoami.js";
 /** Откуда экран берёт профиль и куда девает правки. Подменяется целиком — в тесте и в Mini App. */
 export interface ProfileGateway {
   read(): Promise<Profile | undefined>;
+  /** Завести этому браузеру аккаунт, если своего у него нет. */
+  identify(): Promise<void>;
   save(patch: { name?: string; color?: string; avatar?: string }): Promise<Profile | undefined>;
   /** Подписанная телеграмом строка, если этот экран открыт внутри Mini App. */
   telegramInitData(): string | undefined;
@@ -38,6 +40,9 @@ export interface ProfileGateway {
 /** Дверь в настоящие аккаунты (`@crossade/wire`). */
 export const liveGateway: ProfileGateway = {
   read: () => myProfile(),
+  identify: async () => {
+    await ensureAccount();
+  },
   async save(patch) {
     const account = await updateProfile(patch);
     return account ? myProfile() : undefined;
@@ -286,8 +291,18 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
     return head ? Math.round(head.getBoundingClientRect().height) : 0;
   };
 
+  /**
+   * ПЕРЕЧИТАТЬ, КТО ЭТО. Пусто — значит этого человека сервер не знает: сохранённый аккаунт
+   * забыт (`myProfile`), и вместо пустого угла браузеру заводится новый гость. Ровно один
+   * повтор: сервер, который молчит, молчит и на второй заход, а страница должна подняться и без
+   * него.
+   */
   const refresh = async (): Promise<void> => {
     profile = await gate.read();
+    if (!profile) {
+      await gate.identify();
+      profile = await gate.read();
+    }
     draw();
   };
 

@@ -13,6 +13,7 @@
 export { serverUrl } from "./server.js";
 export {
   ensureAccount,
+  forgetAccount,
   linkTelegram,
   myProfile,
   renameAccount,
