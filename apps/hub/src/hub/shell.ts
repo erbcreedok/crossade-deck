@@ -88,8 +88,17 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
 
   let playing = false;
   let running: Teardown | undefined;
+  /** WHICH game is running, so a route naming a different one can be told from one naming this one. */
+  let runningId: string | undefined;
   let busy = false;
   let alive = true;
+  /**
+   * WHICH OPENING IS THE CURRENT ONE. A game is fetched before it is mounted, and in that gap the
+   * player can press Back, press another tile, or follow a link — so by the time a chunk lands, the
+   * place it was fetched for may no longer be where anybody is. Every opening takes a number; a
+   * chunk whose number is stale is dropped rather than mounted over whatever is there now.
+   */
+  let opening = 0;
 
   // THE HUB'S ONE CLOCK. Everything that moves joins it and nothing else asks for a frame; the
   // redraw is the loop's, once per frame, however many writers there were. See `beat.ts`.
@@ -233,20 +242,40 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     };
   };
 
+  /**
+   * OPEN A GAME. The address is the place, and this is the only thing that puts one on the stage.
+   *
+   * ALREADY THERE IS NOT A MOVE: a route naming the game that is already running — a reload, a
+   * `replaceState` from the game itself naming its room — must leave it alone. Restarting it there
+   * would throw away the table the player is sitting at and join a new room in its place.
+   *
+   * ANOTHER GAME IS A SWAP, NOT A DETOUR THROUGH THE SHELF: a link to `#chess` followed while the
+   * card table is up takes the card table down and stands the board up, and the shelf never flashes
+   * between the two. The old game is let go WITHOUT writing the address — the address already says
+   * where we are going, and a write here would fight the one that sent us.
+   */
   const enter = async (id: string, write = true): Promise<void> => {
     const entry = CATALOGUE.find((g) => g.id === id);
-    if (!entry || busy || running) return;
+    if (!entry || busy) return;
+    if (running && runningId === id) return;
+    const mine = ++opening;
     busy = true;
     const stopSweep = sweep(`tile/${entry.id}/face`);
     try {
       const [start] = await Promise.all([entry.load(), sleep(MIN_BUSY_MS)]);
-      if (!alive) return;
+      // WHERE THE PLAYER IS NOW, not where they were when this was asked for. A chunk is fetched
+      // over a phone's network; Back, another tile and a pasted link all happen inside that wait.
+      if (!alive || mine !== opening) return;
       stopSweep();
+      // THE OLD GAME GOES DOWN ONLY NOW — after its replacement has actually arrived. Taken down at
+      // the top of this call, the player would watch an empty stage for the whole of the fetch.
+      if (running) leave(false, "play");
       setMode("play");
       // The address first, the game second: a table reads WHICH game it is from the hash, so a
       // press that started the game before naming it would open every tile as cards.
       if (write) goTo(id);
       running = start(stage);
+      runningId = id;
     } catch (err) {
       // A blip, or a game that will not parse. Without this the hub sits in a dead screen with a
       // spinning tile and no way out — the one failure a launcher must not have.
@@ -264,21 +293,38 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     }
   };
 
-  const leave = (write = true): void => {
+  /**
+   * PUT THE RUNNING GAME DOWN. `into` is where the shell is going: back to the shelf, or straight
+   * into another game — in which case the strip stays as it is and only the stage is emptied, so
+   * swapping games never shows a frame of the shelf between them.
+   */
+  const leave = (write = true, into: "hub" | "play" = "hub"): void => {
     if (!running) return;
     running();
     running = undefined;
+    runningId = undefined;
     // Belt and braces: `host.unmount()` inside the game already removes its view, but a teardown
     // that threw halfway must not leave an orphan canvas holding a context.
     stage.replaceChildren();
-    setMode("hub");
+    if (into === "hub") setMode("hub");
     if (write) goTo(undefined);
+  };
+
+  /**
+   * LEAVING IS ALSO AN OPENING THAT MUST NOT LAND. A player who presses Back while a game is still
+   * being fetched has gone to the shelf, and the chunk that arrives a second later belongs to a
+   * place nobody is at any more.
+   */
+  const goToShelf = (write = true): void => {
+    opening += 1;
+    leave(write);
+    if (!running) setMode("hub");
   };
 
   const stopPress = wirePress({
     host,
     onPress: (meaning) => {
-      if (meaning["nav"] === "back") leave();
+      if (meaning["nav"] === "back") goToShelf();
       else if (typeof meaning["game"] === "string") void enter(meaning["game"]);
     },
   });
@@ -298,9 +344,26 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
 
   if (opened) void enter(opened, false);
 
+  /**
+   * THE ADDRESS MOVED — Back, Forward, or a link followed into a page that is already open. One
+   * reading of it, and the same three answers whichever of those it was:
+   *
+   * a game that is not the one running → open it (a swap, if something is up);
+   * no game → the shelf;
+   * the game already running → NOTHING. This is the case that has to be spelt out: the desk itself
+   * writes its room into the address the moment the server names it (`hubHost.setRoom`), and a
+   * router that treated its own game's `replaceState` as news would tear the table down and rejoin
+   * a new room every time a player sat at one.
+   *
+   * `write` is false throughout: the address is already what it is, and writing it back would push
+   * a second identical entry for every Back the player presses.
+   */
   const stopRouting = onRoute((id) => {
-    if (id && !running) void enter(id, false);
-    else if (!id && running) leave(false);
+    if (id) {
+      if (id !== runningId) void enter(id, false);
+    } else if (running || busy) {
+      goToShelf(false);
+    }
   });
 
   // The faces are not measurable until they arrive, and a caption laid out against the fallback

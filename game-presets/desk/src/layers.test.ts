@@ -48,6 +48,30 @@ describe("desk.a-layer-hears-the-carry", () => {
     for (const one of raised) expect(one, "the cover comes off after the view is home, never before").toBeGreaterThan(home);
   });
 
+  it("desk.a-stopped-desk-writes-nothing — the join in flight comes back to a desk that is gone", () => {
+    // THE ONE THING THAT OUTLIVES A TEARDOWN. Every listener here can be unbound; a promise already
+    // in flight comes back whatever happened meanwhile, and it used to carry on — write the address,
+    // join the clock, bind the relay — against a desk with no canvas left.
+    //
+    // The symptom was the owner's: open the card table, press back before the room answers, and the
+    // shelf you are now looking at has its address rewritten to `#cards?room=…` a second later. The
+    // next reload drops you into a game you had left, and the room stays joined because nobody is
+    // left to leave it.
+    //
+    // A SCAN, because the alternative is standing a real desk up against a real socket to prove one
+    // early return. What it checks is that the guard is the FIRST thing in the continuation and that
+    // the room is let go — a guard placed after even one line of the old body is the bug again.
+    const runtime = readFileSync(`${SRC}startDesk.ts`, "utf8");
+    const then = runtime.indexOf(".then((table) => {");
+    expect(then, "the join still has a continuation").toBeGreaterThan(0);
+    const guard = runtime.indexOf("if (stopped) {", then);
+    expect(guard, "and it opens with the stopped guard").toBeGreaterThan(then);
+    const assigned = runtime.indexOf("currentTable = table;", then);
+    expect(guard, "the guard comes BEFORE anything the continuation does").toBeLessThan(assigned);
+    expect(runtime.slice(guard, assigned), "a desk that is gone lets the room go").toContain("table.leave()");
+    expect(runtime, "and the teardown is what raises it").toContain("stopped = true;");
+  });
+
   it("the carry is one of them, and it reaches the layers from the mirror", () => {
     // THE MOST IMPORTANT ONE, named outright: a card in the air is what the card table's whole HUD
     // is driven by, and it arrives through `Mirror.hand` and nowhere else.

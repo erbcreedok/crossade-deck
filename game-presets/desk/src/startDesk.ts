@@ -68,6 +68,8 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
 
   let unbindOnTree: (() => void) | undefined;
   let currentTable: Table | null = null;
+  /** Whether the teardown has run. The join in flight is the one thing that outlives it. */
+  let stopped = false;
   /**
    * WHICH SEAT THIS GLASS IS, once the server has said — `p1`/`p2`, never a game's own names: the
    * room is one server room for every game, and only the game itself cares which of the two it is.
@@ -317,6 +319,21 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     seats: spec.seats,
   })
     .then((table) => {
+      // A DESK THAT WAS STOPPED WHILE THE ROOM WAS STILL ANSWERING IS STOPPED.
+      //
+      // The join is the one thing here that outlives a teardown: everything else is a listener this
+      // call can unbind, but a promise in flight comes back whatever happened in the meantime. It
+      // used to come back and carry on — write the address, join the clock, bind the relay, publish
+      // the people — against a desk with no canvas left.
+      //
+      // What that looked like: a player opened the card table, pressed back before the room had
+      // answered, and the shelf they were now looking at silently had its address rewritten to
+      // `#cards?room=…` a second later. The next reload dropped them into a game they had left.
+      // And the room stayed joined, because nobody was left to leave it.
+      if (stopped) {
+        table.leave();
+        return;
+      }
       currentTable = table;
       seat = table.seat;
       // THE DESK OPENS AT ITS OWN PLACE, and it opens there NOW: which seat this glass is only
@@ -453,6 +470,7 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     });
 
   return () => {
+    stopped = true;
     unbindOnTree?.();
     unbindOnRelay?.();
     unbindOnRoster?.();
