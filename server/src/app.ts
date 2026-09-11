@@ -13,8 +13,10 @@ import {
   createAccount,
   findAccountByRecoveryHash,
   findAccountByTelegramId,
-  renameAccount,
+  linkTelegram,
+  profileOf,
   regenerateRecoveryHash,
+  updateProfile,
 } from "./accounts.js";
 import { listPublicRooms } from "./publicRooms.js";
 import { getLastRoom } from "./lastRooms.js";
@@ -96,12 +98,25 @@ export function createApp() {
     res.json(account);
   });
 
+  // ПРОФИЛЬ — ЭТО ПОЛЯ АККАУНТА: имя, любимый цвет, аватар, дата, список дверей. Ключей от дверей
+  // (subject) наружу не отдаём: провайдер говорит, ЧЕМ человек входит, а не чем это отпирается.
+  app.get("/accounts/:id/profile", (req, res) => {
+    const profile = profileOf(req.params.id);
+    if (!profile) return res.status(404).json({ error: "not_found" });
+    res.json(profile);
+  });
+
+  // Правки — только своим аккаунтом, и доверие прежнее: recoveryHash. Новой схемы здесь не
+  // заводится, есть работающая.
   app.patch("/accounts/:id", (req, res) => {
-    const { name, recoveryHash } = req.body || {};
-    if (typeof name !== "string" || typeof recoveryHash !== "string") {
-      return res.status(400).json({ error: "bad_request" });
-    }
-    const account = renameAccount(req.params.id, recoveryHash, name);
+    const { name, color, avatar, recoveryHash } = req.body || {};
+    if (typeof recoveryHash !== "string") return res.status(400).json({ error: "bad_request" });
+    const patch: { name?: string; color?: string; avatar?: string } = {};
+    if (typeof name === "string") patch.name = name;
+    if (typeof color === "string") patch.color = color;
+    if (typeof avatar === "string") patch.avatar = avatar;
+    if (Object.keys(patch).length === 0) return res.status(400).json({ error: "bad_request" });
+    const account = updateProfile(req.params.id, recoveryHash, patch);
     if (!account) return res.status(403).json({ error: "forbidden" });
     res.json(account);
   });
@@ -134,6 +149,31 @@ export function createApp() {
     const fullName = [user.first_name, user.last_name].filter((part): part is string => Boolean(part?.trim())).join(" ");
     const account = findAccountByTelegramId(telegramId) ?? createAccount(fullName || user.username, telegramId);
     res.json(account);
+  });
+
+  // ПРИВЯЗАТЬ ТЕЛЕГРАМ К УЖЕ СУЩЕСТВУЮЩЕМУ АККАУНТУ — та же проверка подписи, что и у входа.
+  //
+  // Дверь, уже ведущая к другому человеку, не сливает аккаунты: чистого гостя ПЕРЕКЛЮЧАЮТ на его
+  // настоящий аккаунт (200, `switch` — гостевой остаётся в этом браузере), а две полноценные
+  // стороны получают 409 и ноль изменений. Слияние необратимо; жалоба «куда делись предметы»
+  // после него неразрешима.
+  app.post("/accounts/:id/identities/telegram", (req, res) => {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) return res.status(503).json({ error: "telegram_not_configured" });
+
+    const { initData, recoveryHash } = req.body || {};
+    if (typeof initData !== "string" || typeof recoveryHash !== "string") {
+      return res.status(400).json({ error: "bad_request" });
+    }
+    const user = verifyTelegramInitData(initData, botToken);
+    if (!user) return res.status(401).json({ error: "unauthorized" });
+
+    const result = linkTelegram(req.params.id, recoveryHash, String(user.id));
+    if (!result) return res.status(403).json({ error: "forbidden" });
+    if (result.kind === "conflict") {
+      return res.status(409).json({ error: "already_linked", account: { id: result.account.id, name: result.account.name } });
+    }
+    res.json({ kind: result.kind, account: result.account });
   });
 
   app.get("/rooms/public", (_req, res) => {

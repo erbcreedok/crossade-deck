@@ -1,6 +1,7 @@
 import { Room, Client } from "@colyseus/core";
 import { registerInviteCode, releaseInviteCode } from "./inviteCodes.js";
 import { guestIdentity } from "./sandboxNames.js";
+import { accountName } from "./accounts.js";
 import { setRoomGame, clearRoomGame } from "./roomGames.js";
 
 export interface KitJoinOptions {
@@ -91,18 +92,22 @@ export class KitRoom extends Room {
       const existing = this.members.find((m) => m.accountId === options.accountId);
       if (existing) {
         existing.away = false;
-        if (typeof options.name === "string" && options.name.trim()) {
-          existing.name = options.name.trim();
-        }
+        // ИМЯ ЗА СТОЛОМ — ИЗ АККАУНТА, А НЕ ИЗ ТОГО, ЧТО ПРИСЛАЛ КЛИЕНТ. Иначе за столом сидит
+        // кто угодно под каким угодно именем, а профиль, который человек правит, ничего не решает.
+        const mine = accountName(options.accountId);
+        if (mine) existing.name = mine;
         this.clientMemberMap.set(client.sessionId, existing);
         this.broadcastRoster();
         return;
       }
     }
 
+    // У кого есть аккаунт — зовётся так, как зовётся его аккаунт. `options.name` остаётся дверью
+    // для того, у кого аккаунта нет вовсе, и последним — кличка по сессии.
+    const fromAccount = options?.accountId ? accountName(options.accountId) : undefined;
     const named = typeof options?.name === "string" && options.name.trim() ? options.name.trim() : null;
     const guest = guestIdentity(client.sessionId);
-    const memberName = named ?? guest.name;
+    const memberName = fromAccount ?? named ?? guest.name;
     const seat = this.nextFreeSeat();
 
     const member: KitRosterItem = {

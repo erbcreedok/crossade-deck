@@ -11,5 +11,18 @@
 // like, the wire only gets it there and back. See `guards.test.ts`.
 
 export { serverUrl } from "./server.js";
-export { ensureAccount, renameAccount, restoreAccount, storedAccount, telegramAccount, type Account } from "./account.js";
+export {
+  ensureAccount,
+  linkTelegram,
+  myProfile,
+  renameAccount,
+  restoreAccount,
+  storedAccount,
+  telegramAccount,
+  updateProfile,
+  type Account,
+  type LinkOutcome,
+  type Profile,
+  type Provider,
+} from "./account.js";
 export { joinTable, type JoinTableOptions, type RelayMessage, type RosterItem, type Table } from "./table.js";

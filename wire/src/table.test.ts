@@ -51,15 +51,36 @@ class FakeColyseusRoom {
 
 class FakeColyseusClient {
   room = new FakeColyseusRoom();
-  async create(_name: string, _options: any) {
+  lastOptions: any;
+  async create(_name: string, options: any) {
+    this.lastOptions = options;
     return this.room;
   }
-  async joinById(_id: string, _options: any) {
+  async joinById(_id: string, options: any) {
+    this.lastOptions = options;
     return this.room;
   }
 }
 
 describe("joinTable online adapter", () => {
+  // ИМЯ ЗА СТОЛОМ ПРИНАДЛЕЖИТ АККАУНТУ, и его знает сервер. Присланное клиентом было бы способом
+  // сесть за стол под чужим именем — и заодно обесценивало бы профиль, который человек правит.
+  it("в комнату едет accountId, но не имя", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ roomId: "room-1", code: "AB12" }) })),
+    );
+    const client = new FakeColyseusClient();
+    await joinTable({
+      game: "table",
+      client,
+      account: { id: "acc-1", name: "Ербол", recoveryHash: "BOVAKI" },
+    });
+
+    expect(client.lastOptions.accountId).toBe("acc-1");
+    expect(client.lastOptions.name).toBeUndefined();
+  });
+
   it("room code not found: creates a new room of the same game instead of failing", async () => {
     const calls: string[] = [];
     vi.stubGlobal(

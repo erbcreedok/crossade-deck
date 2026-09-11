@@ -61,9 +61,10 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
   const client = opts.client ?? new Client(wsUrl);
 
   const roomOptions: Record<string, unknown> = {};
+  // ИМЯ НЕ ПОСЫЛАЕТСЯ: за столом человека зовут так, как он назван в своём аккаунте, и это знает
+  // сервер. Присланное клиентом имя было бы способом сесть за стол под чужим.
   if (opts.account) {
     roomOptions.accountId = opts.account.id;
-    roomOptions.name = opts.account.name;
   }
   if (opts.seats) {
     roomOptions.seats = opts.seats;

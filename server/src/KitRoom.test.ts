@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { TEST_PORTS, useTestServer } from "./roomHarness.js";
+import { createAccount } from "./accounts.js";
 
 describe("KitRoom", () => {
   const server = useTestServer(TEST_PORTS.kit);
@@ -28,6 +29,26 @@ describe("KitRoom", () => {
     expect((a.welcome.you as { seat: string }).seat).toBe("p1");
     expect((b.welcome.you as { seat: string }).seat).toBe("p2");
     expect((c.welcome.you as { seat: string | null }).seat).toBeNull();
+  });
+
+  // ИМЯ ЗА СТОЛОМ ПРИНАДЛЕЖИТ АККАУНТУ. Клиент может прислать какое угодно — ростер назовёт
+  // человека так, как он назван у себя в профиле.
+  it("имя в ростере берётся из аккаунта, а не из options.name", async () => {
+    const account = createAccount("Ербол");
+
+    const { welcome } = await create({ accountId: account.id, name: "Кто-то другой" });
+    const roster = welcome.roster as { accountId?: string; name: string }[];
+
+    expect(roster.find((one) => one.accountId === account.id)?.name).toBe("Ербол");
+  });
+
+  it("у кого аккаунта нет — зовётся тем, что прислал, а без этого кличкой по сессии", async () => {
+    const { welcome } = await create({ name: "Безаккаунтный" });
+    const roster = welcome.roster as { name: string }[];
+    expect(roster[0]?.name).toBe("Безаккаунтный");
+
+    const bare = await create({});
+    expect(((bare.welcome.roster as { name: string }[])[0]?.name ?? "").split(" ")).toHaveLength(2);
   });
 
   it("options.game едет в welcome; без него поля game нет", async () => {
