@@ -6,7 +6,7 @@
 // get them would not be a standalone game at all. The hub dresses its shelf from here; every desk
 // dresses its table from here.
 
-export { CLUB_U, PALETTE, PRESS_PX, RING_U, SPARK_U } from "./palette.js";
+export { CLUB_U, FAVOURITE_INKS, PALETTE, PRESS_PX, RING_U, SPARK_U, tint } from "./palette.js";
 export {
   GROUND,
   installHubLook,

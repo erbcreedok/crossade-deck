@@ -33,6 +33,9 @@ describe("accounts.migration-is-idempotent", () => {
     const one = accountById("a-1", db);
     expect(one?.name).toBe("Ербол");
     expect(one?.createdAt).toBe(1700000000000);
+    // Их имена выдавал не этот сервер: предложить им «назваться» значит предложить сменить то,
+    // что человек уже выбрал.
+    expect(one?.nameChosen).toBe(true);
     expect(accountByRecoveryHash("BOVAKI", db)?.id).toBe("a-1");
     db.close();
   });

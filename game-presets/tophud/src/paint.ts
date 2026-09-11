@@ -2,14 +2,10 @@
 // (`colors.test.ts`). A hex written here is a second palette, and a second palette is the one that
 // never gets changed when the first one does.
 
-import { PALETTE } from "@crossade/look";
+import { PALETTE, tint } from "@crossade/look";
 import type { TopHudLook } from "./look.js";
 
-/** A palette colour, seen through. The strip's glass is the felt's own black at four tenths. */
-export function tint(hex: string, alpha: number): string {
-  const n = Number.parseInt(hex.slice(1), 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
-}
+export { tint };
 
 /** How the strip is bedded onto the glass. */
 export function fillCss(look: TopHudLook): string {

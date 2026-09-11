@@ -239,8 +239,14 @@ function sparkleOf(surface: string): Node {
   return node(SPARKLE_ID, Bounded({ bounds: rect(60, 60) }), Surfaced({ surface }), Transformable());
 }
 
-/** The shelf: the title over a row of places, the first of which are the games there are. */
-export function hubTree(columns: number = PLACES): Node {
+/**
+ * The shelf: the title over a row of places, the first of which are the games there are.
+ *
+ * `shiftY` moves the title and the shelf down, in units — what the first page's own header takes
+ * off the top of the glass (`home/`). The shelf stands in the middle of WHAT IS LEFT rather than in
+ * the middle of the canvas: a header drawn over a centred shelf sits on the title.
+ */
+export function hubTree(columns: number = PLACES, shiftY = 0): Node {
   installLayouts();
   const desk = node(
     "desk",
@@ -259,11 +265,15 @@ export function hubTree(columns: number = PLACES): Node {
       Bounded({ bounds: rect(7, 0.9) }),
       Labeled({ label: "Crossade", style: TITLE }),
       // Above the shelf, however tall the shelf is: two rows of tiles stand taller than one.
-      Transformable({ at: { x: 0, y: -shelfSize(columns).h / 2 - 1.0 } }),
+      Transformable({ at: { x: 0, y: -shelfSize(columns).h / 2 - 1.0 + shiftY } }),
     ),
   );
 
-  const shelf = node("shelf", Container({ layout: columns < PLACES ? GRID_NARROW : GRID }), Transformable({ at: { x: 0, y: 0.3 } }));
+  const shelf = node(
+    "shelf",
+    Container({ layout: columns < PLACES ? GRID_NARROW : GRID }),
+    Transformable({ at: { x: 0, y: 0.3 + shiftY } }),
+  );
   add(desk, shelf);
   for (const entry of CATALOGUE) add(shelf, tileOf(entry));
   for (let i = CATALOGUE.length; i < PLACES; i++) add(shelf, slotOf(i));

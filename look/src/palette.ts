@@ -34,6 +34,36 @@ export const PALETTE = {
   sparkleDim: "#b09a5c",
 } as const;
 
+/**
+ * ВОСЕМЬ ЛЮБИМЫХ ЦВЕТОВ — те, которыми человек метит СЕБЯ: кружок профиля, его метки за столом.
+ *
+ * Восемь, а не колесо: цвет должен быть узнаваем через стол с другого конца, а не подобран. Их
+ * место здесь по тому же закону, по какому здесь лежит всё остальное — одно место держит цвета,
+ * или их будет держать двадцать.
+ */
+export const FAVOURITE_INKS = [
+  "#f2c14e",
+  "#7fd1b9",
+  "#e08b3f",
+  "#b98fe0",
+  "#8fb4e0",
+  "#e0483f",
+  "#a8e08f",
+  "#e08fb4",
+] as const;
+
+/**
+ * ЦВЕТ ПАЛИТРЫ, ВИДИМЫЙ НАСКВОЗЬ — стекло полосы, полупрозрачная тень, затемнение под листом.
+ *
+ * Живёт здесь по тому же закону, по которому здесь лежат сами цвета: собрать `rgba(...)` — значит
+ * НАЗВАТЬ цвет, и место, где это делают руками, становится вторым держателем палитры. Сторож
+ * (`palette.test.ts`) ловит именно это, и поймал.
+ */
+export function tint(hex: string, alpha: number): string {
+  const n = Number.parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
 // LENGTHS. client1 is a pixel design and its numbers are pixels; the kit measures in units, so the
 // conversion happens once, here, against the size a tile is drawn at. Written as a division rather
 // than as a decimal so the original number stays readable next to the design it came from.

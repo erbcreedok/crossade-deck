@@ -32,6 +32,7 @@ import { CLUB_U, loadingCross, PALETTE, SPARK_U } from "@crossade/look";
 import { beat } from "./beat.js";
 import { AT_REST, DRIFT_DIAMONDS, driftStep, type Drift } from "./drift.js";
 import { FELT, hubTree, shelfColumns, shelfSize, SPARKLE_ID, tableTree } from "./grid.js";
+import { homeProfile } from "../home/home.js";
 import { wirePress } from "./press.js";
 import { twinkleLevel, twinkleStep } from "./twinkle.js";
 import { CATALOGUE, type Teardown } from "./catalogue.js";
@@ -43,9 +44,12 @@ import { ensureAccount } from "@crossade/wire";
  * more: four tiles abreast on a wide glass, two by two on a phone held upright (`shelfColumns`),
  * and the fit follows whichever the glass gets.
  */
-function fitUnit(v: { width: number; height: number }): number {
+function fitUnit(v: { width: number; height: number }, headPx = 0): number {
   const shelf = shelfSize(shelfColumns(v));
-  return Math.max(16, Math.min(v.width / (shelf.w + 0.6), v.height / (shelf.h + 3.2)));
+  // THE HEADER IS NOT GLASS THE SHELF CAN USE. What the first page lays over the top comes off the
+  // height before anything is fitted into it, or the title ends up under the profile.
+  const free = Math.max(120, v.height - headPx);
+  return Math.max(16, Math.min(v.width / (shelf.w + 0.6), free / (shelf.h + 3.2)));
 }
 
 /** A dynamic import has no bytes-so-far to report, so the bar sweeps rather than reports. */
@@ -56,7 +60,10 @@ const MIN_BUSY_MS = 250;
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
-  void ensureAccount();
+  // WHO THIS DEVICE IS — asked for once, and the first page waits on the ANSWER rather than on the
+  // call: the account is created over the network, and a profile read the instant this returns
+  // finds nobody there. Without the wait the corner stayed empty until a reload.
+  const account = ensureAccount();
   // The theme is installed for exactly one reason, worth naming: every colour the hub draws is a
   // literal from `palette.ts`, so a palette switch changes nothing here — EXCEPT the ink of a cast
   // shadow, which the plan resolves from the `shadow` token. Dark gives black, which is what a hard
@@ -172,22 +179,49 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
 
   let lastUnit = -1;
   let lastColumns = -1;
+  /** What the first page's own header takes off the top, in CSS pixels — measured, notch included. */
+  let headPx = 0;
+  /** The shelf stands in the middle of what the header leaves, in units. */
+  const shiftOf = (unit: number): number => headPx / 2 / unit;
+  /** The shift the standing tree was built with. */
+  let lastShift = Number.NaN;
   const applyFit = (): void => {
     const v = host.viewport();
+    const u = fitUnit(v, headPx);
     // TURNED OVER: a phone rotated is a different shelf, not the same one smaller.
     const columns = shelfColumns(v);
-    if (columns !== lastColumns && !playing) {
-      lastColumns = columns;
-      host.setRoot(hubTree(columns));
-    }
-    const u = fitUnit(v);
-    if (u === lastUnit) return;
+    const shift = shiftOf(u);
+    // EVERY "WHAT IS IT NOW" IS RECORDED BEFORE ANYTHING IS WRITTEN, because `setRoot` answers with
+    // `onChange`, and `onChange` is what called this. Written first, the second pass sees nothing
+    // left to do and stops; written after, it is a tree rebuilt inside a tree rebuild, for ever.
+    const rebuild = !playing && (columns !== lastColumns || Math.abs(shift - lastShift) > 0.01);
+    lastColumns = columns;
+    lastShift = shift;
+    const grew = u !== lastUnit;
     lastUnit = u;
-    host.setViewer({ ...host.viewer(), hudUnit: u });
+    if (rebuild) host.setRoot(hubTree(columns, shift));
+    if (grew) host.setViewer({ ...host.viewer(), hudUnit: u });
   };
   const stopFitting = host.onChange(() => {
     applyFit();
     followMotion();
+  });
+
+  /**
+   * WHO IS AT THIS SCREEN — the corner of the first page, and the profile behind it. Markup over
+   * the shelf: the shelf is canvas, and a name that has to shorten, a sheet that slides and a field
+   * somebody types into are all things a document does for nothing.
+   */
+  const home = homeProfile(chrome, {
+    onHeight: (px) => {
+      if (px === headPx) return;
+      headPx = px;
+      lastUnit = -1;
+      applyFit();
+    },
+  });
+  void account.then(() => {
+    if (alive) void home.refresh();
   });
 
   const setMode = (mode: "hub" | "play"): void => {
@@ -195,7 +229,10 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     shell?.setAttribute("data-mode", mode);
     // THE HUB KEEPS NO RIBBON OF ITS OWN while a game runs: the strip along the top is the game's
     // (`@game-presets/tophud`), and the game's region covers the whole viewport.
-    host.setRoot(playing ? tableTree() : hubTree(shelfColumns(host.viewport())));
+    host.setRoot(playing ? tableTree() : hubTree(shelfColumns(host.viewport()), shiftOf(lastUnit > 0 ? lastUnit : fitUnit(host.viewport(), headPx))));
+    // THE FIRST PAGE'S OWN HEADER BELONGS TO THE FIRST PAGE. A running game draws its own strip
+    // (`@game-presets/tophud`), and two of them would stand one on the other.
+    home.element.style.display = playing ? "none" : "";
     // The tree is new and its felt starts in the corner; the pattern is not new. Put it back where
     // it had crawled to, or opening a game would snap the weave and closing it would snap it again.
     const ground = byId(host.root, FELT);
@@ -416,6 +453,7 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     stopPress();
     stopFitting();
     stopPainting();
+    home.stop();
     painter.destroy();
     host.unmount();
   };

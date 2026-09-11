@@ -29,6 +29,8 @@ import { guestName } from "./guestNames.js";
 export interface Account {
   id: string;
   name: string;
+  /** Своё имя или выданная столом кличка — на этой разнице держится вся первая страница. */
+  nameChosen: boolean;
   recoveryHash: string;
   createdAt: number;
   telegramId?: string;
@@ -40,6 +42,7 @@ export interface Account {
 export interface Profile {
   id: string;
   name: string;
+  nameChosen: boolean;
   createdAt: number;
   color: string | null;
   avatar: string | null;
@@ -58,6 +61,7 @@ function dress(row: AccountRow): Account {
   return {
     id: row.id,
     name: row.name,
+    nameChosen: row.nameChosen,
     recoveryHash: row.recoveryHash,
     createdAt: row.createdAt,
     ...(telegram ? { telegramId: telegram.subject } : {}),
@@ -91,9 +95,11 @@ function freeRecoveryHash(): string {
  */
 export function createAccount(name?: string, telegramId?: string): Account {
   const id = randomUUID();
+  const chosen = (name ?? "").trim().length > 0;
   const row = insertAccount({
     id,
-    name: name?.trim().slice(0, MAX_NAME) || guestName(),
+    name: chosen ? name!.trim().slice(0, MAX_NAME) : guestName(),
+    nameChosen: chosen,
     color: null,
     avatar: null,
     createdAt: Date.now(),
@@ -165,6 +171,7 @@ export function profileOf(id: string): Profile | undefined {
   return {
     id: row.id,
     name: row.name,
+    nameChosen: row.nameChosen,
     createdAt: row.createdAt,
     color: row.color,
     avatar: row.avatar,

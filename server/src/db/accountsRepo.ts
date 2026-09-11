@@ -22,6 +22,8 @@ export interface Identity {
 export interface AccountRow {
   readonly id: string;
   readonly name: string;
+  /** Назвался ли человек сам. Ложь — на нём кличка, выданная столом. */
+  readonly nameChosen: boolean;
   readonly color: string | null;
   readonly avatar: string | null;
   readonly createdAt: number;
@@ -31,6 +33,7 @@ export interface AccountRow {
 interface RawAccount {
   id: string;
   name: string;
+  name_chosen: number;
   color: string | null;
   avatar: string | null;
   created_at: number;
@@ -42,6 +45,7 @@ function toAccount(raw: RawAccount | undefined): AccountRow | undefined {
   return {
     id: raw.id,
     name: raw.name,
+    nameChosen: raw.name_chosen === 1,
     color: raw.color,
     avatar: raw.avatar,
     createdAt: raw.created_at,
@@ -49,12 +53,12 @@ function toAccount(raw: RawAccount | undefined): AccountRow | undefined {
   };
 }
 
-const SELECT = `SELECT id, name, color, avatar, created_at, recovery_hash FROM accounts`;
+const SELECT = `SELECT id, name, name_chosen, color, avatar, created_at, recovery_hash FROM accounts`;
 
 export function insertAccount(row: AccountRow, at: DatabaseSync = db()): AccountRow {
   at.prepare(
-    `INSERT INTO accounts (id, name, color, avatar, created_at, recovery_hash) VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(row.id, row.name, row.color, row.avatar, row.createdAt, row.recoveryHash);
+    `INSERT INTO accounts (id, name, name_chosen, color, avatar, created_at, recovery_hash) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(row.id, row.name, row.nameChosen ? 1 : 0, row.color, row.avatar, row.createdAt, row.recoveryHash);
   return row;
 }
 
@@ -77,8 +81,9 @@ export function updateAccount(
   at: DatabaseSync = db(),
 ): AccountRow | undefined {
   const sets: string[] = [];
-  const values: (string | null)[] = [];
-  if (patch.name !== undefined) (sets.push("name = ?"), values.push(patch.name));
+  const values: (string | number | null)[] = [];
+  // НАЗВАЛСЯ — ЗНАЧИТ НАЗВАЛСЯ: имя, пришедшее правкой профиля, всегда его собственное.
+  if (patch.name !== undefined) (sets.push("name = ?", "name_chosen = 1"), values.push(patch.name));
   if (patch.color !== undefined) (sets.push("color = ?"), values.push(patch.color));
   if (patch.avatar !== undefined) (sets.push("avatar = ?"), values.push(patch.avatar));
   if (patch.recoveryHash !== undefined) (sets.push("recovery_hash = ?"), values.push(patch.recoveryHash));

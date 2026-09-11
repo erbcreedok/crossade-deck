@@ -19,6 +19,11 @@ export type Provider = "telegram" | "google" | "apple" | "passkey" | "guest";
 export type Profile = {
   id: string;
   name: string;
+  /**
+   * Назвался ли человек сам. Ложь — имя ему выдал стол, и это единственное, что подталкивает
+   * назваться: экран профиля держится ровно на этой разнице.
+   */
+  nameChosen: boolean;
   createdAt: number;
   color: string | null;
   avatar: string | null;
