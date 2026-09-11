@@ -31,7 +31,7 @@ import { installHubLook } from "@crossade/look";
 import { CLUB_U, loadingCross, PALETTE, SPARK_U } from "@crossade/look";
 import { beat } from "./beat.js";
 import { AT_REST, DRIFT_DIAMONDS, driftStep, type Drift } from "./drift.js";
-import { barTree, FELT, hubTree, shelfColumns, shelfSize, SPARKLE_ID } from "./grid.js";
+import { FELT, hubTree, shelfColumns, shelfSize, SPARKLE_ID, tableTree } from "./grid.js";
 import { wirePress } from "./press.js";
 import { twinkleLevel, twinkleStep } from "./twinkle.js";
 import { CATALOGUE, type Teardown } from "./catalogue.js";
@@ -47,9 +47,6 @@ function fitUnit(v: { width: number; height: number }): number {
   const shelf = shelfSize(shelfColumns(v));
   return Math.max(16, Math.min(v.width / (shelf.w + 0.6), v.height / (shelf.h + 3.2)));
 }
-
-/** The strip the hub keeps for itself while a game runs, in CSS pixels — matches the stylesheet. */
-const STRIP_PX = 56;
 
 /** A dynamic import has no bytes-so-far to report, so the bar sweeps rather than reports. */
 const SWEEP_MS = 900;
@@ -196,13 +193,9 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
   const setMode = (mode: "hub" | "play"): void => {
     playing = mode === "play";
     shell?.setAttribute("data-mode", mode);
-    // The bar sits in the strip at the top of a full-height canvas: half the viewport up, then
-    // half the strip back down, in units.
-    const v = host.viewport();
-    const unit = host.unit();
-    const topY = (STRIP_PX / 2 - v.height / 2) / unit;
-    // Three quarters of the ribbon, so the plate has air above and below it.
-    host.setRoot(playing ? barTree({ topY, height: (STRIP_PX * 0.75) / unit }) : hubTree(shelfColumns(host.viewport())));
+    // THE HUB KEEPS NO RIBBON OF ITS OWN while a game runs: the strip along the top is the game's
+    // (`@game-presets/tophud`), and the game's region covers the whole viewport.
+    host.setRoot(playing ? tableTree() : hubTree(shelfColumns(host.viewport())));
     // The tree is new and its felt starts in the corner; the pattern is not new. Put it back where
     // it had crawled to, or opening a game would snap the weave and closing it would snap it again.
     const ground = byId(host.root, FELT);
@@ -269,8 +262,8 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     // The handover is invisible because the two are the same screen: the game's goes on top, and
     // this one is taken away underneath it once `start` has returned.
     //
-    // Over the stage rather than the whole page: the strip with the way back stays live, so a player
-    // who changed their mind during a slow fetch is not trapped looking at a wait.
+    // Over the stage rather than the whole page — and the game's own strip goes up with the game,
+    // so the wait is covered by the shelf's screen and the way out arrives with the table.
     setMode("play");
     // THE OLD GAME GOES DOWN FIRST, and the screen goes up in its place. Kept alive behind the
     // screen it would be a table nobody can see holding a socket open for the whole of a fetch —
@@ -289,7 +282,9 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
       // The address first, the game second: a table reads WHICH game it is from the hash, so a
       // press that started the game before naming it would open every tile as cards.
       if (write) goTo(id);
-      running = start(stage);
+      // THE ONE THING ONLY A SHELF KNOWS — that there is a way out of here. The game's own strip
+      // draws it; a game opened at its own URL is handed none and has no way out on its strip.
+      running = start(stage, { exit: { go: () => goToShelf() } });
       runningId = id;
       // THE GAME IS HOLDING ITS OWN SCREEN NOW (or has nothing to wait for). This one has served its
       // purpose — the download — and goes away under whatever the game put on top of it.
@@ -365,8 +360,7 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
   const stopPress = wirePress({
     host,
     onPress: (meaning) => {
-      if (meaning["nav"] === "back") goToShelf();
-      else if (typeof meaning["game"] === "string") void enter(meaning["game"]);
+      if (typeof meaning["game"] === "string") void enter(meaning["game"]);
     },
   });
 

@@ -1,9 +1,9 @@
 {
-  "name": "@game-presets/desk",
+  "name": "@game-presets/tophud",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A game-kit preset add-on: the networked desk — one runtime every Crossade Deck table game is played on.",
+  "description": "A game-kit preset add-on: the strip along the top of a game — the way out, who is at the table, the game's name and its room code. Markup over the glass, never on it.",
   "exports": {
     ".": {
       "development": "./src/index.ts",
@@ -20,12 +20,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@crossade/wire": "*",
-    "@game-presets/tophud": "*",
-    "game-kit": "*"
+    "@crossade/look": "*"
   },
   "devDependencies": {
-    "@game-presets/desks": "*",
     "@types/node": "^26.1.2",
     "jsdom": "^25.0.1",
     "typescript": "^5.6.3",

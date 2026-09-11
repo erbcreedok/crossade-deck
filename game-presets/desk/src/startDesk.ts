@@ -15,6 +15,7 @@ import {
   installStockLayouts,
   installStockSurfaces,
   installTheme,
+  paint,
   liveCameraHud,
   liveTable,
   setRev,
@@ -34,6 +35,7 @@ import {
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
 import { joinTable, type RosterItem, type Table } from "@crossade/wire";
+import { topHud, type TopHud, type TopHudPerson } from "@game-presets/tophud";
 import { HOME_GLIDE_MS, limitsOfDesk, roomOfDesk } from "./camera.js";
 import { curtain } from "./curtain.js";
 import { farDots } from "./cursors.js";
@@ -57,6 +59,9 @@ export interface StartDeskOptions {
   readonly onReady?: (() => void) | undefined;
 }
 
+/** Every desk on this shelf is played in the dark, and the strip over it resolves its inks there. */
+const DESK_THEME = "dark";
+
 function buildInitialDesk(spec: DeskSpec): Node {
   installStockSurfaces();
   installStockLayouts();
@@ -73,7 +78,7 @@ function buildInitialDesk(spec: DeskSpec): Node {
  * that leaked one listener would go on hearing the wire for every game played after it.
  */
 export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOptions): Teardown {
-  installTheme(document, "dark");
+  installTheme(document, DESK_THEME);
   const stopHold = holdThePage();
 
   let unbindOnTree: (() => void) | undefined;
@@ -116,7 +121,9 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
   let peopleWire: DeskAvatarsTransport | undefined;
   /** THE SAME PEOPLE, WITH THE NAME THE ROOM CALLS THEM BY — what stands under a ring on the felt. */
   const sitting = (roster: readonly RosterItem[]): readonly SeatedPerson[] =>
-    roster.flatMap((one) => (one.seat ? [{ seat: one.seat, name: one.name }] : []));
+    roster.flatMap((one) =>
+      one.seat ? [{ seat: one.seat, name: one.name, ...(one.away === true ? { away: true } : {}) }] : [],
+    );
   let stopWatching: (() => void) | undefined;
   let unbindOnRelay: (() => void) | undefined;
   let unbindOnRoster: (() => void) | undefined;
@@ -129,6 +136,37 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
   const peopleWall = document.createElement("div");
   peopleWall.style.display = "none";
   container.appendChild(peopleWall);
+
+  /**
+   * THE STRIP ALONG THE TOP — the game's own, and it stands before the desk does.
+   *
+   * BEFORE, because the desk opens WHOLE under whatever is over it: the strip's height goes into
+   * `seats.insets` a few dozen lines below, and a strip raised after the camera had been fitted
+   * would leave the desk's far rim behind it for the life of the screen.
+   *
+   * The way out is the host's (`DeskHost.exit`) and standalone has none; the name is the spec's;
+   * the people arrive with the roster. Nothing here is the runtime's own knowledge of a game.
+   */
+  const strip: TopHud = topHud(container, {
+    title: spec.title,
+    ...(o.host.room() ? { room: o.host.room()! } : {}),
+    ...(o.host.exit ? { exit: o.host.exit } : {}),
+    ...(spec.topHud ? { look: spec.topHud } : {}),
+  });
+  /** WHO IS AT THE TABLE, in the ink the desk itself draws them in — one answer, one place. */
+  const onStrip = (present: readonly SeatedPerson[]): readonly TopHudPerson[] => {
+    const moving = spec.turn?.();
+    return present.map((one) => ({
+      seat: one.seat,
+      name: one.name,
+      // THE SAME INK THE DESK DRAWS THEM IN, RESOLVED: the strip is markup and markup has no
+      // palette to look a token up in — `paint` is the kit's own way of handing the value over.
+      ink: paint(DESK_THEME, inkOf(one.seat)),
+      ...(one.away === true ? { away: true } : {}),
+      ...(moving !== undefined && moving === one.seat ? { turn: true } : {}),
+    }));
+  };
+  const sayWhoIsHere = (present: readonly SeatedPerson[]): void => strip.set({ people: onStrip(present) });
 
   /**
    * THE FAR SCREENS, ONE PER SEAT — this glass, wearing somebody else's name.
@@ -289,8 +327,14 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
       placeNow: () => avatars?.placeOf(seat ?? "") ?? places[seatIndex()] ?? places[0]!,
       idleReturn: { glideMs: HOME_GLIDE_MS },
       ...(spec.home ? { homeSpan: spec.home.span, homeWidth: spec.home.width } : {}),
-      // WHAT IS OVER THE TOP OF THIS REGION, so the desk opens WHOLE under it.
-      insets: { top: o.host.insets().top },
+      // WHAT IS OVER THE TOP OF THIS REGION, so the desk opens WHOLE under it — the page's own
+      // covers, and the strip this desk just raised over itself. MEASURED, notch and all: on a
+      // phone the strip steps round the notch, and a height added up from the look would be short
+      // by exactly that band.
+      //
+      // THE DEEPER OF THE TWO, never the sum: both are measured DOWN FROM THE SAME EDGE, and a page
+      // whose own banner hangs below the strip has already counted the strip inside its answer.
+      insets: { top: Math.max(o.host.insets().top, strip.height()) },
     },
     // WHERE SOMEBODY IS LOOKING IS PART OF THIS DESK, so a view that moved is news — it is what puts
     // the far reader's own disc where they are actually sitting, or takes it off the felt altogether.
@@ -386,7 +430,10 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
         ...live.host.viewer(),
         marks: { inks, ttlMs: 5000, showOwn: false, ...(table.seat ? { me: table.seat } : {}) },
       });
-      if (table.code) o.host.setRoom(table.code);
+      if (table.code) {
+        o.host.setRoom(table.code);
+        strip.set({ room: table.code });
+      }
 
       let sRoot = table.root;
       if (sRoot.children.length === 0) {
@@ -435,6 +482,7 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
         goHome: () => live.idle?.goHome(),
       });
       for (const layer of layers) layer.seated?.(sitting(table.roster));
+      sayWhoIsHere(sitting(table.roster));
       peopleWire.roster(table.roster);
       avatars.publish();
       // ...AND THE LAYERS, now that the furniture is standing: a picture drawn before there was
@@ -445,7 +493,9 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
       redraw();
 
       unbindOnRoster = table.onRoster((roster) => {
-        for (const layer of layers) layer.seated?.(sitting(roster));
+        const present = sitting(roster);
+        for (const layer of layers) layer.seated?.(present);
+        sayWhoIsHere(present);
         const gone = peopleWire?.roster(roster) ?? [];
         for (const s of gone) avatars?.forget(s);
         avatars?.publish();
@@ -505,6 +555,7 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     // this, a persistent stage never disconnects and the wiring goes on hearing the relay.
     peopleWall.remove();
     for (const layer of layers) layer.stop();
+    strip.stop();
     hud?.stop();
     live.stop();
     stopHold();

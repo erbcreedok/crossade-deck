@@ -20,6 +20,7 @@ export const CHESS_SEATS = 2;
 export function chessSpec(): DeskSpec {
   return {
     id: "chess",
+    title: "Шахматы",
     seats: CHESS_SEATS,
     map: () => chessMap(),
     places: (seats) => chessPlaces(seats),

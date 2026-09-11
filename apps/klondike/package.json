@@ -20,6 +20,7 @@
   "dependencies": {
     "@crossade/look": "*",
     "@game-presets/cards": "*",
+    "@game-presets/tophud": "*",
     "game-kit": "*",
     "pixi.js": "^8.19.0"
   },

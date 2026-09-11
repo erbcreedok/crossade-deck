@@ -30,6 +30,7 @@ export const NARDY_SEATS = 2;
 export function nardySpec(): DeskSpec {
   return {
     id: "nardy",
+    title: "Нарды",
     seats: NARDY_SEATS,
     map: () => nardyMap(),
     places: (seats) => nardyPlaces(seats),

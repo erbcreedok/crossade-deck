@@ -45,14 +45,19 @@
       */
       #shell { position: absolute; inset: 0; }
       #chrome { position: absolute; inset: 0; touch-action: none; }
-      #stage { position: absolute; top: 56px; left: 0; right: 0; bottom: 0; touch-action: none; }
+      /* THE GAME'S REGION IS THE WHOLE VIEWPORT. The strip along the top is the game's own now
+         (`@game-presets/tophud`), drawn as markup inside this very region — the hub keeps no ribbon
+         of its own to leave room for. */
+      #stage { position: absolute; inset: 0; touch-action: none; }
       #shell[data-mode="hub"] #stage { display: none; }
 
       /* Only inside a Telegram webview, only over a running table — a Mini App is not registered
          yet, so the plain link a player tapped opened here instead of a real browser. */
       #tg-banner {
         display: none;
-        position: absolute; left: 0; right: 0; top: 56px; z-index: 5;
+        /* UNDER THE GAME'S OWN STRIP, whatever height it is wearing and whatever the notch takes —
+           the strip publishes it (`TOP_HUD_VAR`) rather than the page guessing at it. */
+        position: absolute; left: 0; right: 0; top: var(--crossade-tophud, 0px); z-index: 5;
         align-items: center; justify-content: space-between; gap: 8px;
         padding: 6px 10px; background: #0b241a; color: #f4e8c1;
         font: 13px/1.3 system-ui, sans-serif;

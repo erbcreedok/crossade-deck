@@ -8,6 +8,7 @@
 // are exactly the questions that file answered with `if (game === …)`, and the layer's methods are
 // exactly the places the card table reached into it.
 
+import type { TopHudExit, TopHudLook } from "@game-presets/tophud";
 import type {
   Avatars,
   CameraHud,
@@ -23,6 +24,8 @@ import type {
 export interface SeatedPerson {
   readonly seat: string;
   readonly name: string;
+  /** Their tab is not the one in front of them. The room's own word, passed through. */
+  readonly away?: boolean;
 }
 
 /** The glass, in CSS pixels. */
@@ -127,6 +130,14 @@ export interface DeskLayer {
 export interface DeskHost {
   /** The room code this screen was opened at, if any. */
   room(): string | undefined;
+  /**
+   * THERE IS A WAY OUT OF HERE, AND THIS IS WHERE IT LEADS — the one thing only a shelf knows.
+   *
+   * A game opened at its own URL answers nothing, and its strip is standalone's: no way out, and
+   * the name becomes the leftmost thing on it. This is the whole of what the hub contributes to a
+   * strip that otherwise belongs to the game.
+   */
+  readonly exit?: TopHudExit | undefined;
   /** The room has a code now — put it in the address, so a reload comes back to the same table. */
   setRoom(code: string): void;
   /** What is laid OVER the desk's region, in CSS pixels — a banner, a bar. Usually nothing. */
@@ -144,6 +155,12 @@ export interface DeskHost {
 export interface DeskSpec {
   /** The game's own id, and the name the room is created under. Opaque to the runtime. */
   readonly id: string;
+  /**
+   * WHAT THE GAME IS CALLED, already in the reader's language — what the strip along the top writes.
+   * Opaque to the runtime, exactly like `id`: a name is the game's own, and a runtime that built one
+   * out of the id would be a runtime that knows the games.
+   */
+  readonly title: string;
   readonly seats: number;
   /** The board, built fresh. Called once, before anything has been drawn. */
   map(): Node;
@@ -167,6 +184,14 @@ export interface DeskSpec {
   readonly layers?: readonly DeskLayer[];
   /** Re-dresses the board in this game's look, AFTER the map has registered its own. */
   readonly look?: (() => void) | undefined;
+  /** Anything this game wants turned on the strip along the top. By default it turns nothing. */
+  readonly topHud?: Partial<TopHudLook> | undefined;
+  /**
+   * WHOSE MOVE IT IS, as a seat — the one fact about the strip no runtime can work out, because a
+   * turn is a rule and rules are the game's. A game with no turns in it answers nothing and nobody
+   * on the strip wears the ring.
+   */
+  readonly turn?: (() => string | undefined) | undefined;
 }
 
 /** A running desk, stopped completely by calling it. */

@@ -5,7 +5,7 @@
 
 import { byId, fieldsOf, type SurfacedFields } from "game-kit";
 import { describe, expect, it } from "vitest";
-import { barTree, hubTree, SPARKLE_ID } from "./grid.js";
+import { hubTree, SPARKLE_ID, tableTree } from "./grid.js";
 import { SPARKLE, SPARKLE_DIM } from "@crossade/look";
 
 describe("the sparkle layer", () => {
@@ -16,7 +16,7 @@ describe("the sparkle layer", () => {
   });
 
   it("grid.table-sparkle-is-muted — a different surface than the lobby's", () => {
-    const sparkle = byId(barTree({ topY: 0, height: 1 }), SPARKLE_ID);
+    const sparkle = byId(tableTree(), SPARKLE_ID);
     expect(sparkle).toBeDefined();
     expect(fieldsOf<SurfacedFields>(sparkle!, "Surfaced")?.surface).toBe(SPARKLE_DIM);
   });
