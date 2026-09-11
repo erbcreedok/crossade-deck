@@ -1,0 +1,32 @@
+{
+  "name": "@game-presets/tophud",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A game-kit preset add-on: the strip along the top of a game — the way out, who is at the table, the game's name and its room code. Markup over the glass, never on it.",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "types": "./src/index.ts",
+  "module": "./src/index.ts",
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@crossade/look": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}
