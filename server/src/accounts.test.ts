@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
-// Изолируем от реального server/data/accounts.json — тесты не должны трогать
-// диск и не должны видеть аккаунты, оставшиеся от предыдущих запусков.
+// База живёт в памяти (`server/vitest.config.ts`), а прежний `accounts.json` не читается: его
+// забирает миграция, и `existsSync` здесь отвечает, что файла нет.
 vi.mock("fs", () => ({
   existsSync: () => false,
   readFileSync: () => "[]",
@@ -9,6 +9,7 @@ vi.mock("fs", () => ({
   mkdirSync: vi.fn(),
 }));
 
+import { GUEST_ADJ, GUEST_NOUN } from "./guestNames.js";
 import {
   createAccount,
   findAccountById,
@@ -25,12 +26,16 @@ describe("createAccount", () => {
     expect(createAccount("  Alice  ").name).toBe("Alice");
   });
 
-  it("defaults to 'Player' when no name is given", () => {
-    expect(createAccount().name).toBe("Player");
+  it("имя гостю выдаёт сервер: кличка из двух слов, а не номер", () => {
+    const [adj, noun] = createAccount().name.split(" ");
+    expect(GUEST_ADJ).toContain(adj);
+    expect(GUEST_NOUN).toContain(noun);
   });
 
-  it("defaults to 'Player' when given an empty/whitespace name", () => {
-    expect(createAccount("   ").name).toBe("Player");
+  it("пустое имя — та же кличка, а не пустота", () => {
+    const [adj, noun] = createAccount("   ").name.split(" ");
+    expect(GUEST_ADJ).toContain(adj);
+    expect(GUEST_NOUN).toContain(noun);
   });
 
   it("caps the name length at 24 characters", () => {

@@ -7,5 +7,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
+    // БАЗА В ПАМЯТИ, А НЕ НА ВОЛЮМЕ. Раньше от настоящего `server/data/accounts.json` тесты
+    // отгораживались подменой `fs`; база открывается сама, и единственная честная изоляция —
+    // сказать ей, куда идти. Каждый файл тестов живёт в своём воркере, значит и база своя.
+    env: { CROSSADE_DB_FILE: ":memory:" },
   },
 });
