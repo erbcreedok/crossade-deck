@@ -1,0 +1,47 @@
+wire/src/table.ts
+  s_357f670d370d4d::t_3264ddf309ea33 1-210
+wire/src/index.ts
+  s_357f670d370d4d::t_1de7746092b76d 1-15
+apps/hub/src/hub/shell.ts
+  s_357f670d370d4d::t_9c70228017575c 39
+apps/hub/src/table/people.test.ts
+  s_357f670d370d4d::t_9c70228017575c 11
+apps/hub/src/main.ts
+  s_357f670d370d4d::t_9c70228017575c 5
+apps/hub/package.json
+  s_357f670d370d4d::t_99538596af45a8 14
+package.json
+  s_357f670d370d4d::t_6d91839ba7d5ce 6,8
+apps/hub/src/table/index.ts
+  s_357f670d370d4d::t_9c70228017575c 76,79
+wire/vitest.config.ts
+  s_357f670d370d4d::t_227342724ec39f 1-8
+apps/hub/src/table/people.ts
+  s_357f670d370d4d::t_9c70228017575c 12
+wire/src/guards.test.ts
+  s_357f670d370d4d::t_2acc4c8ca971d6 1-69
+wire/src/server.ts
+  s_357f670d370d4d::t_f7bb26f3b0144c 1-6
+wire/package.json
+  s_357f670d370d4d::t_f8a201b6120e15 1-30
+wire/tsconfig.json
+  s_357f670d370d4d::t_c68889e3c432f3 1-21
+package-lock.json
+  s_357f670d370d4d::t_343b80eb91a7f9 10,12,23,53,522-523,2284,2369-2370,3150-3151,3189,3211,3233,3255,3277,3299,3321,3343,3365,3387,3409,3529,5125-5138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c6375f0d016a5b881e8cc5ce52953dc3aa30cb05",
+  "prompts": {},
+  "sessions": {
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
