@@ -68,31 +68,31 @@
 
   const SPEC = [
     ["Мера", [
-      ["h", "высота полосы, px", "int", 56, 32, 104],
-      ["side", "боковое поле, px", "int", 12, 0, 40],
-      ["gap", "зазор, px", "int", 8, 0, 24],
-      ["radius", "скругление, px", "int", 10, 0, 28],
+      ["h", "высота полосы, px", "int", 40, 32, 104],
+      ["side", "боковое поле, px", "int", 5, 0, 40],
+      ["gap", "зазор, px", "int", 5, 0, 24],
+      ["radius", "скругление, px", "int", 0, 0, 28],
       ["notch", "чёлка (на маке), px", "int", 0, 0, 64],
     ]],
     ["Подложка", [
-      ["fill", "чем залита", "enum", "дерево", ["дерево", "нет", "тёмная", "сукно", "градиент вниз", "стекло"]],
+      ["fill", "чем залита", "enum", "стекло", ["стекло", "дерево", "нет", "тёмная", "сукно", "градиент вниз"]],
       ["shape", "форма", "enum", "полоса", ["полоса", "островки по группам", "один остров"]],
-      ["line", "разделитель снизу", "enum", "золотая", ["золотая", "чёрная", "нет"]],
+      ["line", "разделитель снизу", "enum", "нет", ["нет", "золотая", "чёрная"]],
       ["shadow", "тень", "bool", true],
     ]],
     ["Выход", [
-      ["back", "кнопка выхода", "enum", "иконка + подпись", ["иконка + подпись", "иконка", "подпись", "нет"]],
+      ["back", "кнопка выхода", "enum", "иконка", ["иконка", "иконка + подпись", "подпись", "нет"]],
       ["backWord", "слово", "enum", "Назад", ["Назад", "Стол", "Выход", "К играм"]],
       ["standalone", "стендалон (выходить некуда)", "bool", false],
     ]],
     ["Название", [
       ["title", "что пишем", "enum", "имя + комната", ["имя + комната", "имя", "комната", "нет"]],
-      ["titleAlign", "где", "enum", "центр", ["центр", "слева, за кнопкой"]],
+      ["titleAlign", "где", "enum", "слева, за кнопкой", ["слева, за кнопкой", "центр"]],
       ["roomLook", "комната", "enum", "плашка", ["плашка", "моно", "плашка + копировать"]],
       ["longName", "длинное имя (проверка усечения)", "bool", false],
     ]],
     ["Кто за столом", [
-      ["seats", "людей", "int", 3, 0, 6],
+      ["seats", "людей за столом", "int", 3, 0, 16],
       ["av", "аватар, px", "int", 30, 18, 48],
       ["avLook", "аватар", "enum", "буква", ["буква", "стул", "точка-цвет"]],
       ["turn", "чей ход", "enum", "золотая рамка", ["золотая рамка", "точка снизу", "подсветка", "нет"]],
@@ -174,15 +174,31 @@
   const svg = (body, size, color, w) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${color}" stroke-width="${w || 2.2}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
-  /** Пятеро за столом и я — первый ходит, третий отошёл. Имена нужны только чтобы буквы были разные. */
+  /** За столом — я и остальные: первый ходит, третий отошёл. Имена нужны, чтобы список было что показать. */
   const PEOPLE = [
-    { letter: "Я", ink: "#f2c14e", away: false },
-    { letter: "М", ink: "#7fd1b9", away: false },
-    { letter: "А", ink: "#e08b3f", away: true },
-    { letter: "Д", ink: "#b98fe0", away: false },
-    { letter: "Т", ink: "#8fb4e0", away: false },
-    { letter: "К", ink: "#e0483f", away: false },
+    { name: "Ербол", ink: "#f2c14e", away: false },
+    { name: "Марат", ink: "#7fd1b9", away: false },
+    { name: "Алия", ink: "#e08b3f", away: true },
+    { name: "Дана", ink: "#b98fe0", away: false },
+    { name: "Тимур", ink: "#8fb4e0", away: false },
+    { name: "Канат", ink: "#e0483f", away: false },
+    { name: "Асель", ink: "#8fe0b4", away: false },
+    { name: "Ринат", ink: "#e0c78f", away: true },
+    { name: "Жанна", ink: "#c78fe0", away: false },
+    { name: "Олег", ink: "#8f9ce0", away: false },
+    { name: "Салтанат", ink: "#e08fb4", away: false },
+    { name: "Бекзат", ink: "#a8e08f", away: false },
+    { name: "Инга", ink: "#e0a88f", away: false },
+    { name: "Нурлан", ink: "#8fd8e0", away: false },
+    { name: "Гуля", ink: "#d8e08f", away: false },
+    { name: "Ораз", ink: "#b48fe0", away: false },
   ];
+  /** Сколько шариков помещается впритык — мера всей группы: дальше они наплывают, а не растут. */
+  const TIGHT = 5;
+  /** Больше восьми на полосу не ставим: девятый и дальше живут за плюсом. */
+  const MAX_BALLS = 8;
+  /** Открыт ли полный список — состояние экрана, не ручка: переживает перерисовку, но не ссылку. */
+  let listOpen = false;
 
   const plate = (r) => `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px #6b4d2c,0 3px 0 rgba(11,7,4,.55);border-radius:${r}px;`;
 
@@ -233,23 +249,69 @@
       ? `<div data-g="title" style="${groupFill}display:flex;align-items:center;gap:${gap}px;height:${h - 12}px;padding:0 ${pad}px;box-sizing:border-box;min-width:0">${titleInner}</div>`
       : "";
 
-    // КТО ЗА СТОЛОМ
+    // КТО ЗА СТОЛОМ.
+    //
+    // РЯД ЛЮДЕЙ — ВЕЛИЧИНА ПОСТОЯННАЯ: он занимает ровно столько, сколько пять шариков впритык, и
+    // дальше не растёт. Иначе стол за спиной игроков теряет полосу по мере того, как к нему
+    // подсаживаются, и полный стол выталкивает название с экрана.
+    //
+    // До пяти — впритык, без зазора: это одна группа, а не пять кнопок. Дальше шарики наплывают
+    // друг на друга, ЛЕВЫЙ ПОВЕРХ ПРАВОГО — читается как колода, положенная слева направо, и первым
+    // целым остаётся тот, чей ход. Больше восьми на полосе не показываем: девятый и дальше — за
+    // плюсом, а полный список открывается по нажатию.
     const av = P.av;
-    const people = PEOPLE.slice(0, P.seats).filter((p) => !(p.away && P.away === "скрывать")).map((p, i) => {
+    const seatsAll = PEOPLE.slice(0, P.seats).filter((p) => !(p.away && P.away === "скрывать"));
+    const over = seatsAll.length > MAX_BALLS;
+    const shownPeople = over ? seatsAll.slice(0, MAX_BALLS - 1) : seatsAll;
+    const balls = shownPeople.length + (over ? 1 : 0);
+    const tight = TIGHT * av;
+    // Шаг между центрами: впритык, пока помещаются, дальше — столько, чтобы ряд остался шириной
+    // в пять шариков.
+    const step = balls <= TIGHT ? av : (tight - av) / (balls - 1);
+    const rowW = Math.round(balls <= TIGHT ? balls * av : tight);
+
+    const ball = (inner, bg, i, extra, z) =>
+      `<div style="position:absolute;left:${Math.round(i * step)}px;top:0;z-index:${z === undefined ? balls - i : z};width:${av}px;height:${av}px;border-radius:50%;`
+      + `display:flex;align-items:center;justify-content:center;background:${bg};${extra}">${inner}</div>`;
+
+    const faces = shownPeople.map((p, i) => {
       const turnNow = i === 0 && P.turn !== "нет";
       const dim = p.away && P.away === "серым";
-      const face = P.avLook === "буква" ? `<span style="font:400 ${Math.round(av * 0.42)}px 'Tiny5',monospace;color:${T.black}">${p.letter}</span>`
+      const face = P.avLook === "буква" ? `<span style="font:400 ${Math.round(av * 0.42)}px 'Tiny5',monospace;color:${T.black}">${p.name[0]}</span>`
         : P.avLook === "стул" ? svg(ICON.chair, Math.round(av * 0.62), T.black, 2) : "";
       const ring = turnNow && P.turn === "золотая рамка"
         ? `box-shadow:inset 0 0 0 3px ${T.black},0 0 0 3px ${T.gold};`
         : `box-shadow:inset 0 0 0 3px ${T.black};`;
       const glow = turnNow && P.turn === "подсветка" ? `filter:drop-shadow(0 0 7px ${T.gold});` : "";
       const dot = turnNow && P.turn === "точка снизу"
-        ? `<i style="position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);width:6px;height:6px;border-radius:50%;background:${T.gold}"></i>` : "";
-      return `<div style="position:relative;width:${av}px;height:${av}px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:${p.ink};${ring}${glow}${dim ? "opacity:.42;filter:grayscale(1);" : ""}">${face}${dot}</div>`;
+        ? `<i style="position:absolute;left:50%;bottom:-5px;transform:translateX(-50%);width:6px;height:6px;border-radius:50%;background:${T.gold}"></i>` : "";
+      return ball(face + dot, p.ink, i, ring + glow + (dim ? "opacity:.42;filter:grayscale(1);" : ""));
     }).join("");
-    const seated = P.seats
-      ? `<div data-g="people" style="${groupFill}display:flex;align-items:center;flex:none;gap:${Math.max(4, gap - 2)}px;height:${h - 12}px;padding:0 ${pad}px;box-sizing:border-box">${people}</div>`
+    const plus = over
+      ? ball(`<span style="font:400 ${Math.round(av * 0.4)}px 'Tiny5',monospace;color:${T.gold}">+${seatsAll.length - shownPeople.length}</span>`,
+          // ПЛЮС — ЕДИНСТВЕННЫЙ, КОГО НЕ ЗАКРЫВАЮТ. Правило «левый поверх правого» оставило бы его
+          // под соседом, а он не лицо, а число: «+5», обрезанное до «5», — это неверные данные.
+          T.well, balls - 1, `box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};`, balls + 1)
+      : "";
+
+    // ПОЛНЫЙ СПИСОК — по нажатию на ряд. На полосе помещается восемь; кто за столом на самом деле,
+    // сказать всё равно нужно, и это единственное место, где на это есть место.
+    const listRow = (p, i) => `<div style="display:flex;align-items:center;gap:8px;padding:3px 0">`
+      + `<span style="width:18px;height:18px;border-radius:50%;background:${p.ink};box-shadow:inset 0 0 0 2px ${T.black};${p.away ? "opacity:.42;filter:grayscale(1);" : ""}"></span>`
+      + `<span style="font:400 14px 'Tiny5',monospace;color:${p.away ? T.inkDim : T.ink}">${esc(p.name)}</span>`
+      + (i === 0 ? `<span style="font:400 11px 'Tiny5',monospace;color:${T.gold}">ходит</span>` : "")
+      + (p.away ? `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">отошёл</span>` : "")
+      + `</div>`;
+    const list = listOpen && seatsAll.length
+      ? `<div data-g="list" style="position:absolute;top:${h - 6}px;${P.peopleSide === "слева, у кнопки" ? "left:0" : "right:0"};min-width:140px;max-height:60vh;overflow:auto;`
+        + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px #6b4d2c,0 4px 0 rgba(11,7,4,.6);border-radius:${r + 4}px;padding:8px 12px;z-index:12">`
+        + `<div style="font:400 11px 'Tiny5',monospace;color:${T.inkDim};letter-spacing:.1em;padding-bottom:4px">ЗА СТОЛОМ ${seatsAll.length}</div>`
+        + seatsAll.map(listRow).join("") + `</div>`
+      : "";
+
+    const seated = balls
+      ? `<div data-g="people" style="${groupFill}position:relative;flex:none;height:${h}px;padding:0 ${pad}px;box-sizing:border-box;cursor:pointer">`
+        + `<div style="position:relative;width:${rowW}px;height:${av}px;margin-top:${Math.round((h - av) / 2)}px">${faces}${plus}</div>${list}</div>`
       : "";
 
     // РАСКЛАДКА. Выход всегда слева — это единственная кнопка, чьё место на телефоне уже занято
@@ -268,6 +330,11 @@
       + (centred && title ? `<div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none">${title}</div>` : "")
       + `<div style="display:flex;align-items:center;gap:${gap}px">${rightSide}</div>`
       + `</div></div>`;
+
+    // НАЖАТИЕ НА РЯД ОТКРЫВАЕТ СПИСОК. Вешается после каждой перерисовки, потому что полоса
+    // собирается заново целиком — и это дешевле, чем держать её узлы живыми ради одного слушателя.
+    const peopleEl = top.querySelector('[data-g="people"]');
+    if (peopleEl) peopleEl.onclick = (e) => { e.stopPropagation(); listOpen = !listOpen; apply(); };
 
     // ---- ЧИСЛА: влезает ли, и сколько стола съедено ----
     const widthOf = (g) => { const el = top.querySelector(`[data-g="${g}"]`); return el ? Math.round(el.getBoundingClientRect().width) : 0; };
@@ -292,6 +359,9 @@
     document.getElementById("nums").innerHTML =
       `экран <b>${W}×${H}</b> · полоса <b>${h + insetPx}</b> px, из них чёлка <b>${insetPx}</b> · столу остаётся <b>${H - h - insetPx}</b> px<br>`
       + `выход <b>${wBack}</b> · название хочет <b>${wantTitle}</b>, ему осталось <b>${room4}</b> · люди <b>${wPeople}</b> · всё вместе <b>${need + wantTitle}</b> из <b>${W}</b><br>`
+      + `ряд людей: <b>${balls}</b> шариков в <b>${rowW}</b> px (мера — ${TIGHT} впритык)`
+      + (balls > TIGHT ? ` · наплыв <b>${Math.round(av - step)}</b> px на шарик` : "")
+      + (over ? ` · за плюсом ещё <b>${seatsAll.length - shownPeople.length}</b>` : "") + `<br>`
       + (dropped ? `<span class="bad">название убрано целиком: под него осталось ${room4} px</span><br>`
         : wantTitle > room4 ? `<span class="bad">название ужато: хотело ${wantTitle}, дали ${room4}</span><br>`
         : need > W ? `<span class="bad">не влезает: ${need - W} px лишних</span><br>` : "")
@@ -306,6 +376,8 @@
   // ССЫЛКУ ВСТАВЛЯЮТ В УЖЕ ОТКРЫТУЮ ВКЛАДКУ. Смена только хвоста адреса страницу не перезагружает,
   // и без этого присланный экран открывался бы прежним — ручки те же, вид другой.
   addEventListener("hashchange", () => { P = readHash(); build(); apply(); });
+  // Список закрывается по касанию где угодно ещё — включая стол под ним.
+  addEventListener("click", () => { if (listOpen) { listOpen = false; apply(); } });
   addEventListener("resize", apply);
   addEventListener("orientationchange", apply);
 })();
