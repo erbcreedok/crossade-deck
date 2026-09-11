@@ -78,7 +78,7 @@
     ["Создание", [
       ["newVis", "видимость", "enum", "по коду", ["по коду", "для друзей", "публичная"]],
       ["newMode", "кто решает", "enum", "оунер и админы", ["оунер решает", "оунер и админы", "все админы", "демократия"]],
-      ["newSeats", "мест", "int", 4, 2, 8],
+      ["newSeats", "мест", "int", 4, 2, 32],
       ["newForever", "вечная", "bool", false],
       ["newCode", "код комнаты", "text", "9AF3"],
     ]],
@@ -350,10 +350,15 @@
         + (P.newVis === "публичная" ? "Стол увидят все — подсядут незнакомые."
           : P.newVis === "для друзей" ? "Стол увидят только друзья; остальным нужен код."
           : "Стол не увидит никто: пускают по коду, который ты пришлёшь.") + `</span>`)
-      + block("МЕСТ ЗА СТОЛОМ", `<div style="display:flex;align-items:center;gap:10px">`
-        + `<button data-do="seats" style="cursor:pointer;border:0;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};border-radius:10px;`
-        + `padding:11px 18px;font:400 17px 'Press Start 2P',monospace;color:${T.ink}">${P.newSeats}</button>`
-        + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">нажми, чтобы назвать число</span></div>`)
+      // ДВА ПУТИ К ОДНОМУ ЧИСЛУ: ползунок — когда «примерно столько», цифра — когда число известно.
+      // Ползунок кончается на 32, и руками больше тоже нельзя: стол, за который сели тридцать три
+      // человека, — это уже не стол, а список, и рисовать его нечем.
+      + block("МЕСТ ЗА СТОЛОМ", `<div style="display:flex;align-items:center;gap:12px">`
+        + `<button data-do="seats" style="flex:none;cursor:pointer;border:0;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};border-radius:10px;`
+        + `padding:11px 16px;font:400 17px 'Press Start 2P',monospace;color:${T.ink}"><span data-g="seats-value">${P.newSeats}</span></button>`
+        + `<input data-slider="seats" type="range" min="2" max="32" step="1" value="${P.newSeats}" style="flex:1;accent-color:${T.gold};height:30px">`
+        + `</div>`
+        + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">тяни ползунок или нажми на число — от 2 до 32</span>`)
       + block("КТО РЕШАЕТ", pick("mode", ["оунер решает", "оунер и админы", "все админы", "демократия"], P.newMode))
       + block("ВЕЧНАЯ КОМНАТА", toggle("forever", P.newForever))
       + `<div style="padding-top:18px">${btn("made", "Создать и сесть", "gold")}</div></div>`;
@@ -391,13 +396,25 @@
           const got = prompt("Свой код комнаты (2–8 знаков)", P.newCode);
           if (got !== null && got.trim()) P.newCode = got.trim().toUpperCase().slice(0, 8);
         } else if (does === "seats") {
-          const got = prompt("Сколько мест за столом? (2–8)", String(P.newSeats));
+          const got = prompt("Сколько мест за столом? (2–32)", String(P.newSeats));
           const n = Number(got);
-          if (Number.isFinite(n) && n >= 2 && n <= 8) P.newSeats = Math.round(n);
+          if (Number.isFinite(n) && n >= 2 && n <= 32) P.newSeats = Math.round(n);
         }
         build();
         apply();
       };
+    }
+
+    const slider = over.querySelector('[data-slider="seats"]');
+    if (slider) {
+      // ПОКА ТЯНУТ — МЕНЯЕМ ТОЛЬКО ЧИСЛО. Пересборка разметки на каждый пиксель отрывает палец от
+      // ползунка: элемент, который тянули, в этот момент уже другой.
+      slider.oninput = () => {
+        P.newSeats = Number(slider.value);
+        const shown = over.querySelector('[data-g="seats-value"]');
+        if (shown) shown.textContent = String(P.newSeats);
+      };
+      slider.onchange = () => { build(); apply(); };
     }
 
     const barH = Math.round(over.querySelector('[data-g="bar"]').getBoundingClientRect().height);
