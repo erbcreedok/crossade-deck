@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { holdThePage } from "game-kit";
+import { afterPaint } from "./hub/beat.js";
 import { startHub } from "./hub/shell.js";
 import { goTo, routeOf } from "./hub/route.js";
 import { serverUrl } from "@crossade/wire";
@@ -51,12 +52,48 @@ async function openStartParamTable(): Promise<void> {
   }
 }
 
+/**
+ * HOW LONG THE CROSS IS SHOWN AT THE VERY LEAST, in ms.
+ *
+ * A warm cache boots this page in about two hundred milliseconds, and a screen that appears and
+ * disappears inside that reads as a flicker — a fault, not a greeting. The floor is not a delay
+ * added to the load: it is only ever waited out when the load beat it, and a boot that takes longer
+ * simply keeps the line running.
+ */
+const BOOT_LEAST_MS = 400;
+
+/**
+ * TAKE THE CROSS DOWN — once the shelf is actually on the glass, and never before.
+ *
+ * ON A PAINTED FRAME (`afterPaint`), which is why the wait is asked for there and not here: the
+ * hub names `requestAnimationFrame` in exactly one file, and a second caller "just this once" is
+ * how a page ends up with frame loops nobody can find (`hub.one-clock`).
+ */
+function raiseBoot(): void {
+  const boot = document.querySelector<HTMLElement>("#boot");
+  if (!boot) return;
+  afterPaint(() => {
+    // SINCE THE PAGE STARTED, not since this function was reached: `performance.now()` counts from
+    // the navigation, which is the moment the player actually saw the cross. By the time this
+    // module runs it has already been up for however long the fetch took, and that time counts
+    // towards the floor — the floor is about what was seen, not about what was waited for.
+    const waited = performance.now();
+    setTimeout(() => {
+      boot.classList.add("gone");
+      // Removed after the fade rather than instead of it — and removed, not hidden: it sits over
+      // the whole page, and a transparent sheet left there would eat every press for ever.
+      setTimeout(() => boot.remove(), 260);
+    }, Math.max(0, BOOT_LEAST_MS - waited));
+  });
+}
+
 // NOT A TOP-LEVEL AWAIT: the hub's build targets the phones it is for (safari14 among them), and
 // a module that awaits at its top level does not load there at all. The boot waits inside a
 // promise instead, which is the same order of events with a wider set of browsers.
 let stop: (() => void) | undefined;
 void openStartParamTable().then(() => {
   stop = chrome && stage ? startHub(chrome, stage) : undefined;
+  raiseBoot();
 });
 
 // Dev only: tear the previous hub down before a hot update mounts the next. Without it every edit

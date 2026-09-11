@@ -62,9 +62,54 @@
         flex: none; border: none; border-radius: 6px; padding: 4px 10px;
         background: #f4e8c1; color: #0b241a; font: inherit; font-weight: 600;
       }
+
+      /*
+        THE FIRST THING ON THE SCREEN, AND THE CHEAPEST — a red line running the path of a cross.
+
+        It lives HERE, in the document, and not in a module, and that is the whole of why it works:
+        this is a few hundred bytes of markup the browser already has when it paints the first frame.
+        A loading screen shipped as JavaScript cannot appear until the JavaScript has arrived, which
+        is most of what it exists to cover — and the hub's own card faces are 52 files, so the
+        heaviest thing on this page would be waiting on the wire for its own waiting screen.
+
+        Nothing here is fetched: no font, no image, one inline path. `pathLength="1"` lets the dash
+        be written in fractions of the outline instead of in user units, so the line's speed does
+        not change the day the cross is redrawn a different size.
+      */
+      #boot {
+        position: absolute; inset: 0; z-index: 10;
+        display: grid; place-items: center;
+        background: #173d2d; transition: opacity 220ms ease;
+      }
+      #boot.gone { opacity: 0; pointer-events: none; }
+      #boot svg { width: 92px; height: 92px; }
+      /* The shape the line is running along, barely there — a path, not a drawing. */
+      #boot .ghost { fill: none; stroke: #0f2e22; stroke-width: 6; }
+      #boot .line {
+        fill: none; stroke: #e0483f; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round;
+        stroke-dasharray: 0.34 0.66; animation: crusade 1200ms linear infinite;
+      }
+      /*
+        DRAWN AND THEN LET GO. The offset runs a whole outline's worth, so the lit stretch travels
+        all the way round and off the end it started from — one line going round, rather than a
+        cross appearing and vanishing.
+      */
+      @keyframes crusade { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+      /* A player who asked for stillness gets the cross, drawn, and no running line. */
+      @media (prefers-reduced-motion: reduce) {
+        #boot .line { animation: none; stroke-dasharray: none; }
+      }
     </style>
   </head>
   <body>
+    <!-- Removed by `main.ts` once the shelf has actually been painted — never on a timer of its own.
+         The cross is the one in the name: Crossade, a crusade's cross, traced by a red line. -->
+    <div id="boot">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <path class="ghost" pathLength="1" d="M36 10 H64 V36 H90 V64 H64 V90 H36 V64 H10 V36 H36 Z" />
+        <path class="line" pathLength="1" d="M36 10 H64 V36 H90 V64 H64 V90 H36 V64 H10 V36 H36 Z" />
+      </svg>
+    </div>
     <div id="shell" data-mode="hub">
       <div id="chrome"></div>
       <div id="stage"></div>

@@ -70,3 +70,19 @@ export function beat(redraw: () => void, now: () => number = () => performance.n
     },
   };
 }
+
+/**
+ * DO THIS ONCE THE GLASS HAS ACTUALLY BEEN PAINTED.
+ *
+ * TWO FRAMES, not one: the first is where a painter is handed a tree, the second is the one it has
+ * put on the screen. Whoever lifts a cover after the first hands the player an empty rectangle,
+ * which is the flash the cover was there to hide.
+ *
+ * IT LIVES HERE BECAUSE THE FRAME CLOCK DOES (`hub.one-clock`). It is not a loop and does not join
+ * this file's own beat — it is one shot — but `requestAnimationFrame` is named in exactly one file
+ * on purpose, and a second caller "just this once" is how a page ends up with three frame loops
+ * nobody can find. Asking here costs a line and keeps the law literal.
+ */
+export function afterPaint(then: () => void): void {
+  requestAnimationFrame(() => requestAnimationFrame(then));
+}
