@@ -19,7 +19,16 @@ const MAIN = readFileSync(join(process.cwd(), "src/main.ts"), "utf8");
 describe("hub.the-cross-is-in-the-page", () => {
   it("ships in the document, drawn inline, fetching nothing", () => {
     expect(PAGE, "the boot screen is markup, not a module").toContain('id="boot"');
-    expect(PAGE, "and the cross is an inline path").toMatch(/<path[^>]*class="line"[^>]*d="M36 10/);
+    // THE DESIGN PROJECT'S OWN CROSS — a cross pattée, arms flaring to their tips, and not the plus
+    // this started life as. Its twelve points are the outline of the two octagons the design draws
+    // it with; a redraw that loses the flare has lost the mark, so the corners are named here.
+    expect(PAGE, "and the cross is an inline path").toMatch(/<path[^>]*class="line"[^>]*d="M50 0 L80 0 L66 34/);
+    // STARTED AT THE CROWN, not at a corner: the outline's own first point is the top-LEFT of the
+    // upper arm, and a line grown from there is lopsided at both ends. The top edge is cut in half
+    // at (50,0) and the closing stroke brings the line home to where it left.
+    expect(PAGE, "the line leaves from the top centre").toMatch(/d="M50 0 /);
+    expect(PAGE, "…and the closing stroke comes back to it along the top edge").toMatch(/L34 34 L20 0 Z"/);
+    expect(PAGE, "twelve corners after the start, closed").toMatch(/d="M50 0(?: L\d+ \d+){12} Z"/);
     // NOTHING IS FETCHED FOR IT. An `<img>`, a font or a stylesheet would put the one screen that
     // must not wait behind exactly the wait it covers.
     const boot = PAGE.slice(PAGE.indexOf('<div id="boot">'), PAGE.indexOf('<div id="shell"'));
@@ -33,7 +42,15 @@ describe("hub.the-cross-is-in-the-page", () => {
     // another size and the line's speed is unchanged, because the dash was never in user units.
     expect(PAGE).toContain('pathLength="1"');
     expect(PAGE, "the line is red").toMatch(/\.line \{[^}]*stroke: #e0483f/);
+    // IT GROWS FROM NOTHING, rather than a lit stretch chasing itself round a shape already drawn:
+    // one dash as long as the whole outline, and an offset walked from a full outline's worth to
+    // none. A dasharray of two lengths is the other animation, and the one that was rejected.
+    expect(PAGE, "one dash, the length of the outline").toMatch(/stroke-dasharray: 1;/);
+    expect(PAGE, "grown from nothing to the whole of it").toMatch(/@keyframes crusade \{ from \{ stroke-dashoffset: 1; \} to \{ stroke-dashoffset: 0; \} \}/);
     expect(PAGE, "and it runs, rather than appearing").toMatch(/animation: crusade \d+ms linear infinite/);
+    // NOTHING UNDER IT: the path is what the line is for, and a track drawn beneath gives the shape
+    // away before the line has earned it.
+    expect(PAGE.includes("class=\"ghost\""), "no second path under the line").toBe(false);
     expect(PAGE, "a player who asked for stillness gets the cross without the run").toMatch(
       /prefers-reduced-motion: reduce\) \{\s*#boot \.line \{ animation: none;/,
     );

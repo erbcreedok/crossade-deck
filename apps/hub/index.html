@@ -82,20 +82,23 @@
         background: #173d2d; transition: opacity 220ms ease;
       }
       #boot.gone { opacity: 0; pointer-events: none; }
-      #boot svg { width: 92px; height: 92px; }
-      /* The shape the line is running along, barely there — a path, not a drawing. */
-      #boot .ghost { fill: none; stroke: #0f2e22; stroke-width: 6; }
+      #boot svg { width: 96px; height: 96px; }
+      /*
+        ONE LINE AND NOTHING UNDER IT. There was a faint green outline beneath, so the line had a
+        path to run along; the owner's answer was that the path is what the line is FOR — a track
+        drawn under it gives the shape away before the line has earned it.
+      */
       #boot .line {
-        fill: none; stroke: #e0483f; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round;
-        stroke-dasharray: 0.34 0.66; animation: crusade 1200ms linear infinite;
+        fill: none; stroke: #e0483f; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round;
+        stroke-dasharray: 1; animation: crusade 200ms linear infinite;
       }
       /*
-        DRAWN AND THEN LET GO. The offset runs a whole outline's worth, so the lit stretch travels
-        all the way round and off the end it started from — one line going round, rather than a
-        cross appearing and vanishing.
+        IT GROWS. From nothing to the whole outline and then again from nothing — the cross is being
+        drawn, over and over, rather than a lit stretch chasing its own tail round a shape that is
+        already there.
       */
       @keyframes crusade { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-      /* A player who asked for stillness gets the cross, drawn, and no running line. */
+      /* A player who asked for stillness gets the cross, drawn, and no drawing of it. */
       @media (prefers-reduced-motion: reduce) {
         #boot .line { animation: none; stroke-dasharray: none; }
       }
@@ -105,9 +108,21 @@
     <!-- Removed by `main.ts` once the shelf has actually been painted — never on a timer of its own.
          The cross is the one in the name: Crossade, a crusade's cross, traced by a red line. -->
     <div id="boot">
-      <svg viewBox="0 0 100 100" aria-hidden="true">
-        <path class="ghost" pathLength="1" d="M36 10 H64 V36 H90 V64 H64 V90 H36 V64 H10 V36 H36 Z" />
-        <path class="line" pathLength="1" d="M36 10 H64 V36 H90 V64 H64 V90 H36 V64 H10 V36 H36 Z" />
+      <!--
+        THE CROSS PATTÉE FROM THE DESIGN PROJECT — the crusader's cross, arms flaring out to their
+        tips, not a plus. There it is drawn as two overlapping octagons (a vertical arm and a
+        horizontal one) with a half-size `a`, a waist `w = .16s` and a flared tip `f = .30s`; a line
+        has to run the OUTLINE of the two together, so the same numbers are written here as the
+        points of their union, clockwise.
+
+        IT STARTS AT THE TOP, IN THE MIDDLE. The outline's own first corner is the top-LEFT of the
+        upper arm, and a line growing from there begins off to one side and finishes by creeping
+        back at it — lopsided at both ends. So the top edge is cut in half at (50,0): the line
+        leaves the crown, goes all the way round, and the closing stroke brings it home to the
+        same point it left from.
+      -->
+      <svg viewBox="-8 -8 116 116" aria-hidden="true">
+        <path class="line" pathLength="1" d="M50 0 L80 0 L66 34 L100 20 L100 80 L66 66 L80 100 L20 100 L34 66 L0 80 L0 20 L34 34 L20 0 Z" />
       </svg>
     </div>
     <div id="shell" data-mode="hub">
