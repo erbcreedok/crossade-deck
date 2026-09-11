@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Комнаты: список, поиск, создание — стенд</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Handjet&family=Press+Start+2P&family=Tiny5&display=swap" rel="stylesheet">
+<script src="back.js"></script>
+<style>
+  body { margin: 0; background: #0d2118; color: #cdb98f; font: 400 16px/1.45 'Handjet', monospace; }
+  .page { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; padding: 32px; }
+  .phone { flex: none; width: 390px; height: 844px; position: relative; overflow: hidden; border-radius: 44px; background: #173d2d; box-shadow: inset 0 0 0 3px #0b0704; }
+  .phone canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .panel { flex: 1; min-width: 320px; max-width: 460px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font: 400 26px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .sec { padding: 12px 14px; background: #123527; box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #3a2a1d; display: flex; flex-direction: column; gap: 6px; }
+  .sec h2 { margin: 0 0 4px; font: 400 16px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .row { display: grid; grid-template-columns: 160px 1fr 56px; align-items: center; gap: 8px; }
+  .row label { color: #f5ead0; }
+  .row select, .row input[type=checkbox] { justify-self: start; }
+  .row input[type=range] { width: 100%; }
+  .row .val { color: #f2c14e; text-align: right; font: 400 13px 'Press Start 2P', monospace; }
+  .nums { font-size: 15px; line-height: 1.6; }
+  .nums b { color: #f2c14e; font-weight: 400; }
+  button.reset { align-self: flex-start; font: inherit; color: #f2c14e; background: none; border: 2px solid #f2c14e; padding: 4px 10px; cursor: pointer; }
+  .knob { display: none; }
+  @media (max-width: 700px), (pointer: coarse) and (max-width: 1000px) {
+    body { overflow: hidden; }
+    .page { padding: 0; gap: 0; }
+    .phone { position: fixed; inset: 0; width: 100vw; height: 100dvh; border-radius: 0; box-shadow: none; }
+    .panel { position: fixed; left: 0; right: 0; bottom: 0; max-width: none; max-height: 72dvh; overflow: auto; padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); box-sizing: border-box;
+      background: #0d2118; box-shadow: 0 -3px 0 #0b0704, 0 -6px 0 #3a2a1d; transform: translateY(100%); transition: transform .22s cubic-bezier(.2,.85,.25,1); z-index: 30; }
+    .panel.open { transform: none; }
+    .knob { display: flex; position: fixed; right: 14px; bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 40; width: 46px; height: 46px; border-radius: 8px; align-items: center; justify-content: center;
+      background: linear-gradient(#25321f, #16210f); box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #6b4d2c, 0 4px 0 rgba(11,7,4,.6); color: #f2c14e; font: 400 9px 'Tiny5', monospace; }
+    h1 { font-size: 20px; }
+    .row { grid-template-columns: 130px 1fr 44px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="phone" id="phone"><canvas id="back"></canvas><div id="over"></div></div>
+  <div class="knob" id="knob">РУЧКИ</div>
+  <div class="panel" id="panel">
+    <h1>Комнаты: список, поиск, создание</h1>
+    <div>Мост между хабом и игрой. Он НИЧЕГО не знает про наш сервер и про карты: ему дают список комнат и колбэки, он отдаёт «войти сюда» и «создать такую». Поэтому ручки слева — это не настройки вида, а <b>данные</b>: сколько комнат пришло, есть ли друзья, вошёл ли ты, ответил ли сервер. Пустой список, загрузка и молчание — его собственные экраны, и они тут же.</div>
+    <div id="controls"></div>
+    <div class="nums" id="nums"></div>
+    <button class="reset" id="reset">сбросить</button>
+  </div>
+</div>
+<script>
+(function () {
+  const T = window.Back.T;
+  const phone = document.getElementById("phone");
+  const over = document.getElementById("over");
+  const real = () => matchMedia("(max-width: 700px), (pointer: coarse) and (max-width: 1000px)").matches;
+  const glass = () => ({ W: phone.clientWidth || 390, H: phone.clientHeight || 844 });
+
+  const SPEC = [
+    ["Данные", [
+      ["state", "что ответил сервер", "enum", "список", ["список", "грузится", "молчит", "пусто"]],
+      ["public", "публичных комнат", "int", 5, 0, 12],
+      ["friends", "где друзья", "int", 1, 0, 3],
+      ["forever", "твоих вечных", "int", 1, 0, 3],
+      ["mixed", "общий список (разные игры)", "bool", false],
+    ]],
+    ["Кто смотрит", [
+      ["who", "я", "enum", "вошёл", ["вошёл", "гость"]],
+    ]],
+    ["Экран", [
+      ["screen", "что открыто", "enum", "список", ["список", "найти", "создать"]],
+      ["open", "раскрыта инфа у первой", "bool", false],
+    ]],
+    ["Создание", [
+      ["newVis", "видимость", "enum", "по коду", ["по коду", "для друзей", "публичная"]],
+      ["newMode", "кто решает", "enum", "оунер и админы", ["оунер решает", "оунер и админы", "все админы", "демократия"]],
+      ["newSeats", "мест", "int", 4, 2, 8],
+      ["newForever", "вечная", "bool", false],
+      ["newCode", "свой код", "bool", false],
+    ]],
+  ];
+  const DEFAULTS = {};
+  for (const [, rows] of SPEC) for (const [key, , , def] of rows) DEFAULTS[key] = def;
+
+  const readHash = () => {
+    const out = { ...DEFAULTS };
+    const h = location.hash.replace(/^#/, "");
+    if (!h) return out;
+    for (const pair of h.split("&")) {
+      const [k, v] = pair.split("=").map(decodeURIComponent);
+      if (!(k in DEFAULTS)) continue;
+      const def = DEFAULTS[k];
+      out[k] = typeof def === "number" ? Number(v) : typeof def === "boolean" ? v === "1" : v;
+    }
+    return out;
+  };
+  const writeHash = (P) => {
+    const parts = [];
+    for (const k in DEFAULTS) if (P[k] !== DEFAULTS[k]) parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(typeof P[k] === "boolean" ? (P[k] ? "1" : "0") : P[k])}`);
+    history.replaceState(null, "", parts.length ? `#${parts.join("&")}` : location.pathname);
+  };
+  let P = readHash();
+
+  const controls = document.getElementById("controls");
+  const build = () => {
+    controls.innerHTML = "";
+    for (const [title, rows] of SPEC) {
+      const sec = document.createElement("div");
+      sec.className = "sec";
+      sec.innerHTML = `<h2>${title}</h2>`;
+      for (const [key, label, kind, , a, b] of rows) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const lab = document.createElement("label");
+        lab.textContent = label;
+        row.appendChild(lab);
+        const val = document.createElement("span");
+        val.className = "val";
+        let input;
+        if (kind === "int") {
+          input = document.createElement("input");
+          input.type = "range"; input.min = a; input.max = b; input.step = 1; input.value = P[key];
+          val.textContent = P[key];
+          input.oninput = () => { P[key] = Number(input.value); val.textContent = input.value; apply(); };
+        } else if (kind === "enum") {
+          input = document.createElement("select");
+          for (const opt of a) { const o = document.createElement("option"); o.value = opt; o.textContent = opt; o.selected = P[key] === opt; input.appendChild(o); }
+          input.onchange = () => { P[key] = input.value; apply(); };
+        } else {
+          input = document.createElement("input");
+          input.type = "checkbox"; input.checked = !!P[key];
+          input.onchange = () => { P[key] = input.checked; apply(); };
+        }
+        row.appendChild(input); row.appendChild(val);
+        sec.appendChild(row);
+      }
+      controls.appendChild(sec);
+    }
+  };
+  document.getElementById("reset").onclick = () => { P = { ...DEFAULTS }; build(); apply(); };
+  document.getElementById("knob").onclick = () => document.getElementById("panel").classList.toggle("open");
+
+  const PALETTE = ["#f2c14e", "#7fd1b9", "#e08b3f", "#b98fe0", "#8fb4e0", "#e0483f", "#a8e08f", "#e08fb4"];
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const ball = (size, colour, letter) => `<span style="flex:none;width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;`
+    + `background:${PALETTE[colour]};box-shadow:inset 0 0 0 3px ${T.black}"><span style="font:400 ${Math.round(size * 0.42)}px 'Tiny5',monospace;color:${T.black}">${esc(letter)}</span></span>`;
+  const btn = (id, label, kind, small) => `<button data-do="${id}" style="font:400 ${small ? 12 : 13}px 'Tiny5',monospace;cursor:pointer;border:0;border-radius:8px;padding:${small ? "8px 10px" : "11px 14px"};`
+    + (kind === "gold" ? `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6);color:${T.black};`
+      : kind === "quiet" ? `background:transparent;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim};`
+      : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 3px 0 rgba(11,7,4,.55);color:${T.ink};`)
+    + `">${label}</button>`;
+
+  /** Игры в списке. Мост их не знает: имя и знак приезжают вместе с комнатой. */
+  const GAMES = [
+    { id: "cards", name: "Карты", sign: "♠" },
+    { id: "nardy", name: "Нарды", sign: "🎲" },
+    { id: "chess", name: "Шахматы", sign: "♞" },
+    { id: "sudoku", name: "Судоку", sign: "▦" },
+  ];
+  const NAMES = ["Марат", "Алия", "Дана", "Тимур", "Канат", "Асель", "Ринат", "Жанна"];
+
+  /** Комнаты приходят снаружи — здесь их сочиняет ручка, в продукте пришлёт сервер. */
+  const roomsOf = () => {
+    const out = [];
+    const make = (i, group, seats, taken) => ({
+      code: String(1000 + i * 137).slice(0, 4),
+      group,
+      game: P.mixed ? GAMES[i % GAMES.length] : GAMES[0],
+      seats, taken,
+      forever: group === "вечные",
+      vis: group === "друзья" ? "для друзей" : group === "вечные" ? "по коду" : "публичная",
+      mode: ["оунер решает", "оунер и админы", "все админы", "демократия"][i % 4],
+      people: Array.from({ length: taken }, (_, k) => ({ name: NAMES[(i + k) % NAMES.length], colour: (i + k) % 8 })),
+      owner: NAMES[i % NAMES.length],
+      age: ["только что", "14 минут", "час назад", "вчера"][i % 4],
+    });
+    if (P.who === "вошёл") {
+      for (let i = 0; i < P.friends; i += 1) out.push(make(i + 1, "друзья", 4, 2 + (i % 2)));
+      for (let i = 0; i < P.forever; i += 1) out.push(make(i + 5, "вечные", 6, i % 3));
+    }
+    for (let i = 0; i < P.public; i += 1) out.push(make(i + 9, "публичные", 2 + (i % 5), (i % 4)));
+    return out;
+  };
+
+  const GROUPS = [
+    ["друзья", "ГДЕ ДРУЗЬЯ"],
+    ["вечные", "ТВОИ ВЕЧНЫЕ"],
+    ["публичные", "ПУБЛИЧНЫЕ"],
+  ];
+
+  const apply = () => {
+    writeHash(P);
+    const { W, H } = glass();
+    const inset = real() ? "env(safe-area-inset-top, 0px)" : "0px";
+    const bottom = real() ? "env(safe-area-inset-bottom, 0px)" : "0px";
+    const rooms = P.state === "список" ? roomsOf() : [];
+
+    // ---- ВЕРХ: НАЗАД И ЧТО ЭТО ЗА СПИСОК ----
+    const title = P.screen === "найти" ? "НАЙТИ КОМНАТУ" : P.screen === "создать" ? "НОВЫЙ СТОЛ" : P.mixed ? "КОМНАТЫ" : "КАРТЫ";
+    const bar = `<div data-g="bar" style="position:absolute;left:0;right:0;top:0;z-index:9;padding-top:${inset};background:rgba(11,7,4,.42);backdrop-filter:blur(7px)">`
+      + `<div style="display:flex;align-items:center;gap:8px;height:44px;padding:0 10px">`
+      + `<button data-do="back" style="cursor:pointer;border:0;display:flex;align-items:center;justify-content:center;width:32px;height:28px;box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};background:linear-gradient(#25321f,#16210f)">`
+      + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${T.ink}" stroke-width="2.2" stroke-linecap="round"><path d="M15 5 8 12l7 7"/></svg></button>`
+      + `<span style="font:400 13px 'Tiny5',monospace;letter-spacing:.08em;color:${T.gold}">${title}</span>`
+      + `<span style="flex:1"></span>`
+      + (P.screen === "список" && P.state === "список" ? `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">${rooms.length} комнат</span>` : "")
+      + `</div></div>`;
+
+    // ---- СТРОКА КОМНАТЫ ----
+    //
+    // КОД — ГЛАВНОЕ В СТРОКЕ, потому что именно его называют вслух и присылают в чат. Имени у
+    // комнаты нет и не надо: «стол Марата» — это тот же код плюс лицо владельца.
+    const marks = (r) => [
+      r.forever ? `<span style="font:400 9px 'Tiny5',monospace;color:${T.black};background:${T.gold};border-radius:4px;padding:2px 5px">вечная</span>` : "",
+      r.vis === "для друзей" ? `<span style="font:400 9px 'Tiny5',monospace;color:${T.black};background:#7fd1b9;border-radius:4px;padding:2px 5px">друзья</span>` : "",
+      r.vis === "по коду" ? `<span style="font:400 9px 'Tiny5',monospace;color:${T.inkDim};box-shadow:inset 0 0 0 2px ${T.wood};border-radius:4px;padding:2px 5px">по коду</span>` : "",
+    ].join("");
+
+    const roomRow = (r, i) => {
+      const open = i === 0 && P.open;
+      const full = r.taken >= r.seats;
+      return `<div style="background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};border-radius:12px;padding:11px 12px;display:flex;flex-direction:column;gap:9px">`
+        + `<div style="display:flex;align-items:center;gap:10px">`
+        + `<span style="flex:none;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:${T.black};font-size:18px">${r.game.sign}</span>`
+        + `<div style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">`
+        + `<div style="display:flex;align-items:center;gap:7px"><span style="font:400 13px 'Press Start 2P',monospace;color:${T.gold}">${r.code}</span>`
+        + (P.mixed ? `<span style="font:400 12px 'Tiny5',monospace;color:${T.inkDim}">${r.game.name}</span>` : "") + `</div>`
+        + `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${marks(r)}`
+        + `<span style="font:400 11px 'Tiny5',monospace;color:${full ? T.danger : T.inkDim}">${r.taken}/${r.seats}${full ? " · мест нет" : ""}</span></div>`
+        + `</div>`
+        + `<div style="display:flex;align-items:center">${r.people.slice(0, 3).map((p, k) => `<span style="margin-left:${k ? -9 : 0}px;z-index:${9 - k}">${ball(26, p.colour, p.name[0])}</span>`).join("")}`
+        + (r.people.length > 3 ? `<span style="margin-left:-9px;z-index:1">${ball(26, 7, "+" + (r.people.length - 3))}</span>` : "") + `</div>`
+        + `</div>`
+        + `<div style="display:flex;gap:7px">`
+        + btn("enter:" + r.code, full ? "Смотреть" : "Войти", full ? "" : "gold", true)
+        + btn("info:" + i, open ? "Скрыть" : "Инфо", "quiet", true)
+        + `</div>`
+        + (open ? `<div style="display:flex;flex-direction:column;gap:7px;padding-top:4px;box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55)">`
+          + `<div style="padding-top:9px;font:400 12px 'Tiny5',monospace;color:${T.inkDim};line-height:1.7">`
+          + `Игра: <span style="color:${T.ink}">${r.game.name}</span><br>`
+          + `Хозяин: <span style="color:${T.ink}">${r.owner}</span> · создана ${r.age}<br>`
+          + `Решает: <span style="color:${T.ink}">${r.mode}</span> · допуск: <span style="color:${T.ink}">${r.vis}</span></div>`
+          + `<div style="display:flex;flex-wrap:wrap;gap:8px">${r.people.map((p) => `<span style="display:flex;align-items:center;gap:5px">${ball(22, p.colour, p.name[0])}`
+            + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">${p.name}</span></span>`).join("")}`
+          + (r.people.length === 0 ? `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">пока никого</span>` : "") + `</div></div>` : "")
+        + `</div>`;
+    };
+
+    // ---- СПИСОК, И ТРИ ЕГО ПУСТЫХ СОСТОЯНИЯ ----
+    //
+    // Загрузка, молчание сервера и «никого нет» — собственные экраны компонента, а не забота того,
+    // кто его вставил. Мост, который в этих случаях рисует пустоту, каждый хозяин будет чинить сам.
+    const nothing = (sign, words, action) => `<div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:70px 24px 0;text-align:center">`
+      + `<span style="font-size:34px;opacity:.5">${sign}</span>`
+      + `<span style="font:400 14px 'Tiny5',monospace;color:${T.inkDim};line-height:1.7">${words}</span>`
+      + (action || "") + `</div>`;
+
+    let listBody;
+    if (P.state === "грузится") {
+      listBody = nothing("⏳", "Спрашиваем сервер,<br>кто сейчас за столами…");
+    } else if (P.state === "молчит") {
+      listBody = nothing("⚡", "Сервер не отвечает.<br>Комнат не видно — но стол<br>можно открыть и одному.",
+        `<div style="display:flex;gap:8px">${btn("retry", "Ещё раз", "gold", true)}${btn("solo", "Играть одному", "", true)}</div>`);
+    } else if (!rooms.length) {
+      listBody = nothing("🕸", P.who === "гость"
+        ? "Открытых столов сейчас нет.<br>Создай свой — или войди,<br>чтобы видеть столы друзей."
+        : "Открытых столов сейчас нет.<br>Создай свой — к нему придут.",
+        `<div style="display:flex;gap:8px">${btn("create", "Создать стол", "gold", true)}${btn("find", "Ввести код", "", true)}</div>`);
+    } else {
+      listBody = GROUPS.map(([key, label]) => {
+        const mine = rooms.filter((r) => r.group === key);
+        if (!mine.length) return "";
+        return `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7;padding-top:6px">${label}</span>`
+          + mine.map((r, i) => roomRow(r, rooms.indexOf(r))).join("");
+      }).join("")
+      // ГОСТЮ НЕЧЕГО ПОКАЗАТЬ В ДВУХ ГРУППАХ ИЗ ТРЁХ, и это надо сказать, а не молча сократить
+      // список: иначе он не узнает, что у него вообще есть друзья и вечные столы.
+      + (P.who === "гость" ? `<div style="background:${T.well};box-shadow:inset 0 0 0 3px ${T.black};border-radius:12px;padding:12px 14px;margin-top:10px;`
+        + `font:400 12px 'Tiny5',monospace;color:${T.inkDim};line-height:1.7">Столы друзей и свои вечные видно после входа.</div>` : "");
+    }
+
+    const listScreen = `<div style="display:flex;flex-direction:column;gap:9px;padding:0 12px 16px">${listBody}</div>`;
+
+    // ---- НАЙТИ: КОД СВЕРХУ, ФИЛЬТРЫ НИЖЕ ----
+    const cell = (n) => `<span style="flex:1;height:52px;display:flex;align-items:center;justify-content:center;background:${T.black};box-shadow:inset 0 0 0 3px ${n ? T.gold : T.wood};border-radius:10px;`
+      + `font:400 20px 'Press Start 2P',monospace;color:${T.gold}">${n || ""}</span>`;
+    const filter = (label, value) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55)">`
+      + `<span style="font:400 13px 'Tiny5',monospace;color:${T.inkDim}">${label}</span>`
+      + `<span style="font:400 14px 'Tiny5',monospace;color:${T.ink}">${value} ›</span></div>`;
+    const findScreen = `<div style="padding:0 16px 16px;display:flex;flex-direction:column;gap:14px">`
+      + `<div><span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">КОД КОМНАТЫ</span>`
+      + `<div style="display:flex;gap:8px;padding-top:9px">${cell("0")}${cell("2")}${cell("")}${cell("")}</div>`
+      + `<div style="padding-top:9px">${btn("enter:0244", "Войти по коду", "gold")}</div>`
+      + `<div style="padding-top:8px;font:400 11px 'Tiny5',monospace;color:${T.inkDim};line-height:1.6">Код присылают в чат — по нему пускают даже в закрытую комнату.</div></div>`
+      + `<div><span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">ИЛИ ПОДОБРАТЬ</span>`
+      + filter("Игра", P.mixed ? "любая" : "Карты")
+      + filter("Свободные места", "есть")
+      + filter("Кто решает", "любой")
+      + filter("Язык стола", "русский")
+      + `<div style="padding-top:12px">${btn("found", "Показать столы", "")}</div></div></div>`;
+
+    // ---- СОЗДАТЬ ----
+    const line = (label, value, id) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55)">`
+      + `<span style="font:400 13px 'Tiny5',monospace;color:${T.inkDim}">${label}</span>`
+      + `<button data-do="${id}" style="cursor:pointer;border:0;background:transparent;font:400 14px 'Tiny5',monospace;color:${T.ink}">${value} ›</button></div>`;
+    const createScreen = `<div style="padding:0 16px 16px">`
+      + `<div style="display:flex;align-items:center;gap:12px;padding:6px 0 12px">`
+      + `<span style="flex:none;width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:${T.black};font-size:22px">${GAMES[0].sign}</span>`
+      + `<div style="display:flex;flex-direction:column;gap:3px"><span style="font:400 16px 'Tiny5',monospace;color:${T.ink}">${P.mixed ? "Выбери игру" : "Карты"}</span>`
+      + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">стол на ${P.newSeats} мест</span></div></div>`
+      + (P.mixed ? line("Игра", "Карты", "newGame") : "")
+      + line("Видимость", P.newVis, "newVis")
+      + line("Мест за столом", P.newSeats, "newSeats")
+      + line("Кто решает", P.newMode, "newMode")
+      + line("Вечная комната", P.newForever ? "да" : "нет", "newForever")
+      + line("Код", P.newCode ? "свой: CROSS" : "выдаст сервер", "newCode")
+      + `<div style="padding-top:16px;display:flex;flex-direction:column;gap:9px">`
+      + btn("made", "Создать и сесть", "gold")
+      + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim};line-height:1.6">`
+      + (P.newVis === "публичная" ? "Публичный стол увидят все — к нему подсядут незнакомые." :
+         P.newVis === "для друзей" ? "Стол увидят только друзья; остальным нужен код." :
+         "Стол не увидит никто: пускают по коду, который ты пришлёшь.") + `</span></div></div>`;
+
+    // ---- НИЗ: НАЙТИ, СОЗДАТЬ, ОДНОМУ ----
+    const bottomBar = P.screen !== "список" ? "" :
+      `<div data-g="bottom" style="position:absolute;left:0;right:0;bottom:0;z-index:9;padding:10px 12px calc(12px + ${bottom});background:rgba(11,7,4,.62);backdrop-filter:blur(7px);display:flex;gap:8px">`
+      + `<span style="flex:1">${btn("find", "Найти", "")}</span>`
+      + `<span style="flex:1">${btn("create", "Создать", "gold")}</span>`
+      + `<span style="flex:none">${btn("solo", "Одному", "quiet")}</span>`
+      + `</div>`;
+
+    const screens = { "список": listScreen, "найти": findScreen, "создать": createScreen };
+    over.innerHTML = bar
+      + `<div data-g="body" style="position:absolute;left:0;right:0;top:0;bottom:0;overflow:auto;padding-top:calc(${inset} + 52px);padding-bottom:${P.screen === "список" ? "84px" : "24px"}">${screens[P.screen]}</div>`
+      + bottomBar;
+
+    for (const el of over.querySelectorAll("[data-do]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const does = el.getAttribute("data-do");
+        if (does === "find") P.screen = "найти";
+        else if (does === "create") P.screen = "создать";
+        else if (does === "back") P.screen = "список";
+        else if (does.startsWith("info:")) P.open = !P.open;
+        else if (does.startsWith("enter:")) alert("Наружу уходит «войти в комнату " + does.slice(6) + "» — монтирует её хозяин страницы");
+        else if (does === "made") alert("Наружу уходит «создать стол» с этими настройками");
+        else if (does === "solo") alert("Наружу уходит «стол без комнаты» — как косынка");
+        else if (does === "retry") P.state = "список";
+        else if (does === "newVis") P.newVis = P.newVis === "по коду" ? "для друзей" : P.newVis === "для друзей" ? "публичная" : "по коду";
+        else if (does === "newMode") { const m = ["оунер решает", "оунер и админы", "все админы", "демократия"]; P.newMode = m[(m.indexOf(P.newMode) + 1) % m.length]; }
+        else if (does === "newSeats") P.newSeats = P.newSeats >= 8 ? 2 : P.newSeats + 1;
+        else if (does === "newForever") P.newForever = !P.newForever;
+        else if (does === "newCode") P.newCode = !P.newCode;
+        build();
+        apply();
+      };
+    }
+
+    const barH = Math.round(over.querySelector('[data-g="bar"]').getBoundingClientRect().height);
+    document.getElementById("nums").innerHTML =
+      `экран <b>${W}×${H}</b> · шапка <b>${barH}</b> px · список <b>${rooms.length}</b> комнат`
+      + (P.who === "гость" ? ` · гостю доступны только публичные` : "")
+      + `<br>наружу этот компонент отдаёт только три вещи: <b>войти в комнату</b>, <b>создать такую</b>, <b>стол без комнаты</b>.`
+      + `<br>внутрь ему дают: список комнат, кто я, и состояние ответа (${P.state}).`;
+
+    window.Back.draw(document.getElementById("back"), { W, H });
+  };
+
+  build();
+  apply();
+  addEventListener("hashchange", () => { P = readHash(); build(); apply(); });
+  addEventListener("resize", apply);
+  addEventListener("orientationchange", apply);
+})();
+</script>
+</body>
+</html>

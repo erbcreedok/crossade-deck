@@ -88,6 +88,16 @@
       "port": 9578
     },
     {
+      "name": "rooms-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "design/serve.py",
+        "9579",
+        "design/rooms"
+      ],
+      "port": 9579
+    },
+    {
       "name": "hubhome-stand",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
