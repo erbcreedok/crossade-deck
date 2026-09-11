@@ -5,10 +5,13 @@ import { gameOfCommand, gameOfNewArg } from "./commands.js";
 import { resolveHubUrl } from "./hubUrl.js";
 import { createRoom } from "./rooms.js";
 import { roomMessage } from "./links.js";
-import { claimLink, claimReply, codeOfStart } from "./link.js";
+import { claimLink, claimReply } from "./link.js";
+import { readStart, sourceFor, sourcesOf } from "./sources.js";
 
 const env = loadEnv();
 const bot = new Bot(env.botToken);
+/** Приложения, чьи ссылки этот бот умеет подтверждать, — по одному на пару переменных. */
+const sources = sourcesOf();
 
 async function replyWithNewRoom(ctx: any, game: Game): Promise<void> {
   const by = ctx.from ? String(ctx.from.id) : undefined;
@@ -22,17 +25,16 @@ bot.command("start", async (ctx) => {
   // ССЫЛКА ИЗ ПРОФИЛЯ ПРИХОДИТ СЮДА ЖЕ — телега кладёт код в payload команды. Это тот самый
   // обратный поток: про человека заранее не известно ничего, а нажав «Запустить», он сообщает
   // боту свой chat_id, и этого достаточно.
-  const code = codeOfStart(ctx.match);
-  if (code) {
-    if (!env.linkSecret) {
-      await ctx.reply("Привязка не настроена: у бота нет общего секрета с сервером.");
+  const start = readStart(ctx.match);
+  if (start) {
+    // КОМУ АДРЕСОВАНО — СКАЗАНО В САМОЙ ССЫЛКЕ: у бота несколько приложений, и подтверждение
+    // уходит тому серверу, чьё имя она несёт (`sources.ts`).
+    const to = sourceFor(start, sources, { serverUrl: env.serverUrl, ...(env.linkSecret ? { secret: env.linkSecret } : {}) });
+    if (!to) {
+      await ctx.reply(claimReply(start.source ? "unknown-source" : "misconfigured"));
       return;
     }
-    const result = await claimLink(
-      { serverUrl: env.serverUrl, secret: env.linkSecret },
-      code,
-      String(ctx.from!.id),
-    );
+    const result = await claimLink({ serverUrl: to.serverUrl, secret: to.secret }, start.code, String(ctx.from!.id));
     await ctx.reply(claimReply(result));
     return;
   }

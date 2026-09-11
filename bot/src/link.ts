@@ -22,18 +22,7 @@ export interface ClaimResult {
  * `misconfigured` — сервер не признал бота: это НАСТРОЙКА, и человек не должен принимать её за
  * сломанную ссылку, потому что жать заново бесполезно.
  */
-export type ClaimFailure = "stale" | "already" | "misconfigured" | "offline";
-
-/**
- * КОД ИЗ `/start` — тот, что телега передала как payload. Пусто, лишние слова, чужой формат — это
- * обычный `/start`, а не привязка, и обращаться с ним надо как с обычным.
- */
-export function codeOfStart(payload: string | undefined): string | undefined {
-  const code = payload?.trim();
-  if (!code) return undefined;
-  // Код собран из base64url — всё, что в него не укладывается, кодом не является.
-  return /^[A-Za-z0-9_-]{8,64}$/.test(code) ? code : undefined;
-}
+export type ClaimFailure = "stale" | "already" | "misconfigured" | "offline" | "unknown-source";
 
 export interface ClaimParts {
   readonly serverUrl: string;
@@ -71,7 +60,10 @@ export function claimReply(result: ClaimResult | ClaimFailure): string {
         return "Этот Telegram уже привязан по этой ссылке. Возвращайся на страницу.";
       case "misconfigured":
         // ЖАТЬ ЗАНОВО БЕСПОЛЕЗНО, и говорить «устарела» здесь — врать: сервер не признал бота.
-        return "Сервер меня не узнал: у бота и сервера разный TELEGRAM_LINK_SECRET. Ссылка тут ни при чём.";
+        return "Сервер меня не узнал: у бота и сервера разный секрет привязки. Ссылка тут ни при чём.";
+      case "unknown-source":
+        // Ссылка живая, но приложения, которое её выдало, бот не знает — это тоже настройка.
+        return "Эта ссылка из приложения, о котором я не знаю. Проверь настройки бота.";
       case "offline":
         return "Сервер не отвечает. Попробуй через минуту.";
       case "stale":

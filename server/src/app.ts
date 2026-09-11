@@ -47,6 +47,12 @@ function isKitGame(value: unknown): value is KitGame {
   return typeof value === "string" && (KIT_GAMES as readonly string[]).includes(value);
 }
 
+/**
+ * КАК ЭТО ПРИЛОЖЕНИЕ НАЗЫВАЕТСЯ В ССЫЛКЕ БОТА. Пусто — ссылка без имени, и бот отнесёт её тому
+ * серверу, который у него записан по умолчанию: так же, как было до появления второго приложения.
+ */
+const APP_SOURCE = (process.env.APP_SOURCE || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+
 export function createApp() {
   const app = express();
   app.use(express.json());
@@ -216,10 +222,14 @@ export function createApp() {
     if (tooSoon(accountId)) return res.status(429).json({ error: "too_soon" });
 
     const pending = issueLinkCode(accountId);
+    // ОДИН БОТ НА НЕСКОЛЬКО ПРИЛОЖЕНИЙ, И `/start` — ЕДИНСТВЕННЫЙ КАНАЛ, ПО КОТОРОМУ ОН УЗНАЁТ, КОМУ
+    // адресовано сообщение: токен говорит только, кто бот. Поэтому приложение подписывает свою
+    // ссылку собственным именем, а бот по нему выбирает, какому серверу нести подтверждение.
+    const payload = APP_SOURCE ? `${APP_SOURCE}_${pending.code}` : pending.code;
     res.json({
       code: pending.code,
-      // Ссылку собирает сервер: он один знает, как зовут бота.
-      link: `https://t.me/${name}?start=${encodeURIComponent(pending.code)}`,
+      // Ссылку собирает сервер: он один знает, как зовут бота и как зовут себя.
+      link: `https://t.me/${name}?start=${encodeURIComponent(payload)}`,
       expiresInMs: LINK_CODE_TTL_MS,
     });
   });

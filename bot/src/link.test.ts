@@ -1,30 +1,7 @@
-// СТОРОЖ `bot.start-with-a-code-is-not-a-menu`.
-//
-// `/start` без кода — это меню игр, и им он должен остаться: ссылка с кодом приходит той же
-// командой, и спутать их значит либо сломать привязку, либо показывать меню там, где человек ждёт
-// «готово».
+// ЧТО БОТ ГОВОРИТ СЕРВЕРУ И ЧТО ЧИТАЕТ ЧЕЛОВЕК. Разбор самой ссылки — в `sources.test.ts`.
 
 import { describe, expect, it, vi } from "vitest";
-import { claimLink, claimReply, codeOfStart } from "./link.js";
-
-describe("bot.start-with-a-code-is-not-a-menu", () => {
-  it("код из payload узнаётся", () => {
-    expect(codeOfStart("nS9_aQ-2bC4dE6fG")).toBe("nS9_aQ-2bC4dE6fG");
-  });
-
-  it("обычный /start кодом не считается", () => {
-    expect(codeOfStart(undefined)).toBeUndefined();
-    expect(codeOfStart("")).toBeUndefined();
-    expect(codeOfStart("   ")).toBeUndefined();
-  });
-
-  it("чужой формат — не наш код", () => {
-    // Короткое, с пробелом, с точкой: всё это что угодно, только не то, что мы выдавали.
-    expect(codeOfStart("abc")).toBeUndefined();
-    expect(codeOfStart("nS9_aQ 2bC4dE6fG")).toBeUndefined();
-    expect(codeOfStart("nS9.aQ-2bC4dE6fG")).toBeUndefined();
-  });
-});
+import { claimLink, claimReply } from "./link.js";
 
 describe("подтверждение", () => {
   it("несёт серверу код, chat_id и общий секрет — и ничего больше", async () => {
@@ -85,11 +62,17 @@ describe("что человек читает", () => {
 
   it("сервер не признал бота — говорят про настройку, а не про ссылку", () => {
     const said = claimReply("misconfigured");
-    expect(said).toContain("TELEGRAM_LINK_SECRET");
+    expect(said).toContain("секрет");
     expect(said).not.toContain("устарела");
   });
 
   it("сервер молчит — так и сказано", () => {
     expect(claimReply("offline")).toContain("не отвечает");
+  });
+
+  it("ссылка из незнакомого приложения — про настройку бота, а не про ссылку", () => {
+    const said = claimReply("unknown-source");
+    expect(said).toContain("не знаю");
+    expect(said).not.toContain("устарела");
   });
 });
