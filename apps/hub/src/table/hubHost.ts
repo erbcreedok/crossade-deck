@@ -10,6 +10,7 @@
 // not know which of them it has been handed.
 
 import { topInsetOf, type DeskHost } from "@game-presets/desk";
+import type { TopHudExit } from "@game-presets/tophud";
 import { PALETTE } from "@crossade/look";
 import { beat } from "../hub/beat.js";
 import { goTo, placeOf } from "../hub/route.js";
@@ -29,7 +30,7 @@ export function topInsetOfStage(container: Element, covers?: readonly Element[])
 }
 
 /** The host a game is handed when the hub is the one running it. */
-export function hubHost(container: HTMLElement, game: string): DeskHost {
+export function hubHost(container: HTMLElement, game: string, exit?: TopHudExit): DeskHost {
   // THE HUB'S OWN BEAT, and not a clock of the desk's own: the shelf behind the stage is still
   // counting frames for its sparkle, and two loops on one page is the leak that reads as lag.
   const clock = beat(() => {});
@@ -39,6 +40,9 @@ export function hubHost(container: HTMLElement, game: string): DeskHost {
     // is not a place the reader navigated to, and Back undoing it would take them out of the game.
     setRoom: (code) => goTo(game, "replace", code),
     insets: () => ({ top: topInsetOfStage(container) }),
+    // THE ONE THING ONLY THE HUB KNOWS. Standalone answers nothing here, and its strip has no way
+    // out on it.
+    ...(exit ? { exit } : {}),
     clock: () => clock,
     cover: PALETTE.felt,
   };

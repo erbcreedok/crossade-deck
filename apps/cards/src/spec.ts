@@ -39,6 +39,7 @@ export function cardsSpec(): DeskSpec {
 
   return {
     id: "cards",
+    title: "Карты",
     seats: CARD_SEATS,
     // THE ROUND TABLE and not the catalog's live desk. That one seats two hand areas, because the
     // page it belongs to is about a card changing owner; a table people sit at has no zone that is

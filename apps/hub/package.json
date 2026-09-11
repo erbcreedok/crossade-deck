@@ -20,6 +20,7 @@
     "@game-presets/desk": "*",
     "@game-presets/desks": "*",
     "@game-presets/dice": "*",
+    "@game-presets/tophud": "*",
     "game-kit": "*",
     "pixi.js": "^8.19.0"
   },

@@ -8,6 +8,7 @@
 // and nothing else should be able to import it.
 
 import { loadingCross } from "@crossade/look";
+import { topHud, type TopHudExit } from "@game-presets/tophud";
 import { startSolitaire as buildTable } from "./solitaire/scene.js";
 
 export interface StartSolitaireOptions {
@@ -16,6 +17,12 @@ export interface StartSolitaireOptions {
    * the chunk is still downloading, and two would fade out one after the other.
    */
   readonly loading?: boolean;
+  /**
+   * THERE IS A WAY OUT OF HERE — the one thing only a shelf knows, and the whole of what it
+   * contributes to a strip that otherwise belongs to this game. Opened at its own URL there is
+   * none, and the name becomes the leftmost thing on the strip.
+   */
+  readonly exit?: TopHudExit | undefined;
 }
 
 /**
@@ -28,12 +35,16 @@ export interface StartSolitaireOptions {
 export function startSolitaire(container: HTMLElement, o: StartSolitaireOptions = {}): () => void {
   const loading = o.loading === false ? undefined : loadingCross(container, "Загружаю косынку");
   const stop = buildTable(container);
+  // THE SAME STRIP EVERY GAME ON THIS SHELF WEARS. A patience is played at no desk, so there is no
+  // room and nobody else at the table — a name, and a way out when there is one.
+  const strip = topHud(container, { title: "Косынка", ...(o.exit ? { exit: o.exit } : {}) });
   // TWO FRAMES, not one: the first is where the painter is handed the scene, the second is the one
   // it has actually put on the glass. Lifting after the first shows the table mid-build, which is
   // exactly the flash this exists to cover.
   requestAnimationFrame(() => requestAnimationFrame(() => loading?.done()));
   return () => {
     loading?.done();
+    strip.stop();
     stop();
   };
 }

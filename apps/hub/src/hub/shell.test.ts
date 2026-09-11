@@ -69,6 +69,8 @@ describe("startHub — первый кадр из hash", () => {
     expect(plans.length).toBeGreaterThan(0);
     const first = plans[0]!;
     expect(first.some((q) => q.id.startsWith("tile/"))).toBe(false);
-    expect(first.some((q) => q.id === "nav/back")).toBe(true);
+    // ВЫХОД БОЛЬШЕ НЕ ХАБОВ: полосу сверху рисует сама игра, а хаб только сообщает ей, что выход
+    // отсюда есть. На холсте хаба под столом не остаётся ни одной плашки.
+    expect(first.some((q) => q.id === "nav/back")).toBe(false);
   });
 });

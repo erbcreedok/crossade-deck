@@ -15,6 +15,18 @@
 /** What a game hands back when it starts: the way to stop it again, completely. */
 export type Teardown = () => void;
 
+/**
+ * WHAT THE SHELF TELLS EVERY GAME IT STARTS, and the whole of it: that there is a way out of here
+ * and where it leads. The strip along the top is the game's own (`@game-presets/tophud`) and stands
+ * in a game opened at its own URL too — where nobody hands in one of these, and the strip has no
+ * way out on it.
+ */
+export interface ShellDoor {
+  readonly exit: TopHudExit;
+}
+
+import type { TopHudExit } from "@game-presets/tophud";
+
 export interface GameEntry {
   /** Opaque, and the value a tile carries so a press can say which game it meant. */
   readonly id: string;
@@ -27,7 +39,7 @@ export interface GameEntry {
    */
   readonly loading: string;
   /** Fetches the game's code and hands back its start function. Called on the press, never before. */
-  readonly load: () => Promise<(container: HTMLElement) => Teardown>;
+  readonly load: () => Promise<(container: HTMLElement, door: ShellDoor) => Teardown>;
 }
 
 /**
@@ -37,7 +49,8 @@ export interface GameEntry {
 function tableGame(id: string, load: () => Promise<(container: HTMLElement, o: { host: never }) => Teardown>): GameEntry["load"] {
   return async () => {
     const [start, { hubHost }] = await Promise.all([load(), import("../table/hubHost.js")]);
-    return (container: HTMLElement) => start(container, { host: hubHost(container, id) as never });
+    return (container: HTMLElement, door: ShellDoor) =>
+      start(container, { host: hubHost(container, id, door.exit) as never });
   };
 }
 
@@ -46,7 +59,12 @@ export const CATALOGUE: readonly GameEntry[] = [
     id: "klondike",
     label: "Косынка",
     loading: "Загружаю косынку",
-    load: async () => (await import("@apps/klondike")).startSolitaire,
+    // A PATIENCE IS NOT PLAYED AT A DESK, so it has no host to be handed one through — and it wears
+    // the same strip as the rest, told the same one thing.
+    load: async () => {
+      const start = (await import("@apps/klondike")).startSolitaire;
+      return (container: HTMLElement, door: ShellDoor) => start(container, { exit: door.exit });
+    },
   },
   {
     id: "cards",

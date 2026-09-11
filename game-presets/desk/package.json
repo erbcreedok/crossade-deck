@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@crossade/wire": "*",
+    "@game-presets/tophud": "*",
     "game-kit": "*"
   },
   "devDependencies": {

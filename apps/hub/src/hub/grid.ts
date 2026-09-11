@@ -271,42 +271,18 @@ export function hubTree(columns: number = PLACES): Node {
 }
 
 /**
- * The bar shown while a game is running: one control, saying the way back.
+ * WHAT THE HUB'S OWN CANVAS SHOWS WHILE A GAME RUNS: the felt and a muted sparkle, and nothing to
+ * press.
  *
- * It is a tile like any other — the same plate, face and caption — because a control is an ELEMENT
- * and there is no second world of widgets. What it MEANS is `Valued`, read by the same press
- * wiring that reads a game tile's, so the shell needs no second gesture path.
- *
- * The hub's canvas is the whole viewport even while a game runs, and the game covers everything
- * below the strip — so the control is placed at `topY`, which the shell works out from the strip's
- * height and the unit in force. Horizontally it is centred: that needs no measurement at all.
+ * The strip along the top belongs to the GAME now (`@game-presets/tophud`) — the same strip in all
+ * four games and in a game opened at its own URL — and the hub tells it only the one thing a hub
+ * knows: that there is a way out of here and where it leads. So the hub's canvas keeps no ribbon
+ * of its own, and the game's region covers the whole viewport.
  */
-export function barTree(strip: { readonly topY: number; readonly height: number }): Node {
+export function tableTree(): Node {
   installLayouts();
-  const bar = node("bar", Container({ layout: FREE }));
-  add(bar, feltOf());
-  add(bar, sparkleOf(SPARKLE_DIM));
-  // Measured against the STRIP, not against the shelf: the unit in force is the shelf's, and a
-  // control sized in shelf units would stand taller than the ribbon it lives in.
-  const w = strip.height * 2.8;
-  const h = strip.height;
-  const plate = node(
-    "nav/back",
-    Bounded({ bounds: rect(w, h) }),
-    Surfaced({ surface: RING }),
-    Container({ layout: INSET }),
-    Transformable({ at: { x: 0, y: strip.topY } }),
-    Valued({ values: { nav: "back" } }),
-    ShadowCaster({ from: "silhouette" }),
-  );
-  const face = node(
-    "nav/back/face",
-    Bounded({ bounds: rect(w - RING_U * 2, h - RING_U * 2) }),
-    Surfaced({ surface: TILE }),
-    Container({ layout: INSET }),
-  );
-  add(plate, face);
-  add(face, node("nav/back/cap", Bounded({ bounds: rect(w - 0.2, h * 0.6) }), Labeled({ label: "Назад", style: MAIN })));
-  add(bar, plate);
-  return bar;
+  const table = node("table", Container({ layout: FREE }));
+  add(table, feltOf());
+  add(table, sparkleOf(SPARKLE_DIM));
+  return table;
 }

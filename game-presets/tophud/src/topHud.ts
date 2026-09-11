@@ -18,6 +18,12 @@ import { topHudLook, type TopHudLook } from "./look.js";
 import { fillCss, lineCss, plateCss, shadowCss, tint } from "./paint.js";
 import { peopleRow, type TopHudPerson } from "./row.js";
 
+/**
+ * HOW FAR DOWN THE PAGE THE STRIP REACHES, as a custom property — so anything the page lays over a
+ * game (a banner) can sit UNDER it without the page knowing the strip's height, the notch included.
+ */
+export const TOP_HUD_VAR = "--crossade-tophud";
+
 /** Fonts are the product's three, named where they are used rather than guessed at. */
 const LETTER = "Tiny5, monospace";
 const DIGIT = "'Press Start 2P', monospace";
@@ -238,6 +244,8 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
 
     // Bound after every draw, because the strip is rebuilt whole — cheaper than keeping its nodes
     // alive for the sake of two listeners.
+    document.documentElement.style.setProperty(TOP_HUD_VAR, `${Math.round(element.getBoundingClientRect().height)}px`);
+
     const backEl = element.querySelector<HTMLElement>('[data-g="back"]');
     if (backEl) {
       backEl.onclick = (e) => {
@@ -279,6 +287,7 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
       document.removeEventListener("click", shut);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("orientationchange", onResize);
+      document.documentElement.style.removeProperty(TOP_HUD_VAR);
       element.remove();
     },
   };
