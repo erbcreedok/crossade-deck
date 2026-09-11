@@ -10,7 +10,9 @@ import { SandboxRoom } from "./SandboxRoom.js";
 import { KitRoom } from "./KitRoom.js";
 import { resolveInviteCode } from "./inviteCodes.js";
 import {
+  accountByTelegram,
   createAccount,
+  declineByTelegram,
   declineTelegramOffer,
   findAccountById,
   findAccountByRecoveryHash,
@@ -20,6 +22,7 @@ import {
   regenerateRecoveryHash,
   telegramDoor,
   unlinkTelegram,
+  updateByTelegram,
   updateProfile,
 } from "./accounts.js";
 import { listPublicRooms } from "./publicRooms.js";
@@ -28,6 +31,7 @@ import { getRoomGame } from "./roomGames.js";
 import { verifyTelegramInitData } from "./telegramAuth.js";
 import { botUsername } from "./telegramMe.js";
 import { offerFor } from "./telegramOffer.js";
+import { photoDataUrl } from "./telegramPhoto.js";
 import {
   issueLinkCode,
   usedLink,
@@ -297,11 +301,11 @@ export function createApp() {
    * БОТ ПОДТВЕРЖДАЕТ. Секретом, а не подписью телеги: это наш собственный сервис, и единственное,
    * что он утверждает, — «этот код принёс мне вот этот chat_id».
    */
-  app.post("/auth/telegram/claim", (req, res) => {
+  app.post("/auth/telegram/claim", async (req, res) => {
     const secret = linkSecret();
     if (!secret) return res.status(503).json({ error: "telegram_not_configured" });
 
-    const { code, telegramId, telegramName, offeredName, offeredPhoto, secret: given } = req.body || {};
+    const { code, telegramId, telegramName, offeredName, offeredPhoto, offeredPhotoFileId, secret: given } = req.body || {};
     if (typeof code !== "string" || typeof telegramId !== "string" || typeof given !== "string") {
       return res.status(400).json({ error: "bad_request" });
     }
@@ -335,14 +339,63 @@ export function createApp() {
     }
     // ПРАВИЛО СЛИЯНИЯ ЖИВЁТ В ОДНОМ МЕСТЕ И ТУТ НЕ ПОВТОРЯЕТСЯ: чистого гостя переключают, две
     // полноценные стороны не сливают никогда.
+    // ЛИЦО ЗАБИРАЕТ СЕРВЕР: у бота есть только ключ, а ссылка на файл содержит токен и наружу не
+    // уходит. Не вышло — предлагать будет нечего, и об этом просто не спросят.
+    const photo =
+      typeof offeredPhotoFileId === "string" && offeredPhotoFileId && process.env.TELEGRAM_BOT_TOKEN
+        ? await photoDataUrl(process.env.TELEGRAM_BOT_TOKEN, offeredPhotoFileId)
+        : undefined;
     const result = linkTelegram(account.id, account.recoveryHash, telegramId, {
       ...(typeof telegramName === "string" && telegramName ? { label: telegramName } : {}),
       ...(typeof offeredName === "string" && offeredName ? { name: offeredName } : {}),
-      ...(typeof offeredPhoto === "string" && offeredPhoto ? { photo: offeredPhoto } : {}),
+      ...(photo ? { photo } : typeof offeredPhoto === "string" && offeredPhoto ? { photo: offeredPhoto } : {}),
     });
     if (!result) return res.status(403).json({ error: "forbidden" });
     settleLink(code, telegramId, result.kind);
-    res.json({ kind: result.kind, name: result.account.name });
+    // ...И СРАЗУ — О ЧЁМ СПРАШИВАТЬ ЧЕЛОВЕКА ТАМ ЖЕ, В ТЕЛЕГЕ: он стоит перед ботом, а не перед
+    // страницей, и второй раунд разговора идёт здесь.
+    const profile = profileOf(result.account.id);
+    res.json({
+      kind: result.kind,
+      name: result.account.name,
+      offer: offerFor(result.account, telegramDoor(result.account.id), profile?.nameChosen ?? true),
+    });
+  });
+
+  /**
+   * РАЗГОВОР ИДЁТ В ТЕЛЕГЕ, И ПРАВКИ ПРИХОДЯТ ОТТУДА ЖЕ. Бот спрашивает человека кнопками — взять
+   * ли тамошнее имя, взять ли лицо, или назваться самому — и приносит ответ сюда.
+   *
+   * Доверие: общий секрет (бот — наш) плюс дверь (телега подписала, кто пришёл). Кода
+   * восстановления у бота нет и не должно быть: он ведёт разговор, а не владеет аккаунтом.
+   */
+  app.post("/auth/telegram/profile", async (req, res) => {
+    const secret = linkSecret();
+    if (!secret) return res.status(503).json({ error: "telegram_not_configured" });
+    const { telegramId, secret: given, name, photoFileId, keep } = req.body || {};
+    if (typeof telegramId !== "string" || given !== secret) return res.status(401).json({ error: "unauthorized" });
+
+    const account = accountByTelegram(telegramId);
+    if (!account) return res.status(404).json({ error: "unknown_door" });
+
+    if (keep === "name" || keep === "photo") {
+      declineByTelegram(telegramId, keep);
+    } else if (typeof name === "string" && name.trim()) {
+      updateByTelegram(telegramId, { name });
+    } else if (typeof photoFileId === "string" && photoFileId && process.env.TELEGRAM_BOT_TOKEN) {
+      const face = await photoDataUrl(process.env.TELEGRAM_BOT_TOKEN, photoFileId);
+      if (!face) return res.status(422).json({ error: "no_face" });
+      updateByTelegram(telegramId, { avatar: face });
+    } else {
+      return res.status(400).json({ error: "bad_request" });
+    }
+
+    const after = accountByTelegram(telegramId)!;
+    const profile = profileOf(after.id);
+    res.json({
+      name: after.name,
+      offer: offerFor(after, telegramDoor(after.id), profile?.nameChosen ?? true),
+    });
   });
 
   /** Страница ждёт. Пока бот молчит — `waiting`; исход уносится вместе с ответом. */

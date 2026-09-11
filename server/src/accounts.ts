@@ -223,6 +223,34 @@ export function takeFromTelegram(
   return updateProfile(id, recoveryHash, what);
 }
 
+/**
+ * ПРАВКА ПРОФИЛЯ ПО ДВЕРИ, А НЕ ПО КОДУ — для бота: разговор идёт в телеге, и кода восстановления у
+ * бота нет и не должно быть. Доказательство здесь другое, но не слабее: телега подписала, кто
+ * пришёл, а бот доказал серверу, что он наш (общий секрет).
+ */
+export function updateByTelegram(
+  telegramId: string,
+  patch: { name?: string; avatar?: string },
+): Account | undefined {
+  const row = accountByIdentity("telegram", telegramId);
+  if (!row) return undefined;
+  return updateProfile(row.id, row.recoveryHash, patch);
+}
+
+/** «Оставить своё» по той же двери — решение человека, сказанное в телеге. */
+export function declineByTelegram(telegramId: string, what: "name" | "photo"): boolean {
+  const row = accountByIdentity("telegram", telegramId);
+  if (!row) return false;
+  declineOffer(row.id, "telegram", what);
+  return true;
+}
+
+/** Кому принадлежит эта дверь — и что ей есть предложить. */
+export function accountByTelegram(telegramId: string): Account | undefined {
+  const row = accountByIdentity("telegram", telegramId);
+  return row ? dress(row) : undefined;
+}
+
 /** «Оставить своё» — своим кодом, как и всякое другое решение про свой профиль. */
 export function declineTelegramOffer(id: string, recoveryHash: string, what: "name" | "photo"): boolean {
   const row = mine(id, recoveryHash);
