@@ -54,7 +54,7 @@ called when people lived in `accounts.json`. The old file is imported once, by m
 import is idempotent (`src/db/migration.test.ts` runs it on a real file three times).
 
 **Two full accounts are never merged** (`accounts.two-full-accounts-never-merge`): a pure guest
-predending a door that belongs to somebody else is SWITCHED to that account and keeps their guest
+presenting a door that belongs to somebody else is SWITCHED to that account and keeps their guest
 account where it is; two accounts with identities get 409 and nothing changes. Merging is
 irreversible and "where did my items go" would be unanswerable.
 
