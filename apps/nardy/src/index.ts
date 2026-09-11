@@ -4,7 +4,7 @@
 // teardown out. The identical seam the solitaire and the card table already use.
 
 import { browserHost, startDesk, type DeskHost, type Teardown } from "@game-presets/desk";
-import { PALETTE } from "@crossade/look";
+import { loadingCross, PALETTE } from "@crossade/look";
 import { storedAccount } from "@crossade/wire";
 import { nardySpec } from "./spec.js";
 
@@ -14,15 +14,30 @@ export interface StartNardyOptions {
    * the room comes out of `?room=`, nothing is laid over the region, and the clock is its own.
    */
   readonly host?: DeskHost;
+  /**
+   * Show the loading screen, or leave it to whoever is already showing one. A hub puts one up while
+   * the chunk is still downloading, and two would fade out one after the other.
+   */
+  readonly loading?: boolean;
 }
 
 /** Stand the board up in `container`. The return value stops it completely. */
 export function startNardy(container: HTMLElement, o: StartNardyOptions = {}): Teardown {
   const account = storedAccount();
-  return startDesk(container, nardySpec(), {
+  // UP BEFORE ANYTHING ELSE IS, and down when the board is worth looking at — which is later than
+  // the first frame by a room's round trip and a tree.
+  const loading = o.loading === false ? undefined : loadingCross(container, "Загружаю нарды");
+  const stop = startDesk(container, nardySpec(), {
     host: o.host ?? browserHost({ cover: PALETTE.felt }),
     ...(account ? { account } : {}),
+    onReady: () => loading?.done(),
   });
+  return () => {
+    // ...AND IT COMES DOWN WITH THE BOARD, whether the board ever arrived or not: a game torn down
+    // mid-join must not leave its loading screen on a stage the shelf is about to draw into.
+    loading?.done();
+    stop();
+  };
 }
 
 export { nardySpec, NARDY_SEATS } from "./spec.js";

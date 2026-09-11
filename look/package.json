@@ -20,7 +20,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@game-presets/cards": "*",
     "game-kit": "*"
   },
   "devDependencies": {

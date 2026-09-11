@@ -7,7 +7,7 @@
 // `main.ts` is deliberately NOT here. It grabs `#app` and wires hot reload — an entry, not an API,
 // and nothing else should be able to import it.
 
-import { loadingCards } from "@crossade/look";
+import { loadingCross } from "@crossade/look";
 import { startSolitaire as buildTable } from "./solitaire/scene.js";
 
 export interface StartSolitaireOptions {
@@ -26,7 +26,7 @@ export interface StartSolitaireOptions {
  * screen comes down on a frame that has actually been painted, and not on the line that built it.
  */
 export function startSolitaire(container: HTMLElement, o: StartSolitaireOptions = {}): () => void {
-  const loading = o.loading === false ? undefined : loadingCards(container, "Косынка");
+  const loading = o.loading === false ? undefined : loadingCross(container, "Загружаю косынку");
   const stop = buildTable(container);
   // TWO FRAMES, not one: the first is where the painter is handed the scene, the second is the one
   // it has actually put on the glass. Lifting after the first shows the table mid-build, which is

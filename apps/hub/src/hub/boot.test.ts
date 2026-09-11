@@ -12,6 +12,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { CROSS_PATH } from "@crossade/look";
 
 const PAGE = readFileSync(join(process.cwd(), "index.html"), "utf8");
 const MAIN = readFileSync(join(process.cwd(), "src/main.ts"), "utf8");
@@ -19,10 +20,14 @@ const MAIN = readFileSync(join(process.cwd(), "src/main.ts"), "utf8");
 describe("hub.the-cross-is-in-the-page", () => {
   it("ships in the document, drawn inline, fetching nothing", () => {
     expect(PAGE, "the boot screen is markup, not a module").toContain('id="boot"');
-    // THE DESIGN PROJECT'S OWN CROSS — a cross pattée, arms flaring to their tips, and not the plus
-    // this started life as. Its twelve points are the outline of the two octagons the design draws
-    // it with; a redraw that loses the flare has lost the mark, so the corners are named here.
-    expect(PAGE, "and the cross is an inline path").toMatch(/<path[^>]*class="line"[^>]*d="M50 0 L80 0 L66 34/);
+    // THE SAME CROSS THE GAMES SHOW, and the same one twice over: the page carries it inline
+    // because it must be on screen before any module is, and `@crossade/look` carries it because
+    // every game's own screen needs it after that. Two copies of a drawing drift — so the page's is
+    // compared against the module's, here, rather than being kept in step by memory.
+    expect(PAGE, "the page's cross is the module's cross").toContain(`d="${CROSS_PATH}"`);
+    expect(PAGE, "and it is drawn inline").toMatch(/<path[^>]*class="line"[^>]*d="M50 0 L80 0 L66 34/);
+    // ...AND IT SAYS WHAT IS COMING, in the same words the games use for themselves.
+    expect(PAGE, "the hub names its own wait").toMatch(/<div class="said">Загружаю хаб<\/div>/);
     // STARTED AT THE CROWN, not at a corner: the outline's own first point is the top-LEFT of the
     // upper arm, and a line grown from there is lopsided at both ends. The top edge is cut in half
     // at (50,0) and the closing stroke brings the line home to where it left.

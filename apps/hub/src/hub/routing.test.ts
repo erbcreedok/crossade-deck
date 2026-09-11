@@ -54,7 +54,7 @@ describe("hub.the-address-is-the-place", () => {
     // player an empty stage, and that is exactly what the screen is now doing. Kept alive behind it,
     // the old table would be a table nobody can see holding a socket open for the whole download.
     const letGo = entering.indexOf('leave(false, "play")');
-    const screen = entering.indexOf("loadingCards(stage");
+    const screen = entering.indexOf("loadingCross(stage");
     const fetched = entering.indexOf("await Promise.all");
     expect(letGo, "the old game goes down first").toBeLessThan(screen);
     expect(screen, "and the screen is up before the chunk is even asked for").toBeLessThan(fetched);

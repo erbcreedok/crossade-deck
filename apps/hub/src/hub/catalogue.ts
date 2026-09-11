@@ -20,6 +20,12 @@ export interface GameEntry {
   readonly id: string;
   /** Already written, in the viewer's language — the kit never asks where a caption came from. */
   readonly label: string;
+  /**
+   * WHAT THE LOADING SCREEN SAYS, and not the tile's own caption: "Загружаю косынку", not
+   * "Косынка". A shelf NAMES a thing and a wait names an ACTION — and Russian declines the noun to
+   * do it, which is why this is written out per game rather than glued together from the label.
+   */
+  readonly loading: string;
   /** Fetches the game's code and hands back its start function. Called on the press, never before. */
   readonly load: () => Promise<(container: HTMLElement) => Teardown>;
 }
@@ -39,21 +45,25 @@ export const CATALOGUE: readonly GameEntry[] = [
   {
     id: "klondike",
     label: "Косынка",
+    loading: "Загружаю косынку",
     load: async () => (await import("@apps/klondike")).startSolitaire,
   },
   {
     id: "cards",
     label: "Карты",
+    loading: "Загружаю карты",
     load: tableGame("cards", async () => (await import("@apps/cards")).startCards as never),
   },
   {
     id: "chess",
     label: "Шахматы",
+    loading: "Загружаю шахматы",
     load: tableGame("chess", async () => (await import("@apps/chess")).startChess as never),
   },
   {
     id: "nardy",
     label: "Нарды",
+    loading: "Загружаю нарды",
     load: tableGame("nardy", async () => (await import("@apps/nardy")).startNardy as never),
   },
 ];

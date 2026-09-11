@@ -78,8 +78,13 @@
       */
       #boot {
         position: absolute; inset: 0; z-index: 10;
-        display: grid; place-items: center;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
         background: #173d2d; transition: opacity 220ms ease;
+      }
+      /* The same strip of small caps the games' own screens carry (`@crossade/look`). */
+      #boot .said {
+        font: 600 13px/1.2 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .14em; text-transform: uppercase; color: #cdb98f;
       }
       #boot.gone { opacity: 0; pointer-events: none; }
       #boot svg { width: 96px; height: 96px; }
@@ -151,6 +156,7 @@
       <svg viewBox="-8 -8 116 116" aria-hidden="true">
         <path class="line" pathLength="1" d="M50 0 L80 0 L66 34 L100 20 L100 80 L66 66 L80 100 L20 100 L34 66 L0 80 L0 20 L34 34 L20 0 Z" />
       </svg>
+      <div class="said">Загружаю хаб</div>
     </div>
     <div id="shell" data-mode="hub">
       <div id="chrome"></div>

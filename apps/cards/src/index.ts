@@ -8,7 +8,7 @@
 // hot reload — an entry, not an API.
 
 import { browserHost, startDesk, type DeskHost, type Teardown } from "@game-presets/desk";
-import { loadingCards, PALETTE } from "@crossade/look";
+import { loadingCross, PALETTE } from "@crossade/look";
 import { storedAccount } from "@crossade/wire";
 import { cardsSpec } from "./spec.js";
 
@@ -30,7 +30,7 @@ export function startCards(container: HTMLElement, o: StartCardsOptions = {}): T
   const account = storedAccount();
   // UP BEFORE ANYTHING ELSE IS, and down when the table is worth looking at — which is later than
   // the first frame by a room's round trip and a tree.
-  const loading = o.loading === false ? undefined : loadingCards(container, "Карты");
+  const loading = o.loading === false ? undefined : loadingCross(container, "Загружаю карты");
   const stop = startDesk(container, cardsSpec(), {
     host: o.host ?? browserHost({ cover: PALETTE.felt }),
     ...(account ? { account } : {}),

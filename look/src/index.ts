@@ -21,4 +21,4 @@ export {
   TITLE,
 } from "./surfaces.js";
 export { hubRuler } from "./fonts.js";
-export { loadingCards, type Loading } from "./loading.js";
+export { loadingCross, CROSS_PATH, LOADING_MS, type Loading } from "./loading.js";
