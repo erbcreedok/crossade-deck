@@ -24,6 +24,7 @@
     "game-kit": "*"
   },
   "devDependencies": {
+    "@game-presets/desks": "*",
     "@types/node": "^26.1.2",
     "jsdom": "^25.0.1",
     "typescript": "^5.6.3",

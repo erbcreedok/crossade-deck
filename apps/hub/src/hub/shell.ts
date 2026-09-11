@@ -247,9 +247,15 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
       // press that started the game before naming it would open every tile as cards.
       if (write) goTo(id);
       running = start(stage);
-    } catch {
+    } catch (err) {
       // A blip, or a game that will not parse. Without this the hub sits in a dead screen with a
       // spinning tile and no way out — the one failure a launcher must not have.
+      //
+      // ...BUT IT SAYS WHY. Swallowed without a word, this catch turns "the game did not open" into
+      // a shelf that simply bounced back, and the reason — a missing export, a throw on the way up —
+      // is nowhere on the screen or in the console. Recovering from a failure is not the same as
+      // hiding it.
+      console.error(`hub: ${id} did not open`, err);
       stopSweep();
       setMode("hub");
       if (write) goTo(undefined, "replace");

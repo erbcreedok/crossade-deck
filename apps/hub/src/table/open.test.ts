@@ -1,13 +1,11 @@
 // @vitest-environment jsdom
-// THE DESK OPENS ONCE, AND WHERE IT OPENS IS WHERE IT STAYS.
+// WHAT THE HUB LAYS OVER A RUNNING DESK.
 //
-// Owner, on a phone: the table came up in the middle of the glass with no chair at it, and a second
-// later the chair appeared and the camera slid — the seat only arrives from the room, and until it
-// does there is no place to look from. Two guards, about the two halves of that: nothing is SHOWN
-// while the desk is still guessing, and the picture it does show has the whole table in it.
+// The rest of "where a desk opens" is the runtime's now, and is guarded there
+// (`@game-presets/desk`: the cover's order, the opening zoom, the room). What stays here is the one
+// answer only the hub can give — its own page, its own strip, its own banner: the numbers a game
+// must never have to know.
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { topInsetOfStage } from "./hubHost.js";
 
@@ -36,18 +34,5 @@ describe("what the desk opens under", () => {
     expect(topInsetOfStage(stage, [at({ top: 56, height: 34 }, "none")])).toBe(0);
     // The DEEPEST cover decides: two bands over one region are one band down to the lower edge.
     expect(topInsetOfStage(stage, [at({ top: 56, height: 34 }), at({ top: 56, height: 60 })])).toBe(60);
-  });
-
-  it("hub.the-cover-comes-off-after-the-view-is-home — never a frame drawn from nobody's side", () => {
-    // A SCAN, because the order of two lines is exactly the sort of rule that only holds where
-    // somebody looked: raising the cover one line earlier puts the middle-of-the-room frame back on
-    // the glass, and every test that reads a camera would still be green.
-    const raw = readFileSync(join(process.cwd(), "src/table/index.ts"), "utf8");
-    expect(raw.includes("curtain(container,"), "the desk is covered while it is still guessing").toBe(true);
-    const home = raw.indexOf("live.idle?.goHome()");
-    expect(home, "the view is taken home from the join").toBeGreaterThan(0);
-    const raised = [...raw.matchAll(/cover\.raise\(\)/g)].map((m) => m.index ?? -1);
-    expect(raised.length, "every way the join can settle takes the cover off").toBeGreaterThan(1);
-    for (const one of raised) expect(one, "the cover comes off after the view is home, never before").toBeGreaterThan(home);
   });
 });

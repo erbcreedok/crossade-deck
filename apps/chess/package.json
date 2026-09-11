@@ -1,8 +1,16 @@
 {
-  "name": "@apps/hub",
+  "name": "@apps/chess",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "types": "./src/index.ts",
+  "module": "./src/index.ts",
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
@@ -10,16 +18,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@apps/cards": "*",
-    "@apps/chess": "*",
-    "@apps/klondike": "*",
-    "@apps/nardy": "*",
     "@crossade/look": "*",
     "@crossade/wire": "*",
-    "@game-presets/cards": "*",
     "@game-presets/desk": "*",
     "@game-presets/desks": "*",
-    "@game-presets/dice": "*",
     "game-kit": "*",
     "pixi.js": "^8.19.0"
   },

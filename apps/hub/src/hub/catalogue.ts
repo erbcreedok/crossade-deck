@@ -5,8 +5,12 @@
 // pressed and not before. Nothing here knows what a chunk is.
 //
 // The seam is `(container) => teardown`, which is exactly what an embedded game, an iframe and a
-// separate page all look like from this side. The day a big game moves to its own URL, this entry
-// changes and the shell does not.
+// separate page all look like from this side. EVERY GAME ON THIS SHELF IS ITS OWN PACKAGE and is
+// already reachable at its own URL, so this file is the only place in the hub that names one.
+//
+// A TABLE GAME NEEDS ONE THING MORE than a patience: WHERE it is being played (`hubHost` — the
+// hub's route, its strip, its beat). That is the only difference, and it is four lines per entry
+// rather than a branch anywhere else.
 
 /** What a game hands back when it starts: the way to stop it again, completely. */
 export type Teardown = () => void;
@@ -20,6 +24,17 @@ export interface GameEntry {
   readonly load: () => Promise<(container: HTMLElement) => Teardown>;
 }
 
+/**
+ * A GAME PLAYED AT A TABLE, wired to the hub's own host. One line per game instead of the ten
+ * `if (game === …)` this shelf used to answer with.
+ */
+function tableGame(id: string, load: () => Promise<(container: HTMLElement, o: { host: never }) => Teardown>): GameEntry["load"] {
+  return async () => {
+    const [start, { hubHost }] = await Promise.all([load(), import("../table/hubHost.js")]);
+    return (container: HTMLElement) => start(container, { host: hubHost(container, id) as never });
+  };
+}
+
 export const CATALOGUE: readonly GameEntry[] = [
   {
     id: "klondike",
@@ -27,24 +42,18 @@ export const CATALOGUE: readonly GameEntry[] = [
     load: async () => (await import("@apps/klondike")).startSolitaire,
   },
   {
-    // THE CARD TABLE IS ITS OWN PACKAGE NOW (`@apps/cards`) and comes in through the same door the
-    // solitaire does: a container in, a teardown out. What the hub adds is WHERE it is being played
-    // — its route, its strip, its beat (`hubHost`) — and nothing about how it is played.
     id: "cards",
     label: "Карты",
-    load: async () => {
-      const [{ startCards }, { hubHost }] = await Promise.all([import("@apps/cards"), import("../table/hubHost.js")]);
-      return (container: HTMLElement) => startCards(container, { host: hubHost(container, "cards") });
-    },
+    load: tableGame("cards", async () => (await import("@apps/cards")).startCards as never),
   },
   {
     id: "chess",
     label: "Шахматы",
-    load: async () => (await import("../table/index.js")).startTable,
+    load: tableGame("chess", async () => (await import("@apps/chess")).startChess as never),
   },
   {
     id: "nardy",
     label: "Нарды",
-    load: async () => (await import("../table/index.js")).startTable,
+    load: tableGame("nardy", async () => (await import("@apps/nardy")).startNardy as never),
   },
 ];

@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import { type Transform } from "game-kit";
-import { dotAt, needsPositioning } from "./index.js";
+import { dotAt, needsPositioning } from "./cursors.js";
 
 describe("the container a cursor is pinned inside", () => {
   it("hub.stage-keeps-its-own-position — a region already positioned is left alone", () => {
