@@ -72,7 +72,7 @@
       ["myColour", "мой цвет", "int", 0, 0, 7],
     ]],
     ["Комната", [
-      ["mode", "кто решает", "enum", "только админы", R.MODES],
+      ["mode", "кто решает", "enum", "вольница", R.MODES],
       ["vis", "видимость", "enum", "приватная", ["приватная", "для друзей", "публичная"]],
       ["access", "допуск", "enum", "по коду", ["по коду", "по приглашению", "открыто"]],
       ["forever", "вечная комната", "bool", false],
@@ -417,7 +417,9 @@
       + block("МЕСТ ЗА СТОЛОМ", seatsControl("roomSeats", P.roomSeats,
         allowed("room:access") ? "тяни ползунок или нажми на число — от 2 до 32" : "меняет тот, кто распоряжается", !!allowed("room:access")))
       + block("КТО РЕШАЕТ" + (vote("room:mode") ? " · ГОЛОСОВАНИЕМ" : ""),
-        pick("mode", R.MODES, room.mode, !!allowed("room:mode")))
+        pick("mode", R.MODES, room.mode, !!allowed("room:mode"))
+        + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim};line-height:1.6">${R.MODE_MEANS[room.mode]}`
+        + (room.mode === "совет" ? " · у оунера голос тяжелее на волос — им разрешаются ничьи" : "") + `</span>`)
       + block("ВЕЧНАЯ КОМНАТА", toggle("forever", room.forever && !P.foreverPending, "живёт всегда", "закроется, когда все уйдут", !!allowed("room:forever"))
         // СНЯТИЕ АДМИНОМ ЖДЁТ СУТКИ, И ЖДАНИЕ ВИДНО. Молчаливый отложенный снос — это сюрприз
         // через день; строка говорит, когда и чем это кончится, и её же оунер отменяет одним тапом.
