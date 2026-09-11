@@ -220,14 +220,13 @@
     const cardsOf = (one) => R.actionsOn("table", me, one, room);
     const controlsFor = (one, small) => {
       const { can } = cardsOf(one);
-      const cards = can.filter((a) => a.id.startsWith("cards:"));
       const pieces = can.filter((a) => a.id.startsWith("piece:") || a.id === "colour");
-      const rest = can.filter((a) => !a.id.startsWith("cards:") && !a.id.startsWith("piece:") && a.id !== "colour");
+      const rest = can.filter((a) => !a.id.startsWith("piece:") && a.id !== "colour");
       const group = (title, list) => !list.length ? "" :
         `<div style="display:flex;flex-direction:column;gap:6px;padding-top:8px">`
         + `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">${title}</span>`
         + `<div style="display:flex;gap:6px;flex-wrap:wrap">${list.map((a) => btn(a.id, a.label, a.kind, small)).join("")}</div></div>`;
-      return group("ЕГО РУКА", cards) + group("ЕГО ФИГУРЫ", pieces) + group("МЕСТО И ПРАВА", rest);
+      return group("ЕГО ФИГУРЫ", pieces) + group("МЕСТО И ПРАВА", rest);
     };
 
     // ---- ТУЛТИП У АВАТАРА НА СУКНЕ ----
