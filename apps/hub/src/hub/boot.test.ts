@@ -42,12 +42,26 @@ describe("hub.the-cross-is-in-the-page", () => {
     // another size and the line's speed is unchanged, because the dash was never in user units.
     expect(PAGE).toContain('pathLength="1"');
     expect(PAGE, "the line is red").toMatch(/\.line \{[^}]*stroke: #e0483f/);
-    // IT GROWS FROM NOTHING, rather than a lit stretch chasing itself round a shape already drawn:
-    // one dash as long as the whole outline, and an offset walked from a full outline's worth to
-    // none. A dasharray of two lengths is the other animation, and the one that was rejected.
-    expect(PAGE, "one dash, the length of the outline").toMatch(/stroke-dasharray: 1;/);
-    expect(PAGE, "grown from nothing to the whole of it").toMatch(/@keyframes crusade \{ from \{ stroke-dashoffset: 1; \} to \{ stroke-dashoffset: 0; \} \}/);
-    expect(PAGE, "and it runs, rather than appearing").toMatch(/animation: crusade \d+ms linear infinite/);
+    // THREE MOVES, AND BOTH ENDS MOVE. The dash is how LONG the stroke is, the offset is WHERE it
+    // lies: growing is the head running out from a tail left at home, travelling is both ends moving
+    // at one length, gathering is the tail coming in to a head already at the end. A single-value
+    // dasharray — the whole outline, drawn by offset alone — is the animation this replaced.
+    const frames = PAGE.slice(PAGE.indexOf("@keyframes crusade"), PAGE.indexOf("prefers-reduced-motion"));
+    expect(frames, "it starts a twentieth long, at the crown").toMatch(/0%\s*\{ stroke-dasharray: 0\.05 1; stroke-dashoffset: 0;/);
+    expect(frames, "grows to two fifths with the tail still home").toMatch(/35%\s*\{ stroke-dasharray: 0\.40 1; stroke-dashoffset: 0;/);
+    expect(frames, "travels at that length to the end of the outline").toMatch(/80%\s*\{ stroke-dasharray: 0\.40 1; stroke-dashoffset: -0\.60;/);
+    expect(frames, "and gathers to a twentieth, head home").toMatch(/100%\s*\{ stroke-dasharray: 0\.05 1; stroke-dashoffset: -0\.95;/);
+    // THE HEAD LANDS EXACTLY ON THE END at both of the last two frames: tail + length = 1. Off by a
+    // hundredth and the stroke either overshoots the crown or stops short of it, and on a 400ms loop
+    // that reads as a stutter nobody can place.
+    expect(0.6 + 0.4, "the head reaches the end as the travel finishes").toBeCloseTo(1, 10);
+    expect(0.95 + 0.05, "…and is still there when the tail arrives").toBeCloseTo(1, 10);
+    // IT NEVER DISAPPEARS: the next turn opens at the length the last one closed at.
+    expect(frames.match(/stroke-dasharray: 0\.05 1/g)?.length, "starts and ends a twentieth long").toBe(2);
+    expect(PAGE, "the loop is 400ms and each phase carries its own easing").toMatch(/animation: crusade 400ms infinite/);
+    expect(frames, "the growth opens").toContain("animation-timing-function: ease-out");
+    expect(frames, "the travel is steady").toContain("animation-timing-function: linear");
+    expect(frames, "the gathering closes").toContain("animation-timing-function: ease-in-out");
     // NOTHING UNDER IT: the path is what the line is for, and a track drawn beneath gives the shape
     // away before the line has earned it.
     expect(PAGE.includes("class=\"ghost\""), "no second path under the line").toBe(false);
