@@ -90,7 +90,7 @@
       */
       #boot .line {
         fill: none; stroke: #e0483f; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round;
-        stroke-dasharray: 0.05 1; animation: crusade 400ms infinite;
+        stroke-dasharray: 0.05 1; animation: crusade 800ms infinite;
       }
       /*
         A STROKE THAT GROWS, TRAVELS, AND GATHERS ITSELF IN — three moves, not one.
@@ -100,22 +100,29 @@
         in fractions of the outline (`pathLength="1"`), so `0.4` is two fifths of the cross whatever
         size it is drawn at, and the gap is a whole outline wide so only ever one stroke shows.
 
-          0 → 35%   the head runs ahead and the tail stays home: the stroke grows to two fifths;
-         35 → 80%   it keeps that length and travels, the head reaching the end of the outline;
+          0 → 45%   the head runs ahead and the tail stays home: the stroke grows to two fifths;
+         45 → 80%   it keeps that length and travels, the head reaching the end of the outline;
          80 → 100%  the head is home, the tail comes in after it — down to a twentieth.
+
+        THE GROWING IS THE SLOW PART, and it is slow by ARITHMETIC rather than by feel: the head
+        covers 0.35 of the outline while growing and 0.60 while travelling, in 45% and 35% of the
+        loop — so it moves better than twice as fast once the stroke is up to length. Rebalancing
+        the phases is what makes that true; an easing curve alone only borrows speed from one end of
+        a phase and pays it back at the other.
 
         AND THE NEXT TURN STARTS AT A TWENTIETH, not at nothing: the stroke never disappears, it is
         back at the crown already the length it ended at, which is what makes the loop read as one
         line going round and round rather than a line being drawn again and again.
 
-        Each phase carries its own easing — the growth opens, the travel is steady, the gathering
-        closes — which is what "gently" means here; one timing function over the whole 400ms would
-        rush the first move and drag the last.
+        Each phase carries its own easing, and they are real curves rather than the CSS keywords:
+        the growth eases in AND out (it is the move the eye follows, so it starts and ends softly),
+        the travel is dead steady, and the gathering eases to a stop. One timing function over the
+        whole 800ms would rush the first move and drag the last.
       */
       @keyframes crusade {
-        0%   { stroke-dasharray: 0.05 1; stroke-dashoffset: 0;     animation-timing-function: ease-out; }
-        35%  { stroke-dasharray: 0.40 1; stroke-dashoffset: 0;     animation-timing-function: linear; }
-        80%  { stroke-dasharray: 0.40 1; stroke-dashoffset: -0.60; animation-timing-function: ease-in-out; }
+        0%   { stroke-dasharray: 0.05 1; stroke-dashoffset: 0;     animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
+        45%  { stroke-dasharray: 0.40 1; stroke-dashoffset: 0;     animation-timing-function: linear; }
+        80%  { stroke-dasharray: 0.40 1; stroke-dashoffset: -0.60; animation-timing-function: cubic-bezier(.4, 0, .2, 1); }
         100% { stroke-dasharray: 0.05 1; stroke-dashoffset: -0.95; }
       }
       /* A player who asked for stillness gets the cross, drawn, and no drawing of it. */
