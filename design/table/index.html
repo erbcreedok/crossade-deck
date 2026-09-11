@@ -49,7 +49,7 @@
   <div class="knob" id="knob">РУЧКИ</div>
   <div class="panel" id="panel">
     <h1>Стол: люди, управление, комната</h1>
-    <div>Три РАЗНЫЕ вещи, и они нарочно не в одном окне. <b>Управление человеком за этим столом</b> живёт в двух местах сразу — в раскрытой строке списка и в тултипе у аватара на сукне. <b>Страница профиля</b> — про человека, а не про стол: она же открывается из хаба и по ссылке, стола вокруг может не быть. <b>Комната</b> — отдельно. Кнопки во всех трёх возвращает одна таблица <code>rights.js</code>.</div>
+    <div>Три РАЗНЫЕ вещи, и они нарочно не в одном окне. <b>Управление человеком за этим столом</b> живёт в двух местах сразу — в раскрытой строке списка и в тултипе у аватара на сукне. <b>Страница профиля</b> — про человека, а не про стол: она же открывается из хаба и по ссылке, стола вокруг может не быть. <b>Комната</b> — отдельно. Кнопки во всех трёх возвращает одна таблица <code>rights.js</code>. <b>Его рука</b> раскрыта первой секцией тултипа: лицом она к нему, значит ко мне рубашками, и порядок зеркальный — его левая карта у меня справа. Управляется только ЖЕСТАМИ: вдоль веера переставить, вверх на стол, вниз себе, двойной тап перевернуть (перевёрнутую видят все). Лок запрещает жесты, «скрыть» — рубашка даже у перевёрнутых. Внизу экрана — <b>моя рука</b> и те же кнопки, что в стенде руки: жесту «забрать себе» надо куда приехать.</div>
     <div id="controls"></div>
     <div class="nums" id="nums"></div>
     <button class="reset" id="reset">сбросить</button>
@@ -70,6 +70,11 @@
       ["myRole", "моя роль", "enum", "админ", R.ROLES],
       ["mySeat", "у меня есть стул", "bool", true],
       ["myColour", "мой цвет", "int", 0, 0, 7],
+      ["myCards", "карт у меня", "int", 5, 0, 13],
+      ["myPose", "моя поза", "enum", "веер", ["веер", "сжато", "спрятано"]],
+      ["myPin", "мой пин", "bool", false],
+      ["myLock", "мой лок", "bool", false],
+      ["myHide", "моя скрытность", "bool", false],
     ]],
     ["Комната", [
       ["mode", "кто решает", "enum", "вольница", R.MODES],
@@ -280,27 +285,49 @@
   // `tap` лежит здесь, а не в обработчике: одиночный тап пересобирает тултип, и счётчик,
   // живущий в замыкании, обнулялся бы между первым и вторым касанием — двойного тапа не бывало
   // никогда.
-  const HAND = { cards: [], open: new Set(), note: "", table: 0, mine: 0, tap: { id: "", at: 0 } };
+  const HAND = { cards: [], open: new Set(), note: "", table: 0, tap: { id: "", at: 0 } };
+  /** Моя рука — та же колода и то же состояние: карта, забранная у соседа, приходит именно сюда. */
+  const MINE = { cards: [] };
   /** Ручка «карт в руке» подрезает и добивает веер, не пересобирая уцелевшие карты. */
   const fitHand = (n) => {
     while (HAND.cards.length > n) HAND.open.delete(HAND.cards.pop().id);
     while (HAND.cards.length < n) HAND.cards.push(freshCard());
   };
-
-  // ---- ЧУЖОЙ ВЕЕР: ГЕОМЕТРИЯ ----
-  //
-  // Веер провисает ВНИЗ, а не выгибается вверх, карты повёрнуты на пол-оборота, и левая лежит
-  // ПОВЕРХ правой — всё наоборот относительно своей руки. Так рука читается чужой с первого
-  // взгляда, и её не спутаешь со своей в разгар партии.
-  const CW = 34, CH = 48, FH = 98;
-  const fanSpots = (n, FW) => {
-    const step = n > 1 ? Math.min(CW * 0.78, (FW - CW) / (n - 1)) : 0;
-    const x0 = (FW - (CW + step * (n - 1))) / 2;
-    return Array.from({ length: n }, (_, i) => {
-      const t = n > 1 ? i / (n - 1) - 0.5 : 0;
-      return { x: x0 + step * i, y: 12 + 16 * (1 - 4 * t * t), rot: 180 - t * 30, z: n - i };
-    });
+  const fitMine = (n) => {
+    while (MINE.cards.length > n) MINE.cards.pop();
+    while (MINE.cards.length < n) MINE.cards.push(freshCard());
   };
+
+  // ---- ВЕЕР: ГЕОМЕТРИЯ, ОДНА НА ОБЕ РУКИ ----
+  //
+  // Веер у всех одинаковый и держится ровно: карты не переворачиваются вверх ногами — так их не
+  // держит никто. ЧУЖУЮ руку делает чужой не поворот, а две другие вещи: ко мне она обращена
+  // РУБАШКАМИ (лицом она к нему), и порядок в ней ЗЕРКАЛЬНЫЙ — его левая карта у меня справа.
+  const fanSpots = (n, FW, cw, { step: wantStep, tilt = 7, lift = 10 } = {}) => {
+    const step = n > 1 ? Math.min(wantStep, (FW - cw) / (n - 1)) : 0;
+    const x0 = (FW - (cw + step * (n - 1))) / 2;
+    const mid = (n - 1) / 2;
+    // `lift` — НА СКОЛЬКО КАРТА ПОДНЯТА над краем веера; середина поднята выше всех. Отдавать
+    // готовый `top` нельзя: свой веер считается от низа экрана, чужой — от верха коробки.
+    return Array.from({ length: n }, (_, i) => ({
+      x: x0 + step * i,
+      lift: mid ? lift * (1 - Math.abs(i - mid) / mid) : lift,
+      rot: (i - mid) * tilt,
+      z: i + 1,
+    }));
+  };
+
+  // ---- НИЖНИЙ HUD: ТЕ ЖЕ КНОПКИ, ЧТО В СТЕНДЕ РУКИ (9576) ----
+  // Пути один в один из `design/hud`: расходиться им нельзя — это одна и та же полоса.
+  const HUD_ICON = {
+    pin: '<path d="M9 3h6l-1 6h2l1 5H7l1-5h2L9 3zM12 14v7"/>',
+    lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z"/>',
+    hide: '<path d="M3 3l18 18M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9"/>',
+    fan: '<rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(-28 12 20)"/><rect x="9" y="5" width="6" height="12" rx="1"/><rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(28 12 20)"/>',
+    shrink: '<rect x="8" y="5" width="8" height="14" rx="1"/><path d="M2 12h4"/><path d="M4 9.5 6.5 12 4 14.5"/><path d="M22 12h-4"/><path d="M20 9.5 17.5 12l2.5 2.5"/>',
+    tuck: '<path d="M12 2v6"/><path d="M9.5 5.5 12 8l2.5-2.5"/><rect x="8" y="9.5" width="8" height="8" rx="1"/><path d="M3 15h18v5H3z"/>',
+  };
+  const hudSvg = (body, size, colour) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${colour}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
 
   const PEOPLE = [
     { key: "me", name: "Ербол", title: "Крестоносец", level: 7 },
@@ -362,32 +389,46 @@
     // Ни одной кнопки здесь нет нарочно. Карту переставляют, выносят и забирают пальцем — тем же
     // движением, что и свою; кнопка «вынести на стол» означала бы, что сначала надо выбрать карту,
     // а потом сказать, что с ней сделать, то есть делать в два приёма то, что делается в одно.
+    //
+    // ЧТО ВИДНО. Рука повёрнута к нему лицом, значит ко мне — РУБАШКАМИ, и это состояние по
+    // умолчанию, а не запрет. Лицо показывает только та карта, которую ПЕРЕВЕРНУЛИ: перевёрнутая
+    // открыта всем сразу, и мне в том числе. «Скрыть» бьёт даже её — тогда рубашка всегда.
     const handRes = R.actionsOn("hand", me, them, room);
     const mayHand = (id) => handRes.can.some((a) => a.id === id);
+    const CW = 34, CH = 48, FH = 86;
 
-    const cardArt = (c, shown, opened) => {
+    const cardArt = (c, shown, w) => {
+      const h = Math.round(w * 1.4);
       const [sign, colour] = SUITS[c.suit];
-      const face = `<span style="position:absolute;left:3px;top:2px;font:400 11px 'Tiny5',monospace;color:${colour}">${c.rank}</span>`
-        + `<span style="position:absolute;left:0;right:0;top:17px;text-align:center;font:400 17px 'Tiny5',monospace;color:${colour}">${sign}</span>`;
-      const back = `<span style="position:absolute;inset:3px;border-radius:3px;background:repeating-linear-gradient(45deg,${T.wood} 0 4px,${T.panel} 4px 8px);opacity:.85"></span>`;
-      return `<span style="position:absolute;inset:0;border-radius:5px;background:${shown ? T.ink : T.panelLight};`
-        + `box-shadow:inset 0 0 0 2px ${T.black}${opened ? `,inset 0 0 0 4px ${T.gold}` : ""},0 2px 0 rgba(11,7,4,.55)">${shown ? face : back}</span>`;
+      const face = `<span style="position:absolute;left:${Math.round(w * 0.09)}px;top:${Math.round(w * 0.05)}px;font:400 ${Math.round(w * 0.33)}px 'Tiny5',monospace;color:${colour}">${c.rank}</span>`
+        + `<span style="position:absolute;left:0;right:0;top:${Math.round(h * 0.34)}px;text-align:center;font:400 ${Math.round(w * 0.5)}px 'Tiny5',monospace;color:${colour}">${sign}</span>`;
+      const back = `<span style="position:absolute;inset:${Math.round(w * 0.09)}px;border-radius:3px;background:repeating-linear-gradient(45deg,${T.wood} 0 4px,${T.panel} 4px 8px);opacity:.85"></span>`;
+      return `<span style="position:absolute;inset:0;border-radius:${Math.round(w * 0.15)}px;background:${shown ? T.ink : T.panelLight};`
+        + `box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.55)">${shown ? face : back}</span>`;
     };
+
+    /** Видно ли лицо этой карты: только перевёрнутую, и только пока рука не скрыта. */
+    const faceUp = (c) => HAND.open.has(c.id) && mayHand("hand:see");
 
     const handSection = (boxW) => {
       const FW = boxW - 24;
       if (!them.seat) return `<div style="padding-top:10px;font:400 11px 'Tiny5',monospace;color:${T.inkDim};opacity:.75">Он не за столом — руки нет.</div>`;
       fitHand(P.theyCards);
-      const shown = mayHand("hand:see");
-      const spots = fanSpots(HAND.cards.length, FW);
-      const cards = HAND.cards.map((c, i) => `<div data-card="${c.id}" data-i="${i}" style="position:absolute;width:${CW}px;height:${CH}px;`
-        + `left:${spots[i].x}px;top:${spots[i].y}px;transform:rotate(${spots[i].rot}deg);z-index:${spots[i].z};`
-        + `touch-action:none;cursor:${mayHand("hand:sort") ? "grab" : "default"}">${cardArt(c, shown, HAND.open.has(c.id))}</div>`).join("");
+      const n = HAND.cards.length;
+      const spots = fanSpots(n, FW, CW, { step: CW * 0.78, tilt: 7, lift: 8 });
+      // ЗЕРКАЛО: его левая карта — моя правая. Поэтому первая карта руки рисуется в последнем гнезде.
+      const cards = HAND.cards.map((c, i) => {
+        const at = spots[n - 1 - i];
+        return `<div data-card="${c.id}" style="position:absolute;width:${CW}px;height:${CH}px;`
+          + `left:${at.x}px;top:${14 + 8 - at.lift}px;transform:rotate(${at.rot}deg);z-index:${at.z};`
+          + `touch-action:none;cursor:${mayHand("hand:sort") ? "grab" : "default"}">${cardArt(c, faceUp(c), CW)}</div>`;
+      }).join("");
       const hints = handRes.can.filter((a) => a.hint).map((a) => `${a.hint} → ${a.label.toLowerCase()}`);
       const stops = handRes.cant.filter((a) => a.hint || a.id === "hand:see");
+      const shownCount = HAND.cards.filter(faceUp).length;
       return `<div style="display:flex;flex-direction:column;gap:2px;padding-top:10px">`
-        + `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">ЕГО РУКА · ${HAND.cards.length}</span>`
-        + `<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim};opacity:.55">задом наперёд — как держит он</span>`
+        + `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">ЕГО РУКА · ${n}${shownCount ? ` · ОТКРЫТО ${shownCount}` : ""}</span>`
+        + `<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim};opacity:.55">рубашками к тебе · его левая у тебя справа</span>`
         + `<div data-g="fan" style="position:relative;height:${FH}px;touch-action:none">${cards}</div>`
         + (hints.length ? `<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim};opacity:.7;line-height:1.5">${hints.join(" · ")}</span>` : "")
         + (P.explain && stops.length ? `<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim};opacity:.7;line-height:1.5">${stops.map((d) => d.why).filter((v, i, a) => a.indexOf(v) === i).join(" · ")}</span>` : "")
@@ -509,11 +550,48 @@
       + (allowed("room:close") ? `<div style="padding-top:16px">${btn("room:close", allowed("room:close").vote ? "Предложить закрыть комнату" : "Закрыть комнату", "danger")}</div>` : "")
       + denials(roomActs.cant);
 
+    // ---- МОЯ РУКА И МОЙ НИЖНИЙ HUD ----
+    //
+    // Свой веер нужен здесь не для красоты: жест «забрать себе» обязан куда-то ПРИЕХАТЬ, иначе
+    // карта исчезает в надписи. Кнопки — те же три права слева и те же три позы справа, что и в
+    // стенде руки; отличие своей руки от чужой ровно одно — она лицом ко мне.
+    const HUD = { card: 74, btn: 44, gap: 6, margin: 16, bottom: 44 };
+    const hudBtn = (key, lit) => `<div style="position:relative;width:${HUD.btn}px;height:${HUD.btn}px;border-radius:8px;box-sizing:border-box;`
+      + `display:flex;align-items:center;justify-content:center;`
+      + (lit
+        ? `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6)">`
+        : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 4px 0 rgba(11,7,4,.6)">`)
+      + hudSvg(HUD_ICON[key], Math.round(HUD.btn * 0.5), lit ? T.black : T.ink) + `</div>`;
+
+    const myHud = () => {
+      fitMine(P.myCards);
+      const cw = HUD.card, ch = Math.round(cw * 1.4);
+      const pose = P.myPose;
+      const spots = fanSpots(MINE.cards.length, W - 2 * HUD.margin, cw, {
+        step: pose === "веер" ? 44 : 18,
+        tilt: pose === "веер" ? 7 : 0,
+        lift: pose === "веер" ? 10 : 0,
+      });
+      // СПРЯТАНО — рука уходит под полосу кнопок, наружу торчит только край: видно, что она есть.
+      const drop = pose === "спрятано" ? Math.round(ch * 0.72) : 0;
+      const handBottom = HUD.bottom + HUD.btn + HUD.gap + 10;
+      const cards = MINE.cards.map((c, i) => `<div style="position:absolute;width:${cw}px;height:${ch}px;`
+        + `left:${HUD.margin + spots[i].x}px;bottom:${handBottom - drop + spots[i].lift}px;`
+        + `transform:rotate(${spots[i].rot}deg);transform-origin:50% 100%;z-index:${spots[i].z}">${cardArt(c, !P.myHide, cw)}</div>`).join("");
+      return `<div data-g="myhud" style="position:absolute;left:0;right:0;bottom:0;height:${handBottom + ch + 24}px;z-index:8;pointer-events:none">`
+        + cards
+        + `<div style="position:absolute;left:${HUD.margin}px;bottom:${HUD.bottom}px;display:flex;gap:${HUD.gap}px">`
+        + hudBtn("pin", P.myPin) + hudBtn("lock", P.myLock) + hudBtn("hide", P.myHide) + `</div>`
+        + `<div style="position:absolute;right:${HUD.margin}px;bottom:${HUD.bottom}px;display:flex;gap:${HUD.gap}px">`
+        + hudBtn("fan", pose === "веер") + hudBtn("shrink", pose === "сжато") + hudBtn("tuck", pose === "спрятано") + `</div>`
+        + `</div>`;
+    };
+
     const screens = {
       "список": () => sheet("ЗА СТОЛОМ", listScreen, false),
       "профиль": () => sheet(who.mine ? "МОЙ ПРОФИЛЬ" : "ПРОФИЛЬ", profileScreen, true),
       "комната": () => sheet("КОМНАТА", roomScreen, true),
-      "стол": () => "",
+      "стол": () => myHud(),
     };
     // ---- ПАЛЕЦ НА ЧУЖОМ ВЕЕРЕ ----
     //
@@ -525,15 +603,18 @@
       if (!fan) return;
       const FW = fan.clientWidth;
       const els = new Map([...fan.querySelectorAll("[data-card]")].map((el) => [el.getAttribute("data-card"), el]));
+      const n = () => HAND.cards.length;
+      const slots = () => fanSpots(n(), FW, CW, { step: CW * 0.78, tilt: 7, lift: 8 });
       const place = () => {
-        const spots = fanSpots(HAND.cards.length, FW);
+        const spots = slots();
         HAND.cards.forEach((c, i) => {
           const el = els.get(c.id);
           if (!el) return;
-          el.style.left = `${spots[i].x}px`;
-          el.style.top = `${spots[i].y}px`;
-          el.style.transform = `rotate(${spots[i].rot}deg)`;
-          el.style.zIndex = String(spots[i].z);
+          const at = spots[n() - 1 - i]; // зеркало: первая карта руки стоит в последнем гнезде
+          el.style.left = `${at.x}px`;
+          el.style.top = `${14 + 8 - at.lift}px`;
+          el.style.transform = `rotate(${at.rot}deg)`;
+          el.style.zIndex = String(at.z);
         });
       };
 
@@ -553,10 +634,11 @@
 
       const finish = (kind, card) => {
         const [sign] = SUITS[card.suit];
-        const seen = mayHand("hand:see");
-        const named = seen ? `${card.rank}${sign}` : "Карта";
+        const named = faceUp(card) ? `${card.rank}${sign}` : "Карта";
+        // НА СТОЛ КАРТА ЛОЖИТСЯ ТАК, КАК ЛЕЖАЛА В РУКЕ: перевёрнутая — лицом, остальные — рубашкой.
+        // Вынести чужую карту и тем самым её открыть — это отдельное действие, и оно уже есть.
         if (kind === "out") { HAND.table += 1; HAND.note = `${named} на столе · там ${HAND.table}`; }
-        else { HAND.mine += 1; HAND.note = `${named} у тебя · забрано ${HAND.mine}`; }
+        else { MINE.cards.push(card); P.myCards = MINE.cards.length; HAND.note = `${named} у тебя · в руке ${MINE.cards.length}`; }
         HAND.open.delete(card.id);
         HAND.cards = HAND.cards.filter((c) => c.id !== card.id);
         P.theyCards = HAND.cards.length;
@@ -607,10 +689,11 @@
           if (drag.bottom) drag.bottom.style.opacity = drag.hit === "take" ? "1" : ".55";
           if (drag.hit || !mayHand("hand:sort")) return;
           // Вдоль веера — перестановка на лету: карта занимает ближайшее гнездо, соседи расступаются.
-          const spots = fanSpots(HAND.cards.length, FW);
+          const spots = slots();
           const px = e.clientX - drag.fr.left - CW / 2;
-          let to = 0;
-          for (let i = 1; i < spots.length; i++) if (Math.abs(spots[i].x - px) < Math.abs(spots[to].x - px)) to = i;
+          let slot = 0;
+          for (let i = 1; i < spots.length; i++) if (Math.abs(spots[i].x - px) < Math.abs(spots[slot].x - px)) slot = i;
+          const to = spots.length - 1 - slot; // гнездо на экране → место в руке, зеркально
           const from = HAND.cards.findIndex((c) => c.id === id);
           if (to !== from) {
             const [card] = HAND.cards.splice(from, 1);
@@ -642,7 +725,7 @@
     over.innerHTML = bar + screens[P.screen]();
 
     const headTop = Math.round(over.querySelector('[data-g="bar"]').getBoundingClientRect().height);
-    const spots = window.Felt.draw(document.getElementById("felt"), { W, H, top: headTop, people: roster.filter((p) => p.seat) });
+    const spots = window.Felt.draw(document.getElementById("felt"), { W, H, top: headTop, people: roster.filter((p) => p.seat), pile: HAND.table });
 
     // Тултип — только на самом столе: поверх раскрытого листа он был бы вторым окном об одном и том
     // же человеке.

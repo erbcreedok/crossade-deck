@@ -1,4 +1,7 @@
-// СТОЛ ПОД ОКНАМИ — холст, как в продукте: сукно, кромка, места с людьми, карта и ряд прав внизу.
+// СТОЛ ПОД ОКНАМИ — холст, как в продукте: сукно, кромка, места с людьми и то, что лежит на столе.
+//
+// Нижнего HUD здесь НЕТ: свои права и позы рисует разметка поверх холста, настоящими кнопками. Пока
+// тут стоял нарисованный ряд заглушек, он проступал сквозь настоящий — две полосы на одном месте.
 //
 // Ни одной ручки: это фон. Но места он рисует НЕ для красоты — тултип управления открывается по
 // тапу на аватар прямо на сукне, и ему нужно знать, где этот аватар лежит. Поэтому `draw` возвращает
@@ -31,33 +34,6 @@
     g.closePath();
   }
 
-  function rights(g, W, H) {
-    const n = 7, size = Math.min(46, Math.round((W - 24) / n) - 6), gap = 6;
-    const total = n * size + (n - 1) * gap;
-    const x0 = Math.round((W - total) / 2);
-    const y = H - size - 22;
-    g.fillStyle = "rgba(11,7,4,.55)";
-    g.fillRect(0, y - 14, W, size + 36);
-    for (let i = 0; i < n; i += 1) {
-      const x = x0 + i * (size + gap);
-      box(g, x, y, size, size, 8);
-      const grad = g.createLinearGradient(0, y, 0, y + size);
-      grad.addColorStop(0, "#25321f");
-      grad.addColorStop(1, "#16210f");
-      g.fillStyle = grad; g.fill();
-      g.lineWidth = 3; g.strokeStyle = T.black; g.stroke();
-      box(g, x + 2.5, y + 2.5, size - 5, size - 5, 6);
-      g.lineWidth = 2; g.strokeStyle = T.wood; g.stroke();
-      g.strokeStyle = T.inkDim; g.lineWidth = 2;
-      g.beginPath();
-      const cx = x + size / 2, cy = y + size / 2, u = size * 0.18;
-      if (i % 3 === 0) { g.moveTo(cx, cy - u); g.lineTo(cx, cy + u); g.moveTo(cx - u, cy); g.lineTo(cx + u, cy); }
-      else if (i % 3 === 1) { g.arc(cx, cy, u, 0, Math.PI * 2); }
-      else { g.moveTo(cx - u, cy - u); g.lineTo(cx + u, cy + u); g.moveTo(cx + u, cy - u); g.lineTo(cx - u, cy + u); }
-      g.stroke();
-    }
-  }
-
   /** Диск сидящего на сукне: кольцо в его цвете, буква внутри, золотой ободок у того, чей ход. */
   function seat(g, x, y, r, colour, letter, turn, away) {
     g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2);
@@ -72,7 +48,7 @@
   }
 
   /** Рисует стол и возвращает места: `{key, x, y, r}` в css-пикселях — их берёт тултип. */
-  function draw(canvas, { W, H, top, people }) {
+  function draw(canvas, { W, H, top, people, pile = 0 }) {
     const dpr = Math.min(3, globalThis.devicePixelRatio || 1);
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
@@ -94,12 +70,17 @@
     g.fillStyle = T.felt; g.fill();
     g.lineWidth = 3; g.strokeStyle = T.black; g.stroke();
 
+    // НА СТОЛЕ — ОДНА СТОПКА. Карта, вынесенная из чьей-то руки, ложится сюда, и стопка растёт:
+    // жест обязан куда-то приехать, иначе карта пропадает в надписи.
     const cw = Math.round(W * 0.17), ch = Math.round(cw * 1.45);
-    box(g, cx - cw / 2, cy - ch / 2, cw, ch, 6);
-    g.fillStyle = T.ink; g.fill();
-    g.lineWidth = 2; g.strokeStyle = T.black; g.stroke();
-    box(g, cx - cw / 2 + 5, cy - ch / 2 + 5, cw - 10, ch - 10, 4);
-    g.fillStyle = "#9c2f2a"; g.fill();
+    for (let i = 0; i <= pile; i += 1) {
+      const dx = cx - cw / 2 + i * 3, dy = cy - ch / 2 - i * 3;
+      box(g, dx, dy, cw, ch, 6);
+      g.fillStyle = T.ink; g.fill();
+      g.lineWidth = 2; g.strokeStyle = T.black; g.stroke();
+      box(g, dx + 5, dy + 5, cw - 10, ch - 10, 4);
+      g.fillStyle = "#9c2f2a"; g.fill();
+    }
 
     // МЕСТА: СВОЁ ВНИЗУ, ЧУЖИЕ ПО ДАЛЬНЕЙ ДУГЕ. Не по кругу: на телефоне низ занят рукой и правами,
     // и посаженный туда сосед оказывается под пальцем, а его тултип — за нижним HUD.
@@ -120,7 +101,6 @@
       spots.push({ key: p.key, x, y, r });
     });
 
-    rights(g, W, H);
     return spots;
   }
 
