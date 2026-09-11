@@ -4,7 +4,7 @@ Colyseus (Node.js, `@colyseus/schema` v2), custom accounts instead of Firebase. 
 session, 36- or 52-card deck.
 
 ```bash
-cd server && npm test && npx tsc --noEmit   # 308 tests
+cd server && npm test && npx tsc --noEmit   # 336 tests
 ```
 
 The game model (dealing, free mode, visibility rules, vote weights) is shared with the client and
@@ -83,8 +83,12 @@ brought the code (`POST /auth/telegram/claim`, shared `TELEGRAM_LINK_SECRET`); t
 `GET /auth/telegram/link-code/:code` and logs itself in. It is this way round because a bot cannot
 write first and cannot find a person by phone number or @username — it only ever learns the
 `chat_id` of whoever started it. The code is one-time, five minutes, one per account per thirty
-seconds; `TELEGRAM_BOT_USERNAME` is what the link is built from, and without either variable the
-route answers 503 and the hub offers nothing.
+seconds. THE BOT'S NAME IS ASKED OF TELEGRAM (`telegramMe.ts`, `getMe` on the token the server
+already holds, once per process) rather than written into a variable: a name typed by hand differs
+from the real one exactly once, and that once sends a person into somebody ELSE's bot — the link
+opens, and a stranger's bot knows nothing about the code. `TELEGRAM_BOT_USERNAME` stays as an
+override for a machine with no network. Without a name or the shared secret the route answers 503
+and the hub offers nothing.
 
 The profile is the account's own fields: `GET /accounts/:id/profile` (name, colour, avatar, created
 date, which providers — never their subjects) and `PATCH /accounts/:id` (name, colour, avatar), both

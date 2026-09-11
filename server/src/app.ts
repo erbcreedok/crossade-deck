@@ -23,6 +23,7 @@ import { listPublicRooms } from "./publicRooms.js";
 import { getLastRoom } from "./lastRooms.js";
 import { getRoomGame } from "./roomGames.js";
 import { verifyTelegramInitData } from "./telegramAuth.js";
+import { botUsername } from "./telegramMe.js";
 import {
   issueLinkCode,
   linkByCode,
@@ -192,14 +193,15 @@ export function createApp() {
   // серверу «это он», страница забирает исход. Ни номера, ни @username, ни предыдущего `/start`
   // знать не нужно — бот узнаёт `chat_id` ровно в тот момент, когда его запускают.
 
-  /** Кто зовёт бота. Без имени ссылку не собрать, и тогда весь этот путь просто не предлагается. */
-  const botName = (): string | undefined => process.env.TELEGRAM_BOT_USERNAME?.replace(/^@/, "") || undefined;
   /** Общий секрет сервера и бота: подтвердить привязку может только наш бот и никто больше. */
   const linkSecret = (): string | undefined => process.env.TELEGRAM_LINK_SECRET || undefined;
 
-  app.post("/auth/telegram/link-code", (req, res) => {
-    const name = botName();
-    if (!name || !linkSecret()) return res.status(503).json({ error: "telegram_not_configured" });
+  app.post("/auth/telegram/link-code", async (req, res) => {
+    if (!linkSecret()) return res.status(503).json({ error: "telegram_not_configured" });
+    // ИМЯ БОТА СПРАШИВАЕТСЯ У ТЕЛЕГИ (`telegramMe.ts`): ссылка, собранная из имени, вписанного
+    // руками, однажды уведёт человека в чужого бота.
+    const name = await botUsername();
+    if (!name) return res.status(503).json({ error: "telegram_not_configured" });
 
     const { accountId, recoveryHash } = req.body || {};
     if (typeof accountId !== "string" || typeof recoveryHash !== "string") {
