@@ -1,0 +1,21 @@
+design/table/index.html
+  s_357f670d370d4d::t_f69cd3e6071b0a 224,229
+design/table/rights.js
+  s_357f670d370d4d::t_f69cd3e6071b0a 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f455069f1181c5419ad3c1e8367a5e7deb68eefb",
+  "prompts": {},
+  "sessions": {
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
