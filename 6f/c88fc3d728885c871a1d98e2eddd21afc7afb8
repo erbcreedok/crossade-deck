@@ -1,0 +1,47 @@
+game-presets/tophud/vitest.config.ts
+  s_9ed0da107cbc4a::t_ac460274db3a3d 1-6
+game-presets/tophud/src/look.ts
+  s_9ed0da107cbc4a::t_4bdcaaa6e3d636 1-100
+game-presets/tophud/src/row.test.ts
+  s_9ed0da107cbc4a::t_7a1b566014a86d 1-80
+game-presets/tophud/src/fit.test.ts
+  s_9ed0da107cbc4a::t_4b307816b893e5 1-54
+game-presets/tophud/src/fit.ts
+  s_9ed0da107cbc4a::t_4b307816b893e5 1-42
+game-presets/tophud/src/topHud.ts
+  s_9ed0da107cbc4a::t_f26cc31df8e049 1-285
+game-presets/tophud/src/index.ts
+  s_9ed0da107cbc4a::t_71a2bb87cc3d5b 1-10
+game-presets/tophud/src/colors.test.ts
+  s_9ed0da107cbc4a::t_ad61e048f07e96 1-37
+game-presets/tophud/src/paint.ts
+  s_9ed0da107cbc4a::t_ad61e048f07e96 1-53
+game-presets/tophud/tsconfig.json
+  s_9ed0da107cbc4a::t_ac460274db3a3d 1-21
+game-presets/tophud/package.json
+  s_9ed0da107cbc4a::t_ac460274db3a3d 1-32
+game-presets/tophud/src/row.ts
+  s_9ed0da107cbc4a::t_f4de9200423baa 1-68
+game-presets/tophud/src/icons.ts
+  s_9ed0da107cbc4a::t_7cc4a902beb6ed 1-21
+game-presets/tophud/src/topHud.test.ts
+  s_9ed0da107cbc4a::t_806ed0cf55bac5 1-82
+package-lock.json
+  s_9ed0da107cbc4a::t_203c56c3ee0b81 541-554,1238-1241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6fc88fc3d728885c871a1d98e2eddd21afc7afb8",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
