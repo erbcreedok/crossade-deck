@@ -79,6 +79,24 @@ describe("hub.the-address-is-the-place", () => {
     expect(router, "and it leaves through the same door a press does").toContain("goToShelf(false)");
   });
 
+  it("a game that throws on the way out still leaves", () => {
+    // THE BUG THAT READ AS A BROKEN ROUTER. Назад showed the shelf and left `#cards` in the
+    // address, so the next reload opened the game again. The router was right: painting the shelf
+    // threw on the way out, and the throw jumped over the address write that stood after it.
+    //
+    // Leaving is a decision, and a decision is recorded before any work that can fail.
+    const leaving = block("leave = (write = true");
+    const wrote = leaving.indexOf("if (write) goTo(undefined);");
+    const tore = leaving.indexOf("stop();");
+    expect(wrote, "the address is left before the canvases are").toBeGreaterThan(0);
+    expect(wrote, "…so a teardown that throws cannot strand it").toBeLessThan(tore);
+    expect(leaving, "and the throw is caught rather than let out").toContain("} catch (err) {");
+    expect(leaving, "…and said out loud, because a game that cannot be put down is a leak").toContain("console.error(");
+    const shelf = leaving.indexOf('setMode("hub")');
+    expect(tore, "the stage is emptied whatever the game did").toBeLessThan(leaving.indexOf("stage.replaceChildren();"));
+    expect(shelf, "and the shelf is painted last, after everything that is remembered").toBeGreaterThan(wrote);
+  });
+
   it("what is running is remembered, and forgotten when it stops", () => {
     expect(block("enter = async (id: string"), "an opened game is named").toContain("runningId = id;");
     expect(block("leave = (write = true"), "and a closed one is not").toContain("runningId = undefined;");

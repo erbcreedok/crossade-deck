@@ -318,14 +318,37 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
    */
   const leave = (write = true, into: "hub" | "play" = "hub"): void => {
     if (!running) return;
-    running();
+    // THE BOOKKEEPING FIRST, THE CANVASES SECOND — and that order is the whole fix for a bug that
+    // read as the router being broken: the player pressed Назад, the shelf appeared, and the
+    // address still said `#cards`, so a reload put them straight back into the game they had just
+    // left. Nothing was wrong with the routing. Painting the shelf THREW (a pixi pool the closing
+    // game had disturbed), and the throw jumped over `goTo(undefined)` — the two lines below it —
+    // leaving the shell believing it was on the shelf and the URL believing it was in a game.
+    //
+    // Leaving is a DECISION; emptying the stage is cleanup. A decision is recorded before any work
+    // that can fail, and the cleanup that follows is wrapped so that one throwing step cannot skip
+    // the ones after it either.
+    const stop = running;
     running = undefined;
     runningId = undefined;
+    if (write) goTo(undefined);
+    try {
+      stop();
+    } catch (err) {
+      // SAID, NEVER SWALLOWED: a game that cannot be put down is a leak — a socket, a frame loop, a
+      // canvas — and the shelf showing normally is exactly what would hide it.
+      console.error("hub: the game threw on the way out", err);
+    }
     // Belt and braces: `host.unmount()` inside the game already removes its view, but a teardown
     // that threw halfway must not leave an orphan canvas holding a context.
     stage.replaceChildren();
-    if (into === "hub") setMode("hub");
-    if (write) goTo(undefined);
+    if (into === "hub") {
+      try {
+        setMode("hub");
+      } catch (err) {
+        console.error("hub: the shelf threw on the way back", err);
+      }
+    }
   };
 
   /**
