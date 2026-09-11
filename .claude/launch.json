@@ -82,6 +82,18 @@
       "port": 9576
     },
     {
+      "name": "table-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "9578",
+        "--directory",
+        "design/table"
+      ],
+      "port": 9578
+    },
+    {
       "name": "hubhome-stand",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
