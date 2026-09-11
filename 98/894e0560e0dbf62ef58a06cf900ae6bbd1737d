@@ -1,0 +1,35 @@
+server/src/accounts.identities.test.ts
+  s_9ed0da107cbc4a::t_05a5c8fdb5bf71 18,20,212-254
+  s_9ed0da107cbc4a::t_d43edc855bfd13 255
+server/src/accounts.ts
+  s_9ed0da107cbc4a::t_a7f008e786eec4 15,295-300
+apps/hub/src/home/whoami.test.ts
+  s_9ed0da107cbc4a::t_91f2132ddedb2d 78-101
+server/src/db/accountsRepo.ts
+  s_9ed0da107cbc4a::t_a7f008e786eec4 187-219
+  s_9ed0da107cbc4a::t_66677a0dc49555 185-186
+server/src/telegramPhoto.test.ts
+  s_9ed0da107cbc4a::t_5d3b547c5cb5d4 10-13,25-32,56-63,68
+apps/hub/src/home/parts.ts
+  s_9ed0da107cbc4a::t_6dd3656fb9499d 49-51,56,60
+apps/hub/src/home/whoami.ts
+  s_9ed0da107cbc4a::t_6dd3656fb9499d 15-16,40-48,60-62
+server/src/telegramPhoto.ts
+  s_9ed0da107cbc4a::t_5d3b547c5cb5d4 14-28,52-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "98894e0560e0dbf62ef58a06cf900ae6bbd1737d",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
