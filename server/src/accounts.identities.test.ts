@@ -15,7 +15,9 @@ import {
   findAccountByTelegramId,
   isGuest,
   linkTelegram,
+  declineTelegramOffer,
   profileOf,
+  telegramDoor,
   unlinkTelegram,
   updateProfile,
 } from "./accounts.js";
@@ -205,5 +207,49 @@ describe("приёмка имени и лица из телеги", () => {
     const guest = createAccount();
     linkTelegram(guest.id, guest.recoveryHash, "80003", { name: "Я".repeat(40) });
     expect(profileOf(guest.id)!.name.length).toBe(24);
+  });
+});
+
+// СТОРОЖ `accounts.a-returning-door-re-asks-what-is-behind-it`.
+//
+// Дверь, записанная однажды, показывала бы позавчерашнее до скончания века: человек сменил в телеге
+// лицо, приходит снова — и предложения нет, потому что в первый раз лица не было.
+describe("accounts.a-returning-door-re-asks-what-is-behind-it", () => {
+  it("вторая привязка обновляет то, что дверь может предложить", () => {
+    const account = createAccount("Своё имя");
+    linkTelegram(account.id, account.recoveryHash, "81001", { name: "Ербол" });
+    expect(profileOf(account.id)!.identities[0]!.label).toBeNull();
+
+    linkTelegram(account.id, account.recoveryHash, "81001", {
+      label: "@erbol",
+      name: "Ербол Сыздык",
+      photo: "data:image/jpeg;base64,AAAA",
+    });
+
+    const door = profileOf(account.id)!.identities[0]!;
+    expect(door.label).toBe("@erbol");
+    expect(telegramDoor(account.id)?.offeredPhoto).toBe("data:image/jpeg;base64,AAAA");
+    expect(telegramDoor(account.id)?.offeredName).toBe("Ербол Сыздык");
+  });
+
+  it("сменилось лицо — прежний отказ снимается: он был про другое лицо", () => {
+    const account = createAccount("Своё имя");
+    linkTelegram(account.id, account.recoveryHash, "81002", { photo: "старое" });
+    declineTelegramOffer(account.id, account.recoveryHash, "photo");
+    expect(telegramDoor(account.id)?.declinedPhoto).toBe(true);
+
+    linkTelegram(account.id, account.recoveryHash, "81002", { photo: "новое" });
+
+    expect(telegramDoor(account.id)?.declinedPhoto).toBe(false);
+  });
+
+  it("лицо то же — отказ остаётся отказом", () => {
+    const account = createAccount("Своё имя");
+    linkTelegram(account.id, account.recoveryHash, "81003", { photo: "то же" });
+    declineTelegramOffer(account.id, account.recoveryHash, "photo");
+
+    linkTelegram(account.id, account.recoveryHash, "81003", { photo: "то же" });
+
+    expect(telegramDoor(account.id)?.declinedPhoto).toBe(true);
   });
 });

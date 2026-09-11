@@ -75,3 +75,27 @@ describe("home.the-nickname-is-the-invitation", () => {
     expect(whoAmI(profile({ name: "Ербол", nameChosen: true })).note).toBe("гость");
   });
 });
+
+// СТОРОЖ `home.a-picture-is-a-picture-not-a-string`.
+//
+// Аватар — строка, и она бывает двух родов. Картинка, принятая за эмодзи, выливается на экран
+// собственным адресом: `data:image/jpeg;base64,…` буквами во весь экран — ровно это и случилось с
+// лицом, взятым из телеги.
+describe("home.a-picture-is-a-picture-not-a-string", () => {
+  it("лицо из телеги — картинка, а не эмодзи", () => {
+    const me = whoAmI(profile({ avatar: "data:image/jpeg;base64,/9j/4AAQSkZJRg" }));
+    expect(me.face).toEqual({ kind: "picture", src: "data:image/jpeg;base64,/9j/4AAQSkZJRg" });
+  });
+
+  it("обычная ссылка — тоже картинка", () => {
+    expect(whoAmI(profile({ avatar: "https://example.com/face.png" })).face.kind).toBe("picture");
+  });
+
+  it("эмодзи остаётся эмодзи", () => {
+    expect(whoAmI(profile({ avatar: "🐙" })).face).toEqual({ kind: "emoji", emoji: "🐙" });
+  });
+
+  it("буквы — не картинка: их и рисуем буквами", () => {
+    expect(whoAmI(profile({ avatar: "не ссылка" })).face.kind).toBe("emoji");
+  });
+});

@@ -12,6 +12,7 @@ import { randomUUID, randomInt } from "crypto";
 import {
   accountById,
   declineOffer,
+  refreshIdentity,
   unlinkIdentity,
   accountByIdentity,
   accountByRecoveryHash,
@@ -291,7 +292,12 @@ export function linkTelegram(
   if (!row) return undefined;
   const owner = accountByIdentity("telegram", telegramId);
   if (owner) {
-    if (owner.id === row.id) return { kind: "linked", account: dress(row) };
+    if (owner.id === row.id) {
+      // ПРИШЁЛ СНОВА — ПЕРЕСПРАШИВАЕМ ДВЕРЬ: в телеге у него могло смениться имя или лицо, а
+      // дверь, записанная однажды, показывала бы позавчерашнее до скончания века.
+      refreshIdentity(row.id, "telegram", faceOf(face));
+      return { kind: "linked", account: dress(accountById(row.id) ?? row) };
+    }
     // ДВЕ ПОЛНОЦЕННЫЕ СТОРОНЫ НЕ СЛИВАЮТСЯ НИКОГДА — их переключают.
     return isGuest(row.id)
       ? { kind: "switch", account: dress(owner) }

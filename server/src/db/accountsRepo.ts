@@ -184,6 +184,41 @@ export function declineOffer(
 }
 
 /**
+ * ДВЕРЬ ПЕРЕСПРАШИВАЕТ, ЧТО ЗА НЕЙ. Человек сменил в телеге имя или лицо — и, придя снова, должен
+ * увидеть предложение с НОВЫМ, а не с тем, что мы записали в первый раз.
+ *
+ * ОТКАЗ СНИМАЕТСЯ ВМЕСТЕ СО СМЕНОЙ: «оставить своё» было сказано про старое лицо, и молчать про
+ * новое на этом основании — значит никогда его не предложить.
+ */
+export function refreshIdentity(
+  accountId: string,
+  provider: Provider,
+  face: DoorFace,
+  at: DatabaseSync = db(),
+): void {
+  const before = identitiesOf(accountId, at).find((one) => one.provider === provider);
+  if (!before) return;
+  const label = face.label ?? before.label;
+  const name = face.name ?? null;
+  const photo = face.photo ?? null;
+  at.prepare(
+    `UPDATE identities
+        SET label = ?, offered_name = ?, offered_photo = ?,
+            declined_name = CASE WHEN ? THEN 0 ELSE declined_name END,
+            declined_photo = CASE WHEN ? THEN 0 ELSE declined_photo END
+      WHERE account_id = ? AND provider = ?`,
+  ).run(
+    label,
+    name,
+    photo,
+    name !== null && name !== before.offeredName ? 1 : 0,
+    photo !== null && photo !== before.offeredPhoto ? 1 : 0,
+    accountId,
+    provider,
+  );
+}
+
+/**
  * ОТВЯЗАТЬ ДВЕРЬ. Аккаунт от этого не исчезает и не становится «неполноценным»: рядом остаётся код
  * восстановления, и потеря телеги не должна уносить с собой предметы, статистику и друзей.
  */

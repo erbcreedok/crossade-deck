@@ -7,7 +7,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { MAX_PHOTO_BYTES, photoDataUrl } from "./telegramPhoto.js";
 
-const bytes = (n: number) => Buffer.alloc(n, 7);
+/** Настоящие первые байты JPEG: по ним лицо и узнаётся. */
+const jpeg = (n = 1024) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(Math.max(0, n - 3), 7)]);
+/** Что-то, что картинкой не является, как бы оно ни называлось. */
+const notImage = (n = 1024) => Buffer.alloc(n, 7);
 
 function telegram(o: { path?: string; size?: number; type?: string; body?: Buffer; fileOk?: boolean }) {
   return vi.fn(async (url: string) => {
@@ -19,8 +22,14 @@ function telegram(o: { path?: string; size?: number; type?: string; body?: Buffe
     }
     return {
       ok: o.fileOk ?? true,
-      headers: new Headers({ "content-type": o.type ?? "image/jpeg" }),
-      arrayBuffer: async () => (o.body ?? bytes(1024)).buffer,
+      // ИМЕННО ТАК ОТВЕЧАЕТ ТЕЛЕГА: `application/octet-stream` на любую картинку. Тест, подсовывавший
+      // сюда `image/jpeg`, проверял мир, которого нет, — и пропустил проверку заголовка, из-за
+      // которой настоящие лица отбрасывались.
+      headers: new Headers({ "content-type": o.type ?? "application/octet-stream" }),
+      arrayBuffer: async () => {
+        const body = o.body ?? jpeg();
+        return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
+      },
     };
   }) as never;
 }
@@ -44,13 +53,19 @@ describe("telegram-photo.the-face-arrives-as-bytes-not-as-a-link", () => {
     expect(urls[1]).toContain("/file/bot");
   });
 
-  it("не картинка — не лицо", async () => {
-    expect(await photoDataUrl("t", "file-1", telegram({ type: "text/html" }))).toBeUndefined();
+  it("тип берётся из байтов: телега отвечает octet-stream на любую картинку", async () => {
+    const face = await photoDataUrl("t", "file-1", telegram({ type: "application/octet-stream", body: jpeg() }));
+    expect(face?.startsWith("data:image/jpeg;base64,")).toBe(true);
+  });
+
+  it("не картинка — не лицо, как бы её ни назвали в заголовке", async () => {
+    const lying = telegram({ type: "image/jpeg", body: notImage() });
+    expect(await photoDataUrl("t", "file-1", lying)).toBeUndefined();
   });
 
   it("слишком тяжёлое не берём — аватар это кружок, а не обои", async () => {
     expect(await photoDataUrl("t", "file-1", telegram({ size: MAX_PHOTO_BYTES + 1 }))).toBeUndefined();
-    const fat = telegram({ size: 10, body: bytes(MAX_PHOTO_BYTES + 1) });
+    const fat = telegram({ size: 10, body: jpeg(MAX_PHOTO_BYTES + 1) });
     expect(await photoDataUrl("t", "file-1", fat)).toBeUndefined();
   });
 

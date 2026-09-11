@@ -11,7 +11,21 @@
 /** Больше этого лицо не берём: аватар рисуется кружком в 64 px, а не обоями. */
 export const MAX_PHOTO_BYTES = 300 * 1024;
 
-const IMAGE = /^image\/(jpeg|png|webp)$/;
+/**
+ * ЧТО ЭТО ЗА КАРТИНКА — ПО САМИМ БАЙТАМ, А НЕ ПО ЗАГОЛОВКУ.
+ *
+ * Файловый сервер телеги отвечает `application/octet-stream` на любую картинку — проверка заголовка
+ * отбрасывала настоящие лица и пропустила бы чужой файл, назовись он `image/jpeg`. Первые байты
+ * врать не умеют.
+ */
+export function imageTypeOf(bytes: Buffer): string | undefined {
+  if (bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (bytes.length > 8 && bytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") return "image/png";
+  if (bytes.length > 12 && bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP") {
+    return "image/webp";
+  }
+  return undefined;
+}
 
 /**
  * Забрать файл по его ключу и превратить в `data:`-строку. `undefined` — телега не ответила, файл
@@ -33,10 +47,10 @@ export async function photoDataUrl(
 
     const file = await call(`https://api.telegram.org/file/bot${token}/${path}`);
     if (!file.ok) return undefined;
-    const type = file.headers.get("content-type") ?? "";
-    if (!IMAGE.test(type)) return undefined;
     const bytes = Buffer.from(await file.arrayBuffer());
     if (bytes.byteLength > MAX_PHOTO_BYTES) return undefined;
+    const type = imageTypeOf(bytes);
+    if (!type) return undefined;
     return `data:${type};base64,${bytes.toString("base64")}`;
   } catch {
     return undefined;

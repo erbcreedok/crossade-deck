@@ -12,6 +12,8 @@ import type { Profile } from "@crossade/wire";
 export type FaceKind =
   /** Эмодзи, которое человек выбрал себе сам. */
   | { readonly kind: "emoji"; readonly emoji: string }
+  /** Картинка: своя ссылка или лицо, взятое из телеги. */
+  | { readonly kind: "picture"; readonly src: string }
   /** Первая буква своего имени. */
   | { readonly kind: "letter"; readonly letter: string }
   /** Безликий силуэт: имени человек ещё не выбирал. */
@@ -35,6 +37,15 @@ export interface WhoAmI {
 }
 
 /** Что этот экран знает о том, кто перед ним. */
+/**
+ * АВАТАР — ЭТО СТРОКА, И ОНА БЫВАЕТ ДВУХ РОДОВ: эмодзи или картинка. Картинка, принятая за эмодзи,
+ * выливается на экран собственным адресом — буквами во весь экран, как это и случилось с лицом из
+ * телеги (`data:image/jpeg;base64,…`).
+ */
+export function isPicture(avatar: string): boolean {
+  return /^(data:image\/|https?:\/\/)/i.test(avatar.trim());
+}
+
 export function whoAmI(profile: Profile): WhoAmI {
   const named = profile.nameChosen;
   const telegram = profile.identities.find((one) => one.provider === "telegram");
@@ -46,7 +57,9 @@ export function whoAmI(profile: Profile): WhoAmI {
     // прав», а откуда взялось имя: это то, что человек может изменить.
     note: named ? (hasTelegram ? "" : "гость") : "имя выдал стол",
     face: profile.avatar
-      ? { kind: "emoji", emoji: profile.avatar }
+      ? isPicture(profile.avatar)
+        ? { kind: "picture", src: profile.avatar }
+        : { kind: "emoji", emoji: profile.avatar }
       : named
         ? { kind: "letter", letter: profile.name.slice(0, 1) }
         : { kind: "nobody" },

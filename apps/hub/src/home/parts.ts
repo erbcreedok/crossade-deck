@@ -46,16 +46,18 @@ export function fillCss(fill: HomeFill, blur = 7): string {
  */
 export function ballHtml(face: FaceKind, ink: string | null, size: number, ring: number): string {
   const inner =
-    face.kind === "emoji"
+    face.kind === "picture"
+      ? `<img src="${esc(face.src)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">`
+      : face.kind === "emoji"
       ? `<span style="font-size:${Math.round(size * 0.56)}px;line-height:1">${esc(face.emoji)}</span>`
       : face.kind === "letter"
         ? `<span style="font:400 ${Math.round(size * 0.42)}px ${FONT};color:${PALETTE.black}">${esc(face.letter)}</span>`
         : svg(ICON.person, Math.round(size * 0.62), PALETTE.inkDim);
-  const ground = face.kind === "emoji" || !ink ? PALETTE.well : ink;
+  const ground = face.kind === "emoji" || face.kind === "picture" || !ink ? PALETTE.well : ink;
   const halo = ring > 0 && ink ? `,0 0 0 ${ring}px ${ink}` : "";
   return (
     `<span style="flex:none;width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;` +
-    `justify-content:center;background:${ground};box-shadow:inset 0 0 0 3px ${PALETTE.black}${halo}">${inner}</span>`
+    `justify-content:center;overflow:hidden;background:${ground};box-shadow:inset 0 0 0 3px ${PALETTE.black}${halo}">${inner}</span>`
   );
 }
 
