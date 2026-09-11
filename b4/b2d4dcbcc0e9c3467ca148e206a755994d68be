@@ -1,0 +1,22 @@
+apps/hub/index.html
+  s_357f670d370d4d::t_c438c57a03c2b7 93,96,98-100,102-108,116-118
+  s_357f670d370d4d::t_57a9c06c67e7eb 110-114,121-126
+apps/hub/src/hub/boot.test.ts
+  s_357f670d370d4d::t_f0c5418b69de5b 45-46,48-52,54-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b4b2d4dcbcc0e9c3467ca148e206a755994d68be",
+  "prompts": {},
+  "sessions": {
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
