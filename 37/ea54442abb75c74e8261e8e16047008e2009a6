@@ -1,0 +1,28 @@
+wire/src/index.ts
+  s_9ed0da107cbc4a::t_2e81f3a0b5dc7e 16
+wire/src/forget.test.ts
+  s_9ed0da107cbc4a::t_3b7c9d2b669d00 1-51
+wire/src/account.ts
+  s_9ed0da107cbc4a::t_de58fa76aa785e 111-129,135-138
+apps/hub/src/home/home.ts
+  s_9ed0da107cbc4a::t_2e81f3a0b5dc7e 11,30-31,43-45,294-299,302-305
+apps/hub/src/home/home.test.ts
+  s_9ed0da107cbc4a::t_973c114b89fff9 169-203
+  s_9ed0da107cbc4a::t_30bd2520438b34 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "37ea54442abb75c74e8261e8e16047008e2009a6",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
