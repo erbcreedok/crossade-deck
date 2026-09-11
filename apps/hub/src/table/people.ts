@@ -9,7 +9,7 @@
 // idle-return, taps — is the kit's own (`withAvatars`) and is not restated here.
 
 import type { AvatarSeat, AvatarsTransport, Paint, Presence, PresenceState, PresenceView } from "game-kit";
-import type { RelayMessage, RosterItem } from "../online/table.js";
+import type { RelayMessage, RosterItem } from "@crossade/wire";
 
 /**
  * THE INKS SEATS ARE MARKED IN, in seat order — one list, read by the mark AND by the avatar.

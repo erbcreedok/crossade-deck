@@ -11,10 +11,10 @@
   },
   "dependencies": {
     "@apps/klondike": "*",
+    "@crossade/wire": "*",
     "@game-presets/cards": "*",
     "@game-presets/desks": "*",
     "@game-presets/dice": "*",
-    "colyseus.js": "^0.15.0",
     "game-kit": "*",
     "pixi.js": "^8.19.0"
   },

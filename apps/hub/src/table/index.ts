@@ -73,10 +73,10 @@ import {
   type Vec,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
-import { storedAccount } from "../account/account.js";
+import { storedAccount } from "@crossade/wire";
 import { beat } from "../hub/beat.js";
 import { goTo, placeOf } from "../hub/route.js";
-import { joinTable, type RosterItem, type Table } from "../online/table.js";
+import { joinTable, type RosterItem, type Table } from "@crossade/wire";
 import type { Teardown } from "../hub/catalogue.js";
 import { installTableLook } from "../look/surfaces.js";
 import { isTableGame, mapFor, syncSeatChairs, TABLE_SEATS, type SeatedPerson, type TableGame } from "./mapFor.js";

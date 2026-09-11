@@ -2,7 +2,7 @@
 import { holdThePage } from "game-kit";
 import { startHub } from "./hub/shell.js";
 import { goTo, routeOf } from "./hub/route.js";
-import { serverUrl } from "./account/server.js";
+import { serverUrl } from "@crossade/wire";
 import { isTelegramWebview } from "./telegram.js";
 
 const chrome = document.querySelector<HTMLElement>("#chrome");

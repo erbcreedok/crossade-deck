@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import type { Presence, PresenceView } from "game-kit";
 import { hubAvatarsTransport, inkOf, PRESENCE_EVERY_MS } from "./people.js";
-import type { RelayMessage } from "../online/table.js";
+import type { RelayMessage } from "@crossade/wire";
 
 const VIEW: PresenceView = { target: { x: 0, y: 0 }, zoom: 56, rotation: 0, glass: { w: 393, h: 800 } };
 

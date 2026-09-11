@@ -36,7 +36,7 @@ import { wirePress } from "./press.js";
 import { twinkleLevel, twinkleStep } from "./twinkle.js";
 import { CATALOGUE, type Teardown } from "./catalogue.js";
 import { goTo, onRoute, routeOf } from "./route.js";
-import { ensureAccount } from "../account/account.js";
+import { ensureAccount } from "@crossade/wire";
 
 /**
  * The shelf's own size, plus the title above it and a margin round the lot. Not one number any

@@ -1,7 +1,7 @@
 import { Client } from "colyseus.js";
 import { fromSpec, node, revOf, setRev, toSpec, treeFromJson, type Node } from "game-kit";
-import type { Account } from "../account/account.js";
-import { serverUrl } from "../account/server.js";
+import type { Account } from "./account.js";
+import { serverUrl } from "./server.js";
 
 /** One person in the room, as the server names them. */
 export interface RosterItem {

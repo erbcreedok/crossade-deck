@@ -3,9 +3,9 @@
   "private": true,
   "workspaces": [
     "game-kit",
+    "wire",
     "game-presets/*",
-    "apps/*",
-    "bot"
+    "apps/*"
   ],
   "scripts": {
     "kit": "npm run dev --workspace game-kit",
