@@ -75,6 +75,13 @@
       ["screen", "что открыто", "enum", "список", ["список", "найти", "создать"]],
       ["open", "раскрыта инфа у первой", "bool", false],
     ]],
+    ["Поиск", [
+      ["fGame", "фильтр: игра", "enum", "любая", ["любая", "Карты", "Нарды", "Шахматы", "Судоку"]],
+      ["fSeats", "фильтр: мест от", "int", 2, 2, 32],
+      ["fFree", "фильтр: только со свободными", "bool", true],
+      ["fMode", "фильтр: кто решает", "enum", "любой", ["любой", "оунер решает", "оунер и админы", "все админы", "демократия"]],
+      ["filtered", "фильтры применены", "bool", false],
+    ]],
     ["Создание", [
       ["newVis", "видимость", "enum", "по коду", ["по коду", "для друзей", "публичная"]],
       ["newMode", "кто решает", "enum", "оунер и админы", ["оунер решает", "оунер и админы", "все админы", "демократия"]],
@@ -158,6 +165,35 @@
       : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 3px 0 rgba(11,7,4,.55);color:${T.ink};`)
     + `">${label}</button>`;
 
+  // ---- КОНТРОЛЫ, ОБЩИЕ ДЛЯ СОЗДАНИЯ И ПОИСКА ----
+  //
+  // Одни и те же вопросы задаются в двух местах («сколько мест», «кто решает»), и задавать их надо
+  // одинаково: человек, научившийся тянуть ползунок при создании, ищет его же в поиске.
+  const label = (t) => `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">${t}</span>`;
+  const block = (t, inner) => `<div style="display:flex;flex-direction:column;gap:9px;padding:14px 0;box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55)">${label(t)}${inner}</div>`;
+
+  /** Селектор: варианты рядом, выбранный горит. Чтобы видеть ВСЕ ответы разом, а не по кругу. */
+  const pick = (id, options, now) => `<div style="display:flex;gap:6px;flex-wrap:wrap">`
+    + options.map((o) => `<button data-do="${id}:${o}" style="flex:1 1 auto;cursor:pointer;border:0;border-radius:8px;padding:9px 10px;font:400 12px 'Tiny5',monospace;white-space:nowrap;`
+      + (o === now
+        ? `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6);color:${T.black};`
+        : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};color:${T.inkDim};`)
+      + `">${o}</button>`).join("") + `</div>`;
+
+  /** Тумблер: два состояния и нет середины, подписан последствием, а не словом «да». */
+  const toggle = (id, on, yes, no) => `<button data-do="${id}" style="cursor:pointer;border:0;background:transparent;display:flex;align-items:center;gap:10px;padding:0">`
+    + `<span style="flex:none;width:52px;height:30px;border-radius:999px;display:flex;align-items:center;padding:0 3px;box-sizing:border-box;`
+    + `background:${on ? T.gold : T.well};box-shadow:inset 0 0 0 3px ${T.black};justify-content:${on ? "flex-end" : "flex-start"}">`
+    + `<span style="width:22px;height:22px;border-radius:50%;background:${on ? T.black : T.wood}"></span></span>`
+    + `<span style="font:400 13px 'Tiny5',monospace;color:${on ? T.ink : T.inkDim};text-align:left">${on ? yes : no}</span></button>`;
+
+  /** ДВА ПУТИ К ОДНОМУ ЧИСЛУ: ползунок — когда «примерно столько», цифра — когда число известно. */
+  const seatsControl = (id, value, hint) => `<div style="display:flex;align-items:center;gap:12px">`
+    + `<button data-do="${id}" style="flex:none;cursor:pointer;border:0;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};border-radius:10px;`
+    + `padding:11px 16px;font:400 17px 'Press Start 2P',monospace;color:${T.ink}"><span data-g="${id}-value">${value}</span></button>`
+    + `<input data-slider="${id}" type="range" min="2" max="32" step="1" value="${value}" style="flex:1;accent-color:${T.gold};height:30px"></div>`
+    + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">${hint}</span>`;
+
   /** Игры в списке. Мост их не знает: имя и знак приезжают вместе с комнатой. */
   const GAMES = [
     { id: "cards", name: "Карты", sign: "♠" },
@@ -205,7 +241,23 @@
     const { W, H } = glass();
     const inset = real() ? "env(safe-area-inset-top, 0px)" : "0px";
     const bottom = real() ? "env(safe-area-inset-bottom, 0px)" : "0px";
-    const rooms = P.state === "список" ? roomsOf() : [];
+    const all = P.state === "список" ? roomsOf() : [];
+    /**
+     * ФИЛЬТРЫ ПРИМЕНЯЮТСЯ К ТОМУ ЖЕ СПИСКУ, А НЕ ОТКРЫВАЮТ ВТОРОЙ ЭКРАН «результаты поиска». Второй
+     * список — это второй набор пустых состояний, второй способ войти и второе место, где всё это
+     * разойдётся. Поиск просто сужает то, что уже видно.
+     */
+    const chips = P.filtered ? [
+      P.fGame !== "любая" ? ["fGame", P.fGame] : null,
+      P.fSeats > 2 ? ["fSeats", `мест от ${P.fSeats}`] : null,
+      P.fFree ? ["fFree", "есть места"] : null,
+      P.fMode !== "любой" ? ["fMode", P.fMode] : null,
+    ].filter(Boolean) : [];
+    const rooms = !P.filtered ? all : all.filter((r) =>
+      (P.fGame === "любая" || r.game.name === P.fGame)
+      && r.seats >= P.fSeats
+      && (!P.fFree || r.taken < r.seats)
+      && (P.fMode === "любой" || r.mode === P.fMode));
 
     // ---- ВЕРХ: НАЗАД И ЧТО ЭТО ЗА СПИСОК ----
     const title = P.screen === "найти" ? "НАЙТИ КОМНАТУ" : P.screen === "создать" ? "НОВЫЙ СТОЛ" : P.mixed ? "КОМНАТЫ" : "КАРТЫ";
@@ -273,6 +325,9 @@
     } else if (P.state === "молчит") {
       listBody = nothing("⚡", "Сервер не отвечает.<br>Комнат не видно — но стол<br>можно открыть и одному.",
         `<div style="display:flex;gap:8px">${btn("retry", "Ещё раз", "gold", true)}${btn("solo", "Играть одному", "", true)}</div>`);
+    } else if (!rooms.length && chips.length) {
+      listBody = nothing("🔍", `Под эти условия не подошёл ни один стол.<br>Всего открыто ${all.length}.`,
+        `<div style="display:flex;gap:8px">${btn("chip:all", "Снять фильтры", "gold", true)}${btn("create", "Создать свой", "", true)}</div>`);
     } else if (!rooms.length) {
       listBody = nothing("🕸", P.who === "гость"
         ? "Открытых столов сейчас нет.<br>Создай свой — или войди,<br>чтобы видеть столы друзей."
@@ -291,49 +346,39 @@
         + `font:400 12px 'Tiny5',monospace;color:${T.inkDim};line-height:1.7">Столы друзей и свои вечные видно после входа.</div>` : "");
     }
 
-    const listScreen = `<div style="display:flex;flex-direction:column;gap:9px;padding:0 12px 16px">${listBody}</div>`;
+    // ЧИПСЫ — ЭТО НЕ УКРАШЕНИЕ, А ОТВЕТ НА «ПОЧЕМУ ТУТ ПУСТО». Фильтр, который не видно, через
+    // минуту становится поломкой: человек возвращается в список, комнат нет, и винит сервер.
+    const chipRow = !chips.length ? "" :
+      `<div style="display:flex;gap:6px;flex-wrap:wrap;padding:2px 0 6px">`
+      + chips.map(([id, text]) => `<button data-do="chip:${id}" style="cursor:pointer;border:0;border-radius:999px;padding:7px 10px;font:400 11px 'Tiny5',monospace;`
+        + `background:${T.gold};box-shadow:inset 0 0 0 3px ${T.black};color:${T.black}">${text} ✕</button>`).join("")
+      + `<button data-do="chip:all" style="cursor:pointer;border:0;border-radius:999px;padding:7px 10px;font:400 11px 'Tiny5',monospace;`
+      + `background:transparent;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">сбросить всё</button></div>`;
+
+    const listScreen = `<div style="display:flex;flex-direction:column;gap:9px;padding:0 12px 16px">${chipRow}${listBody}</div>`;
 
     // ---- НАЙТИ: КОД СВЕРХУ, ФИЛЬТРЫ НИЖЕ ----
+    //
+    // Код первым, потому что это самый частый случай: друг прислал четыре знака. Подбор — ниже, и
+    // спрашивает теми же контролами, что и создание: ползунок мест, селектор «кто решает».
     const cell = (n) => `<span style="flex:1;height:52px;display:flex;align-items:center;justify-content:center;background:${T.black};box-shadow:inset 0 0 0 3px ${n ? T.gold : T.wood};border-radius:10px;`
       + `font:400 20px 'Press Start 2P',monospace;color:${T.gold}">${n || ""}</span>`;
-    const filter = (label, value) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55)">`
-      + `<span style="font:400 13px 'Tiny5',monospace;color:${T.inkDim}">${label}</span>`
-      + `<span style="font:400 14px 'Tiny5',monospace;color:${T.ink}">${value} ›</span></div>`;
-    const findScreen = `<div style="padding:0 16px 16px;display:flex;flex-direction:column;gap:14px">`
-      + `<div><span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">КОД КОМНАТЫ</span>`
+    const findScreen = `<div style="padding:0 16px 16px;display:flex;flex-direction:column">`
+      + `<div style="padding:6px 0 4px">${label("КОД КОМНАТЫ")}`
       + `<div style="display:flex;gap:8px;padding-top:9px">${cell("0")}${cell("2")}${cell("")}${cell("")}</div>`
       + `<div style="padding-top:9px">${btn("enter:0244", "Войти по коду", "gold")}</div>`
       + `<div style="padding-top:8px;font:400 11px 'Tiny5',monospace;color:${T.inkDim};line-height:1.6">Код присылают в чат — по нему пускают даже в закрытую комнату.</div></div>`
-      + `<div><span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">ИЛИ ПОДОБРАТЬ</span>`
-      + filter("Игра", P.mixed ? "любая" : "Карты")
-      + filter("Свободные места", "есть")
-      + filter("Кто решает", "любой")
-      + filter("Язык стола", "русский")
-      + `<div style="padding-top:12px">${btn("found", "Показать столы", "")}</div></div></div>`;
+      + block("ИГРА", pick("fGame", ["любая", "Карты", "Нарды", "Шахматы", "Судоку"], P.fGame))
+      + block("МЕСТ ЗА СТОЛОМ, ОТ", seatsControl("fSeats", P.fSeats, "столы меньше этого не покажем"))
+      + block("СВОБОДНЫЕ МЕСТА", toggle("fFree", P.fFree, "только те, куда можно сесть", "показывать и полные"))
+      + block("КТО РЕШАЕТ", pick("fMode", ["любой", "оунер решает", "оунер и админы", "все админы", "демократия"], P.fMode))
+      + `<div style="padding-top:18px">${btn("found", "Показать столы", "")}</div></div>`;
 
     // ---- СОЗДАТЬ ----
     //
     // КАЖДЫЙ КОНТРОЛ — ПО СВОЕЙ ПРИРОДЕ ВЫБОРА, а не одинаковой строкой «значение ›». Из трёх
     // видимостей выбирают, вечность включают, мест называют число, а код УЖЕ ЕСТЬ — он выдан
     // заранее, и его правят, а не придумывают с нуля.
-    const label = (t) => `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">${t}</span>`;
-    const block = (t, inner) => `<div style="display:flex;flex-direction:column;gap:9px;padding:14px 0;box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55)">${label(t)}${inner}</div>`;
-
-    /** Селектор: варианты рядом, выбранный горит. Чтобы видеть ВСЕ ответы разом, а не по кругу. */
-    const pick = (id, options, now) => `<div style="display:flex;gap:6px;flex-wrap:wrap">`
-      + options.map((o) => `<button data-do="${id}:${o}" style="flex:1 1 auto;cursor:pointer;border:0;border-radius:8px;padding:9px 10px;font:400 12px 'Tiny5',monospace;white-space:nowrap;`
-        + (o === now
-          ? `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6);color:${T.black};`
-          : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};color:${T.inkDim};`)
-        + `">${o}</button>`).join("") + `</div>`;
-
-    /** Тумблер: у вечности два состояния и нет середины. */
-    const toggle = (id, on) => `<button data-do="${id}" style="cursor:pointer;border:0;background:transparent;display:flex;align-items:center;gap:10px;padding:0">`
-      + `<span style="width:52px;height:30px;border-radius:999px;display:flex;align-items:center;padding:0 3px;box-sizing:border-box;`
-      + `background:${on ? T.gold : T.well};box-shadow:inset 0 0 0 3px ${T.black};justify-content:${on ? "flex-end" : "flex-start"}">`
-      + `<span style="width:22px;height:22px;border-radius:50%;background:${on ? T.black : T.wood}"></span></span>`
-      + `<span style="font:400 13px 'Tiny5',monospace;color:${on ? T.ink : T.inkDim}">${on ? "живёт всегда" : "закроется, когда все уйдут"}</span></button>`;
-
     const createScreen = `<div style="padding:0 16px 16px">`
       + `<div style="display:flex;align-items:center;gap:12px;padding:6px 0 4px">`
       + `<span style="flex:none;width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:${T.black};font-size:22px">${GAMES[0].sign}</span>`
@@ -350,17 +395,9 @@
         + (P.newVis === "публичная" ? "Стол увидят все — подсядут незнакомые."
           : P.newVis === "для друзей" ? "Стол увидят только друзья; остальным нужен код."
           : "Стол не увидит никто: пускают по коду, который ты пришлёшь.") + `</span>`)
-      // ДВА ПУТИ К ОДНОМУ ЧИСЛУ: ползунок — когда «примерно столько», цифра — когда число известно.
-      // Ползунок кончается на 32, и руками больше тоже нельзя: стол, за который сели тридцать три
-      // человека, — это уже не стол, а список, и рисовать его нечем.
-      + block("МЕСТ ЗА СТОЛОМ", `<div style="display:flex;align-items:center;gap:12px">`
-        + `<button data-do="seats" style="flex:none;cursor:pointer;border:0;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};border-radius:10px;`
-        + `padding:11px 16px;font:400 17px 'Press Start 2P',monospace;color:${T.ink}"><span data-g="seats-value">${P.newSeats}</span></button>`
-        + `<input data-slider="seats" type="range" min="2" max="32" step="1" value="${P.newSeats}" style="flex:1;accent-color:${T.gold};height:30px">`
-        + `</div>`
-        + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">тяни ползунок или нажми на число — от 2 до 32</span>`)
+      + block("МЕСТ ЗА СТОЛОМ", seatsControl("seats", P.newSeats, "тяни ползунок или нажми на число — от 2 до 32"))
       + block("КТО РЕШАЕТ", pick("mode", ["оунер решает", "оунер и админы", "все админы", "демократия"], P.newMode))
-      + block("ВЕЧНАЯ КОМНАТА", toggle("forever", P.newForever))
+      + block("ВЕЧНАЯ КОМНАТА", toggle("forever", P.newForever, "живёт всегда", "закроется, когда все уйдут"))
       + `<div style="padding-top:18px">${btn("made", "Создать и сесть", "gold")}</div></div>`;
 
     // ---- НИЗ: НАЙТИ, СОЗДАТЬ, ОДНОМУ ----
@@ -388,6 +425,20 @@
         else if (does === "made") alert("Наружу уходит «создать стол» с этими настройками");
         else if (does === "solo") alert("Наружу уходит «стол без комнаты» — как косынка");
         else if (does === "retry") P.state = "список";
+        else if (does === "found") { P.filtered = true; P.screen = "список"; }
+        else if (does.startsWith("fGame:")) P.fGame = does.slice(6);
+        else if (does.startsWith("fMode:")) P.fMode = does.slice(6);
+        else if (does === "fFree") P.fFree = !P.fFree;
+        else if (does === "fSeats") {
+          const got = prompt("От скольких мест? (2–32)", String(P.fSeats));
+          const n = Number(got);
+          if (Number.isFinite(n) && n >= 2 && n <= 32) P.fSeats = Math.round(n);
+        }
+        else if (does === "chip:all") { P.filtered = false; P.fGame = "любая"; P.fSeats = 2; P.fFree = true; P.fMode = "любой"; }
+        else if (does === "chip:fGame") P.fGame = "любая";
+        else if (does === "chip:fSeats") P.fSeats = 2;
+        else if (does === "chip:fFree") P.fFree = false;
+        else if (does === "chip:fMode") P.fMode = "любой";
         else if (does.startsWith("vis:")) P.newVis = does.slice(4);
         else if (does.startsWith("mode:")) P.newMode = does.slice(5);
         else if (does === "forever") P.newForever = !P.newForever;
@@ -405,14 +456,16 @@
       };
     }
 
-    const slider = over.querySelector('[data-slider="seats"]');
-    if (slider) {
-      // ПОКА ТЯНУТ — МЕНЯЕМ ТОЛЬКО ЧИСЛО. Пересборка разметки на каждый пиксель отрывает палец от
-      // ползунка: элемент, который тянули, в этот момент уже другой.
+    // ПОКА ТЯНУТ — МЕНЯЕМ ТОЛЬКО ЧИСЛО. Пересборка разметки на каждый пиксель отрывает палец от
+    // ползунка: элемент, который тянули, к следующему кадру уже другой.
+    const SLIDERS = { seats: "newSeats", fSeats: "fSeats" };
+    for (const slider of over.querySelectorAll("[data-slider]")) {
+      const id = slider.getAttribute("data-slider");
+      const key = SLIDERS[id];
       slider.oninput = () => {
-        P.newSeats = Number(slider.value);
-        const shown = over.querySelector('[data-g="seats-value"]');
-        if (shown) shown.textContent = String(P.newSeats);
+        P[key] = Number(slider.value);
+        const shown = over.querySelector(`[data-g="${id}-value"]`);
+        if (shown) shown.textContent = String(P[key]);
       };
       slider.onchange = () => { build(); apply(); };
     }
