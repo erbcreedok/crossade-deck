@@ -42,45 +42,35 @@ describe("hub.the-cross-is-in-the-page", () => {
     // another size and the line's speed is unchanged, because the dash was never in user units.
     expect(PAGE).toContain('pathLength="1"');
     expect(PAGE, "the line is red").toMatch(/\.line \{[^}]*stroke: #e0483f/);
-    // THREE MOVES, AND BOTH ENDS MOVE. The dash is how LONG the stroke is, the offset is WHERE it
-    // lies: growing is the head running out from a tail left at home, travelling is both ends moving
-    // at one length, gathering is the tail coming in to a head already at the end. A single-value
-    // dasharray — the whole outline, drawn by offset alone — is the animation this replaced.
+    // A HEAD, THEN A TAIL — drawn, held, eaten, held. Both ends are animated, so both the dash (how
+    // LONG the stroke is) and the offset (WHERE it lies) are keyed, in fractions of the outline.
     const frames = PAGE.slice(PAGE.indexOf("@keyframes crusade"), PAGE.indexOf("prefers-reduced-motion"));
-    expect(frames, "it starts a twentieth long, at the crown").toMatch(/0%\s*\{ stroke-dasharray: 0\.05 1; stroke-dashoffset: 0;/);
-    expect(frames, "grows to two fifths with the tail still home").toMatch(/45%\s*\{ stroke-dasharray: 0\.40 1; stroke-dashoffset: 0;/);
-    expect(frames, "travels at that length to the end of the outline").toMatch(/80%\s*\{ stroke-dasharray: 0\.40 1; stroke-dashoffset: -0\.60;/);
-    expect(frames, "and gathers to a twentieth, head home").toMatch(/100%\s*\{ stroke-dasharray: 0\.05 1; stroke-dashoffset: -0\.95;/);
-    // THE HEAD LANDS EXACTLY ON THE END at both of the last two frames: tail + length = 1. Off by a
-    // hundredth and the stroke either overshoots the crown or stops short of it, and on a 400ms loop
-    // that reads as a stutter nobody can place.
-    expect(0.6 + 0.4, "the head reaches the end as the travel finishes").toBeCloseTo(1, 10);
-    expect(0.95 + 0.05, "…and is still there when the tail arrives").toBeCloseTo(1, 10);
-    // IT NEVER DISAPPEARS: the next turn opens at the length the last one closed at.
-    expect(frames.match(/stroke-dasharray: 0\.05 1/g)?.length, "starts and ends a twentieth long").toBe(2);
-    expect(PAGE, "the loop is 800ms and each phase carries its own easing").toMatch(/animation: crusade 800ms infinite/);
-    // REAL CURVES, NOT THE KEYWORDS. `ease-out` and `ease-in-out` are gentle by reputation; the
-    // growth is the move the eye follows all the way through, and it wants a curve that is soft at
-    // BOTH ends rather than only at one.
-    expect(frames, "the growth eases in and out").toContain("cubic-bezier(.65, 0, .35, 1)");
-    expect(frames, "the travel is dead steady").toContain("animation-timing-function: linear");
-    expect(frames, "the gathering eases to a stop").toContain("cubic-bezier(.4, 0, .2, 1)");
+    expect(frames, "it opens with nothing drawn, at the crown").toMatch(/0%\s*\{ stroke-dasharray: 0 1; stroke-dashoffset: 0;/);
+    expect(frames, "the head has run the whole outline by 40%").toMatch(/40%\s*\{ stroke-dasharray: 1 1; stroke-dashoffset: 0;/);
+    expect(frames, "…and the whole cross is HELD, unchanged, to 50%").toMatch(/50%\s*\{ stroke-dasharray: 1 1; stroke-dashoffset: 0;/);
+    expect(frames, "then the tail runs the same road and empties it").toMatch(/90%\s*\{ stroke-dasharray: 0 1; stroke-dashoffset: -1;/);
+    expect(frames, "…and empty is HELD to the end").toMatch(/100%\s*\{ stroke-dasharray: 0 1; stroke-dashoffset: -1;/);
 
-    // THE GROWING IS THE SLOW PART, AND IT IS SLOW BY ARITHMETIC. The head covers 0.35 of the
-    // outline while the stroke grows and 0.60 while it travels; give those phases 45% and 35% of the
-    // loop and the head moves better than twice as fast once it is up to length — which is the
-    // whole of the ask, and is a property of the SPLIT, not of the easing. A curve alone only
-    // borrows speed from one end of a phase and pays it back at the other, so it cannot make one
-    // phase slower than another; only the numbers below can, and that is why they are checked.
-    const GROW_TIME = 0.45, TRAVEL_TIME = 0.80 - 0.45;
-    const GROW_PATH = 0.40 - 0.05, TRAVEL_PATH = 1 - 0.40;
-    expect(TRAVEL_PATH / TRAVEL_TIME, "the head travels at better than twice its growing speed").toBeGreaterThan(
-      2 * (GROW_PATH / GROW_TIME),
-    );
-    expect(GROW_TIME, "and the growing gets the larger share of the loop").toBeGreaterThan(TRAVEL_TIME);
-    // NOTHING UNDER IT: the path is what the line is for, and a track drawn beneath gives the shape
-    // away before the line has earned it.
-    expect(PAGE.includes("class=\"ghost\""), "no second path under the line").toBe(false);
+    // THE HELD MOMENTS ARE THE POINT. Without them the head's arrival and the tail's departure land
+    // on one frame and the eye reads a continuous scribble instead of a cross being drawn. They are
+    // a tenth of the loop each, and the two runs four tenths each: 400 + 100 + 400 + 100.
+    expect(PAGE, "the loop is a second").toMatch(/animation: crusade 1000ms infinite/);
+    const HEAD = 0.40, HOLD_FULL = 0.50 - 0.40, TAIL = 0.90 - 0.50, HOLD_EMPTY = 1 - 0.90;
+    expect(HEAD, "the head's run and the tail's are the same length of time").toBeCloseTo(TAIL, 10);
+    expect(HOLD_FULL, "and so are the two pauses").toBeCloseTo(HOLD_EMPTY, 10);
+    expect(HOLD_FULL, "each pause is a quarter of a run — long enough to read as a stop").toBeCloseTo(HEAD / 4, 10);
+
+    // BOTH RUNS CARRY THE SAME CURVE, eased at both ends: slow away, slow up to the finish.
+    expect(frames.match(/cubic-bezier\(\.65, 0, \.35, 1\)/g)?.length, "the head and the tail move alike").toBe(2);
+    expect(frames, "and a pause is a pause, not a slow crawl").toContain("animation-timing-function: linear");
+
+    // THE EMPTY PAUSE IS EMPTY. A round cap draws a zero-length dash as a DOT, and it sat on the
+    // crown for the whole pause until the stroke was switched off outright — measured in the
+    // browser before the fix, and the reason `stroke-opacity` is keyed at all.
+    expect(frames, "lit while there is something to draw").toMatch(/89\.5%\s*\{ stroke-opacity: 1; \}/);
+    expect(frames, "and switched off for the empty hold").toMatch(/90%\s*\{[^}]*stroke-opacity: 0;/);
+    expect(frames, "…still off at the end, so the loop restarts dark").toMatch(/100%\s*\{[^}]*stroke-opacity: 0;/);
+    expect(PAGE, "the caps stay round — they are what makes the ends read as ends").toMatch(/stroke-linecap: round/);
     expect(PAGE, "a player who asked for stillness gets the cross without the run").toMatch(
       /prefers-reduced-motion: reduce\) \{\s*#boot \.line \{ animation: none;/,
     );

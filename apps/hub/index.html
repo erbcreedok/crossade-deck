@@ -90,40 +90,40 @@
       */
       #boot .line {
         fill: none; stroke: #e0483f; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round;
-        stroke-dasharray: 0.05 1; animation: crusade 800ms infinite;
+        stroke-dasharray: 0 1; animation: crusade 1000ms infinite;
       }
       /*
-        A STROKE THAT GROWS, TRAVELS, AND GATHERS ITSELF IN — three moves, not one.
+        A HEAD AND A TAIL, ONE AFTER THE OTHER — the cross is drawn, held, and then eaten.
 
-        BOTH ENDS MOVE, which is why both the dash and its offset are animated: the dash is HOW LONG
-        the stroke is, the offset is WHERE ALONG THE OUTLINE it currently lies. Everything is written
-        in fractions of the outline (`pathLength="1"`), so `0.4` is two fifths of the cross whatever
-        size it is drawn at, and the gap is a whole outline wide so only ever one stroke shows.
+        BOTH ENDS ARE ANIMATED, which is why both the dash and its offset are: the dash is how LONG
+        the stroke is, the offset is WHERE along the outline it lies. Everything is in fractions of
+        the outline (`pathLength="1"`), so the numbers below are the same whatever size it is drawn.
 
-          0 → 45%   the head runs ahead and the tail stays home: the stroke grows to two fifths;
-         45 → 80%   it keeps that length and travels, the head reaching the end of the outline;
-         80 → 100%  the head is home, the tail comes in after it — down to a twentieth.
+          0 → 40%   (400ms) the HEAD runs the whole outline, the tail left at the crown: the cross
+                    fills in. Eased at both ends — slow away, slow up to the last corner.
+         40 → 50%   (100ms) held. The whole cross, still, which is the one moment it is a MARK
+                    rather than a line being drawn.
+         50 → 90%   (400ms) the TAIL runs the same road at the same pace, the head waiting at the
+                    end: the stroke is eaten from the back and the outline empties.
+         90 → 100%  (100ms) held empty, and then it begins again.
 
-        THE GROWING IS THE SLOW PART, and it is slow by ARITHMETIC rather than by feel: the head
-        covers 0.35 of the outline while growing and 0.60 while travelling, in 45% and 35% of the
-        loop — so it moves better than twice as fast once the stroke is up to length. Rebalancing
-        the phases is what makes that true; an easing curve alone only borrows speed from one end of
-        a phase and pays it back at the other.
+        THE EMPTY HOLD IS EMPTY BY FORCE. A round cap draws a zero-length dash as a DOT — so with
+        the stroke eaten to nothing there was still a red pip sitting on the crown for the whole of
+        the pause. The caps are worth keeping (they are what makes the head and the tail read as
+        ends rather than as cuts), so the stroke is switched OFF instead, over one two-hundredth of
+        the loop — fast enough to be a switch and not a fade.
 
-        AND THE NEXT TURN STARTS AT A TWENTIETH, not at nothing: the stroke never disappears, it is
-        back at the crown already the length it ended at, which is what makes the loop read as one
-        line going round and round rather than a line being drawn again and again.
-
-        Each phase carries its own easing, and they are real curves rather than the CSS keywords:
-        the growth eases in AND out (it is the move the eye follows, so it starts and ends softly),
-        the travel is dead steady, and the gathering eases to a stop. One timing function over the
-        whole 800ms would rush the first move and drag the last.
+        THE TWO HELD MOMENTS ARE THE POINT OF IT. Without them the head's arrival and the tail's
+        departure land on the same frame, and the eye reads one continuous scribble instead of a
+        cross that gets drawn.
       */
       @keyframes crusade {
-        0%   { stroke-dasharray: 0.05 1; stroke-dashoffset: 0;     animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
-        45%  { stroke-dasharray: 0.40 1; stroke-dashoffset: 0;     animation-timing-function: linear; }
-        80%  { stroke-dasharray: 0.40 1; stroke-dashoffset: -0.60; animation-timing-function: cubic-bezier(.4, 0, .2, 1); }
-        100% { stroke-dasharray: 0.05 1; stroke-dashoffset: -0.95; }
+        0%    { stroke-dasharray: 0 1; stroke-dashoffset: 0;  stroke-opacity: 1; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
+        40%   { stroke-dasharray: 1 1; stroke-dashoffset: 0;  animation-timing-function: linear; }
+        50%   { stroke-dasharray: 1 1; stroke-dashoffset: 0;  animation-timing-function: cubic-bezier(.65, 0, .35, 1); }
+        89.5% { stroke-opacity: 1; }
+        90%   { stroke-dasharray: 0 1; stroke-dashoffset: -1; stroke-opacity: 0; animation-timing-function: linear; }
+        100%  { stroke-dasharray: 0 1; stroke-dashoffset: -1; stroke-opacity: 0; }
       }
       /* A player who asked for stillness gets the cross, drawn, and no drawing of it. */
       @media (prefers-reduced-motion: reduce) {
