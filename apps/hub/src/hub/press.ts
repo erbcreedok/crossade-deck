@@ -24,7 +24,7 @@ import {
   type Node,
   type ValuedFields,
 } from "game-kit";
-import { PRESS_PX } from "../look/palette.js";
+import { PRESS_PX } from "@crossade/look";
 
 /** A finger that slid this far was going somewhere else. The same number the solitaire uses. */
 const SLOP = 5;

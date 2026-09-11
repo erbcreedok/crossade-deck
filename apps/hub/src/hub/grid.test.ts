@@ -6,7 +6,7 @@
 import { byId, fieldsOf, type SurfacedFields } from "game-kit";
 import { describe, expect, it } from "vitest";
 import { barTree, hubTree, SPARKLE_ID } from "./grid.js";
-import { SPARKLE, SPARKLE_DIM } from "../look/surfaces.js";
+import { SPARKLE, SPARKLE_DIM } from "@crossade/look";
 
 describe("the sparkle layer", () => {
   it("grid.lobby-sparkle-is-bright", () => {

@@ -32,8 +32,8 @@ import { crossade, deckBackSurface, deckFaceSurface, installDeckBacks, installDe
 import { checkerSurface, installChessArt, installNardyArt, pictureOf } from "@game-presets/desks";
 import { die } from "@game-presets/dice";
 import { CATALOGUE, type GameEntry } from "./catalogue.js";
-import { RING_U } from "../look/palette.js";
-import { GROUND, MAIN, NOTE, RING, SLOT, SPARKLE, SPARKLE_DIM, TILE, TITLE } from "../look/surfaces.js";
+import { RING_U } from "@crossade/look";
+import { GROUND, MAIN, NOTE, RING, SLOT, SPARKLE, SPARKLE_DIM, TILE, TITLE } from "@crossade/look";
 
 /** A tile's outer plate, in units. The face is `RING_U` smaller on every side. */
 const TILE_W = 2.6;

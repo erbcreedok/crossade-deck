@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>Карты — Crossade Deck</title>
+    <!--
+      THE FACE IS DECLARED HERE AND NOWHERE ELSE. This is a declaration, not an interface: the table
+      is drawn entirely by the engine, and a font has to be announced to the page before anything can
+      measure or draw it. Which LETTERS are fetched is settled in `@crossade/look` — a font service
+      ships subsets by codepoint range, so the sample there is what pulls the Cyrillic one down.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+    <style>
+      /*
+        THE PAGE IS THE TABLE'S, WHOLE. No strip above it and no shelf to go back to: this address is
+        the game. The felt is named here too, so the ground behind the canvas is the same green the
+        desk opens onto and the first paint is not a white flash.
+      */
+      html, body { margin: 0; height: 100%; background: #173d2d; overflow: hidden; }
+      #app { position: absolute; inset: 0; touch-action: none; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

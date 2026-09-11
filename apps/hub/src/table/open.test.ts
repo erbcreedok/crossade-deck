@@ -9,7 +9,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { topInsetOfStage } from "./index.js";
+import { topInsetOfStage } from "./hubHost.js";
 
 /** An element with a rectangle of its own — jsdom lays nothing out and answers zeroes otherwise. */
 function at(box: { top: number; height: number }, display = "block"): HTMLElement {

@@ -27,9 +27,15 @@ export const CATALOGUE: readonly GameEntry[] = [
     load: async () => (await import("@apps/klondike")).startSolitaire,
   },
   {
+    // THE CARD TABLE IS ITS OWN PACKAGE NOW (`@apps/cards`) and comes in through the same door the
+    // solitaire does: a container in, a teardown out. What the hub adds is WHERE it is being played
+    // — its route, its strip, its beat (`hubHost`) — and nothing about how it is played.
     id: "cards",
     label: "Карты",
-    load: async () => (await import("../table/index.js")).startTable,
+    load: async () => {
+      const [{ startCards }, { hubHost }] = await Promise.all([import("@apps/cards"), import("../table/hubHost.js")]);
+      return (container: HTMLElement) => startCards(container, { host: hubHost(container, "cards") });
+    },
   },
   {
     id: "chess",

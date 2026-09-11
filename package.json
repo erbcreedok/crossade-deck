@@ -4,6 +4,7 @@
   "workspaces": [
     "game-kit",
     "wire",
+    "look",
     "game-presets/*",
     "apps/*"
   ],

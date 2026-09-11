@@ -26,9 +26,9 @@ import {
   type Host,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
-import { hubRuler } from "../look/fonts.js";
-import { installHubLook } from "../look/surfaces.js";
-import { CLUB_U, PALETTE, SPARK_U } from "../look/palette.js";
+import { hubRuler } from "@crossade/look";
+import { installHubLook } from "@crossade/look";
+import { CLUB_U, PALETTE, SPARK_U } from "@crossade/look";
 import { beat } from "./beat.js";
 import { AT_REST, DRIFT_DIAMONDS, driftStep, type Drift } from "./drift.js";
 import { barTree, FELT, hubTree, shelfColumns, shelfSize, SPARKLE_ID } from "./grid.js";

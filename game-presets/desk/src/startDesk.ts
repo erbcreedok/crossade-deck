@@ -223,8 +223,30 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     },
   };
 
+  /**
+   * HOW THIS GAME IS PLAYED, read once — and then the two answers every SEATED desk owes on top of
+   * it, whatever game it is.
+   *
+   * A ring is a person, not a piece: tapping your own takes you back to your place, and the bar over
+   * your own hand is yours to press. Neither has anything to do with the game being played, so a
+   * spec that answered them would be answering for the furniture — and a spec that did NOT, in the
+   * days when the desk was one file, silently lost the ring: this is the seam that half-worked.
+   */
+  const play = spec.play(ctx);
+  const gameTaps = play.taps;
+
   const live = liveTable<LiveStage>(container, initialRoot, {
-    ...spec.play(ctx),
+    ...play,
+    // A TAP ON ONE'S OWN RING TAKES THAT READER HOME. Anything else falls through to whatever the
+    // game already does with a tap.
+    taps: (piece: Node) => (gameTaps?.(piece) === true ? true : seat ? avatars?.tapped(seat, piece) === true : false),
+    // THE BAR ABOVE ONE'S OWN HAND — shut, hide, turn over, pin — answered for the owner only; the
+    // wiring tells the room the way it tells it a drop.
+    //
+    // WHERE MY OWN HAND IS DRAWN IS THIS SCREEN'S BUSINESS, not the desk's: the control that puts it
+    // on the glass is answered here and never sent to the room, because nothing about the felt
+    // changed. Everything else on the bar is a fact about the desk and goes to the people wiring.
+    presses: (_meaning: unknown, control: Node) => (seat ? avatars?.pressed(seat, control) === true : false),
     // A PICTURE OF A PIECE ON THE GLASS IS A WAY OF REACHING THE PIECE: a finger landing on a layer's
     // own drawing takes the piece that lies under it on the felt.
     standIn: (n: Node) => {
