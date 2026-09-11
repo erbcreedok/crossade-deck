@@ -1,0 +1,21 @@
+apps/hub/src/hub/routing.test.ts
+  s_357f670d370d4d::t_469b7508f52d32 82-99
+apps/hub/src/hub/shell.ts
+  s_357f670d370d4d::t_7785ac3c5a0299 321-331,334-341,345-351
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8abcfe2b2a384270e7ce4462f768370fe20bf02f",
+  "prompts": {},
+  "sessions": {
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
