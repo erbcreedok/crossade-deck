@@ -1,7 +1,8 @@
-// СТОЛ ПОД ОКНАМИ — холст, как в продукте: сукно, кромка, карта и ряд прав внизу.
+// СТОЛ ПОД ОКНАМИ — холст, как в продукте: сукно, кромка, места с людьми, карта и ряд прав внизу.
 //
-// Ни одной ручки: это фон. Окна списка, чужого профиля и комнаты живут над ним разметкой, и судить
-// их нужно над той картинкой, которую они действительно накроют.
+// Ни одной ручки: это фон. Но места он рисует НЕ для красоты — тултип управления открывается по
+// тапу на аватар прямо на сукне, и ему нужно знать, где этот аватар лежит. Поэтому `draw` возвращает
+// координаты мест: разметка сверху ставит тултип по ним, а не по выдуманным числам.
 
 (function () {
   const T = {
@@ -17,6 +18,8 @@
     black: "#0b0704",
     wood: "#6b4d2c",
   };
+
+  const PALETTE = ["#f2c14e", "#7fd1b9", "#e08b3f", "#b98fe0", "#8fb4e0", "#e0483f", "#a8e08f", "#e08fb4"];
 
   function box(g, x, y, w, h, r) {
     g.beginPath();
@@ -41,8 +44,7 @@
       const grad = g.createLinearGradient(0, y, 0, y + size);
       grad.addColorStop(0, "#25321f");
       grad.addColorStop(1, "#16210f");
-      g.fillStyle = grad;
-      g.fill();
+      g.fillStyle = grad; g.fill();
       g.lineWidth = 3; g.strokeStyle = T.black; g.stroke();
       box(g, x + 2.5, y + 2.5, size - 5, size - 5, 6);
       g.lineWidth = 2; g.strokeStyle = T.wood; g.stroke();
@@ -56,7 +58,21 @@
     }
   }
 
-  function draw(canvas, { W, H, top }) {
+  /** Диск сидящего на сукне: кольцо в его цвете, буква внутри, золотой ободок у того, чей ход. */
+  function seat(g, x, y, r, colour, letter, turn, away) {
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2);
+    g.fillStyle = away ? "#2a3a31" : PALETTE[colour];
+    g.fill();
+    g.lineWidth = 3; g.strokeStyle = T.black; g.stroke();
+    if (turn) { g.beginPath(); g.arc(x, y, r + 4, 0, Math.PI * 2); g.lineWidth = 3; g.strokeStyle = T.gold; g.stroke(); }
+    g.fillStyle = away ? T.inkDim : T.black;
+    g.font = `${Math.round(r * 0.9)}px Tiny5, monospace`;
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(letter, x, y + 1);
+  }
+
+  /** Рисует стол и возвращает места: `{key, x, y, r}` в css-пикселях — их берёт тултип. */
+  function draw(canvas, { W, H, top, people }) {
     const dpr = Math.min(3, globalThis.devicePixelRatio || 1);
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
@@ -85,8 +101,28 @@
     box(g, cx - cw / 2 + 5, cy - ch / 2 + 5, cw - 10, ch - 10, 4);
     g.fillStyle = "#9c2f2a"; g.fill();
 
+    // МЕСТА: СВОЁ ВНИЗУ, ЧУЖИЕ ПО ДАЛЬНЕЙ ДУГЕ. Не по кругу: на телефоне низ занят рукой и правами,
+    // и посаженный туда сосед оказывается под пальцем, а его тултип — за нижним HUD.
+    const spots = [];
+    const r = 21;
+    const seated = people.filter((p) => p.seat);
+    const others = seated.slice(1);
+    const arc = (i) => others.length === 1 ? 1.5 * Math.PI : (1.12 + (0.76 * i) / (others.length - 1)) * Math.PI;
+    // Диски садятся по эллипсу, ВПИСАННОМУ В ЭКРАН, а не по кромке стола: стол шире телефона, и
+    // посаженный по нему сосед уезжает за край — тултипу тогда не к чему прицепиться.
+    const sx = Math.min(rx * 0.72, W / 2 - 46);
+    const sy = ry * 0.72;
+    seated.forEach((p, i) => {
+      const a = i === 0 ? Math.PI / 2 : arc(i - 1);
+      const x = cx + Math.cos(a) * sx;
+      const y = cy + Math.sin(a) * sy;
+      seat(g, x, y, r, p.colour, p.name[0], i === 0, p.away);
+      spots.push({ key: p.key, x, y, r });
+    });
+
     rights(g, W, H);
+    return spots;
   }
 
-  window.Felt = { T, draw };
+  window.Felt = { T, PALETTE, draw };
 })();
