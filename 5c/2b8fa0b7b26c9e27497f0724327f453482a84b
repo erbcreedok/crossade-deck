@@ -1,0 +1,29 @@
+design/tophud/index.html
+  s_357f670d370d4d::t_8b4a36e0f634b0 252-261,263-272,275-277,280,287-288,290-291,295-312
+  s_357f670d370d4d::t_7fda8166aa6b71 177,179-194,196-201
+  s_357f670d370d4d::t_4c3f418f7133f4 313-314
+  s_357f670d370d4d::t_467ff285286fee 334-338
+  s_357f670d370d4d::t_099a1e72b01c2b 273-274
+  s_357f670d370d4d::t_60a95a261ddb30 362-364
+  s_357f670d370d4d::t_4ed09e84fe3255 379-380
+  s_357f670d370d4d::t_150107a897526c 95
+  s_357f670d370d4d::t_9a216d9ae9c0bb 90
+  s_357f670d370d4d::t_83176c64c1abd9 292-294
+  s_357f670d370d4d::t_946bb2b91283d5 71-74,78,80,84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5c2b8fa0b7b26c9e27497f0724327f453482a84b",
+  "prompts": {},
+  "sessions": {
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
