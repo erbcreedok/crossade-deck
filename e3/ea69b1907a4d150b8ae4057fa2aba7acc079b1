@@ -1,0 +1,46 @@
+server/src/app.ts
+  s_9ed0da107cbc4a::t_44b11afa6244ad 34,304,308,342-347,351
+  s_9ed0da107cbc4a::t_12be7282191af4 13,15,25,363-398
+  s_9ed0da107cbc4a::t_d8630514425723 355-362
+bot/src/link.ts
+  s_9ed0da107cbc4a::t_d8630514425723 15-16,78-105,126-128
+  s_9ed0da107cbc4a::t_44b11afa6244ad 41-48,53,60-67
+server/src/telegramPhoto.ts
+  s_9ed0da107cbc4a::t_42d09e40cf2c05 1-44
+bot/src/photo.test.ts
+  s_9ed0da107cbc4a::t_66ab37d43d5436 1-57
+server/src/telegramProfileRoute.test.ts
+  s_9ed0da107cbc4a::t_e5e4f6c2cc35b7 1-107
+server/src/accounts.ts
+  s_9ed0da107cbc4a::t_12be7282191af4 226-253
+bot/src/photo.ts
+  s_9ed0da107cbc4a::t_7a432d817bf1d4 1-45
+bot/src/index.ts
+  s_9ed0da107cbc4a::t_539138f32e739c 8-9,11,54-59,88-176
+  s_9ed0da107cbc4a::t_44b11afa6244ad 39-42,47-51
+  s_9ed0da107cbc4a::t_1b74a0c0ccdcea 177
+bot/src/talk.ts
+  s_9ed0da107cbc4a::t_375af008a69e69 35
+  s_9ed0da107cbc4a::t_76605a7cc079ac 1-34,36-94
+bot/src/talk.test.ts
+  s_9ed0da107cbc4a::t_8c20ea337912e0 23,56
+  s_9ed0da107cbc4a::t_3e6f4ecec9262c 1-22,24-55,57-82
+server/src/telegramPhoto.test.ts
+  s_9ed0da107cbc4a::t_8306baf802a00d 1-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e3ea69b1907a4d150b8ae4057fa2aba7acc079b1",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
