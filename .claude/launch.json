@@ -68,6 +68,18 @@
         "design/hud"
       ],
       "port": 9573
+    },
+    {
+      "name": "tophud-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "9576",
+        "--directory",
+        "design/tophud"
+      ],
+      "port": 9576
     }
   ]
 }

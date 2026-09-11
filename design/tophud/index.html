@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Верхний HUD — стенд</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Handjet&family=Press+Start+2P&family=Tiny5&display=swap" rel="stylesheet">
+<script src="table.js"></script>
+<style>
+  body { margin: 0; background: #0d2118; color: #cdb98f; font: 400 16px/1.45 'Handjet', monospace; }
+  .page { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; padding: 32px; }
+  .phone { flex: none; width: 390px; height: 844px; position: relative; overflow: hidden; border-radius: 44px; background: #0f2e22; box-shadow: inset 0 0 0 3px #0b0704; }
+  .phone canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .panel { flex: 1; min-width: 320px; max-width: 460px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font: 400 26px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .sec { padding: 12px 14px; background: #123527; box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #3a2a1d; display: flex; flex-direction: column; gap: 6px; }
+  .sec h2 { margin: 0 0 4px; font: 400 16px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .row { display: grid; grid-template-columns: 160px 1fr 56px; align-items: center; gap: 8px; }
+  .row label { color: #f5ead0; }
+  .row input[type=range] { width: 100%; }
+  .row select, .row input[type=checkbox] { justify-self: start; }
+  .row .val { color: #f2c14e; text-align: right; font: 400 14px 'Press Start 2P', monospace; }
+  .nums { font-size: 15px; }
+  .nums b { color: #f2c14e; font-weight: 400; }
+  .bad { color: #e0483f; }
+  button.reset { align-self: flex-start; font: inherit; color: #f2c14e; background: none; border: 2px solid #f2c14e; padding: 4px 10px; cursor: pointer; }
+  .knob { display: none; }
+  /* НА ТЕЛЕФОНЕ ЭКРАН — ЭТО ЭКРАН: без рамки-макета, во весь вьюпорт до краёв, ручки — лист снизу.
+     Ручка панели живёт ВНИЗУ: наверху она села бы ровно на то, что мы и разглядываем. */
+  @media (max-width: 700px), (pointer: coarse) and (max-width: 1000px) {
+    body { overflow: hidden; }
+    .page { padding: 0; gap: 0; }
+    .phone { position: fixed; inset: 0; width: 100vw; height: 100dvh; border-radius: 0; box-shadow: none; }
+    .panel { position: fixed; left: 0; right: 0; bottom: 0; max-width: none; max-height: 72dvh; overflow: auto; padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); box-sizing: border-box;
+      background: #0d2118; box-shadow: 0 -3px 0 #0b0704, 0 -6px 0 #3a2a1d; transform: translateY(100%); transition: transform .22s cubic-bezier(.2,.85,.25,1); z-index: 30; }
+    .panel.open { transform: none; }
+    /* Над рядом прав, а не на нём: ручка, севшая на кнопку игры, прячет ровно то, мимо чего
+       смотрят на полосу сверху. */
+    .knob { display: flex; position: fixed; right: 14px; bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 40; width: 46px; height: 46px; border-radius: 8px; align-items: center; justify-content: center;
+      background: linear-gradient(#25321f, #16210f); box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #6b4d2c, 0 4px 0 rgba(11,7,4,.6); color: #f2c14e; font: 400 9px 'Tiny5', monospace; }
+    h1 { font-size: 20px; }
+    .row { grid-template-columns: 130px 1fr 44px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="phone" id="phone"><canvas id="felt"></canvas><div id="top"></div></div>
+  <div class="knob" id="knob">РУЧКИ</div>
+  <div class="panel" id="panel">
+    <h1>Верхний HUD — стенд</h1>
+    <div>Низ — холст: стол и кнопки, которыми двигают фигуры, рисует игра, как в продукте. Верх — разметка над ним, её и крутим. Состояние ручек живёт в адресе: скопируй ссылку — получишь тот же экран.</div>
+    <div id="controls"></div>
+    <div class="nums" id="nums"></div>
+    <button class="reset" id="reset">сбросить к дизайну</button>
+  </div>
+</div>
+<script>
+(function () {
+  const T = window.TopStand.T;
+  const phone = document.getElementById("phone");
+  const top = document.getElementById("top");
+  /** ЭКРАН КАК ЕСТЬ: на маке — рамка 390×844, на телефоне — сам телефон, до краёв. */
+  const real = () => matchMedia("(max-width: 700px), (pointer: coarse) and (max-width: 1000px)").matches;
+  const glass = () => ({ W: phone.clientWidth || 390, H: phone.clientHeight || 844 });
+
+  const SPEC = [
+    ["Мера", [
+      ["h", "высота полосы, px", "int", 56, 32, 104],
+      ["side", "боковое поле, px", "int", 12, 0, 40],
+      ["gap", "зазор, px", "int", 8, 0, 24],
+      ["radius", "скругление, px", "int", 10, 0, 28],
+      ["notch", "чёлка (на маке), px", "int", 0, 0, 64],
+    ]],
+    ["Подложка", [
+      ["fill", "чем залита", "enum", "дерево", ["дерево", "нет", "тёмная", "сукно", "градиент вниз", "стекло"]],
+      ["shape", "форма", "enum", "полоса", ["полоса", "островки по группам", "один остров"]],
+      ["line", "разделитель снизу", "enum", "золотая", ["золотая", "чёрная", "нет"]],
+      ["shadow", "тень", "bool", true],
+    ]],
+    ["Выход", [
+      ["back", "кнопка выхода", "enum", "иконка + подпись", ["иконка + подпись", "иконка", "подпись", "нет"]],
+      ["backWord", "слово", "enum", "Назад", ["Назад", "Стол", "Выход", "К играм"]],
+      ["standalone", "стендалон (выходить некуда)", "bool", false],
+    ]],
+    ["Название", [
+      ["title", "что пишем", "enum", "имя + комната", ["имя + комната", "имя", "комната", "нет"]],
+      ["titleAlign", "где", "enum", "центр", ["центр", "слева, за кнопкой"]],
+      ["roomLook", "комната", "enum", "плашка", ["плашка", "моно", "плашка + копировать"]],
+      ["longName", "длинное имя (проверка усечения)", "bool", false],
+    ]],
+    ["Кто за столом", [
+      ["seats", "людей", "int", 3, 0, 6],
+      ["av", "аватар, px", "int", 30, 18, 48],
+      ["avLook", "аватар", "enum", "буква", ["буква", "стул", "точка-цвет"]],
+      ["turn", "чей ход", "enum", "золотая рамка", ["золотая рамка", "точка снизу", "подсветка", "нет"]],
+      ["away", "отошедший", "enum", "серым", ["серым", "как есть", "скрывать"]],
+      ["peopleSide", "где люди", "enum", "справа", ["справа", "слева, у кнопки"]],
+    ]],
+  ];
+  const DEFAULTS = {};
+  for (const [, rows] of SPEC) for (const [key, , , def] of rows) DEFAULTS[key] = def;
+
+  // СОСТОЯНИЕ ЖИВЁТ В АДРЕСЕ — ссылка и есть экран: её можно переслать себе на телефон, и там
+  // откроется ровно то, что было подкручено на маке.
+  const readHash = () => {
+    const out = { ...DEFAULTS };
+    const h = location.hash.replace(/^#/, "");
+    if (!h) return out;
+    for (const pair of h.split("&")) {
+      const [k, v] = pair.split("=").map(decodeURIComponent);
+      if (!(k in DEFAULTS)) continue;
+      const def = DEFAULTS[k];
+      out[k] = typeof def === "number" ? Number(v) : typeof def === "boolean" ? v === "1" : v;
+    }
+    return out;
+  };
+  const writeHash = (P) => {
+    const parts = [];
+    for (const k in DEFAULTS) if (P[k] !== DEFAULTS[k]) parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(typeof P[k] === "boolean" ? (P[k] ? "1" : "0") : P[k])}`);
+    history.replaceState(null, "", parts.length ? `#${parts.join("&")}` : location.pathname);
+  };
+  let P = readHash();
+
+  // ---- ПАНЕЛЬ ----
+  const controls = document.getElementById("controls");
+  const build = () => {
+    controls.innerHTML = "";
+    for (const [title, rows] of SPEC) {
+      const sec = document.createElement("div");
+      sec.className = "sec";
+      sec.innerHTML = `<h2>${title}</h2>`;
+      for (const [key, label, kind, , a, b] of rows) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const lab = document.createElement("label");
+        lab.textContent = label;
+        row.appendChild(lab);
+        const val = document.createElement("span");
+        val.className = "val";
+        let input;
+        if (kind === "int") {
+          input = document.createElement("input");
+          input.type = "range"; input.min = a; input.max = b; input.step = 1; input.value = P[key];
+          val.textContent = P[key];
+          input.oninput = () => { P[key] = Number(input.value); val.textContent = input.value; apply(); };
+        } else if (kind === "enum") {
+          input = document.createElement("select");
+          for (const opt of a) { const o = document.createElement("option"); o.value = opt; o.textContent = opt; o.selected = P[key] === opt; input.appendChild(o); }
+          input.onchange = () => { P[key] = input.value; apply(); };
+        } else {
+          input = document.createElement("input");
+          input.type = "checkbox"; input.checked = !!P[key];
+          input.onchange = () => { P[key] = input.checked; apply(); };
+        }
+        row.appendChild(input); row.appendChild(val);
+        sec.appendChild(row);
+      }
+      controls.appendChild(sec);
+    }
+  };
+  document.getElementById("reset").onclick = () => { P = { ...DEFAULTS }; build(); apply(); };
+  const panel = document.getElementById("panel");
+  document.getElementById("knob").onclick = () => panel.classList.toggle("open");
+
+  // ---- ВЕРХНИЙ HUD ----
+  const ICON = {
+    back: '<path d="M15 5 8 12l7 7"/>',
+    chair: '<path d="M6 11.5V7a2.5 2.5 0 0 1 2.5-2.5h7A2.5 2.5 0 0 1 18 7v4.5"/><rect x="4" y="11.5" width="16" height="5.2" rx="1.6"/><path d="M6.6 16.7v3"/><path d="M17.4 16.7v3"/>',
+    copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H6a1 1 0 0 0-1 1v9"/>',
+  };
+  const svg = (body, size, color, w) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${color}" stroke-width="${w || 2.2}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+  /** Пятеро за столом и я — первый ходит, третий отошёл. Имена нужны только чтобы буквы были разные. */
+  const PEOPLE = [
+    { letter: "Я", ink: "#f2c14e", away: false },
+    { letter: "М", ink: "#7fd1b9", away: false },
+    { letter: "А", ink: "#e08b3f", away: true },
+    { letter: "Д", ink: "#b98fe0", away: false },
+    { letter: "Т", ink: "#8fb4e0", away: false },
+    { letter: "К", ink: "#e0483f", away: false },
+  ];
+
+  const plate = (r) => `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px #6b4d2c,0 3px 0 rgba(11,7,4,.55);border-radius:${r}px;`;
+
+  const apply = () => {
+    writeHash(P);
+    const { W, H } = glass();
+    // ЧЁЛКА НАСТОЯЩАЯ, КОГДА ЭКРАН НАСТОЯЩИЙ. На телефоне полоса отступает от неё сама; на маке
+    // отступ подкручивается ручкой, иначе на столе не увидеть, что она отъедает.
+    const inset = real() ? "env(safe-area-inset-top, 0px)" : P.notch + "px";
+    const h = P.h, r = P.radius, gap = P.gap;
+
+    const FILLS = {
+      "дерево": `background:linear-gradient(#3a2a1d,#241a11);`,
+      "нет": "",
+      "тёмная": `background:${T.well};`,
+      "сукно": `background:${T.felt};`,
+      "градиент вниз": `background:linear-gradient(rgba(11,7,4,.9), rgba(11,7,4,0));`,
+      "стекло": `background:rgba(11,7,4,.42);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);`,
+    };
+    const LINES = { "золотая": `border-bottom:3px solid ${T.gold};`, "чёрная": `border-bottom:3px solid ${T.black};`, "нет": "" };
+    // ФОРМА РЕШАЕТ, КТО КРАШЕН: одна полоса на всю ширину — или плашка под каждой группой, и
+    // тогда между ними видно стол.
+    const asBand = P.shape === "полоса";
+    const bandFill = asBand ? FILLS[P.fill] + LINES[P.line] + (P.shadow ? `box-shadow:0 4px 0 rgba(11,7,4,.45);` : "") : "";
+    const island = FILLS[P.fill] + (P.shadow ? `box-shadow:0 3px 0 rgba(11,7,4,.5);` : "") + `border-radius:${r}px;`;
+    const groupFill = asBand ? "" : island;
+    const pad = asBand ? 0 : 10;
+
+    // ВЫХОД
+    const showBack = P.back !== "нет" && !P.standalone;
+    const backIcon = P.back === "подпись" ? "" : svg(ICON.back, Math.round(h * 0.42), T.ink);
+    const backWord = P.back === "иконка" ? "" : `<span style="font:400 ${Math.max(9, Math.round(h * 0.2))}px 'Tiny5',monospace;letter-spacing:.04em;color:${T.ink}">${P.backWord}</span>`;
+    const back = showBack
+      ? `<div data-g="back" style="${plate(r)}display:flex;align-items:center;gap:6px;height:${h - 12}px;padding:0 ${P.back === "иконка" ? 8 : 12}px;box-sizing:border-box">${backIcon}${backWord}</div>`
+      : "";
+
+    // НАЗВАНИЕ И КОМНАТА
+    const name = P.longName ? "Дурак переводной подкидной" : "Карты";
+    const room = "0244";
+    const roomBox = P.roomLook === "моно"
+      ? `<span style="font:400 ${Math.max(9, Math.round(h * 0.19))}px 'Press Start 2P',monospace;color:${T.gold}">${room}</span>`
+      : `<span style="display:inline-flex;align-items:center;flex:none;gap:5px;background:${T.black};box-shadow:inset 0 0 0 2px ${T.gold};border-radius:6px;padding:3px 7px;font:400 ${Math.max(8, Math.round(h * 0.17))}px 'Press Start 2P',monospace;color:${T.gold}">${room}${P.roomLook === "плашка + копировать" ? svg(ICON.copy, 12, T.gold, 2.6) : ""}</span>`;
+    // ИМЯ — ЕДИНСТВЕННОЕ, ЧТО УМЕЕТ УКОРАЧИВАТЬСЯ. Код комнаты усечь нельзя (половина кода — не
+    // код), аватар нельзя обрезать наполовину, а название читается и по началу.
+    const nameBox = `<span style="flex:0 1 auto;min-width:0;font:400 ${Math.max(11, Math.round(h * 0.26))}px 'Tiny5',monospace;color:${T.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${Math.round(W * 0.42)}px">${esc(name)}</span>`;
+    const titleInner = P.title === "нет" ? "" : P.title === "имя" ? nameBox : P.title === "комната" ? roomBox : `${nameBox}${roomBox}`;
+    const title = titleInner
+      ? `<div data-g="title" style="${groupFill}display:flex;align-items:center;gap:${gap}px;height:${h - 12}px;padding:0 ${pad}px;box-sizing:border-box;min-width:0">${titleInner}</div>`
+      : "";
+
+    // КТО ЗА СТОЛОМ
+    const av = P.av;
+    const people = PEOPLE.slice(0, P.seats).filter((p) => !(p.away && P.away === "скрывать")).map((p, i) => {
+      const turnNow = i === 0 && P.turn !== "нет";
+      const dim = p.away && P.away === "серым";
+      const face = P.avLook === "буква" ? `<span style="font:400 ${Math.round(av * 0.42)}px 'Tiny5',monospace;color:${T.black}">${p.letter}</span>`
+        : P.avLook === "стул" ? svg(ICON.chair, Math.round(av * 0.62), T.black, 2) : "";
+      const ring = turnNow && P.turn === "золотая рамка"
+        ? `box-shadow:inset 0 0 0 3px ${T.black},0 0 0 3px ${T.gold};`
+        : `box-shadow:inset 0 0 0 3px ${T.black};`;
+      const glow = turnNow && P.turn === "подсветка" ? `filter:drop-shadow(0 0 7px ${T.gold});` : "";
+      const dot = turnNow && P.turn === "точка снизу"
+        ? `<i style="position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);width:6px;height:6px;border-radius:50%;background:${T.gold}"></i>` : "";
+      return `<div style="position:relative;width:${av}px;height:${av}px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:${p.ink};${ring}${glow}${dim ? "opacity:.42;filter:grayscale(1);" : ""}">${face}${dot}</div>`;
+    }).join("");
+    const seated = P.seats
+      ? `<div data-g="people" style="${groupFill}display:flex;align-items:center;flex:none;gap:${Math.max(4, gap - 2)}px;height:${h - 12}px;padding:0 ${pad}px;box-sizing:border-box">${people}</div>`
+      : "";
+
+    // РАСКЛАДКА. Выход всегда слева — это единственная кнопка, чьё место на телефоне уже занято
+    // привычкой. Название либо стоит по центру ЭКРАНА (и тогда оно не в потоке, иначе центр
+    // уезжает от ширины соседей), либо идёт сразу за кнопкой.
+    const centred = P.titleAlign === "центр";
+    const left = P.peopleSide === "слева, у кнопки" ? back + seated : back;
+    const rightSide = P.peopleSide === "слева, у кнопки" ? "" : seated;
+    const band = `position:absolute;left:0;right:0;top:0;padding-top:${inset};z-index:9;${bandFill}`;
+    const rowIn = `display:flex;align-items:center;justify-content:space-between;gap:${gap}px;height:${h}px;padding:0 ${P.side}px;box-sizing:border-box;position:relative`;
+    top.innerHTML = `<div style="${band}"><div style="${rowIn}">`
+      // ДЛИННОЕ ИМЯ УСЕКАЕТСЯ, А НЕ ВЫТАЛКИВАЕТ ЛЮДЕЙ ЗА КРАЙ. Без `min-width:0` флекс не даёт
+      // группе сжаться ниже содержимого, и «Дурак переводной подкидной» уносит аватары с экрана —
+      // на стенде это выглядит как «людей нет», а не как «имя не влезло».
+      + `<div style="display:flex;align-items:center;gap:${gap}px;min-width:0;overflow:hidden">${left}${centred ? "" : title}</div>`
+      + (centred && title ? `<div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none">${title}</div>` : "")
+      + `<div style="display:flex;align-items:center;gap:${gap}px">${rightSide}</div>`
+      + `</div></div>`;
+
+    // ---- ЧИСЛА: влезает ли, и сколько стола съедено ----
+    const widthOf = (g) => { const el = top.querySelector(`[data-g="${g}"]`); return el ? Math.round(el.getBoundingClientRect().width) : 0; };
+    const wBack = widthOf("back"), wTitle = widthOf("title"), wPeople = widthOf("people");
+    const need = wBack + wPeople + 2 * P.side + (wBack ? gap : 0) + (wPeople ? gap : 0);
+    const insetPx = Math.round(parseFloat(getComputedStyle(top.firstElementChild).paddingTop)) || 0;
+    // НЕ ПОМЕСТИЛОСЬ — УБИРАЕТСЯ ЦЕЛИКОМ, А НЕ ОБРЕЗАЕТСЯ. Полкода комнаты — не код, и обрубок
+    // плашки читается как поломанная вёрстка. Выход и люди места не уступают: у первого оно занято
+    // привычкой, у вторых — тем, что аватар пополам не бывает.
+    const room4 = W - 2 * P.side - wBack - wPeople - (wBack ? gap : 0) - (wPeople ? gap : 0);
+    const titleEl = top.querySelector('[data-g="title"]');
+    let dropped = false;
+    // СКОЛЬКО НАЗВАНИЕ ХОТЕЛО, А НЕ СКОЛЬКО ЕМУ ОСТАВИЛИ: флекс уже ужал группу до доступного, и
+    // мерить её рамку — значит всегда получать «ровно влезло». Нужная ширина — `scrollWidth`.
+    const wantTitle = titleEl ? titleEl.scrollWidth : 0;
+    if (titleEl && wantTitle > room4) {
+      if (room4 < 60) { titleEl.style.display = "none"; dropped = true; }
+      else titleEl.style.maxWidth = room4 + "px";
+    }
+    const half = (W - wTitle) / 2;
+    const collide = centred && wTitle > 0 && (P.side + wBack + gap > half || P.side + wPeople + gap > half);
+    document.getElementById("nums").innerHTML =
+      `экран <b>${W}×${H}</b> · полоса <b>${h + insetPx}</b> px, из них чёлка <b>${insetPx}</b> · столу остаётся <b>${H - h - insetPx}</b> px<br>`
+      + `выход <b>${wBack}</b> · название хочет <b>${wantTitle}</b>, ему осталось <b>${room4}</b> · люди <b>${wPeople}</b> · всё вместе <b>${need + wantTitle}</b> из <b>${W}</b><br>`
+      + (dropped ? `<span class="bad">название убрано целиком: под него осталось ${room4} px</span><br>`
+        : wantTitle > room4 ? `<span class="bad">название ужато: хотело ${wantTitle}, дали ${room4}</span><br>`
+        : need > W ? `<span class="bad">не влезает: ${need - W} px лишних</span><br>` : "")
+      + (collide ? `<span class="bad">центр наезжает на группу сбоку — название уже не по центру экрана</span><br>` : "")
+      + (P.standalone && P.back !== "нет" ? `стендалон: выхода нет, кнопка убрана` : "");
+
+    window.TopStand.draw(document.getElementById("felt"), { W, H, top: h + insetPx });
+  };
+
+  build();
+  apply();
+  // ССЫЛКУ ВСТАВЛЯЮТ В УЖЕ ОТКРЫТУЮ ВКЛАДКУ. Смена только хвоста адреса страницу не перезагружает,
+  // и без этого присланный экран открывался бы прежним — ручки те же, вид другой.
+  addEventListener("hashchange", () => { P = readHash(); build(); apply(); });
+  addEventListener("resize", apply);
+  addEventListener("orientationchange", apply);
+})();
+</script>
+</body>
+</html>

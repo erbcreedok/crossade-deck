@@ -11,7 +11,7 @@ Details live next to the code and load when you work there.
 | `apps/*` | one package per game — `klondike`, `cards`, `chess`, `nardy` — and the `hub` they are started from. EVERY game is standalone: its own `index.html`, its own dev port, and the same one door into the hub, `(container) => Teardown` | the app's own header |
 | `server/` | Crossade Deck server — Colyseus, custom accounts | `server/CLAUDE.md` |
 | `deploy/`, `scripts/` | Fly.io: two apps (server, hub) + the catalogue on GitHub Pages; build and deploy are SEPARATE steps | `DEPLOY.md` |
-| `design/` | local design stands — plain HTML pages with knobs the owner tunes a screen on before it is built (`design/hud`: the sandbox HUD); served by `hud-stand` in `.claude/launch.json` | the page itself |
+| `design/` | local design stands — plain HTML pages with knobs the owner tunes a screen on before it is built (`design/hud`: the hand and the rights at the bottom; `design/tophud`: the strip at the top); served by `hud-stand` and `tophud-stand` in `.claude/launch.json` | the page itself |
 
 The two previous client generations (`client/`, `client2/`) were deleted once the kit replaced them.
 They are named all over the kit's comments as the SOURCE of a ported mechanic or of a trap already
