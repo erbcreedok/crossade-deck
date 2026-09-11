@@ -16,6 +16,7 @@ import {
   isGuest,
   linkTelegram,
   profileOf,
+  unlinkTelegram,
   updateProfile,
 } from "./accounts.js";
 import { linkIdentity } from "./db/accountsRepo.js";
@@ -48,7 +49,7 @@ describe("привязка телеграма", () => {
     const account = createAccount("Дана", "tg-same");
     const result = linkTelegram(account.id, account.recoveryHash, "tg-same");
     expect(result?.kind).toBe("linked");
-    expect(profileOf(account.id)?.identities).toEqual(["telegram"]);
+    expect(profileOf(account.id)?.identities.map((one) => one.provider)).toEqual(["telegram"]);
   });
 
   it("чужим кодом не привязать", () => {
@@ -87,7 +88,7 @@ describe("accounts.two-full-accounts-never-merge", () => {
 
     expect(result?.kind).toBe("conflict");
     expect(result?.account.id).toBe(other.id);
-    expect(profileOf(mine.id)?.identities).toEqual(["telegram"]);
+    expect(profileOf(mine.id)?.identities.map((one) => one.provider)).toEqual(["telegram"]);
     expect(findAccountByTelegramId("tg-other")?.id).toBe(other.id);
     expect(findAccountByTelegramId("tg-mine")?.id).toBe(mine.id);
   });
@@ -114,7 +115,7 @@ describe("профиль", () => {
   it("наружу отдаются двери, но не ключи от них", () => {
     const account = createAccount("Канат", "tg-secret");
     const profile = profileOf(account.id)!;
-    expect(profile.identities).toEqual(["telegram"]);
+    expect(profile.identities.map((one: { provider: string }) => one.provider)).toEqual(["telegram"]);
     expect(JSON.stringify(profile)).not.toContain("tg-secret");
   });
 
@@ -122,5 +123,52 @@ describe("профиль", () => {
     const account = createAccount("Асель");
     updateProfile(account.id, account.recoveryHash, { name: "   " });
     expect(profileOf(account.id)?.name).toBe("Асель");
+  });
+});
+
+// ПОДПИСЬ ДВЕРИ И ОТВЯЗКА.
+//
+// «Telegram: привязан» приходится принимать на веру; «Telegram: @erbol» человек УЗНАЁТ — и видит,
+// тот ли это его аккаунт. Ключ (subject) при этом наружу по-прежнему не отдаётся.
+describe("дверь подписана, и её можно закрыть", () => {
+  it("подпись едет в профиль, ключ — нет", () => {
+    const account = createAccount("Ербол", "70001", "@erbol");
+
+    const door = profileOf(account.id)!.identities[0]!;
+    expect(door).toEqual({ provider: "telegram", label: "@erbol" });
+    expect(JSON.stringify(profileOf(account.id))).not.toContain("70001");
+  });
+
+  it("без подписи дверь всё равно дверь", () => {
+    const account = createAccount("Дана", "70002");
+    expect(profileOf(account.id)!.identities[0]).toEqual({ provider: "telegram", label: null });
+  });
+
+  it("отвязал — снова гость, но тот же самый человек", () => {
+    const account = createAccount("Марат", "70003", "@marat");
+
+    const after = unlinkTelegram(account.id, account.recoveryHash);
+
+    expect(after?.id).toBe(account.id);
+    expect(after?.telegramId).toBeUndefined();
+    expect(isGuest(account.id)).toBe(true);
+    // Имя, цвет и код восстановления остаются: потеря телеги не уносит человека.
+    expect(profileOf(account.id)?.name).toBe("Марат");
+    expect(findAccountByTelegramId("70003")).toBeUndefined();
+  });
+
+  it("чужим кодом не отвязать", () => {
+    const account = createAccount("Алия", "70004", "@aliya");
+    expect(unlinkTelegram(account.id, "WRONGC")).toBeUndefined();
+    expect(isGuest(account.id)).toBe(false);
+  });
+
+  it("отвязанную дверь можно привязать снова — хоть к другому аккаунту", () => {
+    const first = createAccount("Первый", "70005", "@one");
+    unlinkTelegram(first.id, first.recoveryHash);
+
+    const second = createAccount("Второй");
+    expect(linkTelegram(second.id, second.recoveryHash, "70005")?.kind).toBe("linked");
+    expect(findAccountByTelegramId("70005")?.id).toBe(second.id);
   });
 });

@@ -15,6 +15,7 @@ import {
   storedAccount,
   telegramInvite,
   telegramInviteState,
+  unlinkTelegram,
   updateProfile,
   type InviteRefusal,
   type InviteState,
@@ -50,6 +51,8 @@ export interface ProfileGateway {
   /** Подписанная телеграмом строка, если этот экран открыт внутри Mini App. */
   telegramInitData(): string | undefined;
   linkTelegram(initData: string): Promise<"linked" | "switch" | "conflict" | undefined>;
+  /** Закрыть дверь. Аккаунт остаётся — рядом лежит код переноса. */
+  unlinkTelegram(): Promise<boolean>;
   /** Ссылка в бота для обычного браузера — или причина, почему её сейчас нет. */
   inviteTelegram(): Promise<TelegramInvite | InviteRefusal>;
   /** Чем кончилось ожидание бота. */
@@ -76,6 +79,9 @@ export const liveGateway: ProfileGateway = {
   },
   async linkTelegram(initData) {
     return (await linkTelegram(initData))?.kind;
+  },
+  async unlinkTelegram() {
+    return (await unlinkTelegram()) !== undefined;
   },
   inviteTelegram: () => telegramInvite(),
   inviteState: (code) => telegramInviteState(code),
@@ -199,7 +205,7 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
           `<div style="display:flex;gap:8px;flex-wrap:wrap">${swatchesHtml(FAVOURITE_INKS, profile.color)}</div></div>`,
         true,
       ) +
-      telegramLine(me.hasTelegram, r) +
+      telegramLine(me.hasTelegram, r, me.telegramName) +
       transferLine(r) +
       (said ? `<div style="font:400 13px ${FONT};color:${PALETTE.gold};padding-top:12px;line-height:1.5">${esc(said)}</div>` : "") +
       `</div>`;
@@ -233,8 +239,19 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
    * Ссылка появляется только тогда, когда сервер её дал: не настроен бот или общий секрет — путь
    * не предлагается вовсе, потому что кнопка без двери за ней хуже её отсутствия.
    */
-  const telegramLine = (linked: boolean, r: number): string => {
-    if (linked) return lineHtml(labelHtml("Telegram") + valueHtml("привязан"), true);
+  const telegramLine = (linked: boolean, r: number, whose: string | null): string => {
+    // ПРИВЯЗАНО — ЗНАЧИТ ВИДНО, ЧТО ИМЕННО: «@erbol» человек узнаёт и понимает, тот ли это его
+    // аккаунт, а «привязан» приходится принимать на веру. И отсюда же дверь закрывают.
+    if (linked) {
+      return lineHtml(
+        labelHtml("Telegram") +
+          `<div style="display:flex;align-items:center;gap:10px;min-width:0">` +
+          valueHtml(whose ?? "привязан") +
+          buttonHtml("tg-off", "Отвязать", "quiet", r) +
+          `</div>`,
+        true,
+      );
+    }
     if (gate.telegramInitData()) {
       return lineHtml(labelHtml("Telegram") + buttonHtml("tg", "Привязать", "gold", r), true);
     }
@@ -346,6 +363,12 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
               : kind === "linked"
                 ? ""
                 : "Не вышло привязать.";
+        profile = (await gate.read()) ?? profile;
+        return draw();
+      }
+      case "tg-off": {
+        const gone = await gate.unlinkTelegram();
+        said = gone ? "Telegram отвязан. Ты остался собой — код переноса на месте." : "Не вышло отвязать.";
         profile = (await gate.read()) ?? profile;
         return draw();
       }

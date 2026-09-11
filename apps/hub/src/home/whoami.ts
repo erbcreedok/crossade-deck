@@ -30,12 +30,15 @@ export interface WhoAmI {
   readonly nameAction: "invite" | "change";
   /** Есть ли уже дверь, которой можно войти с другого устройства. */
   readonly hasTelegram: boolean;
+  /** Как человека зовут за этой дверью — `@erbol`, если телега сказала. */
+  readonly telegramName: string | null;
 }
 
 /** Что этот экран знает о том, кто перед ним. */
 export function whoAmI(profile: Profile): WhoAmI {
   const named = profile.nameChosen;
-  const hasTelegram = profile.identities.includes("telegram");
+  const telegram = profile.identities.find((one) => one.provider === "telegram");
+  const hasTelegram = telegram !== undefined;
   return {
     name: profile.name,
     named,
@@ -50,5 +53,6 @@ export function whoAmI(profile: Profile): WhoAmI {
     ink: profile.color,
     nameAction: named ? "change" : "invite",
     hasTelegram,
+    telegramName: telegram?.label ?? null,
   };
 }

@@ -30,18 +30,24 @@ export interface ClaimParts {
   fetch?: typeof globalThis.fetch;
 }
 
-/** Сказать серверу, чей это код. */
+/**
+ * Сказать серверу, чей это код — и как этого человека зовут в телеге.
+ *
+ * ИМЯ ЕДЕТ ПОДПИСЬЮ, А НЕ КЛЮЧОМ: по `@erbol` человек в профиле УЗНАЁТ свою дверь, а «привязан»
+ * ему приходится принимать на веру. Ключом остаётся `chat_id`, и он наружу не отдаётся.
+ */
 export async function claimLink(
   parts: ClaimParts,
   code: string,
   telegramId: string,
+  telegramName?: string,
 ): Promise<ClaimResult | ClaimFailure> {
   const call = parts.fetch ?? globalThis.fetch;
   try {
     const res = await call(`${parts.serverUrl}/auth/telegram/claim`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, telegramId, secret: parts.secret }),
+      body: JSON.stringify({ code, telegramId, secret: parts.secret, ...(telegramName ? { telegramName } : {}) }),
     });
     if (res.status === 401 || res.status === 503) return "misconfigured";
     if (res.status === 409) return "already";

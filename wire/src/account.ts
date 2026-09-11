@@ -9,8 +9,15 @@ export type Account = {
   avatar?: string;
 };
 
-/** Как сервер входит: список провайдеров без их ключей. */
+/** Чем человек входит. */
 export type Provider = "telegram" | "google" | "apple" | "passkey" | "guest";
+
+/** Дверь, как её видит экран: чем вошли и как там зовут. Ключа от двери наружу нет. */
+export type ProfileDoor = {
+  provider: Provider;
+  /** `@erbol` — подпись, по которой человек узнаёт, ТОТ ли это его аккаунт. */
+  label: string | null;
+};
 
 /**
  * ПРОФИЛЬ — то же, что аккаунт, но без кода восстановления и с перечнем дверей. Читается с
@@ -27,7 +34,7 @@ export type Profile = {
   createdAt: number;
   color: string | null;
   avatar: string | null;
-  identities: readonly Provider[];
+  identities: readonly ProfileDoor[];
 };
 
 const STORAGE_KEY = "crossade.account";
@@ -233,6 +240,25 @@ export async function telegramInviteState(code: string): Promise<InviteState> {
   } catch {
     // Сеть моргнула — ожидание не кончилось, спросим снова.
     return "waiting";
+  }
+}
+
+/** ОТВЯЗАТЬ ТЕЛЕГРАМ. Аккаунт остаётся: рядом лежит код восстановления. */
+export async function unlinkTelegram(): Promise<Account | undefined> {
+  const current = storedAccount();
+  if (!current) return undefined;
+  try {
+    const res = await fetch(`${serverUrl()}/accounts/${current.id}/identities/telegram`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recoveryHash: current.recoveryHash }),
+    });
+    if (!res.ok) return undefined;
+    const account = (await res.json()) as Account;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(account));
+    return account;
+  } catch {
+    return undefined;
   }
 }
 

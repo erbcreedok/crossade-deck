@@ -15,6 +15,8 @@ export type Provider = (typeof PROVIDERS)[number];
 export interface Identity {
   readonly provider: Provider;
   readonly subject: string;
+  /** Как человека зовут за этой дверью — `@erbol`. Подпись для экрана, не ключ. */
+  readonly label: string | null;
   readonly verifiedAt: number;
 }
 
@@ -93,9 +95,9 @@ export function updateAccount(
 
 export function identitiesOf(accountId: string, at: DatabaseSync = db()): readonly Identity[] {
   const rows = at
-    .prepare(`SELECT provider, subject, verified_at FROM identities WHERE account_id = ? ORDER BY verified_at`)
-    .all(accountId) as { provider: Provider; subject: string; verified_at: number }[];
-  return rows.map((r) => ({ provider: r.provider, subject: r.subject, verifiedAt: r.verified_at }));
+    .prepare(`SELECT provider, subject, label, verified_at FROM identities WHERE account_id = ? ORDER BY verified_at`)
+    .all(accountId) as { provider: Provider; subject: string; label: string | null; verified_at: number }[];
+  return rows.map((r) => ({ provider: r.provider, subject: r.subject, label: r.label, verifiedAt: r.verified_at }));
 }
 
 export function accountByIdentity(
@@ -117,16 +119,25 @@ export function linkIdentity(
   accountId: string,
   provider: Provider,
   subject: string,
+  label: string | null = null,
   at: DatabaseSync = db(),
 ): Identity {
   const verifiedAt = Date.now();
-  at.prepare(`INSERT INTO identities (provider, subject, account_id, verified_at) VALUES (?, ?, ?, ?)`).run(
-    provider,
-    subject,
-    accountId,
-    verifiedAt,
-  );
-  return { provider, subject, verifiedAt };
+  at.prepare(
+    `INSERT INTO identities (provider, subject, account_id, label, verified_at) VALUES (?, ?, ?, ?, ?)`,
+  ).run(provider, subject, accountId, label, verifiedAt);
+  return { provider, subject, label, verifiedAt };
+}
+
+/**
+ * ОТВЯЗАТЬ ДВЕРЬ. Аккаунт от этого не исчезает и не становится «неполноценным»: рядом остаётся код
+ * восстановления, и потеря телеги не должна уносить с собой предметы, статистику и друзей.
+ */
+export function unlinkIdentity(accountId: string, provider: Provider, at: DatabaseSync = db()): boolean {
+  const done = at
+    .prepare(`DELETE FROM identities WHERE account_id = ? AND provider = ?`)
+    .run(accountId, provider);
+  return Number(done.changes) > 0;
 }
 
 /** Сколько дверей у аккаунта. Ноль — это и есть гость, и это единственное определение гостя. */

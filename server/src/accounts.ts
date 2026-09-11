@@ -11,6 +11,7 @@
 import { randomUUID, randomInt } from "crypto";
 import {
   accountById,
+  unlinkIdentity,
   accountByIdentity,
   accountByRecoveryHash,
   identitiesOf,
@@ -38,7 +39,14 @@ export interface Account {
   avatar?: string;
 }
 
-/** Профиль — те же поля плюс список дверей. Ключей от дверей (subject) наружу не отдаём. */
+/** Дверь, как её видит экран: чем вошли и как там зовут. Ключа (subject) наружу нет. */
+export interface ProfileDoor {
+  provider: Provider;
+  /** `@erbol` — по этой подписи человек узнаёт, ТОТ ли это его аккаунт. */
+  label: string | null;
+}
+
+/** Профиль — те же поля плюс двери. */
 export interface Profile {
   id: string;
   name: string;
@@ -46,7 +54,7 @@ export interface Profile {
   createdAt: number;
   color: string | null;
   avatar: string | null;
-  identities: readonly Provider[];
+  identities: readonly ProfileDoor[];
 }
 
 const MAX_NAME = 24;
@@ -93,7 +101,7 @@ function freeRecoveryHash(): string {
  * Завести человека. Без имени он получает кличку от сервера («Золотой таракан»), а не номер: имя,
  * которое хочется сменить, — единственное, что просит назваться.
  */
-export function createAccount(name?: string, telegramId?: string): Account {
+export function createAccount(name?: string, telegramId?: string, telegramName?: string): Account {
   const id = randomUUID();
   const chosen = (name ?? "").trim().length > 0;
   const row = insertAccount({
@@ -105,7 +113,7 @@ export function createAccount(name?: string, telegramId?: string): Account {
     createdAt: Date.now(),
     recoveryHash: freeRecoveryHash(),
   });
-  if (telegramId) linkIdentity(id, "telegram", telegramId);
+  if (telegramId) linkIdentity(id, "telegram", telegramId, telegramName ?? null);
   return dress(row);
 }
 
@@ -175,7 +183,7 @@ export function profileOf(id: string): Profile | undefined {
     createdAt: row.createdAt,
     color: row.color,
     avatar: row.avatar,
-    identities: identitiesOf(row.id).map((one: Identity) => one.provider),
+    identities: identitiesOf(row.id).map((one: Identity) => ({ provider: one.provider, label: one.label })),
   };
 }
 
@@ -201,7 +209,12 @@ export type LinkResult =
  * ПРИВЯЗАТЬ ТЕЛЕГРАМ К СУЩЕСТВУЮЩЕМУ АККАУНТУ. Проверка подписи — та же, что у входа
  * (`telegramAuth.ts`); здесь уже известно, что `telegramId` настоящий.
  */
-export function linkTelegram(id: string, recoveryHash: string, telegramId: string): LinkResult | undefined {
+export function linkTelegram(
+  id: string,
+  recoveryHash: string,
+  telegramId: string,
+  telegramName?: string,
+): LinkResult | undefined {
   const row = mine(id, recoveryHash);
   if (!row) return undefined;
   const owner = accountByIdentity("telegram", telegramId);
@@ -212,8 +225,21 @@ export function linkTelegram(id: string, recoveryHash: string, telegramId: strin
       ? { kind: "switch", account: dress(owner) }
       : { kind: "conflict", account: dress(owner) };
   }
-  linkIdentity(row.id, "telegram", telegramId);
+  linkIdentity(row.id, "telegram", telegramId, telegramName ?? null);
   return { kind: "linked", account: dress(row) };
+}
+
+/**
+ * ОТВЯЗАТЬ ТЕЛЕГРАМ. Своим кодом — как и всё остальное в профиле.
+ *
+ * Аккаунт остаётся: рядом лежит код восстановления, и потеря телеги не должна уносить предметы,
+ * статистику и друзей. Человек просто снова становится гостем — тем же самым собой без дверей.
+ */
+export function unlinkTelegram(id: string, recoveryHash: string): Account | undefined {
+  const row = mine(id, recoveryHash);
+  if (!row) return undefined;
+  unlinkIdentity(row.id, "telegram");
+  return dress(row);
 }
 
 /** Имя, которым человека зовут за столом. Для ростера, которому чужие поля ни к чему. */

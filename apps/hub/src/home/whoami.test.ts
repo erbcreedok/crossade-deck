@@ -53,9 +53,22 @@ describe("home.the-nickname-is-the-invitation", () => {
   });
 
   it("вошедший через телегу — не гость, и подписи «гость» на нём нет", () => {
-    const me = whoAmI(profile({ name: "Ербол", nameChosen: true, identities: ["telegram"] }));
+    const me = whoAmI(profile({ name: "Ербол", nameChosen: true, identities: [{ provider: "telegram", label: "@erbol" }] }));
     expect(me.hasTelegram).toBe(true);
     expect(me.note).toBe("");
+  });
+
+  // ПРИВЯЗАНО — ЗНАЧИТ ВИДНО, ЧТО ИМЕННО: «@erbol» человек узнаёт, «привязан» приходится принимать
+  // на веру.
+  it("подпись двери доходит до экрана", () => {
+    const me = whoAmI(profile({ identities: [{ provider: "telegram", label: "@erbol" }] }));
+    expect(me.telegramName).toBe("@erbol");
+  });
+
+  it("телега без @username — дверь есть, подписи нет", () => {
+    const me = whoAmI(profile({ identities: [{ provider: "telegram", label: null }] }));
+    expect(me.hasTelegram).toBe(true);
+    expect(me.telegramName).toBeNull();
   });
 
   it("назвался, но дверей нет — так и написано: гость", () => {

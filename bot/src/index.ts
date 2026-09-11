@@ -34,7 +34,12 @@ bot.command("start", async (ctx) => {
       await ctx.reply(claimReply(start.source ? "unknown-source" : "misconfigured"));
       return;
     }
-    const result = await claimLink({ serverUrl: to.serverUrl, secret: to.secret }, start.code, String(ctx.from!.id));
+    const result = await claimLink(
+      { serverUrl: to.serverUrl, secret: to.secret },
+      start.code,
+      String(ctx.from!.id),
+      ctx.from?.username ? `@${ctx.from.username}` : undefined,
+    );
     await ctx.reply(claimReply(result));
     return;
   }

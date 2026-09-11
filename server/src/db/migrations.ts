@@ -107,4 +107,15 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec(`ALTER TABLE accounts ADD COLUMN name_chosen INTEGER NOT NULL DEFAULT 1`);
     },
   },
+  {
+    version: 4,
+    up(db) {
+      // КАК ЧЕЛОВЕКА ЗОВУТ ЗА ЭТОЙ ДВЕРЬЮ — `@erbol` у телеграма. Показать «Telegram: привязан» и
+      // показать «Telegram: @erbol» — разные вещи: второе человек узнаёт и понимает, ТОТ ли это
+      // аккаунт, а первое приходится принимать на веру.
+      //
+      // Это подпись, а не ключ: `subject` наружу не отдаётся по-прежнему.
+      db.exec(`ALTER TABLE identities ADD COLUMN label TEXT`);
+    },
+  },
 ];

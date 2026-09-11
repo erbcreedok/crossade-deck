@@ -28,6 +28,7 @@ function gatewayOf(profile: Profile, over: Partial<ProfileGateway> = {}) {
     },
     telegramInitData: () => undefined,
     linkTelegram: async () => "linked",
+    unlinkTelegram: async () => true,
     inviteTelegram: async () => ({ code: "CODE", link: "https://t.me/crossade_bot?start=CODE", expiresInMs: 300000 }),
     inviteState: async () => "waiting",
     transferLink: () => "http://hub.test/?restore=BOVAKI",
@@ -354,5 +355,45 @@ describe("шапка первой страницы", () => {
     await settle();
     home.stop();
     expect(container.querySelector(".crossade-home")).toBeNull();
+  });
+});
+
+// ПРИВЯЗАННОЕ СОСТОЯНИЕ — ПО СТЕНДУ: видно, ЧТО именно привязано, и дверь можно закрыть.
+describe("home.a-linked-door-shows-whose-it-is", () => {
+  const LINKED: Profile = {
+    ...GUEST,
+    name: "Ербол",
+    nameChosen: true,
+    identities: [{ provider: "telegram", label: "@erbol" }],
+  };
+
+  it("в строке стоит @имя, а не безликое «привязан»", async () => {
+    const { gate } = gatewayOf(LINKED);
+    const { home } = await openScreen(gate);
+
+    expect(home.element.textContent).toContain("@erbol");
+    expect(q(home.element, '[data-do="tg-invite"]')).toBeNull();
+    home.stop();
+  });
+
+  it("телега без @username — «привязан», потому что подписи и правда нет", async () => {
+    const { gate } = gatewayOf({ ...LINKED, identities: [{ provider: "telegram", label: null }] });
+    const { home } = await openScreen(gate);
+
+    expect(home.element.textContent).toContain("привязан");
+    home.stop();
+  });
+
+  it("дверь закрывается отсюда же, и человек остаётся собой", async () => {
+    const { gate } = gatewayOf(LINKED);
+    const off = vi.spyOn(gate, "unlinkTelegram");
+    const { home } = await openScreen(gate);
+
+    q(home.element, '[data-do="tg-off"]')!.click();
+    await settle();
+
+    expect(off).toHaveBeenCalledOnce();
+    expect(home.element.textContent).toContain("код переноса на месте");
+    home.stop();
   });
 });

@@ -17,6 +17,7 @@ import {
   linkTelegram,
   profileOf,
   regenerateRecoveryHash,
+  unlinkTelegram,
   updateProfile,
 } from "./accounts.js";
 import { listPublicRooms } from "./publicRooms.js";
@@ -165,7 +166,9 @@ export function createApp() {
     // (`initials` в game-kit), и без фамилии игрок с распространённым именем ничем не отличим от
     // другого на том же столе.
     const fullName = [user.first_name, user.last_name].filter((part): part is string => Boolean(part?.trim())).join(" ");
-    const account = findAccountByTelegramId(telegramId) ?? createAccount(fullName || user.username, telegramId);
+    const account =
+      findAccountByTelegramId(telegramId) ??
+      createAccount(fullName || user.username, telegramId, user.username ? `@${user.username}` : undefined);
     res.json(account);
   });
 
@@ -186,12 +189,26 @@ export function createApp() {
     const user = verifyTelegramInitData(initData, botToken);
     if (!user) return res.status(401).json({ error: "unauthorized" });
 
-    const result = linkTelegram(req.params.id, recoveryHash, String(user.id));
+    const result = linkTelegram(
+      req.params.id,
+      recoveryHash,
+      String(user.id),
+      user.username ? `@${user.username}` : undefined,
+    );
     if (!result) return res.status(403).json({ error: "forbidden" });
     if (result.kind === "conflict") {
       return res.status(409).json({ error: "already_linked", account: { id: result.account.id, name: result.account.name } });
     }
     res.json({ kind: result.kind, account: result.account });
+  });
+
+  /** ОТВЯЗАТЬ — та же проверка доверия, что и у любой другой правки профиля: код восстановления. */
+  app.delete("/accounts/:id/identities/telegram", (req, res) => {
+    const { recoveryHash } = req.body || {};
+    if (typeof recoveryHash !== "string") return res.status(400).json({ error: "bad_request" });
+    const account = unlinkTelegram(req.params.id, recoveryHash);
+    if (!account) return res.status(403).json({ error: "forbidden" });
+    res.json(account);
   });
 
   // ---- ПРИВЯЗКА ТЕЛЕГРАМА ИЗ ОБЫЧНОГО БРАУЗЕРА (`telegramLink.ts`) ----
@@ -242,7 +259,7 @@ export function createApp() {
     const secret = linkSecret();
     if (!secret) return res.status(503).json({ error: "telegram_not_configured" });
 
-    const { code, telegramId, secret: given } = req.body || {};
+    const { code, telegramId, telegramName, secret: given } = req.body || {};
     if (typeof code !== "string" || typeof telegramId !== "string" || typeof given !== "string") {
       return res.status(400).json({ error: "bad_request" });
     }
@@ -276,7 +293,12 @@ export function createApp() {
     }
     // ПРАВИЛО СЛИЯНИЯ ЖИВЁТ В ОДНОМ МЕСТЕ И ТУТ НЕ ПОВТОРЯЕТСЯ: чистого гостя переключают, две
     // полноценные стороны не сливают никогда.
-    const result = linkTelegram(account.id, account.recoveryHash, telegramId);
+    const result = linkTelegram(
+      account.id,
+      account.recoveryHash,
+      telegramId,
+      typeof telegramName === "string" && telegramName ? telegramName : undefined,
+    );
     if (!result) return res.status(403).json({ error: "forbidden" });
     settleLink(code, telegramId, result.kind);
     res.json({ kind: result.kind, name: result.account.name });

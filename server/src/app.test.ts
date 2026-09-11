@@ -260,7 +260,7 @@ describe("POST /accounts/:id/identities/telegram", () => {
     expect(body.kind).toBe("linked");
     expect(body.account.telegramId).toBe("7001");
     const profile = await (await fetch(`${BASE}/accounts/${account.id}/profile`)).json();
-    expect(profile.identities).toEqual(["telegram"]);
+    expect(profile.identities.map((one: { provider: string }) => one.provider)).toEqual(["telegram"]);
   });
 
   it("чистого гостя переключают на его настоящий аккаунт, а не сливают", async () => {
@@ -301,7 +301,7 @@ describe("POST /accounts/:id/identities/telegram", () => {
     expect(res.status).toBe(409);
     expect((await res.json()).account.id).toBe(other.id);
     const profile = await (await fetch(`${BASE}/accounts/${mine.id}/profile`)).json();
-    expect(profile.identities).toEqual(["telegram"]);
+    expect(profile.identities.map((one: { provider: string }) => one.provider)).toEqual(["telegram"]);
   });
 
   it("битая подпись → 401", async () => {

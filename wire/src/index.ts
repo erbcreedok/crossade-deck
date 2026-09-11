@@ -22,6 +22,7 @@ export {
   telegramAccount,
   telegramInvite,
   telegramInviteState,
+  unlinkTelegram,
   updateProfile,
   type Account,
   type InviteRefusal,
@@ -29,6 +30,7 @@ export {
   type LinkOutcome,
   type TelegramInvite,
   type Profile,
+  type ProfileDoor,
   type Provider,
 } from "./account.js";
 export { joinTable, type JoinTableOptions, type RelayMessage, type RosterItem, type Table } from "./table.js";

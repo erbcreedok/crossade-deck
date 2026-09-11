@@ -159,9 +159,9 @@ describe("весь путь целиком", () => {
     expect(settled.state).toBe("conflict");
 
     const profile = await (await fetch(`${BASE}/accounts/${second.id}/profile`)).json();
-    expect(profile.identities).toEqual(["telegram"]);
+    expect(profile.identities.map((one: { provider: string }) => one.provider)).toEqual(["telegram"]);
     const stillFirst = await (await fetch(`${BASE}/accounts/${first.id}/profile`)).json();
-    expect(stillFirst.identities).toEqual(["telegram"]);
+    expect(stillFirst.identities.map((one: { provider: string }) => one.provider)).toEqual(["telegram"]);
   });
 });
 
