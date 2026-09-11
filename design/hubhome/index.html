@@ -24,6 +24,9 @@
   .row .val { color: #f2c14e; text-align: right; font: 400 14px 'Press Start 2P', monospace; }
   .nums { font-size: 15px; }
   .nums b { color: #f2c14e; font-weight: 400; }
+  /* Ряд «куда зайти» скроллится вбок, но полоса прокрутки поперёк сукна выглядит поломкой. */
+  #over [data-g="comeback"] > div { scrollbar-width: none; -ms-overflow-style: none; }
+  #over [data-g="comeback"] > div::-webkit-scrollbar { display: none; }
   .bad { color: #e0483f; }
   button.reset { align-self: flex-start; font: inherit; color: #f2c14e; background: none; border: 2px solid #f2c14e; padding: 4px 10px; cursor: pointer; }
   .knob { display: none; }
@@ -400,14 +403,20 @@
       + (cards.length ? `куда зайти: <b>${cards.length}</b> · полке остаётся <b>${H - headTop}</b> px<br>` : `куда зайти: ряда нет — предлагать нечего<br>`)
       + (guest ? `имя выдано столом: <b>${esc(guestName(P.seed))}</b> — оно и есть приглашение назваться` : `вошёл: имя своё, менять нечего`);
 
-    window.HubStand.draw(document.getElementById("shelf"), {
+    const laid = window.HubStand.draw(document.getElementById("shelf"), {
       W, H, top: headTop, afterTitle: heightOf("comeback"),
       title: P.title, titleSize: P.titleSize, columns: P.columns, tileGap: P.tileGap, margin: P.margin,
     });
+    // Ряд встаёт ровно в дыру, которую холст под него оставил.
+    const row = over.querySelector('[data-g="comeback"]');
+    if (row && laid) row.style.top = `${laid.holeY}px`;
   };
 
   build();
   apply();
+  // ХОЛСТ РИСУЕТ ЗАГОЛОВОК ШРИФТОМ, КОТОРОГО ЕЩЁ НЕТ. Первый кадр уходит системным, и «Crossade»
+  // выглядит чужим; когда пиксельный доедет — перерисовываем.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => apply());
   addEventListener("hashchange", () => { P = readHash(); build(); apply(); });
   addEventListener("resize", apply);
   addEventListener("orientationchange", apply);
