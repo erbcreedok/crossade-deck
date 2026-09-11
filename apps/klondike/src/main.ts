@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { holdThePage } from "game-kit";
-import { startSolitaire } from "./solitaire/scene.js";
+import { startSolitaire } from "./index.js";
 
 const app = document.querySelector<HTMLElement>("#app");
 // THE PAGE IS THE GAME'S TOO. A canvas comes held by `mount`; the document around it does not,

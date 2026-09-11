@@ -8,7 +8,7 @@
 // hot reload — an entry, not an API.
 
 import { browserHost, startDesk, type DeskHost, type Teardown } from "@game-presets/desk";
-import { PALETTE } from "@crossade/look";
+import { loadingCards, PALETTE } from "@crossade/look";
 import { storedAccount } from "@crossade/wire";
 import { cardsSpec } from "./spec.js";
 
@@ -18,15 +18,30 @@ export interface StartCardsOptions {
    * the room comes out of `?room=`, nothing is laid over the region, and the clock is its own.
    */
   readonly host?: DeskHost;
+  /**
+   * Show the loading screen, or leave it to whoever is already showing one. A hub puts one up while
+   * the chunk is still downloading, and two would fade out one after the other.
+   */
+  readonly loading?: boolean;
 }
 
 /** Stand the card table up in `container`. The return value stops it completely. */
 export function startCards(container: HTMLElement, o: StartCardsOptions = {}): Teardown {
   const account = storedAccount();
-  return startDesk(container, cardsSpec(), {
+  // UP BEFORE ANYTHING ELSE IS, and down when the table is worth looking at — which is later than
+  // the first frame by a room's round trip and a tree.
+  const loading = o.loading === false ? undefined : loadingCards(container, "Карты");
+  const stop = startDesk(container, cardsSpec(), {
     host: o.host ?? browserHost({ cover: PALETTE.felt }),
     ...(account ? { account } : {}),
+    onReady: () => loading?.done(),
   });
+  return () => {
+    // ...AND IT COMES DOWN WITH THE TABLE, whether the table ever arrived or not: a game torn down
+    // mid-join must not leave its loading screen on a stage the shelf is about to draw into.
+    loading?.done();
+    stop();
+  };
 }
 
 export { cardsSpec, CARD_SEATS } from "./spec.js";

@@ -46,11 +46,18 @@ describe("hub.the-address-is-the-place", () => {
   it("another game is a swap, and the shelf never shows between the two", () => {
     const entering = block("enter = async (id: string");
     expect(entering, "the old game is let go from inside the opening").toContain('leave(false, "play")');
-    // AFTER the fetch, never before: taken down at the top, the player watches an empty stage for
-    // the whole of the download.
+    // ...AND WITHOUT PASSING THROUGH THE SHELF: `leave` is told "play", so the strip is left as it
+    // is and only the stage is emptied.
+    expect(entering, "the swap does not go back to the shelf on the way").not.toContain("leave(false)\n");
+    // THE OLD GAME GOES DOWN BEFORE THE FETCH, NOT AFTER. It was the other way round until the
+    // loading screen existed: the only reason to keep a game alive behind a swap was to spare the
+    // player an empty stage, and that is exactly what the screen is now doing. Kept alive behind it,
+    // the old table would be a table nobody can see holding a socket open for the whole download.
     const letGo = entering.indexOf('leave(false, "play")');
+    const screen = entering.indexOf("loadingCards(stage");
     const fetched = entering.indexOf("await Promise.all");
-    expect(letGo, "the old game goes down only once the new one has arrived").toBeGreaterThan(fetched);
+    expect(letGo, "the old game goes down first").toBeLessThan(screen);
+    expect(screen, "and the screen is up before the chunk is even asked for").toBeLessThan(fetched);
     expect(entering, "and the address is not rewritten by the swap itself").toContain("if (write) goTo(id);");
   });
 

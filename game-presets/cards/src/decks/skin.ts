@@ -40,6 +40,22 @@ function figureAsset(accent: Accent, spec: CardSpec): string {
 
 /** Where the baked and the figure files live, as URLs the renderer can load — resolved by the bundler. */
 const bakedUrl = (style: string, name: string): string => new URL(`./baked/${style}/${name}.webp`, import.meta.url).href;
+
+/**
+ * THE SAME PICTURE, FOR SOMETHING THAT IS NOT THE ENGINE — a card's baked face as a plain URL, the
+ * one an `<img>` can take.
+ *
+ * A loading screen is drawn before any canvas exists, so it cannot ask the painter for a surface;
+ * and a loading screen showing cards that are not THESE cards is the second answer to "what a card
+ * looks like" that drifts from the first the day the deck is redrawn. So the file is named here
+ * once, and both the renderer and the page read the same line.
+ *
+ * Raster only, deliberately: the vector path bakes a data URI at install time and needs the skin
+ * installed first, which is exactly the work a loading screen exists to cover.
+ */
+export function deckFaceImage(spec: CardSpec, style: DeckStyle): string {
+  return bakedUrl(deckStyleId(style), spec.id);
+}
 const figureUrl = (accent: Accent, id: string): string => new URL(`./figures/${accent}/${id}.svg`, import.meta.url).href;
 
 function surface(layers: readonly PaintLayer[]): SurfaceRecord {

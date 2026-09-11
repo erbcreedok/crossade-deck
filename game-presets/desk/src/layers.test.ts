@@ -43,9 +43,18 @@ describe("desk.a-layer-hears-the-carry", () => {
     expect(runtime.includes("curtain(container,"), "the desk is covered while it is still guessing").toBe(true);
     const home = runtime.indexOf("live.idle?.goHome()");
     expect(home, "the view is taken home from the join").toBeGreaterThan(0);
-    const raised = [...runtime.matchAll(/cover\.raise\(\)/g)].map((m) => m.index ?? -1);
-    expect(raised.length, "every way the join can settle takes the cover off").toBeGreaterThan(1);
-    for (const one of raised) expect(one, "the cover comes off after the view is home, never before").toBeGreaterThan(home);
+    // THROUGH `ready()` AND NOT BY HAND. The cover coming off and "the table is worth looking at"
+    // are the same moment, and they are one call because they drifted apart the moment they were
+    // two: a loading screen lifted on its own timing hands the player a table still being built.
+    expect(runtime, "raising the cover is also the report that the table is up").toMatch(/const ready = \(\): void => \{\s*cover\.raise\(\);/);
+    const told = [...runtime.matchAll(/\bready\(\);/g)].map((m) => m.index ?? -1);
+    expect(told.length, "every way the join can settle takes the cover off").toBeGreaterThan(1);
+    for (const one of told) expect(one, "the cover comes off after the view is home, never before").toBeGreaterThan(home);
+    // ...AND THE TEARDOWN RAISES IT WITHOUT REPORTING: a desk being taken down has nothing to say,
+    // and whoever is waiting must not be told the table arrived by the code removing it.
+    const stopping = runtime.slice(runtime.indexOf("  return () => {"));
+    expect(stopping, "the teardown takes the cover off").toContain("cover.raise();");
+    expect(stopping.includes("ready();"), "…but reports nothing").toBe(false);
   });
 
   it("desk.a-stopped-desk-writes-nothing — the join in flight comes back to a desk that is gone", () => {

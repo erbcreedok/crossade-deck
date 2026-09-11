@@ -45,6 +45,16 @@ export interface StartDeskOptions {
   readonly host: DeskHost;
   /** Who this device is. A table joined without one is joined as a guest. */
   readonly account?: { readonly id: string; readonly name: string; readonly recoveryHash: string } | undefined;
+  /**
+   * THE TABLE IS WORTH LOOKING AT NOW — the seat has arrived, the tree that was on the server is
+   * standing, the furniture is up and the view is at this reader's own place.
+   *
+   * It is the same moment the cover comes off, and that is the point: a loading screen that lifted
+   * any earlier would hand the player a table still being built, which is the "empty room with
+   * nothing in it" they were being spared. Called once, and called on a join that FAILED too — a
+   * screen that waits for a room that will never answer is the one failure worse than a bad table.
+   */
+  readonly onReady?: (() => void) | undefined;
 }
 
 function buildInitialDesk(spec: DeskSpec): Node {
@@ -298,6 +308,14 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
    * THE DESK IS COVERED UNTIL IT KNOWS WHOSE SIDE IT IS SEEN FROM — raised once the seat has arrived
    * and the view has been taken home, and never before (`curtain.ts`).
    */
+  let told = false;
+  /** THE TABLE IS UP. The cover comes off and whoever was waiting is told, in that order, once. */
+  const ready = (): void => {
+    cover.raise();
+    if (told) return;
+    told = true;
+    o.onReady?.();
+  };
   const cover = curtain(container, o.host.cover);
   // THE CAMERA'S OWN TWO CONTROLS IN THE CORNER — the kit's, wired in one line. North is on every
   // desk; the place button appears because this desk names seats, and it asks for exactly what a tap
@@ -442,7 +460,7 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
 
       // THE COVER COMES OFF ON A FRAME THAT IS ALREADY HOME — the view was taken to this screen's own
       // place above, the tree that arrived is standing, and the furniture is up.
-      cover.raise();
+      ready();
 
       unbindOnRelay = table.onRelay((msg) => {
         if (peopleWire?.heard(msg)) {
@@ -466,7 +484,7 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
       // A DESK NOBODY COULD JOIN IS STILL SHOWN. The cover is there because the seat is not known
       // yet, and a join that failed is an answer too — held down, it would leave a player looking at
       // a blank rectangle with no way to tell it from a dead screen.
-      cover.raise();
+      ready();
     });
 
   return () => {
@@ -479,9 +497,12 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     leaveIdleClock?.();
     hostClock.stop();
     dots.stop();
+    // THE COVER, NOT `ready()`: a desk being torn down has nothing to report. Whoever is waiting to
+    // be told the table is up must not hear it from the teardown — they would lift a loading screen
+    // onto a stage that is being emptied.
+    cover.raise();
     // TELLS THE KIT'S OWN `Avatars` TO STOP LISTENING — see the marker's own comment above: without
     // this, a persistent stage never disconnects and the wiring goes on hearing the relay.
-    cover.raise();
     peopleWall.remove();
     for (const layer of layers) layer.stop();
     hud?.stop();

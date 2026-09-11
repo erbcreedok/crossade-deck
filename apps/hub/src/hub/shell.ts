@@ -28,7 +28,7 @@ import {
 import { pixiPainter } from "game-kit/pixi";
 import { hubRuler } from "@crossade/look";
 import { installHubLook } from "@crossade/look";
-import { CLUB_U, PALETTE, SPARK_U } from "@crossade/look";
+import { CLUB_U, loadingCards, PALETTE, SPARK_U } from "@crossade/look";
 import { beat } from "./beat.js";
 import { AT_REST, DRIFT_DIAMONDS, driftStep, type Drift } from "./drift.js";
 import { barTree, FELT, hubTree, shelfColumns, shelfSize, SPARKLE_ID } from "./grid.js";
@@ -261,21 +261,39 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     const mine = ++opening;
     busy = true;
     const stopSweep = sweep(`tile/${entry.id}/face`);
+    // THE WAIT STARTS NOW, AND SO DOES THE SCREEN THAT SAYS SO. The chunk has not been asked for
+    // yet; the room and the tree come after it. From the player's side that is one wait — so it gets
+    // one screen, even though two things put it there: this one covers the DOWNLOAD, and the game
+    // puts up its own the moment it is handed the stage, covering the room and the tree.
+    //
+    // The handover is invisible because the two are the same screen: the game's goes on top, and
+    // this one is taken away underneath it once `start` has returned.
+    //
+    // Over the stage rather than the whole page: the strip with the way back stays live, so a player
+    // who changed their mind during a slow fetch is not trapped looking at a wait.
+    setMode("play");
+    // THE OLD GAME GOES DOWN FIRST, and the screen goes up in its place. Kept alive behind the
+    // screen it would be a table nobody can see holding a socket open for the whole of a fetch —
+    // the reason to keep it (not showing an empty stage) is exactly what the screen is for.
+    if (running) leave(false, "play");
+    const loading = loadingCards(stage, entry.label);
     try {
       const [start] = await Promise.all([entry.load(), sleep(MIN_BUSY_MS)]);
       // WHERE THE PLAYER IS NOW, not where they were when this was asked for. A chunk is fetched
       // over a phone's network; Back, another tile and a pasted link all happen inside that wait.
-      if (!alive || mine !== opening) return;
+      if (!alive || mine !== opening) {
+        loading.done();
+        return;
+      }
       stopSweep();
-      // THE OLD GAME GOES DOWN ONLY NOW — after its replacement has actually arrived. Taken down at
-      // the top of this call, the player would watch an empty stage for the whole of the fetch.
-      if (running) leave(false, "play");
-      setMode("play");
       // The address first, the game second: a table reads WHICH game it is from the hash, so a
       // press that started the game before naming it would open every tile as cards.
       if (write) goTo(id);
       running = start(stage);
       runningId = id;
+      // THE GAME IS HOLDING ITS OWN SCREEN NOW (or has nothing to wait for). This one has served its
+      // purpose — the download — and goes away under whatever the game put on top of it.
+      loading.done();
     } catch (err) {
       // A blip, or a game that will not parse. Without this the hub sits in a dead screen with a
       // spinning tile and no way out — the one failure a launcher must not have.

@@ -12,12 +12,15 @@
   },
   "types": "./src/index.ts",
   "module": "./src/index.ts",
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@game-presets/cards": "*",
     "game-kit": "*"
   },
   "devDependencies": {
