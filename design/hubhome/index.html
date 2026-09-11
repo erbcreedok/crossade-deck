@@ -69,6 +69,14 @@
       ["av", "аватар, px", "int", 34, 22, 52],
       ["profileSide", "где профиль", "enum", "справа", ["справа", "слева"]],
     ]],
+    ["Экран профиля", [
+      ["open", "открыт", "bool", false],
+      ["sheet", "как открывается", "enum", "лист снизу", ["лист снизу", "во весь экран"]],
+      ["offer", "телеграм предлагает своё", "enum", "нет", ["нет", "имя", "аватар"]],
+      ["mine", "своё имя", "text", ""],
+      ["emoji", "свой аватар", "text", ""],
+      ["colour", "любимый цвет", "int", 0, 0, 7],
+    ]],
     ["Полоса", [
       ["h", "высота полосы, px", "int", 44, 0, 96],
       ["side", "боковое поле, px", "int", 12, 0, 40],
@@ -132,6 +140,10 @@
           input = document.createElement("select");
           for (const opt of a) { const o = document.createElement("option"); o.value = opt; o.textContent = opt; o.selected = P[key] === opt; input.appendChild(o); }
           input.onchange = () => { P[key] = input.value; apply(); };
+        } else if (kind === "text") {
+          input = document.createElement("input");
+          input.type = "text"; input.value = P[key];
+          input.oninput = () => { P[key] = input.value; apply(); };
         } else {
           input = document.createElement("input");
           input.type = "checkbox"; input.checked = !!P[key];
@@ -171,6 +183,9 @@
   // Ползунок перебирает ВСЕ пары, а не каждую двадцатую: прилагательное крутится быстрым
   // разрядом, существительное медленным. При общем множителе пары повторялись бы каждые двадцать
   // делений, и половина списка никогда бы не показалась.
+  /** Любимый цвет — восемь, а не колесо: цвет должен быть узнаваем за столом, а не подобран. */
+  const PALETTE = ["#f2c14e", "#7fd1b9", "#e08b3f", "#b98fe0", "#8fb4e0", "#e0483f", "#a8e08f", "#e08fb4"];
+
   const guestName = (seed) => `${GUEST_ADJ[seed % GUEST_ADJ.length]} ${GUEST_NOUN[Math.floor(seed / GUEST_ADJ.length) % GUEST_NOUN.length]}`;
   const svg = (body, size, color, w) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${color}" stroke-width="${w || 2}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -181,6 +196,8 @@
     const inset = real() ? "env(safe-area-inset-top, 0px)" : P.notch + "px";
     const h = P.h, r = P.radius, gap = P.gap;
     const guest = P.who === "гость";
+    /** Имя ЕГО — назвался сам или принял телеграмное. Иначе на нём висит кличка стола. */
+    const named = !!P.mine;
 
     const FILLS = {
       "нет": "",
@@ -195,12 +212,18 @@
     // стол, а не он сам, — и это единственное, что на первой странице подталкивает назваться или
     // войти. Кнопки входа здесь нет: она живёт там, где без личности действительно нет ответа.
     const av = P.av;
-    const name = guest ? guestName(P.seed) : "Ербол";
-    const face = guest
-      ? `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%">${svg(ICON.person, Math.round(av * 0.62), T.inkDim)}</span>`
-      : `<span style="font:400 ${Math.round(av * 0.42)}px 'Tiny5',monospace;color:${T.black}">Е</span>`;
-    const avatar = `<span style="flex:none;width:${av}px;height:${av}px;border-radius:50%;display:flex;align-items:center;justify-content:center;`
-      + `background:${guest ? T.well : T.gold};box-shadow:inset 0 0 0 3px ${T.black}${guest ? "" : `,0 0 0 2px ${T.wood}`}">${face}</span>`;
+    // ЧЬЁ ИМЯ СЕЙЧАС НА ЭКРАНЕ: своё, если назвался или принял телеграмное; иначе выданное столом.
+    // Привязка телеграма сама по себе имени не меняет — см. «Привязать» ниже.
+    const name = P.mine || guestName(P.seed);
+    const ink = named ? PALETTE[P.colour] : T.well;
+    const faceOf = (size) => P.emoji
+      ? `<span style="font-size:${Math.round(size * 0.56)}px;line-height:1">${esc(P.emoji)}</span>`
+      : named
+        ? `<span style="font:400 ${Math.round(size * 0.42)}px 'Tiny5',monospace;color:${T.black}">${esc(name[0] || "?")}</span>`
+        : svg(ICON.person, Math.round(size * 0.62), T.inkDim);
+    const ballOf = (size, ring) => `<span style="flex:none;width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;`
+      + `background:${P.emoji ? T.well : ink};box-shadow:inset 0 0 0 3px ${T.black}${ring ? `,0 0 0 ${ring}px ${ink}` : ""}">${faceOf(size)}</span>`;
+    const avatar = ballOf(av, named ? 2 : 0);
     const words = P.profile === "только аватар" || !name ? "" :
       `<span style="display:flex;flex-direction:column;line-height:1.1">`
       + `<span style="font:400 ${Math.max(11, Math.round(av * 0.42))}px 'Tiny5',monospace;color:${T.ink};white-space:nowrap">${esc(name)}</span>`
@@ -209,6 +232,75 @@
     const profile = P.profile === "нет" ? ""
       : `<div data-g="profile" style="display:flex;align-items:center;gap:${Math.max(6, gap)}px;cursor:pointer">${avatar}${words}</div>`;
 
+    // ---- ЭКРАН ПРОФИЛЯ ----
+    //
+    // Открывается нажатием на профиль и больше ниоткуда: это не раздел меню, а «вот я» — потому
+    // туда же и попадают, ткнув в себя.
+    //
+    // ВВОД ИМЕНИ НЕ ЖИВЁТ НА ХОЛСТЕ. В продукте поле спрашивает внешний слой (в MiniApp — телега,
+    // в браузере — окно ввода), потому что своя клавиатура на канвасе это отдельный проект с
+    // автодополнением, эмодзи и выделением. Здесь, на стенде, это `prompt` — тот же договор:
+    // экран просит строку у кого-то ещё и получает её готовой.
+    const line = (inner, top) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;`
+      + `${top ? `box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55);` : ""}">${inner}</div>`;
+    const label = (t) => `<span style="font:400 14px 'Tiny5',monospace;color:${T.inkDim}">${t}</span>`;
+    const value = (t) => `<span style="font:400 15px 'Tiny5',monospace;color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t}</span>`;
+    const act = (id, t, kind) => `<button data-do="${id}" style="flex:none;font:400 13px 'Tiny5',monospace;cursor:pointer;border:0;border-radius:${r}px;padding:8px 12px;`
+      + (kind === "gold"
+        ? `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6);color:${T.black};`
+        : kind === "quiet"
+          ? `background:transparent;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim};`
+          : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 3px 0 rgba(11,7,4,.55);color:${T.ink};`)
+      + `">${t}</button>`;
+
+    const swatches = PALETTE.map((c, i) => `<button data-do="colour:${i}" style="width:30px;height:30px;border:0;border-radius:50%;cursor:pointer;background:${c};`
+      + `box-shadow:inset 0 0 0 3px ${T.black}${i === P.colour ? `,0 0 0 3px ${T.ink}` : ""}"></button>`).join("");
+
+    // ПРЕДЛОЖЕНИЕ ИЗ ТЕЛЕГРАМА — по одному за раз: сначала имя, потом аватар. Два вопроса разом
+    // читаются как «прими всё или ничего», а человек чаще хочет чужое имя и своё лицо.
+    const offerCard = (what) => `<div style="background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};border-radius:${r + 4}px;padding:12px 14px;display:flex;flex-direction:column;gap:10px">`
+      + `<span style="font:400 14px 'Tiny5',monospace;color:${T.ink};line-height:1.5">`
+      + (what === "имя" ? `В Telegram тебя зовут <b style="color:${T.gold}">Ербол</b>. Взять это имя сюда?` : `Взять аватар из Telegram?`)
+      + `</span><div style="display:flex;gap:8px;align-items:center">`
+      + (what === "аватар" ? `<span style="flex:none;width:34px;height:34px;border-radius:50%;background:${T.gold};box-shadow:inset 0 0 0 3px ${T.black};display:flex;align-items:center;justify-content:center;font:400 14px 'Tiny5',monospace;color:${T.black}">Е</span>` : "")
+      + act(what === "имя" ? "take-name" : "take-face", "Взять", "gold") + act("skip-offer", "Оставить своё", "quiet") + `</div></div>`;
+
+    const tgRow = guest
+      ? line(label("Telegram") + act("tg", "Привязать", "gold"))
+      : line(label("Telegram") + value("@erbol") + act("tg-off", "Отвязать", "quiet"), true);
+
+    const body = `<div style="display:flex;flex-direction:column;gap:0;padding:0 18px 22px">`
+      + `<div style="display:flex;align-items:center;gap:14px;padding:6px 0 16px">`
+      + ballOf(64, named ? 3 : 0)
+      + `<div style="display:flex;flex-direction:column;gap:4px;min-width:0">`
+      + `<span style="font:400 19px 'Tiny5',monospace;color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</span>`
+      + `<span style="font:400 12px 'Tiny5',monospace;color:${named ? T.inkDim : T.gold}">${named ? (guest ? "гость" : "уровень 7") : "имя выдал стол"}</span>`
+      + `</div></div>`
+      + (P.offer !== "нет" ? offerCard(P.offer) + `<div style="height:14px"></div>` : "")
+      + line(label("Имя") + value(esc(name)) + act("name", P.mine || !guest ? "Сменить" : "Назваться", P.mine || !guest ? "" : "gold"), true)
+      + line(label("Аватар") + act("emoji", P.emoji ? "Сменить эмодзи" : "Эмодзи", "") + act("picture", "Картинка", "quiet"), true)
+      + line(`<div style="display:flex;flex-direction:column;gap:9px;width:100%">${label("Любимый цвет")}<div style="display:flex;gap:8px;flex-wrap:wrap">${swatches}</div></div>`, true)
+      + tgRow
+      // ССЫЛКА — ЭТО «ЗАБЕРИ СЕБЯ», А НЕ «ПОДЕЛИСЬ». Её показывают на своём экране и открывают на
+      // своём же втором устройстве; в чужой чат такое не кладут, и текст обязан это говорить.
+      + line(`<div style="display:flex;flex-direction:column;gap:7px;width:100%">`
+        + label("Открыть на другом устройстве")
+        + `<span style="font:400 12px 'Tiny5',monospace;color:${T.inkDim};line-height:1.5">Ссылка переносит СЕБЯ, а не приглашает: никому не отправляй.</span>`
+        + `<div style="display:flex;gap:8px;align-items:center">${act("link", "Показать ссылку", "")}${act("qr", "QR", "quiet")}</div></div>`, true)
+      + `</div>`;
+
+    const asSheet = P.sheet === "лист снизу";
+    const screen = P.open
+      ? `<div data-g="screen" style="position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;justify-content:${asSheet ? "flex-end" : "stretch"};`
+        + `background:rgba(11,7,4,${asSheet ? ".55" : "0"})">`
+        + `<div style="background:${T.felt};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.panel};`
+        + (asSheet ? `border-radius:${r + 10}px ${r + 10}px 0 0;max-height:82%;` : `flex:1;`)
+        + `overflow:auto;padding-top:${asSheet ? "0" : inset}">`
+        + `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px 8px">`
+        + `<span style="font:400 16px 'Tiny5',monospace;color:${T.gold};letter-spacing:.08em">ПРОФИЛЬ</span>`
+        + act("close", "Закрыть", "quiet") + `</div>${body}</div></div>`
+      : "";
+
     const band = `padding-top:${inset};${FILLS[P.fill]}`;
     const rowIn = `display:flex;align-items:center;justify-content:${P.profileSide === "слева" ? "flex-start" : "flex-end"};height:${h}px;padding:0 ${P.side}px;box-sizing:border-box`;
 
@@ -216,7 +308,37 @@
     // высота складывается из полосы и чёлки. Пока шапка была тремя absolute-кусками, заголовок
     // «Crossade» лежал под тем, что висело ниже полосы.
     over.innerHTML = `<div data-g="head" style="position:absolute;left:0;right:0;top:0;z-index:9">`
-      + `<div style="${band}"><div style="${rowIn}">${profile}</div></div></div>`;
+      + `<div style="${band}"><div style="${rowIn}">${profile}</div></div></div>` + screen;
+
+    // ДЕЙСТВИЯ. Экран пересобирается целиком на каждую правку, поэтому слушатели вешаются после
+    // сборки — это дешевле, чем держать узлы живыми ради одного обработчика.
+    const profileEl = over.querySelector('[data-g="profile"]');
+    if (profileEl) profileEl.onclick = () => { P.open = true; build(); apply(); };
+    for (const el of over.querySelectorAll("[data-do]")) {
+      el.onclick = () => {
+        const does = el.getAttribute("data-do");
+        if (does.startsWith("colour:")) P.colour = Number(does.slice(7));
+        else if (does === "close") P.open = false;
+        else if (does === "name") { const got = prompt("Как тебя звать?", P.mine || name); if (got !== null) P.mine = got.trim(); }
+        else if (does === "emoji") { const got = prompt("Эмодзи для аватара", P.emoji || "🃏"); if (got !== null) P.emoji = got.trim(); }
+        else if (does === "picture") alert("Картинка — выбор файла, на стенде не нужен");
+        else if (does === "tg") {
+          // ВХОД ЧЕРЕЗ ТЕЛЕГРАМ С НУЛЯ — ИМЯ И ЛИЦО СТЯГИВАЮТСЯ МОЛЧА: спрашивать «взять ли твоё
+          // имя» у того, у кого имени ещё нет, незачем. Спрашиваем, только если своё уже есть, и
+          // тогда по одному вопросу за раз — сначала имя, потом аватар.
+          P.who = "вошёл";
+          if (!P.mine && !P.emoji) { P.mine = "Ербол"; P.emoji = "🙂"; P.offer = "нет"; }
+          else P.offer = P.mine ? "имя" : "аватар";
+        }
+        else if (does === "tg-off") { P.who = "гость"; P.offer = "нет"; }
+        else if (does === "take-name") { P.mine = "Ербол"; P.offer = P.emoji ? "аватар" : "нет"; }
+        else if (does === "take-face") { P.emoji = "🙂"; P.offer = "нет"; }
+        else if (does === "skip-offer") P.offer = P.offer === "имя" && P.emoji ? "аватар" : "нет";
+        else if (does === "link" || does === "qr") alert("Ссылка/QR — на стенде не рисуем");
+        build();
+        apply();
+      };
+    }
 
     // ---- ЧИСЛА ----
     const widthOf = (g) => { const el = over.querySelector(`[data-g="${g}"]`); return el ? Math.round(el.getBoundingClientRect().width) : 0; };
