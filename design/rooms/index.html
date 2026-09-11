@@ -80,7 +80,7 @@
       ["newMode", "кто решает", "enum", "оунер и админы", ["оунер решает", "оунер и админы", "все админы", "демократия"]],
       ["newSeats", "мест", "int", 4, 2, 8],
       ["newForever", "вечная", "bool", false],
-      ["newCode", "свой код", "bool", false],
+      ["newCode", "код комнаты", "text", "9AF3"],
     ]],
   ];
   const DEFAULTS = {};
@@ -130,6 +130,10 @@
           input = document.createElement("select");
           for (const opt of a) { const o = document.createElement("option"); o.value = opt; o.textContent = opt; o.selected = P[key] === opt; input.appendChild(o); }
           input.onchange = () => { P[key] = input.value; apply(); };
+        } else if (kind === "text") {
+          input = document.createElement("input");
+          input.type = "text"; input.value = P[key];
+          input.oninput = () => { P[key] = input.value; apply(); };
         } else {
           input = document.createElement("input");
           input.type = "checkbox"; input.checked = !!P[key];
@@ -161,6 +165,10 @@
     { id: "chess", name: "Шахматы", sign: "♞" },
     { id: "sudoku", name: "Судоку", sign: "▦" },
   ];
+  /** Код выдаёт сервер; здесь — та же форма: четыре знака без похожих друг на друга. */
+  const CODE_SIGNS = "23456789ACDEFHJKLMNPQRTUVWXY";
+  const freshCode = () => Array.from({ length: 4 }, () => CODE_SIGNS[Math.floor(Math.random() * CODE_SIGNS.length)]).join("");
+
   const NAMES = ["Марат", "Алия", "Дана", "Тимур", "Канат", "Асель", "Ринат", "Жанна"];
 
   /** Комнаты приходят снаружи — здесь их сочиняет ручка, в продукте пришлёт сервер. */
@@ -304,26 +312,51 @@
       + `<div style="padding-top:12px">${btn("found", "Показать столы", "")}</div></div></div>`;
 
     // ---- СОЗДАТЬ ----
-    const line = (label, value, id) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55)">`
-      + `<span style="font:400 13px 'Tiny5',monospace;color:${T.inkDim}">${label}</span>`
-      + `<button data-do="${id}" style="cursor:pointer;border:0;background:transparent;font:400 14px 'Tiny5',monospace;color:${T.ink}">${value} ›</button></div>`;
+    //
+    // КАЖДЫЙ КОНТРОЛ — ПО СВОЕЙ ПРИРОДЕ ВЫБОРА, а не одинаковой строкой «значение ›». Из трёх
+    // видимостей выбирают, вечность включают, мест называют число, а код УЖЕ ЕСТЬ — он выдан
+    // заранее, и его правят, а не придумывают с нуля.
+    const label = (t) => `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">${t}</span>`;
+    const block = (t, inner) => `<div style="display:flex;flex-direction:column;gap:9px;padding:14px 0;box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55)">${label(t)}${inner}</div>`;
+
+    /** Селектор: варианты рядом, выбранный горит. Чтобы видеть ВСЕ ответы разом, а не по кругу. */
+    const pick = (id, options, now) => `<div style="display:flex;gap:6px;flex-wrap:wrap">`
+      + options.map((o) => `<button data-do="${id}:${o}" style="flex:1 1 auto;cursor:pointer;border:0;border-radius:8px;padding:9px 10px;font:400 12px 'Tiny5',monospace;white-space:nowrap;`
+        + (o === now
+          ? `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6);color:${T.black};`
+          : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};color:${T.inkDim};`)
+        + `">${o}</button>`).join("") + `</div>`;
+
+    /** Тумблер: у вечности два состояния и нет середины. */
+    const toggle = (id, on) => `<button data-do="${id}" style="cursor:pointer;border:0;background:transparent;display:flex;align-items:center;gap:10px;padding:0">`
+      + `<span style="width:52px;height:30px;border-radius:999px;display:flex;align-items:center;padding:0 3px;box-sizing:border-box;`
+      + `background:${on ? T.gold : T.well};box-shadow:inset 0 0 0 3px ${T.black};justify-content:${on ? "flex-end" : "flex-start"}">`
+      + `<span style="width:22px;height:22px;border-radius:50%;background:${on ? T.black : T.wood}"></span></span>`
+      + `<span style="font:400 13px 'Tiny5',monospace;color:${on ? T.ink : T.inkDim}">${on ? "живёт всегда" : "закроется, когда все уйдут"}</span></button>`;
+
     const createScreen = `<div style="padding:0 16px 16px">`
-      + `<div style="display:flex;align-items:center;gap:12px;padding:6px 0 12px">`
+      + `<div style="display:flex;align-items:center;gap:12px;padding:6px 0 4px">`
       + `<span style="flex:none;width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:${T.black};font-size:22px">${GAMES[0].sign}</span>`
       + `<div style="display:flex;flex-direction:column;gap:3px"><span style="font:400 16px 'Tiny5',monospace;color:${T.ink}">${P.mixed ? "Выбери игру" : "Карты"}</span>`
       + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">стол на ${P.newSeats} мест</span></div></div>`
-      + (P.mixed ? line("Игра", "Карты", "newGame") : "")
-      + line("Видимость", P.newVis, "newVis")
-      + line("Мест за столом", P.newSeats, "newSeats")
-      + line("Кто решает", P.newMode, "newMode")
-      + line("Вечная комната", P.newForever ? "да" : "нет", "newForever")
-      + line("Код", P.newCode ? "свой: CROSS" : "выдаст сервер", "newCode")
-      + `<div style="padding-top:16px;display:flex;flex-direction:column;gap:9px">`
-      + btn("made", "Создать и сесть", "gold")
-      + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim};line-height:1.6">`
-      + (P.newVis === "публичная" ? "Публичный стол увидят все — к нему подсядут незнакомые." :
-         P.newVis === "для друзей" ? "Стол увидят только друзья; остальным нужен код." :
-         "Стол не увидит никто: пускают по коду, который ты пришлёшь.") + `</span></div></div>`;
+      // КОД ГОТОВ ЗАРАНЕЕ. Комнату зовут кодом, и он должен быть в руках до нажатия «создать» —
+      // чтобы его можно было отправить другу прямо отсюда, ещё не сев за стол.
+      + block("КОД КОМНАТЫ", `<div style="display:flex;align-items:center;gap:9px">`
+        + `<span style="flex:1;background:${T.black};box-shadow:inset 0 0 0 3px ${T.gold};border-radius:10px;padding:12px;text-align:center;`
+        + `font:400 19px 'Press Start 2P',monospace;color:${T.gold};letter-spacing:.08em">${esc(P.newCode)}</span>`
+        + btn("code:new", "↻", "", true) + btn("code:own", "Свой", "quiet", true) + `</div>`)
+      + block("ВИДИМОСТЬ", pick("vis", ["по коду", "для друзей", "публичная"], P.newVis)
+        + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim};line-height:1.6">`
+        + (P.newVis === "публичная" ? "Стол увидят все — подсядут незнакомые."
+          : P.newVis === "для друзей" ? "Стол увидят только друзья; остальным нужен код."
+          : "Стол не увидит никто: пускают по коду, который ты пришлёшь.") + `</span>`)
+      + block("МЕСТ ЗА СТОЛОМ", `<div style="display:flex;align-items:center;gap:10px">`
+        + `<button data-do="seats" style="cursor:pointer;border:0;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};border-radius:10px;`
+        + `padding:11px 18px;font:400 17px 'Press Start 2P',monospace;color:${T.ink}">${P.newSeats}</button>`
+        + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">нажми, чтобы назвать число</span></div>`)
+      + block("КТО РЕШАЕТ", pick("mode", ["оунер решает", "оунер и админы", "все админы", "демократия"], P.newMode))
+      + block("ВЕЧНАЯ КОМНАТА", toggle("forever", P.newForever))
+      + `<div style="padding-top:18px">${btn("made", "Создать и сесть", "gold")}</div></div>`;
 
     // ---- НИЗ: НАЙТИ, СОЗДАТЬ, ОДНОМУ ----
     const bottomBar = P.screen !== "список" ? "" :
@@ -350,11 +383,18 @@
         else if (does === "made") alert("Наружу уходит «создать стол» с этими настройками");
         else if (does === "solo") alert("Наружу уходит «стол без комнаты» — как косынка");
         else if (does === "retry") P.state = "список";
-        else if (does === "newVis") P.newVis = P.newVis === "по коду" ? "для друзей" : P.newVis === "для друзей" ? "публичная" : "по коду";
-        else if (does === "newMode") { const m = ["оунер решает", "оунер и админы", "все админы", "демократия"]; P.newMode = m[(m.indexOf(P.newMode) + 1) % m.length]; }
-        else if (does === "newSeats") P.newSeats = P.newSeats >= 8 ? 2 : P.newSeats + 1;
-        else if (does === "newForever") P.newForever = !P.newForever;
-        else if (does === "newCode") P.newCode = !P.newCode;
+        else if (does.startsWith("vis:")) P.newVis = does.slice(4);
+        else if (does.startsWith("mode:")) P.newMode = does.slice(5);
+        else if (does === "forever") P.newForever = !P.newForever;
+        else if (does === "code:new") P.newCode = freshCode();
+        else if (does === "code:own") {
+          const got = prompt("Свой код комнаты (2–8 знаков)", P.newCode);
+          if (got !== null && got.trim()) P.newCode = got.trim().toUpperCase().slice(0, 8);
+        } else if (does === "seats") {
+          const got = prompt("Сколько мест за столом? (2–8)", String(P.newSeats));
+          const n = Number(got);
+          if (Number.isFinite(n) && n >= 2 && n <= 8) P.newSeats = Math.round(n);
+        }
         build();
         apply();
       };
