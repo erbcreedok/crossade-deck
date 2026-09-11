@@ -1,0 +1,68 @@
+game-presets/desk/src/curtain.test.ts
+  s_357f670d370d4d::t_de9a9f2abe3939 1-28
+apps/hub/src/table/open.test.ts
+  s_357f670d370d4d::t_17f56e7f5d022f 46
+game-presets/desk/src/startDesk.ts
+  s_357f670d370d4d::t_62e4c117976d32 1-176,179-289,291-460
+  s_357f670d370d4d::t_29b285f5967fe8 177-178
+  s_357f670d370d4d::t_cd41a3ecaffbdb 290
+game-presets/desk/src/index.ts
+  s_357f670d370d4d::t_ed338a45bcf259 1-32
+game-presets/desk/src/presence.test.ts
+  s_357f670d370d4d::t_c77255b26b482d 10
+  s_357f670d370d4d::t_a45da837f666d4 1-9,11-156
+game-presets/desk/src/host.ts
+  s_357f670d370d4d::t_4a11aa4e09d0a1 1-107
+apps/hub/src/table/mapFor.ts
+  s_357f670d370d4d::t_ebef017499d4de 6,56
+game-presets/desk/tsconfig.json
+  s_357f670d370d4d::t_7fffd38e05f6b4 1-17,19-21
+  s_357f670d370d4d::t_82c2b14bd048a9 18
+game-presets/desk/vitest.config.ts
+  s_357f670d370d4d::t_7fffd38e05f6b4 1-6
+game-presets/desk/src/presence.ts
+  s_357f670d370d4d::t_a45da837f666d4 1-171
+game-presets/desk/src/camera.ts
+  s_357f670d370d4d::t_6e477fbe279325 1-63
+game-presets/desk/src/cursors.ts
+  s_357f670d370d4d::t_9b64301c03e2c7 1-91
+game-presets/desk/package.json
+  s_357f670d370d4d::t_0b7688b20c82a3 1-14,18-29,31-33
+  s_357f670d370d4d::t_82c2b14bd048a9 15-17,30
+game-presets/desk/src/curtain.ts
+  s_357f670d370d4d::t_66416521c710a3 34
+  s_357f670d370d4d::t_feab31492bcd8b 21-28
+  s_357f670d370d4d::t_dcce891d68a708 30
+game-presets/desk/src/guards.test.ts
+  s_357f670d370d4d::t_74550d3c63a810 44-57
+  s_357f670d370d4d::t_9ea1365ee8170f 1-43,58-67,70-77,80-98
+  s_357f670d370d4d::t_7aef26b20ea8ec 68-69,78-79
+apps/hub/package.json
+  s_357f670d370d4d::t_d1bc090d6e38b5 16
+game-presets/desk/src/types.ts
+  s_357f670d370d4d::t_c77255b26b482d 73-74
+  s_357f670d370d4d::t_ee2c85483b7b60 116-121
+  s_357f670d370d4d::t_c83086a0cf41c0 1-72,75-115,122-161,168-181
+  s_357f670d370d4d::t_946e13eccf89f6 162-167
+apps/hub/src/table/index.ts
+  s_357f670d370d4d::t_ebef017499d4de 84,407,669,773,780
+  s_357f670d370d4d::t_d1bc090d6e38b5 82
+package-lock.json
+  s_357f670d370d4d::t_90214f60bcf21e 25,410-424,1103-1106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "60aaa3b0abc2406dfb738c0d6cc31e46491471c5",
+  "prompts": {},
+  "sessions": {
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
