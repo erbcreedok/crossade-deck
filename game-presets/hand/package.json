@@ -1,0 +1,32 @@
+{
+  "name": "@game-presets/hand",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A desk layer: the player's own hand at the foot of the glass, and the chairs it belongs to. What every card game on this shelf shares.",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "types": "./src/index.ts",
+  "module": "./src/index.ts",
+  "files": ["src"],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@game-presets/desk": "*",
+    "@game-presets/desks": "*",
+    "game-kit": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}

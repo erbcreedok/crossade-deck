@@ -111,8 +111,6 @@ export interface DeskLayer {
   seated?(present: readonly SeatedPerson[]): void;
   /** A picture of a piece drawn by this layer is a way of REACHING that piece (`standIn`). */
   standIn?(n: Node): Node | undefined;
-  /** What is under the finger, as far as this layer is concerned — asked before the desk's own. */
-  zoneAt?(at: Vec): Node | undefined;
   /**
    * HOW MUCH OF THE FOOT OF THE GLASS THIS LAYER IS USING, in CSS pixels — so the camera's own
    * controls stand clear of it. A strip that grew with the cards in it and a pair of buttons that

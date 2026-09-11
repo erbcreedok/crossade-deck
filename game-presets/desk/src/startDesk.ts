@@ -223,15 +223,6 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     },
   };
 
-  /** What the layers say is under the finger — asked in order, first answer wins. */
-  const zoneOnGlass = (at: Vec): Node | undefined => {
-    for (const layer of layers) {
-      const zone = layer.zoneAt?.(at);
-      if (zone) return zone;
-    }
-    return undefined;
-  };
-
   const live = liveTable<LiveStage>(container, initialRoot, {
     ...spec.play(ctx),
     // A PICTURE OF A PIECE ON THE GLASS IS A WAY OF REACHING THE PIECE: a finger landing on a layer's

@@ -80,7 +80,9 @@ import { joinTable, type RosterItem, type Table } from "@crossade/wire";
 import type { Teardown } from "../hub/catalogue.js";
 import { installTableLook } from "../look/surfaces.js";
 import { PALETTE } from "../look/palette.js";
-import { isTableGame, mapFor, syncSeatChairs, TABLE_SEATS, type SeatedPerson, type TableGame } from "./mapFor.js";
+import { isTableGame, mapFor, TABLE_SEATS, type TableGame } from "./mapFor.js";
+import { syncSeatChairs } from "@game-presets/hand";
+import type { SeatedPerson } from "@game-presets/desk";
 import { curtain, deskAvatarsTransport, deskSeats, inkOf, SEAT_INKS, type DeskAvatarsTransport } from "@game-presets/desk";
 import { chairId, courtLift, handHud, HUD_COURT, untuck, type HandHud } from "@game-presets/desks";
 import { apply, byId, composeTransforms, extentOf, fieldsOf, footprint, type CameraHud, type TransformableFields } from "game-kit";
@@ -788,7 +790,7 @@ export function startTable(container: HTMLElement): Teardown {
         // this screen's own tracker, asked for instead of fallen into.
         goHome: () => live.idle?.goHome(),
       });
-      if (game === "cards") syncSeatChairs(live.host.root, sitting(table.roster));
+      if (game === "cards") syncSeatChairs(live.host.root, sitting(table.roster), placesFor(game));
       peopleWire.roster(table.roster);
       avatars.publish();
       // ...AND THE HAND ON THE GLASS, now that the chairs are standing: the strip is a picture of a
@@ -798,7 +800,7 @@ export function startTable(container: HTMLElement): Teardown {
       hud?.fit();
       redraw();
       unbindOnRoster = table.onRoster((roster) => {
-        if (game === "cards") syncSeatChairs(live.host.root, sitting(roster));
+        if (game === "cards") syncSeatChairs(live.host.root, sitting(roster), placesFor(game));
         const gone = peopleWire?.roster(roster) ?? [];
         for (const s of gone) avatars?.forget(s);
         avatars?.publish();
