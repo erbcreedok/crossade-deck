@@ -5,6 +5,7 @@ import { startHub } from "./hub/shell.js";
 import { goTo, routeOf } from "./hub/route.js";
 import { serverUrl } from "@crossade/wire";
 import { isTelegramWebview } from "./telegram.js";
+import { takeOverHere } from "./home/transfer.js";
 
 const chrome = document.querySelector<HTMLElement>("#chrome");
 const stage = document.querySelector<HTMLElement>("#stage");
@@ -91,10 +92,15 @@ function raiseBoot(): void {
 // a module that awaits at its top level does not load there at all. The boot waits inside a
 // promise instead, which is the same order of events with a wider set of browsers.
 let stop: (() => void) | undefined;
-void openStartParamTable().then(() => {
-  stop = chrome && stage ? startHub(chrome, stage) : undefined;
-  raiseBoot();
-});
+// ССЫЛКА ПЕРЕНОСА СРАБАТЫВАЕТ ДО ВСЕГО ОСТАЛЬНОГО. Хаб заводит гостя при первом же заходе
+// (`ensureAccount`), и перенос, случившийся после, оставил бы на экране двух разных людей: гостя в
+// углу и себя — в хранилище. Адрес чистится там же, внутри.
+void takeOverHere()
+  .then(() => openStartParamTable())
+  .then(() => {
+    stop = chrome && stage ? startHub(chrome, stage) : undefined;
+    raiseBoot();
+  });
 
 // Dev only: tear the previous hub down before a hot update mounts the next. Without it every edit
 // STACKS another canvas and its listeners on the page, the stale ones keep eating input, and the

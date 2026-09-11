@@ -28,7 +28,8 @@ function gatewayOf(profile: Profile, over: Partial<ProfileGateway> = {}) {
     },
     telegramInitData: () => undefined,
     linkTelegram: async () => "linked",
-    myCode: () => "BOVAKI",
+    transferLink: () => "http://hub.test/?restore=BOVAKI",
+    copy: async () => true,
     ...over,
   };
   return { gate, saved, now: () => current };
@@ -114,17 +115,41 @@ describe("экран профиля", () => {
     home.stop();
   });
 
-  it("код переноса не лежит на экране заранее — его показывают по просьбе", async () => {
+  it("ссылка переноса не лежит на экране заранее — её показывают по просьбе", async () => {
     const { gate } = gatewayOf(GUEST);
     const { home } = await openScreen(gate);
 
-    expect(q(home.element, '[data-g="code"]')).toBeNull();
-    q(home.element, '[data-do="code"]')!.click();
-    expect(q(home.element, '[data-g="code"]')!.textContent).toBe("BOVAKI");
-    // ...и прячется, когда экран закрыли: код на чужом экране — это чужой аккаунт.
+    expect(q(home.element, '[data-g="link"]')).toBeNull();
+    q(home.element, '[data-do="link"]')!.click();
+    expect(q(home.element, '[data-g="link"]')!.textContent).toBe("http://hub.test/?restore=BOVAKI");
+    // ...и прячется, когда экран закрыли: ссылка на чужом экране — это чужой аккаунт.
     q(home.element, '[data-do="close"]')!.click();
     q(home.element, '[data-g="profile"]')!.click();
-    expect(q(home.element, '[data-g="code"]')).toBeNull();
+    expect(q(home.element, '[data-g="link"]')).toBeNull();
+    home.stop();
+  });
+
+  it("рядом со ссылкой сказано, что она переносит СЕБЯ, а не приглашает", async () => {
+    // Без этой строки её перешлют в чат, и переславший отдаст свой аккаунт.
+    const { gate } = gatewayOf(GUEST);
+    const { home } = await openScreen(gate);
+
+    expect(home.element.textContent).toContain("переносит СЕБЯ");
+    expect(home.element.textContent).toContain("никому не отправляй");
+    home.stop();
+  });
+
+  it("копирование кладёт в буфер ту же ссылку, что на экране", async () => {
+    const { gate } = gatewayOf(GUEST);
+    const copy = vi.spyOn(gate, "copy");
+    const { home } = await openScreen(gate);
+
+    q(home.element, '[data-do="link"]')!.click();
+    q(home.element, '[data-do="copy"]')!.click();
+    await settle();
+
+    expect(copy).toHaveBeenCalledWith("http://hub.test/?restore=BOVAKI");
+    expect(home.element.textContent).toContain("скопирована");
     home.stop();
   });
 });

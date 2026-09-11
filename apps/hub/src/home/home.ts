@@ -22,6 +22,7 @@ import {
   swatchesHtml,
   valueHtml,
 } from "./parts.js";
+import { transferLink as transferLinkFor } from "./transfer.js";
 import { whoAmI } from "./whoami.js";
 
 /** Откуда экран берёт профиль и куда девает правки. Подменяется целиком — в тесте и в Mini App. */
@@ -33,8 +34,10 @@ export interface ProfileGateway {
   /** Подписанная телеграмом строка, если этот экран открыт внутри Mini App. */
   telegramInitData(): string | undefined;
   linkTelegram(initData: string): Promise<"linked" | "switch" | "conflict" | undefined>;
-  /** Код переноса себя на другое устройство. Тот самый `recoveryHash`. */
-  myCode(): string | undefined;
+  /** Ссылка, которой человек забирает СЕБЯ на второе устройство. */
+  transferLink(): string | undefined;
+  /** Положить строку в буфер обмена, если браузер это умеет. */
+  copy(text: string): Promise<boolean>;
 }
 
 /** Дверь в настоящие аккаунты (`@crossade/wire`). */
@@ -54,7 +57,19 @@ export const liveGateway: ProfileGateway = {
   async linkTelegram(initData) {
     return (await linkTelegram(initData))?.kind;
   },
-  myCode: () => storedAccount()?.recoveryHash,
+  transferLink: () => {
+    const code = storedAccount()?.recoveryHash;
+    return code ? transferLinkFor(code, globalThis.location.href) : undefined;
+  },
+  async copy(text) {
+    try {
+      await globalThis.navigator?.clipboard?.writeText(text);
+      return true;
+    } catch {
+      // Буфер закрыт (не тот протокол, отказ в правах) — ссылка всё равно на экране, её видно.
+      return false;
+    }
+  },
 };
 
 export interface HomeProfileOptions {
@@ -83,8 +98,8 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
 
   let profile: Profile | undefined;
   let open = false;
-  /** Показан ли код переноса. Пока не попросили — его на экране нет. */
-  let codeShown = false;
+  /** Показана ли ссылка переноса. Пока не попросили — её на экране нет. */
+  let linkShown = false;
   /** Что сказать человеку после действия, которое не видно по экрану. */
   let said = "";
   let stopped = false;
@@ -159,7 +174,7 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
         true,
       ) +
       telegramLine(me.hasTelegram, r) +
-      codeLine(r) +
+      transferLine(r) +
       (said ? `<div style="font:400 13px ${FONT};color:${PALETTE.gold};padding-top:12px;line-height:1.5">${esc(said)}</div>` : "") +
       `</div>`;
     return (
@@ -192,18 +207,23 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
   };
 
   /**
-   * ПЕРЕНОС СЕБЯ. Код — это «забери себя», а не «позови друга»: его показывают на своём экране и
-   * вводят на своём же втором устройстве, и текст обязан это говорить.
+   * ПЕРЕНОС СЕБЯ — ССЫЛКОЙ, А НЕ КОДОМ. Вводить код некуда и не во что: экрана ввода у нас нет, а
+   * ссылку открывают, и второе устройство становится тобой само.
+   *
+   * ЭТО «ЗАБЕРИ СЕБЯ», А НЕ «ПОЗОВИ ДРУГА»: открывший её становится тобой — с твоим именем, твоими
+   * столами и твоими предметами. Текст рядом обязан это сказать, иначе её перешлют в чат.
    */
-  const codeLine = (r: number): string => {
-    const code = gate.myCode();
+  const transferLine = (r: number): string => {
+    const link = gate.transferLink();
     return lineHtml(
       `<div style="display:flex;flex-direction:column;gap:7px;width:100%">` +
         labelHtml("Открыть на другом устройстве") +
-        `<span style="font:400 12px ${FONT};color:${PALETTE.inkDim};line-height:1.5">Код переносит СЕБЯ, а не приглашает: никому не отправляй.</span>` +
-        (codeShown && code
-          ? `<span data-g="code" style="font:400 18px ${FONT};color:${PALETTE.gold};letter-spacing:.22em">${esc(code)}</span>`
-          : buttonHtml("code", "Показать код", "plain", r)) +
+        `<span style="font:400 12px ${FONT};color:${PALETTE.inkDim};line-height:1.5">` +
+        `Ссылка переносит СЕБЯ, а не приглашает: открой её на своём втором устройстве и никому не отправляй.</span>` +
+        (linkShown && link
+          ? `<span data-g="link" style="font:400 13px ${FONT};color:${PALETTE.gold};word-break:break-all;line-height:1.5">${esc(link)}</span>` +
+            `<div style="display:flex;gap:8px">${buttonHtml("copy", "Скопировать", "plain", r)}${buttonHtml("hide-link", "Спрятать", "quiet", r)}</div>`
+          : buttonHtml("link", "Показать ссылку", "plain", r)) +
         `</div>`,
       true,
     );
@@ -242,7 +262,7 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
     switch (does) {
       case "close":
         open = false;
-        codeShown = false;
+        linkShown = false;
         said = "";
         return draw();
       case "name": {
@@ -278,9 +298,18 @@ export function homeProfile(container: HTMLElement, o: HomeProfileOptions = {}):
         profile = (await gate.read()) ?? profile;
         return draw();
       }
-      case "code":
-        codeShown = true;
+      case "link":
+        linkShown = true;
+        said = "";
         return draw();
+      case "hide-link":
+        linkShown = false;
+        return draw();
+      case "copy": {
+        const link = gate.transferLink();
+        said = link && (await gate.copy(link)) ? "Ссылка скопирована." : "Скопировать не вышло — она на экране, перепиши глазами.";
+        return draw();
+      }
       default:
         return;
     }
