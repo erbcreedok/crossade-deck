@@ -164,13 +164,17 @@ export type RoomRole = "owner" | "admin" | "player" | "spectator";
 
 /** Участник комнаты — тот, кто в ней числится, а не только тот, кто сейчас за столом. */
 export interface RoomMember {
-  readonly account: string;
+  /** Номер аккаунта. Пусто — за столом гость, которого сервер не знает по имени. */
+  readonly account?: string;
   readonly name: string;
   readonly color: string | null;
   readonly role: RoomRole;
-  /** Держится ли за ним стул. Ложь — зритель. */
-  readonly seated: boolean;
-  /** Стул держится, человека за ним нет. */
+  /**
+   * МЕСТО В ИДУЩЕЙ ПАРТИИ, и только оно значит «за столом». `null` — человек в комнате числится, но
+   * сейчас не сидит: роль у него при этом та же, что была.
+   */
+  readonly seat: string | null;
+  /** Стул держится, человека за ним нет. Бывает только у сидящего. */
   readonly away?: boolean;
 }
 

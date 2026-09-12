@@ -193,9 +193,10 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     // цвета не завёл — кружок стоит приглушённым, а не чужим.
     ink: one.color ?? paint(DESK_THEME, "textMuted"),
     role: one.role,
-    seated: one.seated,
+    // СТУЛ — ЭТО МЕСТО В ИДУЩЕЙ ПАРТИИ. Роль говорит, что человеку можно; стул — сидит ли он.
+    seated: one.seat !== null,
     ...(one.away === true ? { away: true } : {}),
-    ...(o.account && o.account.id === one.account ? { mine: true } : {}),
+    ...(o.account && one.account !== undefined && o.account.id === one.account ? { mine: true } : {}),
   });
 
   /**

@@ -22,7 +22,7 @@ export interface TopHudMember {
   /** Его цвет, уже разрешённый в значение: список — это разметка, и палитры у неё нет. */
   readonly ink: string;
   readonly role: RosterRole;
-  /** Держится ли за ним стул. Ложь — зритель. */
+  /** Сидит ли он за столом ПРЯМО СЕЙЧАС — место в идущей партии, а не право его занять. */
   readonly seated: boolean;
   /** Стул держится, человека за ним нет. */
   readonly away?: boolean;

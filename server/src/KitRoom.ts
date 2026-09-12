@@ -221,6 +221,10 @@ export class KitRoom extends Room {
         this.record,
         roster.map((one) => ({
           name: one.name,
+          // МЕСТО И АККАУНТ ЕДУТ ВМЕСТЕ С ИМЕНЕМ: по ним список за столом отличает сидящего от
+          // числящегося и сшивается с членством, а не с одинаковыми именами.
+          seat: one.seat,
+          ...(one.accountId ? { accountId: one.accountId } : {}),
           color: one.accountId ? accountColor(one.accountId) : null,
           ...(one.away ? { away: true } : {}),
         })),

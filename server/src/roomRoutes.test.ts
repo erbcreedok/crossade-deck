@@ -313,14 +313,16 @@ describe("rooms.an-invited-table-is-raised-by-the-first-to-arrive", () => {
   });
 });
 
-// СТОРОЖ `rooms.the-roster-keeps-the-ones-who-are-not-at-the-table`.
+// СТОРОЖ `rooms.the-roster-is-one-list-and-a-chair-is-a-seat`.
 //
-// Список за столом — это КОМНАТА, а не сессия. Зритель, у которого нет стула, и оунер, которого
-// сейчас нет за экраном, всё равно её участники; список, показывающий только сидящих на связи,
-// пустеет между партиями и врёт про то, чья это комната.
-describe("rooms.the-roster-keeps-the-ones-who-are-not-at-the-table", () => {
-  it("оунер, игрок и зритель стоят в списке — и оунер первым", async () => {
+// Полоса сверху показывает сидящих, список за ней — комнату, и это ОДИН стол: разойдясь, они
+// говорят про него разное, и человек видит на сукне того, кого нет в списке. Второе враньё,
+// которое здесь караулится, — «за столом» по роли: хозяин, которого сегодня не было, стула не
+// занимает, и писать ему «за столом · отошёл» значит рисовать место, которого нет.
+describe("rooms.the-roster-is-one-list-and-a-chair-is-a-seat", () => {
+  it("числятся все, а стул — только у того, кто сидит в идущей сессии", async () => {
     const { addMember } = await import("./db/roomsRepo.js");
+    const { setPeople } = await import("./roomPeople.js");
     const me = await account();
     const mate = await account();
     const watcher = await account();
@@ -328,26 +330,29 @@ describe("rooms.the-roster-keeps-the-ones-who-are-not-at-the-table", () => {
 
     addMember(body.room!, mate.id, "player");
     addMember(body.room!, watcher.id, "spectator");
+    // За столом сидит один: место в сессии есть только у него.
+    setPeople(body.room!, [{ name: "он", color: null, seat: "p1", accountId: mate.id }]);
 
     const roster = (await (await fetch(`${BASE}/rooms/${body.room}/roster`)).json()) as Record<string, unknown>[];
-    expect(roster.map((one) => one.account)).toEqual([me.id, mate.id, watcher.id]);
     expect(roster.map((one) => one.role)).toEqual(["owner", "player", "spectator"]);
+    const at = (id: string) => roster.find((one) => one.account === id)!;
+    expect(at(mate.id).seat).toBe("p1");
+    // Хозяин числится, но не сидит — и это «нет стула», а не «отошёл».
+    expect(at(me.id).seat).toBeNull();
+    expect(at(me.id).away).toBeUndefined();
+    expect(at(watcher.id).seat).toBeNull();
   });
 
-  it("у зрителя нет стула, у игрока есть — и без сессии он «отошёл»", async () => {
-    const { addMember } = await import("./db/roomsRepo.js");
+  it("сел гость, которого база не знает, — он всё равно в списке", async () => {
+    const { setPeople } = await import("./roomPeople.js");
     const me = await account();
-    const watcher = await account();
     const { body } = await open({ by: me.id });
-    addMember(body.room!, watcher.id, "spectator");
+    setPeople(body.room!, [{ name: "Кривой чебурек", color: null, seat: "p2" }]);
 
     const roster = (await (await fetch(`${BASE}/rooms/${body.room}/roster`)).json()) as Record<string, unknown>[];
-    const owner = roster.find((one) => one.account === me.id)!;
-    const seer = roster.find((one) => one.account === watcher.id)!;
-    expect(owner.seated).toBe(true);
-    expect(owner.away).toBe(true);
-    expect(seer.seated).toBe(false);
-    expect(seer.away).toBeUndefined();
+    const guest = roster.find((one) => one.name === "Кривой чебурек")!;
+    expect(guest.seat).toBe("p2");
+    expect(guest.account).toBeUndefined();
   });
 
   it("стол, которого нет, отвечает «закрылся», а не пустым списком", async () => {
