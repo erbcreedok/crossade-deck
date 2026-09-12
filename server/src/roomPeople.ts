@@ -25,7 +25,24 @@ export function peopleAt(roomId: string): readonly PersonAtTable[] {
   return atTable.get(roomId) ?? [];
 }
 
-/** Сессия кончилась — за столом никого. Строка «сейчас 0 из 3» честнее, чем вчерашние лица. */
+/**
+ * ЧЕЙ СЕЙЧАС ХОД — номер аккаунта того, кого ждут. Череду считает игра, комната её запоминает, а
+ * нужна она СПИСКУ КОМНАТ: метка «твой ход» — единственное, ради чего этот список открывают заново.
+ *
+ * Живёт рядом с людьми и по той же причине: ход принадлежит идущей партии, а не вечной комнате.
+ */
+const turns = new Map<string, string | null>();
+
+export function setTurn(roomId: string, accountId: string | null): void {
+  turns.set(roomId, accountId);
+}
+
+export function turnAt(roomId: string): string | null {
+  return turns.get(roomId) ?? null;
+}
+
+/** Сессия кончилась — за столом никого и ничей ход. Вчерашние лица врут громче, чем «никого». */
 export function forgetPeople(roomId: string): void {
   atTable.delete(roomId);
+  turns.delete(roomId);
 }

@@ -35,6 +35,12 @@ export interface Table {
    * it never becomes a revision: the room passes it on as it stands and the tree does not move.
    */
   sendRelay(msg: RelayMessage): void;
+  /**
+   * ЧЕЙ СЕЙЧАС ХОД — комната должна это знать, потому что метку «твой ход» рисует не стол, а СПИСОК
+   * комнат: человек открывает его именно затем, чтобы увидеть, где его ждут. Череду считает игра,
+   * комната её только запоминает.
+   */
+  sendTurn(seat: string | undefined): void;
   onRelay(listener: (msg: RelayMessage) => void): () => void;
   onRoster(listener: (roster: readonly RosterItem[]) => void): () => void;
   leave(): void;
@@ -193,6 +199,9 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
     },
     sendRelay(msg: RelayMessage) {
       colyseusRoom.send("relay", msg);
+    },
+    sendTurn(seat: string | undefined) {
+      colyseusRoom.send("turn", { seat: seat ?? null });
     },
     onRelay(listener: (msg: RelayMessage) => void) {
       relayListeners.add(listener);

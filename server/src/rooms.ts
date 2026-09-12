@@ -10,9 +10,13 @@ import colyseusPkg from "colyseus";
 
 const { matchMaker } = colyseusPkg;
 import { accountById } from "./db/accountsRepo.js";
+import { hold, isHeld, release } from "./codeHold.js";
 import { forgetPeople } from "./roomPeople.js";
 import {
   addMember,
+  cleanCode,
+  codeIsFree,
+  freeCode,
   closeRoom,
   findRooms,
   insertRoom,
@@ -59,6 +63,12 @@ export interface OpenRoom {
 
 /** Открыть комнату. Сессия при этом не поднимается: стол стоит и ждёт, пока за него сядут. */
 export function openRoom(one: OpenRoom): RoomRow | undefined {
+  // КОД БЕРЁТСЯ ИЗ ТОГО ЖЕ ОКНА, ЧТО И ПОКАЗАННЫЙ ЗАРАНЕЕ: комната, открытая без названного кода,
+  // тоже не должна получить тот, который кто-то прямо сейчас держит в руках.
+  const asked = cleanCode(one.code);
+  const code = asked ?? reserveCode();
+  // Код истрачен — бронь больше не нужна: дальше его держит сама комната.
+  if (code) release(code);
   // ХОЗЯИН — ТОЛЬКО ТОТ, КОГО БАЗА ЗНАЕТ. Номер аккаунта присылает клиент, и выдуманный не должен
   // мешать открыть стол: комната просто останется ничьей.
   const owner = one.ownerAccount && accountById(one.ownerAccount) ? one.ownerAccount : null;
@@ -72,8 +82,26 @@ export function openRoom(one: OpenRoom): RoomRow | undefined {
     admission: one.admission,
     mode: one.mode,
     forever: one.forever ?? false,
-    code: one.code,
+    ...(code ? { code } : {}),
   });
+}
+
+/**
+ * ДАЙ КОД, КОТОРЫЙ МОЖНО ПОКАЗАТЬ ДО СОЗДАНИЯ СТОЛА.
+ *
+ * Он тут же придерживается за спросившим: между «дай код» и «открой комнату» проходят минуты (его
+ * успевают отправить другу), и без брони второй человек получил бы в эту секунду тот же код.
+ */
+export function reserveCode(): string | undefined {
+  const code = freeCode(undefined, isHeld);
+  if (code) hold(code);
+  return code;
+}
+
+/** Свободен ли названный человеком код: и в базе, и среди тех, что кто-то держит в руках. */
+export function codeFree(raw: unknown): boolean {
+  const code = cleanCode(raw);
+  return code !== undefined && codeIsFree(code) && !isHeld(code);
 }
 
 /**

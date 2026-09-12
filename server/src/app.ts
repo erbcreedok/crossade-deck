@@ -41,9 +41,9 @@ import {
   tooSoon,
 } from "./telegramLink.js";
 import { BUILD_INFO, formatVersion } from "./version.js";
-import { byCode, close, isKitGame, mine, openRoom, search, sessionOf, type RoomRow } from "./rooms.js";
+import { byCode, close, codeFree, isKitGame, mine, openRoom, reserveCode, search, sessionOf, type RoomRow } from "./rooms.js";
 import { ADMISSIONS, cleanCode, MODES, roleOf, VISIBILITIES, type Mode } from "./db/roomsRepo.js";
-import { peopleAt } from "./roomPeople.js";
+import { peopleAt, turnAt } from "./roomPeople.js";
 
 const { Server, matchMaker } = colyseusPkg;
 
@@ -80,6 +80,9 @@ function seenFromOutside(room: RoomRow, forAccount?: string) {
     taken: people.length,
     online: here,
     ...(mine ? { mySeat: true, role: mine } : {}),
+    // «ТВОЙ ХОД» — ТОЛЬКО ТОМУ, ЧЕЙ ОН. Посторонний видит, что за столом идёт игра, но не кого
+    // именно ждут: чужая очередь — не его дело.
+    ...(forAccount && turnAt(room.id) === forAccount ? { myTurn: true } : {}),
     ...(room.sessionId ? { roomId: room.sessionId } : {}),
   };
 }
@@ -177,6 +180,21 @@ export function createApp() {
 
     const roomId = await sessionOf(room);
     res.json({ code: room.code, roomId, room: room.id, game: room.game });
+  });
+
+  // КОД ДО КОМНАТЫ. Комнату зовут кодом, и по стенду он лежит в руках ДО нажатия «Создать» —
+  // чтобы его отправили другу, ещё не сев за стол. Выданный тут же придерживается за спросившим,
+  // иначе второй человек в эту же секунду получит тот же код.
+  app.post("/rooms/code", (_req, res) => {
+    const code = reserveCode();
+    if (!code) return res.status(503).json({ error: "no_free_code" });
+    res.json({ code });
+  });
+
+  // Свободен ли код, который человек назвал сам. Ответ нужен ДО создания: «Свой» показывают рядом
+  // с кодом, и отказ после нажатия «Создать» — это отказ, который уже некуда деть.
+  app.get("/rooms/code/:code", (req, res) => {
+    res.json({ free: codeFree(req.params.code) });
   });
 
   // ЧТО ЗА СТОЛ ПРЯЧЕТСЯ ЗА КОДОМ — без того, чтобы за него садиться. 404 здесь значит «стол

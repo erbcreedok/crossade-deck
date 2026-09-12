@@ -1,6 +1,6 @@
 import { Room, Client } from "@colyseus/core";
 import { joined, openRoom, sessionEnded } from "./rooms.js";
-import { setPeople } from "./roomPeople.js";
+import { setPeople, setTurn } from "./roomPeople.js";
 import { guestIdentity } from "./sandboxNames.js";
 import { accountColor, accountName } from "./accounts.js";
 import { setSession } from "./db/roomsRepo.js";
@@ -97,6 +97,15 @@ export class KitRoom extends Room {
     // nothing a second later, so they are passed on as they are — the tree is not touched and `rev`
     // does not move, or every mouse move would be a revision the next real change had to lose to.
     // The room only says WHO it came from: a seat cannot be claimed by the sender.
+    // ЧЕЙ ХОД — ГОВОРИТ ИГРА, А НЕ КОМНАТА. Комната не знает правил и знать не должна: она
+    // запоминает названное место и переводит его в человека, которого ждут. Нужно это списку
+    // комнат: метка «твой ход» — единственное, ради чего его открывают заново.
+    this.onMessage("turn", (_client, msg: { seat?: string | null }) => {
+      const seat = typeof msg?.seat === "string" ? msg.seat : null;
+      const waiting = seat ? this.members.find((one) => one.seat === seat) : undefined;
+      if (this.record) setTurn(this.record, waiting?.accountId ?? null);
+    });
+
     this.onMessage("relay", (client, msg: Record<string, unknown>) => {
       if (!msg || typeof msg !== "object" || typeof msg.kind !== "string") return;
       const member = this.clientMemberMap.get(client.sessionId);

@@ -132,13 +132,13 @@ export function cleanCode(raw: unknown): string | undefined {
  * случайные броски перестают попадать — тогда идём подряд и находим дырку. `undefined` — свободных
  * кодов нет вовсе, и это честный отказ, а не выдача чужого кода.
  */
-export function freeCode(at: DatabaseSync = db()): string | undefined {
+export function freeCode(at: DatabaseSync = db(), taken2?: (code: string) => boolean): string | undefined {
   const taken = at.prepare(`SELECT code FROM rooms WHERE code IS NOT NULL`).all() as { code: string }[];
   if (taken.length >= CODE_SPACE) return undefined;
   const busy = new Set(taken.map((one) => one.code));
   for (let tries = 0; tries < 200; tries++) {
     const code = randomCode();
-    if (!busy.has(code)) return code;
+    if (!busy.has(code) && !taken2?.(code)) return code;
   }
   return undefined;
 }

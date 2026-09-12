@@ -190,3 +190,60 @@ describe("rooms.a-table-that-is-not-forever-closes-with-its-session", () => {
     expect((await fetch(`${BASE}/rooms/by-code/${always.body.code}`)).status).toBe(200);
   });
 });
+
+// СТОРОЖ `rooms.the-code-is-in-your-hand-before-the-table-exists`.
+//
+// Комнату зовут кодом, и по стенду его показывают ДО нажатия «Создать»: его отправляют другу, ещё
+// не сев за стол. Значит между «дай код» и «открой комнату» проходят минуты — и всё это время код
+// должен быть занят, иначе друг придёт не за тот стол.
+describe("rooms.the-code-is-in-your-hand-before-the-table-exists", () => {
+  it("код выдают до комнаты, и второму его уже не дадут", async () => {
+    const { code } = (await (await post("/rooms/code")).json()) as { code: string };
+    expect(code).toMatch(/^[23456789ACDEFHJKLMNPQRTUVWXY]{4}$/);
+
+    const free = (await (await fetch(`${BASE}/rooms/code/${code}`)).json()) as { free: boolean };
+    expect(free.free).toBe(false);
+
+    // ...и случайная выдача его тоже обходит.
+    for (let n = 0; n < 20; n++) {
+      const next = (await (await post("/rooms/code")).json()) as { code: string };
+      expect(next.code).not.toBe(code);
+    }
+  });
+
+  it("выданным кодом открывается именно та комната, которую обещали", async () => {
+    const { code } = (await (await post("/rooms/code")).json()) as { code: string };
+    const made = await open({ code });
+    expect(made.body.code).toBe(code);
+  });
+
+  it("свободный код так и называется свободным", async () => {
+    const free = (await (await fetch(`${BASE}/rooms/code/MAFT2`)).json()) as { free: boolean };
+    expect(free.free).toBe(true);
+    const bad = (await (await fetch(`${BASE}/rooms/code/0000`)).json()) as { free: boolean };
+    expect(bad.free).toBe(false);
+  });
+});
+
+// СТОРОЖ `rooms.the-turn-is-told-only-to-whose-turn-it-is`.
+//
+// Метка «твой ход» — единственное, ради чего список комнат открывают заново. Но чужая очередь не
+// дело постороннего: посторонний видит, что за столом идёт игра, и не видит, кого именно ждут.
+describe("rooms.the-turn-is-told-only-to-whose-turn-it-is", () => {
+  it("ждут одного — метку видит он один", async () => {
+    const { setTurn } = await import("./roomPeople.js");
+    const me = await account();
+    const you = await account();
+    const { body } = await open({ by: me.id });
+
+    setTurn(body.room!, me.id);
+
+    const mineRow = ((await (await fetch(`${BASE}/rooms?me=${me.id}`)).json()) as Record<string, unknown>[])
+      .find((one) => one.room === body.room);
+    expect(mineRow?.myTurn).toBe(true);
+
+    const theirs = ((await (await fetch(`${BASE}/rooms?me=${you.id}`)).json()) as Record<string, unknown>[])
+      .find((one) => one.room === body.room);
+    expect(theirs?.myTurn).toBeUndefined();
+  });
+});
