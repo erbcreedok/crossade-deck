@@ -1,0 +1,46 @@
+game-presets/rooms/tsconfig.json
+  s_9ed0da107cbc4a::t_ee5d3626e9b88b 1-21
+game-presets/rooms/src/screens.ts
+  s_9ed0da107cbc4a::t_fff410cf2a9a62 1-239
+game-presets/rooms/src/rooms.ts
+  s_9ed0da107cbc4a::t_6fb461a7c6ba93 85-97,99-124
+  s_9ed0da107cbc4a::t_4bab28867dd814 1-84,98
+game-presets/rooms/src/bridge.ts
+  s_9ed0da107cbc4a::t_b405840460010c 207-209
+  s_9ed0da107cbc4a::t_c0dde505dd4986 1-206,210-368
+look/src/palette.ts
+  s_9ed0da107cbc4a::t_8ad560a32f52c8 33-34
+game-presets/rooms/src/index.ts
+  s_9ed0da107cbc4a::t_b405840460010c 1-27
+wire/src/rooms.ts
+  s_9ed0da107cbc4a::t_1aace2d38e5d5e 13-23,33-45,60-63,97-101,103-106
+game-presets/rooms/package.json
+  s_9ed0da107cbc4a::t_ee5d3626e9b88b 1-32
+game-presets/rooms/vitest.config.ts
+  s_9ed0da107cbc4a::t_ee5d3626e9b88b 1-6
+game-presets/rooms/src/bridge.test.ts
+  s_9ed0da107cbc4a::t_a17dd32994a004 1-201,204-206,210,216,218,221-238
+  s_9ed0da107cbc4a::t_97790f74ed2e0a 202-203,207-209,211-215,217,219-220
+wire/src/index.ts
+  s_9ed0da107cbc4a::t_1aace2d38e5d5e 21,23,25
+game-presets/rooms/src/parts.ts
+  s_9ed0da107cbc4a::t_6b8e43575e89ac 1-107
+package-lock.json
+  s_9ed0da107cbc4a::t_1919c3e2578643 530-543,1255-1258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4534b47f9238a69dcb92688f90452a4b2edbb0af",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
