@@ -1,0 +1,40 @@
+wire/src/table.ts
+  s_9ed0da107cbc4a::t_968cfa85e43068 38-43,203-204
+  s_9ed0da107cbc4a::t_4b36c6a0ab6c38 205
+server/src/db/roomsRepo.ts
+  s_9ed0da107cbc4a::t_d37a675137cc01 135,141
+server/src/rooms.ts
+  s_9ed0da107cbc4a::t_d37a675137cc01 13,17-19,70,89-95,97-105
+  s_9ed0da107cbc4a::t_63358911fe419b 66-69,71,85,96
+  s_9ed0da107cbc4a::t_a7dba5dede6bd6 106
+server/src/roomRoutes.test.ts
+  s_9ed0da107cbc4a::t_2a100cb98a35e7 193-226
+  s_9ed0da107cbc4a::t_f9eea57587e225 227-249
+server/src/app.ts
+  s_9ed0da107cbc4a::t_2a100cb98a35e7 44,185-198
+  s_9ed0da107cbc4a::t_bb45d9ea505c06 46,83-85
+  s_9ed0da107cbc4a::t_a0949f05d3d6f0 199
+server/src/KitRoom.ts
+  s_9ed0da107cbc4a::t_37708a411416fc 3
+  s_9ed0da107cbc4a::t_7dfb7e08b16f47 100-108
+server/src/roomPeople.ts
+  s_9ed0da107cbc4a::t_37708a411416fc 28-44,47
+server/src/codeHold.ts
+  s_9ed0da107cbc4a::t_d37a675137cc01 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d479081d19d0b2c3045330f9f45c7c9518518444",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
