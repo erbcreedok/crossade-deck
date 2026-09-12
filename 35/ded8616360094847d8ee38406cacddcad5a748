@@ -1,0 +1,26 @@
+game-presets/desk/src/startDesk.ts
+  s_9ed0da107cbc4a::t_ff12120c15c013 530-532
+game-presets/desk/src/presence.test.ts
+  s_9ed0da107cbc4a::t_62b35d81a4aff1 157-202
+server/scripts/seedTestRoom.ts
+  s_9ed0da107cbc4a::t_286a115888d178 23-28,78
+game-presets/desk/src/presence.ts
+  s_9ed0da107cbc4a::t_6a8132e4e3c198 11-12
+  s_9ed0da107cbc4a::t_915e48a349358d 59-63,84-106,165-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "35ded8616360094847d8ee38406cacddcad5a748",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
