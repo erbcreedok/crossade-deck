@@ -1,0 +1,22 @@
+design/hubhome/index.html
+  s_357f670d370d4d::t_89e3c7c5f7dd59 80-84,192-207,325-344,356-359,398
+  s_357f670d370d4d::t_c261fb487ede8a 352
+design/rooms/index.html
+  s_357f670d370d4d::t_171669ac001b8a 66-67,227-235,245-247,299-302,308-314,320
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0a61664f71e0ba258a16993a3cc4daa117d0d91b",
+  "prompts": {},
+  "sessions": {
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
