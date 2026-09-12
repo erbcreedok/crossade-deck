@@ -20,7 +20,7 @@ import { openRoom } from "../src/rooms.js";
 
 const CODE = "TEST";
 
-/** Мокковые соседи: имя, цвет и роль. Зритель — без стула, и это видно в списке. */
+/** Мок-юзеры: имя, цвет и роль. Админ и игрок садятся за стол сами, зритель остаётся без стула. */
 const GUESTS: readonly { name: string; color: string; role: Role }[] = [
   { name: "Алия", color: "#7fd1b9", role: "admin" },
   { name: "Тимур", color: "#e08b3f", role: "player" },
@@ -42,13 +42,17 @@ function ownerBy(asked: string): string | undefined {
   return rows[0]?.id;
 }
 
-/** Аккаунт с таким именем — или новый с ним же. Скрипт запускают не один раз. */
+/**
+ * Аккаунт с таким именем — или новый с ним же. Скрипт запускают не один раз.
+ *
+ * Помечается как мок (`bot`): именно по этой пометке сессия сажает его за стол сама. Без неё он
+ * остался бы просто числящимся в комнате именем, за которым нет ни человека, ни стула.
+ */
 function guestAccount(name: string, color: string): string {
   const row = db().prepare(`SELECT id FROM accounts WHERE name = ?`).get(name) as { id: string } | undefined;
-  if (row) return row.id;
-  const made = createAccount(name);
-  db().prepare(`UPDATE accounts SET color = ? WHERE id = ?`).run(color, made.id);
-  return made.id;
+  const id = row?.id ?? createAccount(name).id;
+  db().prepare(`UPDATE accounts SET color = ?, bot = 1 WHERE id = ?`).run(color, id);
+  return id;
 }
 
 function main(): void {
@@ -73,7 +77,9 @@ function main(): void {
 
   for (const guest of GUESTS) addMember(room.id, guestAccount(guest.name, guest.color), guest.role);
 
-  console.log(`Стол ${room.code} (${room.id}): оунер ${accountById(owner)!.name}, за ним ${GUESTS.map((g) => `${g.name} — ${g.role}`).join(", ")}.`);
+  console.log(`Стол ${room.code} (${room.id}): хозяин ${accountById(owner)!.name}, за ним ${GUESTS.map((g) => `${g.name} — ${g.role}`).join(", ")}.`);
+  // Сессия сажает мок-юзеров, когда поднимается. Идёт прямо сейчас — они сядут на следующем входе.
+  console.log("Стулья займутся при подъёме стола: если сейчас в нём кто-то сидит, выйди и зайди заново.");
 }
 
 main();

@@ -359,3 +359,57 @@ describe("rooms.the-roster-is-one-list-and-a-chair-is-a-seat", () => {
     expect((await fetch(`${BASE}/rooms/room_ниоткуда/roster`)).status).toBe(404);
   });
 });
+
+// СТОРОЖ `rooms.a-mock-user-takes-a-chair-and-a-live-absent-one-does-not`.
+//
+// Мок-юзер заведён затем, чтобы за столом было кого показать: он садится сам, как только стол
+// поднялся, и по роли — админ и игрок со стульями, зритель без. Живого члена комнаты, которого
+// сейчас нет, сажать нельзя ни в коем случае: это место, за которым его не было.
+describe("rooms.a-mock-user-takes-a-chair-and-a-live-absent-one-does-not", () => {
+  it("мок садится по роли, живой отсутствующий остаётся без стула", async () => {
+    const { addMember } = await import("./db/roomsRepo.js");
+    const { insertAccount } = await import("./db/accountsRepo.js");
+    const { sessionOf } = await import("./rooms.js");
+    const { peopleAt } = await import("./roomPeople.js");
+
+    const me = await account();
+    const absent = await account();
+    // Стол заводится БЕЗ сессии: моки садятся, когда её поднимают, и до этого их сажать некуда.
+    const { byId: find, openRoom: makeRoom } = await import("./rooms.js");
+    const room = makeRoom({ game: "cards", seats: 4, ownerAccount: me.id, forever: true })!;
+    const body = { room: room.id } as Record<string, string>;
+
+    const mock = (name: string, role: "admin" | "player" | "spectator") => {
+      const id = `mock_${name}_${Date.now()}`;
+      insertAccount({
+        id,
+        name,
+        nameChosen: true,
+        color: null,
+        avatar: null,
+        createdAt: Date.now(),
+        recoveryHash: id,
+        bot: true,
+      });
+      addMember(body.room!, id, role);
+      return id;
+    };
+    const boss = mock("мок-админ", "admin");
+    const mate = mock("мок-игрок", "player");
+    const watcher = mock("мок-зритель", "spectator");
+    addMember(body.room!, absent.id, "player");
+
+    await sessionOf(find(body.room!)!);
+
+    const seats = new Map(peopleAt(body.room!).map((one) => [one.name, one.seat]));
+    expect(seats.get("мок-админ")).toMatch(/^p\d+$/);
+    expect(seats.get("мок-игрок")).toMatch(/^p\d+$/);
+    expect(seats.get("мок-админ")).not.toBe(seats.get("мок-игрок"));
+    expect(seats.get("мок-зритель")).toBeNull();
+    const roster = (await (await fetch(`${BASE}/rooms/${body.room}/roster`)).json()) as Record<string, unknown>[];
+    expect(roster.find((one) => one.account === absent.id)!.seat).toBeNull();
+    expect(roster.find((one) => one.account === boss)!.seat).not.toBeNull();
+    expect(roster.find((one) => one.account === mate)!.seat).not.toBeNull();
+    expect(roster.find((one) => one.account === watcher)!.seat).toBeNull();
+  });
+});

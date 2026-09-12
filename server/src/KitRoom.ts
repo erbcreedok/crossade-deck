@@ -3,6 +3,8 @@ import { joined, openRoom, sessionEnded } from "./rooms.js";
 import { setPeople, setTurn } from "./roomPeople.js";
 import { guestIdentity } from "./sandboxNames.js";
 import { accountColor, accountName } from "./accounts.js";
+import { accountById } from "./db/accountsRepo.js";
+import { membersOf } from "./db/roomsRepo.js";
 import { setSession } from "./db/roomsRepo.js";
 
 export interface KitJoinOptions {
@@ -54,6 +56,9 @@ export class KitRoom extends Room {
       setSession(this.record, this.roomId);
     }
     this.setMetadata({ code: this.code });
+    // ...и сразу расходятся по столу: занятые ими места — такая же часть ростера, как живые.
+    this.seatMocks();
+    this.broadcastRoster();
 
     this.onMessage("hello", (client) => {
       const member = this.clientMemberMap.get(client.sessionId);
@@ -185,6 +190,33 @@ export class KitRoom extends Room {
   /** Сел за стол — стал членом этой комнаты, и она появилась в списке его комнат. */
   private remember(accountId: string): void {
     if (this.record) joined(this.record, accountId);
+  }
+
+  /**
+   * МОК-ЮЗЕРЫ САДЯТСЯ САМИ, КАК ТОЛЬКО СТОЛ ПОДНЯЛСЯ. За ними нет клиента и сокета: они и заведены
+   * затем, чтобы за столом было кого показать, пока экран собирается.
+   *
+   * Садятся ПО РОЛИ, которая записана за ними в комнате: хозяин, админ и игрок занимают стулья,
+   * зритель остаётся без стула — он и есть «без стула». Живых членов комнаты это не касается:
+   * посадить отсутствующего человека значило бы нарисовать ему место, за которым его нет.
+   */
+  private seatMocks(): void {
+    if (!this.record) return;
+    let seated = false;
+    for (const member of membersOf(this.record)) {
+      const account = accountById(member.accountId);
+      if (!account?.bot) continue;
+      this.members.push({
+        seat: member.role === "spectator" ? null : this.nextFreeSeat(),
+        accountId: account.id,
+        name: account.name,
+      });
+      seated = true;
+    }
+    // СТОЛ С МОК-ЮЗЕРАМИ НЕ СНОСИТСЯ ПУСТЫМ. Клиентов у них нет, и Colyseus закрывает такую сессию
+    // в ту же секунду, в какую она поднялась: человек приходит — а за столом снова никого, потому
+    // что стол уже третий по счёту. Посадили мока — стол стоит и ждёт живых.
+    if (seated) this.autoDispose = false;
   }
 
   private nextFreeSeat(): string | null {

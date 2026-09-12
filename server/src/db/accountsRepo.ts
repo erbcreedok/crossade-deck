@@ -36,6 +36,8 @@ export interface AccountRow {
   readonly avatar: string | null;
   readonly createdAt: number;
   readonly recoveryHash: string;
+  /** За этим именем нет человека: мок-юзер, который садится за стол сам. */
+  readonly bot?: boolean;
 }
 
 interface RawAccount {
@@ -46,6 +48,7 @@ interface RawAccount {
   avatar: string | null;
   created_at: number;
   recovery_hash: string;
+  bot: number;
 }
 
 function toAccount(raw: RawAccount | undefined): AccountRow | undefined {
@@ -58,15 +61,16 @@ function toAccount(raw: RawAccount | undefined): AccountRow | undefined {
     avatar: raw.avatar,
     createdAt: raw.created_at,
     recoveryHash: raw.recovery_hash,
+    ...(raw.bot === 1 ? { bot: true } : {}),
   };
 }
 
-const SELECT = `SELECT id, name, name_chosen, color, avatar, created_at, recovery_hash FROM accounts`;
+const SELECT = `SELECT id, name, name_chosen, color, avatar, created_at, recovery_hash, bot FROM accounts`;
 
 export function insertAccount(row: AccountRow, at: DatabaseSync = db()): AccountRow {
   at.prepare(
-    `INSERT INTO accounts (id, name, name_chosen, color, avatar, created_at, recovery_hash) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(row.id, row.name, row.nameChosen ? 1 : 0, row.color, row.avatar, row.createdAt, row.recoveryHash);
+    `INSERT INTO accounts (id, name, name_chosen, color, avatar, created_at, recovery_hash, bot) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(row.id, row.name, row.nameChosen ? 1 : 0, row.color, row.avatar, row.createdAt, row.recoveryHash, row.bot ? 1 : 0);
   return row;
 }
 
