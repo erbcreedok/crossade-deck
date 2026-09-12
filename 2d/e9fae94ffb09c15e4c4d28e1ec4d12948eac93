@@ -1,0 +1,36 @@
+server/src/roomRights.ts
+  s_9ed0da107cbc4a::t_848a6cae9349cc 33-38,103-105
+  s_9ed0da107cbc4a::t_b1b80fb42bb0f8 19-26,70,79,90,94-101,152,157
+server/src/KitRoom.test.ts
+  s_9ed0da107cbc4a::t_76447cdb3967c1 239-267
+server/src/KitRoom.ts
+  s_9ed0da107cbc4a::t_ec6ab91ee129b4 17,22,170-175,359-364
+  s_9ed0da107cbc4a::t_848a6cae9349cc 342-347
+server/src/app.ts
+  s_9ed0da107cbc4a::t_4b69def2991900 44,283-287
+  s_9ed0da107cbc4a::t_848a6cae9349cc 280-281
+server/src/roomRoster.ts
+  s_9ed0da107cbc4a::t_848a6cae9349cc 32-33,67,83
+server/src/rooms.ts
+  s_9ed0da107cbc4a::t_b1b80fb42bb0f8 56-68
+server/src/roomRights.test.ts
+  s_9ed0da107cbc4a::t_b2ea31eacae68c 62-71
+server/src/roomRoutes.test.ts
+  s_9ed0da107cbc4a::t_61bd1709d0bbbd 551-556
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2de9fae94ffb09c15e4c4d28e1ec4d12948eac93",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
