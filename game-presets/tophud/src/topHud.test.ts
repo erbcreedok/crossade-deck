@@ -40,14 +40,14 @@ describe("верхний HUD", () => {
 
   it("нажатие на ряд открывает полный список сидящих, и он закрывается касанием мимо", () => {
     const hud = topHud(container, { title: "Карты", people });
-    expect(q(hud.element, "list")).toBeNull();
+    expect(q(container, "list")).toBeNull();
     q(hud.element, "people")!.click();
-    const list = q(hud.element, "list")!;
+    const list = q(container, "list")!;
     expect(list.textContent).toContain("ЗА СТОЛОМ 3");
     expect(list.textContent).toContain("ходит");
     expect(list.textContent).toContain("отошёл");
     document.body.click();
-    expect(q(hud.element, "list")).toBeNull();
+    expect(q(container, "list")).toBeNull();
     hud.stop();
   });
 
@@ -63,14 +63,19 @@ describe("верхний HUD", () => {
     ];
     const hud = topHud(container, { title: "Карты", people, roster });
     q(hud.element, "people")!.click();
-    const list = q(hud.element, "list")!;
+    const list = q(container, "list")!;
     expect(list.textContent).toContain("ЗА СТОЛОМ 2 · ВСЕГО 3");
     expect(list.textContent).toContain("хозяин");
     expect(list.textContent).toContain("зритель");
     expect(list.textContent).toContain("без стула");
     expect(list.textContent).toContain("отошёл");
-    // Своя строка — первая: себя не ищут глазами в списке.
-    expect(list.textContent!.indexOf("Дана")).toBeLessThan(list.textContent!.indexOf("Алия"));
+    // Своя строка стоит ОТДЕЛЬНОЙ карточкой над списком, а не первой среди чужих имён.
+    const mine = q(container, "mine")!;
+    expect(mine.textContent).toContain("Дана");
+    expect(mine.textContent).not.toContain("Алия");
+    // Лист закрывается своим «Закрыть», а не только касанием мимо.
+    q(container, "close")!.click();
+    expect(q(container, "list")).toBeNull();
     hud.stop();
   });
 
