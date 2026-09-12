@@ -38,6 +38,11 @@ export interface GameEntry {
    * do it, which is why this is written out per game rather than glued together from the label.
    */
   readonly loading: string;
+  /**
+   * WHETHER THIS GAME IS PLAYED AT A TABLE WITH OTHER PEOPLE. A press on one of these asks WHICH
+   * table first — a patience has nobody to ask about.
+   */
+  readonly atTable?: boolean;
   /** Fetches the game's code and hands back its start function. Called on the press, never before. */
   readonly load: () => Promise<(container: HTMLElement, door: ShellDoor) => Teardown>;
 }
@@ -70,18 +75,21 @@ export const CATALOGUE: readonly GameEntry[] = [
     id: "cards",
     label: "Карты",
     loading: "Загружаю карты",
+    atTable: true,
     load: tableGame("cards", async () => (await import("@apps/cards")).startCards as never),
   },
   {
     id: "chess",
     label: "Шахматы",
     loading: "Загружаю шахматы",
+    atTable: true,
     load: tableGame("chess", async () => (await import("@apps/chess")).startChess as never),
   },
   {
     id: "nardy",
     label: "Нарды",
     loading: "Загружаю нарды",
+    atTable: true,
     load: tableGame("nardy", async () => (await import("@apps/nardy")).startNardy as never),
   },
 ];

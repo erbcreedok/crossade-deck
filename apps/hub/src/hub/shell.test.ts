@@ -5,6 +5,8 @@
 // checks the FIRST `draw()` the fake painter ever receives: when the hash names a table, that first
 // plan must already be the closed table (no shelf, no tile), never the lobby.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 interface DrawnQuad {
@@ -72,5 +74,27 @@ describe("startHub — первый кадр из hash", () => {
     // ВЫХОД БОЛЬШЕ НЕ ХАБОВ: полосу сверху рисует сама игра, а хаб только сообщает ей, что выход
     // отсюда есть. На холсте хаба под столом не остаётся ни одной плашки.
     expect(first.some((q) => q.id === "nav/back")).toBe(false);
+  });
+});
+
+// СТОРОЖ `hub.a-table-game-asks-which-table-first`.
+//
+// Нажатие на плитку прежде молча открывало НОВЫЙ стол — сыграть с кем-то можно было, только
+// переслав ссылку. Закон живёт в двух файлах сразу (каталог помечает игру застольной, оболочка
+// спрашивает), и проверяется он сканом: поведение нажатия на холсте иначе пришлось бы собирать
+// целиком ради одной ветки.
+describe("hub.a-table-game-asks-which-table-first", () => {
+  it("каждая игра за столом помечена, а одиночная — нет", async () => {
+    const { CATALOGUE } = await import("./catalogue.js");
+    const atTable = CATALOGUE.filter((one) => one.atTable).map((one) => one.id);
+    expect(atTable).toEqual(["cards", "chess", "nardy"]);
+    expect(CATALOGUE.find((one) => one.id === "klondike")?.atTable).toBeUndefined();
+  });
+
+  it("нажатие на застольную плитку ведёт к экрану столов, а не прямо в игру", () => {
+    const source = readFileSync(join(process.cwd(), "src/hub/shell.ts"), "utf8");
+    const press = source.slice(source.indexOf("onPress:"), source.indexOf("onPress:") + 400);
+    expect(press).toContain("atTable");
+    expect(press).toContain("tables.show");
   });
 });

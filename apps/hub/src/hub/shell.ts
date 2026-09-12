@@ -33,10 +33,11 @@ import { beat } from "./beat.js";
 import { AT_REST, DRIFT_DIAMONDS, driftStep, type Drift } from "./drift.js";
 import { FELT, hubTree, shelfColumns, shelfSize, SPARKLE_ID, tableTree } from "./grid.js";
 import { homeProfile } from "../home/home.js";
+import { tablesScreen } from "../rooms/tables.js";
 import { wirePress } from "./press.js";
 import { twinkleLevel, twinkleStep } from "./twinkle.js";
 import { CATALOGUE, type Teardown } from "./catalogue.js";
-import { goTo, onRoute, routeOf } from "./route.js";
+import { goTo, onRoute, placeOf, routeOf } from "./route.js";
 import { ensureAccount } from "@crossade/wire";
 
 /**
@@ -224,6 +225,14 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     if (alive) void home.refresh();
   });
 
+  /**
+   * ЗА КАКОЙ СТОЛ. Нажатие на плитку игры, в которую играют вдвоём, спрашивает это ПЕРЕД игрой —
+   * прежде оно молча открывало новый стол, и сыграть с кем-то можно было, только переслав ссылку.
+   */
+  const tables = tablesScreen(chrome, {
+    onSit: (id, code) => goTo(id, "push", code),
+  });
+
   const setMode = (mode: "hub" | "play"): void => {
     playing = mode === "play";
     shell?.setAttribute("data-mode", mode);
@@ -337,7 +346,16 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
       console.error(`hub: ${id} did not open`, err);
       stopSweep();
       setMode("hub");
-      if (write) goTo(undefined, "replace");
+      if (write || placeOf().room) goTo(undefined, "replace");
+      // СТОЛ ЗАКРЫЛСЯ — И ЭТО НАДО СКАЗАТЬ. Ссылка на закрывшийся стол прежде молча открывала
+      // новый: человек думал, что пришёл к друзьям, и сидел один. Теперь он видит, что опоздал, и
+      // рядом лежат открытые столы этой же игры.
+      if (err instanceof Error && err.message === "room_closed") {
+        const entry = CATALOGUE.find((g) => g.id === id);
+        if (entry) {
+          void tables.show(entry.id, entry.label).then(() => tables.say("Стол закрылся. Открой новый или сядь за другой."));
+        }
+      }
     } finally {
       busy = false;
     }
@@ -397,7 +415,11 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
   const stopPress = wirePress({
     host,
     onPress: (meaning) => {
-      if (typeof meaning["game"] === "string") void enter(meaning["game"]);
+      const id = meaning["game"];
+      if (typeof id !== "string") return;
+      const entry = CATALOGUE.find((g) => g.id === id);
+      if (entry?.atTable) void tables.show(entry.id, entry.label);
+      else void enter(id);
     },
   });
 
@@ -454,6 +476,7 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     stopFitting();
     stopPainting();
     home.stop();
+    tables.stop();
     painter.destroy();
     host.unmount();
   };
