@@ -40,6 +40,7 @@ import { HOME_GLIDE_MS, limitsOfDesk, roomOfDesk } from "./camera.js";
 import { curtain } from "./curtain.js";
 import { farDots } from "./cursors.js";
 import { deskAvatarsTransport, deskSeats, inkOf, SEAT_INKS, type DeskAvatarsTransport } from "./presence.js";
+import { speaksForTable } from "./turn.js";
 import type { DeskContext, DeskHost, DeskSpec, SeatedPerson, Teardown } from "./types.js";
 
 
@@ -167,6 +168,27 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     }));
   };
   const sayWhoIsHere = (present: readonly SeatedPerson[]): void => strip.set({ people: onStrip(present) });
+
+  /**
+   * СКАЗАТЬ КОМНАТЕ, ЧЕЙ ХОД — потому что метку «твой ход» рисует не этот стол, а СПИСОК комнат,
+   * который человек открывает именно затем, чтобы увидеть, где его ждут. Череду считает игра
+   * (`spec.turn`), комната её только запоминает.
+   *
+   * ГОВОРИТ ОДИН ЭКРАН ИЗ ВСЕХ — тот, что сидит на первом из занятых мест. Череду считает каждый, и
+   * если бы говорили все, комната получала бы столько же одинаковых сообщений, сколько людей за
+   * столом. Ушёл тот, кто говорил, — говорить начинает следующий, без уговора между ними.
+   */
+  let toldTurn: string | null | undefined;
+  /** Комната, когда она уже ответила. До этого говорить некому. */
+  let atTable: Table | undefined;
+  const tellTurn = (present: readonly SeatedPerson[]): void => {
+    if (!atTable || !seat) return;
+    if (!speaksForTable(present, seat)) return;
+    const moving = spec.turn?.() ?? null;
+    if (moving === toldTurn) return;
+    toldTurn = moving;
+    atTable.sendTurn(moving ?? undefined);
+  };
 
   /**
    * THE FAR SCREENS, ONE PER SEAT — this glass, wearing somebody else's name.
@@ -381,6 +403,7 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     seats: spec.seats,
   })
     .then((table) => {
+      atTable = table;
       // A DESK THAT WAS STOPPED WHILE THE ROOM WAS STILL ANSWERING IS STOPPED.
       //
       // The join is the one thing here that outlives a teardown: everything else is a listener this
@@ -451,6 +474,9 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
 
       unbindOnTree = table.onTree((newRoot) => {
         live.setRoot(newRoot, "net");
+        // ХОД МЕНЯЕТСЯ ВМЕСТЕ С ДЕРЕВОМ, и больше ни от чего: череда — правило игры, а правила
+        // читаются по столу.
+        tellTurn(sitting(atTable!.roster));
         // THE PEOPLE GO BACK ON THE TREE THAT JUST ARRIVED. The discs travel with it — every screen
         // places the same set out of the same messages — but the tree that came in was written a
         // round trip ago, and the reader whose view moved since is standing where they were then.
@@ -483,6 +509,7 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
       });
       for (const layer of layers) layer.seated?.(sitting(table.roster));
       sayWhoIsHere(sitting(table.roster));
+      tellTurn(sitting(table.roster));
       peopleWire.roster(table.roster);
       avatars.publish();
       // ...AND THE LAYERS, now that the furniture is standing: a picture drawn before there was
@@ -496,6 +523,9 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
         const present = sitting(roster);
         for (const layer of layers) layer.seated?.(present);
         sayWhoIsHere(present);
+        // Ушёл тот, кто говорил за всех, — теперь говорит следующий: пересчитывается на каждом
+        // ростере, поэтому уговора между экранами не нужно.
+        tellTurn(present);
         const gone = peopleWire?.roster(roster) ?? [];
         for (const s of gone) avatars?.forget(s);
         avatars?.publish();

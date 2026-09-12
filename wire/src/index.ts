@@ -13,10 +13,12 @@
 export { serverUrl } from "./server.js";
 export {
   closeRoom,
+  codeIsFree,
   findRooms,
   myRooms,
   openRoom,
   peekRoom,
+  reserveCode,
   type Admission,
   type Mode,
   type OpenRoomOptions,

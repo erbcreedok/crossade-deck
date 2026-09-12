@@ -68,6 +68,29 @@ async function json<T>(res: Response): Promise<T | undefined> {
   return (await res.json()) as T;
 }
 
+/**
+ * ДАЙ КОД ДО СТОЛА. Комнату зовут кодом, и он должен быть в руках раньше, чем стол открыт: его
+ * отправляют другу, ещё не сев за него. Сервер тут же придерживает выданный за нами.
+ */
+export async function reserveCode(): Promise<string | undefined> {
+  try {
+    const res = await fetch(`${serverUrl()}/rooms/code`, { method: "POST" });
+    return (await json<{ code: string }>(res))?.code;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Свободен ли код, который человек назвал сам. Спрашивается ДО создания, а не после. */
+export async function codeIsFree(code: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${serverUrl()}/rooms/code/${encodeURIComponent(code)}`);
+    return (await json<{ free: boolean }>(res))?.free === true;
+  } catch {
+    return false;
+  }
+}
+
 /** Открыть стол. `undefined` — сервер не смог (свободных кодов нет или он недоступен). */
 export async function openRoom(options: OpenRoomOptions): Promise<RoomCard | undefined> {
   try {
