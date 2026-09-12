@@ -533,3 +533,33 @@ describe("rooms.the-room-says-who-a-newcomer-arrives-as", () => {
     two.leave();
   });
 });
+
+// СТОРОЖ `rooms.the-roster-says-what-i-may-do-with-each-person`.
+//
+// Панель рисует то, что ей разрешил сервер, и ровно теми же словами. Правило, посчитанное на
+// экране, — вторая копия правила: в списке кнопка есть, а стол её не пускает.
+describe("rooms.the-roster-says-what-i-may-do-with-each-person", () => {
+  it("хозяину можно посадить зрителя, а зрителю про хозяина — ничего, и сказано почему", async () => {
+    const { addMember } = await import("./db/roomsRepo.js");
+    const me = await account();
+    const watcher = await account();
+    const { body } = await open({ by: me.id, chairs: 2 });
+    addMember(body.room!, watcher.id, "spectator");
+
+    const mine = (await (await fetch(`${BASE}/rooms/${body.room}/roster?me=${me.id}`)).json()) as Record<string, unknown>[];
+    const him = mine.find((one) => one.account === watcher.id)!;
+    expect((him.can as { deed: string }[]).map((one) => one.deed)).toContain("seat:give");
+
+    const his = (await (await fetch(`${BASE}/rooms/${body.room}/roster?me=${watcher.id}`)).json()) as Record<string, unknown>[];
+    const boss = his.find((one) => one.account === me.id)!;
+    expect((boss.can as { deed: string }[]).map((one) => one.deed)).not.toContain("kick");
+    expect((boss.cant as { deed: string; why: string }[]).find((one) => one.deed === "kick")?.why).toBe("хозяина нельзя выгнать");
+  });
+
+  it("не назвавшему себя список отвечает без прав вовсе", async () => {
+    const me = await account();
+    const { body } = await open({ by: me.id });
+    const plain = (await (await fetch(`${BASE}/rooms/${body.room}/roster`)).json()) as Record<string, unknown>[];
+    expect(plain[0]!.can).toBeUndefined();
+  });
+});

@@ -136,6 +136,7 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
   let stopWatching: (() => void) | undefined;
   let unbindOnRelay: (() => void) | undefined;
   let unbindOnRoster: (() => void) | undefined;
+  let unbindOnDenied: (() => void) | undefined;
 
   /**
    * A DISPOSABLE MARKER, watched by the kit's own `Avatars` for when to stop listening — `container`
@@ -163,6 +164,11 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
    */
   const strip: TopHud = topHud(container, {
     title: spec.title,
+    /**
+     * НАЖАЛИ В ПАНЕЛИ — ПРОСИМ КОМНАТУ. Полоса не знает ни прав, ни комнаты: она рисует то, что ей
+     * разрешили, и передаёт нажатие сюда. Ответ приходит либо новым ростером, либо отказом словами.
+     */
+    onDeed: (deed, whom, colour) => atTable?.sendDeed(deed, whom, colour),
     ...(o.host.room() ? { room: o.host.room()! } : {}),
     ...(o.host.exit ? { exit: o.host.exit } : {}),
     ...(spec.topHud ? { look: spec.topHud } : {}),
@@ -196,7 +202,8 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
   const askWhoBelongs = (): void => {
     const code = atTable?.code ?? o.host.room();
     if (!code) return;
-    void roomRoster(code).then((members) => {
+    // ОТ СВОЕГО ЛИЦА: какие кнопки покажет панель, решает комната, и решает она про МЕНЯ.
+    void roomRoster(code, o.account?.id).then((members) => {
       if (stopped) return;
       strip.set({ roster: members.map(asMember) });
     });
@@ -210,6 +217,9 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     // ЕГО ЛИЦО, ЕСЛИ ОНО У НЕГО ЕСТЬ: фотография узнаётся быстрее буквы, а цвет при ней уходит в
     // ободок — потерять его нельзя, им человека и различают.
     ...(one.face ? { face: one.face } : {}),
+    ...(one.account ? { account: one.account } : {}),
+    ...(one.can ? { can: one.can } : {}),
+    ...(one.cant ? { cant: one.cant } : {}),
     role: one.role,
     // СТУЛ — ЭТО МЕСТО В ИДУЩЕЙ ПАРТИИ. Роль говорит, что человеку можно; стул — сидит ли он.
     seated: one.seat !== null,
@@ -474,6 +484,9 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
       }
       currentTable = table;
       seat = table.seat;
+      // ОТКАЗ КОМНАТЫ ГОВОРИТСЯ ВСЛУХ, на той же строке, где нажали: молчание в ответ на кнопку
+      // читается как поломка, и человек жмёт её ещё трижды.
+      unbindOnDenied = table.onDenied(({ why }) => strip.denied(why));
       // Комната ответила — можно спросить, кто за ней числится: до этого спрашивать было не у кого.
       askWhoBelongs();
       // THE DESK OPENS AT ITS OWN PLACE, and it opens there NOW: which seat this glass is only
@@ -647,6 +660,7 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     unbindOnTree?.();
     unbindOnRelay?.();
     unbindOnRoster?.();
+    unbindOnDenied?.();
     stopWatching?.();
     currentTable?.leave();
     leaveIdleClock?.();

@@ -235,4 +235,27 @@ describe("kit.a-deed-is-done-by-the-room-not-claimed-by-a-screen", () => {
     first.leave();
     second.leave();
   });
+
+  it("сажать некуда — отказ словами, а не молчаливая смена роли", async () => {
+    const { createAccount } = await import("./accounts.js");
+    const { addMember, roleOf } = await import("./db/roomsRepo.js");
+    const { openRoom } = await import("./rooms.js");
+
+    const boss = createAccount("Хозяин полного");
+    const seer = createAccount("Зритель полного");
+    // Стул один, и он уйдёт хозяину: зрителя посадить будет некуда.
+    const room = openRoom({ game: "cards", chairs: 1, ownerAccount: boss.id, newcomer: "spectator" })!;
+    addMember(room.id, seer.id, "spectator");
+
+    const first = await server().sdk.create("kit_room", { room: room.id, code: room.code, chairs: 1, accountId: boss.id });
+    const second = await server().sdk.joinById(first.roomId, { accountId: seer.id, name: "Зритель полного" });
+    const refused = new Promise<{ why: string }>((done) => first.onMessage("denied", done));
+    first.send("deed", { deed: "seat:give", whom: seer.id });
+    expect((await refused).why).toBe("за столом нет свободного стула");
+    // ...и роль при этом не сменилась молча: зритель остался зрителем.
+    expect(roleOf(room.id, seer.id)).toBe("spectator");
+
+    first.leave();
+    second.leave();
+  });
 });

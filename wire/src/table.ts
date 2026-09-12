@@ -46,6 +46,15 @@ export interface Table {
    * комната её только запоминает.
    */
   sendTurn(seat: string | undefined): void;
+  /**
+   * СДЕЛАТЬ ЧТО-ТО С ЧЕЛОВЕКОМ ЗА СТОЛОМ — дать стул, забрать, дать админа, выгнать, перекрасить.
+   *
+   * Просьба, а не приказ: право проверяет комната, и отказ приходит словами (`onDenied`). Кнопка,
+   * нарисованная экраном, — надпись, и стол, верящий ей на слово, отдаёт себя первому встречному.
+   */
+  sendDeed(deed: string, whom: string, colour?: string): void;
+  /** Комната не пустила — и сказала почему. Эти слова и показываются человеку. */
+  onDenied(listener: (denial: { deed: string; why: string }) => void): () => void;
   onRelay(listener: (msg: RelayMessage) => void): () => void;
   onRoster(listener: (roster: readonly RosterItem[]) => void): () => void;
   leave(): void;
@@ -116,6 +125,7 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
   }
 
   const relayListeners = new Set<(msg: RelayMessage) => void>();
+  const deniedListeners = new Set<(denial: { deed: string; why: string }) => void>();
   const rosterListeners = new Set<(roster: readonly RosterItem[]) => void>();
   let currentRoster: readonly RosterItem[] = [];
   /**
@@ -128,6 +138,10 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
 
   colyseusRoom.onMessage("relay", (msg: RelayMessage) => {
     for (const listener of relayListeners) listener(msg);
+  });
+
+  colyseusRoom.onMessage("denied", (msg: { deed: string; why: string }) => {
+    for (const listener of deniedListeners) listener(msg);
   });
 
   colyseusRoom.onMessage("roster", (msg: { roster: RosterItem[] }) => {
@@ -207,6 +221,15 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
     },
     sendTurn(seat: string | undefined) {
       colyseusRoom.send("turn", { seat: seat ?? null });
+    },
+    sendDeed(deed: string, whom: string, colour?: string) {
+      colyseusRoom.send("deed", { deed, whom, ...(colour ? { colour } : {}) });
+    },
+    onDenied(listener: (denial: { deed: string; why: string }) => void) {
+      deniedListeners.add(listener);
+      return () => {
+        deniedListeners.delete(listener);
+      };
     },
     onRelay(listener: (msg: RelayMessage) => void) {
       relayListeners.add(listener);

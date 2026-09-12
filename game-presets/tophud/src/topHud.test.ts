@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // THE STRIP AS A DOCUMENT: what it puts up, what it takes down, and the one fact a shelf supplies.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { topHud, TOP_HUD_VAR } from "./topHud.js";
 import type { TopHudPerson } from "./row.js";
 
@@ -134,6 +134,76 @@ describe("верхний HUD", () => {
     const hud = topHud(container, { title: "<b>Карты</b>", people: [{ seat: "p1", name: "<i>Х", ink: "#fff" }] });
     expect(hud.element.querySelector("b")).toBeNull();
     expect(hud.element.querySelector("i")).toBeNull();
+    hud.stop();
+  });
+});
+
+// СТОРОЖ `tophud.the-panel-draws-only-what-the-room-allowed`.
+//
+// Панель за столом не решает, что можно: правила живут в комнате, и она же присылает их словами.
+// Экран, считающий права сам, — это вторая копия правила, и она разойдётся с первой в тот же день.
+// Отказы показываются все и всегда: молча пропавшая кнопка читается как поломка.
+describe("панель за столом", () => {
+  let container: HTMLElement;
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+  });
+  afterEach(() => container.remove());
+  const q = (root: ParentNode, group: string) => root.querySelector<HTMLElement>(`[data-g="${group}"]`);
+
+  const people = [{ seat: "p1", name: "Алия", ink: "#7fd1b9" }];
+  const roster = [
+    { name: "Алия", ink: "#7fd1b9", role: "owner" as const, seated: true, mine: true, account: "a" },
+    {
+      name: "Тимур",
+      ink: "#e08b3f",
+      role: "player" as const,
+      seated: true,
+      account: "t",
+      can: [{ deed: "seat:take", label: "Лишить стула", vote: false }],
+      cant: [{ deed: "kick", label: "Выгнать", why: "хозяина нельзя выгнать" }],
+    },
+  ];
+
+  it("строка раскрывается, и в ней стоит только разрешённое — с причинами на остальное", () => {
+    const hud = topHud(container, { title: "Карты", people, roster });
+    q(hud.element, "people")!.click();
+    const row = container.querySelector<HTMLElement>('[data-row="t"]')!;
+    row.click();
+    const list = q(container, "list")!;
+    expect(list.querySelector('[data-deed="seat:take"]')).not.toBeNull();
+    expect(list.querySelector('[data-deed="kick"]'), "чего нельзя — того и нет кнопкой").toBeNull();
+    expect(list.textContent).toContain("хозяина нельзя выгнать");
+    hud.stop();
+  });
+
+  it("нажатие уходит наружу, а отказ комнаты говорится вслух", () => {
+    const asked: string[][] = [];
+    const hud = topHud(container, { title: "Карты", people, roster, onDeed: (deed, whom) => asked.push([deed, whom]) });
+    q(hud.element, "people")!.click();
+    container.querySelector<HTMLElement>('[data-row="t"]')!.click();
+    container.querySelector<HTMLElement>('[data-deed="seat:take"]')!.click();
+    expect(asked).toEqual([["seat:take", "t"]]);
+
+    hud.denied("местами не распоряжаешься");
+    expect(q(container, "list")!.textContent).toContain("местами не распоряжаешься");
+    hud.stop();
+  });
+
+  it("свой цвет выбирается из восьми, и выбранный уходит наружу", () => {
+    const asked: string[][] = [];
+    const mine = [{ ...roster[0]!, can: [{ deed: "colour", label: "Сменить цвет", vote: false }] }, roster[1]!];
+    const hud = topHud(container, { title: "Карты", people, roster: mine, onDeed: (deed, whom, colour) => asked.push([deed, whom, colour!]) });
+    q(hud.element, "people")!.click();
+    container.querySelector<HTMLElement>('[data-row="a"]')!.click();
+    q(container, "paint")!.click();
+    const swatches = container.querySelectorAll<HTMLElement>("[data-colour]");
+    expect(swatches.length).toBe(8);
+    swatches[2]!.click();
+    expect(asked[0]![0]).toBe("colour");
+    expect(asked[0]![1]).toBe("a");
+    expect(asked[0]![2]).toMatch(/^#[0-9a-f]{6}$/i);
     hud.stop();
   });
 });

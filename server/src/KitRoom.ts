@@ -172,7 +172,8 @@ export class KitRoom extends Room {
       if (powerOf(me, room?.mode ?? "free") === "proposal") {
         return client.send("denied", { deed: asked, why: "тут решают голосованием, а голосования ещё нет" });
       }
-      this.doDeed(asked, them, typeof msg?.colour === "string" ? msg.colour : undefined);
+      const failed = this.doDeed(asked, them, typeof msg?.colour === "string" ? msg.colour : undefined);
+      if (failed) return client.send("denied", { deed: asked, why: failed });
       this.broadcastRoster();
     });
 
@@ -334,16 +335,23 @@ export class KitRoom extends Room {
     return { account: accountId, role, seated: this.members.some((m) => m.accountId === accountId && m.seat !== null) };
   }
 
-  /** Исполнить разрешённое. Право уже проверено — здесь только последствие. */
-  private doDeed(deed: Deed, them: Someone, colour?: string): void {
+  /**
+   * Исполнить разрешённое. Право уже проверено — здесь только последствие, и только одна причина
+   * отказа остаётся: САЖАТЬ НЕКУДА. Право говорит «ты вправе раздавать места», а стульев за столом
+   * может не быть ни одного — это не про право, а про мебель, и сказать это надо вслух.
+   */
+  private doDeed(deed: Deed, them: Someone, colour?: string): string | undefined {
     const record = this.record!;
     const member = this.members.find((m) => m.accountId === them.account);
     switch (deed) {
-      case "seat:give":
+      case "seat:give": {
+        const free = this.nextFreeSeat();
+        if (!free) return "за столом нет свободного стула";
         // ПОСАЖЕННЫЙ СТАНОВИТСЯ ИГРОКОМ: стул и есть то, чем игрок отличается от зрителя.
-        if (member) member.seat = this.nextFreeSeat();
+        if (member) member.seat = free;
         if (them.role === "spectator") setRole(record, them.account, "player");
         break;
+      }
       case "seat:take":
         if (member) member.seat = null;
         if (them.role === "player") setRole(record, them.account, "spectator");
@@ -372,6 +380,7 @@ export class KitRoom extends Room {
         if (colour) paintAccount(them.account, colour);
         break;
     }
+    return undefined;
   }
 
   private roster(): KitRosterItem[] {

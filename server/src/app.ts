@@ -43,6 +43,7 @@ import {
 import { BUILD_INFO, formatVersion } from "./version.js";
 import { atCode, byCode, byId, close, reconfigure, codeFree, isKitGame, mine, openRoom, reserveCode, search, sessionOf, type RoomRow } from "./rooms.js";
 import { rosterOf } from "./roomRoster.js";
+import { deedsOn } from "./roomRights.js";
 import { NEWCOMERS, ROOM_LIMIT } from "./db/roomsRepo.js";
 import { promiseOf, type Promised } from "./codeHold.js";
 import { ADMISSIONS, cleanCode, MODES, roleOf, VISIBILITIES, type Mode } from "./db/roomsRepo.js";
@@ -266,7 +267,23 @@ export function createApp() {
   app.get("/rooms/:id/roster", (req, res) => {
     const room = byId(req.params.id) ?? byCode(req.params.id);
     if (!room) return res.status(404).json({ error: "room_closed" });
-    res.json(rosterOf(room));
+    const people = rosterOf(room);
+    const me = typeof req.query.me === "string" ? req.query.me : undefined;
+    // ЧТО МНЕ МОЖНО С КАЖДЫМ — СЧИТАЕТ СЕРВЕР, А НЕ ПАНЕЛЬ. Правило, посчитанное на экране, — это
+    // вторая копия правила, и она разойдётся с первой в тот же день: в списке кнопка есть, а стол
+    // её не пускает. Панель рисует то, что ей разрешили, и ровно теми же словами.
+    const mine = me ? people.find((one) => one.account === me) : undefined;
+    if (!mine) return res.json(people);
+    res.json(
+      people.map((one) => {
+        const { can, cant } = deedsOn(
+          { account: mine.account!, role: mine.role, seated: mine.seat !== null },
+          { account: one.account ?? one.name, role: one.role, seated: one.seat !== null },
+          room.mode,
+        );
+        return { ...one, can, cant };
+      }),
+    );
   });
 
   // СЕСТЬ ЗА СТОЛ ПО КОДУ: если за ним уже играют — в ту же сессию, если нет — сессия поднимается

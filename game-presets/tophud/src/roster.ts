@@ -30,6 +30,12 @@ export interface TopHudMember {
   readonly away?: boolean;
   /** Это я. Своя строка стоит первой — себя не ищут глазами в списке. */
   readonly mine?: boolean;
+  /** Кого спрашивать про действия — номер его аккаунта, как его знает комната. */
+  readonly account?: string;
+  /** Что Я могу с ним сделать. Считает комната; панель рисует только это и её же словами. */
+  readonly can?: readonly { readonly deed: string; readonly label: string; readonly vote?: boolean }[];
+  /** ...и чего нельзя, с причиной: кнопка, пропавшая молча, читается как поломка. */
+  readonly cant?: readonly { readonly deed: string; readonly label: string; readonly why: string }[];
 }
 
 export interface RosterList {

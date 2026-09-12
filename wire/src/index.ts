@@ -27,6 +27,8 @@ export {
   type PersonAtTable,
   type Newcomer,
   type RoomCard,
+  type RoomDeed,
+  type RoomDenial,
   type RoomMember,
   type RoomRole,
   type RoomGroup,

@@ -175,6 +175,21 @@ export type Newcomer = "admin" | "player" | "spectator";
 /** Роль человека в комнате. Те же слова, что у сервера: комната их и заводит. */
 export type RoomRole = "owner" | "admin" | "player" | "spectator";
 
+/** Что можно сделать с человеком за столом — как это разрешил сервер, его же словами. */
+export interface RoomDeed {
+  readonly deed: string;
+  readonly label: string;
+  /** Уклад требует голоса: та же кнопка, другое слово и другое последствие. */
+  readonly vote: boolean;
+}
+
+/** ...и чего нельзя, с причиной: кнопка, пропавшая молча, читается как поломка. */
+export interface RoomDenial {
+  readonly deed: string;
+  readonly label: string;
+  readonly why: string;
+}
+
 /** Участник комнаты — тот, кто в ней числится, а не только тот, кто сейчас за столом. */
 export interface RoomMember {
   /** Номер аккаунта. Пусто — за столом гость, которого сервер не знает по имени. */
@@ -191,6 +206,9 @@ export interface RoomMember {
   readonly seat: string | null;
   /** Стул держится, человека за ним нет. Бывает только у сидящего. */
   readonly away?: boolean;
+  /** Что Я могу сделать с ним — считает сервер, когда его спросили от моего лица. */
+  readonly can?: readonly RoomDeed[];
+  readonly cant?: readonly RoomDenial[];
 }
 
 /**
@@ -200,9 +218,11 @@ export interface RoomMember {
  * и с теми, кого сейчас нет за экраном. Пустой список значит «не спросилось»: стол, которого нет,
  * и молчащий сервер отвечают одинаково, и экран в обоих случаях остаётся при лицах сессии.
  */
-export async function roomRoster(room: string): Promise<RoomMember[]> {
+export async function roomRoster(room: string, me?: string): Promise<RoomMember[]> {
   try {
-    return (await json<RoomMember[]>(await fetch(`${serverUrl()}/rooms/${encodeURIComponent(room)}/roster`))) ?? [];
+    // ОТ ЧЬЕГО ЛИЦА СПРАШИВАЮТ — от этого зависит, какие кнопки вернутся: права считает сервер.
+    const who = me ? `?me=${encodeURIComponent(me)}` : "";
+    return (await json<RoomMember[]>(await fetch(`${serverUrl()}/rooms/${encodeURIComponent(room)}/roster${who}`))) ?? [];
   } catch {
     return [];
   }
