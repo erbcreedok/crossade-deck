@@ -12,6 +12,17 @@
 
 export { serverUrl } from "./server.js";
 export {
+  closeRoom,
+  findRooms,
+  myRooms,
+  openRoom,
+  peekRoom,
+  type Admission,
+  type OpenRoomOptions,
+  type RoomCard,
+  type Visibility,
+} from "./rooms.js";
+export {
   ensureAccount,
   forgetAccount,
   linkTelegram,

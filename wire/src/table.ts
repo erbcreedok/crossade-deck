@@ -71,13 +71,16 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
   }
 
   const createRoom = async (): Promise<any> => {
-    // A table with no code yet is one nobody has joined: create it through the same HTTP door a
-    // link would use, so the room carries `game` from the start (`GET /rooms/by-code` reads it
-    // back off `roomGames.ts`, which only knows what `POST /rooms` told it).
+    // A table with no code yet is one nobody has joined: the room is opened as a RECORD first (its
+    // code, its rules, its owner), and the session this client joins is that record's session.
     const res = await fetch(`${httpUrl}/rooms`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ game: opts.game, ...(opts.seats ? { seats: opts.seats } : {}) }),
+      body: JSON.stringify({
+        game: opts.game,
+        ...(opts.seats ? { seats: opts.seats } : {}),
+        ...(opts.account ? { by: opts.account.id } : {}),
+      }),
     });
     if (!res.ok) throw new Error("room_create_failed");
     const { roomId } = (await res.json()) as { roomId: string };
@@ -86,16 +89,17 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
 
   let colyseusRoom: any;
   if (opts.room) {
-    // A code from a link that has gone dead (the room restarted, or the code simply expired) is
-    // not a reason to leave a player looking at a desk with no seat — the same door that a fresh
-    // link uses opens a new table of the same game instead.
-    const res = await fetch(`${httpUrl}/rooms/by-code/${encodeURIComponent(opts.room)}`);
-    if (res.ok) {
-      const { roomId } = (await res.json()) as { roomId: string };
-      colyseusRoom = await client.joinById(roomId, roomOptions);
-    } else {
-      colyseusRoom = await createRoom();
-    }
+    // КОД ВЕДЁТ В ТУ ЖЕ КОМНАТУ ИЛИ НИКУДА. Прежде мёртвый код молча открывал НОВЫЙ стол — человек
+    // думал, что пришёл к друзьям, и сидел один. Теперь дверь говорит «стол закрылся», и показать
+    // это — дело того, кто позвал.
+    const res = await fetch(`${httpUrl}/rooms/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: opts.room }),
+    });
+    if (!res.ok) throw new Error("room_closed");
+    const { roomId } = (await res.json()) as { roomId: string };
+    colyseusRoom = await client.joinById(roomId, roomOptions);
   } else {
     colyseusRoom = await createRoom();
   }
