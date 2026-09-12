@@ -9,6 +9,8 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { openDb } from "./open.js";
 import {
   addMember,
+  cleanCode,
+  CODE_SIGNS,
   closeRoom,
   findRooms,
   freeCode,
@@ -37,7 +39,9 @@ const open = (o: Parameters<typeof insertRoom>[0]) => insertRoom(o, at)!;
 describe("rooms.the-room-is-a-record-not-a-process", () => {
   it("у комнаты есть код, и по нему её находят", () => {
     const room = open({ id: "r1", game: "cards", ownerAccount: "me" });
-    expect(room.code).toMatch(/^\d{4}$/);
+    // КОД НЕ ИЗ ЦИФР, А ИЗ ЗНАКОВ БЕЗ ДВОЙНИКОВ: его называют вслух и набирают с чужого экрана.
+    expect(room.code).toHaveLength(4);
+    for (const sign of room.code!) expect(CODE_SIGNS).toContain(sign);
     expect(roomByCode(room.code!, at)?.id).toBe("r1");
   });
 
@@ -69,13 +73,25 @@ describe("rooms.the-room-is-a-record-not-a-process", () => {
     expect(roomById("r2", at)?.closedAt).toBe(4);
   });
 
-  it("свободных кодов нет — отказ, а не чужой код", () => {
-    const put = at.prepare(
-      `INSERT INTO rooms (id, code, game, created_at, alive_at) VALUES (?, ?, 'cards', 1, 1)`,
-    );
-    for (let n = 0; n < 10_000; n++) put.run(`x${n}`, n.toString().padStart(4, "0"));
-    expect(freeCode(at)).toBeUndefined();
-    expect(insertRoom({ id: "one-more", game: "cards" }, at)).toBeUndefined();
+  it("человек может назвать свой код — но занятый ему не отдадут", () => {
+    // Со знаком не из алфавита код не берут — выдают свой.
+    const refused = open({ id: "r1", game: "cards", code: "KAMAZ" });
+    expect(refused.code).not.toBe("KAMAZ");
+    expect(refused.code).toHaveLength(4);
+
+    const named = open({ id: "r2", game: "cards", code: "MAFT" });
+    expect(named.code).toBe("MAFT");
+
+    // Тот же код второй раз — комната получит выданный, а не чужой.
+    const other = open({ id: "r3", game: "cards", code: "MAFT" });
+    expect(other.code).not.toBe("MAFT");
+  });
+
+  it("кривой код кодом не считается", () => {
+    expect(cleanCode("0244")).toBeUndefined();
+    expect(cleanCode("A")).toBeUndefined();
+    expect(cleanCode("ABCDEFGHI")).toBeUndefined();
+    expect(cleanCode(" maft ")).toBe("MAFT");
   });
 });
 

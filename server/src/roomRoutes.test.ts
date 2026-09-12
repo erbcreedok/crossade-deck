@@ -47,7 +47,7 @@ async function open(body: Record<string, unknown> = {}) {
 describe("rooms.a-closed-table-is-not-replaced-by-a-new-one", () => {
   it("открытый стол находится по своему коду", async () => {
     const { body } = await open();
-    expect(body.code).toMatch(/^\d{4}$/);
+    expect(body.code).toMatch(/^[23456789ACDEFHJKLMNPQRTUVWXY]{4}$/);
 
     const found = (await (await fetch(`${BASE}/rooms/by-code/${body.code}`)).json()) as Record<string, string>;
     expect(found.room).toBe(body.room);
@@ -90,6 +90,25 @@ describe("rooms.a-closed-table-is-not-replaced-by-a-new-one", () => {
     expect(allowed.status).toBe(200);
   });
 
+  it("стол помнит свой уклад и свою вечность", async () => {
+    const { body } = await open({ mode: "council", forever: true, seats: 6 });
+    const found = (await (await fetch(`${BASE}/rooms/by-code/${body.code}`)).json()) as Record<string, unknown>;
+    expect(found.mode).toBe("council");
+    expect(found.forever).toBe(true);
+    expect(found.seats).toBe(6);
+  });
+
+  it("свой код берут, если он свободен", async () => {
+    const { body } = await open({ code: "maft" });
+    expect(body.code).toBe("MAFT");
+    const second = await open({ code: "MAFT" });
+    expect(second.body.code).not.toBe("MAFT");
+  });
+
+  it("уклада, которого нет, не бывает", async () => {
+    expect((await post("/rooms", { game: "cards", mode: "диктатура" })).status).toBe(400);
+  });
+
   it("игра, которой нет, стола не заводит", async () => {
     expect((await post("/rooms", { game: "шашки" })).status).toBe(400);
     expect((await post("/rooms", { game: "cards", visibility: "секретная" })).status).toBe(400);
@@ -123,13 +142,51 @@ describe("поиск столов", () => {
     expect(mine.find((one) => one.room === hidden.body.room)?.own).toBe(true);
   });
 
-  it("в списке нет чужих секретов: ни хозяина, ни людей комнаты", async () => {
+  it("в списке нет ключей: ни номера хозяина, ни номеров людей", async () => {
     const me = await account();
     await open({ by: me.id });
     const list = (await (await fetch(`${BASE}/rooms`)).json()) as Record<string, unknown>[];
     for (const one of list) {
       expect(one).not.toHaveProperty("ownerAccount");
-      expect(one).not.toHaveProperty("members");
+      // Хозяин виден ИМЕНЕМ — «стол Марата» человек узнаёт, а номер аккаунта ему ничего не говорит
+      // и является ключом.
+      expect(one).toHaveProperty("owner");
+      for (const person of (one.people ?? []) as Record<string, unknown>[]) {
+        expect(person).not.toHaveProperty("accountId");
+      }
     }
+  });
+
+  it("свои столы приходят в том же списке и помечены группой", async () => {
+    const me = await account();
+    const own = await open({ by: me.id, visibility: "hidden", forever: true });
+
+    const list = (await (await fetch(`${BASE}/rooms?me=${me.id}`)).json()) as Record<string, unknown>[];
+    const row = list.find((one) => one.room === own.body.room);
+    expect(row?.group).toBe("forever");
+    expect(row?.mySeat).toBe(true);
+
+    // ...и чужому та же комната не видна вовсе.
+    const stranger = await account();
+    const theirs = (await (await fetch(`${BASE}/rooms?me=${stranger.id}`)).json()) as Record<string, unknown>[];
+    expect(theirs.map((one) => one.room)).not.toContain(own.body.room);
+  });
+});
+
+// СТОРОЖ `rooms.a-table-that-is-not-forever-closes-with-its-session`.
+//
+// Вечность — выбор хозяина, а не свойство машинерии. Невечный стол, оставшийся стоять после ухода
+// последнего, копит мусор: список за неделю зарастает пустыми комнатами, и его перестают читать.
+describe("rooms.a-table-that-is-not-forever-closes-with-its-session", () => {
+  it("невечный закрывается вместе с сессией и отдаёт код, вечный — стоит", async () => {
+    const { sessionEnded } = await import("./rooms.js");
+    const once = await open({ forever: false });
+    const always = await open({ forever: true });
+
+    sessionEnded(once.body.room!);
+    sessionEnded(always.body.room!);
+
+    expect((await fetch(`${BASE}/rooms/by-code/${once.body.code}`)).status).toBe(404);
+    expect((await fetch(`${BASE}/rooms/by-code/${always.body.code}`)).status).toBe(200);
   });
 });

@@ -23,6 +23,7 @@ import {
   unlinkTelegram,
   updateByTelegram,
   updateProfile,
+  accountName,
 } from "./accounts.js";
 import { getLastRoom } from "./lastRooms.js";
 import { verifyTelegramInitData } from "./telegramAuth.js";
@@ -41,7 +42,8 @@ import {
 } from "./telegramLink.js";
 import { BUILD_INFO, formatVersion } from "./version.js";
 import { byCode, close, isKitGame, mine, openRoom, search, sessionOf, type RoomRow } from "./rooms.js";
-import { ADMISSIONS, VISIBILITIES } from "./db/roomsRepo.js";
+import { ADMISSIONS, cleanCode, MODES, roleOf, VISIBILITIES, type Mode } from "./db/roomsRepo.js";
+import { peopleAt } from "./roomPeople.js";
 
 const { Server, matchMaker } = colyseusPkg;
 
@@ -54,8 +56,14 @@ async function playerCounts(): Promise<Map<string, number>> {
   return new Map(live.map((one) => [one.roomId, one.clients]));
 }
 
-/** Что о комнате знает посторонний. Ни хозяина, ни списка её людей здесь нет. */
-function seenFromOutside(room: RoomRow) {
+/**
+ * ЧТО О КОМНАТЕ ЗНАЕТ ПОСТОРОННИЙ — ровно то, из чего рисуется строка списка: код, игра, сколько
+ * мест и кто за ними сейчас. Номера аккаунтов не отдаются: имя и цвет — это лицо, а номер — ключ.
+ */
+function seenFromOutside(room: RoomRow, forAccount?: string) {
+  const people = peopleAt(room.id);
+  const here = people.filter((one) => !one.away).length;
+  const mine = forAccount ? roleOf(room.id, forAccount) : undefined;
   return {
     room: room.id,
     code: room.code,
@@ -64,8 +72,27 @@ function seenFromOutside(room: RoomRow) {
     seats: room.seats,
     visibility: room.visibility,
     admission: room.admission,
+    mode: room.mode,
+    forever: room.forever,
+    createdAt: room.createdAt,
+    ...(room.ownerAccount ? { owner: accountName(room.ownerAccount) ?? null } : { owner: null }),
+    people: people.map((one) => ({ name: one.name, color: one.color, ...(one.away ? { away: true } : {}) })),
+    taken: people.length,
+    online: here,
+    ...(mine ? { mySeat: true, role: mine } : {}),
     ...(room.sessionId ? { roomId: room.sessionId } : {}),
   };
+}
+
+/**
+ * В КАКУЮ ГРУППУ СПИСКА ПОПАДАЕТ КОМНАТА. Свои — первыми: человек чаще возвращается в свой стол,
+ * чем ищет чужой, и список, который начинается с чужих, заставляет искать себя глазами.
+ */
+function groupOf(room: RoomRow, forAccount?: string): "mine" | "forever" | "friends" | "public" {
+  const mine = forAccount ? roleOf(room.id, forAccount) : undefined;
+  if (mine) return room.forever ? "forever" : "mine";
+  if (room.visibility === "friends") return "friends";
+  return "public";
 }
 
 
@@ -119,12 +146,15 @@ export function createApp() {
   // СТОЛ ОТКРЫВАЕТСЯ ЗАПИСЬЮ, А НЕ ПРОЦЕССОМ. Сначала заводится комната (её код, её правила, её
   // хозяин), и только потом под неё поднимается сессия Colyseus, в которую клиент входит сам.
   app.post("/rooms", async (req, res) => {
-    const { game, seats, by, title, visibility, admission } = req.body || {};
+    const { game, seats, by, title, visibility, admission, mode, forever, code } = req.body || {};
     if (!isKitGame(game)) return res.status(400).json({ error: "bad_request" });
     if (visibility && !(VISIBILITIES as readonly string[]).includes(visibility)) {
       return res.status(400).json({ error: "bad_request" });
     }
     if (admission && !(ADMISSIONS as readonly string[]).includes(admission)) {
+      return res.status(400).json({ error: "bad_request" });
+    }
+    if (mode && !(MODES as readonly string[]).includes(mode)) {
       return res.status(400).json({ error: "bad_request" });
     }
 
@@ -135,6 +165,11 @@ export function createApp() {
       ...(typeof title === "string" && title.trim() ? { title: title.trim() } : {}),
       ...(visibility ? { visibility } : {}),
       ...(admission ? { admission } : {}),
+      ...(mode ? { mode: mode as Mode } : {}),
+      forever: forever === true,
+      // КОД МОЖНО НАЗВАТЬ СВОЙ — он должен быть в руках ДО того, как сели за стол: его отправляют
+      // другу прямо с экрана создания. Занятый или кривой не отдаётся, комната получит выданный.
+      ...(cleanCode(code) ? { code: cleanCode(code) } : {}),
     });
     // Свободных кодов не осталось — честный отказ. Выдать занятый значит отправить человека
     // за чужой стол.
@@ -168,9 +203,19 @@ export function createApp() {
   // своих, и находится в `/accounts/:id/rooms`.
   app.get("/rooms", async (req, res) => {
     const game = typeof req.query.game === "string" ? req.query.game : undefined;
-    const rooms = search(game);
+    const me = typeof req.query.me === "string" ? req.query.me : undefined;
     const busy = await playerCounts();
-    res.json(rooms.map((room) => ({ ...seenFromOutside(room), players: busy.get(room.sessionId ?? "") ?? 0 })));
+    const dress = (room: RoomRow) => ({
+      ...seenFromOutside(room, me),
+      group: groupOf(room, me),
+      players: busy.get(room.sessionId ?? "") ?? 0,
+    });
+    // СВОИ СТОЛЫ ПРИХОДЯТ В ТОМ ЖЕ СПИСКЕ, А НЕ ВТОРЫМ ЗАПРОСОМ: второй список — это второй набор
+    // пустых состояний и второе место, где порядок разойдётся с первым.
+    const seen = search(game);
+    const ours = me ? mine(me).filter((room) => !game || room.game === game) : [];
+    const all = [...ours, ...seen.filter((room) => !ours.some((one) => one.id === room.id))];
+    res.json(all.map(dress));
   });
 
   // МОИ КОМНАТЫ — те, что я открыл или в которых состою, включая скрытые.
@@ -178,7 +223,8 @@ export function createApp() {
     const busy = await playerCounts();
     res.json(
       mine(req.params.id).map((room) => ({
-        ...seenFromOutside(room),
+        ...seenFromOutside(room, req.params.id),
+        group: groupOf(room, req.params.id),
         players: busy.get(room.sessionId ?? "") ?? 0,
         own: room.ownerAccount === req.params.id,
       })),
@@ -483,7 +529,7 @@ export function createApp() {
 
   // Прежнее имя того же вопроса — отвечает из той же правды, что и `/rooms`.
   app.get("/rooms/public", (_req, res) => {
-    res.json(search().map(seenFromOutside));
+    res.json(search().map((room) => seenFromOutside(room)));
   });
 
   // Последняя посещённая аккаунтом комната (для кнопки «вернуться в игру» в лобби).

@@ -10,6 +10,7 @@ import colyseusPkg from "colyseus";
 
 const { matchMaker } = colyseusPkg;
 import { accountById } from "./db/accountsRepo.js";
+import { forgetPeople } from "./roomPeople.js";
 import {
   addMember,
   closeRoom,
@@ -21,6 +22,7 @@ import {
   setSession,
   touchRoom,
   type Admission,
+  type Mode,
   type RoomRow,
   type Visibility,
 } from "./db/roomsRepo.js";
@@ -49,6 +51,10 @@ export interface OpenRoom {
   readonly title?: string;
   readonly visibility?: Visibility;
   readonly admission?: Admission;
+  readonly mode?: Mode;
+  readonly forever?: boolean;
+  /** Код, названный человеком: он должен быть в руках ДО того, как за стол сели. */
+  readonly code?: string | undefined;
 }
 
 /** Открыть комнату. Сессия при этом не поднимается: стол стоит и ждёт, пока за него сядут. */
@@ -64,6 +70,9 @@ export function openRoom(one: OpenRoom): RoomRow | undefined {
     title: one.title ?? null,
     visibility: one.visibility,
     admission: one.admission,
+    mode: one.mode,
+    forever: one.forever ?? false,
+    code: one.code,
   });
 }
 
@@ -109,10 +118,17 @@ export function joined(roomId: string, accountId: string): void {
   touchRoom(roomId);
 }
 
-/** Сессия кончилась — стол остался. Забываем только то, что кончилось. */
+/**
+ * СЕССИЯ КОНЧИЛАСЬ. Вечный стол остаётся стоять — он принадлежит человеку, а не этой встрече;
+ * невечный закрывается вместе с ней и отдаёт свой код. Люди за столом забываются в обоих случаях:
+ * вчерашние лица в списке врут громче, чем «сейчас никого».
+ */
 export function sessionEnded(roomId: string): void {
   touchRoom(roomId);
   setSession(roomId, null);
+  forgetPeople(roomId);
+  const room = roomById(roomId);
+  if (room && !room.forever) closeRoom(roomId);
 }
 
 /** Закрыть комнату. Только хозяин: вечная комната принадлежит человеку. */

@@ -21,6 +21,14 @@ export type Visibility = (typeof VISIBILITIES)[number];
 export type Admission = (typeof ADMISSIONS)[number];
 export type Transport = (typeof TRANSPORTS)[number];
 
+/**
+ * КТО В КОМНАТЕ РЕШАЕТ. Это режим комнаты, а не роль: роли при всех трёх одни и те же.
+ * `free` — вольница, каждый админ делает что хочет; `council` — совет, действия админов решают
+ * админы голосованием; `assembly` — вече, комнату настраивают все игроки.
+ */
+export const MODES = ["free", "council", "assembly"] as const;
+export type Mode = (typeof MODES)[number];
+
 /** Роли за столом. Админ сносит админа, оунера — нет; это правило живёт выше, в комнате. */
 export const ROLES = ["owner", "admin", "player", "spectator"] as const;
 export type Role = (typeof ROLES)[number];
@@ -42,6 +50,9 @@ export interface RoomRow {
   readonly closedAt: number | null;
   /** Идущая сейчас сессия Colyseus. `null` — стол стоит, за ним никого. */
   readonly sessionId: string | null;
+  readonly mode: Mode;
+  /** Переживёт ли стол уход последнего. Невечный закрывается вместе со своей сессией. */
+  readonly forever: boolean;
 }
 
 interface RawRoom {
@@ -58,6 +69,8 @@ interface RawRoom {
   alive_at: number;
   closed_at: number | null;
   session_id: string | null;
+  mode: string;
+  forever: number;
 }
 
 function toRoom(raw: RawRoom | undefined): RoomRow | undefined {
@@ -76,17 +89,40 @@ function toRoom(raw: RawRoom | undefined): RoomRow | undefined {
     aliveAt: raw.alive_at,
     closedAt: raw.closed_at,
     sessionId: raw.session_id,
+    mode: raw.mode as Mode,
+    forever: raw.forever === 1,
   };
 }
 
 const SELECT = `SELECT id, code, game, title, owner_account, visibility, admission, transport,
-  seats, created_at, alive_at, closed_at, session_id FROM rooms`;
+  seats, created_at, alive_at, closed_at, session_id, mode, forever FROM rooms`;
 
-/** Сколько всего четырёхзначных кодов. Больше столов одновременно живыми не бывает. */
-const CODE_SPACE = 10_000;
+/**
+ * ИЗ ЧЕГО СОБИРАЕТСЯ КОД. Ни нуля с буквой O, ни единицы с I: код называют вслух и набирают с
+ * чужого экрана, и пара похожих знаков стоит дороже, чем весь выигрыш от длинного алфавита.
+ * Гласных здесь тоже нет — на четырёх знаках матерное слово выпадает чаще, чем кажется.
+ */
+export const CODE_SIGNS = "23456789ACDEFHJKLMNPQRTUVWXY";
+/** Длина выданного кода. Свой человек может назвать короче или длиннее — от 2 до 8. */
+export const CODE_LENGTH = 4;
+export const CODE_MIN = 2;
+export const CODE_MAX = 8;
+
+const CODE_SPACE = CODE_SIGNS.length ** CODE_LENGTH;
 
 function randomCode(): string {
-  return Math.floor(Math.random() * CODE_SPACE).toString().padStart(4, "0");
+  let code = "";
+  for (let n = 0; n < CODE_LENGTH; n++) code += CODE_SIGNS[Math.floor(Math.random() * CODE_SIGNS.length)];
+  return code;
+}
+
+/** Код, названный человеком: тот же алфавит, та же строгость — иначе его не продиктуешь. */
+export function cleanCode(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const code = raw.trim().toUpperCase();
+  if (code.length < CODE_MIN || code.length > CODE_MAX) return undefined;
+  for (const sign of code) if (!CODE_SIGNS.includes(sign)) return undefined;
+  return code;
 }
 
 /**
@@ -100,15 +136,16 @@ export function freeCode(at: DatabaseSync = db()): string | undefined {
   const taken = at.prepare(`SELECT code FROM rooms WHERE code IS NOT NULL`).all() as { code: string }[];
   if (taken.length >= CODE_SPACE) return undefined;
   const busy = new Set(taken.map((one) => one.code));
-  for (let tries = 0; tries < 50; tries++) {
+  for (let tries = 0; tries < 200; tries++) {
     const code = randomCode();
     if (!busy.has(code)) return code;
   }
-  for (let n = 0; n < CODE_SPACE; n++) {
-    const code = n.toString().padStart(4, "0");
-    if (!busy.has(code)) return code;
-  }
   return undefined;
+}
+
+/** Свободен ли названный код прямо сейчас. Занятый — это живая чужая комната, и он не отдаётся. */
+export function codeIsFree(code: string, at: DatabaseSync = db()): boolean {
+  return roomByCode(code, at) === undefined;
 }
 
 export interface NewRoom {
@@ -119,18 +156,23 @@ export interface NewRoom {
   readonly visibility?: Visibility;
   readonly admission?: Admission;
   readonly seats?: number | null;
+  readonly mode?: Mode;
+  readonly forever?: boolean;
+  /** Код, названный человеком. Занятый или кривой — комната получит выданный. */
+  readonly code?: string | undefined;
   readonly now?: number;
 }
 
 /** Завести комнату и выдать ей код. Хозяин сразу становится её членом с ролью `owner`. */
 export function insertRoom(one: NewRoom, at: DatabaseSync = db()): RoomRow | undefined {
-  const code = freeCode(at);
+  const asked = one.code ? cleanCode(one.code) : undefined;
+  const code = asked && codeIsFree(asked, at) ? asked : freeCode(at);
   if (!code) return undefined;
   const now = one.now ?? Date.now();
   at.prepare(
     `INSERT INTO rooms (id, code, game, title, owner_account, visibility, admission, transport,
-      seats, created_at, alive_at, closed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'server', ?, ?, ?, NULL)`,
+      seats, created_at, alive_at, closed_at, mode, forever)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'server', ?, ?, ?, NULL, ?, ?)`,
   ).run(
     one.id,
     code,
@@ -142,6 +184,8 @@ export function insertRoom(one: NewRoom, at: DatabaseSync = db()): RoomRow | und
     one.seats ?? null,
     now,
     now,
+    one.mode ?? "free",
+    one.forever ? 1 : 0,
   );
   if (one.ownerAccount) addMember(one.id, one.ownerAccount, "owner", now, at);
   return roomById(one.id, at);

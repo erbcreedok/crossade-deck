@@ -191,4 +191,18 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec(`ALTER TABLE rooms ADD COLUMN session_id TEXT`);
     },
   },
+  {
+    version: 9,
+    up(db) {
+      // УКЛАД КОМНАТЫ И ЕЁ ВЕЧНОСТЬ — два вопроса, которые задаёт стенд при создании стола.
+      //
+      // Уклад — это КТО РЕШАЕТ: вольница (каждый админ сам), совет (админы голосованием) или вече
+      // (настраивают все игроки). Это режим комнаты, а не роль: роли при всех трёх одни и те же.
+      //
+      // Вечность — переживёт ли стол уход последнего. Невечный закрывается вместе с сессией и
+      // отдаёт свой код; вечный стоит и ждёт, потому что принадлежит человеку.
+      db.exec(`ALTER TABLE rooms ADD COLUMN mode TEXT NOT NULL DEFAULT 'free'`);
+      db.exec(`ALTER TABLE rooms ADD COLUMN forever INTEGER NOT NULL DEFAULT 0`);
+    },
+  },
 ];

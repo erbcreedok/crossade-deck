@@ -59,7 +59,7 @@ describe("POST /rooms", () => {
     const body = await res.json();
     expect(body.game).toBe("nardy");
     expect(typeof body.roomId).toBe("string");
-    expect(body.code).toMatch(/^\d{4}$/);
+    expect(body.code).toMatch(/^[23456789ACDEFHJKLMNPQRTUVWXY]{4}$/);
   });
 
   it("400 на неизвестную игру", async () => {

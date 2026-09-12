@@ -334,3 +334,8 @@ export function unlinkTelegram(id: string, recoveryHash: string): Account | unde
 export function accountName(id: string): string | undefined {
   return accountById(id)?.name;
 }
+
+/** Любимый цвет — тот, которым человека рисуют кружком в списке комнат. */
+export function accountColor(id: string): string | null {
+  return accountById(id)?.color ?? null;
+}

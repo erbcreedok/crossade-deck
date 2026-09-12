@@ -1,7 +1,8 @@
 import { Room, Client } from "@colyseus/core";
 import { joined, openRoom, sessionEnded } from "./rooms.js";
+import { setPeople } from "./roomPeople.js";
 import { guestIdentity } from "./sandboxNames.js";
-import { accountName } from "./accounts.js";
+import { accountColor, accountName } from "./accounts.js";
 import { setSession } from "./db/roomsRepo.js";
 
 export interface KitJoinOptions {
@@ -201,6 +202,20 @@ export class KitRoom extends Room {
   }
 
   private broadcastRoster(): void {
-    this.broadcast("roster", { roster: this.roster() });
+    const roster = this.roster();
+    this.broadcast("roster", { roster });
+    // КТО ЗА СТОЛОМ — ЭТО ЖЕ И ТО, ЧТО ВИДНО В СПИСКЕ КОМНАТ. Одна правда: строка «2/4» и три лица
+    // берутся из того же ростера, что разослан игрокам, а не из отдельного счётчика, который
+    // однажды разойдётся с ним.
+    if (this.record) {
+      setPeople(
+        this.record,
+        roster.map((one) => ({
+          name: one.name,
+          color: one.accountId ? accountColor(one.accountId) : null,
+          ...(one.away ? { away: true } : {}),
+        })),
+      );
+    }
   }
 }
