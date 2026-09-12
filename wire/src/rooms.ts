@@ -23,7 +23,8 @@ export interface PersonAtTable {
 }
 
 export interface RoomCard {
-  readonly room: string;
+  /** Номер записи. `null` — стол только обещан: код уже в чьей-то переписке, комнаты ещё нет. */
+  readonly room: string | null;
   readonly code: string | null;
   readonly game: string;
   readonly title: string | null;
@@ -50,6 +51,8 @@ export interface RoomCard {
   readonly players?: number;
   /** Мой ли это стол — отвечает только список своих комнат. */
   readonly own?: boolean;
+  /** За стол ещё никто не садился: он поднимется, когда по коду придут. */
+  readonly waiting?: boolean;
 }
 
 export interface OpenRoomOptions {

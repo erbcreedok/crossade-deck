@@ -10,7 +10,7 @@ import colyseusPkg from "colyseus";
 
 const { matchMaker } = colyseusPkg;
 import { accountById } from "./db/accountsRepo.js";
-import { hold, isHeld, release } from "./codeHold.js";
+import { hold, isHeld, promiseOf, release, type Promised } from "./codeHold.js";
 import { getEmptyRoomTtlMs } from "./roomConfig.js";
 import { forgetPeople } from "./roomPeople.js";
 import {
@@ -93,10 +93,26 @@ export function openRoom(one: OpenRoom): RoomRow | undefined {
  * Он тут же придерживается за спросившим: между «дай код» и «открой комнату» проходят минуты (его
  * успевают отправить другу), и без брони второй человек получил бы в эту секунду тот же код.
  */
-export function reserveCode(): string | undefined {
+export function reserveCode(promised?: Promised): string | undefined {
   const code = freeCode(undefined, isHeld);
-  if (code) hold(code);
+  if (code) hold(code, promised);
   return code;
+}
+
+/**
+ * СТОЛ ЗА ЭТИМ КОДОМ — И ПОДНЯТЬ ЕГО, ЕСЛИ ОН БЫЛ ТОЛЬКО ОБЕЩАН.
+ *
+ * Приглашение в чужую переписку уходит раньше стола: карточка с кодом уже лежит в чате, а комнаты
+ * ещё нет. Первый вошедший по такому коду и заводит её — с той игрой и тем хозяином, что были
+ * обещаны. Ничего не обещано и комнаты нет — значит стол закрылся, и это говорится вслух.
+ */
+export function atCode(raw: string): RoomRow | undefined {
+  const live = byCode(raw);
+  if (live) return live;
+  const code = cleanCode(raw);
+  if (!code) return undefined;
+  const promised = promiseOf(code);
+  return promised ? openRoom({ ...promised, code }) : undefined;
 }
 
 /** Свободен ли названный человеком код: и в базе, и среди тех, что кто-то держит в руках. */

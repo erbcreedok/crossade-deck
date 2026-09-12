@@ -41,7 +41,8 @@ import {
   tooSoon,
 } from "./telegramLink.js";
 import { BUILD_INFO, formatVersion } from "./version.js";
-import { byCode, close, codeFree, isKitGame, mine, openRoom, reserveCode, search, sessionOf, type RoomRow } from "./rooms.js";
+import { atCode, byCode, close, codeFree, isKitGame, mine, openRoom, reserveCode, search, sessionOf, type RoomRow } from "./rooms.js";
+import { promiseOf, type Promised } from "./codeHold.js";
 import { ADMISSIONS, cleanCode, MODES, roleOf, VISIBILITIES, type Mode } from "./db/roomsRepo.js";
 import { peopleAt, turnAt } from "./roomPeople.js";
 
@@ -84,6 +85,31 @@ function seenFromOutside(room: RoomRow, forAccount?: string) {
     // именно ждут: чужая очередь — не его дело.
     ...(forAccount && turnAt(room.id) === forAccount ? { myTurn: true } : {}),
     ...(room.sessionId ? { roomId: room.sessionId } : {}),
+  };
+}
+
+/**
+ * СТОЛ, КОТОРЫЙ ТОЛЬКО ОБЕЩАН: код уже в чужой переписке, комнаты ещё нет. Отвечается тем же
+ * набором полей, что и настоящий, — звонящему важно знать игру и правила, а не то, заведена ли уже
+ * строка в базе. `waiting` и есть вся разница: за этот стол ещё никто не садился.
+ */
+function seenPromised(code: string, promised: Promised) {
+  return {
+    room: null,
+    code,
+    game: promised.game,
+    title: null,
+    seats: promised.seats ?? null,
+    visibility: promised.visibility ?? "hidden",
+    admission: promised.admission ?? "code",
+    mode: promised.mode ?? "free",
+    forever: promised.forever === true,
+    createdAt: Date.now(),
+    owner: promised.ownerAccount ? accountName(promised.ownerAccount) ?? null : null,
+    people: [],
+    taken: 0,
+    online: 0,
+    waiting: true,
   };
 }
 
@@ -185,8 +211,23 @@ export function createApp() {
   // КОД ДО КОМНАТЫ. Комнату зовут кодом, и по стенду он лежит в руках ДО нажатия «Создать» —
   // чтобы его отправили другу, ещё не сев за стол. Выданный тут же придерживается за спросившим,
   // иначе второй человек в эту же секунду получит тот же код.
-  app.post("/rooms/code", (_req, res) => {
-    const code = reserveCode();
+  app.post("/rooms/code", (req, res) => {
+    const { game, seats, by, visibility, admission, mode, forever } = req.body || {};
+    // ВМЕСТЕ С КОДОМ МОЖНО ПРИДЕРЖАТЬ И ОБЕЩАНИЕ СТОЛА. Так зовут друга из чужой переписки: бот
+    // отвечает карточкой с кодом, а комната поднимается, когда по ней придут. Игру не назвали —
+    // это прежняя бронь пустого кода, и она ничего не обещает.
+    const promised: Promised | undefined = isKitGame(game)
+      ? {
+          game,
+          ...(typeof seats === "number" ? { seats } : {}),
+          ...(typeof by === "string" ? { ownerAccount: by } : {}),
+          ...((VISIBILITIES as readonly string[]).includes(visibility) ? { visibility } : {}),
+          ...((ADMISSIONS as readonly string[]).includes(admission) ? { admission } : {}),
+          ...((MODES as readonly string[]).includes(mode) ? { mode: mode as Mode } : {}),
+          forever: forever === true,
+        }
+      : undefined;
+    const code = reserveCode(promised);
     if (!code) return res.status(503).json({ error: "no_free_code" });
     res.json({ code });
   });
@@ -202,8 +243,13 @@ export function createApp() {
   // открывали новый стол, и он сидел один, думая, что пришёл к друзьям.
   app.get("/rooms/by-code/:code", (req, res) => {
     const room = byCode(req.params.code);
-    if (!room) return res.status(404).json({ error: "room_closed" });
-    res.json(seenFromOutside(room));
+    if (room) return res.json(seenFromOutside(room));
+    // ОБЕЩАННЫЙ СТОЛ — ЕЩЁ НЕ СТОЛ. Заглянуть по коду можно, а заводить комнату на взгляд нельзя:
+    // её поднимает тот, кто садится. Поэтому здесь сказано, что за стол БУДЕТ, и что за него ещё
+    // никто не сел.
+    const promised = promiseOf(req.params.code.trim().toUpperCase());
+    if (promised) return res.json(seenPromised(req.params.code.trim().toUpperCase(), promised));
+    res.status(404).json({ error: "room_closed" });
   });
 
   // СЕСТЬ ЗА СТОЛ ПО КОДУ: если за ним уже играют — в ту же сессию, если нет — сессия поднимается
@@ -211,7 +257,8 @@ export function createApp() {
   app.post("/rooms/join", async (req, res) => {
     const { code } = req.body || {};
     if (typeof code !== "string") return res.status(400).json({ error: "bad_request" });
-    const room = byCode(code);
+    // ПЕРВЫЙ ВОШЕДШИЙ ПО ПРИГЛАШЕНИЮ И ЗАВОДИТ СТОЛ: до него была только карточка в чате.
+    const room = atCode(code);
     if (!room) return res.status(404).json({ error: "room_closed" });
     const roomId = await sessionOf(room);
     res.json({ roomId, room: room.id, code: room.code, game: room.game });

@@ -279,3 +279,36 @@ describe("rooms.the-turn-is-told-only-to-whose-turn-it-is", () => {
     expect(theirs?.myTurn).toBeUndefined();
   });
 });
+
+// СТОРОЖ `rooms.an-invited-table-is-raised-by-the-first-to-arrive`.
+//
+// Приглашение уходит в чужую переписку раньше стола: бот отвечает на `@CrossaderBot chess`
+// карточкой с кодом, а комнату заводит тот, кто первым по ней придёт. Два вранья, которые здесь
+// караулятся: комната, заведённая на каждый набранный запрос (пустые столы на каждую букву), и
+// «стол закрылся» на приглашении, за которое ещё никто не садился.
+describe("rooms.an-invited-table-is-raised-by-the-first-to-arrive", () => {
+  it("обещанный код рассказывает про стол, но комнаты ещё не заводит", async () => {
+    const { code } = (await (await post("/rooms/code", { game: "chess", forever: true })).json()) as { code: string };
+    const seen = (await (await fetch(`${BASE}/rooms/by-code/${code}`)).json()) as Record<string, unknown>;
+    expect(seen.game).toBe("chess");
+    expect(seen.forever).toBe(true);
+    expect(seen.waiting).toBe(true);
+    // Комнаты нет: стола с таким кодом ни в одном списке ещё не стоит.
+    expect(seen.room).toBeNull();
+  });
+
+  it("первый вошедший заводит стол, второй садится за тот же", async () => {
+    const { code } = (await (await post("/rooms/code", { game: "chess", forever: true })).json()) as { code: string };
+    const first = (await (await post("/rooms/join", { code })).json()) as Record<string, string>;
+    expect(first.game).toBe("chess");
+    expect(first.code).toBe(code);
+    const second = (await (await post("/rooms/join", { code })).json()) as Record<string, string>;
+    expect(second.room).toBe(first.room);
+  });
+
+  it("код без обещания по-прежнему значит «стол закрылся»", async () => {
+    const { code } = (await (await post("/rooms/code")).json()) as { code: string };
+    expect((await fetch(`${BASE}/rooms/by-code/${code}`)).status).toBe(404);
+    expect((await post("/rooms/join", { code })).status).toBe(404);
+  });
+});

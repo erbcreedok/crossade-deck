@@ -3,8 +3,9 @@ import { loadEnv } from "./env.js";
 import { GAMES, type Game } from "./games.js";
 import { gameOfCommand, gameOfNewArg } from "./commands.js";
 import { resolveHubUrl } from "./hubUrl.js";
-import { createRoom } from "./rooms.js";
+import { createRoom, reserveTable } from "./rooms.js";
 import { roomMessage } from "./links.js";
+import { gamesFor, inviteCard, startappUrl } from "./invite.js";
 import { claimLink, claimReply, tellProfile } from "./link.js";
 import { askFor, buttonsFor, cleanName, linkedSaid, nextSaid, stopWaiting, waitingIn, type Offer } from "./talk.js";
 import { readStart, sourceFor, sourcesOf } from "./sources.js";
@@ -173,6 +174,43 @@ bot.on("message", async (ctx, next) => {
   }
   stopWaiting(ctx.chat.id);
   return moveOn(ctx, waiting.telegramId, { photoFileId: sent });
+});
+
+/**
+ * ПОЗВАТЬ ДРУГА ТАМ, ГДЕ БОТА НЕТ. В личке двух людей slash-команду никто не услышит — бот туда не
+ * приглашён и приглашён быть не может. Inline mode — единственная дверь: человек набирает
+ * `@CrossaderBot chess` прямо в переписке, и выбранный результат ложится в чат карточкой стола.
+ *
+ * Кнопка — `url`, а не `web_app`: телега разрешает `web_app` только в личке с самим ботом, и в
+ * inline-карточке такая кнопка не живёт. `t.me/<бот>?startapp=<код>` открывает тот же мини-апп.
+ *
+ * КОД ЗДЕСЬ ТОЛЬКО РЕЗЕРВИРУЕТСЯ. Комнату поднимет первый вошедший: заводить её на каждый
+ * набранный запрос значило бы оставлять пустой стол на каждую букву.
+ */
+bot.on("inline_query", async (ctx) => {
+  const by = String(ctx.from.id);
+  const games = gamesFor(ctx.inlineQuery.query);
+  const codes = await Promise.all(games.map((game) => reserveTable(env.serverUrl, game, by)));
+  const botName = (await bot.api.getMe()).username;
+  const results = games.flatMap((game, i) => {
+    const code = codes[i];
+    if (!code) return [];
+    const card = inviteCard(game, code);
+    const url = startappUrl(botName, code);
+    return [
+      {
+        type: "article" as const,
+        id: `${game}:${code}`,
+        title: card.title,
+        description: card.description,
+        input_message_content: { message_text: `${card.text}\n${url}` },
+        reply_markup: new InlineKeyboard().url(card.button, url),
+      },
+    ];
+  });
+  // НИЧЕГО НЕ КЕШИРОВАТЬ: у каждого запроса свой код, и отданный из кеша отправил бы двух разных
+  // людей за один и тот же стол.
+  await ctx.answerInlineQuery(results, { cache_time: 0, is_personal: true });
 });
 
 async function main(): Promise<void> {
