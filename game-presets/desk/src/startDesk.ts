@@ -527,6 +527,9 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
         mine: () => seat,
         view: () => viewNow(),
         send: (msg) => table.sendRelay(msg),
+        // ГДЕ ЧЕЙ СТУЛ — чтобы сидящего, от которого нет вестей, было куда поставить: спрашивается
+        // у аватаров, потому что стул можно передвинуть, и тогда место уже не то, с которого начали.
+        placeOf: (one) => avatars?.placeOf(one) ?? places[Number(/^p(\d+)$/.exec(one)?.[1] ?? 0) - 1],
       });
       avatars = withAvatars({
         desk: () => live.host.root,

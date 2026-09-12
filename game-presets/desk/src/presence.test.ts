@@ -154,3 +154,49 @@ describe("deskAvatarsTransport: the hub's relay in place of a local screen", () 
     expect(wiring.transport.mine()[0]?.state).toBe("away");
   });
 });
+
+// СТОРОЖ `desk.a-silent-sitter-still-stands-at-their-place`.
+//
+// Присутствие приезжает с чужого экрана. У мок-юзера экрана нет, и его стул оставался пустым, хотя
+// комната считала место занятым: сукно и список за столом говорили про один стол разное. Тот, кто
+// сидит и молчит, стоит на своём месте — но своё, услышанное присутствие всегда точнее, и
+// перебивать его догадкой нельзя.
+describe("desk.a-silent-sitter-still-stands-at-their-place", () => {
+  const PLACE = { at: { x: 3, y: -4 }, facing: 0.5 };
+
+  function withPlaces(mine: string | null) {
+    const heard: Presence[] = [];
+    const wiring = deskAvatarsTransport({
+      mine: () => mine,
+      view: () => VIEW,
+      send: () => {},
+      now: () => 0,
+      placeOf: (seat) => (seat === "p2" ? PLACE : undefined),
+    });
+    wiring.transport.hear((p) => heard.push(p));
+    return { wiring, heard };
+  }
+
+  it("сидящий, от которого нет вестей, встаёт на своё место и без взгляда", () => {
+    const { wiring, heard } = withPlaces("p1");
+    wiring.roster(ROSTER);
+    const quiet = heard.find((p) => p.seat === "p2")!;
+    expect(quiet.place).toEqual(PLACE);
+    expect(quiet.state).toBe("away");
+    expect(quiet.name).toBe("Bob");
+  });
+
+  it("своё место за себя не досочиняется", () => {
+    const { wiring, heard } = withPlaces("p2");
+    wiring.roster(ROSTER);
+    expect(heard.find((p) => p.seat === "p2")).toBeUndefined();
+  });
+
+  it("сказавший о себе сам догадкой не перебивается", () => {
+    const { wiring, heard } = withPlaces("p1");
+    wiring.heard({ kind: "presence", from: "p2", view: VIEW, state: "online" } as unknown as RelayMessage);
+    heard.length = 0;
+    wiring.roster(ROSTER);
+    expect(heard.find((p) => p.seat === "p2")).toBeUndefined();
+  });
+});

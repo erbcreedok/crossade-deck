@@ -8,7 +8,8 @@
 // desk must win. Everything downstream of a `Presence[]` — placing the discs, dressing the rings,
 // idle-return, taps — is the kit's own (`withAvatars`) and is not restated here.
 
-import type { AvatarSeat, AvatarsTransport, Paint, Presence, PresenceState, PresenceView } from "game-kit";
+import { homeTarget } from "game-kit";
+import type { AvatarSeat, AvatarsTransport, Paint, Presence, PresenceState, PresenceView, Vec } from "game-kit";
 import type { RelayMessage, RosterItem } from "@crossade/wire";
 
 /**
@@ -55,6 +56,11 @@ export interface DeskAvatarsTransportOptions {
   readonly send: (msg: RelayMessage) => void;
   /** The clock, injectable so a test can move it without waiting. */
   readonly now?: () => number;
+  /**
+   * ГДЕ СТОИТ МЕСТО ЭТОГО СТУЛА — нужно тем, кто сидит, но молчит: у них нет экрана, чтобы сказать,
+   * откуда они смотрят, и без места их некуда поставить.
+   */
+  readonly placeOf?: (seat: string) => { readonly at: Vec; readonly facing: number } | undefined;
 }
 
 export interface DeskAvatarsTransport {
@@ -74,6 +80,29 @@ export interface DeskAvatarsTransport {
 
 export function deskAvatarsTransport(o: DeskAvatarsTransportOptions): DeskAvatarsTransport {
   const now = o.now ?? (() => Date.now());
+
+  /**
+   * КТО СИДИТ, НО МОЛЧИТ — за столом есть, а вестей от него нет.
+   *
+   * Присутствие приезжает с чужого экрана: «вот мой вид, вот куда я смотрю». У мок-юзера экрана
+   * нет вовсе, и стул под ним оставался пустым, хотя комната считала место занятым — сукно и
+   * список говорили про один стол разное.
+   *
+   * Такой человек ставится НА СВОЁ МЕСТО: вид собирается из его места (`homeTarget`) и моего
+   * стекла, а состояние — «отошёл»: он за столом, но не смотрит, и конуса взгляда у него нет.
+   */
+  const quiet = (seat: string): Presence | undefined => {
+    const place = o.placeOf?.(seat);
+    const glass = o.view();
+    if (!place || !glass) return undefined;
+    const view: PresenceView = {
+      glass: glass.glass,
+      zoom: glass.zoom,
+      rotation: -place.facing,
+      target: homeTarget(place, { zoom: glass.zoom, rotation: -place.facing, glass: glass.glass }),
+    };
+    return { seat, name: names.get(seat) ?? seat, ink: inkOf(seat), state: "away", holding: false, place, view };
+  };
 
   /** Everybody the room has named, in seat order — the order the inks are read by. */
   let seated: readonly string[] = [];
@@ -133,6 +162,13 @@ export function deskAvatarsTransport(o: DeskAvatarsTransportOptions): DeskAvatar
       seated = items.map((one) => one.seat).filter((seat): seat is string => typeof seat === "string");
       names.clear();
       for (const one of items) if (one.seat) names.set(one.seat, one.name);
+      // МОЛЧУНЫ ВСТАЮТ НА СВОИ МЕСТА. Говорившие хоть раз (`knownEars`) сюда не попадают: их
+      // собственное присутствие точнее любой догадки, и перебивать его местом нельзя.
+      for (const seat of seated) {
+        if (seat === o.mine() || knownEars.has(seat)) continue;
+        const sitting = quiet(seat);
+        if (sitting) for (const cb of heard) cb(sitting);
+      }
       return before.filter((seat) => !seated.includes(seat));
     },
     heard: (msg) => {

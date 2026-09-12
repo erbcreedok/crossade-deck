@@ -20,6 +20,12 @@ import { openRoom } from "../src/rooms.js";
 
 const CODE = "TEST";
 
+/**
+ * СТОЛЬКО МЕСТ, СКОЛЬКО ИХ НА СУКНЕ У ЭТОЙ ИГРЫ. Заведёшь больше — сервер выдаст стулья, которых
+ * стол не рисует: человек сядет на `p3`, а кресел на сукне два, и его место окажется нигде.
+ */
+const SEATS = 2;
+
 /** Мок-юзеры: имя, цвет и роль. Админ и игрок садятся за стол сами, зритель остаётся без стула. */
 const GUESTS: readonly { name: string; color: string; role: Role }[] = [
   { name: "Алия", color: "#7fd1b9", role: "admin" },
@@ -69,7 +75,7 @@ function main(): void {
 
   const room =
     roomByCode(CODE) ??
-    openRoom({ game: "cards", seats: 4, ownerAccount: owner, visibility: "hidden", admission: "code", mode: "free", forever: true, code: CODE });
+    openRoom({ game: "cards", seats: SEATS, ownerAccount: owner, visibility: "hidden", admission: "code", mode: "free", forever: true, code: CODE });
   if (!room) {
     console.error(`Код ${CODE} занят другой комнатой.`);
     process.exit(1);
