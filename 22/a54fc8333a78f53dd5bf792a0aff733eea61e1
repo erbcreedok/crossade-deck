@@ -1,0 +1,19 @@
+design/grab/index.html
+  s_357f670d370d4d::t_66adbdb39300ba 14,35,48-50,59,69-70,72,96-109,113-115,120,123,125,129-130,132-135,137-140,142,145,149-156,158-159,161,163-176,184-185,195-199,204-214,219,223-232,235-236,238,240-241,243,246-247,251-252,257-267,269-277,279,283,285,289-307,310,312-322,325,327-346,387,390-393
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "22a54fc8333a78f53dd5bf792a0aff733eea61e1",
+  "prompts": {},
+  "sessions": {
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
