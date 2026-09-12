@@ -1,0 +1,32 @@
+server/src/roomRoster.ts
+  s_9ed0da107cbc4a::t_6c924cb5869fa2 1,3-6,8-13,20-21,25-27,31,35-36,38-39,43-44,49-51,54-68
+server/src/KitRoom.ts
+  s_9ed0da107cbc4a::t_d937750e652499 224-227
+server/src/roomPeople.ts
+  s_9ed0da107cbc4a::t_d937750e652499 11-14,16-17
+  s_9ed0da107cbc4a::t_736de9ab76b08d 15
+server/src/roomRoutes.test.ts
+  s_9ed0da107cbc4a::t_bd5f5c717eff99 316,318-323,325,333-334,338-343,346-347,350,353-355
+wire/src/rooms.ts
+  s_9ed0da107cbc4a::t_bcc60c6245c67e 167-168,172-177
+game-presets/tophud/src/roster.ts
+  s_9ed0da107cbc4a::t_a36d21cbb6633f 25
+game-presets/desk/src/startDesk.ts
+  s_9ed0da107cbc4a::t_a36d21cbb6633f 196-197,199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2f8deffe5681ca03eb0f1276055b4f7c90f48db1",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
