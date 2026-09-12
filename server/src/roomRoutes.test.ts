@@ -173,21 +173,51 @@ describe("поиск столов", () => {
   });
 });
 
-// СТОРОЖ `rooms.a-table-that-is-not-forever-closes-with-its-session`.
+// СТОРОЖ `rooms.an-empty-table-waits-before-it-closes`.
 //
-// Вечность — выбор хозяина, а не свойство машинерии. Невечный стол, оставшийся стоять после ухода
-// последнего, копит мусор: список за неделю зарастает пустыми комнатами, и его перестают читать.
-describe("rooms.a-table-that-is-not-forever-closes-with-its-session", () => {
-  it("невечный закрывается вместе с сессией и отдаёт код, вечный — стоит", async () => {
+// Вечность — выбор хозяина, а не свойство машинерии: невечный стол, оставшийся стоять навсегда,
+// зарастает мусором, и список перестают читать. Но закрывать его В ТУ ЖЕ СЕКУНДУ, когда кончилась
+// сессия, нельзя — так умирают две обычные вещи: стол, за который ещё не успели сесть (его открыли,
+// чтобы прислать другу код), и ПЕРЕЗАГРУЗКА СТРАНИЦЫ, которая для сервера такой же уход последнего.
+describe("rooms.an-empty-table-waits-before-it-closes", () => {
+  it("стол, за который ещё не сели, не умирает в ту же секунду", async () => {
     const { sessionEnded } = await import("./rooms.js");
+    const once = await open({ forever: false });
+
+    sessionEnded(once.body.room!);
+
+    expect((await fetch(`${BASE}/rooms/by-code/${once.body.code}`)).status).toBe(200);
+  });
+
+  it("простояв пустым, невечный закрывается сам и отдаёт код; вечный стоит", async () => {
+    const { sessionEnded, closeLater, forgetClosings } = await import("./rooms.js");
+    forgetClosings();
     const once = await open({ forever: false });
     const always = await open({ forever: true });
 
     sessionEnded(once.body.room!);
     sessionEnded(always.body.room!);
+    // Тот же будильник, только на десять миллисекунд вместо получаса.
+    forgetClosings();
+    closeLater(once.body.room!, 10);
+    closeLater(always.body.room!, 10);
+    await new Promise((r) => setTimeout(r, 30));
 
     expect((await fetch(`${BASE}/rooms/by-code/${once.body.code}`)).status).toBe(404);
     expect((await fetch(`${BASE}/rooms/by-code/${always.body.code}`)).status).toBe(200);
+  });
+
+  it("вернулись за стол — закрывать нечего", async () => {
+    const { closeLater, forgetClosings } = await import("./rooms.js");
+    forgetClosings();
+    const once = await open({ forever: false });
+
+    closeLater(once.body.room!, 10);
+    // Вернулись: сессия снова идёт, и будильник, проснувшись, ничего не делает.
+    await post("/rooms/join", { code: once.body.code });
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect((await fetch(`${BASE}/rooms/by-code/${once.body.code}`)).status).toBe(200);
   });
 });
 

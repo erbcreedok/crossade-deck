@@ -245,8 +245,12 @@ function sparkleOf(surface: string): Node {
  * `shiftY` moves the title and the shelf down, in units — what the first page's own header takes
  * off the top of the glass (`home/`). The shelf stands in the middle of WHAT IS LEFT rather than in
  * the middle of the canvas: a header drawn over a centred shelf sits on the title.
+ *
+ * `gap` РАЗДВИГАЕТ ИМЯ МЕСТА И ПОЛКУ — ровно настолько, сколько занял ряд «куда зайти», который
+ * встаёт между ними. Не сдвиг вниз: сдвинутые вместе, они оставили бы ряду ту же щель, и карточки
+ * легли бы на плитки.
  */
-export function hubTree(columns: number = PLACES, shiftY = 0): Node {
+export function hubTree(columns: number = PLACES, shiftY = 0, gap = 0): Node {
   installLayouts();
   const desk = node(
     "desk",
@@ -265,14 +269,14 @@ export function hubTree(columns: number = PLACES, shiftY = 0): Node {
       Bounded({ bounds: rect(7, 0.9) }),
       Labeled({ label: "Crossade", style: TITLE }),
       // Above the shelf, however tall the shelf is: two rows of tiles stand taller than one.
-      Transformable({ at: { x: 0, y: -shelfSize(columns).h / 2 - 1.0 + shiftY } }),
+      Transformable({ at: { x: 0, y: -shelfSize(columns).h / 2 - 1.0 - gap / 2 + shiftY } }),
     ),
   );
 
   const shelf = node(
     "shelf",
     Container({ layout: columns < PLACES ? GRID_NARROW : GRID }),
-    Transformable({ at: { x: 0, y: 0.3 + shiftY } }),
+    Transformable({ at: { x: 0, y: 0.3 + gap / 2 + shiftY } }),
   );
   add(desk, shelf);
   for (const entry of CATALOGUE) add(shelf, tileOf(entry));
@@ -287,8 +291,8 @@ export function hubTree(columns: number = PLACES, shiftY = 0): Node {
  * их и ищут глазами. Считается по той же арифметике, что рисует заголовок, — иначе ряд поедет от
  * любой правки полки.
  */
-export function titleBottom(view: { height: number }, unit: number, columns: number, shiftY: number): number {
-  const y = -shelfSize(columns).h / 2 - 1.0 + shiftY + 0.45;
+export function titleBottom(view: { height: number }, unit: number, columns: number, shiftY: number, gap = 0): number {
+  const y = -shelfSize(columns).h / 2 - 1.0 - gap / 2 + shiftY + 0.45;
   return Math.round(view.height / 2 + unit * y);
 }
 

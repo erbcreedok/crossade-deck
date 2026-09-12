@@ -187,24 +187,59 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
   const shiftOf = (unit: number): number => headPx / 2 / unit;
   /** The shift the standing tree was built with. */
   let lastShift = Number.NaN;
+  /** Сколько пикселей занял ряд «куда зайти». Ноль — ряда нет вовсе. */
+  let rowPx = 0;
+  let lastGap = Number.NaN;
+  /**
+   * КУДА ЗАЙТИ — ряд между именем места и полкой. Человек чаще возвращается, чем выбирает, и у
+   * вернувшегося этот ряд первый. Пусто — ряда нет вовсе.
+   */
+  const comeback = comebackRow(chrome, (id, code) => {
+    goTo(id, "push", code);
+    if (runningId === id) leave(false, "play");
+    void enter(id, false);
+  });
+
+  /** Перечитать свои столы. Список короткий, и спрашивается он только на полке. */
+  const refreshComeback = async (): Promise<void> => {
+    const me = liveRooms.me();
+    if (!me) return;
+    const cards = await liveRooms.list(undefined, me);
+    if (!alive || !cards) return;
+    comeback.set(comebackCards(cards));
+    // Высота ряда МЕРИТСЯ, а не складывается из чисел: карточка переносит подпись на телефоне уже
+    // при двух словах, и посчитанная высота разошлась бы с нарисованной.
+    const tall = Math.round(comeback.element.getBoundingClientRect().height);
+    if (tall !== rowPx) {
+      rowPx = tall;
+      lastUnit = -1;
+      applyFit();
+    }
+  };
+
   const applyFit = (): void => {
     const v = host.viewport();
-    const u = fitUnit(v, headPx);
+    // РЯД «КУДА ЗАЙТИ» СТОИТ МЕЖДУ ИМЕНЕМ И ПОЛКОЙ — значит он забирает высоту у полки так же, как
+    // шапка сверху, и раздвигает их ровно на себя.
+    const u = fitUnit(v, headPx + rowPx);
     // TURNED OVER: a phone rotated is a different shelf, not the same one smaller.
     const columns = shelfColumns(v);
     const shift = shiftOf(u);
+    const gap = rowPx / u;
     // EVERY "WHAT IS IT NOW" IS RECORDED BEFORE ANYTHING IS WRITTEN, because `setRoot` answers with
     // `onChange`, and `onChange` is what called this. Written first, the second pass sees nothing
     // left to do and stops; written after, it is a tree rebuilt inside a tree rebuild, for ever.
-    const rebuild = !playing && (columns !== lastColumns || Math.abs(shift - lastShift) > 0.01);
+    const rebuild =
+      !playing && (columns !== lastColumns || Math.abs(shift - lastShift) > 0.01 || Math.abs(gap - lastGap) > 0.01);
     lastColumns = columns;
     lastShift = shift;
+    lastGap = gap;
     const grew = u !== lastUnit;
     lastUnit = u;
-    if (rebuild) host.setRoot(hubTree(columns, shift));
+    if (rebuild) host.setRoot(hubTree(columns, shift, gap));
     if (grew) host.setViewer({ ...host.viewer(), hudUnit: u });
     // ПОДСКАЗКИ СТОЯТ ПОД ИМЕНЕМ МЕСТА — значит переезжают вместе с ним на каждой примерке.
-    comeback.place(titleBottom(v, u, columns, shift) + 12);
+    comeback.place(titleBottom(v, u, columns, shift, gap) + 12);
   };
   const stopFitting = host.onChange(() => {
     applyFit();
@@ -228,25 +263,6 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     if (alive) void home.refresh();
     if (alive) void refreshComeback();
   });
-
-  /**
-   * КУДА ЗАЙТИ — ряд между именем места и полкой. Человек чаще возвращается, чем выбирает, и у
-   * вернувшегося этот ряд первый. Пусто — ряда нет вовсе.
-   */
-  const comeback = comebackRow(chrome, (id, code) => {
-    goTo(id, "push", code);
-    if (runningId === id) leave(false, "play");
-    void enter(id, false);
-  });
-
-  /** Перечитать свои столы. Список короткий, и спрашивается он только на полке. */
-  const refreshComeback = async (): Promise<void> => {
-    const me = liveRooms.me();
-    if (!me) return;
-    const cards = await liveRooms.list(undefined, me);
-    if (!alive || !cards) return;
-    comeback.set(comebackCards(cards));
-  };
 
   /**
    * ЗА КАКОЙ СТОЛ. Нажатие на плитку игры, в которую играют вдвоём, спрашивает это ПЕРЕД игрой —
@@ -282,7 +298,15 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     shell?.setAttribute("data-mode", mode);
     // THE HUB KEEPS NO RIBBON OF ITS OWN while a game runs: the strip along the top is the game's
     // (`@game-presets/tophud`), and the game's region covers the whole viewport.
-    host.setRoot(playing ? tableTree() : hubTree(shelfColumns(host.viewport()), shiftOf(lastUnit > 0 ? lastUnit : fitUnit(host.viewport(), headPx))));
+    host.setRoot(
+      playing
+        ? tableTree()
+        : hubTree(
+            shelfColumns(host.viewport()),
+            shiftOf(lastUnit > 0 ? lastUnit : fitUnit(host.viewport(), headPx + rowPx)),
+            rowPx / (lastUnit > 0 ? lastUnit : fitUnit(host.viewport(), headPx + rowPx)),
+          ),
+    );
     // THE FIRST PAGE'S OWN HEADER BELONGS TO THE FIRST PAGE. A running game draws its own strip
     // (`@game-presets/tophud`), and two of them would stand one on the other.
     home.element.style.display = playing ? "none" : "";

@@ -77,7 +77,7 @@ export function comebackRow(container: HTMLElement, onGo: (game: string, code: s
     `box-shadow:inset 0 0 0 3px ${PALETTE.black},inset 0 0 0 5px ${one.hot ? PALETTE.gold : PALETTE.wood};` +
     `display:flex;align-items:center;gap:10px">` +
     `<span style="flex:none;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;` +
-    `background:${PALETTE.black};font-size:17px">${esc(one.sign)}</span>` +
+    `background:${PALETTE.black};font-size:17px;color:${PALETTE.inkDim}">${esc(one.sign)}</span>` +
     `<span style="display:flex;flex-direction:column;gap:3px;min-width:0">` +
     `<span style="font:400 11px ${CODE_FONT};color:${PALETTE.gold}">${esc(one.code)}</span>` +
     `<span style="font:400 10px ${FONT};color:${one.hot ? PALETTE.gold : PALETTE.inkDim};white-space:nowrap;` +

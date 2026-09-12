@@ -11,6 +11,7 @@ import colyseusPkg from "colyseus";
 const { matchMaker } = colyseusPkg;
 import { accountById } from "./db/accountsRepo.js";
 import { hold, isHeld, release } from "./codeHold.js";
+import { getEmptyRoomTtlMs } from "./roomConfig.js";
 import { forgetPeople } from "./roomPeople.js";
 import {
   addMember,
@@ -112,6 +113,7 @@ export function codeFree(raw: unknown): boolean {
  * ТОЙ ЖЕ комнаты — с её кодом, её игрой и её людьми.
  */
 export async function sessionOf(room: RoomRow): Promise<string> {
+  // За стол вернулись — назначенное закрытие отменяется само собой: будильник увидит живую сессию.
   if (room.sessionId) {
     const live = await matchMaker.query({ roomId: room.sessionId });
     if (live.length > 0) return room.sessionId;
@@ -147,16 +149,47 @@ export function joined(roomId: string, accountId: string): void {
 }
 
 /**
- * СЕССИЯ КОНЧИЛАСЬ. Вечный стол остаётся стоять — он принадлежит человеку, а не этой встрече;
- * невечный закрывается вместе с ней и отдаёт свой код. Люди за столом забываются в обоих случаях:
- * вчерашние лица в списке врут громче, чем «сейчас никого».
+ * СЕССИЯ КОНЧИЛАСЬ. Вечный стол остаётся стоять — он принадлежит человеку, а не этой встрече.
+ * Люди за столом забываются в обоих случаях: вчерашние лица в списке врут громче, чем «никого».
  */
 export function sessionEnded(roomId: string): void {
   touchRoom(roomId);
   setSession(roomId, null);
   forgetPeople(roomId);
   const room = roomById(roomId);
-  if (room && !room.forever) closeRoom(roomId);
+  if (room && !room.forever) closeLater(roomId);
+}
+
+/** Столы, которым назначено закрытие. Ключ — комната; повторный вызов не заводит второй будильник. */
+const closing = new Map<string, ReturnType<typeof setTimeout>>();
+
+/**
+ * НЕВЕЧНЫЙ СТОЛ ЗАКРЫВАЕТСЯ НЕ В ТУ ЖЕ СЕКУНДУ, А ПРОСТОЯВ ПУСТЫМ.
+ *
+ * Закрытие вместе с сессией выглядит логично и ломает две обычные вещи: стол, за который ещё не
+ * успели сесть (его открыли, чтобы прислать другу код), и перезагрузку страницы — она для сервера
+ * такой же уход последнего. Поэтому стол ждёт: вернулись — живёт дальше, не вернулись — закрывается
+ * сам и отдаёт код.
+ */
+export function closeLater(roomId: string, ms = getEmptyRoomTtlMs()): void {
+  if (closing.has(roomId)) return;
+  const timer = setTimeout(() => {
+    closing.delete(roomId);
+    const room = roomById(roomId);
+    // Вернулись за стол (или стол уже закрыли руками) — закрывать нечего. И вечный не закрывается
+    // по будильнику никогда: он принадлежит человеку, а не этой встрече.
+    if (!room || room.closedAt || room.sessionId || room.forever) return;
+    closeRoom(roomId);
+  }, ms);
+  // Будильник не держит процесс живым: пустой стол — не повод не дать серверу остановиться.
+  timer.unref?.();
+  closing.set(roomId, timer);
+}
+
+/** Только для тестов: снять все назначенные закрытия. */
+export function forgetClosings(): void {
+  for (const timer of closing.values()) clearTimeout(timer);
+  closing.clear();
 }
 
 /** Закрыть комнату. Только хозяин: вечная комната принадлежит человеку. */

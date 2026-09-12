@@ -73,7 +73,7 @@ export function roomRow(room: Room, open: boolean, mixed: boolean): string {
     `border-radius:12px;padding:11px 12px;display:flex;flex-direction:column;gap:9px">` +
     `<div style="display:flex;align-items:center;gap:10px">` +
     `<span style="flex:none;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;` +
-    `background:${PALETTE.black};font-size:18px">${esc(room.game.sign)}</span>` +
+    `background:${PALETTE.black};font-size:18px;color:${PALETTE.inkDim}">${esc(room.game.sign)}</span>` +
     `<div style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">` +
     `<div style="display:flex;align-items:center;gap:7px">` +
     `<span style="font:400 13px ${CODE_FONT};color:${PALETTE.gold}">${esc(room.code)}</span>` +
@@ -215,7 +215,7 @@ export function createHtml(
     `<div style="padding:0 16px 16px">` +
     `<div style="display:flex;align-items:center;gap:12px;padding:6px 0 4px">` +
     `<span style="flex:none;width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;` +
-    `background:${PALETTE.black};font-size:22px">${esc(game.sign)}</span>` +
+    `background:${PALETTE.black};font-size:22px;color:${PALETTE.inkDim}">${esc(game.sign)}</span>` +
     `<div style="display:flex;flex-direction:column;gap:3px">` +
     `<span style="font:400 16px ${FONT};color:${PALETTE.ink}">${esc(game.name)}</span>` +
     `<span style="font:400 11px ${FONT};color:${PALETTE.inkDim}">стол на ${seats} мест</span></div></div>` +
