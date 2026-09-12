@@ -1,0 +1,45 @@
+game-presets/tophud/src/roster.ts
+  s_9ed0da107cbc4a::t_b52194c5f6b14a 33-38
+server/src/roomRoutes.test.ts
+  s_9ed0da107cbc4a::t_dca66144839ca2 536-565
+wire/src/index.ts
+  s_9ed0da107cbc4a::t_438664ce3d0efd 30-31
+wire/src/rooms.ts
+  s_9ed0da107cbc4a::t_438664ce3d0efd 178-192,209-211,221,223-225
+server/src/app.ts
+  s_9ed0da107cbc4a::t_30a7f43d8d56db 46,270-286
+wire/src/table.ts
+  s_9ed0da107cbc4a::t_7275bbdc0593ed 143-146
+  s_9ed0da107cbc4a::t_01960ebddf716f 49-57,128,225-233
+game-presets/tophud/src/topHud.ts
+  s_9ed0da107cbc4a::t_b52194c5f6b14a 14,86-87,108-113,262-264,277,363,421-441
+  s_9ed0da107cbc4a::t_79ecc7d3e3f7e5 326-344
+  s_9ed0da107cbc4a::t_7afed256eb7598 71-75,104,508-544,566-567
+  s_9ed0da107cbc4a::t_235eda35c6eec2 356-362,364-420
+  s_9ed0da107cbc4a::t_9ea7e8c37e0bbf 568-569
+game-presets/desk/src/startDesk.ts
+  s_9ed0da107cbc4a::t_974092fab5c8bd 139,167-171,205-206,220-222,487-489,663
+server/src/KitRoom.ts
+  s_9ed0da107cbc4a::t_67c08ff0ddf839 175-176,338-343,347-349,351,354,383
+server/src/KitRoom.test.ts
+  s_9ed0da107cbc4a::t_4a5d0d90d69942 238-260
+game-presets/tophud/src/topHud.test.ts
+  s_9ed0da107cbc4a::t_c3bbd818054c58 4
+  s_9ed0da107cbc4a::t_3ce5ed2cdb1c45 140-209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "385d39d11e3af6e816ac096637a847e48febb4e5",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
