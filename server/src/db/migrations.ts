@@ -138,4 +138,48 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec(`ALTER TABLE identities ADD COLUMN declined_photo INTEGER NOT NULL DEFAULT 0`);
     },
   },
+  {
+    version: 7,
+    up(db) {
+      // КОМНАТА — ЗАПИСЬ, А ПРОЦЕСС COLYSEUS — ЕЁ ВРЕМЕННАЯ СЕССИЯ.
+      //
+      // Пока комната была процессом, ни списка комнат, ни вечных комнат быть не могло: последний
+      // вышедший уносил с собой и стол, и его код, а ссылка на этот код молча открывала НОВЫЙ стол
+      // — человек думал, что пришёл к друзьям, а сидел один.
+      //
+      // ТРИ ОСИ РАЗДЕЛЬНО, а не один тумблер «приватная/публичная»: кто ВИДИТ комнату, кого в неё
+      // ПУСКАЮТ и по какому ТРАНСПОРТУ. «Публичная, но по паролю» и «скрытая, но по ссылке» —
+      // разные вещи, и при одном переключателе половина случаев непредставима. У транспорта сегодня
+      // одно значение; поле есть, чтобы завтра не переписывать схему.
+      //
+      // КОД ОСВОБОЖДАЕТСЯ ТОЛЬКО ЗАКРЫТИЕМ: у живой комнаты он `NOT NULL` и уникален (SQLite не
+      // считает NULL'ы одинаковыми, поэтому закрытые комнаты не спорят друг с другом за место).
+      db.exec(`
+        CREATE TABLE rooms (
+          id TEXT PRIMARY KEY,
+          code TEXT,
+          game TEXT NOT NULL,
+          title TEXT,
+          owner_account TEXT REFERENCES accounts(id) ON DELETE SET NULL,
+          visibility TEXT NOT NULL DEFAULT 'public',
+          admission TEXT NOT NULL DEFAULT 'code',
+          transport TEXT NOT NULL DEFAULT 'server',
+          seats INTEGER,
+          created_at INTEGER NOT NULL,
+          alive_at INTEGER NOT NULL,
+          closed_at INTEGER
+        );
+        CREATE UNIQUE INDEX rooms_by_code ON rooms(code);
+        CREATE INDEX rooms_by_owner ON rooms(owner_account);
+        CREATE TABLE room_members (
+          room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+          account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+          role TEXT NOT NULL DEFAULT 'player',
+          joined_at INTEGER NOT NULL,
+          PRIMARY KEY (room_id, account_id)
+        );
+        CREATE INDEX room_members_by_account ON room_members(account_id);
+      `);
+    },
+  },
 ];
