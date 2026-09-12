@@ -1,0 +1,25 @@
+wire/src/table.ts
+  s_9ed0da107cbc4a::t_1f59cc90b6b087 74-75,79-83,92-102
+wire/src/rooms.ts
+  s_9ed0da107cbc4a::t_779a37cb31f196 1-97
+wire/src/table.test.ts
+  s_9ed0da107cbc4a::t_1f59cc90b6b087 84-86,90,92,97,99-100,103-111
+wire/src/index.ts
+  s_9ed0da107cbc4a::t_46fb52e8d473e5 14-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6af89ea24d68d6a544b31ad7199c6c0f1eac9754",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
