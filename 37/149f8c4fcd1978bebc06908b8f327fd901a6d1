@@ -1,0 +1,34 @@
+apps/hub/src/rooms/comeback.test.ts
+  s_9ed0da107cbc4a::t_af058c4bd085cf 16-17
+apps/hub/src/rooms/door.ts
+  s_9ed0da107cbc4a::t_3c51f427526d06 84-86
+apps/cards/src/index.ts
+  s_9ed0da107cbc4a::t_79a20e21703415 17-21,40,53
+  s_9ed0da107cbc4a::t_ac38a18634c008 16
+wire/src/rooms.ts
+  s_9ed0da107cbc4a::t_9566e9240817c2 31-34,63-64
+apps/cards/src/spec.ts
+  s_9ed0da107cbc4a::t_79a20e21703415 23-27,40-47,53
+apps/cards/src/standalone.test.ts
+  s_9ed0da107cbc4a::t_6db01e35fb22c8 72-85
+apps/hub/src/hub/catalogue.ts
+  s_9ed0da107cbc4a::t_d25ba45b725532 61-72,75-93,115
+apps/hub/src/rooms/wiring.ts
+  s_9ed0da107cbc4a::t_9566e9240817c2 52-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "37149f8c4fcd1978bebc06908b8f327fd901a6d1",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
