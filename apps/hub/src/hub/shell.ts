@@ -230,7 +230,16 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
    * прежде оно молча открывало новый стол, и сыграть с кем-то можно было, только переслав ссылку.
    */
   const tables = tablesScreen(chrome, {
-    onSit: (id, code) => goTo(id, "push", code),
+    // АДРЕС ПИШЕТСЯ ВМЕСТЕ С КОДОМ СТОЛА, и игра открывается здесь же: `pushState` не будит ни
+    // `hashchange`, ни `popstate` — маршрутизатор о таком переезде не узнаёт, и человек остался бы
+    // на полке с правильным адресом в строке.
+    onSit: (id, code) => {
+      goTo(id, "push", code);
+      // ТОТ ЖЕ СТОЛ ИЛИ ДРУГОЙ — для игры это разные вещи, а `enter` считает открытой игру целиком.
+      // Пересесть за другой стол той же игры значит сначала встать из-за этого.
+      if (runningId === id) leave(false, "play");
+      void enter(id, false);
+    },
   });
 
   const setMode = (mode: "hub" | "play"): void => {
@@ -330,7 +339,23 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
       if (write) goTo(id);
       // THE ONE THING ONLY A SHELF KNOWS — that there is a way out of here. The game's own strip
       // draws it; a game opened at its own URL is handed none and has no way out on its strip.
-      running = start(stage, { exit: { go: () => goToShelf() } });
+      running = start(stage, {
+        exit: { go: () => goToShelf() },
+        // СЕСТЬ НЕ ВЫШЛО. Закрывшийся стол не подменяется своей пустой копией: человека возвращают
+        // на полку и говорят, что он опоздал, — и рядом кладут открытые столы этой же игры.
+        // ПОСЛЕ ТОГО, КАК СТОЛ ВСТАЛ, а не в середине его подъёма: комната отвечает «закрыта»
+        // раньше, чем `start` успевает вернуть свой снос, и уведённый в эту секунду стол остаётся
+        // на странице без хозяина — вместе со своим художником, который дорисовывает уже снесённое.
+        lost: (why) => {
+          if (!alive) return;
+          setTimeout(() => {
+            if (!alive) return;
+            goToShelf();
+            const said = why === "closed" ? "Стол закрылся. Открой новый или сядь за другой." : "Сервер не ответил. Попробуй ещё раз.";
+            void tables.show(entry.id, entry.label).then(() => tables.say(said));
+          }, 0);
+        },
+      });
       runningId = id;
       // THE GAME IS HOLDING ITS OWN SCREEN NOW (or has nothing to wait for). This one has served its
       // purpose — the download — and goes away under whatever the game put on top of it.

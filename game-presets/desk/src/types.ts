@@ -144,6 +144,16 @@ export interface DeskHost {
   insets(): { readonly top: number };
   /** A clock that counts frames. A throw, a glide and the idle countdown all borrow it. */
   clock(): { join(tick: (seconds: number, dt: number) => boolean | void): () => void; stop(): void };
+  /**
+   * ЗА СТОЛ НЕ СЕЛИ, И ВОТ ПОЧЕМУ. Стол, к которому не удалось присоединиться, всё равно рисуется —
+   * иначе человек смотрит в пустой прямоугольник и не отличает его от сломанного экрана. Но «стол
+   * закрылся» — не сбой связи: показывать вместо закрывшегося стола его пустую копию значит врать
+   * тому, кто пришёл по старой ссылке к друзьям.
+   *
+   * Кто отвечает на это, отвечает и за то, что будет дальше: хаб уводит на полку и говорит вслух.
+   * Кто не отвечает (игра на своём URL), получает прежнее поведение — местный стол.
+   */
+  lost?(why: "closed" | "offline"): void;
   /** What the desk is covered with until it knows whose side it is seen from (`curtain`). */
   readonly cover: string;
 }

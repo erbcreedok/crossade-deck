@@ -168,7 +168,7 @@ export function createApp() {
   // своих, и находится в `/accounts/:id/rooms`.
   app.get("/rooms", async (req, res) => {
     const game = typeof req.query.game === "string" ? req.query.game : undefined;
-    const rooms = game ? search(game) : mine("");
+    const rooms = search(game);
     const busy = await playerCounts();
     res.json(rooms.map((room) => ({ ...seenFromOutside(room), players: busy.get(room.sessionId ?? "") ?? 0 })));
   });

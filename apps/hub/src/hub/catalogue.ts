@@ -23,6 +23,8 @@ export type Teardown = () => void;
  */
 export interface ShellDoor {
   readonly exit: TopHudExit;
+  /** Сесть не вышло. Стол закрылся — не то же самое, что сеть моргнула, и говорится по-разному. */
+  readonly lost?: ((why: "closed" | "offline") => void) | undefined;
 }
 
 import type { TopHudExit } from "@game-presets/tophud";
@@ -55,7 +57,7 @@ function tableGame(id: string, load: () => Promise<(container: HTMLElement, o: {
   return async () => {
     const [start, { hubHost }] = await Promise.all([load(), import("../table/hubHost.js")]);
     return (container: HTMLElement, door: ShellDoor) =>
-      start(container, { host: hubHost(container, id, door.exit) as never });
+      start(container, { host: hubHost(container, id, door.exit, door.lost) as never });
   };
 }
 

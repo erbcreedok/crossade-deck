@@ -531,10 +531,21 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     })
     .catch((err) => {
       console.error("joinTable error:", err);
+      // СТОЛ ЗАКРЫЛСЯ — ЭТО ОТВЕТ, А НЕ СБОЙ. Пустая копия закрывшегося стола врёт тому, кто пришёл
+      // по старой ссылке: он видит стол, которого больше нет, и ждёт друзей, которых там не будет.
+      const closed = err instanceof Error && err.message === "room_closed";
+      // СНАЧАЛА СТОЛ ВСТАЁТ ДО КОНЦА, И ТОЛЬКО ПОТОМ О НЁМ СООБЩАЮТ. Тот, кто услышит, снесёт его
+      // немедленно, а стол, снесённый посреди собственного подъёма, уносит с собой общий пул
+      // художника — и страница под ним остаётся пустой.
+      //
       // A DESK NOBODY COULD JOIN IS STILL SHOWN. The cover is there because the seat is not known
       // yet, and a join that failed is an answer too — held down, it would leave a player looking at
-      // a blank rectangle with no way to tell it from a dead screen.
+      // a blank rectangle with no way to tell it from a dead screen. Это же и есть причина поднять
+      // стол ДО того, как о потере сообщат: услышавший снесёт его немедленно, а стол, снесённый
+      // посреди собственного подъёма, уносит с собой общий пул художника — и страница под ним
+      // остаётся пустой.
       ready();
+      o.host.lost?.(closed ? "closed" : "offline");
     });
 
   return () => {

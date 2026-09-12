@@ -106,6 +106,12 @@ describe("поиск столов", () => {
     const ids = list.map((one) => one.room);
     expect(ids).toContain(seen.body.room);
     expect(ids).not.toContain(hidden.body.room);
+
+    // И БЕЗ ВОПРОСА ПРО ИГРУ — ТОТ ЖЕ ОТВЕТ. Список без игры проверяется отдельно: правда о
+    // видимости не должна зависеть от того, спросили ли заодно про игру.
+    const all = (await (await fetch(`${BASE}/rooms`)).json()) as Record<string, string>[];
+    expect(all.map((one) => one.room)).toContain(seen.body.room);
+    expect(all.map((one) => one.room)).not.toContain(hidden.body.room);
   });
 
   it("скрытая комната остаётся в списке своих", async () => {

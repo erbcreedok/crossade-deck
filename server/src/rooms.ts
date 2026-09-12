@@ -4,7 +4,11 @@
 // сел, и исчезает, когда все встали. Отсюда два разных вопроса, которые раньше были одним: «есть ли
 // такая комната» (есть, пока её не закрыли) и «идёт ли там сейчас игра».
 
-import { matchMaker } from "colyseus";
+// ЧЕРЕЗ ПАКЕТ ЦЕЛИКОМ, А НЕ ИМЕНОВАННЫМ ИМПОРТОМ: `colyseus` — CommonJS, и `import { matchMaker }`
+// собирается, проходит тесты и падает на живом сервере при первом же импорте модуля.
+import colyseusPkg from "colyseus";
+
+const { matchMaker } = colyseusPkg;
 import { accountById } from "./db/accountsRepo.js";
 import {
   addMember,

@@ -30,7 +30,7 @@ export function topInsetOfStage(container: Element, covers?: readonly Element[])
 }
 
 /** The host a game is handed when the hub is the one running it. */
-export function hubHost(container: HTMLElement, game: string, exit?: TopHudExit): DeskHost {
+export function hubHost(container: HTMLElement, game: string, exit?: TopHudExit, lost?: (why: "closed" | "offline") => void): DeskHost {
   // THE HUB'S OWN BEAT, and not a clock of the desk's own: the shelf behind the stage is still
   // counting frames for its sparkle, and two loops on one page is the leak that reads as lag.
   const clock = beat(() => {});
@@ -43,6 +43,9 @@ export function hubHost(container: HTMLElement, game: string, exit?: TopHudExit)
     // THE ONE THING ONLY THE HUB KNOWS. Standalone answers nothing here, and its strip has no way
     // out on it.
     ...(exit ? { exit } : {}),
+    // СТОЛ ЗАКРЫЛСЯ — И ЭТО ЗНАЕТ ТОЛЬКО ХАБ: он уводит на полку и говорит вслух. Игра на своём
+    // URL этого не отвечает, и остаётся с местным столом, как прежде.
+    ...(lost ? { lost } : {}),
     clock: () => clock,
     cover: PALETTE.felt,
   };
