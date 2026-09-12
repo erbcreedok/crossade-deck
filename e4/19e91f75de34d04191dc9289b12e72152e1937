@@ -1,0 +1,37 @@
+server/src/roomRoutes.test.ts
+  s_9ed0da107cbc4a::t_8fd4ecd2da0ae6 109-114
+game-presets/desk/src/startDesk.ts
+  s_9ed0da107cbc4a::t_d469b0349c8662 540,543-546,548
+  s_9ed0da107cbc4a::t_6a15072f40de13 534-536
+  s_9ed0da107cbc4a::t_caec65f1a7d12f 537-539
+apps/hub/src/hub/catalogue.ts
+  s_9ed0da107cbc4a::t_dc68cbce10f9e7 26-27,60
+apps/hub/src/hub/shell.ts
+  s_9ed0da107cbc4a::t_7cfc2806558163 233-242
+  s_9ed0da107cbc4a::t_8142a47825e2b1 342-345,349-350,357-358
+  s_9ed0da107cbc4a::t_5ad90f41e39a16 346-348,351-356
+game-presets/desk/src/types.ts
+  s_9ed0da107cbc4a::t_6a15072f40de13 147-156
+server/src/app.ts
+  s_9ed0da107cbc4a::t_7d991242925cfd 171
+server/src/rooms.ts
+  s_9ed0da107cbc4a::t_8559a57f55b160 7-11
+apps/hub/src/table/hubHost.ts
+  s_9ed0da107cbc4a::t_dc68cbce10f9e7 33,46-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e419e91f75de34d04191dc9289b12e72152e1937",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
