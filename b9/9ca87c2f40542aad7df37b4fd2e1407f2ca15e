@@ -1,0 +1,58 @@
+game-presets/desk/src/startDesk.ts
+  s_9ed0da107cbc4a::t_22b98ca2cb010d 180
+  s_9ed0da107cbc4a::t_c1744f90709171 210-212
+server/src/roomRights.ts
+  s_9ed0da107cbc4a::t_01da713b08255f 1-142
+game-presets/tophud/src/row.ts
+  s_9ed0da107cbc4a::t_3fcf966bfca649 15-16
+game-presets/tophud/src/topHud.test.ts
+  s_9ed0da107cbc4a::t_3d44f76da0594f 54-74
+server/src/accounts.ts
+  s_9ed0da107cbc4a::t_19e4e07f0d560c 144-153
+  s_9ed0da107cbc4a::t_0fbb2194701382 360-367
+server/src/KitRoom.test.ts
+  s_9ed0da107cbc4a::t_84131f517e473e 196-238
+server/src/roomRights.test.ts
+  s_9ed0da107cbc4a::t_379d00c8ef8f1a 1-67
+server/src/roomRoster.ts
+  s_9ed0da107cbc4a::t_0fbb2194701382 25-26,62,77
+game-presets/tophud/src/roster.ts
+  s_9ed0da107cbc4a::t_6b407c05884384 24-25
+server/src/KitRoom.ts
+  s_9ed0da107cbc4a::t_4a24f4ae4fcfe8 9-20,150-178,329-375
+  s_9ed0da107cbc4a::t_0fbb2194701382 5,46-47,388,409
+  s_9ed0da107cbc4a::t_88264bc7077d26 221-227
+  s_9ed0da107cbc4a::t_3e2aced730374c 376
+game-presets/desk/src/presence.ts
+  s_9ed0da107cbc4a::t_22b98ca2cb010d 85-86,243
+  s_9ed0da107cbc4a::t_5c27e1eee6c703 112-121,133-134,161-162,191,196,230
+wire/src/table.ts
+  s_9ed0da107cbc4a::t_4e9a2466371907 12-13
+server/src/roomHarness.ts
+  s_9ed0da107cbc4a::t_84131f517e473e 37
+server/src/db/roomsRepo.ts
+  s_9ed0da107cbc4a::t_a51fff2c87f58c 364-375
+wire/src/rooms.ts
+  s_9ed0da107cbc4a::t_4e9a2466371907 184-185
+server/src/roomPeople.ts
+  s_9ed0da107cbc4a::t_0fbb2194701382 20-21
+game-presets/tophud/src/topHud.ts
+  s_9ed0da107cbc4a::t_6b407c05884384 282-299
+  s_9ed0da107cbc4a::t_3fcf966bfca649 194-198,203,207,215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b99ca87c2f40542aad7df37b4fd2e1407f2ca15e",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
