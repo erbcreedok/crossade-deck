@@ -236,6 +236,35 @@ describe("kit.a-deed-is-done-by-the-room-not-claimed-by-a-screen", () => {
     second.leave();
   });
 
+  it("поставленный стул остаётся у стола: и в сессии, и в записи", async () => {
+    const { createAccount } = await import("./accounts.js");
+    const { addMember, roomById } = await import("./db/roomsRepo.js");
+    const { openRoom } = await import("./rooms.js");
+
+    const boss = createAccount("Хозяин тесного");
+    const seer = createAccount("Зритель тесного");
+    const room = openRoom({ game: "cards", chairs: 1, ownerAccount: boss.id, newcomer: "spectator" })!;
+    addMember(room.id, seer.id, "spectator");
+
+    const first = await server().sdk.create("kit_room", { room: room.id, code: room.code, chairs: 1, accountId: boss.id });
+    const second = await server().sdk.joinById(first.roomId, { accountId: seer.id, name: "Зритель тесного" });
+    const seated = new Promise<{ roster: { accountId?: string; seat: string | null }[] }>((done) => {
+      second.onMessage("roster", (msg: { roster: { accountId?: string; seat: string | null }[] }) => {
+        if (msg.roster.some((one) => one.accountId === seer.id && one.seat !== null)) done(msg);
+      });
+    });
+
+    first.send("deed", { deed: "seat:add", whom: seer.id });
+    first.send("deed", { deed: "seat:give", whom: seer.id });
+    const after = await seated;
+    expect(after.roster.find((one) => one.accountId === seer.id)?.seat).toBe("p2");
+    // ...и стол помнит мебель завтра: стул, живущий до конца партии, назавтра снова тесен.
+    expect(roomById(room.id)?.chairs).toBe(2);
+
+    first.leave();
+    second.leave();
+  });
+
   it("сажать некуда — отказ словами, а не молчаливая смена роли", async () => {
     const { createAccount } = await import("./accounts.js");
     const { addMember, roleOf } = await import("./db/roomsRepo.js");

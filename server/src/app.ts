@@ -41,7 +41,7 @@ import {
   tooSoon,
 } from "./telegramLink.js";
 import { BUILD_INFO, formatVersion } from "./version.js";
-import { atCode, byCode, byId, close, reconfigure, codeFree, isKitGame, mine, openRoom, reserveCode, search, sessionOf, type RoomRow } from "./rooms.js";
+import { atCode, byCode, byId, chairsAreFixed, close, reconfigure, codeFree, isKitGame, mine, openRoom, reserveCode, search, sessionOf, type RoomRow } from "./rooms.js";
 import { rosterOf } from "./roomRoster.js";
 import { deedsOn } from "./roomRights.js";
 import { NEWCOMERS, ROOM_LIMIT } from "./db/roomsRepo.js";
@@ -277,9 +277,14 @@ export function createApp() {
     res.json(
       people.map((one) => {
         const { can, cant } = deedsOn(
-          { account: mine.account!, role: mine.role, seated: mine.seat !== null },
-          { account: one.account ?? one.name, role: one.role, seated: one.seat !== null },
+          { account: mine.account!, role: mine.role, seated: mine.seat !== null, here: mine.here },
+          { account: one.account ?? one.name, role: one.role, seated: one.seat !== null, here: one.here },
           room.mode,
+          {
+            ...(room.chairs !== null ? { chairs: room.chairs } : {}),
+            capacity: room.capacity,
+            ...(chairsAreFixed(room.game) !== undefined ? { chairsFixed: chairsAreFixed(room.game)! } : {}),
+          },
         );
         return { ...one, can, cant };
       }),

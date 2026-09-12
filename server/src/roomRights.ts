@@ -16,12 +16,26 @@ import type { Mode, Role } from "./db/roomsRepo.js";
 /** Что человек может в этой комнате: распоряжаться, предлагать или ничего. */
 export type Power = "full" | "admin" | "proposal" | "none";
 
+/** Стол, как его видит правило: сколько стульев, сколько людей и есть ли у игры своё число мест. */
+export interface Table {
+  readonly chairs?: number;
+  readonly capacity?: number;
+  /** Число мест, назначенное правилом игры. Есть — двигать мебель нельзя. */
+  readonly chairsFixed?: number;
+}
+
 /** Человек за столом, как его видит правило. */
 export interface Someone {
   readonly account: string;
   readonly role: Role;
   /** Держится ли за ним стул. */
   readonly seated: boolean;
+  /**
+   * ЗДЕСЬ ЛИ ОН СЕЙЧАС — в идущей сессии. Стул живёт в ней, и дать его тому, кого за столом нет,
+   * нельзя: место запишется в пустоту, а роль сменится молча, и это выглядит как «кнопка не
+   * работает». Пусто — про присутствие не спросили, и правило о нём не судит.
+   */
+  readonly here?: boolean;
 }
 
 /** Админ или хозяин — те, кому вообще принадлежит управление столом. */
@@ -53,7 +67,7 @@ const manages = (p: Power): boolean => p !== "none";
 const handles = (me: Someone, p: Power): boolean => rules(me) && manages(p);
 
 /** Что можно сделать с человеком за столом. Те же слова, что в панели. */
-export const DEEDS = ["seat:give", "seat:take", "admin:grant", "admin:revoke", "owner:pass", "kick", "colour"] as const;
+export const DEEDS = ["seat:add", "seat:give", "seat:take", "admin:grant", "admin:revoke", "owner:pass", "kick", "colour"] as const;
 export type Deed = (typeof DEEDS)[number];
 
 export function isDeed(raw: unknown): raw is Deed {
@@ -62,6 +76,7 @@ export function isDeed(raw: unknown): raw is Deed {
 
 /** Как действие называется человеку. Одно место на панель и на отказ. */
 export const DEED_WORD: Record<Deed, string> = {
+  "seat:add": "Поставить стул",
   "seat:give": "Дать стул",
   "seat:take": "Лишить стула",
   "admin:grant": "Дать админа",
@@ -72,12 +87,22 @@ export const DEED_WORD: Record<Deed, string> = {
 };
 
 /** `true` — можно; строка — почему нельзя, теми же словами, какими это скажут человеку. */
-export function may(deed: Deed, me: Someone, them: Someone, mode: Mode): true | string {
+export function may(deed: Deed, me: Someone, them: Someone, mode: Mode, table: Table = {}): true | string {
   const p = powerOf(me, mode);
   const mine = me.account === them.account;
   switch (deed) {
+    case "seat:add":
+      // ПОСТАВИТЬ СТУЛ — НЕ ТО ЖЕ, ЧТО ДАТЬ ЕГО: дают существующий, ставят новый. За доской нового
+      // места не бывает — там их два по правилу игры, а не по желанию хозяина.
+      if (table.chairsFixed !== undefined) return "за этой игрой мест ровно столько, сколько правил";
+      if (table.chairs !== undefined && table.capacity !== undefined && table.chairs >= table.capacity) {
+        return "больше людей эта комната не держит";
+      }
+      return handles(me, p) || "мебель двигает тот, кто распоряжается";
     case "seat:give":
-      return them.seated ? "он уже за столом" : handles(me, p) || "мест не раздаёшь";
+      if (them.seated) return "он уже за столом";
+      if (them.here === false) return "его сейчас нет за столом — стул дают тому, кто пришёл";
+      return handles(me, p) || "мест не раздаёшь";
     case "seat:take":
       // ХОЗЯИНА МОЖНО ЛИШИТЬ СТУЛА: он защищён только от кика и от снятия админки.
       if (!them.seated) return "он и так без стула";
@@ -124,12 +149,12 @@ export interface Denied {
  * В совете и вече разрешённое остаётся разрешённым, но становится ПРЕДЛОЖЕНИЕМ: та же кнопка,
  * другое слово. Своё над собой (цвет) голосования не требует — это не про комнату.
  */
-export function deedsOn(me: Someone, them: Someone, mode: Mode): { can: Allowed[]; cant: Denied[] } {
+export function deedsOn(me: Someone, them: Someone, mode: Mode, table: Table = {}): { can: Allowed[]; cant: Denied[] } {
   const p = powerOf(me, mode);
   const can: Allowed[] = [];
   const cant: Denied[] = [];
   for (const deed of DEEDS) {
-    const verdict = may(deed, me, them, mode);
+    const verdict = may(deed, me, them, mode, table);
     if (verdict !== true) {
       cant.push({ deed, label: DEED_WORD[deed], why: verdict });
       continue;

@@ -29,6 +29,8 @@ export interface RosterPerson {
   readonly seat: string | null;
   /** Стул держится, человека за ним нет. Бывает только у сидящего. */
   readonly away?: boolean;
+  /** Здесь ли он сейчас — в идущей сессии. Стул дают только тому, кто пришёл. */
+  readonly here: boolean;
 }
 
 /** Хозяин первым, дальше по старшинству роли, а внутри роли — по приходу. */
@@ -62,6 +64,7 @@ export function rosterOf(room: RoomRow): RosterPerson[] {
       ...(account.avatar ? { face: account.avatar } : {}),
       role: member.role,
       seat: here?.seat ?? null,
+      here: here !== undefined,
       ...(here?.away ? { away: true } : {}),
     });
   }
@@ -77,6 +80,7 @@ export function rosterOf(room: RoomRow): RosterPerson[] {
       ...(one.face ? { face: one.face } : {}),
       role: "player",
       seat: one.seat ?? null,
+      here: true,
       ...(one.away ? { away: true } : {}),
     });
   }

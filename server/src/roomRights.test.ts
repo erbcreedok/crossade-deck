@@ -59,6 +59,16 @@ describe("rooms.a-right-is-what-the-server-checks-not-what-the-screen-draws", ()
     expect(mine.vote).toBe(false);
   });
 
+  it("стул ставит тот, кто распоряжается, — и только там, где мест не назначено правилом", () => {
+    const cards = { chairs: 4, capacity: 32 };
+    expect(may("seat:add", owner, watcher, "free", cards)).toBe(true);
+    expect(may("seat:add", player, watcher, "free", cards)).toBe("мебель двигает тот, кто распоряжается");
+    // За доской третьего места не бывает: это правило игры, а не настройка стола.
+    expect(may("seat:add", owner, watcher, "free", { ...cards, chairsFixed: 2 })).toBe("за этой игрой мест ровно столько, сколько правил");
+    // ...и стульев не может стать больше, чем комната держит людей.
+    expect(may("seat:add", owner, watcher, "free", { chairs: 32, capacity: 32 })).toBe("больше людей эта комната не держит");
+  });
+
   it("отказ всегда со словами — иначе пропавшая кнопка читается как поломка", () => {
     const { cant } = deedsOn(watcher, owner, "free");
     expect(cant.length).toBeGreaterThan(0);

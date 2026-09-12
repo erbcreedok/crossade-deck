@@ -548,7 +548,12 @@ describe("rooms.the-roster-says-what-i-may-do-with-each-person", () => {
 
     const mine = (await (await fetch(`${BASE}/rooms/${body.room}/roster?me=${me.id}`)).json()) as Record<string, unknown>[];
     const him = mine.find((one) => one.account === watcher.id)!;
-    expect((him.can as { deed: string }[]).map((one) => one.deed)).toContain("seat:give");
+    // Хозяин вправе двигать мебель...
+    expect((him.can as { deed: string }[]).map((one) => one.deed)).toContain("seat:add");
+    // ...а стул даётся только тому, кто сейчас за столом: этого зрителя в сессии нет.
+    expect((him.cant as { deed: string; why: string }[]).find((one) => one.deed === "seat:give")?.why).toBe(
+      "его сейчас нет за столом — стул дают тому, кто пришёл",
+    );
 
     const his = (await (await fetch(`${BASE}/rooms/${body.room}/roster?me=${watcher.id}`)).json()) as Record<string, unknown>[];
     const boss = his.find((one) => one.account === me.id)!;

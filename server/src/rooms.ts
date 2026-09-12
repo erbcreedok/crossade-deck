@@ -53,6 +53,19 @@ export function isKitGame(game: unknown): game is KitGame {
   return typeof game === "string" && (KIT_GAMES as readonly string[]).includes(game);
 }
 
+/**
+ * СКОЛЬКО СТУЛЬЕВ У ЭТОЙ ИГРЫ ПО ЕЁ ПРАВИЛУ — и `undefined`, когда правила нет.
+ *
+ * За доской не бывает третьего места: в шахматах и нардах их всегда два, и это не настройка. В
+ * карты играют вдвоём и вдесятером, поэтому стулья за карточным столом ставит хозяин, сколько
+ * нужно, — до общего предела комнаты.
+ */
+const CHAIRS_BY_RULE: Partial<Record<KitGame, number>> = { chess: 2, nardy: 2 };
+
+export function chairsAreFixed(game: string): number | undefined {
+  return CHAIRS_BY_RULE[game as KitGame];
+}
+
 let counter = 0;
 
 function newId(): string {

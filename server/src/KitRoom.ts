@@ -14,10 +14,12 @@ import {
   roomById,
   ROOM_LIMIT,
   setRole,
+  setRoomConfig,
   setSession,
   type Newcomer,
 } from "./db/roomsRepo.js";
 import { isDeed, may, powerOf, type Deed, type Someone } from "./roomRights.js";
+import { chairsAreFixed } from "./rooms.js";
 
 export interface KitJoinOptions {
   accountId?: string;
@@ -165,7 +167,12 @@ export class KitRoom extends Room {
       const them = this.someone(whom);
       if (!me || !them) return client.send("denied", { deed: asked, why: "его нет за этим столом" });
       const room = roomById(this.record);
-      const verdict = may(asked, me, them, room?.mode ?? "free");
+      const table = {
+        chairs: this.chairs,
+        capacity: this.capacity,
+        ...(room && chairsAreFixed(room.game) !== undefined ? { chairsFixed: chairsAreFixed(room.game)! } : {}),
+      };
+      const verdict = may(asked, me, them, room?.mode ?? "free", table);
       if (verdict !== true) return client.send("denied", { deed: asked, why: verdict });
       // ГОЛОСОВАНИЯ ЕЩЁ НЕТ, И МОЛЧА ДЕЛАТЬ ВМЕСТО НЕГО НЕЛЬЗЯ: в совете и вече это действие —
       // предложение, а предложение без голосов — самоуправство.
@@ -332,7 +339,12 @@ export class KitRoom extends Room {
     if (!accountId || !this.record) return undefined;
     const role = roleOf(this.record, accountId);
     if (!role) return undefined;
-    return { account: accountId, role, seated: this.members.some((m) => m.accountId === accountId && m.seat !== null) };
+    return {
+      account: accountId,
+      role,
+      seated: this.members.some((m) => m.accountId === accountId && m.seat !== null),
+      here: this.members.some((m) => m.accountId === accountId),
+    };
   }
 
   /**
@@ -344,6 +356,12 @@ export class KitRoom extends Room {
     const record = this.record!;
     const member = this.members.find((m) => m.accountId === them.account);
     switch (deed) {
+      case "seat:add":
+        // СТУЛ ПОЯВЛЯЕТСЯ И В СЕССИИ, И В ЗАПИСИ: сессия рассаживает по нему сейчас, запись помнит
+        // его завтра — стол, у которого мебель живёт только до конца партии, назавтра снова тесен.
+        this.chairs += 1;
+        setRoomConfig(record, { chairs: this.chairs });
+        break;
       case "seat:give": {
         const free = this.nextFreeSeat();
         if (!free) return "за столом нет свободного стула";
