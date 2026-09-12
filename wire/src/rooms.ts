@@ -158,3 +158,33 @@ export async function closeRoom(room: string, by: string): Promise<boolean> {
     return false;
   }
 }
+
+/** Роль человека в комнате. Те же слова, что у сервера: комната их и заводит. */
+export type RoomRole = "owner" | "admin" | "player" | "spectator";
+
+/** Участник комнаты — тот, кто в ней числится, а не только тот, кто сейчас за столом. */
+export interface RoomMember {
+  readonly account: string;
+  readonly name: string;
+  readonly color: string | null;
+  readonly role: RoomRole;
+  /** Держится ли за ним стул. Ложь — зритель. */
+  readonly seated: boolean;
+  /** Стул держится, человека за ним нет. */
+  readonly away?: boolean;
+}
+
+/**
+ * КТО ЧИСЛИТСЯ ЗА СТОЛОМ — по коду комнаты или по её номеру.
+ *
+ * Не то же, что люди сессии: те живут, пока идёт игра. Здесь вся комната — с ролями, со зрителями
+ * и с теми, кого сейчас нет за экраном. Пустой список значит «не спросилось»: стол, которого нет,
+ * и молчащий сервер отвечают одинаково, и экран в обоих случаях остаётся при лицах сессии.
+ */
+export async function roomRoster(room: string): Promise<RoomMember[]> {
+  try {
+    return (await json<RoomMember[]>(await fetch(`${serverUrl()}/rooms/${encodeURIComponent(room)}/roster`))) ?? [];
+  } catch {
+    return [];
+  }
+}

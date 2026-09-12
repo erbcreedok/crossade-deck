@@ -32,8 +32,14 @@ function ownerBy(asked: string): string | undefined {
   if (accountById(asked)) return asked;
   const telegram = accountByIdentity("telegram", asked);
   if (telegram) return telegram.id;
-  const row = db().prepare(`SELECT id FROM accounts WHERE name = ?`).get(asked) as { id: string } | undefined;
-  return row?.id;
+  // ИМЁНА НЕ УНИКАЛЬНЫ: двух «Ерболов» нельзя разводить молча — стол уйдёт не тому, и это
+  // выяснится, только когда он не найдётся в своём списке комнат.
+  const rows = db().prepare(`SELECT id FROM accounts WHERE name = ?`).all(asked) as { id: string }[];
+  if (rows.length > 1) {
+    console.error(`Аккаунтов с именем «${asked}» несколько: ${rows.map((r) => r.id).join(", ")}. Назови номер.`);
+    process.exit(1);
+  }
+  return rows[0]?.id;
 }
 
 /** Аккаунт с таким именем — или новый с ним же. Скрипт запускают не один раз. */

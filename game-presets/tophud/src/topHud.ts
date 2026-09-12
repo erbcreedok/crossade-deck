@@ -17,6 +17,7 @@ import { esc, ICON, svg } from "./icons.js";
 import { topHudLook, type TopHudLook } from "./look.js";
 import { fillCss, lineCss, plateCss, shadowCss, tint } from "./paint.js";
 import { peopleRow, type TopHudPerson } from "./row.js";
+import { ROLE_WORD, rosterList, type TopHudMember } from "./roster.js";
 
 /**
  * HOW FAR DOWN THE PAGE THE STRIP REACHES, as a custom property — so anything the page lays over a
@@ -61,6 +62,11 @@ export interface TopHudState {
   readonly title: string;
   readonly room: string | undefined;
   readonly people: readonly TopHudPerson[];
+  /**
+   * ВСЯ КОМНАТА, А НЕ ТОЛЬКО ЛИЦА НА ПОЛОСЕ: зритель без стула и отошедший игрок тоже её люди.
+   * Пусто — списку неоткуда это узнать, и он говорит за тех, кто сейчас за столом.
+   */
+  readonly roster: readonly TopHudMember[];
   readonly exit: TopHudExit | undefined;
 }
 
@@ -86,6 +92,7 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
     title: o.title ?? "",
     room: o.room,
     people: o.people ?? [],
+    roster: o.roster ?? [],
     exit: o.exit,
   };
   /** Whether the full list is open. A fact about this screen, and it outlives a redraw. */
@@ -196,16 +203,7 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
       .join("");
     // THE FULL LIST — the strip carries eight at most, and who is actually at the table still has to
     // be sayable. This is the only place there is room for it.
-    const list =
-      listOpen && row.seated.length > 0
-        ? `<div data-g="list" style="position:absolute;top:${look.height - 6}px;${look.peopleSide === "left" ? "left:0" : "right:0"};` +
-          `min-width:140px;max-height:60vh;overflow:auto;background:${PALETTE.well};` +
-          `box-shadow:inset 0 0 0 3px ${PALETTE.black},inset 0 0 0 5px ${PALETTE.panelLight},0 4px 0 ${tint(PALETTE.black, 0.6)};` +
-          `border-radius:${look.radius + 4}px;padding:8px 12px;z-index:12">` +
-          `<div style="font:400 11px ${LETTER};color:${PALETTE.inkDim};letter-spacing:.1em;padding-bottom:4px">ЗА СТОЛОМ ${row.seated.length}</div>` +
-          row.seated.map(listRowHtml).join("") +
-          `</div>`
-        : "";
+    const list = listHtml(row.seated);
     return (
       `<div data-g="people" role="button" tabindex="0" style="${groupFill()}position:relative;flex:none;height:${look.height}px;` +
       `padding:0 ${groupPad()}px;box-sizing:border-box;cursor:pointer">` +
@@ -213,6 +211,59 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
       `${circles}</div>${list}</div>`
     );
   };
+
+  /**
+   * ВЕСЬ СПИСОК — полоса несёт восемь лиц, и кто за столом на самом деле, сказать всё равно надо.
+   * Другого места для этого нет.
+   *
+   * Говорит он про КОМНАТУ, когда её знает (`state.roster`): роль у каждой строки, зритель — «без
+   * стула», ушедший — «отошёл», своя строка первой. Не знает — остаются те, кто сейчас за столом,
+   * и тогда это просто имена.
+   */
+  const listHtml = (seated: readonly TopHudPerson[]): string => {
+    if (!listOpen) return "";
+    const known = state.roster.length > 0;
+    const list = known ? rosterList(state.roster) : undefined;
+    if (!known && seated.length === 0) return "";
+    const head = list ? `ЗА СТОЛОМ ${list.seated} · ВСЕГО ${list.total}` : `ЗА СТОЛОМ ${seated.length}`;
+    const rows = list ? list.rows.map(memberRowHtml).join("") : seated.map(listRowHtml).join("");
+    return (
+      `<div data-g="list" style="position:absolute;top:${look.height - 6}px;${look.peopleSide === "left" ? "left:0" : "right:0"};` +
+      `min-width:${known ? 210 : 140}px;max-height:60vh;overflow:auto;background:${PALETTE.well};` +
+      `box-shadow:inset 0 0 0 3px ${PALETTE.black},inset 0 0 0 5px ${PALETTE.panelLight},0 4px 0 ${tint(PALETTE.black, 0.6)};` +
+      `border-radius:${look.radius + 4}px;padding:8px 12px;z-index:12">` +
+      `<div style="font:400 11px ${LETTER};color:${PALETTE.inkDim};letter-spacing:.1em;padding-bottom:4px">${head}</div>` +
+      rows +
+      `</div>`
+    );
+  };
+
+  /**
+   * ЗНАЧОК РОЛИ. Те, кто распоряжается столом, залиты; те, кто просто сидит и смотрит, — обведены.
+   * Заливка и есть весь знак старшинства: читается боковым зрением, не требуя прочесть слово.
+   */
+  const roleBadge = (member: TopHudMember): string => {
+    const paint = member.role === "owner" ? PALETTE.gold : member.role === "admin" ? PALETTE.inkDim : PALETTE.wood;
+    const filled = member.role === "owner" || member.role === "admin";
+    return (
+      `<span style="font:400 10px ${LETTER};border-radius:4px;padding:2px 5px;` +
+      (filled ? `background:${paint};color:${PALETTE.black}` : `box-shadow:inset 0 0 0 2px ${paint};color:${PALETTE.inkDim}`) +
+      `">${ROLE_WORD[member.role]}</span>`
+    );
+  };
+
+  const memberRowHtml = (member: TopHudMember): string =>
+    `<div style="display:flex;align-items:center;gap:8px;padding:5px 0">` +
+    `<span style="flex:none;width:22px;height:22px;border-radius:50%;background:${member.ink};box-shadow:inset 0 0 0 2px ${PALETTE.black};` +
+    `${member.seated ? "" : "opacity:.5;"}"></span>` +
+    `<span style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1">` +
+    `<span style="font:400 14px ${LETTER};color:${member.seated ? PALETTE.ink : PALETTE.inkDim}">${esc(member.name)}` +
+    (member.mine === true ? `<span style="font-size:11px;color:${PALETTE.inkDim}"> · это ты</span>` : "") +
+    `</span>` +
+    `<span style="display:flex;align-items:center;gap:5px">${roleBadge(member)}` +
+    `<span style="font:400 10px ${LETTER};color:${PALETTE.inkDim}">` +
+    (member.seated ? (member.away === true ? "отошёл" : "за столом") : "без стула") +
+    `</span></span></span></div>`;
 
   const listRowHtml = (p: TopHudPerson): string =>
     `<div style="display:flex;align-items:center;gap:8px;padding:3px 0">` +

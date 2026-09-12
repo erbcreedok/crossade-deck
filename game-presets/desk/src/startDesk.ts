@@ -34,8 +34,8 @@ import {
   type Vec,
 } from "game-kit";
 import { pixiPainter } from "game-kit/pixi";
-import { joinTable, type RosterItem, type Table } from "@crossade/wire";
-import { topHud, type TopHud, type TopHudPerson } from "@game-presets/tophud";
+import { joinTable, roomRoster, type RoomMember, type RosterItem, type Table } from "@crossade/wire";
+import { topHud, type TopHud, type TopHudMember, type TopHudPerson } from "@game-presets/tophud";
 import { HOME_GLIDE_MS, limitsOfDesk, roomOfDesk } from "./camera.js";
 import { curtain } from "./curtain.js";
 import { farDots } from "./cursors.js";
@@ -168,6 +168,35 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     }));
   };
   const sayWhoIsHere = (present: readonly SeatedPerson[]): void => strip.set({ people: onStrip(present) });
+
+  /**
+   * КТО ЧИСЛИТСЯ ЗА ЭТИМ СТОЛОМ — спрашивается у комнаты, а не у сессии.
+   *
+   * Лица на полосе — это те, кто сейчас играет; список за ней — вся комната: зритель без стула,
+   * отошедший игрок, хозяин, которого сегодня не было. Сессия про них не знает и знать не может:
+   * она живёт от первой посадки до последнего ухода, а роль и членство — сколько стоит стол.
+   *
+   * Не ответило — список остаётся при лицах сессии, как прежде. Стол от этого не перестаёт идти.
+   */
+  const askWhoBelongs = (): void => {
+    const code = atTable?.code ?? o.host.room();
+    if (!code) return;
+    void roomRoster(code).then((members) => {
+      if (stopped) return;
+      strip.set({ roster: members.map(asMember) });
+    });
+  };
+
+  const asMember = (one: RoomMember): TopHudMember => ({
+    name: one.name,
+    // ЦВЕТ ЧЕЛОВЕКА, А НЕ ЕГО МЕСТА: стула у зрителя нет, а кружок в списке есть у всех. Своего
+    // цвета не завёл — кружок стоит приглушённым, а не чужим.
+    ink: one.color ?? paint(DESK_THEME, "textMuted"),
+    role: one.role,
+    seated: one.seated,
+    ...(one.away === true ? { away: true } : {}),
+    ...(o.account && o.account.id === one.account ? { mine: true } : {}),
+  });
 
   /**
    * СКАЗАТЬ КОМНАТЕ, ЧЕЙ ХОД — потому что метку «твой ход» рисует не этот стол, а СПИСОК комнат,
@@ -421,6 +450,8 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
       }
       currentTable = table;
       seat = table.seat;
+      // Комната ответила — можно спросить, кто за ней числится: до этого спрашивать было не у кого.
+      askWhoBelongs();
       // THE DESK OPENS AT ITS OWN PLACE, and it opens there NOW: which seat this glass is only
       // arrives here, and until it did the view stood in the middle of the room looking at the desk
       // from nobody's side of it. IN ONE STEP, not eased: `avatars.publish()` runs synchronously a
@@ -523,6 +554,10 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
         const present = sitting(roster);
         for (const layer of layers) layer.seated?.(present);
         sayWhoIsHere(present);
+        // СОСТАВ ЗА СТОЛОМ СМЕНИЛСЯ — значит мог смениться и состав КОМНАТЫ: подсевший становится
+        // её членом в ту же секунду. Роли при этом спрашиваются у комнаты, а не выводятся из того,
+        // кто сейчас на связи.
+        askWhoBelongs();
         // Ушёл тот, кто говорил за всех, — теперь говорит следующий: пересчитывается на каждом
         // ростере, поэтому уговора между экранами не нужно.
         tellTurn(present);

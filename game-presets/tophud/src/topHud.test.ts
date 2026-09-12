@@ -51,6 +51,29 @@ describe("верхний HUD", () => {
     hud.stop();
   });
 
+  // СТОРОЖ `tophud.the-list-speaks-for-the-room-not-for-the-session`.
+  //
+  // Полоса говорит, кто играет; список — чей это стол. Зритель без стула и хозяин, которого сейчас
+  // нет за экраном, — такие же его люди, и список, потерявший их между партиями, врёт про комнату.
+  it("список, которому дали комнату, говорит про роли и про тех, кого за столом нет", () => {
+    const roster = [
+      { name: "Алия", ink: "#7fd1b9", role: "owner" as const, seated: true, away: true },
+      { name: "Дана", ink: "#b98fe0", role: "spectator" as const, seated: false, mine: true },
+      { name: "Тимур", ink: "#e08b3f", role: "player" as const, seated: true },
+    ];
+    const hud = topHud(container, { title: "Карты", people, roster });
+    q(hud.element, "people")!.click();
+    const list = q(hud.element, "list")!;
+    expect(list.textContent).toContain("ЗА СТОЛОМ 2 · ВСЕГО 3");
+    expect(list.textContent).toContain("хозяин");
+    expect(list.textContent).toContain("зритель");
+    expect(list.textContent).toContain("без стула");
+    expect(list.textContent).toContain("отошёл");
+    // Своя строка — первая: себя не ищут глазами в списке.
+    expect(list.textContent!.indexOf("Дана")).toBeLessThan(list.textContent!.indexOf("Алия"));
+    hud.stop();
+  });
+
   it("подсевший за стол перерисовывает ряд, а не полосу целиком заново", () => {
     const hud = topHud(container, { title: "Карты", people: people.slice(0, 1) });
     expect(hud.element.querySelectorAll('[data-g="people"] div div')).toHaveLength(1);
