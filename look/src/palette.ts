@@ -30,6 +30,8 @@ export const PALETTE = {
   danger: "#e0483f",
   /** The keyline and the hard drop shadow. */
   black: "#0b0704",
+  /** Дерево мебели: кромка кнопки, рамка плашки — на шаг светлее панели и заметно теплее. */
+  wood: "#6b4d2c",
   /** The gold sparkle, muted for the table screen — client1's `grayscale(.5) brightness(.85)`. */
   sparkleDim: "#b09a5c",
 } as const;

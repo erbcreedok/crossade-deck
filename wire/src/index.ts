@@ -18,8 +18,11 @@ export {
   openRoom,
   peekRoom,
   type Admission,
+  type Mode,
   type OpenRoomOptions,
+  type PersonAtTable,
   type RoomCard,
+  type RoomGroup,
   type Visibility,
 } from "./rooms.js";
 export {
