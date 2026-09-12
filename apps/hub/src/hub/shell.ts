@@ -31,9 +31,10 @@ import { installHubLook } from "@crossade/look";
 import { CLUB_U, loadingCross, PALETTE, SPARK_U } from "@crossade/look";
 import { beat } from "./beat.js";
 import { AT_REST, DRIFT_DIAMONDS, driftStep, type Drift } from "./drift.js";
-import { FELT, hubTree, shelfColumns, shelfSize, SPARKLE_ID, tableTree } from "./grid.js";
+import { FELT, hubTree, shelfColumns, shelfSize, SPARKLE_ID, tableTree, titleBottom } from "./grid.js";
 import { homeProfile } from "../home/home.js";
-import { tablesScreen } from "../rooms/tables.js";
+import { roomsDoor, liveRooms } from "../rooms/door.js";
+import { comebackCards, comebackRow } from "../rooms/comeback.js";
 import { wirePress } from "./press.js";
 import { twinkleLevel, twinkleStep } from "./twinkle.js";
 import { CATALOGUE, type Teardown } from "./catalogue.js";
@@ -202,6 +203,8 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     lastUnit = u;
     if (rebuild) host.setRoot(hubTree(columns, shift));
     if (grew) host.setViewer({ ...host.viewer(), hudUnit: u });
+    // ПОДСКАЗКИ СТОЯТ ПОД ИМЕНЕМ МЕСТА — значит переезжают вместе с ним на каждой примерке.
+    comeback.place(titleBottom(v, u, columns, shift) + 12);
   };
   const stopFitting = host.onChange(() => {
     applyFit();
@@ -223,13 +226,33 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
   });
   void account.then(() => {
     if (alive) void home.refresh();
+    if (alive) void refreshComeback();
   });
+
+  /**
+   * КУДА ЗАЙТИ — ряд между именем места и полкой. Человек чаще возвращается, чем выбирает, и у
+   * вернувшегося этот ряд первый. Пусто — ряда нет вовсе.
+   */
+  const comeback = comebackRow(chrome, (id, code) => {
+    goTo(id, "push", code);
+    if (runningId === id) leave(false, "play");
+    void enter(id, false);
+  });
+
+  /** Перечитать свои столы. Список короткий, и спрашивается он только на полке. */
+  const refreshComeback = async (): Promise<void> => {
+    const me = liveRooms.me();
+    if (!me) return;
+    const cards = await liveRooms.list(undefined, me);
+    if (!alive || !cards) return;
+    comeback.set(comebackCards(cards));
+  };
 
   /**
    * ЗА КАКОЙ СТОЛ. Нажатие на плитку игры, в которую играют вдвоём, спрашивает это ПЕРЕД игрой —
    * прежде оно молча открывало новый стол, и сыграть с кем-то можно было, только переслав ссылку.
    */
-  const tables = tablesScreen(chrome, {
+  const tables = roomsDoor(chrome, {
     // АДРЕС ПИШЕТСЯ ВМЕСТЕ С КОДОМ СТОЛА, и игра открывается здесь же: `pushState` не будит ни
     // `hashchange`, ни `popstate` — маршрутизатор о таком переезде не узнаёт, и человек остался бы
     // на полке с правильным адресом в строке.
@@ -240,10 +263,22 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
       if (runningId === id) leave(false, "play");
       void enter(id, false);
     },
+    // СТОЛ БЕЗ КОМНАТЫ — играть одному. Сегодня это стол, которого не видит никто и который
+    // закроется, когда из-за него встанут: настоящего стола без комнаты рантайм ещё не умеет, а
+    // спрятанный на одного выглядит и ведёт себя так же.
+    onSolo: (id) => {
+      if (runningId === id) leave(false, "play");
+      goTo(id, "push");
+      void enter(id, false);
+    },
   });
 
   const setMode = (mode: "hub" | "play"): void => {
     playing = mode === "play";
+    // ПОДСКАЗКИ — ЭТО ПЕРВАЯ СТРАНИЦА, А НЕ СТОЛ. Пока идёт игра, ряд «куда зайти» не висит над
+    // ней: человек уже пришёл туда, куда ему предлагали зайти.
+    comeback.element.style.display = playing ? "none" : "";
+    if (!playing) void refreshComeback();
     shell?.setAttribute("data-mode", mode);
     // THE HUB KEEPS NO RIBBON OF ITS OWN while a game runs: the strip along the top is the game's
     // (`@game-presets/tophud`), and the game's region covers the whole viewport.
@@ -352,7 +387,7 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
             if (!alive) return;
             goToShelf();
             const said = why === "closed" ? "Стол закрылся. Открой новый или сядь за другой." : "Сервер не ответил. Попробуй ещё раз.";
-            void tables.show(entry.id, entry.label).then(() => tables.say(said));
+            void tables.say(entry.id, said);
           }, 0);
         },
       });
@@ -377,9 +412,7 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
       // рядом лежат открытые столы этой же игры.
       if (err instanceof Error && err.message === "room_closed") {
         const entry = CATALOGUE.find((g) => g.id === id);
-        if (entry) {
-          void tables.show(entry.id, entry.label).then(() => tables.say("Стол закрылся. Открой новый или сядь за другой."));
-        }
+        if (entry) void tables.say(entry.id, "Стол закрылся. Открой новый или сядь за другой.");
       }
     } finally {
       busy = false;
@@ -443,7 +476,7 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
       const id = meaning["game"];
       if (typeof id !== "string") return;
       const entry = CATALOGUE.find((g) => g.id === id);
-      if (entry?.atTable) void tables.show(entry.id, entry.label);
+      if (entry?.atTable) void tables.show(entry.id);
       else void enter(id);
     },
   });
@@ -502,6 +535,7 @@ export function startHub(chrome: HTMLElement, stage: HTMLElement): () => void {
     stopPainting();
     home.stop();
     tables.stop();
+    comeback.stop();
     painter.destroy();
     host.unmount();
   };

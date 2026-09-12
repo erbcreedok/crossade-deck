@@ -281,6 +281,18 @@ export function hubTree(columns: number = PLACES, shiftY = 0): Node {
 }
 
 /**
+ * ГДЕ КОНЧАЕТСЯ ЗАГОЛОВОК, В ПИКСЕЛЯХ ЭКРАНА — чтобы ряд «куда зайти» встал ПОД ним, а не над.
+ *
+ * «Crossade» — имя места, и оно встречает первым; подсказки идут следом, между именем и полкой, где
+ * их и ищут глазами. Считается по той же арифметике, что рисует заголовок, — иначе ряд поедет от
+ * любой правки полки.
+ */
+export function titleBottom(view: { height: number }, unit: number, columns: number, shiftY: number): number {
+  const y = -shelfSize(columns).h / 2 - 1.0 + shiftY + 0.45;
+  return Math.round(view.height / 2 + unit * y);
+}
+
+/**
  * WHAT THE HUB'S OWN CANVAS SHOWS WHILE A GAME RUNS: the felt and a muted sparkle, and nothing to
  * press.
  *

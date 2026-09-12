@@ -41,6 +41,11 @@ export interface GameEntry {
    */
   readonly loading: string;
   /**
+   * ЗНАК ИГРЫ — то, чем она помечена в строке стола. Одна фигура, а не картинка: строка списка
+   * узнаётся боковым зрением, и плитка с веером карт в ней была бы вдвое выше самой строки.
+   */
+  readonly sign?: string;
+  /**
    * WHETHER THIS GAME IS PLAYED AT A TABLE WITH OTHER PEOPLE. A press on one of these asks WHICH
    * table first — a patience has nobody to ask about.
    */
@@ -77,6 +82,7 @@ export const CATALOGUE: readonly GameEntry[] = [
     id: "cards",
     label: "Карты",
     loading: "Загружаю карты",
+    sign: "\u2660",
     atTable: true,
     load: tableGame("cards", async () => (await import("@apps/cards")).startCards as never),
   },
@@ -84,6 +90,7 @@ export const CATALOGUE: readonly GameEntry[] = [
     id: "chess",
     label: "Шахматы",
     loading: "Загружаю шахматы",
+    sign: "\u265e",
     atTable: true,
     load: tableGame("chess", async () => (await import("@apps/chess")).startChess as never),
   },
@@ -91,6 +98,7 @@ export const CATALOGUE: readonly GameEntry[] = [
     id: "nardy",
     label: "Нарды",
     loading: "Загружаю нарды",
+    sign: "\u2684",
     atTable: true,
     load: tableGame("nardy", async () => (await import("@apps/nardy")).startNardy as never),
   },

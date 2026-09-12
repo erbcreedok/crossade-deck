@@ -49,7 +49,7 @@ export interface BridgeOptions {
 export interface Bridge {
   readonly element: HTMLElement;
   /** Показать мост: комнаты, кто смотрит, что ответил сервер. */
-  show(o: { rooms: readonly Room[]; who: Who; answer?: Answer; code?: string }): void;
+  show(o: { rooms: readonly Room[]; who: Who; answer?: Answer; code?: string; said?: string }): void;
   hide(): void;
   readonly shown: boolean;
   stop(): void;
@@ -74,6 +74,8 @@ export function roomsBridge(container: HTMLElement, o: BridgeOptions): Bridge {
   let applied = false;
   /** Код будущего стола — выданный заранее, чтобы его можно было отправить другу до создания. */
   let code = "";
+  /** Что сказать тому, кто пришёл сюда не сам: «стол закрылся», «не вышло открыть». */
+  let said = "";
   let openness: Openness = "code";
   let mode: Mode = "free";
   let seats = 4;
@@ -153,9 +155,15 @@ export function roomsBridge(container: HTMLElement, o: BridgeOptions): Bridge {
   const html = (): string => {
     if (!shown) return "";
     const chips = applied ? chipsOf(filters, nameOfGame) : [];
+    // СКАЗАННОЕ СТОИТ НАД СПИСКОМ, А НЕ ПОД НИМ: человек пришёл сюда не сам — его сюда вернули, и
+    // первое, что он должен прочесть, это почему.
+    const saidHtml = said
+      ? `<div style="background:${PALETTE.well};box-shadow:inset 0 0 0 3px ${PALETTE.black},inset 0 0 0 5px ${PALETTE.gold};` +
+        `border-radius:12px;padding:12px 14px;font:400 13px ${FONT};color:${PALETTE.gold};line-height:1.6">${esc(said)}</div>`
+      : "";
     const body =
       screen === "list"
-        ? `<div style="display:flex;flex-direction:column;gap:9px;padding:0 12px 16px">${chipsHtml(chips)}${listBodyHtml()}</div>`
+        ? `<div style="display:flex;flex-direction:column;gap:9px;padding:0 12px 16px">${saidHtml}${chipsHtml(chips)}${listBodyHtml()}</div>`
         : screen === "find"
           ? findHtml(typed, filters, o.games)
           : createHtml(gameOf(o.game), code, openness, mode, seats, forever);
@@ -353,6 +361,7 @@ export function roomsBridge(container: HTMLElement, o: BridgeOptions): Bridge {
       who = o2.who;
       answer = o2.answer ?? "rooms";
       if (o2.code) code = o2.code;
+      said = o2.said ?? "";
       shown = true;
       draw();
     },

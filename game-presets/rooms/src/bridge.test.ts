@@ -236,3 +236,19 @@ describe("свои экраны на молчание сервера", () => {
     expect(s.has("solo")).toBe(true);
   });
 });
+
+describe("сказанное тому, кого сюда вернули", () => {
+  it("стоит НАД списком: первым читается, почему он здесь", () => {
+    const s = stand();
+    s.bridge.show({ rooms: [room({ code: "0244" })], who: "member", said: "Стол закрылся." });
+    const said = s.text();
+    expect(said).toContain("Стол закрылся.");
+    expect(said.indexOf("Стол закрылся.")).toBeLessThan(said.indexOf("0244"));
+  });
+
+  it("пришёл сам — ничего не говорят", () => {
+    const s = stand();
+    s.bridge.show({ rooms: [room({ code: "0244" })], who: "member" });
+    expect(s.text()).not.toContain("Стол закрылся");
+  });
+});

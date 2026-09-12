@@ -43,6 +43,8 @@ export interface RoomCard {
   readonly group?: RoomGroup;
   /** Держится ли за мной стул за этим столом. */
   readonly mySeat?: boolean;
+  /** Ждут ли за этим столом ИМЕННО МЕНЯ. Чужую очередь сервер не рассказывает. */
+  readonly myTurn?: boolean;
   /** Идущая сейчас сессия. Её отсутствие значит «стол стоит, за ним никого». */
   readonly roomId?: string;
   readonly players?: number;
