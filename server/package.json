@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest run",
+    "seed:test-room": "tsx scripts/seedTestRoom.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

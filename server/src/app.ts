@@ -41,7 +41,8 @@ import {
   tooSoon,
 } from "./telegramLink.js";
 import { BUILD_INFO, formatVersion } from "./version.js";
-import { atCode, byCode, close, codeFree, isKitGame, mine, openRoom, reserveCode, search, sessionOf, type RoomRow } from "./rooms.js";
+import { atCode, byCode, byId, close, codeFree, isKitGame, mine, openRoom, reserveCode, search, sessionOf, type RoomRow } from "./rooms.js";
+import { rosterOf } from "./roomRoster.js";
 import { promiseOf, type Promised } from "./codeHold.js";
 import { ADMISSIONS, cleanCode, MODES, roleOf, VISIBILITIES, type Mode } from "./db/roomsRepo.js";
 import { peopleAt, turnAt } from "./roomPeople.js";
@@ -250,6 +251,14 @@ export function createApp() {
     const promised = promiseOf(req.params.code.trim().toUpperCase());
     if (promised) return res.json(seenPromised(req.params.code.trim().toUpperCase(), promised));
     res.status(404).json({ error: "room_closed" });
+  });
+
+  // КТО ЧИСЛИТСЯ ЗА ЭТИМ СТОЛОМ. Не «кто сейчас на связи»: зритель без стула и ушедший на час
+  // игрок — такие же участники комнаты, и экран «ЗА СТОЛОМ» показывает всех.
+  app.get("/rooms/:id/roster", (req, res) => {
+    const room = byId(req.params.id) ?? byCode(req.params.id);
+    if (!room) return res.status(404).json({ error: "room_closed" });
+    res.json(rosterOf(room));
   });
 
   // СЕСТЬ ЗА СТОЛ ПО КОДУ: если за ним уже играют — в ту же сессию, если нет — сессия поднимается

@@ -312,3 +312,45 @@ describe("rooms.an-invited-table-is-raised-by-the-first-to-arrive", () => {
     expect((await post("/rooms/join", { code })).status).toBe(404);
   });
 });
+
+// СТОРОЖ `rooms.the-roster-keeps-the-ones-who-are-not-at-the-table`.
+//
+// Список за столом — это КОМНАТА, а не сессия. Зритель, у которого нет стула, и оунер, которого
+// сейчас нет за экраном, всё равно её участники; список, показывающий только сидящих на связи,
+// пустеет между партиями и врёт про то, чья это комната.
+describe("rooms.the-roster-keeps-the-ones-who-are-not-at-the-table", () => {
+  it("оунер, игрок и зритель стоят в списке — и оунер первым", async () => {
+    const { addMember } = await import("./db/roomsRepo.js");
+    const me = await account();
+    const mate = await account();
+    const watcher = await account();
+    const { body } = await open({ by: me.id, forever: true });
+
+    addMember(body.room!, mate.id, "player");
+    addMember(body.room!, watcher.id, "spectator");
+
+    const roster = (await (await fetch(`${BASE}/rooms/${body.room}/roster`)).json()) as Record<string, unknown>[];
+    expect(roster.map((one) => one.account)).toEqual([me.id, mate.id, watcher.id]);
+    expect(roster.map((one) => one.role)).toEqual(["owner", "player", "spectator"]);
+  });
+
+  it("у зрителя нет стула, у игрока есть — и без сессии он «отошёл»", async () => {
+    const { addMember } = await import("./db/roomsRepo.js");
+    const me = await account();
+    const watcher = await account();
+    const { body } = await open({ by: me.id });
+    addMember(body.room!, watcher.id, "spectator");
+
+    const roster = (await (await fetch(`${BASE}/rooms/${body.room}/roster`)).json()) as Record<string, unknown>[];
+    const owner = roster.find((one) => one.account === me.id)!;
+    const seer = roster.find((one) => one.account === watcher.id)!;
+    expect(owner.seated).toBe(true);
+    expect(owner.away).toBe(true);
+    expect(seer.seated).toBe(false);
+    expect(seer.away).toBeUndefined();
+  });
+
+  it("стол, которого нет, отвечает «закрылся», а не пустым списком", async () => {
+    expect((await fetch(`${BASE}/rooms/room_ниоткуда/roster`)).status).toBe(404);
+  });
+});
