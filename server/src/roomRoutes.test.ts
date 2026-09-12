@@ -47,7 +47,7 @@ async function open(body: Record<string, unknown> = {}) {
 describe("rooms.a-closed-table-is-not-replaced-by-a-new-one", () => {
   it("открытый стол находится по своему коду", async () => {
     const { body } = await open();
-    expect(body.code).toMatch(/^[23456789ACDEFHJKLMNPQRTUVWXY]{4}$/);
+    expect(body.code).toMatch(/^\d{4}$/);
 
     const found = (await (await fetch(`${BASE}/rooms/by-code/${body.code}`)).json()) as Record<string, string>;
     expect(found.room).toBe(body.room);
@@ -98,11 +98,13 @@ describe("rooms.a-closed-table-is-not-replaced-by-a-new-one", () => {
     expect(found.seats).toBe(6);
   });
 
-  it("свой код берут, если он свободен", async () => {
+  it("свой код берут, если он свободен, и буквы в нём можно", async () => {
     const { body } = await open({ code: "maft" });
     expect(body.code).toBe("MAFT");
     const second = await open({ code: "MAFT" });
     expect(second.body.code).not.toBe("MAFT");
+    // ...а выданный остаётся цифрами: его диктуют вслух.
+    expect(second.body.code).toMatch(/^\d{4}$/);
   });
 
   it("уклада, которого нет, не бывает", async () => {
@@ -229,7 +231,7 @@ describe("rooms.an-empty-table-waits-before-it-closes", () => {
 describe("rooms.the-code-is-in-your-hand-before-the-table-exists", () => {
   it("код выдают до комнаты, и второму его уже не дадут", async () => {
     const { code } = (await (await post("/rooms/code")).json()) as { code: string };
-    expect(code).toMatch(/^[23456789ACDEFHJKLMNPQRTUVWXY]{4}$/);
+    expect(code).toMatch(/^\d{4}$/);
 
     const free = (await (await fetch(`${BASE}/rooms/code/${code}`)).json()) as { free: boolean };
     expect(free.free).toBe(false);
@@ -250,7 +252,7 @@ describe("rooms.the-code-is-in-your-hand-before-the-table-exists", () => {
   it("свободный код так и называется свободным", async () => {
     const free = (await (await fetch(`${BASE}/rooms/code/MAFT2`)).json()) as { free: boolean };
     expect(free.free).toBe(true);
-    const bad = (await (await fetch(`${BASE}/rooms/code/0000`)).json()) as { free: boolean };
+    const bad = (await (await fetch(`${BASE}/rooms/code/%D1%81%D1%82%D0%BE%D0%BB`)).json()) as { free: boolean };
     expect(bad.free).toBe(false);
   });
 });

@@ -98,31 +98,35 @@ const SELECT = `SELECT id, code, game, title, owner_account, visibility, admissi
   seats, created_at, alive_at, closed_at, session_id, mode, forever FROM rooms`;
 
 /**
- * ИЗ ЧЕГО СОБИРАЕТСЯ КОД. Ни нуля с буквой O, ни единицы с I: код называют вслух и набирают с
- * чужого экрана, и пара похожих знаков стоит дороже, чем весь выигрыш от длинного алфавита.
- * Гласных здесь тоже нет — на четырёх знаках матерное слово выпадает чаще, чем кажется.
+ * ВЫДАННЫЙ КОД — ЧЕТЫРЕ ЦИФРЫ, и ничего кроме цифр.
+ *
+ * Его диктуют вслух и набирают с чужого экрана; цифры называются однозначно на любом языке, а
+ * буквы — нет («си» это C или S, «а» латинская или кириллическая). Человеку, который код ВЫБРАЛ
+ * сам, буквы разрешены: он их и придумал, и произносит своими словами.
  */
-export const CODE_SIGNS = "23456789ACDEFHJKLMNPQRTUVWXY";
-/** Длина выданного кода. Свой человек может назвать короче или длиннее — от 2 до 8. */
+export const CODE_DIGITS = "0123456789";
 export const CODE_LENGTH = 4;
+/** Свой код: буквы и цифры, от двух знаков до восьми. */
 export const CODE_MIN = 2;
 export const CODE_MAX = 8;
 
-const CODE_SPACE = CODE_SIGNS.length ** CODE_LENGTH;
+const CODE_SPACE = CODE_DIGITS.length ** CODE_LENGTH;
 
 function randomCode(): string {
   let code = "";
-  for (let n = 0; n < CODE_LENGTH; n++) code += CODE_SIGNS[Math.floor(Math.random() * CODE_SIGNS.length)];
+  for (let n = 0; n < CODE_LENGTH; n++) code += CODE_DIGITS[Math.floor(Math.random() * CODE_DIGITS.length)];
   return code;
 }
 
-/** Код, названный человеком: тот же алфавит, та же строгость — иначе его не продиктуешь. */
+/**
+ * Код, названный человеком: латинские буквы и цифры, от двух знаков до восьми. Пробелы и всё
+ * остальное — не код: его пересылают строкой в чат и набирают руками.
+ */
 export function cleanCode(raw: unknown): string | undefined {
   if (typeof raw !== "string") return undefined;
   const code = raw.trim().toUpperCase();
   if (code.length < CODE_MIN || code.length > CODE_MAX) return undefined;
-  for (const sign of code) if (!CODE_SIGNS.includes(sign)) return undefined;
-  return code;
+  return /^[A-Z0-9]+$/.test(code) ? code : undefined;
 }
 
 /**
@@ -134,11 +138,15 @@ export function cleanCode(raw: unknown): string | undefined {
  */
 export function freeCode(at: DatabaseSync = db(), taken2?: (code: string) => boolean): string | undefined {
   const taken = at.prepare(`SELECT code FROM rooms WHERE code IS NOT NULL`).all() as { code: string }[];
-  if (taken.length >= CODE_SPACE) return undefined;
   const busy = new Set(taken.map((one) => one.code));
+  const gone = (code: string): boolean => busy.has(code) || taken2?.(code) === true;
   for (let tries = 0; tries < 200; tries++) {
     const code = randomCode();
-    if (!busy.has(code) && !taken2?.(code)) return code;
+    if (!gone(code)) return code;
+  }
+  for (let n = 0; n < CODE_SPACE; n++) {
+    const code = n.toString().padStart(CODE_LENGTH, "0");
+    if (!gone(code)) return code;
   }
   return undefined;
 }

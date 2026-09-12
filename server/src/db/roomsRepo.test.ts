@@ -10,7 +10,7 @@ import { openDb } from "./open.js";
 import {
   addMember,
   cleanCode,
-  CODE_SIGNS,
+  CODE_DIGITS,
   closeRoom,
   findRooms,
   freeCode,
@@ -39,9 +39,9 @@ const open = (o: Parameters<typeof insertRoom>[0]) => insertRoom(o, at)!;
 describe("rooms.the-room-is-a-record-not-a-process", () => {
   it("у комнаты есть код, и по нему её находят", () => {
     const room = open({ id: "r1", game: "cards", ownerAccount: "me" });
-    // КОД НЕ ИЗ ЦИФР, А ИЗ ЗНАКОВ БЕЗ ДВОЙНИКОВ: его называют вслух и набирают с чужого экрана.
-    expect(room.code).toHaveLength(4);
-    for (const sign of room.code!) expect(CODE_SIGNS).toContain(sign);
+    // ВЫДАННЫЙ КОД — ТОЛЬКО ЦИФРЫ: его диктуют вслух, а буквы называются по-разному.
+    expect(room.code).toMatch(/^\d{4}$/);
+    for (const sign of room.code!) expect(CODE_DIGITS).toContain(sign);
     expect(roomByCode(room.code!, at)?.id).toBe("r1");
   });
 
@@ -73,25 +73,23 @@ describe("rooms.the-room-is-a-record-not-a-process", () => {
     expect(roomById("r2", at)?.closedAt).toBe(4);
   });
 
-  it("человек может назвать свой код — но занятый ему не отдадут", () => {
-    // Со знаком не из алфавита код не берут — выдают свой.
-    const refused = open({ id: "r1", game: "cards", code: "KAMAZ" });
-    expect(refused.code).not.toBe("KAMAZ");
-    expect(refused.code).toHaveLength(4);
+  it("свой код можно назвать буквами — их разрешено только выбранным", () => {
+    const named = open({ id: "r1", game: "cards", code: "kamaz" });
+    expect(named.code).toBe("KAMAZ");
 
-    const named = open({ id: "r2", game: "cards", code: "MAFT" });
-    expect(named.code).toBe("MAFT");
-
-    // Тот же код второй раз — комната получит выданный, а не чужой.
-    const other = open({ id: "r3", game: "cards", code: "MAFT" });
-    expect(other.code).not.toBe("MAFT");
+    // Тот же код второй раз — комната получит выданный (и он будет из цифр), а не чужой.
+    const other = open({ id: "r2", game: "cards", code: "KAMAZ" });
+    expect(other.code).not.toBe("KAMAZ");
+    expect(other.code).toMatch(/^\d{4}$/);
   });
 
   it("кривой код кодом не считается", () => {
-    expect(cleanCode("0244")).toBeUndefined();
     expect(cleanCode("A")).toBeUndefined();
     expect(cleanCode("ABCDEFGHI")).toBeUndefined();
+    expect(cleanCode("ма фт")).toBeUndefined();
+    expect(cleanCode("стол")).toBeUndefined();
     expect(cleanCode(" maft ")).toBe("MAFT");
+    expect(cleanCode("0244")).toBe("0244");
   });
 });
 
@@ -150,5 +148,24 @@ describe("вечная комната принадлежит человеку", 
     addMember("r1", "you", "player", 2, at);
     addMember("r1", "you", "player", 3, at);
     expect(membersOf("r1", at)).toHaveLength(2);
+  });
+});
+
+// СТОРОЖ `rooms.the-issued-code-is-digits-and-only-a-chosen-one-has-letters`.
+//
+// Выданный код диктуют вслух и набирают с чужого экрана: цифры называются однозначно, буквы — нет
+// («си» — это C или S, «а» — латинская или кириллическая). Тот, кто код ВЫБРАЛ сам, произносит его
+// своими словами, и буквы ему разрешены.
+describe("rooms.the-issued-code-is-digits-and-only-a-chosen-one-has-letters", () => {
+  it("сто выданных кодов — и ни одной буквы", () => {
+    for (let n = 0; n < 100; n++) {
+      const code = open({ id: `d${n}`, game: "cards" }).code!;
+      expect(code).toMatch(/^\d{4}$/);
+    }
+  });
+
+  it("выбранный человеком код может быть словом", () => {
+    expect(cleanCode("kamaz")).toBe("KAMAZ");
+    expect(cleanCode("K2")).toBe("K2");
   });
 });
