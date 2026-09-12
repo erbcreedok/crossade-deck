@@ -1,0 +1,52 @@
+server/src/rooms.ts
+  s_9ed0da107cbc4a::t_09f9d3e0d82b6f 33,180,182
+  s_9ed0da107cbc4a::t_dee60aeeb19288 40-47
+  s_9ed0da107cbc4a::t_a2ed4f18e8075a 29,32,69-70,97,163-164
+server/src/KitRoom.ts
+  s_9ed0da107cbc4a::t_6783e07260de8c 8,152-157
+  s_9ed0da107cbc4a::t_09f9d3e0d82b6f 171-173,221-225,227
+  s_9ed0da107cbc4a::t_dee60aeeb19288 17-18,41-42,58
+server/scripts/seedTestRoom.ts
+  s_9ed0da107cbc4a::t_5dad425e1858f0 26-28,78
+server/src/db/roomsRepo.ts
+  s_9ed0da107cbc4a::t_a450c6b829862f 252-271
+  s_9ed0da107cbc4a::t_e8e15c2d9c6cea 46-56,73-74,97,119,130,200,216-217,228
+  s_9ed0da107cbc4a::t_77d728cfb02725 351-363
+server/src/codeHold.ts
+  s_9ed0da107cbc4a::t_82e54e0acb0764 26
+server/src/roomRoutes.test.ts
+  s_9ed0da107cbc4a::t_dbc483ff2e1038 479-480,482-488,490,494-495,502,506-507
+  s_9ed0da107cbc4a::t_f7f19e167a087e 427-478,508-535
+  s_9ed0da107cbc4a::t_bcf06a9e60d77e 23,43-50
+  s_9ed0da107cbc4a::t_77d728cfb02725 481,489,491-493,496-501,503-505
+  s_9ed0da107cbc4a::t_5771a96240f140 51
+server/src/app.ts
+  s_9ed0da107cbc4a::t_3da70e1ab5ff11 184,200
+  s_9ed0da107cbc4a::t_82e54e0acb0764 44,46,77,108,316-343
+  s_9ed0da107cbc4a::t_a483c664090441 344-345
+wire/src/rooms.ts
+  s_9ed0da107cbc4a::t_dd418a17927fd3 35-36,67,169-174,208-227
+  s_9ed0da107cbc4a::t_fba77feb725525 228-229
+apps/hub/src/rooms/comeback.test.ts
+  s_9ed0da107cbc4a::t_5f39eae75b9f80 18
+server/src/db/migrations.ts
+  s_9ed0da107cbc4a::t_e8e15c2d9c6cea 235-248
+wire/src/index.ts
+  s_9ed0da107cbc4a::t_dd418a17927fd3 21,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "61de537948f3fd7852059705c137951b596ebb36",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
