@@ -3,6 +3,7 @@ import { joined, openRoom, sessionEnded } from "./rooms.js";
 import { setPeople, setTurn } from "./roomPeople.js";
 import { guestIdentity } from "./sandboxNames.js";
 import { accountColor, accountName } from "./accounts.js";
+import { inksApart } from "./profileInks.js";
 import { accountById } from "./db/accountsRepo.js";
 import { membersOf } from "./db/roomsRepo.js";
 import { newcomerOf, roleOf, ROOM_LIMIT, setSession, type Newcomer } from "./db/roomsRepo.js";
@@ -26,6 +27,11 @@ export interface KitRosterItem {
   seat: string | null;
   accountId?: string;
   name: string;
+  /**
+   * ЦВЕТ ЧЕЛОВЕКА, А НЕ ЕГО МЕСТА. Раньше экраны красили каждый по-своему: сукно и полоса — по
+   * номеру стула, список — по профилю, и один человек оказывался трёх разных цветов сразу.
+   */
+  color?: string;
   away?: boolean;
 }
 
@@ -273,10 +279,16 @@ export class KitRoom extends Room {
   }
 
   private roster(): KitRosterItem[] {
+    // ЦВЕТА ЗА ОДНИМ СТОЛОМ РАЗВОДЯТСЯ ЗДЕСЬ, а не на экранах: разойдись экраны в этом сами, один
+    // и тот же человек оказался бы разного цвета у разных соседей.
+    const inks = inksApart(
+      this.members.map((m) => ({ id: m.accountId ?? m.name, color: m.accountId ? accountColor(m.accountId) : null })),
+    );
     return this.members.map((m) => ({
       seat: m.seat,
       ...(m.accountId ? { accountId: m.accountId } : {}),
       name: m.name,
+      color: inks.get(m.accountId ?? m.name)!,
       ...(m.away ? { away: true } : {}),
     }));
   }
@@ -296,7 +308,7 @@ export class KitRoom extends Room {
           // числящегося и сшивается с членством, а не с одинаковыми именами.
           seat: one.seat,
           ...(one.accountId ? { accountId: one.accountId } : {}),
-          color: one.accountId ? accountColor(one.accountId) : null,
+          color: one.color ?? null,
           ...(one.away ? { away: true } : {}),
         })),
       );

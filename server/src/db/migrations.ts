@@ -4,6 +4,7 @@
 // всегда новый номер, даже когда прошлый написан вчера.
 
 import type { DatabaseSync } from "node:sqlite";
+import { inkFor } from "../profileInks.js";
 import { readFileSync, existsSync } from "fs";
 import { LEGACY_ACCOUNTS_FILE } from "./paths.js";
 
@@ -244,6 +245,19 @@ export const MIGRATIONS: readonly Migration[] = [
       // Стул при этом всё равно выдаёт панель людей: настройка говорит, КЕМ человек входит, а не
       // отменяет то, что дальше им распоряжается админ.
       db.exec(`ALTER TABLE rooms ADD COLUMN newcomer TEXT NOT NULL DEFAULT 'player'`);
+    },
+  },
+  {
+    version: 13,
+    up(db) {
+      // ЦВЕТ ЕСТЬ У КАЖДОГО — и у тех, кто завёлся раньше этого правила.
+      //
+      // Цвет выдаётся вместе с кличкой, но заведённые до него остались без него, а «цвета нет»
+      // рисуется одинаково серым у всех: за столом такие люди неотличимы друг от друга — ни на
+      // сукне, ни в полосе, ни в списке.
+      const rows = db.prepare(`SELECT id FROM accounts WHERE color IS NULL`).all() as { id: string }[];
+      const paint = db.prepare(`UPDATE accounts SET color = ? WHERE id = ?`);
+      for (const row of rows) paint.run(inkFor(row.id), row.id);
     },
   },
 ];

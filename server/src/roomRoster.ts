@@ -15,6 +15,7 @@
 import { accountById } from "./db/accountsRepo.js";
 import { membersOf, type Role, type RoomRow } from "./db/roomsRepo.js";
 import { peopleAt } from "./roomPeople.js";
+import { inksApart } from "./profileInks.js";
 
 export interface RosterPerson {
   /** Номер аккаунта. Пусто — за столом гость, которого база не знает. */
@@ -37,6 +38,16 @@ export function rosterOf(room: RoomRow): RosterPerson[] {
   const out: RosterPerson[] = [];
   const seen = new Set<string>();
 
+  // ЦВЕТ СИДЯЩЕГО — ТОТ, ЧТО УЖЕ НА СУКНЕ. Сессия развела одинаковые цвета за этим столом, и
+  // список обязан повторить её ответ, а не считать свой: два ответа однажды разойдутся, и человек
+  // окажется одного цвета в списке и другого на своём стуле.
+  const apart = inksApart(
+    membersOf(room.id)
+      .map((member) => accountById(member.accountId))
+      .filter((one): one is NonNullable<typeof one> => one !== undefined)
+      .map((one) => ({ id: one.id, color: byAccount.get(one.id)?.color ?? one.color })),
+  );
+
   for (const member of membersOf(room.id)) {
     const account = accountById(member.accountId);
     if (!account) continue;
@@ -45,7 +56,7 @@ export function rosterOf(room: RoomRow): RosterPerson[] {
     out.push({
       account: account.id,
       name: account.name,
-      color: account.color,
+      color: here?.color ?? apart.get(account.id) ?? account.color,
       role: member.role,
       seat: here?.seat ?? null,
       ...(here?.away ? { away: true } : {}),

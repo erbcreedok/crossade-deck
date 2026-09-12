@@ -11,6 +11,7 @@ vi.mock("fs", () => ({
 }));
 
 import {
+  inkFor,
   createAccount,
   findAccountByTelegramId,
   isGuest,
@@ -103,15 +104,16 @@ describe("профиль", () => {
     expect(painted?.color).toBe("#f2c14e");
     expect(painted?.avatar).toBe("🐙");
 
+    // Цвет не снимается в никуда: пустой возвращает выданный при рождении, а аватар стирается.
     const bare = updateProfile(account.id, account.recoveryHash, { color: "", avatar: "" });
-    expect(bare?.color).toBeUndefined();
-    expect(profileOf(account.id)?.color).toBeNull();
+    expect(bare?.color).toBe(inkFor(account.id));
+    expect(profileOf(account.id)?.color).toBe(inkFor(account.id));
   });
 
   it("чужим кодом не перекрасить", () => {
     const account = createAccount("Алия");
     expect(updateProfile(account.id, "WRONGC", { color: "#000000" })).toBeUndefined();
-    expect(profileOf(account.id)?.color).toBeNull();
+    expect(profileOf(account.id)?.color).toBe(inkFor(account.id));
   });
 
   it("наружу отдаются двери, но не ключи от них", () => {

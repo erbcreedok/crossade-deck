@@ -150,11 +150,12 @@ export function handLayer(o: HandLayerOptions): HandLayer {
     },
 
     seated(present: readonly SeatedPerson[]) {
-      if (!ctx) return;
-      syncSeatChairs(ctx.root(), present, o.places);
+      const here = ctx;
+      if (!here) return;
+      syncSeatChairs(here.root(), present, o.places, (seat) => here.ink(seat));
       // ...AND THE STRIP IS A PICTURE OF A CHAIR: drawn before there was one it is an empty foot of
       // the screen for ever, so the mount is tried again every time the furniture changes.
-      this.mount!(ctx);
+      this.mount!(here);
       hand?.refresh();
     },
 

@@ -76,6 +76,12 @@ export interface DeskAvatarsTransport {
   heard(msg: RelayMessage): boolean;
   /** This tab stopped being looked at, or started again. */
   state(state: PresenceState): void;
+  /**
+   * ЧЕМ ПОМЕЧЕН ЧЕЛОВЕК НА ЭТОМ СТУЛЕ — его цвет из профиля, а если своего нет, цвет места. Одно
+   * место на все экраны: сукно, полоса и список говорят про человека одним цветом или не говорят
+   * ничего.
+   */
+  inkOf(seat: string): Paint;
 }
 
 export function deskAvatarsTransport(o: DeskAvatarsTransportOptions): DeskAvatarsTransport {
@@ -101,12 +107,18 @@ export function deskAvatarsTransport(o: DeskAvatarsTransportOptions): DeskAvatar
       rotation: -place.facing,
       target: homeTarget(place, { zoom: glass.zoom, rotation: -place.facing, glass: glass.glass }),
     };
-    return { seat, name: names.get(seat) ?? seat, ink: inkOf(seat), state: "away", holding: false, place, view };
+    return { seat, name: names.get(seat) ?? seat, ink: inkOfPerson(seat), state: "away", holding: false, place, view };
   };
 
   /** Everybody the room has named, in seat order — the order the inks are read by. */
   let seated: readonly string[] = [];
   const names = new Map<string, string>();
+  /**
+   * ЦВЕТ ЧЕЛОВЕКА НА ЭТОМ СТУЛЕ — его собственный, из профиля. Место даёт цвет только тогда, когда
+   * своего нет: иначе один и тот же человек на сукне одного цвета, а в списке другого.
+   */
+  const inks = new Map<string, string>();
+  const inkOfPerson = (seat: string): Paint => inks.get(seat) ?? inkOf(seat);
   let myState: PresenceState = "online";
 
   const heard = new Set<(presence: Presence) => void>();
@@ -133,7 +145,7 @@ export function deskAvatarsTransport(o: DeskAvatarsTransportOptions): DeskAvatar
         const seat = o.mine();
         const view = o.view();
         if (!seat || !view) return [];
-        return [{ seat, name: names.get(seat) ?? seat, ink: inkOf(seat), state: myState, holding: false, view }];
+        return [{ seat, name: names.get(seat) ?? seat, ink: inkOfPerson(seat), state: myState, holding: false, view }];
       },
       /**
        * MY OWN VIEW, ON THE WIRE — no oftener than `PRESENCE_EVERY_MS`, and never twice the same. A
@@ -161,7 +173,12 @@ export function deskAvatarsTransport(o: DeskAvatarsTransportOptions): DeskAvatar
       const before = seated;
       seated = items.map((one) => one.seat).filter((seat): seat is string => typeof seat === "string");
       names.clear();
-      for (const one of items) if (one.seat) names.set(one.seat, one.name);
+      inks.clear();
+      for (const one of items) {
+        if (!one.seat) continue;
+        names.set(one.seat, one.name);
+        if (one.color) inks.set(one.seat, one.color);
+      }
       // МОЛЧУНЫ ВСТАЮТ НА СВОИ МЕСТА. Говорившие хоть раз (`knownEars`) сюда не попадают: их
       // собственное присутствие точнее любой догадки, и перебивать его местом нельзя.
       for (const seat of seated) {
@@ -191,7 +208,9 @@ export function deskAvatarsTransport(o: DeskAvatarsTransportOptions): DeskAvatar
       const presence: Presence = {
         seat,
         name: names.get(seat) ?? seat,
-        ink: wire.ink ?? inkOf(seat),
+        // ЦВЕТ — КОМНАТЫ, а не провода: она одна знает профиль каждого, и присланное с чужого
+        // экрана значение сделало бы человека разным на разных стёклах.
+        ink: inkOfPerson(seat),
         state: wire.state ?? "online",
         holding: wire.holding === true,
         view: wire.view,
@@ -203,5 +222,6 @@ export function deskAvatarsTransport(o: DeskAvatarsTransportOptions): DeskAvatar
     state: (state) => {
       myState = state;
     },
+    inkOf: (seat) => inkOfPerson(seat),
   };
 }

@@ -180,7 +180,8 @@ describe("GET /accounts/:id/profile", () => {
     expect(profile.name).toBe(created.name);
     expect(profile.identities).toEqual([]);
     expect(typeof profile.createdAt).toBe("number");
-    expect(profile.color).toBeNull();
+    // Цвет выдаётся вместе с кличкой: человек за столом отличим с первой секунды.
+    expect(profile.color).toMatch(/^#[0-9a-f]{6}$/i);
     expect(JSON.stringify(profile)).not.toContain(created.recoveryHash);
   });
 

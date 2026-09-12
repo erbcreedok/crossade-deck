@@ -7,6 +7,9 @@ import { serverUrl } from "./server.js";
 export interface RosterItem {
   readonly seat: string | null;
   readonly name: string;
+  /** Цвет ЧЕЛОВЕКА — тот же, каким он помечен в списке комнаты и в своём профиле. */
+  readonly color?: string;
+  readonly accountId?: string;
   readonly away?: boolean;
 }
 

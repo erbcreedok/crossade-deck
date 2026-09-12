@@ -7,7 +7,7 @@
 
 import { chairId, chairLidId, chairMarks, installSeatArt, seatChairs } from "@game-presets/desks";
 import { deskSeats, type SeatedPerson } from "@game-presets/desk";
-import { byId, remove, type Node, type SeatPlace } from "game-kit";
+import { byId, remove, type Node, type Paint, type SeatPlace } from "game-kit";
 
 /**
  * Put a ring up for everybody sitting, take down the ones who got up, and make sure each ring wears
@@ -16,9 +16,20 @@ import { byId, remove, type Node, type SeatPlace } from "game-kit";
  * `places` is the desk's own slots, in seat order — a ring lands in the slot ITS SEAT always has,
  * never in the slot its owner's position in the roster happens to be.
  */
-export function syncSeatChairs(desk: Node, present: readonly SeatedPerson[], places: readonly SeatPlace[]): void {
+export function syncSeatChairs(
+  desk: Node,
+  present: readonly SeatedPerson[],
+  places: readonly SeatPlace[],
+  /**
+   * ЧЕМ ПОМЕЧЕН ЧЕЛОВЕК НА ЭТОМ СТУЛЕ. Пусто — цвет места, как и было. Кресло носит цвет ЧЕЛОВЕКА,
+   * а не номера: иначе за одним столом человек трёх цветов сразу — своего в списке, места на сукне
+   * и ещё одного в полосе сверху.
+   */
+  inkOf?: (seat: string) => Paint,
+): void {
   const seats = deskSeats(places.length);
-  for (const [i, { seat, ink }] of seats.entries()) {
+  for (const [i, { seat, ink: placeInk }] of seats.entries()) {
+    const ink = inkOf?.(seat) ?? placeInk;
     const there = byId(desk, chairId(seat));
     const sitting = present.find((one) => one.seat === seat);
     // A CHAIR OFF THE WIRE ARRIVES ALREADY STANDING — a reload's tree has it from the first move on

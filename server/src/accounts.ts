@@ -27,6 +27,9 @@ import {
   type Provider,
 } from "./db/accountsRepo.js";
 import { guestName } from "./guestNames.js";
+import { inkFor } from "./profileInks.js";
+
+export { inkFor } from "./profileInks.js";
 import { offerFor } from "./telegramOffer.js";
 
 /** Аккаунт, как его отдают наружу. `telegramId` выводится из идентичностей, а не хранится полем. */
@@ -128,7 +131,8 @@ export function createAccount(name?: string, telegramId?: string, face: Telegram
     id,
     name: chosen ? name!.trim().slice(0, MAX_NAME) : guestName(),
     nameChosen: chosen,
-    color: null,
+    // ЦВЕТ ВЫДАЁТСЯ СРАЗУ, как и кличка: человек за столом должен быть отличим с первой секунды.
+    color: inkFor(id),
     avatar: null,
     createdAt: Date.now(),
     recoveryHash: freeRecoveryHash(),
@@ -165,7 +169,11 @@ export function renameAccount(id: string, recoveryHash: string, name: string): A
 
 /**
  * СМЕНИТЬ ИМЯ, ЦВЕТ ИЛИ АВАТАР. Пустое имя игнорируется (человек без имени за столом — это дыра);
- * пустой цвет и пустой аватар — это «снять», и они стираются.
+ * пустой аватар — это «снять», и он стирается.
+ *
+ * ЦВЕТ СНЯТЬ НЕЛЬЗЯ — можно только вернуть выданный при рождении. Человек без цвета рисуется тем же
+ * серым, что и всякий другой без цвета, и за столом их становится не различить: цвет тут не
+ * украшение, а то, чем человек помечен на сукне, в полосе и в списке.
  */
 export function updateProfile(
   id: string,
@@ -179,7 +187,7 @@ export function updateProfile(
     const trimmed = patch.name.trim().slice(0, MAX_NAME);
     if (trimmed) next.name = trimmed;
   }
-  if (patch.color !== undefined) next.color = patch.color.trim() || null;
+  if (patch.color !== undefined) next.color = patch.color.trim() || inkFor(id);
   if (patch.avatar !== undefined) next.avatar = patch.avatar.trim() || null;
   const updated = updateAccount(id, next);
   return updated ? dress(updated) : undefined;

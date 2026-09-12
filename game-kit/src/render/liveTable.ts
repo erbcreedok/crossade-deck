@@ -54,6 +54,7 @@ import { aimOf, landingPicture, throwGate, zoneFor } from "./landing.js";
 import { type Mirror } from "./mirror.js";
 import { type Painter } from "./painter.js";
 import { isHome, type Presence } from "./presence.js";
+import { type TextMeasure } from "./textMetrics.js";
 
 /**
  * THE ROUND TABLE'S OWN HOME SPAN — table diameter = 1.5× the glass (owner ask), for `seats.homeSpan`.
@@ -390,6 +391,13 @@ export interface LiveTableOptions<S extends LiveStage = LiveStage> {
    */
   readonly stage?: S;
   readonly painter?: MakePainter;
+  /**
+   * THE RULER A CAPTION IS LAID OUT AGAINST. Without one, everything wearing a `Labeled` draws
+   * silently — the plate is there and the words are not, which is exactly how the names under the
+   * faces went missing at a networked desk. Opt-in, like the rest of `StageOptions.measure`: a desk
+   * with no captions hands over nothing.
+   */
+  readonly measure?: TextMeasure;
   readonly clock?: LiveClock;
   /**
    * THE DESK'S OWN LOOK, applied once the shell is up and before anything is drawn — a consumer
@@ -1362,6 +1370,13 @@ interface BuiltStage extends LiveStage {
 interface StageOptions {
   readonly viewer?: Partial<ViewerSettings>;
   readonly painter?: MakePainter;
+  /**
+   * THE RULER A CAPTION IS LAID OUT AGAINST. Without one, everything wearing a `Labeled` draws
+   * silently — the plate is there and the words are not, which is exactly how the names under the
+   * faces went missing at a networked desk. Opt-in, like the rest of `StageOptions.measure`: a desk
+   * with no captions hands over nothing.
+   */
+  readonly measure?: TextMeasure;
   readonly clock?: LiveClock;
   readonly limits?: CameraLimits;
   readonly room?: CameraContent | ((root: Node) => CameraContent);
@@ -1408,7 +1423,7 @@ function buildStage(container: HTMLElement, desk: Node, opts: StageOptions): Bui
   const view = (): ReturnType<Camera["transform"]> => camera.transform();
   const pitch = (): number => camera.pitch;
   const rotation = (): number => camera.rotation;
-  const motions = attachMotion(host, painter, { view, pitch, rotation });
+  const motions = attachMotion(host, painter, { view, pitch, rotation, ...(opts.measure ? { measure: opts.measure } : {}) });
 
   const repaint = (): void => motions.redraw();
   // A THROW OR A PINCH NEEDS A CLOCK, and the camera has none of its own (`guard.one-clock`): the

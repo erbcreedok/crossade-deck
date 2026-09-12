@@ -8,6 +8,7 @@
 
 import {
   DEFAULT_TUNING,
+  domTextMeasure,
   follow,
   holdThePage,
   installStockCarries,
@@ -62,6 +63,13 @@ export interface StartDeskOptions {
 
 /** Every desk on this shelf is played in the dark, and the strip over it resolves its inks there. */
 const DESK_THEME = "dark";
+
+/**
+ * БУКВЫ, КОТОРЫЕ ЗА СТОЛОМ ТОЧНО ПОНАДОБЯТСЯ — имена людей. Кириллица названа прямо: служба шрифтов
+ * отдаёт подмножества по кодовым точкам, и запрос без образца приносит одну латиницу, после чего
+ * русское имя молча рисуется запасной гарнитурой.
+ */
+const DESK_TEXT_SAMPLE = "АЯаяЁё0123456789 абвгдеёжзийклмнопрстуфхцчшщъыьэюя";
 
 function buildInitialDesk(spec: DeskSpec): Node {
   installStockSurfaces();
@@ -134,6 +142,11 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
    * is usually a persistent stage that is emptied between games but never removed from the document,
    * so a wiring told to watch it would never see it disconnect.
    */
+  /** Одна линейка на стол: её ответы кешируются, поэтому перерисовка ничего не пересчитывает. */
+  const ruler = domTextMeasure({
+    waitFor: [{ font: { family: "'Press Start 2P'", size: 16, weight: 400 }, sample: DESK_TEXT_SAMPLE }],
+  });
+
   const peopleWall = document.createElement("div");
   peopleWall.style.display = "none";
   container.appendChild(peopleWall);
@@ -160,9 +173,10 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     return present.map((one) => ({
       seat: one.seat,
       name: one.name,
-      // THE SAME INK THE DESK DRAWS THEM IN, RESOLVED: the strip is markup and markup has no
-      // palette to look a token up in — `paint` is the kit's own way of handing the value over.
-      ink: paint(DESK_THEME, inkOf(one.seat)),
+      // ТОТ ЖЕ ЦВЕТ, КАКИМ ЕГО РИСУЕТ САМ СТОЛ: цвет человека — его собственный, из профиля, и
+      // только когда своего нет, его даёт место. Полоса — разметка, палитры у неё нет, поэтому
+      // значение выдаётся уже разрешённым (`paint`).
+      ink: paint(DESK_THEME, peopleWire?.inkOf(one.seat) ?? inkOf(one.seat)),
       ...(one.away === true ? { away: true } : {}),
       ...(moving !== undefined && moving === one.seat ? { turn: true } : {}),
     }));
@@ -288,7 +302,8 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     motions: () => live.motions,
     seat: () => seat,
     hudRoot: () => hud?.root,
-    ink: inkOf,
+    // ЦВЕТ ЧЕЛОВЕКА, А НЕ ЕГО МЕСТА — один источник на сукно, кресла и полосу.
+    ink: (one: string) => peopleWire?.inkOf(one) ?? inkOf(one),
     redraw,
     write: () => deskWritten(),
     avatars: () => avatars,
@@ -359,6 +374,10 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
       return undefined;
     },
     painter: (view, size) => pixiPainter(view, size),
+    // ЛИНЕЙКА ДЛЯ ПОДПИСЕЙ — без неё имена под лицами не рисуются вовсе: плашка есть, слов нет.
+    // Ждём пиксельную гарнитуру и просим кириллический образец: шрифтовая служба режет гарнитуру на
+    // подмножества по кодовым точкам, и запрос без образца приносит одну латиницу.
+    measure: ruler,
     clock,
     mirror,
     limits: limitsOfDesk(spec, { width: container.clientWidth, height: container.clientHeight }),
@@ -542,10 +561,12 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
         // this screen's own tracker, asked for instead of fallen into.
         goHome: () => live.idle?.goHome(),
       });
+      // ЦВЕТА ПРИЕЗЖАЮТ С РОСТЕРОМ, И ПРОЧИТАТЬ ЕГО НАДО ПЕРВЫМ: полоса и кресла спрашивают цвет
+      // человека у этой же проводки, и покрашенные до неё встают в цвет места, а не человека.
+      peopleWire.roster(table.roster);
       for (const layer of layers) layer.seated?.(sitting(table.roster));
       sayWhoIsHere(sitting(table.roster));
       tellTurn(sitting(table.roster));
-      peopleWire.roster(table.roster);
       avatars.publish();
       // ...AND THE LAYERS, now that the furniture is standing: a picture drawn before there was
       // anything to draw is an empty foot of the screen for ever.
@@ -556,6 +577,7 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
 
       unbindOnRoster = table.onRoster((roster) => {
         const present = sitting(roster);
+        const gone = peopleWire?.roster(roster) ?? [];
         for (const layer of layers) layer.seated?.(present);
         sayWhoIsHere(present);
         // СОСТАВ ЗА СТОЛОМ СМЕНИЛСЯ — значит мог смениться и состав КОМНАТЫ: подсевший становится
@@ -565,7 +587,6 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
         // Ушёл тот, кто говорил за всех, — теперь говорит следующий: пересчитывается на каждом
         // ростере, поэтому уговора между экранами не нужно.
         tellTurn(present);
-        const gone = peopleWire?.roster(roster) ?? [];
         for (const s of gone) avatars?.forget(s);
         avatars?.publish();
         redraw();
