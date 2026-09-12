@@ -20,7 +20,11 @@ import { installTableLook } from "@crossade/look";
 import type { DeskSpec } from "@game-presets/desk";
 import { GRIP_SPEC, heapOf, ROUND_HOME_SPAN, type LiveStage, type LiveTableOptions, type Node } from "game-kit";
 
-/** How many people sit at this table. */
+/**
+ * СТУЛЬЕВ ЗА КАРТОЧНЫМ СТОЛОМ ПО УМОЛЧАНИЮ. Правилом это число не является: у карт стульев столько,
+ * сколько их поставили за стол, и комната говорит своё (`cardsSpec({ chairs })`). Два — это то, с
+ * чем стол открывается, когда никто ничего не сказал: свой да чужой.
+ */
 export const CARD_SEATS = 2;
 
 /** A piece heaps by the name it carries (`Heaping`) — what makes a pile a pile. */
@@ -33,14 +37,20 @@ function heapKindOf(n: Node): string {
  * (`@game-presets/hand`), and the SAME layer object answers the questions `play` has to ask about a
  * hand — one hand, asked twice, rather than two that could disagree.
  */
-export function cardsSpec(): DeskSpec {
-  const places = roundPlaces(CARD_SEATS);
+export interface CardsSpecOptions {
+  /** Сколько стульев поставить. Пусто — два, столько же, сколько у стола без комнаты. */
+  readonly chairs?: number | undefined;
+}
+
+export function cardsSpec(o: CardsSpecOptions = {}): DeskSpec {
+  const chairs = o.chairs !== undefined && o.chairs > 0 ? Math.floor(o.chairs) : CARD_SEATS;
+  const places = roundPlaces(chairs);
   const hand: HandLayer = handLayer({ places });
 
   return {
     id: "cards",
     title: "Карты",
-    seats: CARD_SEATS,
+    seats: chairs,
     // THE ROUND TABLE and not the catalog's live desk. That one seats two hand areas, because the
     // page it belongs to is about a card changing owner; a table people sit at has no zone that is
     // somebody's, and its felt is a circle a card cannot be taken out of.

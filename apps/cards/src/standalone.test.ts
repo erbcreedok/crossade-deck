@@ -69,6 +69,20 @@ describe("the card table it declares", () => {
     expect(spec.layers?.length, "the hand on the glass is a layer, not a branch in the runtime").toBe(1);
   });
 
+  // СТОРОЖ `cards.chairs-belong-to-the-table-not-to-the-game`.
+  //
+  // За карточным столом стульев столько, сколько их за него поставили: вдвоём и вдесятером играют в
+  // одни и те же карты. Число, зашитое в игру, делало стол на четверых столом на двоих — двое
+  // садились, а третий оказывался на месте, которого на сукне нет.
+  it("стульев столько, сколько назвал стол, и места считаются по ним же", () => {
+    const six = cardsSpec({ chairs: 6 });
+    expect(six.seats).toBe(6);
+    expect(six.places(six.seats).length, "одно место на стул").toBe(6);
+    // Никто ничего не сказал — стол открывается на двоих, как и стоял.
+    expect(cardsSpec().seats).toBe(CARD_SEATS);
+    expect(cardsSpec({ chairs: 0 }).seats, "нисколько стульев — это не стол").toBe(CARD_SEATS);
+  });
+
   it("opens with no rings — the roster is not known before the room answers", () => {
     // THE LAYER IS EMPTY, NOT ABSENT: the map does put the container the chairs go into up front
     // ("seat layer"), and what must not be there yet is a CHAIR. Asking whether any id merely

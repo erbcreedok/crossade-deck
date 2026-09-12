@@ -28,7 +28,10 @@ export interface RoomCard {
   readonly code: string | null;
   readonly game: string;
   readonly title: string | null;
-  readonly seats: number | null;
+  /** Сколько стульев за столом. `null` — столько, сколько велит игра. */
+  readonly chairs: number | null;
+  /** Сколько человек комната держит: игроки, зрители, админы и ушедшие. Не больше 32. */
+  readonly capacity: number;
   readonly visibility: Visibility;
   readonly admission: Admission;
   readonly mode: Mode;
@@ -57,7 +60,8 @@ export interface RoomCard {
 
 export interface OpenRoomOptions {
   readonly game: string;
-  readonly seats?: number;
+  readonly chairs?: number;
+  readonly capacity?: number;
   readonly by?: string;
   readonly title?: string;
   readonly visibility?: Visibility;

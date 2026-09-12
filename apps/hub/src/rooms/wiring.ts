@@ -49,7 +49,8 @@ export function roomForBridge(card: RoomCard, game: GameLook, now = Date.now()):
     code: card.code ?? "",
     group: card.group ?? "public",
     game,
-    seats: card.seats ?? 2,
+    // МОСТ СЧИТАЕТ СТУЛЬЯ: «2/4» в строке — это занятые места за столом, а не люди в комнате.
+    seats: card.chairs ?? 2,
     taken: card.taken,
     online: card.online,
     people: card.people.map((one) => ({ name: one.name, color: one.color ?? null, ...(one.away ? { away: true } : {}) })),

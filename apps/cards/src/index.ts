@@ -14,6 +14,12 @@ import { cardsSpec } from "./spec.js";
 
 export interface StartCardsOptions {
   /**
+   * СКОЛЬКО СТУЛЬЕВ ЗА ЭТИМ СТОЛОМ — их число принадлежит СТОЛУ, а не игре: в карты садятся вдвоём
+   * и вдесятером. Кто зовёт игру, тот и знает, за какой стол (`RoomCard.chairs`); не сказали —
+   * стол открывается на двоих.
+   */
+  readonly chairs?: number | undefined;
+  /**
    * WHERE THIS IS BEING PLAYED. Omitted, the game builds the plain-browser one and is standalone:
    * the room comes out of `?room=`, nothing is laid over the region, and the clock is its own.
    */
@@ -31,7 +37,7 @@ export function startCards(container: HTMLElement, o: StartCardsOptions = {}): T
   // UP BEFORE ANYTHING ELSE IS, and down when the table is worth looking at — which is later than
   // the first frame by a room's round trip and a tree.
   const loading = o.loading === false ? undefined : loadingCross(container, "Загружаю карты");
-  const stop = startDesk(container, cardsSpec(), {
+  const stop = startDesk(container, cardsSpec({ chairs: o.chairs }), {
     host: o.host ?? browserHost({ cover: PALETTE.felt }),
     ...(account ? { account } : {}),
     onReady: () => loading?.done(),
@@ -44,4 +50,4 @@ export function startCards(container: HTMLElement, o: StartCardsOptions = {}): T
   };
 }
 
-export { cardsSpec, CARD_SEATS } from "./spec.js";
+export { cardsSpec, CARD_SEATS, type CardsSpecOptions } from "./spec.js";

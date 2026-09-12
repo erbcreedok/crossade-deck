@@ -81,7 +81,9 @@ export function roomsDoor(container: HTMLElement, o: RoomsDoorOptions): RoomsDoo
   const make = async (table: NewTable): Promise<void> => {
     const made = await gate.open({
       game: table.game,
-      seats: table.seats,
+      // «Мест за столом» на стенде создания — это СТУЛЬЯ. Сколько людей комната держит, спрашивают
+      // не здесь: её предел один на все столы.
+      chairs: table.seats,
       mode: table.mode,
       forever: table.forever,
       code: table.code,

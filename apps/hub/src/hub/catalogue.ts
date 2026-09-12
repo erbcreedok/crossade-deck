@@ -58,11 +58,39 @@ export interface GameEntry {
  * A GAME PLAYED AT A TABLE, wired to the hub's own host. One line per game instead of the ten
  * `if (game === …)` this shelf used to answer with.
  */
-function tableGame(id: string, load: () => Promise<(container: HTMLElement, o: { host: never }) => Teardown>): GameEntry["load"] {
+function tableGame(
+  id: string,
+  load: () => Promise<(container: HTMLElement, o: { host: never }) => Teardown>,
+  o: {
+    /**
+     * СТУЛЬЯ ЭТОЙ ИГРЫ НАЗНАЧАЕТ СТОЛ, А НЕ ПРАВИЛО. У карт их столько, сколько поставили за стол;
+     * у шахмат и нард всегда два, и спрашивать об этом комнату незачем — за доской не бывает
+     * третьего места, сколько бы народу в комнату ни набилось.
+     */
+    readonly chairsFromRoom?: boolean;
+  } = {},
+): GameEntry["load"] {
   return async () => {
     const [start, { hubHost }] = await Promise.all([load(), import("../table/hubHost.js")]);
-    return (container: HTMLElement, door: ShellDoor) =>
-      start(container, { host: hubHost(container, id, door.exit, door.lost) as never });
+    return (container: HTMLElement, door: ShellDoor) => {
+      const host = hubHost(container, id, door.exit, door.lost);
+      const code = host.room();
+      if (!o.chairsFromRoom || !code) return start(container, { host: host as never });
+      // СПРАШИВАЕТСЯ ПОКА ГРУЗИТСЯ, а не после: стол, поднятый на двух стульях и переставленный на
+      // шесть секундой позже, — это две разные картинки подряд и заново собранная камера.
+      let stop: Teardown | undefined;
+      let dropped = false;
+      void import("@crossade/wire")
+        .then(({ peekRoom }) => peekRoom(code))
+        .then((card) => {
+          if (dropped) return;
+          stop = start(container, { host: host as never, chairs: card?.chairs ?? undefined } as never);
+        });
+      return () => {
+        dropped = true;
+        stop?.();
+      };
+    };
   };
 }
 
@@ -84,7 +112,7 @@ export const CATALOGUE: readonly GameEntry[] = [
     loading: "Загружаю карты",
     sign: "\u2660",
     atTable: true,
-    load: tableGame("cards", async () => (await import("@apps/cards")).startCards as never),
+    load: tableGame("cards", async () => (await import("@apps/cards")).startCards as never, { chairsFromRoom: true }),
   },
   {
     id: "chess",
