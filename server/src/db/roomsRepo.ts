@@ -30,6 +30,18 @@ export const MODES = ["free", "council", "assembly"] as const;
 export type Mode = (typeof MODES)[number];
 
 /** Роли за столом. Админ сносит админа, оунера — нет; это правило живёт выше, в комнате. */
+/**
+ * СКОЛЬКО ЧЕЛОВЕК КОМНАТА ДЕРЖИТ САМОЕ БОЛЬШЕЕ. Считаются все, кто в ней состоит: игроки, зрители,
+ * админы и те, кого сейчас нет, — стул тут ни при чём, стульев может быть и больше, и меньше.
+ */
+export const ROOM_LIMIT = 32;
+
+/** Названная вместимость, загнанная в предел: больше тридцати двух комната не держит. */
+export function capacityOf(asked?: number | null): number {
+  if (typeof asked !== "number" || !Number.isFinite(asked)) return ROOM_LIMIT;
+  return Math.max(1, Math.min(ROOM_LIMIT, Math.floor(asked)));
+}
+
 export const ROLES = ["owner", "admin", "player", "spectator"] as const;
 export type Role = (typeof ROLES)[number];
 
@@ -43,7 +55,10 @@ export interface RoomRow {
   readonly visibility: Visibility;
   readonly admission: Admission;
   readonly transport: Transport;
-  readonly seats: number | null;
+  /** Сколько стульев за этим столом. `null` — столько, сколько велит игра. */
+  readonly chairs: number | null;
+  /** Сколько ЛЮДЕЙ комната держит — игроков, зрителей, админов и ушедших. Не больше 32. */
+  readonly capacity: number;
   readonly createdAt: number;
   /** Когда комнату видели живой в последний раз — по нему сортируется список. */
   readonly aliveAt: number;
@@ -64,7 +79,8 @@ interface RawRoom {
   visibility: string;
   admission: string;
   transport: string;
-  seats: number | null;
+  chairs: number | null;
+  capacity: number;
   created_at: number;
   alive_at: number;
   closed_at: number | null;
@@ -84,7 +100,8 @@ function toRoom(raw: RawRoom | undefined): RoomRow | undefined {
     visibility: raw.visibility as Visibility,
     admission: raw.admission as Admission,
     transport: raw.transport as Transport,
-    seats: raw.seats,
+    chairs: raw.chairs,
+    capacity: raw.capacity,
     createdAt: raw.created_at,
     aliveAt: raw.alive_at,
     closedAt: raw.closed_at,
@@ -95,7 +112,7 @@ function toRoom(raw: RawRoom | undefined): RoomRow | undefined {
 }
 
 const SELECT = `SELECT id, code, game, title, owner_account, visibility, admission, transport,
-  seats, created_at, alive_at, closed_at, session_id, mode, forever FROM rooms`;
+  chairs, capacity, created_at, alive_at, closed_at, session_id, mode, forever FROM rooms`;
 
 /**
  * ВЫДАННЫЙ КОД — ЧЕТЫРЕ ЦИФРЫ, и ничего кроме цифр.
@@ -163,7 +180,8 @@ export interface NewRoom {
   readonly ownerAccount?: string | null;
   readonly visibility?: Visibility;
   readonly admission?: Admission;
-  readonly seats?: number | null;
+  readonly chairs?: number | null;
+  readonly capacity?: number | null;
   readonly mode?: Mode;
   readonly forever?: boolean;
   /** Код, названный человеком. Занятый или кривой — комната получит выданный. */
@@ -179,8 +197,8 @@ export function insertRoom(one: NewRoom, at: DatabaseSync = db()): RoomRow | und
   const now = one.now ?? Date.now();
   at.prepare(
     `INSERT INTO rooms (id, code, game, title, owner_account, visibility, admission, transport,
-      seats, created_at, alive_at, closed_at, mode, forever)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'server', ?, ?, ?, NULL, ?, ?)`,
+      chairs, capacity, created_at, alive_at, closed_at, mode, forever)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'server', ?, ?, ?, ?, NULL, ?, ?)`,
   ).run(
     one.id,
     code,
@@ -189,7 +207,8 @@ export function insertRoom(one: NewRoom, at: DatabaseSync = db()): RoomRow | und
     one.ownerAccount ?? null,
     one.visibility ?? "public",
     one.admission ?? "code",
-    one.seats ?? null,
+    one.chairs ?? null,
+    capacityOf(one.capacity),
     now,
     now,
     one.mode ?? "free",

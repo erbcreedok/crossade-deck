@@ -21,7 +21,8 @@ export const HOLD_MS = 10 * 60_000;
 /** ОБЕЩАННЫЙ СТОЛ: всё, что нужно знать, чтобы поднять его, когда по коду наконец придут. */
 export interface Promised {
   readonly game: string;
-  readonly seats?: number;
+  readonly chairs?: number;
+  readonly capacity?: number;
   readonly ownerAccount?: string;
   readonly visibility?: Visibility;
   readonly admission?: Admission;

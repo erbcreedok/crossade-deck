@@ -156,3 +156,40 @@ describe("KitRoom", () => {
     expect((guest2.welcome.you as { seat: string }).seat).toBe("p2");
   });
 });
+
+// СТОРОЖ `kit.chairs-and-people-are-two-counts`.
+//
+// Стул — место за столом, и сколько их, решает стол: в картах их наплодят сколько нужно, в шахматах
+// их всегда два. Человек в комнате — другой счёт: в него входят игроки, зрители, админы и ушедшие,
+// и держит комната не больше тридцати двух. Раньше это было ОДНО поле, и оно врало обеим сторонам:
+// третий за двухместным столом считался лишним в комнате, хотя он всего лишь зритель.
+describe("kit.chairs-and-people-are-two-counts", () => {
+  const server = useTestServer(TEST_PORTS.kitCounts);
+
+  const sit = async (opts: Record<string, unknown>) => {
+    const client = await server().sdk.joinById(roomId!, opts);
+    const welcome = new Promise<Record<string, unknown>>((r) => client.onMessage("welcome", r));
+    client.send("hello");
+    return { client, welcome: await welcome };
+  };
+  let roomId: string | undefined;
+
+  it("стульев меньше, чем людей: лишние садятся зрителями, а сверх вместимости не пускают", async () => {
+    const first = await server().sdk.create("kit_room", { chairs: 2, capacity: 3, accountId: "acc-1", name: "Алия" });
+    roomId = first.roomId;
+
+    const second = await sit({ accountId: "acc-2", name: "Тимур" });
+    const third = await sit({ accountId: "acc-3", name: "Дана" });
+
+    expect((second.welcome.you as { seat: string | null }).seat).toBe("p2");
+    // Стульев два, человек третий — он в комнате, но без стула.
+    expect((third.welcome.you as { seat: string | null }).seat).toBeNull();
+
+    // ...а четвёртому места в комнате уже нет: это про людей, а не про стулья.
+    await expect(server().sdk.joinById(roomId!, { accountId: "acc-4", name: "Канат" })).rejects.toThrow();
+
+    first.leave();
+    second.client.leave();
+    third.client.leave();
+  });
+});

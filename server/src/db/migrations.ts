@@ -217,4 +217,19 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec(`ALTER TABLE accounts ADD COLUMN bot INTEGER NOT NULL DEFAULT 0`);
     },
   },
+  {
+    version: 11,
+    up(db) {
+      // СТУЛЬЯ И ЛЮДИ — РАЗНЫЕ СЧЁТЫ, и одно поле на двоих было враньём.
+      //
+      // СТУЛ — место за столом. Сколько их, решает стол: в картах админ наплодит хоть один, хоть
+      // тридцать два, в шахматах их всегда два, потому что это правило игры, а не настройка.
+      //
+      // УЧАСТНИК — тот, кто в комнате состоит: игрок, зритель, админ, ушедший спать. Их всех и
+      // считает `capacity`, и выходит человек из этого счёта только тогда, когда ВЫЙДЕТ из комнаты.
+      // Пустой стул при этом остаётся стулом, а вышедший освобождает место в комнате.
+      db.exec(`ALTER TABLE rooms RENAME COLUMN seats TO chairs`);
+      db.exec(`ALTER TABLE rooms ADD COLUMN capacity INTEGER NOT NULL DEFAULT 32`);
+    },
+  },
 ];

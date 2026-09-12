@@ -5,12 +5,15 @@ import { guestIdentity } from "./sandboxNames.js";
 import { accountColor, accountName } from "./accounts.js";
 import { accountById } from "./db/accountsRepo.js";
 import { membersOf } from "./db/roomsRepo.js";
-import { setSession } from "./db/roomsRepo.js";
+import { ROOM_LIMIT, setSession } from "./db/roomsRepo.js";
 
 export interface KitJoinOptions {
   accountId?: string;
   name?: string;
-  seats?: number;
+  /** Сколько стульев за этим столом. Столько их у сессии и будет. */
+  chairs?: number;
+  /** Сколько человек комната держит. Не больше 32 — предел самой комнаты. */
+  capacity?: number;
   game?: string;
   /** Чья это комната — та самая вечная запись. Сессия без неё бывает только в тестах. */
   room?: string;
@@ -26,7 +29,13 @@ export interface KitRosterItem {
 
 export class KitRoom extends Room {
   private code = "";
-  private maxSeats = 2;
+  /**
+   * СТУЛЬЕВ ЗА СТОЛОМ. Их число — дело стола: в картах их наплодят сколько нужно, в шахматах их
+   * всегда два, потому что это правило игры. Со счётом людей в комнате оно не связано ничем.
+   */
+  private chairs = 2;
+  /** Сколько человек комната держит — все, кто в ней состоит, а не только сидящие. */
+  private capacity = ROOM_LIMIT;
   private game?: string;
   /** Запись комнаты, сессией которой эта комната является. */
   private record?: string;
@@ -36,8 +45,11 @@ export class KitRoom extends Room {
   private clientMemberMap = new Map<string, KitRosterItem>();
 
   onCreate(options: KitJoinOptions = {}): void {
-    if (typeof options?.seats === "number" && options.seats > 0) {
-      this.maxSeats = Math.floor(options.seats);
+    if (typeof options?.chairs === "number" && options.chairs > 0) {
+      this.chairs = Math.floor(options.chairs);
+    }
+    if (typeof options?.capacity === "number" && options.capacity > 0) {
+      this.capacity = Math.min(ROOM_LIMIT, Math.floor(options.capacity));
     }
     if (typeof options?.game === "string") this.game = options.game;
 
@@ -119,6 +131,11 @@ export class KitRoom extends Room {
   }
 
   onJoin(client: Client, options: KitJoinOptions = {}): void {
+    // КОМНАТА ПОЛНА — ЭТО ПРО ЛЮДЕЙ, А НЕ ПРО СТУЛЬЯ. Стульев может не быть вовсе: пришедший станет
+    // зрителем. А вот когда в комнате уже столько народу, сколько она держит, входить некуда —
+    // и место освободит только тот, кто из неё ВЫЙДЕТ.
+    const returning = options?.accountId !== undefined && this.members.some((m) => m.accountId === options.accountId);
+    if (!returning && this.members.length >= this.capacity) throw new Error("room_full");
     if (options?.accountId) {
       const existing = this.members.find((m) => m.accountId === options.accountId);
       if (existing) {
@@ -219,9 +236,13 @@ export class KitRoom extends Room {
     if (seated) this.autoDispose = false;
   }
 
+  /**
+   * СВОБОДНЫЙ СТУЛ, ЕСЛИ ОН ЕСТЬ. Нет — человек всё равно за столом, просто без стула: это зритель,
+   * а не отказ во входе. Отказывает комната, и по другому счёту — по числу людей в ней.
+   */
   private nextFreeSeat(): string | null {
     const takenSeats = new Set(this.members.map((m) => m.seat));
-    for (let i = 1; i <= this.maxSeats; i++) {
+    for (let i = 1; i <= this.chairs; i++) {
       const seatName = `p${i}`;
       if (!takenSeats.has(seatName)) return seatName;
     }

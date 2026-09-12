@@ -90,12 +90,13 @@ describe("rooms.a-closed-table-is-not-replaced-by-a-new-one", () => {
     expect(allowed.status).toBe(200);
   });
 
-  it("стол помнит свой уклад и свою вечность", async () => {
-    const { body } = await open({ mode: "council", forever: true, seats: 6 });
+  it("стол помнит свой уклад, свою вечность, свои стулья и свою вместимость", async () => {
+    const { body } = await open({ mode: "council", forever: true, chairs: 6, capacity: 12 });
     const found = (await (await fetch(`${BASE}/rooms/by-code/${body.code}`)).json()) as Record<string, unknown>;
     expect(found.mode).toBe("council");
     expect(found.forever).toBe(true);
-    expect(found.seats).toBe(6);
+    expect(found.chairs).toBe(6);
+    expect(found.capacity).toBe(12);
   });
 
   it("свой код берут, если он свободен, и буквы в нём можно", async () => {
@@ -376,7 +377,7 @@ describe("rooms.a-mock-user-takes-a-chair-and-a-live-absent-one-does-not", () =>
     const absent = await account();
     // Стол заводится БЕЗ сессии: моки садятся, когда её поднимают, и до этого их сажать некуда.
     const { byId: find, openRoom: makeRoom } = await import("./rooms.js");
-    const room = makeRoom({ game: "cards", seats: 4, ownerAccount: me.id, forever: true })!;
+    const room = makeRoom({ game: "cards", chairs: 4, ownerAccount: me.id, forever: true })!;
     const body = { room: room.id } as Record<string, string>;
 
     const mock = (name: string, role: "admin" | "player" | "spectator") => {

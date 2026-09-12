@@ -33,6 +33,7 @@ export const TEST_PORTS = {
   move: 2669,
   sandbox: 2670,
   kit: 2671,
+  kitCounts: 2672,
 } as const;
 
 export function createGameServer() {

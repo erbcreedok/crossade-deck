@@ -51,7 +51,10 @@ function newId(): string {
 
 export interface OpenRoom {
   readonly game: string;
-  readonly seats?: number;
+  /** Сколько стульев за столом. Пусто — столько, сколько велит игра. */
+  readonly chairs?: number;
+  /** Сколько человек комната держит: игроков, зрителей, админов и ушедших. Не больше 32. */
+  readonly capacity?: number;
   readonly ownerAccount?: string;
   readonly title?: string;
   readonly visibility?: Visibility;
@@ -76,7 +79,8 @@ export function openRoom(one: OpenRoom): RoomRow | undefined {
   return insertRoom({
     id: newId(),
     game: one.game,
-    seats: one.seats ?? null,
+    chairs: one.chairs ?? null,
+    ...(one.capacity !== undefined ? { capacity: one.capacity } : {}),
     ownerAccount: owner,
     title: one.title ?? null,
     visibility: one.visibility,
@@ -138,7 +142,10 @@ export async function sessionOf(room: RoomRow): Promise<string> {
     game: room.game,
     room: room.id,
     code: room.code,
-    ...(room.seats ? { seats: room.seats } : {}),
+    // СТОЛУ — СТУЛЬЯ, А НЕ ЧИСЛО УЧАСТНИКОВ: сессия рассаживает людей по местам, и мест у неё
+    // ровно столько, сколько их за этим столом.
+    ...(room.chairs ? { chairs: room.chairs } : {}),
+    capacity: room.capacity,
   });
   setSession(room.id, listing.roomId);
   return listing.roomId;

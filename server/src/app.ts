@@ -43,6 +43,7 @@ import {
 import { BUILD_INFO, formatVersion } from "./version.js";
 import { atCode, byCode, byId, close, codeFree, isKitGame, mine, openRoom, reserveCode, search, sessionOf, type RoomRow } from "./rooms.js";
 import { rosterOf } from "./roomRoster.js";
+import { ROOM_LIMIT } from "./db/roomsRepo.js";
 import { promiseOf, type Promised } from "./codeHold.js";
 import { ADMISSIONS, cleanCode, MODES, roleOf, VISIBILITIES, type Mode } from "./db/roomsRepo.js";
 import { peopleAt, turnAt } from "./roomPeople.js";
@@ -71,7 +72,8 @@ function seenFromOutside(room: RoomRow, forAccount?: string) {
     code: room.code,
     game: room.game,
     title: room.title,
-    seats: room.seats,
+    chairs: room.chairs,
+    capacity: room.capacity,
     visibility: room.visibility,
     admission: room.admission,
     mode: room.mode,
@@ -100,7 +102,8 @@ function seenPromised(code: string, promised: Promised) {
     code,
     game: promised.game,
     title: null,
-    seats: promised.seats ?? null,
+    chairs: promised.chairs ?? null,
+    capacity: promised.capacity ?? ROOM_LIMIT,
     visibility: promised.visibility ?? "hidden",
     admission: promised.admission ?? "code",
     mode: promised.mode ?? "free",
@@ -176,7 +179,7 @@ export function createApp() {
   // СТОЛ ОТКРЫВАЕТСЯ ЗАПИСЬЮ, А НЕ ПРОЦЕССОМ. Сначала заводится комната (её код, её правила, её
   // хозяин), и только потом под неё поднимается сессия Colyseus, в которую клиент входит сам.
   app.post("/rooms", async (req, res) => {
-    const { game, seats, by, title, visibility, admission, mode, forever, code } = req.body || {};
+    const { game, chairs, capacity, by, title, visibility, admission, mode, forever, code } = req.body || {};
     if (!isKitGame(game)) return res.status(400).json({ error: "bad_request" });
     if (visibility && !(VISIBILITIES as readonly string[]).includes(visibility)) {
       return res.status(400).json({ error: "bad_request" });
@@ -190,7 +193,8 @@ export function createApp() {
 
     const room = openRoom({
       game,
-      ...(typeof seats === "number" ? { seats } : {}),
+      ...(typeof chairs === "number" ? { chairs } : {}),
+      ...(typeof capacity === "number" ? { capacity } : {}),
       ...(typeof by === "string" ? { ownerAccount: by } : {}),
       ...(typeof title === "string" && title.trim() ? { title: title.trim() } : {}),
       ...(visibility ? { visibility } : {}),
@@ -213,14 +217,15 @@ export function createApp() {
   // чтобы его отправили другу, ещё не сев за стол. Выданный тут же придерживается за спросившим,
   // иначе второй человек в эту же секунду получит тот же код.
   app.post("/rooms/code", (req, res) => {
-    const { game, seats, by, visibility, admission, mode, forever } = req.body || {};
+    const { game, chairs, capacity, by, visibility, admission, mode, forever } = req.body || {};
     // ВМЕСТЕ С КОДОМ МОЖНО ПРИДЕРЖАТЬ И ОБЕЩАНИЕ СТОЛА. Так зовут друга из чужой переписки: бот
     // отвечает карточкой с кодом, а комната поднимается, когда по ней придут. Игру не назвали —
     // это прежняя бронь пустого кода, и она ничего не обещает.
     const promised: Promised | undefined = isKitGame(game)
       ? {
           game,
-          ...(typeof seats === "number" ? { seats } : {}),
+          ...(typeof chairs === "number" ? { chairs } : {}),
+          ...(typeof capacity === "number" ? { capacity } : {}),
           ...(typeof by === "string" ? { ownerAccount: by } : {}),
           ...((VISIBILITIES as readonly string[]).includes(visibility) ? { visibility } : {}),
           ...((ADMISSIONS as readonly string[]).includes(admission) ? { admission } : {}),
