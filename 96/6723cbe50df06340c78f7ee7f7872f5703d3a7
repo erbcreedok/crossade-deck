@@ -1,0 +1,25 @@
+server/src/db/migrations.ts
+  s_9ed0da107cbc4a::t_cc54ab3093ec7d 141-184
+server/src/db/roomsRepo.test.ts
+  s_9ed0da107cbc4a::t_c2ffa85637a2b6 1-138
+server/src/db/roomsRepo.ts
+  s_9ed0da107cbc4a::t_d8300dc6b743e1 1-156,158-172,174-180,182-192,194-221,223-239
+  s_9ed0da107cbc4a::t_92efd14cb2bf46 181,193
+  s_9ed0da107cbc4a::t_b54f5f8023cd31 157,173,222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "966723cbe50df06340c78f7ee7f7872f5703d3a7",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
