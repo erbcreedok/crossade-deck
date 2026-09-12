@@ -10,12 +10,16 @@
 
 Поэтому каждый ответ помечен `no-store`: телефон всегда берёт свежее.
 
+И сервер ОБЯЗАН быть многопоточным. Обычный `HTTPServer` держит одно соединение за раз, а
+браузер на ноутбуке не отпускает своё (keep-alive) — телефон в той же сети после этого
+просто висит на пустой странице, и выглядит это как «стенд не поднят».
+
     python3 design/serve.py <порт> <папка>
 """
 
 import sys
 from functools import partial
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 
 class NoCache(SimpleHTTPRequestHandler):
@@ -30,7 +34,7 @@ def main() -> None:
     port = int(sys.argv[1])
     directory = sys.argv[2]
     handler = partial(NoCache, directory=directory)
-    HTTPServer(("", port), handler).serve_forever()
+    ThreadingHTTPServer(("", port), handler).serve_forever()
 
 
 if __name__ == "__main__":
