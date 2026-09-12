@@ -106,6 +106,16 @@
         "design/hubhome"
       ],
       "port": 9577
+    },
+    {
+      "name": "grab-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "design/serve.py",
+        "9581",
+        "design/grab"
+      ],
+      "port": 9581
     }
   ]
 }

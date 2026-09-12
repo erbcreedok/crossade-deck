@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Грипы и сбор стопки — стенд</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Handjet&family=Press+Start+2P&family=Tiny5&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #0d2118; color: #cdb98f; font: 400 16px/1.45 'Handjet', monospace; }
+  .page { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; padding: 32px; }
+  .phone { flex: none; width: 390px; height: 844px; position: relative; overflow: hidden; border-radius: 44px;
+    background: radial-gradient(120% 90% at 50% 34%, #1b4835, #0a2117); box-shadow: inset 0 0 0 3px #0b0704; touch-action: none; }
+  .panel { flex: 1; min-width: 320px; max-width: 470px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font: 400 26px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .sec { padding: 12px 14px; background: #123527; box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #3a2a1d; display: flex; flex-direction: column; gap: 6px; }
+  .sec h2 { margin: 0 0 4px; font: 400 16px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .row { display: grid; grid-template-columns: 158px 1fr 56px; align-items: center; gap: 8px; }
+  .row label { color: #f5ead0; }
+  .row select, .row input[type=checkbox] { justify-self: start; }
+  .row input[type=range] { width: 100%; }
+  .row .val { color: #f2c14e; text-align: right; font: 400 13px 'Press Start 2P', monospace; }
+  .nums { font-size: 15px; line-height: 1.6; }
+  .nums b { color: #f2c14e; font-weight: 400; }
+  code { color: #f2c14e; }
+  button.reset { align-self: flex-start; font: inherit; color: #f2c14e; background: none; border: 2px solid #f2c14e; padding: 4px 10px; cursor: pointer; }
+  .knob { display: none; }
+  @media (max-width: 700px), (pointer: coarse) and (max-width: 1000px) {
+    body { overflow: hidden; }
+    .page { padding: 0; gap: 0; }
+    .phone { position: fixed; inset: 0; width: 100vw; height: 100dvh; border-radius: 0; box-shadow: none; }
+    .panel { position: fixed; left: 0; right: 0; bottom: 0; max-width: none; max-height: 72dvh; overflow: auto; padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); box-sizing: border-box;
+      background: #0d2118; box-shadow: 0 -3px 0 #0b0704, 0 -6px 0 #3a2a1d; transform: translateY(100%); transition: transform .22s cubic-bezier(.2,.85,.25,1); z-index: 30; }
+    .panel.open { transform: none; }
+    .knob { display: flex; position: fixed; right: 14px; bottom: calc(150px + env(safe-area-inset-bottom)); z-index: 40; width: 46px; height: 46px; border-radius: 8px; align-items: center; justify-content: center;
+      background: linear-gradient(#25321f, #16210f); box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #6b4d2c, 0 4px 0 rgba(11,7,4,.6); color: #f2c14e; font: 400 9px 'Tiny5', monospace; }
+    h1 { font-size: 20px; }
+    .row { grid-template-columns: 124px 1fr 44px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="phone" id="phone"><div id="board"></div></div>
+  <div class="knob" id="knob">РУЧКИ</div>
+  <div class="panel" id="panel">
+    <h1>Грипы и сбор стопки</h1>
+    <div><b>Стопка всегда стопка</b> — ровный массив, и у неё всегда СВОЙ грип. Форма грипа от того, что внутри: у карт край веера, у фишек столбик, у имущества ярлык. Грип — ручка, а не кнопка: тянешь его — едет вся стопка. Сами собой на сукне грипы не заводятся: лежащие рядом карты остаются лежащими рядом.<br>
+    <b>Кастомную стопку</b> собирает инструмент в правой полосе HUD. Тап — режим набора: стол остывает, тапом набираются элементы, стопки целиком и незалоченные карты в чужих руках; набранное нумеруется, на инструменте счётчик. Дальше инструмент САМ становится стопкой — тянешь его, и набранное собирается под пальцем. Приёмник под пальцем загорается и говорит, чем примет. Отпустил мимо — легло на стол там, где отпустил.<br>
+    <b>Приёмник обязан отвечать.</b> Пока колода молчит, «отпустить В колоду» невозможно — карта просто падает поверх. Подсветка тут одна на всех: колода, стопка, моя рука, чужая рука.</div>
+    <div id="controls"></div>
+    <div class="nums" id="nums"></div>
+    <button class="reset" id="reset">сбросить</button>
+  </div>
+</div>
+<script>
+(function () {
+  const T = {
+    felt: "#173d2d", panel: "#3a2a1d", panelLight: "#4a3627", well: "#1c120b",
+    ink: "#f5ead0", inkDim: "#cdb98f", gold: "#f2c14e", goldHi: "#f8d885", goldLo: "#b08a26",
+    danger: "#e0483f", black: "#0b0704", wood: "#6b4d2c", chip: "#7fd1b9", estate: "#b98fe0",
+  };
+  const phone = document.getElementById("phone");
+  const board = document.getElementById("board");
+  const SUITS = [["♠", T.black], ["♥", T.danger], ["♦", T.danger], ["♣", T.black]];
+  const RANKS = ["A", "K", "Q", "J", "10", "9", "8", "7", "6"];
+
+  // ---- РУЧКИ ----
+  const SPEC = [
+    ["Инструмент", [
+      ["tool", "режим", "enum", "выкл", ["выкл", "набор", "несу"]],
+      ["veil", "стол остывает в наборе", "bool", true],
+      ["numbers", "нумеровать набранное", "bool", true],
+      ["fanOut", "долгий тап: веер мишеней", "bool", false],
+    ]],
+    ["Что на столе", [
+      ["deck", "колода", "int", 24, 0, 52],
+      ["chips", "фишек в столбике", "int", 7, 0, 20],
+      ["estate", "карточек имущества", "int", 3, 0, 8],
+      ["loose", "россыпь на сукне", "int", 4, 0, 8],
+      ["grips", "показывать зоны грипов", "bool", false],
+    ]],
+    ["Руки", [
+      ["myCards", "карт у меня", "int", 5, 0, 10],
+      ["theyCards", "карт у соседа", "int", 4, 0, 10],
+      ["theyLock", "рука соседа на локе", "bool", false],
+    ]],
+    ["Приём", [
+      ["over", "палец над приёмником", "enum", "нет", ["нет", "колода", "фишки", "имущество", "моя рука", "чужая рука"]],
+      ["sinkHint", "подпись у пальца", "bool", true],
+    ]],
+  ];
+  const DEFAULTS = {};
+  for (const [, rows] of SPEC) for (const [k, , , d] of rows) DEFAULTS[k] = d;
+
+  const readHash = () => {
+    const out = { ...DEFAULTS };
+    const h = location.hash.replace(/^#/, "");
+    if (!h) return out;
+    for (const pair of h.split("&")) {
+      const [k, v] = pair.split("=").map(decodeURIComponent);
+      if (!(k in DEFAULTS)) continue;
+      const def = DEFAULTS[k];
+      out[k] = typeof def === "number" ? Number(v) : typeof def === "boolean" ? v === "1" : v;
+    }
+    return out;
+  };
+  const writeHash = () => {
+    const parts = [];
+    for (const k in DEFAULTS) if (P[k] !== DEFAULTS[k]) parts.push(encodeURIComponent(k) + "=" + encodeURIComponent(typeof P[k] === "boolean" ? (P[k] ? "1" : "0") : P[k]));
+    history.replaceState(null, "", parts.length ? "#" + parts.join("&") : location.pathname);
+  };
+  let P = readHash();
+
+  // ---- СОСТОЯНИЕ, КОТОРОЕ ПЕРЕЖИВАЕТ ПЕРЕРИСОВКУ ----
+  // Набор лежит здесь, а не в замыкании обработчика: каждая правка ручки пересобирает доску, и
+  // выделение, живущее в замыкании, обнулялось бы на первом же тапе.
+  const S = { sel: new Set(), note: "", drag: null, fan: false, at: { x: 0, y: 0 }, press: 0 };
+
+  const W = () => phone.clientWidth || 390;
+  const H = () => phone.clientHeight || 844;
+
+  // ---- РИСОВАНИЕ ----
+  const cardArt = (i, shown, w) => {
+    const h = Math.round(w * 1.4);
+    const pair = SUITS[(i * 3 + 1) % 4];
+    const sign = pair[0], colour = pair[1];
+    const rank = RANKS[(i * 5 + 2) % RANKS.length];
+    const face = `<span style="position:absolute;left:${Math.round(w * 0.09)}px;top:${Math.round(w * 0.05)}px;font:400 ${Math.round(w * 0.33)}px 'Tiny5',monospace;color:${colour}">${rank}</span>`
+      + `<span style="position:absolute;left:0;right:0;top:${Math.round(h * 0.34)}px;text-align:center;font:400 ${Math.round(w * 0.5)}px 'Tiny5',monospace;color:${colour}">${sign}</span>`;
+    const back = `<span style="position:absolute;inset:${Math.round(w * 0.09)}px;border-radius:3px;background:repeating-linear-gradient(45deg,${T.wood} 0 4px,${T.panel} 4px 8px);opacity:.85"></span>`;
+    return `<span style="position:absolute;inset:0;border-radius:${Math.round(w * 0.15)}px;background:${shown ? T.ink : T.panelLight};`
+      + `box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.55)">${shown ? face : back}</span>`;
+  };
+
+  // ГРИП — ручка стопки, и она РАЗНАЯ по тому, что держит. Это не украшение: по грипу должно быть
+  // видно, что поднимется, ещё до касания. Карты — край веера, фишки — столбик, имущество — ярлык.
+  // Одинаковая ручка на всё превращает стол в ряд неразличимых квадратов.
+  const GRIP = {
+    card: `<svg viewBox="0 0 24 16" width="26" height="18" fill="none" stroke="${T.black}" stroke-width="1.6"><rect x="3" y="3" width="9" height="11" rx="1.5" fill="${T.goldHi}" transform="rotate(-14 7 9)"/><rect x="8" y="3" width="9" height="11" rx="1.5" fill="${T.gold}"/><rect x="12" y="3" width="9" height="11" rx="1.5" fill="${T.goldLo}" transform="rotate(14 17 9)"/></svg>`,
+    chip: `<svg viewBox="0 0 24 16" width="26" height="18" fill="none" stroke="${T.black}" stroke-width="1.6"><ellipse cx="12" cy="11.5" rx="8" ry="3.2" fill="${T.chip}"/><ellipse cx="12" cy="8" rx="8" ry="3.2" fill="${T.chip}"/><ellipse cx="12" cy="4.5" rx="8" ry="3.2" fill="${T.chip}"/></svg>`,
+    estate: `<svg viewBox="0 0 24 16" width="26" height="18" fill="none" stroke="${T.black}" stroke-width="1.6"><path d="M4 13V7l8-4 8 4v6z" fill="${T.estate}"/><path d="M10 13V9.5h4V13"/></svg>`,
+    mix: `<svg viewBox="0 0 24 16" width="26" height="18" fill="none" stroke="${T.black}" stroke-width="1.6"><rect x="4" y="4" width="8" height="9" rx="1.5" fill="${T.goldHi}" transform="rotate(-12 8 8)"/><ellipse cx="16" cy="11" rx="5" ry="2.4" fill="${T.chip}"/><path d="M13 6l3-2 3 2v3h-6z" fill="${T.estate}"/></svg>`,
+  };
+  const gripTag = (kind, n, lit) => `<div style="position:absolute;left:50%;bottom:-13px;transform:translateX(-50%);`
+    + `display:flex;align-items:center;gap:4px;padding:2px 6px 2px 4px;border-radius:9px;white-space:nowrap;`
+    + `background:${lit ? `linear-gradient(${T.goldHi},${T.goldLo})` : `linear-gradient(#25321f,#16210f)`};`
+    + `box-shadow:inset 0 0 0 2px ${T.black}${lit ? "" : `,inset 0 0 0 4px ${T.wood}`},0 2px 0 rgba(11,7,4,.6);z-index:40">`
+    + GRIP[kind] + `<span style="font:400 9px 'Press Start 2P',monospace;color:${lit ? T.black : T.ink}">${n}</span></div>`;
+
+  const SINK = { "колода": "deck", "фишки": "chips", "имущество": "estate", "моя рука": "myhand", "чужая рука": "theirhand" };
+  const sinkLit = (id) => SINK[P.over] === id;
+  // Мишень отвечает ДО отпускания: рамка и подъём. Без ответа жест читается как бросок — карта
+  // падает ПОВЕРХ, а не В стопку, и это ровно то, что сейчас плохо.
+  const sinkSkin = (lit) => lit ? `box-shadow:0 0 0 3px ${T.gold},0 0 18px rgba(242,193,78,.45);transform:translateY(-4px);` : "";
+
+  /** Набранное уехало под палец — на прежнем месте остаётся призрак, чтобы было видно, ОТКУДА взято. */
+  const gone = () => P.tool === "несу" ? "opacity:.22;" : "";
+  const seq = (i) => `<div style="position:absolute;right:-9px;top:-9px;width:20px;height:20px;border-radius:999px;z-index:45;`
+    + `display:flex;align-items:center;justify-content:center;background:linear-gradient(${T.goldHi},${T.goldLo});`
+    + `box-shadow:inset 0 0 0 2px ${T.black};font:400 8px 'Press Start 2P',monospace;color:${T.black}">${i}</div>`;
+  const sinkWord = (label) => `<div style="position:absolute;left:50%;top:-22px;transform:translateX(-50%);white-space:nowrap;`
+    + `padding:2px 6px;background:${T.black};box-shadow:inset 0 0 0 2px ${T.gold};font:400 8px 'Press Start 2P',monospace;color:${T.gold};z-index:46">В ${label.toUpperCase()}</div>`;
+
+  const stackBox = (o) => {
+    if (!o.n) return "";
+    const lit = sinkLit(o.id);
+    const picked = S.sel.has(o.id);
+    const order = [...S.sel].indexOf(o.id) + 1;
+    const layers = Array.from({ length: Math.min(o.n, 5) }, (_, i) => {
+      const d = i * 2;
+      const body = o.kind === "card" ? cardArt(i, false, o.w)
+        : o.kind === "chip" ? `<span style="position:absolute;inset:0;border-radius:999px/40%;background:linear-gradient(${T.chip},#3f8c78);box-shadow:inset 0 0 0 2px ${T.black}"></span>`
+        : `<span style="position:absolute;inset:0;border-radius:4px;background:linear-gradient(${T.estate},#6b4d8c);box-shadow:inset 0 0 0 2px ${T.black}"></span>`;
+      return `<div style="position:absolute;left:${8 - d}px;bottom:${d}px;width:${o.w}px;height:${o.h}px">${body}</div>`;
+    }).join("");
+    return `<div data-pick="${o.id}" style="position:absolute;left:${o.x}px;top:${o.y}px;width:${o.w + 8}px;height:${o.h + 8}px;`
+      + `transition:transform .12s;${sinkSkin(lit)}${picked ? `outline:3px solid ${T.gold};outline-offset:3px;${gone()}` : ""}">`
+      + (P.grips ? `<div style="position:absolute;inset:-8px;border:2px dashed rgba(242,193,78,.35);border-radius:8px"></div>` : "")
+      + layers + gripTag(o.kind, o.n, lit || picked)
+      + (picked && P.numbers ? seq(order) : "") + (lit ? sinkWord(o.label) : "") + `</div>`;
+  };
+
+  // ---- ДОСКА ----
+  const fanSpots = (n, FW, cw, o) => {
+    const wantStep = o.step, tilt = o.tilt === undefined ? 7 : o.tilt, lift = o.lift === undefined ? 10 : o.lift;
+    const step = n > 1 ? Math.min(wantStep, (FW - cw) / (n - 1)) : 0;
+    const x0 = (FW - (cw + step * (n - 1))) / 2;
+    const mid = (n - 1) / 2;
+    return Array.from({ length: n }, (_, i) => ({
+      x: x0 + step * i, lift: mid ? lift * (1 - Math.abs(i - mid) / mid) : lift, rot: (i - mid) * tilt, z: i + 1,
+    }));
+  };
+
+  const HUD = { btn: 44, gap: 6, margin: 16, bottom: 44, card: 74 };
+  const ICON = {
+    pin: '<path d="M9 3h6l-1 6h2l1 5H7l1-5h2L9 3zM12 14v7"/>',
+    lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z"/>',
+    hide: '<path d="M3 3l18 18M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9"/>',
+    fan: '<rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(-28 12 20)"/><rect x="9" y="5" width="6" height="12" rx="1"/><rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(28 12 20)"/>',
+    // Инструмент сбора: рамка, стягивающая разное в одно. Не «плюс» и не «корзина» — те читаются
+    // как создать/выбросить, а он СОБИРАЕТ уже лежащее.
+    gather: '<path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><rect x="9" y="9" width="6" height="6" rx="1"/>',
+  };
+  const svg = (body, size, colour) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${colour}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+  const hudBtn = (key, lit) => `<div style="position:relative;width:${HUD.btn}px;height:${HUD.btn}px;border-radius:8px;box-sizing:border-box;`
+    + `display:flex;align-items:center;justify-content:center;`
+    + (lit ? `background:linear-gradient(${T.goldHi} 0%,${T.gold} 48%,${T.goldLo} 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6)">`
+           : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 4px 0 rgba(11,7,4,.6)">`)
+    + svg(ICON[key], Math.round(HUD.btn * 0.5), lit ? T.black : T.ink) + `</div>`;
+
+  const theirHand = () => {
+    const n = P.theyCards;
+    const cw = 40, ch = Math.round(cw * 1.4), boxW = 200, boxH = ch + 34;
+    const x = Math.round((W() - boxW) / 2), y = 26;
+    const spots = fanSpots(n, boxW - 16, cw, { step: cw * 0.62, tilt: 6, lift: 7 });
+    const lit = sinkLit("theirhand");
+    const cards = Array.from({ length: n }, (_, i) => {
+      const at = spots[n - 1 - i];
+      const id = "t" + i;
+      const picked = S.sel.has(id);
+      const order = [...S.sel].indexOf(id) + 1;
+      const top = 20 + 7 - at.lift;
+      return `<div ${P.theyLock ? "" : `data-pick="${id}"`} style="position:absolute;width:${cw}px;height:${ch}px;left:${8 + at.x}px;top:${top}px;`
+        + `transform:rotate(${at.rot}deg);transform-origin:50% 100%;z-index:${at.z};`
+        + (picked ? `outline:3px solid ${T.gold};outline-offset:2px;border-radius:8px;` : "") + (picked ? gone() : "")
+        + (P.tool === "набор" && P.theyLock ? "opacity:.35;" : "")
+        + `">${cardArt(i, false, cw)}${picked && P.numbers ? seq(order) : ""}</div>`;
+    }).join("");
+    return `<div style="position:absolute;left:${x}px;top:${y}px;width:${boxW}px;height:${boxH}px;border-radius:10px;transition:transform .12s;z-index:${P.theyLock && P.tool !== "выкл" ? 3 : P.tool === "выкл" ? 3 : 12};`
+      + `background:rgba(11,7,4,.28);box-shadow:inset 0 0 0 2px rgba(11,7,4,.6);${sinkSkin(lit)}">`
+      + `<div style="position:absolute;left:8px;top:4px;font:400 8px 'Press Start 2P',monospace;color:${T.inkDim};opacity:.7">МАРАТ${P.theyLock ? " · ЛОК" : ""}</div>`
+      + cards + (lit ? sinkWord("руку Марата") : "") + `</div>`;
+  };
+
+  const myHud = () => {
+    const cw = HUD.card, ch = Math.round(cw * 1.4);
+    const spots = fanSpots(P.myCards, W() - 2 * HUD.margin, cw, { step: 44, tilt: 7, lift: 10 });
+    const handBottom = HUD.bottom + HUD.btn + HUD.gap + 10;
+    const lit = sinkLit("myhand");
+    const cards = Array.from({ length: P.myCards }, (_, i) => {
+      const id = "m" + i;
+      const picked = S.sel.has(id);
+      const order = [...S.sel].indexOf(id) + 1;
+      return `<div data-pick="${id}" style="position:absolute;width:${cw}px;height:${ch}px;pointer-events:auto;`
+        + `left:${HUD.margin + spots[i].x}px;bottom:${handBottom + spots[i].lift}px;`
+        + `transform:rotate(${spots[i].rot}deg);transform-origin:50% 100%;z-index:${spots[i].z};`
+        + (picked ? `outline:3px solid ${T.gold};outline-offset:2px;border-radius:10px;` : "") + (picked ? gone() : "")
+        + `">${cardArt(i + 7, true, cw)}${picked && P.numbers ? seq(order) : ""}</div>`;
+    }).join("");
+    const count = S.sel.size;
+    // Инструмент стоит в правой полосе — там же, где позы руки. В наборе он горит и носит счётчик;
+    // как только в наборе есть хоть один элемент, ОН САМ становится стопкой, за которую тянут.
+    const tool = `<div data-tool="1" style="position:relative;touch-action:none">`
+      + hudBtn("gather", P.tool !== "выкл")
+      + (count ? `<div style="position:absolute;right:-7px;top:-7px;width:20px;height:20px;border-radius:999px;display:flex;align-items:center;justify-content:center;`
+        + `background:${T.black};box-shadow:inset 0 0 0 2px ${T.gold};font:400 8px 'Press Start 2P',monospace;color:${T.gold}">${count}</div>` : "")
+      + `</div>`;
+    // Запасной ход для одной руки: долгий тап раскрывает мишени прямо над инструментом, чтобы не
+    // тащить стопку через весь экран большим пальцем.
+    const fan = (P.fanOut || S.fan) && count ? `<div style="position:absolute;right:${HUD.margin}px;bottom:${HUD.bottom + HUD.btn + 12}px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;z-index:20">`
+      + ["на стол", "в мою руку", "вернуть на места"].map((t) => `<div data-fan="${t}" style="padding:6px 10px;background:${T.black};`
+        + `box-shadow:inset 0 0 0 2px ${T.gold};font:400 9px 'Tiny5',monospace;letter-spacing:.06em;color:${T.gold};pointer-events:auto">${t.toUpperCase()}</div>`).join("")
+      + `</div>` : "";
+    return `<div style="position:absolute;left:0;right:0;bottom:0;height:${handBottom + ch + 24}px;z-index:${P.tool === "выкл" ? 8 : 12};pointer-events:none;transition:transform .12s;${sinkSkin(lit)}">`
+      + cards
+      + (lit ? `<div style="position:absolute;left:50%;bottom:${handBottom + ch}px;transform:translateX(-50%);padding:2px 6px;background:${T.black};box-shadow:inset 0 0 0 2px ${T.gold};font:400 8px 'Press Start 2P',monospace;color:${T.gold}">В МОЮ РУКУ</div>` : "")
+      + `<div style="position:absolute;left:${HUD.margin}px;bottom:${HUD.bottom}px;display:flex;gap:${HUD.gap}px;pointer-events:auto">`
+      + hudBtn("pin", false) + hudBtn("lock", false) + hudBtn("hide", false) + `</div>`
+      + `<div style="position:absolute;right:${HUD.margin}px;bottom:${HUD.bottom}px;display:flex;gap:${HUD.gap}px;pointer-events:auto">`
+      + hudBtn("fan", true) + tool + `</div>` + fan
+      + `</div>`;
+  };
+
+  const looseCards = () => {
+    const cw = 46, ch = Math.round(cw * 1.4);
+    return Array.from({ length: P.loose }, (_, i) => {
+      const id = "l" + i;
+      const picked = S.sel.has(id);
+      const order = [...S.sel].indexOf(id) + 1;
+      const x = 34 + (i % 3) * 62 + (i > 2 ? 30 : 0), y = 452 + Math.floor(i / 3) * 36;
+      return `<div data-pick="${id}" style="position:absolute;left:${x}px;top:${y}px;width:${cw}px;height:${ch}px;`
+        + `transform:rotate(${(i * 37) % 24 - 12}deg);z-index:${5 + i};`
+        + (picked ? `outline:3px solid ${T.gold};outline-offset:2px;border-radius:8px;` : "") + (picked ? gone() : "")
+        + `">${cardArt(i + 3, true, cw)}${picked && P.numbers ? seq(order) : ""}</div>`;
+    }).join("");
+  };
+
+  const carried = () => {
+    if (P.tool !== "несу") return "";
+    const n = Math.max(S.sel.size, 1);
+    const cw = 54, ch = Math.round(cw * 1.4);
+    const x = S.drag ? S.at.x : Math.round(W() / 2);
+    const y = S.drag ? S.at.y : Math.round(H() * 0.52);
+    // Пока палец стоит — стопка ещё не собрана, она только «дышит» под ним; сбор в ровный столбик
+    // начинается на ЗАМЕТНОМ движении. Юзер успевает передумать, ничего не сломав.
+    const tight = !S.drag || S.drag.moved;
+    const layers = Array.from({ length: Math.min(n, 6) }, (_, i) => {
+      const dx = tight ? -i * 2 : -i * 9 + 12, dy = tight ? -i * 3 : -i * 2, rot = tight ? 0 : (i % 2 ? 7 : -6);
+      return `<div style="position:absolute;left:${dx}px;top:${dy}px;width:${cw}px;height:${ch}px;transform:rotate(${rot}deg);transition:all .16s">${cardArt(i, false, cw)}</div>`;
+    }).join("");
+    return `<div style="position:absolute;left:${x - cw / 2}px;top:${y - ch / 2}px;width:${cw}px;height:${ch}px;z-index:60;pointer-events:none;filter:drop-shadow(0 8px 10px rgba(0,0,0,.5))">`
+      + layers + gripTag("mix", n, true)
+      + (P.sinkHint && P.over === "нет" ? `<div style="position:absolute;left:50%;top:-26px;transform:translateX(-50%);white-space:nowrap;padding:3px 7px;background:${T.black};box-shadow:inset 0 0 0 2px ${T.gold};font:400 8px 'Press Start 2P',monospace;color:${T.gold}">НА СТОЛ</div>` : "")
+      + `</div>`;
+  };
+
+  const render = () => {
+    const veil = P.tool === "набор" && P.veil
+      ? `<div style="position:absolute;inset:0;background:rgba(7,16,11,.66);z-index:9;pointer-events:none"></div>` : "";
+    board.innerHTML = veil + theirHand()
+      + `<div style="position:absolute;inset:0;z-index:${P.tool === "выкл" ? 2 : 12}">`
+      + stackBox({ id: "deck", kind: "card", n: P.deck, x: 30, y: 230, w: 60, h: 84, label: "колоду" })
+      + stackBox({ id: "chips", kind: "chip", n: P.chips, x: 162, y: 252, w: 54, h: 54, label: "столбик" })
+      + stackBox({ id: "estate", kind: "estate", n: P.estate, x: 280, y: 236, w: 62, h: 76, label: "имущество" })
+      + looseCards()
+      + `</div>`
+      + myHud() + carried()
+      + (S.note && P.tool !== "несу" ? `<div style="position:absolute;left:50%;bottom:${HUD.bottom + HUD.btn + 130}px;transform:translateX(-50%);z-index:70;padding:4px 10px;background:${T.black};box-shadow:inset 0 0 0 2px ${T.gold};font:400 11px 'Tiny5',monospace;color:${T.gold};white-space:nowrap">${S.note}</div>` : "");
+    nums();
+  };
+
+  // ---- ПАЛЕЦ ----
+  const local = (e) => {
+    const r = phone.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  board.addEventListener("pointerdown", (e) => {
+    const fanT = e.target.closest("[data-fan]");
+    if (fanT) {
+      const t = fanT.dataset.fan;
+      S.note = t === "вернуть на места" ? "набор отменён" : `${S.sel.size} шт · ${t}`;
+      S.sel.clear(); S.fan = false; P.tool = "выкл"; build(); writeHash(); render();
+      return;
+    }
+    const tool = e.target.closest("[data-tool]");
+    if (tool) {
+      e.preventDefault();
+      if (P.tool === "выкл") { P.tool = "набор"; S.note = "набор: тапай, что собрать"; }
+      else if (!S.sel.size) { P.tool = "выкл"; S.note = ""; }
+      else {
+        // Есть набор — инструмент стал стопкой: тянем ЕГО, а не ищем карты по столу.
+        S.drag = { id: e.pointerId, moved: false };
+        S.at = local(e);
+        // Захват пальца — удобство, а не условие: если браузер его не даёт, тяга всё равно должна
+        // начаться, иначе жест молча не случается.
+        try { board.setPointerCapture(e.pointerId); } catch (_) {}
+        P.tool = "несу";
+      }
+      build(); writeHash(); render();
+      return;
+    }
+    if (P.tool !== "набор") return;
+    const pick = e.target.closest("[data-pick]");
+    if (!pick) return;
+    const id = pick.dataset.pick;
+    if (S.sel.has(id)) S.sel.delete(id); else S.sel.add(id);
+    S.note = S.sel.size ? `в наборе ${S.sel.size} · тяни инструмент` : "набор: тапай, что собрать";
+    render();
+  });
+  board.addEventListener("pointermove", (e) => {
+    if (!S.drag || e.pointerId !== S.drag.id) return;
+    const at = local(e);
+    if (Math.abs(at.x - S.at.x) > 6 || Math.abs(at.y - S.at.y) > 6) S.drag.moved = true;
+    S.at = at;
+    render();
+  });
+  const drop = (e) => {
+    if (!S.drag || e.pointerId !== S.drag.id) return;
+    const n = S.sel.size;
+    S.note = P.over === "нет" ? `${n} шт · легло на стол` : `${n} шт · ${P.over}`;
+    S.sel.clear(); S.drag = null; P.tool = "выкл";
+    build(); writeHash(); render();
+  };
+  board.addEventListener("pointerup", drop);
+  board.addEventListener("pointercancel", drop);
+
+  // ---- РУЧКИ СБОКУ ----
+  const controls = document.getElementById("controls");
+  const build = () => {
+    controls.innerHTML = "";
+    for (const [title, rows] of SPEC) {
+      const sec = document.createElement("div");
+      sec.className = "sec";
+      sec.innerHTML = `<h2>${title}</h2>`;
+      for (const [key, label, kind, , a, b] of rows) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const lab = document.createElement("label");
+        lab.textContent = label;
+        row.appendChild(lab);
+        let input;
+        if (kind === "bool") { input = document.createElement("input"); input.type = "checkbox"; input.checked = P[key]; }
+        else if (kind === "enum") { input = document.createElement("select"); for (const o of a) { const op = document.createElement("option"); op.value = op.textContent = o; input.appendChild(op); } input.value = P[key]; }
+        else { input = document.createElement("input"); input.type = "range"; input.min = a; input.max = b; input.value = P[key]; }
+        const val = document.createElement("span");
+        val.className = "val";
+        val.textContent = kind === "bool" ? "" : String(P[key]);
+        input.addEventListener("input", () => {
+          P[key] = kind === "bool" ? input.checked : kind === "enum" ? input.value : Number(input.value);
+          val.textContent = kind === "bool" ? "" : String(P[key]);
+          if (key === "tool" && P.tool === "выкл") { S.sel.clear(); S.note = ""; }
+          writeHash(); render();
+        });
+        row.appendChild(input); row.appendChild(val);
+        sec.appendChild(row);
+      }
+      controls.appendChild(sec);
+    }
+  };
+
+  const nums = () => {
+    const el = document.getElementById("nums");
+    const stacks = [P.deck && "колода", P.chips && "фишки", P.estate && "имущество"].filter(Boolean);
+    el.innerHTML = `Стопок на столе: <b>${stacks.length}</b> (${stacks.join(", ") || "нет"}) · россыпь <b>${P.loose}</b><br>`
+      + `В наборе: <b>${S.sel.size}</b> · режим <b>${P.tool}</b> · приёмник <b>${P.over}</b><br>`
+      + `<span style="opacity:.75">Грип у стопки один и всегда свой. Набор живёт только внутри инструмента и исчезает вместе с ним — случайных общих грипов на сукне не заводится.</span>`;
+  };
+
+  document.getElementById("reset").addEventListener("click", () => { P = { ...DEFAULTS }; S.sel.clear(); S.note = ""; S.drag = null; writeHash(); build(); render(); });
+  document.getElementById("knob").addEventListener("click", () => document.getElementById("panel").classList.toggle("open"));
+  addEventListener("resize", render);
+  build(); render();
+})();
+</script>
+</body>
+</html>
