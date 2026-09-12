@@ -51,6 +51,27 @@ describe("верхний HUD", () => {
     hud.stop();
   });
 
+  // СТОРОЖ `tophud.a-face-is-shown-and-the-colour-moves-to-the-rim`.
+  //
+  // Фотография узнаётся быстрее буквы, но цвет при ней терять нельзя: он и есть то, чем человека
+  // различают на сукне и в полосе. Поэтому под картинкой цвет уходит в ОБОДОК, а не исчезает.
+  it("у кого есть лицо — рисуется лицо, а его цвет становится ободком", () => {
+    const roster = [
+      { name: "Алия", ink: "#7fd1b9", role: "owner" as const, seated: true, face: "data:image/png;base64,AAA" },
+      { name: "Тимур", ink: "#e08b3f", role: "player" as const, seated: true },
+    ];
+    const hud = topHud(container, { title: "Карты", people, roster });
+    q(hud.element, "people")!.click();
+    const list = q(container, "list")!;
+    const shown = list.querySelector("img");
+    expect(shown?.getAttribute("src")).toBe("data:image/png;base64,AAA");
+    // Цвет не потерялся: он стоит ободком вокруг картинки.
+    expect(shown!.parentElement!.getAttribute("style")).toContain("#7fd1b9");
+    // У кого лица нет — прежний кружок с буквой, залитый его цветом.
+    expect(list.textContent).toContain("Тимур");
+    hud.stop();
+  });
+
   // СТОРОЖ `tophud.the-list-speaks-for-the-room-not-for-the-session`.
   //
   // Полоса говорит, кто играет; список — чей это стол. Зритель без стула и хозяин, которого сейчас

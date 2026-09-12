@@ -22,6 +22,8 @@ export interface RosterPerson {
   readonly account?: string;
   readonly name: string;
   readonly color: string | null;
+  /** Лицо, как человек его выбрал. Пусто — рисуется первая буква имени. */
+  readonly face?: string;
   readonly role: Role;
   /** Место в идущей сессии. `null` — человек числится в комнате, но сейчас не сидит. */
   readonly seat: string | null;
@@ -57,6 +59,7 @@ export function rosterOf(room: RoomRow): RosterPerson[] {
       account: account.id,
       name: account.name,
       color: here?.color ?? apart.get(account.id) ?? account.color,
+      ...(account.avatar ? { face: account.avatar } : {}),
       role: member.role,
       seat: here?.seat ?? null,
       ...(here?.away ? { away: true } : {}),
@@ -71,6 +74,7 @@ export function rosterOf(room: RoomRow): RosterPerson[] {
       ...(one.accountId ? { account: one.accountId } : {}),
       name: one.name,
       color: one.color,
+      ...(one.face ? { face: one.face } : {}),
       role: "player",
       seat: one.seat ?? null,
       ...(one.away ? { away: true } : {}),

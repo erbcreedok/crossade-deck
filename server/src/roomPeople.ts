@@ -17,6 +17,8 @@ export interface PersonAtTable {
   readonly accountId?: string;
   /** Любимый цвет из профиля. Пусто — у человека его ещё нет, и кружок будет тёмным. */
   readonly color: string | null;
+  /** Его лицо, как он его выбрал. Пусто — рисуется первая буква имени. */
+  readonly face?: string;
   /** Отошёл: стул держится, человека нет. */
   readonly away?: boolean;
 }

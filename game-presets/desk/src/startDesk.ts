@@ -177,6 +177,7 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
       // только когда своего нет, его даёт место. Полоса — разметка, палитры у неё нет, поэтому
       // значение выдаётся уже разрешённым (`paint`).
       ink: paint(DESK_THEME, peopleWire?.inkOf(one.seat) ?? inkOf(one.seat)),
+      ...(peopleWire?.faceOf(one.seat) ? { face: peopleWire.faceOf(one.seat)! } : {}),
       ...(one.away === true ? { away: true } : {}),
       ...(moving !== undefined && moving === one.seat ? { turn: true } : {}),
     }));
@@ -206,6 +207,9 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     // ЦВЕТ ЧЕЛОВЕКА, А НЕ ЕГО МЕСТА: стула у зрителя нет, а кружок в списке есть у всех. Своего
     // цвета не завёл — кружок стоит приглушённым, а не чужим.
     ink: one.color ?? paint(DESK_THEME, "textMuted"),
+    // ЕГО ЛИЦО, ЕСЛИ ОНО У НЕГО ЕСТЬ: фотография узнаётся быстрее буквы, а цвет при ней уходит в
+    // ободок — потерять его нельзя, им человека и различают.
+    ...(one.face ? { face: one.face } : {}),
     role: one.role,
     // СТУЛ — ЭТО МЕСТО В ИДУЩЕЙ ПАРТИИ. Роль говорит, что человеку можно; стул — сидит ли он.
     seated: one.seat !== null,

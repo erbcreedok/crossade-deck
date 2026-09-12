@@ -181,6 +181,8 @@ export interface RoomMember {
   readonly account?: string;
   readonly name: string;
   readonly color: string | null;
+  /** Лицо, как человек его выбрал. Пусто — рисуется первая буква имени. */
+  readonly face?: string;
   readonly role: RoomRole;
   /**
    * МЕСТО В ИДУЩЕЙ ПАРТИИ, и только оно значит «за столом». `null` — человек в комнате числится, но

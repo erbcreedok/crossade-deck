@@ -141,6 +141,16 @@ export function createAccount(name?: string, telegramId?: string, face: Telegram
   return dress(row);
 }
 
+/**
+ * ПЕРЕКРАСИТЬ ЧЕЛОВЕКА БЕЗ ЕГО КОДА — право на это проверяет комната (`roomRights`), а не пароль:
+ * цвет за столом раздаёт тот, кто столом распоряжается. Пустой цвет возвращает выданный при рождении.
+ */
+export function paintAccount(id: string, colour: string): Account | undefined {
+  if (!accountById(id)) return undefined;
+  const row = updateAccount(id, { color: colour.trim() || inkFor(id) });
+  return row ? dress(row) : undefined;
+}
+
 export function findAccountById(id: string): Account | undefined {
   const row = accountById(id);
   return row ? dress(row) : undefined;
@@ -346,4 +356,12 @@ export function accountName(id: string): string | undefined {
 /** Любимый цвет — тот, которым человека рисуют кружком в списке комнат. */
 export function accountColor(id: string): string | null {
   return accountById(id)?.color ?? null;
+}
+
+/**
+ * ЛИЦО ЧЕЛОВЕКА — картинкой, как он его себе выбрал (`data:`-строка или эмодзи). Пусто — лица нет,
+ * и вместо него рисуется первая буква имени: за столом человек должен быть узнаваем в любом случае.
+ */
+export function accountFace(id: string): string | null {
+  return accountById(id)?.avatar ?? null;
 }

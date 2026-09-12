@@ -9,6 +9,8 @@ export interface RosterItem {
   readonly name: string;
   /** Цвет ЧЕЛОВЕКА — тот же, каким он помечен в списке комнаты и в своём профиле. */
   readonly color?: string;
+  /** Его лицо, как он его выбрал. Пусто — рисуется первая буква имени. */
+  readonly face?: string;
   readonly accountId?: string;
   readonly away?: boolean;
 }

@@ -2,11 +2,22 @@ import { Room, Client } from "@colyseus/core";
 import { joined, openRoom, sessionEnded } from "./rooms.js";
 import { setPeople, setTurn } from "./roomPeople.js";
 import { guestIdentity } from "./sandboxNames.js";
-import { accountColor, accountName } from "./accounts.js";
+import { accountColor, accountFace, accountName, paintAccount } from "./accounts.js";
 import { inksApart } from "./profileInks.js";
 import { accountById } from "./db/accountsRepo.js";
 import { membersOf } from "./db/roomsRepo.js";
-import { newcomerOf, roleOf, ROOM_LIMIT, setSession, type Newcomer } from "./db/roomsRepo.js";
+import {
+  newcomerOf,
+  passRoom,
+  removeMember,
+  roleOf,
+  roomById,
+  ROOM_LIMIT,
+  setRole,
+  setSession,
+  type Newcomer,
+} from "./db/roomsRepo.js";
+import { isDeed, may, powerOf, type Deed, type Someone } from "./roomRights.js";
 
 export interface KitJoinOptions {
   accountId?: string;
@@ -32,6 +43,8 @@ export interface KitRosterItem {
    * номеру стула, список — по профилю, и один человек оказывался трёх разных цветов сразу.
    */
   color?: string;
+  /** Его лицо, как он его выбрал. Пусто — лица нет, и рисуется первая буква имени. */
+  face?: string;
   away?: boolean;
 }
 
@@ -134,6 +147,35 @@ export class KitRoom extends Room {
       if (this.record) setTurn(this.record, waiting?.accountId ?? null);
     });
 
+    /**
+     * ЧТО ДЕЛАЮТ С ЧЕЛОВЕКОМ ЗА СТОЛОМ — стул, права, цвет, кик.
+     *
+     * Здесь, а не по HTTP, потому что СТУЛ ЖИВЁТ В СЕССИИ: место за столом существует ровно столько,
+     * сколько идёт партия, и раздавать его надо там же, где его видно. Роли и цвет при этом пишутся
+     * в базу — они переживают сессию.
+     *
+     * Право проверяется ТУТ, а не на экране: кнопка, нарисованная клиентом, — это надпись, и стол,
+     * верящий ей на слово, отдаёт себя первому, кто открыл консоль.
+     */
+    this.onMessage("deed", (client, msg: { deed?: unknown; whom?: unknown; colour?: unknown }) => {
+      const asked = msg?.deed;
+      const whom = typeof msg?.whom === "string" ? msg.whom : undefined;
+      if (!isDeed(asked) || !whom || !this.record) return;
+      const me = this.someone(this.clientMemberMap.get(client.sessionId)?.accountId);
+      const them = this.someone(whom);
+      if (!me || !them) return client.send("denied", { deed: asked, why: "его нет за этим столом" });
+      const room = roomById(this.record);
+      const verdict = may(asked, me, them, room?.mode ?? "free");
+      if (verdict !== true) return client.send("denied", { deed: asked, why: verdict });
+      // ГОЛОСОВАНИЯ ЕЩЁ НЕТ, И МОЛЧА ДЕЛАТЬ ВМЕСТО НЕГО НЕЛЬЗЯ: в совете и вече это действие —
+      // предложение, а предложение без голосов — самоуправство.
+      if (powerOf(me, room?.mode ?? "free") === "proposal") {
+        return client.send("denied", { deed: asked, why: "тут решают голосованием, а голосования ещё нет" });
+      }
+      this.doDeed(asked, them, typeof msg?.colour === "string" ? msg.colour : undefined);
+      this.broadcastRoster();
+    });
+
     this.onMessage("relay", (client, msg: Record<string, unknown>) => {
       if (!msg || typeof msg !== "object" || typeof msg.kind !== "string") return;
       const member = this.clientMemberMap.get(client.sessionId);
@@ -176,7 +218,13 @@ export class KitRoom extends Room {
     const memberName = fromAccount ?? named ?? guest.name;
     // ЗРИТЕЛЮ СТУЛ НЕ ПОЛАГАЕТСЯ — за тем и приходят, чтобы смотреть. Остальным стул даётся, если
     // он есть: дальше их двигает панель людей, а не то, кто успел войти раньше.
-    const seat = this.newcomer === "spectator" ? null : this.nextFreeSeat();
+    //
+    // РОЛЬ СВОЯ БЬЁТ НАСТРОЙКУ ВСТРЕЧИ: «кем встречают» — про того, кого комната видит впервые.
+    // Зритель, которого уже записали зрителем, не становится игроком, зайдя заново, а разжалованный
+    // не возвращает себе стул перезаходом.
+    const known = options?.accountId && this.record ? roleOf(this.record, options.accountId) : undefined;
+    const asWho = known ?? this.newcomer;
+    const seat = asWho === "spectator" ? null : this.nextFreeSeat();
 
     const member: KitRosterItem = {
       seat,
@@ -278,6 +326,54 @@ export class KitRoom extends Room {
     if (idx !== -1) this.members.splice(idx, 1);
   }
 
+  /** Человек за столом, как его видит правило: роль из базы, стул — из идущей сессии. */
+  private someone(accountId?: string): Someone | undefined {
+    if (!accountId || !this.record) return undefined;
+    const role = roleOf(this.record, accountId);
+    if (!role) return undefined;
+    return { account: accountId, role, seated: this.members.some((m) => m.accountId === accountId && m.seat !== null) };
+  }
+
+  /** Исполнить разрешённое. Право уже проверено — здесь только последствие. */
+  private doDeed(deed: Deed, them: Someone, colour?: string): void {
+    const record = this.record!;
+    const member = this.members.find((m) => m.accountId === them.account);
+    switch (deed) {
+      case "seat:give":
+        // ПОСАЖЕННЫЙ СТАНОВИТСЯ ИГРОКОМ: стул и есть то, чем игрок отличается от зрителя.
+        if (member) member.seat = this.nextFreeSeat();
+        if (them.role === "spectator") setRole(record, them.account, "player");
+        break;
+      case "seat:take":
+        if (member) member.seat = null;
+        if (them.role === "player") setRole(record, them.account, "spectator");
+        break;
+      case "admin:grant":
+        setRole(record, them.account, "admin");
+        break;
+      case "admin:revoke":
+        setRole(record, them.account, "player");
+        break;
+      case "owner:pass":
+        passRoom(record, them.account);
+        break;
+      case "kick":
+        // ВЫГНАННЫЙ УХОДИТ ИЗ КОМНАТЫ ЦЕЛИКОМ, а не только со стула: иначе он вернётся сам, как
+        // всякий, кто в ней числится.
+        removeMember(record, them.account);
+        if (member) this.removeMember(member);
+        for (const [session, one] of this.clientMemberMap) {
+          if (one.accountId !== them.account) continue;
+          this.clientMemberMap.delete(session);
+          this.clients.find((c) => c.sessionId === session)?.leave(4000);
+        }
+        break;
+      case "colour":
+        if (colour) paintAccount(them.account, colour);
+        break;
+    }
+  }
+
   private roster(): KitRosterItem[] {
     // ЦВЕТА ЗА ОДНИМ СТОЛОМ РАЗВОДЯТСЯ ЗДЕСЬ, а не на экранах: разойдись экраны в этом сами, один
     // и тот же человек оказался бы разного цвета у разных соседей.
@@ -289,6 +385,7 @@ export class KitRoom extends Room {
       ...(m.accountId ? { accountId: m.accountId } : {}),
       name: m.name,
       color: inks.get(m.accountId ?? m.name)!,
+      ...(m.accountId && accountFace(m.accountId) ? { face: accountFace(m.accountId)! } : {}),
       ...(m.away ? { away: true } : {}),
     }));
   }
@@ -309,6 +406,7 @@ export class KitRoom extends Room {
           seat: one.seat,
           ...(one.accountId ? { accountId: one.accountId } : {}),
           color: one.color ?? null,
+          ...(one.face ? { face: one.face } : {}),
           ...(one.away ? { away: true } : {}),
         })),
       );

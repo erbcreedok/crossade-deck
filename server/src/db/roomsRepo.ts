@@ -361,6 +361,18 @@ export function setRole(roomId: string, accountId: string, role: Role, at: Datab
   return Number(done.changes) > 0;
 }
 
+/** Передать комнату другому. Старый хозяин остаётся админом: стол без него не должен осиротеть. */
+export function passRoom(roomId: string, toAccount: string, at: DatabaseSync = db()): boolean {
+  const room = roomById(roomId, at);
+  if (!room || room.ownerAccount === toAccount) return false;
+  at.prepare(`UPDATE rooms SET owner_account = ? WHERE id = ?`).run(toAccount, roomId);
+  at.prepare(`UPDATE room_members SET role = 'owner' WHERE room_id = ? AND account_id = ?`).run(roomId, toAccount);
+  if (room.ownerAccount) {
+    at.prepare(`UPDATE room_members SET role = 'admin' WHERE room_id = ? AND account_id = ?`).run(roomId, room.ownerAccount);
+  }
+  return true;
+}
+
 export function roleOf(roomId: string, accountId: string, at: DatabaseSync = db()): Role | undefined {
   const raw = at
     .prepare(`SELECT role FROM room_members WHERE room_id = ? AND account_id = ?`)

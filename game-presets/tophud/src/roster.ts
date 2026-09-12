@@ -21,6 +21,8 @@ export interface TopHudMember {
   readonly name: string;
   /** Его цвет, уже разрешённый в значение: список — это разметка, и палитры у неё нет. */
   readonly ink: string;
+  /** Его лицо, как он его выбрал. Пусто — в кружке первая буква имени. */
+  readonly face?: string;
   readonly role: RosterRole;
   /** Сидит ли он за столом ПРЯМО СЕЙЧАС — место в идущей партии, а не право его занять. */
   readonly seated: boolean;

@@ -12,6 +12,8 @@ export interface TopHudPerson {
   readonly seat: string;
   readonly name: string;
   readonly ink: string;
+  /** Его лицо, как он его выбрал. Пусто — в кружке первая буква имени. */
+  readonly face?: string;
   readonly away?: boolean;
   /** Whose move it is. More than one is not the strip's business to refuse. */
   readonly turn?: boolean;

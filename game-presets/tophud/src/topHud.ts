@@ -191,16 +191,20 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
         }
         const p = ball.person;
         const turn = p.turn === true && look.turn !== "none";
-        const face =
-          look.avatarLook === "letter"
+        // ЕГО ЛИЦО, ЕСЛИ ОНО ЕСТЬ, — узнаётся быстрее буквы. Цвет при фотографии уходит в ободок:
+        // залитый кружок под картинкой не виден, а цвет и есть то, чем человека различают.
+        const face = p.face
+          ? `<img src="${esc(p.face)}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block">`
+          : look.avatarLook === "letter"
             ? `<span style="font:400 ${Math.round(size * 0.42)}px ${LETTER};color:${PALETTE.black}">${esc(p.name.slice(0, 1))}</span>`
             : look.avatarLook === "chair"
               ? svg(ICON.chair, Math.round(size * 0.62), PALETTE.black, 2)
               : "";
+        const rim = p.face ? `,0 0 0 3px ${p.ink}` : "";
         const ring =
           turn && look.turn === "ring"
             ? `box-shadow:inset 0 0 0 3px ${PALETTE.black},0 0 0 3px ${PALETTE.gold};`
-            : `box-shadow:inset 0 0 0 3px ${PALETTE.black};`;
+            : `box-shadow:inset 0 0 0 3px ${PALETTE.black}${rim};`;
         const glow = turn && look.turn === "glow" ? `filter:drop-shadow(0 0 7px ${PALETTE.gold});` : "";
         const dim = p.away === true && look.away === "dim" ? "opacity:.42;filter:grayscale(1);" : "";
         const dot =
@@ -208,7 +212,7 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
             ? `<i style="position:absolute;left:50%;bottom:-5px;transform:translateX(-50%);width:6px;height:6px;` +
               `border-radius:50%;background:${PALETTE.gold}"></i>`
             : "";
-        return ballHtml(face + dot, p.ink, ball.left, ball.z, ring + glow + dim, size);
+        return ballHtml(face + dot, p.face ? PALETTE.well : p.ink, ball.left, ball.z, `overflow:hidden;` + ring + glow + dim, size);
       })
       .join("");
     return (
@@ -275,12 +279,24 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
     `<span style="font:400 10px ${LETTER};letter-spacing:.08em;text-transform:uppercase;border-radius:5px;padding:2px 6px;` +
     `background:${ROLE_PAINT[member.role]};color:${PALETTE.black}">${ROLE_WORD[member.role]}</span>`;
 
-  /** Лицо в кружке — первой буквой имени, как и на полосе: одно лицо, один знак. */
-  const memberBall = (member: TopHudMember, size: number, ring: boolean): string =>
-    `<span style="flex:none;width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;` +
-    `background:${member.ink};box-shadow:inset 0 0 0 3px ${PALETTE.black}${ring ? `,0 0 0 3px ${PALETTE.gold}` : ""};` +
-    `${member.seated ? "" : "opacity:.55;"}">` +
-    `<span style="font:400 ${Math.round(size * 0.42)}px ${LETTER};color:${PALETTE.black}">${esc(member.name.slice(0, 1))}</span></span>`;
+  /**
+   * ЛИЦО В КРУЖКЕ — ЕГО ФОТОГРАФИЯ, если он её выбрал, и первая буква имени, если нет. Цвет при
+   * фотографии уходит в ОБОДОК: залитый кружок под картинкой не виден, а цвет — это то, чем человека
+   * узнают на сукне, и потерять его нельзя.
+   */
+  const memberBall = (member: TopHudMember, size: number, ring: boolean): string => {
+    const rim = member.face
+      ? `box-shadow:inset 0 0 0 3px ${PALETTE.black},0 0 0 3px ${member.ink}${ring ? `,0 0 0 6px ${PALETTE.gold}` : ""};`
+      : `box-shadow:inset 0 0 0 3px ${PALETTE.black}${ring ? `,0 0 0 3px ${PALETTE.gold}` : ""};`;
+    const inside = member.face
+      ? `<img src="${esc(member.face)}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block">`
+      : `<span style="font:400 ${Math.round(size * 0.42)}px ${LETTER};color:${PALETTE.black}">${esc(member.name.slice(0, 1))}</span>`;
+    return (
+      `<span style="flex:none;width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;display:flex;align-items:center;` +
+      `justify-content:center;background:${member.face ? PALETTE.well : member.ink};${rim}` +
+      `${member.seated ? "" : "opacity:.55;"}">${inside}</span>`
+    );
+  };
 
   /** Где человек сидит, одной строкой: стул, и держится ли за ним кто-то прямо сейчас. */
   const whereWord = (member: TopHudMember): string =>
