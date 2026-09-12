@@ -15,6 +15,7 @@ const card = (one: Partial<RoomCard> & { code: string }): RoomCard => ({
   title: null,
   chairs: 4,
   capacity: 32,
+  newcomer: "player" as const,
   visibility: "public",
   admission: "code",
   mode: "free",

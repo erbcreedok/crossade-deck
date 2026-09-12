@@ -23,6 +23,7 @@ export interface Promised {
   readonly game: string;
   readonly chairs?: number;
   readonly capacity?: number;
+  readonly newcomer?: "admin" | "player" | "spectator";
   readonly ownerAccount?: string;
   readonly visibility?: Visibility;
   readonly admission?: Admission;

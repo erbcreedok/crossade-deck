@@ -32,6 +32,8 @@ export interface RoomCard {
   readonly chairs: number | null;
   /** Сколько человек комната держит: игроки, зрители, админы и ушедшие. Не больше 32. */
   readonly capacity: number;
+  /** Кем комната встречает нового: админом, игроком со стулом или зрителем. */
+  readonly newcomer: Newcomer;
   readonly visibility: Visibility;
   readonly admission: Admission;
   readonly mode: Mode;
@@ -62,6 +64,7 @@ export interface OpenRoomOptions {
   readonly game: string;
   readonly chairs?: number;
   readonly capacity?: number;
+  readonly newcomer?: Newcomer;
   readonly by?: string;
   readonly title?: string;
   readonly visibility?: Visibility;
@@ -163,6 +166,12 @@ export async function closeRoom(room: string, by: string): Promise<boolean> {
   }
 }
 
+/**
+ * КЕМ КОМНАТА ВСТРЕЧАЕТ НОВОГО. Хозяином родиться нельзя — он у стола уже есть; стул дальше выдаёт
+ * панель людей, а это лишь то, с чем человек входит.
+ */
+export type Newcomer = "admin" | "player" | "spectator";
+
 /** Роль человека в комнате. Те же слова, что у сервера: комната их и заводит. */
 export type RoomRole = "owner" | "admin" | "player" | "spectator";
 
@@ -194,5 +203,27 @@ export async function roomRoster(room: string): Promise<RoomMember[]> {
     return (await json<RoomMember[]>(await fetch(`${serverUrl()}/rooms/${encodeURIComponent(room)}/roster`))) ?? [];
   } catch {
     return [];
+  }
+}
+
+/**
+ * ПЕРЕНАСТРОИТЬ СТОЛ — стулья, вместимость, кем встречают нового. Ставится при создании и
+ * переставляется потом: стол живёт дольше, чем разговор, ради которого его завели. `undefined` —
+ * сервер не дал (чужой стол) или не ответил.
+ */
+export async function reconfigureRoom(
+  room: string,
+  by: string,
+  patch: { chairs?: number; capacity?: number; newcomer?: Newcomer },
+): Promise<RoomCard | undefined> {
+  try {
+    const res = await fetch(`${serverUrl()}/rooms/${encodeURIComponent(room)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ by, ...patch }),
+    });
+    return await json<RoomCard>(res);
+  } catch {
+    return undefined;
   }
 }

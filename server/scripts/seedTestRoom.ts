@@ -23,6 +23,9 @@ const CODE = "TEST";
 /** Стульев за столом: хозяин, админ, игрок и место для гостя. Зрителю стул не нужен. */
 const CHAIRS = 4;
 
+/** Кем стол встречает нового: игроком со стулом — чтобы зашедший сел, а не смотрел со стороны. */
+const NEWCOMER = "player" as const;
+
 /** Мок-юзеры: имя, цвет и роль. Админ и игрок садятся за стол сами, зритель остаётся без стула. */
 const GUESTS: readonly { name: string; color: string; role: Role }[] = [
   { name: "Алия", color: "#7fd1b9", role: "admin" },
@@ -72,7 +75,7 @@ function main(): void {
 
   const room =
     roomByCode(CODE) ??
-    openRoom({ game: "cards", chairs: CHAIRS, ownerAccount: owner, visibility: "hidden", admission: "code", mode: "free", forever: true, code: CODE });
+    openRoom({ game: "cards", chairs: CHAIRS, newcomer: NEWCOMER, ownerAccount: owner, visibility: "hidden", admission: "code", mode: "free", forever: true, code: CODE });
   if (!room) {
     console.error(`Код ${CODE} занят другой комнатой.`);
     process.exit(1);

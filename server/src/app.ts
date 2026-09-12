@@ -41,9 +41,9 @@ import {
   tooSoon,
 } from "./telegramLink.js";
 import { BUILD_INFO, formatVersion } from "./version.js";
-import { atCode, byCode, byId, close, codeFree, isKitGame, mine, openRoom, reserveCode, search, sessionOf, type RoomRow } from "./rooms.js";
+import { atCode, byCode, byId, close, reconfigure, codeFree, isKitGame, mine, openRoom, reserveCode, search, sessionOf, type RoomRow } from "./rooms.js";
 import { rosterOf } from "./roomRoster.js";
-import { ROOM_LIMIT } from "./db/roomsRepo.js";
+import { NEWCOMERS, ROOM_LIMIT } from "./db/roomsRepo.js";
 import { promiseOf, type Promised } from "./codeHold.js";
 import { ADMISSIONS, cleanCode, MODES, roleOf, VISIBILITIES, type Mode } from "./db/roomsRepo.js";
 import { peopleAt, turnAt } from "./roomPeople.js";
@@ -74,6 +74,7 @@ function seenFromOutside(room: RoomRow, forAccount?: string) {
     title: room.title,
     chairs: room.chairs,
     capacity: room.capacity,
+    newcomer: room.newcomer,
     visibility: room.visibility,
     admission: room.admission,
     mode: room.mode,
@@ -104,6 +105,7 @@ function seenPromised(code: string, promised: Promised) {
     title: null,
     chairs: promised.chairs ?? null,
     capacity: promised.capacity ?? ROOM_LIMIT,
+    newcomer: promised.newcomer ?? "player",
     visibility: promised.visibility ?? "hidden",
     admission: promised.admission ?? "code",
     mode: promised.mode ?? "free",
@@ -179,7 +181,7 @@ export function createApp() {
   // СТОЛ ОТКРЫВАЕТСЯ ЗАПИСЬЮ, А НЕ ПРОЦЕССОМ. Сначала заводится комната (её код, её правила, её
   // хозяин), и только потом под неё поднимается сессия Colyseus, в которую клиент входит сам.
   app.post("/rooms", async (req, res) => {
-    const { game, chairs, capacity, by, title, visibility, admission, mode, forever, code } = req.body || {};
+    const { game, chairs, capacity, newcomer, by, title, visibility, admission, mode, forever, code } = req.body || {};
     if (!isKitGame(game)) return res.status(400).json({ error: "bad_request" });
     if (visibility && !(VISIBILITIES as readonly string[]).includes(visibility)) {
       return res.status(400).json({ error: "bad_request" });
@@ -195,6 +197,7 @@ export function createApp() {
       game,
       ...(typeof chairs === "number" ? { chairs } : {}),
       ...(typeof capacity === "number" ? { capacity } : {}),
+      ...((NEWCOMERS as readonly string[]).includes(newcomer) ? { newcomer } : {}),
       ...(typeof by === "string" ? { ownerAccount: by } : {}),
       ...(typeof title === "string" && title.trim() ? { title: title.trim() } : {}),
       ...(visibility ? { visibility } : {}),
@@ -308,6 +311,36 @@ export function createApp() {
         own: room.ownerAccount === req.params.id,
       })),
     );
+  });
+
+  /**
+   * ПЕРЕНАСТРОИТЬ СТОЛ: стулья, вместимость и то, кем комната встречает нового.
+   *
+   * Ставится при создании и переставляется потом — стол живёт дольше, чем разговор, ради которого
+   * его завели: за столом на тридцать человек новых встречают зрителями, а к вечеру решают, что
+   * всем можно сесть. Распоряжается тот, кто распоряжается столом: хозяин и админы.
+   */
+  app.patch("/rooms/:id", (req, res) => {
+    const { by, chairs, capacity, newcomer } = req.body || {};
+    if (typeof by !== "string") return res.status(400).json({ error: "bad_request" });
+    const room = byId(req.params.id);
+    if (!room) return res.status(404).json({ error: "room_closed" });
+    const role = roleOf(room.id, by);
+    if (role !== "owner" && role !== "admin") return res.status(403).json({ error: "not_yours" });
+    if (chairs !== undefined && (typeof chairs !== "number" || chairs < 1)) {
+      return res.status(400).json({ error: "bad_request" });
+    }
+    if (capacity !== undefined && typeof capacity !== "number") return res.status(400).json({ error: "bad_request" });
+    if (newcomer !== undefined && !(NEWCOMERS as readonly string[]).includes(newcomer)) {
+      return res.status(400).json({ error: "bad_request" });
+    }
+    const after = reconfigure(room.id, {
+      ...(chairs !== undefined ? { chairs: Math.floor(chairs) } : {}),
+      ...(capacity !== undefined ? { capacity } : {}),
+      ...(newcomer !== undefined ? { newcomer } : {}),
+    });
+    if (!after) return res.status(404).json({ error: "room_closed" });
+    res.json(seenFromOutside(after, by));
   });
 
   // ЗАКРЫТЬ СТОЛ — только хозяину. Код возвращается в оборот ровно здесь.

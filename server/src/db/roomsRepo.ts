@@ -43,6 +43,17 @@ export function capacityOf(asked?: number | null): number {
 }
 
 export const ROLES = ["owner", "admin", "player", "spectator"] as const;
+
+/**
+ * КЕМ КОМНАТА ВСТРЕЧАЕТ НОВОГО. Хозяином родиться нельзя — он у стола уже есть, и второго не бывает.
+ */
+export const NEWCOMERS = ["admin", "player", "spectator"] as const;
+export type Newcomer = (typeof NEWCOMERS)[number];
+
+/** Записанное в базе слово, если оно из списка; иначе — «игрок», с которым стол и жил до сих пор. */
+export function newcomerOf(raw: unknown): Newcomer {
+  return (NEWCOMERS as readonly string[]).includes(raw as string) ? (raw as Newcomer) : "player";
+}
 export type Role = (typeof ROLES)[number];
 
 export interface RoomRow {
@@ -59,6 +70,8 @@ export interface RoomRow {
   readonly chairs: number | null;
   /** Сколько ЛЮДЕЙ комната держит — игроков, зрителей, админов и ушедших. Не больше 32. */
   readonly capacity: number;
+  /** Кем входит новый: админом, игроком со стулом или зрителем. Хозяин у комнаты уже есть. */
+  readonly newcomer: Newcomer;
   readonly createdAt: number;
   /** Когда комнату видели живой в последний раз — по нему сортируется список. */
   readonly aliveAt: number;
@@ -81,6 +94,7 @@ interface RawRoom {
   transport: string;
   chairs: number | null;
   capacity: number;
+  newcomer: string;
   created_at: number;
   alive_at: number;
   closed_at: number | null;
@@ -102,6 +116,7 @@ function toRoom(raw: RawRoom | undefined): RoomRow | undefined {
     transport: raw.transport as Transport,
     chairs: raw.chairs,
     capacity: raw.capacity,
+    newcomer: newcomerOf(raw.newcomer),
     createdAt: raw.created_at,
     aliveAt: raw.alive_at,
     closedAt: raw.closed_at,
@@ -112,7 +127,7 @@ function toRoom(raw: RawRoom | undefined): RoomRow | undefined {
 }
 
 const SELECT = `SELECT id, code, game, title, owner_account, visibility, admission, transport,
-  chairs, capacity, created_at, alive_at, closed_at, session_id, mode, forever FROM rooms`;
+  chairs, capacity, newcomer, created_at, alive_at, closed_at, session_id, mode, forever FROM rooms`;
 
 /**
  * ВЫДАННЫЙ КОД — ЧЕТЫРЕ ЦИФРЫ, и ничего кроме цифр.
@@ -182,6 +197,7 @@ export interface NewRoom {
   readonly admission?: Admission;
   readonly chairs?: number | null;
   readonly capacity?: number | null;
+  readonly newcomer?: Newcomer;
   readonly mode?: Mode;
   readonly forever?: boolean;
   /** Код, названный человеком. Занятый или кривой — комната получит выданный. */
@@ -197,8 +213,8 @@ export function insertRoom(one: NewRoom, at: DatabaseSync = db()): RoomRow | und
   const now = one.now ?? Date.now();
   at.prepare(
     `INSERT INTO rooms (id, code, game, title, owner_account, visibility, admission, transport,
-      chairs, capacity, created_at, alive_at, closed_at, mode, forever)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'server', ?, ?, ?, ?, NULL, ?, ?)`,
+      chairs, capacity, newcomer, created_at, alive_at, closed_at, mode, forever)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'server', ?, ?, ?, ?, ?, NULL, ?, ?)`,
   ).run(
     one.id,
     code,
@@ -209,6 +225,7 @@ export function insertRoom(one: NewRoom, at: DatabaseSync = db()): RoomRow | und
     one.admission ?? "code",
     one.chairs ?? null,
     capacityOf(one.capacity),
+    one.newcomer ?? "player",
     now,
     now,
     one.mode ?? "free",
@@ -230,6 +247,26 @@ export function roomById(id: string, at: DatabaseSync = db()): RoomRow | undefin
 /** Живая комната по коду. Закрытая не находится: её код уже `NULL` и принадлежит кому-то другому. */
 export function roomByCode(code: string, at: DatabaseSync = db()): RoomRow | undefined {
   return toRoom(at.prepare(`${SELECT} WHERE code = ? AND closed_at IS NULL`).get(code) as RawRoom | undefined);
+}
+
+/**
+ * ПЕРЕНАСТРОИТЬ СТОЛ. Сегодня это стулья, вместимость и то, кем входит новый: всё, что хозяин
+ * ставил при создании, он вправе переставить и потом — стол живёт дольше, чем разговор о нём.
+ */
+export function setRoomConfig(
+  id: string,
+  patch: { chairs?: number | null; capacity?: number; newcomer?: Newcomer },
+  at: DatabaseSync = db(),
+): RoomRow | undefined {
+  const sets: string[] = [];
+  const values: (string | number | null)[] = [];
+  if (patch.chairs !== undefined) (sets.push("chairs = ?"), values.push(patch.chairs));
+  if (patch.capacity !== undefined) (sets.push("capacity = ?"), values.push(capacityOf(patch.capacity)));
+  if (patch.newcomer !== undefined) (sets.push("newcomer = ?"), values.push(patch.newcomer));
+  if (sets.length > 0) {
+    at.prepare(`UPDATE rooms SET ${sets.join(", ")} WHERE id = ? AND closed_at IS NULL`).run(...values, id);
+  }
+  return roomById(id, at);
 }
 
 /** Комната жива — отметить это. По отметке список сортируется, а мёртвые видны как мёртвые. */
@@ -309,6 +346,19 @@ export function membersOf(roomId: string, at: DatabaseSync = db()): MemberRow[] 
     .prepare(`SELECT account_id, role, joined_at FROM room_members WHERE room_id = ? ORDER BY joined_at`)
     .all(roomId) as { account_id: string; role: string; joined_at: number }[];
   return rows.map((raw) => ({ accountId: raw.account_id, role: raw.role as Role, joinedAt: raw.joined_at }));
+}
+
+/**
+ * ПЕРЕПИСАТЬ РОЛЬ УЧАСТНИКА. Хозяина не трогает: комната принадлежит ему, и роль ниже хозяйской
+ * оставила бы стол без того, кто вправе его закрыть.
+ */
+export function setRole(roomId: string, accountId: string, role: Role, at: DatabaseSync = db()): boolean {
+  const room = roomById(roomId, at);
+  if (room?.ownerAccount === accountId) return false;
+  const done = at
+    .prepare(`UPDATE room_members SET role = ? WHERE room_id = ? AND account_id = ?`)
+    .run(role, roomId, accountId);
+  return Number(done.changes) > 0;
 }
 
 export function roleOf(roomId: string, accountId: string, at: DatabaseSync = db()): Role | undefined {

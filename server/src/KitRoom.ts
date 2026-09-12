@@ -5,7 +5,7 @@ import { guestIdentity } from "./sandboxNames.js";
 import { accountColor, accountName } from "./accounts.js";
 import { accountById } from "./db/accountsRepo.js";
 import { membersOf } from "./db/roomsRepo.js";
-import { ROOM_LIMIT, setSession } from "./db/roomsRepo.js";
+import { newcomerOf, roleOf, ROOM_LIMIT, setSession, type Newcomer } from "./db/roomsRepo.js";
 
 export interface KitJoinOptions {
   accountId?: string;
@@ -14,6 +14,8 @@ export interface KitJoinOptions {
   chairs?: number;
   /** Сколько человек комната держит. Не больше 32 — предел самой комнаты. */
   capacity?: number;
+  /** Кем комната встречает нового: админом, игроком со стулом или зрителем. */
+  newcomer?: Newcomer;
   game?: string;
   /** Чья это комната — та самая вечная запись. Сессия без неё бывает только в тестах. */
   room?: string;
@@ -36,6 +38,8 @@ export class KitRoom extends Room {
   private chairs = 2;
   /** Сколько человек комната держит — все, кто в ней состоит, а не только сидящие. */
   private capacity = ROOM_LIMIT;
+  /** Кем эта комната встречает нового. Стул зрителю не полагается — за ним и приходят смотреть. */
+  private newcomer: Newcomer = "player";
   private game?: string;
   /** Запись комнаты, сессией которой эта комната является. */
   private record?: string;
@@ -51,6 +55,7 @@ export class KitRoom extends Room {
     if (typeof options?.capacity === "number" && options.capacity > 0) {
       this.capacity = Math.min(ROOM_LIMIT, Math.floor(options.capacity));
     }
+    if (options?.newcomer) this.newcomer = newcomerOf(options.newcomer);
     if (typeof options?.game === "string") this.game = options.game;
 
     // КОД И КОМНАТА ПРИХОДЯТ ИЗВНЕ: их выдала запись в базе, сессия их только носит. Когда записи
@@ -144,6 +149,12 @@ export class KitRoom extends Room {
         // кто угодно под каким угодно именем, а профиль, который человек правит, ничего не решает.
         const mine = accountName(options.accountId);
         if (mine) existing.name = mine;
+        // ВЕРНУЛСЯ БЕЗ СТУЛА — САДИТСЯ, ЕСЛИ ЕСТЬ КУДА. Стула он мог не получить, когда комната
+        // встречала зрителями, а роль ему с тех пор дали другую: без этой строки стул ему не
+        // достался бы до конца сессии, сколько бы пустых мест за столом ни стояло.
+        if (existing.seat === null && roleOf(this.record ?? "", options.accountId) !== "spectator") {
+          existing.seat = this.nextFreeSeat();
+        }
         this.clientMemberMap.set(client.sessionId, existing);
         this.remember(options.accountId);
         this.broadcastRoster();
@@ -157,7 +168,9 @@ export class KitRoom extends Room {
     const named = typeof options?.name === "string" && options.name.trim() ? options.name.trim() : null;
     const guest = guestIdentity(client.sessionId);
     const memberName = fromAccount ?? named ?? guest.name;
-    const seat = this.nextFreeSeat();
+    // ЗРИТЕЛЮ СТУЛ НЕ ПОЛАГАЕТСЯ — за тем и приходят, чтобы смотреть. Остальным стул даётся, если
+    // он есть: дальше их двигает панель людей, а не то, кто успел войти раньше.
+    const seat = this.newcomer === "spectator" ? null : this.nextFreeSeat();
 
     const member: KitRosterItem = {
       seat,
@@ -205,8 +218,13 @@ export class KitRoom extends Room {
   }
 
   /** Сел за стол — стал членом этой комнаты, и она появилась в списке его комнат. */
+  /**
+   * СЕЛ ЗА СТОЛ — СТАЛ ЧЛЕНОМ ЭТОЙ КОМНАТЫ, и роль ему даёт её настройка (`newcomer`). Уже
+   * записанному она не меняется: «кем встречают» — про порог, а не про тех, кто внутри, и человек,
+   * которого сделали админом, не должен разжаловываться собственным перезаходом.
+   */
   private remember(accountId: string): void {
-    if (this.record) joined(this.record, accountId);
+    if (this.record) joined(this.record, accountId, this.newcomer);
   }
 
   /**
