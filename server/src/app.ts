@@ -8,7 +8,6 @@ import { CardRoom } from "./CardRoom.js";
 import { TestRoom } from "./TestRoom.js";
 import { SandboxRoom } from "./SandboxRoom.js";
 import { KitRoom } from "./KitRoom.js";
-import { resolveInviteCode } from "./inviteCodes.js";
 import {
   accountByTelegram,
   createAccount,
@@ -25,9 +24,7 @@ import {
   updateByTelegram,
   updateProfile,
 } from "./accounts.js";
-import { listPublicRooms } from "./publicRooms.js";
 import { getLastRoom } from "./lastRooms.js";
-import { getRoomGame } from "./roomGames.js";
 import { verifyTelegramInitData } from "./telegramAuth.js";
 import { botUsername } from "./telegramMe.js";
 import { offerFor } from "./telegramOffer.js";
@@ -43,17 +40,34 @@ import {
   tooSoon,
 } from "./telegramLink.js";
 import { BUILD_INFO, formatVersion } from "./version.js";
+import { byCode, close, isKitGame, mine, openRoom, search, sessionOf, type RoomRow } from "./rooms.js";
+import { ADMISSIONS, VISIBILITIES } from "./db/roomsRepo.js";
 
 const { Server, matchMaker } = colyseusPkg;
 
-// Столы по коду создаются для одной из этих игр; закрытый список — маршрут отвечает
-// 400 на всё остальное, а не заводит комнату для опечатки.
-const KIT_GAMES = ["cards", "chess", "nardy"] as const;
-type KitGame = (typeof KIT_GAMES)[number];
-
-function isKitGame(value: unknown): value is KitGame {
-  return typeof value === "string" && (KIT_GAMES as readonly string[]).includes(value);
+/**
+ * СКОЛЬКО ЧЕЛОВЕК СЕЙЧАС ЗА СТОЛАМИ — один вопрос про все сессии сразу, а не по вопросу на строку
+ * списка. Ключ — идущая сессия комнаты; у комнаты без сессии людей ноль, и это правда.
+ */
+async function playerCounts(): Promise<Map<string, number>> {
+  const live = (await matchMaker.query({ name: "kit_room" })) as { roomId: string; clients: number }[];
+  return new Map(live.map((one) => [one.roomId, one.clients]));
 }
+
+/** Что о комнате знает посторонний. Ни хозяина, ни списка её людей здесь нет. */
+function seenFromOutside(room: RoomRow) {
+  return {
+    room: room.id,
+    code: room.code,
+    game: room.game,
+    title: room.title,
+    seats: room.seats,
+    visibility: room.visibility,
+    admission: room.admission,
+    ...(room.sessionId ? { roomId: room.sessionId } : {}),
+  };
+}
+
 
 /**
  * КАК ЭТО ПРИЛОЖЕНИЕ НАЗЫВАЕТСЯ В ССЫЛКЕ БОТА. Пусто — ссылка без имени, и бот отнесёт её тому
@@ -102,26 +116,81 @@ export function createApp() {
   gameServer.define("sandbox_room", SandboxRoom);
   gameServer.define("kit_room", KitRoom);
 
-  // Стол по коду: хаб просит комнату под конкретную игру ещё до того, как в неё кто-то
-  // подключится по WebSocket — код и roomId раздаются сразу, join делает клиент отдельно.
+  // СТОЛ ОТКРЫВАЕТСЯ ЗАПИСЬЮ, А НЕ ПРОЦЕССОМ. Сначала заводится комната (её код, её правила, её
+  // хозяин), и только потом под неё поднимается сессия Colyseus, в которую клиент входит сам.
   app.post("/rooms", async (req, res) => {
-    const { game, seats, by } = req.body || {};
+    const { game, seats, by, title, visibility, admission } = req.body || {};
     if (!isKitGame(game)) return res.status(400).json({ error: "bad_request" });
+    if (visibility && !(VISIBILITIES as readonly string[]).includes(visibility)) {
+      return res.status(400).json({ error: "bad_request" });
+    }
+    if (admission && !(ADMISSIONS as readonly string[]).includes(admission)) {
+      return res.status(400).json({ error: "bad_request" });
+    }
 
-    const options: Record<string, unknown> = { game };
-    if (typeof seats === "number") options.seats = seats;
-    if (typeof by === "string") options.accountId = by;
+    const room = openRoom({
+      game,
+      ...(typeof seats === "number" ? { seats } : {}),
+      ...(typeof by === "string" ? { ownerAccount: by } : {}),
+      ...(typeof title === "string" && title.trim() ? { title: title.trim() } : {}),
+      ...(visibility ? { visibility } : {}),
+      ...(admission ? { admission } : {}),
+    });
+    // Свободных кодов не осталось — честный отказ. Выдать занятый значит отправить человека
+    // за чужой стол.
+    if (!room) return res.status(503).json({ error: "no_free_code" });
 
-    const listing = await matchMaker.createRoom("kit_room", options);
-    res.json({ code: (listing.metadata as { code?: string } | undefined)?.code, roomId: listing.roomId, game });
+    const roomId = await sessionOf(room);
+    res.json({ code: room.code, roomId, room: room.id, game: room.game });
   });
 
-  // Найти roomId по 4-значному коду — используется клиентом для join по коду
+  // ЧТО ЗА СТОЛ ПРЯЧЕТСЯ ЗА КОДОМ — без того, чтобы за него садиться. 404 здесь значит «стол
+  // закрылся», и это именно то, что должен увидеть пришедший по старой ссылке: прежде ему молча
+  // открывали новый стол, и он сидел один, думая, что пришёл к друзьям.
   app.get("/rooms/by-code/:code", (req, res) => {
-    const roomId = resolveInviteCode(req.params.code);
-    if (!roomId) return res.status(404).json({ error: "not_found" });
-    const game = getRoomGame(roomId);
-    res.json({ roomId, ...(game ? { game } : {}) });
+    const room = byCode(req.params.code);
+    if (!room) return res.status(404).json({ error: "room_closed" });
+    res.json(seenFromOutside(room));
+  });
+
+  // СЕСТЬ ЗА СТОЛ ПО КОДУ: если за ним уже играют — в ту же сессию, если нет — сессия поднимается
+  // для ТОЙ ЖЕ комнаты, с её кодом и её людьми.
+  app.post("/rooms/join", async (req, res) => {
+    const { code } = req.body || {};
+    if (typeof code !== "string") return res.status(400).json({ error: "bad_request" });
+    const room = byCode(code);
+    if (!room) return res.status(404).json({ error: "room_closed" });
+    const roomId = await sessionOf(room);
+    res.json({ roomId, room: room.id, code: room.code, game: room.game });
+  });
+
+  // ПОИСК СТОЛОВ. Видно только публичные и только живые — скрытая комната скрыта от всех, кроме
+  // своих, и находится в `/accounts/:id/rooms`.
+  app.get("/rooms", async (req, res) => {
+    const game = typeof req.query.game === "string" ? req.query.game : undefined;
+    const rooms = game ? search(game) : mine("");
+    const busy = await playerCounts();
+    res.json(rooms.map((room) => ({ ...seenFromOutside(room), players: busy.get(room.sessionId ?? "") ?? 0 })));
+  });
+
+  // МОИ КОМНАТЫ — те, что я открыл или в которых состою, включая скрытые.
+  app.get("/accounts/:id/rooms", async (req, res) => {
+    const busy = await playerCounts();
+    res.json(
+      mine(req.params.id).map((room) => ({
+        ...seenFromOutside(room),
+        players: busy.get(room.sessionId ?? "") ?? 0,
+        own: room.ownerAccount === req.params.id,
+      })),
+    );
+  });
+
+  // ЗАКРЫТЬ СТОЛ — только хозяину. Код возвращается в оборот ровно здесь.
+  app.delete("/rooms/:id", (req, res) => {
+    const by = typeof req.query.by === "string" ? req.query.by : (req.body || {}).by;
+    if (typeof by !== "string") return res.status(400).json({ error: "bad_request" });
+    if (!close(req.params.id, by)) return res.status(403).json({ error: "not_yours" });
+    res.json({ ok: true });
   });
 
   // /health отдаёт и версию: по ней видно, что на проде крутится, и совпадает ли она с той,
@@ -412,8 +481,9 @@ export function createApp() {
     res.json({ state: pending.state, ...(account_ ? { account: account_ } : {}) });
   });
 
+  // Прежнее имя того же вопроса — отвечает из той же правды, что и `/rooms`.
   app.get("/rooms/public", (_req, res) => {
-    res.json(listPublicRooms());
+    res.json(search().map(seenFromOutside));
   });
 
   // Последняя посещённая аккаунтом комната (для кнопки «вернуться в игру» в лобби).

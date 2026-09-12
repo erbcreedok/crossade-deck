@@ -1,14 +1,17 @@
 import { Room, Client } from "@colyseus/core";
-import { registerInviteCode, releaseInviteCode } from "./inviteCodes.js";
+import { joined, openRoom, sessionEnded } from "./rooms.js";
 import { guestIdentity } from "./sandboxNames.js";
 import { accountName } from "./accounts.js";
-import { setRoomGame, clearRoomGame } from "./roomGames.js";
+import { setSession } from "./db/roomsRepo.js";
 
 export interface KitJoinOptions {
   accountId?: string;
   name?: string;
   seats?: number;
   game?: string;
+  /** Чья это комната — та самая вечная запись. Сессия без неё бывает только в тестах. */
+  room?: string;
+  code?: string;
 }
 
 export interface KitRosterItem {
@@ -22,6 +25,8 @@ export class KitRoom extends Room {
   private code = "";
   private maxSeats = 2;
   private game?: string;
+  /** Запись комнаты, сессией которой эта комната является. */
+  private record?: string;
   private rev = 0;
   private tree: unknown = null;
   private members: KitRosterItem[] = [];
@@ -31,11 +36,22 @@ export class KitRoom extends Room {
     if (typeof options?.seats === "number" && options.seats > 0) {
       this.maxSeats = Math.floor(options.seats);
     }
-    if (typeof options?.game === "string") {
-      this.game = options.game;
-      setRoomGame(this.roomId, this.game);
+    if (typeof options?.game === "string") this.game = options.game;
+
+    // КОД И КОМНАТА ПРИХОДЯТ ИЗВНЕ: их выдала запись в базе, сессия их только носит. Когда записи
+    // не дали (прямой `client.create` в тестах), сессия заводит её сама — стол без записи не
+    // существует, а значит и кода у него взяться неоткуда.
+    if (typeof options?.room === "string" && typeof options.code === "string") {
+      this.record = options.room;
+      this.code = options.code;
+      setSession(this.record, this.roomId);
+    } else {
+      const made = openRoom({ game: this.game ?? "cards", ...(options?.accountId ? { ownerAccount: options.accountId } : {}) });
+      if (!made?.code) throw new Error("no_free_code");
+      this.record = made.id;
+      this.code = made.code;
+      setSession(this.record, this.roomId);
     }
-    this.code = registerInviteCode(this.roomId);
     this.setMetadata({ code: this.code });
 
     this.onMessage("hello", (client) => {
@@ -97,6 +113,7 @@ export class KitRoom extends Room {
         const mine = accountName(options.accountId);
         if (mine) existing.name = mine;
         this.clientMemberMap.set(client.sessionId, existing);
+        this.remember(options.accountId);
         this.broadcastRoster();
         return;
       }
@@ -118,6 +135,7 @@ export class KitRoom extends Room {
 
     this.members.push(member);
     this.clientMemberMap.set(client.sessionId, member);
+    if (options?.accountId) this.remember(options.accountId);
     this.broadcastRoster();
   }
 
@@ -148,9 +166,15 @@ export class KitRoom extends Room {
     }
   }
 
+  // СЕССИЯ КОНЧИЛАСЬ — СТОЛ ОСТАЛСЯ. Код не отпускается: он принадлежит комнате, а не этой
+  // получасовой встрече, и ссылка на него завтра приведёт сюда же, а не за новый пустой стол.
   onDispose(): void {
-    releaseInviteCode(this.code);
-    clearRoomGame(this.roomId);
+    if (this.record) sessionEnded(this.record);
+  }
+
+  /** Сел за стол — стал членом этой комнаты, и она появилась в списке его комнат. */
+  private remember(accountId: string): void {
+    if (this.record) joined(this.record, accountId);
   }
 
   private nextFreeSeat(): string | null {

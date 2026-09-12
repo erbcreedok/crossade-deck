@@ -40,6 +40,8 @@ export interface RoomRow {
   /** Когда комнату видели живой в последний раз — по нему сортируется список. */
   readonly aliveAt: number;
   readonly closedAt: number | null;
+  /** Идущая сейчас сессия Colyseus. `null` — стол стоит, за ним никого. */
+  readonly sessionId: string | null;
 }
 
 interface RawRoom {
@@ -55,6 +57,7 @@ interface RawRoom {
   created_at: number;
   alive_at: number;
   closed_at: number | null;
+  session_id: string | null;
 }
 
 function toRoom(raw: RawRoom | undefined): RoomRow | undefined {
@@ -72,11 +75,12 @@ function toRoom(raw: RawRoom | undefined): RoomRow | undefined {
     createdAt: raw.created_at,
     aliveAt: raw.alive_at,
     closedAt: raw.closed_at,
+    sessionId: raw.session_id,
   };
 }
 
 const SELECT = `SELECT id, code, game, title, owner_account, visibility, admission, transport,
-  seats, created_at, alive_at, closed_at FROM rooms`;
+  seats, created_at, alive_at, closed_at, session_id FROM rooms`;
 
 /** Сколько всего четырёхзначных кодов. Больше столов одновременно живыми не бывает. */
 const CODE_SPACE = 10_000;
@@ -141,6 +145,11 @@ export function insertRoom(one: NewRoom, at: DatabaseSync = db()): RoomRow | und
   );
   if (one.ownerAccount) addMember(one.id, one.ownerAccount, "owner", now, at);
   return roomById(one.id, at);
+}
+
+/** Запомнить идущую сессию (или забыть её, когда все вышли). */
+export function setSession(id: string, sessionId: string | null, at: DatabaseSync = db()): void {
+  at.prepare(`UPDATE rooms SET session_id = ? WHERE id = ?`).run(sessionId, id);
 }
 
 export function roomById(id: string, at: DatabaseSync = db()): RoomRow | undefined {
