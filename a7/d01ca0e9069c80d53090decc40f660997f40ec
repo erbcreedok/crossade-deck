@@ -1,0 +1,41 @@
+server/scripts/seedTestRoom.ts
+  s_9ed0da107cbc4a::t_bd1a92a38884ab 35-42
+game-presets/tophud/src/index.ts
+  s_9ed0da107cbc4a::t_7e3258679457e6 10
+game-presets/desk/src/startDesk.ts
+  s_9ed0da107cbc4a::t_b71b94d6b79812 37-38,172-192,195-199
+  s_9ed0da107cbc4a::t_5952c1262cfb2c 453-454
+  s_9ed0da107cbc4a::t_facf53a7401eb7 557-560
+  s_9ed0da107cbc4a::t_cdb5a5d9968acc 193-194
+  s_9ed0da107cbc4a::t_a7be7b5e90b8b4 200
+game-presets/tophud/src/topHud.test.ts
+  s_9ed0da107cbc4a::t_b63cb133b6adde 54-76
+game-presets/tophud/src/topHud.ts
+  s_9ed0da107cbc4a::t_7e3258679457e6 20,65-69,95,206,215-240,245,247-266
+  s_9ed0da107cbc4a::t_d33be9939e9b06 241-244,246
+  s_9ed0da107cbc4a::t_4d5edd8633af71 267
+wire/src/rooms.ts
+  s_9ed0da107cbc4a::t_de3fe2c3be006c 161-190
+game-presets/tophud/src/roster.ts
+  s_9ed0da107cbc4a::t_484a4a226263ec 1-53
+wire/src/index.ts
+  s_9ed0da107cbc4a::t_a4053aabaf6b74 22,28-29
+game-presets/tophud/src/roster.test.ts
+  s_9ed0da107cbc4a::t_484a4a226263ec 1-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a7d01ca0e9069c80d53090decc40f660997f40ec",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
