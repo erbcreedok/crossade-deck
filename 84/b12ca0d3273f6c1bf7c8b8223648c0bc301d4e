@@ -1,0 +1,31 @@
+game-presets/desk/src/turn.test.ts
+  s_9ed0da107cbc4a::t_f62a203a1bf15a 1-32
+game-presets/desk/src/turn.ts
+  s_9ed0da107cbc4a::t_f62a203a1bf15a 1-16
+wire/src/index.ts
+  s_9ed0da107cbc4a::t_8baff2ea2e8309 16,21
+wire/src/rooms.ts
+  s_9ed0da107cbc4a::t_8baff2ea2e8309 71-93
+game-presets/desk/src/startDesk.ts
+  s_9ed0da107cbc4a::t_f21b4ae7ba5d9e 182-183,185,190,479
+  s_9ed0da107cbc4a::t_28a5a63d1285e1 173-181,184,187-189,191-192,477-478,512,526-528
+  s_9ed0da107cbc4a::t_f62a203a1bf15a 43,186
+  s_9ed0da107cbc4a::t_98c830f0cbebf8 406
+  s_9ed0da107cbc4a::t_6430fe4366a5b6 172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "84b12ca0d3273f6c1bf7c8b8223648c0bc301d4e",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
