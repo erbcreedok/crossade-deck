@@ -1,0 +1,31 @@
+server/src/roomRoutes.test.ts
+  s_9ed0da107cbc4a::t_5f436d18502fae 372,377-380,402
+  s_9ed0da107cbc4a::t_c2feeb8f62f612 362-371,373-376,381-401,403-415
+server/src/db/accountsRepo.ts
+  s_9ed0da107cbc4a::t_2ef79608c22a2f 39-40,51,64,68,72-73
+server/scripts/seedTestRoom.ts
+  s_9ed0da107cbc4a::t_5f92d999b57ef5 23,45-50,53-55,80-82
+server/src/KitRoom.ts
+  s_9ed0da107cbc4a::t_4f8f3a8cff5ed2 59,61
+  s_9ed0da107cbc4a::t_547c7c5acec4f5 205,208,214,216-219
+  s_9ed0da107cbc4a::t_499e69bf498627 6-7,60,195-204,206-207,209-213,215
+  s_9ed0da107cbc4a::t_e25b0ba6193a3d 220-221
+server/src/db/migrations.ts
+  s_9ed0da107cbc4a::t_2ef79608c22a2f 208-219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7ee2091187c1475c21055982b6d897d3e61237fe",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
