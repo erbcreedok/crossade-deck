@@ -103,8 +103,11 @@
     table: [],
     /** Колода по центру. С неё тянется только верхняя карта — стопку целиком не поднимают. */
     deck: deck(12, "d"),
-    /** Чей тултип открыт. Пусто — ничей. */
-    tip: null,
+    /**
+     * ЧЬИ ТУЛТИПЫ ОТКРЫТЫ. Список, а не один: за столом сидят двое, и сравнивать их руки, открывая
+     * по очереди, — значит держать вторую в голове.
+     */
+    tips: [],
   };
 
   const stage = document.getElementById("stage");
@@ -299,10 +302,10 @@
   }
 
   /** Карта разметкой, стоящая в своём гнезде. */
-  function slotCard(c, shown, geom, slot, z, attr, held) {
-    return `<div ${attr}="${c.id}" style="position:absolute;width:${geom.w}px;height:${geom.h}px;`
+  function slotCard(c, shown, geom, slot, z, attr, owner) {
+    return `<div ${attr}="${c.id}"${owner ? ` data-owner="${owner}"` : ""} style="position:absolute;width:${geom.w}px;height:${geom.h}px;`
       + `left:${slot.x - geom.w / 2}px;top:${slot.y - geom.h / 2}px;transform:rotate(${slot.angle}deg);`
-      + `z-index:${z};touch-action:none;cursor:grab;${held ? "opacity:0;" : ""}`
+      + `z-index:${z};touch-action:none;cursor:grab;`
       + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out">${cardHtml(c, shown, geom.w)}</div>`;
   }
 
@@ -313,13 +316,13 @@
    * гнездо занимает контур. Отсюда и `z` контура: он ровно тот, что достанется карте, — соседки
    * справа накрывают его так же, как накроют её.
    */
-  function layHand(which, geom, cards, mark, shown, attr) {
+  function layHand(which, geom, cards, mark, shown, attr, owner) {
     const list = mark === null ? cards : [...cards.slice(0, mark), null, ...cards.slice(mark)];
     return list.map((c, i) => {
       const slot = geom.slots[geom.mirror ? list.length - 1 - i : i];
       if (!slot) return "";
       if (c === null) return markHtml(geom.w, geom.h, slot.angle, slot.x, slot.y, i + 1);
-      return slotCard(c, shown, geom, slot, i + 1, attr, false);
+      return slotCard(c, shown, geom, slot, (owner ? 41 : 1) + i, attr, owner);
     }).join("");
   }
 
@@ -367,7 +370,7 @@
     const mark = drag && drag.target.kind === "hand" && drag.target.which === who.key ? drag.target.index : null;
     const geom = tipGeom(who, spot, cards.length + (mark === null ? 0 : 1));
     const box = geom.box;
-    return `<div data-g="tip" style="position:absolute;left:${box.left}px;top:${box.top}px;`
+    const shell = `<div data-g="tip" data-tip="${who.key}" style="position:absolute;left:${box.left}px;top:${box.top}px;`
       // ТУЛТИП — ПОВЕРХ ВСЕГО, полосы кнопок в том числе: его открыли последним, и он про то, о чём
       // спросили прямо сейчас.
       + `width:${box.w}px;box-sizing:border-box;z-index:40;background:${T.well};`
@@ -375,15 +378,22 @@
       + `<div style="display:flex;align-items:center;gap:9px;padding-bottom:8px">`
       + `<span style="flex:none;width:30px;height:30px;border-radius:50%;background:${who.ink};box-shadow:inset 0 0 0 3px ${T.black};`
       + `display:flex;align-items:center;justify-content:center;font:400 14px Tiny5,monospace;color:${T.black}">${who.name[0]}</span>`
-      + `<span style="font:400 14px Tiny5,monospace;color:${T.ink}">${who.name}</span></div>`
+      + `<span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1">${who.name}</span>`
+      // ЗАКРЫТЬ — КНОПКОЙ, И ОНА ВЫШЕ РУКИ: тапом мимо окно больше не закрывается (мимо — это по
+      // своей руке и по картам на столе, и они должны работать при открытом чужом веере), значит
+      // закрыть его надо чем-то, что видно.
+      + `<span data-shut="${who.key}" role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;`
+      + `border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
       + `<span style="font:400 10px Tiny5,monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">ЕГО РУКА · ${cards.length}</span>`
-      + `<div style="position:relative;height:${box.rowH}px"></div></div>`
-      // КАРТЫ ЕГО ВЕЕРА — НЕ ВНУТРИ КОРОБКИ, А НАД НЕЙ, в тех же экранных координатах, что и моя
-      // рука: карту вытаскивают ИЗ тултипа на стол, и обрезанная его краем она пропадала бы ровно в
-      // тот миг, когда на неё смотрят.
-      + `<div style="position:absolute;inset:0;z-index:41;pointer-events:none">`
-      + `<div style="position:absolute;inset:0;pointer-events:auto">`
-      + layHand(who.key, geom, cards, mark, false, "data-tip-card") + `</div></div>`;
+      + `<div style="position:relative;height:${box.rowH}px"></div></div>`;
+    // КАРТЫ ЕГО ВЕЕРА — НЕ ВНУТРИ КОРОБКИ, А РЯДОМ С НЕЙ, в тех же экранных координатах, что и моя
+    // рука: карту вытаскивают ИЗ тултипа на стол, и обрезанная его краем она пропадала бы ровно в
+    // тот миг, когда на неё смотрят.
+    //
+    // И НИКАКОГО СЛОЯ ПОВЕРХ ЭКРАНА. Он тут был — прозрачный прямоугольник во всё стекло, чтобы
+    // карты легли где угодно, — и съедал КАЖДОЕ касание: ни своей руки, ни карт на столе, ни даже
+    // закрыть окно. Карты стоят сами по себе, каждая своим местом, и ловят палец только собой.
+    return { shell, cards: layHand(who.key, geom, cards, mark, false, "data-tip-card", who.key) };
   }
 
   let spots = [];
@@ -408,10 +418,23 @@
       centre: (g.h - hudFloor()) / 2,
     });
     spots = view.spots;
-    const tip = P.tip ? P.people.find((one) => one.key === P.tip) : undefined;
-    const spot = tip ? spots.find((s) => s.key === tip.key) : undefined;
-    over.innerHTML = hudHtml() + (tip && spot ? tipHtml(tip, spot) : "") + feltMarkHtml() + carryHtml();
+    // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за край своей коробки, и коробка
+    // соседа не должна его обрезать — два окна рядом это обычное дело, за тем их и открывают два.
+    const open = openTips();
+    over.innerHTML =
+      hudHtml() +
+      open.map(({ tip }) => tip.shell).join("") +
+      open.map(({ tip }) => tip.cards).join("") +
+      feltMarkHtml() + carryHtml();
     wire();
+  }
+
+  /** Открытые тултипы, с их людьми и местами: один вопрос на всех, кто сейчас раскрыт. */
+  function openTips() {
+    return P.tips
+      .map((key) => ({ who: P.people.find((one) => one.key === key), spot: spots.find((s) => s.key === key) }))
+      .filter((one) => one.who && one.spot)
+      .map((one) => ({ ...one, tip: tipHtml(one.who, one.spot) }));
   }
 
   /** Контур на сукне — карта ляжет туда своим размером, а он ВТРОЕ меньше, чем она в руке. */
@@ -433,14 +456,15 @@
 
   /** Куда целится палец: в чьё-то гнездо или на сукно. */
   function aimAt(x, y) {
-    const tip = P.tip ? P.people.find((one) => one.key === P.tip) : undefined;
-    if (tip) {
-      const spot = spots.find((s) => s.key === tip.key);
-      const room = tip.hand.length + (drag.from === tip.key ? 0 : 0);
-      const geom = tipGeom(tip, spot, room + 1);
+    for (const key of P.tips) {
+      const who = P.people.find((one) => one.key === key);
+      const spot = spots.find((s) => s.key === key);
+      if (!who || !spot) continue;
+      const room = who.hand.length;
+      const geom = tipGeom(who, spot, room + 1);
       const box = geom.box;
       if (x >= box.left && x <= box.left + box.w && y >= box.top && y <= box.top + box.height) {
-        return { kind: "hand", which: tip.key, index: slotAt(geom, x, room) };
+        return { kind: "hand", which: key, index: slotAt(geom, x, room) };
       }
     }
     const mineRoom = P.mine.length;
@@ -579,12 +603,25 @@
         draw();
       };
     }
+    for (const el of over.querySelectorAll("[data-shut]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        shutTip(el.dataset.shut);
+      };
+    }
     for (const el of over.querySelectorAll("[data-card]")) {
       el.onpointerdown = (e) => { e.preventDefault(); startDrag(e, "mine", el.dataset.card); };
     }
     for (const el of over.querySelectorAll("[data-tip-card]")) {
-      el.onpointerdown = (e) => { e.preventDefault(); startDrag(e, P.tip, el.dataset.tipCard); };
+      el.onpointerdown = (e) => { e.preventDefault(); startDrag(e, el.dataset.owner, el.dataset.tipCard); };
     }
+  }
+
+  /** Закрыть одно окно. Остальные открытые остаются: их открывали отдельно. */
+  function shutTip(key) {
+    P.tips = P.tips.filter((one) => one !== key);
+    draw();
   }
 
   addEventListener("pointermove", moveDrag, { passive: true });
@@ -608,11 +645,15 @@
       e.preventDefault();
       return grabFromFelt(e, pick);
     }
+    // ПОВТОРНЫЙ ТАП ПО АВАТАРУ ЗАКРЫВАЕТ ЕГО ОКНО, а тап по сукну мимо аватара не закрывает ничего:
+    // сукно теперь живое — на нём лежат карты, и всякий промах по карте гасил бы чужие окна.
     const hit = spots.find((s) => s.key !== "me" && Math.hypot(x - s.x, y - s.y) <= s.r + 6);
-    const next = hit ? (P.tip === hit.key ? null : hit.key) : null;
-    if (next === P.tip) return;
-    P.tip = next;
-    draw();
+    if (!hit) return;
+    if (P.tips.includes(hit.key)) shutTip(hit.key);
+    else {
+      P.tips = [...P.tips, hit.key];
+      draw();
+    }
   });
 
   addEventListener("resize", draw);
