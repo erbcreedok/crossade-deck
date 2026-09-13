@@ -1,0 +1,20 @@
+design/gesture/index.html
+  s_9ed0da107cbc4a::t_09e17c272538f0 421-428,432-439,459-464,467,606-612,617,621-626,648-649,651-656
+  s_9ed0da107cbc4a::t_b6af0f00882227 106-110,305-306,308,319,325,373,381-386,388-396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e009c1af517b0aa69aa82a5df57ee090d67dd2b0",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
