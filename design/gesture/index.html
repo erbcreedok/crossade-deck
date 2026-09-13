@@ -336,6 +336,32 @@
    * Семь кнопок двумя группами: права прижаты к левому краю, позы — к правому, и обе ужимаются
    * ОДИНАКОВО, когда на стекле им тесно (`fitBar`): иначе на телефоне два ряда въезжают друг в друга.
    */
+  /**
+   * ЗОНА РУКИ, КОТОРАЯ ЗАГОРАЕТСЯ, ПОКА КАРТА В ВОЗДУХЕ. Пальцу нужно знать не «куда-нибудь вниз», а
+   * ровно ту площадь, с которой карта уедет в руку, — её и обводим, её же и подписываем.
+   *
+   * И ВСЁ ЭТО ПОД КАРТАМИ: зона — это пол, а не крышка. Стоит ей оказаться сверху, и рука окажется
+   * за стеклом — карты потускнеют, а подпись ляжет им на лица. Поэтому `z-index: 0`, ниже любой
+   * карты руки (их этаж начинается с единицы), и `pointer-events: none` — брать по-прежнему карту.
+   */
+  function handZoneHtml(geom) {
+    if (!drag) return "";
+    const pad = geom.h * 0.12;
+    const left = geom.slots.reduce((m, s) => Math.min(m, s.x - geom.w / 2), Infinity) - pad;
+    const right = geom.slots.reduce((m, s) => Math.max(m, s.x + geom.w / 2), -Infinity) + pad;
+    const top = geom.slots.reduce((m, s) => Math.min(m, s.y - geom.h / 2), Infinity) - pad;
+    const bottom = geom.barTop;
+    const here = drag.target.kind === "hand" && drag.target.which === "mine";
+    const line = here ? T.gold : T.inkDim;
+    return `<div style="position:absolute;left:${left}px;top:${top}px;width:${right - left}px;height:${bottom - top}px;`
+      + `z-index:0;pointer-events:none;border-radius:${Math.round(geom.w * 0.16)}px;`
+      + `border:2px dashed ${line};background:${here ? "rgba(242,193,78,.16)" : "rgba(245,234,208,.07)"};`
+      + `opacity:${here ? 1 : 0.75};transition:opacity .12s ease-out,background .12s ease-out,border-color .12s ease-out;`
+      + `display:flex;align-items:flex-start;justify-content:center">`
+      + `<span style="margin-top:${Math.max(1, Math.round(pad * 0.16))}px;font:400 ${Math.round(pad * 0.9)}px Tiny5,monospace;`
+      + `letter-spacing:.14em;color:${line};text-shadow:0 1px 0 ${T.black}">В РУКУ</span></div>`;
+  }
+
   function hudHtml() {
     const g = glass();
     const cards = P.mine;
@@ -350,6 +376,7 @@
 
     return `<div style="position:absolute;left:0;right:0;top:${geom.barTop - BAR.fade * u}px;height:${BAR.fade * u}px;`
       + `background:linear-gradient(to top, rgba(11,7,4,.85), rgba(11,7,4,0));pointer-events:none"></div>`
+      + handZoneHtml(geom)
       + layHand("mine", geom, cards, mark, !P.on.hide, "data-card")
       // ПОЛОСА — ПОВЕРХ КАРТ, как спина поверх того, что под неё подоткнули: карты уходят под её
       // край на `BAR.tuck`, и если она окажется под ними, подоткнуть будет некуда. Порядок в
