@@ -318,11 +318,15 @@
    */
   function layHand(which, geom, cards, mark, shown, attr, owner) {
     const list = mark === null ? cards : [...cards.slice(0, mark), null, ...cards.slice(mark)];
+    // ЧУЖАЯ РУКА ЖИВЁТ НАД СВОЕЙ КОРОБКОЙ, и в её этаже стоят ОБА — и карты, и контур. Контур,
+    // оставленный на этаже моей руки, уходил под коробку чужого окна и пропадал целиком: место
+    // показывалось везде, кроме единственного места, ради которого его и рисуют.
+    const floor = owner ? 41 : 1;
     return list.map((c, i) => {
       const slot = geom.slots[geom.mirror ? list.length - 1 - i : i];
       if (!slot) return "";
-      if (c === null) return markHtml(geom.w, geom.h, slot.angle, slot.x, slot.y, i + 1);
-      return slotCard(c, shown, geom, slot, (owner ? 41 : 1) + i, attr, owner);
+      if (c === null) return markHtml(geom.w, geom.h, slot.angle, slot.x, slot.y, floor + i);
+      return slotCard(c, shown, geom, slot, floor + i, attr, owner);
     }).join("");
   }
 
