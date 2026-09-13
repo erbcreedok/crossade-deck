@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Handjet&family=Press+Start+2P&family=Tiny5&display=swap" rel="stylesheet">
-<script src="shelf.js"></script>
+<script src="shelf.js?v=09120021"></script>
 <style>
   body { margin: 0; background: #0d2118; color: #cdb98f; font: 400 16px/1.45 'Handjet', monospace; }
   .page { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; padding: 32px; }
@@ -24,6 +24,9 @@
   .row .val { color: #f2c14e; text-align: right; font: 400 14px 'Press Start 2P', monospace; }
   .nums { font-size: 15px; }
   .nums b { color: #f2c14e; font-weight: 400; }
+  /* Ряд «куда зайти» скроллится вбок, но полоса прокрутки поперёк сукна выглядит поломкой. */
+  #over [data-g="comeback"] > div { scrollbar-width: none; -ms-overflow-style: none; }
+  #over [data-g="comeback"] > div::-webkit-scrollbar { display: none; }
   .bad { color: #e0483f; }
   button.reset { align-self: flex-start; font: inherit; color: #f2c14e; background: none; border: 2px solid #f2c14e; padding: 4px 10px; cursor: pointer; }
   .knob { display: none; }
@@ -76,6 +79,11 @@
       ["mine", "своё имя", "text", ""],
       ["emoji", "свой аватар", "text", ""],
       ["colour", "любимый цвет", "int", 0, 0, 7],
+    ]],
+    ["Куда зайти", [
+      ["seats", "твоих столов", "int", 1, 0, 3],
+      ["turn", "где-то твой ход", "bool", true],
+      ["mates", "стол с друзьями", "bool", true],
     ]],
     ["Полоса", [
       ["h", "высота полосы, px", "int", 44, 0, 96],
@@ -184,6 +192,22 @@
   // разрядом, существительное медленным. При общем множителе пары повторялись бы каждые двадцать
   // делений, и половина списка никогда бы не показалась.
   /** Любимый цвет — восемь, а не колесо: цвет должен быть узнаваем за столом, а не подобран. */
+  /**
+   * КУДА ЗАЙТИ — не список, а две-три подсказки на первой странице, до выбора игры.
+   *
+   * Человек чаще ВОЗВРАЩАЕТСЯ, чем выбирает: у него уже есть стол, где держится его место, и стол,
+   * за которым сидят друзья. Полка отвечает на вопрос «во что», а этот ряд — на вопрос «куда», и у
+   * вернувшегося он первый.
+   *
+   * Ряд пропадает целиком, когда предлагать нечего: пустая полоса «пока ничего» занимает место и
+   * не говорит ничего.
+   */
+  const COMEBACK = [
+    { code: "2781", game: "Карты", sign: "\u2660" },
+    { code: "2918", game: "Нарды", sign: "\uD83C\uDFB2" },
+    { code: "1685", game: "Шахматы", sign: "\u265E" },
+  ];
+
   const PALETTE = ["#f2c14e", "#7fd1b9", "#e08b3f", "#b98fe0", "#8fb4e0", "#e0483f", "#a8e08f", "#e08fb4"];
 
   const guestName = (seed) => `${GUEST_ADJ[seed % GUEST_ADJ.length]} ${GUEST_NOUN[Math.floor(seed / GUEST_ADJ.length) % GUEST_NOUN.length]}`;
@@ -301,6 +325,28 @@
         + act("close", "Закрыть", "quiet") + `</div>${body}</div></div>`
       : "";
 
+    const cards = [];
+    for (let i = 0; i < P.seats; i += 1) {
+      const c = COMEBACK[i];
+      cards.push({ ...c, said: i === 0 && P.turn ? "твой ход" : i === 1 ? "все вышли · ждёт" : "твой стул", hot: i === 0 && P.turn });
+    }
+    if (P.mates) cards.push({ code: "1137", game: "Карты", sign: "\u2660", said: "Марат и Алия", hot: false });
+
+    const card = (c) => `<button data-do="go:${c.code}" style="flex:none;width:172px;text-align:left;cursor:pointer;border:0;border-radius:12px;padding:10px 11px;`
+      + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${c.hot ? T.gold : T.wood};display:flex;align-items:center;gap:10px">`
+      + `<span style="flex:none;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:${T.black};font-size:17px">${c.sign}</span>`
+      + `<span style="display:flex;flex-direction:column;gap:3px;min-width:0">`
+      + `<span style="font:400 11px 'Press Start 2P',monospace;color:${T.gold}">${c.code}</span>`
+      + `<span style="font:400 10px 'Tiny5',monospace;color:${c.hot ? T.gold : T.inkDim};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.game} · ${c.said}</span>`
+      + `</span></button>`;
+
+    // ПОД ЗАГОЛОВКОМ, А НЕ НАД НИМ. «Crossade» — это имя места, и оно должно встречать первым;
+    // подсказки «куда зайти» идут следом, между именем и полкой, где их и ищут глазами.
+    const comeback = !cards.length ? "" :
+      `<div data-g="comeback" style="position:absolute;left:0;right:0;top:calc(${inset} + ${h + 18 + (P.title ? P.titleSize + 12 : 0)}px);z-index:8;display:flex;flex-direction:column;gap:7px">`
+      + `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.75;padding:0 ${P.side}px">КУДА ЗАЙТИ</span>`
+      + `<div style="display:flex;gap:8px;overflow:auto;padding:0 ${P.side}px 2px">${cards.map(card).join("")}</div></div>`;
+
     const band = `padding-top:${inset};${FILLS[P.fill]}`;
     const rowIn = `display:flex;align-items:center;justify-content:${P.profileSide === "слева" ? "flex-start" : "flex-end"};height:${h}px;padding:0 ${P.side}px;box-sizing:border-box`;
 
@@ -308,10 +354,14 @@
     // высота складывается из полосы и чёлки. Пока шапка была тремя absolute-кусками, заголовок
     // «Crossade» лежал под тем, что висело ниже полосы.
     over.innerHTML = `<div data-g="head" style="position:absolute;left:0;right:0;top:0;z-index:9">`
-      + `<div style="${band}"><div style="${rowIn}">${profile}</div></div></div>` + screen;
+      + `<div style="${band}"><div style="${rowIn}">${profile}</div></div></div>` + comeback + screen;
 
     // ДЕЙСТВИЯ. Экран пересобирается целиком на каждую правку, поэтому слушатели вешаются после
     // сборки — это дешевле, чем держать узлы живыми ради одного обработчика.
+    for (const el of over.querySelectorAll('[data-do^="go:"]')) {
+      el.onclick = (e) => { e.stopPropagation(); alert("Наружу уходит «войти в комнату " + el.getAttribute("data-do").slice(3) + "»"); };
+    }
+
     const profileEl = over.querySelector('[data-g="profile"]');
     if (profileEl) profileEl.onclick = () => { P.open = true; build(); apply(); };
     for (const el of over.querySelectorAll("[data-do]")) {
@@ -350,16 +400,23 @@
       `экран <b>${W}×${H}</b> · шапка <b>${headTop}</b> px, из них чёлка <b>${insetPx}</b> · полке остаётся <b>${H - headTop}</b> px<br>`
       + `профиль <b>${wProfile}</b> px с полями из <b>${W}</b><br>`
       + (wProfile + 2 * P.side > W ? `<span class="bad">не влезает: ${wProfile + 2 * P.side - W} px лишних</span><br>` : "")
+      + (cards.length ? `куда зайти: <b>${cards.length}</b> · полке остаётся <b>${H - headTop}</b> px<br>` : `куда зайти: ряда нет — предлагать нечего<br>`)
       + (guest ? `имя выдано столом: <b>${esc(guestName(P.seed))}</b> — оно и есть приглашение назваться` : `вошёл: имя своё, менять нечего`);
 
-    window.HubStand.draw(document.getElementById("shelf"), {
-      W, H, top: headTop,
+    const laid = window.HubStand.draw(document.getElementById("shelf"), {
+      W, H, top: headTop, afterTitle: heightOf("comeback"),
       title: P.title, titleSize: P.titleSize, columns: P.columns, tileGap: P.tileGap, margin: P.margin,
     });
+    // Ряд встаёт ровно в дыру, которую холст под него оставил.
+    const row = over.querySelector('[data-g="comeback"]');
+    if (row && laid) row.style.top = `${laid.holeY}px`;
   };
 
   build();
   apply();
+  // ХОЛСТ РИСУЕТ ЗАГОЛОВОК ШРИФТОМ, КОТОРОГО ЕЩЁ НЕТ. Первый кадр уходит системным, и «Crossade»
+  // выглядит чужим; когда пиксельный доедет — перерисовываем.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => apply());
   addEventListener("hashchange", () => { P = readHash(); build(); apply(); });
   addEventListener("resize", apply);
   addEventListener("orientationchange", apply);

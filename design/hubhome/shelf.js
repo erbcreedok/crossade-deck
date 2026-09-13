@@ -85,7 +85,7 @@
    * Полка целиком. `top` — сколько пикселей сверху занято шапкой: плитки начинаются под ней, и
    * именно это число ручки наверху и двигают.
    */
-  function draw(canvas, { W, H, top, title, titleSize, columns, tileGap, margin }) {
+  function draw(canvas, { W, H, top, afterTitle, title, titleSize, columns, tileGap, margin }) {
     const dpr = Math.min(3, globalThis.devicePixelRatio || 1);
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
@@ -109,24 +109,38 @@
       sparkle(g, x, y, i % 3 === 0 ? 6 : 4, T.sparkle);
     }
 
-    let y = top + 18;
+    // ВСЁ ОДНИМ БЛОКОМ ПО ЦЕНТРУ — так стоит живой хаб: заголовок и плитки висят в середине сукна,
+    // а не прибиты к шапке. Считаем высоту блока целиком (имя + дыра под ряд «куда зайти» + плитки)
+    // и ставим его посередине того, что осталось от экрана под полосой.
+    const cols = columns;
+    const tw = Math.round((W - margin * 2 - tileGap * (cols - 1)) / cols);
+    const th = Math.round(tw * (cols === 1 ? 0.42 : 0.86));
+    const rows = Math.ceil(GAMES.length / cols);
+    const titleH = title ? titleSize + 12 : 0;
+    const holeH = afterTitle ? afterTitle + 16 : 0;
+    const blockH = titleH + holeH + rows * th + (rows - 1) * tileGap;
+    let y = top + Math.max(16, Math.round((H - top - blockH) / 2));
+
     if (title) {
       g.fillStyle = T.gold;
       g.font = `${titleSize}px 'Press Start 2P', monospace`;
       g.textAlign = "center";
       g.textBaseline = "top";
       g.fillText("Crossade", W / 2, y);
-      y += titleSize + 26;
+      y += titleH;
     }
+    // Где именно оставлена дыра — разметка узнаёт отсюда, а не пересчитывает ту же арифметику у
+    // себя: две копии одного расчёта расходятся на первой же правке отступа.
+    const holeY = y;
+    y += holeH;
 
-    const cols = columns;
-    const tw = Math.round((W - margin * 2 - tileGap * (cols - 1)) / cols);
-    const th = Math.round(tw * (cols === 1 ? 0.42 : 0.86));
     GAMES.forEach((name, i) => {
       const cx = margin + (i % cols) * (tw + tileGap);
       const cy = y + Math.floor(i / cols) * (th + tileGap);
       tile(g, cx, cy, tw, th, name);
     });
+
+    return { holeY, blockTop: top + Math.max(16, Math.round((H - top - blockH) / 2)), blockH };
   }
 
   window.HubStand = { T, draw };

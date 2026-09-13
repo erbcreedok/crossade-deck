@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Стол: люди, управление, комната — стенд</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Handjet&family=Press+Start+2P&family=Tiny5&display=swap" rel="stylesheet">
+<script src="felt.js?v=09120021"></script>
+<script src="rights.js?v=09120021"></script>
+<style>
+  body { margin: 0; background: #0d2118; color: #cdb98f; font: 400 16px/1.45 'Handjet', monospace; }
+  .page { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; padding: 32px; }
+  .phone { flex: none; width: 390px; height: 844px; position: relative; overflow: hidden; border-radius: 44px; background: #173d2d; box-shadow: inset 0 0 0 3px #0b0704; }
+  .phone canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .panel { flex: 1; min-width: 320px; max-width: 460px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font: 400 26px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .sec { padding: 12px 14px; background: #123527; box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #3a2a1d; display: flex; flex-direction: column; gap: 6px; }
+  .sec h2 { margin: 0 0 4px; font: 400 16px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .row { display: grid; grid-template-columns: 150px 1fr 56px; align-items: center; gap: 8px; }
+  .row label { color: #f5ead0; }
+  .row select, .row input[type=checkbox] { justify-self: start; }
+  .row input[type=range] { width: 100%; }
+  .row .val { color: #f2c14e; text-align: right; font: 400 13px 'Press Start 2P', monospace; }
+  .nums { font-size: 15px; line-height: 1.6; }
+  .nums b { color: #f2c14e; font-weight: 400; }
+  .nums .no { color: #cdb98f; opacity: .72; }
+  .bad { color: #e0483f; }
+  button.reset { align-self: flex-start; font: inherit; color: #f2c14e; background: none; border: 2px solid #f2c14e; padding: 4px 10px; cursor: pointer; }
+  .knob { display: none; }
+  @media (max-width: 700px), (pointer: coarse) and (max-width: 1000px) {
+    body { overflow: hidden; }
+    .page { padding: 0; gap: 0; }
+    .phone { position: fixed; inset: 0; width: 100vw; height: 100dvh; border-radius: 0; box-shadow: none; }
+    .panel { position: fixed; left: 0; right: 0; bottom: 0; max-width: none; max-height: 72dvh; overflow: auto; padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); box-sizing: border-box;
+      background: #0d2118; box-shadow: 0 -3px 0 #0b0704, 0 -6px 0 #3a2a1d; transform: translateY(100%); transition: transform .22s cubic-bezier(.2,.85,.25,1); z-index: 30; }
+    .panel.open { transform: none; }
+    .knob { display: flex; position: fixed; right: 14px; bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 40; width: 46px; height: 46px; border-radius: 8px; align-items: center; justify-content: center;
+      background: linear-gradient(#25321f, #16210f); box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #6b4d2c, 0 4px 0 rgba(11,7,4,.6); color: #f2c14e; font: 400 9px 'Tiny5', monospace; }
+    h1 { font-size: 20px; }
+    .row { grid-template-columns: 120px 1fr 44px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="phone" id="phone"><canvas id="felt"></canvas><div id="over"></div></div>
+  <div class="knob" id="knob">РУЧКИ</div>
+  <div class="panel" id="panel">
+    <h1>Стол: люди, управление, комната</h1>
+    <div>Три РАЗНЫЕ вещи, и они нарочно не в одном окне. <b>Управление человеком за этим столом</b> живёт в двух местах сразу — в раскрытой строке списка и в тултипе у аватара на сукне. <b>Страница профиля</b> — про человека, а не про стол: она же открывается из хаба и по ссылке, стола вокруг может не быть. <b>Комната</b> — отдельно. Кнопки во всех трёх возвращает одна таблица <code>rights.js</code>. <b>Его рука</b> раскрыта первой секцией тултипа: лицом она к нему, значит ко мне рубашками, и порядок зеркальный — его левая карта у меня справа. Управляется только ЖЕСТАМИ: вдоль веера переставить, вверх на стол, вниз себе, двойной тап перевернуть (перевёрнутую видят все). Лок запрещает жесты, «скрыть» — рубашка даже у перевёрнутых. Внизу экрана — <b>моя рука</b> и те же кнопки, что в стенде руки: жесту «забрать себе» надо куда приехать.</div>
+    <div id="controls"></div>
+    <div class="nums" id="nums"></div>
+    <button class="reset" id="reset">сбросить</button>
+  </div>
+</div>
+<script>
+(function () {
+  const T = window.Felt.T;
+  const PALETTE = window.Felt.PALETTE;
+  const R = window.Rights;
+  const phone = document.getElementById("phone");
+  const over = document.getElementById("over");
+  const real = () => matchMedia("(max-width: 700px), (pointer: coarse) and (max-width: 1000px)").matches;
+  const glass = () => ({ W: phone.clientWidth || 390, H: phone.clientHeight || 844 });
+
+  const SPEC = [
+    ["Я", [
+      ["myRole", "моя роль", "enum", "админ", R.ROLES],
+      ["mySeat", "у меня есть стул", "bool", true],
+      ["myColour", "мой цвет", "int", 0, 0, 7],
+      ["myCards", "карт у меня", "int", 5, 0, 13],
+      ["myPose", "моя поза", "enum", "веер", ["веер", "сжато", "спрятано"]],
+      ["myPin", "мой пин", "bool", false],
+      ["myLock", "мой лок", "bool", false],
+      ["myHide", "моя скрытность", "bool", false],
+    ]],
+    ["Комната", [
+      ["mode", "кто решает", "enum", "вольница", R.MODES],
+      ["vis", "видимость", "enum", "приватная", ["приватная", "для друзей", "публичная"]],
+      ["access", "допуск", "enum", "по коду", ["по коду", "по приглашению", "открыто"]],
+      ["forever", "вечная комната", "bool", false],
+      ["code", "код комнаты", "text", "0244"],
+      ["roomSeats", "мест за столом", "int", 4, 2, 32],
+      ["foreverPending", "снятие вечности запущено", "bool", false],
+    ]],
+    ["Он (Марат)", [
+      ["theyRole", "его роль", "enum", "игрок", R.ROLES],
+      ["theySeat", "у него есть стул", "bool", true],
+      ["friend", "дружба", "enum", "никто", ["никто", "исходящий", "входящий", "друзья"]],
+      ["away", "отошёл", "bool", false],
+      ["theyColour", "его цвет", "int", 1, 0, 7],
+      ["theyLock", "рука на локе", "bool", false],
+      ["theyPin", "рука на пине", "bool", true],
+      ["theyHide", "рука скрыта", "bool", false],
+      ["theyCards", "карт в руке", "int", 6, 1, 13],
+    ]],
+    ["Что открыто", [
+      ["screen", "экран", "enum", "стол", ["стол", "список", "профиль", "комната"]],
+      ["tip", "тултип на сукне", "bool", false],
+      ["picker", "палитра открыта", "bool", false],
+      ["open", "раскрыт в списке", "bool", false],
+      ["whose", "чей профиль", "enum", "его", ["его", "мой"]],
+      ["explain", "показывать запрещённое", "bool", true],
+    ]],
+  ];
+  const DEFAULTS = {};
+  for (const [, rows] of SPEC) for (const [key, , , def] of rows) DEFAULTS[key] = def;
+
+  const readHash = () => {
+    const out = { ...DEFAULTS };
+    const h = location.hash.replace(/^#/, "");
+    if (!h) return out;
+    for (const pair of h.split("&")) {
+      const [k, v] = pair.split("=").map(decodeURIComponent);
+      if (!(k in DEFAULTS)) continue;
+      const def = DEFAULTS[k];
+      out[k] = typeof def === "number" ? Number(v) : typeof def === "boolean" ? v === "1" : v;
+    }
+    return out;
+  };
+  const writeHash = (P) => {
+    const parts = [];
+    for (const k in DEFAULTS) if (P[k] !== DEFAULTS[k]) parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(typeof P[k] === "boolean" ? (P[k] ? "1" : "0") : P[k])}`);
+    history.replaceState(null, "", parts.length ? `#${parts.join("&")}` : location.pathname);
+  };
+  let P = readHash();
+
+  const controls = document.getElementById("controls");
+  const build = () => {
+    controls.innerHTML = "";
+    for (const [title, rows] of SPEC) {
+      const sec = document.createElement("div");
+      sec.className = "sec";
+      sec.innerHTML = `<h2>${title}</h2>`;
+      for (const [key, label, kind, , a, b] of rows) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const lab = document.createElement("label");
+        lab.textContent = label;
+        row.appendChild(lab);
+        const val = document.createElement("span");
+        val.className = "val";
+        let input;
+        if (kind === "int") {
+          input = document.createElement("input");
+          input.type = "range"; input.min = a; input.max = b; input.step = 1; input.value = P[key];
+          val.textContent = P[key];
+          input.oninput = () => { P[key] = Number(input.value); val.textContent = input.value; apply(); };
+        } else if (kind === "enum") {
+          input = document.createElement("select");
+          for (const opt of a) { const o = document.createElement("option"); o.value = opt; o.textContent = opt; o.selected = P[key] === opt; input.appendChild(o); }
+          input.onchange = () => { P[key] = input.value; apply(); };
+        } else if (kind === "text") {
+          input = document.createElement("input");
+          input.type = "text"; input.value = P[key];
+          input.oninput = () => { P[key] = input.value; apply(); };
+        } else {
+          input = document.createElement("input");
+          input.type = "checkbox"; input.checked = !!P[key];
+          input.onchange = () => { P[key] = input.checked; apply(); };
+        }
+        row.appendChild(input); row.appendChild(val);
+        sec.appendChild(row);
+      }
+      controls.appendChild(sec);
+    }
+  };
+  document.getElementById("reset").onclick = () => { P = { ...DEFAULTS }; build(); apply(); };
+  document.getElementById("knob").onclick = () => document.getElementById("panel").classList.toggle("open");
+
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const ball = (size, colour, letter, ring) => `<span style="flex:none;width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;`
+    + `background:${PALETTE[colour]};box-shadow:inset 0 0 0 3px ${T.black}${ring ? `,0 0 0 3px ${T.gold}` : ""}">`
+    + `<span style="font:400 ${Math.round(size * 0.42)}px 'Tiny5',monospace;color:${T.black}">${esc(letter)}</span></span>`;
+  const badge = (role) => {
+    const paint = role === "оунер" ? T.gold : role === "админ" ? "#7fd1b9" : role === "зритель" ? T.inkDim : T.wood;
+    return `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.08em;text-transform:uppercase;color:${T.black};background:${paint};border-radius:5px;padding:2px 6px">${role}</span>`;
+  };
+  /** Те же три глифа, что носит нижний HUD: один знак — одно значение, где бы он ни лежал. */
+  const GLYPH = {
+    "piece:lock": "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
+    "piece:pin": "M9 3h6l-1 6h2l1 5H7l1-5h2L9 3zM12 14v7",
+    "piece:hide": "M3 3l18 18M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9",
+  };
+
+  /**
+   * СТАТУС — ЭТО ЗНАК, А НЕ ФРАЗА. Лок, пин и скрытность включены или нет, и это надо видеть одним
+   * взглядом, а не читать; включённое горит золотом, выключенное стоит тёмной плашкой.
+   */
+  const iconBtn = (id, on, size) => `<button data-do="${id}" title="${id.split(":")[1]}" style="cursor:pointer;border:0;border-radius:8px;width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;`
+    + (on ? `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6);`
+          : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 3px 0 rgba(11,7,4,.55);`)
+    + `"><svg viewBox="0 0 24 24" width="${Math.round(size * 0.5)}" height="${Math.round(size * 0.5)}" fill="none" stroke="${on ? T.black : T.ink}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${GLYPH[id]}"/></svg></button>`;
+
+  /**
+   * ЦВЕТ — ЗНАК НА СТРОКЕ ИМЕНИ, а не секция и не тап по лицу. Сам цвет и есть иконка: плашка с
+   * кружком стоит справа от имени, там же, где про человека всё остальное, и не смешивается со
+   * статусом его руки.
+   */
+  const colourBtn = (colour, size, open) => `<button data-do="colour" title="сменить цвет" style="flex:none;cursor:pointer;border:0;border-radius:8px;width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;`
+    + `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${open ? T.gold : T.wood},0 3px 0 rgba(11,7,4,.55)">`
+    + `<span style="width:${Math.round(size * 0.46)}px;height:${Math.round(size * 0.46)}px;border-radius:50%;background:${PALETTE[colour]};box-shadow:inset 0 0 0 2px ${T.black}"></span></button>`;
+
+  /**
+   * ПАЛИТРА — ВЫБОР, А НЕ ПЕРЕБОР. Восемь кружков, текущий в золотой обводке; занятые соседями
+   * перечёркнуты и не нажимаются, потому что два одинаковых цвета за столом — ровно та беда, от
+   * которой цвет и заведён.
+   */
+  const paletteRow = (one, taken) => `<div data-g="palette" style="display:flex;gap:7px;flex-wrap:wrap;padding:10px 0 2px">`
+    + PALETTE.map((c, i) => {
+      const busy = taken.includes(i) && i !== one.colour;
+      const now = i === one.colour;
+      return `<button ${busy ? "" : `data-do="pick:${i}"`} title="${busy ? "цвет занят" : ""}" style="position:relative;width:30px;height:30px;border:0;border-radius:50%;`
+        + `${busy ? "cursor:not-allowed;opacity:.35;" : "cursor:pointer;"}background:${c};box-shadow:inset 0 0 0 3px ${T.black}${now ? `,0 0 0 3px ${T.gold}` : ""}">`
+        + (busy ? `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:400 15px 'Tiny5',monospace;color:${T.black}">×</span>` : "")
+        + `</button>`;
+    }).join("") + `</div>`;
+
+  const btn = (id, label, kind, small) => `<button data-do="${id}" style="font:400 ${small ? 12 : 13}px 'Tiny5',monospace;cursor:pointer;border:0;border-radius:8px;padding:${small ? "7px 9px" : "9px 12px"};`
+    + (kind === "gold" ? `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6);color:${T.black};`
+      : kind === "danger" ? `background:linear-gradient(#8c2f2a,#5c1d19);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6);color:${T.ink};`
+      : kind === "quiet" ? `background:transparent;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim};`
+      : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 3px 0 rgba(11,7,4,.55);color:${T.ink};`)
+    + `">${label}</button>`;
+
+  // ---- КОНТРОЛЫ, ОБЩИЕ С ЭКРАНАМИ СОЗДАНИЯ И ПОИСКА (стенд 9579) ----
+  //
+  // Комната настраивается ДВАЖДЫ: при создании и потом, отсюда. Спрашивать одно и то же двумя
+  // разными способами — значит учить человека заново: там были селекторы и ползунок, здесь были
+  // строки «значение ›», которые надо тыкать по кругу, чтобы увидеть варианты.
+  const label = (t) => `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">${t}</span>`;
+  const block = (t, inner) => `<div style="display:flex;flex-direction:column;gap:9px;padding:14px 0;box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55)">${label(t)}${inner}</div>`;
+
+  const pick = (id, options, now, live) => `<div style="display:flex;gap:6px;flex-wrap:wrap">`
+    + options.map((o) => `<button ${live ? `data-do="${id}:${o}"` : ""} style="flex:1 1 auto;${live ? "cursor:pointer;" : ""}border:0;border-radius:8px;padding:9px 10px;font:400 12px 'Tiny5',monospace;white-space:nowrap;`
+      + (o === now
+        ? `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6);color:${T.black};`
+        : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};color:${T.inkDim};`)
+      + `${live ? "" : "opacity:.6;"}">${o}</button>`).join("") + `</div>`;
+
+  const toggle = (id, on, yes, no, live) => `<button ${live ? `data-do="${id}"` : ""} style="${live ? "cursor:pointer;" : "opacity:.6;"}border:0;background:transparent;display:flex;align-items:center;gap:10px;padding:0">`
+    + `<span style="flex:none;width:52px;height:30px;border-radius:999px;display:flex;align-items:center;padding:0 3px;box-sizing:border-box;`
+    + `background:${on ? T.gold : T.well};box-shadow:inset 0 0 0 3px ${T.black};justify-content:${on ? "flex-end" : "flex-start"}">`
+    + `<span style="width:22px;height:22px;border-radius:50%;background:${on ? T.black : T.wood}"></span></span>`
+    + `<span style="font:400 13px 'Tiny5',monospace;color:${on ? T.ink : T.inkDim};text-align:left">${on ? yes : no}</span></button>`;
+
+  const seatsControl = (id, value, hint, live) => `<div style="display:flex;align-items:center;gap:12px">`
+    + `<button ${live ? `data-do="${id}"` : ""} style="flex:none;${live ? "cursor:pointer;" : "opacity:.6;"}border:0;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};border-radius:10px;`
+    + `padding:11px 16px;font:400 17px 'Press Start 2P',monospace;color:${T.ink}"><span data-g="${id}-value">${value}</span></button>`
+    + (live ? `<input data-slider="${id}" type="range" min="2" max="32" step="1" value="${value}" style="flex:1;accent-color:${T.gold};height:30px">` : "")
+    + `</div>`
+    + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">${hint}</span>`;
+
+  const denials = (cant) => !P.explain || !cant.length ? "" :
+    `<div style="display:flex;flex-direction:column;gap:3px;padding-top:10px">`
+    + `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">НЕЛЬЗЯ</span>`
+    + cant.map((d) => `<span style="font:400 12px 'Tiny5',monospace;color:${T.inkDim};opacity:.75">${d.label} — ${d.why}</span>`).join("")
+    + `</div>`;
+
+  const sheet = (title, inner, back) => `<div data-g="screen" style="position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;justify-content:flex-end;background:rgba(11,7,4,.55)">`
+    + `<div style="background:${T.felt};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.panel};border-radius:16px 16px 0 0;max-height:86%;overflow:auto">`
+    + `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px 8px;position:sticky;top:0;background:${T.felt};z-index:2">`
+    + (back ? btn("back", "‹ Назад", "quiet") : `<span style="font:400 15px 'Tiny5',monospace;color:${T.gold};letter-spacing:.08em">${title}</span>`)
+    + (back ? `<span style="font:400 15px 'Tiny5',monospace;color:${T.gold};letter-spacing:.08em">${title}</span>` : "")
+    + btn("close", "Закрыть", "quiet") + `</div>`
+    + `<div style="padding:0 18px 24px">${inner}</div></div></div>`;
+
+  /** Код выдаёт сервер; форма та же: четыре знака без похожих друг на друга. */
+  const CODE_SIGNS = "23456789ACDEFHJKLMNPQRTUVWXY";
+  const freshCode = () => Array.from({ length: 4 }, () => CODE_SIGNS[Math.floor(Math.random() * CODE_SIGNS.length)]).join("");
+
+  /**
+   * ЧУЖАЯ РУКА — СОСТОЯНИЕ, А НЕ КАРТИНКА. Порядок карт и то, какие уже открыты всем, живут вне
+   * перерисовки: иначе любой щелчок по тумблеру собирал бы веер заново и стирал разложенное.
+   */
+  const SUITS = [["♠", T.black], ["♥", T.danger], ["♦", T.danger], ["♣", T.black]];
+  const RANKS = ["A", "K", "Q", "J", "10", "9", "8", "7", "6"];
+  let nextCard = 0;
+  const freshCard = () => {
+    const n = nextCard++;
+    return { id: `c${n}`, rank: RANKS[(n * 5 + 2) % RANKS.length], suit: (n * 3 + 1) % 4 };
+  };
+  // `tap` лежит здесь, а не в обработчике: одиночный тап пересобирает тултип, и счётчик,
+  // живущий в замыкании, обнулялся бы между первым и вторым касанием — двойного тапа не бывало
+  // никогда.
+  const HAND = { cards: [], open: new Set(), note: "", table: 0, tap: { id: "", at: 0 } };
+  /** Моя рука — та же колода и то же состояние: карта, забранная у соседа, приходит именно сюда. */
+  const MINE = { cards: [] };
+  /** Ручка «карт в руке» подрезает и добивает веер, не пересобирая уцелевшие карты. */
+  const fitHand = (n) => {
+    while (HAND.cards.length > n) HAND.open.delete(HAND.cards.pop().id);
+    while (HAND.cards.length < n) HAND.cards.push(freshCard());
+  };
+  const fitMine = (n) => {
+    while (MINE.cards.length > n) MINE.cards.pop();
+    while (MINE.cards.length < n) MINE.cards.push(freshCard());
+  };
+
+  // ---- ВЕЕР: ГЕОМЕТРИЯ, ОДНА НА ОБЕ РУКИ ----
+  //
+  // Веер у всех одинаковый и держится ровно: карты не переворачиваются вверх ногами — так их не
+  // держит никто. ЧУЖУЮ руку делает чужой не поворот, а две другие вещи: ко мне она обращена
+  // РУБАШКАМИ (лицом она к нему), и порядок в ней ЗЕРКАЛЬНЫЙ — его левая карта у меня справа.
+  const fanSpots = (n, FW, cw, { step: wantStep, tilt = 7, lift = 10 } = {}) => {
+    const step = n > 1 ? Math.min(wantStep, (FW - cw) / (n - 1)) : 0;
+    const x0 = (FW - (cw + step * (n - 1))) / 2;
+    const mid = (n - 1) / 2;
+    // `lift` — НА СКОЛЬКО КАРТА ПОДНЯТА над краем веера; середина поднята выше всех. Отдавать
+    // готовый `top` нельзя: свой веер считается от низа экрана, чужой — от верха коробки.
+    return Array.from({ length: n }, (_, i) => ({
+      x: x0 + step * i,
+      lift: mid ? lift * (1 - Math.abs(i - mid) / mid) : lift,
+      rot: (i - mid) * tilt,
+      z: i + 1,
+    }));
+  };
+
+  // ---- НИЖНИЙ HUD: ТЕ ЖЕ КНОПКИ, ЧТО В СТЕНДЕ РУКИ (9576) ----
+  // Пути один в один из `design/hud`: расходиться им нельзя — это одна и та же полоса.
+  const HUD_ICON = {
+    pin: '<path d="M9 3h6l-1 6h2l1 5H7l1-5h2L9 3zM12 14v7"/>',
+    lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z"/>',
+    hide: '<path d="M3 3l18 18M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9"/>',
+    fan: '<rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(-28 12 20)"/><rect x="9" y="5" width="6" height="12" rx="1"/><rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(28 12 20)"/>',
+    shrink: '<rect x="8" y="5" width="8" height="14" rx="1"/><path d="M2 12h4"/><path d="M4 9.5 6.5 12 4 14.5"/><path d="M22 12h-4"/><path d="M20 9.5 17.5 12l2.5 2.5"/>',
+    tuck: '<path d="M12 2v6"/><path d="M9.5 5.5 12 8l2.5-2.5"/><rect x="8" y="9.5" width="8" height="8" rx="1"/><path d="M3 15h18v5H3z"/>',
+  };
+  const hudSvg = (body, size, colour) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${colour}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+
+  const PEOPLE = [
+    { key: "me", name: "Ербол", title: "Крестоносец", level: 7 },
+    { key: "them", name: "Марат", title: "Оруженосец", level: 4 },
+    { key: "c", name: "Алия", title: "Магистр", level: 11, role: "игрок", seat: true, colour: 2 },
+    { key: "d", name: "Дана", title: "Послушник", level: 2, role: "игрок", seat: true, colour: 3 },
+    { key: "e", name: "Тимур", title: "Рыцарь", level: 9, role: "зритель", seat: false, colour: 4 },
+  ];
+
+  const apply = () => {
+    writeHash(P);
+    const { W, H } = glass();
+    const inset = real() ? "env(safe-area-inset-top, 0px)" : "0px";
+
+    const me = { ...PEOPLE[0], role: P.myRole, seat: P.mySeat && P.myRole !== "зритель", colour: P.myColour, mine: true, friend: "это ты",
+      hand: { "piece:lock": false, "piece:pin": false, "piece:hide": false } };
+    const them = { ...PEOPLE[1], role: P.theyRole, seat: P.theySeat && P.theyRole !== "зритель", colour: P.theyColour, mine: false, friend: P.friend, away: P.away,
+      hand: { "piece:lock": P.theyLock, "piece:pin": P.theyPin, "piece:hide": P.theyHide } };
+    const room = { mode: P.mode, vis: P.vis, access: P.access, forever: P.forever, code: P.code };
+    const roster = [me, them, ...PEOPLE.slice(2).map((p) => ({ ...p, mine: false, friend: "никто", hand: { "piece:lock": false, "piece:pin": false, "piece:hide": false } }))];
+    const who = P.whose === "мой" ? me : them;
+    /** Цвета, которые уже носят за этим столом: палитра показывает их занятыми. */
+    const taken = roster.filter((p) => p.key !== "them").map((p) => p.colour);
+
+    // ---- ВЕРХНЯЯ ПОЛОСА ----
+    const avatars = roster.filter((p) => p.seat).slice(0, 5).map((s, i) => `<span style="margin-left:${i ? -8 : 0}px;z-index:${9 - i}">${ball(30, s.colour, s.name[0], i === 0)}</span>`).join("");
+    const bar = `<div data-g="bar" style="position:absolute;left:0;right:0;top:0;z-index:9;padding-top:${inset};background:rgba(11,7,4,.42);backdrop-filter:blur(7px)">`
+      + `<div style="display:flex;align-items:center;justify-content:space-between;gap:5px;height:40px;padding:0 5px">`
+      + `<div style="display:flex;align-items:center;gap:5px">`
+      + `<span style="display:flex;align-items:center;justify-content:center;width:32px;height:28px;box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};background:linear-gradient(#25321f,#16210f)">`
+      + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${T.ink}" stroke-width="2.2" stroke-linecap="round"><path d="M15 5 8 12l7 7"/></svg></span>`
+      + `<span style="font:400 11px 'Tiny5',monospace;color:${T.ink}">Карты</span>`
+      + `<button data-do="room" style="cursor:pointer;border:0;background:${T.black};box-shadow:inset 0 0 0 2px ${T.gold};border-radius:6px;padding:3px 7px;font:400 8px 'Press Start 2P',monospace;color:${T.gold}">${room.code}</button>`
+      + `</div>`
+      + `<button data-do="list" style="cursor:pointer;border:0;background:transparent;display:flex;align-items:center;padding:0">${avatars}</button>`
+      + `</div></div>`;
+
+    // ---- УПРАВЛЕНИЕ ЧЕЛОВЕКОМ ЗА СТОЛОМ ----
+    //
+    // Одна вёрстка на два места: раскрытая строка списка и тултип на сукне. Ровно поэтому она и
+    // собирается отдельной функцией, а не пишется дважды — две копии разойдутся на первой правке.
+    const cardsOf = (one) => R.actionsOn("table", me, one, room);
+    const controlsFor = (one, small) => {
+      const { can } = cardsOf(one);
+      const hand = can.filter((a) => a.id.startsWith("piece:"));
+      const rest = can.filter((a) => !a.id.startsWith("piece:"));
+      const group = (title, inner) => !inner ? "" :
+        `<div style="display:flex;flex-direction:column;gap:6px;padding-top:8px">`
+        + `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">${title}</span>`
+        + `<div style="display:flex;gap:6px;flex-wrap:wrap">${inner}</div></div>`;
+      const size = small ? 38 : 42;
+      const handIcons = hand.map((a) => iconBtn(a.id, one.hand[a.id], size)).join("");
+      return group("СТАТУС РУКИ", handIcons)
+        + group("МЕСТО И ПРАВА", rest.map((a) => btn(a.id, a.label, a.kind, small)).join(""));
+    };
+
+    // ---- ЕГО РУКА: ЖЕСТЫ, А НЕ КНОПКИ ----
+    //
+    // Ни одной кнопки здесь нет нарочно. Карту переставляют, выносят и забирают пальцем — тем же
+    // движением, что и свою; кнопка «вынести на стол» означала бы, что сначала надо выбрать карту,
+    // а потом сказать, что с ней сделать, то есть делать в два приёма то, что делается в одно.
+    //
+    // ЧТО ВИДНО. Рука повёрнута к нему лицом, значит ко мне — РУБАШКАМИ, и это состояние по
+    // умолчанию, а не запрет. Лицо показывает только та карта, которую ПЕРЕВЕРНУЛИ: перевёрнутая
+    // открыта всем сразу, и мне в том числе. «Скрыть» бьёт даже её — тогда рубашка всегда.
+    const handRes = R.actionsOn("hand", me, them, room);
+    const mayHand = (id) => handRes.can.some((a) => a.id === id);
+    const CW = 34, CH = 48, FH = 86;
+
+    const cardArt = (c, shown, w) => {
+      const h = Math.round(w * 1.4);
+      const [sign, colour] = SUITS[c.suit];
+      const face = `<span style="position:absolute;left:${Math.round(w * 0.09)}px;top:${Math.round(w * 0.05)}px;font:400 ${Math.round(w * 0.33)}px 'Tiny5',monospace;color:${colour}">${c.rank}</span>`
+        + `<span style="position:absolute;left:0;right:0;top:${Math.round(h * 0.34)}px;text-align:center;font:400 ${Math.round(w * 0.5)}px 'Tiny5',monospace;color:${colour}">${sign}</span>`;
+      const back = `<span style="position:absolute;inset:${Math.round(w * 0.09)}px;border-radius:3px;background:repeating-linear-gradient(45deg,${T.wood} 0 4px,${T.panel} 4px 8px);opacity:.85"></span>`;
+      return `<span style="position:absolute;inset:0;border-radius:${Math.round(w * 0.15)}px;background:${shown ? T.ink : T.panelLight};`
+        + `box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.55)">${shown ? face : back}</span>`;
+    };
+
+    /** Видно ли лицо этой карты: только перевёрнутую, и только пока рука не скрыта. */
+    const faceUp = (c) => HAND.open.has(c.id) && mayHand("hand:see");
+
+    const handSection = (boxW) => {
+      const FW = boxW - 24;
+      if (!them.seat) return `<div style="padding-top:10px;font:400 11px 'Tiny5',monospace;color:${T.inkDim};opacity:.75">Он не за столом — руки нет.</div>`;
+      fitHand(P.theyCards);
+      const n = HAND.cards.length;
+      const spots = fanSpots(n, FW, CW, { step: CW * 0.78, tilt: 7, lift: 8 });
+      // ЗЕРКАЛО: его левая карта — моя правая. Поэтому первая карта руки рисуется в последнем гнезде.
+      const cards = HAND.cards.map((c, i) => {
+        const at = spots[n - 1 - i];
+        return `<div data-card="${c.id}" style="position:absolute;width:${CW}px;height:${CH}px;`
+          + `left:${at.x}px;top:${14 + 8 - at.lift}px;transform:rotate(${at.rot}deg);z-index:${at.z};`
+          + `touch-action:none;cursor:${mayHand("hand:sort") ? "grab" : "default"}">${cardArt(c, faceUp(c), CW)}</div>`;
+      }).join("");
+      const hints = handRes.can.filter((a) => a.hint).map((a) => `${a.hint} → ${a.label.toLowerCase()}`);
+      const stops = handRes.cant.filter((a) => a.hint || a.id === "hand:see");
+      const shownCount = HAND.cards.filter(faceUp).length;
+      return `<div style="display:flex;flex-direction:column;gap:2px;padding-top:10px">`
+        + `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">ЕГО РУКА · ${n}${shownCount ? ` · ОТКРЫТО ${shownCount}` : ""}</span>`
+        + `<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim};opacity:.55">рубашками к тебе · его левая у тебя справа</span>`
+        + `<div data-g="fan" style="position:relative;height:${FH}px;touch-action:none">${cards}</div>`
+        + (hints.length ? `<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim};opacity:.7;line-height:1.5">${hints.join(" · ")}</span>` : "")
+        + (P.explain && stops.length ? `<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim};opacity:.7;line-height:1.5">${stops.map((d) => d.why).filter((v, i, a) => a.indexOf(v) === i).join(" · ")}</span>` : "")
+        + (HAND.note ? `<span data-g="note" style="font:400 11px 'Tiny5',monospace;color:${T.gold};padding-top:3px">${HAND.note}</span>` : "")
+        + `</div>`;
+    };
+
+    // ---- ТУЛТИП У АВАТАРА НА СУКНЕ ----
+    const tipFor = (spot, one) => {
+      const w = Math.min(W - 16, 292);
+      const left = Math.max(8, Math.min(W - w - 8, spot.x - w / 2));
+      const below = spot.y < H * 0.45;
+      return `<div data-g="tip" style="position:absolute;left:${left}px;${below ? `top:${spot.y + spot.r + 12}px` : `bottom:${H - spot.y + spot.r + 12}px`};width:${w}px;box-sizing:border-box;z-index:15;`
+        + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px 12px 13px">`
+        + `<div style="display:flex;align-items:center;gap:9px">${ball(32, one.colour, one.name[0], false)}`
+        + `<div style="display:flex;flex-direction:column;gap:3px;min-width:0;flex:1"><span style="font:400 14px 'Tiny5',monospace;color:${T.ink}">${esc(one.name)}</span>`
+        + `<div style="display:flex;gap:5px;align-items:center">${badge(one.role)}${one.away ? `<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim}">отошёл</span>` : ""}</div></div>`
+        + (R.actionsOn("face", me, one, room).can.length ? colourBtn(one.colour, 34, P.picker) : "") + `</div>`
+        + (P.picker && R.actionsOn("face", me, one, room).can.length ? paletteRow(one, taken) : "")
+        + handSection(w)
+        + controlsFor(one, true)
+        + `<div style="padding-top:11px">${btn("profile", "Открыть профиль ›", "quiet", true)}</div></div>`;
+    };
+
+    // ---- СПИСОК ----
+    const meRow = `<button data-do="mine" style="width:100%;text-align:left;cursor:pointer;border:0;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood};border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;margin:6px 0 14px">`
+      + ball(46, me.colour, "Е", true)
+      + `<span style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">`
+      + `<span style="font:400 17px 'Tiny5',monospace;color:${T.ink}">${esc(me.name)}</span>`
+      + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">${me.title} · уровень ${me.level}</span>`
+      + `<span style="display:flex;gap:6px;align-items:center;padding-top:2px">${badge(me.role)}<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim}">${me.seat ? "за столом" : "без стула"} · решает: ${R.power(me, room)}</span></span>`
+      + `</span><span style="font:400 20px 'Tiny5',monospace;color:${T.inkDim}">›</span></button>`;
+
+    const listRows = roster.slice(1).map((one, i) => {
+      const isThem = i === 0;
+      const open = isThem && P.open;
+      return `<div style="box-shadow:inset 0 3px 0 -1px rgba(11,7,4,.55)">`
+        + `<div data-do="${isThem ? "expand" : "nope"}" role="button" style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 0;cursor:pointer;text-align:left">`
+        + ball(34, one.colour, one.name[0], false)
+        + `<span style="display:flex;flex-direction:column;gap:3px;min-width:0;flex:1">`
+        + `<span style="font:400 15px 'Tiny5',monospace;color:${one.seat ? T.ink : T.inkDim}">${esc(one.name)}${one.away ? ` <span style="font-size:11px;color:${T.inkDim}">отошёл</span>` : ""}</span>`
+        + `<span style="display:flex;gap:6px;align-items:center">${badge(one.role)}<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim}">${one.seat ? "за столом" : "без стула"}</span></span>`
+        + `</span>`
+        + (R.actionsOn("face", me, one, room).can.length ? colourBtn(one.colour, 34, isThem && P.picker) : "")
+        + `<span style="font:400 15px 'Tiny5',monospace;color:${T.inkDim};transform:rotate(${open ? 90 : 0}deg);transition:transform .15s">›</span></div>`
+        + (isThem && P.picker && R.actionsOn("face", me, one, room).can.length ? paletteRow(one, taken) : "")
+        + (open ? `<div style="padding:0 0 14px">${controlsFor(one, true)}`
+          + `<div style="padding-top:11px">${btn("profile", "Открыть профиль ›", "quiet", true)}</div>`
+          + denials(cardsOf(one).cant) + `</div>` : "")
+        + `</div>`;
+    }).join("");
+
+    const listScreen = meRow
+      + `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">ЗА СТОЛОМ ${roster.filter((p) => p.seat).length} · ВСЕГО ${roster.length}</span>`
+      + listRows;
+
+    // ---- СТРАНИЦА ПРОФИЛЯ: ПРО ЧЕЛОВЕКА, А НЕ ПРО СТОЛ ----
+    //
+    // Ни лока, ни кика, ни стула здесь нет и быть не может: та же страница открывается из хаба, по
+    // ссылке и из чужой игры, где никакого «этого стола» вокруг нет. Всё, что про стол, осталось в
+    // управлении — там, где стол есть.
+    const friends = R.actionsOn("profile", me, who, room);
+    const stat = (n, w) => `<span style="flex:1;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black};border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:3px;align-items:center">`
+      + `<span style="font:400 15px 'Press Start 2P',monospace;color:${T.gold}">${n}</span>`
+      + `<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim}">${w}</span></span>`;
+    const mate = (letter, colour, name) => `<span style="display:flex;flex-direction:column;align-items:center;gap:5px;width:54px">`
+      + ball(38, colour, letter, false) + `<span style="font:400 10px 'Tiny5',monospace;color:${T.inkDim};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:54px">${name}</span></span>`;
+    const profileScreen = `<div style="display:flex;align-items:center;gap:14px;padding:6px 0 16px">`
+      + ball(64, who.colour, who.name[0], who.mine)
+      + `<div style="display:flex;flex-direction:column;gap:5px;min-width:0">`
+      + `<span style="font:400 19px 'Tiny5',monospace;color:${T.ink}">${esc(who.name)}</span>`
+      + `<span style="font:400 12px 'Tiny5',monospace;color:${T.inkDim}">${who.title} · уровень ${who.level}</span>`
+      + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">в Crossade с марта · ${who.mine ? "это ты" : who.friend === "друзья" ? "у вас дружба" : "вы не знакомы"}</span>`
+      + `</div></div>`
+      + `<div style="display:flex;gap:8px;padding-bottom:14px">${stat(who.mine ? "402" : "128", "партий")}${stat(who.mine ? "233" : "71", "побед")}${stat(who.mine ? "31" : "19", "друзей")}</div>`
+      + (friends.can.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;padding-bottom:16px">${friends.can.map((a) => btn(a.id, a.label, a.kind)).join("")}</div>` : "")
+      + (who.mine ? `<div style="padding-bottom:16px">${btn("settings", "Настроить профиль", "")}</div>` : "")
+      + `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">ДРУЗЬЯ</span>`
+      + `<div style="display:flex;gap:10px;padding:10px 0 16px;overflow:auto">${mate("А", 2, "Алия")}${mate("Д", 3, "Дана")}${mate("Т", 4, "Тимур")}${mate("К", 5, "Канат")}${mate("И", 6, "Инга")}</div>`
+      + `<span style="font:400 10px 'Tiny5',monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">ЛЮБИМЫЕ ИГРЫ</span>`
+      + `<div style="display:flex;gap:8px;padding-top:10px">${stat("74", "карты")}${stat("39", "нарды")}${stat("15", "шахматы")}</div>`
+      + `<div style="padding-top:16px;font:400 11px 'Tiny5',monospace;color:${T.inkDim};opacity:.75;line-height:1.6">`
+      + `Эта страница живёт и без стола: её же открывают из хаба и по ссылке. Всё, что про ЭТОТ стол — стул, права, лок и рука — осталось в управлении, там, где стол есть.</div>`;
+
+    // ---- КОМНАТА ----
+    //
+    // ТЕ ЖЕ КОНТРОЛЫ, ЧТО И ПРИ СОЗДАНИИ, но теперь у каждого есть право: чего тебе не положено
+    // менять, то стоит тускло и не нажимается, а причина написана внизу, в «нельзя». Прятать
+    // настройку целиком нельзя — человек должен видеть, КАК устроен стол, за которым сидит.
+    const roomActs = R.actionsOn("room", me, them, room);
+    const allowed = (id) => roomActs.can.find((a) => a.id === id);
+    const vote = (id) => allowed(id)?.vote;
+    const roomScreen = `<div style="display:flex;align-items:center;gap:14px;padding:6px 0 12px">`
+      + `<span style="background:${T.black};box-shadow:inset 0 0 0 3px ${T.gold};border-radius:10px;padding:10px 14px;font:400 20px 'Press Start 2P',monospace;color:${T.gold};letter-spacing:.06em">${esc(room.code)}</span>`
+      + `<span style="display:flex;flex-direction:column;gap:3px"><span style="font:400 14px 'Tiny5',monospace;color:${T.ink}">Карты</span>`
+      + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim}">${room.forever ? "вечная" : "живёт, пока в ней есть люди"}</span></span></div>`
+      + `<div style="display:flex;gap:8px;padding-bottom:4px">${btn("room:link", "Ссылка на комнату", "gold")}${btn("qr", "QR", "quiet")}`
+      + (allowed("room:code") ? btn("code:new", "↻", "") + btn("code:own", "Свой код", "quiet") : "") + `</div>`
+      + block("ВИДИМОСТЬ" + (vote("room:public") ? " · ГОЛОСОВАНИЕМ" : ""),
+        pick("vis", ["приватная", "для друзей", "публичная"], room.vis, !!allowed("room:public")))
+      + block("ДОПУСК" + (vote("room:access") ? " · ГОЛОСОВАНИЕМ" : ""),
+        pick("access", ["по коду", "по приглашению", "открыто"], room.access, !!allowed("room:access")))
+      + block("МЕСТ ЗА СТОЛОМ", seatsControl("roomSeats", P.roomSeats,
+        allowed("room:access") ? "тяни ползунок или нажми на число — от 2 до 32" : "меняет тот, кто распоряжается", !!allowed("room:access")))
+      + block("КТО РЕШАЕТ" + (vote("room:mode") ? " · ГОЛОСОВАНИЕМ" : ""),
+        pick("mode", R.MODES, room.mode, !!allowed("room:mode"))
+        + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim};line-height:1.6">${R.MODE_MEANS[room.mode]}`
+        + (room.mode === "совет" ? " · у оунера голос тяжелее на волос — им разрешаются ничьи" : "") + `</span>`)
+      + block("ВЕЧНАЯ КОМНАТА", toggle("forever", room.forever && !P.foreverPending, "живёт всегда", "закроется, когда все уйдут", !!allowed("room:forever"))
+        // СНЯТИЕ АДМИНОМ ЖДЁТ СУТКИ, И ЖДАНИЕ ВИДНО. Молчаливый отложенный снос — это сюрприз
+        // через день; строка говорит, когда и чем это кончится, и её же оунер отменяет одним тапом.
+        + (P.foreverPending ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black};border-radius:10px;padding:10px 12px">`
+          + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim};line-height:1.6">Перестанет быть вечной завтра.<br>Пока в ней сидят — живёт как обычная.</span>`
+          + (allowed("room:forever") ? btn("forever:keep", me.role === "оунер" ? "Отменить" : "Вернуть", "gold", true) : "") + `</div>` : ""))
+      + block("ХОЧЕШЬ СВОЮ ТАКУЮ ЖЕ", (allowed("room:fork")
+        ? btn("room:fork", "Сделать свою копию", "")
+          + `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim};line-height:1.6">Те же люди и те же права, оунер — ты. Комнат станет две.</span>`
+        : `<span style="font:400 11px 'Tiny5',monospace;color:${T.inkDim};line-height:1.6">${roomActs.cant.find((d) => d.id === "room:fork")?.why ?? ""}</span>`))
+      + (allowed("room:close") ? `<div style="padding-top:16px">${btn("room:close", allowed("room:close").vote ? "Предложить закрыть комнату" : "Закрыть комнату", "danger")}</div>` : "")
+      + denials(roomActs.cant);
+
+    // ---- МОЯ РУКА И МОЙ НИЖНИЙ HUD ----
+    //
+    // Свой веер нужен здесь не для красоты: жест «забрать себе» обязан куда-то ПРИЕХАТЬ, иначе
+    // карта исчезает в надписи. Кнопки — те же три права слева и те же три позы справа, что и в
+    // стенде руки; отличие своей руки от чужой ровно одно — она лицом ко мне.
+    const HUD = { card: 74, btn: 44, gap: 6, margin: 16, bottom: 44 };
+    const hudBtn = (key, lit) => `<div style="position:relative;width:${HUD.btn}px;height:${HUD.btn}px;border-radius:8px;box-sizing:border-box;`
+      + `display:flex;align-items:center;justify-content:center;`
+      + (lit
+        ? `background:linear-gradient(#f8d885 0%,#f2c14e 48%,#b08a26 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6)">`
+        : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 4px 0 rgba(11,7,4,.6)">`)
+      + hudSvg(HUD_ICON[key], Math.round(HUD.btn * 0.5), lit ? T.black : T.ink) + `</div>`;
+
+    const myHud = () => {
+      fitMine(P.myCards);
+      const cw = HUD.card, ch = Math.round(cw * 1.4);
+      const pose = P.myPose;
+      const spots = fanSpots(MINE.cards.length, W - 2 * HUD.margin, cw, {
+        step: pose === "веер" ? 44 : 18,
+        tilt: pose === "веер" ? 7 : 0,
+        lift: pose === "веер" ? 10 : 0,
+      });
+      // СПРЯТАНО — рука уходит под полосу кнопок, наружу торчит только край: видно, что она есть.
+      const drop = pose === "спрятано" ? Math.round(ch * 0.72) : 0;
+      const handBottom = HUD.bottom + HUD.btn + HUD.gap + 10;
+      const cards = MINE.cards.map((c, i) => `<div style="position:absolute;width:${cw}px;height:${ch}px;`
+        + `left:${HUD.margin + spots[i].x}px;bottom:${handBottom - drop + spots[i].lift}px;`
+        + `transform:rotate(${spots[i].rot}deg);transform-origin:50% 100%;z-index:${spots[i].z}">${cardArt(c, !P.myHide, cw)}</div>`).join("");
+      return `<div data-g="myhud" style="position:absolute;left:0;right:0;bottom:0;height:${handBottom + ch + 24}px;z-index:8;pointer-events:none">`
+        + cards
+        + `<div style="position:absolute;left:${HUD.margin}px;bottom:${HUD.bottom}px;display:flex;gap:${HUD.gap}px">`
+        + hudBtn("pin", P.myPin) + hudBtn("lock", P.myLock) + hudBtn("hide", P.myHide) + `</div>`
+        + `<div style="position:absolute;right:${HUD.margin}px;bottom:${HUD.bottom}px;display:flex;gap:${HUD.gap}px">`
+        + hudBtn("fan", pose === "веер") + hudBtn("shrink", pose === "сжато") + hudBtn("tuck", pose === "спрятано") + `</div>`
+        + `</div>`;
+    };
+
+    const screens = {
+      "список": () => sheet("ЗА СТОЛОМ", listScreen, false),
+      "профиль": () => sheet(who.mine ? "МОЙ ПРОФИЛЬ" : "ПРОФИЛЬ", profileScreen, true),
+      "комната": () => sheet("КОМНАТА", roomScreen, true),
+      "стол": () => myHud(),
+    };
+    // ---- ПАЛЕЦ НА ЧУЖОМ ВЕЕРЕ ----
+    //
+    // Одно движение — один смысл, и решает его КОНЕЦ движения, а не начало: пока палец не отпущен,
+    // карту ещё можно увести обратно в веер. Поэтому зоны загораются только во время перетаскивания
+    // и гаснут сразу: постоянные мишени на сукне читались бы как элементы игры.
+    const wireHand = () => {
+      const fan = over.querySelector('[data-g="fan"]');
+      if (!fan) return;
+      const FW = fan.clientWidth;
+      const els = new Map([...fan.querySelectorAll("[data-card]")].map((el) => [el.getAttribute("data-card"), el]));
+      const n = () => HAND.cards.length;
+      const slots = () => fanSpots(n(), FW, CW, { step: CW * 0.78, tilt: 7, lift: 8 });
+      const place = () => {
+        const spots = slots();
+        HAND.cards.forEach((c, i) => {
+          const el = els.get(c.id);
+          if (!el) return;
+          const at = spots[n() - 1 - i]; // зеркало: первая карта руки стоит в последнем гнезде
+          el.style.left = `${at.x}px`;
+          el.style.top = `${14 + 8 - at.lift}px`;
+          el.style.transform = `rotate(${at.rot}deg)`;
+          el.style.zIndex = String(at.z);
+        });
+      };
+
+      /** Мишени верха и низа. Верх — сукно, низ — своя рука; обе живут только пока тянут. */
+      const zone = (top, height, text) => {
+        const z = document.createElement("div");
+        z.style.cssText = `position:absolute;left:8px;right:8px;top:${top}px;height:${height}px;z-index:13;border-radius:12px;`
+          + `box-shadow:inset 0 0 0 3px ${T.gold};background:rgba(242,193,78,.10);display:flex;align-items:center;justify-content:center;`
+          + `font:400 11px 'Tiny5',monospace;letter-spacing:.1em;color:${T.gold};opacity:.55;pointer-events:none`;
+        z.textContent = text;
+        over.appendChild(z);
+        return z;
+      };
+
+      let drag = null;
+      const oRect = () => over.getBoundingClientRect();
+
+      const finish = (kind, card) => {
+        const [sign] = SUITS[card.suit];
+        const named = faceUp(card) ? `${card.rank}${sign}` : "Карта";
+        // НА СТОЛ КАРТА ЛОЖИТСЯ ТАК, КАК ЛЕЖАЛА В РУКЕ: перевёрнутая — лицом, остальные — рубашкой.
+        // Вынести чужую карту и тем самым её открыть — это отдельное действие, и оно уже есть.
+        if (kind === "out") { HAND.table += 1; HAND.note = `${named} на столе · там ${HAND.table}`; }
+        else { MINE.cards.push(card); P.myCards = MINE.cards.length; HAND.note = `${named} у тебя · в руке ${MINE.cards.length}`; }
+        HAND.open.delete(card.id);
+        HAND.cards = HAND.cards.filter((c) => c.id !== card.id);
+        P.theyCards = HAND.cards.length;
+      };
+
+      for (const [id, el] of els) {
+        el.addEventListener("pointerdown", (e) => {
+          const now = Date.now();
+          if (HAND.tap.id === id && now - HAND.tap.at < 320) {
+            HAND.tap = { id: "", at: 0 };
+            if (!mayHand("hand:flip")) return;
+            const card = HAND.cards.find((c) => c.id === id);
+            if (HAND.open.has(id)) { HAND.open.delete(id); HAND.note = "Карта снова его"; }
+            else { HAND.open.add(id); HAND.note = `${mayHand("hand:see") ? `${card.rank}${SUITS[card.suit][0]}` : "Карта"} открыта всем`; }
+            build(); apply();
+            return;
+          }
+          HAND.tap = { id, at: now };
+          const free = mayHand("hand:sort") || mayHand("hand:out") || mayHand("hand:take");
+          if (!free) return;
+          e.preventDefault();
+          const r = el.getBoundingClientRect();
+          const o = oRect();
+          const ghost = el.cloneNode(true);
+          ghost.removeAttribute("data-card");
+          ghost.style.cssText = `position:absolute;width:${CW}px;height:${CH}px;left:${r.left - o.left}px;top:${r.top - o.top}px;`
+            + `transform:rotate(180deg) scale(1.12);z-index:40;pointer-events:none;filter:drop-shadow(0 6px 6px rgba(11,7,4,.6))`;
+          over.appendChild(ghost);
+          el.style.opacity = ".22";
+          const fr = fan.getBoundingClientRect();
+          drag = {
+            id, el, ghost, o, fr,
+            dx: e.clientX - r.left, dy: e.clientY - r.top,
+            top: mayHand("hand:out") ? zone(headTop + 8, Math.max(40, fr.top - o.top - headTop - 18), "НА СТОЛ ↑") : null,
+            bottom: mayHand("hand:take") ? zone(H - 104, 96, "К СЕБЕ В РУКУ ↓") : null,
+            hit: "", moved: false,
+          };
+          el.setPointerCapture(e.pointerId);
+        });
+
+        el.addEventListener("pointermove", (e) => {
+          if (!drag || drag.id !== id) return;
+          drag.ghost.style.left = `${e.clientX - drag.o.left - drag.dx}px`;
+          drag.ghost.style.top = `${e.clientY - drag.o.top - drag.dy}px`;
+          const y = e.clientY;
+          drag.hit = drag.top && y < drag.fr.top - 14 ? "out" : drag.bottom && y > drag.o.top + H - 104 ? "take" : "";
+          if (drag.top) drag.top.style.opacity = drag.hit === "out" ? "1" : ".55";
+          if (drag.bottom) drag.bottom.style.opacity = drag.hit === "take" ? "1" : ".55";
+          if (drag.hit || !mayHand("hand:sort")) return;
+          // Вдоль веера — перестановка на лету: карта занимает ближайшее гнездо, соседи расступаются.
+          const spots = slots();
+          const px = e.clientX - drag.fr.left - CW / 2;
+          let slot = 0;
+          for (let i = 1; i < spots.length; i++) if (Math.abs(spots[i].x - px) < Math.abs(spots[slot].x - px)) slot = i;
+          const to = spots.length - 1 - slot; // гнездо на экране → место в руке, зеркально
+          const from = HAND.cards.findIndex((c) => c.id === id);
+          if (to !== from) {
+            const [card] = HAND.cards.splice(from, 1);
+            HAND.cards.splice(to, 0, card);
+            HAND.note = "";
+            drag.moved = true;
+            place();
+          }
+        });
+
+        const drop = () => {
+          if (!drag || drag.id !== id) return;
+          const d = drag;
+          drag = null;
+          d.ghost.remove();
+          d.top?.remove();
+          d.bottom?.remove();
+          d.el.style.opacity = "";
+          if (d.hit) finish(d.hit, HAND.cards.find((c) => c.id === id));
+          if (!d.hit && !d.moved) return; // чистый тап — ничего не двигалось, пересобирать нечего
+          build();
+          apply();
+        };
+        el.addEventListener("pointerup", drop);
+        el.addEventListener("pointercancel", drop);
+      }
+    };
+
+    over.innerHTML = bar + screens[P.screen]();
+
+    const headTop = Math.round(over.querySelector('[data-g="bar"]').getBoundingClientRect().height);
+    const spots = window.Felt.draw(document.getElementById("felt"), { W, H, top: headTop, people: roster.filter((p) => p.seat), pile: HAND.table });
+
+    // Тултип — только на самом столе: поверх раскрытого листа он был бы вторым окном об одном и том
+    // же человеке.
+    const spot = spots.find((s) => s.key === "them");
+    if (P.screen === "стол" && P.tip && spot) { over.insertAdjacentHTML("beforeend", tipFor(spot, them)); wireHand(); }
+
+    // Тап по диску на сукне открывает тултип — для этого поверх холста лежат прозрачные мишени.
+    if (P.screen === "стол") {
+      for (const s of spots) {
+        if (s.key === "me") continue;
+        over.insertAdjacentHTML("beforeend", `<button data-do="tip:${s.key}" style="position:absolute;left:${s.x - s.r - 6}px;top:${s.y - s.r - 6}px;width:${(s.r + 6) * 2}px;height:${(s.r + 6) * 2}px;border-radius:50%;border:0;background:transparent;cursor:pointer;z-index:12"></button>`);
+      }
+    }
+
+    // Пока тянут — меняется только число: пересборка на каждый пиксель отрывает палец от ползунка.
+    for (const slider of over.querySelectorAll("[data-slider]")) {
+      const id = slider.getAttribute("data-slider");
+      slider.oninput = () => {
+        P[id] = Number(slider.value);
+        const shown = over.querySelector(`[data-g="${id}-value"]`);
+        if (shown) shown.textContent = String(P[id]);
+      };
+      slider.onchange = () => { build(); apply(); };
+    }
+
+    for (const el of over.querySelectorAll("[data-do]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const does = el.getAttribute("data-do");
+        if (does === "list") { P.screen = "список"; P.tip = false; }
+        else if (does === "room") P.screen = "комната";
+        else if (does === "expand") P.open = !P.open;
+        else if (does.startsWith("tip:")) { P.tip = !P.tip; }
+        else if (does === "profile") { P.screen = "профиль"; P.whose = "его"; P.tip = false; }
+        else if (does === "mine") { P.screen = "профиль"; P.whose = "мой"; }
+        else if (does === "settings") alert("Настройки профиля — отдельный стенд, 9577");
+        else if (does === "back") P.screen = "список";
+        else if (does === "close") { P.screen = "стол"; P.tip = false; }
+        else if (does === "colour") P.picker = !P.picker;
+        else if (does.startsWith("pick:")) { P.theyColour = Number(does.slice(5)); P.picker = false; }
+        else if (does === "piece:lock") P.theyLock = !P.theyLock;
+        else if (does === "piece:pin") P.theyPin = !P.theyPin;
+        else if (does === "piece:hide") P.theyHide = !P.theyHide;
+        else if (does === "admin:grant") P.theyRole = "админ";
+        else if (does === "admin:revoke") P.theyRole = "игрок";
+        else if (does === "seat:give") { P.theySeat = true; if (P.theyRole === "зритель") P.theyRole = "игрок"; }
+        else if (does === "seat:take") { P.theySeat = false; P.theyRole = "зритель"; }
+        else if (does === "kick") { P.theyRole = "зритель"; P.theySeat = false; P.tip = false; }
+        else if (does === "friend:add") P.friend = "исходящий";
+        else if (does === "friend:cancel" || does === "friend:decline" || does === "friend:drop") P.friend = "никто";
+        else if (does === "friend:accept") P.friend = "друзья";
+        else if (does === "owner:pass") { P.theyRole = "оунер"; P.myRole = "админ"; }
+        else if (does.startsWith("vis:")) P.vis = does.slice(4);
+        else if (does.startsWith("access:")) P.access = does.slice(7);
+        else if (does.startsWith("mode:")) P.mode = does.slice(5);
+        else if (does === "forever") {
+          // Оунер снимает моментально; у админа снятие уходит в сутки ожидания. Включают оба сразу.
+          if (!P.forever) { P.forever = true; P.foreverPending = false; }
+          else if (me.role === "оунер") { P.forever = false; P.foreverPending = false; }
+          else P.foreverPending = true;
+        }
+        else if (does === "forever:keep") P.foreverPending = false;
+        else if (does === "room:fork") alert("Форк: та же комната, те же люди, оунер — ты");
+        else if (does === "code:new") P.code = freshCode();
+        else if (does === "code:own") {
+          const got = prompt("Свой код комнаты (2–8 знаков)", P.code);
+          if (got !== null && got.trim()) P.code = got.trim().toUpperCase().slice(0, 8);
+        } else if (does === "roomSeats") {
+          const got = prompt("Сколько мест за столом? (2–32)", String(P.roomSeats));
+          const n = Number(got);
+          if (Number.isFinite(n) && n >= 2 && n <= 32) P.roomSeats = Math.round(n);
+        }
+        build();
+        apply();
+      };
+    }
+
+    // ---- ЧИСЛА ----
+    const say = (where, who2, res) => `<b>${where}</b> (${who2}) · сила голоса: <b>${res.power}</b><br>`
+      + (res.can.length ? `можно: ${res.can.map((a) => a.label.toLowerCase()).join(", ")}<br>` : `<span class="bad">нельзя ничего</span><br>`)
+      + (res.cant.length ? `<span class="no">нельзя: ${res.cant.map((d) => `${d.label.toLowerCase()} (${d.why})`).join("; ")}</span><br>` : "");
+    document.getElementById("nums").innerHTML =
+      say("управление за столом", `${me.role} → ${them.role}`, cardsOf(them))
+      + say("страница профиля", `${me.role} → ${who.mine ? "я сам" : them.role}`, friends)
+      + say("комната", `${me.role}, режим «${room.mode}»`, roomActs);
+  };
+
+  build();
+  apply();
+  addEventListener("hashchange", () => { P = readHash(); build(); apply(); });
+  addEventListener("resize", apply);
+  addEventListener("orientationchange", apply);
+})();
+</script>
+</body>
+</html>

@@ -61,10 +61,8 @@
       "name": "hud-stand",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
-        "-m",
-        "http.server",
+        "design/serve.py",
         "9573",
-        "--directory",
         "design/hud"
       ],
       "port": 9573
@@ -73,25 +71,51 @@
       "name": "tophud-stand",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
-        "-m",
-        "http.server",
+        "design/serve.py",
         "9576",
-        "--directory",
         "design/tophud"
       ],
       "port": 9576
     },
     {
+      "name": "table-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "design/serve.py",
+        "9578",
+        "design/table"
+      ],
+      "port": 9578
+    },
+    {
+      "name": "rooms-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "design/serve.py",
+        "9579",
+        "design/rooms"
+      ],
+      "port": 9579
+    },
+    {
       "name": "hubhome-stand",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
-        "-m",
-        "http.server",
+        "design/serve.py",
         "9577",
-        "--directory",
         "design/hubhome"
       ],
       "port": 9577
+    },
+    {
+      "name": "grab-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "design/serve.py",
+        "9581",
+        "design/grab"
+      ],
+      "port": 9581
     }
   ]
 }

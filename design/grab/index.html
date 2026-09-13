@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Грипы и сбор стопки — стенд</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Handjet&family=Press+Start+2P&family=Tiny5&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #0d2118; color: #cdb98f; font: 400 16px/1.45 'Handjet', monospace; }
+  .page { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; padding: 32px; }
+  .phone { flex: none; width: 390px; height: 844px; position: relative; overflow: hidden; border-radius: 44px;
+    background: radial-gradient(120% 90% at 50% 34%, #1b4835, #0a2117); box-shadow: inset 0 0 0 3px #0b0704; touch-action: none; user-select: none; }
+  .panel { flex: 1; min-width: 320px; max-width: 470px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font: 400 26px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .sec { padding: 12px 14px; background: #123527; box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #3a2a1d; display: flex; flex-direction: column; gap: 6px; }
+  .sec h2 { margin: 0 0 4px; font: 400 16px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .row { display: grid; grid-template-columns: 158px 1fr 56px; align-items: center; gap: 8px; }
+  .row label { color: #f5ead0; }
+  .row select, .row input[type=checkbox] { justify-self: start; }
+  .row input[type=range] { width: 100%; }
+  .row .val { color: #f2c14e; text-align: right; font: 400 13px 'Press Start 2P', monospace; }
+  .nums { font-size: 15px; line-height: 1.6; }
+  .nums b { color: #f2c14e; font-weight: 400; }
+  button.reset { align-self: flex-start; font: inherit; color: #f2c14e; background: none; border: 2px solid #f2c14e; padding: 4px 10px; cursor: pointer; }
+  .knob { display: none; }
+  @media (max-width: 700px), (pointer: coarse) and (max-width: 1000px) {
+    body { overflow: hidden; }
+    .page { padding: 0; gap: 0; }
+    .phone { position: fixed; inset: 0; width: 100vw; height: 100dvh; border-radius: 0; box-shadow: none; }
+    .panel { position: fixed; left: 0; right: 0; bottom: 0; max-width: none; max-height: 72dvh; overflow: auto; padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); box-sizing: border-box;
+      background: #0d2118; box-shadow: 0 -3px 0 #0b0704, 0 -6px 0 #3a2a1d; transform: translateY(100%); transition: transform .22s cubic-bezier(.2,.85,.25,1); z-index: 30; }
+    .panel.open { transform: none; }
+    .knob { display: flex; position: fixed; left: 14px; top: calc(14px + env(safe-area-inset-top)); z-index: 40; width: 46px; height: 46px; border-radius: 8px; align-items: center; justify-content: center;
+      background: linear-gradient(#25321f, #16210f); box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #6b4d2c, 0 4px 0 rgba(11,7,4,.6); color: #f2c14e; font: 400 9px 'Tiny5', monospace; }
+    h1 { font-size: 20px; }
+    .row { grid-template-columns: 124px 1fr 44px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="phone" id="phone"><div id="board"></div></div>
+  <div class="knob" id="knob">РУЧКИ</div>
+  <div class="panel" id="panel">
+    <h1>Грипы и сбор стопки</h1>
+    <div><b>Поза рождается один раз и записывается.</b> Две карты встретились — движок смотрит, ЧТО кладут: хоть одна лицом даёт веер, обе рубашкой — плотную. Дальше поза стопки её собственная, и каждая следующая карта подчиняется ей, а не пересчитывает всё заново. Иначе один перевёрнутый король схлопывал бы веер.<br>
+    <b>Позу меняют кнопки, не грип.</b> Грип только тянет. Тап по стопке поднимает её ряд кнопок — плотно и веер.<br>
+    <b>Веер жмётся до полоски:</b> шаг падает с ростом числа карт, ширина упирается в предел и дальше не растёт. Веер остаётся веером и на пятидесяти картах.<br>
+    <b>Зона против рукотворной.</b> Зона (колода, сброс) — стопка с именем, она не исчезает пустой и приём у неё свой: колода принимает всегда рубашкой вверх, сброс — лицом. Рукотворная стопка правил не имеет: карта входит как есть. Рука тоже без правил.</div>
+    <div id="controls"></div>
+    <div class="nums" id="nums"></div>
+    <button class="reset" id="reset">сбросить</button>
+  </div>
+</div>
+<script>
+(function () {
+  const T = {
+    panel: "#3a2a1d", panelLight: "#4a3627",
+    ink: "#f5ead0", inkDim: "#cdb98f", gold: "#f2c14e", goldHi: "#f8d885", goldLo: "#b08a26",
+    danger: "#e0483f", black: "#0b0704", wood: "#6b4d2c", chip: "#7fd1b9", estate: "#b98fe0",
+  };
+  const phone = document.getElementById("phone");
+  const board = document.getElementById("board");
+  const SUITS = [["♠", T.black], ["♥", T.danger], ["♦", T.danger], ["♣", T.black]];
+  const RANKS = ["A", "K", "Q", "J", "10", "9", "8", "7", "6"];
+
+  const SPEC = [
+    ["Стенд", [
+      ["tool", "инструмент", "enum", "выкл", ["выкл", "набор"]],
+      ["deckN", "карт в колоде", "int", 24, 1, 52],
+      ["pileN", "карт в сбросе (веер)", "int", 2, 1, 52],
+      ["myCards", "карт у меня в руке", "int", 5, 0, 10],
+      ["grips", "показывать зоны грипов", "bool", false],
+    ]],
+  ];
+  const DEFAULTS = {};
+  for (const [, rows] of SPEC) for (const [k, , , d] of rows) DEFAULTS[k] = d;
+  const readHash = () => {
+    const out = { ...DEFAULTS };
+    const h = location.hash.replace(/^#/, "");
+    if (!h) return out;
+    for (const pair of h.split("&")) {
+      const [k, v] = pair.split("=").map(decodeURIComponent);
+      if (!(k in DEFAULTS)) continue;
+      const def = DEFAULTS[k];
+      out[k] = typeof def === "number" ? Number(v) : typeof def === "boolean" ? v === "1" : v;
+    }
+    return out;
+  };
+  const writeHash = () => {
+    const parts = [];
+    for (const k in DEFAULTS) if (P[k] !== DEFAULTS[k]) parts.push(encodeURIComponent(k) + "=" + encodeURIComponent(typeof P[k] === "boolean" ? (P[k] ? "1" : "0") : P[k]));
+    history.replaceState(null, "", parts.length ? "#" + parts.join("&") : location.pathname);
+  };
+  let P = readHash();
+
+  // ---- ЧТО ЛЕЖИТ НА СТОЛЕ ----
+  //
+  // ЗОНА — стопка с именем: она не исчезает, даже опустев, и у неё СВОЙ приём (`takes`): колода
+  // кладёт всё рубашкой вверх, сброс — лицом. РУКОТВОРНАЯ стопка правил не имеет: карта входит
+  // такой, какая пришла, и пустая стопка перестаёт существовать. Рука — тоже без правил.
+  //
+  // `pose` СТАВИТСЯ ОДИН РАЗ, при рождении стопки, и дальше живёт как её свойство. Пересчитывать
+  // позу по составу нельзя: перевернул одну карту — и веер схлопнулся бы сам собой.
+  let seedNo = 0;
+  const card = (face) => ({ id: "c" + (seedNo += 1), seed: seedNo, face });
+  const start = () => [
+    { id: "deck", zone: "КОЛОДА", takes: "рубашкой", pose: "плотно", x: 26, y: 108, cards: Array.from({ length: P.deckN }, () => card(false)) },
+    { id: "pile", zone: "СБРОС", takes: "лицом", pose: "веер", x: 190, y: 108, cards: Array.from({ length: P.pileN }, () => card(true)) },
+    { id: "a", pose: "плотно", x: 40, y: 300, cards: [card(false)] },
+    { id: "b", pose: "плотно", x: 150, y: 318, cards: [card(true)] },
+    { id: "c", pose: "плотно", x: 262, y: 296, cards: [card(true)] },
+    { id: "d", pose: "плотно", x: 262, y: 400, cards: [card(false)] },
+  ];
+  let ITEMS = start();
+  let heapNo = 0;
+  const S = { sel: new Set(), pick: "", note: "", drag: null, at: { x: 0, y: 0 }, over: null, hand: 0 };
+
+  const W = () => phone.clientWidth || 390;
+  const H = () => phone.clientHeight || 844;
+  const CW = 56, CH = 78;
+  const FAN_MAX = 150;     // шире веер не станет: дальше жмётся шаг, а не коробка
+  const FAN_STEP = 20;     // шаг на малом числе карт
+  const HUD = { btn: 44, gap: 6, margin: 16, bottom: 40, card: 64 };
+  const handTop = () => H() - (HUD.bottom + HUD.btn + 10 + Math.round(HUD.card * 1.4) + 14);
+
+  /** Шаг веера: жмётся с ростом числа карт и упирается в полоску — ширина веера не растёт. */
+  const fanStep = (n) => (n > 1 ? Math.min(FAN_STEP, (FAN_MAX - CW) / (n - 1)) : 0);
+  const boxW = (it) => (it.pose === "веер" ? CW + fanStep(it.cards.length) * (it.cards.length - 1) : CW) + 8;
+  const boxH = () => CH + 8;
+
+  // ---- РИСОВАНИЕ ----
+  const cardArt = (c, w) => {
+    const h = Math.round(w * 1.4);
+    const [sign, colour] = SUITS[(c.seed * 3 + 1) % 4];
+    const rank = RANKS[(c.seed * 5 + 2) % RANKS.length];
+    const face = `<span style="position:absolute;left:${Math.round(w * 0.09)}px;top:${Math.round(w * 0.05)}px;font:400 ${Math.round(w * 0.33)}px 'Tiny5',monospace;color:${colour}">${rank}</span>`
+      + `<span style="position:absolute;left:0;right:0;top:${Math.round(h * 0.32)}px;text-align:center;font:400 ${Math.round(w * 0.5)}px 'Tiny5',monospace;color:${colour}">${sign}</span>`;
+    const back = `<span style="position:absolute;inset:${Math.round(w * 0.09)}px;border-radius:3px;background:repeating-linear-gradient(45deg,${T.wood} 0 4px,${T.panel} 4px 8px);opacity:.85"></span>`;
+    return `<span style="position:absolute;inset:0;border-radius:${Math.round(w * 0.14)}px;background:${c.face ? T.ink : T.panelLight};`
+      + `box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.55)">${c.face ? face : back}</span>`;
+  };
+
+  // ГРИП — ручка стопки: по ней видно, что поднимется, ещё до касания. Только тяга: позу он не
+  // переключает, для позы есть свои кнопки.
+  const GRIP_H = 22;
+  const GRIP_ART = `<svg viewBox="0 0 24 16" width="24" height="16" fill="none" stroke="${T.black}" stroke-width="1.6"><rect x="3" y="3" width="9" height="11" rx="1.5" fill="${T.goldHi}" transform="rotate(-14 7 9)"/><rect x="8" y="3" width="9" height="11" rx="1.5" fill="${T.gold}"/><rect x="12" y="3" width="9" height="11" rx="1.5" fill="${T.goldLo}" transform="rotate(14 17 9)"/></svg>`;
+  const gripTag = (id, n, lit) => `<div ${id ? `data-grip="${id}"` : ""} style="position:absolute;left:50%;bottom:-${GRIP_H - 4}px;transform:translateX(-50%);`
+    + `display:flex;align-items:center;gap:3px;padding:2px 6px 2px 4px;border-radius:9px;white-space:nowrap;touch-action:none;cursor:grab;`
+    + `background:${lit ? `linear-gradient(${T.goldHi},${T.goldLo})` : `linear-gradient(#25321f,#16210f)`};`
+    + `box-shadow:inset 0 0 0 2px ${T.black}${lit ? "" : `,inset 0 0 0 4px ${T.wood}`},0 2px 0 rgba(11,7,4,.6);z-index:6">`
+    + GRIP_ART + `<span style="font:400 9px 'Press Start 2P',monospace;color:${lit ? T.black : T.ink}">${n}</span></div>`;
+
+  const seq = (i) => `<div style="position:absolute;right:-8px;top:-8px;width:19px;height:19px;border-radius:999px;z-index:8;`
+    + `display:flex;align-items:center;justify-content:center;background:linear-gradient(${T.goldHi},${T.goldLo});`
+    + `box-shadow:inset 0 0 0 2px ${T.black};font:400 8px 'Press Start 2P',monospace;color:${T.black}">${i}</div>`;
+
+  const POSE_ART = {
+    "плотно": `<rect x="6" y="6" width="12" height="13" rx="1.5"/><path d="M8 4h10v12"/>`,
+    "веер": `<rect x="9" y="6" width="7" height="13" rx="1.5" transform="rotate(-20 12 19)"/><rect x="9" y="6" width="7" height="13" rx="1.5"/><rect x="9" y="6" width="7" height="13" rx="1.5" transform="rotate(20 12 19)"/>`,
+  };
+  // Кнопки позы — ОТДЕЛЬНЫЕ, поднимаются тапом по стопке. Грип на них не отвлекается: он тянет.
+  const poseBar = (it) => {
+    const w = 34;
+    return `<div style="position:absolute;left:50%;top:-${w + 10}px;transform:translateX(-50%);display:flex;gap:5px;z-index:12">`
+      + ["плотно", "веер"].map((p) => {
+        const lit = it.pose === p;
+        return `<div data-pose="${it.id}|${p}" style="width:${w}px;height:${w}px;border-radius:7px;display:flex;align-items:center;justify-content:center;`
+          + (lit ? `background:linear-gradient(${T.goldHi},${T.goldLo});box-shadow:inset 0 0 0 2px ${T.black};`
+                 : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${T.wood};`)
+          + `">` + `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="${lit ? T.black : T.ink}" stroke-width="2" stroke-linejoin="round">${POSE_ART[p]}</svg></div>`;
+      }).join("")
+      + `</div>`;
+  };
+
+  const itemBox = (it) => {
+    const n = it.cards.length;
+    const lit = S.over === it.id;
+    const picked = S.sel.has(it.id);
+    const carrying = S.drag && S.drag.id === it.id;
+    const gone = S.drag && S.drag.tool && picked;
+    const bw = boxW(it);
+    let layers;
+    if (it.pose === "веер") {
+      const step = fanStep(n);
+      layers = it.cards.map((c, i) => `<div style="position:absolute;left:${4 + step * i}px;top:4px;width:${CW}px;height:${CH}px;z-index:${i + 1}">${cardArt(c, CW)}</div>`).join("");
+    } else {
+      // Плотная: наружу торчит только край каждой карты, но по краю видно, что их несколько.
+      const depth = Math.min(n, 6);
+      layers = it.cards.slice(n - depth).map((c, i) => {
+        const d = (depth - 1 - i) * 2;
+        return `<div style="position:absolute;left:${4 - d}px;top:${4 + d}px;width:${CW}px;height:${CH}px;z-index:${i + 1}">${cardArt(c, CW)}</div>`;
+      }).join("");
+    }
+    const single = n === 1 && !it.zone;
+    const ring = (lit || (picked && !gone)) ? `outline:3px solid ${T.gold};outline-offset:4px;border-radius:10px;` : "";
+    return `<div ${single ? `data-grip="${it.id}"` : ""} data-pick="${it.id}" style="position:absolute;left:${it.x}px;top:${it.y}px;width:${bw}px;height:${boxH()}px;`
+      + `z-index:${carrying ? 50 : 4};touch-action:none;${single ? "cursor:grab;" : ""}${ring}`
+      + (carrying ? "filter:drop-shadow(0 10px 12px rgba(0,0,0,.55));" : "")
+      + (gone ? "opacity:.2;" : "")
+      + `">`
+      + (P.grips ? `<div style="position:absolute;inset:-6px;border:2px dashed rgba(242,193,78,.3);border-radius:10px"></div>` : "")
+      + layers
+      + (it.zone ? `<div style="position:absolute;left:50%;top:-16px;transform:translateX(-50%);white-space:nowrap;font:400 8px 'Press Start 2P',monospace;color:${T.inkDim};opacity:.65">${it.zone}</div>` : "")
+      + (single ? "" : gripTag(it.id, n, lit || picked))
+      + (picked && !gone ? seq([...S.sel].indexOf(it.id) + 1) : "")
+      + (S.pick === it.id && !it.zone ? poseBar(it) : "")
+      + (lit ? `<div style="position:absolute;left:50%;top:-${it.zone ? 34 : 20}px;transform:translateX(-50%);white-space:nowrap;padding:2px 6px;background:${T.black};box-shadow:inset 0 0 0 2px ${T.gold};font:400 8px 'Press Start 2P',monospace;color:${T.gold};z-index:9">${it.takes ? "ПРИМЕТ " + it.takes.toUpperCase() : "ПРИМЕТ"}</div>` : "")
+      + `</div>`;
+  };
+
+  const ICON = {
+    pin: '<path d="M9 3h6l-1 6h2l1 5H7l1-5h2L9 3zM12 14v7"/>',
+    lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z"/>',
+    hide: '<path d="M3 3l18 18M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9"/>',
+    fan: '<rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(-28 12 20)"/><rect x="9" y="5" width="6" height="12" rx="1"/><rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(28 12 20)"/>',
+    shrink: '<rect x="8" y="5" width="8" height="14" rx="1"/><path d="M2 12h4"/><path d="M4 9.5 6.5 12 4 14.5"/><path d="M22 12h-4"/><path d="M20 9.5 17.5 12l2.5 2.5"/>',
+    tuck: '<path d="M12 2v6"/><path d="M9.5 5.5 12 8l2.5-2.5"/><rect x="8" y="9.5" width="8" height="8" rx="1"/><path d="M3 15h18v5H3z"/>',
+    gather: '<path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><rect x="9" y="9" width="6" height="6" rx="1"/>',
+  };
+  const svg = (body, size, colour) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${colour}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+  const hudBtn = (key, lit) => `<div style="position:relative;width:${HUD.btn}px;height:${HUD.btn}px;border-radius:8px;box-sizing:border-box;`
+    + `display:flex;align-items:center;justify-content:center;`
+    + (lit ? `background:linear-gradient(${T.goldHi} 0%,${T.gold} 48%,${T.goldLo} 100%);box-shadow:inset 0 0 0 3px ${T.black},0 2px 0 rgba(11,7,4,.6)">`
+           : `background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 4px 0 rgba(11,7,4,.6)">`)
+    + svg(ICON[key], Math.round(HUD.btn * 0.5), lit ? T.black : T.ink) + `</div>`;
+
+  const fanSpots = (n, FW, cw, step, tilt, lift) => {
+    const s = n > 1 ? Math.min(step, (FW - cw) / (n - 1)) : 0;
+    const x0 = (FW - (cw + s * (n - 1))) / 2;
+    const mid = (n - 1) / 2;
+    return Array.from({ length: n }, (_, i) => ({ x: x0 + s * i, lift: mid ? lift * (1 - Math.abs(i - mid) / mid) : lift, rot: (i - mid) * tilt, z: i + 1 }));
+  };
+
+  const myHud = () => {
+    const cw = HUD.card, ch = Math.round(cw * 1.4);
+    const n = P.myCards + S.hand;
+    const spots = fanSpots(n, W() - 2 * HUD.margin, cw, 40, 7, 9);
+    const bottom = HUD.bottom + HUD.btn + 10;
+    const lit = S.over === "hand";
+    const cards = Array.from({ length: n }, (_, i) => `<div style="position:absolute;width:${cw}px;height:${ch}px;`
+      + `left:${HUD.margin + spots[i].x}px;bottom:${bottom + spots[i].lift}px;transform:rotate(${spots[i].rot}deg);transform-origin:50% 100%;z-index:${spots[i].z}">`
+      + cardArt({ seed: i + 11, face: true }, cw) + `</div>`).join("");
+    return `<div style="position:absolute;left:0;right:0;bottom:0;height:${bottom + ch + 16}px;z-index:10;pointer-events:none;transition:transform .12s;`
+      + (lit ? `transform:translateY(-5px);` : "") + `">`
+      + (lit ? `<div style="position:absolute;inset:0;border-top:3px solid ${T.gold};box-shadow:0 -10px 22px rgba(242,193,78,.25)"></div>`
+        + `<div style="position:absolute;left:50%;top:-3px;transform:translateX(-50%);padding:2px 7px;background:${T.black};box-shadow:inset 0 0 0 2px ${T.gold};font:400 8px 'Press Start 2P',monospace;color:${T.gold}">В МОЮ РУКУ</div>` : "")
+      + cards
+      + `<div style="position:absolute;left:${HUD.margin}px;bottom:${HUD.bottom}px;display:flex;gap:${HUD.gap}px;pointer-events:auto">`
+      + hudBtn("pin", false) + hudBtn("lock", false) + hudBtn("hide", false) + `</div>`
+      + `<div style="position:absolute;right:${HUD.margin}px;bottom:${HUD.bottom}px;display:flex;gap:${HUD.gap}px;pointer-events:auto">`
+      + hudBtn("fan", true) + hudBtn("shrink", false) + hudBtn("tuck", false) + `</div>`
+      + `</div>`;
+  };
+
+  const toolBtn = () => {
+    const count = S.sel.size;
+    const bottom = HUD.bottom + HUD.btn + 10 + Math.round(HUD.card * 1.4) + 22;
+    return `<div data-tool="1" style="position:absolute;right:${HUD.margin}px;bottom:${bottom}px;z-index:20;touch-action:none">`
+      + hudBtn("gather", P.tool === "набор")
+      + (count ? `<div style="position:absolute;right:-7px;top:-7px;width:20px;height:20px;border-radius:999px;display:flex;align-items:center;justify-content:center;`
+        + `background:${T.black};box-shadow:inset 0 0 0 2px ${T.gold};font:400 8px 'Press Start 2P',monospace;color:${T.gold}">${count}</div>` : "")
+      + `</div>`;
+  };
+
+  // Собранная стопка висит НА ГРИПЕ: под пальцем ручка, стопка над ней — палец не закрывает то,
+  // что несёшь.
+  const carried = () => {
+    if (!S.drag || !S.drag.tool) return "";
+    const n = Math.max(S.sel.size, 1);
+    const cw = 52, ch = Math.round(cw * 1.4);
+    const tight = S.drag.moved;
+    const layers = Array.from({ length: Math.min(n, 6) }, (_, i) => {
+      const dx = tight ? -i * 2 : -i * 8 + 10, dy = tight ? -i * 3 : -i * 2, rot = tight ? 0 : (i % 2 ? 6 : -5);
+      return `<div style="position:absolute;left:${dx}px;top:${dy}px;width:${cw}px;height:${ch}px;transform:rotate(${rot}deg);transition:all .16s">${cardArt({ seed: i + 2, face: false }, cw)}</div>`;
+    }).join("");
+    return `<div style="position:absolute;left:${S.at.x - cw / 2}px;top:${S.at.y - ch - GRIP_H + 10}px;width:${cw}px;height:${ch}px;z-index:60;pointer-events:none;filter:drop-shadow(0 8px 10px rgba(0,0,0,.5))">`
+      + layers + gripTag("", n, true) + `</div>`;
+  };
+
+  const render = () => {
+    board.innerHTML = ITEMS.map(itemBox).join("") + myHud() + toolBtn() + carried()
+      + (S.note ? `<div style="position:absolute;left:50%;top:${handTop() - 30}px;transform:translateX(-50%);z-index:30;padding:4px 10px;background:${T.black};box-shadow:inset 0 0 0 2px ${T.gold};font:400 11px 'Tiny5',monospace;color:${T.gold};white-space:nowrap">${S.note}</div>` : "");
+    nums();
+  };
+
+  // ---- ПРАВИЛА СТОПКИ ----
+  /**
+   * Поза НОВОЙ стопки выводится из того, что кладут. Плотная — только когда прятать нечего: ОБЕ
+   * карты рубашкой. Если хоть одна лежит лицом, её лицо для того и открыто, чтобы его было видно,
+   * и накрывать его глухой стопкой нельзя — значит веер.
+   */
+  const bornPose = (cards) => (cards.some((c) => c.face) ? "веер" : "плотно");
+  /** Как карта входит в стопку: у зоны свой приём, рукотворная принимает как есть. */
+  const enter = (c, to) => (to.takes ? { ...c, face: to.takes === "лицом" } : c);
+
+  const local = (e) => { const r = phone.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  /** Что под пальцем: приёмник ищется ПО ГЕОМЕТРИИ, иначе стенд врёт про приём. */
+  const sinkAt = (pt, skip) => {
+    if (pt.y > handTop()) return "hand";
+    for (let i = ITEMS.length - 1; i >= 0; i -= 1) {
+      const it = ITEMS[i];
+      if (it.id === skip || S.sel.has(it.id)) continue;
+      if (pt.x >= it.x - 6 && pt.x <= it.x + boxW(it) + 6 && pt.y >= it.y - 6 && pt.y <= it.y + boxH() + 14) return it.id;
+    }
+    return null;
+  };
+  const pour = (cards) => {
+    if (S.over === "hand") { S.hand += cards.length; S.note = `${cards.length} → в мою руку`; return true; }
+    const to = ITEMS.find((i) => i.id === S.over);
+    if (!to) return false;
+    const was = to.cards.length;
+    // Стопка из одной карты позы ещё не имела — она рождается вместе со второй картой.
+    to.cards = to.cards.concat(cards.map((c) => enter(c, to)));
+    if (!to.zone && was === 1) to.pose = bornPose(to.cards);
+    S.note = `${cards.length} → в ${to.zone ? to.zone.toLowerCase() : "стопку"}, стало ${to.cards.length}`
+      + (to.takes ? ` · ${to.takes}` : "");
+    return true;
+  };
+  /** Опустевшая рукотворная стопка исчезает; зона остаётся всегда — она место, а не куча. */
+  const sweep = () => { ITEMS = ITEMS.filter((i) => i.zone || i.cards.length); };
+
+  // ---- ПАЛЕЦ ----
+  board.addEventListener("pointerdown", (e) => {
+    const pt = local(e);
+    const pose = e.target.closest("[data-pose]");
+    if (pose) {
+      const [id, p] = pose.dataset.pose.split("|");
+      const it = ITEMS.find((i) => i.id === id);
+      it.pose = p;
+      S.note = `поза: ${p}`;
+      render();
+      return;
+    }
+    const tool = e.target.closest("[data-tool]");
+    if (tool) {
+      e.preventDefault();
+      S.pick = "";
+      if (P.tool === "выкл") { P.tool = "набор"; S.note = "набор: тапай стопки и карты"; }
+      else if (!S.sel.size) { P.tool = "выкл"; S.note = ""; }
+      else { S.drag = { tool: true, pid: e.pointerId, moved: false }; S.at = pt; try { board.setPointerCapture(e.pointerId); } catch (_) {} }
+      build(); writeHash(); render();
+      return;
+    }
+    if (P.tool === "набор") {
+      const pick = e.target.closest("[data-pick]");
+      if (!pick) return;
+      const id = pick.dataset.pick;
+      if (S.sel.has(id)) S.sel.delete(id); else S.sel.add(id);
+      S.note = S.sel.size ? `в наборе ${S.sel.size} · тяни инструмент` : "набор: тапай стопки и карты";
+      render();
+      return;
+    }
+    const grip = e.target.closest("[data-grip]");
+    if (grip) {
+      e.preventDefault();
+      const it = ITEMS.find((i) => i.id === grip.dataset.grip);
+      // Смещение от точки захвата: стопка не прыгает под палец и держится так, как её подняли.
+      S.drag = { id: it.id, pid: e.pointerId, dx: pt.x - it.x, dy: pt.y - it.y, moved: false };
+      S.at = pt; S.note = "";
+      try { board.setPointerCapture(e.pointerId); } catch (_) {}
+      render();
+      return;
+    }
+    // Тап по стопке поднимает её кнопки позы. У зоны своя поза, её не трогают.
+    const pick = e.target.closest("[data-pick]");
+    const id = pick ? pick.dataset.pick : "";
+    S.pick = id && S.pick !== id ? id : "";
+    render();
+  });
+
+  board.addEventListener("pointermove", (e) => {
+    if (!S.drag || e.pointerId !== S.drag.pid) return;
+    const pt = local(e);
+    if (Math.abs(pt.x - S.at.x) > 5 || Math.abs(pt.y - S.at.y) > 5) S.drag.moved = true;
+    S.at = pt;
+    if (S.drag.tool) S.over = S.drag.moved ? sinkAt(pt, null) : null;
+    else {
+      const it = ITEMS.find((i) => i.id === S.drag.id);
+      it.x = pt.x - S.drag.dx; it.y = pt.y - S.drag.dy;
+      S.over = sinkAt({ x: it.x + boxW(it) / 2, y: it.y + boxH() / 2 }, it.id);
+    }
+    render();
+  });
+
+  const drop = (e) => {
+    if (!S.drag || e.pointerId !== S.drag.pid) return;
+    if (S.drag.tool) {
+      if (S.drag.moved) {
+        const taken = ITEMS.filter((i) => S.sel.has(i.id));
+        const cards = taken.flatMap((i) => i.cards);
+        if (S.over && pour(cards)) taken.forEach((i) => { i.cards = []; });
+        else {
+          taken.forEach((i) => { i.cards = []; });
+          heapNo += 1;
+          // Собранная стопка — обычная рукотворная: правил нет, поза выводится из того, что в ней.
+          ITEMS.push({ id: "heap" + heapNo, pose: bornPose(cards), x: Math.round(S.at.x - 30), y: Math.round(S.at.y - 90), cards });
+          S.note = `${cards.length} → легло на стол · ${bornPose(cards)}`;
+        }
+        sweep();
+      }
+      S.sel.clear(); P.tool = "выкл";
+    } else {
+      const it = ITEMS.find((i) => i.id === S.drag.id);
+      if (S.over && S.drag.moved && pour(it.cards)) { it.cards = []; sweep(); }
+    }
+    S.drag = null; S.over = null;
+    build(); writeHash(); render();
+  };
+  board.addEventListener("pointerup", drop);
+  board.addEventListener("pointercancel", drop);
+
+  // ---- РУЧКИ СБОКУ ----
+  const controls = document.getElementById("controls");
+  const build = () => {
+    controls.innerHTML = "";
+    for (const [title, rows] of SPEC) {
+      const sec = document.createElement("div");
+      sec.className = "sec";
+      sec.innerHTML = `<h2>${title}</h2>`;
+      for (const [key, label, kind, , a, b] of rows) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const lab = document.createElement("label");
+        lab.textContent = label;
+        row.appendChild(lab);
+        let input;
+        if (kind === "bool") { input = document.createElement("input"); input.type = "checkbox"; input.checked = P[key]; }
+        else if (kind === "enum") { input = document.createElement("select"); for (const o of a) { const op = document.createElement("option"); op.value = op.textContent = o; input.appendChild(op); } input.value = P[key]; }
+        else { input = document.createElement("input"); input.type = "range"; input.min = a; input.max = b; input.value = P[key]; }
+        const val = document.createElement("span");
+        val.className = "val";
+        val.textContent = kind === "bool" ? "" : String(P[key]);
+        input.addEventListener("input", () => {
+          P[key] = kind === "bool" ? input.checked : kind === "enum" ? input.value : Number(input.value);
+          val.textContent = kind === "bool" ? "" : String(P[key]);
+          if (key === "tool" && P.tool === "выкл") { S.sel.clear(); S.note = ""; }
+          if (key === "pileN") {
+            const pile = ITEMS.find((i) => i.id === "pile");
+            if (pile) { while (pile.cards.length > P.pileN) pile.cards.pop(); while (pile.cards.length < P.pileN) pile.cards.push(card(true)); }
+          }
+          if (key === "deckN") {
+            const deck = ITEMS.find((i) => i.id === "deck");
+            if (deck) { while (deck.cards.length > P.deckN) deck.cards.pop(); while (deck.cards.length < P.deckN) deck.cards.push(card(false)); }
+          }
+          writeHash(); render();
+        });
+        row.appendChild(input); row.appendChild(val);
+        sec.appendChild(row);
+      }
+      controls.appendChild(sec);
+    }
+  };
+
+  const nums = () => {
+    const where = ITEMS.map((i) => `${i.zone || "стопка"} ${i.cards.length}/${i.pose}`).join(" · ");
+    document.getElementById("nums").innerHTML = `${where}<br>в руке <b>${P.myCards + S.hand}</b> · в наборе <b>${S.sel.size}</b>`;
+  };
+
+  document.getElementById("reset").addEventListener("click", () => {
+    P = { ...DEFAULTS }; seedNo = 0; ITEMS = start(); S.sel.clear(); S.pick = ""; S.hand = 0; S.note = ""; S.drag = null; S.over = null;
+    writeHash(); build(); render();
+  });
+  document.getElementById("knob").addEventListener("click", () => document.getElementById("panel").classList.toggle("open"));
+  addEventListener("resize", render);
+  build(); render();
+})();
+</script>
+</body>
+</html>
