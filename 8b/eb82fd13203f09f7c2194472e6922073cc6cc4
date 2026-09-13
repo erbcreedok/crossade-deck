@@ -1,0 +1,21 @@
+design/gesture/felt.js
+  s_9ed0da107cbc4a::t_ec22d78cf02758 154-164,336,384-386,388-390,392,448
+design/gesture/index.html
+  s_9ed0da107cbc4a::t_60c53090cb0c4a 104-105,403,459-499,604-610
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8beb82fd13203f09f7c2194472e6922073cc6cc4",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
