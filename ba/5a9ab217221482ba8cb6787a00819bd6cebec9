@@ -1,0 +1,39 @@
+apps/cards/src/spec.ts
+  s_9ed0da107cbc4a::t_e77cfaba7f0a4f 14
+  s_9ed0da107cbc4a::t_9b5147a44484ca 47-50,65
+game-presets/desks/src/seatRing.test.ts
+  s_9ed0da107cbc4a::t_4d74ae8ed055e7 1-51
+game-presets/desks/src/handBar.test.ts
+  s_9ed0da107cbc4a::t_c3fd6c43f01e68 107-113,116,119,121-122,125-127,129,131
+game-presets/desks/src/seatPlace.test.ts
+  s_9ed0da107cbc4a::t_07b85bc527dc29 106-107,110
+game-presets/hand/src/seatChairs.test.ts
+  s_9ed0da107cbc4a::t_12565b2167ce9f 1-24,124-152
+  s_9ed0da107cbc4a::t_01675140814014 153
+game-presets/desks/src/seatPlace.ts
+  s_9ed0da107cbc4a::t_b07ad4b4d70905 199-200,202-203,205-210,214-219
+game-presets/desks/src/index.ts
+  s_9ed0da107cbc4a::t_bb42d5449ab5dd 103
+game-presets/hand/src/seatChairs.ts
+  s_9ed0da107cbc4a::t_ea460ac9785074 8,10,19-54,82
+game-presets/desks/src/seatRing.ts
+  s_9ed0da107cbc4a::t_bb42d5449ab5dd 64-74
+  s_9ed0da107cbc4a::t_4d74ae8ed055e7 1-63,75-85,91-96,98,116
+  s_9ed0da107cbc4a::t_f032e2038ad38a 86-90,97,99-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ba5a9ab217221482ba8cb6787a00819bd6cebec9",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
