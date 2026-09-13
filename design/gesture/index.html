@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Стенд жеста — стол, рука, два тултипа</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tiny5&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0704; overscroll-behavior: none; }
+  body { font: 400 13px Tiny5, monospace; color: #f5ead0; -webkit-user-select: none; user-select: none; }
+  #stage { position: fixed; inset: 0; overflow: hidden; touch-action: none; }
+  canvas { position: absolute; inset: 0; }
+  button { font: inherit; }
+</style>
+</head>
+<body>
+<!--
+  СТЕНД ЖЕСТА — дубликат `/table`, раздетый до того, ради чего он заводится.
+  ЧТО ЗДЕСЬ ЕСТЬ: стол (по настоящим правилам — `felt.js`), МОЯ рука внизу — тот самый нижний HUD,
+  что стоит в продукте, — и два бота, у каждого свой тултип с его рукой.
+  ЧЕГО ЗДЕСЬ НЕТ И НЕ БУДЕТ: списка «за столом», экрана комнаты, профиля и таблицы прав. Они уже
+  сделаны и здесь только мешают: стенд отвечает на один вопрос, иначе он отвечает на все сразу плохо.
+-->
+<div id="stage">
+  <canvas id="felt"></canvas>
+  <div id="over"></div>
+</div>
+<script src="felt.js"></script>
+<script>
+(function () {
+  const T = {
+    black: "#0b0704", ink: "#f5ead0", inkDim: "#cdb98f", gold: "#f2c14e",
+    well: "#1c120b", panel: "#3a2a1d", panelLight: "#4a3627", wood: "#6b4d2c",
+  };
+  /** Кнопка бара, её цвета — содержание, как и дерево стула (`BAR_LOOK`). */
+  const BAR_LOOK = { plateHi: "#25321f", plateLo: "#16210f", rim: "#6b4d2c", goldHi: "#f8d885", goldLo: "#b08a26" };
+
+  /**
+   * НИЖНИЙ БАР И ПОЛОСА РУКИ — числа продукта, до последней доли (`handBar.BAR`, `handHud`).
+   * Единица здесь НЕ единица сукна: HUD живёт на стекле и меряется своей (`HUD_UNIT_FRACTION`).
+   */
+  const BAR = { size: 0.6, gap: 0.08, margin: 0.22, pad: 0.11, radius: 0.11, line: 0.04, tuck: 0.24, fade: 1 };
+  const HUD_FAN = { radius: 7, apart: 1.06, shut: 0.14, edge: 0.1 };
+  const HUD_CARDS = 6, HUD_GAP = 0.06, HUD_MARGIN = 0.14, HAND_PAD = 0.16, TUCK_TIP = 0.45;
+  /** Комната под рядом — под язычок, которым руку поднимают целиком (`handRoom`). */
+  const HAND_ROOM = 0.6 / 4 + 0.06;
+  const HUD_UNIT_FRACTION = 0.25;
+  const CARD = { w: 1, h: 1.4 };
+
+  const RIGHTS = ["pin", "lock", "hide"];
+  const FOLDS = ["fan", "shrink", "tuck"];
+  const POSES = ["flip", ...FOLDS];
+  /** Значки — те же, что рисует продукт (`GLYPHS` в `handBar.ts`). */
+  const GLYPH = {
+    pin: '<path d="M9 3h6l-1 6h2l1 5H7l1-5h2L9 3z"/><path d="M12 14v7"/>',
+    lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3"/><path d="M5 11h14v10H5z"/>',
+    hide: '<path d="M3 3l18 18"/><path d="M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5"/><path d="M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9"/>',
+    flip: '<rect x="7.5" y="4" width="9" height="16" rx="1.5"/><path d="M4 9.5A9 9 0 0 1 8.2 4.4"/><path d="M8.6 2.2 8.2 4.4l2.2.5"/><path d="M20 14.5A9 9 0 0 1 15.8 19.6"/><path d="M15.4 21.8l.4-2.2-2.2-.5"/>',
+    fan: '<rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(-28 12 20)"/><rect x="9" y="5" width="6" height="12" rx="1"/><rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(28 12 20)"/>',
+    shrink: '<rect x="8" y="5" width="8" height="14" rx="1"/><path d="M2 12h4"/><path d="M4 9.5 6.5 12 4 14.5"/><path d="M22 12h-4"/><path d="M20 9.5 17.5 12l2.5 2.5"/>',
+    tuck: '<rect x="8" y="3" width="8" height="11" rx="1"/><path d="M3 18h18"/><path d="M12 14v-4"/><path d="M9.5 12.5 12 15l2.5-2.5"/>',
+  };
+
+  const SUITS = { s: ["♠", "#1b1b1b"], h: ["♥", "#9c2f2a"], d: ["♦", "#9c2f2a"], c: ["♣", "#1b1b1b"] };
+  const RANKS = ["A", "K", "Q", "J", "10", "9", "8", "7", "6"];
+
+  const deck = (n, seed) => Array.from({ length: n }, (_, i) => ({
+    id: `${seed}${i}`,
+    rank: RANKS[(i * 3 + seed.length) % RANKS.length],
+    suit: ["s", "h", "d", "c"][(i + seed.length) % 4],
+  }));
+
+  /**
+   * КТО ЗА СТОЛОМ. Двое ботов и я — больше стенду не нужно: тултип открывается у каждого из двух,
+   * и этого хватает, чтобы увидеть и свой жест, и чужой.
+   */
+  const P = {
+    people: [
+      { key: "me", name: "Ye", ink: "#f2c14e", mine: true, cards: 0, face: "me" },
+      { key: "alia", name: "Алия", ink: "#7fd1b9", cards: 5, hand: deck(5, "a") },
+      { key: "timur", name: "Тимур", ink: "#e08b3f", cards: 3, hand: deck(3, "t") },
+    ],
+    mine: deck(7, "me"),
+    pose: { fan: true, shrink: false, tuck: false },
+    on: { pin: false, lock: false, hide: false },
+    /** Чей тултип открыт. Пусто — ничей. */
+    tip: null,
+  };
+
+  const stage = document.getElementById("stage");
+  const canvas = document.getElementById("felt");
+  const over = document.getElementById("over");
+  const images = {};
+
+  /** Лицо владельца — то же, что стоит у него в профиле; бот обходится буквами. */
+  (function loadFace() {
+    const img = new Image();
+    img.onload = () => draw();
+    img.src = "data:image/svg+xml;utf8," + encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="#3d4a3a"/>` +
+      `<circle cx="48" cy="38" r="17" fill="#cdb98f"/><path d="M14 96c0-19 15-30 34-30s34 11 34 30z" fill="#cdb98f"/></svg>`,
+    );
+    images.me = img;
+  })();
+
+  /** Ширина и высота стекла — стенд меряется телефоном в портрете, как и продукт. */
+  const glass = () => ({ w: stage.clientWidth, h: stage.clientHeight });
+
+  /** ЕДИНИЦА HUD — та же доля стекла, что берёт движок, когда игра не назвала своей. */
+  const hudUnit = () => {
+    const g = glass();
+    return Math.max(1, Math.round(Math.min(g.w, g.h) * HUD_UNIT_FRACTION));
+  };
+
+  /** Высота полосы кнопок — сами кнопки и дерево вокруг них (`barHeight`). */
+  const barHeight = () => BAR.size + 2 * BAR.pad;
+
+  /**
+   * ГДЕ СТОИТ КАЖДАЯ КАРТА РУКИ НА СТЕКЛЕ (`handPlan`) — на дуге, если веер, и в ряд, если нет.
+   * Дуга подбирается в три прохода: край считается по УГЛУ наклонной карты, а не по её середине.
+   */
+  function handPlan(pose, n, w, h, roomU) {
+    const apart = (pose.shrink ? HUD_FAN.shut : HUD_FAN.apart) * w;
+    const mid = (n - 1) / 2;
+    if (!pose.fan) {
+      const step = n > 1 ? Math.min(apart, Math.max(0, roomU - 2 * (w / 2 + HUD_FAN.edge * w)) / (n - 1)) : 0;
+      return Array.from({ length: n }, (_, i) => ({ x: (i - mid) * step, y: 0, angle: 0 }));
+    }
+    const R = HUD_FAN.radius * h;
+    const deg = (rad) => (rad * 180) / Math.PI;
+    const most = deg(2 * Math.asin(Math.min(1, apart / (2 * R))));
+    let step = 0;
+    if (n > 1) {
+      let reach = w / 2;
+      for (let pass = 0; pass < 3; pass += 1) {
+        const chord = Math.max(0, Math.min(1, (roomU - 2 * (reach + HUD_FAN.edge * w)) / (2 * R)));
+        step = Math.min(most, deg(2 * Math.asin(chord)) / (n - 1));
+        const outer = ((step * (n - 1)) / 2 / 180) * Math.PI;
+        reach = (w / 2) * Math.cos(outer) + (h / 2) * Math.sin(outer);
+      }
+    }
+    return Array.from({ length: n }, (_, i) => {
+      const angle = (i - mid) * step;
+      const rad = (angle * Math.PI) / 180;
+      return { x: R * Math.sin(rad), y: R * (1 - Math.cos(rad)), angle };
+    });
+  }
+
+  /** Всё, что нужно знать о полосе руки: её масштаб, её коробка и её место на стекле. */
+  function handBox() {
+    const u = hudUnit();
+    const g = glass();
+    const inset = 0;
+    const room = g.w / u - 2 * HUD_MARGIN;
+    const scale = Math.min(1, room / (HUD_CARDS * CARD.w * (1 + HUD_GAP)));
+    const wide = Math.max(1, g.w / u / scale);
+    const plan = handPlan(P.pose, P.mine.length, CARD.w, CARD.h, wide);
+    const drop = plan.reduce((m, p) => Math.max(m, p.y), 0);
+    const high = CARD.h + drop + 2 * HAND_PAD + HAND_ROOM;
+    const barTop = g.h - inset - barHeight() * u;
+    const shown = P.pose.tuck ? TUCK_TIP : Math.max(0, (high - HAND_ROOM) * scale - BAR.tuck);
+    const cardsBottom = barTop + BAR.tuck * u + (P.pose.tuck ? Math.max(0, (high - HAND_ROOM) * scale * u - TUCK_TIP * u) : 0);
+    // Середина полосы: от нижнего края карт вверх на полкоробки, минус комната под язычок.
+    const mid = cardsBottom + (HAND_ROOM - high / 2) * scale * u;
+    return { u, scale, wide, plan, high, barTop, mid, shown };
+  }
+
+  /** Карта разметкой — её же рисует и холст, но эту можно взять пальцем. */
+  function cardHtml(c, shown, w) {
+    const h = Math.round(w * 1.4);
+    const [sign, colour] = SUITS[c.suit];
+    const face = `<span style="position:absolute;left:${w * 0.1}px;top:${w * 0.06}px;font:400 ${w * 0.3}px Tiny5,monospace;color:${colour}">${c.rank}</span>`
+      + `<span style="position:absolute;left:0;right:0;top:${h * 0.33}px;text-align:center;font:400 ${w * 0.45}px Tiny5,monospace;color:${colour}">${sign}</span>`;
+    const back = `<span style="position:absolute;inset:${w * 0.08}px;border-radius:3px;background:repeating-linear-gradient(45deg,${T.wood} 0 4px,${T.panel} 4px 8px);opacity:.9"></span>`;
+    return `<span style="position:absolute;inset:0;border-radius:${w * 0.12}px;background:${shown ? T.ink : T.panelLight};`
+      + `box-shadow:inset 0 0 0 ${Math.max(2, w * 0.05)}px ${T.black},0 2px 0 rgba(11,7,4,.55)">${shown ? face : back}</span>`;
+  }
+
+  /** Кнопка нижнего бара — золотая, когда включена, тёмная, когда нет (`control` в `handBar.ts`). */
+  function barButton(what, lit, px) {
+    const side = Math.round(px);
+    return `<button data-bar="${what}" style="position:relative;width:${side}px;height:${side}px;border:0;padding:0;`
+      + `border-radius:${Math.round(side * BAR.radius / BAR.size)}px;cursor:pointer;display:flex;align-items:center;justify-content:center;`
+      + (lit
+        ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 3px ${T.black};`
+        : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim};`)
+      + `">`
+      + `<svg viewBox="0 0 24 24" width="${Math.round(side * 0.5)}" height="${Math.round(side * 0.5)}" fill="none" `
+      + `stroke="${lit ? T.black : "white"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GLYPH[what]}</svg></button>`;
+  }
+
+  /**
+   * МОЙ НИЖНИЙ HUD — полоса кнопок на дне стекла и веер, стоящий на ней.
+   *
+   * Семь кнопок двумя группами: права прижаты к левому краю, позы — к правому, и обе ужимаются
+   * ОДИНАКОВО, когда на стекле им тесно (`fitBar`): иначе на телефоне два ряда въезжают друг в друга.
+   */
+  function hudHtml() {
+    const { u, scale, wide, plan, high, barTop, mid } = handBox();
+    const g = glass();
+    const w = CARD.w * scale * u;
+    const h = CARD.h * scale * u;
+    const need = (3 * BAR.size + 2 * BAR.gap) + (4 * BAR.size + 3 * BAR.gap) + 2 * BAR.margin + BAR.gap;
+    const fit = g.w / u > 0 && need > g.w / u ? Math.max(0.5, g.w / u / need) : 1;
+    const side = BAR.size * u * fit;
+    const gap = BAR.gap * u * fit;
+    const margin = BAR.margin * u * fit;
+
+    const cards = P.mine.map((c, i) => {
+      const p = plan[i];
+      return `<div data-card="${c.id}" style="position:absolute;width:${w}px;height:${h}px;`
+        + `left:${g.w / 2 + p.x * scale * u - w / 2}px;top:${mid + p.y * scale * u - h / 2}px;`
+        + `transform:rotate(${p.angle}deg);z-index:${i + 1};touch-action:none;cursor:grab;`
+        + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out">${cardHtml(c, !P.on.hide, w)}</div>`;
+    }).join("");
+
+    return `<div style="position:absolute;left:0;right:0;top:${barTop - BAR.fade * u}px;height:${BAR.fade * u}px;`
+      + `background:linear-gradient(to top, rgba(11,7,4,.85), rgba(11,7,4,0));pointer-events:none"></div>`
+      + cards
+      + `<div style="position:absolute;left:0;right:0;top:${barTop}px;height:${barHeight() * u}px;`
+      + `background:linear-gradient(${T.panel},${T.well});box-shadow:inset 0 3px 0 -1px ${T.black};display:flex;align-items:center">`
+      + `<div style="position:absolute;left:${margin}px;display:flex;gap:${gap}px">`
+      + RIGHTS.map((what) => barButton(what, P.on[what], side)).join("") + `</div>`
+      + `<div style="position:absolute;right:${margin}px;display:flex;gap:${gap}px">`
+      + POSES.map((what) => barButton(what, what !== "flip" && P.pose[what], side)).join("") + `</div>`
+      + `</div>`;
+  }
+
+  /**
+   * ТУЛТИП НАД ЧУЖИМ АВАТАРОМ — его рука, и больше ничего. Прав здесь нет намеренно: они сделаны
+   * и живут в листе «за столом», а этот стенд про жест.
+   *
+   * ЕГО ВЕЕР ЗЕРКАЛЕН: его левая карта — моя правая, и рубашками ко мне.
+   */
+  function tipHtml(who, spot) {
+    const g = glass();
+    const w = Math.min(g.w - 16, 292);
+    const left = Math.max(8, Math.min(g.w - w - 8, spot.x - w / 2));
+    const below = spot.y < g.h * 0.45;
+    const cw = 46, ch = Math.round(cw * 1.4);
+    const n = who.hand.length;
+    const plan = handPlan({ fan: true, shrink: false, tuck: false }, n, 1, 1.4, (w - 24) / cw);
+    const cards = who.hand.map((c, i) => {
+      const p = plan[n - 1 - i];
+      return `<div data-tip-card="${c.id}" style="position:absolute;width:${cw}px;height:${ch}px;`
+        + `left:${(w - 24) / 2 + p.x * cw - cw / 2}px;top:${8 + p.y * cw}px;transform:rotate(${p.angle}deg);z-index:${i + 1};`
+        + `touch-action:none">${cardHtml(c, false, cw)}</div>`;
+    }).join("");
+    return `<div data-g="tip" style="position:absolute;left:${left}px;${below ? `top:${spot.y + spot.r + 12}px` : `bottom:${g.h - spot.y + spot.r + 12}px`};`
+      + `width:${w}px;box-sizing:border-box;z-index:15;background:${T.well};`
+      + `box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
+      + `<div style="display:flex;align-items:center;gap:9px;padding-bottom:8px">`
+      + `<span style="flex:none;width:30px;height:30px;border-radius:50%;background:${who.ink};box-shadow:inset 0 0 0 3px ${T.black};`
+      + `display:flex;align-items:center;justify-content:center;font:400 14px Tiny5,monospace;color:${T.black}">${who.name[0]}</span>`
+      + `<span style="font:400 14px Tiny5,monospace;color:${T.ink}">${who.name}</span></div>`
+      + `<span style="font:400 10px Tiny5,monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">ЕГО РУКА · ${n}</span>`
+      + `<div style="position:relative;height:${ch + 24}px">${cards}</div></div>`;
+  }
+
+  let spots = [];
+
+  /** Сколько пикселей дна занято рукой и её полосой (`floorNow` в `handHud.ts`). */
+  function hudFloor() {
+    const { u, scale, high, shown } = handBox();
+    void scale;
+    void high;
+    return (barHeight() + shown + HUD_MARGIN) * u;
+  }
+
+  function draw() {
+    const g = glass();
+    const view = Felt.draw(canvas, {
+      W: g.w, H: g.h, people: P.people, images,
+      // ЦЕНТР СТОЛА — В СЕРЕДИНЕ ТОГО, ЧТО ОТ СТЕКЛА ОСТАЛОСЬ: рука занимает дно и стол на него не
+      // налезает. Считается от самой руки (`floorNow`), а не подбирается глазами, — иначе позы,
+      // которые двигают дно, каждый раз уводили бы стол.
+      free: g.h - hudFloor(),
+      centre: (g.h - hudFloor()) / 2,
+    });
+    spots = view.spots;
+    const tip = P.tip ? P.people.find((one) => one.key === P.tip) : undefined;
+    const spot = tip ? spots.find((s) => s.key === tip.key) : undefined;
+    over.innerHTML = hudHtml() + (tip && spot ? tipHtml(tip, spot) : "");
+    wire();
+  }
+
+  function wire() {
+    for (const el of over.querySelectorAll("[data-bar]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const what = el.dataset.bar;
+        if (RIGHTS.includes(what)) P.on[what] = !P.on[what];
+        else if (what === "flip") P.mine.reverse();
+        else P.pose[what] = !P.pose[what];
+        draw();
+      };
+    }
+    const tipEl = over.querySelector('[data-g="tip"]');
+    if (tipEl) tipEl.onclick = (e) => e.stopPropagation();
+  }
+
+  // ТАП ПО ДИСКУ НА СУКНЕ ОТКРЫВАЕТ ЕГО ТУЛТИП: аватар — это и есть человек, и спрашивают про него
+  // там, где он лежит. Мимо — закрывает.
+  stage.addEventListener("pointerdown", (e) => {
+    const x = e.clientX, y = e.clientY;
+    const hit = spots.find((s) => s.key !== "me" && Math.hypot(x - s.x, y - s.y) <= s.r + 6);
+    const next = hit ? (P.tip === hit.key ? null : hit.key) : null;
+    if (next === P.tip) return;
+    P.tip = next;
+    draw();
+  });
+
+  addEventListener("resize", draw);
+  addEventListener("orientationchange", draw);
+  document.fonts?.ready.then(draw);
+  draw();
+})();
+</script>
+</body>
+</html>

@@ -108,6 +108,16 @@
       "port": 9577
     },
     {
+      "name": "gesture-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "design/serve.py",
+        "9582",
+        "design/gesture"
+      ],
+      "port": 9582
+    },
+    {
       "name": "grab-stand",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
