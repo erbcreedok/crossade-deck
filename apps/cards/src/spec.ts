@@ -11,7 +11,7 @@ import {
   LIVE_UNIT,
   ROUND_R,
   roundMap,
-  roundPlaces,
+  ringPlaces,
   roundRoom,
   roundWalls,
 } from "@game-presets/desks";
@@ -44,7 +44,10 @@ export interface CardsSpecOptions {
 
 export function cardsSpec(o: CardsSpecOptions = {}): DeskSpec {
   const chairs = o.chairs !== undefined && o.chairs > 0 ? Math.floor(o.chairs) : CARD_SEATS;
-  const places = roundPlaces(chairs);
+  // МЕСТА — ПО ПОРЯДКУ РАЗРЕЗАНИЯ, а не поровну по кругу: свой край, напротив, слева, справа, потом
+  // углы. Ровное деление на троих сажает людей в вершины треугольника — и тогда первый же новый стул
+  // не встаёт никуда, потому что стол разложен по другому правилу, чем рассаживают.
+  const places = ringPlaces(chairs, ROUND_R - 1);
   const hand: HandLayer = handLayer({ places });
 
   return {
@@ -59,7 +62,7 @@ export function cardsSpec(o: CardsSpecOptions = {}): DeskSpec {
     // it arrives from the room after the desk is already up — and the hand layer puts one up per
     // seat once it is.
     map: () => roundMap([]),
-    places: (seats) => roundPlaces(seats),
+    places: (seats) => ringPlaces(seats, ROUND_R - 1),
     room: () => roundRoom(),
     unit: LIVE_UNIT,
     // THE ROUND TABLE'S OWN SPAN — owner: the table's diameter is 1.5× the glass. Measured ACROSS

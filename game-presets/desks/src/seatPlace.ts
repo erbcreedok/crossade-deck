@@ -196,24 +196,27 @@ export function setChairPin(chair: Node, pinned: boolean): void {
 }
 
 /**
- * MAY THIS FINGER LIFT THIS — the seat's whole permission, and the one line a live page hands to
- * `liveTable`'s `may`.
+ * ЧТО ЭТОТ ПАЛЕЦ ВПРАВЕ ПОДНЯТЬ — всё разрешение места одной строкой, и её живая страница отдаёт в
+ * `liveTable.may`.
  *
- * Two rules, and they are about different things. A CHAIR is its owner's alone: where a person sits
- * is theirs to decide, and a place any passing finger could drag is a player being reseated by
- * somebody else. Everything else is the kit's own grip (`grippableBy`), which is what the LOCK
- * writes when a hand is shut.
+ * СТУЛЬЯ ДВИГАЮТ ВСЕ, И ЭТО НЕ ОПЛОШНОСТЬ: люди рассаживаются за столом сообща — подвинуть соседа,
+ * чтобы влез ещё один, обычное застольное дело, и запрещать его значит заставлять просить хозяина.
  *
- * The chair's own rule cannot be a grip, because a grip cuts the subtree: locked to its owner, the
- * cards lying in it would be unreachable by anybody else for ever, and a hand that can never be
- * dealt from is not an open hand.
+ * ПИН — ЕДИНСТВЕННЫЙ ЗАПРЕТ, И ОН ЛИЧНЫЙ: приколотый стул не сдвинет никто, включая админа; сам
+ * хозяин стула двигает его всегда — пин поставлен от чужих рук, а не от своих. Снять чужой пин
+ * может админ (`piece:pin`), и это уже другое действие, не перетаскивание.
+ *
+ * Правило стула не может быть «хваткой» (`grippableBy`): хватка режет поддерево, и прикреплённые к
+ * месту карты стали бы недосягаемы для всех остальных — рука, из которой нельзя сдать, не рука.
  */
 export function mayTake(n: Node, seat: string): boolean {
-  // A PINNED CHAIR MOVES FOR NOBODY — its owner included; they unpin it first (`CHAIR_PIN`).
-  if (isChair(n) && chairPinned(n)) return false;
-  // ...AND SO IS THE HAND'S OWN HANDLE (`handRule`): the tab that lifts a whole hand says whose it
-  // is the way the chair does, and a hand lifted whole by a neighbour is a hand dealt away.
   const owner = isChair(n) || isPlaceGrip(n) ? fieldsOf<{ box: string }>(n, "Owned")?.box : undefined;
+  if (isChair(n)) {
+    if (owner !== undefined && owner !== "" && owner === seat) return true;
+    return !chairPinned(n);
+  }
+  // РУЧКА РУКИ — ХОЗЯЙСКАЯ (`handRule`): язычок, которым поднимают руку целиком, говорит, чья она,
+  // и рука, поднятая соседом целиком, — это рука, отданная в чужие руки.
   if (owner !== undefined && owner !== "" && owner !== seat) return false;
   return grippableBy(n, seat);
 }

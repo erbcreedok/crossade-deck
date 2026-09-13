@@ -5,9 +5,9 @@
 // never sent over the wire, so two screens that read the same roster draw the same rings without a
 // byte spent saying so.
 
-import { chairId, chairLidId, chairMarks, installSeatArt, seatChairs } from "@game-presets/desks";
+import { CHAIR, chairId, chairLidId, chairMarks, freeRingSpot, installSeatArt, seatChairs } from "@game-presets/desks";
 import { deskSeats, type SeatedPerson } from "@game-presets/desk";
-import { byId, remove, type Node, type Paint, type SeatPlace } from "game-kit";
+import { byId, fieldsOf, remove, type Node, type Paint, type SeatPlace, type TransformableFields, type Vec } from "game-kit";
 
 /**
  * Put a ring up for everybody sitting, take down the ones who got up, and make sure each ring wears
@@ -16,6 +16,42 @@ import { byId, remove, type Node, type Paint, type SeatPlace } from "game-kit";
  * `places` is the desk's own slots, in seat order — a ring lands in the slot ITS SEAT always has,
  * never in the slot its owner's position in the roster happens to be.
  */
+/**
+ * КУДА ВСТАЁТ НОВЫЙ СТУЛ — в первую свободную точку разрезания, считая по тому, где стулья СТОЯТ
+ * СЕЙЧАС, а не по номеру места.
+ *
+ * Люди двигаются: пересевший с трёх часов освобождает три часа, и следующий стул встаёт туда.
+ * Гнездо по номеру этого не умеет — оно ставит стул поверх соседа, который занял его место, или в
+ * пустоту рядом с ним.
+ *
+ * Своё, игрой назначенное место берётся, когда оно свободно: за доской мест ровно столько, сколько
+ * правил, и придумывать им новые точки незачем.
+ */
+function freeSpot(desk: Node, places: readonly SeatPlace[], i: number): SeatPlace {
+  const standing = chairsOn(desk);
+  const mine = places[i];
+  const apart = CHAIR.d * 0.9;
+  const crowded = (spot: SeatPlace): boolean =>
+    standing.some((one) => Math.hypot(one.x - spot.at.x, one.y - spot.at.y) < apart);
+  if (mine && !crowded(mine)) return mine;
+  const radius = Math.max(...places.map((one) => Math.hypot(one.at.x, one.at.y)), 1);
+  return freeRingSpot({ taken: standing, radius, apart });
+}
+
+/** Где сейчас стоят стулья этого стола — их точки, как их подвинули руками. */
+function chairsOn(desk: Node): Vec[] {
+  const out: Vec[] = [];
+  for (const seat of deskSeats(ROOM_CHAIRS).map((one) => one.seat)) {
+    const chair = byId(desk, chairId(seat));
+    const at = chair ? fieldsOf<TransformableFields>(chair, "Transformable")?.at : undefined;
+    if (at) out.push(at);
+  }
+  return out;
+}
+
+/** Столько мест самое большее держит комната — дальше стульев не бывает. */
+const ROOM_CHAIRS = 32;
+
 export function syncSeatChairs(
   desk: Node,
   present: readonly SeatedPerson[],
@@ -43,7 +79,7 @@ export function syncSeatChairs(
       // whole point of the call: a ring built here by hand was a ring without the two things the
       // constructor gives every other desk on the shelf — the HAND atoms that make it the patch its
       // owner's cards lie in, and the NAME node that stands beside it.
-      seatChairs(desk, [places[i]!], [{ seat, ink, name: sitting.name }], true);
+      seatChairs(desk, [freeSpot(desk, places, i)], [{ seat, ink, name: sitting.name }], true);
     } else if (!sitting && there) {
       remove(there.parent!, there);
       // ...AND ITS FURNITURE WITH IT: the face over it and the marks beside it — a face left behind

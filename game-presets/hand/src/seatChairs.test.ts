@@ -1,5 +1,27 @@
-import { chairId, chairLidId, chairLidSurface, chairSurface, isChair, isHand, roundMap, roundPlaces } from "@game-presets/desks";
-import { byId, fieldsOf, fromSpec, resetSurfaces, surfaceRecord, toSpec, type Node, type SurfacedFields } from "game-kit";
+import {
+  chairId,
+  chairLidId,
+  chairLidSurface,
+  chairSurface,
+  isChair,
+  isHand,
+  ringPlaces,
+  roundMap,
+  roundPlaces,
+} from "@game-presets/desks";
+import {
+  byId,
+  compose,
+  fieldsOf,
+  fromSpec,
+  resetSurfaces,
+  surfaceRecord,
+  toSpec,
+  Transformable,
+  type Node,
+  type SurfacedFields,
+  type TransformableFields,
+} from "game-kit";
 import { describe, it, expect } from "vitest";
 import { syncSeatChairs } from "./seatChairs.js";
 
@@ -97,5 +119,35 @@ describe("syncSeatChairs: the rings, matched to who is actually in the roster", 
     expect(byId(desk, chairId("p2"))).toBeUndefined();
     expect(byId(desk, chairLidId("p2"))).toBeUndefined();
     expect(byId(desk, chairLidId("p1")), "the one still sitting keeps theirs").toBeDefined();
+  });
+});
+
+// СТОРОЖ `hand.a-new-chair-lands-where-there-is-room`.
+//
+// Стул встаёт не в гнездо по номеру, а в свободное место: люди двигаются, и пересевший освобождает
+// то, где сидел. Гнездо по номеру ставит стул поверх того, кто занял его место, — и два человека
+// оказываются в одной точке.
+describe("hand.a-new-chair-lands-where-there-is-room", () => {
+  const PLACES4 = ringPlaces(4, 7);
+  const poseOf = (desk: Node, seat: string) => fieldsOf<TransformableFields>(byId(desk, chairId(seat))!, "Transformable")!.at;
+
+  it("первый садится у своего края, второй — напротив", () => {
+    const desk = table();
+    syncSeatChairs(desk, AT(["p1", "Ана"]), PLACES4);
+    syncSeatChairs(desk, AT(["p1", "Ана"], ["p2", "Бек"]), PLACES4);
+    expect(poseOf(desk, "p1").y).toBeCloseTo(PLACES4[0]!.at.y);
+    expect(poseOf(desk, "p2").y).toBeCloseTo(PLACES4[1]!.at.y);
+  });
+
+  it("занятое соседом гнездо обходится: стул встаёт туда, где просторно", () => {
+    const desk = table();
+    syncSeatChairs(desk, AT(["p1", "Ана"]), PLACES4);
+    // Ана пересела на место, которое по номеру принадлежит второму стулу.
+    compose(byId(desk, chairId("p1"))!, Transformable({ at: PLACES4[1]!.at }));
+    syncSeatChairs(desk, AT(["p1", "Ана"], ["p2", "Бек"]), PLACES4);
+    const bek = poseOf(desk, "p2");
+    expect(Math.hypot(bek.x - PLACES4[1]!.at.x, bek.y - PLACES4[1]!.at.y), "не поверх Аны").toBeGreaterThan(1);
+    // ...а освободившийся свой край снова первый в очереди.
+    expect(bek.y).toBeCloseTo(PLACES4[0]!.at.y);
   });
 });

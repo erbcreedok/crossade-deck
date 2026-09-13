@@ -100,6 +100,7 @@ export {
   type BarGroup,
   type BarWhat,
 } from "./handBar.js";
+export { freeRingSpot, ringOrder, ringPlaces, ringSpot, type FreeSpotAsk } from "./seatRing.js";
 export { FAN_SPREAD, FAN_TILT, gripOwner, handFan, handRule, handsOf, heapKindOf } from "./handRule.js";
 export {
   arch,

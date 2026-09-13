@@ -104,21 +104,30 @@ describe("the controls of a hand", () => {
     expect([lit("lock"), lit("hide"), lit("pin")]).toEqual([false, true, true]);
   });
 
-  it("seat.a-pinned-chair-moves-for-nobody — its owner included, and the hand in it is untouched", () => {
-    // A SEPARATE STATE FROM THE LOCK: a player may open their cards and still not want to be moved,
-    // or shut them and not mind. Pinned, the chair refuses every finger; the cards in it answer to
-    // the lock alone.
+  // СТОРОЖ `seat.a-pin-holds-every-hand-but-its-owner-s`.
+  //
+  // Пин ставится ОТ ЧУЖИХ РУК, а не от своих: приколотый стул не сдвинет никто — и админ в том
+  // числе, — а сам хозяин двигает его как двигал. Чужой пин снимают отдельным действием, а не
+  // перетаскиванием. Состояние это отдельно от лока: можно открыть карты и не хотеть, чтобы тебя
+  // двигали, и наоборот.
+  it("seat.a-pin-holds-every-hand-but-its-owner-s", () => {
     const desk = roundMap();
     const seat = SEATS[0]!.seat;
+    const other = SEATS[1]!.seat;
     const chair = byId(desk, chairId(seat))!;
     expect(chairPinned(chair)).toBe(false);
+    // Без пина стул двигают все: рассаживаются за столом сообща.
     expect(mayTake(chair, seat)).toBe(true);
+    expect(mayTake(chair, other)).toBe(true);
+
     setChairPin(chair, true);
     expect(chairPinned(chair)).toBe(true);
-    expect(mayTake(chair, seat)).toBe(false);
+    expect(mayTake(chair, other), "приколотый стул чужой палец не двигает").toBe(false);
+    expect(mayTake(chair, seat), "...а свой — двигает, пин не про себя").toBe(true);
+
     add(chair, node("held", Bounded({ bounds: rect(1, 1.4) }), Transformable({ at: { x: 0, y: 0 } })));
-    expect(mayTake(byId(desk, "held")!, "north"), "the cards answer to the lock, not the pin").toBe(true);
+    expect(mayTake(byId(desk, "held")!, "north"), "карты слушаются лока, а не пина").toBe(true);
     setChairPin(chair, false);
-    expect(mayTake(chair, seat)).toBe(true);
+    expect(mayTake(chair, other)).toBe(true);
   });
 });

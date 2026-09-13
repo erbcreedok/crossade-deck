@@ -103,11 +103,11 @@ describe("a seat is drawn", () => {
         // a man is on a square and nowhere else. The two pictures are one node either way.
         expect(caps(chair).has("Acceptor")).toBe(name === "round");
         expect(isHand(chair)).toBe(name === "round");
-        // Its OWNER may move it, and only its owner: where a person sits is theirs to decide, and a
-        // chair any passing finger could drag is a player being reseated by somebody else.
+        // СТУЛЬЯ ДВИГАЮТ ВСЕ: за столом рассаживаются сообща, и подвинуть соседа, чтобы влез ещё
+        // один, — обычное застольное дело. Личный запрет тут один, и он ставится нарочно: ПИН.
         expect(caps(chair).has("Draggable")).toBe(true);
         expect(mayTake(chair, seat)).toBe(true);
-        for (const other of seats) if (other.seat !== seat) expect(mayTake(chair, other.seat)).toBe(false);
+        for (const other of seats) expect(mayTake(chair, other.seat)).toBe(true);
         // ...and the refusal is NOT a grip. A grip cuts the whole subtree, so a chair gripped to its
         // owner would be a hand nobody could ever be dealt from — which is what the LOCK is for.
         for (const other of seats) expect(grippableBy(chair, other.seat)).toBe(true);
