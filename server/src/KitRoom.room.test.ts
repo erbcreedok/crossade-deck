@@ -81,6 +81,25 @@ describe("KitRoom: действия над комнатой", () => {
     expect(roomById(record.id)!.forever).toBe(false);
   });
 
+  // СТОРОЖ `rooms.an-unbuilt-custom-does-not-lock-the-room`.
+  //
+  // Совет и вече держатся на голосовании, а голосования ещё нет: комната, переведённая в них,
+  // становится комнатой, где никто ничего не может — включая того, кто её туда перевёл. Стол,
+  // однажды туда попавший, не мог вернуться, и это ловушка, а не настройка.
+  it("совет и вече не пускают, пока нет голосования, — и сказано словами", async () => {
+    const { record, owner } = await table();
+    owner.send("deed", { deed: "room:mode", value: "council" });
+    expect(await refusal(owner)).toBe("совет и вече — скоро: голосования ещё нет");
+    expect(roomById(record.id)!.mode).toBe("free");
+  });
+
+  it("а из совета хозяин выходит сам: уклад — это про то, ЧЬЯ комната, и его не голосуют", async () => {
+    const { record, owner } = await table({ mode: "council" });
+    owner.send("deed", { deed: "room:mode", value: "free" });
+    await new Promise((r) => setTimeout(r, 150));
+    expect(roomById(record.id)!.mode).toBe("free");
+  });
+
   it("закрывает комнату хозяин, а админу сказано, почему нет", async () => {
     const { record, owner, admin } = await table();
     admin.send("deed", { deed: "room:close" });

@@ -79,6 +79,17 @@ export const MODE_WORDS: readonly (readonly [TopHudRoom["mode"], string])[] = [
   ["assembly", "вече"],
 ];
 
+/**
+ * УКЛАДЫ, КОТОРЫХ ЕЩЁ НЕТ. Совет и вече держатся на голосовании, а голосования ещё не сделано:
+ * комната, переведённая в них, становится комнатой, где никто ничего не может, — включая того, кто
+ * её туда перевёл.
+ *
+ * Убирать их из списка нельзя: человек должен видеть, из чего стол будет состоять, — но и нажать
+ * на них нельзя тоже, и потому они стоят с подписью «скоро». Отказывает при этом СЕРВЕР; здесь
+ * только сказано вслух, чтобы на кнопку не жали впустую.
+ */
+export const MODES_SOON: readonly TopHudRoom["mode"][] = ["council", "assembly"];
+
 /** Одним словом — что этот уклад значит. Экраны берут отсюда, чтобы не расходиться в словах. */
 export const MODE_MEANS: Record<TopHudRoom["mode"], string> = {
   free: "каждый админ делает что хочет",
@@ -117,21 +128,28 @@ const pick = (
   options: readonly (readonly [string, string])[],
   now: string,
   live: boolean,
+  soon: readonly string[] = [],
 ): string =>
   `<div style="display:flex;gap:6px;flex-wrap:wrap">` +
   options
     .map(([value, word]) => {
       const on = value === now;
+      // ЕЩЁ НЕ СДЕЛАННОЕ СТОИТ ВИДНЫМ, НО НЕ НАЖИМАЕТСЯ, и почему — написано на самой кнопке.
+      const waiting = soon.includes(value) && !on;
+      const hot = live && !waiting;
       return (
-        `<button ${live ? `data-room="${esc(deed)}" data-value="${esc(value)}"` : ""} ` +
-        `style="flex:1 1 auto;${live ? "cursor:pointer;" : ""}border:0;border-radius:8px;padding:9px 10px;` +
+        `<button ${hot ? `data-room="${esc(deed)}" data-value="${esc(value)}"` : ""} ` +
+        `style="flex:1 1 auto;${hot ? "cursor:pointer;" : waiting ? "cursor:not-allowed;" : ""}` +
+        `border:0;border-radius:8px;padding:9px 10px;` +
         `font:400 12px ${LETTER};white-space:nowrap;` +
         (on
           ? `background:linear-gradient(${PALETTE.goldLight} 0%,${PALETTE.gold} 48%,${PALETTE.goldDark} 100%);` +
             `box-shadow:inset 0 0 0 3px ${PALETTE.black},0 2px 0 ${PALETTE.black}99;color:${PALETTE.black};`
           : `background:linear-gradient(${PALETTE.panelLight},${PALETTE.panel});` +
             `box-shadow:inset 0 0 0 3px ${PALETTE.black},inset 0 0 0 5px ${PALETTE.wood};color:${PALETTE.inkDim};`) +
-        `${live ? "" : "opacity:.6;"}">${esc(word)}</button>`
+        `${hot ? "" : "opacity:.6;"}">${esc(word)}` +
+        (waiting ? `<span style="display:block;font-size:9px;letter-spacing:.1em">скоро</span>` : "") +
+        `</button>`
       );
     })
     .join("") +
@@ -263,7 +281,7 @@ export function roomSheetHtml(ask: RoomSheetAsk): string {
     (table?.chairs === undefined ? "" : block("МЕСТ ЗА СТОЛОМ", chairsControl(table))) +
     block(
       "КТО РЕШАЕТ" + votes("room:mode"),
-      pick("room:mode", MODE_WORDS, room.mode, !!allowed("room:mode")) +
+      pick("room:mode", MODE_WORDS, room.mode, !!allowed("room:mode"), MODES_SOON) +
         hint(
           MODE_MEANS[room.mode] +
             (room.mode === "council" ? " · у хозяина голос тяжелее на волос — им разрешаются ничьи" : ""),

@@ -29,7 +29,7 @@ import {
   type Newcomer,
   type Visibility,
 } from "./db/roomsRepo.js";
-import { isDeed, isRoomDeed, may, powerOf, type Deed, type Someone } from "./roomRights.js";
+import { isDeed, isRoomDeed, may, modeIsReady, needsVote, powerOf, type Deed, type Someone } from "./roomRights.js";
 
 /** Сколько ждёт снятая админом вечность — сутки, чтобы хозяин успел увидеть и вернуть. */
 const FOREVER_GRACE_MS = 24 * 60 * 60 * 1000;
@@ -201,8 +201,7 @@ export class KitRoom extends Room {
       if (verdict !== true) return client.send("denied", { deed: asked, why: verdict });
       // ГОЛОСОВАНИЯ ЕЩЁ НЕТ, И МОЛЧА ДЕЛАТЬ ВМЕСТО НЕГО НЕЛЬЗЯ: в совете и вече это действие —
       // предложение, а предложение без голосов — самоуправство.
-      // ССЫЛКУ НЕ ГОЛОСУЮТ: позвать друга — не решение комнаты, и своего же кода ради этого не ждут.
-      if (powerOf(me, room?.mode ?? "free") === "proposal" && asked !== "room:link") {
+      if (needsVote(asked, me, powerOf(me, room?.mode ?? "free"))) {
         return client.send("denied", { deed: asked, why: "тут решают голосованием, а голосования ещё нет" });
       }
       const failed = this.doDeed(
@@ -473,10 +472,15 @@ export class KitRoom extends Room {
         if (!(ADMISSIONS as readonly string[]).includes(value ?? "")) return "такого допуска нет";
         setRoomConfig(record, { admission: value as Admission });
         break;
-      case "room:mode":
+      case "room:mode": {
         if (!(MODES as readonly string[]).includes(value ?? "")) return "такого уклада нет";
+        // СОВЕТ И ВЕЧЕ ЖДУТ ГОЛОСОВАНИЯ. Пустить в них комнату сейчас значит запереть её: в них
+        // всякое действие — предложение, а предлагать пока некому. Отказ стоит ЗДЕСЬ, а не только
+        // на экране: кнопка, посчитанная клиентом, — это надпись.
+        if (!modeIsReady(value as Mode)) return "совет и вече — скоро: голосования ещё нет";
         setRoomConfig(record, { mode: value as Mode });
         break;
+      }
       case "room:forever": {
         const room = roomById(record);
         if (!room) return "комната закрылась";

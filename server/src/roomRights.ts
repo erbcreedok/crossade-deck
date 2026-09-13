@@ -230,6 +230,31 @@ export function may(deed: Deed, me: Someone, them: Someone, mode: Mode, table: T
   }
 }
 
+/**
+ * УКЛАДЫ, В КОТОРЫХ КОМНАТА УМЕЕТ ЖИТЬ ПРЯМО СЕЙЧАС.
+ *
+ * Совет и вече держатся на голосовании, а голосования ещё нет: комната, переведённая в них,
+ * становится комнатой, где никто ничего не может, — включая того, кто её туда перевёл. Пока
+ * голосов нет, эти два уклада остаются обещанием, а не настройкой.
+ */
+export const MODES_READY: readonly Mode[] = ["free"];
+
+export function modeIsReady(mode: Mode): boolean {
+  return MODES_READY.includes(mode);
+}
+
+/**
+ * НУЖЕН ЛИ ЭТОМУ ДЕЙСТВИЮ ГОЛОС. Два исключения, и оба по смыслу, а не по удобству: ССЫЛКА — не
+ * решение комнаты (позвать друга и ждать голосов — издевательство), а СМЕНА УКЛАДА — это смена
+ * того, ЧЬЯ комната; её делает хозяин, иначе уклад, однажды выбранный, запирает сам себя.
+ */
+export function needsVote(deed: Deed, me: Someone, power: Power): boolean {
+  if (power !== "proposal") return false;
+  if (deed === "room:link") return false;
+  if (deed === "room:mode" && me.role === "owner") return false;
+  return true;
+}
+
 export interface Allowed {
   readonly deed: Deed;
   readonly label: string;
@@ -265,9 +290,7 @@ export function roomDeeds(me: Someone, mode: Mode, table: Table = {}): { can: Al
       cant.push({ deed, label: DEED_WORD[deed], why: verdict });
       continue;
     }
-    // ССЫЛКУ НЕ ГОЛОСУЮТ: позвать друга — не решение комнаты, и ждать голосов ради своего же кода
-    // было бы издевательством. Остальное при совете и вече становится предложением.
-    const vote = p === "proposal" && deed !== "room:link";
+    const vote = needsVote(deed, me, p);
     can.push({ deed, label: vote ? `Предложить: ${DEED_WORD[deed].toLowerCase()}` : DEED_WORD[deed], vote });
   }
   return { can, cant };

@@ -69,8 +69,6 @@ export const HAND_HUD_FADE = "hud/hand/fade";
 /** The empty strip's own outline — a dashed place a card is dealt into; nothing once a card is in it. */
 const HAND_HUD_EMPTY = "hud/hand/empty";
 const HAND_HUD_FREE = "hud/hand/free";
-/** DEBUG, TEMPORARY: a line along the top edge of what the HUD takes the finger on. */
-const HAND_HUD_DEBUG_EDGE = "hud/hand/debug-edge";
 /** The outline of the place a carried card would take in the hand — shown while one courts it. */
 const HAND_HUD_COURT = "hud/hand/court";
 
@@ -265,7 +263,6 @@ export interface HandHud {
 export function handHud(host: Host, o: HandHudOptions): HandHud {
   registerLayout(HAND_HUD_FREE, freeLayout);
   registerSurface(HAND_HUD_EMPTY, { layers: [], radius: 0.06, stroke: { color: "text", width: 0.03, opacity: 0.45, dash: { on: 0.12, off: 0.08 } } });
-  registerSurface(HAND_HUD_DEBUG_EDGE, { layers: [{ paint: "#ff2fd0" }] });
   // THE EIGHT POSES ON THE GLASS, one arrangement each, all off one plan (`handPlan`): the fan is
   // the angle, the shrink the distance, and the tuck — the height — is not the arrangement's but
   // the strip's place on the glass (`refresh`). The lean of a fan is written by `refresh` off the
@@ -452,15 +449,10 @@ export function handHud(host: Host, o: HandHudOptions): HandHud {
     // ...AND THE SHADE, from the bar's top edge up, as wide as the glass.
     compose(fade, Bounded({ bounds: roundedRect(Math.max(1, glass.w), BAR.fade, 0) }));
     compose(fade, Transformable({ at: { x: 0, y: barTop - BAR.fade / 2 } }));
-    // DEBUG, TEMPORARY: the top edge of what takes the finger on the glass — the shade is a drawn
-    // quad and the pick answers it, so the HUD's reach starts at the shade's top or the strip's,
-    // whichever is higher.
+    // WHERE THE HUD'S REACH BEGINS: the shade is a drawn quad and the pick answers it, so the reach
+    // starts at the shade's top edge or at the strip's, whichever of the two is higher.
     const stripTop = low - (Math.max(high, 1) / 2) * scale;
     const shadeTop = barTop - BAR.fade;
-    const edge = byId(screen, HAND_HUD_DEBUG_EDGE) ?? node(HAND_HUD_DEBUG_EDGE, Bounded({ bounds: rect(1, 0.03) }), Surfaced({ surface: HAND_HUD_DEBUG_EDGE }), Transformable({ at: { x: 0, y: 0 } }));
-    if (!edge.parent) add(screen, edge);
-    compose(edge, Bounded({ bounds: rect(Math.max(1, glass.w), 0.03) }));
-    compose(edge, Transformable({ at: { x: 0, y: Math.min(stripTop, shadeTop) } }));
     reachTop = v.height / 2 + Math.min(stripTop, shadeTop) * u;
     // ...AND THE SCREEN IS TOLD IT CHANGED. The strip was re-laid in place, and whoever eases a
     // moved node to its new rest (the animator) reads rests when the host speaks — told now, the

@@ -59,12 +59,27 @@ describe("tophud.the-room-screen-shows-what-it-cannot-change", () => {
     const html = roomSheetHtml({ room: boss() });
     expect(html).toContain(`data-room="room:public" data-value="hidden"`);
     expect(html).toContain(`data-room="room:access" data-value="invite"`);
-    expect(html).toContain(`data-room="room:mode" data-value="assembly"`);
+    expect(html).toContain(`data-room="room:mode" data-value="free"`);
     expect(html).toContain(`data-room="room:close"`);
     expect(html).toContain("Закрыть комнату");
     // КОПИЯ ЕМУ НИ К ЧЕМУ, И ЭТО СКАЗАНО, А НЕ СПРЯТАНО.
     expect(html).not.toContain(`data-room="room:fork"`);
     expect(html).toContain("она и так твоя");
+  });
+
+  it("совет и вече видны, но не нажимаются: голосования ещё нет, и это написано на них", () => {
+    const html = roomSheetHtml({ room: boss() });
+    for (const word of ["вольница", "совет", "вече"]) expect(html).toContain(word);
+    expect(html).not.toContain(`data-value="council"`);
+    expect(html).not.toContain(`data-value="assembly"`);
+    expect(html).toContain("скоро");
+  });
+
+  it("уклад, в котором комната УЖЕ живёт, остаётся подписан собой, а не «скоро»", () => {
+    // ...иначе стол, однажды переведённый в совет, показывал бы «скоро» на своём же укладе, и
+    // человеку негде было бы прочесть, по каким правилам он сейчас сидит.
+    const html = roomSheetHtml({ room: boss({ mode: "council" }) });
+    expect(html).toContain("действия админов решают админы голосованием");
   });
 
   it("голосование названо в заголовке — до того, как нажали, а не после", () => {
