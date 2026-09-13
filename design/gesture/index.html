@@ -11,7 +11,13 @@
   html, body { margin: 0; height: 100%; background: #0b0704; overscroll-behavior: none; }
   body { font: 400 13px Tiny5, monospace; color: #f5ead0; -webkit-user-select: none; user-select: none; }
   #stage { position: fixed; inset: 0; overflow: hidden; touch-action: none; }
-  canvas { position: absolute; inset: 0; }
+  /*
+    ХОЛСТУ CSS-РАЗМЕР НУЖЕН ЯВНО. Без него абсолютно позиционированный canvas берёт свою
+    СОБСТВЕННУЮ ширину — ту, что стоит в атрибуте, а там пиксели устройства. На ноутбуке, где их
+    один к одному, не видно ничего; на телефоне холст становится вдвое-втрое больше стекла и
+    прилипает к левому верхнему углу — стол уезжает вниз-вправо и вырастает ровно во столько же раз.
+  */
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   button { font: inherit; }
 </style>
 </head>
@@ -219,7 +225,10 @@
     return `<div style="position:absolute;left:0;right:0;top:${barTop - BAR.fade * u}px;height:${BAR.fade * u}px;`
       + `background:linear-gradient(to top, rgba(11,7,4,.85), rgba(11,7,4,0));pointer-events:none"></div>`
       + cards
-      + `<div style="position:absolute;left:0;right:0;top:${barTop}px;height:${barHeight() * u}px;`
+      // ПОЛОСА — ПОВЕРХ КАРТ, как спина поверх того, что под неё подоткнули: карты уходят под её
+      // край на `BAR.tuck`, и если она окажется под ними, подоткнуть будет некуда. Порядок в
+      // разметке этого не решает: у карт свой z, и он поднимает их над соседом без него.
+      + `<div style="position:absolute;left:0;right:0;top:${barTop}px;height:${barHeight() * u}px;z-index:${P.mine.length + 10};`
       + `background:linear-gradient(${T.panel},${T.well});box-shadow:inset 0 3px 0 -1px ${T.black};display:flex;align-items:center">`
       + `<div style="position:absolute;left:${margin}px;display:flex;gap:${gap}px">`
       + RIGHTS.map((what) => barButton(what, P.on[what], side)).join("") + `</div>`
@@ -249,7 +258,9 @@
         + `touch-action:none">${cardHtml(c, false, cw)}</div>`;
     }).join("");
     return `<div data-g="tip" style="position:absolute;left:${left}px;${below ? `top:${spot.y + spot.r + 12}px` : `bottom:${g.h - spot.y + spot.r + 12}px`};`
-      + `width:${w}px;box-sizing:border-box;z-index:15;background:${T.well};`
+      // ТУЛТИП — ПОВЕРХ ВСЕГО, полосы кнопок в том числе: его открыли последним, и он про то, о чём
+      // спросили прямо сейчас.
+      + `width:${w}px;box-sizing:border-box;z-index:40;background:${T.well};`
       + `box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
       + `<div style="display:flex;align-items:center;gap:9px;padding-bottom:8px">`
       + `<span style="flex:none;width:30px;height:30px;border-radius:50%;background:${who.ink};box-shadow:inset 0 0 0 3px ${T.black};`
