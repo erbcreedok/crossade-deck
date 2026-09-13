@@ -308,13 +308,17 @@
         draw();
       };
     }
-    const tipEl = over.querySelector('[data-g="tip"]');
-    if (tipEl) tipEl.onclick = (e) => e.stopPropagation();
   }
 
   // ТАП ПО ДИСКУ НА СУКНЕ ОТКРЫВАЕТ ЕГО ТУЛТИП: аватар — это и есть человек, и спрашивают про него
   // там, где он лежит. Мимо — закрывает.
+  //
+  // «МИМО» — ЭТО ПО СУКНУ, А НЕ ПО ЧЕМУ УГОДНО. Всё, что нарисовано НАД стеклом — сам тултип, его
+  // карты, моя рука и полоса кнопок, — не «мимо»: рука, опущенная на чужой веер, пришла за картой,
+  // а не закрыть окно. Спрашивается это одним вопросом — попал ли палец в холст, — потому что
+  // список исключений устаревает на первой же новой кнопке.
   stage.addEventListener("pointerdown", (e) => {
+    if (e.target !== canvas) return;
     const x = e.clientX, y = e.clientY;
     const hit = spots.find((s) => s.key !== "me" && Math.hypot(x - s.x, y - s.y) <= s.r + 6);
     const next = hit ? (P.tip === hit.key ? null : hit.key) : null;
