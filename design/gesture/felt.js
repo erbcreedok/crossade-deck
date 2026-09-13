@@ -151,6 +151,17 @@
     }));
   }
 
+  /**
+   * ГДЕ ЛЕЖИТ i-Я КАРТА КОЛОДЫ — тот же `stack`, что и у руки: снос капнут на всю пачку, чтобы
+   * толщина колоды не росла с её счётом.
+   */
+  function deckAt(i, n) {
+    const drift = 0.03;
+    const reach = drift * Math.max(0, n - 1);
+    const k = reach > 0.18 ? 0.18 / reach : 1;
+    return { x: i * drift * k, y: -i * drift * k };
+  }
+
   /** Арка: полукруг спереди (-y, в стол) и плоская спинка сзади (+y, где сидит хозяин). */
   function archPath(g, r) {
     const k = 0.5523 * r;
@@ -322,7 +333,7 @@
    * не по выдуманным: тултип, прицепленный к придуманной точке, показывает не на того человека.
    */
   function draw(canvas, o) {
-    const { W, H, people, images, pile = 3 } = o;
+    const { W, H, people, images } = o;
     const dpr = Math.min(3, globalThis.devicePixelRatio || 1);
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
@@ -370,13 +381,15 @@
     felt.addColorStop(1, ROUND.feltLo);
     ring(R, felt);
 
-    // НА СТОЛЕ — ОДНА СТОПКА, ПО ЦЕНТРУ: жесту нужно куда-то бросать, и это она.
-    for (let i = 0; i < pile; i += 1) {
+    // КОЛОДА ПО ЦЕНТРУ — та же плотная стопка, что и в руке (`stack`): снос делится на всю пачку,
+    // и колода из пятидесяти двух остаётся колодой, а не лестницей в полстола.
+    (o.deck ?? []).forEach((one, i) => {
       g.save();
-      g.translate(i * 0.03, -i * 0.03);
-      card(g, { suit: "s", rank: "A" }, false, CARD.w, CARD.h);
+      const at = deckAt(i, o.deck.length);
+      g.translate(at.x, at.y);
+      card(g, one, false, CARD.w, CARD.h);
       g.restore();
-    }
+    });
 
     // ЧТО ВЫНЕСЛИ ИЗ РУК — лежит на сукне СВОИМ размером, а он втрое меньше карты в руке: рука
     // держит карты крупно, на столе они ложатся тем, чем и являются.
@@ -432,5 +445,5 @@
     return { spots, U, centre: { x: W / 2, y: cy } };
   }
 
-  window.Felt = { SEAT, ROUND, R, RIM, ARCH_R, DISC, CARD, HAND_SCALE, HOME_SPAN, draw, ringPlaces, fanPoses, posePlan, card, initials };
+  window.Felt = { SEAT, ROUND, R, RIM, ARCH_R, DISC, CARD, HAND_SCALE, HOME_SPAN, draw, deckAt, ringPlaces, fanPoses, posePlan, card, initials };
 })();

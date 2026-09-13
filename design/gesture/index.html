@@ -101,6 +101,8 @@
     on: { pin: false, lock: false, hide: false },
     /** Что лежит на сукне — то, что вынесли из рук. В единицах стола, как всё на нём. */
     table: [],
+    /** Колода по центру. С неё тянется только верхняя карта — стопку целиком не поднимают. */
+    deck: deck(12, "d"),
     /** Чей тултип открыт. Пусто — ничей. */
     tip: null,
   };
@@ -398,7 +400,7 @@
   function draw() {
     const g = glass();
     view = Felt.draw(canvas, {
-      W: g.w, H: g.h, people: P.people, images, table: P.table,
+      W: g.w, H: g.h, people: P.people, images, table: P.table, deck: P.deck,
       // ЦЕНТР СТОЛА — В СЕРЕДИНЕ ТОГО, ЧТО ОТ СТЕКЛА ОСТАЛОСЬ: рука занимает дно и стол на него не
       // налезает. Считается от самой руки (`floorNow`), а не подбирается глазами, — иначе позы,
       // которые двигают дно, каждый раз уводили бы стол.
@@ -453,6 +455,47 @@
 
   const sameAim = (a, b) =>
     a.kind === b.kind && (a.kind === "felt" ? true : a.which === b.which && a.index === b.index);
+
+  /**
+   * ЧТО ЛЕЖИТ ПОД ПАЛЬЦЕМ НА СУКНЕ. Сверху вниз: сперва то, что лежит поверх, — карта, брошенная
+   * последней, лежит НА той, что легла раньше, и пальцу достаётся именно она.
+   *
+   * С КОЛОДЫ ТЯНЕТСЯ ТОЛЬКО ВЕРХНЯЯ. Колода — стопка, а стопку целиком не поднимают: за неё берутся
+   * и получают верхнюю карту, как берут её рукой со стола.
+   */
+  function feltPick(x, y) {
+    if (!view) return null;
+    const ux = (x - view.centre.x) / view.U;
+    const uy = (y - view.centre.y) / view.U;
+    const over = (at) => Math.abs(ux - at.x) <= Felt.CARD.w / 2 && Math.abs(uy - at.y) <= Felt.CARD.h / 2;
+    for (let i = P.table.length - 1; i >= 0; i -= 1) if (over(P.table[i].at)) return { where: "table", index: i };
+    const top = P.deck.length - 1;
+    if (top >= 0 && over(Felt.deckAt(top, P.deck.length))) return { where: "deck", index: top };
+    return null;
+  }
+
+  /** Поднять со стола (или снять с колоды) — тот же жест, что и из руки, только карта уже своя. */
+  function grabFromFelt(e, pick) {
+    const list = pick.where === "table" ? P.table : P.deck;
+    const one = list[pick.index];
+    const at = pick.where === "table" ? one.at : Felt.deckAt(pick.index, P.deck.length);
+    list.splice(pick.index, 1);
+    const w = Felt.CARD.w * view.U;
+    const h = Felt.CARD.h * view.U;
+    const left = view.centre.x + (at.x - Felt.CARD.w / 2) * view.U;
+    const top = view.centre.y + (at.y - Felt.CARD.h / 2) * view.U;
+    drag = {
+      from: pick.where, card: one, id: one.id,
+      // СНЯТАЯ С КОЛОДЫ ИДЁТ РУБАШКОЙ: её ещё не смотрели. Лицом она станет в руке, потому что
+      // рука и есть то место, где на карту смотрят.
+      shown: pick.where === "table" ? one.shown === true : false,
+      w, h,
+      gx: e.clientX - left, gy: e.clientY - top,
+      x: e.clientX, y: e.clientY,
+      target: { kind: "felt", at },
+    };
+    draw();
+  }
 
   /** Размер карты в этой руке — спрашивается у геометрии, а не у элемента (см. `startDrag`). */
   function sizeOf(which) {
@@ -558,6 +601,13 @@
   stage.addEventListener("pointerdown", (e) => {
     if (e.target !== canvas || drag) return;
     const x = e.clientX, y = e.clientY;
+    // КАРТА НА СУКНЕ БЕРЁТСЯ РАНЬШЕ, ЧЕМ ОТКРЫВАЕТСЯ ТУЛТИП: палец, опущенный на карту, пришёл за
+    // ней. Диски и карты на столе не спорят за одно место — они лежат в разных местах.
+    const pick = feltPick(x, y);
+    if (pick) {
+      e.preventDefault();
+      return grabFromFelt(e, pick);
+    }
     const hit = spots.find((s) => s.key !== "me" && Math.hypot(x - s.x, y - s.y) <= s.r + 6);
     const next = hit ? (P.tip === hit.key ? null : hit.key) : null;
     if (next === P.tip) return;
