@@ -32,6 +32,11 @@ export interface TopHudMember {
   readonly mine?: boolean;
   /** Кого спрашивать про действия — номер его аккаунта, как его знает комната. */
   readonly account?: string;
+  /**
+   * СОСТОЯНИЕ ЕГО РУКИ — включены ли лок, пин и скрытность. Живёт в дереве стола, а не в комнате:
+   * панель только показывает, что горит, и гасит обратно.
+   */
+  readonly hand?: { readonly lock?: boolean; readonly pin?: boolean; readonly hide?: boolean };
   /** Что Я могу с ним сделать. Считает комната; панель рисует только это и её же словами. */
   readonly can?: readonly { readonly deed: string; readonly label: string; readonly vote?: boolean }[];
   /** ...и чего нельзя, с причиной: кнопка, пропавшая молча, читается как поломка. */

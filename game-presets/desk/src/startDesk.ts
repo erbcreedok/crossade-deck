@@ -137,6 +137,8 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
   let unbindOnRelay: (() => void) | undefined;
   let unbindOnRoster: (() => void) | undefined;
   let unbindOnDenied: (() => void) | undefined;
+  /** Кто числится за столом — последний ответ комнаты: по нему панель находит место человека. */
+  let roomPeople: readonly RoomMember[] = [];
 
   /**
    * A DISPOSABLE MARKER, watched by the kit's own `Avatars` for when to stop listening — `container`
@@ -168,7 +170,15 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
      * НАЖАЛИ В ПАНЕЛИ — ПРОСИМ КОМНАТУ. Полоса не знает ни прав, ни комнаты: она рисует то, что ей
      * разрешили, и передаёт нажатие сюда. Ответ приходит либо новым ростером, либо отказом словами.
      */
-    onDeed: (deed, whom, colour) => atTable?.sendDeed(deed, whom, colour),
+    onDeed: (deed, whom, colour) => {
+      // РУКА — ДЕЛО СТОЛА, ОСТАЛЬНОЕ — ДЕЛО КОМНАТЫ. Комнате незачем знать, как лежат карты, а
+      // столу незачем раздавать права: каждый отвечает за своё, и просят их по-разному.
+      if (deed.startsWith("piece:")) {
+        const seat = roomPeople.find((one) => one.account === whom || one.name === whom)?.seat ?? null;
+        return handDeed(deed, seat);
+      }
+      atTable?.sendDeed(deed, whom, colour);
+    },
     ...(o.host.room() ? { room: o.host.room()! } : {}),
     ...(o.host.exit ? { exit: o.host.exit } : {}),
     ...(spec.topHud ? { look: spec.topHud } : {}),
@@ -205,8 +215,40 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     // ОТ СВОЕГО ЛИЦА: какие кнопки покажет панель, решает комната, и решает она про МЕНЯ.
     void roomRoster(code, o.account?.id).then((members) => {
       if (stopped) return;
-      strip.set({ roster: members.map(asMember) });
+      roomPeople = members;
+      const table = members[0]?.table;
+      strip.set({ roster: members.map(asMember), ...(table ? { table } : {}) });
+
     });
+  };
+
+  /**
+   * СОСТОЯНИЕ ЧУЖОЙ РУКИ — СПРАШИВАЕТСЯ У СЛОЯ, который эту руку рисует. Рантайм мебели не знает:
+   * для него это три галочки, чьё значение ему безразлично (`desk.the-runtime-knows-no-game`).
+   */
+  const handOf = (seat: string | null): { lock?: boolean; pin?: boolean; hide?: boolean } | undefined => {
+    if (!seat) return undefined;
+    for (const layer of layers) {
+      const state = layer.hand?.(seat);
+      if (state) return state;
+    }
+    return undefined;
+  };
+
+  /**
+   * ЛОК, ПИН И СКРЫТНОСТЬ ЧУЖОЙ РУКИ — ПИШУТСЯ В ДЕРЕВО, а не просятся у комнаты: рука это узлы
+   * стола, и дерево само уходит всем. Право на это спросили заранее — панель рисует только то, что
+   * комната разрешила.
+   */
+  const handDeed = (deed: string, seat: string | null): void => {
+    if (!seat) return;
+    const what = deed === "piece:lock" ? "lock" : deed === "piece:pin" ? "pin" : deed === "piece:hide" ? "hide" : undefined;
+    if (!what) return;
+    let done = false;
+    for (const layer of layers) done = layer.handDeed?.(seat, what) === true || done;
+    if (!done) return;
+    deskWritten();
+    askWhoBelongs();
   };
 
   const asMember = (one: RoomMember): TopHudMember => ({
@@ -219,6 +261,7 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     ...(one.face ? { face: one.face } : {}),
     ...(one.account ? { account: one.account } : {}),
     ...(one.can ? { can: one.can } : {}),
+    ...(handOf(one.seat) ? { hand: handOf(one.seat)! } : {}),
     ...(one.cant ? { cant: one.cant } : {}),
     role: one.role,
     // СТУЛ — ЭТО МЕСТО В ИДУЩЕЙ ПАРТИИ. Роль говорит, что человеку можно; стул — сидит ли он.

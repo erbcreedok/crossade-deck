@@ -548,8 +548,9 @@ describe("rooms.the-roster-says-what-i-may-do-with-each-person", () => {
 
     const mine = (await (await fetch(`${BASE}/rooms/${body.room}/roster?me=${me.id}`)).json()) as Record<string, unknown>[];
     const him = mine.find((one) => one.account === watcher.id)!;
-    // Хозяин вправе двигать мебель...
-    expect((him.can as { deed: string }[]).map((one) => one.deed)).toContain("seat:add");
+    // Хозяин вправе двигать мебель — но это ответ про СТОЛ, а не про человека в строке.
+    expect((him.table as { mayAddChair: boolean }).mayAddChair).toBe(true);
+    expect((him.can as { deed: string }[]).map((one) => one.deed)).not.toContain("seat:add");
     // ...а стул даётся только тому, кто сейчас за столом: этого зрителя в сессии нет.
     expect((him.cant as { deed: string; why: string }[]).find((one) => one.deed === "seat:give")?.why).toBe(
       "его сейчас нет за столом — стул дают тому, кто пришёл",
@@ -566,5 +567,31 @@ describe("rooms.the-roster-says-what-i-may-do-with-each-person", () => {
     const { body } = await open({ by: me.id });
     const plain = (await (await fetch(`${BASE}/rooms/${body.room}/roster`)).json()) as Record<string, unknown>[];
     expect(plain[0]!.can).toBeUndefined();
+  });
+});
+
+// СТОРОЖ `rooms.the-furniture-is-asked-about-once-not-once-per-person`.
+//
+// «Поставить стул» — про СТОЛ. Оказавшись в списке действий над человеком, кнопка стояла у каждой
+// строки и делала одно и то же ни для кого из них: в панели это читается как «дать стул вот этому»
+// и справедливо считается сломанным.
+describe("rooms.the-furniture-is-asked-about-once-not-once-per-person", () => {
+  it("про стул отвечает стол: сколько их и можно ли поставить ещё", async () => {
+    const me = await account();
+    const { body } = await open({ by: me.id, chairs: 3 });
+    const seen = (await (await fetch(`${BASE}/rooms/${body.room}/roster?me=${me.id}`)).json()) as Record<string, unknown>[];
+    const table = seen[0]!.table as { chairs: number; mayAddChair: boolean };
+    expect(table.chairs).toBe(3);
+    expect(table.mayAddChair).toBe(true);
+  });
+
+  it("за доской мебель не двигают — и сказано почему", async () => {
+    const me = await account();
+    const res = await post("/rooms", { game: "chess", by: me.id });
+    const { room } = (await res.json()) as Record<string, string>;
+    const seen = (await (await fetch(`${BASE}/rooms/${room}/roster?me=${me.id}`)).json()) as Record<string, unknown>[];
+    const table = seen[0]!.table as { mayAddChair: boolean; whyNoChair: string };
+    expect(table.mayAddChair).toBe(false);
+    expect(table.whyNoChair).toBe("за этой игрой мест ровно столько, сколько правил");
   });
 });

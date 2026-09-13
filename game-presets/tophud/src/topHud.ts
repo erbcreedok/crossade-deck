@@ -69,6 +69,12 @@ export interface TopHudState {
   readonly roster: readonly TopHudMember[];
   readonly exit: TopHudExit | undefined;
   /**
+   * САМ СТОЛ — сколько за ним стульев и можно ли поставить ещё. Это про МЕБЕЛЬ, а не про человека,
+   * и потому живёт в шапке списка, а не в строке каждого: действие над столом, размноженное по
+   * людям, читается как действие над человеком — и тогда непонятно, кому же ставят стул.
+   */
+  readonly table?: { readonly chairs?: number; readonly mayAddChair?: boolean; readonly whyNoChair?: string } | undefined;
+  /**
    * ЧТО ДЕЛАТЬ, КОГДА В ПАНЕЛИ НАЖАЛИ. Полоса не знает ни комнаты, ни прав: она рисует то, что ей
    * дали, и передаёт нажатие тому, кто умеет спросить стол.
    */
@@ -101,14 +107,21 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
     people: o.people ?? [],
     roster: o.roster ?? [],
     exit: o.exit,
+    ...(o.table ? { table: o.table } : {}),
     ...(o.onDeed ? { onDeed: o.onDeed } : {}),
   };
   /** Whether the full list is open. A fact about this screen, and it outlives a redraw. */
   let listOpen = false;
+  /**
+   * КАКОЙ ЛИСТ ОТКРЫТ. Людей открывают тапом по ряду лиц, комнату — тапом по коду: у стола два
+   * разных разговора, и мешать их в одном экране значит прятать один за другим.
+   */
+  let opened: "people" | "room" | undefined;
   /** Чья строка раскрыта — там, где кнопки. Раскрытая строка одна: лист не гармошка. */
   let openRow: string | undefined;
-  /** Открыта ли палитра на раскрытой строке. */
+  /** Открыта ли палитра, и на чьей строке: кнопка цвета стоит в строке, а не в раскрытии. */
   let palette = false;
+  let paintRow: string | undefined;
   /** Последний отказ комнаты, словами. Живёт до следующего действия. */
   let refusal: string | undefined;
 
@@ -247,6 +260,41 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
    * Лист живёт в КОНТЕЙНЕРЕ ИГРЫ, а не внутри полосы: полоса высотой в 44 пикселя, и всё, что
    * растянуто по ней, растянуто по этим сорока четырём.
    */
+  /**
+   * КОМНАТА — ЕЁ СОБСТВЕННЫЙ ЛИСТ, и открывается он тапом по коду: код — это и есть имя стола.
+   *
+   * Сегодня здесь одно — сколько за столом стульев. Спрашивается тем же контролом, что и при
+   * создании стола: человек, научившийся тянуть ползунок там, ищет его же здесь.
+   */
+  const roomSheetHtml = (): string => {
+    const table = state.table;
+    const chairs = table?.chairs;
+    const may = table?.mayAddChair === true;
+    return (
+      `<div style="padding:0 18px 24px">` +
+      `<div style="display:flex;align-items:center;gap:14px;padding:6px 0 12px">` +
+      `<span style="background:${PALETTE.black};box-shadow:inset 0 0 0 3px ${PALETTE.gold};border-radius:10px;padding:10px 14px;` +
+      `font:400 20px ${DIGIT};color:${PALETTE.gold};letter-spacing:.06em">${esc(state.room ?? "")}</span>` +
+      `<span style="font:400 14px ${LETTER};color:${PALETTE.ink}">${esc(state.title)}</span></div>` +
+      (chairs === undefined
+        ? ""
+        : `<div style="display:flex;flex-direction:column;gap:9px;padding:14px 0;box-shadow:inset 0 3px 0 -1px ${tint(PALETTE.black, 0.55)}">` +
+          `<span style="font:400 10px ${LETTER};letter-spacing:.1em;color:${PALETTE.inkDim};opacity:.7">МЕСТ ЗА СТОЛОМ</span>` +
+          `<div style="display:flex;align-items:center;gap:12px">` +
+          `<span data-g="chairs-value" style="flex:none;background:${PALETTE.well};box-shadow:inset 0 0 0 3px ${PALETTE.black},` +
+          `inset 0 0 0 5px ${PALETTE.wood};border-radius:10px;padding:11px 16px;font:400 17px ${DIGIT};color:${PALETTE.ink}">${chairs}</span>` +
+          (may
+            ? `<input data-g="chairs" type="range" min="${chairs}" max="32" step="1" value="${chairs}" ` +
+              `style="flex:1;accent-color:${PALETTE.gold};height:30px">`
+            : "") +
+          `</div>` +
+          `<span style="font:400 11px ${LETTER};color:${PALETTE.inkDim}">` +
+          (may ? "тяни ползунок — стул встаёт за стол" : esc(table?.whyNoChair ?? "мест столько, сколько назначено")) +
+          `</span></div>`) +
+      `</div>`
+    );
+  };
+
   const drawSheet = (): void => {
     if (!listOpen) {
       sheet.innerHTML = "";
@@ -258,7 +306,12 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
     const present = peopleRow(state.people, look).seated;
     const mine = list?.rows.find((one) => one.mine === true);
     const rest = list ? list.rows.filter((one) => one !== mine) : [];
-    const head = list ? `ЗА СТОЛОМ ${list.seated} · ВСЕГО ${list.total}` : `ЗА СТОЛОМ ${present.length}`;
+    // СТУЛЬЯ — ТРЕТЬЕ ЧИСЛО, И БЕЗ НЕГО «ПОСТАВИТЬ СТУЛ» НЕ ВИДНО: человек жмёт кнопку, в списке
+    // ничего не меняется, и кнопка справедливо считается сломанной.
+    const chairs = state.table?.chairs;
+    const head = list
+      ? `ЗА СТОЛОМ ${list.seated} · ВСЕГО ${list.total}${chairs !== undefined ? ` · СТУЛЬЕВ ${chairs}` : ""}`
+      : `ЗА СТОЛОМ ${present.length}`;
     // ЗАНЯТЫЕ ЦВЕТА ВИДНО В ПАЛИТРЕ: восемь на всех, и брать чужой — значит стать неотличимым.
     const taken = new Set((list?.rows ?? []).map((one) => one.ink));
     const rows = list ? rest.map((one) => memberRowHtml(one, taken)).join("") : present.map(listRowHtml).join("");
@@ -270,14 +323,16 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
       // ШАПКА ПРИЛИПАЕТ: список длиннее экрана, и «Закрыть», уехавшее вверх, читается как ловушка.
       `<div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:10px;` +
       `padding:14px 18px 8px;background:${PALETTE.felt}">` +
-      `<span style="font:400 15px ${LETTER};letter-spacing:.08em;color:${PALETTE.gold}">ЗА СТОЛОМ</span>` +
+      `<span style="font:400 15px ${LETTER};letter-spacing:.08em;color:${PALETTE.gold}">${opened === "room" ? "КОМНАТА" : "ЗА СТОЛОМ"}</span>` +
       `<span data-g="close" role="button" tabindex="0" style="cursor:pointer;font:400 13px ${LETTER};border-radius:8px;padding:8px 12px;` +
       `box-shadow:inset 0 0 0 2px ${PALETTE.wood};color:${PALETTE.inkDim}">Закрыть</span></div>` +
-      `<div style="padding:0 18px">` +
-      (mine ? mineRowHtml(mine, taken) : "") +
-      `<div style="font:400 10px ${LETTER};letter-spacing:.1em;color:${PALETTE.inkDim};opacity:.7;padding:6px 0 2px">${head}</div>` +
-      rows +
-      `</div></div>`;
+      (opened === "room" ? roomSheetHtml() : "") +
+      (opened === "room" ? "" : `<div style="padding:0 18px">`) +
+      (opened === "room" ? "" : mine ? mineRowHtml(mine, taken) : "") +
+      (opened === "room"
+        ? ""
+        : `<div style="font:400 10px ${LETTER};letter-spacing:.1em;color:${PALETTE.inkDim};opacity:.7;padding:6px 0 2px">${head}</div>${rows}</div>`) +
+      `</div>`;
   };
 
   /**
@@ -336,8 +391,10 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
       `<span style="display:flex;gap:6px;align-items:center">${roleBadge(member)}` +
       `<span style="font:400 10px ${LETTER};color:${PALETTE.inkDim}">${whereWord(member)}</span></span>` +
       `</span>` +
+      ((member.can ?? []).some((one) => one.deed === "colour") ? colourButton(member, open && palette) : "") +
       `<span style="font:400 18px ${LETTER};color:${PALETTE.inkDim};transform:rotate(${open ? 90 : 0}deg);transition:transform .15s">›</span>` +
       `</div>` +
+      (palette && paintRow === keyOf(member) ? paletteRow(member, taken) : "") +
       (open ? rowBelly(member, taken) : "") +
       `</div>`
     );
@@ -352,6 +409,16 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
     (p.turn === true ? `<span style="font:400 11px ${LETTER};color:${PALETTE.gold}">ходит</span>` : "") +
     (p.away === true ? `<span style="font:400 11px ${LETTER};color:${PALETTE.inkDim}">отошёл</span>` : "") +
     `</div>`;
+
+  /**
+   * ЦВЕТ — ЗНАК НА СТРОКЕ ИМЕНИ, а не пункт в раскрытии: сам цвет и есть иконка, и стоит она там же,
+   * где про человека всё остальное. Раскрывать строку ради цвета не нужно — он рядом с лицом.
+   */
+  const colourButton = (member: TopHudMember, open: boolean): string =>
+    `<button data-g="paint" data-whom="${esc(keyOf(member))}" title="сменить цвет" style="flex:none;cursor:pointer;border:0;` +
+    `border-radius:8px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:${PALETTE.panelLight};` +
+    `box-shadow:inset 0 0 0 3px ${PALETTE.black},inset 0 0 0 5px ${open ? PALETTE.gold : PALETTE.wood}">` +
+    `<span style="width:16px;height:16px;border-radius:50%;background:${member.ink};box-shadow:inset 0 0 0 2px ${PALETTE.black}"></span></button>`;
 
   /** Ключ строки — номер аккаунта, а когда его нет, имя: раскрытая строка должна пережить перерисовку. */
   const keyOf = (member: TopHudMember): string => member.account ?? member.name;
@@ -377,14 +444,24 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
    * через стол с другого конца, а не подобран.
    */
   const paletteRow = (member: TopHudMember, taken: ReadonlySet<string>): string =>
-    `<div data-g="palette" style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 0 2px">` +
-    FAVOURITE_INKS.map(
-      (ink) =>
-        `<button data-colour="${ink}" data-whom="${esc(keyOf(member))}" style="cursor:pointer;border:0;width:30px;height:30px;` +
-        `border-radius:50%;background:${ink};box-shadow:inset 0 0 0 3px ${PALETTE.black}` +
-        (member.ink === ink ? `,0 0 0 3px ${PALETTE.gold}` : taken.has(ink) ? `,0 0 0 3px ${PALETTE.well}` : "") +
-        `;${taken.has(ink) && member.ink !== ink ? "opacity:.45;" : ""}"></button>`,
-    ).join("") +
+    `<div data-g="palette" style="display:flex;gap:7px;flex-wrap:wrap;padding:10px 0 2px">` +
+    FAVOURITE_INKS.map((ink) => {
+      const now = member.ink === ink;
+      // ЗАНЯТЫЙ СОСЕДОМ ЦВЕТ ПЕРЕЧЁРКНУТ И НЕ НАЖИМАЕТСЯ: два одинаковых цвета за столом — ровно та
+      // беда, от которой цвет и заведён, и предлагать её кнопкой нельзя.
+      const busy = taken.has(ink) && !now;
+      return (
+        `<button ${busy ? "" : `data-colour="${ink}" data-whom="${esc(keyOf(member))}"`} ` +
+        `title="${busy ? "цвет занят" : ""}" style="position:relative;width:30px;height:30px;border:0;border-radius:50%;` +
+        `${busy ? "cursor:not-allowed;opacity:.35;" : "cursor:pointer;"}background:${ink};` +
+        `box-shadow:inset 0 0 0 3px ${PALETTE.black}${now ? `,0 0 0 3px ${PALETTE.gold}` : ""}">` +
+        (busy
+          ? `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;` +
+            `font:400 15px ${LETTER};color:${PALETTE.black}">×</span>`
+          : "") +
+        `</button>`
+      );
+    }).join("") +
     `</div>`;
 
   /**
@@ -393,20 +470,53 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
    * Отказы показываются ВСЕ и всегда: молча пропавшая кнопка читается как поломка, и первым делом
    * про неё спрашивают «почему у меня нет кика».
    */
+  /**
+   * ДВЕ СЕКЦИИ ПОД СТРОКОЙ, КАК НА СТЕНДЕ: «СТАТУС РУКИ» — знаками, «МЕСТО И ПРАВА» — словами.
+   *
+   * Статус руки — это ЗНАК, а не фраза: лок, пин и скрытность включены или нет, и это надо видеть
+   * одним взглядом. Включённое горит золотом, выключенное стоит тёмной плашкой.
+   */
+  const HAND_GLYPH: Record<string, string> = {
+    "piece:lock": "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
+    "piece:pin": "M9 3h6l-1 6h2l1 5H7l1-5h2L9 3zM12 14v7",
+    "piece:hide": "M3 3l18 18M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9",
+  };
+
+  const handOn = (member: TopHudMember, deed: string): boolean => {
+    const hand = member.hand;
+    return deed === "piece:lock" ? hand?.lock === true : deed === "piece:pin" ? hand?.pin === true : hand?.hide === true;
+  };
+
+  const handButton = (member: TopHudMember, deed: { deed: string; label: string }): string => {
+    const lit = handOn(member, deed.deed);
+    return (
+      `<button data-deed="${esc(deed.deed)}" data-whom="${esc(keyOf(member))}" title="${esc(deed.label)}" ` +
+      `style="cursor:pointer;border:0;border-radius:8px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;` +
+      (lit
+        ? `background:${PALETTE.gold};box-shadow:inset 0 0 0 3px ${PALETTE.black};`
+        : `background:${PALETTE.panelLight};box-shadow:inset 0 0 0 3px ${PALETTE.black},inset 0 0 0 5px ${PALETTE.wood};`) +
+      `">` +
+      `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="${lit ? PALETTE.black : PALETTE.ink}" ` +
+      `stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${HAND_GLYPH[deed.deed]}"/></svg></button>`
+    );
+  };
+
+  const section = (title: string, inner: string): string =>
+    !inner
+      ? ""
+      : `<div style="display:flex;flex-direction:column;gap:6px;padding-top:8px">` +
+        `<span style="font:400 10px ${LETTER};letter-spacing:.1em;color:${PALETTE.inkDim};opacity:.7">${title}</span>` +
+        `<div style="display:flex;gap:6px;flex-wrap:wrap">${inner}</div></div>`;
+
   const rowBelly = (member: TopHudMember, taken: ReadonlySet<string>): string => {
     const can = member.can ?? [];
     const cant = member.cant ?? [];
-    const colour = can.find((one) => one.deed === "colour");
-    const others = can.filter((one) => one.deed !== "colour");
+    const hand = can.filter((one) => one.deed.startsWith("piece:"));
+    const others = can.filter((one) => one.deed !== "colour" && !one.deed.startsWith("piece:"));
     return (
       `<div style="display:flex;flex-direction:column;gap:8px;padding:2px 0 12px">` +
-      (colour
-        ? `<button data-g="paint" data-whom="${esc(keyOf(member))}" style="align-self:flex-start;cursor:pointer;border:0;border-radius:8px;` +
-          `padding:8px 10px;font:400 12px ${LETTER};background:${PALETTE.panelLight};color:${PALETTE.ink};` +
-          `box-shadow:inset 0 0 0 3px ${PALETTE.black}">${esc(colour.label)}</button>` +
-          (palette ? paletteRow(member, taken) : "")
-        : "") +
-      (others.length > 0 ? `<div style="display:flex;gap:8px;flex-wrap:wrap">${others.map((one) => deedButton(member, one)).join("")}</div>` : "") +
+      section("СТАТУС РУКИ", hand.map((one) => handButton(member, one)).join("")) +
+      section("МЕСТО И ПРАВА", others.map((one) => deedButton(member, one)).join("")) +
       (refusal ? `<span style="font:400 11px ${LETTER};color:${PALETTE.danger}">${esc(refusal)}</span>` : "") +
       (cant.length > 0
         ? `<div style="display:flex;flex-direction:column;gap:3px;padding-top:2px">` +
@@ -433,8 +543,10 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
       `<span style="display:flex;gap:6px;align-items:center">${roleBadge(member)}` +
       `<span style="font:400 10px ${LETTER};color:${PALETTE.inkDim}">${whereWord(member)}</span></span>` +
       `</span>` +
+      ((member.can ?? []).some((one) => one.deed === "colour") ? colourButton(member, open && palette) : "") +
       `<span style="font:400 15px ${LETTER};color:${PALETTE.inkDim};transform:rotate(${open ? 90 : 0}deg);transition:transform .15s">›</span>` +
       `</div>` +
+      (palette && paintRow === keyOf(member) ? paletteRow(member, taken) : "") +
       (open ? rowBelly(member, taken) : "") +
       `</div>`
     );
@@ -493,7 +605,19 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
     if (peopleEl) {
       peopleEl.onclick = (e) => {
         e.stopPropagation();
-        listOpen = !listOpen;
+        listOpen = !(listOpen && opened === "people");
+        opened = "people";
+        draw();
+      };
+    }
+    // КОД — ЭТО ИМЯ СТОЛА, и тап по нему открывает сам стол: его код, его мебель, его правила.
+    const roomEl = element.querySelector<HTMLElement>('[data-g="room"]');
+    if (roomEl) {
+      roomEl.style.cursor = "pointer";
+      roomEl.onclick = (e) => {
+        e.stopPropagation();
+        listOpen = !(listOpen && opened === "room");
+        opened = "room";
         draw();
       };
     }
@@ -517,11 +641,26 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
         draw();
       };
     }
-    const paint = sheet.querySelector<HTMLElement>('[data-g="paint"]');
-    if (paint) {
+    const chairsEl = sheet.querySelector<HTMLInputElement>('[data-g="chairs"]');
+    const chairsValue = sheet.querySelector<HTMLElement>('[data-g="chairs-value"]');
+    if (chairsEl) {
+      // ЧИСЛО ПОД ПАЛЬЦЕМ ИДЁТ СРАЗУ, А СТУЛ СТАВИТСЯ ПО ОТПУСКАНИИ: иначе за одно движение через
+      // весь ползунок стол получил бы два десятка стульев по дороге.
+      chairsEl.oninput = () => {
+        if (chairsValue) chairsValue.textContent = chairsEl.value;
+      };
+      chairsEl.onchange = () => {
+        const now = state.table?.chairs ?? 0;
+        for (let i = now; i < Number(chairsEl.value); i += 1) state.onDeed?.("seat:add", "");
+      };
+    }
+    for (const paint of sheet.querySelectorAll<HTMLElement>('[data-g="paint"]')) {
       paint.onclick = (e) => {
         e.stopPropagation();
-        palette = !palette;
+        const whom = paint.dataset.whom!;
+        palette = !(palette && paintRow === whom);
+        paintRow = whom;
+        refusal = undefined;
         draw();
       };
     }
@@ -531,6 +670,7 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
         refusal = undefined;
         state.onDeed?.("colour", swatch.dataset.whom!, swatch.dataset.colour!);
         palette = false;
+        paintRow = undefined;
         draw();
       };
     }

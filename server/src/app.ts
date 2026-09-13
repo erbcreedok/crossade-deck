@@ -43,7 +43,7 @@ import {
 import { BUILD_INFO, formatVersion } from "./version.js";
 import { atCode, byCode, byId, chairsAreFixed, close, reconfigure, codeFree, isKitGame, mine, openRoom, reserveCode, search, sessionOf, type RoomRow } from "./rooms.js";
 import { rosterOf } from "./roomRoster.js";
-import { deedsOn } from "./roomRights.js";
+import { deedsOn, mayAddChair } from "./roomRights.js";
 import { NEWCOMERS, ROOM_LIMIT } from "./db/roomsRepo.js";
 import { promiseOf, type Promised } from "./codeHold.js";
 import { ADMISSIONS, cleanCode, MODES, roleOf, VISIBILITIES, type Mode } from "./db/roomsRepo.js";
@@ -274,19 +274,34 @@ export function createApp() {
     // её не пускает. Панель рисует то, что ей разрешили, и ровно теми же словами.
     const mine = me ? people.find((one) => one.account === me) : undefined;
     if (!mine) return res.json(people);
+    const table = {
+      ...(room.chairs !== null ? { chairs: room.chairs } : {}),
+      capacity: room.capacity,
+      ...(chairsAreFixed(room.game) !== undefined ? { chairsFixed: chairsAreFixed(room.game)! } : {}),
+    };
+    const whoAmI = { account: mine.account!, role: mine.role, seated: mine.seat !== null, here: mine.here };
+    // СТОЛ ОТВЕЧАЕТ ПРО СЕБЯ ОТДЕЛЬНО: мебель — не свойство человека, и спрашивается она раз.
+    const chair = mayAddChair(whoAmI, room.mode, table);
+    res.setHeader("X-Room-Chairs", String(room.chairs ?? ""));
     res.json(
       people.map((one) => {
         const { can, cant } = deedsOn(
-          { account: mine.account!, role: mine.role, seated: mine.seat !== null, here: mine.here },
+          whoAmI,
           { account: one.account ?? one.name, role: one.role, seated: one.seat !== null, here: one.here },
           room.mode,
-          {
-            ...(room.chairs !== null ? { chairs: room.chairs } : {}),
-            capacity: room.capacity,
-            ...(chairsAreFixed(room.game) !== undefined ? { chairsFixed: chairsAreFixed(room.game)! } : {}),
-          },
+          table,
         );
-        return { ...one, can, cant };
+        return {
+          ...one,
+          can,
+          cant,
+          // Про стол — одинаково в каждой строке: спрашивающий один, и ответ про него, а не про них.
+          table: {
+            ...(room.chairs !== null ? { chairs: room.chairs } : {}),
+            mayAddChair: chair === true,
+            ...(chair === true ? {} : { whyNoChair: chair }),
+          },
+        };
       }),
     );
   });

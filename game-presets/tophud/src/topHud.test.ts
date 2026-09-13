@@ -178,6 +178,43 @@ describe("панель за столом", () => {
     hud.stop();
   });
 
+  // СТОРОЖ `tophud.the-hand-is-a-sign-not-a-sentence`.
+  //
+  // Лок, пин и скрытность включены или нет, и это надо ВИДЕТЬ одним взглядом, а не читать: горящий
+  // знак говорит о состоянии, слово — нет. И стоят они своей секцией: место и права — другой разговор.
+  it("статус руки стоит знаками отдельной секцией, и включённое горит", () => {
+    const withHand = [
+      roster[0]!,
+      {
+        ...roster[1]!,
+        hand: { lock: true },
+        can: [
+          { deed: "piece:lock", label: "Лок", vote: false },
+          { deed: "piece:hide", label: "Скрытность", vote: false },
+          { deed: "seat:take", label: "Лишить стула", vote: false },
+        ],
+      },
+    ];
+    const asked: string[][] = [];
+    const hud = topHud(container, { title: "Карты", people, roster: withHand, onDeed: (deed, whom) => asked.push([deed, whom]) });
+    q(hud.element, "people")!.click();
+    container.querySelector<HTMLElement>('[data-row="t"]')!.click();
+    const list = q(container, "list")!;
+    expect(list.textContent).toContain("СТАТУС РУКИ");
+    expect(list.textContent).toContain("МЕСТО И ПРАВА");
+    // Знак, а не фраза: у кнопки лока рисунок, а подпись — только в подсказке.
+    const lock = list.querySelector<HTMLElement>('[data-deed="piece:lock"]')!;
+    expect(lock.querySelector("svg")).not.toBeNull();
+    expect(lock.getAttribute("title")).toBe("Лок");
+    // Включённое горит: у горящего знака чернильный штрих на золоте.
+    expect(lock.getAttribute("style")).toContain("#f2c14e");
+    const hide = list.querySelector<HTMLElement>('[data-deed="piece:hide"]')!;
+    expect(hide.getAttribute("style")).not.toContain("#f2c14e");
+    hide.click();
+    expect(asked).toEqual([["piece:hide", "t"]]);
+    hud.stop();
+  });
+
   it("нажатие уходит наружу, а отказ комнаты говорится вслух", () => {
     const asked: string[][] = [];
     const hud = topHud(container, { title: "Карты", people, roster, onDeed: (deed, whom) => asked.push([deed, whom]) });
@@ -196,10 +233,13 @@ describe("панель за столом", () => {
     const mine = [{ ...roster[0]!, can: [{ deed: "colour", label: "Сменить цвет", vote: false }] }, roster[1]!];
     const hud = topHud(container, { title: "Карты", people, roster: mine, onDeed: (deed, whom, colour) => asked.push([deed, whom, colour!]) });
     q(hud.element, "people")!.click();
-    container.querySelector<HTMLElement>('[data-row="a"]')!.click();
+    // Кнопка цвета стоит в САМОЙ строке: раскрывать её ради цвета не нужно.
     q(container, "paint")!.click();
+    // Восемь цветов показаны все, но занятый соседом перечёркнут и не нажимается.
+    expect(q(container, "palette")!.querySelectorAll("button").length).toBe(8);
+    expect(q(container, "palette")!.textContent).toContain("×");
     const swatches = container.querySelectorAll<HTMLElement>("[data-colour]");
-    expect(swatches.length).toBe(8);
+    expect(swatches.length).toBe(7);
     swatches[2]!.click();
     expect(asked[0]![0]).toBe("colour");
     expect(asked[0]![1]).toBe("a");

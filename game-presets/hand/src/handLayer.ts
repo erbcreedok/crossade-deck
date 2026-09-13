@@ -12,12 +12,18 @@
 
 import {
   chairId,
+  chairPinned,
   courtLift,
+  dressChair,
+  handHidden,
+  handLocked,
   handHud,
   handTakes,
   HUD_COURT,
   isHand,
   mayTake,
+  setChairPin,
+  setHandHidden,
   untuck,
   type HandHud,
 } from "@game-presets/desks";
@@ -157,6 +163,29 @@ export function handLayer(o: HandLayerOptions): HandLayer {
       // the screen for ever, so the mount is tried again every time the furniture changes.
       this.mount!(here);
       hand?.refresh();
+    },
+
+    /**
+     * СОСТОЯНИЕ РУКИ ЭТОГО МЕСТА — читается с кресла, из дерева: там оно и живёт, одинаково на всех
+     * экранах. Панели за столом это нужно, чтобы показать, что горит, а не хранить вторую копию.
+     */
+    hand(seat: string) {
+      const ring = ctx ? byId(ctx.root(), chairId(seat)) : undefined;
+      if (!ring) return undefined;
+      return { lock: handLocked(ring), pin: chairPinned(ring), hide: handHidden(ring) };
+    },
+
+    /**
+     * ПЕРЕКЛЮЧИТЬ ЛОК, ПИН ИЛИ СКРЫТНОСТЬ — одной записью на кресле, ровно как это делает нижний
+     * HUD у своей руки. Право спрошено раньше: сюда приходит уже разрешённое.
+     */
+    handDeed(seat: string, what: "lock" | "pin" | "hide") {
+      const ring = ctx ? byId(ctx.root(), chairId(seat)) : undefined;
+      if (!ring) return false;
+      if (what === "lock") dressChair(ring, { shut: !handLocked(ring) });
+      else if (what === "pin") setChairPin(ring, !chairPinned(ring));
+      else setHandHidden(ring, !handHidden(ring));
+      return true;
     },
 
     standIn: (n: Node) => hand?.standFor(n),

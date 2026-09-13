@@ -209,6 +209,11 @@ export interface RoomMember {
   /** Что Я могу сделать с ним — считает сервер, когда его спросили от моего лица. */
   readonly can?: readonly RoomDeed[];
   readonly cant?: readonly RoomDenial[];
+  /**
+   * САМ СТОЛ — сколько за ним стульев и вправе ли я поставить ещё. Ответ про МЕБЕЛЬ, одинаковый в
+   * каждой строке: он про спрашивающего, а не про того, чья это строка.
+   */
+  readonly table?: { readonly chairs?: number; readonly mayAddChair?: boolean; readonly whyNoChair?: string };
 }
 
 /**

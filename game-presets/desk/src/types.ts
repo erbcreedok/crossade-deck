@@ -112,6 +112,17 @@ export interface DeskLayer {
   ): void;
   /** The room said who is sitting where — including the first time, and after every change. */
   seated?(present: readonly SeatedPerson[]): void;
+  /**
+   * СОСТОЯНИЕ РУКИ ЭТОГО МЕСТА — включены ли лок, пин и скрытность. Спрашивает панель за столом;
+   * отвечает тот, кто эту руку и рисует. Рантайм мебели не знает и знать не должен
+   * (`desk.the-runtime-knows-no-game`): для него это три галочки, чьё значение ему безразлично.
+   */
+  hand?(seat: string): { readonly lock?: boolean; readonly pin?: boolean; readonly hide?: boolean } | undefined;
+  /**
+   * ПЕРЕКЛЮЧИТЬ ОДНУ ИЗ НИХ. `true` — сделано, и стол расскажет об этом комнате как об обычной
+   * правке дерева. Право спрошено раньше: панель рисует только то, что комната разрешила.
+   */
+  handDeed?(seat: string, what: "lock" | "pin" | "hide"): boolean;
   /** A picture of a piece drawn by this layer is a way of REACHING that piece (`standIn`). */
   standIn?(n: Node): Node | undefined;
   /**

@@ -67,15 +67,38 @@ const manages = (p: Power): boolean => p !== "none";
 const handles = (me: Someone, p: Power): boolean => rules(me) && manages(p);
 
 /** Что можно сделать с человеком за столом. Те же слова, что в панели. */
-export const DEEDS = ["seat:add", "seat:give", "seat:take", "admin:grant", "admin:revoke", "owner:pass", "kick", "colour"] as const;
-export type Deed = (typeof DEEDS)[number];
+/**
+ * ЧТО МОЖНО СДЕЛАТЬ С ЧЕЛОВЕКОМ ЗА СТОЛОМ. «Поставить стул» сюда не входит и не входило по смыслу:
+ * это действие над СТОЛОМ, и в списке действий над человеком оно размножалось по всем строкам —
+ * кнопка стояла у каждого, а делала одно и то же ни для кого из них.
+ */
+export const DEEDS = ["seat:give", "seat:take", "admin:grant", "admin:revoke", "owner:pass", "kick", "colour"] as const;
+
+/** Действия над самим столом. Их немного, и они не про людей. */
+export const TABLE_DEEDS = ["seat:add"] as const;
+
+/**
+ * ДЕЙСТВИЯ НАД ЧУЖОЙ РУКОЙ — лок, пин, скрытность.
+ *
+ * ПРАВО НА НИХ СЧИТАЕТ КОМНАТА, А ИСПОЛНЯЕТ СТОЛ: рука — это узлы дерева, оно ходит между экранами
+ * само, и комнате незачем знать, как лежат карты. Поэтому они есть в списке разрешённого, но
+ * сообщением в комнату не присылаются: там их просто нечем сделать.
+ */
+export const HAND_DEEDS = ["piece:lock", "piece:pin", "piece:hide"] as const;
+export type Deed = (typeof DEEDS)[number] | (typeof TABLE_DEEDS)[number] | (typeof HAND_DEEDS)[number];
 
 export function isDeed(raw: unknown): raw is Deed {
-  return typeof raw === "string" && (DEEDS as readonly string[]).includes(raw);
+  return (
+    typeof raw === "string" &&
+    ((DEEDS as readonly string[]).includes(raw) || (TABLE_DEEDS as readonly string[]).includes(raw))
+  );
 }
 
 /** Как действие называется человеку. Одно место на панель и на отказ. */
 export const DEED_WORD: Record<Deed, string> = {
+  "piece:lock": "Лок",
+  "piece:pin": "Пин",
+  "piece:hide": "Скрытность",
   "seat:add": "Поставить стул",
   "seat:give": "Дать стул",
   "seat:take": "Лишить стула",
@@ -123,6 +146,12 @@ export function may(deed: Deed, me: Someone, them: Someone, mode: Mode, table: T
       if (them.role === "owner") return "хозяина нельзя выгнать";
       if (mine) return "себя выгоняют кнопкой «выйти»";
       return handles(me, p) || "выгонять некому";
+    case "piece:lock":
+    case "piece:pin":
+    case "piece:hide":
+      // РУКА ЕСТЬ ТОЛЬКО У ТОГО, КТО СИДИТ. Зрителю нечего локать и прятать — у него нет фигур.
+      if (!them.seated) return "он не за столом — руки нет";
+      return mine || handles(me, p) || "чужой рукой распоряжается админ";
     case "colour":
       // ЦВЕТ — ЭТО ОН САМ, А НЕ СОСТОЯНИЕ ЕГО РУКИ: свой меняет каждый, чужой — тот, кто
       // распоряжается столом.
@@ -144,6 +173,14 @@ export interface Denied {
 }
 
 /**
+ * МОЖНО ЛИ ПОСТАВИТЬ ЗА ЭТОТ СТОЛ ЕЩЁ ОДИН СТУЛ — вопрос про мебель, и задаётся он раз на стол, а
+ * не раз на человека. `true` — можно; строка — почему нет.
+ */
+export function mayAddChair(me: Someone, mode: Mode, table: Table = {}): true | string {
+  return may("seat:add", me, me, mode, table);
+}
+
+/**
  * ЧТО МОЖНО СДЕЛАТЬ С ЭТИМ ЧЕЛОВЕКОМ, И ЧТО НЕЛЬЗЯ — С ПРИЧИНАМИ.
  *
  * В совете и вече разрешённое остаётся разрешённым, но становится ПРЕДЛОЖЕНИЕМ: та же кнопка,
@@ -153,7 +190,7 @@ export function deedsOn(me: Someone, them: Someone, mode: Mode, table: Table = {
   const p = powerOf(me, mode);
   const can: Allowed[] = [];
   const cant: Denied[] = [];
-  for (const deed of DEEDS) {
+  for (const deed of [...HAND_DEEDS, ...DEEDS] as Deed[]) {
     const verdict = may(deed, me, them, mode, table);
     if (verdict !== true) {
       cant.push({ deed, label: DEED_WORD[deed], why: verdict });
