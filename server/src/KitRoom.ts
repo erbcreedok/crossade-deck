@@ -5,7 +5,11 @@ import { guestIdentity } from "./sandboxNames.js";
 import { accountColor, accountFace, accountName, paintAccount } from "./accounts.js";
 import { inksApart } from "./profileInks.js";
 import { accountById } from "./db/accountsRepo.js";
+import { randomUUID } from "node:crypto";
 import {
+  ADMISSIONS,
+  closeRoom,
+  forkRoom,
   membersOf,
   newcomerOf,
   passRoom,
@@ -15,11 +19,20 @@ import {
   ROOM_LIMIT,
   setChair,
   setRole,
+  setRoomCode,
   setRoomConfig,
   setSession,
+  VISIBILITIES,
+  MODES,
+  type Admission,
+  type Mode,
   type Newcomer,
+  type Visibility,
 } from "./db/roomsRepo.js";
-import { isDeed, may, powerOf, type Deed, type Someone } from "./roomRights.js";
+import { isDeed, isRoomDeed, may, powerOf, type Deed, type Someone } from "./roomRights.js";
+
+/** Сколько ждёт снятая админом вечность — сутки, чтобы хозяин успел увидеть и вернуть. */
+const FOREVER_GRACE_MS = 24 * 60 * 60 * 1000;
 import { chairsAreFixed } from "./rooms.js";
 
 export interface KitJoinOptions {
@@ -165,13 +178,19 @@ export class KitRoom extends Room {
      * Право проверяется ТУТ, а не на экране: кнопка, нарисованная клиентом, — это надпись, и стол,
      * верящий ей на слово, отдаёт себя первому, кто открыл консоль.
      */
-    this.onMessage("deed", (client, msg: { deed?: unknown; whom?: unknown; colour?: unknown }) => {
+    this.onMessage("deed", (client, msg: { deed?: unknown; whom?: unknown; colour?: unknown; value?: unknown }) => {
       const asked = msg?.deed;
-      const whom = typeof msg?.whom === "string" ? msg.whom : undefined;
-      if (!isDeed(asked) || !whom || !this.record) return;
+      if (!isDeed(asked) || !this.record) return;
       const me = this.someone(this.clientMemberMap.get(client.sessionId)?.accountId);
-      const them = this.someone(whom);
-      if (!me || !them) return client.send("denied", { deed: asked, why: "его нет за этим столом" });
+      if (!me) return client.send("denied", { deed: asked, why: "тебя нет за этим столом" });
+      // У ДЕЙСТВИЯ НАД СТОЛОМ И НАД КОМНАТОЙ НЕТ «КОГО»: спрашивающий и есть тот, о ком речь.
+      // Имя, присланное для такого действия, ничего не значит — и пустое имя тут не ошибка клиента.
+      const aboutRoom = isRoomDeed(asked) || asked === "seat:add";
+      const named = typeof msg?.whom === "string" && msg.whom ? msg.whom : undefined;
+      const whom = named ?? (aboutRoom ? me.account : undefined);
+      if (!whom) return;
+      const them = aboutRoom ? me : this.someone(whom);
+      if (!them) return client.send("denied", { deed: asked, why: "его нет за этим столом" });
       const room = roomById(this.record);
       const table = {
         chairs: this.chairs,
@@ -182,10 +201,18 @@ export class KitRoom extends Room {
       if (verdict !== true) return client.send("denied", { deed: asked, why: verdict });
       // ГОЛОСОВАНИЯ ЕЩЁ НЕТ, И МОЛЧА ДЕЛАТЬ ВМЕСТО НЕГО НЕЛЬЗЯ: в совете и вече это действие —
       // предложение, а предложение без голосов — самоуправство.
-      if (powerOf(me, room?.mode ?? "free") === "proposal") {
+      // ССЫЛКУ НЕ ГОЛОСУЮТ: позвать друга — не решение комнаты, и своего же кода ради этого не ждут.
+      if (powerOf(me, room?.mode ?? "free") === "proposal" && asked !== "room:link") {
         return client.send("denied", { deed: asked, why: "тут решают голосованием, а голосования ещё нет" });
       }
-      const failed = this.doDeed(asked, them, typeof msg?.colour === "string" ? msg.colour : undefined);
+      const failed = this.doDeed(
+        asked,
+        them,
+        typeof msg?.colour === "string" ? msg.colour : undefined,
+        typeof msg?.value === "string" ? msg.value : undefined,
+        me,
+        client,
+      );
       if (failed) return client.send("denied", { deed: asked, why: failed });
       this.broadcastRoster();
     });
@@ -367,7 +394,14 @@ export class KitRoom extends Room {
    * отказа остаётся: САЖАТЬ НЕКУДА. Право говорит «ты вправе раздавать места», а стульев за столом
    * может не быть ни одного — это не про право, а про мебель, и сказать это надо вслух.
    */
-  private doDeed(deed: Deed, them: Someone, colour?: string): string | undefined {
+  private doDeed(
+    deed: Deed,
+    them: Someone,
+    colour?: string,
+    value?: string,
+    me?: Someone,
+    client?: Client,
+  ): string | undefined {
     const record = this.record!;
     const member = this.members.find((m) => m.accountId === them.account);
     switch (deed) {
@@ -413,6 +447,69 @@ export class KitRoom extends Room {
         break;
       case "colour":
         if (colour) paintAccount(them.account, colour);
+        break;
+
+      // ---- КОМНАТА ----
+      //
+      // ССЫЛКУ СЕРВЕР НЕ ДЕЛАЕТ: код у экрана уже есть, и адрес собирается там, где известно, по
+      // какому адресу открыт стол. Право на неё есть, потому что право спрашивают и о ней.
+      case "room:link":
+        break;
+      case "room:code": {
+        // ПРОСЯТ СВОЙ КОД ИЛИ НОВЫЙ — РАЗНИЦА ТОЛЬКО В ТОМ, НАЗВАН ЛИ ОН. Занятый чужим отдать
+        // нельзя, и стол получает выданный: отказывать тут не за что, код у стола будет в любом
+        // случае, просто не тот, который просили.
+        const after = setRoomCode(record, value);
+        if (!after?.code) return "код сменить не вышло";
+        this.code = after.code;
+        this.broadcast("room", { code: after.code });
+        break;
+      }
+      case "room:public":
+        if (!(VISIBILITIES as readonly string[]).includes(value ?? "")) return "такой видимости нет";
+        setRoomConfig(record, { visibility: value as Visibility });
+        break;
+      case "room:access":
+        if (!(ADMISSIONS as readonly string[]).includes(value ?? "")) return "такого допуска нет";
+        setRoomConfig(record, { admission: value as Admission });
+        break;
+      case "room:mode":
+        if (!(MODES as readonly string[]).includes(value ?? "")) return "такого уклада нет";
+        setRoomConfig(record, { mode: value as Mode });
+        break;
+      case "room:forever": {
+        const room = roomById(record);
+        if (!room) return "комната закрылась";
+        // ВЕРНУТЬ ГАЛОЧКУ МОЖЕТ КТО УГОДНО ИЗ РАСПОРЯЖАЮЩИХСЯ, И ЭТО ПЕРВОЕ, ЧТО ДЕЛАЕТ КНОПКА,
+        // ПОКА ИДЁТ ОТСРОЧКА: иначе «отменить» пришлось бы искать в другом месте, чем «снять».
+        if (room.foreverDropAt !== null) {
+          setRoomConfig(record, { foreverDropAt: null, forever: true });
+          break;
+        }
+        if (!room.forever) {
+          setRoomConfig(record, { forever: true, foreverDropAt: null });
+          break;
+        }
+        // ХОЗЯИН СНИМАЕТ ВЕЧНОСТЬ СРАЗУ, АДМИН — С СУТКАМИ ОТСРОЧКИ. Снятие вечности это назначенный
+        // столу снос, и сутки нужны, чтобы хозяин успел увидеть и вернуть.
+        if (me?.role === "owner") setRoomConfig(record, { forever: false, foreverDropAt: null });
+        else setRoomConfig(record, { foreverDropAt: Date.now() + FOREVER_GRACE_MS });
+        break;
+      }
+      case "room:fork": {
+        const copy = forkRoom(record, them.account, randomUUID());
+        if (!copy?.code) return "копия не вышла";
+        // КТО СДЕЛАЛ КОПИЮ, ТОТ В НЕЁ И ИДЁТ: «сделал свою и остался за чужим столом» — это не
+        // ответ на «хочу быть хозяином», а вторая комната, о которой некому вспомнить.
+        client?.send("deed:done", { deed, code: copy.code });
+        break;
+      }
+      case "room:close":
+        // СТОЛ ЗАКРЫВАЕТСЯ НАСОВСЕМ, И КОД ВОЗВРАЩАЕТСЯ В ОБОРОТ. Сидящие узнают об этом тем же
+        // путём, каким узнают о всяком закрытии: сессия под ними кончается.
+        closeRoom(record);
+        this.broadcast("closed", {});
+        void this.disconnect();
         break;
     }
     return undefined;

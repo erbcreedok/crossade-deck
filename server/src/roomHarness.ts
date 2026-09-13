@@ -35,6 +35,7 @@ export const TEST_PORTS = {
   kit: 2671,
   kitCounts: 2672,
   kitDeeds: 2673,
+  kitRoom: 2674,
 } as const;
 
 export function createGameServer() {

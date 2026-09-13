@@ -10,6 +10,10 @@ import { openDb } from "./open.js";
 import {
   addMember,
   cleanCode,
+  foreverNow,
+  forkRoom,
+  setRoomCode,
+  setRoomConfig,
   CODE_DIGITS,
   closeRoom,
   findRooms,
@@ -167,5 +171,93 @@ describe("rooms.the-issued-code-is-digits-and-only-a-chosen-one-has-letters", ()
   it("выбранный человеком код может быть словом", () => {
     expect(cleanCode("kamaz")).toBe("KAMAZ");
     expect(cleanCode("K2")).toBe("K2");
+  });
+});
+
+// СТОРОЖ `rooms.a-forever-room-is-taken-down-with-a-days-notice`.
+//
+// Вечная комната — чужое имущество: в ней лежат люди, права и код, который человек уже разослал
+// друзьям. Снять вечность значит назначить столу смерть, и молчаливое отложенное снятие — это
+// сюрприз через день. Поэтому срок ЗАПИСАН: пока он не вышел, стол живёт вечным, и его видно.
+describe("rooms.a-forever-room-is-taken-down-with-a-days-notice", () => {
+  it("вечная со сроком впереди остаётся вечной, а со сроком позади — уже нет", () => {
+    const room = open({ id: "f1", game: "cards", forever: true });
+    expect(foreverNow(room, 1000)).toBe(true);
+    setRoomConfig("f1", { foreverDropAt: 5000 }, at);
+    expect(foreverNow(roomById("f1", at)!, 1000)).toBe(true);
+    expect(foreverNow(roomById("f1", at)!, 9000)).toBe(false);
+  });
+
+  it("отменённый срок возвращает вечность, и колонка снова пуста", () => {
+    open({ id: "f2", game: "cards", forever: true });
+    setRoomConfig("f2", { foreverDropAt: 5000 }, at);
+    setRoomConfig("f2", { foreverDropAt: null }, at);
+    expect(roomById("f2", at)!.foreverDropAt).toBeNull();
+    expect(foreverNow(roomById("f2", at)!, 9000)).toBe(true);
+  });
+});
+
+// СТОРОЖ `rooms.a-new-code-is-still-one-code-per-table`.
+//
+// Код меняют дважды по-разному: «дай другой» и «хочу вот такой». Оба обязаны кончиться ОДНИМ живым
+// кодом у этого стола: занятый чужим не отдаётся, а свой собственный — не повод менять его на
+// выданный, иначе кнопка «свой код» отбирает у человека тот код, который он и просил.
+describe("rooms.a-new-code-is-still-one-code-per-table", () => {
+  it("выдаётся другой код, и старый освобождается", () => {
+    const room = open({ id: "c1", game: "cards" });
+    const after = setRoomCode("c1", undefined, at)!;
+    expect(after.code).not.toBe(room.code);
+    expect(roomByCode(room.code!, at)).toBeUndefined();
+    expect(roomByCode(after.code!, at)?.id).toBe("c1");
+  });
+
+  it("названный код берётся, если он свободен", () => {
+    open({ id: "c2", game: "cards" });
+    expect(setRoomCode("c2", "kamaz", at)!.code).toBe("KAMAZ");
+  });
+
+  it("занятый чужим — не берётся, и стол получает выданный, а не чужой", () => {
+    const theirs = open({ id: "c3", game: "cards", code: "KAMAZ" });
+    open({ id: "c4", game: "cards" });
+    const after = setRoomCode("c4", "kamaz", at)!;
+    expect(after.code).not.toBe("KAMAZ");
+    expect(roomByCode("KAMAZ", at)?.id).toBe(theirs.id);
+  });
+
+  it("свой собственный код остаётся своим — просьба уже выполнена", () => {
+    const room = open({ id: "c5", game: "cards", code: "KAMAZ" });
+    expect(setRoomCode("c5", "KAMAZ", at)!.code).toBe(room.code);
+  });
+});
+
+// СТОРОЖ `rooms.a-fork-is-a-second-table-not-a-stolen-crown`.
+//
+// «Хочу быть хозяином этой комнаты» разрешается не отбором короны, а второй комнатой: те же люди и
+// те же настройки, хозяин — попросивший, прежний хозяин приходит админом. Код у копии свой: два
+// стола под одним кодом — это стол, который нельзя позвать.
+describe("rooms.a-fork-is-a-second-table-not-a-stolen-crown", () => {
+  it("копия своя, а оригинал остаётся при своём хозяине и своём коде", () => {
+    at.prepare(
+      `INSERT INTO accounts (id, name, name_chosen, color, avatar, created_at, recovery_hash)
+       VALUES ('helper', 'Админ', 1, NULL, NULL, 1, 'h3'), ('watcher', 'Зритель', 1, NULL, NULL, 1, 'h4')`,
+    ).run();
+    const room = open({ id: "k1", game: "cards", ownerAccount: "me", chairs: 5, forever: true });
+    addMember("k1", "helper", "admin", true, 2, at);
+    addMember("k1", "watcher", "player", false, 3, at);
+
+    const copy = forkRoom("k1", "helper", "k2", 10, at)!;
+    expect(copy.ownerAccount).toBe("helper");
+    expect(copy.code).not.toBe(room.code);
+    expect(copy.chairs).toBe(5);
+    expect(copy.forever).toBe(true);
+
+    expect(roomById("k1", at)!.ownerAccount).toBe("me");
+
+    const who = new Map(membersOf("k2", at).map((one) => [one.accountId, one]));
+    expect(who.get("helper")!.role).toBe("owner");
+    // ПРЕЖНИЙ ХОЗЯИН — АДМИН В КОПИИ: он тут не чужой, но и не хозяин, на то она и копия.
+    expect(who.get("me")!.role).toBe("admin");
+    // ...а стул и уровень остальных переезжают как были.
+    expect(who.get("watcher")!.chair).toBe(false);
   });
 });

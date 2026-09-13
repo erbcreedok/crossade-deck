@@ -95,6 +95,11 @@ export interface RoomRow {
   readonly mode: Mode;
   /** Переживёт ли стол уход последнего. Невечный закрывается вместе со своей сессией. */
   readonly forever: boolean;
+  /**
+   * КОГДА ВЕЧНОСТЬ КОНЧИТСЯ. Ставится, когда её снимает админ: сутки отсрочки, чтобы хозяин успел
+   * увидеть и вернуть. `null` — вечность никто не снимал, и стол либо вечен, либо не был им.
+   */
+  readonly foreverDropAt: number | null;
 }
 
 interface RawRoom {
@@ -116,6 +121,7 @@ interface RawRoom {
   session_id: string | null;
   mode: string;
   forever: number;
+  forever_drop_at: number | null;
 }
 
 function toRoom(raw: RawRoom | undefined): RoomRow | undefined {
@@ -139,11 +145,13 @@ function toRoom(raw: RawRoom | undefined): RoomRow | undefined {
     sessionId: raw.session_id,
     mode: raw.mode as Mode,
     forever: raw.forever === 1,
+    foreverDropAt: raw.forever_drop_at ?? null,
   };
 }
 
 const SELECT = `SELECT id, code, game, title, owner_account, visibility, admission, transport,
-  chairs, capacity, newcomer, newcomer_chair, created_at, alive_at, closed_at, session_id, mode, forever FROM rooms`;
+  chairs, capacity, newcomer, newcomer_chair, created_at, alive_at, closed_at, session_id, mode, forever,
+  forever_drop_at FROM rooms`;
 
 /**
  * ВЫДАННЫЙ КОД — ЧЕТЫРЕ ЦИФРЫ, и ничего кроме цифр.
@@ -273,11 +281,27 @@ export function roomByCode(code: string, at: DatabaseSync = db()): RoomRow | und
  */
 export function setRoomConfig(
   id: string,
-  patch: { chairs?: number | null; capacity?: number; newcomer?: Newcomer; newcomerChair?: boolean },
+  patch: {
+    chairs?: number | null;
+    capacity?: number;
+    newcomer?: Newcomer;
+    newcomerChair?: boolean;
+    visibility?: Visibility;
+    admission?: Admission;
+    mode?: Mode;
+    forever?: boolean;
+    /** Срок, на который назначено снятие вечности. `null` — снятие отменено. */
+    foreverDropAt?: number | null;
+  },
   at: DatabaseSync = db(),
 ): RoomRow | undefined {
   const sets: string[] = [];
   const values: (string | number | null)[] = [];
+  if (patch.visibility !== undefined) (sets.push("visibility = ?"), values.push(patch.visibility));
+  if (patch.admission !== undefined) (sets.push("admission = ?"), values.push(patch.admission));
+  if (patch.mode !== undefined) (sets.push("mode = ?"), values.push(patch.mode));
+  if (patch.forever !== undefined) (sets.push("forever = ?"), values.push(patch.forever ? 1 : 0));
+  if (patch.foreverDropAt !== undefined) (sets.push("forever_drop_at = ?"), values.push(patch.foreverDropAt));
   if (patch.chairs !== undefined) (sets.push("chairs = ?"), values.push(patch.chairs));
   if (patch.capacity !== undefined) (sets.push("capacity = ?"), values.push(capacityOf(patch.capacity)));
   if (patch.newcomer !== undefined) (sets.push("newcomer = ?"), values.push(patch.newcomer));
@@ -286,6 +310,72 @@ export function setRoomConfig(
     at.prepare(`UPDATE rooms SET ${sets.join(", ")} WHERE id = ? AND closed_at IS NULL`).run(...values, id);
   }
   return roomById(id, at);
+}
+
+/**
+ * ВЕЧНАЯ ЛИ ОНА ПРЯМО СЕЙЧАС. Не то же, что колонка: снятую админом вечность держит срок, и до
+ * срока стол живёт вечным. Спрашивают это все, кто решает, закрывать ли опустевший стол.
+ */
+export function foreverNow(room: RoomRow, now = Date.now()): boolean {
+  return room.forever && (room.foreverDropAt === null || room.foreverDropAt > now);
+}
+
+/**
+ * ПЕРЕИМЕНОВАТЬ СТОЛ НОВЫМ КОДОМ. Названный занят или кривой — стол получает выданный; вернётся
+ * комната с тем кодом, который у неё теперь и есть.
+ */
+export function setRoomCode(id: string, asked: string | undefined, at: DatabaseSync = db()): RoomRow | undefined {
+  const room = roomById(id, at);
+  if (!room || room.closedAt !== null) return undefined;
+  const clean = asked ? cleanCode(asked) : undefined;
+  // СВОЙ КОД, КОТОРЫЙ УЖЕ ТВОЙ, — НЕ ПОВОД МЕНЯТЬ ЕГО НА ЧУЖОЙ ВЫДАННЫЙ: просьба выполнена.
+  if (clean && clean === room.code) return room;
+  const code = clean && codeIsFree(clean, at) ? clean : freeCode(at);
+  if (!code) return undefined;
+  at.prepare(`UPDATE rooms SET code = ? WHERE id = ? AND closed_at IS NULL`).run(code, id);
+  return roomById(id, at);
+}
+
+/**
+ * СВОЯ КОПИЯ ЭТОГО СТОЛА. Корону не отбирают — делают вторую комнату с теми же людьми и теми же
+ * настройками, где хозяин тот, кто попросил. Прежний хозяин приходит в неё админом: он тут не чужой,
+ * но и не хозяин — на то она и копия.
+ *
+ * Код у копии свой: два стола под одним кодом — это стол, который нельзя позвать.
+ */
+export function forkRoom(
+  id: string,
+  toAccount: string,
+  newId: string,
+  now = Date.now(),
+  at: DatabaseSync = db(),
+): RoomRow | undefined {
+  const room = roomById(id, at);
+  if (!room || room.closedAt !== null) return undefined;
+  const copy = insertRoom(
+    {
+      id: newId,
+      game: room.game,
+      title: room.title,
+      ownerAccount: toAccount,
+      visibility: room.visibility,
+      admission: room.admission,
+      chairs: room.chairs,
+      capacity: room.capacity,
+      newcomer: room.newcomer,
+      newcomerChair: room.newcomerChair,
+      mode: room.mode,
+      forever: room.forever,
+      now,
+    },
+    at,
+  );
+  if (!copy) return undefined;
+  for (const one of membersOf(id, at)) {
+    if (one.accountId === toAccount) continue;
+    addMember(copy.id, one.accountId, one.role === "owner" ? "admin" : one.role, one.chair, now, at);
+  }
+  return copy;
 }
 
 /** Комната жива — отметить это. По отметке список сортируется, а мёртвые видны как мёртвые. */

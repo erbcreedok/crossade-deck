@@ -224,6 +224,28 @@ export interface RoomMember {
    * каждой строке: он про спрашивающего, а не про того, чья это строка.
    */
   readonly table?: { readonly chairs?: number; readonly mayAddChair?: boolean; readonly whyNoChair?: string };
+  /**
+   * САМА КОМНАТА — её настройки и то, что Я вправе в них поменять. Как и стол, ответ одинаков в
+   * каждой строке: он про спрашивающего, а не про того, чья это строка.
+   */
+  readonly room?: RoomView;
+}
+
+/** Комната, как её видит тот, кто за ней сидит: настройки и права на них. */
+export interface RoomView {
+  readonly code: string | null;
+  readonly title: string | null;
+  readonly visibility: "public" | "friends" | "hidden";
+  readonly admission: "open" | "code" | "invite";
+  readonly mode: "free" | "council" | "assembly";
+  readonly forever: boolean;
+  /**
+   * ВЕЧНОСТЬ СНЯЛИ, И ОНА ЖДЁТ СРОКА. Снятие — это назначенный столу снос, и сутки нужны, чтобы
+   * хозяин успел увидеть и вернуть галочку. Пусто — вечность никто не снимал.
+   */
+  readonly foreverDropAt?: number;
+  readonly can?: readonly RoomDeed[];
+  readonly cant?: readonly RoomDenial[];
 }
 
 /**

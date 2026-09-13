@@ -90,13 +90,46 @@ export const TABLE_DEEDS = ["seat:add"] as const;
  * сообщением в комнату не присылаются: там их просто нечем сделать.
  */
 export const HAND_DEEDS = ["piece:lock", "piece:pin", "piece:hide"] as const;
-export type Deed = (typeof DEEDS)[number] | (typeof TABLE_DEEDS)[number] | (typeof HAND_DEEDS)[number];
+
+/**
+ * ДЕЙСТВИЯ НАД САМОЙ КОМНАТОЙ — код, видимость, допуск, уклад, вечность, копия, закрытие.
+ *
+ * Ни одно из них не про человека: спрашивать «что я могу сделать с Тимуром» и получать в ответ
+ * «сменить код» — это тот же сбой, из-за которого «поставить стул» когда-то стояло в строке
+ * каждого. Поэтому у них свой список и свой ответ, один на комнату.
+ */
+export const ROOM_DEEDS = [
+  "room:link",
+  "room:code",
+  "room:public",
+  "room:access",
+  "room:mode",
+  "room:forever",
+  "room:fork",
+  "room:close",
+] as const;
+
+export type Deed =
+  | (typeof DEEDS)[number]
+  | (typeof TABLE_DEEDS)[number]
+  | (typeof HAND_DEEDS)[number]
+  | (typeof ROOM_DEEDS)[number];
 
 export function isDeed(raw: unknown): raw is Deed {
   return (
     typeof raw === "string" &&
-    ((DEEDS as readonly string[]).includes(raw) || (TABLE_DEEDS as readonly string[]).includes(raw))
+    ((DEEDS as readonly string[]).includes(raw) ||
+      (TABLE_DEEDS as readonly string[]).includes(raw) ||
+      (ROOM_DEEDS as readonly string[]).includes(raw))
   );
+}
+
+/**
+ * ДЕЙСТВИЕ НАД КОМНАТОЙ, А НЕ НАД ЧЕЛОВЕКОМ. У такого нет «кого»: спрашивающий и есть тот, о ком
+ * речь, и сообщение без имени — это не ошибка клиента, а верная форма.
+ */
+export function isRoomDeed(deed: Deed): boolean {
+  return (ROOM_DEEDS as readonly string[]).includes(deed);
 }
 
 /** Как действие называется человеку. Одно место на панель и на отказ. */
@@ -112,6 +145,14 @@ export const DEED_WORD: Record<Deed, string> = {
   "owner:pass": "Передать комнату",
   kick: "Выгнать",
   colour: "Сменить цвет",
+  "room:link": "Ссылка",
+  "room:code": "Сменить код",
+  "room:public": "Видимость",
+  "room:access": "Допуск",
+  "room:mode": "Кто решает",
+  "room:forever": "Вечная комната",
+  "room:fork": "Своя копия",
+  "room:close": "Закрыть комнату",
 };
 
 /** `true` — можно; строка — почему нельзя, теми же словами, какими это скажут человеку. */
@@ -161,6 +202,31 @@ export function may(deed: Deed, me: Someone, them: Someone, mode: Mode, table: T
       // ЦВЕТ — ЭТО ОН САМ, А НЕ СОСТОЯНИЕ ЕГО РУКИ: свой меняет каждый, чужой — тот, кто
       // распоряжается столом.
       return mine || handles(me, p) || "чужой цвет меняет тот, кто распоряжается";
+    // ССЫЛКА ЕСТЬ У КАЖДОГО, КТО ЗА СТОЛОМ: позвать друга — не власть над комнатой, а то, ради
+    // чего стол и заводят. Даже зритель вправе дать другу свой же код.
+    case "room:link":
+      return true;
+    case "room:code":
+      return manages(p) || "код меняет тот, кто распоряжается";
+    case "room:public":
+      return manages(p) || "видимость меняет тот, кто распоряжается";
+    case "room:access":
+      return manages(p) || "допуск меняет тот, кто распоряжается";
+    // САМ УКЛАД ПЕРЕКЛЮЧАЮТ ТОЛЬКО АДМИНЫ, И ДАЖЕ В ВЕЧЕ. Иначе игроки голосованием отменяют вече
+    // и любой другой уклад — это уже не настройка комнаты, а смена того, чья она.
+    case "room:mode":
+      return !rules(me) ? "уклад меняют админы" : manages(p) || "режим меняет тот, кто распоряжается";
+    // ВЕЧНОСТЬ ВКЛЮЧАЮТ ВСЕ, КТО РАСПОРЯЖАЕТСЯ, А СНИМАЮТ ПО-РАЗНОМУ: хозяин сразу, админ — с
+    // сутками отсрочки. Право одно на обе стороны, разница живёт в последствии, а не в праве.
+    case "room:forever":
+      return manages(p) || "вечность решает тот, кто распоряжается";
+    // ФОРК — ОТВЕТ НА «ХОЧУ БЫТЬ ХОЗЯИНОМ ЭТОЙ КОМНАТЫ». Корону не отбирают: делают свою копию с
+    // теми же людьми, где форкнувший — хозяин. Комнат становится две, и это честнее спора об одной.
+    case "room:fork":
+      if (me.role === "owner") return "она и так твоя";
+      return p === "none" ? "копию делает тот, кто распоряжается" : true;
+    case "room:close":
+      return p === "full" || "комнату закрывает хозяин";
   }
 }
 
@@ -183,6 +249,28 @@ export interface Denied {
  */
 export function mayAddChair(me: Someone, mode: Mode, table: Table = {}): true | string {
   return may("seat:add", me, me, mode, table);
+}
+
+/**
+ * ЧТО МНЕ МОЖНО С САМОЙ КОМНАТОЙ, И ЧЕГО НЕЛЬЗЯ — С ПРИЧИНАМИ. Вопрос задаётся раз на стол: он про
+ * комнату, и размножать его по строкам людей значит рисовать «сменить код» у каждого имени.
+ */
+export function roomDeeds(me: Someone, mode: Mode, table: Table = {}): { can: Allowed[]; cant: Denied[] } {
+  const p = powerOf(me, mode);
+  const can: Allowed[] = [];
+  const cant: Denied[] = [];
+  for (const deed of ROOM_DEEDS as readonly Deed[]) {
+    const verdict = may(deed, me, me, mode, table);
+    if (verdict !== true) {
+      cant.push({ deed, label: DEED_WORD[deed], why: verdict });
+      continue;
+    }
+    // ССЫЛКУ НЕ ГОЛОСУЮТ: позвать друга — не решение комнаты, и ждать голосов ради своего же кода
+    // было бы издевательством. Остальное при совете и вече становится предложением.
+    const vote = p === "proposal" && deed !== "room:link";
+    can.push({ deed, label: vote ? `Предложить: ${DEED_WORD[deed].toLowerCase()}` : DEED_WORD[deed], vote });
+  }
+  return { can, cant };
 }
 
 /**

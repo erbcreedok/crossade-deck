@@ -43,7 +43,7 @@ import {
 import { BUILD_INFO, formatVersion } from "./version.js";
 import { atCode, byCode, byId, chairsAreFixed, close, reconfigure, codeFree, isKitGame, mine, openRoom, reserveCode, search, sessionOf, type RoomRow } from "./rooms.js";
 import { rosterOf } from "./roomRoster.js";
-import { deedsOn, mayAddChair } from "./roomRights.js";
+import { deedsOn, mayAddChair, roomDeeds } from "./roomRights.js";
 import { NEWCOMERS, ROOM_LIMIT } from "./db/roomsRepo.js";
 import { promiseOf, type Promised } from "./codeHold.js";
 import { ADMISSIONS, cleanCode, MODES, roleOf, VISIBILITIES, type Mode } from "./db/roomsRepo.js";
@@ -286,6 +286,23 @@ export function createApp() {
     const whoAmI = { account: mine.account!, role: mine.role, seated: mine.seated, here: mine.here };
     // СТОЛ ОТВЕЧАЕТ ПРО СЕБЯ ОТДЕЛЬНО: мебель — не свойство человека, и спрашивается она раз.
     const chair = mayAddChair(whoAmI, room.mode, table);
+    // САМА КОМНАТА — ОДНИМ ОТВЕТОМ: её настройки и то, что Я вправе в них поменять. Вопрос про
+    // комнату задаётся раз на стол, а не раз на человека: «сменить код» в строке каждого имени
+    // читалось бы как действие над этим человеком.
+    const roomView = {
+      code: room.code,
+      // ИМЯ У СТОЛА СВОЁ ИЛИ НИКАКОЕ. Подставлять сюда `game` нельзя: это опознаватель игры, а не
+      // её название, и в экране комнаты он читался бы как «cards» вместо «Карты». Как зовётся сама
+      // игра, знает она сама, и ответить за неё сервер не может.
+      title: room.title,
+      visibility: room.visibility,
+      admission: room.admission,
+      mode: room.mode,
+      forever: room.forever,
+      // ВЕЧНОСТЬ СНЯТА АДМИНОМ И ЖДЁТ СРОКА. Молчаливый отложенный снос — это сюрприз через день.
+      ...(room.foreverDropAt !== null ? { foreverDropAt: room.foreverDropAt } : {}),
+      ...roomDeeds(whoAmI, room.mode, table),
+    };
     res.setHeader("X-Room-Chairs", String(room.chairs ?? ""));
     res.json(
       people.map((one) => {
@@ -305,6 +322,7 @@ export function createApp() {
             mayAddChair: chair === true,
             ...(chair === true ? {} : { whyNoChair: chair }),
           },
+          room: roomView,
         };
       }),
     );

@@ -18,6 +18,7 @@ import { topHudLook, type TopHudLook } from "./look.js";
 import { fillCss, lineCss, plateCss, shadowCss, tint } from "./paint.js";
 import { peopleRow, type TopHudPerson } from "./row.js";
 import { roleWord, rosterList, type RosterRole, type TopHudMember } from "./roster.js";
+import { roomSheetHtml, type TopHudRoom, type TopHudTable } from "./roomSheet.js";
 
 /**
  * HOW FAR DOWN THE PAGE THE STRIP REACHES, as a custom property — so anything the page lays over a
@@ -73,12 +74,17 @@ export interface TopHudState {
    * и потому живёт в шапке списка, а не в строке каждого: действие над столом, размноженное по
    * людям, читается как действие над человеком — и тогда непонятно, кому же ставят стул.
    */
-  readonly table?: { readonly chairs?: number; readonly mayAddChair?: boolean; readonly whyNoChair?: string } | undefined;
+  readonly table?: TopHudTable | undefined;
+  /**
+   * САМА КОМНАТА — её настройки и то, что мне в них разрешено. Открывается тапом по названию и
+   * коду: это и есть имя стола, и за ним стоит сам стол, а не список сидящих за ним.
+   */
+  readonly settings?: TopHudRoom | undefined;
   /**
    * ЧТО ДЕЛАТЬ, КОГДА В ПАНЕЛИ НАЖАЛИ. Полоса не знает ни комнаты, ни прав: она рисует то, что ей
    * дали, и передаёт нажатие тому, кто умеет спросить стол.
    */
-  readonly onDeed?: ((deed: string, whom: string, colour?: string) => void) | undefined;
+  readonly onDeed?: ((deed: string, whom: string, colour?: string, value?: string) => void) | undefined;
 }
 
 export interface TopHudOptions extends Partial<TopHudState> {
@@ -108,6 +114,7 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
     roster: o.roster ?? [],
     exit: o.exit,
     ...(o.table ? { table: o.table } : {}),
+    ...(o.settings ? { settings: o.settings } : {}),
     ...(o.onDeed ? { onDeed: o.onDeed } : {}),
   };
   /** Whether the full list is open. A fact about this screen, and it outlives a redraw. */
@@ -124,6 +131,12 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
   let paintRow: string | undefined;
   /** Последний отказ комнаты, словами. Живёт до следующего действия. */
   let refusal: string | undefined;
+  /** Спросили свой код — поле для него открыто. Закрывается вместе с листом. */
+  let askingCode = false;
+  /** Показан ли квадрат для камеры. Он большой, и всё время висеть ему незачем. */
+  let showQr = false;
+  /** Что экран только что сделал сам, словами. Живёт до следующего нажатия. */
+  let said: string | undefined;
 
   installSheet();
   const element = document.createElement("div");
@@ -261,39 +274,32 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
    * растянуто по ней, растянуто по этим сорока четырём.
    */
   /**
-   * КОМНАТА — ЕЁ СОБСТВЕННЫЙ ЛИСТ, и открывается он тапом по коду: код — это и есть имя стола.
+   * КОМНАТА — ЕЁ СОБСТВЕННЫЙ ЛИСТ, и открывается он тапом по названию и коду: это имя стола, и за
+   * ним стоит сам стол — его код, его мебель, его правила и то, переживёт ли он этот вечер.
    *
-   * Сегодня здесь одно — сколько за столом стульев. Спрашивается тем же контролом, что и при
-   * создании стола: человек, научившийся тянуть ползунок там, ищет его же здесь.
+   * Разметку строит отдельный файл: она чистая функция от того, что сказали сервер и палец, и
+   * порядок блоков проверяется без браузера.
    */
-  const roomSheetHtml = (): string => {
-    const table = state.table;
-    const chairs = table?.chairs;
-    const may = table?.mayAddChair === true;
-    return (
-      `<div style="padding:0 18px 24px">` +
-      `<div style="display:flex;align-items:center;gap:14px;padding:6px 0 12px">` +
-      `<span style="background:${PALETTE.black};box-shadow:inset 0 0 0 3px ${PALETTE.gold};border-radius:10px;padding:10px 14px;` +
-      `font:400 20px ${DIGIT};color:${PALETTE.gold};letter-spacing:.06em">${esc(state.room ?? "")}</span>` +
-      `<span style="font:400 14px ${LETTER};color:${PALETTE.ink}">${esc(state.title)}</span></div>` +
-      (chairs === undefined
-        ? ""
-        : `<div style="display:flex;flex-direction:column;gap:9px;padding:14px 0;box-shadow:inset 0 3px 0 -1px ${tint(PALETTE.black, 0.55)}">` +
-          `<span style="font:400 10px ${LETTER};letter-spacing:.1em;color:${PALETTE.inkDim};opacity:.7">МЕСТ ЗА СТОЛОМ</span>` +
-          `<div style="display:flex;align-items:center;gap:12px">` +
-          `<span data-g="chairs-value" style="flex:none;background:${PALETTE.well};box-shadow:inset 0 0 0 3px ${PALETTE.black},` +
-          `inset 0 0 0 5px ${PALETTE.wood};border-radius:10px;padding:11px 16px;font:400 17px ${DIGIT};color:${PALETTE.ink}">${chairs}</span>` +
-          (may
-            ? `<input data-g="chairs" type="range" min="${chairs}" max="32" step="1" value="${chairs}" ` +
-              `style="flex:1;accent-color:${PALETTE.gold};height:30px">`
-            : "") +
-          `</div>` +
-          `<span style="font:400 11px ${LETTER};color:${PALETTE.inkDim}">` +
-          (may ? "тяни ползунок — стул встаёт за стол" : esc(table?.whyNoChair ?? "мест столько, сколько назначено")) +
-          `</span></div>`) +
-      `</div>`
-    );
-  };
+  const roomHtmlSheet = (): string =>
+    state.settings === undefined
+      ? ""
+      : roomSheetHtml({
+          room: state.settings,
+          game: state.title,
+          ...(state.table ? { table: state.table } : {}),
+          ...(refusal ? { refusal } : {}),
+          askingCode,
+          showQr,
+          ...(said ? { said } : {}),
+          ...(tableLink() ? { link: tableLink() } : {}),
+        });
+
+  /**
+   * АДРЕС, ПО КОТОРОМУ ОТКРЫТ ЭТОТ СТОЛ. Знает его браузер, а не сервер: комната знает свой код, но
+   * не знает, на каком доме она живёт и через какую дверь в неё сегодня зашли.
+   */
+  const tableLink = (): string | undefined =>
+    typeof location === "undefined" ? undefined : location.href;
 
   const drawSheet = (): void => {
     if (!listOpen) {
@@ -323,7 +329,7 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
       `<span style="font:400 15px ${LETTER};letter-spacing:.08em;color:${PALETTE.gold}">${opened === "room" ? "КОМНАТА" : "ЗА СТОЛОМ"}</span>` +
       `<span data-g="close" role="button" tabindex="0" style="cursor:pointer;font:400 13px ${LETTER};border-radius:8px;padding:8px 12px;` +
       `box-shadow:inset 0 0 0 2px ${PALETTE.wood};color:${PALETTE.inkDim}">Закрыть</span></div>` +
-      (opened === "room" ? roomSheetHtml() : "") +
+      (opened === "room" ? roomHtmlSheet() : "") +
       (opened === "room" ? "" : `<div style="padding:0 18px">`) +
       (opened === "room" ? "" : mine ? mineRowHtml(mine, taken) : "") +
       (opened === "room"
@@ -616,16 +622,24 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
         draw();
       };
     }
-    // КОД — ЭТО ИМЯ СТОЛА, и тап по нему открывает сам стол: его код, его мебель, его правила.
-    const roomEl = element.querySelector<HTMLElement>('[data-g="room"]');
-    if (roomEl) {
-      roomEl.style.cursor = "pointer";
-      roomEl.onclick = (e) => {
-        e.stopPropagation();
-        listOpen = !(listOpen && opened === "room");
-        opened = "room";
-        draw();
-      };
+    // НАЗВАНИЕ И КОД — ЭТО ИМЯ СТОЛА, и тап по нему открывает сам стол: его код, его мебель, его
+    // правила. Открывает ВСЯ плашка целиком, а не один код: название и код стоят в ней рядом, и
+    // попадать пальцем в четыре цифры, когда рядом мёртвое слово, — это попадать мимо.
+    const openRoomSheet = (e: Event): void => {
+      e.stopPropagation();
+      listOpen = !(listOpen && opened === "room");
+      opened = "room";
+      askingCode = false;
+      showQr = false;
+      said = undefined;
+      refusal = undefined;
+      draw();
+    };
+    const titleGroup = element.querySelector<HTMLElement>('[data-g="title"]');
+    if (titleGroup && state.settings !== undefined) {
+      titleGroup.style.cursor = "pointer";
+      titleGroup.style.pointerEvents = "auto";
+      titleGroup.onclick = openRoomSheet;
     }
 
     drawSheet();
@@ -658,6 +672,58 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
       chairsEl.onchange = () => {
         const now = state.table?.chairs ?? 0;
         for (let i = now; i < Number(chairsEl.value); i += 1) state.onDeed?.("seat:add", "");
+      };
+    }
+    /**
+     * НАЖАЛИ В ЭКРАНЕ КОМНАТЫ. Три из этих кнопок делает сам экран, остальное уходит комнате:
+     * ссылка — это адрес, который известен браузеру, а не серверу; «свой код» открывает поле; QR
+     * рисуется из того же адреса.
+     */
+    for (const button of sheet.querySelectorAll<HTMLElement>("[data-room]")) {
+      button.onclick = (e) => {
+        e.stopPropagation();
+        const deed = button.dataset.room!;
+        const value = button.dataset.value;
+        refusal = undefined;
+        said = undefined;
+        if (deed === "qr") {
+          showQr = !showQr;
+          return draw();
+        }
+        if (deed === "room:link") {
+          const link = tableLink();
+          // СКОПИРОВАТЬ — ДЕЛО ЭКРАНА, А НЕ КОМНАТЫ: сервер не знает ни адреса, ни буфера обмена.
+          // Не дали скопировать — говорим адрес словами, чтобы его можно было взять руками.
+          void navigator.clipboard
+            ?.writeText(link ?? "")
+            .then(() => {
+              said = "ссылка скопирована";
+              draw();
+            })
+            .catch(() => {
+              said = link;
+              draw();
+            });
+          return;
+        }
+        if (deed === "code:own") {
+          askingCode = !askingCode;
+          return draw();
+        }
+        if (deed === "code:new") {
+          // НОВЫЙ КОД — ТОТ ЖЕ ПРОСЬБЕ, ПРОСТО БЕЗ НАЗВАННОГО: стол получает выданный.
+          state.onDeed?.("room:code", "");
+          return;
+        }
+        if (deed === "code:take") {
+          const field = sheet.querySelector<HTMLInputElement>('[data-g="code"]');
+          const asked = field?.value.trim();
+          if (!asked) return;
+          state.onDeed?.("room:code", "", undefined, asked);
+          askingCode = false;
+          return draw();
+        }
+        state.onDeed?.(deed, "", undefined, value);
       };
     }
     for (const paint of sheet.querySelectorAll<HTMLElement>('[data-g="paint"]')) {

@@ -137,6 +137,8 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
   let unbindOnRelay: (() => void) | undefined;
   let unbindOnRoster: (() => void) | undefined;
   let unbindOnDenied: (() => void) | undefined;
+  let unbindOnCode: (() => void) | undefined;
+  let unbindOnForked: (() => void) | undefined;
   /** Кто числится за столом — последний ответ комнаты: по нему панель находит место человека. */
   let roomPeople: readonly RoomMember[] = [];
 
@@ -170,14 +172,14 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
      * НАЖАЛИ В ПАНЕЛИ — ПРОСИМ КОМНАТУ. Полоса не знает ни прав, ни комнаты: она рисует то, что ей
      * разрешили, и передаёт нажатие сюда. Ответ приходит либо новым ростером, либо отказом словами.
      */
-    onDeed: (deed, whom, colour) => {
+    onDeed: (deed, whom, colour, value) => {
       // РУКА — ДЕЛО СТОЛА, ОСТАЛЬНОЕ — ДЕЛО КОМНАТЫ. Комнате незачем знать, как лежат карты, а
       // столу незачем раздавать права: каждый отвечает за своё, и просят их по-разному.
       if (deed.startsWith("piece:")) {
         const seat = roomPeople.find((one) => one.account === whom || one.name === whom)?.seat ?? null;
         return handDeed(deed, seat);
       }
-      atTable?.sendDeed(deed, whom, colour);
+      atTable?.sendDeed(deed, whom, colour, value);
     },
     ...(o.host.room() ? { room: o.host.room()! } : {}),
     ...(o.host.exit ? { exit: o.host.exit } : {}),
@@ -217,7 +219,14 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
       if (stopped) return;
       roomPeople = members;
       const table = members[0]?.table;
-      strip.set({ roster: members.map(asMember), ...(table ? { table } : {}) });
+      // САМ СТОЛ И САМА КОМНАТА — ОДИНАКОВЫ В КАЖДОЙ СТРОКЕ: это ответ про спрашивающего, а не про
+      // того, чья это строка, и потому берётся он из первой попавшейся.
+      const settings = members[0]?.room;
+      strip.set({
+        roster: members.map(asMember),
+        ...(table ? { table } : {}),
+        ...(settings ? { settings } : {}),
+      });
 
     });
   };
@@ -531,6 +540,19 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
       // ОТКАЗ КОМНАТЫ ГОВОРИТСЯ ВСЛУХ, на той же строке, где нажали: молчание в ответ на кнопку
       // читается как поломка, и человек жмёт её ещё трижды.
       unbindOnDenied = table.onDenied(({ why }) => strip.denied(why));
+      // КОД СМЕНИЛИ — СТОЛ ЗОВЁТСЯ ПО-НОВОМУ ВЕЗДЕ И СРАЗУ: в адресе, на полосе и в том, что
+      // спросят у комнаты. Старый код уже ничей, и вернуться по нему было бы некуда.
+      unbindOnCode = table.onCode((code) => {
+        o.host.setRoom(code);
+        strip.set({ room: code });
+        askWhoBelongs();
+      });
+      // СДЕЛАЛ СВОЮ КОПИЮ — В НЕЁ И ИДЁШЬ. «Сделал свою и остался за чужим столом» — это не ответ
+      // на «хочу быть хозяином», а вторая комната, о которой некому вспомнить.
+      unbindOnForked = table.onForked((code) => {
+        o.host.setRoom(code);
+        location.reload();
+      });
       // Комната ответила — можно спросить, кто за ней числится: до этого спрашивать было не у кого.
       askWhoBelongs();
       // THE DESK OPENS AT ITS OWN PLACE, and it opens there NOW: which seat this glass is only
@@ -705,6 +727,8 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     unbindOnRelay?.();
     unbindOnRoster?.();
     unbindOnDenied?.();
+    unbindOnCode?.();
+    unbindOnForked?.();
     stopWatching?.();
     currentTable?.leave();
     leaveIdleClock?.();

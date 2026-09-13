@@ -22,6 +22,7 @@ import {
   findRooms,
   insertRoom,
   roomByCode,
+  foreverNow,
   roomById,
   roomsOfAccount,
   setSession,
@@ -216,7 +217,7 @@ export function sessionEnded(roomId: string): void {
   setSession(roomId, null);
   forgetPeople(roomId);
   const room = roomById(roomId);
-  if (room && !room.forever) closeLater(roomId);
+  if (room && !foreverNow(room)) closeLater(roomId);
 }
 
 /** Столы, которым назначено закрытие. Ключ — комната; повторный вызов не заводит второй будильник. */
@@ -237,7 +238,7 @@ export function closeLater(roomId: string, ms = getEmptyRoomTtlMs()): void {
     const room = roomById(roomId);
     // Вернулись за стол (или стол уже закрыли руками) — закрывать нечего. И вечный не закрывается
     // по будильнику никогда: он принадлежит человеку, а не этой встрече.
-    if (!room || room.closedAt || room.sessionId || room.forever) return;
+    if (!room || room.closedAt || room.sessionId || foreverNow(room)) return;
     closeRoom(roomId);
   }, ms);
   // Будильник не держит процесс живым: пустой стол — не повод не дать серверу остановиться.

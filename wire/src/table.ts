@@ -52,7 +52,11 @@ export interface Table {
    * Просьба, а не приказ: право проверяет комната, и отказ приходит словами (`onDenied`). Кнопка,
    * нарисованная экраном, — надпись, и стол, верящий ей на слово, отдаёт себя первому встречному.
    */
-  sendDeed(deed: string, whom: string, colour?: string): void;
+  sendDeed(deed: string, whom: string, colour?: string, value?: string): void;
+  /** Комнате сменили код. Полоса и адрес идут за ним: код — это имя стола. */
+  onCode(listener: (code: string) => void): () => void;
+  /** Сделана своя копия этого стола, и вот её код. Кто её сделал, тот в неё и идёт. */
+  onForked(listener: (code: string) => void): () => void;
   /** Комната не пустила — и сказала почему. Эти слова и показываются человеку. */
   onDenied(listener: (denial: { deed: string; why: string }) => void): () => void;
   onRelay(listener: (msg: RelayMessage) => void): () => void;
@@ -127,6 +131,20 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
   const relayListeners = new Set<(msg: RelayMessage) => void>();
   const deniedListeners = new Set<(denial: { deed: string; why: string }) => void>();
   const rosterListeners = new Set<(roster: readonly RosterItem[]) => void>();
+  const codeListeners = new Set<(code: string) => void>();
+  const forkListeners = new Set<(code: string) => void>();
+  // КОД — ЭТО ИМЯ СТОЛА, и когда его меняют, стол зовётся по-новому СРАЗУ: адрес, полоса и всё,
+  // что спрашивает `table.code`, обязаны говорить одно.
+  let currentCode = "";
+  colyseusRoom.onMessage("room", (msg: { code?: string }) => {
+    if (typeof msg?.code !== "string") return;
+    currentCode = msg.code;
+    for (const listener of codeListeners) listener(msg.code);
+  });
+  colyseusRoom.onMessage("deed:done", (msg: { deed?: string; code?: string }) => {
+    if (msg?.deed !== "room:fork" || typeof msg?.code !== "string") return;
+    for (const listener of forkListeners) listener(msg.code);
+  });
   let currentRoster: readonly RosterItem[] = [];
   /**
    * WHETHER THE ROOM HAS ALREADY NAMED EVERYBODY — the roster in the `welcome` is a snapshot taken
@@ -198,7 +216,9 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
       return currentRev;
     },
     seat: welcome.you?.seat ?? null,
-    code: welcome.code,
+    get code() {
+      return currentCode || welcome.code;
+    },
     roomId: colyseusRoom.id || welcome.roomId,
     get roster() {
       return currentRoster;
@@ -222,8 +242,20 @@ export async function joinTable(opts: JoinTableOptions): Promise<Table> {
     sendTurn(seat: string | undefined) {
       colyseusRoom.send("turn", { seat: seat ?? null });
     },
-    sendDeed(deed: string, whom: string, colour?: string) {
-      colyseusRoom.send("deed", { deed, whom, ...(colour ? { colour } : {}) });
+    sendDeed(deed: string, whom: string, colour?: string, value?: string) {
+      colyseusRoom.send("deed", { deed, whom, ...(colour ? { colour } : {}), ...(value ? { value } : {}) });
+    },
+    onCode(listener: (code: string) => void) {
+      codeListeners.add(listener);
+      return () => {
+        codeListeners.delete(listener);
+      };
+    },
+    onForked(listener: (code: string) => void) {
+      forkListeners.add(listener);
+      return () => {
+        forkListeners.delete(listener);
+      };
     },
     onDenied(listener: (denial: { deed: string; why: string }) => void) {
       deniedListeners.add(listener);

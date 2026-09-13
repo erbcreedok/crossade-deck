@@ -9,3 +9,14 @@ export { TOP_HUD_LOOK, topHudLook, type TopHudLook } from "./look.js";
 export { peopleRow, type PeopleRow, type RowBall, type TopHudPerson } from "./row.js";
 export { rosterList, roleWord, ROSTER_ROLES, type RosterList, type RosterRole, type TopHudMember } from "./roster.js";
 export { fitTitle, nameCap, type Fit, type FitAsk } from "./fit.js";
+export {
+  roomSheetHtml,
+  MODE_MEANS,
+  MODE_WORDS,
+  ADMISSION_WORDS,
+  VISIBILITY_WORDS,
+  type RoomSheetAsk,
+  type TopHudRoom,
+  type TopHudTable,
+} from "./roomSheet.js";
+export { qrMatrix, qrSvg, type QrMatrix } from "./qr.js";
