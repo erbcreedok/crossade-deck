@@ -1,0 +1,29 @@
+design/gesture/felt.js
+  s_9ed0da107cbc4a::t_e10f154d6bdeba 1-331,346-348,350-387,394-426
+  s_9ed0da107cbc4a::t_b80ec8d88cb3d7 332-340
+  s_9ed0da107cbc4a::t_ce039c1eeb6402 388-393
+  s_9ed0da107cbc4a::t_b5064013ade0fe 341-345,349
+design/gesture/index.html
+  s_9ed0da107cbc4a::t_b5064013ade0fe 279
+  s_9ed0da107cbc4a::t_3a12a4aa3813f1 264-271,276-278,280
+  s_9ed0da107cbc4a::t_36412be0161ac8 1-263,272-275,281-322
+.claude/launch.json
+  s_9ed0da107cbc4a::t_f0219cabb24880 111-119
+  s_9ed0da107cbc4a::t_49e8e0cc28f038 110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "171a19cb8225539d9f8c21aec56e1b28a9b9d784",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
