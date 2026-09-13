@@ -378,6 +378,16 @@
       g.restore();
     }
 
+    // ЧТО ВЫНЕСЛИ ИЗ РУК — лежит на сукне СВОИМ размером, а он втрое меньше карты в руке: рука
+    // держит карты крупно, на столе они ложатся тем, чем и являются.
+    for (const one of o.table ?? []) {
+      g.save();
+      g.translate(one.at.x, one.at.y);
+      g.rotate(((one.angle ?? 0) * Math.PI) / 180);
+      card(g, one, one.shown === true, CARD.w, CARD.h);
+      g.restore();
+    }
+
     // МЕСТА — ПО РАЗРЕЗАНИЮ ПИЦЦЫ, на радиусе (R - 1), ровно как их кладёт `cardsSpec`.
     const places = ringPlaces(Math.max(people.length, o.chairs ?? people.length), R - 1);
     const spots = [];

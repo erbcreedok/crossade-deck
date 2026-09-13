@@ -50,6 +50,14 @@
   const BAR = { size: 0.6, gap: 0.08, margin: 0.22, pad: 0.11, radius: 0.11, line: 0.04, tuck: 0.24, fade: 1 };
   const HUD_FAN = { radius: 7, apart: 1.06, shut: 0.14, edge: 0.1 };
   const HUD_CARDS = 6, HUD_GAP = 0.06, HUD_MARGIN = 0.14, HAND_PAD = 0.16, TUCK_TIP = 0.45;
+  /**
+   * НА СКОЛЬКО НЕСОМАЯ КАРТА ВИСИТ ВЫШЕ ТОГО МЕСТА, КУДА ОНА ЛЕТИТ (`CARRY_CLEAR`).
+   *
+   * Держимое, нарисованное ПОВЕРХ контура, закрывает единственное, ради чего контур и есть: куда
+   * это едет. Доля от высоты самой карты, а не пиксели, — тогда карта расчищает карту, а стопка
+   * расчищает стопку.
+   */
+  const CARRY_CLEAR = 0.32;
   /** Комната под рядом — под язычок, которым руку поднимают целиком (`handRoom`). */
   const HAND_ROOM = 0.6 / 4 + 0.06;
   const HUD_UNIT_FRACTION = 0.25;
@@ -91,6 +99,8 @@
     mine: deck(7, "me"),
     pose: { fan: true, shrink: false, tuck: false },
     on: { pin: false, lock: false, hide: false },
+    /** Что лежит на сукне — то, что вынесли из рук. В единицах стола, как всё на нём. */
+    table: [],
     /** Чей тултип открыт. Пусто — ничей. */
     tip: null,
   };
@@ -154,15 +164,21 @@
     });
   }
 
-  /** Всё, что нужно знать о полосе руки: её масштаб, её коробка и её место на стекле. */
-  function handBox() {
+  /**
+   * ВСЁ, ЧТО НУЖНО ЗНАТЬ О ПОЛОСЕ РУКИ: её масштаб, её коробка и её место на стекле.
+   *
+   * `count` — на СКОЛЬКО карт её раскладывать. Пока одна из них в воздухе, рука считается на то
+   * число, которое будет после того, как её положат: иначе соседки дёргаются дважды — сперва
+   * сходятся на освободившееся место, потом расходятся обратно.
+   */
+  function handBox(count = P.mine.length) {
     const u = hudUnit();
     const g = glass();
     const inset = 0;
     const room = g.w / u - 2 * HUD_MARGIN;
     const scale = Math.min(1, room / (HUD_CARDS * CARD.w * (1 + HUD_GAP)));
     const wide = Math.max(1, g.w / u / scale);
-    const plan = handPlan(P.pose, P.mine.length, CARD.w, CARD.h, wide);
+    const plan = handPlan(P.pose, count, CARD.w, CARD.h, wide);
     const drop = plan.reduce((m, p) => Math.max(m, p.y), 0);
     const high = CARD.h + drop + 2 * HAND_PAD + HAND_ROOM;
     const barTop = g.h - inset - barHeight() * u;
@@ -198,37 +214,138 @@
   }
 
   /**
+   * КОНТУР — КАРТИНКА МЕСТА, А НЕ КАРТЫ. Ни заливки, ни тени: сквозь него видно то, на что вещь
+   * ляжет. Пунктир в приглушённых чернилах — те же числа, что и у продукта (`MARK_SURFACE`).
+   *
+   * И ЭТО НЕ ПРИЗРАК. Призрак — полупрозрачная копия карты, и читается он как «карта уже там»; а
+   * пока палец не отпущен, там ещё ничего нет. Контур говорит только одно: вот это место.
+   */
+  function markHtml(w, h, angle, x, y, z) {
+    const line = Math.max(1.5, w * 0.04);
+    return `<div data-g="mark" style="position:absolute;width:${w}px;height:${h}px;`
+      + `left:${x - w / 2}px;top:${y - h / 2}px;transform:rotate(${angle}deg);z-index:${z};pointer-events:none;`
+      // ЧЁРНАЯ ОБВОДКА ВОКРУГ ПУНКТИРА, и она не украшение: в руке контур ложится НА соседнюю
+      // карту, а карта кремовая — кремовый пунктир на ней пропадает начисто. На сукне он читается,
+      // и потому беда эта не видна ровно до того дня, когда контур впервые встаёт между картами.
+      + `border-radius:${w * 0.12}px;border:${line}px dashed ${T.ink};opacity:.9;`
+      + `box-shadow:0 0 0 ${Math.max(1, line * 0.6)}px ${T.black}, inset 0 0 0 ${Math.max(1, line * 0.6)}px ${T.black};`
+      + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out"></div>`;
+  }
+
+  /**
+   * ГЕОМЕТРИЯ МОЕЙ РУКИ — где стоит каждое гнездо, в пикселях экрана, для РОВНО такого числа карт.
+   *
+   * Спрашивается «на сколько», а не «сколько сейчас»: пока карта в воздухе, рука раскладывается на
+   * то число, которое будет ПОСЛЕ того, как её положат, — иначе соседи дёргаются дважды, сначала
+   * сдвигаясь на освободившееся место, потом обратно.
+   */
+  function mineGeom(count) {
+    const { u, scale, wide, barTop, mid } = handBox(count);
+    const g = glass();
+    const plan = handPlan(P.pose, count, CARD.w, CARD.h, wide);
+    const w = CARD.w * scale * u;
+    const h = CARD.h * scale * u;
+    return {
+      which: "mine", mirror: false, w, h, barTop,
+      slots: plan.map((p) => ({ x: g.w / 2 + p.x * scale * u, y: mid + p.y * scale * u, angle: p.angle })),
+    };
+  }
+
+  /** Коробка тултипа — считается ДО разметки, потому что по ней же ищут гнёзда его веера. */
+  function tipBox(who, spot) {
+    const g = glass();
+    const w = Math.min(g.w - 16, 292);
+    const cw = 46, ch = Math.round(cw * 1.4);
+    const rowH = ch + 24;
+    const height = 12 + 30 + 8 + 16 + rowH + 12;
+    const left = Math.max(8, Math.min(g.w - w - 8, spot.x - w / 2));
+    const below = spot.y < g.h * 0.45;
+    const top = below
+      ? Math.min(g.h - height - 8, spot.y + spot.r + 12)
+      : Math.max(8, spot.y - spot.r - 12 - height);
+    return { left, top, w, height, cw, ch, rowH, rowTop: top + 12 + 30 + 8 + 16, inner: w - 24 };
+  }
+
+  /**
+   * ГЕОМЕТРИЯ ЧУЖОЙ РУКИ. Веер зеркален: его левая карта — моя правая, — поэтому гнездо, ближайшее
+   * к моему левому краю, принадлежит ПОСЛЕДНЕЙ его карте, и порядок в списке считается наоборот.
+   */
+  function tipGeom(who, spot, count) {
+    const box = tipBox(who, spot);
+    const plan = handPlan({ fan: true, shrink: false, tuck: false }, count, 1, 1.4, box.inner / box.cw);
+    return {
+      which: who.key, mirror: true, w: box.cw, h: box.ch, box,
+      slots: plan.map((p) => ({
+        x: box.left + 12 + box.inner / 2 + p.x * box.cw,
+        y: box.rowTop + 8 + box.ch / 2 + p.y * box.cw,
+        angle: p.angle,
+      })),
+    };
+  }
+
+  /** Рука по имени — та самая, что и рисуется; не копия. */
+  const handOf = (which) => (which === "mine" ? P.mine : P.people.find((one) => one.key === which).hand);
+
+  /**
+   * В КАКОЕ ГНЕЗДО ЦЕЛИТСЯ ПАЛЕЦ — по числу гнёзд ЛЕВЕЕ него, и только по ним: карта в веере лежит
+   * под соседкой, и спрашивать «над какой картой палец» значит спрашивать про верхнюю из двух.
+   */
+  function slotAt(geom, x, room) {
+    const left = geom.slots.filter((s) => s.x < x).length;
+    const j = Math.max(0, Math.min(room, left));
+    return geom.mirror ? room - j : j;
+  }
+
+  /** Карта разметкой, стоящая в своём гнезде. */
+  function slotCard(c, shown, geom, slot, z, attr, held) {
+    return `<div ${attr}="${c.id}" style="position:absolute;width:${geom.w}px;height:${geom.h}px;`
+      + `left:${slot.x - geom.w / 2}px;top:${slot.y - geom.h / 2}px;transform:rotate(${slot.angle}deg);`
+      + `z-index:${z};touch-action:none;cursor:grab;${held ? "opacity:0;" : ""}`
+      + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out">${cardHtml(c, shown, geom.w)}</div>`;
+  }
+
+  /**
+   * РУКА, РАЗЛОЖЕННАЯ ВМЕСТЕ С МЕСТОМ ПОД КАРТУ В ВОЗДУХЕ.
+   *
+   * Пока палец несёт карту НАД этой рукой, рука раскладывается так, будто карта уже в ней, а её
+   * гнездо занимает контур. Отсюда и `z` контура: он ровно тот, что достанется карте, — соседки
+   * справа накрывают его так же, как накроют её.
+   */
+  function layHand(which, geom, cards, mark, shown, attr) {
+    const list = mark === null ? cards : [...cards.slice(0, mark), null, ...cards.slice(mark)];
+    return list.map((c, i) => {
+      const slot = geom.slots[geom.mirror ? list.length - 1 - i : i];
+      if (!slot) return "";
+      if (c === null) return markHtml(geom.w, geom.h, slot.angle, slot.x, slot.y, i + 1);
+      return slotCard(c, shown, geom, slot, i + 1, attr, false);
+    }).join("");
+  }
+
+  /**
    * МОЙ НИЖНИЙ HUD — полоса кнопок на дне стекла и веер, стоящий на ней.
    *
    * Семь кнопок двумя группами: права прижаты к левому краю, позы — к правому, и обе ужимаются
    * ОДИНАКОВО, когда на стекле им тесно (`fitBar`): иначе на телефоне два ряда въезжают друг в друга.
    */
   function hudHtml() {
-    const { u, scale, wide, plan, high, barTop, mid } = handBox();
     const g = glass();
-    const w = CARD.w * scale * u;
-    const h = CARD.h * scale * u;
+    const cards = P.mine;
+    const mark = drag && drag.target.kind === "hand" && drag.target.which === "mine" ? drag.target.index : null;
+    const geom = mineGeom(cards.length + (mark === null ? 0 : 1));
+    const u = hudUnit();
     const need = (3 * BAR.size + 2 * BAR.gap) + (4 * BAR.size + 3 * BAR.gap) + 2 * BAR.margin + BAR.gap;
     const fit = g.w / u > 0 && need > g.w / u ? Math.max(0.5, g.w / u / need) : 1;
     const side = BAR.size * u * fit;
     const gap = BAR.gap * u * fit;
     const margin = BAR.margin * u * fit;
 
-    const cards = P.mine.map((c, i) => {
-      const p = plan[i];
-      return `<div data-card="${c.id}" style="position:absolute;width:${w}px;height:${h}px;`
-        + `left:${g.w / 2 + p.x * scale * u - w / 2}px;top:${mid + p.y * scale * u - h / 2}px;`
-        + `transform:rotate(${p.angle}deg);z-index:${i + 1};touch-action:none;cursor:grab;`
-        + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out">${cardHtml(c, !P.on.hide, w)}</div>`;
-    }).join("");
-
-    return `<div style="position:absolute;left:0;right:0;top:${barTop - BAR.fade * u}px;height:${BAR.fade * u}px;`
+    return `<div style="position:absolute;left:0;right:0;top:${geom.barTop - BAR.fade * u}px;height:${BAR.fade * u}px;`
       + `background:linear-gradient(to top, rgba(11,7,4,.85), rgba(11,7,4,0));pointer-events:none"></div>`
-      + cards
+      + layHand("mine", geom, cards, mark, !P.on.hide, "data-card")
       // ПОЛОСА — ПОВЕРХ КАРТ, как спина поверх того, что под неё подоткнули: карты уходят под её
       // край на `BAR.tuck`, и если она окажется под ними, подоткнуть будет некуда. Порядок в
       // разметке этого не решает: у карт свой z, и он поднимает их над соседом без него.
-      + `<div style="position:absolute;left:0;right:0;top:${barTop}px;height:${barHeight() * u}px;z-index:${P.mine.length + 10};`
+      + `<div style="position:absolute;left:0;right:0;top:${geom.barTop}px;height:${barHeight() * u}px;z-index:${P.mine.length + 10};`
       + `background:linear-gradient(${T.panel},${T.well});box-shadow:inset 0 3px 0 -1px ${T.black};display:flex;align-items:center">`
       + `<div style="position:absolute;left:${margin}px;display:flex;gap:${gap}px">`
       + RIGHTS.map((what) => barButton(what, P.on[what], side)).join("") + `</div>`
@@ -244,46 +361,44 @@
    * ЕГО ВЕЕР ЗЕРКАЛЕН: его левая карта — моя правая, и рубашками ко мне.
    */
   function tipHtml(who, spot) {
-    const g = glass();
-    const w = Math.min(g.w - 16, 292);
-    const left = Math.max(8, Math.min(g.w - w - 8, spot.x - w / 2));
-    const below = spot.y < g.h * 0.45;
-    const cw = 46, ch = Math.round(cw * 1.4);
-    const n = who.hand.length;
-    const plan = handPlan({ fan: true, shrink: false, tuck: false }, n, 1, 1.4, (w - 24) / cw);
-    const cards = who.hand.map((c, i) => {
-      const p = plan[n - 1 - i];
-      return `<div data-tip-card="${c.id}" style="position:absolute;width:${cw}px;height:${ch}px;`
-        + `left:${(w - 24) / 2 + p.x * cw - cw / 2}px;top:${8 + p.y * cw}px;transform:rotate(${p.angle}deg);z-index:${i + 1};`
-        + `touch-action:none">${cardHtml(c, false, cw)}</div>`;
-    }).join("");
-    return `<div data-g="tip" style="position:absolute;left:${left}px;${below ? `top:${spot.y + spot.r + 12}px` : `bottom:${g.h - spot.y + spot.r + 12}px`};`
+    const cards = who.hand;
+    const mark = drag && drag.target.kind === "hand" && drag.target.which === who.key ? drag.target.index : null;
+    const geom = tipGeom(who, spot, cards.length + (mark === null ? 0 : 1));
+    const box = geom.box;
+    return `<div data-g="tip" style="position:absolute;left:${box.left}px;top:${box.top}px;`
       // ТУЛТИП — ПОВЕРХ ВСЕГО, полосы кнопок в том числе: его открыли последним, и он про то, о чём
       // спросили прямо сейчас.
-      + `width:${w}px;box-sizing:border-box;z-index:40;background:${T.well};`
+      + `width:${box.w}px;box-sizing:border-box;z-index:40;background:${T.well};`
       + `box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
       + `<div style="display:flex;align-items:center;gap:9px;padding-bottom:8px">`
       + `<span style="flex:none;width:30px;height:30px;border-radius:50%;background:${who.ink};box-shadow:inset 0 0 0 3px ${T.black};`
       + `display:flex;align-items:center;justify-content:center;font:400 14px Tiny5,monospace;color:${T.black}">${who.name[0]}</span>`
       + `<span style="font:400 14px Tiny5,monospace;color:${T.ink}">${who.name}</span></div>`
-      + `<span style="font:400 10px Tiny5,monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">ЕГО РУКА · ${n}</span>`
-      + `<div style="position:relative;height:${ch + 24}px">${cards}</div></div>`;
+      + `<span style="font:400 10px Tiny5,monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">ЕГО РУКА · ${cards.length}</span>`
+      + `<div style="position:relative;height:${box.rowH}px"></div></div>`
+      // КАРТЫ ЕГО ВЕЕРА — НЕ ВНУТРИ КОРОБКИ, А НАД НЕЙ, в тех же экранных координатах, что и моя
+      // рука: карту вытаскивают ИЗ тултипа на стол, и обрезанная его краем она пропадала бы ровно в
+      // тот миг, когда на неё смотрят.
+      + `<div style="position:absolute;inset:0;z-index:41;pointer-events:none">`
+      + `<div style="position:absolute;inset:0;pointer-events:auto">`
+      + layHand(who.key, geom, cards, mark, false, "data-tip-card") + `</div></div>`;
   }
 
   let spots = [];
+  let view = null;
+  /** Что сейчас несёт палец. Пусто — ничего. */
+  let drag = null;
 
   /** Сколько пикселей дна занято рукой и её полосой (`floorNow` в `handHud.ts`). */
   function hudFloor() {
-    const { u, scale, high, shown } = handBox();
-    void scale;
-    void high;
+    const { u, shown } = handBox();
     return (barHeight() + shown + HUD_MARGIN) * u;
   }
 
   function draw() {
     const g = glass();
-    const view = Felt.draw(canvas, {
-      W: g.w, H: g.h, people: P.people, images,
+    view = Felt.draw(canvas, {
+      W: g.w, H: g.h, people: P.people, images, table: P.table,
       // ЦЕНТР СТОЛА — В СЕРЕДИНЕ ТОГО, ЧТО ОТ СТЕКЛА ОСТАЛОСЬ: рука занимает дно и стол на него не
       // налезает. Считается от самой руки (`floorNow`), а не подбирается глазами, — иначе позы,
       // которые двигают дно, каждый раз уводили бы стол.
@@ -293,8 +408,121 @@
     spots = view.spots;
     const tip = P.tip ? P.people.find((one) => one.key === P.tip) : undefined;
     const spot = tip ? spots.find((s) => s.key === tip.key) : undefined;
-    over.innerHTML = hudHtml() + (tip && spot ? tipHtml(tip, spot) : "");
+    over.innerHTML = hudHtml() + (tip && spot ? tipHtml(tip, spot) : "") + feltMarkHtml() + carryHtml();
     wire();
+  }
+
+  /** Контур на сукне — карта ляжет туда своим размером, а он ВТРОЕ меньше, чем она в руке. */
+  function feltMarkHtml() {
+    if (!drag || drag.target.kind !== "felt") return "";
+    const w = Felt.CARD.w * view.U;
+    const h = Felt.CARD.h * view.U;
+    return markHtml(w, h, 0, view.centre.x + drag.target.at.x * view.U, view.centre.y + drag.target.at.y * view.U, 30);
+  }
+
+  /** Карта в воздухе — под пальцем и над всем остальным. Своей руки размер, пока её не отпустили. */
+  function carryHtml() {
+    if (!drag) return "";
+    return `<div data-g="carry" style="position:fixed;width:${drag.w}px;height:${drag.h}px;`
+      + `left:${drag.x - drag.gx}px;top:${drag.y - drag.gy - drag.h * CARRY_CLEAR}px;z-index:60;pointer-events:none;`
+      + `filter:drop-shadow(0 ${Math.round(drag.h * 0.12)}px 0 rgba(11,7,4,.45))">`
+      + cardHtml(drag.card, drag.shown, drag.w) + `</div>`;
+  }
+
+  /** Куда целится палец: в чьё-то гнездо или на сукно. */
+  function aimAt(x, y) {
+    const tip = P.tip ? P.people.find((one) => one.key === P.tip) : undefined;
+    if (tip) {
+      const spot = spots.find((s) => s.key === tip.key);
+      const room = tip.hand.length + (drag.from === tip.key ? 0 : 0);
+      const geom = tipGeom(tip, spot, room + 1);
+      const box = geom.box;
+      if (x >= box.left && x <= box.left + box.w && y >= box.top && y <= box.top + box.height) {
+        return { kind: "hand", which: tip.key, index: slotAt(geom, x, room) };
+      }
+    }
+    const mineRoom = P.mine.length;
+    const geom = mineGeom(mineRoom + 1);
+    const top = geom.slots.reduce((m, s) => Math.min(m, s.y - geom.h / 2), Infinity);
+    if (y >= top && x >= 0 && x <= glass().w) {
+      return { kind: "hand", which: "mine", index: slotAt(geom, x, mineRoom) };
+    }
+    // НА СУКНО — В ТОЧКУ, ГДЕ СЕЙЧАС СЕРЕДИНА НЕСОМОЙ КАРТЫ, а не где палец: за неё и держат.
+    return { kind: "felt", at: { x: (x - drag.gx + drag.w / 2 - view.centre.x) / view.U, y: (y - drag.gy + drag.h / 2 - view.centre.y) / view.U } };
+  }
+
+  const sameAim = (a, b) =>
+    a.kind === b.kind && (a.kind === "felt" ? true : a.which === b.which && a.index === b.index);
+
+  /** Размер карты в этой руке — спрашивается у геометрии, а не у элемента (см. `startDrag`). */
+  function sizeOf(which) {
+    if (which === "mine") return mineGeom(P.mine.length);
+    const who = P.people.find((one) => one.key === which);
+    return tipGeom(who, spots.find((s) => s.key === which), who.hand.length);
+  }
+
+  function startDrag(e, which, id) {
+    const hand = handOf(which);
+    const index = hand.findIndex((c) => c.id === id);
+    if (index < 0) return;
+    const el = e.currentTarget;
+    const r = el.getBoundingClientRect();
+    // РАЗМЕР БЕРЁТСЯ У ГЕОМЕТРИИ, А СЕРЕДИНА — У ЭЛЕМЕНТА. Карта в веере ПОВЁРНУТА, и её рамка на
+    // экране шире самой карты тем больше, чем сильнее наклон: взятая за рамку, карта прыгала из-под
+    // пальца в сторону, и тем дальше, чем с краю её брали. Середина поворота не меняет — её и берём.
+    const geom = sizeOf(which);
+    const centre = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    const card = hand[index];
+    hand.splice(index, 1);
+    drag = {
+      from: which, card, id,
+      shown: which === "mine" ? !P.on.hide : false,
+      w: geom.w, h: geom.h,
+      gx: e.clientX - (centre.x - geom.w / 2), gy: e.clientY - (centre.y - geom.h / 2),
+      x: e.clientX, y: e.clientY,
+      target: { kind: "hand", which, index },
+    };
+    // ЗАХВАТ УКАЗАТЕЛЯ — ПОПЫТКА, А НЕ ТРЕБОВАНИЕ: палец, которого уже нет (или которого не было —
+    // событие из скрипта), роняет весь жест на ровном месте, а движение всё равно слушает окно.
+    try { el.setPointerCapture?.(e.pointerId); } catch { /* пальца нет — и не надо */ }
+    draw();
+  }
+
+  function moveDrag(e) {
+    if (!drag) return;
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    const aim = aimAt(e.clientX, e.clientY);
+    const carry = over.querySelector('[data-g="carry"]');
+    if (carry) {
+      carry.style.left = `${drag.x - drag.gx}px`;
+      carry.style.top = `${drag.y - drag.gy - drag.h * CARRY_CLEAR}px`;
+    }
+    if (sameAim(aim, drag.target) && aim.kind !== "felt") return;
+    drag.target = aim;
+    // НА СУКНЕ ДВИГАЕТСЯ ОДИН КОНТУР, А НЕ ВЕСЬ ЭКРАН: рука за пальцем по сукну не перекладывается,
+    // и перерисовывать её шестьдесят раз в секунду не за чем.
+    const mark = over.querySelector('[data-g="mark"]');
+    if (aim.kind === "felt" && mark && drag.markKind === "felt") {
+      const w = Felt.CARD.w * view.U;
+      const h = Felt.CARD.h * view.U;
+      mark.style.left = `${view.centre.x + aim.at.x * view.U - w / 2}px`;
+      mark.style.top = `${view.centre.y + aim.at.y * view.U - h / 2}px`;
+      return;
+    }
+    drag.markKind = aim.kind;
+    draw();
+  }
+
+  function endDrag() {
+    if (!drag) return;
+    const aim = drag.target;
+    if (aim.kind === "hand") handOf(aim.which).splice(aim.index, 0, drag.card);
+    // ВЫНЕСЕННАЯ НА СТОЛ КАРТА ЛОЖИТСЯ ТУДА, ГДЕ СТОЯЛ КОНТУР, и своим размером на сукне: контур
+    // обещал ровно это место и ровно этот размер, и обещание проверяется глазом на месте.
+    else P.table.push({ ...drag.card, at: aim.at, shown: drag.shown });
+    drag = null;
+    draw();
   }
 
   function wire() {
@@ -308,7 +536,17 @@
         draw();
       };
     }
+    for (const el of over.querySelectorAll("[data-card]")) {
+      el.onpointerdown = (e) => { e.preventDefault(); startDrag(e, "mine", el.dataset.card); };
+    }
+    for (const el of over.querySelectorAll("[data-tip-card]")) {
+      el.onpointerdown = (e) => { e.preventDefault(); startDrag(e, P.tip, el.dataset.tipCard); };
+    }
   }
+
+  addEventListener("pointermove", moveDrag, { passive: true });
+  addEventListener("pointerup", endDrag);
+  addEventListener("pointercancel", endDrag);
 
   // ТАП ПО ДИСКУ НА СУКНЕ ОТКРЫВАЕТ ЕГО ТУЛТИП: аватар — это и есть человек, и спрашивают про него
   // там, где он лежит. Мимо — закрывает.
@@ -318,7 +556,7 @@
   // а не закрыть окно. Спрашивается это одним вопросом — попал ли палец в холст, — потому что
   // список исключений устаревает на первой же новой кнопке.
   stage.addEventListener("pointerdown", (e) => {
-    if (e.target !== canvas) return;
+    if (e.target !== canvas || drag) return;
     const x = e.clientX, y = e.clientY;
     const hit = spots.find((s) => s.key !== "me" && Math.hypot(x - s.x, y - s.y) <= s.r + 6);
     const next = hit ? (P.tip === hit.key ? null : hit.key) : null;
