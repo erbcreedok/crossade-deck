@@ -1,0 +1,27 @@
+design/gesture/index.html
+  s_9ed0da107cbc4a::t_5078c718c616d4 459
+  s_9ed0da107cbc4a::t_b1ded45554d860 485-487
+  s_9ed0da107cbc4a::t_3948bfb4d170f9 216-226,232-323,332-335,342,344,348,364-368,371,377-384,388-390,394,400-401,411,415-426,428-456,464-469,475-479,482-484,488-498,500-527,539-544,547-550,559
+  s_9ed0da107cbc4a::t_e794d187a3019a 53-60,427,499
+  s_9ed0da107cbc4a::t_874da8cb158f5c 102-103,167-174,181
+  s_9ed0da107cbc4a::t_5a5547f2a07003 227-231
+  s_9ed0da107cbc4a::t_e46961c20c0c97 457-458,460-463,470-474,480-481
+design/gesture/felt.js
+  s_9ed0da107cbc4a::t_6bfe81adff34ec 381-390
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "30ed77b2c5998e999ca8b2aa46f5cc925d6d32a8",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
