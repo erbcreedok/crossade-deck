@@ -5,14 +5,15 @@ import { guestIdentity } from "./sandboxNames.js";
 import { accountColor, accountFace, accountName, paintAccount } from "./accounts.js";
 import { inksApart } from "./profileInks.js";
 import { accountById } from "./db/accountsRepo.js";
-import { membersOf } from "./db/roomsRepo.js";
 import {
+  membersOf,
   newcomerOf,
   passRoom,
   removeMember,
   roleOf,
   roomById,
   ROOM_LIMIT,
+  setChair,
   setRole,
   setRoomConfig,
   setSession,
@@ -28,8 +29,10 @@ export interface KitJoinOptions {
   chairs?: number;
   /** Сколько человек комната держит. Не больше 32 — предел самой комнаты. */
   capacity?: number;
-  /** Кем комната встречает нового: админом, игроком со стулом или зрителем. */
+  /** С каким уровнем комната встречает нового. */
   newcomer?: Newcomer;
+  /** Даёт ли она новому стул. */
+  newcomerChair?: boolean;
   game?: string;
   /** Чья это комната — та самая вечная запись. Сессия без неё бывает только в тестах. */
   room?: string;
@@ -59,8 +62,10 @@ export class KitRoom extends Room {
   private chairs = 2;
   /** Сколько человек комната держит — все, кто в ней состоит, а не только сидящие. */
   private capacity = ROOM_LIMIT;
-  /** Кем эта комната встречает нового. Стул зрителю не полагается — за ним и приходят смотреть. */
+  /** С каким уровнем эта комната встречает нового. */
   private newcomer: Newcomer = "player";
+  /** Даёт ли она ему стул. Нет — он входит смотреть, и это не понижение уровня. */
+  private newcomerChair = true;
   private game?: string;
   /** Запись комнаты, сессией которой эта комната является. */
   private record?: string;
@@ -77,6 +82,7 @@ export class KitRoom extends Room {
       this.capacity = Math.min(ROOM_LIMIT, Math.floor(options.capacity));
     }
     if (options?.newcomer) this.newcomer = newcomerOf(options.newcomer);
+    if (typeof options?.newcomerChair === "boolean") this.newcomerChair = options.newcomerChair;
     if (typeof options?.game === "string") this.game = options.game;
 
     // КОД И КОМНАТА ПРИХОДЯТ ИЗВНЕ: их выдала запись в базе, сессия их только носит. Когда записи
@@ -208,9 +214,9 @@ export class KitRoom extends Room {
         // ВЕРНУЛСЯ БЕЗ СТУЛА — САДИТСЯ, ЕСЛИ ЕСТЬ КУДА. Стула он мог не получить, когда комната
         // встречала зрителями, а роль ему с тех пор дали другую: без этой строки стул ему не
         // достался бы до конца сессии, сколько бы пустых мест за столом ни стояло.
-        if (existing.seat === null && roleOf(this.record ?? "", options.accountId) !== "spectator") {
-          existing.seat = this.nextFreeSeat();
-        }
+        // ВЕРНУЛСЯ БЕЗ СТУЛА — САДИТСЯ, ЕСЛИ ЕСТЬ КУДА И ЕСЛИ СТУЛ ЕМУ ПОЛОЖЕН. Уровень тут ни при
+        // чём: смотреть приходят и админы.
+        if (existing.seat === null && this.chairFor(options.accountId)) existing.seat = this.nextFreeSeat();
         this.clientMemberMap.set(client.sessionId, existing);
         this.remember(options.accountId);
         this.broadcastRoster();
@@ -230,9 +236,9 @@ export class KitRoom extends Room {
     // РОЛЬ СВОЯ БЬЁТ НАСТРОЙКУ ВСТРЕЧИ: «кем встречают» — про того, кого комната видит впервые.
     // Зритель, которого уже записали зрителем, не становится игроком, зайдя заново, а разжалованный
     // не возвращает себе стул перезаходом.
-    const known = options?.accountId && this.record ? roleOf(this.record, options.accountId) : undefined;
-    const asWho = known ?? this.newcomer;
-    const seat = asWho === "spectator" ? null : this.nextFreeSeat();
+    // СТУЛ — ПО ЧЛЕНСТВУ, А НЕ ПО ВСТРЕЧЕ: лишённый стула не возвращает его перезаходом, а комната
+    // говорит своё слово только про того, кого видит впервые.
+    const seat = this.chairFor(options?.accountId) ? this.nextFreeSeat() : null;
 
     const member: KitRosterItem = {
       seat,
@@ -286,7 +292,7 @@ export class KitRoom extends Room {
    * которого сделали админом, не должен разжаловываться собственным перезаходом.
    */
   private remember(accountId: string): void {
-    if (this.record) joined(this.record, accountId, this.newcomer);
+    if (this.record) joined(this.record, accountId, this.newcomer, this.newcomerChair);
   }
 
   /**
@@ -304,7 +310,9 @@ export class KitRoom extends Room {
       const account = accountById(member.accountId);
       if (!account?.bot) continue;
       this.members.push({
-        seat: member.role === "spectator" ? null : this.nextFreeSeat(),
+        // МОК САДИТСЯ, ЕСЛИ ЕМУ ПОЛОЖЕН СТУЛ. Зритель — это игрок без стула, и его место в комнате,
+        // а не за столом.
+        seat: member.chair ? this.nextFreeSeat() : null,
         accountId: account.id,
         name: account.name,
       });
@@ -332,6 +340,13 @@ export class KitRoom extends Room {
   private removeMember(member: KitRosterItem): void {
     const idx = this.members.indexOf(member);
     if (idx !== -1) this.members.splice(idx, 1);
+  }
+
+  /** Положен ли этому человеку стул: своё членство, а для незнакомого — слово комнаты. */
+  private chairFor(accountId?: string): boolean {
+    if (!accountId || !this.record) return this.newcomerChair;
+    const known = membersOf(this.record).find((one) => one.accountId === accountId);
+    return known ? known.chair : this.newcomerChair;
   }
 
   /** Человек за столом, как его видит правило: роль из базы, стул — из идущей сессии. */
@@ -365,14 +380,16 @@ export class KitRoom extends Room {
       case "seat:give": {
         const free = this.nextFreeSeat();
         if (!free) return "за столом нет свободного стула";
-        // ПОСАЖЕННЫЙ СТАНОВИТСЯ ИГРОКОМ: стул и есть то, чем игрок отличается от зрителя.
+        // СТУЛ ЗАПИСЫВАЕТСЯ В ЧЛЕНСТВО И ЗАНИМАЕТСЯ В СЕССИИ: первое переживает партию, второе её
+        // и есть. Уровень не трогается — посадили, а не повысили.
+        setChair(record, them.account, true);
         if (member) member.seat = free;
-        if (them.role === "spectator") setRole(record, them.account, "player");
         break;
       }
       case "seat:take":
+        // ЛИШИЛИ СТУЛА — НЕ РАЗЖАЛОВАЛИ: уровень остаётся тот же, человек просто больше не играет.
+        setChair(record, them.account, false);
         if (member) member.seat = null;
-        if (them.role === "player") setRole(record, them.account, "spectator");
         break;
       case "admin:grant":
         setRole(record, them.account, "admin");

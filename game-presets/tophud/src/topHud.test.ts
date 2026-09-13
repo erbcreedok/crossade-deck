@@ -79,13 +79,15 @@ describe("верхний HUD", () => {
   it("список, которому дали комнату, говорит про роли и про тех, кого за столом нет", () => {
     const roster = [
       { name: "Алия", ink: "#7fd1b9", role: "owner" as const, seated: true, away: true },
-      { name: "Дана", ink: "#b98fe0", role: "spectator" as const, seated: false, mine: true },
+      { name: "Дана", ink: "#b98fe0", role: "player" as const, seated: false, mine: true },
       { name: "Тимур", ink: "#e08b3f", role: "player" as const, seated: true },
     ];
     const hud = topHud(container, { title: "Карты", people, roster });
     q(hud.element, "people")!.click();
     const list = q(container, "list")!;
+    // Два числа и только два: мебель считают в листе комнаты.
     expect(list.textContent).toContain("ЗА СТОЛОМ 2 · ВСЕГО 3");
+    expect(list.textContent).not.toContain("СТУЛЬЕВ");
     expect(list.textContent).toContain("хозяин");
     expect(list.textContent).toContain("зритель");
     expect(list.textContent).toContain("без стула");
@@ -224,6 +226,8 @@ describe("панель за столом", () => {
     expect(asked).toEqual([["seat:take", "t"]]);
 
     hud.denied("местами не распоряжаешься");
+    // Отказ комнаты стоит в том же блоке «НЕЛЬЗЯ», а не отдельной тревожной строкой.
+    expect(q(container, "list")!.textContent).toContain("НЕЛЬЗЯ");
     expect(q(container, "list")!.textContent).toContain("местами не распоряжаешься");
     hud.stop();
   });

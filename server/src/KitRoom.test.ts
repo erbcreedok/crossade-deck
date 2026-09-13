@@ -209,8 +209,8 @@ describe("kit.a-deed-is-done-by-the-room-not-claimed-by-a-screen", () => {
 
     const boss = createAccount("Хозяин стола");
     const seer = createAccount("Зритель стола");
-    const room = openRoom({ game: "cards", chairs: 2, ownerAccount: boss.id, newcomer: "spectator" })!;
-    addMember(room.id, seer.id, "spectator");
+    const room = openRoom({ game: "cards", chairs: 2, ownerAccount: boss.id, newcomer: "player", newcomerChair: false })!;
+    addMember(room.id, seer.id, "player", false);
 
     const first = await server().sdk.create("kit_room", { room: room.id, code: room.code, chairs: 2, accountId: boss.id });
     const second = await server().sdk.joinById(first.roomId, { accountId: seer.id, name: "Зритель стола" });
@@ -243,8 +243,8 @@ describe("kit.a-deed-is-done-by-the-room-not-claimed-by-a-screen", () => {
 
     const boss = createAccount("Хозяин тесного");
     const seer = createAccount("Зритель тесного");
-    const room = openRoom({ game: "cards", chairs: 1, ownerAccount: boss.id, newcomer: "spectator" })!;
-    addMember(room.id, seer.id, "spectator");
+    const room = openRoom({ game: "cards", chairs: 1, ownerAccount: boss.id, newcomer: "player", newcomerChair: false })!;
+    addMember(room.id, seer.id, "player", false);
 
     const first = await server().sdk.create("kit_room", { room: room.id, code: room.code, chairs: 1, accountId: boss.id });
     const second = await server().sdk.joinById(first.roomId, { accountId: seer.id, name: "Зритель тесного" });
@@ -273,8 +273,8 @@ describe("kit.a-deed-is-done-by-the-room-not-claimed-by-a-screen", () => {
     const boss = createAccount("Хозяин полного");
     const seer = createAccount("Зритель полного");
     // Стул один, и он уйдёт хозяину: зрителя посадить будет некуда.
-    const room = openRoom({ game: "cards", chairs: 1, ownerAccount: boss.id, newcomer: "spectator" })!;
-    addMember(room.id, seer.id, "spectator");
+    const room = openRoom({ game: "cards", chairs: 1, ownerAccount: boss.id, newcomer: "player", newcomerChair: false })!;
+    addMember(room.id, seer.id, "player", false);
 
     const first = await server().sdk.create("kit_room", { room: room.id, code: room.code, chairs: 1, accountId: boss.id });
     const second = await server().sdk.joinById(first.roomId, { accountId: seer.id, name: "Зритель полного" });
@@ -282,7 +282,8 @@ describe("kit.a-deed-is-done-by-the-room-not-claimed-by-a-screen", () => {
     first.send("deed", { deed: "seat:give", whom: seer.id });
     expect((await refused).why).toBe("за столом нет свободного стула");
     // ...и роль при этом не сменилась молча: зритель остался зрителем.
-    expect(roleOf(room.id, seer.id)).toBe("spectator");
+    // Уровень не трогали: посадить было некуда, и человек остался тем же игроком без стула.
+    expect(roleOf(room.id, seer.id)).toBe("player");
 
     first.leave();
     second.leave();

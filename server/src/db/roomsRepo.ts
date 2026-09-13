@@ -29,7 +29,6 @@ export type Transport = (typeof TRANSPORTS)[number];
 export const MODES = ["free", "council", "assembly"] as const;
 export type Mode = (typeof MODES)[number];
 
-/** Роли за столом. Админ сносит админа, оунера — нет; это правило живёт выше, в комнате. */
 /**
  * СКОЛЬКО ЧЕЛОВЕК КОМНАТА ДЕРЖИТ САМОЕ БОЛЬШЕЕ. Считаются все, кто в ней состоит: игроки, зрители,
  * админы и те, кого сейчас нет, — стул тут ни при чём, стульев может быть и больше, и меньше.
@@ -42,17 +41,30 @@ export function capacityOf(asked?: number | null): number {
   return Math.max(1, Math.min(ROOM_LIMIT, Math.floor(asked)));
 }
 
-export const ROLES = ["owner", "admin", "player", "spectator"] as const;
+/**
+ * УРОВЕНЬ КОНТРОЛЯ В КОМНАТЕ — и только он. Их три: хозяин, админ, игрок.
+ *
+ * ЗРИТЕЛЬ СЮДА НЕ ВХОДИТ: «зритель» — это не уровень, а игрок БЕЗ СТУЛА. Стул — вторая, отдельная
+ * ось: хозяин без стула не перестаёт быть хозяином (он ведёт стол, за которым не играет), а игрок,
+ * лишённый стула, остаётся в комнате смотреть. Пока обе оси жили одним полем, «посадить» значило
+ * повысить, а «лишить стула» — разжаловать.
+ */
+export const ROLES = ["owner", "admin", "player"] as const;
 
 /**
  * КЕМ КОМНАТА ВСТРЕЧАЕТ НОВОГО. Хозяином родиться нельзя — он у стола уже есть, и второго не бывает.
  */
-export const NEWCOMERS = ["admin", "player", "spectator"] as const;
+export const NEWCOMERS = ["admin", "player"] as const;
 export type Newcomer = (typeof NEWCOMERS)[number];
 
 /** Записанное в базе слово, если оно из списка; иначе — «игрок», с которым стол и жил до сих пор. */
 export function newcomerOf(raw: unknown): Newcomer {
   return (NEWCOMERS as readonly string[]).includes(raw as string) ? (raw as Newcomer) : "player";
+}
+
+/** Записанная роль, если она из списка. «Зритель» из прежней схемы — это игрок без стула. */
+export function roleFromDb(raw: unknown): Role {
+  return (ROLES as readonly string[]).includes(raw as string) ? (raw as Role) : "player";
 }
 export type Role = (typeof ROLES)[number];
 
@@ -70,8 +82,10 @@ export interface RoomRow {
   readonly chairs: number | null;
   /** Сколько ЛЮДЕЙ комната держит — игроков, зрителей, админов и ушедших. Не больше 32. */
   readonly capacity: number;
-  /** Кем входит новый: админом, игроком со стулом или зрителем. Хозяин у комнаты уже есть. */
+  /** С каким уровнем входит новый: админом или игроком. Хозяин у комнаты уже есть. */
   readonly newcomer: Newcomer;
+  /** Даёт ли комната новому стул. Нет — он входит смотреть, и это не понижение уровня. */
+  readonly newcomerChair: boolean;
   readonly createdAt: number;
   /** Когда комнату видели живой в последний раз — по нему сортируется список. */
   readonly aliveAt: number;
@@ -95,6 +109,7 @@ interface RawRoom {
   chairs: number | null;
   capacity: number;
   newcomer: string;
+  newcomer_chair: number;
   created_at: number;
   alive_at: number;
   closed_at: number | null;
@@ -117,6 +132,7 @@ function toRoom(raw: RawRoom | undefined): RoomRow | undefined {
     chairs: raw.chairs,
     capacity: raw.capacity,
     newcomer: newcomerOf(raw.newcomer),
+    newcomerChair: raw.newcomer_chair !== 0,
     createdAt: raw.created_at,
     aliveAt: raw.alive_at,
     closedAt: raw.closed_at,
@@ -127,7 +143,7 @@ function toRoom(raw: RawRoom | undefined): RoomRow | undefined {
 }
 
 const SELECT = `SELECT id, code, game, title, owner_account, visibility, admission, transport,
-  chairs, capacity, newcomer, created_at, alive_at, closed_at, session_id, mode, forever FROM rooms`;
+  chairs, capacity, newcomer, newcomer_chair, created_at, alive_at, closed_at, session_id, mode, forever FROM rooms`;
 
 /**
  * ВЫДАННЫЙ КОД — ЧЕТЫРЕ ЦИФРЫ, и ничего кроме цифр.
@@ -198,6 +214,7 @@ export interface NewRoom {
   readonly chairs?: number | null;
   readonly capacity?: number | null;
   readonly newcomer?: Newcomer;
+  readonly newcomerChair?: boolean;
   readonly mode?: Mode;
   readonly forever?: boolean;
   /** Код, названный человеком. Занятый или кривой — комната получит выданный. */
@@ -213,8 +230,8 @@ export function insertRoom(one: NewRoom, at: DatabaseSync = db()): RoomRow | und
   const now = one.now ?? Date.now();
   at.prepare(
     `INSERT INTO rooms (id, code, game, title, owner_account, visibility, admission, transport,
-      chairs, capacity, newcomer, created_at, alive_at, closed_at, mode, forever)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'server', ?, ?, ?, ?, ?, NULL, ?, ?)`,
+      chairs, capacity, newcomer, newcomer_chair, created_at, alive_at, closed_at, mode, forever)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'server', ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
   ).run(
     one.id,
     code,
@@ -226,12 +243,13 @@ export function insertRoom(one: NewRoom, at: DatabaseSync = db()): RoomRow | und
     one.chairs ?? null,
     capacityOf(one.capacity),
     one.newcomer ?? "player",
+    one.newcomerChair === false ? 0 : 1,
     now,
     now,
     one.mode ?? "free",
     one.forever ? 1 : 0,
   );
-  if (one.ownerAccount) addMember(one.id, one.ownerAccount, "owner", now, at);
+  if (one.ownerAccount) addMember(one.id, one.ownerAccount, "owner", true, now, at);
   return roomById(one.id, at);
 }
 
@@ -255,7 +273,7 @@ export function roomByCode(code: string, at: DatabaseSync = db()): RoomRow | und
  */
 export function setRoomConfig(
   id: string,
-  patch: { chairs?: number | null; capacity?: number; newcomer?: Newcomer },
+  patch: { chairs?: number | null; capacity?: number; newcomer?: Newcomer; newcomerChair?: boolean },
   at: DatabaseSync = db(),
 ): RoomRow | undefined {
   const sets: string[] = [];
@@ -263,6 +281,7 @@ export function setRoomConfig(
   if (patch.chairs !== undefined) (sets.push("chairs = ?"), values.push(patch.chairs));
   if (patch.capacity !== undefined) (sets.push("capacity = ?"), values.push(capacityOf(patch.capacity)));
   if (patch.newcomer !== undefined) (sets.push("newcomer = ?"), values.push(patch.newcomer));
+  if (patch.newcomerChair !== undefined) (sets.push("newcomer_chair = ?"), values.push(patch.newcomerChair ? 1 : 0));
   if (sets.length > 0) {
     at.prepare(`UPDATE rooms SET ${sets.join(", ")} WHERE id = ? AND closed_at IS NULL`).run(...values, id);
   }
@@ -314,6 +333,8 @@ export function roomsOfAccount(accountId: string, at: DatabaseSync = db()): Room
 export interface MemberRow {
   readonly accountId: string;
   readonly role: Role;
+  /** Положен ли ему стул за этим столом. Ложь — он в комнате, но смотрит. */
+  readonly chair: boolean;
   readonly joinedAt: number;
 }
 
@@ -321,13 +342,25 @@ export function addMember(
   roomId: string,
   accountId: string,
   role: Role = "player",
+  chair = true,
   now = Date.now(),
   at: DatabaseSync = db(),
 ): void {
   at.prepare(
-    `INSERT INTO room_members (room_id, account_id, role, joined_at) VALUES (?, ?, ?, ?)
+    `INSERT INTO room_members (room_id, account_id, role, chair, joined_at) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(room_id, account_id) DO NOTHING`,
-  ).run(roomId, accountId, role, now);
+  ).run(roomId, accountId, role, chair ? 1 : 0, now);
+}
+
+/**
+ * ПОЛОЖЕН ЛИ ЧЕЛОВЕКУ СТУЛ ЗА ЭТИМ СТОЛОМ. Уровень при этом не трогается: лишили стула — не
+ * разжаловали, посадили — не повысили.
+ */
+export function setChair(roomId: string, accountId: string, chair: boolean, at: DatabaseSync = db()): boolean {
+  const done = at
+    .prepare(`UPDATE room_members SET chair = ? WHERE room_id = ? AND account_id = ?`)
+    .run(chair ? 1 : 0, roomId, accountId);
+  return Number(done.changes) > 0;
 }
 
 /**
@@ -343,9 +376,14 @@ export function removeMember(roomId: string, accountId: string, at: DatabaseSync
 
 export function membersOf(roomId: string, at: DatabaseSync = db()): MemberRow[] {
   const rows = at
-    .prepare(`SELECT account_id, role, joined_at FROM room_members WHERE room_id = ? ORDER BY joined_at`)
-    .all(roomId) as { account_id: string; role: string; joined_at: number }[];
-  return rows.map((raw) => ({ accountId: raw.account_id, role: raw.role as Role, joinedAt: raw.joined_at }));
+    .prepare(`SELECT account_id, role, chair, joined_at FROM room_members WHERE room_id = ? ORDER BY joined_at`)
+    .all(roomId) as { account_id: string; role: string; chair: number; joined_at: number }[];
+  return rows.map((raw) => ({
+    accountId: raw.account_id,
+    role: roleFromDb(raw.role),
+    chair: raw.chair !== 0,
+    joinedAt: raw.joined_at,
+  }));
 }
 
 /**
@@ -377,5 +415,5 @@ export function roleOf(roomId: string, accountId: string, at: DatabaseSync = db(
   const raw = at
     .prepare(`SELECT role FROM room_members WHERE room_id = ? AND account_id = ?`)
     .get(roomId, accountId) as { role: string } | undefined;
-  return raw?.role as Role | undefined;
+  return raw === undefined ? undefined : roleFromDb(raw.role);
 }

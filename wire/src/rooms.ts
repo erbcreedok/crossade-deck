@@ -32,8 +32,10 @@ export interface RoomCard {
   readonly chairs: number | null;
   /** Сколько человек комната держит: игроки, зрители, админы и ушедшие. Не больше 32. */
   readonly capacity: number;
-  /** Кем комната встречает нового: админом, игроком со стулом или зрителем. */
+  /** С каким уровнем комната встречает нового. */
   readonly newcomer: Newcomer;
+  /** Даёт ли она новому стул. Нет — он входит смотреть, и это не понижение уровня. */
+  readonly newcomerChair: boolean;
   readonly visibility: Visibility;
   readonly admission: Admission;
   readonly mode: Mode;
@@ -167,13 +169,16 @@ export async function closeRoom(room: string, by: string): Promise<boolean> {
 }
 
 /**
- * КЕМ КОМНАТА ВСТРЕЧАЕТ НОВОГО. Хозяином родиться нельзя — он у стола уже есть; стул дальше выдаёт
- * панель людей, а это лишь то, с чем человек входит.
+ * С КАКИМ УРОВНЕМ КОМНАТА ВСТРЕЧАЕТ НОВОГО. Хозяином родиться нельзя — он у стола уже есть. Дадут
+ * ли стул — отдельный вопрос (`RoomCard.newcomerChair`): это вторая ось, а не третий уровень.
  */
-export type Newcomer = "admin" | "player" | "spectator";
+export type Newcomer = "admin" | "player";
 
-/** Роль человека в комнате. Те же слова, что у сервера: комната их и заводит. */
-export type RoomRole = "owner" | "admin" | "player" | "spectator";
+/**
+ * УРОВЕНЬ КОНТРОЛЯ В КОМНАТЕ. Зрителя среди них нет: зритель — это игрок БЕЗ СТУЛА, и стул живёт
+ * отдельным полем (`RoomMember.chair`).
+ */
+export type RoomRole = "owner" | "admin" | "player";
 
 /** Что можно сделать с человеком за столом — как это разрешил сервер, его же словами. */
 export interface RoomDeed {
@@ -204,6 +209,11 @@ export interface RoomMember {
    * сейчас не сидит: роль у него при этом та же, что была.
    */
   readonly seat: string | null;
+  /**
+   * ПОЛОЖЕНО ЛИ ЕМУ МЕСТО ЗА СТОЛОМ — вторая ось, отдельная от уровня, и она переживает партию.
+   * `seat` говорит только про идущую: занял ли он место прямо сейчас.
+   */
+  readonly seated?: boolean;
   /** Стул держится, человека за ним нет. Бывает только у сидящего. */
   readonly away?: boolean;
   /** Что Я могу сделать с ним — считает сервер, когда его спросили от моего лица. */
@@ -241,7 +251,7 @@ export async function roomRoster(room: string, me?: string): Promise<RoomMember[
 export async function reconfigureRoom(
   room: string,
   by: string,
-  patch: { chairs?: number; capacity?: number; newcomer?: Newcomer },
+  patch: { chairs?: number; capacity?: number; newcomer?: Newcomer; newcomerChair?: boolean },
 ): Promise<RoomCard | undefined> {
   try {
     const res = await fetch(`${serverUrl()}/rooms/${encodeURIComponent(room)}`, {

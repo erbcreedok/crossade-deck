@@ -8,12 +8,13 @@
 import { describe, it, expect } from "vitest";
 import { deedsOn, may, powerOf, type Someone } from "./roomRights.js";
 
-const who = (account: string, role: Someone["role"], seated = role !== "spectator"): Someone => ({ account, role, seated });
+const who = (account: string, role: Someone["role"], seated = true): Someone => ({ account, role, seated });
 
 const owner = who("хозяин", "owner");
 const admin = who("админ", "admin");
 const player = who("игрок", "player");
-const watcher = who("зритель", "spectator");
+// ЗРИТЕЛЬ — ЭТО ИГРОК БЕЗ СТУЛА, а не отдельный уровень: два вопроса, а не один.
+const watcher = who("зритель", "player", false);
 
 describe("rooms.a-right-is-what-the-server-checks-not-what-the-screen-draws", () => {
   it("хозяина не выгнать и не разжаловать — даже другому админу", () => {
@@ -73,5 +74,33 @@ describe("rooms.a-right-is-what-the-server-checks-not-what-the-screen-draws", ()
     const { cant } = deedsOn(watcher, owner, "free");
     expect(cant.length).toBeGreaterThan(0);
     for (const one of cant) expect(one.why.length).toBeGreaterThan(3);
+  });
+});
+
+// СТОРОЖ `rooms.a-level-and-a-chair-are-two-axes`.
+//
+// Уровень контроля и место за столом — разные вещи, и «зритель» не уровень, а игрок без места.
+// Пока они были одним полем, «посадить» значило повысить, а «лишить места» — разжаловать; хозяин,
+// вставший из-за стола, и вовсе не имел, чем называться.
+describe("rooms.a-level-and-a-chair-are-two-axes", () => {
+  it("без места игрок не решает, а хозяин и админ — решают", () => {
+    expect(powerOf(who("и", "player", false), "free")).toBe("none");
+    expect(powerOf(who("х", "owner", false), "free")).toBe("full");
+    expect(powerOf(who("а", "admin", false), "free")).toBe("admin");
+  });
+
+  it("админа дают игроку, и место ему при этом не меняют", () => {
+    expect(may("admin:grant", owner, who("и", "player", false), "free")).toBe(true);
+    expect(may("admin:grant", owner, who("а", "admin", false), "free")).toBe("он уже с правами");
+  });
+
+  it("комнату передают тому, у кого есть место за столом", () => {
+    expect(may("owner:pass", owner, who("и", "player", false), "free")).toBe("сначала посади его");
+    expect(may("owner:pass", owner, who("и", "player", true), "free")).toBe(true);
+  });
+
+  it("руки нет у того, кому место не положено, — ни лока, ни скрытности", () => {
+    expect(may("piece:lock", owner, who("и", "player", false), "free")).toBe("он не за столом — руки нет");
+    expect(may("piece:hide", owner, who("и", "player", true), "free")).toBe(true);
   });
 });

@@ -5,17 +5,25 @@
 // вся комната: зритель без стула, ушедший на час игрок и хозяин, которого сегодня не было. Полоса
 // отвечает «кто играет», список — «чей это стол».
 
-/** Роли за столом. Те же слова, что у сервера, и в том же порядке старшинства. */
-export const ROSTER_ROLES = ["owner", "admin", "player", "spectator"] as const;
+/**
+ * УРОВЕНЬ КОНТРОЛЯ — те же три слова, что у сервера. Зрителя среди них нет: это не уровень.
+ */
+export const ROSTER_ROLES = ["owner", "admin", "player"] as const;
 export type RosterRole = (typeof ROSTER_ROLES)[number];
 
-/** Как роль называется человеку. Экран берёт отсюда, чтобы места не разошлись в словах. */
-export const ROLE_WORD: Record<RosterRole, string> = {
-  owner: "хозяин",
-  admin: "админ",
-  player: "игрок",
-  spectator: "зритель",
-};
+/**
+ * КАК ЧЕЛОВЕК НАЗЫВАЕТСЯ ЗА СТОЛОМ — из ДВУХ источников: его уровень и есть ли у него стул.
+ *
+ * Одно слово на уровень не работает: хозяин, вставший из-за стола, продолжает вести его, но не
+ * играет, — это ВЕДУЩИЙ; игрок без стула не понижен в правах, он просто смотрит — это ЗРИТЕЛЬ. А
+ * админ и там и там админ: он и заведён, чтобы распоряжаться, а не играть, и разницу говорит
+ * соседняя строка («без стула»).
+ */
+export function roleWord(role: RosterRole, seated: boolean): string {
+  if (role === "owner") return seated ? "хозяин" : "ведущий";
+  if (role === "admin") return "админ";
+  return seated ? "игрок" : "зритель";
+}
 
 export interface TopHudMember {
   readonly name: string;
@@ -50,7 +58,7 @@ export interface RosterList {
   readonly total: number;
 }
 
-const RANK: Record<RosterRole, number> = { owner: 0, admin: 1, player: 2, spectator: 3 };
+const RANK: Record<RosterRole, number> = { owner: 0, admin: 1, player: 2 };
 
 /** Я первым, дальше по старшинству роли; равные роли остаются в том порядке, в каком пришли. */
 export function rosterList(members: readonly TopHudMember[]): RosterList {
@@ -59,7 +67,10 @@ export function rosterList(members: readonly TopHudMember[]): RosterList {
     .sort((a, b) => {
       if (a.one.mine !== b.one.mine) return a.one.mine === true ? -1 : 1;
       const rank = RANK[a.one.role] - RANK[b.one.role];
-      return rank !== 0 ? rank : a.i - b.i;
+      if (rank !== 0) return rank;
+      // Внутри уровня сидящие идут первыми: за столом они ближе, чем те, кто смотрит.
+      if (a.one.seated !== b.one.seated) return a.one.seated ? -1 : 1;
+      return a.i - b.i;
     })
     .map((pair) => pair.one);
   return { rows, seated: members.filter((one) => one.seated).length, total: members.length };

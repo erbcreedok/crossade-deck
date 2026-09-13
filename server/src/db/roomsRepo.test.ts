@@ -132,7 +132,7 @@ describe("вечная комната принадлежит человеку", 
 
   it("вошедший становится членом и видит комнату среди своих", () => {
     open({ id: "r1", game: "cards", ownerAccount: "me" });
-    addMember("r1", "you", "player", 2, at);
+    addMember("r1", "you", "player", true, 2, at);
     expect(roomsOfAccount("you", at).map((one) => one.id)).toEqual(["r1"]);
   });
 
@@ -145,8 +145,8 @@ describe("вечная комната принадлежит человеку", 
 
   it("вошёл дважды — член один раз", () => {
     open({ id: "r1", game: "cards", ownerAccount: "me" });
-    addMember("r1", "you", "player", 2, at);
-    addMember("r1", "you", "player", 3, at);
+    addMember("r1", "you", "player", true, 2, at);
+    addMember("r1", "you", "player", true, 3, at);
     expect(membersOf("r1", at)).toHaveLength(2);
   });
 });

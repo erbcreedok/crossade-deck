@@ -41,7 +41,10 @@ export type { RoomRow } from "./db/roomsRepo.js";
  * ПЕРЕНАСТРОИТЬ СТОЛ — стулья, вместимость, кем входит новый. Право спрашивается выше: настройка
  * принадлежит комнате, а кто ею распоряжается — правило комнаты, а не базы.
  */
-export function reconfigure(roomId: string, patch: { chairs?: number | null; capacity?: number; newcomer?: Newcomer }) {
+export function reconfigure(
+  roomId: string,
+  patch: { chairs?: number | null; capacity?: number; newcomer?: Newcomer; newcomerChair?: boolean },
+) {
   return setRoomConfig(roomId, patch);
 }
 
@@ -79,8 +82,10 @@ export interface OpenRoom {
   readonly chairs?: number;
   /** Сколько человек комната держит: игроков, зрителей, админов и ушедших. Не больше 32. */
   readonly capacity?: number;
-  /** Кем входит новый: админом, игроком со стулом или зрителем. */
+  /** С каким уровнем входит новый: админом или игроком. */
   readonly newcomer?: Newcomer;
+  /** Даёт ли комната новому стул. */
+  readonly newcomerChair?: boolean;
   readonly ownerAccount?: string;
   readonly title?: string;
   readonly visibility?: Visibility;
@@ -108,6 +113,7 @@ export function openRoom(one: OpenRoom): RoomRow | undefined {
     chairs: one.chairs ?? null,
     ...(one.capacity !== undefined ? { capacity: one.capacity } : {}),
     ...(one.newcomer ? { newcomer: one.newcomer } : {}),
+    ...(one.newcomerChair !== undefined ? { newcomerChair: one.newcomerChair } : {}),
     ownerAccount: owner,
     title: one.title ?? null,
     visibility: one.visibility,
@@ -175,6 +181,7 @@ export async function sessionOf(room: RoomRow): Promise<string> {
     capacity: room.capacity,
     // КЕМ ВСТРЕЧАТЬ НОВОГО — это знает комната, а сессия только исполняет.
     newcomer: room.newcomer,
+    newcomerChair: room.newcomerChair,
   });
   setSession(room.id, listing.roomId);
   return listing.roomId;
@@ -190,9 +197,9 @@ export function byId(id: string): RoomRow | undefined {
 }
 
 /** Человек сел за стол: он теперь член этой комнаты, и она в списке его комнат. */
-export function joined(roomId: string, accountId: string, role: Role = "player"): void {
+export function joined(roomId: string, accountId: string, role: Role = "player", chair = true): void {
   try {
-    addMember(roomId, accountId, role);
+    addMember(roomId, accountId, role, chair);
   } catch {
     // Аккаунта с таким номером база не знает — значит и членства быть не может. Это не повод не
     // пустить человека за стол: ростер его уже принял, просто комната не станет «его».

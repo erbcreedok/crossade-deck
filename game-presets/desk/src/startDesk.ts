@@ -264,8 +264,9 @@ export function startDesk(container: HTMLElement, spec: DeskSpec, o: StartDeskOp
     ...(handOf(one.seat) ? { hand: handOf(one.seat)! } : {}),
     ...(one.cant ? { cant: one.cant } : {}),
     role: one.role,
-    // СТУЛ — ЭТО МЕСТО В ИДУЩЕЙ ПАРТИИ. Роль говорит, что человеку можно; стул — сидит ли он.
-    seated: one.seat !== null,
+    // ДВЕ ОСИ: уровень говорит, что человеку можно, стул — играет он или смотрит. «Положен стул»
+    // переживает партию, поэтому спрашивается он, а не только занятое сейчас место.
+    seated: one.seated ?? one.seat !== null,
     ...(one.away === true ? { away: true } : {}),
     ...(o.account && one.account !== undefined && o.account.id === one.account ? { mine: true } : {}),
   });

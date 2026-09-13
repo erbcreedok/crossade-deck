@@ -31,10 +31,16 @@ export interface RosterPerson {
   readonly away?: boolean;
   /** Здесь ли он сейчас — в идущей сессии. Стул дают только тому, кто пришёл. */
   readonly here: boolean;
+  /**
+   * ПОЛОЖЕНО ЛИ ЕМУ МЕСТО ЗА СТОЛОМ. Вторая ось, отдельная от уровня: игрок без места — зритель,
+   * хозяин без места — ведущий. `seat` при этом говорит, занял ли он место в ИДУЩЕЙ партии, а это
+   * переживает партию вместе с членством.
+   */
+  readonly seated: boolean;
 }
 
 /** Хозяин первым, дальше по старшинству роли, а внутри роли — по приходу. */
-const RANK: Record<Role, number> = { owner: 0, admin: 1, player: 2, spectator: 3 };
+const RANK: Record<Role, number> = { owner: 0, admin: 1, player: 2 };
 
 export function rosterOf(room: RoomRow): RosterPerson[] {
   const sitting = peopleAt(room.id);
@@ -65,6 +71,7 @@ export function rosterOf(room: RoomRow): RosterPerson[] {
       role: member.role,
       seat: here?.seat ?? null,
       here: here !== undefined,
+      seated: member.chair,
       ...(here?.away ? { away: true } : {}),
     });
   }
@@ -81,9 +88,11 @@ export function rosterOf(room: RoomRow): RosterPerson[] {
       role: "player",
       seat: one.seat ?? null,
       here: true,
+      seated: one.seat !== null,
       ...(one.away ? { away: true } : {}),
     });
   }
 
-  return out.sort((a, b) => RANK[a.role] - RANK[b.role]);
+  // Внутри уровня сидящие идут первыми: за столом они ближе, чем те, кто смотрит.
+  return out.sort((a, b) => RANK[a.role] - RANK[b.role] || Number(b.seated) - Number(a.seated));
 }

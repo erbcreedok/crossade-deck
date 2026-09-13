@@ -76,6 +76,7 @@ function seenFromOutside(room: RoomRow, forAccount?: string) {
     chairs: room.chairs,
     capacity: room.capacity,
     newcomer: room.newcomer,
+    newcomerChair: room.newcomerChair,
     visibility: room.visibility,
     admission: room.admission,
     mode: room.mode,
@@ -107,6 +108,7 @@ function seenPromised(code: string, promised: Promised) {
     chairs: promised.chairs ?? null,
     capacity: promised.capacity ?? ROOM_LIMIT,
     newcomer: promised.newcomer ?? "player",
+    newcomerChair: promised.newcomerChair !== false,
     visibility: promised.visibility ?? "hidden",
     admission: promised.admission ?? "code",
     mode: promised.mode ?? "free",
@@ -182,7 +184,8 @@ export function createApp() {
   // СТОЛ ОТКРЫВАЕТСЯ ЗАПИСЬЮ, А НЕ ПРОЦЕССОМ. Сначала заводится комната (её код, её правила, её
   // хозяин), и только потом под неё поднимается сессия Colyseus, в которую клиент входит сам.
   app.post("/rooms", async (req, res) => {
-    const { game, chairs, capacity, newcomer, by, title, visibility, admission, mode, forever, code } = req.body || {};
+    const { game, chairs, capacity, newcomer, newcomerChair, by, title, visibility, admission, mode, forever, code } =
+      req.body || {};
     if (!isKitGame(game)) return res.status(400).json({ error: "bad_request" });
     if (visibility && !(VISIBILITIES as readonly string[]).includes(visibility)) {
       return res.status(400).json({ error: "bad_request" });
@@ -199,6 +202,7 @@ export function createApp() {
       ...(typeof chairs === "number" ? { chairs } : {}),
       ...(typeof capacity === "number" ? { capacity } : {}),
       ...((NEWCOMERS as readonly string[]).includes(newcomer) ? { newcomer } : {}),
+      ...(typeof newcomerChair === "boolean" ? { newcomerChair } : {}),
       ...(typeof by === "string" ? { ownerAccount: by } : {}),
       ...(typeof title === "string" && title.trim() ? { title: title.trim() } : {}),
       ...(visibility ? { visibility } : {}),
@@ -279,7 +283,7 @@ export function createApp() {
       capacity: room.capacity,
       ...(chairsAreFixed(room.game) !== undefined ? { chairsFixed: chairsAreFixed(room.game)! } : {}),
     };
-    const whoAmI = { account: mine.account!, role: mine.role, seated: mine.seat !== null, here: mine.here };
+    const whoAmI = { account: mine.account!, role: mine.role, seated: mine.seated, here: mine.here };
     // СТОЛ ОТВЕЧАЕТ ПРО СЕБЯ ОТДЕЛЬНО: мебель — не свойство человека, и спрашивается она раз.
     const chair = mayAddChair(whoAmI, room.mode, table);
     res.setHeader("X-Room-Chairs", String(room.chairs ?? ""));
@@ -287,7 +291,7 @@ export function createApp() {
       people.map((one) => {
         const { can, cant } = deedsOn(
           whoAmI,
-          { account: one.account ?? one.name, role: one.role, seated: one.seat !== null, here: one.here },
+          { account: one.account ?? one.name, role: one.role, seated: one.seated, here: one.here },
           room.mode,
           table,
         );
@@ -358,7 +362,7 @@ export function createApp() {
    * всем можно сесть. Распоряжается тот, кто распоряжается столом: хозяин и админы.
    */
   app.patch("/rooms/:id", (req, res) => {
-    const { by, chairs, capacity, newcomer } = req.body || {};
+    const { by, chairs, capacity, newcomer, newcomerChair } = req.body || {};
     if (typeof by !== "string") return res.status(400).json({ error: "bad_request" });
     const room = byId(req.params.id);
     if (!room) return res.status(404).json({ error: "room_closed" });
@@ -371,10 +375,14 @@ export function createApp() {
     if (newcomer !== undefined && !(NEWCOMERS as readonly string[]).includes(newcomer)) {
       return res.status(400).json({ error: "bad_request" });
     }
+    if (newcomerChair !== undefined && typeof newcomerChair !== "boolean") {
+      return res.status(400).json({ error: "bad_request" });
+    }
     const after = reconfigure(room.id, {
       ...(chairs !== undefined ? { chairs: Math.floor(chairs) } : {}),
       ...(capacity !== undefined ? { capacity } : {}),
       ...(newcomer !== undefined ? { newcomer } : {}),
+      ...(newcomerChair !== undefined ? { newcomerChair } : {}),
     });
     if (!after) return res.status(404).json({ error: "room_closed" });
     res.json(seenFromOutside(after, by));

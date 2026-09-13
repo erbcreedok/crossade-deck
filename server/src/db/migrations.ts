@@ -260,4 +260,25 @@ export const MIGRATIONS: readonly Migration[] = [
       for (const row of rows) paint.run(inkFor(row.id), row.id);
     },
   },
+  {
+    version: 14,
+    up(db) {
+      // ЗРИТЕЛЬ — НЕ УРОВЕНЬ КОНТРОЛЯ, А ИГРОК БЕЗ СТУЛА.
+      //
+      // Уровней три: хозяин, админ, игрок. Стул — вторая ось, и она живёт в идущей сессии. Пока обе
+      // оси были одним полем, «посадить зрителя» означало сменить ему уровень, а «лишить стула» —
+      // разжаловать; хозяин, вставший из-за стола, и вовсе не имел, чем называться.
+      //
+      // Записанные зрители становятся игроками: стула у них нет и так, а роль у них была не ниже.
+      db.exec(`UPDATE rooms SET newcomer = 'player' WHERE newcomer = 'spectator'`);
+      // ...и комната отдельно помнит, даёт ли она новому стул: это уже не про уровень.
+      db.exec(`ALTER TABLE rooms ADD COLUMN newcomer_chair INTEGER NOT NULL DEFAULT 1`);
+      // СТУЛ ПЕРЕЖИВАЕТ СЕССИЮ. Место за столом поднимается вместе с партией, но ПОЛОЖЕН ли человеку
+      // стул — это про комнату: лишённый стула, вернувшись назавтра, снова оказывался бы за столом.
+      db.exec(`ALTER TABLE room_members ADD COLUMN chair INTEGER NOT NULL DEFAULT 1`);
+      // Записанные зрители — это и есть «без стула»; уровень у них становится игроцким.
+      db.exec(`UPDATE room_members SET chair = 0 WHERE role = 'spectator'`);
+      db.exec(`UPDATE room_members SET role = 'player' WHERE role = 'spectator'`);
+    },
+  },
 ];

@@ -28,7 +28,10 @@ export interface Table {
 export interface Someone {
   readonly account: string;
   readonly role: Role;
-  /** Держится ли за ним стул. */
+  /**
+   * ПОЛОЖЕН ЛИ ЕМУ СТУЛ. Не уровень: игрок без стула — зритель, а хозяин без стула ведёт стол, за
+   * которым не играет.
+   */
   readonly seated: boolean;
   /**
    * ЗДЕСЬ ЛИ ОН СЕЙЧАС — в идущей сессии. Стул живёт в ней, и дать его тому, кого за столом нет,
@@ -50,7 +53,9 @@ const rules = (one: Someone): boolean => one.role === "owner" || one.role === "a
  *              а значит нет и доли в столе.
  */
 export function powerOf(me: Someone, mode: Mode): Power {
-  if (me.role === "spectator") return "none";
+  // БЕЗ СТУЛА ИГРОК НЕ РЕШАЕТ: доли в столе у него нет, и голоса тоже — это и значит «зритель».
+  // Хозяина и админа стул не касается: они ведут стол, а не играют за ним.
+  if (me.role === "player" && !me.seated) return "none";
   if (mode === "assembly") return rules(me) || me.role === "player" ? "proposal" : "none";
   if (!rules(me)) return "none";
   if (mode === "council") return "proposal";
@@ -132,7 +137,7 @@ export function may(deed: Deed, me: Someone, them: Someone, mode: Mode, table: T
       if (mine) return "со своего встают сами";
       return handles(me, p) || "местами не распоряжаешься";
     case "admin:grant":
-      if (them.role !== "player" && them.role !== "spectator") return "он уже с правами";
+      if (them.role !== "player") return "он уже с правами";
       return handles(me, p) || "правами не делишься";
     case "admin:revoke":
       if (them.role === "owner") return "хозяина нельзя разжаловать";
@@ -141,7 +146,7 @@ export function may(deed: Deed, me: Someone, them: Someone, mode: Mode, table: T
     case "owner:pass":
       if (p !== "full") return "комнату передаёт только хозяин";
       if (mine) return "она и так твоя";
-      return them.role === "spectator" ? "сначала посади его" : true;
+      return them.seated ? true : "сначала посади его";
     case "kick":
       if (them.role === "owner") return "хозяина нельзя выгнать";
       if (mine) return "себя выгоняют кнопкой «выйти»";

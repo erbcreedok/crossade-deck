@@ -41,9 +41,9 @@ async function account(): Promise<{ id: string; recoveryHash: string }> {
 }
 
 /** Стол с названной встречей — заводится напрямую, без сессии: её поднимает сам сторож. */
-function openRoomFor(owner: string, newcomer: "admin" | "player" | "spectator"): string {
+function openRoomFor(owner: string, newcomer: "admin" | "player", newcomerChair = true): string {
   const { openRoom: make } = requireRooms();
-  return make({ game: "cards", chairs: 2, ownerAccount: owner, newcomer })!.id;
+  return make({ game: "cards", chairs: 2, ownerAccount: owner, newcomer, newcomerChair })!.id;
 }
 
 let roomsModule: typeof import("./rooms.js") | undefined;
@@ -340,12 +340,12 @@ describe("rooms.the-roster-is-one-list-and-a-chair-is-a-seat", () => {
     const { body } = await open({ by: me.id, forever: true });
 
     addMember(body.room!, mate.id, "player");
-    addMember(body.room!, watcher.id, "spectator");
+    addMember(body.room!, watcher.id, "player", false);
     // За столом сидит один: место в сессии есть только у него.
     setPeople(body.room!, [{ name: "он", color: null, seat: "p1", accountId: mate.id }]);
 
     const roster = (await (await fetch(`${BASE}/rooms/${body.room}/roster`)).json()) as Record<string, unknown>[];
-    expect(roster.map((one) => one.role)).toEqual(["owner", "player", "spectator"]);
+    expect(roster.map((one) => one.role)).toEqual(["owner", "player", "player"]);
     const at = (id: string) => roster.find((one) => one.account === id)!;
     expect(at(mate.id).seat).toBe("p1");
     // Хозяин числится, но не сидит — и это «нет стула», а не «отошёл».
@@ -390,7 +390,7 @@ describe("rooms.a-mock-user-takes-a-chair-and-a-live-absent-one-does-not", () =>
     const room = makeRoom({ game: "cards", chairs: 4, ownerAccount: me.id, forever: true })!;
     const body = { room: room.id } as Record<string, string>;
 
-    const mock = (name: string, role: "admin" | "player" | "spectator") => {
+    const mock = (name: string, role: "admin" | "player", chair = true) => {
       const id = `mock_${name}_${Date.now()}`;
       insertAccount({
         id,
@@ -402,12 +402,12 @@ describe("rooms.a-mock-user-takes-a-chair-and-a-live-absent-one-does-not", () =>
         recoveryHash: id,
         bot: true,
       });
-      addMember(body.room!, id, role);
+      addMember(body.room!, id, role, chair);
       return id;
     };
     const boss = mock("мок-админ", "admin");
     const mate = mock("мок-игрок", "player");
-    const watcher = mock("мок-зритель", "spectator");
+    const watcher = mock("мок-зритель", "player", false);
     addMember(body.room!, absent.id, "player");
 
     await sessionOf(find(body.room!)!);
@@ -434,9 +434,11 @@ describe("rooms.a-mock-user-takes-a-chair-and-a-live-absent-one-does-not", () =>
 describe("rooms.the-room-says-who-a-newcomer-arrives-as", () => {
   it("комната родится с названной встречей и меняет её по просьбе хозяина", async () => {
     const me = await account();
-    const { body } = await open({ by: me.id, newcomer: "spectator" });
+    const { body } = await open({ by: me.id, newcomer: "player", newcomerChair: false });
     const born = (await (await fetch(`${BASE}/rooms/by-code/${body.code}`)).json()) as Record<string, unknown>;
-    expect(born.newcomer).toBe("spectator");
+    expect(born.newcomer).toBe("player");
+    // Две оси, два ответа: с каким уровнем встречают и дают ли стул.
+    expect(born.newcomerChair).toBe(false);
 
     const after = await fetch(`${BASE}/rooms/${body.room}`, {
       method: "PATCH",
@@ -478,14 +480,14 @@ describe("rooms.the-room-says-who-a-newcomer-arrives-as", () => {
 
   it("вернувшийся игрок садится, если за столом есть куда", async () => {
     const { byId: find, sessionOf } = await import("./rooms.js");
-    const { setRole } = await import("./db/roomsRepo.js");
+    const { setChair } = await import("./db/roomsRepo.js");
     const { peopleAt } = await import("./roomPeople.js");
     const { Client } = await import("colyseus.js");
 
     const me = await account();
     const mate = await account();
-    // Стол встречает зрителями: вошедший стула не получит...
-    const room = openRoomFor(me.id, "spectator");
+    // Комната не даёт новому стула: вошедший смотрит...
+    const room = openRoomFor(me.id, "player", false);
     const session = await sessionOf(find(room)!);
     const client = new Client(`ws://localhost:${PORT}`);
     const holding = await client.joinById(session, { accountId: me.id, name: "Хозяин" });
@@ -493,8 +495,8 @@ describe("rooms.the-room-says-who-a-newcomer-arrives-as", () => {
     await new Promise((r) => setTimeout(r, 150));
     expect(peopleAt(room).find((p) => p.accountId === mate.id)?.seat).toBeNull();
 
-    // ...а потом ему дали роль игрока: на возврате стул должен найтись сам.
-    setRole(room, mate.id, "player");
+    // ...а потом ему выдали стул: на возврате он должен найтись сам, без второго нажатия.
+    setChair(room, mate.id, true);
     await guest.leave(false);
     await new Promise((r) => setTimeout(r, 150));
     const again = await client.joinById(session, { accountId: mate.id, name: "Гость" });
@@ -515,7 +517,7 @@ describe("rooms.the-room-says-who-a-newcomer-arrives-as", () => {
     const guest = await account();
     const watcher = await account();
     const seated = openRoomFor(me.id, "player");
-    const watched = openRoomFor(me.id, "spectator");
+    const watched = openRoomFor(me.id, "player", false);
     await sessionOf(find(seated)!);
     await sessionOf(find(watched)!);
 
@@ -527,7 +529,7 @@ describe("rooms.the-room-says-who-a-newcomer-arrives-as", () => {
     expect(peopleAt(seated).find((p) => p.accountId === guest.id)?.seat).toBe("p1");
     expect(roleOf(seated, guest.id)).toBe("player");
     expect(peopleAt(watched).find((p) => p.accountId === watcher.id)?.seat).toBeNull();
-    expect(roleOf(watched, watcher.id)).toBe("spectator");
+    expect(roleOf(watched, watcher.id)).toBe("player");
 
     one.leave();
     two.leave();
@@ -544,7 +546,7 @@ describe("rooms.the-roster-says-what-i-may-do-with-each-person", () => {
     const me = await account();
     const watcher = await account();
     const { body } = await open({ by: me.id, chairs: 2 });
-    addMember(body.room!, watcher.id, "spectator");
+    addMember(body.room!, watcher.id, "player", false);
 
     const mine = (await (await fetch(`${BASE}/rooms/${body.room}/roster?me=${me.id}`)).json()) as Record<string, unknown>[];
     const him = mine.find((one) => one.account === watcher.id)!;

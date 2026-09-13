@@ -17,7 +17,7 @@ import { esc, ICON, svg } from "./icons.js";
 import { topHudLook, type TopHudLook } from "./look.js";
 import { fillCss, lineCss, plateCss, shadowCss, tint } from "./paint.js";
 import { peopleRow, type TopHudPerson } from "./row.js";
-import { ROLE_WORD, rosterList, type RosterRole, type TopHudMember } from "./roster.js";
+import { roleWord, rosterList, type RosterRole, type TopHudMember } from "./roster.js";
 
 /**
  * HOW FAR DOWN THE PAGE THE STRIP REACHES, as a custom property — so anything the page lays over a
@@ -306,12 +306,9 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
     const present = peopleRow(state.people, look).seated;
     const mine = list?.rows.find((one) => one.mine === true);
     const rest = list ? list.rows.filter((one) => one !== mine) : [];
-    // СТУЛЬЯ — ТРЕТЬЕ ЧИСЛО, И БЕЗ НЕГО «ПОСТАВИТЬ СТУЛ» НЕ ВИДНО: человек жмёт кнопку, в списке
-    // ничего не меняется, и кнопка справедливо считается сломанной.
-    const chairs = state.table?.chairs;
-    const head = list
-      ? `ЗА СТОЛОМ ${list.seated} · ВСЕГО ${list.total}${chairs !== undefined ? ` · СТУЛЬЕВ ${chairs}` : ""}`
-      : `ЗА СТОЛОМ ${present.length}`;
+    // ДВА ЧИСЛА, И ТОЛЬКО ДВА: сколько сидит и сколько всего людей. Мебель считают в листе комнаты —
+    // это разговор про стол, а не про тех, кто за ним.
+    const head = list ? `ЗА СТОЛОМ ${list.seated} · ВСЕГО ${list.total}` : `ЗА СТОЛОМ ${present.length}`;
     // ЗАНЯТЫЕ ЦВЕТА ВИДНО В ПАЛИТРЕ: восемь на всех, и брать чужой — значит стать неотличимым.
     const taken = new Set((list?.rows ?? []).map((one) => one.ink));
     const rows = list ? rest.map((one) => memberRowHtml(one, taken)).join("") : present.map(listRowHtml).join("");
@@ -336,19 +333,23 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
   };
 
   /**
-   * ЗНАЧОК РОЛИ — ПЛАШКА, ЗАЛИТАЯ ЦВЕТОМ САМОЙ РОЛИ. Читается боковым зрением, не требуя прочесть
-   * слово: хозяин золотом, админ светлым, игрок деревом, зритель приглушённым.
+   * ЗНАЧОК — ИЗ ДВУХ ОСЕЙ: уровень даёт цвет, стул — слово. Цветом плашки читается власть (хозяин
+   * золотом, админ светлым, игрок деревом), а сидит человек или смотрит — сказано словом, и
+   * зритель поэтому стоит приглушённым: он в комнате, но не за столом.
    */
   const ROLE_PAINT: Record<RosterRole, string> = {
     owner: PALETTE.gold,
     admin: PALETTE.ink,
     player: PALETTE.wood,
-    spectator: PALETTE.inkDim,
   };
 
-  const roleBadge = (member: TopHudMember): string =>
-    `<span style="font:400 10px ${LETTER};letter-spacing:.08em;text-transform:uppercase;border-radius:5px;padding:2px 6px;` +
-    `background:${ROLE_PAINT[member.role]};color:${PALETTE.black}">${ROLE_WORD[member.role]}</span>`;
+  const roleBadge = (member: TopHudMember): string => {
+    const paint = member.role === "player" && !member.seated ? PALETTE.inkDim : ROLE_PAINT[member.role];
+    return (
+      `<span style="font:400 10px ${LETTER};letter-spacing:.08em;text-transform:uppercase;border-radius:5px;padding:2px 6px;` +
+      `background:${paint};color:${PALETTE.black}">${roleWord(member.role, member.seated)}</span>`
+    );
+  };
 
   /**
    * ЛИЦО В КРУЖКЕ — ЕГО ФОТОГРАФИЯ, если он её выбрал, и первая буква имени, если нет. Цвет при
@@ -517,13 +518,18 @@ export function topHud(container: HTMLElement, o: TopHudOptions = {}): TopHud {
       `<div style="display:flex;flex-direction:column;gap:8px;padding:2px 0 12px">` +
       section("СТАТУС РУКИ", hand.map((one) => handButton(member, one)).join("")) +
       section("МЕСТО И ПРАВА", others.map((one) => deedButton(member, one)).join("")) +
-      (refusal ? `<span style="font:400 11px ${LETTER};color:${PALETTE.danger}">${esc(refusal)}</span>` : "") +
-      (cant.length > 0
-        ? `<div style="display:flex;flex-direction:column;gap:3px;padding-top:2px">` +
+      // ЧЕГО НЕЛЬЗЯ — ОДНИМ БЛОКОМ ПОД ЗАГОЛОВКОМ, а не россыпью строк: это не предупреждение и не
+      // ошибка, это список того, чего у тебя нет, и читают его целиком, когда ищут пропавшую кнопку.
+      (refusal || cant.length > 0
+        ? `<div style="display:flex;flex-direction:column;gap:3px;padding-top:10px">` +
+          `<span style="font:400 10px ${LETTER};letter-spacing:.1em;color:${PALETTE.inkDim};opacity:.7">НЕЛЬЗЯ</span>` +
+          // ОТКАЗ КОМНАТЫ СТОИТ ПЕРВЫМ И В ТЕХ ЖЕ СЛОВАХ: он про то, что человек только что нажал, а
+          // не про то, чего у него нет вообще.
+          (refusal ? `<span style="font:400 12px ${LETTER};color:${PALETTE.ink}">${esc(refusal)}</span>` : "") +
           cant
             .map(
               (one) =>
-                `<span style="font:400 10px ${LETTER};color:${PALETTE.inkDim};opacity:.75">${esc(one.label)} — ${esc(one.why)}</span>`,
+                `<span style="font:400 12px ${LETTER};color:${PALETTE.inkDim};opacity:.75">${esc(one.label)} — ${esc(one.why)}</span>`,
             )
             .join("") +
           `</div>`
