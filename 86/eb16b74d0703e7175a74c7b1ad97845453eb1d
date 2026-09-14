@@ -1,0 +1,21 @@
+deploy/hub.Dockerfile
+  s_9ed0da107cbc4a::t_b3621e28149aaa 15-17,19-20,22,24-29,32,46-47
+deploy/hub.fly.toml
+  s_9ed0da107cbc4a::t_fc0e931e40cc61 14-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "86eb16b74d0703e7175a74c7b1ad97845453eb1d",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
