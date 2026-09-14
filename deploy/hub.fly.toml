@@ -11,6 +11,9 @@ primary_region = "fra"
 # Секция пустая намеренно: образ приезжает готовым (fly deploy --image). Без неё flyctl
 # начинает искать Dockerfile в контексте.
 [build]
+  [build.args]
+    # Хаб на Fly говорит с сервером на Fly; без этого страница ищет сервер у себя на :2567.
+    VITE_SERVER_URL = "https://crossade-deck-server.fly.dev"
 
 [http_service]
   internal_port = 80
