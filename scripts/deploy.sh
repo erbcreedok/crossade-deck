@@ -189,9 +189,11 @@ deploy_from_source() {
   fi
 
   echo "==> ${component}: сборка на стороне Fly из ${dockerfile} (в обход GHCR)"
+  # ПУТИ — АБСОЛЮТНЫЕ: flyctl ищет конфиг и Dockerfile от КОНТЕКСТА сборки, а у сервера он
+  # `server/`, и `server/fly.toml` превращался в `server/server/fly.toml` — «app name is missing».
   flyctl deploy --now \
-    --config "$fly" \
-    --dockerfile "$dockerfile" \
+    --config "$PWD/$fly" \
+    --dockerfile "$PWD/$dockerfile" \
     --build-arg "APP_BUILD=$(git rev-list --count HEAD)" \
     --build-arg "APP_COMMIT=$(git rev-parse --short HEAD)" \
     "$context"
