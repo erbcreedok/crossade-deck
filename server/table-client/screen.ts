@@ -8,7 +8,7 @@
 import { HOLD_EVERY_MS, type Chair, type ChairFlag, type Face, type Intent, type Person, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { CARD as FELT_CARD, SEAT_REACH, SUITS, deckAt, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
-import { tableCamera } from "./camera.js";
+import { orbits, tableCamera } from "./camera.js";
 import type { TableStore } from "./store.js";
 
 const T = {
@@ -782,6 +782,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     (e) => {
       if (e.target !== canvas) return;
       if (drag) return void e.stopPropagation();
+      // Мышь с Ctrl/Cmd или правой кнопкой — всегда камера: карта не берётся, окно не открывается.
+      if (orbits(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return cam.orbit(e);
+      }
       const pick = feltPick(e.clientX, e.clientY);
       if (pick) {
         e.preventDefault();
