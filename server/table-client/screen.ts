@@ -744,6 +744,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   function draw(): void {
     const g = glass();
     const s = seen();
+    if (store.state.shuffles !== seenShuffles) {
+      if (seenShuffles !== undefined) queueMicrotask(() => playShuffle(store.state));
+      seenShuffles = store.state.shuffles;
+    }
     const seat = mine(s);
     const floor = hudFloor(handOf(s, seat).length);
     aimCamera(s);
@@ -780,6 +784,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
         const bare = view!.toGlass(f);
         return { id: f.id, angle: f.angle, x: Math.round(at.x), y: Math.round(at.y), rise: +(bare.y - at.y).toFixed(1) };
       }),
+      deck: s.deck.length,
       deckTop: s.deck.length ? (({ x, y }) => ({ x: Math.round(x), y: Math.round(y) }))(view.toGlass(view.deckAt(s.deck.length - 1, s.deck.length))) : null,
       seatAngle: chairOf(s, seat)?.angle ?? null,
       seats: spots.map((sp) => {
@@ -1005,6 +1010,33 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     };
   }
 
+  /**
+   * ПЕРЕМЕШИВАНИЕ У ЗРИТЕЛЯ — колода расходится двумя половинками и сходится обратно, несколько раз. Это
+   * картинка, а не ход: колода на сервере уже перемешана, у всех карт новые id.
+   */
+  let seenShuffles: number | undefined;
+  function playShuffle(s: Snapshot): void {
+    if (!view || s.deck.length === 0) return;
+    const at = view.toGlass(view.deckAt(s.deck.length - 1, s.deck.length));
+    const w = FELT_CARD.w * view.k, h = FELT_CARD.h * view.k;
+    for (let i = 0; i < 8; i += 1) {
+      const el = document.createElement("div");
+      el.dataset.shuffle = String(i);
+      const side = i % 2 === 0 ? -1 : 1;
+      const out = `translate(${at.x - w / 2 + side * w * 0.62}px,${at.y - h / 2 - i * 1.2}px) scale(1,${view.squash}) rotate(${side * 8}deg)`;
+      const home = `translate(${at.x - w / 2}px,${at.y - h / 2 - i * 0.6}px) scale(1,${view.squash})`;
+      el.style.cssText = `position:absolute;left:0;top:0;width:${w}px;height:${h}px;transform:${home}`;
+      el.innerHTML = cardHtml(undefined, w);
+      air.append(el);
+      const run = el.animate([{ transform: home }, { transform: out, offset: 0.25 }, { transform: home, offset: 0.5 }, { transform: out, offset: 0.75 }, { transform: home }], {
+        duration: 1300,
+        delay: i * 18,
+        easing: "ease-in-out",
+      });
+      run.onfinish = () => el.remove();
+    }
+  }
+
   function face(p: Person): string {
     if (!images[p.key]) {
       const img = new Image();
@@ -1066,11 +1098,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     for (let i = s.felt.length - 1; i >= 0; i -= 1) {
       const one = s.felt[i]!;
       const at = view.feltAt(one.id) ?? one;
-      if (over(at, one.angle)) return { card: one, at, from: "felt", up: one.up };
+      if (!one.under && over(at, one.angle)) return { card: one, at, from: "felt", up: one.up };
     }
     const top = s.deck.at(-1);
     const deckTop = view.deckAt(s.deck.length - 1, s.deck.length);
     if (top && over(deckTop)) return { card: top, at: deckTop, from: "deck", up: false };
+    // Под колодой — только там, где колода её не накрывает.
+    for (let i = s.felt.length - 1; i >= 0; i -= 1) {
+      const one = s.felt[i]!;
+      const at = view.feltAt(one.id) ?? one;
+      if (one.under && over(at, one.angle)) return { card: one, at, from: "felt", up: one.up };
+    }
     return null;
   }
 

@@ -35,6 +35,8 @@ export interface FeltItem {
   /** Поворот в осях стола, в градусах по часовой. */
   angle: number;
   face?: Face;
+  /** Лежит под колодой (козырь): рисуется раньше неё. */
+  under?: boolean;
 }
 
 /** Где сидит человек: диск на стекле (`x`, `y`, `r` — пиксели) и его стул на столе (`seat` — единицы). */
@@ -444,17 +446,9 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   felt.addColorStop(1, ROUND.feltLo);
   ring(R, felt);
 
-  const deck = o.deck.filter((one) => one.id !== o.lifted && !o.hidden?.has(one.id));
-  deck.forEach((one, i) => {
-    g.save();
-    const at = deckAt(i, deck.length);
-    g.translate(at.x, at.y);
-    card(g, undefined, CARD.w, CARD.h, o.held[one.id]);
-    g.restore();
-  });
-
-  for (const one of o.felt) {
-    if (one.id === o.lifted || o.hidden?.has(one.id)) continue;
+  // ПОД КОЛОДОЙ — раньше колоды: козырь торчит из-под неё.
+  const paintFelt = (one: FeltItem) => {
+    if (one.id === o.lifted || o.hidden?.has(one.id)) return;
     const at = feltAt(one.id)!;
     // ПОДНЯТАЯ КАРТА ОТБРАСЫВАЕТ ТЕНЬ туда, где лежала бы на сукне: так видно, что под ней другая.
     if ((levels.get(one.id) ?? 0) > 0) {
@@ -471,7 +465,19 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     g.rotate((one.angle * Math.PI) / 180);
     card(g, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
     g.restore();
-  }
+  };
+  for (const one of o.felt) if (one.under) paintFelt(one);
+
+  const deck = o.deck.filter((one) => one.id !== o.lifted && !o.hidden?.has(one.id));
+  deck.forEach((one, i) => {
+    g.save();
+    const at = deckAt(i, deck.length);
+    g.translate(at.x, at.y);
+    card(g, undefined, CARD.w, CARD.h, o.held[one.id]);
+    g.restore();
+  });
+
+  for (const one of o.felt) if (!one.under) paintFelt(one);
 
   const spots: Spot[] = [];
   people.forEach((who) => {
