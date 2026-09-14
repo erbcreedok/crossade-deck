@@ -55,8 +55,18 @@ describe("Table: блокировка карт", () => {
   it("брошенная за кромку карта ложится на край сукна", () => {
     const t = seated("a");
     ops(t.act("a", { t: "grab", id: "c7" }, 0));
-    const [move] = ops(t.act("a", { t: "drop", id: "c7", to: { in: "felt", x: 0, y: 16, up: false } }, 0));
+    const [move] = ops(t.act("a", { t: "drop", id: "c7", to: { in: "felt", x: 0, y: 16, up: false, angle: 0 } }, 0));
     expect(move).toMatchObject({ to: { in: "felt", x: 0, y: FELT_REACH } });
+  });
+
+  it("карта ложится под тем углом, под которым её бросили; угол приводится к (-180, 180]", () => {
+    const t = seated("a", "b");
+    ops(t.act("a", { t: "grab", id: "c7" }, 0));
+    ops(t.act("a", { t: "drop", id: "c7", to: { in: "felt", x: 1, y: 1, up: true, angle: 270 } }, 0));
+    expect(t.seenBy("b").felt[0]).toMatchObject({ id: "c7", angle: -90 });
+    ops(t.act("b", { t: "grab", id: "c7" }, 0));
+    ops(t.act("b", { t: "drop", id: "c7", to: { in: "felt", x: 1, y: 1, up: true, angle: Number.NaN } }, 0));
+    expect(t.seenBy("a").felt[0]!.angle).toBe(0);
   });
 });
 
@@ -243,7 +253,7 @@ describe("патч клиента совпадает с сервером", () =>
     step("b", { t: "flag", chair: b, flag: "hide", on: false });
     step("a", { t: "flip" });
     step("a", { t: "grab", id: "c7" });
-    step("a", { t: "drop", id: "c7", to: { in: "felt", x: 0.5, y: -1, up: true } });
+    step("a", { t: "drop", id: "c7", to: { in: "felt", x: 0.5, y: -1, up: true, angle: 35 } });
     step("b", { t: "flag", chair: b, flag: "lock", on: true });
     run(t.leave("b"));
     step("c", { t: "sit", chair: b });

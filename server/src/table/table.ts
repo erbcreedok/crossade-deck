@@ -61,7 +61,7 @@ export class Table {
   private seq = 0;
   private faces = new Map<string, Face>();
   private deck: string[] = [];
-  private felt: { id: string; x: number; y: number; up: boolean }[] = [];
+  private felt: { id: string; x: number; y: number; up: boolean; angle: number }[] = [];
   private chairs = new Map<string, ChairRow>();
   private people = new Map<string, Person>();
   private locks = new Map<string, Lock>();
@@ -306,7 +306,7 @@ export class Table {
     this.chairs.delete(chair.id);
     const at = seatPoint(chair.angle);
     const felt: FeltCard[] = chair.hand.map((id, i) => {
-      const card = { id, x: at.x + i * 0.03, y: at.y - i * 0.03, up: false };
+      const card = { id, x: at.x + i * 0.03, y: at.y - i * 0.03, up: false, angle: 0 };
       this.felt.push(card);
       return card;
     });
@@ -327,13 +327,13 @@ export class Table {
     // МИМО СТОЛА НЕ ПОЛОЖИТЬ: карта, брошенная за кромку, ложится на её край, а не пропадает в темноте.
     const far = Math.hypot(to.x, to.y);
     const k = far > FELT_REACH ? FELT_REACH / far : 1;
-    return { in: "felt", x: to.x * k, y: to.y * k, up: to.up === true };
+    return { in: "felt", x: to.x * k, y: to.y * k, up: to.up === true, angle: turnOf(Number.isFinite(to.angle) ? to.angle : 0) };
   }
 
   private whereIs(id: string): Where | null {
     if (this.deck.includes(id)) return { in: "deck" };
     const onFelt = this.felt.find((one) => one.id === id);
-    if (onFelt) return { in: "felt", x: onFelt.x, y: onFelt.y, up: onFelt.up };
+    if (onFelt) return { in: "felt", x: onFelt.x, y: onFelt.y, up: onFelt.up, angle: onFelt.angle };
     for (const chair of this.chairs.values()) {
       const i = chair.hand.indexOf(id);
       if (i >= 0) return { in: "hand", chair: chair.id, i };
@@ -354,7 +354,7 @@ export class Table {
       return to;
     }
     if (to.in === "felt") {
-      this.felt.push({ id, x: to.x, y: to.y, up: to.up });
+      this.felt.push({ id, x: to.x, y: to.y, up: to.up, angle: to.angle });
       return to;
     }
     const hand = this.chairs.get(to.chair)!.hand;
@@ -411,6 +411,7 @@ export class Table {
       x: one.x,
       y: one.y,
       up: one.up,
+      angle: one.angle,
     }));
     return {
       v: this.v,
@@ -423,6 +424,12 @@ export class Table {
       admin: this.admin,
     };
   }
+}
+
+/** Угол в (-180, 180] — один и тот же поворот не должен приходить двумя разными числами. */
+function turnOf(deg: number): number {
+  const d = ((((deg + 180) % 360) + 360) % 360) - 180;
+  return d === -180 ? 180 : d;
 }
 
 function pickRules(raw: Partial<TableRules>): Partial<TableRules> {

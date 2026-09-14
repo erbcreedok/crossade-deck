@@ -49,7 +49,7 @@ export interface Face {
 export type Where =
   | { in: "deck" }
   | { in: "hand"; chair: string; i: number }
-  | { in: "felt"; x: number; y: number; up: boolean };
+  | { in: "felt"; x: number; y: number; up: boolean; angle: number };
 
 /** Карта, какой её видит конкретный зритель: `face` есть, только если ему её видно. */
 export interface SeenCard {
@@ -61,6 +61,11 @@ export interface FeltCard extends SeenCard {
   x: number;
   y: number;
   up: boolean;
+  /**
+   * Поворот карты на сукне, в градусах по часовой, в осях СТОЛА. Карта ложится так, как стояла на экране
+   * у того, кто её бросил: при повёрнутой камере это не ноль, и боком брошенная карта лежит боком.
+   */
+  angle: number;
 }
 
 /**

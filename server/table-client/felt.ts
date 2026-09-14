@@ -32,6 +32,8 @@ export interface FeltItem {
   x: number;
   y: number;
   up: boolean;
+  /** Поворот в осях стола, в градусах по часовой. */
+  angle: number;
   face?: Face;
 }
 
@@ -410,6 +412,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     if (one.id === o.lifted) continue;
     g.save();
     g.translate(one.x, one.y);
+    g.rotate((one.angle * Math.PI) / 180);
     card(g, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
     g.restore();
   }

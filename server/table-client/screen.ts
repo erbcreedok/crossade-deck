@@ -154,7 +154,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   function whereIs(s: Snapshot, id: string): Where | null {
     if (s.deck.some((c) => c.id === id)) return { in: "deck" };
     const f = s.felt.find((c) => c.id === id);
-    if (f) return { in: "felt", x: f.x, y: f.y, up: f.up };
+    if (f) return { in: "felt", x: f.x, y: f.y, up: f.up, angle: f.angle };
     for (const chair of s.chairs) {
       const i = chair.hand.findIndex((c) => c.id === id);
       if (i >= 0) return { in: "hand", chair: chair.id, i };
@@ -346,6 +346,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   /**
    * КОНТУР — КАРТИНКА МЕСТА, А НЕ КАРТЫ: пунктир без заливки. Чёрная обводка вокруг пунктира нужна,
    * потому что в руке контур ложится НА соседнюю кремовую карту, и кремовый пунктир на ней пропадает.
+   *
+   * БЕЗ ПЕРЕХОДОВ. Контур — это «вот сюда ляжет, если отпустить сейчас», и отпустить можно в любой кадр:
+   * контур, догоняющий палец за 0.16 с, показывает место, куда карта уже не ляжет.
    */
   function markHtml(w: number, h: number, angle: number, x: number, y: number, z: number, squash = 1): string {
     const line = Math.max(1.5, w * 0.04);
@@ -353,7 +356,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       // Сжатие — СНАРУЖИ поворота, как у камеры: наклон давит вертикаль стекла, а не стола.
       + `transform:scale(1,${squash}) rotate(${angle}deg);z-index:${z};pointer-events:none;border-radius:${w * 0.12}px;border:${line}px dashed ${T.ink};opacity:.9;`
       + `box-shadow:0 0 0 ${Math.max(1, line * 0.6)}px ${T.black}, inset 0 0 0 ${Math.max(1, line * 0.6)}px ${T.black};`
-      + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out"></div>`;
+      + `"></div>`;
   }
 
   /** Карта в гнезде. Взятую другим пальцем не берут: она в его цвете и не ловит касание. */
@@ -472,10 +475,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     return { shell, cards: layHand(geom, cards, mark, chair.id, heldByOthers(s), closed(s, chair.id)) };
   }
 
+  /**
+   * УГОЛ, ПОД КОТОРЫМ КАРТА ЛЯЖЕТ НА СУКНО, — в осях стола. Карта в воздухе стоит ровно к экрану, и
+   * ложится так же: против поворота камеры. Смотришь на стол боком — карта ляжет боком к столу и ровно
+   * к тебе.
+   */
+  const dropAngle = () => -(view?.rotation ?? 0);
+
   function feltMarkHtml(): string {
     if (!drag || drag.target.kind !== "felt" || !view) return "";
     const at = view.toGlass(drag.target.at);
-    return markHtml(FELT_CARD.w * view.k, FELT_CARD.h * view.k, view.rotation, at.x, at.y, 30, view.squash);
+    // На экране: поворот стола + поворот карты = 0, и остаётся только наклон — контур стоит ровно, сжатый.
+    return markHtml(FELT_CARD.w * view.k, FELT_CARD.h * view.k, view.rotation + dropAngle(), at.x, at.y, 30, view.squash);
   }
 
   function carryHtml(): string {
@@ -521,6 +532,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       frame: lastFrame,
       k: view.k,
       middle: { x: Math.round(middle.x), y: Math.round(middle.y) },
+      felt: s.felt.map((f) => ({ id: f.id, angle: f.angle })),
       seats: spots.map((sp) => {
         const c = chairOf(s, sp.key);
         return { key: sp.key, who: c && sitterOf(s, c)?.name, x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), chair: Math.round(SEAT_REACH * view!.k) };
@@ -585,10 +597,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     if (!view) return null;
     const s = store.state;
     const { x: ux, y: uy } = view.toDesk({ x, y });
-    const over = (at: { x: number; y: number }) => Math.abs(ux - at.x) <= FELT_CARD.w / 2 && Math.abs(uy - at.y) <= FELT_CARD.h / 2;
+    // Палец — в оси самой карты: у повёрнутой карты попадание считается по её сторонам, а не по рамке.
+    const over = (at: { x: number; y: number }, angle = 0) => {
+      const t = (-angle * Math.PI) / 180;
+      const dx = ux - at.x;
+      const dy = uy - at.y;
+      const lx = dx * Math.cos(t) - dy * Math.sin(t);
+      const ly = dx * Math.sin(t) + dy * Math.cos(t);
+      return Math.abs(lx) <= FELT_CARD.w / 2 && Math.abs(ly) <= FELT_CARD.h / 2;
+    };
     for (let i = s.felt.length - 1; i >= 0; i -= 1) {
       const one = s.felt[i]!;
-      if (over(one)) return { card: one, at: one, from: "felt", up: one.up };
+      if (over(one, one.angle)) return { card: one, at: one, from: "felt", up: one.up };
     }
     const top = s.deck.at(-1);
     if (top && over(deckAt(s.deck.length - 1, s.deck.length))) return { card: top, at: deckAt(s.deck.length - 1, s.deck.length), from: "deck", up: false };
@@ -665,7 +685,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const to: Where = aim.kind === "hand"
       ? { in: "hand", chair: aim.which, i: aim.index }
       // На сукно карта ложится так, как её несли: лицом — если её было видно.
-      : { in: "felt", x: aim.at.x, y: aim.at.y, up: d.shown };
+      : { in: "felt", x: aim.at.x, y: aim.at.y, up: d.shown, angle: dropAngle() };
     const from = whereIs(store.state, d.card.id);
     if (from) {
       const keepsFace = (to.in === "hand" && to.chair === mine()) || (to.in === "felt" && to.up);
