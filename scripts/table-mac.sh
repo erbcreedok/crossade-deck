@@ -19,9 +19,9 @@ ENV_FILE="$ROOT/server/.env.table"
 [[ -f "$ENV_FILE" ]] || { echo "нет $ENV_FILE — см. шапку скрипта" >&2; exit 1; }
 set -a; source "$ENV_FILE"; set +a
 PORT="${PORT:-2590}"
-LOG_DIR="$ROOT/.agent/tmp"
+LOG_DIR="/tmp"
 mkdir -p "$LOG_DIR"
-TUNNEL_LOG="$LOG_DIR/table-tunnel.log"
+TUNNEL_LOG="$LOG_DIR/crossade-table-tunnel.log"
 
 cleanup() { [[ -n "${TUNNEL_PID:-}" ]] && kill "$TUNNEL_PID" 2>/dev/null || true; }
 trap cleanup EXIT
