@@ -42,6 +42,7 @@ export function listed(cards: RoomCard[], links: Links, inPrivate: boolean): Sai
     text: [`Столы этого чата (${cards.length}):`, ...cards.map((c, i) => `${i + 1}. ${c.title}${who(c)}`)].join("\n"),
     rows: cards.map((c) => [
       enter(c.room, links, inPrivate, c.title),
+      { text: "Управлять", data: `tbm:${c.room}` },
       { text: "Переименовать", data: `tbl:ren:${c.room}` },
       { text: "Закрыть", data: `tbl:del:${c.room}` },
     ]),

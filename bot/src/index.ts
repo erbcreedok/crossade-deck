@@ -240,6 +240,13 @@ async function main(): Promise<void> {
       ? [
           { command: "table", description: "Открыть стол в этом чате: /table [название]" },
           { command: "tables", description: "Столы этого чата" },
+          { command: "menu", description: "Меню стола: сбор, пресеты, раздачи" },
+          { command: "collect", description: "Собрать все карты в колоду" },
+          { command: "shuffle", description: "Перемешать колоду" },
+          { command: "durak", description: "Пресет дурака: /durak [36|52] [jokers]" },
+          { command: "krest", description: "Пресет крестового: /krest [36|52] [jokers]" },
+          { command: "belka", description: "Пресет белки: 36, стулья крестом, шестёрки на край" },
+          { command: "deal", description: "Раздать: /deal N|durak|krest|belka [@кто] [-skip-empty] [-as-dealer] [-force]" },
         ]
       : []),
   ]);

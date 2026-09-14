@@ -4,7 +4,7 @@
 //
 // Контракт — тот же файл, что читают сервер и клиент (`server/src/table/contract.ts`).
 
-import { SECRET_HEADER, type Home, type RelayStatus, type RoomCard } from "../../../server/src/table/contract.js";
+import { SECRET_HEADER, type Home, type RelayStatus, type RoomCard, type RunResult, type TableCommand } from "../../../server/src/table/contract.js";
 
 export interface TableEnv {
   secret: string;
@@ -67,6 +67,15 @@ export class TableApi {
 
   list(chat: string) {
     return this.call<RoomCard[]>("GET", `/table/rooms?chat=${encodeURIComponent(chat)}`);
+  }
+
+  /** Столы, открытые этим человеком, где бы они ни жили. */
+  listBy(by: string) {
+    return this.call<RoomCard[]>("GET", `/table/rooms?by=${encodeURIComponent(by)}`);
+  }
+
+  run(room: string, by: string, command: TableCommand) {
+    return this.call<RunResult>("POST", `/table/rooms/${room}/run`, { by, command });
   }
 
   rename(room: string, title: string) {

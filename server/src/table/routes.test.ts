@@ -106,6 +106,7 @@ describe("/table/rooms/:room/run — команда админа", () => {
     expect((await run(one.room, { by: "tg:1", command: { t: "deal", rule: "poker" } })).status).toBe(400);
     expect((await run(one.room, { command: { t: "collect" } })).status).toBe(400);
     expect(await (await run(one.room, { by: "tg:1", command: { t: "collect" } })).json()).toEqual({ error: "empty" });
+    expect((await (await call("/table/rooms?by=tg:1")).json()).map((c: { room: string }) => c.room)).toEqual([one.room]);
     expect((await call(`/table/rooms/${one.room}/run`, { method: "POST", json: { by: "tg:1", command: { t: "collect" } }, secret: null })).status).toBe(401);
   });
 });

@@ -11,7 +11,7 @@ import { randomBytes, timingSafeEqual } from "crypto";
 import express, { type Router } from "express";
 import { tableConfig } from "./config.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, SECRET_HEADER, type Beacon, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
-import { closeEntry, findEntry, openEntry, rehome, rename, roomsAt, runIn } from "./lobby.js";
+import { closeEntry, findEntry, openEntry, rehome, rename, roomsAt, roomsBy, runIn } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 
 /** Этот запуск. Новый процесс — новый `boot`: по нему бот понимает, что прежних столов нет. */
@@ -81,6 +81,7 @@ export function tableRoutes(): Router {
 
   r.get("/table/rooms", guarded, (req, res) => {
     const chat = typeof req.query.chat === "string" ? req.query.chat : null;
+    if (!chat && typeof req.query.by === "string" && req.query.by) return void res.json(roomsBy(req.query.by));
     if (!chat) return void res.status(400).json({ error: "bad_request" });
     res.json(roomsAt({ kind: "chat", chat }));
   });

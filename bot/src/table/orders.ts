@@ -1,0 +1,139 @@
+// КОМАНДЫ СТОЛА В ЧАТЕ — слова и кнопки, без Telegram. Бот только переводит сообщение в `TableCommand`
+// и отдаёт серверу стола; решает сервер (админ ли, собраны ли карты, хватает ли их).
+//
+//   /collect                                  собрать всё в колоду
+//   /shuffle                                  перемешать
+//   /durak [36|52] [jokers]                   пресет: колода под дурака
+//   /krest [36|52] [jokers]                   пресет: колода под крестовый
+//   /belka                                    пресет: 36, стулья крестом, шестёрки на край
+//   /deal N|durak|krest|belka [@кто] [-skip-empty] [-as-dealer] [-force]
+//   /menu                                     меню стола кнопками
+
+import type { DealRule, Game, RoomCard, RunError, TableCommand } from "../../../server/src/table/contract.js";
+import type { Button, Said } from "./talk.js";
+
+export const ORDER_COMMANDS = ["collect", "shuffle", "durak", "krest", "belka", "deal"] as const;
+export type OrderName = (typeof ORDER_COMMANDS)[number];
+
+/** Разобрать команду. `null` — слова не сложились, и бот отвечает подсказкой. */
+export function parseOrder(name: OrderName, args: string): TableCommand | null {
+  const words = args.trim().split(/\s+/).filter(Boolean).map((w) => w.toLowerCase());
+  const has = (...flags: string[]) => words.some((w) => flags.includes(w.replace(/^-+/, "")));
+  if (name === "collect" || name === "shuffle") return words.length === 0 ? { t: name } : null;
+  if (name === "durak" || name === "krest" || name === "belka") {
+    const size = words.includes("52") ? 52 : 36;
+    const jokers = has("jokers", "joker", "j", "джокеры", "джокер");
+    const unknown = words.filter((w) => !["36", "52"].includes(w) && !["jokers", "joker", "j", "джокеры", "джокер"].includes(w.replace(/^-+/, "")));
+    if (unknown.length) return null;
+    return name === "belka" ? { t: "preset", game: "belka" } : { t: "preset", game: name, size, ...(jokers ? { jokers: true } : {}) };
+  }
+  const [first, ...rest] = args.trim().split(/\s+/).filter(Boolean);
+  if (!first) return null;
+  const low = first.toLowerCase();
+  const rule: DealRule | null = /^\d+$/.test(low) ? "each" : low === "durak" || low === "krest" || low === "belka" ? low : null;
+  if (!rule) return null;
+  const n = rule === "each" ? Number(low) : undefined;
+  if (n !== undefined && (n < 1 || n > 54)) return null;
+  let dealer: string | undefined;
+  const out: Extract<TableCommand, { t: "deal" }> = { t: "deal", rule, ...(n ? { n } : {}) };
+  for (const w of rest) {
+    const flag = w.toLowerCase().replace(/^-+/, "");
+    if (w.startsWith("-") && flag === "skip-empty") out.skipEmpty = true;
+    else if (w.startsWith("-") && flag === "as-dealer") out.asDealer = true;
+    else if (w.startsWith("-") && flag === "force") out.force = true;
+    else if (/^\d+$/.test(w) && rule === "durak") out.n = Number(w);
+    else if (!w.startsWith("-") && dealer === undefined) dealer = w;
+    else return null;
+  }
+  return dealer ? { ...out, dealer } : out;
+}
+
+export const ORDERS_HELP = [
+  "Команды стола (только админ стола):",
+  "/menu — меню стола кнопками",
+  "/collect — собрать всё в колоду",
+  "/shuffle — перемешать",
+  "/durak [36|52] [jokers] — колода под дурака",
+  "/krest [36|52] [jokers] — колода под крестовый",
+  "/belka — белка: 36, стулья крестом, шестёрки на край",
+  "/deal N|durak|krest|belka [@кто раздаёт] [-skip-empty] [-as-dealer] [-force]",
+].join("\n");
+
+/** Кнопки меню: короткий код в `callback_data` → команда. */
+export const MENU: Record<string, { label: string; command: TableCommand }> = {
+  col: { label: "Собрать", command: { t: "collect" } },
+  shf: { label: "Перемешать", command: { t: "shuffle" } },
+  pd36: { label: "36", command: { t: "preset", game: "durak", size: 36 } },
+  pd52: { label: "52", command: { t: "preset", game: "durak", size: 52 } },
+  pd36j: { label: "36+🃏", command: { t: "preset", game: "durak", size: 36, jokers: true } },
+  pd52j: { label: "52+🃏", command: { t: "preset", game: "durak", size: 52, jokers: true } },
+  pk36: { label: "36", command: { t: "preset", game: "krest", size: 36 } },
+  pk52: { label: "52", command: { t: "preset", game: "krest", size: 52 } },
+  pk36j: { label: "36+🃏", command: { t: "preset", game: "krest", size: 36, jokers: true } },
+  pk52j: { label: "52+🃏", command: { t: "preset", game: "krest", size: 52, jokers: true } },
+  pb: { label: "Белка", command: { t: "preset", game: "belka" } },
+  dd: { label: "Дурак", command: { t: "deal", rule: "durak" } },
+  dk: { label: "Крестовый", command: { t: "deal", rule: "krest" } },
+  db: { label: "Белка", command: { t: "deal", rule: "belka" } },
+};
+
+const btn = (room: string, code: string): Button => ({ text: MENU[code]!.label, data: `tbr:${room}:${code}` });
+
+export function menuOf(card: RoomCard): Said {
+  const r = card.room;
+  return {
+    text: `Стол «${card.title}». Пресет меняет колоду и рассадку, раздача — раздаёт по своим правилам (раздаёт админ, по часовой со следующего).`,
+    rows: [
+      [btn(r, "col"), btn(r, "shf")],
+      [{ text: "Пресет · дурак:", data: "tbx" }, btn(r, "pd36"), btn(r, "pd52"), btn(r, "pd36j"), btn(r, "pd52j")],
+      [{ text: "Пресет · крестовый:", data: "tbx" }, btn(r, "pk36"), btn(r, "pk52"), btn(r, "pk36j"), btn(r, "pk52j")],
+      [{ text: "Пресет:", data: "tbx" }, btn(r, "pb")],
+      [{ text: "Раздать:", data: "tbx" }, btn(r, "dd"), btn(r, "dk"), btn(r, "db")],
+    ],
+  };
+}
+
+/** Какой стол — если их несколько. Команда ждёт в `pending` под коротким id. */
+export function pickTable(cards: RoomCard[], pending: string): Said {
+  return {
+    text: "Какой стол?",
+    rows: cards.map((c) => [{ text: c.title, data: `tbp:${c.room}:${pending}` }]),
+  };
+}
+
+export function pickForMenu(cards: RoomCard[]): Said {
+  return { text: "Меню какого стола?", rows: cards.map((c) => [{ text: c.title, data: `tbm:${c.room}` }]) };
+}
+
+const GAME: Record<Game, string> = { durak: "дурак", krest: "крестовый", belka: "белка" };
+
+/** Что бот говорит, когда сервер принял команду. */
+export function started(command: TableCommand, title: string): string {
+  switch (command.t) {
+    case "collect":
+      return `Собираю карты в колоду — «${title}».`;
+    case "shuffle":
+      return `Перемешиваю — «${title}».`;
+    case "preset":
+      return command.game === "belka"
+        ? `Пресет «белка» на «${title}»: 36 карт, стулья крестом, шестёрки на край.`
+        : `Пресет «${GAME[command.game]}» на «${title}»: ${command.size ?? 36}${command.jokers ? " + джокеры" : ""}.`;
+    case "deal":
+      return `Раздаю${command.rule === "each" ? ` по ${command.n ?? 1}` : ` — ${GAME[command.rule]}`} на «${title}».`;
+  }
+}
+
+/** Отказ сервера словами. `needs-collect` — с кнопкой «Собрать и раздать». */
+export function refusedSay(error: RunError, room: string, pending: string): Said {
+  const text: Record<RunError, string> = {
+    "not-admin": "Командует только админ стола — тот, кто его открыл.",
+    busy: "Стол занят: предыдущая команда ещё идёт.",
+    "needs-collect": "Карты ещё не собраны. Собрать, перемешать и раздать?",
+    "not-enough-cards": "В колоде не хватит карт на такую раздачу.",
+    "not-enough-players": "Не хватает игроков: белке нужны четверо за столом.",
+    "no-dealer": "Не нашёл раздающего за столом.",
+    empty: "За этим столом ещё никого не было — зайди, и команды заработают.",
+    bad: "Не понял команду.",
+  };
+  return { text: text[error], rows: error === "needs-collect" ? [[{ text: "Собрать и раздать", data: `tbf:${room}:${pending}` }]] : [] };
+}

@@ -54,6 +54,9 @@ export function roomsAt(home: Home): RoomCard[] {
     .map(card);
 }
 
+/** Столы, которые открыл этот человек, — где бы они ни жили: из лички ими тоже управляют. */
+export const roomsBy = (by: string): RoomCard[] => [...rooms.values()].filter((e) => e.by === by).map(card);
+
 /** Inline-карточка стала сообщением — теперь известно, где комната живёт. */
 export function rehome(room: string, home: Home): RoomCard | undefined {
   const e = rooms.get(room);
