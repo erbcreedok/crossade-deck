@@ -1,7 +1,7 @@
 import { createHmac } from "crypto";
 import { describe, expect, it } from "vitest";
 import { TEST_PORTS, useTestServer } from "../roomHarness.js";
-import { MSG, TABLE_ROOM, type Patch, type Refused, type Welcome } from "./contract.js";
+import { MSG, TABLE_ROOM, type Carry, type Patch, type Refused, type Welcome } from "./contract.js";
 import { mintRoom } from "./roomIds.js";
 import { applyPatch } from "./patch.js";
 
@@ -67,6 +67,17 @@ describe("TableRoom", () => {
     const fresh = next<Welcome>(b.client, MSG.welcome);
     b.client.send(MSG.intent, { t: "sync" });
     expect(mine).toEqual((await fresh).snapshot);
+    // ПАЛЕЦ В ВОЗДУХЕ: b видит, над чем карта у a; сам a своё обратно не получает.
+    a.client.send(MSG.intent, { t: "grab", id: top });
+    await new Promise((r) => setTimeout(r, 60));
+    let echoed = false;
+    a.client.onMessage(MSG.carry, () => (echoed = true));
+    const carried = next<Carry>(b.client, MSG.carry);
+    a.client.send(MSG.carry, { id: top, over: { in: "felt", x: 1, y: 1, up: false, angle: 0 } });
+    expect(await carried).toMatchObject({ id: top, by: a.welcome.you.key, from: { in: "hand" }, card: { id: top } });
+    await new Promise((r) => setTimeout(r, 60));
+    expect(echoed).toBe(false);
+
     expect(mine.chairs.find((c) => c.id === a.welcome.you.seat)!.hand).toEqual([{ id: top }]);
   });
 });

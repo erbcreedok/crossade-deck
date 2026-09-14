@@ -4,7 +4,7 @@
 // что-то потерялось по дороге: клиент не угадывает, а просит стол целиком (`sync`).
 
 import { Client } from "colyseus.js";
-import { MSG, TABLE_ROOM, type Intent, type JoinOptions, type Patch, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
+import { MSG, TABLE_ROOM, type Carry, type CarryOut, type Intent, type JoinOptions, type Patch, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
 import { applyPatch, needsSync } from "../src/table/patch.js";
 import type { TableStore } from "./store.js";
 
@@ -18,6 +18,12 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
   let welcome: Welcome | null = null;
   let asked = false;
   const early: Patch[] = [];
+  /** Чужие пальцы в воздухе — по id карты. Держится, пока карта заблокирована тем же человеком. */
+  let carries = new Map<string, Carry>();
+  const stillHeld = () => {
+    if (!state) return;
+    for (const [id, c] of carries) if (state.locks[id] !== c.by) carries.delete(id);
+  };
 
   const tell = () => {
     for (const listener of changed) listener();
@@ -32,10 +38,17 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
       return;
     }
     state = applyPatch(state, patch);
+    stillHeld();
     tell();
   };
 
   room.onMessage(MSG.patch, take);
+  room.onMessage(MSG.carry, (c: Carry) => {
+    // Пришёл раньше своей блокировки или позже её снятия — не показывается.
+    if (!state || state.locks[c.id] !== c.by) return;
+    carries.set(c.id, c);
+    tell();
+  });
   room.onMessage(MSG.refused, (msg: Refused) => {
     for (const listener of refused) listener(msg.intent, msg.why);
   });
@@ -44,6 +57,8 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     room.onMessage(MSG.welcome, (msg: Welcome) => {
       welcome = msg;
       state = msg.snapshot;
+      carries = new Map((msg.carries ?? []).map((c) => [c.id, c]));
+      stillHeld();
       asked = false;
       // Дифы, пришедшие раньше снимка, догоняются по порядку; старше снимка — выбрасываются.
       for (const patch of early.splice(0)) take(patch);
@@ -65,6 +80,10 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
       return state!;
     },
     send: (intent) => room.send(MSG.intent, intent),
+    get carries() {
+      return [...carries.values()];
+    },
+    carry: (out: CarryOut) => room.send(MSG.carry, out),
     onChange: (listener) => void changed.push(listener),
     onRefused: (listener) => void refused.push(listener),
     onGone: (listener) => void room.onLeave(() => listener()),

@@ -102,7 +102,7 @@ const PLATE_EM = 0.24;
 const GLYPH_EM = 0.5;
 
 /** Карта в стуле: её доля от карты на сукне и её поза. */
-const HAND_SCALE = 0.55;
+export const HAND_SCALE = 0.55;
 const POSE = {
   sideIn: 0.35,
   sideDrop: 0.2,
@@ -354,6 +354,8 @@ export interface FeltScene {
   held: Record<string, string>;
   /** Что несёт мой палец — на сукне его нет, пока не положено. */
   lifted?: string;
+  /** Что сейчас летит поверх стола копией — на месте его не рисуют, пока не долетит. */
+  hidden?: ReadonlySet<string>;
   /** Взгляд камеры: единицы стола → пиксели стекла (`Camera.transform()`). */
   view: Transform;
   k: number;
@@ -399,7 +401,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   felt.addColorStop(1, ROUND.feltLo);
   ring(R, felt);
 
-  const deck = o.deck.filter((one) => one.id !== o.lifted);
+  const deck = o.deck.filter((one) => one.id !== o.lifted && !o.hidden?.has(one.id));
   deck.forEach((one, i) => {
     g.save();
     const at = deckAt(i, deck.length);
@@ -409,7 +411,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   });
 
   for (const one of o.felt) {
-    if (one.id === o.lifted) continue;
+    if (one.id === o.lifted || o.hidden?.has(one.id)) continue;
     g.save();
     g.translate(one.x, one.y);
     g.rotate((one.angle * Math.PI) / 180);

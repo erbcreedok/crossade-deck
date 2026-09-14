@@ -9,7 +9,7 @@
 import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
 import { tableConfig } from "./config.js";
-import { MSG, type Intent, type JoinOptions, type Op, type Person, type Welcome } from "./contract.js";
+import { MSG, type CarryOut, type Intent, type JoinOptions, type Op, type Person, type Welcome } from "./contract.js";
 import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
 import { attach, creatorOf, openEntry, titleOf } from "./lobby.js";
@@ -46,7 +46,7 @@ export class TableRoom extends Room {
     this.onMessage(MSG.hello, (client) => {
       const me = this.personOf(client.sessionId);
       if (!me) return;
-      const welcome: Welcome = { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room) };
+      const welcome: Welcome = { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key) };
       client.send(MSG.welcome, welcome);
     });
 
@@ -54,12 +54,24 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       if (!me || !intent || !INTENTS.has(intent.t)) return;
       if (intent.t === "sync") {
-        client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room) } satisfies Welcome);
+        client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key) } satisfies Welcome);
         return;
       }
       const result = this.table.act(me.key, intent, Date.now());
       if ("refused" in result) client.send(MSG.refused, { intent, why: result.refused });
       else this.spread(result.ops);
+    });
+
+    // ПАЛЕЦ В ВОЗДУХЕ — остальным, каждому своими глазами; отправителю не возвращается.
+    this.onMessage(MSG.carry, (client, out: CarryOut) => {
+      const me = this.personOf(client.sessionId);
+      if (!me || "refused" in this.table.carry(me.key, out, Date.now())) return;
+      for (const other of this.clients) {
+        const key = this.seats.get(other.sessionId);
+        if (key === undefined || key === me.key) continue;
+        const [seen] = this.table.carriesSeenBy(key, out.id);
+        if (seen) other.send(MSG.carry, seen);
+      }
     });
 
     this.clock.setInterval(() => this.spread(this.table.sweep(Date.now())), 1000);

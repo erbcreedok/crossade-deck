@@ -17,6 +17,8 @@
 import {
   DEFAULT_RULES,
   LOCK_TTL_MS,
+  type Carry,
+  type CarryOut,
   type Chair,
   type ChairFlag,
   type Face,
@@ -65,6 +67,8 @@ export class Table {
   private chairs = new Map<string, ChairRow>();
   private people = new Map<string, Person>();
   private locks = new Map<string, Lock>();
+  /** Последнее «над чем карта», пока её держат. Живёт не дольше блокировки (`carriesSeenBy`). */
+  private carries = new Map<string, { by: string; over: Where }>();
   private rules: TableRules = { ...DEFAULT_RULES };
 
   /** `creator` — ключ создателя комнаты: он админ, пока сидит за столом. */
@@ -179,6 +183,36 @@ export class Table {
       ops.push({ t: "unlock", id });
     }
     return ops.length ? this.commit(ops) : [];
+  }
+
+  /**
+   * ПАЛЕЦ В ВОЗДУХЕ СООБЩИЛ, НАД ЧЕМ ОН. Только держащий; место чистится тем же `clean`, что и дроп, —
+   * иначе чужая рука, которой нет, пришла бы остальным. Версия не растёт. Блокировку продлевает.
+   */
+  carry(by: string, out: CarryOut, now: number): { refused: Refusal } | { ok: true } {
+    const lock = this.locks.get(out?.id);
+    if (!lock || lock.by !== by) return { refused: "not-held" };
+    const over = this.clean(out.over);
+    if (!over) return { refused: "bad" };
+    lock.until = now + LOCK_TTL_MS;
+    this.carries.set(out.id, { by, over });
+    return { ok: true };
+  }
+
+  /** Что в воздухе у других, глазами зрителя. Своё не отдаётся: свой палец у зрителя и так под рукой. */
+  carriesSeenBy(viewer: string, only?: string): Carry[] {
+    const out: Carry[] = [];
+    for (const [id, c] of this.carries) {
+      const lock = this.locks.get(id);
+      const from = this.whereIs(id);
+      if (!lock || lock.by !== c.by || !from) {
+        this.carries.delete(id);
+        continue;
+      }
+      if (c.by === viewer || (only !== undefined && only !== id)) continue;
+      out.push({ id, by: c.by, over: c.over, from, card: this.seen(id, viewer, from) });
+    }
+    return out;
   }
 
   private grab(by: string, id: string, now: number): Result {

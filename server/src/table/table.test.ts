@@ -52,6 +52,27 @@ describe("Table: блокировка карт", () => {
     expect(t.sweep(2 * LOCK_TTL_MS)).toEqual([{ t: "unlock", id: "c7" }]);
   });
 
+  it("палец в воздухе: только держащий, версия не растёт, блокировка продлевается, лицо — по месту взятия", () => {
+    const t = seated("a", "b");
+    const top = deal(t, "a", seatOf(t, "a"));
+    ops(t.act("a", { t: "grab", id: top }, 0));
+    const v = t.version;
+    const over = { in: "felt", x: 1, y: 2, up: true, angle: 0 } as const;
+    expect(t.carry("b", { id: top, over }, 1)).toEqual({ refused: "not-held" });
+    expect(t.carry("a", { id: top, over: { in: "hand", chair: "нет", i: 0 } }, 1)).toEqual({ refused: "bad" });
+    expect(t.carry("a", { id: top, over }, LOCK_TTL_MS - 1)).toEqual({ ok: true });
+    expect(t.version).toBe(v);
+    expect(t.sweep(LOCK_TTL_MS + 1)).toEqual([]);
+    // Своё хозяину не отдаётся; другому — рубашкой: рука «a» скрыта.
+    expect(t.carriesSeenBy("a")).toEqual([]);
+    expect(t.carriesSeenBy("b")).toEqual([{ id: top, by: "a", over, from: { in: "hand", chair: seatOf(t, "a"), i: 0 }, card: { id: top } }]);
+    ops(t.act("a", { t: "flag", chair: seatOf(t, "a"), flag: "hide", on: false }, 2));
+    expect(t.carriesSeenBy("b")[0]!.card.face).toBeDefined();
+    // Положил — в воздухе больше ничего.
+    ops(t.act("a", { t: "drop", id: top, to: over }, 3));
+    expect(t.carriesSeenBy("b")).toEqual([]);
+  });
+
   it("брошенная за кромку карта ложится на край сукна", () => {
     const t = seated("a");
     ops(t.act("a", { t: "grab", id: "c7" }, 0));

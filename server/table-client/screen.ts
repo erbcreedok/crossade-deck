@@ -5,9 +5,9 @@
 // уходит намерением; пока ответ не пришёл, экран показывает ожидаемое (`pending`), а отказ просто
 // возвращает настоящий снимок.
 
-import { HOLD_EVERY_MS, type Chair, type ChairFlag, type Face, type Intent, type Person, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
+import { CARRY_EVERY_MS, HOLD_EVERY_MS, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
-import { CARD as FELT_CARD, SEAT_REACH, SUITS, deckAt, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
+import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, deckAt, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { orbits, tableCamera } from "./camera.js";
 import type { TableStore } from "./store.js";
 
@@ -57,6 +57,33 @@ interface TipBox { left: number; top: number; w: number; height: number; cw: num
 
 type Aim = { kind: "hand"; which: string; index: number } | { kind: "felt"; at: { x: number; y: number } };
 
+/** Место в веере: карта или щель — под мою карту в воздухе или под чужую (`carry` — id той карты). */
+interface Gap {
+  index: number;
+  ink: string;
+  carry?: string;
+}
+type Laid = { card: SeenCard; slot: Slot; z: number } | { gap: Gap; slot: Slot; z: number };
+
+/**
+ * ГДЕ КАРТА НАРИСОВАНА У МЕНЯ СЕЙЧАС — середина на стекле, размер, поворот, сжатие и лицо. `key` —
+ * место словами («колода», «рука X, 3-я», «в воздухе у Y»): сменился ключ — карта переехала, и её
+ * перелёт рисуется от старого места к новому. Сменились только пиксели (камера, раскладка) — нет.
+ */
+interface Place {
+  key: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  angle: number;
+  squash: number;
+  face?: Face;
+}
+
+/** Сколько летит карта из места в место. */
+const FLIGHT_MS = 260;
+
 interface Drag {
   card: SeenCard;
   shown: boolean;
@@ -69,6 +96,8 @@ interface Drag {
   target: Aim;
   markKind?: Aim["kind"];
   hold: number;
+  /** Когда палец последний раз сказал серверу, над чем он (`CARRY_EVERY_MS`). */
+  toldAt: number;
 }
 
 export function mountScreen(stage: HTMLElement, store: TableStore): void {
@@ -83,6 +112,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     tips: [] as string[],
   };
   let drag: Drag | null = null;
+  /**
+   * ВОЗДУХ — слой поверх экрана, который НЕ пересобирается на каждом кадре: в нём чужие карты в руках и
+   * перелёты. Их движение — переходы и анимации браузера, а `over` переписывается целиком и убил бы их.
+   */
+  const air = document.createElement("div");
+  air.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:70;overflow:hidden";
+  stage.append(air);
+  /** Карты, летящие копией: на своём месте они не рисуются, пока не долетят. */
+  const flying = new Set<string>();
+  /** Где каждая карта была нарисована прошлым кадром — откуда начинать перелёт. */
+  let prevPlaces = new Map<string, Place>();
   /**
    * ПОЛОЖЕНО, НО СЕРВЕР ЕЩЁ НЕ ОТВЕТИЛ: показываем то, что ждём. Ответ узнаётся по блокировке — она
    * была моей и снялась (дроп приходит вместе с `unlock`). По месту карты его не узнать: карта,
@@ -129,10 +169,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   function seen(): Snapshot {
     let s = store.state;
     if (pending) s = applyPatch(s, { v: s.v, ops: [{ t: "move", card: pending.card, from: pending.from, to: pending.to }] });
-    if (!drag) return s;
-    const id = drag.card.id;
-    const chairs = s.chairs.map((c) => ({ ...c, hand: c.hand.filter((card) => card.id !== id) }));
-    return { ...s, chairs, deck: s.deck.filter((c) => c.id !== id), felt: s.felt.filter((c) => c.id !== id) };
+    // В ВОЗДУХЕ — МОЯ КАРТА И ЧУЖИЕ: со своего места они сняты, пока их несут.
+    const up = new Set(store.carries.map((c) => c.id));
+    if (drag) up.add(drag.card.id);
+    if (up.size === 0) return s;
+    const chairs = s.chairs.map((c) => ({ ...c, hand: c.hand.filter((card) => !up.has(card.id)) }));
+    return { ...s, chairs, deck: s.deck.filter((c) => !up.has(c.id)), felt: s.felt.filter((c) => !up.has(c.id)) };
   }
 
   /** Мой стул — на нём я сижу; пока стол не прислал его, пустая строка ни с чем не совпадёт. */
@@ -350,11 +392,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
    * БЕЗ ПЕРЕХОДОВ. Контур — это «вот сюда ляжет, если отпустить сейчас», и отпустить можно в любой кадр:
    * контур, догоняющий палец за 0.16 с, показывает место, куда карта уже не ляжет.
    */
-  function markHtml(w: number, h: number, angle: number, x: number, y: number, z: number, squash = 1): string {
+  function markHtml(w: number, h: number, angle: number, x: number, y: number, z: number, squash = 1, ink: string = T.ink): string {
     const line = Math.max(1.5, w * 0.04);
     return `<div data-g="mark" style="position:absolute;width:${w}px;height:${h}px;left:${x - w / 2}px;top:${y - h / 2}px;`
       // Сжатие — СНАРУЖИ поворота, как у камеры: наклон давит вертикаль стекла, а не стола.
-      + `transform:scale(1,${squash}) rotate(${angle}deg);z-index:${z};pointer-events:none;border-radius:${w * 0.12}px;border:${line}px dashed ${T.ink};opacity:.9;`
+      + `transform:scale(1,${squash}) rotate(${angle}deg);z-index:${z};pointer-events:none;border-radius:${w * 0.12}px;border:${line}px dashed ${ink};opacity:.9;`
       + `box-shadow:0 0 0 ${Math.max(1, line * 0.6)}px ${T.black}, inset 0 0 0 ${Math.max(1, line * 0.6)}px ${T.black};`
       + `"></div>`;
   }
@@ -368,20 +410,42 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     return `<div data-card="${c.id}" data-owner="${owner}" style="position:absolute;width:${geom.w}px;height:${geom.h}px;`
       + `left:${slot.x - geom.w / 2}px;top:${slot.y - geom.h / 2}px;transform:rotate(${slot.angle}deg);z-index:${z};touch-action:none;`
       + (held ? `pointer-events:none;filter:brightness(.6);outline:3px solid ${held};border-radius:${geom.w * 0.12}px;` : shut ? "pointer-events:none;filter:brightness(.7);" : "cursor:grab;")
+      + (flying.has(c.id) ? "visibility:hidden;" : "")
       + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out">${cardHtml(c.face, geom.w)}</div>`;
   }
 
-  /** Рука вместе с контуром под карту в воздухе. Чужая рука живёт над своей коробкой — этаж 41. */
-  function layHand(geom: Geom, cards: SeenCard[], mark: number | null, owner: string, held: Record<string, string>, shut = false): string {
-    const list: (SeenCard | null)[] = mark === null ? cards : [...cards.slice(0, mark), null, ...cards.slice(mark)];
+  /**
+   * ЩЕЛИ В РУКЕ СТУЛА — под мою карту в воздухе и под чужие, которые держат над этой рукой. Их видят все,
+   * у кого эта рука на экране: хозяин внизу, остальные — в окне стула.
+   */
+  function gapsIn(s: Snapshot, chair: string): Gap[] {
+    const out: Gap[] = [];
+    if (drag && drag.target.kind === "hand" && drag.target.which === chair) out.push({ index: drag.target.index, ink: T.ink });
+    for (const c of store.carries) {
+      if (c.over.in === "hand" && c.over.chair === chair) out.push({ index: c.over.i, ink: inkOf(s, c.by), carry: c.id });
+    }
+    return out.sort((a, b) => a.index - b.index);
+  }
+
+  /** Карты и щели руки — по гнёздам. Чужая рука зеркальна, и живёт над своей коробкой — этаж 41. */
+  function laid(geom: Geom, cards: SeenCard[], gaps: Gap[], owner: string): Laid[] {
+    const list: (SeenCard | Gap)[] = [...cards];
+    for (const gap of gaps) list.splice(Math.max(0, Math.min(list.length, gap.index)), 0, gap);
     const floor = owner === mine() ? 1 : 41;
-    return list
-      .map((c, i) => {
-        const slot = geom.slots[geom.mirror ? list.length - 1 - i : i];
-        if (!slot) return "";
-        if (c === null) return markHtml(geom.w, geom.h, slot.angle, slot.x, slot.y, floor + i);
-        return slotCard(c, geom, slot, floor + i, owner, held[c.id], shut);
-      })
+    return list.flatMap((item, i): Laid[] => {
+      const slot = geom.slots[geom.mirror ? list.length - 1 - i : i];
+      if (!slot) return [];
+      return "index" in item ? [{ gap: item, slot, z: floor + i }] : [{ card: item, slot, z: floor + i }];
+    });
+  }
+
+  function layHand(geom: Geom, cards: SeenCard[], gaps: Gap[], owner: string, held: Record<string, string>, shut = false): string {
+    return laid(geom, cards, gaps, owner)
+      .map((one) =>
+        "gap" in one
+          ? markHtml(geom.w, geom.h, one.slot.angle, one.slot.x, one.slot.y, one.z, 1, one.gap.ink)
+          : slotCard(one.card, geom, one.slot, one.z, owner, held[one.card.id], shut),
+      )
       .join("");
   }
 
@@ -407,8 +471,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const g = glass();
     const cards = handOf(s, mine(s));
     const seat = chairOf(s, mine(s));
+    const gaps = gapsIn(s, mine(s));
     const mark = drag && drag.target.kind === "hand" && drag.target.which === mine(s) ? drag.target.index : null;
-    const geom = mineGeom(cards.length + (mark === null ? 0 : 1));
+    const geom = mineGeom(cards.length + gaps.length);
     const u = hudUnit();
     const need = 4 * BAR.size + 3 * BAR.gap + (4 * BAR.size + 3 * BAR.gap) + 2 * BAR.margin + BAR.gap;
     const fit = g.w / u > 0 && need > g.w / u ? Math.max(0.5, g.w / u / need) : 1;
@@ -419,7 +484,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       + `background:linear-gradient(to top, rgba(11,7,4,.85), rgba(11,7,4,0));pointer-events:none"></div>`
       + handZoneHtml(mark === null && cards.length === 0 ? mineGeom(1) : geom)
       // СВОИ КАРТЫ Я ВИЖУ ВСЕГДА, КАК ДЕРЖУ: «скрыть» — про то, что видят другие, а не я.
-      + layHand(geom, cards, mark, mine(s), heldByOthers(s))
+      + layHand(geom, cards, gaps, mine(s), heldByOthers(s))
       // ПОЛОСА — ПОВЕРХ КАРТ: карты уходят под её край на `BAR.tuck`.
       + `<div style="position:absolute;left:0;right:0;top:${geom.barTop}px;height:${barHeight() * u}px;z-index:${cards.length + 10};`
       + `background:linear-gradient(${T.panel},${T.well});box-shadow:inset 0 3px 0 -1px ${T.black};display:flex;align-items:center">`
@@ -451,8 +516,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const cards = chair.hand;
     const sitter = sitterOf(s, chair);
     const may = mayFlag(s, chair);
-    const mark = drag && drag.target.kind === "hand" && drag.target.which === chair.id ? drag.target.index : null;
-    const geom = tipGeom(chair.id, spot, cards.length + (mark === null ? 0 : 1));
+    const gaps = gapsIn(s, chair.id);
+    const geom = tipGeom(chair.id, spot, cards.length + gaps.length);
     const box = geom.box!;
     const head = sitter
       ? `<span style="flex:none;width:30px;height:30px;border-radius:50%;background:${sitter.ink};box-shadow:inset 0 0 0 3px ${T.black};`
@@ -472,7 +537,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       + `<span style="font:400 10px Tiny5,monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7;flex:1">РУКА · ${cards.length}</span>${flags}</div>`
       + `<div style="position:relative;height:${box.rowH}px"></div></div>`;
     // Карты веера — рядом с коробкой, не внутри: их вытаскивают на стол, и край не должен их резать.
-    return { shell, cards: layHand(geom, cards, mark, chair.id, heldByOthers(s), closed(s, chair.id)) };
+    return { shell, cards: layHand(geom, cards, gaps, chair.id, heldByOthers(s), closed(s, chair.id)) };
   }
 
   /**
@@ -512,7 +577,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
         angle: (c.angle - turn + 360) % 360,
         mine: c.id === seat,
         // Своя рука — внизу, на стекле; в своём стуле карт не рисуем.
-        cards: c.id === seat ? 0 : c.hand.length,
+        cards: c.id === seat ? 0 : c.hand.filter((card) => !flying.has(card.id)).length + gapsIn(s, c.id).filter((gap) => gap.carry).length,
         ...(sitter ? { name: sitter.name, ink: sitter.ink } : {}),
         ...(sitter?.photo ? { face: face(sitter) } : {}),
       };
@@ -520,7 +585,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     lastFrame = { w: g.w, h: g.h - floor };
     syncCamera();
     view = drawFelt(canvas, {
-      W: g.w, H: g.h, people: seats, images, deck: s.deck, felt: s.felt, held: heldByOthers(s),
+      W: g.w, H: g.h, people: seats, images, deck: s.deck, felt: s.felt, held: heldByOthers(s), hidden: flying,
       view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
     });
     spots = view.spots;
@@ -552,6 +617,160 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
     over.innerHTML = hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + feltMarkHtml() + carryHtml();
     wire();
+
+    // ПЕРЕЕХАВШЕЕ — ЛЕТИТ. Запущенный перелёт прячет карту на месте, поэтому кадр рисуется ещё раз;
+    // во втором проходе места те же, и нового перелёта не будет.
+    const places = placesOf(s);
+    const started = fly(places);
+    prevPlaces = places;
+    paintCarries(s, places);
+    if (started) draw();
+  }
+
+  // ── ЧУЖИЕ РУКИ В ВОЗДУХЕ И ПЕРЕЛЁТЫ ────────────────────────────────────────────────────────────
+
+  /** Руки, которые у меня на экране веером: моя внизу и открытые окна. */
+  function handsShown(s: Snapshot): Map<string, { geom: Geom; lay: Laid[] }> {
+    const out = new Map<string, { geom: Geom; lay: Laid[] }>();
+    const put = (chair: string, geom: (n: number) => Geom) => {
+      const cards = handOf(s, chair);
+      const gaps = gapsIn(s, chair);
+      const g = geom(cards.length + gaps.length);
+      out.set(chair, { geom: g, lay: laid(g, cards, gaps, chair) });
+    };
+    if (mine(s)) put(mine(s), mineGeom);
+    for (const key of placedTips.keys()) {
+      const spot = spots.find((sp) => sp.key === key);
+      if (spot && chairOf(s, key)) put(key, (n) => tipGeom(key, spot, n));
+    }
+    return out;
+  }
+
+  /** Все карты, какими они нарисованы у меня сейчас. Порядковый номер в руке — среди карт, без щелей. */
+  function placesOf(s: Snapshot): Map<string, Place> {
+    const out = new Map<string, Place>();
+    if (!view) return out;
+    const v = view;
+    const onDesk = (key: string, at: { x: number; y: number }, scale: number, angle: number, face?: Face): Place => {
+      const p = v.toGlass(at);
+      return { key, x: p.x, y: p.y, w: FELT_CARD.w * scale * v.k, h: FELT_CARD.h * scale * v.k, angle: v.rotation + angle, squash: v.squash, face };
+    };
+    s.deck.forEach((c, i) => out.set(c.id, onDesk("deck", deckAt(i, s.deck.length), 1, 0)));
+    for (const f of s.felt) out.set(f.id, onDesk(`felt:${f.x.toFixed(2)},${f.y.toFixed(2)},${f.angle}`, f, 1, f.angle, f.up ? f.face : undefined));
+    const shown = handsShown(s);
+    for (const c of s.chairs) {
+      const hand = shown.get(c.id);
+      if (hand) {
+        let i = 0;
+        for (const one of hand.lay) {
+          if (!("card" in one)) continue;
+          out.set(one.card.id, { key: `hand:${c.id}:${i++}`, x: one.slot.x, y: one.slot.y, w: hand.geom.w, h: hand.geom.h, angle: one.slot.angle, squash: 1, face: one.card.face });
+        }
+        continue;
+      }
+      const spot = spots.find((sp) => sp.key === c.id);
+      if (spot) c.hand.forEach((card, i) => out.set(card.id, onDesk(`hand:${c.id}:${i}`, spot.seat, HAND_SCALE, 0)));
+    }
+    for (const c of store.carries) {
+      const at = carryPlace(s, c, shown);
+      if (at) out.set(c.id, at);
+    }
+    return out;
+  }
+
+  /**
+   * ГДЕ У МЕНЯ ЧУЖАЯ КАРТА В РУКАХ — там, над чем она у держащего: в щели руки, если эта рука у меня
+   * веером; у стула, если нет; на сукне — там, куда ляжет, и под тем углом.
+   */
+  function carryPlace(s: Snapshot, c: Carry, shown: Map<string, { geom: Geom; lay: Laid[] }>): Place | null {
+    if (!view) return null;
+    const v = view;
+    const key = `carry:${c.by}`;
+    const onDesk = (at: { x: number; y: number }, angle: number): Place => {
+      const p = v.toGlass(at);
+      return { key, x: p.x, y: p.y, w: FELT_CARD.w * v.k, h: FELT_CARD.h * v.k, angle: v.rotation + angle, squash: v.squash, face: c.card.face };
+    };
+    const over = c.over;
+    if (over.in === "felt") return onDesk(over, over.angle);
+    if (over.in === "deck") return onDesk(deckAt(s.deck.length, s.deck.length + 1), 0);
+    const hand = shown.get(over.chair);
+    const gap = hand?.lay.find((one) => "gap" in one && one.gap.carry === c.id);
+    if (hand && gap) return { key, x: gap.slot.x, y: gap.slot.y, w: hand.geom.w, h: hand.geom.h, angle: gap.slot.angle, squash: 1, face: c.card.face };
+    const spot = spots.find((sp) => sp.key === over.chair);
+    return spot ? onDesk(spot.seat, 0) : null;
+  }
+
+  /** Поза копии карты на стекле: середина, наклон стола, поворот и размер относительно конечного. */
+  const poseCss = (p: Place, base: { w: number; h: number }, turn = 1) =>
+    `translate(${p.x - base.w / 2}px,${p.y - base.h / 2}px) scale(1,${p.squash}) rotate(${p.angle}deg) scale(${(p.w / base.w) * turn},${p.h / base.h})`;
+
+  const sameFace = (a?: Face, b?: Face) => a?.rank === b?.rank && a?.suit === b?.suit;
+
+  /** ЧУЖИЕ КАРТЫ В РУКАХ — живут в воздухе и едут переходом на длину одного шага потока. */
+  function paintCarries(s: Snapshot, places: Map<string, Place>): void {
+    const live = new Set<string>();
+    for (const c of store.carries) {
+      const at = places.get(c.id);
+      if (!at) continue;
+      live.add(c.id);
+      let el = air.querySelector<HTMLElement>(`[data-carry="${c.id}"]`);
+      if (!el) {
+        el = document.createElement("div");
+        el.dataset.carry = c.id;
+        air.append(el);
+      }
+      const ink = inkOf(s, c.by);
+      const who = s.people.find((p) => p.key === c.by)?.name ?? "";
+      const look = `${Math.round(at.w)}|${c.card.face?.rank}${c.card.face?.suit}|${ink}|${who}`;
+      if (el.dataset.look !== look) {
+        el.dataset.look = look;
+        el.innerHTML = `<div data-g="carried" style="position:absolute;left:0;top:0;width:${at.w}px;height:${at.h}px;border-radius:${at.w * 0.12}px;`
+          + `box-shadow:0 0 0 3px ${ink},0 ${Math.round(at.h * 0.12)}px 0 rgba(11,7,4,.45)">${cardHtml(c.card.face, at.w)}</div>`
+          + `<span data-g="who" style="position:absolute;left:${at.w * 0.7}px;top:${at.h * 0.85}px;white-space:nowrap;font:400 11px Tiny5,monospace;`
+          + `color:${T.black};background:${ink};border-radius:6px;padding:2px 6px;box-shadow:0 0 0 2px ${T.black}">${escape(who)}</span>`;
+      }
+      el.dataset.at = `${Math.round(at.x)},${Math.round(at.y)}`;
+      const card = el.firstElementChild as HTMLElement;
+      el.style.cssText = `position:absolute;left:0;top:0;transform:translate(${at.x - at.w / 2}px,${at.y - at.h / 2}px);`
+        + `transition:transform ${CARRY_EVERY_MS * 2}ms linear;${flying.has(c.id) ? "visibility:hidden;" : ""}`;
+      card.style.transform = `scale(1,${at.squash}) rotate(${at.angle}deg)`;
+    }
+    for (const el of air.querySelectorAll<HTMLElement>("[data-carry]")) if (!live.has(el.dataset.carry!)) el.remove();
+  }
+
+  /** Всё, что сменило место с прошлого кадра, — в полёт. Своя карта в пальце не летит: она под пальцем. */
+  function fly(next: Map<string, Place>): boolean {
+    let started = false;
+    for (const [id, to] of next) {
+      const from = prevPlaces.get(id);
+      if (!from || from.key === to.key || id === drag?.card.id) continue;
+      started = true;
+      launch(id, from, to);
+    }
+    return started;
+  }
+
+  function launch(id: string, from: Place, to: Place): void {
+    air.querySelector(`[data-flight="${id}"]`)?.remove();
+    flying.add(id);
+    const el = document.createElement("div");
+    el.dataset.flight = id;
+    el.style.cssText = `position:absolute;left:0;top:0;width:${to.w}px;height:${to.h}px;transform-origin:50% 50%;transform:${poseCss(from, to)}`;
+    // ПЕРЕВОРОТ В ПОЛЁТЕ: откуда вылетела лицом, а ляжет рубашкой (или наоборот) — ребром на полпути.
+    const turns = !sameFace(from.face, to.face);
+    el.innerHTML = cardHtml(turns ? from.face : to.face, to.w);
+    air.append(el);
+    const mid: Place = { ...to, x: (from.x + to.x) / 2, y: (from.y + to.y) / 2, w: (from.w + to.w) / 2, h: (from.h + to.h) / 2, angle: (from.angle + to.angle) / 2, squash: (from.squash + to.squash) / 2 };
+    const frames = turns
+      ? [{ transform: poseCss(from, to) }, { transform: poseCss(mid, to, 0.02), offset: 0.5 }, { transform: poseCss(to, to) }]
+      : [{ transform: poseCss(from, to) }, { transform: poseCss(to, to) }];
+    const run = el.animate(frames, { duration: FLIGHT_MS, easing: "cubic-bezier(.2,.7,.3,1)" });
+    if (turns) setTimeout(() => (el.innerHTML = cardHtml(to.face, to.w)), FLIGHT_MS / 2);
+    run.onfinish = () => {
+      if (el.isConnected) el.remove();
+      if (!air.querySelector(`[data-flight="${id}"]`)) flying.delete(id);
+      draw();
+    };
   }
 
   function face(p: Person): string {
@@ -622,8 +841,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       card, shown, w: box.w, h: box.h,
       gx: e.clientX - box.left, gy: e.clientY - box.top, x: e.clientX, y: e.clientY, target,
       hold: window.setInterval(() => store.send({ t: "hold", id: card.id }), HOLD_EVERY_MS),
+      toldAt: 0,
     };
     store.send({ t: "grab", id: card.id });
+    tellCarry();
     draw();
   }
 
@@ -652,7 +873,37 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     try { el.setPointerCapture?.(e.pointerId); } catch { /* пальца уже нет */ }
   }
 
+  /** Куда ляжет карта, если отпустить сейчас, — место словами контракта. */
+  function landing(d: Drag): Where {
+    const aim = d.target;
+    return aim.kind === "hand"
+      ? { in: "hand", chair: aim.which, i: aim.index }
+      // На сукно карта ложится так, как её несли: лицом — если её было видно.
+      : { in: "felt", x: aim.at.x, y: aim.at.y, up: d.shown, angle: dropAngle() };
+  }
+
+  /**
+   * СКАЗАТЬ ОСТАЛЬНЫМ, НАД ЧЕМ МОЯ КАРТА, — не чаще `CARRY_EVERY_MS`. Движение, пришедшее в паузу, не
+   * теряется: последнее место уходит хвостом, когда пауза кончится.
+   */
+  let tail = 0;
+  function tellCarry(): void {
+    if (!drag) return;
+    const wait = drag.toldAt + CARRY_EVERY_MS - performance.now();
+    if (wait > 0) {
+      if (!tail) tail = window.setTimeout(() => ((tail = 0), tellCarry()), wait);
+      return;
+    }
+    drag.toldAt = performance.now();
+    store.carry({ id: drag.card.id, over: landing(drag) });
+  }
+
   function moveDrag(e: PointerEvent) {
+    steer(e);
+    tellCarry();
+  }
+
+  function steer(e: PointerEvent) {
     if (!drag) return;
     drag.x = e.clientX;
     drag.y = e.clientY;
@@ -681,11 +932,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const d = drag;
     drag = null;
     clearInterval(d.hold);
-    const aim = d.target;
-    const to: Where = aim.kind === "hand"
-      ? { in: "hand", chair: aim.which, i: aim.index }
-      // На сукно карта ложится так, как её несли: лицом — если её было видно.
-      : { in: "felt", x: aim.at.x, y: aim.at.y, up: d.shown, angle: dropAngle() };
+    const to = landing(d);
     const from = whereIs(store.state, d.card.id);
     if (from) {
       const keepsFace = (to.in === "hand" && to.chair === mine()) || (to.in === "felt" && to.up);

@@ -68,6 +68,8 @@ export function localStore(): TableStore {
       }
       spread(result.ops);
     },
+    carries: [],
+    carry: () => {},
     onChange: (listener) => void changed.push(listener),
     onRefused: (listener) => void refused.push(listener),
     onGone: () => {},
