@@ -85,13 +85,17 @@ describe("Table: блокировка карт", () => {
     ops(t.act("a", { t: "grab", id: top }, 0));
     const [move] = ops(t.act("a", { t: "drop", id: top, to: { ...felt, x: 1 } }, 300));
     expect(move).toMatchObject({ trail: { by: "a", from: "hand", hand: "b", at: 300 } });
+    // Сдвиг по сукну меняет «двигал», но не «откуда»: карта всё ещё из руки b.
     ops(t.act("b", { t: "grab", id: top }, 0));
     ops(t.act("b", { t: "drop", id: top, to: felt }, 400));
     t.leave("b");
     t.join(person("c"));
-    expect(t.seenBy("c").trails[top]).toEqual({ by: "b", byName: "b", from: "felt", at: 400 });
-    // Лицо закрытой карты следом не утекает.
-    expect(t.seenBy("c").felt.find((c) => c.id === top)!.face).toBeUndefined();
+    expect(t.seenBy("c").trails[top]).toEqual({ by: "b", byName: "b", from: "hand", hand: "b", at: 400 });
+    // Со стола в руку — «откуда» перебито: со стола.
+    ops(t.act("c", { t: "grab", id: top }, 0));
+    ops(t.act("c", { t: "drop", id: top, to: { in: "hand", chair: seatOf(t, "c"), i: 0 } }, 500));
+    expect(t.seenBy("c").trails[top]).toEqual({ by: "c", byName: "c", from: "felt", at: 500 });
+
   });
 
   it("брошенная за кромку карта ложится на край сукна", () => {

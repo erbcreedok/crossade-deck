@@ -239,7 +239,7 @@ export class Table {
     if (!target) return { refused: "bad" };
     if (target.in === "hand" && this.closedTo(by, target.chair)) return { refused: "chair-locked" };
     const from = this.whereIs(id)!;
-    const trail = this.trailOf(by, from, now);
+    const trail = this.trailOf(id, by, from, target.in, now);
     this.take(id, from);
     const landed = this.put(id, target);
     this.locks.delete(id);
@@ -250,8 +250,15 @@ export class Table {
     return { ops: this.commit(ops) };
   }
 
-  private trailOf(by: string, from: Where, at: number): Trail {
-    const trail: Trail = { by, byName: this.names.get(by) ?? by, from: from.in, at };
+  /**
+   * «ОТКУДА» — последняя стопка или рука, из которой карта пришла. Сдвиг по сукну его не перетирает: карта,
+   * брошенная Джемалем из руки и передвинутая мной, всё ещё «из руки Джемаля», а «двигал» — уже я.
+   */
+  private trailOf(id: string, by: string, from: Where, to: Where["in"], at: number): Trail {
+    const byName = this.names.get(by) ?? by;
+    const was = this.trails.get(id);
+    if (from.in === "felt" && to === "felt" && was) return { ...was, by, byName, at };
+    const trail: Trail = { by, byName, from: from.in, at };
     if (from.in === "hand") {
       const chair = this.chairs.get(from.chair);
       const whose = chair?.owner ?? chair?.last;
