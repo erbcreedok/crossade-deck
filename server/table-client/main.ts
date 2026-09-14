@@ -38,9 +38,15 @@ async function open(): Promise<TableStore> {
   return netStore(options);
 }
 
+// СВАЙП ВНИЗ НЕ ЗАКРЫВАЕТ СТОЛ — в три слоя, потому что каждый закрывает свою дыру:
+//   1. `disableVerticalSwipes` — сам Telegram перестаёт ловить жест (клиенты с Bot API 7.7+);
+//   2. `touchmove` отменяется у документа — старый клиент и iOS не получают ни прокрутки, ни резинки,
+//      за которую Telegram тянет окно (слушатель НЕ пассивный, иначе отмена молча не работает);
+//   3. CSS в `index.html` — страница не прокручивается, и тянуть её не за что.
 telegram?.ready();
 telegram?.expand();
 telegram?.disableVerticalSwipes?.();
+document.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
 
 open()
   .then((store) => {

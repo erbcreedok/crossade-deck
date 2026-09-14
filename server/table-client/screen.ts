@@ -8,6 +8,7 @@
 import { HOLD_EVERY_MS, type Face, type Intent, type Person, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { CARD as FELT_CARD, SUITS, deckAt, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
+import { tableCamera } from "./camera.js";
 import type { TableStore } from "./store.js";
 
 const T = {
@@ -88,6 +89,35 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   let pending: { id: string; to: Where; card: SeenCard; from: Where; sawLock: boolean } | null = null;
   let spots: Spot[] = [];
   let view: FeltView | null = null;
+  /** Кадр камеры — стекло над рукой; пишется при каждом рисовании, читается камерой на жесте. */
+  let lastFrame = { w: 1, h: 1 };
+  let frameRequested = false;
+  /** Кадр по требованию: жест и бросок просят перерисовку, а не крутят свой цикл. */
+  const redraw = () => {
+    if (frameRequested) return;
+    frameRequested = true;
+    let last = performance.now();
+    const tick = (now: number) => {
+      frameRequested = false;
+      const flying = cam.control.step((now - last) / 1000);
+      last = now;
+      draw();
+      if (flying && !frameRequested) {
+        frameRequested = true;
+        requestAnimationFrame(tick);
+      }
+    };
+    requestAnimationFrame(tick);
+  };
+  const cam = tableCamera(canvas, () => lastFrame, redraw);
+  /** Кадр сменился (рука выросла, телефон повернули) — камера держит стол в новом. */
+  let seenFrame = "";
+  const syncCamera = () => {
+    const key = `${lastFrame.w}x${lastFrame.h}`;
+    if (key === seenFrame) return;
+    seenFrame = key;
+    cam.control.refresh();
+  };
 
   // ── ЧТО ПОКАЗЫВАТЬ ─────────────────────────────────────────────────────────────────────────
 
@@ -243,10 +273,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
    * КОНТУР — КАРТИНКА МЕСТА, А НЕ КАРТЫ: пунктир без заливки. Чёрная обводка вокруг пунктира нужна,
    * потому что в руке контур ложится НА соседнюю кремовую карту, и кремовый пунктир на ней пропадает.
    */
-  function markHtml(w: number, h: number, angle: number, x: number, y: number, z: number): string {
+  function markHtml(w: number, h: number, angle: number, x: number, y: number, z: number, squash = 1): string {
     const line = Math.max(1.5, w * 0.04);
     return `<div data-g="mark" style="position:absolute;width:${w}px;height:${h}px;left:${x - w / 2}px;top:${y - h / 2}px;`
-      + `transform:rotate(${angle}deg);z-index:${z};pointer-events:none;border-radius:${w * 0.12}px;border:${line}px dashed ${T.ink};opacity:.9;`
+      // Сжатие — СНАРУЖИ поворота, как у камеры: наклон давит вертикаль стекла, а не стола.
+      + `transform:scale(1,${squash}) rotate(${angle}deg);z-index:${z};pointer-events:none;border-radius:${w * 0.12}px;border:${line}px dashed ${T.ink};opacity:.9;`
       + `box-shadow:0 0 0 ${Math.max(1, line * 0.6)}px ${T.black}, inset 0 0 0 ${Math.max(1, line * 0.6)}px ${T.black};`
       + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out"></div>`;
   }
@@ -336,9 +367,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
 
   function feltMarkHtml(): string {
     if (!drag || drag.target.kind !== "felt" || !view) return "";
-    const w = FELT_CARD.w * view.U;
-    const h = FELT_CARD.h * view.U;
-    return markHtml(w, h, 0, view.centre.x + drag.target.at.x * view.U, view.centre.y + drag.target.at.y * view.U, 30);
+    const at = view.toGlass(drag.target.at);
+    return markHtml(FELT_CARD.w * view.k, FELT_CARD.h * view.k, view.rotation, at.x, at.y, 30, view.squash);
   }
 
   function carryHtml(): string {
@@ -361,11 +391,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       cards: p.key === me() ? 0 : handOf(s, p.key).length,
       ...(p.photo ? { face: face(p) } : {}),
     }));
+    lastFrame = { w: g.w, h: g.h - floor };
+    syncCamera();
     view = drawFelt(canvas, {
-      W: g.w, H: g.h, people: seats, images, deck: s.deck, felt: s.felt,
-      held: heldByOthers(s), free: g.h - floor, centre: (g.h - floor) / 2,
+      W: g.w, H: g.h, people: seats, images, deck: s.deck, felt: s.felt, held: heldByOthers(s),
+      view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
     });
     spots = view.spots;
+    // Взгляд — на холсте атрибутом: его видно в инспекторе и его читает прогон жестов.
+    const c = cam.camera;
+    canvas.dataset.view = `${c.target.x.toFixed(2)},${c.target.y.toFixed(2)},${c.zoom.toFixed(3)},${c.rotation.toFixed(1)},${c.pitch.toFixed(1)}`;
     local.tips = local.tips.filter((key) => s.people.some((p) => p.key === key));
     const open = local.tips
       .map((key) => ({ who: s.people.find((p) => p.key === key)!, spot: spots.find((sp) => sp.key === key) }))
@@ -407,7 +442,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     if (y >= top && x >= 0 && x <= glass().w) return { kind: "hand", which: me(), index: slotAt(geom, x, room) };
     // НА СУКНО — туда, где середина несомой карты, а не где палец: за неё и держат.
     const d = drag!;
-    return { kind: "felt", at: { x: (x - d.gx + d.w / 2 - view!.centre.x) / view!.U, y: (y - d.gy + d.h / 2 - view!.centre.y) / view!.U } };
+    return { kind: "felt", at: view!.toDesk({ x: x - d.gx + d.w / 2, y: y - d.gy + d.h / 2 }) };
   }
 
   const sameAim = (a: Aim, b: Aim) =>
@@ -417,8 +452,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   function feltPick(x: number, y: number): { card: SeenCard; at: { x: number; y: number }; from: "felt" | "deck"; up: boolean } | null {
     if (!view) return null;
     const s = store.state;
-    const ux = (x - view.centre.x) / view.U;
-    const uy = (y - view.centre.y) / view.U;
+    const { x: ux, y: uy } = view.toDesk({ x, y });
     const over = (at: { x: number; y: number }) => Math.abs(ux - at.x) <= FELT_CARD.w / 2 && Math.abs(uy - at.y) <= FELT_CARD.h / 2;
     for (let i = s.felt.length - 1; i >= 0; i -= 1) {
       const one = s.felt[i]!;
@@ -442,10 +476,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   }
 
   function grabFromFelt(e: PointerEvent, pick: NonNullable<ReturnType<typeof feltPick>>) {
-    const w = FELT_CARD.w * view!.U;
-    const h = FELT_CARD.h * view!.U;
-    const left = view!.centre.x + (pick.at.x - FELT_CARD.w / 2) * view!.U;
-    const top = view!.centre.y + (pick.at.y - FELT_CARD.h / 2) * view!.U;
+    // В ВОЗДУХЕ КАРТА СТОИТ: размером по зуму, но без наклона и поворота стола — её держат пальцем.
+    const w = FELT_CARD.w * view!.k;
+    const h = FELT_CARD.h * view!.k;
+    const mid = view!.toGlass(pick.at);
+    const left = mid.x - w / 2;
+    const top = mid.y - h / 2;
     // Снятая с колоды идёт рубашкой: лицом она станет в руке.
     lift(pick.card, pick.up, { left, top, w, h }, e, { kind: "felt", at: pick.at });
   }
@@ -479,8 +515,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     // НА СУКНЕ ДВИГАЕТСЯ ОДИН КОНТУР, А НЕ ВЕСЬ ЭКРАН.
     const mark = over.querySelector<HTMLElement>('[data-g="mark"]');
     if (aim.kind === "felt" && mark && drag.markKind === "felt" && view) {
-      mark.style.left = `${view.centre.x + aim.at.x * view.U - (FELT_CARD.w * view.U) / 2}px`;
-      mark.style.top = `${view.centre.y + aim.at.y * view.U - (FELT_CARD.h * view.U) / 2}px`;
+      const at = view.toGlass(aim.at);
+      mark.style.left = `${at.x - (FELT_CARD.w * view.k) / 2}px`;
+      mark.style.top = `${at.y - (FELT_CARD.h * view.k) / 2}px`;
       return;
     }
     drag.markKind = aim.kind;
@@ -563,18 +600,29 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   addEventListener("pointercancel", endDrag);
 
   // ТАП ПО СУКНУ: сперва карта под пальцем, потом — диск человека (открыть или закрыть его окно).
-  stage.addEventListener("pointerdown", (e) => {
-    if (e.target !== canvas || drag) return;
-    const pick = feltPick(e.clientX, e.clientY);
-    if (pick) {
-      e.preventDefault();
-      return grabFromFelt(e, pick);
-    }
-    const hit = spots.find((sp) => sp.key !== me() && Math.hypot(e.clientX - sp.x, e.clientY - sp.y) <= sp.r + 6);
-    if (!hit) return;
-    local.tips = local.tips.includes(hit.key) ? local.tips.filter((k) => k !== hit.key) : [...local.tips, hit.key];
-    draw();
-  });
+  //
+  // КОМУ ПАЛЕЦ — РЕШАЕТСЯ ЗДЕСЬ И РАНЬШЕ КАМЕРЫ: слушатель стоит на `stage` в фазе захвата, то есть
+  // до холста, на котором слушает камера. Карта, аватар или палец, пришедший, пока другой несёт
+  // карту, — не доходят до неё вовсе (`stopPropagation`). Пустое сукно — доходит, и стол едет.
+  stage.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (e.target !== canvas) return;
+      if (drag) return void e.stopPropagation();
+      const pick = feltPick(e.clientX, e.clientY);
+      if (pick) {
+        e.preventDefault();
+        e.stopPropagation();
+        return grabFromFelt(e, pick);
+      }
+      const hit = spots.find((sp) => sp.key !== me() && Math.hypot(e.clientX - sp.x, e.clientY - sp.y) <= sp.r + 6);
+      if (!hit) return;
+      e.stopPropagation();
+      local.tips = local.tips.includes(hit.key) ? local.tips.filter((k) => k !== hit.key) : [...local.tips, hit.key];
+      draw();
+    },
+    { capture: true },
+  );
 
   addEventListener("resize", draw);
   addEventListener("orientationchange", draw);

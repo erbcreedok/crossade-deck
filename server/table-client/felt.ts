@@ -1,9 +1,10 @@
 // СТОЛ НА ХОЛСТЕ — сукно, кромка, стулья, диски и карты в стульях, по числам продукта.
 //
-// ЕДИНИЦА — ШИРИНА КАРТЫ НА СУКНЕ, ровно как в движке. Всё ниже в ней, а `U` переносит на стекло.
+// ЕДИНИЦА — ШИРИНА КАРТЫ НА СУКНЕ, ровно как в движке. Всё ниже в ней, а на стекло переносит камера.
 // Холст рисует и возвращает, где что легло: разметка сверху (тултипы, рука) ставится ПО ЭТИМ числам,
 // а не по выдуманным.
 
+import { apply, invert, type Transform } from "../../game-kit/src/core/transform.js";
 import type { Face } from "../src/table/contract.js";
 
 export interface Pose {
@@ -37,10 +38,17 @@ export interface Spot {
   r: number;
 }
 
+/** Где что легло, и как переводить между столом и стеклом — тем же взглядом, каким рисовали. */
 export interface FeltView {
   spots: Spot[];
-  U: number;
-  centre: { x: number; y: number };
+  /** Пикселей стекла в единице стола сейчас (с зумом). */
+  k: number;
+  /** Во сколько раз наклон сжимает высоту (`cos(pitch)`). */
+  squash: number;
+  /** Поворот стола на стекле, в градусах. */
+  rotation: number;
+  toGlass(p: { x: number; y: number }): { x: number; y: number };
+  toDesk(p: { x: number; y: number }): { x: number; y: number };
 }
 
 /** Цвета стула — содержание, а не тема (`SEAT_LOOK`). */
@@ -353,9 +361,15 @@ export interface FeltScene {
   held: Record<string, string>;
   /** Что несёт мой палец — на сукне его нет, пока не положено. */
   lifted?: string;
-  free: number;
-  centre: number;
+  /** Взгляд камеры: единицы стола → пиксели стекла (`Camera.transform()`). */
+  view: Transform;
+  k: number;
+  squash: number;
+  rotation: number;
 }
+
+/** Стол целиком, с кромкой, в единицах — то, что камера держит в кадре. */
+export const DESK_BOX = { x: -(R + RIM), y: -(R + RIM), w: 2 * (R + RIM), h: 2 * (R + RIM) };
 
 /** НАРИСОВАТЬ СТОЛ И ВЕРНУТЬ, ГДЕ ЧТО ЛЕЖИТ. */
 export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
@@ -365,17 +379,17 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   canvas.height = Math.round(H * dpr);
   const g = canvas.getContext("2d")!;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  // Видно ВЕСЬ стол вместе с кромкой — по меньшей из сторон того, что от стекла осталось.
-  const U = Math.min(W, o.free) / 2 / (R + RIM);
-  const cy = o.centre;
-
   g.fillStyle = ROUND.black;
   g.fillRect(0, 0, W, H);
 
-  g.save();
-  g.translate(W / 2, cy);
-  g.scale(U, U);
+  // ПЛОСКОСТЬ СТОЛА — ЧЕРЕЗ КАМЕРУ: пан, зум, поворот и наклон одной матрицей. Сукно, карты и стулья
+  // лежат в ней; диски с лицами — нет (ниже).
+  const v = o.view;
+  const desk = () => g.setTransform(dpr * v.a, dpr * v.b, dpr * v.c, dpr * v.d, dpr * v.e, dpr * v.f);
+  const toGlass = (p: Point) => apply(v, p);
+  const back = invert(v)!;
+  const toDesk = (p: Point) => apply(back, p);
+  desk();
 
   const ring = (radius: number, paint: string | CanvasGradient) => {
     g.beginPath();
@@ -427,14 +441,14 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     });
     g.restore();
 
-    // ДИСК НЕ ПОВЁРНУТ ВМЕСТЕ СО СТУЛОМ: лицо смотрит на того, кто глядит на стол.
-    g.save();
-    g.translate(place.at.x, place.at.y);
+    // ДИСК СТОИТ, А НЕ ЛЕЖИТ: ни поворот стола, ни наклон его не трогают — лицо смотрит на того, кто
+    // глядит на стол (`Oriented: "viewer"` у кита). Ставится в точку стола, размером — по зуму.
+    const at = toGlass(place.at);
+    g.setTransform(dpr * o.k, 0, 0, dpr * o.k, dpr * at.x, dpr * at.y);
     disc(g, who, images);
-    g.restore();
-    spots.push({ key: who.key, x: W / 2 + place.at.x * U, y: cy + place.at.y * U, r: (DISC / 2) * U });
+    desk();
+    spots.push({ key: who.key, x: at.x, y: at.y, r: (DISC / 2) * o.k });
   });
 
-  g.restore();
-  return { spots, U, centre: { x: W / 2, y: cy } };
+  return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk };
 }
