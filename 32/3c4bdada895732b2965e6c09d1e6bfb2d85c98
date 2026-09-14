@@ -1,0 +1,23 @@
+server/scripts/tableMouse.mjs
+  s_9ed0da107cbc4a::t_23bd1b4903aae5 1-75
+server/table-client/camera.ts
+  s_9ed0da107cbc4a::t_7ad3ab32efbc8f 13,23-27,30-37,57-106
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_188e0069c0e653 11,785-790
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "323c4bdada895732b2965e6c09d1e6bfb2d85c98",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
