@@ -89,6 +89,10 @@ interface Place {
   face?: Face;
 }
 
+/** Тап, а не хват: палец отпустили раньше этого и сдвинули не дальше `TAP_PX`. */
+const TAP_MS = 350;
+const TAP_PX = 8;
+
 /** Сколько летит карта из места в место. */
 const FLIGHT_MS = 260;
 
@@ -108,6 +112,11 @@ interface Drag {
   from: Where;
   /** Когда палец последний раз сказал серверу, над чем он (`CARRY_EVERY_MS`). */
   toldAt: number;
+  /** Где и когда палец нажал, и ушёл ли дальше порога тапа. */
+  sx: number;
+  sy: number;
+  t0: number;
+  moved: boolean;
 }
 
 export function mountScreen(stage: HTMLElement, store: TableStore): void {
@@ -141,6 +150,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
    * переложенная внутри той же руки, «уже на месте» ещё до того, как сервер что-то сделал.
    */
   let pending: { id: string; to: Where; card: SeenCard; from: Where; sawLock: boolean } | null = null;
+  /**
+   * ТУЛТИП КАРТЫ — что за карта, откуда пришла и кто её двигал. Открывается тапом по карте на сукне или по
+   * колоде (там — верхняя), лежит на столе у карты. Не крышка: всё вокруг работает, как будто его нет.
+   * `key` — место, где карта была, когда его открыли: карта уехала — тултип закрыт.
+   */
+  let cardTip: { id: string; key: string } | null = null;
   let spots: Spot[] = [];
   let view: FeltView | null = null;
   /** Кадр камеры — стекло над рукой; пишется при каждом рисовании, читается камерой на жесте. */
@@ -622,6 +637,71 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     return markHtml(FELT_CARD.w * view.k, FELT_CARD.h * view.k, view.rotation + dropAngle(), at.x, at.y, 30, view.squash);
   }
 
+  /** Место карты на сукне словами — сменилось, значит карта переехала. */
+  function tipKeyOf(s: Snapshot, id: string): string | null {
+    const f = s.felt.find((c) => c.id === id);
+    if (f) return `felt:${f.x},${f.y},${f.angle},${f.up}`;
+    return s.deck.at(-1)?.id === id ? "deck" : null;
+  }
+
+  function agoText(at: number): string {
+    const sec = Math.max(0, Math.floor((store.now() - at) / 1000));
+    if (sec < 5) return "только что";
+    if (sec < 60) return `${sec} сек назад`;
+    if (sec < 3600) return `${Math.floor(sec / 60)} мин назад`;
+    return `${Math.floor(sec / 3600)} ч назад`;
+  }
+
+  /**
+   * ТУЛТИП КАРТЫ НА СТОЛЕ. Размер — от карты (`view.k`): к нему приближаются, чтобы прочитать. Стоит ровно
+   * к экрану, но сжат наклоном, как всё на сукне. Сбоку от карты со стрелкой к ней: справа, а если справа
+   * не влезает в кадр — слева. Лицо — только у карты лицом вверх, кто бы её ни положил.
+   */
+  function cardTipHtml(s: Snapshot): string {
+    if (!cardTip || !view) return "";
+    const v = view;
+    const tip = cardTip;
+    if (store.carries.some((c) => c.id === tip.id) || drag?.card.id === tip.id || flying.has(tip.id)) return "";
+    const key = tipKeyOf(s, tip.id);
+    if (key !== tip.key) {
+      cardTip = null;
+      return "";
+    }
+    const felt = s.felt.find((c) => c.id === tip.id);
+    const at = felt ? (v.feltAt(felt.id) ?? felt) : v.deckAt(s.deck.length - 1, s.deck.length);
+    const a = ((felt?.angle ?? 0) * Math.PI) / 180;
+    const xs = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([dx, dy]) => {
+      const lx = (dx! * FELT_CARD.w) / 2, ly = (dy! * FELT_CARD.h) / 2;
+      return v.toGlass({ x: at.x + lx * Math.cos(a) - ly * Math.sin(a), y: at.y + lx * Math.sin(a) + ly * Math.cos(a) }).x;
+    });
+    const mid = v.toGlass(at);
+    const k = v.k;
+    const w = 2.4 * k, gap = 0.2 * k, arrow = 0.13 * k;
+    const right = Math.max(...xs) + gap;
+    const onLeft = right + w > glass().w && Math.min(...xs) - gap - w >= 0;
+    const left = onLeft ? Math.min(...xs) - gap - w : right;
+    const face = felt?.up ? felt.face : undefined;
+    const trail = s.trails?.[tip.id];
+    const title = face
+      ? `<span style="color:${SUITS[face.suit][1] === "#1b1b1b" ? T.ink : "#e0645c"}">${escape(face.rank)} ${SUITS[face.suit][0]}</span>`
+      : `<span style="color:${T.inkDim}">Рубашкой вверх</span>`;
+    const from = !trail ? "" : trail.from === "deck" ? "из колоды" : trail.from === "hand" ? (trail.hand ? `из руки ${escape(trail.hand)}` : "из руки") : "со стола";
+    const lines = [
+      `<div data-g="tip-name" style="font-size:${0.3 * k}px;line-height:1.15;margin-bottom:${0.06 * k}px">${title}</div>`,
+      from && `<div data-g="tip-from" style="color:${T.inkDim}">${from}</div>`,
+      trail && `<div data-g="tip-by">двигал <span style="color:${inkOf(s, trail.by) === T.inkDim ? T.ink : inkOf(s, trail.by)}">${escape(trail.byName)}</span> ${agoText(trail.at)}</div>`,
+      !trail && felt === undefined && `<div data-g="tip-from" style="color:${T.inkDim}">в колоде</div>`,
+    ].filter(Boolean).join("");
+    const side = onLeft ? `right:${-arrow}px` : `left:${-arrow}px`;
+    return `<div data-g="card-tip" data-card="${tip.id}" data-side="${onLeft ? "left" : "right"}" style="position:absolute;left:${left}px;top:${mid.y}px;width:${w}px;box-sizing:border-box;`
+      + `transform-origin:${onLeft ? "100%" : "0"} 50%;transform:translateY(-50%) scale(1,${v.squash});z-index:0;`
+      + `padding:${0.14 * k}px ${0.18 * k}px;border-radius:${0.14 * k}px;background:${T.well};`
+      + `box-shadow:inset 0 0 0 ${Math.max(1, 0.04 * k)}px ${T.black},inset 0 0 0 ${Math.max(1.5, 0.07 * k)}px ${T.wood},0 ${0.06 * k}px 0 rgba(11,7,4,.5);`
+      + `font:400 ${0.19 * k}px/1.3 Tiny5,monospace;color:${T.ink};-webkit-user-select:none;user-select:none">`
+      + `<span style="position:absolute;top:50%;${side};width:${2 * arrow}px;height:${2 * arrow}px;margin-top:${-arrow}px;transform:rotate(45deg);`
+      + `background:${T.wood};z-index:-1"></span>${lines}</div>`;
+  }
+
   function carryHtml(): string {
     if (!drag) return "";
     return `<div data-g="carry" style="position:fixed;width:${drag.w}px;height:${drag.h}px;left:${drag.x - drag.gx}px;`
@@ -689,7 +769,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       .filter((one): one is { chair: Chair; spot: Spot } => Boolean(one.spot))
       .map((one) => tipHtml(s, one.chair, one.spot));
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
-    over.innerHTML = hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + chairZonesHtml(s) + feltMarkHtml() + carryHtml() + homeHtml(s);
+    over.innerHTML = cardTipHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + chairZonesHtml(s) + feltMarkHtml() + carryHtml() + homeHtml(s);
     wire();
 
     // ПЕРЕЕХАВШЕЕ — ЛЕТИТ. Запущенный перелёт прячет карту на месте, поэтому кадр рисуется ещё раз;
@@ -975,7 +1055,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       gx: e.clientX - box.left, gy: e.clientY - box.top, x: e.clientX, y: e.clientY, target,
       hold: window.setInterval(() => store.send({ t: "hold", id: card.id }), HOLD_EVERY_MS),
       toldAt: 0,
+      sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false,
     };
+    liftedBy = e.pointerId;
     store.send({ t: "grab", id: card.id });
     tellCarry();
     draw();
@@ -1033,6 +1115,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   }
 
   function moveDrag(e: PointerEvent) {
+    if (drag && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > TAP_PX) drag.moved = true;
     steer(e);
     tellCarry();
   }
@@ -1066,6 +1149,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const d = drag;
     drag = null;
     clearInterval(d.hold);
+    // ТАП ПО КАРТЕ НА СТОЛЕ ИЛИ ПО КОЛОДЕ — не ход: карта отпускается, где лежала, и открывается её тултип.
+    // Тап по той же карте, чей тултип был открыт, его только закрывает.
+    if (!d.moved && performance.now() - d.t0 < TAP_MS && d.from.in !== "hand") {
+      store.send({ t: "release", id: d.card.id });
+      const key = tipKeyOf(store.state, d.card.id);
+      if (tipAtDown !== d.card.id && key) cardTip = { id: d.card.id, key };
+      return draw();
+    }
     if (d.target.kind === "back") {
       returning = {
         id: d.card.id,
@@ -1178,6 +1269,43 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     if (intent.t === "drop" && pending?.id === intent.id) pending = null;
     draw();
   });
+
+  /**
+   * ТУЛТИП КАРТЫ ПЕРЕЖИВАЕТ ТОЛЬКО КАМЕРУ. Любое другое касание — тап по сукну, стулу, кнопке, самому
+   * тултипу, хват карты — закрывает его, когда палец отпущен. Слушатели в фазе захвата у окна: они
+   * срабатывают раньше всего остального и ничего не отменяют — касание делает то, что сделало бы без тултипа.
+   */
+  let tipAtDown: string | null = null;
+  let liftedBy: number | null = null;
+  const presses = new Map<number, { x: number; y: number; onFelt: boolean; moved: boolean }>();
+  let manyFingers = false;
+  addEventListener("pointerdown", (e) => {
+    if (presses.size === 0) {
+      tipAtDown = cardTip?.id ?? null;
+      manyFingers = false;
+    } else manyFingers = true;
+    if (liftedBy === e.pointerId) liftedBy = null;
+    presses.set(e.pointerId, { x: e.clientX, y: e.clientY, onFelt: e.target === canvas, moved: false });
+  }, { capture: true });
+  addEventListener("pointermove", (e) => {
+    const p = presses.get(e.pointerId);
+    if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) > TAP_PX) p.moved = true;
+  }, { capture: true, passive: true });
+  const unpress = (e: PointerEvent) => {
+    const p = presses.get(e.pointerId);
+    presses.delete(e.pointerId);
+    if (!p || !cardTip) return;
+    const camera = p.onFelt && liftedBy !== e.pointerId && (p.moved || manyFingers || orbits(e));
+    if (camera) return;
+    cardTip = null;
+    // Перерисовка — в следующем кадре: `click` кнопки приходит после `pointerup`, и пересобранная сейчас
+    // разметка съела бы его — касание не сделало бы того, что сделало бы без тултипа.
+    redraw();
+  };
+  addEventListener("pointerup", unpress, { capture: true });
+  addEventListener("pointercancel", unpress, { capture: true });
+  // «10 сек назад» идёт, пока тултип открыт.
+  setInterval(() => cardTip && draw(), 1000);
 
   addEventListener("pointermove", moveDrag, { passive: true });
   addEventListener("pointerup", endDrag);

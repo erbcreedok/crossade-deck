@@ -56,6 +56,7 @@ function applyOp(s: Snapshot, op: Op): void {
     case "move":
       lift(s, op.card.id, op.from);
       place(s, op.card, op.to);
+      if (op.trail) (s.trails ??= {})[op.card.id] = op.trail;
       return;
     case "rules":
       s.rules = op.rules;

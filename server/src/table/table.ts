@@ -30,6 +30,7 @@ import {
   type SeenCard,
   type Snapshot,
   type TableRules,
+  type Trail,
   type Where,
 } from "./contract.js";
 import { freeAngle, seatPoint } from "./ring.js";
@@ -70,6 +71,9 @@ export class Table {
   /** Последнее «над чем карта», пока её держат. Живёт не дольше блокировки (`carriesSeenBy`). */
   private carries = new Map<string, { by: string; over: Where }>();
   private rules: TableRules = { ...DEFAULT_RULES };
+  private trails = new Map<string, Trail>();
+  /** Имена всех, кто когда-либо садился: след подписывает и ушедшего. */
+  private names = new Map<string, string>();
 
   /** `creator` — ключ создателя комнаты: он админ, пока сидит за столом. */
   constructor(
@@ -108,6 +112,7 @@ export class Table {
     chair.last = person.key;
     const seated = { ...person, seat: chair.id };
     this.people.set(person.key, seated);
+    this.names.set(person.key, person.name);
     ops.push({ t: "join", person: seated }, { t: "chair", chair: this.chairOut(chair) });
     if (this.admin !== wasAdmin) ops.push({ t: "admin", key: this.admin });
     return this.commit(ops);
@@ -151,7 +156,7 @@ export class Table {
         return { ops: this.commit([{ t: "unlock", id: intent.id }]) };
       }
       case "drop":
-        return this.drop(by, intent.id, intent.to);
+        return this.drop(by, intent.id, intent.to, now);
       case "flip": {
         const chair = this.seatOf(by);
         if (!chair) return { refused: "bad" };
@@ -227,20 +232,32 @@ export class Table {
     return { ops: lock ? [] : this.commit([{ t: "lock", id, by }]) };
   }
 
-  private drop(by: string, id: string, to: Where): Result {
+  private drop(by: string, id: string, to: Where, now: number): Result {
     const lock = this.locks.get(id);
     if (!lock || lock.by !== by) return { refused: "not-held" };
     const target = this.clean(to);
     if (!target) return { refused: "bad" };
     if (target.in === "hand" && this.closedTo(by, target.chair)) return { refused: "chair-locked" };
     const from = this.whereIs(id)!;
+    const trail = this.trailOf(by, from, now);
     this.take(id, from);
     const landed = this.put(id, target);
     this.locks.delete(id);
-    const ops: Op[] = [{ t: "move", card: { id }, from, to: landed }, { t: "unlock", id }];
+    this.trails.set(id, trail);
+    const ops: Op[] = [{ t: "move", card: { id }, from, to: landed, trail }, { t: "unlock", id }];
     // РУКА ПОКИНУТОГО СТУЛА ОПУСТЕЛА — правило стола решает, стоять ли ему дальше.
     if (from.in === "hand") ops.push(...this.sweepChair(this.chairs.get(from.chair)!));
     return { ops: this.commit(ops) };
+  }
+
+  private trailOf(by: string, from: Where, at: number): Trail {
+    const trail: Trail = { by, byName: this.names.get(by) ?? by, from: from.in, at };
+    if (from.in === "hand") {
+      const chair = this.chairs.get(from.chair);
+      const whose = chair?.owner ?? chair?.last;
+      if (whose) trail.hand = this.names.get(whose) ?? whose;
+    }
+    return trail;
   }
 
   /** Пересесть. Старый стул: с картами — остаётся и становится вечным; без карт — исчезает сразу. */
@@ -453,6 +470,7 @@ export class Table {
       chairs,
       deck: this.deck.map((id) => ({ id })),
       felt,
+      trails: Object.fromEntries(this.trails),
       locks: Object.fromEntries([...this.locks].map(([id, lock]) => [id, lock.by])),
       rules: { ...this.rules },
       admin: this.admin,

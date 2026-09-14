@@ -46,7 +46,7 @@ export class TableRoom extends Room {
     this.onMessage(MSG.hello, (client) => {
       const me = this.personOf(client.sessionId);
       if (!me) return;
-      const welcome: Welcome = { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key) };
+      const welcome: Welcome = { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), now: Date.now() };
       client.send(MSG.welcome, welcome);
     });
 
@@ -54,7 +54,7 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       if (!me || !intent || !INTENTS.has(intent.t)) return;
       if (intent.t === "sync") {
-        client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key) } satisfies Welcome);
+        client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), now: Date.now() } satisfies Welcome);
         return;
       }
       const result = this.table.act(me.key, intent, Date.now());

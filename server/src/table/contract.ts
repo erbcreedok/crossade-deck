@@ -107,6 +107,19 @@ export interface TableRules {
 }
 export const DEFAULT_RULES: TableRules = { dropEmptyChairs: true };
 
+/**
+ * СЛЕД КАРТЫ — кто её последним переносил, откуда и когда. Пишется при каждом дропе, сдвиг по сукну тоже
+ * перенос. Имена сохраняются в момент хода: ушедший из-за стола остаётся подписанным.
+ * `hand` — чья это была рука, если карта пришла из руки. `at` — часы сервера (`Welcome.now`).
+ */
+export interface Trail {
+  by: string;
+  byName: string;
+  from: "deck" | "hand" | "felt";
+  hand?: string;
+  at: number;
+}
+
 /** Всё, что зритель знает о столе. Сервер собирает его для каждого отдельно (`Table.seenBy`). */
 export interface Snapshot {
   v: number;
@@ -114,6 +127,8 @@ export interface Snapshot {
   chairs: Chair[];
   deck: SeenCard[];
   felt: FeltCard[];
+  /** Следы карт по id — у карт, которые хоть раз переносили. */
+  trails: Record<string, Trail>;
   /** Кто что держит: id вещи → key человека. */
   locks: Record<string, string>;
   rules: TableRules;
@@ -155,7 +170,7 @@ export type Op =
   | { t: "lock"; id: string; by: string }
   | { t: "unlock"; id: string }
   /** Вещь переехала. `card.face` есть, только если на новом месте зрителю её видно. */
-  | { t: "move"; card: SeenCard; from: Where; to: Where }
+  | { t: "move"; card: SeenCard; from: Where; to: Where; trail?: Trail }
   | { t: "order"; chair: string; ids: string[] }
   | { t: "rules"; rules: TableRules }
   | { t: "admin"; key: string | null };
@@ -209,6 +224,8 @@ export interface Welcome {
   title: string;
   /** Что сейчас в воздухе у других — чтобы вошедший посреди жеста увидел его, а не пустое место. */
   carries: Carry[];
+  /** Часы сервера в момент отправки — по ним клиент считает «10 сек назад» у следов. */
+  now: number;
 }
 
 /** Сколько живёт блокировка без `hold`. Палец, который держит дольше, шлёт `hold` чаще этого. */

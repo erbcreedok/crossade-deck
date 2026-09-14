@@ -70,6 +70,7 @@ export function localStore(): TableStore {
     },
     carries: [],
     carry: () => {},
+    now: () => Date.now(),
     onChange: (listener) => void changed.push(listener),
     onRefused: (listener) => void refused.push(listener),
     onGone: () => {},

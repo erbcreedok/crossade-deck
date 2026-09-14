@@ -73,6 +73,27 @@ describe("Table: блокировка карт", () => {
     expect(t.carriesSeenBy("b")).toEqual([]);
   });
 
+  it("след карты: кто перенёс, откуда, чья рука — и опоздавший видит его в снимке", () => {
+    const t = seated("a", "b");
+    const top = t.seenBy("a").deck.at(-1)!.id;
+    const felt = { in: "felt", x: 0, y: 0, up: false, angle: 0 } as const;
+    ops(t.act("a", { t: "grab", id: top }, 0));
+    ops(t.act("a", { t: "drop", id: top, to: felt }, 100));
+    expect(t.seenBy("b").trails[top]).toEqual({ by: "a", byName: "a", from: "deck", at: 100 });
+    ops(t.act("b", { t: "grab", id: top }, 0));
+    ops(t.act("b", { t: "drop", id: top, to: { in: "hand", chair: seatOf(t, "b"), i: 0 } }, 200));
+    ops(t.act("a", { t: "grab", id: top }, 0));
+    const [move] = ops(t.act("a", { t: "drop", id: top, to: { ...felt, x: 1 } }, 300));
+    expect(move).toMatchObject({ trail: { by: "a", from: "hand", hand: "b", at: 300 } });
+    ops(t.act("b", { t: "grab", id: top }, 0));
+    ops(t.act("b", { t: "drop", id: top, to: felt }, 400));
+    t.leave("b");
+    t.join(person("c"));
+    expect(t.seenBy("c").trails[top]).toEqual({ by: "b", byName: "b", from: "felt", at: 400 });
+    // Лицо закрытой карты следом не утекает.
+    expect(t.seenBy("c").felt.find((c) => c.id === top)!.face).toBeUndefined();
+  });
+
   it("брошенная за кромку карта ложится на край сукна", () => {
     const t = seated("a");
     ops(t.act("a", { t: "grab", id: "c7" }, 0));

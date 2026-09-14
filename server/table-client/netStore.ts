@@ -17,6 +17,8 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
   let state: Snapshot | null = null;
   let welcome: Welcome | null = null;
   let asked = false;
+  /** На сколько часы сервера впереди моих. */
+  let skew = 0;
   const early: Patch[] = [];
   /** Чужие пальцы в воздухе — по id карты. Держится, пока карта заблокирована тем же человеком. */
   let carries = new Map<string, Carry>();
@@ -56,6 +58,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
   const first = new Promise<Welcome>((resolve) => {
     room.onMessage(MSG.welcome, (msg: Welcome) => {
       welcome = msg;
+      if (Number.isFinite(msg.now)) skew = msg.now - Date.now();
       state = msg.snapshot;
       carries = new Map((msg.carries ?? []).map((c) => [c.id, c]));
       stillHeld();
@@ -84,6 +87,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
       return [...carries.values()];
     },
     carry: (out: CarryOut) => room.send(MSG.carry, out),
+    now: () => Date.now() + skew,
     onChange: (listener) => void changed.push(listener),
     onRefused: (listener) => void refused.push(listener),
     onGone: (listener) => void room.onLeave(() => listener()),
