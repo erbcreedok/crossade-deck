@@ -20,8 +20,8 @@ for arg in "$@"; do
   esac
 done
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-LOG="$ROOT/.agent/tmp/tunnel.log"
-SB_LOG="$ROOT/.agent/tmp/storybook.log"
+LOG="/tmp/crossade-kit-tunnel.log"
+SB_LOG="/tmp/crossade-storybook.log"
 PORT=9567
 mkdir -p "$ROOT/.agent/tmp"
 export PATH="$HOME/.nvm/versions/node/v22.23.2/bin:/opt/homebrew/bin:$PATH"

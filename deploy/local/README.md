@@ -15,5 +15,22 @@ scripts/hub-tunnel.sh            # текущий адрес хаба — тем
 Бот (`bot/`) читает свежий адрес хаба сам через `scripts/hub-tunnel.sh`, если `HUB_TUNNEL=1` в его
 `.env` (см. `bot/README.md`) — вручную обновлять `HUB_URL` под быстрый туннель не нужно.
 
+## Стол, сервер дев-кита и стенд
+
+`com.crossade.table` — сервер HTML-столов на :2590 и туннель к нему; адрес туннеля сервер сам несёт
+реле на Fly маяком (`bot/README.md`). `com.crossade.server` — сервер дев-кита на :2567,
+`com.crossade.stand` — стенды `design/` на :8791.
+
+```bash
+cp deploy/local/com.crossade.{table,server,stand}.plist ~/Library/LaunchAgents/
+for n in table server stand; do launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.crossade.$n.plist; done
+```
+
+Две ловушки, обе уже стоили перезапусков по кругу:
+- **`&&` в plist пишется `&amp;&amp;`.** Голый `&` делает файл невалидным, и launchd отвечает кодом 78
+  (`plutil -lint` это видит сразу).
+- **Логи — в `/tmp`, и bash из launchd файлов в Desktop не читает** (TCC). Node и python читают, поэтому
+  всё, что берётся из репозитория, запускается ими, а не `bash script.sh`.
+
 Снять: `launchctl unload ~/Library/LaunchAgents/com.crossade.{kit,hub}*.plist`.
 Постоянный адрес — это уже именованный туннель с доменом, см. `DEPLOY.md` §3.

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  СТОЛ НА ЭТОМ МАКЕ — то же, что `scripts/table-mac.sh`, но строкой здесь, а не файлом: bash, которого
+  запустил launchd, macOS не пускает читать файлы в Desktop (TCC), а node пускает. Поэтому bash только
+  поднимает туннель в /tmp, а всё из репозитория читает node.
+-->
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.crossade.table</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/bash</string><string>-lc</string>
+    <string>export PATH=$HOME/.nvm/versions/node/v22.23.2/bin:/opt/homebrew/bin:$PATH; LOG=/tmp/crossade-table-tunnel.log; : &gt; $LOG; cloudflared tunnel --url http://127.0.0.1:2590 --no-autoupdate &gt; $LOG 2&gt;&amp;1 &amp; T=$!; trap "kill $T" EXIT; URL=; for i in $(seq 30); do sleep 1; URL=$(grep -o "https://[a-z0-9-]*\.trycloudflare\.com" $LOG | tail -1); [ -n "$URL" ] &amp;&amp; break; done; [ -n "$URL" ] || exit 1; echo "стол снаружи: $URL/table/"; cd $HOME/Desktop/crossade-deck/server &amp;&amp; TABLE_PUBLIC_URL=$URL PORT=2590 node --env-file=.env.table --import tsx src/index.ts</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>15</integer>
+  <key>StandardOutPath</key><string>/tmp/crossade-table.log</string>
+  <key>StandardErrorPath</key><string>/tmp/crossade-table.log</string>
+</dict></plist>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.crossade.stand</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/bash</string><string>-lc</string>
+    <string>export PATH=$HOME/.nvm/versions/node/v22.23.2/bin:/opt/homebrew/bin:$PATH; cd $HOME/Desktop/crossade-deck &amp;&amp; exec python3 design/serve.py 8791 design</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>15</integer>
+  <key>StandardOutPath</key><string>/tmp/crossade-stand.log</string>
+  <key>StandardErrorPath</key><string>/tmp/crossade-stand.log</string>
+</dict></plist>

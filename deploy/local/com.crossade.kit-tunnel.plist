@@ -8,6 +8,6 @@
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>/Users/giyers/Desktop/crossade-deck/.agent/tmp/tunnel.log</string>
-  <key>StandardErrorPath</key><string>/Users/giyers/Desktop/crossade-deck/.agent/tmp/tunnel.log</string>
+  <key>StandardOutPath</key><string>/tmp/crossade-kit-tunnel.log</string>
+  <key>StandardErrorPath</key><string>/tmp/crossade-kit-tunnel.log</string>
 </dict></plist>

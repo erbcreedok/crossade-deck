@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.crossade.server</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/bash</string><string>-lc</string>
+    <string>export PATH=$HOME/.nvm/versions/node/v22.23.2/bin:/opt/homebrew/bin:$PATH; cd $HOME/Desktop/crossade-deck/server &amp;&amp; exec npx tsx watch src/index.ts</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>15</integer>
+  <key>StandardOutPath</key><string>/tmp/crossade-server.log</string>
+  <key>StandardErrorPath</key><string>/tmp/crossade-server.log</string>
+</dict></plist>
