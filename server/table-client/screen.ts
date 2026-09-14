@@ -637,11 +637,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     return markHtml(FELT_CARD.w * view.k, FELT_CARD.h * view.k, view.rotation + dropAngle(), at.x, at.y, 30, view.squash);
   }
 
-  /** Место карты на сукне словами — сменилось, значит карта переехала. */
+  /** Место карты словами — сменилось, значит карта переехала. В руке — только чья рука: перестановка не переезд. */
   function tipKeyOf(s: Snapshot, id: string): string | null {
     const f = s.felt.find((c) => c.id === id);
     if (f) return `felt:${f.x},${f.y},${f.angle},${f.up}`;
-    return s.deck.at(-1)?.id === id ? "deck" : null;
+    if (s.deck.at(-1)?.id === id) return "deck";
+    const chair = s.chairs.find((c) => c.hand.some((card) => card.id === id));
+    return chair ? `hand:${chair.id}` : null;
   }
 
   function agoText(at: number): string {
@@ -652,10 +654,36 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     return `${Math.floor(sec / 3600)} ч назад`;
   }
 
+  /** Строки тултипа в единицах `k` — ширины карты в пикселях. Лицо — только если оно мне видно. */
+  function tipLines(s: Snapshot, id: string, face: Face | undefined, inDeck: boolean, k: number): string {
+    const trail = s.trails?.[id];
+    const title = face
+      ? `<span style="color:${SUITS[face.suit][1] === "#1b1b1b" ? T.ink : "#e0645c"}">${escape(face.rank)} ${SUITS[face.suit][0]}</span>`
+      : `<span style="color:${T.inkDim}">Рубашкой вверх</span>`;
+    const from = !trail ? "" : trail.from === "deck" ? "из колоды" : trail.from === "hand" ? (trail.hand ? `из руки ${escape(trail.hand)}` : "из руки") : "со стола";
+    return [
+      `<div data-g="tip-name" style="font-size:${0.3 * k}px;line-height:1.15;margin-bottom:${0.06 * k}px">${title}</div>`,
+      from && `<div data-g="tip-from" style="color:${T.inkDim}">${from}</div>`,
+      trail && `<div data-g="tip-by">двигал <span style="color:${inkOf(s, trail.by) === T.inkDim ? T.ink : inkOf(s, trail.by)}">${escape(trail.byName)}</span> ${agoText(trail.at)}</div>`,
+      !trail && inDeck && `<div data-g="tip-from" style="color:${T.inkDim}">в колоде</div>`,
+    ].filter(Boolean).join("");
+  }
+
+  const tipShell = (k: number) =>
+    `box-sizing:border-box;padding:${0.14 * k}px ${0.18 * k}px;border-radius:${0.14 * k}px;background:${T.well};`
+    + `box-shadow:inset 0 0 0 ${Math.max(1, 0.04 * k)}px ${T.black},inset 0 0 0 ${Math.max(1.5, 0.07 * k)}px ${T.wood},0 ${0.06 * k}px 0 rgba(11,7,4,.5);`
+    + `font:400 ${0.19 * k}px/1.3 Tiny5,monospace;color:${T.ink};-webkit-user-select:none;user-select:none`;
+
+  /** Размер тултипа карты в руке — как у стола при ширине карты в столько пикселей: читается без зума. */
+  const HAND_TIP_K = 56;
+
   /**
-   * ТУЛТИП КАРТЫ НА СТОЛЕ. Размер — от карты (`view.k`): к нему приближаются, чтобы прочитать. Стоит ровно
+   * ТУЛТИП КАРТЫ. На столе размер — от карты (`view.k`): к нему приближаются, чтобы прочитать. Стоит ровно
    * к экрану, но сжат наклоном, как всё на сукне. Сбоку от карты со стрелкой к ней: справа, а если справа
    * не влезает в кадр — слева. Лицо — только у карты лицом вверх, кто бы её ни положил.
+   *
+   * В руке — внизу или в окне стула — это уже стекло, а не стол: размер постоянный, над картой, стрелкой
+   * вниз к ней, и поверх окон. Лицо — если его видно мне: своя рука всегда, чужая — если не скрыта.
    */
   function cardTipHtml(s: Snapshot): string {
     if (!cardTip || !view) return "";
@@ -666,6 +694,23 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     if (key !== tip.key) {
       cardTip = null;
       return "";
+    }
+    if (key.startsWith("hand:")) {
+      const hand = handsShown(s).get(key.slice(5));
+      const one = hand?.lay.find((l) => "card" in l && l.card.id === tip.id);
+      if (!hand || !one || !("card" in one)) {
+        cardTip = null;
+        return "";
+      }
+      const k = HAND_TIP_K;
+      const w = 2.4 * k, arrow = 0.13 * k, EDGE = 8;
+      const g = glass();
+      const left = Math.max(EDGE, Math.min(g.w - w - EDGE, one.slot.x - w / 2));
+      const bottom = one.slot.y - hand.geom.h / 2 - arrow - 4;
+      return `<div data-g="card-tip" data-card="${tip.id}" data-side="up" style="position:absolute;left:${left}px;top:${bottom}px;width:${w}px;`
+        + `transform:translateY(-100%);z-index:58;${tipShell(k)}">`
+        + `<span style="position:absolute;bottom:${-arrow}px;left:${one.slot.x - left - arrow}px;width:${2 * arrow}px;height:${2 * arrow}px;transform:rotate(45deg);`
+        + `background:${T.wood};z-index:-1"></span>${tipLines(s, tip.id, one.card.face, false, k)}</div>`;
     }
     const felt = s.felt.find((c) => c.id === tip.id);
     const at = felt ? (v.feltAt(felt.id) ?? felt) : v.deckAt(s.deck.length - 1, s.deck.length);
@@ -680,26 +725,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const right = Math.max(...xs) + gap;
     const onLeft = right + w > glass().w && Math.min(...xs) - gap - w >= 0;
     const left = onLeft ? Math.min(...xs) - gap - w : right;
-    const face = felt?.up ? felt.face : undefined;
-    const trail = s.trails?.[tip.id];
-    const title = face
-      ? `<span style="color:${SUITS[face.suit][1] === "#1b1b1b" ? T.ink : "#e0645c"}">${escape(face.rank)} ${SUITS[face.suit][0]}</span>`
-      : `<span style="color:${T.inkDim}">Рубашкой вверх</span>`;
-    const from = !trail ? "" : trail.from === "deck" ? "из колоды" : trail.from === "hand" ? (trail.hand ? `из руки ${escape(trail.hand)}` : "из руки") : "со стола";
-    const lines = [
-      `<div data-g="tip-name" style="font-size:${0.3 * k}px;line-height:1.15;margin-bottom:${0.06 * k}px">${title}</div>`,
-      from && `<div data-g="tip-from" style="color:${T.inkDim}">${from}</div>`,
-      trail && `<div data-g="tip-by">двигал <span style="color:${inkOf(s, trail.by) === T.inkDim ? T.ink : inkOf(s, trail.by)}">${escape(trail.byName)}</span> ${agoText(trail.at)}</div>`,
-      !trail && felt === undefined && `<div data-g="tip-from" style="color:${T.inkDim}">в колоде</div>`,
-    ].filter(Boolean).join("");
     const side = onLeft ? `right:${-arrow}px` : `left:${-arrow}px`;
-    return `<div data-g="card-tip" data-card="${tip.id}" data-side="${onLeft ? "left" : "right"}" style="position:absolute;left:${left}px;top:${mid.y}px;width:${w}px;box-sizing:border-box;`
-      + `transform-origin:${onLeft ? "100%" : "0"} 50%;transform:translateY(-50%) scale(1,${v.squash});z-index:0;`
-      + `padding:${0.14 * k}px ${0.18 * k}px;border-radius:${0.14 * k}px;background:${T.well};`
-      + `box-shadow:inset 0 0 0 ${Math.max(1, 0.04 * k)}px ${T.black},inset 0 0 0 ${Math.max(1.5, 0.07 * k)}px ${T.wood},0 ${0.06 * k}px 0 rgba(11,7,4,.5);`
-      + `font:400 ${0.19 * k}px/1.3 Tiny5,monospace;color:${T.ink};-webkit-user-select:none;user-select:none">`
+    return `<div data-g="card-tip" data-card="${tip.id}" data-side="${onLeft ? "left" : "right"}" style="position:absolute;left:${left}px;top:${mid.y}px;width:${w}px;`
+      + `transform-origin:${onLeft ? "100%" : "0"} 50%;transform:translateY(-50%) scale(1,${v.squash});z-index:0;${tipShell(k)}">`
       + `<span style="position:absolute;top:50%;${side};width:${2 * arrow}px;height:${2 * arrow}px;margin-top:${-arrow}px;transform:rotate(45deg);`
-      + `background:${T.wood};z-index:-1"></span>${lines}</div>`;
+      + `background:${T.wood};z-index:-1"></span>${tipLines(s, tip.id, felt?.up ? felt.face : undefined, felt === undefined, k)}</div>`;
   }
 
   function carryHtml(): string {
@@ -1149,9 +1179,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const d = drag;
     drag = null;
     clearInterval(d.hold);
-    // ТАП ПО КАРТЕ НА СТОЛЕ ИЛИ ПО КОЛОДЕ — не ход: карта отпускается, где лежала, и открывается её тултип.
+    // ТАП ПО КАРТЕ — НА СТОЛЕ, В КОЛОДЕ ИЛИ В РУКЕ — не ход: карта отпускается, где лежала, и открывается её тултип.
     // Тап по той же карте, чей тултип был открыт, его только закрывает.
-    if (!d.moved && performance.now() - d.t0 < TAP_MS && d.from.in !== "hand") {
+    if (!d.moved && performance.now() - d.t0 < TAP_MS) {
       store.send({ t: "release", id: d.card.id });
       const key = tipKeyOf(store.state, d.card.id);
       if (tipAtDown !== d.card.id && key) cardTip = { id: d.card.id, key };

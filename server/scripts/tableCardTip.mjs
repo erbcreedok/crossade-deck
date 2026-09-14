@@ -133,6 +133,33 @@ t = await tip(B);
 check("у B закрытая тоже без названия", t && t.id === down.id && /Рубашкой вверх/.test(t.text), t);
 check("тап B не сдвинул и не переписал след", t && /двигал A/.test(t.text), t);
 
+// Карта в руке: у A внизу — с названием; у B в окне стула A — рубашкой (рука скрыта).
+const mA = (await spots(A)).middle;
+const tA = (await spots(A)).deckTop;
+await drag(A, tA.x, tA.y, 195, 790);
+const cardEl = async (p, sel) => p.evaluate((sel) => { const el = document.querySelector(sel); const r = el.getBoundingClientRect(); return { id: el.dataset.card, x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);
+const mineSeat = (await spots(A)).seats.find((x) => x.who === "A").key;
+const hc = await cardEl(A, `[data-card][data-owner="${mineSeat}"]`);
+const handBefore = await A.locator(`[data-card][data-owner="${mineSeat}"]`).count();
+await tap(A, hc.x, hc.y);
+t = await tip(A);
+check("тап по карте в своей руке — тултип над ней", t && t.id === hc.id && t.side === "up", t);
+check("своя — с названием, из колоды, двигал A", t && !/Рубашкой/.test(t.text) && /из колоды/.test(t.text) && /двигал A/.test(t.text), t);
+check("тап по руке карту не переложил", (await A.locator(`[data-card][data-owner="${mineSeat}"]`).count()) === handBefore && (await cardEl(A, `[data-card][data-owner="${mineSeat}"]`)).id === hc.id, null);
+check("и не открыл тултип карты на столе", t && t.id === hc.id, t);
+await tap(A, 40, 200);
+check("тап по сукну закрыл тултип руки", !(await tip(A)), null);
+await B.waitForTimeout(300);
+const seatA = (await spots(B)).seats.find((x) => x.who === "A");
+await tap(B, seatA.x, seatA.y);
+await B.waitForSelector(`[data-card][data-owner="${seatA.key}"]`);
+const wc = await cardEl(B, `[data-card][data-owner="${seatA.key}"]`);
+await tap(B, wc.x, wc.y);
+t = await tip(B);
+check("тап по карте в окне чужого стула — её тултип", t && t.id === wc.id && t.side === "up", t);
+check("чужая скрытая — без названия, но двигал A", t && /Рубашкой вверх/.test(t.text) && /двигал A/.test(t.text), t);
+check("окно стула осталось открытым", (await B.locator(`[data-tip="${seatA.key}"]`).count()) === 1, null);
+
 const bad = checks.filter((c) => !c.ok);
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));
 console.log(`tableCardTip ${checks.length - bad.length}/${checks.length}`);
