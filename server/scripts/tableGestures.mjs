@@ -50,6 +50,23 @@ const prevented = await page.evaluate(() => {
 });
 check("touchmove страницы отменён, прокрутки нет", prevented, prevented);
 
+// КАРТА ИЗ РУКИ ТЯНЕТСЯ ПАЛЬЦЕМ — и каждый touchmove отменён, даже когда рука под пальцем перерисована и
+// карта оторвана от документа (иначе Mini App уезжает вниз). Счётчик сидит на самом элементе касания.
+await page.evaluate(() => {
+  window.__moves = { all: 0, kept: 0 };
+  // Слушатель — на самой карте, которая сейчас оторвётся: до документа её касания не дойдут.
+  document.querySelector("[data-card]").addEventListener("touchmove", (m) => {
+    window.__moves.all += 1;
+    if (m.defaultPrevented) window.__moves.kept += 1;
+  });
+});
+{
+  const hand = await page.locator("[data-card]").first().boundingBox();
+  await gesture([[hand.x + hand.width / 2, hand.y + hand.height / 2]], [[hand.x + hand.width / 2, hand.y - 200]], 10);
+}
+const moves = await page.evaluate(() => window.__moves);
+check("карта из руки: страница не тянется — все touchmove отменены, и у оторванной карты тоже", moves.all > 0 && moves.all === moves.kept, moves);
+
 // Карта из руки на наклонённый стол: палец на карту — камера стоит, карта едет.
 const cam = await view();
 const card = await page.locator("[data-card]").first().boundingBox();
@@ -57,7 +74,7 @@ await gesture([[card.x + card.width / 2, card.y + card.height / 2]], [[195, 300]
 const after = await view();
 const onFelt = await page.evaluate(() => document.querySelectorAll("[data-card]").length);
 check("карта из руки на сукно — камера не сдвинулась", after.join() === cam.join(), after);
-check("в руке стало на одну меньше", onFelt === 6, onFelt);
+check("в руке стало на одну меньше", onFelt === 5, onFelt);
 
 await page.screenshot({ path: process.argv[3] ?? "gestures.png" });
 await browser.close();

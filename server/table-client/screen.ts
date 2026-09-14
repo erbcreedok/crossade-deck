@@ -1028,7 +1028,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     draw();
   }
 
+  /**
+   * СВАЙП ВНИЗ НЕ ЗАКРЫВАЕТ MINI APP, И КОГДА ТЯНУТ КАРТУ ИЗ РУКИ ИЛИ ОКНА. Нажатие перерисовывает `over`, и
+   * элемент под пальцем отрывается от документа ещё до первого касания: все касания дальше приходят в
+   * оторванное поддерево и до слушателя документа (`main.ts`) не всплывают. Поэтому отмена висит на
+   * каждом верхнем элементе разметки — оторванный уносит её с собой.
+   */
+  const keepPage = (e: Event) => e.preventDefault();
+
   function wire() {
+    for (const el of over.children) {
+      el.addEventListener("touchmove", keepPage, { passive: false });
+    }
     for (const el of over.querySelectorAll<HTMLElement>("[data-bar]")) {
       el.onclick = (e) => {
         e.stopPropagation();
