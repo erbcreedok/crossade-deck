@@ -45,6 +45,9 @@ export const findEntry = (room: string): RoomCard | undefined => {
 
 export const titleOf = (room: string): string => rooms.get(room)?.title ?? DEFAULT_TITLE;
 
+/** Кто открыл комнату — ключ человека (`tg:<id>`). Он админ стола. Комната, открытая входом, — ничья. */
+export const creatorOf = (room: string): string | null => rooms.get(room)?.by || null;
+
 export function roomsAt(home: Home): RoomCard[] {
   return [...rooms.values()]
     .filter((e) => (home.kind === "chat" ? e.home.kind === "chat" && e.home.chat === home.chat : e.home.kind === "inline" && e.home.message === home.message))

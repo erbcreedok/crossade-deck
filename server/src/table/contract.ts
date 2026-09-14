@@ -31,6 +31,8 @@ export interface Person {
   ink: string;
   door: Door;
   photo?: string;
+  /** На каком стуле сидит. Сидят всегда: пришедший садится на свой стул или на новый. */
+  seat?: string;
 }
 
 export type Suit = "s" | "h" | "d" | "c";
@@ -40,12 +42,13 @@ export interface Face {
 }
 
 /**
- * ГДЕ ЛЕЖИТ ВЕЩЬ. Колода — стопка (берётся только верхняя), рука — ряд со своим порядком, сукно —
- * точки в единицах стола (ширина карты), и порядок в нём — это порядок «кто сверху».
+ * ГДЕ ЛЕЖИТ ВЕЩЬ. Колода — стопка (берётся только верхняя), рука — ряд со своим порядком, и принадлежит
+ * она СТУЛУ, а не человеку: человек ушёл — стул с картами остался. Сукно — точки в единицах стола
+ * (ширина карты), и порядок в нём — это порядок «кто сверху».
  */
 export type Where =
   | { in: "deck" }
-  | { in: "hand"; who: string; i: number }
+  | { in: "hand"; chair: string; i: number }
   | { in: "felt"; x: number; y: number; up: boolean };
 
 /** Карта, какой её видит конкретный зритель: `face` есть, только если ему её видно. */
@@ -60,15 +63,57 @@ export interface FeltCard extends SeenCard {
   up: boolean;
 }
 
+/**
+ * ФЛАГИ СТУЛА — права, которые висят на месте, а не на человеке.
+ *
+ *   pin     другие не двигают стул
+ *   lock    другие не берут карты из его руки и не кладут в неё
+ *   hide    другие видят его руку рубашкой (хозяин свою — всегда как держит); по умолчанию включён
+ *   forever стул не удаляется правилом `dropEmptyChairs`, даже пустой и без карт
+ *
+ * «Другие» — все, кроме того, кто сидит. Флаг запрещает и админу: он может снять флаг, но пока флаг
+ * стоит, действует и на него.
+ */
+export interface ChairFlags {
+  pin: boolean;
+  lock: boolean;
+  hide: boolean;
+  forever: boolean;
+}
+export type ChairFlag = keyof ChairFlags;
+export const CHAIR_FLAGS: readonly ChairFlag[] = ["pin", "lock", "hide", "forever"];
+
+export interface Chair extends ChairFlags {
+  id: string;
+  /** Место за столом — угол в градусах от своей стороны (шесть часов), по часовой. */
+  angle: number;
+  /** Кто сидит. `null` — стул покинут. */
+  owner: string | null;
+  hand: SeenCard[];
+}
+
+/**
+ * ПРАВИЛА СТОЛА — то, что можно менять на лету, посреди игры. Пока их никто не переключает, но это
+ * данные, а не код: новое правило — новое поле здесь и ветка там, где оно действует.
+ */
+export interface TableRules {
+  /** Покинутый стул без карт и не вечный — удаляется. */
+  dropEmptyChairs: boolean;
+}
+export const DEFAULT_RULES: TableRules = { dropEmptyChairs: true };
+
 /** Всё, что зритель знает о столе. Сервер собирает его для каждого отдельно (`Table.seenBy`). */
 export interface Snapshot {
   v: number;
   people: Person[];
+  chairs: Chair[];
   deck: SeenCard[];
   felt: FeltCard[];
-  hands: Record<string, SeenCard[]>;
   /** Кто что держит: id вещи → key человека. */
   locks: Record<string, string>;
+  rules: TableRules;
+  /** Кто админ — создатель комнаты, пока он за столом. `null` — его нет. */
+  admin: string | null;
 }
 
 // ── ОТ КЛИЕНТА К СЕРВЕРУ: намерения. Сервер решает, случились ли они. ───────────────────────────
@@ -82,21 +127,33 @@ export type Intent =
   | { t: "drop"; id: string; to: Where }
   /** Отпустить, не перекладывая. */
   | { t: "release"; id: string }
-  /** Перевернуть порядок своей руки. */
+  /** Перевернуть порядок руки своего стула. */
   | { t: "flip" }
+  /** Сесть на покинутый стул. */
+  | { t: "sit"; chair: string }
+  /** Поставить или снять флаг стула. */
+  | { t: "flag"; chair: string; flag: ChairFlag; on: boolean }
+  /** Поменять правило стола — только админ. */
+  | { t: "rules"; rules: Partial<TableRules> }
   /** Разошлись версии — пришли мне стол целиком. */
   | { t: "sync" };
 
 // ── ОТ СЕРВЕРА К КЛИЕНТАМ: дифы. Каждый уже отредактирован под того, кому летит. ───────────────
 
 export type Op =
-  | { t: "join"; person: Person; hand: SeenCard[] }
+  | { t: "join"; person: Person }
   | { t: "leave"; key: string }
+  /** Стул появился или изменился — целиком, с рукой, какой её видно зрителю. */
+  | { t: "chair"; chair: Chair }
+  /** Стул убран. Карты, если были, легли закрытой стопкой на его место (`felt`). */
+  | { t: "unchair"; id: string; felt: FeltCard[] }
   | { t: "lock"; id: string; by: string }
   | { t: "unlock"; id: string }
   /** Вещь переехала. `card.face` есть, только если на новом месте зрителю её видно. */
   | { t: "move"; card: SeenCard; from: Where; to: Where }
-  | { t: "order"; who: string; ids: string[] };
+  | { t: "order"; chair: string; ids: string[] }
+  | { t: "rules"; rules: TableRules }
+  | { t: "admin"; key: string | null };
 
 export interface Patch {
   v: number;
@@ -104,7 +161,7 @@ export interface Patch {
 }
 
 /** Почему намерение не случилось — клиент откатывает у себя то, что успел показать. */
-export type Refusal = "locked" | "not-held" | "not-top" | "gone" | "bad";
+export type Refusal = "locked" | "not-held" | "not-top" | "gone" | "bad" | "chair-locked" | "not-yours" | "taken";
 export interface Refused {
   intent: Intent;
   why: Refusal;

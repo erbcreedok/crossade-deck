@@ -58,7 +58,7 @@ describe("TableRoom", () => {
     b.client.send(MSG.intent, { t: "grab", id: top });
     expect((await refused).why).toBe("locked");
 
-    a.client.send(MSG.intent, { t: "drop", id: top, to: { in: "hand", who: a.welcome.you.key, i: 0 } });
+    a.client.send(MSG.intent, { t: "drop", id: top, to: { in: "hand", chair: a.welcome.you.seat, i: 0 } });
     await new Promise((r) => setTimeout(r, 80));
 
     // b сложил у себя всё, что пришло после его welcome, — и это ровно то, что сервер отдаст ему целиком.
@@ -67,6 +67,6 @@ describe("TableRoom", () => {
     const fresh = next<Welcome>(b.client, MSG.welcome);
     b.client.send(MSG.intent, { t: "sync" });
     expect(mine).toEqual((await fresh).snapshot);
-    expect(mine.hands[a.welcome.you.key]).toEqual([{ id: top }]);
+    expect(mine.chairs.find((c) => c.id === a.welcome.you.seat)!.hand).toEqual([{ id: top }]);
   });
 });
