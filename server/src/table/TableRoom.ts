@@ -9,7 +9,9 @@
 import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
 import { tableConfig } from "./config.js";
-import { MSG, type CarryOut, type Intent, type JoinOptions, type Op, type Person, type Welcome } from "./contract.js";
+import { BOT_KEY, botPerson } from "./botPerson.js";
+import { MSG, type CarryOut, type Intent, type JoinOptions, type Op, type Person, type RunResult, type TableCommand, type Welcome } from "./contract.js";
+import { execute, plan } from "./script.js";
 import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
 import { attach, creatorOf, openEntry, titleOf } from "./lobby.js";
@@ -41,7 +43,7 @@ export class TableRoom extends Room {
     openEntry(this.room, { kind: "inline", message: "" }, "");
     // АДМИН — ТОТ, КТО ОТКРЫЛ КОМНАТУ В БОТЕ. Спрашивается при открытии: запись к этому моменту есть.
     this.table = new Table(deal(), creatorOf(this.room));
-    attach(this.room, { people: () => this.table.here, close: () => void this.disconnect() });
+    attach(this.room, { people: () => this.table.here.filter((p) => !p.bot), close: () => void this.disconnect(), run: (by, command) => this.run(by, command) });
 
     this.onMessage(MSG.hello, (client) => {
       const me = this.personOf(client.sessionId);
@@ -75,6 +77,37 @@ export class TableRoom extends Room {
     });
 
     this.clock.setInterval(() => this.spread(this.table.sweep(Date.now())), 1000);
+  }
+
+  /**
+   * КОМАНДА АДМИНА ИЗ БОТА. Проверка и план — сразу, ответ боту — сразу; ходы идут потом, с паузами, и
+   * их видят все сидящие. Бот садится за стол, когда впервые понадобился, и дальше сидит без стула.
+   */
+  async run(by: string, command: TableCommand): Promise<RunResult> {
+    if (by !== creatorOf(this.room)) return { error: "not-admin" };
+    if (this.table.busy) return { error: "busy" };
+    const bot = await botPerson(tableConfig().botToken);
+    if (!this.table.here.some((p) => p.key === BOT_KEY)) {
+      this.spread(this.table.joinBot({ ...bot, ink: this.freeInk() }));
+    }
+    const people = this.table.here.map((p) => ({ key: p.key, name: p.name, username: p.username, seat: p.seat }));
+    const p = plan(this.table, command, people, by);
+    if ("error" in p) return p;
+    const actor = p.actor === "bot" ? BOT_KEY : p.actor;
+    void execute(this.table, p.steps, actor, {
+      spread: (ops) => this.spread(ops),
+      carry: (id) => {
+        for (const other of this.clients) {
+          const key = this.seats.get(other.sessionId);
+          if (key === undefined) continue;
+          const [seen] = this.table.carriesSeenBy(key, id);
+          if (seen) other.send(MSG.carry, seen);
+        }
+      },
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      now: () => Date.now(),
+    });
+    return { ok: true };
   }
 
   onAuth(client: Client, options: Partial<JoinOptions>): Who {

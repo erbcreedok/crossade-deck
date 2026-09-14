@@ -4,6 +4,8 @@ import { TEST_PORTS, useTestServer } from "../roomHarness.js";
 import { MSG, TABLE_ROOM, type Carry, type Patch, type Refused, type Welcome } from "./contract.js";
 import { mintRoom } from "./roomIds.js";
 import { applyPatch } from "./patch.js";
+import { openEntry, runIn } from "./lobby.js";
+import { BOT_KEY } from "./botPerson.js";
 
 const SECRET = "table-secret";
 const BOT = "bot-token";
@@ -79,5 +81,27 @@ describe("TableRoom", () => {
     expect(echoed).toBe(false);
 
     expect(mine.chairs.find((c) => c.id === a.welcome.you.seat)!.hand).toEqual([{ id: top }]);
+  });
+
+  it("команда админа: чужому — отказ; админу — бот садится без стула и раздаёт по часовой, курсор видят все", async () => {
+    const room = mintRoom(SECRET);
+    openEntry(room, { kind: "chat", chat: "-1" }, "tg:7");
+    expect(await runIn(room, "tg:7", { t: "collect" })).toEqual({ error: "empty" });
+    const a = await sit(room, { door: "telegram", initData: initData(7, "Админ") });
+    const b = await sit(room, { door: "guest", name: "B" });
+    expect(await runIn(room, "tg:8", { t: "deal", rule: "each", n: 2 })).toEqual({ error: "not-admin" });
+    const carries: Carry[] = [];
+    a.client.onMessage(MSG.carry, (c: Carry) => carries.push(c));
+    expect(await runIn(room, "tg:7", { t: "deal", rule: "each", n: 2 })).toEqual({ ok: true });
+    expect(await runIn(room, "tg:7", { t: "shuffle" })).toEqual({ error: "busy" });
+    await new Promise((r) => setTimeout(r, 4 * 150 + 400));
+    let mine = b.welcome.snapshot;
+    for (const p of b.patches.filter((p) => p.v > mine.v)) mine = applyPatch(mine, p);
+    expect(mine.people.find((p) => p.key === BOT_KEY)).toMatchObject({ bot: true });
+    expect(mine.people.find((p) => p.key === BOT_KEY)!.seat).toBeUndefined();
+    expect(mine.chairs.map((c) => c.hand.length)).toEqual([2, 2]);
+    expect(carries.length).toBeGreaterThanOrEqual(4);
+    expect(carries[0]).toMatchObject({ by: BOT_KEY, auto: true });
+    expect(await runIn(room, "tg:7", { t: "deal", rule: "each", n: 2 })).toEqual({ error: "needs-collect" });
   });
 });

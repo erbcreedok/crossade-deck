@@ -7,7 +7,7 @@
 // Одна запись — одна комната: где она живёт в Telegram, как называется и — пока в ней кто-то
 // был — сама комната Colyseus, чтобы закрыть её отсюда.
 
-import type { Home, Person, RoomCard } from "./contract.js";
+import type { Home, Person, RoomCard, RunResult, TableCommand } from "./contract.js";
 
 interface Entry {
   room: string;
@@ -15,7 +15,7 @@ interface Entry {
   home: Home;
   by: string;
   createdAt: number;
-  live?: { people: () => Person[]; close: () => void };
+  live?: { people: () => Person[]; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult> };
 }
 
 const rooms = new Map<string, Entry>();
@@ -81,6 +81,14 @@ export function closeEntry(room: string): boolean {
 export function attach(room: string, live: Entry["live"]): void {
   const e = rooms.get(room);
   if (e) e.live = live;
+}
+
+/** Команду — живой комнате. Комнаты нет (стол ещё никто не открывал) — `empty`, записи нет — `undefined`. */
+export async function runIn(room: string, by: string, command: TableCommand): Promise<RunResult | undefined> {
+  const e = rooms.get(room);
+  if (!e) return undefined;
+  if (!e.live?.run) return { error: "empty" };
+  return e.live.run(by, command);
 }
 
 export function forgetAll(): void {

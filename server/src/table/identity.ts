@@ -24,7 +24,7 @@ export function whoIs(options: Partial<JoinOptions>, session: string, doors: Doo
     const user = verifyTelegramInitData(options.initData, doors.botToken, now);
     if (!user) return null;
     const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username || `#${user.id}`;
-    return { key: `tg:${user.id}`, name, door: "telegram", ...(user.photo_url ? { photo: user.photo_url } : {}) };
+    return { key: `tg:${user.id}`, name, door: "telegram", ...(user.username ? { username: user.username } : {}), ...(user.photo_url ? { photo: user.photo_url } : {}) };
   }
   if (options.door === "guest" && doors.guests) {
     const name = typeof options.name === "string" && options.name.trim() ? options.name.trim().slice(0, 24) : "Гость";

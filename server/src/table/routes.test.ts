@@ -97,3 +97,15 @@ describe("реле и маяк", () => {
     expect(relayStatus()).toMatchObject({ up: true, url: "https://mac.example", boot: BOOT });
   });
 });
+
+describe("/table/rooms/:room/run — команда админа", () => {
+  it("нет комнаты — 404; кривая команда — 400; стол ещё никто не открыл — empty", async () => {
+    const run = (room: string, json: unknown) => call(`/table/rooms/${room}/run`, { method: "POST", json });
+    expect((await run("nope", { by: "tg:1", command: { t: "collect" } })).status).toBe(404);
+    const one = await (await call("/table/rooms", { method: "POST", json: { home: { kind: "chat", chat: "-1" }, by: "tg:1" } })).json();
+    expect((await run(one.room, { by: "tg:1", command: { t: "deal", rule: "poker" } })).status).toBe(400);
+    expect((await run(one.room, { command: { t: "collect" } })).status).toBe(400);
+    expect(await (await run(one.room, { by: "tg:1", command: { t: "collect" } })).json()).toEqual({ error: "empty" });
+    expect((await call(`/table/rooms/${one.room}/run`, { method: "POST", json: { by: "tg:1", command: { t: "collect" } }, secret: null })).status).toBe(401);
+  });
+});

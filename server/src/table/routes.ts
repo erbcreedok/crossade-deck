@@ -10,8 +10,8 @@
 import { randomBytes, timingSafeEqual } from "crypto";
 import express, { type Router } from "express";
 import { tableConfig } from "./config.js";
-import { BEACON_EVERY_MS, BEACON_TTL_MS, SECRET_HEADER, type Beacon, type Home, type OpenRoom, type RelayStatus } from "./contract.js";
-import { closeEntry, findEntry, openEntry, rehome, rename, roomsAt } from "./lobby.js";
+import { BEACON_EVERY_MS, BEACON_TTL_MS, SECRET_HEADER, type Beacon, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
+import { closeEntry, findEntry, openEntry, rehome, rename, roomsAt, runIn } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 
 /** Этот запуск. Новый процесс — новый `boot`: по нему бот понимает, что прежних столов нет. */
@@ -33,6 +33,33 @@ function readHome(raw: unknown): Home | null {
   const home = raw as Partial<Home> | undefined;
   if (home?.kind === "chat" && typeof home.chat === "string" && home.chat) return { kind: "chat", chat: home.chat };
   if (home?.kind === "inline" && typeof home.message === "string") return { kind: "inline", message: home.message };
+  return null;
+}
+
+/** Команда из сети — только известные поля известных видов. */
+export function readCommand(raw: unknown): TableCommand | null {
+  const c = raw as Record<string, unknown> | undefined;
+  if (!c || typeof c.t !== "string") return null;
+  if (c.t === "collect" || c.t === "shuffle") return { t: c.t };
+  const game = (g: unknown) => (g === "durak" || g === "krest" || g === "belka" ? g : null);
+  if (c.t === "preset") {
+    const g = game(c.game);
+    if (!g) return null;
+    return { t: "preset", game: g, ...(c.size === 52 || c.size === 36 ? { size: c.size } : {}), ...(c.jokers === true ? { jokers: true } : {}) };
+  }
+  if (c.t === "deal") {
+    const rule = c.rule === "each" ? "each" : game(c.rule);
+    if (!rule) return null;
+    return {
+      t: "deal",
+      rule,
+      ...(Number.isInteger(c.n) && (c.n as number) > 0 && (c.n as number) <= 54 ? { n: c.n as number } : {}),
+      ...(typeof c.dealer === "string" && c.dealer ? { dealer: c.dealer.slice(0, 64) } : {}),
+      ...(c.skipEmpty === true ? { skipEmpty: true } : {}),
+      ...(c.asDealer === true ? { asDealer: true } : {}),
+      ...(c.force === true ? { force: true } : {}),
+    };
+  }
   return null;
 }
 
@@ -70,6 +97,16 @@ export function tableRoutes(): Router {
     let out = findEntry(req.params.room);
     if (home) out = rehome(req.params.room, home);
     if (typeof body.title === "string") out = rename(req.params.room, body.title);
+    if (!out) return void res.status(404).json({ error: "not_found" });
+    res.json(out);
+  });
+
+  // КОМАНДА АДМИНА. Ответ — сразу после проверки; ходы идут в комнате дальше, с паузами.
+  r.post("/table/rooms/:room/run", guarded, async (req, res) => {
+    const body = (req.body ?? {}) as Partial<RunCommand>;
+    const command = readCommand(body.command);
+    if (typeof body.by !== "string" || !command) return void res.status(400).json({ error: "bad_request" });
+    const out = await runIn(req.params.room, body.by, command);
     if (!out) return void res.status(404).json({ error: "not_found" });
     res.json(out);
   });
