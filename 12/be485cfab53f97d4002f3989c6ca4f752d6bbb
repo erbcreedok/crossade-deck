@@ -1,0 +1,21 @@
+server/scripts/tableGestures.mjs
+  s_9ed0da107cbc4a::t_cd0b52faa3c772 53-69,77
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_86eb0d13bad5d7 1031-1038,1040-1042
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "12be485cfab53f97d4002f3989c6ca4f752d6bbb",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
