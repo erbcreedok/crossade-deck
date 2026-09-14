@@ -1,0 +1,92 @@
+import type { AddressInfo } from "net";
+import express from "express";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { BEACON_TTL_MS, SECRET_HEADER } from "./contract.js";
+import { forgetAll } from "./lobby.js";
+import { roomIsSigned } from "./roomIds.js";
+import { BOOT, forgetBeacon, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
+
+process.env.TABLE_SECRET = "s3cret";
+
+let base = "";
+let close = () => {};
+
+beforeAll(async () => {
+  const app = express();
+  app.use(express.json());
+  app.use(tableRoutes(), relayRoutes());
+  const server = app.listen(0);
+  await new Promise((r) => server.once("listening", r));
+  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  close = () => server.close();
+});
+afterAll(() => close());
+beforeEach(() => {
+  forgetAll();
+  forgetBeacon();
+});
+
+const call = (path: string, init: RequestInit & { json?: unknown; secret?: string | null } = {}) =>
+  fetch(`${base}${path}`, {
+    redirect: "manual",
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      ...(init.secret === null ? {} : { [SECRET_HEADER]: init.secret ?? "s3cret" }),
+    },
+    ...(init.json !== undefined ? { body: JSON.stringify(init.json) } : {}),
+  });
+
+describe("/table/rooms — бот управляет столами", () => {
+  it("без секрета — 401", async () => {
+    expect((await call("/table/rooms?chat=1", { secret: null })).status).toBe(401);
+    expect((await call("/table/rooms?chat=1", { secret: "wrong" })).status).toBe(401);
+  });
+
+  it("много комнат на чат: открыть, перечислить, переименовать, закрыть", async () => {
+    const one = await (await call("/table/rooms", { method: "POST", json: { home: { kind: "chat", chat: "-100" }, by: "tg:1", title: "Дурак" } })).json();
+    await call("/table/rooms", { method: "POST", json: { home: { kind: "chat", chat: "-100" }, by: "tg:1" } });
+    await call("/table/rooms", { method: "POST", json: { home: { kind: "chat", chat: "-200" }, by: "tg:1" } });
+    expect(roomIsSigned(one.room, "s3cret")).toBe(true);
+
+    const listed = await (await call("/table/rooms?chat=-100")).json();
+    expect(listed.map((r: { title: string }) => r.title)).toEqual(["Дурак", "Стол"]);
+
+    const renamed = await (await call(`/table/rooms/${one.room}`, { method: "PATCH", json: { title: "Покер" } })).json();
+    expect(renamed.title).toBe("Покер");
+
+    expect((await call(`/table/rooms/${one.room}`, { method: "DELETE" })).status).toBe(200);
+    expect((await call(`/table/rooms/${one.room}`)).status).toBe(404);
+    expect(await (await call("/table/rooms?chat=-100")).json()).toHaveLength(1);
+  });
+
+  it("health отдаёт boot без секрета", async () => {
+    expect(await (await call("/table/health", { secret: null })).json()).toEqual({ boot: BOOT });
+  });
+});
+
+describe("реле и маяк", () => {
+  it("пока маяка нет, /t/ отвечает «недоступно», с маяком — переадресует туда, где мак", async () => {
+    expect((await call("/t/?x=1", { secret: null })).status).toBe(503);
+    await call("/relay/table", { method: "POST", json: { url: "https://mac.example/", boot: "b1" } });
+    const hop = await call("/t/?tgWebAppStartParam=abc", { secret: null });
+    expect(hop.status).toBe(302);
+    expect(hop.headers.get("location")).toBe("https://mac.example/table/?tgWebAppStartParam=abc");
+  });
+
+  it("маяк без секрета не принимается; замолчавший маяк — стол «не жив»", async () => {
+    expect((await call("/relay/table", { method: "POST", secret: null, json: { url: "https://x", boot: "b" } })).status).toBe(401);
+    await call("/relay/table", { method: "POST", json: { url: "https://mac.example", boot: "b2" } });
+    expect(relayStatus().up).toBe(true);
+    expect(relayStatus(Date.now() + BEACON_TTL_MS + 1).up).toBe(false);
+  });
+
+  it("маяк мака шлёт свой адрес и boot", async () => {
+    process.env.TABLE_PUBLIC_URL = "https://mac.example";
+    process.env.TABLE_RELAY_URL = base;
+    const stop = startBeacon();
+    await new Promise((r) => setTimeout(r, 100));
+    stop();
+    expect(relayStatus()).toMatchObject({ up: true, url: "https://mac.example", boot: BOOT });
+  });
+});

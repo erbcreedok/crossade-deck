@@ -8,6 +8,10 @@ import { CardRoom } from "./CardRoom.js";
 import { TestRoom } from "./TestRoom.js";
 import { SandboxRoom } from "./SandboxRoom.js";
 import { KitRoom } from "./KitRoom.js";
+import { TableRoom } from "./table/TableRoom.js";
+import { TABLE_ROOM } from "./table/contract.js";
+import { relayRoutes, tableRoutes } from "./table/routes.js";
+import { clientRoutes } from "./table/client.js";
 import {
   accountByTelegram,
   createAccount,
@@ -180,6 +184,10 @@ export function createApp() {
   // Песочница-live: отдельная комната-ретранслятор (снимки борды + присутствие), вход без токена.
   gameServer.define("sandbox_room", SandboxRoom);
   gameServer.define("kit_room", KitRoom);
+  // СТОЛ ДЛЯ TELEGRAM — отдельный клиент со своим контрактом (`table/contract.ts`). Одна подписанная
+  // комната — одна сессия: `filterBy` сводит всех, кто пришёл с тем же id, в неё.
+  gameServer.define(TABLE_ROOM, TableRoom).filterBy(["room"]);
+  app.use(tableRoutes(), relayRoutes(), clientRoutes());
 
   // СТОЛ ОТКРЫВАЕТСЯ ЗАПИСЬЮ, А НЕ ПРОЦЕССОМ. Сначала заводится комната (её код, её правила, её
   // хозяин), и только потом под неё поднимается сессия Colyseus, в которую клиент входит сам.

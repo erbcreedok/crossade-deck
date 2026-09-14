@@ -5,6 +5,7 @@ export interface TelegramUser {
   first_name?: string;
   last_name?: string;
   username?: string;
+  photo_url?: string;
 }
 
 // Telegram Mini Apps: подпись initData не старше суток защищает от replay старой ссылки.
@@ -42,7 +43,7 @@ export function verifyTelegramInitData(initData: string, botToken: string, now =
   try {
     const user = JSON.parse(userRaw);
     if (typeof user?.id !== "number") return null;
-    return { id: user.id, first_name: user.first_name, last_name: user.last_name, username: user.username };
+    return { id: user.id, first_name: user.first_name, last_name: user.last_name, username: user.username, photo_url: user.photo_url };
   } catch {
     return null;
   }

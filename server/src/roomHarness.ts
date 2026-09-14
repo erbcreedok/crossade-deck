@@ -6,6 +6,8 @@ import { CardRoom } from "./CardRoom.js";
 import { TestRoom } from "./TestRoom.js";
 import { SandboxRoom } from "./SandboxRoom.js";
 import { KitRoom } from "./KitRoom.js";
+import { TableRoom } from "./table/TableRoom.js";
+import { TABLE_ROOM } from "./table/contract.js";
 
 // Общая обвязка тестов комнаты: поднять сервер, поделить его на все случаи одного файла,
 // прибрать между тестами. Вынесено из CardRoom.test.ts, который вырос до тысячи строк и
@@ -36,6 +38,8 @@ export const TEST_PORTS = {
   kitCounts: 2672,
   kitDeeds: 2673,
   kitRoom: 2674,
+  table: 2675,
+  tableRoutes: 2676,
 } as const;
 
 export function createGameServer() {
@@ -44,6 +48,7 @@ export function createGameServer() {
   server.define("test_room", TestRoom);
   server.define("sandbox_room", SandboxRoom);
   server.define("kit_room", KitRoom);
+  server.define(TABLE_ROOM, TableRoom).filterBy(["room"]);
   return server;
 }
 
