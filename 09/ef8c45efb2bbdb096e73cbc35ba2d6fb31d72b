@@ -1,0 +1,27 @@
+server/scripts/tableChairs.mjs
+  s_9ed0da107cbc4a::t_a211e37802c68f 1-120
+server/scripts/tableTips.mjs
+  s_9ed0da107cbc4a::t_db4f74ce8d5310 71-73,105,109,111,113,117,121
+server/table-client/felt.ts
+  s_9ed0da107cbc4a::t_6276d09ad8780e 9,17,20-23,249,305-321,418-419,424-426,439-443
+server/table-client/localStore.ts
+  s_9ed0da107cbc4a::t_016f03a60c4039 24-25,33,38,44-45
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_9ce5e2c61bf13b 8,30-31,39,82,134-135,138-149,158-160,221,360-364,367-368,372,374,380,393,405-407,410,418-419,424,429-452,454-463,465-466,468-469,471-472,493-508,524-527,529,537-539,561-562,570,574,626-627,631,666,671,683-687,691-709,755,775
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "09ef8c45efb2bbdb096e73cbc35ba2d6fb31d72b",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
