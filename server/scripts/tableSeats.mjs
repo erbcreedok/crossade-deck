@@ -109,7 +109,7 @@ const firstFelt = (await spots(A)).felt[0];
 const mm = (await spots(A)).middle;
 await put(firstFelt.x - mm.x, firstFelt.y - mm.y);
 const pair = (await spots(A)).felt;
-check("карта на карте поднята уже сверху; нижняя — нет", pair.length === 2 && pair[0].rise === 0 && pair[1].rise > 0.8, pair);
+check("карта на карте сверху лежит без зазора", pair.length === 2 && pair[0].rise === 0 && pair[1].rise === 0, pair);
 await A.keyboard.down("Control");
 await A.mouse.move(195, 300);
 await A.mouse.down();
@@ -118,7 +118,32 @@ await A.mouse.up();
 await A.keyboard.up("Control");
 await A.waitForTimeout(200);
 const pairT = (await spots(A)).felt;
-check("при наклоне поднята выше, чем сверху", pairT[1].rise > pair[1].rise * 2, [pair[1].rise, pairT[1].rise, await view(A)]);
+check("при наклоне поднята, но не больше толщины карты", pairT[1].rise > 0 && pairT[1].rise <= 1, [pairT, await view(A)]);
+
+// ── 5б. Прокрутил камеру за полоборота — своя карта, поднятая и положенная, не летит и не крутится ──
+await A.locator("[data-home]").dispatchEvent("pointerdown");
+await A.waitForTimeout(900);
+for (let k = 0; k < 2; k += 1) {
+  await A.keyboard.down("Control");
+  await A.mouse.move(20, 250);
+  await A.mouse.down();
+  await A.mouse.move(370, 250, { steps: 10 });
+  await A.mouse.up();
+  await A.keyboard.up("Control");
+}
+await A.waitForTimeout(300);
+const spunView = await view(A);
+await A.evaluate(() => {
+  window.__own = 0;
+  new MutationObserver((l) => l.forEach((x) => x.addedNodes.forEach((n) => n.dataset?.flight && (window.__own += 1)))).observe(document.body, { childList: true, subtree: true });
+});
+const top2 = (await spots(A)).felt.at(-1);
+await A.mouse.move(top2.x, top2.y);
+await A.mouse.down();
+await A.mouse.move(top2.x + 30, top2.y + 20, { steps: 6 });
+await A.mouse.up();
+await A.waitForTimeout(800);
+check("камера прокручена за полоборота — своя положенная карта не летит", Math.abs(spunView[3] - (await spots(A)).seatAngle) > 180 && (await A.evaluate(() => window.__own)) === 0, [spunView, await A.evaluate(() => window.__own)]);
 
 // ── 6. Пересел — камера доворачивается плавно, и новый стул внизу ────────────────────────────────
 const C = await open("C");

@@ -408,7 +408,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const line = Math.max(1.5, w * 0.04);
     return `<div data-g="mark" style="position:absolute;width:${w}px;height:${h}px;left:${x - w / 2}px;top:${y - h / 2}px;`
       // Сжатие — СНАРУЖИ поворота, как у камеры: наклон давит вертикаль стекла, а не стола.
-      + `transform:scale(1,${squash}) rotate(${angle}deg);z-index:${z};pointer-events:none;border-radius:${w * 0.12}px;border:${line}px dashed ${ink};opacity:.9;`
+      + `transform:scale(1,${squash}) rotate(${+angle.toFixed(3)}deg);z-index:${z};pointer-events:none;border-radius:${w * 0.12}px;border:${line}px dashed ${ink};opacity:.9;`
       + `box-shadow:0 0 0 ${Math.max(1, line * 0.6)}px ${T.black}, inset 0 0 0 ${Math.max(1, line * 0.6)}px ${T.black};`
       + `"></div>`;
   }
@@ -557,7 +557,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
    * ложится так же: против поворота камеры. Смотришь на стол боком — карта ляжет боком к столу и ровно
    * к тебе.
    */
-  const dropAngle = () => -(view?.rotation ?? 0);
+  // ПРИВЕДЁН К (-180, 180], КАК НА СЕРВЕРЕ: камера, прокрученная за полоборота, иначе ждала бы угол
+  // -540, сервер вернул бы 180, и совпавшее место прочиталось бы переездом — с перелётом через оборот.
+  const dropAngle = () => {
+    const d = ((((-(view?.rotation ?? 0) + 180) % 360) + 360) % 360) - 180;
+    return d === -180 ? 180 : d;
+  };
 
   /**
    * СТУЛ ПОД ПАЛЬЦЕМ — его граница на столе: круг, до которого достаёт арка (`SEAT_REACH`). Аватар —
@@ -866,6 +871,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   }
 
   function launch(id: string, from: Place, to: Place): void {
+    // ПОВОРОТ КОРОТКИМ ПУТЁМ: 170° и -190° — одна поза, и лететь между ними нечего крутить.
+    from = { ...from, angle: to.angle + (((((from.angle - to.angle) % 360) + 540) % 360) - 180) };
     air.querySelector(`[data-flight="${id}"]`)?.remove();
     flying.add(id);
     const el = document.createElement("div");
