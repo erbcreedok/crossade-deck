@@ -64,12 +64,16 @@ export class Table {
   private seq = 0;
   private faces = new Map<string, Face>();
   private deck: string[] = [];
-  private felt: { id: string; x: number; y: number; up: boolean; angle: number }[] = [];
+  private felt: { id: string; x: number; y: number; up: boolean; angle: number; under?: boolean }[] = [];
+  /** Сколько раз перемешали колоду (`Snapshot.shuffles`). */
+  private shuffles = 0;
+  /** Идёт команда бота: руки людей до конца неё стол не трогают (`busy`). */
+  private scripted = false;
   private chairs = new Map<string, ChairRow>();
   private people = new Map<string, Person>();
   private locks = new Map<string, Lock>();
   /** Последнее «над чем карта», пока её держат. Живёт не дольше блокировки (`carriesSeenBy`). */
-  private carries = new Map<string, { by: string; over: Where }>();
+  private carries = new Map<string, { by: string; over: Where; auto?: true }>();
   private rules: TableRules = { ...DEFAULT_RULES };
   private trails = new Map<string, Trail>();
   /** Имена всех, кто когда-либо садился: след подписывает и ушедшего. */
@@ -118,6 +122,16 @@ export class Table {
     return this.commit(ops);
   }
 
+  /** Бот стола садится за стол без стула: он только ходит по командам. */
+  joinBot(person: Person): Op[] {
+    if (this.people.has(person.key)) return [];
+    const bot = { ...person, bot: true as const };
+    delete (bot as Person).seat;
+    this.people.set(person.key, bot);
+    this.names.set(person.key, person.name);
+    return this.commit([{ t: "join", person: bot }]);
+  }
+
   /** Уйти. Всё, что держал, отпускается; стул остаётся покинутым — или уходит по правилу стола. */
   leave(key: string): Op[] {
     const person = this.people.get(key);
@@ -139,7 +153,12 @@ export class Table {
 
   // ── НАМЕРЕНИЯ ──────────────────────────────────────────────────────────────────────────────
 
-  act(by: string, intent: Intent, now: number): Result {
+  /**
+   * `auto` — ход команды бота. Пока команда идёт (`script(true)`), всё, что меняет стол, у людей
+   * отказывается `busy`: раздача не должна делиться с чужой рукой, которая тянет ту же колоду.
+   */
+  act(by: string, intent: Intent, now: number, auto = false): Result {
+    if (this.scripted && !auto && intent.t !== "sync" && intent.t !== "hold" && intent.t !== "release") return { refused: "busy" };
     switch (intent.t) {
       case "grab":
         return this.grab(by, intent.id, now);
@@ -156,7 +175,7 @@ export class Table {
         return { ops: this.commit([{ t: "unlock", id: intent.id }]) };
       }
       case "drop":
-        return this.drop(by, intent.id, intent.to, now);
+        return this.drop(by, intent.id, intent.to, now, auto);
       case "flip": {
         const chair = this.seatOf(by);
         if (!chair) return { refused: "bad" };
@@ -194,13 +213,13 @@ export class Table {
    * ПАЛЕЦ В ВОЗДУХЕ СООБЩИЛ, НАД ЧЕМ ОН. Только держащий; место чистится тем же `clean`, что и дроп, —
    * иначе чужая рука, которой нет, пришла бы остальным. Версия не растёт. Блокировку продлевает.
    */
-  carry(by: string, out: CarryOut, now: number): { refused: Refusal } | { ok: true } {
+  carry(by: string, out: CarryOut, now: number, auto = false): { refused: Refusal } | { ok: true } {
     const lock = this.locks.get(out?.id);
     if (!lock || lock.by !== by) return { refused: "not-held" };
     const over = this.clean(out.over);
     if (!over) return { refused: "bad" };
     lock.until = now + LOCK_TTL_MS;
-    this.carries.set(out.id, { by, over });
+    this.carries.set(out.id, { by, over, ...(auto ? { auto: true as const } : {}) });
     return { ok: true };
   }
 
@@ -214,8 +233,8 @@ export class Table {
         this.carries.delete(id);
         continue;
       }
-      if (c.by === viewer || (only !== undefined && only !== id)) continue;
-      out.push({ id, by: c.by, over: c.over, from, card: this.seen(id, viewer, from) });
+      if ((c.by === viewer && !c.auto) || (only !== undefined && only !== id)) continue;
+      out.push({ id, by: c.by, over: c.over, from, card: this.seen(id, viewer, from), ...(c.auto ? { auto: true as const } : {}) });
     }
     return out;
   }
@@ -232,10 +251,10 @@ export class Table {
     return { ops: lock ? [] : this.commit([{ t: "lock", id, by }]) };
   }
 
-  private drop(by: string, id: string, to: Where, now: number): Result {
+  private drop(by: string, id: string, to: Where, now: number, auto = false): Result {
     const lock = this.locks.get(id);
     if (!lock || lock.by !== by) return { refused: "not-held" };
-    const target = this.clean(to);
+    const target = this.clean(to, auto);
     if (!target) return { refused: "bad" };
     if (target.in === "hand" && this.closedTo(by, target.chair)) return { refused: "chair-locked" };
     const from = this.whereIs(id)!;
@@ -304,6 +323,83 @@ export class Table {
   private closedTo(by: string, chairId: string): boolean {
     const chair = this.chairs.get(chairId);
     return chair !== undefined && chair.lock && chair.owner !== by;
+  }
+
+  // ── ДЛЯ КОМАНД БОТА ─────────────────────────────────────────────────────────────────────────
+
+  /** Взять любую карту колоды, не только верхнюю, — только для команды бота. */
+  grabAny(by: string, id: string, now: number): Op[] | null {
+    if (!this.deck.includes(id) || this.locks.has(id)) return null;
+    this.locks.set(id, { by, until: now + LOCK_TTL_MS });
+    return this.commit([{ t: "lock", id, by }]);
+  }
+
+  /** Команда началась или кончилась. */
+  script(on: boolean): void {
+    this.scripted = on;
+  }
+
+  get busy(): boolean {
+    return this.scripted;
+  }
+
+  faceOf(id: string): Face | undefined {
+    return this.faces.get(id);
+  }
+
+  /** Где что лежит — без лиц, для плана команды. */
+  layout(): { deck: string[]; felt: { id: string; x: number; y: number; under?: boolean }[]; chairs: { id: string; angle: number; owner: string | null; hand: string[] }[] } {
+    return {
+      deck: [...this.deck],
+      felt: this.felt.map(({ id, x, y, under }) => ({ id, x, y, ...(under ? { under } : {}) })),
+      chairs: [...this.chairs.values()].map((c) => ({ id: c.id, angle: c.angle, owner: c.owner, hand: [...c.hand] })),
+    };
+  }
+
+  /**
+   * ПЕРЕМЕШАТЬ. Id всех карт колоды выписываются заново: иначе карта, которую кто-то видел лицом до сборки,
+   * отслеживалась бы по id сквозь любое перемешивание.
+   */
+  shuffleDeck(random: () => number = Math.random): Op[] {
+    const cards = this.deck.map((id) => this.faces.get(id)!);
+    for (const id of this.deck) {
+      this.faces.delete(id);
+      this.trails.delete(id);
+    }
+    for (let i = cards.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(random() * (i + 1));
+      [cards[i], cards[j]] = [cards[j]!, cards[i]!];
+    }
+    this.deck = cards.map((face) => {
+      const id = freshId();
+      this.faces.set(id, face);
+      return id;
+    });
+    this.shuffles += 1;
+    return this.commit([{ t: "deck", deck: this.deck.map((id) => ({ id })), shuffled: true }]);
+  }
+
+  /** НАБРАТЬ КОЛОДУ ЗАНОВО — только когда всё уже собрано в колоду: чужие карты на столе так не пропадут. */
+  restock(cards: Face[]): Op[] | null {
+    if (this.felt.length > 0 || [...this.chairs.values()].some((c) => c.hand.length > 0) || this.locks.size > 0) return null;
+    for (const id of this.deck) {
+      this.faces.delete(id);
+      this.trails.delete(id);
+    }
+    this.deck = cards.map((face) => {
+      const id = freshId();
+      this.faces.set(id, face);
+      return id;
+    });
+    return this.commit([{ t: "deck", deck: this.deck.map((id) => ({ id })), shuffled: false }]);
+  }
+
+  /** Переставить стул на другой угол. */
+  turnChair(id: string, angle: number): Op[] {
+    const chair = this.chairs.get(id);
+    if (!chair) return [];
+    chair.angle = ((angle % 360) + 360) % 360;
+    return this.commit([{ t: "chair", chair: this.chairOut(chair) }]);
   }
 
   // ── СТУЛЬЯ ─────────────────────────────────────────────────────────────────────────────────
@@ -375,7 +471,7 @@ export class Table {
   // ── КАРТЫ ──────────────────────────────────────────────────────────────────────────────────
 
   /** Куда класть можно: только в руку стоящего стула и только в пределах сукна. */
-  private clean(to: Where): Where | null {
+  private clean(to: Where, auto = false): Where | null {
     if (to.in === "deck") return to;
     if (to.in === "hand") {
       if (!this.chairs.has(to.chair) || !Number.isInteger(to.i)) return null;
@@ -385,13 +481,14 @@ export class Table {
     // МИМО СТОЛА НЕ ПОЛОЖИТЬ: карта, брошенная за кромку, ложится на её край, а не пропадает в темноте.
     const far = Math.hypot(to.x, to.y);
     const k = far > FELT_REACH ? FELT_REACH / far : 1;
-    return { in: "felt", x: to.x * k, y: to.y * k, up: to.up === true, angle: turnOf(Number.isFinite(to.angle) ? to.angle : 0) };
+    const angle = turnOf(Number.isFinite(to.angle) ? to.angle : 0);
+    return { in: "felt", x: to.x * k, y: to.y * k, up: to.up === true, angle, ...(auto && to.under === true ? { under: true } : {}) };
   }
 
   private whereIs(id: string): Where | null {
     if (this.deck.includes(id)) return { in: "deck" };
     const onFelt = this.felt.find((one) => one.id === id);
-    if (onFelt) return { in: "felt", x: onFelt.x, y: onFelt.y, up: onFelt.up, angle: onFelt.angle };
+    if (onFelt) return { in: "felt", x: onFelt.x, y: onFelt.y, up: onFelt.up, angle: onFelt.angle, ...(onFelt.under ? { under: true } : {}) };
     for (const chair of this.chairs.values()) {
       const i = chair.hand.indexOf(id);
       if (i >= 0) return { in: "hand", chair: chair.id, i };
@@ -412,7 +509,7 @@ export class Table {
       return to;
     }
     if (to.in === "felt") {
-      this.felt.push({ id, x: to.x, y: to.y, up: to.up, angle: to.angle });
+      this.felt.push({ id, x: to.x, y: to.y, up: to.up, angle: to.angle, ...(to.under ? { under: true } : {}) });
       return to;
     }
     const hand = this.chairs.get(to.chair)!.hand;
@@ -470,6 +567,7 @@ export class Table {
       y: one.y,
       up: one.up,
       angle: one.angle,
+      ...(one.under ? { under: true } : {}),
     }));
     return {
       v: this.v,
@@ -478,11 +576,17 @@ export class Table {
       deck: this.deck.map((id) => ({ id })),
       felt,
       trails: Object.fromEntries(this.trails),
+      shuffles: this.shuffles,
       locks: Object.fromEntries([...this.locks].map(([id, lock]) => [id, lock.by])),
       rules: { ...this.rules },
       admin: this.admin,
     };
   }
+}
+
+/** Id карты — случайный: по нему нельзя узнать ни карту, ни её прежний id. */
+function freshId(): string {
+  return globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 10);
 }
 
 /** Угол в (-180, 180] — один и тот же поворот не должен приходить двумя разными числами. */

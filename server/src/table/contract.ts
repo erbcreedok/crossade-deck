@@ -31,11 +31,16 @@ export interface Person {
   ink: string;
   door: Door;
   photo?: string;
-  /** На каком стуле сидит. Сидят всегда: пришедший садится на свой стул или на новый. */
+  /** На каком стуле сидит. Люди сидят всегда; бот стола — без стула. */
   seat?: string;
+  /** `@username` в Telegram — по нему бот узнаёт раздающего в команде. */
+  username?: string;
+  /** Это бот стола (`@CrossaderBot`): ходит по командам админа, стула у него нет. */
+  bot?: true;
 }
 
-export type Suit = "s" | "h" | "d" | "c";
+/** Масти и два джокера: `r` — красный, `b` — чёрный (ранг у них `JK`). */
+export type Suit = "s" | "h" | "d" | "c" | "r" | "b";
 export interface Face {
   rank: string;
   suit: Suit;
@@ -49,7 +54,7 @@ export interface Face {
 export type Where =
   | { in: "deck" }
   | { in: "hand"; chair: string; i: number }
-  | { in: "felt"; x: number; y: number; up: boolean; angle: number };
+  | { in: "felt"; x: number; y: number; up: boolean; angle: number; under?: boolean };
 
 /** Карта, какой её видит конкретный зритель: `face` есть, только если ему её видно. */
 export interface SeenCard {
@@ -66,6 +71,8 @@ export interface FeltCard extends SeenCard {
    * у того, кто её бросил: при повёрнутой камере это не ноль, и боком брошенная карта лежит боком.
    */
   angle: number;
+  /** Лежит ПОД колодой (козырь в дураке). Кладёт так только бот; взятая рукой карта это теряет. */
+  under?: boolean;
 }
 
 /**
@@ -129,6 +136,8 @@ export interface Snapshot {
   felt: FeltCard[];
   /** Следы карт по id — у карт, которые хоть раз переносили. */
   trails: Record<string, Trail>;
+  /** Сколько раз колоду перемешали — сменилось, значит зрителю играть перемешивание. */
+  shuffles: number;
   /** Кто что держит: id вещи → key человека. */
   locks: Record<string, string>;
   rules: TableRules;
@@ -172,6 +181,8 @@ export type Op =
   /** Вещь переехала. `card.face` есть, только если на новом месте зрителю её видно. */
   | { t: "move"; card: SeenCard; from: Where; to: Where; trail?: Trail }
   | { t: "order"; chair: string; ids: string[] }
+  /** Колода целиком заменена: перемешана (новые id — чтобы увиденную карту нельзя было отследить) или набрана заново. */
+  | { t: "deck"; deck: SeenCard[]; shuffled: boolean }
   | { t: "rules"; rules: TableRules }
   | { t: "admin"; key: string | null };
 
@@ -181,7 +192,7 @@ export interface Patch {
 }
 
 /** Почему намерение не случилось — клиент откатывает у себя то, что успел показать. */
-export type Refusal = "locked" | "not-held" | "not-top" | "gone" | "bad" | "chair-locked" | "not-yours" | "taken";
+export type Refusal = "busy" | "locked" | "not-held" | "not-top" | "gone" | "bad" | "chair-locked" | "not-yours" | "taken";
 export interface Refused {
   intent: Intent;
   why: Refusal;
@@ -214,6 +225,8 @@ export interface Carry extends CarryOut {
   by: string;
   card: SeenCard;
   from: Where;
+  /** Несёт команда бота (от его лица или от лица раздающего) — видно всем, и самому раздающему тоже. */
+  auto?: true;
 }
 /** Как часто палец в воздухе шлёт, над чем он. Сглаживание у зрителя — на столько же. */
 export const CARRY_EVERY_MS = 50;
@@ -232,6 +245,44 @@ export interface Welcome {
 /** `carry` продлевает блокировку так же, как `hold`: палец, который двигается, её держит. */
 export const LOCK_TTL_MS = 15_000;
 export const HOLD_EVERY_MS = 5_000;
+
+// ── КОМАНДЫ СТОЛА: админ через бота ────────────────────────────────────────────────────────────
+
+/**
+ * ТРИ НЕЗАВИСИМЫХ СЛОЯ. Колода — из чего играем (36/52, джокеры). Пресет — колода и рассадка под игру.
+ * Раздача — по правилам самой раздачи. Перераздать — та же раздача ещё раз; сменить игру — другой пресет.
+ */
+export type DeckSize = 36 | 52;
+export type Game = "durak" | "krest" | "belka";
+export type DealRule = "each" | Game;
+
+export type TableCommand =
+  | { t: "collect" }
+  | { t: "shuffle" }
+  /** Белка — всегда 36 и без джокеров; `size`/`jokers` у неё игнорируются. */
+  | { t: "preset"; game: Game; size?: DeckSize; jokers?: boolean }
+  | {
+      t: "deal";
+      rule: DealRule;
+      /** Сколько каждому — для `each` и `durak` (по умолчанию 6). */
+      n?: number;
+      /** Кто раздаёт — ключ, имя или `@username`. По умолчанию — админ. */
+      dealer?: string;
+      /** Не раздавать покинутым стульям. */
+      skipEmpty?: boolean;
+      /** Раздавать от лица раздающего: его цвет, его курсор, «двигал он». Иначе — от лица бота. */
+      asDealer?: boolean;
+      /** Карты не собраны — собрать и перемешать без вопросов. */
+      force?: boolean;
+    };
+
+/** `POST /table/rooms/:room/run` */
+export interface RunCommand {
+  by: string;
+  command: TableCommand;
+}
+export type RunError = "not-admin" | "busy" | "needs-collect" | "not-enough-cards" | "not-enough-players" | "no-dealer" | "empty" | "bad";
+export type RunResult = { ok: true } | { error: RunError };
 
 // ── HTTP: бот ↔ сервер стола ↔ реле на Fly ─────────────────────────────────────────────────────
 

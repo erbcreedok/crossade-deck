@@ -58,6 +58,11 @@ function applyOp(s: Snapshot, op: Op): void {
       place(s, op.card, op.to);
       if (op.trail) (s.trails ??= {})[op.card.id] = op.trail;
       return;
+    case "deck":
+      s.deck = op.deck;
+      if (op.shuffled) s.shuffles = (s.shuffles ?? 0) + 1;
+      for (const id of Object.keys(s.trails ?? {})) if (!s.felt.some((c) => c.id === id) && !s.chairs.some((c) => c.hand.some((h) => h.id === id))) delete s.trails[id];
+      return;
     case "rules":
       s.rules = op.rules;
       return;
@@ -78,6 +83,6 @@ function lift(s: Snapshot, id: string, from: Where): void {
 
 function place(s: Snapshot, card: SeenCard, to: Where): void {
   if (to.in === "deck") s.deck.push(card);
-  else if (to.in === "felt") s.felt.push({ ...card, x: to.x, y: to.y, up: to.up, angle: to.angle });
+  else if (to.in === "felt") s.felt.push({ ...card, x: to.x, y: to.y, up: to.up, angle: to.angle, ...(to.under ? { under: true } : {}) });
   else s.chairs.find((one) => one.id === to.chair)?.hand.splice(to.i, 0, card);
 }
