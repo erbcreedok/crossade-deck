@@ -46,6 +46,7 @@ open()
   .then((store) => {
     document.title = store.title;
     mountScreen(stage, store);
+    store.onGone(() => say("Стол закрыт."));
   })
   .catch((err: unknown) => {
     const text = err instanceof Error ? err.message : String(err);

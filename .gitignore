@@ -35,4 +35,6 @@ client2/test-results/
 .worktrees/
 # Секреты сервера и бота — никогда в git
 server/.env
+server/.env.table
 bot/.env
+bot/data/

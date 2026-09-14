@@ -66,5 +66,6 @@ export function localStore(): TableStore {
     },
     onChange: (listener) => void changed.push(listener),
     onRefused: (listener) => void refused.push(listener),
+    onGone: () => {},
   };
 }

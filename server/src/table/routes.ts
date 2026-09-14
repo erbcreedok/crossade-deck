@@ -12,7 +12,7 @@ import express, { type Router } from "express";
 import { tableConfig } from "./config.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, SECRET_HEADER, type Beacon, type Home, type OpenRoom, type RelayStatus } from "./contract.js";
 import { closeEntry, findEntry, openEntry, rehome, rename, roomsAt } from "./lobby.js";
-import { mintRoom } from "./roomIds.js";
+import { mintRoom, roomIsSigned } from "./roomIds.js";
 
 /** Этот запуск. Новый процесс — новый `boot`: по нему бот понимает, что прежних столов нет. */
 export const BOOT = randomBytes(6).toString("hex");
@@ -46,7 +46,9 @@ export function tableRoutes(): Router {
     const home = readHome(body.home);
     const secret = tableConfig().secret!;
     if (!home || typeof body.by !== "string") return void res.status(400).json({ error: "bad_request" });
-    const room = typeof body.room === "string" ? body.room : mintRoom(secret);
+    // ИМЯ, ВЫПИСАННОЕ БОТОМ ЗАРАНЕЕ (inline-карточка), принимается только с его подписью.
+    if (body.room !== undefined && !roomIsSigned(body.room, secret)) return void res.status(400).json({ error: "bad_request" });
+    const room = body.room ?? mintRoom(secret);
     res.json(openEntry(room, home, body.by, typeof body.title === "string" ? body.title : undefined));
   });
 

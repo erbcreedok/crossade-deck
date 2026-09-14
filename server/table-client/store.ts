@@ -15,4 +15,6 @@ export interface TableStore {
   onChange(listener: () => void): void;
   /** Намерение не случилось — экран отпускает то, что держал. */
   onRefused(listener: (intent: Intent, why: Refusal) => void): void;
+  /** Стола больше нет: его закрыли в боте, или сервер ушёл. */
+  onGone(listener: () => void): void;
 }

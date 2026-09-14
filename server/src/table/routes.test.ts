@@ -3,7 +3,7 @@ import express from "express";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { BEACON_TTL_MS, SECRET_HEADER } from "./contract.js";
 import { forgetAll } from "./lobby.js";
-import { roomIsSigned } from "./roomIds.js";
+import { mintRoom, roomIsSigned } from "./roomIds.js";
 import { BOOT, forgetBeacon, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
 
 process.env.TABLE_SECRET = "s3cret";
@@ -58,6 +58,13 @@ describe("/table/rooms — бот управляет столами", () => {
     expect((await call(`/table/rooms/${one.room}`, { method: "DELETE" })).status).toBe(200);
     expect((await call(`/table/rooms/${one.room}`)).status).toBe(404);
     expect(await (await call("/table/rooms?chat=-100")).json()).toHaveLength(1);
+  });
+
+  it("имя комнаты от бота — только с подписью", async () => {
+    const home = { kind: "inline", message: "m1" };
+    expect((await call("/table/rooms", { method: "POST", json: { home, by: "tg:1", room: "down" } })).status).toBe(400);
+    const room = mintRoom("s3cret");
+    expect((await (await call("/table/rooms", { method: "POST", json: { home, by: "tg:1", room } })).json()).room).toBe(room);
   });
 
   it("health отдаёт boot без секрета", async () => {

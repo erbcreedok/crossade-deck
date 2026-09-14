@@ -67,5 +67,6 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     send: (intent) => room.send(MSG.intent, intent),
     onChange: (listener) => void changed.push(listener),
     onRefused: (listener) => void refused.push(listener),
+    onGone: (listener) => void room.onLeave(() => listener()),
   };
 }

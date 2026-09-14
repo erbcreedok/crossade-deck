@@ -10,6 +10,9 @@ import { claimLink, claimReply, tellProfile } from "./link.js";
 import { askFor, buttonsFor, cleanName, linkedSaid, nextSaid, stopWaiting, waitingIn, type Offer } from "./talk.js";
 import { readStart, sourceFor, sourcesOf } from "./sources.js";
 import { profilePhoto, pickPhoto } from "./photo.js";
+import { TableApi, tableEnv } from "./table/api.js";
+import { installTable } from "./table/tableBot.js";
+import { Watch } from "./table/watch.js";
 
 const env = loadEnv();
 const bot = new Bot(env.botToken);
@@ -177,6 +180,17 @@ bot.on("message", async (ctx, next) => {
 });
 
 /**
+ * СТОЛЫ ДЛЯ HTML-КЛИЕНТА — свой набор команд (`table/tableBot.ts`), включается, только если настроен
+ * сервер стола. Ставится после разговора про профиль: тот отпускает сообщения, которых не ждал.
+ */
+const table = (() => {
+  const tenv = tableEnv();
+  if (!tenv) return undefined;
+  const file = process.env.TABLE_CHATS_FILE || new URL("../data/table-chats.json", import.meta.url).pathname;
+  return installTable(bot, new TableApi(tenv), new Watch(file), tenv.secret);
+})();
+
+/**
  * ПОЗВАТЬ ДРУГА ТАМ, ГДЕ БОТА НЕТ. В личке двух людей slash-команду никто не услышит — бот туда не
  * приглашён и приглашён быть не может. Inline mode — единственная дверь: человек набирает
  * `@CrossaderBot chess` прямо в переписке, и выбранный результат ложится в чат карточкой стола.
@@ -192,7 +206,7 @@ bot.on("inline_query", async (ctx) => {
   const games = gamesFor(ctx.inlineQuery.query);
   const codes = await Promise.all(games.map((game) => reserveTable(env.serverUrl, game, by)));
   const botName = (await bot.api.getMe()).username;
-  const results = games.flatMap((game, i) => {
+  const kit = games.flatMap((game, i) => {
     const code = codes[i];
     if (!code) return [];
     const card = inviteCard(game, code);
@@ -210,7 +224,8 @@ bot.on("inline_query", async (ctx) => {
   });
   // НИЧЕГО НЕ КЕШИРОВАТЬ: у каждого запроса свой код, и отданный из кеша отправил бы двух разных
   // людей за один и тот же стол.
-  await ctx.answerInlineQuery(results, { cache_time: 0, is_personal: true });
+  const results = [...(table ? await table.inlineResults() : []), ...kit];
+  await ctx.answerInlineQuery(results as Parameters<typeof ctx.answerInlineQuery>[0], { cache_time: 0, is_personal: true });
 });
 
 async function main(): Promise<void> {
@@ -221,12 +236,20 @@ async function main(): Promise<void> {
     { command: "chess", description: "Новый стол: шахматы" },
     { command: "nardy", description: "Новый стол: нарды" },
     { command: "new", description: "Новый стол: /new cards|chess|nardy" },
+    ...(table
+      ? [
+          { command: "table", description: "Открыть стол в этом чате: /table [название]" },
+          { command: "tables", description: "Столы этого чата" },
+        ]
+      : []),
   ]);
   await bot.api.setChatMenuButton({
     menu_button: { type: "web_app", text: "Играть", web_app: { url: await resolveHubUrl(env) } },
   });
+  await table?.start(me.username, (chat, text) => bot.api.sendMessage(chat, text));
   console.log(`бот @${me.username} запущен, long polling`);
-  await bot.start();
+  // ВЫБРАННАЯ INLINE-КАРТОЧКА ПРИХОДИТ, ТОЛЬКО ЕСЛИ ЕЁ ПОПРОСИТЬ: по умолчанию Telegram её не шлёт.
+  await bot.start(table ? { allowed_updates: ["message", "callback_query", "inline_query", "chosen_inline_result"] } : {});
 }
 
 main().catch((err) => {
