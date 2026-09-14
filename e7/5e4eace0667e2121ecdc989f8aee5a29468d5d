@@ -1,0 +1,23 @@
+server/scripts/tableSeats.mjs
+  s_9ed0da107cbc4a::t_f33b249f745a99 112,121-146
+server/table-client/felt.ts
+  s_9ed0da107cbc4a::t_940abbd8325c67 74-75,77
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_d74278dee20381 411,560-565,874-875
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e75e4eace0667e2121ecdc989f8aee5a29468d5d",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
