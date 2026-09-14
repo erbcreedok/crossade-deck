@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LOCK_TTL_MS, type Intent, type Person } from "./contract.js";
 import { applyPatch } from "./patch.js";
-import { Table } from "./table.js";
+import { FELT_REACH, Table } from "./table.js";
 
 const person = (key: string): Person => ({ key, name: key, ink: "#fff", door: "guest" });
 const cards = Array.from({ length: 5 }, (_, i) => ({ id: `c${i}`, face: { rank: String(i + 6), suit: "s" as const } }));
@@ -30,6 +30,13 @@ describe("Table: блокировка", () => {
   it("положить можно только то, что держишь сам", () => {
     const t = seated();
     expect(t.act("b", { t: "drop", id: "c4", to: { in: "deck" } }, 0)).toEqual({ refused: "not-held" });
+  });
+
+  it("брошенная за кромку карта ложится на край сукна", () => {
+    const t = seated();
+    ops(t.act("a", { t: "grab", id: "c4" }, 0));
+    const [move] = ops(t.act("a", { t: "drop", id: "c4", to: { in: "felt", x: 0, y: 16, up: false } }, 0));
+    expect(move).toMatchObject({ to: { in: "felt", x: 0, y: FELT_REACH } });
   });
 
   it("с колоды берётся только верхняя", () => {

@@ -21,8 +21,6 @@ export function clientRoutes(): Router {
     next();
   };
 
-  r.get("/table", (_req, res) => res.redirect(301, "/table/"));
-
   r.get("/table/", fresh, async (_req, res) => {
     res.type("html").send(await readFile(join(ROOT, "index.html"), "utf8"));
   });

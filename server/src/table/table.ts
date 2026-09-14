@@ -11,6 +11,9 @@
 import type { Face, FeltCard, Intent, Op, Person, Refusal, SeenCard, Snapshot, Where } from "./contract.js";
 import { LOCK_TTL_MS } from "./contract.js";
 
+/** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
+export const FELT_REACH = 8 - 0.86;
+
 interface Lock {
   by: string;
   until: number;
@@ -133,7 +136,10 @@ export class Table {
       return to;
     }
     if (![to.x, to.y].every(Number.isFinite)) return null;
-    return { in: "felt", x: to.x, y: to.y, up: to.up === true };
+    // МИМО СТОЛА НЕ ПОЛОЖИТЬ: карта, брошенная за кромку, ложится на её край, а не пропадает в темноте.
+    const far = Math.hypot(to.x, to.y);
+    const k = far > FELT_REACH ? FELT_REACH / far : 1;
+    return { in: "felt", x: to.x * k, y: to.y * k, up: to.up === true };
   }
 
   private whereIs(id: string): Where | null {
