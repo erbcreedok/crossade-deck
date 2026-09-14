@@ -1,0 +1,31 @@
+server/scripts/tableSeats.mjs
+  s_9ed0da107cbc4a::t_4666c50b9e957d 1-149
+server/table-client/felt.ts
+  s_9ed0da107cbc4a::t_bf5f57e2cd0187 20,60-63,66-80,182-193,386-387,414-429,458-468,470,506
+server/table-client/screen.ts
+  s_6508aa696f683e::t_cc8a42544af6ba 10,634,639,652,663-669,687,704-744,773-774,810,951-952,955-956,1089-1099
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c5970f1e35772018debaea9a2b7a71f5c5575a22",
+  "prompts": {},
+  "sessions": {
+    "s_6508aa696f683e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8af39fef-f1d9-4d70-9d38-860a5222fe52",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
