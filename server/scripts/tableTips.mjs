@@ -68,8 +68,9 @@ async function placed(label) {
 }
 
 const s0 = await scene();
-const alia = s0.seats.find((s) => s.key === "alia");
-const timur = s0.seats.find((s) => s.key === "timur");
+// Стулья — по id; Алия сидит, стул Тимура на стенде покинут.
+const alia = s0.seats.find((s) => s.who === "Алия");
+const timur = s0.seats.find((s) => s.who === undefined);
 await tap(alia.x, alia.y);
 await tap(timur.x, timur.y);
 check("открыто сразу два окна", (await tips()).length === 2, await tips());
@@ -101,23 +102,23 @@ await placed("после наклона");
 y = await free();
 await gesture([[90, y], [300, y]], [[180, y], [210, y]]);
 const s1 = await scene();
-const a1 = s1.seats.find((s) => s.key === "alia");
+const a1 = s1.seats.find((s) => s.key === alia.key);
 const hitA = chairPoint(a1, await tips(), s1.frame);
 if (hitA) {
   await tap(hitA.x, hitA.y);
-  check("тап по стулу закрывает его окно", !(await tips()).some((t) => t.key === "alia"), await tips());
+  check("тап по стулу закрывает его окно", !(await tips()).some((t) => t.key === alia.key), await tips());
 } else check("стул Алии достижим для тапа", false, a1);
-const shut = await page.locator('[data-shut="timur"]').boundingBox();
+const shut = await page.locator(`[data-shut="${timur.key}"]`).boundingBox();
 await tap(shut.x + shut.width / 2, shut.y + shut.height / 2);
-check("кнопка «Закрыть» закрывает окно", !(await tips()).some((t) => t.key === "timur"), await tips());
+check("кнопка «Закрыть» закрывает окно", !(await tips()).some((t) => t.key === timur.key), await tips());
 
 // Тап по стулу открывает обратно.
 const s2 = await scene();
-const a2 = s2.seats.find((s) => s.key === "alia");
+const a2 = s2.seats.find((s) => s.key === alia.key);
 const hitA2 = chairPoint(a2, await tips(), s2.frame);
 if (hitA2) await tap(hitA2.x, hitA2.y);
 else console.log("нет точки стула:", JSON.stringify({ a2, tips: await tips(), view: await page.getAttribute("canvas", "data-view") }));
-check("тап по стулу открывает окно", (await tips()).some((t) => t.key === "alia"), await tips());
+check("тап по стулу открывает окно", (await tips()).some((t) => t.key === alia.key), await tips());
 
 await page.screenshot({ path: process.argv[3] ?? "tips.png" });
 await browser.close();

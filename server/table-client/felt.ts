@@ -6,6 +6,7 @@
 
 import { apply, invert, type Transform } from "../../game-kit/src/core/transform.js";
 import type { Face } from "../src/table/contract.js";
+import { seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
 
 export interface Pose {
   fan: boolean;
@@ -13,10 +14,13 @@ export interface Pose {
   tuck: boolean;
 }
 
+/** Стул, каким его рисуют: `key` — id стула; без `name` он покинут. */
 export interface Seat {
   key: string;
-  name: string;
-  ink: string;
+  /** Угол места на экране этого зрителя — свой стул всегда внизу. */
+  angle: number;
+  name?: string;
+  ink?: string;
   mine?: boolean;
   cards: number;
   face?: string;
@@ -111,42 +115,6 @@ const POSE = {
 export const CARD = { w: 1, h: 1.4 };
 
 type Point = { x: number; y: number };
-
-/** ПОРЯДОК РАЗРЕЗАНИЯ ПИЦЦЫ: своя сторона, напротив, слева, справа, дальше пополам. */
-function ringOrder(levels = 8): number[] {
-  const out = [0, 180];
-  for (let k = 2; k <= levels; k += 1) {
-    const step = 360 / 2 ** k;
-    const fresh: number[] = [];
-    for (let i = 0; i < 2 ** k; i += 1) {
-      const a = (i * step) % 360;
-      if (!out.includes(a) && !fresh.includes(a)) fresh.push(a);
-    }
-    fresh.sort((a, b) => {
-      const near = Math.min(a, 360 - a) - Math.min(b, 360 - b);
-      return near !== 0 ? near : b - a;
-    });
-    const left = new Set(fresh);
-    for (const a of fresh) {
-      if (!left.has(a)) continue;
-      left.delete(a);
-      out.push(a);
-      const across = (a + 180) % 360;
-      if (left.delete(across)) out.push(across);
-    }
-  }
-  return out;
-}
-
-/** Точка на круге — те же оси: +y к себе, вниз экрана. */
-function ringPlaces(n: number, radius: number): { at: Point; facing: number }[] {
-  return ringOrder()
-    .slice(0, Math.max(0, n))
-    .map((angle) => {
-      const t = (angle * Math.PI) / 180;
-      return { at: { x: Math.sin(t) * radius, y: Math.cos(t) * radius }, facing: angle };
-    });
-}
 
 function fanPoses(n: number, { spread, radius }: { spread: number; radius: number }) {
   return Array.from({ length: n }, (_, i) => {
@@ -278,7 +246,7 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
-function disc(g: CanvasRenderingContext2D, who: Seat, images: Record<string, HTMLImageElement>): void {
+function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: string }, images: Record<string, HTMLImageElement>): void {
   const r = DISC / 2;
   g.beginPath();
   g.arc(0, 0, r, 0, Math.PI * 2);
@@ -334,7 +302,23 @@ function disc(g: CanvasRenderingContext2D, who: Seat, images: Record<string, HTM
   g.fillText(who.name, 0, PLATE.at);
 }
 
-function chair(g: CanvasRenderingContext2D, who: Seat): void {
+/**
+ * ПОКИНУТЫЙ СТУЛ — та же арка, но без хозяина: без цвета, без диска, кремовым пунктиром. Карты в нём
+ * лежат, как лежали: на него смотрят именно ради них.
+ */
+function emptyChair(g: CanvasRenderingContext2D): void {
+  archPath(g, ARCH_R);
+  g.fillStyle = "rgba(11,7,4,.55)";
+  g.fill();
+  g.save();
+  g.lineWidth = CHAIR_LINE;
+  g.strokeStyle = SEAT.cream;
+  g.setLineDash([0.24, 0.16]);
+  g.stroke();
+  g.restore();
+}
+
+function chair(g: CanvasRenderingContext2D, who: Seat & { ink: string }): void {
   archPath(g, ARCH_R + CHAIR_LINE);
   if (who.mine) {
     g.fillStyle = SEAT.gold;
@@ -430,15 +414,16 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     g.restore();
   }
 
-  const places = ringPlaces(people.length, R - 1);
   const spots: Spot[] = [];
-  places.forEach((place, i) => {
-    const who = people[i]!;
+  people.forEach((who) => {
+    const place = { at: seatPoint(who.angle, SEAT_RADIUS), facing: who.angle };
     g.save();
     g.translate(place.at.x, place.at.y);
     // СТУЛ ПОВЁРНУТ ЛИЦОМ К СТОЛУ; угол со знаком минус — места считаются от шести часов к +x.
     g.rotate((-place.facing * Math.PI) / 180);
-    chair(g, who);
+    const sitter = who.name !== undefined && who.ink !== undefined ? (who as Seat & { name: string; ink: string }) : null;
+    if (sitter) chair(g, sitter);
+    else emptyChair(g);
     posePlan(who.pose ?? { fan: false, shrink: false, tuck: false }, who.cards).forEach((p) => {
       g.save();
       g.translate(p.at.x, p.at.y);
@@ -451,9 +436,11 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     // ДИСК СТОИТ, А НЕ ЛЕЖИТ: ни поворот стола, ни наклон его не трогают — лицо смотрит на того, кто
     // глядит на стол (`Oriented: "viewer"` у кита). Ставится в точку стола, размером — по зуму.
     const at = toGlass(place.at);
-    g.setTransform(dpr * o.k, 0, 0, dpr * o.k, dpr * at.x, dpr * at.y);
-    disc(g, who, images);
-    desk();
+    if (sitter) {
+      g.setTransform(dpr * o.k, 0, 0, dpr * o.k, dpr * at.x, dpr * at.y);
+      disc(g, sitter, images);
+      desk();
+    }
     spots.push({ key: who.key, x: at.x, y: at.y, r: (DISC / 2) * o.k, seat: place.at });
   });
 

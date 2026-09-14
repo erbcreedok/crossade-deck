@@ -5,7 +5,7 @@
 // уходит намерением; пока ответ не пришёл, экран показывает ожидаемое (`pending`), а отказ просто
 // возвращает настоящий снимок.
 
-import { HOLD_EVERY_MS, type Face, type Intent, type Person, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
+import { HOLD_EVERY_MS, type Chair, type ChairFlag, type Face, type Intent, type Person, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { CARD as FELT_CARD, SEAT_REACH, SUITS, deckAt, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { tableCamera } from "./camera.js";
@@ -27,7 +27,8 @@ const HAND_ROOM = 0.6 / 4 + 0.06;
 const HUD_UNIT_FRACTION = 0.25;
 const CARD = { w: 1, h: 1.4 };
 
-const RIGHTS = ["pin", "lock", "hide"] as const;
+/** Флаги стула в нижнем HUD и в окне стула — одни и те же кнопки, одни и те же значки. */
+const RIGHTS = ["pin", "lock", "hide", "forever"] as const satisfies readonly ChairFlag[];
 const FOLDS = ["fan", "shrink", "tuck"] as const;
 const POSES = ["flip", ...FOLDS] as const;
 type BarKey = (typeof RIGHTS)[number] | (typeof POSES)[number];
@@ -35,6 +36,7 @@ const GLYPH: Record<BarKey, string> = {
   pin: '<path d="M9 3h6l-1 6h2l1 5H7l1-5h2L9 3z"/><path d="M12 14v7"/>',
   lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3"/><path d="M5 11h14v10H5z"/>',
   hide: '<path d="M3 3l18 18"/><path d="M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5"/><path d="M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9"/>',
+  forever: '<path d="M6.5 8.5C3.5 8.5 2 10.2 2 12s1.5 3.5 4.5 3.5C10 15.5 14 8.5 17.5 8.5 20.5 8.5 22 10.2 22 12s-1.5 3.5-4.5 3.5C14 15.5 10 8.5 6.5 8.5z"/>',
   flip: '<rect x="7.5" y="4" width="9" height="16" rx="1.5"/><path d="M4 9.5A9 9 0 0 1 8.2 4.4"/><path d="M8.6 2.2 8.2 4.4l2.2.5"/><path d="M20 14.5A9 9 0 0 1 15.8 19.6"/><path d="M15.4 21.8l.4-2.2-2.2-.5"/>',
   fan: '<rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(-28 12 20)"/><rect x="9" y="5" width="6" height="12" rx="1"/><rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(28 12 20)"/>',
   shrink: '<rect x="8" y="5" width="8" height="14" rx="1"/><path d="M2 12h4"/><path d="M4 9.5 6.5 12 4 14.5"/><path d="M22 12h-4"/><path d="M20 9.5 17.5 12l2.5 2.5"/>',
@@ -77,7 +79,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   /** Только то, что есть у этого экрана и больше нигде. */
   const local = {
     pose: { fan: true, shrink: false, tuck: false } as Pose,
-    on: { pin: false, lock: false, hide: false },
+    /** Открытые окна стульев — id стульев, по порядку открытия. */
     tips: [] as string[],
   };
   let drag: Drag | null = null;
@@ -129,12 +131,22 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     if (pending) s = applyPatch(s, { v: s.v, ops: [{ t: "move", card: pending.card, from: pending.from, to: pending.to }] });
     if (!drag) return s;
     const id = drag.card.id;
-    const hands = Object.fromEntries(Object.entries(s.hands).map(([k, h]) => [k, h.filter((c) => c.id !== id)]));
-    return { ...s, hands, deck: s.deck.filter((c) => c.id !== id), felt: s.felt.filter((c) => c.id !== id) };
+    const chairs = s.chairs.map((c) => ({ ...c, hand: c.hand.filter((card) => card.id !== id) }));
+    return { ...s, chairs, deck: s.deck.filter((c) => c.id !== id), felt: s.felt.filter((c) => c.id !== id) };
   }
 
-  const people = (s: Snapshot): Person[] => [...s.people.filter((p) => p.key === me()), ...s.people.filter((p) => p.key !== me())];
-  const handOf = (s: Snapshot, key: string): SeenCard[] => s.hands[key] ?? [];
+  /** Мой стул — на нём я сижу; пока стол не прислал его, пустая строка ни с чем не совпадёт. */
+  const mine = (s: Snapshot = store.state): string => s.people.find((p) => p.key === me())?.seat ?? "";
+  const chairOf = (s: Snapshot, id: string): Chair | undefined => s.chairs.find((c) => c.id === id);
+  const handOf = (s: Snapshot, chair: string): SeenCard[] => chairOf(s, chair)?.hand ?? [];
+  const sitterOf = (s: Snapshot, chair: Chair): Person | undefined => (chair.owner ? s.people.find((p) => p.key === chair.owner) : undefined);
+  /** Флаги стула меняет его хозяин, любой — у покинутого, админ — у любого (тот же закон, что у `Table.mayFlag`). */
+  const mayFlag = (s: Snapshot, chair: Chair) => chair.owner === null || chair.owner === me() || s.admin === me();
+  /** Замок закрывает руку стула для всех, кроме того, кто на нём сидит. */
+  const closed = (s: Snapshot, chairId: string) => {
+    const chair = chairOf(s, chairId);
+    return chair !== undefined && chair.lock && chair.owner !== me();
+  };
   const inkOf = (s: Snapshot, key: string) => s.people.find((p) => p.key === key)?.ink ?? T.inkDim;
   const heldByOthers = (s: Snapshot): Record<string, string> =>
     Object.fromEntries(Object.entries(s.locks).filter(([, by]) => by !== me()).map(([id, by]) => [id, inkOf(s, by)]));
@@ -143,9 +155,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     if (s.deck.some((c) => c.id === id)) return { in: "deck" };
     const f = s.felt.find((c) => c.id === id);
     if (f) return { in: "felt", x: f.x, y: f.y, up: f.up };
-    for (const [who, hand] of Object.entries(s.hands)) {
-      const i = hand.findIndex((c) => c.id === id);
-      if (i >= 0) return { in: "hand", who, i };
+    for (const chair of s.chairs) {
+      const i = chair.hand.findIndex((c) => c.id === id);
+      if (i >= 0) return { in: "hand", chair: chair.id, i };
     }
     return null;
   }
@@ -206,7 +218,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const { u, scale, barTop, mid, plan } = handBox(count);
     const g = glass();
     return {
-      which: me(), mirror: false, w: CARD.w * scale * u, h: CARD.h * scale * u, barTop,
+      which: mine(), mirror: false, w: CARD.w * scale * u, h: CARD.h * scale * u, barTop,
       slots: plan.map((p) => ({ x: g.w / 2 + p.x * scale * u, y: mid + p.y * scale * u, angle: p.angle })),
     };
   }
@@ -345,23 +357,27 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   }
 
   /** Карта в гнезде. Взятую другим пальцем не берут: она в его цвете и не ловит касание. */
-  function slotCard(c: SeenCard, shown: boolean, geom: Geom, slot: Slot, z: number, owner: string, held?: string): string {
+  /**
+   * Карта в гнезде — лицом, если лицо пришло (стол сам решил, видно ли её мне). Взятую другим пальцем и
+   * карту под чужим замком не берут: первая в цвете держащего, вторая приглушена, и обе не ловят касание.
+   */
+  function slotCard(c: SeenCard, geom: Geom, slot: Slot, z: number, owner: string, held?: string, shut = false): string {
     return `<div data-card="${c.id}" data-owner="${owner}" style="position:absolute;width:${geom.w}px;height:${geom.h}px;`
       + `left:${slot.x - geom.w / 2}px;top:${slot.y - geom.h / 2}px;transform:rotate(${slot.angle}deg);z-index:${z};touch-action:none;`
-      + (held ? `pointer-events:none;filter:brightness(.6);outline:3px solid ${held};border-radius:${geom.w * 0.12}px;` : "cursor:grab;")
-      + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out">${cardHtml(shown ? c.face : undefined, geom.w)}</div>`;
+      + (held ? `pointer-events:none;filter:brightness(.6);outline:3px solid ${held};border-radius:${geom.w * 0.12}px;` : shut ? "pointer-events:none;filter:brightness(.7);" : "cursor:grab;")
+      + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out">${cardHtml(c.face, geom.w)}</div>`;
   }
 
   /** Рука вместе с контуром под карту в воздухе. Чужая рука живёт над своей коробкой — этаж 41. */
-  function layHand(geom: Geom, cards: SeenCard[], mark: number | null, shown: boolean, owner: string, held: Record<string, string>): string {
+  function layHand(geom: Geom, cards: SeenCard[], mark: number | null, owner: string, held: Record<string, string>, shut = false): string {
     const list: (SeenCard | null)[] = mark === null ? cards : [...cards.slice(0, mark), null, ...cards.slice(mark)];
-    const floor = owner === me() ? 1 : 41;
+    const floor = owner === mine() ? 1 : 41;
     return list
       .map((c, i) => {
         const slot = geom.slots[geom.mirror ? list.length - 1 - i : i];
         if (!slot) return "";
         if (c === null) return markHtml(geom.w, geom.h, slot.angle, slot.x, slot.y, floor + i);
-        return slotCard(c, shown, geom, slot, floor + i, owner, held[c.id]);
+        return slotCard(c, geom, slot, floor + i, owner, held[c.id], shut);
       })
       .join("");
   }
@@ -374,7 +390,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const right = geom.slots.reduce((m, s) => Math.max(m, s.x + geom.w / 2), -Infinity) + pad;
     const top = geom.slots.reduce((m, s) => Math.min(m, s.y - geom.h / 2), Infinity) - pad;
     const bottom = geom.barTop!;
-    const here = drag.target.kind === "hand" && drag.target.which === me();
+    const here = drag.target.kind === "hand" && drag.target.which === mine();
     const line = here ? T.gold : T.inkDim;
     return `<div data-g="zone" style="position:absolute;left:${left}px;top:${top}px;width:${right - left}px;height:${bottom - top}px;`
       + `z-index:0;pointer-events:none;border-radius:${Math.round(geom.w * 0.16)}px;border:2px dashed ${line};`
@@ -386,11 +402,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
 
   function hudHtml(s: Snapshot): string {
     const g = glass();
-    const cards = handOf(s, me());
-    const mark = drag && drag.target.kind === "hand" && drag.target.which === me() ? drag.target.index : null;
+    const cards = handOf(s, mine(s));
+    const seat = chairOf(s, mine(s));
+    const mark = drag && drag.target.kind === "hand" && drag.target.which === mine(s) ? drag.target.index : null;
     const geom = mineGeom(cards.length + (mark === null ? 0 : 1));
     const u = hudUnit();
-    const need = 3 * BAR.size + 2 * BAR.gap + (4 * BAR.size + 3 * BAR.gap) + 2 * BAR.margin + BAR.gap;
+    const need = 4 * BAR.size + 3 * BAR.gap + (4 * BAR.size + 3 * BAR.gap) + 2 * BAR.margin + BAR.gap;
     const fit = g.w / u > 0 && need > g.w / u ? Math.max(0.5, g.w / u / need) : 1;
     const side = BAR.size * u * fit;
     const gap = BAR.gap * u * fit;
@@ -398,33 +415,61 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     return `<div style="position:absolute;left:0;right:0;top:${geom.barTop! - BAR.fade * u}px;height:${BAR.fade * u}px;`
       + `background:linear-gradient(to top, rgba(11,7,4,.85), rgba(11,7,4,0));pointer-events:none"></div>`
       + handZoneHtml(mark === null && cards.length === 0 ? mineGeom(1) : geom)
-      + layHand(geom, cards, mark, !local.on.hide, me(), heldByOthers(s))
+      // СВОИ КАРТЫ Я ВИЖУ ВСЕГДА, КАК ДЕРЖУ: «скрыть» — про то, что видят другие, а не я.
+      + layHand(geom, cards, mark, mine(s), heldByOthers(s))
       // ПОЛОСА — ПОВЕРХ КАРТ: карты уходят под её край на `BAR.tuck`.
       + `<div style="position:absolute;left:0;right:0;top:${geom.barTop}px;height:${barHeight() * u}px;z-index:${cards.length + 10};`
       + `background:linear-gradient(${T.panel},${T.well});box-shadow:inset 0 3px 0 -1px ${T.black};display:flex;align-items:center">`
       + `<div style="position:absolute;left:${margin}px;display:flex;gap:${gap}px">`
-      + RIGHTS.map((what) => barButton(what, local.on[what], side)).join("") + `</div>`
+      + RIGHTS.map((what) => barButton(what, seat?.[what] === true, side)).join("") + `</div>`
       + `<div style="position:absolute;right:${margin}px;display:flex;gap:${gap}px">`
       + POSES.map((what) => barButton(what, what !== "flip" && local.pose[what], side)).join("") + `</div></div>`;
   }
 
-  function tipHtml(s: Snapshot, who: Person, spot: Spot): { shell: string; cards: string } {
-    const cards = handOf(s, who.key);
-    const mark = drag && drag.target.kind === "hand" && drag.target.which === who.key ? drag.target.index : null;
-    const geom = tipGeom(who.key, spot, cards.length + (mark === null ? 0 : 1));
+  /** Значок флага в окне стула: кнопка, если право есть, и только статус — если нет. */
+  function flagChip(chair: Chair, flag: ChairFlag, may: boolean): string {
+    const on = chair[flag];
+    const look = on
+      ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black};`
+      : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};`;
+    const icon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${on ? T.black : "white"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GLYPH[flag]}</svg>`;
+    return may
+      ? `<button data-flag="${flag}" data-chair="${chair.id}" aria-pressed="${on}" style="width:30px;height:30px;border:0;padding:0;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;${look}">${icon}</button>`
+      : `<span data-status="${flag}" data-on="${on}" style="width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;opacity:${on ? 1 : 0.45};${look}">${icon.replace(/width="16" height="16"/, 'width="12" height="12"')}</span>`;
+  }
+
+  /**
+   * ОКНО СТУЛА — чья-то рука или рука покинутого стула, и его флаги.
+   *
+   * Флаги — кнопками там, где их можно менять (свой стул, покинутый, любой — у админа), и значками
+   * состояния там, где нельзя. У покинутого стула — ещё и «Сесть».
+   */
+  function tipHtml(s: Snapshot, chair: Chair, spot: Spot): { shell: string; cards: string } {
+    const cards = chair.hand;
+    const sitter = sitterOf(s, chair);
+    const may = mayFlag(s, chair);
+    const mark = drag && drag.target.kind === "hand" && drag.target.which === chair.id ? drag.target.index : null;
+    const geom = tipGeom(chair.id, spot, cards.length + (mark === null ? 0 : 1));
     const box = geom.box!;
-    const shell = `<div data-g="tip" data-tip="${who.key}" style="position:absolute;left:${box.left}px;top:${box.top}px;width:${box.w}px;box-sizing:border-box;z-index:40;`
+    const head = sitter
+      ? `<span style="flex:none;width:30px;height:30px;border-radius:50%;background:${sitter.ink};box-shadow:inset 0 0 0 3px ${T.black};`
+        + `display:flex;align-items:center;justify-content:center;font:400 14px Tiny5,monospace;color:${T.black}">${escape([...sitter.name][0] ?? "?")}</span>`
+        + `<span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escape(sitter.name)}</span>`
+      : `<span style="flex:none;width:30px;height:30px;border-radius:50%;box-shadow:inset 0 0 0 2px ${T.inkDim};opacity:.6"></span>`
+        + `<span style="font:400 14px Tiny5,monospace;color:${T.inkDim};flex:1">Пустой стул</span>`
+        + `<span data-sit="${chair.id}" role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
+        + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">Сесть</span>`;
+    const flags = RIGHTS.map((flag) => flagChip(chair, flag, may)).join("");
+    const shell = `<div data-g="tip" data-tip="${chair.id}" style="position:absolute;left:${box.left}px;top:${box.top}px;width:${box.w}px;box-sizing:border-box;z-index:40;`
       + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
-      + `<div style="display:flex;align-items:center;gap:9px;padding-bottom:8px">`
-      + `<span style="flex:none;width:30px;height:30px;border-radius:50%;background:${who.ink};box-shadow:inset 0 0 0 3px ${T.black};`
-      + `display:flex;align-items:center;justify-content:center;font:400 14px Tiny5,monospace;color:${T.black}">${escape([...who.name][0] ?? "?")}</span>`
-      + `<span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1">${escape(who.name)}</span>`
-      + `<span data-shut="${who.key}" role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
+      + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px">${head}`
+      + `<span data-shut="${chair.id}" role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
       + `box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
-      + `<span style="font:400 10px Tiny5,monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7">РУКА · ${cards.length}</span>`
+      + `<div style="display:flex;align-items:center;gap:6px;height:16px">`
+      + `<span style="font:400 10px Tiny5,monospace;letter-spacing:.1em;color:${T.inkDim};opacity:.7;flex:1">РУКА · ${cards.length}</span>${flags}</div>`
       + `<div style="position:relative;height:${box.rowH}px"></div></div>`;
-    // Карты чужого веера — рядом с коробкой, не внутри: их вытаскивают на стол, и край не должен их резать.
-    return { shell, cards: layHand(geom, cards, mark, false, who.key, heldByOthers(s)) };
+    // Карты веера — рядом с коробкой, не внутри: их вытаскивают на стол, и край не должен их резать.
+    return { shell, cards: layHand(geom, cards, mark, chair.id, heldByOthers(s), closed(s, chair.id)) };
   }
 
   function feltMarkHtml(): string {
@@ -445,14 +490,22 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   function draw(): void {
     const g = glass();
     const s = seen();
-    const mineCount = handOf(s, me()).length;
-    const floor = hudFloor(mineCount);
-    const seats: Seat[] = people(s).map((p) => ({
-      key: p.key, name: p.name, ink: p.ink, mine: p.key === me(),
-      // Своя рука — внизу, на стекле; в стуле у себя карт не рисуем.
-      cards: p.key === me() ? 0 : handOf(s, p.key).length,
-      ...(p.photo ? { face: face(p) } : {}),
-    }));
+    const seat = mine(s);
+    const floor = hudFloor(handOf(s, seat).length);
+    // СВОЙ СТУЛ — ВНИЗУ: у каждого зрителя стол повёрнут так, что его место на шести часах.
+    const turn = chairOf(s, seat)?.angle ?? 0;
+    const seats: Seat[] = s.chairs.map((c) => {
+      const sitter = sitterOf(s, c);
+      return {
+        key: c.id,
+        angle: (c.angle - turn + 360) % 360,
+        mine: c.id === seat,
+        // Своя рука — внизу, на стекле; в своём стуле карт не рисуем.
+        cards: c.id === seat ? 0 : c.hand.length,
+        ...(sitter ? { name: sitter.name, ink: sitter.ink } : {}),
+        ...(sitter?.photo ? { face: face(sitter) } : {}),
+      };
+    });
     lastFrame = { w: g.w, h: g.h - floor };
     syncCamera();
     view = drawFelt(canvas, {
@@ -468,9 +521,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       frame: lastFrame,
       k: view.k,
       middle: { x: Math.round(middle.x), y: Math.round(middle.y) },
-      seats: spots.map((sp) => ({ key: sp.key, x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), chair: Math.round(SEAT_REACH * view!.k) })),
+      seats: spots.map((sp) => {
+        const c = chairOf(s, sp.key);
+        return { key: sp.key, who: c && sitterOf(s, c)?.name, x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), chair: Math.round(SEAT_REACH * view!.k) };
+      }),
     });
-    local.tips = local.tips.filter((key) => s.people.some((p) => p.key === key));
+    local.tips = local.tips.filter((id) => id !== seat && chairOf(s, id) !== undefined);
     // ОКНА СТАВЯТСЯ ПО ОЧЕРЕДИ ОТКРЫТИЯ: каждое знает, где уже стоят раньше открытые.
     placedTips = new Map();
     for (const key of local.tips) {
@@ -478,9 +534,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       if (spot) placedTips.set(key, tipBox(spot, [...placedTips.values()]));
     }
     const open = local.tips
-      .map((key) => ({ who: s.people.find((p) => p.key === key)!, spot: spots.find((sp) => sp.key === key) }))
-      .filter((one): one is { who: Person; spot: Spot } => Boolean(one.spot))
-      .map((one) => tipHtml(s, one.who, one.spot));
+      .map((id) => ({ chair: chairOf(s, id)!, spot: spots.find((sp) => sp.key === id) }))
+      .filter((one): one is { chair: Chair; spot: Spot } => Boolean(one.spot))
+      .map((one) => tipHtml(s, one.chair, one.spot));
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
     over.innerHTML = hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + feltMarkHtml() + carryHtml();
     wire();
@@ -502,7 +558,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const s = seen();
     for (const key of local.tips) {
       const spot = spots.find((sp) => sp.key === key);
-      if (!spot) continue;
+      // Под замком рука стула палец не принимает — карта летит мимо, на сукно.
+      if (!spot || closed(s, key)) continue;
       const room = handOf(s, key).length;
       const geom = tipGeom(key, spot, room + 1);
       const box = geom.box!;
@@ -510,11 +567,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
         return { kind: "hand", which: key, index: slotAt(geom, x, room) };
       }
     }
-    const room = handOf(s, me()).length;
+    const room = handOf(s, mine(s)).length;
     const geom = mineGeom(room + 1);
     // Рука принимает ровно там, где горит её зона: верх карт и поле над ними (`handZoneHtml`).
     const top = geom.slots.reduce((m, sl) => Math.min(m, sl.y - geom.h / 2), Infinity) - geom.h * 0.12;
-    if (y >= top && x >= 0 && x <= glass().w) return { kind: "hand", which: me(), index: slotAt(geom, x, room) };
+    if (y >= top && x >= 0 && x <= glass().w) return { kind: "hand", which: mine(s), index: slotAt(geom, x, room) };
     // НА СУКНО — туда, где середина несомой карты, а не где палец: за неё и держат.
     const d = drag!;
     return { kind: "felt", at: view!.toDesk({ x: x - d.gx + d.w / 2, y: y - d.gy + d.h / 2 }) };
@@ -566,12 +623,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const index = handOf(s, owner).findIndex((c) => c.id === id);
     if (index < 0) return;
     // РАЗМЕР — У ГЕОМЕТРИИ, СЕРЕДИНА — У ЭЛЕМЕНТА: рамка повёрнутой карты шире её самой.
-    const geom = owner === me() ? mineGeom(handOf(s, me()).length) : tipGeom(owner, spots.find((sp) => sp.key === owner)!, handOf(s, owner).length);
+    if (closed(s, owner)) return;
+    const geom = owner === mine(s) ? mineGeom(handOf(s, owner).length) : tipGeom(owner, spots.find((sp) => sp.key === owner)!, handOf(s, owner).length);
     const r = el.getBoundingClientRect();
     const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     const card = handOf(s, owner)[index]!;
-    const mine = owner === me();
-    lift(card, mine && !local.on.hide, { left: cx - geom.w / 2, top: cy - geom.h / 2, w: geom.w, h: geom.h }, e, { kind: "hand", which: owner, index });
+    lift(card, card.face !== undefined, { left: cx - geom.w / 2, top: cy - geom.h / 2, w: geom.w, h: geom.h }, e, { kind: "hand", which: owner, index });
     try { el.setPointerCapture?.(e.pointerId); } catch { /* пальца уже нет */ }
   }
 
@@ -606,12 +663,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     clearInterval(d.hold);
     const aim = d.target;
     const to: Where = aim.kind === "hand"
-      ? { in: "hand", who: aim.which, i: aim.index }
+      ? { in: "hand", chair: aim.which, i: aim.index }
       // На сукно карта ложится так, как её несли: лицом — если её было видно.
       : { in: "felt", x: aim.at.x, y: aim.at.y, up: d.shown };
     const from = whereIs(store.state, d.card.id);
     if (from) {
-      const keepsFace = (to.in === "hand" && to.who === me()) || (to.in === "felt" && to.up);
+      const keepsFace = (to.in === "hand" && to.chair === mine()) || (to.in === "felt" && to.up);
       pending = { id: d.card.id, from, to, card: keepsFace ? d.card : { id: d.card.id }, sawLock: store.state.locks[d.card.id] === me() };
       store.send({ t: "drop", id: d.card.id, to });
     }
@@ -623,10 +680,31 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       el.onclick = (e) => {
         e.stopPropagation();
         const what = el.dataset.bar as BarKey;
-        if (what === "pin" || what === "lock" || what === "hide") local.on[what] = !local.on[what];
-        else if (what === "flip") store.send({ t: "flip" });
-        else local.pose[what] = !local.pose[what];
+        const seat = chairOf(store.state, mine());
+        if ((RIGHTS as readonly string[]).includes(what)) {
+          if (seat) store.send({ t: "flag", chair: seat.id, flag: what as ChairFlag, on: !seat[what as ChairFlag] });
+        } else if (what === "flip") store.send({ t: "flip" });
+        else local.pose[what as keyof Pose] = !local.pose[what as keyof Pose];
         draw();
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-flag]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const chair = chairOf(store.state, el.dataset.chair!);
+        const flag = el.dataset.flag as ChairFlag;
+        if (chair) store.send({ t: "flag", chair: chair.id, flag, on: !chair[flag] });
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-sit]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = el.dataset.sit!;
+        // Сел — окно этого стула больше не чужое: его рука теперь внизу.
+        local.tips = local.tips.filter((k) => k !== id);
+        store.send({ t: "sit", chair: id });
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-shut]")) {
@@ -674,7 +752,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   addEventListener("pointerup", endDrag);
   addEventListener("pointercancel", endDrag);
 
-  // ТАП ПО СУКНУ: сперва карта под пальцем, потом — диск человека (открыть или закрыть его окно).
+  // ТАП ПО СУКНУ: сперва карта под пальцем, потом — стул (открыть или закрыть его окно), занятый или нет.
   //
   // КОМУ ПАЛЕЦ — РЕШАЕТСЯ ЗДЕСЬ И РАНЬШЕ КАМЕРЫ: слушатель стоит на `stage` в фазе захвата, то есть
   // до холста, на котором слушает камера. Карта, аватар или палец, пришедший, пока другой несёт
@@ -694,7 +772,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       const finger = view?.toDesk({ x: e.clientX, y: e.clientY });
       const hit = spots.find(
         (sp) =>
-          sp.key !== me() &&
+          sp.key !== mine() &&
           (Math.hypot(e.clientX - sp.x, e.clientY - sp.y) <= sp.r + 6 ||
             (finger !== undefined && Math.hypot(finger.x - sp.seat.x, finger.y - sp.seat.y) <= SEAT_REACH)),
       );

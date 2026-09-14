@@ -20,8 +20,9 @@ function deal(): { id: string; face: Face }[] {
 }
 
 export function localStore(): TableStore {
-  const table = new Table(deal());
   const me: Person = { key: "me", name: "Ye", ink: "#f2c14e", door: "guest" };
+  // На стенде админ — я: иначе флаги чужих стульев не проверить.
+  const table = new Table(deal(), me.key);
   const bots: Person[] = [
     { key: "alia", name: "Алия", ink: "#7fd1b9", door: "guest" },
     { key: "timur", name: "Тимур", ink: "#e08b3f", door: "guest" },
@@ -29,16 +30,19 @@ export function localStore(): TableStore {
   for (const who of [me, ...bots]) table.join(who);
 
   // РАЗДАЧА — ТЕМИ ЖЕ НАМЕРЕНИЯМИ, что шлёт палец: у стенда нет чёрного хода в стол.
+  const seatOf = (who: string) => table.seenBy(who).people.find((p) => p.key === who)!.seat!;
   const hand = (who: string, n: number) => {
     for (let k = 0; k < n; k += 1) {
       const top = table.seenBy(who).deck.at(-1)!.id;
       table.act(who, { t: "grab", id: top }, 0);
-      table.act(who, { t: "drop", id: top, to: { in: "hand", who, i: k } }, 0);
+      table.act(who, { t: "drop", id: top, to: { in: "hand", chair: seatOf(who), i: k } }, 0);
     }
   };
   hand("me", 7);
   hand("alia", 5);
   hand("timur", 3);
+  // ТИМУР ВСТАЛ ИЗ-ЗА СТОЛА — стенд показывает покинутый стул с картами: его открывают, на него садятся.
+  table.leave("timur");
 
   let state = table.seenBy(me.key);
   const changed: (() => void)[] = [];
