@@ -17,7 +17,7 @@ export interface Pose {
 /** Стул, каким его рисуют: `key` — id стула; без `name` он покинут. */
 export interface Seat {
   key: string;
-  /** Угол места на экране этого зрителя — свой стул всегда внизу. */
+  /** Угол места в осях СТОЛА, как его прислал сервер, — один у всех. Свой стул внизу ставит камера. */
   angle: number;
   name?: string;
   ink?: string;
@@ -57,7 +57,26 @@ export interface FeltView {
   rotation: number;
   toGlass(p: { x: number; y: number }): { x: number; y: number };
   toDesk(p: { x: number; y: number }): { x: number; y: number };
+  /** Где на столе нарисована i-я карта колоды из n — со сдвигом стопки и её высотой. */
+  deckAt(i: number, n: number): { x: number; y: number };
+  /** Где на столе нарисована карта сукна — поднятая, если лежит на других. */
+  feltAt(id: string): { x: number; y: number } | undefined;
 }
+
+/**
+ * ТОЛЩИНА КАРТЫ В СТОПКЕ — доля ширины карты: колода из 36 при наибольшем наклоне стоит на треть ширины.
+ * Высота растёт с наклоном: сверху (0°) её не видно, и остаётся только сдвиг стопки.
+ */
+const CARD_THICK = 1 / 3 / 36;
+/** Сдвиг карты колоды к правому верхнему углу ЭКРАНА — какой бы ни был поворот камеры. */
+const DECK_DRIFT = { each: 0.03, most: 0.18 };
+/**
+ * КАРТА НА КАРТЕ — поднята на этаж: немного даже сверху, заметно при наклоне. Толще настоящей — чтобы
+ * одиночную карту на другой было видно, а не угадывать.
+ */
+const FELT_LEVEL = { flat: 0.05, tilt: 0.15 };
+/** Карты сукна перекрываются, если их середины ближе этого, в единицах. */
+const FELT_OVERLAP = 1.2;
 
 /** Цвета стула — содержание, а не тема (`SEAT_LOOK`). */
 export const SEAT = {
@@ -160,12 +179,18 @@ function posePlan(pose: Pose, n: number): { at: Point; angle: number }[] {
   }));
 }
 
-/** ГДЕ ЛЕЖИТ i-Я КАРТА КОЛОДЫ — плотная стопка: снос капнут на всю пачку. */
-export function deckAt(i: number, n: number): Point {
-  const drift = 0.03;
-  const reach = drift * Math.max(0, n - 1);
-  const k = reach > 0.18 ? 0.18 / reach : 1;
-  return { x: i * drift * k, y: -i * drift * k };
+/** Этаж каждой карты сукна: лежит на перекрытой — на один выше самой высокой из-под себя. */
+function feltLevels(felt: readonly { id: string; x: number; y: number }[]): Map<string, number> {
+  const out = new Map<string, number>();
+  felt.forEach((one, i) => {
+    let level = 0;
+    for (let j = 0; j < i; j += 1) {
+      const under = felt[j]!;
+      if (Math.hypot(one.x - under.x, one.y - under.y) < FELT_OVERLAP) level = Math.max(level, (out.get(under.id) ?? 0) + 1);
+    }
+    out.set(one.id, level);
+  });
+  return out;
 }
 
 function archPath(g: CanvasRenderingContext2D, r: number): void {
@@ -358,6 +383,8 @@ export interface FeltScene {
   hidden?: ReadonlySet<string>;
   /** Взгляд камеры: единицы стола → пиксели стекла (`Camera.transform()`). */
   view: Transform;
+  /** Наклон как доля наибольшего: 0 — сверху, 1 — лёг до конца. Даёт стопкам высоту. */
+  rise: number;
   k: number;
   squash: number;
   rotation: number;
@@ -384,6 +411,22 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   const toGlass = (p: Point) => apply(v, p);
   const back = invert(v)!;
   const toDesk = (p: Point) => apply(back, p);
+  // СДВИГ НА ЭКРАНЕ → СДВИГ НА СТОЛЕ. Стопка растёт вверх и вправо по экрану, а рисуется в осях стола:
+  // обратная матрица без переноса поворачивает, растягивает наклон назад и делит на зум.
+  const turn = invert({ a: v.a, b: v.b, c: v.c, d: v.d, e: 0, f: 0 });
+  const onScreen = (dx: number, dy: number): Point => (turn ? apply(turn, { x: dx * o.k, y: dy * o.k }) : { x: dx, y: -dy });
+  const deckAt = (i: number, n: number): Point => {
+    const reach = DECK_DRIFT.each * Math.max(0, n - 1);
+    const drift = DECK_DRIFT.each * (reach > DECK_DRIFT.most ? DECK_DRIFT.most / reach : 1);
+    return onScreen(i * drift, -i * (drift + CARD_THICK * o.rise));
+  };
+  const levels = feltLevels(o.felt);
+  const feltAt = (id: string): Point | undefined => {
+    const one = o.felt.find((f) => f.id === id);
+    if (!one) return undefined;
+    const lift = onScreen(0, -(levels.get(id) ?? 0) * (FELT_LEVEL.flat + FELT_LEVEL.tilt * o.rise));
+    return { x: one.x + lift.x, y: one.y + lift.y };
+  };
   desk();
 
   const ring = (radius: number, paint: string | CanvasGradient) => {
@@ -412,8 +455,19 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
 
   for (const one of o.felt) {
     if (one.id === o.lifted || o.hidden?.has(one.id)) continue;
+    const at = feltAt(one.id)!;
+    // ПОДНЯТАЯ КАРТА ОТБРАСЫВАЕТ ТЕНЬ туда, где лежала бы на сукне: так видно, что под ней другая.
+    if ((levels.get(one.id) ?? 0) > 0) {
+      g.save();
+      g.translate(one.x, one.y);
+      g.rotate((one.angle * Math.PI) / 180);
+      roundRect(g, -CARD.w / 2, -CARD.h / 2, CARD.w, CARD.h, CARD.w * 0.12);
+      g.fillStyle = "rgba(11,7,4,.45)";
+      g.fill();
+      g.restore();
+    }
     g.save();
-    g.translate(one.x, one.y);
+    g.translate(at.x, at.y);
     g.rotate((one.angle * Math.PI) / 180);
     card(g, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
     g.restore();
@@ -449,5 +503,5 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     spots.push({ key: who.key, x: at.x, y: at.y, r: (DISC / 2) * o.k, seat: place.at });
   });
 
-  return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk };
+  return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk, deckAt, feltAt };
 }

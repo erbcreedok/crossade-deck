@@ -7,7 +7,7 @@
 
 import { CARRY_EVERY_MS, HOLD_EVERY_MS, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
-import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, deckAt, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
+import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { orbits, tableCamera } from "./camera.js";
 import type { TableStore } from "./store.js";
 
@@ -631,13 +631,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const s = seen();
     const seat = mine(s);
     const floor = hudFloor(handOf(s, seat).length);
-    // СВОЙ СТУЛ — ВНИЗУ: у каждого зрителя стол повёрнут так, что его место на шести часах.
-    const turn = chairOf(s, seat)?.angle ?? 0;
+    aimCamera(s);
     const seats: Seat[] = s.chairs.map((c) => {
       const sitter = sitterOf(s, c);
       return {
         key: c.id,
-        angle: (c.angle - turn + 360) % 360,
+        angle: c.angle,
         mine: c.id === seat,
         // Своя рука — внизу, на стекле; в своём стуле карт не рисуем.
         cards: c.id === seat ? 0 : c.hand.filter((card) => !flying.has(card.id)).length + gapsIn(s, c.id).filter((gap) => gap.carry).length,
@@ -650,6 +649,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     view = drawFelt(canvas, {
       W: g.w, H: g.h, people: seats, images, deck: s.deck, felt: s.felt, held: heldByOthers(s), hidden: flying,
       view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
+      rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
     });
     spots = view.spots;
     // Взгляд — на холсте атрибутом: его видно в инспекторе и его читает прогон жестов.
@@ -660,7 +660,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       frame: lastFrame,
       k: view.k,
       middle: { x: Math.round(middle.x), y: Math.round(middle.y) },
-      felt: s.felt.map((f) => ({ id: f.id, angle: f.angle })),
+      felt: s.felt.map((f) => {
+        const at = view!.toGlass(view!.feltAt(f.id) ?? f);
+        const bare = view!.toGlass(f);
+        return { id: f.id, angle: f.angle, x: Math.round(at.x), y: Math.round(at.y), rise: +(bare.y - at.y).toFixed(1) };
+      }),
+      deckTop: s.deck.length ? (({ x, y }) => ({ x: Math.round(x), y: Math.round(y) }))(view.toGlass(view.deckAt(s.deck.length - 1, s.deck.length))) : null,
+      seatAngle: chairOf(s, seat)?.angle ?? null,
       seats: spots.map((sp) => {
         const c = chairOf(s, sp.key);
         return { key: sp.key, who: c && sitterOf(s, c)?.name, x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), chair: Math.round(SEAT_REACH * view!.k) };
@@ -678,7 +684,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       .filter((one): one is { chair: Chair; spot: Spot } => Boolean(one.spot))
       .map((one) => tipHtml(s, one.chair, one.spot));
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
-    over.innerHTML = hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + chairZonesHtml(s) + feltMarkHtml() + carryHtml();
+    over.innerHTML = hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + chairZonesHtml(s) + feltMarkHtml() + carryHtml() + homeHtml(s);
     wire();
 
     // ПЕРЕЕХАВШЕЕ — ЛЕТИТ. Запущенный перелёт прячет карту на месте, поэтому кадр рисуется ещё раз;
@@ -693,6 +699,47 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     prevPlaces = places;
     paintCarries(s, places);
     if (started) draw();
+  }
+
+  // ── КАМЕРА И МОЙ СТУЛ ──────────────────────────────────────────────────────────────────────
+
+  /**
+   * СВОЙ СТУЛ — ВНИЗУ, И ЭТО ДЕЛАЕТ КАМЕРА, А НЕ РИСОВАНИЕ. Стол, стулья и карты у всех в одних осях
+   * стола; у каждого зрителя камера по умолчанию повёрнута на угол его стула. Сел впервые — камера
+   * встаёт сразу; пересел (или стул сдвинули) — доворачивается плавно, и то, что игрок накрутил сам,
+   * до тех пор не трогается.
+   */
+  let aimedAt: { chair: string; angle: number } | null = null;
+  function aimCamera(s: Snapshot): void {
+    const chair = chairOf(s, mine(s));
+    if (!chair) return;
+    if (aimedAt && aimedAt.chair === chair.id && aimedAt.angle === chair.angle) return;
+    if (!aimedAt) cam.camera.turnTo(chair.angle);
+    else {
+      cam.camera.glideTurnTo(chair.angle);
+      redraw();
+    }
+    aimedAt = { chair: chair.id, angle: chair.angle };
+  }
+
+  /** Насколько камера ушла от своего стула — поворот коротким путём, в градусах. */
+  function offSeat(s: Snapshot): number {
+    const chair = chairOf(s, mine(s));
+    if (!chair) return 0;
+    const d = (((cam.camera.rotation - chair.angle) % 360) + 540) % 360 - 180;
+    return Math.max(Math.abs(d), cam.camera.pitch);
+  }
+
+  /** КНОПКА «К СВОЕМУ СТУЛУ» — в правом верхнем углу кадра, только пока камера от него ушла. Стрелка смотрит на стул. */
+  function homeHtml(s: Snapshot): string {
+    const chair = chairOf(s, mine(s));
+    if (!chair || offSeat(s) < 1.5) return "";
+    const turn = chair.angle - cam.camera.rotation;
+    return `<button data-home aria-label="К своему стулу" style="position:absolute;right:12px;top:12px;width:40px;height:40px;border:0;padding:0;z-index:45;`
+      + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;`
+      + `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}">`
+      + `<svg viewBox="0 0 24 24" width="22" height="22" style="transform:rotate(${turn}deg)" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
+      + `<path d="M12 4v14"/><path d="M6.5 12.5 12 18l5.5-5.5"/><path d="M8 21h8"/></svg></button>`;
   }
 
   // ── ЧУЖИЕ РУКИ В ВОЗДУХЕ И ПЕРЕЛЁТЫ ────────────────────────────────────────────────────────────
@@ -723,8 +770,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       const p = v.toGlass(at);
       return { key, x: p.x, y: p.y, w: FELT_CARD.w * scale * v.k, h: FELT_CARD.h * scale * v.k, angle: v.rotation + angle, squash: v.squash, face };
     };
-    s.deck.forEach((c, i) => out.set(c.id, onDesk("deck", deckAt(i, s.deck.length), 1, 0)));
-    for (const f of s.felt) out.set(f.id, onDesk(`felt:${f.x.toFixed(2)},${f.y.toFixed(2)},${f.angle}`, f, 1, f.angle, f.up ? f.face : undefined));
+    s.deck.forEach((c, i) => out.set(c.id, onDesk("deck", v.deckAt(i, s.deck.length), 1, 0)));
+    for (const f of s.felt) out.set(f.id, onDesk(`felt:${f.x.toFixed(2)},${f.y.toFixed(2)},${f.angle}`, v.feltAt(f.id) ?? f, 1, f.angle, f.up ? f.face : undefined));
     const shown = handsShown(s);
     for (const c of s.chairs) {
       const hand = shown.get(c.id);
@@ -760,7 +807,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     };
     const over = c.over;
     if (over.in === "felt") return onDesk(over, over.angle);
-    if (over.in === "deck") return onDesk(deckAt(s.deck.length, s.deck.length + 1), 0);
+    if (over.in === "deck") return onDesk(v.deckAt(s.deck.length, s.deck.length + 1), 0);
     const hand = shown.get(over.chair);
     const gap = hand?.lay.find((one) => "gap" in one && one.gap.carry === c.id);
     if (hand && gap) return { key, x: gap.slot.x, y: gap.slot.y, w: hand.geom.w, h: hand.geom.h, angle: gap.slot.angle, squash: 1, face: c.card.face };
@@ -901,10 +948,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     };
     for (let i = s.felt.length - 1; i >= 0; i -= 1) {
       const one = s.felt[i]!;
-      if (over(one, one.angle)) return { card: one, at: one, from: "felt", up: one.up };
+      const at = view.feltAt(one.id) ?? one;
+      if (over(at, one.angle)) return { card: one, at, from: "felt", up: one.up };
     }
     const top = s.deck.at(-1);
-    if (top && over(deckAt(s.deck.length - 1, s.deck.length))) return { card: top, at: deckAt(s.deck.length - 1, s.deck.length), from: "deck", up: false };
+    const deckTop = view.deckAt(s.deck.length - 1, s.deck.length);
+    if (top && over(deckTop)) return { card: top, at: deckTop, from: "deck", up: false };
     return null;
   }
 
@@ -1037,6 +1086,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   const keepPage = (e: Event) => e.preventDefault();
 
   function wire() {
+    for (const el of over.querySelectorAll<HTMLElement>("[data-home]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const chair = chairOf(store.state, mine());
+        if (!chair) return;
+        cam.camera.glideTurnTo(chair.angle);
+        cam.camera.glideTiltTo(0);
+        redraw();
+      };
+    }
     for (const el of over.children) {
       el.addEventListener("touchmove", keepPage, { passive: false });
     }
