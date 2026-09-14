@@ -955,14 +955,19 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
         air.append(el);
       }
       const ink = inkOf(s, c.by);
-      const who = s.people.find((p) => p.key === c.by)?.name ?? "";
-      const look = `${Math.round(at.w)}|${c.card.face?.rank}${c.card.face?.suit}|${ink}|${who}`;
+      const person = s.people.find((p) => p.key === c.by);
+      const who = person?.name ?? "";
+      const look = `${Math.round(at.w)}|${c.card.face?.rank}${c.card.face?.suit}|${ink}|${who}|${person?.photo ? 1 : 0}`;
       if (el.dataset.look !== look) {
         el.dataset.look = look;
         el.innerHTML = `<div data-g="carried" style="position:absolute;left:0;top:0;width:${at.w}px;height:${at.h}px;border-radius:${at.w * 0.12}px;`
           + `box-shadow:0 0 0 3px ${ink},0 ${Math.round(at.h * 0.12)}px 0 rgba(11,7,4,.45)">${cardHtml(c.card.face, at.w)}</div>`
-          + `<span data-g="who" style="position:absolute;left:${at.w * 0.7}px;top:${at.h * 0.85}px;white-space:nowrap;font:400 11px Tiny5,monospace;`
-          + `color:${T.black};background:${ink};border-radius:6px;padding:2px 6px;box-shadow:0 0 0 2px ${T.black}">${escape(who)}</span>`;
+          // КУРСОР ТОГО, КТО НЕСЁТ: стрелка в его цвете, рядом — лицо и имя. У бота — его аватар.
+          + `<svg data-g="pointer" width="18" height="18" viewBox="0 0 18 18" style="position:absolute;left:${at.w * 0.55}px;top:${at.h * 0.6}px">`
+          + `<path d="M2 1 L2 15 L6 11 L9 17 L11.5 16 L8.5 10 L14 10 Z" fill="${ink}" stroke="${T.black}" stroke-width="1.5" stroke-linejoin="round"/></svg>`
+          + `<span style="position:absolute;left:${at.w * 0.55 + 14}px;top:${at.h * 0.6 + 14}px;display:flex;align-items:center;gap:4px;white-space:nowrap">`
+          + (person?.photo ? `<img data-g="who-face" src="${escape(person.photo)}" alt="" style="width:18px;height:18px;border-radius:50%;box-shadow:0 0 0 2px ${ink},0 0 0 3px ${T.black}">` : "")
+          + `<span data-g="who" style="font:400 11px Tiny5,monospace;color:${T.black};background:${ink};border-radius:6px;padding:2px 6px;box-shadow:0 0 0 2px ${T.black}">${escape(who)}</span></span>`;
       }
       el.dataset.at = `${Math.round(at.x)},${Math.round(at.y)}`;
       const card = el.firstElementChild as HTMLElement;
