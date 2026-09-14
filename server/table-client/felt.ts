@@ -31,11 +31,13 @@ export interface FeltItem {
   face?: Face;
 }
 
+/** Где сидит человек: диск на стекле (`x`, `y`, `r` — пиксели) и его стул на столе (`seat` — единицы). */
 export interface Spot {
   key: string;
   x: number;
   y: number;
   r: number;
+  seat: Point;
 }
 
 /** Где что легло, и как переводить между столом и стеклом — тем же взглядом, каким рисовали. */
@@ -81,6 +83,11 @@ export const RIM = EDGE.line + EDGE.dark + EDGE.light;
 /** Стул: арка и её линия. */
 const ARCH_R = 1.1;
 const CHAIR_LINE = 0.09;
+/**
+ * ДОКУДА ОТ СЕРЕДИНЫ МЕСТА ДОСТАЁТ СТУЛ, в единицах: арка — полукруг спереди и квадрат спинки сзади,
+ * и дальше всего от середины — угол спинки. Касание в этом круге — касание стула.
+ */
+export const SEAT_REACH = (ARCH_R + CHAIR_LINE) * Math.SQRT2;
 /** Диск и табличка под ним. */
 export const DISC = 1.6;
 const DISC_LINE = 0.09;
@@ -447,7 +454,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     g.setTransform(dpr * o.k, 0, 0, dpr * o.k, dpr * at.x, dpr * at.y);
     disc(g, who, images);
     desk();
-    spots.push({ key: who.key, x: at.x, y: at.y, r: (DISC / 2) * o.k });
+    spots.push({ key: who.key, x: at.x, y: at.y, r: (DISC / 2) * o.k, seat: place.at });
   });
 
   return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk };

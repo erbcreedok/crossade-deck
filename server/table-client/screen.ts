@@ -7,7 +7,7 @@
 
 import { HOLD_EVERY_MS, type Face, type Intent, type Person, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
-import { CARD as FELT_CARD, SUITS, deckAt, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
+import { CARD as FELT_CARD, SEAT_REACH, SUITS, deckAt, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { tableCamera } from "./camera.js";
 import type { TableStore } from "./store.js";
 
@@ -211,21 +211,83 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     };
   }
 
-  function tipBox(spot: Spot): TipBox {
-    const g = glass();
-    const w = Math.min(g.w - 16, 292);
+  /**
+   * ГДЕ СТОИТ ОКНО ЧУЖОЙ РУКИ — лучшее из мест вокруг человека, а не одно заранее выбранное.
+   *
+   * Места — по лучу «середина стола → человек» (наружу) и по четырём сторонам его диска; каждое
+   * прижато к кадру. Из них берётся то, что нарушает меньше, по старшинству:
+   *   1. ЦЕЛИКОМ В КАДРЕ — всегда: кадр — стекло над рукой, и окно, упёршееся в край, прижимается к
+   *      нему, а не уезжает за экран вслед за человеком, которого камера оставила за кромкой.
+   *   2. НЕ НА КОЛОДЕ. Середина стола — то, ради чего окно открыли рядом, а не поверх.
+   *   3. НЕ НА ДРУГОМ ОКНЕ. Окна ставятся по очереди открытия, и каждое обходит уже стоящие: иначе
+   *      карты верхнего ложатся на кнопку «Закрыть» нижнего, и закрыть его нечем.
+   *   4. СТУЛ ВИДНО ХОТЯ БЫ КРАЕМ — и свой, и чужие: тапом по стулу окно открывают и закрывают.
+   *   5. НЕ НА ДИСКЕ — лицо человека остаётся рядом со своей рукой.
+   *   6. ДАЛЬШЕ ОТ КОЛОДЫ, ПОТОМ БЛИЖЕ К ЧЕЛОВЕКУ.
+   *
+   * Старшинство, а не «все условия разом», потому что на телефоне в портрете их разом не выполнить:
+   * стол во всю ширину, окно почти во всю ширину, и человек напротив сидит так близко к верхнему краю,
+   * что над ним окно не помещается целиком. Тогда оно ложится краем на его диск, но не на колоду и не
+   * на весь стул.
+   */
+  function tipBox(spot: Spot, taken: readonly TipBox[]): TipBox {
+    const frame = lastFrame;
+    const EDGE = 8, GAP = 12;
+    const w = Math.min(frame.w - 2 * EDGE, 292);
     const cw = 46, ch = Math.round(cw * 1.4);
     const rowH = ch + 24;
     const height = 12 + 30 + 8 + 16 + rowH + 12;
-    const left = Math.max(8, Math.min(g.w - w - 8, spot.x - w / 2));
-    const below = spot.y < g.h * 0.45;
-    const top = below ? Math.min(g.h - height - 8, spot.y + spot.r + 12) : Math.max(8, spot.y - spot.r - 12 - height);
+    const k = view?.k ?? 1;
+    const middle = view ? view.toGlass({ x: 0, y: 0 }) : { x: frame.w / 2, y: frame.h / 2 };
+    const deck = { w: (FELT_CARD.w / 2) * k, h: (FELT_CARD.h / 2) * k };
+    const chair = SEAT_REACH * k;
+
+    const len = Math.hypot(spot.x - middle.x, spot.y - middle.y);
+    const ray = len < 1 ? { x: 0, y: -1 } : { x: (spot.x - middle.x) / len, y: (spot.y - middle.y) / len };
+    const along = (d: { x: number; y: number }) => {
+      const reach = Math.abs(d.x) * (w / 2) + Math.abs(d.y) * (height / 2);
+      return { x: spot.x + d.x * (spot.r + GAP + reach), y: spot.y + d.y * (spot.r + GAP + reach) };
+    };
+    const centres = [along(ray), along({ x: 0, y: -1 }), along({ x: 0, y: 1 }), along({ x: -1, y: 0 }), along({ x: 1, y: 0 })];
+
+    const overlaps = (box: { left: number; top: number }, c: { x: number; y: number }, hw: number, hh: number) =>
+      box.left < c.x + hw && box.left + w > c.x - hw && box.top < c.y + hh && box.top + height > c.y - hh;
+    const covers = (box: { left: number; top: number }, c: { x: number; y: number }, r: number) =>
+      box.left <= c.x - r && box.left + w >= c.x + r && box.top <= c.y - r && box.top + height >= c.y + r;
+    const fromDeck = (box: { left: number; top: number }) =>
+      Math.hypot(Math.max(box.left - middle.x, 0, middle.x - box.left - w), Math.max(box.top - middle.y, 0, middle.y - box.top - height));
+
+    const scored = centres.map((c) => {
+      const box = {
+        left: Math.max(EDGE, Math.min(frame.w - w - EDGE, c.x - w / 2)),
+        top: Math.max(EDGE, Math.min(frame.h - height - EDGE, c.y - height / 2)),
+      };
+      const rank = [
+        overlaps(box, middle, deck.w, deck.h) ? 1 : 0,
+        taken.filter((t) => overlaps(box, { x: t.left + t.w / 2, y: t.top + t.height / 2 }, t.w / 2, t.height / 2)).length,
+        covers(box, spot, chair) ? 1 : 0,
+        spots.filter((other) => other.key !== spot.key && covers(box, other, chair)).length,
+        overlaps(box, spot, spot.r, spot.r) ? 1 : 0,
+        // Дальше от колоды — пока это заметно; за полторы карты все места равны, и решает близость.
+        -Math.round(Math.min(fromDeck(box), 1.5 * FELT_CARD.h * k)),
+        Math.hypot(box.left + w / 2 - spot.x, box.top + height / 2 - spot.y),
+      ];
+      return { box, rank };
+    });
+    scored.sort((p, q) => {
+      for (let i = 0; i < p.rank.length; i += 1) if (p.rank[i] !== q.rank[i]) return p.rank[i]! - q.rank[i]!;
+      return 0;
+    });
+    const { left, top } = scored[0]!.box;
     return { left, top, w, height, cw, ch, rowH, rowTop: top + 12 + 30 + 8 + 16, inner: w - 24 };
   }
 
   /** ЧУЖАЯ РУКА зеркальна: её левая карта — моя правая, поэтому порядок гнёзд считается наоборот. */
+  /** Где встали открытые окна в этом кадре — по ним же ищут гнёзда их вееров. */
+  let placedTips = new Map<string, TipBox>();
+
   function tipGeom(key: string, spot: Spot, count: number): Geom {
-    const box = tipBox(spot);
+    const box = placedTips.get(key) ?? tipBox(spot, [...placedTips.values()]);
     const plan = handPlan({ fan: true, shrink: false, tuck: false }, count, 1, 1.4, box.inner / box.cw);
     return {
       which: key, mirror: true, w: box.cw, h: box.ch, box,
@@ -351,7 +413,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const mark = drag && drag.target.kind === "hand" && drag.target.which === who.key ? drag.target.index : null;
     const geom = tipGeom(who.key, spot, cards.length + (mark === null ? 0 : 1));
     const box = geom.box!;
-    const shell = `<div data-g="tip" style="position:absolute;left:${box.left}px;top:${box.top}px;width:${box.w}px;box-sizing:border-box;z-index:40;`
+    const shell = `<div data-g="tip" data-tip="${who.key}" style="position:absolute;left:${box.left}px;top:${box.top}px;width:${box.w}px;box-sizing:border-box;z-index:40;`
       + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
       + `<div style="display:flex;align-items:center;gap:9px;padding-bottom:8px">`
       + `<span style="flex:none;width:30px;height:30px;border-radius:50%;background:${who.ink};box-shadow:inset 0 0 0 3px ${T.black};`
@@ -401,7 +463,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     // Взгляд — на холсте атрибутом: его видно в инспекторе и его читает прогон жестов.
     const c = cam.camera;
     canvas.dataset.view = `${c.target.x.toFixed(2)},${c.target.y.toFixed(2)},${c.zoom.toFixed(3)},${c.rotation.toFixed(1)},${c.pitch.toFixed(1)}`;
+    const middle = view.toGlass({ x: 0, y: 0 });
+    canvas.dataset.spots = JSON.stringify({
+      frame: lastFrame,
+      k: view.k,
+      middle: { x: Math.round(middle.x), y: Math.round(middle.y) },
+      seats: spots.map((sp) => ({ key: sp.key, x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), chair: Math.round(SEAT_REACH * view!.k) })),
+    });
     local.tips = local.tips.filter((key) => s.people.some((p) => p.key === key));
+    // ОКНА СТАВЯТСЯ ПО ОЧЕРЕДИ ОТКРЫТИЯ: каждое знает, где уже стоят раньше открытые.
+    placedTips = new Map();
+    for (const key of local.tips) {
+      const spot = spots.find((sp) => sp.key === key);
+      if (spot) placedTips.set(key, tipBox(spot, [...placedTips.values()]));
+    }
     const open = local.tips
       .map((key) => ({ who: s.people.find((p) => p.key === key)!, spot: spots.find((sp) => sp.key === key) }))
       .filter((one): one is { who: Person; spot: Spot } => Boolean(one.spot))
@@ -615,7 +690,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
         e.stopPropagation();
         return grabFromFelt(e, pick);
       }
-      const hit = spots.find((sp) => sp.key !== me() && Math.hypot(e.clientX - sp.x, e.clientY - sp.y) <= sp.r + 6);
+      // ОКНО ОТКРЫВАЕТСЯ И ЗАКРЫВАЕТСЯ ТАПОМ ПО МЕСТУ — по диску на стекле или по стулу на столе.
+      const finger = view?.toDesk({ x: e.clientX, y: e.clientY });
+      const hit = spots.find(
+        (sp) =>
+          sp.key !== me() &&
+          (Math.hypot(e.clientX - sp.x, e.clientY - sp.y) <= sp.r + 6 ||
+            (finger !== undefined && Math.hypot(finger.x - sp.seat.x, finger.y - sp.seat.y) <= SEAT_REACH)),
+      );
       if (!hit) return;
       e.stopPropagation();
       local.tips = local.tips.includes(hit.key) ? local.tips.filter((k) => k !== hit.key) : [...local.tips, hit.key];
