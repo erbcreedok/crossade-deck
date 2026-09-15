@@ -1,0 +1,35 @@
+server/scripts/tableDeckTip.mjs
+  s_9ed0da107cbc4a::t_ee185c6c786d1a 1-171
+server/scripts/tableGrip.mjs
+  s_9ed0da107cbc4a::t_5136b17dfe72e1 35
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_197fcaae55df6f 22
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_beb23b1d370a3f 55-56,135-144,153,268-269
+server/src/table/deckSpot.test.ts
+  s_9ed0da107cbc4a::t_8bfe8a4653fb70 32,58-112
+server/src/table/patch.ts
+  s_9ed0da107cbc4a::t_83cfb484b62192 102-105
+server/src/table/table.test.ts
+  s_9ed0da107cbc4a::t_542314deced8b5 57,59,124,126,480-493
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_93c24471723e2c 179,235-241,298-299,304,307,348-349,463,660,704-710,806-809
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_538c8bc41006b1 52,66-67,97-98,324-329,1133,1218-1219,1221,1225-1243,1245-1267,1270-1273,1279,1281-1285,1354-1355,1651-1660,1682,1693,1719-1720,1762-1773,1793,1996-2011,2149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3f690694577520f54581c4893bc724c42e07bff6",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
