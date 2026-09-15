@@ -27,8 +27,8 @@ export function clientRoutes(): Router {
   });
 
   // ЛИЦА И РУБАШКИ — готовые растры колоды, как есть. Имя файла проверяется целиком: папка и карта из
-  // известного списка, никакого пути из запроса.
-  r.get(/^\/table\/cards\/(classic|minimal|backs)\/([a-z]+(?:-(?:[0-9]+|[AJQK]|red|black))?)\.webp$/, (req, res) => {
+  // известного списка, никакого пути из запроса. Четыре цвета (`-4c`) и кириллица (`-cyr`) — личный вид игрока.
+  r.get(/^\/table\/cards\/((?:classic|minimal)(?:-4c)?(?:-cyr)?|backs)\/([a-z]+(?:-(?:[0-9]+|[AJQK]|red|black))?)\.webp$/, (req, res) => {
     const [set, file] = [req.params[0]!, req.params[1]!];
     res.header("Cache-Control", "public, max-age=86400");
     res.sendFile(join(CARDS, set, `${file}.webp`), (err) => {

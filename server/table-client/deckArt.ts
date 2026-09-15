@@ -14,10 +14,39 @@ export function faceFile(face: Face): string {
   return `${SUIT_FILE[face.suit]}-${face.rank}`;
 }
 
-/** Адрес картинки: лицо в наборе стола или его рубашка. */
-export function artUrl(rules: Pick<TableRules, "faces" | "back"> | undefined, face: Face | undefined): string {
+/** Личный вид колоды — у каждого свой, на его устройстве: четыре цвета мастей и кириллица (Т В Д К). */
+export interface DeckLook {
+  fourColour: boolean;
+  cyrillic: boolean;
+}
+
+export const PLAIN_LOOK: DeckLook = { fourColour: false, cyrillic: false };
+
+/** Адрес картинки: лицо в наборе стола под личным видом (`classic-4c-cyr`) или рубашка стола. */
+export function artUrl(rules: Pick<TableRules, "faces" | "back"> | undefined, face: Face | undefined, look: DeckLook = PLAIN_LOOK): string {
   const r = { faces: rules?.faces ?? DEFAULT_RULES.faces, back: rules?.back ?? DEFAULT_RULES.back };
-  return face ? `/table/cards/${r.faces}/${faceFile(face)}.webp` : `/table/cards/backs/${r.back}.webp`;
+  const set = [r.faces, look.fourColour ? "4c" : "", look.cyrillic ? "cyr" : ""].filter(Boolean).join("-");
+  return face ? `/table/cards/${set}/${faceFile(face)}.webp` : `/table/cards/backs/${r.back}.webp`;
+}
+
+const LOOK_KEY = "crossade.table.deckLook";
+
+/** Вид колоды с устройства; хранилища нет или запись битая — обычный. */
+export function readLook(): DeckLook {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LOOK_KEY) ?? "null") as Partial<DeckLook> | null;
+    return { fourColour: raw?.fourColour === true, cyrillic: raw?.cyrillic === true };
+  } catch {
+    return { ...PLAIN_LOOK };
+  }
+}
+
+export function writeLook(look: DeckLook): void {
+  try {
+    localStorage.setItem(LOOK_KEY, JSON.stringify(look));
+  } catch {
+    // Нет хранилища — вид живёт, пока открыт экран.
+  }
 }
 
 export interface DeckArt {
@@ -44,7 +73,7 @@ export function settled(img: HTMLImageElement): Promise<void> {
   });
 }
 
-export function deckArt(onReady: () => void): DeckArt {
+export function deckArt(onReady: () => void, look: () => DeckLook = () => PLAIN_LOOK): DeckArt {
   const cache = new Map<string, HTMLImageElement>();
   let warmed = "";
   let warming: Promise<void> = Promise.resolve();
@@ -61,15 +90,16 @@ export function deckArt(onReady: () => void): DeckArt {
   };
   return {
     image(rules, face) {
-      const img = load(artUrl(rules, face));
+      const img = load(artUrl(rules, face, look()));
       return img.complete && img.naturalWidth > 0 ? img : undefined;
     },
-    url: artUrl,
+    url: (rules, face) => artUrl(rules, face, look()),
     warm(rules) {
-      const key = `${rules?.faces}/${rules?.back}`;
+      const l = look();
+      const key = `${rules?.faces}/${rules?.back}/${l.fourColour}/${l.cyrillic}`;
       if (key === warmed) return warming;
       warmed = key;
-      const all = [load(artUrl(rules, undefined)), ...ALL.map((face) => load(artUrl(rules, face)))];
+      const all = [load(artUrl(rules, undefined)), ...ALL.map((face) => load(artUrl(rules, face, l)))];
       warming = Promise.all(all.map(settled)).then(() => {});
       return warming;
     },

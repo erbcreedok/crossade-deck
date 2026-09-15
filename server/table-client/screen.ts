@@ -10,7 +10,7 @@ import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { orbits, tableCamera } from "./camera.js";
-import { deckArt, settled } from "./deckArt.js";
+import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.js";
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { WORDS_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
@@ -195,7 +195,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   const canvas = stage.querySelector("canvas")!;
   const over = stage.querySelector<HTMLElement>("#over")!;
   const images: Record<string, HTMLImageElement> = {};
-  const art = deckArt(() => draw());
+  /** Личный вид колоды: четыре цвета и кириллица — у каждого свой, на его устройстве. */
+  const look: DeckLook = readLook();
+  const art = deckArt(() => draw(), () => look);
   const talk = mountTalk(stage, store, () => draw());
 
   /** Только то, что есть у этого экрана и больше нигде. */
@@ -206,6 +208,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     sectionAt: -Infinity,
     /** Открыт вопрос «Покинуть стул?». */
     confirmLeave: false,
+    /** Открыты настройки (шестерёнка сверху). */
+    settings: false,
     /** Открытые окна стульев — id стульев, по порядку открытия. */
     tips: [] as string[],
     /** Открытый тултип стопки — id стопки. */
@@ -1727,7 +1731,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       .filter((one): one is { chair: Chair; spot: Spot } => Boolean(one.spot))
       .map((one) => tipHtml(s, one.chair, one.spot));
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
-    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s);
+    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + settingsHtml();
     wire();
     airUnder.style.height = `${mineGeom(handOf(s, mine(s)).length).barTop}px`;
 
@@ -1835,6 +1839,29 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}">`
       + `<svg viewBox="0 0 24 24" width="22" height="22" style="transform:rotate(${turn}deg)" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
       + `<path d="M12 4v14"/><path d="M6.5 12.5 12 18l5.5-5.5"/><path d="M8 21h8"/></svg></button>`;
+  }
+
+  /** НАСТРОЙКИ — шестерёнка сверху и окно под ней: вид колоды, личный. */
+  function settingsHtml(): string {
+    const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
+    const gear = `<button data-settings aria-label="Настройки" aria-expanded="${local.settings}" style="position:absolute;left:12px;top:12px;width:40px;height:40px;border:0;padding:0;z-index:61;`
+      + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">`
+      + `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
+      + `<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`;
+    if (!local.settings) return gear;
+    const row = (key: keyof DeckLook, label: string) => {
+      const on = look[key];
+      const knob = on
+        ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black}`
+        : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim}`;
+      return `<button data-look="${key}" role="switch" aria-checked="${on}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;border:0;padding:6px 0;background:none;cursor:pointer;color:${T.ink};font:400 13px Tiny5,monospace">`
+        + `<span>${label}</span><span style="width:44px;height:24px;border-radius:12px;position:relative;${knob}">`
+        + `<span style="position:absolute;top:4px;left:${on ? 24 : 4}px;width:16px;height:16px;border-radius:50%;background:${on ? T.black : T.inkDim}"></span></span></button>`;
+    };
+    return gear + `<div data-settings-panel style="position:absolute;left:12px;top:60px;width:200px;box-sizing:border-box;z-index:61;padding:10px 14px;border-radius:12px;`
+      + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);display:flex;flex-direction:column">`
+      + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding-bottom:4px">Колода</span>`
+      + row("fourColour", "4 цвета") + row("cyrillic", "Кириллица") + `</div>`;
   }
 
   // ── ЧУЖИЕ РУКИ В ВОЗДУХЕ И ПЕРЕЛЁТЫ ────────────────────────────────────────────────────────────
@@ -2460,6 +2487,23 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         draw();
       };
     }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-settings]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        local.settings = !local.settings;
+        draw();
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-look]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const key = el.dataset.look as keyof DeckLook;
+        look[key] = !look[key];
+        writeLook(look);
+        art.warm(store.state.rules);
+        draw();
+      };
+    }
     for (const el of over.querySelectorAll<HTMLElement>("[data-stand]")) {
       el.onclick = (e) => {
         e.stopPropagation();
@@ -2644,6 +2688,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const at = e.target instanceof Element ? e.target : null;
     if (at?.closest("[data-confirm],[data-bar=leave]")) return;
     local.confirmLeave = false;
+    redraw();
+  }, { capture: true });
+  addEventListener("pointerup", (e) => {
+    if (!local.settings) return;
+    const at = e.target instanceof Element ? e.target : null;
+    if (at?.closest("[data-settings],[data-settings-panel]")) return;
+    local.settings = false;
     redraw();
   }, { capture: true });
   addEventListener("pointercancel", unpress, { capture: true });

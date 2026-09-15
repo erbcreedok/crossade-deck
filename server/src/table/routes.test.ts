@@ -49,7 +49,9 @@ describe("вид колоды", () => {
     expect(ok.status).toBe(200);
     expect((await ok.arrayBuffer()).byteLength).toBeGreaterThan(100);
     expect((await fetch(`${base}/table/cards/backs/plaid.webp`)).status).toBe(200);
-    expect((await fetch(`${base}/table/cards/classic-4c/spade-A.webp`)).status).toBe(404);
+    for (const set of ["classic-4c", "classic-cyr", "minimal-4c-cyr"]) expect((await fetch(`${base}/table/cards/${set}/heart-K.webp`)).status, set).toBe(200);
+    expect((await fetch(`${base}/table/cards/classic-cyr-4c/spade-A.webp`)).status).toBe(404);
+    expect((await fetch(`${base}/table/cards/gothic/spade-A.webp`)).status).toBe(404);
     expect((await fetch(`${base}/table/cards/classic/..%2F..%2Fbacks%2Fplaid.webp`)).status).toBe(404);
   });
 
