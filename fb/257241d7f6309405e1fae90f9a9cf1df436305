@@ -1,0 +1,21 @@
+server/scripts/tableHaptic.mjs
+  s_9ed0da107cbc4a::t_769eae61bc2526 121,123-126
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_9a748cfac2770b 1996
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fb257241d7f6309405e1fae90f9a9cf1df436305",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
