@@ -78,7 +78,6 @@ export interface FeltCard extends SeenCard {
 /**
  * ФЛАГИ СТУЛА — права, которые висят на месте, а не на человеке.
  *
- *   pin     другие не двигают стул
  *   lock    другие не берут карты из его руки и не кладут в неё
  *   hide    другие видят его руку рубашкой (хозяин свою — всегда как держит); по умолчанию включён
  *   forever стул не удаляется правилом `dropEmptyChairs`, даже пустой и без карт
@@ -87,13 +86,12 @@ export interface FeltCard extends SeenCard {
  * стоит, действует и на него.
  */
 export interface ChairFlags {
-  pin: boolean;
   lock: boolean;
   hide: boolean;
   forever: boolean;
 }
 export type ChairFlag = keyof ChairFlags;
-export const CHAIR_FLAGS: readonly ChairFlag[] = ["pin", "lock", "hide", "forever"];
+export const CHAIR_FLAGS: readonly ChairFlag[] = ["lock", "hide", "forever"];
 
 /**
  * ПОЗА РУКИ — как хозяин держит карты; видят все, рисуют по ней худ, окно стула и стул на столе.

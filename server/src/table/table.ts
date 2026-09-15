@@ -55,7 +55,6 @@ interface ChairRow {
   owner: string | null;
   /** Кто сидел последним — вернувшийся садится обратно. */
   last: string | null;
-  pin: boolean;
   lock: boolean;
   hide: boolean;
   forever: boolean;
@@ -353,7 +352,7 @@ export class Table {
     const chair = this.chairs.get(id);
     if (!chair) return { refused: "gone" };
     if (!this.mayFlag(by, chair)) return { refused: "not-yours" };
-    if (typeof on !== "boolean" || !["pin", "lock", "hide", "forever"].includes(flag)) return { refused: "bad" };
+    if (typeof on !== "boolean" || !["lock", "hide", "forever"].includes(flag)) return { refused: "bad" };
     chair[flag] = on;
     const ops: Op[] = [{ t: "chair", chair: this.chairOut(chair) }];
     if (flag === "forever" && !on) ops.push(...this.sweepChair(chair));
@@ -457,7 +456,6 @@ export class Table {
       angle: freeAngle([...this.chairs.values()].map((c) => c.angle)),
       owner: null,
       last: null,
-      pin: false,
       lock: false,
       hide: true,
       forever: false,
@@ -482,7 +480,6 @@ export class Table {
    */
   private vacate(chair: ChairRow, how: "left" | "moved"): Op[] {
     chair.owner = null;
-    chair.pin = false;
     chair.lock = false;
     if (how === "moved") {
       if (chair.hand.length > 0) chair.forever = true;

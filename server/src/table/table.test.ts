@@ -220,9 +220,9 @@ describe("Table: флаги и права", () => {
   it("свои флаги — хозяин, чужие — только админ, покинутого — любой", () => {
     const t = seated("admin", "b", "c");
     const b = seatOf(t, "b");
-    expect(t.act("c", { t: "flag", chair: b, flag: "pin", on: true }, 0)).toEqual({ refused: "not-yours" });
-    expect("ops" in t.act("b", { t: "flag", chair: b, flag: "pin", on: true }, 0)).toBe(true);
-    expect("ops" in t.act("admin", { t: "flag", chair: b, flag: "pin", on: false }, 0)).toBe(true);
+    expect(t.act("c", { t: "flag", chair: b, flag: "lock", on: true }, 0)).toEqual({ refused: "not-yours" });
+    expect("ops" in t.act("b", { t: "flag", chair: b, flag: "lock", on: true }, 0)).toBe(true);
+    expect("ops" in t.act("admin", { t: "flag", chair: b, flag: "lock", on: false }, 0)).toBe(true);
     deal(t, "b", b); // с картами покинутый стул остаётся стоять
     t.leave("b");
     expect("ops" in t.act("c", { t: "flag", chair: b, flag: "hide", on: false }, 0)).toBe(true);
@@ -234,10 +234,10 @@ describe("Table: флаги и права", () => {
     expect(t.seenBy("b").admin).toBe("admin");
     t.leave("admin");
     expect(t.seenBy("b").admin).toBeNull();
-    expect(t.act("c", { t: "flag", chair: b, flag: "pin", on: true }, 0)).toEqual({ refused: "not-yours" });
+    expect(t.act("c", { t: "flag", chair: b, flag: "lock", on: true }, 0)).toEqual({ refused: "not-yours" });
     t.join(person("admin"));
     expect(t.seenBy("b").admin).toBe("admin");
-    expect("ops" in t.act("admin", { t: "flag", chair: b, flag: "pin", on: true }, 0)).toBe(true);
+    expect("ops" in t.act("admin", { t: "flag", chair: b, flag: "lock", on: true }, 0)).toBe(true);
   });
 
   it("лок: чужие не берут и не кладут, хозяин — свободно, админ — только сняв лок", () => {
@@ -255,13 +255,13 @@ describe("Table: флаги и права", () => {
     expect("ops" in t.act("b", { t: "grab", id: card }, 0)).toBe(true);
   });
 
-  it("с покинутого стула спадают лок и пин, скрыть остаётся", () => {
+  it("с покинутого стула спадает лок, скрыть остаётся", () => {
     const t = seated("a", "b");
     const b = seatOf(t, "b");
     deal(t, "b", b);
-    for (const flag of ["lock", "pin"] as const) ops(t.act("b", { t: "flag", chair: b, flag, on: true }, 0));
+    ops(t.act("b", { t: "flag", chair: b, flag: "lock", on: true }, 0));
     t.leave("b");
-    expect(chair(t, b)).toMatchObject({ lock: false, pin: false, hide: true });
+    expect(chair(t, b)).toMatchObject({ lock: false, hide: true });
   });
 
   it("скрыть: по умолчанию другие видят рубашку; снял — видят как хозяин; хозяин видит всегда", () => {

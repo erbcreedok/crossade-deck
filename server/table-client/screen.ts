@@ -31,7 +31,7 @@ const HUD_UNIT_FRACTION = 0.25;
 const CARD = { w: 1, h: 1.4 };
 
 /** Флаги стула в нижнем HUD и в окне стула — одни и те же кнопки, одни и те же значки. */
-const RIGHTS = ["pin", "lock", "hide", "forever"] as const satisfies readonly ChairFlag[];
+const RIGHTS = ["lock", "hide", "forever"] as const satisfies readonly ChairFlag[];
 const FOLDS = ["fan", "shrink", "tuck"] as const;
 const ORDERS = ["suit", "rank", "reverse", "shuffle"] as const satisfies readonly Arrange[];
 /**
@@ -45,7 +45,6 @@ const SUBS: Record<Section, readonly BarKey[]> = { pose: FOLDS, chair: [...RIGHT
 /** Сколько идёт смена секций в баре. */
 const SECTION_MS = 240;
 const GLYPH: Record<BarKey | `sec-${Section}` | "back", string> = {
-  pin: '<path d="M9 3h6l-1 6h2l1 5H7l1-5h2L9 3z"/><path d="M12 14v7"/>',
   lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3"/><path d="M5 11h14v10H5z"/>',
   hide: '<path d="M3 3l18 18"/><path d="M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5"/><path d="M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9"/>',
   forever: '<path d="M6.5 8.5C3.5 8.5 2 10.2 2 12s1.5 3.5 4.5 3.5C10 15.5 14 8.5 17.5 8.5 20.5 8.5 22 10.2 22 12s-1.5 3.5-4.5 3.5C14 15.5 10 8.5 6.5 8.5z"/>',

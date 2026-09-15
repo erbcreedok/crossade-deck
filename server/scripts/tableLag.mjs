@@ -99,15 +99,15 @@ for (const how of ["rank", "shuffle", "reverse"]) {
   check(`${how}: после ответа порядок тот же, второго перелёта нет`, guessed === final && late === 0 && (how === "rank" || guessed !== before), { before, guessed, final, late });
 }
 
-// ── 3. Флаг: пин горит сразу ─────────────────────────────────────────────────────────────────────
+// ── 3. Флаг: лок горит сразу ─────────────────────────────────────────────────────────────────────
 await A.click('[data-section="order"]');
 await wait(A, 400);
 await A.click('[data-section="chair"]');
 await wait(A, 400);
-await press(A, '[data-bar="pin"]');
-check("пин: горит через 60 мс", (await A.getAttribute('[data-bar="pin"]', "aria-pressed")) === "true", null);
+await press(A, '[data-bar="lock"]');
+check("лок: горит через 60 мс", (await A.getAttribute('[data-bar="lock"]', "aria-pressed")) === "true", null);
 await wait(A, LAG + 600);
-check("пин: горит и после ответа", (await A.getAttribute('[data-bar="pin"]', "aria-pressed")) === "true", null);
+check("лок: горит и после ответа", (await A.getAttribute('[data-bar="lock"]', "aria-pressed")) === "true", null);
 
 // ── 4. Сервер и клиент считают порядок одинаково: B видит у A тот же порядок, что A нарисовал ──────────
 await A.click('[data-section="chair"]');
