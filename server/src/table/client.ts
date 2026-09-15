@@ -13,6 +13,7 @@ import { fileURLToPath } from "url";
 import express, { type Router } from "express";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "table-client");
+const CARDS = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "game-presets", "cards", "src", "decks", "baked");
 
 export function clientRoutes(): Router {
   const r = express.Router();
@@ -23,6 +24,16 @@ export function clientRoutes(): Router {
 
   r.get("/table/", fresh, async (_req, res) => {
     res.type("html").send(await readFile(join(ROOT, "index.html"), "utf8"));
+  });
+
+  // ЛИЦА И РУБАШКИ — готовые растры колоды, как есть. Имя файла проверяется целиком: папка и карта из
+  // известного списка, никакого пути из запроса.
+  r.get(/^\/table\/cards\/(classic|minimal|backs)\/([a-z]+(?:-(?:[0-9]+|[AJQK]|red|black))?)\.webp$/, (req, res) => {
+    const [set, file] = [req.params[0]!, req.params[1]!];
+    res.header("Cache-Control", "public, max-age=86400");
+    res.sendFile(join(CARDS, set, `${file}.webp`), (err) => {
+      if (err && !res.headersSent) res.status(404).end();
+    });
   });
 
   r.get("/table/app.js", fresh, async (_req, res) => {

@@ -217,7 +217,26 @@ export const SUITS: Record<Face["suit"], [string, string]> = { s: ["♠", "#1b1b
  * КАРТА В ЕДИНИЦАХ: лицом — знак и ранг, рубашкой — плетёнка. Лица нет — рисуется рубашка, что бы
  * ни просили: неизвестную карту честно показать нечем.
  */
-function card(g: CanvasRenderingContext2D, face: Face | undefined, w: number, h: number, held?: string): void {
+function card(g: CanvasRenderingContext2D, face: Face | undefined, w: number, h: number, held?: string, art?: CardArt): void {
+  const picture = art?.(face);
+  if (picture) g.drawImage(picture, -w / 2, -h / 2, w, h);
+  else paperCard(g, face, w, h);
+  // ВЗЯТАЯ ДРУГИМ — В ЕГО ЦВЕТЕ И ПРИГЛУШЁННАЯ: её видно, и видно, что она не твоя сейчас.
+  if (held) {
+    roundRect(g, -w / 2, -h / 2, w, h, w * 0.12);
+    g.fillStyle = "rgba(11,7,4,.45)";
+    g.fill();
+    g.lineWidth = w * 0.09;
+    g.strokeStyle = held;
+    g.stroke();
+  }
+}
+
+/** Картинка карты стола: лицо в наборе стола или рубашка (`deckArt.ts`). Не загружена — `undefined`. */
+export type CardArt = (face: Face | undefined) => HTMLImageElement | undefined;
+
+/** Карта, пока картинка не пришла: знак и ранг, рубашкой — плетёнка. */
+function paperCard(g: CanvasRenderingContext2D, face: Face | undefined, w: number, h: number): void {
   roundRect(g, -w / 2, -h / 2, w, h, w * 0.12);
   g.fillStyle = face ? "#f5ead0" : "#4a3627";
   g.fill();
@@ -247,15 +266,6 @@ function card(g: CanvasRenderingContext2D, face: Face | undefined, w: number, h:
     g.textBaseline = "middle";
     g.font = `${w * 0.45}px Tiny5, monospace`;
     g.fillText(sign, 0, h * 0.05);
-  }
-  // ВЗЯТАЯ ДРУГИМ — В ЕГО ЦВЕТЕ И ПРИГЛУШЁННАЯ: её видно, и видно, что она не твоя сейчас.
-  if (held) {
-    roundRect(g, -w / 2, -h / 2, w, h, w * 0.12);
-    g.fillStyle = "rgba(11,7,4,.45)";
-    g.fill();
-    g.lineWidth = w * 0.09;
-    g.strokeStyle = held;
-    g.stroke();
   }
 }
 
@@ -357,6 +367,8 @@ export interface FeltScene {
   H: number;
   people: Seat[];
   images: Record<string, HTMLImageElement>;
+  /** Картинки карт стола. */
+  art?: CardArt;
   deck: { id: string }[];
   felt: FeltItem[];
   /** Id вещи → цвет того, кто её сейчас держит (кроме меня). */
@@ -385,8 +397,8 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   canvas.height = Math.round(H * dpr);
   const g = canvas.getContext("2d")!;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.fillStyle = ROUND.black;
-  g.fillRect(0, 0, W, H);
+  // За столом — фон страницы (`ground.ts`): холст вокруг стола прозрачный.
+  g.clearRect(0, 0, W, H);
 
   // ПЛОСКОСТЬ СТОЛА — ЧЕРЕЗ КАМЕРУ: пан, зум, поворот и наклон одной матрицей. Сукно, карты и стулья
   // лежат в ней; диски с лицами — нет (ниже).
@@ -445,7 +457,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     g.save();
     g.translate(at.x, at.y);
     g.rotate((one.angle * Math.PI) / 180);
-    card(g, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
+    card(g, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id], o.art);
     g.restore();
   };
   for (const one of o.felt) if (one.under) paintFelt(one);
@@ -455,7 +467,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     g.save();
     const at = deckAt(i, deck.length);
     g.translate(at.x, at.y);
-    card(g, undefined, CARD.w, CARD.h, o.held[one.id]);
+    card(g, undefined, CARD.w, CARD.h, o.held[one.id], o.art);
     g.restore();
   });
 
@@ -475,7 +487,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       g.save();
       g.translate(p.at.x, p.at.y);
       g.rotate((p.angle * Math.PI) / 180);
-      card(g, undefined, CARD.w * HAND_SCALE, CARD.h * HAND_SCALE);
+      card(g, undefined, CARD.w * HAND_SCALE, CARD.h * HAND_SCALE, undefined, o.art);
       g.restore();
     });
     g.restore();

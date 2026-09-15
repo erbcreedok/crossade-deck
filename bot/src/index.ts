@@ -247,6 +247,7 @@ async function main(): Promise<void> {
           { command: "krest", description: "Пресет крестового: /krest [36|52] [jokers]" },
           { command: "belka", description: "Пресет белки: 36, стулья крестом, шестёрки на край" },
           { command: "deal", description: "Раздать: /deal N|durak|krest|belka [@кто] [-skip-empty] [-as-dealer] [-force]" },
+          { command: "deck", description: "Вид колоды: /deck [classic|minimal] [plaid|argyle|club|lattice|crest|ink]" },
         ]
       : []),
   ]);

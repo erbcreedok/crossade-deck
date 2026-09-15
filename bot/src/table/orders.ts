@@ -7,12 +7,17 @@
 //   /krest [36|52] [jokers]                   пресет: колода под крестовый
 //   /belka                                    пресет: 36, стулья крестом, шестёрки на край
 //   /deal N|durak|krest|belka [@кто] [-skip-empty] [-as-dealer] [-force]
+//   /deck [classic|minimal] [plaid|argyle|club|lattice|crest|ink]   вид колоды на весь стол
 //   /menu                                     меню стола кнопками
 
-import type { DealRule, Game, RoomCard, RunError, TableCommand } from "../../../server/src/table/contract.js";
+import { CARD_BACKS, CARD_FACES, type CardBack, type CardFaces, type DealRule, type Game, type RoomCard, type RunError, type TableCommand } from "../../../server/src/table/contract.js";
 import type { Button, Said } from "./talk.js";
 
-export const ORDER_COMMANDS = ["collect", "shuffle", "durak", "krest", "belka", "deal"] as const;
+export const ORDER_COMMANDS = ["collect", "shuffle", "durak", "krest", "belka", "deal", "deck"] as const;
+
+/** Имена вида колоды словами — в кнопках и в ответе бота. */
+export const FACES_SAY: Record<CardFaces, string> = { classic: "Классика", minimal: "Минимал" };
+export const BACKS_SAY: Record<CardBack, string> = { plaid: "Плед", argyle: "Ромбы", club: "Трефы", lattice: "Решётка", crest: "Герб", ink: "Чернила" };
 export type OrderName = (typeof ORDER_COMMANDS)[number];
 
 /** Разобрать команду. `null` — слова не сложились, и бот отвечает подсказкой. */
@@ -20,6 +25,12 @@ export function parseOrder(name: OrderName, args: string): TableCommand | null {
   const words = args.trim().split(/\s+/).filter(Boolean).map((w) => w.toLowerCase());
   const has = (...flags: string[]) => words.some((w) => flags.includes(w.replace(/^-+/, "")));
   if (name === "collect" || name === "shuffle") return words.length === 0 ? { t: name } : null;
+  if (name === "deck") {
+    const faces = CARD_FACES.find((f) => words.includes(f));
+    const back = CARD_BACKS.find((b) => words.includes(b));
+    if (!words.length || words.length !== Number(Boolean(faces)) + Number(Boolean(back))) return null;
+    return { t: "look", ...(faces ? { faces } : {}), ...(back ? { back } : {}) };
+  }
   if (name === "durak" || name === "krest" || name === "belka") {
     const size = words.includes("52") ? 52 : 36;
     const jokers = has("jokers", "joker", "j", "джокеры", "джокер");
@@ -57,6 +68,7 @@ export const ORDERS_HELP = [
   "/krest [36|52] [jokers] — колода под крестовый",
   "/belka — белка: 36, стулья крестом, шестёрки на край",
   "/deal N|durak|krest|belka [@кто раздаёт] [-skip-empty] [-as-dealer] [-force]",
+  "/deck [classic|minimal] [plaid|argyle|club|lattice|crest|ink] — вид колоды на весь стол (или кнопками в /menu)",
 ].join("\n");
 
 /** Кнопки меню: короткий код в `callback_data` → команда. */
@@ -75,6 +87,8 @@ export const MENU: Record<string, { label: string; command: TableCommand }> = {
   dd: { label: "Дурак", command: { t: "deal", rule: "durak" } },
   dk: { label: "Крестовый", command: { t: "deal", rule: "krest" } },
   db: { label: "Белка", command: { t: "deal", rule: "belka" } },
+  ...Object.fromEntries(CARD_FACES.map((faces) => [`lf${faces}`, { label: FACES_SAY[faces], command: { t: "look", faces } }])),
+  ...Object.fromEntries(CARD_BACKS.map((back) => [`lb${back}`, { label: BACKS_SAY[back], command: { t: "look", back } }])),
 };
 
 const btn = (room: string, code: string): Button => ({ text: MENU[code]!.label, data: `tbr:${room}:${code}` });
@@ -89,6 +103,9 @@ export function menuOf(card: RoomCard): Said {
       [{ text: "Пресет · крестовый:", data: "tbx" }, btn(r, "pk36"), btn(r, "pk52"), btn(r, "pk36j"), btn(r, "pk52j")],
       [{ text: "Пресет:", data: "tbx" }, btn(r, "pb")],
       [{ text: "Раздать:", data: "tbx" }, btn(r, "dd"), btn(r, "dk"), btn(r, "db")],
+      [{ text: "Лица:", data: "tbx" }, ...CARD_FACES.map((f) => btn(r, `lf${f}`))],
+      [{ text: "Рубашка:", data: "tbx" }, ...CARD_BACKS.slice(0, 3).map((b) => btn(r, `lb${b}`))],
+      CARD_BACKS.slice(3).map((b) => btn(r, `lb${b}`)),
     ],
   };
 }
@@ -118,6 +135,8 @@ export function started(command: TableCommand, title: string): string {
       return command.game === "belka"
         ? `Пресет «белка» на «${title}»: 36 карт, стулья крестом, шестёрки на край.`
         : `Пресет «${GAME[command.game]}» на «${title}»: ${command.size ?? 36}${command.jokers ? " + джокеры" : ""}.`;
+    case "look":
+      return `Колода на «${title}»: ${[command.faces && `лица — ${FACES_SAY[command.faces].toLowerCase()}`, command.back && `рубашка — ${BACKS_SAY[command.back].toLowerCase()}`].filter(Boolean).join(", ")}.`;
     case "deal":
       return `Раздаю${command.rule === "each" ? ` по ${command.n ?? 1}` : ` — ${GAME[command.rule]}`} на «${title}».`;
   }

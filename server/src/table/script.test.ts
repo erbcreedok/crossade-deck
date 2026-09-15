@@ -176,6 +176,18 @@ describe("команды стола: колода и пресеты", () => {
     expect(await s.run({ t: "preset", game: "belka" })).toBe("not-enough-players");
   });
 
+  it("вид колоды: белка — классика, дурак и крестовый — минимал; рубашку пресет не трогает", async () => {
+    const s = table("a", "b", "c", "d");
+    await s.run({ t: "look", back: "crest" });
+    expect(s.t.seenBy("a").rules).toMatchObject({ faces: "classic", back: "crest" });
+    await s.run({ t: "preset", game: "durak" });
+    expect(s.t.seenBy("a").rules).toMatchObject({ faces: "minimal", back: "crest" });
+    await s.run({ t: "preset", game: "belka" });
+    expect(s.t.seenBy("a").rules).toMatchObject({ faces: "classic", back: "crest" });
+    await s.run({ t: "look", faces: "minimal" });
+    expect(s.seen().rules).toMatchObject({ faces: "minimal", back: "crest" });
+  });
+
   it("патчи команды складываются у зрителя в тот же стол, что у сервера", async () => {
     const s = table("a", "b", "c", "d");
     await s.run({ t: "preset", game: "belka" });

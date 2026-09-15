@@ -10,7 +10,7 @@
 // ПОРЯДОК РАЗДАЧИ — по часовой, со следующего после раздающего; раздающему — последним. Поэтому при
 // раздаче всей колоды у раздающего карт не больше, чем у всех, а у следующего — не меньше.
 
-import type { DealRule, DeckSize, Face, Game, RunError, Suit, TableCommand, Where } from "./contract.js";
+import { PRESET_FACES, type DealRule, type DeckSize, type Face, type Game, type RunError, type Suit, type TableCommand, type TableRules, type Where } from "./contract.js";
 import type { Table } from "./table.js";
 import { freeAngle, seatPoint } from "./ring.js";
 
@@ -32,7 +32,8 @@ export type Step =
   | { t: "move"; id: string; to: Where; ms: number }
   | { t: "shuffle"; ms: number }
   | { t: "restock"; faces: Face[] }
-  | { t: "chair"; id: string; angle: number; ms: number };
+  | { t: "chair"; id: string; angle: number; ms: number }
+  | { t: "rules"; rules: Partial<TableRules> };
 
 export type Plan = { steps: Step[]; actor: "bot" | string } | { error: RunError };
 
@@ -116,6 +117,8 @@ export function plan(table: Table, command: TableCommand, people: Who[], admin: 
     case "shuffle":
       if (at.felt.length > 0 || at.chairs.some((c) => c.hand.length > 0)) return { error: "needs-collect" };
       return { steps: [{ t: "shuffle", ms: PACE.shuffle }], actor: "bot" };
+    case "look":
+      return { steps: [{ t: "rules", rules: { ...(command.faces ? { faces: command.faces } : {}), ...(command.back ? { back: command.back } : {}) } }], actor: "bot" };
     case "preset":
       return presetPlan(table, command.game, command.size ?? 36, command.jokers === true, people, admin);
     case "deal":
@@ -124,7 +127,7 @@ export function plan(table: Table, command: TableCommand, people: Who[], admin: 
 }
 
 function presetPlan(table: Table, game: Game, size: DeckSize, jokers: boolean, people: Who[], admin: string): Plan {
-  const steps: Step[] = collectSteps(table);
+  const steps: Step[] = [{ t: "rules", rules: { faces: PRESET_FACES[game] } }, ...collectSteps(table)];
   const faces = game === "belka" ? deckOf(36, false) : deckOf(size, jokers);
   steps.push({ t: "restock", faces }, { t: "shuffle", ms: PACE.shuffle });
   if (game !== "belka") return { steps, actor: "bot" };
@@ -217,6 +220,10 @@ export async function execute(table: Table, steps: Step[], actor: string, io: Io
       if (step.t === "shuffle") {
         io.spread(table.shuffleDeck());
         await io.sleep(step.ms);
+        continue;
+      }
+      if (step.t === "rules") {
+        io.spread(table.setRules(step.rules));
         continue;
       }
       if (step.t === "restock") {

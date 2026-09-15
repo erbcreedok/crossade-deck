@@ -1,10 +1,13 @@
 import type { AddressInfo } from "net";
 import express from "express";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { BEACON_TTL_MS, SECRET_HEADER } from "./contract.js";
+import { existsSync } from "fs";
+import { join } from "path";
+import { BEACON_TTL_MS, CARD_BACKS, CARD_FACES, SECRET_HEADER } from "./contract.js";
+import { clientRoutes } from "./client.js";
 import { forgetAll } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
-import { BOOT, forgetBeacon, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
+import { BOOT, forgetBeacon, readCommand, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
 
 process.env.TABLE_SECRET = "s3cret";
 
@@ -14,7 +17,7 @@ let close = () => {};
 beforeAll(async () => {
   const app = express();
   app.use(express.json());
-  app.use(tableRoutes(), relayRoutes());
+  app.use(tableRoutes(), relayRoutes(), clientRoutes());
   const server = app.listen(0);
   await new Promise((r) => server.once("listening", r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -36,6 +39,26 @@ const call = (path: string, init: RequestInit & { json?: unknown; secret?: strin
     },
     ...(init.json !== undefined ? { body: JSON.stringify(init.json) } : {}),
   });
+
+describe("вид колоды", () => {
+  it("каждое лицо и рубашка из контракта есть готовым растром и отдаётся клиенту", async () => {
+    const baked = join(__dirname, "..", "..", "..", "game-presets", "cards", "src", "decks", "baked");
+    for (const set of CARD_FACES) for (const card of ["spade-A", "heart-10", "club-Q", "joker-red"]) expect(existsSync(join(baked, set, `${card}.webp`)), `${set}/${card}`).toBe(true);
+    for (const back of CARD_BACKS) expect(existsSync(join(baked, "backs", `${back}.webp`)), back).toBe(true);
+    const ok = await fetch(`${base}/table/cards/classic/spade-A.webp`);
+    expect(ok.status).toBe(200);
+    expect((await ok.arrayBuffer()).byteLength).toBeGreaterThan(100);
+    expect((await fetch(`${base}/table/cards/backs/plaid.webp`)).status).toBe(200);
+    expect((await fetch(`${base}/table/cards/classic-4c/spade-A.webp`)).status).toBe(404);
+    expect((await fetch(`${base}/table/cards/classic/..%2F..%2Fbacks%2Fplaid.webp`)).status).toBe(404);
+  });
+
+  it("команда вида из сети — только известные лица и рубашки", () => {
+    expect(readCommand({ t: "look", faces: "minimal", back: "ink" })).toEqual({ t: "look", faces: "minimal", back: "ink" });
+    expect(readCommand({ t: "look", back: "plaid", faces: "gothic" })).toEqual({ t: "look", back: "plaid" });
+    expect(readCommand({ t: "look", back: "nope" })).toBeNull();
+  });
+});
 
 describe("/table/rooms — бот управляет столами", () => {
   it("без секрета — 401", async () => {

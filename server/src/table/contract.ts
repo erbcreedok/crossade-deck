@@ -130,8 +130,25 @@ export interface Chair extends ChairFlags {
 export interface TableRules {
   /** Покинутый стул без карт и не вечный — удаляется. */
   dropEmptyChairs: boolean;
+  /** Лица карт — одни на весь стол, выбирает админ. */
+  faces: CardFaces;
+  /** Рубашка — одна на весь стол, выбирает админ. */
+  back: CardBack;
 }
-export const DEFAULT_RULES: TableRules = { dropEmptyChairs: true };
+
+/**
+ * КОЛОДА НА ВИД — лица и рубашка из готовых растров `game-presets/cards` (`decks/baked/`). Четыре цвета и
+ * кириллица — личные настройки человека, не стола; здесь их нет.
+ */
+export const CARD_FACES = ["classic", "minimal"] as const;
+export type CardFaces = (typeof CARD_FACES)[number];
+export const CARD_BACKS = ["plaid", "argyle", "club", "lattice", "crest", "ink"] as const;
+export type CardBack = (typeof CARD_BACKS)[number];
+
+export const DEFAULT_RULES: TableRules = { dropEmptyChairs: true, faces: "classic", back: "plaid" };
+
+/** Лица по пресету: белка — классика, остальные — минимал. Рубашку пресет не трогает. */
+export const PRESET_FACES: Record<Game, CardFaces> = { belka: "classic", durak: "minimal", krest: "minimal" };
 
 /**
  * СЛЕД КАРТЫ — кто её последним переносил, откуда и когда. Пишется при каждом дропе, сдвиг по сукну тоже
@@ -289,6 +306,8 @@ export type TableCommand =
   | { t: "shuffle" }
   /** Белка — всегда 36 и без джокеров; `size`/`jokers` у неё игнорируются. */
   | { t: "preset"; game: Game; size?: DeckSize; jokers?: boolean }
+  /** Вид колоды: лица, рубашка или оба. */
+  | { t: "look"; faces?: CardFaces; back?: CardBack }
   | {
       t: "deal";
       rule: DealRule;

@@ -18,6 +18,13 @@ describe("команды стола в чате", () => {
     expect(parseOrder("durak", "54")).toBeNull();
   });
 
+  it("вид колоды: лица, рубашка или оба; чужое слово — подсказка", () => {
+    expect(parseOrder("deck", "minimal")).toEqual({ t: "look", faces: "minimal" });
+    expect(parseOrder("deck", "Plaid classic")).toEqual({ t: "look", faces: "classic", back: "plaid" });
+    expect(parseOrder("deck", "")).toBeNull();
+    expect(parseOrder("deck", "ink gothic")).toBeNull();
+  });
+
   it("раздача: правило, раздающий и флаги", () => {
     expect(parseOrder("deal", "3")).toEqual({ t: "deal", rule: "each", n: 3 });
     expect(parseOrder("deal", "krest @Cemal -as-dealer -skip-empty")).toEqual({ t: "deal", rule: "krest", dealer: "@Cemal", asDealer: true, skipEmpty: true });

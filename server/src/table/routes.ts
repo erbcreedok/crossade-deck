@@ -10,7 +10,7 @@
 import { randomBytes, timingSafeEqual } from "crypto";
 import express, { type Router } from "express";
 import { tableConfig } from "./config.js";
-import { BEACON_EVERY_MS, BEACON_TTL_MS, SECRET_HEADER, type Beacon, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
+import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, SECRET_HEADER, type Beacon, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
 import { closeEntry, findEntry, openEntry, rehome, rename, roomsAt, roomsBy, runIn } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 
@@ -46,6 +46,12 @@ export function readCommand(raw: unknown): TableCommand | null {
     const g = game(c.game);
     if (!g) return null;
     return { t: "preset", game: g, ...(c.size === 52 || c.size === 36 ? { size: c.size } : {}), ...(c.jokers === true ? { jokers: true } : {}) };
+  }
+  if (c.t === "look") {
+    const faces = CARD_FACES.find((f) => f === c.faces);
+    const back = CARD_BACKS.find((b) => b === c.back);
+    if (!faces && !back) return null;
+    return { t: "look", ...(faces ? { faces } : {}), ...(back ? { back } : {}) };
   }
   if (c.t === "deal") {
     const rule = c.rule === "each" ? "each" : game(c.rule);

@@ -85,6 +85,12 @@ export class TableRoom extends Room {
    */
   async run(by: string, command: TableCommand): Promise<RunResult> {
     if (by !== creatorOf(this.room)) return { error: "not-admin" };
+    // ВИД КОЛОДЫ — не ход, а правило: меняется сразу, даже посреди раздачи, и бот за стол не садится.
+    if (command.t === "look") {
+      const steps = plan(this.table, command, [], by);
+      if ("steps" in steps) for (const step of steps.steps) if (step.t === "rules") this.spread(this.table.setRules(step.rules));
+      return { ok: true };
+    }
     if (this.table.busy) return { error: "busy" };
     const bot = await botPerson(tableConfig().botToken);
     if (!this.table.here.some((p) => p.key === BOT_KEY)) {

@@ -7,6 +7,7 @@
 import type { JoinOptions } from "../src/table/contract.js";
 import { localStore } from "./localStore.js";
 import { netStore } from "./netStore.js";
+import { mountGround } from "./ground.js";
 import { mountScreen } from "./screen.js";
 import type { TableStore } from "./store.js";
 
@@ -47,6 +48,7 @@ telegram?.ready();
 telegram?.expand();
 telegram?.disableVerticalSwipes?.();
 document.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+mountGround(stage);
 
 open()
   .then((store) => {

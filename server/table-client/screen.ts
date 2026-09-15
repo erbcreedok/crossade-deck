@@ -10,6 +10,7 @@ import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { orbits, tableCamera } from "./camera.js";
+import { deckArt } from "./deckArt.js";
 import type { TableStore } from "./store.js";
 
 const T = {
@@ -145,6 +146,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   const canvas = stage.querySelector("canvas")!;
   const over = stage.querySelector<HTMLElement>("#over")!;
   const images: Record<string, HTMLImageElement> = {};
+  const art = deckArt(() => draw());
 
   /** Только то, что есть у этого экрана и больше нигде. */
   const local = {
@@ -487,6 +489,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   // ── РАЗМЕТКА ────────────────────────────────────────────────────────────────────────────────
 
   function cardHtml(face: Face | undefined, w: number): string {
+    // КАРТИНКА НАБОРА СТОЛА; под ней, пока она грузится, — бумажная карта. Ранг и масть — в `aria-label`.
+    const rules = store.state.rules;
+    const label = face ? ` role="img" aria-label="${escape(face.rank)}${SUITS[face.suit][0]}"` : ` role="img" aria-label="рубашка"`;
+    const ready = art.image(rules, face) !== undefined;
+    return `<span${label} style="position:absolute;inset:0">${ready ? "" : paperHtml(face, w)}`
+      + `<span data-g="art" style="position:absolute;inset:0;background:url(${art.url(rules, face)}) center/100% 100% no-repeat"></span></span>`;
+  }
+
+  function paperHtml(face: Face | undefined, w: number): string {
     const h = Math.round(w * 1.4);
     if (!face) {
       return `<span style="position:absolute;inset:0;border-radius:${w * 0.12}px;background:${T.panelLight};box-shadow:inset 0 0 0 ${Math.max(2, w * 0.05)}px ${T.black},0 2px 0 rgba(11,7,4,.55)">`
@@ -954,8 +965,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     });
     lastFrame = { w: g.w, h: g.h - floor };
     syncCamera();
+    art.warm(s.rules);
     view = drawFelt(canvas, {
-      W: g.w, H: g.h, people: seats, images, deck: s.deck, felt: s.felt, held: heldByOthers(s), hidden: flying,
+      W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), deck: s.deck, felt: s.felt, held: heldByOthers(s), hidden: flying,
       view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
       rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
     });

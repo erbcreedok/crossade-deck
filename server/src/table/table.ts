@@ -36,6 +36,8 @@ import {
   type TableRules,
   type Trail,
   type Where,
+  CARD_BACKS,
+  CARD_FACES,
 } from "./contract.js";
 import { arranged, samePack, shuffled } from "./arrange.js";
 import { freeAngle, seatPoint } from "./ring.js";
@@ -205,10 +207,7 @@ export class Table {
         return this.flag(by, intent.chair, intent.flag, intent.on);
       case "rules": {
         if (by !== this.admin) return { refused: "not-yours" };
-        this.rules = { ...this.rules, ...pickRules(intent.rules) };
-        const ops: Op[] = [{ t: "rules", rules: { ...this.rules } }];
-        for (const chair of [...this.chairs.values()]) ops.push(...this.sweepChair(chair));
-        return { ops: this.commit(ops) };
+        return { ops: this.setRules(intent.rules) };
       }
       case "sync":
         return { ops: [] };
@@ -422,6 +421,14 @@ export class Table {
     });
     this.shuffles += 1;
     return this.commit([{ t: "deck", deck: this.deck.map((id) => ({ id })), shuffled: true }]);
+  }
+
+  /** Поменять правила стола — от админа или команды. Неизвестное и кривое молча отбрасывается. */
+  setRules(raw: Partial<TableRules>): Op[] {
+    this.rules = { ...this.rules, ...pickRules(raw) };
+    const ops: Op[] = [{ t: "rules", rules: { ...this.rules } }];
+    for (const chair of [...this.chairs.values()]) ops.push(...this.sweepChair(chair));
+    return this.commit(ops);
   }
 
   /** НАБРАТЬ КОЛОДУ ЗАНОВО — только когда всё уже собрано в колоду: чужие карты на столе так не пропадут. */
@@ -640,5 +647,9 @@ function turnOf(deg: number): number {
 }
 
 function pickRules(raw: Partial<TableRules>): Partial<TableRules> {
-  return typeof raw?.dropEmptyChairs === "boolean" ? { dropEmptyChairs: raw.dropEmptyChairs } : {};
+  const out: Partial<TableRules> = {};
+  if (typeof raw?.dropEmptyChairs === "boolean") out.dropEmptyChairs = raw.dropEmptyChairs;
+  if ((CARD_FACES as readonly unknown[]).includes(raw?.faces)) out.faces = raw.faces;
+  if ((CARD_BACKS as readonly unknown[]).includes(raw?.back)) out.back = raw.back;
+  return out;
 }

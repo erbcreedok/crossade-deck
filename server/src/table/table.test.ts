@@ -152,8 +152,17 @@ describe("Table: стулья", () => {
     t.leave("b");
     expect(chair(t, b)).toBeDefined();
     const [rules, unchair] = ops(t.act("a", { t: "rules", rules: { dropEmptyChairs: true } }, 0));
-    expect(rules).toEqual({ t: "rules", rules: { dropEmptyChairs: true } });
+    expect(rules).toEqual({ t: "rules", rules: { dropEmptyChairs: true, faces: "classic", back: "plaid" } });
     expect(unchair).toEqual({ t: "unchair", id: b, felt: [] });
+  });
+
+  it("вид колоды: по умолчанию классика на пледе; чужое и кривое значение не проходит", () => {
+    const t = seated("a", "b");
+    expect(t.seenBy("b").rules).toMatchObject({ faces: "classic", back: "plaid" });
+    ops(t.act("a", { t: "rules", rules: { faces: "minimal", back: "ink" } }, 0));
+    expect(t.seenBy("b").rules).toMatchObject({ faces: "minimal", back: "ink" });
+    ops(t.act("a", { t: "rules", rules: { faces: "gothic" as "minimal", back: "../x" as "ink" } }, 0));
+    expect(t.seenBy("b").rules).toMatchObject({ faces: "minimal", back: "ink" });
   });
 
   it("правило меняет только админ", () => {
