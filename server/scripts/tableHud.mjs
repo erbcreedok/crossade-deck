@@ -67,6 +67,11 @@ b = await bar(A);
 const x1 = await A.locator('[data-section="order"]').evaluate((e) => e.getBoundingClientRect().left);
 check("секция открыта: её кнопка слева, остальных нет, её кнопки на месте", b.sections.join() === "order" && x1 === x0 && b.subs.join() === "suit,rank,reverse,shuffle" && b.ghosts === 0, [b, x0, x1]);
 check("кнопка секции горит", (await A.getAttribute('[data-section="order"]', "aria-pressed")) === "true", null);
+const looks = await A.evaluate(() => {
+  const sec = getComputedStyle(document.querySelector('[data-section="order"]'));
+  return { round: sec.borderRadius.startsWith("50%") || parseFloat(sec.borderRadius) >= 20, fill: sec.backgroundImage, divider: Boolean(document.querySelector("[data-g=divider]")), back: document.querySelector('[data-section="order"] path')?.getAttribute("d") };
+});
+check("открытая секция не похожа на включённую кнопку: круг, без золотой заливки, «назад», черта", looks.round && !/248, 216, 133/.test(looks.fill) && looks.back === "M14.5 5.5 8 12l6.5 6.5" && looks.divider, looks);
 await A.click('[data-section="order"]');
 await wait(A);
 b = await bar(A);
