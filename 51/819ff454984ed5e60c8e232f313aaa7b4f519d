@@ -1,0 +1,36 @@
+server/table-client/sound.ts
+  s_9ed0da107cbc4a::t_f95987718644fc 1-101
+server/src/table/cues.ts
+  s_9ed0da107cbc4a::t_e5575306b9a909 1-79
+  s_9ed0da107cbc4a::t_0712a8ce460668 80-83
+server/src/table/cues.test.ts
+  s_9ed0da107cbc4a::t_313135311c3a06 1-70
+server/scripts/tableLook.mjs
+  s_9ed0da107cbc4a::t_e0118957160ec1 56
+server/scripts/tableSound.mjs
+  s_9ed0da107cbc4a::t_12d9ebf4727dab 1-154
+server/src/table/client.ts
+  s_9ed0da107cbc4a::t_b50518945205cd 39-46
+server/src/table/routes.test.ts
+  s_9ed0da107cbc4a::t_b0c052b27ddaa4 58-65
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_198128bc597d79 14-15,163-164,205-211,1671,1856-1878,1887-1888,1898-1900,2537-2545
+server/table-client/sounds/LICENSE-kenney-casino-audio.txt
+  s_9ed0da107cbc4a::t_32600131711baf 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "51819ff454984ed5e60c8e232f313aaa7b4f519d",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
