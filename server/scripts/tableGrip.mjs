@@ -1,5 +1,5 @@
 // ИНДИКАТОР КОЛОДЫ — два браузера. Тап — тултип колоды картами; двойной тап — колода перевёрнута у всех;
-// тяга — колода едет по сукну и встаёт у всех, в руку не ложится, камера и карты не трогаются; кнопки
+// тяга — колода едет по сукну и встаёт у всех, над рукой горит её зона (сама стопка в руку — `tablePileDrop`), камера и карты не трогаются; кнопки
 // тултипа — перемешать, отсортировать, перевернуть; вечность — значком.
 //   TABLE_SECRET=dev TABLE_GUESTS=1 TELEGRAM_BOT_TOKEN=test PORT=2599 npx tsx src/index.ts
 //   node scripts/tableGrip.mjs [base] [secret]
@@ -107,16 +107,19 @@ check("отпустили — колода встала у всех на нов�
 const after = await spots(A);
 check("камера не сдвинулась, карта не взята", (await A.getAttribute("canvas", "data-view")) === view && after.deck === 36 && after.felt.length === 0, null);
 
-// ── 9. В руку колоду не положить: отпущенная над рукой встаёт на сукно ────────────────────────
+// ── 9. Над рукой зона руки горит; увели обратно на сукно — встала на сукно ─────────────────────
 g = await gripBox(A);
 await A.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
 await A.mouse.down();
 await A.mouse.move(195, 800, { steps: 12 });
+const zoneLit = await A.locator('[data-g="zone"]').evaluate((e) => e.style.borderColor).catch(() => null);
+check("колода над рукой — зона руки горит золотом", zoneLit === "rgb(242, 193, 78)", zoneLit);
+await A.mouse.move(250, 420, { steps: 12 });
 await A.mouse.up();
 await wait(B, 500);
 const handA = await A.locator("#over [data-card]").count();
 const sa = await spots(A);
-check("над рукой: колода цела, в руке пусто, стоит на сукне", sa.deck === 36 && handA === 0 && Math.hypot(sa.spot.x, sa.spot.y) <= 8 - 0.86 + 1e-6, sa.spot);
+check("увели с руки на сукно: колода цела, в руке пусто, стоит на сукне", sa.deck === 36 && handA === 0 && Math.hypot(sa.spot.x, sa.spot.y) <= 8 - 0.86 + 1e-6, sa.spot);
 check("индикатор ушёл вместе с колодой", Math.abs((await gripBox(A)).x + (await gripBox(A)).width / 2 - sa.deckTop.x) < 20, { grip: await gripBox(A), top: sa.deckTop });
 
 // ── 10. Верхняя карта с колоды на новом месте по-прежнему берётся ─────────────────────────────

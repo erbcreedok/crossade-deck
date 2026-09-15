@@ -218,7 +218,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * сукну за пальцем и встаёт, где отпустили. `off` — палец от места колоды на стекле: колода не прыгает
    * под палец и висит над индикатором, как её взяли. `at` — где колода сейчас, пока её тянут.
    */
-  let gripPress: { pile: string; pid: number; sx: number; sy: number; t0: number; moved: boolean; off: { x: number; y: number }; at?: { x: number; y: number } } | null = null;
+  let gripPress: { pile: string; target?: Aim; pid: number; sx: number; sy: number; t0: number; moved: boolean; off: { x: number; y: number }; at?: { x: number; y: number } } | null = null;
   let lastGripTap = 0;
   let drag: Drag | null = null;
   /**
@@ -832,7 +832,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    */
   function gapsIn(s: Snapshot, chair: string): Gap[] {
     const out: Gap[] = [];
-    if (drag && drag.target.kind === "hand" && drag.target.which === chair) out.push({ index: drag.target.index, ink: T.ink });
+    const aim = aiming();
+    if (aim?.kind === "hand" && aim.which === chair) out.push({ index: aim.index, ink: T.ink });
     for (const c of store.carries) {
       if (c.over.in === "hand" && c.over.chair === chair) out.push({ index: c.over.i, ink: inkOf(s, c.by), carry: c.id });
     }
@@ -865,13 +866,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   /** ЗОНА РУКИ, КОТОРАЯ ЗАГОРАЕТСЯ, ПОКА КАРТА В ВОЗДУХЕ. Под картами (`z-index: 0`), не крышка. */
   function handZoneHtml(geom: Geom): string {
-    if (!drag) return "";
+    const aim = aiming();
+    if (!aim) return "";
     const pad = geom.h * 0.12;
     const left = geom.slots.reduce((m, s) => Math.min(m, s.x - geom.w / 2), Infinity) - pad;
     const right = geom.slots.reduce((m, s) => Math.max(m, s.x + geom.w / 2), -Infinity) + pad;
     const top = geom.slots.reduce((m, s) => Math.min(m, s.y - geom.h / 2), Infinity) - pad;
     const bottom = geom.barTop!;
-    const here = drag.target.kind === "hand" && drag.target.which === mine();
+    const here = aim.kind === "hand" && aim.which === mine();
     const line = here ? T.gold : T.inkDim;
     return `<div data-g="zone" style="position:absolute;left:${left}px;top:${top}px;width:${right - left}px;height:${bottom - top}px;`
       + `z-index:0;pointer-events:none;border-radius:${Math.round(geom.w * 0.16)}px;border:2px dashed ${line};`
@@ -887,7 +889,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const g = glass();
     const cards = handOf(s, mine(s));
     const gaps = gapsIn(s, mine(s));
-    const mark = drag && drag.target.kind === "hand" && drag.target.which === mine(s) ? drag.target.index : null;
+    const aim = aiming();
+    const mark = aim?.kind === "hand" && aim.which === mine(s) ? aim.index : null;
     const geom = mineGeom(cards.length + gaps.length);
     const u = hudUnit();
     const most = 1 + Math.max(...SECTIONS.map((sec) => SUBS[sec].length));
@@ -1073,10 +1076,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     for (const c of store.carries) {
       if (c.over.in === "hand" && !closed(s, c.over.chair)) lit.set(c.over.chair, { ink: inkOf(s, c.by), here: true });
     }
-    if (drag) {
+    const aim = aiming();
+    if (aim) {
       for (const chair of s.chairs) {
         if (closed(s, chair.id) || lit.has(chair.id)) continue;
-        const here = drag.target.kind === "chair" && drag.target.which === chair.id;
+        const here = aim.kind === "chair" && aim.which === chair.id;
         lit.set(chair.id, { ink: here ? T.gold : T.inkDim, here });
       }
     }
@@ -1241,14 +1245,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * горит золотом. Чужую карту над стопкой видно всем: зона горит в цвете того, кто несёт.
    */
   function deckZoneHtml(s: Snapshot): string {
-    if (!drag && !store.carries.some((c) => c.over.in === "deck")) return "";
+    const aim = aiming();
+    if (!aim && !store.carries.some((c) => c.over.in === "deck")) return "";
     return s.piles.map((pile) => {
       const zone = deckZone(pile);
       if (!zone || pile.shut || deckCarry(s, pile.id)) return "";
       const other = store.carries.find((c) => c.over.in === "deck" && c.over.pile === pile.id);
-      if (!drag && !other) return "";
-      const here = drag ? drag.target.kind === "deck" && drag.target.pile === pile.id : true;
-      const ink = drag ? (here ? T.gold : T.inkDim) : inkOf(s, other!.by);
+      if (!aim && !other) return "";
+      const here = aim ? aim.kind === "deck" && aim.pile === pile.id : true;
+      const ink = aim ? (here ? T.gold : T.inkDim) : inkOf(s, other!.by);
       const r = Math.round(0.16 * FELT_CARD.w * (view?.k ?? 40));
       return `<div data-g="deck-zone" data-pile="${pile.id}" data-here="${here}" style="position:absolute;left:${zone.left}px;top:${zone.top}px;width:${zone.right - zone.left}px;height:${zone.bottom - zone.top}px;`
         + `box-sizing:border-box;z-index:1;pointer-events:none;border-radius:${r}px;border:2px dashed ${ink};`
@@ -1327,8 +1332,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       return `<div style="position:absolute;left:${-d * 1.5}px;top:${d * 2}px;width:${c.w}px;height:${c.h}px">${cardHtml(face, c.w)}</div>`;
     }).join("");
     const mark = view.toGlass(c.at);
-    return markHtml(c.w, c.h, view.rotation + dropAngle(), mark.x, mark.y, 30, view.squash).replace('data-g="mark"', 'data-g="deck-mark"')
-      + `<div data-g="deck-carry" data-pile="${pile.id}" style="position:absolute;left:${c.x - c.w / 2}px;top:${c.y - c.h / 2}px;width:${c.w}px;height:${c.h}px;z-index:60;pointer-events:none;`
+    // Над рукой или стопкой контура на сукне нет: там горит своя зона.
+    const onFelt = !gripPress?.target || gripPress.target.kind === "felt";
+    return (onFelt ? markHtml(c.w, c.h, view.rotation + dropAngle(), mark.x, mark.y, 30, view.squash).replace('data-g="mark"', 'data-g="deck-mark"') : "")
+      + `<div data-g="deck-carry" data-pile="${pile.id}" data-aim="${gripPress?.target ? `${gripPress.target.kind}${"pile" in gripPress.target ? `:${gripPress.target.pile}` : ""}` : "felt"}" style="position:absolute;left:${c.x - c.w / 2}px;top:${c.y - c.h / 2}px;width:${c.w}px;height:${c.h}px;z-index:60;pointer-events:none;`
       + `filter:drop-shadow(0 ${Math.round(c.h * 0.12)}px 0 rgba(11,7,4,.45))">${cards}</div>`;
   }
 
@@ -1356,7 +1363,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   /** Щели в открытой стопке: под мою карту в воздухе и под чужие, которые держат над её окном. */
   function deckGaps(s: Snapshot): Gap[] {
     const out: Gap[] = [];
-    if (drag?.target.kind === "deckAt" && drag.target.pile === local.deckTip) out.push({ index: drag.target.index, ink: T.ink });
+    const aim = aiming();
+    if (aim?.kind === "deckAt" && aim.pile === local.deckTip) out.push({ index: aim.index, ink: T.ink });
     for (const c of store.carries) if (c.over.in === "deck" && c.over.pile === local.deckTip && c.over.i !== undefined) out.push({ index: c.over.i, ink: inkOf(s, c.by), carry: c.id });
     return out.sort((a, b) => a.index - b.index);
   }
@@ -1950,12 +1958,21 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   // ── ЖЕСТ ────────────────────────────────────────────────────────────────────────────────────
 
-  function aimAt(x: number, y: number): Aim {
+  /** Куда целится то, что сейчас в воздухе: карта в пальце или стопка за индикатором. */
+  function aiming(): Aim | null {
+    return drag ? drag.target : (gripPress?.moved && gripPress.target) || null;
+  }
+
+  /**
+   * `mid` — середина несомого на стекле (для стопки — стопка в воздухе); `skip` — несомая стопка: в саму себя не
+   * целятся. Без них — карта в пальце.
+   */
+  function aimAt(x: number, y: number, mid?: { x: number; y: number }, skip?: string): Aim {
     const s = seen();
     // В ОКНО СТОПКИ — место по пальцу, как в окне руки; под локом — наверх; приёмка закрыта — назад.
     const tipPile = local.deckTip === null ? undefined : pileOf(s, local.deckTip);
     const deckTipBox = tipPile && deckTipGeom(s, tipPile.cards.length + 1);
-    if (deckTipBox) {
+    if (deckTipBox && deckTipBox.pile.id !== skip) {
       const b = deckTipBox.box;
       const pile = deckTipBox.pile;
       if (x >= b.left && x <= b.left + b.w && y >= b.top && y <= b.top + b.height) {
@@ -1982,18 +1999,19 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (y >= top && x >= 0 && x <= glass().w) return { kind: "hand", which: mine(s), index: poseOf(s, mine(s)).shrink ? room : slotAt(geom, x, room) };
     // В СТОПКУ — если середина несомой карты над её зоной. Раньше стула: колода, придвинутая к стулу, лежит
     // перед ним, и целятся в неё. Одиночная карта на сукне карту не принимает.
-    const d = drag!;
-    const mid = { x: x - d.gx + d.w / 2, y: y - d.gy - d.h * CARRY_CLEAR + d.h / 2 };
+    const d = drag;
+    const centre = mid ?? { x: x - d!.gx + d!.w / 2, y: y - d!.gy - d!.h * CARRY_CLEAR + d!.h / 2 };
     // Стопки сверху вниз: верхняя из накрывающих друг друга принимает первой.
     for (const pile of [...s.piles].reverse()) {
+      if (pile.id === skip) continue;
       const zone = deckZone(pile);
-      if (zone && mid.x >= zone.left && mid.x <= zone.right && mid.y >= zone.top && mid.y <= zone.bottom) return pile.shut ? { kind: "back" } : { kind: "deck", pile: pile.id };
+      if (zone && centre.x >= zone.left && centre.x <= zone.right && centre.y >= zone.top && centre.y <= zone.bottom) return pile.shut ? { kind: "back" } : { kind: "deck", pile: pile.id };
     }
     // НА СТУЛ — в руку его стула, в конец. Под локом стул карту не берёт: она вернётся, откуда взята.
     const chair = chairUnder(s, x, y);
     if (chair) return closed(s, chair.key) ? { kind: "back" } : { kind: "chair", which: chair.key };
     // НА СУКНО — туда, где середина несомой карты, а не где палец: за неё и держат.
-    return { kind: "felt", at: view!.toDesk({ x: x - d.gx + d.w / 2, y: y - d.gy + d.h / 2 }) };
+    return { kind: "felt", at: d ? view!.toDesk({ x: x - d.gx + d.w / 2, y: y - d.gy + d.h / 2 }) : view!.toDesk(centre) };
   }
 
   const sameAim = (a: Aim, b: Aim) => {
@@ -2535,6 +2553,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // ПРИКОЛОТА — не едет: палец увёл — это уже не тап, но и не перенос.
     if (pileOf(truth(), gripPress.pile)?.pin) return;
     gripPress.at = view.toDesk({ x: e.clientX - gripPress.off.x, y: e.clientY - gripPress.off.y });
+    // КУДА ЛЯЖЕТ СТОПКА — как карта: в руку, в окно стула, на стул, в другую стопку или её окно; иначе на сукно.
+    // Цель — место под стопкой, куда встал бы её контур на сукне, а не поднятая над ним стопка.
+    gripPress.target = aimAt(e.clientX, e.clientY, view.toGlass(gripPress.at), gripPress.pile);
     draw();
   }, { passive: true });
   const endGrip = (e: PointerEvent) => {
@@ -2542,8 +2563,19 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const press = gripPress;
     gripPress = null;
     if (e.type === "pointercancel") return draw();
-    // ТЯГА — колода встаёт, где отпустили. Только на сукно: в руку колоду не кладут.
+    // ТЯГА — стопка ложится туда, куда целилась: в руку и в стопку — целиком, картами; на сукно — встаёт, где отпустили.
     if (press.moved) {
+      const aim = press.target;
+      const s = store.state;
+      if (aim?.kind === "back") return draw();
+      if (aim?.kind === "hand" || aim?.kind === "chair") {
+        store.send({ t: "pileDrop", pile: press.pile, to: { in: "hand", chair: aim.which, i: aim.kind === "hand" ? aim.index : handOf(s, aim.which).length } });
+        return draw();
+      }
+      if (aim?.kind === "deck" || aim?.kind === "deckAt") {
+        store.send({ t: "pileDrop", pile: press.pile, to: { in: "deck", pile: aim.pile, ...(aim.kind === "deckAt" ? { i: aim.index } : {}) } });
+        return draw();
+      }
       if (press.at) return guessDeckMove(press.pile, press.at.x, press.at.y, dropAngle());
       return draw();
     }

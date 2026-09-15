@@ -414,3 +414,63 @@ describe("масса в воздухе", () => {
     expect(t.carriesSeenBy("c")[0]!.with!.map((w) => w.card.id)).toEqual(["c5"]);
   });
 });
+
+describe("стопку — в руку и в другую стопку", () => {
+  /** Стопка p1 из карт колоды: `ups` — какие перевернуть до сборки. */
+  const pile = (t: Table, ids: string[], ups: string[] = []) => {
+    for (const id of ups) ok(t.act("a", { t: "turn", id }, 0));
+    ok(t.act("a", { t: "gather", ids, side: "keep", to: { x: 3, y: 0, angle: 0 } }, 0));
+  };
+  const cardsOf = (t: Table, id: string) => t.seenBy("a").piles.find((p) => p.id === id)!.cards;
+
+  it("в руку: порядок снизу вверх с места под пальцем, лицом к хозяину; невечная стопка ушла со стола", () => {
+    const t = seated("a", "b");
+    const a = seatOf(t, "a");
+    ok(t.act("a", { t: "grab", id: "c7" }, 0));
+    ok(t.act("a", { t: "drop", id: "c7", to: { in: "hand", chair: a, i: 0 } }, 0));
+    pile(t, ["c0", "c1", "c2"], ["c1"]);
+    const v = t.version;
+    ok(t.act("a", { t: "pileDrop", pile: "p1", to: { in: "hand", chair: a, i: 0 } }, 0));
+    expect(t.version).toBe(v + 1);
+    expect(t.seenBy("a").chairs.find((c) => c.id === a)!.hand).toEqual(["c0", "c1", "c2", "c7"].map((id) => ({ id, face: cards[Number(id.slice(1))]!.face })));
+    expect(t.seenBy("a").piles.map((p) => p.id)).toEqual(["deck"]);
+  });
+
+  it("в стопку одной стороной — все её стороной; вперемешку — как лежали; сверху, а в открытое окно — на место", () => {
+    const even = seated("a");
+    pile(even, ["c0", "c1"], ["c1"]);
+    ok(even.act("a", { t: "pileDrop", pile: "p1", to: { in: "deck", pile: "deck" } }, 0));
+    expect(cardsOf(even, "deck").slice(-2).map((c) => [c.id, c.up === true])).toEqual([["c0", false], ["c1", false]]);
+    ok(even.act("a", { t: "deckDo", pile: "deck", how: "flip" }, 0));
+    // Колода вся лицом: собранная стопка рубашкой ляжет лицом.
+    ok(even.act("a", { t: "gather", ids: ["c0", "c1"], side: "down", to: { x: 3, y: 0, angle: 0 } }, 0));
+    ok(even.act("a", { t: "pileDrop", pile: "p2", to: { in: "deck", pile: "deck", i: 1 } }, 0));
+    expect(cardsOf(even, "deck").map((c) => c.id).slice(1, 3)).toEqual(["c0", "c1"]);
+    expect(cardsOf(even, "deck").every((c) => c.up)).toBe(true);
+
+    const odd = seated("a");
+    ok(odd.act("a", { t: "turn", id: "c5" }, 0));
+    pile(odd, ["c0", "c1"], ["c1"]);
+    ok(odd.act("a", { t: "pileDrop", pile: "p1", to: { in: "deck", pile: "deck" } }, 0));
+    expect(cardsOf(odd, "deck").slice(-2).map((c) => [c.id, c.up === true])).toEqual([["c0", false], ["c1", true]]);
+  });
+
+  it("колоду — в другую стопку: колода вечная и остаётся пустой; запреты", () => {
+    const t = seated("a", "b");
+    pile(t, ["c0"]);
+    ok(t.act("a", { t: "pileDrop", pile: "deck", to: { in: "deck", pile: "p1" } }, 0));
+    expect(t.seenBy("a").piles.map((p) => [p.id, p.cards.length])).toEqual([["deck", 0], ["p1", 8]]);
+    expect(t.act("a", { t: "pileDrop", pile: "deck", to: { in: "deck", pile: "p1" } }, 0)).toEqual({ refused: "bad" });
+    expect(t.act("a", { t: "pileDrop", pile: "p1", to: { in: "deck", pile: "p1" } }, 0)).toEqual({ refused: "bad" });
+    ok(t.act("a", { t: "deckPin", pile: "p1", on: true }, 0));
+    expect(t.act("a", { t: "pileDrop", pile: "p1", to: { in: "deck", pile: "deck" } }, 0)).toEqual({ refused: "locked" });
+    ok(t.act("a", { t: "deckPin", pile: "p1", on: false }, 0));
+    ok(t.act("b", { t: "pick", ids: ["c3"], on: true }, 0));
+    expect(t.act("a", { t: "pileDrop", pile: "p1", to: { in: "deck", pile: "deck" } }, 0)).toEqual({ refused: "locked" });
+    ok(t.act("b", { t: "unpick" }, 0));
+    ok(t.act("a", { t: "deckGuard", pile: "deck", guard: "shut", on: true }, 0));
+    expect(t.act("a", { t: "pileDrop", pile: "p1", to: { in: "deck", pile: "deck" } }, 0)).toEqual({ refused: "locked" });
+    ok(t.act("b", { t: "flag", chair: seatOf(t, "b"), flag: "lock", on: true }, 0));
+    expect(t.act("a", { t: "pileDrop", pile: "p1", to: { in: "hand", chair: seatOf(t, "b"), i: 0 } }, 0)).toEqual({ refused: "chair-locked" });
+  });
+});

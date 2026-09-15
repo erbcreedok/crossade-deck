@@ -265,6 +265,8 @@ export class Table {
         return this.pick(by, intent.ids, intent.on);
       case "moveMany":
         return this.moveMany(by, intent.moves, now);
+      case "pileDrop":
+        return this.pileDrop(by, intent.pile, intent.to, now);
       case "turnMany":
         return this.turnMany(by, intent.ids, now);
       case "unpick": {
@@ -362,6 +364,44 @@ export class Table {
   private turn(by: string, id: string, now: number): Result {
     const done = this.turnOps(by, id, now);
     return "refused" in done ? done : { ops: this.commit(done.ops) };
+  }
+
+  /** ПЕРЕЛОЖИТЬ СТОПКУ ЦЕЛИКОМ (`Intent.pileDrop`). Одним патчем; опустевшая невечная стопка уходит со стола. */
+  private pileDrop(by: string, id: string, to: unknown, now: number): Result {
+    const source = this.piles.get(id);
+    if (!source) return { refused: "gone" };
+    const target = this.clean(to as Where);
+    if (!target || target.in === "felt" || (target.in === "deck" && target.pile === id)) return { refused: "bad" };
+    if (source.spot.pin || source.spot.shut) return { refused: "locked" };
+    if (source.cards.some((one) => (this.locks.has(one) && this.locks.get(one)!.by !== by) || (this.picks.has(one) && this.picks.get(one) !== by))) return { refused: "locked" };
+    if (source.cards.length === 0) return { refused: "bad" };
+    if (target.in === "hand" && this.closedTo(by, target.chair)) return { refused: "chair-locked" };
+    const into = target.in === "deck" ? this.piles.get(target.pile) : undefined;
+    if (target.in === "deck" && !into) return { refused: "gone" };
+    if (into?.spot.shut) return { refused: "locked" };
+    // СТОРОНА: цель вся одной стороной — ею; вперемешку или пустая — как лежали.
+    const pack = into ? into.cards.map((one) => this.turned.has(one)) : [];
+    const side = pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0] : undefined;
+    const ops: Op[] = [];
+    const cards = [...source.cards];
+    let i = target.in === "hand" ? target.i : into!.spot.lock ? undefined : target.i;
+    for (const one of cards) {
+      const from = this.whereIs(one)!;
+      const trail = this.trailOf(one, by, from, target.in, now);
+      this.take(one, from);
+      if (target.in === "hand") this.turned.delete(one);
+      else if (side !== undefined) {
+        this.turned.delete(one);
+        if (side) this.turned.add(one);
+      }
+      const landed = this.put(one, target.in === "hand" ? { in: "hand", chair: target.chair, i: i! } : { in: "deck", pile: target.pile, ...(i !== undefined ? { i } : {}) });
+      if (i !== undefined) i = (landed as { i: number }).i + 1;
+      this.trails.set(one, trail);
+      if (this.locks.delete(one)) ops.push({ t: "unlock", id: one });
+      ops.push({ t: "move", card: { id: one }, from, to: landed, trail });
+    }
+    ops.push(...this.sweepPile(id));
+    return { ops: this.commit(ops) };
   }
 
   /** ПЕРЕВЕРНУТЬ ВЫДЕЛЕННОЕ — каждую карту на месте, одним патчем; чего тронуть нельзя — пропускается. */
