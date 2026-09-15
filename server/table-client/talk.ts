@@ -8,7 +8,7 @@
 // встаёт снизу, старые поднимаются, ушедшая улетает вверх, — это переходы браузера, а пересборка их бы убила.
 
 import { EMOJI } from "../src/table/emoji.js";
-import { EVERYWHERE, KEYBOARD, KEYBOARD_SECTIONS, LINE_PAUSE_MS, Lines, Typer, graphemes, type KeyboardSection, type Line, type Piece } from "../src/table/say.js";
+import { EVERYWHERE, KEYBOARD, KEYBOARD_SECTIONS, LINE_PAUSE_MS, Lines, SHOT_MS, Shots, Typer, graphemes, type KeyboardSection, type Line, type Piece } from "../src/table/say.js";
 import type { TableStore } from "./store.js";
 
 const INK = { black: "#0b0704", ink: "#f5ead0", well: "#1c120b", panel: "#3a2a1d", rim: "#6b4d2c", gold: "#f8d885", goldLo: "#b08a26" };
@@ -24,14 +24,19 @@ const USED_KEY = "crossade.table.emojiUsed";
 const SCROLL_TAP_PX = 8;
 const TAB_LABEL: Record<Tab, string> = { latin: "123 ABC", cyrillic: "ӘӨ АБВ", emoji: "😀", stickers: "🖼" };
 
-/** Где у меня сейчас стоят строки человека: точка перед его стулом на стекле и размер буквы. */
+/** Где у меня сейчас стоят строки человека: точка перед его стулом на стекле, размер буквы, направление к середине стола. */
 export interface WordAnchor {
   key: string;
   x: number;
   y: number;
   size: number;
   ink: string;
+  dx: number;
+  dy: number;
 }
+
+/** Полёт стикера: куда он уходит в долях высоты экрана — вверх сильнее, к середине стола слабее; разброс угла. */
+const SHOT_FLIGHT = { up: 0.3, toMiddle: 0.14, spreadDeg: 9 };
 
 /** Что диалог спрашивает у стола: как видно отметки, что под пальцем, моя рука, кого я не читаю, мои стикеры. */
 export interface TalkWorld {
@@ -87,7 +92,10 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
   board.hidden = true;
   board.style.cssText = `position:absolute;left:0;right:0;bottom:0;z-index:95;box-sizing:border-box;padding:8px 6px calc(10px + env(safe-area-inset-bottom));`
     + `background:linear-gradient(${INK.panel},${INK.well});box-shadow:inset 0 3px 0 -1px ${INK.black};touch-action:none;display:flex;flex-direction:column;gap:6px`;
-  stage.append(layer, shield, board);
+  const shotLayer = document.createElement("div");
+  shotLayer.dataset.g = "shots";
+  shotLayer.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:85;overflow:hidden";
+  stage.append(layer, shotLayer, shield, board);
 
   const idle = () => {
     clearTimeout(pause);
@@ -140,8 +148,13 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
   function stripTap(target: Element): void {
     const el = target.closest<HTMLElement>("[data-key],[data-sticker]");
     if (!el) return;
-    if (el.dataset.sticker) typer.sticker(el.dataset.sticker);
-    else {
+    if (el.dataset.sticker) {
+      if (!mayShoot()) return;
+      shots.fire(store.me.key, performance.now());
+      store.shoot({ id: el.dataset.sticker });
+      launch(store.me.key, el.dataset.sticker);
+      coolStickers();
+    } else {
       const before = typer.left;
       typer.key(el.dataset.key!);
       if (typer.left !== before || !typer.typing) noteUsed(el.dataset.key!);
@@ -224,6 +237,54 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
   const strip = (html: string, data: string) =>
     `<div data-scroll ${data} style="height:${STRIP_H}px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;touch-action:none;overscroll-behavior:contain;display:flex;align-items:stretch">${html}</div>`;
 
+  // СТИКЕРЫ ВЫСТРЕЛОМ — свои слоты считаются здесь же: занято три — кнопки стикеров гаснут до первого освободившегося.
+  const shots = new Shots();
+  const mayShoot = () => shots.free(store.me.key, performance.now()) > 0;
+  let cooling = 0;
+  function coolStickers(): void {
+    const off = !mayShoot();
+    for (const b of board.querySelectorAll<HTMLElement>("[data-sticker]")) {
+      b.dataset.cooling = String(off);
+      b.style.opacity = off ? "0.35" : "1";
+    }
+    clearTimeout(cooling);
+    if (off) cooling = window.setTimeout(coolStickers, shots.nextIn(store.me.key, performance.now()) + 20);
+  }
+  /** Сколько выстрелов у человека было — угол каждого следующего чуть другой. */
+  const fired = new Map<string, number>();
+  store.onShot((shot) => {
+    if (world.muted(shot.by)) return;
+    launch(shot.by, shot.id);
+  });
+  function launch(by: string, id: string): void {
+    const a = anchors.find((one) => one.key === by);
+    if (!a) return;
+    const n = (fired.get(by) ?? 0) + 1;
+    fired.set(by, n);
+    const H = stage.clientHeight;
+    const size = Math.round(a.size * 3.2);
+    // Вверх по экрану и к середине стола; каждый выстрел повёрнут на свой угол из пяти.
+    const turn = ((((n * 3) % 5) - 2) * SHOT_FLIGHT.spreadDeg * Math.PI) / 180;
+    const vx = a.dx * SHOT_FLIGHT.toMiddle * H;
+    const vy = a.dy * SHOT_FLIGHT.toMiddle * H - SHOT_FLIGHT.up * H;
+    const tx = vx * Math.cos(turn) - vy * Math.sin(turn);
+    const ty = vx * Math.sin(turn) + vy * Math.cos(turn);
+    const el = document.createElement("img");
+    el.dataset.shot = id;
+    el.dataset.by = by;
+    el.dataset.turn = String(Math.round((turn * 180) / Math.PI));
+    el.alt = "";
+    el.src = world.stickerUrl(by, id);
+    el.style.cssText = `position:absolute;left:${a.x - size / 2}px;top:${a.y - size / 2}px;width:${size}px;height:${size}px;object-fit:contain;pointer-events:none;will-change:transform,opacity,filter`;
+    shotLayer.append(el);
+    const run = el.animate([
+      { transform: "translate(0,0) scale(.5)", opacity: 1, filter: "blur(0)" },
+      { transform: `translate(${tx * 0.75}px,${ty * 0.75}px) scale(1.1)`, opacity: 1, filter: "blur(0)", offset: 0.35 },
+      { transform: `translate(${tx}px,${ty}px) scale(1.25)`, opacity: 0, filter: "blur(6px)" },
+    ], { duration: SHOT_MS, easing: "cubic-bezier(.1,.75,.3,1)", fill: "forwards" });
+    run.onfinish = () => el.remove();
+  }
+
   store.onSay((say) => {
     if (world.muted(say.by)) return;
     lines.hear(say.by, say, performance.now());
@@ -282,6 +343,7 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
         + row(EVERYWHERE.map((ch) => key(ch, `data-key="${ch}"`)).join("") + key("пробел", 'data-key-act="space"', 4, 13) + key("⌫", 'data-key-act="erase"', 1.4) + key("↵", 'data-key-act="enter" aria-label="Новая строка"', 1.4));
     }
     board.innerHTML = handRow() + row(tabs) + body;
+    coolStickers();
   }
 
   function toggle(): void {
@@ -316,22 +378,19 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
   };
 
   /** Буквы строки как их вижу я: текст — цветом пишущего, отметка — цветом игрока или карты. */
-  function glyphs(by: string, line: Line, ink: string): { ch: string; ink: string; mark: string }[] {
+  function glyphs(line: Line, ink: string): { ch: string; ink: string; mark: string }[] {
     return line.pieces.flatMap((p) => {
       if (p.t === "text") return graphemes(p.text).map((ch) => ({ ch, ink, mark: "" }));
       if (p.t === "who") {
         const w = world.who(p.key);
         return graphemes(w?.name ?? "?").map((ch) => ({ ch, ink: w?.ink ?? ink, mark: `who:${p.key}` }));
       }
-      if (p.t === "card") {
-        const c = world.card(p.id);
-        return graphemes(c.label).map((ch) => ({ ch, ink: c.ink, mark: `card:${p.id}` }));
-      }
-      return [{ ch: "", ink, mark: `sticker:${by}:${p.id}` }];
+      const c = world.card(p.id);
+      return graphemes(c.label).map((ch) => ({ ch, ink: c.ink, mark: `card:${p.id}` }));
     });
   }
 
-  /** Строка как текст для прогона: отметки — `[who:key]`, `[card:id]`, `[sticker:id]`. */
+  /** Строка как текст для прогона: отметки — `[who:key]`, `[card:id]`. */
   const flat = (line: Line) => line.pieces.map((p) => (p.t === "text" ? p.text : `[${p.t}:${p.t === "who" ? p.key : p.id}]`)).join("");
 
   function paint(): void {
@@ -348,7 +407,6 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
       }
       who.style.cssText = `position:absolute;left:${a.x}px;top:${a.y}px;width:0;height:0`;
       const lineH = Math.round(a.size * 1.35);
-      const stickerH = Math.round(a.size * 3.2);
       const alive = new Set(list.map((w) => String(w.n)));
       // УШЛА — улетает вверх и растворяется.
       for (const el of who.querySelectorAll<HTMLElement>("[data-line]")) {
@@ -371,18 +429,13 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
         }
         el.dataset.text = flat(w);
         el.dataset.done = String(w.doneAt !== undefined);
-        const sticker = w.pieces[0]?.t === "sticker" ? w.pieces[0] : null;
-        const h = sticker ? stickerH : lineH;
+        const h = lineH;
         el.dataset.lift = String(lift);
         el.style.cssText = `position:absolute;left:0;bottom:0;display:flex;align-items:flex-end;white-space:nowrap;`
           + `transform:translate(-50%,${-lift}px);transition:transform .26s cubic-bezier(.3,1.3,.5,1);opacity:1`;
         if (fresh) el.animate([{ opacity: 0, transform: `translate(-50%,${-lift + 8}px)` }, { opacity: 1, transform: `translate(-50%,${-lift}px)` }], { duration: 160 });
         lift += h;
-        if (sticker) {
-          if (!el.firstElementChild) el.innerHTML = `<img data-sticker-shown alt="" src="${world.stickerUrl(a.key, sticker.id)}" style="display:block;height:${stickerH}px;max-width:${stickerH * 1.4}px;object-fit:contain;filter:drop-shadow(0 2px 0 ${INK.black})">`;
-          continue;
-        }
-        const want = glyphs(a.key, w, a.ink);
+        const want = glyphs(w, a.ink);
         const shown = [...el.children] as HTMLElement[];
         const size = String(a.size);
         // Буквы, которые уже стоят, не трогаются — появляется только новая, как на машинке.

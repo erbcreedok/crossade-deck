@@ -5,7 +5,7 @@
 // сервера приходит тем же путём: снимок снова тот, что был, — и экран просто рисует его.
 
 import type { Carry, CarryOut, Intent, Person, Refusal, Snapshot } from "../src/table/contract.js";
-import type { Say, SayOut } from "../src/table/say.js";
+import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 
 export interface TableStore {
   readonly me: Person;
@@ -24,6 +24,9 @@ export interface TableStore {
   onSay(listener: (say: Say) => void): void;
   /** Мой набор стикеров — спросить заново; ответ приходит в `onStickers`. */
   askStickers(): void;
+  /** Мой стикер выстрелом — остальным. */
+  shoot(out: ShotOut): void;
+  onShot(listener: (shot: Shot) => void): void;
   onStickers(listener: (ids: string[]) => void): void;
   /** Снимок сменился (дифом, синком или отказом) или сдвинулся чужой палец в воздухе. */
   onChange(listener: () => void): void;

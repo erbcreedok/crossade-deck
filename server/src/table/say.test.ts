@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { KEYBOARD, LINE_LINGER_MS, LINE_MAX, LINES_MAX, Lines, SYMBOLS, Typer, cleanSay, graphemes, type Piece, type SayOut } from "./say.js";
+import { KEYBOARD, LINE_LINGER_MS, LINE_MAX, LINES_MAX, Lines, SHOT_MS, SHOTS_MAX, SYMBOLS, Shots, Typer, cleanSay, cleanShot, graphemes, type Piece, type SayOut } from "./say.js";
 
 const text = (out: SayOut) => out.pieces.map((p) => (p.t === "text" ? p.text : `<${p.t}:${"key" in p ? p.key : p.id}>`)).join("");
 const say = (n: number, t: string, done?: true): SayOut => ({ n, pieces: t ? [{ t: "text", text: t }] : [], ...(done ? { done } : {}) });
@@ -11,7 +11,7 @@ describe("строки у стула", () => {
     expect(graphemes(KEYBOARD.emoji[1]).includes("❤️")).toBe(true);
   });
 
-  it("с сети — символы клавиатуры, не длиннее строки, отметки по id, стикер один в строке", () => {
+  it("с сети — символы клавиатуры, не длиннее строки, отметки по id; стикер — не кусок строки", () => {
     expect(cleanSay(say(1, "ПРИВЕТ 😀!"))).toEqual(say(1, "ПРИВЕТ 😀!"));
     expect(cleanSay(say(1, "привет"))).toBeNull();
     expect(cleanSay(say(1, "<b>"))).toBeNull();
@@ -21,8 +21,9 @@ describe("строки у стула", () => {
     const mixed: Piece[] = [{ t: "text", text: "ЙОО " }, { t: "who", key: "tg:42" }, { t: "text", text: " ПОДНИМИ " }, { t: "card", id: "h6" }];
     expect(cleanSay({ n: 2, pieces: mixed, done: true })).toEqual({ n: 2, pieces: mixed, done: true });
     expect(cleanSay({ n: 2, pieces: [{ t: "who", key: "<script>" }] })).toBeNull();
-    expect(cleanSay({ n: 2, pieces: [{ t: "sticker", id: "s1" }], done: true })).toEqual({ n: 2, pieces: [{ t: "sticker", id: "s1" }], done: true });
-    expect(cleanSay({ n: 2, pieces: [{ t: "sticker", id: "s1" }, { t: "text", text: "A" }] })).toBeNull();
+    expect(cleanSay({ n: 2, pieces: [{ t: "sticker", id: "s1" }], done: true })).toBeNull();
+    expect(cleanShot({ id: "s1" })).toEqual({ id: "s1" });
+    expect(cleanShot({ id: "<x>" })).toBeNull();
   });
 
   it("машинка: буквы и пробелы копятся в строку, стиратель убирает, Enter заканчивает", () => {
@@ -69,12 +70,17 @@ describe("строки у стула", () => {
     expect(sent.at(-1)!.pieces).toEqual([]);
   });
 
-  it("стикер — отдельная законченная строка", () => {
-    const sent: SayOut[] = [];
-    const t = new Typer((o) => sent.push(o));
-    t.key("Х");
-    t.sticker("s9");
-    expect(sent.slice(-2)).toEqual([{ n: 1, pieces: [{ t: "text", text: "Х" }], done: true }, { n: 2, pieces: [{ t: "sticker", id: "s9" }], done: true }]);
+  it("выстрелы: не больше трёх в полёте у человека, слот освобождается, когда стикер дотаял", () => {
+    const s = new Shots();
+    for (let i = 0; i < SHOTS_MAX; i += 1) expect(s.fire("a", 100 * i)).toBe(true);
+    expect(s.fire("a", 300)).toBe(false);
+    expect(s.free("a", 300)).toBe(0);
+    expect(s.fire("b", 300)).toBe(true);
+    expect(s.nextIn("a", 500)).toBe(SHOT_MS - 500);
+    expect(s.fire("a", SHOT_MS - 1)).toBe(false);
+    expect(s.fire("a", SHOT_MS)).toBe(true);
+    expect(s.free("a", SHOT_MS)).toBe(0);
+    expect(s.free("a", SHOT_MS + 100)).toBe(1);
   });
 
   it("жизнь: незаконченная висит, законченная улетает по таймеру; не больше трёх, новая снизу", () => {

@@ -6,7 +6,7 @@
 import { Client } from "colyseus.js";
 import { MSG, TABLE_ROOM, type Carry, type CarryOut, type Intent, type JoinOptions, type Patch, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
 import { applyPatch, needsSync } from "../src/table/patch.js";
-import type { Say, SayOut } from "../src/table/say.js";
+import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 import type { TableStore } from "./store.js";
 
 export async function netStore(options: JoinOptions): Promise<TableStore> {
@@ -95,6 +95,8 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     say: (out: SayOut) => room.send(MSG.say, out),
     onSay: (listener) => void said.push(listener),
     askStickers: () => room.send(MSG.stickers, {}),
+    shoot: (out: ShotOut) => room.send(MSG.shot, out),
+    onShot: (listener) => void room.onMessage(MSG.shot, (shot: Shot) => listener(shot)),
     onStickers: (listener) => void room.onMessage(MSG.stickers, (ids: string[]) => listener(ids)),
     now: () => Date.now() + skew,
     onChange: (listener) => void changed.push(listener),

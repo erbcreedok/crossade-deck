@@ -13,7 +13,7 @@ import { tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
 import { MSG, type CarryOut, type Intent, type JoinOptions, type Op, type Person, type RunResult, type TableCommand, type Welcome } from "./contract.js";
 import { execute, plan } from "./script.js";
-import { cleanSay, type Say } from "./say.js";
+import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
 import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
 import { attach, creatorOf, openEntry, titleOf } from "./lobby.js";
@@ -23,6 +23,8 @@ import { Table } from "./table.js";
 const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "turn", "flip", "arrange", "pose", "stand", "sit", "flag", "deckMove", "deckDo", "deckForever", "deckPin", "deckGuard", "gather", "pick", "unpick", "moveMany", "turnMany", "pileDrop", "rules", "sync"]);
 
 export class TableRoom extends Room {
+  /** Слоты выстрелов стикерами; окно чуть короче клиентского — на запаздывание сети. */
+  private shots = new Shots(SHOT_MS - 150);
   maxClients = 16;
 
   private table!: Table;
@@ -83,12 +85,22 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       const out = cleanSay(raw);
       if (!me?.seat || !out) return;
-      // Стикер — только из своего набора.
-      if (out.pieces.some((p) => p.t === "sticker" && !hasSticker(me.key, p.id))) return;
       const say: Say = { ...out, by: me.key };
       for (const other of this.clients) {
         const key = this.seats.get(other.sessionId);
         if (key !== undefined && key !== me.key) other.send(MSG.say, say);
+      }
+    });
+
+    // СТИКЕР ВЫСТРЕЛОМ — из своего набора и только в свободный слот; лишний не долетает ни до кого.
+    this.onMessage(MSG.shot, (client, raw: unknown) => {
+      const me = this.personOf(client.sessionId);
+      const out = cleanShot(raw);
+      if (!me?.seat || !out || !hasSticker(me.key, out.id) || !this.shots.fire(me.key, Date.now())) return;
+      const shot: Shot = { ...out, by: me.key };
+      for (const other of this.clients) {
+        const key = this.seats.get(other.sessionId);
+        if (key !== undefined && key !== me.key) other.send(MSG.shot, shot);
       }
     });
 

@@ -73,6 +73,8 @@ export function localStore(): TableStore {
     say: () => {},
     onSay: () => {},
     askStickers: () => {},
+    shoot: () => {},
+    onShot: () => {},
     onStickers: () => {},
     now: () => Date.now(),
     onChange: (listener) => void changed.push(listener),

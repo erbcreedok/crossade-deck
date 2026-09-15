@@ -236,13 +236,51 @@ await A.mouse.move(st.box.left + 30, st.box.top + 40, { steps: 10 });
 await A.mouse.up();
 await wait(A, 500);
 check("стикеры листаются вправо", (await A.evaluate(() => document.querySelector("[data-sticker-strip]").scrollLeft)) > 100, null);
+await wait(A, 2200);
+// Полёт у B: где стикер через 100, 700 и 1500 мс после выстрела — едет вверх, быстро, потом медленнее.
+const flight = B.evaluate(() => new Promise((done) => {
+  const seen = [];
+  const t0 = performance.now();
+  const look = () => {
+    const el = document.querySelector("[data-g=shots] [data-shot]");
+    if (el) {
+      const b = el.getBoundingClientRect();
+      seen.push({ t: Math.round(performance.now() - t0), y: Math.round(b.top + b.height / 2), x: Math.round(b.left + b.width / 2), o: +getComputedStyle(el).opacity });
+    } else if (seen.length) return done(seen);
+    if (performance.now() - t0 > 3500) return done(seen);
+    requestAnimationFrame(look);
+  };
+  look();
+}));
 await A.locator("[data-sticker]").last().click();
-await wait(B, 500);
-const stickerAtB = await B.evaluate(() => {
-  const img = document.querySelector("[data-words] [data-line] img[data-sticker-shown]");
-  return img && { ok: img.complete && img.naturalWidth > 0, line: img.closest("[data-line]").dataset.text };
-});
-check("у B стикер A — картинкой строкой у стула", stickerAtB?.ok && /^\[sticker:e2e\d+19\]$/.test(stickerAtB.line), stickerAtB);
+const path = await flight;
+const at = (ms) => path.reduce((best, p) => (Math.abs(p.t - ms) < Math.abs(best.t - ms) ? p : best), path[0]);
+const p0 = path[0], p1 = at(path[0].t + 400), p2 = at(path[0].t + 1200), pEnd = path.at(-1);
+check("у B стикер A вылетел выстрелом (не строкой)", path.length > 10 && (await words(B)).every((w) => !w.text.includes("sticker")), { n: path.length });
+check("летит вверх (у B A напротив: к середине — это вниз, вверх всё равно больше)", pEnd.y < p0.y - 100, { p0, pEnd });
+check("быстро в начале, медленно потом", p0.y - p1.y > (p1.y - p2.y) * 1.3, { p0, p1, p2 });
+check("испаряется и исчезает за ~2 с", pEnd.t - p0.t < 2300 && pEnd.o < 0.3, pEnd);
+// Спам: шесть подряд — в полёте три, у B долетело три, кнопки погасли и вернулись.
+await wait(A, 300);
+const bCount = B.evaluate(() => new Promise((done) => {
+  const ids = new Set();
+  const obs = new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => n.dataset?.shot && ids.add(n))));
+  obs.observe(document.querySelector("[data-g=shots]"), { childList: true });
+  setTimeout(() => { obs.disconnect(); done(ids.size); }, 1500);
+}));
+for (let i = 0; i < 6; i += 1) {
+  await A.locator("[data-sticker]").nth(i).click();
+  await wait(A, 40);
+}
+const aFly = await A.locator("[data-g=shots] [data-shot]").count();
+const cooling = await A.locator('[data-sticker][data-cooling="true"]').count();
+check("спам шестью — у A в полёте три", aFly === 3, aFly);
+check("у B долетело только три", (await bCount) === 3, await bCount);
+check("пока слоты заняты — кнопки стикеров погашены", cooling === 20, cooling);
+const turns = await B.evaluate(() => [...document.querySelectorAll("[data-g=shots] [data-shot]")].map((e) => e.dataset.turn));
+check("каждый выстрел — чуть другой угол", new Set(turns).size === turns.length && turns.length > 1, turns);
+await wait(A, 2200);
+check("слоты освободились — кнопки снова горят", (await A.locator('[data-sticker][data-cooling="true"]').count()) === 0, null);
 await A.locator('[data-kb-tab="latin"]').dispatchEvent("pointerdown");
 
 // ── 7. Тап мимо: закрывает клавиатуру и ничего больше ────────────────────────────────────────────

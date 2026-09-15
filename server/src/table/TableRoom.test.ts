@@ -7,7 +7,7 @@ import { mintRoom } from "./roomIds.js";
 import { applyPatch } from "./patch.js";
 import { openEntry, runIn } from "./lobby.js";
 import { BOT_KEY } from "./botPerson.js";
-import type { Say } from "./say.js";
+import type { Say, Shot } from "./say.js";
 
 const SECRET = "table-secret";
 const BOT = "bot-token";
@@ -107,7 +107,7 @@ describe("TableRoom", () => {
     expect(echoed).toBe(false);
   });
 
-  it("стикер — только из своего набора; свой набор приходит только себе", async () => {
+  it("стикер выстрелом — только из своего набора и не больше трёх в полёте; свой набор приходит только себе", async () => {
     const room = mintRoom(SECRET);
     const a = await sit(room, { door: "guest", name: "A" });
     const b = await sit(room, { door: "guest", name: "B" });
@@ -115,14 +115,17 @@ describe("TableRoom", () => {
     const theirs = addSticker(b.welcome.you.key, Buffer.from("RIFF0000WEBP"), "image/webp");
     if (mine === "full" || theirs === "full") throw new Error("full");
     const heard: Say[] = [];
+    const shots: Shot[] = [];
     b.client.onMessage(MSG.say, (say: Say) => heard.push(say));
+    b.client.onMessage(MSG.shot, (shot: Shot) => shots.push(shot));
     const listed: string[][] = [];
     a.client.onMessage(MSG.stickers, (ids: string[]) => listed.push(ids));
-    a.client.send(MSG.say, { n: 1, pieces: [{ t: "sticker", id: theirs.id }], done: true });
-    a.client.send(MSG.say, { n: 2, pieces: [{ t: "sticker", id: mine.id }], done: true });
+    a.client.send(MSG.shot, { id: theirs.id });
+    for (let i = 0; i < 5; i += 1) a.client.send(MSG.shot, { id: mine.id });
     a.client.send(MSG.stickers, {});
     await new Promise((r) => setTimeout(r, 120));
-    expect(heard.map((h) => h.n)).toEqual([2]);
+    expect(heard).toEqual([]);
+    expect(shots).toEqual([1, 2, 3].map(() => ({ id: mine.id, by: a.welcome.you.key })));
     expect(listed).toEqual([[mine.id]]);
   });
 

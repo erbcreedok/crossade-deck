@@ -373,6 +373,8 @@ export const MSG = {
   say: "say",
   /** Клиент → сервер: пустое; сервер → ему же: `string[]` — id его стикеров. */
   stickers: "stickers",
+  /** Клиент → сервер: `ShotOut`; сервер → остальные: `Shot` — стикер выстрелом (`say.ts`). */
+  shot: "shot",
 } as const;
 
 /**

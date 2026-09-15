@@ -5,6 +5,9 @@
 // здесь: пока строка пишется — висит; законченная (Enter, пауза `LINE_PAUSE_MS`, закрыта клавиатура, строка
 // полна) висит ещё `LINE_LINGER_MS` и улетает вверх. У стула — до `LINES_MAX` строк: новая встаёт снизу,
 // старые поднимаются, лишняя верхняя улетает сразу.
+//
+// СТИКЕР — не строка, а выстрел (`Shot`): вылетает от стула сам по себе и тает за `SHOT_MS`. В полёте у
+// человека не больше `SHOTS_MAX`: лишний не отправит клиент и не перешлёт сервер — все видят одно и то же.
 
 import { EMOJI } from "./emoji.js";
 
@@ -32,9 +35,9 @@ export const PIECES_MAX = LINE_MAX;
 
 /**
  * КУСОК СТРОКИ. Отметка игрока — его key, имя и цвет каждый зритель берёт у себя; отметка карты — её id, лицо
- * видно только тому, кто это лицо и так видит; стикер — id из набора того, кто пишет.
+ * видно только тому, кто это лицо и так видит.
  */
-export type Piece = { t: "text"; text: string } | { t: "who"; key: string } | { t: "card"; id: string } | { t: "sticker"; id: string };
+export type Piece = { t: "text"; text: string } | { t: "who"; key: string } | { t: "card"; id: string };
 
 /** Строка в пути: печатающий → сервер. `n` — номер строки у печатающего; `done` — закончена. */
 export interface SayOut {
@@ -79,13 +82,64 @@ export function cleanSay(raw: unknown): SayOut | null {
       pieces.push({ t: "text", text: p.text });
     } else if (p?.t === "who" && typeof p.key === "string" && ID.test(p.key)) pieces.push({ t: "who", key: p.key });
     else if (p?.t === "card" && typeof p.id === "string" && ID.test(p.id)) pieces.push({ t: "card", id: p.id });
-    else if (p?.t === "sticker" && typeof p.id === "string" && ID.test(p.id)) pieces.push({ t: "sticker", id: p.id });
     else return null;
   }
   if (letters > LINE_MAX) return null;
-  // Стикер — строка сам по себе.
-  if (pieces.some((p) => p.t === "sticker") && pieces.length !== 1) return null;
   return { n: out.n!, pieces, ...(out.done === true ? { done: true as const } : {}) };
+}
+
+/** Сколько стикер летит и тает. */
+export const SHOT_MS = 2000;
+/** Сколько стикеров одного человека в полёте разом. */
+export const SHOTS_MAX = 3;
+
+/** Выстрел стикером: клиент → сервер. */
+export interface ShotOut {
+  id: string;
+}
+/** Выстрел стикером: сервер → остальные. */
+export interface Shot extends ShotOut {
+  by: string;
+}
+
+export function cleanShot(raw: unknown): ShotOut | null {
+  const out = raw as Partial<ShotOut> | null;
+  return out && typeof out.id === "string" && ID.test(out.id) ? { id: out.id } : null;
+}
+
+/**
+ * СЛОТЫ ВЫСТРЕЛОВ — у каждого человека `SHOTS_MAX` на `window` мс. Одно правило у клиента (кнопка гаснет) и у
+ * сервера (лишнее не пересылается); сервер берёт окно чуть короче — запаздывание сети не съедает честный выстрел.
+ */
+export class Shots {
+  private byWho = new Map<string, number[]>();
+
+  constructor(private readonly window = SHOT_MS) {}
+
+  private live(by: string, now: number): number[] {
+    const list = (this.byWho.get(by) ?? []).filter((t) => now - t < this.window);
+    this.byWho.set(by, list);
+    return list;
+  }
+
+  /** Сколько выстрелов ещё можно сейчас. */
+  free(by: string, now: number): number {
+    return SHOTS_MAX - this.live(by, now).length;
+  }
+
+  /** Занять слот: `false` — все заняты, выстрела нет. */
+  fire(by: string, now: number): boolean {
+    const list = this.live(by, now);
+    if (list.length >= SHOTS_MAX) return false;
+    list.push(now);
+    return true;
+  }
+
+  /** Когда освободится ближайший слот (мс с этого `now`), `0` — свободен уже. */
+  nextIn(by: string, now: number): number {
+    const list = this.live(by, now);
+    return list.length < SHOTS_MAX ? 0 : this.window - (now - list[0]!);
+  }
 }
 
 /** Строка у стула. `doneAt` — когда закончена (часы зрителя). */
@@ -212,14 +266,6 @@ export class Typer {
     if (this.left > 0) this.pieces.push({ t: "text", text: " " });
     this.push();
     if (this.left < 1) this.end();
-  }
-
-  /** Стикер — строка сам по себе и сразу законченная. */
-  sticker(id: string): void {
-    this.end();
-    this.start();
-    this.pieces = [{ t: "sticker", id }];
-    this.end();
   }
 
   /** Стиратель: последняя буква или отметка целиком. Законченную строку уже не стереть. */
