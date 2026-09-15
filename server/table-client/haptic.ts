@@ -75,8 +75,8 @@ export function tableHaptic(): TableHaptic {
     },
   };
   haptic.probe = () => {
-    const w = globalThis as { webkit?: { messageHandlers?: { performAction?: unknown } }; external?: { notify?: unknown }; TelegramWebviewProxy?: unknown };
-    const road = w.TelegramWebviewProxy ? "proxy" : w.webkit?.messageHandlers?.performAction ? "webkit" : w.external?.notify ? "external" : window.parent !== window ? "iframe" : "нет канала";
+    const w = globalThis as { __tgProxyShim?: boolean; webkit?: { messageHandlers?: { performAction?: unknown } }; external?: { notify?: unknown }; TelegramWebviewProxy?: unknown };
+    const road = w.__tgProxyShim ? "webkit-прокси" : w.TelegramWebviewProxy ? "proxy" : w.webkit?.messageHandlers?.performAction ? "webkit" : w.external?.notify ? "external" : window.parent !== window ? "iframe" : "нет канала";
     const f = feedback();
     try {
       f?.impactOccurred("heavy");
