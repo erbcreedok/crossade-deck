@@ -1,0 +1,39 @@
+server/scripts/tableTalk.mjs
+  s_9ed0da107cbc4a::t_b56c2325c28c10 239-254,256-283
+server/src/table/TableRoom.test.ts
+  s_9ed0da107cbc4a::t_187495d62712fa 10,110,118,120,123-124,127-128
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_e459163192e358 16,26-27,95-106
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_ceb79ef6bb6eb4 376-377
+server/src/table/say.test.ts
+  s_9ed0da107cbc4a::t_23eef0657ca709 2,14,24-26,73-83
+server/src/table/say.ts
+  s_9ed0da107cbc4a::t_a4b4336bf30673 8-10,38,40,91-144
+server/table-client/localStore.ts
+  s_9ed0da107cbc4a::t_6df8f572bb6f19 76-77
+server/table-client/netStore.ts
+  s_9ed0da107cbc4a::t_8e1cddb9a10a70 9,98-99
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_df42787e5a76b9 1869
+server/table-client/store.ts
+  s_9ed0da107cbc4a::t_1ad2c356df687a 8,27-29
+server/table-client/talk.ts
+  s_9ed0da107cbc4a::t_d7d0cc2ebc483c 11,27,34-35,38-40,95-98,151-157,240-287,346,381,388-389,393,432,438
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8224b4a521be9fdafbf74f32cfeae8b577bc5164",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
