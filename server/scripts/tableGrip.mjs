@@ -127,6 +127,113 @@ await A.mouse.up();
 await wait(B, 500);
 check("карта с колоды на новом месте берётся", (await spots(B)).deck === 35 && (await spots(B)).felt.length === 1, null);
 
+// ── 11. Приёмка в стопку: пунктир под колодой, пока несут; над ней — горит; у B — в цвете A ─────────
+const dragCard = async (p, from, to, during) => {
+  await p.mouse.move(from.x, from.y);
+  await p.mouse.down();
+  await p.mouse.move(from.x + 40, from.y + 70, { steps: 6 });
+  await wait(p, 120);
+  if (during) await during("away");
+  await p.mouse.move(to.x, to.y, { steps: 10 });
+  await wait(p, 200);
+  if (during) await during("over");
+  await p.mouse.up();
+  await wait(p, 600);
+};
+let felt = (await spots(A)).felt[0];
+const topOf = async (p) => { const sp = await spots(p); return { ...sp.deckTop, k: sp.k }; };
+let top = await topOf(A);
+const zone = async (p) => p.evaluate(() => { const z = document.querySelector('[data-g="deck-zone"]'); return z && z.dataset.here; });
+let seenAway, seenOver, seenB;
+// Карта висит выше пальца: чтобы её середина встала на колоду, палец — ниже колоды.
+const onDeck = (t) => ({ x: t.x, y: t.y + 0.32 * 1.4 * t.k });
+await dragCard(A, felt, onDeck(top), async (phase) => {
+  if (phase === "away") seenAway = await zone(A);
+  else { seenOver = await zone(A); await wait(B, 250); seenB = await zone(B); }
+});
+check("пока несут карту — под колодой пунктир приёмки", seenAway === "false", seenAway);
+check("карта над колодой — зона горит", seenOver === "true", seenOver);
+check("у B чужая карта над колодой — зона горит тоже", seenB === "true", seenB);
+let sb2 = await spots(B);
+check("отпустил над колодой — карта в колоде, на сукне пусто", sb2.deck === 36 && sb2.felt.length === 0, { deck: sb2.deck, felt: sb2.felt.length });
+check("после дропа зоны нет", (await zone(A)) === null, null);
+
+// ── 12. Сторона: стопка вся рубашкой — карта, которую несли лицом, ложится рубашкой ─────────────
+const toFelt = async (at) => {
+  const t = (await spots(A)).deckTop;
+  await dragCard(A, t, at);
+  return (await spots(A)).felt.at(-1);
+};
+felt = await toFelt({ x: 110, y: 330 });
+await A.mouse.click(felt.x, felt.y);
+await wait(A, 90);
+await A.mouse.click(felt.x, felt.y);
+await wait(A, 600);
+felt = (await spots(A)).felt[0];
+check("карта на сукне перевёрнута лицом", felt.up === true, felt);
+top = await topOf(A);
+await dragCard(A, felt, onDeck(top));
+sb2 = await spots(B);
+check("вся стопка рубашкой — легла рубашкой", sb2.deck === 36 && sb2.deckFace === null, sb2.deckFace);
+
+// ── 13. Стопка вся лицом — карта, которую несли рубашкой, ложится лицом ─────────────────────────
+await tap(A);
+await wait(A, 80);
+await tap(A);
+await wait(A, 700);
+await A.locator("[data-deck-shut]").dispatchEvent("pointerdown").catch(() => {});
+felt = await toFelt({ x: 110, y: 330 });
+await A.mouse.click(felt.x, felt.y);
+await wait(A, 90);
+await A.mouse.click(felt.x, felt.y);
+await wait(A, 600);
+felt = (await spots(A)).felt[0];
+check("карта с лицевой стопки на сукне перевёрнута рубашкой", felt.up === false, felt);
+top = await topOf(A);
+await dragCard(A, felt, onDeck(top));
+sb2 = await spots(B);
+check("вся стопка лицом — легла лицом", sb2.deck === 36 && sb2.deckFace !== null, sb2.deckFace);
+
+// ── 14. Одиночная карта карту не принимает ──────────────────────────────────────────────────────
+const one = await toFelt({ x: 100, y: 300 });
+const two = await toFelt({ x: 290, y: 300 });
+let over2 = null;
+await dragCard(A, two, { x: one.x, y: one.y + 0.32 * 1.4 * (await spots(A)).k }, async (phase) => phase === "over" && (over2 = await zone(A)));
+sb2 = await spots(B);
+check("над одиночной картой зона не горит, карта легла на сукно", over2 === "false" && sb2.felt.length === 2 && sb2.deck === 34, { over2, felt: sb2.felt.length, deck: sb2.deck });
+
+// ── 15. Пипс не крупнее колоды на мелком зуме, и своего размера на крупном ──────────────────────
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const C = await ctx.newPage();
+  await C.goto(`${base}/table/?room=${room}&name=C`);
+  await C.waitForSelector("[data-section]");
+  await C.waitForSelector(".crossade-loading", { state: "detached" });
+  await wait(C, 400);
+  const cdp = await ctx.newCDPSession(C);
+  const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
+  const pinch = async (from, to) => {
+    await touch("touchStart", from);
+    for (let i = 1; i <= 16; i += 1) await touch("touchMove", from.map(([x, y], k) => [x + ((to[k][0] - x) * i) / 16, y + ((to[k][1] - y) * i) / 16]));
+    await touch("touchEnd", []);
+    await wait(C, 800);
+  };
+  const ratio = async () => {
+    const k = (await spots(C)).k;
+    const b = await C.locator('[data-g="deck-grip"]').boundingBox();
+    return { k: +k.toFixed(1), h: +b.height.toFixed(1), half: +(k * 1.4 * 0.5).toFixed(1) };
+  };
+  // Сукно у кромки экрана — чтобы щипок не попал на карты и стулья.
+  await pinch([[60, 150], [330, 150]], [[180, 150], [210, 150]]);
+  const far = await ratio();
+  check("мелкий зум: пипс не выше половины карты", far.h <= far.half + 1, far);
+  await pinch([[180, 150], [210, 150]], [[20, 150], [370, 150]]);
+  await pinch([[180, 150], [210, 150]], [[20, 150], [370, 150]]);
+  const close = await ratio();
+  check("крупный зум: пипс своего размера, не растёт с картой", close.half > 25 && Math.abs(close.h - 24) < 1.5, close);
+  await ctx.close();
+}
+
 await browser.close();
 let bad = 0;
 for (const c of checks) {

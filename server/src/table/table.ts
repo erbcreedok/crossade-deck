@@ -331,7 +331,10 @@ export class Table {
     // В КОЛОДУ, КОТОРОЙ НЕТ, кладёт только команда бота — и ставит новую посередине.
     if (target.in === "deck" && !this.spot && !auto) return { refused: "gone" };
     const born = target.in === "deck" ? this.ensureDeck() : [];
-    const faceUp = auto && target.in === "felt" ? target.up : this.sideOf(by, id, from);
+    // В СТОПКУ — стороной стопки, если все её карты лежат одинаково; вперемешку или пустая — как нёс.
+    const pack = target.in === "deck" && !auto ? this.deck.filter((one) => one !== id).map((one) => this.turned.has(one)) : [];
+    const packSide = pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0] : undefined;
+    const faceUp = auto && target.in === "felt" ? target.up : (packSide ?? this.sideOf(by, id, from));
     if (target.in === "felt") target.up = faceUp;
     this.turned.delete(id);
     if (target.in === "deck" && faceUp && !auto) this.turned.add(id);

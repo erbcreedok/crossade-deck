@@ -102,3 +102,44 @@ describe("колода: место, вечность и действия из т
     expect(t.act("b", { t: "deckDo", how: "nope" as "sort" }, 0)).toEqual({ refused: "bad" });
   });
 });
+
+describe("приёмка в стопку: сторона упавшей карты", () => {
+  /** Взять верхнюю, положить на сукно стороной `up`, взять снова — и отпустить в колоду. */
+  function backToDeck(t: Table, by: string, up: boolean) {
+    const id = t.seenBy(by).deck.at(-1)!.id;
+    ok(t.act(by, { t: "grab", id }, 0));
+    ok(t.act(by, { t: "drop", id, to: { in: "felt", x: 3, y: 0, up: false, angle: 0 } }, 0));
+    if (up) ok(t.act(by, { t: "turn", id }, 0));
+    ok(t.act(by, { t: "grab", id }, 0));
+    ok(t.act(by, { t: "drop", id, to: { in: "deck" } }, 0));
+    return t.seenBy(by).deck.find((c) => c.id === id)!;
+  }
+
+  it("вся стопка рубашкой — карта, которую несли лицом, ложится рубашкой", () => {
+    const t = seated("a");
+    expect(backToDeck(t, "a", true).up).toBeUndefined();
+  });
+
+  it("вся стопка лицом — карта, которую несли рубашкой, ложится лицом", () => {
+    const t = seated("a");
+    ok(t.act("a", { t: "deckDo", how: "flip" }, 0));
+    expect(backToDeck(t, "a", false).up).toBe(true);
+  });
+
+  it("стопка вперемешку — карта ложится, как её видел несущий", () => {
+    for (const up of [true, false]) {
+      const t = seated("a");
+      ok(t.act("a", { t: "deckDo", how: "flip" }, 0));
+      // Верхнюю — на сукно, новую верхнюю — рубашкой: в колоде лица и одна рубашка.
+      const id = t.seenBy("a").deck.at(-1)!.id;
+      ok(t.act("a", { t: "grab", id }, 0));
+      ok(t.act("a", { t: "drop", id, to: { in: "felt", x: 3, y: 0, up: false, angle: 0 } }, 0));
+      ok(t.act("a", { t: "turn", id: t.seenBy("a").deck.at(-1)!.id }, 0));
+      // С перевёрнутой колоды карта легла на сукно лицом.
+      if (!up) ok(t.act("a", { t: "turn", id }, 0));
+      ok(t.act("a", { t: "grab", id }, 0));
+      ok(t.act("a", { t: "drop", id, to: { in: "deck" } }, 0));
+      expect(t.seenBy("a").deck.find((c) => c.id === id)!.up === true).toBe(up);
+    }
+  });
+});
