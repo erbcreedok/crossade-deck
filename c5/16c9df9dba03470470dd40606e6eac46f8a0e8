@@ -1,0 +1,29 @@
+.night/tasks/4-croupier.md
+  s_9ed0da107cbc4a::t_5cbb55bd2bf841 1-21
+.night/protocol.md
+  s_9ed0da107cbc4a::t_95c6428062f57a 1-21
+.night/tasks/0-builds.md
+  s_9ed0da107cbc4a::t_063260adbc4400 1-6
+.night/tasks/1-names.md
+  s_9ed0da107cbc4a::t_6d0dfa47152296 1-11
+.night/tasks/2-eyes.md
+  s_9ed0da107cbc4a::t_c3a8801ab5ac10 1-11
+.night/tasks/3-voice.md
+  s_9ed0da107cbc4a::t_f5753a8333a177 1-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c516c9df9dba03470470dd40606e6eac46f8a0e8",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
