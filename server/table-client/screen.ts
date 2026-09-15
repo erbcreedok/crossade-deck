@@ -5,7 +5,7 @@
 // уходит намерением; пока ответ не пришёл, экран показывает ожидаемое (`pending`), а отказ просто
 // возвращает настоящий снимок.
 
-import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type Pile, type GatherSide, MAIN_PILE, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
+import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type Pile, type GatherSide, MAIN_PILE, DEFAULT_SPOT, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
@@ -248,7 +248,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * была моей и снялась (дроп приходит вместе с `unlock`). По месту карты его не узнать: карта,
    * переложенная внутри той же руки, «уже на месте» ещё до того, как сервер что-то сделал.
    */
-  let pending: { id: string; to: Where; card: SeenCard; from: Where; sawLock: boolean } | null = null;
+  let pendings: { id: string; to: Where; card: SeenCard; from: Where; sawLock: boolean }[] = [];
   /**
    * ТУЛТИП КАРТЫ — что за карта, откуда пришла и кто её двигал. Открывается тапом по карте на сукне или по
    * колоде (там — верхняя), лежит на столе у карты. Не крышка: всё вокруг работает, как будто его нет.
@@ -262,7 +262,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * карта переворачивается (своя, чужая, догадка или ответ сервера — всё равно). Сменилось место — это перенос.
    */
   const sides = new Map<string, { where: string; up: boolean; face?: Face }>();
-  const turns = new Map<string, { t0: number; up: boolean; face?: Face }>();
+  /**
+   * `wait` — карта переворачивается лицом, которого я ещё не знаю (догадка раньше ответа сервера): переворот доходит
+   * до ребра и ждёт там лица, а пришло — доворачивается.
+   */
+  const turns = new Map<string, { t0: number; up: boolean; face?: Face; wait?: boolean }>();
   let turnFrame = false;
   /**
    * ДОГАДКИ — нажатое в баре и в окне стула показывается сразу, не дожидаясь сервера: поза, флаг, порядок
@@ -427,20 +431,111 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const now = sideIn(truth(), id);
     if (!now) return;
     const up = !now.up;
-    if (up && !now.where.startsWith("hand:") && !now.face) return store.send({ t: "turn", id });
+    // ПЕРЕВОРОТ СРАЗУ. Лицо, которого я не знаю, приходит с сервером: до него карта стоит на ребре (`turns.wait`).
+    guess(`turn:${id}`, { t: "turn", id }, (s) => flipIn(s, id, up), (s) => (sideIn(s, id)?.up ?? up) === up);
+  }
+
+  /**
+   * ПАЧКОЙ — СРАЗУ. Сборка в стопку, мерж стопок, перенос и переворот выделенного показываются, не дожидаясь сервера:
+   * догадка раскладывает карты так, как их разложит сервер (те же правила сторон и обрушения стопки из одной карты).
+   * Уходит, когда хоть одна карта пачки на столе сдвинулась или перевернулась (ответ пришёл), по отказу или по сроку.
+   */
+  let batchSeq = 0;
+  function guessBatch(intent: Extract<Intent, { t: "gather" | "moveMany" | "turnMany" | "pileDrop" }>): void {
+    const before = store.state;
+    const ids = intent.t === "gather" || intent.t === "turnMany" ? intent.ids : intent.t === "moveMany" ? intent.moves.map((m) => m.id) : (pileOf(before, intent.pile)?.cards.map((c) => c.id) ?? []);
+    const was = new Map(ids.map((id) => [id, JSON.stringify([whereIs(before, id), sideIn(before, id)?.up])]));
+    batchSeq += 1;
+    guess(`batch:${batchSeq}`, intent, (st) => predict(st, intent),
+      (st) => ids.some((id) => JSON.stringify([whereIs(st, id), sideIn(st, id)?.up]) !== was.get(id)));
+  }
+
+  /** Сторона, которой карта видна мне сейчас: на сукне и в стопке — как лежит, в руке — лицом, если его видно. */
+  const shownUp = (s: Snapshot, id: string): boolean => {
+    const side = sideIn(s, id);
+    if (!side) return false;
+    if (side.where.startsWith("hand:")) return side.face !== undefined && !side.up;
+    return side.up;
+  };
+
+  /** Переложить карту на месте догадки: лицо — только если его видно мне и ляжет оно вверх. */
+  function relocate(s: Snapshot, id: string, to: Where, up: boolean): Snapshot {
+    const from = whereIs(s, id);
+    if (!from) return s;
+    const face = sideIn(s, id)?.face;
+    const card: SeenCard = to.in === "hand"
+      ? (to.chair === mine(s) && face ? { id, face } : { id })
+      : { id, ...(up && face ? { face } : {}), ...(to.in === "deck" && up ? { up: true } : {}) };
+    return applyPatch(s, { v: s.v, ops: [{ t: "move", card, from, to: to.in === "felt" ? { ...to, up } : to }] });
+  }
+
+  /** Невечная стопка из одной карты рушится на сукно, пустая — уходит (как `Table.sweepPile`). */
+  function collapse(s: Snapshot, pile: string): Snapshot {
+    const one = pileOf(s, pile);
+    if (!one || one.forever || one.cards.length > 1) return s;
+    const last = one.cards[0];
+    if (last) s = relocate(s, last.id, { in: "felt", x: one.x, y: one.y, up: last.up === true, angle: one.angle }, last.up === true);
+    return { ...s, piles: s.piles.filter((p) => p.id !== pile) };
+  }
+
+  /** Может ли моя рука тронуть карту: не чужая в пальце, не чужое выделение. */
+  const touchable = (s: Snapshot, id: string) => (!s.locks[id] || s.locks[id] === me()) && (!s.picks?.[id] || s.picks[id] === me());
+
+  function predict(st: Snapshot, intent: Extract<Intent, { t: "gather" | "moveMany" | "turnMany" | "pileDrop" }>): Snapshot {
+    let s = st;
+    if (intent.t === "turnMany") {
+      for (const id of intent.ids) if (touchable(s, id)) s = flipIn(s, id, !sideIn(s, id)?.up);
+      return s;
+    }
+    if (intent.t === "moveMany") {
+      for (const m of intent.moves) if (touchable(s, m.id)) s = relocate(s, m.id, m.to, m.to.in === "felt" ? shownUp(s, m.id) : shownUp(s, m.id));
+      return s;
+    }
+    if (intent.t === "gather") {
+      let pile = "pile" in intent.to ? intent.to.pile : "guess";
+      if (!("pile" in intent.to)) {
+        const at = intent.to;
+        s = { ...s, piles: [...s.piles, { ...DEFAULT_SPOT, id: pile, x: at.x, y: at.y, angle: at.angle, forever: false, below: s.felt.map((c) => c.id), cards: [], shuffles: 0 }] };
+      } else if (pileOf(s, pile)?.shut) return st;
+      const sources = new Set<string>();
+      for (const id of intent.ids) {
+        const from = whereIs(s, id);
+        if (!from || !touchable(s, id) || (from.in === "deck" && (from.pile === pile || pileOf(s, from.pile)?.shut))) continue;
+        if (from.in === "deck") sources.add(from.pile);
+        const up = intent.side === "up" ? true : intent.side === "down" ? false : shownUp(s, id);
+        s = relocate(s, id, { in: "deck", pile }, up);
+      }
+      for (const one of sources) s = collapse(s, one);
+      return collapse(s, pile);
+    }
+    const source = pileOf(s, intent.pile);
+    const into = intent.to.in === "deck" ? pileOf(s, intent.to.pile) : undefined;
+    if (!source || source.pin || source.shut || source.seal || into?.shut || into?.seal || !source.cards.every((c) => touchable(s, c.id))) return st;
+    // В стопку одной стороной — её стороной; вперемешку или пустую — как лежали.
+    const pack = into?.cards.map((c) => c.up === true) ?? [];
+    const even = pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0] : undefined;
+    let i = intent.to.i;
+    for (const c of source.cards) {
+      const to: Where = intent.to.in === "hand" ? { in: "hand", chair: intent.to.chair, i: i ?? 0 } : { in: "deck", pile: intent.to.pile, ...(i !== undefined && !into?.lock ? { i } : {}) };
+      s = relocate(s, c.id, to, even ?? c.up === true);
+      if (i !== undefined) i += 1;
+    }
+    return { ...s, piles: s.piles.filter((p) => p.id !== intent.pile) };
+  }
+
+  /** Карта `id` другой стороной, где бы ни лежала. Лицо, которое уходит от меня, прячется. */
+  function flipIn(s: Snapshot, id: string, up: boolean): Snapshot {
     const flip = (c: SeenCard): SeenCard => {
       if (c.id !== id) return c;
       const { up: _was, ...rest } = c;
       return up ? { ...rest, up: true } : rest;
     };
-    guess(`turn:${id}`, { t: "turn", id },
-      (s) => ({
-        ...s,
-        felt: s.felt.map((c) => (c.id === id ? { ...c, up } : c)),
-        piles: s.piles.map((p) => (p.cards.some((card) => card.id === id) ? { ...p, cards: p.cards.map(flip) } : p)),
-        chairs: s.chairs.map((c) => (c.hand.some((card) => card.id === id) ? { ...c, hand: c.hand.map(flip) } : c)),
-      }),
-      (s) => (sideIn(s, id)?.up ?? up) === up);
+    return {
+      ...s,
+      felt: s.felt.map((c) => (c.id === id ? { ...c, up } : c)),
+      piles: s.piles.map((p) => (p.cards.some((card) => card.id === id) ? { ...p, cards: p.cards.map(flip) } : p)),
+      chairs: s.chairs.map((c) => (c.hand.some((card) => card.id === id) ? { ...c, hand: c.hand.map(flip) } : c)),
+    };
   }
 
   /** Порядок своей руки: считается здесь, летит сразу. Лица какой-то карты не знаем — просто просим сервер. */
@@ -466,12 +561,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   function seen(): Snapshot {
     let s = truth();
-    if (pending) s = applyPatch(s, { v: s.v, ops: [{ t: "move", card: pending.card, from: pending.from, to: pending.to }] });
+    // Карты, положенные подряд быстрее ответа сервера, — все на своих новых местах, по порядку.
+    for (const one of pendings) {
+      const from = whereIs(s, one.id);
+      if (from) s = applyPatch(s, { v: s.v, ops: [{ t: "move", card: one.card, from, to: one.to }] });
+    }
     // В ВОЗДУХЕ — МОЯ КАРТА И ЧУЖИЕ: со своего места они сняты, пока их несут.
     const up = new Set(store.carries.flatMap((c) => [c.id, ...(c.with ?? []).map((w) => w.card.id)]));
     if (drag) up.add(drag.card.id);
     for (const id of massFlock()) up.add(id);
-    if (massLanding) for (const id of massLanding.ids) up.add(id);
     if (up.size === 0) return s;
     const chairs = s.chairs.map((c) => ({ ...c, hand: c.hand.filter((card) => !up.has(card.id)) }));
     return { ...s, chairs, piles: s.piles.map((p) => ({ ...p, cards: p.cards.filter((c) => !up.has(c.id)) })), felt: s.felt.filter((c) => !up.has(c.id)) };
@@ -479,14 +577,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   /**
    * СТЯНУТОЕ К МОЕМУ ПАЛЬЦУ — выделенные карты, которые летят за картой хвата (`drag.mass`, вид «стянуть»). Они сняты
-   * со своих мест, пока их несут, и ещё немного после дропа (`massLanding`) — до ответа сервера, иначе мигнули бы назад.
+   * со своих мест, пока их несут; после дропа их сразу раскладывает догадка (`guessBatch`).
    */
   function massFlock(): string[] {
     if (!drag?.mass || local.grab !== "collect") return [];
     const key = me();
     return Object.entries(store.state.picks ?? {}).filter(([id, by]) => by === key && id !== drag!.card.id).map(([id]) => id);
   }
-  let massLanding: { ids: string[]; v: number; at: number } | null = null;
 
   /** Мой стул — на нём я сижу; пока стол не прислал его, пустая строка ни с чем не совпадёт. */
   const mine = (s: Snapshot = store.state): string => s.people.find((p) => p.key === me())?.seat ?? "";
@@ -690,7 +787,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const note = (id: string, where: string, up: boolean, face?: Face) => {
       seenIds.add(id);
       const was = sides.get(id);
-      if (was && was.where === where && was.up !== up) turns.set(id, { t0: now, up: was.up, face: was.face ?? face });
+      // Ждать лица есть смысл только на сукне и в стопке: лицом вверх его видят все. В чужой руке его может не быть вовсе.
+      const showsFace = (where === "felt" || where.startsWith("deck:")) && up;
+      if (was && was.where === where && was.up !== up) turns.set(id, { t0: now, up: was.up, face: was.face ?? face, ...(showsFace && !face ? { wait: true } : {}) });
+      // Лицо пришло к карте, застывшей на ребре, — доворот со второй половины.
+      const t = turns.get(id);
+      if (t?.wait && face) turns.set(id, { ...t, t0: Math.min(t.t0, now - TURN_MS / 2), wait: false });
       sides.set(id, { where, up, face: face ?? (was?.where === where ? was.face : undefined) });
     };
     for (const c of s.felt) note(c.id, "felt", c.up, c.face);
@@ -699,7 +801,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // Карты, которой нет в кадре (она в пальце — тап и есть хват), прошлая сторона не стирается: иначе переворот
     // после второго тапа не с чем было бы сравнить. Стирается, когда ушла из колоды целиком (перемешали).
     if (sides.size > 4 * (seenIds.size + 60)) for (const id of sides.keys()) if (!seenIds.has(id)) sides.delete(id);
-    for (const [id, t] of turns) if (now - t.t0 >= TURN_MS) turns.delete(id);
+    for (const [id, t] of turns) if (now - t.t0 >= (t.wait ? GUESS_MS : TURN_MS)) turns.delete(id);
     if (turns.size && !turnFrame) {
       turnFrame = true;
       requestAnimationFrame(() => {
@@ -711,7 +813,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   function turning(id: string): { p: number; up: boolean; face?: Face } | undefined {
     const t = turns.get(id);
-    return t && { p: Math.min(1, (performance.now() - t.t0) / TURN_MS), up: t.up, face: t.face };
+    return t && { p: Math.min(t.wait ? 0.5 : 1, (performance.now() - t.t0) / TURN_MS), up: t.up, face: t.face };
   }
 
   function cardHtml(face: Face | undefined, w: number): string {
@@ -825,6 +927,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const late = -Math.min(TURN_MS, performance.now() - turn.t0);
     const side = (name: string, html: string) =>
       `<span data-g="turn" style="position:absolute;inset:0;animation:${name} ${TURN_MS}ms linear ${late}ms both">${html}</span>`;
+    // Лица ещё нет — только первая половина: карта стоит на ребре.
+    if (turn.wait) return side("card-turn-out", cardHtml(turn.up ? undefined : turn.face, w));
     return side("card-turn-out", cardHtml(turn.up ? undefined : turn.face, w)) + side("card-turn-in", cardHtml(face, w));
   }
 
@@ -1475,12 +1579,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const ids = myPicks(s);
     if (act === "cancel") return unpickAll();
     if (ids.length === 0) return;
-    if (act === "flip") return store.send({ t: "turnMany", ids });
+    if (act === "flip") return guessBatch({ t: "turnMany", ids });
     if (act === "hand") {
       const chair = mine(s);
       if (!chair) return;
       const staying = handOf(s, chair).filter((c) => !ids.includes(c.id)).length;
-      store.send({ t: "moveMany", moves: ids.map((id, k) => ({ id, to: { in: "hand" as const, chair, i: staying + k } })) });
+      guessBatch({ t: "moveMany", moves: ids.map((id, k) => ({ id, to: { in: "hand" as const, chair, i: staying + k } })) });
       return unpickAll();
     }
     // СОБРАТЬ — в середину выделенных карт сукна; если их нет — под середину моего экрана.
@@ -1488,7 +1592,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const at = felt.length
       ? { x: felt.reduce((m, f) => m + f.x, 0) / felt.length, y: felt.reduce((m, f) => m + f.y, 0) / felt.length }
       : (view?.toDesk({ x: lastFrame.w / 2, y: lastFrame.h / 2 }) ?? { x: 0, y: 0 });
-    store.send({ t: "gather", ids, side: local.side, to: { ...at, angle: dropAngle() } });
+    guessBatch({ t: "gather", ids, side: local.side, to: { ...at, angle: dropAngle() } });
     unpickAll();
   }
 
@@ -1525,7 +1629,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const shift = massShift(d);
     const feltPicks = s.felt.filter((f) => s.picks?.[f.id] === me());
     if (shift) {
-      store.send({ t: "moveMany", moves: feltPicks.map((f) => ({ id: f.id, to: { in: "felt" as const, x: f.x + shift.dx, y: f.y + shift.dy, up: f.up, angle: f.angle } })) });
+      guessBatch({ t: "moveMany", moves: feltPicks.map((f) => ({ id: f.id, to: { in: "felt" as const, x: f.x + shift.dx, y: f.y + shift.dy, up: f.up, angle: f.angle } })) });
       return;
     }
     const pool = local.grab === "keep" ? feltPicks.map((f) => f.id) : myPicks(s);
@@ -1537,11 +1641,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       // Свои карты этой руки уходят из неё раньше, чем встают: индекс считается без них.
       const staying = handOf(s, chair).filter((c) => !ids.includes(c.id)).length;
       const base = Math.min(start, staying);
-      store.send({ t: "moveMany", moves: ids.map((id, k) => ({ id, to: { in: "hand" as const, chair, i: base + k } })) });
+      guessBatch({ t: "moveMany", moves: ids.map((id, k) => ({ id, to: { in: "hand" as const, chair, i: base + k } })) });
       return;
     }
     const to = aim.kind === "deck" || aim.kind === "deckAt" ? { pile: aim.pile } : aim.kind === "felt" ? { ...aim.at, angle: dropAngle() } : null;
-    if (to) store.send({ t: "gather", ids, side: local.side, to });
+    if (to) guessBatch({ t: "gather", ids, side: local.side, to });
   }
 
   // ── РИСОВАНИЕ ───────────────────────────────────────────────────────────────────────────────
@@ -2028,7 +2132,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   /** Что под пальцем на сукне: сверху вниз, и с колоды — только верхняя. */
   function feltPick(x: number, y: number): { card: SeenCard; at: { x: number; y: number }; up: boolean; pile?: string } | null {
     if (!view) return null;
-    const s = store.state;
+    // ПАЛЕЦ БЕРЁТ ТО, ЧТО НАРИСОВАНО: положенная, но ещё не подтверждённая карта уже не на колоде — под ней следующая.
+    const s = seen();
     const { x: ux, y: uy } = view.toDesk({ x, y });
     // Палец — в оси самой карты: у повёрнутой карты попадание считается по её сторонам, а не по рамке.
     const over = (at: { x: number; y: number }, angle = 0) => {
@@ -2065,7 +2170,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (store.state.locks[card.id] && store.state.locks[card.id] !== me()) return;
     const picked = truth().picks?.[card.id];
     if (picked !== undefined && picked !== me()) return;
-    const from = whereIs(store.state, card.id);
+    // Своя карта, брошенная и ещё не подтверждённая, взятая снова, — с того места, где нарисована.
+    const from = whereIs(seen(), card.id) ?? whereIs(store.state, card.id);
     if (!from) return;
     drag = {
       from,
@@ -2150,7 +2256,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   }
 
   function grabFromHand(e: PointerEvent, owner: string, id: string, el: HTMLElement) {
-    const s = store.state;
+    const s = seen();
     // ИНСТРУМЕНТ ЛАССО не берёт карты: касание карты — только тап-выделение.
     if (lassoOn() && local.tool === "lasso") {
       press = { pid: e.pointerId, sx: e.clientX, sy: e.clientY, t0: performance.now(), card: id, pts: [] };
@@ -2275,10 +2381,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       return draw();
     }
     if (d.mass) {
-      if (local.grab === "collect") {
-        const key = me();
-        massLanding = { ids: Object.entries(store.state.picks ?? {}).filter(([id, by]) => by === key && id !== d.card.id).map(([id]) => id), v: store.state.v, at: performance.now() };
-      }
       dropMass(d);
       return draw();
     }
@@ -2287,7 +2389,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (from) {
       const keepsFace = (to.in === "hand" && to.chair === mine()) || (to.in === "felt" && to.up) || (to.in === "deck" && deckSide(store.state, to.pile, d.card.id, d.shown));
       const card: SeenCard = keepsFace && d.card.face ? { id: d.card.id, face: d.card.face, ...(to.in === "deck" ? { up: true } : {}) } : { id: d.card.id };
-      pending = { id: d.card.id, from, to, card, sawLock: store.state.locks[d.card.id] === me() };
+      pendings = [...pendings.filter((one) => one.id !== d.card.id), { id: d.card.id, from, to, card, sawLock: store.state.locks[d.card.id] === me() }];
       store.send({ t: "drop", id: d.card.id, to });
     }
     draw();
@@ -2478,12 +2580,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   store.onChange(() => {
     const now = performance.now();
     guesses = guesses.filter((g) => now - g.at < GUESS_MS && !(store.state.v > g.v && g.settled(store.state)));
-    if (massLanding && (store.state.v > massLanding.v || now - massLanding.at > GUESS_MS)) massLanding = null;
-    if (pending) {
-      const holder = store.state.locks[pending.id];
-      if (holder === me()) pending.sawLock = true;
-      else if (pending.sawLock) pending = null;
-    }
+    pendings = pendings.filter((one) => {
+      if (store.state.locks[one.id] === me()) one.sawLock = true;
+      else if (one.sawLock) return false;
+      return true;
+    });
     // ВЗЯТОЕ У МЕНЯ ИЗ-ПОД ПАЛЬЦА: блокировка истекла и карту взял другой — отпускаю.
     if (drag && store.state.locks[drag.card.id] && store.state.locks[drag.card.id] !== me()) {
       clearInterval(drag.hold);
@@ -2501,7 +2602,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       clearInterval(drag.hold);
       drag = null;
     }
-    if (intent.t === "drop" && pending?.id === intent.id) pending = null;
+    if (intent.t === "drop") pendings = pendings.filter((one) => one.id !== intent.id);
     draw();
   });
 
@@ -2576,11 +2677,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       const s = store.state;
       if (aim?.kind === "back") return draw();
       if (aim?.kind === "hand" || aim?.kind === "chair") {
-        store.send({ t: "pileDrop", pile: press.pile, to: { in: "hand", chair: aim.which, i: aim.kind === "hand" ? aim.index : handOf(s, aim.which).length } });
+        guessBatch({ t: "pileDrop", pile: press.pile, to: { in: "hand", chair: aim.which, i: aim.kind === "hand" ? aim.index : handOf(s, aim.which).length } });
         return draw();
       }
       if (aim?.kind === "deck" || aim?.kind === "deckAt") {
-        store.send({ t: "pileDrop", pile: press.pile, to: { in: "deck", pile: aim.pile, ...(aim.kind === "deckAt" ? { i: aim.index } : {}) } });
+        guessBatch({ t: "pileDrop", pile: press.pile, to: { in: "deck", pile: aim.pile, ...(aim.kind === "deckAt" ? { i: aim.index } : {}) } });
         return draw();
       }
       if (press.at) return guessDeckMove(press.pile, press.at.x, press.at.y, dropAngle());
