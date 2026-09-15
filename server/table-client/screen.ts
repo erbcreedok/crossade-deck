@@ -11,8 +11,9 @@ import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { orbits, tableCamera } from "./camera.js";
 import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.js";
+import { tableHaptic, writeHapticOn, type Haptic } from "./haptic.js";
 import { tableSound, writeSoundOn } from "./sound.js";
-import { cuesBetween, spots as cueSpots, type CueAt, type Spot as CueSpot } from "../src/table/cues.js";
+import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as CueSpot } from "../src/table/cues.js";
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
@@ -181,6 +182,9 @@ const TAP_MS = 350;
 const TAP_PX = 8;
 /** Перемена кадра в пределах стольких мс после моего касания — моя. */
 const MINE_MS = 700;
+/** Вибрация на перемену стола. */
+const CUE_HAPTIC: Record<Exclude<CueKind, "shuffle">, Haptic> = { drop: "soft", turn: "rigid", hand: "light", merge: "medium", gather: "medium" };
+const SHUFFLE_TICK_MS = 120;
 
 /** Сколько догадка ждёт ответа сервера, прежде чем уступить столу. */
 const GUESS_MS = 4000;
@@ -224,6 +228,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   const look: DeckLook = readLook();
   const art = deckArt(() => draw(), () => look);
   const sound = tableSound();
+  const haptic = tableHaptic();
   /** Когда я последний раз касался экрана: перемена кадра вскоре после касания — моя, звучит громче. */
   let touchedAt = -Infinity;
   /** Последнее место каждой карты, какое было видно: из кадра её вынимают, пока держат. */
@@ -1933,7 +1938,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       // Мерж и шафл звучат, пока идёт их анимация: перелёт карт в стопку, веер шафла.
       const cut = cue.kind === "merge" ? FLIGHT_MS : cue.kind === "shuffle" ? SHUFFLE_MS + (SHUFFLE_CARDS - 1) * SHUFFLE_STAGGER_MS : undefined;
       if (p) sound.play(cue.kind, (p.x - g.w / 2) / (g.w / 2), (p.y - g.h / 2) / (g.h / 2), own, cut);
+      // Вибрация — только своё: моё действие или что-то в моей руке, на моём стуле.
+      if (own || ("chair" in cue.at && cue.at.chair === seat)) buzzCue(cue.kind, cut);
     }
+  }
+
+  function buzzCue(kind: CueKind, cut?: number): void {
+    if (kind === "shuffle") {
+      // Шафл — серия лёгких тиков, пока идёт веер.
+      for (let t = 0; t < (cut ?? 0); t += SHUFFLE_TICK_MS) window.setTimeout(() => haptic.buzz("light"), t);
+      return;
+    }
+    haptic.buzz(CUE_HAPTIC[kind]);
   }
 
   /** Карта в строке, как её вижу я: лицо — только если я его вижу, в цвете масти моего вида колоды. */
@@ -1958,8 +1974,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
       + `<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`;
     if (!local.settings) return gear;
-    const row = (key: keyof DeckLook | "sound", label: string) => {
-      const on = key === "sound" ? sound.on : look[key];
+    const row = (key: keyof DeckLook | "sound" | "haptic", label: string) => {
+      const on = key === "sound" ? sound.on : key === "haptic" ? haptic.on : look[key];
       const knob = on
         ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black}`
         : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim}`;
@@ -1969,8 +1985,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     };
     return gear + `<div data-settings-panel style="position:absolute;left:12px;top:60px;width:200px;box-sizing:border-box;z-index:61;padding:10px 14px;border-radius:12px;`
       + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);display:flex;flex-direction:column">`
-      + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding-bottom:4px">Звук</span>`
-      + row("sound", "Звуки")
+      + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding-bottom:4px">Звук и вибрация</span>`
+      + row("sound", "Звуки") + row("haptic", "Вибрация")
       + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding:8px 0 4px">Колода</span>`
       + row("fourColour", "4 цвета") + row("cyrillic", "Кириллица") + `</div>`;
   }
@@ -2322,6 +2338,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // КУРСОР ЛАССО ПО ВЫДЕЛЕННОЙ КАРТЕ — хват всей массы.
     if (lassoOn() && local.tool === "cursor" && truth().picks?.[card.id] === me() && myPicks(truth()).length > 1) drag.mass = true;
     liftedBy = e.pointerId;
+    haptic.buzz("light");
     store.send({ t: "grab", id: card.id });
     tellCarry();
     draw();
@@ -2608,10 +2625,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     for (const el of over.querySelectorAll<HTMLElement>("[data-look]")) {
       el.onclick = (e) => {
         e.stopPropagation();
-        const key = el.dataset.look as keyof DeckLook | "sound";
+        const key = el.dataset.look as keyof DeckLook | "sound" | "haptic";
         if (key === "sound") {
           sound.on = !sound.on;
           writeSoundOn(sound.on);
+        } else if (key === "haptic") {
+          haptic.on = !haptic.on;
+          writeHapticOn(haptic.on);
         } else {
           look[key] = !look[key];
           writeLook(look);

@@ -9,6 +9,7 @@
 
 import { EMOJI } from "../src/table/emoji.js";
 import { EVERYWHERE, KEYBOARD, KEYBOARD_SECTIONS, LINE_PAUSE_MS, Lines, SHOT_MS, Shots, Typer, graphemes, type KeyboardSection, type Line, type Piece } from "../src/table/say.js";
+import { tableHaptic } from "./haptic.js";
 import type { TableStore } from "./store.js";
 
 const INK = { black: "#0b0704", ink: "#f5ead0", well: "#1c120b", panel: "#3a2a1d", rim: "#6b4d2c", gold: "#f8d885", goldLo: "#b08a26" };
@@ -156,12 +157,14 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     const el = target.closest<HTMLElement>("[data-key],[data-sticker]");
     if (!el) return;
     if (el.dataset.sticker) {
-      if (!mayShoot()) return;
+      if (!mayShoot()) return tableHaptic().buzz("warning");
+      tableHaptic().buzz("light");
       shots.fire(store.me.key, performance.now());
       store.shoot({ id: el.dataset.sticker });
       launch(store.me.key, el.dataset.sticker);
       coolStickers();
     } else {
+      tableHaptic().buzz("selection");
       const before = typer.left;
       typer.key(el.dataset.key!);
       if (typer.left !== before || !typer.typing) noteUsed(el.dataset.key!);
