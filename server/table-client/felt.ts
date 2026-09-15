@@ -83,7 +83,6 @@ const FELT_OVERLAP = 1.2;
 /** Цвета стула — содержание, а не тема (`SEAT_LOOK`). */
 export const SEAT = {
   black: "#0b0704",
-  gold: "#f2c14e",
   ink: "#f5ead0",
   woodHi: "#6b4d2c",
   woodLo: "#1d1409",
@@ -304,13 +303,6 @@ function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: stri
   g.lineWidth = DISC_LINE;
   g.strokeStyle = who.ink;
   g.stroke();
-  if (who.mine) {
-    g.beginPath();
-    g.arc(0, 0, r + DISC_LINE, 0, Math.PI * 2);
-    g.lineWidth = DISC_LINE;
-    g.strokeStyle = SEAT.gold;
-    g.stroke();
-  }
   const w = Math.max(1, [...who.name].length * PLATE_EM + 2 * PLATE.padX);
   const h = PLATE_EM * 1.6 + 2 * PLATE.padY;
   roundRect(g, -w / 2, PLATE.at - h / 2, w, h, h * 0.3);
@@ -343,11 +335,6 @@ function emptyChair(g: CanvasRenderingContext2D): void {
 }
 
 function chair(g: CanvasRenderingContext2D, who: Seat & { ink: string }): void {
-  archPath(g, ARCH_R + CHAIR_LINE);
-  if (who.mine) {
-    g.fillStyle = SEAT.gold;
-    g.fill();
-  }
   archPath(g, ARCH_R);
   g.fillStyle = SEAT.black;
   g.fill();
