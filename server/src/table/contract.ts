@@ -52,7 +52,8 @@ export interface Face {
  * (ширина карты), и порядок в нём — это порядок «кто сверху».
  */
 export type Where =
-  | { in: "deck" }
+  /** `i` — место в колоде снизу (0 — низ); нет или под локом — наверх. */
+  | { in: "deck"; i?: number }
   | { in: "hand"; chair: string; i: number }
   | { in: "felt"; x: number; y: number; up: boolean; angle: number; under?: boolean };
 
@@ -131,6 +132,16 @@ export interface DeckSpot {
   forever: boolean;
   /** Приколота: двигать нельзя. Приколоть может любой, открепить — только админ. */
   pin: boolean;
+  /**
+   * ЛОК — стопку не меняют изнутри: не переставляют, не тянут из середины, не переворачивают (ни карту, кроме
+   * верхней, ни всю), не сортируют и не мешают. Верхняя карта доступна, класть сверху можно.
+   */
+  lock: boolean;
+  /**
+   * ПРИЁМКА ЗАКРЫТА — лок на количество: карту в стопку не положить и из неё не взять, даже верхнюю. Лок
+   * (`lock`) — на порядок. Оба ставит и снимает админ, и действуют они и на него; команды бота — нет.
+   */
+  shut: boolean;
   /** Поворот колоды на сукне, в градусах по часовой в осях стола: как стояла на экране у поставившего. */
   angle: number;
   /**
@@ -139,7 +150,7 @@ export interface DeckSpot {
    */
   below: string[];
 }
-export const DEFAULT_SPOT: DeckSpot = { x: 0, y: 0, forever: true, pin: false, angle: 0, below: [] };
+export const DEFAULT_SPOT: DeckSpot = { x: 0, y: 0, forever: true, pin: false, lock: false, shut: false, angle: 0, below: [] };
 
 /** Что делают с колодой из её тултипа: перемешать, по масти (внутри — по номиналу), перевернуть стопку. */
 export const DECK_DOS = ["shuffle", "sort", "flip"] as const;
@@ -254,6 +265,8 @@ export type Intent =
   | { t: "deckForever"; on: boolean }
   /** Приколоть колоду — любой; открепить — только админ. */
   | { t: "deckPin"; on: boolean }
+  /** Лок стопки или закрытая приёмка — только админ. */
+  | { t: "deckGuard"; guard: "lock" | "shut"; on: boolean }
   /** Поменять правило стола — только админ. */
   | { t: "rules"; rules: Partial<TableRules> }
   /** Разошлись версии — пришли мне стол целиком. */

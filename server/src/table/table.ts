@@ -176,7 +176,7 @@ export class Table {
     if (this.scripted && !auto && intent.t !== "sync" && intent.t !== "hold" && intent.t !== "release") return { refused: "busy" };
     switch (intent.t) {
       case "grab":
-        return this.grab(by, intent.id, now);
+        return this.grab(by, intent.id, now, auto);
       case "hold": {
         const lock = this.locks.get(intent.id);
         if (!lock || lock.by !== by) return { refused: "not-held" };
@@ -230,6 +230,13 @@ export class Table {
         if (typeof intent.on !== "boolean") return { refused: "bad" };
         if (!intent.on && by !== this.admin) return { refused: "not-yours" };
         this.spot.pin = intent.on;
+        return { ops: this.commit([{ t: "spot", spot: this.spotOut() }]) };
+      }
+      case "deckGuard": {
+        if (!this.spot) return { refused: "gone" };
+        if (by !== this.admin) return { refused: "not-yours" };
+        if (typeof intent.on !== "boolean" || !["lock", "shut"].includes(intent.guard)) return { refused: "bad" };
+        this.spot[intent.guard] = intent.on;
         return { ops: this.commit([{ t: "spot", spot: this.spotOut() }]) };
       }
       case "rules": {
@@ -288,15 +295,16 @@ export class Table {
     if (!at) return { refused: "gone" };
     const lock = this.locks.get(id);
     if (lock && lock.by !== by) return { refused: "locked" };
-    // С КОЛОДЫ — ТОЛЬКО ВЕРХНЯЯ. Стопку целиком не поднимают, и карту из середины не выдёргивают.
-    if (at.in === "deck" && this.deck[this.deck.length - 1] !== id) return { refused: "not-top" };
+    // ИЗ СЕРЕДИНЫ КОЛОДЫ — только пока на ней нет лока: под локом доступна одна верхняя.
+    if (at.in === "deck" && this.spot?.lock && this.deck[this.deck.length - 1] !== id) return { refused: "not-top" };
     if (at.in === "hand" && this.closedTo(by, at.chair)) return { refused: "chair-locked" };
     return { at };
   }
 
-  private grab(by: string, id: string, now: number): Result {
+  private grab(by: string, id: string, now: number, auto = false): Result {
     const may = this.touchable(by, id);
     if ("refused" in may) return may;
+    if (may.at.in === "deck" && this.spot?.shut && !auto) return { refused: "locked" };
     const lock = this.locks.get(id);
     this.locks.set(id, { by, until: now + LOCK_TTL_MS });
     return { ops: lock ? [] : this.commit([{ t: "lock", id, by }]) };
@@ -337,6 +345,8 @@ export class Table {
     // из руки — лицом, если его было видно в худе; с сукна и колоды — как лежала.
     // В КОЛОДУ, КОТОРОЙ НЕТ, кладёт только команда бота — и ставит новую посередине.
     if (target.in === "deck" && !this.spot && !auto) return { refused: "gone" };
+    // ПРИЁМКА ЗАКРЫТА — не положить; вернуть взятую из самой колоды на её место тоже нельзя, это перестановка.
+    if (target.in === "deck" && !auto && this.spot && (this.spot.shut || (this.spot.lock && from0(this.whereIs(id)) === "deck"))) return { refused: "locked" };
     const born = target.in === "deck" ? this.ensureDeck() : [];
     // В СТОПКУ — стороной стопки, если все её карты лежат одинаково; вперемешку или пустая — как нёс.
     const pack = target.in === "deck" && !auto ? this.deck.filter((one) => one !== id).map((one) => this.turned.has(one)) : [];
@@ -450,7 +460,7 @@ export class Table {
   private deckDo(how: DeckDo): Result {
     if (!(DECK_DOS as readonly unknown[]).includes(how)) return { refused: "bad" };
     if (!this.spot) return { refused: "gone" };
-    if (this.deck.some((id) => this.locks.has(id))) return { refused: "locked" };
+    if (this.spot.lock || this.deck.some((id) => this.locks.has(id))) return { refused: "locked" };
     if (how === "shuffle") return { ops: this.shuffleDeck() };
     if (how === "sort") this.deck = arranged(this.deck, "suit", (id) => this.faces.get(id))!;
     else {
@@ -647,7 +657,7 @@ export class Table {
 
   /** Куда класть можно: только в руку стоящего стула и только в пределах сукна. */
   private clean(to: Where, auto = false): Where | null {
-    if (to.in === "deck") return { in: "deck" };
+    if (to.in === "deck") return Number.isInteger(to.i) && !this.spot?.lock ? { in: "deck", i: to.i } : { in: "deck" };
     if (to.in === "hand") {
       if (!this.chairs.has(to.chair) || !Number.isInteger(to.i)) return null;
       return { in: "hand", chair: to.chair, i: to.i };
@@ -691,8 +701,13 @@ export class Table {
   /** Положить и вернуть, куда легло НА САМОМ ДЕЛЕ: индекс руки прижимается к её длине. */
   private put(id: string, to: Where): Where {
     if (to.in === "deck") {
-      this.deck.push(id);
-      return to;
+      if (to.i === undefined) {
+        this.deck.push(id);
+        return { in: "deck" };
+      }
+      const i = Math.max(0, Math.min(this.deck.length, to.i));
+      this.deck.splice(i, 0, id);
+      return { in: "deck", i };
     }
     if (to.in === "felt") {
       this.felt.push({ id, x: to.x, y: to.y, up: to.up, angle: to.angle, ...(to.under ? { under: true } : {}) });
@@ -786,6 +801,10 @@ export class Table {
 /** Id карты — случайный: по нему нельзя узнать ни карту, ни её прежний id. */
 function freshId(): string {
   return globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 10);
+}
+
+function from0(at: Where | null): Where["in"] | undefined {
+  return at?.in;
 }
 
 /** Угол в (-180, 180] — один и тот же поворот не должен приходить двумя разными числами. */

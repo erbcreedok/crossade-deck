@@ -54,7 +54,9 @@ describe("Table: переворот карты", () => {
   it("можно там же, где можно взять: чужой лок, не верхняя колоды, закрытый стул — отказ", () => {
     const t = seated("a", "b");
     const b = seatOf(t, "b");
+    ops(t.act("a", { t: "deckGuard", guard: "lock", on: true }, 0));
     expect(t.act("a", { t: "turn", id: "c0" }, 0)).toEqual({ refused: "not-top" });
+    ops(t.act("a", { t: "deckGuard", guard: "lock", on: false }, 0));
     ops(t.act("b", { t: "grab", id: "c7" }, 0));
     expect(t.act("a", { t: "turn", id: "c7" }, 0)).toEqual({ refused: "locked" });
     ops(t.act("b", { t: "drop", id: "c7", to: { in: "hand", chair: b, i: 0 } }, 0));
@@ -119,8 +121,9 @@ describe("Table: блокировка карт", () => {
     expect("ops" in t.act("b", { t: "grab", id: "c6" }, 3)).toBe(true);
   });
 
-  it("с колоды берётся только верхняя; положить можно только взятое", () => {
+  it("с колоды под локом берётся только верхняя; положить можно только взятое", () => {
     const t = seated("a", "b");
+    ops(t.act("a", { t: "deckGuard", guard: "lock", on: true }, 0));
     expect(t.act("a", { t: "grab", id: "c0" }, 0)).toEqual({ refused: "not-top" });
     expect(t.act("b", { t: "drop", id: "c7", to: { in: "deck" } }, 0)).toEqual({ refused: "not-held" });
   });
@@ -474,6 +477,20 @@ describe("патч клиента совпадает с сервером", () =>
     step("a", { t: "deckDo", how: "flip" });
     step("b", { t: "deckDo", how: "sort" });
     step("c", { t: "deckDo", how: "shuffle" });
+    // После перемешивания у карт колоды новые id — берутся по месту.
+    const mid = t.seenBy("b").deck[2]!.id;
+    step("b", { t: "turn", id: mid });
+    step("b", { t: "grab", id: mid });
+    step("b", { t: "drop", id: mid, to: { in: "deck", i: 0 } });
+    step("a", { t: "deckGuard", guard: "lock", on: true });
+    const top = t.seenBy("b").deck.at(-1)!.id;
+    step("b", { t: "grab", id: top });
+    step("b", { t: "drop", id: top, to: { in: "hand", chair: b, i: 0 } });
+    step("b", { t: "grab", id: top });
+    step("b", { t: "drop", id: top, to: { in: "deck", i: 0 } });
+    step("a", { t: "deckGuard", guard: "shut", on: true });
+    step("a", { t: "deckGuard", guard: "lock", on: false });
+    step("a", { t: "deckGuard", guard: "shut", on: false });
     step("b", { t: "deckPin", on: true });
     step("a", { t: "deckPin", on: false });
     step("a", { t: "deckForever", on: false });

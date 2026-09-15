@@ -29,7 +29,7 @@ describe("колода: место, вечность и действия из т
   it("со старта колода посередине и вечная; переставить по сукну может любой, за кромку — на кромку", () => {
     const t = seated("a", "b");
     expect(t.seenBy("b").spot).toEqual(DEFAULT_SPOT);
-    expect(ok(t.act("b", { t: "deckMove", x: 1.5, y: -2 }, 0))).toEqual([{ t: "spot", spot: { x: 1.5, y: -2, forever: true, pin: false, angle: 0, below: [] } }]);
+    expect(ok(t.act("b", { t: "deckMove", x: 1.5, y: -2 }, 0))).toEqual([{ t: "spot", spot: { x: 1.5, y: -2, forever: true, pin: false, lock: false, shut: false, angle: 0, below: [] } }]);
     ok(t.act("b", { t: "deckMove", x: 100, y: 0 }, 0));
     expect(t.seenBy("a").spot!.x).toBeCloseTo(FELT_REACH);
     expect(t.act("b", { t: "deckMove", x: Number.NaN, y: 0 }, 0)).toEqual({ refused: "bad" });
@@ -53,6 +53,61 @@ describe("колода: место, вечность и действия из т
     expect(t.seenBy("a").spot!.below).toEqual([one]);
     expect(t.seenBy("a").felt.map((c) => c.id)).toEqual([one, two, three]);
     expect(t.act("a", { t: "deckMove", x: 0, y: 0, angle: Number.NaN }, 0)).toEqual({ refused: "bad" });
+  });
+
+  it("без лока: из середины тянут, переворачивают и вставляют на место", () => {
+    const t = seated("a", "b");
+    const ids = () => t.seenBy("b").deck.map((c) => c.id);
+    ok(t.act("b", { t: "turn", id: "c2" }, 0));
+    expect(t.seenBy("a").deck.find((c) => c.id === "c2")).toMatchObject({ up: true, face: cards[2]!.face });
+    ok(t.act("b", { t: "grab", id: "c2" }, 0));
+    ok(t.act("b", { t: "drop", id: "c2", to: { in: "deck", i: 6 } }, 0));
+    expect(ids()).toEqual(["c0", "c1", "c3", "c4", "c5", "c6", "c2", "c7"]);
+    // Из середины на сукно — как лежала: лицом, раз перевёрнута.
+    ok(t.act("b", { t: "grab", id: "c4" }, 0));
+    ok(t.act("b", { t: "drop", id: "c4", to: { in: "felt", x: 1, y: 1, up: true, angle: 0 } }, 0));
+    expect(t.seenBy("a").felt[0]).toMatchObject({ id: "c4", up: false });
+  });
+
+  it("лок: только админ; держит и админа — верхняя доступна, сверху класть можно, остальное нельзя", () => {
+    const t = seated("a", "b");
+    const a = seatOf(t, "a");
+    expect(t.act("b", { t: "deckGuard", guard: "lock", on: true }, 0)).toEqual({ refused: "not-yours" });
+    ok(t.act("a", { t: "deckGuard", guard: "lock", on: true }, 0));
+    for (const by of ["a", "b"]) {
+      expect(t.act(by, { t: "grab", id: "c3" }, 0)).toEqual({ refused: "not-top" });
+      expect(t.act(by, { t: "turn", id: "c3" }, 0)).toEqual({ refused: "not-top" });
+      for (const how of ["shuffle", "sort", "flip"] as const) expect(t.act(by, { t: "deckDo", how }, 0)).toEqual({ refused: "locked" });
+    }
+    ok(t.act("b", { t: "turn", id: "c7" }, 0));
+    // Верхнюю взяли — вернуть в колоду нельзя (перестановка), в руку — можно.
+    ok(t.act("b", { t: "grab", id: "c7" }, 0));
+    expect(t.act("b", { t: "drop", id: "c7", to: { in: "deck", i: 0 } }, 0)).toEqual({ refused: "locked" });
+    ok(t.act("b", { t: "drop", id: "c7", to: { in: "hand", chair: a, i: 0 } }, 0));
+    // Сверху класть можно — и место в колоде под локом не выбрать: наверх.
+    ok(t.act("a", { t: "grab", id: "c7" }, 0));
+    ok(t.act("a", { t: "drop", id: "c7", to: { in: "deck", i: 0 } }, 0));
+    expect(t.seenBy("a").deck.at(-1)!.id).toBe("c7");
+    ok(t.act("a", { t: "deckMove", x: 1, y: 0 }, 0));
+  });
+
+  it("приёмка закрыта: только админ; ни положить, ни взять никому", () => {
+    const t = seated("a", "b");
+    const b = seatOf(t, "b");
+    expect(t.act("b", { t: "deckGuard", guard: "shut", on: true }, 0)).toEqual({ refused: "not-yours" });
+    ok(t.act("a", { t: "deckGuard", guard: "shut", on: true }, 0));
+    // Взять нельзя — даже верхнюю, даже админу.
+    for (const by of ["a", "b"]) expect(t.act(by, { t: "grab", id: "c7" }, 0)).toEqual({ refused: "locked" });
+    ok(t.act("a", { t: "deckGuard", guard: "shut", on: false }, 0));
+    ok(t.act("b", { t: "grab", id: "c7" }, 0));
+    ok(t.act("b", { t: "drop", id: "c7", to: { in: "hand", chair: b, i: 0 } }, 0));
+    ok(t.act("a", { t: "deckGuard", guard: "shut", on: true }, 0));
+    // Положить нельзя никому.
+    ok(t.act("b", { t: "grab", id: "c7" }, 0));
+    expect(t.act("b", { t: "drop", id: "c7", to: { in: "deck" } }, 0)).toEqual({ refused: "locked" });
+    ok(t.act("b", { t: "release", id: "c7" }, 0));
+    ok(t.act("a", { t: "grab", id: "c7" }, 0));
+    expect(t.act("a", { t: "drop", id: "c7", to: { in: "deck", i: 3 } }, 0)).toEqual({ refused: "locked" });
   });
 
   it("пин: приколоть может любой, приколотую не двигает никто, открепляет только админ", () => {

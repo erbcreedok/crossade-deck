@@ -32,7 +32,7 @@ const tap = async (p) => {
   const b = await gripBox(p);
   await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
 };
-const tipCards = (p) => p.evaluate(() => [...document.querySelectorAll("[data-deck-card] [role=img]")].map((el) => el.getAttribute("aria-label")));
+const tipCards = (p) => p.evaluate(() => [...document.querySelectorAll('[data-owner="deck"] [role=img]')].map((el) => el.getAttribute("aria-label")));
 
 const A = await open("A");
 const B = await open("B");

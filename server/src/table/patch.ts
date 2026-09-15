@@ -99,7 +99,10 @@ function lift(s: Snapshot, id: string, from: Where): void {
 }
 
 function place(s: Snapshot, card: SeenCard, to: Where): void {
-  if (to.in === "deck") s.deck.push(card);
+  if (to.in === "deck") {
+    if (to.i === undefined) s.deck.push(card);
+    else s.deck.splice(Math.max(0, Math.min(s.deck.length, to.i)), 0, card);
+  }
   else if (to.in === "felt") s.felt.push({ ...card, x: to.x, y: to.y, up: to.up, angle: to.angle, ...(to.under ? { under: true } : {}) });
   else s.chairs.find((one) => one.id === to.chair)?.hand.splice(to.i, 0, card);
 }
