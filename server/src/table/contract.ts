@@ -129,8 +129,10 @@ export interface DeckSpot {
   x: number;
   y: number;
   forever: boolean;
+  /** Приколота: двигать нельзя. Приколоть может любой, открепить — только админ. */
+  pin: boolean;
 }
-export const DEFAULT_SPOT: DeckSpot = { x: 0, y: 0, forever: true };
+export const DEFAULT_SPOT: DeckSpot = { x: 0, y: 0, forever: true, pin: false };
 
 /** Что делают с колодой из её тултипа: перемешать, по масти (внутри — по номиналу), перевернуть стопку. */
 export const DECK_DOS = ["shuffle", "sort", "flip"] as const;
@@ -243,6 +245,8 @@ export type Intent =
   | { t: "deckDo"; how: DeckDo }
   /** Поставить или снять вечность колоды — любой. */
   | { t: "deckForever"; on: boolean }
+  /** Приколоть колоду — любой; открепить — только админ. */
+  | { t: "deckPin"; on: boolean }
   /** Поменять правило стола — только админ. */
   | { t: "rules"; rules: Partial<TableRules> }
   /** Разошлись версии — пришли мне стол целиком. */

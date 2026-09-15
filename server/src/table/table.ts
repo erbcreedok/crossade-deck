@@ -225,6 +225,13 @@ export class Table {
         this.spot.forever = intent.on;
         return { ops: this.commit([{ t: "spot", spot: { ...this.spot } }, ...this.sweepDeck()]) };
       }
+      case "deckPin": {
+        if (!this.spot) return { refused: "gone" };
+        if (typeof intent.on !== "boolean") return { refused: "bad" };
+        if (!intent.on && by !== this.admin) return { refused: "not-yours" };
+        this.spot.pin = intent.on;
+        return { ops: this.commit([{ t: "spot", spot: { ...this.spot } }]) };
+      }
       case "rules": {
         if (by !== this.admin) return { refused: "not-yours" };
         return { ops: this.setRules(intent.rules) };
@@ -427,6 +434,7 @@ export class Table {
   /** Переставить колоду по сукну. Мимо стола не поставить — встанет на кромку, как карта. */
   private deckMove(x: number, y: number): Result {
     if (!this.spot) return { refused: "gone" };
+    if (this.spot.pin) return { refused: "locked" };
     if (![x, y].every(Number.isFinite)) return { refused: "bad" };
     const far = Math.hypot(x, y);
     const k = far > FELT_REACH ? FELT_REACH / far : 1;

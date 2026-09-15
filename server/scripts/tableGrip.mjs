@@ -202,6 +202,77 @@ await dragCard(A, two, { x: one.x, y: one.y + 0.32 * 1.4 * (await spots(A)).k },
 sb2 = await spots(B);
 check("над одиночной картой зона не горит, карта легла на сукно", over2 === "false" && sb2.felt.length === 2 && sb2.deck === 34, { over2, felt: sb2.felt.length, deck: sb2.deck });
 
+// ── 14б. Пин: приколоть — любой; приколотую не двигает никто; открепить — только админ (A) ──────────
+{
+  const openTip = async (p) => { if (!(await p.locator('[data-g="deck-tip"]').count())) { await tap(p); await wait(p, 450); } };
+  const dragGrip = async (p) => {
+    const b = await p.locator('[data-g="deck-grip"]').boundingBox();
+    await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await p.mouse.down();
+    await p.mouse.move(b.x + b.width / 2 - 70, b.y - 90, { steps: 10 });
+    await wait(p, 100);
+    const during = (await spots(p)).deckTop;
+    await p.mouse.up();
+    await wait(p, 500);
+    return during;
+  };
+  await openTip(B);
+  await B.locator("[data-deck-pin]").dispatchEvent("pointerdown");
+  await wait(A, 500);
+  check("B приколол — у A индикатор с булавкой", (await A.getAttribute('[data-g="deck-grip"]', "data-pin")) === "true" && (await A.locator('[data-g="deck-pinned"]').count()) === 1, null);
+  const was = (await spots(A)).spot;
+  const topA = (await spots(A)).deckTop;
+  const duringA = await dragGrip(A);
+  const duringB = await dragGrip(B);
+  await wait(B, 300);
+  check("приколотая не едет за пальцем и не встаёт на новое место — ни у A, ни у B", Math.hypot(duringA.x - topA.x, duringA.y - topA.y) < 3 && JSON.stringify((await spots(B)).spot) === JSON.stringify(was), { was, now: (await spots(B)).spot, duringA, topA, duringB });
+  await openTip(B);
+  check("B не админ: пин у него значком, открепить нечем", (await B.locator("[data-deck-pin-status]").count()) === 1 && (await B.locator("[data-deck-pin]").count()) === 0, null);
+  await B.locator("[data-deck-pin-status]").dispatchEvent("pointerdown");
+  await wait(A, 400);
+  check("тап B по значку ничего не снял", (await A.getAttribute('[data-g="deck-grip"]', "data-pin")) === "true", null);
+  await openTip(A);
+  check("A тоже не админ (гостевая комната без админа) — и у него значок", (await A.locator("[data-deck-pin-status]").count()) === 1, null);
+  await A.locator("[data-deck-shut]").dispatchEvent("pointerdown");
+  await B.locator("[data-deck-shut]").dispatchEvent("pointerdown").catch(() => {});
+}
+
+// ── 14в. Админ открепляет — на стенде, где админ я ─────────────────────────────────────────────
+{
+  const S = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await S.goto(`${base}/table/?stand`);
+  await S.waitForSelector("[data-section]");
+  await wait(S, 600);
+  const g0 = await S.locator('[data-g="deck-grip"]').boundingBox();
+  await S.mouse.click(g0.x + g0.width / 2, g0.y + g0.height / 2);
+  await wait(S, 450);
+  await S.locator("[data-deck-pin]").dispatchEvent("pointerdown");
+  await wait(S, 300);
+  const pinnedAt = (await spots(S)).spot;
+  await S.locator("[data-deck-shut]").dispatchEvent("pointerdown");
+  const drag = async () => {
+    const b = await S.locator('[data-g="deck-grip"]').boundingBox();
+    await S.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await S.mouse.down();
+    await S.mouse.move(b.x + b.width / 2 - 70, b.y - 90, { steps: 10 });
+    await S.mouse.up();
+    await wait(S, 400);
+  };
+  await drag();
+  check("стенд: приколотую не сдвинул и админ", JSON.stringify((await spots(S)).spot) === JSON.stringify(pinnedAt), (await spots(S)).spot);
+  const g1 = await S.locator('[data-g="deck-grip"]').boundingBox();
+  await S.mouse.click(g1.x + g1.width / 2, g1.y + g1.height / 2);
+  await wait(S, 450);
+  check("стенд: у админа пин — кнопка, горит", (await S.locator("[data-deck-pin]").getAttribute("aria-pressed")) === "true", null);
+  await S.locator("[data-deck-pin]").dispatchEvent("pointerdown");
+  await wait(S, 300);
+  await S.locator("[data-deck-shut]").dispatchEvent("pointerdown");
+  await drag();
+  const moved = (await spots(S)).spot;
+  check("стенд: админ открепил — колода снова едет", moved.pin === false && (moved.x !== pinnedAt.x || moved.y !== pinnedAt.y), moved);
+  await S.close();
+}
+
 // ── 15. Пипс не крупнее колоды на мелком зуме, и своего размера на крупном ──────────────────────
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });

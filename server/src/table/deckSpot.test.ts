@@ -29,10 +29,23 @@ describe("колода: место, вечность и действия из т
   it("со старта колода посередине и вечная; переставить по сукну может любой, за кромку — на кромку", () => {
     const t = seated("a", "b");
     expect(t.seenBy("b").spot).toEqual(DEFAULT_SPOT);
-    expect(ok(t.act("b", { t: "deckMove", x: 1.5, y: -2 }, 0))).toEqual([{ t: "spot", spot: { x: 1.5, y: -2, forever: true } }]);
+    expect(ok(t.act("b", { t: "deckMove", x: 1.5, y: -2 }, 0))).toEqual([{ t: "spot", spot: { x: 1.5, y: -2, forever: true, pin: false } }]);
     ok(t.act("b", { t: "deckMove", x: 100, y: 0 }, 0));
     expect(t.seenBy("a").spot!.x).toBeCloseTo(FELT_REACH);
     expect(t.act("b", { t: "deckMove", x: Number.NaN, y: 0 }, 0)).toEqual({ refused: "bad" });
+  });
+
+  it("пин: приколоть может любой, приколотую не двигает никто, открепляет только админ", () => {
+    const t = seated("a", "b");
+    ok(t.act("b", { t: "deckPin", on: true }, 0));
+    expect(t.seenBy("a").spot!.pin).toBe(true);
+    expect(t.act("a", { t: "deckMove", x: 1, y: 1 }, 0)).toEqual({ refused: "locked" });
+    expect(t.act("b", { t: "deckPin", on: false }, 0)).toEqual({ refused: "not-yours" });
+    // Действия из тултипа пин не запрещает.
+    ok(t.act("b", { t: "deckDo", how: "flip" }, 0));
+    ok(t.act("a", { t: "deckPin", on: false }, 0));
+    ok(t.act("b", { t: "deckMove", x: 1, y: 1 }, 0));
+    expect(t.seenBy("b").spot).toMatchObject({ x: 1, y: 1, pin: false });
   });
 
   it("вечность снимает любой; невечная опустевшая колода исчезает, и класть в неё больше некуда", () => {

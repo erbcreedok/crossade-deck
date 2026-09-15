@@ -49,7 +49,7 @@ type BarKey = (typeof RIGHTS)[number] | (typeof FOLDS)[number] | (typeof ORDERS)
 const SUBS: Record<Section, readonly BarKey[]> = { pose: FOLDS, chair: [...RIGHTS, "leave"], order: ORDERS, say: [] };
 /** Сколько идёт смена секций в баре. */
 const SECTION_MS = 240;
-const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck", string> = {
+const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin", string> = {
   lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3"/><path d="M5 11h14v10H5z"/>',
   hide: '<path d="M3 3l18 18"/><path d="M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5"/><path d="M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9"/>',
   forever: '<path d="M6.5 8.5C3.5 8.5 2 10.2 2 12s1.5 3.5 4.5 3.5C10 15.5 14 8.5 17.5 8.5 20.5 8.5 22 10.2 22 12s-1.5 3.5-4.5 3.5C14 15.5 10 8.5 6.5 8.5z"/>',
@@ -62,6 +62,7 @@ const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck", string> = {
   rank: '<path d="M4 7h3v10"/><path d="M4 17h6"/><path d="M14 7h4a2 2 0 0 1 0 4h-2a2 2 0 0 0-2 2v4h6"/>',
   shuffle: '<path d="M3 7h4l10 10h4"/><path d="M3 17h4l3-3"/><path d="M14 10l3-3h4"/><path d="M18.5 4.5 21 7l-2.5 2.5"/><path d="M18.5 14.5 21 17l-2.5 2.5"/>',
   back: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
+  pin: '<path d="M9 3h6l-1 6h2l1 5H7l1-5h2L9 3z"/><path d="M12 14v7"/>',
   /** Индикатор колоды — три карты веером. */
   deck: '<rect x="3" y="4" width="9" height="12" rx="1.5" transform="rotate(-14 7 10)"/><rect x="8" y="4" width="9" height="12" rx="1.5"/><rect x="12" y="4" width="9" height="12" rx="1.5" transform="rotate(14 17 10)"/>',
   "sec-pose": '<rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(-20 12 20)"/><rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(20 12 20)"/><path d="M5 21h14"/>',
@@ -308,6 +309,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     guess("deck:move", { t: "deckMove", x: at.x, y: at.y },
       (st) => (st.spot ? { ...st, spot: { ...st.spot, ...at } } : st),
       (st) => !st.spot || (Math.abs(st.spot.x - at.x) < 1e-6 && Math.abs(st.spot.y - at.y) < 1e-6));
+  }
+
+  function guessDeckPin(on: boolean): void {
+    guess("deck:pin", { t: "deckPin", on },
+      (st) => (st.spot ? { ...st, spot: { ...st.spot, pin: on } } : st),
+      (st) => !st.spot || st.spot.pin === on);
   }
 
   function guessDeckForever(on: boolean): void {
@@ -1129,17 +1136,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const at = gripAt(s);
     if (!at) return "";
     const lit = local.deckTip || gripPress?.moved === true;
+    const pinned = s.spot!.pin;
     // НЕ КРУПНЕЕ КОЛОДЫ: на мелком зуме индикатор жмётся вместе с картой, выше `GRIP.most` её высоты не бывает.
     const h = 24;
     const scale = Math.min(1, (GRIP.most * FELT_CARD.h * view!.k) / h);
-    return `<div data-g="deck-grip" data-count="${s.deck.length}" data-forever="${s.spot!.forever}" role="button" aria-label="Колода" style="position:absolute;left:${Math.round(at.x)}px;top:${Math.round(at.y + 2 * scale)}px;`
+    return `<div data-g="deck-grip" data-count="${s.deck.length}" data-forever="${s.spot!.forever}" data-pin="${s.spot!.pin}" role="button" aria-label="Колода" style="position:absolute;left:${Math.round(at.x)}px;top:${Math.round(at.y + 2 * scale)}px;`
       + `transform:translateX(-50%) scale(${scale.toFixed(3)});transform-origin:50% 0;height:${h}px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:0 7px 0 5px;border-radius:${h / 2}px;white-space:nowrap;`
-      + `touch-action:none;cursor:grab;z-index:24;user-select:none;-webkit-user-select:none;`
+      + `touch-action:none;cursor:${pinned ? "pointer" : "grab"};z-index:24;user-select:none;-webkit-user-select:none;`
       + (lit ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.6);`
              : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${BAR_LOOK.rim},0 2px 0 rgba(11,7,4,.6);`)
       + `"><svg viewBox="0 0 24 20" width="22" height="17" fill="none" stroke="${T.black}" stroke-width="1.6" stroke-linejoin="round">`
       + `<g fill="${lit ? T.ink : BAR_LOOK.goldHi}">${GLYPH.deck}</g></svg>`
-      + `<span style="font:400 12px Tiny5,monospace;color:${lit ? T.black : T.ink}">${s.deck.length}</span></div>`;
+      + `<span style="font:400 12px Tiny5,monospace;color:${lit ? T.black : T.ink}">${s.deck.length}</span>`
+      + (s.spot!.pin ? `<svg data-g="deck-pinned" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="${lit ? T.black : BAR_LOOK.goldHi}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${GLYPH.pin}</svg>` : "")
+      + `</div>`;
   }
 
   /** Кнопка тултипа колоды: как флаг в окне стула. */
@@ -1181,7 +1191,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `<span data-deck-shut role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
       + `<div style="display:flex;align-items:center;gap:6px;height:16px">`
       + acts.map(([how, glyph, label]) => deckChip(`data-deck-do="${how}"`, glyph, label)).join("")
-      + `<span style="flex:1"></span>${deckChip("data-deck-forever", GLYPH.forever, "Вечная", s.spot!.forever)}</div>`
+      + `<span style="flex:1"></span>`
+      // ПИН: приколоть — любой, открепить — только админ. Не админу приколотая — значок, а не кнопка.
+      + (s.spot!.pin && s.admin !== me()
+        ? deckChip("data-deck-pin-status disabled", GLYPH.pin, "Приколота", true).replace("cursor:pointer", "cursor:default;opacity:.55")
+        : deckChip("data-deck-pin", GLYPH.pin, "Приколоть", s.spot!.pin))
+      + `${deckChip("data-deck-forever", GLYPH.forever, "Вечная", s.spot!.forever)}</div>`
       + `</div>` + laidCards;
   }
 
@@ -1863,6 +1878,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         store.send({ t: "deckDo", how: el.dataset.deckDo as DeckDo });
       };
     }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-deck-pin]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const spot = truth().spot;
+        if (spot) guessDeckPin(!spot.pin);
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-deck-pin-status]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+    }
     for (const el of over.querySelectorAll<HTMLElement>("[data-deck-forever]")) {
       el.onpointerdown = (e) => {
         e.preventDefault();
@@ -1966,6 +1995,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (!gripPress || e.pointerId !== gripPress.pid || !view) return;
     if (!gripPress.moved && Math.hypot(e.clientX - gripPress.sx, e.clientY - gripPress.sy) <= TAP_PX) return;
     gripPress.moved = true;
+    // ПРИКОЛОТА — не едет: палец увёл — это уже не тап, но и не перенос.
+    if (truth().spot?.pin) return;
     gripPress.at = view.toDesk({ x: e.clientX - gripPress.off.x, y: e.clientY - gripPress.off.y });
     draw();
   }, { passive: true });

@@ -472,6 +472,8 @@ describe("патч клиента совпадает с сервером", () =>
     step("a", { t: "deckDo", how: "flip" });
     step("b", { t: "deckDo", how: "sort" });
     step("c", { t: "deckDo", how: "shuffle" });
+    step("b", { t: "deckPin", on: true });
+    step("a", { t: "deckPin", on: false });
     step("a", { t: "deckForever", on: false });
     step("b", { t: "flag", chair: b, flag: "lock", on: true });
     step("b", { t: "stand" });
