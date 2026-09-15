@@ -84,7 +84,7 @@ describe("TableRoom", () => {
     expect(mine.chairs.find((c) => c.id === a.welcome.you.seat)!.hand).toEqual([{ id: top }]);
   });
 
-  it("слово у стула: остальным с автором, себе не эхом; чужие символы и лишние буквы — никому", async () => {
+  it("строка у стула: остальным с автором, себе не эхом; чужие символы и лишние буквы — никому", async () => {
     const room = mintRoom(SECRET);
     const a = await sit(room, { door: "guest", name: "A" });
     const b = await sit(room, { door: "guest", name: "B" });
@@ -92,12 +92,17 @@ describe("TableRoom", () => {
     let echoed = false;
     b.client.onMessage(MSG.say, (say: Say) => heard.push(say));
     a.client.onMessage(MSG.say, () => (echoed = true));
-    a.client.send(MSG.say, { n: 1, text: "<script>" });
-    a.client.send(MSG.say, { n: 1, text: "A".repeat(40) });
-    a.client.send(MSG.say, { n: 1, text: "ПРИВЕТ😀" });
-    a.client.send(MSG.say, { n: 1, text: "ПРИВЕТ😀", done: true });
+    const line = (text: string) => [{ t: "text", text }];
+    a.client.send(MSG.say, { n: 1, pieces: line("<script>") });
+    a.client.send(MSG.say, { n: 1, pieces: line("A".repeat(40)) });
+    a.client.send(MSG.say, { n: 1, text: "ПРИВЕТ" });
+    a.client.send(MSG.say, { n: 1, pieces: [...line("ПРИВЕТ😀 "), { t: "who", key: b.welcome.you.key }] });
+    a.client.send(MSG.say, { n: 1, pieces: line("ПРИВЕТ😀"), done: true });
     await new Promise((r) => setTimeout(r, 120));
-    expect(heard).toEqual([{ n: 1, text: "ПРИВЕТ😀", by: a.welcome.you.key }, { n: 1, text: "ПРИВЕТ😀", done: true, by: a.welcome.you.key }]);
+    expect(heard).toEqual([
+      { n: 1, pieces: [...line("ПРИВЕТ😀 "), { t: "who", key: b.welcome.you.key }], by: a.welcome.you.key },
+      { n: 1, pieces: line("ПРИВЕТ😀"), done: true, by: a.welcome.you.key },
+    ]);
     expect(echoed).toBe(false);
   });
 

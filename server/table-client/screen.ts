@@ -14,9 +14,28 @@ import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.
 import { tableSound, writeSoundOn } from "./sound.js";
 import { cuesBetween, spots as cueSpots, type CueAt, type Spot as CueSpot } from "../src/table/cues.js";
 import { mountTalk, type WordAnchor } from "./talk.js";
-import { WORDS_MAX } from "../src/table/say.js";
+import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
 import type { TableStore } from "./store.js";
+
+/** Цвет отметки карты в строке — светлые версии красок колоды: буквы строки стоят на сукне с чёрной обводкой. */
+const MENTION_INK = { red: "#e5483f", black: "#e8e0d0", back: "#9fb3cf", four: { s: "#4f95dc", h: "#e5483f", d: "#f0902e", c: "#e8e0d0" } };
+const MUTED_KEY = "crossade.table.muted";
+function readMuted(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(MUTED_KEY) ?? "[]");
+    return Array.isArray(raw) ? raw.filter((k): k is string => typeof k === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function writeMuted(keys: Iterable<string>): void {
+  try {
+    localStorage.setItem(MUTED_KEY, JSON.stringify([...keys]));
+  } catch {
+    // Нет хранилища — живёт, пока открыт экран.
+  }
+}
 
 const T = {
   black: "#0b0704", ink: "#f5ead0", inkDim: "#cdb98f", gold: "#f2c14e",
@@ -211,7 +230,32 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   const knownSpots = new Map<string, CueSpot>();
   addEventListener("pointerdown", () => (touchedAt = performance.now()), { capture: true });
   addEventListener("pointerup", () => (touchedAt = performance.now()), { capture: true });
-  const talk = mountTalk(stage, store, () => draw());
+  /** Кого я не читаю — ключи людей, на моём устройстве. */
+  const muted = new Set<string>(readMuted());
+  const talk = mountTalk(stage, store, () => draw(), {
+    who: (key) => {
+      const p = store.state.people.find((one) => one.key === key);
+      return p && { name: p.name, ink: p.ink };
+    },
+    card: (id) => cardMention(seen(), id),
+    pick: (x, y) => {
+      // Окна стульев — DOM поверх холста: карта в чужом окне под пальцем.
+      const dom = document.elementsFromPoint(x, y).find((el) => el instanceof HTMLElement && el.closest("#over [data-card]"));
+      const domCard = (dom as HTMLElement | undefined)?.closest<HTMLElement>("[data-card]")?.dataset.card;
+      if (domCard) return { t: "card", id: domCard };
+      const s = seen();
+      const card = feltPick(x, y);
+      if (card) return { t: "card", id: card.card.id };
+      const chair = chairUnder(s, x, y);
+      const owner = chair && chairOf(s, chair.key)?.owner;
+      return owner ? { t: "who", key: owner } : null;
+    },
+    hand: () => handOf(seen(), mine(seen())).map((c) => c.id),
+    muted: (key) => muted.has(key),
+    stickerUrl: (by, id) => `/table/stickers/${encodeURIComponent(by)}/${encodeURIComponent(id)}.webp`,
+    stickers: () => myStickers,
+  });
+  let myStickers: string[] = [];
 
   /** Только то, что есть у этого экрана и больше нигде. */
   const local = {
@@ -1142,6 +1186,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const shell = `<div data-g="tip" data-tip="${chair.id}" style="position:absolute;left:${box.left}px;top:${box.top}px;width:${box.w}px;box-sizing:border-box;z-index:40;`
       + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
       + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px">${head}`
+      // НЕ ЧИТАТЬ — личное: строки и стикеры этого человека у меня не появляются.
+      + (sitter && sitter.key !== me()
+        ? `<span data-mute="${escape(sitter.key)}" role="button" aria-pressed="${muted.has(sitter.key)}" aria-label="${muted.has(sitter.key) ? "Читать" : "Не читать"}" style="cursor:pointer;flex:none;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;`
+          + (muted.has(sitter.key) ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});` : `box-shadow:inset 0 0 0 2px ${T.wood};`) + `">`
+          + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${muted.has(sitter.key) ? T.black : T.inkDim}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
+          + `<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>${muted.has(sitter.key) ? '<path d="M3 3l18 18"/>' : ""}</svg></span>`
+        : "")
       + `<span data-shut="${chair.id}" role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
       + `box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
       + `<div style="display:flex;align-items:center;gap:6px;height:16px">`
@@ -1806,10 +1857,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       const middle = v.toGlass({ x: 0, y: 0 });
       const len = Math.hypot(middle.x - sp.x, middle.y - sp.y) || 1;
       const dir = { x: (middle.x - sp.x) / len, y: (middle.y - sp.y) / len };
-      const size = Math.round(Math.max(16, Math.min(30, v.k * 0.32)));
+      // Строка в LINE_MAX букв укладывается в ширину экрана.
+      const size = Math.round(Math.max(12, Math.min(20, v.k * 0.32, (glass().w * 0.9) / (LINE_MAX * 0.78))));
       // Стопка растёт вверх: у стула, от которого середина ниже, низ стопки опущен на все её строки — иначе
       // слова легли бы на лицо.
-      const reach = sp.r + 10 + Math.max(0, dir.y) * WORDS_MAX * size * 1.35;
+      const reach = sp.r + 10 + Math.max(0, dir.y) * LINES_MAX * size * 1.35;
       return [{ key: sitter.key, x: sp.x + dir.x * reach, y: sp.y + dir.y * reach, size, ink: sitter.ink }];
     });
   }
@@ -1878,6 +1930,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       const cut = cue.kind === "merge" ? FLIGHT_MS : cue.kind === "shuffle" ? SHUFFLE_MS + (SHUFFLE_CARDS - 1) * SHUFFLE_STAGGER_MS : undefined;
       if (p) sound.play(cue.kind, (p.x - g.w / 2) / (g.w / 2), (p.y - g.h / 2) / (g.h / 2), own, cut);
     }
+  }
+
+  /** Карта в строке, как её вижу я: лицо — только если я его вижу, в цвете масти моего вида колоды. */
+  function cardMention(s: Snapshot, id: string): { label: string; ink: string } {
+    const all = [...s.felt, ...s.piles.flatMap((p) => p.cards), ...s.chairs.flatMap((c) => c.hand)];
+    const card = all.find((c) => c.id === id);
+    const mineHand = handOf(s, mine(s)).some((c) => c.id === id);
+    const face = card?.face && (card.up || mineHand) ? card.face : undefined;
+    if (!face) return { label: "🂠", ink: MENTION_INK.back };
+    if (face.rank === "JK") return { label: look.cyrillic ? "ДЖ" : "JK", ink: face.suit === "b" ? MENTION_INK.black : MENTION_INK.red };
+    const rank = look.cyrillic ? ({ J: "В", Q: "Д", K: "К", A: "Т" } as Record<string, string>)[face.rank] ?? face.rank : face.rank;
+    const suit = face.suit as "s" | "h" | "d" | "c";
+    const ink = look.fourColour ? MENTION_INK.four[suit] : suit === "h" || suit === "d" ? MENTION_INK.red : MENTION_INK.black;
+    return { label: `${rank}${SUITS[suit][0]}`, ink };
   }
 
   /** НАСТРОЙКИ — шестерёнка сверху и окно под ней: вид колоды, личный. */
@@ -2584,6 +2650,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         // Сел — окно этого стула больше не чужое: его рука теперь внизу.
         local.tips = local.tips.filter((k) => k !== id);
         store.send({ t: "sit", chair: id });
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-mute]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const key = el.dataset.mute!;
+        if (muted.has(key)) muted.delete(key);
+        else {
+          muted.add(key);
+          talk.muted(key);
+        }
+        writeMuted(muted);
+        draw();
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-shut]")) {

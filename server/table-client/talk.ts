@@ -1,20 +1,24 @@
-// ДИАЛОГ — своя клавиатура вместо руки и слова у стульев.
+// ДИАЛОГ — своя клавиатура вместо руки и строки у стульев.
 //
-// Клавиатура открывается кнопкой бара и живёт поверх всего: пока она открыта, стол не трогается — ни карты,
-// ни стулья, ни камера. Касание вне её только закрывает её (щит), и ничего больше не делает.
+// Клавиатура открывается кнопкой бара и живёт поверх всего. Пока она открыта, стол ничего не делает: касание
+// по игроку или карте — отметка в строке, касание мимо — закрыть клавиатуру. Своя рука видна полоской над
+// клавишами — по ней тоже отмечают.
 //
-// Слова — в своём слое, который не пересобирается кадром экрана: буквы появляются по одной, слово падает
-// вниз, когда нижнее исчезло, — это переходы браузера, а пересборка их бы убила.
+// Строки — в своём слое, который не пересобирается кадром экрана: буквы появляются по одной, новая строка
+// встаёт снизу, старые поднимаются, ушедшая улетает вверх, — это переходы браузера, а пересборка их бы убила.
 
-import { EVERYWHERE, KEYBOARD, KEYBOARD_SECTIONS, Typer, WORD_PAUSE_MS, Words, graphemes, type KeyboardSection } from "../src/table/say.js";
+import { EVERYWHERE, KEYBOARD, KEYBOARD_SECTIONS, LINE_PAUSE_MS, Lines, Typer, graphemes, type KeyboardSection, type Line, type Piece } from "../src/table/say.js";
 import type { TableStore } from "./store.js";
 
 const INK = { black: "#0b0704", ink: "#f5ead0", well: "#1c120b", panel: "#3a2a1d", rim: "#6b4d2c", gold: "#f8d885", goldLo: "#b08a26" };
 /** Сколько клавиатура въезжает и уезжает. */
 const KEYBOARD_MS = 220;
-const TAB_LABEL: Record<KeyboardSection, string> = { latin: "123 ABC", cyrillic: "ӘӨ АБВ", emoji: "😀" };
+/** Улёт ушедшей строки вверх. */
+const FLY_MS = 420;
+type Tab = KeyboardSection | "stickers";
+const TAB_LABEL: Record<Tab, string> = { latin: "123 ABC", cyrillic: "ӘӨ АБВ", emoji: "😀", stickers: "🖼" };
 
-/** Где у меня сейчас стоят слова человека: точка перед его стулом на стекле и размер буквы. */
+/** Где у меня сейчас стоят строки человека: точка перед его стулом на стекле и размер буквы. */
 export interface WordAnchor {
   key: string;
   x: number;
@@ -23,25 +27,43 @@ export interface WordAnchor {
   ink: string;
 }
 
+/** Что диалог спрашивает у стола: как видно отметки, что под пальцем, моя рука, кого я не читаю, мои стикеры. */
+export interface TalkWorld {
+  who(key: string): { name: string; ink: string } | undefined;
+  /** Карта как её вижу я: «6♥» в цвете масти, или рубашка, если лица мне не видно. */
+  card(id: string): { label: string; ink: string };
+  /** Что под пальцем на столе: игрок или карта. */
+  pick(x: number, y: number): Extract<Piece, { t: "who" | "card" }> | null;
+  hand(): string[];
+  muted(key: string): boolean;
+  /** Картинка стикера человека; `mine` — мой набор для вкладки. */
+  stickerUrl(by: string, id: string): string;
+  stickers(): string[];
+}
+
 export interface Talk {
   readonly open: boolean;
   /** Сколько стекла снизу занимает клавиатура. */
   height(): number;
   toggle(): void;
   close(): void;
-  /** Расставить слова по стульям — каждым кадром экрана. */
+  /** Расставить строки по стульям — каждым кадром экрана. */
   place(anchors: WordAnchor[]): void;
+  /** Человека замолчали — его строки убраны сразу. */
+  muted(key: string): void;
 }
 
-export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => void): Talk {
-  const words = new Words();
+export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => void, world: TalkWorld): Talk {
+  const lines = new Lines();
+  const length = (p: Piece) => (p.t === "text" ? graphemes(p.text).length : p.t === "who" ? graphemes(world.who(p.key)?.name ?? "?").length : p.t === "card" ? graphemes(world.card(p.id).label).length : 1);
   const typer = new Typer((out) => {
-    words.hear(store.me.key, out, performance.now());
+    lines.hear(store.me.key, out, performance.now());
     store.say(out);
     paint();
-  });
+    counter();
+  }, length);
   let open = false;
-  let section: KeyboardSection = "latin";
+  let section: Tab = "latin";
   let pause = 0;
   let anchors: WordAnchor[] = [];
 
@@ -59,54 +81,99 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     + `background:linear-gradient(${INK.panel},${INK.well});box-shadow:inset 0 3px 0 -1px ${INK.black};touch-action:none;display:flex;flex-direction:column;gap:6px`;
   stage.append(layer, shield, board);
 
-  // КАСАНИЕ ВНЕ КЛАВИАТУРЫ — только закрыть: ни карта, ни стул, ни камера его не получают.
+  const idle = () => {
+    clearTimeout(pause);
+    if (typer.typing) pause = window.setTimeout(() => {
+      typer.end();
+      counter();
+    }, LINE_PAUSE_MS);
+  };
+
+  // КАСАНИЕ ВНЕ КЛАВИАТУРЫ — отметить игрока или карту под пальцем; мимо них — только закрыть.
   shield.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    close();
+    const piece = world.pick(e.clientX, e.clientY);
+    if (!piece) return close();
+    typer.mention(piece);
+    idle();
   });
   board.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const el = (e.target as Element).closest<HTMLElement>("[data-key],[data-key-act],[data-kb-tab]");
+    const el = (e.target as Element).closest<HTMLElement>("[data-key],[data-key-act],[data-kb-tab],[data-mention-card],[data-sticker]");
     if (!el) return;
     if (el.dataset.kbTab) {
-      section = el.dataset.kbTab as KeyboardSection;
+      section = el.dataset.kbTab as Tab;
       return build();
     }
     const act = el.dataset.keyAct;
     if (act === "close") return close();
-    if (act === "space") typer.end();
+    if (act === "space") typer.key(" ");
+    else if (act === "enter") typer.end();
     else if (act === "erase") typer.erase();
+    else if (el.dataset.mentionCard) typer.mention({ t: "card", id: el.dataset.mentionCard });
+    else if (el.dataset.sticker) typer.sticker(el.dataset.sticker);
     else typer.key(el.dataset.key!);
     el.animate([{ transform: "scale(.88)" }, { transform: "none" }], { duration: 120 });
-    // ЗАМОЛЧАЛ — слово закончено.
-    clearTimeout(pause);
-    if (typer.typing) pause = window.setTimeout(() => typer.end(), WORD_PAUSE_MS);
+    // ЗАМОЛЧАЛ — строка закончена.
+    idle();
+    counter();
   });
   board.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
 
   store.onSay((say) => {
-    words.hear(say.by, say, performance.now());
+    if (world.muted(say.by)) return;
+    lines.hear(say.by, say, performance.now());
     paint();
   });
-  setInterval(() => words.tick(performance.now()) && paint(), 150);
+  setInterval(() => lines.tick(performance.now()) && paint(), 150);
 
   const key = (label: string, data: string, grow = 1, font = 17) =>
     `<button ${data} style="flex:${grow} 1 0;min-width:0;height:42px;border:0;padding:0;border-radius:8px;cursor:pointer;color:${INK.ink};`
     + `font:400 ${font}px Tiny5,system-ui,sans-serif;background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 2px ${INK.black},inset 0 0 0 3px ${INK.rim}">${label}</button>`;
   const row = (html: string) => `<div style="display:flex;gap:4px">${html}</div>`;
 
+  /** Сколько символов осталось в строке — у кнопок вкладок. */
+  function counter(): void {
+    const el = board.querySelector<HTMLElement>("[data-left]");
+    if (!el) return;
+    el.textContent = String(typer.left);
+    el.dataset.left = String(typer.left);
+    el.style.color = typer.left <= 4 ? INK.gold : INK.ink;
+  }
+
+  function handRow(): string {
+    const ids = world.hand();
+    if (!ids.length) return "";
+    return `<div data-talk-hand style="display:flex;gap:4px;overflow-x:auto;padding-bottom:2px">` + ids.map((id) => {
+      const c = world.card(id);
+      return `<button data-mention-card="${id}" style="flex:none;min-width:38px;height:30px;padding:0 6px;border:0;border-radius:6px;cursor:pointer;font:400 14px Tiny5,system-ui,sans-serif;`
+        + `color:${c.ink};background:#f7f1e6;box-shadow:inset 0 0 0 2px ${INK.black}">${escapeHtml(c.label)}</button>`;
+    }).join("") + `</div>`;
+  }
+
   function build(): void {
-    const tabs = KEYBOARD_SECTIONS.map((sec) => {
+    const tabs = ([...KEYBOARD_SECTIONS, "stickers"] as Tab[]).map((sec) => {
       const on = sec === section;
       return `<button data-kb-tab="${sec}" aria-pressed="${on}" style="flex:1 1 0;height:34px;border:0;border-radius:8px;cursor:pointer;font:400 13px Tiny5,system-ui,sans-serif;`
         + (on ? `color:${INK.black};background:linear-gradient(${INK.gold},${INK.goldLo});box-shadow:inset 0 0 0 2px ${INK.black}` : `color:${INK.ink};background:transparent;box-shadow:inset 0 0 0 2px ${INK.rim}`)
         + `">${TAB_LABEL[sec]}</button>`;
-    }).join("") + `<button data-key-act="close" aria-label="Закрыть" style="flex:none;width:44px;height:34px;border:0;border-radius:8px;cursor:pointer;color:${INK.ink};font:400 16px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${INK.rim}">✕</button>`;
-    const rows = KEYBOARD[section].map((line) => row(graphemes(line).map((ch) => key(ch, `data-key="${ch}"`, 1, section === "emoji" ? 22 : 17)).join(""))).join("");
-    const bottom = row(EVERYWHERE.map((ch) => key(ch, `data-key="${ch}"`)).join("") + key("пробел", 'data-key-act="space"', 5, 13) + key("⌫", 'data-key-act="erase"', 1.6));
-    board.innerHTML = row(tabs) + rows + bottom;
+    }).join("")
+      + `<span data-left="${typer.left}" aria-label="Осталось символов" style="flex:none;width:30px;height:34px;display:flex;align-items:center;justify-content:center;font:400 13px Tiny5,monospace;color:${INK.ink}">${typer.left}</span>`
+      + `<button data-key-act="close" aria-label="Закрыть" style="flex:none;width:40px;height:34px;border:0;border-radius:8px;cursor:pointer;color:${INK.ink};font:400 16px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${INK.rim}">✕</button>`;
+    let body: string;
+    if (section === "stickers") {
+      const mine = world.stickers();
+      body = mine.length
+        ? `<div data-sticker-grid style="display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px;max-height:${4 * 42 + 3 * 6}px;overflow-y:auto">`
+          + mine.map((id) => `<button data-sticker="${id}" aria-label="Стикер" style="height:64px;border:0;border-radius:8px;cursor:pointer;background:rgba(0,0,0,.25) url(${world.stickerUrl(store.me.key, id)}) center/contain no-repeat"></button>`).join("") + `</div>`
+        : `<div style="height:${4 * 42 + 3 * 6}px;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 16px;font:400 13px Tiny5,system-ui,sans-serif;color:${INK.ink}">Стикеров пока нет. Отправь боту /sticker и картинку</div>`;
+    } else {
+      body = KEYBOARD[section].map((line) => row(graphemes(line).map((ch) => key(ch, `data-key="${ch}"`, 1, section === "emoji" ? 22 : 17)).join(""))).join("")
+        + row(EVERYWHERE.map((ch) => key(ch, `data-key="${ch}"`)).join("") + key("пробел", 'data-key-act="space"', 4, 13) + key("⌫", 'data-key-act="erase"', 1.4) + key("↵", 'data-key-act="enter" aria-label="Новая строка"', 1.4));
+    }
+    board.innerHTML = handRow() + row(tabs) + body;
   }
 
   function toggle(): void {
@@ -130,21 +197,41 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     redraw();
   }
 
-  /** Буква слова — SVG, заглавная, в цвете человека с чёрной обводкой; эмодзи — как есть. */
+  /** Буква — SVG, заглавная, в цвете с чёрной обводкой; эмодзи — как есть. */
   const letter = (ch: string, size: number, ink: string) => {
-    const w = Math.round(size * (/\p{Extended_Pictographic}/u.test(ch) ? 1.15 : 0.78));
+    if (ch === " ") return `<span style="display:block;width:${Math.round(size * 0.45)}px;height:1px"></span>`;
+    const w = Math.round(size * (/\p{Extended_Pictographic}|[♠♥♦♣]/u.test(ch) ? 1.15 : 0.78));
     return `<svg width="${w}" height="${Math.round(size * 1.2)}" viewBox="0 0 ${w} ${Math.round(size * 1.2)}" style="display:block;overflow:visible">`
       + `<text x="${w / 2}" y="${Math.round(size * 0.95)}" text-anchor="middle" font-family="Tiny5, system-ui, sans-serif" font-size="${size}" fill="${ink}" `
-      + `stroke="${INK.black}" stroke-width="${Math.max(2, size * 0.16)}" stroke-linejoin="round" paint-order="stroke">${ch}</text></svg>`;
+      + `stroke="${INK.black}" stroke-width="${Math.max(2, size * 0.16)}" stroke-linejoin="round" paint-order="stroke">${escapeHtml(ch)}</text></svg>`;
   };
+
+  /** Буквы строки как их вижу я: текст — цветом пишущего, отметка — цветом игрока или карты. */
+  function glyphs(by: string, line: Line, ink: string): { ch: string; ink: string; mark: string }[] {
+    return line.pieces.flatMap((p) => {
+      if (p.t === "text") return graphemes(p.text).map((ch) => ({ ch, ink, mark: "" }));
+      if (p.t === "who") {
+        const w = world.who(p.key);
+        return graphemes(w?.name ?? "?").map((ch) => ({ ch, ink: w?.ink ?? ink, mark: `who:${p.key}` }));
+      }
+      if (p.t === "card") {
+        const c = world.card(p.id);
+        return graphemes(c.label).map((ch) => ({ ch, ink: c.ink, mark: `card:${p.id}` }));
+      }
+      return [{ ch: "", ink, mark: `sticker:${by}:${p.id}` }];
+    });
+  }
+
+  /** Строка как текст для прогона: отметки — `[who:key]`, `[card:id]`, `[sticker:id]`. */
+  const flat = (line: Line) => line.pieces.map((p) => (p.t === "text" ? p.text : `[${p.t}:${p.t === "who" ? p.key : p.id}]`)).join("");
 
   function paint(): void {
     const live = new Set<string>();
     for (const a of anchors) {
-      const list = words.of(a.key);
-      if (!list.length) continue;
-      live.add(a.key);
+      const list = lines.of(a.key);
       let who = layer.querySelector<HTMLElement>(`[data-words="${CSS.escape(a.key)}"]`);
+      if (!list.length && !who) continue;
+      live.add(a.key);
       if (!who) {
         who = document.createElement("div");
         who.dataset.words = a.key;
@@ -152,46 +239,69 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
       }
       who.style.cssText = `position:absolute;left:${a.x}px;top:${a.y}px;width:0;height:0`;
       const lineH = Math.round(a.size * 1.35);
+      const stickerH = Math.round(a.size * 3.2);
       const alive = new Set(list.map((w) => String(w.n)));
-      // ИСЧЕЗЛО — целиком, коротким растворением.
-      for (const el of who.querySelectorAll<HTMLElement>("[data-word]")) {
-        if (alive.has(el.dataset.word!) || el.dataset.gone) continue;
+      // УШЛА — улетает вверх и растворяется.
+      for (const el of who.querySelectorAll<HTMLElement>("[data-line]")) {
+        if (alive.has(el.dataset.line!) || el.dataset.gone) continue;
         el.dataset.gone = "1";
-        el.style.opacity = "0";
-        setTimeout(() => el.remove(), 220);
+        const from = el.style.transform;
+        const run = el.animate([{ transform: from, opacity: 1 }, { transform: `${from} translateY(${-lineH * 2}px)`, opacity: 0 }], { duration: FLY_MS, easing: "ease-in", fill: "forwards" });
+        run.onfinish = () => el.remove();
       }
-      list.forEach((w, i) => {
-        let el = who!.querySelector<HTMLElement>(`[data-word="${w.n}"]:not([data-gone])`);
+      // Снизу вверх: последняя строка — внизу, над ней — старее.
+      let lift = 0;
+      for (let i = list.length - 1; i >= 0; i -= 1) {
+        const w = list[i]!;
+        let el = who.querySelector<HTMLElement>(`[data-line="${w.n}"]:not([data-gone])`);
         const fresh = !el;
         if (!el) {
           el = document.createElement("div");
-          el.dataset.word = String(w.n);
-          who!.append(el);
+          el.dataset.line = String(w.n);
+          who.append(el);
         }
-        el.dataset.text = w.text;
+        el.dataset.text = flat(w);
         el.dataset.done = String(w.doneAt !== undefined);
-        // Новое слово встаёт выше; нижнее ушло — остальные падают на его место.
+        const sticker = w.pieces[0]?.t === "sticker" ? w.pieces[0] : null;
+        const h = sticker ? stickerH : lineH;
+        el.dataset.lift = String(lift);
         el.style.cssText = `position:absolute;left:0;bottom:0;display:flex;align-items:flex-end;white-space:nowrap;`
-          + `transform:translate(-50%,${-i * lineH}px);transition:transform .22s cubic-bezier(.3,1.4,.5,1),opacity .2s ease-out;opacity:1`;
-        if (fresh) el.animate([{ opacity: 0, transform: `translate(-50%,${-i * lineH - 6}px)` }, { opacity: 1, transform: `translate(-50%,${-i * lineH}px)` }], { duration: 140 });
-        const letters = graphemes(w.text);
+          + `transform:translate(-50%,${-lift}px);transition:transform .26s cubic-bezier(.3,1.3,.5,1);opacity:1`;
+        if (fresh) el.animate([{ opacity: 0, transform: `translate(-50%,${-lift + 8}px)` }, { opacity: 1, transform: `translate(-50%,${-lift}px)` }], { duration: 160 });
+        lift += h;
+        if (sticker) {
+          if (!el.firstElementChild) el.innerHTML = `<img data-sticker-shown alt="" src="${world.stickerUrl(a.key, sticker.id)}" style="display:block;height:${stickerH}px;max-width:${stickerH * 1.4}px;object-fit:contain;filter:drop-shadow(0 2px 0 ${INK.black})">`;
+          continue;
+        }
+        const want = glyphs(a.key, w, a.ink);
         const shown = [...el.children] as HTMLElement[];
         const size = String(a.size);
         // Буквы, которые уже стоят, не трогаются — появляется только новая, как на машинке.
         let same = 0;
-        while (same < shown.length && same < letters.length && shown[same]!.dataset.ch === letters[same] && shown[same]!.dataset.size === size) same += 1;
+        while (same < shown.length && same < want.length && shown[same]!.dataset.ch === want[same]!.ch && shown[same]!.dataset.ink === want[same]!.ink && shown[same]!.dataset.mark === want[same]!.mark && shown[same]!.dataset.size === size) same += 1;
         for (const extra of shown.slice(same)) extra.remove();
-        for (const ch of letters.slice(same)) {
+        for (const g of want.slice(same)) {
           const span = document.createElement("span");
-          span.dataset.ch = ch;
+          span.dataset.ch = g.ch;
+          span.dataset.ink = g.ink;
+          span.dataset.mark = g.mark;
           span.dataset.size = size;
-          span.innerHTML = letter(ch, a.size, a.ink);
+          // Отметка — на тёмной подложке, чтобы отличалась от текста.
+          if (g.mark) span.style.cssText = `background:rgba(11,7,4,.55);box-shadow:0 ${Math.round(a.size * 0.12)}px 0 ${g.ink}`;
+          span.innerHTML = letter(g.ch, a.size, g.ink);
           el.append(span);
           span.animate([{ transform: "translateY(-35%) scale(1.4)", opacity: 0.2 }, { transform: "none", opacity: 1 }], { duration: 130, easing: "ease-out" });
         }
-      });
+      }
+      // Строка не вылезает за край экрана.
+      const W = stage.clientWidth;
+      for (const el of who.querySelectorAll<HTMLElement>("[data-line]:not([data-gone])")) {
+        const half = el.offsetWidth / 2;
+        const shift = Math.max(8 + half - a.x, Math.min(0, W - 8 - half - a.x));
+        el.style.marginLeft = `${Math.round(shift)}px`;
+      }
     }
-    for (const el of layer.querySelectorAll<HTMLElement>("[data-words]")) if (!live.has(el.dataset.words!)) el.remove();
+    for (const el of layer.querySelectorAll<HTMLElement>("[data-words]")) if (!live.has(el.dataset.words!) && !el.querySelector("[data-line]")) el.remove();
   }
 
   return {
@@ -205,5 +315,13 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
       anchors = next;
       paint();
     },
+    muted(key) {
+      lines.drop(key);
+      paint();
+    },
   };
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 }
