@@ -1,0 +1,27 @@
+server/scripts/tableLook.mjs
+  s_9ed0da107cbc4a::t_13a61ac96f19c3 1-86
+server/src/table/client.ts
+  s_9ed0da107cbc4a::t_3271c82e37a61a 30-31
+server/src/table/routes.test.ts
+  s_9ed0da107cbc4a::t_bec025ee25cdb3 52-54
+server/table-client/deckArt.ts
+  s_9ed0da107cbc4a::t_9f40740f902219 17-26,28-49,76,93,96,98-99,102
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_944da982516caf 13,198-200,211-212,1734,1844-1866,2490-2506,2693-2699
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "868863faae172d632bc740bde6b954b6a50e2c16",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
