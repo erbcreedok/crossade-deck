@@ -240,6 +240,8 @@ async function main(): Promise<void> {
       ? [
           { command: "table", description: "Открыть стол в этом чате: /table [название]" },
           { command: "tables", description: "Столы этого чата" },
+          { command: "sticker", description: "Добавить стикеры в свой набор (в личке)" },
+          { command: "stickers", description: "Мой набор стикеров (в личке)" },
           { command: "menu", description: "Меню стола: сбор, пресеты, раздачи" },
           { command: "collect", description: "Собрать все карты в колоду" },
           { command: "shuffle", description: "Перемешать колоду" },

@@ -90,6 +90,33 @@ export class TableApi {
     return this.call<{ ok: true }>("DELETE", `/table/rooms/${room}`);
   }
 
+  /** Добавить стикер человеку: сервер сам заберёт файл телеги по `fileId`. */
+  addSticker(by: string, fileId: string) {
+    return this.call<{ id: string } | { error: "not-image" | "full" }>("POST", "/table/stickers", { by, fileId });
+  }
+
+  stickers(by: string) {
+    return this.call<string[]>("GET", `/table/stickers?by=${encodeURIComponent(by)}`);
+  }
+
+  removeSticker(by: string, id: string) {
+    return this.call<{ ok: boolean }>("DELETE", `/table/stickers/${encodeURIComponent(by)}/${encodeURIComponent(id)}`);
+  }
+
+  /** Картинка стикера байтами — показать человеку его набор. */
+  async stickerImage(by: string, id: string): Promise<{ bytes: Uint8Array; type: string } | "down" | "missing"> {
+    const at = await this.where();
+    if (!at.up) return "down";
+    try {
+      const res = await this.http(`${at.url}/table/stickers/${encodeURIComponent(by)}/${encodeURIComponent(id)}`);
+      if (res.status === 404) return "missing";
+      if (!res.ok) return "down";
+      return { bytes: new Uint8Array(await res.arrayBuffer()), type: res.headers.get("content-type") ?? "" };
+    } catch {
+      return "down";
+    }
+  }
+
   /** `down` — сервера нет; `missing` — сервер есть, комнаты нет. */
   private async call<T>(method: string, path: string, body?: unknown): Promise<T | "down" | "missing"> {
     const at = await this.where();

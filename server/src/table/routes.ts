@@ -24,7 +24,7 @@ function sameSecret(given: unknown, secret: string | undefined): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-const guarded: express.RequestHandler = (req, res, next) => {
+export const guarded: express.RequestHandler = (req, res, next) => {
   if (!sameSecret(req.header(SECRET_HEADER), tableConfig().secret)) return void res.status(401).json({ error: "unauthorized" });
   next();
 };

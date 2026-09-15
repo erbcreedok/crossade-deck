@@ -252,10 +252,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     },
     hand: () => handOf(seen(), mine(seen())).map((c) => c.id),
     muted: (key) => muted.has(key),
-    stickerUrl: (by, id) => `/table/stickers/${encodeURIComponent(by)}/${encodeURIComponent(id)}.webp`,
+    stickerUrl: (by, id) => `/table/stickers/${encodeURIComponent(by)}/${encodeURIComponent(id)}`,
     stickers: () => myStickers,
   });
   let myStickers: string[] = [];
+  store.onStickers((ids) => {
+    myStickers = ids;
+    talk.refresh();
+  });
 
   /** Только то, что есть у этого экрана и больше нигде. */
   const local = {

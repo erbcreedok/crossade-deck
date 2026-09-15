@@ -72,6 +72,8 @@ export function localStore(): TableStore {
     carry: () => {},
     say: () => {},
     onSay: () => {},
+    askStickers: () => {},
+    onStickers: () => {},
     now: () => Date.now(),
     onChange: (listener) => void changed.push(listener),
     onRefused: (listener) => void refused.push(listener),

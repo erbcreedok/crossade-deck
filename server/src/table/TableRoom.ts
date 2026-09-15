@@ -6,6 +6,7 @@
 // КОМНАТА НЕ УМИРАЕТ ПУСТОЙ (`autoDispose = false`): стол чата живёт, пока жив сервер, и вернувшийся
 // через час находит свои карты там, где оставил. Закрывает её только бот (`lobby.closeEntry`).
 
+import { hasSticker, stickersOf } from "../db/stickersRepo.js";
 import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
 import { tableConfig } from "./config.js";
@@ -82,11 +83,18 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       const out = cleanSay(raw);
       if (!me?.seat || !out) return;
+      // Стикер — только из своего набора.
+      if (out.pieces.some((p) => p.t === "sticker" && !hasSticker(me.key, p.id))) return;
       const say: Say = { ...out, by: me.key };
       for (const other of this.clients) {
         const key = this.seats.get(other.sessionId);
         if (key !== undefined && key !== me.key) other.send(MSG.say, say);
       }
+    });
+
+    this.onMessage(MSG.stickers, (client) => {
+      const me = this.personOf(client.sessionId);
+      if (me) client.send(MSG.stickers, stickersOf(me.key));
     });
 
     this.clock.setInterval(() => this.spread(this.table.sweep(Date.now())), 1000);

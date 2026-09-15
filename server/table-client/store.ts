@@ -22,6 +22,9 @@ export interface TableStore {
   say(out: SayOut): void;
   /** Чужое слово пришло. */
   onSay(listener: (say: Say) => void): void;
+  /** Мой набор стикеров — спросить заново; ответ приходит в `onStickers`. */
+  askStickers(): void;
+  onStickers(listener: (ids: string[]) => void): void;
   /** Снимок сменился (дифом, синком или отказом) или сдвинулся чужой палец в воздухе. */
   onChange(listener: () => void): void;
   /** Намерение не случилось — экран отпускает то, что держал. */

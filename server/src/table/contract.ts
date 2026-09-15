@@ -371,6 +371,8 @@ export const MSG = {
   carry: "carry",
   /** Клиент → сервер: `SayOut`; сервер → остальные: `Say` (`say.ts`). Тоже мимо версий. */
   say: "say",
+  /** Клиент → сервер: пустое; сервер → ему же: `string[]` — id его стикеров. */
+  stickers: "stickers",
 } as const;
 
 /**

@@ -170,6 +170,31 @@ const aGlyphs = await A.evaluate((id) => [...document.querySelectorAll(`[data-ma
 check("A свою карту видит лицом", aGlyphs && aGlyphs !== "🂠", aGlyphs);
 await press(A, "↵");
 
+// ── 6б. Стикеры: пустой набор — подсказка про бота; свой стикер — строкой у стула, у B картинкой ────
+await A.locator('[data-kb-tab="stickers"]').dispatchEvent("pointerdown");
+await wait(A, 400);
+check("пустой набор — подсказка про /sticker", (await A.locator("[data-keyboard]").innerText()).includes("/sticker"), null);
+const aKey = (await words(A)).at(-1)?.by;
+{
+  const { DatabaseSync } = await import("node:sqlite");
+  const db = new DatabaseSync(new URL("../data/crossade.db", import.meta.url).pathname);
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  db.prepare("INSERT INTO stickers (id, owner, type, bytes, created_at) VALUES (?, ?, ?, ?, ?)").run("e2e" + Date.now(), aKey, "image/png", png, Date.now());
+  db.close();
+}
+await A.locator('[data-kb-tab="latin"]').dispatchEvent("pointerdown");
+await A.locator('[data-kb-tab="stickers"]').dispatchEvent("pointerdown");
+await wait(A, 500);
+check("свой набор пришёл во вкладку", (await A.locator("[data-sticker]").count()) === 1, await A.locator("[data-sticker]").count());
+await A.locator("[data-sticker]").first().dispatchEvent("pointerdown");
+await wait(B, 500);
+const stickerAtB = await B.evaluate(() => {
+  const img = document.querySelector("[data-words] [data-line] img[data-sticker-shown]");
+  return img && { ok: img.complete && img.naturalWidth > 0, line: img.closest("[data-line]").dataset.text };
+});
+check("у B стикер A — картинкой строкой у стула", stickerAtB?.ok && /^\[sticker:e2e\d+\]$/.test(stickerAtB.line), stickerAtB);
+await A.locator('[data-kb-tab="latin"]').dispatchEvent("pointerdown");
+
 // ── 7. Тап мимо: закрывает клавиатуру и ничего больше ────────────────────────────────────────────
 const before = await spots(A);
 const viewBefore = await A.getAttribute("canvas", "data-view");

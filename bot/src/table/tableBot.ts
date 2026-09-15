@@ -14,6 +14,7 @@ import type { RoomCard, TableCommand } from "../../../server/src/table/contract.
 import { MENU, menuOf, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
 import { askTitle, closed, DOWN, gone, inviteArticle, listed, opened, renamed, type Button, type Links } from "./talk.js";
 import type { Watch } from "./watch.js";
+import { installStickers } from "./stickers.js";
 
 const POLL_MS = 30_000;
 const DOWN_POLLS = 3;
@@ -32,6 +33,7 @@ export function keyboardOf(rows: Button[][]): InlineKeyboard {
 }
 
 export function installTable(bot: Bot, api: TableApi, watch: Watch, secret: string) {
+  installStickers(bot, api);
   let botName = "";
   const links: Links = {
     anywhere: (room) => (api.appName && botName ? `https://t.me/${botName}/${api.appName}?startapp=${room}` : api.openUrl(room)),

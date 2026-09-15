@@ -295,4 +295,23 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec(`ALTER TABLE rooms ADD COLUMN forever_drop_at INTEGER`);
     },
   },
+  {
+    version: 16,
+    up(db) {
+      // СТИКЕРЫ ИГРОКА — его личный набор картинок, который он кидает боту в личку и потом ставит строкой
+      // у своего стула. Владелец — ключ человека за столом (`tg:<id>`), а не аккаунт: стол пускает по двери
+      // Telegram, и набор должен найтись там же. Байты — в базе: картинка переживает переезд сервера и не
+      // зависит от ключей файлов Telegram.
+      db.exec(`
+        CREATE TABLE stickers (
+          id TEXT PRIMARY KEY,
+          owner TEXT NOT NULL,
+          type TEXT NOT NULL,
+          bytes BLOB NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX stickers_by_owner ON stickers(owner, created_at);
+      `);
+    },
+  },
 ];

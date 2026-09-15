@@ -1,3 +1,4 @@
+import { stickerRoutes } from "./table/stickers.js";
 import express from "express";
 import { createServer } from "http";
 // Именованный импорт из "colyseus" не отдаёт Server под нативным Node ESM
@@ -187,7 +188,7 @@ export function createApp() {
   // СТОЛ ДЛЯ TELEGRAM — отдельный клиент со своим контрактом (`table/contract.ts`). Одна подписанная
   // комната — одна сессия: `filterBy` сводит всех, кто пришёл с тем же id, в неё.
   gameServer.define(TABLE_ROOM, TableRoom).filterBy(["room"]);
-  app.use(tableRoutes(), relayRoutes(), clientRoutes());
+  app.use(tableRoutes(), relayRoutes(), clientRoutes(), stickerRoutes());
 
   // СТОЛ ОТКРЫВАЕТСЯ ЗАПИСЬЮ, А НЕ ПРОЦЕССОМ. Сначала заводится комната (её код, её правила, её
   // хозяин), и только потом под неё поднимается сессия Colyseus, в которую клиент входит сам.

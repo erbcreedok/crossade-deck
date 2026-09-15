@@ -94,6 +94,8 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     carry: (out: CarryOut) => room.send(MSG.carry, out),
     say: (out: SayOut) => room.send(MSG.say, out),
     onSay: (listener) => void said.push(listener),
+    askStickers: () => room.send(MSG.stickers, {}),
+    onStickers: (listener) => void room.onMessage(MSG.stickers, (ids: string[]) => listener(ids)),
     now: () => Date.now() + skew,
     onChange: (listener) => void changed.push(listener),
     onRefused: (listener) => void refused.push(listener),

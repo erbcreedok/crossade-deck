@@ -51,6 +51,8 @@ export interface Talk {
   place(anchors: WordAnchor[]): void;
   /** Человека замолчали — его строки убраны сразу. */
   muted(key: string): void;
+  /** Пришёл мой набор стикеров — перерисовать клавиатуру. */
+  refresh(): void;
 }
 
 export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => void, world: TalkWorld): Talk {
@@ -105,6 +107,7 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     if (!el) return;
     if (el.dataset.kbTab) {
       section = el.dataset.kbTab as Tab;
+      if (section === "stickers") store.askStickers();
       return build();
     }
     const act = el.dataset.keyAct;
@@ -179,6 +182,7 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
   function toggle(): void {
     if (open) return close();
     open = true;
+    store.askStickers();
     build();
     board.hidden = false;
     shield.hidden = false;
@@ -314,6 +318,9 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     place(next) {
       anchors = next;
       paint();
+    },
+    refresh() {
+      if (open) build();
     },
     muted(key) {
       lines.drop(key);

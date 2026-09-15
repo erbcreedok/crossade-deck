@@ -1,3 +1,4 @@
+import { addSticker } from "../db/stickersRepo.js";
 import { createHmac } from "crypto";
 import { describe, expect, it } from "vitest";
 import { TEST_PORTS, useTestServer } from "../roomHarness.js";
@@ -104,6 +105,25 @@ describe("TableRoom", () => {
       { n: 1, pieces: line("ПРИВЕТ😀"), done: true, by: a.welcome.you.key },
     ]);
     expect(echoed).toBe(false);
+  });
+
+  it("стикер — только из своего набора; свой набор приходит только себе", async () => {
+    const room = mintRoom(SECRET);
+    const a = await sit(room, { door: "guest", name: "A" });
+    const b = await sit(room, { door: "guest", name: "B" });
+    const mine = addSticker(a.welcome.you.key, Buffer.from("RIFF0000WEBP"), "image/webp");
+    const theirs = addSticker(b.welcome.you.key, Buffer.from("RIFF0000WEBP"), "image/webp");
+    if (mine === "full" || theirs === "full") throw new Error("full");
+    const heard: Say[] = [];
+    b.client.onMessage(MSG.say, (say: Say) => heard.push(say));
+    const listed: string[][] = [];
+    a.client.onMessage(MSG.stickers, (ids: string[]) => listed.push(ids));
+    a.client.send(MSG.say, { n: 1, pieces: [{ t: "sticker", id: theirs.id }], done: true });
+    a.client.send(MSG.say, { n: 2, pieces: [{ t: "sticker", id: mine.id }], done: true });
+    a.client.send(MSG.stickers, {});
+    await new Promise((r) => setTimeout(r, 120));
+    expect(heard.map((h) => h.n)).toEqual([2]);
+    expect(listed).toEqual([[mine.id]]);
   });
 
   it("команда админа: чужому — отказ; админу — бот садится без стула и раздаёт по часовой, курсор видят все", async () => {
