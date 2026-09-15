@@ -1,0 +1,21 @@
+server/scripts/tableDeckTip.mjs
+  s_9ed0da107cbc4a::t_7658f4f86fad16 39,43-49,64-79,126-151
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_ca30b3269c7407 1302-1305,1385-1393,1495-1507,1638-1639
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1c3cb95d36aab231d51dbaf694d8cac50393416d",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
