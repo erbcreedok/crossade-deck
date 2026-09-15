@@ -37,6 +37,12 @@ const words = (p) => p.evaluate(() => [...document.querySelectorAll("[data-words
 })).sort((a, b) => a.n - b.n));
 const press = async (p, ...keys) => {
   for (const k of keys) {
+    // Эмодзи живут в полосе, которая листается: там нажатие — настоящим касанием, на отпускании.
+    if (/\p{Extended_Pictographic}/u.test(k)) {
+      await p.locator(`[data-emoji-grid] [data-key="${k}"]`).click();
+      await p.waitForTimeout(40);
+      continue;
+    }
     const sel = k === " " ? '[data-key-act="space"]' : k === "⌫" ? '[data-key-act="erase"]' : k === "↵" ? '[data-key-act="enter"]' : `[data-key="${k}"]`;
     await p.locator(sel).dispatchEvent("pointerdown");
     await p.waitForTimeout(40);
@@ -70,6 +76,10 @@ const opened = await A.evaluate(() => ({
 check("клавиатура открыта, руки и бара нет, своя карта — полоской над клавишами", opened.board && opened.hand === 0 && opened.bar === 0 && opened.strip === 1, opened);
 check("латиница: 1234567890 и QWERTY; есть Enter", opened.first === "1234567890Q" && opened.enter, opened);
 check("счётчик: в пустой строке 24", (await left(A)) === 24, await left(A));
+await A.locator('[data-kb-tab="emoji"]').dispatchEvent("pointerdown");
+await wait(A, 200);
+check("любимые эмодзи сначала пусты — 9 пустых клеток", (await A.locator("[data-favourite-empty]").count()) === 9, await A.locator("[data-favourite-empty]").count());
+await A.locator('[data-kb-tab="latin"]').dispatchEvent("pointerdown");
 
 // ── 2. Печать: у B строка вживую, у стула A; пробел — внутри строки ─────────────────────────────────
 await press(A, "Q", "W", " ", "E");
@@ -170,6 +180,34 @@ const aGlyphs = await A.evaluate((id) => [...document.querySelectorAll(`[data-ma
 check("A свою карту видит лицом", aGlyphs && aGlyphs !== "🂠", aGlyphs);
 await press(A, "↵");
 
+// ── 6а. Эмодзи: все, полоса листается вправо, любимые — сначала пустые, потом девять самых частых ───
+await A.locator('[data-kb-tab="emoji"]').dispatchEvent("pointerdown");
+await wait(A, 300);
+const emo = await A.evaluate(() => {
+  const s = document.querySelector("[data-emoji-strip]");
+  return { n: document.querySelectorAll("[data-emoji-grid] [data-key]").length, wide: s.scrollWidth > s.clientWidth * 10, empty: document.querySelectorAll("[data-favourite-empty]").length, box: (({ left, top, width, height }) => ({ left, top, width, height }))(s.getBoundingClientRect()) };
+});
+check("эмодзи — все (больше 1500), полоса во много экранов шириной", emo.n > 1500 && emo.wide, emo);
+const typedBefore = (await words(A)).at(-1)?.text;
+await A.mouse.move(emo.box.left + emo.box.width - 30, emo.box.top + 60);
+await A.mouse.down();
+await A.mouse.move(emo.box.left + 60, emo.box.top + 70, { steps: 10 });
+await A.mouse.up();
+await wait(A, 600);
+const rolled = await A.evaluate(() => document.querySelector("[data-emoji-strip]").scrollLeft);
+check("провёл пальцем влево — полоса уехала вправо", rolled > 200, rolled);
+check("листание ничего не напечатало", (await words(A)).at(-1)?.text === typedBefore, await words(A));
+await press(A, "↵");
+for (const [ch, times] of [["🔥", 4], ["😀", 2], ["👍", 1]]) for (let i = 0; i < times; i += 1) await press(A, ch);
+await press(A, "↵");
+await wait(A, 200);
+const favs = await A.evaluate(() => [...document.querySelectorAll("[data-favourite]")].map((b) => b.dataset.key));
+check("любимые — по частоте: 🔥 😀 👍, остальные клетки пустые", favs.join("") === "🔥😀👍" && (await A.locator("[data-favourite-empty]").count()) === 6, favs);
+await A.locator("[data-favourite]").first().click();
+await wait(B, 300);
+check("тап по любимому печатает его", (await words(B)).at(-1)?.text === "🔥", await words(B));
+await press(A, "↵");
+
 // ── 6б. Стикеры: пустой набор — подсказка про бота; свой стикер — строкой у стула, у B картинкой ────
 await A.locator('[data-kb-tab="stickers"]').dispatchEvent("pointerdown");
 await wait(A, 400);
@@ -179,20 +217,32 @@ const aKey = (await words(A)).at(-1)?.by;
   const { DatabaseSync } = await import("node:sqlite");
   const db = new DatabaseSync(new URL("../data/crossade.db", import.meta.url).pathname);
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
-  db.prepare("INSERT INTO stickers (id, owner, type, bytes, created_at) VALUES (?, ?, ?, ?, ?)").run("e2e" + Date.now(), aKey, "image/png", png, Date.now());
+  for (let i = 0; i < 20; i += 1) db.prepare("INSERT INTO stickers (id, owner, type, bytes, created_at) VALUES (?, ?, ?, ?, ?)").run(`e2e${Date.now()}${String(i).padStart(2, "0")}`, aKey, "image/png", png, Date.now() + i);
   db.close();
 }
 await A.locator('[data-kb-tab="latin"]').dispatchEvent("pointerdown");
 await A.locator('[data-kb-tab="stickers"]').dispatchEvent("pointerdown");
 await wait(A, 500);
-check("свой набор пришёл во вкладку", (await A.locator("[data-sticker]").count()) === 1, await A.locator("[data-sticker]").count());
-await A.locator("[data-sticker]").first().dispatchEvent("pointerdown");
+check("свой набор пришёл во вкладку — все 20", (await A.locator("[data-sticker]").count()) === 20, await A.locator("[data-sticker]").count());
+const st = await A.evaluate(() => {
+  const s = document.querySelector("[data-sticker-strip]");
+  const last = [...document.querySelectorAll("[data-sticker]")].at(-1).getBoundingClientRect();
+  return { wide: s.scrollWidth > s.clientWidth, lastRight: last.right, W: innerWidth, box: (({ left, top, width }) => ({ left, top, width }))(s.getBoundingClientRect()) };
+});
+check("стикеры не влезают — полоса шире экрана, последний справа за краем", st.wide && st.lastRight > st.W, st);
+await A.mouse.move(st.box.left + st.box.width - 30, st.box.top + 40);
+await A.mouse.down();
+await A.mouse.move(st.box.left + 30, st.box.top + 40, { steps: 10 });
+await A.mouse.up();
+await wait(A, 500);
+check("стикеры листаются вправо", (await A.evaluate(() => document.querySelector("[data-sticker-strip]").scrollLeft)) > 100, null);
+await A.locator("[data-sticker]").last().click();
 await wait(B, 500);
 const stickerAtB = await B.evaluate(() => {
   const img = document.querySelector("[data-words] [data-line] img[data-sticker-shown]");
   return img && { ok: img.complete && img.naturalWidth > 0, line: img.closest("[data-line]").dataset.text };
 });
-check("у B стикер A — картинкой строкой у стула", stickerAtB?.ok && /^\[sticker:e2e\d+\]$/.test(stickerAtB.line), stickerAtB);
+check("у B стикер A — картинкой строкой у стула", stickerAtB?.ok && /^\[sticker:e2e\d+19\]$/.test(stickerAtB.line), stickerAtB);
 await A.locator('[data-kb-tab="latin"]').dispatchEvent("pointerdown");
 
 // ── 7. Тап мимо: закрывает клавиатуру и ничего больше ────────────────────────────────────────────

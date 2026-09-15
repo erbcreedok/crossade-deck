@@ -6,6 +6,8 @@
 // полна) висит ещё `LINE_LINGER_MS` и улетает вверх. У стула — до `LINES_MAX` строк: новая встаёт снизу,
 // старые поднимаются, лишняя верхняя улетает сразу.
 
+import { EMOJI } from "./emoji.js";
+
 /** Секции клавиатуры: цифры и латиница, кириллица с казахскими, эмодзи. Буквы — одним регистром. */
 export const KEYBOARD = {
   latin: ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"],
@@ -47,6 +49,7 @@ export interface Say extends SayOut {
 
 /** Все символы клавиатуры — только ими и пишут. Эмодзи — как нарисованы на клавише, с селектором. Пробел — тоже. */
 export const SYMBOLS: ReadonlySet<string> = new Set([
+  ...EMOJI,
   ...KEYBOARD_SECTIONS.flatMap((sec) => KEYBOARD[sec].flatMap((row) => graphemes(row))),
   ...EVERYWHERE,
   " ",

@@ -7,6 +7,7 @@
 // Строки — в своём слое, который не пересобирается кадром экрана: буквы появляются по одной, новая строка
 // встаёт снизу, старые поднимаются, ушедшая улетает вверх, — это переходы браузера, а пересборка их бы убила.
 
+import { EMOJI } from "../src/table/emoji.js";
 import { EVERYWHERE, KEYBOARD, KEYBOARD_SECTIONS, LINE_PAUSE_MS, Lines, Typer, graphemes, type KeyboardSection, type Line, type Piece } from "../src/table/say.js";
 import type { TableStore } from "./store.js";
 
@@ -16,6 +17,11 @@ const KEYBOARD_MS = 220;
 /** Улёт ушедшей строки вверх. */
 const FLY_MS = 420;
 type Tab = KeyboardSection | "stickers";
+/** Любимые эмодзи: сколько клеток и где на устройстве лежит, какое сколько раз ставили. */
+const FAVOURITES = 9;
+const USED_KEY = "crossade.table.emojiUsed";
+/** Сдвинул палец дальше этого — это прокрутка полосы, а не нажатие. */
+const SCROLL_TAP_PX = 8;
 const TAB_LABEL: Record<Tab, string> = { latin: "123 ABC", cyrillic: "ӘӨ АБВ", emoji: "😀", stickers: "🖼" };
 
 /** Где у меня сейчас стоят строки человека: точка перед его стулом на стекле и размер буквы. */
@@ -103,6 +109,9 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
   board.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     e.stopPropagation();
+    // ПОЛОСА ЭМОДЗИ И СТИКЕРОВ — листается пальцем; нажатие на ней — на отпускании, если палец не ехал.
+    const strip = (e.target as Element).closest<HTMLElement>("[data-scroll]");
+    if (strip) return scrollStart(strip, e);
     const el = (e.target as Element).closest<HTMLElement>("[data-key],[data-key-act],[data-kb-tab],[data-mention-card],[data-sticker]");
     if (!el) return;
     if (el.dataset.kbTab) {
@@ -116,14 +125,104 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     else if (act === "enter") typer.end();
     else if (act === "erase") typer.erase();
     else if (el.dataset.mentionCard) typer.mention({ t: "card", id: el.dataset.mentionCard });
-    else if (el.dataset.sticker) typer.sticker(el.dataset.sticker);
     else typer.key(el.dataset.key!);
+    pressed(el);
+  });
+
+  function pressed(el: HTMLElement): void {
     el.animate([{ transform: "scale(.88)" }, { transform: "none" }], { duration: 120 });
     // ЗАМОЛЧАЛ — строка закончена.
     idle();
     counter();
+  }
+
+  /** Нажатие в полосе: эмодзи — в строку и в счёт любимых; стикер — строкой. */
+  function stripTap(target: Element): void {
+    const el = target.closest<HTMLElement>("[data-key],[data-sticker]");
+    if (!el) return;
+    if (el.dataset.sticker) typer.sticker(el.dataset.sticker);
+    else {
+      const before = typer.left;
+      typer.key(el.dataset.key!);
+      if (typer.left !== before || !typer.typing) noteUsed(el.dataset.key!);
+    }
+    pressed(el);
+  }
+
+  let scroll: { strip: HTMLElement; id: number; x: number; left: number; moved: boolean; target: Element; v: number; t: number } | null = null;
+  function scrollStart(strip: HTMLElement, e: PointerEvent): void {
+    strip.getAnimations?.().forEach((a) => a.cancel());
+    cancelAnimationFrame(coast);
+    scroll = { strip, id: e.pointerId, x: e.clientX, left: strip.scrollLeft, moved: false, target: e.target as Element, v: 0, t: performance.now() };
+  }
+  let coast = 0;
+  addEventListener("pointermove", (e) => {
+    if (!scroll || e.pointerId !== scroll.id) return;
+    const dx = e.clientX - scroll.x;
+    if (!scroll.moved && Math.abs(dx) <= SCROLL_TAP_PX) return;
+    scroll.moved = true;
+    const now = performance.now();
+    const next = scroll.left - dx;
+    scroll.v = (scroll.strip.scrollLeft - next) / Math.max(1, now - scroll.t);
+    scroll.t = now;
+    scroll.strip.scrollLeft = next;
   });
+  const scrollEnd = (e: PointerEvent) => {
+    if (!scroll || e.pointerId !== scroll.id) return;
+    const { strip, moved, target } = scroll;
+    let v = -scroll.v;
+    scroll = null;
+    if (!moved) return stripTap(target);
+    // Отпустил на ходу — полоса докатывается и тормозит.
+    let last = performance.now();
+    const roll = (now: number) => {
+      const dt = now - last;
+      last = now;
+      strip.scrollLeft += v * dt;
+      v *= Math.pow(0.994, dt);
+      if (Math.abs(v) > 0.02) coast = requestAnimationFrame(roll);
+    };
+    coast = requestAnimationFrame(roll);
+  };
+  addEventListener("pointerup", scrollEnd);
+  addEventListener("pointercancel", (e) => {
+    if (scroll && e.pointerId === scroll.id) scroll = null;
+  });
+
+  function usedCounts(): Record<string, number> {
+    try {
+      const raw = JSON.parse(localStorage.getItem(USED_KEY) ?? "{}");
+      return raw && typeof raw === "object" ? raw : {};
+    } catch {
+      return {};
+    }
+  }
+  function noteUsed(ch: string): void {
+    const used = usedCounts();
+    used[ch] = (used[ch] ?? 0) + 1;
+    try {
+      localStorage.setItem(USED_KEY, JSON.stringify(used));
+    } catch {
+      // Нет хранилища — любимые не копятся.
+    }
+    const fav = board.querySelector<HTMLElement>("[data-favourites]");
+    if (fav) fav.outerHTML = favouritesHtml();
+  }
+  /** Девять любимых — чаще всего поставленные; пока ничего не ставили — пустые клетки. */
+  function favouritesHtml(): string {
+    const used = usedCounts();
+    const top = Object.entries(used).filter(([ch]) => EMOJI.includes(ch)).sort((a, b) => b[1] - a[1]).slice(0, FAVOURITES).map(([ch]) => ch);
+    const cells = Array.from({ length: FAVOURITES }, (_, i) => top[i]);
+    return `<div data-favourites style="flex:none;display:grid;grid-template-columns:repeat(3,42px);grid-template-rows:repeat(3,50px);gap:4px;align-content:center;padding-right:8px;margin-right:8px;box-shadow:2px 0 0 ${INK.rim}">`
+      + cells.map((ch) => ch
+        ? `<button data-key="${ch}" data-favourite style="border:0;padding:0;border-radius:8px;cursor:pointer;font:400 24px system-ui,sans-serif;background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 2px ${INK.black},inset 0 0 0 3px ${INK.gold}">${ch}</button>`
+        : `<span data-favourite-empty style="border-radius:8px;box-shadow:inset 0 0 0 2px ${INK.rim};opacity:.5"></span>`).join("")
+      + `</div>`;
+  }
   board.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+  const STRIP_H = 4 * 42 + 3 * 6;
+  const strip = (html: string, data: string) =>
+    `<div data-scroll ${data} style="height:${STRIP_H}px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;touch-action:none;overscroll-behavior:contain;display:flex;align-items:stretch">${html}</div>`;
 
   store.onSay((say) => {
     if (world.muted(say.by)) return;
@@ -169,9 +268,15 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     if (section === "stickers") {
       const mine = world.stickers();
       body = mine.length
-        ? `<div data-sticker-grid style="display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px;max-height:${4 * 42 + 3 * 6}px;overflow-y:auto">`
-          + mine.map((id) => `<button data-sticker="${id}" aria-label="Стикер" style="height:64px;border:0;border-radius:8px;cursor:pointer;background:rgba(0,0,0,.25) url(${world.stickerUrl(store.me.key, id)}) center/contain no-repeat"></button>`).join("") + `</div>`
-        : `<div style="height:${4 * 42 + 3 * 6}px;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 16px;font:400 13px Tiny5,system-ui,sans-serif;color:${INK.ink}">Стикеров пока нет. Отправь боту /sticker и картинку</div>`;
+        ? strip(`<div data-sticker-grid style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,${(STRIP_H - 6) / 2}px);grid-auto-columns:${(STRIP_H - 6) / 2}px;gap:6px">`
+          + mine.map((id) => `<button data-sticker="${id}" aria-label="Стикер" style="border:0;border-radius:8px;cursor:pointer;background:rgba(0,0,0,.25) url(${world.stickerUrl(store.me.key, id)}) center/contain no-repeat"></button>`).join("") + `</div>`, "data-sticker-strip")
+        : `<div style="height:${STRIP_H}px;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 16px;font:400 13px Tiny5,system-ui,sans-serif;color:${INK.ink}">Стикеров пока нет. Отправь боту /sticker и картинку</div>`;
+    } else if (section === "emoji") {
+      body = strip(favouritesHtml()
+        + `<div data-emoji-grid style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(4,42px);grid-auto-columns:42px;gap:6px 4px">`
+        + EMOJI.map((ch) => `<button data-key="${ch}" style="border:0;padding:0;border-radius:8px;cursor:pointer;font:400 24px system-ui,sans-serif;background:transparent">${ch}</button>`).join("")
+        + `</div>`, "data-emoji-strip")
+        + row(EVERYWHERE.map((ch) => key(ch, `data-key="${ch}"`)).join("") + key("пробел", 'data-key-act="space"', 4, 13) + key("⌫", 'data-key-act="erase"', 1.4) + key("↵", 'data-key-act="enter" aria-label="Новая строка"', 1.4));
     } else {
       body = KEYBOARD[section].map((line) => row(graphemes(line).map((ch) => key(ch, `data-key="${ch}"`, 1, section === "emoji" ? 22 : 17)).join(""))).join("")
         + row(EVERYWHERE.map((ch) => key(ch, `data-key="${ch}"`)).join("") + key("пробел", 'data-key-act="space"', 4, 13) + key("⌫", 'data-key-act="erase"', 1.4) + key("↵", 'data-key-act="enter" aria-label="Новая строка"', 1.4));
@@ -204,7 +309,7 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
   /** Буква — SVG, заглавная, в цвете с чёрной обводкой; эмодзи — как есть. */
   const letter = (ch: string, size: number, ink: string) => {
     if (ch === " ") return `<span style="display:block;width:${Math.round(size * 0.45)}px;height:1px"></span>`;
-    const w = Math.round(size * (/\p{Extended_Pictographic}|[♠♥♦♣]/u.test(ch) ? 1.15 : 0.78));
+    const w = Math.round(size * (/\p{Extended_Pictographic}|\p{Regional_Indicator}|[♠♥♦♣]/u.test(ch) ? 1.15 : 0.78));
     return `<svg width="${w}" height="${Math.round(size * 1.2)}" viewBox="0 0 ${w} ${Math.round(size * 1.2)}" style="display:block;overflow:visible">`
       + `<text x="${w / 2}" y="${Math.round(size * 0.95)}" text-anchor="middle" font-family="Tiny5, system-ui, sans-serif" font-size="${size}" fill="${ink}" `
       + `stroke="${INK.black}" stroke-width="${Math.max(2, size * 0.16)}" stroke-linejoin="round" paint-order="stroke">${escapeHtml(ch)}</text></svg>`;
