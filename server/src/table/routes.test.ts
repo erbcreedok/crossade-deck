@@ -7,7 +7,7 @@ import { BEACON_TTL_MS, CARD_BACKS, CARD_FACES, SECRET_HEADER } from "./contract
 import { clientRoutes } from "./client.js";
 import { forgetAll } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
-import { BOOT, forgetBeacon, readCommand, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
+import { BOOT, forgetBeacon, hostPage, readCommand, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
 
 process.env.TABLE_SECRET = "s3cret";
 
@@ -106,12 +106,23 @@ describe("/table/rooms — бот управляет столами", () => {
 });
 
 describe("реле и маяк", () => {
-  it("пока маяка нет, /t/ отвечает «недоступно», с маяком — переадресует туда, где мак", async () => {
+  it("пока маяка нет, /t/ — «недоступно»; с маяком — страница мака под этим адресом, без переадресации", async () => {
     expect((await call("/t/?x=1", { secret: null })).status).toBe(503);
-    await call("/relay/table", { method: "POST", json: { url: "https://mac.example/", boot: "b1" } });
-    const hop = await call("/t/?tgWebAppStartParam=abc", { secret: null });
-    expect(hop.status).toBe(302);
-    expect(hop.headers.get("location")).toBe("https://mac.example/table/?tgWebAppStartParam=abc");
+    await call("/relay/table", { method: "POST", json: { url: `${base}/`, boot: "b1" } });
+    const page = await call("/t/?tgWebAppStartParam=abc", { secret: null });
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    expect(html).toContain(`<base href="${base}/table/">`);
+    expect(html).toContain(`window.__TABLE_HOST__ = "${base}"`);
+    expect(html.indexOf("__TABLE_HOST__")).toBeLessThan(html.indexOf("app.js"));
+    await call("/relay/table", { method: "POST", json: { url: "http://127.0.0.1:1", boot: "b1" } });
+    expect((await call("/t/", { secret: null })).status).toBe(503);
+  });
+
+  it("адрес мака в страницу — без разрыва разметки", () => {
+    const out = hostPage("<html><head><title>x</title>", 'https://a"b</script>');
+    expect(out).not.toContain('a"b</script>');
+    expect(out).toContain("<title>x</title>");
   });
 
   it("маяк без секрета не принимается; замолчавший маяк — стол «не жив»", async () => {

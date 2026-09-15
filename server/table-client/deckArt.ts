@@ -5,6 +5,7 @@
 // экран перерисовывается (`onReady`).
 
 import { DEFAULT_RULES, type Face, type TableRules } from "../src/table/contract.js";
+import { HOST } from "./host.js";
 
 const SUIT_FILE: Record<Face["suit"], string> = { s: "spade", h: "heart", d: "diamond", c: "club", r: "joker", b: "joker" };
 
@@ -26,7 +27,7 @@ export const PLAIN_LOOK: DeckLook = { fourColour: false, cyrillic: false };
 export function artUrl(rules: Pick<TableRules, "faces" | "back"> | undefined, face: Face | undefined, look: DeckLook = PLAIN_LOOK): string {
   const r = { faces: rules?.faces ?? DEFAULT_RULES.faces, back: rules?.back ?? DEFAULT_RULES.back };
   const set = [r.faces, look.fourColour ? "4c" : "", look.cyrillic ? "cyr" : ""].filter(Boolean).join("-");
-  return face ? `/table/cards/${set}/${faceFile(face)}.webp` : `/table/cards/backs/${r.back}.webp`;
+  return face ? `${HOST}/table/cards/${set}/${faceFile(face)}.webp` : `${HOST}/table/cards/backs/${r.back}.webp`;
 }
 
 const LOOK_KEY = "crossade.table.deckLook";

@@ -139,7 +139,7 @@ export function forgetBeacon(): void {
   heard = null;
 }
 
-export function relayRoutes(): Router {
+export function relayRoutes(fetchPage: (url: string) => Promise<Response> = (url) => fetch(url, { signal: AbortSignal.timeout(5000) })): Router {
   const r = express.Router();
 
   r.post("/relay/table", guarded, (req, res) => {
@@ -153,19 +153,31 @@ export function relayRoutes(): Router {
 
   r.get("/relay/table", (_req, res) => res.json(relayStatus()));
 
-  // ПОСТОЯННЫЙ АДРЕС MINI APP. Telegram кладёт `initData` во фрагмент (`#tgWebAppData=…`), а
-  // фрагмент браузер при переадресации сохраняет сам — нести его руками не надо и нельзя: до
-  // сервера он не доходит.
-  r.get(/^\/t(\/.*)?$/, (req, res) => {
+  // ПОСТОЯННЫЙ АДРЕС MINI APP — страница стола отдаётся ОТСЮДА, а не переадресацией на мак. Telegram на iOS
+  // запоминает адрес, по которому открыл приложение, и молча выбрасывает события со страницы другого адреса:
+  // вибрацию, `expand`, запрет свайпа. Поэтому страница берётся с мака в момент запроса (правка на маке видна
+  // сразу) и получает адрес мака — оттуда она грузит скрипт, картинки, звуки и туда же открывает комнату.
+  r.get(/^\/t(\/.*)?$/, async (_req, res) => {
     const status = relayStatus();
-    if (!status.up || !status.url) {
-      return void res.status(503).type("html").send(DOWN_PAGE);
+    const down = () => void res.status(503).type("html").send(DOWN_PAGE);
+    if (!status.up || !status.url) return down();
+    try {
+      const page = await fetchPage(`${status.url}/table/`);
+      if (!page.ok) return down();
+      res.header("Cache-Control", "no-store, must-revalidate");
+      res.type("html").send(hostPage(await page.text(), status.url));
+    } catch {
+      down();
     }
-    const query = req.originalUrl.includes("?") ? req.originalUrl.slice(req.originalUrl.indexOf("?")) : "";
-    res.redirect(302, `${status.url}/table/${query}`);
   });
 
   return r;
+}
+
+/** Страница мака под чужим адресом: относительные пути — к маку, адрес мака — столу. */
+export function hostPage(html: string, host: string): string {
+  const safe = JSON.stringify(host).replace(/</g, "\\u003c");
+  return html.replace(/<head>/i, `<head>\n<base href="${host.replace(/"/g, "&quot;")}/table/">\n<script>window.__TABLE_HOST__ = ${safe};</script>`);
 }
 
 const DOWN_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

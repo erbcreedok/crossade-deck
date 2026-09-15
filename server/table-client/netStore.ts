@@ -8,9 +8,10 @@ import { MSG, TABLE_ROOM, type Carry, type CarryOut, type Intent, type JoinOptio
 import { applyPatch, needsSync } from "../src/table/patch.js";
 import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 import type { TableStore } from "./store.js";
+import { HOST } from "./host.js";
 
 export async function netStore(options: JoinOptions): Promise<TableStore> {
-  const endpoint = location.origin.replace(/^http/, "ws");
+  const endpoint = HOST.replace(/^http/, "ws");
   const room = await new Client(endpoint).joinOrCreate(TABLE_ROOM, options);
 
   const changed: (() => void)[] = [];

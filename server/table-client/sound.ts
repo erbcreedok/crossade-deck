@@ -7,6 +7,7 @@
 // Браузер не даёт играть звук до первого касания — контекст будится на первом `pointerdown`.
 
 import type { CueKind } from "../src/table/cues.js";
+import { HOST } from "./host.js";
 
 // Какая запись на что: дроп — card-place-1, переворот — card-place-2, в руку — card-slide-1, мерж — card-fan-1,
 // шафл — card-shuffle, сборка — card-shove-1/2/4.
@@ -65,7 +66,7 @@ export function tableSound(): TableSound {
     if (ctx.state === "suspended") void ctx.resume();
   };
   const load = (name: string) => {
-    fetch(`/table/sounds/${name}.m4a`)
+    fetch(`${HOST}/table/sounds/${name}.m4a`)
       .then((r) => r.arrayBuffer())
       .then((bytes) => ctx!.decodeAudioData(bytes))
       .then((buf) => void buffers.set(name, buf))

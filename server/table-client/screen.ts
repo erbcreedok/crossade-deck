@@ -18,6 +18,7 @@ import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
 import type { TableStore } from "./store.js";
+import { HOST } from "./host.js";
 
 /** Цвет отметки карты в строке — светлые версии красок колоды: буквы строки стоят на сукне с чёрной обводкой. */
 const MENTION_INK = { red: "#e5483f", black: "#e8e0d0", back: "#9fb3cf", four: { s: "#4f95dc", h: "#e5483f", d: "#f0902e", c: "#e8e0d0" } };
@@ -262,7 +263,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     },
     hand: () => handOf(seen(), mine(seen())).map((c) => c.id),
     muted: (key) => muted.has(key),
-    stickerUrl: (by, id) => `/table/stickers/${encodeURIComponent(by)}/${encodeURIComponent(id)}`,
+    stickerUrl: (by, id) => `${HOST}/table/stickers/${encodeURIComponent(by)}/${encodeURIComponent(id)}`,
     stickers: () => myStickers,
   });
   let myStickers: string[] = [];
