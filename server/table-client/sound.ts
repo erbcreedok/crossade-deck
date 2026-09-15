@@ -54,6 +54,8 @@ export function tableSound(): TableSound {
   const log: Played[] = ((globalThis as { __tableSounds?: Played[] }).__tableSounds = []);
 
   const wake = () => {
+    // Выключенный звук не будит аудио вовсе: открытая аудиосессия iOS может глушить вибрацию.
+    if (!sound.on) return;
     if (!ctx) {
       const Ctx = globalThis.AudioContext ?? (globalThis as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctx) return;
