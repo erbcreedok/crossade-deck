@@ -202,6 +202,62 @@ await dragCard(A, two, { x: one.x, y: one.y + 0.32 * 1.4 * (await spots(A)).k },
 sb2 = await spots(B);
 check("над одиночной картой зона не горит, карта легла на сукно", over2 === "false" && sb2.felt.length === 2 && sb2.deck === 34, { over2, felt: sb2.felt.length, deck: sb2.deck });
 
+// ── 14г. Колода в воздухе: поднята, ровно к экрану, контур места; ложится поверх карт и повёрнутой, как у дропнувшего ──
+{
+  // Карта на сукне там, куда поставим колоду.
+  const t0 = (await spots(A)).deckTop;
+  await dragCard(A, t0, { x: 250, y: 330 });
+  const under = (await spots(A)).felt.at(-1);
+  // Камеру A — боком: Ctrl + тяга по пустому сукну.
+  await A.keyboard.down("Control");
+  await A.mouse.move(60, 150);
+  await A.mouse.down();
+  await A.mouse.move(160, 150, { steps: 8 });
+  await A.mouse.up();
+  await A.keyboard.up("Control");
+  await wait(A, 500);
+  const rotation = Number((await A.getAttribute("canvas", "data-view")).split(",")[3]);
+  check("камера A повёрнута", Math.abs(rotation) > 10, rotation);
+  const cardNow = (await spots(A)).felt.find((f) => f.id === under.id);
+  const g = await gripBox(A);
+  const gx = g.x + g.width / 2, gy = g.y + g.height / 2;
+  const deckNow = (await spots(A)).deckTop;
+  await A.mouse.move(gx, gy);
+  await A.mouse.down();
+  // Палец так, чтобы место колоды пришлось на карту.
+  const tx = cardNow.x + (gx - deckNow.x), ty = cardNow.y + (gy - deckNow.y);
+  await A.mouse.move(tx, ty, { steps: 12 });
+  await wait(A, 150);
+  const air = await A.evaluate(() => {
+    const box = (sel) => { const e = document.querySelector(sel); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width, h: b.height, t: getComputedStyle(e).transform }; };
+    return { carry: box('[data-g="deck-carry"]'), mark: box('[data-g="deck-mark"]'), marks: document.querySelectorAll('[data-g="deck-mark"]').length, sp: JSON.parse(document.querySelector("canvas").dataset.spots) };
+  });
+  const k = air.sp.k;
+  check("в воздухе: колода поднята над местом, куда ляжет", air.carry && air.mark && air.carry.y < air.mark.y - k * 0.2, air);
+  check("в воздухе: колода ровно к экрану при повёрнутой камере", air.carry && Math.abs(air.carry.w - k) < 2 && Math.abs(air.carry.h - k * 1.4) < 2 && air.carry.t === "none", air.carry);
+  check("контур места один, ровно к камере", air.marks === 1 && /matrix\(1, 0, 0, [0-9.]+, 0, 0\)|none/.test(air.mark.t), air.mark);
+  check("на сукне колоды нет, пока несут", air.sp.deckAir === true, null);
+  await A.mouse.up();
+  await wait(B, 600);
+  const bs = await spots(B);
+  const norm = (d) => ((((d + 180) % 360) + 360) % 360) - 180;
+  check("колода легла повёрнутой к камере A", Math.abs(norm(bs.spot.angle + rotation)) < 1.5, { angle: bs.spot.angle, rotation });
+  check("карта, лежавшая там, — под колодой у всех", bs.spot.below.includes(under.id), bs.spot.below);
+  // Тап/хват в этом месте берёт верхнюю колоды, а не карту под ней.
+  const before = (await spots(A)).deck;
+  const top = (await spots(A)).deckTop;
+  await A.mouse.move(top.x, top.y);
+  await A.mouse.down();
+  await A.mouse.move(120, 300, { steps: 8 });
+  await A.mouse.up();
+  await wait(B, 600);
+  const after = await spots(B);
+  check("хват по колоде над картой берёт верхнюю колоды", after.deck === before - 1 && after.spot.below.includes(under.id), { before, deck: after.deck });
+  // Камеру — обратно к стулу.
+  await A.locator("[data-home]").dispatchEvent("pointerdown").catch(() => {});
+  await wait(A, 800);
+}
+
 // ── 14б. Пин: приколоть — любой; приколотую не двигает никто; открепить — только админ (A) ──────────
 {
   const openTip = async (p) => { if (!(await p.locator('[data-g="deck-tip"]').count())) { await tap(p); await wait(p, 450); } };

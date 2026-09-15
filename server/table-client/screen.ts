@@ -302,12 +302,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   }
 
   /** Колода встаёт сразу, где отпущена; сервер прижмёт к кромке так же (`FELT_REACH`). */
-  function guessDeckMove(x: number, y: number): void {
+  function guessDeckMove(x: number, y: number, angle: number): void {
     const far = Math.hypot(x, y);
     const k = far > FELT_REACH ? FELT_REACH / far : 1;
     const at = { x: x * k, y: y * k };
-    guess("deck:move", { t: "deckMove", x: at.x, y: at.y },
-      (st) => (st.spot ? { ...st, spot: { ...st.spot, ...at } } : st),
+    guess("deck:move", { t: "deckMove", x: at.x, y: at.y, angle },
+      (st) => (st.spot ? { ...st, spot: { ...st.spot, ...at, angle, below: st.felt.map((c) => c.id) } } : st),
       (st) => !st.spot || (Math.abs(st.spot.x - at.x) < 1e-6 && Math.abs(st.spot.y - at.y) < 1e-6));
   }
 
@@ -384,7 +384,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   function seen(): Snapshot {
     let s = truth();
-    if (gripPress?.at && s.spot) s = { ...s, spot: { ...s.spot, ...gripPress.at } };
     if (pending) s = applyPatch(s, { v: s.v, ops: [{ t: "move", card: pending.card, from: pending.from, to: pending.to }] });
     // В ВОЗДУХЕ — МОЯ КАРТА И ЧУЖИЕ: со своего места они сняты, пока их несут.
     const up = new Set(store.carries.map((c) => c.id));
@@ -1060,7 +1059,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     }
     const felt = s.felt.find((c) => c.id === tip.id);
     const at = felt ? (v.feltAt(felt.id) ?? felt) : v.deckAt(s.deck.length - 1, s.deck.length);
-    const a = ((felt?.angle ?? 0) * Math.PI) / 180;
+    const a = ((felt ? felt.angle : (s.spot?.angle ?? 0)) * Math.PI) / 180;
     const xs = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([dx, dy]) => {
       const lx = (dx! * FELT_CARD.w) / 2, ly = (dy! * FELT_CARD.h) / 2;
       return v.toGlass({ x: at.x + lx * Math.cos(a) - ly * Math.sin(a), y: at.y + lx * Math.sin(a) + ly * Math.cos(a) }).x;
@@ -1084,12 +1083,30 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0]! : shown;
   }
 
+  /** Углы карты колоды на стекле: колода повёрнута на свой угол (`DeckSpot.angle`). */
+  function deckCorners(s: Snapshot, c: { x: number; y: number }): { x: number; y: number }[] {
+    const v = view!;
+    const a = ((s.spot?.angle ?? 0) * Math.PI) / 180;
+    return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([dx, dy]) => {
+      const lx = (dx! * FELT_CARD.w) / 2, ly = (dy! * FELT_CARD.h) / 2;
+      return v.toGlass({ x: c.x + lx * Math.cos(a) - ly * Math.sin(a), y: c.y + lx * Math.sin(a) + ly * Math.cos(a) });
+    });
+  }
+
+  /** Колоду несут: где она у меня на стекле — середина, размер, и куда ляжет (`at`, в осях стола). */
+  function deckCarry(s: Snapshot): { x: number; y: number; w: number; h: number; at: { x: number; y: number }; n: number } | null {
+    if (!gripPress?.at || !view || !s.spot) return null;
+    const w = FELT_CARD.w * view.k, h = FELT_CARD.h * view.k;
+    const home = view.toGlass(gripPress.at);
+    return { x: home.x, y: home.y - h * CARRY_CLEAR, w, h, at: gripPress.at, n: s.deck.length };
+  }
+
   /** Зона приёмки стопки на стекле — рамка всей стопки с полем. `null` — колоды нет. */
   function deckZone(s: Snapshot): { left: number; top: number; right: number; bottom: number } | null {
     if (!view || !s.spot) return null;
     const v = view;
     const n = Math.max(1, s.deck.length);
-    const pts = [v.deckAt(0, n), v.deckAt(n - 1, n)].flatMap((c) => [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([dx, dy]) => v.toGlass({ x: c.x + (dx! * FELT_CARD.w) / 2, y: c.y + (dy! * FELT_CARD.h) / 2 })));
+    const pts = [v.deckAt(0, n), v.deckAt(n - 1, n)].flatMap((c) => deckCorners(s, c));
     const pad = 0.12 * FELT_CARD.w * v.k;
     return {
       left: Math.min(...pts.map((p) => p.x)) - pad, right: Math.max(...pts.map((p) => p.x)) + pad,
@@ -1120,10 +1137,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   function gripAt(s: Snapshot): { x: number; y: number } | null {
     if (!view || !s.spot) return null;
     const v = view;
+    // НЕСУТ — индикатор под колодой в воздухе: колода висит на нём.
+    const carry = deckCarry(s);
+    if (carry) return { x: carry.x, y: carry.y + carry.h / 2 + 2 };
     const n = Math.max(1, s.deck.length);
     const low = v.deckAt(0, n);
     const high = v.deckAt(n - 1, n);
-    const ys = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([dx, dy]) => v.toGlass({ x: low.x + (dx! * FELT_CARD.w) / 2, y: low.y + (dy! * FELT_CARD.h) / 2 }).y);
+    const ys = deckCorners(s, low).map((p) => p.y);
     const mid = v.toGlass({ x: (low.x + high.x) / 2, y: (low.y + high.y) / 2 });
     return { x: mid.x, y: Math.max(...ys) };
   }
@@ -1142,7 +1162,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const scale = Math.min(1, (GRIP.most * FELT_CARD.h * view!.k) / h);
     return `<div data-g="deck-grip" data-count="${s.deck.length}" data-forever="${s.spot!.forever}" data-pin="${s.spot!.pin}" role="button" aria-label="Колода" style="position:absolute;left:${Math.round(at.x)}px;top:${Math.round(at.y + 2 * scale)}px;`
       + `transform:translateX(-50%) scale(${scale.toFixed(3)});transform-origin:50% 0;height:${h}px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:0 7px 0 5px;border-radius:${h / 2}px;white-space:nowrap;`
-      + `touch-action:none;cursor:${pinned ? "pointer" : "grab"};z-index:24;user-select:none;-webkit-user-select:none;`
+      + `touch-action:none;cursor:${pinned ? "pointer" : "grab"};z-index:${deckCarry(s) ? 61 : 24};user-select:none;-webkit-user-select:none;`
       + (lit ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.6);`
              : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${BAR_LOOK.rim},0 2px 0 rgba(11,7,4,.6);`)
       + `"><svg viewBox="0 0 24 20" width="22" height="17" fill="none" stroke="${T.black}" stroke-width="1.6" stroke-linejoin="round">`
@@ -1150,6 +1170,26 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `<span style="font:400 12px Tiny5,monospace;color:${lit ? T.black : T.ink}">${s.deck.length}</span>`
       + (s.spot!.pin ? `<svg data-g="deck-pinned" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="${lit ? T.black : BAR_LOOK.goldHi}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${GLYPH.pin}</svg>` : "")
       + `</div>`;
+  }
+
+  /**
+   * КОЛОДА В ВОЗДУХЕ — поднята над сукном и стоит ровно к экрану, как карта в пальце; под ней — контур,
+   * как она ляжет: ровно к камере, сжатый наклоном стола.
+   */
+  function deckCarryHtml(s: Snapshot): string {
+    const c = deckCarry(s);
+    if (!c || !view) return "";
+    const top = s.deck.at(-1);
+    const layers = Math.min(Math.max(1, c.n), 6);
+    const cards = Array.from({ length: layers }, (_, i) => {
+      const d = layers - 1 - i;
+      const face = i === layers - 1 && top?.up ? top.face : undefined;
+      return `<div style="position:absolute;left:${-d * 1.5}px;top:${d * 2}px;width:${c.w}px;height:${c.h}px">${cardHtml(face, c.w)}</div>`;
+    }).join("");
+    const mark = view.toGlass(c.at);
+    return markHtml(c.w, c.h, view.rotation + dropAngle(), mark.x, mark.y, 30, view.squash).replace('data-g="mark"', 'data-g="deck-mark"')
+      + `<div data-g="deck-carry" style="position:absolute;left:${c.x - c.w / 2}px;top:${c.y - c.h / 2}px;width:${c.w}px;height:${c.h}px;z-index:60;pointer-events:none;`
+      + `filter:drop-shadow(0 ${Math.round(c.h * 0.12)}px 0 rgba(11,7,4,.45))">${cards}</div>`;
   }
 
   /** Кнопка тултипа колоды: как флаг в окне стула. */
@@ -1239,7 +1279,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     syncCamera();
     art.warm(s.rules);
     view = drawFelt(canvas, {
-      W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), turning, deck: s.deck, spot: s.spot, felt: s.felt, held: heldByOthers(s), hidden: flying,
+      W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), turning, deck: gripPress?.at ? [] : s.deck, spot: s.spot, felt: s.felt, held: heldByOthers(s), hidden: flying,
       view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
       rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
     });
@@ -1263,7 +1303,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       grip: (({ x, y }) => ({ x: Math.round(x), y: Math.round(y) }))(gripAt(s) ?? { x: -1, y: -1 }),
       deckFace: s.deck.at(-1)?.up ? (s.deck.at(-1)!.face?.rank ?? null) : null,
       turning: [...turns.keys()],
-      deckTop: s.deck.length ? (({ x, y }) => ({ x: Math.round(x), y: Math.round(y) }))(view.toGlass(view.deckAt(s.deck.length - 1, s.deck.length))) : null,
+      deckTop: s.deck.length ? (({ x, y }) => ({ x: Math.round(x), y: Math.round(y) }))(deckCarry(s) ?? view.toGlass(view.deckAt(s.deck.length - 1, s.deck.length))) : null,
+      deckAir: Boolean(deckCarry(s)),
       seatAngle: chairOf(s, seat)?.angle ?? null,
       seats: spots.map((sp) => {
         const c = chairOf(s, sp.key);
@@ -1282,7 +1323,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       .filter((one): one is { chair: Chair; spot: Spot } => Boolean(one.spot))
       .map((one) => tipHtml(s, one.chair, one.spot));
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
-    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + feltMarkHtml() + carryHtml() + homeHtml(s);
+    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + feltMarkHtml() + carryHtml() + homeHtml(s);
     wire();
     airUnder.style.height = `${mineGeom(handOf(s, mine(s)).length).barTop}px`;
 
@@ -1391,7 +1432,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       const p = v.toGlass(at);
       return { key, x: p.x, y: p.y, w: FELT_CARD.w * scale * v.k, h: FELT_CARD.h * scale * v.k, angle: v.rotation + angle, squash: v.squash, face };
     };
-    s.deck.forEach((c, i) => out.set(c.id, onDesk("deck", v.deckAt(i, s.deck.length), 1, 0)));
+    s.deck.forEach((c, i) => out.set(c.id, onDesk("deck", v.deckAt(i, s.deck.length), 1, s.spot?.angle ?? 0)));
     for (const f of s.felt) out.set(f.id, onDesk(`felt:${f.x.toFixed(2)},${f.y.toFixed(2)},${f.angle}`, v.feltAt(f.id) ?? f, 1, f.angle, f.up ? f.face : undefined));
     const shown = handsShown(s);
     for (const c of s.chairs) {
@@ -1608,19 +1649,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       const ly = dx * Math.sin(t) + dy * Math.cos(t);
       return Math.abs(lx) <= FELT_CARD.w / 2 && Math.abs(ly) <= FELT_CARD.h / 2;
     };
+    const below = new Set(s.spot?.below ?? []);
     for (let i = s.felt.length - 1; i >= 0; i -= 1) {
       const one = s.felt[i]!;
       const at = view.feltAt(one.id) ?? one;
-      if (!one.under && over(at, one.angle)) return { card: one, at, from: "felt", up: one.up };
+      if (!one.under && !below.has(one.id) && over(at, one.angle)) return { card: one, at, from: "felt", up: one.up };
     }
     const top = s.deck.at(-1);
     const deckTop = view.deckAt(s.deck.length - 1, s.deck.length);
-    if (top && over(deckTop)) return { card: top, at: deckTop, from: "deck", up: top.up === true };
+    if (top && over(deckTop, s.spot?.angle ?? 0)) return { card: top, at: deckTop, from: "deck", up: top.up === true };
     // Под колодой — только там, где колода её не накрывает.
     for (let i = s.felt.length - 1; i >= 0; i -= 1) {
       const one = s.felt[i]!;
       const at = view.feltAt(one.id) ?? one;
-      if (one.under && over(at, one.angle)) return { card: one, at, from: "felt", up: one.up };
+      if ((one.under || below.has(one.id)) && over(at, one.angle)) return { card: one, at, from: "felt", up: one.up };
     }
     return null;
   }
@@ -2007,7 +2049,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (e.type === "pointercancel") return draw();
     // ТЯГА — колода встаёт, где отпустили. Только на сукно: в руку колоду не кладут.
     if (press.moved) {
-      if (press.at) return guessDeckMove(press.at.x, press.at.y);
+      if (press.at) return guessDeckMove(press.at.x, press.at.y, dropAngle());
       return draw();
     }
     if (performance.now() - press.t0 >= TAP_MS) return draw();

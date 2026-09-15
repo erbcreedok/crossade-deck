@@ -385,7 +385,7 @@ export interface FeltScene {
   turning?: (id: string) => { p: number; up: boolean; face?: Face } | undefined;
   deck: { id: string; face?: Face; up?: boolean }[];
   /** Где стоит колода, в единицах стола. Нет — посередине. */
-  spot?: Point | null;
+  spot?: (Point & { angle?: number; below?: readonly string[] }) | null;
   felt: FeltItem[];
   /** Id вещи → цвет того, кто её сейчас держит (кроме меня). */
   held: Record<string, string>;
@@ -490,18 +490,21 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     paint(one.id, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
     g.restore();
   };
-  for (const one of o.felt) if (one.under) paintFelt(one);
+  // ПОД КОЛОДОЙ — и то, что лежало на сукне, когда колоду поставили.
+  const below = new Set(o.spot?.below ?? []);
+  for (const one of o.felt) if (one.under || below.has(one.id)) paintFelt(one);
 
   const deck = o.deck.filter((one) => one.id !== o.lifted && !o.hidden?.has(one.id));
   deck.forEach((one, i) => {
     g.save();
     const at = deckAt(i, deck.length);
     g.translate(at.x, at.y);
+    g.rotate(((o.spot?.angle ?? 0) * Math.PI) / 180);
     paint(one.id, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
     g.restore();
   });
 
-  for (const one of o.felt) if (!one.under) paintFelt(one);
+  for (const one of o.felt) if (!one.under && !below.has(one.id)) paintFelt(one);
 
   const spots: Spot[] = [];
   people.forEach((who) => {

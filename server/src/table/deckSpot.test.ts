@@ -29,10 +29,30 @@ describe("колода: место, вечность и действия из т
   it("со старта колода посередине и вечная; переставить по сукну может любой, за кромку — на кромку", () => {
     const t = seated("a", "b");
     expect(t.seenBy("b").spot).toEqual(DEFAULT_SPOT);
-    expect(ok(t.act("b", { t: "deckMove", x: 1.5, y: -2 }, 0))).toEqual([{ t: "spot", spot: { x: 1.5, y: -2, forever: true, pin: false } }]);
+    expect(ok(t.act("b", { t: "deckMove", x: 1.5, y: -2 }, 0))).toEqual([{ t: "spot", spot: { x: 1.5, y: -2, forever: true, pin: false, angle: 0, below: [] } }]);
     ok(t.act("b", { t: "deckMove", x: 100, y: 0 }, 0));
     expect(t.seenBy("a").spot!.x).toBeCloseTo(FELT_REACH);
     expect(t.act("b", { t: "deckMove", x: Number.NaN, y: 0 }, 0)).toEqual({ refused: "bad" });
+  });
+
+  it("поставленная колода — поверх лежавших карт и повёрнута, как у поставившего; снятая с-под неё карта ляжет сверху", () => {
+    const t = seated("a");
+    const lay = (x: number) => {
+      const id = t.seenBy("a").deck.at(-1)!.id;
+      ok(t.act("a", { t: "grab", id }, 0));
+      ok(t.act("a", { t: "drop", id, to: { in: "felt", x, y: 0, up: false, angle: 0 } }, 0));
+      return id;
+    };
+    const one = lay(2);
+    const two = lay(2.2);
+    ok(t.act("a", { t: "deckMove", x: 2, y: 0, angle: -270 }, 0));
+    expect(t.seenBy("a").spot).toMatchObject({ x: 2, y: 0, angle: 90, below: [one, two] });
+    ok(t.act("a", { t: "grab", id: two }, 0));
+    ok(t.act("a", { t: "drop", id: two, to: { in: "felt", x: 2.1, y: 0, up: false, angle: 0 } }, 0));
+    const three = lay(2.3);
+    expect(t.seenBy("a").spot!.below).toEqual([one]);
+    expect(t.seenBy("a").felt.map((c) => c.id)).toEqual([one, two, three]);
+    expect(t.act("a", { t: "deckMove", x: 0, y: 0, angle: Number.NaN }, 0)).toEqual({ refused: "bad" });
   });
 
   it("пин: приколоть может любой, приколотую не двигает никто, открепляет только админ", () => {

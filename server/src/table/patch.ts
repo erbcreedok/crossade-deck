@@ -89,6 +89,7 @@ function applyOp(s: Snapshot, op: Op): void {
 }
 
 function lift(s: Snapshot, id: string, from: Where): void {
+  if (from.in === "felt" && s.spot?.below.includes(id)) s.spot.below = s.spot.below.filter((one) => one !== id);
   if (from.in === "deck") s.deck = s.deck.filter((one) => one.id !== id);
   else if (from.in === "felt") s.felt = s.felt.filter((one) => one.id !== id);
   else {

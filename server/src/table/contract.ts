@@ -131,8 +131,15 @@ export interface DeckSpot {
   forever: boolean;
   /** Приколота: двигать нельзя. Приколоть может любой, открепить — только админ. */
   pin: boolean;
+  /** Поворот колоды на сукне, в градусах по часовой в осях стола: как стояла на экране у поставившего. */
+  angle: number;
+  /**
+   * КАРТЫ ПОД КОЛОДОЙ — те, что лежали на сукне, когда колоду поставили. Карта, снятая с сукна, отсюда
+   * уходит: положенная снова, она ляжет уже поверх колоды.
+   */
+  below: string[];
 }
-export const DEFAULT_SPOT: DeckSpot = { x: 0, y: 0, forever: true, pin: false };
+export const DEFAULT_SPOT: DeckSpot = { x: 0, y: 0, forever: true, pin: false, angle: 0, below: [] };
 
 /** Что делают с колодой из её тултипа: перемешать, по масти (внутри — по номиналу), перевернуть стопку. */
 export const DECK_DOS = ["shuffle", "sort", "flip"] as const;
@@ -240,7 +247,7 @@ export type Intent =
   /** Поставить или снять флаг стула. */
   | { t: "flag"; chair: string; flag: ChairFlag; on: boolean }
   /** Переставить колоду по сукну — любой. В руку колоду не кладут. */
-  | { t: "deckMove"; x: number; y: number }
+  | { t: "deckMove"; x: number; y: number; angle?: number }
   /** Перемешать, отсортировать или перевернуть колоду — любой. */
   | { t: "deckDo"; how: DeckDo }
   /** Поставить или снять вечность колоды — любой. */

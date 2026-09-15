@@ -216,21 +216,21 @@ export class Table {
       case "flag":
         return this.flag(by, intent.chair, intent.flag, intent.on);
       case "deckMove":
-        return this.deckMove(intent.x, intent.y);
+        return this.deckMove(intent.x, intent.y, intent.angle);
       case "deckDo":
         return this.deckDo(intent.how);
       case "deckForever": {
         if (!this.spot) return { refused: "gone" };
         if (typeof intent.on !== "boolean") return { refused: "bad" };
         this.spot.forever = intent.on;
-        return { ops: this.commit([{ t: "spot", spot: { ...this.spot } }, ...this.sweepDeck()]) };
+        return { ops: this.commit([{ t: "spot", spot: this.spotOut() }, ...this.sweepDeck()]) };
       }
       case "deckPin": {
         if (!this.spot) return { refused: "gone" };
         if (typeof intent.on !== "boolean") return { refused: "bad" };
         if (!intent.on && by !== this.admin) return { refused: "not-yours" };
         this.spot.pin = intent.on;
-        return { ops: this.commit([{ t: "spot", spot: { ...this.spot } }]) };
+        return { ops: this.commit([{ t: "spot", spot: this.spotOut() }]) };
       }
       case "rules": {
         if (by !== this.admin) return { refused: "not-yours" };
@@ -432,14 +432,15 @@ export class Table {
   // ── КОЛОДА ─────────────────────────────────────────────────────────────────────────────────
 
   /** Переставить колоду по сукну. Мимо стола не поставить — встанет на кромку, как карта. */
-  private deckMove(x: number, y: number): Result {
+  private deckMove(x: number, y: number, angle = 0): Result {
     if (!this.spot) return { refused: "gone" };
     if (this.spot.pin) return { refused: "locked" };
-    if (![x, y].every(Number.isFinite)) return { refused: "bad" };
+    if (![x, y, angle].every(Number.isFinite)) return { refused: "bad" };
     const far = Math.hypot(x, y);
     const k = far > FELT_REACH ? FELT_REACH / far : 1;
-    this.spot = { ...this.spot, x: x * k, y: y * k };
-    return { ops: this.commit([{ t: "spot", spot: { ...this.spot } }]) };
+    // ПОСТАВЛЕННАЯ КОЛОДА ЛЕЖИТ ПОВЕРХ всего, что уже было на сукне.
+    this.spot = { ...this.spot, x: x * k, y: y * k, angle: turnOf(angle), below: this.felt.map((one) => one.id) };
+    return { ops: this.commit([{ t: "spot", spot: this.spotOut() }]) };
   }
 
   /**
@@ -460,6 +461,10 @@ export class Table {
     return { ops: this.commit([{ t: "deck", deck: this.deck.map((id) => ({ id })), shuffled: false }]) };
   }
 
+  private spotOut(): DeckSpot | null {
+    return this.spot && { ...this.spot, below: [...this.spot.below] };
+  }
+
   /** Невечная колода без карт уходит со стола. */
   private sweepDeck(): Op[] {
     if (!this.spot || this.spot.forever || this.deck.length > 0) return [];
@@ -470,8 +475,8 @@ export class Table {
   /** Колоды нет — поставить новую посередине (для команды бота). */
   private ensureDeck(): Op[] {
     if (this.spot) return [];
-    this.spot = { ...DEFAULT_SPOT };
-    return [{ t: "spot", spot: { ...this.spot } }];
+    this.spot = { ...DEFAULT_SPOT, below: [] };
+    return [{ t: "spot", spot: this.spotOut() }];
   }
 
   /** Флаги стула меняет его хозяин, любой — у покинутого, админ — у любого. */
@@ -676,7 +681,10 @@ export class Table {
 
   private take(id: string, from: Where): void {
     if (from.in === "deck") this.deck.splice(this.deck.indexOf(id), 1);
-    else if (from.in === "felt") this.felt.splice(this.felt.findIndex((one) => one.id === id), 1);
+    else if (from.in === "felt" && this.spot?.below.includes(id)) {
+      this.spot.below = this.spot.below.filter((one) => one !== id);
+      this.felt.splice(this.felt.findIndex((one) => one.id === id), 1);
+    } else if (from.in === "felt") this.felt.splice(this.felt.findIndex((one) => one.id === id), 1);
     else this.chairs.get(from.chair)!.hand.splice(from.i, 1);
   }
 
@@ -764,7 +772,7 @@ export class Table {
       people: this.here,
       chairs,
       deck: this.deck.map((id) => this.seen(id, viewer, { in: "deck" })),
-      spot: this.spot && { ...this.spot },
+      spot: this.spotOut(),
       felt,
       trails: Object.fromEntries(this.trails),
       shuffles: this.shuffles,
