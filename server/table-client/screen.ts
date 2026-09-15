@@ -161,6 +161,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   const air = document.createElement("div");
   air.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:70;overflow:hidden";
   stage.append(air);
+  /**
+   * ВОЗДУХ ПОД БАРОМ — перелёты в мою руку и из неё. Рука живёт под нижним баром, и карта, переставленная в
+   * ней, не должна перелетать поверх бара: слой обрезан по его верхнему краю (`draw`).
+   */
+  const airUnder = document.createElement("div");
+  airUnder.style.cssText = "position:absolute;left:0;right:0;top:0;height:100%;pointer-events:none;z-index:70;overflow:hidden";
+  stage.append(airUnder);
   /** Карты, летящие копией: на своём месте они не рисуются, пока не долетят. */
   const flying = new Set<string>();
   /** Где каждая карта была нарисована прошлым кадром — откуда начинать перелёт. */
@@ -911,6 +918,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
     over.innerHTML = cardTipHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + chairZonesHtml(s) + feltMarkHtml() + carryHtml() + homeHtml(s);
     wire();
+    airUnder.style.height = `${mineGeom(handOf(s, mine(s)).length).barTop}px`;
 
     // ПЕРЕЕХАВШЕЕ — ЛЕТИТ. Запущенный перелёт прячет карту на месте, поэтому кадр рисуется ещё раз;
     // во втором проходе места те же, и нового перелёта не будет.
@@ -1098,7 +1106,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   function launch(id: string, from: Place, to: Place): void {
     // ПОВОРОТ КОРОТКИМ ПУТЁМ: 170° и -190° — одна поза, и лететь между ними нечего крутить.
     from = { ...from, angle: to.angle + (((((from.angle - to.angle) % 360) + 540) % 360) - 180) };
-    air.querySelector(`[data-flight="${id}"]`)?.remove();
+    const layer = [from.key, to.key].some((key) => key.startsWith(`hand:${mine()}:`)) ? airUnder : air;
+    for (const one of [air, airUnder]) one.querySelector(`[data-flight="${id}"]`)?.remove();
     flying.add(id);
     const el = document.createElement("div");
     el.dataset.flight = id;
@@ -1106,7 +1115,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     // ПЕРЕВОРОТ В ПОЛЁТЕ: откуда вылетела лицом, а ляжет рубашкой (или наоборот) — ребром на полпути.
     const turns = !sameFace(from.face, to.face);
     el.innerHTML = cardHtml(turns ? from.face : to.face, to.w);
-    air.append(el);
+    layer.append(el);
     const mid: Place = { ...to, x: (from.x + to.x) / 2, y: (from.y + to.y) / 2, w: (from.w + to.w) / 2, h: (from.h + to.h) / 2, angle: (from.angle + to.angle) / 2, squash: (from.squash + to.squash) / 2 };
     const frames = turns
       ? [{ transform: poseCss(from, to) }, { transform: poseCss(mid, to, 0.02), offset: 0.5 }, { transform: poseCss(to, to) }]
@@ -1115,7 +1124,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     if (turns) setTimeout(() => (el.innerHTML = cardHtml(to.face, to.w)), FLIGHT_MS / 2);
     run.onfinish = () => {
       if (el.isConnected) el.remove();
-      if (!air.querySelector(`[data-flight="${id}"]`)) flying.delete(id);
+      if (!air.querySelector(`[data-flight="${id}"]`) && !airUnder.querySelector(`[data-flight="${id}"]`)) flying.delete(id);
       draw();
     };
   }

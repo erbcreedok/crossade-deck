@@ -86,6 +86,18 @@ await A.click('[data-bar="rank"]');
 await wait(A, 600);
 const ranks = (await cardsOf(A, aSeat)).sort((p, q) => p.x - q.x).map((c) => rankOf(c.rank.replace(/[♠♥♦♣★]/g, "")));
 check("по номиналу: слева направо не убывает", ranks.every((r, i) => i === 0 || ranks[i - 1] <= r), ranks);
+// Реверс: перелёты карт не выходят за верх нижнего бара.
+await A.click('[data-bar="reverse"]');
+await wait(A, 90);
+const under = await A.evaluate(() => {
+  const barTop = document.querySelector("[data-g=bar]").getBoundingClientRect().top;
+  return [...document.querySelectorAll("[data-flight]")].map((el) => {
+    const layer = el.parentElement.getBoundingClientRect();
+    return { clip: getComputedStyle(el.parentElement).overflow === "hidden" && Math.abs(layer.bottom - barTop) < 1.5, bottom: Math.round(el.getBoundingClientRect().bottom), barTop: Math.round(barTop) };
+  });
+});
+check("реверс: карты летят, и их слой обрезан по верху бара", under.length >= 2 && under.every((f) => f.clip), under);
+await wait(A, 500);
 await A.click('[data-section="order"]');
 await wait(A);
 
