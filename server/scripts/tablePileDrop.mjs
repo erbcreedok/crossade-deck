@@ -1,6 +1,6 @@
 // СТОПКУ — В РУКУ И В СТОПКУ. Два браузера. Стопка за индикатор: над своей рукой горит её зона и ложится в руку,
 // на стул — в руку стула; в стопку одной стороной — вся её стороной, в стопку вперемешку — как лежала; колода,
-// переложенная в стопку, остаётся пустой (вечная), невечная опустевшая — исчезает.
+// переложенная в стопку целиком, теряет вечность и исчезает, как и любая опустевшая стопка.
 //   TABLE_SECRET=dev TABLE_GUESTS=1 TELEGRAM_BOT_TOKEN=test PORT=2599 npx tsx src/index.ts
 //   node scripts/tablePileDrop.mjs [base] [secret]
 import { createHmac, randomBytes } from "crypto";
@@ -108,7 +108,7 @@ await wait(B, 300);
 let sb = await spots(B);
 check("колода одной стороной — легли её стороной (рубашкой), сверху", sb.deckIds.slice(-2).join() === p2.ids.join() && !p2.ids.some((id) => sb.deckUp.includes(id)) && !(await pileOf(B, p2.id)), { tail: sb.deckIds.slice(-2), up: sb.deckUp });
 
-// ── 3. Колоду — в стопку вперемешку: карты как лежали; колода осталась пустой ─────────────────────────
+// ── 3. Колоду — в стопку вперемешку: карты как лежали; колода исчезла ───────────────────────────────
 const p3 = await makePile(-2, true);
 const deckN = (await spots(A)).deck;
 const p3At = (await pileOf(A, p3.id)).top;
@@ -117,7 +117,7 @@ await wait(B, 400);
 sb = await spots(B);
 const big = await pileOf(B, p3.id);
 check("колода легла в стопку вперемешку: все её карты сверху, рубашкой, как лежали", big?.count === deckN + 2 && big.up.length === 1 && big.ids.slice(0, 2).join() === p3.ids.join(), { big, deckN });
-check("колода вечная — стоит пустой", sb.deck === 0 && sb.spot !== null, { deck: sb.deck, spot: sb.spot });
+check("колода вмержена — вечность потеряна, колоды на столе нет", sb.deck === 0 && sb.spot === null && sb.piles.length === 1, { deck: sb.deck, spot: sb.spot });
 
 // ── 4. Стопку — на стул B: в руку стула B ───────────────────────────────────────────────────────────
 const bSeat = (await spots(A)).seats.find((x) => x.who === "B");

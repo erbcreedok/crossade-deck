@@ -515,6 +515,23 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     const below = new Set(pile.below);
     for (const one of o.felt) if (below.has(one.id)) paintOnce(one);
     const cards = pile.cards.filter((one) => one.id !== o.lifted && !o.hidden?.has(one.id));
+    // ПУСТАЯ ВЕЧНАЯ СТОПКА — контур места: стопка есть, карт нет.
+    if (cards.length === 0) {
+      g.save();
+      g.translate(pile.x, pile.y);
+      g.rotate((pile.angle * Math.PI) / 180);
+      roundRect(g, -CARD.w / 2, -CARD.h / 2, CARD.w, CARD.h, CARD.w * 0.12);
+      g.fillStyle = "rgba(245,234,208,.06)";
+      g.fill();
+      g.setLineDash([CARD.w * 0.12, CARD.w * 0.08]);
+      g.lineWidth = CARD.w * 0.07;
+      g.strokeStyle = SEAT.black;
+      g.stroke();
+      g.lineWidth = CARD.w * 0.035;
+      g.strokeStyle = "rgba(245,234,208,.8)";
+      g.stroke();
+      g.restore();
+    }
     cards.forEach((one, i) => {
       g.save();
       const at = deckAt(pile.id, i, cards.length);

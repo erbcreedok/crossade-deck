@@ -21,6 +21,7 @@ import {
   GATHER_SIDES,
   LOCK_TTL_MS,
   MAIN_PILE,
+  PILE_GUARDS,
   type GatherSide,
   type Pile,
   type DeckDo,
@@ -255,7 +256,7 @@ export class Table {
         const pile = this.piles.get(intent.pile);
         if (!pile) return { refused: "gone" };
         if (by !== this.admin) return { refused: "not-yours" };
-        if (typeof intent.on !== "boolean" || !["lock", "shut"].includes(intent.guard)) return { refused: "bad" };
+        if (typeof intent.on !== "boolean" || !(PILE_GUARDS as readonly unknown[]).includes(intent.guard)) return { refused: "bad" };
         pile.spot[intent.guard] = intent.on;
         return { ops: this.commit([this.spotOp(intent.pile)]) };
       }
@@ -372,13 +373,15 @@ export class Table {
     if (!source) return { refused: "gone" };
     const target = this.clean(to as Where);
     if (!target || target.in === "felt" || (target.in === "deck" && target.pile === id)) return { refused: "bad" };
-    if (source.spot.pin || source.spot.shut) return { refused: "locked" };
+    if (source.spot.pin || source.spot.shut || source.spot.seal) return { refused: "locked" };
     if (source.cards.some((one) => (this.locks.has(one) && this.locks.get(one)!.by !== by) || (this.picks.has(one) && this.picks.get(one) !== by))) return { refused: "locked" };
     if (source.cards.length === 0) return { refused: "bad" };
     if (target.in === "hand" && this.closedTo(by, target.chair)) return { refused: "chair-locked" };
     const into = target.in === "deck" ? this.piles.get(target.pile) : undefined;
     if (target.in === "deck" && !into) return { refused: "gone" };
-    if (into?.spot.shut) return { refused: "locked" };
+    if (into?.spot.shut || into?.spot.seal) return { refused: "locked" };
+    // ВЕЧНАЯ, ПЕРЕЛОЖЕННАЯ ЦЕЛИКОМ, — больше не стопка: вечность снята, опустевшая уйдёт.
+    source.spot.forever = false;
     // СТОРОНА: цель вся одной стороной — ею; вперемешку или пустая — как лежали.
     const pack = into ? into.cards.map((one) => this.turned.has(one)) : [];
     const side = pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0] : undefined;
@@ -666,6 +669,8 @@ export class Table {
     }
     for (const pile of sweep) ops.push(...this.sweepPile(pile));
     for (const chair of chairs) ops.push(...this.sweepChair(this.chairs.get(chair)!));
+    // Собрали одну карту в новую стопку — это не стопка: карта ложится на сукно.
+    ops.push(...this.sweepPile(pileId));
     return { ops: this.commit(ops) };
   }
 
@@ -702,11 +707,26 @@ export class Table {
   }
 
   /** Невечная стопка без карт уходит со стола. */
+  /**
+   * НЕВЕЧНАЯ СТОПКА ИЗ ОДНОЙ КАРТЫ — НЕ СТОПКА: рушится, и карта ложится на сукно на её место, её углом и той
+   * стороной, какой лежала. Пустая — просто уходит. Вечная стоит всегда.
+   */
   private sweepPile(id: string): Op[] {
     const pile = this.piles.get(id);
-    if (!pile || pile.spot.forever || pile.cards.length > 0) return [];
+    if (!pile || pile.spot.forever || pile.cards.length > 1) return [];
+    const ops: Op[] = [];
+    const last = pile.cards[0];
+    if (last !== undefined) {
+      const up = this.turned.has(last);
+      const from: Where = { in: "deck", pile: id };
+      this.take(last, from);
+      this.turned.delete(last);
+      const to = this.put(last, { in: "felt", x: pile.spot.x, y: pile.spot.y, up, angle: pile.spot.angle });
+      ops.push({ t: "move", card: { id: last }, from, to });
+    }
     this.piles.delete(id);
-    return [{ t: "spot", pile: id, spot: null }];
+    ops.push({ t: "spot", pile: id, spot: null });
+    return ops;
   }
 
   /** Колоды нет — поставить новую посередине (для команды бота). */

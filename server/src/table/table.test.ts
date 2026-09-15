@@ -499,8 +499,10 @@ describe("патч клиента совпадает с сервером", () =>
     step("b", { t: "deckMove", pile: "deck", x: -2, y: 1.2 });
     step("a", { t: "deckDo", pile: "p1", how: "flip" });
     step("c", { t: "gather", ids: [t.seenBy("c").piles.at(-1)!.cards.at(-1)!.id], side: "keep", to: { pile: "p1" } });
-    step("a", { t: "gather", ids: [t.seenBy("a").piles.find((p) => p.id === "deck")!.cards[0]!.id], side: "down", to: { x: 1, y: -3, angle: 0 } });
+    step("a", { t: "gather", ids: t.seenBy("a").piles.find((p) => p.id === "deck")!.cards.slice(0, 2).map((c) => c.id), side: "down", to: { x: 1, y: -3, angle: 0 } });
     step("b", { t: "pileDrop", pile: "p2", to: { in: "deck", pile: "p1", i: 0 } });
+    step("a", { t: "deckGuard", pile: "p1", guard: "seal", on: true });
+    step("a", { t: "deckGuard", pile: "p1", guard: "seal", on: false });
     step("b", { t: "deckPin", pile: "p1", on: true });
     for (const one of t.seenBy("a").piles.find((p) => p.id === "p1")!.cards.map((c) => c.id).reverse()) {
       step("a", { t: "grab", id: one });

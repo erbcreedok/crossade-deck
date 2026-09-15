@@ -56,7 +56,7 @@ type GrabMode = "collect" | "keep";
 const SUBS: Record<Section, readonly BarKey[]> = { pose: FOLDS, chair: [...RIGHTS, "leave"], order: ORDERS, lasso: LASSO, say: [] };
 /** Сколько идёт смена секций в баре. */
 const SECTION_MS = 240;
-const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "shut" | `grab-${GrabMode}` | `side-${GatherSide}`, string> = {
+const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "shut" | "seal" | `grab-${GrabMode}` | `side-${GatherSide}`, string> = {
   /** Курсор-хват — ладонь. */
   cursor: '<path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V10"/><path d="M11 9.5V4a1.5 1.5 0 0 1 3 0v6"/><path d="M14 9.5V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M17 10a1.5 1.5 0 0 1 3 0v3.5a7 7 0 0 1-7 7h-1.2a6 6 0 0 1-4.6-2.2L4 14.6a1.5 1.5 0 0 1 2.3-1.9L8 14.5V9a1.5 1.5 0 0 1 3 0"/>',
   lasso: '<ellipse cx="13" cy="9" rx="8" ry="5.5" stroke-dasharray="3 2.4"/><path d="M8 13.5c-2 1.5-2.5 4 0 5.5 1.5 1 3 .5 3.5-.5"/>',
@@ -88,6 +88,8 @@ const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "shut"
   pin: '<path d="M9 3h6l-1 6h2l1 5H7l1-5h2L9 3z"/><path d="M12 14v7"/>',
   /** Приёмка закрыта — лоток, над ним стрелка вниз, перечёркнуто. */
   shut: '<path d="M4 14h4l1 3h6l1-3h4v6H4z"/><path d="M12 3v8"/><path d="M9 8l3 3 3-3"/><path d="M3 3l18 18"/>',
+  /** Мерж закрыт — две стопки, между ними перечёркнутая стрелка. */
+  seal: '<rect x="2" y="7" width="7" height="10" rx="1"/><rect x="15" y="7" width="7" height="10" rx="1"/><path d="M10.5 12h3"/><path d="M12 9.5 14 12l-2 2.5"/><path d="M9.5 18.5l5-13"/>',
   /** Индикатор колоды — три карты веером. */
   deck: '<rect x="3" y="4" width="9" height="12" rx="1.5" transform="rotate(-14 7 10)"/><rect x="8" y="4" width="9" height="12" rx="1.5"/><rect x="12" y="4" width="9" height="12" rx="1.5" transform="rotate(14 17 10)"/>',
   "sec-pose": '<rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(-20 12 20)"/><rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(20 12 20)"/><path d="M5 21h14"/>',
@@ -353,7 +355,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       });
   }
 
-  function guessDeckFlag(pile: string, flag: "pin" | "lock" | "shut" | "forever", on: boolean): void {
+  function guessDeckFlag(pile: string, flag: "pin" | "lock" | "shut" | "seal" | "forever", on: boolean): void {
     const intent: Intent = flag === "pin" ? { t: "deckPin", pile, on } : flag === "forever" ? { t: "deckForever", pile, on } : { t: "deckGuard", pile, guard: flag, on };
     guess(`deck:${pile}:${flag}`, intent,
       (st) => withPile(st, pile, (p) => ({ ...p, [flag]: on })),
@@ -1344,8 +1346,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const look = on
       ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black};`
       : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};`;
-    return `<button ${data} aria-label="${label}" aria-pressed="${on}" style="width:30px;height:30px;border:0;padding:0;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;${look}">`
-      + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${on ? T.black : "white"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></button>`;
+    return `<button ${data} aria-label="${label}" aria-pressed="${on}" style="width:26px;height:26px;border:0;padding:0;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;${look}">`
+      + `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="${on ? T.black : "white"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></button>`;
   }
 
   /** Окно открытой стопки и гнёзда его веера на `count` мест — карты и щель под карту в воздухе. */
@@ -1409,13 +1411,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px">`
       + `<span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1">${pile.id === MAIN_PILE ? "Колода" : "Стопка"} · ${cards.length}</span>`
       + `<span data-deck-shut role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
-      + `<div style="display:flex;align-items:center;gap:6px;height:16px">`
+      + `<div style="display:flex;align-items:center;gap:4px;height:16px">`
       + acts.map(([how, glyph, label]) => (pile.lock ? chip(false, "data-deck-do", glyph, label, false).replace("data-deck-do-status", `data-deck-do-status="${how}"`) : deckChip(`data-deck-do="${how}"`, glyph, label))).join("")
       + `<span style="flex:1"></span>`
       // ПИН: приколоть — любой, открепить — только админ. ЛОК И ПРИЁМКА — только админ.
       + chip(!pile.pin || admin, "data-deck-pin", GLYPH.pin, "Приколоть", pile.pin)
       + chip(admin, "data-deck-lock", GLYPH.lock, "Лок", pile.lock)
       + chip(admin, "data-deck-accept", GLYPH.shut, "Приёмка закрыта", pile.shut)
+      + chip(admin, "data-deck-seal", GLYPH.seal, "Мерж закрыт", pile.seal)
       + `${deckChip("data-deck-forever", GLYPH.forever, "Вечная", pile.forever)}</div>`
       + `</div>` + laidCards;
   }
@@ -2416,7 +2419,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         if (local.deckTip !== null) store.send({ t: "deckDo", pile: local.deckTip, how: el.dataset.deckDo as DeckDo });
       };
     }
-    for (const [sel, guard] of [["[data-deck-lock]", "lock"], ["[data-deck-accept]", "shut"]] as const) {
+    for (const [sel, guard] of [["[data-deck-lock]", "lock"], ["[data-deck-accept]", "shut"], ["[data-deck-seal]", "seal"]] as const) {
       for (const el of over.querySelectorAll<HTMLElement>(sel)) {
         el.onpointerdown = (e) => {
           e.preventDefault();
@@ -2426,7 +2429,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         };
       }
     }
-    for (const el of over.querySelectorAll<HTMLElement>("[data-deck-lock-status],[data-deck-accept-status],[data-deck-do-status]")) {
+    for (const el of over.querySelectorAll<HTMLElement>("[data-deck-lock-status],[data-deck-accept-status],[data-deck-seal-status],[data-deck-do-status]")) {
       el.onpointerdown = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -2555,7 +2558,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     gripPress.at = view.toDesk({ x: e.clientX - gripPress.off.x, y: e.clientY - gripPress.off.y });
     // КУДА ЛЯЖЕТ СТОПКА — как карта: в руку, в окно стула, на стул, в другую стопку или её окно; иначе на сукно.
     // Цель — место под стопкой, куда встал бы её контур на сукне, а не поднятая над ним стопка.
-    gripPress.target = aimAt(e.clientX, e.clientY, view.toGlass(gripPress.at), gripPress.pile);
+    const aim = aimAt(e.clientX, e.clientY, view.toGlass(gripPress.at), gripPress.pile);
+    // МЕРЖ ЗАКРЫТ у несомой или у стопки под ней — ни в руку, ни в стопку: отпущенная вернётся на место.
+    const s = truth();
+    const sealed = aim.kind !== "felt" && aim.kind !== "back" && (pileOf(s, gripPress.pile)?.seal || ((aim.kind === "deck" || aim.kind === "deckAt") && pileOf(s, aim.pile)?.seal));
+    gripPress.target = sealed ? { kind: "back" } : aim;
     draw();
   }, { passive: true });
   const endGrip = (e: PointerEvent) => {
