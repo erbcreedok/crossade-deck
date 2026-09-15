@@ -40,10 +40,10 @@ export interface WordAnchor {
 }
 
 /**
- * Полёт стикера в единицах стола (ширина карты): размер, насколько вверх по экрану и к середине стола; разброс угла;
- * с какой доли полёта он начинает таять.
+ * Полёт стикера в единицах стола (ширина карты): размер, насколько вперёд от стула — к середине стола, как смотрит
+ * сидящий, а не моя камера; разброс угла; с какой доли полёта он начинает таять.
  */
-const SHOT_FLIGHT = { size: 1.3, up: 2, toMiddle: 1, spreadDeg: 9, fadeFrom: 0.7 };
+const SHOT_FLIGHT = { size: 1.3, forward: 3, spreadDeg: 9, fadeFrom: 0.7 };
 
 /** Что диалог спрашивает у стола: как видно отметки, что под пальцем, моя рука, кого я не читаю, мои стикеры. */
 export interface TalkWorld {
@@ -269,10 +269,11 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     const n = (fired.get(by) ?? 0) + 1;
     fired.set(by, n);
     const size = Math.round(SHOT_FLIGHT.size * a.unit);
-    // Вверх по экрану и к середине стола; каждый выстрел повёрнут на свой угол из пяти.
+    // Вперёд от его стула — к середине стола; у меня это вверх, у сидящего напротив — вниз. Каждый выстрел
+    // повёрнут на свой угол из пяти.
     const turn = ((((n * 3) % 5) - 2) * SHOT_FLIGHT.spreadDeg * Math.PI) / 180;
-    const vx = a.dx * SHOT_FLIGHT.toMiddle * a.unit;
-    const vy = (a.dy * SHOT_FLIGHT.toMiddle - SHOT_FLIGHT.up) * a.unit;
+    const vx = a.dx * SHOT_FLIGHT.forward * a.unit;
+    const vy = a.dy * SHOT_FLIGHT.forward * a.unit;
     const tx = vx * Math.cos(turn) - vy * Math.sin(turn);
     const ty = vx * Math.sin(turn) + vy * Math.cos(turn);
     const el = document.createElement("img");

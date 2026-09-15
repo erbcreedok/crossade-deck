@@ -260,11 +260,15 @@ check("у B стикер A вылетел выстрелом (не строко�
 const aDisc = (await spots(B)).seats.find((s) => s.who === "A");
 const kB = (await spots(B)).k;
 check("вылетает из аватара A", Math.hypot(p0.x - aDisc.x, p0.y - aDisc.y) < kB * 0.3, { p0, aDisc });
-check("летит вверх недалеко — около одной карты (A напротив: к середине — вниз)", pEnd.y < p0.y - kB * 0.6 && pEnd.y > p0.y - kB * 1.6, { p0, pEnd, k: kB });
+const toMid = { x: middle.x - aDisc.x, y: middle.y - aDisc.y };
+const flew = { x: pEnd.x - p0.x, y: pEnd.y - p0.y };
+const along = (flew.x * toMid.x + flew.y * toMid.y) / Math.hypot(toMid.x, toMid.y);
+check("A сверху у B — стикер летит вниз, вперёд от его стула к середине, на ~3 карты", flew.y > 0 && along > kB * 2.5 && along < kB * 3.3, { flew, along, k: kB });
 check("размер стикера — в масштабе стола (1.3 карты)", Math.abs(p0.w / kB - 1.3) < 0.1, { w: p0.w, k: kB });
 const opaque = path.filter((p) => p.t - p0.t < 1300).every((p) => p.o > 0.95);
 check("до 70% полёта не тает", opaque, path.filter((p) => p.o <= 0.95)[0]);
-check("быстро в начале, медленно потом", p0.y - p1.y > (p1.y - p2.y) * 1.3, { p0, p1, p2 });
+const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+check("быстро в начале, медленно потом", d(p0, p1) > d(p1, p2) * 1.3, { p0, p1, p2 });
 check("испаряется и исчезает за ~2 с", pEnd.t - p0.t < 2300 && pEnd.o < 0.3, pEnd);
 // Спам: шесть подряд — в полёте три, у B долетело три, кнопки погасли и вернулись.
 await wait(A, 300);
