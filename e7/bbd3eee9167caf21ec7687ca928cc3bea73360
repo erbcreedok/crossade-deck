@@ -1,0 +1,39 @@
+server/scripts/tableBuilds.mjs
+  s_9ed0da107cbc4a::t_db45cd508b12f7 1-65
+  s_9ed0da107cbc4a::t_195ac2f0ca97f0 66
+server/src/table/builds.test.ts
+  s_9ed0da107cbc4a::t_60264c87c358b3 1-17
+server/src/table/client.ts
+  s_9ed0da107cbc4a::t_e7f39ff4d29482 70-75,78-79,81
+  s_9ed0da107cbc4a::t_dd0a012ec1e551 11-12
+  s_9ed0da107cbc4a::t_787cee96c518c2 19-39
+  s_9ed0da107cbc4a::t_880c932c63d0cf 88-89
+server/table-client/index.html
+  s_9ed0da107cbc4a::t_a3f05700ccc213 32-42
+server/scripts/nightSnapshot.mjs
+  s_9ed0da107cbc4a::t_1bf518c6485e6c 1-25
+server/src/table/builds.ts
+  s_9ed0da107cbc4a::t_a2de1fa8ceda19 1-20
+server/table-client/settings.ts
+  s_9ed0da107cbc4a::t_ef0b4913ef6d38 6,8
+  s_9ed0da107cbc4a::t_b7430ceccc0b17 153-154
+  s_9ed0da107cbc4a::t_9104be8dac4393 82-115
+  s_9ed0da107cbc4a::t_1659577c7455b0 145
+  s_9ed0da107cbc4a::t_868fb6a739fc34 208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e7bbd3eee9167caf21ec7687ca928cc3bea73360",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
