@@ -57,7 +57,8 @@ const SUBS: Record<Section, readonly BarKey[]> = { pose: FOLDS, chair: [...RIGHT
 /** Сколько идёт смена секций в баре. */
 const SECTION_MS = 240;
 const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "shut" | `grab-${GrabMode}` | `side-${GatherSide}`, string> = {
-  cursor: '<path d="M5 3l13 8-6 1.5L9 19z"/>',
+  /** Курсор-хват — ладонь. */
+  cursor: '<path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V10"/><path d="M11 9.5V4a1.5 1.5 0 0 1 3 0v6"/><path d="M14 9.5V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M17 10a1.5 1.5 0 0 1 3 0v3.5a7 7 0 0 1-7 7h-1.2a6 6 0 0 1-4.6-2.2L4 14.6a1.5 1.5 0 0 1 2.3-1.9L8 14.5V9a1.5 1.5 0 0 1 3 0"/>',
   lasso: '<ellipse cx="13" cy="9" rx="8" ry="5.5" stroke-dasharray="3 2.4"/><path d="M8 13.5c-2 1.5-2.5 4 0 5.5 1.5 1 3 .5 3.5-.5"/>',
   grab: "",
   side: "",
@@ -465,12 +466,25 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     let s = truth();
     if (pending) s = applyPatch(s, { v: s.v, ops: [{ t: "move", card: pending.card, from: pending.from, to: pending.to }] });
     // В ВОЗДУХЕ — МОЯ КАРТА И ЧУЖИЕ: со своего места они сняты, пока их несут.
-    const up = new Set(store.carries.map((c) => c.id));
+    const up = new Set(store.carries.flatMap((c) => [c.id, ...(c.with ?? []).map((w) => w.card.id)]));
     if (drag) up.add(drag.card.id);
+    for (const id of massFlock()) up.add(id);
+    if (massLanding) for (const id of massLanding.ids) up.add(id);
     if (up.size === 0) return s;
     const chairs = s.chairs.map((c) => ({ ...c, hand: c.hand.filter((card) => !up.has(card.id)) }));
     return { ...s, chairs, piles: s.piles.map((p) => ({ ...p, cards: p.cards.filter((c) => !up.has(c.id)) })), felt: s.felt.filter((c) => !up.has(c.id)) };
   }
+
+  /**
+   * СТЯНУТОЕ К МОЕМУ ПАЛЬЦУ — выделенные карты, которые летят за картой хвата (`drag.mass`, вид «стянуть»). Они сняты
+   * со своих мест, пока их несут, и ещё немного после дропа (`massLanding`) — до ответа сервера, иначе мигнули бы назад.
+   */
+  function massFlock(): string[] {
+    if (!drag?.mass || local.grab !== "collect") return [];
+    const key = me();
+    return Object.entries(store.state.picks ?? {}).filter(([id, by]) => by === key && id !== drag!.card.id).map(([id]) => id);
+  }
+  let massLanding: { ids: string[]; v: number; at: number } | null = null;
 
   /** Мой стул — на нём я сижу; пока стол не прислал его, пустая строка ни с чем не совпадёт. */
   const mine = (s: Snapshot = store.state): string => s.people.find((p) => p.key === me())?.seat ?? "";
@@ -1403,7 +1417,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // МАССА В ПАЛЬЦЕ: стянутая к пальцу — стопкой под картой хвата и числом; как лежат — одна карта, а где лягут
     // остальные, показывают контуры на сукне (`massMarksHtml`).
     const s = frame();
-    const rest = drag.mass ? myPicks(s).filter((id) => id !== drag!.card.id) : [];
+    // Считать по столу, а не по кадру: в кадре стянутых к пальцу уже нет на местах.
+    const rest = drag.mass ? myPicks(truth()).filter((id) => id !== drag!.card.id) : [];
     const stack = drag.mass && local.grab === "collect" ? Math.min(rest.length, 4) : 0;
     const under = Array.from({ length: stack }, (_, i) => {
       const d = stack - i;
@@ -1769,7 +1784,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     }
     for (const c of store.carries) {
       const at = carryPlace(s, c, shown);
-      if (at) out.set(c.id, at);
+      if (!at) continue;
+      out.set(c.id, at);
+      // Стянутые к чужому пальцу — под ведущей картой: сюда они летят со своих мест.
+      (c.with ?? []).forEach((w, i) => out.set(w.card.id, { ...at, x: at.x - (i + 1) * 3, y: at.y + (i + 1) * 3, face: undefined }));
+    }
+    // Стянутые к моему пальцу — туда, где висит карта хвата.
+    if (drag) {
+      const d = drag;
+      const finger: Place = { key: "finger", x: d.x - d.gx + d.w / 2, y: d.y - d.gy - d.h * CARRY_CLEAR + d.h / 2, w: d.w, h: d.h, angle: 0, squash: 1 };
+      massFlock().forEach((id, i) => out.set(id, { ...finger, x: finger.x - (i + 1) * 3, y: finger.y + (i + 1) * 3 }));
     }
     return out;
   }
@@ -1821,10 +1845,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       const ink = inkOf(s, c.by);
       const person = s.people.find((p) => p.key === c.by);
       const who = person?.name ?? "";
-      const look = `${Math.round(at.w)}|${c.card.face?.rank}${c.card.face?.suit}|${ink}|${who}|${person?.photo ? 1 : 0}`;
+      const flock = Math.min(c.with?.length ?? 0, 4);
+      const look = `${Math.round(at.w)}|${c.card.face?.rank}${c.card.face?.suit}|${ink}|${who}|${person?.photo ? 1 : 0}|${c.with?.length ?? 0}`;
       if (el.dataset.look !== look) {
         el.dataset.look = look;
-        el.innerHTML = `<div data-g="carried" style="position:absolute;left:0;top:0;width:${at.w}px;height:${at.h}px;border-radius:${at.w * 0.12}px;`
+        el.dataset.flock = String(c.with?.length ?? 0);
+        el.innerHTML = Array.from({ length: flock }, (_, i) => `<div data-g="carried-flock" style="position:absolute;left:${-(flock - i) * 3}px;top:${(flock - i) * 3}px;width:${at.w}px;height:${at.h}px">${cardHtml(undefined, at.w)}</div>`).join("")
+          + `<div data-g="carried" style="position:absolute;left:0;top:0;width:${at.w}px;height:${at.h}px;border-radius:${at.w * 0.12}px;`
           + `box-shadow:0 0 0 3px ${ink},0 ${Math.round(at.h * 0.12)}px 0 rgba(11,7,4,.45)">${cardHtml(c.card.face, at.w)}</div>`
           // КУРСОР ТОГО, КТО НЕСЁТ: стрелка в его цвете, рядом — лицо и имя. У бота — его аватар.
           + `<svg data-g="pointer" width="18" height="18" viewBox="0 0 18 18" style="position:absolute;left:${at.w * 0.55}px;top:${at.h * 0.6}px">`
@@ -2158,7 +2185,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       return;
     }
     drag.toldAt = performance.now();
-    store.carry({ id: drag.card.id, over: landing(drag) });
+    const flock = massFlock();
+    store.carry({ id: drag.card.id, over: landing(drag), ...(flock.length ? { with: flock } : {}) });
   }
 
   function moveDrag(e: PointerEvent) {
@@ -2226,6 +2254,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       return draw();
     }
     if (d.mass) {
+      if (local.grab === "collect") {
+        const key = me();
+        massLanding = { ids: Object.entries(store.state.picks ?? {}).filter(([id, by]) => by === key && id !== d.card.id).map(([id]) => id), v: store.state.v, at: performance.now() };
+      }
       dropMass(d);
       return draw();
     }
@@ -2270,7 +2302,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         if (sec === "say") return talk.toggle();
         local.sectionFrom = local.section;
         local.section = local.section === sec ? null : sec;
-        // ВЫХОД ИЗ ЛАССО — выделение снято.
+        // ВХОД В ЛАССО — инструментом лассо. ВЫХОД — выделение снято.
+        if (local.section === "lasso" && local.sectionFrom !== "lasso") local.tool = "lasso";
         if (local.sectionFrom === "lasso" && local.section !== "lasso") unpickAll();
         local.sectionAt = performance.now();
         local.confirmLeave = false;
@@ -2424,6 +2457,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   store.onChange(() => {
     const now = performance.now();
     guesses = guesses.filter((g) => now - g.at < GUESS_MS && !(store.state.v > g.v && g.settled(store.state)));
+    if (massLanding && (store.state.v > massLanding.v || now - massLanding.at > GUESS_MS)) massLanding = null;
     if (pending) {
       const holder = store.state.locks[pending.id];
       if (holder === me()) pending.sawLock = true;

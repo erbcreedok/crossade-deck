@@ -78,8 +78,8 @@ check("расклад: две карты на сукне, одна в руке",
 // ── 1. Секция лассо: курсор горит, лассо, грэб и сторона ───────────────────────────────────────
 await A.click('[data-section="lasso"]');
 await wait(A, 400);
-check("в секции лассо — курсор, лассо, вид грэба, сторона", (await bar(A, "cursor").getAttribute("aria-pressed")) === "true"
-  && (await bar(A, "lasso").getAttribute("aria-pressed")) === "false"
+check("в секции лассо — лассо по умолчанию, курсор-ладонь, вид грэба, сторона", (await bar(A, "lasso").getAttribute("aria-pressed")) === "true"
+  && (await bar(A, "cursor").getAttribute("aria-pressed")) === "false"
   && (await bar(A, "grab").getAttribute("data-mode")) === "collect" && (await bar(A, "side").getAttribute("data-mode")) === "keep", null);
 
 // ── 2. Тап по карте на сукне — выделена у всех; тултипа нет ──────────────────────────────────────
@@ -198,6 +198,8 @@ const feltOf = async (id) => (await spots(A)).felt.find((f) => f.id === id);
 const minePicked = async () => Object.entries((await spots(A)).picks).filter(([, by]) => by === aKey).map(([id]) => id).sort();
 const f3 = await lay(-2.4, 3.2);
 await lassoMode(true);
+check("вход в лассо — снова инструмент лассо", (await bar(A, "lasso").getAttribute("aria-pressed")) === "true", null);
+await bar(A, "cursor").click();
 if ((await bar(A, "grab").getAttribute("data-mode")) !== "collect") await bar(A, "grab").click();
 await tap(A, await feltOf(f1.id));
 await tap(A, await feltOf(f3));
@@ -208,9 +210,23 @@ const grabAt = await feltOf(f3);
 const target = { x: sa.middle.x + 4.8 * k8, y: sa.middle.y - 2.4 * k8 };
 await A.mouse.move(grabAt.x, grabAt.y);
 await A.mouse.down();
+const flightsA = A.evaluate(() => new Promise((done) => {
+  let most = 0;
+  const t0 = performance.now();
+  const tick = () => {
+    most = Math.max(most, document.querySelectorAll("[data-flight]").length);
+    if (performance.now() - t0 < 400) requestAnimationFrame(tick);
+    else done(most);
+  };
+  tick();
+}));
 await A.mouse.move(grabAt.x, grabAt.y - 40, { steps: 4 });
+check("старт хвата: остальные выделенные летят под палец у A", (await flightsA) >= 2, null);
 await A.mouse.move(target.x, target.y, { steps: 10 });
 await wait(A, 150);
+const flockB = await B.locator("[data-carry]").getAttribute("data-flock").catch(() => null);
+const bFeltNow = (await spots(B)).felt.map((f) => f.id);
+check("у B под пальцем A висят ещё две стянутые карты, на сукне их нет", flockB === "2" && !bFeltNow.includes(f1.id), { flockB, bFeltNow });
 const massN = await A.locator('[data-g="mass-count"]').getAttribute("data-n").catch(() => null);
 await A.mouse.up();
 await wait(B, 800);
@@ -224,6 +240,7 @@ check("на сукне их больше нет, рука A пуста", !sb.fel
 const f5 = await lay(-4.4, -0.4);
 const f6 = await lay(2.4, 3.2);
 await lassoMode(true);
+await bar(A, "cursor").click();
 check("после выхода из лассо выделения нет", (await minePicked()).length === 0, await minePicked());
 await tap(A, await feltOf(f5));
 await tap(A, await feltOf(f6));
@@ -245,6 +262,7 @@ check("в руку ушли обе, карта хвата последней", h
 const g0 = await lay(-3.6, 3.6);
 const g1 = await lay(1.2, 4.0);
 await lassoMode(true);
+await bar(A, "cursor").click();
 await bar(A, "grab").click();
 check("вид грэба — как лежат", (await bar(A, "grab").getAttribute("data-mode")) === "keep", null);
 await tap(A, await feltOf(g0));

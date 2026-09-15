@@ -368,11 +368,15 @@ export const MSG = {
 export interface CarryOut {
   id: string;
   over: Where;
+  /** Несут выделенное лассо, стянутое к пальцу: эти карты (своё выделение) висят под пальцем вместе с ведущей. */
+  with?: string[];
 }
-export interface Carry extends CarryOut {
+export interface Carry extends Omit<CarryOut, "with"> {
   by: string;
   card: SeenCard;
   from: Where;
+  /** Карты, стянутые к пальцу, — какими их видно зрителю и откуда они. */
+  with?: { card: SeenCard; from: Where }[];
   /** Несёт команда бота (от его лица или от лица раздающего) — видно всем, и самому раздающему тоже. */
   auto?: true;
 }

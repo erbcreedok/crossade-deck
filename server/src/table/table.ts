@@ -97,7 +97,7 @@ export class Table {
   /** Выделение лассо: id карты → кто выделил (`Snapshot.picks`). */
   private picks = new Map<string, string>();
   /** Последнее «над чем карта», пока её держат. Живёт не дольше блокировки (`carriesSeenBy`). */
-  private carries = new Map<string, { by: string; over: Where; auto?: true }>();
+  private carries = new Map<string, { by: string; over: Where; auto?: true; with?: string[] }>();
   private rules: TableRules = { ...DEFAULT_RULES };
   private trails = new Map<string, Trail>();
   /** Перевёрнутые карты в колоде и в руках. У карты на сукне сторона лежит в ней самой (`felt[].up`). */
@@ -301,7 +301,11 @@ export class Table {
     const over = this.clean(out.over);
     if (!over) return { refused: "bad" };
     lock.until = now + LOCK_TTL_MS;
-    this.carries.set(out.id, { by, over, ...(auto ? { auto: true as const } : {}) });
+    // С пальцем — только своё выделение, которое никто другой не держит.
+    const flock = Array.isArray(out.with)
+      ? [...new Set(out.with)].filter((id) => typeof id === "string" && id !== out.id && this.picks.get(id) === by && this.whereIs(id) && (!this.locks.get(id) || this.locks.get(id)!.by === by))
+      : [];
+    this.carries.set(out.id, { by, over, ...(auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}) });
     return { ok: true };
   }
 
@@ -316,7 +320,11 @@ export class Table {
         continue;
       }
       if ((c.by === viewer && !c.auto) || (only !== undefined && only !== id)) continue;
-      out.push({ id, by: c.by, over: c.over, from, card: this.seen(id, viewer, from), ...(c.auto ? { auto: true as const } : {}) });
+      const flock = (c.with ?? []).flatMap((one) => {
+        const at = this.picks.get(one) === c.by ? this.whereIs(one) : null;
+        return at ? [{ card: this.seen(one, viewer, at), from: at }] : [];
+      });
+      out.push({ id, by: c.by, over: c.over, from, card: this.seen(id, viewer, from), ...(c.auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}) });
     }
     return out;
   }

@@ -399,3 +399,18 @@ describe("перевернуть выделенное разом", () => {
     expect(t.act("a", { t: "turnMany", ids: ["c5"] }, 0)).toEqual({ refused: "bad" });
   });
 });
+
+describe("масса в воздухе", () => {
+  it("палец несёт с собой своё выделение: зритель видит карты и откуда они; чужое и невыделенное — нет", () => {
+    const t = seated("a", "b", "c");
+    ok(t.act("a", { t: "pick", ids: ["c7", "c6", "c5"], on: true }, 0));
+    ok(t.act("b", { t: "pick", ids: ["c4"], on: true }, 0));
+    ok(t.act("a", { t: "grab", id: "c7" }, 0));
+    expect(t.carry("a", { id: "c7", over: { in: "felt", x: 1, y: 1, up: false, angle: 0 }, with: ["c6", "c5", "c4", "c3", "c7"] }, 0)).toEqual({ ok: true });
+    const [seen] = t.carriesSeenBy("c");
+    expect(seen!.with).toEqual([{ card: { id: "c6" }, from: { in: "deck", pile: "deck" } }, { card: { id: "c5" }, from: { in: "deck", pile: "deck" } }]);
+    // Сняли выделение с карты — она больше не летит с пальцем.
+    ok(t.act("a", { t: "pick", ids: ["c6"], on: false }, 0));
+    expect(t.carriesSeenBy("c")[0]!.with!.map((w) => w.card.id)).toEqual(["c5"]);
+  });
+});
