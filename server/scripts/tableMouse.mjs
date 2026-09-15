@@ -11,7 +11,7 @@ const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, h
 const page = await ctx.newPage();
 page.on("pageerror", (e) => console.log("ERROR", e.message));
 await page.goto(`${base}/table/?stand`);
-await page.waitForSelector("[data-bar]");
+await page.waitForSelector("[data-section]");
 await page.waitForTimeout(300);
 
 const view = async () => (await page.getAttribute("canvas", "data-view")).split(",").map(Number);

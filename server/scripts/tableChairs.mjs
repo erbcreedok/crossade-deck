@@ -16,7 +16,7 @@ async function open(url) {
   const page = await ctx.newPage();
   page.on("pageerror", (e) => console.log("ERROR", e.message));
   await page.goto(url);
-  await page.waitForSelector("[data-bar]");
+  await page.waitForSelector("[data-section]");
   await page.waitForTimeout(300);
   const scene = async () => JSON.parse(await page.getAttribute("canvas", "data-spots"));
   const tap = async (x, y) => {
@@ -71,6 +71,8 @@ async function open(url) {
   check("старый стул стал вечным", (await s.page.getAttribute(`[data-flag="forever"][data-chair="${mineSeat.key}"]`, "aria-pressed")) === "true", null);
 
   // Нижний HUD: «вечный» моего стула — кнопкой; уже включён (включил на пустом), тап — выключает.
+  await s.tapEl('[data-section="chair"]');
+  await s.page.waitForTimeout(400);
   const lit = async () => s.page.locator('[data-bar="forever"]').evaluate((e) => e.style.background.includes("gradient") && e.innerHTML.includes('stroke="#0b0704"'));
   check("вечный в нижнем HUD горит", await lit(), null);
   await s.tapEl('[data-bar="forever"]');

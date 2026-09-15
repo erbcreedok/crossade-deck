@@ -35,7 +35,7 @@ const open = async (name, tg) => {
     Object.defineProperty(window, "Telegram", { value: tg, writable: false });
   }, initData(tg, name));
   await p.goto(`${base}/table/?room=${room}&name=${name}`);
-  await p.waitForSelector("[data-bar]");
+  await p.waitForSelector("[data-section]");
   await p.waitForTimeout(400);
   return p;
 };
@@ -95,6 +95,20 @@ await A.mouse.up();
 await A.waitForTimeout(300);
 const tip = await A.evaluate(() => document.querySelector('[data-g="card-tip"]')?.textContent ?? null);
 check("тап по торчащему козырю — его тултип: лицом, двигал Bee", tip && !/Рубашкой/.test(tip) && /двигал Bee/.test(tip), tip);
+
+// ── 4. Поза чужой руки: у админа — в окне стула, у самой руки; у не-админа её там нет ─────────────
+const bSeat = (await spots(A)).seats.find((x) => x.who === "Bee");
+await A.mouse.click(bSeat.x, bSeat.y);
+await A.waitForTimeout(400);
+check("у админа в окне стула B — поза руки", (await A.locator(`[data-pose][data-chair="${bSeat.key}"]`).count()) === 3, null);
+await A.locator(`[data-pose="shrink"][data-chair="${bSeat.key}"]`).dispatchEvent("pointerdown");
+await B.waitForTimeout(500);
+const bCards = await B.evaluate(() => [...document.querySelectorAll("[data-card]")].filter((el) => el.getBoundingClientRect().top > 600).map((el) => Math.round(el.getBoundingClientRect().left)));
+check("админ сжал руку B — у B она стопкой", bCards.length === 6 && new Set(bCards).size === 1, bCards);
+const aSpot = (await spots(B)).seats.find((x) => x.who === "Admin");
+await B.mouse.click(aSpot.x, aSpot.y);
+await B.waitForTimeout(400);
+check("у не-админа в окне чужого стула позы нет", (await B.locator("[data-pose]").count()) === 0, null);
 
 const bad = checks.filter((c) => !c.ok);
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));

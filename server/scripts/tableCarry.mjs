@@ -16,7 +16,7 @@ const open = async (name) => {
   const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
   p.on("pageerror", (e) => console.log(name, "ERROR", e.message));
   await p.goto(`${base}/table/?room=${room}&name=${name}`);
-  await p.waitForSelector("[data-bar]");
+  await p.waitForSelector("[data-section]");
   await p.waitForTimeout(400);
   return p;
 };

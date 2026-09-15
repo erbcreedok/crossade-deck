@@ -16,7 +16,7 @@ const open = async (name) => {
   const p = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
   p.on("pageerror", (e) => console.log(name, "ERROR", e.message));
   await p.goto(`${base}/table/?room=${room}&name=${name}`);
-  await p.waitForSelector("[data-bar]");
+  await p.waitForSelector("[data-section]");
   await p.waitForTimeout(400);
   return p;
 };
@@ -92,12 +92,12 @@ t = await tip(A);
 check("тап по колоде — тултип верхней карты", t && /в колоде|Рубашкой/.test(t.text), t);
 
 // Кнопка HUD срабатывает и закрывает тултип.
-const fanBefore = await A.locator('[data-bar="fan"]').getAttribute("style");
-await A.locator('[data-bar="fan"]').click();
-await A.waitForTimeout(300);
-check("кнопка HUD сработала", (await A.locator('[data-bar="fan"]').getAttribute("style")) !== fanBefore, null);
+await A.locator('[data-section="pose"]').click();
+await A.waitForTimeout(400);
+check("кнопка HUD сработала", (await A.locator('[data-bar="fan"]').count()) === 1, null);
 check("и тултип закрылся", !(await tip(A)), null);
-await A.locator('[data-bar="fan"]').click();
+await A.locator('[data-section="pose"]').click();
+await A.waitForTimeout(400);
 
 // Открытая карта: колода → рука → стол на север.
 await drag(A, m2.x, m2.y, 195, 790);

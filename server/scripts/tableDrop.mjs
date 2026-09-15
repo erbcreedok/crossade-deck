@@ -11,7 +11,7 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, ha
 const page = await ctx.newPage();
 page.on("pageerror", (e) => console.log("ERROR", e.message));
 await page.goto(`${base}/table/?stand`);
-await page.waitForSelector("[data-bar]");
+await page.waitForSelector("[data-section]");
 const cdp = await ctx.newCDPSession(page);
 const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
 const view = async () => (await page.getAttribute("canvas", "data-view")).split(",").map(Number);

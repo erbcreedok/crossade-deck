@@ -130,7 +130,7 @@ const POSE = {
   tip: 0.25,
   fanIn: 0.17,
   fan: { spread: 60, radius: 2 },
-  fanShut: { spread: 14, radius: 2 },
+  shrinkOut: 0.5,
   ladder: { room: 2.2, gapMin: 0.08, gapMax: 0.55 },
 };
 
@@ -161,21 +161,16 @@ function posePlan(pose: Pose, n: number): { at: Point; angle: number }[] {
     const y = POSE.sideDrop * h;
     const near = ARCH_R - POSE.sideIn;
     if (pose.tuck) return Array.from({ length: n }, () => ({ at: { x: ARCH_R + POSE.tip * w - w / 2, y }, angle: 0 }));
-    if (pose.shrink) {
-      const drift = { x: 0.03, y: -0.03 };
-      const reach = 0.03 * Math.max(0, n - 1);
-      const k = reach > 0.18 ? 0.18 / reach : 1;
-      return Array.from({ length: n }, (_, i) => ({
-        at: { x: near + w / 2 + i * drift.x * k * s, y: y + i * drift.y * k * s },
-        angle: 0,
-      }));
-    }
+    // СЖАТЫ — одна карта, остальные стопкой за ней.
+    if (pose.shrink) return Array.from({ length: n }, () => ({ at: { x: near + w / 2, y }, angle: 0 }));
     const step = fitStep(n, POSE.ladder.room * s, POSE.ladder) * s;
     return Array.from({ length: n }, (_, i) => ({ at: { x: near + w / 2 + step * i, y }, angle: 0 }));
   }
   if (pose.tuck) return Array.from({ length: n }, () => ({ at: { x: 0, y: -(ARCH_R + POSE.tip * h) + h / 2 }, angle: 0 }));
   const middle = -(ARCH_R - POSE.fanIn * h) - h / 2;
-  return fanPoses(n, pose.shrink ? POSE.fanShut : POSE.fan).map((p) => ({
+  // Одна карта веера выдвинута к столу дальше обычного: на месте середины веера её закрыла бы табличка с именем.
+  if (pose.shrink) return Array.from({ length: n }, () => ({ at: { x: 0, y: middle - POSE.shrinkOut * h }, angle: 0 }));
+  return fanPoses(n, POSE.fan).map((p) => ({
     at: { x: p.at.x * s, y: middle + p.at.y * s },
     angle: p.angle,
   }));

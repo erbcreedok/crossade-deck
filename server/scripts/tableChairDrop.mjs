@@ -17,7 +17,7 @@ const open = async (name) => {
   const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
   p.on("pageerror", (e) => console.log(name, "ERROR", e.message));
   await p.goto(`${base}/table/?room=${room}&name=${name}`);
-  await p.waitForSelector("[data-bar]");
+  await p.waitForSelector("[data-section]");
   await p.waitForTimeout(400);
   return p;
 };
@@ -56,6 +56,8 @@ check("на сукно ничего не легло", (await spots(A)).felt.leng
 check("зоны погасли у всех", (await zone(A, bSeat.key)) === null && (await zone(C, bSeat.key)) === null, null);
 
 // ── 2. B ставит лок: зона стула B не горит ни у кого, карта возвращается на колоду ─────────────────
+await B.click('[data-section="chair"]');
+await B.waitForTimeout(350);
 await B.click('[data-bar="lock"]');
 await A.waitForTimeout(400);
 await A.evaluate(() => {
