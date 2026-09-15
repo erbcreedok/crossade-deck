@@ -7,18 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Tiny5&display=swap" rel="stylesheet">
-<script>
-  // КАНАЛ В TELEGRAM НА iOS. `telegram-web-app.js` шлёт события только через `TelegramWebviewProxy`; клиент iOS
-  // обязан его вставить, но бывает, что на странице есть лишь его транспорт `webkit.messageHandlers.performAction`
-  // — и вибрация, `expand`, запрет свайпа молча пропадают. Тогда прокси собирается здесь, тем же видом, что у iOS.
-  (function () {
-    var h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.performAction;
-    if (window.TelegramWebviewProxy === undefined && h) {
-      window.TelegramWebviewProxy = { postEvent: function (eventName, eventData) { h.postMessage({ eventName: eventName, eventData: eventData }); } };
-      window.__tgProxyShim = true;
-    }
-  })();
-</script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   /*

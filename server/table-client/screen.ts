@@ -233,8 +233,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   const art = deckArt(() => draw(), () => look);
   const sound = tableSound();
   const haptic = tableHaptic();
-  /** Что ответила проверка вибрации — строкой в настройках. */
-  let probed = "";
   /** Когда я последний раз касался экрана: перемена кадра вскоре после касания — моя, звучит громче. */
   let touchedAt = -Infinity;
   /** Последнее место каждой карты, какое было видно: из кадра её вынимают, пока держат. */
@@ -1995,8 +1993,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + row("sound", "Звуки") + (haptic.supported ? row("haptic", "Вибрация") : "")
       + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding:8px 0 4px">Колода</span>`
       + row("fourColour", "4 цвета") + row("cyrillic", "Кириллица")
-      + (haptic.supported ? `<button data-haptic-probe style="margin-top:8px;height:28px;border:0;border-radius:8px;cursor:pointer;color:${T.ink};font:400 11px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${BAR_LOOK.rim}">Проверить вибрацию</button>` : "")
-      + `<span data-client style="font:400 10px Tiny5,monospace;color:${T.inkDim};padding-top:8px">${[`build ${TABLE_BUILD}`, haptic.client, probed].filter(Boolean).join(" · ")}</span>` + `</div>`;
+      + `<span data-client style="font:400 10px Tiny5,monospace;color:${T.inkDim};padding-top:8px">${[`build ${TABLE_BUILD}`, haptic.client].filter(Boolean).join(" · ")}</span>` + `</div>`;
   }
 
   // ── ЧУЖИЕ РУКИ В ВОЗДУХЕ И ПЕРЕЛЁТЫ ────────────────────────────────────────────────────────────
@@ -2627,13 +2624,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       el.onclick = (e) => {
         e.stopPropagation();
         local.settings = !local.settings;
-        draw();
-      };
-    }
-    for (const el of over.querySelectorAll<HTMLElement>("[data-haptic-probe]")) {
-      el.onclick = (e) => {
-        e.stopPropagation();
-        probed = haptic.probe();
         draw();
       };
     }

@@ -37,8 +37,6 @@ export interface TableHaptic {
   /** Клиент Telegram — строкой для настроек: платформа и версия Bot API. */
   client: string;
   buzz(kind: Haptic): void;
-  /** Проверка из настроек: три отклика подряд и строка о том, как ушёл вызов. */
-  probe(): string;
 }
 
 let one: TableHaptic | null = null;
@@ -73,19 +71,6 @@ export function tableHaptic(): TableHaptic {
         // Старый клиент Telegram без вибрации.
       }
     },
-  };
-  haptic.probe = () => {
-    const w = globalThis as { __tgProxyShim?: boolean; webkit?: { messageHandlers?: { performAction?: unknown } }; external?: { notify?: unknown }; TelegramWebviewProxy?: unknown };
-    const road = w.__tgProxyShim ? "webkit-прокси" : w.TelegramWebviewProxy ? "proxy" : w.webkit?.messageHandlers?.performAction ? "webkit" : w.external?.notify ? "external" : window.parent !== window ? "iframe" : "нет канала";
-    const f = feedback();
-    try {
-      f?.impactOccurred("heavy");
-      window.setTimeout(() => f?.notificationOccurred("success"), 400);
-      window.setTimeout(() => f?.selectionChanged(), 800);
-      return `отправлено · ${road}`;
-    } catch (e) {
-      return `ошибка ${(e as Error).message} · ${road}`;
-    }
   };
   // Кнопки и клавиши — тик на касании; полосы эмодзи и стикеров отвечают сами, на отпускании без прокрутки.
   addEventListener("pointerdown", (e) => {

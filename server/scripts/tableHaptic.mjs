@@ -118,10 +118,12 @@ await B.mouse.click(195, 300);
 
 // 5б. Где вибрации нет (Mac, Desktop, браузер) — тумблера нет, и вызовов нет.
 await B.evaluate(() => { window.__platform = "macos"; });
+// Окно перерисовывается только открытием: закрыть, если открыто, и открыть заново.
 if (await B.$("[data-settings-panel]")) await B.click("[data-settings]");
-await B.waitForTimeout(200);
-await B.click("[data-settings]");
-await B.waitForTimeout(200);
+for (let i = 0; i < 3 && !(await B.$("[data-settings-panel]")); i += 1) {
+  await B.click("[data-settings]");
+  await B.waitForTimeout(250);
+}
 check("на Mac тумблера вибрации нет, внизу — клиент", (await B.$("[data-look=haptic]")) === null && /macos/.test(await B.textContent("[data-client]")), null);
 await B.mouse.click(195, 300);
 await B.waitForTimeout(300);
@@ -131,17 +133,6 @@ await B.click('[data-section="lasso"]');
 b = await felt(B);
 check("на Mac кнопки не зовут вибрацию", b.length === 0, b);
 await B.evaluate(() => { window.__platform = "ios"; });
-
-// 5в. Кнопка «Проверить вибрацию» — три отклика и строка о канале.
-await B.click("[data-settings]");
-await B.waitForTimeout(200);
-await felt(B);
-await B.click("[data-haptic-probe]");
-await B.waitForTimeout(1000);
-b = await felt(B);
-check("проверка: heavy, success, selection и «отправлено»", ["heavy", "success", "selection"].every((x) => b.includes(x)) && /отправлено/.test(await B.textContent("[data-client]")), [b, await B.textContent("[data-client]")]);
-await B.mouse.click(195, 300);
-await B.waitForTimeout(300);
 
 // 6. Шафл у B — серия лёгких тиков.
 await B.waitForTimeout(500);
