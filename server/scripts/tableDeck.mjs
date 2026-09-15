@@ -32,9 +32,38 @@ await p.addInitScript((data) => {
   Object.defineProperty(tg, "WebApp", { value: { initData: data, initDataUnsafe: {}, ready() {}, expand() {} }, writable: false });
   Object.defineProperty(window, "Telegram", { value: tg, writable: false });
 }, initData(7, "Admin"));
+// Картинки колоды приходят с опозданием: лоадер обязан дождаться последней.
+const SLOW = 1500;
+await p.route("**/table/cards/**", async (route) => {
+  await new Promise((r) => setTimeout(r, SLOW));
+  await route.continue();
+});
+// Каждый кадр: виден ли лоадер и чем нарисована колода — картинкой или бумажной картой.
+await p.addInitScript(() => {
+  window.__frames = [];
+  const tick = () => {
+    const sheet = document.querySelector(".crossade-loading:not(.gone)");
+    const c = document.querySelector("canvas");
+    const spots = c?.dataset.spots && JSON.parse(c.dataset.spots);
+    if (spots?.middle) {
+      const k = c.width / c.getBoundingClientRect().width;
+      const [r, g, b] = c.getContext("2d").getImageData(Math.round(spots.middle.x * k), Math.round(spots.middle.y * k), 1, 1).data;
+      window.__frames.push({ covered: Boolean(sheet), light: (r + g + b) / 3 });
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+});
+const t0 = Date.now();
 await p.goto(`${base}/table/?room=${room}`);
+await p.waitForTimeout(SLOW - 500);
+const early = await p.evaluate(() => ({ sheet: Boolean(document.querySelector(".crossade-loading:not(.gone)")), label: document.querySelector(".crossade-loading .said")?.textContent, z: document.querySelector(".crossade-loading")?.style.zIndex }));
+await p.waitForSelector(".crossade-loading", { state: "detached", timeout: 15000 });
+const shownMs = Date.now() - t0;
 await p.waitForSelector("[data-section]");
-await p.waitForTimeout(1200);
+await p.waitForTimeout(300);
+const frames = await p.evaluate(() => window.__frames);
+const bare = frames.filter((f) => !f.covered);
 
 const checks = [];
 const check = (name, ok, got) => checks.push({ name, ok, got });
@@ -53,6 +82,11 @@ const handArt = () => p.evaluate(() => [...document.querySelectorAll("[data-card
   paper: el.textContent,
 })));
 
+// ── 0. Лоадер хаба, пока картинки колоды не пришли; открытый стол ни разу не показал бумажную колоду ──
+check("лоадер хаба виден, пока картинки в пути", early.sheet && early.label === "Загружаю стол" && early.z === "1000", early);
+check("лоадер ушёл только после картинок", shownMs >= SLOW, shownMs);
+check("без лоадера колода ни в одном кадре не бумажная", bare.length > 5 && bare.every((f) => f.light > 170), { n: bare.length, worst: bare.reduce((m, f) => Math.min(m, f.light), 999) });
+
 // ── 1. Фон: сукно хаба под прозрачным холстом, трилистники ползут, ромбики мерцают ─────────────────
 const g0 = await p.evaluate(() => {
   const felt = document.querySelector("[data-g=ground]");
@@ -68,6 +102,19 @@ check("холст вокруг стола прозрачный — фон вид
 
 // ── 2. По умолчанию: рубашка — плед (светлая), лица — классика ────────────────────────────────────
 const m = (await spots()).middle;
+// Кромка колоды на холсте: у самого края карты — чёрный. Край ищется от середины влево до первого тёмного пикселя.
+const rim = await p.evaluate(([x, y]) => {
+  const c = document.querySelector("canvas");
+  const k = c.width / c.getBoundingClientRect().width;
+  const g = c.getContext("2d");
+  for (let dx = 0; dx < 60; dx += 0.5) {
+    const [r, gg, b] = g.getImageData(Math.round((x - dx) * k), Math.round(y * k), 1, 1).data;
+    if ((r + gg + b) / 3 < 40) return { dx, r, g: gg, b };
+    if ((r + gg + b) / 3 < 120) return { dx, felt: true, r, g: gg, b };
+  }
+  return null;
+}, [m.x, m.y]);
+check("у колоды на столе чёрная кромка", rim && !rim.felt, rim);
 check("колода на столе рубашкой-пледом: картинка пришла, пиксель светлый", art.some((a) => a.url === "/table/cards/backs/plaid.webp" && a.status === 200) && (await canvasAt(m.x, m.y)).light > 170, [art.slice(0, 3), await canvasAt(m.x, m.y)]);
 for (let i = 0; i < 2; i += 1) {
   await p.mouse.move(m.x, m.y);
@@ -78,6 +125,11 @@ for (let i = 0; i < 2; i += 1) {
 }
 let hand = await handArt();
 check("карты в руке — классика, с рангом в подписи, без бумажной подложки", hand.length === 2 && hand.every((c) => /\/table\/cards\/classic\/(spade|heart|diamond|club)-(\d+|[AJQK])\.webp/.test(c.url) && c.label && c.paper === ""), hand);
+const edge = await p.evaluate(() => {
+  const el = [...document.querySelectorAll("[data-card] [data-g=art]")][0];
+  return el && getComputedStyle(el).boxShadow;
+});
+check("у карты в руке чёрная кромка", /rgb\(11, 7, 4\) 0px 0px 0px \d/.test(edge ?? "") && /inset/.test(edge ?? ""), edge);
 const failed = art.filter((a) => a.status !== 200);
 check("все запрошенные картинки отдались", failed.length === 0 && art.length > 50, { failed, n: art.length });
 

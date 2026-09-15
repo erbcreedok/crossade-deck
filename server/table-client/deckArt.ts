@@ -25,8 +25,8 @@ export interface DeckArt {
   image(rules: TableRules | undefined, face: Face | undefined): HTMLImageElement | undefined;
   /** Адрес для DOM-карты. */
   url(rules: TableRules | undefined, face: Face | undefined): string;
-  /** Загрузить весь набор стола заранее: 54 лица и рубашку. */
-  warm(rules: TableRules | undefined): void;
+  /** Загрузить весь набор стола заранее: 54 лица и рубашку. Промис — когда все пришли (или не смогли). */
+  warm(rules: TableRules | undefined): Promise<void>;
 }
 
 const ALL: Face[] = [
@@ -35,9 +35,19 @@ const ALL: Face[] = [
   { suit: "b", rank: "JK" },
 ];
 
+/** Картинка пришла или не смогла прийти — ждать её дальше нечего. */
+export function settled(img: HTMLImageElement): Promise<void> {
+  if (img.complete) return Promise.resolve();
+  return new Promise((resolve) => {
+    img.addEventListener("load", () => resolve(), { once: true });
+    img.addEventListener("error", () => resolve(), { once: true });
+  });
+}
+
 export function deckArt(onReady: () => void): DeckArt {
   const cache = new Map<string, HTMLImageElement>();
   let warmed = "";
+  let warming: Promise<void> = Promise.resolve();
   const load = (src: string): HTMLImageElement => {
     let img = cache.get(src);
     if (!img) {
@@ -57,10 +67,11 @@ export function deckArt(onReady: () => void): DeckArt {
     url: artUrl,
     warm(rules) {
       const key = `${rules?.faces}/${rules?.back}`;
-      if (key === warmed) return;
+      if (key === warmed) return warming;
       warmed = key;
-      load(artUrl(rules, undefined));
-      for (const face of ALL) load(artUrl(rules, face));
+      const all = [load(artUrl(rules, undefined)), ...ALL.map((face) => load(artUrl(rules, face)))];
+      warming = Promise.all(all.map(settled)).then(() => {});
+      return warming;
     },
   };
 }

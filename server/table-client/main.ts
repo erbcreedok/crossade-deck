@@ -7,6 +7,7 @@
 import type { JoinOptions } from "../src/table/contract.js";
 import { localStore } from "./localStore.js";
 import { netStore } from "./netStore.js";
+import { loadingCross } from "../../look/src/loading.js";
 import { mountGround } from "./ground.js";
 import { mountScreen } from "./screen.js";
 import type { TableStore } from "./store.js";
@@ -49,14 +50,19 @@ telegram?.expand();
 telegram?.disableVerticalSwipes?.();
 document.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
 mountGround(stage);
+// ЛОАДЕР ХАБА — до входа и до последней картинки колоды. Поверх всего: у стола свои слои выше.
+const loading = loadingCross(document.body, "Загружаю стол");
+(document.body.lastElementChild as HTMLElement).style.zIndex = "1000";
 
 open()
   .then((store) => {
     document.title = store.title;
-    mountScreen(stage, store);
+    const screen = mountScreen(stage, store);
     store.onGone(() => say("Стол закрыт."));
+    return screen.ready.then(() => loading.done());
   })
   .catch((err: unknown) => {
+    loading.done();
     const text = err instanceof Error ? err.message : String(err);
     say(/who are you|unsigned/.test(text) ? "Сюда так не войти. Открой стол по ссылке из чата." : text);
   });

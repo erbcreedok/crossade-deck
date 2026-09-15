@@ -219,8 +219,18 @@ export const SUITS: Record<Face["suit"], [string, string]> = { s: ["♠", "#1b1b
  */
 function card(g: CanvasRenderingContext2D, face: Face | undefined, w: number, h: number, held?: string, art?: CardArt): void {
   const picture = art?.(face);
-  if (picture) g.drawImage(picture, -w / 2, -h / 2, w, h);
-  else paperCard(g, face, w, h);
+  if (picture) {
+    // ЧЁРНАЯ КРОМКА — примета стола на HTML: картинка обрезана по скруглению и обведена.
+    g.save();
+    roundRect(g, -w / 2, -h / 2, w, h, w * 0.12);
+    g.clip();
+    g.drawImage(picture, -w / 2, -h / 2, w, h);
+    g.restore();
+    roundRect(g, -w / 2, -h / 2, w, h, w * 0.12);
+    g.lineWidth = w * 0.05;
+    g.strokeStyle = SEAT.black;
+    g.stroke();
+  } else paperCard(g, face, w, h);
   // ВЗЯТАЯ ДРУГИМ — В ЕГО ЦВЕТЕ И ПРИГЛУШЁННАЯ: её видно, и видно, что она не твоя сейчас.
   if (held) {
     roundRect(g, -w / 2, -h / 2, w, h, w * 0.12);

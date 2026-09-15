@@ -10,7 +10,7 @@ import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { orbits, tableCamera } from "./camera.js";
-import { deckArt } from "./deckArt.js";
+import { deckArt, settled } from "./deckArt.js";
 import type { TableStore } from "./store.js";
 
 const T = {
@@ -142,7 +142,8 @@ interface Drag {
   moved: boolean;
 }
 
-export function mountScreen(stage: HTMLElement, store: TableStore): void {
+/** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
+export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Promise<void> } {
   const canvas = stage.querySelector("canvas")!;
   const over = stage.querySelector<HTMLElement>("#over")!;
   const images: Record<string, HTMLImageElement> = {};
@@ -494,7 +495,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const label = face ? ` role="img" aria-label="${escape(face.rank)}${SUITS[face.suit][0]}"` : ` role="img" aria-label="рубашка"`;
     const ready = art.image(rules, face) !== undefined;
     return `<span${label} style="position:absolute;inset:0">${ready ? "" : paperHtml(face, w)}`
-      + `<span data-g="art" style="position:absolute;inset:0;background:url(${art.url(rules, face)}) center/100% 100% no-repeat"></span></span>`;
+      + `<span data-g="art" style="position:absolute;inset:0;border-radius:${w * 0.12}px;background:url(${art.url(rules, face)}) center/100% 100% no-repeat;`
+      + `box-shadow:inset 0 0 0 ${Math.max(2, w * 0.05)}px ${T.black},0 2px 0 rgba(11,7,4,.55)"></span></span>`;
   }
 
   function paperHtml(face: Face | undefined, w: number): string {
@@ -1247,6 +1249,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
 
   function face(p: Person): string {
     if (!images[p.key]) {
+      // Ждать загрузки не нужно: `ready` ждёт лица тех, кто был за столом при входе.
       const img = new Image();
       img.onload = () => draw();
       img.src = p.photo!;
@@ -1675,6 +1678,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   addEventListener("orientationchange", draw);
   void document.fonts?.ready.then(draw);
   draw();
+
+  // ГОТОВ, КОГДА ВСЁ НА МЕСТЕ: пока нет — поверх висит лоадер (`main.ts`), и старой колоды никто не видит.
+  const photos = store.state.people.filter((p) => p.photo).map((p) => {
+    face(p);
+    return settled(images[p.key]!);
+  });
+  return { ready: Promise.all([art.warm(store.state.rules), document.fonts?.ready, ...photos]).then(() => {}) };
 }
 
 function escape(text: string): string {
