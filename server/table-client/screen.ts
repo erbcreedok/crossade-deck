@@ -7,6 +7,7 @@
 
 import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
+import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { orbits, tableCamera } from "./camera.js";
 import type { TableStore } from "./store.js";
@@ -112,6 +113,9 @@ interface Place {
 const TAP_MS = 350;
 const TAP_PX = 8;
 
+/** Сколько догадка ждёт ответа сервера, прежде чем уступить столу. */
+const GUESS_MS = 4000;
+
 /** Сколько летит карта из места в место. */
 const FLIGHT_MS = 260;
 
@@ -187,6 +191,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
    * `key` — место, где карта была, когда его открыли: карта уехала — тултип закрыт.
    */
   let cardTip: { id: string; key: string } | null = null;
+  /**
+   * ДОГАДКИ — нажатое в баре и в окне стула показывается сразу, не дожидаясь сервера: поза, флаг, порядок
+   * руки. Сервер считает то же самое (порядок — тем же `arrange.ts`, шафл — присланный), и его ответ ложится
+   * на уже нарисованное без перелёта. Одна догадка на одно место (`key`): новое нажатие заменяет прежнее.
+   * Уходит, когда стол с сервера стал таким же (`settled`), когда намерение отказано (откат) или по сроку.
+   */
+  let guesses: { key: string; intent: Intent; v: number; at: number; apply(s: Snapshot): Snapshot; settled(s: Snapshot): boolean }[] = [];
   let spots: Spot[] = [];
   let view: FeltView | null = null;
   /** Кадр камеры — стекло над рукой; пишется при каждом рисовании, читается камерой на жесте. */
@@ -224,8 +235,57 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   const me = () => store.me.key;
 
   /** Снимок, каким его видно сейчас: настоящий, с ожидаемым ходом поверх и без карты в воздухе. */
-  function seen(): Snapshot {
+  /** Стол с сервера и мои догадки поверх. */
+  function truth(): Snapshot {
     let s = store.state;
+    for (const g of guesses) s = g.apply(s);
+    return s;
+  }
+
+  const withChair = (s: Snapshot, id: string, change: (c: Chair) => Chair): Snapshot =>
+    ({ ...s, chairs: s.chairs.map((c) => (c.id === id ? change(c) : c)) });
+
+  function guess(key: string, intent: Intent, apply: (s: Snapshot) => Snapshot, settled: (s: Snapshot) => boolean): void {
+    guesses = [...guesses.filter((g) => g.key !== key), { key, intent, v: store.state.v, at: performance.now(), apply, settled }];
+    store.send(intent);
+    draw();
+  }
+
+  function guessPose(chair: string, k: keyof Pose, on: boolean): void {
+    guess(`pose:${chair}:${k}`, { t: "pose", chair, pose: { [k]: on } },
+      (s) => withChair(s, chair, (c) => ({ ...c, pose: { ...c.pose, [k]: on } })),
+      (s) => chairOf(s, chair)?.pose[k] === on);
+  }
+
+  function guessFlag(chair: string, flag: ChairFlag, on: boolean): void {
+    guess(`flag:${chair}:${flag}`, { t: "flag", chair, flag, on },
+      (s) => withChair(s, chair, (c) => ({ ...c, [flag]: on })),
+      (s) => chairOf(s, chair)?.[flag] === on);
+  }
+
+  /** Порядок своей руки: считается здесь, летит сразу. Лица какой-то карты не знаем — просто просим сервер. */
+  function guessOrder(how: Arrange): void {
+    const s = truth();
+    const chair = chairOf(s, mine(s));
+    if (!chair) return;
+    const ids = chair.hand.map((c) => c.id);
+    const faces = new Map(chair.hand.map((c) => [c.id, c.face]));
+    const next = how === "shuffle" ? shuffled(ids) : arranged(ids, how, (id) => faces.get(id));
+    if (!next) return store.send({ t: "arrange", how });
+    guess(`order:${chair.id}`, { t: "arrange", how, ...(how === "shuffle" ? { ids: next } : {}) },
+      (st) => withChair(st, chair.id, (c) => {
+        const byId = new Map(c.hand.map((card) => [card.id, card]));
+        return samePack(next, [...byId.keys()]) ? { ...c, hand: next.map((id) => byId.get(id)!) } : c;
+      }),
+      (st) => {
+        const hand = chairOf(st, chair.id)?.hand.map((c) => c.id) ?? [];
+        // Рука сменилась под догадкой (карту взяли или положили) — гадать больше не о чем.
+        return hand.join() === next.join() || !samePack(hand, next);
+      });
+  }
+
+  function seen(): Snapshot {
+    let s = truth();
     if (pending) s = applyPatch(s, { v: s.v, ops: [{ t: "move", card: pending.card, from: pending.from, to: pending.to }] });
     // В ВОЗДУХЕ — МОЯ КАРТА И ЧУЖИЕ: со своего места они сняты, пока их несут.
     const up = new Set(store.carries.map((c) => c.id));
@@ -249,6 +309,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   };
   /** Поза руки стула — с сервера; без стула — поза по умолчанию. */
   const poseOf = (s: Snapshot, chair: string): Pose => chairOf(s, chair)?.pose ?? DEFAULT_POSE;
+  /** Поза, как она нарисована сейчас — с догадками. */
+  const poseNow = (chair: string): Pose => poseOf(guesses.length ? truth() : store.state, chair);
   const inkOf = (s: Snapshot, key: string) => s.people.find((p) => p.key === key)?.ink ?? T.inkDim;
   const heldByOthers = (s: Snapshot): Record<string, string> =>
     Object.fromEntries(Object.entries(s.locks).filter(([, by]) => by !== me()).map(([id, by]) => [id, inkOf(s, by)]));
@@ -308,7 +370,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
     const room = g.w / u - 2 * HUD_MARGIN;
     const scale = Math.min(1, room / (HUD_CARDS * CARD.w * (1 + HUD_GAP)));
     const wide = Math.max(1, g.w / u / scale);
-    const pose = poseOf(store.state, mine());
+    const pose = poseNow(mine());
     const plan = handPlan(pose, count, CARD.w, CARD.h, wide);
     const drop = plan.reduce((m, p) => Math.max(m, p.y), 0);
     const high = CARD.h + drop + 2 * HAND_PAD + HAND_ROOM;
@@ -405,7 +467,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
 
   function tipGeom(key: string, spot: Spot, count: number): Geom {
     const box = placedTips.get(key) ?? tipBox(spot, [...placedTips.values()]);
-    const plan = handPlan(poseOf(store.state, key), count, 1, 1.4, box.inner / box.cw);
+    const plan = handPlan(poseNow(key), count, 1, 1.4, box.inner / box.cw);
     return {
       which: key, mirror: true, w: box.cw, h: box.ch, box,
       slots: plan.map((p) => ({ x: box.left + 12 + box.inner / 2 + p.x * box.cw, y: box.rowTop + 8 + box.ch / 2 + p.y * box.cw, angle: p.angle })),
@@ -518,7 +580,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   }
 
   function layHand(geom: Geom, cards: SeenCard[], gaps: Gap[], owner: string, held: Record<string, string>, shut = false): string {
-    const shrunk = poseOf(store.state, owner).shrink;
+    const shrunk = poseNow(owner).shrink;
     const top = cards.at(-1)?.id;
     return laid(geom, cards, gaps, owner)
       .map((one) =>
@@ -1418,13 +1480,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       el.onclick = (e) => {
         e.stopPropagation();
         const what = el.dataset.bar as BarKey;
-        const s = store.state;
+        const s = truth();
         const seat = chairOf(s, mine(s));
         if (what === "leave") local.confirmLeave = !local.confirmLeave;
         else if (!seat) return;
-        else if ((RIGHTS as readonly string[]).includes(what)) store.send({ t: "flag", chair: seat.id, flag: what as ChairFlag, on: !seat[what as ChairFlag] });
-        else if ((FOLDS as readonly string[]).includes(what)) store.send({ t: "pose", chair: seat.id, pose: { [what]: !seat.pose[what as keyof Pose] } });
-        else store.send({ t: "arrange", how: what as Arrange });
+        else if ((RIGHTS as readonly string[]).includes(what)) return guessFlag(seat.id, what as ChairFlag, !seat[what as ChairFlag]);
+        else if ((FOLDS as readonly string[]).includes(what)) return guessPose(seat.id, what as keyof Pose, !seat.pose[what as keyof Pose]);
+        else return guessOrder(what as Arrange);
         draw();
       };
     }
@@ -1440,18 +1502,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
       el.onpointerdown = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const chair = chairOf(store.state, el.dataset.chair!);
+        const chair = chairOf(truth(), el.dataset.chair!);
         const k = el.dataset.pose as keyof Pose;
-        if (chair) store.send({ t: "pose", chair: chair.id, pose: { [k]: !chair.pose[k] } });
+        if (chair) guessPose(chair.id, k, !chair.pose[k]);
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-flag]")) {
       el.onpointerdown = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const chair = chairOf(store.state, el.dataset.chair!);
+        const chair = chairOf(truth(), el.dataset.chair!);
         const flag = el.dataset.flag as ChairFlag;
-        if (chair) store.send({ t: "flag", chair: chair.id, flag, on: !chair[flag] });
+        if (chair) guessFlag(chair.id, flag, !chair[flag]);
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-sit]")) {
@@ -1483,6 +1545,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   // ── СЕТЬ ────────────────────────────────────────────────────────────────────────────────────
 
   store.onChange(() => {
+    const now = performance.now();
+    guesses = guesses.filter((g) => now - g.at < GUESS_MS && !(store.state.v > g.v && g.settled(store.state)));
     if (pending) {
       const holder = store.state.locks[pending.id];
       if (holder === me()) pending.sawLock = true;
@@ -1497,6 +1561,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): void {
   });
 
   store.onRefused((intent: Intent) => {
+    // ОТКАЗ — догадка снимается, и нарисованное возвращается к тому, что на столе.
+    // Узнаётся по виду намерения и стулу, а не по тексту целиком: сервер возвращает то, что до него дошло.
+    const chairOfIntent = (i: Intent) => ("chair" in i ? i.chair : undefined);
+    guesses = guesses.filter((g) => g.intent.t !== intent.t || chairOfIntent(g.intent) !== chairOfIntent(intent));
     if (intent.t === "grab" && drag?.card.id === intent.id) {
       clearInterval(drag.hold);
       drag = null;

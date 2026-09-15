@@ -323,6 +323,12 @@ describe("Table: поза, порядок, встать", () => {
     expect(hand()[0]).toBe("sA");
     expect(back).toBeTruthy();
     expect(t.act("a", { t: "arrange", how: "nope" as "suit" }, 0)).toEqual({ refused: "bad" });
+    // Шафл с готовым порядком: те же карты — принят как есть; чужая или лишняя карта — отказ.
+    const mine = [...hand()].reverse();
+    ops(t.act("a", { t: "arrange", how: "shuffle", ids: mine }, 0));
+    expect(hand()).toEqual(mine);
+    expect(t.act("a", { t: "arrange", how: "shuffle", ids: [...mine.slice(1), "zz"] }, 0)).toEqual({ refused: "bad" });
+    expect(t.act("a", { t: "arrange", how: "shuffle", ids: mine.slice(1) }, 0)).toEqual({ refused: "bad" });
   });
 
   it("встать: за столом без стула; стул с картами стоит, пустой уходит по правилу; сесть можно снова", () => {

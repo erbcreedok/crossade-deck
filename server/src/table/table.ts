@@ -37,6 +37,7 @@ import {
   type Trail,
   type Where,
 } from "./contract.js";
+import { arranged, samePack, shuffled } from "./arrange.js";
 import { freeAngle, seatPoint } from "./ring.js";
 
 /** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
@@ -188,7 +189,7 @@ export class Table {
         return { ops: this.commit([{ t: "order", chair: chair.id, ids: [...chair.hand] }]) };
       }
       case "arrange":
-        return this.arrange(by, intent.how);
+        return this.arrange(by, intent.how, intent.ids);
       case "pose":
         return this.pose(by, intent.chair, intent.pose);
       case "stand": {
@@ -320,27 +321,17 @@ export class Table {
     return { ops: this.commit(ops) };
   }
 
-  /** Переставить руку своего стула. Джокеры — в конце; масть — в порядке колоды, внутри неё — по номиналу. */
-  private arrange(by: string, how: Arrange, random: () => number = Math.random): Result {
+  /** Переставить руку своего стула (`arrange.ts`). Шафл без присланного порядка мешает сам. */
+  private arrange(by: string, how: Arrange, ids?: string[]): Result {
     const chair = this.seatOf(by);
     if (!chair || !["suit", "rank", "reverse", "shuffle"].includes(how)) return { refused: "bad" };
-    const hand = chair.hand;
-    if (how === "reverse") hand.reverse();
-    else if (how === "shuffle") {
-      for (let i = hand.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(random() * (i + 1));
-        [hand[i], hand[j]] = [hand[j]!, hand[i]!];
-      }
-    } else {
-      const suit = (id: string) => SUIT_ORDER.indexOf(this.faces.get(id)!.suit);
-      const rank = (id: string) => RANK_ORDER.indexOf(this.faces.get(id)!.rank);
-      const key = how === "suit" ? (id: string) => [suit(id), rank(id)] : (id: string) => [rank(id), suit(id)];
-      hand.sort((a, b) => {
-        const [a1, a2] = key(a), [b1, b2] = key(b);
-        return a1! - b1! || a2! - b2!;
-      });
-    }
-    return { ops: this.commit([{ t: "order", chair: chair.id, ids: [...hand] }]) };
+    let next: string[] | null;
+    if (how !== "shuffle") next = arranged(chair.hand, how, (id) => this.faces.get(id));
+    else if (ids === undefined) next = shuffled(chair.hand);
+    else next = Array.isArray(ids) && ids.every((id) => typeof id === "string") && samePack(ids, chair.hand) ? [...ids] : null;
+    if (!next) return { refused: "bad" };
+    chair.hand = next;
+    return { ops: this.commit([{ t: "order", chair: chair.id, ids: [...next] }]) };
   }
 
   private pose(by: string, id: string, pose: Partial<HandPose>): Result {
@@ -639,10 +630,6 @@ export class Table {
     };
   }
 }
-
-/** Порядок мастей и номиналов при сортировке руки: как в колоде, джокеры — в конце. */
-const SUIT_ORDER = ["s", "h", "d", "c", "r", "b"];
-const RANK_ORDER = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "JK"];
 
 /** Id карты — случайный: по нему нельзя узнать ни карту, ни её прежний id. */
 function freshId(): string {
