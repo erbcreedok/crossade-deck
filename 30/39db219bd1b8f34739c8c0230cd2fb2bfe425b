@@ -1,0 +1,27 @@
+server/scripts/genEmoji.mjs
+  s_9ed0da107cbc4a::t_34f2b91a3d1df9 1-22
+server/scripts/tableTalk.mjs
+  s_9ed0da107cbc4a::t_167b02ad307ebc 40-45,79-82,183-210,220,226-239,245
+server/src/table/emoji.ts
+  s_9ed0da107cbc4a::t_8e634000e36ca4 1-4
+server/src/table/say.ts
+  s_9ed0da107cbc4a::t_c567a73b821918 9-10,52
+server/table-client/talk.ts
+  s_9ed0da107cbc4a::t_ff5900359ca370 10,20-24,112-114,129-132,137-168,170-221,223-225,271-279,312
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3039db219bd1b8f34739c8c0230cd2fb2bfe425b",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
