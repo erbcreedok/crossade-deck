@@ -277,6 +277,71 @@ describe("Table: флаги и права", () => {
   });
 });
 
+describe("Table: поза, порядок, встать", () => {
+  it("позу руки меняет хозяин и админ; видят все; карты брать поза не мешает", () => {
+    const t = seated("a", "b", "c");
+    const b = seatOf(t, "b");
+    expect(chair(t, b)!.pose).toEqual({ fan: true, shrink: false, tuck: false });
+    ops(t.act("b", { t: "pose", chair: b, pose: { shrink: true } }, 0));
+    expect(chair(t, b, "c")!.pose).toEqual({ fan: true, shrink: true, tuck: false });
+    expect(t.act("c", { t: "pose", chair: b, pose: { tuck: true } }, 0)).toEqual({ refused: "not-yours" });
+    ops(t.act("a", { t: "pose", chair: b, pose: { tuck: true, fan: false } }, 0));
+    expect(chair(t, b)!.pose).toEqual({ fan: false, shrink: true, tuck: true });
+    expect(t.act("b", { t: "pose", chair: b, pose: { fan: 1 as unknown as boolean } }, 0)).toEqual({ refused: "bad" });
+    const x = deal(t, "b", b);
+    deal(t, "b", b);
+    expect("ops" in t.act("c", { t: "grab", id: x }, 0)).toBe(true);
+  });
+
+  it("сортировка по масти, по номиналу, реверс и шафл — один раз и только своя рука", () => {
+    const faces = [
+      { id: "h9", face: { rank: "9", suit: "h" as const } },
+      { id: "sA", face: { rank: "A", suit: "s" as const } },
+      { id: "jk", face: { rank: "JK", suit: "r" as const } },
+      { id: "h6", face: { rank: "6", suit: "h" as const } },
+      { id: "s6", face: { rank: "6", suit: "s" as const } },
+    ];
+    const t = new Table(faces, "a");
+    t.join(person("a"));
+    t.join(person("b"));
+    const a = seatOf(t, "a");
+    for (let i = 0; i < 5; i += 1) deal(t, "a", a);
+    const hand = () => chair(t, a, "a")!.hand.map((c) => c.id);
+    ops(t.act("a", { t: "arrange", how: "suit" }, 0));
+    expect(hand()).toEqual(["s6", "sA", "h6", "h9", "jk"]);
+    ops(t.act("a", { t: "arrange", how: "rank" }, 0));
+    expect(hand()).toEqual(["s6", "h6", "h9", "sA", "jk"]);
+    ops(t.act("a", { t: "arrange", how: "reverse" }, 0));
+    expect(hand()).toEqual(["jk", "sA", "h9", "h6", "s6"]);
+    ops(t.act("a", { t: "arrange", how: "shuffle" }, 0));
+    expect([...hand()].sort()).toEqual(["h6", "h9", "jk", "s6", "sA"]);
+    // Не держится: новая карта ложится туда, куда её положили.
+    const back = hand()[0]!;
+    ops(t.act("a", { t: "arrange", how: "suit" }, 0));
+    ops(t.act("a", { t: "grab", id: "sA" }, 0));
+    ops(t.act("a", { t: "drop", id: "sA", to: { in: "hand", chair: a, i: 0 } }, 0));
+    expect(hand()[0]).toBe("sA");
+    expect(back).toBeTruthy();
+    expect(t.act("a", { t: "arrange", how: "nope" as "suit" }, 0)).toEqual({ refused: "bad" });
+  });
+
+  it("встать: за столом без стула; стул с картами стоит, пустой уходит по правилу; сесть можно снова", () => {
+    const t = seated("a", "b");
+    const a = seatOf(t, "a");
+    const b = seatOf(t, "b");
+    deal(t, "a", a);
+    ops(t.act("a", { t: "stand" }, 0));
+    expect(t.seenBy("b").people.find((p) => p.key === "a")!.seat).toBeUndefined();
+    expect(chair(t, a)!.owner).toBeNull();
+    expect(t.seenBy("b").admin).toBe("a");
+    ops(t.act("b", { t: "stand" }, 0));
+    expect(chair(t, b)).toBeUndefined();
+    expect(t.act("b", { t: "stand" }, 0)).toEqual({ refused: "bad" });
+    ops(t.act("b", { t: "sit", chair: a }, 0));
+    expect(chair(t, a)!.owner).toBe("b");
+  });
+});
+
 describe("патч клиента совпадает с сервером", () => {
   it("после каждого шага снимок + дифы == снимок, взятый целиком, для каждого зрителя", () => {
     const viewers = ["a", "b", "c"];
@@ -298,9 +363,14 @@ describe("патч клиента совпадает с сервером", () =>
     step("b", { t: "drop", id: "c6", to: { in: "hand", chair: b, i: 0 } });
     step("b", { t: "flag", chair: b, flag: "hide", on: false });
     step("a", { t: "flip" });
+    step("a", { t: "arrange", how: "shuffle" });
+    step("b", { t: "pose", chair: b, pose: { shrink: true } });
+    step("a", { t: "pose", chair: b, pose: { tuck: true } });
     step("a", { t: "grab", id: "c7" });
     step("a", { t: "drop", id: "c7", to: { in: "felt", x: 0.5, y: -1, up: true, angle: 35 } });
     step("b", { t: "flag", chair: b, flag: "lock", on: true });
+    step("b", { t: "stand" });
+    step("b", { t: "sit", chair: b });
     run(t.leave("b"));
     step("c", { t: "sit", chair: b });
     step("c", { t: "flag", chair: b, flag: "hide", on: true });

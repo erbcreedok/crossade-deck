@@ -95,12 +95,33 @@ export interface ChairFlags {
 export type ChairFlag = keyof ChairFlags;
 export const CHAIR_FLAGS: readonly ChairFlag[] = ["pin", "lock", "hide", "forever"];
 
+/**
+ * ПОЗА РУКИ — как хозяин держит карты; видят все, рисуют по ней худ, окно стула и стул на столе.
+ *
+ *   fan     веером (иначе — прямо)
+ *   shrink  сжаты: видна одна верхняя карта. Ограничение только в интерфейсе — сервер карты не прячет
+ *   tuck    скрыты: рука за худом, торчит краешек; тянуть можно всё, что торчит
+ *
+ * Меняет хозяин и админ.
+ */
+export interface HandPose {
+  fan: boolean;
+  shrink: boolean;
+  tuck: boolean;
+}
+export const HAND_POSE_KEYS = ["fan", "shrink", "tuck"] as const;
+export const DEFAULT_POSE: HandPose = { fan: true, shrink: false, tuck: false };
+
+/** Одноразовая перестановка руки: не держится — следующая карта ляжет, куда её положат. */
+export type Arrange = "suit" | "rank" | "reverse" | "shuffle";
+
 export interface Chair extends ChairFlags {
   id: string;
   /** Место за столом — угол в градусах от своей стороны (шесть часов), по часовой. */
   angle: number;
   /** Кто сидит. `null` — стул покинут. */
   owner: string | null;
+  pose: HandPose;
   hand: SeenCard[];
 }
 
@@ -158,6 +179,12 @@ export type Intent =
   | { t: "release"; id: string }
   /** Перевернуть порядок руки своего стула. */
   | { t: "flip" }
+  /** Переставить руку своего стула — один раз. */
+  | { t: "arrange"; how: Arrange }
+  /** Поменять позу руки: своей — хозяин, любой — админ. */
+  | { t: "pose"; chair: string; pose: Partial<HandPose> }
+  /** Встать со стула, оставшись за столом. Стул дальше — по правилу стола. */
+  | { t: "stand" }
   /** Сесть на покинутый стул. */
   | { t: "sit"; chair: string }
   /** Поставить или снять флаг стула. */

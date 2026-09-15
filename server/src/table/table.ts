@@ -19,8 +19,12 @@ import {
   LOCK_TTL_MS,
   type Carry,
   type CarryOut,
+  DEFAULT_POSE,
+  HAND_POSE_KEYS,
+  type Arrange,
   type Chair,
   type ChairFlag,
+  type HandPose,
   type Face,
   type FeltCard,
   type Intent,
@@ -54,6 +58,7 @@ interface ChairRow {
   lock: boolean;
   hide: boolean;
   forever: boolean;
+  pose: HandPose;
   hand: string[];
 }
 
@@ -182,6 +187,18 @@ export class Table {
         chair.hand.reverse();
         return { ops: this.commit([{ t: "order", chair: chair.id, ids: [...chair.hand] }]) };
       }
+      case "arrange":
+        return this.arrange(by, intent.how);
+      case "pose":
+        return this.pose(by, intent.chair, intent.pose);
+      case "stand": {
+        const person = this.people.get(by);
+        const chair = this.seatOf(by);
+        if (!person || !chair) return { refused: "bad" };
+        const { seat: _seat, ...standing } = person;
+        this.people.set(by, standing);
+        return { ops: this.commit([{ t: "join", person: standing }, ...this.vacate(chair, "left")]) };
+      }
       case "sit":
         return this.sit(by, intent.chair);
       case "flag":
@@ -303,6 +320,44 @@ export class Table {
     return { ops: this.commit(ops) };
   }
 
+  /** Переставить руку своего стула. Джокеры — в конце; масть — в порядке колоды, внутри неё — по номиналу. */
+  private arrange(by: string, how: Arrange, random: () => number = Math.random): Result {
+    const chair = this.seatOf(by);
+    if (!chair || !["suit", "rank", "reverse", "shuffle"].includes(how)) return { refused: "bad" };
+    const hand = chair.hand;
+    if (how === "reverse") hand.reverse();
+    else if (how === "shuffle") {
+      for (let i = hand.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(random() * (i + 1));
+        [hand[i], hand[j]] = [hand[j]!, hand[i]!];
+      }
+    } else {
+      const suit = (id: string) => SUIT_ORDER.indexOf(this.faces.get(id)!.suit);
+      const rank = (id: string) => RANK_ORDER.indexOf(this.faces.get(id)!.rank);
+      const key = how === "suit" ? (id: string) => [suit(id), rank(id)] : (id: string) => [rank(id), suit(id)];
+      hand.sort((a, b) => {
+        const [a1, a2] = key(a), [b1, b2] = key(b);
+        return a1! - b1! || a2! - b2!;
+      });
+    }
+    return { ops: this.commit([{ t: "order", chair: chair.id, ids: [...hand] }]) };
+  }
+
+  private pose(by: string, id: string, pose: Partial<HandPose>): Result {
+    const chair = this.chairs.get(id);
+    if (!chair) return { refused: "gone" };
+    if (chair.owner !== by && by !== this.admin) return { refused: "not-yours" };
+    const next = { ...chair.pose };
+    for (const k of HAND_POSE_KEYS) {
+      const v = pose?.[k];
+      if (v === undefined) continue;
+      if (typeof v !== "boolean") return { refused: "bad" };
+      next[k] = v;
+    }
+    chair.pose = next;
+    return { ops: this.commit([{ t: "chair", chair: this.chairOut(chair) }]) };
+  }
+
   private flag(by: string, id: string, flag: ChairFlag, on: boolean): Result {
     const chair = this.chairs.get(id);
     if (!chair) return { refused: "gone" };
@@ -415,6 +470,7 @@ export class Table {
       lock: false,
       hide: true,
       forever: false,
+      pose: { ...DEFAULT_POSE },
       hand: [],
     };
     this.chairs.set(chair.id, chair);
@@ -540,8 +596,8 @@ export class Table {
 
   /** Стул в полном виде — лица в руке режет `seenOp`. */
   private chairOut(chair: ChairRow): Chair {
-    const { last: _last, hand, ...rest } = chair;
-    return { ...rest, hand: hand.map((id) => ({ id })) };
+    const { last: _last, hand, pose, ...rest } = chair;
+    return { ...rest, pose: { ...pose }, hand: hand.map((id) => ({ id })) };
   }
 
   /**
@@ -583,6 +639,10 @@ export class Table {
     };
   }
 }
+
+/** Порядок мастей и номиналов при сортировке руки: как в колоде, джокеры — в конце. */
+const SUIT_ORDER = ["s", "h", "d", "c", "r", "b"];
+const RANK_ORDER = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "JK"];
 
 /** Id карты — случайный: по нему нельзя узнать ни карту, ни её прежний id. */
 function freshId(): string {
