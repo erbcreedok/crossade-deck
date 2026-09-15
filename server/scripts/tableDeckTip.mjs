@@ -36,17 +36,17 @@ const openTip = async (p) => {
   await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
   await wait(p, 450);
 };
-/**
- * Точка внутри видимой части карты колоды в окне: у её левого края по середине высоты, с поворотом карты —
- * в веере следующая лежит поверх и закрывает середину, а угол рамки повёрнутой карты пуст.
- */
+/** Точка, где сверху лежит именно эта карта колоды в окне: в веере соседки перекрывают друг друга. */
 const cardAt = (p, id) => p.evaluate((id) => {
   const el = document.querySelector(`[data-card="${id}"][data-owner="deck"]`);
   if (!el) return null;
-  const left = parseFloat(el.style.left), top = parseFloat(el.style.top), w = parseFloat(el.style.width), h = parseFloat(el.style.height);
-  const a = (parseFloat(/rotate\(([-0-9.e]+)deg/.exec(el.style.transform)?.[1] ?? "0") * Math.PI) / 180;
-  const dx = -w / 2 + 5, dy = 0;
-  return { x: left + w / 2 + dx * Math.cos(a) - dy * Math.sin(a), y: top + h / 2 + dx * Math.sin(a) + dy * Math.cos(a) };
+  const b = el.getBoundingClientRect();
+  for (let y = b.top + b.height * 0.5; y < b.bottom - 2; y += 3) {
+    for (let x = b.left + 1; x < b.right - 1; x += 1) {
+      if (document.elementFromPoint(x, y)?.closest("[data-card]") === el) return { x, y };
+    }
+  }
+  return null;
 }, id);
 const tipBox = (p) => p.locator('[data-g="deck-tip"]').boundingBox();
 /** Протащить: взять, увести, привести, отпустить; `during` — посмотреть, пока держим над целью. */
@@ -61,6 +61,22 @@ const carry = async (p, from, to, during) => {
   await wait(p, 600);
   return seen;
 };
+/** Сколько карт летит разом в ближайшие `ms` — максимум по кадрам. `inTip` — только над окном колоды. */
+const flights = (p, ms = 250) => p.evaluate((ms) => new Promise((done) => {
+  const tip = document.querySelector('[data-g="deck-tip"]')?.getBoundingClientRect();
+  let most = 0;
+  const t0 = performance.now();
+  const tick = () => {
+    const n = [...document.querySelectorAll("[data-flight]")].filter((el) => {
+      const b = el.getBoundingClientRect();
+      return tip && b.top < tip.bottom + 40 && b.bottom > tip.top - 40;
+    }).length;
+    most = Math.max(most, n);
+    if (performance.now() - t0 < ms) requestAnimationFrame(tick);
+    else done(most);
+  };
+  tick();
+}), ms);
 const tipMarks = (p) => p.evaluate(() => {
   const tip = document.querySelector('[data-g="deck-tip"]').getBoundingClientRect();
   return [...document.querySelectorAll('[data-g="mark"]')].filter((m) => { const b = m.getBoundingClientRect(); return b.top >= tip.top - 30 && b.bottom <= tip.bottom + 30; }).map((m) => m.style.borderColor || m.style.border);
@@ -106,6 +122,32 @@ await carry(A, felt, { x: slot.x - 2, y: slot.y });
 sb = await spots(B);
 const at = sb.deckIds.indexOf(middle);
 check("с сукна — в окно, на место под пальцем (не наверх)", sb.deck === 36 && at > 5 && at < 34, { at });
+
+// ── 5. Анимация: сортировка, перемешивание и перестановка — карты в окне летят на новые места ────────
+const nowIds = (await spots(A)).deckIds;
+let [fa, fb] = await Promise.all([flights(A), flights(B), A.locator('[data-deck-do="sort"]').dispatchEvent("pointerdown")]);
+check("сортировка: в окне у A карты летят", fa > 10, fa);
+check("и у B", fb > 10, fb);
+await wait(A, 500);
+[fa, fb] = await Promise.all([flights(A, 300), flights(B, 300), A.locator('[data-deck-do="shuffle"]').dispatchEvent("pointerdown")]);
+check("перемешивание: в окне у A карты разлетаются по новым местам", fa > 20, fa);
+check("и у B", fb > 20, fb);
+await wait(A, 1500);
+const ids5 = (await spots(A)).deckIds;
+const low = await cardAt(A, ids5[5]);
+const tb5 = await tipBox(A);
+const watchB = flights(B, 1600);
+await A.mouse.move(low.x, low.y);
+await A.mouse.down();
+await A.mouse.move(low.x, low.y - 60, { steps: 4 });
+await A.mouse.move(tb5.x + tb5.width - 20, tb5.y + tb5.height - 40, { steps: 8 });
+await wait(A, 150);
+await A.mouse.up();
+const fr = await watchB;
+await wait(B, 300);
+check("перестановка: у B соседи сдвигаются перелётом, пока карту несут и когда кладут", fr > 3, fr);
+check("и карта встала на новое место", (await spots(B)).deckIds.indexOf(ids5[5]) > 25, (await spots(B)).deckIds.indexOf(ids5[5]));
+void nowIds;
 
 await A.close();
 await B.close();

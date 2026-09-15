@@ -1299,7 +1299,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const g = glass();
     const s = seen();
     if (store.state.shuffles !== seenShuffles) {
-      if (seenShuffles !== undefined) queueMicrotask(() => playShuffle(store.state));
+      if (seenShuffles !== undefined) {
+        queueMicrotask(() => playShuffle(store.state));
+        shuffledInTip = local.deckTip;
+      }
       seenShuffles = store.state.shuffles;
     }
     const seat = mine(s);
@@ -1379,6 +1382,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // во втором проходе места те же, и нового перелёта не будет.
     const places = placesOf(s);
     let started = fly(places);
+    // ПЕРЕМЕШИВАНИЕ В ОКНЕ КОЛОДЫ. У карт новые id, и перелёту не с чем сравнить: каждая карта прилетает на своё
+    // место из чужого гнезда, как будто колоду перетасовали на глазах.
+    if (shuffledInTip) {
+      shuffledInTip = false;
+      const inTip = [...places].filter(([, p]) => p.key.startsWith("deck:") && p.squash === 1);
+      const order = shuffled(inTip.map((_, i) => String(i))).map(Number);
+      inTip.forEach(([id, to], i) => launch(id, { ...inTip[order[i]!]![1], key: "shuffle" }, to));
+      started ||= inTip.length > 0;
+    }
     if (returning && places.has(returning.id)) {
       launch(returning.id, returning.from, places.get(returning.id)!);
       started = true;
@@ -1480,7 +1492,19 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       const p = v.toGlass(at);
       return { key, x: p.x, y: p.y, w: FELT_CARD.w * scale * v.k, h: FELT_CARD.h * scale * v.k, angle: v.rotation + angle, squash: v.squash, face };
     };
-    s.deck.forEach((c, i) => out.set(c.id, onDesk("deck", v.deckAt(i, s.deck.length), 1, s.spot?.angle ?? 0)));
+    // КАРТА КОЛОДЫ — своё место в колоде (`deck:i`): переставили, отсортировали, перевернули — место сменилось, и
+    // она летит. В открытом окне колоды — там, в веере; окно открыли или закрыли — это не переезд, ключ тот же.
+    const tipGaps = deckGaps(s);
+    const tipGeom = deckTipGeom(s, s.deck.length + tipGaps.length);
+    // Место карты в веере окна — среди карт и щелей, как их раскладывает окно.
+    const row: (SeenCard | Gap)[] = [...s.deck];
+    for (const gap of tipGaps) row.splice(Math.max(0, Math.min(row.length, gap.index)), 0, gap);
+    s.deck.forEach((c, i) => {
+      const face = c.up ? c.face : undefined;
+      if (!tipGeom) return out.set(c.id, onDesk(`deck:${i}`, v.deckAt(i, s.deck.length), 1, s.spot?.angle ?? 0, face));
+      const slot = tipGeom.slots[row.indexOf(c)]!;
+      out.set(c.id, { key: `deck:${i}`, x: slot.x, y: slot.y, w: tipGeom.box.cw, h: tipGeom.box.ch, angle: slot.angle, squash: 1, face });
+    });
     for (const f of s.felt) out.set(f.id, onDesk(`felt:${f.x.toFixed(2)},${f.y.toFixed(2)},${f.angle}`, v.feltAt(f.id) ?? f, 1, f.angle, f.up ? f.face : undefined));
     const shown = handsShown(s);
     for (const c of s.chairs) {
@@ -1611,6 +1635,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * картинка, а не ход: колода на сервере уже перемешана, у всех карт новые id.
    */
   let seenShuffles: number | undefined;
+  /** Перемешали при открытом окне колоды: в следующем кадре карты в нём разлетаются по новым местам. */
+  let shuffledInTip = false;
   function playShuffle(s: Snapshot): void {
     if (!view || s.deck.length === 0) return;
     const at = view.toGlass(view.deckAt(s.deck.length - 1, s.deck.length));
