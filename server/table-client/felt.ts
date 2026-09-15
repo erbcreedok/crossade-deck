@@ -23,6 +23,8 @@ export interface Seat {
   ink?: string;
   mine?: boolean;
   cards: number;
+  /** Карты руки по порядку, каким их видно на стуле: лицо — только у перевёрнутой. Щели — дальше, без карт. */
+  hand?: { id: string; face?: Face }[];
   face?: string;
   pose?: Pose;
 }
@@ -379,7 +381,9 @@ export interface FeltScene {
   images: Record<string, HTMLImageElement>;
   /** Картинки карт стола. */
   art?: CardArt;
-  deck: { id: string }[];
+  /** Карта переворачивается: доля пути и какой она была до (сторона и лицо). */
+  turning?: (id: string) => { p: number; up: boolean; face?: Face } | undefined;
+  deck: { id: string; face?: Face; up?: boolean }[];
   felt: FeltItem[];
   /** Id вещи → цвет того, кто её сейчас держит (кроме меня). */
   held: Record<string, string>;
@@ -450,6 +454,19 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   felt.addColorStop(1, ROUND.feltLo);
   ring(R, felt);
 
+  /**
+   * КАРТА НА ХОЛСТЕ — со своим переворотом. Переворот сжимает её по ширине до нуля и разжимает: первую
+   * половину видна прежняя сторона, вторую — новая. Место, угол и порядок — те же.
+   */
+  const paint = (id: string, face: Face | undefined, w: number, h: number, held?: string) => {
+    const turn = o.turning?.(id);
+    if (!turn) return card(g, face, w, h, held, o.art);
+    g.save();
+    g.scale(Math.max(0.02, Math.abs(Math.cos(Math.PI * turn.p))), 1);
+    card(g, turn.p < 0.5 ? (turn.up ? turn.face : undefined) : face, w, h, held, o.art);
+    g.restore();
+  };
+
   // ПОД КОЛОДОЙ — раньше колоды: козырь торчит из-под неё.
   const paintFelt = (one: FeltItem) => {
     if (one.id === o.lifted || o.hidden?.has(one.id)) return;
@@ -467,7 +484,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     g.save();
     g.translate(at.x, at.y);
     g.rotate((one.angle * Math.PI) / 180);
-    card(g, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id], o.art);
+    paint(one.id, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
     g.restore();
   };
   for (const one of o.felt) if (one.under) paintFelt(one);
@@ -477,7 +494,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     g.save();
     const at = deckAt(i, deck.length);
     g.translate(at.x, at.y);
-    card(g, undefined, CARD.w, CARD.h, o.held[one.id], o.art);
+    paint(one.id, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
     g.restore();
   });
 
@@ -493,11 +510,13 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     const sitter = who.name !== undefined && who.ink !== undefined ? (who as Seat & { name: string; ink: string }) : null;
     if (sitter) chair(g, sitter);
     else emptyChair(g);
-    posePlan(who.pose ?? { fan: false, shrink: false, tuck: false }, who.cards).forEach((p) => {
+    posePlan(who.pose ?? { fan: false, shrink: false, tuck: false }, who.cards).forEach((p, i) => {
       g.save();
       g.translate(p.at.x, p.at.y);
       g.rotate((p.angle * Math.PI) / 180);
-      card(g, undefined, CARD.w * HAND_SCALE, CARD.h * HAND_SCALE, undefined, o.art);
+      const one = who.hand?.[i];
+      if (one) paint(one.id, one.face, CARD.w * HAND_SCALE, CARD.h * HAND_SCALE);
+      else card(g, undefined, CARD.w * HAND_SCALE, CARD.h * HAND_SCALE, undefined, o.art);
       g.restore();
     });
     g.restore();

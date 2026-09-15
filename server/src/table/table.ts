@@ -83,6 +83,8 @@ export class Table {
   private carries = new Map<string, { by: string; over: Where; auto?: true }>();
   private rules: TableRules = { ...DEFAULT_RULES };
   private trails = new Map<string, Trail>();
+  /** Перевёрнутые карты в колоде и в руках. У карты на сукне сторона лежит в ней самой (`felt[].up`). */
+  private turned = new Set<string>();
   /** Имена всех, кто когда-либо садился: след подписывает и ушедшего. */
   private names = new Map<string, string>();
 
@@ -183,6 +185,8 @@ export class Table {
       }
       case "drop":
         return this.drop(by, intent.id, intent.to, now, auto);
+      case "turn":
+        return this.turn(by, intent.id, now);
       case "flip": {
         const chair = this.seatOf(by);
         if (!chair) return { refused: "bad" };
@@ -255,7 +259,8 @@ export class Table {
     return out;
   }
 
-  private grab(by: string, id: string, now: number): Result {
+  /** Можно ли тронуть карту — взять или перевернуть. Одно правило на оба жеста. */
+  private touchable(by: string, id: string): { at: Where } | { refused: Refusal } {
     const at = this.whereIs(id);
     if (!at) return { refused: "gone" };
     const lock = this.locks.get(id);
@@ -263,8 +268,38 @@ export class Table {
     // С КОЛОДЫ — ТОЛЬКО ВЕРХНЯЯ. Стопку целиком не поднимают, и карту из середины не выдёргивают.
     if (at.in === "deck" && this.deck[this.deck.length - 1] !== id) return { refused: "not-top" };
     if (at.in === "hand" && this.closedTo(by, at.chair)) return { refused: "chair-locked" };
+    return { at };
+  }
+
+  private grab(by: string, id: string, now: number): Result {
+    const may = this.touchable(by, id);
+    if ("refused" in may) return may;
+    const lock = this.locks.get(id);
     this.locks.set(id, { by, until: now + LOCK_TTL_MS });
     return { ops: lock ? [] : this.commit([{ t: "lock", id, by }]) };
+  }
+
+  /**
+   * ПЕРЕВЕРНУТЬ НА МЕСТЕ. Место, угол и порядок не меняются; след — «трогал я», а «откуда» остаётся от
+   * последнего переноса: карта Джемаля из его руки, перевёрнутая мной, — всё ещё «из руки Джемаля».
+   */
+  private turn(by: string, id: string, now: number): Result {
+    const may = this.touchable(by, id);
+    if ("refused" in may) return may;
+    const at = may.at;
+    let up: boolean;
+    if (at.in === "felt") {
+      const one = this.felt.find((f) => f.id === id)!;
+      up = one.up = !one.up;
+    } else {
+      up = !this.turned.has(id);
+      if (up) this.turned.add(id);
+      else this.turned.delete(id);
+    }
+    const was = this.trails.get(id);
+    const trail: Trail = was ? { ...was, by, byName: this.names.get(by) ?? by, at: now } : this.trailOf(id, by, at, at.in, now);
+    this.trails.set(id, trail);
+    return { ops: this.commit([{ t: "turn", card: { id }, up, trail }]) };
   }
 
   private drop(by: string, id: string, to: Where, now: number, auto = false): Result {
@@ -275,6 +310,12 @@ export class Table {
     if (target.in === "hand" && this.closedTo(by, target.chair)) return { refused: "chair-locked" };
     const from = this.whereIs(id)!;
     const trail = this.trailOf(id, by, from, target.in, now);
+    // СТОРОНА КАРТЫ. В руку — всегда лицом к хозяину. Команда кладёт, как сказано. Рука кладёт, как несла:
+    // из руки — лицом, если его было видно в худе; с сукна и колоды — как лежала.
+    const faceUp = auto && target.in === "felt" ? target.up : this.sideOf(by, id, from);
+    if (target.in === "felt") target.up = faceUp;
+    this.turned.delete(id);
+    if (target.in === "deck" && faceUp && !auto) this.turned.add(id);
     this.take(id, from);
     const landed = this.put(id, target);
     this.locks.delete(id);
@@ -407,6 +448,7 @@ export class Table {
   shuffleDeck(random: () => number = Math.random): Op[] {
     const cards = this.deck.map((id) => this.faces.get(id)!);
     for (const id of this.deck) {
+      this.turned.delete(id);
       this.faces.delete(id);
       this.trails.delete(id);
     }
@@ -435,6 +477,7 @@ export class Table {
   restock(cards: Face[]): Op[] | null {
     if (this.felt.length > 0 || [...this.chairs.values()].some((c) => c.hand.length > 0) || this.locks.size > 0) return null;
     for (const id of this.deck) {
+      this.turned.delete(id);
       this.faces.delete(id);
       this.trails.delete(id);
     }
@@ -511,6 +554,7 @@ export class Table {
     this.chairs.delete(chair.id);
     const at = seatPoint(chair.angle);
     const felt: FeltCard[] = chair.hand.map((id, i) => {
+      this.turned.delete(id);
       const card = { id, x: at.x + i * 0.03, y: at.y - i * 0.03, up: false, angle: 0 };
       this.felt.push(card);
       return card;
@@ -534,6 +578,14 @@ export class Table {
     const k = far > FELT_REACH ? FELT_REACH / far : 1;
     const angle = turnOf(Number.isFinite(to.angle) ? to.angle : 0);
     return { in: "felt", x: to.x * k, y: to.y * k, up: to.up === true, angle, ...(auto && to.under === true ? { under: true } : {}) };
+  }
+
+  /** Какой стороной вверх карта ляжет из `from`, если её несёт `by`. */
+  private sideOf(by: string, id: string, from: Where): boolean {
+    if (from.in === "felt") return from.up;
+    if (from.in === "deck") return this.turned.has(id);
+    const chair = this.chairs.get(from.chair);
+    return !this.turned.has(id) && chair !== undefined && (chair.owner === by || !chair.hide);
   }
 
   private whereIs(id: string): Where | null {
@@ -576,17 +628,23 @@ export class Table {
 
   // ── ЗРИТЕЛЬ ────────────────────────────────────────────────────────────────────────────────
 
-  private visibleTo(viewer: string, where: Where): boolean {
+  /**
+   * ВИДНО ЛИ ЛИЦО. В руке: хозяину — пока карта не перевёрнута (худ); остальным — если стул не скрыт (в худе
+   * неперевёрнутые, на стуле перевёрнутые). В колоде — если перевёрнута. На сукне — если лицом вверх.
+   */
+  private visibleTo(viewer: string, where: Where, id: string): boolean {
     if (where.in === "hand") {
       const chair = this.chairs.get(where.chair);
-      return chair !== undefined && (chair.owner === viewer || !chair.hide);
+      return chair !== undefined && ((chair.owner === viewer && !this.turned.has(id)) || !chair.hide);
     }
     if (where.in === "felt") return where.up;
-    return false;
+    return this.turned.has(id);
   }
 
   private seen(id: string, viewer: string, where: Where): SeenCard {
-    return this.visibleTo(viewer, where) ? { id, face: this.faces.get(id)! } : { id };
+    const card: SeenCard = this.visibleTo(viewer, where, id) ? { id, face: this.faces.get(id)! } : { id };
+    if (where.in !== "felt" && this.turned.has(id)) card.up = true;
+    return card;
   }
 
   /** Стул в полном виде — лица в руке режет `seenOp`. */
@@ -606,6 +664,10 @@ export class Table {
 
   seenOp(op: Op, viewer: string): Op {
     if (op.t === "move") return { ...op, card: this.seen(op.card.id, viewer, op.to) };
+    if (op.t === "turn") {
+      const at = this.whereIs(op.card.id);
+      return at ? { ...op, card: this.seen(op.card.id, viewer, at) } : op;
+    }
     if (op.t === "chair") return { ...op, chair: this.chairSeen(op.chair, viewer) };
     return op;
   }
@@ -624,7 +686,7 @@ export class Table {
       v: this.v,
       people: this.here,
       chairs,
-      deck: this.deck.map((id) => ({ id })),
+      deck: this.deck.map((id) => this.seen(id, viewer, { in: "deck" })),
       felt,
       trails: Object.fromEntries(this.trails),
       shuffles: this.shuffles,

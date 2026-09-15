@@ -109,6 +109,11 @@ interface Place {
   face?: Face;
 }
 
+/** Двойной тап: второй тап по той же карте не позже этого после первого. */
+const DOUBLE_TAP_MS = 320;
+/** Сколько карта переворачивается. */
+const TURN_MS = 320;
+
 /** Тап, а не хват: палец отпустили раньше этого и сдвинули не дальше `TAP_PX`. */
 const TAP_MS = 350;
 const TAP_PX = 8;
@@ -193,6 +198,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * `key` — место, где карта была, когда его открыли: карта уехала — тултип закрыт.
    */
   let cardTip: { id: string; key: string } | null = null;
+  /** Прошлый тап по карте — для двойного. */
+  let lastTap: { id: string; at: number } | null = null;
+  /**
+   * ПЕРЕВОРОТЫ. Сторона каждой карты прошлым кадром — и где карта лежала: сменилась сторона на том же месте —
+   * карта переворачивается (своя, чужая, догадка или ответ сервера — всё равно). Сменилось место — это перенос.
+   */
+  const sides = new Map<string, { where: string; up: boolean; face?: Face }>();
+  const turns = new Map<string, { t0: number; up: boolean; face?: Face }>();
+  let turnFrame = false;
   /**
    * ДОГАДКИ — нажатое в баре и в окне стула показывается сразу, не дожидаясь сервера: поза, флаг, порядок
    * руки. Сервер считает то же самое (порядок — тем же `arrange.ts`, шафл — присланный), и его ответ ложится
@@ -263,6 +277,44 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     guess(`flag:${chair}:${flag}`, { t: "flag", chair, flag, on },
       (s) => withChair(s, chair, (c) => ({ ...c, [flag]: on })),
       (s) => chairOf(s, chair)?.[flag] === on);
+  }
+
+  /** Сторона карты, где бы она ни лежала. */
+  function sideIn(s: Snapshot, id: string): { where: string; up: boolean; face?: Face } | null {
+    const felt = s.felt.find((c) => c.id === id);
+    if (felt) return { where: "felt", up: felt.up, face: felt.face };
+    const deck = s.deck.find((c) => c.id === id);
+    if (deck) return { where: "deck", up: deck.up === true, face: deck.face };
+    for (const chair of s.chairs) {
+      const card = chair.hand.find((c) => c.id === id);
+      if (card) return { where: `hand:${chair.id}`, up: card.up === true, face: card.face };
+    }
+    return null;
+  }
+
+  /**
+   * ПЕРЕВЕРНУТЬ — двойной тап. Сразу, если новая сторона уже известна: в руке — всегда (лицо не пропадает, а
+   * прячется), на сукне и в колоде — только рубашкой вверх. Лицо, которого я не знаю, приходит с сервером:
+   * тогда и переворот играется по его ответу.
+   */
+  function turnCard(id: string): void {
+    const now = sideIn(truth(), id);
+    if (!now) return;
+    const up = !now.up;
+    if (up && !now.where.startsWith("hand:") && !now.face) return store.send({ t: "turn", id });
+    const flip = (c: SeenCard): SeenCard => {
+      if (c.id !== id) return c;
+      const { up: _was, ...rest } = c;
+      return up ? { ...rest, up: true } : rest;
+    };
+    guess(`turn:${id}`, { t: "turn", id },
+      (s) => ({
+        ...s,
+        felt: s.felt.map((c) => (c.id === id ? { ...c, up } : c)),
+        deck: s.deck.map(flip),
+        chairs: s.chairs.map((c) => (c.hand.some((card) => card.id === id) ? { ...c, hand: c.hand.map(flip) } : c)),
+      }),
+      (s) => (sideIn(s, id)?.up ?? up) === up);
   }
 
   /** Порядок своей руки: считается здесь, летит сразу. Лица какой-то карты не знаем — просто просим сервер. */
@@ -489,6 +541,37 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   // ── РАЗМЕТКА ────────────────────────────────────────────────────────────────────────────────
 
+  /** Сравнить стороны карт с прошлым кадром: перевёрнутые на месте — в `turns`. Пока кто-то вертится — кадр за кадром. */
+  function noteTurns(s: Snapshot): void {
+    const now = performance.now();
+    const seenIds = new Set<string>();
+    const note = (id: string, where: string, up: boolean, face?: Face) => {
+      seenIds.add(id);
+      const was = sides.get(id);
+      if (was && was.where === where && was.up !== up) turns.set(id, { t0: now, up: was.up, face: was.face ?? face });
+      sides.set(id, { where, up, face: face ?? (was?.where === where ? was.face : undefined) });
+    };
+    for (const c of s.felt) note(c.id, "felt", c.up, c.face);
+    for (const c of s.deck) note(c.id, "deck", c.up === true, c.face);
+    for (const chair of s.chairs) for (const c of chair.hand) note(c.id, `hand:${chair.id}`, c.up === true, c.face);
+    // Карты, которой нет в кадре (она в пальце — тап и есть хват), прошлая сторона не стирается: иначе переворот
+    // после второго тапа не с чем было бы сравнить. Стирается, когда ушла из колоды целиком (перемешали).
+    if (sides.size > 4 * (seenIds.size + 60)) for (const id of sides.keys()) if (!seenIds.has(id)) sides.delete(id);
+    for (const [id, t] of turns) if (now - t.t0 >= TURN_MS) turns.delete(id);
+    if (turns.size && !turnFrame) {
+      turnFrame = true;
+      requestAnimationFrame(() => {
+        turnFrame = false;
+        draw();
+      });
+    }
+  }
+
+  function turning(id: string): { p: number; up: boolean; face?: Face } | undefined {
+    const t = turns.get(id);
+    return t && { p: Math.min(1, (performance.now() - t.t0) / TURN_MS), up: t.up, face: t.face };
+  }
+
   function cardHtml(face: Face | undefined, w: number): string {
     // КАРТИНКА НАБОРА СТОЛА; под ней, пока она грузится, — бумажная карта. Ранг и масть — в `aria-label`.
     const rules = store.state.rules;
@@ -563,7 +646,22 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + (under ? "pointer-events:none;" : "")
       + (held ? `pointer-events:none;filter:brightness(.6);outline:3px solid ${held};border-radius:${geom.w * 0.12}px;` : shut ? "pointer-events:none;filter:brightness(.7);" : "cursor:grab;")
       + (flying.has(c.id) ? "visibility:hidden;" : "")
-      + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out">${cardHtml(c.face, geom.w)}</div>`;
+      + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out">${turnHtml(c, geom.w)}</div>`;
+  }
+
+  /**
+   * КАРТА В ХУДЕ — лицом, если не перевёрнута (перевёрнутая смотрит лицом наружу, на стол). Переворот — две
+   * стороны: прежняя сжимается, новая разжимается; отставание от начала — отрицательной задержкой, чтобы
+   * пересборка разметки не начинала его заново.
+   */
+  function turnHtml(c: SeenCard, w: number): string {
+    const face = c.up ? undefined : c.face;
+    const turn = turns.get(c.id);
+    if (!turn) return cardHtml(face, w);
+    const late = -Math.min(TURN_MS, performance.now() - turn.t0);
+    const side = (name: string, html: string) =>
+      `<span data-g="turn" style="position:absolute;inset:0;animation:${name} ${TURN_MS}ms linear ${late}ms both">${html}</span>`;
+    return side("card-turn-out", cardHtml(turn.up ? undefined : turn.face, w)) + side("card-turn-in", cardHtml(face, w));
   }
 
   /**
@@ -911,7 +1009,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       return `<div data-g="card-tip" data-card="${tip.id}" data-side="up" style="position:absolute;left:${left}px;top:${bottom}px;width:${w}px;`
         + `transform:translateY(-100%);z-index:58;${tipShell(k)}">`
         + `<span style="position:absolute;bottom:${-arrow}px;left:${one.slot.x - left - arrow}px;width:${2 * arrow}px;height:${2 * arrow}px;transform:rotate(45deg);`
-        + `background:${T.wood};z-index:-1"></span>${tipLines(s, tip.id, one.card.face, false, k)}</div>`;
+        + `background:${T.wood};z-index:-1"></span>${tipLines(s, tip.id, one.card.up ? undefined : one.card.face, false, k)}</div>`;
     }
     const felt = s.felt.find((c) => c.id === tip.id);
     const at = felt ? (v.feltAt(felt.id) ?? felt) : v.deckAt(s.deck.length - 1, s.deck.length);
@@ -930,7 +1028,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return `<div data-g="card-tip" data-card="${tip.id}" data-side="${onLeft ? "left" : "right"}" style="position:absolute;left:${left}px;top:${mid.y}px;width:${w}px;`
       + `transform-origin:${onLeft ? "100%" : "0"} 50%;transform:translateY(-50%) scale(1,${v.squash});z-index:0;${tipShell(k)}">`
       + `<span style="position:absolute;top:50%;${side};width:${2 * arrow}px;height:${2 * arrow}px;margin-top:${-arrow}px;transform:rotate(45deg);`
-      + `background:${T.wood};z-index:-1"></span>${tipLines(s, tip.id, felt?.up ? felt.face : undefined, felt === undefined, k)}</div>`;
+      + `background:${T.wood};z-index:-1"></span>${tipLines(s, tip.id, felt ? (felt.up ? felt.face : undefined) : s.deck.at(-1)?.up ? s.deck.at(-1)!.face : undefined, felt === undefined, k)}</div>`;
   }
 
   function carryHtml(): string {
@@ -961,15 +1059,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         // Своя рука — внизу, на стекле; в своём стуле карт не рисуем.
         pose: c.pose,
         cards: c.id === seat ? 0 : c.hand.filter((card) => !flying.has(card.id)).length + gapsIn(s, c.id).filter((gap) => gap.carry).length,
+        // На стуле лицом наружу — перевёрнутые.
+        hand: c.id === seat ? [] : c.hand.filter((card) => !flying.has(card.id)).map((card) => ({ id: card.id, ...(card.up && card.face ? { face: card.face } : {}) })),
         ...(sitter ? { name: sitter.name, ink: sitter.ink } : {}),
         ...(sitter?.photo ? { face: face(sitter) } : {}),
       };
     });
+    noteTurns(s);
     lastFrame = { w: g.w, h: g.h - floor };
     syncCamera();
     art.warm(s.rules);
     view = drawFelt(canvas, {
-      W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), deck: s.deck, felt: s.felt, held: heldByOthers(s), hidden: flying,
+      W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), turning, deck: s.deck, felt: s.felt, held: heldByOthers(s), hidden: flying,
       view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
       rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
     });
@@ -985,14 +1086,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       felt: s.felt.map((f) => {
         const at = view!.toGlass(view!.feltAt(f.id) ?? f);
         const bare = view!.toGlass(f);
-        return { id: f.id, angle: f.angle, x: Math.round(at.x), y: Math.round(at.y), rise: +(bare.y - at.y).toFixed(1) };
+        return { id: f.id, angle: f.angle, x: Math.round(at.x), y: Math.round(at.y), rise: +(bare.y - at.y).toFixed(1), up: f.up, face: f.up ? (f.face?.rank ?? null) : null };
       }),
       deck: s.deck.length,
+      deckFace: s.deck.at(-1)?.up ? (s.deck.at(-1)!.face?.rank ?? null) : null,
+      turning: [...turns.keys()],
       deckTop: s.deck.length ? (({ x, y }) => ({ x: Math.round(x), y: Math.round(y) }))(view.toGlass(view.deckAt(s.deck.length - 1, s.deck.length))) : null,
       seatAngle: chairOf(s, seat)?.angle ?? null,
       seats: spots.map((sp) => {
         const c = chairOf(s, sp.key);
-        return { key: sp.key, who: c && sitterOf(s, c)?.name, x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), chair: Math.round(SEAT_REACH * view!.k) };
+        return { key: sp.key, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), chair: Math.round(SEAT_REACH * view!.k) };
       }),
     });
     local.tips = local.tips.filter((id) => id !== seat && chairOf(s, id) !== undefined);
@@ -1313,7 +1416,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     }
     const top = s.deck.at(-1);
     const deckTop = view.deckAt(s.deck.length - 1, s.deck.length);
-    if (top && over(deckTop)) return { card: top, at: deckTop, from: "deck", up: false };
+    if (top && over(deckTop)) return { card: top, at: deckTop, from: "deck", up: top.up === true };
     // Под колодой — только там, где колода её не накрывает.
     for (let i = s.felt.length - 1; i >= 0; i -= 1) {
       const one = s.felt[i]!;
@@ -1363,7 +1466,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const r = el.getBoundingClientRect();
     const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     const card = handOf(s, owner)[index]!;
-    lift(card, card.face !== undefined, { left: cx - geom.w / 2, top: cy - geom.h / 2, w: geom.w, h: geom.h }, e, { kind: "hand", which: owner, index });
+    lift(card, card.face !== undefined && !card.up, { left: cx - geom.w / 2, top: cy - geom.h / 2, w: geom.w, h: geom.h }, e, { kind: "hand", which: owner, index });
     try { el.setPointerCapture?.(e.pointerId); } catch { /* пальца уже нет */ }
   }
 
@@ -1432,6 +1535,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // Тап по той же карте, чей тултип был открыт, его только закрывает.
     if (!d.moved && performance.now() - d.t0 < TAP_MS) {
       store.send({ t: "release", id: d.card.id });
+      // ДВОЙНОЙ ТАП — переворот. Первый тап уже открыл тултип; второй его не трогает.
+      const at = performance.now();
+      if (lastTap?.id === d.card.id && at - lastTap.at < DOUBLE_TAP_MS) {
+        lastTap = null;
+        turnCard(d.card.id);
+        return draw();
+      }
+      lastTap = { id: d.card.id, at };
       const key = tipKeyOf(store.state, d.card.id);
       if (tipAtDown !== d.card.id && key) cardTip = { id: d.card.id, key };
       return draw();
@@ -1448,7 +1559,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const from = whereIs(store.state, d.card.id);
     if (from) {
       const keepsFace = (to.in === "hand" && to.chair === mine()) || (to.in === "felt" && to.up);
-      pending = { id: d.card.id, from, to, card: keepsFace ? d.card : { id: d.card.id }, sawLock: store.state.locks[d.card.id] === me() };
+      pending = { id: d.card.id, from, to, card: keepsFace && d.card.face ? { id: d.card.id, face: d.card.face } : { id: d.card.id }, sawLock: store.state.locks[d.card.id] === me() };
       store.send({ t: "drop", id: d.card.id, to });
     }
     draw();
@@ -1669,6 +1780,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   const keyframes = document.createElement("style");
   keyframes.textContent = "@keyframes bar-slide{from{transform:translateX(var(--from))}to{transform:none}}"
+    + "@keyframes card-turn-out{0%{transform:scaleX(1)}50%,100%{transform:scaleX(0)}}"
+    + "@keyframes card-turn-in{0%,50%{transform:scaleX(0)}100%{transform:scaleX(1)}}"
     + "@keyframes bar-in{from{opacity:0;transform:translateY(70%) scale(.6)}to{opacity:1;transform:none}}"
     + "@keyframes bar-out{from{opacity:1;transform:none}to{opacity:0;transform:translateY(70%) scale(.6)}}"
     + "@media (prefers-reduced-motion:reduce){[data-bar],[data-section]{animation:none!important}}";

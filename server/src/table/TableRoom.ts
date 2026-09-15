@@ -18,7 +18,7 @@ import { attach, creatorOf, openEntry, titleOf } from "./lobby.js";
 import { roomIsSigned } from "./roomIds.js";
 import { Table } from "./table.js";
 
-const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "flip", "arrange", "pose", "stand", "sit", "flag", "rules", "sync"]);
+const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "turn", "flip", "arrange", "pose", "stand", "sit", "flag", "rules", "sync"]);
 
 export class TableRoom extends Room {
   maxClients = 16;

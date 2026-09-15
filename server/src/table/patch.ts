@@ -58,6 +58,19 @@ function applyOp(s: Snapshot, op: Op): void {
       place(s, op.card, op.to);
       if (op.trail) (s.trails ??= {})[op.card.id] = op.trail;
       return;
+    case "turn": {
+      const felt = s.felt.find((one) => one.id === op.card.id);
+      const i = s.deck.findIndex((one) => one.id === op.card.id);
+      const chair = s.chairs.find((one) => one.hand.some((card) => card.id === op.card.id));
+      if (felt) {
+        felt.up = op.up;
+        if (op.card.face) felt.face = op.card.face;
+        else delete felt.face;
+      } else if (i >= 0) s.deck[i] = op.card;
+      else if (chair) chair.hand = chair.hand.map((card) => (card.id === op.card.id ? op.card : card));
+      (s.trails ??= {})[op.card.id] = op.trail;
+      return;
+    }
     case "deck":
       s.deck = op.deck;
       if (op.shuffled) s.shuffles = (s.shuffles ?? 0) + 1;
