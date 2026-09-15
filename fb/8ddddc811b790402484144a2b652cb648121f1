@@ -1,0 +1,43 @@
+server/table-client/settings.ts
+  s_9ed0da107cbc4a::t_63a5464b4410b2 1-189
+server/src/table/motion.ts
+  s_9ed0da107cbc4a::t_3327cd7b042cb2 1-39
+server/src/table/motion.test.ts
+  s_9ed0da107cbc4a::t_883e262d33ed85 1-26
+server/scripts/tableSettings.mjs
+  s_9ed0da107cbc4a::t_791a31dccbdbad 1-200
+  s_9ed0da107cbc4a::t_c360197be7f5dd 201-211
+server/table-client/motion.ts
+  s_9ed0da107cbc4a::t_758a228e935504 1-87
+  s_9ed0da107cbc4a::t_11ad95eb9dc21f 88-95
+server/scripts/tableHaptic.mjs
+  s_9ed0da107cbc4a::t_1c468e39c8fa34 101,117,121-122,124
+server/scripts/tableLook.mjs
+  s_9ed0da107cbc4a::t_0d6c1608d89ab5 56,68,70
+server/scripts/tableSound.mjs
+  s_9ed0da107cbc4a::t_25b5e9a283c31a 88-90,102,105-106
+server/table-client/haptic.ts
+  s_9ed0da107cbc4a::t_9d6c38199a740c 35,53
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_39c6a301753971 14-17,238-250,882,891,901-905,908,988,1019,1021,1606,1934,1961,1991,1994,1998,2161-2163,2180-2181,2198-2199,2632,2942-2943
+server/table-client/sound.ts
+  s_9ed0da107cbc4a::t_c2b432eca38809 20-22,24-32,34-39,41,45,47,64-67,99-103,106-107,129-130
+server/table-client/talk.ts
+  s_9ed0da107cbc4a::t_64c63bf92decf9 13,292-293,373,383-384,434
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fb8ddddc811b790402484144a2b652cb648121f1",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
