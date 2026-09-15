@@ -5,7 +5,7 @@
 // уходит намерением; пока ответ не пришёл, экран показывает ожидаемое (`pending`), а отказ просто
 // возвращает настоящий снимок.
 
-import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
+import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
@@ -13,6 +13,7 @@ import { orbits, tableCamera } from "./camera.js";
 import { deckArt, settled } from "./deckArt.js";
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { WORDS_MAX } from "../src/table/say.js";
+import { FELT_REACH } from "../src/table/table.js";
 import type { TableStore } from "./store.js";
 
 const T = {
@@ -48,7 +49,7 @@ type BarKey = (typeof RIGHTS)[number] | (typeof FOLDS)[number] | (typeof ORDERS)
 const SUBS: Record<Section, readonly BarKey[]> = { pose: FOLDS, chair: [...RIGHTS, "leave"], order: ORDERS, say: [] };
 /** Сколько идёт смена секций в баре. */
 const SECTION_MS = 240;
-const GLYPH: Record<BarKey | `sec-${Section}` | "back", string> = {
+const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck", string> = {
   lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3"/><path d="M5 11h14v10H5z"/>',
   hide: '<path d="M3 3l18 18"/><path d="M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5"/><path d="M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9"/>',
   forever: '<path d="M6.5 8.5C3.5 8.5 2 10.2 2 12s1.5 3.5 4.5 3.5C10 15.5 14 8.5 17.5 8.5 20.5 8.5 22 10.2 22 12s-1.5 3.5-4.5 3.5C14 15.5 10 8.5 6.5 8.5z"/>',
@@ -61,6 +62,8 @@ const GLYPH: Record<BarKey | `sec-${Section}` | "back", string> = {
   rank: '<path d="M4 7h3v10"/><path d="M4 17h6"/><path d="M14 7h4a2 2 0 0 1 0 4h-2a2 2 0 0 0-2 2v4h6"/>',
   shuffle: '<path d="M3 7h4l10 10h4"/><path d="M3 17h4l3-3"/><path d="M14 10l3-3h4"/><path d="M18.5 4.5 21 7l-2.5 2.5"/><path d="M18.5 14.5 21 17l-2.5 2.5"/>',
   back: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
+  /** Индикатор колоды — три карты веером. */
+  deck: '<rect x="3" y="4" width="9" height="12" rx="1.5" transform="rotate(-14 7 10)"/><rect x="8" y="4" width="9" height="12" rx="1.5"/><rect x="12" y="4" width="9" height="12" rx="1.5" transform="rotate(14 17 10)"/>',
   "sec-pose": '<rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(-20 12 20)"/><rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(20 12 20)"/><path d="M5 21h14"/>',
   "sec-chair": '<path d="M7 3v9h10V3"/><path d="M6 12h12v3H6z"/><path d="M7 15v6"/><path d="M17 15v6"/>',
   "sec-order": '<path d="M4 6h10"/><path d="M4 12h7"/><path d="M4 18h4"/><path d="M18 5v14"/><path d="M15 16l3 3 3-3"/>',
@@ -169,7 +172,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     confirmLeave: false,
     /** Открытые окна стульев — id стульев, по порядку открытия. */
     tips: [] as string[],
+    /** Открыт тултип колоды. */
+    deckTip: false,
   };
+  /**
+   * ИНДИКАТОР КОЛОДЫ ПОД ПАЛЬЦЕМ. Тап — тултип колоды, двойной тап — перевернуть колоду, тяга — колода едет по
+   * сукну за пальцем и встаёт, где отпустили. `off` — палец от места колоды на стекле: колода не прыгает
+   * под палец и висит над индикатором, как её взяли. `at` — где колода сейчас, пока её тянут.
+   */
+  let gripPress: { pid: number; sx: number; sy: number; t0: number; moved: boolean; off: { x: number; y: number }; at?: { x: number; y: number } } | null = null;
+  let lastGripTap = 0;
   let drag: Drag | null = null;
   /**
    * ВОЗДУХ — слой поверх экрана, который НЕ пересобирается на каждом кадре: в нём чужие карты в руках и
@@ -284,6 +296,22 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       (s) => chairOf(s, chair)?.[flag] === on);
   }
 
+  /** Колода встаёт сразу, где отпущена; сервер прижмёт к кромке так же (`FELT_REACH`). */
+  function guessDeckMove(x: number, y: number): void {
+    const far = Math.hypot(x, y);
+    const k = far > FELT_REACH ? FELT_REACH / far : 1;
+    const at = { x: x * k, y: y * k };
+    guess("deck:move", { t: "deckMove", x: at.x, y: at.y },
+      (st) => (st.spot ? { ...st, spot: { ...st.spot, ...at } } : st),
+      (st) => !st.spot || (Math.abs(st.spot.x - at.x) < 1e-6 && Math.abs(st.spot.y - at.y) < 1e-6));
+  }
+
+  function guessDeckForever(on: boolean): void {
+    guess("deck:forever", { t: "deckForever", on },
+      (st) => (st.spot ? { ...st, spot: { ...st.spot, forever: on } } : st),
+      (st) => !st.spot || st.spot.forever === on);
+  }
+
   /** Сторона карты, где бы она ни лежала. */
   function sideIn(s: Snapshot, id: string): { where: string; up: boolean; face?: Face } | null {
     const felt = s.felt.find((c) => c.id === id);
@@ -345,6 +373,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   function seen(): Snapshot {
     let s = truth();
+    if (gripPress?.at && s.spot) s = { ...s, spot: { ...s.spot, ...gripPress.at } };
     if (pending) s = applyPatch(s, { v: s.v, ops: [{ t: "move", card: pending.card, from: pending.from, to: pending.to }] });
     // В ВОЗДУХЕ — МОЯ КАРТА И ЧУЖИЕ: со своего места они сняты, пока их несут.
     const up = new Set(store.carries.map((c) => c.id));
@@ -476,7 +505,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const rowH = ch + 24;
     const height = 12 + 30 + 8 + 16 + rowH + 12;
     const k = view?.k ?? 1;
-    const middle = view ? view.toGlass({ x: 0, y: 0 }) : { x: frame.w / 2, y: frame.h / 2 };
+    const middle = view ? view.toGlass(store.state.spot ?? { x: 0, y: 0 }) : { x: frame.w / 2, y: frame.h / 2 };
     const deck = { w: (FELT_CARD.w / 2) * k, h: (FELT_CARD.h / 2) * k };
     const chair = SEAT_REACH * k;
 
@@ -1038,6 +1067,80 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `background:${T.wood};z-index:-1"></span>${tipLines(s, tip.id, felt ? (felt.up ? felt.face : undefined) : s.deck.at(-1)?.up ? s.deck.at(-1)!.face : undefined, felt === undefined, k)}</div>`;
   }
 
+  /** Где индикатор колоды на стекле: под нижней картой колоды, по середине. `null` — колоды нет. */
+  function gripAt(s: Snapshot): { x: number; y: number } | null {
+    if (!view || !s.spot) return null;
+    const v = view;
+    const n = Math.max(1, s.deck.length);
+    const low = v.deckAt(0, n);
+    const high = v.deckAt(n - 1, n);
+    const ys = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([dx, dy]) => v.toGlass({ x: low.x + (dx! * FELT_CARD.w) / 2, y: low.y + (dy! * FELT_CARD.h) / 2 }).y);
+    const mid = v.toGlass({ x: (low.x + high.x) / 2, y: (low.y + high.y) / 2 });
+    return { x: mid.x, y: Math.max(...ys) };
+  }
+
+  /**
+   * ИНДИКАТОР КОЛОДЫ — ручка стопки: сколько в ней карт, и за него колоду тянут. Горит, пока открыт тултип
+   * колоды или колоду несут.
+   */
+  function gripHtml(s: Snapshot): string {
+    const at = gripAt(s);
+    if (!at) return "";
+    const lit = local.deckTip || gripPress?.moved === true;
+    const h = 24;
+    return `<div data-g="deck-grip" data-count="${s.deck.length}" data-forever="${s.spot!.forever}" role="button" aria-label="Колода" style="position:absolute;left:${Math.round(at.x)}px;top:${Math.round(at.y + 2)}px;`
+      + `transform:translateX(-50%);height:${h}px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:0 7px 0 5px;border-radius:${h / 2}px;white-space:nowrap;`
+      + `touch-action:none;cursor:grab;z-index:24;user-select:none;-webkit-user-select:none;`
+      + (lit ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.6);`
+             : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${BAR_LOOK.rim},0 2px 0 rgba(11,7,4,.6);`)
+      + `"><svg viewBox="0 0 24 20" width="22" height="17" fill="none" stroke="${T.black}" stroke-width="1.6" stroke-linejoin="round">`
+      + `<g fill="${lit ? T.ink : BAR_LOOK.goldHi}">${GLYPH.deck}</g></svg>`
+      + `<span style="font:400 12px Tiny5,monospace;color:${lit ? T.black : T.ink}">${s.deck.length}</span></div>`;
+  }
+
+  /** Кнопка тултипа колоды: как флаг в окне стула. */
+  function deckChip(data: string, glyph: string, label: string, on = false): string {
+    const look = on
+      ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black};`
+      : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};`;
+    return `<button ${data} aria-label="${label}" aria-pressed="${on}" style="width:30px;height:30px;border:0;padding:0;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;${look}">`
+      + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${on ? T.black : "white"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></button>`;
+  }
+
+  /**
+   * ТУЛТИП КОЛОДЫ — колода картами, как чужая рука в окне стула: какой стороной лежит, такой и видно. Кнопки —
+   * перемешать, отсортировать, перевернуть; вечность — значком. Карты здесь не берутся.
+   */
+  function deckTipHtml(s: Snapshot): string {
+    if (!local.deckTip) return "";
+    const at = gripAt(s);
+    if (!at || !view) {
+      local.deckTip = false;
+      return "";
+    }
+    const k = view.k;
+    const spot: Spot = { key: "deck", x: at.x, y: at.y - (FELT_CARD.h / 2) * k * view.squash, r: (FELT_CARD.h / 2) * k * view.squash, seat: s.spot! };
+    const box = tipBox(spot, [...placedTips.values()]);
+    const cards = s.deck;
+    const plan = handPlan({ fan: true, shrink: false, tuck: false }, cards.length, 1, 1.4, box.inner / box.cw);
+    const laidCards = cards.map((c, i) => {
+      const p = plan[i]!;
+      const x = box.left + 12 + box.inner / 2 + p.x * box.cw, y = box.rowTop + 8 + box.ch / 2 + p.y * box.cw;
+      return `<div data-deck-card="${c.id}" style="position:absolute;width:${box.cw}px;height:${box.ch}px;left:${x - box.cw / 2}px;top:${y - box.ch / 2}px;`
+        + `transform:rotate(${p.angle}deg);z-index:${42 + i};pointer-events:none">${cardHtml(c.up ? c.face : undefined, box.cw)}</div>`;
+    }).join("");
+    const acts: [DeckDo, string, string][] = [["shuffle", GLYPH.shuffle, "Перемешать"], ["sort", GLYPH.suit, "Отсортировать"], ["flip", GLYPH.reverse, "Перевернуть"]];
+    return `<div data-g="deck-tip" style="position:absolute;left:${box.left}px;top:${box.top}px;width:${box.w}px;height:${box.height}px;box-sizing:border-box;z-index:40;`
+      + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
+      + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px">`
+      + `<span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1">Колода · ${cards.length}</span>`
+      + `<span data-deck-shut role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
+      + `<div style="display:flex;align-items:center;gap:6px;height:16px">`
+      + acts.map(([how, glyph, label]) => deckChip(`data-deck-do="${how}"`, glyph, label)).join("")
+      + `<span style="flex:1"></span>${deckChip("data-deck-forever", GLYPH.forever, "Вечная", s.spot!.forever)}</div>`
+      + `</div>` + laidCards;
+  }
+
   function carryHtml(): string {
     if (!drag) return "";
     return `<div data-g="carry" style="position:fixed;width:${drag.w}px;height:${drag.h}px;left:${drag.x - drag.gx}px;`
@@ -1077,7 +1180,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     syncCamera();
     art.warm(s.rules);
     view = drawFelt(canvas, {
-      W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), turning, deck: s.deck, felt: s.felt, held: heldByOthers(s), hidden: flying,
+      W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), turning, deck: s.deck, spot: s.spot, felt: s.felt, held: heldByOthers(s), hidden: flying,
       view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
       rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
     });
@@ -1097,6 +1200,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         return { id: f.id, angle: f.angle, x: Math.round(at.x), y: Math.round(at.y), rise: +(bare.y - at.y).toFixed(1), up: f.up, face: f.up ? (f.face?.rank ?? null) : null };
       }),
       deck: s.deck.length,
+      spot: s.spot,
+      grip: (({ x, y }) => ({ x: Math.round(x), y: Math.round(y) }))(gripAt(s) ?? { x: -1, y: -1 }),
       deckFace: s.deck.at(-1)?.up ? (s.deck.at(-1)!.face?.rank ?? null) : null,
       turning: [...turns.keys()],
       deckTop: s.deck.length ? (({ x, y }) => ({ x: Math.round(x), y: Math.round(y) }))(view.toGlass(view.deckAt(s.deck.length - 1, s.deck.length))) : null,
@@ -1118,7 +1223,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       .filter((one): one is { chair: Chair; spot: Spot } => Boolean(one.spot))
       .map((one) => tipHtml(s, one.chair, one.spot));
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
-    over.innerHTML = cardTipHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + chairZonesHtml(s) + feltMarkHtml() + carryHtml() + homeHtml(s);
+    over.innerHTML = cardTipHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + feltMarkHtml() + carryHtml() + homeHtml(s);
     wire();
     airUnder.style.height = `${mineGeom(handOf(s, mine(s)).length).barTop}px`;
 
@@ -1690,6 +1795,39 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         draw();
       };
     }
+    for (const el of over.querySelectorAll<HTMLElement>('[data-g="deck-grip"]')) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const s = store.state;
+        if (!view || !s.spot || drag || gripPress) return;
+        const home = view.toGlass(s.spot);
+        gripPress = { pid: e.pointerId, sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false, off: { x: e.clientX - home.x, y: e.clientY - home.y } };
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-deck-do]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        store.send({ t: "deckDo", how: el.dataset.deckDo as DeckDo });
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-deck-forever]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const spot = truth().spot;
+        if (spot) guessDeckForever(!spot.forever);
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-deck-shut]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        local.deckTip = false;
+        draw();
+      };
+    }
     for (const el of over.querySelectorAll<HTMLElement>("[data-card]")) {
       el.onpointerdown = (e) => {
         e.preventDefault();
@@ -1773,6 +1911,37 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   // «10 сек назад» идёт, пока тултип открыт.
   setInterval(() => cardTip && draw(), 1000);
 
+  addEventListener("pointermove", (e) => {
+    if (!gripPress || e.pointerId !== gripPress.pid || !view) return;
+    if (!gripPress.moved && Math.hypot(e.clientX - gripPress.sx, e.clientY - gripPress.sy) <= TAP_PX) return;
+    gripPress.moved = true;
+    gripPress.at = view.toDesk({ x: e.clientX - gripPress.off.x, y: e.clientY - gripPress.off.y });
+    draw();
+  }, { passive: true });
+  const endGrip = (e: PointerEvent) => {
+    if (!gripPress || e.pointerId !== gripPress.pid) return;
+    const press = gripPress;
+    gripPress = null;
+    if (e.type === "pointercancel") return draw();
+    // ТЯГА — колода встаёт, где отпустили. Только на сукно: в руку колоду не кладут.
+    if (press.moved) {
+      if (press.at) return guessDeckMove(press.at.x, press.at.y);
+      return draw();
+    }
+    if (performance.now() - press.t0 >= TAP_MS) return draw();
+    // ДВОЙНОЙ ТАП — перевернуть колоду. Первый тап уже открыл тултип; второй его не трогает.
+    const now = performance.now();
+    if (now - lastGripTap < DOUBLE_TAP_MS) {
+      lastGripTap = 0;
+      store.send({ t: "deckDo", how: "flip" });
+      return draw();
+    }
+    lastGripTap = now;
+    local.deckTip = !local.deckTip;
+    draw();
+  };
+  addEventListener("pointerup", endGrip);
+  addEventListener("pointercancel", endGrip);
   addEventListener("pointermove", moveDrag, { passive: true });
   addEventListener("pointerup", endDrag);
   addEventListener("pointercancel", endDrag);

@@ -74,7 +74,10 @@ function applyOp(s: Snapshot, op: Op): void {
     case "deck":
       s.deck = op.deck;
       if (op.shuffled) s.shuffles = (s.shuffles ?? 0) + 1;
-      for (const id of Object.keys(s.trails ?? {})) if (!s.felt.some((c) => c.id === id) && !s.chairs.some((c) => c.hand.some((h) => h.id === id))) delete s.trails[id];
+      for (const id of Object.keys(s.trails ?? {})) if (!s.deck.some((c) => c.id === id) && !s.felt.some((c) => c.id === id) && !s.chairs.some((c) => c.hand.some((h) => h.id === id))) delete s.trails[id];
+      return;
+    case "spot":
+      s.spot = op.spot;
       return;
     case "rules":
       s.rules = op.rules;

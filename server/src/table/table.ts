@@ -16,7 +16,11 @@
 
 import {
   DEFAULT_RULES,
+  DEFAULT_SPOT,
+  DECK_DOS,
   LOCK_TTL_MS,
+  type DeckDo,
+  type DeckSpot,
   type Carry,
   type CarryOut,
   DEFAULT_POSE,
@@ -71,6 +75,8 @@ export class Table {
   private seq = 0;
   private faces = new Map<string, Face>();
   private deck: string[] = [];
+  /** Где стоит колода; `null` — её нет на столе. */
+  private spot: DeckSpot | null = { ...DEFAULT_SPOT };
   private felt: { id: string; x: number; y: number; up: boolean; angle: number; under?: boolean }[] = [];
   /** Сколько раз перемешали колоду (`Snapshot.shuffles`). */
   private shuffles = 0;
@@ -209,6 +215,16 @@ export class Table {
         return this.sit(by, intent.chair);
       case "flag":
         return this.flag(by, intent.chair, intent.flag, intent.on);
+      case "deckMove":
+        return this.deckMove(intent.x, intent.y);
+      case "deckDo":
+        return this.deckDo(intent.how);
+      case "deckForever": {
+        if (!this.spot) return { refused: "gone" };
+        if (typeof intent.on !== "boolean") return { refused: "bad" };
+        this.spot.forever = intent.on;
+        return { ops: this.commit([{ t: "spot", spot: { ...this.spot } }, ...this.sweepDeck()]) };
+      }
       case "rules": {
         if (by !== this.admin) return { refused: "not-yours" };
         return { ops: this.setRules(intent.rules) };
@@ -312,6 +328,9 @@ export class Table {
     const trail = this.trailOf(id, by, from, target.in, now);
     // СТОРОНА КАРТЫ. В руку — всегда лицом к хозяину. Команда кладёт, как сказано. Рука кладёт, как несла:
     // из руки — лицом, если его было видно в худе; с сукна и колоды — как лежала.
+    // В КОЛОДУ, КОТОРОЙ НЕТ, кладёт только команда бота — и ставит новую посередине.
+    if (target.in === "deck" && !this.spot && !auto) return { refused: "gone" };
+    const born = target.in === "deck" ? this.ensureDeck() : [];
     const faceUp = auto && target.in === "felt" ? target.up : this.sideOf(by, id, from);
     if (target.in === "felt") target.up = faceUp;
     this.turned.delete(id);
@@ -320,7 +339,8 @@ export class Table {
     const landed = this.put(id, target);
     this.locks.delete(id);
     this.trails.set(id, trail);
-    const ops: Op[] = [{ t: "move", card: { id }, from, to: landed, trail }, { t: "unlock", id }];
+    const ops: Op[] = [...born, { t: "move", card: { id }, from, to: landed, trail }, { t: "unlock", id }];
+    if (from.in === "deck") ops.push(...this.sweepDeck());
     // РУКА ПОКИНУТОГО СТУЛА ОПУСТЕЛА — правило стола решает, стоять ли ему дальше.
     if (from.in === "hand") ops.push(...this.sweepChair(this.chairs.get(from.chair)!));
     return { ops: this.commit(ops) };
@@ -399,6 +419,50 @@ export class Table {
     return { ops: this.commit(ops) };
   }
 
+  // ── КОЛОДА ─────────────────────────────────────────────────────────────────────────────────
+
+  /** Переставить колоду по сукну. Мимо стола не поставить — встанет на кромку, как карта. */
+  private deckMove(x: number, y: number): Result {
+    if (!this.spot) return { refused: "gone" };
+    if (![x, y].every(Number.isFinite)) return { refused: "bad" };
+    const far = Math.hypot(x, y);
+    const k = far > FELT_REACH ? FELT_REACH / far : 1;
+    this.spot = { ...this.spot, x: x * k, y: y * k };
+    return { ops: this.commit([{ t: "spot", spot: { ...this.spot } }]) };
+  }
+
+  /**
+   * ИЗ ТУЛТИПА КОЛОДЫ. Пока карту колоды кто-то держит — отказ: перемешивание выписывает новые id, и
+   * держащий остался бы с картой, которой нет.
+   */
+  private deckDo(how: DeckDo): Result {
+    if (!(DECK_DOS as readonly unknown[]).includes(how)) return { refused: "bad" };
+    if (!this.spot) return { refused: "gone" };
+    if (this.deck.some((id) => this.locks.has(id))) return { refused: "locked" };
+    if (how === "shuffle") return { ops: this.shuffleDeck() };
+    if (how === "sort") this.deck = arranged(this.deck, "suit", (id) => this.faces.get(id))!;
+    else {
+      // ПЕРЕВЕРНУТЬ СТОПКУ: нижняя стала верхней, и каждая карта легла другой стороной.
+      this.deck.reverse();
+      for (const id of this.deck) if (!this.turned.delete(id)) this.turned.add(id);
+    }
+    return { ops: this.commit([{ t: "deck", deck: this.deck.map((id) => ({ id })), shuffled: false }]) };
+  }
+
+  /** Невечная колода без карт уходит со стола. */
+  private sweepDeck(): Op[] {
+    if (!this.spot || this.spot.forever || this.deck.length > 0) return [];
+    this.spot = null;
+    return [{ t: "spot", spot: null }];
+  }
+
+  /** Колоды нет — поставить новую посередине (для команды бота). */
+  private ensureDeck(): Op[] {
+    if (this.spot) return [];
+    this.spot = { ...DEFAULT_SPOT };
+    return [{ t: "spot", spot: { ...this.spot } }];
+  }
+
   /** Флаги стула меняет его хозяин, любой — у покинутого, админ — у любого. */
   mayFlag(by: string, chair: { owner: string | null }): boolean {
     return chair.owner === null || chair.owner === by || by === this.admin;
@@ -462,7 +526,7 @@ export class Table {
       return id;
     });
     this.shuffles += 1;
-    return this.commit([{ t: "deck", deck: this.deck.map((id) => ({ id })), shuffled: true }]);
+    return this.commit([...(this.deck.length ? this.ensureDeck() : []), { t: "deck", deck: this.deck.map((id) => ({ id })), shuffled: true }]);
   }
 
   /** Поменять правила стола — от админа или команды. Неизвестное и кривое молча отбрасывается. */
@@ -486,7 +550,7 @@ export class Table {
       this.faces.set(id, face);
       return id;
     });
-    return this.commit([{ t: "deck", deck: this.deck.map((id) => ({ id })), shuffled: false }]);
+    return this.commit([...this.ensureDeck(), { t: "deck", deck: this.deck.map((id) => ({ id })), shuffled: false }]);
   }
 
   /** Переставить стул на другой угол. */
@@ -567,7 +631,7 @@ export class Table {
 
   /** Куда класть можно: только в руку стоящего стула и только в пределах сукна. */
   private clean(to: Where, auto = false): Where | null {
-    if (to.in === "deck") return to;
+    if (to.in === "deck") return { in: "deck" };
     if (to.in === "hand") {
       if (!this.chairs.has(to.chair) || !Number.isInteger(to.i)) return null;
       return { in: "hand", chair: to.chair, i: to.i };
@@ -669,6 +733,8 @@ export class Table {
       return at ? { ...op, card: this.seen(op.card.id, viewer, at) } : op;
     }
     if (op.t === "chair") return { ...op, chair: this.chairSeen(op.chair, viewer) };
+    // Колода заменена целиком: у перевёрнутых карт лица приходят всем.
+    if (op.t === "deck") return { ...op, deck: op.deck.map((c) => this.seen(c.id, viewer, { in: "deck" })) };
     return op;
   }
 
@@ -687,6 +753,7 @@ export class Table {
       people: this.here,
       chairs,
       deck: this.deck.map((id) => this.seen(id, viewer, { in: "deck" })),
+      spot: this.spot && { ...this.spot },
       felt,
       trails: Object.fromEntries(this.trails),
       shuffles: this.shuffles,

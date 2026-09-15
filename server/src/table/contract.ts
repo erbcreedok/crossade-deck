@@ -120,6 +120,22 @@ export interface HandPose {
 export const HAND_POSE_KEYS = ["fan", "shrink", "tuck"] as const;
 export const DEFAULT_POSE: HandPose = { fan: true, shrink: false, tuck: false };
 
+/**
+ * МЕСТО КОЛОДЫ НА СУКНЕ — в единицах стола. Колода одна на стол; её таскают за индикатор колоды.
+ * `forever` — колода стоит и пустой; снят — опустевшая колода исчезает (`Snapshot.spot` = `null`), а команда
+ * бота, которой колода нужна, ставит новую посередине.
+ */
+export interface DeckSpot {
+  x: number;
+  y: number;
+  forever: boolean;
+}
+export const DEFAULT_SPOT: DeckSpot = { x: 0, y: 0, forever: true };
+
+/** Что делают с колодой из её тултипа: перемешать, по масти (внутри — по номиналу), перевернуть стопку. */
+export const DECK_DOS = ["shuffle", "sort", "flip"] as const;
+export type DeckDo = (typeof DECK_DOS)[number];
+
 /** Одноразовая перестановка руки: не держится — следующая карта ляжет, куда её положат. */
 export type Arrange = "suit" | "rank" | "reverse" | "shuffle";
 
@@ -179,6 +195,8 @@ export interface Snapshot {
   people: Person[];
   chairs: Chair[];
   deck: SeenCard[];
+  /** Где стоит колода. `null` — колоды на столе нет. */
+  spot: DeckSpot | null;
   felt: FeltCard[];
   /** Следы карт по id — у карт, которые хоть раз переносили. */
   trails: Record<string, Trail>;
@@ -219,6 +237,12 @@ export type Intent =
   | { t: "sit"; chair: string }
   /** Поставить или снять флаг стула. */
   | { t: "flag"; chair: string; flag: ChairFlag; on: boolean }
+  /** Переставить колоду по сукну — любой. В руку колоду не кладут. */
+  | { t: "deckMove"; x: number; y: number }
+  /** Перемешать, отсортировать или перевернуть колоду — любой. */
+  | { t: "deckDo"; how: DeckDo }
+  /** Поставить или снять вечность колоды — любой. */
+  | { t: "deckForever"; on: boolean }
   /** Поменять правило стола — только админ. */
   | { t: "rules"; rules: Partial<TableRules> }
   /** Разошлись версии — пришли мне стол целиком. */
@@ -242,6 +266,8 @@ export type Op =
   | { t: "turn"; card: SeenCard; up: boolean; trail: Trail }
   /** Колода целиком заменена: перемешана (новые id — чтобы увиденную карту нельзя было отследить) или набрана заново. */
   | { t: "deck"; deck: SeenCard[]; shuffled: boolean }
+  /** Колода переехала, сменила вечность, появилась или исчезла (`null`). */
+  | { t: "spot"; spot: DeckSpot | null }
   | { t: "rules"; rules: TableRules }
   | { t: "admin"; key: string | null };
 

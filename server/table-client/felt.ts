@@ -384,6 +384,8 @@ export interface FeltScene {
   /** Карта переворачивается: доля пути и какой она была до (сторона и лицо). */
   turning?: (id: string) => { p: number; up: boolean; face?: Face } | undefined;
   deck: { id: string; face?: Face; up?: boolean }[];
+  /** Где стоит колода, в единицах стола. Нет — посередине. */
+  spot?: Point | null;
   felt: FeltItem[];
   /** Id вещи → цвет того, кто её сейчас держит (кроме меня). */
   held: Record<string, string>;
@@ -428,7 +430,8 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   const deckAt = (i: number, n: number): Point => {
     const reach = DECK_DRIFT.each * Math.max(0, n - 1);
     const drift = DECK_DRIFT.each * (reach > DECK_DRIFT.most ? DECK_DRIFT.most / reach : 1);
-    return onScreen(i * drift, -i * (drift + CARD_THICK * o.rise));
+    const up = onScreen(i * drift, -i * (drift + CARD_THICK * o.rise));
+    return { x: (o.spot?.x ?? 0) + up.x, y: (o.spot?.y ?? 0) + up.y };
   };
   const levels = feltLevels(o.felt);
   const feltAt = (id: string): Point | undefined => {

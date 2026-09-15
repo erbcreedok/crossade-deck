@@ -468,6 +468,11 @@ describe("патч клиента совпадает с сервером", () =>
     step("a", { t: "grab", id: "c7" });
     step("a", { t: "drop", id: "c7", to: { in: "felt", x: 0.5, y: -1, up: true, angle: 35 } });
     step("b", { t: "turn", id: "c7" });
+    step("c", { t: "deckMove", x: 1, y: 2 });
+    step("a", { t: "deckDo", how: "flip" });
+    step("b", { t: "deckDo", how: "sort" });
+    step("c", { t: "deckDo", how: "shuffle" });
+    step("a", { t: "deckForever", on: false });
     step("b", { t: "flag", chair: b, flag: "lock", on: true });
     step("b", { t: "stand" });
     step("b", { t: "sit", chair: b });
