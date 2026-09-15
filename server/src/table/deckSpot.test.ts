@@ -383,3 +383,19 @@ describe("перенос выделенного разом", () => {
     expect(t.act("a", { t: "moveMany", moves: "x" as unknown as [] }, 0)).toEqual({ refused: "bad" });
   });
 });
+
+describe("перевернуть выделенное разом", () => {
+  it("каждая карта на месте, одним патчем; чужая выделенная — мимо", () => {
+    const t = seated("a", "b");
+    ok(t.act("b", { t: "pick", ids: ["c5"], on: true }, 0));
+    ok(t.act("a", { t: "grab", id: "c7" }, 0));
+    ok(t.act("a", { t: "drop", id: "c7", to: { in: "felt", x: 1, y: 1, up: false, angle: 0 } }, 0));
+    const v = t.version;
+    const ops = ok(t.act("a", { t: "turnMany", ids: ["c7", "c2", "c5"] }, 0));
+    expect(t.version).toBe(v + 1);
+    expect(ops.map((op) => (op as { card: { id: string } }).card.id)).toEqual(["c7", "c2"]);
+    expect(t.seenBy("b").felt[0]).toMatchObject({ id: "c7", up: true });
+    expect(t.seenBy("b").piles[0]!.cards.find((c) => c.id === "c2")).toMatchObject({ up: true });
+    expect(t.act("a", { t: "turnMany", ids: ["c5"] }, 0)).toEqual({ refused: "bad" });
+  });
+});

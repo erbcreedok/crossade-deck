@@ -265,6 +265,8 @@ export class Table {
         return this.pick(by, intent.ids, intent.on);
       case "moveMany":
         return this.moveMany(by, intent.moves, now);
+      case "turnMany":
+        return this.turnMany(by, intent.ids, now);
       case "unpick": {
         const ops = this.dropPicks([...this.picks].filter(([, who]) => who === by).map(([id]) => id));
         return { ops: ops.length ? this.commit(ops) : [] };
@@ -350,6 +352,21 @@ export class Table {
    * последнего переноса: карта Джемаля из его руки, перевёрнутая мной, — всё ещё «из руки Джемаля».
    */
   private turn(by: string, id: string, now: number): Result {
+    const done = this.turnOps(by, id, now);
+    return "refused" in done ? done : { ops: this.commit(done.ops) };
+  }
+
+  /** ПЕРЕВЕРНУТЬ ВЫДЕЛЕННОЕ — каждую карту на месте, одним патчем; чего тронуть нельзя — пропускается. */
+  private turnMany(by: string, ids: unknown, now: number): Result {
+    if (!Array.isArray(ids) || !ids.every((one) => typeof one === "string")) return { refused: "bad" };
+    const ops = [...new Set(ids as string[])].flatMap((id) => {
+      const done = this.turnOps(by, id, now);
+      return "refused" in done ? [] : done.ops;
+    });
+    return ops.length ? { ops: this.commit(ops) } : { refused: "bad" };
+  }
+
+  private turnOps(by: string, id: string, now: number): { ops: Op[] } | { refused: Refusal } {
     const may = this.touchable(by, id);
     if ("refused" in may) return may;
     const at = may.at;
@@ -365,7 +382,7 @@ export class Table {
     const was = this.trails.get(id);
     const trail: Trail = was ? { ...was, by, byName: this.names.get(by) ?? by, at: now } : this.trailOf(id, by, at, at.in, now);
     this.trails.set(id, trail);
-    return { ops: this.commit([{ t: "turn", card: { id }, up, trail }]) };
+    return { ops: [{ t: "turn", card: { id }, up, trail }] };
   }
 
   private drop(by: string, id: string, to: Where, now: number, auto = false): Result {

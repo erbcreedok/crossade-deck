@@ -269,6 +269,41 @@ check("обе сдвинулись на один и тот же сдвиг", Mat
 check("углы сохранились", now0.angle === was0.angle && now1.angle === was1.angle, [was0, now0, was1, now1]);
 check("выделенная карта руки осталась в руке", (await A.locator(`#over [data-card="${f6}"]`).count()) === 1, null);
 
+// ── 9. Кнопки над рукой: перевернуть, отменить, в руку, собрать ─────────────────────────────────────────
+const acts = A.locator('[data-g="lasso-acts"]');
+const act = async (what) => {
+  await A.locator(`[data-lasso-act="${what}"]`).dispatchEvent("pointerdown");
+  await wait(A, 600);
+};
+check("полоса действий видна в лассо и считает выделенное", (await acts.count()) === 1 && (await acts.getAttribute("data-n")) === "3", await acts.getAttribute("data-n"));
+const upsBefore = [(await feltOf(g0)).up, (await feltOf(g1)).up];
+await act("flip");
+await wait(B, 300);
+const bFelt = (await spots(B)).felt;
+check("перевернуть: обе карты сукна другой стороной у B", bFelt.find((f) => f.id === g0).up === !upsBefore[0] && bFelt.find((f) => f.id === g1).up === !upsBefore[1], { upsBefore, bFelt });
+await act("cancel");
+check("отменить: выделение снято, режим остался, кнопки погашены", (await minePicked()).length === 0 && (await acts.getAttribute("data-n")) === "0" && (await A.locator('[data-section="lasso"]').getAttribute("aria-pressed")) === "true", await minePicked());
+await tap(A, await feltOf(g0));
+await tap(A, await feltOf(g1));
+await act("hand");
+const hand9 = await A.locator("#over [data-card]").evaluateAll((els) => els.map((el) => el.dataset.card));
+check("в руку: обе в конце руки, выделение снято", hand9.slice(-2).sort().join() === [g0, g1].sort().join() && (await minePicked()).length === 0, hand9);
+const h1 = await lay(-3.0, 1.0);
+const h2 = await lay(-1.0, 1.4);
+await lassoMode(true);
+await tap(A, await feltOf(h1));
+await tap(A, await feltOf(h2));
+await tap(A, await cardAt(A, `[data-card="${g0}"]`));
+while ((await bar(A, "side").getAttribute("data-mode")) !== "down") await bar(A, "side").click();
+const piles0 = (await spots(B)).piles.length;
+await act("gather");
+await wait(B, 400);
+sb = await spots(B);
+const made = sb.piles.find((p) => [h1, h2, g0].every((id) => p.ids.includes(id)));
+check("собрать: новая стопка из трёх у B, все рубашкой", sb.piles.length === piles0 + 1 && made?.count === 3 && made.up.length === 0, sb.piles);
+check("стопка встала между картами сукна", made && Math.abs(made.spot.x - (-2.0)) < 0.6, made?.spot);
+check("после сборки выделение снято", (await minePicked()).length === 0, await minePicked());
+
 // ── 6. Курсор не держит камеру: протяжка по пустому сукну двигает стол ─────────────────────────
 await lassoMode(true);
 await bar(A, "cursor").click();

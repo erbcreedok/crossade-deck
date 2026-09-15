@@ -1416,6 +1416,56 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + under + `<div style="position:absolute;inset:0">${cardHtml(drag.shown ? drag.card.face : undefined, drag.w)}</div>` + badge + `</div>`;
   }
 
+  /**
+   * ДЕЙСТВИЯ С ВЫДЕЛЕННЫМ — полоса над рукой, пока открыто лассо: снять выделение, перевернуть, в руку, собрать в
+   * стопку. Без выделения кнопки погашены.
+   */
+  const LASSO_ACTS = [
+    ["cancel", "Отменить", '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>'],
+    ["flip", "Перевернуть", GLYPH.reverse],
+    ["hand", "В руку", '<path d="M12 3v11"/><path d="M7.5 9.5 12 14l4.5-4.5"/><path d="M4 20h16"/>'],
+    ["gather", "Собрать", GLYPH.deck],
+  ] as const;
+
+  function lassoActsHtml(s: Snapshot): string {
+    if (!lassoOn() || talk.open) return "";
+    const n = myPicks(s).length;
+    const g = glass();
+    const w = Math.min(g.w - 16, 360);
+    const top = g.h - hudFloor(handOf(s, mine(s)).length) - 50;
+    return `<div data-g="lasso-acts" data-n="${n}" style="position:absolute;left:${(g.w - w) / 2}px;top:${top}px;width:${w}px;height:42px;z-index:57;display:flex;gap:6px;`
+      + `box-sizing:border-box;padding:4px;border-radius:12px;background:${T.well};box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${T.wood},0 4px 0 rgba(11,7,4,.5)">`
+      + LASSO_ACTS.map(([act, label, glyph]) => `<button data-lasso-act="${act}" aria-disabled="${n === 0}" style="flex:1 1 0;min-width:0;border:0;border-radius:8px;cursor:${n ? "pointer" : "default"};`
+        + `display:flex;align-items:center;justify-content:center;gap:4px;padding:0 4px;opacity:${n ? 1 : 0.45};color:${T.ink};font:400 11px Tiny5,monospace;white-space:nowrap;`
+        + `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim}">`
+        + `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none">${glyph}</svg>`
+        + `<span style="overflow:hidden;text-overflow:ellipsis">${label}</span></button>`).join("")
+      + `</div>`;
+  }
+
+  /** Нажата кнопка полосы лассо. После «в руку» и «собрать» выделение снято, режим остаётся. */
+  function lassoAct(act: (typeof LASSO_ACTS)[number][0]): void {
+    const s = truth();
+    const ids = myPicks(s);
+    if (act === "cancel") return unpickAll();
+    if (ids.length === 0) return;
+    if (act === "flip") return store.send({ t: "turnMany", ids });
+    if (act === "hand") {
+      const chair = mine(s);
+      if (!chair) return;
+      const staying = handOf(s, chair).filter((c) => !ids.includes(c.id)).length;
+      store.send({ t: "moveMany", moves: ids.map((id, k) => ({ id, to: { in: "hand" as const, chair, i: staying + k } })) });
+      return unpickAll();
+    }
+    // СОБРАТЬ — в середину выделенных карт сукна; если их нет — под середину моего экрана.
+    const felt = s.felt.filter((f) => ids.includes(f.id));
+    const at = felt.length
+      ? { x: felt.reduce((m, f) => m + f.x, 0) / felt.length, y: felt.reduce((m, f) => m + f.y, 0) / felt.length }
+      : (view?.toDesk({ x: lastFrame.w / 2, y: lastFrame.h / 2 }) ?? { x: 0, y: 0 });
+    store.send({ t: "gather", ids, side: local.side, to: { ...at, angle: dropAngle() } });
+    unpickAll();
+  }
+
   /** Моё выделение — id карт, которые ещё есть на столе. */
   function myPicks(s: Snapshot): string[] {
     const key = me();
@@ -1547,7 +1597,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       .filter((one): one is { chair: Chair; spot: Spot } => Boolean(one.spot))
       .map((one) => tipHtml(s, one.chair, one.spot));
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
-    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s);
+    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s);
     wire();
     airUnder.style.height = `${mineGeom(handOf(s, mine(s)).length).barTop}px`;
 
@@ -2243,6 +2293,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         else if ((RIGHTS as readonly string[]).includes(what)) return guessFlag(seat.id, what as ChairFlag, !seat[what as ChairFlag]);
         else if ((FOLDS as readonly string[]).includes(what)) return guessPose(seat.id, what as keyof Pose, !seat.pose[what as keyof Pose]);
         else return guessOrder(what as Arrange);
+        draw();
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-lasso-act]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        lassoAct(el.dataset.lassoAct as (typeof LASSO_ACTS)[number][0]);
         draw();
       };
     }
