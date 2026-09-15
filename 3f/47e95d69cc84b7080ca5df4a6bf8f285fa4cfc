@@ -1,0 +1,25 @@
+server/scripts/tableHaptic.mjs
+  s_9ed0da107cbc4a::t_60882f11412662 19-24,119-132
+server/scripts/tableLook.mjs
+  s_9ed0da107cbc4a::t_c881e57ab363fd 56
+server/table-client/haptic.ts
+  s_9ed0da107cbc4a::t_6c90bbfb579430 30-32,35-38,48,52-59,61
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_0185b13b35bd41 1988-1989,1991-1992
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3f47e95d69cc84b7080ca5df4a6bf8f285fa4cfc",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
