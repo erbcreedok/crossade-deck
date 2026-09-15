@@ -6,6 +6,7 @@
 import { Client } from "colyseus.js";
 import { MSG, TABLE_ROOM, type Carry, type CarryOut, type Intent, type JoinOptions, type Patch, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
 import { applyPatch, needsSync } from "../src/table/patch.js";
+import type { Eye } from "../src/table/eyes.js";
 import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 import type { TableStore } from "./store.js";
 import { HOST } from "./host.js";
@@ -24,6 +25,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
   const early: Patch[] = [];
   /** Чужие пальцы в воздухе — по id карты. Держится, пока карта заблокирована тем же человеком. */
   let carries = new Map<string, Carry>();
+  let eyes: Eye[] = [];
   const stillHeld = () => {
     if (!state) return;
     for (const [id, c] of carries) if (state.locks[id] !== c.by) carries.delete(id);
@@ -54,6 +56,10 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     tell();
   });
   const said: ((say: Say) => void)[] = [];
+  room.onMessage(MSG.eyes, (all: Eye[]) => {
+    eyes = Array.isArray(all) ? all : [];
+    tell();
+  });
   room.onMessage(MSG.say, (say: Say) => {
     for (const listener of said) listener(say);
   });
@@ -67,6 +73,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
       if (Number.isFinite(msg.now)) skew = msg.now - Date.now();
       state = msg.snapshot;
       carries = new Map((msg.carries ?? []).map((c) => [c.id, c]));
+      eyes = msg.eyes ?? [];
       stillHeld();
       asked = false;
       // Дифы, пришедшие раньше снимка, догоняются по порядку; старше снимка — выбрасываются.
@@ -92,6 +99,10 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     get carries() {
       return [...carries.values()];
     },
+    get eyes() {
+      return eyes;
+    },
+    watch: (spots) => room.send(MSG.eyes, { spots }),
     carry: (out: CarryOut) => room.send(MSG.carry, out),
     say: (out: SayOut) => room.send(MSG.say, out),
     onSay: (listener) => void said.push(listener),

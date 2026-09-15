@@ -12,6 +12,7 @@ import { INKS } from "../profileInks.js";
 import { tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
 import { MSG, type CarryOut, type Intent, type JoinOptions, type Op, type Person, type RunResult, type TableCommand, type Welcome } from "./contract.js";
+import { cleanWatch, Eyes } from "./eyes.js";
 import { execute, plan } from "./script.js";
 import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
 import { deal } from "./deal.js";
@@ -25,6 +26,8 @@ const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "turn",
 export class TableRoom extends Room {
   /** Слоты выстрелов стикерами; окно чуть короче клиентского — на запаздывание сети. */
   private shots = new Shots(SHOT_MS - 150);
+  /** Кто на что смотрит: открытые окна стопок и стульев. Живёт, пока человек в комнате. */
+  private eyes = new Eyes();
   maxClients = 16;
 
   private table!: Table;
@@ -52,7 +55,7 @@ export class TableRoom extends Room {
     this.onMessage(MSG.hello, (client) => {
       const me = this.personOf(client.sessionId);
       if (!me) return;
-      const welcome: Welcome = { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), now: Date.now() };
+      const welcome: Welcome = { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now() };
       client.send(MSG.welcome, welcome);
     });
 
@@ -60,7 +63,7 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       if (!me || !intent || !INTENTS.has(intent.t)) return;
       if (intent.t === "sync") {
-        client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), now: Date.now() } satisfies Welcome);
+        client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now() } satisfies Welcome);
         return;
       }
       const result = this.table.act(me.key, intent, Date.now());
@@ -102,6 +105,15 @@ export class TableRoom extends Room {
         const key = this.seats.get(other.sessionId);
         if (key !== undefined && key !== me.key) other.send(MSG.shot, shot);
       }
+    });
+
+    // ГЛАЗА — что у него открыто. Меняется редко, поэтому рассылается всем целиком, включая самого: свой глаз
+    // отсеивает клиент, зато список у всех один и тот же.
+    this.onMessage(MSG.eyes, (client, raw: unknown) => {
+      const me = this.personOf(client.sessionId);
+      const spots = cleanWatch(raw);
+      if (!me || !spots) return;
+      if (this.eyes.look(me.key, spots, Date.now())) this.spreadEyes();
     });
 
     this.onMessage(MSG.stickers, (client) => {
@@ -171,12 +183,19 @@ export class TableRoom extends Room {
     if (key === undefined) return;
     // С ДРУГОГО УСТРОЙСТВА ОН ЕЩЁ ЗДЕСЬ — тогда не уходит никто.
     if ([...this.seats.values()].includes(key)) return;
+    if (this.eyes.forget(key)) this.spreadEyes();
     this.spread(this.table.leave(key));
   }
 
   private freeInk(): string {
     const taken = new Set(this.table.here.map((one) => one.ink));
     return INKS.find((ink) => !taken.has(ink)) ?? INKS[this.table.here.length % INKS.length]!;
+  }
+
+  /** Глаза — всем одинаковым списком. */
+  private spreadEyes(): void {
+    const all = this.eyes.all();
+    for (const client of this.clients) if (this.seats.has(client.sessionId)) client.send(MSG.eyes, all);
   }
 
   /** Разослать дифы — каждому, какими их видно ему. */

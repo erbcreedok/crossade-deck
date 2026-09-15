@@ -5,6 +5,7 @@
 // сервера приходит тем же путём: снимок снова тот, что был, — и экран просто рисует его.
 
 import type { Carry, CarryOut, Intent, Person, Refusal, Snapshot } from "../src/table/contract.js";
+import type { Eye, Spot } from "../src/table/eyes.js";
 import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 
 export interface TableStore {
@@ -14,6 +15,10 @@ export interface TableStore {
   send(intent: Intent): void;
   /** Что сейчас в воздухе у других — только то, что ещё держат (по `state.locks`). */
   readonly carries: readonly Carry[];
+  /** Кто на что смотрит сейчас — со своим глазом; свой отсеивает экран. */
+  readonly eyes: readonly Eye[];
+  /** Что открыто у меня — остальным. Без ответа, как палец. */
+  watch(spots: Spot[]): void;
   /** Часы сервера сейчас — по ним считается «10 сек назад» у следов карт. */
   now(): number;
   /** Мой палец в воздухе — над чем он. Без ответа: это поток, а не намерение. */

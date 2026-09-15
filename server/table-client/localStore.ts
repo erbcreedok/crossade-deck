@@ -69,6 +69,8 @@ export function localStore(): TableStore {
       spread(result.ops);
     },
     carries: [],
+    eyes: [],
+    watch: () => {},
     carry: () => {},
     say: () => {},
     onSay: () => {},

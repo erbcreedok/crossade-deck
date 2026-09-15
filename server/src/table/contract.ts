@@ -353,6 +353,8 @@ export interface Patch {
   ops: Op[];
 }
 
+import type { Eye } from "./eyes.js";
+
 /** Почему намерение не случилось — клиент откатывает у себя то, что успел показать. */
 export type Refusal = "busy" | "locked" | "not-held" | "not-top" | "gone" | "bad" | "chair-locked" | "not-yours" | "taken";
 export interface Refused {
@@ -375,6 +377,8 @@ export const MSG = {
   stickers: "stickers",
   /** Клиент → сервер: `ShotOut`; сервер → остальные: `Shot` — стикер выстрелом (`say.ts`). */
   shot: "shot",
+  /** Клиент → сервер: `WatchOut` — что у него открыто; сервер → всем: `Eye[]` (`eyes.ts`). Тоже мимо версий. */
+  eyes: "eyes",
 } as const;
 
 /**
@@ -409,6 +413,8 @@ export interface Welcome {
   title: string;
   /** Что сейчас в воздухе у других — чтобы вошедший посреди жеста увидел его, а не пустое место. */
   carries: Carry[];
+  /** Кто на что смотрит сейчас — вошедший сразу видит чужие глаза. */
+  eyes: Eye[];
   /** Часы сервера в момент отправки — по ним клиент считает «10 сек назад» у следов. */
   now: number;
 }

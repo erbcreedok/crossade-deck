@@ -13,6 +13,7 @@ import { orbits, tableCamera } from "./camera.js";
 import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.js";
 import { tableHaptic, type Haptic } from "./haptic.js";
 import { tableMotion } from "./motion.js";
+import { EYES_IN_PANEL, EYES_ON_TABLE, eyesAt, type Eye, type Spot as EyeSpot } from "../src/table/eyes.js";
 import { mountSettings } from "./settings.js";
 import { tableSound } from "./sound.js";
 import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as CueSpot } from "../src/table/cues.js";
@@ -81,7 +82,7 @@ type GrabMode = "collect" | "keep";
 const SUBS: Record<Section, readonly BarKey[]> = { pose: FOLDS, chair: [...RIGHTS, "leave"], order: ORDERS, lasso: LASSO, say: [] };
 /** Сколько идёт смена секций в баре. */
 const SECTION_MS = 240;
-const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "shut" | "seal" | `grab-${GrabMode}` | `side-${GatherSide}`, string> = {
+const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "eye" | "shut" | "seal" | `grab-${GrabMode}` | `side-${GatherSide}`, string> = {
   /** Курсор-хват — ладонь. */
   cursor: '<path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V10"/><path d="M11 9.5V4a1.5 1.5 0 0 1 3 0v6"/><path d="M14 9.5V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M17 10a1.5 1.5 0 0 1 3 0v3.5a7 7 0 0 1-7 7h-1.2a6 6 0 0 1-4.6-2.2L4 14.6a1.5 1.5 0 0 1 2.3-1.9L8 14.5V9a1.5 1.5 0 0 1 3 0"/>',
   lasso: '<ellipse cx="13" cy="9" rx="8" ry="5.5" stroke-dasharray="3 2.4"/><path d="M8 13.5c-2 1.5-2.5 4 0 5.5 1.5 1 3 .5 3.5-.5"/>',
@@ -111,6 +112,8 @@ const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "shut"
   shuffle: '<path d="M3 7h4l10 10h4"/><path d="M3 17h4l3-3"/><path d="M14 10l3-3h4"/><path d="M18.5 4.5 21 7l-2.5 2.5"/><path d="M18.5 14.5 21 17l-2.5 2.5"/>',
   back: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
   pin: '<path d="M9 3h6l-1 6h2l1 5H7l1-5h2L9 3z"/><path d="M12 14v7"/>',
+  /** Глаз наблюдателя — у кого открыто это окно. */
+  eye: '<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/>',
   /** Приёмка закрыта — лоток, над ним стрелка вниз, перечёркнуто. */
   shut: '<path d="M4 14h4l1 3h6l1-3h4v6H4z"/><path d="M12 3v8"/><path d="M9 8l3 3 3-3"/><path d="M3 3l18 18"/>',
   /** Мерж закрыт — две стопки, между ними перечёркнутая стрелка. */
@@ -1106,7 +1109,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `<div data-g="bar" style="position:absolute;left:0;right:0;top:${geom.barTop}px;height:${barHeight() * u}px;z-index:${cards.length + 10};`
       + `background:linear-gradient(${T.panel},${T.well});box-shadow:inset 0 3px 0 -1px ${T.black}">`
       + `<div style="position:absolute;left:${margin}px;right:${margin}px;top:${(barHeight() * u - side) / 2}px;height:${side}px">`
-      + barRow(s, side, step) + `</div></div>`
+      + barRow(s, side, step) + `</div>`
+      // СВОЙ СТУЛ — глаза на своей полосе: над столом их не видно, зато здесь их помещается больше.
+      + (watchedByMe(`chair:${mine(s)}` as EyeSpot) ? "" : (() => {
+        const row = eyeRowHtml(s, `chair:${mine(s)}` as EyeSpot, EYES_IN_PANEL, 18);
+        return row ? `<div style="position:absolute;right:${margin}px;top:${-24}px;z-index:2;pointer-events:none">${row}</div>` : "";
+      })())
+      + `</div>`
       + leaveHtml(geom.barTop!, margin, side, step);
   }
 
@@ -1224,6 +1233,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
           + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${muted.has(sitter.key) ? T.black : T.inkDim}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
           + `<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>${muted.has(sitter.key) ? '<path d="M3 3l18 18"/>' : ""}</svg></span>`
         : "")
+      + eyeRowHtml(s, `chair:${chair.id}`, EYES_IN_PANEL, 20)
       + `<span data-shut="${chair.id}" role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
       + `box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
       + `<div style="display:flex;align-items:center;gap:6px;height:16px">`
@@ -1275,6 +1285,60 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * стулья, которые её примут, а тот, над которым палец, — золотом. Чужую карту над рукой стула видно
    * всем: его зона горит в цвете того, кто несёт. Стул под локом не горит ни у кого.
    */
+  // ── ГЛАЗА ЗРИТЕЛЕЙ ─────────────────────────────────────────────────────────────────────────────
+  //
+  // Что открыто у меня — серверу; что открыто у других — мне на стол. Свой глаз не показывается никогда,
+  // а если то же окно открыто и у меня, глаза висят в окне, а не на столе: там их видно крупнее и больше.
+
+  /** Места, на которые смотрю я: открытые окна стульев и стопки. */
+  const mySpots = (): EyeSpot[] => [...local.tips.map((k) => `chair:${k}` as EyeSpot), ...(local.deckTip === null ? [] : [`pile:${local.deckTip}` as EyeSpot])];
+  let toldSpots = "";
+  function tellWatch(): void {
+    const now = mySpots().join("|");
+    if (now === toldSpots) return;
+    toldSpots = now;
+    store.watch(mySpots());
+  }
+
+  const watchedByMe = (spot: EyeSpot) => mySpots().includes(spot);
+
+  /** Глаза одного места: до предела, дальше — знак «+» цветом первого. */
+  function eyesHtml(s: Snapshot, spot: EyeSpot, limit: number, size: number): string {
+    const { eyes, more } = eyesAt(store.eyes as Eye[], spot, me(), limit);
+    if (eyes.length === 0) return "";
+    const one = (ink: string, text?: string) =>
+      `<span data-eye style="flex:none;width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;`
+      + `background:${ink};box-shadow:inset 0 0 0 ${Math.max(1.5, size * 0.08)}px ${T.black};animation:eye-in 180ms ease-out">`
+      + (text
+        ? `<span style="font:400 ${Math.round(size * 0.52)}px Tiny5,monospace;color:${T.black}">${text}</span>`
+        : `<svg viewBox="0 0 24 24" width="${Math.round(size * 0.66)}" height="${Math.round(size * 0.66)}" fill="none" stroke="${T.black}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GLYPH.eye}</svg>`)
+      + `</span>`;
+    return eyes.map((e) => one(inkOf(s, e.by))).join("") + (more ? one(inkOf(s, eyes[0]!.by), "+") : "");
+  }
+
+  /** Кластер глаз над стулом или у грипа — строкой, чтобы встать в чужую разметку. */
+  function eyeRowHtml(s: Snapshot, spot: EyeSpot, limit: number, size: number): string {
+    const inner = eyesHtml(s, spot, limit, size);
+    return inner ? `<span data-eyes="${escape(spot)}" style="display:flex;align-items:center;gap:${Math.round(size * 0.14)}px">${inner}</span>` : "";
+  }
+
+  /** Глаза над аватарами стульев: только там, где то же окно у меня не открыто. */
+  function chairEyesHtml(s: Snapshot): string {
+    if (!view) return "";
+    let html = "";
+    for (const chair of s.chairs) {
+      const spot: EyeSpot = `chair:${chair.id}`;
+      // Свой стул — на своём худе, а не на столе; открытое у меня окно забирает глаза себе.
+      if (chair.id === mine(s) || watchedByMe(spot)) continue;
+      const row = eyeRowHtml(s, spot, EYES_ON_TABLE, Math.max(14, Math.round(0.3 * view.k)));
+      if (!row) continue;
+      const at = view.toGlass(spots.find((sp) => sp.key === chair.id)?.seat ?? { x: 0, y: 0 });
+      html += `<div style="position:absolute;left:${Math.round(at.x)}px;top:${Math.round(at.y - SEAT_REACH * view.k * view.squash - 10)}px;`
+        + `transform:translate(-50%,-100%);z-index:26;pointer-events:none">${row}</div>`;
+    }
+    return html;
+  }
+
   function chairZonesHtml(s: Snapshot): string {
     if (!view) return "";
     const lit = new Map<string, { ink: string; here: boolean }>();
@@ -1505,6 +1569,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         + `<g fill="${lit ? T.ink : BAR_LOOK.goldHi}">${GLYPH.deck}</g></svg>`
         + `<span style="font:400 12px Tiny5,monospace;color:${lit ? T.black : T.ink}">${pile.cards.length}</span>`
         + pickBadges(s, pile)
+        + (local.deckTip === pile.id ? "" : eyeRowHtml(s, `pile:${pile.id}`, EYES_ON_TABLE, 16))
         + (pile.pin ? `<svg data-g="deck-pinned" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="${lit ? T.black : BAR_LOOK.goldHi}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${GLYPH.pin}</svg>` : "")
         + `</div>`;
     }).join("");
@@ -1613,6 +1678,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
       + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px">`
       + `<span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1">${pile.id === MAIN_PILE ? "Колода" : "Стопка"} · ${cards.length}</span>`
+      + eyeRowHtml(s, `pile:${pile.id}`, EYES_IN_PANEL, 20)
       + `<span data-deck-shut role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
       + `<div style="display:flex;align-items:center;gap:4px;height:16px">`
       + acts.map(([how, glyph, label]) => (pile.lock ? chip(false, "data-deck-do", glyph, label, false).replace("data-deck-do-status", `data-deck-do-status="${how}"`) : deckChip(`data-deck-do="${how}"`, glyph, label))).join("")
@@ -1808,6 +1874,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       ...pileSpots(s, MAIN_PILE, "deck"),
       piles: s.piles.map((p) => ({ id: p.id, ...pileSpots(s, p.id, "pile") })),
       turning: [...turns.keys()],
+      mine: seat,
       picks: s.picks ?? {},
       seatAngle: chairOf(s, seat)?.angle ?? null,
       seats: spots.map((sp) => {
@@ -1816,6 +1883,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       }),
     });
     local.tips = local.tips.filter((id) => id !== seat && chairOf(s, id) !== undefined);
+    tellWatch();
     // ОКНА СТАВЯТСЯ ПО ОЧЕРЕДИ ОТКРЫТИЯ: каждое знает, где уже стоят раньше открытые.
     placedTips = new Map();
     for (const key of local.tips) {
@@ -1827,7 +1895,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       .filter((one): one is { chair: Chair; spot: Spot } => Boolean(one.spot))
       .map((one) => tipHtml(s, one.chair, one.spot));
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
-    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + settingsHtml();
+    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + settingsHtml();
     wire();
     airUnder.style.height = `${mineGeom(handOf(s, mine(s)).length).barTop}px`;
 
@@ -2944,7 +3012,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     + "@keyframes bar-in{from{opacity:0;transform:translateY(70%) scale(.6)}to{opacity:1;transform:none}}"
     + "@keyframes bar-out{from{opacity:1;transform:none}to{opacity:0;transform:translateY(70%) scale(.6)}}"
     + "@media (prefers-reduced-motion:reduce){[data-bar],[data-section]{animation:none!important}}"
-    + ":root[data-reduce-motion] [data-bar],:root[data-reduce-motion] [data-section]{animation:none!important}";
+    + "@keyframes eye-in{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}"
+    + "@media (prefers-reduced-motion:reduce){[data-bar],[data-section],[data-eye]{animation:none!important}}"
+    + ":root[data-reduce-motion] [data-bar],:root[data-reduce-motion] [data-section],:root[data-reduce-motion] [data-eye]{animation:none!important}";
   document.head.append(keyframes);
 
   addEventListener("resize", draw);
