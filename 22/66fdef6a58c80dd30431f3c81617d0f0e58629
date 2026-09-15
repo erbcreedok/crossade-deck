@@ -1,0 +1,29 @@
+server/table-client/haptic.ts
+  s_9ed0da107cbc4a::t_a88eb913e7d1e3 1-56
+  s_9ed0da107cbc4a::t_d92908d3c42651 57-65
+server/scripts/tableHaptic.mjs
+  s_9ed0da107cbc4a::t_9eb3c565fb399a 1-132
+  s_9ed0da107cbc4a::t_c2bd8f1b5ebf03 133-142
+server/scripts/tableLook.mjs
+  s_9ed0da107cbc4a::t_02b1ede78f6fd5 56
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_8bd64dbec8b191 14,16,185-187,231,1941-1942,1946-1954,1977-1978,1988-1989,2341,2628,2632-2634
+server/table-client/talk.ts
+  s_9ed0da107cbc4a::t_fbbde1188050d9 12,160-161,167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2266fdef6a58c80dd30431f3c81617d0f0e58629",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
