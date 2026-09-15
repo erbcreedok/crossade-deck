@@ -10,6 +10,7 @@
 import { EMOJI } from "../src/table/emoji.js";
 import { EVERYWHERE, KEYBOARD, KEYBOARD_SECTIONS, LINE_PAUSE_MS, Lines, SHOT_MS, Shots, Typer, graphemes, type KeyboardSection, type Line, type Piece } from "../src/table/say.js";
 import { tableHaptic } from "./haptic.js";
+import { tableMotion } from "./motion.js";
 import type { TableStore } from "./store.js";
 
 const INK = { black: "#0b0704", ink: "#f5ead0", well: "#1c120b", panel: "#3a2a1d", rim: "#6b4d2c", gold: "#f8d885", goldLo: "#b08a26" };
@@ -288,7 +289,8 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     el.style.cssText = `position:absolute;left:${a.seatX - size / 2}px;top:${a.seatY - size / 2}px;width:${size}px;height:${size}px;object-fit:contain;pointer-events:none;will-change:transform,opacity,filter`;
     shotLayer.append(el);
     // Движение — с торможением; таяние — по часам: иначе кривая сжала бы и его в начало полёта.
-    el.animate([
+    // «Меньше анимаций» — стикер не летит, только тает у аватара: слот держится те же `SHOT_MS`.
+    if (!tableMotion().reduce) el.animate([
       { transform: "translate(0,0) scale(.5)" },
       { transform: `translate(${tx}px,${ty}px) scale(1.25)` },
     ], { duration: SHOT_MS, easing: "cubic-bezier(.1,.75,.3,1)", fill: "forwards" });
@@ -368,7 +370,7 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     build();
     board.hidden = false;
     shield.hidden = false;
-    board.animate([{ transform: "translateY(100%)" }, { transform: "none" }], { duration: KEYBOARD_MS, easing: "cubic-bezier(.2,.7,.3,1)" });
+    if (!tableMotion().reduce) board.animate([{ transform: "translateY(100%)" }, { transform: "none" }], { duration: KEYBOARD_MS, easing: "cubic-bezier(.2,.7,.3,1)" });
     redraw();
   }
 
@@ -378,7 +380,8 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     clearTimeout(pause);
     typer.end();
     shield.hidden = true;
-    const out = board.animate([{ transform: "none" }, { transform: "translateY(100%)" }], { duration: KEYBOARD_MS, easing: "ease-in" });
+    // «Меньше анимаций» — клавиатура уходит сразу.
+    const out = board.animate([{ transform: "none" }, { transform: "translateY(100%)" }], { duration: tableMotion().reduce ? 0 : KEYBOARD_MS, easing: "ease-in" });
     out.onfinish = () => !open && (board.hidden = true);
     redraw();
   }
@@ -428,7 +431,7 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
         if (alive.has(el.dataset.line!) || el.dataset.gone) continue;
         el.dataset.gone = "1";
         const from = el.style.transform;
-        const run = el.animate([{ transform: from, opacity: 1 }, { transform: `${from} translateY(${-lineH * 2}px)`, opacity: 0 }], { duration: FLY_MS, easing: "ease-in", fill: "forwards" });
+        const run = el.animate([{ transform: from, opacity: 1 }, { transform: `${from} translateY(${-lineH * 2}px)`, opacity: 0 }], { duration: tableMotion().reduce ? 0 : FLY_MS, easing: "ease-in", fill: "forwards" });
         run.onfinish = () => el.remove();
       }
       // Снизу вверх: последняя строка — внизу, над ней — старее.

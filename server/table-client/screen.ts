@@ -11,8 +11,10 @@ import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { orbits, tableCamera } from "./camera.js";
 import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.js";
-import { tableHaptic, writeHapticOn, type Haptic } from "./haptic.js";
-import { tableSound, writeSoundOn } from "./sound.js";
+import { tableHaptic, type Haptic } from "./haptic.js";
+import { tableMotion } from "./motion.js";
+import { mountSettings } from "./settings.js";
+import { tableSound } from "./sound.js";
 import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as CueSpot } from "../src/table/cues.js";
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
@@ -233,6 +235,19 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   const art = deckArt(() => draw(), () => look);
   const sound = tableSound();
   const haptic = tableHaptic();
+  /** Личная скорость анимаций и «меньше анимаций». */
+  const motion = tableMotion();
+  motion.onChange(() => draw());
+  const settings = mountSettings(document.body, {
+    sound, haptic, motion, look,
+    lookChanged: () => {
+      writeLook(look);
+      art.warm(store.state.rules);
+      draw();
+    },
+    footer: () => [`build ${TABLE_BUILD}`, haptic.client].filter(Boolean).join(" · "),
+    changed: () => draw(),
+  });
   /** Когда я последний раз касался экрана: перемена кадра вскоре после касания — моя, звучит громче. */
   let touchedAt = -Infinity;
   /** Последнее место каждой карты, какое было видно: из кадра её вынимают, пока держат. */
@@ -278,8 +293,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     sectionAt: -Infinity,
     /** Открыт вопрос «Покинуть стул?». */
     confirmLeave: false,
-    /** Открыты настройки (шестерёнка сверху). */
-    settings: false,
     /** Открытые окна стульев — id стульев, по порядку открытия. */
     tips: [] as string[],
     /** Открытый тултип стопки — id стопки. */
@@ -866,7 +879,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       if (was && was.where === where && was.up !== up) turns.set(id, { t0: now, up: was.up, face: was.face ?? face, ...(showsFace && !face ? { wait: true } : {}) });
       // Лицо пришло к карте, застывшей на ребре, — доворот со второй половины.
       const t = turns.get(id);
-      if (t?.wait && face) turns.set(id, { ...t, t0: Math.min(t.t0, now - TURN_MS / 2), wait: false });
+      if (t?.wait && face) turns.set(id, { ...t, t0: Math.min(t.t0, now - turnMs() / 2), wait: false });
       sides.set(id, { where, up, face: face ?? (was?.where === where ? was.face : undefined) });
     };
     for (const c of s.felt) note(c.id, "felt", c.up, c.face);
@@ -875,7 +888,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // Карты, которой нет в кадре (она в пальце — тап и есть хват), прошлая сторона не стирается: иначе переворот
     // после второго тапа не с чем было бы сравнить. Стирается, когда ушла из колоды целиком (перемешали).
     if (sides.size > 4 * (seenIds.size + 60)) for (const id of sides.keys()) if (!seenIds.has(id)) sides.delete(id);
-    for (const [id, t] of turns) if (now - t.t0 >= (t.wait ? GUESS_MS : TURN_MS)) turns.delete(id);
+    for (const [id, t] of turns) if (now - t.t0 >= (t.wait ? GUESS_MS : turnMs())) turns.delete(id);
     if (turns.size && !turnFrame) {
       turnFrame = true;
       requestAnimationFrame(() => {
@@ -885,9 +898,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     }
   }
 
+  /** Переворот у меня: по скорости; «меньше анимаций» — мгновенно (1 мс, чтобы доля пути считалась). */
+  function turnMs(): number {
+    return Math.max(1, motion.ms(TURN_MS));
+  }
+
   function turning(id: string): { p: number; up: boolean; face?: Face } | undefined {
     const t = turns.get(id);
-    return t && { p: Math.min(t.wait ? 0.5 : 1, (performance.now() - t.t0) / TURN_MS), up: t.up, face: t.face };
+    return t && { p: Math.min(t.wait ? 0.5 : 1, (performance.now() - t.t0) / turnMs()), up: t.up, face: t.face };
   }
 
   function cardHtml(face: Face | undefined, w: number): string {
@@ -967,7 +985,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + (under ? "pointer-events:none;" : "")
       + (held ? `pointer-events:none;filter:brightness(.6);outline:3px solid ${held};border-radius:${geom.w * 0.12}px;` : shut ? "pointer-events:none;filter:brightness(.7);" : "cursor:grab;")
       + (flying.has(c.id) ? "visibility:hidden;" : "")
-      + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out">${turnHtml(c, geom.w)}</div>`;
+      + `transition:left ${motion.ms(160)}ms ease-out, top ${motion.ms(160)}ms ease-out, transform ${motion.ms(160)}ms ease-out">${turnHtml(c, geom.w)}</div>`;
   }
 
   /** Снимок, по которому рисуется этот кадр: разметка спрашивает его много раз, а собирать его дорого. */
@@ -998,9 +1016,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const face = c.up ? undefined : c.face;
     const turn = turns.get(c.id);
     if (!turn) return cardHtml(face, w);
-    const late = -Math.min(TURN_MS, performance.now() - turn.t0);
+    const late = -Math.min(turnMs(), performance.now() - turn.t0);
     const side = (name: string, html: string) =>
-      `<span data-g="turn" style="position:absolute;inset:0;animation:${name} ${TURN_MS}ms linear ${late}ms both">${html}</span>`;
+      `<span data-g="turn" style="position:absolute;inset:0;animation:${name} ${turnMs()}ms linear ${late}ms both">${html}</span>`;
     // Лица ещё нет — только первая половина: карта стоит на ребре.
     if (turn.wait) return side("card-turn-out", cardHtml(turn.up ? undefined : turn.face, w));
     return side("card-turn-out", cardHtml(turn.up ? undefined : turn.face, w)) + side("card-turn-in", cardHtml(face, w));
@@ -1585,7 +1603,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         + `transform:rotate(${slot.angle}deg);z-index:${42 + i};touch-action:none;`
         + (hand ? `pointer-events:none;filter:brightness(.6);outline:3px solid ${hand};border-radius:${box.cw * 0.12}px;` : shut ? "pointer-events:none;" : "cursor:grab;")
         + (flying.has(one.id) ? "visibility:hidden;" : "")
-        + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out">${cardHtml(one.up ? one.face : undefined, box.cw)}</div>`;
+        + `transition:left ${motion.ms(160)}ms ease-out, top ${motion.ms(160)}ms ease-out, transform ${motion.ms(160)}ms ease-out">${cardHtml(one.up ? one.face : undefined, box.cw)}</div>`;
     }).join("");
     const acts: [DeckDo, string, string][] = [["shuffle", GLYPH.shuffle, "Перемешать"], ["sort", GLYPH.suit, "Отсортировать"], ["flip", GLYPH.reverse, "Перевернуть"]];
     /** Кнопка, если можно; значок состояния, если нельзя. */
@@ -1913,7 +1931,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const chair = chairOf(s, mine(s));
     if (!chair || offSeat(s) < 1.5) return "";
     const turn = chair.angle - cam.camera.rotation;
-    return `<button data-home aria-label="К своему стулу" style="position:absolute;right:12px;top:12px;width:40px;height:40px;border:0;padding:0;z-index:45;`
+    return `<button data-home aria-label="К своему стулу" style="position:absolute;right:12px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:40px;height:40px;border:0;padding:0;z-index:45;`
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;`
       + `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}">`
       + `<svg viewBox="0 0 24 24" width="22" height="22" style="transform:rotate(${turn}deg)" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
@@ -1940,7 +1958,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     for (const cue of cuesBetween(prev, next, knownSpots)) {
       const p = glassOf(cue.at);
       // Мерж и шафл звучат, пока идёт их анимация: перелёт карт в стопку, веер шафла.
-      const cut = cue.kind === "merge" ? FLIGHT_MS : cue.kind === "shuffle" ? SHUFFLE_MS + (SHUFFLE_CARDS - 1) * SHUFFLE_STAGGER_MS : undefined;
+      const cut = cue.kind === "merge" ? Math.max(60, motion.ms(FLIGHT_MS)) : cue.kind === "shuffle" ? SHUFFLE_MS + (SHUFFLE_CARDS - 1) * SHUFFLE_STAGGER_MS : undefined;
       if (p) sound.play(cue.kind, (p.x - g.w / 2) / (g.w / 2), (p.y - g.h / 2) / (g.h / 2), own, cut);
       // Вибрация — только своё: моё действие или что-то в моей руке, на моём стуле.
       if (own || ("chair" in cue.at && cue.at.chair === seat)) buzzCue(cue.kind, cut);
@@ -1970,30 +1988,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return { label: `${rank}${SUITS[suit][0]}`, ink };
   }
 
-  /** НАСТРОЙКИ — шестерёнка сверху и окно под ней: вид колоды, личный. */
+  /** НАСТРОЙКИ — шестерёнка сверху; окно — своим слоем (`settings.ts`). */
   function settingsHtml(): string {
     const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
-    const gear = `<button data-settings aria-label="Настройки" aria-expanded="${local.settings}" style="position:absolute;left:12px;top:12px;width:40px;height:40px;border:0;padding:0;z-index:61;`
+    const gear = `<button data-settings aria-label="Настройки" aria-expanded="${settings.open}" style="position:absolute;left:12px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:40px;height:40px;border:0;padding:0;z-index:61;`
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">`
       + `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
       + `<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`;
-    if (!local.settings) return gear;
-    const row = (key: keyof DeckLook | "sound" | "haptic", label: string) => {
-      const on = key === "sound" ? sound.on : key === "haptic" ? haptic.on : look[key];
-      const knob = on
-        ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black}`
-        : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim}`;
-      return `<button data-look="${key}" role="switch" aria-checked="${on}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;border:0;padding:6px 0;background:none;cursor:pointer;color:${T.ink};font:400 13px Tiny5,monospace">`
-        + `<span>${label}</span><span style="width:44px;height:24px;border-radius:12px;position:relative;${knob}">`
-        + `<span style="position:absolute;top:4px;left:${on ? 24 : 4}px;width:16px;height:16px;border-radius:50%;background:${on ? T.black : T.inkDim}"></span></span></button>`;
-    };
-    return gear + `<div data-settings-panel style="position:absolute;left:12px;top:60px;width:200px;box-sizing:border-box;z-index:61;padding:10px 14px;border-radius:12px;`
-      + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);display:flex;flex-direction:column">`
-      + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding-bottom:4px">${haptic.supported ? "Звук и вибрация" : "Звук"}</span>`
-      + row("sound", "Звуки") + (haptic.supported ? row("haptic", "Вибрация") : "")
-      + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding:8px 0 4px">Колода</span>`
-      + row("fourColour", "4 цвета") + row("cyrillic", "Кириллица")
-      + `<span data-client style="font:400 10px Tiny5,monospace;color:${T.inkDim};padding-top:8px">${[`build ${TABLE_BUILD}`, haptic.client].filter(Boolean).join(" · ")}</span>` + `</div>`;
+    return gear;
   }
 
   // ── ЧУЖИЕ РУКИ В ВОЗДУХЕ И ПЕРЕЛЁТЫ ────────────────────────────────────────────────────────────
@@ -2156,6 +2158,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   }
 
   function launch(id: string, from: Place, to: Place): void {
+    // «Меньше анимаций» — карта сразу на месте.
+    const flightMs = motion.ms(FLIGHT_MS);
+    if (flightMs === 0) return;
     // ПОВОРОТ КОРОТКИМ ПУТЁМ: 170° и -190° — одна поза, и лететь между ними нечего крутить.
     from = { ...from, angle: to.angle + (((((from.angle - to.angle) % 360) + 540) % 360) - 180) };
     const layer = [from.key, to.key].some((key) => key.startsWith(`hand:${mine()}:`)) ? airUnder : air;
@@ -2172,8 +2177,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const frames = turns
       ? [{ transform: poseCss(from, to) }, { transform: poseCss(mid, to, 0.02), offset: 0.5 }, { transform: poseCss(to, to) }]
       : [{ transform: poseCss(from, to) }, { transform: poseCss(to, to) }];
-    const run = el.animate(frames, { duration: FLIGHT_MS, easing: "cubic-bezier(.2,.7,.3,1)" });
-    if (turns) setTimeout(() => (el.innerHTML = cardHtml(to.face, to.w)), FLIGHT_MS / 2);
+    const run = el.animate(frames, { duration: flightMs, easing: "cubic-bezier(.2,.7,.3,1)" });
+    if (turns) setTimeout(() => (el.innerHTML = cardHtml(to.face, to.w)), flightMs / 2);
     run.onfinish = () => {
       if (el.isConnected) el.remove();
       if (!air.querySelector(`[data-flight="${id}"]`) && !airUnder.querySelector(`[data-flight="${id}"]`)) flying.delete(id);
@@ -2190,7 +2195,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   let shuffledInTip = false;
   function playShuffle(s: Snapshot, id: string): void {
     const n = pileOf(s, id)?.cards.length ?? 0;
-    if (!view || n === 0) return;
+    // Веер — только картинка: колода на сервере уже перемешана. «Меньше анимаций» — без него.
+    if (!view || n === 0 || motion.reduce) return;
     const at = view.toGlass(view.deckAt(id, n - 1, n));
     const w = FELT_CARD.w * view.k, h = FELT_CARD.h * view.k;
     for (let i = 0; i < SHUFFLE_CARDS; i += 1) {
@@ -2623,26 +2629,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     for (const el of over.querySelectorAll<HTMLElement>("[data-settings]")) {
       el.onclick = (e) => {
         e.stopPropagation();
-        local.settings = !local.settings;
-        draw();
-      };
-    }
-    for (const el of over.querySelectorAll<HTMLElement>("[data-look]")) {
-      el.onclick = (e) => {
-        e.stopPropagation();
-        const key = el.dataset.look as keyof DeckLook | "sound" | "haptic";
-        if (key === "sound") {
-          sound.on = !sound.on;
-          writeSoundOn(sound.on);
-        } else if (key === "haptic") {
-          haptic.on = !haptic.on;
-          writeHapticOn(haptic.on);
-        } else {
-          look[key] = !look[key];
-          writeLook(look);
-          art.warm(store.state.rules);
-        }
-        draw();
+        settings.show();
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-stand]")) {
@@ -2845,13 +2832,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     local.confirmLeave = false;
     redraw();
   }, { capture: true });
-  addEventListener("pointerup", (e) => {
-    if (!local.settings) return;
-    const at = e.target instanceof Element ? e.target : null;
-    if (at?.closest("[data-settings],[data-settings-panel]")) return;
-    local.settings = false;
-    redraw();
-  }, { capture: true });
   addEventListener("pointercancel", unpress, { capture: true });
   // «10 сек назад» идёт, пока тултип открыт.
   setInterval(() => cardTip && draw(), 1000);
@@ -2959,7 +2939,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     + "@keyframes card-turn-in{0%,50%{transform:scaleX(0)}100%{transform:scaleX(1)}}"
     + "@keyframes bar-in{from{opacity:0;transform:translateY(70%) scale(.6)}to{opacity:1;transform:none}}"
     + "@keyframes bar-out{from{opacity:1;transform:none}to{opacity:0;transform:translateY(70%) scale(.6)}}"
-    + "@media (prefers-reduced-motion:reduce){[data-bar],[data-section]{animation:none!important}}";
+    + "@media (prefers-reduced-motion:reduce){[data-bar],[data-section]{animation:none!important}}"
+    + ":root[data-reduce-motion] [data-bar],:root[data-reduce-motion] [data-section]{animation:none!important}";
   document.head.append(keyframes);
 
   addEventListener("resize", draw);

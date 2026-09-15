@@ -17,19 +17,34 @@ export const SOUND_OF: Record<CueKind, keyof typeof FILES> = { drop: "drop", han
 /** Громкость своего и чужого. */
 export const GAIN = { mine: 1, other: 0.6 } as const;
 
-const ON_KEY = "crossade.table.sound";
+const KEY = "crossade.table.sound";
+/** Громкость — лесенкой: 0…100 шагом `VOLUME_STEP`. */
+export const VOLUME_STEP = 10;
 
-export function readSoundOn(): boolean {
+export interface SoundPrefs {
+  volume: number;
+  muted: boolean;
+  /** Объёмный звук: лево-право и перед-зад по месту на экране. Выключен — всё посередине. */
+  spatial: boolean;
+}
+
+export function readSoundPrefs(): SoundPrefs {
+  const plain: SoundPrefs = { volume: 100, muted: false, spatial: true };
   try {
-    return localStorage.getItem(ON_KEY) !== "off";
+    const raw = localStorage.getItem(KEY);
+    if (raw === "off") return { ...plain, muted: true };
+    const o = JSON.parse(raw ?? "null") as Partial<SoundPrefs> | null;
+    if (!o || typeof o !== "object") return plain;
+    const volume = typeof o.volume === "number" ? Math.max(0, Math.min(100, Math.round(o.volume / VOLUME_STEP) * VOLUME_STEP)) : plain.volume;
+    return { volume, muted: o.muted === true, spatial: o.spatial !== false };
   } catch {
-    return true;
+    return plain;
   }
 }
 
-export function writeSoundOn(on: boolean): void {
+export function writeSoundPrefs(prefs: SoundPrefs): void {
   try {
-    localStorage.setItem(ON_KEY, on ? "on" : "off");
+    localStorage.setItem(KEY, JSON.stringify(prefs));
   } catch {
     // Нет хранилища — живёт, пока открыт экран.
   }
@@ -46,7 +61,10 @@ export interface Played {
 }
 
 export interface TableSound {
-  on: boolean;
+  prefs: SoundPrefs;
+  /** Слышно ли хоть что-то: не заглушено и громкость больше нуля. */
+  readonly on: boolean;
+  save(): void;
   /** `x`, `z` — место на экране в долях от середины (см. `Played`). */
   /** `cutMs` — звук обрывается, когда кончилась анимация, которую он озвучивает. */
   play(kind: CueKind, x: number, z: number, mine: boolean, cutMs?: number): void;
@@ -78,10 +96,15 @@ export function tableSound(): TableSound {
   addEventListener("pointerdown", wake, { capture: true });
 
   const sound: TableSound = {
-    on: readSoundOn(),
+    prefs: readSoundPrefs(),
+    get on() {
+      return !sound.prefs.muted && sound.prefs.volume > 0;
+    },
+    save: () => writeSoundPrefs(sound.prefs),
     play(kind, x, z, mine, cutMs) {
       if (!sound.on) return;
-      const gain = mine ? GAIN.mine : GAIN.other;
+      const gain = (mine ? GAIN.mine : GAIN.other) * (sound.prefs.volume / 100);
+      if (!sound.prefs.spatial) x = z = 0;
       const file = SOUND_OF[kind];
       log.push({ kind, file, x: +x.toFixed(2), z: +z.toFixed(2), gain, ...(cutMs ? { cutMs } : {}) });
       if (log.length > 50) log.shift();
@@ -103,7 +126,8 @@ export function tableSound(): TableSound {
         pan.positionY.value = 0;
         pan.positionZ.value = pz;
       } else pan.setPosition(px, 0, pz);
-      src.connect(vol).connect(pan).connect(ctx.destination);
+      if (sound.prefs.spatial) src.connect(vol).connect(pan).connect(ctx.destination);
+      else src.connect(vol).connect(ctx.destination);
       src.start();
       if (cutMs) {
         // Обрыв с хвостом в 15 мс — без щелчка.

@@ -53,7 +53,7 @@ const mid0 = (await spots(A)).middle;
 check("окна настроек нет, пока не нажата шестерёнка", (await A.$("[data-settings-panel]")) === null);
 await A.click("[data-settings]");
 await A.waitForTimeout(200);
-check("шестерёнка открывает окно: звуки, 4 цвета, кириллица (вибрации в браузере нет)", (await A.$$("[data-settings-panel] [data-look]")).length === 3);
+check("шестерёнка открывает окно: без звука, объёмный, меньше анимаций, 4 цвета, кириллица (вибрации и полного экрана в браузере нет)", (await A.$$("[data-settings-panel] [data-look]")).length === 5);
 check("нажатие шестерёнки не двигает стол", JSON.stringify((await spots(A)).middle) === JSON.stringify(mid0), [(await spots(A)).middle, mid0]);
 
 await A.click("[data-look=fourColour]");
@@ -65,9 +65,9 @@ check("A грузит набор classic-4c-cyr", (await loaded(A)).includes("cl
 check("в руке A лицо classic-4c-cyr", (await handArt(A)).some((b) => b.includes("/classic-4c-cyr/")), await handArt(A));
 check("B своих настроек не трогал — у него только обычный набор", (await loaded(B)).every((s) => s === "classic"), [...new Set(await loaded(B))]);
 
-await A.mouse.click(195, 300);
+await A.mouse.click(195, 20);
 await A.waitForTimeout(300);
-check("касание мимо закрывает окно", (await A.$("[data-settings-panel]")) === null);
+check("касание мимо окна закрывает его", (await A.$("[data-settings-panel]")) === null);
 
 await A.reload();
 await ready(A);

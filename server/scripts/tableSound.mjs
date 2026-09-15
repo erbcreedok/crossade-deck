@@ -85,9 +85,9 @@ check("B слышит карту в чужую руку, тише", bHand && bHa
 // 4. Звук выключен — плеер молчит.
 await A.click("[data-settings]");
 await A.waitForTimeout(200);
-check("в настройках есть тумблер звука, по умолчанию включён", (await A.getAttribute("[data-look=sound]", "aria-checked")) === "true");
-await A.click("[data-look=sound]");
-await A.mouse.click(195, 300);
+check("в настройках есть «Без звука», по умолчанию выключен", (await A.getAttribute("[data-look=mute]", "aria-checked")) === "false");
+await A.click("[data-look=mute]");
+await A.click("[data-settings-close]");
 await A.waitForTimeout(300);
 await heard(A);
 await drag(A, (await spots(A)).deckTop, { x: middle.x + 3 * k, y: middle.y - 1.5 * k });
@@ -99,11 +99,11 @@ check("у B звук свой — он слышит, сбоку (у него с�
 await A.reload();
 await A.waitForSelector("[data-settings]");
 await A.click("[data-settings]");
-check("выключенный звук помнится после перезагрузки", (await A.getAttribute("[data-look=sound]", "aria-checked")) === "false");
+check("выключенный звук помнится после перезагрузки", (await A.getAttribute("[data-look=mute]", "aria-checked")) === "true");
 
 // 5. Сборка в стопку, мерж стопки в колоду, шафл — у того, кто делает (B), и у A (звук у него снова включён).
-await A.click("[data-look=sound]");
-await A.mouse.click(195, 300);
+await A.click("[data-look=mute]");
+await A.click("[data-settings-close]");
 const wait = (p, ms = 300) => p.waitForTimeout(ms);
 const lay = async (p, dx) => {
   const now = await spots(p);

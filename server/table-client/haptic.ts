@@ -32,6 +32,7 @@ export const HAPTIC_PLATFORMS = ["ios", "android", "android_x"];
 
 export interface TableHaptic {
   on: boolean;
+  save(): void;
   /** Есть ли вибрация на этом устройстве — нет, так и тумблера нет. */
   supported: boolean;
   /** Клиент Telegram — строкой для настроек: платформа и версия Bot API. */
@@ -49,6 +50,7 @@ export function tableHaptic(): TableHaptic {
   const feedback = () => (globalThis as { Telegram?: { WebApp?: { HapticFeedback?: HapticFeedback } } }).Telegram?.WebApp?.HapticFeedback;
   const haptic: TableHaptic = {
     on: readHapticOn(),
+    save: () => writeHapticOn(haptic.on),
     get supported() {
       const a = app();
       return Boolean(a?.isVersionAtLeast?.("6.1") && HAPTIC_PLATFORMS.includes(a.platform ?? ""));

@@ -98,7 +98,7 @@ await A.click("[data-settings]");
 await A.waitForTimeout(200);
 check("тумблер «Вибрация» есть, по умолчанию включён", (await A.getAttribute("[data-look=haptic]", "aria-checked")) === "true");
 await A.click("[data-look=haptic]");
-await A.mouse.click(195, 300);
+await A.click("[data-settings-close]");
 await A.waitForTimeout(300);
 await felt(A);
 await drag(A, (await spots(A)).deckTop, { x: middle.x + 3 * k, y: middle.y - 1.5 * k });
@@ -114,18 +114,14 @@ await A.click("[data-settings]");
 check("выключенная вибрация помнится после перезагрузки", (await A.getAttribute("[data-look=haptic]", "aria-checked")) === "false");
 await B.click("[data-settings]");
 check("у B своя — включена", (await B.getAttribute("[data-look=haptic]", "aria-checked")) === "true");
-await B.mouse.click(195, 300);
+await B.click("[data-settings-close]");
 
 // 5б. Где вибрации нет (Mac, Desktop, браузер) — тумблера нет, и вызовов нет.
 await B.evaluate(() => { window.__platform = "macos"; });
-// Окно перерисовывается только открытием: закрыть, если открыто, и открыть заново.
-if (await B.$("[data-settings-panel]")) await B.click("[data-settings]");
-for (let i = 0; i < 3 && !(await B.$("[data-settings-panel]")); i += 1) {
-  await B.click("[data-settings]");
-  await B.waitForTimeout(250);
-}
+await B.click("[data-settings]");
+await B.waitForTimeout(200);
 check("на Mac тумблера вибрации нет, внизу — клиент", (await B.$("[data-look=haptic]")) === null && /macos/.test(await B.textContent("[data-client]")), null);
-await B.mouse.click(195, 300);
+await B.click("[data-settings-close]");
 await B.waitForTimeout(300);
 await felt(B);
 await B.click('[data-section="lasso"]');
