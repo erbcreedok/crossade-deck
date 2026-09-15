@@ -1866,7 +1866,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       // Стопка растёт вверх: у стула, от которого середина ниже, низ стопки опущен на все её строки — иначе
       // слова легли бы на лицо.
       const reach = sp.r + 10 + Math.max(0, dir.y) * LINES_MAX * size * 1.35;
-      return [{ key: sitter.key, x: sp.x + dir.x * reach, y: sp.y + dir.y * reach, size, ink: sitter.ink, dx: dir.x, dy: dir.y }];
+      return [{ key: sitter.key, x: sp.x + dir.x * reach, y: sp.y + dir.y * reach, size, ink: sitter.ink, dx: dir.x, dy: dir.y, seatX: sp.x, seatY: sp.y, unit: v.k }];
     });
   }
 

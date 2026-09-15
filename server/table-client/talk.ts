@@ -33,10 +33,17 @@ export interface WordAnchor {
   ink: string;
   dx: number;
   dy: number;
+  /** Аватар человека на стекле и сколько пикселей в единице стола (ширина карты) — стикер живёт в масштабе стола. */
+  seatX: number;
+  seatY: number;
+  unit: number;
 }
 
-/** Полёт стикера: куда он уходит в долях высоты экрана — вверх сильнее, к середине стола слабее; разброс угла. */
-const SHOT_FLIGHT = { up: 0.3, toMiddle: 0.14, spreadDeg: 9 };
+/**
+ * Полёт стикера в единицах стола (ширина карты): размер, насколько вверх по экрану и к середине стола; разброс угла;
+ * с какой доли полёта он начинает таять.
+ */
+const SHOT_FLIGHT = { size: 1.3, up: 2, toMiddle: 1, spreadDeg: 9, fadeFrom: 0.7 };
 
 /** Что диалог спрашивает у стола: как видно отметки, что под пальцем, моя рука, кого я не читаю, мои стикеры. */
 export interface TalkWorld {
@@ -261,12 +268,11 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     if (!a) return;
     const n = (fired.get(by) ?? 0) + 1;
     fired.set(by, n);
-    const H = stage.clientHeight;
-    const size = Math.round(a.size * 3.2);
+    const size = Math.round(SHOT_FLIGHT.size * a.unit);
     // Вверх по экрану и к середине стола; каждый выстрел повёрнут на свой угол из пяти.
     const turn = ((((n * 3) % 5) - 2) * SHOT_FLIGHT.spreadDeg * Math.PI) / 180;
-    const vx = a.dx * SHOT_FLIGHT.toMiddle * H;
-    const vy = a.dy * SHOT_FLIGHT.toMiddle * H - SHOT_FLIGHT.up * H;
+    const vx = a.dx * SHOT_FLIGHT.toMiddle * a.unit;
+    const vy = (a.dy * SHOT_FLIGHT.toMiddle - SHOT_FLIGHT.up) * a.unit;
     const tx = vx * Math.cos(turn) - vy * Math.sin(turn);
     const ty = vx * Math.sin(turn) + vy * Math.cos(turn);
     const el = document.createElement("img");
@@ -275,13 +281,18 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     el.dataset.turn = String(Math.round((turn * 180) / Math.PI));
     el.alt = "";
     el.src = world.stickerUrl(by, id);
-    el.style.cssText = `position:absolute;left:${a.x - size / 2}px;top:${a.y - size / 2}px;width:${size}px;height:${size}px;object-fit:contain;pointer-events:none;will-change:transform,opacity,filter`;
+    el.style.cssText = `position:absolute;left:${a.seatX - size / 2}px;top:${a.seatY - size / 2}px;width:${size}px;height:${size}px;object-fit:contain;pointer-events:none;will-change:transform,opacity,filter`;
     shotLayer.append(el);
-    const run = el.animate([
-      { transform: "translate(0,0) scale(.5)", opacity: 1, filter: "blur(0)" },
-      { transform: `translate(${tx * 0.75}px,${ty * 0.75}px) scale(1.1)`, opacity: 1, filter: "blur(0)", offset: 0.35 },
-      { transform: `translate(${tx}px,${ty}px) scale(1.25)`, opacity: 0, filter: "blur(6px)" },
+    // Движение — с торможением; таяние — по часам: иначе кривая сжала бы и его в начало полёта.
+    el.animate([
+      { transform: "translate(0,0) scale(.5)" },
+      { transform: `translate(${tx}px,${ty}px) scale(1.25)` },
     ], { duration: SHOT_MS, easing: "cubic-bezier(.1,.75,.3,1)", fill: "forwards" });
+    const run = el.animate([
+      { opacity: 1, filter: "blur(0)" },
+      { opacity: 1, filter: "blur(0)", offset: SHOT_FLIGHT.fadeFrom },
+      { opacity: 0, filter: "blur(4px)" },
+    ], { duration: SHOT_MS, easing: "linear", fill: "forwards" });
     run.onfinish = () => el.remove();
   }
 

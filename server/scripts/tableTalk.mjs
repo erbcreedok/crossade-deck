@@ -245,7 +245,7 @@ const flight = B.evaluate(() => new Promise((done) => {
     const el = document.querySelector("[data-g=shots] [data-shot]");
     if (el) {
       const b = el.getBoundingClientRect();
-      seen.push({ t: Math.round(performance.now() - t0), y: Math.round(b.top + b.height / 2), x: Math.round(b.left + b.width / 2), o: +getComputedStyle(el).opacity });
+      seen.push({ t: Math.round(performance.now() - t0), y: Math.round(b.top + b.height / 2), x: Math.round(b.left + b.width / 2), o: +getComputedStyle(el).opacity, w: el.offsetWidth });
     } else if (seen.length) return done(seen);
     if (performance.now() - t0 > 3500) return done(seen);
     requestAnimationFrame(look);
@@ -257,7 +257,13 @@ const path = await flight;
 const at = (ms) => path.reduce((best, p) => (Math.abs(p.t - ms) < Math.abs(best.t - ms) ? p : best), path[0]);
 const p0 = path[0], p1 = at(path[0].t + 400), p2 = at(path[0].t + 1200), pEnd = path.at(-1);
 check("у B стикер A вылетел выстрелом (не строкой)", path.length > 10 && (await words(B)).every((w) => !w.text.includes("sticker")), { n: path.length });
-check("летит вверх (у B A напротив: к середине — это вниз, вверх всё равно больше)", pEnd.y < p0.y - 100, { p0, pEnd });
+const aDisc = (await spots(B)).seats.find((s) => s.who === "A");
+const kB = (await spots(B)).k;
+check("вылетает из аватара A", Math.hypot(p0.x - aDisc.x, p0.y - aDisc.y) < kB * 0.3, { p0, aDisc });
+check("летит вверх недалеко — около одной карты (A напротив: к середине — вниз)", pEnd.y < p0.y - kB * 0.6 && pEnd.y > p0.y - kB * 1.6, { p0, pEnd, k: kB });
+check("размер стикера — в масштабе стола (1.3 карты)", Math.abs(p0.w / kB - 1.3) < 0.1, { w: p0.w, k: kB });
+const opaque = path.filter((p) => p.t - p0.t < 1300).every((p) => p.o > 0.95);
+check("до 70% полёта не тает", opaque, path.filter((p) => p.o <= 0.95)[0]);
 check("быстро в начале, медленно потом", p0.y - p1.y > (p1.y - p2.y) * 1.3, { p0, p1, p2 });
 check("испаряется и исчезает за ~2 с", pEnd.t - p0.t < 2300 && pEnd.o < 0.3, pEnd);
 // Спам: шесть подряд — в полёте три, у B долетело три, кнопки погасли и вернулись.
