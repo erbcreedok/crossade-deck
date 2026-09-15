@@ -166,10 +166,115 @@ await tap(A, sa.felt.find((f) => f.id === f1.id));
 check("тап в инструменте лассо снимает выделение", (await spots(A)).picks[f1.id] === undefined, (await spots(A)).picks);
 await bar(A, "cursor").click();
 
+// ── 7. Выход из лассо снимает выделение у всех; вне лассо тап — снова тултип ──────────────────────
+await A.click('[data-section="lasso"]');
+await wait(B, 500);
+sb = await spots(B);
+check("A вышел из лассо — его выделение снято у B, выделение B осталось", !Object.values(sb.picks).includes(aKey) && sb.picks[f2.id] === bKey, sb.picks);
+sa = await spots(A);
+await tap(A, sa.felt.find((f) => f.id === f1.id));
+check("вне лассо тап по карте — тултип карты", (await A.locator('[data-g="card-tip"]').count()) === 1, null);
+
+const k8 = (await spots(A)).k;
+// Тултип карты от тапа в разделе 7 лежит у колоды — закрыть касанием пустого места.
+await tap(A, { x: 30, y: 110 });
+if (await A.locator("[data-deck-shut]").count()) await A.locator("[data-deck-shut]").dispatchEvent("pointerdown");
+await wait(A, 200);
+// ── 8. Масса: стянуть к пальцу — на сукно стопкой, в руку подряд; как лежат — сдвиг с углами ────────────
+const lassoMode = async (on) => {
+  if ((await A.locator('[data-section="lasso"]').getAttribute("aria-pressed")) !== String(on)) await A.click('[data-section="lasso"]');
+  await wait(A, 350);
+};
+const lay = async (dx, dy) => {
+  await lassoMode(false);
+  const now = await spots(A);
+  const before = new Set(now.felt.map((f) => f.id));
+  await carry(A, now.deckTop, { x: now.middle.x + dx * k8, y: now.middle.y + dy * k8 });
+  const fresh = (await spots(A)).felt.find((f) => !before.has(f.id));
+  if (!fresh) throw new Error(`не легла:  ${JSON.stringify({ top: now.deckTop, dx, dy, k8, felt: now.felt.length, after: (await spots(A)).felt.length, deck: (await spots(A)).deck, piles: (await spots(A)).piles.map((p) => p.count), tip: await A.locator('[data-g="card-tip"]').count() })}`);
+  return fresh.id;
+};
+const feltOf = async (id) => (await spots(A)).felt.find((f) => f.id === id);
+const minePicked = async () => Object.entries((await spots(A)).picks).filter(([, by]) => by === aKey).map(([id]) => id).sort();
+const f3 = await lay(-2.4, 3.2);
+await lassoMode(true);
+if ((await bar(A, "grab").getAttribute("data-mode")) !== "collect") await bar(A, "grab").click();
+await tap(A, await feltOf(f1.id));
+await tap(A, await feltOf(f3));
+await tap(A, await cardAt(A, `[data-card="${handId}"]`));
+check("выделено три: две с сукна и одна из руки", (await minePicked()).join() === [f1.id, f3, handId].sort().join(), await minePicked());
+sa = await spots(A);
+const grabAt = await feltOf(f3);
+const target = { x: sa.middle.x + 4.8 * k8, y: sa.middle.y - 2.4 * k8 };
+await A.mouse.move(grabAt.x, grabAt.y);
+await A.mouse.down();
+await A.mouse.move(grabAt.x, grabAt.y - 40, { steps: 4 });
+await A.mouse.move(target.x, target.y, { steps: 10 });
+await wait(A, 150);
+const massN = await A.locator('[data-g="mass-count"]').getAttribute("data-n").catch(() => null);
+await A.mouse.up();
+await wait(B, 800);
+sb = await spots(B);
+const newPile = sb.piles.find((p) => p.id !== "deck");
+check("в пальце — масса из трёх", massN === "3", massN);
+check("стянуто на сукно — новая стопка из трёх, карта хвата сверху", newPile?.count === 3 && newPile.ids.at(-1) === f3 && [f1.id, handId].every((id) => newPile.ids.includes(id)), sb.piles);
+check("на сукне их больше нет, рука A пуста", !sb.felt.some((f) => [f1.id, f3].includes(f.id)) && (await A.locator("#over [data-card]").count()) === 0, sb.felt.map((f) => f.id));
+
+// В руку: две с сукна подряд, карта хвата последней.
+const f5 = await lay(-4.4, -0.4);
+const f6 = await lay(2.4, 3.2);
+await lassoMode(true);
+check("после выхода из лассо выделения нет", (await minePicked()).length === 0, await minePicked());
+await tap(A, await feltOf(f5));
+await tap(A, await feltOf(f6));
+check("выделены две новые", (await minePicked()).join() === [f5, f6].sort().join(), await minePicked());
+{
+  const from = await feltOf(f5);
+  await A.mouse.move(from.x, from.y);
+  await A.mouse.down();
+  await A.mouse.move(from.x, from.y - 40, { steps: 4 });
+  await A.mouse.move(195, 740, { steps: 10 });
+  await wait(A, 150);
+  await A.mouse.up();
+}
+await wait(A, 500);
+const hand = await A.locator("#over [data-card]").evaluateAll((els) => els.map((el) => el.dataset.card));
+check("в руку ушли обе, карта хвата последней", hand.length === 2 && hand.at(-1) === f5 && hand.includes(f6), { hand, felt: (await spots(A)).felt.map((f) => f.id), f5, f6 });
+
+// Как лежат: две карты сукна едут на один сдвиг, каждая со своим углом; выделенные карты руки стоят.
+const g0 = await lay(-3.6, 3.6);
+const g1 = await lay(1.2, 4.0);
+await lassoMode(true);
+await bar(A, "grab").click();
+check("вид грэба — как лежат", (await bar(A, "grab").getAttribute("data-mode")) === "keep", null);
+await tap(A, await feltOf(g0));
+await tap(A, await feltOf(g1));
+await tap(A, await cardAt(A, `[data-card="${f6}"]`));
+const was0 = await feltOf(g0);
+const was1 = await feltOf(g1);
+await A.mouse.move(was0.x, was0.y);
+await A.mouse.down();
+await A.mouse.move(was0.x, was0.y - 30, { steps: 4 });
+await A.mouse.move(was0.x - 20, was0.y - 90, { steps: 10 });
+await wait(A, 150);
+const marks = await A.locator('[data-g="mass-mark"]').count();
+await A.mouse.up();
+await wait(B, 800);
+const now0 = await feltOf(g0);
+const now1 = await feltOf(g1);
+check("пока несут — контур второй карты сукна", marks === 1, marks);
+const d0 = { x: now0.x - was0.x, y: now0.y - was0.y };
+const d1 = { x: now1.x - was1.x, y: now1.y - was1.y };
+check("обе сдвинулись на один и тот же сдвиг", Math.hypot(d0.x, d0.y) > 40 && Math.hypot(d0.x - d1.x, d0.y - d1.y) < 4, { d0, d1 });
+check("углы сохранились", now0.angle === was0.angle && now1.angle === was1.angle, [was0, now0, was1, now1]);
+check("выделенная карта руки осталась в руке", (await A.locator(`#over [data-card="${f6}"]`).count()) === 1, null);
+
 // ── 6. Курсор не держит камеру: протяжка по пустому сукну двигает стол ─────────────────────────
+await lassoMode(true);
+await bar(A, "cursor").click();
 sa = await spots(A);
 const empty = { x: sa.middle.x - 3.2 * k, y: sa.middle.y - 2.4 * k };
-await A.locator("[data-deck-shut]").dispatchEvent("pointerdown");
+if (await A.locator("[data-deck-shut]").count()) await A.locator("[data-deck-shut]").dispatchEvent("pointerdown");
 await wait(A, 200);
 check("окно колоды закрыто перед камерой", (await A.locator('[data-g="deck-tip"]').count()) === 0, null);
 // Стол на зуме 1 во весь кадр и вести его некуда — сперва приблизить щипком.
@@ -186,15 +291,6 @@ for (let i = 1; i <= 10; i += 1) await A.mouse.move(empty.x + i * 8, empty.y + i
 await A.mouse.up();
 await wait(A, 300);
 check("в курсоре камера едет по пустому сукну", (await A.getAttribute("canvas", "data-view")) !== view0, { view0, empty, after: await A.getAttribute("canvas", "data-view") });
-
-// ── 7. Выход из лассо снимает выделение у всех; вне лассо тап — снова тултип ──────────────────────
-await A.click('[data-section="lasso"]');
-await wait(B, 500);
-sb = await spots(B);
-check("A вышел из лассо — его выделение снято у B, выделение B осталось", !Object.values(sb.picks).includes(aKey) && sb.picks[f2.id] === bKey, sb.picks);
-sa = await spots(A);
-await tap(A, sa.felt.find((f) => f.id === f1.id));
-check("вне лассо тап по карте — тултип карты", (await A.locator('[data-g="card-tip"]').count()) === 1, null);
 
 await browser.close();
 let bad = 0;

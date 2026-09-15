@@ -263,6 +263,8 @@ export class Table {
         return this.gather(by, intent.ids, intent.side, intent.to, now);
       case "pick":
         return this.pick(by, intent.ids, intent.on);
+      case "moveMany":
+        return this.moveMany(by, intent.moves, now);
       case "unpick": {
         const ops = this.dropPicks([...this.picks].filter(([, who]) => who === by).map(([id]) => id));
         return { ops: ops.length ? this.commit(ops) : [] };
@@ -367,6 +369,38 @@ export class Table {
   }
 
   private drop(by: string, id: string, to: Where, now: number, auto = false): Result {
+    const done = this.dropOps(by, id, to, now, auto);
+    return "refused" in done ? done : { ops: this.commit(done.ops) };
+  }
+
+  /**
+   * ПЕРЕНЕСТИ ВЫДЕЛЕННОЕ РАЗОМ — по одному переносу на карту, каждый по правилам дропа, одним патчем. Карта, которую
+   * взять нельзя (чужая в пальце или выделена другим, под замком, из-под лока) или которую место не примет, остаётся.
+   */
+  private moveMany(by: string, moves: unknown, now: number): Result {
+    if (!Array.isArray(moves) || moves.length === 0) return { refused: "bad" };
+    const ops: Op[] = [];
+    const seen = new Set<string>();
+    for (const move of moves as { id?: unknown; to?: unknown }[]) {
+      if (typeof move?.id !== "string" || typeof move.to !== "object" || move.to === null || seen.has(move.id)) continue;
+      seen.add(move.id);
+      const id = move.id;
+      const may = this.touchable(by, id);
+      if ("refused" in may) continue;
+      if (may.at.in === "deck" && this.piles.get(may.at.pile)!.spot.shut) continue;
+      const had = this.locks.get(id);
+      if (!had) this.locks.set(id, { by, until: now + LOCK_TTL_MS });
+      const done = this.dropOps(by, id, move.to as Where, now);
+      if ("refused" in done) {
+        if (!had) this.locks.delete(id);
+        continue;
+      }
+      ops.push(...(had ? done.ops : done.ops.filter((op) => !(op.t === "unlock" && op.id === id))));
+    }
+    return ops.length ? { ops: this.commit(ops) } : { refused: "bad" };
+  }
+
+  private dropOps(by: string, id: string, to: Where, now: number, auto = false): { ops: Op[] } | { refused: Refusal } {
     const lock = this.locks.get(id);
     if (!lock || lock.by !== by) return { refused: "not-held" };
     const target = this.clean(to, auto);
@@ -397,7 +431,7 @@ export class Table {
     if (from.in === "deck") ops.push(...this.sweepPile(from.pile));
     // РУКА ПОКИНУТОГО СТУЛА ОПУСТЕЛА — правило стола решает, стоять ли ему дальше.
     if (from.in === "hand") ops.push(...this.sweepChair(this.chairs.get(from.chair)!));
-    return { ops: this.commit(ops) };
+    return { ops };
   }
 
   /**

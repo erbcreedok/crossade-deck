@@ -358,3 +358,28 @@ describe("выделение лассо — лок", () => {
     expect(t.act("a", { t: "pick", ids: "c0" as unknown as string[], on: true }, 0)).toEqual({ refused: "bad" });
   });
 });
+
+describe("перенос выделенного разом", () => {
+  it("в руку и на сукно одним патчем: что нельзя — остаётся; версия растёт на один", () => {
+    const t = seated("a", "b");
+    const a = seatOf(t, "a");
+    ok(t.act("b", { t: "pick", ids: ["c6"], on: true }, 0));
+    ok(t.act("a", { t: "grab", id: "c7" }, 0));
+    const v = t.version;
+    const ops = ok(t.act("a", { t: "moveMany", moves: [
+      { id: "c6", to: { in: "hand", chair: a, i: 0 } },
+      { id: "c7", to: { in: "hand", chair: a, i: 0 } },
+      { id: "c0", to: { in: "felt", x: 1, y: 1, up: true, angle: 10 } },
+      { id: "c1", to: { in: "hand", chair: a, i: 1 } },
+    ] }, 0));
+    expect(t.version).toBe(v + 1);
+    expect(t.seenBy("a").chairs.find((c) => c.id === a)!.hand.map((c) => c.id)).toEqual(["c7", "c1"]);
+    // С колоды на сукно — как лежала (рубашкой), угол — как сказано.
+    expect(t.seenBy("a").felt).toEqual([{ id: "c0", x: 1, y: 1, up: false, angle: 10 }]);
+    expect(t.seenBy("a").locks).toEqual({});
+    expect(ops.filter((op) => op.t === "unlock").map((op) => (op as { id: string }).id)).toEqual(["c7"]);
+    expect(t.seenBy("a").piles[0]!.cards.map((c) => c.id)).toContain("c6");
+    expect(t.act("a", { t: "moveMany", moves: [{ id: "c6", to: { in: "hand", chair: a, i: 0 } }] }, 0)).toEqual({ refused: "bad" });
+    expect(t.act("a", { t: "moveMany", moves: "x" as unknown as [] }, 0)).toEqual({ refused: "bad" });
+  });
+});

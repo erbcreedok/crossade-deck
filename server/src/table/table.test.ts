@@ -508,6 +508,10 @@ describe("патч клиента совпадает с сервером", () =>
     step("a", { t: "pick", ids: ["c6", t.seenBy("a").chairs[0]!.hand[0]?.id ?? "c5"], on: true });
     step("b", { t: "pick", ids: ["c6"], on: false });
     step("a", { t: "unpick" });
+    step("a", { t: "moveMany", moves: [
+      { id: t.seenBy("a").piles[0]!.cards.at(-1)!.id, to: { in: "felt", x: 2, y: -2, up: false, angle: 5 } },
+      { id: t.seenBy("a").piles[0]!.cards.at(-2)!.id, to: { in: "hand", chair: a, i: 0 } },
+    ] });
     step("b", { t: "flag", chair: b, flag: "lock", on: true });
     step("b", { t: "stand" });
     step("b", { t: "sit", chair: b });

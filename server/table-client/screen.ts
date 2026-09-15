@@ -183,6 +183,8 @@ interface Drag {
   sy: number;
   t0: number;
   moved: boolean;
+  /** Несут выделенное лассо: карта под пальцем ведёт за собой всё моё выделение. */
+  mass?: boolean;
 }
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
@@ -1398,9 +1400,72 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   function carryHtml(): string {
     if (!drag) return "";
-    return `<div data-g="carry" style="position:fixed;width:${drag.w}px;height:${drag.h}px;left:${drag.x - drag.gx}px;`
+    // МАССА В ПАЛЬЦЕ: стянутая к пальцу — стопкой под картой хвата и числом; как лежат — одна карта, а где лягут
+    // остальные, показывают контуры на сукне (`massMarksHtml`).
+    const s = frame();
+    const rest = drag.mass ? myPicks(s).filter((id) => id !== drag!.card.id) : [];
+    const stack = drag.mass && local.grab === "collect" ? Math.min(rest.length, 4) : 0;
+    const under = Array.from({ length: stack }, (_, i) => {
+      const d = stack - i;
+      return `<div style="position:absolute;left:${-d * 3}px;top:${d * 3}px;width:${drag!.w}px;height:${drag!.h}px">${cardHtml(undefined, drag!.w)}</div>`;
+    }).join("");
+    const badge = drag.mass ? `<span data-g="mass-count" data-n="${rest.length + 1}" style="position:absolute;right:${-8}px;top:${-8}px;min-width:20px;height:20px;padding:0 5px;box-sizing:border-box;border-radius:10px;`
+      + `background:${inkOf(s, me())};box-shadow:0 0 0 2px ${T.black};font:400 12px/20px Tiny5,monospace;color:${T.black};text-align:center;z-index:2">${rest.length + 1}</span>` : "";
+    return `<div data-g="carry"${drag.mass ? ` data-mass="${local.grab}"` : ""} style="position:fixed;width:${drag.w}px;height:${drag.h}px;left:${drag.x - drag.gx}px;`
       + `top:${drag.y - drag.gy - drag.h * CARRY_CLEAR}px;z-index:60;pointer-events:none;filter:drop-shadow(0 ${Math.round(drag.h * 0.12)}px 0 rgba(11,7,4,.45))">`
-      + cardHtml(drag.shown ? drag.card.face : undefined, drag.w) + `</div>`;
+      + under + `<div style="position:absolute;inset:0">${cardHtml(drag.shown ? drag.card.face : undefined, drag.w)}</div>` + badge + `</div>`;
+  }
+
+  /** Моё выделение — id карт, которые ещё есть на столе. */
+  function myPicks(s: Snapshot): string[] {
+    const key = me();
+    return Object.entries(s.picks ?? {}).filter(([id, by]) => by === key && whereIs(s, id) !== null).map(([id]) => id);
+  }
+
+  /** Как лежат: сдвиг массы на сукне — от места карты хвата до того, куда она ляжет. */
+  function massShift(d: Drag): { dx: number; dy: number } | null {
+    if (!d.mass || local.grab !== "keep" || d.target.kind !== "felt" || d.from.in !== "felt") return null;
+    return { dx: d.target.at.x - d.from.x, dy: d.target.at.y - d.from.y };
+  }
+
+  /** КОНТУРЫ МАССЫ «КАК ЛЕЖАТ» — где лягут остальные выделенные карты сукна, каждая своим углом. */
+  function massMarksHtml(s: Snapshot): string {
+    const shift = drag && massShift(drag);
+    if (!shift || !view) return "";
+    const v = view;
+    return s.felt.filter((f) => f.id !== drag!.card.id && s.picks?.[f.id] === me()).map((f) => {
+      const at = v.toGlass({ x: f.x + shift.dx, y: f.y + shift.dy });
+      return markHtml(FELT_CARD.w * v.k, FELT_CARD.h * v.k, v.rotation + f.angle, at.x, at.y, 30, v.squash).replace('data-g="mark"', 'data-g="mass-mark"');
+    }).join("");
+  }
+
+  /**
+   * ОТПУСТИЛИ МАССУ. Как лежат и над сукном — выделенные карты сукна едут на тот же сдвиг, каждая со своим углом;
+   * карты в руках и стопках стоят. Иначе — стянутые к пальцу: в руку — подряд, карта хвата последней; в стопку или на
+   * сукно — сборка в стопку стороной из бара, карта хвата сверху. Как лежат, но не над сукном — то же, только карты сукна.
+   */
+  function dropMass(d: Drag): void {
+    const s = truth();
+    const shift = massShift(d);
+    const feltPicks = s.felt.filter((f) => s.picks?.[f.id] === me());
+    if (shift) {
+      store.send({ t: "moveMany", moves: feltPicks.map((f) => ({ id: f.id, to: { in: "felt" as const, x: f.x + shift.dx, y: f.y + shift.dy, up: f.up, angle: f.angle } })) });
+      return;
+    }
+    const pool = local.grab === "keep" ? feltPicks.map((f) => f.id) : myPicks(s);
+    const ids = [...pool.filter((id) => id !== d.card.id), d.card.id];
+    const aim = d.target;
+    if (aim.kind === "hand" || aim.kind === "chair") {
+      const chair = aim.which;
+      const start = aim.kind === "hand" ? aim.index : handOf(s, chair).length;
+      // Свои карты этой руки уходят из неё раньше, чем встают: индекс считается без них.
+      const staying = handOf(s, chair).filter((c) => !ids.includes(c.id)).length;
+      const base = Math.min(start, staying);
+      store.send({ t: "moveMany", moves: ids.map((id, k) => ({ id, to: { in: "hand" as const, chair, i: base + k } })) });
+      return;
+    }
+    const to = aim.kind === "deck" || aim.kind === "deckAt" ? { pile: aim.pile } : aim.kind === "felt" ? { ...aim.at, angle: dropAngle() } : null;
+    if (to) store.send({ t: "gather", ids, side: local.side, to });
   }
 
   // ── РИСОВАНИЕ ───────────────────────────────────────────────────────────────────────────────
@@ -1482,7 +1547,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       .filter((one): one is { chair: Chair; spot: Spot } => Boolean(one.spot))
       .map((one) => tipHtml(s, one.chair, one.spot));
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
-    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + feltMarkHtml() + carryHtml() + homeHtml(s) + lassoHtml(s);
+    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s);
     wire();
     airUnder.style.height = `${mineGeom(handOf(s, mine(s)).length).barTop}px`;
 
@@ -1912,6 +1977,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       toldAt: 0,
       sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false,
     };
+    // КУРСОР ЛАССО ПО ВЫДЕЛЕННОЙ КАРТЕ — хват всей массы.
+    if (lassoOn() && local.tool === "cursor" && truth().picks?.[card.id] === me() && myPicks(truth()).length > 1) drag.mass = true;
     liftedBy = e.pointerId;
     store.send({ t: "grab", id: card.id });
     tellCarry();
@@ -2064,7 +2131,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     drag.target = aim;
     // НА СУКНЕ ДВИГАЕТСЯ ОДИН КОНТУР, А НЕ ВЕСЬ ЭКРАН.
     const mark = over.querySelector<HTMLElement>('[data-g="mark"]');
-    if (aim.kind === "felt" && mark && drag.markKind === "felt" && view) {
+    if (aim.kind === "felt" && mark && drag.markKind === "felt" && view && !massShift(drag)) {
       const at = view.toGlass(aim.at);
       mark.style.left = `${at.x - (FELT_CARD.w * view.k) / 2}px`;
       mark.style.top = `${at.y - (FELT_CARD.h * view.k) / 2}px`;
@@ -2106,6 +2173,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         from: { key: "finger", x: d.x - d.gx + d.w / 2, y: d.y - d.gy - d.h * CARRY_CLEAR + d.h / 2, w: d.w, h: d.h, angle: 0, squash: 1, face: d.shown ? d.card.face : undefined },
       };
       store.send({ t: "release", id: d.card.id });
+      return draw();
+    }
+    if (d.mass) {
+      dropMass(d);
       return draw();
     }
     const to = landing(d);
