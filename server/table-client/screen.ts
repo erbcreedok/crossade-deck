@@ -182,6 +182,9 @@ const TAP_MS = 350;
 const TAP_PX = 8;
 /** Перемена кадра в пределах стольких мс после моего касания — моя. */
 const MINE_MS = 700;
+declare const __TABLE_BUILD__: string | undefined;
+/** Номер сборки стола — подставляет сервер, собирая клиент. */
+const TABLE_BUILD = typeof __TABLE_BUILD__ === "string" ? __TABLE_BUILD__ : "dev";
 /** Вибрация на перемену стола. */
 const CUE_HAPTIC: Record<Exclude<CueKind, "shuffle">, Haptic> = { drop: "soft", turn: "rigid", hand: "light", merge: "medium", gather: "medium" };
 const SHUFFLE_TICK_MS = 120;
@@ -1992,7 +1995,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding:8px 0 4px">Колода</span>`
       + row("fourColour", "4 цвета") + row("cyrillic", "Кириллица")
       + (haptic.supported ? `<button data-haptic-probe style="margin-top:8px;height:28px;border:0;border-radius:8px;cursor:pointer;color:${T.ink};font:400 11px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${BAR_LOOK.rim}">Проверить вибрацию</button>` : "")
-      + (haptic.client ? `<span data-client style="font:400 10px Tiny5,monospace;color:${T.inkDim};padding-top:8px">${haptic.client}${probed ? ` · ${probed}` : ""}</span>` : "") + `</div>`;
+      + `<span data-client style="font:400 10px Tiny5,monospace;color:${T.inkDim};padding-top:8px">${[`build ${TABLE_BUILD}`, haptic.client, probed].filter(Boolean).join(" · ")}</span>` + `</div>`;
   }
 
   // ── ЧУЖИЕ РУКИ В ВОЗДУХЕ И ПЕРЕЛЁТЫ ────────────────────────────────────────────────────────────

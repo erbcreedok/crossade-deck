@@ -7,6 +7,7 @@
 //
 // Тот же адрес с `?stand` — стенд жеста: тот же клиент без сети, с ботами за столом.
 
+import { BUILD_INFO } from "../version.js";
 import { readFile } from "fs/promises";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -55,6 +56,8 @@ export function clientRoutes(): Router {
         target: "es2020",
         sourcemap: "inline",
         logLevel: "silent",
+        // Номер сборки — строкой внизу настроек: видно, что телефон открыл свежий стол.
+        define: { __TABLE_BUILD__: JSON.stringify(BUILD_INFO.build) },
       });
       res.type("js").send(out.outputFiles[0]!.text);
     } catch (err) {
