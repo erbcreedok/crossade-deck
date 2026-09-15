@@ -1,0 +1,34 @@
+server/scripts/tableTurn.mjs
+  s_9ed0da107cbc4a::t_4f4f7e8264fa76 1-153
+  s_9ed0da107cbc4a::t_304fddba4e9656 154-155
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_02f97bfefb237b 21
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_39a51a6f2e4e57 59-68,72,205-206,241-242
+server/src/table/patch.ts
+  s_9ed0da107cbc4a::t_cc6d27d0c1a741 61-73
+server/src/table/table.test.ts
+  s_9ed0da107cbc4a::t_6cf124da976d2b 32-112,462-464,470
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_23a87e2bf74744 86-87,188-189,262-263,271-277,282-304,313-318,451,480,557,583-590,631-635,638,641,645-647,667-670,689
+server/table-client/felt.ts
+  s_9ed0da107cbc4a::t_022615389297dc 26-27,384-386,457-469,487,497,513,517-519
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_fa7936491a4018 112-116,201-209,282-319,544-574,649-664,1012,1031,1062-1063,1068,1073,1089,1092-1093,1098,1419,1469,1538-1545,1562,1783-1784
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ea3fe5fe39d8b5b18190cafc00f516f3ff85181b",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
