@@ -83,7 +83,10 @@ describe("/table/rooms — бот управляет столами", () => {
     expect(roomIsSigned(one.room, "s3cret")).toBe(true);
 
     const listed = await (await call("/table/rooms?chat=-100")).json();
-    expect(listed.map((r: { title: string }) => r.title)).toEqual(["Дурак", "Стол"]);
+    // Второй стол открыт без имени и без названия чата — имя ему дано случайное, на тему похода.
+    const titles = listed.map((r: { title: string }) => r.title);
+    expect(titles[0]).toBe("Дурак");
+    expect(titles[1]).toMatch(/^Стол «.+ .+»$/);
 
     const renamed = await (await call(`/table/rooms/${one.room}`, { method: "PATCH", json: { title: "Покер" } })).json();
     expect(renamed.title).toBe("Покер");

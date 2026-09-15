@@ -62,6 +62,11 @@ export function lost(titles: string[], why: "restart" | "down"): string {
     : `Сервер стола выключился, столы закрылись: ${list}.`;
 }
 
+/** Карточка выбрана и стала сообщением — теперь имя комнаты известно, и оно пишется в текст и на кнопку. */
+export function inlineOpened(card: RoomCard, links: Links): Said {
+  return { text: `Стол «${card.title}» открыт — заходи.`, rows: [[enter(card.room, links, false, card.title)]] };
+}
+
 export function inviteArticle(room: string, links: Links): { title: string; description: string; text: string; button: Button } {
   return {
     title: "Стол (карты, HTML)",

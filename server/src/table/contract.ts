@@ -462,7 +462,8 @@ export type RunResult = { ok: true } | { error: RunError };
 
 /** Где комната живёт в Telegram. Комната без кода: её имя — подписанный id. */
 export type Home =
-  | { kind: "chat"; chat: string }
+  /** `chatTitle` — как чат называется в Telegram: из него растёт имя стола. */
+  | { kind: "chat"; chat: string; chatTitle?: string }
   | { kind: "inline"; message: string };
 
 export interface RoomCard {

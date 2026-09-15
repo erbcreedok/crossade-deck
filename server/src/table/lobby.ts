@@ -8,6 +8,7 @@
 // был — сама комната Colyseus, чтобы закрыть её отсюда.
 
 import type { Home, Person, RoomCard, RunResult, TableCommand } from "./contract.js";
+import { titleFrom, uniqueTitle } from "./names.js";
 
 interface Entry {
   room: string;
@@ -22,6 +23,9 @@ const rooms = new Map<string, Entry>();
 
 export const DEFAULT_TITLE = "Стол";
 
+/** Имена всех живых комнат — по ним и держится уникальность. Себя (при переименовании) не считаем. */
+const takenTitles = (except?: string): string[] => [...rooms.values()].filter((e) => e.room !== except).map((e) => e.title);
+
 const card = (e: Entry): RoomCard => ({
   room: e.room,
   title: e.title,
@@ -33,7 +37,8 @@ const card = (e: Entry): RoomCard => ({
 export function openEntry(room: string, home: Home, by: string, title?: string, now = Date.now()): RoomCard {
   const had = rooms.get(room);
   if (had) return card(had);
-  const entry: Entry = { room, home, by, title: title?.trim() || DEFAULT_TITLE, createdAt: now };
+  // Имя — из просьбы, иначе по чату, иначе случайное; и всегда такое, какого у живых комнат ещё нет.
+  const entry: Entry = { room, home, by, title: uniqueTitle(title?.trim() || titleFrom(home.kind === "chat" ? home.chatTitle : undefined), takenTitles()), createdAt: now };
   rooms.set(room, entry);
   return card(entry);
 }
@@ -68,7 +73,7 @@ export function rehome(room: string, home: Home): RoomCard | undefined {
 export function rename(room: string, title: string): RoomCard | undefined {
   const e = rooms.get(room);
   if (!e || !title.trim()) return undefined;
-  e.title = title.trim().slice(0, 48);
+  e.title = uniqueTitle(title.trim(), takenTitles(room));
   return card(e);
 }
 

@@ -31,7 +31,9 @@ export const guarded: express.RequestHandler = (req, res, next) => {
 
 function readHome(raw: unknown): Home | null {
   const home = raw as Partial<Home> | undefined;
-  if (home?.kind === "chat" && typeof home.chat === "string" && home.chat) return { kind: "chat", chat: home.chat };
+  if (home?.kind === "chat" && typeof home.chat === "string" && home.chat) {
+    return { kind: "chat", chat: home.chat, ...(typeof home.chatTitle === "string" && home.chatTitle.trim() ? { chatTitle: home.chatTitle.trim().slice(0, 48) } : {}) };
+  }
   if (home?.kind === "inline" && typeof home.message === "string") return { kind: "inline", message: home.message };
   return null;
 }

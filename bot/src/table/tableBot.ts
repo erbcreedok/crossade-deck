@@ -10,9 +10,9 @@
 import { InlineKeyboard, type Bot, type Context } from "grammy";
 import { mintRoom } from "../../../server/src/table/roomIds.js";
 import type { TableApi } from "./api.js";
-import type { RoomCard, TableCommand } from "../../../server/src/table/contract.js";
+import type { Home, RoomCard, TableCommand } from "../../../server/src/table/contract.js";
 import { MENU, menuOf, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
-import { askTitle, closed, DOWN, gone, inviteArticle, listed, opened, renamed, type Button, type Links } from "./talk.js";
+import { askTitle, closed, DOWN, gone, inlineOpened, inviteArticle, listed, opened, renamed, type Button, type Links } from "./talk.js";
 import type { Watch } from "./watch.js";
 import { installStickers } from "./stickers.js";
 
@@ -42,13 +42,19 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, secret: stri
   /** Кто сейчас переименовывает какой стол: `чат:человек` → комната. */
   const naming = new Map<string, string>();
   const chatOf = (ctx: Context) => String(ctx.chat!.id);
+  /** Как чат называется в Telegram — из этого сервер делает имя стола. В личке названия нет. */
+  const chatTitleOf = (ctx: Context) => {
+    const chat = ctx.chat!;
+    return "title" in chat && chat.title ? chat.title : undefined;
+  };
+  const homeOf = (ctx: Context): Home => ({ kind: "chat", chat: chatOf(ctx), ...(chatTitleOf(ctx) ? { chatTitle: chatTitleOf(ctx) } : {}) });
   const inPrivate = (ctx: Context) => ctx.chat?.type === "private";
   const byOf = (ctx: Context) => `tg:${ctx.from!.id}`;
 
   bot.command("table", async (ctx) => {
     const at = await api.where();
     if (!at.up) return void (await ctx.reply(DOWN));
-    const card = await api.open({ kind: "chat", chat: chatOf(ctx) }, byOf(ctx), ctx.match.trim() || undefined);
+    const card = await api.open(homeOf(ctx), byOf(ctx), ctx.match.trim() || undefined);
     if (card === "down" || card === "missing") return void (await ctx.reply(DOWN));
     watch.remember(chatOf(ctx), card.room, card.title, at.boot);
     const all = await api.list(chatOf(ctx));
@@ -188,7 +194,12 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, secret: stri
     const room = /^tbl:(.+)$/.exec(ctx.chosenInlineResult.result_id)?.[1];
     const message = ctx.chosenInlineResult.inline_message_id;
     if (!room) return;
-    await api.open({ kind: "inline", message: message ?? "" }, `tg:${ctx.from.id}`, undefined, room);
+    const card = await api.open({ kind: "inline", message: message ?? "" }, `tg:${ctx.from.id}`, undefined, room);
+    // Имя комнаты известно только теперь — вписываем его в карточку, и в текст, и на кнопку.
+    if (message && card !== "down" && card !== "missing") {
+      const said = inlineOpened(card, links);
+      await ctx.api.editMessageTextInline(message, said.text, { reply_markup: keyboardOf(said.rows) }).catch(() => {});
+    }
   });
 
   /** Карточка стола для inline-режима. Имя комнаты выписывает бот сам: сервер спрашивать не на что. */
