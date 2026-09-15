@@ -59,7 +59,7 @@ describe("вид колоды", () => {
     const ok = await fetch(`${base}/table/sounds/drop-1.m4a`);
     expect(ok.status).toBe(200);
     expect((await ok.arrayBuffer()).byteLength).toBeGreaterThan(1000);
-    for (const name of ["hand-3", "turn-1", "gather-2", "merge-2", "shuffle-1"]) expect((await fetch(`${base}/table/sounds/${name}.m4a`)).status, name).toBe(200);
+    for (const name of ["hand-1", "turn-1", "gather-3", "merge-1", "shuffle-1"]) expect((await fetch(`${base}/table/sounds/${name}.m4a`)).status, name).toBe(200);
     expect((await fetch(`${base}/table/sounds/boom-1.m4a`)).status).toBe(404);
   });
 

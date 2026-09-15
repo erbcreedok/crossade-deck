@@ -122,7 +122,27 @@ check("A слышит сборку тише", a.some((s) => s.kind === "gather" 
 await B.click('[data-section="lasso"]');
 await wait(B, 400);
 const made = (await spots(B)).piles.find((x) => !pilesBefore.has(x.id));
-const gb = await B.locator(`[data-g="deck-grip"][data-pile="${made.id}"]`).boundingBox();
+const gripAt = async (id) => {
+  const r = await B.locator(`[data-g="deck-grip"][data-pile="${id}"]`).boundingBox();
+  return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+};
+{
+  const g0 = await gripAt(made.id);
+  await heard(A);
+  await heard(B);
+  await B.mouse.move(g0.x, g0.y);
+  await B.mouse.down();
+  await B.mouse.move(g0.x, g0.y - 40, { steps: 4 });
+  await B.mouse.move(g0.x - 60, g0.y - 60, { steps: 8 });
+  await wait(B, 150);
+  await B.mouse.up();
+  await wait(B, 900);
+  a = await heard(A);
+  b = await heard(B);
+  check("стопку перенесли по столу — стук у B и у A", b.some((s) => s.kind === "drop" && s.gain === 1) && a.some((s) => s.kind === "drop"), { a, b });
+}
+const gb0 = await gripAt(made.id);
+const gb = { x: gb0.x - 1, y: gb0.y - 1, width: 2, height: 2 };
 const deckTop = (await spots(B)).deckTop;
 await heard(A);
 await heard(B);
@@ -135,7 +155,7 @@ await B.mouse.up();
 await wait(B, 900);
 a = await heard(A);
 b = await heard(B);
-check("B вмержил стопку в колоду — мерж у B", b.some((s) => s.kind === "merge" && s.gain === 1), b);
+check("B вмержил стопку в колоду — мерж у B, обрыв по перелёту 260 мс", b.some((s) => s.kind === "merge" && s.gain === 1 && s.cutMs === 260), b);
 check("и у A", a.some((s) => s.kind === "merge"), a);
 const grip = await B.locator('[data-g="deck-grip"][data-pile="deck"]').boundingBox();
 await B.mouse.click(grip.x + grip.width / 2, grip.y + grip.height / 2);
@@ -146,7 +166,9 @@ await B.locator('[data-deck-do="shuffle"]').dispatchEvent("pointerdown");
 await wait(B, 900);
 a = await heard(A);
 b = await heard(B);
-check("шафл слышат оба", b.some((s) => s.kind === "shuffle") && a.some((s) => s.kind === "shuffle"), { a, b });
+check("шафл слышат оба, обрыв с концом веера (1300 + 7×18 мс)", b.some((s) => s.kind === "shuffle" && s.cutMs === 1426) && a.some((s) => s.kind === "shuffle" && s.cutMs === 1426), { a, b });
+const served = await B.evaluate(() => [...new Set(performance.getEntriesByType("resource").map((r) => new URL(r.name).pathname).filter((n) => n.startsWith("/table/sounds/")))].sort());
+check("грузятся только выбранные записи", served.join() === ["drop-1", "gather-1", "gather-2", "gather-3", "hand-1", "merge-1", "shuffle-1", "turn-1"].map((n) => `/table/sounds/${n}.m4a`).join(), served);
 
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));
 console.log(`tableSound ${checks.filter((c) => c.ok).length}/${checks.length}`);

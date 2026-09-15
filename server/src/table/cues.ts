@@ -74,6 +74,13 @@ export function cuesBetween(prev: Snapshot, next: Snapshot, known: ReadonlyMap<s
     else say("drop", { pile });
   }
 
+  // СТОПКУ ПЕРЕНЕСЛИ ПО СТОЛУ — стук, как у карты.
+  const placed = new Map(prev.piles.map((p) => [p.id, p]));
+  for (const p of next.piles) {
+    const before = placed.get(p.id);
+    if (before && (before.x !== p.x || before.y !== p.y)) say("drop", { pile: p.id });
+  }
+
   const shuffles = new Map(prev.piles.map((p) => [p.id, p.shuffles]));
   for (const p of next.piles) {
     const before = shuffles.get(p.id);

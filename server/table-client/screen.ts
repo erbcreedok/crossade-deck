@@ -168,6 +168,8 @@ const GUESS_MS = 4000;
 
 /** Сколько летит карта из места в место. */
 const FLIGHT_MS = 260;
+/** Шафл стопки: круг веера и задержка последней из восьми карт. */
+const SHUFFLE_MS = 1300, SHUFFLE_STAGGER_MS = 18, SHUFFLE_CARDS = 8;
 
 interface Drag {
   card: SeenCard;
@@ -1872,7 +1874,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     for (const [id, spot] of cueSpots(prev)) knownSpots.set(id, spot);
     for (const cue of cuesBetween(prev, next, knownSpots)) {
       const p = glassOf(cue.at);
-      if (p) sound.play(cue.kind, (p.x - g.w / 2) / (g.w / 2), (p.y - g.h / 2) / (g.h / 2), own);
+      // Мерж и шафл звучат, пока идёт их анимация: перелёт карт в стопку, веер шафла.
+      const cut = cue.kind === "merge" ? FLIGHT_MS : cue.kind === "shuffle" ? SHUFFLE_MS + (SHUFFLE_CARDS - 1) * SHUFFLE_STAGGER_MS : undefined;
+      if (p) sound.play(cue.kind, (p.x - g.w / 2) / (g.w / 2), (p.y - g.h / 2) / (g.h / 2), own, cut);
     }
   }
 
@@ -2098,7 +2102,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (!view || n === 0) return;
     const at = view.toGlass(view.deckAt(id, n - 1, n));
     const w = FELT_CARD.w * view.k, h = FELT_CARD.h * view.k;
-    for (let i = 0; i < 8; i += 1) {
+    for (let i = 0; i < SHUFFLE_CARDS; i += 1) {
       const el = document.createElement("div");
       el.dataset.shuffle = String(i);
       const side = i % 2 === 0 ? -1 : 1;
@@ -2108,8 +2112,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       el.innerHTML = cardHtml(undefined, w);
       air.append(el);
       const run = el.animate([{ transform: home }, { transform: out, offset: 0.25 }, { transform: home, offset: 0.5 }, { transform: out, offset: 0.75 }, { transform: home }], {
-        duration: 1300,
-        delay: i * 18,
+        duration: SHUFFLE_MS,
+        delay: i * SHUFFLE_STAGGER_MS,
         easing: "ease-in-out",
       });
       run.onfinish = () => el.remove();

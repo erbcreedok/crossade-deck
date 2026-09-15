@@ -8,7 +8,9 @@
 
 import type { CueKind } from "../src/table/cues.js";
 
-const FILES: Record<CueKind, number> = { drop: 4, hand: 3, turn: 3, gather: 3, merge: 2, shuffle: 1 };
+// Какая запись на что: дроп — card-place-1, переворот — card-place-2, в руку — card-slide-1, мерж — card-fan-1,
+// шафл — card-shuffle, сборка — card-shove-1/2/4.
+const FILES: Record<CueKind, number> = { drop: 1, hand: 1, turn: 1, gather: 3, merge: 1, shuffle: 1 };
 /** Громкость своего и чужого. */
 export const GAIN = { mine: 1, other: 0.6 } as const;
 
@@ -36,12 +38,14 @@ export interface Played {
   x: number;
   z: number;
   gain: number;
+  cutMs?: number;
 }
 
 export interface TableSound {
   on: boolean;
   /** `x`, `z` — место на экране в долях от середины (см. `Played`). */
-  play(kind: CueKind, x: number, z: number, mine: boolean): void;
+  /** `cutMs` — звук обрывается, когда кончилась анимация, которую он озвучивает. */
+  play(kind: CueKind, x: number, z: number, mine: boolean, cutMs?: number): void;
 }
 
 export function tableSound(): TableSound {
@@ -69,16 +73,15 @@ export function tableSound(): TableSound {
 
   const sound: TableSound = {
     on: readSoundOn(),
-    play(kind, x, z, mine) {
+    play(kind, x, z, mine, cutMs) {
       if (!sound.on) return;
       const gain = mine ? GAIN.mine : GAIN.other;
-      log.push({ kind, x: +x.toFixed(2), z: +z.toFixed(2), gain });
+      log.push({ kind, x: +x.toFixed(2), z: +z.toFixed(2), gain, ...(cutMs ? { cutMs } : {}) });
       if (log.length > 50) log.shift();
       const buf = buffers.get(`${kind}-${1 + Math.floor(Math.random() * FILES[kind])}`);
       if (!ctx || !buf || ctx.state !== "running") return;
       const src = ctx.createBufferSource();
       src.buffer = buf;
-      src.playbackRate.value = 0.95 + Math.random() * 0.1;
       const vol = ctx.createGain();
       vol.gain.value = gain;
       const pan = ctx.createPanner();
@@ -95,6 +98,13 @@ export function tableSound(): TableSound {
       } else pan.setPosition(px, 0, pz);
       src.connect(vol).connect(pan).connect(ctx.destination);
       src.start();
+      if (cutMs) {
+        // Обрыв с хвостом в 15 мс — без щелчка.
+        const end = ctx.currentTime + cutMs / 1000;
+        vol.gain.setValueAtTime(gain, end - 0.015);
+        vol.gain.linearRampToValueAtTime(0, end);
+        src.stop(end);
+      }
     },
   };
   return sound;

@@ -56,6 +56,10 @@ describe("звуковые поводы", () => {
     expect(cuesBetween(snap({ piles: [pile("deck", [])], felt: [felt("a")] }), snap({ piles: [pile("deck", ["a"])] }))).toEqual([{ kind: "drop", at: { pile: "deck" } }]);
   });
 
+  it("стопку перенесли по столу — стук у стопки", () => {
+    expect(cuesBetween(snap({ piles: [pile("p", ["a", "b"])] }), snap({ piles: [pile("p", ["a", "b"], { x: 3, y: 1 })] }))).toEqual([{ kind: "drop", at: { pile: "p" } }]);
+  });
+
   it("перемешали — шафл; ничего не поменялось — тишина", () => {
     expect(cuesBetween(snap({ piles: [pile("deck", ["a", "b"])] }), snap({ piles: [pile("deck", ["b", "a"], { shuffles: 1 })] }))).toEqual([{ kind: "shuffle", at: { pile: "deck" } }]);
     const same = snap({ piles: [pile("deck", ["a"])], felt: [felt("b")] });
