@@ -1482,7 +1482,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       .filter((one): one is { chair: Chair; spot: Spot } => Boolean(one.spot))
       .map((one) => tipHtml(s, one.chair, one.spot));
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
-    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + feltMarkHtml() + carryHtml() + homeHtml(s);
+    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + feltMarkHtml() + carryHtml() + homeHtml(s) + lassoHtml(s);
     wire();
     airUnder.style.height = `${mineGeom(handOf(s, mine(s)).length).barTop}px`;
 
@@ -1918,6 +1918,61 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     draw();
   }
 
+  /**
+   * КАСАНИЕ В ИНСТРУМЕНТЕ ЛАССО. Тап по карте — выделить или снять; протяжка — петля по сукну: всё, что внутри,
+   * выделяется. `pts` — точки петли на стекле; `card` — карта под пальцем в начале (для тапа).
+   */
+  let press: { pid: number; sx: number; sy: number; t0: number; card?: string; fromFelt?: boolean; pts: { x: number; y: number }[] } | null = null;
+
+  /** Одиночные карты на сукне, чья середина внутри петли: стопки не выделяются вовсе. */
+  function insideLasso(s: Snapshot, pts: { x: number; y: number }[]): string[] {
+    if (!view || pts.length < 3) return [];
+    const v = view;
+    const inside = (p: { x: number; y: number }) => {
+      let hit = false;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const a = pts[i]!, b = pts[j]!;
+        if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) hit = !hit;
+      }
+      return hit;
+    };
+    return s.felt.filter((f) => inside(v.toGlass(v.feltAt(f.id) ?? f))).map((f) => f.id);
+  }
+
+  /** Петля лассо на экране — пунктир в моём цвете, замкнутый. */
+  function lassoHtml(s: Snapshot): string {
+    if (!press || press.pts.length < 2) return "";
+    const ink = inkOf(s, me());
+    const path = press.pts.map((p) => `${Math.round(p.x)},${Math.round(p.y)}`).join(" ");
+    return `<svg data-g="lasso" style="position:absolute;inset:0;width:100%;height:100%;z-index:65;pointer-events:none">`
+      + `<polygon points="${path}" fill="color-mix(in srgb, ${ink} 14%, transparent)" stroke="${T.black}" stroke-width="5" stroke-linejoin="round"/>`
+      + `<polygon points="${path}" fill="none" stroke="${ink}" stroke-width="2.5" stroke-dasharray="7 5" stroke-linejoin="round"/></svg>`;
+  }
+
+  addEventListener("pointermove", (e) => {
+    if (!press || e.pointerId !== press.pid) return;
+    if (press.pts.length === 0 && Math.hypot(e.clientX - press.sx, e.clientY - press.sy) <= TAP_PX) return;
+    // Петлю рисуют только с сукна: палец, начавший на карте руки или окна, петлю не тянет.
+    if (press.card !== undefined && press.pts.length === 0 && !press.fromFelt) return;
+    if (press.pts.length === 0) press.pts.push({ x: press.sx, y: press.sy });
+    press.pts.push({ x: e.clientX, y: e.clientY });
+    draw();
+  }, { passive: true });
+  const endPress = (e: PointerEvent) => {
+    if (!press || e.pointerId !== press.pid) return;
+    const was = press;
+    press = null;
+    if (e.type === "pointercancel") return draw();
+    if (was.pts.length >= 3) {
+      const s = truth();
+      const ids = insideLasso(seen(), was.pts).filter((id) => s.picks?.[id] === undefined && (!s.locks[id] || s.locks[id] === me()));
+      guessPick(ids, true);
+    } else if (was.card !== undefined && was.pts.length === 0 && performance.now() - was.t0 < TAP_MS) togglePick(was.card);
+    draw();
+  };
+  addEventListener("pointerup", endPress);
+  addEventListener("pointercancel", endPress);
+
   function grabFromFelt(e: PointerEvent, pick: NonNullable<ReturnType<typeof feltPick>>) {
     // В ВОЗДУХЕ КАРТА СТОИТ: размером по зуму, но без наклона и поворота стола — её держат пальцем.
     const w = FELT_CARD.w * view!.k;
@@ -1931,6 +1986,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   function grabFromHand(e: PointerEvent, owner: string, id: string, el: HTMLElement) {
     const s = store.state;
+    // ИНСТРУМЕНТ ЛАССО не берёт карты: касание карты — только тап-выделение.
+    if (lassoOn() && local.tool === "lasso") {
+      press = { pid: e.pointerId, sx: e.clientX, sy: e.clientY, t0: performance.now(), card: id, pts: [] };
+      return;
+    }
     if (owner === "deck") {
       const pile = pileOf(s, el.dataset.pile ?? "");
       const index = pile ? pile.cards.findIndex((c) => c.id === id) : -1;
@@ -2358,6 +2418,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         e.preventDefault();
         e.stopPropagation();
         return cam.orbit(e);
+      }
+      // ИНСТРУМЕНТ ЛАССО: касание сукна — петля или тап-выделение; ни карта, ни стул, ни камера его не получают.
+      if (lassoOn() && local.tool === "lasso" && !drag && !gripPress) {
+        e.preventDefault();
+        e.stopPropagation();
+        const under = feltPick(e.clientX, e.clientY);
+        press = { pid: e.pointerId, sx: e.clientX, sy: e.clientY, t0: performance.now(), card: under && !under.pile ? under.card.id : undefined, fromFelt: true, pts: [] };
+        return;
       }
       const pick = feltPick(e.clientX, e.clientY);
       // В ЛАССО СТОПКИ НЕ ВЫДЕЛЯЮТСЯ — с сукна только одиночные карты; их карты выделяют в окне стопки.

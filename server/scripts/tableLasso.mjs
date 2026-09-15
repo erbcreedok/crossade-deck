@@ -15,7 +15,7 @@ const room = body + createHmac("sha256", secret).update(body).digest("base64url"
 
 const browser = await chromium.launch();
 const open = async (name) => {
-  const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const p = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
   p.on("pageerror", (e) => console.log(name, "ERROR", e.message));
   await p.goto(`${base}/table/?room=${room}&name=${name}`);
   await p.waitForSelector("[data-section]");
@@ -133,18 +133,59 @@ for (let i = 0; i < 3; i += 1) {
 check("сторона по кругу: рубашкой → лицом → как лежали", sides.join() === "down,up,keep", sides);
 await bar(A, "lasso").click();
 check("инструмент лассо включён, курсор погас", (await bar(A, "lasso").getAttribute("aria-pressed")) === "true" && (await bar(A, "cursor").getAttribute("aria-pressed")) === "false", null);
+
+// ── 5б. Инструмент лассо: петля выделяет карты сукна внутри, стопку — нет; карту не берёт ─────────────
+sa = await spots(A);
+await tap(A, sa.felt.find((f) => f.id === f1.id));
+await bar(A, "lasso").click();
+sa = await spots(A);
+check("перед петлёй f1 не выделена", sa.picks[f1.id] === undefined, sa.picks);
+const loop = [
+  { x: sa.middle.x - 2.6 * k, y: sa.middle.y - 1.4 * k }, { x: sa.middle.x + 2.6 * k, y: sa.middle.y - 1.4 * k },
+  { x: sa.middle.x + 2.6 * k, y: sa.middle.y + 1.6 * k }, { x: sa.middle.x - 2.6 * k, y: sa.middle.y + 1.6 * k },
+];
+const loopStart = { x: sa.middle.x - 2.6 * k, y: sa.middle.y };
+await A.mouse.move(loopStart.x, loopStart.y);
+await A.mouse.down();
+for (const pt of [...loop, loop[0]]) await A.mouse.move(pt.x, pt.y, { steps: 6 });
+const drawn = await A.locator('[data-g="lasso"]').count();
+const viewBefore = await A.getAttribute("canvas", "data-view");
+await A.mouse.up();
+await wait(B, 500);
+sb = await spots(B);
+check("пока тянут — петля на экране", drawn === 1, drawn);
+check("петля не двигает камеру", (await A.getAttribute("canvas", "data-view")) === viewBefore, null);
+check("петля выделила f1 у всех; f2 осталась за B; карты колоды — нет", sb.picks[f1.id] === aKey && sb.picks[f2.id] === bKey && !sb.deckIds.some((id) => sb.picks[id]), sb.picks);
+check("после отпускания петли нет", (await A.locator('[data-g="lasso"]').count()) === 0, null);
+sa = await spots(A);
+const fAt = sa.felt.find((f) => f.id === f1.id);
+await carry(A, fAt, { x: fAt.x + 80, y: fAt.y + 60 });
+sa = await spots(A);
+check("инструмент лассо карту не берёт: f1 на месте", Math.abs(sa.felt.find((f) => f.id === f1.id).x - fAt.x) < 2, [fAt, sa.felt]);
+await tap(A, sa.felt.find((f) => f.id === f1.id));
+check("тап в инструменте лассо снимает выделение", (await spots(A)).picks[f1.id] === undefined, (await spots(A)).picks);
 await bar(A, "cursor").click();
 
 // ── 6. Курсор не держит камеру: протяжка по пустому сукну двигает стол ─────────────────────────
-const view0 = await A.getAttribute("canvas", "data-view");
 sa = await spots(A);
-const empty = { x: sa.middle.x - 3.2 * k, y: sa.middle.y - 1.2 * k };
+const empty = { x: sa.middle.x - 3.2 * k, y: sa.middle.y - 2.4 * k };
+await A.locator("[data-deck-shut]").dispatchEvent("pointerdown");
+await wait(A, 200);
+check("окно колоды закрыто перед камерой", (await A.locator('[data-g="deck-tip"]').count()) === 0, null);
+// Стол на зуме 1 во весь кадр и вести его некуда — сперва приблизить щипком.
+const cdp = await A.context().newCDPSession(A);
+const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
+await touch("touchStart", [[empty.x - 30, empty.y], [empty.x + 30, empty.y]]);
+for (let i = 1; i <= 16; i += 1) await touch("touchMove", [[empty.x - 30 - i * 6, empty.y], [empty.x + 30 + i * 6, empty.y]]);
+await touch("touchEnd", []);
+await wait(A, 700);
+const view0 = await A.getAttribute("canvas", "data-view");
 await A.mouse.move(empty.x, empty.y);
 await A.mouse.down();
-await A.mouse.move(empty.x + 60, empty.y + 30, { steps: 8 });
+for (let i = 1; i <= 10; i += 1) await A.mouse.move(empty.x + i * 8, empty.y + i * 5);
 await A.mouse.up();
 await wait(A, 300);
-check("в курсоре камера едет по пустому сукну", (await A.getAttribute("canvas", "data-view")) !== view0, { view0, empty, seats: sa.seats });
+check("в курсоре камера едет по пустому сукну", (await A.getAttribute("canvas", "data-view")) !== view0, { view0, empty, after: await A.getAttribute("canvas", "data-view") });
 
 // ── 7. Выход из лассо снимает выделение у всех; вне лассо тап — снова тултип ──────────────────────
 await A.click('[data-section="lasso"]');
