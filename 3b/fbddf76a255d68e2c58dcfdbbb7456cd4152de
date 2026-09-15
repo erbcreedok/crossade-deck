@@ -1,0 +1,21 @@
+server/scripts/tableLasso.mjs
+  s_9ed0da107cbc4a::t_f8111b5cad1955 18,136-166,171-182,185,188
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_2ac3cc6ef6b370 1485,1921-1975,1989-1993,2422-2429
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3bfbddf76a255d68e2c58dcfdbbb7456cd4152de",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
