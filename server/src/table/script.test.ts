@@ -134,7 +134,7 @@ describe("команды стола: колода и пресеты", () => {
     const before = new Set(s.t.layout().deck);
     await s.run({ t: "shuffle" });
     expect(s.t.layout().deck.some((id) => before.has(id))).toBe(false);
-    expect(s.t.seenBy("a").shuffles).toBe(1);
+    expect(s.t.seenBy("a").piles[0]!.shuffles).toBe(1);
     await s.run({ t: "deal", rule: "each", n: 1 });
     expect(await s.run({ t: "shuffle" })).toBe("needs-collect");
   });

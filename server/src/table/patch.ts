@@ -60,25 +60,35 @@ function applyOp(s: Snapshot, op: Op): void {
       return;
     case "turn": {
       const felt = s.felt.find((one) => one.id === op.card.id);
-      const i = s.deck.findIndex((one) => one.id === op.card.id);
+      const pile = s.piles.find((one) => one.cards.some((card) => card.id === op.card.id));
       const chair = s.chairs.find((one) => one.hand.some((card) => card.id === op.card.id));
       if (felt) {
         felt.up = op.up;
         if (op.card.face) felt.face = op.card.face;
         else delete felt.face;
-      } else if (i >= 0) s.deck[i] = op.card;
+      } else if (pile) pile.cards = pile.cards.map((card) => (card.id === op.card.id ? op.card : card));
       else if (chair) chair.hand = chair.hand.map((card) => (card.id === op.card.id ? op.card : card));
       (s.trails ??= {})[op.card.id] = op.trail;
       return;
     }
-    case "deck":
-      s.deck = op.deck;
-      if (op.shuffled) s.shuffles = (s.shuffles ?? 0) + 1;
-      for (const id of Object.keys(s.trails ?? {})) if (!s.deck.some((c) => c.id === id) && !s.felt.some((c) => c.id === id) && !s.chairs.some((c) => c.hand.some((h) => h.id === id))) delete s.trails[id];
+    case "deck": {
+      const pile = s.piles.find((one) => one.id === op.pile);
+      if (!pile) return;
+      pile.cards = op.cards;
+      if (op.shuffled) pile.shuffles += 1;
+      for (const id of Object.keys(s.trails ?? {})) if (!s.piles.some((p) => p.cards.some((c) => c.id === id)) && !s.felt.some((c) => c.id === id) && !s.chairs.some((c) => c.hand.some((h) => h.id === id))) delete s.trails[id];
       return;
-    case "spot":
-      s.spot = op.spot;
+    }
+    case "spot": {
+      const i = s.piles.findIndex((one) => one.id === op.pile);
+      const was = s.piles[i];
+      if (i >= 0) s.piles.splice(i, 1);
+      if (!op.spot) return;
+      const pile = { ...op.spot, id: op.pile, cards: was?.cards ?? [], shuffles: was?.shuffles ?? 0 };
+      if (op.top || i < 0) s.piles.push(pile);
+      else s.piles.splice(i, 0, pile);
       return;
+    }
     case "rules":
       s.rules = op.rules;
       return;
@@ -89,8 +99,11 @@ function applyOp(s: Snapshot, op: Op): void {
 }
 
 function lift(s: Snapshot, id: string, from: Where): void {
-  if (from.in === "felt" && s.spot?.below.includes(id)) s.spot.below = s.spot.below.filter((one) => one !== id);
-  if (from.in === "deck") s.deck = s.deck.filter((one) => one.id !== id);
+  if (from.in === "felt") for (const pile of s.piles) if (pile.below.includes(id)) pile.below = pile.below.filter((one) => one !== id);
+  if (from.in === "deck") {
+    const pile = s.piles.find((one) => one.id === from.pile);
+    if (pile) pile.cards = pile.cards.filter((one) => one.id !== id);
+  }
   else if (from.in === "felt") s.felt = s.felt.filter((one) => one.id !== id);
   else {
     const chair = s.chairs.find((one) => one.id === from.chair);
@@ -100,8 +113,10 @@ function lift(s: Snapshot, id: string, from: Where): void {
 
 function place(s: Snapshot, card: SeenCard, to: Where): void {
   if (to.in === "deck") {
-    if (to.i === undefined) s.deck.push(card);
-    else s.deck.splice(Math.max(0, Math.min(s.deck.length, to.i)), 0, card);
+    const pile = s.piles.find((one) => one.id === to.pile);
+    if (!pile) return;
+    if (to.i === undefined) pile.cards.push(card);
+    else pile.cards.splice(Math.max(0, Math.min(pile.cards.length, to.i)), 0, card);
   }
   else if (to.in === "felt") s.felt.push({ ...card, x: to.x, y: to.y, up: to.up, angle: to.angle, ...(to.under ? { under: true } : {}) });
   else s.chairs.find((one) => one.id === to.chair)?.hand.splice(to.i, 0, card);

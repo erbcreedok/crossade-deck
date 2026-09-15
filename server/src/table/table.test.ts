@@ -23,7 +23,7 @@ const chair = (t: Table, id: string, viewer = "x") => t.seenBy(viewer).chairs.fi
 
 /** Взять верхнюю карту колоды и положить в руку стула. */
 function deal(t: Table, by: string, chairId: string) {
-  const top = t.seenBy(by).deck.at(-1)!.id;
+  const top = t.seenBy(by).piles[0]!.cards.at(-1)!.id;
   ops(t.act(by, { t: "grab", id: top }, 0));
   ops(t.act(by, { t: "drop", id: top, to: { in: "hand", chair: chairId, i: 0 } }, 0));
   return top;
@@ -54,9 +54,9 @@ describe("Table: переворот карты", () => {
   it("можно там же, где можно взять: чужой лок, не верхняя колоды, закрытый стул — отказ", () => {
     const t = seated("a", "b");
     const b = seatOf(t, "b");
-    ops(t.act("a", { t: "deckGuard", guard: "lock", on: true }, 0));
+    ops(t.act("a", { t: "deckGuard", pile: "deck", guard: "lock", on: true }, 0));
     expect(t.act("a", { t: "turn", id: "c0" }, 0)).toEqual({ refused: "not-top" });
-    ops(t.act("a", { t: "deckGuard", guard: "lock", on: false }, 0));
+    ops(t.act("a", { t: "deckGuard", pile: "deck", guard: "lock", on: false }, 0));
     ops(t.act("b", { t: "grab", id: "c7" }, 0));
     expect(t.act("a", { t: "turn", id: "c7" }, 0)).toEqual({ refused: "locked" });
     ops(t.act("b", { t: "drop", id: "c7", to: { in: "hand", chair: b, i: 0 } }, 0));
@@ -68,7 +68,7 @@ describe("Table: переворот карты", () => {
   it("колода: верхняя лицом вверх видна всем; на сукне переворот меняет только сторону", () => {
     const t = seated("a", "b");
     ops(t.act("a", { t: "turn", id: "c7" }, 0));
-    expect(t.seenBy("b").deck.at(-1)).toEqual({ id: "c7", face: cards[7]!.face, up: true });
+    expect(t.seenBy("b").piles[0]!.cards.at(-1)).toEqual({ id: "c7", face: cards[7]!.face, up: true });
     ops(t.act("a", { t: "grab", id: "c7" }, 0));
     ops(t.act("a", { t: "drop", id: "c7", to: { in: "felt", x: 1, y: 2, up: false, angle: 30 } }, 0));
     // С колоды — как лежала: лицом вверх.
@@ -123,9 +123,9 @@ describe("Table: блокировка карт", () => {
 
   it("с колоды под локом берётся только верхняя; положить можно только взятое", () => {
     const t = seated("a", "b");
-    ops(t.act("a", { t: "deckGuard", guard: "lock", on: true }, 0));
+    ops(t.act("a", { t: "deckGuard", pile: "deck", guard: "lock", on: true }, 0));
     expect(t.act("a", { t: "grab", id: "c0" }, 0)).toEqual({ refused: "not-top" });
-    expect(t.act("b", { t: "drop", id: "c7", to: { in: "deck" } }, 0)).toEqual({ refused: "not-held" });
+    expect(t.act("b", { t: "drop", id: "c7", to: { in: "deck", pile: "deck" } }, 0)).toEqual({ refused: "not-held" });
   });
 
   it("непродлённая блокировка истекает", () => {
@@ -159,7 +159,7 @@ describe("Table: блокировка карт", () => {
 
   it("след карты: кто перенёс, откуда, чья рука — и опоздавший видит его в снимке", () => {
     const t = seated("a", "b");
-    const top = t.seenBy("a").deck.at(-1)!.id;
+    const top = t.seenBy("a").piles[0]!.cards.at(-1)!.id;
     const felt = { in: "felt", x: 0, y: 0, up: false, angle: 0 } as const;
     ops(t.act("a", { t: "grab", id: top }, 0));
     ops(t.act("a", { t: "drop", id: top, to: felt }, 100));
@@ -339,7 +339,7 @@ describe("Table: флаги и права", () => {
     const card = deal(t, "b", b);
     ops(t.act("b", { t: "flag", chair: b, flag: "lock", on: true }, 0));
     expect(t.act("admin", { t: "grab", id: card }, 0)).toEqual({ refused: "chair-locked" });
-    const top = t.seenBy("admin").deck.at(-1)!.id;
+    const top = t.seenBy("admin").piles[0]!.cards.at(-1)!.id;
     ops(t.act("admin", { t: "grab", id: top }, 0));
     expect(t.act("admin", { t: "drop", id: top, to: { in: "hand", chair: b, i: 0 } }, 0)).toEqual({ refused: "chair-locked" });
     ops(t.act("admin", { t: "flag", chair: b, flag: "lock", on: false }, 0));
@@ -471,29 +471,39 @@ describe("патч клиента совпадает с сервером", () =>
     step("a", { t: "grab", id: "c7" });
     step("a", { t: "drop", id: "c7", to: { in: "felt", x: 0.5, y: -1, up: true, angle: 35 } });
     step("b", { t: "turn", id: "c7" });
-    step("c", { t: "deckMove", x: 1, y: 2, angle: 30 });
+    step("c", { t: "deckMove", pile: "deck", x: 1, y: 2, angle: 30 });
     step("a", { t: "grab", id: "c7" });
     step("a", { t: "drop", id: "c7", to: { in: "felt", x: -1, y: 0, up: false, angle: 0 } });
-    step("a", { t: "deckDo", how: "flip" });
-    step("b", { t: "deckDo", how: "sort" });
-    step("c", { t: "deckDo", how: "shuffle" });
+    step("a", { t: "deckDo", pile: "deck", how: "flip" });
+    step("b", { t: "deckDo", pile: "deck", how: "sort" });
+    step("c", { t: "deckDo", pile: "deck", how: "shuffle" });
     // После перемешивания у карт колоды новые id — берутся по месту.
-    const mid = t.seenBy("b").deck[2]!.id;
+    const mid = t.seenBy("b").piles[0]!.cards[2]!.id;
     step("b", { t: "turn", id: mid });
     step("b", { t: "grab", id: mid });
-    step("b", { t: "drop", id: mid, to: { in: "deck", i: 0 } });
-    step("a", { t: "deckGuard", guard: "lock", on: true });
-    const top = t.seenBy("b").deck.at(-1)!.id;
+    step("b", { t: "drop", id: mid, to: { in: "deck", pile: "deck", i: 0 } });
+    step("a", { t: "deckGuard", pile: "deck", guard: "lock", on: true });
+    const top = t.seenBy("b").piles[0]!.cards.at(-1)!.id;
     step("b", { t: "grab", id: top });
     step("b", { t: "drop", id: top, to: { in: "hand", chair: b, i: 0 } });
     step("b", { t: "grab", id: top });
-    step("b", { t: "drop", id: top, to: { in: "deck", i: 0 } });
-    step("a", { t: "deckGuard", guard: "shut", on: true });
-    step("a", { t: "deckGuard", guard: "lock", on: false });
-    step("a", { t: "deckGuard", guard: "shut", on: false });
-    step("b", { t: "deckPin", on: true });
-    step("a", { t: "deckPin", on: false });
-    step("a", { t: "deckForever", on: false });
+    step("b", { t: "drop", id: top, to: { in: "deck", pile: "deck", i: 0 } });
+    step("a", { t: "deckGuard", pile: "deck", guard: "shut", on: true });
+    step("a", { t: "deckGuard", pile: "deck", guard: "lock", on: false });
+    step("a", { t: "deckGuard", pile: "deck", guard: "shut", on: false });
+    step("b", { t: "deckPin", pile: "deck", on: true });
+    step("a", { t: "deckPin", pile: "deck", on: false });
+    step("a", { t: "deckForever", pile: "deck", on: false });
+    // Несколько стопок: собрать с сукна и из колоды в новую, перенести колоду поверх, собрать в стоящую, опустошить.
+    step("a", { t: "gather", ids: ["c7", t.seenBy("a").piles[0]!.cards[0]!.id], side: "up", to: { x: -2, y: 1, angle: 20 } });
+    step("b", { t: "deckMove", pile: "deck", x: -2, y: 1.2 });
+    step("a", { t: "deckDo", pile: "p1", how: "flip" });
+    step("c", { t: "gather", ids: [t.seenBy("c").piles.at(-1)!.cards.at(-1)!.id], side: "keep", to: { pile: "p1" } });
+    step("b", { t: "deckPin", pile: "p1", on: true });
+    for (const one of t.seenBy("a").piles.find((p) => p.id === "p1")!.cards.map((c) => c.id).reverse()) {
+      step("a", { t: "grab", id: one });
+      step("a", { t: "drop", id: one, to: { in: "hand", chair: a, i: 0 } });
+    }
     step("b", { t: "flag", chair: b, flag: "lock", on: true });
     step("b", { t: "stand" });
     step("b", { t: "sit", chair: b });

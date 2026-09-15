@@ -61,8 +61,8 @@ export interface FeltView {
   rotation: number;
   toGlass(p: { x: number; y: number }): { x: number; y: number };
   toDesk(p: { x: number; y: number }): { x: number; y: number };
-  /** Где на столе нарисована i-я карта колоды из n — со сдвигом стопки и её высотой. */
-  deckAt(i: number, n: number): { x: number; y: number };
+  /** Где на столе нарисована i-я карта стопки `pile` из n — со сдвигом стопки и её высотой. */
+  deckAt(pile: string, i: number, n: number): { x: number; y: number };
   /** Где на столе нарисована карта сукна — поднятая, если лежит на других. */
   feltAt(id: string): { x: number; y: number } | undefined;
 }
@@ -383,9 +383,8 @@ export interface FeltScene {
   art?: CardArt;
   /** Карта переворачивается: доля пути и какой она была до (сторона и лицо). */
   turning?: (id: string) => { p: number; up: boolean; face?: Face } | undefined;
-  deck: { id: string; face?: Face; up?: boolean }[];
-  /** Где стоит колода, в единицах стола. Нет — посередине. */
-  spot?: (Point & { angle?: number; below?: readonly string[] }) | null;
+  /** Стопки в порядке «кто сверху»: место, поворот, что под ней и карты снизу вверх. */
+  piles: (Point & { id: string; angle: number; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean }[] })[];
   felt: FeltItem[];
   /** Id вещи → цвет того, кто её сейчас держит (кроме меня). */
   held: Record<string, string>;
@@ -427,11 +426,12 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   // обратная матрица без переноса поворачивает, растягивает наклон назад и делит на зум.
   const turn = invert({ a: v.a, b: v.b, c: v.c, d: v.d, e: 0, f: 0 });
   const onScreen = (dx: number, dy: number): Point => (turn ? apply(turn, { x: dx * o.k, y: dy * o.k }) : { x: dx, y: -dy });
-  const deckAt = (i: number, n: number): Point => {
+  const deckAt = (pile: string, i: number, n: number): Point => {
     const reach = DECK_DRIFT.each * Math.max(0, n - 1);
     const drift = DECK_DRIFT.each * (reach > DECK_DRIFT.most ? DECK_DRIFT.most / reach : 1);
     const up = onScreen(i * drift, -i * (drift + CARD_THICK * o.rise));
-    return { x: (o.spot?.x ?? 0) + up.x, y: (o.spot?.y ?? 0) + up.y };
+    const spot = o.piles.find((one) => one.id === pile);
+    return { x: (spot?.x ?? 0) + up.x, y: (spot?.y ?? 0) + up.y };
   };
   const levels = feltLevels(o.felt);
   const feltAt = (id: string): Point | undefined => {
@@ -490,21 +490,30 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     paint(one.id, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
     g.restore();
   };
-  // ПОД КОЛОДОЙ — и то, что лежало на сукне, когда колоду поставили.
-  const below = new Set(o.spot?.below ?? []);
-  for (const one of o.felt) if (one.under || below.has(one.id)) paintFelt(one);
+  // ПОД СТОПКОЙ — и то, что лежало на сукне, когда её поставили: стопки по очереди «кто сверху», и перед
+  // каждой — ещё не нарисованные карты из-под неё.
+  const drawn = new Set<string>();
+  const paintOnce = (one: FeltItem) => {
+    if (drawn.has(one.id)) return;
+    drawn.add(one.id);
+    paintFelt(one);
+  };
+  for (const one of o.felt) if (one.under) paintOnce(one);
+  for (const pile of o.piles) {
+    const below = new Set(pile.below);
+    for (const one of o.felt) if (below.has(one.id)) paintOnce(one);
+    const cards = pile.cards.filter((one) => one.id !== o.lifted && !o.hidden?.has(one.id));
+    cards.forEach((one, i) => {
+      g.save();
+      const at = deckAt(pile.id, i, cards.length);
+      g.translate(at.x, at.y);
+      g.rotate((pile.angle * Math.PI) / 180);
+      paint(one.id, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
+      g.restore();
+    });
+  }
 
-  const deck = o.deck.filter((one) => one.id !== o.lifted && !o.hidden?.has(one.id));
-  deck.forEach((one, i) => {
-    g.save();
-    const at = deckAt(i, deck.length);
-    g.translate(at.x, at.y);
-    g.rotate(((o.spot?.angle ?? 0) * Math.PI) / 180);
-    paint(one.id, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
-    g.restore();
-  });
-
-  for (const one of o.felt) if (!one.under && !below.has(one.id)) paintFelt(one);
+  for (const one of o.felt) paintOnce(one);
 
   const spots: Spot[] = [];
   people.forEach((who) => {

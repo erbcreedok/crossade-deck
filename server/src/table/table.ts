@@ -18,7 +18,11 @@ import {
   DEFAULT_RULES,
   DEFAULT_SPOT,
   DECK_DOS,
+  GATHER_SIDES,
   LOCK_TTL_MS,
+  MAIN_PILE,
+  type GatherSide,
+  type Pile,
   type DeckDo,
   type DeckSpot,
   type Carry,
@@ -70,16 +74,21 @@ interface ChairRow {
 
 type Result = { ops: Op[] } | { refused: Refusal };
 
+/** Стопка на сервере: место и флаги, карты снизу вверх. */
+interface PileRow {
+  spot: DeckSpot;
+  cards: string[];
+  shuffles: number;
+}
+
 export class Table {
   private v = 0;
   private seq = 0;
   private faces = new Map<string, Face>();
-  private deck: string[] = [];
-  /** Где стоит колода; `null` — её нет на столе. */
-  private spot: DeckSpot | null = { ...DEFAULT_SPOT };
+  /** Стопки в порядке «кто сверху». Колода (`MAIN_PILE`) стоит с начала. */
+  private piles = new Map<string, PileRow>([[MAIN_PILE, { spot: { ...DEFAULT_SPOT, below: [] }, cards: [], shuffles: 0 }]]);
+  private pileSeq = 0;
   private felt: { id: string; x: number; y: number; up: boolean; angle: number; under?: boolean }[] = [];
-  /** Сколько раз перемешали колоду (`Snapshot.shuffles`). */
-  private shuffles = 0;
   /** Идёт команда бота: руки людей до конца неё стол не трогают (`busy`). */
   private scripted = false;
   private chairs = new Map<string, ChairRow>();
@@ -101,7 +110,7 @@ export class Table {
   ) {
     for (const card of cards) {
       this.faces.set(card.id, card.face);
-      this.deck.push(card.id);
+      this.main!.cards.push(card.id);
     }
   }
 
@@ -111,6 +120,11 @@ export class Table {
 
   get here(): Person[] {
     return [...this.people.values()];
+  }
+
+  /** Колода стола; `undefined` — её сейчас нет. */
+  private get main(): PileRow | undefined {
+    return this.piles.get(MAIN_PILE);
   }
 
   private get admin(): string | null {
@@ -216,29 +230,34 @@ export class Table {
       case "flag":
         return this.flag(by, intent.chair, intent.flag, intent.on);
       case "deckMove":
-        return this.deckMove(intent.x, intent.y, intent.angle);
+        return this.deckMove(intent.pile, intent.x, intent.y, intent.angle);
       case "deckDo":
-        return this.deckDo(intent.how);
+        return this.deckDo(intent.pile, intent.how);
       case "deckForever": {
-        if (!this.spot) return { refused: "gone" };
+        const pile = this.piles.get(intent.pile);
+        if (!pile) return { refused: "gone" };
         if (typeof intent.on !== "boolean") return { refused: "bad" };
-        this.spot.forever = intent.on;
-        return { ops: this.commit([{ t: "spot", spot: this.spotOut() }, ...this.sweepDeck()]) };
+        pile.spot.forever = intent.on;
+        return { ops: this.commit([this.spotOp(intent.pile), ...this.sweepPile(intent.pile)]) };
       }
       case "deckPin": {
-        if (!this.spot) return { refused: "gone" };
+        const pile = this.piles.get(intent.pile);
+        if (!pile) return { refused: "gone" };
         if (typeof intent.on !== "boolean") return { refused: "bad" };
         if (!intent.on && by !== this.admin) return { refused: "not-yours" };
-        this.spot.pin = intent.on;
-        return { ops: this.commit([{ t: "spot", spot: this.spotOut() }]) };
+        pile.spot.pin = intent.on;
+        return { ops: this.commit([this.spotOp(intent.pile)]) };
       }
       case "deckGuard": {
-        if (!this.spot) return { refused: "gone" };
+        const pile = this.piles.get(intent.pile);
+        if (!pile) return { refused: "gone" };
         if (by !== this.admin) return { refused: "not-yours" };
         if (typeof intent.on !== "boolean" || !["lock", "shut"].includes(intent.guard)) return { refused: "bad" };
-        this.spot[intent.guard] = intent.on;
-        return { ops: this.commit([{ t: "spot", spot: this.spotOut() }]) };
+        pile.spot[intent.guard] = intent.on;
+        return { ops: this.commit([this.spotOp(intent.pile)]) };
       }
+      case "gather":
+        return this.gather(by, intent.ids, intent.side, intent.to, now);
       case "rules": {
         if (by !== this.admin) return { refused: "not-yours" };
         return { ops: this.setRules(intent.rules) };
@@ -295,8 +314,11 @@ export class Table {
     if (!at) return { refused: "gone" };
     const lock = this.locks.get(id);
     if (lock && lock.by !== by) return { refused: "locked" };
-    // ИЗ СЕРЕДИНЫ КОЛОДЫ — только пока на ней нет лока: под локом доступна одна верхняя.
-    if (at.in === "deck" && this.spot?.lock && this.deck[this.deck.length - 1] !== id) return { refused: "not-top" };
+    // ИЗ СЕРЕДИНЫ СТОПКИ — только пока на ней нет лока: под локом доступна одна верхняя.
+    if (at.in === "deck") {
+      const pile = this.piles.get(at.pile)!;
+      if (pile.spot.lock && pile.cards[pile.cards.length - 1] !== id) return { refused: "not-top" };
+    }
     if (at.in === "hand" && this.closedTo(by, at.chair)) return { refused: "chair-locked" };
     return { at };
   }
@@ -304,7 +326,7 @@ export class Table {
   private grab(by: string, id: string, now: number, auto = false): Result {
     const may = this.touchable(by, id);
     if ("refused" in may) return may;
-    if (may.at.in === "deck" && this.spot?.shut && !auto) return { refused: "locked" };
+    if (may.at.in === "deck" && this.piles.get(may.at.pile)!.spot.shut && !auto) return { refused: "locked" };
     const lock = this.locks.get(id);
     this.locks.set(id, { by, until: now + LOCK_TTL_MS });
     return { ops: lock ? [] : this.commit([{ t: "lock", id, by }]) };
@@ -343,13 +365,14 @@ export class Table {
     const trail = this.trailOf(id, by, from, target.in, now);
     // СТОРОНА КАРТЫ. В руку — всегда лицом к хозяину. Команда кладёт, как сказано. Рука кладёт, как несла:
     // из руки — лицом, если его было видно в худе; с сукна и колоды — как лежала.
-    // В КОЛОДУ, КОТОРОЙ НЕТ, кладёт только команда бота — и ставит новую посередине.
-    if (target.in === "deck" && !this.spot && !auto) return { refused: "gone" };
-    // ПРИЁМКА ЗАКРЫТА — не положить; вернуть взятую из самой колоды на её место тоже нельзя, это перестановка.
-    if (target.in === "deck" && !auto && this.spot && (this.spot.shut || (this.spot.lock && from0(this.whereIs(id)) === "deck"))) return { refused: "locked" };
-    const born = target.in === "deck" ? this.ensureDeck() : [];
+    // В СТОПКУ, КОТОРОЙ НЕТ, кладёт только команда бота, и только в колоду — ставит новую посередине.
+    const into = target.in === "deck" ? this.piles.get(target.pile) : undefined;
+    if (target.in === "deck" && !into && !(auto && target.pile === MAIN_PILE)) return { refused: "gone" };
+    // ПРИЁМКА ЗАКРЫТА — не положить; вернуть взятую из самой стопки на её место тоже нельзя, это перестановка.
+    if (target.in === "deck" && !auto && into && (into.spot.shut || (into.spot.lock && from.in === "deck" && from.pile === target.pile))) return { refused: "locked" };
+    const born = target.in === "deck" && !into ? this.ensureDeck() : [];
     // В СТОПКУ — стороной стопки, если все её карты лежат одинаково; вперемешку или пустая — как нёс.
-    const pack = target.in === "deck" && !auto ? this.deck.filter((one) => one !== id).map((one) => this.turned.has(one)) : [];
+    const pack = into && !auto ? into.cards.filter((one) => one !== id).map((one) => this.turned.has(one)) : [];
     const packSide = pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0] : undefined;
     const faceUp = auto && target.in === "felt" ? target.up : (packSide ?? this.sideOf(by, id, from));
     if (target.in === "felt") target.up = faceUp;
@@ -360,7 +383,7 @@ export class Table {
     this.locks.delete(id);
     this.trails.set(id, trail);
     const ops: Op[] = [...born, { t: "move", card: { id }, from, to: landed, trail }, { t: "unlock", id }];
-    if (from.in === "deck") ops.push(...this.sweepDeck());
+    if (from.in === "deck") ops.push(...this.sweepPile(from.pile));
     // РУКА ПОКИНУТОГО СТУЛА ОПУСТЕЛА — правило стола решает, стоять ли ему дальше.
     if (from.in === "hand") ops.push(...this.sweepChair(this.chairs.get(from.chair)!));
     return { ops: this.commit(ops) };
@@ -441,52 +464,123 @@ export class Table {
 
   // ── КОЛОДА ─────────────────────────────────────────────────────────────────────────────────
 
-  /** Переставить колоду по сукну. Мимо стола не поставить — встанет на кромку, как карта. */
-  private deckMove(x: number, y: number, angle = 0): Result {
-    if (!this.spot) return { refused: "gone" };
-    if (this.spot.pin) return { refused: "locked" };
+  /** Переставить стопку по сукну. Мимо стола не поставить — встанет на кромку, как карта. */
+  private deckMove(id: string, x: number, y: number, angle = 0): Result {
+    const pile = this.piles.get(id);
+    if (!pile) return { refused: "gone" };
+    if (pile.spot.pin) return { refused: "locked" };
     if (![x, y, angle].every(Number.isFinite)) return { refused: "bad" };
     const far = Math.hypot(x, y);
     const k = far > FELT_REACH ? FELT_REACH / far : 1;
-    // ПОСТАВЛЕННАЯ КОЛОДА ЛЕЖИТ ПОВЕРХ всего, что уже было на сукне.
-    this.spot = { ...this.spot, x: x * k, y: y * k, angle: turnOf(angle), below: this.felt.map((one) => one.id) };
-    return { ops: this.commit([{ t: "spot", spot: this.spotOut() }]) };
+    // ПОСТАВЛЕННАЯ СТОПКА ЛЕЖИТ ПОВЕРХ всего, что уже было на сукне, — и поверх других стопок.
+    pile.spot = { ...pile.spot, x: x * k, y: y * k, angle: turnOf(angle), below: this.felt.map((one) => one.id) };
+    this.piles.delete(id);
+    this.piles.set(id, pile);
+    return { ops: this.commit([{ ...this.spotOp(id), top: true }]) };
   }
 
   /**
-   * ИЗ ТУЛТИПА КОЛОДЫ. Пока карту колоды кто-то держит — отказ: перемешивание выписывает новые id, и
+   * ИЗ ТУЛТИПА СТОПКИ. Пока карту стопки кто-то держит — отказ: перемешивание выписывает новые id, и
    * держащий остался бы с картой, которой нет.
    */
-  private deckDo(how: DeckDo): Result {
+  private deckDo(id: string, how: DeckDo): Result {
     if (!(DECK_DOS as readonly unknown[]).includes(how)) return { refused: "bad" };
-    if (!this.spot) return { refused: "gone" };
-    if (this.spot.lock || this.deck.some((id) => this.locks.has(id))) return { refused: "locked" };
-    if (how === "shuffle") return { ops: this.shuffleDeck() };
-    if (how === "sort") this.deck = arranged(this.deck, "suit", (id) => this.faces.get(id))!;
+    const pile = this.piles.get(id);
+    if (!pile) return { refused: "gone" };
+    if (pile.spot.lock || pile.cards.some((one) => this.locks.has(one))) return { refused: "locked" };
+    if (how === "shuffle") return { ops: this.shuffleDeck(Math.random, id) };
+    if (how === "sort") pile.cards = arranged(pile.cards, "suit", (one) => this.faces.get(one))!;
     else {
       // ПЕРЕВЕРНУТЬ СТОПКУ: нижняя стала верхней, и каждая карта легла другой стороной.
-      this.deck.reverse();
-      for (const id of this.deck) if (!this.turned.delete(id)) this.turned.add(id);
+      pile.cards.reverse();
+      for (const one of pile.cards) if (!this.turned.delete(one)) this.turned.add(one);
     }
-    return { ops: this.commit([{ t: "deck", deck: this.deck.map((id) => ({ id })), shuffled: false }]) };
+    return { ops: this.commit([{ t: "deck", pile: id, cards: pile.cards.map((one) => ({ id: one })), shuffled: false }]) };
   }
 
-  private spotOut(): DeckSpot | null {
-    return this.spot && { ...this.spot, below: [...this.spot.below] };
+  /**
+   * СОБРАТЬ В СТОПКУ. Карты идут по порядку снизу вверх; каждая — по тем же правилам, что рука: чужую в пальце,
+   * из-под замка стула, из середины залоченной стопки и из стопки с закрытой приёмкой не взять. В стоящую стопку —
+   * только если она принимает; в новую — стопка встаёт, где сказано, не вечной, поверх всего.
+   */
+  private gather(by: string, ids: unknown, side: GatherSide, to: unknown, now: number): Result {
+    if (!Array.isArray(ids) || !ids.every((one) => typeof one === "string") || !(GATHER_SIDES as readonly unknown[]).includes(side)) return { refused: "bad" };
+    const dest = to as { pile?: unknown; x?: unknown; y?: unknown; angle?: unknown } | null;
+    if (!dest) return { refused: "bad" };
+    const ops: Op[] = [];
+    let pileId: string;
+    if (typeof dest.pile === "string") {
+      const pile = this.piles.get(dest.pile);
+      if (!pile) return { refused: "gone" };
+      if (pile.spot.shut) return { refused: "locked" };
+      pileId = dest.pile;
+    } else {
+      if (![dest.x, dest.y, dest.angle].every((n) => typeof n === "number" && Number.isFinite(n))) return { refused: "bad" };
+      pileId = "";
+    }
+    // Из залоченной стопки берётся только верхняя (`touchable`), из стопки с закрытой приёмкой — ничего.
+    const taken = [...new Set(ids as string[])].filter((id) => {
+      const may = this.touchable(by, id);
+      if ("refused" in may) return false;
+      return may.at.in !== "deck" || (!this.piles.get(may.at.pile)!.spot.shut && may.at.pile !== pileId);
+    });
+    if (taken.length === 0) return { refused: "bad" };
+    if (!pileId) {
+      this.pileSeq += 1;
+      pileId = `p${this.pileSeq}`;
+      const far = Math.hypot(dest.x as number, dest.y as number);
+      const k = far > FELT_REACH ? FELT_REACH / far : 1;
+      const felt = new Set(taken);
+      this.piles.set(pileId, {
+        spot: { ...DEFAULT_SPOT, forever: false, x: (dest.x as number) * k, y: (dest.y as number) * k, angle: turnOf(dest.angle as number), below: this.felt.map((one) => one.id).filter((one) => !felt.has(one)) },
+        cards: [],
+        shuffles: 0,
+      });
+      ops.push({ ...this.spotOp(pileId), top: true });
+    }
+    const sweep = new Set<string>();
+    const chairs = new Set<string>();
+    for (const id of taken) {
+      const from = this.whereIs(id)!;
+      const up = side === "up" ? true : side === "down" ? false : this.sideOf(by, id, from);
+      const trail = this.trailOf(id, by, from, "deck", now);
+      this.take(id, from);
+      this.turned.delete(id);
+      if (up) this.turned.add(id);
+      const landed = this.put(id, { in: "deck", pile: pileId });
+      this.trails.set(id, trail);
+      if (this.locks.delete(id)) ops.push({ t: "unlock", id });
+      ops.push({ t: "move", card: { id }, from, to: landed, trail });
+      if (from.in === "deck") sweep.add(from.pile);
+      if (from.in === "hand") chairs.add(from.chair);
+    }
+    for (const pile of sweep) ops.push(...this.sweepPile(pile));
+    for (const chair of chairs) ops.push(...this.sweepChair(this.chairs.get(chair)!));
+    return { ops: this.commit(ops) };
   }
 
-  /** Невечная колода без карт уходит со стола. */
-  private sweepDeck(): Op[] {
-    if (!this.spot || this.spot.forever || this.deck.length > 0) return [];
-    this.spot = null;
-    return [{ t: "spot", spot: null }];
+  private spotOut(id: string): DeckSpot | null {
+    const pile = this.piles.get(id);
+    return pile ? { ...pile.spot, below: [...pile.spot.below] } : null;
+  }
+
+  private spotOp(id: string): Extract<Op, { t: "spot" }> {
+    return { t: "spot", pile: id, spot: this.spotOut(id) };
+  }
+
+  /** Невечная стопка без карт уходит со стола. */
+  private sweepPile(id: string): Op[] {
+    const pile = this.piles.get(id);
+    if (!pile || pile.spot.forever || pile.cards.length > 0) return [];
+    this.piles.delete(id);
+    return [{ t: "spot", pile: id, spot: null }];
   }
 
   /** Колоды нет — поставить новую посередине (для команды бота). */
   private ensureDeck(): Op[] {
-    if (this.spot) return [];
-    this.spot = { ...DEFAULT_SPOT, below: [] };
-    return [{ t: "spot", spot: this.spotOut() }];
+    if (this.main) return [];
+    this.piles.set(MAIN_PILE, { spot: { ...DEFAULT_SPOT, below: [] }, cards: [], shuffles: 0 });
+    return [{ ...this.spotOp(MAIN_PILE), top: true }];
   }
 
   /** Флаги стула меняет его хозяин, любой — у покинутого, админ — у любого. */
@@ -504,7 +598,7 @@ export class Table {
 
   /** Взять любую карту колоды, не только верхнюю, — только для команды бота. */
   grabAny(by: string, id: string, now: number): Op[] | null {
-    if (!this.deck.includes(id) || this.locks.has(id)) return null;
+    if (!this.main?.cards.includes(id) || this.locks.has(id)) return null;
     this.locks.set(id, { by, until: now + LOCK_TTL_MS });
     return this.commit([{ t: "lock", id, by }]);
   }
@@ -523,9 +617,10 @@ export class Table {
   }
 
   /** Где что лежит — без лиц, для плана команды. */
-  layout(): { deck: string[]; felt: { id: string; x: number; y: number; under?: boolean }[]; chairs: { id: string; angle: number; owner: string | null; hand: string[] }[] } {
+  layout(): { deck: string[]; piles: { id: string; cards: string[] }[]; felt: { id: string; x: number; y: number; under?: boolean }[]; chairs: { id: string; angle: number; owner: string | null; hand: string[] }[] } {
     return {
-      deck: [...this.deck],
+      deck: [...(this.main?.cards ?? [])],
+      piles: [...this.piles].filter(([id]) => id !== MAIN_PILE).map(([id, pile]) => ({ id, cards: [...pile.cards] })),
       felt: this.felt.map(({ id, x, y, under }) => ({ id, x, y, ...(under ? { under } : {}) })),
       chairs: [...this.chairs.values()].map((c) => ({ id: c.id, angle: c.angle, owner: c.owner, hand: [...c.hand] })),
     };
@@ -535,9 +630,11 @@ export class Table {
    * ПЕРЕМЕШАТЬ. Id всех карт колоды выписываются заново: иначе карта, которую кто-то видел лицом до сборки,
    * отслеживалась бы по id сквозь любое перемешивание.
    */
-  shuffleDeck(random: () => number = Math.random): Op[] {
-    const cards = this.deck.map((id) => this.faces.get(id)!);
-    for (const id of this.deck) {
+  shuffleDeck(random: () => number = Math.random, pileId: string = MAIN_PILE): Op[] {
+    const pile = this.piles.get(pileId);
+    if (!pile) return [];
+    const cards = pile.cards.map((id) => this.faces.get(id)!);
+    for (const id of pile.cards) {
       this.turned.delete(id);
       this.faces.delete(id);
       this.trails.delete(id);
@@ -546,13 +643,13 @@ export class Table {
       const j = Math.floor(random() * (i + 1));
       [cards[i], cards[j]] = [cards[j]!, cards[i]!];
     }
-    this.deck = cards.map((face) => {
+    pile.cards = cards.map((face) => {
       const id = freshId();
       this.faces.set(id, face);
       return id;
     });
-    this.shuffles += 1;
-    return this.commit([...(this.deck.length ? this.ensureDeck() : []), { t: "deck", deck: this.deck.map((id) => ({ id })), shuffled: true }]);
+    pile.shuffles += 1;
+    return this.commit([{ t: "deck", pile: pileId, cards: pile.cards.map((id) => ({ id })), shuffled: true }]);
   }
 
   /** Поменять правила стола — от админа или команды. Неизвестное и кривое молча отбрасывается. */
@@ -565,18 +662,20 @@ export class Table {
 
   /** НАБРАТЬ КОЛОДУ ЗАНОВО — только когда всё уже собрано в колоду: чужие карты на столе так не пропадут. */
   restock(cards: Face[]): Op[] | null {
-    if (this.felt.length > 0 || [...this.chairs.values()].some((c) => c.hand.length > 0) || this.locks.size > 0) return null;
-    for (const id of this.deck) {
+    if (this.felt.length > 0 || [...this.chairs.values()].some((c) => c.hand.length > 0) || [...this.piles].some(([id, pile]) => id !== MAIN_PILE && pile.cards.length > 0) || this.locks.size > 0) return null;
+    const born = this.ensureDeck();
+    const main = this.main!;
+    for (const id of main.cards) {
       this.turned.delete(id);
       this.faces.delete(id);
       this.trails.delete(id);
     }
-    this.deck = cards.map((face) => {
+    main.cards = cards.map((face) => {
       const id = freshId();
       this.faces.set(id, face);
       return id;
     });
-    return this.commit([...this.ensureDeck(), { t: "deck", deck: this.deck.map((id) => ({ id })), shuffled: false }]);
+    return this.commit([...born, { t: "deck", pile: MAIN_PILE, cards: main.cards.map((id) => ({ id })), shuffled: false }]);
   }
 
   /** Переставить стул на другой угол. */
@@ -657,7 +756,10 @@ export class Table {
 
   /** Куда класть можно: только в руку стоящего стула и только в пределах сукна. */
   private clean(to: Where, auto = false): Where | null {
-    if (to.in === "deck") return Number.isInteger(to.i) && !this.spot?.lock ? { in: "deck", i: to.i } : { in: "deck" };
+    if (to.in === "deck") {
+      if (typeof to.pile !== "string") return null;
+      return Number.isInteger(to.i) && !this.piles.get(to.pile)?.spot.lock ? { in: "deck", pile: to.pile, i: to.i } : { in: "deck", pile: to.pile };
+    }
     if (to.in === "hand") {
       if (!this.chairs.has(to.chair) || !Number.isInteger(to.i)) return null;
       return { in: "hand", chair: to.chair, i: to.i };
@@ -679,7 +781,7 @@ export class Table {
   }
 
   private whereIs(id: string): Where | null {
-    if (this.deck.includes(id)) return { in: "deck" };
+    for (const [pile, row] of this.piles) if (row.cards.includes(id)) return { in: "deck", pile };
     const onFelt = this.felt.find((one) => one.id === id);
     if (onFelt) return { in: "felt", x: onFelt.x, y: onFelt.y, up: onFelt.up, angle: onFelt.angle, ...(onFelt.under ? { under: true } : {}) };
     for (const chair of this.chairs.values()) {
@@ -690,24 +792,27 @@ export class Table {
   }
 
   private take(id: string, from: Where): void {
-    if (from.in === "deck") this.deck.splice(this.deck.indexOf(id), 1);
-    else if (from.in === "felt" && this.spot?.below.includes(id)) {
-      this.spot.below = this.spot.below.filter((one) => one !== id);
+    if (from.in === "deck") {
+      const cards = this.piles.get(from.pile)!.cards;
+      cards.splice(cards.indexOf(id), 1);
+    } else if (from.in === "felt") {
+      for (const pile of this.piles.values()) if (pile.spot.below.includes(id)) pile.spot.below = pile.spot.below.filter((one) => one !== id);
       this.felt.splice(this.felt.findIndex((one) => one.id === id), 1);
-    } else if (from.in === "felt") this.felt.splice(this.felt.findIndex((one) => one.id === id), 1);
+    }
     else this.chairs.get(from.chair)!.hand.splice(from.i, 1);
   }
 
   /** Положить и вернуть, куда легло НА САМОМ ДЕЛЕ: индекс руки прижимается к её длине. */
   private put(id: string, to: Where): Where {
     if (to.in === "deck") {
+      const cards = this.piles.get(to.pile)!.cards;
       if (to.i === undefined) {
-        this.deck.push(id);
-        return { in: "deck" };
+        cards.push(id);
+        return { in: "deck", pile: to.pile };
       }
-      const i = Math.max(0, Math.min(this.deck.length, to.i));
-      this.deck.splice(i, 0, id);
-      return { in: "deck", i };
+      const i = Math.max(0, Math.min(cards.length, to.i));
+      cards.splice(i, 0, id);
+      return { in: "deck", pile: to.pile, i };
     }
     if (to.in === "felt") {
       this.felt.push({ id, x: to.x, y: to.y, up: to.up, angle: to.angle, ...(to.under ? { under: true } : {}) });
@@ -767,8 +872,8 @@ export class Table {
       return at ? { ...op, card: this.seen(op.card.id, viewer, at) } : op;
     }
     if (op.t === "chair") return { ...op, chair: this.chairSeen(op.chair, viewer) };
-    // Колода заменена целиком: у перевёрнутых карт лица приходят всем.
-    if (op.t === "deck") return { ...op, deck: op.deck.map((c) => this.seen(c.id, viewer, { in: "deck" })) };
+    // Стопка заменена целиком: у перевёрнутых карт лица приходят всем.
+    if (op.t === "deck") return { ...op, cards: op.cards.map((c) => this.seen(c.id, viewer, { in: "deck", pile: op.pile })) };
     return op;
   }
 
@@ -786,11 +891,9 @@ export class Table {
       v: this.v,
       people: this.here,
       chairs,
-      deck: this.deck.map((id) => this.seen(id, viewer, { in: "deck" })),
-      spot: this.spotOut(),
+      piles: [...this.piles].map(([id, pile]): Pile => ({ ...this.spotOut(id)!, id, cards: pile.cards.map((one) => this.seen(one, viewer, { in: "deck", pile: id })), shuffles: pile.shuffles })),
       felt,
       trails: Object.fromEntries(this.trails),
-      shuffles: this.shuffles,
       locks: Object.fromEntries([...this.locks].map(([id, lock]) => [id, lock.by])),
       rules: { ...this.rules },
       admin: this.admin,
@@ -801,10 +904,6 @@ export class Table {
 /** Id карты — случайный: по нему нельзя узнать ни карту, ни её прежний id. */
 function freshId(): string {
   return globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 10);
-}
-
-function from0(at: Where | null): Where["in"] | undefined {
-  return at?.in;
 }
 
 /** Угол в (-180, 180] — один и тот же поворот не должен приходить двумя разными числами. */

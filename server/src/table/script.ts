@@ -10,7 +10,7 @@
 // ПОРЯДОК РАЗДАЧИ — по часовой, со следующего после раздающего; раздающему — последним. Поэтому при
 // раздаче всей колоды у раздающего карт не больше, чем у всех, а у следующего — не меньше.
 
-import { PRESET_FACES, type DealRule, type DeckSize, type Face, type Game, type RunError, type Suit, type TableCommand, type TableRules, type Where } from "./contract.js";
+import { MAIN_PILE, PRESET_FACES, type DealRule, type DeckSize, type Face, type Game, type RunError, type Suit, type TableCommand, type TableRules, type Where } from "./contract.js";
 import type { Table } from "./table.js";
 import { freeAngle, seatPoint } from "./ring.js";
 
@@ -51,7 +51,7 @@ export function deckOf(size: DeckSize, jokers: boolean): Face[] {
 
 /** Там, куда в руку ложится последняя: сервер прижмёт индекс к длине руки. */
 const toHand = (chair: string): Where => ({ in: "hand", chair, i: 9999 });
-const DECK: Where = { in: "deck" };
+const DECK: Where = { in: "deck", pile: MAIN_PILE };
 
 /** Козырь: лицом вверх, поперёк, под колодой — торчит наружу половиной. */
 const TRUMP: Where = { in: "felt", x: 0.55, y: 0, up: true, angle: 90, under: true };
@@ -76,6 +76,7 @@ function collectSteps(table: Table, keep: ReadonlySet<string> = new Set()): Step
   const steps: Step[] = [];
   for (const one of [...at.felt].reverse()) if (!keep.has(one.id)) steps.push({ t: "move", id: one.id, to: DECK, ms: PACE.collect });
   for (const chair of at.chairs) for (const id of [...chair.hand].reverse()) steps.push({ t: "move", id, to: DECK, ms: PACE.collect });
+  for (const pile of [...at.piles].reverse()) for (const id of [...pile.cards].reverse()) steps.push({ t: "move", id, to: DECK, ms: PACE.collect });
   return steps;
 }
 
@@ -115,7 +116,7 @@ export function plan(table: Table, command: TableCommand, people: Who[], admin: 
     case "collect":
       return { steps: collectSteps(table), actor: "bot" };
     case "shuffle":
-      if (at.felt.length > 0 || at.chairs.some((c) => c.hand.length > 0)) return { error: "needs-collect" };
+      if (at.felt.length > 0 || at.chairs.some((c) => c.hand.length > 0) || at.piles.some((p) => p.cards.length > 0)) return { error: "needs-collect" };
       return { steps: [{ t: "shuffle", ms: PACE.shuffle }], actor: "bot" };
     case "look":
       return { steps: [{ t: "rules", rules: { ...(command.faces ? { faces: command.faces } : {}), ...(command.back ? { back: command.back } : {}) } }], actor: "bot" };
@@ -165,7 +166,7 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
   const rule: DealRule = command.rule;
   const sixes = rule === "belka" ? belkaSixes(table) : new Set<string>();
 
-  const loose = at.felt.some((f) => !sixes.has(f.id)) || at.chairs.some((c) => c.hand.length > 0);
+  const loose = at.felt.some((f) => !sixes.has(f.id)) || at.chairs.some((c) => c.hand.length > 0) || at.piles.some((p) => p.cards.length > 0);
 
   const steps: Step[] = [];
   let deck = at.deck.length;

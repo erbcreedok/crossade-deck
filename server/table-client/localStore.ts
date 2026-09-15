@@ -33,7 +33,7 @@ export function localStore(): TableStore {
   const seatOf = (who: string) => table.seenBy(who).people.find((p) => p.key === who)!.seat!;
   const hand = (who: string, n: number) => {
     for (let k = 0; k < n; k += 1) {
-      const top = table.seenBy(who).deck.at(-1)!.id;
+      const top = table.seenBy(who).piles[0]!.cards.at(-1)!.id;
       table.act(who, { t: "grab", id: top }, 0);
       table.act(who, { t: "drop", id: top, to: { in: "hand", chair: seatOf(who), i: k } }, 0);
     }

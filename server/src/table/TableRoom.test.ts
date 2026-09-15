@@ -44,8 +44,8 @@ describe("TableRoom", () => {
   it("Telegram-дверь: имя из подписанной initData, ключ — номер в Telegram", async () => {
     const { welcome } = await sit(mintRoom(SECRET), { door: "telegram", initData: initData(42, "Ербол") });
     expect(welcome.you).toMatchObject({ key: "tg:42", name: "Ербол", door: "telegram" });
-    expect(welcome.snapshot.deck).toHaveLength(36);
-    expect(welcome.snapshot.deck.every((card) => card.face === undefined)).toBe(true);
+    expect(welcome.snapshot.piles[0]!.cards).toHaveLength(36);
+    expect(welcome.snapshot.piles[0]!.cards.every((card) => card.face === undefined)).toBe(true);
   });
 
   it("один id — одна комната; взятое одним у другого отказано; дифы сходятся со столом", async () => {
@@ -54,7 +54,7 @@ describe("TableRoom", () => {
     const b = await sit(room, { door: "guest", name: "B" });
     expect(b.welcome.snapshot.people.map((p) => p.name)).toEqual(["A", "B"]);
 
-    const top = a.welcome.snapshot.deck.at(-1)!.id;
+    const top = a.welcome.snapshot.piles[0]!.cards.at(-1)!.id;
     a.client.send(MSG.intent, { t: "grab", id: top });
     await new Promise((r) => setTimeout(r, 60));
     const refused = next<Refused>(b.client, MSG.refused);

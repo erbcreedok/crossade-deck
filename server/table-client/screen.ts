@@ -5,7 +5,7 @@
 // уходит намерением; пока ответ не пришёл, экран показывает ожидаемое (`pending`), а отказ просто
 // возвращает настоящий снимок.
 
-import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
+import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type Pile, MAIN_PILE, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
@@ -93,9 +93,9 @@ type Aim =
   | { kind: "hand"; which: string; index: number }
   | { kind: "chair"; which: string }
   | { kind: "back" }
-  | { kind: "deck" }
-  /** В открытый тултип колоды, на место `index` снизу. */
-  | { kind: "deckAt"; index: number }
+  | { kind: "deck"; pile: string }
+  /** В открытый тултип стопки, на место `index` снизу. */
+  | { kind: "deckAt"; pile: string; index: number }
   | { kind: "felt"; at: { x: number; y: number } };
 
 /** Место в веере: карта или щель — под мою карту в воздухе или под чужую (`carry` — id той карты). */
@@ -181,15 +181,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     confirmLeave: false,
     /** Открытые окна стульев — id стульев, по порядку открытия. */
     tips: [] as string[],
-    /** Открыт тултип колоды. */
-    deckTip: false,
+    /** Открытый тултип стопки — id стопки. */
+    deckTip: null as string | null,
   };
   /**
    * ИНДИКАТОР КОЛОДЫ ПОД ПАЛЬЦЕМ. Тап — тултип колоды, двойной тап — перевернуть колоду, тяга — колода едет по
    * сукну за пальцем и встаёт, где отпустили. `off` — палец от места колоды на стекле: колода не прыгает
    * под палец и висит над индикатором, как её взяли. `at` — где колода сейчас, пока её тянут.
    */
-  let gripPress: { pid: number; sx: number; sy: number; t0: number; moved: boolean; off: { x: number; y: number }; at?: { x: number; y: number } } | null = null;
+  let gripPress: { pile: string; pid: number; sx: number; sy: number; t0: number; moved: boolean; off: { x: number; y: number }; at?: { x: number; y: number } } | null = null;
   let lastGripTap = 0;
   let drag: Drag | null = null;
   /**
@@ -305,40 +305,40 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       (s) => chairOf(s, chair)?.[flag] === on);
   }
 
-  /** Колода встаёт сразу, где отпущена; сервер прижмёт к кромке так же (`FELT_REACH`). */
-  function guessDeckMove(x: number, y: number, angle: number): void {
+  const withPile = (s: Snapshot, id: string, change: (p: Pile) => Pile): Snapshot =>
+    ({ ...s, piles: s.piles.map((p) => (p.id === id ? change(p) : p)) });
+
+  /** Стопка встаёт сразу, где отпущена, и поверх остальных; сервер прижмёт к кромке так же (`FELT_REACH`). */
+  function guessDeckMove(pile: string, x: number, y: number, angle: number): void {
     const far = Math.hypot(x, y);
     const k = far > FELT_REACH ? FELT_REACH / far : 1;
     const at = { x: x * k, y: y * k };
-    guess("deck:move", { t: "deckMove", x: at.x, y: at.y, angle },
-      (st) => (st.spot ? { ...st, spot: { ...st.spot, ...at, angle, below: st.felt.map((c) => c.id) } } : st),
-      (st) => !st.spot || (Math.abs(st.spot.x - at.x) < 1e-6 && Math.abs(st.spot.y - at.y) < 1e-6));
+    guess(`deck:${pile}:move`, { t: "deckMove", pile, x: at.x, y: at.y, angle },
+      (st) => {
+        const one = pileOf(st, pile);
+        return one ? { ...st, piles: [...st.piles.filter((p) => p !== one), { ...one, ...at, angle, below: st.felt.map((c) => c.id) }] } : st;
+      },
+      (st) => {
+        const one = pileOf(st, pile);
+        return !one || (Math.abs(one.x - at.x) < 1e-6 && Math.abs(one.y - at.y) < 1e-6);
+      });
   }
 
-  function guessDeckPin(on: boolean): void {
-    guess("deck:pin", { t: "deckPin", on },
-      (st) => (st.spot ? { ...st, spot: { ...st.spot, pin: on } } : st),
-      (st) => !st.spot || st.spot.pin === on);
-  }
-
-  function guessDeckGuard(guard: "lock" | "shut", on: boolean): void {
-    guess(`deck:${guard}`, { t: "deckGuard", guard, on },
-      (st) => (st.spot ? { ...st, spot: { ...st.spot, [guard]: on } } : st),
-      (st) => !st.spot || st.spot[guard] === on);
-  }
-
-  function guessDeckForever(on: boolean): void {
-    guess("deck:forever", { t: "deckForever", on },
-      (st) => (st.spot ? { ...st, spot: { ...st.spot, forever: on } } : st),
-      (st) => !st.spot || st.spot.forever === on);
+  function guessDeckFlag(pile: string, flag: "pin" | "lock" | "shut" | "forever", on: boolean): void {
+    const intent: Intent = flag === "pin" ? { t: "deckPin", pile, on } : flag === "forever" ? { t: "deckForever", pile, on } : { t: "deckGuard", pile, guard: flag, on };
+    guess(`deck:${pile}:${flag}`, intent,
+      (st) => withPile(st, pile, (p) => ({ ...p, [flag]: on })),
+      (st) => !pileOf(st, pile) || pileOf(st, pile)![flag] === on);
   }
 
   /** Сторона карты, где бы она ни лежала. */
   function sideIn(s: Snapshot, id: string): { where: string; up: boolean; face?: Face } | null {
     const felt = s.felt.find((c) => c.id === id);
     if (felt) return { where: "felt", up: felt.up, face: felt.face };
-    const deck = s.deck.find((c) => c.id === id);
-    if (deck) return { where: "deck", up: deck.up === true, face: deck.face };
+    for (const pile of s.piles) {
+      const card = pile.cards.find((c) => c.id === id);
+      if (card) return { where: `deck:${pile.id}`, up: card.up === true, face: card.face };
+    }
     for (const chair of s.chairs) {
       const card = chair.hand.find((c) => c.id === id);
       if (card) return { where: `hand:${chair.id}`, up: card.up === true, face: card.face };
@@ -365,7 +365,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       (s) => ({
         ...s,
         felt: s.felt.map((c) => (c.id === id ? { ...c, up } : c)),
-        deck: s.deck.map(flip),
+        piles: s.piles.map((p) => (p.cards.some((card) => card.id === id) ? { ...p, cards: p.cards.map(flip) } : p)),
         chairs: s.chairs.map((c) => (c.hand.some((card) => card.id === id) ? { ...c, hand: c.hand.map(flip) } : c)),
       }),
       (s) => (sideIn(s, id)?.up ?? up) === up);
@@ -400,7 +400,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (drag) up.add(drag.card.id);
     if (up.size === 0) return s;
     const chairs = s.chairs.map((c) => ({ ...c, hand: c.hand.filter((card) => !up.has(card.id)) }));
-    return { ...s, chairs, deck: s.deck.filter((c) => !up.has(c.id)), felt: s.felt.filter((c) => !up.has(c.id)) };
+    return { ...s, chairs, piles: s.piles.map((p) => ({ ...p, cards: p.cards.filter((c) => !up.has(c.id)) })), felt: s.felt.filter((c) => !up.has(c.id)) };
   }
 
   /** Мой стул — на нём я сижу; пока стол не прислал его, пустая строка ни с чем не совпадёт. */
@@ -423,8 +423,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   const heldByOthers = (s: Snapshot): Record<string, string> =>
     Object.fromEntries(Object.entries(s.locks).filter(([, by]) => by !== me()).map(([id, by]) => [id, inkOf(s, by)]));
 
+  const pileOf = (s: Snapshot, id: string): Pile | undefined => s.piles.find((p) => p.id === id);
+
   function whereIs(s: Snapshot, id: string): Where | null {
-    if (s.deck.some((c) => c.id === id)) return { in: "deck" };
+    const pile = s.piles.find((p) => p.cards.some((c) => c.id === id));
+    if (pile) return { in: "deck", pile: pile.id };
     const f = s.felt.find((c) => c.id === id);
     if (f) return { in: "felt", x: f.x, y: f.y, up: f.up, angle: f.angle };
     for (const chair of s.chairs) {
@@ -525,7 +528,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const rowH = ch + 24;
     const height = 12 + 30 + 8 + 16 + rowH + 12;
     const k = view?.k ?? 1;
-    const middle = view ? view.toGlass(store.state.spot ?? { x: 0, y: 0 }) : { x: frame.w / 2, y: frame.h / 2 };
+    const middle = view ? view.toGlass(pileOf(store.state, MAIN_PILE) ?? { x: 0, y: 0 }) : { x: frame.w / 2, y: frame.h / 2 };
     const deck = { w: (FELT_CARD.w / 2) * k, h: (FELT_CARD.h / 2) * k };
     const chair = SEAT_REACH * k;
 
@@ -606,7 +609,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       sides.set(id, { where, up, face: face ?? (was?.where === where ? was.face : undefined) });
     };
     for (const c of s.felt) note(c.id, "felt", c.up, c.face);
-    for (const c of s.deck) note(c.id, "deck", c.up === true, c.face);
+    for (const pile of s.piles) for (const c of pile.cards) note(c.id, `deck:${pile.id}`, c.up === true, c.face);
     for (const chair of s.chairs) for (const c of chair.hand) note(c.id, `hand:${chair.id}`, c.up === true, c.face);
     // Карты, которой нет в кадре (она в пальце — тап и есть хват), прошлая сторона не стирается: иначе переворот
     // после второго тапа не с чем было бы сравнить. Стирается, когда ушла из колоды целиком (перемешали).
@@ -996,7 +999,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   function tipKeyOf(s: Snapshot, id: string): string | null {
     const f = s.felt.find((c) => c.id === id);
     if (f) return `felt:${f.x},${f.y},${f.angle},${f.up}`;
-    if (s.deck.at(-1)?.id === id) return "deck";
+    const pile = s.piles.find((p) => p.cards.at(-1)?.id === id);
+    if (pile) return `deck:${pile.id}`;
     const chair = s.chairs.find((c) => c.hand.some((card) => card.id === id));
     return chair ? `hand:${chair.id}` : null;
   }
@@ -1068,8 +1072,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         + `background:${T.wood};z-index:-1"></span>${tipLines(s, tip.id, one.card.up ? undefined : one.card.face, false, k)}</div>`;
     }
     const felt = s.felt.find((c) => c.id === tip.id);
-    const at = felt ? (v.feltAt(felt.id) ?? felt) : v.deckAt(s.deck.length - 1, s.deck.length);
-    const a = ((felt ? felt.angle : (s.spot?.angle ?? 0)) * Math.PI) / 180;
+    const pile = felt ? undefined : pileOf(s, key.slice(5));
+    const at = felt ? (v.feltAt(felt.id) ?? felt) : v.deckAt(pile?.id ?? "", (pile?.cards.length ?? 1) - 1, pile?.cards.length ?? 1);
+    const a = ((felt ? felt.angle : (pile?.angle ?? 0)) * Math.PI) / 180;
     const xs = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([dx, dy]) => {
       const lx = (dx! * FELT_CARD.w) / 2, ly = (dy! * FELT_CARD.h) / 2;
       return v.toGlass({ x: at.x + lx * Math.cos(a) - ly * Math.sin(a), y: at.y + lx * Math.sin(a) + ly * Math.cos(a) }).x;
@@ -1084,39 +1089,40 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return `<div data-g="card-tip" data-card="${tip.id}" data-side="${onLeft ? "left" : "right"}" style="position:absolute;left:${left}px;top:${mid.y}px;width:${w}px;`
       + `transform-origin:${onLeft ? "100%" : "0"} 50%;transform:translateY(-50%) scale(1,${v.squash});z-index:0;${tipShell(k)}">`
       + `<span style="position:absolute;top:50%;${side};width:${2 * arrow}px;height:${2 * arrow}px;margin-top:${-arrow}px;transform:rotate(45deg);`
-      + `background:${T.wood};z-index:-1"></span>${tipLines(s, tip.id, felt ? (felt.up ? felt.face : undefined) : s.deck.at(-1)?.up ? s.deck.at(-1)!.face : undefined, felt === undefined, k)}</div>`;
+      + `background:${T.wood};z-index:-1"></span>${tipLines(s, tip.id, felt ? (felt.up ? felt.face : undefined) : pile?.cards.at(-1)?.up ? pile.cards.at(-1)!.face : undefined, felt === undefined, k)}</div>`;
   }
 
   /** СТОРОНА, КОТОРОЙ КАРТА ЛЯЖЕТ В СТОПКУ: стороной стопки, если все её карты лежат одинаково, иначе — как несли. */
-  function deckSide(s: Snapshot, id: string, shown: boolean): boolean {
-    const pack = s.deck.filter((c) => c.id !== id).map((c) => c.up === true);
+  function deckSide(s: Snapshot, pile: string, id: string, shown: boolean): boolean {
+    const pack = (pileOf(s, pile)?.cards ?? []).filter((c) => c.id !== id).map((c) => c.up === true);
     return pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0]! : shown;
   }
 
-  /** Углы карты колоды на стекле: колода повёрнута на свой угол (`DeckSpot.angle`). */
-  function deckCorners(s: Snapshot, c: { x: number; y: number }): { x: number; y: number }[] {
+  /** Углы карты стопки на стекле: стопка повёрнута на свой угол (`DeckSpot.angle`). */
+  function deckCorners(pile: Pile, c: { x: number; y: number }): { x: number; y: number }[] {
     const v = view!;
-    const a = ((s.spot?.angle ?? 0) * Math.PI) / 180;
+    const a = (pile.angle * Math.PI) / 180;
     return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([dx, dy]) => {
       const lx = (dx! * FELT_CARD.w) / 2, ly = (dy! * FELT_CARD.h) / 2;
       return v.toGlass({ x: c.x + lx * Math.cos(a) - ly * Math.sin(a), y: c.y + lx * Math.sin(a) + ly * Math.cos(a) });
     });
   }
 
-  /** Колоду несут: где она у меня на стекле — середина, размер, и куда ляжет (`at`, в осях стола). */
-  function deckCarry(s: Snapshot): { x: number; y: number; w: number; h: number; at: { x: number; y: number }; n: number } | null {
-    if (!gripPress?.at || !view || !s.spot) return null;
+  /** Стопку несут: где она у меня на стекле — середина, размер, и куда ляжет (`at`, в осях стола). */
+  function deckCarry(s: Snapshot, pile: string): { x: number; y: number; w: number; h: number; at: { x: number; y: number }; n: number } | null {
+    const one = pileOf(s, pile);
+    if (!gripPress?.at || gripPress.pile !== pile || !view || !one) return null;
     const w = FELT_CARD.w * view.k, h = FELT_CARD.h * view.k;
     const home = view.toGlass(gripPress.at);
-    return { x: home.x, y: home.y - h * CARRY_CLEAR, w, h, at: gripPress.at, n: s.deck.length };
+    return { x: home.x, y: home.y - h * CARRY_CLEAR, w, h, at: gripPress.at, n: one.cards.length };
   }
 
-  /** Зона приёмки стопки на стекле — рамка всей стопки с полем. `null` — колоды нет. */
-  function deckZone(s: Snapshot): { left: number; top: number; right: number; bottom: number } | null {
-    if (!view || !s.spot) return null;
+  /** Зона приёмки стопки на стекле — рамка всей стопки с полем. */
+  function deckZone(pile: Pile): { left: number; top: number; right: number; bottom: number } | null {
+    if (!view) return null;
     const v = view;
-    const n = Math.max(1, s.deck.length);
-    const pts = [v.deckAt(0, n), v.deckAt(n - 1, n)].flatMap((c) => deckCorners(s, c));
+    const n = Math.max(1, pile.cards.length);
+    const pts = [v.deckAt(pile.id, 0, n), v.deckAt(pile.id, n - 1, n)].flatMap((c) => deckCorners(pile, c));
     const pad = 0.12 * FELT_CARD.w * v.k;
     return {
       left: Math.min(...pts.map((p) => p.x)) - pad, right: Math.max(...pts.map((p) => p.x)) + pad,
@@ -1125,71 +1131,77 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   }
 
   /**
-   * ЗОНА ПРИЁМКИ СТОПКИ — пунктир под колодой, пока карту несут: «сюда можно». Карта над ней — зона горит
-   * золотом. Чужую карту над стопкой видно всем: зона горит в цвете того, кто несёт.
+   * ЗОНЫ ПРИЁМКИ СТОПОК — пунктир под каждой стопкой, пока карту несут: «сюда можно». Карта над стопкой — её зона
+   * горит золотом. Чужую карту над стопкой видно всем: зона горит в цвете того, кто несёт.
    */
   function deckZoneHtml(s: Snapshot): string {
-    const zone = deckZone(s);
-    if (!zone || s.spot?.shut) return "";
-    const other = store.carries.find((c) => c.over.in === "deck");
-    if (!drag && !other) return "";
-    const here = drag ? drag.target.kind === "deck" : true;
-    const ink = drag ? (here ? T.gold : T.inkDim) : inkOf(s, other!.by);
-    const r = Math.round(0.16 * FELT_CARD.w * (view?.k ?? 40));
-    return `<div data-g="deck-zone" data-here="${here}" style="position:absolute;left:${zone.left}px;top:${zone.top}px;width:${zone.right - zone.left}px;height:${zone.bottom - zone.top}px;`
-      + `box-sizing:border-box;z-index:1;pointer-events:none;border-radius:${r}px;border:2px dashed ${ink};`
-      + `background:${here ? `color-mix(in srgb, ${ink} 22%, transparent)` : "rgba(245,234,208,.06)"};`
-      + (here ? `box-shadow:0 0 ${r * 1.5}px ${r * 0.5}px color-mix(in srgb, ${ink} 55%, transparent);` : "opacity:.75;")
-      + `"></div>`;
+    if (!drag && !store.carries.some((c) => c.over.in === "deck")) return "";
+    return s.piles.map((pile) => {
+      const zone = deckZone(pile);
+      if (!zone || pile.shut || deckCarry(s, pile.id)) return "";
+      const other = store.carries.find((c) => c.over.in === "deck" && c.over.pile === pile.id);
+      if (!drag && !other) return "";
+      const here = drag ? drag.target.kind === "deck" && drag.target.pile === pile.id : true;
+      const ink = drag ? (here ? T.gold : T.inkDim) : inkOf(s, other!.by);
+      const r = Math.round(0.16 * FELT_CARD.w * (view?.k ?? 40));
+      return `<div data-g="deck-zone" data-pile="${pile.id}" data-here="${here}" style="position:absolute;left:${zone.left}px;top:${zone.top}px;width:${zone.right - zone.left}px;height:${zone.bottom - zone.top}px;`
+        + `box-sizing:border-box;z-index:1;pointer-events:none;border-radius:${r}px;border:2px dashed ${ink};`
+        + `background:${here ? `color-mix(in srgb, ${ink} 22%, transparent)` : "rgba(245,234,208,.06)"};`
+        + (here ? `box-shadow:0 0 ${r * 1.5}px ${r * 0.5}px color-mix(in srgb, ${ink} 55%, transparent);` : "opacity:.75;")
+        + `"></div>`;
+    }).join("");
   }
 
-  /** Где индикатор колоды на стекле: под нижней картой колоды, по середине. `null` — колоды нет. */
-  function gripAt(s: Snapshot): { x: number; y: number } | null {
-    if (!view || !s.spot) return null;
+  /** Где индикатор стопки на стекле: под нижней картой стопки, по середине. `null` — стопки нет. */
+  function gripAt(s: Snapshot, id: string): { x: number; y: number } | null {
+    const pile = pileOf(s, id);
+    if (!view || !pile) return null;
     const v = view;
-    // НЕСУТ — индикатор под колодой в воздухе: колода висит на нём.
-    const carry = deckCarry(s);
+    // НЕСУТ — индикатор под стопкой в воздухе: стопка висит на нём.
+    const carry = deckCarry(s, id);
     if (carry) return { x: carry.x, y: carry.y + carry.h / 2 + 2 };
-    const n = Math.max(1, s.deck.length);
-    const low = v.deckAt(0, n);
-    const high = v.deckAt(n - 1, n);
-    const ys = deckCorners(s, low).map((p) => p.y);
+    const n = Math.max(1, pile.cards.length);
+    const low = v.deckAt(id, 0, n);
+    const high = v.deckAt(id, n - 1, n);
+    const ys = deckCorners(pile, low).map((p) => p.y);
     const mid = v.toGlass({ x: (low.x + high.x) / 2, y: (low.y + high.y) / 2 });
     return { x: mid.x, y: Math.max(...ys) };
   }
 
   /**
-   * ИНДИКАТОР КОЛОДЫ — ручка стопки: сколько в ней карт, и за него колоду тянут. Горит, пока открыт тултип
-   * колоды или колоду несут.
+   * ИНДИКАТОР СТОПКИ — ручка: сколько в ней карт, и за него стопку тянут. Горит, пока открыт её тултип или
+   * её несут. Колода и стопки игроков — одним видом; стопка игрока на столе ниже колоды по z.
    */
   function gripHtml(s: Snapshot): string {
-    const at = gripAt(s);
-    if (!at) return "";
-    const lit = local.deckTip || gripPress?.moved === true;
-    const pinned = s.spot!.pin;
-    // НЕ КРУПНЕЕ КОЛОДЫ: на мелком зуме индикатор жмётся вместе с картой, выше `GRIP.most` её высоты не бывает.
-    const h = 24;
-    const scale = Math.min(1, (GRIP.most * FELT_CARD.h * view!.k) / h);
-    return `<div data-g="deck-grip" data-count="${s.deck.length}" data-forever="${s.spot!.forever}" data-pin="${s.spot!.pin}" role="button" aria-label="Колода" style="position:absolute;left:${Math.round(at.x)}px;top:${Math.round(at.y + 2 * scale)}px;`
-      + `transform:translateX(-50%) scale(${scale.toFixed(3)});transform-origin:50% 0;height:${h}px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:0 7px 0 5px;border-radius:${h / 2}px;white-space:nowrap;`
-      + `touch-action:none;cursor:${pinned ? "pointer" : "grab"};z-index:${deckCarry(s) ? 61 : 24};user-select:none;-webkit-user-select:none;`
-      + (lit ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.6);`
-             : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${BAR_LOOK.rim},0 2px 0 rgba(11,7,4,.6);`)
-      + `"><svg viewBox="0 0 24 20" width="22" height="17" fill="none" stroke="${T.black}" stroke-width="1.6" stroke-linejoin="round">`
-      + `<g fill="${lit ? T.ink : BAR_LOOK.goldHi}">${GLYPH.deck}</g></svg>`
-      + `<span style="font:400 12px Tiny5,monospace;color:${lit ? T.black : T.ink}">${s.deck.length}</span>`
-      + (s.spot!.pin ? `<svg data-g="deck-pinned" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="${lit ? T.black : BAR_LOOK.goldHi}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${GLYPH.pin}</svg>` : "")
-      + `</div>`;
+    return s.piles.map((pile, z) => {
+      const at = gripAt(s, pile.id);
+      if (!at) return "";
+      const lit = local.deckTip === pile.id || (gripPress?.pile === pile.id && gripPress.moved);
+      // НЕ КРУПНЕЕ СТОПКИ: на мелком зуме индикатор жмётся вместе с картой, выше `GRIP.most` её высоты не бывает.
+      const h = 24;
+      const scale = Math.min(1, (GRIP.most * FELT_CARD.h * view!.k) / h);
+      return `<div data-g="deck-grip" data-pile="${pile.id}" data-count="${pile.cards.length}" data-forever="${pile.forever}" data-pin="${pile.pin}" role="button" aria-label="${pile.id === MAIN_PILE ? "Колода" : "Стопка"}" style="position:absolute;left:${Math.round(at.x)}px;top:${Math.round(at.y + 2 * scale)}px;`
+        + `transform:translateX(-50%) scale(${scale.toFixed(3)});transform-origin:50% 0;height:${h}px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:0 7px 0 5px;border-radius:${h / 2}px;white-space:nowrap;`
+        + `touch-action:none;cursor:${pile.pin ? "pointer" : "grab"};z-index:${deckCarry(s, pile.id) ? 61 : 20 + Math.min(z, 4)};user-select:none;-webkit-user-select:none;`
+        + (lit ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.6);`
+               : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${BAR_LOOK.rim},0 2px 0 rgba(11,7,4,.6);`)
+        + `"><svg viewBox="0 0 24 20" width="22" height="17" fill="none" stroke="${T.black}" stroke-width="1.6" stroke-linejoin="round">`
+        + `<g fill="${lit ? T.ink : BAR_LOOK.goldHi}">${GLYPH.deck}</g></svg>`
+        + `<span style="font:400 12px Tiny5,monospace;color:${lit ? T.black : T.ink}">${pile.cards.length}</span>`
+        + (pile.pin ? `<svg data-g="deck-pinned" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="${lit ? T.black : BAR_LOOK.goldHi}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${GLYPH.pin}</svg>` : "")
+        + `</div>`;
+    }).join("");
   }
 
   /**
-   * КОЛОДА В ВОЗДУХЕ — поднята над сукном и стоит ровно к экрану, как карта в пальце; под ней — контур,
+   * СТОПКА В ВОЗДУХЕ — поднята над сукном и стоит ровно к экрану, как карта в пальце; под ней — контур,
    * как она ляжет: ровно к камере, сжатый наклоном стола.
    */
   function deckCarryHtml(s: Snapshot): string {
-    const c = deckCarry(s);
-    if (!c || !view) return "";
-    const top = s.deck.at(-1);
+    const pile = gripPress && pileOf(s, gripPress.pile);
+    const c = pile && deckCarry(s, pile.id);
+    if (!pile || !c || !view) return "";
+    const top = pile.cards.at(-1);
     const layers = Math.min(Math.max(1, c.n), 6);
     const cards = Array.from({ length: layers }, (_, i) => {
       const d = layers - 1 - i;
@@ -1198,11 +1210,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     }).join("");
     const mark = view.toGlass(c.at);
     return markHtml(c.w, c.h, view.rotation + dropAngle(), mark.x, mark.y, 30, view.squash).replace('data-g="mark"', 'data-g="deck-mark"')
-      + `<div data-g="deck-carry" style="position:absolute;left:${c.x - c.w / 2}px;top:${c.y - c.h / 2}px;width:${c.w}px;height:${c.h}px;z-index:60;pointer-events:none;`
+      + `<div data-g="deck-carry" data-pile="${pile.id}" style="position:absolute;left:${c.x - c.w / 2}px;top:${c.y - c.h / 2}px;width:${c.w}px;height:${c.h}px;z-index:60;pointer-events:none;`
       + `filter:drop-shadow(0 ${Math.round(c.h * 0.12)}px 0 rgba(11,7,4,.45))">${cards}</div>`;
   }
 
-  /** Кнопка тултипа колоды: как флаг в окне стула. */
+  /** Кнопка тултипа стопки: как флаг в окне стула. */
   function deckChip(data: string, glyph: string, label: string, on = false): string {
     const look = on
       ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black};`
@@ -1211,45 +1223,41 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${on ? T.black : "white"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></button>`;
   }
 
-  /**
-   * ТУЛТИП КОЛОДЫ — колода картами, как чужая рука в окне стула: какой стороной лежит, такой и видно. Кнопки —
-   * перемешать, отсортировать, перевернуть; вечность — значком. Карты здесь не берутся.
-   */
-  /** Окно колоды и гнёзда его веера на `count` мест — карты и щель под карту в воздухе. */
-  function deckTipGeom(s: Snapshot, count: number): { box: TipBox; slots: Slot[] } | null {
-    const at = gripAt(s);
-    if (!local.deckTip || !at || !view) return null;
+  /** Окно открытой стопки и гнёзда его веера на `count` мест — карты и щель под карту в воздухе. */
+  function deckTipGeom(s: Snapshot, count: number): { pile: Pile; box: TipBox; slots: Slot[] } | null {
+    const pile = local.deckTip === null ? undefined : pileOf(s, local.deckTip);
+    const at = pile && gripAt(s, pile.id);
+    if (!pile || !at || !view) return null;
     const k = view.k;
-    const spot: Spot = { key: "deck", x: at.x, y: at.y - (FELT_CARD.h / 2) * k * view.squash, r: (FELT_CARD.h / 2) * k * view.squash, seat: s.spot! };
+    const spot: Spot = { key: `deck:${pile.id}`, x: at.x, y: at.y - (FELT_CARD.h / 2) * k * view.squash, r: (FELT_CARD.h / 2) * k * view.squash, seat: pile };
     const box = tipBox(spot, [...placedTips.values()]);
     const plan = handPlan({ fan: true, shrink: false, tuck: false }, count, 1, 1.4, box.inner / box.cw);
-    return { box, slots: plan.map((p) => ({ x: box.left + 12 + box.inner / 2 + p.x * box.cw, y: box.rowTop + 8 + box.ch / 2 + p.y * box.cw, angle: p.angle })) };
+    return { pile, box, slots: plan.map((p) => ({ x: box.left + 12 + box.inner / 2 + p.x * box.cw, y: box.rowTop + 8 + box.ch / 2 + p.y * box.cw, angle: p.angle })) };
   }
 
-  /** Щели в колоде: под мою карту в воздухе и под чужие, которые держат над окном колоды. */
+  /** Щели в открытой стопке: под мою карту в воздухе и под чужие, которые держат над её окном. */
   function deckGaps(s: Snapshot): Gap[] {
     const out: Gap[] = [];
-    if (drag?.target.kind === "deckAt") out.push({ index: drag.target.index, ink: T.ink });
-    for (const c of store.carries) if (c.over.in === "deck" && c.over.i !== undefined) out.push({ index: c.over.i, ink: inkOf(s, c.by), carry: c.id });
+    if (drag?.target.kind === "deckAt" && drag.target.pile === local.deckTip) out.push({ index: drag.target.index, ink: T.ink });
+    for (const c of store.carries) if (c.over.in === "deck" && c.over.pile === local.deckTip && c.over.i !== undefined) out.push({ index: c.over.i, ink: inkOf(s, c.by), carry: c.id });
     return out.sort((a, b) => a.index - b.index);
   }
 
   /**
-   * ТУЛТИП КОЛОДЫ — колода картами, как чужая рука в окне стула: какой стороной лежит, такой и видно. Карты
+   * ТУЛТИП СТОПКИ — стопка картами, как чужая рука в окне стула: какой стороной лежит, такой и видно. Карты
    * тянут, переставляют и переворачивают, как в окне руки; под локом — только верхнюю, а карта, брошенная в
    * окно, встаёт наверх. Кнопки — перемешать, отсортировать, перевернуть; пин, лок, приёмка и вечность — значками.
    */
   function deckTipHtml(s: Snapshot): string {
-    if (!local.deckTip) return "";
-    const cards = s.deck;
+    if (local.deckTip === null) return "";
     const gaps = deckGaps(s);
-    const geom = deckTipGeom(s, cards.length + gaps.length);
-    if (!geom || !s.spot) {
-      local.deckTip = false;
+    const geom = deckTipGeom(s, (pileOf(s, local.deckTip)?.cards.length ?? 0) + gaps.length);
+    if (!geom) {
+      local.deckTip = null;
       return "";
     }
-    const { box, slots } = geom;
-    const spot = s.spot;
+    const { box, slots, pile } = geom;
+    const cards = pile.cards;
     const admin = s.admin === me();
     const list: (SeenCard | Gap)[] = [...cards];
     for (const gap of gaps) list.splice(Math.max(0, Math.min(list.length, gap.index)), 0, gap);
@@ -1258,9 +1266,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const laidCards = list.map((one, i) => {
       const slot = slots[i]!;
       if ("index" in one) return markHtml(box.cw, box.ch, slot.angle, slot.x, slot.y, 42 + i, 1, one.ink);
-      const shut = spot.shut || (spot.lock && one.id !== top);
+      const shut = pile.shut || (pile.lock && one.id !== top);
       const hand = held[one.id];
-      return `<div data-card="${one.id}" data-owner="deck" style="position:absolute;width:${box.cw}px;height:${box.ch}px;left:${slot.x - box.cw / 2}px;top:${slot.y - box.ch / 2}px;`
+      return `<div data-card="${one.id}" data-owner="deck" data-pile="${pile.id}" style="position:absolute;width:${box.cw}px;height:${box.ch}px;left:${slot.x - box.cw / 2}px;top:${slot.y - box.ch / 2}px;`
         + `transform:rotate(${slot.angle}deg);z-index:${42 + i};touch-action:none;`
         + (hand ? `pointer-events:none;filter:brightness(.6);outline:3px solid ${hand};border-radius:${box.cw * 0.12}px;` : shut ? "pointer-events:none;" : "cursor:grab;")
         + (flying.has(one.id) ? "visibility:hidden;" : "")
@@ -1270,19 +1278,19 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     /** Кнопка, если можно; значок состояния, если нельзя. */
     const chip = (may: boolean, data: string, glyph: string, label: string, on: boolean) =>
       may ? deckChip(data, glyph, label, on) : deckChip(`${data}-status disabled`, glyph, label, on).replace("cursor:pointer", `cursor:default;opacity:${on ? 0.8 : 0.4}`);
-    return `<div data-g="deck-tip" data-lock="${spot.lock}" data-shut="${spot.shut}" style="position:absolute;left:${box.left}px;top:${box.top}px;width:${box.w}px;height:${box.height}px;box-sizing:border-box;z-index:40;`
+    return `<div data-g="deck-tip" data-pile="${pile.id}" data-lock="${pile.lock}" data-shut="${pile.shut}" style="position:absolute;left:${box.left}px;top:${box.top}px;width:${box.w}px;height:${box.height}px;box-sizing:border-box;z-index:40;`
       + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
       + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px">`
-      + `<span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1">Колода · ${cards.length}</span>`
+      + `<span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1">${pile.id === MAIN_PILE ? "Колода" : "Стопка"} · ${cards.length}</span>`
       + `<span data-deck-shut role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
       + `<div style="display:flex;align-items:center;gap:6px;height:16px">`
-      + acts.map(([how, glyph, label]) => (spot.lock ? chip(false, "data-deck-do", glyph, label, false).replace("data-deck-do-status", `data-deck-do-status="${how}"`) : deckChip(`data-deck-do="${how}"`, glyph, label))).join("")
+      + acts.map(([how, glyph, label]) => (pile.lock ? chip(false, "data-deck-do", glyph, label, false).replace("data-deck-do-status", `data-deck-do-status="${how}"`) : deckChip(`data-deck-do="${how}"`, glyph, label))).join("")
       + `<span style="flex:1"></span>`
       // ПИН: приколоть — любой, открепить — только админ. ЛОК И ПРИЁМКА — только админ.
-      + chip(!spot.pin || admin, "data-deck-pin", GLYPH.pin, "Приколоть", spot.pin)
-      + chip(admin, "data-deck-lock", GLYPH.lock, "Лок", spot.lock)
-      + chip(admin, "data-deck-accept", GLYPH.shut, "Приёмка закрыта", spot.shut)
-      + `${deckChip("data-deck-forever", GLYPH.forever, "Вечная", spot.forever)}</div>`
+      + chip(!pile.pin || admin, "data-deck-pin", GLYPH.pin, "Приколоть", pile.pin)
+      + chip(admin, "data-deck-lock", GLYPH.lock, "Лок", pile.lock)
+      + chip(admin, "data-deck-accept", GLYPH.shut, "Приёмка закрыта", pile.shut)
+      + `${deckChip("data-deck-forever", GLYPH.forever, "Вечная", pile.forever)}</div>`
       + `</div>` + laidCards;
   }
 
@@ -1298,12 +1306,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   function draw(): void {
     const g = glass();
     const s = seen();
-    if (store.state.shuffles !== seenShuffles) {
-      if (seenShuffles !== undefined) {
-        queueMicrotask(() => playShuffle(store.state));
-        shuffledInTip = local.deckTip;
+    for (const pile of store.state.piles) {
+      const was = seenShuffles.get(pile.id);
+      if (was !== undefined && was !== pile.shuffles) {
+        queueMicrotask(() => playShuffle(store.state, pile.id));
+        if (local.deckTip === pile.id) shuffledInTip = true;
       }
-      seenShuffles = store.state.shuffles;
+      seenShuffles.set(pile.id, pile.shuffles);
     }
     const seat = mine(s);
     const floor = talk.open ? talk.height() : hudFloor(handOf(s, seat).length);
@@ -1328,7 +1337,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     syncCamera();
     art.warm(s.rules);
     view = drawFelt(canvas, {
-      W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), turning, deck: gripPress?.at ? [] : s.deck, spot: s.spot, felt: s.felt, held: heldByOthers(s), hidden: flying,
+      W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), turning, piles: s.piles.filter((p) => !deckCarry(s, p.id)), felt: s.felt, held: heldByOthers(s), hidden: flying,
       view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
       rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
     });
@@ -1347,15 +1356,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         const bare = view!.toGlass(f);
         return { id: f.id, angle: f.angle, x: Math.round(at.x), y: Math.round(at.y), rise: +(bare.y - at.y).toFixed(1), up: f.up, face: f.up ? (f.face?.rank ?? null) : null };
       }),
-      deck: s.deck.length,
-      spot: s.spot,
-      grip: (({ x, y }) => ({ x: Math.round(x), y: Math.round(y) }))(gripAt(s) ?? { x: -1, y: -1 }),
-      deckFace: s.deck.at(-1)?.up ? (s.deck.at(-1)!.face?.rank ?? null) : null,
+      // КОЛОДА — прежними ключами; все стопки, колода с ними, — в `piles`.
+      ...pileSpots(s, MAIN_PILE, "deck"),
+      piles: s.piles.map((p) => ({ id: p.id, ...pileSpots(s, p.id, "pile") })),
       turning: [...turns.keys()],
-      deckTop: s.deck.length ? (({ x, y }) => ({ x: Math.round(x), y: Math.round(y) }))(deckCarry(s) ?? view.toGlass(view.deckAt(s.deck.length - 1, s.deck.length))) : null,
-      deckAir: Boolean(deckCarry(s)),
-      deckIds: s.deck.map((c) => c.id),
-      deckUp: s.deck.filter((c) => c.up).map((c) => c.id),
       seatAngle: chairOf(s, seat)?.angle ?? null,
       seats: spots.map((sp) => {
         const c = chairOf(s, sp.key);
@@ -1399,6 +1403,26 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     prevPlaces = places;
     paintCarries(s, places);
     if (started) draw();
+  }
+
+  /** Стопка для прогона жестов: сколько карт, где индикатор и верхняя, какие id и какие лицом. */
+  function pileSpots(s: Snapshot, id: string, as: "deck" | "pile"): Record<string, unknown> {
+    const pile = pileOf(s, id);
+    const cards = pile?.cards ?? [];
+    const round = (p: { x: number; y: number }) => ({ x: Math.round(p.x), y: Math.round(p.y) });
+    const top = cards.length && view ? round(deckCarry(s, id) ?? view.toGlass(view.deckAt(id, cards.length - 1, cards.length))) : null;
+    const out = {
+      count: cards.length,
+      spot: pile ? (({ id: _id, cards: _cards, shuffles: _shuffles, ...spot }) => spot)(pile) : null,
+      grip: round(gripAt(s, id) ?? { x: -1, y: -1 }),
+      face: cards.at(-1)?.up ? (cards.at(-1)!.face?.rank ?? null) : null,
+      top,
+      air: Boolean(deckCarry(s, id)),
+      ids: cards.map((c) => c.id),
+      up: cards.filter((c) => c.up).map((c) => c.id),
+    };
+    if (as === "pile") return out;
+    return { deck: out.count, spot: out.spot, grip: out.grip, deckFace: out.face, deckTop: out.top, deckAir: out.air, deckIds: out.ids, deckUp: out.up };
   }
 
   /**
@@ -1492,19 +1516,23 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       const p = v.toGlass(at);
       return { key, x: p.x, y: p.y, w: FELT_CARD.w * scale * v.k, h: FELT_CARD.h * scale * v.k, angle: v.rotation + angle, squash: v.squash, face };
     };
-    // КАРТА КОЛОДЫ — своё место в колоде (`deck:i`): переставили, отсортировали, перевернули — место сменилось, и
-    // она летит. В открытом окне колоды — там, в веере; окно открыли или закрыли — это не переезд, ключ тот же.
+    // КАРТА СТОПКИ — своё место в стопке (`deck:стопка:i`): переставили, отсортировали, перевернули — место сменилось,
+    // и она летит. В открытом окне стопки — там, в веере; окно открыли или закрыли — это не переезд, ключ тот же.
     const tipGaps = deckGaps(s);
-    const tipGeom = deckTipGeom(s, s.deck.length + tipGaps.length);
-    // Место карты в веере окна — среди карт и щелей, как их раскладывает окно.
-    const row: (SeenCard | Gap)[] = [...s.deck];
-    for (const gap of tipGaps) row.splice(Math.max(0, Math.min(row.length, gap.index)), 0, gap);
-    s.deck.forEach((c, i) => {
-      const face = c.up ? c.face : undefined;
-      if (!tipGeom) return out.set(c.id, onDesk(`deck:${i}`, v.deckAt(i, s.deck.length), 1, s.spot?.angle ?? 0, face));
-      const slot = tipGeom.slots[row.indexOf(c)]!;
-      out.set(c.id, { key: `deck:${i}`, x: slot.x, y: slot.y, w: tipGeom.box.cw, h: tipGeom.box.ch, angle: slot.angle, squash: 1, face });
-    });
+    const openPile = local.deckTip === null ? undefined : pileOf(s, local.deckTip);
+    const tipGeom = openPile ? deckTipGeom(s, openPile.cards.length + tipGaps.length) : null;
+    for (const pile of s.piles) {
+      // Место карты в веере окна — среди карт и щелей, как их раскладывает окно.
+      const row: (SeenCard | Gap)[] = [...pile.cards];
+      if (tipGeom?.pile.id === pile.id) for (const gap of tipGaps) row.splice(Math.max(0, Math.min(row.length, gap.index)), 0, gap);
+      pile.cards.forEach((c, i) => {
+        const face = c.up ? c.face : undefined;
+        const key = `deck:${pile.id}:${i}`;
+        if (tipGeom?.pile.id !== pile.id) return out.set(c.id, onDesk(key, v.deckAt(pile.id, i, pile.cards.length), 1, pile.angle, face));
+        const slot = tipGeom.slots[row.indexOf(c)]!;
+        out.set(c.id, { key, x: slot.x, y: slot.y, w: tipGeom.box.cw, h: tipGeom.box.ch, angle: slot.angle, squash: 1, face });
+      });
+    }
     for (const f of s.felt) out.set(f.id, onDesk(`felt:${f.x.toFixed(2)},${f.y.toFixed(2)},${f.angle}`, v.feltAt(f.id) ?? f, 1, f.angle, f.up ? f.face : undefined));
     const shown = handsShown(s);
     for (const c of s.chairs) {
@@ -1541,7 +1569,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     };
     const over = c.over;
     if (over.in === "felt") return onDesk(over, over.angle);
-    if (over.in === "deck") return onDesk(v.deckAt(s.deck.length, s.deck.length + 1), 0);
+    if (over.in === "deck") {
+      const n = pileOf(s, over.pile)?.cards.length ?? 0;
+      return onDesk(v.deckAt(over.pile, n, n + 1), 0);
+    }
     const hand = shown.get(over.chair);
     const gap = hand?.lay.find((one) => "gap" in one && one.gap.carry === c.id);
     if (hand && gap) return { key, x: gap.slot.x, y: gap.slot.y, w: hand.geom.w, h: hand.geom.h, angle: gap.slot.angle, squash: 1, face: c.card.face };
@@ -1634,12 +1665,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * ПЕРЕМЕШИВАНИЕ У ЗРИТЕЛЯ — колода расходится двумя половинками и сходится обратно, несколько раз. Это
    * картинка, а не ход: колода на сервере уже перемешана, у всех карт новые id.
    */
-  let seenShuffles: number | undefined;
+  const seenShuffles = new Map<string, number>();
   /** Перемешали при открытом окне колоды: в следующем кадре карты в нём разлетаются по новым местам. */
   let shuffledInTip = false;
-  function playShuffle(s: Snapshot): void {
-    if (!view || s.deck.length === 0) return;
-    const at = view.toGlass(view.deckAt(s.deck.length - 1, s.deck.length));
+  function playShuffle(s: Snapshot, id: string): void {
+    const n = pileOf(s, id)?.cards.length ?? 0;
+    if (!view || n === 0) return;
+    const at = view.toGlass(view.deckAt(id, n - 1, n));
     const w = FELT_CARD.w * view.k, h = FELT_CARD.h * view.k;
     for (let i = 0; i < 8; i += 1) {
       const el = document.createElement("div");
@@ -1674,14 +1706,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   function aimAt(x: number, y: number): Aim {
     const s = seen();
-    // В ОКНО КОЛОДЫ — место по пальцу, как в окне руки; под локом — наверх; приёмка закрыта — назад.
-    const deckTipBox = deckTipGeom(s, s.deck.length + 1);
-    if (deckTipBox && s.spot) {
+    // В ОКНО СТОПКИ — место по пальцу, как в окне руки; под локом — наверх; приёмка закрыта — назад.
+    const tipPile = local.deckTip === null ? undefined : pileOf(s, local.deckTip);
+    const deckTipBox = tipPile && deckTipGeom(s, tipPile.cards.length + 1);
+    if (deckTipBox) {
       const b = deckTipBox.box;
+      const pile = deckTipBox.pile;
       if (x >= b.left && x <= b.left + b.w && y >= b.top && y <= b.top + b.height) {
-        if (s.spot.shut) return { kind: "back" };
-        const room = s.deck.length;
-        return { kind: "deckAt", index: s.spot.lock ? room : Math.max(0, Math.min(room, deckTipBox.slots.filter((sl) => sl.x < x).length)) };
+        if (pile.shut) return { kind: "back" };
+        const room = pile.cards.length;
+        return { kind: "deckAt", pile: pile.id, index: pile.lock ? room : Math.max(0, Math.min(room, deckTipBox.slots.filter((sl) => sl.x < x).length)) };
       }
     }
     for (const key of local.tips) {
@@ -1704,8 +1738,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // перед ним, и целятся в неё. Одиночная карта на сукне карту не принимает.
     const d = drag!;
     const mid = { x: x - d.gx + d.w / 2, y: y - d.gy - d.h * CARRY_CLEAR + d.h / 2 };
-    const zone = deckZone(s);
-    if (zone && mid.x >= zone.left && mid.x <= zone.right && mid.y >= zone.top && mid.y <= zone.bottom) return s.spot?.shut ? { kind: "back" } : { kind: "deck" };
+    // Стопки сверху вниз: верхняя из накрывающих друг друга принимает первой.
+    for (const pile of [...s.piles].reverse()) {
+      const zone = deckZone(pile);
+      if (zone && mid.x >= zone.left && mid.x <= zone.right && mid.y >= zone.top && mid.y <= zone.bottom) return pile.shut ? { kind: "back" } : { kind: "deck", pile: pile.id };
+    }
     // НА СТУЛ — в руку его стула, в конец. Под локом стул карту не берёт: она вернётся, откуда взята.
     const chair = chairUnder(s, x, y);
     if (chair) return closed(s, chair.key) ? { kind: "back" } : { kind: "chair", which: chair.key };
@@ -1716,12 +1753,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   const sameAim = (a: Aim, b: Aim) => {
     if (a.kind === "hand" && b.kind === "hand") return a.which === b.which && a.index === b.index;
     if (a.kind === "chair" && b.kind === "chair") return a.which === b.which;
-    if (a.kind === "deckAt" && b.kind === "deckAt") return a.index === b.index;
-    return a.kind === b.kind && a.kind !== "hand" && a.kind !== "chair";
+    if (a.kind === "deckAt" && b.kind === "deckAt") return a.pile === b.pile && a.index === b.index;
+    if (a.kind === "deck" && b.kind === "deck") return a.pile === b.pile;
+    return a.kind === b.kind && a.kind !== "hand" && a.kind !== "chair" && a.kind !== "deck" && a.kind !== "deckAt";
   };
 
   /** Что под пальцем на сукне: сверху вниз, и с колоды — только верхняя. */
-  function feltPick(x: number, y: number): { card: SeenCard; at: { x: number; y: number }; from: "felt" | "deck"; up: boolean } | null {
+  function feltPick(x: number, y: number): { card: SeenCard; at: { x: number; y: number }; up: boolean } | null {
     if (!view) return null;
     const s = store.state;
     const { x: ux, y: uy } = view.toDesk({ x, y });
@@ -1734,21 +1772,23 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       const ly = dx * Math.sin(t) + dy * Math.cos(t);
       return Math.abs(lx) <= FELT_CARD.w / 2 && Math.abs(ly) <= FELT_CARD.h / 2;
     };
-    const below = new Set(s.spot?.below ?? []);
+    const below = new Set(s.piles.flatMap((p) => p.below));
     for (let i = s.felt.length - 1; i >= 0; i -= 1) {
       const one = s.felt[i]!;
       const at = view.feltAt(one.id) ?? one;
-      if (!one.under && !below.has(one.id) && over(at, one.angle)) return { card: one, at, from: "felt", up: one.up };
+      if (!one.under && !below.has(one.id) && over(at, one.angle)) return { card: one, at, up: one.up };
     }
-    const top = s.deck.at(-1);
-    const deckTop = view.deckAt(s.deck.length - 1, s.deck.length);
-    // Приёмка закрыта — из колоды не взять и верхнюю: палец по ней не берёт, но и сукно под ней не отдаёт.
-    if (top && over(deckTop, s.spot?.angle ?? 0)) return s.spot?.shut ? null : { card: top, at: deckTop, from: "deck", up: top.up === true };
-    // Под колодой — только там, где колода её не накрывает.
+    for (const pile of [...s.piles].reverse()) {
+      const top = pile.cards.at(-1);
+      const deckTop = view.deckAt(pile.id, pile.cards.length - 1, pile.cards.length);
+      // Приёмка закрыта — из стопки не взять и верхнюю: палец по ней не берёт, но и сукно под ней не отдаёт.
+      if (top && over(deckTop, pile.angle)) return pile.shut ? null : { card: top, at: deckTop, up: top.up === true };
+    }
+    // Под стопкой — только там, где стопка её не накрывает.
     for (let i = s.felt.length - 1; i >= 0; i -= 1) {
       const one = s.felt[i]!;
       const at = view.feltAt(one.id) ?? one;
-      if ((one.under || below.has(one.id)) && over(at, one.angle)) return { card: one, at, from: "felt", up: one.up };
+      if ((one.under || below.has(one.id)) && over(at, one.angle)) return { card: one, at, up: one.up };
     }
     return null;
   }
@@ -1786,14 +1826,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   function grabFromHand(e: PointerEvent, owner: string, id: string, el: HTMLElement) {
     const s = store.state;
     if (owner === "deck") {
-      const index = s.deck.findIndex((c) => c.id === id);
-      const geom = deckTipGeom(s, s.deck.length);
-      if (index < 0 || !geom || s.spot?.shut || (s.spot?.lock && index !== s.deck.length - 1)) return;
+      const pile = pileOf(s, el.dataset.pile ?? "");
+      const index = pile ? pile.cards.findIndex((c) => c.id === id) : -1;
+      const geom = pile && local.deckTip === pile.id ? deckTipGeom(s, pile.cards.length) : null;
+      if (!pile || index < 0 || !geom || pile.shut || (pile.lock && index !== pile.cards.length - 1)) return;
       const r = el.getBoundingClientRect();
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-      const card = s.deck[index]!;
-      // Из колоды — как лежит: рубашкой вытянута, рубашкой и ляжет; лицом к хозяину её повернёт только рука.
-      lift(card, card.up === true && card.face !== undefined, { left: cx - geom.box.cw / 2, top: cy - geom.box.ch / 2, w: geom.box.cw, h: geom.box.ch }, e, { kind: "deckAt", index });
+      const card = pile.cards[index]!;
+      // Из стопки — как лежит: рубашкой вытянута, рубашкой и ляжет; лицом к хозяину её повернёт только рука.
+      lift(card, card.up === true && card.face !== undefined, { left: cx - geom.box.cw / 2, top: cy - geom.box.ch / 2, w: geom.box.cw, h: geom.box.ch }, e, { kind: "deckAt", pile: pile.id, index });
       try { el.setPointerCapture?.(e.pointerId); } catch { /* пальца уже нет */ }
       return;
     }
@@ -1815,8 +1856,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (aim.kind === "hand") return { in: "hand", chair: aim.which, i: aim.index };
     if (aim.kind === "chair") return { in: "hand", chair: aim.which, i: handOf(store.state, aim.which).length };
     if (aim.kind === "back") return d.from;
-    if (aim.kind === "deck") return { in: "deck" };
-    if (aim.kind === "deckAt") return { in: "deck", i: aim.index };
+    if (aim.kind === "deck") return { in: "deck", pile: aim.pile };
+    if (aim.kind === "deckAt") return { in: "deck", pile: aim.pile, i: aim.index };
     // На сукно карта ложится так, как её несли: лицом — если её было видно.
     return { in: "felt", x: aim.at.x, y: aim.at.y, up: d.shown, angle: dropAngle() };
   }
@@ -1899,7 +1940,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const to = landing(d);
     const from = whereIs(store.state, d.card.id);
     if (from) {
-      const keepsFace = (to.in === "hand" && to.chair === mine()) || (to.in === "felt" && to.up) || (to.in === "deck" && deckSide(store.state, d.card.id, d.shown));
+      const keepsFace = (to.in === "hand" && to.chair === mine()) || (to.in === "felt" && to.up) || (to.in === "deck" && deckSide(store.state, to.pile, d.card.id, d.shown));
       const card: SeenCard = keepsFace && d.card.face ? { id: d.card.id, face: d.card.face, ...(to.in === "deck" ? { up: true } : {}) } : { id: d.card.id };
       pending = { id: d.card.id, from, to, card, sawLock: store.state.locks[d.card.id] === me() };
       store.send({ t: "drop", id: d.card.id, to });
@@ -2006,17 +2047,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       el.onpointerdown = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const s = store.state;
-        if (!view || !s.spot || drag || gripPress) return;
-        const home = view.toGlass(s.spot);
-        gripPress = { pid: e.pointerId, sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false, off: { x: e.clientX - home.x, y: e.clientY - home.y } };
+        const pile = pileOf(store.state, el.dataset.pile ?? "");
+        if (!view || !pile || drag || gripPress) return;
+        const home = view.toGlass(pile);
+        gripPress = { pile: pile.id, pid: e.pointerId, sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false, off: { x: e.clientX - home.x, y: e.clientY - home.y } };
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-deck-do]")) {
       el.onpointerdown = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        store.send({ t: "deckDo", how: el.dataset.deckDo as DeckDo });
+        if (local.deckTip !== null) store.send({ t: "deckDo", pile: local.deckTip, how: el.dataset.deckDo as DeckDo });
       };
     }
     for (const [sel, guard] of [["[data-deck-lock]", "lock"], ["[data-deck-accept]", "shut"]] as const) {
@@ -2024,8 +2065,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         el.onpointerdown = (e) => {
           e.preventDefault();
           e.stopPropagation();
-          const spot = truth().spot;
-          if (spot) guessDeckGuard(guard, !spot[guard]);
+          const pile = local.deckTip === null ? undefined : pileOf(truth(), local.deckTip);
+          if (pile) guessDeckFlag(pile.id, guard, !pile[guard]);
         };
       }
     }
@@ -2039,8 +2080,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       el.onpointerdown = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const spot = truth().spot;
-        if (spot) guessDeckPin(!spot.pin);
+        const pile = local.deckTip === null ? undefined : pileOf(truth(), local.deckTip);
+        if (pile) guessDeckFlag(pile.id, "pin", !pile.pin);
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-deck-pin-status]")) {
@@ -2053,15 +2094,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       el.onpointerdown = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const spot = truth().spot;
-        if (spot) guessDeckForever(!spot.forever);
+        const pile = local.deckTip === null ? undefined : pileOf(truth(), local.deckTip);
+        if (pile) guessDeckFlag(pile.id, "forever", !pile.forever);
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-deck-shut]")) {
       el.onpointerdown = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        local.deckTip = false;
+        local.deckTip = null;
         draw();
       };
     }
@@ -2094,7 +2135,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   store.onRefused((intent: Intent) => {
     // ОТКАЗ — догадка снимается, и нарисованное возвращается к тому, что на столе.
     // Узнаётся по виду намерения и стулу, а не по тексту целиком: сервер возвращает то, что до него дошло.
-    const chairOfIntent = (i: Intent) => ("chair" in i ? i.chair : undefined);
+    const chairOfIntent = (i: Intent) => ("chair" in i ? i.chair : "pile" in i ? i.pile : undefined);
     guesses = guesses.filter((g) => g.intent.t !== intent.t || chairOfIntent(g.intent) !== chairOfIntent(intent));
     if (intent.t === "grab" && drag?.card.id === intent.id) {
       clearInterval(drag.hold);
@@ -2153,7 +2194,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (!gripPress.moved && Math.hypot(e.clientX - gripPress.sx, e.clientY - gripPress.sy) <= TAP_PX) return;
     gripPress.moved = true;
     // ПРИКОЛОТА — не едет: палец увёл — это уже не тап, но и не перенос.
-    if (truth().spot?.pin) return;
+    if (pileOf(truth(), gripPress.pile)?.pin) return;
     gripPress.at = view.toDesk({ x: e.clientX - gripPress.off.x, y: e.clientY - gripPress.off.y });
     draw();
   }, { passive: true });
@@ -2164,7 +2205,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (e.type === "pointercancel") return draw();
     // ТЯГА — колода встаёт, где отпустили. Только на сукно: в руку колоду не кладут.
     if (press.moved) {
-      if (press.at) return guessDeckMove(press.at.x, press.at.y, dropAngle());
+      if (press.at) return guessDeckMove(press.pile, press.at.x, press.at.y, dropAngle());
       return draw();
     }
     if (performance.now() - press.t0 >= TAP_MS) return draw();
@@ -2172,11 +2213,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const now = performance.now();
     if (now - lastGripTap < DOUBLE_TAP_MS) {
       lastGripTap = 0;
-      if (!truth().spot?.lock) store.send({ t: "deckDo", how: "flip" });
+      const pile = pileOf(truth(), press.pile);
+      if (pile && !pile.lock) store.send({ t: "deckDo", pile: pile.id, how: "flip" });
       return draw();
     }
     lastGripTap = now;
-    local.deckTip = !local.deckTip;
+    local.deckTip = local.deckTip === press.pile ? null : press.pile;
     draw();
   };
   addEventListener("pointerup", endGrip);

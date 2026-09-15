@@ -52,8 +52,8 @@ export interface Face {
  * (ширина карты), и порядок в нём — это порядок «кто сверху».
  */
 export type Where =
-  /** `i` — место в колоде снизу (0 — низ); нет или под локом — наверх. */
-  | { in: "deck"; i?: number }
+  /** Стопка `pile`; `i` — место снизу (0 — низ); нет или под локом — наверх. */
+  | { in: "deck"; pile: string; i?: number }
   | { in: "hand"; chair: string; i: number }
   | { in: "felt"; x: number; y: number; up: boolean; angle: number; under?: boolean };
 
@@ -122,9 +122,9 @@ export const HAND_POSE_KEYS = ["fan", "shrink", "tuck"] as const;
 export const DEFAULT_POSE: HandPose = { fan: true, shrink: false, tuck: false };
 
 /**
- * МЕСТО КОЛОДЫ НА СУКНЕ — в единицах стола. Колода одна на стол; её таскают за индикатор колоды.
- * `forever` — колода стоит и пустой; снят — опустевшая колода исчезает (`Snapshot.spot` = `null`), а команда
- * бота, которой колода нужна, ставит новую посередине.
+ * МЕСТО СТОПКИ НА СУКНЕ — в единицах стола; её таскают за индикатор. `forever` — стопка стоит и пустой;
+ * снят — опустевшая стопка исчезает. Колода (`MAIN_PILE`) — стопка, с которой работают команды бота: её нет —
+ * команда ставит новую посередине.
  */
 export interface DeckSpot {
   x: number;
@@ -151,6 +151,20 @@ export interface DeckSpot {
   below: string[];
 }
 export const DEFAULT_SPOT: DeckSpot = { x: 0, y: 0, forever: true, pin: false, lock: false, shut: false, angle: 0, below: [] };
+
+/** Колода стола — стопка команд бота. Остальные стопки собирают игроки (`gather`), и они не вечные. */
+export const MAIN_PILE = "deck";
+
+/** СТОПКА — место, флаги и карты снизу вверх. `shuffles` — сколько раз её перемешали: сменилось — играть перемешивание. */
+export interface Pile extends DeckSpot {
+  id: string;
+  cards: SeenCard[];
+  shuffles: number;
+}
+
+/** Какой стороной карты ложатся в стопку при сборке: как лежали, все рубашкой вверх, все лицом вверх. */
+export const GATHER_SIDES = ["keep", "down", "up"] as const;
+export type GatherSide = (typeof GATHER_SIDES)[number];
 
 /** Что делают с колодой из её тултипа: перемешать, по масти (внутри — по номиналу), перевернуть стопку. */
 export const DECK_DOS = ["shuffle", "sort", "flip"] as const;
@@ -214,14 +228,11 @@ export interface Snapshot {
   v: number;
   people: Person[];
   chairs: Chair[];
-  deck: SeenCard[];
-  /** Где стоит колода. `null` — колоды на столе нет. */
-  spot: DeckSpot | null;
+  /** Стопки — в порядке «кто сверху»: поставленная последней лежит поверх остальных. */
+  piles: Pile[];
   felt: FeltCard[];
   /** Следы карт по id — у карт, которые хоть раз переносили. */
   trails: Record<string, Trail>;
-  /** Сколько раз колоду перемешали — сменилось, значит зрителю играть перемешивание. */
-  shuffles: number;
   /** Кто что держит: id вещи → key человека. */
   locks: Record<string, string>;
   rules: TableRules;
@@ -257,16 +268,21 @@ export type Intent =
   | { t: "sit"; chair: string }
   /** Поставить или снять флаг стула. */
   | { t: "flag"; chair: string; flag: ChairFlag; on: boolean }
-  /** Переставить колоду по сукну — любой. В руку колоду не кладут. */
-  | { t: "deckMove"; x: number; y: number; angle?: number }
-  /** Перемешать, отсортировать или перевернуть колоду — любой. */
-  | { t: "deckDo"; how: DeckDo }
-  /** Поставить или снять вечность колоды — любой. */
-  | { t: "deckForever"; on: boolean }
-  /** Приколоть колоду — любой; открепить — только админ. */
-  | { t: "deckPin"; on: boolean }
+  /** Переставить стопку по сукну — любой. В руку стопку не кладут. */
+  | { t: "deckMove"; pile: string; x: number; y: number; angle?: number }
+  /** Перемешать, отсортировать или перевернуть стопку — любой. */
+  | { t: "deckDo"; pile: string; how: DeckDo }
+  /** Поставить или снять вечность стопки — любой. */
+  | { t: "deckForever"; pile: string; on: boolean }
+  /** Приколоть стопку — любой; открепить — только админ. */
+  | { t: "deckPin"; pile: string; on: boolean }
   /** Лок стопки или закрытая приёмка — только админ. */
-  | { t: "deckGuard"; guard: "lock" | "shut"; on: boolean }
+  | { t: "deckGuard"; pile: string; guard: "lock" | "shut"; on: boolean }
+  /**
+   * СОБРАТЬ КАРТЫ В СТОПКУ — откуда бы ни были, по порядку `ids` снизу вверх: в новую стопку на сукне (`at`)
+   * или поверх стоящей (`pile`). Карта, которую взять нельзя, или стопка, которая не примет, — карта остаётся.
+   */
+  | { t: "gather"; ids: string[]; side: GatherSide; to: { pile: string } | { x: number; y: number; angle: number } }
   /** Поменять правило стола — только админ. */
   | { t: "rules"; rules: Partial<TableRules> }
   /** Разошлись версии — пришли мне стол целиком. */
@@ -288,10 +304,13 @@ export type Op =
   | { t: "order"; chair: string; ids: string[] }
   /** Карта перевёрнута на месте: `card` — какой её теперь видно зрителю, `up` — новая сторона. */
   | { t: "turn"; card: SeenCard; up: boolean; trail: Trail }
-  /** Колода целиком заменена: перемешана (новые id — чтобы увиденную карту нельзя было отследить) или набрана заново. */
-  | { t: "deck"; deck: SeenCard[]; shuffled: boolean }
-  /** Колода переехала, сменила вечность, появилась или исчезла (`null`). */
-  | { t: "spot"; spot: DeckSpot | null }
+  /** Карты стопки целиком заменены: перемешаны (новые id — чтобы увиденную карту нельзя было отследить) или набраны заново. */
+  | { t: "deck"; pile: string; cards: SeenCard[]; shuffled: boolean }
+  /**
+   * Стопка переехала, сменила флаги, появилась или исчезла (`null`). `top` — легла поверх остальных стопок
+   * (её поставили); новая стопка всегда встаёт сверху.
+   */
+  | { t: "spot"; pile: string; spot: DeckSpot | null; top?: true }
   | { t: "rules"; rules: TableRules }
   | { t: "admin"; key: string | null };
 
