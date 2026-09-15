@@ -219,7 +219,7 @@ export const SUITS: Record<Face["suit"], [string, string]> = { s: ["♠", "#1b1b
  * КАРТА В ЕДИНИЦАХ: лицом — знак и ранг, рубашкой — плетёнка. Лица нет — рисуется рубашка, что бы
  * ни просили: неизвестную карту честно показать нечем.
  */
-function card(g: CanvasRenderingContext2D, face: Face | undefined, w: number, h: number, held?: string, art?: CardArt): void {
+function card(g: CanvasRenderingContext2D, face: Face | undefined, w: number, h: number, held?: string, art?: CardArt, pick?: string): void {
   const picture = art?.(face);
   if (picture) {
     // ЧЁРНАЯ КРОМКА — примета стола на HTML: картинка обрезана по скруглению и обведена.
@@ -240,6 +240,16 @@ function card(g: CanvasRenderingContext2D, face: Face | undefined, w: number, h:
     g.fill();
     g.lineWidth = w * 0.09;
     g.strokeStyle = held;
+    g.stroke();
+  }
+  // ВЫДЕЛЕНА ЛАССО — рамка в цвете выделившего поверх чёрной, без затемнения: карта не взята, а отмечена.
+  if (pick && !held) {
+    roundRect(g, -w / 2 - w * 0.03, -h / 2 - w * 0.03, w + w * 0.06, h + w * 0.06, w * 0.15);
+    g.lineWidth = w * 0.14;
+    g.strokeStyle = SEAT.black;
+    g.stroke();
+    g.lineWidth = w * 0.08;
+    g.strokeStyle = pick;
     g.stroke();
   }
 }
@@ -388,6 +398,8 @@ export interface FeltScene {
   felt: FeltItem[];
   /** Id вещи → цвет того, кто её сейчас держит (кроме меня). */
   held: Record<string, string>;
+  /** Id карты → цвет того, кто её выделил лассо. */
+  picked?: Record<string, string>;
   /** Что несёт мой палец — на сукне его нет, пока не положено. */
   lifted?: string;
   /** Что сейчас летит поверх стола копией — на месте его не рисуют, пока не долетит. */
@@ -463,10 +475,10 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
    */
   const paint = (id: string, face: Face | undefined, w: number, h: number, held?: string) => {
     const turn = o.turning?.(id);
-    if (!turn) return card(g, face, w, h, held, o.art);
+    if (!turn) return card(g, face, w, h, held, o.art, o.picked?.[id]);
     g.save();
     g.scale(Math.max(0.02, Math.abs(Math.cos(Math.PI * turn.p))), 1);
-    card(g, turn.p < 0.5 ? (turn.up ? turn.face : undefined) : face, w, h, held, o.art);
+    card(g, turn.p < 0.5 ? (turn.up ? turn.face : undefined) : face, w, h, held, o.art, o.picked?.[id]);
     g.restore();
   };
 

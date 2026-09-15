@@ -5,7 +5,7 @@
 // уходит намерением; пока ответ не пришёл, экран показывает ожидаемое (`pending`), а отказ просто
 // возвращает настоящий снимок.
 
-import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type Pile, MAIN_PILE, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
+import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type Pile, type GatherSide, MAIN_PILE, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
@@ -42,14 +42,36 @@ const ORDERS = ["suit", "rank", "reverse", "shuffle"] as const satisfies readonl
  * СЕКЦИИ НИЖНЕГО БАРА. Сначала в баре только кнопки секций; нажатая уезжает влево и горит, остальные
  * улетают, прилетают кнопки секции. Та же кнопка ещё раз — секция закрыта.
  */
-const SECTIONS = ["pose", "chair", "order", "say"] as const;
+/**
+ * ЛАССО — секция-режим: пока она открыта, касания стола и карт выделяют, а не берут. В баре три раздела:
+ * инструмент (курсор или лассо), вид грэба (одним кликом по кругу) и сторона при сборке в стопку (по кругу).
+ */
+const LASSO = ["cursor", "lasso", "grab", "side"] as const;
+const SECTIONS = ["pose", "chair", "order", "lasso", "say"] as const;
 type Section = (typeof SECTIONS)[number];
-type BarKey = (typeof RIGHTS)[number] | (typeof FOLDS)[number] | (typeof ORDERS)[number] | "leave";
+type BarKey = (typeof RIGHTS)[number] | (typeof FOLDS)[number] | (typeof ORDERS)[number] | (typeof LASSO)[number] | "leave";
+/** Вид грэба выделенного: стянуть к пальцу (карта под пальцем сверху) или нести, как лежат. */
+type GrabMode = "collect" | "keep";
 /** «Диалог» — не секция кнопок: он открывает клавиатуру вместо руки (`talk.ts`). */
-const SUBS: Record<Section, readonly BarKey[]> = { pose: FOLDS, chair: [...RIGHTS, "leave"], order: ORDERS, say: [] };
+const SUBS: Record<Section, readonly BarKey[]> = { pose: FOLDS, chair: [...RIGHTS, "leave"], order: ORDERS, lasso: LASSO, say: [] };
 /** Сколько идёт смена секций в баре. */
 const SECTION_MS = 240;
-const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "shut", string> = {
+const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "shut" | `grab-${GrabMode}` | `side-${GatherSide}`, string> = {
+  cursor: '<path d="M5 3l13 8-6 1.5L9 19z"/>',
+  lasso: '<ellipse cx="13" cy="9" rx="8" ry="5.5" stroke-dasharray="3 2.4"/><path d="M8 13.5c-2 1.5-2.5 4 0 5.5 1.5 1 3 .5 3.5-.5"/>',
+  grab: "",
+  side: "",
+  /** Стянуть к пальцу — четыре стрелки в точку. */
+  "grab-collect": '<path d="M4 4l5 5"/><path d="M9 5v4H5"/><path d="M20 4l-5 5"/><path d="M15 5v4h4"/><path d="M4 20l5-5"/><path d="M5 15h4v4"/><path d="M20 20l-5-5"/><path d="M19 15h-4v4"/>',
+  /** Как лежат — три карты врозь со стрелкой переноса. */
+  "grab-keep": '<rect x="3" y="3" width="6" height="8" rx="1"/><rect x="14" y="6" width="6" height="8" rx="1"/><rect x="7" y="14" width="6" height="7" rx="1" transform="rotate(-8 10 17)"/>',
+  /** Сторона как лежала — карта наполовину лицом, наполовину рубашкой. */
+  "side-keep": '<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M6 12h12"/><path d="M9 6.5l1.5 2.5L12 6.5l1.5 2.5L15 6.5"/>',
+  /** Все рубашкой вверх — плетёнка. */
+  "side-down": '<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M8 7l8 10"/><path d="M16 7L8 17"/><path d="M8 12h8"/>',
+  /** Все лицом вверх — масть. */
+  "side-up": '<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M12 8c-1.5 2-3 3-3 4.5a1.5 1.5 0 0 0 3 .3 1.5 1.5 0 0 0 3-.3C15 11 13.5 10 12 8z"/>',
+  "sec-lasso": '<ellipse cx="12" cy="9" rx="8" ry="5.5"/><path d="M7 13c-2 1.5-2.5 4 0 5.5 1.5 1 3 .5 3.5-.5"/><path d="M15 15l4 6"/>',
   lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3"/><path d="M5 11h14v10H5z"/>',
   hide: '<path d="M3 3l18 18"/><path d="M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5"/><path d="M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9"/>',
   forever: '<path d="M6.5 8.5C3.5 8.5 2 10.2 2 12s1.5 3.5 4.5 3.5C10 15.5 14 8.5 17.5 8.5 20.5 8.5 22 10.2 22 12s-1.5 3.5-4.5 3.5C14 15.5 10 8.5 6.5 8.5z"/>',
@@ -183,6 +205,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     tips: [] as string[],
     /** Открытый тултип стопки — id стопки. */
     deckTip: null as string | null,
+    /** Лассо: инструмент, вид грэба и сторона сборки — живут, пока открыт экран. */
+    tool: "cursor" as "cursor" | "lasso",
+    grab: "collect" as GrabMode,
+    side: "keep" as GatherSide,
   };
   /**
    * ИНДИКАТОР КОЛОДЫ ПОД ПАЛЬЦЕМ. Тап — тултип колоды, двойной тап — перевернуть колоду, тяга — колода едет по
@@ -330,6 +356,47 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       (st) => withPile(st, pile, (p) => ({ ...p, [flag]: on })),
       (st) => !pileOf(st, pile) || pileOf(st, pile)![flag] === on);
   }
+
+  /** Открыт режим лассо. */
+  const lassoOn = () => local.section === "lasso";
+
+  /** Выделить или снять выделение — сразу, сервер ответит тем же или откажет. */
+  function guessPick(ids: string[], on: boolean): void {
+    if (ids.length === 0) return;
+    const key = me();
+    guess(`pick:${ids.join(",")}`, { t: "pick", ids, on },
+      (st) => {
+        const picks = { ...(st.picks ?? {}) };
+        for (const id of ids) {
+          if (on && picks[id] === undefined) picks[id] = key;
+          else if (!on && picks[id] === key) delete picks[id];
+        }
+        return { ...st, picks };
+      },
+      (st) => ids.every((id) => (st.picks?.[id] === key) === on || (on && st.picks?.[id] !== undefined)));
+  }
+
+  function unpickAll(): void {
+    const key = me();
+    const mine = Object.entries(truth().picks ?? {}).filter(([, by]) => by === key).map(([id]) => id);
+    if (mine.length === 0) return;
+    guess("pick:all", { t: "unpick" },
+      (st) => ({ ...st, picks: Object.fromEntries(Object.entries(st.picks ?? {}).filter(([, by]) => by !== key)) }),
+      (st) => !Object.values(st.picks ?? {}).includes(key));
+  }
+
+  /** Тап по карте в режиме лассо: выделить, а по выделенной — снять. Чужую выделенную не трогает. */
+  function togglePick(id: string): void {
+    const by = truth().picks?.[id];
+    if (by !== undefined && by !== me()) return;
+    guessPick([id], by === undefined);
+  }
+
+  /** Кто выделил карту — цвет его чернил; `undefined` — никто. */
+  const pickInk = (s: Snapshot, id: string): string | undefined => {
+    const by = s.picks?.[id];
+    return by === undefined ? undefined : inkOf(s, by);
+  };
 
   /** Сторона карты, где бы она ни лежала. */
   function sideIn(s: Snapshot, id: string): { where: string; up: boolean; face?: Face } | null {
@@ -656,9 +723,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * её не спутать с включённым флагом или позой (квадрат, залитый золотом).
    */
   function barButton(what: BarKey | `sec-${Section}`, lit: boolean, px: number, left = 0, motion = ""): string {
+    // Разделы лассо, которые переключаются по кругу, рисуют значок того, что стоит сейчас.
+    const glyphOf = what === "grab" ? GLYPH[`grab-${local.grab}`] : what === "side" ? GLYPH[`side-${local.side}`] : undefined;
+    const mode = what === "grab" ? ` data-mode="${local.grab}"` : what === "side" ? ` data-mode="${local.side}"` : "";
     const side = Math.round(px);
     const section = what.startsWith("sec-");
-    const data = section ? `data-section="${what.slice(4)}"` : `data-bar="${what}"`;
+    const data = section ? `data-section="${what.slice(4)}"` : `data-bar="${what}"${mode}`;
     const look = section
       ? `border-radius:50%;background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});`
         + (lit ? `box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 5px ${BAR_LOOK.goldHi},0 0 0 2px ${T.black};` : `box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim};`)
@@ -666,7 +736,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         + (lit
           ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 3px ${T.black};`
           : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim};`);
-    const glyph = section && lit ? GLYPH.back : GLYPH[what];
+    const glyph = section && lit ? GLYPH.back : (glyphOf ?? GLYPH[what]);
     const ink = !section && lit ? T.black : section && lit ? BAR_LOOK.goldHi : "white";
     return `<button ${data} aria-pressed="${lit}" style="position:absolute;left:${Math.round(left)}px;top:0;width:${side}px;height:${side}px;border:0;padding:0;${motion}`
       + `cursor:pointer;display:flex;align-items:center;justify-content:center;${look}`
@@ -697,13 +767,32 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * карту под чужим замком не берут: первая в цвете держащего, вторая приглушена, и обе не ловят касание.
    */
   function slotCard(c: SeenCard, geom: Geom, slot: Slot, z: number, owner: string, held?: string, shut = false, under = false): string {
-    return `<div data-card="${c.id}" data-owner="${owner}" style="position:absolute;width:${geom.w}px;height:${geom.h}px;`
+    return `<div data-card="${c.id}" data-owner="${owner}"${pickAttr(c.id)} style="position:absolute;width:${geom.w}px;height:${geom.h}px;${pickCss(c.id, geom.w)}`
       + `left:${slot.x - geom.w / 2}px;top:${slot.y - geom.h / 2}px;transform:rotate(${slot.angle}deg);z-index:${z};touch-action:none;`
       // СЖАТАЯ РУКА: касание ловит только верхняя карта — остальные под ней.
       + (under ? "pointer-events:none;" : "")
       + (held ? `pointer-events:none;filter:brightness(.6);outline:3px solid ${held};border-radius:${geom.w * 0.12}px;` : shut ? "pointer-events:none;filter:brightness(.7);" : "cursor:grab;")
       + (flying.has(c.id) ? "visibility:hidden;" : "")
       + `transition:left .16s ease-out, top .16s ease-out, transform .16s ease-out">${turnHtml(c, geom.w)}</div>`;
+  }
+
+  /** Снимок, по которому рисуется этот кадр: разметка спрашивает его много раз, а собирать его дорого. */
+  let drawnSnap: Snapshot | null = null;
+  const frame = () => drawnSnap ?? seen();
+
+  /** Выделение карты в разметке: кто выделил — атрибутом (его читает прогон), рамка — в его цвете. */
+  function pickAttr(id: string): string {
+    const by = frame().picks?.[id];
+    return by === undefined ? "" : ` data-picked="${by === me() ? "me" : escape(by)}"`;
+  }
+
+  /** Рамка выделенной карты; чужую выделенную не берут и не выделяют. */
+  function pickCss(id: string, w: number): string {
+    const s = frame();
+    const ink = pickInk(s, id);
+    if (!ink) return "";
+    return `box-shadow:0 0 0 ${Math.max(2, w * 0.06)}px ${ink},0 0 0 ${Math.max(3, w * 0.1)}px ${T.black};border-radius:${w * 0.12}px;`
+      + (s.picks![id] !== me() ? "pointer-events:none;" : "");
   }
 
   /**
@@ -809,6 +898,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const seat = chairOf(s, mine(s));
     if ((FOLDS as readonly string[]).includes(what)) return poseOf(s, mine(s))[what as keyof Pose];
     if ((RIGHTS as readonly string[]).includes(what)) return seat?.[what as ChairFlag] === true;
+    if (what === "cursor" || what === "lasso") return local.tool === what;
     return what === "leave" && local.confirmLeave;
   }
 
@@ -1188,9 +1278,21 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         + `"><svg viewBox="0 0 24 20" width="22" height="17" fill="none" stroke="${T.black}" stroke-width="1.6" stroke-linejoin="round">`
         + `<g fill="${lit ? T.ink : BAR_LOOK.goldHi}">${GLYPH.deck}</g></svg>`
         + `<span style="font:400 12px Tiny5,monospace;color:${lit ? T.black : T.ink}">${pile.cards.length}</span>`
+        + pickBadges(s, pile)
         + (pile.pin ? `<svg data-g="deck-pinned" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="${lit ? T.black : BAR_LOOK.goldHi}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${GLYPH.pin}</svg>` : "")
         + `</div>`;
     }).join("");
+  }
+
+  /** Сколько карт стопки выделено — у каждого выделившего своя плашка в его цвете. */
+  function pickBadges(s: Snapshot, pile: Pile): string {
+    const count = new Map<string, number>();
+    for (const c of pile.cards) {
+      const by = s.picks?.[c.id];
+      if (by !== undefined) count.set(by, (count.get(by) ?? 0) + 1);
+    }
+    return [...count].map(([by, n]) => `<span data-g="pile-picks" data-by="${by === me() ? "me" : escape(by)}" data-n="${n}" style="margin-left:2px;min-width:14px;height:16px;padding:0 3px;box-sizing:border-box;border-radius:8px;`
+      + `background:${inkOf(s, by)};box-shadow:0 0 0 2px ${T.black};font:400 11px/16px Tiny5,monospace;color:${T.black};text-align:center">${n}</span>`).join("");
   }
 
   /**
@@ -1268,7 +1370,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       if ("index" in one) return markHtml(box.cw, box.ch, slot.angle, slot.x, slot.y, 42 + i, 1, one.ink);
       const shut = pile.shut || (pile.lock && one.id !== top);
       const hand = held[one.id];
-      return `<div data-card="${one.id}" data-owner="deck" data-pile="${pile.id}" style="position:absolute;width:${box.cw}px;height:${box.ch}px;left:${slot.x - box.cw / 2}px;top:${slot.y - box.ch / 2}px;`
+      return `<div data-card="${one.id}" data-owner="deck" data-pile="${pile.id}"${pickAttr(one.id)} style="position:absolute;width:${box.cw}px;height:${box.ch}px;left:${slot.x - box.cw / 2}px;top:${slot.y - box.ch / 2}px;${pickCss(one.id, box.cw)}`
         + `transform:rotate(${slot.angle}deg);z-index:${42 + i};touch-action:none;`
         + (hand ? `pointer-events:none;filter:brightness(.6);outline:3px solid ${hand};border-radius:${box.cw * 0.12}px;` : shut ? "pointer-events:none;" : "cursor:grab;")
         + (flying.has(one.id) ? "visibility:hidden;" : "")
@@ -1306,6 +1408,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   function draw(): void {
     const g = glass();
     const s = seen();
+    drawnSnap = s;
     for (const pile of store.state.piles) {
       const was = seenShuffles.get(pile.id);
       if (was !== undefined && was !== pile.shuffles) {
@@ -1337,7 +1440,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     syncCamera();
     art.warm(s.rules);
     view = drawFelt(canvas, {
-      W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), turning, piles: s.piles.filter((p) => !deckCarry(s, p.id)), felt: s.felt, held: heldByOthers(s), hidden: flying,
+      W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), turning, piles: s.piles.filter((p) => !deckCarry(s, p.id)), felt: s.felt, held: heldByOthers(s), picked: Object.fromEntries(Object.keys(s.picks ?? {}).map((id) => [id, pickInk(s, id)!])), hidden: flying,
       view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
       rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
     });
@@ -1360,6 +1463,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       ...pileSpots(s, MAIN_PILE, "deck"),
       piles: s.piles.map((p) => ({ id: p.id, ...pileSpots(s, p.id, "pile") })),
       turning: [...turns.keys()],
+      picks: s.picks ?? {},
       seatAngle: chairOf(s, seat)?.angle ?? null,
       seats: spots.map((sp) => {
         const c = chairOf(s, sp.key);
@@ -1759,7 +1863,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   };
 
   /** Что под пальцем на сукне: сверху вниз, и с колоды — только верхняя. */
-  function feltPick(x: number, y: number): { card: SeenCard; at: { x: number; y: number }; up: boolean } | null {
+  function feltPick(x: number, y: number): { card: SeenCard; at: { x: number; y: number }; up: boolean; pile?: string } | null {
     if (!view) return null;
     const s = store.state;
     const { x: ux, y: uy } = view.toDesk({ x, y });
@@ -1782,7 +1886,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       const top = pile.cards.at(-1);
       const deckTop = view.deckAt(pile.id, pile.cards.length - 1, pile.cards.length);
       // Приёмка закрыта — из стопки не взять и верхнюю: палец по ней не берёт, но и сукно под ней не отдаёт.
-      if (top && over(deckTop, pile.angle)) return pile.shut ? null : { card: top, at: deckTop, up: top.up === true };
+      if (top && over(deckTop, pile.angle)) return pile.shut ? null : { card: top, at: deckTop, up: top.up === true, pile: pile.id };
     }
     // Под стопкой — только там, где стопка её не накрывает.
     for (let i = s.felt.length - 1; i >= 0; i -= 1) {
@@ -1796,6 +1900,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   /** Поднять. Экран снимает карту сразу, намерение уходит следом; отказ вернёт её на место. */
   function lift(card: SeenCard, shown: boolean, box: { left: number; top: number; w: number; h: number }, e: PointerEvent, target: Aim) {
     if (store.state.locks[card.id] && store.state.locks[card.id] !== me()) return;
+    const picked = truth().picks?.[card.id];
+    if (picked !== undefined && picked !== me()) return;
     const from = whereIs(store.state, card.id);
     if (!from) return;
     drag = {
@@ -1917,6 +2023,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // Тап по той же карте, чей тултип был открыт, его только закрывает.
     if (!d.moved && performance.now() - d.t0 < TAP_MS) {
       store.send({ t: "release", id: d.card.id });
+      // В ЛАССО тап выделяет, а не открывает тултип и не переворачивает.
+      if (lassoOn()) {
+        togglePick(d.card.id);
+        return draw();
+      }
       // ДВОЙНОЙ ТАП — переворот. Первый тап уже открыл тултип; второй его не трогает.
       const at = performance.now();
       if (lastTap?.id === d.card.id && at - lastTap.at < DOUBLE_TAP_MS) {
@@ -1978,6 +2089,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         if (sec === "say") return talk.toggle();
         local.sectionFrom = local.section;
         local.section = local.section === sec ? null : sec;
+        // ВЫХОД ИЗ ЛАССО — выделение снято.
+        if (local.sectionFrom === "lasso" && local.section !== "lasso") unpickAll();
         local.sectionAt = performance.now();
         local.confirmLeave = false;
         draw();
@@ -1991,7 +2104,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         const what = el.dataset.bar as BarKey;
         const s = truth();
         const seat = chairOf(s, mine(s));
-        if (what === "leave") local.confirmLeave = !local.confirmLeave;
+        if (what === "cursor" || what === "lasso") local.tool = what;
+        else if (what === "grab") local.grab = local.grab === "collect" ? "keep" : "collect";
+        else if (what === "side") local.side = local.side === "keep" ? "down" : local.side === "down" ? "up" : "keep";
+        else if (what === "leave") local.confirmLeave = !local.confirmLeave;
         else if (!seat) return;
         else if ((RIGHTS as readonly string[]).includes(what)) return guessFlag(seat.id, what as ChairFlag, !seat[what as ChairFlag]);
         else if ((FOLDS as readonly string[]).includes(what)) return guessPose(seat.id, what as keyof Pose, !seat.pose[what as keyof Pose]);
@@ -2244,7 +2360,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         return cam.orbit(e);
       }
       const pick = feltPick(e.clientX, e.clientY);
-      if (pick) {
+      // В ЛАССО СТОПКИ НЕ ВЫДЕЛЯЮТСЯ — с сукна только одиночные карты; их карты выделяют в окне стопки.
+      if (pick && !(lassoOn() && pick.pile)) {
         e.preventDefault();
         e.stopPropagation();
         return grabFromFelt(e, pick);

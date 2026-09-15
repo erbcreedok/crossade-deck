@@ -323,3 +323,38 @@ describe("несколько стопок", () => {
     expect(t.act("a", { t: "gather", ids: ["c2"], side: "up", to: { pile: "zzz" } }, 0)).toEqual({ refused: "gone" });
   });
 });
+
+describe("выделение лассо — лок", () => {
+  it("выделить может любой; чужое выделенное не выделить, не взять, не перевернуть и не собрать; своё — можно", () => {
+    const t = seated("a", "b");
+    expect(ok(t.act("a", { t: "pick", ids: ["c7", "c3", "nope"], on: true }, 0))).toEqual([{ t: "pick", ids: ["c7", "c3"], by: "a" }]);
+    expect(t.seenBy("b").picks).toEqual({ c7: "a", c3: "a" });
+    // Чужое не перевыделить: пропускается молча.
+    expect(ok(t.act("b", { t: "pick", ids: ["c7", "c6"], on: true }, 0))).toEqual([{ t: "pick", ids: ["c6"], by: "b" }]);
+    for (const intent of [{ t: "grab", id: "c7" }, { t: "turn", id: "c7" }] as const) expect(t.act("b", intent, 0)).toEqual({ refused: "locked" });
+    expect(t.act("b", { t: "gather", ids: ["c7", "c3"], side: "keep", to: { x: 1, y: 1, angle: 0 } }, 0)).toEqual({ refused: "bad" });
+    // Чужое выделение в стопке держит и действия стопки.
+    expect(t.act("b", { t: "deckDo", pile: "deck", how: "sort" }, 0)).toEqual({ refused: "locked" });
+    ok(t.act("a", { t: "grab", id: "c7" }, 0));
+    ok(t.act("a", { t: "drop", id: "c7", to: { in: "felt", x: 1, y: 1, up: false, angle: 0 } }, 0));
+    // Снять чужое нельзя, своё — можно.
+    expect(ok(t.act("b", { t: "pick", ids: ["c7"], on: false }, 0))).toEqual([]);
+    expect(ok(t.act("a", { t: "pick", ids: ["c7"], on: false }, 0))).toEqual([{ t: "pick", ids: ["c7"], by: null }]);
+    ok(t.act("b", { t: "grab", id: "c7" }, 0));
+    // Карту в чужом пальце не выделить.
+    expect(t.act("a", { t: "pick", ids: ["c7"], on: true }, 0)).toEqual({ refused: "locked" });
+  });
+
+  it("снять всё своё; ушёл — выделение снято; перемешивание снимает выделение с карт стопки", () => {
+    const t = seated("a", "b");
+    ok(t.act("a", { t: "pick", ids: ["c1", "c2"], on: true }, 0));
+    ok(t.act("b", { t: "pick", ids: ["c5"], on: true }, 0));
+    expect(ok(t.act("a", { t: "unpick" }, 0))).toEqual([{ t: "pick", ids: ["c1", "c2"], by: null }]);
+    expect(t.seenBy("a").picks).toEqual({ c5: "b" });
+    expect(t.leave("b")).toContainEqual({ t: "pick", ids: ["c5"], by: null });
+    ok(t.act("a", { t: "pick", ids: ["c0"], on: true }, 0));
+    ok(t.act("a", { t: "deckDo", pile: "deck", how: "shuffle" }, 0));
+    expect(t.seenBy("a").picks).toEqual({});
+    expect(t.act("a", { t: "pick", ids: "c0" as unknown as string[], on: true }, 0)).toEqual({ refused: "bad" });
+  });
+});

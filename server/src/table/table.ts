@@ -94,6 +94,8 @@ export class Table {
   private chairs = new Map<string, ChairRow>();
   private people = new Map<string, Person>();
   private locks = new Map<string, Lock>();
+  /** Выделение лассо: id карты → кто выделил (`Snapshot.picks`). */
+  private picks = new Map<string, string>();
   /** Последнее «над чем карта», пока её держат. Живёт не дольше блокировки (`carriesSeenBy`). */
   private carries = new Map<string, { by: string; over: Where; auto?: true }>();
   private rules: TableRules = { ...DEFAULT_RULES };
@@ -173,6 +175,7 @@ export class Table {
       this.locks.delete(id);
       ops.push({ t: "unlock", id });
     }
+    ops.push(...this.dropPicks([...this.picks].filter(([, who]) => who === key).map(([id]) => id)));
     ops.push({ t: "leave", key });
     const chair = person.seat ? this.chairs.get(person.seat) : undefined;
     if (chair) ops.push(...this.vacate(chair, "left"));
@@ -232,7 +235,7 @@ export class Table {
       case "deckMove":
         return this.deckMove(intent.pile, intent.x, intent.y, intent.angle);
       case "deckDo":
-        return this.deckDo(intent.pile, intent.how);
+        return this.deckDo(by, intent.pile, intent.how);
       case "deckForever": {
         const pile = this.piles.get(intent.pile);
         if (!pile) return { refused: "gone" };
@@ -258,6 +261,12 @@ export class Table {
       }
       case "gather":
         return this.gather(by, intent.ids, intent.side, intent.to, now);
+      case "pick":
+        return this.pick(by, intent.ids, intent.on);
+      case "unpick": {
+        const ops = this.dropPicks([...this.picks].filter(([, who]) => who === by).map(([id]) => id));
+        return { ops: ops.length ? this.commit(ops) : [] };
+      }
       case "rules": {
         if (by !== this.admin) return { refused: "not-yours" };
         return { ops: this.setRules(intent.rules) };
@@ -314,6 +323,8 @@ export class Table {
     if (!at) return { refused: "gone" };
     const lock = this.locks.get(id);
     if (lock && lock.by !== by) return { refused: "locked" };
+    const picked = this.picks.get(id);
+    if (picked !== undefined && picked !== by) return { refused: "locked" };
     // ИЗ СЕРЕДИНЫ СТОПКИ — только пока на ней нет лока: под локом доступна одна верхняя.
     if (at.in === "deck") {
       const pile = this.piles.get(at.pile)!;
@@ -483,11 +494,11 @@ export class Table {
    * ИЗ ТУЛТИПА СТОПКИ. Пока карту стопки кто-то держит — отказ: перемешивание выписывает новые id, и
    * держащий остался бы с картой, которой нет.
    */
-  private deckDo(id: string, how: DeckDo): Result {
+  private deckDo(by: string, id: string, how: DeckDo): Result {
     if (!(DECK_DOS as readonly unknown[]).includes(how)) return { refused: "bad" };
     const pile = this.piles.get(id);
     if (!pile) return { refused: "gone" };
-    if (pile.spot.lock || pile.cards.some((one) => this.locks.has(one))) return { refused: "locked" };
+    if (pile.spot.lock || pile.cards.some((one) => this.locks.has(one) || (this.picks.has(one) && this.picks.get(one) !== by))) return { refused: "locked" };
     if (how === "shuffle") return { ops: this.shuffleDeck(Math.random, id) };
     if (how === "sort") pile.cards = arranged(pile.cards, "suit", (one) => this.faces.get(one))!;
     else {
@@ -557,6 +568,29 @@ export class Table {
     for (const pile of sweep) ops.push(...this.sweepPile(pile));
     for (const chair of chairs) ops.push(...this.sweepChair(this.chairs.get(chair)!));
     return { ops: this.commit(ops) };
+  }
+
+  /** Выделить или снять своё выделение. Карты, которых нет, чужие выделенные и чужие в пальце — мимо. */
+  private pick(by: string, ids: unknown, on: unknown): Result {
+    if (!Array.isArray(ids) || !ids.every((one) => typeof one === "string") || typeof on !== "boolean") return { refused: "bad" };
+    const fresh = [...new Set(ids as string[])].filter((id) => {
+      if (on) {
+        const lock = this.locks.get(id);
+        return this.whereIs(id) !== null && !this.picks.has(id) && (!lock || lock.by === by);
+      }
+      return this.picks.get(id) === by;
+    });
+    // Выделять было нечего — отказ: экран снимет свою догадку сразу, а не по сроку.
+    if (fresh.length === 0) return on ? { refused: "locked" } : { ops: [] };
+    if (!on) return { ops: this.commit(this.dropPicks(fresh)) };
+    for (const id of fresh) this.picks.set(id, by);
+    return { ops: this.commit([{ t: "pick", ids: fresh, by }]) };
+  }
+
+  /** Снять выделение с карт — без коммита. */
+  private dropPicks(ids: string[]): Op[] {
+    const gone = ids.filter((id) => this.picks.delete(id));
+    return gone.length ? [{ t: "pick", ids: gone, by: null }] : [];
   }
 
   private spotOut(id: string): DeckSpot | null {
@@ -634,6 +668,7 @@ export class Table {
     const pile = this.piles.get(pileId);
     if (!pile) return [];
     const cards = pile.cards.map((id) => this.faces.get(id)!);
+    const unpicked = this.dropPicks(pile.cards);
     for (const id of pile.cards) {
       this.turned.delete(id);
       this.faces.delete(id);
@@ -649,7 +684,7 @@ export class Table {
       return id;
     });
     pile.shuffles += 1;
-    return this.commit([{ t: "deck", pile: pileId, cards: pile.cards.map((id) => ({ id })), shuffled: true }]);
+    return this.commit([...unpicked, { t: "deck", pile: pileId, cards: pile.cards.map((id) => ({ id })), shuffled: true }]);
   }
 
   /** Поменять правила стола — от админа или команды. Неизвестное и кривое молча отбрасывается. */
@@ -665,6 +700,7 @@ export class Table {
     if (this.felt.length > 0 || [...this.chairs.values()].some((c) => c.hand.length > 0) || [...this.piles].some(([id, pile]) => id !== MAIN_PILE && pile.cards.length > 0) || this.locks.size > 0) return null;
     const born = this.ensureDeck();
     const main = this.main!;
+    born.push(...this.dropPicks(main.cards));
     for (const id of main.cards) {
       this.turned.delete(id);
       this.faces.delete(id);
@@ -895,6 +931,7 @@ export class Table {
       felt,
       trails: Object.fromEntries(this.trails),
       locks: Object.fromEntries([...this.locks].map(([id, lock]) => [id, lock.by])),
+      picks: Object.fromEntries(this.picks),
       rules: { ...this.rules },
       admin: this.admin,
     };

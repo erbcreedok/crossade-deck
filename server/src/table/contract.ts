@@ -235,6 +235,11 @@ export interface Snapshot {
   trails: Record<string, Trail>;
   /** Кто что держит: id вещи → key человека. */
   locks: Record<string, string>;
+  /**
+   * ВЫДЕЛЕНИЕ ЛАССО — id карты → key выделившего. Выделение — лок: чужую выделенную карту не выделить, не взять,
+   * не перевернуть и не собрать. Держится, пока выделивший не снимет его или не уйдёт со стола.
+   */
+  picks: Record<string, string>;
   rules: TableRules;
   /** Кто админ — создатель комнаты, пока он за столом. `null` — его нет. */
   admin: string | null;
@@ -283,6 +288,10 @@ export type Intent =
    * или поверх стоящей (`pile`). Карта, которую взять нельзя, или стопка, которая не примет, — карта остаётся.
    */
   | { t: "gather"; ids: string[]; side: GatherSide; to: { pile: string } | { x: number; y: number; angle: number } }
+  /** Выделить карты (`on`) или снять с них своё выделение. Чужие выделенные и чужие в пальце пропускаются. */
+  | { t: "pick"; ids: string[]; on: boolean }
+  /** Снять всё своё выделение. */
+  | { t: "unpick" }
   /** Поменять правило стола — только админ. */
   | { t: "rules"; rules: Partial<TableRules> }
   /** Разошлись версии — пришли мне стол целиком. */
@@ -311,6 +320,8 @@ export type Op =
    * (её поставили); новая стопка всегда встаёт сверху.
    */
   | { t: "spot"; pile: string; spot: DeckSpot | null; top?: true }
+  /** Карты выделены (`by`) или выделение с них снято (`null`). */
+  | { t: "pick"; ids: string[]; by: string | null }
   | { t: "rules"; rules: TableRules }
   | { t: "admin"; key: string | null };
 

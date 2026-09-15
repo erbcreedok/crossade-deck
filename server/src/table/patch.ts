@@ -89,6 +89,13 @@ function applyOp(s: Snapshot, op: Op): void {
       else s.piles.splice(i, 0, pile);
       return;
     }
+    case "pick":
+      s.picks ??= {};
+      for (const id of op.ids) {
+        if (op.by === null) delete s.picks[id];
+        else s.picks[id] = op.by;
+      }
+      return;
     case "rules":
       s.rules = op.rules;
       return;
