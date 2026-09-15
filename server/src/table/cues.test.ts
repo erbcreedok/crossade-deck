@@ -18,6 +18,7 @@ describe("звуковые поводы", () => {
   it("карту несли в воздухе (в кадре её не было) и положили — стук", () => {
     expect(cuesBetween(snap({}), snap({ felt: [felt("a", 4, 5)] }))).toEqual([{ kind: "drop", at: { felt: { x: 4, y: 5 } } }]);
     expect(cuesBetween(snap({ chairs: [chair("me", [])] }), snap({ chairs: [chair("me", ["a"])] }))).toEqual([{ kind: "hand", at: { chair: "me" } }]);
+    expect(cuesBetween(snap({ chairs: [chair("me", ["a"])] }), snap({ felt: [{ id: "a", x: 1, y: 2, up: true }] as never, chairs: [chair("me", [])] }))).toEqual([{ kind: "out", at: { felt: { x: 1, y: 2 } } }]);
   });
 
   it("нажали и отпустили на месте — тишина; перевернули, пока держали, — переворот", () => {

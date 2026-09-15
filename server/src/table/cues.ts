@@ -6,7 +6,8 @@
 
 import type { Snapshot } from "./contract.js";
 
-export const CUE_KINDS = ["drop", "hand", "turn", "gather", "merge", "shuffle"] as const;
+/** `out` — карта из руки на сукно. */
+export const CUE_KINDS = ["drop", "hand", "out", "turn", "gather", "merge", "shuffle"] as const;
 export type CueKind = (typeof CUE_KINDS)[number];
 
 export type CueAt = { felt: { x: number; y: number } } | { pile: string } | { chair: string };
@@ -58,7 +59,7 @@ export function cuesBetween(prev: Snapshot, next: Snapshot, known: ReadonlyMap<s
       else if (w.up !== n.up && n.in === "chair") say("turn", { chair: n.chair });
       continue;
     }
-    if (n.in === "felt") say("drop", { felt: { x: n.x, y: n.y } });
+    if (n.in === "felt") say(w?.in === "chair" ? "out" : "drop", { felt: { x: n.x, y: n.y } });
     else if (n.in === "chair") say("hand", { chair: n.chair });
     else {
       const tally = intoPile.get(n.pile) ?? { fromPiles: 0, fromFelt: 0, other: 0 };

@@ -9,9 +9,11 @@
 import type { CueKind } from "../src/table/cues.js";
 import { HOST } from "./host.js";
 
-// Какая запись на что: дроп — card-place-1, переворот — card-place-2, в руку — card-slide-1, мерж — card-fan-1,
-// шафл — card-shuffle, сборка — card-shove-1/2/4.
-const FILES: Record<CueKind, number> = { drop: 1, hand: 1, turn: 1, gather: 3, merge: 1, shuffle: 1 };
+// Файлы: drop — card-place-1, turn — card-place-2, hand — card-slide-1, merge — card-fan-1, shuffle — card-shuffle,
+// gather — card-shove-1/2/4.
+const FILES = { drop: 1, hand: 1, turn: 1, gather: 3, merge: 1, shuffle: 1 } as const;
+/** Какой файл на какой повод: в руку — стук (place-1), из руки на сукно — скольжение (slide-1). */
+export const SOUND_OF: Record<CueKind, keyof typeof FILES> = { drop: "drop", hand: "drop", out: "hand", turn: "turn", gather: "gather", merge: "merge", shuffle: "shuffle" };
 /** Громкость своего и чужого. */
 export const GAIN = { mine: 1, other: 0.6 } as const;
 
@@ -35,6 +37,7 @@ export function writeSoundOn(on: boolean): void {
 
 export interface Played {
   kind: CueKind;
+  file: string;
   /** Где звук: −1 слева … 1 справа; −1 спереди (верх экрана) … 1 сзади (низ). */
   x: number;
   z: number;
@@ -79,9 +82,10 @@ export function tableSound(): TableSound {
     play(kind, x, z, mine, cutMs) {
       if (!sound.on) return;
       const gain = mine ? GAIN.mine : GAIN.other;
-      log.push({ kind, x: +x.toFixed(2), z: +z.toFixed(2), gain, ...(cutMs ? { cutMs } : {}) });
+      const file = SOUND_OF[kind];
+      log.push({ kind, file, x: +x.toFixed(2), z: +z.toFixed(2), gain, ...(cutMs ? { cutMs } : {}) });
       if (log.length > 50) log.shift();
-      const buf = buffers.get(`${kind}-${1 + Math.floor(Math.random() * FILES[kind])}`);
+      const buf = buffers.get(`${file}-${1 + Math.floor(Math.random() * FILES[file])}`);
       if (!ctx || !buf || ctx.state !== "running") return;
       const src = ctx.createBufferSource();
       src.buffer = buf;

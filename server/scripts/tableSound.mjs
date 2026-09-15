@@ -69,8 +69,18 @@ await A.waitForTimeout(1000);
 a = await heard(A);
 b = await heard(B);
 const aHand = a.find((s) => s.kind === "hand"), bHand = b.find((s) => s.kind === "hand");
-check("A слышит карту в свою руку — сзади", aHand && aHand.z > 0.5 && aHand.gain === 1, a);
+check("A слышит карту в свою руку — сзади, стуком place-1", aHand && aHand.z > 0.5 && aHand.gain === 1 && aHand.file === "drop", a);
 check("B слышит карту в чужую руку, тише", bHand && bHand.gain < 1, b);
+
+// 3б. A выносит карту из руки на сукно — скольжение slide-1.
+{
+  const card = await A.evaluate(() => { const r = document.querySelector("[data-card]").getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await drag(A, card, { x: middle.x + 2 * k, y: middle.y + 1.5 * k });
+  await A.waitForTimeout(1000);
+  a = await heard(A);
+  const out = a.find((s) => s.kind === "out");
+  check("A: из руки на стол — скольжение slide-1, не стук", out && out.file === "hand" && !a.some((s) => s.kind === "drop"), a);
+}
 
 // 4. Звук выключен — плеер молчит.
 await A.click("[data-settings]");
