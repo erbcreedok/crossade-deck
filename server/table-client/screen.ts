@@ -11,6 +11,8 @@ import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { orbits, tableCamera } from "./camera.js";
 import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.js";
+import { tableSound, writeSoundOn } from "./sound.js";
+import { cuesBetween, spots as cueSpots, type CueAt, type Spot as CueSpot } from "../src/table/cues.js";
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { WORDS_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
@@ -158,6 +160,8 @@ const TURN_MS = 320;
 /** Тап, а не хват: палец отпустили раньше этого и сдвинули не дальше `TAP_PX`. */
 const TAP_MS = 350;
 const TAP_PX = 8;
+/** Перемена кадра в пределах стольких мс после моего касания — моя. */
+const MINE_MS = 700;
 
 /** Сколько догадка ждёт ответа сервера, прежде чем уступить столу. */
 const GUESS_MS = 4000;
@@ -198,6 +202,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   /** Личный вид колоды: четыре цвета и кириллица — у каждого свой, на его устройстве. */
   const look: DeckLook = readLook();
   const art = deckArt(() => draw(), () => look);
+  const sound = tableSound();
+  /** Когда я последний раз касался экрана: перемена кадра вскоре после касания — моя, звучит громче. */
+  let touchedAt = -Infinity;
+  /** Последнее место каждой карты, какое было видно: из кадра её вынимают, пока держат. */
+  const knownSpots = new Map<string, CueSpot>();
+  addEventListener("pointerdown", () => (touchedAt = performance.now()), { capture: true });
+  addEventListener("pointerup", () => (touchedAt = performance.now()), { capture: true });
   const talk = mountTalk(stage, store, () => draw());
 
   /** Только то, что есть у этого экрана и больше нигде. */
@@ -1657,6 +1668,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   function draw(): void {
     const g = glass();
     const s = seen();
+    if (drawnSnap && drawnSnap !== s) soundCues(drawnSnap, s, g);
     drawnSnap = s;
     for (const pile of store.state.piles) {
       const was = seenShuffles.get(pile.id);
@@ -1841,6 +1853,29 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `<path d="M12 4v14"/><path d="M6.5 12.5 12 18l5.5-5.5"/><path d="M8 21h8"/></svg></button>`;
   }
 
+  /** ЗВУК ПО МЕСТУ — что поменялось между нарисованными кадрами, там, где это на экране. */
+  function soundCues(prev: Snapshot, next: Snapshot, g: { w: number; h: number }): void {
+    if (!view) return;
+    const v = view;
+    const own = performance.now() - touchedAt < MINE_MS;
+    const seat = mine(next);
+    const glassOf = (at: CueAt): { x: number; y: number } | null => {
+      if ("felt" in at) return v.toGlass(at.felt);
+      if ("pile" in at) {
+        const p = pileOf(next, at.pile) ?? pileOf(prev, at.pile);
+        return p ? v.toGlass(p) : null;
+      }
+      if (at.chair === seat) return { x: g.w / 2, y: g.h };
+      const spot = spots.find((sp) => sp.key === at.chair);
+      return spot ? { x: spot.x, y: spot.y } : null;
+    };
+    for (const [id, spot] of cueSpots(prev)) knownSpots.set(id, spot);
+    for (const cue of cuesBetween(prev, next, knownSpots)) {
+      const p = glassOf(cue.at);
+      if (p) sound.play(cue.kind, (p.x - g.w / 2) / (g.w / 2), (p.y - g.h / 2) / (g.h / 2), own);
+    }
+  }
+
   /** НАСТРОЙКИ — шестерёнка сверху и окно под ней: вид колоды, личный. */
   function settingsHtml(): string {
     const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
@@ -1849,8 +1884,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
       + `<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`;
     if (!local.settings) return gear;
-    const row = (key: keyof DeckLook, label: string) => {
-      const on = look[key];
+    const row = (key: keyof DeckLook | "sound", label: string) => {
+      const on = key === "sound" ? sound.on : look[key];
       const knob = on
         ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black}`
         : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim}`;
@@ -1860,7 +1895,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     };
     return gear + `<div data-settings-panel style="position:absolute;left:12px;top:60px;width:200px;box-sizing:border-box;z-index:61;padding:10px 14px;border-radius:12px;`
       + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);display:flex;flex-direction:column">`
-      + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding-bottom:4px">Колода</span>`
+      + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding-bottom:4px">Звук</span>`
+      + row("sound", "Звуки")
+      + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding:8px 0 4px">Колода</span>`
       + row("fourColour", "4 цвета") + row("cyrillic", "Кириллица") + `</div>`;
   }
 
@@ -2497,10 +2534,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     for (const el of over.querySelectorAll<HTMLElement>("[data-look]")) {
       el.onclick = (e) => {
         e.stopPropagation();
-        const key = el.dataset.look as keyof DeckLook;
-        look[key] = !look[key];
-        writeLook(look);
-        art.warm(store.state.rules);
+        const key = el.dataset.look as keyof DeckLook | "sound";
+        if (key === "sound") {
+          sound.on = !sound.on;
+          writeSoundOn(sound.on);
+        } else {
+          look[key] = !look[key];
+          writeLook(look);
+          art.warm(store.state.rules);
+        }
         draw();
       };
     }

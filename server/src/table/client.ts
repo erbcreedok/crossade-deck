@@ -36,6 +36,14 @@ export function clientRoutes(): Router {
     });
   });
 
+  // ЗВУКИ — записи Kenney «Casino Audio» (CC0), имя из известного вида.
+  r.get(/^\/table\/sounds\/((?:drop|hand|turn|gather|merge|shuffle)-[0-9])\.m4a$/, (req, res) => {
+    res.header("Cache-Control", "public, max-age=86400");
+    res.type("audio/mp4").sendFile(join(ROOT, "sounds", `${req.params[0]!}.m4a`), (err) => {
+      if (err && !res.headersSent) res.status(404).end();
+    });
+  });
+
   r.get("/table/app.js", fresh, async (_req, res) => {
     try {
       const { build } = await import("esbuild");

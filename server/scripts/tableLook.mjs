@@ -53,7 +53,7 @@ const mid0 = (await spots(A)).middle;
 check("окна настроек нет, пока не нажата шестерёнка", (await A.$("[data-settings-panel]")) === null);
 await A.click("[data-settings]");
 await A.waitForTimeout(200);
-check("шестерёнка открывает окно с двумя тумблерами", (await A.$$("[data-settings-panel] [data-look]")).length === 2);
+check("шестерёнка открывает окно: звуки, 4 цвета, кириллица", (await A.$$("[data-settings-panel] [data-look]")).length === 3);
 check("нажатие шестерёнки не двигает стол", JSON.stringify((await spots(A)).middle) === JSON.stringify(mid0), [(await spots(A)).middle, mid0]);
 
 await A.click("[data-look=fourColour]");

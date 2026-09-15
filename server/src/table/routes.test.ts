@@ -55,6 +55,14 @@ describe("вид колоды", () => {
     expect((await fetch(`${base}/table/cards/classic/..%2F..%2Fbacks%2Fplaid.webp`)).status).toBe(404);
   });
 
+  it("звуки отдаются по известным именам, остальное — 404", async () => {
+    const ok = await fetch(`${base}/table/sounds/drop-1.m4a`);
+    expect(ok.status).toBe(200);
+    expect((await ok.arrayBuffer()).byteLength).toBeGreaterThan(1000);
+    for (const name of ["hand-3", "turn-1", "gather-2", "merge-2", "shuffle-1"]) expect((await fetch(`${base}/table/sounds/${name}.m4a`)).status, name).toBe(200);
+    expect((await fetch(`${base}/table/sounds/boom-1.m4a`)).status).toBe(404);
+  });
+
   it("команда вида из сети — только известные лица и рубашки", () => {
     expect(readCommand({ t: "look", faces: "minimal", back: "ink" })).toEqual({ t: "look", faces: "minimal", back: "ink" });
     expect(readCommand({ t: "look", back: "plaid", faces: "gothic" })).toEqual({ t: "look", back: "plaid" });
