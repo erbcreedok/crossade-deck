@@ -27,6 +27,14 @@ export interface TableStore {
   say(out: SayOut): void;
   /** Чужое слово пришло. */
   onSay(listener: (say: Say) => void): void;
+  /** Моё голосовое — остальным. Нигде не хранится. */
+  voice(out: { ms: number; bytes: Uint8Array }): void;
+  /** Чужое голосовое пришло. */
+  onVoice(listener: (clip: { by: string; ms: number; bytes: Uint8Array }) => void): void;
+  /** Я включил или выключил микрофон — остальным: они видят это на моём аватаре. */
+  mic(on: boolean): void;
+  /** Кто-то включил или выключил микрофон. */
+  onMic(listener: (mic: { by: string; on: boolean }) => void): void;
   /** Мой набор стикеров — спросить заново; ответ приходит в `onStickers`. */
   askStickers(): void;
   /** Мой стикер выстрелом — остальным. */

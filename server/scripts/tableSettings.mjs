@@ -105,11 +105,11 @@ await A.evaluate(() => document.documentElement.style.removeProperty("--tg-safe-
 
 // 3. Громкость лесенкой, «без звука», объёмный звук.
 await openSettings(A);
-const setVolume = (v) => A.$eval("[data-volume]", (el, v) => { el.value = String(v); el.dispatchEvent(new Event("input", { bubbles: true })); }, v);
+const setVolume = (v) => A.$eval('[data-volume="table"]', (el, v) => { el.value = String(v); el.dispatchEvent(new Event("input", { bubbles: true })); }, v);
 await setVolume(40);
-check("громкость 40 — четыре ступени залиты, подпись 40%", (await A.textContent("[data-volume-value]")) === "40%" && (await A.$$eval("[data-step]", (els) => els.filter((e) => e.style.background !== "transparent").length)) === 4);
+check("громкость 40 — четыре ступени залиты, подпись 40%", (await A.textContent('[data-volume-value="table"]')) === "40%" && (await A.$$eval('[data-volume-row="table"] [data-step]', (els) => els.filter((e) => e.style.background !== "transparent").length)) === 4);
 await setVolume(43);
-check("ползунок — ступенями по 10", (await A.$eval("[data-volume]", (el) => el.value)) === "40");
+check("ползунок — ступенями по 10", (await A.$eval('[data-volume="table"]', (el) => el.value)) === "40");
 await shut(A);
 await heard(A);
 await drag(A, (await spots(A)).deckTop, { x: middle.x - 3 * k, y: middle.y - 1.5 * k });
@@ -118,9 +118,9 @@ let a = await heard(A);
 check("свой дроп при громкости 40 — 0.4", a.some((s) => s.kind === "drop" && s.gain === 0.4), a);
 await openSettings(A);
 await A.click("[data-look=mute]");
-check("«без звука» — громкость серая", (await A.getAttribute("[data-volume-row]", "data-muted")) === "true");
+check("«без звука» — громкость серая", (await A.getAttribute('[data-volume-row="table"]', "data-muted")) === "true");
 await setVolume(70);
-check("…но крутится: 70%", (await A.textContent("[data-volume-value]")) === "70%");
+check("…но крутится: 70%", (await A.textContent('[data-volume-value="table"]')) === "70%");
 await shut(A);
 await heard(A);
 await drag(A, (await spots(A)).deckTop, { x: middle.x + 3 * k, y: middle.y - 1.5 * k });
@@ -180,7 +180,7 @@ await A.waitForSelector("[data-settings]");
 await openSettings(A);
 check("после перезагрузки: 4x, меньше анимаций, громкость 70, объёмный выключен",
   (await A.getAttribute('[data-speed="4"]', "aria-pressed")) === "true" && (await A.getAttribute("[data-look=reduce]", "aria-checked")) === "true"
-  && (await A.textContent("[data-volume-value]")) === "70%" && (await A.getAttribute("[data-look=spatial]", "aria-checked")) === "false");
+  && (await A.textContent('[data-volume-value="table"]')) === "70%" && (await A.getAttribute("[data-look=spatial]", "aria-checked")) === "false");
 
 // 6. Энергосбережение — само: кадров 30 в секунду, руками не выбрано.
 const slow = await browser.newContext({ viewport: { width: 390, height: 844 } });

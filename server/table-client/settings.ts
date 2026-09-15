@@ -62,8 +62,10 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + `<span style="position:absolute;top:4px;left:${on ? 24 : 4}px;width:16px;height:16px;border-radius:50%;background:${on ? INK.black : INK.dim}"></span></span></button>`;
   };
 
-  function volumeHtml(): string {
-    const { volume, muted } = world.sound.prefs;
+  function volumeHtml(which: "table" | "voice" = "table"): string {
+    const p = world.sound.prefs;
+    const volume = which === "voice" ? p.voiceVolume : p.volume;
+    const muted = p.muted || (which === "voice" ? p.voiceMuted : p.uiMuted);
     const ink = muted ? INK.off : INK.goldHi;
     const steps = 100 / VOLUME_STEP;
     // ЛЕСЕНКА — столбики растут слева направо; залиты те, что не выше громкости.
@@ -72,11 +74,11 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       const fill = at <= volume ? ink : "transparent";
       return `<span data-step="${at}" style="flex:1;height:${30 + (70 * (i + 1)) / steps}%;border-radius:2px;background:${fill};box-shadow:inset 0 0 0 1.5px ${muted ? INK.off : INK.rim}"></span>`;
     }).join("");
-    return `<div data-volume-row data-muted="${muted}" style="display:flex;align-items:center;gap:12px;min-height:44px">`
-      + `<span style="flex:none;width:78px;font:400 14px Tiny5,monospace;color:${muted ? INK.off : INK.ink}">Громкость</span>`
+    return `<div data-volume-row="${which}" data-muted="${muted}" style="display:flex;align-items:center;gap:12px;min-height:44px">`
+      + `<span style="flex:none;width:78px;font:400 14px Tiny5,monospace;color:${muted ? INK.off : INK.ink}">${which === "voice" ? "Голосовые" : "Громкость"}</span>`
       + `<label style="position:relative;flex:1;height:32px;display:flex;align-items:flex-end;gap:3px">${bars}`
-      + `<input data-volume type="range" min="0" max="100" step="${VOLUME_STEP}" value="${volume}" aria-label="Громкость" style="position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;touch-action:none"></label>`
-      + `<span data-volume-value style="flex:none;width:40px;text-align:right;font:400 13px Tiny5,monospace;color:${muted ? INK.off : INK.ink}">${volume}%</span></div>`;
+      + `<input data-volume="${which}" type="range" min="0" max="100" step="${VOLUME_STEP}" value="${volume}" aria-label="Громкость" style="position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;touch-action:none"></label>`
+      + `<span data-volume-value="${which}" style="flex:none;width:40px;text-align:right;font:400 13px Tiny5,monospace;color:${muted ? INK.off : INK.ink}">${volume}%</span></div>`;
   }
 
   // НОЧНЫЕ СБОРКИ — снимки клиента на маке. Список спрашивается у сервера один раз, при первом открытии окна.
@@ -133,8 +135,11 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + `<button data-settings-close aria-label="Закрыть" style="width:40px;height:40px;border:0;border-radius:10px;cursor:pointer;color:${INK.ink};font:400 18px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${INK.rim}">✕</button></div>`
       + (fullscreenable() ? section("Экран") + toggle("fullscreen", "Полный экран", app()?.isFullscreen === true) : "")
       + section(haptic.supported ? "Звук и вибрация" : "Звук")
-      + toggle("mute", "Без звука", sound.prefs.muted)
-      + volumeHtml()
+      + toggle("mute", "Отключить все звуки", sound.prefs.muted)
+      + toggle("uiMute", "Отключить звуки интерфейса", sound.prefs.uiMuted)
+      + toggle("voiceMute", "Отключить голосовые", sound.prefs.voiceMuted)
+      + volumeHtml("table")
+      + volumeHtml("voice")
       + toggle("spatial", "Объёмный звук", sound.prefs.spatial)
       + (haptic.supported ? toggle("haptic", "Вибрация", haptic.on) : "")
       + section("Анимации")
@@ -169,6 +174,14 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
         sound.prefs.muted = !sound.prefs.muted;
         sound.save();
         break;
+      case "uiMute":
+        sound.prefs.uiMuted = !sound.prefs.uiMuted;
+        sound.save();
+        break;
+      case "voiceMute":
+        sound.prefs.voiceMuted = !sound.prefs.voiceMuted;
+        sound.save();
+        break;
       case "spatial":
         sound.prefs.spatial = !sound.prefs.spatial;
         sound.save();
@@ -192,12 +205,16 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
   layer.addEventListener("input", (e) => {
     const input = e.target as HTMLInputElement;
     if (!input.matches("[data-volume]")) return;
-    world.sound.prefs.volume = Number(input.value);
+    const which = input.dataset.volume === "voice" ? "voice" : "table";
+    const p = world.sound.prefs;
+    const value = Number(input.value);
+    if (which === "voice") p.voiceVolume = value;
+    else p.volume = value;
     world.sound.save();
-    const row = layer.querySelector<HTMLElement>("[data-volume-row]")!;
-    const muted = world.sound.prefs.muted;
-    for (const bar of row.querySelectorAll<HTMLElement>("[data-step]")) bar.style.background = Number(bar.dataset.step) <= world.sound.prefs.volume ? (muted ? INK.off : INK.goldHi) : "transparent";
-    row.querySelector<HTMLElement>("[data-volume-value]")!.textContent = `${world.sound.prefs.volume}%`;
+    const row = layer.querySelector<HTMLElement>(`[data-volume-row="${which}"]`)!;
+    const muted = p.muted || (which === "voice" ? p.voiceMuted : p.uiMuted);
+    for (const bar of row.querySelectorAll<HTMLElement>("[data-step]")) bar.style.background = Number(bar.dataset.step) <= value ? (muted ? INK.off : INK.goldHi) : "transparent";
+    row.querySelector<HTMLElement>("[data-volume-value]")!.textContent = `${value}%`;
   });
 
   const settings: Settings = {

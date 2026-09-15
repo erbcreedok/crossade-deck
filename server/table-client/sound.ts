@@ -16,27 +16,44 @@ const FILES = { drop: 1, hand: 1, turn: 1, gather: 3, merge: 1, shuffle: 1 } as 
 export const SOUND_OF: Record<CueKind, keyof typeof FILES> = { drop: "drop", hand: "drop", out: "hand", turn: "turn", gather: "gather", merge: "merge", shuffle: "shuffle" };
 /** Громкость своего и чужого. */
 export const GAIN = { mine: 1, other: 0.6 } as const;
+/** Голосовые: своё — фоном, чужое — в полный голос. */
+export const VOICE_GAIN = { mine: 0.35, other: 1 } as const;
 
 const KEY = "crossade.table.sound";
 /** Громкость — лесенкой: 0…100 шагом `VOLUME_STEP`. */
 export const VOLUME_STEP = 10;
 
 export interface SoundPrefs {
+  /** Громкость звуков стола. */
   volume: number;
+  /** Без звука вообще: и стол, и голосовые. */
   muted: boolean;
+  /** Отключены только звуки стола. */
+  uiMuted: boolean;
+  /** Отключены только голосовые. */
+  voiceMuted: boolean;
+  /** Громкость голосовых — своим ползунком. */
+  voiceVolume: number;
   /** Объёмный звук: лево-право и перед-зад по месту на экране. Выключен — всё посередине. */
   spatial: boolean;
 }
 
 export function readSoundPrefs(): SoundPrefs {
-  const plain: SoundPrefs = { volume: 100, muted: false, spatial: true };
+  const plain: SoundPrefs = { volume: 100, muted: false, uiMuted: false, voiceMuted: false, voiceVolume: 100, spatial: true };
   try {
     const raw = localStorage.getItem(KEY);
     if (raw === "off") return { ...plain, muted: true };
     const o = JSON.parse(raw ?? "null") as Partial<SoundPrefs> | null;
     if (!o || typeof o !== "object") return plain;
-    const volume = typeof o.volume === "number" ? Math.max(0, Math.min(100, Math.round(o.volume / VOLUME_STEP) * VOLUME_STEP)) : plain.volume;
-    return { volume, muted: o.muted === true, spatial: o.spatial !== false };
+    const step = (v: unknown, or: number) => (typeof v === "number" ? Math.max(0, Math.min(100, Math.round(v / VOLUME_STEP) * VOLUME_STEP)) : or);
+    return {
+      volume: step(o.volume, plain.volume),
+      voiceVolume: step(o.voiceVolume, plain.voiceVolume),
+      muted: o.muted === true,
+      uiMuted: o.uiMuted === true,
+      voiceMuted: o.voiceMuted === true,
+      spatial: o.spatial !== false,
+    };
   } catch {
     return plain;
   }
@@ -62,8 +79,12 @@ export interface Played {
 
 export interface TableSound {
   prefs: SoundPrefs;
-  /** Слышно ли хоть что-то: не заглушено и громкость больше нуля. */
+  /** Слышно ли звуки стола: не заглушено (ни общим, ни своим) и громкость больше нуля. */
   readonly on: boolean;
+  /** Слышны ли голосовые. */
+  readonly voiceOn: boolean;
+  /** Громкость голосового, каким его играть: 0 — не играть вовсе. */
+  voiceGain(mine: boolean): number;
   save(): void;
   /** `x`, `z` — место на экране в долях от середины (см. `Played`). */
   /** `cutMs` — звук обрывается, когда кончилась анимация, которую он озвучивает. */
@@ -77,7 +98,7 @@ export function tableSound(): TableSound {
 
   const wake = () => {
     // Выключенный звук не будит аудио вовсе: открытая аудиосессия iOS может глушить вибрацию.
-    if (!sound.on) return;
+    if (!sound.on && !sound.voiceOn) return;
     if (!ctx) {
       const Ctx = globalThis.AudioContext ?? (globalThis as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctx) return;
@@ -98,8 +119,13 @@ export function tableSound(): TableSound {
   const sound: TableSound = {
     prefs: readSoundPrefs(),
     get on() {
-      return !sound.prefs.muted && sound.prefs.volume > 0;
+      return !sound.prefs.muted && !sound.prefs.uiMuted && sound.prefs.volume > 0;
     },
+    get voiceOn() {
+      return !sound.prefs.muted && !sound.prefs.voiceMuted && sound.prefs.voiceVolume > 0;
+    },
+    // СВОЁ ГОЛОСОВОЕ СЛЫШНО ТИШЕ: чтобы автор знал, что ушло, но не слушал себя в полный голос.
+    voiceGain: (mine) => (sound.voiceOn ? (mine ? VOICE_GAIN.mine : VOICE_GAIN.other) * (sound.prefs.voiceVolume / 100) : 0),
     save: () => writeSoundPrefs(sound.prefs),
     play(kind, x, z, mine, cutMs) {
       if (!sound.on) return;
