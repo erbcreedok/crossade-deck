@@ -11,6 +11,8 @@ import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { orbits, tableCamera } from "./camera.js";
 import { deckArt, settled } from "./deckArt.js";
+import { mountTalk, type WordAnchor } from "./talk.js";
+import { WORDS_MAX } from "../src/table/say.js";
 import type { TableStore } from "./store.js";
 
 const T = {
@@ -39,10 +41,11 @@ const ORDERS = ["suit", "rank", "reverse", "shuffle"] as const satisfies readonl
  * СЕКЦИИ НИЖНЕГО БАРА. Сначала в баре только кнопки секций; нажатая уезжает влево и горит, остальные
  * улетают, прилетают кнопки секции. Та же кнопка ещё раз — секция закрыта.
  */
-const SECTIONS = ["pose", "chair", "order"] as const;
+const SECTIONS = ["pose", "chair", "order", "say"] as const;
 type Section = (typeof SECTIONS)[number];
 type BarKey = (typeof RIGHTS)[number] | (typeof FOLDS)[number] | (typeof ORDERS)[number] | "leave";
-const SUBS: Record<Section, readonly BarKey[]> = { pose: FOLDS, chair: [...RIGHTS, "leave"], order: ORDERS };
+/** «Диалог» — не секция кнопок: он открывает клавиатуру вместо руки (`talk.ts`). */
+const SUBS: Record<Section, readonly BarKey[]> = { pose: FOLDS, chair: [...RIGHTS, "leave"], order: ORDERS, say: [] };
 /** Сколько идёт смена секций в баре. */
 const SECTION_MS = 240;
 const GLYPH: Record<BarKey | `sec-${Section}` | "back", string> = {
@@ -61,6 +64,7 @@ const GLYPH: Record<BarKey | `sec-${Section}` | "back", string> = {
   "sec-pose": '<rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(-20 12 20)"/><rect x="9" y="5" width="6" height="12" rx="1" transform="rotate(20 12 20)"/><path d="M5 21h14"/>',
   "sec-chair": '<path d="M7 3v9h10V3"/><path d="M6 12h12v3H6z"/><path d="M7 15v6"/><path d="M17 15v6"/>',
   "sec-order": '<path d="M4 6h10"/><path d="M4 12h7"/><path d="M4 18h4"/><path d="M18 5v14"/><path d="M15 16l3 3 3-3"/>',
+  "sec-say": '<path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M8 10.5h.01"/><path d="M12 10.5h.01"/><path d="M16 10.5h.01"/>',
 };
 
 type Slot = { x: number; y: number; angle: number };
@@ -153,6 +157,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   const over = stage.querySelector<HTMLElement>("#over")!;
   const images: Record<string, HTMLImageElement> = {};
   const art = deckArt(() => draw());
+  const talk = mountTalk(stage, store, () => draw());
 
   /** Только то, что есть у этого экрана и больше нигде. */
   const local = {
@@ -720,6 +725,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   }
 
   function hudHtml(s: Snapshot): string {
+    // ОТКРЫТ ДИАЛОГ — вместо руки и бара клавиатура.
+    if (talk.open) return "";
     const g = glass();
     const cards = handOf(s, mine(s));
     const gaps = gapsIn(s, mine(s));
@@ -1048,7 +1055,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       seenShuffles = store.state.shuffles;
     }
     const seat = mine(s);
-    const floor = hudFloor(handOf(s, seat).length);
+    const floor = talk.open ? talk.height() : hudFloor(handOf(s, seat).length);
     aimCamera(s);
     const seats: Seat[] = s.chairs.map((c) => {
       const sitter = sitterOf(s, c);
@@ -1075,6 +1082,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
     });
     spots = view.spots;
+    talk.place(wordAnchors(s));
     // Взгляд — на холсте атрибутом: его видно в инспекторе и его читает прогон жестов.
     const c = cam.camera;
     canvas.dataset.view = `${c.target.x.toFixed(2)},${c.target.y.toFixed(2)},${c.zoom.toFixed(3)},${c.rotation.toFixed(1)},${c.pitch.toFixed(1)}`;
@@ -1126,6 +1134,28 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     prevPlaces = places;
     paintCarries(s, places);
     if (started) draw();
+  }
+
+  /**
+   * ГДЕ СТОЯТ СЛОВА — перед стулом, на стороне стола: точка между стулом и серединой, ровно к камере.
+   * Размер — от зума, но читается и издалека.
+   */
+  function wordAnchors(s: Snapshot): WordAnchor[] {
+    if (!view) return [];
+    const v = view;
+    return spots.flatMap((sp) => {
+      const chair = chairOf(s, sp.key);
+      const sitter = chair && sitterOf(s, chair);
+      if (!sitter) return [];
+      const middle = v.toGlass({ x: 0, y: 0 });
+      const len = Math.hypot(middle.x - sp.x, middle.y - sp.y) || 1;
+      const dir = { x: (middle.x - sp.x) / len, y: (middle.y - sp.y) / len };
+      const size = Math.round(Math.max(16, Math.min(30, v.k * 0.32)));
+      // Стопка растёт вверх: у стула, от которого середина ниже, низ стопки опущен на все её строки — иначе
+      // слова легли бы на лицо.
+      const reach = sp.r + 10 + Math.max(0, dir.y) * WORDS_MAX * size * 1.35;
+      return [{ key: sitter.key, x: sp.x + dir.x * reach, y: sp.y + dir.y * reach, size, ink: sitter.ink }];
+    });
   }
 
   // ── КАМЕРА И МОЙ СТУЛ ──────────────────────────────────────────────────────────────────────
@@ -1592,6 +1622,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       el.onclick = (e) => {
         e.stopPropagation();
         const sec = el.dataset.section as Section;
+        if (sec === "say") return talk.toggle();
         local.sectionFrom = local.section;
         local.section = local.section === sec ? null : sec;
         local.sectionAt = performance.now();

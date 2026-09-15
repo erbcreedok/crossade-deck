@@ -5,6 +5,7 @@
 // сервера приходит тем же путём: снимок снова тот, что был, — и экран просто рисует его.
 
 import type { Carry, CarryOut, Intent, Person, Refusal, Snapshot } from "../src/table/contract.js";
+import type { Say, SayOut } from "../src/table/say.js";
 
 export interface TableStore {
   readonly me: Person;
@@ -17,6 +18,10 @@ export interface TableStore {
   now(): number;
   /** Мой палец в воздухе — над чем он. Без ответа: это поток, а не намерение. */
   carry(out: CarryOut): void;
+  /** Моё слово у стула — остальным. Без ответа, как палец. */
+  say(out: SayOut): void;
+  /** Чужое слово пришло. */
+  onSay(listener: (say: Say) => void): void;
   /** Снимок сменился (дифом, синком или отказом) или сдвинулся чужой палец в воздухе. */
   onChange(listener: () => void): void;
   /** Намерение не случилось — экран отпускает то, что держал. */

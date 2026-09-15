@@ -6,6 +6,7 @@ import { mintRoom } from "./roomIds.js";
 import { applyPatch } from "./patch.js";
 import { openEntry, runIn } from "./lobby.js";
 import { BOT_KEY } from "./botPerson.js";
+import type { Say } from "./say.js";
 
 const SECRET = "table-secret";
 const BOT = "bot-token";
@@ -81,6 +82,23 @@ describe("TableRoom", () => {
     expect(echoed).toBe(false);
 
     expect(mine.chairs.find((c) => c.id === a.welcome.you.seat)!.hand).toEqual([{ id: top }]);
+  });
+
+  it("слово у стула: остальным с автором, себе не эхом; чужие символы и лишние буквы — никому", async () => {
+    const room = mintRoom(SECRET);
+    const a = await sit(room, { door: "guest", name: "A" });
+    const b = await sit(room, { door: "guest", name: "B" });
+    const heard: Say[] = [];
+    let echoed = false;
+    b.client.onMessage(MSG.say, (say: Say) => heard.push(say));
+    a.client.onMessage(MSG.say, () => (echoed = true));
+    a.client.send(MSG.say, { n: 1, text: "<script>" });
+    a.client.send(MSG.say, { n: 1, text: "A".repeat(40) });
+    a.client.send(MSG.say, { n: 1, text: "ПРИВЕТ😀" });
+    a.client.send(MSG.say, { n: 1, text: "ПРИВЕТ😀", done: true });
+    await new Promise((r) => setTimeout(r, 120));
+    expect(heard).toEqual([{ n: 1, text: "ПРИВЕТ😀", by: a.welcome.you.key }, { n: 1, text: "ПРИВЕТ😀", done: true, by: a.welcome.you.key }]);
+    expect(echoed).toBe(false);
   });
 
   it("команда админа: чужому — отказ; админу — бот садится без стула и раздаёт по часовой, курсор видят все", async () => {

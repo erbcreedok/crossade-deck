@@ -53,7 +53,7 @@ const aSeat = (await spots(A)).seats.find((s) => s.who === "A").key;
 
 // ── 1. Бар: три секции; открыть — кнопка уезжает влево, остальные улетают, прилетают свои; ещё раз — закрыть ──
 let b = await bar(A);
-check("в баре три кнопки секций и больше ничего", b.sections.join() === "pose,chair,order" && b.subs.length === 0, b);
+check("в баре четыре кнопки секций (с диалогом) и больше ничего", b.sections.join() === "pose,chair,order,say" && b.subs.length === 0, b);
 const x0 = await A.locator('[data-section="pose"]').evaluate((e) => e.getBoundingClientRect().left);
 await A.click('[data-section="order"]');
 await wait(A, 70);
@@ -61,7 +61,7 @@ const mid = await A.evaluate(() => ({
   ghosts: document.querySelectorAll("[data-g=ghost]").length,
   moved: getComputedStyle(document.querySelector('[data-section="order"]')).transform,
 }));
-check("посреди перелёта: улетающие копии есть, кнопка секции в пути", mid.ghosts === 2 && mid.moved !== "none", mid);
+check("посреди перелёта: улетающие копии есть, кнопка секции в пути", mid.ghosts === 3 && mid.moved !== "none", mid);
 await wait(A);
 b = await bar(A);
 const x1 = await A.locator('[data-section="order"]').evaluate((e) => e.getBoundingClientRect().left);
@@ -75,7 +75,7 @@ check("открытая секция не похожа на включённую
 await A.click('[data-section="order"]');
 await wait(A);
 b = await bar(A);
-check("та же кнопка закрыла секцию", b.sections.join() === "pose,chair,order" && b.subs.length === 0 && b.ghosts === 0, b);
+check("та же кнопка закрыла секцию", b.sections.join() === "pose,chair,order,say" && b.subs.length === 0 && b.ghosts === 0, b);
 
 // ── 2. Четыре карты в руку A ─────────────────────────────────────────────────────────────────────
 const m = (await spots(A)).middle;

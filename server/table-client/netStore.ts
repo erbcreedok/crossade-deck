@@ -6,6 +6,7 @@
 import { Client } from "colyseus.js";
 import { MSG, TABLE_ROOM, type Carry, type CarryOut, type Intent, type JoinOptions, type Patch, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
 import { applyPatch, needsSync } from "../src/table/patch.js";
+import type { Say, SayOut } from "../src/table/say.js";
 import type { TableStore } from "./store.js";
 
 export async function netStore(options: JoinOptions): Promise<TableStore> {
@@ -51,6 +52,10 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     carries.set(c.id, c);
     tell();
   });
+  const said: ((say: Say) => void)[] = [];
+  room.onMessage(MSG.say, (say: Say) => {
+    for (const listener of said) listener(say);
+  });
   room.onMessage(MSG.refused, (msg: Refused) => {
     for (const listener of refused) listener(msg.intent, msg.why);
   });
@@ -87,6 +92,8 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
       return [...carries.values()];
     },
     carry: (out: CarryOut) => room.send(MSG.carry, out),
+    say: (out: SayOut) => room.send(MSG.say, out),
+    onSay: (listener) => void said.push(listener),
     now: () => Date.now() + skew,
     onChange: (listener) => void changed.push(listener),
     onRefused: (listener) => void refused.push(listener),

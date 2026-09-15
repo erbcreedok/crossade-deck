@@ -266,6 +266,8 @@ export const MSG = {
   refused: "refused",
   /** Клиент → сервер: `CarryOut`; сервер → остальные: `Carry`. Мимо версий и истории стола. */
   carry: "carry",
+  /** Клиент → сервер: `SayOut`; сервер → остальные: `Say` (`say.ts`). Тоже мимо версий. */
+  say: "say",
 } as const;
 
 /**

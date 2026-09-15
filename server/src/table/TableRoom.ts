@@ -12,6 +12,7 @@ import { tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
 import { MSG, type CarryOut, type Intent, type JoinOptions, type Op, type Person, type RunResult, type TableCommand, type Welcome } from "./contract.js";
 import { execute, plan } from "./script.js";
+import { cleanSay, type Say } from "./say.js";
 import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
 import { attach, creatorOf, openEntry, titleOf } from "./lobby.js";
@@ -73,6 +74,18 @@ export class TableRoom extends Room {
         if (key === undefined || key === me.key) continue;
         const [seen] = this.table.carriesSeenBy(key, out.id);
         if (seen) other.send(MSG.carry, seen);
+      }
+    });
+
+    // СЛОВО У СТУЛА — остальным как есть. Пишет только сидящий: словам негде встать, кроме как у стула.
+    this.onMessage(MSG.say, (client, raw: unknown) => {
+      const me = this.personOf(client.sessionId);
+      const out = cleanSay(raw);
+      if (!me?.seat || !out) return;
+      const say: Say = { ...out, by: me.key };
+      for (const other of this.clients) {
+        const key = this.seats.get(other.sessionId);
+        if (key !== undefined && key !== me.key) other.send(MSG.say, say);
       }
     });
 
