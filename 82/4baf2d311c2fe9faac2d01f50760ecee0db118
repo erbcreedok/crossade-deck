@@ -1,0 +1,25 @@
+server/scripts/tableGrip.mjs
+  s_9ed0da107cbc4a::t_afa8a912bf69d3 130-236
+server/src/table/deckSpot.test.ts
+  s_9ed0da107cbc4a::t_d0d15875b6ba21 105-145
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_608afd3ec9555c 334-337
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_c69ed0f840bbaf 93,120-122,1074-1111,1132,1134-1136,1270,1563-1568,1663,1746-1748
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "824baf2d311c2fe9faac2d01f50760ecee0db118",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
