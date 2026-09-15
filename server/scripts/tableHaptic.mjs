@@ -16,10 +16,12 @@ const browser = await chromium.launch();
 // Настоящий `HapticFeedback` вне Telegram молчит — его методы подменяются журналом.
 const stubTelegram = (p) => p.evaluate(() => {
   window.__tg = [];
-  const h = window.Telegram.WebApp.HapticFeedback;
-  h.impactOccurred = (s) => window.__tg.push(s);
-  h.notificationOccurred = (s) => window.__tg.push(s);
-  h.selectionChanged = () => window.__tg.push("selection");
+  window.__platform = "ios";
+  const push = (x) => window.__tg.push(x);
+  const HapticFeedback = { impactOccurred: push, notificationOccurred: push, selectionChanged: () => push("selection") };
+  // Поля настоящего `WebApp` только для чтения — стол видит обёртку поверх него.
+  const real = window.Telegram.WebApp;
+  window.Telegram.WebApp = new Proxy({}, { get: (_, k) => (k === "platform" ? window.__platform : k === "version" ? "8.0" : k === "isVersionAtLeast" ? () => true : k === "HapticFeedback" ? HapticFeedback : real[k]) });
 });
 const open = async (name) => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -113,6 +115,20 @@ check("выключенная вибрация помнится после пе�
 await B.click("[data-settings]");
 check("у B своя — включена", (await B.getAttribute("[data-look=haptic]", "aria-checked")) === "true");
 await B.mouse.click(195, 300);
+
+// 5б. Где вибрации нет (Mac, Desktop, браузер) — тумблера нет, и вызовов нет.
+await B.evaluate(() => { window.__platform = "macos"; });
+await B.click("[data-settings]");
+await B.waitForTimeout(200);
+check("на Mac тумблера вибрации нет, внизу — клиент", (await B.$("[data-look=haptic]")) === null && /macos/.test(await B.textContent("[data-client]")), null);
+await B.mouse.click(195, 300);
+await B.waitForTimeout(300);
+await felt(B);
+await B.click('[data-section="lasso"]');
+await B.click('[data-section="lasso"]');
+b = await felt(B);
+check("на Mac кнопки не зовут вибрацию", b.length === 0, b);
+await B.evaluate(() => { window.__platform = "ios"; });
 
 // 6. Шафл у B — серия лёгких тиков.
 await B.waitForTimeout(500);

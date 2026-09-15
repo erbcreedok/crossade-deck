@@ -1985,10 +1985,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     };
     return gear + `<div data-settings-panel style="position:absolute;left:12px;top:60px;width:200px;box-sizing:border-box;z-index:61;padding:10px 14px;border-radius:12px;`
       + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);display:flex;flex-direction:column">`
-      + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding-bottom:4px">Звук и вибрация</span>`
-      + row("sound", "Звуки") + row("haptic", "Вибрация")
+      + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding-bottom:4px">${haptic.supported ? "Звук и вибрация" : "Звук"}</span>`
+      + row("sound", "Звуки") + (haptic.supported ? row("haptic", "Вибрация") : "")
       + `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};padding:8px 0 4px">Колода</span>`
-      + row("fourColour", "4 цвета") + row("cyrillic", "Кириллица") + `</div>`;
+      + row("fourColour", "4 цвета") + row("cyrillic", "Кириллица")
+      + (haptic.client ? `<span data-client style="font:400 10px Tiny5,monospace;color:${T.inkDim};padding-top:8px">${haptic.client}</span>` : "") + `</div>`;
   }
 
   // ── ЧУЖИЕ РУКИ В ВОЗДУХЕ И ПЕРЕЛЁТЫ ────────────────────────────────────────────────────────────

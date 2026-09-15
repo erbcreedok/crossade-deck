@@ -27,8 +27,15 @@ export function writeHapticOn(on: boolean): void {
   }
 }
 
+/** Где Telegram умеет вибрировать: телефонные клиенты, Bot API 6.1+. На Mac, в Desktop и в вебе вызов пустой. */
+export const HAPTIC_PLATFORMS = ["ios", "android", "android_x"];
+
 export interface TableHaptic {
   on: boolean;
+  /** Есть ли вибрация на этом устройстве — нет, так и тумблера нет. */
+  supported: boolean;
+  /** Клиент Telegram — строкой для настроек: платформа и версия Bot API. */
+  client: string;
   buzz(kind: Haptic): void;
 }
 
@@ -38,11 +45,20 @@ let one: TableHaptic | null = null;
 export function tableHaptic(): TableHaptic {
   if (one) return one;
   const log: Haptic[] = ((globalThis as { __tableHaptics?: Haptic[] }).__tableHaptics = []);
+  const app = () => (globalThis as { Telegram?: { WebApp?: { platform?: string; version?: string; isVersionAtLeast?(v: string): boolean } } }).Telegram?.WebApp;
   const feedback = () => (globalThis as { Telegram?: { WebApp?: { HapticFeedback?: HapticFeedback } } }).Telegram?.WebApp?.HapticFeedback;
   const haptic: TableHaptic = {
     on: readHapticOn(),
+    get supported() {
+      const a = app();
+      return Boolean(a?.isVersionAtLeast?.("6.1") && HAPTIC_PLATFORMS.includes(a.platform ?? ""));
+    },
+    get client() {
+      const a = app();
+      return a?.platform && a.platform !== "unknown" ? `Telegram ${a.platform} · ${a.version}` : "";
+    },
     buzz(kind) {
-      if (!haptic.on) return;
+      if (!haptic.on || !haptic.supported) return;
       log.push(kind);
       if (log.length > 50) log.shift();
       const f = feedback();
