@@ -485,6 +485,8 @@ export type Home =
 export interface RoomCard {
   room: string;
   title: string;
+  /** Кто открыл комнату — он же её админ. Пусто — комната заведена входом, админа у неё нет. */
+  by: string;
   home: Home;
   people: Person[];
   createdAt: number;

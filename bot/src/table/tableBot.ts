@@ -63,9 +63,10 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, secret: stri
   });
 
   bot.command("tables", async (ctx) => {
-    const cards = await api.list(chatOf(ctx));
-    if (cards === "down" || cards === "missing") return void (await ctx.reply(DOWN));
-    const said = listed(cards, links, inPrivate(ctx));
+    // В ЛИЧКЕ — все столы этого человека, а не «столы этой лички»: там их не бывает вовсе.
+    const cards = await tablesFor(ctx);
+    if (cards === "down") return void (await ctx.reply(DOWN));
+    const said = listed(cards, links, inPrivate(ctx), byOf(ctx));
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
   });
 

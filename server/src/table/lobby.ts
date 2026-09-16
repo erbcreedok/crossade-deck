@@ -29,6 +29,7 @@ const takenTitles = (except?: string): string[] => [...rooms.values()].filter((e
 const card = (e: Entry): RoomCard => ({
   room: e.room,
   title: e.title,
+  by: e.by,
   home: e.home,
   people: e.live?.people() ?? [],
   createdAt: e.createdAt,
@@ -59,8 +60,12 @@ export function roomsAt(home: Home): RoomCard[] {
     .map(card);
 }
 
-/** Столы, которые открыл этот человек, — где бы они ни жили: из лички ими тоже управляют. */
-export const roomsBy = (by: string): RoomCard[] => [...rooms.values()].filter((e) => e.by === by).map(card);
+/**
+ * ВСЕ СТОЛЫ ЭТОГО ЧЕЛОВЕКА — где бы они ни жили: и те, что он открыл (там он админ), и те, за которыми
+ * он сидит. Из лички человек управляет своими и просто заходит в чужие.
+ */
+export const roomsBy = (by: string): RoomCard[] =>
+  [...rooms.values()].filter((e) => e.by === by || (e.live?.people() ?? []).some((p) => p.key === by)).map(card);
 
 /** Inline-карточка стала сообщением — теперь известно, где комната живёт. */
 export function rehome(room: string, home: Home): RoomCard | undefined {

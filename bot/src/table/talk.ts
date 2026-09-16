@@ -36,16 +36,31 @@ export function opened(card: RoomCard, total: number, links: Links, inPrivate: b
   return { text: `Стол «${card.title}» открыт.${more}`, rows: [[enter(card.room, links, inPrivate)]] };
 }
 
-export function listed(cards: RoomCard[], links: Links, inPrivate: boolean): Said {
-  if (cards.length === 0) return { text: "В этом чате столов нет. Открыть: /table [название]", rows: [] };
+/**
+ * СПИСОК СТОЛОВ. В группе это столы группы. В ЛИЧКЕ — все столы этого человека: и те, что он открыл, и те,
+ * за которыми сидит. Управлять можно только своими (он там админ), в чужие — просто зайти.
+ */
+export function listed(cards: RoomCard[], links: Links, inPrivate: boolean, me?: string): Said {
+  if (cards.length === 0) {
+    return { text: inPrivate ? "Ты пока ни за одним столом. Открыть: /table [название]" : "В этом чате столов нет. Открыть: /table [название]", rows: [] };
+  }
+  const mine = (c: RoomCard) => me !== undefined && c.by === me;
+  const where = (c: RoomCard) => (inPrivate && c.home.kind === "chat" ? "" : "");
   return {
-    text: [`Столы этого чата (${cards.length}):`, ...cards.map((c, i) => `${i + 1}. ${c.title}${who(c)}`)].join("\n"),
-    rows: cards.map((c) => [
-      enter(c.room, links, inPrivate, c.title),
-      { text: "Управлять", data: `tbm:${c.room}` },
-      { text: "Переименовать", data: `tbl:ren:${c.room}` },
-      { text: "Закрыть", data: `tbl:del:${c.room}` },
-    ]),
+    text: [
+      inPrivate ? `Твои столы (${cards.length}):` : `Столы этого чата (${cards.length}):`,
+      ...cards.map((c, i) => `${i + 1}. ${c.title}${mine(c) ? " · твой" : ""}${where(c)}${who(c)}`),
+    ].join("\n"),
+    rows: cards.map((c) =>
+      mine(c) || !inPrivate
+        ? [
+            enter(c.room, links, inPrivate, c.title),
+            { text: "Управлять", data: `tbm:${c.room}` },
+            { text: "Переименовать", data: `tbl:ren:${c.room}` },
+            { text: "Закрыть", data: `tbl:del:${c.room}` },
+          ]
+        : [enter(c.room, links, inPrivate, c.title)],
+    ),
   };
 }
 
