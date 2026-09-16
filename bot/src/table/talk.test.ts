@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
-import { enter, inviteExisting, listed, opened } from "./talk.js";
+import { enter, inviteExisting, listed, mayManage, opened } from "./talk.js";
 
 const links = { anywhere: (r: string) => `https://t.me/bot/table?startapp=${r}`, app: (r: string) => `https://fly/t/?room=${r}` };
 const card = (room: string, title: string, by = "tg:1"): RoomCard => ({ room, title, by, home: { kind: "chat", chat: "-1" }, people: [], createdAt: 0 });
@@ -56,5 +56,25 @@ describe("слова бота про столы", () => {
       ["Дурак", "Управлять", "Переименовать", "Закрыть"],
       ["Покер", "Управлять", "Переименовать", "Закрыть"],
     ]);
+  });
+});
+
+describe("каким столом я вправе распоряжаться", () => {
+  const here = new Set(["r-here"]);
+  it("стол этого чата — можно, даже если завёл его не я", () => {
+    expect(mayManage({ room: "r-here", by: "tg:9" }, "tg:1", here)).toBe("yes");
+  });
+
+  it("свой стол из другого чата — тоже можно: кнопки ищут там же, где взят список", () => {
+    expect(mayManage({ room: "r-afar", by: "tg:1" }, "tg:1", here)).toBe("yes");
+  });
+
+  it("чужой стол, за которым я лишь сижу, — нельзя", () => {
+    expect(mayManage({ room: "r-afar", by: "tg:9" }, "tg:1", here)).toBe("foreign");
+  });
+
+  it("стола нет вовсе — так и говорим", () => {
+    expect(mayManage(undefined, "tg:1", here)).toBe("gone");
+    expect(mayManage({ room: "r-afar" }, "tg:1", here)).toBe("foreign");
   });
 });

@@ -73,6 +73,19 @@ export const closed = (title: string): string => `Стол «${title}» закр
 export const renamed = (from: string, to: string): string => `Стол «${from}» теперь называется «${to}».`;
 export const askTitle = (title: string): string => `Как назвать стол «${title}»? Напиши следующим сообщением.`;
 export const gone = "Такого стола уже нет.";
+export const notYours = "Это не твой стол.";
+
+/**
+ * КАКИМ СТОЛОМ Я ВПРАВЕ РАСПОРЯЖАТЬСЯ. В личке бот показывает и столы из других чатов — те, что человек
+ * завёл или за которыми сидит. Кнопки под этим списком обязаны искать стол ТАМ ЖЕ, где он взят для списка:
+ * иначе свой же стол из другого чата кнопке не виден и она отвечает «такого стола уже нет».
+ *
+ * Чужим столом, доехавшим в список потому, что я за ним сижу, распоряжаться нельзя.
+ */
+export function mayManage(card: { room: string; by?: string } | undefined, by: string, here: ReadonlySet<string>): "yes" | "gone" | "foreign" {
+  if (!card) return "gone";
+  return here.has(card.room) || (Boolean(card.by) && card.by === by) ? "yes" : "foreign";
+}
 
 /** Сервер стола перезапустился или замолчал — столы этого чата умерли вместе с ним. */
 export function lost(titles: string[], why: "restart" | "down"): string {

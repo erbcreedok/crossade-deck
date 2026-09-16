@@ -12,7 +12,7 @@ import { mintRoom } from "../../../server/src/table/roomIds.js";
 import type { TableApi } from "./api.js";
 import type { Home, RoomCard, TableCommand } from "../../../server/src/table/contract.js";
 import { MENU, menuOf, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
-import { askTitle, closed, DOWN, gone, inlineOpened, inviteArticle, inviteExisting, listed, opened, renamed, type Button, type Links } from "./talk.js";
+import { askTitle, closed, DOWN, gone, inlineOpened, inviteArticle, inviteExisting, listed, mayManage, notYours, opened, renamed, type Button, type Links } from "./talk.js";
 import type { Registry } from "./registry.js";
 import type { Watch } from "./watch.js";
 import { installStickers } from "./stickers.js";
@@ -147,7 +147,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     const card = (Array.isArray(cards) ? cards : []).find((c) => c.room === room);
     if (!card || (afar && card.by !== byOf(ctx))) {
       if (!afar) await ctx.answerCallbackQuery();
-      return void (await say(afar ? "Это не твой стол." : gone));
+      return void (await say(afar ? notYours : gone));
     }
     const said = menuOf(card);
     if (afar) {
@@ -180,10 +180,19 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
   bot.callbackQuery(/^tbl:(ren|del):([A-Za-z0-9_-]+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const [, does, room] = ctx.match as unknown as [string, "ren" | "del", string];
-    const cards = await api.list(chatOf(ctx));
-    if (cards === "down" || cards === "missing") return void (await ctx.reply(DOWN));
+    // ИЩЕМ ТАМ ЖЕ, ГДЕ БРАЛИ СПИСОК: в личке он шире чата, и стол из другого чата кнопке иначе не виден.
+    const here = await api.list(chatOf(ctx));
+    if (here === "down") return void (await ctx.reply(DOWN));
+    const cards = await tablesFor(ctx);
+    if (cards === "down") return void (await ctx.reply(DOWN));
     const card = cards.find((c) => c.room === room);
-    if (!card) return void (await ctx.reply(gone));
+    const may = mayManage(card, byOf(ctx), new Set((Array.isArray(here) ? here : []).map((c) => c.room)));
+    if (may === "foreign") return void (await ctx.reply(notYours));
+    if (may === "gone" || !card) {
+      // Стола нет — пусть уходит и из памяти бота, иначе он будет являться в списке вечно.
+      registry.forget(room);
+      return void (await ctx.reply(gone));
+    }
     if (does === "ren") {
       naming.set(`${chatOf(ctx)}:${ctx.from.id}`, room);
       return void (await ctx.reply(askTitle(card.title)));
