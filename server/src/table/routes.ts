@@ -10,7 +10,7 @@
 import { randomBytes, timingSafeEqual } from "crypto";
 import express, { type Router } from "express";
 import { tableConfig } from "./config.js";
-import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, SECRET_HEADER, type Beacon, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
+import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
 import { closeEntry, findEntry, openEntry, rehome, rename, roomsAt, roomsBy, runIn } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 
@@ -44,7 +44,8 @@ export function readCommand(raw: unknown): TableCommand | null {
   if (!c || typeof c.t !== "string") return null;
   if (c.t === "collect" || c.t === "shuffle") return { t: c.t };
   if (c.t === "croupier" && typeof c.on === "boolean") return { t: "croupier", on: c.on };
-  const game = (g: unknown) => (g === "durak" || g === "krest" || g === "belka" ? g : null);
+  // Разбор пришедшего значения идёт по СПИСКУ родов (`GAMES`), а не по перечню имён в коде.
+  const game = (g: unknown) => ((GAMES as readonly unknown[]).includes(g) ? (g as Game) : null);
   if (c.t === "preset") {
     const g = game(c.game);
     if (!g) return null;

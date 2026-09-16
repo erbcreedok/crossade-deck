@@ -441,8 +441,57 @@ export const HOLD_EVERY_MS = 5_000;
  * Раздача — по правилам самой раздачи. Перераздать — та же раздача ещё раз; сменить игру — другой пресет.
  */
 export type DeckSize = 36 | 52;
-export type Game = "durak" | "krest" | "belka";
+export const GAMES = ["durak", "krest", "belka"] as const;
+export type Game = (typeof GAMES)[number];
+
+/**
+ * ЧТО ПРЕСЕТ ИГРЫ ДЕЛАЕТ СО СТОЛОМ — тоже данные.
+ *
+ * `deck` — из чего играем, если игра решает сама (белка всегда 36 без джокеров); `null` — берём то,
+ * что выбрал человек. `cross` — четверо крестом, 1 напротив 3, как садятся в белке; `sixesRow` —
+ * вынести шестёрки на край.
+ */
+export interface GamePreset {
+  deck: { size: DeckSize; jokers: boolean } | null;
+  cross: boolean;
+  sixesRow: boolean;
+}
+
+export const GAME_PRESETS: Record<Game, GamePreset> = {
+  durak: { deck: null, cross: false, sixesRow: false },
+  krest: { deck: null, cross: false, sixesRow: false },
+  belka: { deck: { size: 36, jokers: false }, cross: true, sixesRow: true },
+};
 export type DealRule = "each" | Game;
+
+/**
+ * ЧТО ЗНАЧИТ «РАЗДАТЬ» В ЭТОЙ ИГРЕ — ДАННЫЕ, А НЕ ВЕТКИ.
+ *
+ * Игры отличаются друг от друга ровно этими пятью числами. Новая игра — новая строка здесь; ни одна
+ * строчка кода раздачи при этом не трогается, и ни одно название игры не попадает в рантайм
+ * (`rules.law.test.ts` следит за этим).
+ */
+export interface DealPreset {
+  /** Сколько карт каждому. `"all"` — всю колоду по кругу, пока она не кончится. */
+  each: number | "all";
+  /** Можно ли спросить у человека другое число. Белке нельзя: восемь — это и есть белка. */
+  askable: boolean;
+  /** Сколько игроков ровно; `0` — сколько сядет. */
+  seats: number;
+  /** Пустые стулья из круга вон, даже если человек не просил. */
+  skipEmpty: boolean;
+  /** Шестёрки лежат по краю и не собираются ни сборкой, ни раздачей. */
+  sixesOut: boolean;
+  /** Последняя карта ложится козырем под колоду. */
+  trump: boolean;
+}
+
+export const DEAL_PRESETS: Record<DealRule, DealPreset> = {
+  each: { each: 1, askable: true, seats: 0, skipEmpty: false, sixesOut: false, trump: false },
+  durak: { each: 6, askable: true, seats: 0, skipEmpty: false, sixesOut: false, trump: true },
+  belka: { each: 8, askable: false, seats: 4, skipEmpty: true, sixesOut: true, trump: false },
+  krest: { each: "all", askable: false, seats: 0, skipEmpty: false, sixesOut: false, trump: false },
+};
 
 export type TableCommand =
   | { t: "collect" }

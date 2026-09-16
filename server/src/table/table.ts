@@ -49,10 +49,14 @@ import {
   CARD_FACES,
 } from "./contract.js";
 import { arranged, samePack, shuffled } from "./arrange.js";
+import { SANDBOX, type DeskAsk, type DeskRules } from "./rules.js";
 import { croupierAngle, freeAngle, seatPoint } from "./ring.js";
 
 /** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
 export const FELT_REACH = 8 - 0.86;
+
+/** Насколько близко середины двух карт, чтобы верхняя считалась ЛЕЖАЩЕЙ НА нижней (`FELT_OVERLAP` клиента). */
+const FELT_OVERLAP = 1.2;
 
 interface Lock {
   by: string;
@@ -107,10 +111,25 @@ export class Table {
   /** Имена всех, кто когда-либо садился: след подписывает и ушедшего. */
   private names = new Map<string, string>();
 
-  /** `creator` — ключ создателя комнаты: он админ, пока сидит за столом. */
+  /**
+   * ЧЕМ СТОЛ СПРАШИВАЕТ У ПРАВИЛ — узкое окно: правила читают стол и не правят его (`rules.ts`).
+   * Собирается один раз и живёт со столом: у каждого вопроса одно и то же окно.
+   */
+  private readonly ask: DeskAsk = {
+    face: (id) => this.faces.get(id),
+    pile: (id) => this.piles.get(id)?.cards ?? [],
+    hand: (chair) => this.chairs.get(chair)?.hand ?? [],
+    admin: (key) => key === this.admin,
+  };
+
+  /**
+   * `creator` — ключ создателя комнаты: он админ, пока сидит за столом.
+   * `rules` — РОД СТОЛА. По умолчанию песочница: стол, где разрешено всё.
+   */
   constructor(
     cards: { id: string; face: Face }[],
     private creator: string | null = null,
+    private desk: DeskRules = SANDBOX,
   ) {
     for (const card of cards) {
       this.faces.set(card.id, card.face);
@@ -409,6 +428,8 @@ export class Table {
       if (pile.spot.lock && pile.cards[pile.cards.length - 1] !== id) return { refused: "not-top" };
     }
     if (at.in === "hand" && this.closedTo(by, at.chair)) return { refused: "chair-locked" };
+    // ПРАВИЛА РОДА СТОЛА — последними: зона уже сказала своё, теперь слово игре (`rules.ts`).
+    if (!this.desk.mayTake(this.ask, id, at, by)) return { refused: "locked" };
     return { at };
   }
 
@@ -437,6 +458,7 @@ export class Table {
     const target = this.clean(to as Where);
     if (!target || target.in === "felt" || (target.in === "deck" && target.pile === id)) return { refused: "bad" };
     if (source.spot.pin || source.spot.shut || source.spot.seal) return { refused: "locked" };
+    if (!this.desk.mayGrip(this.ask, id, by)) return { refused: "locked" };
     if (source.cards.some((one) => (this.locks.has(one) && this.locks.get(one)!.by !== by) || (this.picks.has(one) && this.picks.get(one) !== by))) return { refused: "locked" };
     if (source.cards.length === 0) return { refused: "bad" };
     if (target.in === "hand" && this.closedTo(by, target.chair)) return { refused: "chair-locked" };
@@ -538,6 +560,8 @@ export class Table {
     if (!target) return { refused: "bad" };
     if (target.in === "hand" && this.closedTo(by, target.chair)) return { refused: "chair-locked" };
     const from = this.whereIs(id)!;
+    const refusal = this.ruleRefusal(by, id, target);
+    if (refusal) return { refused: refusal };
     const trail = this.trailOf(id, by, from, target.in, now);
     // СТОРОНА КАРТЫ. В руку — всегда лицом к хозяину. Команда кладёт, как сказано. Рука кладёт, как несла:
     // из руки — лицом, если его было видно в худе; с сукна и колоды — как лежала.
@@ -563,6 +587,39 @@ export class Table {
     // РУКА ПОКИНУТОГО СТУЛА ОПУСТЕЛА — правило стола решает, стоять ли ему дальше.
     if (from.in === "hand") ops.push(...this.sweepChair(this.chairs.get(from.chair)!));
     return { ops };
+  }
+
+  /**
+   * ЧТО СКАЖУТ ПРАВИЛА РОДА СТОЛА ПРО ЭТОТ БРОСОК — один разбор на все пути, которыми карта ложится.
+   *
+   * Три вопроса подряд: пускает ли зона (`mayDrop`), бьёт ли карта ту, что уже лежит (`mayCover`),
+   * и влезет ли она в руку (`handMax`). «Накрыть» спрашивается только там, где карта ДЕЙСТВИТЕЛЬНО
+   * ложится на другую: верхняя карта стопки и карта сукна под точкой броска.
+   */
+  private ruleRefusal(by: string, id: string, to: Where): Refusal | null {
+    if (!this.desk.mayDrop(this.ask, id, to, by)) return "locked";
+    const over = this.coveredBy(to);
+    if (over !== null && !this.desk.mayCover(this.ask, id, over, by)) return "locked";
+    if (to.in === "hand") {
+      const hand = this.chairs.get(to.chair)?.hand ?? [];
+      if (hand.length >= this.desk.handMax(this.ask, to.chair)) return "locked";
+    }
+    return null;
+  }
+
+  /** Какую карту накроет бросок сюда: верхнюю в стопке, ближайшую на сукне; в руку — никакую. */
+  private coveredBy(to: Where): string | null {
+    if (to.in === "deck") {
+      const pile = this.piles.get(to.pile);
+      return pile && pile.cards.length > 0 ? pile.cards[pile.cards.length - 1]! : null;
+    }
+    if (to.in !== "felt") return null;
+    let best: { id: string; d: number } | null = null;
+    for (const one of this.felt) {
+      const d = Math.hypot(one.x - to.x, one.y - to.y);
+      if (d <= FELT_OVERLAP && (!best || d < best.d)) best = { id: one.id, d };
+    }
+    return best ? best.id : null;
   }
 
   /**

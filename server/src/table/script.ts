@@ -10,7 +10,7 @@
 // ПОРЯДОК РАЗДАЧИ — по часовой, со следующего после раздающего; раздающему — последним. Поэтому при
 // раздаче всей колоды у раздающего карт не больше, чем у всех, а у следующего — не меньше.
 
-import { MAIN_PILE, PRESET_FACES, type DealRule, type DeckSize, type Face, type Game, type RunError, type Suit, type TableCommand, type TableRules, type Where } from "./contract.js";
+import { DEAL_PRESETS, GAME_PRESETS, MAIN_PILE, PRESET_FACES, type DealRule, type DeckSize, type Face, type Game, type RunError, type Suit, type TableCommand, type TableRules, type Where } from "./contract.js";
 import type { Table } from "./table.js";
 import { freeAngle, seatPoint } from "./ring.js";
 
@@ -87,8 +87,8 @@ function clockwise<T extends { id: string; angle: number }>(chairs: T[], from: s
   return [...sorted.slice(i), ...sorted.slice(0, i)];
 }
 
-/** Шестёрки на краю белки — их не собирает ни сборка, ни раздача. */
-function belkaSixes(table: Table): Set<string> {
+/** Шестёрки, лежащие по краю: их не собирает ни сборка, ни раздача (`DealPreset.sixesOut`). */
+function sixesAside(table: Table): Set<string> {
   return new Set(table.layout().felt.filter((f) => table.faceOf(f.id)?.rank === "6" && !f.under).map((f) => f.id));
 }
 
@@ -132,12 +132,14 @@ export function plan(table: Table, command: TableCommand, people: Who[], admin: 
 
 function presetPlan(table: Table, game: Game, size: DeckSize, jokers: boolean, people: Who[], admin: string): Plan {
   const steps: Step[] = [{ t: "rules", rules: { faces: PRESET_FACES[game] } }, ...collectSteps(table)];
-  const faces = game === "belka" ? deckOf(36, false) : deckOf(size, jokers);
+  // ЧТО ПРЕСЕТ ДЕЛАЕТ СО СТОЛОМ — из `GAME_PRESETS`; названий игр ниже нет.
+  const preset = GAME_PRESETS[game];
+  const faces = preset.deck ? deckOf(preset.deck.size, preset.deck.jokers) : deckOf(size, jokers);
   steps.push({ t: "restock", faces }, { t: "shuffle", ms: PACE.shuffle });
-  if (game !== "belka") return { steps, actor: "bot" };
+  if (!preset.cross) return { steps, actor: "bot" };
 
-  // БЕЛКА: четыре первых игрока по часовой от админа — крестом, 1 напротив 3, 2 напротив 4; остальные
-  // стулья — между ними. Шестёрки — на край.
+  // ЧЕТВЕРО КРЕСТОМ: первые четыре игрока по часовой от админа — 1 напротив 3, 2 напротив 4;
+  // остальные стулья — между ними.
   const at = table.layout();
   // Стул крупье — не игровой: он не садится в круг и карт себе не получает.
   const seated = at.chairs.filter((c) => !c.croupier && c.owner !== null && people.some((p) => p.key === c.owner));
@@ -153,7 +155,7 @@ function presetPlan(table: Table, game: Game, size: DeckSize, jokers: boolean, p
     steps.push({ t: "chair", id: c.id, angle: base + rel, ms: PACE.chair });
   }
   // Шестёрки — после перемешивания, по их лицам в новой колоде: план досчитает их, когда колода будет набрана.
-  steps.push(...sixesSteps(base));
+  if (preset.sixesRow) steps.push(...sixesSteps(base));
   return { steps, actor: "bot" };
 }
 
@@ -168,7 +170,9 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
   const dealer = findDealer(people, command.dealer, admin);
   if (!dealer) return { error: "no-dealer" };
   const rule: DealRule = command.rule;
-  const sixes = rule === "belka" ? belkaSixes(table) : new Set<string>();
+  // ВСЯ РАЗНИЦА МЕЖДУ ИГРАМИ — В ЭТИХ ПЯТИ ЧИСЛАХ (`DEAL_PRESETS`). Ниже названий игр уже нет.
+  const preset = DEAL_PRESETS[rule];
+  const sixes = preset.sixesOut ? sixesAside(table) : new Set<string>();
 
   const loose = at.felt.some((f) => !sixes.has(f.id)) || at.chairs.some((c) => c.hand.length > 0) || at.piles.some((p) => p.cards.length > 0);
 
@@ -186,24 +190,26 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
   const playable = at.chairs.filter((c) => !c.croupier);
   const anchor = dealer.seat ?? playable.find((c) => c.owner === admin)?.id ?? playable[0]?.id;
   if (!anchor) return { error: "not-enough-players" };
-  let chairs = playable.filter((c) => !(command.skipEmpty || rule === "belka") || (c.owner !== null && people.some((p) => p.key === c.owner)));
-  if (rule === "belka") {
+  let chairs = playable.filter((c) => !(command.skipEmpty || preset.skipEmpty) || (c.owner !== null && people.some((p) => p.key === c.owner)));
+  if (preset.seats > 0) {
     const around = clockwise(chairs, chairs.some((c) => c.id === anchor) ? anchor : (chairs[0]?.id ?? anchor));
-    chairs = around.slice(0, 4);
-    if (chairs.length < 4) return { error: "not-enough-players" };
+    chairs = around.slice(0, preset.seats);
+    if (chairs.length < preset.seats) return { error: "not-enough-players" };
   }
   if (chairs.length === 0) return { error: "not-enough-players" };
   // Со следующего после раздающего; раздающему — последним. Раздающий без стула в круге — просто с его места по часовой.
   const ring = clockwise([...chairs, ...playable.filter((c) => c.id === anchor && !chairs.includes(c))], anchor);
   const order = (ring[0]?.id === anchor ? [...ring.slice(1), ring[0]!] : ring).filter((c) => chairs.includes(c));
 
-  const n = rule === "each" ? Math.max(1, Math.floor(command.n ?? 1)) : rule === "durak" ? Math.max(1, Math.floor(command.n ?? 6)) : rule === "belka" ? 8 : 0;
-  const total = rule === "krest" ? deck : n * order.length + (rule === "durak" ? 1 : 0);
+  // «Всю колоду» раздают по кругу, пока карты не кончатся; иначе — по стольку каждому, и число
+  // можно спросить у человека ровно там, где пресет это позволяет.
+  const n = preset.each === "all" ? 0 : Math.max(1, Math.floor((preset.askable ? command.n : undefined) ?? preset.each));
+  const dealt = preset.each === "all" ? deck : n * order.length;
+  const total = dealt + (preset.trump ? 1 : 0);
   if (total === 0 || total > deck) return { error: "not-enough-cards" };
 
-  const dealt = rule === "krest" ? deck : n * order.length;
   for (let k = 0; k < dealt; k += 1) steps.push({ t: "move", id: "top", to: toHand(order[k % order.length]!.id), ms: PACE.deal });
-  if (rule === "durak") steps.push({ t: "move", id: "top", to: TRUMP, ms: PACE.lay });
+  if (preset.trump) steps.push({ t: "move", id: "top", to: TRUMP, ms: PACE.lay });
   return { steps, actor: command.asDealer ? dealer.key : "bot" };
 }
 
