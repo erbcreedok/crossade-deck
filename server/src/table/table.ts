@@ -135,6 +135,27 @@ export class Table {
       this.faces.set(card.id, card.face);
       this.main!.cards.push(card.id);
     }
+    // ЗОНЫ РОДА СТОЛА — из конфига, а не из кода. Чтобы на сукне появилось новое место, дописывают
+    // строку в `DeskRules.zones`; здесь ничего не меняется (`rules.law.test.ts` это стережёт).
+    for (const zone of this.desk.zones) {
+      this.piles.set(zone.id, {
+        spot: {
+          ...DEFAULT_SPOT,
+          below: [],
+          x: zone.x,
+          y: zone.y,
+          pose: zone.pose,
+          angle: zone.angle ?? 0,
+          forever: zone.forever ?? true,
+          lock: zone.lock ?? false,
+          shut: zone.shut ?? false,
+          seal: zone.seal ?? false,
+          pin: zone.pin ?? false,
+        },
+        cards: [],
+        shuffles: 0,
+      });
+    }
   }
 
   get version(): number {
