@@ -71,6 +71,7 @@ export function localStore(): TableStore {
     carries: [],
     eyes: [],
     watch: () => {},
+    command: () => {},
     voice: () => {},
     onVoice: () => {},
     mic: () => {},

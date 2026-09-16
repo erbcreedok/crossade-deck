@@ -19,6 +19,7 @@ import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.
 import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
 import { attach, creatorOf, openEntry, titleOf } from "./lobby.js";
+import { readCommand } from "./routes.js";
 import { roomIsSigned } from "./roomIds.js";
 import { Table } from "./table.js";
 
@@ -117,6 +118,14 @@ export class TableRoom extends Room {
       const spots = cleanWatch(raw);
       if (!me || !spots) return;
       if (this.eyes.look(me.key, spots, Date.now())) this.spreadEyes();
+    });
+
+    // КОМАНДА КНОПКОЙ — то же, что из бота: проверка админа внутри `run`, исполняет крупье или бот.
+    this.onMessage(MSG.command, (client, raw: unknown) => {
+      const me = this.personOf(client.sessionId);
+      const command = readCommand(raw);
+      if (!me || !command) return;
+      void this.run(me.key, command);
     });
 
     // МИКРОФОН ВКЛЮЧИЛСЯ — остальным: у них на его аватаре пульсирует микрофон. Отмена — тот же `off`.

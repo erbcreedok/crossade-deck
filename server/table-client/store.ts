@@ -4,7 +4,7 @@
 // (`localStore`, стенд). Он читает снимок, шлёт намерения и слушает, когда снимок сменился. Отказ
 // сервера приходит тем же путём: снимок снова тот, что был, — и экран просто рисует его.
 
-import type { Carry, CarryOut, Intent, Person, Refusal, Snapshot } from "../src/table/contract.js";
+import type { Carry, CarryOut, Intent, Person, Refusal, Snapshot, TableCommand } from "../src/table/contract.js";
 import type { Eye, Spot } from "../src/table/eyes.js";
 import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 
@@ -27,6 +27,8 @@ export interface TableStore {
   say(out: SayOut): void;
   /** Чужое слово пришло. */
   onSay(listener: (say: Say) => void): void;
+  /** Команда стола от админа — кнопкой, как из бота. */
+  command(command: TableCommand): void;
   /** Моё голосовое — остальным. Нигде не хранится. */
   voice(out: { ms: number; bytes: Uint8Array }): void;
   /** Чужое голосовое пришло. */

@@ -327,6 +327,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     tips: [] as string[],
     /** Открытый тултип стопки — id стопки. */
     deckTip: null as string | null,
+    /** Окно раздачи крупье: серия вопросов тому, кто нажал «Раздать». */
+    deal: null as null | { rule: "each" | "durak" | "krest" | "belka"; n: number; all: boolean; skipEmpty: boolean },
     /** Жест голосового: зажата кнопка 💬 — куда доехал палец и что с записью. */
     mic: null as null | { phase: "hold" | "recording" | "full"; x: number; y: number; rec: Recording | null; began: number },
     /** Лассо: инструмент, вид грэба и сторона сборки — живут, пока открыт экран. */
@@ -1334,6 +1336,54 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * Флаги — кнопками там, где их можно менять (свой стул, покинутый, любой — у админа), и значками
    * состояния там, где нельзя. У покинутого стула — ещё и «Сесть».
    */
+  /**
+   * ОКНО КРУПЬЕ. HUD не меняется ни у кого — вся разница здесь: админ видит кнопки («собрать», «колода на стол»,
+   * «раздать»), игрок — только то, что админ ему оставил, то есть состояние руки.
+   */
+  function croupierActsHtml(s: Snapshot, chair: Chair, box: { left: number; top: number; w: number; height: number }): string {
+    if (!chair.croupier || s.admin !== me()) return "";
+    const act = (what: string, label: string) =>
+      `<button data-croupier="${what}" style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
+      + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">${label}</button>`;
+    return `<div data-croupier-acts style="position:absolute;left:${box.left}px;top:${box.top + box.height + 8}px;width:${box.w}px;box-sizing:border-box;z-index:41;`
+      + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:10px;`
+      + `display:flex;flex-wrap:wrap;gap:6px">`
+      + act("collect", "Собрать карты") + act("shuffle", "Перемешать") + act("deal", "Раздать")
+      + act("remove", "Увести крупье") + `</div>`;
+  }
+
+  /**
+   * ОКНО РАЗДАЧИ — отдельным окном тому, кто нажал «Раздать» у крупье: пресет, по сколько карт и считать ли
+   * покинутые стулья. Раздаёт сам крупье: его курсор, его метки.
+   */
+  function dealHtml(): string {
+    const d = local.deal;
+    if (!d) return "";
+    const g = glass();
+    const w = Math.min(320, g.w - 32);
+    const chip = (on: boolean, data: string, label: string) =>
+      `<button ${data} aria-pressed="${on}" style="border:0;cursor:pointer;font:400 12px Tiny5,monospace;border-radius:8px;padding:7px 10px;`
+      + (on ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}` : `background:transparent;color:${T.ink};box-shadow:inset 0 0 0 2px ${T.wood}`)
+      + `">${label}</button>`;
+    const row = (title: string, inner: string) =>
+      `<div style="display:flex;flex-direction:column;gap:6px"><span style="font:400 11px Tiny5,monospace;color:${T.inkDim}">${title}</span>`
+      + `<div style="display:flex;flex-wrap:wrap;gap:6px">${inner}</div></div>`;
+    const rules: [typeof d.rule, string][] = [["each", "По N"], ["durak", "Дурак"], ["krest", "Крестовый"], ["belka", "Белка"]];
+    return `<div data-deal-panel role="dialog" aria-label="Раздача" style="position:absolute;left:${Math.round((g.w - w) / 2)}px;top:${Math.round(Math.max(24, g.h * 0.18))}px;width:${w}px;`
+      + `box-sizing:border-box;z-index:70;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 8px 0 rgba(11,7,4,.5);`
+      + `border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px">`
+      + `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="font:400 15px Tiny5,monospace;color:${T.ink}">Раздача</span>`
+      + `<button data-deal-shut style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim};background:transparent">Закрыть</button></div>`
+      + row("По пресету", rules.map(([r, label]) => chip(d.rule === r, `data-deal-rule="${r}"`, label)).join(""))
+      + (d.rule === "each" || d.rule === "durak"
+        ? row("Сколько карт", [1, 2, 3, 5, 6, 8, 10].map((n) => chip(!d.all && d.n === n, `data-deal-n="${n}"`, String(n))).join("") + chip(d.all, "data-deal-all", "Все по одной"))
+        : "")
+      + row("Кому", chip(!d.skipEmpty, "data-deal-empty", d.skipEmpty ? "Только сидящим" : "Всем стульям"))
+      + `<button data-deal-go style="border:0;cursor:pointer;font:400 13px Tiny5,monospace;border-radius:8px;padding:9px 10px;`
+      + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">Раздать</button>`
+      + `<span style="font:400 10px Tiny5,monospace;color:${T.inkDim}">Раздаёт крупье: его курсор и его метки. Себе не раздаёт.</span></div>`;
+  }
+
   function tipHtml(s: Snapshot, chair: Chair, spot: Spot): { shell: string; cards: string } {
     const cards = chair.hand;
     const sitter = sitterOf(s, chair);
@@ -1369,6 +1419,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
       + `<div style="display:flex;align-items:center;gap:6px;height:16px">`
       + `<span style="flex:1"></span>${flags}${poses}</div>`
+
       + `<div style="position:relative;height:${box.rowH}px"></div></div>`;
     // Карты веера — рядом с коробкой, не внутри: их вытаскивают на стол, и край не должен их резать.
     // СКРЫТЫ — рука за краем окна: видно и можно тянуть только то, что торчит.
@@ -1377,7 +1428,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         + `height:${box.top + box.height - 5 - (box.rowTop + 8 + box.ch * TIP_TUCK)}px;z-index:${42 + cards.length + gaps.length};background:${T.well};`
         + `border-radius:0 0 8px 8px;box-shadow:inset 0 3px 0 -1px ${T.black}"></div>`
       : "";
-    return { shell, cards: layHand(geom, cards, gaps, chair.id, heldByOthers(s), closed(s, chair.id)) + curtain };
+    return { shell: shell + croupierActsHtml(s, chair, box), cards: layHand(geom, cards, gaps, chair.id, heldByOthers(s), closed(s, chair.id)) + curtain };
   }
 
   /**
@@ -2035,11 +2086,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       piles: s.piles.map((p) => ({ id: p.id, ...pileSpots(s, p.id, "pile") })),
       turning: [...turns.keys()],
       mine: seat,
+      admin: s.admin,
+      me: me(),
       picks: s.picks ?? {},
       seatAngle: chairOf(s, seat)?.angle ?? null,
       seats: spots.map((sp) => {
         const c = chairOf(s, sp.key);
-        return { key: sp.key, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), chair: Math.round(SEAT_REACH * view!.k) };
+        return { key: sp.key, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, ...(c?.croupier ? { croupier: true } : {}), x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), chair: Math.round(SEAT_REACH * view!.k) };
       }),
     });
     local.tips = local.tips.filter((id) => id !== seat && chairOf(s, id) !== undefined);
@@ -2055,7 +2108,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       .filter((one): one is { chair: Chair; spot: Spot } => Boolean(one.spot))
       .map((one) => tipHtml(s, one.chair, one.spot));
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
-    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + settingsHtml();
+    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml();
     wire();
     airUnder.style.height = `${mineGeom(handOf(s, mine(s)).length).barTop}px`;
 
@@ -2877,6 +2930,45 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         else if ((RIGHTS as readonly string[]).includes(what)) return guessFlag(seat.id, what as ChairFlag, !seat[what as ChairFlag]);
         else if ((FOLDS as readonly string[]).includes(what)) return guessPose(seat.id, what as keyof Pose, !seat.pose[what as keyof Pose]);
         else return guessOrder(what as Arrange);
+        draw();
+      };
+    }
+    // КНОПКИ КРУПЬЕ — команда столу, как из бота; «раздать» открывает своё окно.
+    for (const el of over.querySelectorAll<HTMLElement>("[data-croupier]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const what = el.dataset.croupier;
+        if (what === "deal") local.deal = { rule: "each", n: 6, all: false, skipEmpty: false };
+        else if (what === "collect") store.command({ t: "collect" });
+        else if (what === "shuffle") store.command({ t: "shuffle" });
+        else if (what === "remove") store.command({ t: "croupier", on: false });
+        draw();
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-deal-panel] button")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const d = local.deal;
+        if (!d) return;
+        const { dealRule, dealN } = el.dataset;
+        if (el.dataset.dealShut !== undefined) local.deal = null;
+        else if (dealRule) d.rule = dealRule as typeof d.rule;
+        else if (dealN) {
+          d.n = Number(dealN);
+          d.all = false;
+        } else if (el.dataset.dealAll !== undefined) d.all = !d.all;
+        else if (el.dataset.dealEmpty !== undefined) d.skipEmpty = !d.skipEmpty;
+        else if (el.dataset.dealGo !== undefined) {
+          // «Все по одной» — это раздача по одной карте до конца колоды: правило `each` без числа.
+          store.command({
+            t: "deal",
+            rule: d.rule,
+            ...(d.rule === "each" || d.rule === "durak" ? (d.all ? { n: 1 } : { n: d.n }) : {}),
+            ...(d.skipEmpty ? { skipEmpty: true } : {}),
+            force: true,
+          });
+          local.deal = null;
+        }
         draw();
       };
     }
