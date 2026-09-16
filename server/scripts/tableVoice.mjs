@@ -184,6 +184,51 @@ check("…и речь наружу не идёт", (await live(A)).sent === afte
 await B.waitForTimeout(400);
 check("микрофон на чужом аватаре погас", (await B.$$eval("[data-mic-mark]", (els) => els.length)) === 0);
 
+// 5б. ДВА ОКНА ОДНОГО ЧЕЛОВЕКА — речь идёт в одно. Иначе он слышит её дважды со сдвигом, то есть с эхо,
+// и виноватым выглядит говорящий. Оба окна входят настоящей дверью Telegram, одним и тем же человеком.
+{
+  const initData = (() => {
+    const user = JSON.stringify({ id: 77, first_name: "Двойной" });
+    const fields = { auth_date: String(Math.floor(Date.now() / 1000)), query_id: "AA", user };
+    const sum = Object.keys(fields).sort().map((k) => `${k}=${fields[k]}`).join("\n");
+    const key = createHmac("sha256", "WebAppData").update("test").digest();
+    return new URLSearchParams({ ...fields, hash: createHmac("sha256", key).update(sum).digest("hex") }).toString();
+  })();
+  const twin = async () => {
+    const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await p.route("https://telegram.org/**", (r) => r.abort());
+    await p.addInitScript((data) => {
+      window.Telegram = {
+        WebApp: {
+          initData: data, initDataUnsafe: {}, platform: "ios", version: "8.0",
+          ready() {}, expand() {}, disableVerticalSwipes() {}, isVersionAtLeast: () => true,
+          onEvent() {}, SettingsButton: { show() {}, onClick() {} },
+          HapticFeedback: { impactOccurred() {}, notificationOccurred() {}, selectionChanged() {} },
+        },
+      };
+    }, initData);
+    await p.goto(`${base}/table/?room=${room}`);
+    await p.waitForSelector(".crossade-loading", { state: "detached" });
+    await p.waitForTimeout(500);
+    return p;
+  };
+  const old = await twin();
+  const now = await twin();
+  await A.waitForTimeout(500);
+  const sayA2 = await sayAt(A);
+  await A.mouse.move(sayA2.x, sayA2.y);
+  await A.mouse.down();
+  await A.mouse.move(195, 300, { steps: 6 });
+  await A.waitForTimeout(1500);
+  await A.mouse.up();
+  await A.waitForTimeout(500);
+  const heardNow = (await live(now)).played, heardOld = (await live(old)).played;
+  check("речь дошла до того окна, в котором человек сейчас", heardNow > 0, { heardNow, heardOld });
+  check("…и не двоится вторым его же окном", heardOld === 0, { heardNow, heardOld });
+  await old.close();
+  await now.close();
+}
+
 // 5. Тап по 💬 — по-прежнему клавиатура.
 await A.mouse.move(say.x, say.y);
 await A.mouse.down();

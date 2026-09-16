@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanLive, floatsOf, JITTER_MAX, JITTER_MIN, LATE, LiveTalk, samplesOf, schedule, LIVE_FRAMES_PER_SEC, LIVE_MAX_BYTES, LIVE_MAX_MS, LIVE_RATE, resample, shortsOf } from "./live.js";
+import { cleanLive, ear, floatsOf, JITTER_MAX, JITTER_MIN, LATE, LiveTalk, samplesOf, schedule, LIVE_FRAMES_PER_SEC, LIVE_MAX_BYTES, LIVE_MAX_MS, LIVE_RATE, resample, shortsOf } from "./live.js";
 
 const frame = (n = 320) => new Uint8Array(n);
 
@@ -126,5 +126,13 @@ describe("живой голос", () => {
     const out = schedule({ next: 99, jitter: JITTER_MAX }, 10, 0.12, true);
     expect(out.flush).toBe(true);
     expect(out.at).toBeCloseTo(10 + JITTER_MAX, 5);
+  });
+
+  it("одно ухо на человека — слушает последнее открытое окно", () => {
+    expect(ear(["s1"])).toBe("s1");
+    // Открыл стол заново, старое окно висит в фоне: говорим в новое.
+    expect(ear(["s1", "s2"])).toBe("s2");
+    expect(ear(["s1", "s2", "s3"])).toBe("s3");
+    expect(ear([])).toBeNull();
   });
 });

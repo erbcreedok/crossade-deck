@@ -13,7 +13,7 @@ import { tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
 import { MSG, type CarryOut, type Intent, type JoinOptions, type Op, type Person, type RunResult, type TableCommand, type Welcome } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
-import { cleanLive, LiveTalk, liveTally, type Live } from "./live.js";
+import { cleanLive, ear, LiveTalk, liveTally, type Live } from "./live.js";
 import { cleanMic, type Mic } from "./voice.js";
 import { execute, plan } from "./script.js";
 import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
@@ -158,11 +158,17 @@ export class TableRoom extends Room {
       if (!out) liveTally.bad += 1;
       if (!me?.seat || !out || !this.talk.take(me.key, Date.now())) return;
       const live: Live = { ...out, by: me.key };
+      // ОДНО УХО НА ЧЕЛОВЕКА: в остальные его окна речь не идёт, иначе он слышит её столько раз, сколько их.
+      const ears = new Map<string, string[]>();
       for (const other of this.clients) {
         const key = this.seats.get(other.sessionId);
         if (key === undefined || key === me.key) continue;
-        // ЛИЧНОЕ — только тому, на чей стул наведён микрофон: остальные этой речи не слышат.
         if (out.to !== undefined && key !== out.to) continue;
+        ears.set(key, [...(ears.get(key) ?? []), other.sessionId]);
+      }
+      const heard = new Set([...ears.values()].map((list) => ear(list)));
+      for (const other of this.clients) {
+        if (!heard.has(other.sessionId)) continue;
         liveTally.sent += 1;
         other.send(MSG.live, live);
       }
