@@ -24,6 +24,8 @@ export interface Seat {
   mine?: boolean;
   /** Место крупье — вне кольца стульев, дальше от сукна. */
   croupier?: boolean;
+  /** Его голосовое звучит сейчас: 0…1 — насколько громко. Аватар раздувается под звук. */
+  speaking?: number;
   cards: number;
   /** Карты руки по порядку, каким их видно на стуле: лицо — только у перевёрнутой. Щели — дальше, без карт. */
   hand?: { id: string; face?: Face }[];
@@ -50,6 +52,8 @@ export interface Spot {
   y: number;
   r: number;
   seat: Point;
+  /** Во сколько раз раздут аватар прямо сейчас: 1 — молчит, больше — звучит его голосовое. */
+  puff: number;
 }
 
 /** Где что легло, и как переводить между столом и стеклом — тем же взглядом, каким рисовали. */
@@ -570,12 +574,14 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     // ДИСК СТОИТ, А НЕ ЛЕЖИТ: ни поворот стола, ни наклон его не трогают — лицо смотрит на того, кто
     // глядит на стол (`Oriented: "viewer"` у кита). Ставится в точку стола, размером — по зуму.
     const at = toGlass(place.at);
+    // АВАТАР ДЫШИТ ПОД ГОЛОС: пока звучит его запись, диск раздувается по её громкости.
+    const puff = 1 + 0.3 * Math.max(0, Math.min(1, who.speaking ?? 0));
     if (sitter) {
-      g.setTransform(dpr * o.k, 0, 0, dpr * o.k, dpr * at.x, dpr * at.y);
+      g.setTransform(dpr * o.k * puff, 0, 0, dpr * o.k * puff, dpr * at.x, dpr * at.y);
       disc(g, sitter, images);
       desk();
     }
-    spots.push({ key: who.key, x: at.x, y: at.y, r: (DISC / 2) * o.k, seat: place.at });
+    spots.push({ key: who.key, x: at.x, y: at.y, r: (DISC / 2) * o.k * puff, seat: place.at, puff: +puff.toFixed(3) });
   });
 
   return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk, deckAt, feltAt };

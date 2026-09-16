@@ -108,6 +108,11 @@ const drop = await A.$$eval('[data-mic-drop="felt"]', (e) => e.map((x) => x.getB
 check("подсвечено круглое сукно, а не весь экран", drop[0] && drop[0].y > 40 && drop[0].bottom < 700 && drop[0].width <= 390, drop);
 await B.waitForTimeout(350);
 check("остальные видят микрофон на его аватаре", (await B.$$eval("[data-mic-mark]", (els) => els.length)) === 1);
+// Значок висит У САМОГО АВАТАРА, а не за стулом: его центр — в пределах диска.
+const markAt = await B.$eval("[data-mic-mark]", (el) => el.getBoundingClientRect().toJSON());
+const authorChair = (await spots(A)).mine;
+const author = ((await spots(B)).seats ?? []).find((sp) => sp.key === authorChair);
+check("микрофон — у аватара, а не за стулом", author && Math.hypot(markAt.x + markAt.width / 2 - author.x, markAt.y + markAt.height / 2 - author.y) <= author.r * 1.6, { markAt, author });
 
 // 3. Отпустил мимо сукна и стульев (на полосе руки) — отмена.
 await A.mouse.up();
@@ -127,6 +132,10 @@ check("бросок на сукно — запись отправлена", (awa
 check("подсветка убралась", (await A.$("[data-mic-drop]")) === null);
 check("шайбы под пальцем больше нет", (await A.$("[data-mic-puck]")) === null);
 
+// 4а. Пока запись ЗВУЧИТ, значка микрофона нет: дышит сам аватар.
+const talkingMarks = await B.$$eval("[data-mic-mark]", (els) => els.length);
+check("у звучащей записи значка микрофона нет", talkingMarks === 0, talkingMarks);
+
 // 4b. Бросок на чужой стул — голосовое личное: адресат его получает.
 const mineA = (await spots(A)).mine;
 const seatB = ((await spots(A)).seats ?? []).find((sp) => sp.key !== mineA);
@@ -140,12 +149,17 @@ if (seatB) {
   check("стул под пальцем подсвечен ярче", (await A.getAttribute(`[data-mic-drop="chair"][data-chair="${seatB.key}"]`, "data-on")) === "true");
   // ЛИЧНОЕ СЛЫШИТ ТОЛЬКО АДРЕСАТ. Запись короткая (меньше секунды), поэтому «говорит» ловим частыми
   // пробами сразу после броска, а не одним поздним взглядом.
+  // «Говорит» видно по дышащему аватару: кто звучит и с какой громкостью — в снимке холста.
   const talkSeen = async (p, ms = 1500) => {
+    let puffed = false;
     for (let t = 0; t < ms; t += 60) {
-      if ((await p.$$eval("[data-mic-mark]", (els) => els.filter((e) => e.dataset.talks === "true").length)) > 0) return true;
+      const now = await spots(p);
+      // Дышит ли аватар автора на самом деле — по применённому масштабу его диска.
+      const his = (now.seats ?? []).find((sp) => now.speaking && sp.key && sp.puff > 1);
+      if (now.speaking && his) puffed = true;
       await p.waitForTimeout(60);
     }
-    return false;
+    return puffed;
   };
   const mineB = (await spots(B)).mine;
   const heardBy = seatB.key === mineB ? B : C;

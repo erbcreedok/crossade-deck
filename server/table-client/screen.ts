@@ -1556,8 +1556,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   }
 
   /**
-   * ПИШЕТ ИЛИ ГОВОРИТ — значок над аватаром: микрофон пульсирует, пока человек пишет, и аватар раздувается
-   * под громкость, пока его запись звучит. Своё тоже видно: так понятно, что запись пошла.
+   * ПИШЕТ — микрофон у самого аватара, сбоку от него, и пульсирует, пока идёт запись. Отправленное
+   * голосовое значка не имеет вовсе: пока оно звучит, дышит сам аватар (`Seat.speaking`).
    */
   function micMarksHtml(s: Snapshot): string {
     if (!view) return "";
@@ -1565,19 +1565,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     for (const chair of s.chairs) {
       const owner = chair.owner;
       if (!owner) continue;
-      const writes = recording.has(owner);
-      const talks = voice.speaking === owner;
-      if (!writes && !talks) continue;
+      if (!recording.has(owner)) continue;
       const spot = spots.find((sp) => sp.key === chair.id);
       if (!spot) continue;
-      const at = view.toGlass(spot.seat);
-      const size = Math.max(16, Math.round(0.34 * view.k));
-      const scale = talks ? 1 + 0.35 * voice.loudness : 1;
+      const size = Math.max(16, Math.round(0.3 * view.k));
       const ink = inkOf(s, owner);
-      html += `<div data-mic-mark="${escape(owner)}" data-talks="${talks}" style="position:absolute;left:${Math.round(at.x)}px;top:${Math.round(at.y - SEAT_REACH * view.k * view.squash - 10)}px;`
-        + `transform:translate(-50%,-100%) scale(${scale.toFixed(3)});z-index:27;pointer-events:none;width:${size}px;height:${size}px;border-radius:50%;`
+      // У САМОГО АВАТАРА: верхний правый край диска, как значок на плече, а не флажок за стулом.
+      const left = Math.round(spot.x + spot.r * 0.72);
+      const top = Math.round(spot.y - spot.r * 0.72);
+      html += `<div data-mic-mark="${escape(owner)}" data-talks="false" style="position:absolute;left:${left}px;top:${top}px;`
+        + `transform:translate(-50%,-50%);z-index:27;pointer-events:none;width:${size}px;height:${size}px;border-radius:50%;`
         + `display:flex;align-items:center;justify-content:center;background:${ink};box-shadow:inset 0 0 0 2px ${T.black};`
-        + (writes && !motion.reduce ? "animation:mic-pulse 900ms ease-in-out infinite;" : "")
+        + (motion.reduce ? "" : "animation:mic-pulse 900ms ease-in-out infinite;")
         + `"><svg viewBox="0 0 24 24" width="${Math.round(size * 0.62)}" height="${Math.round(size * 0.62)}" fill="none" stroke="${T.black}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GLYPH.mic}</svg></div>`;
     }
     return html;
@@ -1885,7 +1884,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const at = pile && gripAt(s, pile.id);
     if (!pile || !at || !view) return null;
     const k = view.k;
-    const spot: Spot = { key: `deck:${pile.id}`, x: at.x, y: at.y - (FELT_CARD.h / 2) * k * view.squash, r: (FELT_CARD.h / 2) * k * view.squash, seat: pile };
+    const spot: Spot = { key: `deck:${pile.id}`, x: at.x, y: at.y - (FELT_CARD.h / 2) * k * view.squash, r: (FELT_CARD.h / 2) * k * view.squash, seat: pile, puff: 1 };
     const box = tipBox(spot, [...placedTips.values()]);
     const plan = handPlan({ fan: true, shrink: false, tuck: false }, count, 1, 1.4, box.inner / box.cw);
     return { pile, box, slots: plan.map((p) => ({ x: box.left + 12 + box.inner / 2 + p.x * box.cw, y: box.rowTop + 8 + box.ch / 2 + p.y * box.cw, angle: p.angle })) };
@@ -2099,6 +2098,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         angle: c.angle,
         mine: c.id === seat,
         ...(c.croupier ? { croupier: true } : {}),
+        ...(sitter && voice.speaking === sitter.key ? { speaking: voice.loudness } : {}),
         // Своя рука — внизу, на стекле; в своём стуле карт не рисуем.
         pose: c.pose,
         cards: c.id === seat ? 0 : c.hand.filter((card) => !flying.has(card.id)).length + gapsIn(s, c.id).filter((gap) => gap.carry).length,
@@ -2137,13 +2137,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       piles: s.piles.map((p) => ({ id: p.id, ...pileSpots(s, p.id, "pile") })),
       turning: [...turns.keys()],
       mine: seat,
+      // Кто сейчас звучит и насколько громко дышит его аватар — прогон жестов читает это отсюда.
+      speaking: voice.speaking,
+      loudness: +voice.loudness.toFixed(2),
       admin: s.admin,
       me: me(),
       picks: s.picks ?? {},
       seatAngle: chairOf(s, seat)?.angle ?? null,
       seats: spots.map((sp) => {
         const c = chairOf(s, sp.key);
-        return { key: sp.key, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, ...(c?.croupier ? { croupier: true } : {}), x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), chair: Math.round(SEAT_REACH * view!.k) };
+        return { key: sp.key, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, ...(c?.croupier ? { croupier: true } : {}), x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), puff: sp.puff, chair: Math.round(SEAT_REACH * view!.k) };
       }),
     });
     local.tips = local.tips.filter((id) => id !== seat && chairOf(s, id) !== undefined);
@@ -3349,7 +3352,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     + "@keyframes bar-out{from{opacity:1;transform:none}to{opacity:0;transform:translateY(70%) scale(.6)}}"
     + "@media (prefers-reduced-motion:reduce){[data-bar],[data-section]{animation:none!important}}"
     + "@keyframes mic-drop{0%,100%{opacity:.75}50%{opacity:1}}"
-    + "@keyframes mic-pulse{0%,100%{transform:translate(-50%,-100%) scale(1)}50%{transform:translate(-50%,-100%) scale(1.18)}}"
+    + "@keyframes mic-pulse{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.18)}}"
     + "@keyframes eye-in{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}"
     + "@media (prefers-reduced-motion:reduce){[data-bar],[data-section],[data-eye]{animation:none!important}}"
     + ":root[data-reduce-motion] [data-bar],:root[data-reduce-motion] [data-section],:root[data-reduce-motion] [data-eye]{animation:none!important}";

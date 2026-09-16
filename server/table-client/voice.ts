@@ -4,7 +4,7 @@
 // на всех: два голосовых, пришедшие разом, звучат по очереди, а не кашей. Громкость своего голоса тише чужого
 // (`sound.voiceGain`), место — стул автора, как у звуков стола.
 
-import { VOICE_MAX_MS } from "../src/table/voice.js";
+import { bytesOf, VOICE_MAX_MS } from "../src/table/voice.js";
 import type { TableSound } from "./sound.js";
 
 export interface VoiceClip {
@@ -72,12 +72,24 @@ export function tableVoice(sound: TableSound): TableVoice {
       void next();
     };
     if (!ac) {
-      // Слушать нечем или голосовые выключены — запись всё равно «проходит» очередь: пульс у всех одинаковый.
+      // Слушать нечем или голосовые выключены — запись всё равно «проходит» очередь: аватар дышит у всех
+      // одинаково, просто ровным ритмом вместо настоящей громкости.
+      const from = performance.now();
+      const beat = () => {
+        if (!playing) return;
+        loudness = 0.45 + 0.35 * Math.abs(Math.sin((performance.now() - from) / 140));
+        tell();
+        requestAnimationFrame(beat);
+      };
+      requestAnimationFrame(beat);
       setTimeout(done, one.clip.ms);
       return;
     }
     try {
-      const copy = one.clip.bytes.slice();
+      // Байты с сервера приезжают обычным объектом, а не `Uint8Array` — без этого запись не разбиралась.
+      const bytes = bytesOf(one.clip.bytes);
+      if (!bytes) throw new Error("не те байты");
+      const copy = bytes.slice();
       const buf = await ac.decodeAudioData(copy.buffer as ArrayBuffer);
       const src = ac.createBufferSource();
       src.buffer = buf;
@@ -117,6 +129,15 @@ export function tableVoice(sound: TableSound): TableVoice {
       src.start();
       requestAnimationFrame(pulse);
     } catch {
+      // Запись не разобралась (чужой формат) — пусть хотя бы аватар отработает её длительность.
+      const from = performance.now();
+      const beat = () => {
+        if (!playing) return;
+        loudness = 0.45 + 0.35 * Math.abs(Math.sin((performance.now() - from) / 140));
+        tell();
+        requestAnimationFrame(beat);
+      };
+      requestAnimationFrame(beat);
       setTimeout(done, one.clip.ms);
     }
   }

@@ -36,7 +36,7 @@ export interface Mic extends MicOut {
  * БАЙТЫ ИЗ СЕТИ. Colyseus кладёт их в сообщение как обычный объект с числовыми ключами (`{0:1,1:2,…}`),
  * а не как `Uint8Array` — поэтому одной проверки `instanceof` мало, и запись молча пропадала.
  */
-const bytesOf = (raw: unknown): Uint8Array | null => {
+export const bytesOf = (raw: unknown): Uint8Array | null => {
   if (raw instanceof Uint8Array) return raw;
   if (raw instanceof ArrayBuffer) return new Uint8Array(raw);
   if (Array.isArray(raw) && raw.every((n) => typeof n === "number")) return Uint8Array.from(raw);
