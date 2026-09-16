@@ -122,10 +122,13 @@ check(`тап по своему аватару при нормальной ка�
 check("окно своего стула при этом не открылось", (await p.evaluate(() => document.querySelectorAll("[data-shut]").length)) === 0, null);
 
 // ── 7. Свой аватар: камера ушла — нормализует ────────────────────────────────────────────────────
-await orbit(140, 0);
+// Поворот НЕБОЛЬШОЙ: при зуме по умолчанию стол крупный, и сильный поворот уводит собственный
+// аватар за край кадра — тогда тапать становится нечего, и проверка мерила бы промах, а не закон.
+await orbit(60, 0);
 v = await view();
 check("камера ушла от стула", Math.abs(v.rotation) > 10, v);
 const seat2 = (await spots()).seats.find((s) => s.who === "A");
+check("свой аватар остался в кадре", seat2.x > 0 && seat2.x < 390 && seat2.y > 0 && seat2.y < 844, seat2);
 await p.mouse.click(seat2.x, seat2.y);
 await wait(700);
 v = await view();

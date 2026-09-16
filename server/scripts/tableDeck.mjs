@@ -98,7 +98,19 @@ const g1 = await p.evaluate(() => ({ pos: document.querySelector("[data-g=ground
 check("фон: цвет сукна хаба и плитка трилистника", g0 && g0.color === "rgb(23, 61, 45)" && g0.image.startsWith('url("data:image/svg+xml'), g0);
 check("фон: трилистники и ромбики ползут", g0 && g0.pos !== g1.pos && g0.spark !== g1.spark, [g0, g1]);
 check("фон: ромбики приглушены и мерцают", g0 && g1.opacity > 0.25 && g1.opacity <= 0.55 && g0.opacity !== g1.opacity, [g0?.opacity, g1.opacity]);
+// Стол при входе занимает почти весь кадр (зум считается от читаемости карты, а не от «сколько
+// влезло»), поэтому свободный от сукна угол надо сперва СДЕЛАТЬ: отъезжаем до упора, смотрим на
+// пиксель и возвращаем вид обратно, чтобы дальше мерить то же, что и всегда.
+await p.keyboard.down("Control");
+await p.mouse.move(195, 300);
+for (let i = 0; i < 8; i += 1) await p.mouse.wheel(0, 900);
+await p.keyboard.up("Control");
+await wait(600);
 check("холст вокруг стола прозрачный — фон виден", (await canvasAt(4, 4)).a === 0, await canvasAt(4, 4));
+await p.keyboard.down("Control");
+for (let i = 0; i < 8; i += 1) await p.mouse.wheel(0, -900);
+await p.keyboard.up("Control");
+await wait(600);
 
 // ── 2. По умолчанию: рубашка — плед (светлая), лица — классика ────────────────────────────────────
 const m = (await spots()).middle;

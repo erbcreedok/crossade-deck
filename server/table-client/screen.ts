@@ -8,7 +8,7 @@
 import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type Pile, type GatherSide, MAIN_PILE, DEFAULT_SPOT, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
-import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
+import { CARD as FELT_CARD, HAND_SCALE, R, RIM, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { LEAN_STEP, orbits, tableCamera } from "./camera.js";
 import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.js";
 import { tableHaptic, type Haptic } from "./haptic.js";
@@ -61,6 +61,36 @@ const TIP_TUCK = 0.28;
 const CARRY_CLEAR = 0.32;
 const HAND_ROOM = 0.6 / 4 + 0.06;
 const HUD_UNIT_FRACTION = 0.25;
+/**
+ * ПОТОЛОК ЕДИНИЦЫ HUD, в пикселях — та, что выходит на айфоне в портрете, плюс запас под мышь.
+ *
+ * Единица считается от МЕНЬШЕЙ стороны кадра. На телефоне меньшая — ширина (390), и кнопка выходит
+ * ~58px, как задумано. На широком экране меньшая — высота, а она там большая: без потолка кнопка
+ * раздувается до полутора сотен, а рука от той же единицы съедает низ кадра. Потолок — единственное
+ * место, где это чинится: всё, что осталось по высоте, достаётся столу.
+ */
+const HUD_UNIT_MAX = Math.round(390 * HUD_UNIT_FRACTION * 1.15);
+/**
+ * ТА ЖЕ ЕДИНИЦА, ВЫРАЖЕННАЯ ДОЛЕЙ ВЫСОТЫ КАДРА — потому что HUD и рука съедают именно ВЫСОТУ.
+ *
+ * На айфоне в портрете (390×844) единица — четверть ширины, то есть 0.1155 высоты. В ландшафте
+ * ширина огромна, а высоты 390: четверть ширины оставила бы столу полоску. Доля высоты — то же
+ * самое число, сказанное в единицах того, чего не хватает.
+ */
+const HUD_HEIGHT_SHARE = (390 * HUD_UNIT_FRACTION) / 844;
+/**
+ * МАКСИМАЛЬНАЯ ШИРИНА ПОЛОСЫ РУКИ, в пикселях — около полутора ширин телефона.
+ *
+ * Рука не тянется во всю ширину десктопа: она стоит посередине, а боковые поля — не остаток, а
+ * осознанный запас под будущие фичи широких экранов.
+ */
+const HAND_MAX_PX = 585;
+/**
+ * НАЧАЛЬНЫЙ ЗУМ МЕРЯЕТСЯ ЧИТАЕМОСТЬЮ КАРТЫ, А НЕ ДОЛЕЙ КАДРА: карта на сукне чуть мельче карты в
+ * руке. Это соотношение двух размеров, которые человек видит одновременно, — единственное мерило,
+ * которое не врёт ни на телефоне, ни на экране во всю стену.
+ */
+const FELT_TO_HAND = 0.85;
 const CARD = { w: 1, h: 1.4 };
 
 /** Флаги стула в нижнем HUD и в окне стула — одни и те же кнопки, одни и те же значки. */
@@ -462,7 +492,24 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (key === seenFrame) return;
     seenFrame = key;
     cam.control.refresh();
+    if (!zoomed) {
+      zoomed = true;
+      cam.camera.setZoom(firstZoom());
+    }
   };
+  /** Зум подбирается ОДИН раз, на первом настоящем кадре: дальше масштаб — дело рук человека. */
+  let zoomed = false;
+  /**
+   * КАКОЙ ЗУМ ПОКАЗАТЬ ПРИ ПЕРВОМ ВХОДЕ — тот, при котором карта на сукне составляет `FELT_TO_HAND`
+   * от карты в своей руке. Единица сукна при зуме 1 — та же, что у камеры (`unit` в `camera.ts`).
+   */
+  function firstZoom(): number {
+    // Ширину карты в руке спрашиваем у самой руки, а не пересчитываем: вторая формула разошлась бы молча.
+    const hand = mineGeom(HUD_CARDS).w;
+    const oneFelt = Math.min(lastFrame.w, lastFrame.h) / 2 / (R + RIM);
+    if (oneFelt <= 0 || hand <= 0) return 1;
+    return (FELT_TO_HAND * hand) / (FELT_CARD.w * oneFelt);
+  }
 
   // ── ЧТО ПОКАЗЫВАТЬ ─────────────────────────────────────────────────────────────────────────
 
@@ -779,7 +826,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   // ── ГЕОМЕТРИЯ ───────────────────────────────────────────────────────────────────────────────
 
   const glass = () => ({ w: stage.clientWidth, h: stage.clientHeight });
-  const hudUnit = () => Math.max(1, Math.round(Math.min(glass().w, glass().h) * HUD_UNIT_FRACTION));
+  const hudUnit = () => {
+    const g = glass();
+    return Math.max(1, Math.round(Math.min(HUD_UNIT_MAX, Math.min(g.w, g.h) * HUD_UNIT_FRACTION, g.h * HUD_HEIGHT_SHARE)));
+  };
+  /** Во сколько пикселей укладывается полоса руки: на телефоне — весь кадр, на широком — контейнер по центру. */
+  const handWide = () => Math.min(glass().w, HAND_MAX_PX);
   const barHeight = () => BAR.size + 2 * BAR.pad;
 
   /** ГДЕ СТОИТ КАЖДАЯ КАРТА РУКИ НА СТЕКЛЕ — на дуге, если веер, и в ряд, если нет. */
@@ -817,9 +869,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   function handBox(count: number) {
     const u = hudUnit();
     const g = glass();
-    const room = g.w / u - 2 * HUD_MARGIN;
+    const room = handWide() / u - 2 * HUD_MARGIN;
     const scale = Math.min(1, room / (HUD_CARDS * CARD.w * (1 + HUD_GAP)));
-    const wide = Math.max(1, g.w / u / scale);
+    const wide = Math.max(1, handWide() / u / scale);
     const pose = poseNow(mine());
     const plan = handPlan(pose, count, CARD.w, CARD.h, wide);
     const drop = plan.reduce((m, p) => Math.max(m, p.y), 0);
