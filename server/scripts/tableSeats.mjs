@@ -53,8 +53,8 @@ check("A положил карту ниже колоды у себя", onA && on
 check("у B та же карта выше колоды — он сидит напротив", onB && onB.y < mb.y - 40, [onB, mb]);
 check("и у B она лежит повёрнутой, как у A ровно", onB && Math.abs(turnOf((await view(B))[3] + onB.angle - 180)) < 2, [onB, await view(B)]);
 
-// ── 3. Кнопка «к своему стулу»: нет, пока камера на месте; появилась после поворота; вернула ─────
-check("кнопки нет, пока камера у своего стула", (await A.locator("[data-home]").count()) === 0, null);
+// ── 3. Компас-кольцо: висит всегда, поворачивается с камерой, тапом возвращает к своему стулу ────
+check("компас на месте и пока камера у своего стула", (await A.locator("[data-home]").count()) === 1, null);
 await A.keyboard.down("Control");
 await A.mouse.move(80, 200);
 await A.mouse.down();
@@ -63,12 +63,12 @@ await A.mouse.up();
 await A.keyboard.up("Control");
 await A.waitForTimeout(200);
 const turned = await view(A);
-check("после поворота и наклона кнопка появилась", (await A.locator("[data-home]").count()) === 1 && Math.abs(turned[3] - (await spots(A)).seatAngle) > 10, turned);
+check("после поворота и наклона компас на месте", (await A.locator("[data-home]").count()) === 1 && Math.abs(turned[3] - (await spots(A)).seatAngle) > 10, turned);
 await A.locator("[data-home]").dispatchEvent("pointerdown");
 await A.waitForTimeout(900);
 const home = await view(A);
 check("кнопка вернула поворот к стулу и сняла наклон", Math.abs(turnOf(home[3] - (await spots(A)).seatAngle)) < 1 && home[4] < 0.5, home);
-check("и сама пропала", (await A.locator("[data-home]").count()) === 0, null);
+check("и осталась на месте: компас нужен и когда возвращаться уже не надо", (await A.locator("[data-home]").count()) === 1, null);
 
 // ── 4. Высота стопок: колода растёт вверх при наклоне, разбег — к правому верху при любом повороте ───
 const flatTop = (await spots(A)).deckTop;

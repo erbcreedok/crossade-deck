@@ -14,8 +14,19 @@ import { TILT_PER_PX, wireCamera, type CameraControl } from "../../game-kit/src/
 import type { Host } from "../../game-kit/src/render/host.js";
 import { DESK_BOX, R, RIM } from "./felt.js";
 
-/** Те же пределы, что у стола кита (`DESK_ZOOM` в `liveTable.ts`). */
-const DESK_ZOOM: CameraLimits = { minZoom: 0.5, maxZoom: 2.5 };
+/**
+ * ПОТОЛОК НАКЛОНА РУКАМИ — 60°, выше стокового китового сорокапятиградусного.
+ *
+ * Кнопка кладёт стол ровно на 45° (`LEAN_STEP`): это вид «из-за стула», дальше — дело пальцев.
+ * Потолок и шаг — разные числа именно поэтому: максимум остаётся человеку, а не кнопке.
+ */
+const MAX_LEAN = 60;
+
+/** На сколько кладёт стол одно нажатие кнопки наклона. */
+export const LEAN_STEP = 45;
+
+/** Те же пределы, что у стола кита (`DESK_ZOOM` в `liveTable.ts`), с нашим потолком наклона. */
+const DESK_ZOOM: CameraLimits = { minZoom: 0.5, maxZoom: 2.5, maxPitch: MAX_LEAN };
 
 export interface TableCamera {
   readonly camera: Camera;
