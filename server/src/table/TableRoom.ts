@@ -163,6 +163,12 @@ export class TableRoom extends Room {
       if ("steps" in steps) for (const step of steps.steps) if (step.t === "rules") this.spread(this.table.setRules(step.rules));
       return { ok: true };
     }
+    // КРУПЬЕ — не ход, а состав стола: садится и уходит сразу, даже посреди раздачи он не нужен как ход.
+    if (command.t === "croupier") {
+      const who = await botPerson(tableConfig().botToken);
+      this.spread(command.on ? this.table.seatCroupier({ ...who, ink: this.freeInk() }) : this.table.removeCroupier());
+      return { ok: true };
+    }
     if (this.table.busy) return { error: "busy" };
     const bot = await botPerson(tableConfig().botToken);
     if (!this.table.here.some((p) => p.key === BOT_KEY)) {

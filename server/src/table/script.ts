@@ -115,6 +115,9 @@ export function plan(table: Table, command: TableCommand, people: Who[], admin: 
   switch (command.t) {
     case "collect":
       return { steps: collectSteps(table), actor: "bot" };
+    // Крупье исполняет комната сама: он не ход, а состав стола.
+    case "croupier":
+      return { error: "bad" };
     case "shuffle":
       if (at.felt.length > 0 || at.chairs.some((c) => c.hand.length > 0) || at.piles.some((p) => p.cards.length > 0)) return { error: "needs-collect" };
       return { steps: [{ t: "shuffle", ms: PACE.shuffle }], actor: "bot" };

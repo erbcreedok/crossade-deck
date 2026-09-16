@@ -43,6 +43,7 @@ export function readCommand(raw: unknown): TableCommand | null {
   const c = raw as Record<string, unknown> | undefined;
   if (!c || typeof c.t !== "string") return null;
   if (c.t === "collect" || c.t === "shuffle") return { t: c.t };
+  if (c.t === "croupier" && typeof c.on === "boolean") return { t: "croupier", on: c.on };
   const game = (g: unknown) => (g === "durak" || g === "krest" || g === "belka" ? g : null);
   if (c.t === "preset") {
     const g = game(c.game);

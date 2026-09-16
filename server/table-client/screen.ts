@@ -1996,6 +1996,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         key: c.id,
         angle: c.angle,
         mine: c.id === seat,
+        ...(c.croupier ? { croupier: true } : {}),
         // Своя рука — внизу, на стекле; в своём стуле карт не рисуем.
         pose: c.pose,
         cards: c.id === seat ? 0 : c.hand.filter((card) => !flying.has(card.id)).length + gapsIn(s, c.id).filter((gap) => gap.carry).length,

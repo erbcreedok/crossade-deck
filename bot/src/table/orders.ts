@@ -13,7 +13,7 @@
 import { CARD_BACKS, CARD_FACES, type CardBack, type CardFaces, type DealRule, type Game, type RoomCard, type RunError, type TableCommand } from "../../../server/src/table/contract.js";
 import type { Button, Said } from "./talk.js";
 
-export const ORDER_COMMANDS = ["collect", "shuffle", "durak", "krest", "belka", "deal", "deck"] as const;
+export const ORDER_COMMANDS = ["collect", "shuffle", "durak", "krest", "belka", "deal", "deck", "croupier"] as const;
 
 /** Имена вида колоды словами — в кнопках и в ответе бота. */
 export const FACES_SAY: Record<CardFaces, string> = { classic: "Классика", minimal: "Минимал" };
@@ -25,6 +25,11 @@ export function parseOrder(name: OrderName, args: string): TableCommand | null {
   const words = args.trim().split(/\s+/).filter(Boolean).map((w) => w.toLowerCase());
   const has = (...flags: string[]) => words.some((w) => flags.includes(w.replace(/^-+/, "")));
   if (name === "collect" || name === "shuffle") return words.length === 0 ? { t: name } : null;
+  // КРУПЬЕ: без слов — посадить, «убрать» / «off» — увести. Убранный роняет карты на стол.
+  if (name === "croupier") {
+    if (words.length === 0) return { t: "croupier", on: true };
+    return has("убрать", "off", "нет", "no") ? { t: "croupier", on: false } : null;
+  }
   if (name === "deck") {
     const faces = CARD_FACES.find((f) => words.includes(f));
     const back = CARD_BACKS.find((b) => words.includes(b));
@@ -68,6 +73,7 @@ export const ORDERS_HELP = [
   "/krest [36|52] [jokers] — колода под крестовый",
   "/belka — белка: 36, стулья крестом, шестёрки на край",
   "/deal N|durak|krest|belka [@кто раздаёт] [-skip-empty] [-as-dealer] [-force]",
+  "/croupier [убрать] — посадить крупье за стол или увести его (его карты лягут стопкой на стол)",
   "/deck [classic|minimal] [plaid|argyle|club|lattice|crest|ink] — вид колоды на весь стол (или кнопками в /menu)",
 ].join("\n");
 
@@ -131,6 +137,10 @@ export function started(command: TableCommand, title: string): string {
       return `Собираю карты в колоду — «${title}».`;
     case "shuffle":
       return `Перемешиваю — «${title}».`;
+    case "croupier":
+      return command.on
+        ? `Крупье сел за «${title}» — со своим местом и своей рукой.`
+        : `Крупье ушёл из «${title}»; его карты легли стопкой на стол.`;
     case "preset":
       return command.game === "belka"
         ? `Пресет «белка» на «${title}»: 36 карт, стулья крестом, шестёрки на край.`

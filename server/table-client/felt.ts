@@ -6,7 +6,7 @@
 
 import { apply, invert, type Transform } from "../../game-kit/src/core/transform.js";
 import type { Face } from "../src/table/contract.js";
-import { seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
+import { CROUPIER_RADIUS, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
 
 export interface Pose {
   fan: boolean;
@@ -22,6 +22,8 @@ export interface Seat {
   name?: string;
   ink?: string;
   mine?: boolean;
+  /** Место крупье — вне кольца стульев, дальше от сукна. */
+  croupier?: boolean;
   cards: number;
   /** Карты руки по порядку, каким их видно на стуле: лицо — только у перевёрнутой. Щели — дальше, без карт. */
   hand?: { id: string; face?: Face }[];
@@ -546,7 +548,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
 
   const spots: Spot[] = [];
   people.forEach((who) => {
-    const place = { at: seatPoint(who.angle, SEAT_RADIUS), facing: who.angle };
+    const place = { at: seatPoint(who.angle, who.croupier ? CROUPIER_RADIUS : SEAT_RADIUS), facing: who.angle };
     g.save();
     g.translate(place.at.x, place.at.y);
     // СТУЛ ПОВЁРНУТ ЛИЦОМ К СТОЛУ; угол со знаком минус — места считаются от шести часов к +x.

@@ -49,7 +49,7 @@ import {
   CARD_FACES,
 } from "./contract.js";
 import { arranged, samePack, shuffled } from "./arrange.js";
-import { freeAngle, seatPoint } from "./ring.js";
+import { CROUPIER_ANGLE, freeAngle, seatPoint } from "./ring.js";
 
 /** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
 export const FELT_REACH = 8 - 0.86;
@@ -69,6 +69,7 @@ interface ChairRow {
   lock: boolean;
   hide: boolean;
   forever: boolean;
+  croupier?: true;
   pose: HandPose;
   hand: string[];
 }
@@ -152,6 +153,56 @@ export class Table {
     ops.push({ t: "join", person: seated }, { t: "chair", chair: this.chairOut(chair) });
     if (this.admin !== wasAdmin) ops.push({ t: "admin", key: this.admin });
     return this.commit(ops);
+  }
+
+  /**
+   * КРУПЬЕ САДИТСЯ. Он один на комнату: это бот стола, но со своим местом вне кольца и своей рукой.
+   * Рука открыта, без замка и принимает карты — пока админ не решит иначе.
+   */
+  seatCroupier(person: Person): Op[] {
+    const had = this.croupierChair();
+    if (had) return [];
+    this.seq += 1;
+    const chair: ChairRow = {
+      id: `c${this.seq}`,
+      angle: CROUPIER_ANGLE,
+      owner: person.key,
+      last: person.key,
+      lock: false,
+      hide: false,
+      forever: true,
+      croupier: true,
+      pose: { ...DEFAULT_POSE },
+      hand: [],
+    };
+    this.chairs.set(chair.id, chair);
+    const seated = { ...person, bot: true as const, seat: chair.id };
+    this.people.set(person.key, seated);
+    this.names.set(person.key, person.name);
+    return this.commit([{ t: "join", person: seated }, { t: "chair", chair: this.chairOut(chair) }]);
+  }
+
+  /** Крупье уходит: его карты падают на стол новой закрытой стопкой, как у любого убранного стула. */
+  removeCroupier(): Op[] {
+    const chair = this.croupierChair();
+    if (!chair) return [];
+    const who = chair.owner;
+    const ops = this.removeChair(chair);
+    if (who !== null) {
+      this.people.delete(who);
+      ops.push({ t: "leave", key: who });
+    }
+    return this.commit(ops);
+  }
+
+  /** Стул крупье, если он в комнате. */
+  croupierChair(): ChairRow | undefined {
+    return [...this.chairs.values()].find((c) => c.croupier);
+  }
+
+  /** Есть ли крупье за столом. */
+  get hasCroupier(): boolean {
+    return this.croupierChair() !== undefined;
   }
 
   /** Бот стола садится за стол без стула: он только ходит по командам. */

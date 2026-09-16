@@ -184,6 +184,8 @@ export type Arrange = "suit" | "rank" | "reverse" | "shuffle";
 
 export interface Chair extends ChairFlags {
   id: string;
+  /** Стул крупье: стоит вне кольца, места игрока не занимает, и играть с него нельзя. */
+  croupier?: true;
   /** Место за столом — угол в градусах от своей стороны (шесть часов), по часовой. */
   angle: number;
   /** Кто сидит. `null` — стул покинут. */
@@ -440,6 +442,8 @@ export type DealRule = "each" | Game;
 
 export type TableCommand =
   | { t: "collect" }
+  /** Посадить крупье или убрать его. Убранный роняет свои карты на стол закрытой стопкой. */
+  | { t: "croupier"; on: boolean }
   | { t: "shuffle" }
   /** Белка — всегда 36 и без джокеров; `size`/`jokers` у неё игнорируются. */
   | { t: "preset"; game: Game; size?: DeckSize; jokers?: boolean }

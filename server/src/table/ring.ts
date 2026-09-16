@@ -35,6 +35,11 @@ export function ringOrder(levels = 8): number[] {
 /** Первый угол по порядку пиццы, на котором ещё нет стула. */
 export const freeAngle = (taken: readonly number[]): number => ringOrder().find((a) => !taken.includes(a)) ?? 0;
 
+/** Крупье сидит ВНЕ кольца: дальше от сукна, чтобы его место не путали со стулом игрока. */
+export const CROUPIER_RADIUS = SEAT_RADIUS * 1.5;
+/** Его угол — своя сторона напротив: он один, и место у него всегда одно. */
+export const CROUPIER_ANGLE = 180;
+
 /** Середина места на столе — те же оси, что у сукна: +y к своей стороне, вниз экрана. */
 export function seatPoint(angle: number, radius = SEAT_RADIUS): { x: number; y: number } {
   const t = (angle * Math.PI) / 180;
