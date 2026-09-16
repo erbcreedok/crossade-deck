@@ -30,6 +30,10 @@ export interface TableVoice {
   start(): Promise<Recording | null>;
   /** Поставить пришедшее в очередь; играется, когда дойдёт черёд. */
   play(clip: VoiceClip, where: () => { x: number; z: number }, mine: boolean): void;
+  /** Пока говорю сам — чужое ждёт: свой микрофон слышит комнату, и чужой голос в ней звучал бы через кашу. */
+  hold(on: boolean): void;
+  /** Сколько записей ждёт конца моей речи. */
+  readonly waiting: number;
   /** Что-то изменилось: кто говорит или насколько громко. */
   onChange(fn: () => void): void;
 }
@@ -41,6 +45,7 @@ export function tableVoice(sound: TableSound): TableVoice {
   };
   const queue: { clip: VoiceClip; where: () => { x: number; z: number }; mine: boolean }[] = [];
   let playing = false;
+  let held = false;
   let speaking: string | null = null;
   let loudness = 0;
   let ctx: AudioContext | null = null;
@@ -55,7 +60,7 @@ export function tableVoice(sound: TableSound): TableVoice {
   };
 
   async function next(): Promise<void> {
-    if (playing) return;
+    if (playing || held) return;
     const one = queue.shift();
     if (!one) {
       speaking = null;
@@ -196,6 +201,16 @@ export function tableVoice(sound: TableSound): TableVoice {
     play(clip, where, mine) {
       queue.push({ clip, where, mine });
       void next();
+    },
+    hold(on) {
+      if (held === on) return;
+      held = on;
+      // Отпустили — копившееся играется тем же порядком, в каком пришло: очередь одна и та же.
+      if (!on) void next();
+      tell();
+    },
+    get waiting() {
+      return queue.length;
     },
     onChange: (fn) => void listeners.push(fn),
   };

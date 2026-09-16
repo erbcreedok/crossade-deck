@@ -54,6 +54,8 @@ export interface Spot {
   seat: Point;
   /** Во сколько раз раздут аватар прямо сейчас: 1 — молчит, больше — звучит его голосовое. */
   puff: number;
+  /** Кольца, что расходятся от говорящего: радиусы на стекле, от молодого к старому. Молчит — пусто. */
+  rings: number[];
   /** Подпись с именем на стекле: она не дышит вместе с кружком, и прогон жестов это проверяет. */
   plate?: { x: number; y: number; w: number; h: number };
 }
@@ -307,6 +309,23 @@ function initials(name: string): string {
     .map((part) => [...part][0])
     .join("")
     .toUpperCase();
+}
+
+/** Сколько колец в воздухе разом и как долго живёт каждое. */
+const RING_LIVES_MS = 1400, RINGS = 3;
+
+/**
+ * КОЛЬЦА ГОЛОСА — расходятся от аватара, пока он говорит. Возраст каждого считается от общих часов, а не от
+ * начала речи: кадр стола перерисовывается когда попало, и кольцо, привязанное к кадрам, дёргалось бы.
+ * Радиус — от края раздутого кружка наружу; список идёт от молодого кольца к старому.
+ */
+function voiceRings(puff: number, now: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < RINGS; i += 1) {
+    const age = ((now + (i * RING_LIVES_MS) / RINGS) % RING_LIVES_MS) / RING_LIVES_MS;
+    out.push((DISC / 2) * puff + age * DISC * 0.9);
+  }
+  return out;
 }
 
 /** `puff` — во сколько раз раздут КРУЖОК: подпись с именем стоит на месте и не прыгает вместе с ним. */
@@ -583,8 +602,18 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     // АВАТАР ДЫШИТ ПОД ГОЛОС: пока звучит его запись, кружок раздувается по её громкости — заметно,
     // но подпись с именем при этом стоит на месте (масштаб живёт внутри `disc`).
     const puff = 1 + 0.55 * Math.max(0, Math.min(1, who.speaking ?? 0));
+    const rings = who.speaking ? voiceRings(puff, performance.now()) : [];
     if (sitter) {
       g.setTransform(dpr * o.k, 0, 0, dpr * o.k, dpr * at.x, dpr * at.y);
+      // Кольца идут ПОД аватаром: он их источник, а не то, что ими перечёркнуто.
+      for (const r of rings) {
+        const life = Math.max(0, Math.min(1, (r - (DISC / 2) * puff) / (DISC * 0.9)));
+        g.beginPath();
+        g.arc(0, 0, r, 0, Math.PI * 2);
+        g.lineWidth = DISC_LINE * (1 - life) * 1.6;
+        g.strokeStyle = `rgba(255,255,255,${(0.5 * (1 - life)).toFixed(3)})`;
+        g.stroke();
+      }
       disc(g, sitter, images, puff);
       desk();
     }
@@ -597,6 +626,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       r: (DISC / 2) * o.k * puff,
       seat: place.at,
       puff: +puff.toFixed(3),
+      rings: rings.map((r) => +(r * o.k).toFixed(1)),
       ...(sitter ? { plate: { x: at.x - plateW / 2, y: at.y + PLATE.at * o.k - plateH / 2, w: plateW, h: plateH } } : {}),
     });
   });

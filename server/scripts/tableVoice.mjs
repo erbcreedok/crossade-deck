@@ -6,6 +6,7 @@ import { createHmac, randomBytes } from "crypto";
 import { createRequire } from "module";
 const require = createRequire(process.env.PW_FROM ?? import.meta.url);
 const { chromium } = require("playwright");
+const { VOICE_WINDOW_MS } = await import("../src/table/voice.js").catch(() => ({ VOICE_WINDOW_MS: 20_000 }));
 
 const base = process.argv[2] ?? "http://localhost:2599";
 const secret = process.argv[3] ?? "dev";
@@ -258,6 +259,68 @@ if (seatB) {
   check("заглушённый голос у заглушившего не звучит", !atC);
   check("…а у остальных звучит", atA);
   await C.click("[data-voice-mute]");
+}
+
+// 4d. ПОКА ГОВОРЮ САМ — чужое ждёт. C держит микрофон, A в это время бросает голосовое на сукно: B слышит его
+// сразу (значит, запись точно ушла), C — нет, пока пишет, и та же запись звучит у него, как только он отпустил.
+// Ждём окно лимита: у A запас записей вышел, а молчание не дошедшей записи ничего бы не доказало.
+{
+  await A.waitForTimeout(VOICE_WINDOW_MS + 500);
+  const keyA = (await spots(A)).me;
+  const sayC = await sayAt(C);
+  await C.mouse.move(sayC.x, sayC.y);
+  await C.mouse.down();
+  await C.waitForTimeout(1300);
+  const sayA = await sayAt(A);
+  await A.mouse.move(sayA.x, sayA.y);
+  await A.mouse.down();
+  await A.waitForTimeout(1300);
+  await A.mouse.move(195, 300, { steps: 6 });
+  await A.mouse.up();
+  let heardWhileTalking = false, elsewhere = false;
+  for (let t = 0; t < 1600; t += 60) {
+    if ((await spots(C)).speaking === keyA) heardWhileTalking = true;
+    if ((await spots(B)).speaking === keyA) elsewhere = true;
+    await C.waitForTimeout(60);
+  }
+  // Без этого проверка пуста: не дошедшую запись «не слышно» и без всякой очереди.
+  check("запись дошла до тех, кто не пишет сам", elsewhere, keyA);
+  check("пока мой микрофон открыт, чужое не звучит", !heardWhileTalking);
+  await C.mouse.move(195, 300, { steps: 6 });
+  await C.mouse.up();
+  let heardAfter = false;
+  for (let t = 0; t < 3000; t += 60) {
+    if ((await spots(C)).speaking === keyA) { heardAfter = true; break; }
+    await C.waitForTimeout(60);
+  }
+  check("отпустил — отложенное зазвучало, а не пропало", heardAfter);
+}
+
+// 4e. ГОВОРЯЩИЙ ИСПУСКАЕТ КОЛЬЦА: они расходятся от аватара, пока звучит его запись, и пропадают в тишине.
+{
+  const sayB = await sayAt(B);
+  await B.mouse.move(sayB.x, sayB.y);
+  await B.mouse.down();
+  await B.waitForTimeout(1300);
+  await B.mouse.move(195, 300, { steps: 6 });
+  await B.mouse.up();
+  let widest = null, narrowest = null, count = 0;
+  for (let t = 0; t < 2500; t += 60) {
+    const now = await spots(A);
+    const live = (now.seats ?? []).filter((sp) => (sp.rings ?? []).length > 0);
+    if (now.speaking && live.length) {
+      count = Math.max(count, live[0].rings.length);
+      const outer = Math.max(...live[0].rings);
+      widest = widest === null ? outer : Math.max(widest, outer);
+      narrowest = narrowest === null ? outer : Math.min(narrowest, outer);
+    }
+    await A.waitForTimeout(60);
+  }
+  check("у говорящего расходятся кольца", count >= 2, count);
+  check("…и они именно расходятся, а не стоят", widest !== null && widest - narrowest > 4, { widest, narrowest });
+  await A.waitForTimeout(700);
+  const quiet = await spots(A);
+  check("в тишине колец нет", !quiet.speaking && (quiet.seats ?? []).every((sp) => (sp.rings ?? []).length === 0), quiet.speaking);
 }
 
 // 5. Тап по 💬 — по-прежнему клавиатура.

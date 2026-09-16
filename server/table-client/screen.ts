@@ -1226,12 +1226,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (!local.mic) return void rec?.cancel();
     if (!rec) {
       // Микрофона нет или не дали — жест кончается ничем, как отмена.
+      voice.hold(false);
       local.mic = null;
       draw();
       return;
     }
     local.mic.rec = rec;
     local.mic.began = performance.now();
+    // МОЙ МИКРОФОН ОТКРЫТ — чужое молчит: иначе он запишет чужой голос из динамика, и оба будут кашей.
+    voice.hold(true);
     recording.add(me());
     store.mic(true);
     draw();
@@ -1274,6 +1277,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
           haptic.buzz("success");
         }
       } else m.rec.cancel();
+      // Своё уже в очереди — чужое пойдёт за ним, ничего не потеряно.
+      voice.hold(false);
     }
     if (tap) talk.toggle();
     draw();
@@ -1909,7 +1914,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const at = pile && gripAt(s, pile.id);
     if (!pile || !at || !view) return null;
     const k = view.k;
-    const spot: Spot = { key: `deck:${pile.id}`, x: at.x, y: at.y - (FELT_CARD.h / 2) * k * view.squash, r: (FELT_CARD.h / 2) * k * view.squash, seat: pile, puff: 1 };
+    const spot: Spot = { key: `deck:${pile.id}`, x: at.x, y: at.y - (FELT_CARD.h / 2) * k * view.squash, r: (FELT_CARD.h / 2) * k * view.squash, seat: pile, puff: 1, rings: [] };
     const box = tipBox(spot, [...placedTips.values()]);
     const plan = handPlan({ fan: true, shrink: false, tuck: false }, count, 1, 1.4, box.inner / box.cw);
     return { pile, box, slots: plan.map((p) => ({ x: box.left + 12 + box.inner / 2 + p.x * box.cw, y: box.rowTop + 8 + box.ch / 2 + p.y * box.cw, angle: p.angle })) };
@@ -2171,7 +2176,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       seatAngle: chairOf(s, seat)?.angle ?? null,
       seats: spots.map((sp) => {
         const c = chairOf(s, sp.key);
-        return { key: sp.key, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, ...(c?.croupier ? { croupier: true } : {}), x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), puff: sp.puff, ...(sp.plate ? { plate: sp.plate } : {}), chair: Math.round(SEAT_REACH * view!.k) };
+        return { key: sp.key, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, ...(c?.croupier ? { croupier: true } : {}), x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), puff: sp.puff, rings: sp.rings, ...(sp.plate ? { plate: sp.plate } : {}), chair: Math.round(SEAT_REACH * view!.k) };
       }),
     });
     local.tips = local.tips.filter((id) => id !== seat && chairOf(s, id) !== undefined);
