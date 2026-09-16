@@ -6,8 +6,8 @@
 
 import type { Snapshot } from "./contract.js";
 
-/** `out` — карта из руки на сукно. */
-export const CUE_KINDS = ["drop", "hand", "out", "turn", "gather", "merge", "shuffle"] as const;
+/** `out` — карта из руки на сукно, `sort` — карту переставили внутри своей же руки. */
+export const CUE_KINDS = ["drop", "hand", "out", "turn", "gather", "merge", "shuffle", "sort"] as const;
 export type CueKind = (typeof CUE_KINDS)[number];
 
 export type CueAt = { felt: { x: number; y: number } } | { pile: string } | { chair: string };
@@ -80,6 +80,17 @@ export function cuesBetween(prev: Snapshot, next: Snapshot, known: ReadonlyMap<s
   for (const p of next.piles) {
     const before = placed.get(p.id);
     if (before && (before.x !== p.x || before.y !== p.y)) say("drop", { pile: p.id });
+  }
+
+  // КАРТУ ПЕРЕСТАВИЛИ ВНУТРИ РУКИ — состав тот же, порядок другой. Ушла карта или пришла — это уже сказано
+  // выше («в руку» или «на сукно»), и второй раз рука не звучит.
+  const hands = new Map(prev.chairs.map((c) => [c.id, c.hand.map((k) => k.id)]));
+  for (const ch of next.chairs) {
+    const before = hands.get(ch.id);
+    const after = ch.hand.map((k) => k.id);
+    if (!before || before.length !== after.length) continue;
+    const same = [...before].sort().join() === [...after].sort().join();
+    if (same && before.join() !== after.join()) say("sort", { chair: ch.id });
   }
 
   const shuffles = new Map(prev.piles.map((p) => [p.id, p.shuffles]));

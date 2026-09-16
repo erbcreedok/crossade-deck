@@ -9,11 +9,11 @@
 import type { CueKind } from "../src/table/cues.js";
 import { HOST } from "./host.js";
 
-// Файлы: drop — card-place-1, turn — card-place-2, hand — card-slide-1, merge — card-fan-1, shuffle — card-shuffle,
-// gather — card-shove-1/2/4.
-const FILES = { drop: 1, hand: 1, turn: 1, gather: 3, merge: 1, shuffle: 1 } as const;
-/** Какой файл на какой повод: в руку — стук (place-1), из руки на сукно — скольжение (slide-1). */
-export const SOUND_OF: Record<CueKind, keyof typeof FILES> = { drop: "drop", hand: "drop", out: "hand", turn: "turn", gather: "gather", merge: "merge", shuffle: "shuffle" };
+// Файлы: drop — card-place-1, turn — card-place-2, sort — card-place-4, hand — card-slide-1, merge — card-fan-1,
+// shuffle — card-shuffle, gather — card-shove-1/2/4.
+const FILES = { drop: 1, hand: 1, turn: 1, gather: 3, merge: 1, shuffle: 1, sort: 1 } as const;
+/** Какой файл на какой повод: в руку — стук (place-1), из руки на сукно — скольжение (slide-1), перестановка в руке — place-4. */
+export const SOUND_OF: Record<CueKind, keyof typeof FILES> = { drop: "drop", hand: "drop", out: "hand", turn: "turn", gather: "gather", merge: "merge", shuffle: "shuffle", sort: "sort" };
 /** Громкость своего и чужого. */
 export const GAIN = { mine: 1, other: 0.6 } as const;
 /** Голосовые: своё — фоном, чужое — в полный голос. */

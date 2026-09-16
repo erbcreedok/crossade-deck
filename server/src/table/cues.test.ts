@@ -27,6 +27,16 @@ describe("звуковые поводы", () => {
     expect(cuesBetween(snap({}), snap({ felt: [felt("a", 1, 2, true)] }), known)).toEqual([{ kind: "turn", at: { felt: { x: 1, y: 2 } } }]);
   });
 
+  it("карту переставили внутри руки — перестановка; тот же порядок — тишина", () => {
+    const was = snap({ chairs: [chair("me", ["a", "b", "c"])] });
+    expect(cuesBetween(was, snap({ chairs: [chair("me", ["b", "a", "c"])] }))).toEqual([{ kind: "sort", at: { chair: "me" } }]);
+    expect(cuesBetween(was, snap({ chairs: [chair("me", ["a", "b", "c"])] }))).toEqual([]);
+    // Карта ушла из руки на сукно — это вынос, а не перестановка: рука не звучит дважды.
+    const out = cuesBetween(was, snap({ chairs: [chair("me", ["a", "b"])], felt: [felt("c", 1, 1)] }));
+    expect(out.some((c) => c.kind === "sort")).toBe(false);
+    expect(out).toEqual([{ kind: "out", at: { felt: { x: 1, y: 1 } } }]);
+  });
+
   it("карту передвинули по сукну — тоже стук", () => {
     expect(cuesBetween(snap({ felt: [felt("a")] }), snap({ felt: [felt("a", 1, 1)] }))).toEqual([{ kind: "drop", at: { felt: { x: 1, y: 1 } } }]);
   });

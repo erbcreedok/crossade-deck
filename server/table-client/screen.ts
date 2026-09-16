@@ -198,7 +198,7 @@ declare const __TABLE_BUILD__: string | undefined;
 /** Номер сборки стола — подставляет сервер, собирая клиент. */
 const TABLE_BUILD = typeof __TABLE_BUILD__ === "string" ? __TABLE_BUILD__ : "dev";
 /** Вибрация на перемену стола. */
-const CUE_HAPTIC: Record<Exclude<CueKind, "shuffle">, Haptic> = { drop: "soft", turn: "rigid", hand: "light", out: "soft", merge: "medium", gather: "medium" };
+const CUE_HAPTIC: Record<Exclude<CueKind, "shuffle">, Haptic> = { drop: "soft", turn: "rigid", hand: "light", out: "soft", sort: "light", merge: "medium", gather: "medium" };
 const SHUFFLE_TICK_MS = 120;
 
 /** Сколько догадка ждёт ответа сервера, прежде чем уступить столу. */

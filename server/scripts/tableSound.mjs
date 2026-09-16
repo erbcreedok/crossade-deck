@@ -82,6 +82,35 @@ check("B слышит карту в чужую руку, тише", bHand && bHa
   check("A: из руки на стол — скольжение slide-1, не стук", out && out.file === "hand" && !a.some((s) => s.kind === "drop"), a);
 }
 
+// 3в. A переставляет карты внутри своей руки — place-4, и это не стук и не вынос.
+{
+  await drag(A, (await spots(A)).deckTop, { x: 195, y: 790 });
+  await A.waitForTimeout(700);
+  await drag(A, (await spots(A)).deckTop, { x: 195, y: 790 });
+  await A.waitForTimeout(900);
+  const inHand = await A.evaluate(() => document.querySelectorAll("[data-card][data-owner]:not([data-owner=deck])").length);
+  if (inHand < 2) {
+    check("в руке A две карты — есть что переставлять", false, inHand);
+    for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));
+    await browser.close();
+    process.exit(1);
+  }
+  await heard(A);
+  await heard(B);
+  await A.click('[data-section=order]');
+  await A.waitForTimeout(200);
+  await A.click('[data-bar=reverse]');
+  await A.waitForTimeout(1000);
+  a = await heard(A);
+  b = await heard(B);
+  const sort = a.find((s) => s.kind === "sort");
+  check("A: перестановка в руке — звук place-4", sort && sort.file === "sort" && sort.gain === 1, a);
+  check("перестановка — не стук и не вынос", !a.some((s) => s.kind === "drop" || s.kind === "out"), a);
+  check("B слышит чужую перестановку тише", b.some((s) => s.kind === "sort" && s.gain < 1), b);
+  await A.click('[data-section=order]');
+  await A.waitForTimeout(200);
+}
+
 // 4. Звук выключен — плеер молчит.
 await A.click("[data-settings]");
 await A.waitForTimeout(200);
@@ -178,7 +207,7 @@ a = await heard(A);
 b = await heard(B);
 check("шафл слышат оба, обрыв с концом веера (1300 + 7×18 мс)", b.some((s) => s.kind === "shuffle" && s.cutMs === 1426) && a.some((s) => s.kind === "shuffle" && s.cutMs === 1426), { a, b });
 const served = await B.evaluate(() => [...new Set(performance.getEntriesByType("resource").map((r) => new URL(r.name).pathname).filter((n) => n.startsWith("/table/sounds/")))].sort());
-check("грузятся только выбранные записи", served.join() === ["drop-1", "gather-1", "gather-2", "gather-3", "hand-1", "merge-1", "shuffle-1", "turn-1"].map((n) => `/table/sounds/${n}.m4a`).join(), served);
+check("грузятся только выбранные записи", served.join() === ["drop-1", "gather-1", "gather-2", "gather-3", "hand-1", "merge-1", "shuffle-1", "sort-1", "turn-1"].map((n) => `/table/sounds/${n}.m4a`).join(), served);
 
 // КЛАВИША PLAY/PAUSE не должна гасить стол: усыплённый не нами контекст просыпается сам.
 const audio = await A.evaluate(async () => {
