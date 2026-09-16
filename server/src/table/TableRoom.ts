@@ -13,7 +13,7 @@ import { tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
 import { MSG, type CarryOut, type Intent, type JoinOptions, type Op, type Person, type RunResult, type TableCommand, type Welcome } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
-import { cleanLive, LiveTalk, type Live } from "./live.js";
+import { cleanLive, LiveTalk, liveTally, type Live } from "./live.js";
 import { cleanMic, type Mic } from "./voice.js";
 import { execute, plan } from "./script.js";
 import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
@@ -153,6 +153,9 @@ export class TableRoom extends Room {
     this.onMessage(MSG.live, (client, raw: unknown) => {
       const me = this.personOf(client.sessionId);
       const out = cleanLive(raw);
+      liveTally.got += 1;
+      liveTally.last = Date.now();
+      if (!out) liveTally.bad += 1;
       if (!me?.seat || !out || !this.talk.take(me.key, Date.now())) return;
       const live: Live = { ...out, by: me.key };
       for (const other of this.clients) {
@@ -160,6 +163,7 @@ export class TableRoom extends Room {
         if (key === undefined || key === me.key) continue;
         // ЛИЧНОЕ — только тому, на чей стул наведён микрофон: остальные этой речи не слышат.
         if (out.to !== undefined && key !== out.to) continue;
+        liveTally.sent += 1;
         other.send(MSG.live, live);
       }
     });

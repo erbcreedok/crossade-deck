@@ -109,6 +109,14 @@ check("увёл с зоны — речь встала", (await live(A)).sent ===
 await B.waitForTimeout(500);
 check("микрофон на аватаре погас", (await B.$$eval("[data-mic-mark]", (els) => els.length)) === 0);
 
+// 3а. СЧЁТ НА СЕРВЕРЕ — им и разбирают обрыв, когда речи не слышно: дошло, разобрано, разослано.
+{
+  const tally = await (await fetch(`${base}/health`)).json().then((h) => h.live);
+  check("сервер считает дошедшие куски", tally && tally.got > 0, tally);
+  check("…и все они разбираются", tally && tally.bad === 0, tally);
+  check("…и рассылаются дальше", tally && tally.sent > 0, tally);
+}
+
 // 4а. НАВЁЛ НА СВОЙ СТУЛ — это не зона: себе говорить незачем, и речь наружу не идёт.
 {
   const my = ((await spots(A)).seats ?? []).find((sp) => sp.key === mineChair);
@@ -125,9 +133,11 @@ check("микрофон на аватаре погас", (await B.$$eval("[data-
   const keyB = (await spots(B)).me;
   const chairB = (await spots(B)).mine;
   const seatB = seats.find((sp) => sp.key === chairB);
-  const heardB = await settled(B), heardC = await settled(C);
   await A.mouse.move(seatB.x, seatB.y, { steps: 6 });
   await A.waitForTimeout(200);
+  // Замер — ПОСЛЕ наводки: по пути к стулу палец пересекает сукно, и кусок, сказанный над ним, честно
+  // уходит всем. Личное начинается там, где микрофон встал на стул.
+  const heardB = await settled(B), heardC = await settled(C);
   check("подсказка называет, кто слышит", /слышит/i.test((await A.textContent("[data-mic-hint]")) ?? ""), await A.textContent("[data-mic-hint]"));
   check("речь адресована ему", (await live(A)).to === keyB, { to: (await live(A)).to, keyB });
   await A.waitForTimeout(900);
