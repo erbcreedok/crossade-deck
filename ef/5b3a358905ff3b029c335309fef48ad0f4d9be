@@ -1,0 +1,21 @@
+server/scripts/tableEyes.mjs
+  s_9ed0da107cbc4a::t_0fdd6c897f54c0 85-104
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_c2e9abc2663162 826-835,839,867
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ef5b3a358905ff3b029c335309fef48ad0f4d9be",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
