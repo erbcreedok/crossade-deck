@@ -114,6 +114,45 @@ export const shortsOf = (floats: Float32Array): Uint8Array => {
   return out;
 };
 
+/** Сколько речи копим, прежде чем открыть рот, и докуда растём, если сеть рвёт. */
+export const JITTER_MIN = 0.18, JITTER_MAX = 0.6;
+/** Очередь длиннее — мы отстали безнадёжно: бросаем поставленное и начинаем с «сейчас». */
+export const LATE = 0.9;
+
+export interface Mouth {
+  /** Время, на которое поставлен следующий кусок, в часах звукового потока. */
+  next: number;
+  /** Сколько сейчас копим: растёт, когда речь рвётся, и не падает обратно до конца речи. */
+  jitter: number;
+}
+
+/**
+ * КУДА ПОСТАВИТЬ КУСОК. Куски приходят неровно, и вся слышимость держится на этом расчёте:
+ *
+ * — кусок встаёт ВПЛОТНУЮ за прошлым, иначе на стыке щелчок;
+ * — речь кончилась и началась заново (`fresh`) — копим заново;
+ * — прошлый уже отзвучал, а новый только пришёл (`next <= now`) — это дыра: копим ДОЛЬШЕ, чтобы не рваться
+ *   на каждом чихе сети, до `JITTER_MAX`;
+ * — очередь разрослась больше `LATE` — мы безнадёжно отстали; тогда `flush`: поставленное впрок надо СНЯТЬ,
+ *   а не просто переставить часы. Без снятия старые куски продолжают звучать поверх новых — это и слышно
+ *   как эхо и наложение.
+ */
+export function schedule(was: Mouth, now: number, dur: number, fresh = false): { at: number; flush: boolean; mouth: Mouth } {
+  let { next, jitter } = was;
+  let flush = false;
+  if (fresh) {
+    flush = true;
+    next = now + jitter;
+  } else if (next <= now) {
+    jitter = Math.min(JITTER_MAX, jitter * 1.5);
+    next = now + jitter;
+  } else if (next > now + LATE) {
+    flush = true;
+    next = now + jitter;
+  }
+  return { at: next, flush, mouth: { next: next + dur, jitter } };
+}
+
 /**
  * ОТСЧЁТЫ ИЗ СЕТИ — единственная дверь на приёме. Colyseus кладёт байты обычным объектом с числовыми
  * ключами, а не `Uint8Array`: у такого нет ни `buffer`, ни `byteOffset`, и разбор молча падал. Той же

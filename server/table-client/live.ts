@@ -7,13 +7,8 @@
 // кусок ставится в очередь СВОЕГО говорящего и звучит ровно там, где кончился прошлый, — а пока копится
 // `JITTER_MS`, не звучит вовсе. Отстал больше, чем на `LATE_MS`, — догоняем, а не тянем хвост.
 
-import { LIVE_FRAME, LIVE_FRAME_MS, LIVE_RATE, resample, samplesOf, shortsOf } from "../src/table/live.js";
+import { JITTER_MIN, LIVE_FRAME, LIVE_FRAME_MS, LIVE_RATE, resample, samplesOf, schedule, shortsOf } from "../src/table/live.js";
 import { holdAudio, type TableSound } from "./sound.js";
-
-/** Сколько речи копим, прежде чем открыть рот: меньше — быстрее, но слышны дыры. */
-const JITTER_MS = 180;
-/** Отстали от живого больше — бросаем накопленное и начинаем с сейчас. */
-const LATE_MS = 900;
 
 /** Почему живой голос не пошёл — это видно человеку, а не только в журнале. */
 export type LiveFail = "no-mic" | "denied" | "no-worklet" | "no-audio";
@@ -72,7 +67,7 @@ export function tableLive(sound: TableSound, host = ""): TableLive {
   let seq = 0;
 
   // ЧУЖИЕ ГОЛОСА — по очереди на каждого: у кого своя нить времени.
-  const mouths = new Map<string, { next: number; gain: GainNode; meter: AnalyserNode; alive: number }>();
+  const mouths = new Map<string, { next: number; jitter: number; gain: GainNode; meter: AnalyserNode; alive: number; pending: Set<AudioBufferSourceNode> }>();
   let speaking: string | null = null;
   let loudness = 0;
 
@@ -80,7 +75,7 @@ export function tableLive(sound: TableSound, host = ""): TableLive {
     let loud = 0, who: string | null = null;
     const now = audio()?.currentTime ?? 0;
     for (const [by, mouth] of mouths) {
-      if (mouth.next < now - 0.1 && mouth.alive < now) {
+      if (mouth.next < now - 0.4 && mouth.alive < now) {
         mouth.gain.disconnect();
         mouths.delete(by);
         continue;
@@ -203,19 +198,31 @@ export function tableLive(sound: TableSound, host = ""): TableLive {
           } else pan.setPosition(px, 0, pz);
           chain.connect(pan).connect(ac.destination);
         } else chain.connect(ac.destination);
-        mouth = { next: ac.currentTime + JITTER_MS / 1000, gain: vol, meter, alive: 0 };
+        mouth = { next: 0, jitter: JITTER_MIN, gain: vol, meter, alive: 0, pending: new Set() };
         mouths.set(clip.by, mouth);
         if (mouths.size === 1) requestAnimationFrame(watch);
       }
-      // Отстали — бросаем накопленное отставание и говорим с «сейчас», иначе хвост растёт и не сходится.
-      if (mouth.next < ac.currentTime || mouth.next > ac.currentTime + LATE_MS / 1000) {
-        mouth.next = ac.currentTime + JITTER_MS / 1000;
+      const plan = schedule(mouth, ac.currentTime, buf.duration, clip.seq === 0);
+      if (plan.flush) {
+        // СНИМАЕМ ПОСТАВЛЕННОЕ ВПРОК. Просто переставить часы мало: уже назначенные куски звучат сами по
+        // себе и лягут поверх новых — это и слышно как эхо.
+        for (const old of mouth.pending) {
+          try {
+            old.stop();
+          } catch {
+            // Уже отзвучал — снимать нечего.
+          }
+        }
+        mouth.pending.clear();
       }
+      mouth.next = plan.mouth.next;
+      mouth.jitter = plan.mouth.jitter;
       const src = ac.createBufferSource();
       src.buffer = buf;
       src.connect(mouth.gain);
-      src.start(mouth.next);
-      mouth.next += buf.duration;
+      src.onended = () => void mouth.pending.delete(src);
+      mouth.pending.add(src);
+      src.start(plan.at);
       mouth.alive = mouth.next;
     },
     hush(by) {
