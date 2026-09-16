@@ -5,7 +5,7 @@
 // (`sound.voiceGain`), место — стул автора, как у звуков стола.
 
 import { bytesOf, VOICE_MAX_MS } from "../src/table/voice.js";
-import type { TableSound } from "./sound.js";
+import { holdAudio, type TableSound } from "./sound.js";
 
 export interface VoiceClip {
   by: string;
@@ -48,6 +48,7 @@ export function tableVoice(sound: TableSound): TableVoice {
     if (!ctx) {
       const Ctx = globalThis.AudioContext ?? (globalThis as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       ctx = Ctx ? new Ctx() : null;
+      if (ctx) holdAudio(ctx);
     }
     if (ctx?.state === "suspended") void ctx.resume();
     return ctx;

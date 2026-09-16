@@ -180,6 +180,20 @@ check("шафл слышат оба, обрыв с концом веера (1300
 const served = await B.evaluate(() => [...new Set(performance.getEntriesByType("resource").map((r) => new URL(r.name).pathname).filter((n) => n.startsWith("/table/sounds/")))].sort());
 check("грузятся только выбранные записи", served.join() === ["drop-1", "gather-1", "gather-2", "gather-3", "hand-1", "merge-1", "shuffle-1", "turn-1"].map((n) => `/table/sounds/${n}.m4a`).join(), served);
 
+// КЛАВИША PLAY/PAUSE не должна гасить стол: усыплённый не нами контекст просыпается сам.
+const audio = await A.evaluate(async () => {
+  const ctx = window.__tableAudio;
+  if (!ctx) return { has: false };
+  const session = navigator.mediaSession;
+  await ctx.suspend();
+  const asleep = ctx.state;
+  await new Promise((r) => setTimeout(r, 400));
+  return { has: true, asleep, now: ctx.state, playback: session?.playbackState ?? null };
+});
+check("аудио стола вообще открыто", audio.has, audio);
+check("усыплённый пультом контекст просыпается сам", audio.now === "running", audio);
+check("стол не выдаёт себя за проигрыватель", audio.playback === "none", audio);
+
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));
 console.log(`tableSound ${checks.filter((c) => c.ok).length}/${checks.length}`);
 await browser.close();

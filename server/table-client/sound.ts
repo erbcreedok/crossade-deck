@@ -67,6 +67,29 @@ export function writeSoundPrefs(prefs: SoundPrefs): void {
   }
 }
 
+/**
+ * КЛАВИША PLAY/PAUSE НА КЛАВИАТУРЕ — НЕ ПРО НАС. Браузер считает открытый аудиоконтекст «проигрывателем»
+ * и по системной кнопке усыпляет его: за столом от этого пропадали и звуки, и голосовые. Забираем команды
+ * пульта на себя пустыми обработчиками и, если контекст всё же уснул не по нашей воле, будим обратно.
+ */
+export function holdAudio(ctx: AudioContext): void {
+  const session = (navigator as { mediaSession?: MediaSession }).mediaSession;
+  if (session) {
+    session.playbackState = "none";
+    for (const action of ["play", "pause", "stop", "previoustrack", "nexttrack"] as const) {
+      try {
+        session.setActionHandler(action, () => {});
+      } catch {
+        // Эту команду браузер не знает — не беда.
+      }
+    }
+  }
+  ctx.addEventListener("statechange", () => {
+    if (ctx.state === "suspended") void ctx.resume().catch(() => {});
+  });
+  (globalThis as { __tableAudio?: AudioContext }).__tableAudio = ctx;
+}
+
 export interface Played {
   kind: CueKind;
   file: string;
@@ -103,6 +126,7 @@ export function tableSound(): TableSound {
       const Ctx = globalThis.AudioContext ?? (globalThis as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctx) return;
       ctx = new Ctx();
+      holdAudio(ctx);
       for (const [kind, n] of Object.entries(FILES)) for (let i = 1; i <= n; i += 1) load(`${kind}-${i}`);
     }
     if (ctx.state === "suspended") void ctx.resume();
