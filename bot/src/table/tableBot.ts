@@ -13,6 +13,7 @@ import type { TableApi } from "./api.js";
 import type { Home, RoomCard, TableCommand } from "../../../server/src/table/contract.js";
 import { MENU, menuOf, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
 import { askTitle, closed, DOWN, gone, inlineOpened, inviteArticle, inviteExisting, listed, opened, renamed, type Button, type Links } from "./talk.js";
+import type { Registry } from "./registry.js";
 import type { Watch } from "./watch.js";
 import { installStickers } from "./stickers.js";
 
@@ -32,7 +33,7 @@ export function keyboardOf(rows: Button[][]): InlineKeyboard {
   return kb;
 }
 
-export function installTable(bot: Bot, api: TableApi, watch: Watch, secret: string) {
+export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Registry, secret: string) {
   installStickers(bot, api);
   let botName = "";
   const links: Links = {
@@ -57,6 +58,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, secret: stri
     const card = await api.open(homeOf(ctx), byOf(ctx), ctx.match.trim() || undefined);
     if (card === "down" || card === "missing") return void (await ctx.reply(DOWN));
     watch.remember(chatOf(ctx), card.room, card.title, at.boot);
+    registry.remember(card.room, { home: homeOf(ctx), by: byOf(ctx), title: card.title });
     const all = await api.list(chatOf(ctx));
     const said = opened(card, Array.isArray(all) ? all.length : 1, links, inPrivate(ctx));
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
@@ -189,6 +191,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, secret: stri
     const done = await api.close(room);
     if (done === "down") return void (await ctx.reply(DOWN));
     watch.forget(chatOf(ctx), room);
+    registry.forget(room);
     await ctx.reply(done === "missing" ? gone : closed(card.title));
   });
 
@@ -205,6 +208,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, secret: stri
     if (card === "missing") return void (await ctx.reply(gone));
     const at = await api.where();
     if (at.up) watch.remember(chatOf(ctx), room, card.title, at.boot);
+    registry.rename(room, card.title);
     await ctx.reply(renamed(from ?? card.title, card.title));
   });
 
@@ -214,7 +218,9 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, secret: stri
     const room = /^tbl:(.+)$/.exec(ctx.chosenInlineResult.result_id)?.[1];
     const message = ctx.chosenInlineResult.inline_message_id;
     if (!room) return;
-    const card = await api.open({ kind: "inline", message: message ?? "" }, `tg:${ctx.from.id}`, undefined, room);
+    const home: Home = { kind: "inline", message: message ?? "" };
+    const card = await api.open(home, `tg:${ctx.from.id}`, undefined, room);
+    if (card !== "down" && card !== "missing") registry.remember(room, { home, by: `tg:${ctx.from.id}`, title: card.title });
     // Имя комнаты известно только теперь — вписываем его в карточку, и в текст, и на кнопку.
     if (message && card !== "down" && card !== "missing") {
       const said = inlineOpened(card, links);
@@ -264,9 +270,21 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, secret: stri
     // ОДИН НЕОТВЕЧЕННЫЙ ОПРОС — ЕЩЁ НЕ СМЕРТЬ: сеть бота моргнула, а чатам уже сказали бы «столы
     // закрылись». Выключенным стол считается после `DOWN_POLLS` молчаний подряд; перезапуск виден сразу.
     let silent = 0;
+    // СЕРВЕР ПЕРЕЗАПУСТИЛСЯ — карты не вернуть, но комнаты вернуть обязаны: имя, дом и хозяина. Иначе
+    // человек заходит по своей же ссылке и попадает в чужую безымянную комнату, где он никто.
+    let known: string | null = null;
+    const restore = async (boot: string) => {
+      if (known === boot) return;
+      known = boot;
+      for (const [room, one] of registry.all()) {
+        const back = await api.open(one.home, one.by, one.title, room);
+        if (back === "missing") registry.forget(room);
+      }
+    };
     const poll = async () => {
       const at = await api.where();
       silent = at.up ? 0 : silent + 1;
+      if (at.up) await restore(at.boot);
       if (!at.up && silent < DOWN_POLLS) return;
       for (const one of watch.check(at)) await tell(one.chat, one.text).catch(() => {});
     };

@@ -110,7 +110,7 @@ export class Table {
   /** `creator` — ключ создателя комнаты: он админ, пока сидит за столом. */
   constructor(
     cards: { id: string; face: Face }[],
-    private readonly creator: string | null = null,
+    private creator: string | null = null,
   ) {
     for (const card of cards) {
       this.faces.set(card.id, card.face);
@@ -129,6 +129,17 @@ export class Table {
   /** Колода стола; `undefined` — её сейчас нет. */
   private get main(): PileRow | undefined {
     return this.piles.get(MAIN_PILE);
+  }
+
+  /**
+   * ХОЗЯИН НАШЁЛСЯ. Комнату, открытую входом, админа лишает не решение, а порядок событий: сервер
+   * перезапустился, и человек вошёл раньше, чем бот успел назвать себя. Тогда бот приходит следом и
+   * забирает свою комнату обратно — но только пустую, у которой хозяина ещё нет.
+   */
+  claim(by: string): Op[] {
+    if (this.creator !== null || !by) return [];
+    this.creator = by;
+    return this.commit([{ t: "admin", key: this.admin }]);
   }
 
   private get admin(): string | null {

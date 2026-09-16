@@ -12,6 +12,7 @@ import { readStart, sourceFor, sourcesOf } from "./sources.js";
 import { profilePhoto, pickPhoto } from "./photo.js";
 import { TableApi, tableEnv } from "./table/api.js";
 import { installTable } from "./table/tableBot.js";
+import { Registry } from "./table/registry.js";
 import { Watch } from "./table/watch.js";
 
 const env = loadEnv();
@@ -187,7 +188,8 @@ const table = (() => {
   const tenv = tableEnv();
   if (!tenv) return undefined;
   const file = process.env.TABLE_CHATS_FILE || new URL("../data/table-chats.json", import.meta.url).pathname;
-  return installTable(bot, new TableApi(tenv), new Watch(file), tenv.secret);
+  const rooms = process.env.TABLE_ROOMS_FILE || new URL("../data/table-rooms.json", import.meta.url).pathname;
+  return installTable(bot, new TableApi(tenv), new Watch(file), new Registry(rooms), tenv.secret);
 })();
 
 /**

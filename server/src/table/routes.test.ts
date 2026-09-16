@@ -76,6 +76,20 @@ describe("/table/rooms — бот управляет столами", () => {
     expect((await call("/table/rooms?chat=1", { secret: "wrong" })).status).toBe(401);
   });
 
+  it("хозяин забирает обратно комнату, которую завёл вошедший", async () => {
+    // Так бывает после перезапуска сервера: человек вошёл по своей же ссылке раньше, чем пришёл бот.
+    const room = (await (await call("/table/rooms", { method: "POST", json: { home: { kind: "inline", message: "" }, by: "" } })).json()) as { room: string; by: string; title: string };
+    expect(room.by).toBe("");
+    const back = await (await call("/table/rooms", { method: "POST", json: { home: { kind: "inline", message: "m1" }, by: "tg:7", title: "Стол «Обетованный щит»", room: room.room } })).json();
+    expect(back.by).toBe("tg:7");
+    expect(back.title).toBe("Стол «Обетованный щит»");
+    expect(back.room).toBe(room.room);
+    // Чужую комнату так не забрать: у неё хозяин уже есть.
+    const steal = await (await call("/table/rooms", { method: "POST", json: { home: { kind: "inline", message: "m2" }, by: "tg:8", title: "Моё", room: room.room } })).json();
+    expect(steal.by).toBe("tg:7");
+    expect(steal.title).toBe("Стол «Обетованный щит»");
+  });
+
   it("много комнат на чат: открыть, перечислить, переименовать, закрыть", async () => {
     const one = await (await call("/table/rooms", { method: "POST", json: { home: { kind: "chat", chat: "-100" }, by: "tg:1", title: "Дурак" } })).json();
     await call("/table/rooms", { method: "POST", json: { home: { kind: "chat", chat: "-100" }, by: "tg:1" } });

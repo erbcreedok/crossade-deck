@@ -54,7 +54,12 @@ export class TableRoom extends Room {
     openEntry(this.room, { kind: "inline", message: "" }, "");
     // АДМИН — ТОТ, КТО ОТКРЫЛ КОМНАТУ В БОТЕ. Спрашивается при открытии: запись к этому моменту есть.
     this.table = new Table(deal(), creatorOf(this.room));
-    attach(this.room, { people: () => this.table.here.filter((p) => !p.bot), close: () => void this.disconnect(), run: (by, command) => this.run(by, command) });
+    attach(this.room, {
+      people: () => this.table.here.filter((p) => !p.bot),
+      close: () => void this.disconnect(),
+      run: (by, command) => this.run(by, command),
+      claim: (by) => this.spread(this.table.claim(by)),
+    });
 
     this.onMessage(MSG.hello, (client) => {
       const me = this.personOf(client.sessionId);

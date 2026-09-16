@@ -16,7 +16,7 @@ interface Entry {
   home: Home;
   by: string;
   createdAt: number;
-  live?: { people: () => Person[]; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult> };
+  live?: { people: () => Person[]; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; claim?: (by: string) => void };
 }
 
 const rooms = new Map<string, Entry>();
@@ -37,7 +37,17 @@ const card = (e: Entry): RoomCard => ({
 
 export function openEntry(room: string, home: Home, by: string, title?: string, now = Date.now()): RoomCard {
   const had = rooms.get(room);
-  if (had) return card(had);
+  if (had) {
+    // ХОЗЯИН ВЕРНУЛСЯ К СВОЕЙ КОМНАТЕ. Её мог завести вошедший (после перезапуска сервера) — тогда она
+    // безымянная и ничья; бот приходит следом и забирает своё: имя, дом и права админа.
+    if (had.by === "" && by) {
+      had.by = by;
+      had.home = home;
+      if (title?.trim()) had.title = uniqueTitle(title.trim(), takenTitles(room));
+      had.live?.claim?.(by);
+    }
+    return card(had);
+  }
   // Имя — из просьбы, иначе по чату, иначе случайное; и всегда такое, какого у живых комнат ещё нет.
   const entry: Entry = { room, home, by, title: uniqueTitle(title?.trim() || titleFrom(home.kind === "chat" ? home.chatTitle : undefined), takenTitles()), createdAt: now };
   rooms.set(room, entry);
