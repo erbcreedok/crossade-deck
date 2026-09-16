@@ -54,6 +54,8 @@ export interface Spot {
   seat: Point;
   /** Во сколько раз раздут аватар прямо сейчас: 1 — молчит, больше — звучит его голосовое. */
   puff: number;
+  /** Подпись с именем на стекле: она не дышит вместе с кружком, и прогон жестов это проверяет. */
+  plate?: { x: number; y: number; w: number; h: number };
 }
 
 /** Где что легло, и как переводить между столом и стеклом — тем же взглядом, каким рисовали. */
@@ -307,8 +309,11 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
-function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: string }, images: Record<string, HTMLImageElement>): void {
+/** `puff` — во сколько раз раздут КРУЖОК: подпись с именем стоит на месте и не прыгает вместе с ним. */
+function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: string }, images: Record<string, HTMLImageElement>, puff = 1): void {
   const r = DISC / 2;
+  g.save();
+  g.scale(puff, puff);
   g.beginPath();
   g.arc(0, 0, r, 0, Math.PI * 2);
   g.fillStyle = SEAT.black;
@@ -341,6 +346,7 @@ function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: stri
   g.lineWidth = DISC_LINE;
   g.strokeStyle = who.ink;
   g.stroke();
+  g.restore();
   const w = Math.max(1, [...who.name].length * PLATE_EM + 2 * PLATE.padX);
   const h = PLATE_EM * 1.6 + 2 * PLATE.padY;
   roundRect(g, -w / 2, PLATE.at - h / 2, w, h, h * 0.3);
@@ -574,14 +580,25 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     // ДИСК СТОИТ, А НЕ ЛЕЖИТ: ни поворот стола, ни наклон его не трогают — лицо смотрит на того, кто
     // глядит на стол (`Oriented: "viewer"` у кита). Ставится в точку стола, размером — по зуму.
     const at = toGlass(place.at);
-    // АВАТАР ДЫШИТ ПОД ГОЛОС: пока звучит его запись, диск раздувается по её громкости.
-    const puff = 1 + 0.3 * Math.max(0, Math.min(1, who.speaking ?? 0));
+    // АВАТАР ДЫШИТ ПОД ГОЛОС: пока звучит его запись, кружок раздувается по её громкости — заметно,
+    // но подпись с именем при этом стоит на месте (масштаб живёт внутри `disc`).
+    const puff = 1 + 0.55 * Math.max(0, Math.min(1, who.speaking ?? 0));
     if (sitter) {
-      g.setTransform(dpr * o.k * puff, 0, 0, dpr * o.k * puff, dpr * at.x, dpr * at.y);
-      disc(g, sitter, images);
+      g.setTransform(dpr * o.k, 0, 0, dpr * o.k, dpr * at.x, dpr * at.y);
+      disc(g, sitter, images, puff);
       desk();
     }
-    spots.push({ key: who.key, x: at.x, y: at.y, r: (DISC / 2) * o.k * puff, seat: place.at, puff: +puff.toFixed(3) });
+    const plateW = Math.max(1, [...(who.name ?? "")].length * PLATE_EM + 2 * PLATE.padX) * o.k;
+    const plateH = (PLATE_EM * 1.6 + 2 * PLATE.padY) * o.k;
+    spots.push({
+      key: who.key,
+      x: at.x,
+      y: at.y,
+      r: (DISC / 2) * o.k * puff,
+      seat: place.at,
+      puff: +puff.toFixed(3),
+      ...(sitter ? { plate: { x: at.x - plateW / 2, y: at.y + PLATE.at * o.k - plateH / 2, w: plateW, h: plateH } } : {}),
+    });
   });
 
   return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk, deckAt, feltAt };

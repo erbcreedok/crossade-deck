@@ -147,16 +147,33 @@ if (seatB) {
   await A.waitForTimeout(250);
   check("над стулом подсказка говорит «лично»", /лично/i.test((await A.textContent("[data-mic-hint]")) ?? ""), await A.textContent("[data-mic-hint]"));
   check("стул под пальцем подсвечен ярче", (await A.getAttribute(`[data-mic-drop="chair"][data-chair="${seatB.key}"]`, "data-on")) === "true");
-  // ЛИЧНОЕ СЛЫШИТ ТОЛЬКО АДРЕСАТ. Запись короткая (меньше секунды), поэтому «говорит» ловим частыми
-  // пробами сразу после броска, а не одним поздним взглядом.
-  // «Говорит» видно по дышащему аватару: кто звучит и с какой громкостью — в снимке холста.
+  // Подпись с именем НЕ дышит вместе с кружком. Меряем по самому холсту: где в столбце под аватаром
+  // проходит рамка подписи (она цвета игрока) — эти строки не должны сдвинуться, пока кружок раздут.
+  const plateRows = async (p, key) => {
+    const sp = ((await spots(p)).seats ?? []).find((one) => one.key === key);
+    if (!sp?.plate) return null;
+    return p.evaluate(({ plate }) => {
+      const canvas = document.querySelector("canvas");
+      const g = canvas.getContext("2d");
+      const dpr = canvas.width / canvas.clientWidth;
+      const x = Math.round((plate.x + plate.w / 2) * dpr);
+      const from = Math.round((plate.y - plate.h) * dpr);
+      const to = Math.round((plate.y + plate.h * 2) * dpr);
+      const strip = g.getImageData(x, Math.max(0, from), 1, Math.max(1, to - from)).data;
+      const rows = [];
+      for (let i = 0; i < strip.length; i += 4) {
+        // Рамка и заливка подписи темнее сукна — ищем чёрную рамку плашки.
+        if (strip[i] < 40 && strip[i + 1] < 40 && strip[i + 2] < 40) rows.push(from + i / 4);
+      }
+      return rows.length ? { top: rows[0], bottom: rows[rows.length - 1] } : null;
+    }, { plate: sp.plate });
+  };
+  // «Говорит» видно по дышащему аватару: кто звучит и насколько раздут его диск — в снимке холста.
   const talkSeen = async (p, ms = 1500) => {
     let puffed = false;
     for (let t = 0; t < ms; t += 60) {
       const now = await spots(p);
-      // Дышит ли аватар автора на самом деле — по применённому масштабу его диска.
-      const his = (now.seats ?? []).find((sp) => now.speaking && sp.key && sp.puff > 1);
-      if (now.speaking && his) puffed = true;
+      if (now.speaking && (now.seats ?? []).some((sp) => sp.puff > 1)) puffed = true;
       await p.waitForTimeout(60);
     }
     return puffed;
@@ -165,10 +182,37 @@ if (seatB) {
   const heardBy = seatB.key === mineB ? B : C;
   const missed = heardBy === B ? C : B;
   await A.mouse.up();
-  const [gotIt, gotThird] = await Promise.all([talkSeen(heardBy), talkSeen(missed)]);
+  const authorKey = (await spots(A)).mine;
+  const [gotIt, gotThird, loudRows, loudPuff] = await Promise.all([
+    talkSeen(heardBy),
+    talkSeen(missed),
+    // Замер В РАЗГАР звучания — кружок в этот миг раздут.
+    (async () => {
+      for (let t = 0; t < 1500; t += 80) {
+        if ((await spots(A)).speaking) return plateRows(A, authorKey);
+        await A.waitForTimeout(80);
+      }
+      return null;
+    })(),
+    (async () => {
+      let most = 1;
+      for (let t = 0; t < 1500; t += 60) {
+        const sp = ((await spots(A)).seats ?? []).find((one) => one.key === authorKey);
+        most = Math.max(most, sp?.puff ?? 1);
+        await A.waitForTimeout(60);
+      }
+      return most;
+    })(),
+  ]);
   check("бросок на стул — запись ушла", (await A.evaluate(() => window.__mic.stopped)) === 2);
   check("личное услышал адресат", gotIt, seatB.key);
   check("третий его не услышал", !gotThird);
+  const quietRows = await plateRows(A, authorKey);
+  check("аватар дышит заметно", loudPuff >= 1.2, loudPuff);
+  // Меряем НИЖНИЙ край плашки: верхний тонет в раздутом кружке, а низ подписи — чистый признак её места.
+  check("подпись с именем не прыгает вместе с аватаром",
+    loudRows !== null && quietRows !== null && Math.abs(loudRows.bottom - quietRows.bottom) <= 1,
+    { loudRows, quietRows });
 }
 
 // 5. Тап по 💬 — по-прежнему клавиатура.
