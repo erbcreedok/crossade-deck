@@ -95,6 +95,8 @@ check("подсказка говорит, что слышат все", /все/i
 check("сам себя не слышу", (await live(A)).heard === 0, await live(A));
 await B.waitForTimeout(500);
 check("остальные слышат его речь", (await live(B)).heard > 0, await live(B));
+// СЛЫШАТ — ЭТО НЕ «ПРИШЛО»: кусок, который не разобрался, тоже приходит. Считаем разобранные.
+check("…и речь у них разбирается, а не молча пропадает", (await live(B)).played > 0, await live(B));
 check("и видят микрофон на его аватаре", (await B.$$eval("[data-mic-mark]", (els) => els.length)) === 1);
 const markAt = await B.$eval("[data-mic-mark]", (el) => el.getBoundingClientRect().toJSON());
 const author = ((await spots(B)).seats ?? []).find((sp) => sp.key === mineChair);

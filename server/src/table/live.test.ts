@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanLive, floatsOf, LiveTalk, LIVE_FRAMES_PER_SEC, LIVE_MAX_BYTES, LIVE_MAX_MS, LIVE_RATE, resample, shortsOf } from "./live.js";
+import { cleanLive, floatsOf, LiveTalk, samplesOf, LIVE_FRAMES_PER_SEC, LIVE_MAX_BYTES, LIVE_MAX_MS, LIVE_RATE, resample, shortsOf } from "./live.js";
 
 const frame = (n = 320) => new Uint8Array(n);
 
@@ -73,5 +73,19 @@ describe("живой голос", () => {
     }
     // Та же частота — тот же массив, без лишней работы.
     expect(resample(at48, LIVE_RATE, LIVE_RATE)).toBe(at48);
+  });
+
+  it("на приёме байты доезжают и обычным объектом — иначе речь молчит, а счётчики зелены", () => {
+    const bytes = shortsOf(Float32Array.from([0.5, -0.5]));
+    const plain = Object.fromEntries([...bytes].map((v, i) => [i, v]));
+    const got = samplesOf(plain);
+    expect(got).not.toBeNull();
+    expect(got!.length).toBe(2);
+    expect(got![0]!).toBeCloseTo(0.5, 3);
+    expect(got![1]!).toBeCloseTo(-0.5, 3);
+    // И настоящими байтами, конечно, тоже.
+    expect(samplesOf(bytes)!.length).toBe(2);
+    expect(samplesOf({})).toBeNull();
+    expect(samplesOf(new Uint8Array(1))).toBeNull();
   });
 });

@@ -115,6 +115,17 @@ export const shortsOf = (floats: Float32Array): Uint8Array => {
 };
 
 /**
+ * ОТСЧЁТЫ ИЗ СЕТИ — единственная дверь на приёме. Colyseus кладёт байты обычным объектом с числовыми
+ * ключами, а не `Uint8Array`: у такого нет ни `buffer`, ни `byteOffset`, и разбор молча падал. Той же
+ * ценой мы однажды заплатили за голосовые — поэтому дверь одна и с проверкой.
+ */
+export function samplesOf(raw: unknown): Float32Array | null {
+  const bytes = bytesOf(raw);
+  if (!bytes || bytes.byteLength < 2) return null;
+  return floatsOf(bytes);
+}
+
+/**
  * СЧЁТ ЖИВОЙ РЕЧИ — сколько кусков дошло до сервера, сколько он разобрал и сколько разослал. Речь идёт мимо
  * истории стола, и когда её не слышно, спросить нечего: эти три числа отвечают, на чьей стороне обрыв.
  */

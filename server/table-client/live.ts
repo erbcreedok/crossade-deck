@@ -7,7 +7,7 @@
 // кусок ставится в очередь СВОЕГО говорящего и звучит ровно там, где кончился прошлый, — а пока копится
 // `JITTER_MS`, не звучит вовсе. Отстал больше, чем на `LATE_MS`, — догоняем, а не тянем хвост.
 
-import { floatsOf, LIVE_FRAME, LIVE_FRAME_MS, LIVE_RATE, resample, shortsOf } from "../src/table/live.js";
+import { LIVE_FRAME, LIVE_FRAME_MS, LIVE_RATE, resample, samplesOf, shortsOf } from "../src/table/live.js";
 import { holdAudio, type TableSound } from "./sound.js";
 
 /** Сколько речи копим, прежде чем открыть рот: меньше — быстрее, но слышны дыры. */
@@ -48,7 +48,7 @@ export interface TableLive {
 
 export function tableLive(sound: TableSound, host = ""): TableLive {
   // ЖУРНАЛ ДЛЯ ПРОГОНОВ: безголовый браузер речи не слышит, и правда о ней — только здесь.
-  const log = { sent: 0, heard: 0, to: null as string | null | undefined, failed: null as LiveFail | null };
+  const log = { sent: 0, heard: 0, played: 0, to: null as string | null | undefined, failed: null as LiveFail | null };
   (globalThis as { __tableLive?: unknown }).__tableLive = log;
   const listeners: (() => void)[] = [];
   const tell = () => {
@@ -146,7 +146,9 @@ export function tableLive(sound: TableSound, host = ""): TableLive {
       node.port.onmessage = (e) => {
         // НЕ НАВЕДЁН — речь пропадает: наводка решает, кому говоришь, а не «куда сложить сказанное».
         if (aimed === null) return;
-        const floats = resample(floatsOf(new Uint8Array((e.data as Int16Array).buffer)), ac.sampleRate, LIVE_RATE);
+        const said = samplesOf(new Uint8Array((e.data as Int16Array).buffer));
+        if (!said) return;
+        const floats = resample(said, ac.sampleRate, LIVE_RATE);
         log.sent += 1;
         send({ seq: seq++, bytes: shortsOf(floats), ...(aimed ? { to: aimed } : {}) });
       };
@@ -173,7 +175,10 @@ export function tableLive(sound: TableSound, host = ""): TableLive {
       const gain = sound.voiceGain(false);
       const ac = gain > 0 ? audio() : null;
       if (!ac) return;
-      const floats = floatsOf(clip.bytes);
+      // Байты с сервера приезжают обычным объектом — без разбора речь молчала, а счётчики были зелены.
+      const floats = samplesOf(clip.bytes);
+      if (!floats) return;
+      log.played += 1;
       const buf = ac.createBuffer(1, floats.length, LIVE_RATE);
       buf.getChannelData(0).set(floats);
       let mouth = mouths.get(clip.by);
