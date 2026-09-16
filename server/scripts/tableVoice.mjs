@@ -166,6 +166,15 @@ check("микрофон — у аватара, а не за стулом", markA
   check("…и он действительно играет", el?.playing === true, el);
 }
 
+// 3б. КУДА ТЕЧЁТ РЕЧЬ — ВИДНО ВСЕМ. Говорят на стол: динамик говорящего стоит в углу сукна, и ни у
+// одного стула его нет — иначе это читалось бы как «он говорит лично мне».
+{
+  const ears = async (p) => p.$$eval("[data-ear-mark]", (els) => els.map((el) => `${el.dataset.earMark}@${el.dataset.earAt}`));
+  check("речь на стол — динамик говорящего в углу сукна", (await ears(B)).includes(`${keyA0}@felt`), await ears(B));
+  check("…и ни у чьего стула его нет", (await ears(B)).every((one) => one.endsWith("@felt")), await ears(B));
+  check("…и говорящий видит его у себя тоже", (await ears(A)).includes(`${keyA0}@felt`), await ears(A));
+}
+
 // 4. УВЁЛ МИКРОФОН С ЗОНЫ — речь обрывается тут же, хотя палец всё ещё держат.
 await A.mouse.move(say.x, say.y + 40, { steps: 6 });
 await A.waitForTimeout(500);
@@ -204,6 +213,13 @@ check("микрофон на аватаре погас", (await B.$$eval("[data-
   await A.waitForTimeout(900);
   check("адресат её слышит", await flowed(B, keyA0, heardB + TALK), { was: heardB });
   check("третий за столом — нет", (await flow(C, keyA0)) - heardC < HUSH, { was: heardC, now: await flow(C, keyA0) });
+  // ЛИЧНО — ДИНАМИК У СТУЛА ТОГО, КОМУ ГОВОРЯТ, и больше нигде: ни в углу сукна, ни у прочих стульев.
+  const earsB = await B.$$eval("[data-ear-mark]", (els) => els.map((el) => `${el.dataset.earMark}@${el.dataset.earAt}`));
+  const chairOfB = (await spots(B)).mine;
+  check("речь в ухо — динамик говорящего у стула слушающего", earsB.includes(`${keyA0}@${chairOfB}`), { earsB, chairOfB });
+  check("…и в углу сукна его при этом нет", earsB.every((one) => !one.endsWith("@felt")), earsB);
+  const earsC = await C.$$eval("[data-ear-mark]", (els) => els.map((el) => `${el.dataset.earMark}@${el.dataset.earAt}`));
+  check("…и третий видит, что говорят не ему", earsC.includes(`${keyA0}@${chairOfB}`) && earsC.every((one) => !one.endsWith("@felt")), earsC);
 }
 
 // 5а. МИКРОФОН НЕ ДАЛИ — жест не исчезает молча, а говорит, почему. Садится отдельный игрок Г, которому

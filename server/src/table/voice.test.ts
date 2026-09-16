@@ -20,3 +20,20 @@ describe("микрофон", () => {
     expect(cleanMic(null)).toBeNull();
   });
 });
+
+describe("адрес микрофона", () => {
+  it("на стол — адреса нет вовсе", () => {
+    expect(cleanMic({ on: true })).toEqual({ on: true });
+  });
+  it("в ухо — адрес доходит", () => {
+    expect(cleanMic({ on: true, to: "tg:7" })).toEqual({ on: true, to: "tg:7" });
+  });
+  it("выключенный микрофон адреса не носит", () => {
+    expect(cleanMic({ on: false, to: "tg:7" })).toEqual({ on: false });
+  });
+  it("адрес не адрес — весть отбрасывается целиком", () => {
+    expect(cleanMic({ on: true, to: "" })).toBeNull();
+    expect(cleanMic({ on: true, to: 7 })).toBeNull();
+    expect(cleanMic({ on: true, to: "x".repeat(65) })).toBeNull();
+  });
+});

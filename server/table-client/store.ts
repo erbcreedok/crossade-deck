@@ -37,10 +37,13 @@ export interface TableStore {
   /** Записка тому, с кем сводим голоса напрямую. */
   rtc(out: { to: string; kind: string; body: string }): void;
   onRtc(listener: (note: { from: string; kind: string; body: string }) => void): void;
-  /** Я включил или выключил микрофон — остальным: они видят это на моём аватаре. */
-  mic(on: boolean): void;
-  /** Кто-то включил или выключил микрофон. */
-  onMic(listener: (mic: { by: string; on: boolean }) => void): void;
+  /**
+   * Я включил или выключил микрофон и КОМУ говорю: `to` — ключ того, кому лично, ничего — на стол.
+   * Остальные видят по этому, куда течёт моя речь.
+   */
+  mic(on: boolean, to?: string): void;
+  /** Кто-то включил или выключил микрофон; `to` — кому лично, если не на стол. */
+  onMic(listener: (mic: { by: string; on: boolean; to?: string }) => void): void;
   /** Мой набор стикеров — спросить заново; ответ приходит в `onStickers`. */
   askStickers(): void;
   /** Мой стикер выстрелом — остальным. */

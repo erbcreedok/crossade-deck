@@ -85,7 +85,7 @@ type GrabMode = "collect" | "keep";
 const SUBS: Record<Section, readonly BarKey[]> = { pose: FOLDS, chair: [...RIGHTS, "leave"], order: ORDERS, lasso: LASSO, say: [] };
 /** Сколько идёт смена секций в баре. */
 const SECTION_MS = 240;
-const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "eye" | "mic" | "shut" | "seal" | `grab-${GrabMode}` | `side-${GatherSide}`, string> = {
+const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "eye" | "mic" | "ear" | "shut" | "seal" | `grab-${GrabMode}` | `side-${GatherSide}`, string> = {
   /** Курсор-хват — ладонь. */
   cursor: '<path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V10"/><path d="M11 9.5V4a1.5 1.5 0 0 1 3 0v6"/><path d="M14 9.5V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M17 10a1.5 1.5 0 0 1 3 0v3.5a7 7 0 0 1-7 7h-1.2a6 6 0 0 1-4.6-2.2L4 14.6a1.5 1.5 0 0 1 2.3-1.9L8 14.5V9a1.5 1.5 0 0 1 3 0"/>',
   lasso: '<ellipse cx="13" cy="9" rx="8" ry="5.5" stroke-dasharray="3 2.4"/><path d="M8 13.5c-2 1.5-2.5 4 0 5.5 1.5 1 3 .5 3.5-.5"/>',
@@ -117,6 +117,7 @@ const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "eye" 
   pin: '<path d="M9 3h6l-1 6h2l1 5H7l1-5h2L9 3z"/><path d="M12 14v7"/>',
   /** Микрофон — зона записи голосового и значок на аватаре пишущего. */
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>',
+  ear: '<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 8a5 5 0 0 1 0 8"/>',
   /** Глаз наблюдателя — у кого открыто это окно. */
   eye: '<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.6"/>',
   /** Приёмка закрыта — лоток, над ним стрелка вниз, перечёркнуто. */
@@ -286,11 +287,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   setInterval(() => {
     if (store.me.key) meshKeep();
   }, MESH_BEAT_MS);
-  /** У кого сейчас горит микрофон — свой и чужие. */
-  const recording = new Set<string>();
+  /**
+   * У кого сейчас горит микрофон и КОМУ он говорит: ключ слушателя — значит лично ему, `null` — на стол.
+   * Отсюда рисуются и микрофон на аватаре говорящего, и динамики там, куда его речь течёт.
+   */
+  const recording = new Map<string, string | null>();
   store.onMic((m) => {
-    if (m.on) recording.add(m.by);
+    if (m.on) recording.set(m.by, m.to ?? null);
     else recording.delete(m.by);
+    // Прогонам нужна не картинка, а само знание: кто говорит и кому.
+    (globalThis as { __tableEars?: unknown }).__tableEars = Object.fromEntries(recording);
     draw();
   });
 
@@ -1266,8 +1272,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (to === m.to) return;
     m.to = to;
     mesh.aim(to);
-    // МИКРОФОН НАД АВАТАРОМ — пока меня слышно, и ровно тогда: видят все за столом.
-    store.mic(to !== null);
+    // МИКРОФОН НАД АВАТАРОМ — пока меня слышно, и ровно тогда: видят все за столом. Вместе с ним идёт
+    // адрес: на стол или кому-то одному на ухо — иначе остальным не видно, куда течёт речь.
+    store.mic(to !== null, to ?? undefined);
     if (to !== null) haptic.buzz("light");
   }
 
@@ -1589,6 +1596,47 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * ПИШЕТ — микрофон у самого аватара, сбоку от него, и пульсирует, пока идёт запись. Отправленное
    * голосовое значка не имеет вовсе: пока оно звучит, дышит сам аватар (`Seat.speaking`).
    */
+  /**
+   * КУДА ТЕЧЁТ ЧУЖАЯ РЕЧЬ — динамик цвета говорящего. На сукне (в углу стола) стоят те, кто говорит всем;
+   * у стула — те, кто говорит лично его хозяину. Говорящих может быть несколько разом, и тогда динамиков
+   * столько же: речь их не смешивает, и картинка не должна.
+   *
+   * Своей речи здесь нет: её адрес человек и так держит под пальцем, а лишний динамик у чужого стула
+   * читался бы как «он говорит мне».
+   */
+  function earMarksHtml(s: Snapshot): string {
+    if (!view) return "";
+    const size = Math.max(16, Math.round(0.26 * view.k));
+    const pin = (who: string, left: number, top: number, at: string) =>
+      `<div data-ear-mark="${escape(who)}" data-ear-at="${escape(at)}" style="position:absolute;left:${Math.round(left)}px;top:${Math.round(top)}px;`
+      + `transform:translate(-50%,-50%);z-index:27;pointer-events:none;width:${size}px;height:${size}px;border-radius:50%;`
+      + `display:flex;align-items:center;justify-content:center;background:${inkOf(s, who)};box-shadow:inset 0 0 0 2px ${T.black}">`
+      + `<svg viewBox="0 0 24 24" width="${Math.round(size * 0.6)}" height="${Math.round(size * 0.6)}" fill="${T.black}" stroke="${T.black}" `
+      + `stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GLYPH.ear}</svg></div>`;
+
+    // СВОЯ РЕЧЬ СЮДА ЖЕ. Сервер весть о микрофоне автору не возвращает — её незачем гонять по кругу; но
+    // видеть, куда ушёл ТВОЙ голос, нужно не меньше, чем куда ушёл чужой.
+    const m = local.mic;
+    const heard: [string, string | null][] = [...recording];
+    if (m?.open && m.to !== null) heard.push([me(), m.to ?? null]);
+
+    let html = "";
+    // НА СТОЛ — В УГЛУ СУКНА, столбиком: место постоянное, и по нему сразу видно, сколько голосов идёт всем.
+    const loud = heard.filter(([, to]) => to === null).map(([who]) => who);
+    loud.forEach((who, i) => html += pin(who, size, size * (1 + i * 1.25), "felt"));
+    // ЛИЧНО — У СТУЛА ТОГО, КОМУ ГОВОРЯТ, там же, где микрофон у говорящего: слева от диска, в ряд.
+    for (const chair of s.chairs) {
+      const owner = chair.owner;
+      if (!owner) continue;
+      const mine = heard.filter(([, to]) => to === owner).map(([who]) => who);
+      if (mine.length === 0) continue;
+      const spot = spots.find((sp) => sp.key === chair.id);
+      if (!spot) continue;
+      mine.forEach((who, i) => html += pin(who, spot.x - spot.r * 0.72 - i * size * 1.15, spot.y - spot.r * 0.72, chair.id));
+    }
+    return html;
+  }
+
   function micMarksHtml(s: Snapshot): string {
     if (!view) return "";
     let html = "";
@@ -2199,7 +2247,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // колебание его голоса — кольца живут на холсте, а не здесь. Переписывать при этом `innerHTML` значит
     // десятки раз в секунду выбрасывать кнопки из-под пальца: нажатие начинается на одной, а заканчивается
     // на другой, и до onclick дело не доходит вовсе — заглушить говорящего было нельзя, пока он не замолчит.
-    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml();
+    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml();
     if (html !== lastOver) {
       lastOver = html;
       over.innerHTML = html;

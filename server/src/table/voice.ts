@@ -1,9 +1,16 @@
 // МИКРОФОН — кто сейчас говорит. Сама речь идёт кусками (`live.ts`) и нигде не хранится; здесь только весть
 // «начал/кончил» и разбор байтов из сети, общий для обоих.
 
-/** Клиент → сервер: начал или кончил писать. Сервер → остальным: он же, с автором. */
+/**
+ * Клиент → сервер: начал или кончил писать И КОМУ. Сервер → остальным: он же, с автором.
+ *
+ * `to` — ключ того, кому говорят лично; его нет вовсе, когда говорят на стол. Адрес нужен не ради звука
+ * (тот идёт мимо сервера и сам знает, кому), а ради картинки: каждый за столом должен видеть, куда течёт
+ * чужая речь — на общее сукно или кому-то одному на ухо.
+ */
 export interface MicOut {
   on: boolean;
+  to?: string;
 }
 export interface Mic extends MicOut {
   by: string;
@@ -32,5 +39,12 @@ export const bytesOf = (raw: unknown): Uint8Array | null => {
 
 export const cleanMic = (raw: unknown): MicOut | null => {
   const out = (raw ?? {}) as Partial<MicOut>;
-  return typeof out.on === "boolean" ? { on: out.on } : null;
+  if (typeof out.on !== "boolean") return null;
+  // МОЛЧАНИЕ АДРЕСА НЕ ИМЕЕТ, и пустая строка — не адрес: иначе выключенный микрофон нарисуют кому-то в ухо.
+  if (!out.on) return { on: false };
+  if (out.to === undefined) return { on: true };
+  return typeof out.to === "string" && out.to.length > 0 && out.to.length <= MIC_TO_MAX ? { on: true, to: out.to } : null;
 };
+
+/** Ключ человека длиннее этого не бывает: всё, что длиннее, — не адрес, а попытка нагрузить чужой экран. */
+export const MIC_TO_MAX = 64;
