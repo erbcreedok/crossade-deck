@@ -148,6 +148,18 @@ const markAt = await boxOf(B, "[data-mic-mark]");
 const author = ((await spots(B)).seats ?? []).find((sp) => sp.key === mineChair);
 check("микрофон — у аватара, а не за стулом", markAt && author && Math.hypot(markAt.x + markAt.width / 2 - author.x, markAt.y + markAt.height / 2 - author.y) <= author.r * 1.6, { markAt, author });
 
+// 3б. ЧУЖОЙ ГОЛОС ИГРАЕТ ЭЛЕМЕНТОМ В САМОЙ СТРАНИЦЕ: оторванный от документа `Audio` в webview айфона
+// молчит, и это не видно ниоткуда, кроме как отсюда.
+{
+  const el = await B.evaluate(() => {
+    const one = [...document.querySelectorAll("audio")].find((a) => a.srcObject);
+    return one ? { inPage: one.isConnected, playing: !one.paused, inline: one.hasAttribute("playsinline") } : null;
+  });
+  check("чужой голос играет элементом, стоящим в странице", el?.inPage === true, el);
+  check("…и ему разрешено играть на месте, а не в проигрывателе айфона", el?.inline === true, el);
+  check("…и он действительно играет", el?.playing === true, el);
+}
+
 // 4. УВЁЛ МИКРОФОН С ЗОНЫ — речь обрывается тут же, хотя палец всё ещё держат.
 await A.mouse.move(say.x, say.y + 40, { steps: 6 });
 await A.waitForTimeout(500);

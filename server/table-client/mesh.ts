@@ -12,8 +12,11 @@
 
 import { callsFirst } from "../src/table/rtc.js";
 
-/** Молчит столько — микрофон отпускаем, и точка на телефоне гаснет. */
-export const MIC_IDLE_MS = 30_000;
+/**
+ * Молчит столько — микрофон отпускаем, и точка записи на телефоне гаснет. Секунды хватает, чтобы не брать
+ * его заново между двумя фразами подряд; всё, что дольше, человек читает как «он меня слушает».
+ */
+export const MIC_IDLE_MS = 1500;
 
 /** Куда стучаться за своим адресом. Свой TURN появится, когда найдётся первый, кого не пустит его NAT. */
 const ICE: RTCIceServer[] = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
@@ -35,8 +38,12 @@ export interface TableMesh {
   open(): Promise<"no-mic" | "denied" | null>;
   /** Кому слышно прямо сейчас: `undefined` — всем, ключ — лично ему, `null` — никому. */
   aim(to: string | null | undefined): void;
+  /** Жест кончился: замолкаем и вскоре отдаём микрофон системе. */
+  rest(): void;
   /** Отпустить всех и погасить микрофон. */
   close(): void;
+  /** Как идут дела со связью у каждого: это видно человеку в настройках, когда голоса нет. */
+  links(): { who: string; state: string }[];
   /**
    * Сколько РЕЧИ пришло от каждого — накопленная звуковая энергия, а не байты: снятая дорожка всё равно
    * шлёт тишину, и по байтам молчание неотличимо от разговора.
@@ -64,10 +71,22 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
   const tell = () => {
     for (const fn of listeners) fn();
   };
-  const log = { peers: 0, open: false, aimed: null as string | null | undefined, heard: 0, talking: [] as string[], retired: false, mine: false };
+  const log = { peers: 0, open: false, aimed: null as string | null | undefined, heard: 0, talking: [] as string[], retired: false, mine: false, links: [] as string[] };
   (globalThis as { __tableMesh?: unknown }).__tableMesh = log;
 
   const peers = new Map<string, Peer>();
+  /** Кому не дали заиграть до касания: пробуем снова на первом же. */
+  const waiting = new Set<HTMLAudioElement>();
+  const nudge = () => {
+    for (const el of [...waiting]) {
+      void el.play().then(() => void waiting.delete(el)).catch(() => {});
+    }
+    if (ctx?.state === "suspended") void ctx.resume();
+  };
+  if (typeof addEventListener === "function") {
+    addEventListener("pointerdown", nudge, { capture: true });
+    addEventListener("touchstart", nudge, { capture: true });
+  }
   let stream: MediaStream | null = null;
   let mineTrack: MediaStreamTrack | null = null;
   let mineKey = "";
@@ -121,29 +140,40 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
       if (e.candidate) send({ to: key, kind: "ice", body: JSON.stringify(e.candidate) });
     };
     pc.ontrack = (e) => {
-      const ac = audio();
       const track = e.streams[0] ?? new MediaStream([e.track]);
-      // ЗВУК ИДЁТ ЧЕРЕЗ ЭЛЕМЕНТ, а не только через Web Audio: на айфоне поток, подключённый лишь к
-      // анализатору, молчит — элемент заставляет систему открыть вывод.
-      const el = new Audio();
+      // ЭЛЕМЕНТ ЗВУКА ЖИВЁТ В СТРАНИЦЕ, а не в переменной: оторванный от документа `Audio` в webview айфона
+      // молчит — система открывает вывод только тому, что есть на экране. Ещё ему нужен `playsinline`,
+      // иначе iOS норовит забрать звук в свой проигрыватель.
+      const el = document.createElement("audio");
       el.autoplay = true;
+      el.setAttribute("playsinline", "");
+      el.style.display = "none";
       el.srcObject = track;
       el.volume = sound.muted(key) ? 0 : sound.voiceGain(false);
-      void el.play().catch(() => {});
+      document.body.appendChild(el);
       peer.sound = el;
+      // ИГРАТЬ МОЖЕТ НЕ ДАТЬ ДО КАСАНИЯ — тогда ждём ближайшего и пробуем снова, а не молчим навсегда.
+      void el.play().catch(() => void waiting.add(el));
+      const ac = audio();
       if (ac) {
-        const meter = ac.createAnalyser();
-        meter.fftSize = 256;
-        ac.createMediaStreamSource(track).connect(meter);
-        peer.meter = meter;
+        try {
+          const meter = ac.createAnalyser();
+          meter.fftSize = 256;
+          ac.createMediaStreamSource(track).connect(meter);
+          peer.meter = meter;
+        } catch {
+          // Web Audio не взял чужой поток (бывает на айфоне) — звук всё равно идёт элементом, без пульса.
+        }
       }
       log.heard += 1;
-      if (peers.size > 0) requestAnimationFrame(watch);
+      requestAnimationFrame(watch);
       tell();
     };
     pc.onnegotiationneeded = () => void call(key);
     pc.onconnectionstatechange = () => {
+      log.links = [...peers].map(([who, one]) => `${who}:${one.pc.connectionState}`);
       if (pc.connectionState === "failed") void pc.restartIce();
+      tell();
     };
     // МЕСТО ПОД ГОЛОС ГОТОВИМ СРАЗУ, ещё до первого слова: тогда тот, кто только слушает, всё равно
     // договаривается о связи. Иначе молчун не согласуется ни с кем и не слышит никого.
@@ -197,6 +227,7 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
         if (people.includes(key)) continue;
         peer.pc.close();
         peer.sound?.pause();
+        peer.sound?.remove();
         peers.delete(key);
       }
       log.peers = peers.size;
@@ -254,18 +285,28 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
     },
     aim(to) {
       aimed = to;
-      apply();
-      if (to === null) {
-        // МОЛЧИТ — ОТПУСКАЕМ МИКРОФОН, но не сразу: в разговоре пауза между фразами не повод гасить точку.
-        if (idle) clearTimeout(idle);
-        idle = setTimeout(() => {
-          for (const t of stream?.getTracks() ?? []) t.stop();
-          stream = null;
-          mineTrack = null;
-          log.open = false;
-          apply();
-        }, MIC_IDLE_MS);
+      // Наводка только решает, кому слышно. Микрофон при этом остаётся в руке: палец ещё держит кнопку, и
+      // отпустить его посреди жеста — значит онеметь на следующей же наводке.
+      if (to !== null && idle) {
+        clearTimeout(idle);
+        idle = null;
       }
+      apply();
+    },
+    rest() {
+      // ЖЕСТ КОНЧИЛСЯ — микрофон отдаём системе, и точка записи на телефоне гаснет. Не сразу: две фразы
+      // подряд не должны каждый раз заново просить доступ.
+      if (idle) clearTimeout(idle);
+      idle = setTimeout(() => {
+        for (const t of stream?.getTracks() ?? []) t.stop();
+        stream = null;
+        mineTrack = null;
+        log.open = false;
+        apply();
+      }, MIC_IDLE_MS);
+    },
+    links() {
+      return [...peers].map(([who, peer]) => ({ who, state: peer.pc.connectionState }));
     },
     async stats() {
       const out: Record<string, number> = {};
@@ -291,6 +332,7 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
         send({ to: key, kind: "bye", body: "" });
         peer.pc.close();
         peer.sound?.pause();
+        peer.sound?.remove();
       }
       peers.clear();
       log.peers = 0;

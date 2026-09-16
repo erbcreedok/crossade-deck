@@ -253,7 +253,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       art.warm(store.state.rules);
       draw();
     },
-    footer: () => [`build ${TABLE_BUILD}`, haptic.client].filter(Boolean).join(" · "),
+    // СТРОКА О ГОЛОСЕ — чтобы с телефона было что сказать, когда его не слышно: сколько связей встало.
+    footer: () => {
+      const links = mesh.links();
+      const live = links.filter((one) => one.state === "connected").length;
+      const voice = links.length === 0 ? "голос: не с кем" : `голос: ${live} из ${links.length}`;
+      return [`build ${TABLE_BUILD}`, voice, haptic.client].filter(Boolean).join(" · ");
+    },
     changed: () => draw(),
   });
   // ── ГОЛОСОВЫЕ ──────────────────────────────────────────────────────────────────────────────────
@@ -1268,6 +1274,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (m?.open) {
       // Связь не рвём — только замолкаем: следующее слово должно идти мгновенно, без нового знакомства.
       mesh.aim(null);
+      mesh.rest();
       if (m.to !== null) store.mic(false);
     }
     if (tap) talk.toggle();
