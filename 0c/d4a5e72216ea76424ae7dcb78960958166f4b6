@@ -1,0 +1,32 @@
+server/scripts/tableCroupier.mjs
+  s_9ed0da107cbc4a::t_529f1a300243f5 1-64
+  s_9ed0da107cbc4a::t_f6301cf1c39a2d 65-109
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_0fb942a77d9b2d 22,123-130
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_59878e7b4bb0ee 382-383
+server/table-client/localStore.ts
+  s_9ed0da107cbc4a::t_e3c2138fd4666d 74
+server/table-client/netStore.ts
+  s_9ed0da107cbc4a::t_1c65d05f672a69 107
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_9ffc0dc682eef9 330-331,1339-1386,1422,1431,2089-2090,2095,2111,2936-2974
+server/table-client/store.ts
+  s_9ed0da107cbc4a::t_05096626338492 7,30-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0cd4a5e72216ea76424ae7dcb78960958166f4b6",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
