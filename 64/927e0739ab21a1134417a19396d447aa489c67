@@ -1,0 +1,27 @@
+server/scripts/tableCroupier.mjs
+  s_9ed0da107cbc4a::t_901a7d0e174b73 84-87,95-102
+server/src/table/croupier.test.ts
+  s_9ed0da107cbc4a::t_2299d047d27671 2-3,12-38,46
+server/src/table/ring.ts
+  s_9ed0da107cbc4a::t_6c2ef9cff69bb1 38-47
+server/src/table/script.ts
+  s_9ed0da107cbc4a::t_fc09042341dd96 142-143,150,185-187,189,197
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_31d569ec6fafc1 52,168-169,825,830
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "64927e0739ab21a1134417a19396d447aa489c67",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
