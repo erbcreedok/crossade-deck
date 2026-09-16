@@ -823,9 +823,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * что над ним окно не помещается целиком. Тогда оно ложится краем на его диск, но не на колоду и не
    * на весь стул.
    */
+  /**
+   * ПОЛОСА СВЕРХУ — шестерёнка и плашка с именем стола. Окна под неё не лезут: у верхнего края своя
+   * граница, и в неё же входит безопасная зона Telegram (чёлка и его собственная шапка).
+   */
+  function hudTop(): number {
+    const css = getComputedStyle(document.documentElement);
+    const inset = (name: string) => parseFloat(css.getPropertyValue(name)) || 0;
+    return 12 + inset("--tg-safe-area-inset-top") + inset("--tg-content-safe-area-inset-top") + 40 + 8;
+  }
+
   function tipBox(spot: Spot, taken: readonly TipBox[]): TipBox {
     const frame = lastFrame;
     const EDGE = 8, GAP = 12;
+    const TOP = Math.max(EDGE, hudTop());
     const w = Math.min(frame.w - 2 * EDGE, 292);
     const cw = 46, ch = Math.round(cw * 1.4);
     const rowH = ch + 24;
@@ -853,7 +864,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const scored = centres.map((c) => {
       const box = {
         left: Math.max(EDGE, Math.min(frame.w - w - EDGE, c.x - w / 2)),
-        top: Math.max(EDGE, Math.min(frame.h - height - EDGE, c.y - height / 2)),
+        top: Math.max(TOP, Math.min(frame.h - height - EDGE, c.y - height / 2)),
       };
       const rank = [
         overlaps(box, middle, deck.w, deck.h) ? 1 : 0,

@@ -82,6 +82,26 @@ await A.waitForTimeout(700);
 const after = (await eyesOf(A, "pile:deck")).length;
 check("ушёл из комнаты — глаз погас", after === before - 1, { before, after });
 
+// ОКНА НЕ ЛЕЗУТ ПОД ШАПКУ: ни под шестерёнку с плашкой имени, ни под безопасную зону Telegram.
+await A.evaluate(() => document.documentElement.style.setProperty("--tg-safe-area-inset-top", "60px"));
+await A.waitForTimeout(300);
+const mapNow = await spots(A);
+const other = (mapNow.seats ?? []).find((sp) => sp.key !== mapNow.mine);
+if (other) {
+  await A.mouse.click(other.x, other.y);
+  await A.waitForTimeout(400);
+  const tip = await A.locator('[data-g="tip"]').first().boundingBox();
+  const plate = await A.locator("[data-table-name]").boundingBox();
+  const gear = await A.locator("[data-settings]").boundingBox();
+  check("окно стула не налезает на шапку стола", tip && tip.y >= Math.max(plate.y + plate.height, gear.y + gear.height), { tip, plate, gear });
+}
+const grip = await A.locator('[data-g="deck-grip"][data-pile="deck"]').boundingBox();
+await A.mouse.click(grip.x + grip.width / 2, grip.y + grip.height / 2);
+await A.waitForTimeout(400);
+const deckTip = await A.locator('[data-g="deck-tip"]').boundingBox();
+const plate2 = await A.locator("[data-table-name]").boundingBox();
+check("окно стопки тоже ниже шапки", deckTip.y >= plate2.y + plate2.height, { deckTip, plate2 });
+
 await browser.close();
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));
 console.log(`tableEyes ${checks.filter((c) => c.ok).length}/${checks.length}`);
