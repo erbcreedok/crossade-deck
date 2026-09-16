@@ -69,13 +69,14 @@ const say = await sayAt(A);
 await A.mouse.move(say.x, say.y);
 await A.mouse.down();
 await A.waitForTimeout(300);
-check("пока держат — подсказка «Держи…»", /держи/i.test((await A.textContent("[data-mic-hint]")) ?? ""), await A.textContent("[data-mic-hint]"));
-check("под пальцем — шайба с микрофоном", (await A.getAttribute("[data-mic-puck]", "data-on")) === "false");
-check("стол ещё не подсвечен", (await A.$("[data-mic-drop]")) === null);
+// Пока палец держат (до секунды), экран не меняется вовсе: ни панели записи, ни подсказки, ни шайбы.
+const hudWas = await A.$$eval("[data-section]", (els) => els.length);
+check("пока держат — панели записи нет", (await A.$("[data-mic-hint]")) === null && (await A.$("[data-mic-puck]")) === null);
+check("…и подсветки нет", (await A.$("[data-mic-drop]")) === null);
+check("…и HUD прежний", hudWas > 1, hudWas);
 await A.mouse.up();
 await A.waitForTimeout(400);
 check("отпустил раньше секунды — запись не начиналась", (await A.evaluate(() => window.__mic.started)) === 0);
-check("подсказка убралась", (await A.$("[data-mic-hint]")) === null);
 // Короткое зажатие — это тап: он, как и раньше, открывает клавиатуру. Закрываем её касанием мимо.
 check("короткое зажатие открыло клавиатуру", (await A.$('[data-g="talk-shield"]:not([hidden])')) !== null);
 await A.mouse.click(195, 60);
@@ -90,7 +91,7 @@ await A.waitForTimeout(1300);
 check("секунда удержания — запись пошла", (await A.evaluate(() => window.__mic.started)) === 1);
 check("сукно подсвечено — туда бросать", (await A.$('[data-mic-drop="felt"]')) !== null);
 check("стулья тоже зоны — бросок туда сделает голосовое личным", (await A.$$eval('[data-mic-drop="chair"]', (els) => els.length)) >= 1);
-check("шайба стала записывающей, с кольцом отсчёта", (await A.getAttribute("[data-mic-puck]", "data-on")) === "true" && (await A.$("[data-mic-count]")) !== null);
+check("под пальцем шайба с микрофоном и кольцом отсчёта", (await A.getAttribute("[data-mic-puck]", "data-on")) === "true" && (await A.$("[data-mic-count]")) !== null);
 check("остальные кнопки HUD скрыты", (await A.$$eval("[data-section]", (els) => els.length)) === 1);
 check("подсказка про бросок на стол", /стол/i.test((await A.$$eval("[data-mic-hint]", (e) => e.map((x) => x.textContent).join(""))) ?? ""), await A.$$eval("[data-mic-hint]", (e) => e.map((x) => x.textContent)));
 const drop = await A.$$eval('[data-mic-drop="felt"]', (e) => e.map((x) => x.getBoundingClientRect().toJSON()));

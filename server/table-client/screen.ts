@@ -1165,8 +1165,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * кадр, пришедший посреди перелёта, продолжает его с того же места, а не начинает заново.
    */
   function barRow(s: Snapshot, side: number, step: number): string {
-    // ЖЕСТ ГОЛОСОВОГО: кнопки уходят, остаётся 💬 — чтобы было видно, что палец ведёт именно её.
-    if (local.mic) return barButton("sec-say", true, side, 0);
+    // ИДЁТ ЗАПИСЬ: кнопки уходят, остаётся 💬 — чтобы было видно, что палец ведёт именно её. Пока кнопку
+    // просто держат (до секунды), бар не меняется вовсе: с виду это обычное касание.
+    if (local.mic && local.mic.phase !== "hold") return barButton("sec-say", true, side, 0);
     const since = performance.now() - local.sectionAt;
     const moving = since < SECTION_MS + 120;
     const anim = (name: string, delay = 0, from = 0) =>
@@ -1270,18 +1271,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    */
   function micHtml(barTop: number): string {
     const m = local.mic;
-    if (!m) return "";
-    const going = m.phase !== "hold";
-    const target = going ? micTarget(m.x, m.y) : null;
+    // ДО СЕКУНДЫ НЕ ПОКАЗЫВАЕМ НИЧЕГО: панель записи появляется вместе с самой записью, не раньше.
+    if (!m || m.phase === "hold") return "";
+    const target = micTarget(m.x, m.y);
     const hint = m.phase === "full"
       ? "Шесть секунд — брось на стол или на стул"
-      : going
-        ? (target?.kind === "chair" ? `Лично: ${escape(target.name)}` : target ? "Всем за столом" : "Брось на стол или на стул · отпустишь мимо — прервётся")
-        : "Держи…";
+      : target?.kind === "chair"
+        ? `Лично: ${escape(target.name)}`
+        : target
+          ? "Всем за столом"
+          : "Брось на стол или на стул · отпустишь мимо — прервётся";
 
     // ПОДСВЕЧЕННОЕ СУКНО — круг стола в его же осях, поэтому с наклоном камеры он сжимается вместе со столом.
     let zones = "";
-    if (going && view) {
+    if (view) {
       const mid = view.toGlass({ x: 0, y: 0 });
       const rx = FELT_REACH * view.k;
       const ry = rx * view.squash;
@@ -1305,19 +1308,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
     // ШАЙБА ПОД ПАЛЬЦЕМ — её и бросают. Кольцо вокруг тает за шесть секунд: видно, сколько осталось.
     const size = 64, r = 27, circle = 2 * Math.PI * r;
-    const ring = going
-      ? `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="position:absolute;inset:0;transform:rotate(-90deg)">`
+    const ring = `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="position:absolute;inset:0;transform:rotate(-90deg)">`
         + `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${T.black}" stroke-width="4" opacity=".5"/>`
         + `<circle data-mic-count cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${T.gold}" stroke-width="4" stroke-linecap="round"`
         + ` stroke-dasharray="${circle.toFixed(1)}" stroke-dashoffset="${m.phase === "full" ? circle.toFixed(1) : "0"}"`
-        + (m.phase === "full" ? "" : ` style="animation:mic-count ${VOICE_MAX_MS}ms linear forwards"`) + `/></svg>`
-      : "";
-    const puck = `<div data-mic-puck data-on="${going}" style="position:absolute;left:${Math.round(m.x)}px;top:${Math.round(m.y)}px;width:${size}px;height:${size}px;`
+        + (m.phase === "full" ? "" : ` style="animation:mic-count ${VOICE_MAX_MS}ms linear forwards"`) + `/></svg>`;
+    const puck = `<div data-mic-puck data-on="true" style="position:absolute;left:${Math.round(m.x)}px;top:${Math.round(m.y)}px;width:${size}px;height:${size}px;`
       + `transform:translate(-50%,-50%);z-index:63;pointer-events:none;border-radius:50%;display:flex;align-items:center;justify-content:center;`
-      + (going
-        ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 3px ${T.black},0 4px 0 rgba(11,7,4,.5)`
-        : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`)
-      + `">${ring}<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="${going ? T.black : BAR_LOOK.goldHi}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GLYPH.mic}</svg></div>`;
+      + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 3px ${T.black},0 4px 0 rgba(11,7,4,.5)`
+      + `">${ring}<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="${T.black}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GLYPH.mic}</svg></div>`;
 
     return zones + puck
       + `<div data-mic-hint style="position:absolute;left:8px;right:8px;top:${Math.round(barTop - 34)}px;z-index:62;pointer-events:none;text-align:center;`
