@@ -51,3 +51,19 @@ export function seatPoint(angle: number, radius = SEAT_RADIUS): { x: number; y: 
   const t = (angle * Math.PI) / 180;
   return { x: Math.sin(t) * radius, y: Math.cos(t) * radius };
 }
+
+/**
+ * РАДИУС КОЛЬЦА ЗОНЫ с позой `ring`, в единицах сукна: карта стоит НА кольце, а не в середине.
+ */
+export const RING_SPREAD = 1.6;
+
+/**
+ * ГДЕ ЛЕЖИТ i-я ИЗ n КАРТ В ЗОНЕ-КОЛЬЦЕ — по кругу, в порядке хода, от угла зоны по часовой.
+ *
+ * Живёт здесь, а не в рисовании, потому что это ОБЩАЯ правда: по ней клиент рисует, а правила игр
+ * считают, кто чью карту накрыл. Две копии этой формулы разошлись бы молча.
+ */
+export function ringSpot(at: { x: number; y: number; angle?: number }, i: number, n: number, spread = RING_SPREAD): { x: number; y: number } {
+  const rad = (((at.angle ?? 0) + (360 / Math.max(1, n)) * i) * Math.PI) / 180;
+  return { x: at.x + spread * Math.sin(rad), y: at.y - spread * Math.cos(rad) };
+}
