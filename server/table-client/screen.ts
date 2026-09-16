@@ -1601,11 +1601,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       const size = Math.max(16, Math.round(0.3 * view.k));
       const ink = inkOf(s, owner);
       // У САМОГО АВАТАРА: верхний правый край диска, как значок на плече, а не флажок за стулом.
-      // РАДИУС БЕРЁМ В ПОКОЕ, без раздутия от голоса. Иначе значок ездит вместе с дыханием аватара, и
-      // разметка слоя меняется несколько раз в секунду — а с ней из-под пальца исчезают все кнопки.
-      const rest = spot.r / (spot.puff || 1);
-      const left = Math.round(spot.x + rest * 0.72);
-      const top = Math.round(spot.y - rest * 0.72);
+      const left = Math.round(spot.x + spot.r * 0.72);
+      const top = Math.round(spot.y - spot.r * 0.72);
       html += `<div data-mic-mark="${escape(owner)}" data-talks="false" style="position:absolute;left:${left}px;top:${top}px;`
         + `transform:translate(-50%,-50%);z-index:27;pointer-events:none;width:${size}px;height:${size}px;border-radius:50%;`
         + `display:flex;align-items:center;justify-content:center;background:${ink};box-shadow:inset 0 0 0 2px ${T.black};`

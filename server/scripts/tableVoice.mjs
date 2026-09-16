@@ -344,6 +344,23 @@ check("выключил голосовые — их ползунок серый,
     await B.mouse.up();
     await B.waitForTimeout(300);
   };
+  // НИЧТО НЕ ХОДИТ ХОДУНОМ ПОД ЧУЖУЮ РЕЧЬ. Аватар дышит и пускает кольца на холсте; если это дыхание
+  // просачивается в раскладку, слой поверх холста перестраивается по нескольку раз в секунду — и любая
+  // кнопка исчезает из-под пальца между нажатием и отпусканием.
+  const still = await B.evaluate(async () => {
+    const btn = document.querySelector("[data-voice-mute]");
+    const over = btn.closest("[data-g='tip']").parentElement;
+    const was = over.innerHTML;
+    let rebuilt = 0;
+    const eye = new MutationObserver((ms) => { for (const m of ms) rebuilt += m.addedNodes.length; });
+    eye.observe(over, { childList: true });
+    await new Promise((go) => setTimeout(go, 1000));
+    eye.disconnect();
+    return { same: was === over.innerHTML, rebuilt, alive: btn.isConnected };
+  });
+  check("под чужую речь слой поверх стола не перестраивается", still.rebuilt === 0, still);
+  check("…и кнопка под пальцем остаётся той же самой", still.alive && still.same, still);
+
   await tapMute();
   check("заглушил его посреди речи", await mutedA(), { volume: await volA(), a: await live(A) });
   await tapMute();

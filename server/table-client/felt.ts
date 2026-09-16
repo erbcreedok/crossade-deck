@@ -623,7 +623,10 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       key: who.key,
       x: at.x,
       y: at.y,
-      r: (DISC / 2) * o.k * puff,
+      // РАДИУС — В ПОКОЕ, БЕЗ ДЫХАНИЯ. По нему кладут тултипы, ловят палец и отмеряют облачко речи: пусти
+      // сюда пульс — и всё это заходит ходуном, пока человек говорит, а кнопки уезжают из-под пальца.
+      // Дыхание живёт только в рисунке выше и в `puff` отдельной строкой.
+      r: (DISC / 2) * o.k,
       seat: place.at,
       puff: +puff.toFixed(3),
       rings: rings.map((r) => +(r * o.k).toFixed(1)),
