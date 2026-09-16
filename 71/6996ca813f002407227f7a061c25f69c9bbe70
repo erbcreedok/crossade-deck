@@ -1,0 +1,23 @@
+.night/tasks/1-камера.md
+  s_9ed0da107cbc4a::t_b38e07c0eb59b9 29,31-41
+  s_9ed0da107cbc4a::t_29534eeb1ad7cf 1-28,30,42-66
+  s_9ed0da107cbc4a::t_86e65649bcdf60 67-68
+.night/protocol.md
+  s_9ed0da107cbc4a::t_e1f1bf258db69c 22-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "716996ca813f002407227f7a061c25f69c9bbe70",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
