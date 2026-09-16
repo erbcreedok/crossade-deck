@@ -1,0 +1,32 @@
+server/src/table/rules.ts
+  s_9ed0da107cbc4a::t_697ded85b03c7a 1-69
+server/src/table/rules.law.test.ts
+  s_9ed0da107cbc4a::t_aeca5f14b175d3 1-81
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_a2e69d9982c3ff 125-128
+  s_9ed0da107cbc4a::t_988fa61171a4c3 52,58-60,114-124,132,431-432,461,563-564,592-624
+server/node_modules
+  s_9ed0da107cbc4a::t_2e494248822d6f 1
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_4750dd96150575 444-464,467-495
+server/src/table/routes.ts
+  s_9ed0da107cbc4a::t_91cbb9b44de575 13,47-48
+server/src/table/script.ts
+  s_9ed0da107cbc4a::t_c3d37a2d9536f0 13,90-91,135-137,139,141-142,158,173-175,193-194,196-197,204-208,212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "46e399e530c50f42170bcff3eb3cd5cd7751c66f",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
