@@ -1,0 +1,21 @@
+.night/tasks/3-дурак.md
+  s_9ed0da107cbc4a::t_3a45dd82a8be8e 1-97,99
+  s_9ed0da107cbc4a::t_97a8a165da53a2 98,100-130
+  s_9ed0da107cbc4a::t_71c270b4e0e943 131-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "96686e4ef8382ee5fc9ba86ca84ca286273ba1d2",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
