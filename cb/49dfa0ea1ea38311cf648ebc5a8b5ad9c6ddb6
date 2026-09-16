@@ -1,0 +1,21 @@
+server/scripts/tableCroupier.mjs
+  s_9ed0da107cbc4a::t_b4f357542d7dff 52-60
+server/scripts/tableGrip.mjs
+  s_9ed0da107cbc4a::t_9ef98c70db4c4a 23-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cb49dfa0ea1ea38311cf648ebc5a8b5ad9c6ddb6",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
