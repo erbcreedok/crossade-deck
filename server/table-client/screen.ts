@@ -28,17 +28,19 @@ import { HOST } from "./host.js";
 /** Цвет отметки карты в строке — светлые версии красок колоды: буквы строки стоят на сукне с чёрной обводкой. */
 const MENTION_INK = { red: "#e5483f", black: "#e8e0d0", back: "#9fb3cf", four: { s: "#4f95dc", h: "#e5483f", d: "#f0902e", c: "#e8e0d0" } };
 const MUTED_KEY = "crossade.table.muted";
-function readMuted(): string[] {
+/** Голос этого человека не слушаю — отдельно от «не читать»: слова и голос глушатся порознь. */
+const VOICE_MUTED_KEY = "crossade.table.mutedVoice";
+function readMuted(key = MUTED_KEY): string[] {
   try {
-    const raw = JSON.parse(localStorage.getItem(MUTED_KEY) ?? "[]");
+    const raw = JSON.parse(localStorage.getItem(key) ?? "[]");
     return Array.isArray(raw) ? raw.filter((k): k is string => typeof k === "string") : [];
   } catch {
     return [];
   }
 }
-function writeMuted(keys: Iterable<string>): void {
+function writeMuted(keys: Iterable<string>, key = MUTED_KEY): void {
   try {
-    localStorage.setItem(MUTED_KEY, JSON.stringify([...keys]));
+    localStorage.setItem(key, JSON.stringify([...keys]));
   } catch {
     // Нет хранилища — живёт, пока открыт экран.
   }
@@ -265,7 +267,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     else recording.delete(m.by);
     draw();
   });
-  store.onVoice((clip) => void voice.play(clip as VoiceClip, () => chairPlace(clip.by), false));
+  // ГОЛОС ЗАГЛУШЁННОГО НЕ ЗВУЧИТ И НЕ ДЫШИТ: его запись у меня просто не играется.
+  store.onVoice((clip) => {
+    if (voiceMuted.has(clip.by)) return;
+    voice.play(clip as VoiceClip, () => chairPlace(clip.by), false);
+  });
 
   /** Где сидит автор записи — в долях от середины экрана, как у звуков стола. */
   function chairPlace(by: string): { x: number; z: number } {
@@ -286,6 +292,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   addEventListener("pointerup", () => (touchedAt = performance.now()), { capture: true });
   /** Кого я не читаю — ключи людей, на моём устройстве. */
   const muted = new Set<string>(readMuted());
+  /** Чей голос я не слушаю — своим списком, на моём устройстве. */
+  const voiceMuted = new Set<string>(readMuted(VOICE_MUTED_KEY));
   const talk = mountTalk(stage, store, () => draw(), {
     who: (key) => {
       const p = store.state.people.find((one) => one.key === key);
@@ -1475,6 +1483,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
           + (muted.has(sitter.key) ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});` : `box-shadow:inset 0 0 0 2px ${T.wood};`) + `">`
           + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${muted.has(sitter.key) ? T.black : T.inkDim}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
           + `<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>${muted.has(sitter.key) ? '<path d="M3 3l18 18"/>' : ""}</svg></span>`
+          // НЕ СЛУШАТЬ — отдельно от «не читать»: голос этого человека глушится сам по себе.
+          + `<span data-voice-mute="${escape(sitter.key)}" role="button" aria-pressed="${voiceMuted.has(sitter.key)}" aria-label="${voiceMuted.has(sitter.key) ? "Слушать" : "Не слушать"}" style="cursor:pointer;flex:none;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;`
+          + (voiceMuted.has(sitter.key) ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});` : `box-shadow:inset 0 0 0 2px ${T.wood};`) + `">`
+          + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="${voiceMuted.has(sitter.key) ? T.black : T.inkDim}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
+          + `${GLYPH.mic}${voiceMuted.has(sitter.key) ? '<path d="M3 3l18 18"/>' : ""}</svg></span>`
         : "")
       + eyeRowHtml(s, `chair:${chair.id}`, EYES_IN_PANEL, 20)
       + `<span data-shut="${chair.id}" role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
@@ -3101,6 +3114,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
           talk.muted(key);
         }
         writeMuted(muted);
+        draw();
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-voice-mute]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const key = el.dataset.voiceMute!;
+        if (voiceMuted.has(key)) voiceMuted.delete(key);
+        else voiceMuted.add(key);
+        writeMuted(voiceMuted, VOICE_MUTED_KEY);
         draw();
       };
     }

@@ -215,6 +215,38 @@ if (seatB) {
     { loudRows, quietRows });
 }
 
+// 4c. «Не слушать» у чужого игрока — отдельно от «не читать». Пишет B (его лимит ещё цел), глушит его C.
+{
+  const chairB = (await spots(B)).mine;
+  const seatOfB = ((await spots(C)).seats ?? []).find((sp) => sp.key === chairB);
+  await C.mouse.click(seatOfB.x, seatOfB.y);
+  await C.waitForSelector('[data-g="tip"]');
+  check("в окне игрока есть и «не читать», и «не слушать»", (await C.$("[data-mute]")) !== null && (await C.$("[data-voice-mute]")) !== null);
+  check("«не слушать» по умолчанию выключено", (await C.getAttribute("[data-voice-mute]", "aria-pressed")) === "false");
+  await C.click("[data-voice-mute]");
+  await C.waitForTimeout(200);
+  check("включается сам по себе, «не читать» не трогая",
+    (await C.getAttribute("[data-voice-mute]", "aria-pressed")) === "true" && (await C.getAttribute("[data-mute]", "aria-pressed")) === "false");
+
+  const sayB = await sayAt(B);
+  await B.mouse.move(sayB.x, sayB.y);
+  await B.mouse.down();
+  await B.waitForTimeout(1300);
+  await B.mouse.move(195, 300, { steps: 6 });
+  await B.mouse.up();
+  const listens = async (p, ms = 2000) => {
+    for (let t = 0; t < ms; t += 60) {
+      if ((await spots(p)).speaking) return true;
+      await p.waitForTimeout(60);
+    }
+    return false;
+  };
+  const [atA, atC] = await Promise.all([listens(A), listens(C)]);
+  check("заглушённый голос у заглушившего не звучит", !atC);
+  check("…а у остальных звучит", atA);
+  await C.click("[data-voice-mute]");
+}
+
 // 5. Тап по 💬 — по-прежнему клавиатура.
 await A.mouse.move(say.x, say.y);
 await A.mouse.down();
