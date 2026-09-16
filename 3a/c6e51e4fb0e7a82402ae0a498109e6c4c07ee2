@@ -1,0 +1,23 @@
+server/scripts/tableSound.mjs
+  s_9ed0da107cbc4a::t_f3ee9b8234006e 183-196
+server/table-client/sound.ts
+  s_9ed0da107cbc4a::t_fff965d35cd88b 70-92,129
+server/table-client/voice.ts
+  s_9ed0da107cbc4a::t_02b016c7a397d5 8,51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3ac6e51e4fb0e7a82402ae0a498109e6c4c07ee2",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
