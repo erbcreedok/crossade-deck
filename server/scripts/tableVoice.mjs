@@ -269,6 +269,39 @@ await A.click("[data-look=voiceMute]");
 check("выключил голосовые — их ползунок серый, стола — нет",
   (await A.getAttribute('[data-volume-row="voice"]', "data-muted")) === "true" && (await A.getAttribute('[data-volume-row="table"]', "data-muted")) === "false");
 
+// 7. ГЛУШИЛКА ПРОВЕРЯЕТСЯ ГРОМКОСТЬЮ, А НЕ СЕРЫМ ПОЛЗУНКОМ: настройка ложится на элемент звука, и если её
+// не переложить на уже звучащий, человек выключает голоса и продолжает всё слышать. Смотрим у Б — до него
+// речь А дошла по-настоящему, значит элемент у него есть.
+{
+  const vols = () => B.$$eval("audio", (els) => els.map((el) => el.volume));
+  const loudest = async () => Math.max(0, ...(await vols()));
+  check("чужой голос звучит, пока его не глушили", (await vols()).length > 0 && (await loudest()) > 0, await vols());
+
+  await B.click("[data-settings]");
+  await B.waitForSelector("[data-settings-panel]");
+  await B.click("[data-look=voiceMute]");
+  await B.waitForTimeout(200);
+  check("выключил голосовые — чужой голос стих на деле", (await loudest()) === 0, await vols());
+  await B.click("[data-look=voiceMute]");
+  await B.waitForTimeout(200);
+  check("вернул голосовые — снова слышно", (await loudest()) > 0, await vols());
+  await B.click("[data-settings-close]");
+  await B.waitForTimeout(200);
+
+  // «Не слушать этого» — та же беда порознь: она живёт у стула, а не в настройках.
+  // Здесь смотрим ГОЛОС ИМЕННО А: глушилка личная, и «стало тише везде» её бы не доказало.
+  const volA = () => B.$eval(`audio[data-voice="${keyA0}"]`, (el) => el.volume);
+  const seatA = (await spots(B)).seats.find((s) => s.who === "A");
+  await B.mouse.click(seatA.x, seatA.y);
+  await B.waitForSelector("[data-voice-mute]");
+  await B.click("[data-voice-mute]");
+  await B.waitForTimeout(200);
+  check("заглушил человека — его голос стих на деле", (await volA()) === 0, await vols());
+  await B.click("[data-voice-mute]");
+  await B.waitForTimeout(200);
+  check("снял глушилку — он снова слышен", (await volA()) > 0, await vols());
+}
+
 // ОТЧЁТ ПЕЧАТАЕТСЯ ДО ЗАКРЫТИЯ БРАУЗЕРА: живые голосовые связи не дают ему закрыться быстро, и прогон
 // раньше молча висел — с полным набором пройденных проверок в памяти и без единой строки на экране.
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));

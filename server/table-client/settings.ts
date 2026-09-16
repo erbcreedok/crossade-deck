@@ -27,6 +27,8 @@ export interface SettingsWorld {
   look: DeckLook;
   /** Поменялся вид колоды — стол перерисовывается и догружает картинки. */
   lookChanged(): void;
+  /** Тронули громкость или выключатель звука — тем, кто звучит ПРЯМО СЕЙЧАС, её надо переложить. */
+  soundChanged(): void;
   /** Строка внизу: номер сборки и клиент. */
   footer(): string;
   /** Открылось или закрылось — стол перерисовывает шестерёнку. */
@@ -164,6 +166,9 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
         world.lookChanged();
         break;
     }
+    // Зовём на любой переключатель, а не только на звуковые: перекладывать громкость дёшево, а забыть
+    // добавить сюда новый выключатель звука — легко.
+    world.soundChanged();
     render();
   });
   // Ползунок — без пересборки: палец остаётся на нём, меняются только столбики и число.
@@ -176,6 +181,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
     if (which === "voice") p.voiceVolume = value;
     else p.volume = value;
     world.sound.save();
+    world.soundChanged();
     const row = layer.querySelector<HTMLElement>(`[data-volume-row="${which}"]`)!;
     const muted = p.muted || (which === "voice" ? p.voiceMuted : p.uiMuted);
     for (const bar of row.querySelectorAll<HTMLElement>("[data-step]")) bar.style.background = Number(bar.dataset.step) <= value ? (muted ? INK.off : INK.goldHi) : "transparent";

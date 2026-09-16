@@ -253,6 +253,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       art.warm(store.state.rules);
       draw();
     },
+    soundChanged: () => mesh.gains(),
     // СТРОКА О ГОЛОСЕ — чтобы с телефона было что сказать, когда его не слышно: сколько связей встало.
     footer: () => {
       const links = mesh.links();
@@ -3125,6 +3126,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         if (voiceMuted.has(key)) voiceMuted.delete(key);
         else voiceMuted.add(key);
         writeMuted(voiceMuted, VOICE_MUTED_KEY);
+        mesh.gains();
         draw();
       };
     }

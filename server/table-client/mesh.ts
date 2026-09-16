@@ -42,6 +42,11 @@ export interface TableMesh {
   rest(): void;
   /** Отпустить всех и погасить микрофон. */
   close(): void;
+  /**
+   * Громкость перечитана заново — человек подвинул ползунок или кого-то заглушил. Без этого настройка
+   * ложится только на тех, чей голос придёт ПОСЛЕ неё: у звучащего элемента громкость уже своя.
+   */
+  gains(): void;
   /** Как идут дела со связью у каждого: это видно человеку в настройках, когда голоса нет. */
   links(): { who: string; state: string }[];
   /**
@@ -129,6 +134,24 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
     if (peers.size > 0) requestAnimationFrame(watch);
   };
 
+  /** Насколько громко слышно этого: заглушён лично — не слышно вовсе, иначе общая громкость голосов. */
+  const gainFor = (key: string) => (sound.muted(key) ? 0 : sound.voiceGain(false));
+
+  /**
+   * Прощаемся с человеком ОДНИМ путём — иначе его элемент звука остаётся в странице, продолжает играть и
+   * не слушается больше никаких настроек: связи у него уже нет, а голос всё ещё есть.
+   */
+  function drop(key: string): void {
+    const peer = peers.get(key);
+    if (!peer) return;
+    peer.pc.close();
+    peer.sound?.pause();
+    peer.sound?.remove();
+    waiting.delete(peer.sound!);
+    peers.delete(key);
+    log.peers = peers.size;
+  }
+
   function peerOf(key: string): Peer {
     const had = peers.get(key);
     if (had) return had;
@@ -149,7 +172,10 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
       el.setAttribute("playsinline", "");
       el.style.display = "none";
       el.srcObject = track;
-      el.volume = sound.muted(key) ? 0 : sound.voiceGain(false);
+      // Чей это голос — написано на самом элементе: иначе ни прогон, ни человек с телефона не скажут, кого
+      // из двоих он сейчас слышит.
+      el.dataset.voice = key;
+      el.volume = gainFor(key);
       document.body.appendChild(el);
       peer.sound = el;
       // ИГРАТЬ МОЖЕТ НЕ ДАТЬ ДО КАСАНИЯ — тогда ждём ближайшего и пробуем снова, а не молчим навсегда.
@@ -223,14 +249,7 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
       if (retired) return;
       mineKey = me;
       for (const key of people) if (key !== me) peerOf(key);
-      for (const [key, peer] of peers) {
-        if (people.includes(key)) continue;
-        peer.pc.close();
-        peer.sound?.pause();
-        peer.sound?.remove();
-        peers.delete(key);
-      }
-      log.peers = peers.size;
+      for (const key of [...peers.keys()]) if (!people.includes(key)) drop(key);
     },
     async hear(note) {
       // ВЕСТЬ ОТ СЕБЯ САМОГО — я открыл стол в новом окне: это окно старое, и голос теперь не его. Отставка
@@ -245,9 +264,7 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
       const peer = peerOf(note.from);
       try {
         if (note.kind === "bye") {
-          peer.pc.close();
-          peers.delete(note.from);
-          log.peers = peers.size;
+          drop(note.from);
           return;
         }
         if (note.kind === "ice") {
@@ -305,6 +322,9 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
         apply();
       }, MIC_IDLE_MS);
     },
+    gains() {
+      for (const [key, peer] of peers) if (peer.sound) peer.sound.volume = gainFor(key);
+    },
     links() {
       return [...peers].map(([who, peer]) => ({ who, state: peer.pc.connectionState }));
     },
@@ -328,14 +348,10 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
       stream = null;
       mineTrack = null;
       log.open = false;
-      for (const [key, peer] of peers) {
+      for (const key of [...peers.keys()]) {
         send({ to: key, kind: "bye", body: "" });
-        peer.pc.close();
-        peer.sound?.pause();
-        peer.sound?.remove();
+        drop(key);
       }
-      peers.clear();
-      log.peers = 0;
     },
     onChange: (fn) => void listeners.push(fn),
   };
