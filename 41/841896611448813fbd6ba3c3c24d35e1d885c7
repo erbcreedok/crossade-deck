@@ -1,0 +1,23 @@
+.night/tasks/3-кит.md
+  s_9ed0da107cbc4a::t_83f7c1b495cca1 1-103
+.night/tasks/4-крестовый.md
+  s_9ed0da107cbc4a::t_0e2f635dcfa490 3-7,87,89-91,93-94
+.night/tasks/5-подкидной.md
+  s_9ed0da107cbc4a::t_70a71269a3f56e 1,3-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "41841896611448813fbd6ba3c3c24d35e1d885c7",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
