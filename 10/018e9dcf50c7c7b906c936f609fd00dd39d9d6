@@ -1,0 +1,25 @@
+server/scripts/tableVoice.mjs
+  s_9ed0da107cbc4a::t_d53429bc0fbc1d 112-119,138-140
+server/src/app.ts
+  s_9ed0da107cbc4a::t_d5f0146f264d78 2,429
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_83503754b9b2fa 16,156-158,166
+server/src/table/live.ts
+  s_9ed0da107cbc4a::t_a17fb11337985c 116-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "10018e9dcf50c7c7b906c936f609fd00dd39d9d6",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
