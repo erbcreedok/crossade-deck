@@ -93,6 +93,8 @@ export const MENU: Record<string, { label: string; command: TableCommand }> = {
   dd: { label: "Дурак", command: { t: "deal", rule: "durak" } },
   dk: { label: "Крестовый", command: { t: "deal", rule: "krest" } },
   db: { label: "Белка", command: { t: "deal", rule: "belka" } },
+  cr1: { label: "Посадить", command: { t: "croupier", on: true } },
+  cr0: { label: "Увести", command: { t: "croupier", on: false } },
   ...Object.fromEntries(CARD_FACES.map((faces) => [`lf${faces}`, { label: FACES_SAY[faces], command: { t: "look", faces } }])),
   ...Object.fromEntries(CARD_BACKS.map((back) => [`lb${back}`, { label: BACKS_SAY[back], command: { t: "look", back } }])),
 };
@@ -109,6 +111,7 @@ export function menuOf(card: RoomCard): Said {
       [{ text: "Пресет · крестовый:", data: "tbx" }, btn(r, "pk36"), btn(r, "pk52"), btn(r, "pk36j"), btn(r, "pk52j")],
       [{ text: "Пресет:", data: "tbx" }, btn(r, "pb")],
       [{ text: "Раздать:", data: "tbx" }, btn(r, "dd"), btn(r, "dk"), btn(r, "db")],
+      [{ text: "Крупье:", data: "tbx" }, btn(r, "cr1"), btn(r, "cr0")],
       [{ text: "Лица:", data: "tbx" }, ...CARD_FACES.map((f) => btn(r, `lf${f}`))],
       [{ text: "Рубашка:", data: "tbx" }, ...CARD_BACKS.slice(0, 3).map((b) => btn(r, `lb${b}`))],
       CARD_BACKS.slice(3).map((b) => btn(r, `lb${b}`)),

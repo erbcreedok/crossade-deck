@@ -5,6 +5,16 @@ import { MENU, menuOf, parseOrder, refusedSay } from "./orders.js";
 const card: RoomCard = { room: "R".repeat(23), title: "Дурак", by: "tg:1", home: { kind: "chat", chat: "-1" }, people: [], createdAt: 0 };
 
 describe("команды стола в чате", () => {
+  it("крупье: сажается и уводится словом и кнопкой", () => {
+    expect(parseOrder("croupier", "")).toEqual({ t: "croupier", on: true });
+    expect(parseOrder("croupier", "убрать")).toEqual({ t: "croupier", on: false });
+    expect(parseOrder("croupier", "чепуха")).toBeNull();
+    expect(MENU.cr1!.command).toEqual({ t: "croupier", on: true });
+    expect(MENU.cr0!.command).toEqual({ t: "croupier", on: false });
+    const rows = menuOf(card).rows.flat();
+    expect(rows.some((b) => "data" in b && b.data === `tbr:${card.room}:cr1`)).toBe(true);
+  });
+
   it("сборка и перемешивание — без слов", () => {
     expect(parseOrder("collect", "")).toEqual({ t: "collect" });
     expect(parseOrder("shuffle", "")).toEqual({ t: "shuffle" });
