@@ -20,6 +20,15 @@ const open = async (name) => {
   await p.goto(`${base}/table/?room=${room}&name=${name}`);
   await p.waitForSelector("[data-section]");
   await p.waitForSelector(".crossade-loading", { state: "detached" });
+  // ВИД ПРИВОДИТСЯ К ИЗВЕСТНОМУ. Зум при входе считается от читаемости карты, и стол занимает почти
+  // весь кадр: всё, что стоит ВНЕ кольца стульев (место крупье, грип стопки у края), при этом
+  // оказывается за краем. Сторож меряет законы стола, а не выбранный по умолчанию масштаб, поэтому
+  // сперва отъезжает до упора — так у всех проверок ниже один и тот же вид.
+  await p.keyboard.down("Control");
+  await p.mouse.move(195, 300);
+  for (let i = 0; i < 8; i += 1) await p.mouse.wheel(0, 900);
+  await p.keyboard.up("Control");
+  await p.waitForTimeout(600);
   await p.waitForTimeout(400);
   return p;
 };
