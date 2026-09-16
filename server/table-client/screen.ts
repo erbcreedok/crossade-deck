@@ -1148,7 +1148,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       })())
       + `</div>`
       + leaveHtml(geom.barTop!, margin, side, step)
-      + micHtml(geom.barTop!, margin, side, step);
+      + micHtml(geom.barTop!);
   }
 
   /** Горит ли кнопка секции: поза и флаги — как стоят, «покинуть» — пока открыт вопрос. */
@@ -1193,27 +1193,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return row;
   }
 
-  /** Зона микрофона — справа от 💬; её место считается там же, где рисуется. */
-  function micZoneAt(): { x: number; y: number; r: number } | null {
-    const s = seen();
-    const geom = mineGeom(handOf(s, mine(s)).length + gapsIn(s, mine(s)).length);
-    const u = hudUnit();
-    const most = 1 + Math.max(...SECTIONS.map((sec) => SUBS[sec].length));
-    const need = most * BAR.size + (most - 1) * BAR.gap + 2 * BAR.margin;
-    const g = glass();
-    const fit = g.w / u > 0 && need > g.w / u ? Math.max(0.5, g.w / u / need) : 1;
-    const side = BAR.size * u * fit;
-    const step = side + BAR.gap * u * fit;
-    const margin = BAR.margin * u * fit;
-    if (geom.barTop === undefined) return null;
-    return { x: margin + step + side / 2, y: geom.barTop + (barHeight() * u - side) / 2 + side / 2, r: side * 0.8 };
-  }
-  const overMicZone = (x: number, y: number): boolean => {
-    const z = micZoneAt();
-    return Boolean(z && Math.hypot(x - z.x, y - z.y) <= z.r);
-  };
+  /** Сколько держать кнопку, чтобы пошла запись: отпустил раньше — ничего не было. */
+  const MIC_HOLD_MS = 1000;
 
-  /** Палец доехал до микрофона — пошла запись; всем видно, что я пишу. */
+  /** Кнопку держат секунду — пошла запись; всем видно, что я пишу. */
   async function beginMic(): Promise<void> {
     const m = local.mic;
     if (!m || m.phase !== "hold") return;
@@ -1272,22 +1255,23 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   }
 
   /**
-   * ЖЕСТ ГОЛОСОВОГО — нарочно длинный: зажать 💬, дотянуть до микрофона справа, бросить на стол. Случайно
-   * такое не выходит, а переслушать голосовое потом нельзя — поэтому цена ошибки высокая.
+   * ЖЕСТ ГОЛОСОВОГО: зажать 💬 и держать. Секунда — пошла запись; отпустил раньше — её не было вовсе,
+   * и случайным касанием ничего не записать. Дальше стол сам и есть дропзона: бросил на него — ушло,
+   * отпустил на полосе руки — отменено. Пока пишет, стол подсвечен — видно, куда бросать.
    */
-  function micHtml(barTop: number, margin: number, side: number, step: number): string {
+  function micHtml(barTop: number): string {
     const m = local.mic;
     if (!m) return "";
-    const zoneLeft = margin + step;
-    const zone = { x: zoneLeft + side / 2, y: barTop + (barHeight() * hudUnit() - side) / 2 + side / 2, r: side * 0.8 };
-    const inZone = Math.hypot(m.x - zone.x, m.y - zone.y) <= zone.r;
     const going = m.phase !== "hold";
-    const hint = m.phase === "full" ? "Шесть секунд — брось на стол" : going ? "Брось на стол — отправить · отпустишь — прервётся" : "Дотяни до микрофона";
-    const ring = going ? T.gold : inZone ? BAR_LOOK.goldHi : T.inkDim;
-    return `<div data-mic-zone data-on="${going}" style="position:absolute;left:${Math.round(zone.x - side / 2)}px;top:${Math.round(zone.y - side / 2)}px;`
-      + `width:${Math.round(side)}px;height:${Math.round(side)}px;border-radius:50%;box-sizing:border-box;z-index:62;pointer-events:none;`
-      + `border:2px dashed ${ring};display:flex;align-items:center;justify-content:center;background:${going ? `color-mix(in srgb, ${T.gold} 22%, transparent)` : "rgba(11,7,4,.4)"}">`
-      + `<svg viewBox="0 0 24 24" width="${Math.round(side * 0.45)}" height="${Math.round(side * 0.45)}" fill="none" stroke="${ring}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GLYPH.mic}</svg></div>`
+    const hint = m.phase === "full" ? "Шесть секунд — брось на стол" : going ? "Брось на стол — отправить · отпустишь здесь — прервётся" : "Держи…";
+    // ПОДСВЕЧЕННЫЙ СТОЛ — всё, что выше полосы руки: туда и надо бросить.
+    const drop = going
+      ? `<div data-mic-drop style="position:absolute;left:0;right:0;top:0;height:${Math.round(barTop)}px;z-index:58;pointer-events:none;`
+        + `box-sizing:border-box;border:3px dashed ${T.gold};border-radius:14px;background:color-mix(in srgb, ${T.gold} 10%, transparent);`
+        + (motion.reduce ? "" : "animation:mic-drop 1200ms ease-in-out infinite;")
+        + `"></div>`
+      : "";
+    return drop
       + `<div data-mic-hint style="position:absolute;left:8px;right:8px;top:${Math.round(barTop - 34)}px;z-index:62;pointer-events:none;text-align:center;`
       + `font:400 12px Tiny5,monospace;color:${T.ink};text-shadow:0 2px 0 ${T.black}">${hint}</div>`;
   }
@@ -2875,22 +2859,25 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         if (!chairOf(truth(), mine(truth()))) return;
         e.stopPropagation();
         local.mic = { phase: "hold", x: e.clientX, y: e.clientY, rec: null, began: performance.now() };
+        // СЕКУНДА УДЕРЖАНИЯ — и пошла запись. Палец ушёл раньше — таймер снимается, записи не было.
+        const held = setTimeout(() => void beginMic(), MIC_HOLD_MS);
         // ПАЛЕЦ СЛУШАЕТ ОКНО, А НЕ КНОПКУ: разметка пересобирается каждым кадром, и кнопка под пальцем уже не та.
         const move = (ev: PointerEvent) => {
           const m = local.mic;
           if (!m) return;
           m.x = ev.clientX;
           m.y = ev.clientY;
-          if (m.phase === "hold" && overMicZone(m.x, m.y)) void beginMic();
           draw();
         };
         const up = (ev: PointerEvent) => {
+          clearTimeout(held);
           removeEventListener("pointermove", move);
           removeEventListener("pointerup", up);
           removeEventListener("pointercancel", up);
           const m = local.mic;
           if (!m) return;
-          const tap = m.phase === "hold" && performance.now() - m.began < 260 && Math.hypot(ev.clientX - m.x, ev.clientY - m.y) < 12;
+          // Тап — короткое касание без записи: открывает клавиатуру, как раньше.
+          const tap = m.phase === "hold" && performance.now() - m.began < MIC_HOLD_MS;
           void endMic(ev.clientX, ev.clientY, tap);
         };
         addEventListener("pointermove", move);
@@ -3294,6 +3281,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     + "@keyframes bar-in{from{opacity:0;transform:translateY(70%) scale(.6)}to{opacity:1;transform:none}}"
     + "@keyframes bar-out{from{opacity:1;transform:none}to{opacity:0;transform:translateY(70%) scale(.6)}}"
     + "@media (prefers-reduced-motion:reduce){[data-bar],[data-section]{animation:none!important}}"
+    + "@keyframes mic-drop{0%,100%{opacity:.75}50%{opacity:1}}"
     + "@keyframes mic-pulse{0%,100%{transform:translate(-50%,-100%) scale(1)}50%{transform:translate(-50%,-100%) scale(1.18)}}"
     + "@keyframes eye-in{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}"
     + "@media (prefers-reduced-motion:reduce){[data-bar],[data-section],[data-eye]{animation:none!important}}"
