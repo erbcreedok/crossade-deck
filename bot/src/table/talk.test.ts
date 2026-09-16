@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
-import { enter, listed, opened } from "./talk.js";
+import { enter, inviteExisting, listed, opened } from "./talk.js";
 
 const links = { anywhere: (r: string) => `https://t.me/bot/table?startapp=${r}`, app: (r: string) => `https://fly/t/?room=${r}` };
 const card = (room: string, title: string, by = "tg:1"): RoomCard => ({ room, title, by, home: { kind: "chat", chat: "-1" }, people: [], createdAt: 0 });
@@ -21,6 +21,19 @@ describe("слова бота про столы", () => {
     const said = listed([inChat, inline], links, true, "tg:1");
     expect(said.text).toContain("чат «Пицца»");
     expect(said.text).toContain("в переписке");
+  });
+
+  it("готовый стол карточкой в чужую переписку: админу — «Управлять», остальным только вход", () => {
+    const one: RoomCard = { room: "r1", title: "Стол «Пицца»", by: "tg:1", home: { kind: "chat", chat: "-1", chatTitle: "Пицца" }, people: [], createdAt: 0 };
+    const asAdmin = inviteExisting(one, links, true);
+    expect(asAdmin.title).toBe("Стол «Пицца»");
+    expect(asAdmin.description).toContain("чат «Пицца»");
+    expect(asAdmin.text).toContain("Стол «Пицца»");
+    expect(asAdmin.rows[0]).toHaveLength(2);
+    expect(asAdmin.rows[0]![1]).toEqual({ text: "Управлять", data: "tbm:r1" });
+    // В чужой переписке вход — ссылкой: `web_app` Telegram там не покажет.
+    expect(asAdmin.rows[0]![0]).toEqual({ text: "Играть", url: "https://t.me/bot/table?startapp=r1" });
+    expect(inviteExisting(one, links, false).rows[0]).toHaveLength(1);
   });
 
   it("в личке без столов — не «в этом чате», а про меня", () => {

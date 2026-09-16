@@ -87,6 +87,17 @@ export function inlineOpened(card: RoomCard, links: Links): Said {
   return { text: `Стол «${card.title}» открыт — заходи.`, rows: [[enter(card.room, links, false, card.title)]] };
 }
 
+/** Готовый стол карточкой в чужую переписку: имя, где живёт, и кнопка входа; админу — ещё «Управлять». */
+export function inviteExisting(card: RoomCard, links: Links, admin: boolean): { title: string; description: string; text: string; rows: Button[][] } {
+  const where = card.home.kind === "inline" ? "в переписке" : card.home.chatTitle ? `чат «${card.home.chatTitle}»` : "в чате";
+  return {
+    title: card.title,
+    description: `Позвать за этот стол · ${where}`,
+    text: `Стол «${card.title}» — заходи.`,
+    rows: [admin ? [enter(card.room, links, false, "Играть"), { text: "Управлять", data: `tbm:${card.room}` }] : [enter(card.room, links, false, "Играть")]],
+  };
+}
+
 export function inviteArticle(room: string, links: Links): { title: string; description: string; text: string; button: Button } {
   return {
     title: "Стол (карты, HTML)",

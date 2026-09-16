@@ -224,7 +224,7 @@ bot.on("inline_query", async (ctx) => {
   });
   // НИЧЕГО НЕ КЕШИРОВАТЬ: у каждого запроса свой код, и отданный из кеша отправил бы двух разных
   // людей за один и тот же стол.
-  const results = [...(table ? await table.inlineResults() : []), ...kit];
+  const results = [...(table ? await table.inlineResults(`tg:${ctx.from.id}`) : []), ...kit];
   await ctx.answerInlineQuery(results as Parameters<typeof ctx.answerInlineQuery>[0], { cache_time: 0, is_personal: true });
 });
 

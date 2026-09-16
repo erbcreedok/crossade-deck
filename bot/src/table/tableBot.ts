@@ -12,7 +12,7 @@ import { mintRoom } from "../../../server/src/table/roomIds.js";
 import type { TableApi } from "./api.js";
 import type { Home, RoomCard, TableCommand } from "../../../server/src/table/contract.js";
 import { MENU, menuOf, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
-import { askTitle, closed, DOWN, gone, inlineOpened, inviteArticle, listed, opened, renamed, type Button, type Links } from "./talk.js";
+import { askTitle, closed, DOWN, gone, inlineOpened, inviteArticle, inviteExisting, listed, opened, renamed, type Button, type Links } from "./talk.js";
 import type { Watch } from "./watch.js";
 import { installStickers } from "./stickers.js";
 
@@ -128,14 +128,33 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, secret: stri
 
   bot.callbackQuery("tbx", (ctx) => ctx.answerCallbackQuery());
 
+  // УПРАВЛЕНИЕ СТОЛОМ. Кнопка может стоять и в чужой переписке — там у бота нет чата, и меню уходит
+  // нажавшему в личку; чужой стол нажавшему не открывается, даже если кнопку видят все.
   bot.callbackQuery(/^tbm:([A-Za-z0-9_-]+)$/, async (ctx) => {
-    await ctx.answerCallbackQuery();
     const room = ctx.match[1]!;
-    const cards = await tablesFor(ctx);
-    if (cards === "down") return void (await ctx.reply(DOWN));
-    const card = cards.find((c) => c.room === room);
-    if (!card) return void (await ctx.reply(gone));
+    const afar = !ctx.chat;
+    const say = async (text: string) => {
+      if (afar) await ctx.answerCallbackQuery({ text, show_alert: true });
+      else await ctx.reply(text);
+    };
+    const cards = afar ? await api.listBy(byOf(ctx)) : await tablesFor(ctx);
+    if (cards === "down" || cards === "missing") {
+      if (!afar) await ctx.answerCallbackQuery();
+      return void (await say(DOWN));
+    }
+    const card = (Array.isArray(cards) ? cards : []).find((c) => c.room === room);
+    if (!card || (afar && card.by !== byOf(ctx))) {
+      if (!afar) await ctx.answerCallbackQuery();
+      return void (await say(afar ? "Это не твой стол." : gone));
+    }
     const said = menuOf(card);
+    if (afar) {
+      const sent = await ctx.api.sendMessage(ctx.from.id, said.text, { reply_markup: keyboardOf(said.rows) }).catch(() => null);
+      return void (await ctx.answerCallbackQuery(
+        sent ? { text: "Меню стола — у меня в личке." } : { text: "Напиши мне в личку — оттуда я пришлю меню.", show_alert: true },
+      ));
+    }
+    await ctx.answerCallbackQuery();
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
   });
 
@@ -203,23 +222,40 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, secret: stri
     }
   });
 
-  /** Карточка стола для inline-режима. Имя комнаты выписывает бот сам: сервер спрашивать не на что. */
-  async function inlineResults(): Promise<unknown[]> {
+  /**
+   * КАРТОЧКИ ДЛЯ INLINE-РЕЖИМА: первым — новый стол, за ним — столы, которые у этого человека уже есть.
+   * Так готовый стол зовётся в любую переписку, а не заводится каждый раз заново.
+   */
+  async function inlineResults(by: string): Promise<unknown[]> {
     const at = await api.where();
     if (!at.up) {
       return [{ type: "article", id: "tbl-down", title: "Столы сейчас недоступны", description: "Сервер стола выключен", input_message_content: { message_text: DOWN } }];
     }
     const room = mintRoom(secret);
     const card = inviteArticle(room, links);
+    const fresh = {
+      type: "article",
+      id: `tbl:${room}`,
+      title: card.title,
+      description: card.description,
+      input_message_content: { message_text: card.text },
+      reply_markup: keyboardOf([[card.button]]),
+    };
+    const had = await api.listBy(by);
+    const mine = Array.isArray(had) ? had.slice(0, 8) : [];
     return [
-      {
-        type: "article",
-        id: `tbl:${room}`,
-        title: card.title,
-        description: card.description,
-        input_message_content: { message_text: card.text },
-        reply_markup: keyboardOf([[card.button]]),
-      },
+      fresh,
+      ...mine.map((one) => {
+        const said = inviteExisting(one, links, one.by === by);
+        return {
+          type: "article",
+          id: `tbg:${one.room}`,
+          title: said.title,
+          description: said.description,
+          input_message_content: { message_text: said.text },
+          reply_markup: keyboardOf(said.rows),
+        };
+      }),
     ];
   }
 
