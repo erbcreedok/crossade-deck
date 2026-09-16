@@ -13,7 +13,12 @@
     СТРАНИЦА НЕ ЕДЕТ НИКУДА: ни прокрутки, ни резинки, ни жестов браузера. В Mini App тянуть страницу
     вниз — значит закрыть приложение, а палец за столом тянет карту, стол или камеру, и никогда — окно.
   */
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0704; overscroll-behavior: none; touch-action: none; }
+  /*
+    `touch-action` СЧИТАЕТСЯ ПО ВСЕЙ ЦЕПОЧКЕ ПРЕДКОВ: `none` на body запрещал бы прокрутку и внутри окон
+    поверх стола. Поэтому здесь `pan-y` — прокручивать нечего (страница без переполнения), зато окно
+    настроек прокручивается пальцем; а стол ниже оставляет себе `none`, и карта тянется, как тянулась.
+  */
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0704; overscroll-behavior: none; touch-action: pan-y; }
   body { font: 400 13px Tiny5, monospace; color: #f5ead0; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   #stage { position: fixed; inset: 0; overflow: hidden; touch-action: none; }
   /* Холсту CSS-размер нужен явно: без него он берёт ширину из атрибута — пиксели устройства. */

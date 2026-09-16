@@ -43,12 +43,20 @@ async function open(): Promise<TableStore> {
 // СВАЙП ВНИЗ НЕ ЗАКРЫВАЕТ СТОЛ — в три слоя, потому что каждый закрывает свою дыру:
 //   1. `disableVerticalSwipes` — сам Telegram перестаёт ловить жест (клиенты с Bot API 7.7+);
 //   2. `touchmove` отменяется у документа — старый клиент и iOS не получают ни прокрутки, ни резинки,
-//      за которую Telegram тянет окно (слушатель НЕ пассивный, иначе отмена молча не работает);
+//      за которую Telegram тянет окно (слушатель НЕ пассивный, иначе отмена молча не работает).
+//      ИСКЛЮЧЕНИЕ — окна, которые прокручиваются сами (`[data-scroll]`, например настройки): там палец
+//      ведёт содержимое окна, а не стол, и отменять его нечего;
 //   3. CSS в `index.html` — страница не прокручивается, и тянуть её не за что.
 telegram?.ready();
 telegram?.expand();
 telegram?.disableVerticalSwipes?.();
-document.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+document.addEventListener(
+  "touchmove",
+  (e) => {
+    if (!(e.target as Element | null)?.closest?.("[data-scroll]")) e.preventDefault();
+  },
+  { passive: false },
+);
 mountGround(stage);
 // ЛОАДЕР ХАБА — до входа и до последней картинки колоды. Поверх всего: у стола свои слои выше.
 const loading = loadingCross(document.body, "Загружаю стол");

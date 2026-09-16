@@ -49,7 +49,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
   layer.dataset.settingsLayer = "";
   layer.style.cssText = "position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;box-sizing:border-box;"
     + "padding:calc(16px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom));"
-    + "background:rgba(11,7,4,.62)";
+    + "touch-action:pan-y;background:rgba(11,7,4,.62)";
   host.append(layer);
 
   const section = (title: string) => `<div style="font:400 11px Tiny5,monospace;color:${INK.dim};padding:14px 0 4px;letter-spacing:.04em">${title}</div>`;
@@ -77,7 +77,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
     return `<div data-volume-row="${which}" data-muted="${muted}" style="display:flex;align-items:center;gap:12px;min-height:44px">`
       + `<span style="flex:none;width:78px;font:400 14px Tiny5,monospace;color:${muted ? INK.off : INK.ink}">${which === "voice" ? "Голосовые" : "Громкость"}</span>`
       + `<label style="position:relative;flex:1;height:32px;display:flex;align-items:flex-end;gap:3px">${bars}`
-      + `<input data-volume="${which}" type="range" min="0" max="100" step="${VOLUME_STEP}" value="${volume}" aria-label="Громкость" style="position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;touch-action:none"></label>`
+      + `<input data-volume="${which}" type="range" min="0" max="100" step="${VOLUME_STEP}" value="${volume}" aria-label="Громкость" style="position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;touch-action:pan-y"></label>`
       + `<span data-volume-value="${which}" style="flex:none;width:40px;text-align:right;font:400 13px Tiny5,monospace;color:${muted ? INK.off : INK.ink}">${volume}%</span></div>`;
   }
 

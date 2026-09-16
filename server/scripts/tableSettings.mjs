@@ -210,14 +210,28 @@ const short = await browser.newContext({ viewport: { width: 390, height: 420 }, 
 const D = await open("D", short);
 await openSettings(D);
 const panel = D.locator("[data-settings-panel]");
-const size = await panel.evaluate((el) => ({ scroll: el.scrollHeight, seen: el.clientHeight, touch: getComputedStyle(el).touchAction }));
+const size = await panel.evaluate((el) => ({ scroll: el.scrollHeight, seen: el.clientHeight }));
 check("на коротком экране окно длиннее экрана", size.scroll > size.seen, size);
-check("…и палец его прокручивает (не заблокирован touch-action)", size.touch !== "none", size.touch);
 const boxD = await panel.boundingBox();
 check("окно не вылезает за края экрана", boxD.y >= 0 && boxD.y + boxD.height <= 420, boxD);
-await panel.evaluate((el) => (el.scrollTop = 9999));
+
+// ПРОКРУТКА ПАЛЬЦЕМ — настоящими касаниями, а не `scrollTop` из скрипта: `touch-action` действует только
+// на живом жесте, и подмена значения скриптом прошла бы мимо ошибки.
+const cdp = await short.newCDPSession(D);
+const touch = (type, x, y) =>
+  cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y, radiusX: 6, radiusY: 6, force: 1 }] });
+const swipe = async (x, y, dy) => {
+  await touch("touchStart", x, y);
+  for (let i = 1; i <= 8; i += 1) await touch("touchMove", x, y + (dy * i) / 8);
+  await touch("touchEnd", x, y + dy);
+  await D.waitForTimeout(400);
+};
+await swipe(195, 300, -220);
+const swiped = await panel.evaluate((el) => el.scrollTop);
+check("палец прокручивает окно вниз", swiped > 0, swiped);
+await swipe(195, 300, -600);
 const low = await panel.evaluate((el) => ({ at: el.scrollTop, bottom: el.scrollHeight - el.clientHeight }));
-check("низ настроек достижим", low.at > 0 && low.at === low.bottom, low);
+check("низ настроек достижим пальцем", low.at >= low.bottom - 1, low);
 const footer = await D.locator("[data-client]").boundingBox();
 check("нижняя строка видна, когда докрутил", footer.y + footer.height <= 420 + 1, footer);
 
