@@ -106,6 +106,8 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     carry: (out: CarryOut) => room.send(MSG.carry, out),
     command: (command) => room.send(MSG.command, command),
     live: (out) => room.send(MSG.live, out),
+    rtc: (out) => room.send(MSG.rtc, out),
+    onRtc: (listener) => void room.onMessage(MSG.rtc, (note: { from: string; kind: string; body: string }) => listener(note)),
     onLive: (listener) => void room.onMessage(MSG.live, (clip: { by: string; seq: number; bytes: Uint8Array }) => listener(clip)),
     mic: (on) => room.send(MSG.mic, { on }),
     onMic: (listener) => void room.onMessage(MSG.mic, (mic: { by: string; on: boolean }) => listener(mic)),

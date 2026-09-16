@@ -14,6 +14,7 @@ import { BOT_KEY, botPerson } from "./botPerson.js";
 import { MSG, type CarryOut, type Intent, type JoinOptions, type Op, type Person, type RunResult, type TableCommand, type Welcome } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
 import { cleanLive, ear, LiveTalk, liveTally, type Live } from "./live.js";
+import { cleanSignal, Signals, type Signal } from "./rtc.js";
 import { cleanMic, type Mic } from "./voice.js";
 import { execute, plan } from "./script.js";
 import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
@@ -33,6 +34,7 @@ export class TableRoom extends Room {
   private eyes = new Eyes();
   /** Сколько голосовых человек отправил за последние секунды: больше предела сервер не пересылает. */
   private talk = new LiveTalk();
+  private signals = new Signals();
   maxClients = 16;
 
   private table!: Table;
@@ -174,6 +176,18 @@ export class TableRoom extends Room {
       }
     });
 
+    // ЗНАКОМСТВО ГОЛОСОВ — записку донести и забыть. Дальше речь идёт мимо стола, напрямую между устройствами.
+    this.onMessage(MSG.rtc, (client, raw: unknown) => {
+      const me = this.personOf(client.sessionId);
+      const out = cleanSignal(raw);
+      if (!me?.seat || !out || !this.signals.take(me.key, Date.now())) return;
+      const note: Signal = { ...out, from: me.key };
+      // В ТО ЖЕ ОДНО ОКНО, что слушает речь: знакомиться со вторым, висящим в фоне, не с кем.
+      const windows = this.clients.filter((one) => this.seats.get(one.sessionId) === out.to);
+      const at = ear(windows.map((one) => one.sessionId));
+      for (const one of windows) if (one.sessionId === at) one.send(MSG.rtc, note);
+    });
+
     this.onMessage(MSG.stickers, (client) => {
       const me = this.personOf(client.sessionId);
       if (me) client.send(MSG.stickers, stickersOf(me.key));
@@ -237,6 +251,13 @@ export class TableRoom extends Room {
     if (!who) return;
     const sitting = this.table.here.find((one) => one.key === who.key);
     const person: Person = { ...who, ink: sitting?.ink ?? this.freeInk() };
+    // ОТКРЫЛ СТОЛ В НОВОМ ОКНЕ — старым голос больше не принадлежит: иначе они дерутся за одну связь, и
+    // речь достаётся тому, кого человек уже не видит.
+    for (const one of this.clients) {
+      if (one.sessionId !== client.sessionId && this.seats.get(one.sessionId) === person.key) {
+        one.send(MSG.rtc, { from: person.key, to: person.key, kind: "bye", body: "" });
+      }
+    }
     this.seats.set(client.sessionId, person.key);
     this.spread(this.table.join(person));
   }
@@ -249,6 +270,7 @@ export class TableRoom extends Room {
     if ([...this.seats.values()].includes(key)) return;
     if (this.eyes.forget(key)) this.spreadEyes();
     this.talk.forget(key);
+    this.signals.forget(key);
     this.spread(this.table.leave(key));
   }
 

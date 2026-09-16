@@ -73,6 +73,8 @@ export function localStore(): TableStore {
     watch: () => {},
     command: () => {},
     live: () => {},
+    rtc: () => {},
+    onRtc: () => {},
     onLive: () => {},
     mic: () => {},
     onMic: () => {},

@@ -14,7 +14,7 @@ import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.
 import { tableHaptic, type Haptic } from "./haptic.js";
 import { tableMotion } from "./motion.js";
 import { EYES_IN_PANEL, EYES_ON_TABLE, eyesAt, type Eye, type Spot as EyeSpot } from "../src/table/eyes.js";
-import { tableLive, type LiveClip, type LiveFail } from "./live.js";
+import { tableMesh } from "./mesh.js";
 import { mountSettings } from "./settings.js";
 import { tableSound } from "./sound.js";
 import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as CueSpot } from "../src/table/cues.js";
@@ -257,8 +257,25 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     changed: () => draw(),
   });
   // ── ГОЛОСОВЫЕ ──────────────────────────────────────────────────────────────────────────────────
-  const live = tableLive(sound, HOST);
-  live.onChange(() => draw());
+  // ГОЛОС ИДЁТ МИМО СТОЛА — напрямую между устройствами (`mesh.ts`). Стол только сводит их запиской.
+  const mesh = tableMesh((note) => store.rtc(note), { voiceGain: (mine) => sound.voiceGain(mine), muted: (key) => voiceMuted.has(key) });
+  mesh.onChange(() => draw());
+  store.onRtc((note) => void mesh.hear(note));
+  // С КЕМ СВОДИТЬСЯ — с теми, кто за столом. Кто-то вошёл или вышел — связь заводится и отпускается сама.
+  const meshKeep = () => {
+    const who = store.me.key;
+    if (!who) return;
+    // Сводимся с теми, кто СИДИТ: зритель не говорит, бот не слушает.
+    mesh.keep(store.state.people.filter((one) => one.seat && !one.bot).map((one) => one.key), who);
+  };
+  store.onChange(() => meshKeep());
+  // ВОШЁЛ ЗА ТИХИЙ СТОЛ — перемен не будет вовсе, и одного слушателя перемен мало: заводим связь сами,
+  // как только стало известно, кто я.
+  const meshSoon = setInterval(() => {
+    if (!store.me.key) return;
+    meshKeep();
+    clearInterval(meshSoon);
+  }, 250);
   /** У кого сейчас горит микрофон — свой и чужие. */
   const recording = new Set<string>();
   store.onMic((m) => {
@@ -266,11 +283,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     else recording.delete(m.by);
     draw();
   });
-  // ГОЛОС ЗАГЛУШЁННОГО НЕ ЗВУЧИТ И НЕ ДЫШИТ: его речь у меня просто не играется.
-  store.onLive((clip) => {
-    if (voiceMuted.has(clip.by)) return;
-    live.hear(clip as LiveClip, () => chairPlace(clip.by));
-  });
+
 
   /** Где сидит автор записи — в долях от середины экрана, как у звуков стола. */
   function chairPlace(by: string): { x: number; z: number } {
@@ -337,7 +350,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     /** Окно раздачи крупье: серия вопросов тому, кто нажал «Раздать». */
     deal: null as null | { rule: "each" | "durak" | "krest" | "belka"; n: number; all: boolean; skipEmpty: boolean },
     /** Жест голоса: зажата 💬 — где палец, ушёл ли он с кнопки и кому сейчас слышно. */
-    mic: null as null | { off: boolean; x: number; y: number; from: { x: number; y: number }; open: boolean; to: string | null | undefined; fail: LiveFail | null },
+    mic: null as null | { off: boolean; x: number; y: number; from: { x: number; y: number }; open: boolean; to: string | null | undefined; fail: "no-mic" | "denied" | null },
     /** Лассо: инструмент, вид грэба и сторона сборки — живут, пока открыт экран. */
     tool: "cursor" as "cursor" | "lasso",
     grab: "collect" as GrabMode,
@@ -1213,11 +1226,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   }
 
   /** Отказ микрофона — человеческими словами, прямо в подсказке жеста. */
-  const MIC_FAIL: Record<LiveFail, string> = {
-    "no-mic": "Микрофона на этом устройстве нет",
+  const MIC_FAIL: Record<"no-mic" | "denied", string> = {
+    "no-mic": "Голос на этом устройстве не работает",
     denied: "Микрофон не разрешён — дай доступ в настройках",
-    "no-worklet": "Этот браузер живой голос не тянет",
-    "no-audio": "Звук здесь не открывается",
   };
 
   /** Насколько палец должен уйти с кнопки, чтобы в руке оказался микрофон. */
@@ -1231,7 +1242,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     haptic.buzz("medium");
     // НЕ ВЫШЛО — ГОВОРИМ, ПОЧЕМУ. Молча исчезнувший микрофон не объясняет ни человеку, ни мне, что случилось:
     // разрешение не дали, микрофона нет вовсе или звуковой поток этого браузера не умеет воркретов.
-    const why = await live.open((frame) => store.live(frame));
+    const why = await mesh.open();
     if (why && local.mic) local.mic.fail = why;
     draw();
   }
@@ -1244,7 +1255,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const to = target === null ? null : target.kind === "chair" ? target.to : undefined;
     if (to === m.to) return;
     m.to = to;
-    live.aim(to);
+    mesh.aim(to);
     // МИКРОФОН НАД АВАТАРОМ — пока меня слышно, и ровно тогда: видят все за столом.
     store.mic(to !== null);
     if (to !== null) haptic.buzz("light");
@@ -1255,7 +1266,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const m = local.mic;
     local.mic = null;
     if (m?.open) {
-      live.close();
+      // Связь не рвём — только замолкаем: следующее слово должно идти мгновенно, без нового знакомства.
+      mesh.aim(null);
       if (m.to !== null) store.mic(false);
     }
     if (tap) talk.toggle();
@@ -2105,7 +2117,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         angle: c.angle,
         mine: c.id === seat,
         ...(c.croupier ? { croupier: true } : {}),
-        ...(sitter && live.speaking === sitter.key ? { speaking: live.loudness } : {}),
+        ...(sitter && mesh.speaking === sitter.key ? { speaking: mesh.loudness } : {}),
         // Своя рука — внизу, на стекле; в своём стуле карт не рисуем.
         pose: c.pose,
         cards: c.id === seat ? 0 : c.hand.filter((card) => !flying.has(card.id)).length + gapsIn(s, c.id).filter((gap) => gap.carry).length,
@@ -2145,8 +2157,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       turning: [...turns.keys()],
       mine: seat,
       // Кто сейчас звучит и насколько громко дышит его аватар — прогон жестов читает это отсюда.
-      speaking: live.speaking,
-      loudness: +live.loudness.toFixed(2),
+      speaking: mesh.speaking,
+      loudness: +mesh.loudness.toFixed(2),
       admin: s.admin,
       me: me(),
       picks: s.picks ?? {},

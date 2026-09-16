@@ -34,6 +34,9 @@ export interface TableStore {
   live(out: { seq: number; bytes: Uint8Array; to?: string }): void;
   /** Чужое голосовое пришло. */
   onLive(listener: (clip: { by: string; seq: number; bytes: Uint8Array }) => void): void;
+  /** Записка тому, с кем сводим голоса напрямую. */
+  rtc(out: { to: string; kind: string; body: string }): void;
+  onRtc(listener: (note: { from: string; kind: string; body: string }) => void): void;
   /** Я включил или выключил микрофон — остальным: они видят это на моём аватаре. */
   mic(on: boolean): void;
   /** Кто-то включил или выключил микрофон. */
