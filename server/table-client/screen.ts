@@ -268,6 +268,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   const mesh = tableMesh((note) => store.rtc(note), { voiceGain: (mine) => sound.voiceGain(mine), muted: (key) => voiceMuted.has(key) });
   mesh.onChange(() => draw());
   store.onRtc((note) => void mesh.hear(note));
+  /** Как часто проверяем, что связь есть с каждым, кто за столом. Четверти секунды хватает, чтобы человек
+   * не успел заметить переоткрытое окно соседа, а работы это не стоит почти никакой. */
+  const MESH_BEAT_MS = 250;
   // С КЕМ СВОДИТЬСЯ — с теми, кто за столом. Кто-то вошёл или вышел — связь заводится и отпускается сама.
   const meshKeep = () => {
     const who = store.me.key;
@@ -276,13 +279,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     mesh.keep(store.state.people.filter((one) => one.seat && !one.bot).map((one) => one.key), who);
   };
   store.onChange(() => meshKeep());
-  // ВОШЁЛ ЗА ТИХИЙ СТОЛ — перемен не будет вовсе, и одного слушателя перемен мало: заводим связь сами,
-  // как только стало известно, кто я.
-  const meshSoon = setInterval(() => {
-    if (!store.me.key) return;
-    meshKeep();
-    clearInterval(meshSoon);
-  }, 250);
+  // СВЯЗЬ ПРОВЕРЯЕТСЯ БИЕНИЕМ, а не только переменами за столом. Перемен может не быть вовсе: человек
+  // переоткрыл стол — его старое окно уходит в отставку и прощается со всеми, а за столом при этом ничего
+  // не изменилось. Без биения остальные держат связь с закрытым окном и не слышат его больше никогда.
+  // `keep` ничего не делает, если всё на месте, поэтому биение дешёвое.
+  setInterval(() => {
+    if (store.me.key) meshKeep();
+  }, MESH_BEAT_MS);
   /** У кого сейчас горит микрофон — свой и чужие. */
   const recording = new Set<string>();
   store.onMic((m) => {
@@ -1598,8 +1601,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       const size = Math.max(16, Math.round(0.3 * view.k));
       const ink = inkOf(s, owner);
       // У САМОГО АВАТАРА: верхний правый край диска, как значок на плече, а не флажок за стулом.
-      const left = Math.round(spot.x + spot.r * 0.72);
-      const top = Math.round(spot.y - spot.r * 0.72);
+      // РАДИУС БЕРЁМ В ПОКОЕ, без раздутия от голоса. Иначе значок ездит вместе с дыханием аватара, и
+      // разметка слоя меняется несколько раз в секунду — а с ней из-под пальца исчезают все кнопки.
+      const rest = spot.r / (spot.puff || 1);
+      const left = Math.round(spot.x + rest * 0.72);
+      const top = Math.round(spot.y - rest * 0.72);
       html += `<div data-mic-mark="${escape(owner)}" data-talks="false" style="position:absolute;left:${left}px;top:${top}px;`
         + `transform:translate(-50%,-50%);z-index:27;pointer-events:none;width:${size}px;height:${size}px;border-radius:50%;`
         + `display:flex;align-items:center;justify-content:center;background:${ink};box-shadow:inset 0 0 0 2px ${T.black};`

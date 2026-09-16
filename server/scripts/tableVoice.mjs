@@ -21,6 +21,12 @@ const browser = await chromium.launch({
 const open = async (name) => {
   const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
   p.on("pageerror", (e) => console.log(name, "ERROR", e.message));
+  // ЖЕСТ МОГУТ ОТНЯТЬ: браузер шлёт pointercancel, и удержание кончается само. Считаем такие случаи — иначе
+  // «микрофон погас сам» не отличить от «его отпустили».
+  await p.addInitScript(() => {
+    window.__cancels = 0;
+    addEventListener("pointercancel", () => { window.__cancels += 1; }, { capture: true });
+  });
   await p.route("https://telegram.org/**", (r) => r.abort());
   await p.goto(`${base}/table/?room=${room}&name=${name}`);
   await p.waitForSelector(".crossade-loading", { state: "detached" });
@@ -240,7 +246,7 @@ check("микрофон на аватаре погас", (await B.$$eval("[data-
   const reached = await flowed(now, keyA0, TALK, 4000);
   const heardOld = await flow(old, keyA0);
   await A.mouse.up();
-  check("речь дошла до того окна, в котором человек сейчас", reached, { heardOld, a: await live(A) });
+  check("речь дошла до того окна, в котором человек сейчас", reached, { heardOld, a: await live(A), cancels: await A.evaluate(() => window.__cancels) });
   check("…и не двоится вторым его же окном", heardOld < HUSH, { heardOld });
   await old.close();
   await now.close();
@@ -310,8 +316,13 @@ check("выключил голосовые — их ползунок серый,
 
   // ГЛУШИТЬ МОЖНО ПРЯМО ПОСРЕДИ РЕЧИ. Пока человек говорит, кадр идёт под каждое колебание голоса; если
   // при этом переписывать разметку, кнопка исчезает из-под пальца и нажатие не доходит никогда.
-  await B.click("[data-voice-mute]");
-  await B.waitForTimeout(200);
+  // Начинаем С ИЗВЕСТНОГО СОСТОЯНИЯ, а не «ещё одно нажатие от прошлого»: одно потерянное нажатие выше — и
+  // всё дальше проверялось бы наоборот.
+  for (let i = 0; i < 4 && (await mutedA()); i += 1) {
+    await B.click("[data-voice-mute]");
+    await B.waitForTimeout(200);
+  }
+  check("перед речью его слышно", (await mutedA()) === false, { volume: await volA() });
   // У А с прошлого раздела открыты настройки — они накрывают 💬, и жест ушёл бы в них.
   await A.click("[data-settings-close]");
   await A.waitForTimeout(300);
@@ -337,8 +348,12 @@ check("выключил голосовые — их ползунок серый,
   check("заглушил его посреди речи", await mutedA(), { volume: await volA(), a: await live(A) });
   await tapMute();
   check("и вернул слух, не дожидаясь, пока он замолчит", (await mutedA()) === false, { volume: await volA() });
+
+  // ПАЛЕЦ ПОДНЯТ — ЗАПИСЬ ЗАКРЫТА ТУТ ЖЕ. Ждём меньше, чем длилась прежняя отсрочка: она горела точкой
+  // записи на телефоне при уже закрытом рте, и человек читал это как «оно меня всё ещё слушает».
   await A.mouse.up();
-  await A.waitForTimeout(200);
+  await A.waitForTimeout(150);
+  check("отпустил палец — микрофон отдан системе сразу", (await live(A)).open === false, await live(A));
 }
 
 // ОТЧЁТ ПЕЧАТАЕТСЯ ДО ЗАКРЫТИЯ БРАУЗЕРА: живые голосовые связи не дают ему закрыться быстро, и прогон

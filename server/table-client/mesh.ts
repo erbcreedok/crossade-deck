@@ -5,18 +5,13 @@
 // нет. Здесь речь идёт по UDP и сжатой (Opus): дыра слышится шорохом, а не провалом, и весит вдесятеро
 // меньше — узкий исходящий канал телефона перестаёт захлёбываться.
 //
-// МИКРОФОН БЕРЁТСЯ НА ПЕРВОМ СЛОВЕ и отпускается через `MIC_IDLE_MS` молчания: держать его открытым всё
-// время — значит жечь оранжевую точку на телефоне, пока человек просто играет в карты.
+// МИКРОФОН ЖИВЁТ РОВНО ПОД ПАЛЬЦЕМ: взят, когда в руке появилась шайба, отпущен в тот же миг, когда палец
+// поднят. Держать его дольше — значит жечь точку записи на телефоне, пока человек просто играет в карты;
+// брать раньше — спрашивать доступ там, где говорить ещё никто не собирался.
 //
 // КОМУ СЛЫШНО, РЕШАЕТ ДОРОЖКА, А НЕ СЕРВЕР: наведён на сукно — она включена всем, на стул — только ему.
 
 import { callsFirst } from "../src/table/rtc.js";
-
-/**
- * Молчит столько — микрофон отпускаем, и точка записи на телефоне гаснет. Секунды хватает, чтобы не брать
- * его заново между двумя фразами подряд; всё, что дольше, человек читает как «он меня слушает».
- */
-export const MIC_IDLE_MS = 1500;
 
 /** Куда стучаться за своим адресом. Свой TURN появится, когда найдётся первый, кого не пустит его NAT. */
 const ICE: RTCIceServer[] = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
@@ -98,7 +93,6 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
   /** Этому окну голос больше не принадлежит: человек открыл стол в новом. Назад не возвращается. */
   let retired = false;
   let aimed: string | null | undefined = null;
-  let idle: ReturnType<typeof setTimeout> | null = null;
   let speaking: string | null = null;
   let loudness = 0;
   let ctx: AudioContext | null = null;
@@ -297,7 +291,6 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
     },
     async open() {
       if (retired) return "no-mic";
-      if (idle) clearTimeout(idle);
       if (stream) return null;
       if (!mesh.able) return "no-mic";
       try {
@@ -312,25 +305,19 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
     },
     aim(to) {
       aimed = to;
-      // Наводка только решает, кому слышно. Микрофон при этом остаётся в руке: палец ещё держит кнопку, и
-      // отпустить его посреди жеста — значит онеметь на следующей же наводке.
-      if (to !== null && idle) {
-        clearTimeout(idle);
-        idle = null;
-      }
+      // Наводка только решает, кому слышно: микрофон при этом остаётся в руке. Мимо зоны — дорожка снята,
+      // и наружу не идёт ничего, но запись не закрывается — палец ещё держит шайбу.
       apply();
     },
     rest() {
-      // ЖЕСТ КОНЧИЛСЯ — микрофон отдаём системе, и точка записи на телефоне гаснет. Не сразу: две фразы
-      // подряд не должны каждый раз заново просить доступ.
-      if (idle) clearTimeout(idle);
-      idle = setTimeout(() => {
-        for (const t of stream?.getTracks() ?? []) t.stop();
-        stream = null;
-        mineTrack = null;
-        log.open = false;
-        apply();
-      }, MIC_IDLE_MS);
+      // ПАЛЕЦ ПОДНЯТ — микрофон отдаём системе ТУТ ЖЕ. Любая задержка здесь видна человеку как горящая
+      // точка записи при закрытом рте, и никакой выгодой её не окупить: доступ в этой странице уже дан, и
+      // второй раз его не спросят.
+      for (const t of stream?.getTracks() ?? []) t.stop();
+      stream = null;
+      mineTrack = null;
+      log.open = false;
+      apply();
     },
     gains() {
       for (const [key, peer] of peers) if (peer.sound) hush(peer.sound, gainFor(key));
@@ -353,7 +340,6 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
     },
     close() {
       aimed = null;
-      if (idle) clearTimeout(idle);
       for (const t of stream?.getTracks() ?? []) t.stop();
       stream = null;
       mineTrack = null;
