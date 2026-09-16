@@ -13,6 +13,7 @@ import { tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
 import { MSG, type CarryOut, type Intent, type JoinOptions, type Op, type Person, type RunResult, type TableCommand, type Welcome } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
+import { cleanLive, LiveTalk, type Live } from "./live.js";
 import { cleanMic, cleanVoice, Voices, type Mic, type Voice } from "./voice.js";
 import { execute, plan } from "./script.js";
 import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
@@ -32,6 +33,7 @@ export class TableRoom extends Room {
   private eyes = new Eyes();
   /** Сколько голосовых человек отправил за последние секунды: больше предела сервер не пересылает. */
   private voices = new Voices();
+  private talk = new LiveTalk();
   maxClients = 16;
 
   private table!: Table;
@@ -163,6 +165,21 @@ export class TableRoom extends Room {
       }
     });
 
+    // ЖИВОЙ ГОЛОС — кусок речи остальным, пока он говорит: на сукно всем, на стул — лично тому, кто на нём.
+    this.onMessage(MSG.live, (client, raw: unknown) => {
+      const me = this.personOf(client.sessionId);
+      const out = cleanLive(raw);
+      if (!me?.seat || !out || !this.talk.take(me.key, Date.now())) return;
+      const live: Live = { ...out, by: me.key };
+      for (const other of this.clients) {
+        const key = this.seats.get(other.sessionId);
+        if (key === undefined || key === me.key) continue;
+        // ЛИЧНОЕ — только тому, на чей стул наведён микрофон: остальные этой речи не слышат.
+        if (out.to !== undefined && key !== out.to) continue;
+        other.send(MSG.live, live);
+      }
+    });
+
     this.onMessage(MSG.stickers, (client) => {
       const me = this.personOf(client.sessionId);
       if (me) client.send(MSG.stickers, stickersOf(me.key));
@@ -238,6 +255,7 @@ export class TableRoom extends Room {
     if ([...this.seats.values()].includes(key)) return;
     if (this.eyes.forget(key)) this.spreadEyes();
     this.voices.forget(key);
+    this.talk.forget(key);
     this.spread(this.table.leave(key));
   }
 

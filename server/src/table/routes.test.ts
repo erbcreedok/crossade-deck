@@ -59,7 +59,12 @@ describe("вид колоды", () => {
     const ok = await fetch(`${base}/table/sounds/drop-1.m4a`);
     expect(ok.status).toBe(200);
     expect((await ok.arrayBuffer()).byteLength).toBeGreaterThan(1000);
-    for (const name of ["hand-1", "turn-1", "gather-3", "merge-1", "shuffle-1"]) expect((await fetch(`${base}/table/sounds/${name}.m4a`)).status, name).toBe(200);
+    for (const name of ["hand-1", "turn-1", "gather-3", "merge-1", "shuffle-1", "sort-1"]) expect((await fetch(`${base}/table/sounds/${name}.m4a`)).status, name).toBe(200);
+    // Микрофон живьём грузится своим файлом: `AudioWorklet` берёт только самостоятельный модуль.
+    const mic = await fetch(`${base}/table/live-worklet.js`);
+    expect(mic.status).toBe(200);
+    expect(mic.headers.get("content-type")).toMatch(/javascript/);
+    expect(await mic.text()).toContain("live-mic");
     expect((await fetch(`${base}/table/sounds/boom-1.m4a`)).status).toBe(404);
   });
 
