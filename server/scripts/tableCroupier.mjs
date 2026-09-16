@@ -81,6 +81,10 @@ const seats = (await spots(A)).seats ?? [];
 const his = seats.find((sp) => sp.croupier);
 check("крупье виден за столом, и он один", Boolean(his) && seats.filter((sp) => sp.croupier).length === 1, seats.map((sp) => sp.key));
 check("своего места игрок не потерял", seats.some((sp) => sp.key === mapA.mine && !sp.croupier));
+// Он вне кольца, но НА ЭКРАНЕ: за краем до него не дотянуться пальцем.
+const mineSeat = seats.find((sp) => sp.key === mapA.mine);
+check("крупье виден на экране целиком", his.x - his.r > 0 && his.x + his.r < 390 && his.y - his.r > 0 && his.y + his.r < 844, his);
+check("сидит дальше от стола, чем игроки", Math.abs(his.x - 195) + Math.abs(his.y - 337) > 0 && his.key !== mineSeat.key);
 
 // Окно крупье: у админа кнопки, у игрока их нет.
 await openCroupier(A);
@@ -88,7 +92,14 @@ check("у админа в окне крупье — кнопки", (await A.$$ev
 await openCroupier(B);
 check("у игрока кнопок крупье нет", (await B.$$eval("[data-croupier]", (els) => els.length)) === 0);
 
-// Окно раздачи — отдельным окном, с вопросами.
+// Окно раздачи — отдельным окном, с вопросами. Кнопки нет (крупье не дотянуться) — дальше не идём.
+if (!(await A.$('[data-croupier="deal"]'))) {
+  check("кнопка «Раздать» доступна", false, "окно крупье не открылось");
+  await browser.close();
+  for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));
+  console.log(`tableCroupier ${checks.filter((c) => c.ok).length}/${checks.length}`);
+  process.exit(1);
+}
 await A.click('[data-croupier="deal"]');
 await A.waitForSelector("[data-deal-panel]");
 check("«Раздать» открывает своё окно", (await A.$("[data-deal-panel]")) !== null);

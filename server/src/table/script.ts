@@ -139,14 +139,15 @@ function presetPlan(table: Table, game: Game, size: DeckSize, jokers: boolean, p
   // БЕЛКА: четыре первых игрока по часовой от админа — крестом, 1 напротив 3, 2 напротив 4; остальные
   // стулья — между ними. Шестёрки — на край.
   const at = table.layout();
-  const seated = at.chairs.filter((c) => c.owner !== null && people.some((p) => p.key === c.owner));
+  // Стул крупье — не игровой: он не садится в круг и карт себе не получает.
+  const seated = at.chairs.filter((c) => !c.croupier && c.owner !== null && people.some((p) => p.key === c.owner));
   const home = seated.find((c) => c.owner === admin) ?? seated[0];
   if (!home || seated.length < 4) return { error: "not-enough-players" };
   const four = clockwise(seated, home.id).slice(0, 4);
   const base = home.angle;
   const taken: number[] = [0, 90, 180, 270];
   four.forEach((c, i) => steps.push({ t: "chair", id: c.id, angle: base + 90 * i, ms: PACE.chair }));
-  for (const c of clockwise(at.chairs, home.id).filter((c) => !four.includes(c))) {
+  for (const c of clockwise(at.chairs.filter((c) => !c.croupier), home.id).filter((c) => !four.includes(c))) {
     const rel = freeAngle(taken);
     taken.push(rel);
     steps.push({ t: "chair", id: c.id, angle: base + rel, ms: PACE.chair });
@@ -181,9 +182,11 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
   }
 
 
-  const anchor = dealer.seat ?? at.chairs.find((c) => c.owner === admin)?.id ?? at.chairs[0]?.id;
+  // РАЗДАЮТ ТОЛЬКО ИГРОВЫМ СТУЛЬЯМ. Стул крупье в круг не входит: он раздаёт, а не играет.
+  const playable = at.chairs.filter((c) => !c.croupier);
+  const anchor = dealer.seat ?? playable.find((c) => c.owner === admin)?.id ?? playable[0]?.id;
   if (!anchor) return { error: "not-enough-players" };
-  let chairs = at.chairs.filter((c) => !(command.skipEmpty || rule === "belka") || (c.owner !== null && people.some((p) => p.key === c.owner)));
+  let chairs = playable.filter((c) => !(command.skipEmpty || rule === "belka") || (c.owner !== null && people.some((p) => p.key === c.owner)));
   if (rule === "belka") {
     const around = clockwise(chairs, chairs.some((c) => c.id === anchor) ? anchor : (chairs[0]?.id ?? anchor));
     chairs = around.slice(0, 4);
@@ -191,7 +194,7 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
   }
   if (chairs.length === 0) return { error: "not-enough-players" };
   // Со следующего после раздающего; раздающему — последним. Раздающий без стула в круге — просто с его места по часовой.
-  const ring = clockwise([...chairs, ...at.chairs.filter((c) => c.id === anchor && !chairs.includes(c))], anchor);
+  const ring = clockwise([...chairs, ...playable.filter((c) => c.id === anchor && !chairs.includes(c))], anchor);
   const order = (ring[0]?.id === anchor ? [...ring.slice(1), ring[0]!] : ring).filter((c) => chairs.includes(c));
 
   const n = rule === "each" ? Math.max(1, Math.floor(command.n ?? 1)) : rule === "durak" ? Math.max(1, Math.floor(command.n ?? 6)) : rule === "belka" ? 8 : 0;

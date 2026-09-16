@@ -35,10 +35,16 @@ export function ringOrder(levels = 8): number[] {
 /** Первый угол по порядку пиццы, на котором ещё нет стула. */
 export const freeAngle = (taken: readonly number[]): number => ringOrder().find((a) => !taken.includes(a)) ?? 0;
 
-/** Крупье сидит ВНЕ кольца: дальше от сукна, чтобы его место не путали со стулом игрока. */
-export const CROUPIER_RADIUS = SEAT_RADIUS * 1.5;
-/** Его угол — своя сторона напротив: он один, и место у него всегда одно. */
-export const CROUPIER_ANGLE = 180;
+/**
+ * Крупье сидит ВНЕ кольца — сразу за кромкой сукна (она на 8), чтобы место не путали со стулом игрока.
+ * Дальше отодвигать нельзя: на узком экране он уезжает за край и до него не дотянуться.
+ */
+export const CROUPIER_RADIUS = SEAT_RADIUS + 1.2;
+/**
+ * КРУПЬЕ СИДИТ НА ДЕСЯТИ ЧАСАХ ОТ АДМИНА. Углы растут против часовой стрелки на экране (0 — своя сторона,
+ * шесть часов), поэтому час убывает на каждые 30°: десять часов от админа — это его угол плюс 240°.
+ */
+export const croupierAngle = (adminAngle = 0): number => (((adminAngle + 240) % 360) + 360) % 360;
 
 /** Середина места на столе — те же оси, что у сукна: +y к своей стороне, вниз экрана. */
 export function seatPoint(angle: number, radius = SEAT_RADIUS): { x: number; y: number } {

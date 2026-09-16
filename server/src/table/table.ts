@@ -49,7 +49,7 @@ import {
   CARD_FACES,
 } from "./contract.js";
 import { arranged, samePack, shuffled } from "./arrange.js";
-import { CROUPIER_ANGLE, freeAngle, seatPoint } from "./ring.js";
+import { croupierAngle, freeAngle, seatPoint } from "./ring.js";
 
 /** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
 export const FELT_REACH = 8 - 0.86;
@@ -165,7 +165,8 @@ export class Table {
     this.seq += 1;
     const chair: ChairRow = {
       id: `c${this.seq}`,
-      angle: CROUPIER_ANGLE,
+      // На десяти часах от админа; админа за столом нет — от своей стороны.
+      angle: croupierAngle(this.admin ? this.seatOf(this.admin)?.angle : undefined),
       owner: person.key,
       last: person.key,
       lock: false,
@@ -821,12 +822,12 @@ export class Table {
   }
 
   /** Где что лежит — без лиц, для плана команды. */
-  layout(): { deck: string[]; piles: { id: string; cards: string[] }[]; felt: { id: string; x: number; y: number; under?: boolean }[]; chairs: { id: string; angle: number; owner: string | null; hand: string[] }[] } {
+  layout(): { deck: string[]; piles: { id: string; cards: string[] }[]; felt: { id: string; x: number; y: number; under?: boolean }[]; chairs: { id: string; angle: number; owner: string | null; hand: string[]; croupier?: true }[] } {
     return {
       deck: [...(this.main?.cards ?? [])],
       piles: [...this.piles].filter(([id]) => id !== MAIN_PILE).map(([id, pile]) => ({ id, cards: [...pile.cards] })),
       felt: this.felt.map(({ id, x, y, under }) => ({ id, x, y, ...(under ? { under } : {}) })),
-      chairs: [...this.chairs.values()].map((c) => ({ id: c.id, angle: c.angle, owner: c.owner, hand: [...c.hand] })),
+      chairs: [...this.chairs.values()].map((c) => ({ id: c.id, angle: c.angle, owner: c.owner, hand: [...c.hand], ...(c.croupier ? { croupier: true as const } : {}) })),
     };
   }
 
