@@ -2102,6 +2102,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   // ── РИСОВАНИЕ ───────────────────────────────────────────────────────────────────────────────
 
+  /** Разметка слоя поверх холста в прошлом кадре: та же — значит трогать её нечем и незачем. */
+  let lastOver = "";
+
   function draw(): void {
     const g = glass();
     const s = seen();
@@ -2189,8 +2192,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       .filter((one): one is { chair: Chair; spot: Spot } => Boolean(one.spot))
       .map((one) => tipHtml(s, one.chair, one.spot));
     // ВСЕ КОРОБКИ СНАЧАЛА, ПОТОМ ВСЕ КАРТЫ: чужой веер вылезает за свою коробку, и соседняя его не режет.
-    over.innerHTML = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml();
-    wire();
+    // РАЗМЕТКУ ТРОГАЕМ, ТОЛЬКО ЕСЛИ ОНА ИЗМЕНИЛАСЬ. Пока человек говорит, кадр перерисовывается под каждое
+    // колебание его голоса — кольца живут на холсте, а не здесь. Переписывать при этом `innerHTML` значит
+    // десятки раз в секунду выбрасывать кнопки из-под пальца: нажатие начинается на одной, а заканчивается
+    // на другой, и до onclick дело не доходит вовсе — заглушить говорящего было нельзя, пока он не замолчит.
+    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml();
+    if (html !== lastOver) {
+      lastOver = html;
+      over.innerHTML = html;
+      wire();
+    }
     airUnder.style.height = `${mineGeom(handOf(s, mine(s)).length).barTop}px`;
 
     // ПЕРЕЕХАВШЕЕ — ЛЕТИТ. Запущенный перелёт прячет карту на месте, поэтому кадр рисуется ещё раз;

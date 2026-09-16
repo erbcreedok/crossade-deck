@@ -300,6 +300,45 @@ check("выключил голосовые — их ползунок серый,
   await B.click("[data-voice-mute]");
   await B.waitForTimeout(200);
   check("снял глушилку — он снова слышен", (await volA()) > 0, await vols());
+
+  // ТИШИНА — ФЛАЖКОМ, А НЕ НУЛЁМ: на айфоне громкость элемента принадлежит качельке сбоку, и ноль от
+  // страницы там просто выбрасывается. Ноль проверен выше; здесь — что рядом с ним стоит `muted`.
+  const mutedA = () => B.$eval(`audio[data-voice="${keyA0}"]`, (el) => el.muted);
+  await B.click("[data-voice-mute]");
+  await B.waitForTimeout(200);
+  check("заглушённый элемент помечен немым, а не просто тихим", await mutedA(), { volume: await volA() });
+
+  // ГЛУШИТЬ МОЖНО ПРЯМО ПОСРЕДИ РЕЧИ. Пока человек говорит, кадр идёт под каждое колебание голоса; если
+  // при этом переписывать разметку, кнопка исчезает из-под пальца и нажатие не доходит никогда.
+  await B.click("[data-voice-mute]");
+  await B.waitForTimeout(200);
+  // У А с прошлого раздела открыты настройки — они накрывают 💬, и жест ушёл бы в них.
+  await A.click("[data-settings-close]");
+  await A.waitForTimeout(300);
+  const say7 = await sayAt(A);
+  await A.mouse.move(say7.x, say7.y);
+  await A.mouse.down();
+  await A.waitForTimeout(150);
+  await A.mouse.move(say7.x + 40, say7.y - 60, { steps: 5 });
+  await A.mouse.move(195, 300, { steps: 6 });
+  await A.waitForTimeout(600);
+  check("он и правда говорит прямо сейчас", (await live(A)).talking.length >= 1, await live(A));
+  // ПАЛЬЦЕМ, А НЕ `click()`: тот ждёт, пока кнопка устоится, и перерисовку под собой прощает. Палец не
+  // прощает — нажатие начинается на одной кнопке, а заканчивается на другой, и click не случается вовсе.
+  const tapMute = async () => {
+    const b = await boxOf(B, "[data-voice-mute]");
+    await B.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await B.mouse.down();
+    await B.waitForTimeout(60);
+    await B.mouse.up();
+    await B.waitForTimeout(300);
+  };
+  await tapMute();
+  check("заглушил его посреди речи", await mutedA(), { volume: await volA(), a: await live(A) });
+  await tapMute();
+  check("и вернул слух, не дожидаясь, пока он замолчит", (await mutedA()) === false, { volume: await volA() });
+  await A.mouse.up();
+  await A.waitForTimeout(200);
 }
 
 // ОТЧЁТ ПЕЧАТАЕТСЯ ДО ЗАКРЫТИЯ БРАУЗЕРА: живые голосовые связи не дают ему закрыться быстро, и прогон

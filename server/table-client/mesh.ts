@@ -138,6 +138,16 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
   const gainFor = (key: string) => (sound.muted(key) ? 0 : sound.voiceGain(false));
 
   /**
+   * ТИШИНА СТАВИТСЯ ФЛАЖКОМ `muted`, А НЕ НУЛЕВОЙ ГРОМКОСТЬЮ: на айфоне громкость элемента отдана
+   * железной качельке сбоку, и всё, что ей пишет страница, система молча выбрасывает. Ноль там не
+   * слышно только на маке — на телефоне человек продолжает слышать того, кого заглушил.
+   */
+  function hush(el: HTMLAudioElement, gain: number): void {
+    el.muted = gain === 0;
+    el.volume = gain;
+  }
+
+  /**
    * Прощаемся с человеком ОДНИМ путём — иначе его элемент звука остаётся в странице, продолжает играть и
    * не слушается больше никаких настроек: связи у него уже нет, а голос всё ещё есть.
    */
@@ -175,7 +185,7 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
       // Чей это голос — написано на самом элементе: иначе ни прогон, ни человек с телефона не скажут, кого
       // из двоих он сейчас слышит.
       el.dataset.voice = key;
-      el.volume = gainFor(key);
+      hush(el, gainFor(key));
       document.body.appendChild(el);
       peer.sound = el;
       // ИГРАТЬ МОЖЕТ НЕ ДАТЬ ДО КАСАНИЯ — тогда ждём ближайшего и пробуем снова, а не молчим навсегда.
@@ -323,7 +333,7 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
       }, MIC_IDLE_MS);
     },
     gains() {
-      for (const [key, peer] of peers) if (peer.sound) peer.sound.volume = gainFor(key);
+      for (const [key, peer] of peers) if (peer.sound) hush(peer.sound, gainFor(key));
     },
     links() {
       return [...peers].map(([who, peer]) => ({ who, state: peer.pc.connectionState }));
