@@ -1,0 +1,21 @@
+.night/tasks/2-широкий-экран.md
+  s_9ed0da107cbc4a::t_bdb17c50b1bb3b 1-55
+.night/tasks/1-камера.md
+  s_9ed0da107cbc4a::t_4e8064b1212af4 62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a5964de0d781979096e7bff11b9a494bce095c1f",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
