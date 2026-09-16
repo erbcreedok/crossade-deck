@@ -205,6 +205,22 @@ await C.waitForTimeout(2600);
 await openSettings(C);
 check("30 кадров — «меньше анимаций · авто» включено само", (await C.getAttribute("[data-look=reduce]", "aria-checked")) === "true" && /авто/.test(await C.textContent("[data-look=reduce]")), await C.textContent("[data-look=reduce]"));
 
+// 7. КОРОТКИЙ ЭКРАН — окно не влезает целиком: оно должно прокручиваться пальцем и не вылезать за края.
+const short = await browser.newContext({ viewport: { width: 390, height: 420 }, hasTouch: true });
+const D = await open("D", short);
+await openSettings(D);
+const panel = D.locator("[data-settings-panel]");
+const size = await panel.evaluate((el) => ({ scroll: el.scrollHeight, seen: el.clientHeight, touch: getComputedStyle(el).touchAction }));
+check("на коротком экране окно длиннее экрана", size.scroll > size.seen, size);
+check("…и палец его прокручивает (не заблокирован touch-action)", size.touch !== "none", size.touch);
+const boxD = await panel.boundingBox();
+check("окно не вылезает за края экрана", boxD.y >= 0 && boxD.y + boxD.height <= 420, boxD);
+await panel.evaluate((el) => (el.scrollTop = 9999));
+const low = await panel.evaluate((el) => ({ at: el.scrollTop, bottom: el.scrollHeight - el.clientHeight }));
+check("низ настроек достижим", low.at > 0 && low.at === low.bottom, low);
+const footer = await D.locator("[data-client]").boundingBox();
+check("нижняя строка видна, когда докрутил", footer.y + footer.height <= 420 + 1, footer);
+
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));
 console.log(`tableSettings ${checks.filter((c) => c.ok).length}/${checks.length}`);
 await browser.close();

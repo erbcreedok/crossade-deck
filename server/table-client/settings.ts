@@ -129,7 +129,11 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
 
   function render(): void {
     const { sound, haptic, motion, look } = world;
-    layer.innerHTML = `<div data-settings-panel role="dialog" aria-modal="true" aria-label="Настройки" style="width:min(360px,100%);max-height:100%;overflow:auto;box-sizing:border-box;padding:14px 18px 16px;border-radius:14px;`
+    // ОКНО ПРОКРУЧИВАЕТСЯ ПАЛЬЦЕМ. У страницы стола `touch-action:none` — палец там тянет карту, а не страницу;
+    // здесь его надо вернуть, иначе на коротком экране низ настроек не достать. `data-scroll` — чтобы касание
+    // внутри не считалось нажатием кнопки (вибрация).
+    layer.innerHTML = `<div data-settings-panel data-scroll role="dialog" aria-modal="true" aria-label="Настройки" style="width:min(360px,100%);max-height:100%;min-height:0;overflow-y:auto;overflow-x:hidden;`
+      + `touch-action:pan-y;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;box-sizing:border-box;padding:14px 18px 16px;border-radius:14px;`
       + `background:${INK.well};box-shadow:inset 0 0 0 3px ${INK.black},inset 0 0 0 5px ${INK.wood},0 10px 0 rgba(11,7,4,.5)">`
       + `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><span style="font:400 18px Tiny5,monospace;color:${INK.ink}">Настройки</span>`
       + `<button data-settings-close aria-label="Закрыть" style="width:40px;height:40px;border:0;border-radius:10px;cursor:pointer;color:${INK.ink};font:400 18px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${INK.rim}">✕</button></div>`
