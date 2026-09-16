@@ -45,7 +45,12 @@ export function listed(cards: RoomCard[], links: Links, inPrivate: boolean, me?:
     return { text: inPrivate ? "Ты пока ни за одним столом. Открыть: /table [название]" : "В этом чате столов нет. Открыть: /table [название]", rows: [] };
   }
   const mine = (c: RoomCard) => me !== undefined && c.by === me;
-  const where = (c: RoomCard) => (inPrivate && c.home.kind === "chat" ? "" : "");
+  // ГДЕ СТОЛ ЖИВЁТ — в личке это важнее всего: столов много, и все они «где-то там».
+  const where = (c: RoomCard) => {
+    if (!inPrivate) return "";
+    if (c.home.kind === "inline") return " · в переписке";
+    return c.home.chatTitle ? ` · чат «${c.home.chatTitle}»` : " · в чате";
+  };
   return {
     text: [
       inPrivate ? `Твои столы (${cards.length}):` : `Столы этого чата (${cards.length}):`,

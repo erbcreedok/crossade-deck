@@ -15,6 +15,14 @@ describe("слова бота про столы", () => {
     expect(said.rows[1]![0]).toEqual({ text: "Стол «Бандиты»", app: "https://fly/t/?room=r2" });
   });
 
+  it("в личке видно, где стол живёт: чат по имени, переписка — «в переписке»", () => {
+    const inChat: RoomCard = { room: "r1", title: "Стол «Пицца»", by: "tg:1", home: { kind: "chat", chat: "-1", chatTitle: "Пицца" }, people: [], createdAt: 0 };
+    const inline: RoomCard = { room: "r2", title: "Стол «Ржавый обоз»", by: "tg:1", home: { kind: "inline", message: "m" }, people: [], createdAt: 0 };
+    const said = listed([inChat, inline], links, true, "tg:1");
+    expect(said.text).toContain("чат «Пицца»");
+    expect(said.text).toContain("в переписке");
+  });
+
   it("в личке без столов — не «в этом чате», а про меня", () => {
     expect(listed([], links, true, "tg:1").text).toContain("Ты пока ни за одним столом");
   });
