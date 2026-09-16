@@ -1,41 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { cleanMic, cleanVoice, VOICE_MAX, VOICE_MAX_BYTES, VOICE_MAX_MS, VOICE_WINDOW_MS, Voices } from "./voice.js";
+import { bytesOf, cleanMic } from "./voice.js";
 
-describe("голосовые", () => {
-  it("запись из сети: длина обрезается пределом, вес — нет", () => {
-    expect(cleanVoice({ ms: 9999, bytes: new Uint8Array([1, 2, 3]) })?.ms).toBe(VOICE_MAX_MS);
-    expect(cleanVoice({ ms: 1200, bytes: new Uint8Array([1]) })?.ms).toBe(1200);
-    expect(cleanVoice({ ms: 100, bytes: new Uint8Array(VOICE_MAX_BYTES + 1) })).toBeNull();
-    expect(cleanVoice({ ms: 100, bytes: new Uint8Array(0) })).toBeNull();
-    expect(cleanVoice({ ms: 100 })).toBeNull();
-  });
-
+describe("микрофон", () => {
   it("байты доезжают и обычным объектом — так их шлёт Colyseus", () => {
-    expect(cleanVoice({ ms: 100, bytes: { 0: 7, 1: 8, 2: 9 } })?.bytes).toEqual(new Uint8Array([7, 8, 9]));
-    expect(cleanVoice({ ms: 100, bytes: { type: "Buffer", data: [7, 8] } })?.bytes).toEqual(new Uint8Array([7, 8]));
-    expect(cleanVoice({ ms: 100, bytes: {} })).toBeNull();
-    expect(cleanVoice({ ms: 100, bytes: { a: 1 } })).toBeNull();
-  });
-
-  it("личный адресат — только строка, иначе слышно всем", () => {
-    expect(cleanVoice({ ms: 100, bytes: new Uint8Array([1]), to: "tg:7" })?.to).toBe("tg:7");
-    expect(cleanVoice({ ms: 100, bytes: new Uint8Array([1]) })?.to).toBeUndefined();
-    expect(cleanVoice({ ms: 100, bytes: new Uint8Array([1]), to: 7 })?.to).toBeUndefined();
+    expect(bytesOf({ 0: 7, 1: 8, 2: 9 })).toEqual(new Uint8Array([7, 8, 9]));
+    expect(bytesOf({ type: "Buffer", data: [7, 8] })).toEqual(new Uint8Array([7, 8]));
+    expect(bytesOf(new Uint8Array([1, 2]))).toEqual(new Uint8Array([1, 2]));
+    expect(bytesOf(new Uint8Array([1, 2]).buffer)).toEqual(new Uint8Array([1, 2]));
+    expect(bytesOf([3, 4])).toEqual(new Uint8Array([3, 4]));
+    expect(bytesOf({})).toBeNull();
+    expect(bytesOf({ a: 1 })).toBeNull();
+    expect(bytesOf(null)).toBeNull();
   });
 
   it("микрофон — только «включён» или «выключен»", () => {
     expect(cleanMic({ on: true })).toEqual({ on: true });
+    expect(cleanMic({ on: false })).toEqual({ on: false });
     expect(cleanMic({ on: "да" })).toBeNull();
-  });
-
-  it("не больше двух записей за окно; окно прошло — снова можно", () => {
-    const voices = new Voices();
-    expect(voices.send("a", 0)).toBe(true);
-    expect(voices.send("a", 1000)).toBe(true);
-    expect(voices.free("a", 1000)).toBe(0);
-    expect(voices.send("a", 2000)).toBe(false);
-    expect(voices.send("b", 2000)).toBe(true);
-    expect(voices.send("a", VOICE_WINDOW_MS + 1)).toBe(true);
-    expect(VOICE_MAX).toBe(2);
+    expect(cleanMic(null)).toBeNull();
   });
 });

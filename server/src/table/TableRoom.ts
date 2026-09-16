@@ -14,7 +14,7 @@ import { BOT_KEY, botPerson } from "./botPerson.js";
 import { MSG, type CarryOut, type Intent, type JoinOptions, type Op, type Person, type RunResult, type TableCommand, type Welcome } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
 import { cleanLive, LiveTalk, type Live } from "./live.js";
-import { cleanMic, cleanVoice, Voices, type Mic, type Voice } from "./voice.js";
+import { cleanMic, type Mic } from "./voice.js";
 import { execute, plan } from "./script.js";
 import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
 import { deal } from "./deal.js";
@@ -32,7 +32,6 @@ export class TableRoom extends Room {
   /** Кто на что смотрит: открытые окна стопок и стульев. Живёт, пока человек в комнате. */
   private eyes = new Eyes();
   /** Сколько голосовых человек отправил за последние секунды: больше предела сервер не пересылает. */
-  private voices = new Voices();
   private talk = new LiveTalk();
   maxClients = 16;
 
@@ -150,21 +149,6 @@ export class TableRoom extends Room {
       }
     });
 
-    // ЗАПИСЬ — остальным как есть и больше никуда: ни на диск, ни в историю. Автор слышит свою у себя.
-    this.onMessage(MSG.voice, (client, raw: unknown) => {
-      const me = this.personOf(client.sessionId);
-      const out = cleanVoice(raw);
-      if (!me?.seat || !out || !this.voices.send(me.key, Date.now())) return;
-      const voice: Voice = { ...out, by: me.key };
-      for (const other of this.clients) {
-        const key = this.seats.get(other.sessionId);
-        if (key === undefined || key === me.key) continue;
-        // ЛИЧНОЕ — только тому, на чей стул бросили; остальные его не слышат и не знают о нём.
-        if (out.to !== undefined && key !== out.to) continue;
-        other.send(MSG.voice, voice);
-      }
-    });
-
     // ЖИВОЙ ГОЛОС — кусок речи остальным, пока он говорит: на сукно всем, на стул — лично тому, кто на нём.
     this.onMessage(MSG.live, (client, raw: unknown) => {
       const me = this.personOf(client.sessionId);
@@ -254,7 +238,6 @@ export class TableRoom extends Room {
     // С ДРУГОГО УСТРОЙСТВА ОН ЕЩЁ ЗДЕСЬ — тогда не уходит никто.
     if ([...this.seats.values()].includes(key)) return;
     if (this.eyes.forget(key)) this.spreadEyes();
-    this.voices.forget(key);
     this.talk.forget(key);
     this.spread(this.table.leave(key));
   }

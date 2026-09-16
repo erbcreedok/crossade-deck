@@ -14,8 +14,7 @@ import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.
 import { tableHaptic, type Haptic } from "./haptic.js";
 import { tableMotion } from "./motion.js";
 import { EYES_IN_PANEL, EYES_ON_TABLE, eyesAt, type Eye, type Spot as EyeSpot } from "../src/table/eyes.js";
-import { VOICE_MAX_MS } from "../src/table/voice.js";
-import { tableVoice, type Recording, type VoiceClip } from "./voice.js";
+import { tableLive, type LiveClip } from "./live.js";
 import { mountSettings } from "./settings.js";
 import { tableSound } from "./sound.js";
 import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as CueSpot } from "../src/table/cues.js";
@@ -258,8 +257,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     changed: () => draw(),
   });
   // ── ГОЛОСОВЫЕ ──────────────────────────────────────────────────────────────────────────────────
-  const voice = tableVoice(sound);
-  voice.onChange(() => draw());
+  const live = tableLive(sound, HOST);
+  live.onChange(() => draw());
   /** У кого сейчас горит микрофон — свой и чужие. */
   const recording = new Set<string>();
   store.onMic((m) => {
@@ -267,10 +266,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     else recording.delete(m.by);
     draw();
   });
-  // ГОЛОС ЗАГЛУШЁННОГО НЕ ЗВУЧИТ И НЕ ДЫШИТ: его запись у меня просто не играется.
-  store.onVoice((clip) => {
+  // ГОЛОС ЗАГЛУШЁННОГО НЕ ЗВУЧИТ И НЕ ДЫШИТ: его речь у меня просто не играется.
+  store.onLive((clip) => {
     if (voiceMuted.has(clip.by)) return;
-    voice.play(clip as VoiceClip, () => chairPlace(clip.by), false);
+    live.hear(clip as LiveClip, () => chairPlace(clip.by));
   });
 
   /** Где сидит автор записи — в долях от середины экрана, как у звуков стола. */
@@ -337,8 +336,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     deckTip: null as string | null,
     /** Окно раздачи крупье: серия вопросов тому, кто нажал «Раздать». */
     deal: null as null | { rule: "each" | "durak" | "krest" | "belka"; n: number; all: boolean; skipEmpty: boolean },
-    /** Жест голосового: зажата кнопка 💬 — куда доехал палец и что с записью. */
-    mic: null as null | { phase: "hold" | "recording" | "full"; x: number; y: number; rec: Recording | null; began: number },
+    /** Жест голоса: зажата 💬 — где палец, ушёл ли он с кнопки и кому сейчас слышно. */
+    mic: null as null | { off: boolean; x: number; y: number; from: { x: number; y: number }; open: boolean; to: string | null | undefined },
     /** Лассо: инструмент, вид грэба и сторона сборки — живут, пока открыт экран. */
     tool: "cursor" as "cursor" | "lasso",
     grab: "collect" as GrabMode,
@@ -1184,9 +1183,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * кадр, пришедший посреди перелёта, продолжает его с того же места, а не начинает заново.
    */
   function barRow(s: Snapshot, side: number, step: number): string {
-    // ИДЁТ ЗАПИСЬ: кнопки уходят, остаётся 💬 — чтобы было видно, что палец ведёт именно её. Пока кнопку
-    // просто держат (до секунды), бар не меняется вовсе: с виду это обычное касание.
-    if (local.mic && local.mic.phase !== "hold") return barButton("sec-say", true, side, 0);
+    // МИКРОФОН В РУКЕ: кнопки уходят, остаётся 💬 — видно, что палец ведёт именно её. Пока палец на самой
+    // кнопке, бар не меняется вовсе: с виду это обычное касание.
+    if (local.mic?.off) return barButton("sec-say", true, side, 0);
     const since = performance.now() - local.sectionAt;
     const moving = since < SECTION_MS + 120;
     const anim = (name: string, delay = 0, from = 0) =>
@@ -1213,94 +1212,61 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return row;
   }
 
-  /** Сколько держать кнопку, чтобы пошла запись: отпустил раньше — ничего не было. */
-  const MIC_HOLD_MS = 1000;
+  /** Насколько палец должен уйти с кнопки, чтобы в руке оказался микрофон. */
+  const MIC_OFF = 18;
 
-  /** Кнопку держат секунду — пошла запись; всем видно, что я пишу. */
-  async function beginMic(): Promise<void> {
+  /** Палец ушёл с кнопки — в руке микрофон. Наружу он пока молчит: слово даёт наводка. */
+  async function carryMic(): Promise<void> {
     const m = local.mic;
-    if (!m || m.phase !== "hold") return;
-    m.phase = "recording";
+    if (!m || m.open) return;
+    m.open = true;
     haptic.buzz("medium");
-    const rec = await voice.start();
-    if (!local.mic) return void rec?.cancel();
-    if (!rec) {
-      // Микрофона нет или не дали — жест кончается ничем, как отмена.
-      voice.hold(false);
-      local.mic = null;
+    if (!(await live.open((frame) => store.live(frame)))) {
+      // Микрофона нет или не дали — жест кончается ничем.
+      if (local.mic) local.mic = null;
       draw();
       return;
     }
-    local.mic.rec = rec;
-    local.mic.began = performance.now();
-    // МОЙ МИКРОФОН ОТКРЫТ — чужое молчит: иначе он запишет чужой голос из динамика, и оба будут кашей.
-    voice.hold(true);
-    recording.add(me());
-    store.mic(true);
     draw();
-    // Кольцо двигается само, кадр за кадром, и трогает ровно один атрибут — перерисовывать стол незачем.
-    const tick = () => {
-      if (local.mic?.rec !== rec) return;
-      const ring = over.querySelector<SVGCircleElement>("[data-mic-count]");
-      if (ring) {
-        const circle = 2 * Math.PI * 27;
-        ring.setAttribute("stroke-dashoffset", (circle * micGone()).toFixed(1));
-      }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-    // ШЕСТЬ СЕКУНД — предел: запись встаёт и ждёт броска или отпускания.
-    setTimeout(() => {
-      if (local.mic?.rec === rec && local.mic.phase === "recording") {
-        local.mic.phase = "full";
-        haptic.buzz("warning");
-        draw();
-      }
-    }, VOICE_MAX_MS);
   }
 
-  /** Отпустил: на сукне — всем, на стуле — лично ему, мимо — отменено. Тап без жеста открывает клавиатуру. */
-  async function endMic(x: number, y: number, tap: boolean): Promise<void> {
+  /** Куда наведён микрофон прямо сейчас: сукно — всем, чужой занятый стул — лично ему, мимо — молчим. */
+  function aimMic(): void {
+    const m = local.mic;
+    if (!m?.open) return;
+    const target = m.off ? micTarget(m.x, m.y) : null;
+    const to = target === null ? null : target.kind === "chair" ? target.to : undefined;
+    if (to === m.to) return;
+    m.to = to;
+    live.aim(to);
+    // МИКРОФОН НАД АВАТАРОМ — пока меня слышно, и ровно тогда: видят все за столом.
+    store.mic(to !== null);
+    if (to !== null) haptic.buzz("light");
+  }
+
+  /** Отпустил: микрофон гаснет. Тап без жеста открывает клавиатуру, как и раньше. */
+  function endMic(tap: boolean): void {
     const m = local.mic;
     local.mic = null;
-    if (!m) return;
-    const where = m.rec ? micTarget(x, y) : null;
-    if (m.rec) {
-      recording.delete(me());
-      store.mic(false);
-      if (where) {
-        const got = await m.rec.stop();
-        if (got) {
-          const to = where.kind === "chair" ? where.to : undefined;
-          store.voice({ ...got, ...(to && to !== me() ? { to } : {}) });
-          voice.play({ by: me(), ...got }, () => chairPlace(me()), true);
-          haptic.buzz("success");
-        }
-      } else m.rec.cancel();
-      // Своё уже в очереди — чужое пойдёт за ним, ничего не потеряно.
-      voice.hold(false);
+    if (m?.open) {
+      live.close();
+      if (m.to !== null) store.mic(false);
     }
     if (tap) talk.toggle();
     draw();
   }
 
-  /** Сколько записи прошло, 0…1 — по нему тает кольцо отсчёта. */
-  function micGone(): number {
-    const m = local.mic;
-    if (!m || m.phase === "hold") return 0;
-    if (m.phase === "full") return 1;
-    return Math.max(0, Math.min(1, (performance.now() - m.began) / VOICE_MAX_MS));
-  }
-
-  /** Куда упадёт голосовое: сукно — всем за столом, стул — лично тому, кто на нём сидит. */
+  /** Кто может слушать: сукно — все за столом, чужой занятый стул — только он. Свой стул и бот — не зоны. */
   function micTarget(x: number, y: number): { kind: "felt" } | { kind: "chair"; chair: string; to: string; name: string } | null {
     const s2 = seen();
     const chair = chairUnder(s2, x, y);
     if (chair) {
       const row = chairOf(s2, chair.key);
       const sitter = row && sitterOf(s2, row);
-      // Крупье слушать некому: он бот, и голосовое в его стул ушло бы в никуда.
-      if (row?.owner && sitter && !row.croupier && !sitter.bot) return { kind: "chair", chair: row.id, to: row.owner, name: sitter.name };
+      // Крупье слушать некому — он бот; себе говорить незачем — я и так себя слышу.
+      if (row?.owner && sitter && !row.croupier && !sitter.bot && row.owner !== me()) {
+        return { kind: "chair", chair: row.id, to: row.owner, name: sitter.name };
+      }
       return null;
     }
     // СТОЛ — САМО СУКНО, а не весь экран: бросок мимо сукна ничего не отправляет.
@@ -1309,22 +1275,26 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   }
 
   /**
-   * ЖЕСТ ГОЛОСОВОГО: зажать 💬 и держать. Секунда — пошла запись; отпустил раньше — её не было вовсе.
-   * Дальше под пальцем едет шайба с микрофоном, а бросить её можно на сукно (услышат все) или на стул
-   * (услышит только он). Кольцо на шайбе отсчитывает шесть секунд.
+   * ЖЕСТ ГОЛОСА: зажать 💬 и УВЕСТИ ПАЛЕЦ С КНОПКИ — в руке микрофон. Ждать нечего: задержка перед речью
+   * убивает живой разговор, поэтому мерилом служит само движение, а не время.
+   *
+   * Пока палец на кнопке, микрофона нет — только подсказка, куда тянуть. Дальше речь идёт ровно туда, где
+   * микрофон висит: сукно — всем за столом, чужой занятый стул — только ему. Мимо зоны — молчание.
    */
   function micHtml(barTop: number): string {
     const m = local.mic;
-    // ДО СЕКУНДЫ НЕ ПОКАЗЫВАЕМ НИЧЕГО: панель записи появляется вместе с самой записью, не раньше.
-    if (!m || m.phase === "hold") return "";
+    if (!m) return "";
+    // ПАЛЕЦ ЕЩЁ НА КНОПКЕ — микрофона нет, есть только подсказка: тянуть, а не ждать.
+    if (!m.off) {
+      return `<div data-mic-hint style="position:absolute;left:8px;right:8px;top:${Math.round(barTop - 34)}px;z-index:62;pointer-events:none;text-align:center;`
+        + `font:400 12px Tiny5,monospace;color:${T.ink};text-shadow:0 2px 0 ${T.black}">Потяни для записи</div>`;
+    }
     const target = micTarget(m.x, m.y);
-    const hint = m.phase === "full"
-      ? "Шесть секунд — брось на стол или на стул"
-      : target?.kind === "chair"
-        ? `Лично: ${escape(target.name)}`
-        : target
-          ? "Всем за столом"
-          : "Брось на стол или на стул · отпустишь мимо — прервётся";
+    const hint = target?.kind === "chair"
+      ? `Слышит ${escape(target.name)}`
+      : target
+        ? "Слышат все за столом"
+        : "Наведи на стол или на чужой стул";
 
     // ПОДСВЕЧЕННОЕ СУКНО — круг стола в его же осях, поэтому с наклоном камеры он сжимается вместе со столом.
     let zones = "";
@@ -1340,7 +1310,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       // СТУЛЬЯ — тоже зоны: бросок туда делает голосовое личным.
       for (const sp of spots) {
         const row = chairOf(seen(), sp.key);
-        if (!row?.owner) continue;
+        // Зона — только тот, кто может слушать: пустой стул, крупье и мой собственный ею не становятся.
+        if (!row?.owner || row.croupier || row.owner === me() || sitterOf(seen(), row)?.bot) continue;
         const at = view.toGlass(sp.seat);
         const cr = SEAT_REACH * view.k;
         const here = target?.kind === "chair" && target.chair === row.id;
@@ -1350,18 +1321,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       }
     }
 
-    // ШАЙБА ПОД ПАЛЬЦЕМ — её и бросают. Кольцо вокруг тает за шесть секунд: видно, сколько осталось.
-    // КОЛЬЦО ОТСЧЁТА — от ВРЕМЕНИ ЗАПИСИ, а не анимацией CSS: разметка пересобирается каждым кадром, и
-    // анимация начиналась бы заново от каждого движения пальца. Плавность даёт `micTick` (`beginMic`).
-    const size = 64, r = 27, circle = 2 * Math.PI * r;
-    const ring = `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="position:absolute;inset:0;transform:rotate(-90deg)">`
-        + `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${T.black}" stroke-width="4" opacity=".5"/>`
-        + `<circle data-mic-count cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${T.gold}" stroke-width="4" stroke-linecap="round"`
-        + ` stroke-dasharray="${circle.toFixed(1)}" stroke-dashoffset="${(circle * micGone()).toFixed(1)}"/></svg>`;
-    const puck = `<div data-mic-puck data-on="true" style="position:absolute;left:${Math.round(m.x)}px;top:${Math.round(m.y)}px;width:${size}px;height:${size}px;`
+    // ШАЙБА ПОД ПАЛЬЦЕМ — сам микрофон. Отсчёта на ней нет: у живой речи нет предела в шесть секунд,
+    // она идёт, пока палец наведён. Зато видно, говорю я сейчас или молчу.
+    const size = 64;
+    const talking = target !== null;
+    const puck = `<div data-mic-puck data-on="${talking}" style="position:absolute;left:${Math.round(m.x)}px;top:${Math.round(m.y)}px;width:${size}px;height:${size}px;`
       + `transform:translate(-50%,-50%);z-index:63;pointer-events:none;border-radius:50%;display:flex;align-items:center;justify-content:center;`
-      + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 3px ${T.black},0 4px 0 rgba(11,7,4,.5)`
-      + `">${ring}<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="${T.black}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GLYPH.mic}</svg></div>`;
+      + (talking
+        ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 3px ${T.black},0 4px 0 rgba(11,7,4,.5)`
+        : `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 4px 0 rgba(11,7,4,.5)`)
+      + `">${`<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="${talking ? T.black : T.inkDim}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GLYPH.mic}</svg>`}</div>`;
 
     return zones + puck
       + `<div data-mic-hint style="position:absolute;left:8px;right:8px;top:${Math.round(barTop - 34)}px;z-index:62;pointer-events:none;text-align:center;`
@@ -2128,7 +2097,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         angle: c.angle,
         mine: c.id === seat,
         ...(c.croupier ? { croupier: true } : {}),
-        ...(sitter && voice.speaking === sitter.key ? { speaking: voice.loudness } : {}),
+        ...(sitter && live.speaking === sitter.key ? { speaking: live.loudness } : {}),
         // Своя рука — внизу, на стекле; в своём стуле карт не рисуем.
         pose: c.pose,
         cards: c.id === seat ? 0 : c.hand.filter((card) => !flying.has(card.id)).length + gapsIn(s, c.id).filter((gap) => gap.carry).length,
@@ -2168,8 +2137,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       turning: [...turns.keys()],
       mine: seat,
       // Кто сейчас звучит и насколько громко дышит его аватар — прогон жестов читает это отсюда.
-      speaking: voice.speaking,
-      loudness: +voice.loudness.toFixed(2),
+      speaking: live.speaking,
+      loudness: +live.loudness.toFixed(2),
       admin: s.admin,
       me: me(),
       picks: s.picks ?? {},
@@ -2953,32 +2922,31 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     for (const el of over.children) {
       el.addEventListener("touchmove", keepPage, { passive: false });
     }
-    // 💬 — ЗАЖАЛ И ПОВЁЛ: жест голосового. Тап по ней (без жеста) по-прежнему открывает клавиатуру.
+    // 💬 — ЗАЖАЛ И УВЁЛ ПАЛЕЦ: в руке микрофон. Тап по ней (без жеста) по-прежнему открывает клавиатуру.
     for (const el of over.querySelectorAll<HTMLElement>('[data-section="say"]')) {
       el.onpointerdown = (e) => {
         if (!chairOf(truth(), mine(truth()))) return;
         e.stopPropagation();
-        local.mic = { phase: "hold", x: e.clientX, y: e.clientY, rec: null, began: performance.now() };
-        // СЕКУНДА УДЕРЖАНИЯ — и пошла запись. Палец ушёл раньше — таймер снимается, записи не было.
-        const held = setTimeout(() => void beginMic(), MIC_HOLD_MS);
+        local.mic = { off: false, x: e.clientX, y: e.clientY, from: { x: e.clientX, y: e.clientY }, open: false, to: null };
         // ПАЛЕЦ СЛУШАЕТ ОКНО, А НЕ КНОПКУ: разметка пересобирается каждым кадром, и кнопка под пальцем уже не та.
         const move = (ev: PointerEvent) => {
           const m = local.mic;
           if (!m) return;
           m.x = ev.clientX;
           m.y = ev.clientY;
+          if (!m.off && Math.hypot(m.x - m.from.x, m.y - m.from.y) >= MIC_OFF) {
+            m.off = true;
+            void carryMic();
+          }
+          aimMic();
           draw();
         };
-        const up = (ev: PointerEvent) => {
-          clearTimeout(held);
+        const up = () => {
           removeEventListener("pointermove", move);
           removeEventListener("pointerup", up);
           removeEventListener("pointercancel", up);
-          const m = local.mic;
-          if (!m) return;
-          // Тап — короткое касание без записи: открывает клавиатуру, как раньше.
-          const tap = m.phase === "hold" && performance.now() - m.began < MIC_HOLD_MS;
-          void endMic(ev.clientX, ev.clientY, tap);
+          // Палец не сходил с кнопки — это тап: клавиатура, как и раньше.
+          endMic(local.mic?.off !== true);
         };
         addEventListener("pointermove", move);
         addEventListener("pointerup", up);

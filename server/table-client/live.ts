@@ -42,6 +42,9 @@ export interface TableLive {
 }
 
 export function tableLive(sound: TableSound, host = ""): TableLive {
+  // ЖУРНАЛ ДЛЯ ПРОГОНОВ: безголовый браузер речи не слышит, и правда о ней — только здесь.
+  const log = { sent: 0, heard: 0, to: null as string | null | undefined };
+  (globalThis as { __tableLive?: unknown }).__tableLive = log;
   const listeners: (() => void)[] = [];
   const tell = () => {
     for (const fn of listeners) fn();
@@ -129,6 +132,7 @@ export function tableLive(sound: TableSound, host = ""): TableLive {
         // НЕ НАВЕДЁН — речь пропадает: наводка решает, кому говоришь, а не «куда сложить сказанное».
         if (aimed === null) return;
         const floats = resample(floatsOf(new Uint8Array((e.data as Int16Array).buffer)), ac.sampleRate, LIVE_RATE);
+        log.sent += 1;
         send({ seq: seq++, bytes: shortsOf(floats), ...(aimed ? { to: aimed } : {}) });
       };
       ac.createMediaStreamSource(stream).connect(node);
@@ -136,6 +140,7 @@ export function tableLive(sound: TableSound, host = ""): TableLive {
     },
     aim(to) {
       aimed = to;
+      log.to = to;
     },
     close() {
       aimed = null;
@@ -146,6 +151,7 @@ export function tableLive(sound: TableSound, host = ""): TableLive {
       stream = null;
     },
     hear(clip, where) {
+      log.heard += 1;
       const gain = sound.voiceGain(false);
       const ac = gain > 0 ? audio() : null;
       if (!ac) return;
