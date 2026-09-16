@@ -10,6 +10,19 @@ describe("голосовые", () => {
     expect(cleanVoice({ ms: 100 })).toBeNull();
   });
 
+  it("байты доезжают и обычным объектом — так их шлёт Colyseus", () => {
+    expect(cleanVoice({ ms: 100, bytes: { 0: 7, 1: 8, 2: 9 } })?.bytes).toEqual(new Uint8Array([7, 8, 9]));
+    expect(cleanVoice({ ms: 100, bytes: { type: "Buffer", data: [7, 8] } })?.bytes).toEqual(new Uint8Array([7, 8]));
+    expect(cleanVoice({ ms: 100, bytes: {} })).toBeNull();
+    expect(cleanVoice({ ms: 100, bytes: { a: 1 } })).toBeNull();
+  });
+
+  it("личный адресат — только строка, иначе слышно всем", () => {
+    expect(cleanVoice({ ms: 100, bytes: new Uint8Array([1]), to: "tg:7" })?.to).toBe("tg:7");
+    expect(cleanVoice({ ms: 100, bytes: new Uint8Array([1]) })?.to).toBeUndefined();
+    expect(cleanVoice({ ms: 100, bytes: new Uint8Array([1]), to: 7 })?.to).toBeUndefined();
+  });
+
   it("микрофон — только «включён» или «выключен»", () => {
     expect(cleanMic({ on: true })).toEqual({ on: true });
     expect(cleanMic({ on: "да" })).toBeNull();

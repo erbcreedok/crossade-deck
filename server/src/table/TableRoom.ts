@@ -148,7 +148,10 @@ export class TableRoom extends Room {
       const voice: Voice = { ...out, by: me.key };
       for (const other of this.clients) {
         const key = this.seats.get(other.sessionId);
-        if (key !== undefined && key !== me.key) other.send(MSG.voice, voice);
+        if (key === undefined || key === me.key) continue;
+        // ЛИЧНОЕ — только тому, на чей стул бросили; остальные его не слышат и не знают о нём.
+        if (out.to !== undefined && key !== out.to) continue;
+        other.send(MSG.voice, voice);
       }
     });
 

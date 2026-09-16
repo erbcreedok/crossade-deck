@@ -1225,19 +1225,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     }, VOICE_MAX_MS);
   }
 
-  /** Отпустил: на столе — отправлено, где угодно ещё — отменено. Тап без жеста открывает клавиатуру. */
+  /** Отпустил: на сукне — всем, на стуле — лично ему, мимо — отменено. Тап без жеста открывает клавиатуру. */
   async function endMic(x: number, y: number, tap: boolean): Promise<void> {
     const m = local.mic;
     local.mic = null;
     if (!m) return;
-    const sending = Boolean(m.rec) && overFelt(x, y);
+    const where = m.rec ? micTarget(x, y) : null;
     if (m.rec) {
       recording.delete(me());
       store.mic(false);
-      if (sending) {
+      if (where) {
         const got = await m.rec.stop();
         if (got) {
-          store.voice(got);
+          const to = where.kind === "chair" ? where.to : undefined;
+          store.voice({ ...got, ...(to && to !== me() ? { to } : {}) });
           voice.play({ by: me(), ...got }, () => chairPlace(me()), true);
           haptic.buzz("success");
         }
@@ -1247,31 +1248,78 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     draw();
   }
 
-  /** Бросок «на стол» — всё, что выше полосы руки: там лежит сукно. */
-  function overFelt(x: number, y: number): boolean {
-    const s = seen();
-    const geom = mineGeom(handOf(s, mine(s)).length + gapsIn(s, mine(s)).length);
-    return y < (geom.barTop ?? glass().h) && x >= 0 && x <= glass().w;
+  /** Куда упадёт голосовое: сукно — всем за столом, стул — лично тому, кто на нём сидит. */
+  function micTarget(x: number, y: number): { kind: "felt" } | { kind: "chair"; chair: string; to: string; name: string } | null {
+    const s2 = seen();
+    const chair = chairUnder(s2, x, y);
+    if (chair) {
+      const row = chairOf(s2, chair.key);
+      const sitter = row && sitterOf(s2, row);
+      if (row?.owner && sitter) return { kind: "chair", chair: row.id, to: row.owner, name: sitter.name };
+      return null;
+    }
+    // СТОЛ — САМО СУКНО, а не весь экран: бросок мимо сукна ничего не отправляет.
+    const at = view?.toDesk({ x, y });
+    return at && Math.hypot(at.x, at.y) <= FELT_REACH ? { kind: "felt" } : null;
   }
 
   /**
-   * ЖЕСТ ГОЛОСОВОГО: зажать 💬 и держать. Секунда — пошла запись; отпустил раньше — её не было вовсе,
-   * и случайным касанием ничего не записать. Дальше стол сам и есть дропзона: бросил на него — ушло,
-   * отпустил на полосе руки — отменено. Пока пишет, стол подсвечен — видно, куда бросать.
+   * ЖЕСТ ГОЛОСОВОГО: зажать 💬 и держать. Секунда — пошла запись; отпустил раньше — её не было вовсе.
+   * Дальше под пальцем едет шайба с микрофоном, а бросить её можно на сукно (услышат все) или на стул
+   * (услышит только он). Кольцо на шайбе отсчитывает шесть секунд.
    */
   function micHtml(barTop: number): string {
     const m = local.mic;
     if (!m) return "";
     const going = m.phase !== "hold";
-    const hint = m.phase === "full" ? "Шесть секунд — брось на стол" : going ? "Брось на стол — отправить · отпустишь здесь — прервётся" : "Держи…";
-    // ПОДСВЕЧЕННЫЙ СТОЛ — всё, что выше полосы руки: туда и надо бросить.
-    const drop = going
-      ? `<div data-mic-drop style="position:absolute;left:0;right:0;top:0;height:${Math.round(barTop)}px;z-index:58;pointer-events:none;`
-        + `box-sizing:border-box;border:3px dashed ${T.gold};border-radius:14px;background:color-mix(in srgb, ${T.gold} 10%, transparent);`
-        + (motion.reduce ? "" : "animation:mic-drop 1200ms ease-in-out infinite;")
-        + `"></div>`
+    const target = going ? micTarget(m.x, m.y) : null;
+    const hint = m.phase === "full"
+      ? "Шесть секунд — брось на стол или на стул"
+      : going
+        ? (target?.kind === "chair" ? `Лично: ${escape(target.name)}` : target ? "Всем за столом" : "Брось на стол или на стул · отпустишь мимо — прервётся")
+        : "Держи…";
+
+    // ПОДСВЕЧЕННОЕ СУКНО — круг стола в его же осях, поэтому с наклоном камеры он сжимается вместе со столом.
+    let zones = "";
+    if (going && view) {
+      const mid = view.toGlass({ x: 0, y: 0 });
+      const rx = FELT_REACH * view.k;
+      const ry = rx * view.squash;
+      const lit = target?.kind === "felt";
+      zones += `<div data-mic-drop="felt" data-on="${lit}" style="position:absolute;left:${Math.round(mid.x - rx)}px;top:${Math.round(mid.y - ry)}px;`
+        + `width:${Math.round(2 * rx)}px;height:${Math.round(2 * ry)}px;border-radius:50%;box-sizing:border-box;z-index:58;pointer-events:none;`
+        + `border:3px dashed ${T.gold};background:color-mix(in srgb, ${T.gold} ${lit ? 18 : 8}%, transparent);`
+        + (motion.reduce ? "" : "animation:mic-drop 1200ms ease-in-out infinite;") + `"></div>`;
+      // СТУЛЬЯ — тоже зоны: бросок туда делает голосовое личным.
+      for (const sp of spots) {
+        const row = chairOf(seen(), sp.key);
+        if (!row?.owner) continue;
+        const at = view.toGlass(sp.seat);
+        const cr = SEAT_REACH * view.k;
+        const here = target?.kind === "chair" && target.chair === row.id;
+        zones += `<div data-mic-drop="chair" data-chair="${row.id}" data-on="${here}" style="position:absolute;left:${Math.round(at.x - cr)}px;top:${Math.round(at.y - cr * view.squash)}px;`
+          + `width:${Math.round(2 * cr)}px;height:${Math.round(2 * cr * view.squash)}px;border-radius:50%;box-sizing:border-box;z-index:59;pointer-events:none;`
+          + `border:2px dashed ${inkOf(seen(), row.owner)};background:color-mix(in srgb, ${inkOf(seen(), row.owner)} ${here ? 26 : 8}%, transparent)"></div>`;
+      }
+    }
+
+    // ШАЙБА ПОД ПАЛЬЦЕМ — её и бросают. Кольцо вокруг тает за шесть секунд: видно, сколько осталось.
+    const size = 64, r = 27, circle = 2 * Math.PI * r;
+    const ring = going
+      ? `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="position:absolute;inset:0;transform:rotate(-90deg)">`
+        + `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${T.black}" stroke-width="4" opacity=".5"/>`
+        + `<circle data-mic-count cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${T.gold}" stroke-width="4" stroke-linecap="round"`
+        + ` stroke-dasharray="${circle.toFixed(1)}" stroke-dashoffset="${m.phase === "full" ? circle.toFixed(1) : "0"}"`
+        + (m.phase === "full" ? "" : ` style="animation:mic-count ${VOICE_MAX_MS}ms linear forwards"`) + `/></svg>`
       : "";
-    return drop
+    const puck = `<div data-mic-puck data-on="${going}" style="position:absolute;left:${Math.round(m.x)}px;top:${Math.round(m.y)}px;width:${size}px;height:${size}px;`
+      + `transform:translate(-50%,-50%);z-index:63;pointer-events:none;border-radius:50%;display:flex;align-items:center;justify-content:center;`
+      + (going
+        ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 3px ${T.black},0 4px 0 rgba(11,7,4,.5)`
+        : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`)
+      + `">${ring}<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="${going ? T.black : BAR_LOOK.goldHi}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GLYPH.mic}</svg></div>`;
+
+    return zones + puck
       + `<div data-mic-hint style="position:absolute;left:8px;right:8px;top:${Math.round(barTop - 34)}px;z-index:62;pointer-events:none;text-align:center;`
       + `font:400 12px Tiny5,monospace;color:${T.ink};text-shadow:0 2px 0 ${T.black}">${hint}</div>`;
   }
@@ -3282,6 +3330,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     + "@keyframes bar-out{from{opacity:1;transform:none}to{opacity:0;transform:translateY(70%) scale(.6)}}"
     + "@media (prefers-reduced-motion:reduce){[data-bar],[data-section]{animation:none!important}}"
     + "@keyframes mic-drop{0%,100%{opacity:.75}50%{opacity:1}}"
+    + "@keyframes mic-count{from{stroke-dashoffset:0}to{stroke-dashoffset:170}}"
     + "@keyframes mic-pulse{0%,100%{transform:translate(-50%,-100%) scale(1)}50%{transform:translate(-50%,-100%) scale(1.18)}}"
     + "@keyframes eye-in{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}"
     + "@media (prefers-reduced-motion:reduce){[data-bar],[data-section],[data-eye]{animation:none!important}}"

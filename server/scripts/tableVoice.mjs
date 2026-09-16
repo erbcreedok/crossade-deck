@@ -50,11 +50,13 @@ const open = async (name) => {
   await p.waitForTimeout(400);
   return p;
 };
+const spots = async (p) => JSON.parse(await p.getAttribute("canvas", "data-spots"));
 const checks = [];
 const check = (name, ok, got) => checks.push({ name, ok, got });
 
 const A = await open("A");
 const B = await open("B");
+const C = await open("C");
 await A.waitForTimeout(400);
 
 const sayAt = async (p) => {
@@ -68,6 +70,7 @@ await A.mouse.move(say.x, say.y);
 await A.mouse.down();
 await A.waitForTimeout(300);
 check("пока держат — подсказка «Держи…»", /держи/i.test((await A.textContent("[data-mic-hint]")) ?? ""), await A.textContent("[data-mic-hint]"));
+check("под пальцем — шайба с микрофоном", (await A.getAttribute("[data-mic-puck]", "data-on")) === "false");
 check("стол ещё не подсвечен", (await A.$("[data-mic-drop]")) === null);
 await A.mouse.up();
 await A.waitForTimeout(400);
@@ -85,15 +88,18 @@ await A.mouse.move(say.x, say.y);
 await A.mouse.down();
 await A.waitForTimeout(1300);
 check("секунда удержания — запись пошла", (await A.evaluate(() => window.__mic.started)) === 1);
-check("стол подсвечен — туда бросать", (await A.$("[data-mic-drop]")) !== null);
+check("сукно подсвечено — туда бросать", (await A.$('[data-mic-drop="felt"]')) !== null);
+check("стулья тоже зоны — бросок туда сделает голосовое личным", (await A.$$eval('[data-mic-drop="chair"]', (els) => els.length)) >= 1);
+check("шайба стала записывающей, с кольцом отсчёта", (await A.getAttribute("[data-mic-puck]", "data-on")) === "true" && (await A.$("[data-mic-count]")) !== null);
 check("остальные кнопки HUD скрыты", (await A.$$eval("[data-section]", (els) => els.length)) === 1);
 check("подсказка про бросок на стол", /стол/i.test((await A.$$eval("[data-mic-hint]", (e) => e.map((x) => x.textContent).join(""))) ?? ""), await A.$$eval("[data-mic-hint]", (e) => e.map((x) => x.textContent)));
-const drop = await A.$$eval("[data-mic-drop]", (e) => e.map((x) => x.getBoundingClientRect().toJSON()));
-check("подсветка кончается там, где начинается рука", drop[0]?.y === 0 && drop[0]?.height < 844, drop);
+const drop = await A.$$eval('[data-mic-drop="felt"]', (e) => e.map((x) => x.getBoundingClientRect().toJSON()));
+// Сукно — круг посреди экрана: сверху и снизу остаётся игровая зона, которая дропзоной НЕ является.
+check("подсвечено круглое сукно, а не весь экран", drop[0] && drop[0].y > 40 && drop[0].bottom < 700 && drop[0].width <= 390, drop);
 await B.waitForTimeout(350);
 check("остальные видят микрофон на его аватаре", (await B.$$eval("[data-mic-mark]", (els) => els.length)) === 1);
 
-// 3. Отпустил на полосе руки, не на столе — отмена.
+// 3. Отпустил мимо сукна и стульев (на полосе руки) — отмена.
 await A.mouse.up();
 await A.waitForTimeout(400);
 check("отпустил на полосе — отменено, ничего не ушло", (await A.evaluate(() => window.__mic.cancelled)) === 1 && (await A.evaluate(() => window.__mic.stopped)) === 0);
@@ -107,8 +113,39 @@ await A.waitForTimeout(1300);
 await A.mouse.move(195, 300, { steps: 6 });
 await A.mouse.up();
 await A.waitForTimeout(600);
-check("бросок на стол — запись отправлена", (await A.evaluate(() => window.__mic.stopped)) === 1);
-check("подсветка стола убралась", (await A.$("[data-mic-drop]")) === null);
+check("бросок на сукно — запись отправлена", (await A.evaluate(() => window.__mic.stopped)) === 1);
+check("подсветка убралась", (await A.$("[data-mic-drop]")) === null);
+check("шайбы под пальцем больше нет", (await A.$("[data-mic-puck]")) === null);
+
+// 4b. Бросок на чужой стул — голосовое личное: адресат его получает.
+const mineA = (await spots(A)).mine;
+const seatB = ((await spots(A)).seats ?? []).find((sp) => sp.key !== mineA);
+if (seatB) {
+  await A.mouse.move(say.x, say.y);
+  await A.mouse.down();
+  await A.waitForTimeout(1300);
+  await A.mouse.move(seatB.x, seatB.y, { steps: 6 });
+  await A.waitForTimeout(250);
+  check("над стулом подсказка говорит «лично»", /лично/i.test((await A.textContent("[data-mic-hint]")) ?? ""), await A.textContent("[data-mic-hint]"));
+  check("стул под пальцем подсвечен ярче", (await A.getAttribute(`[data-mic-drop="chair"][data-chair="${seatB.key}"]`, "data-on")) === "true");
+  // ЛИЧНОЕ СЛЫШИТ ТОЛЬКО АДРЕСАТ. Запись короткая (меньше секунды), поэтому «говорит» ловим частыми
+  // пробами сразу после броска, а не одним поздним взглядом.
+  const talkSeen = async (p, ms = 1500) => {
+    for (let t = 0; t < ms; t += 60) {
+      if ((await p.$$eval("[data-mic-mark]", (els) => els.filter((e) => e.dataset.talks === "true").length)) > 0) return true;
+      await p.waitForTimeout(60);
+    }
+    return false;
+  };
+  const mineB = (await spots(B)).mine;
+  const heardBy = seatB.key === mineB ? B : C;
+  const missed = heardBy === B ? C : B;
+  await A.mouse.up();
+  const [gotIt, gotThird] = await Promise.all([talkSeen(heardBy), talkSeen(missed)]);
+  check("бросок на стул — запись ушла", (await A.evaluate(() => window.__mic.stopped)) === 2);
+  check("личное услышал адресат", gotIt, seatB.key);
+  check("третий его не услышал", !gotThird);
+}
 
 // 5. Тап по 💬 — по-прежнему клавиатура.
 await A.mouse.move(say.x, say.y);

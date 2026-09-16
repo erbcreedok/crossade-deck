@@ -30,9 +30,9 @@ export interface TableStore {
   /** Команда стола от админа — кнопкой, как из бота. */
   command(command: TableCommand): void;
   /** Моё голосовое — остальным. Нигде не хранится. */
-  voice(out: { ms: number; bytes: Uint8Array }): void;
+  voice(out: { ms: number; bytes: Uint8Array; to?: string }): void;
   /** Чужое голосовое пришло. */
-  onVoice(listener: (clip: { by: string; ms: number; bytes: Uint8Array }) => void): void;
+  onVoice(listener: (clip: { by: string; ms: number; bytes: Uint8Array; to?: string }) => void): void;
   /** Я включил или выключил микрофон — остальным: они видят это на моём аватаре. */
   mic(on: boolean): void;
   /** Кто-то включил или выключил микрофон. */
