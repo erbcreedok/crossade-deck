@@ -14,7 +14,7 @@ import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.
 import { tableHaptic, type Haptic } from "./haptic.js";
 import { tableMotion } from "./motion.js";
 import { EYES_IN_PANEL, EYES_ON_TABLE, eyesAt, type Eye, type Spot as EyeSpot } from "../src/table/eyes.js";
-import { tableLive, type LiveClip } from "./live.js";
+import { tableLive, type LiveClip, type LiveFail } from "./live.js";
 import { mountSettings } from "./settings.js";
 import { tableSound } from "./sound.js";
 import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as CueSpot } from "../src/table/cues.js";
@@ -337,7 +337,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     /** Окно раздачи крупье: серия вопросов тому, кто нажал «Раздать». */
     deal: null as null | { rule: "each" | "durak" | "krest" | "belka"; n: number; all: boolean; skipEmpty: boolean },
     /** Жест голоса: зажата 💬 — где палец, ушёл ли он с кнопки и кому сейчас слышно. */
-    mic: null as null | { off: boolean; x: number; y: number; from: { x: number; y: number }; open: boolean; to: string | null | undefined },
+    mic: null as null | { off: boolean; x: number; y: number; from: { x: number; y: number }; open: boolean; to: string | null | undefined; fail: LiveFail | null },
     /** Лассо: инструмент, вид грэба и сторона сборки — живут, пока открыт экран. */
     tool: "cursor" as "cursor" | "lasso",
     grab: "collect" as GrabMode,
@@ -1212,6 +1212,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return row;
   }
 
+  /** Отказ микрофона — человеческими словами, прямо в подсказке жеста. */
+  const MIC_FAIL: Record<LiveFail, string> = {
+    "no-mic": "Микрофона на этом устройстве нет",
+    denied: "Микрофон не разрешён — дай доступ в настройках",
+    "no-worklet": "Этот браузер живой голос не тянет",
+    "no-audio": "Звук здесь не открывается",
+  };
+
   /** Насколько палец должен уйти с кнопки, чтобы в руке оказался микрофон. */
   const MIC_OFF = 18;
 
@@ -1221,12 +1229,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (!m || m.open) return;
     m.open = true;
     haptic.buzz("medium");
-    if (!(await live.open((frame) => store.live(frame)))) {
-      // Микрофона нет или не дали — жест кончается ничем.
-      if (local.mic) local.mic = null;
-      draw();
-      return;
-    }
+    // НЕ ВЫШЛО — ГОВОРИМ, ПОЧЕМУ. Молча исчезнувший микрофон не объясняет ни человеку, ни мне, что случилось:
+    // разрешение не дали, микрофона нет вовсе или звуковой поток этого браузера не умеет воркретов.
+    const why = await live.open((frame) => store.live(frame));
+    if (why && local.mic) local.mic.fail = why;
     draw();
   }
 
@@ -1289,8 +1295,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       return `<div data-mic-hint style="position:absolute;left:8px;right:8px;top:${Math.round(barTop - 34)}px;z-index:62;pointer-events:none;text-align:center;`
         + `font:400 12px Tiny5,monospace;color:${T.ink};text-shadow:0 2px 0 ${T.black}">Потяни для записи</div>`;
     }
-    const target = micTarget(m.x, m.y);
-    const hint = target?.kind === "chair"
+    const target = m.fail ? null : micTarget(m.x, m.y);
+    const hint = m.fail
+      ? MIC_FAIL[m.fail]
+      : target?.kind === "chair"
       ? `Слышит ${escape(target.name)}`
       : target
         ? "Слышат все за столом"
@@ -1298,7 +1306,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
     // ПОДСВЕЧЕННОЕ СУКНО — круг стола в его же осях, поэтому с наклоном камеры он сжимается вместе со столом.
     let zones = "";
-    if (view) {
+    if (view && !m.fail) {
       const mid = view.toGlass({ x: 0, y: 0 });
       const rx = FELT_REACH * view.k;
       const ry = rx * view.squash;
@@ -2927,7 +2935,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       el.onpointerdown = (e) => {
         if (!chairOf(truth(), mine(truth()))) return;
         e.stopPropagation();
-        local.mic = { off: false, x: e.clientX, y: e.clientY, from: { x: e.clientX, y: e.clientY }, open: false, to: null };
+        local.mic = { off: false, x: e.clientX, y: e.clientY, from: { x: e.clientX, y: e.clientY }, open: false, to: null, fail: null };
         // ПАЛЕЦ СЛУШАЕТ ОКНО, А НЕ КНОПКУ: разметка пересобирается каждым кадром, и кнопка под пальцем уже не та.
         const move = (ev: PointerEvent) => {
           const m = local.mic;

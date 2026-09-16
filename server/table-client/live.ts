@@ -15,6 +15,9 @@ const JITTER_MS = 180;
 /** Отстали от живого больше — бросаем накопленное и начинаем с сейчас. */
 const LATE_MS = 900;
 
+/** Почему живой голос не пошёл — это видно человеку, а не только в журнале. */
+export type LiveFail = "no-mic" | "denied" | "no-worklet" | "no-audio";
+
 export interface LiveClip {
   by: string;
   seq: number;
@@ -28,8 +31,10 @@ export interface TableLive {
   readonly speaking: string | null;
   /** Насколько громко звучит сейчас, 0…1. */
   readonly loudness: number;
-  /** Открыть микрофон. `false` — нечем или не дали. Речь наружу не идёт, пока не наведён. */
-  open(send: (frame: { seq: number; bytes: Uint8Array; to?: string }) => void): Promise<boolean>;
+  /** Открыть микрофон. Речь наружу не идёт, пока не наведён. Не вышло — говорит, почему именно. */
+  open(send: (frame: { seq: number; bytes: Uint8Array; to?: string }) => void): Promise<LiveFail | null>;
+  /** Почему микрофон не открылся в прошлый раз; `null` — открылся. */
+  readonly failed: LiveFail | null;
   /** Куда говорю прямо сейчас: `undefined` — всему столу, ключ — лично ему, `null` — никуда. */
   aim(to: string | null | undefined): void;
   /** Закрыть микрофон: дорожка гаснет, счётчик кусков обнуляется. */
@@ -43,7 +48,7 @@ export interface TableLive {
 
 export function tableLive(sound: TableSound, host = ""): TableLive {
   // ЖУРНАЛ ДЛЯ ПРОГОНОВ: безголовый браузер речи не слышит, и правда о ней — только здесь.
-  const log = { sent: 0, heard: 0, to: null as string | null | undefined };
+  const log = { sent: 0, heard: 0, to: null as string | null | undefined, failed: null as LiveFail | null };
   (globalThis as { __tableLive?: unknown }).__tableLive = log;
   const listeners: (() => void)[] = [];
   const tell = () => {
@@ -113,18 +118,28 @@ export function tableLive(sound: TableSound, host = ""): TableLive {
       return loudness;
     },
     async open(send) {
-      if (!live.able) return false;
+      const fail = (why: LiveFail) => {
+        log.failed = why;
+        live.close();
+        return why;
+      };
+      if (!navigator.mediaDevices?.getUserMedia) return fail("no-mic");
+      if (typeof AudioWorkletNode !== "function") return fail("no-worklet");
       const ac = audio();
-      if (!ac) return false;
+      if (!ac) return fail("no-audio");
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      } catch {
+        return fail("denied");
+      }
+      try {
         await ac.audioWorklet.addModule(`${host}/table/live-worklet.js`);
       } catch {
-        live.close();
-        return false;
+        return fail("no-worklet");
       }
       // Пока звали микрофон, палец мог уже отпустить кнопку.
-      if (!stream) return false;
+      if (!stream) return fail("no-mic");
+      log.failed = null;
       seq = 0;
       const size = Math.round((ac.sampleRate * LIVE_FRAME_MS) / 1000);
       node = new AudioWorkletNode(ac, "live-mic", { processorOptions: { size }, numberOfOutputs: 0 });
@@ -136,7 +151,10 @@ export function tableLive(sound: TableSound, host = ""): TableLive {
         send({ seq: seq++, bytes: shortsOf(floats), ...(aimed ? { to: aimed } : {}) });
       };
       ac.createMediaStreamSource(stream).connect(node);
-      return true;
+      return null;
+    },
+    get failed() {
+      return log.failed;
     },
     aim(to) {
       aimed = to;

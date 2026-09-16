@@ -40,6 +40,17 @@ const sayAt = async (p) => {
   return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
 };
 const live = (p) => p.evaluate(() => ({ ...window.__tableLive }));
+// Кусок, посланный мгновением раньше, может долететь мгновением позже: перед замером ждём, пока счётчик встанет.
+const settled = async (p) => {
+  let was = -1;
+  for (let t = 0; t < 2000; t += 120) {
+    const now = (await live(p)).heard;
+    if (now === was) return now;
+    was = now;
+    await p.waitForTimeout(120);
+  }
+  return was;
+};
 const grew = async (p, was, ms = 900) => {
   for (let t = 0; t < ms; t += 80) {
     if ((await live(p)).sent > was) return true;
@@ -114,7 +125,7 @@ check("микрофон на аватаре погас", (await B.$$eval("[data-
   const keyB = (await spots(B)).me;
   const chairB = (await spots(B)).mine;
   const seatB = seats.find((sp) => sp.key === chairB);
-  const heardB = (await live(B)).heard, heardC = (await live(C)).heard;
+  const heardB = await settled(B), heardC = await settled(C);
   await A.mouse.move(seatB.x, seatB.y, { steps: 6 });
   await A.waitForTimeout(200);
   check("подсказка называет, кто слышит", /слышит/i.test((await A.textContent("[data-mic-hint]")) ?? ""), await A.textContent("[data-mic-hint]"));
@@ -122,6 +133,31 @@ check("микрофон на аватаре погас", (await B.$$eval("[data-
   await A.waitForTimeout(900);
   check("адресат её слышит", (await live(B)).heard > heardB, { was: heardB, now: (await live(B)).heard });
   check("третий за столом — нет", (await live(C)).heard === heardC, { was: heardC, now: (await live(C)).heard });
+}
+
+// 5а. МИКРОФОН НЕ ДАЛИ — жест не исчезает молча, а говорит, почему. Проверяем на C: ему запретим доступ.
+{
+  const D = C;
+  await D.context().clearPermissions();
+  await D.addInitScript(() => {
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: () => Promise.reject(new Error("нет доступа")) },
+    });
+  });
+  await D.reload();
+  await D.waitForSelector(".crossade-loading", { state: "detached" });
+  await D.waitForTimeout(600);
+  const sayD = await sayAt(D);
+  await D.mouse.move(sayD.x, sayD.y);
+  await D.mouse.down();
+  await D.mouse.move(sayD.x + 40, sayD.y - 60, { steps: 5 });
+  await D.waitForTimeout(700);
+  const said = (await D.$$eval("[data-mic-hint]", (els) => els.map((el) => el.textContent).join(" "))) ?? "";
+  check("микрофон не дали — жест говорит, почему", /микрофон/i.test(said), said);
+  check("…и зон при отказе не рисует", (await D.$("[data-mic-drop]")) === null);
+  await D.mouse.up();
+  await D.waitForTimeout(300);
 }
 
 // 6. ОТПУСТИЛ — микрофон гаснет, шайба и зоны уходят, клавиатура не открывается.
