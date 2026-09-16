@@ -3,9 +3,7 @@
 //
 // Своим слоем, а не в разметке стола: та пересобирается каждым кадром, и ползунок громкости терял бы палец.
 
-import { readBuild, sortBuilds } from "../src/table/builds.js";
 import { SPEEDS, type Speed } from "../src/table/motion.js";
-import { HOST } from "./host.js";
 import type { DeckLook } from "./deckArt.js";
 import type { TableHaptic } from "./haptic.js";
 import type { Motion } from "./motion.js";
@@ -81,40 +79,6 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + `<span data-volume-value="${which}" style="flex:none;width:40px;text-align:right;font:400 13px Tiny5,monospace;color:${muted ? INK.off : INK.ink}">${volume}%</span></div>`;
   }
 
-  // НОЧНЫЕ СБОРКИ — снимки клиента на маке. Список спрашивается у сервера один раз, при первом открытии окна.
-  let builds: number[] | null = null;
-  const chosen = () => readBuild(new URLSearchParams(location.search).get("build") ?? "");
-  const goTo = (build: number | null) => {
-    const url = new URL(location.href);
-    if (build === null) url.searchParams.delete("build");
-    else url.searchParams.set("build", String(build));
-    location.replace(url.toString());
-  };
-  async function askBuilds(): Promise<void> {
-    if (builds) return;
-    try {
-      const got = (await (await fetch(`${HOST}/table/builds.json`)).json()) as { builds?: unknown };
-      builds = sortBuilds((Array.isArray(got.builds) ? got.builds : []).map(String));
-    } catch {
-      builds = [];
-    }
-    if (settings.open) render();
-  }
-
-  function buildsHtml(): string {
-    if (!builds?.length) return "";
-    const now = chosen();
-    const chip = (build: number | null, label: string) => {
-      const on = build === now;
-      return `<button data-build="${build ?? ""}" aria-pressed="${on}" style="min-width:56px;height:32px;padding:0 10px;border:0;border-radius:8px;cursor:pointer;font:400 13px Tiny5,monospace;`
-        + (on ? `color:${INK.black};background:linear-gradient(${INK.goldHi},${INK.goldLo});box-shadow:inset 0 0 0 2px ${INK.black}` : `color:${INK.ink};background:transparent;box-shadow:inset 0 0 0 2px ${INK.rim}`)
-        + `">${label}</button>`;
-    };
-    return section("Ночные сборки")
-      + `<div data-builds style="display:flex;flex-wrap:wrap;gap:6px">${chip(null, "последняя")}${builds.map((b) => chip(b, String(b))).join("")}</div>`
-      + `<div style="font:400 10px Tiny5,monospace;color:${INK.dim};padding-top:6px">Сервер всегда последний: в старой сборке видно только её клиент.</div>`;
-  }
-
   function speedHtml(): string {
     const off = world.motion.reduce;
     return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px">`
@@ -151,7 +115,6 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + toggle("reduce", motion.chosen || !motion.reduce ? "Меньше анимаций" : "Меньше анимаций · авто", motion.reduce)
       + section("Колода")
       + toggle("fourColour", "4 цвета", look.fourColour) + toggle("cyrillic", "Кириллица", look.cyrillic)
-      + buildsHtml()
       + `<div data-client style="font:400 10px Tiny5,monospace;color:${INK.dim};padding-top:14px">${world.footer()}</div></div>`;
   }
 
@@ -159,8 +122,6 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
   layer.addEventListener("click", (e) => {
     const target = e.target as Element;
     if (target === layer || target.closest("[data-settings-close]")) return settings.hide();
-    const build = target.closest<HTMLElement>("[data-build]");
-    if (build) return goTo(readBuild(build.dataset.build ?? ""));
     const speed = target.closest<HTMLElement>("[data-speed]");
     if (speed) {
       world.motion.setSpeed(Number(speed.dataset.speed) as Speed);
@@ -226,7 +187,6 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       return layer.style.display !== "none";
     },
     show() {
-      void askBuilds();
       render();
       layer.style.display = "flex";
       world.changed();

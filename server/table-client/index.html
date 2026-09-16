@@ -34,16 +34,6 @@
   <div id="over"></div>
 </div>
 <div id="note" hidden></div>
-<script>
-  // НОЧНАЯ СБОРКА — `?build=<номер>` доезжает до сборщика: стол собирается из снимка на маке. Страница одна и та же,
-  // поэтому номер переносится сюда из адреса, а не стоит в разметке.
-  (function () {
-    var b = new URLSearchParams(location.search).get("build");
-    var s = document.createElement("script");
-    s.type = "module";
-    s.src = "app.js" + (b && /^[0-9]{1,9}$/.test(b) ? "?build=" + b : "");
-    document.body.appendChild(s);
-  })();
-</script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
