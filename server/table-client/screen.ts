@@ -1216,6 +1216,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     recording.add(me());
     store.mic(true);
     draw();
+    // Кольцо двигается само, кадр за кадром, и трогает ровно один атрибут — перерисовывать стол незачем.
+    const tick = () => {
+      if (local.mic?.rec !== rec) return;
+      const ring = over.querySelector<SVGCircleElement>("[data-mic-count]");
+      if (ring) {
+        const circle = 2 * Math.PI * 27;
+        ring.setAttribute("stroke-dashoffset", (circle * micGone()).toFixed(1));
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
     // ШЕСТЬ СЕКУНД — предел: запись встаёт и ждёт броска или отпускания.
     setTimeout(() => {
       if (local.mic?.rec === rec && local.mic.phase === "recording") {
@@ -1247,6 +1258,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     }
     if (tap) talk.toggle();
     draw();
+  }
+
+  /** Сколько записи прошло, 0…1 — по нему тает кольцо отсчёта. */
+  function micGone(): number {
+    const m = local.mic;
+    if (!m || m.phase === "hold") return 0;
+    if (m.phase === "full") return 1;
+    return Math.max(0, Math.min(1, (performance.now() - m.began) / VOICE_MAX_MS));
   }
 
   /** Куда упадёт голосовое: сукно — всем за столом, стул — лично тому, кто на нём сидит. */
@@ -1307,12 +1326,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     }
 
     // ШАЙБА ПОД ПАЛЬЦЕМ — её и бросают. Кольцо вокруг тает за шесть секунд: видно, сколько осталось.
+    // КОЛЬЦО ОТСЧЁТА — от ВРЕМЕНИ ЗАПИСИ, а не анимацией CSS: разметка пересобирается каждым кадром, и
+    // анимация начиналась бы заново от каждого движения пальца. Плавность даёт `micTick` (`beginMic`).
     const size = 64, r = 27, circle = 2 * Math.PI * r;
     const ring = `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="position:absolute;inset:0;transform:rotate(-90deg)">`
         + `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${T.black}" stroke-width="4" opacity=".5"/>`
         + `<circle data-mic-count cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${T.gold}" stroke-width="4" stroke-linecap="round"`
-        + ` stroke-dasharray="${circle.toFixed(1)}" stroke-dashoffset="${m.phase === "full" ? circle.toFixed(1) : "0"}"`
-        + (m.phase === "full" ? "" : ` style="animation:mic-count ${VOICE_MAX_MS}ms linear forwards"`) + `/></svg>`;
+        + ` stroke-dasharray="${circle.toFixed(1)}" stroke-dashoffset="${(circle * micGone()).toFixed(1)}"/></svg>`;
     const puck = `<div data-mic-puck data-on="true" style="position:absolute;left:${Math.round(m.x)}px;top:${Math.round(m.y)}px;width:${size}px;height:${size}px;`
       + `transform:translate(-50%,-50%);z-index:63;pointer-events:none;border-radius:50%;display:flex;align-items:center;justify-content:center;`
       + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 3px ${T.black},0 4px 0 rgba(11,7,4,.5)`
@@ -3329,7 +3349,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     + "@keyframes bar-out{from{opacity:1;transform:none}to{opacity:0;transform:translateY(70%) scale(.6)}}"
     + "@media (prefers-reduced-motion:reduce){[data-bar],[data-section]{animation:none!important}}"
     + "@keyframes mic-drop{0%,100%{opacity:.75}50%{opacity:1}}"
-    + "@keyframes mic-count{from{stroke-dashoffset:0}to{stroke-dashoffset:170}}"
     + "@keyframes mic-pulse{0%,100%{transform:translate(-50%,-100%) scale(1)}50%{transform:translate(-50%,-100%) scale(1.18)}}"
     + "@keyframes eye-in{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}"
     + "@media (prefers-reduced-motion:reduce){[data-bar],[data-section],[data-eye]{animation:none!important}}"

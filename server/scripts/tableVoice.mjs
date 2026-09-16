@@ -92,6 +92,15 @@ check("секунда удержания — запись пошла", (await A.
 check("сукно подсвечено — туда бросать", (await A.$('[data-mic-drop="felt"]')) !== null);
 check("стулья тоже зоны — бросок туда сделает голосовое личным", (await A.$$eval('[data-mic-drop="chair"]', (els) => els.length)) >= 1);
 check("под пальцем шайба с микрофоном и кольцом отсчёта", (await A.getAttribute("[data-mic-puck]", "data-on")) === "true" && (await A.$("[data-mic-count]")) !== null);
+// КОЛЬЦО СЧИТАЕТ ВРЕМЯ ЗАПИСИ, а не начинается заново от каждого движения пальца.
+const gone = () => A.$eval("[data-mic-count]", (el) => Number(el.getAttribute("stroke-dashoffset")));
+const goneWas = await gone();
+await A.mouse.move(say.x + 30, say.y - 40, { steps: 4 });
+await A.waitForTimeout(250);
+const goneMoved = await gone();
+check("кольцо не откатывается от движения пальцем", goneMoved >= goneWas, { goneWas, goneMoved });
+await A.waitForTimeout(400);
+check("кольцо продолжает таять", (await gone()) > goneMoved, { goneMoved });
 check("остальные кнопки HUD скрыты", (await A.$$eval("[data-section]", (els) => els.length)) === 1);
 check("подсказка про бросок на стол", /стол/i.test((await A.$$eval("[data-mic-hint]", (e) => e.map((x) => x.textContent).join(""))) ?? ""), await A.$$eval("[data-mic-hint]", (e) => e.map((x) => x.textContent)));
 const drop = await A.$$eval('[data-mic-drop="felt"]', (e) => e.map((x) => x.getBoundingClientRect().toJSON()));
