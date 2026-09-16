@@ -61,6 +61,9 @@ export class TableRoom extends Room {
       claim: (by) => this.spread(this.table.claim(by)),
     });
 
+    // КРУПЬЕ СИДИТ С САМОГО НАЧАЛА: он часть стола, а не гость. Админ уводит его сам, если не нужен.
+    void this.seatCroupier();
+
     this.onMessage(MSG.hello, (client) => {
       const me = this.personOf(client.sessionId);
       if (!me) return;
@@ -241,6 +244,12 @@ export class TableRoom extends Room {
   private freeInk(): string {
     const taken = new Set(this.table.here.map((one) => one.ink));
     return INKS.find((ink) => !taken.has(ink)) ?? INKS[this.table.here.length % INKS.length]!;
+  }
+
+  /** Посадить крупье: имя и аватар он берёт у бота, поэтому ждёт Telegram и садится чуть позже старта. */
+  private async seatCroupier(): Promise<void> {
+    const who = await botPerson(tableConfig().botToken);
+    this.spread(this.table.seatCroupier({ ...who, ink: this.freeInk() }));
   }
 
   /** Глаза — всем одинаковым списком. */

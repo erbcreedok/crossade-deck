@@ -53,7 +53,9 @@ describe("TableRoom", () => {
     const room = mintRoom(SECRET);
     const a = await sit(room, { door: "guest", name: "A" });
     const b = await sit(room, { door: "guest", name: "B" });
-    expect(b.welcome.snapshot.people.map((p) => p.name)).toEqual(["A", "B"]);
+    // Крупье сидит в комнате с самого начала — он часть стола, а не гость.
+    expect(b.welcome.snapshot.people.map((p) => p.name)).toEqual(["CrossaderBot", "A", "B"]);
+    expect(b.welcome.snapshot.chairs.filter((c) => c.croupier)).toHaveLength(1);
 
     const top = a.welcome.snapshot.piles[0]!.cards.at(-1)!.id;
     a.client.send(MSG.intent, { t: "grab", id: top });
@@ -144,8 +146,11 @@ describe("TableRoom", () => {
     let mine = b.welcome.snapshot;
     for (const p of b.patches.filter((p) => p.v > mine.v)) mine = applyPatch(mine, p);
     expect(mine.people.find((p) => p.key === BOT_KEY)).toMatchObject({ bot: true });
-    expect(mine.people.find((p) => p.key === BOT_KEY)!.seat).toBeUndefined();
-    expect(mine.chairs.map((c) => c.hand.length)).toEqual([2, 2]);
+    // Он же крупье: у него своё место вне кольца, и карт при раздаче он не получает.
+    const his = mine.chairs.find((c) => c.croupier)!;
+    expect(mine.people.find((p) => p.key === BOT_KEY)!.seat).toBe(his.id);
+    expect(his.hand).toHaveLength(0);
+    expect(mine.chairs.filter((c) => !c.croupier).map((c) => c.hand.length)).toEqual([2, 2]);
     expect(carries.length).toBeGreaterThanOrEqual(4);
     expect(carries[0]).toMatchObject({ by: BOT_KEY, auto: true });
     expect(await runIn(room, "tg:7", { t: "deal", rule: "each", n: 2 })).toEqual({ error: "needs-collect" });

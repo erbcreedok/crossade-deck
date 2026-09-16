@@ -72,19 +72,22 @@ const mapA = await spots(A);
 const admin = mapA.admin;
 check("админ — тот, кто открыл комнату", admin === mapA.me, { admin, me: mapA.me });
 
-// Крупье садится командой — той же, что придёт из бота.
-const seated = await api("POST", `/table/rooms/${room}/run`, { by: admin, command: { t: "croupier", on: true } });
-check("команда принята", seated.status === 200, seated.status);
-await A.waitForTimeout(800);
+// Крупье сидит в новой комнате сам, без команды.
 
 const seats = (await spots(A)).seats ?? [];
 const his = seats.find((sp) => sp.croupier);
-check("крупье виден за столом, и он один", Boolean(his) && seats.filter((sp) => sp.croupier).length === 1, seats.map((sp) => sp.key));
+check("в новой комнате крупье уже за столом, и он один", Boolean(his) && seats.filter((sp) => sp.croupier).length === 1, seats.map((sp) => sp.key));
 check("своего места игрок не потерял", seats.some((sp) => sp.key === mapA.mine && !sp.croupier));
 // Он вне кольца, но НА ЭКРАНЕ: за краем до него не дотянуться пальцем.
 const mineSeat = seats.find((sp) => sp.key === mapA.mine);
-check("крупье виден на экране целиком", his.x - his.r > 0 && his.x + his.r < 390 && his.y - his.r > 0 && his.y + his.r < 844, his);
-check("сидит дальше от стола, чем игроки", Math.abs(his.x - 195) + Math.abs(his.y - 337) > 0 && his.key !== mineSeat.key);
+check("крупье виден на экране целиком", Boolean(his) && his.x - his.r > 0 && his.x + his.r < 390 && his.y - his.r > 0 && his.y + his.r < 844, his);
+check("сидит не на месте игрока", Boolean(his) && his.key !== mineSeat.key);
+if (!his) {
+  await browser.close();
+  for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));
+  console.log(`tableCroupier ${checks.filter((c) => c.ok).length}/${checks.length}`);
+  process.exit(1);
+}
 
 // Окно крупье: у админа кнопки, у игрока их нет.
 await openCroupier(A);
@@ -113,6 +116,11 @@ check("окно закрывается", (await A.$("[data-deal-panel]")) === nu
 await A.click('[data-croupier="remove"]');
 await A.waitForTimeout(800);
 check("«Увести крупье» убирает его со стола", !((await spots(A)).seats ?? []).some((sp) => sp.croupier));
+// …и командой его можно посадить обратно.
+const again = await api("POST", `/table/rooms/${room}/run`, { by: admin, command: { t: "croupier", on: true } });
+check("команда сажает его обратно", again.status === 200, again.status);
+await A.waitForTimeout(900);
+check("крупье снова за столом", ((await spots(A)).seats ?? []).some((sp) => sp.croupier));
 
 await browser.close();
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));

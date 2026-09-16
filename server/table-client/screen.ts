@@ -1294,7 +1294,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (chair) {
       const row = chairOf(s2, chair.key);
       const sitter = row && sitterOf(s2, row);
-      if (row?.owner && sitter) return { kind: "chair", chair: row.id, to: row.owner, name: sitter.name };
+      // Крупье слушать некому: он бот, и голосовое в его стул ушло бы в никуда.
+      if (row?.owner && sitter && !row.croupier && !sitter.bot) return { kind: "chair", chair: row.id, to: row.owner, name: sitter.name };
       return null;
     }
     // СТОЛ — САМО СУКНО, а не весь экран: бросок мимо сукна ничего не отправляет.

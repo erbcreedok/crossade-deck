@@ -138,7 +138,8 @@ check("у звучащей записи значка микрофона нет",
 
 // 4b. Бросок на чужой стул — голосовое личное: адресат его получает.
 const mineA = (await spots(A)).mine;
-const seatB = ((await spots(A)).seats ?? []).find((sp) => sp.key !== mineA);
+// Стул живого игрока: крупье не в счёт — он бот, голосовое ему не адресуется.
+const seatB = ((await spots(A)).seats ?? []).find((sp) => sp.key !== mineA && !sp.croupier);
 if (seatB) {
   await A.mouse.move(say.x, say.y);
   await A.mouse.down();
@@ -207,6 +208,18 @@ if (seatB) {
   check("бросок на стул — запись ушла", (await A.evaluate(() => window.__mic.stopped)) === 2);
   check("личное услышал адресат", gotIt, seatB.key);
   check("третий его не услышал", !gotThird);
+  // В стул крупье голосовое не бросишь: адресата там нет.
+  const croupier = ((await spots(A)).seats ?? []).find((sp) => sp.croupier);
+  if (croupier) {
+    await A.mouse.move(say.x, say.y);
+    await A.mouse.down();
+    await A.waitForTimeout(1300);
+    await A.mouse.move(croupier.x, croupier.y, { steps: 6 });
+    await A.waitForTimeout(250);
+    check("стул крупье адресатом не становится", !/лично/i.test((await A.textContent("[data-mic-hint]")) ?? ""), await A.textContent("[data-mic-hint]"));
+    await A.mouse.up();
+    await A.waitForTimeout(400);
+  }
   const quietRows = await plateRows(A, authorKey);
   check("аватар дышит заметно", loudPuff >= 1.2, loudPuff);
   // Меряем НИЖНИЙ край плашки: верхний тонет в раздутом кружке, а низ подписи — чистый признак её места.
