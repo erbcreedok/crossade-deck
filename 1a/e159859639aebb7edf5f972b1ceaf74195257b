@@ -1,0 +1,31 @@
+.night/tasks/0-круг.md
+  s_9ed0da107cbc4a::t_492e49979b2cd4 1-64
+.night/log.md
+  s_9ed0da107cbc4a::t_4bdfac29fc3a79 356-358
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_e088ef9fce4f63 174,176-178,180
+server/src/table/ring.ts
+  s_9ed0da107cbc4a::t_e27afee8aede9a 88-98,148-149,151-152,158-182
+server/src/table/ringZone.test.ts
+  s_9ed0da107cbc4a::t_d2fa2764967540 12,97-156
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_ceb74ae6825f83 1444-1459,1461,1465,1486-1488,1521-1532,1535-1540,1544-1546
+server/src/table/zones.test.ts
+  s_9ed0da107cbc4a::t_5a0e1e2ad1abb6 11,75,77,80,83-85,91-109,118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1ae159859639aebb7edf5f972b1ceaf74195257b",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
