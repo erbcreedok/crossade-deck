@@ -1225,15 +1225,27 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const side = BAR.size * u * fit;
     const step = side + BAR.gap * u * fit;
     const margin = BAR.margin * u * fit;
-    return `<div style="position:absolute;left:${inset}px;right:${inset}px;top:${geom.barTop! - BAR.fade * u}px;height:${BAR.fade * u}px;`
-      + `background:linear-gradient(to top, rgba(11,7,4,.85), rgba(11,7,4,0));pointer-events:none"></div>`
+    // РЯД СТОИТ ПО СЕРЕДИНЕ ПОДНОСА, и меряется он по САМОМУ ДЛИННОМУ ряду, а не по нынешнему: иначе
+    // кнопки прыгали бы вбок каждый раз, когда раскрывается секция.
+    const rowW = (need - 2 * BAR.margin) * u * fit;
+    const rowLeft = Math.max(margin, Math.round((wide - rowW) / 2));
+    // ПОДНОС. Кадр шире контейнера — полоса не «пол во всю ширину», а поднос со скруглённым верхом и
+    // кантом, как у прочего железа стола. Тень над ним тогда не нужна: у подноса есть свой край, а
+    // затемнение прямоугольником по центру сукна — это просто тёмная коробка поперёк стола.
+    const tray = inset > 0;
+    const round = Math.round(BAR.radius * u * 2);
+    const edge = tray
+      ? `border-radius:${round}px ${round}px 0 0;box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`
+      : `box-shadow:inset 0 3px 0 -1px ${T.black}`;
+    return (tray ? "" : `<div data-g="fade" style="position:absolute;left:0;right:0;top:${geom.barTop! - BAR.fade * u}px;height:${BAR.fade * u}px;`
+      + `background:linear-gradient(to top, rgba(11,7,4,.85), rgba(11,7,4,0));pointer-events:none"></div>`)
       + handZoneHtml(mark === null && cards.length === 0 ? mineGeom(1) : geom)
       // СВОИ КАРТЫ Я ВИЖУ ВСЕГДА, КАК ДЕРЖУ: «скрыть» — про то, что видят другие, а не я.
       + layHand(geom, cards, gaps, mine(s), heldByOthers(s))
       // ПОЛОСА — ПОВЕРХ КАРТ: карты уходят под её край на `BAR.tuck`.
       + `<div data-g="bar" style="position:absolute;left:${inset}px;right:${inset}px;top:${geom.barTop}px;height:${barHeight() * u}px;z-index:${cards.length + 10};`
-      + `background:linear-gradient(${T.panel},${T.well});box-shadow:inset 0 3px 0 -1px ${T.black}">`
-      + `<div style="position:absolute;left:${margin}px;right:${margin}px;top:${(barHeight() * u - side) / 2}px;height:${side}px">`
+      + `background:linear-gradient(${T.panel},${T.well});${edge}">`
+      + `<div style="position:absolute;left:${rowLeft}px;right:${rowLeft}px;top:${(barHeight() * u - side) / 2}px;height:${side}px">`
       + barRow(s, side, step) + `</div>`
       // СВОЙ СТУЛ — глаза на своей полосе: над столом их не видно, зато здесь их помещается больше.
       + (watchedByMe(`chair:${mine(s)}` as EyeSpot) ? "" : (() => {
@@ -1241,7 +1253,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         return row ? `<div style="position:absolute;right:${margin}px;top:${-24}px;z-index:2;pointer-events:none">${row}</div>` : "";
       })())
       + `</div>`
-      + leaveHtml(geom.barTop!, inset + margin, side, step)
+      + leaveHtml(geom.barTop!, inset + rowLeft, side, step)
       + micHtml(geom.barTop!);
   }
 

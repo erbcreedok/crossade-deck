@@ -61,7 +61,10 @@ for (const f of FRAMES) {
     });
     const hand = cards.filter((c) => c.bottom > innerHeight * 0.6);
     const btn = document.querySelector("button[data-section]")?.getBoundingClientRect();
-    const barEl = document.querySelector('[data-g="bar"]')?.getBoundingClientRect();
+    const barNode = document.querySelector('[data-g="bar"]');
+    const barEl = barNode?.getBoundingClientRect();
+    const round = barNode ? parseFloat(getComputedStyle(barNode).borderTopLeftRadius) || 0 : 0;
+    const fade = document.querySelectorAll('[data-g="fade"]').length;
     const btns = [...document.querySelectorAll("button[data-section]")].map((e) => e.getBoundingClientRect());
     const xs = hand.flatMap((c) => [c.left, c.right]);
     return {
@@ -69,6 +72,7 @@ for (const f of FRAMES) {
       card: hand.length ? Math.round(hand[0].w) : null,
       span: xs.length ? Math.round(Math.max(...xs) - Math.min(...xs)) : null,
       mid: xs.length ? Math.round((Math.max(...xs) + Math.min(...xs)) / 2) : null,
+      round, fade,
       bar: barEl ? { w: Math.round(barEl.width), left: Math.round(barEl.left), right: Math.round(barEl.right), mid: Math.round(barEl.left + barEl.width / 2) } : null,
       row: btns.length ? { left: Math.round(Math.min(...btns.map((b) => b.left))), right: Math.round(Math.max(...btns.map((b) => b.right))) } : null,
     };
@@ -86,6 +90,10 @@ for (const f of FRAMES) {
   check(`${f.name}: при входе весь стол в кадре`, across <= fits + 2, { across: Math.round(across), fits: Math.round(fits) });
   check(`${f.name}: и кадр занят столом, а не полями вокруг`, across >= fits * 0.92, { across: Math.round(across), fits: Math.round(fits) });
   check(`${f.name}: полоса не шире контейнера руки и стоит по центру`, m.bar !== null && m.bar.w <= Math.min(f.w, HAND_MAX_PX) + 2 && Math.abs(m.bar.mid - f.w / 2) <= 3, m.bar);
+  // Полоса уже кадра — это поднос: свой скруглённый край вместо тени поперёк сукна.
+  const narrow = m.bar && m.bar.w < f.w - 1;
+  check(`${f.name}: ${narrow ? "поднос со скруглённым верхом и без тени поперёк стола" : "полоса во всю ширину, с тенью над ней"}`,
+    narrow ? m.round > 2 && m.fade === 0 : m.round <= 2 && m.fade === 1, { round: m.round, fade: m.fade, bar: m.bar });
   check(`${f.name}: кнопки бара стоят в той же полосе`, m.row !== null && m.row.left >= m.bar.left - 1 && m.row.right <= m.bar.right + 1, { row: m.row, bar: m.bar });
   await p.close();
 }
