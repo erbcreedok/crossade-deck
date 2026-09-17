@@ -12,7 +12,7 @@ import { mintRoom } from "../../../server/src/table/roomIds.js";
 import { deskNames } from "../../../server/src/table/desks.js";
 import type { TableApi } from "./api.js";
 import type { Home, RoomCard, TableCommand } from "../../../server/src/table/contract.js";
-import { MENU, menuOf, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
+import { dealMenu, MENU, menuOf, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
 import { DOWN, askTitle, closed, gone, inlineOpened, inviteArticle, inviteExisting, listed, mayManage, notOwner, notYours, opened, recast, renamed, roleSaid, type Button, type Links } from "./talk.js";
 import type { Registry } from "./registry.js";
 import type { Watch } from "./watch.js";
@@ -84,6 +84,16 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     for (const [k, v] of pending) if (now - v.at > PENDING_MS) pending.delete(k);
     const id = Math.random().toString(36).slice(2, 8);
     pending.set(id, { command, by, at: now });
+    return id;
+  };
+
+  /** НАБИРАЕМАЯ РАЗДАЧА: кому и с кого. Живёт у бота, пока человек выбирает, и стареет вместе с `pending`. */
+  const deals = new Map<string, { room: string; by: string; seats: string[]; from?: string; at: number }>();
+  const pickDeal = (room: string, by: string, seats: string[]) => {
+    const now = Date.now();
+    for (const [k, v] of deals) if (now - v.at > PENDING_MS) deals.delete(k);
+    const id = Math.random().toString(36).slice(2, 8);
+    deals.set(id, { room, by, seats, from: seats[0], at: now });
     return id;
   };
 
@@ -159,6 +169,82 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     }
     await ctx.answerCallbackQuery();
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
+  });
+
+  /** Карточка комнаты для кнопки: там же, где брали список, иначе чужая комната кнопке не видна. */
+  async function cardFor(ctx: Context, room: string): Promise<RoomCard | null> {
+    const cards = await tablesFor(ctx);
+    if (cards === "down") return null;
+    return cards.find((c) => c.room === room) ?? null;
+  }
+
+  /** Меню комнаты заново — после каждого нажатия, чтобы отметки не разошлись с тем, что на столе. */
+  async function showMenu(ctx: Context, room: string, before = "") {
+    const card = await cardFor(ctx, room);
+    if (!card) return void (await ctx.reply(gone));
+    const said = menuOf(card, deskNames(), byOf(ctx));
+    await ctx.reply(before ? `${before}\n${said.text}` : said.text, { reply_markup: keyboardOf(said.rows) });
+  }
+
+  // КОЛОДА И ДЖОКЕРЫ — одно и то же решение: стол пересобирается новой колодой целиком.
+  bot.callbackQuery(/^tbd:([A-Za-z0-9_-]+):(36|52):(0|1)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const [, room, size, j] = ctx.match as unknown as [string, string, "36" | "52", "0" | "1"];
+    const card = await cardFor(ctx, room);
+    if (!card) return void (await ctx.reply(gone));
+    // Род комнаты решает, какими лицами набирается колода; числа и джокеры — из нажатой кнопки.
+    const game = card.kind === "krest" ? "krest" : "durak";
+    await runAndSay(ctx, room, { t: "preset", game, size: size === "52" ? 52 : 36, ...(j === "1" ? { jokers: true } : {}) }, byOf(ctx));
+    await showMenu(ctx, room);
+  });
+
+  // РАССАДКА. Что именно делать — в кнопке; кому это позволено, решает сервер.
+  bot.callbackQuery(/^tbs:(kick|add|sweep|dealer):([A-Za-z0-9_-]+):(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const [, act, room, chair] = ctx.match as unknown as [string, "kick" | "add" | "sweep" | "dealer", string, string];
+    await runAndSay(ctx, room, { t: "seat", do: act, ...(act === "add" ? {} : { chair }) }, byOf(ctx));
+    await showMenu(ctx, room);
+  });
+
+  // МЕНЮ РАЗДАЧИ: кому и с кого. Выбор живёт у бота под коротким id, пока человек его набирает.
+  bot.callbackQuery(/^tbg:([A-Za-z0-9_-]+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const room = ctx.match[1]!;
+    const card = await cardFor(ctx, room);
+    if (!card) return void (await ctx.reply(gone));
+    // По умолчанию — всем, кто сидит, начиная с первого по часовой: чаще всего этого и хотят.
+    const seats = card.seats.filter((s) => s.who).map((s) => s.id);
+    if (seats.length === 0) return void (await ctx.reply("За столом ещё никого — раздавать некому."));
+    const id = pickDeal(room, byOf(ctx), seats);
+    const said = dealMenu(card, id, { seats, from: seats[0] });
+    await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
+  });
+
+  bot.callbackQuery(/^tb(q|w):([a-z0-9]+):(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const [, what, id, chair] = ctx.match as unknown as [string, "q" | "w", string, string];
+    const pick = deals.get(id);
+    if (!pick || pick.by !== byOf(ctx)) return void (await ctx.reply("Эта кнопка устарела — открой раздачу заново."));
+    if (what === "q") {
+      pick.seats = pick.seats.includes(chair) ? pick.seats.filter((s) => s !== chair) : [...pick.seats, chair];
+      if (pick.from !== undefined && !pick.seats.includes(pick.from)) pick.from = pick.seats[0];
+    } else pick.from = chair;
+    const card = await cardFor(ctx, pick.room);
+    if (!card) return void (await ctx.reply(gone));
+    const said = dealMenu(card, id, pick);
+    await ctx.editMessageReplyMarkup({ reply_markup: keyboardOf(said.rows) }).catch(() => null);
+  });
+
+  bot.callbackQuery(/^tbe:([a-z0-9]+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const pick = deals.get(ctx.match[1]!);
+    if (!pick || pick.by !== byOf(ctx)) return void (await ctx.reply("Эта кнопка устарела — открой раздачу заново."));
+    if (pick.seats.length === 0) return void (await ctx.reply("Никого не отмечено — некому раздавать."));
+    const card = await cardFor(ctx, pick.room);
+    if (!card) return void (await ctx.reply(gone));
+    const rule = card.kind === "krest" ? "krest" : "durak";
+    // FORCE: раздача сама собирает карты крупье и мешает — за этим её и нажимают.
+    await runAndSay(ctx, pick.room, { t: "deal", rule, seats: pick.seats, ...(pick.from ? { from: pick.from } : {}), force: true }, pick.by);
   });
 
   bot.callbackQuery(/^tbr:([A-Za-z0-9_-]+):([a-z0-9]+)$/, async (ctx) => {

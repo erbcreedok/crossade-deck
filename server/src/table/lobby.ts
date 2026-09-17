@@ -7,7 +7,7 @@
 // Одна запись — одна комната: где она живёт в Telegram, как называется и — пока в ней кто-то
 // был — сама комната Colyseus, чтобы закрыть её отсюда.
 
-import type { Home, Person, RoomCard, RunResult, SeatCard, TableCommand } from "./contract.js";
+import type { DeckSize, Home, Person, RoomCard, RunResult, SeatCard, TableCommand } from "./contract.js";
 import { DEFAULT_DESK, deskCrew, deskName, isDesk } from "./desks.js";
 import { retitled, ROOM_WORD, titleFrom, uniqueTitle } from "./names.js";
 import { DEFAULT_CREW, isCrew } from "./crews.js";
@@ -24,7 +24,7 @@ interface Entry {
   home: Home;
   by: string;
   createdAt: number;
-  live?: { people: () => Person[]; seats?: () => SeatCard[]; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; claim?: (by: string) => void; recast?: (kind: string) => void; recrew?: (crew: string) => void; admins?: (keys: string[]) => void };
+  live?: { people: () => Person[]; seats?: () => SeatCard[]; deck?: () => { size: DeckSize; jokers: boolean }; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; claim?: (by: string) => void; recast?: (kind: string) => void; recrew?: (crew: string) => void; admins?: (keys: string[]) => void };
 }
 
 const rooms = new Map<string, Entry>();
@@ -44,6 +44,7 @@ const card = (e: Entry): RoomCard => ({
   home: e.home,
   people: e.live?.people() ?? [],
   seats: e.live?.seats?.() ?? [],
+  deck: e.live?.deck?.() ?? { size: 36, jokers: false },
   createdAt: e.createdAt,
 });
 

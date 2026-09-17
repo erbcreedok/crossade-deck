@@ -79,72 +79,90 @@ export const ORDERS_HELP = [
 
 /** Кнопки меню: короткий код в `callback_data` → команда. */
 export const MENU: Record<string, { label: string; command: TableCommand }> = {
-  col: { label: "Собрать", command: { t: "collect" } },
-  shf: { label: "Перемешать", command: { t: "shuffle" } },
-  pd36: { label: "36", command: { t: "preset", game: "durak", size: 36 } },
-  pd52: { label: "52", command: { t: "preset", game: "durak", size: 52 } },
-  pd36j: { label: "36+🃏", command: { t: "preset", game: "durak", size: 36, jokers: true } },
-  pd52j: { label: "52+🃏", command: { t: "preset", game: "durak", size: 52, jokers: true } },
-  pk36: { label: "36", command: { t: "preset", game: "krest", size: 36 } },
-  pk52: { label: "52", command: { t: "preset", game: "krest", size: 52 } },
-  pk36j: { label: "36+🃏", command: { t: "preset", game: "krest", size: 36, jokers: true } },
-  pk52j: { label: "52+🃏", command: { t: "preset", game: "krest", size: 52, jokers: true } },
-  pb: { label: "Белка", command: { t: "preset", game: "belka" } },
-  dd: { label: "Дурак", command: { t: "deal", rule: "durak" } },
-  dk: { label: "Крестовый", command: { t: "deal", rule: "krest" } },
-  db: { label: "Белка", command: { t: "deal", rule: "belka" } },
-  cr1: { label: "Посадить", command: { t: "croupier", on: true } },
-  cr0: { label: "Увести", command: { t: "croupier", on: false } },
+  red: { label: "Перераздать", command: { t: "redeal" } },
   ...Object.fromEntries(CARD_FACES.map((faces) => [`lf${faces}`, { label: FACES_SAY[faces], command: { t: "look", faces } }])),
   ...Object.fromEntries(CARD_BACKS.map((back) => [`lb${back}`, { label: BACKS_SAY[back], command: { t: "look", back } }])),
 };
 
 const btn = (room: string, code: string): Button => ({ text: MENU[code]!.label, data: `tbr:${room}:${code}` });
 
+/**
+ * МЕНЮ КОМНАТЫ. Каждый сектор — одно решение и ничего больше: колода, джокеры, раздача, вид карт,
+ * род, комната, рассадка. Нынешний выбор помечен точкой и нажатием ничего не меняет.
+ *
+ * ЧТО ВИДНО ТОЛЬКО ХОЗЯИНУ: род стола, «Закрыть» и выдача распорядителя. Распорядитель ведёт стол,
+ * но комнату не отбирает и не закрывает.
+ */
 export function menuOf(card: RoomCard, kinds: ReadonlyArray<{ id: string; name: string }> = [], me?: string): Said {
   const r = card.room;
   const owner = me === undefined || me === card.by;
   const here = kinds.find((k) => k.id === card.kind)?.name ?? card.kind;
+  const mark = (on: boolean, text: string) => (on ? `• ${text}` : text);
+  const deck = (size: 36 | 52) => ({ text: mark(card.deck.size === size, String(size)), data: `tbd:${r}:${size}:${card.deck.jokers ? 1 : 0}` });
+  const joker = (on: boolean) => ({ text: mark(card.deck.jokers === on, on ? "Вкл" : "Выкл"), data: `tbd:${r}:${card.deck.size}:${on ? 1 : 0}` });
   return {
-    text: `«${card.title}» · игра: ${here}. Пресет меняет колоду и рассадку, раздача — раздаёт по своим правилам (раздаёт админ, по часовой со следующего).`,
+    text: `«${card.title}» · игра: ${here}. Колода и джокеры пересобирают стол заново; раздача собирает карты крупье, мешает и раздаёт.`,
     rows: [
-      [btn(r, "col"), btn(r, "shf")],
-      [{ text: "Пресет · дурак:", data: "tbx" }, btn(r, "pd36"), btn(r, "pd52"), btn(r, "pd36j"), btn(r, "pd52j")],
-      [{ text: "Пресет · крестовый:", data: "tbx" }, btn(r, "pk36"), btn(r, "pk52"), btn(r, "pk36j"), btn(r, "pk52j")],
-      [{ text: "Пресет:", data: "tbx" }, btn(r, "pb")],
-      [{ text: "Раздать:", data: "tbx" }, btn(r, "dd"), btn(r, "dk"), btn(r, "db")],
-      [{ text: "Крупье:", data: "tbx" }, btn(r, "cr1"), btn(r, "cr0")],
+      [{ text: "Колода:", data: "tbx" }, deck(36), deck(52)],
+      [{ text: "Джокеры:", data: "tbx" }, joker(true), joker(false)],
+      [{ text: "Раздать", data: `tbg:${r}` }, { text: "Перераздать", data: `tbr:${r}:red` }],
       [{ text: "Лица:", data: "tbx" }, ...CARD_FACES.map((f) => btn(r, `lf${f}`))],
       [{ text: "Рубашка:", data: "tbx" }, ...CARD_BACKS.slice(0, 3).map((b) => btn(r, `lb${b}`))],
       CARD_BACKS.slice(3).map((b) => btn(r, `lb${b}`)),
-      // РОД СТОЛА — тем же меню: нынешний род отмечен и нажатием ничего не меняет.
-      ...(kinds.length > 1
-        ? [[{ text: "Род:", data: "tbx" }, ...kinds.map((k) => ({ text: k.id === card.kind ? `• ${k.name}` : k.name, data: k.id === card.kind ? "tbx" : `tbk:${r}:${k.id}` }))]]
+      // РОД СТОЛА — его меняет только хозяин: это другая игра, а не настройка.
+      ...(owner && kinds.length > 1
+        ? [[{ text: "Род:", data: "tbx" }, ...kinds.map((k) => ({ text: mark(k.id === card.kind, k.name), data: k.id === card.kind ? "tbx" : `tbk:${r}:${k.id}` }))]]
         : []),
       [{ text: "Комната:", data: "tbx" }, { text: "Переименовать", data: `tbl:ren:${r}` }, ...(owner ? [{ text: "Закрыть", data: `tbl:del:${r}` }] : [])],
-      // РОЛИ РАЗДАЁТ ТОЛЬКО ХОЗЯИН. Распорядитель ведёт стол, но комнату не отбирает и не закрывает.
-      ...(owner ? rolesRows(card) : []),
+      ...seatRows(card, owner),
     ],
   };
 }
 
 /**
- * КТО В КОМНАТЕ И ЧТО ЕМУ ВЫДАНО. Хозяин помечен, у прочих кнопка «Сделать распорядителем» или
- * «Забрать» — по одной строке на человека, чтобы не гадать, кого именно нажимаешь.
+ * РАССАДКА. Строка на стул: кто сидит, звёздочка распорядителю, сколько карт в руке — и что с этим
+ * можно сделать. Стул не отнимают и не выдают: человека выгоняют из комнаты, а стул уходит за ним
+ * сам, если карт на нём не осталось.
  */
-export function rolesRows(card: RoomCard): Button[][] {
-  const others = card.people.filter((p) => p.key !== card.by);
-  if (others.length === 0) return [[{ text: "Роли: за столом ещё никого", data: "tbx" }]];
-  return [
-    [{ text: "Роли:", data: "tbx" }],
-    ...others.map((p) => {
-      const on = card.admins.includes(p.key);
-      return [
-        { text: `${on ? "★ " : ""}${p.name}`, data: "tbx" },
-        { text: on ? "Забрать" : "Сделать распорядителем", data: `tba:${on ? "0" : "1"}:${card.room}:${p.key}` },
-      ];
-    }),
-  ];
+export function seatRows(card: RoomCard, owner: boolean): Button[][] {
+  const r = card.room;
+  const seat = (chair: string, act: string, text: string): Button => ({ text, data: `tbs:${act}:${r}:${chair}` });
+  const rows: Button[][] = [[{ text: "Рассадка:", data: "tbx" }]];
+  for (const s of card.seats) {
+    const name = s.who ? `${s.admin ? "★ " : ""}${s.who.name}${s.cards ? ` · ${s.cards}` : ""}` : "пустой стул";
+    rows.push([
+      { text: name, data: "tbx" },
+      ...(s.who && !s.dealer ? [seat(s.id, "dealer", "Раздающий")] : []),
+      ...(s.dealer ? [{ text: "• раздающий", data: "tbx" }] : []),
+      ...(s.cards > 0 ? [seat(s.id, "sweep", "Карты крупье")] : []),
+      ...(s.who ? [seat(s.id, "kick", "Выгнать")] : []),
+    ]);
+    // РАСПОРЯДИТЕЛЯ ВЫДАЁТ ТОЛЬКО ХОЗЯИН, и себе он его не выдаёт: он и так хозяин.
+    if (owner && s.who && s.who.key !== card.by) {
+      const on = card.admins.includes(s.who.key);
+      rows.push([{ text: on ? "Забрать распорядителя" : "Сделать распорядителем", data: `tba:${on ? "0" : "1"}:${r}:${s.who.key}` }]);
+    }
+  }
+  rows.push([{ text: "Поставить стул", data: `tbs:add:${r}:-` }]);
+  return rows;
+}
+
+/**
+ * МЕНЮ РАЗДАЧИ. Два решения: кому раздавать (нажатием стул включается и выключается) и с кого
+ * начать. Всё остальное раздача делает сама — собирает карты крупье, мешает и раздаёт по одной.
+ */
+export function dealMenu(card: RoomCard, id: string, pick: { seats: string[]; from?: string }): Said {
+  const rows: Button[][] = [[{ text: "Кому раздать:", data: "tbx" }]];
+  for (const s of card.seats) {
+    const on = pick.seats.includes(s.id);
+    const name = s.who?.name ?? "пустой стул";
+    rows.push([
+      { text: on ? `✓ ${name}` : name, data: `tbq:${id}:${s.id}` },
+      ...(on ? [{ text: pick.from === s.id ? "• первый" : "начать с него", data: pick.from === s.id ? "tbx" : `tbw:${id}:${s.id}` }] : []),
+    ]);
+  }
+  rows.push([{ text: "Раздать", data: `tbe:${id}` }]);
+  return { text: `«${card.title}» — кому раздаём и с кого начинаем. Первая карта ляжет отмеченному «первым».`, rows };
 }
 
 /** Какой стол — если их несколько. Команда ждёт в `pending` под коротким id. */

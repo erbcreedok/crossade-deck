@@ -1,18 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
-import { MENU, menuOf, parseOrder, refusedSay } from "./orders.js";
+import { dealMenu, MENU, menuOf, parseOrder, refusedSay } from "./orders.js";
 
-const card: RoomCard = { room: "R".repeat(23), title: "Дурак", by: "tg:1", home: { kind: "chat", chat: "-1" }, people: [], seats: [], createdAt: 0, kind: "sandbox", crew: "sandbox", admins: [] };
+const card: RoomCard = { room: "R".repeat(23), title: "Дурак", by: "tg:1", home: { kind: "chat", chat: "-1" }, people: [], seats: [], deck: { size: 36, jokers: false }, createdAt: 0, kind: "sandbox", crew: "sandbox", admins: [] };
 
 describe("команды комнаты в чате", () => {
   it("крупье: сажается и уводится словом и кнопкой", () => {
     expect(parseOrder("croupier", "")).toEqual({ t: "croupier", on: true });
     expect(parseOrder("croupier", "убрать")).toEqual({ t: "croupier", on: false });
     expect(parseOrder("croupier", "чепуха")).toBeNull();
-    expect(MENU.cr1!.command).toEqual({ t: "croupier", on: true });
-    expect(MENU.cr0!.command).toEqual({ t: "croupier", on: false });
+    // В МЕНЮ КРУПЬЕ НЕТ: в крестовом он есть всегда, и сажать его кнопкой незачем.
     const rows = menuOf(card).rows.flat();
-    expect(rows.some((b) => "data" in b && b.data === `tbr:${card.room}:cr1`)).toBe(true);
+    expect(rows.some((b) => b.text.includes("рупье") && "data" in b && b.data.startsWith("tbr:"))).toBe(false);
   });
 
   it("сборка и перемешивание — без слов", () => {
@@ -96,33 +95,99 @@ describe("роли в меню комнаты", () => {
       { key: "tg:1", name: "Хозяин", ink: "#fff", door: "telegram" as const },
       { key: "tg:2", name: "Гость", ink: "#fff", door: "telegram" as const },
     ],
+    seats: [
+      { id: "c1", who: { key: "tg:1", name: "Хозяин" }, cards: 0 },
+      { id: "c2", who: { key: "tg:2", name: "Гость" }, cards: 0 },
+    ],
   };
 
-  it("ХОЗЯИН ВИДИТ РОЛИ И «ЗАКРЫТЬ»", () => {
+  it("ХОЗЯИН ВИДИТ ВЫДАЧУ РАСПОРЯДИТЕЛЯ И «ЗАКРЫТЬ»", () => {
     const said = menuOf(withPeople, kinds, "tg:1");
-    const roles = said.rows.find((r) => r[0]!.text === "Роли:");
-    expect(roles, "ряд ролей есть").toBeDefined();
-    const row = said.rows.find((r) => r[0]!.text === "Гость")!;
-    expect(row[1]).toEqual({ text: "Сделать распорядителем", data: `tba:1:${card.room}:tg:2` });
+    expect(said.rows.some((r) => r[0]!.text === "Рассадка:"), "рассадка есть").toBe(true);
+    expect(said.rows.some((r) => "data" in r[0]! && r[0]!.data === `tba:1:${card.room}:tg:2`), "гостю можно выдать").toBe(true);
+    // СЕБЕ ХОЗЯИН РАСПОРЯДИТЕЛЯ НЕ ВЫДАЁТ: он и так хозяин, и снять это нельзя.
+    expect(said.rows.some((r) => "data" in r[0]! && r[0]!.data.startsWith("tba:") && r[0]!.data.endsWith("tg:1")), "себе — нет").toBe(false);
     expect(said.rows.some((r) => r.some((b) => b.text === "Закрыть"))).toBe(true);
   });
 
-  it("выданный распорядитель помечен, и кнопка становится «Забрать»", () => {
-    const said = menuOf({ ...withPeople, admins: ["tg:2"] }, kinds, "tg:1");
+  it("выданный распорядитель помечен звёздочкой, и кнопка становится «Забрать»", () => {
+    const said = menuOf({ ...withPeople, admins: ["tg:2"], seats: [{ id: "c2", who: { key: "tg:2", name: "Гость" }, cards: 0, admin: true as const }] }, kinds, "tg:1");
     const row = said.rows.find((r) => r[0]!.text.includes("Гость"))!;
     expect(row[0]!.text).toContain("★");
-    expect(row[1]).toEqual({ text: "Забрать", data: `tba:0:${card.room}:tg:2` });
+    expect(said.rows.some((r) => r[0]!.text === "Забрать распорядителя" && "data" in r[0]! && r[0]!.data === `tba:0:${card.room}:tg:2`)).toBe(true);
   });
 
   it("РАСПОРЯДИТЕЛЬ РОЛЕЙ НЕ ВИДИТ И КОМНАТУ НЕ ЗАКРЫВАЕТ", () => {
     const said = menuOf({ ...withPeople, admins: ["tg:2"] }, kinds, "tg:2");
-    expect(said.rows.some((r) => r[0]!.text === "Роли:"), "ролей нет").toBe(false);
+    expect(said.rows.some((r) => r.some((b) => "data" in b && b.data.startsWith("tba:"))), "выдачи ролей нет").toBe(false);
     expect(said.rows.some((r) => r.some((b) => b.text === "Закрыть")), "и «Закрыть» нет").toBe(false);
     expect(said.rows.some((r) => r.some((b) => b.text === "Переименовать")), "а переименовать может").toBe(true);
   });
 
-  it("за столом никого — говорим об этом, а не рисуем пустой ряд", () => {
-    const said = menuOf({ ...withPeople, people: [] }, kinds, "tg:1");
-    expect(said.rows.some((r) => r[0]!.text.includes("ещё никого"))).toBe(true);
+  it("за столом никого — рассадка всё равно даёт поставить стул", () => {
+    const said = menuOf({ ...withPeople, people: [], seats: [] }, kinds, "tg:1");
+    expect(said.rows.some((r) => r[0]!.text === "Поставить стул")).toBe(true);
+  });
+});
+
+describe("меню крестового: по одному решению в секторе", () => {
+  const room = card.room;
+  const full = {
+    ...card,
+    kind: "krest",
+    deck: { size: 52 as const, jokers: true },
+    seats: [
+      { id: "c1", who: { key: "tg:1", name: "Хозяин" }, cards: 6 },
+      { id: "c2", who: { key: "tg:2", name: "Гость" }, cards: 0, dealer: true as const },
+      { id: "c3", cards: 0 },
+    ],
+  };
+
+  it("КОЛОДА И ДЖОКЕРЫ — РАЗНЫЕ СЕКТОРЫ, и нынешнее отмечено", () => {
+    const said = menuOf(full, [{ id: "krest", name: "крестовый" }], "tg:1");
+    const deck = said.rows.find((r) => r[0]!.text === "Колода:")!;
+    expect(deck.map((b) => b.text)).toEqual(["Колода:", "36", "• 52"]);
+    const jokers = said.rows.find((r) => r[0]!.text === "Джокеры:")!;
+    expect(jokers.map((b) => b.text)).toEqual(["Джокеры:", "• Вкл", "Выкл"]);
+    // Переключая джокеры, размер не теряется — и наоборот.
+    expect(jokers[2]).toEqual({ text: "Выкл", data: `tbd:${room}:52:0` });
+    expect(deck[1]).toEqual({ text: "36", data: `tbd:${room}:36:1` });
+  });
+
+  it("БЕЛКИ, ПРЕСЕТОВ И КРУПЬЕ В МЕНЮ НЕТ", () => {
+    const texts = menuOf(full, [], "tg:1").rows.flat().map((b) => b.text.toLowerCase());
+    for (const gone of ["белка", "пресет", "посадить", "увести"]) expect(texts.some((t) => t.includes(gone)), gone).toBe(false);
+  });
+
+  it("РОД МЕНЯЕТ ТОЛЬКО ХОЗЯИН", () => {
+    const kinds = [{ id: "krest", name: "крестовый" }, { id: "sandbox", name: "песочница" }];
+    expect(menuOf(full, kinds, "tg:1").rows.some((r) => r[0]!.text === "Род:"), "хозяину видно").toBe(true);
+    expect(menuOf(full, kinds, "tg:9").rows.some((r) => r[0]!.text === "Род:"), "прочим — нет").toBe(false);
+  });
+
+  it("РАССАДКА: карты забирают только у того, у кого они есть; раздающий помечен; стул ставят кнопкой", () => {
+    const said = menuOf(full, [], "tg:1");
+    const owner = said.rows.find((r) => r[0]!.text.includes("Хозяин"))!;
+    expect(owner[0]!.text, "у хозяина 6 карт").toContain("6");
+    expect(owner.some((b) => "data" in b && b.data === `tbs:sweep:${room}:c1`), "есть куда забрать").toBe(true);
+    const guest = said.rows.find((r) => r[0]!.text.includes("Гость"))!;
+    expect(guest.some((b) => b.text === "• раздающий"), "раздающий отмечен").toBe(true);
+    expect(guest.some((b) => "data" in b && b.data.startsWith("tbs:sweep")), "у пустой руки карт не забирают").toBe(false);
+    expect(guest.some((b) => "data" in b && b.data === `tbs:kick:${room}:c2`), "выгнать можно").toBe(true);
+    const empty = said.rows.find((r) => r[0]!.text === "пустой стул")!;
+    expect(empty.some((b) => "data" in b && b.data.startsWith("tbs:kick")), "пустой стул выгонять некого").toBe(false);
+    expect(said.rows.some((r) => r[0]!.text === "Поставить стул")).toBe(true);
+  });
+
+  it("МЕНЮ РАЗДАЧИ: отмеченные стулья и один первый", () => {
+    const said = dealMenu(full, "p1", { seats: ["c1", "c2"], from: "c2" });
+    const mine = said.rows.find((r) => r[0]!.text.includes("Хозяин"))!;
+    expect(mine[0]!.text).toBe("✓ Хозяин");
+    expect(mine[1]).toEqual({ text: "начать с него", data: "tbw:p1:c1" });
+    const guest = said.rows.find((r) => r[0]!.text.includes("Гость"))!;
+    expect(guest[1]!.text, "первый — один").toBe("• первый");
+    const empty = said.rows.find((r) => r[0]!.text === "пустой стул")!;
+    expect(empty, "невыбранный стул можно включить").toEqual([{ text: "пустой стул", data: "tbq:p1:c3" }]);
+    expect(said.rows.at(-1)).toEqual([{ text: "Раздать", data: "tbe:p1" }]);
   });
 });

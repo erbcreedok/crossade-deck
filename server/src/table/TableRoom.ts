@@ -92,6 +92,7 @@ export class TableRoom extends Room {
     attach(this.room, {
       people: () => this.table.here.filter((p) => !p.bot),
       seats: () => this.seatCards(),
+      deck: () => this.deckCard(),
       close: () => void this.disconnect(),
       run: (by, command) => this.run(by, command),
       claim: (by) => this.spread(this.table.claim(by)),
@@ -369,6 +370,17 @@ export class TableRoom extends Room {
       if (command.t === "deal") this.openMatch(this.table.layout().chairs.find((c) => c.owner === by)?.id ?? null);
     });
     return { ok: true };
+  }
+
+  /**
+   * ЧЕМ ИГРАЮТ — ПО КАРТАМ, А НЕ ПО ПАМЯТИ О ВЫБОРЕ. Размер считается по тому, сколько карт на столе
+   * всего, джокеры — по тому, есть ли они среди них: отметка в меню тогда не может соврать.
+   */
+  private deckCard(): { size: 36 | 52; jokers: boolean } {
+    const at = this.table.layout();
+    const ids = [...at.deck, ...at.felt.map((f) => f.id), ...at.piles.flatMap((p) => p.cards), ...at.chairs.flatMap((c) => c.hand)];
+    const jokers = ids.some((id) => this.table.faceOf(id)?.rank === "JK");
+    return { size: ids.length - (jokers ? 2 : 0) > 36 ? 52 : 36, jokers };
   }
 
   /** Руки, которыми играются шаги: дифы — всем, палец над картой — каждому своими глазами. */
