@@ -1,0 +1,24 @@
+server/src/table/games/table-krest.test.ts
+  s_9ed0da107cbc4a::t_7fc44587c025bb 1-101
+  s_9ed0da107cbc4a::t_77e29f22e50c96 102-103
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_5fda648e67aefb 14,24-25,45-49,69-71,98-101,214-254,294-297
+server/src/table/desks.ts
+  s_9ed0da107cbc4a::t_5b6de65120d8b4 20-22,24-26,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "34b0f6c30ea83277631b9a7cf864703bb21b08eb",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
