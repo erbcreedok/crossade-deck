@@ -155,4 +155,25 @@ describe("TableRoom", () => {
     expect(carries[0]).toMatchObject({ by: BOT_KEY, auto: true });
     expect(await runIn(room, "tg:7", { t: "deal", rule: "each", n: 2 })).toEqual({ error: "needs-collect" });
   });
+
+  it("ПЕРЕРАЗДАЧА: до первой раздачи её нет, потом — одним нажатием, теми же стульями", async () => {
+    const room = mintRoom(SECRET);
+    openEntry(room, { kind: "chat", chat: "-1" }, "tg:9");
+    const a = await sit(room, { door: "telegram", initData: initData(9, "Админ") });
+    const b = await sit(room, { door: "guest", name: "B" });
+    // Повторять нечего: раздачи ещё не было, и комната говорит это словом, а не молчит.
+    expect(await runIn(room, "tg:9", { t: "redeal" })).toEqual({ error: "no-deal-yet" });
+    const seats = b.welcome.snapshot.chairs.filter((c) => !c.croupier).map((c) => c.id);
+    expect(seats).toHaveLength(2);
+    expect(await runIn(room, "tg:9", { t: "deal", rule: "each", n: 2, seats: [seats[0]!] })).toEqual({ ok: true });
+    await new Promise((r) => setTimeout(r, 2 * 150 + 500));
+    // Одно нажатие: карты со стола собираются и мешаются сами, а стулья берутся из прошлой раздачи.
+    expect(await runIn(room, "tg:9", { t: "redeal" })).toEqual({ ok: true });
+    await new Promise((r) => setTimeout(r, 7000));
+    let mine = b.welcome.snapshot;
+    for (const p of b.patches.filter((p) => p.v > mine.v)) mine = applyPatch(mine, p);
+    const hands: Record<string,number> = Object.fromEntries(mine.chairs.filter((c) => !c.croupier).map((c) => [c.id, c.hand.length]));
+    expect(hands[seats[0]!], "раздали тому же стулу").toBe(2);
+    expect(hands[seats[1]!], "а тому, кого в прошлой раздаче не было, — не раздали").toBe(0);
+  }, 20000);
 });

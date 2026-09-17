@@ -66,6 +66,22 @@ describe("команды стола: раздача", () => {
     expect(counts.c).toBe(7);
   });
 
+  it("НАЗВАЛИ НАЧАЛЬНЫЙ СТУЛ — первая карта ЕМУ САМОМУ, а не следующему за ним", async () => {
+    const s = table("a", "b", "c");
+    const seat = (k: string) => s.t.layout().chairs.find((c) => c.owner === k)!.id;
+    expect(await s.run({ t: "deal", rule: "each", n: 1, from: seat("c") })).toBe("ok");
+    const first = s.log.flat().find((op) => op.t === "move");
+    expect(first).toMatchObject({ to: { in: "hand", chair: seat("c") } });
+  });
+
+  it("НАЗВАЛИ СТУЛЬЯ — раздают ровно им, прочие сидят пустыми", async () => {
+    const s = table("a", "b", "c");
+    const seat = (k: string) => s.t.layout().chairs.find((c) => c.owner === k)!.id;
+    expect(await s.run({ t: "deal", rule: "krest", seats: [seat("a"), seat("c")] })).toBe("ok");
+    expect(s.hand("b"), "кого не назвали — тому не раздали").toHaveLength(0);
+    expect(s.hand("a").length + s.hand("c").length).toBe(36);
+  });
+
   it("дурак: по 6 и козырь лицом под колоду", async () => {
     const s = table("a", "b");
     expect(await s.run({ t: "deal", rule: "durak" })).toBe("ok");

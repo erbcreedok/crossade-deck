@@ -595,20 +595,34 @@ export type TableCommand =
       n?: number;
       /** Кто раздаёт — ключ, имя или `@username`. По умолчанию — админ. */
       dealer?: string;
+      /**
+       * ПЕРВЫЙ ПОЛУЧАТЕЛЬ — стул, с которого пошла раздача, и дальше по часовой. Не сказан — по
+       * старому: со следующего после раздающего.
+       */
+      from?: string;
+      /** Кому раздавать — стулья списком. Не сказано — всем игровым, кроме крупье. */
+      seats?: string[];
       /** Не раздавать покинутым стульям. */
       skipEmpty?: boolean;
       /** Раздавать от лица раздающего: его цвет, его курсор, «двигал он». Иначе — от лица бота. */
       asDealer?: boolean;
       /** Карты не собраны — собрать и перемешать без вопросов. */
       force?: boolean;
-    };
+    }
+  /**
+   * ПЕРЕРАЗДАЧА — тем же стульям и по тем же правилам, что прошлая раздача, одним нажатием.
+   *
+   * Стулья берутся из прошлой раздачи: кто ушёл — тому не раздают, кто пришёл — тоже. Первая карта
+   * ложится СЛЕДУЮЩЕМУ от нажавшего; нажал не сидящий за столом — от прошлого начального стула.
+   */
+  | { t: "redeal" };
 
 /** `POST /table/rooms/:room/run` */
 export interface RunCommand {
   by: string;
   command: TableCommand;
 }
-export type RunError = "not-admin" | "busy" | "needs-collect" | "not-enough-cards" | "not-enough-players" | "no-dealer" | "empty" | "bad";
+export type RunError = "not-admin" | "busy" | "needs-collect" | "not-enough-cards" | "not-enough-players" | "no-dealer" | "no-deal-yet" | "pick-seat" | "empty" | "bad";
 export type RunResult = { ok: true } | { error: RunError };
 
 // ── HTTP: бот ↔ сервер стола ↔ реле на Fly ─────────────────────────────────────────────────────

@@ -180,6 +180,8 @@ export function started(command: TableCommand, title: string): string {
       return `Колода на «${title}»: ${[command.faces && `лица — ${FACES_SAY[command.faces].toLowerCase()}`, command.back && `рубашка — ${BACKS_SAY[command.back].toLowerCase()}`].filter(Boolean).join(", ")}.`;
     case "deal":
       return `Раздаю${command.rule === "each" ? ` по ${command.n ?? 1}` : ` — ${GAME[command.rule]}`} на «${title}».`;
+    case "redeal":
+      return `Перераздаю на «${title}» — тем же стульям, что и в прошлый раз.`;
   }
 }
 
@@ -192,6 +194,8 @@ export function refusedSay(error: RunError, room: string, pending: string): Said
     "not-enough-cards": "В колоде не хватит карт на такую раздачу.",
     "not-enough-players": "Не хватает игроков: белке нужны четверо за столом.",
     "no-dealer": "Не нашёл раздающего за столом.",
+    "no-deal-yet": "Перераздавать нечего: в этой комнате ещё ни разу не раздавали.",
+    "pick-seat": "Не понял, с кого начать: тебя за столом нет, а прошлый начальный стул уже пуст. Раздай заново и укажи стул.",
     empty: "В этой комнате ещё никого не было — зайди, и команды заработают.",
     bad: "Не понял команду.",
   };

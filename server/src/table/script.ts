@@ -35,7 +35,18 @@ export type Step =
   | { t: "chair"; id: string; angle: number; ms: number }
   | { t: "rules"; rules: Partial<TableRules> };
 
-export type Plan = { steps: Step[]; actor: "bot" | string } | { error: RunError };
+/**
+ * ЧЕМ БЫЛА РАЗДАЧА — чтобы её можно было повторить одним нажатием. Стулья и стартовый записаны теми,
+ * какими план их вывел, а не теми, какие просили: иначе «те же самые» разошлись бы с тем, что легло.
+ */
+export interface DealMemo {
+  rule: DealRule;
+  n?: number;
+  seats: string[];
+  from: string;
+}
+
+export type Plan = { steps: Step[]; actor: "bot" | string; deal?: DealMemo } | { error: RunError };
 
 const RANKS36 = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 const RANKS52 = ["2", "3", "4", "5", ...RANKS36];
@@ -102,7 +113,7 @@ function packOf(table: Table): { deck: number; hand: string | null } {
 }
 
 /** Стулья по часовой, начиная с `from` (включительно). */
-function clockwise<T extends { id: string; angle: number }>(chairs: T[], from: string): T[] {
+export function clockwise<T extends { id: string; angle: number }>(chairs: T[], from: string): T[] {
   const sorted = [...chairs].sort((a, b) => a.angle - b.angle);
   const i = Math.max(0, sorted.findIndex((c) => c.id === from));
   return [...sorted.slice(i), ...sorted.slice(0, i)];
@@ -138,6 +149,9 @@ export function plan(table: Table, command: TableCommand, people: Who[], admin: 
       return { steps: collectSteps(table), actor: "bot" };
     // Крупье исполняет комната сама: он не ход, а состав стола.
     case "croupier":
+      return { error: "bad" };
+    // Перераздачу комната разворачивает в обычную раздачу сама: ей для этого нужна память о прошлой.
+    case "redeal":
       return { error: "bad" };
     case "shuffle": {
       const pack = packOf(table);
@@ -188,6 +202,12 @@ function sixesSteps(anchor: number): Step[] {
   return sixesRow(anchor).map((to, i) => ({ t: "move", id: `${SIXES}:${i}`, to, ms: PACE.lay }));
 }
 
+/** Порядок «со следующего после раздающего, ему — последним». Раздающий без стула в круге — просто с его места по часовой. */
+function afterDealer<T extends { id: string; angle: number }>(chairs: T[], playable: T[], anchor: string): T[] {
+  const ring = clockwise([...chairs, ...playable.filter((c) => c.id === anchor && !chairs.includes(c))], anchor);
+  return (ring[0]?.id === anchor ? [...ring.slice(1), ring[0]!] : ring).filter((c) => chairs.includes(c));
+}
+
 function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, people: Who[], admin: string): Plan {
   const at = table.layout();
   const dealer = findDealer(people, command.dealer, admin);
@@ -215,16 +235,20 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
   const playable = at.chairs.filter((c) => !c.croupier);
   const anchor = dealer.seat ?? playable.find((c) => c.owner === admin)?.id ?? playable[0]?.id;
   if (!anchor) return { error: "not-enough-players" };
-  let chairs = playable.filter((c) => !(command.skipEmpty || preset.skipEmpty) || (c.owner !== null && people.some((p) => p.key === c.owner)));
+  // КОМУ РАЗДАЁМ. Сказали списком — ровно им (исчезнувшие стулья просто выпадают); не сказали —
+  // всем игровым, как раньше.
+  const named = command.seats ? new Set(command.seats) : null;
+  let chairs = playable.filter((c) => (named ? named.has(c.id) : !(command.skipEmpty || preset.skipEmpty) || (c.owner !== null && people.some((p) => p.key === c.owner))));
   if (preset.seats > 0) {
     const around = clockwise(chairs, chairs.some((c) => c.id === anchor) ? anchor : (chairs[0]?.id ?? anchor));
     chairs = around.slice(0, preset.seats);
     if (chairs.length < preset.seats) return { error: "not-enough-players" };
   }
   if (chairs.length === 0) return { error: "not-enough-players" };
-  // Со следующего после раздающего; раздающему — последним. Раздающий без стула в круге — просто с его места по часовой.
-  const ring = clockwise([...chairs, ...playable.filter((c) => c.id === anchor && !chairs.includes(c))], anchor);
-  const order = (ring[0]?.id === anchor ? [...ring.slice(1), ring[0]!] : ring).filter((c) => chairs.includes(c));
+  // С КОГО ПОШЛА РАЗДАЧА. Назвали стул — первая карта ему самому и дальше по часовой. Не назвали —
+  // по старому: со следующего после раздающего, а раздающему последним.
+  const first = command.from !== undefined && chairs.some((c) => c.id === command.from) ? command.from : null;
+  const order = first !== null ? clockwise(chairs, first) : afterDealer(chairs, playable, anchor);
 
   // «Всю колоду» раздают по кругу, пока карты не кончатся; иначе — по стольку каждому, и число
   // можно спросить у человека ровно там, где пресет это позволяет.
@@ -235,7 +259,8 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
 
   for (let k = 0; k < dealt; k += 1) steps.push({ t: "move", id: "top", to: toHand(order[k % order.length]!.id), ms: PACE.deal });
   if (preset.trump) steps.push({ t: "move", id: "top", to: TRUMP, ms: PACE.lay });
-  return { steps, actor: command.asDealer ? dealer.key : "bot" };
+  const memo: DealMemo = { rule, ...(preset.each === "all" ? {} : { n }), seats: order.map((c) => c.id), from: order[0]!.id };
+  return { steps, actor: command.asDealer ? dealer.key : "bot", deal: memo };
 }
 
 export interface Io {

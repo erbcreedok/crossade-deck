@@ -12,17 +12,17 @@ import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
 import { tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
-import { MSG, type CarryOut, type Face, type Intent, type JoinOptions, type Op, type Person, type RunResult, type TableCommand, type Welcome } from "./contract.js";
+import { MSG, type CarryOut, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type TableCommand, type Welcome } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
 import { cleanLive, ear, LiveTalk, liveTally, type Live } from "./live.js";
 import { cleanSignal, Signals, type Signal } from "./rtc.js";
 import { cleanMic, type Mic } from "./voice.js";
-import { collectSteps, execute, plan } from "./script.js";
+import { clockwise, collectSteps, execute, plan, type DealMemo } from "./script.js";
 import type { Key } from "./access.js";
 
 /** ЧТО КАКОЙ КОМАНДОЙ ДВИГАЮТ — ключ на каждую (`access.ts`). Команды без ключа здесь нет. */
 const RUN_RIGHTS: Record<string, Key> = {
-  deal: "table.deal", collect: "table.collect", shuffle: "table.shuffle",
+  deal: "table.deal", redeal: "table.deal", collect: "table.collect", shuffle: "table.shuffle",
   preset: "table.preset", look: "table.look", croupier: "table.croupier",
 };
 import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
@@ -329,10 +329,14 @@ export class TableRoom extends Room {
    * КОМАНДА АДМИНА ИЗ БОТА. Проверка и план — сразу, ответ боту — сразу; ходы идут потом, с паузами, и
    * их видят все сидящие. Бот садится за стол, когда впервые понадобился, и дальше сидит без стула.
    */
-  async run(by: string, command: TableCommand): Promise<RunResult> {
+  async run(by: string, order: TableCommand): Promise<RunResult> {
     // ПРАВО, А НЕ ЛИЧНОСТЬ: команду ведёт тот, кому выдан этот доступ (`access.ts`).
-    const right = RUN_RIGHTS[command.t];
+    const right = RUN_RIGHTS[order.t];
     if (right && !this.table.may(by, right)) return { error: "not-admin" };
+    // ПЕРЕРАЗДАЧА — обычная раздача с памятью: те же стулья, те же правила, начало — от нажавшего.
+    const again = order.t === "redeal" ? this.again(by) : null;
+    if (again && "error" in again) return again;
+    const command: TableCommand = again ? again.command : order;
     // ВИД КОЛОДЫ — не ход, а правило: меняется сразу, даже посреди раздачи, и бот за стол не садится.
     if (command.t === "look") {
       const steps = plan(this.table, command, [], by);
@@ -353,6 +357,7 @@ export class TableRoom extends Room {
     const people = this.table.here.map((p) => ({ key: p.key, name: p.name, username: p.username, seat: p.seat }));
     const p = plan(this.table, command, people, by);
     if ("error" in p) return p;
+    if (p.deal) this.lastDeal = p.deal;
     const actor = p.actor === "bot" ? BOT_KEY : p.actor;
     void execute(this.table, p.steps, actor, {
       spread: (ops) => this.spread(ops),
@@ -372,6 +377,32 @@ export class TableRoom extends Room {
       if (command.t === "deal") this.openMatch(this.table.layout().chairs.find((c) => c.owner === by)?.id ?? null);
     });
     return { ok: true };
+  }
+
+  /** Чем была прошлая раздача — из неё растёт перераздача. Живёт, пока жива комната. */
+  private lastDeal: DealMemo | null = null;
+
+  /**
+   * ПЕРЕРАЗДАЧА — ОДНО НАЖАТИЕ. Правила и стулья те же, что в прошлый раз: кого не стало — тому не
+   * раздают, кто пришёл после — тоже (он войдёт в игру со следующей полной раздачи).
+   *
+   * Начало считается ОТ НАЖАВШЕГО: первая карта ложится следующему за ним по часовой. Нажал не
+   * сидящий за столом — начинаем с прошлого начального стула; нет и его — спрашиваем, с какого стула
+   * начать (`pick-seat`), а не гадаем молча.
+   */
+  private again(by: string): { command: TableCommand } | { error: RunError } {
+    const last = this.lastDeal;
+    if (!last) return { error: "no-deal-yet" };
+    const playable = this.table.layout().chairs.filter((c) => !c.croupier);
+    const seats = last.seats.filter((id) => playable.some((c) => c.id === id));
+    if (seats.length === 0) return { error: "not-enough-players" };
+    const mine = playable.find((c) => c.owner === by)?.id;
+    const from = mine !== undefined
+      ? clockwise(playable, mine).slice(1).concat(clockwise(playable, mine)[0]!).find((c) => seats.includes(c.id))?.id
+      : seats.includes(last.from) ? last.from : undefined;
+    if (from === undefined) return { error: "pick-seat" };
+    // Карты на столе с прошлой партии — их собирают и мешают без лишнего вопроса: в этом и смысл одного нажатия.
+    return { command: { t: "deal", rule: last.rule, ...(last.n === undefined ? {} : { n: last.n }), seats, from, force: true } };
   }
 
   /**

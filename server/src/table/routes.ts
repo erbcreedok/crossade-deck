@@ -59,6 +59,7 @@ export function readCommand(raw: unknown): TableCommand | null {
     if (!faces && !back) return null;
     return { t: "look", ...(faces ? { faces } : {}), ...(back ? { back } : {}) };
   }
+  if (c.t === "redeal") return { t: "redeal" };
   if (c.t === "deal") {
     const rule = c.rule === "each" ? "each" : game(c.rule);
     if (!rule) return null;
@@ -67,6 +68,8 @@ export function readCommand(raw: unknown): TableCommand | null {
       rule,
       ...(Number.isInteger(c.n) && (c.n as number) > 0 && (c.n as number) <= 54 ? { n: c.n as number } : {}),
       ...(typeof c.dealer === "string" && c.dealer ? { dealer: c.dealer.slice(0, 64) } : {}),
+      ...(typeof c.from === "string" && c.from ? { from: c.from.slice(0, 64) } : {}),
+      ...(Array.isArray(c.seats) ? { seats: c.seats.filter((s): s is string => typeof s === "string").slice(0, 32) } : {}),
       ...(c.skipEmpty === true ? { skipEmpty: true } : {}),
       ...(c.asDealer === true ? { asDealer: true } : {}),
       ...(c.force === true ? { force: true } : {}),
