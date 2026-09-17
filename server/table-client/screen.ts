@@ -9,7 +9,7 @@ import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type DeckDo,
 import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, R, RIM, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
-import { LEAN_STEP, orbits, tableCamera } from "./camera.js";
+import { LEAN_PER_PX, LEAN_STEP, orbits, tableCamera } from "./camera.js";
 import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.js";
 import { tableHaptic, type Haptic } from "./haptic.js";
 import { tableMotion } from "./motion.js";
@@ -2412,6 +2412,51 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     redraw();
   }
 
+  /** Сдвиг с места, после которого нажатие на компас — уже жест, а не тап, в пикселях стекла. */
+  const COMPASS_SLOP = 4;
+
+  /** Кратчайший путь между двумя углами, в градусах. */
+  const shortWay = (a: number, b: number): number => ((((a - b) % 360) + 540) % 360) - 180;
+
+  /**
+   * КОМПАС ТЯНЕТСЯ РУКОЙ. Кольцо крутят пальцем по кругу — стол поворачивается вслед за ним; диск
+   * тянут вверх-вниз — стол кладётся и встаёт.
+   *
+   * Это единственный способ повернуть и наклонить стол ОДНИМ пальцем и БЕЗ Ctrl/Cmd: на телефоне
+   * модификаторов нет вовсе, а два пальца там уже заняты щипком. Не сдвинулся с места — это тап, и
+   * работает прежнее: кольцо возвращает к стулу, диск кладёт стол на `LEAN_STEP`.
+   */
+  function compassDrag(down: PointerEvent, part: "ring" | "lean", ring: HTMLElement): void {
+    const box = ring.getBoundingClientRect();
+    const mid = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    const aimAt = (e: { clientX: number; clientY: number }) => (Math.atan2(e.clientY - mid.y, e.clientX - mid.x) * 180) / Math.PI;
+    const from = { rotation: cam.camera.rotation, pitch: cam.camera.pitch, aim: aimAt(down), y: down.clientY };
+    let moved = false;
+    const move = (e: PointerEvent) => {
+      if (e.pointerId !== down.pointerId) return;
+      const turned = shortWay(aimAt(e), from.aim);
+      // Порог у кольца меряется по дуге под пальцем, а не в градусах: кольцо маленькое, и градус на нём — доли пикселя.
+      const far = part === "ring" ? Math.abs((turned * Math.PI * box.width) / 360) : Math.abs(e.clientY - from.y);
+      if (!moved && far < COMPASS_SLOP) return;
+      moved = true;
+      if (part === "ring") cam.camera.turnTo(from.rotation - turned);
+      else cam.camera.tiltTo(from.pitch - (e.clientY - from.y) * LEAN_PER_PX);
+      redraw();
+    };
+    const up = (e: PointerEvent) => {
+      if (e.pointerId !== down.pointerId) return;
+      removeEventListener("pointermove", move);
+      removeEventListener("pointerup", up);
+      removeEventListener("pointercancel", up);
+      if (moved) return;
+      if (part === "lean") leanToggle();
+      else goHome();
+    };
+    addEventListener("pointermove", move);
+    addEventListener("pointerup", up);
+    addEventListener("pointercancel", up);
+  }
+
   /** Насколько камера ушла от своего стула — поворот коротким путём, в градусах. */
   function offSeat(s: Snapshot): number {
     const chair = chairOf(s, mine(s));
@@ -3094,9 +3139,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       el.onpointerdown = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        // Диск внутри кольца — наклон; всё остальное кольцо — возврат к своему стулу.
-        if ((e.target as HTMLElement | null)?.closest("[data-lean]")) leanToggle();
-        else goHome();
+        // Диск внутри кольца — наклон; всё остальное кольцо — поворот. Тап и жест разбирает `compassDrag`.
+        compassDrag(e, (e.target as HTMLElement | null)?.closest("[data-lean]") ? "lean" : "ring", el);
       };
     }
     for (const el of over.children) {

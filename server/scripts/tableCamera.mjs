@@ -22,6 +22,8 @@ const MARGIN = R;
 const STEP = 45;
 /** Потолок наклона руками — `MAX_LEAN` там же. */
 const CEILING = 60;
+/** Градусов наклона на пиксель пальца — `LEAN_PER_PX` в `camera.ts`. */
+const LEAN_PER_PX = 0.2;
 
 const browser = await chromium.launch();
 const checks = [];
@@ -97,6 +99,43 @@ v = await view();
 c = await ring();
 check("второй тап по диску возвращает стол в ноль", v.pitch < 0.5, v);
 check("плоский стол — диск снова не горит", c && !c.lit, c);
+
+// ── 3б. КОМПАС ТЯНЕТСЯ: кольцо крутит стол, диск его кладёт — одним пальцем и без Ctrl ───────────
+await tapRing();
+let was = await view();
+// По кольцу от верхней точки вправо на четверть круга: палец идёт по дуге, а не по прямой.
+const dragRing = async (quarter) => {
+  const r = await p.locator("[data-home]").evaluate((e) => e.getBoundingClientRect().toJSON());
+  const mid = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  const rad = r.width / 2 - 4;
+  await p.mouse.move(mid.x, mid.y - rad);
+  await p.mouse.down();
+  for (let i = 1; i <= 12; i += 1) {
+    const a = -Math.PI / 2 + (quarter * Math.PI) / 2 * (i / 12);
+    await p.mouse.move(mid.x + Math.cos(a) * rad, mid.y + Math.sin(a) * rad);
+  }
+  await p.mouse.up();
+  await wait(300);
+};
+await dragRing(1);
+v = await view();
+check("кольцо потянули по дуге — стол повернулся вслед за пальцем", Math.abs(v.rotation - was.rotation) > 45, [was, v]);
+check("а зум при этом не трогали", Math.abs(v.zoom - was.zoom) < 0.01, [was, v]);
+check("и наклон тоже", Math.abs(v.pitch - was.pitch) < 1, [was, v]);
+
+await tapRing();
+was = await view();
+const discBox = await p.locator("[data-lean]").evaluate((e) => e.getBoundingClientRect().toJSON());
+await p.mouse.move(discBox.x + discBox.width / 2, discBox.y + discBox.height / 2);
+await p.mouse.down();
+await p.mouse.move(discBox.x + discBox.width / 2, discBox.y + discBox.height / 2 - 80, { steps: 12 });
+await p.mouse.up();
+await wait(700);
+v = await view();
+// 80 пикселей вверх — ровно 80 × LEAN_PER_PX градусов, а не кнопочные 45: палец ведёт наклон сам.
+check(`диск потянули на 80px вверх — стол лёг на ${80 * LEAN_PER_PX}°`, Math.abs(v.pitch - 80 * LEAN_PER_PX) < 2, v);
+check("поворот при этом на месте", Math.abs(v.rotation - was.rotation) < 1, [was, v]);
+await tapRing();
 
 // ── 4. Кольцо крутится вместе с камерой ──────────────────────────────────────────────────────────
 const still = (await ring()).turn;
