@@ -933,14 +933,31 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return 12 + inset("--tg-safe-area-inset-top") + inset("--tg-content-safe-area-inset-top") + 40 + 8;
   }
 
-  function tipBox(spot: Spot, taken: readonly TipBox[]): TipBox {
+  /**
+   * РЯД ДЕЛ КРУПЬЕ В ЕГО ОКНЕ — сколько он занимает по высоте.
+   *
+   * Его считают ЗДЕСЬ, а не меряют по готовой вёрстке: по этой же высоте окно отводит место карте, и
+   * если счёт разойдётся с рисунком, веер ляжет поверх кнопок.
+   */
+  const CREW_ROW = 29, CREW_GAP = 6, CREW_PAD = 8, CREW_IN_ROW = 2;
+  function crewHeight(s: Snapshot, chairId: string): number {
+    const chair = s.chairs.find((c) => c.id === chairId);
+    if (!chair?.croupier) return 0;
+    const acts = store.crew.filter((act) => !act.adminOnly || iMay(s, "table.croupier"));
+    if (acts.length === 0) return 0;
+    const rows = Math.ceil(acts.length / CREW_IN_ROW);
+    return CREW_PAD + rows * CREW_ROW + (rows - 1) * CREW_GAP;
+  }
+
+  function tipBox(spot: Spot, taken: readonly TipBox[], extra = 0): TipBox {
     const frame = lastFrame;
     const EDGE = 8, GAP = 12;
     const TOP = Math.max(EDGE, hudTop());
     const w = Math.min(frame.w - 2 * EDGE, 292);
     const cw = 46, ch = Math.round(cw * 1.4);
     const rowH = ch + 24;
-    const height = 12 + 30 + 8 + 16 + rowH + 12;
+    // `extra` — ряды, которые есть не у всякого стула (дела крупье): без них карта легла бы на них.
+    const height = 12 + 30 + 8 + 16 + extra + rowH + 12;
     const k = view?.k ?? 1;
     const middle = view ? view.toGlass(pileOf(store.state, MAIN_PILE) ?? { x: 0, y: 0 }) : { x: frame.w / 2, y: frame.h / 2 };
     const deck = { w: (FELT_CARD.w / 2) * k, h: (FELT_CARD.h / 2) * k };
@@ -983,7 +1000,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       return 0;
     });
     const { left, top } = scored[0]!.box;
-    return { left, top, w, height, cw, ch, rowH, rowTop: top + 12 + 30 + 8 + 16, inner: w - 24 };
+    return { left, top, w, height, cw, ch, rowH, rowTop: top + 12 + 30 + 8 + 16 + extra, inner: w - 24 };
   }
 
   /** ЧУЖАЯ РУКА зеркальна: её левая карта — моя правая, поэтому порядок гнёзд считается наоборот. */
@@ -991,7 +1008,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   let placedTips = new Map<string, TipBox>();
 
   function tipGeom(key: string, spot: Spot, count: number): Geom {
-    const box = placedTips.get(key) ?? tipBox(spot, [...placedTips.values()]);
+    const box = placedTips.get(key) ?? tipBox(spot, [...placedTips.values()], crewHeight(store.state, key));
     const plan = handPlan(poseNow(key), count, 1, 1.4, box.inner / box.cw);
     return {
       which: key, mirror: true, w: box.cw, h: box.ch, box,
@@ -1572,8 +1589,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (!chair.croupier || store.crew.length === 0) return "";
     const acts = store.crew.filter((act) => !act.adminOnly || iMay(s, "table.croupier"));
     if (acts.length === 0) return "";
-    return `<div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:8px">`
-      + acts.map((act) => `<button data-crew="${escape(act.id)}" style="flex:1 1 auto;border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:7px 10px;`
+    return `<div style="display:flex;flex-wrap:wrap;gap:${CREW_GAP}px;padding-top:${CREW_PAD}px">`
+      + acts.map((act) => `<button data-crew="${escape(act.id)}" style="width:calc(${100 / CREW_IN_ROW}% - ${(CREW_GAP * (CREW_IN_ROW - 1)) / CREW_IN_ROW}px);height:${CREW_ROW}px;box-sizing:border-box;border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:0 8px;`
         + `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};color:${T.ink}">${escape(act.name)}</button>`).join("")
       + `</div>`;
   }
@@ -2383,7 +2400,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     placedTips = new Map();
     for (const key of local.tips) {
       const spot = spots.find((sp) => sp.key === key);
-      if (spot) placedTips.set(key, tipBox(spot, [...placedTips.values()]));
+      // Высота окна зависит от того, что в нём есть: у крупье лишний ряд его дел.
+      if (spot) placedTips.set(key, tipBox(spot, [...placedTips.values()], crewHeight(s, key)));
     }
     const open = local.tips
       .map((id) => ({ chair: chairOf(s, id)!, spot: spots.find((sp) => sp.key === id) }))

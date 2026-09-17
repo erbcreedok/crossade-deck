@@ -87,6 +87,24 @@ check("собрал ВСЮ колоду себе в руку", croupierHand === 
 check("на столе не осталось ни карты", after.deck === 0 && after.felt.length === 0, after);
 check("колода со стола ушла, а была", before.deck === 36, before.deck);
 
+// КАРТЫ НЕ НАПЛЫВАЮТ НА КНОПКИ. Рука крупье в этот миг самая большая, какая бывает: вся колода.
+// Веер рисуется НАД окном (его край не должен резать карты), поэтому место под него окно обязано
+// отвести с запасом на ряд дел крупье — иначе кнопки уходят под карты и их не нажать.
+const overlap = await p.evaluate(() => {
+  const acts = [...document.querySelectorAll("[data-crew]")].map((e) => e.getBoundingClientRect());
+  const cards = [...document.querySelectorAll("[data-card]")].map((e) => e.getBoundingClientRect());
+  const lowest = Math.max(...acts.map((r) => r.bottom));
+  const highest = Math.min(...cards.map((r) => r.top));
+  const covered = acts.filter((r) => {
+    const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return !at || !at.closest("[data-crew]");
+  }).length;
+  const tip = document.querySelector("[data-tip]")?.getBoundingClientRect();
+  return { lowest, highest, covered, acts: acts.length, cards: cards.length, tipTop: tip?.top, tipH: tip?.height, act0: acts[0]?.top };
+});
+check("кнопки крупье не под картами", overlap.covered === 0, overlap);
+check("веер начинается ниже кнопок", overlap.highest >= overlap.lowest, overlap);
+
 // Выложить: рука уходит одной закрытой стопкой на сукно.
 // Окно крупье уже открыто — второй тап по его месту попал бы в само окно, а не по аватару.
 await p.locator('[data-crew="layout"]').dispatchEvent("pointerdown");
