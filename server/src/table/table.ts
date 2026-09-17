@@ -15,6 +15,7 @@
 // Флаг, пока стоит, действует на всех, кроме хозяина, — и на админа тоже: снять может, обойти — нет.
 
 import {
+  CHAIR_FLAGS,
   DEFAULT_RULES,
   DEFAULT_SPOT,
   DECK_DOS,
@@ -72,8 +73,11 @@ interface ChairRow {
   last: string | null;
   lock: boolean;
   hide: boolean;
+  reject: boolean;
   forever: boolean;
   croupier?: true;
+  /** Рука одной стороной: одну карту не перевернуть, положенная ложится как лежит рука. */
+  even?: true;
   pose: HandPose;
   hand: string[];
 }
@@ -252,8 +256,11 @@ export class Table {
       last: person.key,
       lock: false,
       hide: false,
+      reject: false,
       forever: true,
       croupier: true,
+      // Рука крупье — колода в руках: вся одной стороной, рубашкой вверх.
+      even: true,
       pose: { ...DEFAULT_POSE },
       hand: [],
     };
@@ -344,12 +351,8 @@ export class Table {
         return this.drop(by, intent.id, intent.to, now, auto);
       case "turn":
         return this.turn(by, intent.id, now);
-      case "flip": {
-        const chair = this.seatOf(by);
-        if (!chair) return { refused: "bad" };
-        chair.hand.reverse();
-        return { ops: this.commit([{ t: "order", chair: chair.id, ids: [...chair.hand] }]) };
-      }
+      case "flip":
+        return this.flipHand(by, intent.chair, now);
       case "arrange":
         return this.arrange(by, intent.how, intent.ids);
       case "pose":
@@ -514,6 +517,7 @@ export class Table {
     if (source.cards.some((one) => (this.locks.has(one) && this.locks.get(one)!.by !== by) || (this.picks.has(one) && this.picks.get(one) !== by))) return { refused: "locked" };
     if (source.cards.length === 0) return { refused: "bad" };
     if (target.in === "hand" && this.closedTo(by, target.chair)) return { refused: "chair-locked" };
+    if (target.in === "hand" && this.rejects(target.chair)) return { refused: "chair-locked" };
     const into = target.in === "deck" ? this.piles.get(target.pile) : undefined;
     if (target.in === "deck" && !into) return { refused: "gone" };
     if (into?.spot.shut || into?.spot.seal) return { refused: "locked" };
@@ -554,10 +558,37 @@ export class Table {
     return ops.length ? { ops: this.commit(ops) } : { refused: "bad" };
   }
 
+  /**
+   * ПЕРЕВЕРНУТЬ РУКУ ЦЕЛИКОМ — порядок наоборот и каждая карта другой стороной. Это один жест: так
+   * колода в руках и переворачивается, и в ровной руке это ЕДИНСТВЕННЫЙ способ сменить сторону.
+   *
+   * Свою — всегда; чужую — если на ней нет замка. Замок стула и стережёт именно это.
+   */
+  private flipHand(by: string, id: string | undefined, now: number): Result {
+    const chair = id === undefined ? this.seatOf(by) : this.chairs.get(id);
+    if (!chair) return { refused: "bad" };
+    if (this.closedTo(by, chair.id)) return { refused: "chair-locked" };
+    chair.hand.reverse();
+    const ops: Op[] = [{ t: "order", chair: chair.id, ids: [...chair.hand] }];
+    for (const card of chair.hand) {
+      const up = !this.turned.has(card);
+      if (up) this.turned.add(card);
+      else this.turned.delete(card);
+      const was = this.trails.get(card);
+      const trail: Trail = was ? { ...was, by, byName: this.names.get(by) ?? by, at: now } : this.trailOf(card, by, { in: "hand", chair: chair.id, i: 0 }, "hand", now);
+      this.trails.set(card, trail);
+      ops.push({ t: "turn", card: { id: card }, up, trail });
+    }
+    return { ops: this.commit(ops) };
+  }
+
   private turnOps(by: string, id: string, now: number): { ops: Op[] } | { refused: Refusal } {
     const may = this.touchable(by, id);
     if ("refused" in may) return may;
     const at = may.at;
+    // РОВНАЯ РУКА ПЕРЕВОРАЧИВАЕТСЯ ЦЕЛИКОМ. Одна карта лицом посреди колоды — не ход, а ошибка,
+    // которую потом никто не заметит; поэтому её не сделать, а не «не советуем».
+    if (at.in === "hand" && this.chairs.get(at.chair)?.even) return { refused: "locked" };
     let up: boolean;
     if (at.in === "felt") {
       const one = this.felt.find((f) => f.id === id)!;
@@ -611,6 +642,7 @@ export class Table {
     const target = this.clean(to, auto);
     if (!target) return { refused: "bad" };
     if (target.in === "hand" && this.closedTo(by, target.chair)) return { refused: "chair-locked" };
+    if (target.in === "hand" && this.rejects(target.chair)) return { refused: "chair-locked" };
     const from = this.whereIs(id)!;
     const refusal = this.ruleRefusal(by, id, target);
     if (refusal) return { refused: refusal };
@@ -630,6 +662,9 @@ export class Table {
     if (target.in === "felt") target.up = faceUp;
     this.turned.delete(id);
     if (target.in === "deck" && faceUp && !auto) this.turned.add(id);
+    // РОВНАЯ РУКА КЛАДЁТ ПО-СВОЕМУ. В руке «перевёрнута» значит «рубашкой к хозяину», и в ровной
+    // руке эта сторона одна на всех: пришедшая карта равняется на руку, а не на того, кто её нёс.
+    if (target.in === "hand" && this.evenSide(target.chair) === true) this.turned.add(id);
     this.take(id, from);
     const landed = this.put(id, target);
     this.locks.delete(id);
@@ -740,7 +775,7 @@ export class Table {
     const chair = this.chairs.get(id);
     if (!chair) return { refused: "gone" };
     if (!this.mayFlag(by, chair)) return { refused: "not-yours" };
-    if (typeof on !== "boolean" || !["lock", "hide", "forever"].includes(flag)) return { refused: "bad" };
+    if (typeof on !== "boolean" || !(CHAIR_FLAGS as readonly string[]).includes(flag)) return { refused: "bad" };
     chair[flag] = on;
     const ops: Op[] = [{ t: "chair", chair: this.chairOut(chair) }];
     if (flag === "forever" && !on) ops.push(...this.sweepChair(chair));
@@ -936,8 +971,32 @@ export class Table {
   }
 
   /** Флаги стула меняет его хозяин, любой — у покинутого, админ — у любого. */
-  mayFlag(by: string, chair: { owner: string | null }): boolean {
-    return chair.owner === null || chair.owner === by || by === this.admin;
+  /**
+   * КТО МЕНЯЕТ ФЛАГИ СТУЛА: хозяин — свои; покинутый — любой; СТУЛ КРУПЬЕ — админ.
+   *
+   * В ЧУЖОЙ ЗАНЯТЫЙ СТУЛ АДМИН НЕ ЛЕЗЕТ. Флаги — это про руку человека: замок, скрытие, отклонение.
+   * Распорядитель стола ведёт игру, а не чужие карманы; крупье же не человек, и его стул — часть
+   * стола, поэтому им распоряжается админ.
+   */
+  mayFlag(by: string, chair: { owner: string | null; croupier?: true }): boolean {
+    if (chair.croupier) return by === this.admin;
+    return chair.owner === null || chair.owner === by;
+  }
+
+  /** Рука не принимает: ни карты, ни стопки, ни от кого. Брать из неё при этом можно. */
+  private rejects(chairId: string): boolean {
+    return this.chairs.get(chairId)?.reject === true;
+  }
+
+  /**
+   * СТОРОНА РОВНОЙ РУКИ: как лежит её первая карта. Пустая ровная рука принимает рубашкой вверх —
+   * у крупье на руках колода, и собранная колода лежит закрытой.
+   */
+  private evenSide(chairId: string): boolean | undefined {
+    const chair = this.chairs.get(chairId);
+    if (!chair?.even) return undefined;
+    const first = chair.hand[0];
+    return first === undefined ? true : this.turned.has(first);
   }
 
   /** Замок стула закрыт для всех, кроме того, кто на нём сидит. */
@@ -1051,6 +1110,7 @@ export class Table {
       last: null,
       lock: false,
       hide: true,
+      reject: false,
       forever: false,
       pose: { ...DEFAULT_POSE },
       hand: [],

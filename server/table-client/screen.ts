@@ -91,7 +91,7 @@ const HAND_MAX_PX = 585;
 const CARD = { w: 1, h: 1.4 };
 
 /** Флаги стула в нижнем HUD и в окне стула — одни и те же кнопки, одни и те же значки. */
-const RIGHTS = ["lock", "hide", "forever"] as const satisfies readonly ChairFlag[];
+const RIGHTS = ["lock", "hide", "reject", "forever"] as const satisfies readonly ChairFlag[];
 const FOLDS = ["fan", "shrink", "tuck"] as const;
 const ORDERS = ["suit", "rank", "reverse", "shuffle"] as const satisfies readonly Arrange[];
 /**
@@ -112,7 +112,7 @@ type GrabMode = "collect" | "keep";
 const SUBS: Record<Section, readonly BarKey[]> = { pose: FOLDS, chair: [...RIGHTS, "leave"], order: ORDERS, lasso: LASSO, say: [] };
 /** Сколько идёт смена секций в баре. */
 const SECTION_MS = 240;
-const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "eye" | "mic" | "ear" | "shut" | "seal" | `grab-${GrabMode}` | `side-${GatherSide}`, string> = {
+const GLYPH: Record<BarKey | ChairFlag | `sec-${Section}` | "back" | "deck" | "pin" | "eye" | "mic" | "ear" | "shut" | "seal" | `grab-${GrabMode}` | `side-${GatherSide}`, string> = {
   /** Курсор-хват — ладонь. */
   cursor: '<path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V10"/><path d="M11 9.5V4a1.5 1.5 0 0 1 3 0v6"/><path d="M14 9.5V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M17 10a1.5 1.5 0 0 1 3 0v3.5a7 7 0 0 1-7 7h-1.2a6 6 0 0 1-4.6-2.2L4 14.6a1.5 1.5 0 0 1 2.3-1.9L8 14.5V9a1.5 1.5 0 0 1 3 0"/>',
   lasso: '<ellipse cx="13" cy="9" rx="8" ry="5.5" stroke-dasharray="3 2.4"/><path d="M8 13.5c-2 1.5-2.5 4 0 5.5 1.5 1 3 .5 3.5-.5"/>',
@@ -130,6 +130,8 @@ const GLYPH: Record<BarKey | `sec-${Section}` | "back" | "deck" | "pin" | "eye" 
   "side-up": '<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M12 8c-1.5 2-3 3-3 4.5a1.5 1.5 0 0 0 3 .3 1.5 1.5 0 0 0 3-.3C15 11 13.5 10 12 8z"/>',
   "sec-lasso": '<ellipse cx="12" cy="9" rx="8" ry="5.5"/><path d="M7 13c-2 1.5-2.5 4 0 5.5 1.5 1 3 .5 3.5-.5"/><path d="M15 15l4 6"/>',
   lock: '<path d="M7 11V8a5 5 0 0 1 10 0v3"/><path d="M5 11h14v10H5z"/>',
+  /** Отклонять — рука не принимает: стрелка в руку, перечёркнутая. */
+  reject: '<path d="M12 3v8"/><path d="M8.5 7.5 12 11l3.5-3.5"/><path d="M4 14h16v6H4z"/><path d="M4 20 20 4"/>',
   hide: '<path d="M3 3l18 18"/><path d="M10.6 6.2A9 9 0 0 1 22 12s-1.5 2.6-4.3 4.5"/><path d="M6.4 7.6C3.9 9.3 2 12 2 12s4 7 10 7c1.5 0 2.9-.3 4.1-.9"/>',
   forever: '<path d="M6.5 8.5C3.5 8.5 2 10.2 2 12s1.5 3.5 4.5 3.5C10 15.5 14 8.5 17.5 8.5 20.5 8.5 22 10.2 22 12s-1.5 3.5-4.5 3.5C14 15.5 10 8.5 6.5 8.5z"/>',
   reverse: '<rect x="7.5" y="4" width="9" height="16" rx="1.5"/><path d="M4 9.5A9 9 0 0 1 8.2 4.4"/><path d="M8.6 2.2 8.2 4.4l2.2.5"/><path d="M20 14.5A9 9 0 0 1 15.8 19.6"/><path d="M15.4 21.8l.4-2.2-2.2-.5"/>',

@@ -310,12 +310,12 @@ describe("Table: стулья", () => {
 });
 
 describe("Table: флаги и права", () => {
-  it("свои флаги — хозяин, чужие — только админ, покинутого — любой", () => {
+  it("свои флаги — хозяин; В ЧУЖОЙ ЗАНЯТЫЙ СТУЛ НЕ ЛЕЗЕТ ДАЖЕ АДМИН; покинутого — любой", () => {
     const t = seated("admin", "b", "c");
     const b = seatOf(t, "b");
     expect(t.act("c", { t: "flag", chair: b, flag: "lock", on: true }, 0)).toEqual({ refused: "not-yours" });
     expect("ops" in t.act("b", { t: "flag", chair: b, flag: "lock", on: true }, 0)).toBe(true);
-    expect("ops" in t.act("admin", { t: "flag", chair: b, flag: "lock", on: false }, 0)).toBe(true);
+    expect(t.act("admin", { t: "flag", chair: b, flag: "lock", on: false }, 0), "флаги — про руку человека, а не про игру").toEqual({ refused: "not-yours" });
     deal(t, "b", b); // с картами покинутый стул остаётся стоять
     t.leave("b");
     expect("ops" in t.act("c", { t: "flag", chair: b, flag: "hide", on: false }, 0)).toBe(true);
@@ -330,10 +330,11 @@ describe("Table: флаги и права", () => {
     expect(t.act("c", { t: "flag", chair: b, flag: "lock", on: true }, 0)).toEqual({ refused: "not-yours" });
     t.join(person("admin"));
     expect(t.seenBy("b").admin).toBe("admin");
-    expect("ops" in t.act("admin", { t: "flag", chair: b, flag: "lock", on: true }, 0)).toBe(true);
+    // Права админа — про игру и стол: чужой занятый стул ему не подчиняется и с ними.
+    expect(t.act("admin", { t: "flag", chair: b, flag: "lock", on: true }, 0)).toEqual({ refused: "not-yours" });
   });
 
-  it("лок: чужие не берут и не кладут, хозяин — свободно, админ — только сняв лок", () => {
+  it("лок: чужие не берут и не кладут, хозяин — свободно, и снять его может только он сам", () => {
     const t = seated("admin", "b");
     const b = seatOf(t, "b");
     const card = deal(t, "b", b);
@@ -342,7 +343,8 @@ describe("Table: флаги и права", () => {
     const top = t.seenBy("admin").piles[0]!.cards.at(-1)!.id;
     ops(t.act("admin", { t: "grab", id: top }, 0));
     expect(t.act("admin", { t: "drop", id: top, to: { in: "hand", chair: b, i: 0 } }, 0)).toEqual({ refused: "chair-locked" });
-    ops(t.act("admin", { t: "flag", chair: b, flag: "lock", on: false }, 0));
+    expect(t.act("admin", { t: "flag", chair: b, flag: "lock", on: false }, 0), "и обойти замок админ не может").toEqual({ refused: "not-yours" });
+    ops(t.act("b", { t: "flag", chair: b, flag: "lock", on: false }, 0));
     ops(t.act("admin", { t: "drop", id: top, to: { in: "hand", chair: b, i: 0 } }, 0));
     ops(t.act("b", { t: "flag", chair: b, flag: "lock", on: true }, 0));
     expect("ops" in t.act("b", { t: "grab", id: card }, 0)).toBe(true);
