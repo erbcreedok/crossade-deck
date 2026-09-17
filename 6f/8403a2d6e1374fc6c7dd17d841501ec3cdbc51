@@ -1,0 +1,31 @@
+server/src/table/games/krest-hands.test.ts
+  s_9ed0da107cbc4a::t_75685e3f07a2a2 12,27,31,35-36,40
+server/src/table/games/krest.test.ts
+  s_9ed0da107cbc4a::t_8c3bb260180a1e 8,154-155,160-163,174-177,182-183
+server/src/table/games/krest.ts
+  s_9ed0da107cbc4a::t_795fc641fd049d 15-16,132,134-135,137-159
+server/src/table/games/table-krest.test.ts
+  s_9ed0da107cbc4a::t_da37b4ec416c42 15,93-95
+server/src/table/rules.law.test.ts
+  s_9ed0da107cbc4a::t_67f192363074ea 13,68-71,74,76-78,81-86
+server/src/table/rules.ts
+  s_9ed0da107cbc4a::t_242a542b6226a6 14,64-86,90-92,109-110,123
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_089183138e3375 553-554,583-584,748-750,753-754,756
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6f8403a2d6e1374fc6c7dd17d841501ec3cdbc51",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
