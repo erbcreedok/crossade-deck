@@ -1,0 +1,31 @@
+server/scripts/tablePlay.mjs
+  s_9ed0da107cbc4a::t_caa7a207bbbe3f 1-110
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_c853bb04a6dbc2 9-10,33,36,89-90,260-297,319
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_4fd0bee8c19ac8 311-332,433-435
+server/src/table/patch.ts
+  s_9ed0da107cbc4a::t_2f1e28259cb174 110-112
+server/src/table/table.test.ts
+  s_9ed0da107cbc4a::t_1d9b08294f39c9 324,329,333
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_f2b813752043d5 18,222-226,228,281-286,1426-1427
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_e91a2873e9b067 1126-1138,1140-1144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9731721256a6753629c6117204779464099a9283",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
