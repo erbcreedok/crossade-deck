@@ -46,7 +46,8 @@ const ring = () => p.evaluate(() => {
   if (!btn) return null;
   const disc = btn.querySelector("[data-lean]");
   const svg = btn.querySelector("svg");
-  return { turn: getComputedStyle(svg).transform, lit: !/243, 239, 230/.test(getComputedStyle(disc).backgroundImage + getComputedStyle(disc).backgroundColor) };
+  // Горит — золото (#f8d885) в градиенте диска; лежит плоско — панель стола.
+  return { turn: getComputedStyle(svg).transform, lit: /248, 216, 133/.test(getComputedStyle(disc).backgroundImage) };
 });
 const tapRing = async () => {
   const r = await p.locator("[data-home]").evaluate((e) => e.getBoundingClientRect().toJSON());

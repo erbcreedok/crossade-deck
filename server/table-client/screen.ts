@@ -2421,12 +2421,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   }
 
   /**
-   * КОМПАС СТОЛА — кольцо с диском внутри, как в 2ГИС, в правом верхнем углу кадра.
+   * КОМПАС СТОЛА — кольцо с диском внутри, в правом верхнем углу кадра.
    *
-   * Кольцо крутится вместе с камерой: красная стрелка смотрит на ТВОЙ стул (севера за карточным
-   * столом нет), чёрная — в противоположную сторону. Тап по кольцу возвращает и поворот, и наклон.
-   * Диск внутри — наклон: «3D» тёмным по белому, пока стол лежит плоско, и светлым по золоту, когда
-   * наклон не ноль. Тап по диску кладёт стол на 45° и возвращает в ноль.
+   * Кольцо крутится вместе с камерой: золотая стрелка смотрит на ТВОЙ стул (севера за карточным
+   * столом нет), деревянная — в противоположную сторону. Тап по кольцу возвращает и поворот, и
+   * наклон. Диск внутри — наклон: камера светлым по панели, пока стол лежит плоско, и тёмным по
+   * золоту, когда наклон не ноль. Тап по диску кладёт стол на 45° и возвращает в ноль.
+   *
+   * Красок со стороны здесь нет: те же гербовые цвета, что у бара и у окон, — зелень сукна, дерево
+   * канта, золото и светлая охра букв.
    *
    * Висит ВСЕГДА, а не только когда камера ушла: по нему видно, как стол повёрнут, и это полезно
    * ровно тогда, когда возвращаться ещё не надо.
@@ -2437,16 +2440,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const turn = chair.angle - cam.camera.rotation;
     const lean = cam.camera.pitch > LEAN_EPS;
     const disc = lean
-      ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.ink};text-shadow:0 1px 0 rgba(11,7,4,.55)`
-      : `background:#f3efe6;color:${T.black}`;
+      ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}`
+      : `background:linear-gradient(${T.panelLight},${T.panel});color:${T.inkDim}`;
     return `<button data-home aria-label="К своему стулу" style="position:absolute;right:12px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:52px;height:52px;border:0;padding:0;z-index:45;`
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;`
       + `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}">`
       + `<svg viewBox="0 0 52 52" width="52" height="52" style="position:absolute;left:0;top:0;transform:rotate(${turn}deg);pointer-events:none">`
-      + `<path d="M26 5 L30 14 L22 14 Z" fill="#d8402f"/><path d="M26 47 L22 38 L30 38 Z" fill="${T.black}"/>`
-      + `<circle cx="7" cy="26" r="2" fill="${T.inkDim}"/><circle cx="45" cy="26" r="2" fill="${T.inkDim}"/></svg>`
+      + `<path d="M26 5 L30 14 L22 14 Z" fill="${T.gold}"/><path d="M26 47 L22 38 L30 38 Z" fill="${BAR_LOOK.rim}"/>`
+      + `<circle cx="7" cy="26" r="2" fill="${T.inkDim}" opacity=".7"/><circle cx="45" cy="26" r="2" fill="${T.inkDim}" opacity=".7"/></svg>`
       + `<span data-lean style="position:relative;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;`
-      + `font:700 11px/1 system-ui,sans-serif;letter-spacing:.5px;box-shadow:inset 0 0 0 2px ${T.black};${disc}">3D</span></button>`;
+      + `box-shadow:inset 0 0 0 2px ${T.black};${disc}">`
+      + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="pointer-events:none">`
+      + `<path d="M3 8.5h3.2l1.8-2.5h8l1.8 2.5H21v10H3z"/><circle cx="12" cy="13.5" r="3.6"/></svg></span></button>`;
   }
 
   /** ЗВУК ПО МЕСТУ — что поменялось между нарисованными кадрами, там, где это на экране. */
