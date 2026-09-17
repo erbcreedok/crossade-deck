@@ -1,0 +1,46 @@
+server/src/table/TableRoom.test.ts
+  s_9ed0da107cbc4a::t_b449a9d929490f 179-203
+  s_9ed0da107cbc4a::t_b147ce66ddba9f 8
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_e76596e823b34c 335-336,338-339
+  s_9ed0da107cbc4a::t_91adad0c024f02 410,420,425
+  s_9ed0da107cbc4a::t_06fcd91c826c6a 94
+  s_9ed0da107cbc4a::t_e66b1b0bf9dd4a 401,403,406,411,421,426-446
+  s_9ed0da107cbc4a::t_9138f080d8af3d 15,366-376,388-400,402,404-405,407-409,412-419,493
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_c4c30f920ea8b5 1218-1227
+server/src/table/script.ts
+  s_9ed0da107cbc4a::t_9be3d1986c9cc6 153-154,156
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_6a9f81b76022a2 618-628
+  s_9ed0da107cbc4a::t_41b97b22166e5d 646-662
+  s_9ed0da107cbc4a::t_6520246cb0c5e7 676-677
+server/src/table/routes.ts
+  s_9ed0da107cbc4a::t_1b8028d4ed3e2a 63-68
+bot/src/table/orders.ts
+  s_9ed0da107cbc4a::t_df242a66e958f8 185-191
+bot/src/table/orders.test.ts
+  s_9ed0da107cbc4a::t_1813ced989e78d 5
+bot/src/table/talk.test.ts
+  s_9ed0da107cbc4a::t_5ada862e122057 6,19-20,27
+server/src/table/access.ts
+  s_9ed0da107cbc4a::t_772819c8a0464a 15,22,149,151
+server/src/table/lobby.ts
+  s_9ed0da107cbc4a::t_f8e44d0ad0ccf1 10,27,46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9fececa8026b01730b2c0d67682189c01d31402f",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
