@@ -136,8 +136,15 @@ check("а у колоды ручка на месте всегда", (await grips
 // ГРИП КРУГА: карты сходятся под палец, на местах остаются контуры, круг с места не двигается.
 const before = (await spots()).piles.find((p) => p.id === "ring").spot;
 const grip = await ringGrip();
+// ПОЛЁТ НЕ ПЛОДИТ КАДРОВ. Рисование зовут по многу раз за кадр, и кадр, заказанный каждым вызовом,
+// оборачивается лавиной — на телефоне это и есть «подвисло». Заказан должен быть один, поэтому
+// кадры считаются РОВНО С МОМЕНТА ХВАТА: полёт живёт две десятых секунды и весь тут.
+await p.evaluate(() => { window.__raf = 0; const was = window.requestAnimationFrame; window.requestAnimationFrame = (f) => { window.__raf += 1; return was(f); }; });
 await p.mouse.move(grip.x, grip.y);
 await p.mouse.down();
+for (let i = 0; i < 40; i += 1) await p.mouse.move(grip.x + 20 + (i % 8) * 5, grip.y + 20 + (i % 8) * 4);
+const frames = await p.evaluate(() => window.__raf);
+check("полёт карт не плодит кадров", frames < 80, { frames });
 await p.mouse.move(grip.x + 60, grip.y + 60, { steps: 8 });
 await p.waitForTimeout(400);
 const marks = await p.locator("[data-g=ring-home]").count();

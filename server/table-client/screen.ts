@@ -2148,11 +2148,21 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * Кадры просит сама: палец может стоять на месте, а полёт продолжаться, и без этого он замёрз бы
    * на полпути.
    */
+  /** Кадр полёта уже заказан — второй не нужен: рисование зовут по многу раз за кадр. */
+  let ringFrame = false;
   function ringFlight(): number {
     if (!gripPress?.lifted) return 1;
     const t = (performance.now() - gripPress.lifted) / RING_FLIGHT_MS;
     if (t >= 1) return 0;
-    requestAnimationFrame(() => draw());
+    // ОДИН ЗАКАЗАННЫЙ КАДР ЗА РАЗ. Без этого каждый лишний вызов рисования просил ещё один кадр, и
+    // за время полёта их набиралась лавина — на телефоне это и есть «подвисло».
+    if (!ringFrame) {
+      ringFrame = true;
+      requestAnimationFrame(() => {
+        ringFrame = false;
+        draw();
+      });
+    }
     const k = Math.max(0, t);
     return 1 - k * k * (3 - 2 * k);
   }
