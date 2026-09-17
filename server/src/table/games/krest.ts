@@ -121,7 +121,7 @@ export const RING = "ring";
  * Кольцо — обычная зона с позой `ring` (`zones`), а не особый случай в отрисовке. Грип живой только
  * у админа и у того, кто ЗАКРЫЛ круг: сгребает тот, кто его закончил.
  */
-export function krestDesk(closer: () => string | null): DeskRules {
+export function krestDesk(judge: () => { turn: string | null; closer: string | null } | null = () => null): DeskRules {
   return {
     ...SANDBOX,
     kind: "крестовый",
@@ -132,9 +132,18 @@ export function krestDesk(closer: () => string | null): DeskRules {
       const under = ask.face(over);
       return one !== undefined && under !== undefined ? beats(one, under) : true;
     },
+    /**
+     * В КОЛЬЦО КЛАДЁТ ТОЛЬКО ТОТ, ЧЕЙ ХОД. Партия не идёт (судьи нет) — стол ведёт себя как
+     * песочница: так с ним можно сесть и разложить руками, не начиная партию.
+     */
+    mayDrop(_ask: DeskAsk, _card: string, to: { in: string }, by: string): boolean {
+      const now = judge();
+      if (now === null || now.turn === null) return true;
+      return !(to.in === "deck" && (to as { pile?: string }).pile === RING) || by === now.turn;
+    },
     mayGrip(ask: DeskAsk, pile: string, by: string): boolean {
       if (pile !== RING) return true;
-      return ask.admin(by) || by === closer();
+      return ask.admin(by) || by === (judge()?.closer ?? null);
     },
   };
 }

@@ -154,10 +154,30 @@ describe("конфиг стола мастодонта", () => {
   });
 
   it("грип кольца живой только у админа и у закрывшего круг", () => {
-    const desk = krestDesk(() => "Боря");
+    const desk = krestDesk(() => ({ turn: null, closer: "Боря" }));
     expect(desk.mayGrip(ask, RING, "админ")).toBe(true);
     expect(desk.mayGrip(ask, RING, "Боря")).toBe(true);
     expect(desk.mayGrip(ask, RING, "Вика")).toBe(false);
     expect(desk.mayGrip(ask, "другая-стопка", "Вика"), "обычные стопки живут по-старому").toBe(true);
+  });
+});
+
+describe("в кольцо кладёт только тот, чей ход", () => {
+  const ask: DeskAsk = { face: () => undefined, pile: () => [], hand: () => [], admin: (k) => k === "админ" };
+  const ring = { in: "deck" as const, pile: RING };
+  const other = { in: "deck" as const, pile: "стопка" };
+
+  it("партия идёт: чужому в кольцо нельзя, своему можно", () => {
+    const desk = krestDesk(() => ({ turn: "Аня", closer: null }));
+    expect(desk.mayDrop(ask, "карта", ring, "Аня")).toBe(true);
+    expect(desk.mayDrop(ask, "карта", ring, "Боря")).toBe(false);
+    expect(desk.mayDrop(ask, "карта", other, "Боря"), "прочие стопки очередь не сторожат").toBe(true);
+    expect(desk.mayDrop(ask, "карта", { in: "felt" }, "Боря"), "и сукно тоже").toBe(true);
+  });
+
+  it("партии нет — стол ведёт себя как песочница: садись и раскладывай руками", () => {
+    const desk = krestDesk(() => null);
+    expect(desk.mayDrop(ask, "карта", ring, "кто угодно")).toBe(true);
+    expect(krestDesk(() => ({ turn: null, closer: null })).mayDrop(ask, "карта", ring, "кто угодно")).toBe(true);
   });
 });
