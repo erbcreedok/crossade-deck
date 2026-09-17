@@ -90,11 +90,15 @@ export const RING_LEAST = 3;
  * МЕСТ В КРУГЕ — ЧИСЛО, А НЕ ПРАВИЛО. `least` и `most` меняются на ходу: в партии оба станут числом
  * играющих, чтобы седьмая карта не легла при шести игроках. Сейчас `least` — три, `most` не задан.
  */
-export function ringSlots(zone: { least?: number; most?: number; taken?: number }, n: number): number {
-  const laid = (zone.taken ?? 0) + n;
+export function ringSlots(zone: { least?: number; most?: number; slots?: number[] }, n: number): number {
+  // Мест ровно столько, сколько нужно самой дальней карте: дыры от взятых считаются местами.
+  const laid = Math.max(n, ...(zone.slots ?? []).map((one) => one + 1));
   const most = zone.most;
   return Math.max(1, zone.least ?? RING_LEAST, most === undefined ? laid : Math.min(laid, most));
 }
+
+/** На каком месте кольца лежит i-я карта стопки. Мест не записано — по порядку, как легли. */
+export const ringSeat = (zone: { slots?: number[] }, i: number): number => zone.slots?.[i] ?? i;
 
 /** ШАГ МЕЖДУ СОСЕДЯМИ ПО КРУГУ, в градусах: места делят круг поровну, и только так. */
 export const ringStep = (slots: number): number => 360 / Math.max(1, slots);
@@ -136,16 +140,15 @@ export const ringTurn = (angle: number, i: number, slots: number): number => ang
 export const ringFace = (angle: number, i: number, slots: number): number => ringTurn(angle, i, slots) + 180;
 
 /**
- * ГДЕ РИСОВАТЬ i-Ю КАРТУ КРУГА — с учётом того, что уже сняли снизу.
+ * ГДЕ РИСОВАТЬ i-Ю КАРТУ КРУГА — на ЕЁ месте, а не на её номере в стопке.
  *
- * Место АБСОЛЮТНОЕ: снятые снизу плюс номер в стопке. Иначе взятая нижняя утащила бы за собой всех
- * остальных, а по правилу мастодонта на её месте должна остаться дыра — она и есть след того, что
- * кто-то взял.
+ * Иначе взятая из середины утащила бы за собой всех, кто лежит после неё. Место закреплено за
+ * картой; на месте взятой остаётся дыра — она и есть след того, что кто-то взял.
  */
-export function ringPlace(zone: { x: number; y: number; angle?: number; least?: number; most?: number; taken?: number }, i: number, n: number): { x: number; y: number } {
-  return ringSpot(zone, (zone.taken ?? 0) + i, ringSlots(zone, n));
+export function ringPlace(zone: { x: number; y: number; angle?: number; least?: number; most?: number; slots?: number[] }, i: number, n: number): { x: number; y: number } {
+  return ringSpot(zone, ringSeat(zone, i), ringSlots(zone, n));
 }
 
 /** Как карта круга повёрнута — тот же счёт мест, что и у её места. */
-export const ringPlaceFace = (zone: { angle?: number; least?: number; most?: number; taken?: number }, i: number, n: number): number =>
-  ringFace(zone.angle ?? 0, (zone.taken ?? 0) + i, ringSlots(zone, n));
+export const ringPlaceFace = (zone: { angle?: number; least?: number; most?: number; slots?: number[] }, i: number, n: number): number =>
+  ringFace(zone.angle ?? 0, ringSeat(zone, i), ringSlots(zone, n));

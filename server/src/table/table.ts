@@ -781,7 +781,7 @@ export class Table {
     // МЕСТ В ЗОНЕ БОЛЬШЕ НЕТ. `most` — число, а не правило: в партии его ставит игра по числу
     // играющих, и седьмая карта при шести игроках не ложится. Не задано — потолка нет.
     if (target.in === "deck" && !auto && into?.spot.most !== undefined && !into.cards.includes(id)
-      && (into.spot.taken ?? 0) + into.cards.length >= into.spot.most) return { refused: "full" };
+      && into.cards.length >= into.spot.most) return { refused: "full" };
     const born = target.in === "deck" && !into ? this.ensureDeck() : [];
     // В СТОПКУ — стороной стопки, если все её карты лежат одинаково; вперемешку или пустая — как нёс.
     const pack = into && !auto ? into.cards.filter((one) => one !== id).map((one) => this.turned.has(one)) : [];
@@ -1433,10 +1433,12 @@ export class Table {
       const pile = this.piles.get(from.pile)!;
       const at = pile.cards.indexOf(id);
       pile.cards.splice(at, 1);
-      // СНЯЛИ НИЖНЮЮ — место в кольце остаётся пустым, а не занимается следующей картой.
-      if (pile.spot.pose === "ring" && at === 0) pile.spot.taken = (pile.spot.taken ?? 0) + 1;
-      // Зона опустела — круг кончился, и счёт мест начинается заново.
-      if (pile.spot.pose === "ring" && pile.cards.length === 0) pile.spot.taken = 0;
+      // ВЗЯЛИ КАРТУ — ОСТАЛЬНЫЕ НЕ ШЕЛОХНУЛИСЬ: место уходит вместе со своей картой, а на её месте
+      // остаётся дыра. Круг раскладывается заново только когда в него КЛАДУТ (`put`).
+      if (pile.spot.pose === "ring" && pile.spot.slots) {
+        pile.spot.slots = pile.spot.slots.filter((_, i) => i !== at);
+        if (pile.cards.length === 0) delete pile.spot.slots;
+      }
     } else if (from.in === "felt") {
       for (const pile of this.piles.values()) if (pile.spot.below.includes(id)) pile.spot.below = pile.spot.below.filter((one) => one !== id);
       this.felt.splice(this.felt.findIndex((one) => one.id === id), 1);
@@ -1447,14 +1449,14 @@ export class Table {
   /** Положить и вернуть, куда легло НА САМОМ ДЕЛЕ: индекс руки прижимается к её длине. */
   private put(id: string, to: Where): Where {
     if (to.in === "deck") {
-      const cards = this.piles.get(to.pile)!.cards;
-      if (to.i === undefined) {
-        cards.push(id);
-        return { in: "deck", pile: to.pile };
-      }
-      const i = Math.max(0, Math.min(cards.length, to.i));
-      cards.splice(i, 0, id);
-      return { in: "deck", pile: to.pile, i };
+      const pile = this.piles.get(to.pile)!;
+      const cards = pile.cards;
+      if (to.i === undefined) cards.push(id);
+      else cards.splice(Math.max(0, Math.min(cards.length, to.i)), 0, id);
+      // ПОЛОЖИЛИ КАРТУ — КРУГ РАЗЛОЖИЛСЯ ЗАНОВО: дыры закрылись, места раздались по порядку. Это
+      // единственный случай, когда карты круга меняют позу; взятая карта их не трогает.
+      if (pile.spot.pose === "ring") pile.spot.slots = cards.map((_, i) => i);
+      return to.i === undefined ? { in: "deck", pile: to.pile } : { in: "deck", pile: to.pile, i: cards.indexOf(id) };
     }
     if (to.in === "felt") {
       this.felt.push({ id, x: to.x, y: to.y, up: to.up, angle: to.angle, ...(to.under ? { under: true } : {}) });
