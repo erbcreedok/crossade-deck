@@ -1,0 +1,25 @@
+server/scripts/tableRing.mjs
+  s_9ed0da107cbc4a::t_a0d51b19be8c31 196-213
+server/src/table/patch.ts
+  s_9ed0da107cbc4a::t_e04f6ef765d9a2 11,148-152,163-164,166,174-180
+server/src/table/ring.ts
+  s_9ed0da107cbc4a::t_e3a17fb390c569 156-163
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_47652e2c700031 57,1515-1521
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "806250a6a14c2ab4f8437e4047fb787a83d52f1c",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
