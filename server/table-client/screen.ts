@@ -10,6 +10,7 @@ import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, R, RIM, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { LEAN_PER_PX, LEAN_STEP, orbits, tableCamera } from "./camera.js";
+import { allowed, may as mayDo, type Ask, type Key } from "../src/table/access.js";
 import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.js";
 import { tableHaptic, type Haptic } from "./haptic.js";
 import { tableMotion } from "./motion.js";
@@ -800,13 +801,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * Второго списка прав в экране нет. Иначе он рисует кнопки, которые сервер молча отказывает, и
    * расхождение замечают не здесь, а за столом.
    */
-  const iMay = (s: Snapshot, right: string) => s.rights.includes(right);
+  /**
+   * ВПРАВЕ ЛИ Я — ТЕМ ЖЕ РАЗБОРОМ, ЧТО И СЕРВЕР (`access.ts`). Экран не знает ни ролей, ни «админа»:
+   * он приносит разбору набор ключей из снимка и замки вещи, и рисует кнопку по ответу.
+   */
+  const iMay = (s: Snapshot, key: Key, ask: Omit<Ask, "granted"> = {}) => allowed(mayDo(key, { ...ask, granted: s.rights }));
   /** Флаги стула меняет его хозяин, любой — у покинутого, стул крупье — у кого есть право. */
-  const mayFlag = (s: Snapshot, chair: Chair) => (chair.croupier ? iMay(s, "croupier") : chair.owner === null || chair.owner === me());
-  /** Замок закрывает руку стула для всех, кроме того, кто на нём сидит. */
+  const mayFlag = (s: Snapshot, chair: Chair) => (chair.croupier ? iMay(s, "table.croupier") : chair.owner === null || chair.owner === me());
+  /** Замок закрывает руку стула для всех, кроме того, кто на нём сидит — разбором, а не на глаз. */
   const closed = (s: Snapshot, chairId: string) => {
     const chair = chairOf(s, chairId);
-    return chair !== undefined && chair.lock && chair.owner !== me();
+    return chair !== undefined && !iMay(s, "hand.take", { locks: { lock: chair.lock }, mine: chair.owner === me() });
   };
   /** Поза руки стула — с сервера; без стула — поза по умолчанию. */
   const poseOf = (s: Snapshot, chair: string): Pose => chairOf(s, chair)?.pose ?? DEFAULT_POSE;
@@ -1499,7 +1504,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * «раздать»), игрок — только то, что админ ему оставил, то есть состояние руки.
    */
   function croupierActsHtml(s: Snapshot, chair: Chair, box: { left: number; top: number; w: number; height: number }): string {
-    if (!chair.croupier || !iMay(s, "croupier")) return "";
+    if (!chair.croupier || !iMay(s, "table.croupier")) return "";
     const act = (what: string, label: string) =>
       `<button data-croupier="${what}" style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
       + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">${label}</button>`;
@@ -1548,7 +1553,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    */
   function crewHtml(s: Snapshot, chair: Chair): string {
     if (!chair.croupier || store.crew.length === 0) return "";
-    const acts = store.crew.filter((act) => !act.adminOnly || iMay(s, "croupier"));
+    const acts = store.crew.filter((act) => !act.adminOnly || iMay(s, "table.croupier"));
     if (acts.length === 0) return "";
     return `<div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:8px">`
       + acts.map((act) => `<button data-crew="${escape(act.id)}" style="flex:1 1 auto;border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:7px 10px;`
@@ -1573,7 +1578,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">Сесть</span>`;
     const flags = RIGHTS.map((flag) => flagChip(chair, flag, may)).join("");
     // ПОЗУ ЧУЖОЙ РУКИ МЕНЯЕТ ТОТ, У КОГО ЕСТЬ ПРАВО, — здесь же, у самой руки.
-    const poses = iMay(s, "pose") && chair.owner !== me()
+    const poses = iMay(s, "hand.pose") && chair.owner !== me()
       ? `<span style="width:2px;height:22px;background:${T.wood};margin:0 2px"></span>` + FOLDS.map((k) => poseChip(chair, k)).join("")
       : "";
     const shell = `<div data-g="tip" data-tip="${chair.id}" style="position:absolute;left:${box.left}px;top:${box.top}px;width:${box.w}px;box-sizing:border-box;z-index:40;`
@@ -1767,16 +1772,22 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return html;
   }
 
+  /** Примет ли эта рука карту — тем же разбором, что ответит сервер: замок, отклонение, своё/чужое. */
+  const takes = (s: Snapshot, chairId: string) => {
+    const chair = chairOf(s, chairId);
+    return chair !== undefined && iMay(s, "hand.drop", { locks: { lock: chair.lock, reject: chair.reject }, mine: chair.owner === me() });
+  };
+
   function chairZonesHtml(s: Snapshot): string {
     if (!view) return "";
     const lit = new Map<string, { ink: string; here: boolean }>();
     for (const c of store.carries) {
-      if (c.over.in === "hand" && !closed(s, c.over.chair)) lit.set(c.over.chair, { ink: inkOf(s, c.by), here: true });
+      if (c.over.in === "hand" && takes(s, c.over.chair)) lit.set(c.over.chair, { ink: inkOf(s, c.by), here: true });
     }
     const aim = aiming();
     if (aim) {
       for (const chair of s.chairs) {
-        if (closed(s, chair.id) || lit.has(chair.id)) continue;
+        if (!takes(s, chair.id) || lit.has(chair.id)) continue;
         const here = aim.kind === "chair" && aim.which === chair.id;
         lit.set(chair.id, { ink: here ? T.gold : T.inkDim, here });
       }
@@ -2111,7 +2122,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     }
     const { box, slots, pile } = geom;
     const cards = pile.cards;
-    const admin = iMay(s, "pile");
+    const admin = iMay(s, "pile.guard");
     const list: (SeenCard | Gap)[] = [...cards];
     for (const gap of gaps) list.splice(Math.max(0, Math.min(list.length, gap.index)), 0, gap);
     const held = heldByOthers(s);

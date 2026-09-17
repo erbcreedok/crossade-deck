@@ -50,7 +50,7 @@ import {
   CARD_FACES,
 } from "./contract.js";
 import { arranged, samePack, shuffled } from "./arrange.js";
-import { may, rightsOf, type Right, type Role } from "./access.js";
+import { allowed, grantedTo, may, no, type Ask, type Key, type Role, type Verdict } from "./access.js";
 import { SANDBOX, type DeskAsk, type DeskRules, type DeskZone } from "./rules.js";
 import { croupierAngle, deckHome, freeAngle, seatPoint } from "./ring.js";
 
@@ -125,7 +125,7 @@ export class Table {
     pile: (id) => this.piles.get(id)?.cards ?? [],
     hand: (chair) => this.chairs.get(chair)?.hand ?? [],
     // Правилам игры важно не «кто он», а вправе ли он распоряжаться столом (`access.ts`).
-    admin: (key) => this.may(key, "croupier"),
+    admin: (key) => this.may(key, "table.croupier"),
     croupier: (chair) => this.chairs.get(chair)?.croupier === true,
   };
 
@@ -237,14 +237,22 @@ export class Table {
     return out;
   }
 
-  /** Вправе ли он это сделать. ЕДИНСТВЕННОЕ место, где стол спрашивает про права. */
-  may(key: string, right: Right): boolean {
-    return may(this.rolesOf(key), right);
+  /**
+   * ВПРАВЕ ЛИ ОН ЭТО. Единственное место, где стол спрашивает про доступ; разбор — общий с клиентом
+   * (`access.ts`), и второго нет нигде.
+   */
+  asks(who: string, key: Key, ask: Omit<Ask, "granted"> = {}): Verdict {
+    return may(key, { ...ask, granted: this.granted(who) });
   }
 
-  /** Все права этого человека — списком: по нему экран рисует кнопки, не гадая, кто перед ним. */
-  rightsOf(key: string): Right[] {
-    return rightsOf(this.rolesOf(key));
+  /** Коротко: можно ли. Причина отказа берётся через `asks`, когда её надо показать человеку. */
+  may(who: string, key: Key, ask: Omit<Ask, "granted"> = {}): boolean {
+    return allowed(this.asks(who, key, ask));
+  }
+
+  /** Все ключи этого человека — списком: по нему экран рисует кнопки, не гадая, кто перед ним. */
+  granted(who: string): Key[] {
+    return grantedTo(this.rolesOf(who), this.desk.keys?.() ?? []);
   }
 
   /**
@@ -252,7 +260,7 @@ export class Table {
    * роль своим ходом, человек с правом — рукой.
    */
   setDealer(by: string, key: string | null): Result {
-    if (!this.may(by, "roles")) return { refused: "not-yours" };
+    if (!this.may(by, "table.roles")) return { refused: "not-yours" };
     if (key !== null && !this.people.has(key)) return { refused: "gone" };
     this.dealer = key;
     return { ops: this.commit([{ t: "dealer", key, rights: [] }]) };
@@ -438,14 +446,14 @@ export class Table {
         const pile = this.piles.get(intent.pile);
         if (!pile) return { refused: "gone" };
         if (typeof intent.on !== "boolean") return { refused: "bad" };
-        if (!intent.on && !this.may(by, "pile")) return { refused: "not-yours" };
+        if (!intent.on && !this.may(by, "pile.guard")) return { refused: "not-yours" };
         pile.spot.pin = intent.on;
         return { ops: this.commit([this.spotOp(intent.pile)]) };
       }
       case "deckGuard": {
         const pile = this.piles.get(intent.pile);
         if (!pile) return { refused: "gone" };
-        if (!this.may(by, "pile")) return { refused: "not-yours" };
+        if (!this.may(by, "pile.guard")) return { refused: "not-yours" };
         if (typeof intent.on !== "boolean" || !(PILE_GUARDS as readonly unknown[]).includes(intent.guard)) return { refused: "bad" };
         pile.spot[intent.guard] = intent.on;
         return { ops: this.commit([this.spotOp(intent.pile)]) };
@@ -465,7 +473,7 @@ export class Table {
         return { ops: ops.length ? this.commit(ops) : [] };
       }
       case "rules": {
-        if (!this.may(by, "look")) return { refused: "not-yours" };
+        if (!this.may(by, "table.look")) return { refused: "not-yours" };
         return { ops: this.setRules(intent.rules) };
       }
       case "sync":
@@ -540,7 +548,7 @@ export class Table {
       const pile = this.piles.get(at.pile)!;
       if (pile.spot.lock && pile.cards[pile.cards.length - 1] !== id) return { refused: "not-top" };
     }
-    if (at.in === "hand" && this.closedTo(by, at.chair)) return { refused: "chair-locked" };
+    if (at.in === "hand" && !allowed(this.handAsk(by, at.chair, "hand.take"))) return { refused: "chair-locked" };
     // ПРАВИЛА РОДА СТОЛА — последними: зона уже сказала своё, теперь слово игре (`rules.ts`).
     if (!this.desk.mayTake(this.ask, id, at, by)) return { refused: "locked" };
     return { at };
@@ -575,8 +583,7 @@ export class Table {
     if (!this.desk.mayPile(this.ask, id, target, by)) return { refused: "locked" };
     if (source.cards.some((one) => (this.locks.has(one) && this.locks.get(one)!.by !== by) || (this.picks.has(one) && this.picks.get(one) !== by))) return { refused: "locked" };
     if (source.cards.length === 0) return { refused: "bad" };
-    if (target.in === "hand" && this.closedTo(by, target.chair)) return { refused: "chair-locked" };
-    if (target.in === "hand" && this.rejects(target.chair)) return { refused: "chair-locked" };
+    if (target.in === "hand" && !allowed(this.handAsk(by, target.chair, "hand.drop"))) return { refused: "chair-locked" };
     const into = target.in === "deck" ? this.piles.get(target.pile) : undefined;
     if (target.in === "deck" && !into) return { refused: "gone" };
     if (into?.spot.shut || into?.spot.seal) return { refused: "locked" };
@@ -626,7 +633,7 @@ export class Table {
   private flipHand(by: string, id: string | undefined, now: number): Result {
     const chair = id === undefined ? this.seatOf(by) : this.chairs.get(id);
     if (!chair) return { refused: "bad" };
-    if (this.closedTo(by, chair.id)) return { refused: "chair-locked" };
+    if (!allowed(this.handAsk(by, chair.id, "hand.flip"))) return { refused: "chair-locked" };
     chair.hand.reverse();
     const ops: Op[] = [{ t: "order", chair: chair.id, ids: [...chair.hand] }];
     for (const card of chair.hand) {
@@ -700,8 +707,7 @@ export class Table {
     if (!lock || lock.by !== by) return { refused: "not-held" };
     const target = this.clean(to, auto);
     if (!target) return { refused: "bad" };
-    if (target.in === "hand" && this.closedTo(by, target.chair)) return { refused: "chair-locked" };
-    if (target.in === "hand" && this.rejects(target.chair)) return { refused: "chair-locked" };
+    if (target.in === "hand" && !allowed(this.handAsk(by, target.chair, "hand.drop"))) return { refused: "chair-locked" };
     const from = this.whereIs(id)!;
     const refusal = this.ruleRefusal(by, id, target);
     if (refusal) return { refused: refusal };
@@ -829,7 +835,7 @@ export class Table {
   private pose(by: string, id: string, pose: Partial<HandPose>): Result {
     const chair = this.chairs.get(id);
     if (!chair) return { refused: "gone" };
-    if (chair.owner !== by && !this.may(by, "pose")) return { refused: "not-yours" };
+    if (chair.owner !== by && !this.may(by, "hand.pose")) return { refused: "not-yours" };
     const next = { ...chair.pose };
     for (const k of HAND_POSE_KEYS) {
       const v = pose?.[k];
@@ -1049,13 +1055,18 @@ export class Table {
    * стола, поэтому им распоряжается админ.
    */
   mayFlag(by: string, chair: { owner: string | null; croupier?: true }): boolean {
-    if (chair.croupier) return this.may(by, "croupier");
+    if (chair.croupier) return this.may(by, "table.croupier");
     return chair.owner === null || chair.owner === by;
   }
 
-  /** Рука не принимает: ни карты, ни стопки, ни от кого. Брать из неё при этом можно. */
-  private rejects(chairId: string): boolean {
-    return this.chairs.get(chairId)?.reject === true;
+  /**
+   * ВОПРОС ПРО ЧУЖУЮ РУКУ — через общий разбор (`access.ts`): замки стула и «своё/чужое» разбирает
+   * он, а не стол. Стол только приносит ему данные.
+   */
+  private handAsk(by: string, chairId: string, key: Key): Verdict {
+    const chair = this.chairs.get(chairId);
+    if (!chair) return no("not-yours");
+    return this.asks(by, key, { locks: { lock: chair.lock, reject: chair.reject }, mine: chair.owner === by });
   }
 
   /**
@@ -1067,12 +1078,6 @@ export class Table {
     if (!chair?.even) return undefined;
     const first = chair.hand[0];
     return first === undefined ? true : this.turned.has(first);
-  }
-
-  /** Замок стула закрыт для всех, кроме того, кто на нём сидит. */
-  private closedTo(by: string, chairId: string): boolean {
-    const chair = this.chairs.get(chairId);
-    return chair !== undefined && chair.lock && chair.owner !== by;
   }
 
   // ── ДЛЯ КОМАНД БОТА ─────────────────────────────────────────────────────────────────────────
@@ -1379,7 +1384,7 @@ export class Table {
     }
     if (op.t === "chair") return { ...op, chair: this.chairSeen(op.chair, viewer) };
     // РОЛИ ПЕРЕШЛИ — каждому едут ЕГО права: они считаются здесь и нигде больше.
-    if (op.t === "admin" || op.t === "dealer") return { ...op, rights: this.rightsOf(viewer) };
+    if (op.t === "admin" || op.t === "dealer") return { ...op, rights: this.granted(viewer) };
     // Стопка заменена целиком: у перевёрнутых карт лица приходят всем.
     if (op.t === "deck") return { ...op, cards: op.cards.map((c) => this.seen(c.id, viewer, { in: "deck", pile: op.pile })) };
     return op;
@@ -1407,7 +1412,7 @@ export class Table {
       rules: { ...this.rules },
       admin: this.admin,
       dealer: this.dealerKey,
-      rights: this.rightsOf(viewer),
+      rights: this.granted(viewer),
     };
   }
 }

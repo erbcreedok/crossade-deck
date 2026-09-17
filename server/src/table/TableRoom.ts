@@ -17,10 +17,13 @@ import { cleanLive, ear, LiveTalk, liveTally, type Live } from "./live.js";
 import { cleanSignal, Signals, type Signal } from "./rtc.js";
 import { cleanMic, type Mic } from "./voice.js";
 import { collectSteps, execute, plan } from "./script.js";
-import type { Right } from "./access.js";
+import type { Key } from "./access.js";
 
-/** ЧТО КАКОЙ КОМАНДОЙ ДВИГАЮТ — право на каждую (`access.ts`). Команды без права здесь нет. */
-const RUN_RIGHTS: Record<string, Right> = { deal: "deal", collect: "collect", shuffle: "shuffle", preset: "preset", look: "look", croupier: "croupier" };
+/** ЧТО КАКОЙ КОМАНДОЙ ДВИГАЮТ — ключ на каждую (`access.ts`). Команды без ключа здесь нет. */
+const RUN_RIGHTS: Record<string, Key> = {
+  deal: "table.deal", collect: "table.collect", shuffle: "table.shuffle",
+  preset: "table.preset", look: "table.look", croupier: "table.croupier",
+};
 import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
 import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
@@ -335,7 +338,9 @@ export class TableRoom extends Room {
     const item = actOf(crewKind(this.room), act);
     const chair = this.table.layout().chairs.find((c) => c.croupier);
     if (!item || !chair) return;
-    if (item.adminOnly && !this.table.may(by, "croupier")) return;
+    // Дело набора — обычный ключ: `crew.collect`, `crew.layout`. Помеченные `adminOnly` живут в
+    // наборе распорядителя, прочие открыты всем, кого пускает замок стула крупье.
+    if (item.adminOnly && !this.table.may(by, "table.croupier")) return;
     if (this.table.busy) return;
     // ВЫКЛАДКА — ОДНО ДВИЖЕНИЕ: стопка кладётся целиком, её не носят по карте.
     if (act === "layout") return void this.layout(by, chair.id, chair.angle);

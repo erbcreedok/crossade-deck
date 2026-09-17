@@ -1,51 +1,160 @@
-// ДОСТУПЫ — кто что вправе сделать со СТОЛОМ. Не «кто он такой», а «что ему можно».
+// ДОСТУПЫ — ОДНА МОДЕЛЬ НА ВСЁ. Стол, стопки, руки, карты, крупье: вопрос всегда один и тот же.
 //
-// Здесь нет ни одной проверки «это админ». Есть НАБОР ДОСТУПОВ, который выдаётся по РОЛИ, и всё
-// остальное спрашивает: «есть ли у него право X». Роль — имя набора, и ничего кроме; новая роль это
-// строка в таблице, а не ветка в коде.
+//   «Можно ли <ключ> с <этой вещью>?» → можно, либо нельзя И ПОЧЕМУ.
 //
-// ЧЕГО ДОСТУПЫ НЕ МОГУТ. Они не обходят замки рук и стопок: «отклонять», «лок», «скрыть» — это про
-// руку человека, и распорядитель стола их не перешагивает, а снимает, если ему это позволено. Право
-// открывает дверь; замок на двери — отдельный разговор, и он старше.
+// Ни ролей, ни «админа», ни «крупье» снаружи не видно. Роль — способ ВЫДАТЬ набор ключей, и живёт
+// она только на сервере (`ROLES` ниже). Клиент знает разрешения, а не роли.
+//
+// ЭТОТ ФАЙЛ ЗОВУТ ОБА КОНЦА. Сервер — перед действием, клиент — перед тем, как нарисовать кнопку.
+// Второго разбора нет нигде: два списка правил разошлись бы молча, и человек увидел бы кнопку,
+// которую сервер откажет.
 
 /**
- * ВСЁ, ЧТО МОЖНО СПРОСИТЬ. Каждое право — одно дело, которое человек либо вправе сделать, либо нет.
+ * ВСЁ, ЧТО МОЖНО СПРОСИТЬ. Ключ — `что.действие`.
  *
- *   deal      раздать карты
- *   collect   собрать карты со стола
- *   shuffle   перемешать колоду
- *   preset    пресет: другая колода и рассадка
- *   look      вид карт и рубашки на весь стол
- *   croupier  посадить и увести крупье, его флаги и его дела
- *   pile      замки стопок: порядок, приёмка, мерж, «прибито»
- *   pose      поза ЧУЖОЙ руки
- *   roles     НАЗНАЧАТЬ РОЛИ: кто здесь раздающий
+ *   table.*  стол целиком: раздать, собрать, перемешать, пресет, вид карт, роли, крупье
+ *   pile.*   стопка: взять из неё, положить в неё, сгрести целиком, переставить, замки
+ *   hand.*   рука: взять, положить, переложить, перевернуть, поза, флаги стула
+ *   card.*   карта: накрыть другую, перевернуть одну
+ *   crew.*   дела набора крупье — обычные ключи, а не отдельный вид конфига
  */
-export const RIGHTS = ["deal", "collect", "shuffle", "preset", "look", "croupier", "pile", "pose", "roles"] as const;
-export type Right = (typeof RIGHTS)[number];
+export const KEYS = [
+  "table.deal", "table.collect", "table.shuffle", "table.preset", "table.look", "table.croupier", "table.roles",
+  "pile.take", "pile.drop", "pile.grip", "pile.move", "pile.guard",
+  "hand.take", "hand.drop", "hand.reorder", "hand.flip", "hand.pose", "hand.flags",
+  "card.cover", "card.turn",
+] as const;
+
+/** Ключ: из списка выше либо дело набора крупье (`crew.collect`, `crew.layout`, …). */
+export type Key = (typeof KEYS)[number] | `crew.${string}`;
 
 /**
- * РОЛИ И ИХ НАБОРЫ. Роль — имя набора доступов.
+ * ПОЧЕМУ НЕЛЬЗЯ. Отказ всегда назван: по причине экран пишет человеку словами, а сторож отличает
+ * «запретила игра» от «заперта рука» — иначе оба выглядят как молчаливое «не сработало».
+ */
+export const WHYS = ["not-yours", "locked", "rejects", "not-your-turn", "beats", "full", "no-right"] as const;
+export type Why = (typeof WHYS)[number];
+
+export type Verdict = true | { no: Why };
+
+/** Отказ — значение, а не исключение: его носят в ответе и показывают человеку. */
+export const no = (why: Why): Verdict => ({ no: why });
+export const yes: Verdict = true;
+export const allowed = (v: Verdict): boolean => v === true;
+export const why = (v: Verdict): Why | null => (v === true ? null : v.no);
+
+/** Замки самой вещи — те же имена, что у стула и у стопки (`contract.ts`). */
+export interface Locks {
+  /** Рука: чужой не лезет. Стопка: порядок карт держится. */
+  lock?: boolean;
+  /** Рука не принимает: ни карт, ни стопок, ни от кого. */
+  reject?: boolean;
+  /** Стопка не принимает. */
+  shut?: boolean;
+  /** Стопку не сгрести и не вмержить. */
+  seal?: boolean;
+  /** Стопка прибита к сукну. */
+  pin?: boolean;
+}
+
+/**
+ * ЧТО НУЖНО ЗНАТЬ, ЧТОБЫ ОТВЕТИТЬ. Четыре источника — и ничего кроме них.
  *
- * `admin` — тот, кто открыл комнату. У него почти всё: он ведёт стол.
- * `dealer` — раздающий этой сессии. Ему дают ровно работу сдающего и ничего больше: собрать,
- *   перемешать, раздать. Ни замков, ни чужих поз, ни назначения ролей.
- * `player` — все за столом. Со своими картами он и так волен; отдельных прав стола ему не нужно.
+ * Здесь нет ни стола, ни сети, ни часов: голые данные. Поэтому один и тот же разбор работает на
+ * сервере, где стол настоящий, и на клиенте, где есть только снимок.
+ */
+export interface Ask {
+  /** ИСТОЧНИК 4: ключи, выданные этому человеку. */
+  granted: readonly string[];
+  /** ИСТОЧНИК 1: замки вещи, с которой имеют дело. */
+  locks?: Locks;
+  /** ИСТОЧНИК 2: его ли это вещь — своя рука, своя выделенная карта. */
+  mine?: boolean;
+  /** ИСТОЧНИК 3: что сказала игра. Молчит (`undefined`) — игре нечего добавить. */
+  game?: Verdict;
+}
+
+/**
+ * КАКОЙ ЗАМОК ЧТО ЗАПИРАЕТ. Ключ спрашивает у вещи ровно то, что к нему относится.
+ *
+ * `lock` в этой таблице нет нарочно: он запирает ЧУЖОГО, а «чужой» — источник 2, и разбирается ниже
+ * вместе с `mine`.
+ */
+const SHUTS: Partial<Record<Key, readonly [keyof Locks, Why][]>> = {
+  "hand.drop": [["reject", "rejects"]],
+  "pile.drop": [["shut", "locked"]],
+  "pile.grip": [["seal", "locked"], ["pin", "locked"]],
+  "pile.move": [["pin", "locked"]],
+};
+
+/**
+ * ЧТО ЗАПИРАЕТ ЗАМОК. Замок руки и стопки стережёт ЧУЖОГО: хозяин своей рукой волен и под замком.
+ *
+ * Это и есть источник 2 — «своё или чужое»: он не запрещает сам по себе, а решает, действует ли на
+ * этого человека замок вещи.
+ */
+const LOCKED: Partial<Record<Key, true>> = {
+  "hand.take": true,
+  "hand.drop": true,
+  "hand.reorder": true,
+  "hand.flip": true,
+  "card.turn": true,
+};
+
+/** Ключи, которые есть у всех и без выдачи: со своим человек волен, и разрешения на это не просят. */
+const FREE: Partial<Record<Key, true>> = {
+  "hand.take": true,
+  "hand.drop": true,
+  "hand.reorder": true,
+  "hand.flip": true,
+  "pile.take": true,
+  "pile.drop": true,
+  "pile.grip": true,
+  "pile.move": true,
+  "card.cover": true,
+  "card.turn": true,
+};
+
+/**
+ * ОТВЕТ. Источники спрашиваются по порядку, и ПЕРВЫЙ ОТКАЗ ВЫИГРЫВАЕТ.
+ *
+ * Разрешение не перебивает отказ никогда — в этом весь смысл порядка: право не ломает замок.
+ * Распорядитель стола не лезет в запертую руку; он снимает замок, если ему это позволено
+ * (`hand.flags`), и это отдельный вопрос с отдельным ответом.
+ */
+export function may(key: Key, ask: Ask): Verdict {
+  // 1. ВЕЩЬ.
+  for (const [lock, reason] of SHUTS[key] ?? []) if (ask.locks?.[lock]) return no(reason);
+  // 2. СВОЁ ИЛИ ЧУЖОЕ: замок действует на чужого и не действует на хозяина.
+  if (LOCKED[key] && ask.locks?.lock && ask.mine !== true) return no("locked");
+  // 3. ИГРА.
+  if (ask.game !== undefined && ask.game !== true) return ask.game;
+  // 4. НАБОР.
+  if (!FREE[key] && !ask.granted.includes(key)) return no("no-right");
+  return yes;
+}
+
+/**
+ * РОЛИ — ТОЛЬКО ЗДЕСЬ И ТОЛЬКО НА СЕРВЕРЕ. Роль это имя набора ключей, и ничего кроме.
+ *
+ * `admin` — ведёт стол. `dealer` — раздающий этой сессии: ровно работа сдающего. `player` — все за
+ * столом; со своими картами он и так волен, и отдельных ключей ему не нужно.
  */
 export const ROLES = {
-  admin: ["deal", "collect", "shuffle", "preset", "look", "croupier", "pile", "pose", "roles"],
-  dealer: ["deal", "collect", "shuffle"],
+  admin: ["table.deal", "table.collect", "table.shuffle", "table.preset", "table.look", "table.croupier", "table.roles", "pile.guard", "hand.pose", "hand.flags"],
+  dealer: ["table.deal", "table.collect", "table.shuffle"],
   player: [],
-} as const satisfies Record<string, readonly Right[]>;
+} as const satisfies Record<string, readonly Key[]>;
 
 export type Role = keyof typeof ROLES;
 export const ROLE_NAMES: readonly Role[] = Object.keys(ROLES) as Role[];
 
-/** Есть ли у набора ролей это право. Ролей может быть несколько — берётся объединение наборов. */
-export const may = (roles: Iterable<Role>, right: Right): boolean => [...roles].some((role) => (ROLES[role] as readonly Right[]).includes(right));
-
-/** Все права этих ролей — одним списком: по нему экран рисует кнопки, не спрашивая, кто перед ним. */
-export const rightsOf = (roles: Iterable<Role>): Right[] => RIGHTS.filter((right) => may(roles, right));
+/** Все ключи этих ролей — одним списком. Он и едет клиенту. */
+export const grantedTo = (roles: Iterable<Role>, extra: readonly Key[] = []): Key[] => {
+  const out = new Set<Key>(extra);
+  for (const role of roles) for (const key of ROLES[role] as readonly Key[]) out.add(key);
+  return [...out];
+};
 
 /** Есть ли такая роль. Разбор пришедшего значения идёт по таблице, а не по перечню имён в коде. */
 export const isRole = (role: unknown): role is Role => typeof role === "string" && Object.hasOwn(ROLES, role);
