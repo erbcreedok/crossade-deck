@@ -20,7 +20,8 @@ import { execute, plan } from "./script.js";
 import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
 import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
-import { attach, creatorOf, openEntry, titleOf } from "./lobby.js";
+import { deskOf } from "./desks.js";
+import { attach, creatorOf, kindOf, openEntry, titleOf } from "./lobby.js";
 import { readCommand } from "./routes.js";
 import { roomIsSigned } from "./roomIds.js";
 import { Table } from "./table.js";
@@ -56,7 +57,9 @@ export class TableRoom extends Room {
     // КОМНАТА, ОТКРЫТАЯ ВХОДОМ, А НЕ БОТОМ: inline-карточка, чьё сообщение бот ещё не записал.
     openEntry(this.room, { kind: "inline", message: "" }, "");
     // АДМИН — ТОТ, КТО ОТКРЫЛ КОМНАТУ В БОТЕ. Спрашивается при открытии: запись к этому моменту есть.
-    this.table = new Table(deal(), creatorOf(this.room));
+    // РОД СТОЛА берётся у комнаты: его записал тот, кто её открыл. Стол сам про род не знает —
+    // он получает правила и работает с ними, как с любыми другими.
+    this.table = new Table(deal(), creatorOf(this.room), deskOf(kindOf(this.room)));
     attach(this.room, {
       people: () => this.table.here.filter((p) => !p.bot),
       close: () => void this.disconnect(),

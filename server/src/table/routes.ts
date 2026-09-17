@@ -10,6 +10,7 @@
 import { randomBytes, timingSafeEqual } from "crypto";
 import express, { type Router } from "express";
 import { tableConfig } from "./config.js";
+import { DEFAULT_DESK, isDesk } from "./desks.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
 import { closeEntry, findEntry, openEntry, rehome, rename, roomsAt, roomsBy, runIn } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
@@ -86,7 +87,9 @@ export function tableRoutes(): Router {
     // ИМЯ, ВЫПИСАННОЕ БОТОМ ЗАРАНЕЕ (inline-карточка), принимается только с его подписью.
     if (body.room !== undefined && !roomIsSigned(body.room, secret)) return void res.status(400).json({ error: "bad_request" });
     const room = body.room ?? mintRoom(secret);
-    res.json(openEntry(room, home, body.by, typeof body.title === "string" ? body.title : undefined));
+    // РОД СТОЛА — необязателен и разбирается по каталогу (`desks.ts`): незнакомый род не ломает
+    // открытие, а даёт песочницу. Бот и сервер обновляются порознь.
+    res.json(openEntry(room, home, body.by, typeof body.title === "string" ? body.title : undefined, Date.now(), isDesk(body.kind) ? body.kind : DEFAULT_DESK));
   });
 
   r.get("/table/rooms", guarded, (req, res) => {
