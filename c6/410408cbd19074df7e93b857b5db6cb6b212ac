@@ -1,0 +1,35 @@
+server/scripts/tableRing.mjs
+  s_9ed0da107cbc4a::t_c7b046cc7f6fb0 136-169
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_482d057321ce94 48
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_28ad5a1fb84164 353-357
+server/src/table/games/krest.test.ts
+  s_9ed0da107cbc4a::t_fde45cfdb53e1e 164-174
+server/src/table/games/krest.ts
+  s_9ed0da107cbc4a::t_e7cb60495ea82e 131-132,151-153
+server/src/table/rules.ts
+  s_9ed0da107cbc4a::t_9cc2bfe3d47292 103-107
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_596c6610659476 149-155,204,446-447,585-586,596-613,779-780,1110
+server/src/table/zones.test.ts
+  s_9ed0da107cbc4a::t_c8e6e592fa87dd 73-96
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_c63acb23f6210d 420,1858-1870,2142-2159,2165-2169,2171-2175,3035-3037,3042-3044,3587-3589,3733-3749,3766-3767,3779-3780
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c6410408cbd19074df7e93b857b5db6cb6b212ac",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
