@@ -1,0 +1,29 @@
+server/src/table/desks.ts
+  s_9ed0da107cbc4a::t_381ae72c28a3ca 1-33
+server/src/table/desks.test.ts
+  s_9ed0da107cbc4a::t_238cc92c1cc9b8 1-67
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_685bc882c911b7 23-24,60-62
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_810174e704bb75 562-563
+server/src/table/lobby.ts
+  s_9ed0da107cbc4a::t_9c8caa4fd78ea7 11,17-18,41,55,70-72
+server/src/table/routes.ts
+  s_9ed0da107cbc4a::t_34a7fdfd146e10 13,90-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0118b4eb8d7af0d6830f4a09a466904500f51270",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
