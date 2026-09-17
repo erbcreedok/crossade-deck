@@ -54,7 +54,7 @@ import {
 import { arranged, samePack, shuffled } from "./arrange.js";
 import { allowed, grantedTo, may, no, type Ask, type Key, type Role, type Verdict } from "./access.js";
 import { SANDBOX, type DeskAsk, type DeskRules, type DeskZone } from "./rules.js";
-import { croupierAngle, deckHome, freeAngle, ringLay, RING_SPREAD, seatPoint } from "./ring.js";
+import { croupierAngle, deckHome, freeAngle, ringKeeps, ringLay, RING_SPREAD, seatPoint } from "./ring.js";
 
 /** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
 export const FELT_REACH = 8 - 0.86;
@@ -1509,6 +1509,13 @@ export class Table {
       // перекладывается. Порядок в стопке при этом идёт за порядком по кругу: круг хода — это он и есть.
       if (to.at && pile.spot.pose === "ring") {
         this.laid.set(id, { ...to.at });
+        cards.splice(this.byTurn(pile, id), 0, id);
+        return { in: "deck", pile: to.pile, i: cards.indexOf(id) };
+      }
+      // ВЕРНУЛИ В КРУГ, НИ ВО ЧТО НЕ ЦЕЛЯСЬ. Карта из него и не уходила — своё место она помнит, на
+      // него и садится. Двигать остальных не за чем: круг шевелится только там, где иначе не встать.
+      const mine = to.i === undefined && pile.spot.pose === "ring" ? this.laid.get(id) : undefined;
+      if (mine && ringKeeps(pile.spot, mine)) {
         cards.splice(this.byTurn(pile, id), 0, id);
         return { in: "deck", pile: to.pile, i: cards.indexOf(id) };
       }

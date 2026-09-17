@@ -8,7 +8,7 @@
 // целиком (`needsSync`), а не угадывает.
 
 import type { Op, Patch, SeenCard, Snapshot, Where } from "./contract.js";
-import { ringLay } from "./ring.js";
+import { ringKeeps, ringLay } from "./ring.js";
 
 export const needsSync = (state: Snapshot, patch: Patch): boolean => patch.v !== state.v + 1;
 
@@ -145,6 +145,11 @@ function turnOfPlace(middle: { x: number; y: number }, at: { x: number; y: numbe
   return ((deg % 360) + 360) % 360;
 }
 
+/** Порядок круга — это порядок по кругу: карта, вернувшаяся на своё место, встаёт в него же. */
+function byTurn(pile: { x: number; y: number; cards: SeenCard[] }): void {
+  pile.cards.sort((a, b) => (a.at ? turnOfPlace(pile, a.at) : 360) - (b.at ? turnOfPlace(pile, b.at) : 360));
+}
+
 function place(s: Snapshot, card: SeenCard, to: Where): void {
   if (to.in === "deck") {
     const pile = s.piles.find((one) => one.id === to.pile);
@@ -155,7 +160,10 @@ function place(s: Snapshot, card: SeenCard, to: Where): void {
     // на миг оказывалась бы в середине зоны (места у неё ещё нет) и летела бы оттуда на место: два
     // прыжка вместо одного полёта. Названо точное место — раскладка не нужна, карта уже знает своё.
     if (pile.pose === "ring") {
+      // СВОЁ МЕСТО КАРТА НЕ ТЕРЯЕТ: названо точное — берёт его, помнит прежнее в этом же круге —
+      // остаётся на нём, и круг не перекладывается. Нового места просят только те, у кого его нет.
       if (to.at) card.at = { ...to.at };
+      else if (card.at !== undefined && to.i === undefined && ringKeeps(pile, card.at)) byTurn(pile);
       else if (card.at === undefined) {
         const anchor = pile.cards[0]?.at ? turnOfPlace(pile, pile.cards[0]!.at!) : 0;
         const places = ringLay(pile, pile.cards.length, anchor);
@@ -163,6 +171,11 @@ function place(s: Snapshot, card: SeenCard, to: Where): void {
       }
     }
   }
-  else if (to.in === "felt") s.felt.push({ ...card, x: to.x, y: to.y, up: to.up, angle: to.angle, ...(to.under ? { under: true } : {}) });
-  else s.chairs.find((one) => one.id === to.chair)?.hand.splice(to.i, 0, card);
+  // УШЛА ИЗ ЗОНЫ — МЕСТО ЗАБЫТО. Иначе карта, побывавшая в руке, вернулась бы в круг «на своё» место,
+  // которого там давно нет.
+  else if (to.in === "felt") { card.at = undefined; s.felt.push({ ...card, x: to.x, y: to.y, up: to.up, angle: to.angle, ...(to.under ? { under: true } : {}) }); }
+  else {
+    card.at = undefined;
+    s.chairs.find((one) => one.id === to.chair)?.hand.splice(to.i, 0, card);
+  }
 }

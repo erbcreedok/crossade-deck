@@ -193,6 +193,24 @@ const kept = Object.entries(whoBefore).filter(([id]) => id !== takenId).every(([
 check("вернули в дыру — КАЖДАЯ карта осталась на своём месте", kept, { was: whoBefore, now: nowWho, taken: takenId });
 check("…и вернувшаяся легла ровно в дыру", nowWho[takenId] === whoBefore[takenId], { was: whoBefore[takenId], now: nowWho[takenId] });
 
+// ВЕРНУЛИ В КРУГ, НЕ ЦЕЛЯСЬ НИ ВО ЧТО: карта из круга и не уходила — садится на своё же место, и
+// НИКТО не двигается. Двигать карты стоит только там, где иначе не встать.
+{
+  const was = await ringWho();
+  const backId = (await ringIds())[2];
+  const from = await ringAt(2);
+  await p.mouse.move(from.x, from.y);
+  await p.mouse.down();
+  await p.mouse.move(195, 760, { steps: 6 });
+  const middle = (await spots()).middle;
+  await p.mouse.move(middle.x, middle.y, { steps: 6 });
+  await p.mouse.up();
+  await p.waitForTimeout(800);
+  const now = await ringWho();
+  check("вернули в круг мимо всего — круг не шелохнулся", Object.entries(was).every(([id, at]) => now[id] === at), { was, now, back: backId });
+  check("…и сама вернулась на своё место", now[backId] === was[backId], { was: was[backId], now: now[backId] });
+}
+
 // КАРТЫ ЛЕТЯТ, А НЕ ПРЫГАЮТ. Летящая карта живёт отдельным элементом в воздухе (`data-flight`);
 // его-то и ловим сразу после дропа, пока полёт не кончился.
 const at0Now = async () => ((await spots()).piles.find((x) => x.id === "ring") ?? {}).at ?? [];
