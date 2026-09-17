@@ -1947,7 +1947,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   /** Как стопка зовётся для человека: имя места рода, иначе «Колода» или «Стопка». */
   const pileName = (pile: Pile): string => pile.name ?? (pile.id === MAIN_PILE ? "Колода" : "Стопка");
 
-  /** Где индикатор стопки на стекле: под нижней картой стопки, по середине. `null` — стопки нет. */
+  /**
+   * Где индикатор стопки на стекле: под нижней картой стопки, по середине. `null` — стопки нет.
+   *
+   * У КРУГА ХОДА ОН В СЕРЕДИНЕ КРУГА, и только пока в круге есть карты: пустой круг — это просто
+   * очерченное поле, считать в нём нечего, а ручка посреди пустоты читается как «здесь что-то лежит».
+   */
   function gripAt(s: Snapshot, id: string): { x: number; y: number } | null {
     const pile = pileOf(s, id);
     if (!view || !pile) return null;
@@ -1955,6 +1960,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // НЕСУТ — индикатор под стопкой в воздухе: стопка висит на нём.
     const carry = deckCarry(s, id);
     if (carry) return { x: carry.x, y: carry.y + carry.h / 2 + 2 };
+    if (pile.pose === "ring") return pile.cards.length === 0 ? null : v.toGlass({ x: pile.x, y: pile.y });
     const n = Math.max(1, pile.cards.length);
     const low = v.deckAt(id, 0, n);
     const high = v.deckAt(id, n - 1, n);
@@ -1975,7 +1981,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       // НЕ КРУПНЕЕ СТОПКИ: на мелком зуме индикатор жмётся вместе с картой, выше `GRIP.most` её высоты не бывает.
       const h = 24;
       const scale = Math.min(1, (GRIP.most * FELT_CARD.h * view!.k) / h);
-      return `<div data-g="deck-grip" data-pile="${pile.id}" data-count="${pile.cards.length}" data-forever="${pile.forever}" data-pin="${pile.pin}" role="button" aria-label="${pileName(pile)}" style="position:absolute;left:${Math.round(at.x)}px;top:${Math.round(at.y + 2 * scale)}px;`
+      // ОБЫЧНАЯ СТОПКА ДЕРЖИТ РУЧКУ ПОД СОБОЙ, КРУГ — РОВНО В СВОЕЙ СЕРЕДИНЕ: у круга там пусто, и
+      // это единственное место, где ручка не закроет собой ни одной карты.
+      const middle = pile.pose === "ring";
+      const top = Math.round(middle ? at.y - (h * scale) / 2 : at.y + 2 * scale);
+      return `<div data-g="deck-grip" data-pile="${pile.id}" data-count="${pile.cards.length}" data-forever="${pile.forever}" data-pin="${pile.pin}" role="button" aria-label="${pileName(pile)}" style="position:absolute;left:${Math.round(at.x)}px;top:${top}px;`
         + `transform:translateX(-50%) scale(${scale.toFixed(3)});transform-origin:50% 0;height:${h}px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:0 7px 0 5px;border-radius:${h / 2}px;white-space:nowrap;`
         + `touch-action:none;cursor:${pile.pin ? "pointer" : "grab"};z-index:${deckCarry(s, pile.id) ? 61 : 20 + Math.min(z, 4)};user-select:none;-webkit-user-select:none;`
         + (lit ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.6);`
