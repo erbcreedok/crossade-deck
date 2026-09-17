@@ -1,0 +1,41 @@
+bot/src/table/orders.test.ts
+  s_9ed0da107cbc4a::t_8787274eb9e4d7 7,61,67,79-80
+bot/src/table/orders.ts
+  s_9ed0da107cbc4a::t_2cdf1aee86dfae 68-69,108,123,131,137,167-168,173
+bot/src/table/tableBot.ts
+  s_9ed0da107cbc4a::t_89e242d552e7b2 117,127,265
+bot/src/table/talk.test.ts
+  s_9ed0da107cbc4a::t_a1283eedcc06a5 8-12,15,19-20,27,29,31,39-40,48-50,53,76,82,92
+bot/src/table/talk.ts
+  s_9ed0da107cbc4a::t_f865757b722448 25,32,35-36,45,56,72-77,95-96,101,109-110,121-123
+bot/src/table/watch.test.ts
+  s_9ed0da107cbc4a::t_7e73e0233a397a 9,16,33
+server/scripts/tableNames.mjs
+  s_9ed0da107cbc4a::t_c88ab626f75866 1-2,27,30,32,36,39,41-42,50,53,63,94
+server/src/table/desks.ts
+  s_9ed0da107cbc4a::t_967b2bec7a9def 33-35
+server/src/table/lobby.ts
+  s_9ed0da107cbc4a::t_33d25e21454844 11-12,27,56-64,111-113
+server/src/table/names.test.ts
+  s_9ed0da107cbc4a::t_ba2400e7be3226 2,4-8,12,16-25,27-29,33,37-38,42-44
+server/src/table/names.ts
+  s_9ed0da107cbc4a::t_aa14bde158a7c9 1-6,11-15,28-29,31-37,47,53,61
+server/src/table/routes.test.ts
+  s_9ed0da107cbc4a::t_5de3759606f433 108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d3a1f1f14ae52bc43d34b44159e158a143b1723b",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
