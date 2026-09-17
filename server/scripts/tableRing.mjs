@@ -142,6 +142,18 @@ check("КАРТУ ИЗ КРУГА БЕРУТ ХВАТОМ ПО НЕЙ, не от
 check("и окно стопки при этом не открылось", (await p.locator("[data-deck-tip]").count()) === 0, null);
 check("а у колоды ручка на месте всегда", (await grips()).some((g) => g.pile === "deck"), await grips());
 
+// СТРЕЛКА КРУГА — где он обрывается и начинается. Рисуется, только когда в круге есть карты, стоит
+// ровно перед головой и лежит на том же радиусе, что и карты.
+{
+  const sp = (await spots()).piles.find((x) => x.id === "ring");
+  const cards = sp.at.map((one) => one.split(",").map(Number));
+  const turnOf = ([x, y]) => ((Math.atan2(x, -y) * 180) / Math.PI + 360) % 360;
+  const head = turnOf(cards[0]);
+  const gap = ((head - sp.arrow.turn) + 360) % 360;
+  check("стрелка нарисована и стоит перед головой", sp.arrow !== null && Math.abs(gap - 18) < 1.5, { arrow: sp.arrow, head });
+  check("и лежит на радиусе карт", Math.abs(sp.arrow.spread - Math.hypot(cards[0][0], cards[0][1])) < 0.01, { arrow: sp.arrow, away: Math.hypot(cards[0][0], cards[0][1]) });
+}
+
 // ВЗЯЛИ КАРТУ — ОСТАЛЬНЫЕ НЕ ШЕЛОХНУЛИСЬ. Место записано у самой карты, и двигать соседей некому.
 const ringAts = async () => ((await spots()).piles.find((p) => p.id === "ring") ?? {}).at ?? [];
 /** Кто где лежит: карта → её место. Закон в том, что у КАЖДОЙ карты место своё и оно не меняется. */

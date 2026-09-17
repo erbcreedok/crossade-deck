@@ -6,7 +6,7 @@
 
 import { apply, invert, type Transform } from "../../game-kit/src/core/transform.js";
 import type { Face, ZonePose } from "../src/table/contract.js";
-import { CROUPIER_RADIUS, RING_SPREAD, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
+import { CROUPIER_RADIUS, RING_ARROW, RING_LEAST, RING_SPREAD, ringSpread, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
 import type { Laid } from "../src/table/contract.js";
 
 export interface Pose {
@@ -80,6 +80,8 @@ export interface FeltView {
   feltAt(id: string): { x: number; y: number } | undefined;
   /** Куда КАЖДАЯ карта стопки легла на самом деле, по её id: окно из кисти в прогон. */
   drew: Record<string, { x: number; y: number; angle: number }>;
+  /** Где нарисована стрелка круга: угол её острия и радиус. Нет карт — нет и стрелки. */
+  arrows: Record<string, { turn: number; spread: number }>;
 }
 
 /**
@@ -190,6 +192,46 @@ function posePlan(pose: Pose, n: number): { at: Point; angle: number }[] {
     at: { x: p.at.x * s, y: middle + p.at.y * s },
     angle: p.angle,
   }));
+}
+
+
+/**
+ * СТРЕЛКА КРУГА — дуга по его радиусу, с остриём на конце.
+ *
+ * Показывает, где круг обрывается и начинается: остриё смотрит на голову. Рисуется дугой, а не
+ * треугольником, потому что она живёт НА кольце и обязана лежать по нему, как лежат карты.
+ */
+function ringArrowArc(g: CanvasRenderingContext2D, turn: number, spread: number): void {
+  // Углы круга считаются от шести часов по часовой, у холста — от трёх против; отсюда поворот на четверть.
+  const rad = (deg: number) => ((deg - 90) * Math.PI) / 180;
+  const from = turn - RING_ARROW / 2;
+  const to = turn + RING_ARROW / 2;
+  const tip = { x: spread * Math.sin((to * Math.PI) / 180), y: -spread * Math.cos((to * Math.PI) / 180) };
+  const wide = CARD.w * 0.16;
+  g.save();
+  g.lineCap = "round";
+  g.beginPath();
+  g.arc(0, 0, spread, rad(from), rad(to));
+  g.lineWidth = wide;
+  g.strokeStyle = SEAT.black;
+  g.stroke();
+  g.lineWidth = wide * 0.5;
+  g.strokeStyle = SEAT.cream;
+  g.stroke();
+  // Остриё: две чёрточки от конца дуги назад и внутрь-наружу — обычная стрелка, только на дуге.
+  const back = ((to - RING_ARROW * 0.3) * Math.PI) / 180;
+  for (const away of [spread - CARD.w * 0.18, spread + CARD.w * 0.18]) {
+    g.beginPath();
+    g.moveTo(away * Math.sin(back), -away * Math.cos(back));
+    g.lineTo(tip.x, tip.y);
+    g.lineWidth = wide;
+    g.strokeStyle = SEAT.black;
+    g.stroke();
+    g.lineWidth = wide * 0.5;
+    g.strokeStyle = SEAT.cream;
+    g.stroke();
+  }
+  g.restore();
 }
 
 /** Этаж каждой карты сукна: лежит на перекрытой — на один выше самой высокой из-под себя. */
@@ -430,7 +472,7 @@ export interface FeltScene {
   /** Карта переворачивается: доля пути и какой она была до (сторона и лицо). */
   turning?: (id: string) => { p: number; up: boolean; face?: Face } | undefined;
   /** Стопки в порядке «кто сверху»: место, поворот, что под ней и карты снизу вверх. */
-  piles: (Point & { id: string; angle: number; pose?: ZonePose; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean; at?: Laid }[] })[];
+  piles: (Point & { id: string; angle: number; pose?: ZonePose; turn?: number; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean; at?: Laid }[] })[];
   felt: FeltItem[];
   /** Id вещи → цвет того, кто её сейчас держит (кроме меня). */
   held: Record<string, string>;
@@ -501,6 +543,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     return { x: (spot?.x ?? 0) + up.x, y: (spot?.y ?? 0) + up.y };
   };
   const drew: Record<string, { x: number; y: number; angle: number }> = {};
+  const arrows: Record<string, { turn: number; spread: number }> = {};
   const levels = feltLevels(o.felt);
   const feltAt = (id: string): Point | undefined => {
     const one = o.felt.find((f) => f.id === id);
@@ -589,6 +632,13 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       g.lineWidth = CARD.w * 0.035;
       g.strokeStyle = "rgba(245,234,208,.75)";
       g.stroke();
+      // СТРЕЛКА СТОИТ ПЕРЕД ГОЛОВОЙ — и только когда в круге есть карты: показывать не на что.
+      if (pile.cards.length > 0) {
+        const spread = ringSpread(Math.max(RING_LEAST, pile.cards.length));
+        const turn = (pile.turn ?? 0) - RING_ARROW / 2;
+        arrows[pile.id] = { turn, spread };
+        ringArrowArc(g, turn, spread);
+      }
       g.restore();
     } else if (cards.length === 0) {
       g.save();
@@ -680,5 +730,5 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     });
   });
 
-  return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk, deckAt, deckFacing, feltAt, drew };
+  return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk, deckAt, deckFacing, feltAt, drew, arrows };
 }

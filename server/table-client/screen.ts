@@ -2588,6 +2588,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         return d ? `${d.x.toFixed(3)},${d.y.toFixed(3)},${d.angle.toFixed(1)}` : null;
       }),
       up: cards.filter((c) => c.up).map((c) => c.id),
+      // Стрелка круга — так, как её НАРИСОВАЛИ: угол острия и радиус, на котором она легла.
+      arrow: view?.arrows[id] ?? null,
     };
     if (as === "pile") return out;
     return { deck: out.count, spot: out.spot, grip: out.grip, deckFace: out.face, deckTop: out.top, deckAir: out.air, deckIds: out.ids, deckUp: out.up };
