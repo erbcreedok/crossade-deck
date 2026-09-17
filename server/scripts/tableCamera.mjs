@@ -49,7 +49,9 @@ const ring = () => p.evaluate(() => {
   const disc = btn.querySelector("[data-lean]");
   const svg = btn.querySelector("svg");
   // Горит — золото (#f8d885) в градиенте диска; лежит плоско — панель стола.
-  return { turn: getComputedStyle(svg).transform, lit: /248, 216, 133/.test(getComputedStyle(disc).backgroundImage) };
+  // Сплющенность диска: высота положенного круга к его ширине — это и есть наклон, видимый глазом.
+  const box = disc.getBoundingClientRect();
+  return { turn: getComputedStyle(svg).transform, lit: /248, 216, 133/.test(getComputedStyle(disc).backgroundImage), squash: +(box.height / box.width).toFixed(3) };
 });
 const tapRing = async () => {
   const r = await p.locator("[data-home]").evaluate((e) => e.getBoundingClientRect().toJSON());
@@ -85,6 +87,7 @@ let v = await view();
 let c = await ring();
 check("камера в норме, а компас на месте", Math.abs(v.rotation) < 1 && v.pitch < 0.5 && c !== null, [v, c]);
 check("стол плоский — диск не горит", c && !c.lit, c);
+check("плоский стол — диск круглый", c && Math.abs(c.squash - 1) < 0.02, c);
 
 // ── 2. Диск наклоняет на 45°, а не на максимум ───────────────────────────────────────────────────
 await tapDisc();
@@ -92,6 +95,8 @@ v = await view();
 c = await ring();
 check(`тап по диску кладёт стол ровно на ${STEP}°`, Math.abs(v.pitch - STEP) < 1, v);
 check("наклонённый стол — диск горит", c && c.lit, c);
+// Круг, положенный на 45°, виден примерно как cos 45 ≈ 0.71 своей высоты; перспектива добавляет своё.
+check(`стол на ${STEP}° — диск лежит вместе с ним`, c && c.squash > 0.5 && c.squash < 0.85, c);
 
 // ── 3. Тот же диск поднимает обратно ─────────────────────────────────────────────────────────────
 await tapDisc();
@@ -99,6 +104,7 @@ v = await view();
 c = await ring();
 check("второй тап по диску возвращает стол в ноль", v.pitch < 0.5, v);
 check("плоский стол — диск снова не горит", c && !c.lit, c);
+check("и снова круглый", c && Math.abs(c.squash - 1) < 0.02, c);
 
 // ── 3б. КОМПАС ТЯНЕТСЯ: кольцо крутит стол, диск его кладёт — одним пальцем и без Ctrl ───────────
 await tapRing();

@@ -49,6 +49,8 @@ const T = {
   black: "#0b0704", ink: "#f5ead0", inkDim: "#cdb98f", gold: "#f2c14e",
   well: "#1c120b", panel: "#3a2a1d", panelLight: "#4a3627", wood: "#6b4d2c",
 };
+/** Как далеко «глаз» от диска компаса: чем ближе, тем сильнее перспектива у положенного диска. */
+const DISC_EYE = 90;
 const BAR_LOOK = { plateHi: "#25321f", plateLo: "#16210f", rim: "#6b4d2c", goldHi: "#f8d885", goldLo: "#b08a26" };
 
 /** НИЖНИЙ БАР И ПОЛОСА РУКИ — числа продукта. Единица HUD — доля стекла, а не единица сукна. */
@@ -2498,6 +2500,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const disc = lean
       ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}`
       : `background:linear-gradient(${T.panelLight},${T.panel});color:${T.inkDim}`;
+    // ДИСК ЛЕЖИТ ПАРАЛЛЕЛЬНО СТОЛУ: он наклонён ровно на тот же угол, и по его сплющенности видно
+    // наклон, не трогая камеру. Плоский стол — круг, положенный — эллипс, как сам стол в кадре.
+    const lie = `transform:perspective(${DISC_EYE}px) rotateX(${cam.camera.pitch.toFixed(1)}deg)`;
     return `<button data-home aria-label="К своему стулу" style="position:absolute;right:12px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:52px;height:52px;border:0;padding:0;z-index:45;`
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;`
       + `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}">`
@@ -2505,7 +2510,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `<path d="M26 5 L30 14 L22 14 Z" fill="${T.gold}"/><path d="M26 47 L22 38 L30 38 Z" fill="${BAR_LOOK.rim}"/>`
       + `<circle cx="7" cy="26" r="2" fill="${T.inkDim}" opacity=".7"/><circle cx="45" cy="26" r="2" fill="${T.inkDim}" opacity=".7"/></svg>`
       + `<span data-lean style="position:relative;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;`
-      + `box-shadow:inset 0 0 0 2px ${T.black};${disc}">`
+      + `box-shadow:inset 0 0 0 2px ${T.black};${lie};${disc}">`
       + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="pointer-events:none">`
       + `<rect x="2.5" y="7" width="12.5" height="10" rx="2.5"/><path d="M15 10.5 L21.5 7 v10 L15 13.5 Z"/></svg></span></button>`;
   }
