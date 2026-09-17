@@ -47,7 +47,14 @@ export interface TableMesh {
    */
   gains(): void;
   /** Как идут дела со связью у каждого: это видно человеку в настройках, когда голоса нет. */
-  links(): { who: string; state: string }[];
+  /**
+   * КАК ИДУТ ДЕЛА СО СВЯЗЬЮ У КАЖДОГО — по человеку, а не числом.
+   *
+   * `hears` — слышит ли ОН меня, `heard` — слышу ли я ЕГО: связь бывает односторонней, и «1 из 2»
+   * про это не скажет ничего. Человеку с телефона нужно назвать имя и сторону, иначе разбираться
+   * приходится вслепую.
+   */
+  links(): { who: string; state: string; hears: boolean; heard: boolean }[];
   /**
    * Сколько РЕЧИ пришло от каждого — накопленная звуковая энергия, а не байты: снятая дорожка всё равно
    * шлёт тишину, и по байтам молчание неотличимо от разговора.
@@ -75,7 +82,7 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
   const tell = () => {
     for (const fn of listeners) fn();
   };
-  const log = { peers: 0, open: false, aimed: null as string | null | undefined, heard: 0, talking: [] as string[], retired: false, mine: false, links: [] as string[] };
+  const log = { peers: 0, open: false, aimed: null as string | null | undefined, heard: 0, talking: [] as string[], retired: false, mine: false, links: [] as string[], called: {} as Record<string, number> };
   (globalThis as { __tableMesh?: unknown }).__tableMesh = log;
 
   const peers = new Map<string, Peer>();
@@ -160,7 +167,15 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
     log.peers = peers.size;
   }
 
-  function peerOf(key: string): Peer {
+  /**
+   * СВЯЗЬ С ЧЕЛОВЕКОМ. `caller` — зовём мы (ключ меньше, `callsFirst`) или отвечаем на зов.
+   *
+   * МЕСТО ПОД ГОЛОС ГОТОВИТ ТОЛЬКО ЗВОНЯЩИЙ. Когда его готовили оба, при одновременном зове линии
+   * расходились: у одного в паре место оставалось СВОИМ, не связанным с чужим, и связь получалась
+   * односторонней — он говорит, его слышат, а сам не слышит никого. Отвечающий берёт место из
+   * пришедшего предложения (`adopt`), и оно у пары всегда одно.
+   */
+  function peerOf(key: string, caller: boolean): Peer {
     const had = peers.get(key);
     if (had) return had;
     // Список спрашивается в момент связи, а не при запуске: приветствие может прийти позже первого кадра.
@@ -213,11 +228,26 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
     };
     // МЕСТО ПОД ГОЛОС ГОТОВИМ СРАЗУ, ещё до первого слова: тогда тот, кто только слушает, всё равно
     // договаривается о связи. Иначе молчун не согласуется ни с кем и не слышит никого.
-    peer.mine = pc.addTransceiver("audio", { direction: "sendrecv" }).sender;
+    if (caller) peer.mine = pc.addTransceiver("audio", { direction: "sendrecv" }).sender;
     // Дорожку новому пиру даёт ТОЛЬКО наводка: подсунуть её здесь — значит дать услышать личное тому, кто
     // подсел, пока я говорю на ухо другому.
     apply();
     return peer;
+  }
+
+  /**
+   * ВЗЯТЬ МЕСТО ИЗ ПРИШЕДШЕГО ПРЕДЛОЖЕНИЯ — и сказать, что мы в него тоже будем говорить.
+   *
+   * Зовётся ДО составления ответа: тогда в самом ответе уже стоит «говорю и слушаю», и лишнего круга
+   * согласования не нужно.
+   */
+  function adopt(peer: Peer): void {
+    if (peer.mine) return;
+    const place = peer.pc.getTransceivers().find((one) => one.receiver.track.kind === "audio");
+    if (!place) return;
+    place.direction = "sendrecv";
+    peer.mine = place.sender;
+    apply();
   }
 
   async function call(key: string): Promise<void> {
@@ -225,6 +255,8 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
     if (!peer) return;
     try {
       await peer.pc.setLocalDescription();
+      // Кому и сколько раз мы предлагали связь — по этому видно, что в паре зовёт ровно один.
+      log.called = { ...log.called, [key]: (log.called?.[key] ?? 0) + 1 };
       send({ to: key, kind: "offer", body: JSON.stringify(peer.pc.localDescription) });
     } catch {
       // Не сложилось — следующая попытка придёт с новым согласованием.
@@ -258,7 +290,8 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
     keep(people, me) {
       if (retired) return;
       mineKey = me;
-      for (const key of people) if (key !== me) peerOf(key);
+      // Зовёт тот, чей ключ меньше; второй ждёт предложения и берёт место из него.
+      for (const key of people) if (key !== me) peerOf(key, callsFirst(me, key));
       for (const key of [...peers.keys()]) if (!people.includes(key)) drop(key);
     },
     async hear(note) {
@@ -271,7 +304,7 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
         mesh.close();
         return;
       }
-      const peer = peerOf(note.from);
+      const peer = peerOf(note.from, false);
       try {
         if (note.kind === "bye") {
           drop(note.from);
@@ -288,6 +321,7 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
         if (sdp.type === "offer" && busy) await peer.pc.setLocalDescription({ type: "rollback" });
         await peer.pc.setRemoteDescription(sdp);
         if (sdp.type === "offer") {
+          adopt(peer);
           await peer.pc.setLocalDescription();
           send({ to: note.from, kind: "answer", body: JSON.stringify(peer.pc.localDescription) });
         }
@@ -329,7 +363,16 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
       for (const [key, peer] of peers) if (peer.sound) hush(peer.sound, gainFor(key));
     },
     links() {
-      return [...peers].map(([who, peer]) => ({ who, state: peer.pc.connectionState }));
+      return [...peers].map(([who, peer]) => {
+        // Куда договорились возить речь: `sendrecv` — в обе стороны, и только тогда пара слышит друг друга.
+        const way = peer.pc.getTransceivers().find((one) => one.receiver.track.kind === "audio")?.currentDirection ?? null;
+        return {
+          who,
+          state: peer.pc.connectionState,
+          hears: way === "sendrecv" || way === "sendonly",
+          heard: way === "sendrecv" || way === "recvonly",
+        };
+      });
     },
     async stats() {
       const out: Record<string, number> = {};
@@ -361,5 +404,15 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
   (globalThis as { __tableFlow?: unknown }).__tableFlow = () => mesh.stats();
   // И правда о самих связях: у кого с кем она сошлась. Глазами это не видно — состояние живёт внутри.
   (globalThis as { __tableLinks?: unknown }).__tableLinks = () => mesh.links();
+  (globalThis as { __tableWires?: unknown }).__tableWires = () => [...peers].map(([who, peer]) => ({
+    who,
+    state: peer.pc.connectionState,
+    ice: peer.pc.iceConnectionState,
+    signaling: peer.pc.signalingState,
+    polite: peer.polite,
+    mine: peer.mine?.track?.kind ?? null,
+    dirs: peer.pc.getTransceivers().map((t) => `${t.mid}:${t.direction}/${t.currentDirection}`),
+    recv: peer.pc.getReceivers().map((r) => `${r.track.kind}:${r.track.readyState}:${r.track.muted}`),
+  }));
   return mesh;
 }

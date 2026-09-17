@@ -291,12 +291,25 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       draw();
     },
     soundChanged: () => mesh.gains(),
-    // СТРОКА О ГОЛОСЕ — чтобы с телефона было что сказать, когда его не слышно: сколько связей встало.
+    /**
+     * СТРОКА О ГОЛОСЕ — ПО ЧЕЛОВЕКУ И ПО СТОРОНАМ, а не числом.
+     *
+     * Связь бывает односторонней: он меня слышит, а я его нет. «1 из 2» про это не говорит ничего, и
+     * разбираться с телефона приходится вслепую. Здесь названы имя, состояние связи и обе стороны.
+     */
     footer: () => {
       const links = mesh.links();
-      const live = links.filter((one) => one.state === "connected").length;
-      const voice = links.length === 0 ? "голос: не с кем" : `голос: ${live} из ${links.length}`;
-      return [`build ${TABLE_BUILD}`, voice, haptic.client].filter(Boolean).join(" · ");
+      const people = store.state.people;
+      const line = (one: { who: string; state: string; hears: boolean; heard: boolean }) => {
+        const name = people.find((p) => p.key === one.who)?.name ?? one.who;
+        if (one.state !== "connected") return `${escape(name)}: ${one.state === "failed" ? "связи нет" : "связь ещё идёт"}`;
+        if (one.hears && one.heard) return `${escape(name)}: слышим друг друга`;
+        if (one.heard) return `${escape(name)}: слышу его, он меня нет`;
+        if (one.hears) return `${escape(name)}: слышит меня, я его нет`;
+        return `${escape(name)}: канал пуст`;
+      };
+      const voice = links.length === 0 ? "голос: не с кем" : `голос:<br>${links.map((one) => `· ${line(one)}`).join("<br>")}`;
+      return [`build ${TABLE_BUILD}${haptic.client ? ` · ${haptic.client}` : ""}`, voice].join("<br>");
     },
     changed: () => draw(),
   });
