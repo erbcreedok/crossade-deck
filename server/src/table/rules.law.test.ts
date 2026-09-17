@@ -64,17 +64,18 @@ describe("рантайм стола не знает, какая на нём иг
   });
 
   it("песочница — это стол, где разрешено всё, а не стол без правил", () => {
-    const ask = { face: () => undefined, pile: () => [], hand: () => [], admin: () => false };
+    const ask = { face: () => undefined, pile: () => [], hand: () => [], admin: () => false , croupier: () => false };
     expect(SANDBOX.mayTake(ask, "x", { in: "felt" }, "me")).toBe(true);
     expect(SANDBOX.mayDrop(ask, "x", { in: "felt" }, "me")).toBe(true);
     expect(SANDBOX.mayCover(ask, "x", "y", "me")).toBe(true);
     expect(SANDBOX.mayGrip(ask, "p1", "me")).toBe(true);
+    expect(SANDBOX.mayPile(ask, "p1", { in: "hand", chair: "c1" }, "me")).toBe(true);
     expect(SANDBOX.handMax(ask, "c1")).toBe(Infinity);
   });
 
   it("каждый вопрос словаря стол действительно задаёт", () => {
     const text = readFileSync(join(HERE, "table.ts"), "utf8");
-    for (const q of ["mayTake", "mayDrop", "mayCover", "handMax", "mayGrip"]) {
+    for (const q of ["mayTake", "mayDrop", "mayCover", "handMax", "mayGrip", "mayPile"]) {
       expect(text, `правило ${q} заведено, но стол его не спрашивает`).toContain(`this.desk.${q}(`);
     }
   });

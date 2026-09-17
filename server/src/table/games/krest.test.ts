@@ -140,7 +140,7 @@ describe("выход, проигравший и раздающий", () => {
 
 describe("конфиг стола мастодонта", () => {
   const faces: Record<string, Face> = { six: c("6", "s"), king: c("K", "s"), joker: RED };
-  const ask: DeskAsk = { face: (id) => faces[id], pile: () => [], hand: () => [], admin: (k) => k === "админ" };
+  const ask: DeskAsk = { face: (id) => faces[id], pile: () => [], hand: () => [], admin: (k) => k === "админ" , croupier: () => false };
 
   it("кольцо объявлено зоной с позой, а не особым случаем в отрисовке", () => {
     const desk = krestDesk(() => null);
@@ -164,7 +164,7 @@ describe("конфиг стола мастодонта", () => {
 });
 
 describe("в кольцо кладёт только тот, чей ход", () => {
-  const ask: DeskAsk = { face: () => undefined, pile: () => [], hand: () => [], admin: (k) => k === "админ" };
+  const ask: DeskAsk = { face: () => undefined, pile: () => [], hand: () => [], admin: (k) => k === "админ" , croupier: () => false };
   const ring = { in: "deck" as const, pile: RING };
   const other = { in: "deck" as const, pile: "стопка" };
 

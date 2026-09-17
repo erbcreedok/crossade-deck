@@ -88,7 +88,7 @@ describe("стол крестового: кольцо стережёт очер�
     const k = krestTable(["Аня", "Боря"]);
     k.open(k.chairOf("Аня"));
     const desk = deskOf("krest", () => ({ turn: null, closer: "Боря" }));
-    const ask = { face: () => undefined, pile: () => [], hand: () => [], admin: (who: string) => who === "Аня" };
+    const ask = { face: () => undefined, pile: () => [], hand: () => [], admin: (who: string) => who === "Аня" , croupier: () => false };
     expect(desk.mayGrip(ask, RING, "Аня"), "админ").toBe(true);
     expect(desk.mayGrip(ask, RING, "Боря"), "закрыл круг").toBe(true);
     expect(desk.mayGrip(ask, RING, "Вика"), "прочие смотрят счётчик").toBe(false);

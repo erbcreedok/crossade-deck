@@ -120,6 +120,7 @@ export class Table {
     pile: (id) => this.piles.get(id)?.cards ?? [],
     hand: (chair) => this.chairs.get(chair)?.hand ?? [],
     admin: (key) => key === this.admin,
+    croupier: (chair) => this.chairs.get(chair)?.croupier === true,
   };
 
   /**
@@ -509,6 +510,7 @@ export class Table {
     if (!target || target.in === "felt" || (target.in === "deck" && target.pile === id)) return { refused: "bad" };
     if (source.spot.pin || source.spot.shut || source.spot.seal) return { refused: "locked" };
     if (!this.desk.mayGrip(this.ask, id, by)) return { refused: "locked" };
+    if (!this.desk.mayPile(this.ask, id, target, by)) return { refused: "locked" };
     if (source.cards.some((one) => (this.locks.has(one) && this.locks.get(one)!.by !== by) || (this.picks.has(one) && this.picks.get(one) !== by))) return { refused: "locked" };
     if (source.cards.length === 0) return { refused: "bad" };
     if (target.in === "hand" && this.closedTo(by, target.chair)) return { refused: "chair-locked" };

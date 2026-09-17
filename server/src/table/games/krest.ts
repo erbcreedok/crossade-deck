@@ -145,6 +145,16 @@ export function krestDesk(judge: () => { turn: string | null; closer: string | n
       if (pile !== RING) return true;
       return ask.admin(by) || by === (judge()?.closer ?? null);
     },
+    /**
+     * ОХАПКУ КАРТ ПРИНИМАЕТ ТОЛЬКО РУКА КРУПЬЕ. Игроку — по одной карте, и никак иначе.
+     *
+     * В крестовом рука — это счёт: по ней видно, кто близок к выходу и кто остался последним. Стопка,
+     * заброшенная в чужую руку одним движением, этот счёт стирает, и спорить потом не о чем —
+     * поэтому запрет здесь, а не уговор за столом. Крупье не играет, и его рука счёта не ведёт.
+     */
+    mayPile(ask: DeskAsk, _pile: string, to: { in: string; chair?: string }, _by: string): boolean {
+      return to.in !== "hand" || ask.croupier(to.chair ?? "");
+    },
   };
 }
 

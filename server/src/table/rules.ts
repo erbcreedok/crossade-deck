@@ -30,6 +30,8 @@ export interface DeskAsk {
   hand(chair: string): readonly string[];
   /** Он ли распорядитель стола. */
   admin(key: string): boolean;
+  /** Стул крупье: ему можно то, чего нельзя игрокам. */
+  croupier(chair: string): boolean;
 }
 
 /**
@@ -79,6 +81,11 @@ export interface DeskRules {
   handMax(ask: DeskAsk, chair: string): number;
   /** Грип зоны: кто может утащить стопку целиком. */
   mayGrip(ask: DeskAsk, pile: string, by: string): boolean;
+  /**
+   * КУДА МОЖНО ПОЛОЖИТЬ СТОПКУ ЦЕЛИКОМ. Отдельный вопрос от `mayDrop`: одна карта и охапка карт —
+   * разные ходы, и в игре с очередью охапка в чужой руке ломает счёт, а по одной — нет.
+   */
+  mayPile(ask: DeskAsk, pile: string, to: Spot, by: string): boolean;
 }
 
 /**
@@ -93,6 +100,7 @@ export const SANDBOX: DeskRules = {
   mayTake: () => true,
   mayDrop: () => true,
   mayCover: () => true,
+  mayPile: () => true,
   handMax: () => Infinity,
   mayGrip: () => true,
 };
