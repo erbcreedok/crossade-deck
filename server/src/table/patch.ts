@@ -72,7 +72,16 @@ function applyOp(s: Snapshot, op: Op): void {
       // сейчас поднимут. Без этой строки зона считала бы вернувшуюся карту новой и перекладывалась.
       const held = op.card.at ?? held0(s, op.card.id);
       const card = held ? { ...op.card, at: held } : op.card;
+      // ЯКОРЬ КРУГА ЖИВЁТ ПО ТОМУ ЖЕ ЗАКОНУ, ЧТО И НА СТОЛЕ. Иначе догадка разложит круг от другого
+      // угла, чем стол, и карты дёрнутся, когда придёт ответ.
+      const from = op.from;
+      const was = from.in === "deck" ? s.piles.find((one) => one.id === from.pile) : undefined;
+      const head = was?.pose === "ring" && was.cards[0]?.id === op.card.id;
       lift(s, op.card.id, op.from);
+      const to = op.to;
+      const target = to.in === "deck" ? s.piles.find((one) => one.id === to.pile) : undefined;
+      if (target?.pose === "ring" && target.cards.length === 0) target.turn = whenceOf(s, op.from);
+      else if (was && head && target !== was) stepArrow(was);
       place(s, card, op.to);
       if (op.trail) (s.trails ??= {})[op.card.id] = op.trail;
       return;
@@ -132,6 +141,19 @@ function applyOp(s: Snapshot, op: Op): void {
   }
 }
 
+/** С КАКОЙ СТОРОНЫ КАРТУ НЕСУТ — угол, под которым пустой круг примет свою первую карту. */
+function whenceOf(s: Snapshot, from: Where): number {
+  if (from.in === "hand") return s.chairs.find((one) => one.id === from.chair)?.angle ?? 0;
+  const at = from.in === "felt" ? from : s.piles.find((one) => one.id === from.pile);
+  return at ? turnOfPlace({ x: 0, y: 0 }, at) : 0;
+}
+
+/** Стрелка шагает на новую голову: круг от этого не шевелится, двигается только якорь. */
+function stepArrow(pile: { x: number; y: number; cards: SeenCard[]; turn?: number }): void {
+  const head = pile.cards[0]?.at;
+  if (head) pile.turn = turnOfPlace(pile, head);
+}
+
 /** Место, на котором карта лежит в зоне прямо сейчас, — до того, как её подняли. */
 function held0(s: Snapshot, id: string): Laid | undefined {
   for (const pile of s.piles) {
@@ -180,8 +202,7 @@ function place(s: Snapshot, card: SeenCard, to: Where): void {
       if (to.at) card.at = { ...to.at };
       else if (card.at !== undefined && to.i === undefined && ringKeeps(pile, card.at)) byTurn(pile);
       else if (card.at === undefined) {
-        const anchor = pile.cards[0]?.at ? turnOfPlace(pile, pile.cards[0]!.at!) : 0;
-        const places = ringLay(pile, pile.cards.length, anchor);
+        const places = ringLay(pile, pile.cards.length, pile.turn ?? 0);
         pile.cards.forEach((one, i) => (one.at = places[i]!));
       }
     }

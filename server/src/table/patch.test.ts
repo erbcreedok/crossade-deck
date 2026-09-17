@@ -51,4 +51,30 @@ describe("зона раскладывает и в разборе патча — 
     const mid = applyPatch(was, { v: 2, ops: [{ t: "move", card: { id: "a" }, from: { in: "deck", pile: "круг" }, to: { in: "felt", x: 4, y: 4, up: true, angle: 0 } }] });
     expect(mid.felt[0]!.at, "на сукне места зоны нет").toBeUndefined();
   });
+  it("ЯКОРЬ — СТРЕЛКА ЗОНЫ, а не первая карта: догадка раскладывает круг тем же углом, что и стол", () => {
+    // Круг повёрнут: якорь на 90°, карты стоят от него. Возьми догадка углом первой карты — совпало бы
+    // случайно; возьми нулём — круг провернулся бы весь. Проверяем, что взят именно якорь зоны.
+    const was: Snapshot = { ...ring([{ id: "a", at: { x: 1.5, y: 0, angle: -90 } }]), piles: [] };
+    was.piles = [{ ...DEFAULT_SPOT, id: "круг", pose: "ring", x: 0, y: 0, turn: 90, cards: [{ id: "a", at: { x: 1.5, y: 0, angle: -90 } }], shuffles: 0 }];
+    const now = applyPatch(was, { v: 2, ops: [{ t: "move", card: { id: "b" }, from: { in: "felt", x: 3, y: 3, up: false, angle: 0 }, to: { in: "deck", pile: "круг" } }] });
+    const laid = now.piles[0]!.cards;
+    expect(laid[0]!.at!.x, "голова осталась на якоре").toBeCloseTo(1.5, 4);
+    expect(laid[0]!.at!.y).toBeCloseTo(0, 4);
+    const turn = (p: { x: number; y: number }) => ((Math.atan2(p.x, -p.y) * 180) / Math.PI + 360) % 360;
+    expect(turn(laid[1]!.at!), "вторая — на шаг от якоря").toBeCloseTo(90 + (360 - 36) / 3, 3);
+  });
+
+  it("УНЕСЛИ ГОЛОВУ — догадка двигает стрелку, а не карты", () => {
+    const places = [
+      { id: "a", at: { x: 0, y: -1.5, angle: 180 } },
+      { id: "b", at: { x: 1.299, y: 0.75, angle: -60 } },
+      { id: "c", at: { x: -1.299, y: 0.75, angle: 60 } },
+    ];
+    const was = ring(places.map((one) => ({ ...one, at: { ...one.at } })));
+    was.piles[0]!.turn = 0;
+    const now = applyPatch(was, { v: 2, ops: [{ t: "move", card: { id: "a" }, from: { in: "deck", pile: "круг" }, to: { in: "felt", x: 4, y: 4, up: true, angle: 0 } }] });
+    const pile = now.piles[0]!;
+    expect(pile.cards.map((c) => c.at), "оставшиеся не шелохнулись").toEqual([places[1]!.at, places[2]!.at]);
+    expect(pile.turn, "стрелка встала на новую голову").toBeCloseTo(120, 2);
+  });
 });
