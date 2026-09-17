@@ -2840,7 +2840,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       if (tipGeom?.pile.id === pile.id) for (const gap of tipGaps) row.splice(Math.max(0, Math.min(row.length, gap.index)), 0, gap);
       pile.cards.forEach((c, i) => {
         const face = c.up ? c.face : undefined;
-        const key = `deck:${pile.id}:${i}`;
+        // КАРТА ЗОНЫ УЗНАЁТСЯ ПО СВОЕМУ МЕСТУ, а не по номеру в стопке: при перекладывании номер у
+        // многих не меняется, а место меняется у всех — и лететь должны все.
+        const key = c.at ? `deck:${pile.id}:${c.at.x.toFixed(2)},${c.at.y.toFixed(2)},${c.at.angle.toFixed(1)}` : `deck:${pile.id}:${i}`;
         if (tipGeom?.pile.id !== pile.id) return out.set(c.id, onDesk(key, v.deckAt(pile.id, i, pile.cards.length), 1, v.deckFacing(pile.id, i, pile.cards.length), face));
         const slot = tipGeom.slots[row.indexOf(c)]!;
         out.set(c.id, { key, x: slot.x, y: slot.y, w: tipGeom.box.cw, h: tipGeom.box.ch, angle: slot.angle, squash: 1, face });
@@ -2960,6 +2962,24 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return started;
   }
 
+  /**
+   * СЕРЕДИНА КОЛЬЦЕВОГО ПУТИ — если карта переезжает внутри одной и той же зоны с раскладкой.
+   *
+   * Берётся ровно на полпути по дуге: от середины зоны на том же удалении, на полугле между началом и
+   * концом. `null` — путь обычный, по прямой.
+   */
+  function ringArc(from: Place, to: Place): { x: number; y: number } | null {
+    const pile = [...seen().piles].find((one) => one.pose === "ring" && from.key.startsWith(`deck:${one.id}:`) && to.key.startsWith(`deck:${one.id}:`));
+    if (!pile || !view) return null;
+    const mid = view.toGlass({ x: pile.x, y: pile.y });
+    const a = Math.atan2(from.y - mid.y, from.x - mid.x);
+    const b = Math.atan2(to.y - mid.y, to.x - mid.x);
+    const step = (((b - a) % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+    const away = (Math.hypot(from.x - mid.x, from.y - mid.y) + Math.hypot(to.x - mid.x, to.y - mid.y)) / 2;
+    const turn = a + step / 2;
+    return { x: mid.x + away * Math.cos(turn), y: mid.y + away * Math.sin(turn) };
+  }
+
   function launch(id: string, from: Place, to: Place): void {
     // «Меньше анимаций» — карта сразу на месте.
     const flightMs = motion.ms(FLIGHT_MS);
@@ -2976,9 +2996,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const turns = !sameFace(from.face, to.face);
     el.innerHTML = cardHtml(turns ? from.face : to.face, to.w);
     layer.append(el);
-    const mid: Place = { ...to, x: (from.x + to.x) / 2, y: (from.y + to.y) / 2, w: (from.w + to.w) / 2, h: (from.h + to.h) / 2, angle: (from.angle + to.angle) / 2, squash: (from.squash + to.squash) / 2 };
-    const frames = turns
-      ? [{ transform: poseCss(from, to) }, { transform: poseCss(mid, to, 0.02), offset: 0.5 }, { transform: poseCss(to, to) }]
+    const half = { ...to, w: (from.w + to.w) / 2, h: (from.h + to.h) / 2, angle: (from.angle + to.angle) / 2, squash: (from.squash + to.squash) / 2 };
+    // ВНУТРИ КРУГА КАРТА ЕДЕТ ПО КРУГУ, а не поперёк него: она меняет своё место на кольце, и путь у
+    // неё кольцевой. По прямой она резала бы середину — читалось бы как «прыгнула», а не «подвинулась».
+    const arc = ringArc(from, to);
+    const mid: Place = { ...half, x: arc ? arc.x : (from.x + to.x) / 2, y: arc ? arc.y : (from.y + to.y) / 2 };
+    const frames = turns || arc
+      ? [{ transform: poseCss(from, to) }, { transform: poseCss(mid, to, turns ? 0.02 : 1) }, { transform: poseCss(to, to) }]
       : [{ transform: poseCss(from, to) }, { transform: poseCss(to, to) }];
     const run = el.animate(frames, { duration: flightMs, easing: "cubic-bezier(.2,.7,.3,1)" });
     if (turns) setTimeout(() => (el.innerHTML = cardHtml(to.face, to.w)), flightMs / 2);
@@ -3439,6 +3463,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       const keepsFace = (to.in === "hand" && to.chair === mine()) || (to.in === "felt" && to.up) || (to.in === "deck" && deckSide(store.state, to.pile, d.card.id, d.shown));
       const card: SeenCard = keepsFace && d.card.face ? { id: d.card.id, face: d.card.face, ...(to.in === "deck" ? { up: true } : {}) } : { id: d.card.id };
       pendings = [...pendings.filter((one) => one.id !== d.card.id), { id: d.card.id, from, to, card, sawLock: store.state.locks[d.card.id] === me() }];
+      // ОТПУСТИЛИ НАД ЗОНОЙ — карта летит из-под пальца на своё место, а не прыгает туда.
+      if (to.in === "deck" && pileOf(store.state, to.pile)?.pose === "ring") {
+        returning = {
+          id: d.card.id,
+          from: { key: "finger", x: d.x - d.gx + d.w / 2, y: d.y - d.gy - d.h * CARRY_CLEAR + d.h / 2, w: d.w, h: d.h, angle: 0, squash: 1, face: d.shown ? d.card.face : undefined },
+        };
+      }
       store.send({ t: "drop", id: d.card.id, to });
     }
     draw();

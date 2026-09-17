@@ -180,6 +180,46 @@ const kept = Object.entries(whoBefore).filter(([id]) => id !== takenId).every(([
 check("вернули в дыру — КАЖДАЯ карта осталась на своём месте", kept, { was: whoBefore, now: nowWho, taken: takenId });
 check("…и вернувшаяся легла ровно в дыру", nowWho[takenId] === whoBefore[takenId], { was: whoBefore[takenId], now: nowWho[takenId] });
 
+// КАРТЫ ЛЕТЯТ, А НЕ ПРЫГАЮТ. Летящая карта живёт отдельным элементом в воздухе (`data-flight`);
+// его-то и ловим сразу после дропа, пока полёт не кончился.
+const flying = () => p.evaluate(() => [...document.querySelectorAll("[data-flight]")].map((e) => e.dataset.flight));
+const four = await ringIds();
+// РОНЯЕМ В ХВОСТ, А НЕ НА КАРТУ: при вставке в середину номера карт и так сдвигаются, и полёт вышел
+// бы даже у неверного кода. В хвосте номера у всех прежние, а МЕСТА меняются у всех — вот это и есть
+// случай, ради которого карта узнаётся по своему месту.
+const toVoid = (await spots()).middle;
+const extra = (await spots()).deckTop;
+await p.mouse.move(extra.x, extra.y);
+await p.mouse.down();
+await p.mouse.move(195, 800, { steps: 5 });
+await p.mouse.up();
+await p.waitForTimeout(400);
+const lastCard = await p.locator("[data-card]").last().boundingBox();
+await p.mouse.move(lastCard.x + lastCard.width / 2, lastCard.y + 8);
+await p.mouse.down();
+await p.mouse.move(toVoid.x, toVoid.y, { steps: 8 });
+await p.mouse.up();
+// ОТКУДА НАЧИНАЕТСЯ ПОЛЁТ. Ловим первый же кадр: карта обязана стартовать ОТ ПАЛЬЦА. Стартуя из руки,
+// она сперва прыгнет назад в руку — это и читается как телепорт.
+const started = await p.evaluate(() => {
+  const e = document.querySelector("[data-flight]");
+  if (!e) return null;
+  const r = e.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+});
+check("полёт начинается от пальца, а не из руки", started !== null && Math.hypot(started.x - toVoid.x, started.y - toVoid.y) < 120, { started, finger: toVoid });
+// Сразу после дропа: летит и сама карта из-под пальца, и соседи на новые места.
+await p.waitForTimeout(90);
+const inAir = await flying();
+// ЛЕТЯТ СОСЕДИ — те, что уже лежали в круге: их места сменились, и они обязаны переехать плавно.
+const neighbours = four.filter((id) => inAir.includes(id));
+check("переложенные карты круга ЛЕТЯТ, а не прыгают", neighbours.length >= 2, { inAir, four });
+// ...и сама сброшенная летит из-под пальца на своё место, а не возникает там.
+const dropped = (await ringIds()).find((id) => !four.includes(id));
+check("и сброшенная летит из-под пальца", inAir.includes(dropped), { inAir, dropped });
+await p.waitForTimeout(700);
+check("и долетают — в воздухе пусто", (await flying()).length === 0, await flying());
+
 // ГРИП КРУГА: карты сходятся под палец, на местах остаются контуры, круг с места не двигается.
 const before = (await spots()).piles.find((p) => p.id === "ring").spot;
 const grip = await ringGrip();
