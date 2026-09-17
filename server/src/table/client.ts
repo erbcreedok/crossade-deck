@@ -51,24 +51,52 @@ export function clientRoutes(): Router {
     });
   });
 
+  /**
+   * КЛИЕНТ СОБИРАЕТСЯ ОДИН РАЗ ЗА ЗАПУСК. Выкатка — это новый процесс, поэтому свежая сборка долетает
+   * сразу и без всякой инвалидации, а второй заход за ней уже не платит ничего.
+   */
+  let built: Promise<{ js: string; map: string }> | null = null;
+  const bundle = () => (built ??= (async () => {
+    const { build } = await import("esbuild");
+    const out = await build({
+      entryPoints: [join(ROOT, "main.ts")],
+      bundle: true,
+      write: false,
+      format: "esm",
+      target: "es2020",
+      outfile: join(ROOT, "app.js"),
+      // КАРТА ИСХОДНИКОВ — ОТДЕЛЬНЫМ ФАЙЛОМ, а не внутри. Вшитая, она весила вчетверо больше самого
+      // клиента, и телефон тащил её по сети каждый заход, хотя не открывает её никогда. Ссылку на
+      // неё в конце файла читает только отладчик — он и скачает, когда понадобится.
+      sourcemap: "linked",
+      minify: true,
+      logLevel: "silent",
+      // Номер сборки — строкой внизу настроек: видно, что телефон открыл свежий стол.
+      define: { __TABLE_BUILD__: JSON.stringify(BUILD_INFO.build) },
+    });
+    const js = out.outputFiles.find((one) => one.path.endsWith(".js"))!.text;
+    const map = out.outputFiles.find((one) => one.path.endsWith(".map"))?.text ?? "";
+    return { js, map };
+  })().catch((err) => {
+    built = null;
+    throw err;
+  }));
+
   r.get("/table/app.js", fresh, async (_req, res) => {
     try {
-      const { build } = await import("esbuild");
-      const out = await build({
-        entryPoints: [join(ROOT, "main.ts")],
-        bundle: true,
-        write: false,
-        format: "esm",
-        target: "es2020",
-        sourcemap: "inline",
-        logLevel: "silent",
-        // Номер сборки — строкой внизу настроек: видно, что телефон открыл свежий стол.
-        define: { __TABLE_BUILD__: JSON.stringify(BUILD_INFO.build) },
-      });
-      res.type("js").send(out.outputFiles[0]!.text);
+      res.type("js").send((await bundle()).js);
     } catch (err) {
       console.error("клиент стола не собрался:", err);
       res.status(500).type("js").send(`document.body.textContent = ${JSON.stringify(`клиент не собрался: ${String(err)}`)};`);
+    }
+  });
+
+  // Карта исходников — по требованию отладчика, и только она одна кэшируется надолго: у неё своё имя на запуск.
+  r.get("/table/app.js.map", async (_req, res) => {
+    try {
+      res.type("application/json").send((await bundle()).map);
+    } catch {
+      res.status(404).end();
     }
   });
 
