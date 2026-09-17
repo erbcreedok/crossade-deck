@@ -5,7 +5,7 @@ import { TEST_PORTS, useTestServer } from "../roomHarness.js";
 import { MSG, TABLE_ROOM, type Carry, type Patch, type Refused, type Welcome } from "./contract.js";
 import { mintRoom } from "./roomIds.js";
 import { applyPatch } from "./patch.js";
-import { openEntry, runIn } from "./lobby.js";
+import { findEntry, openEntry, runIn } from "./lobby.js";
 import { BOT_KEY } from "./botPerson.js";
 import type { Say, Shot } from "./say.js";
 
@@ -176,4 +176,29 @@ describe("TableRoom", () => {
     expect(hands[seats[0]!], "раздали тому же стулу").toBe(2);
     expect(hands[seats[1]!], "а тому, кого в прошлой раздаче не было, — не раздали").toBe(0);
   }, 20000);
+
+  it("РАССАДКА ИЗ ЧАТА: чужому отказ; выгнанный уходит вместе со своим пустым стулом, новый стул встаёт", async () => {
+    const room = mintRoom(SECRET);
+    openEntry(room, { kind: "chat", chat: "-1" }, "tg:11");
+    const a = await sit(room, { door: "telegram", initData: initData(11, "Админ") });
+    const b = await sit(room, { door: "telegram", initData: initData(12, "Гость") });
+    await new Promise((r) => setTimeout(r, 120));
+    const his = findEntry(room)!.seats.find((s) => s.who?.key === "tg:12")!;
+    expect(his.cards, "карт у него нет").toBe(0);
+    // Рассадка — дело распорядителя: чужому отказ, а не тихое «ок».
+    expect(await runIn(room, "tg:12", { t: "seat", do: "kick", chair: his.id })).toEqual({ error: "not-admin" });
+    expect(await runIn(room, "tg:11", { t: "seat", do: "kick", chair: his.id })).toEqual({ ok: true });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(findEntry(room)!.people.map((p) => p.key), "выгнанного в комнате нет").not.toContain("tg:12");
+    expect(findEntry(room)!.seats.map((s) => s.id), "и пустой стул ушёл за ним").not.toContain(his.id);
+    const was = findEntry(room)!.seats.length;
+    expect(await runIn(room, "tg:11", { t: "seat", do: "add" })).toEqual({ ok: true });
+    expect(findEntry(room)!.seats).toHaveLength(was + 1);
+    // Раздающий — тоже рассадка: роль видна в той же карточке.
+    const mine = findEntry(room)!.seats.find((s) => s.who?.key === "tg:11")!;
+    expect(await runIn(room, "tg:11", { t: "seat", do: "dealer", chair: mine.id })).toEqual({ ok: true });
+    expect(findEntry(room)!.seats.find((s) => s.id === mine.id)!.dealer).toBe(true);
+    void a;
+    void b;
+  }, 15000);
 });

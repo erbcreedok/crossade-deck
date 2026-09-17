@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
 import { MENU, menuOf, parseOrder, refusedSay } from "./orders.js";
 
-const card: RoomCard = { room: "R".repeat(23), title: "Дурак", by: "tg:1", home: { kind: "chat", chat: "-1" }, people: [], createdAt: 0, kind: "sandbox", crew: "sandbox", admins: [] };
+const card: RoomCard = { room: "R".repeat(23), title: "Дурак", by: "tg:1", home: { kind: "chat", chat: "-1" }, people: [], seats: [], createdAt: 0, kind: "sandbox", crew: "sandbox", admins: [] };
 
 describe("команды комнаты в чате", () => {
   it("крупье: сажается и уводится словом и кнопкой", () => {

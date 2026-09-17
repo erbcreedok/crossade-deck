@@ -150,8 +150,10 @@ export function plan(table: Table, command: TableCommand, people: Who[], admin: 
     // Крупье исполняет комната сама: он не ход, а состав стола.
     case "croupier":
       return { error: "bad" };
-    // Перераздачу комната разворачивает в обычную раздачу сама: ей для этого нужна память о прошлой.
+    // Перераздачу и рассадку комната делает сама: одной нужна память о прошлой раздаче, другой — люди
+    // в комнате, а не карты на столе.
     case "redeal":
+    case "seat":
       return { error: "bad" };
     case "shuffle": {
       const pack = packOf(table);

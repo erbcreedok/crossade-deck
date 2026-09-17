@@ -12,7 +12,7 @@ import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
 import { tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
-import { MSG, type CarryOut, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type TableCommand, type Welcome } from "./contract.js";
+import { MSG, type CarryOut, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type SeatCard, type TableCommand, type Welcome } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
 import { cleanLive, ear, LiveTalk, liveTally, type Live } from "./live.js";
 import { cleanSignal, Signals, type Signal } from "./rtc.js";
@@ -91,6 +91,7 @@ export class TableRoom extends Room {
     this.table.setAdmins(adminsOf(this.room));
     attach(this.room, {
       people: () => this.table.here.filter((p) => !p.bot),
+      seats: () => this.seatCards(),
       close: () => void this.disconnect(),
       run: (by, command) => this.run(by, command),
       claim: (by) => this.spread(this.table.claim(by)),
@@ -331,8 +332,11 @@ export class TableRoom extends Room {
    */
   async run(by: string, order: TableCommand): Promise<RunResult> {
     // ПРАВО, А НЕ ЛИЧНОСТЬ: команду ведёт тот, кому выдан этот доступ (`access.ts`).
-    const right = RUN_RIGHTS[order.t];
+    // Забрать карты со стула — та же сборка, и право у неё то же: раздающему она тоже нужна.
+    const right = order.t === "seat" ? (order.do === "sweep" ? "table.collect" : "table.seats") : RUN_RIGHTS[order.t];
     if (right && !this.table.may(by, right)) return { error: "not-admin" };
+    // СОСТАВ СТОЛА — не ход по сукну: стулья ставятся и пустеют сразу, даже посреди раздачи.
+    if (order.t === "seat") return this.seatDo(order);
     // ПЕРЕРАЗДАЧА — обычная раздача с памятью: те же стулья, те же правила, начало — от нажавшего.
     const again = order.t === "redeal" ? this.again(by) : null;
     if (again && "error" in again) return again;
@@ -359,7 +363,17 @@ export class TableRoom extends Room {
     if ("error" in p) return p;
     if (p.deal) this.lastDeal = p.deal;
     const actor = p.actor === "bot" ? BOT_KEY : p.actor;
-    void execute(this.table, p.steps, actor, {
+    void execute(this.table, p.steps, actor, this.io()).then(() => {
+      // Раздача кончилась — собираем судью из того, что легло в руки. Раздающий у этой игры ходит
+      // последним, но первым ходит тот, у кого шестёрка козыря, — это решает сам судья.
+      if (command.t === "deal") this.openMatch(this.table.layout().chairs.find((c) => c.owner === by)?.id ?? null);
+    });
+    return { ok: true };
+  }
+
+  /** Руки, которыми играются шаги: дифы — всем, палец над картой — каждому своими глазами. */
+  private io(): Parameters<typeof execute>[3] {
+    return {
       spread: (ops) => this.spread(ops),
       carry: (id) => {
         for (const other of this.clients) {
@@ -371,12 +385,63 @@ export class TableRoom extends Room {
       },
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       now: () => Date.now(),
-    }).then(() => {
-      // Раздача кончилась — собираем судью из того, что легло в руки. Раздающий у этой игры ходит
-      // последним, но первым ходит тот, у кого шестёрка козыря, — это решает сам судья.
-      if (command.t === "deal") this.openMatch(this.table.layout().chairs.find((c) => c.owner === by)?.id ?? null);
-    });
+    };
+  }
+
+  /**
+   * РАССАДКА РУКОЙ. Выгнанный уходит ровно так же, как ушёл бы сам: стул с картами остаётся его
+   * ждать, пустой — уходит по общему правилу стола. Карты не пропадают ни в одном из случаев.
+   */
+  private seatDo(order: Extract<TableCommand, { t: "seat" }>): RunResult {
+    if (order.do === "add") {
+      this.spread(this.table.addChair());
+      return { ok: true };
+    }
+    const chair = this.table.layout().chairs.find((c) => c.id === order.chair && !c.croupier);
+    if (!chair) return { error: "no-dealer" };
+    if (order.do === "kick") {
+      if (chair.owner === null) return { ok: true };
+      const key = chair.owner;
+      // Сперва из комнаты Colyseus, потом со стола: иначе выгнанный тут же сядет обратно сам собой.
+      for (const one of [...this.clients]) if (this.seats.get(one.sessionId) === key) void one.leave();
+      this.spread(this.table.leave(key));
+      return { ok: true };
+    }
+    if (order.do === "dealer") {
+      if (chair.owner === null) return { error: "no-dealer" };
+      this.spread(this.table.handDealer(chair.owner));
+      return { ok: true };
+    }
+    // SWEEP — карты этого стула в руку крупье, по одной, как это делает сборка.
+    const hands = this.table.croupierSeat();
+    if (!hands || chair.hand.length === 0) return { ok: true };
+    if (this.table.busy) return { error: "busy" };
+    let i = this.table.layout().chairs.find((c) => c.id === hands)?.hand.length ?? 0;
+    const steps = [...chair.hand].reverse().map((id) => ({ t: "move" as const, id, to: { in: "hand" as const, chair: hands, i: i++ }, ms: 80 }));
+    void execute(this.table, steps, BOT_KEY, this.io());
     return { ok: true };
+  }
+
+  /**
+   * РАССАДКА ДЛЯ МЕНЮ В ЧАТЕ — игровые стулья по часовой. Стула крупье здесь нет: он не играет, карт
+   * не получает и в списке получателей ему делать нечего.
+   */
+  private seatCards(): SeatCard[] {
+    const admins = new Set(adminsOf(this.room));
+    const dealer = this.table.dealerKey;
+    return this.table.layout().chairs
+      .filter((c) => !c.croupier)
+      .sort((a, b) => a.angle - b.angle)
+      .map((c) => {
+        const who = c.owner === null ? undefined : this.table.here.find((p) => p.key === c.owner);
+        return {
+          id: c.id,
+          ...(who ? { who: { key: who.key, name: who.name } } : {}),
+          cards: c.hand.length,
+          ...(c.owner !== null && admins.has(c.owner) ? { admin: true as const } : {}),
+          ...(c.owner !== null && c.owner === dealer ? { dealer: true as const } : {}),
+        };
+      });
   }
 
   /** Чем была прошлая раздача — из неё растёт перераздача. Живёт, пока жива комната. */
@@ -425,19 +490,7 @@ export class TableRoom extends Room {
     if (act === "layout") return void this.layout(by, chair.id, chair.angle);
     const steps = act === "collect" ? collectSteps(this.table) : [];
     if (steps.length === 0) return;
-    void execute(this.table, steps, by, {
-      spread: (ops) => this.spread(ops),
-      carry: (id) => {
-        for (const other of this.clients) {
-          const key = this.seats.get(other.sessionId);
-          if (key === undefined) continue;
-          const [seen] = this.table.carriesSeenBy(key, id);
-          if (seen) other.send(MSG.carry, seen);
-        }
-      },
-      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-      now: () => Date.now(),
-    });
+    void execute(this.table, steps, by, this.io());
   }
 
   /** ВСЯ РУКА КРУПЬЕ — ОДНОЙ ЗАКРЫТОЙ СТОПКОЙ ПЕРЕД НИМ. */

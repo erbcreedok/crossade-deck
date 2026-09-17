@@ -60,6 +60,12 @@ export function readCommand(raw: unknown): TableCommand | null {
     return { t: "look", ...(faces ? { faces } : {}), ...(back ? { back } : {}) };
   }
   if (c.t === "redeal") return { t: "redeal" };
+  if (c.t === "seat") {
+    const acts = ["kick", "add", "sweep", "dealer"] as const;
+    const act = acts.find((a) => a === c.do);
+    if (!act) return null;
+    return { t: "seat", do: act, ...(typeof c.chair === "string" && c.chair ? { chair: c.chair.slice(0, 64) } : {}) };
+  }
   if (c.t === "deal") {
     const rule = c.rule === "each" ? "each" : game(c.rule);
     if (!rule) return null;

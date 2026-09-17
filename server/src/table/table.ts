@@ -1215,6 +1215,16 @@ export class Table {
 
   // ── СТУЛЬЯ ─────────────────────────────────────────────────────────────────────────────────
 
+  /**
+   * ПОСТАВИТЬ ПУСТОЙ СТУЛ. Он «вечный»: поставленный рукой стул не должен исчезать сам по правилу
+   * «пустой покинутый — вон», иначе его не дождётся тот, для кого его и ставили.
+   */
+  addChair(): Op[] {
+    const chair = this.newChair();
+    chair.forever = true;
+    return this.commit([{ t: "chair", chair: this.chairOut(chair) }]);
+  }
+
   private newChair(): ChairRow {
     this.seq += 1;
     const chair: ChairRow = {

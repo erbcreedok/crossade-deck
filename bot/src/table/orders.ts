@@ -182,6 +182,13 @@ export function started(command: TableCommand, title: string): string {
       return `Раздаю${command.rule === "each" ? ` по ${command.n ?? 1}` : ` — ${GAME[command.rule]}`} на «${title}».`;
     case "redeal":
       return `Перераздаю на «${title}» — тем же стульям, что и в прошлый раз.`;
+    case "seat":
+      return {
+        kick: `Выгоняю из «${title}».`,
+        add: `Ставлю ещё один пустой стул за «${title}».`,
+        sweep: `Забираю карты со стула в руку крупье — «${title}».`,
+        dealer: `Назначаю раздающего за «${title}».`,
+      }[command.do];
   }
 }
 

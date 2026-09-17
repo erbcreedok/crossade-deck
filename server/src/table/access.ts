@@ -12,14 +12,14 @@
 /**
  * ВСЁ, ЧТО МОЖНО СПРОСИТЬ. Ключ — `что.действие`.
  *
- *   table.*  стол целиком: раздать, собрать, перемешать, пресет, вид карт, роли, крупье
+ *   table.*  стол целиком: раздать, собрать, перемешать, пресет, вид карт, рассадка, роли, крупье
  *   pile.*   стопка: взять из неё, положить в неё, сгрести целиком, переставить, замки
  *   hand.*   рука: взять, положить, переложить, перевернуть, поза, флаги стула
  *   card.*   карта: накрыть другую, перевернуть одну
  *   crew.*   дела набора крупье — обычные ключи, а не отдельный вид конфига
  */
 export const KEYS = [
-  "table.deal", "table.collect", "table.shuffle", "table.preset", "table.look", "table.croupier", "table.roles", "table.close",
+  "table.deal", "table.collect", "table.shuffle", "table.preset", "table.look", "table.croupier", "table.seats", "table.roles", "table.close",
   "pile.take", "pile.drop", "pile.grip", "pile.move", "pile.guard",
   "hand.take", "hand.drop", "hand.reorder", "hand.flip", "hand.pose", "hand.flags",
   "card.cover", "card.turn",
@@ -146,9 +146,9 @@ export const ROLES = {
    * не отдают: РАЗДАВАТЬ РОЛИ и ЗАКРЫТЬ КОМНАТУ. Поэтому админа он выдаёт и забирает, а сам админ —
    * не может ни того, ни другого: иначе комнату отбирают у хозяина его же кнопкой.
    */
-  owner: ["table.deal", "table.collect", "table.shuffle", "table.preset", "table.look", "table.croupier", "table.roles", "table.close", "pile.guard", "hand.pose", "hand.flags"],
+  owner: ["table.deal", "table.collect", "table.shuffle", "table.preset", "table.look", "table.croupier", "table.seats", "table.roles", "table.close", "pile.guard", "hand.pose", "hand.flags"],
   /** РАСПОРЯДИТЕЛЬ — ведёт стол: раздаёт, собирает, правит замки и позы. Ролей не раздаёт. */
-  admin: ["table.deal", "table.collect", "table.shuffle", "table.preset", "table.look", "table.croupier", "pile.guard", "hand.pose", "hand.flags"],
+  admin: ["table.deal", "table.collect", "table.shuffle", "table.preset", "table.look", "table.croupier", "table.seats", "pile.guard", "hand.pose", "hand.flags"],
   /** РАЗДАЮЩИЙ этой сессии: ровно работа сдающего. */
   dealer: ["table.deal", "table.collect", "table.shuffle"],
   /** ИГРОК — все за столом. Со своими картами он и так волен, отдельных ключей ему не нужно. */
