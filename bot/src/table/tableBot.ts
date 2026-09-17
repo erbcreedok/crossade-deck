@@ -13,7 +13,7 @@ import { deskNames } from "../../../server/src/table/desks.js";
 import type { TableApi } from "./api.js";
 import type { Home, RoomCard, TableCommand } from "../../../server/src/table/contract.js";
 import { MENU, menuOf, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
-import { DOWN, askTitle, closed, gone, inlineOpened, inviteArticle, inviteExisting, listed, mayManage, notYours, opened, recast, renamed, type Button, type Links } from "./talk.js";
+import { DOWN, askTitle, closed, gone, inlineOpened, inviteArticle, inviteExisting, listed, mayManage, notOwner, notYours, opened, recast, renamed, roleSaid, type Button, type Links } from "./talk.js";
 import type { Registry } from "./registry.js";
 import type { Watch } from "./watch.js";
 import { installStickers } from "./stickers.js";
@@ -125,7 +125,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     const cards = await tablesFor(ctx);
     if (cards === "down") return void (await ctx.reply(DOWN));
     if (cards.length === 0) return void (await ctx.reply("Здесь нет комнат. Открыть: /table [название]"));
-    const said = cards.length === 1 ? menuOf(cards[0]!, deskNames()) : pickForMenu(cards);
+    const said = cards.length === 1 ? menuOf(cards[0]!, deskNames(), byOf(ctx)) : pickForMenu(cards);
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
   });
 
@@ -150,7 +150,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
       if (!afar) await ctx.answerCallbackQuery();
       return void (await say(afar ? notYours : gone));
     }
-    const said = menuOf(card, deskNames());
+    const said = menuOf(card, deskNames(), byOf(ctx));
     if (afar) {
       const sent = await ctx.api.sendMessage(ctx.from.id, said.text, { reply_markup: keyboardOf(said.rows) }).catch(() => null);
       return void (await ctx.answerCallbackQuery(
@@ -178,6 +178,20 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     await runAndSay(ctx, room, command, wait.by);
   });
 
+  // РАСПОРЯДИТЕЛЯ ВЫДАЛИ ИЛИ ЗАБРАЛИ. Может только хозяин комнаты; сервер проверяет это сам, а бот
+  // просто передаёт, кто нажал.
+  bot.callbackQuery(/^tba:(0|1):([A-Za-z0-9_-]+):(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const [, on, room, who] = ctx.match as unknown as [string, "0" | "1", string, string];
+    const out = await api.setAdmin(room, byOf(ctx), who, on === "1");
+    if (out === "down") return void (await ctx.reply(DOWN));
+    if (out === "missing") return void (await ctx.reply(gone));
+    if (out === "forbidden") return void (await ctx.reply(notOwner));
+    const said = menuOf(out, deskNames(), byOf(ctx));
+    const name = out.people.find((p) => p.key === who)?.name ?? "игрок";
+    await ctx.reply(`${roleSaid(name, on === "1")}\n${said.text}`, { reply_markup: keyboardOf(said.rows) });
+  });
+
   // РОД СТОЛА СМЕНИЛИ КНОПКОЙ. Стол не разгоняется: меняются правила, карты и люди остаются.
   bot.callbackQuery(/^tbk:([A-Za-z0-9_-]+):([a-z]+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
@@ -190,7 +204,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     const out = await api.recast(room, kind);
     if (out === "down") return void (await ctx.reply(DOWN));
     if (out === "missing") return void (await ctx.reply(gone));
-    const said = menuOf(out, deskNames());
+    const said = menuOf(out, deskNames(), byOf(ctx));
     await ctx.reply(`${recast(out.title, deskNames().find((k) => k.id === out.kind)?.name ?? out.kind)}\n${said.text}`, { reply_markup: keyboardOf(said.rows) });
   });
 
@@ -214,7 +228,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
       naming.set(`${chatOf(ctx)}:${ctx.from.id}`, room);
       return void (await ctx.reply(askTitle(card.title)));
     }
-    const done = await api.close(room);
+    const done = await api.close(room, byOf(ctx));
     if (done === "down") return void (await ctx.reply(DOWN));
     watch.forget(chatOf(ctx), room);
     registry.forget(room);

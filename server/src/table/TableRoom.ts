@@ -31,7 +31,7 @@ import { whoIs, type Who } from "./identity.js";
 import { deskOf } from "./desks.js";
 import { RING } from "./games/krest.js";
 import { allowed as allowedIn, move, start, type Match } from "./games/match.js";
-import { attach, creatorOf, crewKind, kindOf, openEntry, titleOf } from "./lobby.js";
+import { adminsOf, attach, creatorOf, crewKind, kindOf, openEntry, titleOf } from "./lobby.js";
 import { actOf, crewOf } from "./crews.js";
 import type { Play } from "./contract.js";
 import { seatPoint } from "./ring.js";
@@ -88,6 +88,7 @@ export class TableRoom extends Room {
     this.table = new Table(deal(), creatorOf(this.room), deskOf(kindOf(this.room), () => this.judgeView()));
     // СОСТОЯНИЕ ПАРТИИ В СНИМКЕ: стол её не судит, он только возит то, что скажет комната.
     this.table.play = (viewer) => this.playFor(viewer);
+    this.table.setAdmins(adminsOf(this.room));
     attach(this.room, {
       people: () => this.table.here.filter((p) => !p.bot),
       close: () => void this.disconnect(),
@@ -96,6 +97,11 @@ export class TableRoom extends Room {
       // РОД СМЕНИЛИ НА ХОДУ: стол берёт другие правила, а карты и люди остаются на местах. Партия
       // старого рода при этом кончается — судить её стало нечем.
       recrew: () => this.resend(),
+      // РАСПОРЯДИТЕЛЯ ВЫДАЛИ ИЛИ ЗАБРАЛИ — права меняются у всех сразу, стол шлёт их заново.
+      admins: (keys) => {
+        this.table.setAdmins(keys);
+        this.resend();
+      },
       recast: (kind) => {
         this.match = null;
         this.table.recast(deskOf(kind, () => this.judgeView()));

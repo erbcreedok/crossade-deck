@@ -19,7 +19,7 @@
  *   crew.*   дела набора крупье — обычные ключи, а не отдельный вид конфига
  */
 export const KEYS = [
-  "table.deal", "table.collect", "table.shuffle", "table.preset", "table.look", "table.croupier", "table.roles",
+  "table.deal", "table.collect", "table.shuffle", "table.preset", "table.look", "table.croupier", "table.roles", "table.close",
   "pile.take", "pile.drop", "pile.grip", "pile.move", "pile.guard",
   "hand.take", "hand.drop", "hand.reorder", "hand.flip", "hand.pose", "hand.flags",
   "card.cover", "card.turn",
@@ -141,8 +141,17 @@ export function may(key: Key, ask: Ask): Verdict {
  * столом; со своими картами он и так волен, и отдельных ключей ему не нужно.
  */
 export const ROLES = {
-  admin: ["table.deal", "table.collect", "table.shuffle", "table.preset", "table.look", "table.croupier", "table.roles", "pile.guard", "hand.pose", "hand.flags"],
+  /**
+   * ХОЗЯИН — тот, кто открыл комнату. Всё, что есть у распорядителя, и сверх того два дела, которых
+   * не отдают: РАЗДАВАТЬ РОЛИ и ЗАКРЫТЬ КОМНАТУ. Поэтому админа он выдаёт и забирает, а сам админ —
+   * не может ни того, ни другого: иначе комнату отбирают у хозяина его же кнопкой.
+   */
+  owner: ["table.deal", "table.collect", "table.shuffle", "table.preset", "table.look", "table.croupier", "table.roles", "table.close", "pile.guard", "hand.pose", "hand.flags"],
+  /** РАСПОРЯДИТЕЛЬ — ведёт стол: раздаёт, собирает, правит замки и позы. Ролей не раздаёт. */
+  admin: ["table.deal", "table.collect", "table.shuffle", "table.preset", "table.look", "table.croupier", "pile.guard", "hand.pose", "hand.flags"],
+  /** РАЗДАЮЩИЙ этой сессии: ровно работа сдающего. */
   dealer: ["table.deal", "table.collect", "table.shuffle"],
+  /** ИГРОК — все за столом. Со своими картами он и так волен, отдельных ключей ему не нужно. */
   player: [],
 } as const satisfies Record<string, readonly Key[]>;
 

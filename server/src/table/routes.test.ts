@@ -95,6 +95,26 @@ describe("/table/rooms — бот управляет столами", () => {
     expect(steal.title).toBe("Стол «Обетованный щит»");
   });
 
+  it("РАСПОРЯДИТЕЛЯ ВЫДАЁТ ТОЛЬКО ХОЗЯИН КОМНАТЫ", async () => {
+    const room = await (await call("/table/rooms", { method: "POST", json: { home: { kind: "inline", message: "m" }, by: "tg:1" } })).json();
+    const gave = await call(`/table/rooms/${room.room}/admins`, { method: "POST", json: { by: "tg:1", key: "tg:2", on: true } });
+    expect(gave.status).toBe(200);
+    expect((await gave.json()).admins).toEqual(["tg:2"]);
+
+    const stolen = await call(`/table/rooms/${room.room}/admins`, { method: "POST", json: { by: "tg:2", key: "tg:3", on: true } });
+    expect(stolen.status, "распорядитель ролей не раздаёт").toBe(403);
+
+    const back = await call(`/table/rooms/${room.room}/admins`, { method: "POST", json: { by: "tg:1", key: "tg:2", on: false } });
+    expect((await back.json()).admins, "и забирает тоже хозяин").toEqual([]);
+  });
+
+  it("ЗАКРЫТЬ КОМНАТУ МОЖЕТ ТОЛЬКО ХОЗЯИН — распорядителю этого не отдают", async () => {
+    const room = await (await call("/table/rooms", { method: "POST", json: { home: { kind: "inline", message: "m" }, by: "tg:1" } })).json();
+    await call(`/table/rooms/${room.room}/admins`, { method: "POST", json: { by: "tg:1", key: "tg:2", on: true } });
+    expect((await call(`/table/rooms/${room.room}?by=tg:2`, { method: "DELETE" })).status).toBe(403);
+    expect((await call(`/table/rooms/${room.room}?by=tg:1`, { method: "DELETE" })).status).toBe(200);
+  });
+
   it("много комнат на чат: открыть, перечислить, переименовать, закрыть", async () => {
     const one = await (await call("/table/rooms", { method: "POST", json: { home: { kind: "chat", chat: "-100" }, by: "tg:1", title: "Дурак" } })).json();
     await call("/table/rooms", { method: "POST", json: { home: { kind: "chat", chat: "-100" }, by: "tg:1" } });

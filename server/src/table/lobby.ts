@@ -19,10 +19,12 @@ interface Entry {
   kind: string;
   /** НАБОР КРУПЬЕ (`crews.ts`) — отдельно от рода: игра его только предлагает. */
   crew: string;
+  /** Кому ВЫДАН распорядитель. Хозяина здесь нет: он хозяин по рождению комнаты. */
+  admins: string[];
   home: Home;
   by: string;
   createdAt: number;
-  live?: { people: () => Person[]; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; claim?: (by: string) => void; recast?: (kind: string) => void; recrew?: (crew: string) => void };
+  live?: { people: () => Person[]; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; claim?: (by: string) => void; recast?: (kind: string) => void; recrew?: (crew: string) => void; admins?: (keys: string[]) => void };
 }
 
 const rooms = new Map<string, Entry>();
@@ -37,6 +39,7 @@ const card = (e: Entry): RoomCard => ({
   title: e.title,
   kind: e.kind,
   crew: e.crew,
+  admins: [...e.admins],
   by: e.by,
   home: e.home,
   people: e.live?.people() ?? [],
@@ -63,6 +66,7 @@ export function openEntry(room: string, home: Home, by: string, title?: string, 
     home,
     by,
     kind: desk,
+    admins: [],
     crew: isCrew(crew) ? crew : (deskCrew(desk) ?? DEFAULT_CREW),
     title: uniqueTitle(title?.trim() || titleFrom(deskName(desk), home.kind === "chat" ? home.chatTitle : undefined), takenTitles()),
     createdAt: now,
@@ -124,6 +128,25 @@ export function recast(room: string, kind: string): RoomCard | undefined {
   return card(e);
 }
 
+/**
+ * ВЫДАТЬ ИЛИ ЗАБРАТЬ РАСПОРЯДИТЕЛЯ. Может только ХОЗЯИН комнаты — тот, кто её открыл.
+ *
+ * Распорядитель ролей не раздаёт нарочно: иначе комнату отбирают у хозяина его же кнопкой. Себя
+ * хозяин в список не вносит: он и так хозяин, и снять это нельзя.
+ */
+export function setAdmin(room: string, by: string, key: string, on: boolean): RoomCard | undefined | "forbidden" {
+  const e = rooms.get(room);
+  if (!e) return undefined;
+  if (by !== e.by) return "forbidden";
+  if (key === e.by) return card(e);
+  const keys = new Set(e.admins);
+  if (on) keys.add(key);
+  else keys.delete(key);
+  e.admins = [...keys];
+  e.live?.admins?.(e.admins);
+  return card(e);
+}
+
 /** Сменить набор крупье. Незнакомый набор — отказ: его выбирает человек кнопкой. */
 export function recrew(room: string, crew: string): RoomCard | undefined {
   const e = rooms.get(room);
@@ -139,6 +162,12 @@ export function rename(room: string, title: string): RoomCard | undefined {
   e.title = uniqueTitle(title.trim(), takenTitles(room));
   return card(e);
 }
+
+/** Кому эта комната принадлежит: закрыть её может только он. */
+export const ownerOf = (room: string): string | null => rooms.get(room)?.by || null;
+
+/** Кому в этой комнате выдан распорядитель. */
+export const adminsOf = (room: string): string[] => [...(rooms.get(room)?.admins ?? [])];
 
 export function closeEntry(room: string): boolean {
   const e = rooms.get(room);

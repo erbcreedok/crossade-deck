@@ -6,7 +6,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { allowed, grantedTo, isRole, KEYS, may, no, ROLES, why, type Key } from "./access.js";
+import { allowed, grantedTo, isRole, KEYS, may, no, ROLES, why, type Key, type Role } from "./access.js";
 import { deal } from "./deal.js";
 import { Table } from "./table.js";
 import { MAIN_PILE, type Person } from "./contract.js";
@@ -20,21 +20,21 @@ const table = (...keys: string[]) => {
 const seatOf = (t: Table, who: string) => t.layout().chairs.find((c) => c.owner === who)!.id;
 
 describe("наборы доступов", () => {
-  const set = (...roles: ("admin" | "dealer" | "player")[]) => grantedTo(roles).sort();
+  const set = (...roles: Role[]) => grantedTo(roles).sort();
 
   it("у распорядителя — стол целиком, у раздающего — работа сдающего, у игрока — ничего лишнего", () => {
-    expect(set("admin")).toEqual([...ROLES.admin].sort());
+    expect(set("owner")).toEqual([...ROLES.owner].sort());
     expect(set("dealer")).toEqual(["table.collect", "table.deal", "table.shuffle"]);
     expect(set("player")).toEqual([]);
   });
 
   it("НАЗНАЧЕНИЕ РОЛЕЙ — такой же ключ, как всё прочее", () => {
-    expect(set("admin")).toContain("table.roles");
+    expect(set("owner")).toContain("table.roles");
     expect(set("dealer"), "раздающий ролей не раздаёт").not.toContain("table.roles");
   });
 
   it("роли складываются: распорядитель, взявший раздачу, остаётся распорядителем", () => {
-    expect(set("admin", "dealer")).toEqual([...ROLES.admin].sort());
+    expect(set("owner", "dealer")).toEqual([...ROLES.owner].sort());
   });
 
   it("игра может добавить свои ключи всем — их не выдают ролью", () => {
@@ -89,9 +89,9 @@ describe("разбор: четыре источника, первый отказ
 });
 
 describe("роли за столом", () => {
-  it("создатель — админ, пока он за столом; прочие — игроки", () => {
+  it("создатель — хозяин; прочие — игроки", () => {
     const t = table("Аня", "Боря");
-    expect(t.rolesOf("Аня").sort()).toEqual(["admin", "player"]);
+    expect(t.rolesOf("Аня").sort()).toEqual(["owner", "player"]);
     expect(t.rolesOf("Боря")).toEqual(["player"]);
   });
 
@@ -120,11 +120,38 @@ describe("роли за столом", () => {
 
   it("мои права едут в снимке — экран рисует кнопки по ним, а не гадает, кто я", () => {
     const t = table("Аня", "Боря");
-    expect([...t.seenBy("Аня").rights].sort()).toEqual([...ROLES.admin].sort());
+    expect([...t.seenBy("Аня").rights].sort()).toEqual([...ROLES.owner].sort());
     expect(t.seenBy("Боря").rights).toEqual([]);
     t.act("Аня", { t: "dealer", key: "Боря" }, 0);
     expect([...t.seenBy("Боря").rights].sort()).toEqual(["table.collect", "table.deal", "table.shuffle"]);
     expect(t.seenBy("Боря").dealer).toBe("Боря");
+  });
+});
+
+describe("ХОЗЯИН И РАСПОРЯДИТЕЛЬ", () => {
+  it("выданный распорядитель ведёт стол, но ролей не раздаёт и комнату не закрывает", () => {
+    const t = table("Аня", "Боря");
+    t.setAdmins(["Боря"]);
+    expect(t.rolesOf("Боря").sort()).toEqual(["admin", "player"]);
+    expect(t.may("Боря", "table.deal"), "стол ведёт").toBe(true);
+    expect(t.may("Боря", "pile.guard"), "замки стопок его").toBe(true);
+    expect(t.may("Боря", "table.roles"), "а роли — нет").toBe(false);
+    expect(t.may("Боря", "table.close"), "и закрыть комнату — нет").toBe(false);
+  });
+
+  it("ХОЗЯИНОМ НЕ СТАТЬ ПО ВЫДАЧЕ: он им родился вместе с комнатой", () => {
+    const t = table("Аня", "Боря");
+    t.setAdmins(["Аня", "Боря"]);
+    expect(t.rolesOf("Аня").sort(), "хозяин остаётся хозяином, а не становится вторым распорядителем").toEqual(["owner", "player"]);
+    expect(t.may("Аня", "table.close")).toBe(true);
+  });
+
+  it("роль забрали — права ушли с нею", () => {
+    const t = table("Аня", "Боря");
+    t.setAdmins(["Боря"]);
+    t.setAdmins([]);
+    expect(t.rolesOf("Боря")).toEqual(["player"]);
+    expect(t.may("Боря", "table.deal")).toBe(false);
   });
 });
 
@@ -159,7 +186,7 @@ describe("ЗАКОН: модель доступа одна", () => {
   it("нигде не сравнивают личность с распорядителем — спрашивают ключ", () => {
     // ДВА МЕСТА, ГДЕ СРАВНЕНИЕ ЗАКОННО: там, где роль ВЫДАЁТСЯ (`rolesOf`), и там, где о смене
     // распорядителя объявляют дифом. Всё остальное обязано спрашивать ключ.
-    const born = /out\.push\("admin"\)|t: "admin"/;
+    const born = /out\.push\("(owner|admin)"\)|t: "admin"/;
     const guilty: string[] = [];
     for (const file of files) {
       for (const line of lines(readFileSync(join(dir, file), "utf8"))) {

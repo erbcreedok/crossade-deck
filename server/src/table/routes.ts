@@ -13,7 +13,7 @@ import { tableConfig } from "./config.js";
 import { DEFAULT_DESK, isDesk } from "./desks.js";
 import { isCrew } from "./crews.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
-import { closeEntry, findEntry, openEntry, recast, recrew, rehome, rename, roomsAt, roomsBy, runIn } from "./lobby.js";
+import { closeEntry, findEntry, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, runIn, setAdmin } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 
 /** Этот запуск. Новый процесс — новый `boot`: по нему бот понимает, что прежних столов нет. */
@@ -136,7 +136,23 @@ export function tableRoutes(): Router {
     res.json(out);
   });
 
+  /**
+   * РАСПОРЯДИТЕЛЯ ВЫДАЁТ ХОЗЯИН КОМНАТЫ. Кто просит — говорит `by`; чужому — отказ, а не тихое «ок».
+   */
+  r.post("/table/rooms/:room/admins", guarded, (req, res) => {
+    const body = (req.body ?? {}) as { by?: unknown; key?: unknown; on?: unknown };
+    if (typeof body.by !== "string" || typeof body.key !== "string" || typeof body.on !== "boolean") return void res.status(400).json({ error: "bad_request" });
+    const out = setAdmin(req.params.room, body.by, body.key, body.on);
+    if (out === undefined) return void res.status(404).json({ error: "not_found" });
+    if (out === "forbidden") return void res.status(403).json({ error: "not_owner" });
+    res.json(out);
+  });
+
   r.delete("/table/rooms/:room", guarded, (req, res) => {
+    // ЗАКРЫТЬ КОМНАТУ МОЖЕТ ТОЛЬКО ХОЗЯИН: распорядителю этого не отдают.
+    const by = typeof req.query.by === "string" ? req.query.by : null;
+    const owner = ownerOf(req.params.room);
+    if (owner !== null && by !== null && by !== owner) return void res.status(403).json({ error: "not_owner" });
     if (!closeEntry(req.params.room)) return void res.status(404).json({ error: "not_found" });
     res.json({ ok: true });
   });

@@ -65,6 +65,30 @@ export class TableApi {
     return this.call<RoomCard>("POST", "/table/rooms", { home, by, ...(title ? { title } : {}), ...(room ? { room } : {}), ...(kind ? { kind } : {}) });
   }
 
+  /**
+   * ВЫДАТЬ ИЛИ ЗАБРАТЬ РАСПОРЯДИТЕЛЯ. Может только хозяин комнаты; проверяет это сервер.
+   *
+   * ОТКАЗ ПО ПРАВУ — отдельный ответ, а не «сервер молчит»: человеку надо сказать, что дело в
+   * правах, а не в том, что стол выключен.
+   */
+  async setAdmin(room: string, by: string, key: string, on: boolean): Promise<RoomCard | "down" | "missing" | "forbidden"> {
+    const at = await this.where();
+    if (!at.up) return "down";
+    try {
+      const res = await this.http(`${at.url}/table/rooms/${room}/admins`, {
+        method: "POST",
+        headers: { "content-type": "application/json", [SECRET_HEADER]: this.env.secret },
+        body: JSON.stringify({ by, key, on }),
+      });
+      if (res.status === 403) return "forbidden";
+      if (res.status === 404) return "missing";
+      if (!res.ok) return "down";
+      return (await res.json()) as RoomCard;
+    } catch {
+      return "down";
+    }
+  }
+
   /** Сменить род стола на ходу. */
   recast(room: string, kind: string) {
     return this.call<RoomCard>("PATCH", `/table/rooms/${room}`, { kind });
@@ -91,8 +115,8 @@ export class TableApi {
     return this.call<RoomCard>("PATCH", `/table/rooms/${room}`, { home });
   }
 
-  close(room: string) {
-    return this.call<{ ok: true }>("DELETE", `/table/rooms/${room}`);
+  close(room: string, by: string) {
+    return this.call<{ ok: true }>("DELETE", `/table/rooms/${room}?by=${encodeURIComponent(by)}`);
   }
 
   /** Добавить стикер человеку: сервер сам заберёт файл телеги по `fileId`. */

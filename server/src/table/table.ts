@@ -238,9 +238,21 @@ export class Table {
    */
   rolesOf(key: string): Role[] {
     const out: Role[] = ["player"];
-    if (key === this.admin) out.push("admin");
+    if (key === this.admin) out.push("owner");
+    else if (this.admins.has(key)) out.push("admin");
     if (key === this.dealer && this.people.has(key)) out.push("dealer");
     return out;
+  }
+
+  /**
+   * КОМУ ВЫДАН РАСПОРЯДИТЕЛЬ. Хозяина здесь нет: он хозяин по рождению комнаты, и отнять это нельзя.
+   * Список ставит комната — он живёт с ней, а не со столом.
+   */
+  private admins = new Set<string>();
+
+  /** Распорядители этой комнаты — кто угодно, кроме хозяина; их выдаёт и забирает только он. */
+  setAdmins(keys: Iterable<string>): void {
+    this.admins = new Set([...keys].filter((key) => key !== this.creator));
   }
 
   /**

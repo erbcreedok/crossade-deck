@@ -75,6 +75,9 @@ export const renamed = (from: string, to: string): string => `«${from}» теп
 export const askTitle = (title: string): string => `Как назвать «${title}»? Напиши следующим сообщением.`;
 export const gone = "Такой комнаты уже нет.";
 export const notYours = "Это не твоя комната.";
+export const notOwner = "Роли раздаёт хозяин комнаты — тот, кто её открыл.";
+export const roleSaid = (name: string, on: boolean): string =>
+  on ? `${name} теперь распорядитель: ведёт стол, но комнату не закрывает и ролей не раздаёт.` : `${name} больше не распорядитель.`;
 
 /**
  * КАКИМ СТОЛОМ Я ВПРАВЕ РАСПОРЯЖАТЬСЯ. В личке бот показывает и столы из других чатов — те, что человек

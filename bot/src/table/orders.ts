@@ -101,8 +101,9 @@ export const MENU: Record<string, { label: string; command: TableCommand }> = {
 
 const btn = (room: string, code: string): Button => ({ text: MENU[code]!.label, data: `tbr:${room}:${code}` });
 
-export function menuOf(card: RoomCard, kinds: ReadonlyArray<{ id: string; name: string }> = []): Said {
+export function menuOf(card: RoomCard, kinds: ReadonlyArray<{ id: string; name: string }> = [], me?: string): Said {
   const r = card.room;
+  const owner = me === undefined || me === card.by;
   const here = kinds.find((k) => k.id === card.kind)?.name ?? card.kind;
   return {
     text: `«${card.title}» · игра: ${here}. Пресет меняет колоду и рассадку, раздача — раздаёт по своим правилам (раздаёт админ, по часовой со следующего).`,
@@ -120,9 +121,30 @@ export function menuOf(card: RoomCard, kinds: ReadonlyArray<{ id: string; name: 
       ...(kinds.length > 1
         ? [[{ text: "Род:", data: "tbx" }, ...kinds.map((k) => ({ text: k.id === card.kind ? `• ${k.name}` : k.name, data: k.id === card.kind ? "tbx" : `tbk:${r}:${k.id}` }))]]
         : []),
-      [{ text: "Комната:", data: "tbx" }, { text: "Переименовать", data: `tbl:ren:${r}` }, { text: "Закрыть", data: `tbl:del:${r}` }],
+      [{ text: "Комната:", data: "tbx" }, { text: "Переименовать", data: `tbl:ren:${r}` }, ...(owner ? [{ text: "Закрыть", data: `tbl:del:${r}` }] : [])],
+      // РОЛИ РАЗДАЁТ ТОЛЬКО ХОЗЯИН. Распорядитель ведёт стол, но комнату не отбирает и не закрывает.
+      ...(owner ? rolesRows(card) : []),
     ],
   };
+}
+
+/**
+ * КТО В КОМНАТЕ И ЧТО ЕМУ ВЫДАНО. Хозяин помечен, у прочих кнопка «Сделать распорядителем» или
+ * «Забрать» — по одной строке на человека, чтобы не гадать, кого именно нажимаешь.
+ */
+export function rolesRows(card: RoomCard): Button[][] {
+  const others = card.people.filter((p) => p.key !== card.by);
+  if (others.length === 0) return [[{ text: "Роли: за столом ещё никого", data: "tbx" }]];
+  return [
+    [{ text: "Роли:", data: "tbx" }],
+    ...others.map((p) => {
+      const on = card.admins.includes(p.key);
+      return [
+        { text: `${on ? "★ " : ""}${p.name}`, data: "tbx" },
+        { text: on ? "Забрать" : "Сделать распорядителем", data: `tba:${on ? "0" : "1"}:${card.room}:${p.key}` },
+      ];
+    }),
+  ];
 }
 
 /** Какой стол — если их несколько. Команда ждёт в `pending` под коротким id. */

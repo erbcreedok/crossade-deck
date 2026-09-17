@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
 import { MENU, menuOf, parseOrder, refusedSay } from "./orders.js";
 
-const card: RoomCard = { room: "R".repeat(23), title: "Дурак", by: "tg:1", home: { kind: "chat", chat: "-1" }, people: [], createdAt: 0, kind: "sandbox", crew: "sandbox" };
+const card: RoomCard = { room: "R".repeat(23), title: "Дурак", by: "tg:1", home: { kind: "chat", chat: "-1" }, people: [], createdAt: 0, kind: "sandbox", crew: "sandbox", admins: [] };
 
 describe("команды комнаты в чате", () => {
   it("крупье: сажается и уводится словом и кнопкой", () => {
@@ -82,5 +82,47 @@ describe("меню знает род комнаты", () => {
 
   it("род один — выбирать нечего, ряда нет", () => {
     expect(menuOf(table, [kinds[0]!]).rows.some((r) => r[0]!.text === "Род:")).toBe(false);
+  });
+});
+
+describe("роли в меню комнаты", () => {
+  const kinds = [{ id: "sandbox", name: "песочница" }];
+  const withPeople = {
+    ...card,
+    kind: "sandbox",
+    crew: "sandbox",
+    admins: [] as string[],
+    people: [
+      { key: "tg:1", name: "Хозяин", ink: "#fff", door: "telegram" as const },
+      { key: "tg:2", name: "Гость", ink: "#fff", door: "telegram" as const },
+    ],
+  };
+
+  it("ХОЗЯИН ВИДИТ РОЛИ И «ЗАКРЫТЬ»", () => {
+    const said = menuOf(withPeople, kinds, "tg:1");
+    const roles = said.rows.find((r) => r[0]!.text === "Роли:");
+    expect(roles, "ряд ролей есть").toBeDefined();
+    const row = said.rows.find((r) => r[0]!.text === "Гость")!;
+    expect(row[1]).toEqual({ text: "Сделать распорядителем", data: `tba:1:${card.room}:tg:2` });
+    expect(said.rows.some((r) => r.some((b) => b.text === "Закрыть"))).toBe(true);
+  });
+
+  it("выданный распорядитель помечен, и кнопка становится «Забрать»", () => {
+    const said = menuOf({ ...withPeople, admins: ["tg:2"] }, kinds, "tg:1");
+    const row = said.rows.find((r) => r[0]!.text.includes("Гость"))!;
+    expect(row[0]!.text).toContain("★");
+    expect(row[1]).toEqual({ text: "Забрать", data: `tba:0:${card.room}:tg:2` });
+  });
+
+  it("РАСПОРЯДИТЕЛЬ РОЛЕЙ НЕ ВИДИТ И КОМНАТУ НЕ ЗАКРЫВАЕТ", () => {
+    const said = menuOf({ ...withPeople, admins: ["tg:2"] }, kinds, "tg:2");
+    expect(said.rows.some((r) => r[0]!.text === "Роли:"), "ролей нет").toBe(false);
+    expect(said.rows.some((r) => r.some((b) => b.text === "Закрыть")), "и «Закрыть» нет").toBe(false);
+    expect(said.rows.some((r) => r.some((b) => b.text === "Переименовать")), "а переименовать может").toBe(true);
+  });
+
+  it("за столом никого — говорим об этом, а не рисуем пустой ряд", () => {
+    const said = menuOf({ ...withPeople, people: [] }, kinds, "tg:1");
+    expect(said.rows.some((r) => r[0]!.text.includes("ещё никого"))).toBe(true);
   });
 });
