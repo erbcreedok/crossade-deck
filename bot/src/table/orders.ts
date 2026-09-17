@@ -65,8 +65,8 @@ export function parseOrder(name: OrderName, args: string): TableCommand | null {
 }
 
 export const ORDERS_HELP = [
-  "Команды стола (только админ стола):",
-  "/menu — меню стола кнопками",
+  "Команды комнаты (только её админ):",
+  "/menu — меню комнаты кнопками",
   "/collect — собрать всё в колоду",
   "/shuffle — перемешать",
   "/durak [36|52] [jokers] — колода под дурака",
@@ -105,7 +105,7 @@ export function menuOf(card: RoomCard, kinds: ReadonlyArray<{ id: string; name: 
   const r = card.room;
   const here = kinds.find((k) => k.id === card.kind)?.name ?? card.kind;
   return {
-    text: `Стол «${card.title}» · род: ${here}. Пресет меняет колоду и рассадку, раздача — раздаёт по своим правилам (раздаёт админ, по часовой со следующего).`,
+    text: `«${card.title}» · игра: ${here}. Пресет меняет колоду и рассадку, раздача — раздаёт по своим правилам (раздаёт админ, по часовой со следующего).`,
     rows: [
       [btn(r, "col"), btn(r, "shf")],
       [{ text: "Пресет · дурак:", data: "tbx" }, btn(r, "pd36"), btn(r, "pd52"), btn(r, "pd36j"), btn(r, "pd52j")],
@@ -120,7 +120,7 @@ export function menuOf(card: RoomCard, kinds: ReadonlyArray<{ id: string; name: 
       ...(kinds.length > 1
         ? [[{ text: "Род:", data: "tbx" }, ...kinds.map((k) => ({ text: k.id === card.kind ? `• ${k.name}` : k.name, data: k.id === card.kind ? "tbx" : `tbk:${r}:${k.id}` }))]]
         : []),
-      [{ text: "Стол:", data: "tbx" }, { text: "Переименовать", data: `tbl:ren:${r}` }, { text: "Закрыть", data: `tbl:del:${r}` }],
+      [{ text: "Комната:", data: "tbx" }, { text: "Переименовать", data: `tbl:ren:${r}` }, { text: "Закрыть", data: `tbl:del:${r}` }],
     ],
   };
 }
@@ -128,13 +128,13 @@ export function menuOf(card: RoomCard, kinds: ReadonlyArray<{ id: string; name: 
 /** Какой стол — если их несколько. Команда ждёт в `pending` под коротким id. */
 export function pickTable(cards: RoomCard[], pending: string): Said {
   return {
-    text: "Какой стол?",
+    text: "Какая комната?",
     rows: cards.map((c) => [{ text: c.title, data: `tbp:${c.room}:${pending}` }]),
   };
 }
 
 export function pickForMenu(cards: RoomCard[]): Said {
-  return { text: "Меню какого стола?", rows: cards.map((c) => [{ text: c.title, data: `tbm:${c.room}` }]) };
+  return { text: "Меню какой комнаты?", rows: cards.map((c) => [{ text: c.title, data: `tbm:${c.room}` }]) };
 }
 
 const GAME: Record<Game, string> = { durak: "дурак", krest: "крестовый", belka: "белка" };
@@ -164,13 +164,13 @@ export function started(command: TableCommand, title: string): string {
 /** Отказ сервера словами. `needs-collect` — с кнопкой «Собрать и раздать». */
 export function refusedSay(error: RunError, room: string, pending: string): Said {
   const text: Record<RunError, string> = {
-    "not-admin": "Командует только админ стола — тот, кто его открыл.",
-    busy: "Стол занят: предыдущая команда ещё идёт.",
+    "not-admin": "Командует только админ комнаты — тот, кто её открыл.",
+    busy: "Комната занята: предыдущая команда ещё идёт.",
     "needs-collect": "Карты ещё не собраны. Собрать, перемешать и раздать?",
     "not-enough-cards": "В колоде не хватит карт на такую раздачу.",
     "not-enough-players": "Не хватает игроков: белке нужны четверо за столом.",
     "no-dealer": "Не нашёл раздающего за столом.",
-    empty: "За этим столом ещё никого не было — зайди, и команды заработают.",
+    empty: "В этой комнате ещё никого не было — зайди, и команды заработают.",
     bad: "Не понял команду.",
   };
   return { text: text[error], rows: error === "needs-collect" ? [[{ text: "Собрать и раздать", data: `tbf:${room}:${pending}` }]] : [] };

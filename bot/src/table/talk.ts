@@ -22,18 +22,18 @@ export interface Links {
   app(room: string): string;
 }
 
-export const DOWN = "Столы сейчас недоступны: сервер стола выключен. Попробуй позже.";
+export const DOWN = "Комнаты сейчас недоступны: сервер выключен. Попробуй позже.";
 
 /** Кнопка входа: в личке — Mini App прямо здесь, в группе и в чужой переписке — ссылкой. */
 export function enter(room: string, links: Links, inPrivate: boolean, text = "Играть"): Button {
   return inPrivate ? { text, app: links.app(room) } : { text, url: links.anywhere(room) };
 }
 
-const who = (card: RoomCard) => (card.people.length ? ` · за столом: ${card.people.map((p) => p.name).join(", ")}` : "");
+const who = (card: RoomCard) => (card.people.length ? ` · внутри: ${card.people.map((p) => p.name).join(", ")}` : "");
 
 export function opened(card: RoomCard, total: number, links: Links, inPrivate: boolean): Said {
-  const more = total > 1 ? `\nВ этом чате столов: ${total} — список: /tables` : "";
-  return { text: `Стол «${card.title}» открыт.${more}`, rows: cardRows(card.room, links, inPrivate) };
+  const more = total > 1 ? `\nВ этом чате комнат: ${total} — список: /tables` : "";
+  return { text: `«${card.title}» открыта.${more}`, rows: cardRows(card.room, links, inPrivate) };
 }
 
 /**
@@ -42,7 +42,7 @@ export function opened(card: RoomCard, total: number, links: Links, inPrivate: b
  */
 export function listed(cards: RoomCard[], links: Links, inPrivate: boolean, me?: string): Said {
   if (cards.length === 0) {
-    return { text: inPrivate ? "Ты пока ни за одним столом. Открыть: /table [название]" : "В этом чате столов нет. Открыть: /table [название]", rows: [] };
+    return { text: inPrivate ? "Ты пока ни в одной комнате. Открыть: /table [название]" : "В этом чате комнат нет. Открыть: /table [название]", rows: [] };
   }
   const mine = (c: RoomCard) => me !== undefined && c.by === me;
   // ГДЕ СТОЛ ЖИВЁТ — в личке это важнее всего: столов много, и все они «где-то там».
@@ -53,7 +53,7 @@ export function listed(cards: RoomCard[], links: Links, inPrivate: boolean, me?:
   };
   return {
     text: [
-      inPrivate ? `Твои столы (${cards.length}):` : `Столы этого чата (${cards.length}):`,
+      inPrivate ? `Твои комнаты (${cards.length}):` : `Комнаты этого чата (${cards.length}):`,
       ...cards.map((c, i) => `${i + 1}. ${c.title}${mine(c) ? " · твой" : ""}${where(c)}${who(c)}`),
     ].join("\n"),
     rows: cards.map((c) =>
@@ -69,12 +69,12 @@ export function listed(cards: RoomCard[], links: Links, inPrivate: boolean, me?:
   };
 }
 
-export const recast = (title: string, kind: string): string => `Стол «${title}» теперь ${kind}. Карты и люди остались на местах.`;
-export const closed = (title: string): string => `Стол «${title}» закрыт.`;
-export const renamed = (from: string, to: string): string => `Стол «${from}» теперь называется «${to}».`;
-export const askTitle = (title: string): string => `Как назвать стол «${title}»? Напиши следующим сообщением.`;
-export const gone = "Такого стола уже нет.";
-export const notYours = "Это не твой стол.";
+export const recast = (title: string, kind: string): string => `«${title}» теперь ${kind}. Карты и люди остались на местах.`;
+export const closed = (title: string): string => `«${title}» закрыта.`;
+export const renamed = (from: string, to: string): string => `«${from}» теперь называется «${to}».`;
+export const askTitle = (title: string): string => `Как назвать «${title}»? Напиши следующим сообщением.`;
+export const gone = "Такой комнаты уже нет.";
+export const notYours = "Это не твоя комната.";
 
 /**
  * КАКИМ СТОЛОМ Я ВПРАВЕ РАСПОРЯЖАТЬСЯ. В личке бот показывает и столы из других чатов — те, что человек
@@ -92,13 +92,13 @@ export function mayManage(card: { room: string; by?: string } | undefined, by: s
 export function lost(titles: string[], why: "restart" | "down"): string {
   const list = titles.map((t) => `«${t}»`).join(", ");
   return why === "restart"
-    ? `Сервер стола перезапустился, столы закрылись: ${list}. Открыть новый: /table`
-    : `Сервер стола выключился, столы закрылись: ${list}.`;
+    ? `Сервер перезапустился, комнаты закрылись: ${list}. Открыть новую: /table`
+    : `Сервер выключился, комнаты закрылись: ${list}.`;
 }
 
 /** Карточка выбрана и стала сообщением — теперь имя комнаты известно, и оно пишется в текст и на кнопку. */
 export function inlineOpened(card: RoomCard, links: Links): Said {
-  return { text: `Стол «${card.title}» открыт — заходи.`, rows: cardRows(card.room, links, false, card.title) };
+  return { text: `«${card.title}» открыта — заходи.`, rows: cardRows(card.room, links, false, card.title) };
 }
 
 /** Готовый стол карточкой в чужую переписку: имя, где живёт, и кнопка входа; админу — ещё «Управлять». */
@@ -106,8 +106,8 @@ export function inviteExisting(card: RoomCard, links: Links, admin: boolean): { 
   const where = card.home.kind === "inline" ? "в переписке" : card.home.chatTitle ? `чат «${card.home.chatTitle}»` : "в чате";
   return {
     title: card.title,
-    description: `Позвать за этот стол · ${where}`,
-    text: `Стол «${card.title}» — заходи.`,
+    description: `Позвать в эту комнату · ${where}`,
+    text: `«${card.title}» — заходи.`,
     rows: [admin ? [enter(card.room, links, false, "Играть"), { text: "Управлять", data: `tbm:${card.room}` }] : [enter(card.room, links, false, "Играть")]],
   };
 }
@@ -118,9 +118,9 @@ export function inviteExisting(card: RoomCard, links: Links, admin: boolean): { 
  */
 export function inviteArticle(kind: string, name: string, room: string, links: Links): { title: string; description: string; text: string; button: Button } {
   return {
-    title: `Новый стол · ${name}`,
-    description: kind === "sandbox" ? "Стол без правил: раскладывай руками" : `Стол с правилами: ${name}`,
-    text: `Стол (${name}) открыт — заходи.`,
+    title: `Новая комната · ${name}`,
+    description: kind === "sandbox" ? "Комната без правил: раскладывай руками" : `Комната с правилами: ${name}`,
+    text: `«${name}» открыта — заходи.`,
     button: enter(room, links, false),
   };
 }

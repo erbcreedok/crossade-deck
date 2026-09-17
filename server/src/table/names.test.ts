@@ -1,35 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { bareTitle, crusadeName, numberOf, titleFrom, uniqueTitle } from "./names.js";
+import { bareTitle, capital, crusadeName, numberOf, retitled, titleFrom, uniqueTitle } from "./names.js";
 
-describe("имена столов", () => {
-  it("имя по чату", () => {
-    expect(titleFrom("Чат пиццы")).toBe("Стол «Чат пиццы»");
+describe("имена комнат", () => {
+  it("ИМЯ НАЧИНАЕТСЯ С ИГРЫ, А НЕ СО СЛОВА «СТОЛ»", () => {
+    expect(titleFrom("песочница", "Чат пиццы")).toBe("Песочница. Чат пиццы");
+    expect(titleFrom("крестовый", "Чат пиццы")).toBe("Крестовый. Чат пиццы");
+    expect(titleFrom("песочница", "Чат пиццы")).not.toMatch(/Стол/);
   });
 
   it("без чата — случайное имя похода", () => {
-    const title = titleFrom(undefined, () => 0);
-    expect(title).toBe("Стол «Утренний поход»");
+    expect(titleFrom("песочница", undefined, () => 0)).toBe("Песочница. Утренний поход");
     expect(crusadeName(() => 0.999)).toBe("Вечерний бивак");
   });
 
+  it("сменили игру — имя комнаты идёт за ней, а собственное имя остаётся", () => {
+    expect(retitled("Песочница. Алый обоз", "песочница", "крестовый")).toBe("Крестовый. Алый обоз");
+    expect(retitled("Мой стол на пятницу", "песочница", "крестовый"), "имя, данное человеком, не трогаем").toBe("Мой стол на пятницу");
+  });
+
+  it("род пишется с большой", () => {
+    expect(capital("крестовый")).toBe("Крестовый");
+    expect(capital("")).toBe("");
+  });
+
   it("первому номер не ставится, второму — [2]", () => {
-    expect(uniqueTitle("Стол «Чат»", [])).toBe("Стол «Чат»");
-    expect(uniqueTitle("Стол «Чат»", ["Стол «Чат»"])).toBe("[2] Стол «Чат»");
-    expect(uniqueTitle("Стол «Чат»", ["Стол «Чат»", "[2] Стол «Чат»"])).toBe("[3] Стол «Чат»");
+    expect(uniqueTitle("Песочница. Чат", [])).toBe("Песочница. Чат");
+    expect(uniqueTitle("Песочница. Чат", ["Песочница. Чат"])).toBe("[2] Песочница. Чат");
+    expect(uniqueTitle("Песочница. Чат", ["Песочница. Чат", "[2] Песочница. Чат"])).toBe("[3] Песочница. Чат");
   });
 
   it("номер — наименьший свободный: закрыли [2], он снова свободен", () => {
-    expect(uniqueTitle("Стол «Чат»", ["Стол «Чат»", "[3] Стол «Чат»"])).toBe("[2] Стол «Чат»");
+    expect(uniqueTitle("Песочница. Чат", ["Песочница. Чат", "[3] Песочница. Чат"])).toBe("[2] Песочница. Чат");
   });
 
   it("чужие имена не мешают, свой префикс назначается заново", () => {
-    expect(uniqueTitle("Стол «Чат»", ["Стол «Другой»"])).toBe("Стол «Чат»");
-    expect(uniqueTitle("[7] Стол «Чат»", ["Стол «Чат»"])).toBe("[2] Стол «Чат»");
+    expect(uniqueTitle("Песочница. Чат", ["Песочница. Другой"])).toBe("Песочница. Чат");
+    expect(uniqueTitle("[7] Песочница. Чат", ["Песочница. Чат"])).toBe("[2] Песочница. Чат");
   });
 
   it("разбор префикса", () => {
-    expect(numberOf("[2] Стол «Чат»")).toBe(2);
-    expect(numberOf("Стол «Чат»")).toBe(1);
-    expect(bareTitle("[12] Стол «Чат»")).toBe("Стол «Чат»");
+    expect(numberOf("[2] Песочница. Чат")).toBe(2);
+    expect(numberOf("Песочница. Чат")).toBe(1);
+    expect(bareTitle("[12] Песочница. Чат")).toBe("Песочница. Чат");
   });
 });

@@ -8,8 +8,8 @@
 // был — сама комната Colyseus, чтобы закрыть её отсюда.
 
 import type { Home, Person, RoomCard, RunResult, TableCommand } from "./contract.js";
-import { DEFAULT_DESK, isDesk } from "./desks.js";
-import { titleFrom, uniqueTitle } from "./names.js";
+import { DEFAULT_DESK, deskName, isDesk } from "./desks.js";
+import { retitled, ROOM_WORD, titleFrom, uniqueTitle } from "./names.js";
 
 interface Entry {
   room: string;
@@ -24,7 +24,7 @@ interface Entry {
 
 const rooms = new Map<string, Entry>();
 
-export const DEFAULT_TITLE = "Стол";
+export const DEFAULT_TITLE = ROOM_WORD;
 
 /** Имена всех живых комнат — по ним и держится уникальность. Себя (при переименовании) не считаем. */
 const takenTitles = (except?: string): string[] => [...rooms.values()].filter((e) => e.room !== except).map((e) => e.title);
@@ -53,7 +53,15 @@ export function openEntry(room: string, home: Home, by: string, title?: string, 
     return card(had);
   }
   // Имя — из просьбы, иначе по чату, иначе случайное; и всегда такое, какого у живых комнат ещё нет.
-  const entry: Entry = { room, home, by, kind: isDesk(kind) ? kind : DEFAULT_DESK, title: uniqueTitle(title?.trim() || titleFrom(home.kind === "chat" ? home.chatTitle : undefined), takenTitles()), createdAt: now };
+  const desk = isDesk(kind) ? kind : DEFAULT_DESK;
+  const entry: Entry = {
+    room,
+    home,
+    by,
+    kind: desk,
+    title: uniqueTitle(title?.trim() || titleFrom(deskName(desk), home.kind === "chat" ? home.chatTitle : undefined), takenTitles()),
+    createdAt: now,
+  };
   rooms.set(room, entry);
   return card(entry);
 }
@@ -100,6 +108,9 @@ export function rehome(room: string, home: Home): RoomCard | undefined {
 export function recast(room: string, kind: string): RoomCard | undefined {
   const e = rooms.get(room);
   if (!e || !isDesk(kind)) return undefined;
+  // ИМЯ КОМНАТЫ ИДЁТ ЗА ИГРОЙ: «Песочница. Алый обоз» после смены рода — «Крестовый. Алый обоз».
+  // Имя, данное человеком, не трогаем: он назвал комнату сам, и это важнее порядка.
+  e.title = uniqueTitle(retitled(e.title, deskName(e.kind), deskName(kind)), takenTitles(room));
   e.kind = kind;
   e.live?.recast?.(kind);
   return card(e);

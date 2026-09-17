@@ -6,14 +6,14 @@ import { Watch } from "./watch.js";
 
 const file = () => join(mkdtempSync(join(tmpdir(), "watch-")), "chats.json");
 
-describe("сторож столов", () => {
+describe("сторож комнат", () => {
   it("пока запуск тот же — молчит", () => {
     const w = new Watch(file());
     w.remember("-1", "r1", "Дурак", "b1");
     expect(w.check({ up: true, url: "u", boot: "b1" })).toEqual([]);
   });
 
-  it("новый запуск — говорит каждому чату про его столы, один раз", () => {
+  it("новый запуск — говорит каждому чату про его комнаты, один раз", () => {
     const w = new Watch(file());
     w.remember("-1", "r1", "Дурак", "b1");
     w.remember("-1", "r2", "Покер", "b1");
@@ -30,7 +30,7 @@ describe("сторож столов", () => {
     w.remember("-1", "r2", "Покер", "b1");
     w.forget("-1", "r1");
     const [said] = w.check({ up: false });
-    expect(said!.text).toBe("Сервер стола выключился, столы закрылись: «Покер».");
+    expect(said!.text).toBe("Сервер выключился, комнаты закрылись: «Покер».");
   });
 
   it("память переживает перезапуск самого бота", () => {

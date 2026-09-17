@@ -30,6 +30,9 @@ export const DESKS: Record<string, (judge: Judge) => DeskRules> = {
  * ИМЕНА РОДОВ ДЛЯ ЧЕЛОВЕКА — те же, что правила говорят о себе сами (`DeskRules.kind`). Второго
  * списка названий нет нигде: бот берёт их отсюда, и новый род называется ровно там, где написан.
  */
+/** Как этот род зовётся для человека. Незнакомый — сам себе имя: комната всё равно открывается. */
+export const deskName = (kind: string): string => (isDesk(kind) ? DESKS[kind]!(() => null).kind : kind);
+
 export const deskNames = (): Array<{ id: string; name: string }> =>
   Object.entries(DESKS).map(([id, make]) => ({ id, name: make(() => null).kind }));
 

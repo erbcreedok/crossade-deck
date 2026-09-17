@@ -4,7 +4,7 @@ import { MENU, menuOf, parseOrder, refusedSay } from "./orders.js";
 
 const card: RoomCard = { room: "R".repeat(23), title: "Дурак", by: "tg:1", home: { kind: "chat", chat: "-1" }, people: [], createdAt: 0, kind: "sandbox" };
 
-describe("команды стола в чате", () => {
+describe("команды комнаты в чате", () => {
   it("крупье: сажается и уводится словом и кнопкой", () => {
     expect(parseOrder("croupier", "")).toEqual({ t: "croupier", on: true });
     expect(parseOrder("croupier", "убрать")).toEqual({ t: "croupier", on: false });
@@ -58,13 +58,13 @@ describe("команды стола в чате", () => {
   });
 });
 
-describe("меню знает род стола", () => {
+describe("меню знает род комнаты", () => {
   const kinds = [{ id: "sandbox", name: "песочница" }, { id: "krest", name: "крестовый" }];
   const table = { ...card, kind: "sandbox" };
 
   it("род назван в тексте, и на него есть кнопки", () => {
     const said = menuOf(table, kinds);
-    expect(said.text).toContain("род: песочница");
+    expect(said.text).toContain("игра: песочница");
     const row = said.rows.find((r) => r[0]!.text === "Род:")!;
     expect(row.map((b) => b.text)).toEqual(["Род:", "• песочница", "крестовый"]);
     expect(row.at(-1)).toEqual({ text: "крестовый", data: `tbk:${table.room}:krest` });
@@ -76,8 +76,8 @@ describe("меню знает род стола", () => {
   });
 
   it("переименовать и закрыть — из того же меню", () => {
-    const row = menuOf(table, kinds).rows.find((r) => r[0]!.text === "Стол:")!;
-    expect(row.map((b) => b.text)).toEqual(["Стол:", "Переименовать", "Закрыть"]);
+    const row = menuOf(table, kinds).rows.find((r) => r[0]!.text === "Комната:")!;
+    expect(row.map((b) => b.text)).toEqual(["Комната:", "Переименовать", "Закрыть"]);
   });
 
   it("род один — выбирать нечего, ряда нет", () => {

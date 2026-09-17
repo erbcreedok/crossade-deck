@@ -105,7 +105,7 @@ describe("/table/rooms — бот управляет столами", () => {
     // Второй стол открыт без имени и без названия чата — имя ему дано случайное, на тему похода.
     const titles = listed.map((r: { title: string }) => r.title);
     expect(titles[0]).toBe("Дурак");
-    expect(titles[1]).toMatch(/^Стол «.+ .+»$/);
+    expect(titles[1]).toMatch(/^Песочница\. .+ .+$/);
 
     const renamed = await (await call(`/table/rooms/${one.room}`, { method: "PATCH", json: { title: "Покер" } })).json();
     expect(renamed.title).toBe("Покер");

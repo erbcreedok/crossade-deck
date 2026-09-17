@@ -114,7 +114,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
       if (!command) return void (await ctx.reply(ORDERS_HELP));
       const cards = await tablesFor(ctx);
       if (cards === "down") return void (await ctx.reply(DOWN));
-      if (cards.length === 0) return void (await ctx.reply("Здесь нет столов. Открыть: /table [название]"));
+      if (cards.length === 0) return void (await ctx.reply("Здесь нет комнат. Открыть: /table [название]"));
       if (cards.length === 1) return runAndSay(ctx, cards[0]!.room, command, byOf(ctx));
       const said = pickTable(cards, park(command, byOf(ctx)));
       await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
@@ -124,7 +124,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
   bot.command("menu", async (ctx) => {
     const cards = await tablesFor(ctx);
     if (cards === "down") return void (await ctx.reply(DOWN));
-    if (cards.length === 0) return void (await ctx.reply("Здесь нет столов. Открыть: /table [название]"));
+    if (cards.length === 0) return void (await ctx.reply("Здесь нет комнат. Открыть: /table [название]"));
     const said = cards.length === 1 ? menuOf(cards[0]!, deskNames()) : pickForMenu(cards);
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
   });
@@ -262,7 +262,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
   async function inlineResults(by: string): Promise<unknown[]> {
     const at = await api.where();
     if (!at.up) {
-      return [{ type: "article", id: "tbl-down", title: "Столы сейчас недоступны", description: "Сервер стола выключен", input_message_content: { message_text: DOWN } }];
+      return [{ type: "article", id: "tbl-down", title: "Комнаты сейчас недоступны", description: "Сервер выключен", input_message_content: { message_text: DOWN } }];
     }
     // ПО КАРТОЧКЕ НА КАЖДЫЙ РОД СТОЛА, и у каждой своя комната: человек выбирает род ровно один раз —
     // здесь. Имена родов берутся из каталога сервера, второго списка названий нет.
