@@ -12,7 +12,7 @@ import { mintRoom } from "../../../server/src/table/roomIds.js";
 import { deskNames } from "../../../server/src/table/desks.js";
 import type { TableApi } from "./api.js";
 import type { Home, RoomCard, TableCommand } from "../../../server/src/table/contract.js";
-import { dealMenu, MENU, menuOf, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
+import { dealMenu, MENU, menuOf, seatCard, seatMenu, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
 import { DOWN, askTitle, closed, gone, inlineOpened, inviteArticle, inviteExisting, listed, mayManage, notOwner, notYours, opened, recast, renamed, roleSaid, type Button, type Links } from "./talk.js";
 import type { Registry } from "./registry.js";
 import type { Watch } from "./watch.js";
@@ -198,12 +198,47 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     await showMenu(ctx, room);
   });
 
+  /** Список стульев — своим экраном: главное меню от него не разрастается. */
+  async function showSeats(ctx: Context, room: string, moving?: string, edit = false) {
+    const card = await cardFor(ctx, room);
+    if (!card) return void (await ctx.reply(gone));
+    const said = seatMenu(card, moving);
+    if (edit && (await ctx.editMessageText(said.text, { reply_markup: keyboardOf(said.rows) }).catch(() => null))) return;
+    await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
+  }
+
+  // РАССАДКА СВОИМ СПИСКОМ; с хвостом — стул, который взяли пересаживать.
+  bot.callbackQuery(/^tbz:([A-Za-z0-9_-]+)(?::(.+))?$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const [, room, moving] = ctx.match as unknown as [string, string, string | undefined];
+    await showSeats(ctx, room, moving, true);
+  });
+
+  // ОДИН СТУЛ: что с ним можно сделать.
+  bot.callbackQuery(/^tbn:([A-Za-z0-9_-]+):(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const [, room, chair] = ctx.match as unknown as [string, string, string];
+    const card = await cardFor(ctx, room);
+    if (!card) return void (await ctx.reply(gone));
+    const said = seatCard(card, chair, byOf(ctx) === card.by);
+    if (await ctx.editMessageText(said.text, { reply_markup: keyboardOf(said.rows) }).catch(() => null)) return;
+    await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
+  });
+
+  // ПЕРЕСАДКА — два стула местами, вместе с людьми и картами.
+  bot.callbackQuery(/^tbv:([A-Za-z0-9_-]+):([^:]+):(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const [, room, chair, other] = ctx.match as unknown as [string, string, string, string];
+    await runAndSay(ctx, room, { t: "seat", do: "swap", chair, with: other }, byOf(ctx));
+    await showSeats(ctx, room);
+  });
+
   // РАССАДКА. Что именно делать — в кнопке; кому это позволено, решает сервер.
   bot.callbackQuery(/^tbs:(kick|add|sweep|dealer):([A-Za-z0-9_-]+):(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const [, act, room, chair] = ctx.match as unknown as [string, "kick" | "add" | "sweep" | "dealer", string, string];
     await runAndSay(ctx, room, { t: "seat", do: act, ...(act === "add" ? {} : { chair }) }, byOf(ctx));
-    await showMenu(ctx, room);
+    await showSeats(ctx, room);
   });
 
   // МЕНЮ РАЗДАЧИ: кому и с кого. Выбор живёт у бота под коротким id, пока человек его набирает.

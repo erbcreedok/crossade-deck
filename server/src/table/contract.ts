@@ -624,8 +624,9 @@ export type TableCommand =
    *   add     поставить ещё один пустой стул.
    *   sweep   забрать карты этого стула в руку крупье.
    *   dealer  назначить сидящего раздающим; со старого раздающего роль при этом слетает.
+   *   swap    поменять два стула местами — вместе с людьми и картами, которые на них.
    */
-  | { t: "seat"; do: "kick" | "add" | "sweep" | "dealer"; chair?: string };
+  | { t: "seat"; do: "kick" | "add" | "sweep" | "dealer" | "swap"; chair?: string; with?: string };
 
 /** `POST /table/rooms/:room/run` */
 export interface RunCommand {

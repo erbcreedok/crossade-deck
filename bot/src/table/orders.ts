@@ -10,7 +10,7 @@
 //   /deck [classic|minimal] [plaid|argyle|club|lattice|crest|ink]   вид колоды на весь стол
 //   /menu                                     меню стола кнопками
 
-import { CARD_BACKS, CARD_FACES, type CardBack, type CardFaces, type DealRule, type Game, type RoomCard, type RunError, type TableCommand } from "../../../server/src/table/contract.js";
+import { CARD_BACKS, CARD_FACES, type CardBack, type CardFaces, type DealRule, type Game, type RoomCard, type RunError, type SeatCard, type TableCommand } from "../../../server/src/table/contract.js";
 import type { Button, Said } from "./talk.js";
 
 export const ORDER_COMMANDS = ["collect", "shuffle", "durak", "krest", "belka", "deal", "deck", "croupier"] as const;
@@ -114,37 +114,59 @@ export function menuOf(card: RoomCard, kinds: ReadonlyArray<{ id: string; name: 
         ? [[{ text: "Род:", data: "tbx" }, ...kinds.map((k) => ({ text: mark(k.id === card.kind, k.name), data: k.id === card.kind ? "tbx" : `tbk:${r}:${k.id}` }))]]
         : []),
       [{ text: "Комната:", data: "tbx" }, { text: "Переименовать", data: `tbl:ren:${r}` }, ...(owner ? [{ text: "Закрыть", data: `tbl:del:${r}` }] : [])],
-      ...seatRows(card, owner),
+      [{ text: "Рассадка", data: `tbz:${r}` }],
     ],
   };
 }
 
+/** Как стул зовётся в списке: звёздочка распорядителю, число карт в руке. */
+const seatName = (s: SeatCard): string => (s.who ? `${s.admin ? "★ " : ""}${s.who.name}${s.cards ? ` · ${s.cards}` : ""}` : "пустой стул");
+
 /**
- * РАССАДКА. Строка на стул: кто сидит, звёздочка распорядителю, сколько карт в руке — и что с этим
- * можно сделать. Стул не отнимают и не выдают: человека выгоняют из комнаты, а стул уходит за ним
- * сам, если карт на нём не осталось.
+ * РАССАДКА — своим списком. Порядок строк и есть порядок за столом, по часовой; нажатие на стул
+ * открывает, что с ним можно сделать.
+ *
+ * `moving` — стул, который уже взяли пересаживать: тогда у остальных вместо имени кнопка «сюда», и
+ * нажатие меняет два стула местами. Так пересадка — это два нажатия и ни одного лишнего экрана.
  */
-export function seatRows(card: RoomCard, owner: boolean): Button[][] {
+export function seatMenu(card: RoomCard, moving?: string): Said {
   const r = card.room;
-  const seat = (chair: string, act: string, text: string): Button => ({ text, data: `tbs:${act}:${r}:${chair}` });
-  const rows: Button[][] = [[{ text: "Рассадка:", data: "tbx" }]];
-  for (const s of card.seats) {
-    const name = s.who ? `${s.admin ? "★ " : ""}${s.who.name}${s.cards ? ` · ${s.cards}` : ""}` : "пустой стул";
-    rows.push([
-      { text: name, data: "tbx" },
-      ...(s.who && !s.dealer ? [seat(s.id, "dealer", "Раздающий")] : []),
-      ...(s.dealer ? [{ text: "• раздающий", data: "tbx" }] : []),
-      ...(s.cards > 0 ? [seat(s.id, "sweep", "Карты крупье")] : []),
-      ...(s.who ? [seat(s.id, "kick", "Выгнать")] : []),
-    ]);
-    // РАСПОРЯДИТЕЛЯ ВЫДАЁТ ТОЛЬКО ХОЗЯИН, и себе он его не выдаёт: он и так хозяин.
-    if (owner && s.who && s.who.key !== card.by) {
-      const on = card.admins.includes(s.who.key);
-      rows.push([{ text: on ? "Забрать распорядителя" : "Сделать распорядителем", data: `tba:${on ? "0" : "1"}:${r}:${s.who.key}` }]);
-    }
+  const held = card.seats.find((s) => s.id === moving);
+  const rows: Button[][] = card.seats.map((s) => {
+    if (held && s.id === held.id) return [{ text: `⇅ ${seatName(s)}`, data: `tbz:${r}` }];
+    if (held) return [{ text: seatName(s), data: "tbx" }, { text: "сюда", data: `tbv:${r}:${held.id}:${s.id}` }];
+    return [{ text: seatName(s), data: `tbn:${r}:${s.id}` }, { text: "Пересадить", data: `tbz:${r}:${s.id}` }];
+  });
+  rows.push([{ text: "Поставить стул", data: `tbs:add:${r}:-` }, { text: "‹ Назад", data: `tbm:${r}` }]);
+  return {
+    text: held
+      ? `«${card.title}» · пересаживаю ${seatName(held)}. Нажми «сюда» у стула, с которым поменять местами.`
+      : `«${card.title}» · рассадка по часовой. Стул — что с ним сделать; «Пересадить» — поменять местами с другим.`,
+    rows,
+  };
+}
+
+/**
+ * ОДИН СТУЛ: всё, что с ним делают. Стул не отнимают и не выдают — человека выгоняют из комнаты, а
+ * стул уходит за ним сам, если карт на нём не осталось.
+ */
+export function seatCard(card: RoomCard, chair: string, owner: boolean): Said {
+  const r = card.room;
+  const s = card.seats.find((one) => one.id === chair);
+  if (!s) return { text: "Этого стула уже нет.", rows: [[{ text: "‹ Назад", data: `tbz:${r}` }]] };
+  const act = (does: string, text: string): Button => ({ text, data: `tbs:${does}:${r}:${s.id}` });
+  const rows: Button[][] = [];
+  if (s.who && !s.dealer) rows.push([act("dealer", "Сделать раздающим")]);
+  if (s.cards > 0) rows.push([act("sweep", "Забрать карты в руку крупье")]);
+  // РАСПОРЯДИТЕЛЯ ВЫДАЁТ ТОЛЬКО ХОЗЯИН, и себе он его не выдаёт: он и так хозяин.
+  if (owner && s.who && s.who.key !== card.by) {
+    const on = card.admins.includes(s.who.key);
+    rows.push([{ text: on ? "Забрать распорядителя" : "Сделать распорядителем", data: `tba:${on ? "0" : "1"}:${r}:${s.who.key}` }]);
   }
-  rows.push([{ text: "Поставить стул", data: `tbs:add:${r}:-` }]);
-  return rows;
+  if (s.who) rows.push([act("kick", "Выгнать из комнаты")]);
+  rows.push([{ text: "Пересадить", data: `tbz:${r}:${s.id}` }, { text: "‹ Назад", data: `tbz:${r}` }]);
+  const about = [s.dealer ? "раздающий" : "", s.admin ? "распорядитель" : "", s.cards ? `карт в руке: ${s.cards}` : "рука пуста"].filter(Boolean).join(", ");
+  return { text: `${s.who ? s.who.name : "Пустой стул"} — ${about}.`, rows };
 }
 
 /**
@@ -206,6 +228,7 @@ export function started(command: TableCommand, title: string): string {
         add: `Ставлю ещё один пустой стул за «${title}».`,
         sweep: `Забираю карты со стула в руку крупье — «${title}».`,
         dealer: `Назначаю раздающего за «${title}».`,
+        swap: `Меняю стулья местами за «${title}».`,
       }[command.do];
   }
 }

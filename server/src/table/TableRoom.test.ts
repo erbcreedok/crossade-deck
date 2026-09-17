@@ -198,6 +198,11 @@ describe("TableRoom", () => {
     const mine = findEntry(room)!.seats.find((s) => s.who?.key === "tg:11")!;
     expect(await runIn(room, "tg:11", { t: "seat", do: "dealer", chair: mine.id })).toEqual({ ok: true });
     expect(findEntry(room)!.seats.find((s) => s.id === mine.id)!.dealer).toBe(true);
+    // ПЕРЕСАДКА — стулья меняются местами вместе с людьми: порядок в рассадке переворачивается.
+    const before = findEntry(room)!.seats.map((s) => s.id);
+    expect(await runIn(room, "tg:11", { t: "seat", do: "swap", chair: before[0]!, with: before[1]! })).toEqual({ ok: true });
+    const after = findEntry(room)!.seats.map((s) => s.id);
+    expect(after.slice(0, 2)).toEqual([before[1], before[0]]);
     void a;
     void b;
   }, 15000);

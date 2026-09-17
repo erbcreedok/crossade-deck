@@ -411,6 +411,12 @@ export class TableRoom extends Room {
     }
     const chair = this.table.layout().chairs.find((c) => c.id === order.chair && !c.croupier);
     if (!chair) return { error: "no-dealer" };
+    if (order.do === "swap") {
+      const other = this.table.layout().chairs.find((c) => c.id === order.with && !c.croupier);
+      if (!other) return { error: "no-dealer" };
+      this.spread(this.table.swapChairs(chair.id, other.id));
+      return { ok: true };
+    }
     if (order.do === "kick") {
       if (chair.owner === null) return { ok: true };
       const key = chair.owner;

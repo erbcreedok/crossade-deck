@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
-import { dealMenu, MENU, menuOf, parseOrder, refusedSay } from "./orders.js";
+import { dealMenu, MENU, menuOf, parseOrder, refusedSay, seatCard, seatMenu } from "./orders.js";
 
 const card: RoomCard = { room: "R".repeat(23), title: "Дурак", by: "tg:1", home: { kind: "chat", chat: "-1" }, people: [], seats: [], deck: { size: 36, jokers: false }, createdAt: 0, kind: "sandbox", crew: "sandbox", admins: [] };
 
@@ -103,30 +103,29 @@ describe("роли в меню комнаты", () => {
 
   it("ХОЗЯИН ВИДИТ ВЫДАЧУ РАСПОРЯДИТЕЛЯ И «ЗАКРЫТЬ»", () => {
     const said = menuOf(withPeople, kinds, "tg:1");
-    expect(said.rows.some((r) => r[0]!.text === "Рассадка:"), "рассадка есть").toBe(true);
-    expect(said.rows.some((r) => "data" in r[0]! && r[0]!.data === `tba:1:${card.room}:tg:2`), "гостю можно выдать").toBe(true);
-    // СЕБЕ ХОЗЯИН РАСПОРЯДИТЕЛЯ НЕ ВЫДАЁТ: он и так хозяин, и снять это нельзя.
-    expect(said.rows.some((r) => "data" in r[0]! && r[0]!.data.startsWith("tba:") && r[0]!.data.endsWith("tg:1")), "себе — нет").toBe(false);
+    expect(said.rows.some((r) => r[0]!.text === "Рассадка"), "вход в рассадку есть").toBe(true);
     expect(said.rows.some((r) => r.some((b) => b.text === "Закрыть"))).toBe(true);
+    const guest = seatCard(withPeople, "c2", true);
+    expect(guest.rows.some((r) => "data" in r[0]! && r[0]!.data === `tba:1:${card.room}:tg:2`), "гостю можно выдать").toBe(true);
   });
 
   it("выданный распорядитель помечен звёздочкой, и кнопка становится «Забрать»", () => {
-    const said = menuOf({ ...withPeople, admins: ["tg:2"], seats: [{ id: "c2", who: { key: "tg:2", name: "Гость" }, cards: 0, admin: true as const }] }, kinds, "tg:1");
-    const row = said.rows.find((r) => r[0]!.text.includes("Гость"))!;
-    expect(row[0]!.text).toContain("★");
+    const given = { ...withPeople, admins: ["tg:2"], seats: [{ id: "c2", who: { key: "tg:2", name: "Гость" }, cards: 0, admin: true as const }] };
+    expect(seatMenu(given).rows[0]![0]!.text).toContain("★");
+    const said = seatCard(given, "c2", true);
     expect(said.rows.some((r) => r[0]!.text === "Забрать распорядителя" && "data" in r[0]! && r[0]!.data === `tba:0:${card.room}:tg:2`)).toBe(true);
   });
 
   it("РАСПОРЯДИТЕЛЬ РОЛЕЙ НЕ ВИДИТ И КОМНАТУ НЕ ЗАКРЫВАЕТ", () => {
     const said = menuOf({ ...withPeople, admins: ["tg:2"] }, kinds, "tg:2");
-    expect(said.rows.some((r) => r.some((b) => "data" in b && b.data.startsWith("tba:"))), "выдачи ролей нет").toBe(false);
+    expect(seatCard(withPeople, "c2", false).rows.some((r) => r.some((b) => "data" in b && b.data.startsWith("tba:"))), "выдачи ролей нет").toBe(false);
     expect(said.rows.some((r) => r.some((b) => b.text === "Закрыть")), "и «Закрыть» нет").toBe(false);
     expect(said.rows.some((r) => r.some((b) => b.text === "Переименовать")), "а переименовать может").toBe(true);
   });
 
   it("за столом никого — рассадка всё равно даёт поставить стул", () => {
-    const said = menuOf({ ...withPeople, people: [], seats: [] }, kinds, "tg:1");
-    expect(said.rows.some((r) => r[0]!.text === "Поставить стул")).toBe(true);
+    const said = seatMenu({ ...withPeople, people: [], seats: [] });
+    expect(said.rows.some((r) => r.some((b) => b.text === "Поставить стул"))).toBe(true);
   });
 });
 
@@ -165,18 +164,41 @@ describe("меню крестового: по одному решению в с�
     expect(menuOf(full, kinds, "tg:9").rows.some((r) => r[0]!.text === "Род:"), "прочим — нет").toBe(false);
   });
 
-  it("РАССАДКА: карты забирают только у того, у кого они есть; раздающий помечен; стул ставят кнопкой", () => {
+  it("РАССАДКА ЖИВЁТ ОТДЕЛЬНЫМ ЭКРАНОМ, а в главном меню — одна кнопка", () => {
     const said = menuOf(full, [], "tg:1");
-    const owner = said.rows.find((r) => r[0]!.text.includes("Хозяин"))!;
-    expect(owner[0]!.text, "у хозяина 6 карт").toContain("6");
-    expect(owner.some((b) => "data" in b && b.data === `tbs:sweep:${room}:c1`), "есть куда забрать").toBe(true);
-    const guest = said.rows.find((r) => r[0]!.text.includes("Гость"))!;
-    expect(guest.some((b) => b.text === "• раздающий"), "раздающий отмечен").toBe(true);
-    expect(guest.some((b) => "data" in b && b.data.startsWith("tbs:sweep")), "у пустой руки карт не забирают").toBe(false);
-    expect(guest.some((b) => "data" in b && b.data === `tbs:kick:${room}:c2`), "выгнать можно").toBe(true);
-    const empty = said.rows.find((r) => r[0]!.text === "пустой стул")!;
-    expect(empty.some((b) => "data" in b && b.data.startsWith("tbs:kick")), "пустой стул выгонять некого").toBe(false);
-    expect(said.rows.some((r) => r[0]!.text === "Поставить стул")).toBe(true);
+    expect(said.rows.at(-1)).toEqual([{ text: "Рассадка", data: `tbz:${room}` }]);
+    // Ни стульев, ни действий над ними в главном меню нет: оно от них и разрослось.
+    expect(said.rows.some((r) => r.some((b) => "data" in b && b.data.startsWith("tbs:"))), "действий рассадки нет").toBe(false);
+    expect(said.rows.some((r) => r[0]!.text.includes("Хозяин")), "и стульев нет").toBe(false);
+  });
+
+  it("СПИСОК СТУЛЬЕВ: строка на стул, у каждого «Пересадить», и есть куда вернуться", () => {
+    const said = seatMenu(full);
+    expect(said.rows[0]).toEqual([{ text: "Хозяин · 6", data: `tbn:${room}:c1` }, { text: "Пересадить", data: `tbz:${room}:c1` }]);
+    expect(said.rows[2]![0]!.text).toBe("пустой стул");
+    expect(said.rows.at(-1)).toEqual([{ text: "Поставить стул", data: `tbs:add:${room}:-` }, { text: "‹ Назад", data: `tbm:${room}` }]);
+  });
+
+  it("ПЕРЕСАДКА В ДВА НАЖАТИЯ: взятый стул помечен, у остальных «сюда»", () => {
+    const said = seatMenu(full, "c1");
+    expect(said.rows[0]).toEqual([{ text: "⇅ Хозяин · 6", data: `tbz:${room}` }]);
+    expect(said.rows[1]![1]).toEqual({ text: "сюда", data: `tbv:${room}:c1:c2` });
+    expect(said.text).toContain("Хозяин");
+  });
+
+  it("СТУЛ: карты забирают только у того, у кого они есть; раздающему роль повторно не дают", () => {
+    const mine = seatCard(full, "c1", true);
+    expect(mine.rows.some((r) => "data" in r[0]! && r[0]!.data === `tbs:sweep:${room}:c1`), "есть куда забрать").toBe(true);
+    expect(mine.rows.some((r) => "data" in r[0]! && r[0]!.data === `tbs:dealer:${room}:c1`), "раздающим можно").toBe(true);
+    const guest = seatCard(full, "c2", true);
+    expect(guest.rows.some((r) => "data" in r[0]! && r[0]!.data.startsWith("tbs:sweep")), "у пустой руки карт не забирают").toBe(false);
+    expect(guest.rows.some((r) => "data" in r[0]! && r[0]!.data.startsWith("tbs:dealer")), "он и так раздающий").toBe(false);
+    expect(guest.rows.some((r) => "data" in r[0]! && r[0]!.data === `tbs:kick:${room}:c2`), "выгнать можно").toBe(true);
+    const empty = seatCard(full, "c3", true);
+    expect(empty.rows.some((r) => r.some((b) => "data" in b && b.data.startsWith("tbs:kick"))), "пустой стул выгонять некого").toBe(false);
+    // ВЫДАЧА РАСПОРЯДИТЕЛЯ — только хозяину, и не себе.
+    expect(seatCard(full, "c2", false).rows.some((r) => "data" in r[0]! && r[0]!.data.startsWith("tba:")), "прочим не видно").toBe(false);
+    expect(seatCard(full, "c1", true).rows.some((r) => "data" in r[0]! && r[0]!.data.startsWith("tba:")), "себе не выдают").toBe(false);
   });
 
   it("МЕНЮ РАЗДАЧИ: отмеченные стулья и один первый", () => {
