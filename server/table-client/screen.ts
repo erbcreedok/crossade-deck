@@ -2552,6 +2552,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       inTip.forEach(([id, to], i) => launch(id, { ...inTip[order[i]!]![1], key: "shuffle" }, to));
       started ||= inTip.length > 0;
     }
+    // ПОСЛЕДНЕЙ — ЧТОБЫ СВЕРХУ. Летящие живут в одном слое, и кто добавлен позже, тот и поверх;
+    // положенная карта не должна подныривать под те, что ей уступают место.
     if (returning && places.has(returning.id)) {
       launch(returning.id, returning.from, places.get(returning.id)!);
       started = true;
@@ -2953,14 +2955,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   /** Всё, что сменило место с прошлого кадра, — в полёт. Своя карта в пальце не летит: она под пальцем. */
   function fly(next: Map<string, Place>): boolean {
     let started = false;
-    // ПО ОЧЕРЕДИ, А НЕ РАЗОМ: когда весь круг трогается одновременно, глазу не за что зацепиться, и
-    // перекладывание читается как подмена карт. Сдвиг в три десятых кадра — и видно, кто куда поехал.
-    let queue = 0;
+    // ВЕСЬ КРУГ ЕДЕТ РАЗОМ. Карты уступают место новой вместе, одним движением: каскад по очереди
+    // читается как дёрганье, а не как «подвинулись», и новая карта приходит не вовремя.
     for (const [id, to] of next) {
       const from = prevPlaces.get(id);
       if (!from || from.key === to.key || id === drag?.card.id) continue;
       started = true;
-      launch(id, from, to, ringArc(from, to) ? queue++ * RING_STAGGER_MS : 0);
+      launch(id, from, to);
     }
     return started;
   }
@@ -2990,9 +2991,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * «подменились», и человек теряет, где чья. Поэтому здесь у движения есть пол.
    */
   const RING_LEAST_MS = 200;
-  /** Насколько позже трогается каждая следующая карта: глаз успевает проследить, кто куда поехал. */
-  const RING_STAGGER_MS = 30;
-
   function launch(id: string, from: Place, to: Place, wait = 0): void {
     const arc = ringArc(from, to);
     // «Меньше анимаций» — карта сразу на месте. Но не там, где без движения теряется смысл.

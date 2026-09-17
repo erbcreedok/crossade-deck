@@ -214,6 +214,10 @@ const started = await p.evaluate(() => {
 check("полёт начинается от пальца, а не из руки", started !== null && Math.hypot(started.x - toVoid.x, started.y - toVoid.y) < 120, { started, finger: toVoid });
 // Сразу после дропа: летит и сама карта из-под пальца, и соседи на новые места.
 await p.waitForTimeout(90);
+// ВСЕ ТРОГАЮТСЯ ВМЕСТЕ И ПРИХОДЯТ ВМЕСТЕ. Каскад по очереди читается как дёрганье, а не как
+// «подвинулись», и положенная карта приходит не вовремя.
+const waits = await p.evaluate(() => [...document.querySelectorAll("[data-flight]")].flatMap((e) => e.getAnimations().map((a) => a.effect.getTiming().delay ?? 0)));
+check("карты круга трогаются одновременно, а не по очереди", waits.length > 1 && waits.every((one) => one === 0), waits);
 const inAir = await flying();
 // ЛЕТЯТ СОСЕДИ — те, что уже лежали в круге: их места сменились, и они обязаны переехать плавно.
 const neighbours = four.filter((id) => inAir.includes(id));
