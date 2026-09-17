@@ -71,6 +71,11 @@ export interface DeskRules {
   readonly zones: readonly DeskZone[];
   /** Имя рода стола — для людей и для карточки комнаты, а не для ветвлений. */
   readonly kind: string;
+  /**
+   * КАКОЙ КРУПЬЕ ПОДХОДИТ ЭТОЙ ИГРЕ — предложение, а не приказ (`crews.ts`). Комната вправе взять
+   * другой набор: крупье — деталь конструктора, а не часть правил.
+   */
+  readonly crew?: string;
   /** Трогать: свою в руке, чужую в руке, лежащую в зоне; верхнюю, нижнюю, любую. */
   mayTake(ask: DeskAsk, card: string, at: Spot, by: string): boolean;
   /** Класть в зону. Отсюда же берётся подсветка: зона светится ровно тогда, когда бросок разрешён. */
@@ -96,6 +101,7 @@ export interface DeskRules {
  */
 export const SANDBOX: DeskRules = {
   kind: "песочница",
+  crew: "sandbox",
   zones: [],
   mayTake: () => true,
   mayDrop: () => true,

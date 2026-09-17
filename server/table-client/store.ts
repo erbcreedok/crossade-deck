@@ -11,6 +11,8 @@ import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 export interface TableStore {
   readonly me: Person;
   readonly title: string;
+  /** Что умеет крупье этой комнаты (`crews.ts`) — по этому списку рисуются кнопки в его окне. */
+  readonly crew: readonly { id: string; name: string; adminOnly?: true }[];
   readonly state: Snapshot;
   send(intent: Intent): void;
   /** Что сейчас в воздухе у других — только то, что ещё держат (по `state.locks`). */

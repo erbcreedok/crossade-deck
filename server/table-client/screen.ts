@@ -1535,6 +1535,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `<span style="font:400 10px Tiny5,monospace;color:${T.inkDim}">Раздаёт крупье: его курсор и его метки. Себе не раздаёт.</span></div>`;
   }
 
+  /**
+   * ДЕЛА КРУПЬЕ — кнопками в его окне. Что он умеет, приходит с сервера набором комнаты (`crews.ts`):
+   * экран не знает ни одной игры и рисует ровно тот список, который дали.
+   */
+  function crewHtml(s: Snapshot, chair: Chair): string {
+    if (!chair.croupier || store.crew.length === 0) return "";
+    const acts = store.crew.filter((act) => !act.adminOnly || s.admin === me());
+    if (acts.length === 0) return "";
+    return `<div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:8px">`
+      + acts.map((act) => `<button data-crew="${escape(act.id)}" style="flex:1 1 auto;border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:7px 10px;`
+        + `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};color:${T.ink}">${escape(act.name)}</button>`).join("")
+      + `</div>`;
+  }
+
   function tipHtml(s: Snapshot, chair: Chair, spot: Spot): { shell: string; cards: string } {
     const cards = chair.hand;
     const sitter = sitterOf(s, chair);
@@ -1575,6 +1589,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
       + `<div style="display:flex;align-items:center;gap:6px;height:16px">`
       + `<span style="flex:1"></span>${flags}${poses}</div>`
+      + crewHtml(s, chair)
 
       + `<div style="position:relative;height:${box.rowH}px"></div></div>`;
     // Карты веера — рядом с коробкой, не внутри: их вытаскивают на стол, и край не должен их резать.
@@ -2324,7 +2339,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       seatAngle: chairOf(s, seat)?.angle ?? null,
       seats: spots.map((sp) => {
         const c = chairOf(s, sp.key);
-        return { key: sp.key, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, ...(c?.croupier ? { croupier: true } : {}), x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), puff: sp.puff, rings: sp.rings, ...(sp.plate ? { plate: sp.plate } : {}), chair: Math.round(SEAT_REACH * view!.k) };
+        return { key: sp.key, hand: c?.hand.length ?? 0, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, ...(c?.croupier ? { croupier: true } : {}), x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), puff: sp.puff, rings: sp.rings, ...(sp.plate ? { plate: sp.plate } : {}), chair: Math.round(SEAT_REACH * view!.k) };
       }),
     });
     local.tips = local.tips.filter((id) => id !== seat && chairOf(s, id) !== undefined);
@@ -3328,6 +3343,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         const chair = chairOf(truth(), el.dataset.chair!);
         const k = el.dataset.pose as keyof Pose;
         if (chair) guessPose(chair.id, k, !chair.pose[k]);
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-crew]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        store.send({ t: "crew", act: el.dataset.crew! });
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-flag]")) {

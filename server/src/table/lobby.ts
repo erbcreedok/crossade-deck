@@ -8,18 +8,21 @@
 // был — сама комната Colyseus, чтобы закрыть её отсюда.
 
 import type { Home, Person, RoomCard, RunResult, TableCommand } from "./contract.js";
-import { DEFAULT_DESK, deskName, isDesk } from "./desks.js";
+import { DEFAULT_DESK, deskCrew, deskName, isDesk } from "./desks.js";
 import { retitled, ROOM_WORD, titleFrom, uniqueTitle } from "./names.js";
+import { DEFAULT_CREW, isCrew } from "./crews.js";
 
 interface Entry {
   room: string;
   title: string;
   /** РОД СТОЛА — имя конфига правил (`desks.ts`). Записан при открытии и живёт с комнатой. */
   kind: string;
+  /** НАБОР КРУПЬЕ (`crews.ts`) — отдельно от рода: игра его только предлагает. */
+  crew: string;
   home: Home;
   by: string;
   createdAt: number;
-  live?: { people: () => Person[]; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; claim?: (by: string) => void; recast?: (kind: string) => void };
+  live?: { people: () => Person[]; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; claim?: (by: string) => void; recast?: (kind: string) => void; recrew?: (crew: string) => void };
 }
 
 const rooms = new Map<string, Entry>();
@@ -33,13 +36,14 @@ const card = (e: Entry): RoomCard => ({
   room: e.room,
   title: e.title,
   kind: e.kind,
+  crew: e.crew,
   by: e.by,
   home: e.home,
   people: e.live?.people() ?? [],
   createdAt: e.createdAt,
 });
 
-export function openEntry(room: string, home: Home, by: string, title?: string, now = Date.now(), kind: string = DEFAULT_DESK): RoomCard {
+export function openEntry(room: string, home: Home, by: string, title?: string, now = Date.now(), kind: string = DEFAULT_DESK, crew?: string): RoomCard {
   const had = rooms.get(room);
   if (had) {
     // ХОЗЯИН ВЕРНУЛСЯ К СВОЕЙ КОМНАТЕ. Её мог завести вошедший (после перезапуска сервера) — тогда она
@@ -59,6 +63,7 @@ export function openEntry(room: string, home: Home, by: string, title?: string, 
     home,
     by,
     kind: desk,
+    crew: isCrew(crew) ? crew : (deskCrew(desk) ?? DEFAULT_CREW),
     title: uniqueTitle(title?.trim() || titleFrom(deskName(desk), home.kind === "chat" ? home.chatTitle : undefined), takenTitles()),
     createdAt: now,
   };
@@ -78,6 +83,9 @@ export const creatorOf = (room: string): string | null => rooms.get(room)?.by ||
 
 /** Род стола этой комнаты. Комнаты нет — песочница: стол всё равно откроется. */
 export const kindOf = (room: string): string => rooms.get(room)?.kind ?? DEFAULT_DESK;
+
+/** Набор крупье этой комнаты. */
+export const crewKind = (room: string): string => rooms.get(room)?.crew ?? DEFAULT_CREW;
 
 export function roomsAt(home: Home): RoomCard[] {
   return [...rooms.values()]
@@ -113,6 +121,15 @@ export function recast(room: string, kind: string): RoomCard | undefined {
   e.title = uniqueTitle(retitled(e.title, deskName(e.kind), deskName(kind)), takenTitles(room));
   e.kind = kind;
   e.live?.recast?.(kind);
+  return card(e);
+}
+
+/** Сменить набор крупье. Незнакомый набор — отказ: его выбирает человек кнопкой. */
+export function recrew(room: string, crew: string): RoomCard | undefined {
+  const e = rooms.get(room);
+  if (!e || !isCrew(crew)) return undefined;
+  e.crew = crew;
+  e.live?.recrew?.(crew);
   return card(e);
 }
 

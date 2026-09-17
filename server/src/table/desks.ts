@@ -33,6 +33,9 @@ export const DESKS: Record<string, (judge: Judge) => DeskRules> = {
 /** Как этот род зовётся для человека. Незнакомый — сам себе имя: комната всё равно открывается. */
 export const deskName = (kind: string): string => (isDesk(kind) ? DESKS[kind]!(() => null).kind : kind);
 
+/** Какой набор крупье эта игра предлагает по умолчанию. */
+export const deskCrew = (kind: string): string | undefined => (isDesk(kind) ? DESKS[kind]!(() => null).crew : undefined);
+
 export const deskNames = (): Array<{ id: string; name: string }> =>
   Object.entries(DESKS).map(([id, make]) => ({ id, name: make(() => null).kind }));
 

@@ -56,6 +56,7 @@ export function localStore(): TableStore {
 
   return {
     me,
+    crew: [],
     title: "Стенд жеста",
     get state() {
       return state;

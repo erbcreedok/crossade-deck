@@ -11,8 +11,9 @@ import { randomBytes, timingSafeEqual } from "crypto";
 import express, { type Router } from "express";
 import { tableConfig } from "./config.js";
 import { DEFAULT_DESK, isDesk } from "./desks.js";
+import { isCrew } from "./crews.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
-import { closeEntry, findEntry, openEntry, recast, rehome, rename, roomsAt, roomsBy, runIn } from "./lobby.js";
+import { closeEntry, findEntry, openEntry, recast, recrew, rehome, rename, roomsAt, roomsBy, runIn } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 
 /** Этот запуск. Новый процесс — новый `boot`: по нему бот понимает, что прежних столов нет. */
@@ -89,7 +90,7 @@ export function tableRoutes(): Router {
     const room = body.room ?? mintRoom(secret);
     // РОД СТОЛА — необязателен и разбирается по каталогу (`desks.ts`): незнакомый род не ломает
     // открытие, а даёт песочницу. Бот и сервер обновляются порознь.
-    res.json(openEntry(room, home, body.by, typeof body.title === "string" ? body.title : undefined, Date.now(), isDesk(body.kind) ? body.kind : DEFAULT_DESK));
+    res.json(openEntry(room, home, body.by, typeof body.title === "string" ? body.title : undefined, Date.now(), isDesk(body.kind) ? body.kind : DEFAULT_DESK, isCrew(body.crew) ? body.crew : undefined));
   });
 
   r.get("/table/rooms", guarded, (req, res) => {
@@ -115,6 +116,11 @@ export function tableRoutes(): Router {
     if (body.kind !== undefined) {
       if (!isDesk(body.kind)) return void res.status(400).json({ error: "bad_request" });
       out = recast(req.params.room, body.kind);
+    }
+    // НАБОР КРУПЬЕ — отдельно от рода: игра его только предлагает, комната выбирает.
+    if (body.crew !== undefined) {
+      if (!isCrew(body.crew)) return void res.status(400).json({ error: "bad_request" });
+      out = recrew(req.params.room, body.crew);
     }
     if (!out) return void res.status(404).json({ error: "not_found" });
     res.json(out);

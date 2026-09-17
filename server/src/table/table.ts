@@ -416,6 +416,9 @@ export class Table {
       }
       case "sync":
         return { ops: [] };
+      // ДЕЛО КРУПЬЕ ИСПОЛНЯЕТ КОМНАТА, а не стол: это не ход по столу, а состав стола (`crews.ts`).
+      case "crew":
+        return { refused: "bad" };
     }
   }
 

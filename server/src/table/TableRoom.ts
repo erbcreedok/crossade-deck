@@ -23,12 +23,24 @@ import { whoIs, type Who } from "./identity.js";
 import { deskOf } from "./desks.js";
 import { RING } from "./games/krest.js";
 import { move, start, type Match } from "./games/match.js";
-import { attach, creatorOf, kindOf, openEntry, titleOf } from "./lobby.js";
+import { attach, creatorOf, crewKind, kindOf, openEntry, titleOf } from "./lobby.js";
+import { actOf, crewOf } from "./crews.js";
+import { seatPoint } from "./ring.js";
+
+/** Пауза между картами в деле крупье: видно, что он их носит, а не что стол моргнул. */
+const CREW_PACE = 60;
+/** Шаг дела крупье — тот же, каким ходят команды бота (`script.ts`). */
+type CrewStep = Parameters<typeof execute>[1][number];
+/**
+ * Где крупье выкладывает стопку: перед собой, но НЕ НА МЕСТЕ КОЛОДЫ — колода живёт у него же, и
+ * стопка, положенная в ту же точку, смешалась бы с ней на глаз.
+ */
+const LAYOUT_RADIUS = 4;
 import { readCommand } from "./routes.js";
 import { roomIsSigned } from "./roomIds.js";
 import { Table } from "./table.js";
 
-const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "turn", "flip", "arrange", "pose", "stand", "sit", "flag", "deckMove", "deckDo", "deckForever", "deckPin", "deckGuard", "gather", "pick", "unpick", "moveMany", "turnMany", "pileDrop", "rules", "sync"]);
+const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "turn", "flip", "arrange", "pose", "stand", "sit", "flag", "deckMove", "deckDo", "deckForever", "deckPin", "deckGuard", "gather", "pick", "unpick", "moveMany", "turnMany", "pileDrop", "rules", "sync", "crew"]);
 
 export class TableRoom extends Room {
   /** Слоты выстрелов стикерами; окно чуть короче клиентского — на запаздывание сети. */
@@ -76,6 +88,7 @@ export class TableRoom extends Room {
       claim: (by) => this.spread(this.table.claim(by)),
       // РОД СМЕНИЛИ НА ХОДУ: стол берёт другие правила, а карты и люди остаются на местах. Партия
       // старого рода при этом кончается — судить её стало нечем.
+      recrew: () => this.resend(),
       recast: (kind) => {
         this.match = null;
         this.table.recast(deskOf(kind, () => this.judgeView()));
@@ -89,7 +102,7 @@ export class TableRoom extends Room {
     this.onMessage(MSG.hello, (client) => {
       const me = this.personOf(client.sessionId);
       if (!me) return;
-      const welcome: Welcome = { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now() };
+      const welcome: Welcome = { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts] };
       client.send(MSG.welcome, welcome);
     });
 
@@ -97,9 +110,11 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       if (!me || !intent || !INTENTS.has(intent.t)) return;
       if (intent.t === "sync") {
-        client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now() } satisfies Welcome);
+        client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts] } satisfies Welcome);
         return;
       }
+      // ДЕЛО КРУПЬЕ — не ход по столу, а состав стола: его исполняет комната.
+      if (intent.t === "crew") return void this.crewAct(me.key, intent.act);
       const result = this.table.act(me.key, intent, Date.now());
       if ("refused" in result) client.send(MSG.refused, { intent, why: result.refused });
       else {
@@ -306,6 +321,66 @@ export class TableRoom extends Room {
     return { ok: true };
   }
 
+  /**
+   * ДЕЛО КРУПЬЕ. Что он умеет — берётся из набора комнаты (`crews.ts`), а не из игры: крестовый с
+   * крупье от дурака — законная комбинация. Кому можно: `adminOnly` — распорядителю, прочее — всем,
+   * кого пускает замок его стула.
+   *
+   * Сами дела идут теми же шагами, что и команды бота: карта за картой, с паузой, чтобы за столом
+   * было видно, что происходит, а не «всё вдруг стало иначе».
+   */
+  private crewAct(by: string, act: string): void {
+    const item = actOf(crewKind(this.room), act);
+    const chair = this.table.layout().chairs.find((c) => c.croupier);
+    if (!item || !chair) return;
+    if (item.adminOnly && this.table.seenBy(by).admin !== by) return;
+    if (this.table.busy) return;
+    // ВЫКЛАДКА — ОДНО ДВИЖЕНИЕ: стопка кладётся целиком, её не носят по карте.
+    if (act === "layout") return void this.layout(by, chair.id, chair.angle);
+    const steps = act === "collect" ? this.collectSteps(chair.id) : [];
+    if (steps.length === 0) return;
+    void execute(this.table, steps, by, {
+      spread: (ops) => this.spread(ops),
+      carry: (id) => {
+        for (const other of this.clients) {
+          const key = this.seats.get(other.sessionId);
+          if (key === undefined) continue;
+          const [seen] = this.table.carriesSeenBy(key, id);
+          if (seen) other.send(MSG.carry, seen);
+        }
+      },
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      now: () => Date.now(),
+    });
+  }
+
+  /** ВСЕ КАРТЫ СТОЛА — В РУКУ КРУПЬЕ: сукно, стопки, круг хода и все руки, включая его собственную. */
+  private collectSteps(seat: string): CrewStep[] {
+    const at = this.table.layout();
+    // Каждая карта ложится В КОНЕЦ руки: номер места считается на момент шага, а не заранее.
+    const to = (n: number) => ({ in: "hand", chair: seat, i: n }) as const;
+    const steps: CrewStep[] = [];
+    let n = at.chairs.find((c) => c.id === seat)?.hand.length ?? 0;
+    for (const one of [...at.felt].reverse()) steps.push({ t: "move", id: one.id, to: to(n++), ms: CREW_PACE });
+    // КОЛОДА ЛЕЖИТ ОТДЕЛЬНЫМ ПОЛЕМ РАСКЛАДКИ, а не среди стопок: без неё «собрать всё» собирает всё, кроме главного.
+    for (const id of [...at.deck].reverse()) steps.push({ t: "move", id, to: to(n++), ms: CREW_PACE });
+    for (const pile of [...at.piles].reverse()) for (const id of [...pile.cards].reverse()) steps.push({ t: "move", id, to: to(n++), ms: CREW_PACE });
+    for (const other of at.chairs) {
+      if (other.id === seat) continue;
+      for (const id of [...other.hand].reverse()) steps.push({ t: "move", id, to: to(n++), ms: CREW_PACE });
+    }
+    return steps;
+  }
+
+  /** ВСЯ РУКА КРУПЬЕ — ОДНОЙ ЗАКРЫТОЙ СТОПКОЙ ПЕРЕД НИМ. */
+  private layout(by: string, seat: string, angle: number): void {
+    const chair = this.table.layout().chairs.find((c) => c.id === seat);
+    if (!chair || chair.hand.length === 0) return;
+    const at = seatPoint(angle, LAYOUT_RADIUS);
+    const out = this.table.act(by, { t: "gather", ids: [...chair.hand], side: "down", to: { x: at.x, y: at.y, angle: 0 } }, Date.now());
+    if (!("refused" in out)) this.spread(out.ops);
+  }
+
   onAuth(client: Client, options: Partial<JoinOptions>): Who {
     const { botToken, guests, secret } = tableConfig();
     if (!secret || !roomIsSigned(options.room, secret)) throw new Error("unsigned room");
@@ -366,7 +441,7 @@ export class TableRoom extends Room {
     for (const client of this.clients) {
       const me = this.personOf(client.sessionId);
       if (!me) continue;
-      client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now() } satisfies Welcome);
+      client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts] } satisfies Welcome);
     }
   }
 
