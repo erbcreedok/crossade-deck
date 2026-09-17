@@ -67,3 +67,15 @@ export function ringSpot(at: { x: number; y: number; angle?: number }, i: number
   const rad = (((at.angle ?? 0) + (360 / Math.max(1, n)) * i) * Math.PI) / 180;
   return { x: at.x + spread * Math.sin(rad), y: at.y - spread * Math.cos(rad) };
 }
+
+/**
+ * ГДЕ РИСОВАТЬ i-Ю КАРТУ ЗОНЫ-КОЛЬЦА — с учётом того, что уже сняли снизу.
+ *
+ * Место АБСОЛЮТНОЕ: снятые снизу плюс номер в стопке. Иначе взятая нижняя утащила бы за собой всех
+ * остальных, а по правилу мастодонта на её месте должна остаться дыра — она и есть след того, что
+ * кто-то взял. Мест в кольце не меньше, чем карт легло за круг: положили ещё одну — прежние стоят.
+ */
+export function ringPlace(zone: { x: number; y: number; angle?: number; seats?: number; taken?: number }, i: number, n: number): { x: number; y: number } {
+  const taken = zone.taken ?? 0;
+  return ringSpot(zone, taken + i, Math.max(zone.seats ?? 0, taken + n));
+}

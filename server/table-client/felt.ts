@@ -6,7 +6,7 @@
 
 import { apply, invert, type Transform } from "../../game-kit/src/core/transform.js";
 import type { Face, ZonePose } from "../src/table/contract.js";
-import { CROUPIER_RADIUS, ringSpot, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
+import { CROUPIER_RADIUS, ringPlace, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
 
 export interface Pose {
   fan: boolean;
@@ -425,7 +425,7 @@ export interface FeltScene {
   /** Карта переворачивается: доля пути и какой она была до (сторона и лицо). */
   turning?: (id: string) => { p: number; up: boolean; face?: Face } | undefined;
   /** Стопки в порядке «кто сверху»: место, поворот, что под ней и карты снизу вверх. */
-  piles: (Point & { id: string; angle: number; pose?: ZonePose; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean }[] })[];
+  piles: (Point & { id: string; angle: number; pose?: ZonePose; seats?: number; taken?: number; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean }[] })[];
   felt: FeltItem[];
   /** Id вещи → цвет того, кто её сейчас держит (кроме меня). */
   held: Record<string, string>;
@@ -482,7 +482,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     const spot = o.piles.find((one) => one.id === pile);
     // ПОЗА ЗОНЫ — ЗНАЧЕНИЕ (`ZonePose`), а не ветка про игру: «по кругу» ложатся карты кольца, где
     // колоды нет и карты стоят вокруг середины, в порядке хода, а не друг на друге.
-    if (spot?.pose === "ring") return ringSpot(spot, i, n);
+    if (spot?.pose === "ring") return ringPlace(spot, i, n);
     const reach = DECK_DRIFT.each * Math.max(0, n - 1);
     const drift = DECK_DRIFT.each * (reach > DECK_DRIFT.most ? DECK_DRIFT.most / reach : 1);
     const up = onScreen(i * drift, -i * (drift + CARD_THICK * o.rise));

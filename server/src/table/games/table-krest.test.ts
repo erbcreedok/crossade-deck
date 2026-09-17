@@ -11,6 +11,7 @@ import { Table } from "../table.js";
 import type { Person } from "../contract.js";
 import { RING } from "./krest.js";
 import { start, type Match } from "./match.js";
+import { SANDBOX } from "../rules.js";
 import type { Face } from "../contract.js";
 
 const person = (key: string): Person => ({ key, name: key, ink: "#fff", door: "guest" });
@@ -99,5 +100,66 @@ describe("стол крестового: кольцо стережёт очер�
     expect(ring.cards).toEqual([]);
     expect(ring.pose).toBe("ring");
     expect(ring.forever, "кольцо не исчезает, опустев").toBe(true);
+  });
+});
+
+describe("кольцо рвётся, а не сдвигается", () => {
+  // Здесь проверяется МЕХАНИКА кольца, а не старшинство: стол берётся с зоной-кольцом, но с правами
+  // песочницы. Иначе вторую карту в кольцо не положить — её отказало бы «не бьёт», и тест мерил бы
+  // старшинство, уже разобранное в другом файле.
+  const krestTable = (keys: string[]) => {
+    const t = new Table(deal(), keys[0]!, { ...SANDBOX, zones: [{ id: RING, x: 0, y: 0, pose: "ring", forever: true }] });
+    for (const k of keys) t.join(person(k));
+    return { t, chairOf: (key: string) => t.layout().chairs.find((c) => c.owner === key)!.id };
+  };
+
+  /** Положить карту из руки в кольцо и вернуть её id. */
+  const intoRing = (t: Table, key: string, card: string) => {
+    t.act(key, { t: "grab", id: card }, 0);
+    const drop = t.act(key, { t: "drop", id: card, to: { in: "deck", pile: RING } }, 0);
+    expect("refused" in drop ? drop.refused : "ok").toBe("ok");
+  };
+
+  it("сняли нижнюю — счёт снятых вырос, и место остаётся пустым", () => {
+    const k = krestTable(["Аня"]);
+    const one = toHand(k.t, "Аня");
+    const two = toHand(k.t, "Аня");
+    intoRing(k.t, "Аня", one);
+    intoRing(k.t, "Аня", two);
+    expect(k.t.seenBy("Аня").piles.find((p) => p.id === RING)!.taken ?? 0, "пока никто не брал").toBe(0);
+
+    k.t.act("Аня", { t: "grab", id: one }, 0);
+    k.t.act("Аня", { t: "drop", id: one, to: { in: "hand", chair: k.chairOf("Аня"), i: 0 } }, 0);
+    const ring = k.t.seenBy("Аня").piles.find((p) => p.id === RING)!;
+    expect(ring.taken, "нижняя ушла — на её месте дыра").toBe(1);
+    expect(ring.cards.length).toBe(1);
+  });
+
+  it("сняли НЕ нижнюю — дыры нет: остальные просто переставятся", () => {
+    const k = krestTable(["Аня"]);
+    const one = toHand(k.t, "Аня");
+    const two = toHand(k.t, "Аня");
+    intoRing(k.t, "Аня", one);
+    intoRing(k.t, "Аня", two);
+    k.t.act("Аня", { t: "grab", id: two }, 0);
+    k.t.act("Аня", { t: "drop", id: two, to: { in: "hand", chair: k.chairOf("Аня"), i: 0 } }, 0);
+    expect(k.t.seenBy("Аня").piles.find((p) => p.id === RING)!.taken ?? 0, "верхнюю сняли — счёт снятых снизу не менялся").toBe(0);
+  });
+
+  it("кольцо опустело — круг кончился, и счёт мест начинается заново", () => {
+    const k = krestTable(["Аня"]);
+    const one = toHand(k.t, "Аня");
+    intoRing(k.t, "Аня", one);
+    k.t.act("Аня", { t: "grab", id: one }, 0);
+    k.t.act("Аня", { t: "drop", id: one, to: { in: "hand", chair: k.chairOf("Аня"), i: 0 } }, 0);
+    expect(k.t.seenBy("Аня").piles.find((p) => p.id === RING)!.taken).toBe(0);
+  });
+
+  it("обычной стопки это не касается вовсе", () => {
+    const k = krestTable(["Аня"]);
+    const card = toHand(k.t, "Аня");
+    k.t.act("Аня", { t: "grab", id: card }, 0);
+    k.t.act("Аня", { t: "drop", id: card, to: { in: "felt", x: 2, y: 2, up: false, angle: 0 } }, 0);
+    expect(k.t.seenBy("Аня").piles.find((p) => p.id === "deck")!.taken, "у колоды счёта мест нет").toBe(undefined);
   });
 });
