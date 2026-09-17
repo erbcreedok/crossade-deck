@@ -75,18 +75,61 @@ await p.mouse.up();
 await p.waitForTimeout(600);
 check("в круге две карты", (await ringGrip())?.n === 2, await ringGrip());
 
+// ВСТАВКА ПО ПРИЦЕЛУ: навёл точно на карту — встанешь СРАЗУ ПОСЛЕ неё, а не в конец.
+const ringIds = async () => ((await spots()).piles.find((p) => p.id === "ring") ?? {}).ids ?? [];
+const RING_HOME = 1.5;
+/** Где на стекле лежит i-я карта круга: места делят круг поровну, и их не меньше трёх. */
+const ringAt = async (i, slots) => {
+  const sp = await spots();
+  const a = ((360 / slots) * i * Math.PI) / 180;
+  return { x: sp.middle.x + RING_HOME * sp.k * Math.sin(a), y: sp.middle.y - RING_HOME * sp.k * Math.cos(a) };
+};
+/** Карта с колоды в руку и оттуда — в точку `to`. */
+const fromDeckTo = async (to) => {
+  const d = (await spots()).deckTop;
+  await p.mouse.move(d.x, d.y);
+  await p.mouse.down();
+  await p.mouse.move(195, 800, { steps: 6 });
+  await p.mouse.up();
+  await p.waitForTimeout(500);
+  const box = await p.locator("[data-card]").last().boundingBox();
+  const id = await p.locator("[data-card]").last().getAttribute("data-card");
+  await p.mouse.move(box.x + box.width / 2, box.y + 8);
+  await p.mouse.down();
+  await p.mouse.move(to.x, to.y, { steps: 8 });
+  await p.mouse.up();
+  await p.waitForTimeout(700);
+  return id;
+};
+
+const pair = await ringIds();
+const inserted = await fromDeckTo(await ringAt(0, 3));
+const after = await ringIds();
+check("навёл на первую карту — встал сразу после неё", after[1] === inserted && after[0] === pair[0] && after[2] === pair[1], { pair, after, inserted });
+
+// МИМО КАРТ — В КОНЕЦ, как было всегда: прицел по карте, а не по всему кругу.
+const tail = await fromDeckTo((await spots()).middle);
+check("мимо карт — карта уходит в конец", (await ringIds()).at(-1) === tail, { ids: await ringIds(), tail });
+
 // КАРТЫ ЛЕЖАТ НА ПОЛПУТИ К КОНТУРУ, а не у самой линии: круг хода читается как ход, а не как ободок.
-const RING_HOME = (3 - 1.4 / 2) / 2;
-const k = (await spots()).k;
 // ХВАТ ПРЯМО ПО КАРТЕ: тултип для этого открывать не нужно — палец берёт ту карту, на которой лежит.
-const onRing = { x: mid.x, y: mid.y - RING_HOME * k };
+const onRing = await ringAt(0, 4);
 await p.mouse.move(onRing.x, onRing.y);
 await p.mouse.down();
 await p.mouse.move(195, 800, { steps: 8 });
+await p.waitForTimeout(200);
+// МЕСТО ДЕРЖИТСЯ, ПОКА КАРТУ НЕСУТ: контур стоит там, откуда её взяли, и круг не пересобирается.
+const held = await p.evaluate(() => {
+  const e = document.querySelector("[data-g=ring-home]");
+  const r = e?.getBoundingClientRect();
+  return e ? { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } : null;
+});
+check("карту несут — её место в круге держит контур", held !== null && Math.hypot(held.x - onRing.x, held.y - onRing.y) < 12, { held, onRing });
 await p.mouse.up();
 await p.waitForTimeout(600);
+check("отпустили вне круга — контур убран", (await p.locator("[data-g=ring-home]").count()) === 0, null);
 // Тянули за место ПЕРВОЙ карты, а не за верхнюю: ушла ровно она, вторая осталась лежать.
-check("КАРТУ ИЗ КРУГА БЕРУТ ХВАТОМ ПО НЕЙ, не открывая окно стопки", (await ringGrip())?.n === 1, await grips());
+check("КАРТУ ИЗ КРУГА БЕРУТ ХВАТОМ ПО НЕЙ, не открывая окно стопки", (await ringGrip())?.n === 3, await grips());
 check("и окно стопки при этом не открылось", (await p.locator("[data-deck-tip]").count()) === 0, null);
 check("а у колоды ручка на месте всегда", (await grips()).some((g) => g.pile === "deck"), await grips());
 

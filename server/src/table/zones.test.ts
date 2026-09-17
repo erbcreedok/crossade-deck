@@ -55,6 +55,21 @@ describe("зона заводится конфигом, а не кодом", () 
     expect(put(zoned()), "потолка нет — кладут обе").toEqual(["ok", "ok"]);
   });
 
+  it("СЛЕД ПОМНИТ ИМЯ ЗОНЫ: карта из круга — «из круга хода», а не «из колоды»", () => {
+    const rules: DeskRules = { ...SANDBOX, zones: [{ id: "круг", name: "Круг хода", x: 0, y: 0, pose: "ring" }] };
+    const t = new Table(cards.slice(), null, rules);
+    t.join({ key: "я", name: "я", ink: "#fff", door: "guest" });
+    t.act("я", { t: "grab", id: "a" }, 0);
+    t.act("я", { t: "drop", id: "a", to: { in: "deck", pile: "круг" } }, 0);
+    t.act("я", { t: "grab", id: "a" }, 0);
+    t.act("я", { t: "drop", id: "a", to: { in: "felt", x: 2, y: 2, up: true, angle: 0 } }, 0);
+    expect(t.seenBy("я").trails.a).toMatchObject({ from: "deck", pile: "Круг хода" });
+    // У колоды имени нет — и в следе его нет: она одна и зовётся колодой.
+    t.act("я", { t: "grab", id: "b" }, 0);
+    t.act("я", { t: "drop", id: "b", to: { in: "felt", x: 1, y: 1, up: true, angle: 0 } }, 0);
+    expect(t.seenBy("я").trails.b!.pile).toBeUndefined();
+  });
+
   it("замки зоны берутся из конфига", () => {
     const rules: DeskRules = { ...SANDBOX, zones: [{ id: "сброс", x: 0, y: 3, pose: "stack", shut: true, pin: true }] };
     const zone = new Table(cards.slice(), null, rules).seenBy("кто-то").piles.find((p) => p.id === "сброс")!;
@@ -86,7 +101,8 @@ describe("поза «по кругу» — общая правда, а не ка
     const one = ringSpot(at, 0, 1);
     expect(one.x).toBeCloseTo(0, 6);
     expect(one.y).toBeCloseTo(-RING_HOME, 6);
-    expect(RING_HOME * 2, "вдвое ближе контура карт").toBeCloseTo(RING_CARDS, 6);
+    expect(RING_HOME, "ближе контура, но не в самой середине").toBeGreaterThan(RING_CARDS / 2);
+    expect(RING_HOME, "и внутри круга карт").toBeLessThan(RING_CARDS);
   });
 
   it("МЕСТА ДЕЛЯТ КРУГ ПОРОВНУ: три места — 120°, четыре — 90°", () => {

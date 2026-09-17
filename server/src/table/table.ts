@@ -811,6 +811,11 @@ export class Table {
     const was = this.trails.get(id);
     if (from.in === "felt" && to === "felt" && was) return { ...was, by, byName, at };
     const trail: Trail = { by, byName, from: from.in, at };
+    // ИЗ КАКОЙ ИМЕННО СТОПКИ: у зоны есть имя, и след обязан его нести — «из круга хода», а не «из колоды».
+    if (from.in === "deck") {
+      const name = this.piles.get(from.pile)?.spot.name;
+      if (name) trail.pile = name;
+    }
     if (from.in === "hand") {
       const chair = this.chairs.get(from.chair);
       const whose = chair?.owner ?? chair?.last;

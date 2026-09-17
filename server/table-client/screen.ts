@@ -22,7 +22,7 @@ import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as 
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
-import { RING_SPREAD } from "../src/table/ring.js";
+import { ringSlots, ringStep, RING_SPREAD } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
 import { HOST } from "./host.js";
 
@@ -262,6 +262,12 @@ interface Drag {
   moved: boolean;
   /** Несут выделенное лассо: карта под пальцем ведёт за собой всё моё выделение. */
   mass?: boolean;
+  /**
+   * МЕСТО В КРУГЕ, КОТОРОЕ КАРТА ДЕРЖИТ, ПОКА ЕЁ НЕСУТ. Его видно контуром, и по нему карта
+   * возвращается ровно туда, откуда её взяли. Круг при этом не пересобирается: дыра в цепочке — это
+   * нормально, пока палец не отпустил.
+   */
+  ringHome?: { at: { x: number; y: number }; angle: number };
 }
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
@@ -1840,6 +1846,43 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return html;
   }
 
+  /**
+   * КОНТУРЫ КРУГА ХОДА — два, и оба только у того, кто держит карту.
+   *
+   *   держатель  место, откуда карту взяли: оно ждёт её обратно, и круг не пересобирается;
+   *   вставка    место между двумя картами, куда карта встанет, если отпустить сейчас.
+   *
+   * СОСЕДЕЙ НИ ОДИН ИЗ НИХ НЕ ДВИГАЕТ: до `drop` карты круга лежат как лежали.
+   */
+  function ringMarksHtml(): string {
+    if (!drag || !view) return "";
+    const w = FELT_CARD.w * view.k;
+    const h = FELT_CARD.h * view.k;
+    let html = "";
+    if (drag.ringHome) {
+      const at = view.toGlass(drag.ringHome.at);
+      html += markHtml(w, h, view.rotation + drag.ringHome.angle, at.x, at.y, 29, view.squash, T.inkDim).replace('data-g="mark"', 'data-g="ring-home"');
+    }
+    const aim = drag.target;
+    if (aim.kind === "deckAt") {
+      const pile = pileOf(seen(), aim.pile);
+      if (pile?.pose === "ring" && aim.index > 0) {
+        // МЕЖДУ ЦЕЛЬЮ И СЛЕДУЮЩЕЙ: карта встанет сюда, а соседи разъедутся уже после того, как её отпустят.
+        const n = Math.max(1, pile.cards.length);
+        const i = aim.index - 1;
+        const half = ringStep(ringSlots(pile, n)) / 2;
+        const spot = view.deckAt(pile.id, i, n);
+        const facing = view.deckFacing(pile.id, i, n);
+        const mid = view.toDesk(view.toGlass({ x: pile.x, y: pile.y }));
+        const turn = (Math.atan2(spot.x - mid.x, mid.y - spot.y) * 180) / Math.PI + half;
+        const away = Math.hypot(spot.x - mid.x, spot.y - mid.y);
+        const to = view.toGlass({ x: mid.x + away * Math.sin((turn * Math.PI) / 180), y: mid.y - away * Math.cos((turn * Math.PI) / 180) });
+        html += markHtml(w, h, view.rotation + facing + half, to.x, to.y, 31, view.squash).replace('data-g="mark"', 'data-g="ring-slot"');
+      }
+    }
+    return html;
+  }
+
   function feltMarkHtml(): string {
     if (!drag || drag.target.kind !== "felt" || !view) return "";
     const at = view.toGlass(drag.target.at);
@@ -1871,7 +1914,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const title = face
       ? `<span style="color:${SUITS[face.suit][1] === "#1b1b1b" ? T.ink : "#e0645c"}">${escape(face.rank)} ${SUITS[face.suit][0]}</span>`
       : `<span style="color:${T.inkDim}">Рубашкой вверх</span>`;
-    const from = !trail ? "" : trail.from === "deck" ? "из колоды" : trail.from === "hand" ? (trail.hand ? `из руки ${escape(trail.hand)}` : "из руки") : "со стола";
+    const from = !trail ? "" : trail.from === "deck" ? (trail.pile ? `из «${escape(trail.pile)}»` : "из колоды") : trail.from === "hand" ? (trail.hand ? `из руки ${escape(trail.hand)}` : "из руки") : "со стола";
     return [
       `<div data-g="tip-name" style="font-size:${0.3 * k}px;line-height:1.15;margin-bottom:${0.06 * k}px">${title}</div>`,
       from && `<div data-g="tip-from" style="color:${T.inkDim}">${from}</div>`,
@@ -2412,7 +2455,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // колебание его голоса — кольца живут на холсте, а не здесь. Переписывать при этом `innerHTML` значит
     // десятки раз в секунду выбрасывать кнопки из-под пальца: нажатие начинается на одной, а заканчивается
     // на другой, и до onclick дело не доходит вовсе — заглушить говорящего было нельзя, пока он не замолчит.
-    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml();
+    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + ringMarksHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml();
     if (html !== lastOver) {
       lastOver = html;
       over.innerHTML = html;
@@ -2958,7 +3001,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     for (const pile of [...s.piles].reverse()) {
       if (pile.id === skip) continue;
       const zone = deckZone(pile);
-      if (zone && centre.x >= zone.left && centre.x <= zone.right && centre.y >= zone.top && centre.y <= zone.bottom) return pile.shut ? { kind: "back" } : { kind: "deck", pile: pile.id };
+      if (zone && centre.x >= zone.left && centre.x <= zone.right && centre.y >= zone.top && centre.y <= zone.bottom) {
+        if (pile.shut) return { kind: "back" };
+        // КРУГ ХОДА: навёл ТОЧНО НА КАРТУ — встанет сразу после неё; мимо карт — в конец, как везде.
+        const after = pile.pose === "ring" ? ringCardUnder(pile, centre) : -1;
+        return after >= 0 ? { kind: "deckAt", pile: pile.id, index: after + 1 } : { kind: "deck", pile: pile.id };
+      }
     }
     // НА СТУЛ — в руку его стула, в конец. Под локом стул карту не берёт: она вернётся, откуда взята.
     const chair = chairUnder(s, x, y);
@@ -2975,8 +3023,30 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return a.kind === b.kind && a.kind !== "hand" && a.kind !== "chair" && a.kind !== "deck" && a.kind !== "deckAt";
   };
 
+  /**
+   * КАКАЯ КАРТА КРУГА ПОД ЭТОЙ ТОЧКОЙ СТЕКЛА — её номер, или −1, если мимо всех.
+   *
+   * Тот же счёт, что и у пальца (`feltPick`): целятся и берут по одной и той же правде, иначе карта
+   * встала бы не туда, куда показывал контур.
+   */
+  function ringCardUnder(pile: Pile, at: { x: number; y: number }): number {
+    if (!view) return -1;
+    const p = view.toDesk(at);
+    const n = pile.cards.length;
+    for (let i = n - 1; i >= 0; i -= 1) {
+      const spot = view.deckAt(pile.id, i, n);
+      const t = (-view.deckFacing(pile.id, i, n) * Math.PI) / 180;
+      const dx = p.x - spot.x;
+      const dy = p.y - spot.y;
+      const lx = dx * Math.cos(t) - dy * Math.sin(t);
+      const ly = dx * Math.sin(t) + dy * Math.cos(t);
+      if (Math.abs(lx) <= FELT_CARD.w / 2 && Math.abs(ly) <= FELT_CARD.h / 2) return i;
+    }
+    return -1;
+  }
+
   /** Что под пальцем на сукне: сверху вниз, и с колоды — только верхняя. */
-  function feltPick(x: number, y: number): { card: SeenCard; at: { x: number; y: number }; up: boolean; pile?: string } | null {
+  function feltPick(x: number, y: number): { card: SeenCard; at: { x: number; y: number }; up: boolean; pile?: string; angle?: number } | null {
     if (!view) return null;
     // ПАЛЕЦ БЕРЁТ ТО, ЧТО НАРИСОВАНО: положенная, но ещё не подтверждённая карта уже не на колоде — под ней следующая.
     const s = seen();
@@ -3004,7 +3074,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         for (let i = n - 1; i >= 0; i -= 1) {
           const card = pile.cards[i]!;
           const at = view.deckAt(pile.id, i, n);
-          if (over(at, view.deckFacing(pile.id, i, n))) return pile.shut ? null : { card, at, up: card.up === true, pile: pile.id };
+          const facing = view.deckFacing(pile.id, i, n);
+          if (over(at, facing)) return pile.shut ? null : { card, at, up: card.up === true, pile: pile.id, angle: facing };
         }
         continue;
       }
@@ -3111,6 +3182,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const top = mid.y - h / 2;
     // Снятая с колоды идёт рубашкой: лицом она станет в руке.
     lift(pick.card, pick.up, { left, top, w, h }, e, { kind: "felt", at: pick.at });
+    // ВЗЯЛИ ИЗ КРУГА — место остаётся за картой, пока палец её несёт.
+    if (drag && pick.angle !== undefined) drag.ringHome = { at: pick.at, angle: pick.angle };
   }
 
   function grabFromHand(e: PointerEvent, owner: string, id: string, el: HTMLElement) {
