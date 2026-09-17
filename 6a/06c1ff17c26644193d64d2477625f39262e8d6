@@ -1,0 +1,53 @@
+server/scripts/tableCardTip.mjs
+  s_9ed0da107cbc4a::t_ca30390387f5ad 45,88,102-105,107-113,116,145
+server/scripts/tableCarry.mjs
+  s_9ed0da107cbc4a::t_a660bcc6dde445 30-31
+server/scripts/tableChairDrop.mjs
+  s_9ed0da107cbc4a::t_959dcd0e53c6cb 39,85
+server/scripts/tableChairs.mjs
+  s_9ed0da107cbc4a::t_8afc1b37e3c208 95
+server/scripts/tableDeck.mjs
+  s_9ed0da107cbc4a::t_2044505ce91b10 116
+server/scripts/tableFrame.mjs
+  s_9ed0da107cbc4a::t_70fc0b79bedcdd 50-51,53-54
+server/scripts/tableHud.mjs
+  s_9ed0da107cbc4a::t_4b30c6e667bc6c 81
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_ede9fbca1ab097 146-147
+server/src/table/deckSpot.test.ts
+  s_9ed0da107cbc4a::t_10aefc7861292d 2,29-31,33,35-36,147,151,164,166
+server/src/table/games/krest.test.ts
+  s_9ed0da107cbc4a::t_2115341ff8e5b2 147-148
+server/src/table/games/krest.ts
+  s_9ed0da107cbc4a::t_9a16e593d42887 128
+server/src/table/ring.ts
+  s_9ed0da107cbc4a::t_e41c46698aa818 56-58,60-61,64-94,99-100,104-106,108-114,118,121,123-129
+server/src/table/ringZone.test.ts
+  s_9ed0da107cbc4a::t_cb94cdc65271e4 1-93
+server/src/table/rules.ts
+  s_9ed0da107cbc4a::t_5ace1866ee8bc8 42-43
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_1bc4bf1191d2a2 53,95,143-147,157,756-758,768-791,932
+server/src/table/zones.test.ts
+  s_9ed0da107cbc4a::t_3d875123faca15 11,63-68,71-94,97-99,102,106,113
+server/table-client/felt.ts
+  s_9ed0da107cbc4a::t_89679295877f1c 9,76-77,483-488,569-586,606,673
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_6e5135967f2805 24,1907-1914,1938,1940,1942,1947-1949,1978,2013-2026,2103,2642,2694
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6a06c1ff17c26644193d64d2477625f39262e8d6",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
