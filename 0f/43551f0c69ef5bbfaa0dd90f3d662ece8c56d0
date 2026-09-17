@@ -1,0 +1,21 @@
+server/scripts/tableRing.mjs
+  s_9ed0da107cbc4a::t_f16c0d4c3f412f 217-220
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_da000de3af0c3a 2555-2556,2958-2959,2964
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0f43551f0c69ef5bbfaa0dd90f3d662ece8c56d0",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
