@@ -8,6 +8,7 @@
 // целиком (`needsSync`), а не угадывает.
 
 import type { Op, Patch, SeenCard, Snapshot, Where } from "./contract.js";
+import { ringLay } from "./ring.js";
 
 export const needsSync = (state: Snapshot, patch: Patch): boolean => patch.v !== state.v + 1;
 
@@ -138,12 +139,29 @@ function lift(s: Snapshot, id: string, from: Where): void {
   }
 }
 
+/** Под каким углом от середины зоны лежит это место — по нему круг знает, за что держаться. */
+function turnOfPlace(middle: { x: number; y: number }, at: { x: number; y: number }): number {
+  const deg = (Math.atan2(at.x - middle.x, middle.y - at.y) * 180) / Math.PI;
+  return ((deg % 360) + 360) % 360;
+}
+
 function place(s: Snapshot, card: SeenCard, to: Where): void {
   if (to.in === "deck") {
     const pile = s.piles.find((one) => one.id === to.pile);
     if (!pile) return;
     if (to.i === undefined) pile.cards.push(card);
     else pile.cards.splice(Math.max(0, Math.min(pile.cards.length, to.i)), 0, card);
+    // ЗОНА РАСКЛАДЫВАЕТ ТУТ ЖЕ — той же раскладкой, что и стол. Иначе карта, положенная своей рукой,
+    // на миг оказывалась бы в середине зоны (места у неё ещё нет) и летела бы оттуда на место: два
+    // прыжка вместо одного полёта. Названо точное место — раскладка не нужна, карта уже знает своё.
+    if (pile.pose === "ring") {
+      if (to.at) card.at = { ...to.at };
+      else if (card.at === undefined) {
+        const anchor = pile.cards[0]?.at ? turnOfPlace(pile, pile.cards[0]!.at!) : 0;
+        const places = ringLay(pile, pile.cards.length, anchor);
+        pile.cards.forEach((one, i) => (one.at = places[i]!));
+      }
+    }
   }
   else if (to.in === "felt") s.felt.push({ ...card, x: to.x, y: to.y, up: to.up, angle: to.angle, ...(to.under ? { under: true } : {}) });
   else s.chairs.find((one) => one.id === to.chair)?.hand.splice(to.i, 0, card);

@@ -182,6 +182,7 @@ check("…и вернувшаяся легла ровно в дыру", nowWho[t
 
 // КАРТЫ ЛЕТЯТ, А НЕ ПРЫГАЮТ. Летящая карта живёт отдельным элементом в воздухе (`data-flight`);
 // его-то и ловим сразу после дропа, пока полёт не кончился.
+const at0Now = async () => ((await spots()).piles.find((x) => x.id === "ring") ?? {}).at ?? [];
 const flying = () => p.evaluate(() => [...document.querySelectorAll("[data-flight]")].map((e) => e.dataset.flight));
 const four = await ringIds();
 // РОНЯЕМ В ХВОСТ, А НЕ НА КАРТУ: при вставке в середину номера карт и так сдвигаются, и полёт вышел
@@ -207,6 +208,9 @@ const started = await p.evaluate(() => {
   const r = e.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
 });
+// НИ ОДНОГО ЛИШНЕГО ПРЫЖКА. Пока места у карты нет, зона рисует её в своей середине — и карта летела
+// бы сперва в центр круга, а оттуда на место. Раскладка на клиенте та же, что на столе, поэтому место
+// у неё есть сразу.
 check("полёт начинается от пальца, а не из руки", started !== null && Math.hypot(started.x - toVoid.x, started.y - toVoid.y) < 120, { started, finger: toVoid });
 // Сразу после дропа: летит и сама карта из-под пальца, и соседи на новые места.
 await p.waitForTimeout(90);
