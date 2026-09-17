@@ -29,7 +29,7 @@ describe("род стола — это имя конфига", () => {
 
   it("новый род — строка в каталоге, и стол с ним открывается", () => {
     const empty: DeskRules = { ...SANDBOX, kind: "пустая игра" };
-    DESKS["пустая-игра"] = empty;
+    DESKS["пустая-игра"] = () => empty;
     expect(isDesk("пустая-игра")).toBe(true);
     const desk = new Table(cards.slice(), null, deskOf("пустая-игра"));
     expect(desk.seenBy("кто-то").piles.map((p) => p.id)).toEqual(["deck"]);
@@ -43,7 +43,7 @@ describe("род стола — это имя конфига", () => {
   });
 
   it("комната помнит свой род, и стол получает его правила", () => {
-    DESKS["пустая-игра"] = { ...SANDBOX, kind: "пустая игра" };
+    DESKS["пустая-игра"] = () => ({ ...SANDBOX, kind: "пустая игра" });
     openEntry("комната-1", home, "хозяин", undefined, Date.now(), "пустая-игра");
     expect(kindOf("комната-1")).toBe("пустая-игра");
     expect(deskOf(kindOf("комната-1")).kind).toBe("пустая игра");
@@ -58,10 +58,29 @@ describe("род стола — это имя конфига", () => {
   });
 
   it("два стола разных родов стоят рядом и не путают правила", () => {
-    DESKS["пустая-игра"] = { ...SANDBOX, kind: "пустая игра", zones: [{ id: "круг", x: 0, y: 0, pose: "ring" }] };
+    DESKS["пустая-игра"] = () => ({ ...SANDBOX, kind: "пустая игра", zones: [{ id: "круг", x: 0, y: 0, pose: "ring" }] });
     const sandbox = new Table(cards.slice(), null, deskOf("sandbox"));
     const other = new Table(cards.slice(), null, deskOf("пустая-игра"));
     expect(sandbox.seenBy("x").piles.map((p) => p.id)).toEqual(["deck"]);
     expect(other.seenBy("x").piles.map((p) => p.id).sort()).toEqual(["deck", "круг"]);
+  });
+});
+
+describe("крестовый стоит в каталоге и приносит своё кольцо", () => {
+  it("род «krest» известен, и у него зона-кольцо в середине", () => {
+    expect(isDesk("krest")).toBe(true);
+    const desk = deskOf("krest");
+    expect(desk.kind).toBe("крестовый");
+    expect(desk.zones.map((z) => z.pose)).toEqual(["ring"]);
+  });
+
+  it("стол крестового открывается с кольцом на сукне", () => {
+    const seen = new Table(cards.slice(), null, deskOf("krest")).seenBy("кто-то");
+    expect(seen.piles.map((p) => p.id).sort()).toEqual(["deck", "ring"]);
+    expect(seen.piles.find((p) => p.id === "ring")!.pose).toBe("ring");
+  });
+
+  it("два стола одного рода не делят живое состояние", () => {
+    expect(deskOf("krest")).not.toBe(deskOf("krest"));
   });
 });

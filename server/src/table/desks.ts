@@ -7,14 +7,23 @@
 // Почему не `switch (kind)`: потому что тогда каждый новый род потребовал бы ветки, а следующая
 // комбинация правил — ещё одной. Таблица отвечает на все вопросы сразу и не растёт в коде.
 
+import { krestDesk } from "./games/krest.js";
 import { SANDBOX, type DeskRules } from "./rules.js";
 
 /**
- * ВСЕ РОДА, КАКИЕ ЕСТЬ. Ключ — то, что приходит снаружи (бот, HTTP); значение — правила.
+ * ВСЕ РОДА, КАКИЕ ЕСТЬ. Ключ — то, что приходит снаружи (бот, HTTP); значение — КАК СОБРАТЬ правила.
+ *
+ * Не готовые правила, а сборщик: у стола может быть своё живое состояние (кто закрыл круг), и два
+ * стола одного рода не должны его делить.
  * Песочница стоит первой: это стол, с которого всё началось, и он же ответ на «род не указан».
  */
-export const DESKS: Record<string, DeskRules> = {
-  sandbox: SANDBOX,
+export type Judge = () => { turn: string | null; closer: string | null } | null;
+
+export const DESKS: Record<string, (judge: Judge) => DeskRules> = {
+  sandbox: () => SANDBOX,
+  // Крестовому нужен судья: он говорит, чей ход и кто закрыл круг. Судья живёт в КОМНАТЕ, а не в
+  // каталоге, — поэтому сюда его передают, а не хранят здесь.
+  krest: (judge) => krestDesk(judge),
 };
 
 /** Род, которым открывается стол, если про род ничего не сказали. */
@@ -30,4 +39,4 @@ export const isDesk = (kind: unknown): kind is string => typeof kind === "string
  * который уже умеет новый род, не должен ронять сервер, который его ещё не умеет. Человек в худшем
  * случае получит стол, где разрешено всё, — а не закрытую дверь.
  */
-export const deskOf = (kind: unknown): DeskRules => (isDesk(kind) ? DESKS[kind]! : SANDBOX);
+export const deskOf = (kind: unknown, judge: Judge = () => null): DeskRules => (isDesk(kind) ? DESKS[kind]!(judge) : SANDBOX);

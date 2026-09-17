@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Face } from "./contract.js";
-import { RING_SPREAD, ringSpot } from "./ring.js";
+import { RING_SPREAD, ringPlace, ringSpot } from "./ring.js";
 import { SANDBOX, type DeskRules } from "./rules.js";
 import { Table } from "./table.js";
 
@@ -89,5 +89,33 @@ describe("поза «по кругу» — общая правда, а не ка
     const turned = ringSpot({ x: 0, y: 0, angle: 90 }, 0, 4);
     expect(turned.x).toBeCloseTo(RING_SPREAD, 6);
     expect(turned.y).toBeCloseTo(0, 6);
+  });
+});
+
+describe("место карты в кольце помнит снятых снизу", () => {
+  const zone = { x: 0, y: 0 };
+
+  it("никого не снимали — место совпадает с номером в стопке", () => {
+    expect(ringPlace(zone, 0, 4)).toEqual(ringSpot(zone, 0, 4));
+    expect(ringPlace(zone, 2, 4)).toEqual(ringSpot(zone, 2, 4));
+  });
+
+  it("сняли нижнюю — ОСТАВШИЕСЯ СТОЯТ НА МЕСТЕ, а не съезжают на одно", () => {
+    // Лежало четверо, сняли нижнюю: бывшая вторая обязана остаться там, где была.
+    const было = ringPlace({ ...zone, seats: 4 }, 1, 4);
+    const стало = ringPlace({ ...zone, seats: 4, taken: 1 }, 0, 3);
+    expect(стало).toEqual(было);
+  });
+
+  it("положили ещё одну — прежние не поехали", () => {
+    const было = ringPlace({ ...zone, seats: 4 }, 0, 2);
+    const стало = ringPlace({ ...zone, seats: 4 }, 0, 3);
+    expect(стало).toEqual(было);
+  });
+
+  it("мест не меньше, чем карт легло за круг", () => {
+    // Мест объявлено два, а легло пять — кольцо расширяется, иначе карты сели бы друг на друга.
+    const пять = [0, 1, 2, 3, 4].map((i) => ringPlace({ ...zone, seats: 2 }, i, 5));
+    expect(new Set(пять.map((p) => `${p.x.toFixed(4)},${p.y.toFixed(4)}`)).size).toBe(5);
   });
 });

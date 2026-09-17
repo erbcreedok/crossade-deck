@@ -1089,8 +1089,13 @@ export class Table {
 
   private take(id: string, from: Where): void {
     if (from.in === "deck") {
-      const cards = this.piles.get(from.pile)!.cards;
-      cards.splice(cards.indexOf(id), 1);
+      const pile = this.piles.get(from.pile)!;
+      const at = pile.cards.indexOf(id);
+      pile.cards.splice(at, 1);
+      // СНЯЛИ НИЖНЮЮ — место в кольце остаётся пустым, а не занимается следующей картой.
+      if (pile.spot.pose === "ring" && at === 0) pile.spot.taken = (pile.spot.taken ?? 0) + 1;
+      // Зона опустела — круг кончился, и счёт мест начинается заново.
+      if (pile.spot.pose === "ring" && pile.cards.length === 0) pile.spot.taken = 0;
     } else if (from.in === "felt") {
       for (const pile of this.piles.values()) if (pile.spot.below.includes(id)) pile.spot.below = pile.spot.below.filter((one) => one !== id);
       this.felt.splice(this.felt.findIndex((one) => one.id === id), 1);
