@@ -1,0 +1,23 @@
+.night/log.md
+  s_9ed0da107cbc4a::t_4ceb03f97db84e 359
+server/src/table/patch.test.ts
+  s_9ed0da107cbc4a::t_5a045af589ed2b 54-79
+server/src/table/patch.ts
+  s_9ed0da107cbc4a::t_f24eee922a1c24 75-79,81-84,144-156,205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "01469514931703eacf492be2f9db7a9beaab5076",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
