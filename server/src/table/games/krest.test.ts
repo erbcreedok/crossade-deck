@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { Face } from "../contract.js";
 import { beats, bottom, closed, firstMover, krestDesk, lay, leaving, loser, nextOpener, openCircle, RING, takeBottom, top } from "./krest.js";
 import type { DeskAsk } from "../rules.js";
+import { allowed } from "../access.js";
 
 const c = (rank: string, suit: Face["suit"]): Face => ({ rank, suit });
 /** Джокеры: красный и чёрный. */
@@ -150,16 +151,16 @@ describe("конфиг стола мастодонта", () => {
 
   it("«накрыть» у стола — это и есть старшинство игры", () => {
     const desk = krestDesk(() => null);
-    expect(desk.mayCover(ask, "six", "joker", "кто-то"), "шестёрка бьёт джокера").toBe(true);
-    expect(desk.mayCover(ask, "king", "joker", "кто-то"), "король джокера не бьёт").toBe(false);
+    expect(allowed(desk.says(ask, "card.cover", { by: "кто-то", card: "six", over: "joker" })), "шестёрка бьёт джокера").toBe(true);
+    expect(allowed(desk.says(ask, "card.cover", { by: "кто-то", card: "king", over: "joker" })), "король джокера не бьёт").toBe(false);
   });
 
   it("грип кольца живой только у админа и у закрывшего круг", () => {
     const desk = krestDesk(() => ({ turn: null, closer: "Боря" }));
-    expect(desk.mayGrip(ask, RING, "админ")).toBe(true);
-    expect(desk.mayGrip(ask, RING, "Боря")).toBe(true);
-    expect(desk.mayGrip(ask, RING, "Вика")).toBe(false);
-    expect(desk.mayGrip(ask, "другая-стопка", "Вика"), "обычные стопки живут по-старому").toBe(true);
+    expect(allowed(desk.says(ask, "pile.grip", { by: "админ", pile: RING }))).toBe(true);
+    expect(allowed(desk.says(ask, "pile.grip", { by: "Боря", pile: RING }))).toBe(true);
+    expect(allowed(desk.says(ask, "pile.grip", { by: "Вика", pile: RING }))).toBe(false);
+    expect(allowed(desk.says(ask, "pile.grip", { by: "Вика", pile: "другая-стопка" })), "обычные стопки живут по-старому").toBe(true);
   });
 });
 
@@ -170,15 +171,15 @@ describe("в кольцо кладёт только тот, чей ход", () =
 
   it("партия идёт: чужому в кольцо нельзя, своему можно", () => {
     const desk = krestDesk(() => ({ turn: "Аня", closer: null }));
-    expect(desk.mayDrop(ask, "карта", ring, "Аня")).toBe(true);
-    expect(desk.mayDrop(ask, "карта", ring, "Боря")).toBe(false);
-    expect(desk.mayDrop(ask, "карта", other, "Боря"), "прочие стопки очередь не сторожат").toBe(true);
-    expect(desk.mayDrop(ask, "карта", { in: "felt" }, "Боря"), "и сукно тоже").toBe(true);
+    expect(allowed(desk.says(ask, "pile.drop", { by: "Аня", card: "карта", at: ring }))).toBe(true);
+    expect(allowed(desk.says(ask, "pile.drop", { by: "Боря", card: "карта", at: ring }))).toBe(false);
+    expect(allowed(desk.says(ask, "pile.drop", { by: "Боря", card: "карта", at: other })), "прочие стопки очередь не сторожат").toBe(true);
+    expect(allowed(desk.says(ask, "pile.drop", { by: "Боря", card: "карта", at: { in: "felt" } })), "и сукно тоже").toBe(true);
   });
 
   it("партии нет — стол ведёт себя как песочница: садись и раскладывай руками", () => {
     const desk = krestDesk(() => null);
-    expect(desk.mayDrop(ask, "карта", ring, "кто угодно")).toBe(true);
-    expect(krestDesk(() => ({ turn: null, closer: null })).mayDrop(ask, "карта", ring, "кто угодно")).toBe(true);
+    expect(allowed(desk.says(ask, "pile.drop", { by: "кто угодно", card: "карта", at: ring }))).toBe(true);
+    expect(allowed(krestDesk(() => ({ turn: null, closer: null })).says(ask, "pile.drop", { by: "кто угодно", card: "карта", at: ring }))).toBe(true);
   });
 });

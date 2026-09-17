@@ -550,7 +550,8 @@ export class Table {
     }
     if (at.in === "hand" && !allowed(this.handAsk(by, at.chair, "hand.take"))) return { refused: "chair-locked" };
     // ПРАВИЛА РОДА СТОЛА — последними: зона уже сказала своё, теперь слово игре (`rules.ts`).
-    if (!this.desk.mayTake(this.ask, id, at, by)) return { refused: "locked" };
+    const game = this.desk.says(this.ask, at.in === "hand" ? "hand.take" : "pile.take", { by, card: id, at });
+    if (!allowed(game)) return { refused: "locked" };
     return { at };
   }
 
@@ -579,8 +580,8 @@ export class Table {
     const target = this.clean(to as Where);
     if (!target || target.in === "felt" || (target.in === "deck" && target.pile === id)) return { refused: "bad" };
     if (source.spot.pin || source.spot.shut || source.spot.seal) return { refused: "locked" };
-    if (!this.desk.mayGrip(this.ask, id, by)) return { refused: "locked" };
-    if (!this.desk.mayPile(this.ask, id, target, by)) return { refused: "locked" };
+    if (!allowed(this.desk.says(this.ask, "pile.grip", { by, pile: id }))) return { refused: "locked" };
+    if (!allowed(this.desk.says(this.ask, "pile.drop", { by, pile: id, at: target, whole: true }))) return { refused: "locked" };
     if (source.cards.some((one) => (this.locks.has(one) && this.locks.get(one)!.by !== by) || (this.picks.has(one) && this.picks.get(one) !== by))) return { refused: "locked" };
     if (source.cards.length === 0) return { refused: "bad" };
     if (target.in === "hand" && !allowed(this.handAsk(by, target.chair, "hand.drop"))) return { refused: "chair-locked" };
@@ -744,18 +745,15 @@ export class Table {
   /**
    * ЧТО СКАЖУТ ПРАВИЛА РОДА СТОЛА ПРО ЭТОТ БРОСОК — один разбор на все пути, которыми карта ложится.
    *
-   * Три вопроса подряд: пускает ли зона (`mayDrop`), бьёт ли карта ту, что уже лежит (`mayCover`),
-   * и влезет ли она в руку (`handMax`). «Накрыть» спрашивается только там, где карта ДЕЙСТВИТЕЛЬНО
-   * ложится на другую: верхняя карта стопки и карта сукна под точкой броска.
+   * Два вопроса игре: пускает ли она карту СЮДА и бьёт ли она ту, что уже лежит. «Накрыть»
+   * спрашивается только там, где карта ДЕЙСТВИТЕЛЬНО ложится на другую: верхняя карта стопки и
+   * карта сукна под точкой броска.
    */
   private ruleRefusal(by: string, id: string, to: Where): Refusal | null {
-    if (!this.desk.mayDrop(this.ask, id, to, by)) return "locked";
+    const key = to.in === "hand" ? "hand.drop" : "pile.drop";
+    if (!allowed(this.desk.says(this.ask, key, { by, card: id, at: to, ...(to.in === "hand" ? { chair: to.chair } : {}) }))) return "locked";
     const over = this.coveredBy(to);
-    if (over !== null && !this.desk.mayCover(this.ask, id, over, by)) return "locked";
-    if (to.in === "hand") {
-      const hand = this.chairs.get(to.chair)?.hand ?? [];
-      if (hand.length >= this.desk.handMax(this.ask, to.chair)) return "locked";
-    }
+    if (over !== null && !allowed(this.desk.says(this.ask, "card.cover", { by, card: id, over, at: to }))) return "locked";
     return null;
   }
 

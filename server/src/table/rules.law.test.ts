@@ -10,6 +10,7 @@ import { readdirSync, readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { describe, expect, it } from "vitest";
+import { allowed } from "./access.js";
 import { SANDBOX } from "./rules.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -64,19 +65,23 @@ describe("рантайм стола не знает, какая на нём иг
   });
 
   it("песочница — это стол, где разрешено всё, а не стол без правил", () => {
-    const ask = { face: () => undefined, pile: () => [], hand: () => [], admin: () => false , croupier: () => false };
-    expect(SANDBOX.mayTake(ask, "x", { in: "felt" }, "me")).toBe(true);
-    expect(SANDBOX.mayDrop(ask, "x", { in: "felt" }, "me")).toBe(true);
-    expect(SANDBOX.mayCover(ask, "x", "y", "me")).toBe(true);
-    expect(SANDBOX.mayGrip(ask, "p1", "me")).toBe(true);
-    expect(SANDBOX.mayPile(ask, "p1", { in: "hand", chair: "c1" }, "me")).toBe(true);
-    expect(SANDBOX.handMax(ask, "c1")).toBe(Infinity);
+    const ask = { face: () => undefined, pile: () => [], hand: () => [], admin: () => false, croupier: () => false };
+    for (const key of ["hand.take", "pile.drop", "card.cover", "pile.grip"] as const) {
+      expect(allowed(SANDBOX.says(ask, key, { by: "me" })), `песочница молчит про ${key}`).toBe(true);
+    }
   });
 
-  it("каждый вопрос словаря стол действительно задаёт", () => {
+  it("СТОЛ ДЕЙСТВИТЕЛЬНО СПРАШИВАЕТ ИГРУ — и на всех путях, которыми ходит карта", () => {
     const text = readFileSync(join(HERE, "table.ts"), "utf8");
-    for (const q of ["mayTake", "mayDrop", "mayCover", "handMax", "mayGrip", "mayPile"]) {
-      expect(text, `правило ${q} заведено, но стол его не спрашивает`).toContain(`this.desk.${q}(`);
+    expect(text, "вопрос игре задаётся").toContain("this.desk.says(");
+    for (const key of ["hand.take", "pile.take", "hand.drop", "pile.drop", "card.cover", "pile.grip"]) {
+      expect(text, `ключ ${key} игре не задают ни разу`).toContain(`"${key}"`);
     }
+  });
+
+  it("у игры один вопрос, а не набор своих методов", () => {
+    const rules = readFileSync(join(HERE, "rules.ts"), "utf8");
+    const own = [...rules.matchAll(/^\s{2}(may[A-Z]\w*|handMax)\??\(/gm)].map((m) => m[1]);
+    expect(own, "новая мысль игры — не новый метод, а ответ на ключ").toEqual([]);
   });
 });

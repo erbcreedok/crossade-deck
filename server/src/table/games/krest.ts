@@ -12,7 +12,8 @@
 
 import type { Face } from "../contract.js";
 import { ringSpot } from "../ring.js";
-import { SANDBOX, type DeskAsk, type DeskRules } from "../rules.js";
+import { SANDBOX, type DeskAsk, type DeskRules, type Move } from "../rules.js";
+import { no, yes, type Key, type Verdict } from "../access.js";
 
 /** Козырь этой игры. Не настройка: в мастодонте он всегда буби. */
 export const TRUMP = "d" as const;
@@ -127,34 +128,35 @@ export function krestDesk(judge: () => { turn: string | null; closer: string | n
     kind: "крестовый",
     crew: "krest",
     zones: [{ id: RING, name: "Круг хода", x: 0, y: 0, pose: "ring", forever: true }],
-    /** БЬЁТ ЛИ — тот же вопрос, что у любого стола; у этой игры на него свой ответ. */
-    mayCover(ask: DeskAsk, card: string, over: string): boolean {
-      const one = ask.face(card);
-      const under = ask.face(over);
-      return one !== undefined && under !== undefined ? beats(one, under) : true;
-    },
     /**
-     * В КОЛЬЦО КЛАДЁТ ТОЛЬКО ТОТ, ЧЕЙ ХОД. Партия не идёт (судьи нет) — стол ведёт себя как
-     * песочница: так с ним можно сесть и разложить руками, не начиная партию.
-     */
-    mayDrop(_ask: DeskAsk, _card: string, to: { in: string }, by: string): boolean {
-      const now = judge();
-      if (now === null || now.turn === null) return true;
-      return !(to.in === "deck" && (to as { pile?: string }).pile === RING) || by === now.turn;
-    },
-    mayGrip(ask: DeskAsk, pile: string, by: string): boolean {
-      if (pile !== RING) return true;
-      return ask.admin(by) || by === (judge()?.closer ?? null);
-    },
-    /**
-     * ОХАПКУ КАРТ ПРИНИМАЕТ ТОЛЬКО РУКА КРУПЬЕ. Игроку — по одной карте, и никак иначе.
+     * ЧТО ЭТА ИГРА ГОВОРИТ ПРО ХОД. Один ответ на все ключи — и ни одного своего метода.
      *
-     * В крестовом рука — это счёт: по ней видно, кто близок к выходу и кто остался последним. Стопка,
-     * заброшенная в чужую руку одним движением, этот счёт стирает, и спорить потом не о чем —
-     * поэтому запрет здесь, а не уговор за столом. Крупье не играет, и его рука счёта не ведёт.
+     * Партия не идёт (судьи нет) — стол ведёт себя как песочница: с ним можно сесть и разложить
+     * карты руками, не начиная игру.
      */
-    mayPile(ask: DeskAsk, _pile: string, to: { in: string; chair?: string }, _by: string): boolean {
-      return to.in !== "hand" || ask.croupier(to.chair ?? "");
+    says(ask: DeskAsk, key: Key, move: Move): Verdict {
+      const now = judge();
+      // БЬЁТ ЛИ — старшинство этой игры, и больше ничьё.
+      if (key === "card.cover") {
+        const one = move.card === undefined ? undefined : ask.face(move.card);
+        const under = move.over === undefined ? undefined : ask.face(move.over);
+        return one !== undefined && under !== undefined && !beats(one, under) ? no("beats") : yes;
+      }
+      // ОХАПКУ КАРТ ПРИНИМАЕТ ТОЛЬКО РУКА КРУПЬЕ. Игроку — по одной карте, и никак иначе: рука в
+      // этой игре это счёт, по ней видно, кто близок к выходу, и стопка одним движением его стирает.
+      if (move.whole === true && move.at?.in === "hand") {
+        return ask.croupier(move.at.chair ?? "") ? yes : no("not-yours");
+      }
+      // В КОЛЬЦО КЛАДЁТ ТОЛЬКО ТОТ, ЧЕЙ ХОД.
+      if ((key === "pile.drop" || key === "hand.drop") && move.at?.in === "deck" && move.at.pile === RING) {
+        if (now === null || now.turn === null) return yes;
+        return move.by === now.turn ? yes : no("not-your-turn");
+      }
+      // СГРЕБАЕТ КОЛЬЦО ТОТ, КТО ЗАКРЫЛ КРУГ, — и распорядитель стола.
+      if (key === "pile.grip" && move.pile === RING) {
+        return ask.admin(move.by) || move.by === (now?.closer ?? null) ? yes : no("not-yours");
+      }
+      return yes;
     },
   };
 }

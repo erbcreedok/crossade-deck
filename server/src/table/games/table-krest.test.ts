@@ -12,6 +12,7 @@ import type { Person } from "../contract.js";
 import { RING } from "./krest.js";
 import { start, type Match } from "./match.js";
 import { SANDBOX } from "../rules.js";
+import { allowed } from "../access.js";
 import type { Face } from "../contract.js";
 
 const person = (key: string): Person => ({ key, name: key, ink: "#fff", door: "guest" });
@@ -89,9 +90,9 @@ describe("стол крестового: кольцо стережёт очер�
     k.open(k.chairOf("Аня"));
     const desk = deskOf("krest", () => ({ turn: null, closer: "Боря" }));
     const ask = { face: () => undefined, pile: () => [], hand: () => [], admin: (who: string) => who === "Аня" , croupier: () => false };
-    expect(desk.mayGrip(ask, RING, "Аня"), "админ").toBe(true);
-    expect(desk.mayGrip(ask, RING, "Боря"), "закрыл круг").toBe(true);
-    expect(desk.mayGrip(ask, RING, "Вика"), "прочие смотрят счётчик").toBe(false);
+    expect(allowed(desk.says(ask, "pile.grip", { by: "Аня", pile: RING })), "админ").toBe(true);
+    expect(allowed(desk.says(ask, "pile.grip", { by: "Боря", pile: RING })), "закрыл круг").toBe(true);
+    expect(allowed(desk.says(ask, "pile.grip", { by: "Вика", pile: RING })), "прочие смотрят счётчик").toBe(false);
   });
 
   it("кольцо стоит на столе с самого начала и пустым", () => {

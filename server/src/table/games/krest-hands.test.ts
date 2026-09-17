@@ -9,6 +9,7 @@ import { Table } from "../table.js";
 import { MAIN_PILE, type Person } from "../contract.js";
 import { krestDesk } from "./krest.js";
 import type { DeskAsk } from "../rules.js";
+import { allowed } from "../access.js";
 
 const person = (key: string): Person => ({ key, name: key, ink: "#fff", door: "guest" });
 
@@ -23,20 +24,20 @@ describe("правило рода: стопку — только крупье", 
   const desk = krestDesk(() => null);
 
   it("в руку игрока стопку не бросить", () => {
-    expect(desk.mayPile(ask("c9"), "p1", { in: "hand", chair: "c1" }, "Аня")).toBe(false);
+    expect(allowed(desk.says(ask("c9"), "pile.drop", { by: "Аня", pile: "p1", at: { in: "hand", chair: "c1" }, whole: true }))).toBe(false);
   });
 
   it("в руку крупье — можно", () => {
-    expect(desk.mayPile(ask("c9"), "p1", { in: "hand", chair: "c9" }, "Аня")).toBe(true);
+    expect(allowed(desk.says(ask("c9"), "pile.drop", { by: "Аня", pile: "p1", at: { in: "hand", chair: "c9" }, whole: true }))).toBe(true);
   });
 
   it("в стопку и на сукно — по-прежнему можно: запрет только про руки", () => {
-    expect(desk.mayPile(ask("c9"), "p1", { in: "deck", pile: "другая" }, "Аня")).toBe(true);
-    expect(desk.mayPile(ask("c9"), "p1", { in: "felt" }, "Аня")).toBe(true);
+    expect(allowed(desk.says(ask("c9"), "pile.drop", { by: "Аня", pile: "p1", at: { in: "deck", pile: "другая" }, whole: true }))).toBe(true);
+    expect(allowed(desk.says(ask("c9"), "pile.drop", { by: "Аня", pile: "p1", at: { in: "felt" }, whole: true }))).toBe(true);
   });
 
   it("в песочнице запрета нет: там разрешено всё", () => {
-    expect(deskOf("sandbox", () => null).mayPile(ask("c9"), "p1", { in: "hand", chair: "c1" }, "Аня")).toBe(true);
+    expect(allowed(deskOf("sandbox", () => null).says(ask("c9"), "pile.drop", { by: "Аня", pile: "p1", at: { in: "hand", chair: "c1" }, whole: true }))).toBe(true);
   });
 });
 
