@@ -2507,7 +2507,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       + `<span data-lean style="position:relative;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;`
       + `box-shadow:inset 0 0 0 2px ${T.black};${disc}">`
       + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="pointer-events:none">`
-      + `<path d="M3 8.5h3.2l1.8-2.5h8l1.8 2.5H21v10H3z"/><circle cx="12" cy="13.5" r="3.6"/></svg></span></button>`;
+      + `<rect x="2.5" y="7" width="12.5" height="10" rx="2.5"/><path d="M15 10.5 L21.5 7 v10 L15 13.5 Z"/></svg></span></button>`;
   }
 
   /** ЗВУК ПО МЕСТУ — что поменялось между нарисованными кадрами, там, где это на экране. */
