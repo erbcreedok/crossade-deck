@@ -59,6 +59,8 @@ export interface TalkWorld {
   /** Картинка стикера человека; `mine` — мой набор для вкладки. */
   stickerUrl(by: string, id: string): string;
   stickers(): string[];
+  /** Контейнер HUD: где стоит рука и полоса — клавиатура встаёт туда же. */
+  hud(): { left: number; width: number };
 }
 
 export interface Talk {
@@ -86,6 +88,22 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
   }, length);
   let open = false;
   let section: Tab = "latin";
+
+  /** Клавиша на телефоне в портрете. Всё остальное в клавиатуре меряется ею — и ужимается вместе с ней. */
+  const KEY_H = 42;
+  /**
+   * КЛАВИАТУРА НЕ ЗАКРЫВАЕТ СТОЛ. Ей отдаётся столько высоты кадра и ни пикселем больше: в ландшафте
+   * телефона места меньше, чем клавиатура просит в портрете, и выбор здесь — либо ужать её всю,
+   * либо спрятать стол за ней. Стол важнее: ради него всё и открыто.
+   */
+  const BOARD_SHARE = 0.62;
+  /** Во скольких клавишах умещается клавиатура по высоте: отступы, рука, вкладки и четыре ряда. */
+  const BOARD_IN_KEYS = (8 + 30 + 4 + 34 + 4 + 4 * KEY_H + 3 * 4 + 10) / KEY_H;
+  /** Ниже этого клавиша не читается и в неё не попасть пальцем: лучше отдать высоту клавиатуре. */
+  const MIN_KEY = 24;
+  /** Высота клавиши в этом кадре — одна на всю клавиатуру; `px` меряет ею всё прочее. */
+  let K = KEY_H;
+  const px = (n: number) => Math.max(1, Math.round((n * K) / KEY_H));
   let pause = 0;
   let anchors: WordAnchor[] = [];
 
@@ -99,8 +117,25 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
   const board = document.createElement("div");
   board.dataset.keyboard = "";
   board.hidden = true;
-  board.style.cssText = `position:absolute;left:0;right:0;bottom:0;z-index:95;box-sizing:border-box;padding:8px 6px calc(10px + env(safe-area-inset-bottom));`
-    + `background:linear-gradient(${INK.panel},${INK.well});box-shadow:inset 0 3px 0 -1px ${INK.black};touch-action:none;display:flex;flex-direction:column;gap:6px`;
+  board.style.cssText = `position:absolute;bottom:0;z-index:95;box-sizing:border-box;`
+    + `background:linear-gradient(${INK.panel},${INK.well});touch-action:none;display:flex;flex-direction:column`;
+  /**
+   * КЛАВИАТУРА СТОИТ В ТОМ ЖЕ КОНТЕЙНЕРЕ, ЧТО РУКА И ПОЛОСА, и выглядит так же: во всю ширину с
+   * тенью на телефоне и подносом со скруглённым верхом, когда кадр шире контейнера.
+   */
+  function fitBoard(): void {
+    const hud = world.hud();
+    const tray = hud.left > 0;
+    const round = px(24);
+    board.style.left = `${hud.left}px`;
+    board.style.width = `${hud.width}px`;
+    board.style.padding = `${px(8)}px ${px(6)}px calc(${px(10)}px + env(safe-area-inset-bottom))`;
+    board.style.gap = `${px(6)}px`;
+    board.style.borderRadius = tray ? `${round}px ${round}px 0 0` : "0";
+    board.style.boxShadow = tray
+      ? `inset 0 0 0 3px ${INK.black},inset 0 0 0 5px ${INK.rim}`
+      : `inset 0 3px 0 -1px ${INK.black}`;
+  }
   const shotLayer = document.createElement("div");
   shotLayer.dataset.g = "shots";
   shotLayer.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:85;overflow:hidden";
@@ -237,16 +272,16 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     const used = usedCounts();
     const top = Object.entries(used).filter(([ch]) => EMOJI.includes(ch)).sort((a, b) => b[1] - a[1]).slice(0, FAVOURITES).map(([ch]) => ch);
     const cells = Array.from({ length: FAVOURITES }, (_, i) => top[i]);
-    return `<div data-favourites style="flex:none;display:grid;grid-template-columns:repeat(3,42px);grid-template-rows:repeat(3,50px);gap:4px;align-content:center;padding-right:8px;margin-right:8px;box-shadow:2px 0 0 ${INK.rim}">`
+    return `<div data-favourites style="flex:none;display:grid;grid-template-columns:repeat(3,${px(42)}px);grid-template-rows:repeat(3,${px(50)}px);gap:${px(4)}px;align-content:center;padding-right:${px(8)}px;margin-right:${px(8)}px;box-shadow:2px 0 0 ${INK.rim}">`
       + cells.map((ch) => ch
-        ? `<button data-key="${ch}" data-favourite style="border:0;padding:0;border-radius:8px;cursor:pointer;font:400 24px system-ui,sans-serif;background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 2px ${INK.black},inset 0 0 0 3px ${INK.gold}">${ch}</button>`
+        ? `<button data-key="${ch}" data-favourite style="border:0;padding:0;border-radius:${px(8)}px;cursor:pointer;font:400 ${px(24)}px system-ui,sans-serif;background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 2px ${INK.black},inset 0 0 0 3px ${INK.gold}">${ch}</button>`
         : `<span data-favourite-empty style="border-radius:8px;box-shadow:inset 0 0 0 2px ${INK.rim};opacity:.5"></span>`).join("")
       + `</div>`;
   }
   board.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
-  const STRIP_H = 4 * 42 + 3 * 6;
+  const stripH = () => px(4 * 42 + 3 * 6);
   const strip = (html: string, data: string) =>
-    `<div data-scroll ${data} style="height:${STRIP_H}px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;touch-action:none;overscroll-behavior:contain;display:flex;align-items:stretch">${html}</div>`;
+    `<div data-scroll ${data} style="height:${stripH()}px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;touch-action:none;overscroll-behavior:contain;display:flex;align-items:stretch">${html}</div>`;
 
   // СТИКЕРЫ ВЫСТРЕЛОМ — свои слоты считаются здесь же: занято три — кнопки стикеров гаснут до первого освободившегося.
   const shots = new Shots();
@@ -310,9 +345,9 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
   setInterval(() => lines.tick(performance.now()) && paint(), 150);
 
   const key = (label: string, data: string, grow = 1, font = 17) =>
-    `<button ${data} style="flex:${grow} 1 0;min-width:0;height:42px;border:0;padding:0;border-radius:8px;cursor:pointer;color:${INK.ink};`
-    + `font:400 ${font}px Tiny5,system-ui,sans-serif;background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 2px ${INK.black},inset 0 0 0 3px ${INK.rim}">${label}</button>`;
-  const row = (html: string) => `<div style="display:flex;gap:4px">${html}</div>`;
+    `<button ${data} style="flex:${grow} 1 0;min-width:0;height:${px(42)}px;border:0;padding:0;border-radius:${px(8)}px;cursor:pointer;color:${INK.ink};`
+    + `font:400 ${px(font)}px Tiny5,system-ui,sans-serif;background:linear-gradient(#25321f,#16210f);box-shadow:inset 0 0 0 2px ${INK.black},inset 0 0 0 3px ${INK.rim}">${label}</button>`;
+  const row = (html: string) => `<div style="display:flex;gap:${px(4)}px">${html}</div>`;
 
   /** Сколько символов осталось в строке — у кнопок вкладок. */
   function counter(): void {
@@ -326,33 +361,35 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
   function handRow(): string {
     const ids = world.hand();
     if (!ids.length) return "";
-    return `<div data-talk-hand style="display:flex;gap:4px;overflow-x:auto;padding-bottom:2px">` + ids.map((id) => {
+    return `<div data-talk-hand style="display:flex;gap:${px(4)}px;overflow-x:auto;padding-bottom:2px">` + ids.map((id) => {
       const c = world.card(id);
-      return `<button data-mention-card="${id}" style="flex:none;min-width:38px;height:30px;padding:0 6px;border:0;border-radius:6px;cursor:pointer;font:400 14px Tiny5,system-ui,sans-serif;`
+      return `<button data-mention-card="${id}" style="flex:none;min-width:${px(38)}px;height:${px(30)}px;padding:0 ${px(6)}px;border:0;border-radius:${px(6)}px;cursor:pointer;font:400 ${px(14)}px Tiny5,system-ui,sans-serif;`
         + `color:${c.ink};background:#f7f1e6;box-shadow:inset 0 0 0 2px ${INK.black}">${escapeHtml(c.label)}</button>`;
     }).join("") + `</div>`;
   }
 
-  function build(): void {
+  function build(again = false): void {
+    if (!again) K = Math.max(MIN_KEY, Math.min(KEY_H, Math.floor((stage.clientHeight * BOARD_SHARE) / BOARD_IN_KEYS)));
+    fitBoard();
     const tabs = ([...KEYBOARD_SECTIONS, "stickers"] as Tab[]).map((sec) => {
       const on = sec === section;
-      return `<button data-kb-tab="${sec}" aria-pressed="${on}" style="flex:1 1 0;height:34px;border:0;border-radius:8px;cursor:pointer;font:400 13px Tiny5,system-ui,sans-serif;`
+      return `<button data-kb-tab="${sec}" aria-pressed="${on}" style="flex:1 1 0;height:${px(34)}px;border:0;border-radius:${px(8)}px;cursor:pointer;font:400 ${px(13)}px Tiny5,system-ui,sans-serif;`
         + (on ? `color:${INK.black};background:linear-gradient(${INK.gold},${INK.goldLo});box-shadow:inset 0 0 0 2px ${INK.black}` : `color:${INK.ink};background:transparent;box-shadow:inset 0 0 0 2px ${INK.rim}`)
         + `">${TAB_LABEL[sec]}</button>`;
     }).join("")
-      + `<span data-left="${typer.left}" aria-label="Осталось символов" style="flex:none;width:30px;height:34px;display:flex;align-items:center;justify-content:center;font:400 13px Tiny5,monospace;color:${INK.ink}">${typer.left}</span>`
-      + `<button data-key-act="close" aria-label="Закрыть" style="flex:none;width:40px;height:34px;border:0;border-radius:8px;cursor:pointer;color:${INK.ink};font:400 16px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${INK.rim}">✕</button>`;
+      + `<span data-left="${typer.left}" aria-label="Осталось символов" style="flex:none;width:${px(30)}px;height:${px(34)}px;display:flex;align-items:center;justify-content:center;font:400 ${px(13)}px Tiny5,monospace;color:${INK.ink}">${typer.left}</span>`
+      + `<button data-key-act="close" aria-label="Закрыть" style="flex:none;width:${px(40)}px;height:${px(34)}px;border:0;border-radius:${px(8)}px;cursor:pointer;color:${INK.ink};font:400 ${px(16)}px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${INK.rim}">✕</button>`;
     let body: string;
     if (section === "stickers") {
       const mine = world.stickers();
       body = mine.length
-        ? strip(`<div data-sticker-grid style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,${(STRIP_H - 6) / 2}px);grid-auto-columns:${(STRIP_H - 6) / 2}px;gap:6px">`
+        ? strip(`<div data-sticker-grid style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,${(stripH() - px(6)) / 2}px);grid-auto-columns:${(stripH() - px(6)) / 2}px;gap:${px(6)}px">`
           + mine.map((id) => `<button data-sticker="${id}" aria-label="Стикер" style="border:0;border-radius:8px;cursor:pointer;background:rgba(0,0,0,.25) url(${world.stickerUrl(store.me.key, id)}) center/contain no-repeat"></button>`).join("") + `</div>`, "data-sticker-strip")
-        : `<div style="height:${STRIP_H}px;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 16px;font:400 13px Tiny5,system-ui,sans-serif;color:${INK.ink}">Стикеров пока нет. Отправь боту /sticker и картинку</div>`;
+        : `<div style="height:${stripH()}px;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 ${px(16)}px;font:400 ${px(13)}px Tiny5,system-ui,sans-serif;color:${INK.ink}">Стикеров пока нет. Отправь боту /sticker и картинку</div>`;
     } else if (section === "emoji") {
       body = strip(favouritesHtml()
-        + `<div data-emoji-grid style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(4,42px);grid-auto-columns:42px;gap:6px 4px">`
-        + EMOJI.map((ch) => `<button data-key="${ch}" style="border:0;padding:0;border-radius:8px;cursor:pointer;font:400 24px system-ui,sans-serif;background:transparent">${ch}</button>`).join("")
+        + `<div data-emoji-grid style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(4,${px(42)}px);grid-auto-columns:${px(42)}px;gap:${px(6)}px ${px(4)}px">`
+        + EMOJI.map((ch) => `<button data-key="${ch}" style="border:0;padding:0;border-radius:${px(8)}px;cursor:pointer;font:400 ${px(24)}px system-ui,sans-serif;background:transparent">${ch}</button>`).join("")
         + `</div>`, "data-emoji-strip")
         + row(EVERYWHERE.map((ch) => key(ch, `data-key="${ch}"`)).join("") + key("пробел", 'data-key-act="space"', 4, 13) + key("⌫", 'data-key-act="erase"', 1.4) + key("↵", 'data-key-act="enter" aria-label="Новая строка"', 1.4));
     } else {
@@ -361,7 +398,20 @@ export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => v
     }
     board.innerHTML = handRow() + row(tabs) + body;
     coolStickers();
+    // СЧЁТ ПРОВЕРЯЕТСЯ ЛИНЕЙКОЙ. Ряды разные — с рукой и без, с эмодзи и без, — и подсчёт «во
+    // скольких клавишах» врёт на пару процентов. Вышло выше отведённого — ужимаем клавишу по
+    // настоящей высоте и собираем ещё раз. Второго промаха не бывает: высота линейна по клавише.
+    const room = stage.clientHeight * BOARD_SHARE;
+    const got = board.getBoundingClientRect().height;
+    if (!again && got > room + 1 && K > MIN_KEY) {
+      K = Math.max(MIN_KEY, Math.floor((K * room) / got));
+      build(true);
+    }
   }
+
+  // Поворот телефона — другой кадр: и контейнер, и размер клавиши пересчитываются.
+  addEventListener("resize", () => open && build());
+  addEventListener("orientationchange", () => open && build());
 
   function toggle(): void {
     if (open) return close();

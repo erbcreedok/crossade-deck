@@ -23,6 +23,9 @@ const HUD_UNIT_MAX = Math.round(390 * 0.25 * 1.15);
 const HAND_MAX_PX = 585;
 /** Кнопка бара — `BAR.size` от единицы. */
 const BUTTON_OF_UNIT = 0.6;
+/** Сколько высоты кадра отдано клавиатуре и ниже какой клавиши она не ужимается — `talk.ts`. */
+const BOARD_SHARE = 0.62;
+const MIN_KEY = 24;
 /** Стол с кромкой — те же числа, что в `felt.ts`. */
 const R = 8;
 const RIM = 0.09 + 0.33 + 0.18;
@@ -95,6 +98,26 @@ for (const f of FRAMES) {
   check(`${f.name}: ${narrow ? "поднос со скруглённым верхом и без тени поперёк стола" : "полоса во всю ширину, с тенью над ней"}`,
     narrow ? m.round > 2 && m.fade === 0 : m.round <= 2 && m.fade === 1, { round: m.round, fade: m.fade, bar: m.bar });
   check(`${f.name}: кнопки бара стоят в той же полосе`, m.row !== null && m.row.left >= m.bar.left - 1 && m.row.right <= m.bar.right + 1, { row: m.row, bar: m.bar });
+  // КЛАВИАТУРА — В ТОМ ЖЕ КОНТЕЙНЕРЕ И НЕ ВО ВЕСЬ ЭКРАН: в ландшафте телефона она не влезала по
+  // высоте и закрывала стол целиком.
+  await p.locator('[data-section="say"]').click();
+  await p.waitForTimeout(700);
+  const kb = await p.evaluate(() => {
+    const el = document.querySelector("[data-keyboard]");
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    const key = document.querySelector("[data-key]")?.getBoundingClientRect();
+    return {
+      h: Math.round(r.height), w: Math.round(r.width), mid: Math.round(r.left + r.width / 2),
+      share: +(r.height / innerHeight).toFixed(2),
+      round: Math.round(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0),
+      key: key ? Math.round(key.height) : null,
+    };
+  });
+  check(`${f.name}: клавиатура стоит в контейнере HUD`, kb && kb.w <= Math.min(f.w, HAND_MAX_PX) + 2 && Math.abs(kb.mid - f.w / 2) <= 3, kb);
+  check(`${f.name}: клавиатура не выше ${Math.round(BOARD_SHARE * 100)}% кадра`, kb && kb.share <= BOARD_SHARE + 0.01, kb);
+  check(`${f.name}: клавиша не мельче ${MIN_KEY}px`, kb && kb.key !== null && kb.key >= MIN_KEY, kb);
+  check(`${f.name}: у клавиатуры тот же край, что у полосы`, kb && (kb.w < f.w - 1 ? kb.round > 2 : kb.round <= 2), kb);
   await p.close();
 }
 

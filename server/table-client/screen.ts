@@ -368,6 +368,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     muted: (key) => muted.has(key),
     stickerUrl: (by, id) => `${HOST}/table/stickers/${encodeURIComponent(by)}/${encodeURIComponent(id)}`,
     stickers: () => myStickers,
+    hud: () => {
+      const wide = handWide();
+      return { left: Math.round((glass().w - wide) / 2), width: wide };
+    },
   });
   let myStickers: string[] = [];
   store.onStickers((ids) => {
