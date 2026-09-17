@@ -40,6 +40,18 @@ function applyOp(s: Snapshot, op: Op): void {
       s.chairs = s.chairs.filter((one) => one.id !== op.id);
       s.felt.push(...op.felt);
       return;
+    case "unmake": {
+      const gone = new Set(op.ids);
+      s.felt = s.felt.filter((one) => !gone.has(one.id));
+      for (const pile of s.piles) pile.cards = pile.cards.filter((one) => !gone.has(one.id));
+      for (const chair of s.chairs) chair.hand = chair.hand.filter((one) => !gone.has(one.id));
+      for (const id of op.ids) {
+        delete s.locks[id];
+        delete s.picks[id];
+        if (s.trails) delete s.trails[id];
+      }
+      return;
+    }
     case "lock":
       s.locks[op.id] = op.by;
       return;

@@ -59,7 +59,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     const card = await api.open(homeOf(ctx), byOf(ctx), ctx.match.trim() || undefined);
     if (card === "down" || card === "missing") return void (await ctx.reply(DOWN));
     watch.remember(chatOf(ctx), card.room, card.title, at.boot);
-    registry.remember(card.room, { home: homeOf(ctx), by: byOf(ctx), title: card.title });
+    registry.remember(card.room, { home: homeOf(ctx), by: byOf(ctx), title: card.title, kind: card.kind });
     const all = await api.list(chatOf(ctx));
     const said = opened(card, Array.isArray(all) ? all.length : 1, links, inPrivate(ctx));
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
@@ -325,6 +325,8 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     const out = await api.recast(room, kind);
     if (out === "down") return void (await ctx.reply(DOWN));
     if (out === "missing") return void (await ctx.reply(gone));
+    // РОД ЗАПОМИНАЕТСЯ СРАЗУ: перезапуск сервера не должен откатывать комнату к прежней игре.
+    registry.remember(room, { home: out.home, by: out.by, title: out.title, kind: out.kind });
     const said = menuOf(out, deskNames(), byOf(ctx));
     await ctx.reply(`${recast(out.title, deskNames().find((k) => k.id === out.kind)?.name ?? out.kind)}\n${said.text}`, { reply_markup: keyboardOf(said.rows) });
   });
@@ -382,7 +384,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     if (!room) return;
     const home: Home = { kind: "inline", message: message ?? "" };
     const card = await api.open(home, `tg:${ctx.from.id}`, undefined, room, chosen?.[1]);
-    if (card !== "down" && card !== "missing") registry.remember(room, { home, by: `tg:${ctx.from.id}`, title: card.title });
+    if (card !== "down" && card !== "missing") registry.remember(room, { home, by: `tg:${ctx.from.id}`, title: card.title, kind: card.kind });
     // Имя комнаты известно только теперь — вписываем его в карточку, и в текст, и на кнопку.
     if (message && card !== "down" && card !== "missing") {
       const said = inlineOpened(card, links);
@@ -443,7 +445,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
       if (known === boot) return;
       known = boot;
       for (const [room, one] of registry.all()) {
-        const back = await api.open(one.home, one.by, one.title, room);
+        const back = await api.open(one.home, one.by, one.title, room, one.kind);
         if (back === "missing") registry.forget(room);
       }
     };

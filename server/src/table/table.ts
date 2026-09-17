@@ -1205,6 +1205,50 @@ export class Table {
     return this.commit([...born, { t: "deck", pile: MAIN_PILE, cards: main.cards.map((id) => ({ id })), shuffled: false }]);
   }
 
+  /**
+   * УБРАТЬ КАРТЫ СО СТОЛА СОВСЕМ — прямо оттуда, где они лежат: из руки, из стопки, с сукна.
+   *
+   * Так уходят лишние при смене колоды. Собирать их предварительно в кучу не нужно и нельзя: карты
+   * чужие, а игра может идти.
+   */
+  unmake(ids: readonly string[]): Op[] {
+    const gone = new Set(ids.filter((id) => this.faces.has(id)));
+    if (gone.size === 0) return [];
+    for (const pile of this.piles.values()) pile.cards = pile.cards.filter((id) => !gone.has(id));
+    for (const chair of this.chairs.values()) chair.hand = chair.hand.filter((id) => !gone.has(id));
+    this.felt = this.felt.filter((card) => !gone.has(card.id));
+    const ops: Op[] = [...this.dropPicks([...gone])];
+    for (const id of gone) {
+      this.faces.delete(id);
+      this.turned.delete(id);
+      this.trails.delete(id);
+      if (this.locks.delete(id)) ops.push({ t: "unlock", id });
+    }
+    return this.commit([...ops, { t: "unmake", ids: [...gone] }]);
+  }
+
+  /**
+   * ДОБАВИТЬ КАРТЫ — в руку крупье, рубашкой вверх, как он держал бы взятую колоду. Крупье за столом
+   * нет — новые карты ложатся в колоду.
+   */
+  make(faces: readonly Face[]): Op[] {
+    if (faces.length === 0) return [];
+    const fresh = faces.map((face) => {
+      const id = freshId();
+      this.faces.set(id, face);
+      return id;
+    });
+    const held = this.croupierChair();
+    if (held) {
+      held.hand.push(...fresh);
+      for (const id of fresh) this.turned.add(id);
+      return this.commit([{ t: "chair", chair: this.chairOut(held) }]);
+    }
+    const born = this.ensureDeck();
+    this.main!.cards.push(...fresh);
+    return this.commit([...born, { t: "deck", pile: MAIN_PILE, cards: this.main!.cards.map((id) => ({ id })), shuffled: false }]);
+  }
+
   /** Переставить стул на другой угол. */
   turnChair(id: string, angle: number): Op[] {
     const chair = this.chairs.get(id);

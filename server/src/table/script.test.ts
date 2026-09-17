@@ -155,14 +155,28 @@ describe("команды стола: колода и пресеты", () => {
     expect(await s.run({ t: "shuffle" })).toBe("needs-collect");
   });
 
-  it("пресет крестового на 52 с джокерами: собрал всё, набрал 54, перемешал", async () => {
+  it("СМЕНА КОЛОДЫ НЕ СГРЕБАЕТ КАРТЫ: розданное остаётся в руках, приходит только недостающее", async () => {
     const s = table("a", "b");
     await s.run({ t: "deal", rule: "each", n: 5 });
-    await s.run({ t: "preset", game: "krest", size: 52, jokers: true });
-    const deck = s.t.layout().deck;
-    expect(deck).toHaveLength(54);
-    expect(deck.filter((id) => s.t.faceOf(id)!.rank === "JK")).toHaveLength(2);
-    expect(s.hand("a")).toHaveLength(0);
+    const was = [...s.hand("a")];
+    expect(await s.run({ t: "preset", game: "krest", size: 52, jokers: true })).toBe("ok");
+    expect(s.hand("a"), "рука не тронута").toEqual(was);
+    const all = [...s.t.layout().deck, ...s.t.layout().chairs.flatMap((c) => c.hand)];
+    expect(all, "на столе ровно новая колода").toHaveLength(54);
+    expect(all.filter((id) => s.t.faceOf(id)!.rank === "JK"), "джокеры пришли").toHaveLength(2);
+  });
+
+  it("КОЛОДА СТАЛА МЕНЬШЕ: лишние карты уходят прямо из рук, а не собираются в кучу", async () => {
+    const s = table("a", "b");
+    await s.run({ t: "preset", game: "krest", size: 52 });
+    await s.run({ t: "deal", rule: "each", n: 10 });
+    const small = new Set(["6", "7", "8", "9", "10", "J", "Q", "K", "A"]);
+    const had = s.hand("a").filter((c) => !small.has(s.t.faceOf(c.id)!.rank)).length;
+    expect(had, "мелочь на руках была").toBeGreaterThan(0);
+    expect(await s.run({ t: "preset", game: "krest", size: 36 })).toBe("ok");
+    expect(s.hand("a").every((c) => small.has(s.t.faceOf(c.id)!.rank)), "мелочи в руке не осталось").toBe(true);
+    const all = [...s.t.layout().deck, ...s.t.layout().chairs.flatMap((c) => c.hand)];
+    expect(all).toHaveLength(36);
   });
 
   it("белка: четверо крестом, шестёрки на краю, по 8 первым четырём; шестёрки раздача не трогает", async () => {

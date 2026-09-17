@@ -32,6 +32,10 @@ export type Step =
   | { t: "move"; id: string; to: Where; ms: number }
   | { t: "shuffle"; ms: number }
   | { t: "restock"; faces: Face[] }
+  /** Этих карт на столе больше нет — уходят прямо оттуда, где лежали. */
+  | { t: "unmake"; ids: string[] }
+  /** Этих карт не хватало — появляются в руке крупье. */
+  | { t: "make"; faces: Face[] }
   | { t: "chair"; id: string; angle: number; ms: number }
   | { t: "rules"; rules: Partial<TableRules> };
 
@@ -170,11 +174,14 @@ export function plan(table: Table, command: TableCommand, people: Who[], admin: 
 }
 
 function presetPlan(table: Table, game: Game, size: DeckSize, jokers: boolean, people: Who[], admin: string): Plan {
-  const steps: Step[] = [{ t: "rules", rules: { faces: PRESET_FACES[game] } }, ...collectSteps(table)];
+  const steps: Step[] = [{ t: "rules", rules: { faces: PRESET_FACES[game] } }];
   // ЧТО ПРЕСЕТ ДЕЛАЕТ СО СТОЛОМ — из `GAME_PRESETS`; названий игр ниже нет.
   const preset = GAME_PRESETS[game];
   const faces = preset.deck ? deckOf(preset.deck.size, preset.deck.jokers) : deckOf(size, jokers);
-  steps.push({ t: "restock", faces }, { t: "shuffle", ms: PACE.shuffle });
+  // СМЕНА КОЛОДЫ — РАЗНИЦА, А НЕ ПЕРЕСБОРКА. Карты, которые есть и в новой колоде, остаются лежать
+  // там, где лежат: в руках, в круге, на сукне. Уходят только лишние, приходят только недостающие —
+  // и приходят в руку крупье, потому что класть их больше некуда.
+  steps.push(...tuneSteps(table, faces));
   if (!preset.cross) return { steps, actor: "bot" };
 
   // ЧЕТВЕРО КРЕСТОМ: первые четыре игрока по часовой от админа — 1 напротив 3, 2 напротив 4;
@@ -196,6 +203,35 @@ function presetPlan(table: Table, game: Game, size: DeckSize, jokers: boolean, p
   // Шестёрки — после перемешивания, по их лицам в новой колоде: план досчитает их, когда колода будет набрана.
   if (preset.sixesRow) steps.push(...sixesSteps(base));
   return { steps, actor: "bot" };
+}
+
+/** Все карты стола, где бы они ни лежали, — по ним и считается разница с новой колодой. */
+function everyCard(table: Table): string[] {
+  const at = table.layout();
+  return [...at.deck, ...at.felt.map((f) => f.id), ...at.piles.flatMap((p) => p.cards), ...at.chairs.flatMap((c) => c.hand)];
+}
+
+const faceKey = (face: Face): string => `${face.rank}${face.suit}`;
+
+/**
+ * ПОДОГНАТЬ СТОЛ ПОД НОВУЮ КОЛОДУ — разницей.
+ *
+ * Лишние карты (52 → 36) исчезают оттуда, где лежат; недостающие (36 → 52, джокеры) появляются в
+ * руке крупье. Одинаковых карт в колоде не бывает, поэтому сравнение идёт по лицу, а не по счёту.
+ */
+export function tuneSteps(table: Table, want: readonly Face[]): Step[] {
+  const need = new Set(want.map(faceKey));
+  const has = new Map<string, string>();
+  const extra: string[] = [];
+  for (const id of everyCard(table)) {
+    const face = table.faceOf(id);
+    const key = face && faceKey(face);
+    // Карта без лица или уже вторая такая же — лишняя: колода не должна расходиться сама с собой.
+    if (!key || !need.has(key) || has.has(key)) extra.push(id);
+    else has.set(key, id);
+  }
+  const missing = want.filter((face) => !has.has(faceKey(face)));
+  return [...(extra.length ? [{ t: "unmake" as const, ids: extra }] : []), ...(missing.length ? [{ t: "make" as const, faces: missing }] : [])];
 }
 
 /** Метка шага «вынести шестёрки»: какие это карты, комната узнаёт уже по набранной колоде. */
@@ -292,6 +328,14 @@ export async function execute(table: Table, steps: Step[], actor: string, io: Io
       }
       if (step.t === "rules") {
         io.spread(table.setRules(step.rules));
+        continue;
+      }
+      if (step.t === "unmake") {
+        io.spread(table.unmake(step.ids));
+        continue;
+      }
+      if (step.t === "make") {
+        io.spread(table.make(step.faces));
         continue;
       }
       if (step.t === "restock") {

@@ -23,10 +23,17 @@ describe("память бота о своих столах", () => {
     expect(again.all()).toEqual([["r1", { home: { kind: "inline", message: "m" }, by: "tg:1", title: "Стол «Обетованный щит»" }]]);
   });
 
+  it("РОД СТОЛА ТОЖЕ ПЕРЕЖИВАЕТ ПЕРЕЗАПУСК: иначе крестовая комната вернётся песочницей", () => {
+    const file = fresh();
+    new Registry(file).remember("r1", { home: { kind: "chat", chat: "-1" }, by: "tg:1", title: "Крестовый. Алый обоз", kind: "krest" });
+    expect(new Registry(file).all()[0]![1].kind).toBe("krest");
+  });
+
   it("переименование и закрытие правят память", () => {
     const reg = new Registry(fresh());
-    reg.remember("r1", { home: { kind: "chat", chat: "-1" }, by: "tg:1", title: "Стол «А»" });
+    reg.remember("r1", { home: { kind: "chat", chat: "-1" }, by: "tg:1", title: "Стол «А»", kind: "krest" });
     reg.rename("r1", "Стол «Б»");
+    expect(reg.all()[0]![1].kind, "переименование род не теряет").toBe("krest");
     expect(reg.all()[0]![1].title).toBe("Стол «Б»");
     reg.forget("r1");
     expect(reg.all()).toEqual([]);
