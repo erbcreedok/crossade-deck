@@ -1,4 +1,4 @@
-// ШИРОКИЙ ЭКРАН: потолок единицы HUD, рука в контейнере по центру, начальный зум от читаемости карты.
+// ШИРОКИЙ ЭКРАН: потолок единицы HUD, рука И ПОЛОСА в одном контейнере по центру, начальный зум — весь стол в кадре.
 //
 // Три кадра: айфон в портрете, айфон в ландшафте, десктоп во весь экран. На каждом меряются ЧИСЛА —
 // глазами масштаб не проверяется, а «кнопки абсурдно большие» — это именно число.
@@ -23,8 +23,9 @@ const HUD_UNIT_MAX = Math.round(390 * 0.25 * 1.15);
 const HAND_MAX_PX = 585;
 /** Кнопка бара — `BAR.size` от единицы. */
 const BUTTON_OF_UNIT = 0.6;
-/** Карта на сукне чуть мельче карты в руке: «чуть» — это между этими двумя. */
-const RATIO = { min: 0.7, max: 0.95 };
+/** Стол с кромкой — те же числа, что в `felt.ts`. */
+const R = 8;
+const RIM = 0.09 + 0.33 + 0.18;
 
 const browser = await chromium.launch();
 const checks = [];
@@ -60,23 +61,32 @@ for (const f of FRAMES) {
     });
     const hand = cards.filter((c) => c.bottom > innerHeight * 0.6);
     const btn = document.querySelector("button[data-section]")?.getBoundingClientRect();
+    const barEl = document.querySelector('[data-g="bar"]')?.getBoundingClientRect();
+    const btns = [...document.querySelectorAll("button[data-section]")].map((e) => e.getBoundingClientRect());
     const xs = hand.flatMap((c) => [c.left, c.right]);
     return {
       button: btn ? Math.round(btn.width) : null,
       card: hand.length ? Math.round(hand[0].w) : null,
       span: xs.length ? Math.round(Math.max(...xs) - Math.min(...xs)) : null,
       mid: xs.length ? Math.round((Math.max(...xs) + Math.min(...xs)) / 2) : null,
+      bar: barEl ? { w: Math.round(barEl.width), left: Math.round(barEl.left), right: Math.round(barEl.right), mid: Math.round(barEl.left + barEl.width / 2) } : null,
+      row: btns.length ? { left: Math.round(Math.min(...btns.map((b) => b.left))), right: Math.round(Math.max(...btns.map((b) => b.right))) } : null,
     };
   });
   const spots = JSON.parse(await p.getAttribute("canvas", "data-spots"));
   const felt = spots.k;
-  const ratio = m.card ? felt / m.card : null;
 
   check(`${f.name}: кнопка HUD не больше потолка`, m.button !== null && m.button <= Math.ceil(HUD_UNIT_MAX * BUTTON_OF_UNIT) + 1, m);
   check(`${f.name}: рука не шире своего контейнера`, m.span !== null && m.span <= Math.min(f.w, HAND_MAX_PX) + 2, m);
   check(`${f.name}: рука стоит посередине кадра`, m.mid !== null && Math.abs(m.mid - f.w / 2) <= 3, m);
   check(`${f.name}: столу осталась хотя бы половина кадра по высоте`, spots.frame.h >= f.h * 0.5, { frame: Math.round(spots.frame.h), of: f.h });
-  check(`${f.name}: карта на сукне мельче карты в руке, но не вдвое`, ratio !== null && ratio >= RATIO.min && ratio <= RATIO.max, { ratio: ratio && +ratio.toFixed(2), felt: Math.round(felt), ...m });
+  // ВХОД — ВЕСЬ СТОЛ В КАДРЕ, а не «карта покрупнее»: видно свой стул и стул напротив.
+  const across = 2 * (R + RIM) * felt;
+  const fits = Math.min(spots.frame.w, spots.frame.h);
+  check(`${f.name}: при входе весь стол в кадре`, across <= fits + 2, { across: Math.round(across), fits: Math.round(fits) });
+  check(`${f.name}: и кадр занят столом, а не полями вокруг`, across >= fits * 0.92, { across: Math.round(across), fits: Math.round(fits) });
+  check(`${f.name}: полоса не шире контейнера руки и стоит по центру`, m.bar !== null && m.bar.w <= Math.min(f.w, HAND_MAX_PX) + 2 && Math.abs(m.bar.mid - f.w / 2) <= 3, m.bar);
+  check(`${f.name}: кнопки бара стоят в той же полосе`, m.row !== null && m.row.left >= m.bar.left - 1 && m.row.right <= m.bar.right + 1, { row: m.row, bar: m.bar });
   await p.close();
 }
 

@@ -85,12 +85,6 @@ const HUD_HEIGHT_SHARE = (390 * HUD_UNIT_FRACTION) / 844;
  * осознанный запас под будущие фичи широких экранов.
  */
 const HAND_MAX_PX = 585;
-/**
- * НАЧАЛЬНЫЙ ЗУМ МЕРЯЕТСЯ ЧИТАЕМОСТЬЮ КАРТЫ, А НЕ ДОЛЕЙ КАДРА: карта на сукне чуть мельче карты в
- * руке. Это соотношение двух размеров, которые человек видит одновременно, — единственное мерило,
- * которое не врёт ни на телефоне, ни на экране во всю стену.
- */
-const FELT_TO_HAND = 0.85;
 const CARD = { w: 1, h: 1.4 };
 
 /** Флаги стула в нижнем HUD и в окне стула — одни и те же кнопки, одни и те же значки. */
@@ -500,16 +494,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   /** Зум подбирается ОДИН раз, на первом настоящем кадре: дальше масштаб — дело рук человека. */
   let zoomed = false;
   /**
-   * КАКОЙ ЗУМ ПОКАЗАТЬ ПРИ ПЕРВОМ ВХОДЕ — тот, при котором карта на сукне составляет `FELT_TO_HAND`
-   * от карты в своей руке. Единица сукна при зуме 1 — та же, что у камеры (`unit` в `camera.ts`).
+   * КАКОЙ ЗУМ ПОКАЗАТЬ ПРИ ПЕРВОМ ВХОДЕ — единица: весь стол с кромкой в кадре.
+   *
+   * Это владельцево правило, и оно старше читаемости карты на сукне: при входе должно быть видно
+   * СВОЙ стул и стул напротив, а карту, если надо разглядеть, приближают пальцами. Зум, подобранный
+   * по размеру карты, этого не даёт — стол упирается в кадр раньше, чем в него влезут двое.
    */
-  function firstZoom(): number {
-    // Ширину карты в руке спрашиваем у самой руки, а не пересчитываем: вторая формула разошлась бы молча.
-    const hand = mineGeom(HUD_CARDS).w;
-    const oneFelt = Math.min(lastFrame.w, lastFrame.h) / 2 / (R + RIM);
-    if (oneFelt <= 0 || hand <= 0) return 1;
-    return (FELT_TO_HAND * hand) / (FELT_CARD.w * oneFelt);
-  }
+  const firstZoom = (): number => 1;
 
   // ── ЧТО ПОКАЗЫВАТЬ ─────────────────────────────────────────────────────────────────────────
 
@@ -1224,19 +1215,23 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const mark = aim?.kind === "hand" && aim.which === mine(s) ? aim.index : null;
     const geom = mineGeom(cards.length + gaps.length);
     const u = hudUnit();
+    // ПОЛОСА ЖИВЁТ В ТОМ ЖЕ КОНТЕЙНЕРЕ, ЧТО И РУКА. Иначе на широком экране кнопки жмутся к левому
+    // краю, а рука стоит посередине: два HUD вместо одного.
+    const wide = handWide();
+    const inset = Math.round((g.w - wide) / 2);
     const most = 1 + Math.max(...SECTIONS.map((sec) => SUBS[sec].length));
     const need = most * BAR.size + (most - 1) * BAR.gap + 2 * BAR.margin;
-    const fit = g.w / u > 0 && need > g.w / u ? Math.max(0.5, g.w / u / need) : 1;
+    const fit = wide / u > 0 && need > wide / u ? Math.max(0.5, wide / u / need) : 1;
     const side = BAR.size * u * fit;
     const step = side + BAR.gap * u * fit;
     const margin = BAR.margin * u * fit;
-    return `<div style="position:absolute;left:0;right:0;top:${geom.barTop! - BAR.fade * u}px;height:${BAR.fade * u}px;`
+    return `<div style="position:absolute;left:${inset}px;right:${inset}px;top:${geom.barTop! - BAR.fade * u}px;height:${BAR.fade * u}px;`
       + `background:linear-gradient(to top, rgba(11,7,4,.85), rgba(11,7,4,0));pointer-events:none"></div>`
       + handZoneHtml(mark === null && cards.length === 0 ? mineGeom(1) : geom)
       // СВОИ КАРТЫ Я ВИЖУ ВСЕГДА, КАК ДЕРЖУ: «скрыть» — про то, что видят другие, а не я.
       + layHand(geom, cards, gaps, mine(s), heldByOthers(s))
       // ПОЛОСА — ПОВЕРХ КАРТ: карты уходят под её край на `BAR.tuck`.
-      + `<div data-g="bar" style="position:absolute;left:0;right:0;top:${geom.barTop}px;height:${barHeight() * u}px;z-index:${cards.length + 10};`
+      + `<div data-g="bar" style="position:absolute;left:${inset}px;right:${inset}px;top:${geom.barTop}px;height:${barHeight() * u}px;z-index:${cards.length + 10};`
       + `background:linear-gradient(${T.panel},${T.well});box-shadow:inset 0 3px 0 -1px ${T.black}">`
       + `<div style="position:absolute;left:${margin}px;right:${margin}px;top:${(barHeight() * u - side) / 2}px;height:${side}px">`
       + barRow(s, side, step) + `</div>`
@@ -1246,7 +1241,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         return row ? `<div style="position:absolute;right:${margin}px;top:${-24}px;z-index:2;pointer-events:none">${row}</div>` : "";
       })())
       + `</div>`
-      + leaveHtml(geom.barTop!, margin, side, step)
+      + leaveHtml(geom.barTop!, inset + margin, side, step)
       + micHtml(geom.barTop!);
   }
 
