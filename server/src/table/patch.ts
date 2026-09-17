@@ -7,7 +7,7 @@
 // Версия — страж: пришёл патч не следующей версии — значит что-то потерялось, и клиент просит стол
 // целиком (`needsSync`), а не угадывает.
 
-import type { Op, Patch, SeenCard, Snapshot, Where } from "./contract.js";
+import type { Laid, Op, Patch, SeenCard, Snapshot, Where } from "./contract.js";
 import { ringKeeps, ringLay } from "./ring.js";
 
 export const needsSync = (state: Snapshot, patch: Patch): boolean => patch.v !== state.v + 1;
@@ -66,11 +66,17 @@ function applyOp(s: Snapshot, op: Op): void {
       chair.hand = op.ids.map((id) => byId.get(id) ?? { id });
       return;
     }
-    case "move":
+    case "move": {
+      // КАРТА В `move` ПРИХОДИТ НОВЫМ СНИМКОМ, и своего места в зоне она может не нести — так его
+      // строит оптимистичная догадка. Место при этом никуда не делось: оно лежит там, откуда карту
+      // сейчас поднимут. Без этой строки зона считала бы вернувшуюся карту новой и перекладывалась.
+      const held = op.card.at ?? held0(s, op.card.id);
+      const card = held ? { ...op.card, at: held } : op.card;
       lift(s, op.card.id, op.from);
-      place(s, op.card, op.to);
+      place(s, card, op.to);
       if (op.trail) (s.trails ??= {})[op.card.id] = op.trail;
       return;
+    }
     case "turn": {
       const felt = s.felt.find((one) => one.id === op.card.id);
       const pile = s.piles.find((one) => one.cards.some((card) => card.id === op.card.id));
@@ -124,6 +130,15 @@ function applyOp(s: Snapshot, op: Op): void {
       s.play = op.play;
       return;
   }
+}
+
+/** Место, на котором карта лежит в зоне прямо сейчас, — до того, как её подняли. */
+function held0(s: Snapshot, id: string): Laid | undefined {
+  for (const pile of s.piles) {
+    const one = pile.cards.find((card) => card.id === id);
+    if (one) return one.at;
+  }
+  return undefined;
 }
 
 function lift(s: Snapshot, id: string, from: Where): void {

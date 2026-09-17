@@ -32,4 +32,23 @@ describe("зона раскладывает и в разборе патча — 
     expect(laid.find((c) => c.id === "a")!.at, "сосед не двинулся").toEqual({ x: 0, y: -1.5, angle: 180 });
     expect(laid.find((c) => c.id === "c")!.at, "и второй тоже").toEqual({ x: -1.299, y: 0.75, angle: 60 });
   });
+  it("КАРТА ИЗ ЗОНЫ ВЕРНУЛАСЬ МИМО ВСЕГО — садится на своё место, и НИКТО не двигается", () => {
+    // Так это и приходит от оптимистичной догадки: в `move` у карты своего места нет, оно осталось
+    // лежать в зоне. Забыть его — значит счесть карту новой и переложить всю зону на шаг.
+    const places = [
+      { id: "в", at: { x: 0, y: -1.5, angle: 180 } },
+      { id: "д", at: { x: 1.299, y: 0.75, angle: -60 } },
+      { id: "к", at: { x: -1.299, y: 0.75, angle: 60 } },
+    ];
+    const was = ring(places.map((one) => ({ ...one, at: { ...one.at } })));
+    const now = applyPatch(was, { v: 2, ops: [{ t: "move", card: { id: "д" }, from: { in: "deck", pile: "круг" }, to: { in: "deck", pile: "круг" } }] });
+    const laid = now.piles[0]!.cards;
+    for (const one of places) expect(laid.find((c) => c.id === one.id)!.at, `${one.id} на своём месте`).toEqual(one.at);
+  });
+
+  it("А ПОБЫВАВШАЯ В РУКЕ СВОЁ МЕСТО ЗАБЫВАЕТ: вернётся — получит новое", () => {
+    const was = ring([{ id: "a", at: { x: 0, y: -1.5, angle: 180 } }]);
+    const mid = applyPatch(was, { v: 2, ops: [{ t: "move", card: { id: "a" }, from: { in: "deck", pile: "круг" }, to: { in: "felt", x: 4, y: 4, up: true, angle: 0 } }] });
+    expect(mid.felt[0]!.at, "на сукне места зоны нет").toBeUndefined();
+  });
 });
