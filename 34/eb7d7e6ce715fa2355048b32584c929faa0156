@@ -1,0 +1,21 @@
+server/scripts/tableWeight.mjs
+  s_9ed0da107cbc4a::t_de5ee2b7bf3058 1-36
+server/src/table/client.ts
+  s_9ed0da107cbc4a::t_ebb9e61a512ea7 54-84,87,94-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "34eb7d7e6ce715fa2355048b32584c929faa0156",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
