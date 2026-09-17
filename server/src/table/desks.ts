@@ -26,6 +26,13 @@ export const DESKS: Record<string, (judge: Judge) => DeskRules> = {
   krest: (judge) => krestDesk(judge),
 };
 
+/**
+ * ИМЕНА РОДОВ ДЛЯ ЧЕЛОВЕКА — те же, что правила говорят о себе сами (`DeskRules.kind`). Второго
+ * списка названий нет нигде: бот берёт их отсюда, и новый род называется ровно там, где написан.
+ */
+export const deskNames = (): Array<{ id: string; name: string }> =>
+  Object.entries(DESKS).map(([id, make]) => ({ id, name: make(() => null).kind }));
+
 /** Род, которым открывается стол, если про род ничего не сказали. */
 export const DEFAULT_DESK = "sandbox";
 

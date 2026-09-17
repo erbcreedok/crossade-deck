@@ -61,8 +61,8 @@ export class TableApi {
     return this.env.appName;
   }
 
-  open(home: Home, by: string, title?: string, room?: string) {
-    return this.call<RoomCard>("POST", "/table/rooms", { home, by, ...(title ? { title } : {}), ...(room ? { room } : {}) });
+  open(home: Home, by: string, title?: string, room?: string, kind?: string) {
+    return this.call<RoomCard>("POST", "/table/rooms", { home, by, ...(title ? { title } : {}), ...(room ? { room } : {}), ...(kind ? { kind } : {}) });
   }
 
   list(chat: string) {

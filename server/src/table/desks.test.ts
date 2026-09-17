@@ -6,7 +6,7 @@
 // появился новый стол, кода трогать не нужно.
 
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_DESK, DESKS, deskOf, isDesk } from "./desks.js";
+import { DEFAULT_DESK, DESKS, deskNames, deskOf, isDesk } from "./desks.js";
 import { SANDBOX, type DeskRules } from "./rules.js";
 import { forgetAll, kindOf, openEntry } from "./lobby.js";
 import { Table } from "./table.js";
@@ -82,5 +82,14 @@ describe("крестовый стоит в каталоге и приносит 
 
   it("два стола одного рода не делят живое состояние", () => {
     expect(deskOf("krest")).not.toBe(deskOf("krest"));
+  });
+});
+
+describe("имена родов для человека", () => {
+  it("каждый род каталога назван, и имя берётся у самих правил", () => {
+    const names = deskNames();
+    expect(names.map((n) => n.id).sort()).toEqual(Object.keys(DESKS).sort());
+    expect(names.find((n) => n.id === "sandbox")?.name).toBe("песочница");
+    expect(names.find((n) => n.id === "krest")?.name).toBe("крестовый");
   });
 });

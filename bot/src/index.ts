@@ -1,11 +1,5 @@
 import { Bot, InlineKeyboard } from "grammy";
 import { loadEnv } from "./env.js";
-import { GAMES, type Game } from "./games.js";
-import { gameOfCommand, gameOfNewArg } from "./commands.js";
-import { resolveHubUrl } from "./hubUrl.js";
-import { createRoom, reserveTable } from "./rooms.js";
-import { roomMessage } from "./links.js";
-import { gamesFor, inviteCard, startappUrl } from "./invite.js";
 import { claimLink, claimReply, tellProfile } from "./link.js";
 import { askFor, buttonsFor, cleanName, linkedSaid, nextSaid, stopWaiting, waitingIn, type Offer } from "./talk.js";
 import { readStart, sourceFor, sourcesOf } from "./sources.js";
@@ -15,17 +9,16 @@ import { installTable } from "./table/tableBot.js";
 import { Registry } from "./table/registry.js";
 import { Watch } from "./table/watch.js";
 
+/** Что бот отвечает на голый /start: стол зовётся в переписку, а не выбирается из списка игр. */
+const START_SAID = [
+  "Стол живёт в переписке: набери @<бот> в любом чате и выбери, какой стол открыть — песочницу или крестовый.",
+  "Здесь же: /table — открыть стол в этом чате, /tables — твои столы.",
+].join("\n");
+
 const env = loadEnv();
 const bot = new Bot(env.botToken);
 /** Приложения, чьи ссылки этот бот умеет подтверждать, — по одному на пару переменных. */
 const sources = sourcesOf();
-
-async function replyWithNewRoom(ctx: any, game: Game): Promise<void> {
-  const by = ctx.from ? String(ctx.from.id) : undefined;
-  const [room, hubUrl] = await Promise.all([createRoom(env.serverUrl, game, by), resolveHubUrl(env)]);
-  const { text, keyboard } = roomMessage(hubUrl, room, env.appName);
-  await ctx.reply(text, { reply_markup: keyboard });
-}
 
 bot.command("start", async (ctx) => {
   if (ctx.chat.type !== "private") return;
@@ -64,30 +57,7 @@ bot.command("start", async (ctx) => {
     }
     return;
   }
-  const keyboard = new InlineKeyboard()
-    .text(GAMES.cards, "start:cards")
-    .text(GAMES.chess, "start:chess")
-    .text(GAMES.nardy, "start:nardy");
-  await ctx.reply("Выбери игру — сделаю стол и дам ссылку.", { reply_markup: keyboard });
-});
-
-bot.callbackQuery(/^start:(cards|chess|nardy)$/, async (ctx) => {
-  await ctx.answerCallbackQuery();
-  await replyWithNewRoom(ctx, ctx.match[1] as Game);
-});
-
-bot.command(["cards", "chess", "nardy"], async (ctx) => {
-  const game = gameOfCommand(ctx.message!.text!.split(/\s/, 1)[0]);
-  if (game) await replyWithNewRoom(ctx, game);
-});
-
-bot.command("new", async (ctx) => {
-  const game = gameOfNewArg(ctx.match);
-  if (!game) {
-    await ctx.reply("Укажи игру: /new cards, /new chess или /new nardy.");
-    return;
-  }
-  await replyWithNewRoom(ctx, game);
+  await ctx.reply(START_SAID);
 });
 
 /** Кнопки телеги под вопросом — ряд на ответ, потому что читаются они сверху вниз. */
@@ -204,40 +174,16 @@ const table = (() => {
  * набранный запрос значило бы оставлять пустой стол на каждую букву.
  */
 bot.on("inline_query", async (ctx) => {
-  const by = String(ctx.from.id);
-  const games = gamesFor(ctx.inlineQuery.query);
-  const codes = await Promise.all(games.map((game) => reserveTable(env.serverUrl, game, by)));
-  const botName = (await bot.api.getMe()).username;
-  const kit = games.flatMap((game, i) => {
-    const code = codes[i];
-    if (!code) return [];
-    const card = inviteCard(game, code);
-    const url = startappUrl(botName, code);
-    return [
-      {
-        type: "article" as const,
-        id: `${game}:${code}`,
-        title: card.title,
-        description: card.description,
-        input_message_content: { message_text: `${card.text}\n${url}` },
-        reply_markup: new InlineKeyboard().url(card.button, url),
-      },
-    ];
-  });
-  // НИЧЕГО НЕ КЕШИРОВАТЬ: у каждого запроса свой код, и отданный из кеша отправил бы двух разных
-  // людей за один и тот же стол.
-  const results = [...(table ? await table.inlineResults(`tg:${ctx.from.id}`) : []), ...kit];
+  // НИЧЕГО НЕ КЕШИРОВАТЬ: у каждой карточки своя комната, и отданная из кеша отправила бы двух
+  // разных людей за один и тот же стол.
+  const results = table ? await table.inlineResults(`tg:${ctx.from.id}`) : [];
   await ctx.answerInlineQuery(results as Parameters<typeof ctx.answerInlineQuery>[0], { cache_time: 0, is_personal: true });
 });
 
 async function main(): Promise<void> {
   const me = await bot.api.getMe();
   await bot.api.setMyCommands([
-    { command: "start", description: "Выбрать игру и получить ссылку на стол" },
-    { command: "cards", description: "Новый стол: карты" },
-    { command: "chess", description: "Новый стол: шахматы" },
-    { command: "nardy", description: "Новый стол: нарды" },
-    { command: "new", description: "Новый стол: /new cards|chess|nardy" },
+    { command: "start", description: "С чего начать" },
     ...(table
       ? [
           { command: "table", description: "Открыть стол в этом чате: /table [название]" },
@@ -255,9 +201,8 @@ async function main(): Promise<void> {
         ]
       : []),
   ]);
-  await bot.api.setChatMenuButton({
-    menu_button: { type: "web_app", text: "Играть", web_app: { url: await resolveHubUrl(env) } },
-  });
+  // КНОПКА МЕНЮ — ОБЫЧНАЯ: хаба у бота больше нет, стол зовётся карточкой в переписку.
+  await bot.api.setChatMenuButton({ menu_button: { type: "commands" } });
   await table?.start(me.username, (chat, text) => bot.api.sendMessage(chat, text));
   console.log(`бот @${me.username} запущен, long polling`);
   // ВЫБРАННАЯ INLINE-КАРТОЧКА ПРИХОДИТ, ТОЛЬКО ЕСЛИ ЕЁ ПОПРОСИТЬ: по умолчанию Telegram её не шлёт.

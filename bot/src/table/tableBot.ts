@@ -9,6 +9,7 @@
 
 import { InlineKeyboard, type Bot, type Context } from "grammy";
 import { mintRoom } from "../../../server/src/table/roomIds.js";
+import { deskNames } from "../../../server/src/table/desks.js";
 import type { TableApi } from "./api.js";
 import type { Home, RoomCard, TableCommand } from "../../../server/src/table/contract.js";
 import { MENU, menuOf, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
@@ -224,11 +225,12 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
   // КАРТОЧКА СТАЛА СООБЩЕНИЕМ — теперь известно, где стол живёт. Приходит, только если в BotFather
   // включён `/setinlinefeedback`; без него стол заводится первым вошедшим (`TableRoom.onCreate`).
   bot.on("chosen_inline_result", async (ctx) => {
-    const room = /^tbl:(.+)$/.exec(ctx.chosenInlineResult.result_id)?.[1];
+    const chosen = /^tbl:([a-z]+):(.+)$/.exec(ctx.chosenInlineResult.result_id);
+    const room = chosen?.[2];
     const message = ctx.chosenInlineResult.inline_message_id;
     if (!room) return;
     const home: Home = { kind: "inline", message: message ?? "" };
-    const card = await api.open(home, `tg:${ctx.from.id}`, undefined, room);
+    const card = await api.open(home, `tg:${ctx.from.id}`, undefined, room, chosen?.[1]);
     if (card !== "down" && card !== "missing") registry.remember(room, { home, by: `tg:${ctx.from.id}`, title: card.title });
     // Имя комнаты известно только теперь — вписываем его в карточку, и в текст, и на кнопку.
     if (message && card !== "down" && card !== "missing") {
@@ -246,20 +248,24 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     if (!at.up) {
       return [{ type: "article", id: "tbl-down", title: "Столы сейчас недоступны", description: "Сервер стола выключен", input_message_content: { message_text: DOWN } }];
     }
-    const room = mintRoom(secret);
-    const card = inviteArticle(room, links);
-    const fresh = {
-      type: "article",
-      id: `tbl:${room}`,
-      title: card.title,
-      description: card.description,
-      input_message_content: { message_text: card.text },
-      reply_markup: keyboardOf([[card.button]]),
-    };
+    // ПО КАРТОЧКЕ НА КАЖДЫЙ РОД СТОЛА, и у каждой своя комната: человек выбирает род ровно один раз —
+    // здесь. Имена родов берутся из каталога сервера, второго списка названий нет.
+    const fresh = deskNames().map(({ id, name }) => {
+      const room = mintRoom(secret);
+      const card = inviteArticle(id, name, room, links);
+      return {
+        type: "article",
+        id: `tbl:${id}:${room}`,
+        title: card.title,
+        description: card.description,
+        input_message_content: { message_text: card.text },
+        reply_markup: keyboardOf([[card.button]]),
+      };
+    });
     const had = await api.listBy(by);
     const mine = Array.isArray(had) ? had.slice(0, 8) : [];
     return [
-      fresh,
+      ...fresh,
       ...mine.map((one) => {
         const said = inviteExisting(one, links, one.by === by);
         return {

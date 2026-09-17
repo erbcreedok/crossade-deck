@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
-import { enter, inviteExisting, listed, mayManage, opened } from "./talk.js";
+import { cardRows, enter, inviteArticle, inviteExisting, listed, mayManage, opened } from "./talk.js";
 
 const links = { anywhere: (r: string) => `https://t.me/bot/table?startapp=${r}`, app: (r: string) => `https://fly/t/?room=${r}` };
 const card = (room: string, title: string, by = "tg:1"): RoomCard => ({ room, title, by, home: { kind: "chat", chat: "-1" }, people: [], createdAt: 0 });
@@ -76,5 +76,23 @@ describe("каким столом я вправе распоряжаться", (
   it("стола нет вовсе — так и говорим", () => {
     expect(mayManage(undefined, "tg:1", here)).toBe("gone");
     expect(mayManage({ room: "r-afar" }, "tg:1", here)).toBe("foreign");
+  });
+});
+
+describe("карточка нового стола: род выбирается здесь", () => {
+  it("у каждого рода своя карточка, и род назван человеческим именем", () => {
+    const sand = inviteArticle("sandbox", "песочница", "r1", links);
+    const krest = inviteArticle("krest", "крестовый", "r2", links);
+    expect(sand.title).toContain("песочница");
+    expect(krest.title).toContain("крестовый");
+    expect(sand.description, "у песочницы правил нет — так и сказано").toContain("без правил");
+    expect(krest.description).toContain("крестовый");
+  });
+
+  it("у открытого стола есть вход и «Меню» — управление хозяину", () => {
+    const rows = cardRows("r1", links, false);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.map((b) => b.text)).toEqual(["Играть", "Меню"]);
+    expect(rows[0]![1]).toEqual({ text: "Меню", data: "tbm:r1" });
   });
 });

@@ -33,7 +33,7 @@ const who = (card: RoomCard) => (card.people.length ? ` · за столом: ${
 
 export function opened(card: RoomCard, total: number, links: Links, inPrivate: boolean): Said {
   const more = total > 1 ? `\nВ этом чате столов: ${total} — список: /tables` : "";
-  return { text: `Стол «${card.title}» открыт.${more}`, rows: [[enter(card.room, links, inPrivate)]] };
+  return { text: `Стол «${card.title}» открыт.${more}`, rows: cardRows(card.room, links, inPrivate) };
 }
 
 /**
@@ -97,7 +97,7 @@ export function lost(titles: string[], why: "restart" | "down"): string {
 
 /** Карточка выбрана и стала сообщением — теперь имя комнаты известно, и оно пишется в текст и на кнопку. */
 export function inlineOpened(card: RoomCard, links: Links): Said {
-  return { text: `Стол «${card.title}» открыт — заходи.`, rows: [[enter(card.room, links, false, card.title)]] };
+  return { text: `Стол «${card.title}» открыт — заходи.`, rows: cardRows(card.room, links, false, card.title) };
 }
 
 /** Готовый стол карточкой в чужую переписку: имя, где живёт, и кнопка входа; админу — ещё «Управлять». */
@@ -111,11 +111,20 @@ export function inviteExisting(card: RoomCard, links: Links, admin: boolean): { 
   };
 }
 
-export function inviteArticle(room: string, links: Links): { title: string; description: string; text: string; button: Button } {
+/**
+ * КАРТОЧКА НОВОГО СТОЛА — по одной на род (`desks.ts`). Род выбирается здесь и только здесь: дальше
+ * он едет с комнатой, и ни бот, ни стол больше про него не спрашивают.
+ */
+export function inviteArticle(kind: string, name: string, room: string, links: Links): { title: string; description: string; text: string; button: Button } {
   return {
-    title: "Стол (карты, HTML)",
-    description: "Открыть общий стол здесь",
-    text: "Стол открыт — заходи.",
+    title: `Новый стол · ${name}`,
+    description: kind === "sandbox" ? "Стол без правил: раскладывай руками" : `Стол с правилами: ${name}`,
+    text: `Стол (${name}) открыт — заходи.`,
     button: enter(room, links, false),
   };
 }
+
+/** Карточка только что открытого стола: вход для всех и «Меню» — для хозяина. */
+export const cardRows = (room: string, links: Links, inPrivate: boolean, title = "Играть"): Button[][] => [
+  [enter(room, links, inPrivate, title), { text: "Меню", data: `tbm:${room}` }],
+];
