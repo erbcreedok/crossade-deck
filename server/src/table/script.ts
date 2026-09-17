@@ -71,13 +71,34 @@ const turn = (deg: number) => {
 };
 
 /** Собрать всё в колоду: сперва сукно сверху вниз, потом руки. Шестёрки белки остаются на краю, если `keep`. */
-function collectSteps(table: Table, keep: ReadonlySet<string> = new Set()): Step[] {
+/**
+ * СОБРАТЬ ВСЁ — В РУКИ КРУПЬЕ, а не в стопку рядом с ним.
+ *
+ * Так это и выглядит за настоящим столом: сдающий берёт колоду В РУКУ, а не оставляет её лежать.
+ * Правило общее для всех игр и всех наборов крупье. Крупье за столом нет — собираем в колоду:
+ * держать карты некому.
+ */
+export function collectSteps(table: Table, keep: ReadonlySet<string> = new Set()): Step[] {
   const at = table.layout();
+  const hands = table.croupierSeat();
   const steps: Step[] = [];
-  for (const one of [...at.felt].reverse()) if (!keep.has(one.id)) steps.push({ t: "move", id: one.id, to: DECK, ms: PACE.collect });
-  for (const chair of at.chairs) for (const id of [...chair.hand].reverse()) steps.push({ t: "move", id, to: DECK, ms: PACE.collect });
-  for (const pile of [...at.piles].reverse()) for (const id of [...pile.cards].reverse()) steps.push({ t: "move", id, to: DECK, ms: PACE.collect });
+  let n = hands ? (at.chairs.find((c) => c.id === hands)?.hand.length ?? 0) : 0;
+  const to = (): Where => (hands ? { in: "hand", chair: hands, i: n++ } : DECK);
+  for (const one of [...at.felt].reverse()) if (!keep.has(one.id)) steps.push({ t: "move", id: one.id, to: to(), ms: PACE.collect });
+  for (const id of [...at.deck].reverse()) if (hands) steps.push({ t: "move", id, to: to(), ms: PACE.collect });
+  for (const chair of at.chairs) {
+    if (chair.id === hands) continue;
+    for (const id of [...chair.hand].reverse()) steps.push({ t: "move", id, to: to(), ms: PACE.collect });
+  }
+  for (const pile of [...at.piles].reverse()) for (const id of [...pile.cards].reverse()) steps.push({ t: "move", id, to: to(), ms: PACE.collect });
   return steps;
+}
+
+/** Карты, которые СЧИТАЮТСЯ СОБРАННЫМИ: колода и рука крупье — он держит её вместо стола. */
+function packOf(table: Table): { deck: number; hand: string | null } {
+  const seat = table.croupierSeat();
+  const at = table.layout();
+  return { deck: at.deck.length + (seat ? (at.chairs.find((c) => c.id === seat)?.hand.length ?? 0) : 0), hand: seat };
 }
 
 /** Стулья по часовой, начиная с `from` (включительно). */
@@ -118,9 +139,11 @@ export function plan(table: Table, command: TableCommand, people: Who[], admin: 
     // Крупье исполняет комната сама: он не ход, а состав стола.
     case "croupier":
       return { error: "bad" };
-    case "shuffle":
-      if (at.felt.length > 0 || at.chairs.some((c) => c.hand.length > 0) || at.piles.some((p) => p.cards.length > 0)) return { error: "needs-collect" };
+    case "shuffle": {
+      const pack = packOf(table);
+      if (at.felt.length > 0 || at.chairs.some((c) => c.id !== pack.hand && c.hand.length > 0) || at.piles.some((p) => p.cards.length > 0)) return { error: "needs-collect" };
       return { steps: [{ t: "shuffle", ms: PACE.shuffle }], actor: "bot" };
+    }
     case "look":
       return { steps: [{ t: "rules", rules: { ...(command.faces ? { faces: command.faces } : {}), ...(command.back ? { back: command.back } : {}) } }], actor: "bot" };
     case "preset":
@@ -174,10 +197,12 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
   const preset = DEAL_PRESETS[rule];
   const sixes = preset.sixesOut ? sixesAside(table) : new Set<string>();
 
-  const loose = at.felt.some((f) => !sixes.has(f.id)) || at.chairs.some((c) => c.hand.length > 0) || at.piles.some((p) => p.cards.length > 0);
+  // РУКА КРУПЬЕ — ЭТО СОБРАННАЯ КОЛОДА, а не разброс: он её держит, как держал бы сдающий.
+  const pack = packOf(table);
+  const loose = at.felt.some((f) => !sixes.has(f.id)) || at.chairs.some((c) => c.id !== pack.hand && c.hand.length > 0) || at.piles.some((p) => p.cards.length > 0);
 
   const steps: Step[] = [];
-  let deck = at.deck.length;
+  let deck = pack.deck;
   if (loose) {
     if (!command.force) return { error: "needs-collect" };
     const back = collectSteps(table, sixes);
@@ -231,7 +256,10 @@ export async function execute(table: Table, steps: Step[], actor: string, io: Io
   try {
     for (const step of steps) {
       if (step.t === "shuffle") {
-        io.spread(table.shuffleDeck());
+        // Колода у крупье в руках — мешается она же, только в руке.
+        const held = table.croupierSeat();
+        const inHand = held ? (table.layout().chairs.find((c) => c.id === held)?.hand.length ?? 0) : 0;
+        io.spread(table.layout().deck.length === 0 && inHand > 1 ? table.shuffleHand(held!) : table.shuffleDeck());
         await io.sleep(step.ms);
         continue;
       }
@@ -250,7 +278,11 @@ export async function execute(table: Table, steps: Step[], actor: string, io: Io
         continue;
       }
       const at = table.layout();
-      const id = step.id === "top" ? at.deck.at(-1) : step.id.startsWith(`${SIXES}:`) ? sixInDeck(table, at.deck) : step.id;
+      // «ВЕРХНЯЯ» — из колоды, а если колода в руках крупье, то из его руки: это одна и та же колода.
+      const held = table.croupierSeat();
+      const inHand = held ? (at.chairs.find((c) => c.id === held)?.hand ?? []) : [];
+      const stock = at.deck.length > 0 ? at.deck : inHand;
+      const id = step.id === "top" ? stock.at(-1) : step.id.startsWith(`${SIXES}:`) ? sixInDeck(table, stock) : step.id;
       if (!id) continue;
       const grab = table.act(actor, { t: "grab", id }, io.now(), true);
       if ("refused" in grab) {

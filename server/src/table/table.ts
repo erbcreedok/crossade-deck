@@ -285,6 +285,11 @@ export class Table {
   }
 
   /** Стул крупье, если он в комнате. */
+  /** Стул крупье, если он за столом: у него на руках держится колода. */
+  croupierSeat(): string | null {
+    return this.croupierChair()?.id ?? null;
+  }
+
   croupierChair(): ChairRow | undefined {
     return [...this.chairs.values()].find((c) => c.croupier);
   }
@@ -759,6 +764,17 @@ export class Table {
     return { ops: this.commit([{ t: "order", chair: chair.id, ids: [...next] }]) };
   }
 
+  /**
+   * ПЕРЕМЕШАТЬ РУКУ ЭТОГО СТУЛА — для команд стола: колода у крупье в руках, и мешать надо её.
+   * Порядок карт меняется, стороны — нет.
+   */
+  shuffleHand(chairId: string, random: () => number = Math.random): Op[] {
+    const chair = this.chairs.get(chairId);
+    if (!chair || chair.hand.length < 2) return [];
+    chair.hand = shuffled(chair.hand, random);
+    return this.commit([{ t: "order", chair: chair.id, ids: [...chair.hand] }]);
+  }
+
   private pose(by: string, id: string, pose: Partial<HandPose>): Result {
     const chair = this.chairs.get(id);
     if (!chair) return { refused: "gone" };
@@ -1076,21 +1092,38 @@ export class Table {
   }
 
   /** НАБРАТЬ КОЛОДУ ЗАНОВО — только когда всё уже собрано в колоду: чужие карты на столе так не пропадут. */
+  /**
+   * ЗАМЕНИТЬ КОЛОДУ ЦЕЛИКОМ — другой набор карт вместо нынешнего.
+   *
+   * КОЛОДА ТАМ, ГДЕ ОНА ЛЕЖИТ: у крупье в руках — значит в руках, и новая ляжет туда же. Иначе
+   * пресет после сборки молча не срабатывал бы: рука крупье считалась бы «стол не убран».
+   */
   restock(cards: Face[]): Op[] | null {
-    if (this.felt.length > 0 || [...this.chairs.values()].some((c) => c.hand.length > 0) || [...this.piles].some(([id, pile]) => id !== MAIN_PILE && pile.cards.length > 0) || this.locks.size > 0) return null;
+    const held = this.croupierChair();
+    const busy = [...this.chairs.values()].some((c) => c.id !== held?.id && c.hand.length > 0);
+    if (this.felt.length > 0 || busy || [...this.piles].some(([id, pile]) => id !== MAIN_PILE && pile.cards.length > 0) || this.locks.size > 0) return null;
     const born = this.ensureDeck();
     const main = this.main!;
-    born.push(...this.dropPicks(main.cards));
-    for (const id of main.cards) {
+    const old = [...main.cards, ...(held?.hand ?? [])];
+    born.push(...this.dropPicks(old));
+    for (const id of old) {
       this.turned.delete(id);
       this.faces.delete(id);
       this.trails.delete(id);
     }
-    main.cards = cards.map((face) => {
+    const fresh = cards.map((face) => {
       const id = freshId();
       this.faces.set(id, face);
       return id;
     });
+    // Колоду держал крупье — новая ложится ему же в руку, рубашкой вверх, как лежала.
+    if (held) {
+      main.cards = [];
+      held.hand = fresh;
+      for (const id of fresh) this.turned.add(id);
+      return this.commit([...born, { t: "deck", pile: MAIN_PILE, cards: [], shuffled: false }, { t: "chair", chair: this.chairOut(held) }]);
+    }
+    main.cards = fresh;
     return this.commit([...born, { t: "deck", pile: MAIN_PILE, cards: main.cards.map((id) => ({ id })), shuffled: false }]);
   }
 

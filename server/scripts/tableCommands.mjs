@@ -42,6 +42,8 @@ const open = async (name, tg) => {
 const checks = [];
 const check = (name, ok, got) => checks.push({ name, ok, got });
 const spots = async (p) => JSON.parse(await p.getAttribute("canvas", "data-spots"));
+/** Сколько карт у крупье в руке: собранная колода лежит ТАМ, а не стопкой на сукне. */
+const croupierHand = async (p) => (await spots(p)).seats.find((s) => s.croupier)?.hand ?? 0;
 const handCount = (p) => p.evaluate(() => {
   const s = JSON.parse(document.querySelector("canvas").dataset.spots);
   const bottom = [...document.querySelectorAll("[data-card]")].filter((el) => el.getBoundingClientRect().top > 600);
@@ -71,24 +73,26 @@ check("бот не сел на стул", (await spots(A)).seats.length === 2, (
 // ── 2. Не собрано — просит; пресет дурака на 52 с джокерами собирает, набирает 54, мешает ────────
 check("не собрано — needs-collect", (await run({ t: "deal", rule: "durak" })).error === "needs-collect", null);
 check("пресет — ok", (await run({ t: "preset", game: "durak", size: 52, jokers: true })).ok === true, null);
-await A.waitForTimeout(6 * 80 + 1400 + 900);
-check("руки собраны", (await handCount(A)) === 0 && (await handCount(B)) === 0, null);
-check("в колоде 54", (await spots(B)).deck === 54, (await spots(B)).deck);
-check("перемешивание было видно", (await B.evaluate(() => window.__shuffles)) >= 8, await B.evaluate(() => window.__shuffles));
+// Сборка идёт КАРТА ЗА КАРТОЙ В РУКУ КРУПЬЕ — это дольше, чем сгрести их в стопку.
+await A.waitForTimeout(42 * 80 + 1400 + 1500);
+check("руки игроков собраны", (await handCount(A)) === 0 && (await handCount(B)) === 0, null);
+check("КОЛОДА У КРУПЬЕ В РУКЕ — все 54", (await croupierHand(B)) === 54, await croupierHand(B));
+check("а на сукне колоды нет", (await spots(B)).deck === 0, (await spots(B)).deck);
 
 // ── 3. Дурак от лица B: по 6, козырь под колоду; курсор с именем B у обоих, след «двигал Bee» ──
 await A.evaluate(() => window.__tags.clear());
 await B.evaluate(() => window.__tags.clear());
 check("дурак от лица B — ok", (await run({ t: "deal", rule: "durak", dealer: "@bee", asDealer: true })).ok === true, null);
-await A.waitForTimeout(13 * 150 + 1000);
+await A.waitForTimeout(13 * 150 + 1500);
 check("по 6 каждому", (await handCount(A)) === 6 && (await handCount(B)) === 6, [await handCount(A), await handCount(B)]);
 const trump = (await spots(A)).felt;
 check("козырь — одна карта поперёк", trump.length === 1 && Math.abs(Math.abs(trump[0].angle) - 90) < 1, trump);
-check("в колоде 54 − 12 − 1", (await spots(A)).deck === 41, (await spots(A)).deck);
+check("у крупье осталось 54 − 12 − 1", (await croupierHand(A)) === 41, await croupierHand(A));
 check("A видел курсор с именем Bee", (await A.evaluate(() => [...window.__tags])).includes("Bee"), await A.evaluate(() => [...window.__tags]));
 check("и сам Bee видел свой курсор раздачи", (await B.evaluate(() => [...window.__tags])).includes("Bee"), await B.evaluate(() => [...window.__tags]));
 const t0 = trump[0];
-const dt = (await spots(A)).deckTop;
+// Колода в руках у крупье, и её место на сукне пусто — отсчитываем от самого крупье.
+const dt = (await spots(A)).seats.find((x) => x.croupier);
 await A.mouse.move(t0.x + (t0.x - dt.x) * 0.6, t0.y + (t0.y - dt.y) * 0.6);
 await A.mouse.down();
 await A.mouse.up();

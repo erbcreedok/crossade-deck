@@ -191,7 +191,7 @@ async function main(): Promise<void> {
           { command: "sticker", description: "Добавить стикеры в свой набор (в личке)" },
           { command: "stickers", description: "Мой набор стикеров (в личке)" },
           { command: "menu", description: "Меню стола: сбор, пресеты, раздачи" },
-          { command: "collect", description: "Собрать все карты в колоду" },
+          { command: "collect", description: "Собрать все карты крупье в руку" },
           { command: "shuffle", description: "Перемешать колоду" },
           { command: "durak", description: "Пресет дурака: /durak [36|52] [jokers]" },
           { command: "krest", description: "Пресет крестового: /krest [36|52] [jokers]" },

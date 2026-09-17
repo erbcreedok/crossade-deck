@@ -1,7 +1,7 @@
 // КОМАНДЫ СТОЛА В ЧАТЕ — слова и кнопки, без Telegram. Бот только переводит сообщение в `TableCommand`
 // и отдаёт серверу стола; решает сервер (админ ли, собраны ли карты, хватает ли их).
 //
-//   /collect                                  собрать всё в колоду
+//   /collect                                  собрать всё крупье в руку
 //   /shuffle                                  перемешать
 //   /durak [36|52] [jokers]                   пресет: колода под дурака
 //   /krest [36|52] [jokers]                   пресет: колода под крестовый
@@ -67,7 +67,7 @@ export function parseOrder(name: OrderName, args: string): TableCommand | null {
 export const ORDERS_HELP = [
   "Команды комнаты (только её админ):",
   "/menu — меню комнаты кнопками",
-  "/collect — собрать всё в колоду",
+  "/collect — собрать всё крупье в руку (крупье за столом нет — в колоду)",
   "/shuffle — перемешать",
   "/durak [36|52] [jokers] — колода под дурака",
   "/krest [36|52] [jokers] — колода под крестовый",
@@ -143,7 +143,7 @@ const GAME: Record<Game, string> = { durak: "дурак", krest: "крестов
 export function started(command: TableCommand, title: string): string {
   switch (command.t) {
     case "collect":
-      return `Собираю карты в колоду — «${title}».`;
+      return `Собираю карты крупье в руку — «${title}».`;
     case "shuffle":
       return `Перемешиваю — «${title}».`;
     case "croupier":

@@ -16,7 +16,7 @@ import { cleanWatch, Eyes } from "./eyes.js";
 import { cleanLive, ear, LiveTalk, liveTally, type Live } from "./live.js";
 import { cleanSignal, Signals, type Signal } from "./rtc.js";
 import { cleanMic, type Mic } from "./voice.js";
-import { execute, plan } from "./script.js";
+import { collectSteps, execute, plan } from "./script.js";
 import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
 import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
@@ -27,10 +27,6 @@ import { attach, creatorOf, crewKind, kindOf, openEntry, titleOf } from "./lobby
 import { actOf, crewOf } from "./crews.js";
 import { seatPoint } from "./ring.js";
 
-/** Пауза между картами в деле крупье: видно, что он их носит, а не что стол моргнул. */
-const CREW_PACE = 60;
-/** Шаг дела крупье — тот же, каким ходят команды бота (`script.ts`). */
-type CrewStep = Parameters<typeof execute>[1][number];
 /**
  * Где крупье выкладывает стопку: перед собой, но НЕ НА МЕСТЕ КОЛОДЫ — колода живёт у него же, и
  * стопка, положенная в ту же точку, смешалась бы с ней на глаз.
@@ -337,7 +333,7 @@ export class TableRoom extends Room {
     if (this.table.busy) return;
     // ВЫКЛАДКА — ОДНО ДВИЖЕНИЕ: стопка кладётся целиком, её не носят по карте.
     if (act === "layout") return void this.layout(by, chair.id, chair.angle);
-    const steps = act === "collect" ? this.collectSteps(chair.id) : [];
+    const steps = act === "collect" ? collectSteps(this.table) : [];
     if (steps.length === 0) return;
     void execute(this.table, steps, by, {
       spread: (ops) => this.spread(ops),
@@ -352,24 +348,6 @@ export class TableRoom extends Room {
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       now: () => Date.now(),
     });
-  }
-
-  /** ВСЕ КАРТЫ СТОЛА — В РУКУ КРУПЬЕ: сукно, стопки, круг хода и все руки, включая его собственную. */
-  private collectSteps(seat: string): CrewStep[] {
-    const at = this.table.layout();
-    // Каждая карта ложится В КОНЕЦ руки: номер места считается на момент шага, а не заранее.
-    const to = (n: number) => ({ in: "hand", chair: seat, i: n }) as const;
-    const steps: CrewStep[] = [];
-    let n = at.chairs.find((c) => c.id === seat)?.hand.length ?? 0;
-    for (const one of [...at.felt].reverse()) steps.push({ t: "move", id: one.id, to: to(n++), ms: CREW_PACE });
-    // КОЛОДА ЛЕЖИТ ОТДЕЛЬНЫМ ПОЛЕМ РАСКЛАДКИ, а не среди стопок: без неё «собрать всё» собирает всё, кроме главного.
-    for (const id of [...at.deck].reverse()) steps.push({ t: "move", id, to: to(n++), ms: CREW_PACE });
-    for (const pile of [...at.piles].reverse()) for (const id of [...pile.cards].reverse()) steps.push({ t: "move", id, to: to(n++), ms: CREW_PACE });
-    for (const other of at.chairs) {
-      if (other.id === seat) continue;
-      for (const id of [...other.hand].reverse()) steps.push({ t: "move", id, to: to(n++), ms: CREW_PACE });
-    }
-    return steps;
   }
 
   /** ВСЯ РУКА КРУПЬЕ — ОДНОЙ ЗАКРЫТОЙ СТОПКОЙ ПЕРЕД НИМ. */

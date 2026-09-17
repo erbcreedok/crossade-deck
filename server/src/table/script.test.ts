@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Op, Person, Snapshot, TableCommand } from "./contract.js";
 import { applyPatch } from "./patch.js";
-import { execute, plan, type Who } from "./script.js";
+import { collectSteps, execute, plan, type Who } from "./script.js";
 import { deal } from "./deal.js";
 import { Table } from "./table.js";
 
@@ -197,5 +197,52 @@ describe("команды стола: колода и пресеты", () => {
     const { v: _v1, ...want } = s.t.seenBy("a");
     const { v: _v2, ...got } = s.seen();
     expect(got).toEqual(want);
+  });
+});
+
+describe("СОБРАТЬ — В РУКИ КРУПЬЕ, а не в стопку рядом", () => {
+  const person = (key: string): Person => ({ key, name: key, ink: "#fff", door: "guest" });
+  const withCroupier = () => {
+    const t = new Table(deal(), "Аня");
+    t.join(person("Аня"));
+    t.seatCroupier({ ...person("Крупье"), ink: "#fff" });
+    return t;
+  };
+  const run = async (t: Table, steps: ReturnType<typeof collectSteps>) =>
+    execute(t, steps, "Аня", { spread: () => {}, carry: () => {}, sleep: async () => {}, now: () => 0 });
+
+  it("вся колода уходит крупье в руку, и на столе пусто", async () => {
+    const t = withCroupier();
+    const seat = t.croupierSeat()!;
+    const all = t.layout().deck.length;
+    await run(t, collectSteps(t));
+    expect(t.layout().chairs.find((c) => c.id === seat)!.hand).toHaveLength(all);
+    expect(t.layout().deck, "в колоде не осталось ничего").toHaveLength(0);
+  });
+
+  it("крупье за столом нет — собирается в колоду, держать некому", async () => {
+    const t = new Table(deal());
+    t.join(person("Аня"));
+    const chair = t.layout().chairs[0]!.id;
+    const top = t.layout().deck.at(-1)!;
+    t.act("Аня", { t: "grab", id: top }, 0);
+    t.act("Аня", { t: "drop", id: top, to: { in: "hand", chair, i: 0 } }, 0);
+    await run(t, collectSteps(t));
+    expect(t.layout().chairs[0]!.hand).toHaveLength(0);
+    expect(t.layout().deck.length).toBeGreaterThan(0);
+  });
+
+  it("РАЗДАЧА БЕРЁТ КАРТЫ ИЗ РУК КРУПЬЕ: собранная колода у него, и это не «разбросано»", async () => {
+    const t = withCroupier();
+    t.join(person("Боря"));
+    const seat = t.croupierSeat()!;
+    await run(t, collectSteps(t));
+    const people = [{ key: "Аня", name: "Аня", seat: t.layout().chairs.find((c) => c.owner === "Аня")!.id }];
+    const out = plan(t, { t: "deal", rule: "durak" }, people, "Аня");
+    expect("error" in out ? out.error : "ok", "стол считается собранным").toBe("ok");
+    if ("error" in out) return;
+    await run(t, out.steps);
+    expect(t.layout().chairs.find((c) => c.owner === "Аня")!.hand.length, "карты розданы").toBeGreaterThan(0);
+    expect(t.layout().chairs.find((c) => c.id === seat)!.hand.length, "и взяты из руки крупье").toBeLessThan(36);
   });
 });
