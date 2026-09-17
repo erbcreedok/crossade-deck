@@ -78,6 +78,8 @@ export interface FeltView {
   deckFacing(pile: string, i: number, n: number): number;
   /** Где на столе нарисована карта сукна — поднятая, если лежит на других. */
   feltAt(id: string): { x: number; y: number } | undefined;
+  /** Куда КАЖДАЯ карта стопки легла на самом деле, по её id: окно из кисти в прогон. */
+  drew: Record<string, { x: number; y: number; angle: number }>;
 }
 
 /**
@@ -498,6 +500,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     const up = onScreen(i * drift, -i * (drift + CARD_THICK * o.rise));
     return { x: (spot?.x ?? 0) + up.x, y: (spot?.y ?? 0) + up.y };
   };
+  const drew: Record<string, { x: number; y: number; angle: number }> = {};
   const levels = feltLevels(o.felt);
   const feltAt = (id: string): Point | undefined => {
     const one = o.felt.find((f) => f.id === id);
@@ -567,7 +570,9 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   for (const pile of o.piles) {
     const below = new Set(pile.below);
     for (const one of o.felt) if (below.has(one.id)) paintOnce(one);
-    const cards = pile.cards.filter((one) => one.id !== o.lifted && !o.hidden?.has(one.id));
+    // НОМЕР КАРТЫ В СТОПКЕ ЕДЕТ ВМЕСТЕ С НЕЙ. Поднятую карту мы не рисуем, но остальные держатся за СВОИ
+    // места: считать их по месту в укороченном списке значило бы отдать каждой место соседа.
+    const cards = pile.cards.map((one, i) => ({ one, i })).filter(({ one }) => one.id !== o.lifted && !o.hidden?.has(one.id));
     // КРУГ ХОДА — КОНТУР НА МЕСТЕ ВСЕГДА, с картами и без: это не «пустая стопка», а очерченное поле,
     // внутри которого идёт круг. Периметр статичен — меняется только то, что в нём лежит.
     if (pile.pose === "ring") {
@@ -601,11 +606,14 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       g.stroke();
       g.restore();
     }
-    cards.forEach((one, i) => {
+    const n = pile.cards.length;
+    cards.forEach(({ one, i }) => {
       g.save();
-      const at = deckAt(pile.id, i, cards.length);
+      const at = deckAt(pile.id, i, n);
+      const angle = deckFacing(pile.id, i, n);
+      drew[one.id] = { x: at.x, y: at.y, angle };
       g.translate(at.x, at.y);
-      g.rotate((deckFacing(pile.id, i, cards.length) * Math.PI) / 180);
+      g.rotate((angle * Math.PI) / 180);
       paint(one.id, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
       g.restore();
     });
@@ -672,5 +680,5 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     });
   });
 
-  return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk, deckAt, deckFacing, feltAt };
+  return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk, deckAt, deckFacing, feltAt, drew };
 }

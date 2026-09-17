@@ -174,6 +174,19 @@ await p.mouse.move(holeAt.x, holeAt.y, { steps: 8 });
 await p.waitForTimeout(200);
 check("над дырой горит её контур", (await p.locator("[data-g=ring-slot]").count()) === 1, null);
 await p.mouse.up();
+// ПОКА ВЕРНУВШАЯСЯ КАРТА ЛЕТИТ, ОСТАЛЬНЫЕ НАРИСОВАНЫ КАЖДАЯ НА СВОЁМ МЕСТЕ. Летящую кисть не рисует —
+// и если она считает карты по укороченному списку, весь хвост занимает места соседей: круг моргает
+// чужими лицами и возвращается обратно, когда полёт кончился.
+await p.waitForTimeout(90);
+{
+  const sp = (await spots()).piles.find((x) => x.id === "ring") ?? { ids: [], at: [], drew: [] };
+  const seen = sp.ids.map((id, i) => [id, sp.at[i], (sp.drew ?? [])[i]]).filter(([, , drew]) => drew !== null && drew !== undefined);
+  check(
+    "карта летит — остальные НАРИСОВАНЫ каждая на своём месте, а не на соседском",
+    seen.length >= 3 && seen.every(([, at, drew]) => at === drew),
+    seen,
+  );
+}
 await p.waitForTimeout(700);
 const nowWho = await ringWho();
 const kept = Object.entries(whoBefore).filter(([id]) => id !== takenId).every(([id, at]) => nowWho[id] === at);

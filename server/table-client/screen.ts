@@ -2581,6 +2581,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       // МЕСТА КАРТ ЗОНЫ — это состояние, а не картинка: прогон смотрит на них, чтобы увидеть, что
       // взятая карта соседей не двигает.
       at: cards.map((c) => (c.at ? `${c.at.x.toFixed(3)},${c.at.y.toFixed(3)},${c.at.angle.toFixed(1)}` : null)),
+      // А ЭТО — КУДА КИСТЬ ИХ ДЕЙСТВИТЕЛЬНО ПОЛОЖИЛА. Два ряда должны совпадать карта в карту: разошлись —
+      // значит, кто-то рисуется на месте соседа.
+      drew: cards.map((c) => {
+        const d = view?.drew[c.id];
+        return d ? `${d.x.toFixed(3)},${d.y.toFixed(3)},${d.angle.toFixed(1)}` : null;
+      }),
       up: cards.filter((c) => c.up).map((c) => c.id),
     };
     if (as === "pile") return out;
