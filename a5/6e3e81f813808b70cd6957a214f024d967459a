@@ -1,0 +1,21 @@
+server/scripts/tableRing.mjs
+  s_9ed0da107cbc4a::t_0b8b9852519dae 1-82
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_ba08956e4f5bd6 1950-1955,1963,1984-1988
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a56e3e81f813808b70cd6957a214f024d967459a",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
