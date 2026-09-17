@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
 import { MENU, menuOf, parseOrder, refusedSay } from "./orders.js";
 
-const card: RoomCard = { room: "R".repeat(23), title: "Дурак", by: "tg:1", home: { kind: "chat", chat: "-1" }, people: [], createdAt: 0 };
+const card: RoomCard = { room: "R".repeat(23), title: "Дурак", by: "tg:1", home: { kind: "chat", chat: "-1" }, people: [], createdAt: 0, kind: "sandbox" };
 
 describe("команды стола в чате", () => {
   it("крупье: сажается и уводится словом и кнопкой", () => {
@@ -55,5 +55,32 @@ describe("команды стола в чате", () => {
   it("не собрано — кнопка «Собрать и раздать»", () => {
     expect(refusedSay("needs-collect", "r", "p1").rows[0]![0]).toEqual({ text: "Собрать и раздать", data: "tbf:r:p1" });
     expect(refusedSay("busy", "r", "p1").rows).toEqual([]);
+  });
+});
+
+describe("меню знает род стола", () => {
+  const kinds = [{ id: "sandbox", name: "песочница" }, { id: "krest", name: "крестовый" }];
+  const table = { ...card, kind: "sandbox" };
+
+  it("род назван в тексте, и на него есть кнопки", () => {
+    const said = menuOf(table, kinds);
+    expect(said.text).toContain("род: песочница");
+    const row = said.rows.find((r) => r[0]!.text === "Род:")!;
+    expect(row.map((b) => b.text)).toEqual(["Род:", "• песочница", "крестовый"]);
+    expect(row.at(-1)).toEqual({ text: "крестовый", data: `tbk:${table.room}:krest` });
+  });
+
+  it("нынешний род нажатием ничего не меняет", () => {
+    const here = menuOf(table, kinds).rows.find((r) => r[0]!.text === "Род:")![1]!;
+    expect(here).toEqual({ text: "• песочница", data: "tbx" });
+  });
+
+  it("переименовать и закрыть — из того же меню", () => {
+    const row = menuOf(table, kinds).rows.find((r) => r[0]!.text === "Стол:")!;
+    expect(row.map((b) => b.text)).toEqual(["Стол:", "Переименовать", "Закрыть"]);
+  });
+
+  it("род один — выбирать нечего, ряда нет", () => {
+    expect(menuOf(table, [kinds[0]!]).rows.some((r) => r[0]!.text === "Род:")).toBe(false);
   });
 });

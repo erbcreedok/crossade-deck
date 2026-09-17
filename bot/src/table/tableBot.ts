@@ -13,7 +13,7 @@ import { deskNames } from "../../../server/src/table/desks.js";
 import type { TableApi } from "./api.js";
 import type { Home, RoomCard, TableCommand } from "../../../server/src/table/contract.js";
 import { MENU, menuOf, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
-import { askTitle, closed, DOWN, gone, inlineOpened, inviteArticle, inviteExisting, listed, mayManage, notYours, opened, renamed, type Button, type Links } from "./talk.js";
+import { DOWN, askTitle, closed, gone, inlineOpened, inviteArticle, inviteExisting, listed, mayManage, notYours, opened, recast, renamed, type Button, type Links } from "./talk.js";
 import type { Registry } from "./registry.js";
 import type { Watch } from "./watch.js";
 import { installStickers } from "./stickers.js";
@@ -125,7 +125,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     const cards = await tablesFor(ctx);
     if (cards === "down") return void (await ctx.reply(DOWN));
     if (cards.length === 0) return void (await ctx.reply("Здесь нет столов. Открыть: /table [название]"));
-    const said = cards.length === 1 ? menuOf(cards[0]!) : pickForMenu(cards);
+    const said = cards.length === 1 ? menuOf(cards[0]!, deskNames()) : pickForMenu(cards);
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
   });
 
@@ -150,7 +150,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
       if (!afar) await ctx.answerCallbackQuery();
       return void (await say(afar ? notYours : gone));
     }
-    const said = menuOf(card);
+    const said = menuOf(card, deskNames());
     if (afar) {
       const sent = await ctx.api.sendMessage(ctx.from.id, said.text, { reply_markup: keyboardOf(said.rows) }).catch(() => null);
       return void (await ctx.answerCallbackQuery(
@@ -176,6 +176,22 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     if (!wait || wait.by !== byOf(ctx)) return void (await ctx.reply("Эта кнопка устарела — повтори команду."));
     const command = kind === "f" && wait.command.t === "deal" ? { ...wait.command, force: true } : wait.command;
     await runAndSay(ctx, room, command, wait.by);
+  });
+
+  // РОД СТОЛА СМЕНИЛИ КНОПКОЙ. Стол не разгоняется: меняются правила, карты и люди остаются.
+  bot.callbackQuery(/^tbk:([A-Za-z0-9_-]+):([a-z]+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const [, room, kind] = ctx.match as unknown as [string, string, string];
+    const cards = await tablesFor(ctx);
+    if (cards === "down") return void (await ctx.reply(DOWN));
+    const card = cards.find((c) => c.room === room);
+    if (!card) return void (await ctx.reply(gone));
+    if (card.by && card.by !== byOf(ctx)) return void (await ctx.reply(notYours));
+    const out = await api.recast(room, kind);
+    if (out === "down") return void (await ctx.reply(DOWN));
+    if (out === "missing") return void (await ctx.reply(gone));
+    const said = menuOf(out, deskNames());
+    await ctx.reply(`${recast(out.title, deskNames().find((k) => k.id === out.kind)?.name ?? out.kind)}\n${said.text}`, { reply_markup: keyboardOf(said.rows) });
   });
 
   bot.callbackQuery(/^tbl:(ren|del):([A-Za-z0-9_-]+)$/, async (ctx) => {

@@ -19,7 +19,7 @@ interface Entry {
   home: Home;
   by: string;
   createdAt: number;
-  live?: { people: () => Person[]; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; claim?: (by: string) => void };
+  live?: { people: () => Person[]; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; claim?: (by: string) => void; recast?: (kind: string) => void };
 }
 
 const rooms = new Map<string, Entry>();
@@ -32,6 +32,7 @@ const takenTitles = (except?: string): string[] => [...rooms.values()].filter((e
 const card = (e: Entry): RoomCard => ({
   room: e.room,
   title: e.title,
+  kind: e.kind,
   by: e.by,
   home: e.home,
   people: e.live?.people() ?? [],
@@ -88,6 +89,19 @@ export function rehome(room: string, home: Home): RoomCard | undefined {
   const e = rooms.get(room);
   if (!e) return undefined;
   e.home = home;
+  return card(e);
+}
+
+/**
+ * СМЕНИТЬ РОД СТОЛА. Стол при этом не разгоняется: живая комната меняет правила на ходу, а карты,
+ * руки и стулья остаются как были (`Table.recast`). Незнакомый род — отказ, а не тихая песочница:
+ * здесь его выбирает человек кнопкой, а не бот из будущей версии.
+ */
+export function recast(room: string, kind: string): RoomCard | undefined {
+  const e = rooms.get(room);
+  if (!e || !isDesk(kind)) return undefined;
+  e.kind = kind;
+  e.live?.recast?.(kind);
   return card(e);
 }
 

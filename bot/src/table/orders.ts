@@ -101,10 +101,11 @@ export const MENU: Record<string, { label: string; command: TableCommand }> = {
 
 const btn = (room: string, code: string): Button => ({ text: MENU[code]!.label, data: `tbr:${room}:${code}` });
 
-export function menuOf(card: RoomCard): Said {
+export function menuOf(card: RoomCard, kinds: ReadonlyArray<{ id: string; name: string }> = []): Said {
   const r = card.room;
+  const here = kinds.find((k) => k.id === card.kind)?.name ?? card.kind;
   return {
-    text: `Стол «${card.title}». Пресет меняет колоду и рассадку, раздача — раздаёт по своим правилам (раздаёт админ, по часовой со следующего).`,
+    text: `Стол «${card.title}» · род: ${here}. Пресет меняет колоду и рассадку, раздача — раздаёт по своим правилам (раздаёт админ, по часовой со следующего).`,
     rows: [
       [btn(r, "col"), btn(r, "shf")],
       [{ text: "Пресет · дурак:", data: "tbx" }, btn(r, "pd36"), btn(r, "pd52"), btn(r, "pd36j"), btn(r, "pd52j")],
@@ -115,6 +116,11 @@ export function menuOf(card: RoomCard): Said {
       [{ text: "Лица:", data: "tbx" }, ...CARD_FACES.map((f) => btn(r, `lf${f}`))],
       [{ text: "Рубашка:", data: "tbx" }, ...CARD_BACKS.slice(0, 3).map((b) => btn(r, `lb${b}`))],
       CARD_BACKS.slice(3).map((b) => btn(r, `lb${b}`)),
+      // РОД СТОЛА — тем же меню: нынешний род отмечен и нажатием ничего не меняет.
+      ...(kinds.length > 1
+        ? [[{ text: "Род:", data: "tbx" }, ...kinds.map((k) => ({ text: k.id === card.kind ? `• ${k.name}` : k.name, data: k.id === card.kind ? "tbx" : `tbk:${r}:${k.id}` }))]]
+        : []),
+      [{ text: "Стол:", data: "tbx" }, { text: "Переименовать", data: `tbl:ren:${r}` }, { text: "Закрыть", data: `tbl:del:${r}` }],
     ],
   };
 }

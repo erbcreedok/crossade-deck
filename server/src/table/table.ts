@@ -49,7 +49,7 @@ import {
   CARD_FACES,
 } from "./contract.js";
 import { arranged, samePack, shuffled } from "./arrange.js";
-import { SANDBOX, type DeskAsk, type DeskRules } from "./rules.js";
+import { SANDBOX, type DeskAsk, type DeskRules, type DeskZone } from "./rules.js";
 import { croupierAngle, freeAngle, seatPoint } from "./ring.js";
 
 /** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
@@ -137,25 +137,48 @@ export class Table {
     }
     // ЗОНЫ РОДА СТОЛА — из конфига, а не из кода. Чтобы на сукне появилось новое место, дописывают
     // строку в `DeskRules.zones`; здесь ничего не меняется (`rules.law.test.ts` это стережёт).
+    for (const zone of this.desk.zones) this.openZone(zone);
+  }
+
+  /** Место рода на сукне: пустая вечная стопка в позе, которую род ей назначил. */
+  private openZone(zone: DeskZone): void {
+    this.piles.set(zone.id, {
+      spot: {
+        ...DEFAULT_SPOT,
+        below: [],
+        x: zone.x,
+        y: zone.y,
+        pose: zone.pose,
+        angle: zone.angle ?? 0,
+        forever: zone.forever ?? true,
+        lock: zone.lock ?? false,
+        shut: zone.shut ?? false,
+        seal: zone.seal ?? false,
+        pin: zone.pin ?? false,
+      },
+      cards: [],
+      shuffles: 0,
+    });
+  }
+
+  /**
+   * СМЕНИТЬ РОД СТОЛА, не разгоняя стол: карты, руки и стулья остаются как есть, меняются правила.
+   *
+   * С местами рода так: пустое место ушедшего рода убирается, место С КАРТАМИ остаётся обычной
+   * стопкой — сгребать чужие карты при смене правил нельзя, их клали люди. Места нового рода
+   * появляются пустыми; если имя занято, чужое место остаётся на своём месте и не переписывается.
+   */
+  recast(desk: DeskRules): void {
+    const fresh = new Set(desk.zones.map((z) => z.id));
     for (const zone of this.desk.zones) {
-      this.piles.set(zone.id, {
-        spot: {
-          ...DEFAULT_SPOT,
-          below: [],
-          x: zone.x,
-          y: zone.y,
-          pose: zone.pose,
-          angle: zone.angle ?? 0,
-          forever: zone.forever ?? true,
-          lock: zone.lock ?? false,
-          shut: zone.shut ?? false,
-          seal: zone.seal ?? false,
-          pin: zone.pin ?? false,
-        },
-        cards: [],
-        shuffles: 0,
-      });
+      const pile = this.piles.get(zone.id);
+      if (!pile || fresh.has(zone.id)) continue;
+      if (pile.cards.length === 0) this.piles.delete(zone.id);
+      else pile.spot.forever = false;
     }
+    this.desk = desk;
+    for (const zone of desk.zones) if (!this.piles.has(zone.id)) this.openZone(zone);
+    this.v += 1;
   }
 
   get version(): number {

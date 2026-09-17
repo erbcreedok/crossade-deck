@@ -74,6 +74,13 @@ export class TableRoom extends Room {
       close: () => void this.disconnect(),
       run: (by, command) => this.run(by, command),
       claim: (by) => this.spread(this.table.claim(by)),
+      // РОД СМЕНИЛИ НА ХОДУ: стол берёт другие правила, а карты и люди остаются на местах. Партия
+      // старого рода при этом кончается — судить её стало нечем.
+      recast: (kind) => {
+        this.match = null;
+        this.table.recast(deskOf(kind, () => this.judgeView()));
+        this.resend();
+      },
     });
 
     // КРУПЬЕ СИДИТ С САМОГО НАЧАЛА: он часть стола, а не гость. Админ уводит его сам, если не нужен.
@@ -349,6 +356,18 @@ export class TableRoom extends Room {
   private spreadEyes(): void {
     const all = this.eyes.all();
     for (const client of this.clients) if (this.seats.has(client.sessionId)) client.send(MSG.eyes, all);
+  }
+
+  /**
+   * ЗАНОВО ВЕСЬ СТОЛ — каждому сидящему. Дифами такое не рассылается: у стола появились и пропали
+   * места, и клиент должен увидеть новый стол целиком, а не собирать его из кусков.
+   */
+  private resend(): void {
+    for (const client of this.clients) {
+      const me = this.personOf(client.sessionId);
+      if (!me) continue;
+      client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now() } satisfies Welcome);
+    }
   }
 
   /** Разослать дифы — каждому, какими их видно ему. */

@@ -3,7 +3,7 @@ import type { RoomCard } from "../../../server/src/table/contract.js";
 import { cardRows, enter, inviteArticle, inviteExisting, listed, mayManage, opened } from "./talk.js";
 
 const links = { anywhere: (r: string) => `https://t.me/bot/table?startapp=${r}`, app: (r: string) => `https://fly/t/?room=${r}` };
-const card = (room: string, title: string, by = "tg:1"): RoomCard => ({ room, title, by, home: { kind: "chat", chat: "-1" }, people: [], createdAt: 0 });
+const card = (room: string, title: string, by = "tg:1"): RoomCard => ({ room, title, by, home: { kind: "chat", chat: "-1" }, people: [], createdAt: 0, kind: "sandbox" });
 
 describe("слова бота про столы", () => {
   it("в личке — все мои столы: своими управляю, в чужие просто захожу", () => {
@@ -16,15 +16,15 @@ describe("слова бота про столы", () => {
   });
 
   it("в личке видно, где стол живёт: чат по имени, переписка — «в переписке»", () => {
-    const inChat: RoomCard = { room: "r1", title: "Стол «Пицца»", by: "tg:1", home: { kind: "chat", chat: "-1", chatTitle: "Пицца" }, people: [], createdAt: 0 };
-    const inline: RoomCard = { room: "r2", title: "Стол «Ржавый обоз»", by: "tg:1", home: { kind: "inline", message: "m" }, people: [], createdAt: 0 };
+    const inChat: RoomCard = { room: "r1", title: "Стол «Пицца»", by: "tg:1", home: { kind: "chat", chat: "-1", chatTitle: "Пицца" }, people: [], createdAt: 0, kind: "sandbox" };
+    const inline: RoomCard = { room: "r2", title: "Стол «Ржавый обоз»", by: "tg:1", home: { kind: "inline", message: "m" }, people: [], createdAt: 0, kind: "sandbox" };
     const said = listed([inChat, inline], links, true, "tg:1");
     expect(said.text).toContain("чат «Пицца»");
     expect(said.text).toContain("в переписке");
   });
 
   it("готовый стол карточкой в чужую переписку: админу — «Управлять», остальным только вход", () => {
-    const one: RoomCard = { room: "r1", title: "Стол «Пицца»", by: "tg:1", home: { kind: "chat", chat: "-1", chatTitle: "Пицца" }, people: [], createdAt: 0 };
+    const one: RoomCard = { room: "r1", title: "Стол «Пицца»", by: "tg:1", home: { kind: "chat", chat: "-1", chatTitle: "Пицца" }, people: [], createdAt: 0, kind: "sandbox" };
     const asAdmin = inviteExisting(one, links, true);
     expect(asAdmin.title).toBe("Стол «Пицца»");
     expect(asAdmin.description).toContain("чат «Пицца»");

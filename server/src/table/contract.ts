@@ -565,6 +565,8 @@ export type Home =
 export interface RoomCard {
   room: string;
   title: string;
+  /** Род стола — имя конфига правил (`desks.ts`). */
+  kind: string;
   /** Кто открыл комнату — он же её админ. Пусто — комната заведена входом, админа у неё нет. */
   by: string;
   home: Home;

@@ -65,6 +65,11 @@ export class TableApi {
     return this.call<RoomCard>("POST", "/table/rooms", { home, by, ...(title ? { title } : {}), ...(room ? { room } : {}), ...(kind ? { kind } : {}) });
   }
 
+  /** Сменить род стола на ходу. */
+  recast(room: string, kind: string) {
+    return this.call<RoomCard>("PATCH", `/table/rooms/${room}`, { kind });
+  }
+
   list(chat: string) {
     return this.call<RoomCard[]>("GET", `/table/rooms?chat=${encodeURIComponent(chat)}`);
   }

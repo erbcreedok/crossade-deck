@@ -12,7 +12,7 @@ import express, { type Router } from "express";
 import { tableConfig } from "./config.js";
 import { DEFAULT_DESK, isDesk } from "./desks.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
-import { closeEntry, findEntry, openEntry, rehome, rename, roomsAt, roomsBy, runIn } from "./lobby.js";
+import { closeEntry, findEntry, openEntry, recast, rehome, rename, roomsAt, roomsBy, runIn } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 
 /** Этот запуск. Новый процесс — новый `boot`: по нему бот понимает, что прежних столов нет. */
@@ -111,6 +111,11 @@ export function tableRoutes(): Router {
     let out = findEntry(req.params.room);
     if (home) out = rehome(req.params.room, home);
     if (typeof body.title === "string") out = rename(req.params.room, body.title);
+    // РОД МЕНЯЕТСЯ НА ХОДУ, а незнакомый — отказ: это выбор человека кнопкой, и молчать нельзя.
+    if (body.kind !== undefined) {
+      if (!isDesk(body.kind)) return void res.status(400).json({ error: "bad_request" });
+      out = recast(req.params.room, body.kind);
+    }
     if (!out) return void res.status(404).json({ error: "not_found" });
     res.json(out);
   });

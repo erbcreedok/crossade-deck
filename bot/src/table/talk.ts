@@ -69,6 +69,7 @@ export function listed(cards: RoomCard[], links: Links, inPrivate: boolean, me?:
   };
 }
 
+export const recast = (title: string, kind: string): string => `Стол «${title}» теперь ${kind}. Карты и люди остались на местах.`;
 export const closed = (title: string): string => `Стол «${title}» закрыт.`;
 export const renamed = (from: string, to: string): string => `Стол «${from}» теперь называется «${to}».`;
 export const askTitle = (title: string): string => `Как назвать стол «${title}»? Напиши следующим сообщением.`;
