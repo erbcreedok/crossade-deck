@@ -163,6 +163,8 @@ export class Table {
         y: zone.y,
         pose: zone.pose,
         ...(zone.name ? { name: zone.name } : {}),
+        ...(zone.least === undefined ? {} : { least: zone.least }),
+        ...(zone.most === undefined ? {} : { most: zone.most }),
         angle: zone.angle ?? 0,
         forever: zone.forever ?? true,
         lock: zone.lock ?? false,
@@ -744,6 +746,10 @@ export class Table {
     if (target.in === "deck" && !into && !(auto && target.pile === MAIN_PILE)) return { refused: "gone" };
     // ПРИЁМКА ЗАКРЫТА — не положить; вернуть взятую из самой стопки на её место тоже нельзя, это перестановка.
     if (target.in === "deck" && !auto && into && (into.spot.shut || (into.spot.lock && from.in === "deck" && from.pile === target.pile))) return { refused: "locked" };
+    // МЕСТ В ЗОНЕ БОЛЬШЕ НЕТ. `most` — число, а не правило: в партии его ставит игра по числу
+    // играющих, и седьмая карта при шести игроках не ложится. Не задано — потолка нет.
+    if (target.in === "deck" && !auto && into?.spot.most !== undefined && !into.cards.includes(id)
+      && (into.spot.taken ?? 0) + into.cards.length >= into.spot.most) return { refused: "full" };
     const born = target.in === "deck" && !into ? this.ensureDeck() : [];
     // В СТОПКУ — стороной стопки, если все её карты лежат одинаково; вперемешку или пустая — как нёс.
     const pack = into && !auto ? into.cards.filter((one) => one !== id).map((one) => this.turned.has(one)) : [];

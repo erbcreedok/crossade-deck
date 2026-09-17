@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Face } from "./contract.js";
-import { RING_CARDS, RING_SPREAD, ringFace, ringPlace, ringSpot, ringStep, ringTurn } from "./ring.js";
+import { RING_CARDS, RING_HOME, RING_SPREAD, ringFace, ringPlace, ringSlots, ringSpot, ringSpread, ringStep, ringTurn } from "./ring.js";
 import { SANDBOX, type DeskRules } from "./rules.js";
 import { Table } from "./table.js";
 
@@ -38,6 +38,23 @@ describe("зона заводится конфигом, а не кодом", () 
     expect(seen.piles.find((p) => p.id === "круг")!.forever).toBe(true);
   });
 
+  it("ПОТОЛОК МЕСТ: в полную зону карту не положить, а без потолка кладут сколько угодно", () => {
+    const zoned = (most?: number): DeskRules => ({ ...SANDBOX, zones: [{ id: "круг", x: 0, y: 0, pose: "ring", ...(most === undefined ? {} : { most }) }] });
+    const put = (rules: DeskRules) => {
+      const t = new Table(cards.slice(), null, rules);
+      t.join({ key: "я", name: "я", ink: "#fff", door: "guest" });
+      const out: string[] = [];
+      for (const id of ["a", "b"]) {
+        t.act("я", { t: "grab", id }, 0);
+        const drop = t.act("я", { t: "drop", id, to: { in: "deck", pile: "круг" } }, 0);
+        out.push("refused" in drop ? drop.refused : "ok");
+      }
+      return out;
+    };
+    expect(put(zoned(1)), "одно место — вторая карта не лезет").toEqual(["ok", "full"]);
+    expect(put(zoned()), "потолка нет — кладут обе").toEqual(["ok", "ok"]);
+  });
+
   it("замки зоны берутся из конфига", () => {
     const rules: DeskRules = { ...SANDBOX, zones: [{ id: "сброс", x: 0, y: 3, pose: "stack", shut: true, pin: true }] };
     const zone = new Table(cards.slice(), null, rules).seenBy("кто-то").piles.find((p) => p.id === "сброс")!;
@@ -65,18 +82,32 @@ describe("поза «по кругу» — общая правда, а не ка
     expect(RING_CARDS + 1.4 / 2, "и дальний край карты ровно на контуре").toBeCloseTo(RING_SPREAD, 6);
   });
 
-  it("одна карта стоит в начале круга, внутри контура, а не в середине зоны", () => {
+  it("одна карта стоит в начале круга — на полпути к контуру, а не у самой линии", () => {
     const one = ringSpot(at, 0, 1);
     expect(one.x).toBeCloseTo(0, 6);
-    expect(one.y).toBeCloseTo(-RING_CARDS, 6);
+    expect(one.y).toBeCloseTo(-RING_HOME, 6);
+    expect(RING_HOME * 2, "вдвое ближе контура карт").toBeCloseTo(RING_CARDS, 6);
   });
 
-  it("ПОКА КРУГ НЕ ПОЛОН, ШАГ ПОСТОЯННЫЙ: соседи стоят рядом, а не разъезжаются на полкруга", () => {
-    const step = ringStep(4);
-    expect(step, "четыре карты не растягиваются на 90°").toBeLessThan(90);
-    expect(ringStep(2), "и две тоже стоят рядом").toBeCloseTo(step, 6);
-    const two = [0, 1].map((i) => ringSpot(at, i, 2));
-    expect(Math.hypot(two[0]!.x - two[1]!.x, two[0]!.y - two[1]!.y), "между соседями — чуть больше карты").toBeCloseTo(1.15, 1);
+  it("МЕСТА ДЕЛЯТ КРУГ ПОРОВНУ: три места — 120°, четыре — 90°", () => {
+    expect(ringStep(3)).toBeCloseTo(120, 6);
+    expect(ringStep(4)).toBeCloseTo(90, 6);
+    expect(ringStep(6)).toBeCloseTo(60, 6);
+  });
+
+  it("МЕСТ НЕ МЕНЬШЕ ТРЁХ: одна и две карты стоят в том же круге, что и три", () => {
+    for (const n of [0, 1, 2, 3]) expect(ringSlots({}, n), `${n} карт`).toBe(3);
+    expect(ringSlots({}, 4), "четвёртая ужимает всех").toBe(4);
+    // Партия скажет своё число мест — и оно перебьёт умолчание в обе стороны.
+    expect(ringSlots({ least: 6 }, 2), "в партии шестерых круг держит шесть мест").toBe(6);
+    expect(ringSlots({ least: 6, most: 6 }, 9), "и больше шести мест не бывает").toBe(6);
+  });
+
+  it("ПОКА МЕСТА НЕ ТЕСНЯТ — КРУГ ОДИН И ТОТ ЖЕ; стало тесно — карты отходят от середины", () => {
+    for (const slots of [3, 4, 5, 6]) expect(ringSpread(slots), `${slots}`).toBeCloseTo(RING_HOME, 6);
+    expect(ringSpread(8), "восьмерым уже тесно — отходят").toBeGreaterThan(RING_HOME);
+    expect(ringSpread(9)).toBeGreaterThan(ringSpread(8));
+    expect(ringSpread(40), "но дальше контура не уходят никогда").toBeCloseTo(RING_CARDS, 6);
   });
 
   it("карт больше, чем мест по окружности — шаг сжимается, периметр не растёт", () => {
@@ -89,7 +120,7 @@ describe("поза «по кругу» — общая правда, а не ка
 
   it("порядок хода — по часовой: первая наверху, следующая правее", () => {
     const [first, next] = [ringSpot(at, 0, 4), ringSpot(at, 1, 4)];
-    expect(first!.y).toBeCloseTo(-RING_CARDS, 6);
+    expect(first!.y).toBeCloseTo(-RING_HOME, 6);
     expect(next!.x, "вторая правее первой").toBeGreaterThan(first!.x);
     expect(next!.y, "и чуть ниже").toBeGreaterThan(first!.y);
   });
@@ -103,14 +134,14 @@ describe("поза «по кругу» — общая правда, а не ка
     for (const n of [1, 2, 3, 5, 8]) {
       for (let i = 0; i < n; i += 1) {
         const p = ringSpot({ x: 2, y: -1 }, i, n);
-        expect(Math.hypot(p.x - 2, p.y + 1), `${i} из ${n}`).toBeCloseTo(RING_CARDS, 6);
+        expect(Math.hypot(p.x - 2, p.y + 1), `${i} из ${n}`).toBeCloseTo(ringSpread(n), 6);
       }
     }
   });
 
   it("угол зоны поворачивает всё кольцо целиком", () => {
     const turned = ringSpot({ x: 0, y: 0, angle: 90 }, 0, 4);
-    expect(turned.x).toBeCloseTo(RING_CARDS, 6);
+    expect(turned.x).toBeCloseTo(RING_HOME, 6);
     expect(turned.y).toBeCloseTo(0, 6);
   });
 });
@@ -125,20 +156,20 @@ describe("место карты в кольце помнит снятых сни
 
   it("сняли нижнюю — ОСТАВШИЕСЯ СТОЯТ НА МЕСТЕ, а не съезжают на одно", () => {
     // Лежало четверо, сняли нижнюю: бывшая вторая обязана остаться там, где была.
-    const было = ringPlace({ ...zone, seats: 4 }, 1, 4);
-    const стало = ringPlace({ ...zone, seats: 4, taken: 1 }, 0, 3);
+    const было = ringPlace({ ...zone, least: 4 }, 1, 4);
+    const стало = ringPlace({ ...zone, least: 4, taken: 1 }, 0, 3);
     expect(стало).toEqual(было);
   });
 
   it("положили ещё одну — прежние не поехали", () => {
-    const было = ringPlace({ ...zone, seats: 4 }, 0, 2);
-    const стало = ringPlace({ ...zone, seats: 4 }, 0, 3);
+    const было = ringPlace({ ...zone, least: 4 }, 0, 2);
+    const стало = ringPlace({ ...zone, least: 4 }, 0, 3);
     expect(стало).toEqual(было);
   });
 
   it("мест не меньше, чем карт легло за круг", () => {
     // Мест объявлено два, а легло пять — кольцо расширяется, иначе карты сели бы друг на друга.
-    const пять = [0, 1, 2, 3, 4].map((i) => ringPlace({ ...zone, seats: 2 }, i, 5));
+    const пять = [0, 1, 2, 3, 4].map((i) => ringPlace({ ...zone, least: 2 }, i, 5));
     expect(new Set(пять.map((p) => `${p.x.toFixed(4)},${p.y.toFixed(4)}`)).size).toBe(5);
   });
 });

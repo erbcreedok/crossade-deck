@@ -150,9 +150,15 @@ describe("конфиг стола мастодонта", () => {
   });
 
   it("«накрыть» у стола — это и есть старшинство игры", () => {
-    const desk = krestDesk(() => null);
+    const desk = krestDesk(() => ({ turn: null, closer: null }));
     expect(allowed(desk.says(ask, "card.cover", { by: "кто-то", card: "six", over: "joker" })), "шестёрка бьёт джокера").toBe(true);
     expect(allowed(desk.says(ask, "card.cover", { by: "кто-то", card: "king", over: "joker" })), "король джокера не бьёт").toBe(false);
+  });
+
+  it("ПОКА ПАРТИИ НЕТ — СТАРШИНСТВА НЕТ: в круг кладут любую карту на любую", () => {
+    const desk = krestDesk(() => null);
+    expect(allowed(desk.says(ask, "card.cover", { by: "кто-то", card: "king", over: "joker" })), "король ложится на джокера").toBe(true);
+    expect(allowed(desk.says(ask, "hand.drop", { by: "кто-то", at: { in: "deck", pile: RING } })), "и в круг пускают кого угодно").toBe(true);
   });
 
   it("грип кольца живой только у админа и у закрывшего круг", () => {

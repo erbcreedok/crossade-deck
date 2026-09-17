@@ -2997,6 +2997,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       if (!one.under && !below.has(one.id) && over(at, one.angle)) return { card: one, at, up: one.up };
     }
     for (const pile of [...s.piles].reverse()) {
+      // КРУГ ХОДА — КАЖДАЯ КАРТА НА СВОЁМ МЕСТЕ, и палец берёт ту, на которой лежит: карты здесь не
+      // стопка, а поле, и «верхняя» у них не значит ничего. Тултип для этого открывать не нужно.
+      if (pile.pose === "ring") {
+        const n = pile.cards.length;
+        for (let i = n - 1; i >= 0; i -= 1) {
+          const card = pile.cards[i]!;
+          const at = view.deckAt(pile.id, i, n);
+          if (over(at, view.deckFacing(pile.id, i, n))) return pile.shut ? null : { card, at, up: card.up === true, pile: pile.id };
+        }
+        continue;
+      }
       const top = pile.cards.at(-1);
       const deckTop = view.deckAt(pile.id, pile.cards.length - 1, pile.cards.length);
       // Приёмка закрыта — из стопки не взять и верхнюю: палец по ней не берёт, но и сукно под ней не отдаёт.

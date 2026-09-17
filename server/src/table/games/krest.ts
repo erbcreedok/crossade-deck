@@ -137,7 +137,11 @@ export function krestDesk(judge: () => { turn: string | null; closer: string | n
     says(ask: DeskAsk, key: Key, move: Move): Verdict {
       const now = judge();
       // БЬЁТ ЛИ — старшинство этой игры, и больше ничьё.
+      //
+      // ПОКА ПАРТИИ НЕТ, СТАРШИНСТВА НЕТ ВОВСЕ: в круг кладут любую карту на любую. Стол до начала
+      // игры — раскладка руками, и отбиваться там нечем и не от кого.
       if (key === "card.cover") {
+        if (now === null) return yes;
         const one = move.card === undefined ? undefined : ask.face(move.card);
         const under = move.over === undefined ? undefined : ask.face(move.over);
         return one !== undefined && under !== undefined && !beats(one, under) ? no("beats") : yes;
