@@ -301,6 +301,13 @@ export interface Snapshot {
   rules: TableRules;
   /** Кто админ — создатель комнаты, пока он за столом. `null` — его нет. */
   admin: string | null;
+  /** Кто раздающий этой сессии. `null` — роль никому не выдана. */
+  dealer: string | null;
+  /**
+   * МОИ ПРАВА (`access.ts`) — списком, а не «я админ». Экран рисует кнопки по нему и не спрашивает,
+   * кто перед ним: второго списка прав в клиенте нет и быть не должно.
+   */
+  rights: string[];
 }
 
 // ── ОТ КЛИЕНТА К СЕРВЕРУ: намерения. Сервер решает, случились ли они. ───────────────────────────
@@ -318,6 +325,8 @@ export type Intent =
   | { t: "turn"; id: string }
   /** Перевернуть порядок руки своего стула. */
   | { t: "flip"; chair?: string }
+  /** Выдать роль раздающего этому человеку (`key: null` — снять). Право `roles`. */
+  | { t: "dealer"; key: string | null }
   /** ДЕЛО КРУПЬЕ из набора комнаты (`crews.ts`): собрать колоду, выложить на стол и что там ещё будет. */
   | { t: "crew"; act: string }
   /**
@@ -397,7 +406,9 @@ export type Op =
   /** Карты выделены (`by`) или выделение с них снято (`null`). */
   | { t: "pick"; ids: string[]; by: string | null }
   | { t: "rules"; rules: TableRules }
-  | { t: "admin"; key: string | null };
+  | { t: "admin"; key: string | null; rights: string[] }
+  /** Роль раздающего перешла. Права зрителя едут вместе с ней: их считает стол, а не экран. */
+  | { t: "dealer"; key: string | null; rights: string[] };
 
 export interface Patch {
   v: number;

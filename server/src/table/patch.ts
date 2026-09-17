@@ -101,6 +101,11 @@ function applyOp(s: Snapshot, op: Op): void {
       return;
     case "admin":
       s.admin = op.key;
+      s.rights = op.rights;
+      return;
+    case "dealer":
+      s.dealer = op.key;
+      s.rights = op.rights;
       return;
   }
 }

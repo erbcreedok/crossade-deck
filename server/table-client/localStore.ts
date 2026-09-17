@@ -41,6 +41,8 @@ export function localStore(): TableStore {
   hand("me", 7);
   hand("alia", 5);
   hand("timur", 3);
+  // АЛИЯ ЗАПЕРЛА СВОЮ РУКУ САМА: флаги стула — дело его хозяина, и на стенде это видно так же.
+  table.act("alia", { t: "flag", chair: seatOf("alia"), flag: "lock", on: true }, 0);
   // ТИМУР ВСТАЛ ИЗ-ЗА СТОЛА — стенд показывает покинутый стул с картами: его открывают, на него садятся.
   table.leave("timur");
 

@@ -44,18 +44,18 @@ async function open(url) {
   check("тап по пустому стулу открывает его окно", (await tip.count()) === 1, null);
   check("в окне — «Пустой стул» и кнопка «Сесть»", (await tip.innerText()).includes("Пустой стул") && (await s.page.locator(`[data-sit="${empty.key}"]`).count()) === 1, await tip.innerText());
   check("в окне пустого стула — оставшиеся карты", (await s.page.locator(`[data-owner="${empty.key}"]`).count()) === 3, null);
-  check("флаги пустого стула — кнопками", (await s.page.locator(`[data-flag][data-chair="${empty.key}"]`).count()) === 3, null);
+  check("флаги пустого стула — кнопками", (await s.page.locator(`[data-flag][data-chair="${empty.key}"]`).count()) === 4, null);
 
   await s.tapEl(`[data-flag="forever"][data-chair="${empty.key}"]`);
   check("вечный включается на пустом стуле", (await s.page.getAttribute(`[data-flag="forever"][data-chair="${empty.key}"]`, "aria-pressed")) === "true", null);
 
-  // Админ ставит лок на стул Алии: её карты в окне больше не берутся. Окно пустого стула закрыто,
-  // чтобы не заслонить стул Алии пальцу.
+  // ЛОК НА СВОЮ РУКУ СТАВИТ ЕЁ ХОЗЯЙКА, не админ: флаги чужого занятого стула ему не подчиняются.
+  // Алия заперла руку на стенде; админ видит статус и не берёт её карты.
   await s.tapEl(`[data-shut="${empty.key}"]`);
   await s.tap(alia.x, alia.y);
-  await s.tapEl(`[data-flag="lock"][data-chair="${alia.key}"]`);
+  check("флаги чужого занятого стула — значками, не кнопками", (await s.page.locator(`[data-flag][data-chair="${alia.key}"]`).count()) === 0, null);
   const shut = await s.page.locator(`[data-owner="${alia.key}"]`).first().evaluate((e) => getComputedStyle(e).pointerEvents);
-  check("админ закрыл стул Алии — её карты не берутся", shut === "none", shut);
+  check("рука Алии заперта — её карты не берутся", shut === "none", shut);
 
   // Сесть на пустой: его три карты — мои, мой стул с семью картами — покинут и вечный.
   const before = await s.page.locator(`[data-owner="${mineSeat.key}"]`).count();

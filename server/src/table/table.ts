@@ -50,6 +50,7 @@ import {
   CARD_FACES,
 } from "./contract.js";
 import { arranged, samePack, shuffled } from "./arrange.js";
+import { may, rightsOf, type Right, type Role } from "./access.js";
 import { SANDBOX, type DeskAsk, type DeskRules, type DeskZone } from "./rules.js";
 import { croupierAngle, deckHome, freeAngle, seatPoint } from "./ring.js";
 
@@ -123,7 +124,8 @@ export class Table {
     face: (id) => this.faces.get(id),
     pile: (id) => this.piles.get(id)?.cards ?? [],
     hand: (chair) => this.chairs.get(chair)?.hand ?? [],
-    admin: (key) => key === this.admin,
+    // Правилам игры важно не «кто он», а вправе ли он распоряжаться столом (`access.ts`).
+    admin: (key) => this.may(key, "croupier"),
     croupier: (chair) => this.chairs.get(chair)?.croupier === true,
   };
 
@@ -213,11 +215,58 @@ export class Table {
   claim(by: string): Op[] {
     if (this.creator !== null || !by) return [];
     this.creator = by;
-    return this.commit([{ t: "admin", key: this.admin }]);
+    return this.commit([{ t: "admin", key: this.admin, rights: [] }]);
   }
 
   private get admin(): string | null {
     return this.creator !== null && this.people.has(this.creator) ? this.creator : null;
+  }
+
+  /** Кто здесь раздающий. Роль вешается на человека и живёт, пока он за столом. */
+  private dealer: string | null = null;
+
+  /**
+   * РОЛИ ЭТОГО ЧЕЛОВЕКА. Не «кто он», а какие наборы доступов ему выданы (`access.ts`).
+   *
+   * Ролей может быть несколько сразу: админ, взявший раздачу на себя, остаётся и админом.
+   */
+  rolesOf(key: string): Role[] {
+    const out: Role[] = ["player"];
+    if (key === this.admin) out.push("admin");
+    if (key === this.dealer && this.people.has(key)) out.push("dealer");
+    return out;
+  }
+
+  /** Вправе ли он это сделать. ЕДИНСТВЕННОЕ место, где стол спрашивает про права. */
+  may(key: string, right: Right): boolean {
+    return may(this.rolesOf(key), right);
+  }
+
+  /** Все права этого человека — списком: по нему экран рисует кнопки, не гадая, кто перед ним. */
+  rightsOf(key: string): Right[] {
+    return rightsOf(this.rolesOf(key));
+  }
+
+  /**
+   * НАЗНАЧИТЬ РАЗДАЮЩЕГО. Само назначение — тоже право (`roles`), а не «может админ»: игра вешает
+   * роль своим ходом, человек с правом — рукой.
+   */
+  setDealer(by: string, key: string | null): Result {
+    if (!this.may(by, "roles")) return { refused: "not-yours" };
+    if (key !== null && !this.people.has(key)) return { refused: "gone" };
+    this.dealer = key;
+    return { ops: this.commit([{ t: "dealer", key, rights: [] }]) };
+  }
+
+  /** Раздающий по решению самой игры — без человека и без спроса прав. */
+  handDealer(key: string | null): Op[] {
+    this.dealer = key;
+    return this.commit([{ t: "dealer", key, rights: [] }]);
+  }
+
+  /** Кто сейчас раздающий. */
+  get dealerKey(): string | null {
+    return this.dealer !== null && this.people.has(this.dealer) ? this.dealer : null;
   }
 
   // ── ЛЮДИ ───────────────────────────────────────────────────────────────────────────────────
@@ -236,7 +285,7 @@ export class Table {
     this.people.set(person.key, seated);
     this.names.set(person.key, person.name);
     ops.push({ t: "join", person: seated }, { t: "chair", chair: this.chairOut(chair) });
-    if (this.admin !== wasAdmin) ops.push({ t: "admin", key: this.admin });
+    if (this.admin !== wasAdmin) ops.push({ t: "admin", key: this.admin, rights: [] });
     return this.commit(ops);
   }
 
@@ -325,7 +374,7 @@ export class Table {
     ops.push({ t: "leave", key });
     const chair = person.seat ? this.chairs.get(person.seat) : undefined;
     if (chair) ops.push(...this.vacate(chair, "left"));
-    if (this.admin !== wasAdmin) ops.push({ t: "admin", key: this.admin });
+    if (this.admin !== wasAdmin) ops.push({ t: "admin", key: this.admin, rights: [] });
     return this.commit(ops);
   }
 
@@ -389,14 +438,14 @@ export class Table {
         const pile = this.piles.get(intent.pile);
         if (!pile) return { refused: "gone" };
         if (typeof intent.on !== "boolean") return { refused: "bad" };
-        if (!intent.on && by !== this.admin) return { refused: "not-yours" };
+        if (!intent.on && !this.may(by, "pile")) return { refused: "not-yours" };
         pile.spot.pin = intent.on;
         return { ops: this.commit([this.spotOp(intent.pile)]) };
       }
       case "deckGuard": {
         const pile = this.piles.get(intent.pile);
         if (!pile) return { refused: "gone" };
-        if (by !== this.admin) return { refused: "not-yours" };
+        if (!this.may(by, "pile")) return { refused: "not-yours" };
         if (typeof intent.on !== "boolean" || !(PILE_GUARDS as readonly unknown[]).includes(intent.guard)) return { refused: "bad" };
         pile.spot[intent.guard] = intent.on;
         return { ops: this.commit([this.spotOp(intent.pile)]) };
@@ -416,7 +465,7 @@ export class Table {
         return { ops: ops.length ? this.commit(ops) : [] };
       }
       case "rules": {
-        if (by !== this.admin) return { refused: "not-yours" };
+        if (!this.may(by, "look")) return { refused: "not-yours" };
         return { ops: this.setRules(intent.rules) };
       }
       case "sync":
@@ -424,6 +473,8 @@ export class Table {
       // ДЕЛО КРУПЬЕ ИСПОЛНЯЕТ КОМНАТА, а не стол: это не ход по столу, а состав стола (`crews.ts`).
       case "crew":
         return { refused: "bad" };
+      case "dealer":
+        return this.setDealer(by, intent.key);
     }
   }
 
@@ -778,7 +829,7 @@ export class Table {
   private pose(by: string, id: string, pose: Partial<HandPose>): Result {
     const chair = this.chairs.get(id);
     if (!chair) return { refused: "gone" };
-    if (chair.owner !== by && by !== this.admin) return { refused: "not-yours" };
+    if (chair.owner !== by && !this.may(by, "pose")) return { refused: "not-yours" };
     const next = { ...chair.pose };
     for (const k of HAND_POSE_KEYS) {
       const v = pose?.[k];
@@ -998,7 +1049,7 @@ export class Table {
    * стола, поэтому им распоряжается админ.
    */
   mayFlag(by: string, chair: { owner: string | null; croupier?: true }): boolean {
-    if (chair.croupier) return by === this.admin;
+    if (chair.croupier) return this.may(by, "croupier");
     return chair.owner === null || chair.owner === by;
   }
 
@@ -1327,6 +1378,8 @@ export class Table {
       return at ? { ...op, card: this.seen(op.card.id, viewer, at) } : op;
     }
     if (op.t === "chair") return { ...op, chair: this.chairSeen(op.chair, viewer) };
+    // РОЛИ ПЕРЕШЛИ — каждому едут ЕГО права: они считаются здесь и нигде больше.
+    if (op.t === "admin" || op.t === "dealer") return { ...op, rights: this.rightsOf(viewer) };
     // Стопка заменена целиком: у перевёрнутых карт лица приходят всем.
     if (op.t === "deck") return { ...op, cards: op.cards.map((c) => this.seen(c.id, viewer, { in: "deck", pile: op.pile })) };
     return op;
@@ -1353,6 +1406,8 @@ export class Table {
       picks: Object.fromEntries(this.picks),
       rules: { ...this.rules },
       admin: this.admin,
+      dealer: this.dealerKey,
+      rights: this.rightsOf(viewer),
     };
   }
 }

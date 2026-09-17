@@ -17,6 +17,10 @@ import { cleanLive, ear, LiveTalk, liveTally, type Live } from "./live.js";
 import { cleanSignal, Signals, type Signal } from "./rtc.js";
 import { cleanMic, type Mic } from "./voice.js";
 import { collectSteps, execute, plan } from "./script.js";
+import type { Right } from "./access.js";
+
+/** ЧТО КАКОЙ КОМАНДОЙ ДВИГАЮТ — право на каждую (`access.ts`). Команды без права здесь нет. */
+const RUN_RIGHTS: Record<string, Right> = { deal: "deal", collect: "collect", shuffle: "shuffle", preset: "preset", look: "look", croupier: "croupier" };
 import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
 import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
@@ -36,7 +40,7 @@ import { readCommand } from "./routes.js";
 import { roomIsSigned } from "./roomIds.js";
 import { Table } from "./table.js";
 
-const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "turn", "flip", "arrange", "pose", "stand", "sit", "flag", "deckMove", "deckDo", "deckForever", "deckPin", "deckGuard", "gather", "pick", "unpick", "moveMany", "turnMany", "pileDrop", "rules", "sync", "crew"]);
+const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "turn", "flip", "arrange", "pose", "stand", "sit", "flag", "deckMove", "deckDo", "deckForever", "deckPin", "deckGuard", "gather", "pick", "unpick", "moveMany", "turnMany", "pileDrop", "rules", "sync", "crew", "dealer"]);
 
 export class TableRoom extends Room {
   /** Слоты выстрелов стикерами; окно чуть короче клиентского — на запаздывание сети. */
@@ -275,7 +279,9 @@ export class TableRoom extends Room {
    * их видят все сидящие. Бот садится за стол, когда впервые понадобился, и дальше сидит без стула.
    */
   async run(by: string, command: TableCommand): Promise<RunResult> {
-    if (by !== creatorOf(this.room)) return { error: "not-admin" };
+    // ПРАВО, А НЕ ЛИЧНОСТЬ: команду ведёт тот, кому выдан этот доступ (`access.ts`).
+    const right = RUN_RIGHTS[command.t];
+    if (right && !this.table.may(by, right)) return { error: "not-admin" };
     // ВИД КОЛОДЫ — не ход, а правило: меняется сразу, даже посреди раздачи, и бот за стол не садится.
     if (command.t === "look") {
       const steps = plan(this.table, command, [], by);
@@ -329,7 +335,7 @@ export class TableRoom extends Room {
     const item = actOf(crewKind(this.room), act);
     const chair = this.table.layout().chairs.find((c) => c.croupier);
     if (!item || !chair) return;
-    if (item.adminOnly && this.table.seenBy(by).admin !== by) return;
+    if (item.adminOnly && !this.table.may(by, "croupier")) return;
     if (this.table.busy) return;
     // ВЫКЛАДКА — ОДНО ДВИЖЕНИЕ: стопка кладётся целиком, её не носят по карте.
     if (act === "layout") return void this.layout(by, chair.id, chair.angle);
