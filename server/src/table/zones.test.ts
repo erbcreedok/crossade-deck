@@ -70,6 +70,30 @@ describe("зона заводится конфигом, а не кодом", () 
     expect(t.seenBy("я").trails.b!.pile).toBeUndefined();
   });
 
+  it("КОЛОДА СТОИТ ПУСТОЙ ИЛИ ИСЧЕЗАЕТ — как сказал род стола", () => {
+    const stays = new Table(cards.slice(), null, SANDBOX).seenBy("кто-то").piles.find((p) => p.id === "deck")!;
+    expect(stays.forever, "у песочницы колода — место, и она стоит").toBe(true);
+    const goes = new Table(cards.slice(), null, { ...SANDBOX, deckForever: false }).seenBy("кто-то").piles.find((p) => p.id === "deck")!;
+    expect(goes.forever, "а там, где её раздают до конца, — исчезает").toBe(false);
+  });
+
+  it("СТОПКУ НЕСУТ — ОНА ЗАНЯТА ДЛЯ ОСТАЛЬНЫХ: из неё не берут и в неё не кладут", () => {
+    const rules: DeskRules = { ...SANDBOX, zones: [{ id: "круг", x: 0, y: 0, pose: "ring" }] };
+    const t = new Table(cards.slice(), null, rules);
+    t.join({ key: "я", name: "я", ink: "#fff", door: "guest" });
+    t.join({ key: "он", name: "он", ink: "#fff", door: "guest" });
+    t.act("я", { t: "grab", id: "a" }, 0);
+    t.act("я", { t: "drop", id: "a", to: { in: "deck", pile: "круг" } }, 0);
+    expect(t.act("я", { t: "grip", pile: "круг" }, 0)).not.toHaveProperty("refused");
+    expect(t.act("он", { t: "grip", pile: "круг" }, 0), "вторым за ту же стопку не взяться").toEqual({ refused: "locked" });
+    expect(t.act("он", { t: "grab", id: "a" }, 0), "и карту из неё не вынуть").toEqual({ refused: "locked" });
+    t.act("он", { t: "grab", id: "b" }, 0);
+    expect(t.act("он", { t: "drop", id: "b", to: { in: "deck", pile: "круг" } }, 0), "и положить в неё нечего").toEqual({ refused: "locked" });
+    // Отпустили — стопка снова общая.
+    t.act("я", { t: "release", id: "круг" }, 0);
+    expect(t.act("он", { t: "grab", id: "a" }, 0)).not.toHaveProperty("refused");
+  });
+
   it("замки зоны берутся из конфига", () => {
     const rules: DeskRules = { ...SANDBOX, zones: [{ id: "сброс", x: 0, y: 3, pose: "stack", shut: true, pin: true }] };
     const zone = new Table(cards.slice(), null, rules).seenBy("кто-то").piles.find((p) => p.id === "сброс")!;

@@ -146,6 +146,13 @@ export class Table {
     // ЗОНЫ РОДА СТОЛА — из конфига, а не из кода. Чтобы на сукне появилось новое место, дописывают
     // строку в `DeskRules.zones`; здесь ничего не меняется (`rules.law.test.ts` это стережёт).
     for (const zone of this.desk.zones) this.openZone(zone);
+    this.deckStays();
+  }
+
+  /** Колода стоит пустой или исчезает — как сказал род стола. */
+  private deckStays(): void {
+    const main = this.piles.get(MAIN_PILE);
+    if (main) main.spot.forever = this.desk.deckForever ?? true;
   }
 
   /** Имена мест, объявленных родом стола: их нельзя двигать и нельзя закрывать. */
@@ -194,6 +201,7 @@ export class Table {
     }
     this.desk = desk;
     for (const zone of desk.zones) if (!this.piles.has(zone.id)) this.openZone(zone);
+    this.deckStays();
     this.v += 1;
   }
 
@@ -435,6 +443,8 @@ export class Table {
         this.locks.delete(intent.id);
         return { ops: this.commit([{ t: "unlock", id: intent.id }]) };
       }
+      case "grip":
+        return this.grip(by, intent.pile, now);
       case "drop":
         return this.drop(by, intent.id, intent.to, now, auto);
       case "turn":
@@ -572,6 +582,8 @@ export class Table {
     // ИЗ СЕРЕДИНЫ СТОПКИ — только пока на ней нет лока: под локом доступна одна верхняя.
     if (at.in === "deck") {
       const pile = this.piles.get(at.pile)!;
+      // СТОПКУ НЕСУТ — она занята целиком: из чужих рук карту не вынимают.
+      if (this.gripped(at.pile, by)) return { refused: "locked" };
       if (pile.spot.lock && pile.cards[pile.cards.length - 1] !== id) return { refused: "not-top" };
     }
     if (at.in === "hand" && !allowed(this.handAsk(by, at.chair, "hand.take"))) return { refused: "chair-locked" };
@@ -579,6 +591,24 @@ export class Table {
     const game = this.desk.says(this.ask, at.in === "hand" ? "hand.take" : "pile.take", { by, card: id, at });
     if (!allowed(game)) return { refused: "locked" };
     return { at };
+  }
+
+  /**
+   * ВЗЯТЬ СТОПКУ ЗА ГРИП. Замок стопки — тот же замок, что у карты в пальце, и живёт в том же списке:
+   * пока стопку несут, из неё не берут и в неё не кладут, а пальцы держат её по тому же `hold`.
+   */
+  private grip(by: string, pile: string, now: number): Result {
+    if (!this.piles.has(pile)) return { refused: "gone" };
+    const lock = this.locks.get(pile);
+    if (lock && lock.by !== by) return { refused: "locked" };
+    this.locks.set(pile, { by, until: now + LOCK_TTL_MS });
+    return { ops: lock ? [] : this.commit([{ t: "lock", id: pile, by }]) };
+  }
+
+  /** Держит ли стопку кто-то другой: её замок — такой же, как у карты. */
+  private gripped(pile: string, by: string): boolean {
+    const lock = this.locks.get(pile);
+    return lock !== undefined && lock.by !== by;
   }
 
   private grab(by: string, id: string, now: number, auto = false): Result {
@@ -746,6 +776,8 @@ export class Table {
     if (target.in === "deck" && !into && !(auto && target.pile === MAIN_PILE)) return { refused: "gone" };
     // ПРИЁМКА ЗАКРЫТА — не положить; вернуть взятую из самой стопки на её место тоже нельзя, это перестановка.
     if (target.in === "deck" && !auto && into && (into.spot.shut || (into.spot.lock && from.in === "deck" && from.pile === target.pile))) return { refused: "locked" };
+    // В СТОПКУ, КОТОРУЮ НЕСУТ, НЕ ПОЛОЖИТЬ: она сейчас в чужих руках.
+    if (target.in === "deck" && !auto && this.gripped(target.pile, by)) return { refused: "locked" };
     // МЕСТ В ЗОНЕ БОЛЬШЕ НЕТ. `most` — число, а не правило: в партии его ставит игра по числу
     // играющих, и седьмая карта при шести игроках не ложится. Не задано — потолка нет.
     if (target.in === "deck" && !auto && into?.spot.most !== undefined && !into.cards.includes(id)
@@ -1075,7 +1107,7 @@ export class Table {
   /** Колоды нет — поставить новую посередине (для команды бота). */
   private ensureDeck(): Op[] {
     if (this.main) return [];
-    this.piles.set(MAIN_PILE, { spot: { ...DEFAULT_SPOT, ...deckHome(), below: [] }, cards: [], shuffles: 0 });
+    this.piles.set(MAIN_PILE, { spot: { ...DEFAULT_SPOT, ...deckHome(), below: [], forever: this.desk.deckForever ?? true }, cards: [], shuffles: 0 });
     return [{ ...this.spotOp(MAIN_PILE), top: true }];
   }
 

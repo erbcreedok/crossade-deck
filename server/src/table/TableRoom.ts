@@ -45,7 +45,7 @@ import { readCommand } from "./routes.js";
 import { roomIsSigned } from "./roomIds.js";
 import { Table } from "./table.js";
 
-const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "turn", "flip", "arrange", "pose", "stand", "sit", "flag", "deckMove", "deckDo", "deckForever", "deckPin", "deckGuard", "gather", "pick", "unpick", "moveMany", "turnMany", "pileDrop", "rules", "sync", "crew", "dealer"]);
+const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "grip", "turn", "flip", "arrange", "pose", "stand", "sit", "flag", "deckMove", "deckDo", "deckForever", "deckPin", "deckGuard", "gather", "pick", "unpick", "moveMany", "turnMany", "pileDrop", "rules", "sync", "crew", "dealer"]);
 
 export class TableRoom extends Room {
   /** Слоты выстрелов стикерами; окно чуть короче клиентского — на запаздывание сети. */

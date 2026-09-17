@@ -417,7 +417,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * сукну за пальцем и встаёт, где отпустили. `off` — палец от места колоды на стекле: колода не прыгает
    * под палец и висит над индикатором, как её взяли. `at` — где колода сейчас, пока её тянут.
    */
-  let gripPress: { pile: string; target?: Aim; pid: number; sx: number; sy: number; t0: number; moved: boolean; off: { x: number; y: number }; at?: { x: number; y: number } } | null = null;
+  let gripPress: { pile: string; target?: Aim; pid: number; sx: number; sy: number; t0: number; moved: boolean; off: { x: number; y: number }; at?: { x: number; y: number }; lifted?: number; hold?: number; spread?: { dx: number; dy: number; turn: number }[] } | null = null;
   let lastGripTap = 0;
   let drag: Drag | null = null;
   /**
@@ -1855,7 +1855,19 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * СОСЕДЕЙ НИ ОДИН ИЗ НИХ НЕ ДВИГАЕТ: до `drop` карты круга лежат как лежали.
    */
   function ringMarksHtml(): string {
-    if (!drag || !view) return "";
+    if (!view) return "";
+    // НЕСУТ ВЕСЬ КРУГ — на местах его карт стоят контуры: место каждой ждёт её обратно.
+    if (gripPress?.moved) {
+      const pile = pileOf(seen(), gripPress.pile);
+      if (!pile || pile.pose !== "ring") return "";
+      const w = FELT_CARD.w * view.k;
+      const h = FELT_CARD.h * view.k;
+      return pile.cards.map((_, i) => {
+        const at = view!.toGlass(view!.deckAt(pile.id, i, pile.cards.length));
+        return markHtml(w, h, view!.rotation + view!.deckFacing(pile.id, i, pile.cards.length), at.x, at.y, 29, view!.squash, T.inkDim).replace('data-g="mark"', 'data-g="ring-home"');
+      }).join("");
+    }
+    if (!drag) return "";
     const w = FELT_CARD.w * view.k;
     const h = FELT_CARD.h * view.k;
     let html = "";
@@ -2127,19 +2139,40 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * СТОПКА В ВОЗДУХЕ — поднята над сукном и стоит ровно к экрану, как карта в пальце; под ней — контур,
    * как она ляжет: ровно к камере, сжатый наклоном стола.
    */
+  /** Сколько длится схождение карт круга под палец. Короче — рвано, длиннее — палец уже уехал. */
+  const RING_FLIGHT_MS = 180;
+
+  /**
+   * ГДЕ СЕЙЧАС КАРТЫ СХОДЯЩЕГОСЯ КРУГА: 1 — ещё на своих местах, 0 — уже стопкой под пальцем.
+   *
+   * Кадры просит сама: палец может стоять на месте, а полёт продолжаться, и без этого он замёрз бы
+   * на полпути.
+   */
+  function ringFlight(): number {
+    if (!gripPress?.lifted) return 1;
+    const t = (performance.now() - gripPress.lifted) / RING_FLIGHT_MS;
+    if (t >= 1) return 0;
+    requestAnimationFrame(() => draw());
+    const k = Math.max(0, t);
+    return 1 - k * k * (3 - 2 * k);
+  }
+
   function deckCarryHtml(s: Snapshot): string {
     const pile = gripPress && pileOf(s, gripPress.pile);
     const c = pile && deckCarry(s, pile.id);
     if (!pile || !c || !view) return "";
     const top = pile.cards.at(-1);
-    // КРУГ НЕСУТ КАК ЛЕЖАЛ. Карты не стягиваются под палец: их взаимные места и повороты остаются, и
-    // видно, что несут именно круг, а не безликую стопку. Обычная стопка по-прежнему едет колодой.
-    const cards = pile.pose === "ring"
+    // КРУГ СОБИРАЕТСЯ ПОД ПАЛЕЦ. Карты не остаются лежать кольцом в воздухе: со своих мест они за
+    // один короткий полёт сходятся в стопку, а на их местах остаются контуры (`ringMarksHtml`).
+    const flight = ringFlight();
+    const spread = gripPress?.spread;
+    const cards = spread && spread.length === pile.cards.length
       ? pile.cards.map((one, i) => {
-        const home = view!.toGlass(view!.deckAt(pile.id, i, pile.cards.length));
-        const mid = view!.toGlass({ x: pile.x, y: pile.y });
-        const turn = view!.deckFacing(pile.id, i, pile.cards.length) + view!.rotation;
-        return `<div style="position:absolute;left:${home.x - mid.x}px;top:${home.y - mid.y}px;width:${c.w}px;height:${c.h}px;transform:translate(-50%,-50%) rotate(${turn}deg)">${cardHtml(one.up ? one.face : undefined, c.w)}</div>`;
+        const home = spread[i]!;
+        const d = pile.cards.length - 1 - i;
+        const x = home.dx * flight + (1 - flight) * -d * 1.5;
+        const y = home.dy * flight + (1 - flight) * d * 2;
+        return `<div style="position:absolute;left:${x}px;top:${y}px;width:${c.w}px;height:${c.h}px;transform:translate(-50%,-50%) rotate(${home.turn * flight}deg)">${cardHtml(one.up ? one.face : undefined, c.w)}</div>`;
       }).join("")
       : ((layers) => Array.from({ length: layers }, (_, i) => {
         const d = layers - 1 - i;
@@ -2999,12 +3032,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const centre = mid ?? { x: x - d!.gx + d!.w / 2, y: y - d!.gy - d!.h * CARRY_CLEAR + d!.h / 2 };
     // Стопки сверху вниз: верхняя из накрывающих друг друга принимает первой.
     for (const pile of [...s.piles].reverse()) {
-      if (pile.id === skip) continue;
+      // ВЗЯТЫЙ КРУГ МОЖНО ВЕРНУТЬ В КРУГ: карты с него и не уходили, пока палец не отпустил. Прочие
+      // стопки в себя не целятся — это была бы перестановка сама в себя.
+      if (pile.id === skip && pile.pose !== "ring") continue;
       const zone = deckZone(pile);
       if (zone && centre.x >= zone.left && centre.x <= zone.right && centre.y >= zone.top && centre.y <= zone.bottom) {
         if (pile.shut) return { kind: "back" };
         // КРУГ ХОДА: навёл ТОЧНО НА КАРТУ — встанет сразу после неё; мимо карт — в конец, как везде.
-        const after = pile.pose === "ring" ? ringCardUnder(pile, centre) : -1;
+        // ЧУЖУЮ ОХАПКУ КРУГ НЕ ПРИНИМАЕТ: в него кладут по одной карте. Своя, из него же взятая, — вернётся.
+        if (pile.pose === "ring" && skip !== undefined && skip !== pile.id) return { kind: "back" };
+        const after = pile.pose === "ring" && skip === undefined ? ringCardUnder(pile, centre) : -1;
         return after >= 0 ? { kind: "deckAt", pile: pile.id, index: after + 1 } : { kind: "deck", pile: pile.id };
       }
     }
@@ -3547,6 +3584,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         e.stopPropagation();
         const pile = pileOf(store.state, el.dataset.pile ?? "");
         if (!view || !pile || drag || gripPress) return;
+        // СТОПКУ УЖЕ НЕСУТ — она занята, как карта в чужом пальце.
+        const held = store.state.locks[pile.id];
+        if (held !== undefined && held !== me()) return;
         const home = view.toGlass(pile);
         gripPress = { pile: pile.id, pid: e.pointerId, sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false, off: { x: e.clientX - home.x, y: e.clientY - home.y } };
       };
@@ -3690,7 +3730,23 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   addEventListener("pointermove", (e) => {
     if (!gripPress || e.pointerId !== gripPress.pid || !view) return;
     if (!gripPress.moved && Math.hypot(e.clientX - gripPress.sx, e.clientY - gripPress.sy) <= TAP_PX) return;
-    gripPress.moved = true;
+    if (!gripPress.moved) {
+      gripPress.moved = true;
+      // ВЗЯЛИ ЗА ГРИП — стопка занята для остальных, и её карты летят под палец.
+      gripPress.lifted = performance.now();
+      // ОТКУДА ЛЕТЯТ КАРТЫ — их места запоминаются ЗДЕСЬ, пока стопка ещё лежит: поднятую стопку
+      // рисование уже не размечает, и спросить у неё эти места будет не у кого.
+      const held = pileOf(seen(), gripPress.pile);
+      if (held?.pose === "ring") {
+        const mid = view.toGlass({ x: held.x, y: held.y });
+        gripPress.spread = held.cards.map((_, i) => {
+          const at = view!.toGlass(view!.deckAt(held.id, i, held.cards.length));
+          return { dx: at.x - mid.x, dy: at.y - mid.y, turn: view!.deckFacing(held.id, i, held.cards.length) + view!.rotation };
+        });
+      }
+      gripPress.hold = window.setInterval(() => store.send({ t: "hold", id: gripPress!.pile }), HOLD_EVERY_MS);
+      store.send({ t: "grip", pile: gripPress.pile });
+    }
     // ПРИКОЛОТА — не едет: палец увёл — это уже не тап, но и не перенос.
     if (pileOf(truth(), gripPress.pile)?.pin) return;
     gripPress.at = view.toDesk({ x: e.clientX - gripPress.off.x, y: e.clientY - gripPress.off.y });
@@ -3707,6 +3763,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (!gripPress || e.pointerId !== gripPress.pid) return;
     const press = gripPress;
     gripPress = null;
+    if (press.hold !== undefined) window.clearInterval(press.hold);
+    if (press.moved) store.send({ t: "release", id: press.pile });
     if (e.type === "pointercancel") return draw();
     // ТЯГА — стопка ложится туда, куда целилась: в руку и в стопку — целиком, картами; на сукно — встаёт, где отпустили.
     if (press.moved) {
@@ -3718,6 +3776,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         return draw();
       }
       if (aim?.kind === "deck" || aim?.kind === "deckAt") {
+        // ВЕРНУЛИ ТУДА ЖЕ, ОТКУДА ВЗЯЛИ: карты с места не уходили — говорить столу нечего.
+        if (aim.pile === press.pile) return draw();
         guessBatch({ t: "pileDrop", pile: press.pile, to: { in: "deck", pile: aim.pile, ...(aim.kind === "deckAt" ? { i: aim.index } : {}) } });
         return draw();
       }

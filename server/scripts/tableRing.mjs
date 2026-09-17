@@ -133,6 +133,40 @@ check("КАРТУ ИЗ КРУГА БЕРУТ ХВАТОМ ПО НЕЙ, не от
 check("и окно стопки при этом не открылось", (await p.locator("[data-deck-tip]").count()) === 0, null);
 check("а у колоды ручка на месте всегда", (await grips()).some((g) => g.pile === "deck"), await grips());
 
+// ГРИП КРУГА: карты сходятся под палец, на местах остаются контуры, круг с места не двигается.
+const before = (await spots()).piles.find((p) => p.id === "ring").spot;
+const grip = await ringGrip();
+await p.mouse.move(grip.x, grip.y);
+await p.mouse.down();
+await p.mouse.move(grip.x + 60, grip.y + 60, { steps: 8 });
+await p.waitForTimeout(400);
+const marks = await p.locator("[data-g=ring-home]").count();
+// РАЗЛЁТ КАРТ В ВОЗДУХЕ — по их местам на экране: схлопнулись в стопку, значит они друг на друге.
+const flight = await p.evaluate(() => {
+  const air = document.querySelector("[data-g=deck-carry]");
+  const kids = [...(air?.children ?? [])].map((e) => {
+    const r = e.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  if (kids.length === 0) return { n: 0, far: -1 };
+  let far = 0;
+  for (const a of kids) for (const b of kids) far = Math.max(far, Math.hypot(a.x - b.x, a.y - b.y));
+  return { n: kids.length, far };
+});
+// Порог — от самого круга: карта, оставшаяся лежать кольцом, стоит на RING_HOME от середины.
+const ring = RING_HOME * (await spots()).k;
+check("стопка круга поднята в воздух вся", flight.n === (await ringIds()).length, flight);
+check("карты круга слетелись под палец", flight.far >= 0 && flight.far < ring * 0.5, { flight, ring });
+check("а на их местах остались контуры", marks === (await ringIds()).length, { marks, n: (await ringIds()).length });
+
+// Вернули туда же — круг цел и стоит там же, где стоял.
+await p.mouse.move(grip.x, grip.y, { steps: 8 });
+await p.mouse.up();
+await p.waitForTimeout(500);
+const back = (await spots()).piles.find((p) => p.id === "ring");
+check("вернули в круг — карты на месте", back.ids.length === (await ringIds()).length && back.ids.length > 0, back.ids);
+check("КРУГ С МЕСТА НЕ СДВИНУЛСЯ", back.spot.x === before.x && back.spot.y === before.y, { before, now: back.spot });
+
 await browser.close();
 let bad = 0;
 for (const c of checks) {

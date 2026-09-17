@@ -161,6 +161,17 @@ describe("конфиг стола мастодонта", () => {
     expect(allowed(desk.says(ask, "hand.drop", { by: "кто-то", at: { in: "deck", pile: RING } })), "и в круг пускают кого угодно").toBe(true);
   });
 
+  it("В КРУГ КЛАДУТ ПО ОДНОЙ КАРТЕ: охапку он не принимает", () => {
+    const desk = krestDesk(() => null);
+    expect(allowed(desk.says(ask, "pile.drop", { by: "кто-то", whole: true, at: { in: "deck", pile: RING } })), "стопкой нельзя").toBe(false);
+    expect(allowed(desk.says(ask, "pile.drop", { by: "кто-то", at: { in: "deck", pile: RING } })), "по одной — можно").toBe(true);
+    expect(allowed(desk.says(ask, "pile.drop", { by: "кто-то", whole: true, at: { in: "deck", pile: "другая" } })), "в обычную стопку — как раньше").toBe(true);
+  });
+
+  it("КОЛОДЫ В КРЕСТОВОМ НЕТ КАК МЕСТА: раздали — и её не осталось", () => {
+    expect(krestDesk().deckForever).toBe(false);
+  });
+
   it("грип кольца живой только у админа и у закрывшего круг", () => {
     const desk = krestDesk(() => ({ turn: null, closer: "Боря" }));
     expect(allowed(desk.says(ask, "pile.grip", { by: "админ", pile: RING }))).toBe(true);

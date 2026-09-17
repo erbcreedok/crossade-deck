@@ -128,6 +128,8 @@ export function krestDesk(judge: () => { turn: string | null; closer: string | n
     kind: "крестовый",
     crew: "krest",
     zones: [{ id: RING, name: "Круг хода", x: 0, y: 0, pose: "ring", forever: true }],
+    // КОЛОДЫ В ЭТОЙ ИГРЕ НЕТ КАК МЕСТА: её раздают всю, и пустой контур посреди сукна только мешает.
+    deckForever: false,
     /**
      * ЧТО ЭТА ИГРА ГОВОРИТ ПРО ХОД. Один ответ на все ключи — и ни одного своего метода.
      *
@@ -146,6 +148,9 @@ export function krestDesk(judge: () => { turn: string | null; closer: string | n
         const under = move.over === undefined ? undefined : ask.face(move.over);
         return one !== undefined && under !== undefined && !beats(one, under) ? no("beats") : yes;
       }
+      // В КРУГ КЛАДУТ ПО ОДНОЙ КАРТЕ. Круг — это ход, а не стопка: охапка стёрла бы весь его смысл.
+      // Взятые из самого круга карты возвращаются в него иначе: они с него и не уходили.
+      if (move.whole === true && move.at?.in === "deck" && move.at.pile === RING) return no("full");
       // ОХАПКУ КАРТ ПРИНИМАЕТ ТОЛЬКО РУКА КРУПЬЕ. Игроку — по одной карте, и никак иначе: рука в
       // этой игре это счёт, по ней видно, кто близок к выходу, и стопка одним движением его стирает.
       if (move.whole === true && move.at?.in === "hand") {
