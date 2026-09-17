@@ -321,16 +321,16 @@ describe("Table: флаги и права", () => {
     expect("ops" in t.act("c", { t: "flag", chair: b, flag: "hide", on: false }, 0)).toBe(true);
   });
 
-  it("админ — создатель, пока он за столом", () => {
+  it("РОЛЬ ДЕРЖИТСЯ ЗА ЧЕЛОВЕКОМ: вышел — осталась, вернулся — снова с нею", () => {
     const t = seated("admin", "b", "c");
     const b = seatOf(t, "b");
     expect(t.seenBy("b").admin).toBe("admin");
     t.leave("admin");
-    expect(t.seenBy("b").admin).toBeNull();
+    expect(t.seenBy("b").admin, "отошёл — комната не осталась без распорядителя").toBe("admin");
     expect(t.act("c", { t: "flag", chair: b, flag: "lock", on: true }, 0)).toEqual({ refused: "not-yours" });
     t.join(person("admin"));
     expect(t.seenBy("b").admin).toBe("admin");
-    // Права админа — про игру и стол: чужой занятый стул ему не подчиняется и с ними.
+    // Права распорядителя — про игру и стол: чужой занятый стул ему не подчиняется и с ними.
     expect(t.act("admin", { t: "flag", chair: b, flag: "lock", on: true }, 0)).toEqual({ refused: "not-yours" });
   });
 

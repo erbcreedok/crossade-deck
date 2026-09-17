@@ -1123,8 +1123,25 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * Карта в гнезде — лицом, если лицо пришло (стол сам решил, видно ли её мне). Взятую другим пальцем и
    * карту под чужим замком не берут: первая в цвете держащего, вторая приглушена, и обе не ловят касание.
    */
+  /**
+   * ЧТО ГОВОРИТ ПАРТИЯ ПРО ЭТУ КАРТУ В МОЕЙ РУКЕ: `"lay"` — ляжет прямо сейчас, `"idle"` — не сейчас,
+   * `null` — партии нет и подсказывать нечего.
+   *
+   * Экран ничего не решает сам: он читает СОСТОЯНИЕ, которое прислал сервер (`Snapshot.play`).
+   */
+  function playHint(s: Snapshot, id: string, owner: string): "lay" | "idle" | null {
+    const play = s.play;
+    if (!play || play.turn === null || owner !== mine(s)) return null;
+    if (play.turn !== me()) return "idle";
+    return play.lay.includes(id) ? "lay" : "idle";
+  }
+
   function slotCard(c: SeenCard, geom: Geom, slot: Slot, z: number, owner: string, held?: string, shut = false, under = false): string {
-    return `<div data-card="${c.id}" data-owner="${owner}"${pickAttr(c.id)} style="position:absolute;width:${geom.w}px;height:${geom.h}px;${pickCss(c.id, geom.w)}`
+    const hint = playHint(frame(), c.id, owner);
+    const play = hint === "lay"
+      ? `outline:2px solid ${T.gold};outline-offset:-2px;border-radius:${geom.w * 0.12}px;`
+      : hint === "idle" ? "filter:brightness(.62) saturate(.7);" : "";
+    return `<div data-card="${c.id}" data-owner="${owner}"${pickAttr(c.id)}${hint ? ` data-play="${hint}"` : ""} style="position:absolute;width:${geom.w}px;height:${geom.h}px;${play}${pickCss(c.id, geom.w)}`
       + `left:${slot.x - geom.w / 2}px;top:${slot.y - geom.h / 2}px;transform:rotate(${slot.angle}deg);z-index:${z};touch-action:none;`
       // СЖАТАЯ РУКА: касание ловит только верхняя карта — остальные под ней.
       + (under ? "pointer-events:none;" : "")

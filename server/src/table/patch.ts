@@ -107,6 +107,9 @@ function applyOp(s: Snapshot, op: Op): void {
       s.dealer = op.key;
       s.rights = op.rights;
       return;
+    case "play":
+      s.play = op.play;
+      return;
   }
 }
 

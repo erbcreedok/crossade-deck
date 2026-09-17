@@ -15,6 +15,7 @@
 // Флаг, пока стоит, действует на всех, кроме хозяина, — и на админа тоже: снять может, обойти — нет.
 
 import {
+  type Play,
   CHAIR_FLAGS,
   DEFAULT_RULES,
   DEFAULT_SPOT,
@@ -218,8 +219,13 @@ export class Table {
     return this.commit([{ t: "admin", key: this.admin, rights: [] }]);
   }
 
+  /**
+   * РОЛЬ ДЕРЖИТСЯ ЗА ЧЕЛОВЕКОМ, А НЕ ЗА ЕГО ПРИСУТСТВИЕМ. Вышел из-за стола — роль осталась, вернулся
+   * — снова с нею. Иначе комната теряет распорядителя ровно тогда, когда он отошёл, а команды бота
+   * приходят как раз из Telegram, где он за столом не сидит.
+   */
   private get admin(): string | null {
-    return this.creator !== null && this.people.has(this.creator) ? this.creator : null;
+    return this.creator;
   }
 
   /** Кто здесь раздающий. Роль вешается на человека и живёт, пока он за столом. */
@@ -271,6 +277,12 @@ export class Table {
     this.dealer = key;
     return this.commit([{ t: "dealer", key, rights: [] }]);
   }
+
+  /**
+   * ОТКУДА БРАТЬ СОСТОЯНИЕ ПАРТИИ. Ставит комната: судья живёт у неё, а стол только возит его в
+   * снимке — знать про игру он не должен и не хочет.
+   */
+  play: ((viewer: string) => Play | null) | null = null;
 
   /** Кто сейчас раздающий. */
   get dealerKey(): string | null {
@@ -1411,6 +1423,8 @@ export class Table {
       admin: this.admin,
       dealer: this.dealerKey,
       rights: this.granted(viewer),
+      // СОСТОЯНИЕ ПАРТИИ приносит комната: стол её не судит, он только возит (`TableRoom.playFor`).
+      play: this.play?.(viewer) ?? null,
     };
   }
 }

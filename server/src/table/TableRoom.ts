@@ -6,7 +6,8 @@
 // КОМНАТА НЕ УМИРАЕТ ПУСТОЙ (`autoDispose = false`): стол чата живёт, пока жив сервер, и вернувшийся
 // через час находит свои карты там, где оставил. Закрывает её только бот (`lobby.closeEntry`).
 
-import { hasSticker, stickersOf } from "../db/stickersRepo.js";
+import {
+ hasSticker, stickersOf } from "../db/stickersRepo.js";
 import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
 import { tableConfig } from "./config.js";
@@ -29,9 +30,10 @@ import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
 import { deskOf } from "./desks.js";
 import { RING } from "./games/krest.js";
-import { move, start, type Match } from "./games/match.js";
+import { allowed as allowedIn, move, start, type Match } from "./games/match.js";
 import { attach, creatorOf, crewKind, kindOf, openEntry, titleOf } from "./lobby.js";
 import { actOf, crewOf } from "./crews.js";
+import type { Play } from "./contract.js";
 import { seatPoint } from "./ring.js";
 
 /**
@@ -84,6 +86,8 @@ export class TableRoom extends Room {
     // СУДЬЯ ЖИВЁТ В КОМНАТЕ, а правила спрашивают его через это окошко: чей ход и кто закрыл круг.
     // Партии нет — окно отдаёт `null`, и стол ведёт себя как песочница.
     this.table = new Table(deal(), creatorOf(this.room), deskOf(kindOf(this.room), () => this.judgeView()));
+    // СОСТОЯНИЕ ПАРТИИ В СНИМКЕ: стол её не судит, он только возит то, что скажет комната.
+    this.table.play = (viewer) => this.playFor(viewer);
     attach(this.room, {
       people: () => this.table.here.filter((p) => !p.bot),
       close: () => void this.disconnect(),
@@ -253,7 +257,44 @@ export class TableRoom extends Room {
     const took = to.in === "hand" && to.chair === chair.id;
     if (!laid && !took) return;
     const next = move(this.match, chair.id, laid ? { t: "lay", card: face! } : { t: "take" });
-    if (!("refused" in next)) this.match = next;
+    if ("refused" in next) return;
+    this.match = next;
+    this.tellPlay();
+  }
+
+  /**
+   * ЧТО СЕЙЧАС В ИГРЕ — ГЛАЗАМИ ЭТОГО ЧЕЛОВЕКА. Из этого экран рисует подсветку: какие карты лягут,
+   * можно ли взять, чей ход. Не кнопки и не правила — состояние; правила у обоих концов одни.
+   */
+  private playFor(viewer: string): Play | null {
+    if (this.match === null) return null;
+    const chairs = this.table.layout().chairs;
+    const owner = (chair: string | null) => (chair === null ? null : (chairs.find((c) => c.id === chair)?.owner ?? null));
+    const seat = chairs.find((c) => c.owner === viewer);
+    const can = seat ? allowedIn(this.match, seat.id) : { lay: [], take: false };
+    // Судья говорит лицами карт, а экран знает их по id — переводим здесь, у самой руки.
+    const hand = seat?.hand ?? [];
+    const left = [...can.lay];
+    const lay: string[] = [];
+    for (const id of hand) {
+      const face = this.table.faceOf(id);
+      const at = face === undefined ? -1 : left.findIndex((one) => one.rank === face.rank && one.suit === face.suit);
+      if (at !== -1) {
+        left.splice(at, 1);
+        lay.push(id);
+      }
+    }
+    return { turn: owner(this.match.turn), closer: owner(this.match.closer), lay, take: can.take, loser: owner(this.match.loser) };
+  }
+
+  /**
+   * ПАРТИЯ СДВИНУЛАСЬ — каждому своё состояние: у всех разные руки и разные подсветки.
+   *
+   * Шлём снимок целиком, а не диф: версия стола от хода судьи не меняется, и диф чужой версии
+   * клиент справедливо не примет. Ходы идут человеческим темпом, снимок дёшев.
+   */
+  private tellPlay(): void {
+    this.resend();
   }
 
   /** Что правила видят о партии: очередь и закрывший — В КЛЮЧАХ ЛЮДЕЙ, потому что правам нужны люди. */
@@ -275,6 +316,7 @@ export class TableRoom extends Room {
       hands[chair.id] = chair.hand.map((id) => this.table.faceOf(id)).filter((f): f is Face => f !== undefined);
     }
     this.match = Object.keys(hands).length > 1 ? start(hands, dealer) : null;
+    this.tellPlay();
   }
 
   /**
