@@ -559,6 +559,8 @@ export interface RoomCard {
 
 /** `POST /table/rooms` */
 export interface OpenRoom {
+  /** Род стола — имя конфига правил (`desks.ts`). Не сказан — песочница. */
+  kind?: string;
   home: Home;
   title?: string;
   by: string;

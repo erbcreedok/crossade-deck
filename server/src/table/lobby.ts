@@ -8,11 +8,14 @@
 // был — сама комната Colyseus, чтобы закрыть её отсюда.
 
 import type { Home, Person, RoomCard, RunResult, TableCommand } from "./contract.js";
+import { DEFAULT_DESK, isDesk } from "./desks.js";
 import { titleFrom, uniqueTitle } from "./names.js";
 
 interface Entry {
   room: string;
   title: string;
+  /** РОД СТОЛА — имя конфига правил (`desks.ts`). Записан при открытии и живёт с комнатой. */
+  kind: string;
   home: Home;
   by: string;
   createdAt: number;
@@ -35,7 +38,7 @@ const card = (e: Entry): RoomCard => ({
   createdAt: e.createdAt,
 });
 
-export function openEntry(room: string, home: Home, by: string, title?: string, now = Date.now()): RoomCard {
+export function openEntry(room: string, home: Home, by: string, title?: string, now = Date.now(), kind: string = DEFAULT_DESK): RoomCard {
   const had = rooms.get(room);
   if (had) {
     // ХОЗЯИН ВЕРНУЛСЯ К СВОЕЙ КОМНАТЕ. Её мог завести вошедший (после перезапуска сервера) — тогда она
@@ -49,7 +52,7 @@ export function openEntry(room: string, home: Home, by: string, title?: string, 
     return card(had);
   }
   // Имя — из просьбы, иначе по чату, иначе случайное; и всегда такое, какого у живых комнат ещё нет.
-  const entry: Entry = { room, home, by, title: uniqueTitle(title?.trim() || titleFrom(home.kind === "chat" ? home.chatTitle : undefined), takenTitles()), createdAt: now };
+  const entry: Entry = { room, home, by, kind: isDesk(kind) ? kind : DEFAULT_DESK, title: uniqueTitle(title?.trim() || titleFrom(home.kind === "chat" ? home.chatTitle : undefined), takenTitles()), createdAt: now };
   rooms.set(room, entry);
   return card(entry);
 }
@@ -63,6 +66,9 @@ export const titleOf = (room: string): string => rooms.get(room)?.title ?? DEFAU
 
 /** Кто открыл комнату — ключ человека (`tg:<id>`). Он админ стола. Комната, открытая входом, — ничья. */
 export const creatorOf = (room: string): string | null => rooms.get(room)?.by || null;
+
+/** Род стола этой комнаты. Комнаты нет — песочница: стол всё равно откроется. */
+export const kindOf = (room: string): string => rooms.get(room)?.kind ?? DEFAULT_DESK;
 
 export function roomsAt(home: Home): RoomCard[] {
   return [...rooms.values()]
