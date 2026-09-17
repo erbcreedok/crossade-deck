@@ -11,7 +11,7 @@ import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
 import { tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
-import { MSG, type CarryOut, type Intent, type JoinOptions, type Op, type Person, type RunResult, type TableCommand, type Welcome } from "./contract.js";
+import { MSG, type CarryOut, type Face, type Intent, type JoinOptions, type Op, type Person, type RunResult, type TableCommand, type Welcome } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
 import { cleanLive, ear, LiveTalk, liveTally, type Live } from "./live.js";
 import { cleanSignal, Signals, type Signal } from "./rtc.js";
@@ -21,6 +21,8 @@ import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.
 import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
 import { deskOf } from "./desks.js";
+import { RING } from "./games/krest.js";
+import { move, start, type Match } from "./games/match.js";
 import { attach, creatorOf, kindOf, openEntry, titleOf } from "./lobby.js";
 import { readCommand } from "./routes.js";
 import { roomIsSigned } from "./roomIds.js";
@@ -40,6 +42,11 @@ export class TableRoom extends Room {
 
   private table!: Table;
   private room = "";
+  /**
+   * ПАРТИЯ, ЕСЛИ ОНА ИДЁТ. Ведётся ПО СТУЛЬЯМ, а не по людям: рука принадлежит стулу, человек может
+   * уйти и вернуться, а очередь от этого не должна сбиваться.
+   */
+  private match: Match | null = null;
   /** Сессия → ключ человека. Один человек может сидеть с двух устройств: ключ у них общий. */
   private seats = new Map<string, string>();
 
@@ -59,7 +66,9 @@ export class TableRoom extends Room {
     // АДМИН — ТОТ, КТО ОТКРЫЛ КОМНАТУ В БОТЕ. Спрашивается при открытии: запись к этому моменту есть.
     // РОД СТОЛА берётся у комнаты: его записал тот, кто её открыл. Стол сам про род не знает —
     // он получает правила и работает с ними, как с любыми другими.
-    this.table = new Table(deal(), creatorOf(this.room), deskOf(kindOf(this.room)));
+    // СУДЬЯ ЖИВЁТ В КОМНАТЕ, а правила спрашивают его через это окошко: чей ход и кто закрыл круг.
+    // Партии нет — окно отдаёт `null`, и стол ведёт себя как песочница.
+    this.table = new Table(deal(), creatorOf(this.room), deskOf(kindOf(this.room), () => this.judgeView()));
     attach(this.room, {
       people: () => this.table.here.filter((p) => !p.bot),
       close: () => void this.disconnect(),
@@ -86,7 +95,10 @@ export class TableRoom extends Room {
       }
       const result = this.table.act(me.key, intent, Date.now());
       if ("refused" in result) client.send(MSG.refused, { intent, why: result.refused });
-      else this.spread(result.ops);
+      else {
+        this.spread(result.ops);
+        this.followMatch(me.key, intent);
+      }
     });
 
     // ПАЛЕЦ В ВОЗДУХЕ — остальным, каждому своими глазами; отправителю не возвращается.
@@ -200,6 +212,47 @@ export class TableRoom extends Room {
   }
 
   /**
+   * СУДЬЯ ИДЁТ ЗА РУКОЙ ЧЕЛОВЕКА, а не наоборот.
+   *
+   * Стол уже пропустил ход — права спросили у правил, а права спросили у судьи. Значит остаётся
+   * ДОГНАТЬ судью тем же ходом: положил в кольцо — `lay`, забрал из кольца в руку — `take`.
+   * Если судья вдруг откажет, мы его не слушаем: стол уже сходил, и расходиться им нельзя.
+   */
+  private followMatch(by: string, intent: Intent): void {
+    if (this.match === null || intent.t !== "drop") return;
+    const chair = this.table.layout().chairs.find((c) => c.owner === by);
+    if (!chair || chair.id !== this.match.turn) return;
+    const to = intent.to as { in?: string; pile?: string; chair?: string };
+    const face = this.table.faceOf(intent.id);
+    const laid = to.in === "deck" && to.pile === RING && face !== undefined;
+    const took = to.in === "hand" && to.chair === chair.id;
+    if (!laid && !took) return;
+    const next = move(this.match, chair.id, laid ? { t: "lay", card: face! } : { t: "take" });
+    if (!("refused" in next)) this.match = next;
+  }
+
+  /** Что правила видят о партии: очередь и закрывший — В КЛЮЧАХ ЛЮДЕЙ, потому что правам нужны люди. */
+  private judgeView(): { turn: string | null; closer: string | null } | null {
+    if (this.match === null) return null;
+    const owner = (chair: string | null) => (chair === null ? null : (this.table.layout().chairs.find((c) => c.id === chair)?.owner ?? null));
+    return { turn: owner(this.match.turn), closer: owner(this.match.closer) };
+  }
+
+  /**
+   * РАЗДАЛИ ВСЕ КАРТЫ — ПАРТИЯ НАЧАЛАСЬ. Отдельной кнопки «начать» нет и не нужно: раздача этой игры
+   * и есть начало, а судья собирается из того, что легло в руки.
+   */
+  private openMatch(dealer: string | null): void {
+    const at = this.table.layout();
+    const hands: Record<string, readonly Face[]> = {};
+    for (const chair of at.chairs) {
+      if (chair.croupier || chair.hand.length === 0) continue;
+      hands[chair.id] = chair.hand.map((id) => this.table.faceOf(id)).filter((f): f is Face => f !== undefined);
+    }
+    this.match = Object.keys(hands).length > 1 ? start(hands, dealer) : null;
+  }
+
+  /**
    * КОМАНДА АДМИНА ИЗ БОТА. Проверка и план — сразу, ответ боту — сразу; ходы идут потом, с паузами, и
    * их видят все сидящие. Бот садится за стол, когда впервые понадобился, и дальше сидит без стула.
    */
@@ -238,6 +291,10 @@ export class TableRoom extends Room {
       },
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       now: () => Date.now(),
+    }).then(() => {
+      // Раздача кончилась — собираем судью из того, что легло в руки. Раздающий у этой игры ходит
+      // последним, но первым ходит тот, у кого шестёрка козыря, — это решает сам судья.
+      if (command.t === "deal") this.openMatch(this.table.layout().chairs.find((c) => c.owner === by)?.id ?? null);
     });
     return { ok: true };
   }

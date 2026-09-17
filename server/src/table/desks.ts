@@ -17,11 +17,13 @@ import { SANDBOX, type DeskRules } from "./rules.js";
  * стола одного рода не должны его делить.
  * Песочница стоит первой: это стол, с которого всё началось, и он же ответ на «род не указан».
  */
-export const DESKS: Record<string, () => DeskRules> = {
+export type Judge = () => { turn: string | null; closer: string | null } | null;
+
+export const DESKS: Record<string, (judge: Judge) => DeskRules> = {
   sandbox: () => SANDBOX,
-  // Крестовому нужно знать, кто закрыл круг: у его кольца грип живой только у админа и у него.
-  // Пока судьи очереди нет, круг никто не закрывал — тянет только админ.
-  krest: () => krestDesk(() => null),
+  // Крестовому нужен судья: он говорит, чей ход и кто закрыл круг. Судья живёт в КОМНАТЕ, а не в
+  // каталоге, — поэтому сюда его передают, а не хранят здесь.
+  krest: (judge) => krestDesk(judge),
 };
 
 /** Род, которым открывается стол, если про род ничего не сказали. */
@@ -37,4 +39,4 @@ export const isDesk = (kind: unknown): kind is string => typeof kind === "string
  * который уже умеет новый род, не должен ронять сервер, который его ещё не умеет. Человек в худшем
  * случае получит стол, где разрешено всё, — а не закрытую дверь.
  */
-export const deskOf = (kind: unknown): DeskRules => (isDesk(kind) ? DESKS[kind]!() : SANDBOX);
+export const deskOf = (kind: unknown, judge: Judge = () => null): DeskRules => (isDesk(kind) ? DESKS[kind]!(judge) : SANDBOX);
