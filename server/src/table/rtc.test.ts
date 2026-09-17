@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { iceServers } from "./config.js";
 import { callsFirst, cleanSignal, SIGNAL_MAX, Signals, SIGNALS_PER_SEC } from "./rtc.js";
 
 describe("знакомство голосов", () => {
@@ -32,5 +33,32 @@ describe("знакомство голосов", () => {
     expect(signals.take("b", 1000 + SIGNALS_PER_SEC)).toBe(true);
     // Секунда прошла — снова можно.
     expect(signals.take("a", 2200)).toBe(true);
+  });
+});
+
+describe("через что голосам искать друг друга", () => {
+  const was = { url: process.env.TABLE_TURN_URL, user: process.env.TABLE_TURN_USER, pass: process.env.TABLE_TURN_PASS };
+  afterEach(() => {
+    for (const [k, v] of [["TABLE_TURN_URL", was.url], ["TABLE_TURN_USER", was.user], ["TABLE_TURN_PASS", was.pass]] as const) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+
+  it("РЕТРАНСЛЯТОРА НЕТ — остаётся один STUN, и пара за строгим NAT останется без связи", () => {
+    delete process.env.TABLE_TURN_URL;
+    const list = iceServers();
+    expect(list).toHaveLength(1);
+    expect(list[0]!.urls.every((one) => one.startsWith("stun:"))).toBe(true);
+  });
+
+  it("РЕТРАНСЛЯТОР ЗАДАН — он едет клиенту вместе с паролем, а STUN остаётся первым", () => {
+    process.env.TABLE_TURN_URL = "turn:relay.example:3478, turns:relay.example:5349";
+    process.env.TABLE_TURN_USER = "стол";
+    process.env.TABLE_TURN_PASS = "пароль";
+    const list = iceServers();
+    expect(list).toHaveLength(2);
+    expect(list[0]!.urls[0]!.startsWith("stun:"), "сперва дешёвый путь: напрямую").toBe(true);
+    expect(list[1]).toEqual({ urls: ["turn:relay.example:3478", "turns:relay.example:5349"], username: "стол", credential: "пароль" });
   });
 });

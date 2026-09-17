@@ -10,7 +10,7 @@ import {
  hasSticker, stickersOf } from "../db/stickersRepo.js";
 import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
-import { tableConfig } from "./config.js";
+import { iceServers, tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
 import { MSG, type CarryOut, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type SeatCard, type TableCommand, type Welcome } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
@@ -117,7 +117,7 @@ export class TableRoom extends Room {
     this.onMessage(MSG.hello, (client) => {
       const me = this.personOf(client.sessionId);
       if (!me) return;
-      const welcome: Welcome = { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts] };
+      const welcome: Welcome = { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], ice: iceServers() };
       client.send(MSG.welcome, welcome);
     });
 
@@ -125,7 +125,7 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       if (!me || !intent || !INTENTS.has(intent.t)) return;
       if (intent.t === "sync") {
-        client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts] } satisfies Welcome);
+        client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], ice: iceServers() } satisfies Welcome);
         return;
       }
       // ДЕЛО КРУПЬЕ — не ход по столу, а состав стола: его исполняет комната.
@@ -580,7 +580,7 @@ export class TableRoom extends Room {
     for (const client of this.clients) {
       const me = this.personOf(client.sessionId);
       if (!me) continue;
-      client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts] } satisfies Welcome);
+      client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], ice: iceServers() } satisfies Welcome);
     }
   }
 

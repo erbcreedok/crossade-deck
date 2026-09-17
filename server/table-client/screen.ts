@@ -302,7 +302,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   });
   // ── ГОЛОСОВЫЕ ──────────────────────────────────────────────────────────────────────────────────
   // ГОЛОС ИДЁТ МИМО СТОЛА — напрямую между устройствами (`mesh.ts`). Стол только сводит их запиской.
-  const mesh = tableMesh((note) => store.rtc(note), { voiceGain: (mine) => sound.voiceGain(mine), muted: (key) => voiceMuted.has(key) });
+  const mesh = tableMesh((note) => store.rtc(note), { voiceGain: (mine) => sound.voiceGain(mine), muted: (key) => voiceMuted.has(key) }, () => store.ice as RTCIceServer[]);
   mesh.onChange(() => draw());
   store.onRtc((note) => void mesh.hear(note));
   /** Как часто проверяем, что связь есть с каждым, кто за столом. Четверти секунды хватает, чтобы человек

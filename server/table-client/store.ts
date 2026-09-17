@@ -4,7 +4,7 @@
 // (`localStore`, стенд). Он читает снимок, шлёт намерения и слушает, когда снимок сменился. Отказ
 // сервера приходит тем же путём: снимок снова тот, что был, — и экран просто рисует его.
 
-import type { Carry, CarryOut, Intent, Person, Refusal, Snapshot, TableCommand } from "../src/table/contract.js";
+import type { IceServer, Carry, CarryOut, Intent, Person, Refusal, Snapshot, TableCommand } from "../src/table/contract.js";
 import type { Eye, Spot } from "../src/table/eyes.js";
 import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 
@@ -13,6 +13,8 @@ export interface TableStore {
   readonly title: string;
   /** Что умеет крупье этой комнаты (`crews.ts`) — по этому списку рисуются кнопки в его окне. */
   readonly crew: readonly { id: string; name: string; adminOnly?: true }[];
+  /** Через что голосам искать друг друга: приходит с сервера, а не записано здесь (`config.ts`). */
+  readonly ice: readonly IceServer[];
   readonly state: Snapshot;
   send(intent: Intent): void;
   /** Что сейчас в воздухе у других — только то, что ещё держат (по `state.locks`). */

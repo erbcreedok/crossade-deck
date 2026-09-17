@@ -13,7 +13,11 @@
 
 import { callsFirst } from "../src/table/rtc.js";
 
-/** Куда стучаться за своим адресом. Свой TURN появится, когда найдётся первый, кого не пустит его NAT. */
+/**
+ * ЧЕРЕЗ ЧТО ИСКАТЬ ДРУГ ДРУГА — говорит сервер (`config.ts`), а не этот файл: адрес ретранслятора и
+ * пароль к нему живут в настройках запуска. Сервер молчит — остаётся публичный STUN, которого хватает
+ * всем, кроме пар за слишком строгим NAT.
+ */
 const ICE: RTCIceServer[] = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
 
 export interface MeshSend {
@@ -66,7 +70,7 @@ interface Peer {
   polite: boolean;
 }
 
-export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): number; muted(key: string): boolean }): TableMesh {
+export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): number; muted(key: string): boolean }, ice: () => readonly RTCIceServer[] = () => []): TableMesh {
   const listeners: (() => void)[] = [];
   const tell = () => {
     for (const fn of listeners) fn();
@@ -159,7 +163,9 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
   function peerOf(key: string): Peer {
     const had = peers.get(key);
     if (had) return had;
-    const pc = new RTCPeerConnection({ iceServers: ICE });
+    // Список спрашивается в момент связи, а не при запуске: приветствие может прийти позже первого кадра.
+    const known = ice();
+    const pc = new RTCPeerConnection({ iceServers: known.length > 0 ? [...known] : ICE });
     const peer: Peer = { pc, mine: null, sound: null, meter: null, polite: !callsFirst(mineKey, key) };
     peers.set(key, peer);
     log.peers = peers.size;
@@ -353,5 +359,7 @@ export function tableMesh(send: MeshSend, sound: { voiceGain(mine: boolean): num
   };
   // Прогонам нужна правда о самом потоке: услышать его в безголовом браузере нельзя.
   (globalThis as { __tableFlow?: unknown }).__tableFlow = () => mesh.stats();
+  // И правда о самих связях: у кого с кем она сошлась. Глазами это не видно — состояние живёт внутри.
+  (globalThis as { __tableLinks?: unknown }).__tableLinks = () => mesh.links();
   return mesh;
 }
