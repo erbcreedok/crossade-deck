@@ -21,6 +21,7 @@ import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as 
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
+import { RING_SPREAD } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
 import { HOST } from "./host.js";
 
@@ -1903,6 +1904,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   function deckZone(pile: Pile): { left: number; top: number; right: number; bottom: number } | null {
     if (!view) return null;
     const v = view;
+    // КРУГ ХОДА ПРИНИМАЕТ ВЕСЬ СВОЙ КРУГ, а не клочок сукна под первой картой: очерченное поле и есть
+    // приёмка, иначе карта, брошенная в середину круга, падает мимо него на сукно.
+    if (pile.pose === "ring") {
+      const mid = v.toGlass({ x: pile.x, y: pile.y });
+      const edge = v.toGlass({ x: pile.x + RING_SPREAD + FELT_CARD.h / 2, y: pile.y });
+      const reach = Math.abs(edge.x - mid.x);
+      return { left: mid.x - reach, right: mid.x + reach, top: mid.y - reach * v.squash, bottom: mid.y + reach * v.squash };
+    }
     const n = Math.max(1, pile.cards.length);
     const pts = [v.deckAt(pile.id, 0, n), v.deckAt(pile.id, n - 1, n)].flatMap((c) => deckCorners(pile, c));
     const pad = 0.12 * FELT_CARD.w * v.k;
@@ -1926,14 +1935,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       if (!aim && !other) return "";
       const here = aim ? aim.kind === "deck" && aim.pile === pile.id : true;
       const ink = aim ? (here ? T.gold : T.inkDim) : inkOf(s, other!.by);
-      const r = Math.round(0.16 * FELT_CARD.w * (view?.k ?? 40));
+      const r = pile.pose === "ring" ? "50%" : `${Math.round(0.16 * FELT_CARD.w * (view?.k ?? 40))}px`;
       return `<div data-g="deck-zone" data-pile="${pile.id}" data-here="${here}" style="position:absolute;left:${zone.left}px;top:${zone.top}px;width:${zone.right - zone.left}px;height:${zone.bottom - zone.top}px;`
-        + `box-sizing:border-box;z-index:1;pointer-events:none;border-radius:${r}px;border:2px dashed ${ink};`
+        + `box-sizing:border-box;z-index:1;pointer-events:none;border-radius:${r};border:2px dashed ${ink};`
         + `background:${here ? `color-mix(in srgb, ${ink} 22%, transparent)` : "rgba(245,234,208,.06)"};`
-        + (here ? `box-shadow:0 0 ${r * 1.5}px ${r * 0.5}px color-mix(in srgb, ${ink} 55%, transparent);` : "opacity:.75;")
+        + (here ? `box-shadow:0 0 12px 4px color-mix(in srgb, ${ink} 55%, transparent);` : "opacity:.75;")
         + `"></div>`;
     }).join("");
   }
+
+  /** Как стопка зовётся для человека: имя места рода, иначе «Колода» или «Стопка». */
+  const pileName = (pile: Pile): string => pile.name ?? (pile.id === MAIN_PILE ? "Колода" : "Стопка");
 
   /** Где индикатор стопки на стекле: под нижней картой стопки, по середине. `null` — стопки нет. */
   function gripAt(s: Snapshot, id: string): { x: number; y: number } | null {
@@ -1963,7 +1975,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       // НЕ КРУПНЕЕ СТОПКИ: на мелком зуме индикатор жмётся вместе с картой, выше `GRIP.most` её высоты не бывает.
       const h = 24;
       const scale = Math.min(1, (GRIP.most * FELT_CARD.h * view!.k) / h);
-      return `<div data-g="deck-grip" data-pile="${pile.id}" data-count="${pile.cards.length}" data-forever="${pile.forever}" data-pin="${pile.pin}" role="button" aria-label="${pile.id === MAIN_PILE ? "Колода" : "Стопка"}" style="position:absolute;left:${Math.round(at.x)}px;top:${Math.round(at.y + 2 * scale)}px;`
+      return `<div data-g="deck-grip" data-pile="${pile.id}" data-count="${pile.cards.length}" data-forever="${pile.forever}" data-pin="${pile.pin}" role="button" aria-label="${pileName(pile)}" style="position:absolute;left:${Math.round(at.x)}px;top:${Math.round(at.y + 2 * scale)}px;`
         + `transform:translateX(-50%) scale(${scale.toFixed(3)});transform-origin:50% 0;height:${h}px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:0 7px 0 5px;border-radius:${h / 2}px;white-space:nowrap;`
         + `touch-action:none;cursor:${pile.pin ? "pointer" : "grab"};z-index:${deckCarry(s, pile.id) ? 61 : 20 + Math.min(z, 4)};user-select:none;-webkit-user-select:none;`
         + (lit ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.6);`
@@ -1998,12 +2010,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const c = pile && deckCarry(s, pile.id);
     if (!pile || !c || !view) return "";
     const top = pile.cards.at(-1);
-    const layers = Math.min(Math.max(1, c.n), 6);
-    const cards = Array.from({ length: layers }, (_, i) => {
-      const d = layers - 1 - i;
-      const face = i === layers - 1 && top?.up ? top.face : undefined;
-      return `<div style="position:absolute;left:${-d * 1.5}px;top:${d * 2}px;width:${c.w}px;height:${c.h}px">${cardHtml(face, c.w)}</div>`;
-    }).join("");
+    // КРУГ НЕСУТ КАК ЛЕЖАЛ. Карты не стягиваются под палец: их взаимные места и повороты остаются, и
+    // видно, что несут именно круг, а не безликую стопку. Обычная стопка по-прежнему едет колодой.
+    const cards = pile.pose === "ring"
+      ? pile.cards.map((one, i) => {
+        const home = view!.toGlass(view!.deckAt(pile.id, i, pile.cards.length));
+        const mid = view!.toGlass({ x: pile.x, y: pile.y });
+        const turn = view!.deckFacing(pile.id, i, pile.cards.length) + view!.rotation;
+        return `<div style="position:absolute;left:${home.x - mid.x}px;top:${home.y - mid.y}px;width:${c.w}px;height:${c.h}px;transform:translate(-50%,-50%) rotate(${turn}deg)">${cardHtml(one.up ? one.face : undefined, c.w)}</div>`;
+      }).join("")
+      : ((layers) => Array.from({ length: layers }, (_, i) => {
+        const d = layers - 1 - i;
+        const face = i === layers - 1 && top?.up ? top.face : undefined;
+        return `<div style="position:absolute;left:${-d * 1.5}px;top:${d * 2}px;width:${c.w}px;height:${c.h}px">${cardHtml(face, c.w)}</div>`;
+      }).join(""))(Math.min(Math.max(1, c.n), 6));
     const mark = view.toGlass(c.at);
     // Над рукой или стопкой контура на сукне нет: там горит своя зона.
     const onFelt = !gripPress?.target || gripPress.target.kind === "felt";
@@ -2080,7 +2100,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return `<div data-g="deck-tip" data-pile="${pile.id}" data-lock="${pile.lock}" data-shut="${pile.shut}" style="position:absolute;left:${box.left}px;top:${box.top}px;width:${box.w}px;height:${box.height}px;box-sizing:border-box;z-index:40;`
       + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
       + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px">`
-      + `<span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1">${pile.id === MAIN_PILE ? "Колода" : "Стопка"} · ${cards.length}</span>`
+      + `<span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1">${pileName(pile)} · ${cards.length}</span>`
       + eyeRowHtml(s, `pile:${pile.id}`, EYES_IN_PANEL, 20)
       + `<span data-deck-shut role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
       + `<div style="display:flex;align-items:center;gap:4px;height:16px">`
@@ -2619,7 +2639,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       pile.cards.forEach((c, i) => {
         const face = c.up ? c.face : undefined;
         const key = `deck:${pile.id}:${i}`;
-        if (tipGeom?.pile.id !== pile.id) return out.set(c.id, onDesk(key, v.deckAt(pile.id, i, pile.cards.length), 1, pile.angle, face));
+        if (tipGeom?.pile.id !== pile.id) return out.set(c.id, onDesk(key, v.deckAt(pile.id, i, pile.cards.length), 1, v.deckFacing(pile.id, i, pile.cards.length), face));
         const slot = tipGeom.slots[row.indexOf(c)]!;
         out.set(c.id, { key, x: slot.x, y: slot.y, w: tipGeom.box.cw, h: tipGeom.box.ch, angle: slot.angle, squash: 1, face });
       });
@@ -2671,7 +2691,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (over.in === "felt") return onDesk(over, over.angle);
     if (over.in === "deck") {
       const n = pileOf(s, over.pile)?.cards.length ?? 0;
-      return onDesk(v.deckAt(over.pile, n, n + 1), 0);
+      return onDesk(v.deckAt(over.pile, n, n + 1), v.deckFacing(over.pile, n, n + 1));
     }
     const hand = shown.get(over.chair);
     const gap = hand?.lay.find((one) => "gap" in one && one.gap.carry === c.id);

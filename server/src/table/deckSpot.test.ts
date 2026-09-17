@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { deckHome } from "./ring.js";
 import { DEFAULT_SPOT, type Person } from "./contract.js";
 import { execute } from "./script.js";
 import { FELT_REACH, Table } from "./table.js";
@@ -25,10 +26,14 @@ function empty(t: Table, by: string) {
   }
 }
 
+/** Где колода стоит со старта: место крупье, а не середина стола. */
+const DECK_SPOT = { ...DEFAULT_SPOT, ...deckHome() };
+
 describe("колода: место, вечность и действия из тултипа", () => {
-  it("со старта колода посередине и вечная; переставить по сукну может любой, за кромку — на кромку", () => {
+  it("со старта колода стоит У КРУПЬЕ и вечная; переставить по сукну может любой, за кромку — на кромку", () => {
     const t = seated("a", "b");
-    expect(t.seenBy("b").piles[0]).toMatchObject(DEFAULT_SPOT);
+    expect(t.seenBy("b").piles[0], "середина отдана кругу хода, колода — у крупье").toMatchObject(DECK_SPOT);
+    expect([DECK_SPOT.x, DECK_SPOT.y], "и это не середина").not.toEqual([0, 0]);
     expect(ok(t.act("b", { t: "deckMove", pile: "deck", x: 1.5, y: -2 }, 0))).toEqual([{ t: "spot", pile: "deck", top: true, spot: { x: 1.5, y: -2, forever: true, pin: false, lock: false, shut: false, seal: false, angle: 0, below: [] } }]);
     ok(t.act("b", { t: "deckMove", pile: "deck", x: 100, y: 0 }, 0));
     expect(t.seenBy("a").piles[0]!.x).toBeCloseTo(FELT_REACH);
@@ -139,11 +144,11 @@ describe("колода: место, вечность и действия из т
   it("вечная пустая стоит; сняли вечность с пустой — исчезла сразу", () => {
     const t = seated("a");
     empty(t, "a");
-    expect(t.seenBy("a").piles[0]).toMatchObject(DEFAULT_SPOT);
+    expect(t.seenBy("a").piles[0]).toMatchObject(DECK_SPOT);
     expect(ok(t.act("a", { t: "deckForever", pile: "deck", on: false }, 0))).toContainEqual({ t: "spot", pile: "deck", spot: null });
   });
 
-  it("команда бота, которой нужна колода, ставит новую посередине", async () => {
+  it("команда бота, которой нужна колода, ставит новую на её место у крупье", async () => {
     const t = seated("a");
     const a = seatOf(t, "a");
     ok(t.act("a", { t: "deckMove", pile: "deck", x: 3, y: 1 }, 0));
@@ -156,9 +161,9 @@ describe("колода: место, вечность и действия из т
     const spread: unknown[] = [];
     const back = t.seenBy("a").chairs[0]!.hand.map((c) => ({ t: "move" as const, id: c.id, to: { in: "deck" as const, pile: "deck" }, ms: 0 }));
     await execute(t, [...back, { t: "shuffle", ms: 0 }], "bot", { spread: (ops) => spread.push(...ops), carry: () => {}, sleep: async () => {}, now: () => 0 });
-    expect(t.seenBy("a").piles[0]).toMatchObject(DEFAULT_SPOT);
+    expect(t.seenBy("a").piles[0]).toMatchObject(DECK_SPOT);
     expect(t.seenBy("a").piles[0]!.cards).toHaveLength(8);
-    expect(spread).toContainEqual({ t: "spot", pile: "deck", top: true, spot: DEFAULT_SPOT });
+    expect(spread).toContainEqual({ t: "spot", pile: "deck", top: true, spot: DECK_SPOT });
   });
 
   it("отсортировать: по масти, внутри — по номиналу; перевернуть: порядок наоборот и каждая карта другой стороной", () => {

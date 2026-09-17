@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Face } from "./contract.js";
-import { RING_SPREAD, ringPlace, ringSpot } from "./ring.js";
+import { RING_CARDS, RING_SPREAD, ringFace, ringPlace, ringSpot, ringStep, ringTurn } from "./ring.js";
 import { SANDBOX, type DeskRules } from "./rules.js";
 import { Table } from "./table.js";
 
@@ -60,34 +60,57 @@ describe("зона заводится конфигом, а не кодом", () 
 describe("поза «по кругу» — общая правда, а не картинка", () => {
   const at = { x: 0, y: 0 };
 
-  it("одна карта стоит в начале круга, а не в середине зоны", () => {
+  it("КАРТЫ ЛЕЖАТ ВНУТРИ ОЧЕРЧЕННОГО КРУГА, а не верхом на его линии", () => {
+    expect(RING_CARDS, "круг карт уже контура на пол-карты").toBeLessThan(RING_SPREAD);
+    expect(RING_CARDS + 1.4 / 2, "и дальний край карты ровно на контуре").toBeCloseTo(RING_SPREAD, 6);
+  });
+
+  it("одна карта стоит в начале круга, внутри контура, а не в середине зоны", () => {
     const one = ringSpot(at, 0, 1);
     expect(one.x).toBeCloseTo(0, 6);
-    expect(one.y).toBeCloseTo(-RING_SPREAD, 6);
+    expect(one.y).toBeCloseTo(-RING_CARDS, 6);
   });
 
-  it("четыре карты стоят крестом, по порядку хода — по часовой", () => {
-    const four = [0, 1, 2, 3].map((i) => ringSpot(at, i, 4));
-    expect(four.map((p) => [Math.round(p.x * 100) / 100 || 0, Math.round(p.y * 100) / 100 || 0])).toEqual([
-      [0, -RING_SPREAD],
-      [RING_SPREAD, 0],
-      [0, RING_SPREAD],
-      [-RING_SPREAD, 0],
-    ]);
+  it("ПОКА КРУГ НЕ ПОЛОН, ШАГ ПОСТОЯННЫЙ: соседи стоят рядом, а не разъезжаются на полкруга", () => {
+    const step = ringStep(4);
+    expect(step, "четыре карты не растягиваются на 90°").toBeLessThan(90);
+    expect(ringStep(2), "и две тоже стоят рядом").toBeCloseTo(step, 6);
+    const two = [0, 1].map((i) => ringSpot(at, i, 2));
+    expect(Math.hypot(two[0]!.x - two[1]!.x, two[0]!.y - two[1]!.y), "между соседями — чуть больше карты").toBeCloseTo(1.15, 1);
   });
 
-  it("каждая карта стоит НА кольце: расстояние до середины одно у всех", () => {
+  it("карт больше, чем мест по окружности — шаг сжимается, периметр не растёт", () => {
+    const many = 40;
+    expect(ringStep(many)).toBeCloseTo(360 / many, 6);
+    for (let i = 0; i < many; i += 1) {
+      expect(Math.hypot(ringSpot(at, i, many).x, ringSpot(at, i, many).y), "все на том же круге").toBeCloseTo(RING_CARDS, 6);
+    }
+  });
+
+  it("порядок хода — по часовой: первая наверху, следующая правее", () => {
+    const [first, next] = [ringSpot(at, 0, 4), ringSpot(at, 1, 4)];
+    expect(first!.y).toBeCloseTo(-RING_CARDS, 6);
+    expect(next!.x, "вторая правее первой").toBeGreaterThan(first!.x);
+    expect(next!.y, "и чуть ниже").toBeGreaterThan(first!.y);
+  });
+
+  it("КАРТА СМОТРИТ ВЕРХОМ В СЕРЕДИНУ: поворот — это угол её места плюс полкруга", () => {
+    expect(ringFace(0, 0, 4), "карта наверху круга стоит вверх ногами: её верх смотрит вниз, к центру").toBeCloseTo(180, 6);
+    for (const i of [1, 2, 3]) expect(ringFace(0, i, 4)).toBeCloseTo(ringTurn(0, i, 4) + 180, 6);
+  });
+
+  it("каждая карта стоит на одном круге: расстояние до середины одно у всех", () => {
     for (const n of [1, 2, 3, 5, 8]) {
       for (let i = 0; i < n; i += 1) {
         const p = ringSpot({ x: 2, y: -1 }, i, n);
-        expect(Math.hypot(p.x - 2, p.y + 1), `${i} из ${n}`).toBeCloseTo(RING_SPREAD, 6);
+        expect(Math.hypot(p.x - 2, p.y + 1), `${i} из ${n}`).toBeCloseTo(RING_CARDS, 6);
       }
     }
   });
 
   it("угол зоны поворачивает всё кольцо целиком", () => {
     const turned = ringSpot({ x: 0, y: 0, angle: 90 }, 0, 4);
-    expect(turned.x).toBeCloseTo(RING_SPREAD, 6);
+    expect(turned.x).toBeCloseTo(RING_CARDS, 6);
     expect(turned.y).toBeCloseTo(0, 6);
   });
 });

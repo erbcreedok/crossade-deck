@@ -125,7 +125,7 @@ export function krestDesk(judge: () => { turn: string | null; closer: string | n
   return {
     ...SANDBOX,
     kind: "крестовый",
-    zones: [{ id: RING, x: 0, y: 0, pose: "ring", forever: true }],
+    zones: [{ id: RING, name: "Круг хода", x: 0, y: 0, pose: "ring", forever: true }],
     /** БЬЁТ ЛИ — тот же вопрос, что у любого стола; у этой игры на него свой ответ. */
     mayCover(ask: DeskAsk, card: string, over: string): boolean {
       const one = ask.face(card);

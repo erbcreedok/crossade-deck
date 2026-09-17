@@ -36,7 +36,7 @@ const zone = (p, chair) => p.evaluate((id) => {
 }, chair);
 
 // ── 1. A несёт карту с колоды на стул B: зона горит у A золотом, у C — в цвете A; карта у B в руке ──
-const m = (await spots(A)).middle;
+const m = (await spots(A)).deckTop;
 const bSeat = await seatOf(A, "B");
 const bHand = await myHand(B);
 await A.mouse.move(m.x, m.y);
@@ -82,7 +82,7 @@ await A.waitForTimeout(700);
 check("в руку B не попала", (await myHand(B)) === bHand + 1, await myHand(B));
 check("на сукно не легла", (await spots(A)).felt.length === 0, (await spots(A)).felt);
 const back = await A.evaluate(() => window.__back.at(-1));
-const mNow = (await spots(A)).middle;
+const mNow = (await spots(A)).deckTop;
 check("у A карта улетела из-под пальца на колоду", back && Math.hypot(back.at(-1)[0] - mNow.x, back.at(-1)[1] - mNow.y) < 20 && Math.hypot(back[0][0] - mNow.x, back[0][1] - mNow.y) > 60, back && [back[0], back.at(-1), mNow]);
 check("колоду снова можно взять", await A.evaluate(() => true) && (await A.evaluate(() => document.querySelector('[data-g="carry"]') === null)), null);
 

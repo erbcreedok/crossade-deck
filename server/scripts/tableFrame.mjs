@@ -47,10 +47,11 @@ for (const f of FRAMES) {
   await p.waitForSelector("[data-section]");
   await p.waitForTimeout(900);
 
-  // Шесть карт в руку — столько же, по скольким считается начальный зум.
-  const start = JSON.parse(await p.getAttribute("canvas", "data-spots"));
+  // Шесть карт в руку. Берём их с ВЕРХА КОЛОДЫ, а не из середины стола: середина отдана кругу хода,
+  // колода стоит у крупье, и хватать «где-то в центре» значит хватать пустое сукно.
   for (let i = 0; i < 6; i += 1) {
-    await p.mouse.move(start.middle.x, start.middle.y);
+    const start = JSON.parse(await p.getAttribute("canvas", "data-spots"));
+    await p.mouse.move(start.deckTop.x, start.deckTop.y);
     await p.mouse.down();
     await p.mouse.move(f.w / 2, f.h - 60, { steps: 8 });
     await p.mouse.up();

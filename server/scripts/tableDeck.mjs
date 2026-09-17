@@ -113,7 +113,7 @@ await p.keyboard.up("Control");
 await wait(600);
 
 // ── 2. По умолчанию: рубашка — плед (светлая), лица — классика ────────────────────────────────────
-const m = (await spots()).middle;
+const m = (await spots()).deckTop;
 // Кромка колоды на холсте: у самого края карты — чёрный. Край ищется от середины влево до первого тёмного пикселя.
 const rim = await p.evaluate(([x, y]) => {
   const c = document.querySelector("canvas");

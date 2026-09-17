@@ -78,7 +78,7 @@ b = await bar(A);
 check("та же кнопка закрыла секцию", b.sections.join() === "pose,chair,order,lasso,say" && b.subs.length === 0 && b.ghosts === 0, b);
 
 // ── 2. Четыре карты в руку A ─────────────────────────────────────────────────────────────────────
-const m = (await spots(A)).middle;
+const m = (await spots(A)).deckTop;
 for (let i = 0; i < 4; i += 1) await drag(A, m.x, m.y, 195, 700);
 check("у A в руке 4 карты", (await cardsOf(A, aSeat)).length === 4, await cardsOf(A, aSeat));
 

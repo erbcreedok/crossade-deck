@@ -6,7 +6,7 @@
 
 import { apply, invert, type Transform } from "../../game-kit/src/core/transform.js";
 import type { Face, ZonePose } from "../src/table/contract.js";
-import { CROUPIER_RADIUS, ringPlace, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
+import { CROUPIER_RADIUS, ringPlace, ringPlaceFace, RING_SPREAD, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
 
 export interface Pose {
   fan: boolean;
@@ -73,6 +73,8 @@ export interface FeltView {
   toDesk(p: { x: number; y: number }): { x: number; y: number };
   /** Где на столе нарисована i-я карта стопки `pile` из n — со сдвигом стопки и её высотой. */
   deckAt(pile: string, i: number, n: number): { x: number; y: number };
+  /** На какой угол повёрнута i-я карта стопки — в круге у каждой он свой. */
+  deckFacing(pile: string, i: number, n: number): number;
   /** Где на столе нарисована карта сукна — поднятая, если лежит на других. */
   feltAt(id: string): { x: number; y: number } | undefined;
 }
@@ -478,6 +480,12 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   // обратная матрица без переноса поворачивает, растягивает наклон назад и делит на зум.
   const turn = invert({ a: v.a, b: v.b, c: v.c, d: v.d, e: 0, f: 0 });
   const onScreen = (dx: number, dy: number): Point => (turn ? apply(turn, { x: dx * o.k, y: dy * o.k }) : { x: dx, y: -dy });
+  /** Как повёрнута i-я карта стопки: в круге — верхом к середине, в обычной стопке — как стопка. */
+  const deckFacing = (pile: string, i: number, n: number): number => {
+    const spot = o.piles.find((one) => one.id === pile);
+    if (spot?.pose === "ring") return ringPlaceFace(spot, i, n);
+    return spot?.angle ?? 0;
+  };
   const deckAt = (pile: string, i: number, n: number): Point => {
     const spot = o.piles.find((one) => one.id === pile);
     // ПОЗА ЗОНЫ — ЗНАЧЕНИЕ (`ZonePose`), а не ветка про игру: «по кругу» ложатся карты кольца, где
@@ -558,8 +566,24 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     const below = new Set(pile.below);
     for (const one of o.felt) if (below.has(one.id)) paintOnce(one);
     const cards = pile.cards.filter((one) => one.id !== o.lifted && !o.hidden?.has(one.id));
-    // ПУСТАЯ ВЕЧНАЯ СТОПКА — контур места: стопка есть, карт нет.
-    if (cards.length === 0) {
+    // КРУГ ХОДА — КОНТУР НА МЕСТЕ ВСЕГДА, с картами и без: это не «пустая стопка», а очерченное поле,
+    // внутри которого идёт круг. Периметр статичен — меняется только то, что в нём лежит.
+    if (pile.pose === "ring") {
+      g.save();
+      g.translate(pile.x, pile.y);
+      g.beginPath();
+      g.arc(0, 0, RING_SPREAD, 0, Math.PI * 2);
+      g.fillStyle = "rgba(11,7,4,.10)";
+      g.fill();
+      g.setLineDash([CARD.w * 0.16, CARD.w * 0.12]);
+      g.lineWidth = CARD.w * 0.07;
+      g.strokeStyle = SEAT.black;
+      g.stroke();
+      g.lineWidth = CARD.w * 0.035;
+      g.strokeStyle = "rgba(245,234,208,.75)";
+      g.stroke();
+      g.restore();
+    } else if (cards.length === 0) {
       g.save();
       g.translate(pile.x, pile.y);
       g.rotate((pile.angle * Math.PI) / 180);
@@ -579,7 +603,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       g.save();
       const at = deckAt(pile.id, i, cards.length);
       g.translate(at.x, at.y);
-      g.rotate((pile.angle * Math.PI) / 180);
+      g.rotate((deckFacing(pile.id, i, cards.length) * Math.PI) / 180);
       paint(one.id, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
       g.restore();
     });
@@ -646,5 +670,5 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     });
   });
 
-  return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk, deckAt, feltAt };
+  return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk, deckAt, deckFacing, feltAt };
 }

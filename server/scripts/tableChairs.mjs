@@ -92,7 +92,7 @@ async function open(url) {
   // B берёт карту с колоды в руку.
   const bs = await b.scene();
   await b.page.touchscreen.tap(1, 1);
-  const deck = bs.middle;
+  const deck = bs.deckTop;
   await b.page.mouse.move(deck.x, deck.y);
   await b.page.mouse.down();
   await b.page.mouse.move(195, 720, { steps: 8 });

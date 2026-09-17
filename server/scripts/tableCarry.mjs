@@ -27,7 +27,8 @@ const checks = [];
 const check = (name, ok, got) => checks.push({ name, ok, got });
 const wait = (ms) => A.waitForTimeout(ms);
 
-const middle = async (p) => JSON.parse(await p.getAttribute("canvas", "data-spots")).middle;
+// Колода стоит у крупье, а не в середине стола: берём её верх, а не центр сукна.
+const middle = async (p) => JSON.parse(await p.getAttribute("canvas", "data-spots")).deckTop;
 const seatOf = async (p, who) => JSON.parse(await p.getAttribute("canvas", "data-spots")).seats.find((s) => s.who === who);
 const carried = (p) => p.evaluate(() => [...document.querySelectorAll("[data-carry]")].map((e) => ({ id: e.dataset.carry, at: e.dataset.at.split(",").map(Number), who: e.querySelector("[data-g=who]").textContent })));
 /** Снимать копии перелётов, пока они в воздухе: где каждая была в первый и в последний кадр. */

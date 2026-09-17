@@ -144,7 +144,8 @@ describe("конфиг стола мастодонта", () => {
 
   it("кольцо объявлено зоной с позой, а не особым случаем в отрисовке", () => {
     const desk = krestDesk(() => null);
-    expect(desk.zones).toEqual([{ id: RING, x: 0, y: 0, pose: "ring", forever: true }]);
+    expect(desk.zones).toEqual([{ id: RING, name: "Круг хода", x: 0, y: 0, pose: "ring", forever: true }]);
+    expect(desk.zones[0]!.name, "у места есть имя для человека: его видно на грипе и в окне стопки").toBe("Круг хода");
   });
 
   it("«накрыть» у стола — это и есть старшинство игры", () => {

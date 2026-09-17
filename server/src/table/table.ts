@@ -50,7 +50,7 @@ import {
 } from "./contract.js";
 import { arranged, samePack, shuffled } from "./arrange.js";
 import { SANDBOX, type DeskAsk, type DeskRules, type DeskZone } from "./rules.js";
-import { croupierAngle, freeAngle, seatPoint } from "./ring.js";
+import { croupierAngle, deckHome, freeAngle, seatPoint } from "./ring.js";
 
 /** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
 export const FELT_REACH = 8 - 0.86;
@@ -92,7 +92,7 @@ export class Table {
   private seq = 0;
   private faces = new Map<string, Face>();
   /** Стопки в порядке «кто сверху». Колода (`MAIN_PILE`) стоит с начала. */
-  private piles = new Map<string, PileRow>([[MAIN_PILE, { spot: { ...DEFAULT_SPOT, below: [] }, cards: [], shuffles: 0 }]]);
+  private piles = new Map<string, PileRow>([[MAIN_PILE, { spot: { ...DEFAULT_SPOT, ...deckHome(), below: [] }, cards: [], shuffles: 0 }]]);
   private pileSeq = 0;
   private felt: { id: string; x: number; y: number; up: boolean; angle: number; under?: boolean }[] = [];
   /** Идёт команда бота: руки людей до конца неё стол не трогают (`busy`). */
@@ -140,6 +140,11 @@ export class Table {
     for (const zone of this.desk.zones) this.openZone(zone);
   }
 
+  /** Имена мест, объявленных родом стола: их нельзя двигать и нельзя закрывать. */
+  private get zoned(): Set<string> {
+    return new Set(this.desk.zones.map((z) => z.id));
+  }
+
   /** Место рода на сукне: пустая вечная стопка в позе, которую род ей назначил. */
   private openZone(zone: DeskZone): void {
     this.piles.set(zone.id, {
@@ -149,6 +154,7 @@ export class Table {
         x: zone.x,
         y: zone.y,
         pose: zone.pose,
+        ...(zone.name ? { name: zone.name } : {}),
         angle: zone.angle ?? 0,
         forever: zone.forever ?? true,
         lock: zone.lock ?? false,
@@ -747,6 +753,9 @@ export class Table {
     if (!pile) return { refused: "gone" };
     if (pile.spot.pin) return { refused: "locked" };
     if (![x, y, angle].every(Number.isFinite)) return { refused: "bad" };
+    // МЕСТО РОДА С МЕСТА НЕ СДВИНУТЬ. Круг хода очерчен на сукне раз и навсегда; за грип тянут КАРТЫ,
+    // а не поле. Отпустили на сукне — карты легли туда новой стопкой, а круг остался, где был.
+    if (this.zoned.has(id)) return pile.cards.length === 0 ? { refused: "locked" } : this.spill(id, x, y, angle);
     const far = Math.hypot(x, y);
     const k = far > FELT_REACH ? FELT_REACH / far : 1;
     // ПОСТАВЛЕННАЯ СТОПКА ЛЕЖИТ ПОВЕРХ всего, что уже было на сукне, — и поверх других стопок.
@@ -754,6 +763,30 @@ export class Table {
     this.piles.delete(id);
     this.piles.set(id, pile);
     return { ops: this.commit([{ ...this.spotOp(id), top: true }]) };
+  }
+
+  /** ВЫСЫПАТЬ КАРТЫ МЕСТА РОДА на сукно новой стопкой: место остаётся пустым и на своём месте. */
+  private spill(id: string, x: number, y: number, angle: number): Result {
+    const zone = this.piles.get(id)!;
+    const far = Math.hypot(x, y);
+    const k = far > FELT_REACH ? FELT_REACH / far : 1;
+    this.pileSeq += 1;
+    const born = `p${this.pileSeq}`;
+    const moved = [...zone.cards];
+    this.piles.set(born, {
+      spot: { ...DEFAULT_SPOT, forever: false, x: x * k, y: y * k, angle: turnOf(angle), below: this.felt.map((one) => one.id) },
+      cards: [],
+      shuffles: 0,
+    });
+    const ops: Op[] = [{ ...this.spotOp(born), top: true }];
+    for (const card of moved) {
+      const from = this.whereIs(card)!;
+      this.take(card, from);
+      const landed = this.put(card, { in: "deck", pile: born });
+      ops.push({ t: "move", card: { id: card }, from, to: landed });
+    }
+    ops.push(this.spotOp(id));
+    return { ops: this.commit(ops) };
   }
 
   /**
@@ -896,7 +929,7 @@ export class Table {
   /** Колоды нет — поставить новую посередине (для команды бота). */
   private ensureDeck(): Op[] {
     if (this.main) return [];
-    this.piles.set(MAIN_PILE, { spot: { ...DEFAULT_SPOT, below: [] }, cards: [], shuffles: 0 });
+    this.piles.set(MAIN_PILE, { spot: { ...DEFAULT_SPOT, ...deckHome(), below: [] }, cards: [], shuffles: 0 });
     return [{ ...this.spotOp(MAIN_PILE), top: true }];
   }
 

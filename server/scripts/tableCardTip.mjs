@@ -42,7 +42,7 @@ const drag = async (p, x, y, x2, y2) => {
 };
 
 const A = await open("A");
-const m = (await spots(A)).middle;
+const m = (await spots(A)).deckTop;
 
 // Закрытая карта: с колоды на юг.
 await drag(A, m.x, m.y, m.x, m.y + 110);
@@ -85,7 +85,7 @@ await A.waitForTimeout(400);
 check("зажатие тултип не открыло", !(await tip(A)), null);
 
 // Колода — тултип верхней.
-const m2 = (await spots(A)).middle;
+const m2 = (await spots(A)).deckTop;
 const top = (await spots(A)).deckTop;
 await tap(A, top.x, top.y);
 t = await tip(A);
@@ -99,13 +99,21 @@ check("и тултип закрылся", !(await tip(A)), null);
 await A.locator('[data-section="pose"]').click();
 await A.waitForTimeout(400);
 
-// Открытая карта: колода → рука → стол на север.
-await drag(A, m2.x, m2.y, 195, 790);
+// Открытая карта: колода → рука → стол на север. Верх колоды спрашиваем ЗАНОВО: с неё уже снимали,
+// и стопка просела — старая точка мажет мимо.
+const deckNow = (await spots(A)).deckTop;
+await drag(A, deckNow.x, deckNow.y, 195, 790);
 const hand = await A.evaluate(() => { const r = document.querySelector("[data-card]").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-await drag(A, hand.x, hand.y, m2.x + 60, m2.y - 150);
+// КАРТЫ КЛАДЁМ НА ЧИСТУЮ СЕРЕДИНУ СУКНА, а берём с колоды: колода стоит у крупье, и «рядом с ней»
+// это уже кромка стола.
+const mid = (await spots(A)).middle;
+// Пара кладётся НИЖЕ середины: выше неё стоит колода у крупье, и тап по видной части нижней карты
+// попадал бы в колоду, а не в карту.
+const pair = { x: mid.x, y: mid.y + 1.2 * (await spots(A)).k };
+await drag(A, hand.x, hand.y, pair.x, pair.y);
 const upCard = (await spots(A)).felt.at(-1);
 // Лежащая частично на нижней — тап по видной части нижней.
-await drag(A, m2.x, m2.y, upCard.x + 25, upCard.y + 35);
+await drag(A, (await spots(A)).deckTop.x, (await spots(A)).deckTop.y, upCard.x + 25, upCard.y + 35);
 const cover = (await spots(A)).felt.at(-1);
 const k = (await spots(A)).k;
 const lower = { x: upCard.x - 0.3 * k, y: upCard.y - 0.5 * k };
@@ -134,7 +142,7 @@ check("у B закрытая тоже без названия", t && t.id === do
 check("тап B не сдвинул и не переписал след", t && /двигал A/.test(t.text), t);
 
 // Карта в руке: у A внизу — с названием; у B в окне стула A — рубашкой (рука скрыта).
-const mA = (await spots(A)).middle;
+const mA = (await spots(A)).deckTop;
 const tA = (await spots(A)).deckTop;
 await drag(A, tA.x, tA.y, 195, 790);
 const cardEl = async (p, sel) => p.evaluate((sel) => { const el = document.querySelector(sel); const r = el.getBoundingClientRect(); return { id: el.dataset.card, x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);

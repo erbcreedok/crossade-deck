@@ -53,29 +53,77 @@ export function seatPoint(angle: number, radius = SEAT_RADIUS): { x: number; y: 
 }
 
 /**
- * РАДИУС КОЛЬЦА ЗОНЫ с позой `ring`, в единицах сукна: карта стоит НА кольце, а не в середине.
+ * ГДЕ ЛЕЖИТ КОЛОДА — не в середине стола, а у крупье: середину занимает круг хода, и колода там
+ * спорила бы с ним за одно место. Радиус между кругом и стульями: до крупье рукой подать, до чужих
+ * карт — нет.
  */
-export const RING_SPREAD = 1.6;
+export const DECK_RADIUS = 5.4;
+export const deckHome = (adminAngle = 0): { x: number; y: number } => seatPoint(croupierAngle(adminAngle), DECK_RADIUS);
 
 /**
- * ГДЕ ЛЕЖИТ i-я ИЗ n КАРТ В ЗОНЕ-КОЛЬЦЕ — по кругу, в порядке хода, от угла зоны по часовой.
+ * КРУГ ХОДА — его РАДИУС, в единицах сукна. Периметр статичен: круг нарисован раз и навсегда, а
+ * меняется только то, что в нём лежит. Сукно — 8, стулья на 7: три единицы это плотный узел в
+ * середине, который читается одним взглядом и на телефоне.
+ */
+export const RING_SPREAD = 3;
+
+/** Карта в единицах сукна и зазор между соседями по кругу — тот же, что у веера руки. */
+const CARD_W = 1;
+const CARD_H = 1.4;
+const APART = 1.15;
+
+/**
+ * КАРТЫ ЛЕЖАТ ВНУТРИ ОЧЕРЧЕННОГО КРУГА, а не верхом на его линии: контур — граница поля, и карта,
+ * наполовину вылезшая наружу, читается как «упала мимо».
+ */
+export const RING_CARDS = RING_SPREAD - CARD_H / 2;
+
+/**
+ * ШАГ МЕЖДУ СОСЕДЯМИ ПО КРУГУ, в градусах.
+ *
+ * Пока карт немного, шаг ПОСТОЯННЫЙ: две карты стоят рядом, как их клали, а не разъезжаются на
+ * полкруга. Кончился круг — шаг сжимается, и карты идут внахлёст: периметр не растягивается.
+ */
+export function ringStep(slots: number, spread = RING_CARDS): number {
+  const chord = Math.min(1, (CARD_W * APART) / (2 * Math.max(0.001, spread)));
+  const natural = (2 * Math.asin(chord) * 180) / Math.PI;
+  return Math.min(natural, 360 / Math.max(1, slots));
+}
+
+/**
+ * ГДЕ ЛЕЖИТ i-я ИЗ n КАРТ В КРУГЕ — по окружности, в порядке хода, от угла зоны по часовой.
  *
  * Живёт здесь, а не в рисовании, потому что это ОБЩАЯ правда: по ней клиент рисует, а правила игр
  * считают, кто чью карту накрыл. Две копии этой формулы разошлись бы молча.
  */
-export function ringSpot(at: { x: number; y: number; angle?: number }, i: number, n: number, spread = RING_SPREAD): { x: number; y: number } {
-  const rad = (((at.angle ?? 0) + (360 / Math.max(1, n)) * i) * Math.PI) / 180;
+export function ringSpot(at: { x: number; y: number; angle?: number }, i: number, n: number, spread = RING_CARDS): { x: number; y: number } {
+  const rad = (ringTurn(at.angle ?? 0, i, n) * Math.PI) / 180;
   return { x: at.x + spread * Math.sin(rad), y: at.y - spread * Math.cos(rad) };
 }
 
+/** На каком угле круга стоит i-я из n карт. */
+export const ringTurn = (angle: number, i: number, n: number): number => angle + ringStep(n) * i;
+
 /**
- * ГДЕ РИСОВАТЬ i-Ю КАРТУ ЗОНЫ-КОЛЬЦА — с учётом того, что уже сняли снизу.
+ * КАК ПОВЁРНУТА КАРТА КРУГА: ВЕРХОМ К СЕРЕДИНЕ. Круг читается как циферблат, а не как россыпь, и
+ * сидящий напротив видит карту прямо — по кругу все карты смотрят в одну точку.
+ */
+export const ringFace = (angle: number, i: number, n: number): number => ringTurn(angle, i, n) + 180;
+
+/**
+ * ГДЕ РИСОВАТЬ i-Ю КАРТУ КРУГА — с учётом того, что уже сняли снизу.
  *
  * Место АБСОЛЮТНОЕ: снятые снизу плюс номер в стопке. Иначе взятая нижняя утащила бы за собой всех
  * остальных, а по правилу мастодонта на её месте должна остаться дыра — она и есть след того, что
- * кто-то взял. Мест в кольце не меньше, чем карт легло за круг: положили ещё одну — прежние стоят.
+ * кто-то взял.
  */
 export function ringPlace(zone: { x: number; y: number; angle?: number; seats?: number; taken?: number }, i: number, n: number): { x: number; y: number } {
-  const taken = zone.taken ?? 0;
-  return ringSpot(zone, taken + i, Math.max(zone.seats ?? 0, taken + n));
+  return ringSpot(zone, (zone.taken ?? 0) + i, ringSlots(zone, n));
 }
+
+/** Как карта круга повёрнута — тот же счёт мест, что и у её места. */
+export const ringPlaceFace = (zone: { angle?: number; seats?: number; taken?: number }, i: number, n: number): number =>
+  ringFace(zone.angle ?? 0, (zone.taken ?? 0) + i, ringSlots(zone, n));
+
+/** Сколько мест занято за этот круг: снятые снизу плюс лежащие, но не меньше числа игроков. */
+const ringSlots = (zone: { seats?: number; taken?: number }, n: number): number => Math.max(zone.seats ?? 0, (zone.taken ?? 0) + n);
