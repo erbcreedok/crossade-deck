@@ -1,0 +1,35 @@
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_e9bffe856493b6 1208-1251
+server/src/table/script.ts
+  s_9ed0da107cbc4a::t_dd61e6851a21ee 38,208-236
+  s_9ed0da107cbc4a::t_92d6c3396635f0 177,181-184
+  s_9ed0da107cbc4a::t_745d780e1490ac 35-37,333-340
+bot/src/table/registry.test.ts
+  s_9ed0da107cbc4a::t_6f540ea105e384 26-31,34,36
+bot/src/table/registry.ts
+  s_9ed0da107cbc4a::t_4003f2c61761bb 16-20
+bot/src/table/tableBot.ts
+  s_9ed0da107cbc4a::t_95576772c0a589 62,328-329,387,448
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_c4180b20292a53 434-440
+server/src/table/patch.ts
+  s_9ed0da107cbc4a::t_49ff9895b1352d 43-54
+server/src/table/script.test.ts
+  s_9ed0da107cbc4a::t_eb9528e64d6f3f 158,161-179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "09e1ab017e8bb2b2ec7f0017c4cfd1dc6f4dd263",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
