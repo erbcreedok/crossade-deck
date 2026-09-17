@@ -33,7 +33,13 @@ export function readMotion(raw: unknown): MotionPrefs {
   };
 }
 
-/** Длительность своей анимации: делится на скорость; при «меньше анимаций» — ноль. */
-export function motionMs(base: number, speed: Speed, reduce: boolean): number {
-  return reduce ? 0 : base / speed;
+/**
+ * Длительность своей анимации: делится на скорость; при «меньше анимаций» — ноль.
+ *
+ * `least` — ПОЛ, ниже которого движение убирать нельзя. Он нужен там, где движение не украшение, а
+ * единственный способ понять, что случилось: карты круга, меняющие места, без него просто подменяются
+ * на экране, и человек теряет, где чья. Меньше анимаций — не значит «меньше понятно».
+ */
+export function motionMs(base: number, speed: Speed, reduce: boolean, least = 0): number {
+  return reduce ? least : base / speed;
 }

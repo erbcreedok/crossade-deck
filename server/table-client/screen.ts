@@ -2953,11 +2953,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   /** Всё, что сменило место с прошлого кадра, — в полёт. Своя карта в пальце не летит: она под пальцем. */
   function fly(next: Map<string, Place>): boolean {
     let started = false;
+    // ПО ОЧЕРЕДИ, А НЕ РАЗОМ: когда весь круг трогается одновременно, глазу не за что зацепиться, и
+    // перекладывание читается как подмена карт. Сдвиг в три десятых кадра — и видно, кто куда поехал.
+    let queue = 0;
     for (const [id, to] of next) {
       const from = prevPlaces.get(id);
       if (!from || from.key === to.key || id === drag?.card.id) continue;
       started = true;
-      launch(id, from, to);
+      launch(id, from, to, ringArc(from, to) ? queue++ * RING_STAGGER_MS : 0);
     }
     return started;
   }
@@ -2980,9 +2983,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     return { x: mid.x + away * Math.cos(turn), y: mid.y + away * Math.sin(turn) };
   }
 
-  function launch(id: string, from: Place, to: Place): void {
-    // «Меньше анимаций» — карта сразу на месте.
-    const flightMs = motion.ms(FLIGHT_MS);
+  /**
+   * СКОЛЬКО ДЛИТСЯ ПОЛЁТ ВНУТРИ ЗОНЫ — не меньше этого даже при «меньше анимаций».
+   *
+   * Карты круга меняются местами все разом; без движения это читается не как «подвинулись», а как
+   * «подменились», и человек теряет, где чья. Поэтому здесь у движения есть пол.
+   */
+  const RING_LEAST_MS = 200;
+  /** Насколько позже трогается каждая следующая карта: глаз успевает проследить, кто куда поехал. */
+  const RING_STAGGER_MS = 30;
+
+  function launch(id: string, from: Place, to: Place, wait = 0): void {
+    const arc = ringArc(from, to);
+    // «Меньше анимаций» — карта сразу на месте. Но не там, где без движения теряется смысл.
+    const flightMs = motion.ms(FLIGHT_MS, arc ? RING_LEAST_MS : 0);
     if (flightMs === 0) return;
     // ПОВОРОТ КОРОТКИМ ПУТЁМ: 170° и -190° — одна поза, и лететь между ними нечего крутить.
     from = { ...from, angle: to.angle + (((((from.angle - to.angle) % 360) + 540) % 360) - 180) };
@@ -2999,13 +3013,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const half = { ...to, w: (from.w + to.w) / 2, h: (from.h + to.h) / 2, angle: (from.angle + to.angle) / 2, squash: (from.squash + to.squash) / 2 };
     // ВНУТРИ КРУГА КАРТА ЕДЕТ ПО КРУГУ, а не поперёк него: она меняет своё место на кольце, и путь у
     // неё кольцевой. По прямой она резала бы середину — читалось бы как «прыгнула», а не «подвинулась».
-    const arc = ringArc(from, to);
     const mid: Place = { ...half, x: arc ? arc.x : (from.x + to.x) / 2, y: arc ? arc.y : (from.y + to.y) / 2 };
     const frames = turns || arc
       ? [{ transform: poseCss(from, to) }, { transform: poseCss(mid, to, turns ? 0.02 : 1) }, { transform: poseCss(to, to) }]
       : [{ transform: poseCss(from, to) }, { transform: poseCss(to, to) }];
-    const run = el.animate(frames, { duration: flightMs, easing: "cubic-bezier(.2,.7,.3,1)" });
-    if (turns) setTimeout(() => (el.innerHTML = cardHtml(to.face, to.w)), flightMs / 2);
+    const run = el.animate(frames, { duration: flightMs, delay: wait, easing: "cubic-bezier(.2,.7,.3,1)" });
+    if (turns) setTimeout(() => (el.innerHTML = cardHtml(to.face, to.w)), wait + flightMs / 2);
     run.onfinish = () => {
       if (el.isConnected) el.remove();
       if (!air.querySelector(`[data-flight="${id}"]`) && !airUnder.querySelector(`[data-flight="${id}"]`)) flying.delete(id);

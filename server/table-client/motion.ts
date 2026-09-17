@@ -15,7 +15,7 @@ export interface Motion {
   readonly chosen: boolean;
   setSpeed(speed: Speed): void;
   setReduce(on: boolean): void;
-  ms(base: number): number;
+  ms(base: number, least?: number): number;
   onChange(fn: () => void): void;
 }
 
@@ -66,7 +66,7 @@ export function tableMotion(): Motion {
       prefs.reduce = on;
       save();
     },
-    ms: (base) => motionMs(base, prefs.speed, motion.reduce),
+    ms: (base, least) => motionMs(base, prefs.speed, motion.reduce, least),
     onChange: (fn) => void listeners.push(fn),
   };
   // КАДРЫ В СЕКУНДУ — энергосбережение iOS держит их на 30. Меряется не на старте (загрузка роняет кадры у всех),

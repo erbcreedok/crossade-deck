@@ -5,6 +5,10 @@ describe("анимации у зрителя", () => {
   it("скорость делит длительность, «меньше анимаций» — ноль", () => {
     expect(motionMs(260, 1, false)).toBe(260);
     expect(motionMs(260, 2, false)).toBe(130);
+    // ПОЛ ДВИЖЕНИЯ: там, где без него теряется смысл, «меньше анимаций» не значит «мгновенно».
+    expect(motionMs(260, 1, true), "по умолчанию пола нет — как было").toBe(0);
+    expect(motionMs(260, 1, true, 200), "а с полом остаётся короткое движение").toBe(200);
+    expect(motionMs(260, 2, false, 200), "пол не трогает обычный ход").toBe(130);
     expect(motionMs(260, 4, false)).toBe(65);
     expect(motionMs(260, 4, true)).toBe(0);
   });
