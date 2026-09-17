@@ -1,0 +1,21 @@
+server/scripts/tableCrew.mjs
+  s_9ed0da107cbc4a::t_2d682d23e47972 90-107
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_c35fb88de7d31f 936-952,959-960,1003,1011,1592-1593,2403-2404
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e60d14a798eac3e4de5db28c699601b120b04629",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
