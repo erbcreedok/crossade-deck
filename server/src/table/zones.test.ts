@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Face } from "./contract.js";
-import { RING_CARDS, RING_HOME, RING_SPREAD, ringHoles, ringLay } from "./ring.js";
+import { RING_ARROW, RING_CARDS, RING_HOME, RING_SPREAD, ringArrow, ringHoles, ringLay } from "./ring.js";
 import { SANDBOX, type DeskRules } from "./rules.js";
 import { Table } from "./table.js";
 
@@ -72,18 +72,39 @@ describe("раскладка круга — метод, а не формула",
     expect(one).toHaveLength(1);
     expect(one[0]!.x).toBeCloseTo(0, 6);
     expect(one[0]!.y).toBeCloseTo(-RING_HOME, 6);
-    // Вторая встанет через 120°, а не вплотную: круг читается как круг с первой же карты.
+    // Вторая встанет через шаг круга на три места, а не вплотную: круг читается как круг с первой же карты.
     const two = ringLay(mid, 2);
-    expect(Math.atan2(two[1]!.x, -two[1]!.y) * 180 / Math.PI).toBeCloseTo(120, 4);
+    expect(Math.atan2(two[1]!.x, -two[1]!.y) * 180 / Math.PI).toBeCloseTo((360 - RING_ARROW) / 3, 4);
   });
 
-  it("МЕСТА ДЕЛЯТ КРУГ ПОРОВНУ, а карта смотрит верхом в середину", () => {
+  it("КАРТЫ ДЕЛЯТ ВСЁ, КРОМЕ ДОЛИ СТРЕЛКИ, а карта смотрит верхом в середину", () => {
     const four = ringLay(mid, 4);
     const turn = (p: { x: number; y: number }) => ((Math.atan2(p.x, -p.y) * 180 / Math.PI) + 360) % 360;
-    expect(four.map(turn).map(Math.round)).toEqual([0, 90, 180, 270]);
+    const step = (360 - RING_ARROW) / 4;
+    expect(four.map(turn)).toEqual([0, step, step * 2, step * 3].map((a) => expect.closeTo(a, 4)));
+    expect(360 - turn(four[3]!), "разрыв перед головой — доля стрелки и один шаг").toBeCloseTo(RING_ARROW + step, 4);
     // Поворот держится в тех же пределах, что и у всех карт стола: (−180, 180].
     const same = (a: number, b: number) => Math.abs((((a - b) % 360) + 540) % 360 - 180) < 0.001;
     for (const [i, one] of four.entries()) expect(same(one.angle, turn(one) + 180), `${i}`).toBe(true);
+  });
+
+  it("СТРЕЛКА СТОИТ ПЕРЕД ГОЛОВОЙ и на том же радиусе, что карты", () => {
+    const turn = (p: { x: number; y: number }) => ((Math.atan2(p.x, -p.y) * 180 / Math.PI) + 360) % 360;
+    for (const n of [1, 4, 12]) {
+      const cards = ringLay(mid, n);
+      const arrow = ringArrow(mid, n);
+      expect(360 - turn(arrow), `${n}: полдоли перед головой`).toBeCloseTo(RING_ARROW / 2, 4);
+      expect(Math.hypot(arrow.x, arrow.y), `${n}: тот же радиус`).toBeCloseTo(Math.hypot(cards[0]!.x, cards[0]!.y), 6);
+    }
+  });
+
+  it("ДОЛЯ СТРЕЛКИ ПОСТОЯННА: сколько бы карт ни легло, её градусы не делятся", () => {
+    const turn = (p: { x: number; y: number }) => ((Math.atan2(p.x, -p.y) * 180 / Math.PI) + 360) % 360;
+    for (const n of [4, 10, 24]) {
+      const cards = ringLay(mid, n);
+      const step = turn(cards[1]!) - turn(cards[0]!);
+      expect(360 - turn(cards.at(-1)!) - step, `${n} карт`).toBeCloseTo(RING_ARROW, 4);
+    }
   });
 
   it("СТАЛО ТЕСНО — КРУГ РАЗДВИГАЕТСЯ НАРУЖУ, но не дальше контура", () => {
@@ -94,7 +115,7 @@ describe("раскладка круга — метод, а не формула",
     expect(away(40), "но дальше контура — никогда").toBeCloseTo(RING_CARDS, 6);
   });
 
-  it("ЯКОРЬ — УГОЛ ПЕРВОЙ КАРТЫ: круг не проворачивается целиком от каждого перекладывания", () => {
+  it("ЯКОРЬ — УГОЛ СТРЕЛКИ: круг не проворачивается целиком от каждого перекладывания", () => {
     const turned = ringLay(mid, 4, 90);
     expect(turned[0]!.x).toBeCloseTo(RING_HOME, 6);
     expect(turned[0]!.y).toBeCloseTo(0, 6);

@@ -1441,10 +1441,28 @@ export class Table {
     return null;
   }
 
+  /**
+   * ЧТО СЕЙЧАС НЕСУТ — на один шаг, от `take` до `put`.
+   *
+   * Эти двое всегда ходят парой, и якорю круга нужно знать обоих разом: снялась ли ГОЛОВА и вернулась
+   * ли она в тот же круг. Снялась и ушла — стрелка шагает вперёд; вернулась — стоит. Из одного `take`
+   * этого не видно, из одного `put` тоже.
+   */
+  private carried: { ring: string | null; head: boolean; whence: number } | null = null;
+
+  /** С КАКОЙ СТОРОНЫ КАРТУ НЕСУТ — угол, под которым пустой круг примет свою первую карту. */
+  private whenceOf(from: Where): number {
+    if (from.in === "hand") return this.chairs.get(from.chair)?.angle ?? 0;
+    const at = from.in === "felt" ? { x: from.x, y: from.y } : this.piles.get(from.pile)?.spot;
+    return at ? this.turnOfLaid({ x: 0, y: 0 }, { x: at.x, y: at.y, angle: 0 }) : 0;
+  }
+
   private take(id: string, from: Where): void {
+    this.carried = { ring: null, head: false, whence: this.whenceOf(from) };
     if (from.in === "deck") {
       const pile = this.piles.get(from.pile)!;
       const at = pile.cards.indexOf(id);
+      if (pile.spot.pose === "ring") this.carried = { ...this.carried, ring: from.pile, head: at === 0 };
       pile.cards.splice(at, 1);
       // ВЗЯЛИ КАРТУ — И БОЛЬШЕ НИЧЕГО. Соседи не двигаются, потому что двигать их некому: их места
       // записаны у них самих. На месте взятой остаётся дыра — она и есть след того, что кто-то взял.
@@ -1465,9 +1483,9 @@ export class Table {
     const pile = this.piles.get(pileId);
     if (!pile || pile.spot.pose !== "ring") return;
     this.relaid.add(pileId);
-    // ЯКОРЬ — УГОЛ ПЕРВОЙ КАРТЫ, как она лежала: круг не проворачивается целиком от каждого реордера.
-    const first = pile.cards[0] === undefined ? undefined : this.laid.get(pile.cards[0]);
-    const anchor = first ? this.turnOfLaid(pile.spot, first) : 0;
+    // ЯКОРЬ — УГОЛ СТРЕЛКИ, и он лежит в самой зоне. Держаться за первую карту нельзя: унесли голову —
+    // и круг провернулся бы весь оттого, что кто-то взял одну карту.
+    const anchor = pile.spot.turn ?? 0;
     const places = ringLay(pile.spot, pile.cards.length, anchor);
     pile.cards.forEach((id, i) => this.laid.set(id, places[i]!));
   }
@@ -1500,11 +1518,32 @@ export class Table {
     return i === -1 ? pile.cards.length : i;
   }
 
+  /**
+   * СТРЕЛКА ШАГАЕТ НА ОДНО МЕСТО ВПЕРЁД — туда, где лежит новая голова.
+   *
+   * Берётся не шаг круга, а место самой карты: оно и есть правда о том, где теперь начало. Круг от
+   * этого не шевелится — двигается только якорь.
+   */
+  private stepArrow(pileId: string): void {
+    const pile = this.piles.get(pileId);
+    const head = pile?.cards[0] === undefined ? undefined : this.laid.get(pile.cards[0]!);
+    if (pile && head) pile.spot.turn = this.turnOfLaid(pile.spot, head);
+  }
+
   /** Положить и вернуть, куда легло НА САМОМ ДЕЛЕ: индекс руки прижимается к её длине. */
   private put(id: string, to: Where): Where {
+    const carried = this.carried;
+    this.carried = null;
+    // УНЕСЛИ ГОЛОВУ ИЗ КРУГА — СТРЕЛКА ШАГАЕТ ВПЕРЁД, к той карте, что стала головой. Никто при этом
+    // не двигается: места у карт свои, и шагает только якорь. Переложили голову внутри того же круга —
+    // стрелка стоит, и это видно здесь: цель та же зона.
+    if (carried?.ring && carried.head && !(to.in === "deck" && to.pile === carried.ring)) this.stepArrow(carried.ring);
     if (to.in === "deck") {
       const pile = this.piles.get(to.pile)!;
       const cards = pile.cards;
+      // ПУСТОЙ КРУГ ПРИНИМАЕТ ПЕРВУЮ КАРТУ ПОД ТЕМ УГЛОМ, С КОТОРОГО ЕЁ НЕСУТ: круг начинается со
+      // стороны того, кто его открыл, а не с выдуманного севера.
+      if (pile.spot.pose === "ring" && cards.length === 0) pile.spot.turn = carried?.whence ?? 0;
       // НАЗВАЛИ ТОЧНОЕ МЕСТО (дыра или то, откуда взяли) — карта ложится туда, и НИЧЕГО не
       // перекладывается. Порядок в стопке при этом идёт за порядком по кругу: круг хода — это он и есть.
       if (to.at && pile.spot.pose === "ring") {

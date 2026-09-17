@@ -85,8 +85,17 @@ export const RING_CARDS = RING_SPREAD - CARD_H / 2;
  */
 export const RING_LEAST = 3;
 
-/** ШАГ МЕЖДУ СОСЕДЯМИ ПО КРУГУ, в градусах: места делят круг поровну, и только так. */
-export const ringStep = (slots: number): number => 360 / Math.max(1, slots);
+/**
+ * ДОЛЯ СТРЕЛКИ — постоянные градусы, которые круг никогда не отдаёт картам.
+ *
+ * Стрелка стоит в разрыве круга и показывает на голову: по ней видно, где круг обрывается и
+ * начинается. 36° — примерно ширина карты на её радиусе, поэтому разрыв читается как разрыв, а не
+ * как щель между соседями. Число постоянно при любом числе карт: доля стрелки не делится.
+ */
+export const RING_ARROW = 36;
+
+/** ШАГ МЕЖДУ СОСЕДЯМИ ПО КРУГУ, в градусах: карты делят поровну ВСЁ, кроме доли стрелки. */
+export const ringStep = (slots: number): number => (360 - RING_ARROW) / Math.max(1, slots);
 
 /**
  * КАК ДАЛЕКО ОТ СЕРЕДИНЫ ЛЕЖИТ КРУГ.
@@ -136,21 +145,41 @@ export interface RingPlace {
 /**
  * РАСКЛАДКА КРУГА — ЕДИНСТВЕННОЕ МЕСТО, ГДЕ У КАРТ ПОЯВЛЯЮТСЯ МЕСТА.
  *
- * Зовётся только когда в круг КЛАДУТ карту со сменой порядка. Между вызовами кода, который следил бы
- * за порядком, не существует вовсе: подвинули карту — она там и лежит, вынесли — осталась дыра.
+ * Мест ровно столько, сколько карт, и они равномерны. Зовётся, только когда в круг КЛАДУТ карту:
+ * взяли — круг не шелохнулся, осталась дыра; положили — круг сомкнулся весь сразу.
  *
- * `anchor` — угол, за который круг держится: угол первой карты, как она лежала до перекладывания.
- * Без него круг проворачивался бы целиком от каждого реордера.
+ * `anchor` — УГОЛ СТРЕЛКИ, за который круг держится. Голова стоит сразу за стрелкой, дальше по шагу.
+ * Держаться за первую карту нельзя: унесли голову — и круг провернулся бы целиком.
  */
 export function ringLay(middle: { x: number; y: number }, n: number, anchor = 0): RingPlace[] {
   const slots = Math.max(RING_LEAST, n);
   const step = ringStep(slots);
   const spread = ringSpread(slots);
-  return Array.from({ length: n }, (_, i) => {
-    const turn = anchor + step * i;
-    const at = ringSpot(middle, turn, spread);
-    return { x: at.x, y: at.y, angle: ringFace(turn) };
-  });
+  return Array.from({ length: n }, (_, i) => ringPlace(middle, anchor + step * i, spread));
+}
+
+/** Место на кольце под этим углом — точка и поворот разом: их всегда считают вместе. */
+export function ringPlace(middle: { x: number; y: number }, turn: number, spread: number): RingPlace {
+  const at = ringSpot(middle, turn, spread);
+  return { x: at.x, y: at.y, angle: ringFace(turn) };
+}
+
+/**
+ * КУДА СМОТРИТ СТРЕЛКА — на середину своей доли, ровно перед головой.
+ *
+ * Голова круга стоит на самом якоре, а доля стрелки лежит ПЕРЕД ним: так стрелка указывает на голову
+ * и одновременно закрывает собой разрыв между хвостом и головой.
+ */
+export const ringArrowTurn = (anchor: number): number => anchor - RING_ARROW / 2;
+
+/**
+ * ГДЕ СТРЕЛКА ЛЕЖИТ НА СТОЛЕ — на том же радиусе, что и карты этого круга.
+ *
+ * Радиус зависит от тесноты круга, поэтому его спрашивают вместе с числом карт: стрелка едет наружу
+ * вместе с картами и никогда не остаётся одна посреди пустого кольца.
+ */
+export function ringArrow(middle: { x: number; y: number }, n: number, anchor = 0): RingPlace {
+  return ringPlace(middle, ringArrowTurn(anchor), ringSpread(Math.max(RING_LEAST, n)));
 }
 
 /**
