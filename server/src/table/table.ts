@@ -29,6 +29,7 @@ import {
   type DeckDo,
   type DeckSpot,
   type Carry,
+  type Laid,
   type CarryOut,
   DEFAULT_POSE,
   HAND_POSE_KEYS,
@@ -53,7 +54,7 @@ import {
 import { arranged, samePack, shuffled } from "./arrange.js";
 import { allowed, grantedTo, may, no, type Ask, type Key, type Role, type Verdict } from "./access.js";
 import { SANDBOX, type DeskAsk, type DeskRules, type DeskZone } from "./rules.js";
-import { croupierAngle, deckHome, freeAngle, seatPoint } from "./ring.js";
+import { croupierAngle, deckHome, freeAngle, ringLay, RING_SPREAD, seatPoint } from "./ring.js";
 
 /** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
 export const FELT_REACH = 8 - 0.86;
@@ -98,6 +99,13 @@ export class Table {
   private seq = 0;
   private faces = new Map<string, Face>();
   /** Стопки в порядке «кто сверху». Колода (`MAIN_PILE`) стоит с начала. */
+  /**
+   * ГДЕ ЛЕЖИТ КАРТА ВНУТРИ ЗОНЫ — по карте, а не по зоне. Пишет только раскладка (`lay`), читает
+   * только снимок. Зона не помнит ни числа мест, ни дыр: дыры видны из самих карт.
+   */
+  private laid = new Map<string, Laid>();
+  /** Зоны, которые только что переложились: по ним пойдёт диф целиком. */
+  private relaid = new Set<string>();
   private piles = new Map<string, PileRow>([[MAIN_PILE, { spot: { ...DEFAULT_SPOT, ...deckHome(), below: [] }, cards: [], shuffles: 0 }]]);
   private pileSeq = 0;
   private felt: { id: string; x: number; y: number; up: boolean; angle: number; under?: boolean }[] = [];
@@ -778,10 +786,6 @@ export class Table {
     if (target.in === "deck" && !auto && into && (into.spot.shut || (into.spot.lock && from.in === "deck" && from.pile === target.pile))) return { refused: "locked" };
     // В СТОПКУ, КОТОРУЮ НЕСУТ, НЕ ПОЛОЖИТЬ: она сейчас в чужих руках.
     if (target.in === "deck" && !auto && this.gripped(target.pile, by)) return { refused: "locked" };
-    // МЕСТ В ЗОНЕ БОЛЬШЕ НЕТ. `most` — число, а не правило: в партии его ставит игра по числу
-    // играющих, и седьмая карта при шести игроках не ложится. Не задано — потолка нет.
-    if (target.in === "deck" && !auto && into?.spot.most !== undefined && !into.cards.includes(id)
-      && into.cards.length >= into.spot.most) return { refused: "full" };
     const born = target.in === "deck" && !into ? this.ensureDeck() : [];
     // В СТОПКУ — стороной стопки, если все её карты лежат одинаково; вперемешку или пустая — как нёс.
     const pack = into && !auto ? into.cards.filter((one) => one !== id).map((one) => this.turned.has(one)) : [];
@@ -798,6 +802,8 @@ export class Table {
     this.locks.delete(id);
     this.trails.set(id, trail);
     const ops: Op[] = [...born, { t: "move", card: { id }, from, to: landed, trail }, { t: "unlock", id }];
+    // ЗОНА ПЕРЕЛОЖИЛАСЬ — об этом надо сказать: места сменились у ВСЕХ её карт, а движение было одно.
+    if (landed.in === "deck") ops.push(...this.relaidOps(landed.pile));
     if (from.in === "deck") ops.push(...this.sweepPile(from.pile));
     // РУКА ПОКИНУТОГО СТУЛА ОПУСТЕЛА — правило стола решает, стоять ли ему дальше.
     if (from.in === "hand") ops.push(...this.sweepChair(this.chairs.get(from.chair)!));
@@ -1395,7 +1401,14 @@ export class Table {
   private clean(to: Where, auto = false): Where | null {
     if (to.in === "deck") {
       if (typeof to.pile !== "string") return null;
-      return Number.isInteger(to.i) && !this.piles.get(to.pile)?.spot.lock ? { in: "deck", pile: to.pile, i: to.i } : { in: "deck", pile: to.pile };
+      const spot = this.piles.get(to.pile)?.spot;
+      // ТОЧНОЕ МЕСТО принимают только зоны с раскладкой и только внутри самой зоны: «положить в дыру»
+      // не должно превращаться в «положить куда угодно на сукне».
+      if (to.at && spot?.pose === "ring" && [to.at.x, to.at.y, to.at.angle].every(Number.isFinite)
+        && Math.hypot(to.at.x - spot.x, to.at.y - spot.y) <= RING_SPREAD) {
+        return { in: "deck", pile: to.pile, at: { x: to.at.x, y: to.at.y, angle: turnOf(to.at.angle) } };
+      }
+      return Number.isInteger(to.i) && !spot?.lock ? { in: "deck", pile: to.pile, i: to.i } : { in: "deck", pile: to.pile };
     }
     if (to.in === "hand") {
       if (!this.chairs.has(to.chair) || !Number.isInteger(to.i)) return null;
@@ -1433,12 +1446,8 @@ export class Table {
       const pile = this.piles.get(from.pile)!;
       const at = pile.cards.indexOf(id);
       pile.cards.splice(at, 1);
-      // ВЗЯЛИ КАРТУ — ОСТАЛЬНЫЕ НЕ ШЕЛОХНУЛИСЬ: место уходит вместе со своей картой, а на её месте
-      // остаётся дыра. Круг раскладывается заново только когда в него КЛАДУТ (`put`).
-      if (pile.spot.pose === "ring" && pile.spot.slots) {
-        pile.spot.slots = pile.spot.slots.filter((_, i) => i !== at);
-        if (pile.cards.length === 0) delete pile.spot.slots;
-      }
+      // ВЗЯЛИ КАРТУ — И БОЛЬШЕ НИЧЕГО. Соседи не двигаются, потому что двигать их некому: их места
+      // записаны у них самих. На месте взятой остаётся дыра — она и есть след того, что кто-то взял.
     } else if (from.in === "felt") {
       for (const pile of this.piles.values()) if (pile.spot.below.includes(id)) pile.spot.below = pile.spot.below.filter((one) => one !== id);
       this.felt.splice(this.felt.findIndex((one) => one.id === id), 1);
@@ -1446,18 +1455,72 @@ export class Table {
     else this.chairs.get(from.chair)!.hand.splice(from.i, 1);
   }
 
+  /**
+   * РАСКЛАДКА ЗОНЫ — по имени её позы. Единственное место, где у карт появляются места.
+   *
+   * Новая поза — новая строка в этой таблице; ни рантайм, ни рисование при этом не трогают. Зона без
+   * раскладки (обычная стопка) мест не пишет вовсе: её карты лежат друг на друге.
+   */
+  private lay(pileId: string): void {
+    const pile = this.piles.get(pileId);
+    if (!pile || pile.spot.pose !== "ring") return;
+    this.relaid.add(pileId);
+    // ЯКОРЬ — УГОЛ ПЕРВОЙ КАРТЫ, как она лежала: круг не проворачивается целиком от каждого реордера.
+    const first = pile.cards[0] === undefined ? undefined : this.laid.get(pile.cards[0]);
+    const anchor = first ? this.turnOfLaid(pile.spot, first) : 0;
+    const places = ringLay(pile.spot, pile.cards.length, anchor);
+    pile.cards.forEach((id, i) => this.laid.set(id, places[i]!));
+  }
+
+  /**
+   * ЧТО СКАЗАТЬ ПРО ПЕРЕЛОЖЕННУЮ ЗОНУ. Места сменились у всех её карт сразу, и один `move` про это не
+   * расскажет: зона едет целиком, как после перемешивания.
+   */
+  private relaidOps(pileId: string): Op[] {
+    if (!this.relaid.delete(pileId)) return [];
+    const pile = this.piles.get(pileId);
+    return pile ? [{ t: "deck", pile: pileId, cards: pile.cards.map((one) => ({ id: one })), shuffled: false }] : [];
+  }
+
+  /** Под каким углом от середины зоны лежит это место — по нему круг знает свой порядок. */
+  private turnOfLaid(middle: { x: number; y: number }, at: Laid): number {
+    const deg = (Math.atan2(at.x - middle.x, middle.y - at.y) * 180) / Math.PI;
+    return ((deg % 360) + 360) % 360;
+  }
+
+  /** Куда в стопке встаёт карта, положенная на точное место: порядок в круге — это порядок по кругу. */
+  private byTurn(pile: PileRow, id: string): number {
+    const mine = this.laid.get(id);
+    if (!mine) return pile.cards.length;
+    const turn = this.turnOfLaid(pile.spot, mine);
+    const i = pile.cards.findIndex((one) => {
+      const at = this.laid.get(one);
+      return at !== undefined && this.turnOfLaid(pile.spot, at) > turn;
+    });
+    return i === -1 ? pile.cards.length : i;
+  }
+
   /** Положить и вернуть, куда легло НА САМОМ ДЕЛЕ: индекс руки прижимается к её длине. */
   private put(id: string, to: Where): Where {
     if (to.in === "deck") {
       const pile = this.piles.get(to.pile)!;
       const cards = pile.cards;
+      // НАЗВАЛИ ТОЧНОЕ МЕСТО (дыра или то, откуда взяли) — карта ложится туда, и НИЧЕГО не
+      // перекладывается. Порядок в стопке при этом идёт за порядком по кругу: круг хода — это он и есть.
+      if (to.at && pile.spot.pose === "ring") {
+        this.laid.set(id, { ...to.at });
+        cards.splice(this.byTurn(pile, id), 0, id);
+        return { in: "deck", pile: to.pile, i: cards.indexOf(id) };
+      }
       if (to.i === undefined) cards.push(id);
       else cards.splice(Math.max(0, Math.min(cards.length, to.i)), 0, id);
-      // ПОЛОЖИЛИ КАРТУ — КРУГ РАЗЛОЖИЛСЯ ЗАНОВО: дыры закрылись, места раздались по порядку. Это
-      // единственный случай, когда карты круга меняют позу; взятая карта их не трогает.
-      if (pile.spot.pose === "ring") pile.spot.slots = cards.map((_, i) => i);
+      // ПОРЯДОК СМЕНИЛСЯ — ЗОНА РАСКЛАДЫВАЕТ ЗАНОВО. Единственный случай, когда карты зоны меняют
+      // место; всё остальное их не трогает.
+      if (pile.spot.pose === "ring") this.lay(to.pile);
       return to.i === undefined ? { in: "deck", pile: to.pile } : { in: "deck", pile: to.pile, i: cards.indexOf(id) };
     }
+    // УШЛА ИЗ ЗОНЫ — её место больше ни при чём: вернётся, и зона даст ей новое.
+    this.laid.delete(id);
     if (to.in === "felt") {
       this.felt.push({ id, x: to.x, y: to.y, up: to.up, angle: to.angle, ...(to.under ? { under: true } : {}) });
       return to;
@@ -1491,6 +1554,9 @@ export class Table {
   private seen(id: string, viewer: string, where: Where): SeenCard {
     const card: SeenCard = this.visibleTo(viewer, where, id) ? { id, face: this.faces.get(id)! } : { id };
     if (where.in !== "felt" && this.turned.has(id)) card.up = true;
+    // МЕСТО ВНУТРИ ЗОНЫ едет вместе с картой: рисованию нечего вычислять, оно читает записанное.
+    const at = where.in === "deck" ? this.laid.get(id) : undefined;
+    if (at) card.at = { ...at };
     return card;
   }
 

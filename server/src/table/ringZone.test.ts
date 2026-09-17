@@ -63,16 +63,19 @@ describe("круг хода стоит на месте", () => {
     expect(ring(t)).toMatchObject({ pose: "ring", forever: true, name: "Круг хода" });
   });
 
-  it("места круга уходят вместе с последней картой", () => {
+  it("МЕСТО УХОДИТ ВМЕСТЕ С КАРТОЙ: вынесли — и оно ей больше не принадлежит", () => {
     const t = ringTable();
     intoRing(t);
     intoRing(t);
-    const low = ring(t)!.cards[0]!.id;
+    const cards = ring(t)!.cards;
+    const was = cards[1]!.at;
+    expect(was, "лежащая в круге карта знает своё место").toBeDefined();
+    const low = cards[0]!.id;
     t.act("Аня", { t: "grab", id: low }, 0);
     t.act("Аня", { t: "drop", id: low, to: { in: "hand", chair: chairOf(t), i: 0 } }, 0);
-    expect(ring(t)!.slots, "нижнюю сняли — её место осталось дырой").toEqual([1]);
-    t.act("Аня", { t: "deckMove", pile: RING, x: 3, y: 3 }, 0);
-    expect(ring(t)!.slots, "круг разобрали целиком — мест не осталось").toBeUndefined();
+    expect(ring(t)!.cards[0]!.at, "оставшаяся стоит там же, где стояла").toEqual(was);
+    const hand = t.seenBy("Аня").chairs.find((c) => c.id === chairOf(t))!.hand;
+    expect(hand.every((c) => c.at === undefined), "у карты в руке места зоны нет").toBe(true);
   });
 
   it("обычная стопка двигается по-прежнему", () => {

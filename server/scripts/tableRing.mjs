@@ -77,12 +77,21 @@ check("в круге две карты", (await ringGrip())?.n === 2, await ring
 
 // ВСТАВКА ПО ПРИЦЕЛУ: навёл точно на карту — встанешь СРАЗУ ПОСЛЕ неё, а не в конец.
 const ringIds = async () => ((await spots()).piles.find((p) => p.id === "ring") ?? {}).ids ?? [];
-const RING_HOME = 1.5;
-/** Где на стекле лежит i-я карта круга: места делят круг поровну, и их не меньше трёх. */
-const ringAt = async (i, slots) => {
+/**
+ * Где на стекле лежит i-я карта круга. Место — СОСТОЯНИЕ, записанное у самой карты, поэтому оно
+ * читается, а не вычисляется: считать его здесь заново значило бы держать вторую копию раскладки.
+ */
+const ringAt = async (i) => {
   const sp = await spots();
-  const a = ((360 / slots) * i * Math.PI) / 180;
-  return { x: sp.middle.x + RING_HOME * sp.k * Math.sin(a), y: sp.middle.y - RING_HOME * sp.k * Math.cos(a) };
+  const list = (sp.piles.find((one) => one.id === "ring") ?? {}).at ?? [];
+  const [x, y] = (list[i] ?? "0,0,0").split(",").map(Number);
+  return { x: sp.middle.x + x * sp.k, y: sp.middle.y + y * sp.k };
+};
+/** Свободное место круга: где лежала бы карта, которой там нет. Для прицела в дыру. */
+const ringHoleAt = async (was) => {
+  const sp = await spots();
+  const [x, y] = was.split(",").map(Number);
+  return { x: sp.middle.x + x * sp.k, y: sp.middle.y + y * sp.k };
 };
 /** Карта с колоды в руку и оттуда — в точку `to`. */
 const fromDeckTo = async (to) => {
@@ -103,7 +112,7 @@ const fromDeckTo = async (to) => {
 };
 
 const pair = await ringIds();
-const inserted = await fromDeckTo(await ringAt(0, 3));
+const inserted = await fromDeckTo(await ringAt(0));
 const after = await ringIds();
 check("навёл на первую карту — встал сразу после неё", after[1] === inserted && after[0] === pair[0] && after[2] === pair[1], { pair, after, inserted });
 
@@ -113,7 +122,7 @@ check("мимо карт — карта уходит в конец", (await ring
 
 // КАРТЫ ЛЕЖАТ НА ПОЛПУТИ К КОНТУРУ, а не у самой линии: круг хода читается как ход, а не как ободок.
 // ХВАТ ПРЯМО ПО КАРТЕ: тултип для этого открывать не нужно — палец берёт ту карту, на которой лежит.
-const onRing = await ringAt(0, 4);
+const onRing = await ringAt(0);
 await p.mouse.move(onRing.x, onRing.y);
 await p.mouse.down();
 await p.mouse.move(195, 800, { steps: 8 });
@@ -132,6 +141,44 @@ check("отпустили вне круга — контур убран", (await
 check("КАРТУ ИЗ КРУГА БЕРУТ ХВАТОМ ПО НЕЙ, не открывая окно стопки", (await ringGrip())?.n === 3, await grips());
 check("и окно стопки при этом не открылось", (await p.locator("[data-deck-tip]").count()) === 0, null);
 check("а у колоды ручка на месте всегда", (await grips()).some((g) => g.pile === "deck"), await grips());
+
+// ВЗЯЛИ КАРТУ — ОСТАЛЬНЫЕ НЕ ШЕЛОХНУЛИСЬ. Место записано у самой карты, и двигать соседей некому.
+const ringAts = async () => ((await spots()).piles.find((p) => p.id === "ring") ?? {}).at ?? [];
+/** Кто где лежит: карта → её место. Закон в том, что у КАЖДОЙ карты место своё и оно не меняется. */
+const ringWho = async () => {
+  const sp = (await spots()).piles.find((p) => p.id === "ring") ?? { ids: [], at: [] };
+  return Object.fromEntries((sp.ids ?? []).map((id, i) => [id, (sp.at ?? [])[i]]));
+};
+// ЧЕТЫРЕ КАРТЫ И СРЕДНЯЯ — тот случай, где «встать в дыру» и «переложить круг» дают РАЗНОЕ: дыра
+// оставляет всех на местах, а перекладывание сдвигает трёх оставшихся на шаг.
+while ((await ringIds()).length < 4) await fromDeckTo((await spots()).middle);
+const beforeTake = await ringAts();
+const whoBefore = await ringWho();
+const idsBefore = await ringIds();
+const takenId = idsBefore[1];
+const mineAt = await ringAt(1);
+await p.mouse.move(mineAt.x, mineAt.y);
+await p.mouse.down();
+await p.mouse.move(195, 810, { steps: 8 });
+await p.mouse.up();
+await p.waitForTimeout(700);
+check("вынесли среднюю — остальные стоят на своих местах", JSON.stringify(await ringAts()) === JSON.stringify([beforeTake[0], ...beforeTake.slice(2)]), { was: beforeTake, now: await ringAts() });
+check("и дыра осталась дырой", (await ringIds()).length === idsBefore.length - 1, await ringIds());
+
+// ВЕРНУЛИ В ДЫРУ — встал ровно туда, и НИЧЕГО не переложилось.
+const holeAt = await ringHoleAt(beforeTake[1]);
+const inHand = await p.locator("[data-card]").last().boundingBox();
+await p.mouse.move(inHand.x + inHand.width / 2, inHand.y + 8);
+await p.mouse.down();
+await p.mouse.move(holeAt.x, holeAt.y, { steps: 8 });
+await p.waitForTimeout(200);
+check("над дырой горит её контур", (await p.locator("[data-g=ring-slot]").count()) === 1, null);
+await p.mouse.up();
+await p.waitForTimeout(700);
+const nowWho = await ringWho();
+const kept = Object.entries(whoBefore).filter(([id]) => id !== takenId).every(([id, at]) => nowWho[id] === at);
+check("вернули в дыру — КАЖДАЯ карта осталась на своём месте", kept, { was: whoBefore, now: nowWho, taken: takenId });
+check("…и вернувшаяся легла ровно в дыру", nowWho[takenId] === whoBefore[takenId], { was: whoBefore[takenId], now: nowWho[takenId] });
 
 // ГРИП КРУГА: карты сходятся под палец, на местах остаются контуры, круг с места не двигается.
 const before = (await spots()).piles.find((p) => p.id === "ring").spot;
@@ -161,7 +208,7 @@ const flight = await p.evaluate(() => {
   return { n: kids.length, far };
 });
 // Порог — от самого круга: карта, оставшаяся лежать кольцом, стоит на RING_HOME от середины.
-const ring = RING_HOME * (await spots()).k;
+const ring = 1.5 * (await spots()).k;
 check("стопка круга поднята в воздух вся", flight.n === (await ringIds()).length, flight);
 check("карты круга слетелись под палец", flight.far >= 0 && flight.far < ring * 0.5, { flight, ring });
 check("а на их местах остались контуры", marks === (await ringIds()).length, { marks, n: (await ringIds()).length });

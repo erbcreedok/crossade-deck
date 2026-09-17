@@ -22,7 +22,7 @@ import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as 
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
-import { ringSlots, ringStep, RING_SPREAD } from "../src/table/ring.js";
+import { ringHoles, RING_SPREAD } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
 import { HOST } from "./host.js";
 
@@ -185,6 +185,11 @@ type Aim =
   | { kind: "deck"; pile: string }
   /** В открытый тултип стопки, на место `index` снизу. */
   | { kind: "deckAt"; pile: string; index: number }
+  /**
+   * ТОЧНОЕ МЕСТО ВНУТРИ ЗОНЫ: дыра в круге или то место, откуда карту взяли. Ложась сюда, карта
+   * НИЧЕГО не перекладывает — в отличие от `deckAt`, который меняет порядок и зовёт раскладку.
+   */
+  | { kind: "deckSpot"; pile: string; at: Place3 }
   | { kind: "felt"; at: { x: number; y: number } };
 
 /** Место в веере: карта или щель — под мою карту в воздухе или под чужую (`carry` — id той карты). */
@@ -193,6 +198,9 @@ interface Gap {
   ink: string;
   carry?: string;
 }
+/** Место вещи в зоне: где лежит и как повёрнута (`contract.Laid`). Здесь под своим именем — `Laid` занято раскладкой руки. */
+type Place3 = import("../src/table/contract.js").Laid;
+
 type Laid = { card: SeenCard; slot: Slot; z: number } | { gap: Gap; slot: Slot; z: number };
 
 /**
@@ -1889,24 +1897,36 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       html += markHtml(w, h, view.rotation + drag.ringHome.angle, at.x, at.y, 29, view.squash, T.inkDim).replace('data-g="mark"', 'data-g="ring-home"');
     }
     const aim = drag.target;
+    // ПРИЦЕЛИЛСЯ В ДЫРУ ИЛИ ДОМОЙ — контур встаёт ровно туда, куда ляжет карта, и ничего не двигает.
+    if (aim.kind === "deckSpot") {
+      const to = view.toGlass(aim.at);
+      html += markHtml(w, h, view.rotation + aim.at.angle, to.x, to.y, 31, view.squash, T.gold).replace('data-g="mark"', 'data-g="ring-slot"');
+    }
+    // ПРИЦЕЛИЛСЯ В КАРТУ — контур между ней и следующей: встанешь после неё, и круг переложится ПОСЛЕ дропа.
     if (aim.kind === "deckAt") {
       const pile = pileOf(seen(), aim.pile);
-      if (pile?.pose === "ring" && aim.index > 0) {
-        // МЕЖДУ ЦЕЛЬЮ И СЛЕДУЮЩЕЙ: карта встанет сюда, а соседи разъедутся уже после того, как её отпустят.
-        const n = Math.max(1, pile.cards.length);
-        const i = aim.index - 1;
-        const half = ringStep(ringSlots(pile, n)) / 2;
-        const spot = view.deckAt(pile.id, i, n);
-        const facing = view.deckFacing(pile.id, i, n);
-        const mid = view.toDesk(view.toGlass({ x: pile.x, y: pile.y }));
-        const turn = (Math.atan2(spot.x - mid.x, mid.y - spot.y) * 180) / Math.PI + half;
-        const away = Math.hypot(spot.x - mid.x, spot.y - mid.y);
-        const to = view.toGlass({ x: mid.x + away * Math.sin((turn * Math.PI) / 180), y: mid.y - away * Math.cos((turn * Math.PI) / 180) });
-        html += markHtml(w, h, view.rotation + facing + half, to.x, to.y, 31, view.squash).replace('data-g="mark"', 'data-g="ring-slot"');
+      const target = pile?.pose === "ring" ? pile.cards[aim.index - 1]?.at : undefined;
+      if (pile && target) {
+        const next = pile.cards[aim.index % pile.cards.length]?.at;
+        const mid = { x: pile.x, y: pile.y };
+        const turn = (one: { x: number; y: number }) => Math.atan2(one.x - mid.x, mid.y - one.y);
+        // Ровно между целью и следующей за ней; следующей нет — на полшага дальше цели.
+        const half = next && next !== target ? span(turn(target), turn(next)) / 2 : Math.PI / Math.max(3, pile.cards.length);
+        const away = Math.hypot(target.x - mid.x, target.y - mid.y);
+        const a = turn(target) + half;
+        const to = view.toGlass({ x: mid.x + away * Math.sin(a), y: mid.y - away * Math.cos(a) });
+        html += markHtml(w, h, view.rotation + (a * 180) / Math.PI + 180, to.x, to.y, 31, view.squash).replace('data-g="mark"', 'data-g="ring-slot"');
       }
     }
     return html;
   }
+
+  /** Угол от `a` к `b` по часовой, в радианах: между соседями по кругу он и есть шаг. */
+  const span = (a: number, b: number): number => {
+    const d = b - a;
+    const full = Math.PI * 2;
+    return ((d % full) + full) % full || full;
+  };
 
   function feltMarkHtml(): string {
     if (!drag || drag.target.kind !== "felt" || !view) return "";
@@ -2556,6 +2576,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       top,
       air: Boolean(deckCarry(s, id)),
       ids: cards.map((c) => c.id),
+      // МЕСТА КАРТ ЗОНЫ — это состояние, а не картинка: прогон смотрит на них, чтобы увидеть, что
+      // взятая карта соседей не двигает.
+      at: cards.map((c) => (c.at ? `${c.at.x.toFixed(3)},${c.at.y.toFixed(3)},${c.at.angle.toFixed(1)}` : null)),
       up: cards.filter((c) => c.up).map((c) => c.id),
     };
     if (as === "pile") return out;
@@ -3064,8 +3087,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         // КРУГ ХОДА: навёл ТОЧНО НА КАРТУ — встанет сразу после неё; мимо карт — в конец, как везде.
         // ЧУЖУЮ ОХАПКУ КРУГ НЕ ПРИНИМАЕТ: в него кладут по одной карте. Своя, из него же взятая, — вернётся.
         if (pile.pose === "ring" && skip !== undefined && skip !== pile.id) return { kind: "back" };
-        const after = pile.pose === "ring" && skip === undefined ? ringCardUnder(pile, centre) : -1;
-        return after >= 0 ? { kind: "deckAt", pile: pile.id, index: after + 1 } : { kind: "deck", pile: pile.id };
+        if (pile.pose === "ring" && skip === undefined) {
+          // ТРИ ЦЕЛИ, И ТОЛЬКО ОДНА ИЗ НИХ ПЕРЕКЛАДЫВАЕТ КРУГ.
+          const after = ringCardUnder(pile, centre);
+          if (after >= 0) return { kind: "deckAt", pile: pile.id, index: after + 1 };
+          const hole = ringHoleUnder(pile, centre);
+          if (hole) return { kind: "deckSpot", pile: pile.id, at: hole };
+        }
+        return { kind: "deck", pile: pile.id };
       }
     }
     // НА СТУЛ — в руку его стула, в конец. Под локом стул карту не берёт: она вернётся, откуда взята.
@@ -3079,6 +3108,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (a.kind === "hand" && b.kind === "hand") return a.which === b.which && a.index === b.index;
     if (a.kind === "chair" && b.kind === "chair") return a.which === b.which;
     if (a.kind === "deckAt" && b.kind === "deckAt") return a.pile === b.pile && a.index === b.index;
+    if (a.kind === "deckSpot" && b.kind === "deckSpot") return a.pile === b.pile && a.at.x === b.at.x && a.at.y === b.at.y;
     if (a.kind === "deck" && b.kind === "deck") return a.pile === b.pile;
     return a.kind === b.kind && a.kind !== "hand" && a.kind !== "chair" && a.kind !== "deck" && a.kind !== "deckAt";
   };
@@ -3103,6 +3133,33 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       if (Math.abs(lx) <= FELT_CARD.w / 2 && Math.abs(ly) <= FELT_CARD.h / 2) return i;
     }
     return -1;
+  }
+
+  /**
+   * СВОБОДНОЕ МЕСТО КРУГА ПОД ЭТОЙ ТОЧКОЙ — дыра от взятой карты, или `null`, если мимо.
+   *
+   * Дыры нигде не хранятся: они видны из углов лежащих карт (`ringHoles`). Плюс место, с которого
+   * карту взяли ПРЯМО СЕЙЧАС: пока её несут, оно тоже свободно и ждёт её обратно.
+   */
+  function ringHoleUnder(pile: Pile, at: { x: number; y: number }): Place3 | null {
+    if (!view) return null;
+    const p = view.toDesk(at);
+    const here = pile.cards.map((one) => one.at).filter((one): one is Place3 => one !== undefined);
+    const home = drag?.ringHome && drag.from.in === "deck" && drag.from.pile === pile.id
+      ? { x: drag.ringHome.at.x, y: drag.ringHome.at.y, angle: drag.ringHome.angle }
+      : null;
+    const holes = [...ringHoles(pile, here), ...(home ? [home] : [])];
+    let near: Place3 | null = null;
+    let best = Infinity;
+    for (const hole of holes) {
+      const far = Math.hypot(p.x - hole.x, p.y - hole.y);
+      // Своим считается место, если палец ближе к нему, чем полкарты: иначе это уже пустота круга.
+      if (far < FELT_CARD.w * 0.6 && far < best) {
+        best = far;
+        near = hole;
+      }
+    }
+    return near;
   }
 
   /** Что под пальцем на сукне: сверху вниз, и с колоды — только верхняя. */
@@ -3286,6 +3343,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     if (aim.kind === "back") return d.from;
     if (aim.kind === "deck") return { in: "deck", pile: aim.pile };
     if (aim.kind === "deckAt") return { in: "deck", pile: aim.pile, i: aim.index };
+    if (aim.kind === "deckSpot") return { in: "deck", pile: aim.pile, at: aim.at };
     // На сукно карта ложится так, как её несли: лицом — если её было видно.
     return { in: "felt", x: aim.at.x, y: aim.at.y, up: d.shown, angle: dropAngle() };
   }
