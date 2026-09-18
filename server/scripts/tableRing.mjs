@@ -31,6 +31,39 @@ await p.goto(`${base}/table/?room=${room}&name=A`);
 await p.waitForSelector("[data-section]");
 await p.waitForTimeout(1000);
 
+/**
+ * НАВЕСТИ СЕРЕДИНУ НЕСОМОЙ КАРТЫ НА ТОЧКУ. Держат карту за край, а метится её СЕРЕДИНА: палец и цель
+ * разъезжаются на пол-карты, и целиться пикселями вслепую значит мерить не тот закон. Подводим, пока
+ * середина не встанет на цель.
+ */
+/**
+ * ТОЧКА СТОЛА НА СТЕКЛЕ — тем же взглядом, каким рисовали: поворот камеры и наклон (он сжимает высоту).
+ * Без наклона прицел уезжает на четверть карты, и прогон мерит не тот закон, а свою арифметику.
+ */
+const onGlass = async (at) => {
+  const sp = await spots();
+  const rad = (sp.spin * Math.PI) / 180;
+  const x = at.x * Math.cos(rad) - at.y * Math.sin(rad);
+  const y = at.x * Math.sin(rad) + at.y * Math.cos(rad);
+  return { x: sp.middle.x + x * sp.k, y: sp.middle.y + y * sp.k * sp.squash };
+};
+
+const aimAt = async (to, want) => {
+  // Несомая карта меняет размер, попав в зону, поэтому расстояние от пальца до её середины плавает.
+  // Ведём палец по решётке вокруг цели и останавливаемся, когда ЭКРАН говорит, что метится нужное:
+  // это же и доказывает, что до цели вообще можно дотянуться пальцем.
+  const steps = [0, -6, 6, -12, 12, -18, 18, -24, 24];
+  for (const dy of steps) {
+    for (const dx of [0, -6, 6, -12, 12]) {
+      await p.mouse.move(to.x + dx, to.y + dy, { steps: 2 });
+      await p.waitForTimeout(60);
+      const aim = (await spots()).aim;
+      if (!want || (aim && want(aim))) return aim;
+    }
+  }
+  return (await spots()).aim;
+};
+
 const spots = async () => JSON.parse(await p.getAttribute("canvas", "data-spots"));
 /** Ручки всех стопок: чья, сколько карт и где её середина. */
 const grips = () => p.evaluate(() => [...document.querySelectorAll("[data-g=deck-grip]")].map((e) => {
@@ -85,13 +118,13 @@ const ringAt = async (i) => {
   const sp = await spots();
   const list = (sp.piles.find((one) => one.id === "ring") ?? {}).at ?? [];
   const [x, y] = (list[i] ?? "0,0,0").split(",").map(Number);
-  return { x: sp.middle.x + x * sp.k, y: sp.middle.y + y * sp.k };
+  return onGlass({ x, y });
 };
 /** Свободное место круга: где лежала бы карта, которой там нет. Для прицела в дыру. */
 const ringHoleAt = async (was) => {
   const sp = await spots();
   const [x, y] = was.split(",").map(Number);
-  return { x: sp.middle.x + x * sp.k, y: sp.middle.y + y * sp.k };
+  return onGlass({ x, y });
 };
 /** Карта с колоды в руку и оттуда — в точку `to`. */
 const fromDeckTo = async (to) => {
@@ -105,7 +138,7 @@ const fromDeckTo = async (to) => {
   const id = await p.locator("[data-card]").last().getAttribute("data-card");
   await p.mouse.move(box.x + box.width / 2, box.y + 8);
   await p.mouse.down();
-  await p.mouse.move(to.x, to.y, { steps: 8 });
+  await aimAt(to);
   await p.mouse.up();
   await p.waitForTimeout(700);
   return id;
@@ -177,33 +210,49 @@ await p.waitForTimeout(700);
 check("вынесли среднюю — остальные стоят на своих местах", JSON.stringify(await ringAts()) === JSON.stringify([beforeTake[0], ...beforeTake.slice(2)]), { was: beforeTake, now: await ringAts() });
 check("и дыра осталась дырой", (await ringIds()).length === idsBefore.length - 1, await ringIds());
 
-// ВЕРНУЛИ В ДЫРУ — встал ровно туда, и НИЧЕГО не переложилось.
-const holeAt = await ringHoleAt(beforeTake[1]);
+// ВЕРНУЛИ ИЗ РУКИ — КРУГ НОРМАЛИЗУЕТСЯ ВЕСЬ: мест ровно столько, сколько карт, и они равномерны.
+// Дыра, оставшаяся от взятой карты, схлопывается; голова остаётся на якоре — стрелка не сдвигалась.
 const inHand = await p.locator("[data-card]").last().boundingBox();
 await p.mouse.move(inHand.x + inHand.width / 2, inHand.y + 8);
 await p.mouse.down();
-await p.mouse.move(holeAt.x, holeAt.y, { steps: 8 });
-await p.waitForTimeout(200);
-check("над дырой горит её контур", (await p.locator("[data-g=ring-slot]").count()) === 1, null);
+await p.mouse.move((await spots()).middle.x, (await spots()).middle.y, { steps: 8 });
 await p.mouse.up();
-// ПОКА ВЕРНУВШАЯСЯ КАРТА ЛЕТИТ, ОСТАЛЬНЫЕ НАРИСОВАНЫ КАЖДАЯ НА СВОЁМ МЕСТЕ. Летящую кисть не рисует —
-// и если она считает карты по укороченному списку, весь хвост занимает места соседей: круг моргает
-// чужими лицами и возвращается обратно, когда полёт кончился.
-await p.waitForTimeout(90);
+await p.waitForTimeout(800);
 {
-  const sp = (await spots()).piles.find((x) => x.id === "ring") ?? { ids: [], at: [], drew: [] };
-  const seen = sp.ids.map((id, i) => [id, sp.at[i], (sp.drew ?? [])[i]]).filter(([, , drew]) => drew !== null && drew !== undefined);
-  check(
-    "карта летит — остальные НАРИСОВАНЫ каждая на своём месте, а не на соседском",
-    seen.length >= 3 && seen.every(([, at, drew]) => at === drew),
-    seen,
-  );
+  const sp = (await spots()).piles.find((x) => x.id === "ring");
+  const turnOf = (one) => { const [x, y] = one.split(",").map(Number); return ((Math.atan2(x, -y) * 180) / Math.PI + 360) % 360; };
+  const turns = sp.at.map(turnOf);
+  const steps = turns.slice(1).map((one, i) => ((one - turns[i]) + 360) % 360);
+  check("вернули из руки — круг нормализовался: шаг между всеми один", steps.length >= 3 && steps.every((one) => Math.abs(one - steps[0]) < 0.5), { turns, steps });
+  check("…и голова осталась на якоре — стрелка не сдвигалась", Math.abs(((turns[0] - sp.spot.turn) + 540) % 360 - 180) < 0.5, { head: turns[0], turn: sp.spot.turn });
+  check("…а дыр в круге не осталось: шаг равен доле круга на число карт", Math.abs(steps[0] - (360 - 36) / Math.max(3, sp.count)) < 0.5, { step: steps[0], n: sp.count });
 }
-await p.waitForTimeout(700);
-const nowWho = await ringWho();
-const kept = Object.entries(whoBefore).filter(([id]) => id !== takenId).every(([id, at]) => nowWho[id] === at);
-check("вернули в дыру — КАЖДАЯ карта осталась на своём месте", kept, { was: whoBefore, now: nowWho, taken: takenId });
-check("…и вернувшаяся легла ровно в дыру", nowWho[takenId] === whoBefore[takenId], { was: whoBefore[takenId], now: nowWho[takenId] });
+
+// ПРИЦЕЛ В СТРЕЛКУ — КАРТА ВСТАЁТ В ГОЛОВУ. Без этой цели голова недостижима: наведение на карту
+// ставит ПОСЛЕ неё, и перед самой первой места не остаётся.
+{
+  const sp = (await spots()).piles.find((x) => x.id === "ring");
+  const k = (await spots()).k;
+  const mid = (await spots()).middle;
+  const onArrow = await onGlass({ x: sp.arrow.x, y: sp.arrow.y });
+  const d = (await spots()).deckTop;
+  await p.mouse.move(d.x, d.y);
+  await p.mouse.down();
+  await p.mouse.move(195, 800, { steps: 6 });
+  await p.mouse.up();
+  await p.waitForTimeout(500);
+  const box = await p.locator("[data-card]").last().boundingBox();
+  const id = await p.locator("[data-card]").last().getAttribute("data-card");
+  await p.mouse.move(box.x + box.width / 2, box.y + 8);
+  await p.mouse.down();
+  await aimAt(onArrow, (aim) => aim.kind === "deckAt" && aim.index === 0);
+  if (process.env.AIM) console.log("ARROW", JSON.stringify(sp.arrow), "onArrow", onArrow, "spots", JSON.stringify({ k: (await spots()).k, squash: (await spots()).squash, spin: (await spots()).spin, mid: (await spots()).middle }));
+  check("прицел встал на голову круга", (await spots()).aim.index === 0, (await spots()).aim);
+  check("над стрелкой горит контур головы", (await p.locator("[data-g=ring-slot]").count()) === 1, null);
+  await p.mouse.up();
+  await p.waitForTimeout(800);
+  check("наведи на стрелку — карта встала В ГОЛОВУ круга", (await ringIds())[0] === id, { ids: await ringIds(), id });
+}
 
 // ВЕРНУЛИ В КРУГ, НЕ ЦЕЛЯСЬ НИ ВО ЧТО: карта из круга и не уходила — садится на своё же место, и
 // НИКТО не двигается. Двигать карты стоит только там, где иначе не встать.
@@ -338,6 +387,28 @@ await p.waitForTimeout(500);
 const back = (await spots()).piles.find((p) => p.id === "ring");
 check("вернули в круг — карты на месте", back.ids.length === (await ringIds()).length && back.ids.length > 0, back.ids);
 check("КРУГ С МЕСТА НЕ СДВИНУЛСЯ", back.spot.x === before.x && back.spot.y === before.y, { before, now: back.spot });
+
+// ЧТО ВИДИТ ЧУЖОЙ ЭКРАН — правда СТОЛА, а не моя догадка.
+//
+// Всё выше меряно на своём экране, а он показывает и то, что сам себе предсказал. Второй зритель
+// ничего не трогал: у него только то, что прислал стол. Разошлись — значит, догадка врёт, и это
+// всплывёт у людей, а не здесь.
+const p2 = await browser.newPage({ viewport: { width: 390, height: 844 } });
+await p2.goto(`${base}/table/?room=${room}&name=B`);
+await p2.waitForSelector("[data-section]");
+await p2.waitForTimeout(1200);
+const his = JSON.parse(await p2.getAttribute("canvas", "data-spots")).piles.find((x) => x.id === "ring");
+const mine = (await spots()).piles.find((x) => x.id === "ring");
+check("чужой экран видит те же карты круга", JSON.stringify(his.ids) === JSON.stringify(mine.ids), { his: his.ids, mine: mine.ids });
+check("и на тех же местах — стол разложил, а не догадка", JSON.stringify(his.at) === JSON.stringify(mine.at), { his: his.at, mine: mine.at });
+{
+  const turnOf = (one) => { const [x, y] = (one ?? "").split(",").map(Number); return ((Math.atan2(x, -y) * 180) / Math.PI + 360) % 360; };
+  const turns = his.at.map(turnOf);
+  const steps = turns.slice(1).map((one, i) => ((one - turns[i]) + 360) % 360);
+  check("у КАЖДОЙ карты круга на чужом экране есть место", his.at.every((one) => typeof one === "string"), his.at);
+  check("СТОЛ НОРМАЛИЗУЕТ КРУГ САМ: шаг между всеми картами один", steps.length >= 2 && steps.every((one) => Number.isFinite(one) && Math.abs(one - steps[0]) < 0.5), { turns, steps });
+  check("…и это доля круга без стрелки, делённая на число карт", Math.abs(steps[0] - (360 - 36) / Math.max(3, his.count)) < 0.5, { step: steps[0], n: his.count });
+}
 
 await browser.close();
 let bad = 0;

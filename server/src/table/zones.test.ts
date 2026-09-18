@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Face } from "./contract.js";
-import { RING_ARROW, RING_CARDS, RING_HOME, RING_SPREAD, ringArrow, ringHoles, ringLay } from "./ring.js";
+import { RING_ARROW, RING_CARDS, RING_HOME, RING_SPREAD, ringArrow, ringLay } from "./ring.js";
 import { SANDBOX, type DeskRules } from "./rules.js";
 import { Table } from "./table.js";
 
@@ -121,15 +121,5 @@ describe("раскладка круга — метод, а не формула",
     expect(turned[0]!.y).toBeCloseTo(0, 6);
   });
 
-  it("ДЫРЫ ВИДНЫ ИЗ САМИХ КАРТ, а не хранятся", () => {
-    const four = ringLay(mid, 4);
-    // Сняли вторую — на её месте дыра, и она ровно там, где эта карта лежала.
-    const left = [four[0]!, four[2]!, four[3]!];
-    const holes = ringHoles(mid, left);
-    expect(holes).toHaveLength(1);
-    expect(holes[0]!.x).toBeCloseTo(four[1]!.x, 4);
-    expect(holes[0]!.y).toBeCloseTo(four[1]!.y, 4);
-    expect(ringHoles(mid, four), "полный круг дыр не имеет").toEqual([]);
-    expect(ringHoles(mid, [four[0]!]), "одна карта — шага не видно, дыр нет").toEqual([]);
-  });
+
 });

@@ -22,7 +22,7 @@ import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as 
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
-import { ringHoles, RING_SPREAD } from "../src/table/ring.js";
+import { RING_ARROW, RING_LEAST, ringPlace, RING_SPREAD, ringSpread } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
 import { HOST } from "./host.js";
 
@@ -1905,6 +1905,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // ПРИЦЕЛИЛСЯ В КАРТУ — контур между ней и следующей: встанешь после неё, и круг переложится ПОСЛЕ дропа.
     if (aim.kind === "deckAt") {
       const pile = pileOf(seen(), aim.pile);
+      // В ГОЛОВУ (прицел в стрелку) — контур встаёт на сам якорь: там и ляжет карта, отодвинув круг.
+      if (pile?.pose === "ring" && aim.index === 0) {
+        const at = ringPlace(pile, pile.turn ?? 0, ringSpread(Math.max(RING_LEAST, pile.cards.length + 1)));
+        const to = view.toGlass(at);
+        html += markHtml(w, h, view.rotation + at.angle, to.x, to.y, 31, view.squash, T.gold).replace('data-g="mark"', 'data-g="ring-slot"');
+      }
       const target = pile?.pose === "ring" ? pile.cards[aim.index - 1]?.at : undefined;
       if (pile && target) {
         const next = pile.cards[aim.index % pile.cards.length]?.at;
@@ -2490,7 +2496,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     canvas.dataset.spots = JSON.stringify({
       frame: lastFrame,
       k: view.k,
+      squash: +view.squash.toFixed(4),
+      spin: +view.rotation.toFixed(2),
       middle: { x: Math.round(middle.x), y: Math.round(middle.y) },
+      // ПРИЦЕЛ — так, как его понял экран, и середина несомой карты, по которой он считается. Целиться
+      // пикселями вслепую нельзя: держат карту за край, а метится её СЕРЕДИНА.
+      aim: drag ? { ...drag.target, carry: { x: Math.round(drag.x - drag.gx + drag.w / 2), y: Math.round(drag.y - drag.gy - drag.h * CARRY_CLEAR + drag.h / 2) }} : null,
       felt: s.felt.map((f) => {
         const at = view!.toGlass(view!.feltAt(f.id) ?? f);
         const bare = view!.toGlass(f);
@@ -3132,10 +3143,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
         if (pile.pose === "ring" && skip !== undefined && skip !== pile.id) return { kind: "back" };
         if (pile.pose === "ring" && skip === undefined) {
           // ТРИ ЦЕЛИ, И ТОЛЬКО ОДНА ИЗ НИХ ПЕРЕКЛАДЫВАЕТ КРУГ.
+          // СТРЕЛКА — ЦЕЛЬ: на неё кладут В ГОЛОВУ круга. Иначе голова недостижима вовсе: наведение
+          // на карту ставит ПОСЛЕ неё, и перед самой первой места не остаётся.
+          if (ringArrowUnder(pile, centre)) return { kind: "deckAt", pile: pile.id, index: 0 };
           const after = ringCardUnder(pile, centre);
           if (after >= 0) return { kind: "deckAt", pile: pile.id, index: after + 1 };
-          const hole = ringHoleUnder(pile, centre);
-          if (hole) return { kind: "deckSpot", pile: pile.id, at: hole };
+          const home = ringHomeUnder(pile, centre);
+          if (home) return { kind: "deckSpot", pile: pile.id, at: home };
         }
         return { kind: "deck", pile: pile.id };
       }
@@ -3179,31 +3193,39 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
   }
 
   /**
-   * СВОБОДНОЕ МЕСТО КРУГА ПОД ЭТОЙ ТОЧКОЙ — дыра от взятой карты, или `null`, если мимо.
+   * СВОЁ МЕСТО ПОД ЭТОЙ ТОЧКОЙ — то, с которого карту сняли ПРЯМО СЕЙЧАС, или `null`, если мимо.
    *
-   * Дыры нигде не хранятся: они видны из углов лежащих карт (`ringHoles`). Плюс место, с которого
-   * карту взяли ПРЯМО СЕЙЧАС: пока её несут, оно тоже свободно и ждёт её обратно.
+   * Других свободных мест круг целями не считает: положенная карта его нормализует, и целиться в дыру
+   * значило бы обещать то, чего не будет. Своё место — исключение: карта с него и не уходила.
    */
-  function ringHoleUnder(pile: Pile, at: { x: number; y: number }): Place3 | null {
-    if (!view) return null;
+  function ringHomeUnder(pile: Pile, at: { x: number; y: number }): Place3 | null {
+    if (!view || !drag?.ringHome || drag.from.in !== "deck" || drag.from.pile !== pile.id) return null;
     const p = view.toDesk(at);
-    const here = pile.cards.map((one) => one.at).filter((one): one is Place3 => one !== undefined);
-    const home = drag?.ringHome && drag.from.in === "deck" && drag.from.pile === pile.id
-      ? { x: drag.ringHome.at.x, y: drag.ringHome.at.y, angle: drag.ringHome.angle }
-      : null;
-    const holes = [...ringHoles(pile, here), ...(home ? [home] : [])];
-    let near: Place3 | null = null;
-    let best = Infinity;
-    for (const hole of holes) {
-      const far = Math.hypot(p.x - hole.x, p.y - hole.y);
-      // Своим считается место, если палец ближе к нему, чем полкарты: иначе это уже пустота круга.
-      if (far < FELT_CARD.w * 0.6 && far < best) {
-        best = far;
-        near = hole;
-      }
-    }
-    return near;
+    const home = { x: drag.ringHome.at.x, y: drag.ringHome.at.y, angle: drag.ringHome.angle };
+    // Своим считается место, если палец ближе к нему, чем полкарты: иначе это уже пустота круга.
+    return Math.hypot(p.x - home.x, p.y - home.y) < FELT_CARD.w * 0.6 ? home : null;
   }
+
+  /**
+   * ПАЛЕЦ НА СТРЕЛКЕ — ловится ПО ЕЁ ДУГЕ, а не по кружку вокруг острия.
+   *
+   * Стрелка стоит вплотную к голове, и круглая зона отняла бы у головы половину её самой. Дуга же
+   * кончается ровно там, где начинается голова: что внутри доли — стрелка, что за ней — карта.
+   */
+  function ringArrowUnder(pile: Pile, at: { x: number; y: number }): boolean {
+    if (!view || pile.cards.length === 0) return false;
+    const p = view.toDesk(at);
+    const away = Math.hypot(p.x - pile.x, p.y - pile.y);
+    const band = ringSpread(Math.max(RING_LEAST, pile.cards.length));
+    if (Math.abs(away - band) > FELT_CARD.h * 0.6) return false;
+    const turn = (Math.atan2(p.x - pile.x, pile.y - p.y) * 180) / Math.PI;
+    const from = ((turn - ((pile.turn ?? 0) - RING_ARROW)) % 360 + 360) % 360;
+    // ТОЛЬКО СЕРЕДИНА ДОЛИ: у самых её краёв стоят хвост и голова, и отдавать их стрелке нельзя — палец
+    // там метится в карту, а не в метку между картами.
+    return from > RING_ARROW * 0.25 && from < RING_ARROW * 0.75;
+  }
+
+
 
   /** Что под пальцем на сукне: сверху вниз, и с колоды — только верхняя. */
   function feltPick(x: number, y: number): { card: SeenCard; at: { x: number; y: number }; up: boolean; pile?: string; angle?: number } | null {

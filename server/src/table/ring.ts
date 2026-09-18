@@ -190,30 +190,5 @@ export function ringArrow(middle: { x: number; y: number }, n: number, anchor = 
 export const ringKeeps = (middle: { x: number; y: number }, at: { x: number; y: number }): boolean =>
   Math.hypot(at.x - middle.x, at.y - middle.y) <= RING_SPREAD;
 
-/**
- * ГДЕ В КРУГЕ ДЫРЫ — выводится ИЗ САМИХ КАРТ, а не хранится.
- *
- * Шаг виден по ближайшим соседям: самый маленький угол между разложенными картами и есть шаг круга.
- * Всё, что кратно ему и пусто, — дыра, оставшаяся от взятой карты. Поэтому дыры не надо ни писать, ни
- * чистить: они исчезают вместе с перекладыванием, само собой.
- */
-export function ringHoles(middle: { x: number; y: number }, laid: readonly RingPlace[]): RingPlace[] {
-  if (laid.length < 2) return [];
-  const turns = laid.map((one) => norm((Math.atan2(one.x - middle.x, middle.y - one.y) * 180) / Math.PI)).sort((a, b) => a - b);
-  const gaps = turns.map((one, i) => norm(turns[(i + 1) % turns.length]! - one) || 360);
-  const step = Math.min(...gaps);
-  if (step < 1) return [];
-  const spread = Math.hypot(laid[0]!.x - middle.x, laid[0]!.y - middle.y);
-  const out: RingPlace[] = [];
-  for (const [i, gap] of gaps.entries()) {
-    // Дыр между соседями столько, сколько целых шагов в промежутке сверх одного.
-    for (let k = 1; k < Math.round(gap / step); k += 1) {
-      const turn = norm(turns[i]! + step * k);
-      const at = ringSpot(middle, turn, spread);
-      out.push({ x: at.x, y: at.y, angle: ringFace(turn) });
-    }
-  }
-  return out;
-}
 
 const norm = (deg: number): number => ((deg % 360) + 360) % 360;

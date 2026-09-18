@@ -80,8 +80,8 @@ export interface FeltView {
   feltAt(id: string): { x: number; y: number } | undefined;
   /** Куда КАЖДАЯ карта стопки легла на самом деле, по её id: окно из кисти в прогон. */
   drew: Record<string, { x: number; y: number; angle: number }>;
-  /** Где нарисована стрелка круга: угол её острия и радиус. Нет карт — нет и стрелки. */
-  arrows: Record<string, { turn: number; spread: number }>;
+  /** Где нарисована стрелка круга: середина её дуги на столе, угол и радиус. Нет карт — нет стрелки. */
+  arrows: Record<string, { turn: number; spread: number; x: number; y: number }>;
 }
 
 /**
@@ -543,7 +543,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     return { x: (spot?.x ?? 0) + up.x, y: (spot?.y ?? 0) + up.y };
   };
   const drew: Record<string, { x: number; y: number; angle: number }> = {};
-  const arrows: Record<string, { turn: number; spread: number }> = {};
+  const arrows: Record<string, { turn: number; spread: number; x: number; y: number }> = {};
   const levels = feltLevels(o.felt);
   const feltAt = (id: string): Point | undefined => {
     const one = o.felt.find((f) => f.id === id);
@@ -636,7 +636,8 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       if (pile.cards.length > 0) {
         const spread = ringSpread(Math.max(RING_LEAST, pile.cards.length));
         const turn = (pile.turn ?? 0) - RING_ARROW / 2;
-        arrows[pile.id] = { turn, spread };
+        const rad = (turn * Math.PI) / 180;
+        arrows[pile.id] = { turn, spread, x: pile.x + Math.sin(rad) * spread, y: pile.y - Math.cos(rad) * spread };
         ringArrowArc(g, turn, spread);
       }
       g.restore();
