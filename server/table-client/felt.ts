@@ -472,7 +472,7 @@ export interface FeltScene {
   /** Карта переворачивается: доля пути и какой она была до (сторона и лицо). */
   turning?: (id: string) => { p: number; up: boolean; face?: Face } | undefined;
   /** Стопки в порядке «кто сверху»: место, поворот, что под ней и карты снизу вверх. */
-  piles: (Point & { id: string; angle: number; pose?: ZonePose; turn?: number; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean; at?: Laid }[] })[];
+  piles: (Point & { id: string; angle: number; pose?: ZonePose; turn?: number; carried?: boolean; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean; at?: Laid }[] })[];
   felt: FeltItem[];
   /** Id вещи → цвет того, кто её сейчас держит (кроме меня). */
   held: Record<string, string>;
@@ -633,7 +633,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       g.strokeStyle = "rgba(245,234,208,.75)";
       g.stroke();
       // СТРЕЛКА СТОИТ ПЕРЕД ГОЛОВОЙ — и только когда в круге есть карты: показывать не на что.
-      if (pile.cards.length > 0) {
+      if (pile.cards.length > 0 || pile.carried) {
         const spread = ringSpread(Math.max(RING_LEAST, pile.cards.length));
         const turn = ringArrowTurn(pile.turn ?? 0, spread);
         const rad = (turn * Math.PI) / 180;

@@ -172,12 +172,12 @@ describe("конфиг стола мастодонта", () => {
     expect(krestDesk().deckForever).toBe(false);
   });
 
-  it("грип кольца живой только у админа и у закрывшего круг", () => {
+  it("ГРИП КОЛЬЦА ЖИВОЙ У ВСЕХ: «сгребает закрывший круг» — правило игры без читерства, а её ещё нет", () => {
     const desk = krestDesk(() => ({ turn: null, closer: "Боря" }));
-    expect(allowed(desk.says(ask, "pile.grip", { by: "админ", pile: RING }))).toBe(true);
-    expect(allowed(desk.says(ask, "pile.grip", { by: "Боря", pile: RING }))).toBe(true);
-    expect(allowed(desk.says(ask, "pile.grip", { by: "Вика", pile: RING }))).toBe(false);
-    expect(allowed(desk.says(ask, "pile.grip", { by: "Вика", pile: "другая-стопка" })), "обычные стопки живут по-старому").toBe(true);
+    for (const who of ["админ", "Боря", "Вика"]) {
+      expect(allowed(desk.says(ask, "pile.grip", { by: who, pile: RING })), who).toBe(true);
+    }
+    expect(allowed(desk.says(ask, "pile.grip", { by: "Вика", pile: "другая-стопка" })), "и обычные стопки тоже").toBe(true);
   });
 });
 

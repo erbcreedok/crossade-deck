@@ -161,10 +161,8 @@ export function krestDesk(judge: () => { turn: string | null; closer: string | n
         if (now === null || now.turn === null) return yes;
         return move.by === now.turn ? yes : no("not-your-turn");
       }
-      // СГРЕБАЕТ КОЛЬЦО ТОТ, КТО ЗАКРЫЛ КРУГ, — и распорядитель стола.
-      if (key === "pile.grip" && move.pile === RING) {
-        return ask.admin(move.by) || move.by === (now?.closer ?? null) ? yes : no("not-yours");
-      }
+      // КТО СГРЕБАЕТ КОЛЬЦО — ПОКА НЕ СПРАШИВАЕМ. Правило «только закрывший круг» живёт не здесь, а в
+      // игре без читерства, которой ещё нет: до неё стол — раскладка руками, и запирать грип не за что.
       return yes;
     },
   };

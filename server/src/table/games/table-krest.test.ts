@@ -85,14 +85,12 @@ describe("стол крестового: кольцо стережёт очер�
     expect("refused" in allowed ? allowed.refused : "ok", `${turn} ходит в свой черёд`).toBe("ok");
   });
 
-  it("грип кольца: админу можно всегда, прочим — только закрывшему круг", () => {
+  it("ГРИП КОЛЬЦА ЖИВОЙ У ВСЕХ, пока нет игры без читерства", () => {
     const k = krestTable(["Аня", "Боря"]);
     k.open(k.chairOf("Аня"));
     const desk = deskOf("krest", () => ({ turn: null, closer: "Боря" }));
     const ask = { face: () => undefined, pile: () => [], hand: () => [], admin: (who: string) => who === "Аня" , croupier: () => false };
-    expect(allowed(desk.says(ask, "pile.grip", { by: "Аня", pile: RING })), "админ").toBe(true);
-    expect(allowed(desk.says(ask, "pile.grip", { by: "Боря", pile: RING })), "закрыл круг").toBe(true);
-    expect(allowed(desk.says(ask, "pile.grip", { by: "Вика", pile: RING })), "прочие смотрят счётчик").toBe(false);
+    for (const who of ["Аня", "Боря", "Вика"]) expect(allowed(desk.says(ask, "pile.grip", { by: who, pile: RING })), who).toBe(true);
   });
 
   it("кольцо стоит на столе с самого начала и пустым", () => {

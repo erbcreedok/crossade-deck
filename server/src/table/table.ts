@@ -177,6 +177,7 @@ export class Table {
         x: zone.x,
         y: zone.y,
         pose: zone.pose,
+        zone: true,
         ...(zone.name ? { name: zone.name } : {}),
         ...(zone.least === undefined ? {} : { least: zone.least }),
         ...(zone.most === undefined ? {} : { most: zone.most }),

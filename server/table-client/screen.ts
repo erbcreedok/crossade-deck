@@ -582,10 +582,30 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     ({ ...s, piles: s.piles.map((p) => (p.id === id ? change(p) : p)) });
 
   /** Стопка встаёт сразу, где отпущена, и поверх остальных; сервер прижмёт к кромке так же (`FELT_REACH`). */
+  /**
+   * ВЫСЫПАТЬ ОЧЕРЧЕННОЕ МЕСТО — догадка о том, что сделает стол: карты уходят новой стопкой туда, где
+   * их отпустили, а место остаётся пустым там, где очерчено.
+   */
+  function guessSpill(pile: string, at: { x: number; y: number }, angle: number): void {
+    const born = `${pile}:спуск`;
+    guess(`deck:${pile}:move`, { t: "deckMove", pile, x: at.x, y: at.y, angle },
+      (st) => {
+        const one = pileOf(st, pile);
+        if (!one || one.cards.length === 0) return st;
+        const spilled = { ...one, id: born, ...at, angle, zone: undefined, pose: undefined, name: undefined, turn: undefined, forever: false, below: st.felt.map((c) => c.id), cards: one.cards.map((c) => ({ ...c, at: undefined })) };
+        return { ...st, piles: [...st.piles.map((p) => (p.id === pile ? { ...p, cards: [] } : p)), spilled] };
+      },
+      (st) => (pileOf(st, pile)?.cards.length ?? 0) === 0);
+  }
+
   function guessDeckMove(pile: string, x: number, y: number, angle: number): void {
     const far = Math.hypot(x, y);
     const k = far > FELT_REACH ? FELT_REACH / far : 1;
     const at = { x: x * k, y: y * k };
+    // ОЧЕРЧЕННОЕ МЕСТО НЕ ПЕРЕЕЗЖАЕТ, А ВЫСЫПАЕТСЯ — так делает стол, так обязана гадать и догадка.
+    // Иначе круг на миг уезжает под палец и возвращается ответом стола: это и выглядело как «центр
+    // круга сместился туда, куда я бросил».
+    if (pileOf(truth(), pile)?.zone) return guessSpill(pile, at, angle);
     guess(`deck:${pile}:move`, { t: "deckMove", pile, x: at.x, y: at.y, angle },
       (st) => {
         const one = pileOf(st, pile);
@@ -2491,7 +2511,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     syncCamera();
     art.warm(s.rules);
     view = drawFelt(canvas, {
-      W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), turning, piles: s.piles.filter((p) => !deckCarry(s, p.id)), felt: s.felt, held: heldByOthers(s), picked: Object.fromEntries(Object.keys(s.picks ?? {}).map((id) => [id, pickInk(s, id)!])), hidden: flying,
+      W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), turning, piles: s.piles.flatMap((p) => {
+        if (!deckCarry(s, p.id)) return [p];
+        // ОЧЕРЧЕННОЕ МЕСТО НЕ УЛЕТАЕТ ВМЕСТЕ С КАРТАМИ. За грип тянут его карты, а сам круг остаётся
+        // виден и пуст — и стрелка с ним, пока карты в воздухе: они ещё могут вернуться.
+        return p.zone ? [{ ...p, cards: [], carried: true }] : [];
+      }), felt: s.felt, held: heldByOthers(s), picked: Object.fromEntries(Object.keys(s.picks ?? {}).map((id) => [id, pickInk(s, id)!])), hidden: flying,
       view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
       rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
     });

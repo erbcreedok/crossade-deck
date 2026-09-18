@@ -393,6 +393,15 @@ const ring = 1.5 * (await spots()).k;
 check("стопка круга поднята в воздух вся", flight.n === (await ringIds()).length, flight);
 check("карты круга слетелись под палец", flight.far >= 0 && flight.far < ring * 0.5, { flight, ring });
 check("а на их местах остались контуры", marks === (await ringIds()).length, { marks, n: (await ringIds()).length });
+// КРУГ ВИДЕН ВСЕГДА — и пока его карты в воздухе. Он очерчен на сукне, а не нарисован «под стопкой»:
+// уехать вместе с картами он не может, и стрелка с ним — карты ещё могут вернуться.
+{
+  const sp = (await spots()).piles.find((x) => x.id === "ring");
+  // Смотрим на НАРИСОВАННОЕ: стрелку кисть отдаёт только тогда, когда сам круг до неё дошёл. Пустое
+  // состояние зоны тут ничего не доказывает — зона в состоянии есть всегда.
+  check("круг НАРИСОВАН, пока его карты несут", sp?.arrow !== null && sp?.arrow !== undefined, sp?.arrow ?? null);
+  check("…и нарисован там, где очерчен, а не под пальцем", sp?.arrow && Math.abs(Math.hypot(sp.arrow.x, sp.arrow.y) - sp.arrow.spread) < 0.01, sp?.arrow ?? null);
+}
 
 // Вернули туда же — круг цел и стоит там же, где стоял.
 await p.mouse.move(grip.x, grip.y, { steps: 8 });
@@ -550,6 +559,27 @@ check("и на тех же местах — стол разложил, а не �
   check("у КАЖДОЙ карты круга на чужом экране есть место", his.at.every((one) => typeof one === "string"), his.at);
   check("СТОЛ НОРМАЛИЗУЕТ КРУГ САМ: шаг между всеми картами один", steps.length >= 2 && steps.every((one) => Number.isFinite(one) && Math.abs(one - steps[0]) < 0.5), { turns, steps });
   check("…и это доля круга без стрелки, делённая на число карт", Math.abs(steps[0] - (360 - 36) / Math.max(3, his.count)) < 0.5, { step: steps[0], n: his.count });
+}
+
+// ВЫСЫПАЛИ НА СУКНО — карты легли новой стопкой ТАМ, а круг остался на месте и пуст. И это должно
+// быть видно СРАЗУ, ещё до ответа стола: догадка обязана высыпать так же, как высыпает стол.
+{
+  const g = await ringGrip();
+  await p.mouse.move(g.x, g.y);
+  await p.mouse.down();
+  await p.mouse.move(g.x + 120, g.y + 150, { steps: 10 });
+  await p.waitForTimeout(350);
+  await p.mouse.up();
+  await p.waitForTimeout(120);
+  const soon = (await spots()).piles.find((x) => x.id === "ring");
+  check("сразу после дропа круг стоит, где очерчен", soon.spot.x === 0 && soon.spot.y === 0, soon.spot);
+  check("…и он пуст: карты ушли новой стопкой", soon.count === 0, soon.count);
+  await p.waitForTimeout(800);
+  const now = (await spots()).piles.find((x) => x.id === "ring");
+  check("и после ответа стола — там же и пуст", now.spot.x === 0 && now.spot.y === 0 && now.count === 0, { spot: now.spot, count: now.count });
+  check("а стрелки больше нет: круг опустел", now.arrow === null || now.arrow === undefined, now.arrow);
+  const born = (await spots()).piles.filter((x) => x.id !== "ring" && x.id !== "deck" && x.count > 0);
+  check("высыпанная стопка родилась на сукне", born.length > 0, born.map((one) => one.id));
 }
 
 await browser.close();
