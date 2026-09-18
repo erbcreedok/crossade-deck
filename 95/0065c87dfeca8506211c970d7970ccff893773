@@ -1,0 +1,29 @@
+.night/log.md
+  s_9ed0da107cbc4a::t_fab18bd3b85504 369
+server/scripts/lag.mjs
+  s_9ed0da107cbc4a::t_846b8494026dbd 1-25
+server/scripts/tableRing.mjs
+  s_9ed0da107cbc4a::t_04facd37b82a5a 433
+server/src/table/patch.test.ts
+  s_9ed0da107cbc4a::t_4cd7c4369a6d92 8,81-95
+server/src/table/patch.ts
+  s_9ed0da107cbc4a::t_589f399097aad0 204-207
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_12ae03e7df309c 1932-1945
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "950065c87dfeca8506211c970d7970ccff893773",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
