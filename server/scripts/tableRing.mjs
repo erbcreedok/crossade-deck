@@ -184,8 +184,14 @@ check("а у колоды ручка на месте всегда", (await grips
   const turnOf = ([x, y]) => ((Math.atan2(x, -y) * 180) / Math.PI + 360) % 360;
   const head = turnOf(cards[0]);
   const gap = ((head - sp.arrow.turn) + 360) % 360;
-  check("стрелка нарисована и стоит перед головой", sp.arrow !== null && Math.abs(gap - 18) < 1.5, { arrow: sp.arrow, head });
+  const halfOf = (away) => (Math.asin(Math.min(1, 1.15 / 2 / away)) * 180) / Math.PI;
+  check("стрелка нарисована и стоит перед головой", sp.arrow !== null && Math.abs(gap - (18 + halfOf(sp.arrow.spread))) < 1.5, { arrow: sp.arrow, head, gap });
   check("и лежит на радиусе карт", Math.abs(sp.arrow.spread - Math.hypot(cards[0][0], cards[0][1])) < 0.01, { arrow: sp.arrow, away: Math.hypot(cards[0][0], cards[0][1]) });
+  // КАРТА НЕ НАПОЛЗАЕТ НА СТРЕЛКУ. Карта шире своей середины: если доля стрелки отмеряна от середины
+  // головы, край головы ложится прямо на стрелку — её и не видно. Меряем от КРАЯ.
+  const half = halfOf(sp.arrow.spread);
+  const near = Math.min(...cards.map((c) => Math.abs(((turnOf(c) - sp.arrow.turn + 540) % 360) - 180)));
+  check("край ближней карты не наползает на стрелку", near >= half + 36 / 2 - 0.5, { near, need: half + 18, half });
 }
 
 // ВЗЯЛИ КАРТУ — ОСТАЛЬНЫЕ НЕ ШЕЛОХНУЛИСЬ. Место записано у самой карты, и двигать соседей некому.
@@ -226,7 +232,12 @@ await p.waitForTimeout(800);
   const steps = turns.slice(1).map((one, i) => ((one - turns[i]) + 360) % 360);
   check("вернули из руки — круг нормализовался: шаг между всеми один", steps.length >= 3 && steps.every((one) => Math.abs(one - steps[0]) < 0.5), { turns, steps });
   check("…и голова осталась на якоре — стрелка не сдвигалась", Math.abs(((turns[0] - sp.spot.turn) + 540) % 360 - 180) < 0.5, { head: turns[0], turn: sp.spot.turn });
-  check("…а дыр в круге не осталось: шаг равен доле круга на число карт", Math.abs(steps[0] - (360 - 36) / Math.max(3, sp.count)) < 0.5, { step: steps[0], n: sp.count });
+  // Шаг — это круг без РАЗРЫВА, делённый на промежутки между картами. Разрыв — доля стрелки и по
+  // половине карты по краям: считаем его по тому же радиусу, на котором карты и лежат.
+  const away = Math.hypot(...sp.at[0].split(",").slice(0, 2).map(Number));
+  const gapNow = 36 + 2 * ((Math.asin(Math.min(1, 1.15 / 2 / away)) * 180) / Math.PI);
+  const slots = Math.max(3, sp.count);
+  check("…а дыр в круге не осталось: шаг — это круг без разрыва на число промежутков", Math.abs(steps[0] - (360 - gapNow) / (slots - 1)) < 0.5, { step: steps[0], n: sp.count, gapNow });
 }
 
 // ПРИЦЕЛ В СТРЕЛКУ — КАРТА ВСТАЁТ В ГОЛОВУ. Без этой цели голова недостижима: наведение на карту

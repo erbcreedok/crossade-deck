@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { applyPatch } from "./patch.js";
 import { DEFAULT_RULES, DEFAULT_SPOT, type Snapshot } from "./contract.js";
+import { ringStep } from "./ring.js";
 
 describe("зона раскладывает и в разборе патча — тем же методом, что и стол", () => {
   const ring = (cards: { id: string; at?: { x: number; y: number; angle: number } }[]): Snapshot => ({
@@ -61,7 +62,7 @@ describe("зона раскладывает и в разборе патча — 
     expect(laid[0]!.at!.x, "голова осталась на якоре").toBeCloseTo(1.5, 4);
     expect(laid[0]!.at!.y).toBeCloseTo(0, 4);
     const turn = (p: { x: number; y: number }) => ((Math.atan2(p.x, -p.y) * 180) / Math.PI + 360) % 360;
-    expect(turn(laid[1]!.at!), "вторая — на шаг от якоря").toBeCloseTo(90 + (360 - 36) / 3, 3);
+    expect(turn(laid[1]!.at!), "вторая — на шаг от якоря").toBeCloseTo(90 + ringStep(3), 3);
   });
 
   it("УНЕСЛИ ГОЛОВУ — догадка двигает стрелку, а не карты", () => {

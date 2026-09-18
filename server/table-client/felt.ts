@@ -6,7 +6,7 @@
 
 import { apply, invert, type Transform } from "../../game-kit/src/core/transform.js";
 import type { Face, ZonePose } from "../src/table/contract.js";
-import { CROUPIER_RADIUS, RING_ARROW, RING_LEAST, RING_SPREAD, ringSpread, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
+import { CROUPIER_RADIUS, RING_ARROW, ringArrowTurn, RING_LEAST, RING_SPREAD, ringSpread, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
 import type { Laid } from "../src/table/contract.js";
 
 export interface Pose {
@@ -635,7 +635,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       // СТРЕЛКА СТОИТ ПЕРЕД ГОЛОВОЙ — и только когда в круге есть карты: показывать не на что.
       if (pile.cards.length > 0) {
         const spread = ringSpread(Math.max(RING_LEAST, pile.cards.length));
-        const turn = (pile.turn ?? 0) - RING_ARROW / 2;
+        const turn = ringArrowTurn(pile.turn ?? 0, spread);
         const rad = (turn * Math.PI) / 180;
         arrows[pile.id] = { turn, spread, x: pile.x + Math.sin(rad) * spread, y: pile.y - Math.cos(rad) * spread };
         ringArrowArc(g, turn, spread);

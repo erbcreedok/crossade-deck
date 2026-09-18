@@ -94,8 +94,26 @@ export const RING_LEAST = 3;
  */
 export const RING_ARROW = 36;
 
-/** ШАГ МЕЖДУ СОСЕДЯМИ ПО КРУГУ, в градусах: карты делят поровну ВСЁ, кроме доли стрелки. */
-export const ringStep = (slots: number): number => (360 - RING_ARROW) / Math.max(1, slots);
+/**
+ * ПОЛОВИНА КАРТЫ В ГРАДУСАХ — сколько дуги занимает сама карта, лёжа на этом радиусе.
+ *
+ * Без этого числа доля стрелки считалась бы от СЕРЕДИНЫ соседней карты, а карта шире своей середины:
+ * её край наползал бы на стрелку тем сильнее, чем ближе круг к центру.
+ */
+export const ringCardHalf = (spread: number): number =>
+  (Math.asin(Math.min(1, (CARD_W * APART) / 2 / Math.max(0.001, spread))) * 180) / Math.PI;
+
+/**
+ * ШАГ МЕЖДУ СОСЕДЯМИ ПО КРУГУ, в градусах.
+ *
+ * Карты делят всё, кроме РАЗРЫВА, а разрыв — это доля стрелки плюс по половине карты с каждой его
+ * стороны: стрелке нужно её собственное место, а не место под краем головы.
+ */
+export const ringStep = (slots: number, spread = ringSpread(slots)): number =>
+  slots < 2 ? 0 : (360 - ringGap(spread)) / (slots - 1);
+
+/** ВЕСЬ РАЗРЫВ КРУГА: доля стрелки и по половине карты по краям — от середины хвоста до середины головы. */
+export const ringGap = (spread: number): number => RING_ARROW + 2 * ringCardHalf(spread);
 
 /**
  * КАК ДАЛЕКО ОТ СЕРЕДИНЫ ЛЕЖИТ КРУГ.
@@ -107,7 +125,9 @@ export const ringStep = (slots: number): number => (360 - RING_ARROW) / Math.max
 export const RING_HOME = 1.5;
 
 export function ringSpread(slots: number): number {
-  const half = (ringStep(slots) * Math.PI) / 360;
+  // Тесноту меряем по РОВНОМУ делению круга: это первое приближение, от которого дальше считается
+  // настоящий шаг с разрывом. Гнаться за точкой покоя незачем — разрыв только раздвигает карты.
+  const half = (((360 - RING_ARROW) / Math.max(1, slots)) * Math.PI) / 360;
   const need = slots < 2 ? 0 : (CARD_W * APART) / (2 * Math.sin(half));
   return Math.min(RING_CARDS, Math.max(RING_HOME, need));
 }
@@ -153,8 +173,8 @@ export interface RingPlace {
  */
 export function ringLay(middle: { x: number; y: number }, n: number, anchor = 0): RingPlace[] {
   const slots = Math.max(RING_LEAST, n);
-  const step = ringStep(slots);
   const spread = ringSpread(slots);
+  const step = ringStep(slots, spread);
   return Array.from({ length: n }, (_, i) => ringPlace(middle, anchor + step * i, spread));
 }
 
@@ -165,12 +185,12 @@ export function ringPlace(middle: { x: number; y: number }, turn: number, spread
 }
 
 /**
- * КУДА СМОТРИТ СТРЕЛКА — на середину своей доли, ровно перед головой.
+ * КУДА СМОТРИТ СТРЕЛКА — на середину СВОЕЙ доли, отступив от головы на её половину.
  *
- * Голова круга стоит на самом якоре, а доля стрелки лежит ПЕРЕД ним: так стрелка указывает на голову
- * и одновременно закрывает собой разрыв между хвостом и головой.
+ * Голова стоит на самом якоре, а стрелка — перед ней, за краем её карты: иначе голова накрывала бы
+ * стрелку собой, и разрыва не было бы видно вовсе.
  */
-export const ringArrowTurn = (anchor: number): number => anchor - RING_ARROW / 2;
+export const ringArrowTurn = (anchor: number, spread: number): number => anchor - ringCardHalf(spread) - RING_ARROW / 2;
 
 /**
  * ГДЕ СТРЕЛКА ЛЕЖИТ НА СТОЛЕ — на том же радиусе, что и карты этого круга.
@@ -179,7 +199,8 @@ export const ringArrowTurn = (anchor: number): number => anchor - RING_ARROW / 2
  * вместе с картами и никогда не остаётся одна посреди пустого кольца.
  */
 export function ringArrow(middle: { x: number; y: number }, n: number, anchor = 0): RingPlace {
-  return ringPlace(middle, ringArrowTurn(anchor), ringSpread(Math.max(RING_LEAST, n)));
+  const spread = ringSpread(Math.max(RING_LEAST, n));
+  return ringPlace(middle, ringArrowTurn(anchor, spread), spread);
 }
 
 /**

@@ -22,7 +22,7 @@ import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as 
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
-import { RING_ARROW, RING_LEAST, ringLay, ringPlace, RING_SPREAD, ringSpread } from "../src/table/ring.js";
+import { RING_ARROW, ringArrowTurn, RING_LEAST, ringLay, ringPlace, RING_SPREAD, ringSpread } from "../src/table/ring.js";
 import type { RingPlace as Laid3 } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
 import { HOST } from "./host.js";
@@ -3270,7 +3270,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const band = ringSpread(Math.max(RING_LEAST, pile.cards.length));
     if (Math.abs(away - band) > FELT_CARD.h * 0.6) return false;
     const turn = (Math.atan2(p.x - pile.x, pile.y - p.y) * 180) / Math.PI;
-    const from = ((turn - ((pile.turn ?? 0) - RING_ARROW)) % 360 + 360) % 360;
+    // Доля стрелки отсчитывается от ЕЁ середины, а та отступила от головы на половину карты.
+    const mid = ringArrowTurn(pile.turn ?? 0, band);
+    const from = ((turn - (mid - RING_ARROW / 2)) % 360 + 360) % 360;
     // ТОЛЬКО СЕРЕДИНА ДОЛИ: у самых её краёв стоят хвост и голова, и отдавать их стрелке нельзя — палец
     // там метится в карту, а не в метку между картами.
     const held = drag?.target.kind === "deckAt" && drag.target.pile === pile.id && drag.target.index === 0;
