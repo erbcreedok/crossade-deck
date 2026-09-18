@@ -64,6 +64,11 @@ const HUD_CARDS = 6, HUD_GAP = 0.06, HUD_MARGIN = 0.14, HAND_PAD = 0.16, TUCK_TI
 const TIP_TUCK = 0.28;
 /** На сколько несомая карта висит выше того места, куда летит — доля её высоты. */
 const CARRY_CLEAR = 0.32;
+/**
+ * НАСКОЛЬКО ЦЕЛЬ КРУГА ДЕРЖИТ ПАЛЕЦ КРЕПЧЕ, ЧЕМ ЛОВИТ. Один порог на вход и на выход — это дрожь:
+ * стоит пальцу замереть на границе, и круг перекладывается туда-сюда на каждый пиксель.
+ */
+const RING_STICK = 1.35;
 const HAND_ROOM = 0.6 / 4 + 0.06;
 const HUD_UNIT_FRACTION = 0.25;
 /**
@@ -3222,13 +3227,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const p = view.toDesk(at);
     const n = pile.cards.length;
     for (let i = n - 1; i >= 0; i -= 1) {
-      const spot = view.deckAt(pile.id, i, n);
-      const t = (-view.deckFacing(pile.id, i, n) * Math.PI) / 180;
+      // МЕСТО БЕРЁТСЯ У САМОЙ КАРТЫ, а не у кисти: кисть рисует уже с превью, и цель, выведенная из
+      // превью, двигала бы карты, из которых сама же и выводится, — палец попал бы в петлю.
+      const spot = pile.cards[i]!.at ?? view.deckAt(pile.id, i, n);
+      const t = (-(pile.cards[i]!.at?.angle ?? view.deckFacing(pile.id, i, n)) * Math.PI) / 180;
       const dx = p.x - spot.x;
       const dy = p.y - spot.y;
       const lx = dx * Math.cos(t) - dy * Math.sin(t);
       const ly = dx * Math.sin(t) + dy * Math.cos(t);
-      if (Math.abs(lx) <= FELT_CARD.w / 2 && Math.abs(ly) <= FELT_CARD.h / 2) return i;
+      // ПРИЛИПАНИЕ: своя цель держит палец дольше, чем ловит чужой. Пороги на вход и на выход равные
+      // означали бы дрожь — на самой границе круг перекладывался бы туда-сюда на каждый пиксель.
+      const held = drag?.target.kind === "deckAt" && drag.target.pile === pile.id && drag.target.index === i + 1 ? RING_STICK : 1;
+      if (Math.abs(lx) <= (FELT_CARD.w / 2) * held && Math.abs(ly) <= (FELT_CARD.h / 2) * held) return i;
     }
     return -1;
   }
@@ -3263,7 +3273,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const from = ((turn - ((pile.turn ?? 0) - RING_ARROW)) % 360 + 360) % 360;
     // ТОЛЬКО СЕРЕДИНА ДОЛИ: у самых её краёв стоят хвост и голова, и отдавать их стрелке нельзя — палец
     // там метится в карту, а не в метку между картами.
-    return from > RING_ARROW * 0.25 && from < RING_ARROW * 0.75;
+    const held = drag?.target.kind === "deckAt" && drag.target.pile === pile.id && drag.target.index === 0;
+    const edge = held ? 0.25 / RING_STICK : 0.25;
+    return from > RING_ARROW * edge && from < RING_ARROW * (1 - edge);
   }
 
 

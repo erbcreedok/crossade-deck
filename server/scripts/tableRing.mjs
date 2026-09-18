@@ -58,10 +58,11 @@ const aimAt = async (to, want) => {
       await p.mouse.move(to.x + dx, to.y + dy, { steps: 2 });
       await p.waitForTimeout(60);
       const aim = (await spots()).aim;
-      if (!want || (aim && want(aim))) return aim;
+      // Возвращаем ВМЕСТЕ с точкой, на которой остановились: сторожам дрожания нужна именно она.
+      if (!want || (aim && want(aim))) return { ...aim, at: { x: to.x + dx, y: to.y + dy } };
     }
   }
-  return (await spots()).aim;
+  return { ...(await spots()).aim, at: { ...to } };
 };
 
 const spots = async () => JSON.parse(await p.getAttribute("canvas", "data-spots"));
@@ -441,6 +442,53 @@ check("КРУГ С МЕСТА НЕ СДВИНУЛСЯ", back.spot.x === before.x
   await p.mouse.move(360, 780, { steps: 10 });
   await p.waitForTimeout(500);
   check("увёл прочь — круг вернулся как был", JSON.stringify(await ringAts()) === JSON.stringify(rest), { rest, now: await ringAts() });
+  await p.mouse.up();
+  await p.waitForTimeout(600);
+}
+
+// ЦЕЛЬ ПРИЛИПАЕТ: палец дрожит на границе между двумя целями — круг не должен перекладываться на
+// каждый пиксель. Ведём палец туда-сюда через границу малым шагом и считаем, сколько раз передумали.
+{
+  const d = (await spots()).deckTop;
+  await p.mouse.move(d.x, d.y);
+  await p.mouse.down();
+  await p.mouse.move(195, 800, { steps: 6 });
+  await p.mouse.up();
+  await p.waitForTimeout(500);
+  const box = await p.locator("[data-card]").last().boundingBox();
+  await p.mouse.move(box.x + box.width / 2, box.y + 8);
+  await p.mouse.down();
+  // ГДЕ ЦЕЛЬ МЕНЯЕТСЯ — ищем ПО САМОЙ ЦЕЛИ, шагая пальцем от карты к середине между соседями.
+  // Палец и прицел — разные точки (карту держат за край), поэтому грань считается по тому, что
+  // говорит экран, а не по расстояниям на стекле.
+  const a = await ringAt(1);
+  const b = await ringAt(2);
+  // Путь ведём ДО СОСЕДНЕЙ КАРТЫ, а не до середины между ними: палец и прицел разъезжаются, и на
+  // коротком отрезке грань может не попасться вовсе.
+  const mid = { x: b.x, y: b.y };
+  const steps = [];
+  for (let i = 0; i <= 30; i += 1) {
+    const at = { x: Math.round(a.x + ((mid.x - a.x) * i) / 30), y: Math.round(a.y + ((mid.y - a.y) * i) / 30) };
+    await p.mouse.move(at.x, at.y, { steps: 1 });
+    await p.waitForTimeout(35);
+    const aim = (await spots()).aim;
+    steps.push({ at, key: `${aim.kind}:${aim.index ?? ""}` });
+  }
+  const flip = steps.findIndex((one, i) => i > 0 && one.key !== steps[i - 1].key);
+  check("на пути от карты к соседке цель хоть раз меняется", flip > 0, steps.map((one) => one.key));
+  const seen = new Set();
+  if (flip > 0) {
+    // Дрожим ровно на грани: два соседних положения пальца, между которыми цель и менялась.
+    for (let i = 0; i < 12; i += 1) {
+      const at = steps[flip - (i % 2)].at;
+      await p.mouse.move(at.x, at.y, { steps: 1 });
+      await p.waitForTimeout(40);
+      const aim = (await spots()).aim;
+      seen.add(`${aim.kind}:${aim.index ?? ""}`);
+    }
+  }
+  check("палец дрожит на границе — цель НЕ мечется", seen.size === 1, [...seen]);
+  await p.mouse.move(360, 780, { steps: 8 });
   await p.mouse.up();
   await p.waitForTimeout(600);
 }
