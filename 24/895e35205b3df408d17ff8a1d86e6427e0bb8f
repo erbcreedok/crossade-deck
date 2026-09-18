@@ -1,0 +1,23 @@
+.night/log.md
+  s_9ed0da107cbc4a::t_a7a904694772e4 362
+server/scripts/tableRing.mjs
+  s_9ed0da107cbc4a::t_3a19667125bcab 391-447
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_520bf9f5679032 25-26,2451-2453,2847-2884
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "24895e35205b3df408d17ff8a1d86e6427e0bb8f",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
