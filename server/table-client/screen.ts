@@ -22,7 +22,8 @@ import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as 
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
-import { RING_ARROW, RING_LEAST, ringPlace, RING_SPREAD, ringSpread } from "../src/table/ring.js";
+import { RING_ARROW, RING_LEAST, ringLay, ringPlace, RING_SPREAD, ringSpread } from "../src/table/ring.js";
+import type { RingPlace as Laid3 } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
 import { HOST } from "./host.js";
 
@@ -2447,7 +2448,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
 
   function draw(): void {
     const g = glass();
-    const s = seen();
+    // КАДР РИСУЕТСЯ С ПРЕВЬЮ, А ПРИЦЕЛИВАНИЕ СЧИТАЕТСЯ БЕЗ НЕГО: цель нельзя выводить из мест, которые
+    // сама же цель и подвинула, — палец попал бы в петлю и круг задрожал.
+    const s = withPreview(seen());
     if (drawnSnap && drawnSnap !== s) soundCues(drawnSnap, s, g);
     drawnSnap = s;
     for (const pile of store.state.piles) {
@@ -2839,6 +2842,44 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       if (spot && chairOf(s, key)) put(key, (n) => tipGeom(key, spot, n));
     }
     return out;
+  }
+
+  /**
+   * ПРЕВЬЮ КРУГА — каким он СТАНЕТ, если отпустить прямо сейчас.
+   *
+   * Считается ТОЙ ЖЕ раскладкой, что положит карту на столе (`ringLay` от числа карт и якоря зоны):
+   * иначе превью обещало бы одно, а дроп делал другое — и это хуже, чем совсем без превью.
+   *
+   * Только на СВОЁМ экране: это мой прицел, а не мой ход. Чужие увидят круг после дропа.
+   */
+  function ringPreview(s: Snapshot): Map<string, Laid3> | null {
+    const aim = drag?.target;
+    if (!drag || !aim || (aim.kind !== "deck" && aim.kind !== "deckAt")) return null;
+    const pile = pileOf(s, aim.pile);
+    if (pile?.pose !== "ring") return null;
+    // ДОМОЙ — НИКТО НЕ ДВИГАЕТСЯ: своя карта садится на своё же место, круг и не заметит.
+    const home = drag.from.in === "deck" && drag.from.pile === pile.id;
+    if (aim.kind === "deck" && home) return null;
+    const rest = pile.cards.filter((one) => one.id !== drag!.card.id).map((one) => one.id);
+    const where = aim.kind === "deckAt" ? Math.max(0, Math.min(rest.length, aim.index)) : rest.length;
+    const order = [...rest.slice(0, where), drag.card.id, ...rest.slice(where)];
+    const places = ringLay(pile, order.length, pile.turn ?? 0);
+    const out = new Map<string, Laid3>();
+    order.forEach((id, i) => out.set(id, places[i]!));
+    return out;
+  }
+
+  /**
+   * СНИМОК КАДРА С ПРЕВЬЮ — карты круга уже там, где встанут, если отпустить сейчас.
+   *
+   * Это ВИД, а не состояние: ничего не сохраняется и никуда не шлётся. Чужие экраны увидят круг
+   * после дропа — превью живёт только под моим пальцем.
+   */
+  function withPreview(s: Snapshot): Snapshot {
+    const soon = ringPreview(s);
+    const aim = drag?.target;
+    if (!soon || !aim || !("pile" in aim)) return s;
+    return { ...s, piles: s.piles.map((pile) => (pile.id === aim.pile ? { ...pile, cards: pile.cards.map((c) => (soon.get(c.id) ? { ...c, at: soon.get(c.id)! } : c)) } : pile)) };
   }
 
   /** Все карты, какими они нарисованы у меня сейчас. Порядковый номер в руке — среди карт, без щелей. */

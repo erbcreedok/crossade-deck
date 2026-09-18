@@ -388,6 +388,63 @@ const back = (await spots()).piles.find((p) => p.id === "ring");
 check("вернули в круг — карты на месте", back.ids.length === (await ringIds()).length && back.ids.length > 0, back.ids);
 check("КРУГ С МЕСТА НЕ СДВИНУЛСЯ", back.spot.x === before.x && back.spot.y === before.y, { before, now: back.spot });
 
+// ПРЕВЬЮ: КАРТЫ РАЗДВИГАЮТСЯ ЗАРАНЕЕ, и после дропа НЕ ДВИГАЮТСЯ — они уже там.
+//
+// Превью и настоящий дроп считает одна и та же раскладка. Разойдись они — карта после отпускания
+// поехала бы второй раз, и это был бы рывок в самом конце жеста.
+{
+  const d = (await spots()).deckTop;
+  await p.mouse.move(d.x, d.y);
+  await p.mouse.down();
+  await p.mouse.move(195, 800, { steps: 6 });
+  await p.mouse.up();
+  await p.waitForTimeout(500);
+  const before = await ringAts();
+  const box = await p.locator("[data-card]").last().boundingBox();
+  await p.mouse.move(box.x + box.width / 2, box.y + 8);
+  await p.mouse.down();
+  await aimAt((await spots()).middle, (aim) => aim.kind === "deck" && aim.pile === "ring");
+  await p.waitForTimeout(450);
+  const shown = await ringAts();
+  const shownWho = await ringWho();
+  check("держу карту над кругом — остальные УЖЕ раздвинулись", JSON.stringify(shown) !== JSON.stringify(before), { before, shown });
+  const step = (list) => {
+    const turn = (one) => { const [x, y] = one.split(",").map(Number); return ((Math.atan2(x, -y) * 180) / Math.PI + 360) % 360; };
+    const t = list.map(turn);
+    return t.slice(1).map((one, i) => ((one - t[i]) + 360) % 360);
+  };
+  check("…и раздвинулись ровно: шаг у всех один", step(shown).every((one) => Math.abs(one - step(shown)[0]) < 0.5), step(shown));
+  await p.mouse.up();
+  await p.waitForTimeout(900);
+  // СРАВНИВАЕМ «КТО ГДЕ», а не набор мест: мест-то столько же, и набор совпал бы, даже если превью
+  // расставило карты по ним иначе, чем дроп. Именно этот случай и есть враньё превью.
+  const afterWho = await ringWho();
+  const kept = Object.entries(shownWho).every(([id, at]) => afterWho[id] === at);
+  check("ОТПУСТИЛ — КАРТЫ НЕ ДВИНУЛИСЬ: превью показало то, что и вышло", kept, { shown: shownWho, after: afterWho });
+}
+
+// УВЁЛ КАРТУ ИЗ КРУГА — ПРЕВЬЮ СНЯЛОСЬ, и карты вернулись на свои места сами.
+{
+  const rest = await ringAts();
+  const d = (await spots()).deckTop;
+  await p.mouse.move(d.x, d.y);
+  await p.mouse.down();
+  await p.mouse.move(195, 800, { steps: 6 });
+  await p.mouse.up();
+  await p.waitForTimeout(500);
+  const one = await p.locator("[data-card]").last().boundingBox();
+  await p.mouse.move(one.x + one.width / 2, one.y + 8);
+  await p.mouse.down();
+  await aimAt((await spots()).middle, (aim) => aim.kind === "deck" && aim.pile === "ring");
+  await p.waitForTimeout(400);
+  check("над кругом круг раздвинут", JSON.stringify(await ringAts()) !== JSON.stringify(rest), { rest, now: await ringAts() });
+  await p.mouse.move(360, 780, { steps: 10 });
+  await p.waitForTimeout(500);
+  check("увёл прочь — круг вернулся как был", JSON.stringify(await ringAts()) === JSON.stringify(rest), { rest, now: await ringAts() });
+  await p.mouse.up();
+  await p.waitForTimeout(600);
+}
+
 // ЧТО ВИДИТ ЧУЖОЙ ЭКРАН — правда СТОЛА, а не моя догадка.
 //
 // Всё выше меряно на своём экране, а он показывает и то, что сам себе предсказал. Второй зритель
