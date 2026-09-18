@@ -77,28 +77,42 @@ describe("раскладка круга — метод, а не формула",
     expect(Math.atan2(two[1]!.x, -two[1]!.y) * 180 / Math.PI).toBeCloseTo(ringStep(3), 4);
   });
 
-  it("КАРТЫ ДЕЛЯТ ВСЁ, КРОМЕ РАЗРЫВА, а карта смотрит верхом в середину", () => {
+  it("КАРТЫ ДЕЛЯТ ВСЁ, КРОМЕ ДОЛИ СТРЕЛКИ, а карта смотрит верхом в середину", () => {
     const four = ringLay(mid, 4);
     const turn = (p: { x: number; y: number }) => ((Math.atan2(p.x, -p.y) * 180 / Math.PI) + 360) % 360;
     const step = ringStep(4);
     expect(four.map(turn)).toEqual([0, step, step * 2, step * 3].map((a) => expect.closeTo(a, 4)));
-    expect(360 - turn(four[3]!), "а разрыв — это доля стрелки и по половине карты по краям").toBeCloseTo(ringGap(RING_HOME), 4);
+    expect(360 - turn(four[3]!), "а разрыв — это доля стрелки плюс целый шаг").toBeCloseTo(ringGap(4), 4);
     // Поворот держится в тех же пределах, что и у всех карт стола: (−180, 180].
     const same = (a: number, b: number) => Math.abs((((a - b) % 360) + 540) % 360 - 180) < 0.001;
     for (const [i, one] of four.entries()) expect(same(one.angle, turn(one) + 180), `${i}`).toBe(true);
   });
 
-  it("СТРЕЛКЕ ДОСТАЁТСЯ ЕЁ СОБСТВЕННОЕ МЕСТО: край головы до неё не достаёт", () => {
+  it("ОСТАТОК ДЕЛИТСЯ НА КАРТЫ, а не на промежутки между ними", () => {
+    // Деление на промежутки растягивает карты на весь круг: при трёх картах шаг вышел бы (360−доля)/2,
+    // разрыв съёжился бы до одной доли, и ХВОСТ прилип бы к стрелке.
+    for (const n of [3, 4, 10]) expect(ringStep(n), `${n}`).toBeCloseTo((360 - RING_ARROW) / n, 6);
+  });
+
+  it("СТРЕЛКА ЖМЁТСЯ К ГОЛОВЕ, а ХВОСТ до неё не достаёт", () => {
     const turn = (p: { x: number; y: number }) => ((Math.atan2(p.x, -p.y) * 180 / Math.PI) + 360) % 360;
-    for (const n of [1, 4, 10, 24]) {
+    for (const n of [1, 3, 4, 10, 24]) {
+      const slots = Math.max(3, n);
       const cards = ringLay(mid, n);
       const arrow = ringArrow(mid, n);
-      const away = Math.hypot(arrow.x, arrow.y);
-      const half = ringCardHalf(away);
-      // От середины стрелки до середины головы — её полдоли ПЛЮС половина карты: край карты стоит
-      // ровно на краю доли и ни градусом дальше.
-      expect(360 - turn(arrow), `${n}: стрелка отступила от головы`).toBeCloseTo(RING_ARROW / 2 + half, 3);
-      expect(Math.hypot(arrow.x, arrow.y), `${n}: тот же радиус`).toBeCloseTo(Math.hypot(cards[0]!.x, cards[0]!.y), 6);
+      const half = ringCardHalf(Math.hypot(arrow.x, arrow.y));
+      // ВПЛОТНУЮ К ГОЛОВЕ: остриё стоит у самого её края — полдоли стрелки плюс полкарты от середины.
+      expect(360 - turn(arrow), `${n}: стрелка у края головы`).toBeCloseTo(RING_ARROW / 2 + half, 3);
+      expect(Math.hypot(arrow.x, arrow.y), `${n}: тот же радиус, что у карт`).toBeCloseTo(Math.hypot(cards[0]!.x, cards[0]!.y), 6);
+      // А ХВОСТ ОТОДВИНУТ. На просторном круге между его краем и дальним краем стрелки — целый шаг
+      // воздуха; на тесном воздух сходит на нет, но и карты там стоят впритык друг к другу: это
+      // теснота круга, одна на всех, а не стрелка, которую прижали.
+      const air = ringGap(slots) - (RING_ARROW + 2 * half);
+      const between = ringStep(slots) - 2 * half;
+      // Зазор между хвостом и стрелкой — РОВНО такой же, как между двумя соседними картами. Круг тесен —
+      // тесно всем одинаково; круг просторен — и у стрелки свой воздух. Особого случая для неё нет.
+      expect(air, `${n}: стрелке не теснее, чем картам между собой`).toBeCloseTo(between, 6);
+      if (slots <= 6) expect(air, `${n}: на просторном круге между ними воздух`).toBeGreaterThan(RING_ARROW * 0.9);
     }
   });
 
@@ -106,9 +120,7 @@ describe("раскладка круга — метод, а не формула",
     const turn = (p: { x: number; y: number }) => ((Math.atan2(p.x, -p.y) * 180 / Math.PI) + 360) % 360;
     for (const n of [4, 10, 24]) {
       const cards = ringLay(mid, n);
-      const away = Math.hypot(cards[0]!.x, cards[0]!.y);
-      const gap = 360 - turn(cards.at(-1)!);
-      expect(gap - 2 * ringCardHalf(away), `${n} карт: разрыв без краёв карт — это доля стрелки`).toBeCloseTo(RING_ARROW, 3);
+      expect(360 - turn(cards.at(-1)!) - ringStep(n), `${n} карт`).toBeCloseTo(RING_ARROW, 3);
     }
   });
 

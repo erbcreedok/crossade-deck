@@ -9,7 +9,7 @@ import { deskOf } from "./desks.js";
 import { Table } from "./table.js";
 import { RING } from "./games/krest.js";
 import { MAIN_PILE, type Person } from "./contract.js";
-import { deckHome, RING_ARROW, ringCardHalf, RING_SPREAD } from "./ring.js";
+import { deckHome, RING_ARROW, RING_SPREAD } from "./ring.js";
 import { SANDBOX } from "./rules.js";
 
 const person = (key: string): Person => ({ key, name: key, ink: "#fff", door: "guest" });
@@ -147,12 +147,10 @@ describe("СТРЕЛКА — ЯКОРЬ КРУГА, а не первая кар�
       intoRing(t);
       const cards = ring(t)!.cards;
       // Пока карт меньше, чем мест (их не меньше трёх), в круге есть пустые места, и разрыв больше доли.
-      if (cards.length < 4) continue;
+      if (cards.length < 3) continue;
+      const step = ((turnOf(cards[1]!.at!) - turnOf(cards[0]!.at!)) + 360) % 360;
       const gap = ((turnOf(cards[0]!.at!) - turnOf(cards.at(-1)!.at!)) + 360) % 360;
-      const away = Math.hypot(cards[0]!.at!.x, cards[0]!.at!.y);
-      // Разрыв — доля стрелки и по половине карты с каждой стороны: стрелке нужно СВОЁ место, а не
-      // место под краем головы.
-      expect(gap - 2 * ringCardHalf(away), `${cards.length} карт: разрыв без краёв карт`).toBeCloseTo(RING_ARROW, 3);
+      expect(gap - step, `${cards.length} карт: разрыв минус шаг — это доля стрелки`).toBeCloseTo(RING_ARROW, 3);
     }
   });
 });
