@@ -502,6 +502,30 @@ const p2 = await browser.newPage({ viewport: { width: 390, height: 844 } });
 await p2.goto(`${base}/table/?room=${room}&name=B`);
 await p2.waitForSelector("[data-section]");
 await p2.waitForTimeout(1200);
+const hisRing = async () => JSON.parse(await p2.getAttribute("canvas", "data-spots")).piles.find((x) => x.id === "ring");
+
+// ПРЕВЬЮ — ТОЛЬКО МОЁ. Пока я вожу картой над кругом, у соседа не должно шевелиться НИЧЕГО: это мой
+// прицел, а не мой ход. Он увидит круг после дропа.
+{
+  const was = (await hisRing()).at;
+  const d = (await spots()).deckTop;
+  await p.mouse.move(d.x, d.y);
+  await p.mouse.down();
+  await p.mouse.move(195, 800, { steps: 6 });
+  await p.mouse.up();
+  await p.waitForTimeout(500);
+  const box = await p.locator("[data-card]").last().boundingBox();
+  await p.mouse.move(box.x + box.width / 2, box.y + 8);
+  await p.mouse.down();
+  await aimAt((await spots()).middle, (aim) => aim.kind === "deck" && aim.pile === "ring");
+  await p.waitForTimeout(500);
+  check("у МЕНЯ круг раздвинут", JSON.stringify(await ringAts()) !== JSON.stringify(was), { was, mine: await ringAts() });
+  check("а у СОСЕДА ничего не шелохнулось: превью не его дело", JSON.stringify((await hisRing()).at) === JSON.stringify(was), { was, his: (await hisRing()).at });
+  await p.mouse.up();
+  await p.waitForTimeout(900);
+  check("отпустил — вот теперь и сосед видит новый круг", JSON.stringify((await hisRing()).at) === JSON.stringify(await ringAts()), { his: (await hisRing()).at, mine: await ringAts() });
+}
+
 const his = JSON.parse(await p2.getAttribute("canvas", "data-spots")).piles.find((x) => x.id === "ring");
 const mine = (await spots()).piles.find((x) => x.id === "ring");
 check("чужой экран видит те же карты круга", JSON.stringify(his.ids) === JSON.stringify(mine.ids), { his: his.ids, mine: mine.ids });
