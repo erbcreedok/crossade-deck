@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { applyPatch } from "./patch.js";
 import { DEFAULT_RULES, DEFAULT_SPOT, type Snapshot } from "./contract.js";
-import { ringStep } from "./ring.js";
+import { ringLay, ringStep } from "./ring.js";
 
 describe("зона раскладывает и в разборе патча — тем же методом, что и стол", () => {
   const ring = (cards: { id: string; at?: { x: number; y: number; angle: number } }[]): Snapshot => ({
@@ -77,5 +77,20 @@ describe("зона раскладывает и в разборе патча — 
     const pile = now.piles[0]!;
     expect(pile.cards.map((c) => c.at), "оставшиеся не шелохнулись").toEqual([places[1]!.at, places[2]!.at]);
     expect(pile.turn, "стрелка встала на новую голову").toBeCloseTo(120, 2);
+  });
+  it("НАЗВАН НОМЕР — КРУГ ПЕРЕКЛАДЫВАЕТСЯ, даже если у карты уже есть место", () => {
+    // Так приходит ответ стола (у карты место уже проставлено) и так же складывается своя догадка.
+    // Оставить карту с её местом и не переложить круг — значит показать половину старой позы и
+    // половину новой; на медленной сети это видно секунду и выглядит как двойное движение.
+    const было = ringLay({ x: 0, y: 0 }, 4, 0);
+    const was = ring(было.map((at, i) => ({ id: `к${i}`, at: { ...at } })));
+    was.piles[0]!.turn = 0;
+    const now = applyPatch(was, { v: 2, ops: [{ t: "move", card: { id: "новая", at: { x: 9, y: 9, angle: 0 } }, from: { in: "hand", chair: "c1", i: 0 }, to: { in: "deck", pile: "круг", i: 2 } }] });
+    const laid = now.piles[0]!.cards;
+    expect(laid.map((c) => c.id), "встала на названное место").toEqual(["к0", "к1", "новая", "к2", "к3"]);
+    const turn = (p: { x: number; y: number }) => ((Math.atan2(p.x, -p.y) * 180) / Math.PI + 360) % 360;
+    const turns = laid.map((c) => turn(c.at!));
+    const steps = turns.slice(1).map((one, i) => ((one - turns[i]!) + 360) % 360);
+    expect(steps.every((one) => Math.abs(one - ringStep(5)) < 0.001), "круг разложен ровно").toBe(true);
   });
 });

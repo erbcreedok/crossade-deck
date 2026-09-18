@@ -430,6 +430,7 @@ check("КРУГ С МЕСТА НЕ СДВИНУЛСЯ", back.spot.x === before.x
   await p.waitForTimeout(450);
   const shown = await ringAts();
   const shownWho = await ringWho();
+  check("мимо карт — контур показывает, куда ляжет карта", (await p.locator("[data-g=ring-slot]").count()) === 1, null);
   check("держу карту над кругом — остальные УЖЕ раздвинулись", JSON.stringify(shown) !== JSON.stringify(before), { before, shown });
   const step = (list) => {
     const turn = (one) => { const [x, y] = one.split(",").map(Number); return ((Math.atan2(x, -y) * 180) / Math.PI + 360) % 360; };

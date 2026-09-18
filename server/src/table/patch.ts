@@ -201,7 +201,10 @@ function place(s: Snapshot, card: SeenCard, to: Where): void {
       // остаётся на нём, и круг не перекладывается. Нового места просят только те, у кого его нет.
       if (to.at) card.at = { ...to.at };
       else if (card.at !== undefined && to.i === undefined && ringKeeps(pile, card.at)) byTurn(pile);
-      else if (card.at === undefined) {
+      // ВО ВСЕХ ОСТАЛЬНЫХ СЛУЧАЯХ ЗОНА РАСКЛАДЫВАЕТСЯ ЗАНОВО. Назван номер — это смена порядка, а смена
+      // порядка и есть повод переложить круг. Оставлять карту с её прежним местом здесь нельзя: круг
+      // оказывался наполовину в старой позе, наполовину в новой, пока не придёт ответ стола.
+      else {
         const places = ringLay(pile, pile.cards.length, pile.turn ?? 0);
         pile.cards.forEach((one, i) => (one.at = places[i]!));
       }

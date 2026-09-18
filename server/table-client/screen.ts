@@ -1929,6 +1929,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       html += markHtml(w, h, view.rotation + aim.at.angle, to.x, to.y, 31, view.squash, T.gold).replace('data-g="mark"', 'data-g="ring-slot"');
     }
     // ПРИЦЕЛИЛСЯ В КАРТУ — контур между ней и следующей: встанешь после неё, и круг переложится ПОСЛЕ дропа.
+    // МИМО КАРТ, НО ПО КРУГУ — карта встанет в конец, и контур обязан это показать: расступились все,
+    // а куда именно ляжет карта, видно только по контуру.
+    if (aim.kind === "deck") {
+      const pile = pileOf(seen(), aim.pile);
+      // Своя карта из этого же круга при прицеле «мимо всего» возвращается ДОМОЙ — ей контур рисует
+      // не эта ветка, а «дом», и круг при этом не шевелится.
+      const home = drag.from.in === "deck" && drag.from.pile === aim.pile;
+      if (pile?.pose === "ring" && !home) {
+        const n = pile.cards.length + 1;
+        const at = ringLay(pile, n, pile.turn ?? 0)[n - 1]!;
+        const to = view.toGlass(at);
+        html += markHtml(w, h, view.rotation + at.angle, to.x, to.y, 31, view.squash, T.gold).replace('data-g="mark"', 'data-g="ring-slot"');
+      }
+    }
     if (aim.kind === "deckAt") {
       const pile = pileOf(seen(), aim.pile);
       // В ГОЛОВУ (прицел в стрелку) — контур встаёт на сам якорь: там и ляжет карта, отодвинув круг.
