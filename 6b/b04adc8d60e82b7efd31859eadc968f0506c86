@@ -1,0 +1,25 @@
+server/src/table/ring.ts
+  s_9ed0da107cbc4a::t_6a23cc3fc821f6 43-49
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_a040e4a8eaed4a 57,949-952,965-972
+server/src/table/zones.test.ts
+  s_9ed0da107cbc4a::t_80fe7319de2bb4 13,205-244
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_1870b2cc20b81b 1722,1729,3245-3249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6bb04adc8d60e82b7efd31859eadc968f0506c86",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
