@@ -1608,8 +1608,8 @@ export class Table {
     return this.turned.has(id);
   }
 
-  private seen(id: string, viewer: string, where: Where): SeenCard {
-    const card: SeenCard = this.visibleTo(viewer, where, id) ? { id, face: this.faces.get(id)! } : { id };
+  private seen(id: string, viewer: string, where: Where, all = false): SeenCard {
+    const card: SeenCard = all || this.visibleTo(viewer, where, id) ? { id, face: this.faces.get(id)! } : { id };
     if (where.in !== "felt" && this.turned.has(id)) card.up = true;
     // НОМЕР МЕСТА В ЗОНЕ едет вместе с картой. Не координаты: где это место, каждый посчитает сам,
     // одной и той же функцией, — и разойтись им будет негде.
@@ -1629,8 +1629,8 @@ export class Table {
    * того, как намерение целиком применено, и в нём должен ехать итог — иначе в одном патче стул,
    * отданный пересевшему, уехал бы к соседям с лицами, открытыми старым хозяином.
    */
-  private chairSeen(chair: Chair, viewer: string): Chair {
-    return { ...chair, hand: chair.hand.map((c, i) => this.seen(c.id, viewer, { in: "hand", chair: chair.id, i })) };
+  private chairSeen(chair: Chair, viewer: string, all = false): Chair {
+    return { ...chair, hand: chair.hand.map((c, i) => this.seen(c.id, viewer, { in: "hand", chair: chair.id, i }, all)) };
   }
 
   seenOp(op: Op, viewer: string): Op {
@@ -1647,10 +1647,15 @@ export class Table {
     return op;
   }
 
-  seenBy(viewer: string): Snapshot {
-    const chairs = [...this.chairs.values()].map((c) => this.chairSeen(this.chairOut(c), viewer));
+  /**
+   * СТОЛ ЦЕЛИКОМ, КАК ЕГО ВИДИТ ЗРИТЕЛЬ. `all` снимает сокрытие лиц и означает «как оно есть на самом
+   * деле» — это нужно ровно одному читателю, журналу: запись партии должна давать разобрать её потом,
+   * а закрытая карта в записи не рассказывает ничего. Наружу, живым игрокам, `all` не уходит никогда.
+   */
+  seenBy(viewer: string, all = false): Snapshot {
+    const chairs = [...this.chairs.values()].map((c) => this.chairSeen(this.chairOut(c), viewer, all));
     const felt: FeltCard[] = this.felt.map((one) => ({
-      ...this.seen(one.id, viewer, { in: "felt", ...one }),
+      ...this.seen(one.id, viewer, { in: "felt", ...one }, all),
       x: one.x,
       y: one.y,
       up: one.up,
@@ -1661,7 +1666,7 @@ export class Table {
       v: this.v,
       people: this.here,
       chairs,
-      piles: [...this.piles].map(([id, pile]): Pile => ({ ...this.spotOut(id)!, id, cards: pile.cards.map((one) => this.seen(one, viewer, { in: "deck", pile: id })), shuffles: pile.shuffles })),
+      piles: [...this.piles].map(([id, pile]): Pile => ({ ...this.spotOut(id)!, id, cards: pile.cards.map((one) => this.seen(one, viewer, { in: "deck", pile: id }, all)), shuffles: pile.shuffles })),
       felt,
       trails: Object.fromEntries(this.trails),
       locks: Object.fromEntries([...this.locks].map(([id, lock]) => [id, lock.by])),

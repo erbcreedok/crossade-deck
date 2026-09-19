@@ -26,6 +26,21 @@ export function clientRoutes(): Router {
     res.type("html").send(await readFile(join(ROOT, "index.html"), "utf8"));
   });
 
+  // ЗАПИСЬ ПАРТИИ — тот же клиент, только вместо сети журнал. Страница открытая: без комнаты и
+  // секрета она ничего не покажет, а журнал за неё спрашивают уже с секретом.
+  r.get("/table/replay", fresh, async (_req, res) => {
+    res.type("html").send(await readFile(join(ROOT, "replay.html"), "utf8"));
+  });
+
+  r.get("/table/replay.js", fresh, async (_req, res) => {
+    try {
+      res.type("js").send((await bundle("replay")).js);
+    } catch (err) {
+      console.error("проигрыватель не собрался:", err);
+      res.status(500).type("js").send(`document.body.textContent = ${JSON.stringify(`не собрался: ${String(err)}`)};`);
+    }
+  });
+
   // ЛИЦА И РУБАШКИ — готовые растры колоды, как есть. Имя файла проверяется целиком: папка и карта из
   // известного списка, никакого пути из запроса. Четыре цвета (`-4c`) и кириллица (`-cyr`) — личный вид игрока.
   r.get(/^\/table\/cards\/((?:classic|minimal)(?:-4c)?(?:-cyr)?|backs)\/([a-z]+(?:-(?:[0-9]+|[AJQK]|red|black))?)\.webp$/, (req, res) => {
@@ -55,16 +70,16 @@ export function clientRoutes(): Router {
    * КЛИЕНТ СОБИРАЕТСЯ ОДИН РАЗ ЗА ЗАПУСК. Выкатка — это новый процесс, поэтому свежая сборка долетает
    * сразу и без всякой инвалидации, а второй заход за ней уже не платит ничего.
    */
-  let built: Promise<{ js: string; map: string }> | null = null;
-  const bundle = () => (built ??= (async () => {
+  const built: Record<string, Promise<{ js: string; map: string }> | null> = {};
+  const bundle = (entry = "main") => (built[entry] ??= (async () => {
     const { build } = await import("esbuild");
     const out = await build({
-      entryPoints: [join(ROOT, "main.ts")],
+      entryPoints: [join(ROOT, `${entry}.ts`)],
       bundle: true,
       write: false,
       format: "esm",
       target: "es2020",
-      outfile: join(ROOT, "app.js"),
+      outfile: join(ROOT, `${entry}.js`),
       // КАРТА ИСХОДНИКОВ — ОТДЕЛЬНЫМ ФАЙЛОМ, а не внутри. Вшитая, она весила вчетверо больше самого
       // клиента, и телефон тащил её по сети каждый заход, хотя не открывает её никогда. Ссылку на
       // неё в конце файла читает только отладчик — он и скачает, когда понадобится.
@@ -78,7 +93,7 @@ export function clientRoutes(): Router {
     const map = out.outputFiles.find((one) => one.path.endsWith(".map"))?.text ?? "";
     return { js, map };
   })().catch((err) => {
-    built = null;
+    built[entry] = null;
     throw err;
   }));
 
