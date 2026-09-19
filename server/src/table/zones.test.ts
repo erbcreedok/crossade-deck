@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Face } from "./contract.js";
-import { RING_ARROW, ringCardHalf, RING_CARDS, ringGap, RING_HOME, RING_SPREAD, ringArrow, ringLay, ringStep } from "./ring.js";
+import { RING_ARROW, ringCardHalf, RING_CARDS, ringFree, ringGap, RING_HOME, RING_SPREAD, ringArrow, ringLay, ringStep } from "./ring.js";
 import { SANDBOX, type DeskRules } from "./rules.js";
 import { Table } from "./table.js";
 
@@ -55,6 +55,7 @@ describe("зона заводится конфигом, а не кодом", () 
     const seen = new Table(cards.slice(), null, rules).seenBy("кто-то");
     expect(seen.piles.map((p) => p.id).sort()).toEqual(["deck", "круг", "сброс"]);
   });
+
 });
 
 describe("раскладка круга — метод, а не формула", () => {
@@ -94,25 +95,19 @@ describe("раскладка круга — метод, а не формула",
     for (const n of [3, 4, 10]) expect(ringStep(n), `${n}`).toBeCloseTo((360 - RING_ARROW) / n, 6);
   });
 
-  it("СТРЕЛКА ЖМЁТСЯ К ГОЛОВЕ, а ХВОСТ до неё не достаёт", () => {
+  it("СТРЕЛКА СТОИТ ЗА ХВОСТОМ: она показывает КОНЕЦ круга, а не начало", () => {
     const turn = (p: { x: number; y: number }) => ((Math.atan2(p.x, -p.y) * 180 / Math.PI) + 360) % 360;
-    for (const n of [1, 3, 4, 10, 24]) {
-      const slots = Math.max(3, n);
+    for (const n of [1, 3, 4, 10]) {
       const cards = ringLay(mid, n);
-      const arrow = ringArrow(mid, n);
+      const tail = turn(cards.at(-1)!);
+      const arrow = ringArrow(mid, n, tail);
       const half = ringCardHalf(Math.hypot(arrow.x, arrow.y));
-      // ВПЛОТНУЮ К ГОЛОВЕ: остриё стоит у самого её края — полдоли стрелки плюс полкарты от середины.
-      expect(360 - turn(arrow), `${n}: стрелка у края головы`).toBeCloseTo(RING_ARROW / 2 + half, 3);
+      // Сразу за краем последней карты — полкарты от её середины плюс полдоли стрелки.
+      expect(((turn(arrow) - tail) + 360) % 360, `${n}: стрелка за хвостом`).toBeCloseTo(half + RING_ARROW / 2, 3);
       expect(Math.hypot(arrow.x, arrow.y), `${n}: тот же радиус, что у карт`).toBeCloseTo(Math.hypot(cards[0]!.x, cards[0]!.y), 6);
-      // А ХВОСТ ОТОДВИНУТ. На просторном круге между его краем и дальним краем стрелки — целый шаг
-      // воздуха; на тесном воздух сходит на нет, но и карты там стоят впритык друг к другу: это
-      // теснота круга, одна на всех, а не стрелка, которую прижали.
-      const air = ringGap(slots) - (RING_ARROW + 2 * half);
-      const between = ringStep(slots) - 2 * half;
-      // Зазор между хвостом и стрелкой — РОВНО такой же, как между двумя соседними картами. Круг тесен —
-      // тесно всем одинаково; круг просторен — и у стрелки свой воздух. Особого случая для неё нет.
-      expect(air, `${n}: стрелке не теснее, чем картам между собой`).toBeCloseTo(between, 6);
-      if (slots <= 6) expect(air, `${n}: на просторном круге между ними воздух`).toBeGreaterThan(RING_ARROW * 0.9);
+      // И до ГОЛОВЫ ей ещё далеко: разрыв шире доли на целый шаг, стрелка занимает лишь его начало.
+      const toHead = ((turn(cards[0]!) - turn(arrow)) + 360) % 360;
+      expect(toHead, `${n}: между стрелкой и головой есть место`).toBeGreaterThan(RING_ARROW / 2);
     }
   });
 
@@ -132,6 +127,19 @@ describe("раскладка круга — метод, а не формула",
     expect(away(40), "но дальше контура — никогда").toBeCloseTo(RING_CARDS, 6);
   });
 
+  it("ДЫРЫ — ЭТО МЕСТА БЕЗ КАРТ, и считаются точно, а не угадываются по промежуткам", () => {
+    const было = ringLay(mid, 6, 0);
+    // Забрали КАЖДУЮ ВТОРУЮ — на промежутках такой круг выглядит просто разрежённым, и старое
+    // «выведем шаг из углов» не нашло бы ни одной дыры. По числу мест их ровно три.
+    const остались = было.filter((_, i) => i % 2 === 0);
+    const дыры = ringFree(mid, 6, 0, остались);
+    expect(дыры).toHaveLength(3);
+    for (const [i, one] of дыры.entries()) {
+      expect(one.x).toBeCloseTo(было[i * 2 + 1]!.x, 6);
+      expect(one.y).toBeCloseTo(было[i * 2 + 1]!.y, 6);
+    }
+    expect(ringFree(mid, 6, 0, было), "полный круг дыр не имеет").toEqual([]);
+  });
   it("ЯКОРЬ — УГОЛ СТРЕЛКИ: круг не проворачивается целиком от каждого перекладывания", () => {
     const turned = ringLay(mid, 4, 90);
     expect(turned[0]!.x).toBeCloseTo(RING_HOME, 6);

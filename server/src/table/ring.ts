@@ -188,23 +188,31 @@ export function ringPlace(middle: { x: number; y: number }, turn: number, spread
 }
 
 /**
- * КУДА СМОТРИТ СТРЕЛКА — ВПЛОТНУЮ К ГОЛОВЕ, остриём ей в край.
+ * КУДА СМОТРИТ СТРЕЛКА — ЗА ХВОСТОМ, остриём прочь от последней карты.
  *
- * Она указывает на голову, поэтому и жмётся к ней. Отступ — половина карты: «вплотную» меряется от
- * края головы, иначе дуга уходит под карту. Воздух же остаётся с ДРУГОЙ стороны стрелки: разрыв
- * шире доли на целый шаг, и хвост до неё не достаёт.
+ * Стрелка показывает не начало круга, а его КОНЕЦ: место, куда ляжет следующая карта. Поэтому её угол
+ * считается от самой раскладки, а не от хранимого якоря, — и в превью она едет сама, стоит кругу
+ * стать длиннее на карту.
  */
-export const ringArrowTurn = (anchor: number, spread: number): number => anchor - ringCardHalf(spread) - RING_ARROW / 2;
+export const ringArrowTurn = (tail: number, spread: number): number => tail + ringCardHalf(spread) + RING_ARROW / 2;
+
+/** Где стрелка лежит на столе: за последней картой, на том же радиусе, что и карты этого круга. */
+export function ringArrow(middle: { x: number; y: number }, slots: number, tail: number): RingPlace {
+  const spread = ringSpread(Math.max(RING_LEAST, slots));
+  return ringPlace(middle, ringArrowTurn(tail, spread), spread);
+}
 
 /**
- * ГДЕ СТРЕЛКА ЛЕЖИТ НА СТОЛЕ — на том же радиусе, что и карты этого круга.
+ * СВОБОДНЫЕ МЕСТА КРУГА — те из его мест, на которых никто не лежит.
  *
- * Радиус зависит от тесноты круга, поэтому его спрашивают вместе с числом карт: стрелка едет наружу
- * вместе с картами и никогда не остаётся одна посреди пустого кольца.
+ * Круг разложен на `slots` мест; сколько их — помнит сама зона. Поэтому дыры НЕ УГАДЫВАЮТСЯ по
+ * промежуткам между картами (этот путь врёт дважды: на тесном круге промежуток почти не виден, а если
+ * забрать каждую вторую карту, круг сочтёт себя просто разрежённым), а считаются точно.
  */
-export function ringArrow(middle: { x: number; y: number }, n: number, anchor = 0): RingPlace {
-  const spread = ringSpread(Math.max(RING_LEAST, n));
-  return ringPlace(middle, ringArrowTurn(anchor, spread), spread);
+export function ringFree(middle: { x: number; y: number }, slots: number, anchor: number, laid: readonly { x: number; y: number }[]): RingPlace[] {
+  const all = ringLay(middle, slots, anchor);
+  const near = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y) < 0.01;
+  return all.filter((place) => !laid.some((one) => near(one, place)));
 }
 
 /**

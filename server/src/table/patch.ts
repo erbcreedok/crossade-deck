@@ -80,7 +80,10 @@ function applyOp(s: Snapshot, op: Op): void {
       lift(s, op.card.id, op.from);
       const to = op.to;
       const target = to.in === "deck" ? s.piles.find((one) => one.id === to.pile) : undefined;
-      if (target?.pose === "ring" && target.cards.length === 0) target.turn = whenceOf(s, op.from);
+      if (target?.pose === "ring" && target.cards.length === 0) {
+        target.turn = whenceOf(s, op.from);
+        target.slots = 0;
+      }
       else if (was && head && target !== was) stepArrow(was);
       place(s, card, op.to);
       if (op.trail) (s.trails ??= {})[op.card.id] = op.trail;
@@ -207,6 +210,8 @@ function place(s: Snapshot, card: SeenCard, to: Where): void {
       else {
         const places = ringLay(pile, pile.cards.length, pile.turn ?? 0);
         pile.cards.forEach((one, i) => (one.at = places[i]!));
+        // МЕСТ РОВНО СТОЛЬКО, СКОЛЬКО КАРТ: дыры закрылись все разом. Стол считает так же.
+        pile.slots = pile.cards.length;
       }
     }
   }

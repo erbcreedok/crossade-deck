@@ -6,7 +6,7 @@
 
 import { apply, invert, type Transform } from "../../game-kit/src/core/transform.js";
 import type { Face, ZonePose } from "../src/table/contract.js";
-import { CROUPIER_RADIUS, RING_ARROW, ringArrowTurn, RING_LEAST, RING_SPREAD, ringSpread, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
+import { CROUPIER_RADIUS, RING_ARROW, ringArrow, RING_LEAST, RING_SPREAD, ringSpread, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
 import type { Laid } from "../src/table/contract.js";
 
 export interface Pose {
@@ -82,6 +82,8 @@ export interface FeltView {
   drew: Record<string, { x: number; y: number; angle: number }>;
   /** Где нарисована стрелка круга: середина её дуги на столе, угол и радиус. Нет карт — нет стрелки. */
   arrows: Record<string, { turn: number; spread: number; x: number; y: number }>;
+  /** Где нарисован сам очерченный круг — середина и радиус контура. Рисуется всегда, с картами и без. */
+  rings: Record<string, { x: number; y: number; r: number }>;
 }
 
 /**
@@ -472,7 +474,7 @@ export interface FeltScene {
   /** Карта переворачивается: доля пути и какой она была до (сторона и лицо). */
   turning?: (id: string) => { p: number; up: boolean; face?: Face } | undefined;
   /** Стопки в порядке «кто сверху»: место, поворот, что под ней и карты снизу вверх. */
-  piles: (Point & { id: string; angle: number; pose?: ZonePose; turn?: number; carried?: boolean; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean; at?: Laid }[] })[];
+  piles: (Point & { id: string; angle: number; pose?: ZonePose; turn?: number; slots?: number; carried?: boolean; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean; at?: Laid }[] })[];
   felt: FeltItem[];
   /** Id вещи → цвет того, кто её сейчас держит (кроме меня). */
   held: Record<string, string>;
@@ -544,6 +546,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   };
   const drew: Record<string, { x: number; y: number; angle: number }> = {};
   const arrows: Record<string, { turn: number; spread: number; x: number; y: number }> = {};
+  const rings: Record<string, { x: number; y: number; r: number }> = {};
   const levels = feltLevels(o.felt);
   const feltAt = (id: string): Point | undefined => {
     const one = o.felt.find((f) => f.id === id);
@@ -619,6 +622,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     // КРУГ ХОДА — КОНТУР НА МЕСТЕ ВСЕГДА, с картами и без: это не «пустая стопка», а очерченное поле,
     // внутри которого идёт круг. Периметр статичен — меняется только то, что в нём лежит.
     if (pile.pose === "ring") {
+      rings[pile.id] = { x: pile.x, y: pile.y, r: RING_SPREAD };
       g.save();
       g.translate(pile.x, pile.y);
       g.beginPath();
@@ -633,11 +637,17 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       g.strokeStyle = "rgba(245,234,208,.75)";
       g.stroke();
       // СТРЕЛКА СТОИТ ПЕРЕД ГОЛОВОЙ — и только когда в круге есть карты: показывать не на что.
-      if (pile.cards.length > 0 || pile.carried) {
-        const spread = ringSpread(Math.max(RING_LEAST, pile.cards.length));
-        const turn = ringArrowTurn(pile.turn ?? 0, spread);
-        const rad = (turn * Math.PI) / 180;
-        arrows[pile.id] = { turn, spread, x: pile.x + Math.sin(rad) * spread, y: pile.y - Math.cos(rad) * spread };
+      // СТРЕЛКА СТОИТ ЗА ХВОСТОМ и показывает КОНЕЦ круга — место, куда ляжет следующая карта. Её
+      // угол считается от последней карты, поэтому в превью она едет сама: круг стал длиннее — и она
+      // отступила дальше. Карты несут — стрелка ждёт на месте: они ещё могут вернуться.
+      const tailAt = pile.cards.at(-1)?.at;
+      if (tailAt) {
+        const slots = Math.max(RING_LEAST, pile.slots ?? pile.cards.length);
+        const tail = ((Math.atan2(tailAt.x - pile.x, pile.y - tailAt.y) * 180) / Math.PI + 360) % 360;
+        const spot = ringArrow({ x: pile.x, y: pile.y }, slots, tail);
+        const turn = ((Math.atan2(spot.x - pile.x, pile.y - spot.y) * 180) / Math.PI + 360) % 360;
+        const spread = Math.hypot(spot.x - pile.x, spot.y - pile.y);
+        arrows[pile.id] = { turn, spread, x: spot.x, y: spot.y };
         ringArrowArc(g, turn, spread);
       }
       g.restore();
@@ -731,5 +741,5 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     });
   });
 
-  return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk, deckAt, deckFacing, feltAt, drew, arrows };
+  return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk, deckAt, deckFacing, feltAt, drew, arrows, rings };
 }

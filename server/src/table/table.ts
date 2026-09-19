@@ -804,7 +804,7 @@ export class Table {
     this.trails.set(id, trail);
     const ops: Op[] = [...born, { t: "move", card: { id }, from, to: landed, trail }, { t: "unlock", id }];
     // ЗОНА ПЕРЕЛОЖИЛАСЬ — об этом надо сказать: места сменились у ВСЕХ её карт, а движение было одно.
-    if (landed.in === "deck") ops.push(...this.relaidOps(landed.pile));
+
     if (from.in === "deck") ops.push(...this.sweepPile(from.pile));
     // РУКА ПОКИНУТОГО СТУЛА ОПУСТЕЛА — правило стола решает, стоять ли ему дальше.
     if (from.in === "hand") ops.push(...this.sweepChair(this.chairs.get(from.chair)!));
@@ -1489,6 +1489,8 @@ export class Table {
     const anchor = pile.spot.turn ?? 0;
     const places = ringLay(pile.spot, pile.cards.length, anchor);
     pile.cards.forEach((id, i) => this.laid.set(id, places[i]!));
+    // МЕСТ РОВНО СТОЛЬКО, СКОЛЬКО КАРТ. Дыры закрылись все разом — это и есть перекладывание.
+    pile.spot = { ...pile.spot, slots: pile.cards.length };
   }
 
   /**
@@ -1498,7 +1500,10 @@ export class Table {
   private relaidOps(pileId: string): Op[] {
     if (!this.relaid.delete(pileId)) return [];
     const pile = this.piles.get(pileId);
-    return pile ? [{ t: "deck", pile: pileId, cards: pile.cards.map((one) => ({ id: one })), shuffled: false }] : [];
+    if (!pile) return [];
+    // ЧИСЛА ЗОНЫ ЕДУТ ВМЕСТЕ С МЕСТАМИ. Угол и число мест живут в самой зоне, а не в картах: без этого
+    // зритель, который ничего не трогал, остаётся со старыми числами — и его дыры и стрелка врут.
+    return [this.spotOp(pileId), { t: "deck", pile: pileId, cards: pile.cards.map((one) => ({ id: one })), shuffled: false }];
   }
 
   /** Под каким углом от середины зоны лежит это место — по нему круг знает свой порядок. */
@@ -1528,7 +1533,10 @@ export class Table {
   private stepArrow(pileId: string): void {
     const pile = this.piles.get(pileId);
     const head = pile?.cards[0] === undefined ? undefined : this.laid.get(pile.cards[0]!);
-    if (pile && head) pile.spot.turn = this.turnOfLaid(pile.spot, head);
+    if (!pile || !head) return;
+    pile.spot = { ...pile.spot, turn: this.turnOfLaid(pile.spot, head) };
+    // Якорь переехал — об этом надо сказать: у зрителя он свой, и сам он его не пересчитает.
+    this.relaid.add(pileId);
   }
 
   /** Положить и вернуть, куда легло НА САМОМ ДЕЛЕ: индекс руки прижимается к её длине. */
@@ -1544,7 +1552,7 @@ export class Table {
       const cards = pile.cards;
       // ПУСТОЙ КРУГ ПРИНИМАЕТ ПЕРВУЮ КАРТУ ПОД ТЕМ УГЛОМ, С КОТОРОГО ЕЁ НЕСУТ: круг начинается со
       // стороны того, кто его открыл, а не с выдуманного севера.
-      if (pile.spot.pose === "ring" && cards.length === 0) pile.spot.turn = carried?.whence ?? 0;
+      if (pile.spot.pose === "ring" && cards.length === 0) pile.spot = { ...pile.spot, turn: carried?.whence ?? 0, slots: 0 };
       // НАЗВАЛИ ТОЧНОЕ МЕСТО (дыра или то, откуда взяли) — карта ложится туда, и НИЧЕГО не
       // перекладывается. Порядок в стопке при этом идёт за порядком по кругу: круг хода — это он и есть.
       if (to.at && pile.spot.pose === "ring") {
@@ -1579,8 +1587,12 @@ export class Table {
   }
 
   private commit(ops: Op[]): Op[] {
+    // ПЕРЕЛОЖЕННАЯ ЗОНА ДОГОВАРИВАЕТ ЗА СЕБЯ ЗДЕСЬ — в единственном месте, через которое проходит
+    // любое изменение. Иначе достаточно одного пути, забывшего про её числа, чтобы у зрителя,
+    // который ничего не трогал, круг остался со старым углом и старым числом мест.
+    const zones = [...this.relaid].flatMap((id) => this.relaidOps(id));
     this.v += 1;
-    return ops;
+    return [...ops, ...zones];
   }
 
   // ── ЗРИТЕЛЬ ────────────────────────────────────────────────────────────────────────────────

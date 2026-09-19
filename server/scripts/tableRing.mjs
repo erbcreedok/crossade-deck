@@ -148,7 +148,7 @@ const fromDeckTo = async (to) => {
 const pair = await ringIds();
 const inserted = await fromDeckTo(await ringAt(0));
 const after = await ringIds();
-check("навёл на первую карту — встал сразу после неё", after[1] === inserted && after[0] === pair[0] && after[2] === pair[1], { pair, after, inserted });
+check("навёл на карту — встал НА ЕЁ МЕСТО, а она съехала вперёд", after[0] === inserted && after[1] === pair[0] && after[2] === pair[1], { pair, after, inserted });
 
 // МИМО КАРТ — В КОНЕЦ, как было всегда: прицел по карте, а не по всему кругу.
 const tail = await fromDeckTo((await spots()).middle);
@@ -182,20 +182,19 @@ check("а у колоды ручка на месте всегда", (await grips
   const sp = (await spots()).piles.find((x) => x.id === "ring");
   const cards = sp.at.map((one) => one.split(",").map(Number));
   const turnOf = ([x, y]) => ((Math.atan2(x, -y) * 180) / Math.PI + 360) % 360;
-  const head = turnOf(cards[0]);
-  const gap = ((head - sp.arrow.turn) + 360) % 360;
+  const tail = turnOf(cards.at(-1));
+  const gap = ((sp.arrow.turn - tail) + 360) % 360;
   const halfOf = (away) => (Math.asin(Math.min(1, 1.15 / 2 / away)) * 180) / Math.PI;
-  check("стрелка нарисована и стоит перед головой", sp.arrow !== null && Math.abs(gap - (18 + halfOf(sp.arrow.spread))) < 1.5, { arrow: sp.arrow, head, gap });
+  check("стрелка нарисована и стоит ЗА ХВОСТОМ", sp.arrow !== null && Math.abs(gap - (18 + halfOf(sp.arrow.spread))) < 1.5, { arrow: sp.arrow, tail, gap });
   check("и лежит на радиусе карт", Math.abs(sp.arrow.spread - Math.hypot(cards[0][0], cards[0][1])) < 0.01, { arrow: sp.arrow, away: Math.hypot(cards[0][0], cards[0][1]) });
   // КАРТА НЕ НАПОЛЗАЕТ НА СТРЕЛКУ. Карта шире своей середины: если доля стрелки отмеряна от середины
   // головы, край головы ложится прямо на стрелку — её и не видно. Меряем от КРАЯ.
   const half = halfOf(sp.arrow.spread);
   const near = Math.min(...cards.map((c) => Math.abs(((turnOf(c) - sp.arrow.turn + 540) % 360) - 180)));
-  check("стрелка жмётся к голове, но карта её не накрывает", near >= half + 36 / 2 - 0.5, { near, need: half + 18, half });
-  // А ХВОСТ ОТОДВИНУТ: до него от стрелки не меньше, чем между двумя соседними картами.
-  const step = ((turnOf(cards[1]) - turnOf(cards[0])) + 360) % 360;
-  const tail = Math.abs(((turnOf(cards.at(-1)) - sp.arrow.turn + 540) % 360) - 180);
-  check("хвост круга до стрелки не достаёт", tail >= step - half - 0.5, { tail, step, half });
+  check("карта не накрывает стрелку собой", near >= half + 36 / 2 - 0.5, { near, need: half + 18, half });
+  // И ДО ГОЛОВЫ ЕЙ ДАЛЕКО: разрыв шире доли на целый шаг, стрелка занимает только его начало.
+  const toHead = ((turnOf(cards[0]) - sp.arrow.turn) + 360) % 360;
+  check("между стрелкой и головой есть место", toHead > 18, { toHead });
 }
 
 // ВЗЯЛИ КАРТУ — ОСТАЛЬНЫЕ НЕ ШЕЛОХНУЛИСЬ. Место записано у самой карты, и двигать соседей некому.
@@ -242,12 +241,10 @@ await p.waitForTimeout(800);
   check("…а дыр в круге не осталось: шаг — это круг без доли стрелки, делённый на карты", Math.abs(steps[0] - (360 - 36) / slots) < 0.5, { step: steps[0], n: sp.count });
 }
 
-// ПРИЦЕЛ В СТРЕЛКУ — КАРТА ВСТАЁТ В ГОЛОВУ. Без этой цели голова недостижима: наведение на карту
-// ставит ПОСЛЕ неё, и перед самой первой места не остаётся.
+// ПРИЦЕЛ В СТРЕЛКУ — ЭТО КОНЕЦ КРУГА. Стрелка стоит за хвостом и показывает, куда ляжет следующая;
+// навести на неё — то же самое, что навести на пустое место круга.
 {
   const sp = (await spots()).piles.find((x) => x.id === "ring");
-  const k = (await spots()).k;
-  const mid = (await spots()).middle;
   const onArrow = await onGlass({ x: sp.arrow.x, y: sp.arrow.y });
   const d = (await spots()).deckTop;
   await p.mouse.move(d.x, d.y);
@@ -259,13 +256,12 @@ await p.waitForTimeout(800);
   const id = await p.locator("[data-card]").last().getAttribute("data-card");
   await p.mouse.move(box.x + box.width / 2, box.y + 8);
   await p.mouse.down();
-  await aimAt(onArrow, (aim) => aim.kind === "deckAt" && aim.index === 0);
-  if (process.env.AIM) console.log("ARROW", JSON.stringify(sp.arrow), "onArrow", onArrow, "spots", JSON.stringify({ k: (await spots()).k, squash: (await spots()).squash, spin: (await spots()).spin, mid: (await spots()).middle }));
-  check("прицел встал на голову круга", (await spots()).aim.index === 0, (await spots()).aim);
-  check("над стрелкой горит контур головы", (await p.locator("[data-g=ring-slot]").count()) === 1, null);
+  const got = await aimAt(onArrow, (aim) => aim.kind === "deck");
+  check("прицел на стрелке — это конец круга", got.kind === "deck", got);
+  check("и контур показывает, куда ляжет карта", (await p.locator("[data-g=ring-slot]").count()) === 1, null);
   await p.mouse.up();
   await p.waitForTimeout(800);
-  check("наведи на стрелку — карта встала В ГОЛОВУ круга", (await ringIds())[0] === id, { ids: await ringIds(), id });
+  check("наведи на стрелку — карта встала В КОНЕЦ круга", (await ringIds()).at(-1) === id, { ids: await ringIds(), id });
 }
 
 // ВЕРНУЛИ В КРУГ, НЕ ЦЕЛЯСЬ НИ ВО ЧТО: карта из круга и не уходила — садится на своё же место, и
@@ -399,8 +395,8 @@ check("а на их местах остались контуры", marks === (aw
   const sp = (await spots()).piles.find((x) => x.id === "ring");
   // Смотрим на НАРИСОВАННОЕ: стрелку кисть отдаёт только тогда, когда сам круг до неё дошёл. Пустое
   // состояние зоны тут ничего не доказывает — зона в состоянии есть всегда.
-  check("круг НАРИСОВАН, пока его карты несут", sp?.arrow !== null && sp?.arrow !== undefined, sp?.arrow ?? null);
-  check("…и нарисован там, где очерчен, а не под пальцем", sp?.arrow && Math.abs(Math.hypot(sp.arrow.x, sp.arrow.y) - sp.arrow.spread) < 0.01, sp?.arrow ?? null);
+  check("круг НАРИСОВАН, пока его карты несут", sp?.ring !== null && sp?.ring !== undefined, sp?.ring ?? null);
+  check("…и нарисован там, где очерчен, а не под пальцем", sp?.ring?.x === 0 && sp?.ring?.y === 0, sp?.ring ?? null);
 }
 
 // Вернули туда же — круг цел и стоит там же, где стоял.
@@ -516,6 +512,47 @@ check("КРУГ С МЕСТА НЕ СДВИНУЛСЯ", back.spot.x === before.x
   await p.waitForTimeout(600);
 }
 
+// ДЫРА — ЦЕЛЬ, И В НЕЁ САДЯТСЯ, НИКОГО НЕ ДВИГАЯ.
+//
+// Взяли карту, унесли в руку — на её месте осталось свободное место. Наводим туда другую карту:
+// круг не перекладывается, потому что место уже есть, а контур стоит ровно в дыре.
+{
+  const было = await ringWho();
+  const ids = await ringIds();
+  const takenId = ids[1];
+  const дыра = await ringAt(1);
+  await p.mouse.move(дыра.x, дыра.y);
+  await p.mouse.down();
+  await p.mouse.move(195, 810, { steps: 8 });
+  await p.mouse.up();
+  await p.waitForTimeout(700);
+  const после = await ringWho();
+  check("вынесли карту — круг не шелохнулся", Object.entries(было).filter(([id]) => id !== takenId).every(([id, at]) => после[id] === at), { было, после });
+  // Берём ДРУГУЮ карту (из колоды) и целимся в оставшуюся дыру.
+  const d = (await spots()).deckTop;
+  await p.mouse.move(d.x, d.y);
+  await p.mouse.down();
+  await p.mouse.move(195, 800, { steps: 6 });
+  await p.mouse.up();
+  await p.waitForTimeout(500);
+  const box = await p.locator("[data-card]").last().boundingBox();
+  const чужая = await p.locator("[data-card]").last().getAttribute("data-card");
+  await p.mouse.move(box.x + box.width / 2, box.y + 8);
+  await p.mouse.down();
+  const got = await aimAt(дыра, (aim) => aim.kind === "deckSpot");
+  check("палец на дыре — прицел в свободное место", got.kind === "deckSpot", got);
+  const приНаведении = await ringWho();
+  check("НАД ДЫРОЙ КРУГ НЕ РАССТУПАЕТСЯ: место уже есть", Object.entries(после).every(([id, at]) => приНаведении[id] === at), { после, приНаведении });
+  check("и контур горит ровно один", (await p.locator("[data-g=ring-slot]").count()) === 1, null);
+  await p.mouse.up();
+  await p.waitForTimeout(800);
+  const итог = await ringWho();
+  check("села в дыру — соседи не двинулись", Object.entries(после).every(([id, at]) => итог[id] === at), { после, итог });
+  check("…и чужая карта легла ровно в дыру", итог[чужая] === было[takenId], { легла: итог[чужая], дыра: было[takenId] });
+  const своё = (await spots()).piles.find((x) => x.id === "ring");
+  check("место, занятое в дыре, круг не пересчитывал: мест столько же", своё.spot.slots === своё.count, { slots: своё.spot.slots, count: своё.count });
+}
+
 // ЧТО ВИДИТ ЧУЖОЙ ЭКРАН — правда СТОЛА, а не моя догадка.
 //
 // Всё выше меряно на своём экране, а он показывает и то, что сам себе предсказал. Второй зритель
@@ -551,6 +588,9 @@ const hisRing = async () => JSON.parse(await p2.getAttribute("canvas", "data-spo
 
 const his = JSON.parse(await p2.getAttribute("canvas", "data-spots")).piles.find((x) => x.id === "ring");
 const mine = (await spots()).piles.find((x) => x.id === "ring");
+// ЧИСЛО МЕСТ — ПРАВДА СТОЛА, а не картинка. После обычного хода мест ровно столько, сколько карт:
+// дыры закрылись. Смотрим у соседа: он ничего не трогал, и у него только то, что прислал стол.
+check("у стола мест ровно столько, сколько карт: дыр не осталось", his.spot.slots === his.count, { slots: his.spot.slots, count: his.count });
 check("чужой экран видит те же карты круга", JSON.stringify(his.ids) === JSON.stringify(mine.ids), { his: his.ids, mine: mine.ids });
 check("и на тех же местах — стол разложил, а не догадка", JSON.stringify(his.at) === JSON.stringify(mine.at), { his: his.at, mine: mine.at });
 {
