@@ -1,0 +1,24 @@
+server/scripts/journal.mjs
+  s_9ed0da107cbc4a::t_7eec80407ade5b 1-89
+  s_9ed0da107cbc4a::t_bd172df2d934df 90-94
+server/src/db/eventsRepo.ts
+  s_9ed0da107cbc4a::t_1b94379d70315f 151-169
+server/src/index.ts
+  s_9ed0da107cbc4a::t_d5527e4f651a47 4,12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3f7d5aa337a7d81f58d8a3b7050a3b9e67aec813",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
