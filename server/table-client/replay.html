@@ -6,7 +6,9 @@
     <title>Запись партии</title>
     <style>
       html, body { margin: 0; height: 100%; background: #0d0f0e; color: #e8e4d9; font: 14px/1.4 system-ui, sans-serif; overflow: hidden; }
-      #stage { position: absolute; inset: 0 0 132px 0; }
+      /* ЗАПИСЬ НЕ ТРОГАЮТ. Кнопки стола в ней живые с виду, но не делают ничего — палец должен это
+         почувствовать сразу, а не после третьего тычка. Управление проигрывателя лежит ниже и работает. */
+      #stage { position: absolute; inset: 0 0 132px 0; pointer-events: none; }
       #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
       #over { position: absolute; inset: 0; }
       #panel { position: absolute; left: 0; right: 0; bottom: 0; height: 132px; background: #16191a; border-top: 1px solid #2a2f30; padding: 10px 14px; box-sizing: border-box; }

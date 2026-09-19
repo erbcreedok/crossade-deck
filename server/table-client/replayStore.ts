@@ -8,7 +8,7 @@
 // Отсюда и единственное, без чего кино не собрать: ПЕРВЫЙ КАДР. Дифы рассказывают, что изменилось, а
 // с чего всё началось — не рассказывает никто, и колода роздана раньше первой записи.
 
-import type { Intent, Op, Person, Pile, Refusal, SeenCard, Snapshot, TableRules } from "../src/table/contract.js";
+import type { Chair, Intent, Op, Person, Pile, Refusal, SeenCard, Snapshot, TableRules } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import type { TableStore } from "./store.js";
 
@@ -80,11 +80,21 @@ function guessFirst(deeds: readonly Told[]): Snapshot {
   let size = 0;
   let spot: Pile | undefined;
   let rules: TableRules | undefined;
+  // Стол — это не только карты: места, люди и очерченные зоны рода. Если о них где-то дальше
+  // зашла речь, берём их оттуда — так стол хотя бы похож на себя, а не на голую колоду посреди сукна.
+  const people = new Map<string, Person>();
+  const chairs = new Map<string, Chair>();
+  const zones = new Map<string, Pile>();
 
   for (const d of deeds) {
     if (!isPatch(d)) continue;
     for (const op of opsOf(d)) {
       if (op.t === "rules") rules = op.rules;
+      if (op.t === "join" && !people.has(op.person.key)) people.set(op.person.key, op.person);
+      if (op.t === "chair" && !chairs.has(op.chair.id)) chairs.set(op.chair.id, { ...op.chair, hand: [] });
+      // Зона рода — очерченное место (круг хода и прочее): берём её такой, какой она впервые
+      // попалась. Это не самое начало, но без неё стол вообще не похож на стол этого рода.
+      if (op.t === "spot" && op.pile !== "deck" && op.spot && !zones.has(op.pile)) zones.set(op.pile, { ...op.spot, id: op.pile, cards: [], shuffles: 0 });
       if (op.t === "deck" && op.pile === "deck") size = Math.max(size, op.cards.length);
       if (op.t === "spot" && op.pile === "deck" && op.spot) spot = { ...op.spot, id: "deck", cards: [], shuffles: 0 };
       if (op.t === "move" && op.from.in === "deck" && op.from.pile === "deck" && !met.has(op.card.id)) {
@@ -103,9 +113,9 @@ function guessFirst(deeds: readonly Told[]): Snapshot {
   return {
     // Ноль: первый записанный диф несёт первую версию, и она ляжет поверх этой.
     v: 0,
-    people: [],
-    chairs: [],
-    piles: [{ ...deck, cards: [...unknown, ...fromDeck.reverse()] }],
+    people: [...people.values()],
+    chairs: [...chairs.values()],
+    piles: [{ ...deck, cards: [...unknown, ...fromDeck.reverse()] }, ...zones.values()],
     felt: [],
     trails: {},
     locks: {},
