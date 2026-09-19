@@ -1,0 +1,38 @@
+server/src/table/chronicle.ts
+  s_9ed0da107cbc4a::t_db7d04affe233d 1-74,76-80
+  s_9ed0da107cbc4a::t_99c29f1a7d3f14 75
+server/src/table/chronicleRoom.test.ts
+  s_9ed0da107cbc4a::t_ae2c0c7ac29125 64-65
+  s_9ed0da107cbc4a::t_dff2da491eb2ff 1-63,66-76,79-93
+  s_9ed0da107cbc4a::t_c391c95db94e11 77-78
+server/src/roomHarness.ts
+  s_9ed0da107cbc4a::t_984d5aea7e54a7 43
+server/src/table/chronicle.test.ts
+  s_9ed0da107cbc4a::t_667fed0bca3042 1-91
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_b6a54b9249d20b 558
+  s_9ed0da107cbc4a::t_ad398a8ac61471 46
+  s_9ed0da107cbc4a::t_08bf5752a29dda 214
+  s_9ed0da107cbc4a::t_418e78925abee8 567-571
+  s_9ed0da107cbc4a::t_5820034a6c1b3e 143-149
+  s_9ed0da107cbc4a::t_679e1a27c6ef62 611-616
+  s_9ed0da107cbc4a::t_7ee3c0144f0d04 83-84
+  s_9ed0da107cbc4a::t_e91a7ea6b8d2dc 62-63
+  s_9ed0da107cbc4a::t_0a60a247c2207f 101-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "521a6bc16982773180f6ed4e63f30601c69a7f3f",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
