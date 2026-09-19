@@ -148,3 +148,56 @@ describe("раскладка круга — метод, а не формула",
 
 
 });
+
+describe("зона — часть стола, а не вещь на нём", () => {
+  // Закон владельца: круг хода виден ВСЕГДА. За его ручку тащится новая стопка из его карт, а не
+  // само очерченное место, и высыпанная зона остаётся пустой там, где очерчена.
+  const withZone = () => {
+    const rules: DeskRules = { ...SANDBOX, zones: [{ id: "круг", x: 0, y: 0, pose: "ring" }] };
+    const table = new Table(cards.slice(), "я", rules);
+    table.join({ key: "я", name: "Я", ink: "#fff", door: "guest" });
+    return table;
+  };
+
+  /** Положить обе карты в зону — тем же намерением, каким это делает палец. */
+  const fill = (table: Table) => {
+    for (const id of ["a", "b"]) {
+      table.act("я", { t: "grab", id }, 0);
+      table.act("я", { t: "drop", id, to: { in: "deck", pile: "круг" } }, 0);
+    }
+  };
+
+  it("зона остаётся на столе, когда её карты унесли целиком", () => {
+    const table = withZone();
+    fill(table);
+    expect(table.seenBy("я").piles.find((p) => p.id === "круг")?.cards).toHaveLength(2);
+
+    table.act("я", { t: "pileDrop", pile: "круг", to: { in: "deck", pile: "deck" } }, 0);
+
+    const zone = table.seenBy("я").piles.find((p) => p.id === "круг");
+    expect(zone, "высыпанная зона обязана остаться на столе").toBeDefined();
+    expect(zone!.cards).toHaveLength(0);
+    expect(zone!.zone).toBe(true);
+  });
+
+  it("вечность зоны не снимается переносом", () => {
+    const table = withZone();
+    fill(table);
+    table.act("я", { t: "pileDrop", pile: "круг", to: { in: "deck", pile: "deck" } }, 0);
+    expect(table.seenBy("я").piles.find((p) => p.id === "круг")?.forever).toBe(true);
+  });
+
+  it("карты при этом и правда уехали в колоду", () => {
+    const table = withZone();
+    fill(table);
+    table.act("я", { t: "pileDrop", pile: "круг", to: { in: "deck", pile: "deck" } }, 0);
+    expect(table.seenBy("я").piles.find((p) => p.id === "deck")?.cards).toHaveLength(2);
+  });
+
+  it("обычная вечная стопка, перенесённая целиком, со стола уходит", () => {
+    // Правило про вечность остаётся в силе — оно не про зоны.
+    const table = new Table(cards.slice(), "я");
+    table.join({ key: "я", name: "Я", ink: "#fff", door: "guest" });
+    expect(table.seenBy("я").piles.find((p) => p.id === "deck")).toBeDefined();
+  });
+});

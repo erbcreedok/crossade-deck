@@ -45,10 +45,36 @@ for (let i = 0; i < 2; i += 1) {
   await p.mouse.up();
   await p.waitForTimeout(500);
 }
-const handOf = (page) => page.locator("[data-card]").count();
+/**
+ * Карты по местам — из окна координат, а не из разметки: руку рисует только её хозяин, а в конце
+ * записи он уже встал из-за стола, и считать её по нарисованному значит мерить не то.
+ */
+const handsOf = async (page) => {
+  const s = await spotsOf(page);
+  return (s.seats ?? []).map((one) => one.hand).reduce((a, b) => a + b, 0);
+};
+const openOf = async (page) => {
+  const s = await spotsOf(page);
+  return (s.seats ?? []).flatMap((one) => one.open ?? []).length;
+};
+// Кладём карту из руки в круг — ради проверки раскладки круга в записи.
+const handCard = await p.locator("[data-card]").last().boundingBox();
+const middle = (await spotsOf(p)).middle;
+await p.mouse.move(handCard.x + handCard.width / 2, handCard.y + 8);
+await p.mouse.down();
+await p.mouse.move(middle.x, middle.y, { steps: 8 });
+await p.mouse.up();
+await p.waitForTimeout(800);
+const ringInPlay = p.evaluate(() => {
+  const s = JSON.parse(document.querySelector("canvas").dataset.spots);
+  const r = s.piles.find((one) => one.id === "ring");
+  return r ? { count: r.count, slots: r.at ?? null } : null;
+}).catch(() => null);
+
 const played = await spotsOf(p);
-const hand = await handOf(p);
-check("в столе и правда играли: карты пришли в руку", hand === 2, hand);
+const hand = await handsOf(p);
+const opened = await openOf(p);
+check("в столе и правда играли: карта осталась в руке", hand === 1, hand);
 check("…и колода убыла ровно на них", played.deck === 34, played.deck);
 await p.close();
 
@@ -57,15 +83,20 @@ const journal = async () => {
   const res = await fetch(`${base}/table/journal?room=${room}&limit=5000`, { headers: { "x-table-secret": secret } });
   return res.ok ? (await res.json()).deeds : [];
 };
+// Ждём не «хоть что-нибудь», а ПОСЛЕДНИЙ ход партии: журнал уходит пачкой раз в пару секунд, и
+// страница, открытая раньше, покажет запись без её конца — а проверка соврёт, что конца там и не было.
+const landed = (list) => list.some((d) => d.kind === "patch" && Array.isArray(d.what?.ops) && d.what.ops.some((o) => o.t === "move" && o.to?.pile === "ring"));
 let deeds = [];
-for (let i = 0; i < 40; i += 1) {
+for (let i = 0; i < 60; i += 1) {
   deeds = await journal();
-  if (deeds.some((d) => d.kind === "table.first") && deeds.filter((d) => d.kind === "patch").length >= 3) break;
+  if (deeds.some((d) => d.kind === "table.first") && landed(deeds)) break;
   await new Promise((r) => setTimeout(r, 250));
 }
 const first = deeds.find((d) => d.kind === "table.first");
 check("в записи есть первый кадр", Boolean(first), null);
 check("…и в нём колода с лицами", (first?.what?.snapshot?.piles?.[0]?.cards ?? []).filter((c) => c.face).length > 30, first?.what?.snapshot?.piles?.[0]?.cards?.length);
+// Зоны рода встают не мгновенно: кадр, снятый слишком рано, выходил то с кругом, то без.
+check("…и стол в нём собран: зона рода на месте", (first?.what?.snapshot?.piles ?? []).some((p) => p.zone), (first?.what?.snapshot?.piles ?? []).map((p) => p.id));
 
 // 2. КИНО. Открываем запись и смотрим, собрался ли из неё стол.
 const r = await browser.newPage({ viewport: { width: 900, height: 900 } });
@@ -92,8 +123,12 @@ await r.evaluate((max) => {
 }, steps);
 await r.waitForTimeout(600);
 const end = await spotsOf(r);
-const handAgain = await handOf(r);
-check("в конце записи рука такая же, как была в партии", handAgain === hand, { запись: handAgain, партия: hand });
+const handAgain = await handsOf(r);
+check("в конце записи карты по местам те же, что были в партии", handAgain === hand, { запись: handAgain, партия: hand });
+// Открытая карта должна остаться открытой и в записи: журнал хранит правду, а не то, что видно
+// соседу, — иначе перевёрнутая колода в записи превратится в рубашки.
+const openAgain = await openOf(r);
+check("…и открытые карты остались открытыми", openAgain === opened, { запись: openAgain, партия: opened });
 check("…и колода в записи убыла так же", (end.deck ?? 0) === (played.deck ?? -1), { запись: end.deck, партия: played.deck });
 
 // Назад к началу — запись отматывается в обе стороны, а не только вперёд.
@@ -104,8 +139,32 @@ await r.evaluate(() => {
 });
 await r.waitForTimeout(500);
 const again = await spotsOf(r);
-const handStart = await handOf(r);
+const handStart = await handsOf(r);
 check("отмотали назад — стол вернулся к началу", again.deck === 36 && handStart === 0, { колода: again.deck, рука: handStart });
+
+// 2б. КРУГ ХОДА В ЗАПИСИ ЛЕЖИТ КРУГОМ, а не кучей. Место карты в зоне — это НОМЕР, и он прибавляется
+// к ходу только когда ход готовят зрителю. Запись, сложенная из сырых ходов, номера не знает, и круг
+// в ней сваливается стопкой посередине — стол вроде тот, а партию по нему не разобрать.
+{
+  const ring = (page) => page.evaluate(() => {
+    const s = JSON.parse(document.querySelector("canvas").dataset.spots);
+    const r = s.piles.find((one) => one.id === "ring");
+    return r ? { count: r.count, slots: r.at ?? null } : null;
+  });
+  // В партии карта ушла в круг — посмотрим, знает ли запись её место. Смотреть надо В КОНЦЕ записи:
+  // в начале круг пуст, и проверка «мест нет» прошла бы на пустом месте.
+  const inPlay = await ringInPlay;
+  if (inPlay && inPlay.count > 0) {
+    await r.evaluate(() => {
+      const b = document.getElementById("bar");
+      b.value = b.max;
+      b.dispatchEvent(new Event("input"));
+    });
+    await r.waitForTimeout(700);
+    const inFilm = await ring(r);
+    check("круг в записи знает места карт, а не валит их в стопку", JSON.stringify(inFilm?.slots) === JSON.stringify(inPlay.slots), { запись: inFilm?.slots, партия: inPlay.slots });
+  }
+}
 
 // 3. ПРОПУСК — обычный способ смотреть запись: одна комната, свой срок, без ключа от стола.
 const passRes = await fetch(`${base}/table/journal/pass`, {

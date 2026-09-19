@@ -658,7 +658,11 @@ export class Table {
     if (target.in === "deck" && !into) return { refused: "gone" };
     if (into?.spot.shut || into?.spot.seal) return { refused: "locked" };
     // ВЕЧНАЯ, ПЕРЕЛОЖЕННАЯ ЦЕЛИКОМ, — больше не стопка: вечность снята, опустевшая уйдёт.
-    source.spot.forever = false;
+    //
+    // ЗОНА — НЕ СТОПКА. Очерченное место рода стола (круг хода и прочие) не уносят: его ВЫСЫПАЮТ, и
+    // оно остаётся пустым там, где очерчено. Снять с неё вечность значит смести её следом за
+    // картами — и стол лишится места, которого игрок не ставил и убрать не может.
+    if (!source.spot.zone) source.spot.forever = false;
     // СТОРОНА: цель вся одной стороной — ею; вперемешку или пустая — как лежали.
     const pack = into ? into.cards.map((one) => this.turned.has(one)) : [];
     const side = pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0] : undefined;
@@ -1099,7 +1103,8 @@ export class Table {
    */
   private sweepPile(id: string): Op[] {
     const pile = this.piles.get(id);
-    if (!pile || pile.spot.forever || pile.cards.length > 1) return [];
+    // Зона не сметается никогда, чем бы ни кончилась её вечность: она часть стола, а не вещь на нём.
+    if (!pile || pile.spot.zone || pile.spot.forever || pile.cards.length > 1) return [];
     const ops: Op[] = [];
     const last = pile.cards[0];
     if (last !== undefined) {
@@ -1633,17 +1638,24 @@ export class Table {
     return { ...chair, hand: chair.hand.map((c, i) => this.seen(c.id, viewer, { in: "hand", chair: chair.id, i }, all)) };
   }
 
-  seenOp(op: Op, viewer: string): Op {
-    if (op.t === "move") return { ...op, card: this.seen(op.card.id, viewer, op.to) };
+  /**
+   * Ход глазами зрителя. `all` снимает сокрытие лиц — этим пользуется журнал.
+   *
+   * Пройти через это обязан ЛЮБОЙ ход, который кто-то потом нарисует: здесь к карте прибавляется
+   * номер её места в зоне, а без него круг хода рисуется стопкой посередине. Сырой ход знает, ЧТО
+   * случилось, но не знает, как это выглядит.
+   */
+  seenOp(op: Op, viewer: string, all = false): Op {
+    if (op.t === "move") return { ...op, card: this.seen(op.card.id, viewer, op.to, all) };
     if (op.t === "turn") {
       const at = this.whereIs(op.card.id);
-      return at ? { ...op, card: this.seen(op.card.id, viewer, at) } : op;
+      return at ? { ...op, card: this.seen(op.card.id, viewer, at, all) } : op;
     }
-    if (op.t === "chair") return { ...op, chair: this.chairSeen(op.chair, viewer) };
+    if (op.t === "chair") return { ...op, chair: this.chairSeen(op.chair, viewer, all) };
     // РОЛИ ПЕРЕШЛИ — каждому едут ЕГО права: они считаются здесь и нигде больше.
     if (op.t === "admin" || op.t === "dealer") return { ...op, rights: this.granted(viewer) };
     // Стопка заменена целиком: у перевёрнутых карт лица приходят всем.
-    if (op.t === "deck") return { ...op, cards: op.cards.map((c) => this.seen(c.id, viewer, { in: "deck", pile: op.pile })) };
+    if (op.t === "deck") return { ...op, cards: op.cards.map((c) => this.seen(c.id, viewer, { in: "deck", pile: op.pile }, all)) };
     return op;
   }
 

@@ -64,6 +64,8 @@ export class TableRoom extends Room {
   private table!: Table;
   /** Летопись комнаты. Создаётся вместе с комнатой и переживает её ровно до последнего сброса. */
   private book!: Chronicle;
+  /** Записан ли первый кадр. Пишется один раз за жизнь комнаты. */
+  private filmed = false;
   private room = "";
   /**
    * ПАРТИЯ, ЕСЛИ ОНА ИДЁТ. Ведётся ПО СТУЛЬЯМ, а не по людям: рука принадлежит стулу, человек может
@@ -122,11 +124,6 @@ export class TableRoom extends Room {
         this.resend();
       },
     });
-
-    // ПЕРВЫЙ КАДР ЗАПИСИ. Дифы рассказывают, что ИЗМЕНИЛОСЬ, и без кадра, от которого они считаются,
-    // партию не прокрутить: колода роздана до первой записи, и в дифах её нет. Пишется правдой —
-    // закрытая карта в записи не рассказывает ничего, а наружу этот снимок не уходит никому.
-    this.book.tell("table.first", undefined, { snapshot: this.table.seenBy("", true) });
 
     // КРУПЬЕ СИДИТ С САМОГО НАЧАЛА: он часть стола, а не гость. Админ уводит его сам, если не нужен.
     void this.seatCroupier();
@@ -571,6 +568,20 @@ export class TableRoom extends Room {
         one.send(MSG.rtc, { from: person.key, to: person.key, kind: "bye", body: "" });
       }
     }
+    // ПЕРВЫЙ КАДР ЗАПИСИ — здесь, а не при создании комнаты. Дифы рассказывают, что ИЗМЕНИЛОСЬ, и
+    // без кадра, от которого они считаются, партию не прокрутить: колода роздана до первой записи.
+    //
+    // Почему не раньше: сразу после создания стол ещё собирается — крупье садится, встают зоны рода
+    // (круг хода и прочее). Снятый в ту секунду кадр выходил то с кругом, то без, как повезёт с
+    // порядком. К первому вошедшему стол собран целиком, и это самый ранний момент, когда снимок
+    // означает то, что означает.
+    //
+    // Пишется правдой: закрытая карта в записи не рассказывает ничего, а наружу снимок не уходит.
+    if (!this.filmed) {
+      this.filmed = true;
+      this.book.tell("table.first", undefined, { snapshot: this.table.seenBy("", true) });
+    }
+
     this.seats.set(client.sessionId, person.key);
     this.book.tell("join", person.key, { name: person.name, again: sitting !== undefined, windows: [...this.seats.values()].filter((k) => k === person.key).length });
     this.spread(this.table.join(person));
@@ -631,7 +642,9 @@ export class TableRoom extends Room {
     // крупье и смена рода, и лента, собранная по рукам, окажется дырявой.
     //
     // Пишется ПРАВДА стола, а не то, что видно каждому: реплей должен показывать партию как она шла.
-    this.book.tell("patch", undefined, { v, ops });
+    // Но пройти через `seenOp` обязана и она: там к карте прибавляется номер её места в зоне, без
+    // которого круг хода рисуется стопкой посередине.
+    this.book.tell("patch", undefined, { v, ops: ops.map((op) => this.table.seenOp(op, "", true)) });
     for (const client of this.clients) {
       const key = this.seats.get(client.sessionId);
       if (key !== undefined) client.send(MSG.patch, { v, ops: ops.map((op) => this.table.seenOp(op, key)) });
