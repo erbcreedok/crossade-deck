@@ -474,7 +474,7 @@ export interface FeltScene {
   /** Карта переворачивается: доля пути и какой она была до (сторона и лицо). */
   turning?: (id: string) => { p: number; up: boolean; face?: Face } | undefined;
   /** Стопки в порядке «кто сверху»: место, поворот, что под ней и карты снизу вверх. */
-  piles: (Point & { id: string; angle: number; pose?: ZonePose; turn?: number; slots?: number; carried?: boolean; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean; at?: Laid }[] })[];
+  piles: (Point & { id: string; angle: number; pose?: ZonePose; turn?: number; slots?: number; carried?: boolean; ghost?: Laid; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean; at?: Laid }[] })[];
   felt: FeltItem[];
   /** Id вещи → цвет того, кто её сейчас держит (кроме меня). */
   held: Record<string, string>;
@@ -640,7 +640,12 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       // СТРЕЛКА СТОИТ ЗА ХВОСТОМ и показывает КОНЕЦ круга — место, куда ляжет следующая карта. Её
       // угол считается от последней карты, поэтому в превью она едет сама: круг стал длиннее — и она
       // отступила дальше. Карты несут — стрелка ждёт на месте: они ещё могут вернуться.
-      const tailAt = pile.cards.at(-1)?.at;
+      // ХВОСТ — САМОЕ ДАЛЬНЕЕ ОТ ЯКОРЯ МЕСТО, а не последняя карта в списке. Под пальцем карты в круге
+      // ещё нет, но её место уже держит контур: стрелка встаёт за ним, иначе она окажется перед ним.
+      const anchor = pile.turn ?? 0;
+      const away = (at: Laid) => (((Math.atan2(at.x - pile.x, pile.y - at.y) * 180) / Math.PI - anchor) % 360 + 360) % 360;
+      const ends = [...pile.cards.map((one) => one.at).filter((one): one is Laid => one !== undefined), ...(pile.ghost ? [pile.ghost] : [])];
+      const tailAt = ends.length === 0 ? undefined : ends.reduce((a, b) => (away(a) >= away(b) ? a : b));
       if (tailAt) {
         const slots = Math.max(RING_LEAST, pile.slots ?? pile.cards.length);
         const tail = ((Math.atan2(tailAt.x - pile.x, pile.y - tailAt.y) * 180) / Math.PI + 360) % 360;

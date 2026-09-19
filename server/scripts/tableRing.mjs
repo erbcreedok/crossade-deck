@@ -427,6 +427,19 @@ check("КРУГ С МЕСТА НЕ СДВИНУЛСЯ", back.spot.x === before.x
   const shown = await ringAts();
   const shownWho = await ringWho();
   check("мимо карт — контур показывает, куда ляжет карта", (await p.locator("[data-g=ring-slot]").count()) === 1, null);
+  // СТРЕЛКА ВСТАЁТ ЗА КОНТУРОМ, а не за последней лежащей картой: контур и есть будущий хвост круга.
+  {
+    const sp = (await spots()).piles.find((x) => x.id === "ring");
+    const mark = await p.evaluate(() => { const e = document.querySelector("[data-g=ring-slot]"); const r = e?.getBoundingClientRect(); return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null; });
+    const arrowAt = await onGlass({ x: sp.arrow.x, y: sp.arrow.y });
+    const mid = (await spots()).middle;
+    const turn = (at) => ((Math.atan2(at.x - mid.x, mid.y - at.y) * 180) / Math.PI + 360) % 360;
+    const наКонтур = ((turn(arrowAt) - turn(mark)) + 360) % 360;
+    if (process.env.AIM) console.log("СТРЕЛКА/КОНТУР", JSON.stringify({ наКонтур, arrow: turn(arrowAt), mark: turn(mark), ghost: sp.ghost, slots: sp.spot.slots, count: sp.count }));
+    // Не «просто дальше», а на полкарты с лишним: иначе годится и случайный зазор в пару градусов,
+    // который получается, когда стрелку считают от последней ЛЕЖАЩЕЙ карты.
+    check("стрелка стоит ЗА контуром, а не перед ним", mark !== null && наКонтур > 20 && наКонтур < 90, { наКонтур, mark, arrowAt });
+  }
   check("держу карту над кругом — остальные УЖЕ раздвинулись", JSON.stringify(shown) !== JSON.stringify(before), { before, shown });
   const step = (list) => {
     const turn = (one) => { const [x, y] = one.split(",").map(Number); return ((Math.atan2(x, -y) * 180) / Math.PI + 360) % 360; };

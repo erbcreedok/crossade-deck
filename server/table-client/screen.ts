@@ -2618,6 +2618,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       // Стрелка круга — так, как её НАРИСОВАЛИ: угол острия и радиус, на котором она легла.
       arrow: view?.arrows[id] ?? null,
       ring: view?.rings[id] ?? null,
+      // Место несомой карты, как его видит КАДР: за ним и должна вставать стрелка.
+      ghost: (pile as { ghost?: Laid3 } | undefined)?.ghost ?? null,
     };
     if (as === "pile") return out;
     return { deck: out.count, spot: out.spot, grip: out.grip, deckFace: out.face, deckTop: out.top, deckAir: out.air, deckIds: out.ids, deckUp: out.up };
@@ -2900,7 +2902,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     const soon = ringPreview(s);
     const aim = drag?.target;
     if (!soon || !aim || !("pile" in aim)) return s;
-    return { ...s, piles: s.piles.map((pile) => (pile.id === aim.pile ? { ...pile, cards: pile.cards.map((c) => (soon.get(c.id) ? { ...c, at: soon.get(c.id)! } : c)) } : pile)) };
+    // МЕСТО НЕСОМОЙ КАРТЫ ЕДЕТ В КАДР ОТДЕЛЬНО. Самой карты в круге ещё нет — она под пальцем, — но её
+    // место уже занято контуром, и стрелка обязана стоять ЗА НИМ: контур и есть будущий хвост.
+    const ghost = soon.get(drag!.card.id);
+    return { ...s, piles: s.piles.map((pile) => (pile.id === aim.pile ? { ...pile, ghost, cards: pile.cards.map((c) => (soon.get(c.id) ? { ...c, at: soon.get(c.id)! } : c)) } : pile)) };
   }
 
   /** Все карты, какими они нарисованы у меня сейчас. Порядковый номер в руке — среди карт, без щелей. */
