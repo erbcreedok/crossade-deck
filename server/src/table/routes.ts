@@ -16,6 +16,7 @@ import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_H
 import { closeEntry, findEntry, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, runIn, setAdmin } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 import { deeds, roomsSeen } from "../db/eventsRepo.js";
+import { mintPass, passRoom, PASS_HOURS } from "./pass.js";
 
 /** Этот запуск. Новый процесс — новый `boot`: по нему бот понимает, что прежних столов нет. */
 export const BOOT = randomBytes(6).toString("hex");
@@ -102,7 +103,27 @@ export function tableRoutes(): Router {
    * Без комнаты отдаётся список комнат, о которых журнал вообще что-то помнит: с него начинается
    * любой разбор, потому что комнату по жалобе обычно и надо сперва найти.
    */
-  r.get("/table/journal", guarded, (req, res) => {
+  /**
+   * ПРОПУСК НА ОДНУ ЗАПИСЬ. Выписывается по секрету стола, а живёт сам по себе: его можно открыть с
+   * телефона и переслать, не нося при этом ключ от комнат.
+   */
+  r.post("/table/journal/pass", guarded, (req, res) => {
+    const { room, hours } = (req.body ?? {}) as { room?: unknown; hours?: unknown };
+    if (typeof room !== "string" || !room) return void res.status(400).json({ error: "bad_request" });
+    const live = Math.min(typeof hours === "number" && hours > 0 ? hours : PASS_HOURS, 24 * 30);
+    const until = Date.now() + live * 60 * 60 * 1000;
+    res.json({ pass: mintPass(room, tableConfig().secret!, until), until });
+  });
+
+  /** Секрет стола ИЛИ пропуск на эту самую комнату. Пропуск не открывает ни список комнат, ни чужую. */
+  const journalGuard: express.RequestHandler = (req, res, next) => {
+    const room = (req.query as { room?: string }).room;
+    const pass = passRoom((req.query as { pass?: string }).pass, tableConfig().secret ?? "");
+    if (pass !== null && room !== undefined && pass === room) return void next();
+    return void guarded(req, res, next);
+  };
+
+  r.get("/table/journal", journalGuard, (req, res) => {
     const q = req.query as Record<string, string | undefined>;
     if (q.room === undefined) return void res.json({ rooms: roomsSeen(Number(q.limit) || 50) });
     const limit = Math.min(Number(q.limit) || 500, 5000);

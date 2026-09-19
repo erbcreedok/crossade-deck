@@ -1,9 +1,11 @@
 // ВХОД В ЗАПИСЬ. Грузит ленту комнаты и отдаёт её тому же экрану, что рисует живой стол.
 //
-//   /table/replay?room=<комната>&secret=<секрет стола>
+//   /table/replay?room=<комната>&pass=<пропуск>      обычный путь: пропуск на одну эту запись
+//   /table/replay?room=<комната>&secret=<секрет>     свой стол под рукой
 //
-// Секрет не сохраняется: журнал — это ключи людей, их нажатия и ошибки их браузеров, и страница
-// разбора не должна оставлять к нему ключ в чужом браузере.
+// Пропуск лучше секрета ровно тем, что его не жалко: он назван одной комнатой и протухает. Секрет
+// стола пускает распоряжаться комнатами, и его место — в `.env.table`, а не в адресной строке
+// телефона. Ни то, ни другое страница не сохраняет.
 
 import type { Person } from "../src/table/contract.js";
 import { mountScreen } from "./screen.js";
@@ -36,18 +38,20 @@ function lineOf(deed: Told, t0: number): string {
 
 async function start(): Promise<void> {
   const room = params.get("room");
+  const pass = params.get("pass");
   const secret = params.get("secret");
-  if (!room || !secret) return say("Нужны комната и секрет: /table/replay?room=…&secret=…");
+  if (!room || (!pass && !secret)) return say("Нужны комната и пропуск: /table/replay?room=…&pass=…");
 
   // Секрет идёт заголовком, а заголовок держит только латиницу: кириллица в нём роняет сам запрос,
   // и без этой сети страница падала бы молча вместо простого «не подошёл».
+  const where = `${HOST}/table/journal?room=${encodeURIComponent(room)}&limit=5000${pass ? `&pass=${encodeURIComponent(pass)}` : ""}`;
   let res: Response;
   try {
-    res = await fetch(`${HOST}/table/journal?room=${encodeURIComponent(room)}&limit=5000`, { headers: { "x-table-secret": secret } });
+    res = await fetch(where, secret && !pass ? { headers: { "x-table-secret": secret } } : {});
   } catch {
-    return say("Секрет не подошёл: в нём есть буквы, которых не бывает в ключе.");
+    return say("Ключ не подошёл: в нём есть буквы, которых не бывает в ключе.");
   }
-  if (!res.ok) return say(res.status === 401 || res.status === 403 ? "Секрет не подошёл." : `Журнал не ответил: ${res.status}`);
+  if (!res.ok) return say(res.status === 401 || res.status === 403 ? (pass ? "Пропуск не подошёл или протух." : "Секрет не подошёл.") : `Журнал не ответил: ${res.status}`);
   const { deeds } = (await res.json()) as { deeds: Told[] };
   if (deeds.length === 0) return say("Про эту комнату журнал ничего не помнит.");
 

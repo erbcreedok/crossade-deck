@@ -107,7 +107,30 @@ const again = await spotsOf(r);
 const handStart = await handOf(r);
 check("отмотали назад — стол вернулся к началу", again.deck === 36 && handStart === 0, { колода: again.deck, рука: handStart });
 
-// 3. ЖУРНАЛ НЕ ДЛЯ ПОСТОРОННИХ: без секрета запись не соберётся.
+// 3. ПРОПУСК — обычный способ смотреть запись: одна комната, свой срок, без ключа от стола.
+const passRes = await fetch(`${base}/table/journal/pass`, {
+  method: "POST",
+  headers: { "x-table-secret": secret, "content-type": "application/json" },
+  body: JSON.stringify({ room }),
+});
+const { pass } = passRes.ok ? await passRes.json() : {};
+check("пропуск выписывается по секрету стола", Boolean(pass), passRes.status);
+
+const byPass = await browser.newPage({ viewport: { width: 900, height: 900 } });
+await byPass.goto(`${base}/table/replay?room=${room}&pass=${encodeURIComponent(pass ?? "нет")}`);
+await byPass.waitForTimeout(1600);
+const passNote = await byPass.evaluate(() => (document.getElementById("note").hidden ? null : document.getElementById("note").textContent));
+check("по пропуску запись открывается без секрета", passNote === null, passNote);
+
+// Пропуск назван ОДНОЙ комнатой: соседнюю он не открывает.
+const other = await fetch(`${base}/table/journal?room=чужая-комната&pass=${encodeURIComponent(pass ?? "")}`);
+check("пропуск не открывает чужую комнату", other.status === 401, other.status);
+
+// И списка комнат по нему не видно: пропуск — на запись, а не в журнал целиком.
+const all = await fetch(`${base}/table/journal?pass=${encodeURIComponent(pass ?? "")}`);
+check("пропуск не показывает список комнат", all.status === 401, all.status);
+
+// 4. ЖУРНАЛ НЕ ДЛЯ ПОСТОРОННИХ: без секрета запись не соберётся.
 const bare = await browser.newPage();
 await bare.goto(`${base}/table/replay?room=${room}&secret=wrong-secret`);
 await bare.waitForTimeout(900);
