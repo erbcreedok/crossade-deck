@@ -1,0 +1,24 @@
+server/src/db/migrations.ts
+  s_9ed0da107cbc4a::t_86af97dfddf024 317-343
+server/src/db/eventsRepo.test.ts
+  s_9ed0da107cbc4a::t_97bbc617dae097 28-32
+  s_9ed0da107cbc4a::t_643e223996a578 1-27,33-101
+server/src/db/eventsRepo.ts
+  s_9ed0da107cbc4a::t_b79a36d7f7767b 1-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "98d964d17e35216ce3e4a201600583469054ebb6",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
