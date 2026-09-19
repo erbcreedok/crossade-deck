@@ -6,7 +6,7 @@
 
 import { apply, invert, type Transform } from "../../game-kit/src/core/transform.js";
 import type { Face, ZonePose } from "../src/table/contract.js";
-import { CROUPIER_RADIUS, RING_ARROW, ringArrow, RING_LEAST, RING_SPREAD, ringSpread, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
+import { CROUPIER_RADIUS, RING_ARROW, ringArrow, RING_LEAST, ringSlot, ringSlotTurn, RING_SPREAD, ringSpread, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
 import type { Laid } from "../src/table/contract.js";
 
 export interface Pose {
@@ -474,7 +474,7 @@ export interface FeltScene {
   /** Карта переворачивается: доля пути и какой она была до (сторона и лицо). */
   turning?: (id: string) => { p: number; up: boolean; face?: Face } | undefined;
   /** Стопки в порядке «кто сверху»: место, поворот, что под ней и карты снизу вверх. */
-  piles: (Point & { id: string; angle: number; pose?: ZonePose; turn?: number; slots?: number; carried?: boolean; ghost?: Laid; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean; at?: Laid }[] })[];
+  piles: (Point & { id: string; angle: number; pose?: ZonePose; turn?: number; slots?: number; carried?: boolean; ghost?: number; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean; slot?: number }[] })[];
   felt: FeltItem[];
   /** Id вещи → цвет того, кто её сейчас держит (кроме меня). */
   held: Record<string, string>;
@@ -529,15 +529,20 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   const onScreen = (dx: number, dy: number): Point => (turn ? apply(turn, { x: dx * o.k, y: dy * o.k }) : { x: dx, y: -dy });
   /** Как повёрнута i-я карта стопки: в круге — верхом к середине, в обычной стопке — как стопка. */
   /** Как повёрнута i-я карта стопки: у карты зоны поворот ЗАПИСАН, у обычной стопки — как у стопки. */
+  /** Место карты зоны — считается из её НОМЕРА. Записанных координат в столе нет ни у кого. */
+  const deckPlace = (pile: string, i: number): { x: number; y: number; angle: number } | undefined => {
+    const spot = o.piles.find((one) => one.id === pile);
+    const slot = spot?.cards[i]?.slot;
+    if (!spot || spot.pose !== "ring" || slot === undefined) return undefined;
+    return ringSlot({ x: spot.x, y: spot.y }, Math.max(1, spot.slots ?? spot.cards.length), spot.turn ?? 0, slot);
+  };
   const deckFacing = (pile: string, i: number, n: number): number => {
     const spot = o.piles.find((one) => one.id === pile);
-    return spot?.cards[i]?.at?.angle ?? spot?.angle ?? 0;
+    return deckPlace(pile, i)?.angle ?? spot?.angle ?? 0;
   };
   const deckAt = (pile: string, i: number, n: number): Point => {
     const spot = o.piles.find((one) => one.id === pile);
-    // МЕСТО КАРТЫ ЗОНЫ ЗАПИСАНО У НЕЁ САМОЙ — рисованию нечего вычислять. Его пишет раскладка зоны и
-    // только она, поэтому взятая карта соседей не двигает, а на её месте остаётся дыра.
-    const laid = spot?.cards[i]?.at;
+    const laid = deckPlace(pile, i);
     if (laid) return { x: laid.x, y: laid.y };
     const reach = DECK_DRIFT.each * Math.max(0, n - 1);
     const drift = DECK_DRIFT.each * (reach > DECK_DRIFT.most ? DECK_DRIFT.most / reach : 1);
@@ -640,15 +645,12 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       // СТРЕЛКА СТОИТ ЗА ХВОСТОМ и показывает КОНЕЦ круга — место, куда ляжет следующая карта. Её
       // угол считается от последней карты, поэтому в превью она едет сама: круг стал длиннее — и она
       // отступила дальше. Карты несут — стрелка ждёт на месте: они ещё могут вернуться.
-      // ХВОСТ — САМОЕ ДАЛЬНЕЕ ОТ ЯКОРЯ МЕСТО, а не последняя карта в списке. Под пальцем карты в круге
-      // ещё нет, но её место уже держит контур: стрелка встаёт за ним, иначе она окажется перед ним.
+      // ХВОСТ — САМЫЙ БОЛЬШОЙ ЗАНЯТЫЙ НОМЕР, а контур несомой карты — такой же номер, как у прочих.
       const anchor = pile.turn ?? 0;
-      const away = (at: Laid) => (((Math.atan2(at.x - pile.x, pile.y - at.y) * 180) / Math.PI - anchor) % 360 + 360) % 360;
-      const ends = [...pile.cards.map((one) => one.at).filter((one): one is Laid => one !== undefined), ...(pile.ghost ? [pile.ghost] : [])];
-      const tailAt = ends.length === 0 ? undefined : ends.reduce((a, b) => (away(a) >= away(b) ? a : b));
-      if (tailAt) {
-        const slots = Math.max(RING_LEAST, pile.slots ?? pile.cards.length);
-        const tail = ((Math.atan2(tailAt.x - pile.x, pile.y - tailAt.y) * 180) / Math.PI + 360) % 360;
+      const slots = Math.max(RING_LEAST, pile.slots ?? pile.cards.length);
+      const номера = [...pile.cards.map((one) => one.slot).filter((one): one is number => one !== undefined), ...(pile.ghost === undefined ? [] : [pile.ghost])];
+      if (номера.length > 0) {
+        const tail = ringSlotTurn(slots, anchor, Math.max(...номера));
         const spot = ringArrow({ x: pile.x, y: pile.y }, slots, tail);
         const turn = ((Math.atan2(spot.x - pile.x, pile.y - spot.y) * 180) / Math.PI + 360) % 360;
         const spread = Math.hypot(spot.x - pile.x, spot.y - pile.y);

@@ -117,15 +117,14 @@ const ringIds = async () => ((await spots()).piles.find((p) => p.id === "ring") 
  */
 const ringAt = async (i) => {
   const sp = await spots();
-  const list = (sp.piles.find((one) => one.id === "ring") ?? {}).at ?? [];
+  const list = (sp.piles.find((one) => one.id === "ring") ?? {}).drew ?? [];
   const [x, y] = (list[i] ?? "0,0,0").split(",").map(Number);
   return onGlass({ x, y });
 };
 /** Свободное место круга: где лежала бы карта, которой там нет. Для прицела в дыру. */
-const ringHoleAt = async (was) => {
-  const sp = await spots();
-  const [x, y] = was.split(",").map(Number);
-  return onGlass({ x, y });
+const ringHoleAt = async (slot) => {
+  const дыра = ((await spots()).piles.find((one) => one.id === "ring") ?? {}).holes?.find((one) => one.slot === slot);
+  return дыра ? onGlass(дыра) : { x: -1, y: -1 };
 };
 /** Карта с колоды в руку и оттуда — в точку `to`. */
 const fromDeckTo = async (to) => {
@@ -180,7 +179,7 @@ check("а у колоды ручка на месте всегда", (await grips
 // ровно перед головой и лежит на том же радиусе, что и карты.
 {
   const sp = (await spots()).piles.find((x) => x.id === "ring");
-  const cards = sp.at.map((one) => one.split(",").map(Number));
+  const cards = (sp.drew ?? []).filter(Boolean).map((one) => one.split(",").map(Number));
   const turnOf = ([x, y]) => ((Math.atan2(x, -y) * 180) / Math.PI + 360) % 360;
   const tail = turnOf(cards.at(-1));
   const gap = ((sp.arrow.turn - tail) + 360) % 360;
@@ -198,7 +197,15 @@ check("а у колоды ручка на месте всегда", (await grips
 }
 
 // ВЗЯЛИ КАРТУ — ОСТАЛЬНЫЕ НЕ ШЕЛОХНУЛИСЬ. Место записано у самой карты, и двигать соседей некому.
+/** НОМЕРА МЕСТ карт круга — состояние. Координат в столе нет ни у кого. */
 const ringAts = async () => ((await spots()).piles.find((p) => p.id === "ring") ?? {}).at ?? [];
+/** А ЭТО — где кисть их нарисовала: строки «x,y,угол». */
+const ringDrew = async () => ((await spots()).piles.find((p) => p.id === "ring") ?? {}).drew ?? [];
+/** Кто где НАРИСОВАН: карта → место на столе. По этому видно движение, а не смену номеров. */
+const ringWhereDrawn = async () => {
+  const sp = (await spots()).piles.find((p) => p.id === "ring") ?? { ids: [], drew: [] };
+  return Object.fromEntries((sp.ids ?? []).map((id, i) => [id, (sp.drew ?? [])[i]]).filter(([, at]) => at));
+};
 /** Кто где лежит: карта → её место. Закон в том, что у КАЖДОЙ карты место своё и оно не меняется. */
 const ringWho = async () => {
   const sp = (await spots()).piles.find((p) => p.id === "ring") ?? { ids: [], at: [] };
@@ -231,7 +238,7 @@ await p.waitForTimeout(800);
 {
   const sp = (await spots()).piles.find((x) => x.id === "ring");
   const turnOf = (one) => { const [x, y] = one.split(",").map(Number); return ((Math.atan2(x, -y) * 180) / Math.PI + 360) % 360; };
-  const turns = sp.at.map(turnOf);
+  const turns = (sp.drew ?? []).filter(Boolean).map(turnOf);
   const steps = turns.slice(1).map((one, i) => ((one - turns[i]) + 360) % 360);
   check("вернули из руки — круг нормализовался: шаг между всеми один", steps.length >= 3 && steps.every((one) => Math.abs(one - steps[0]) < 0.5), { turns, steps });
   check("…и голова осталась на якоре — стрелка не сдвигалась", Math.abs(((turns[0] - sp.spot.turn) + 540) % 360 - 180) < 0.5, { head: turns[0], turn: sp.spot.turn });
@@ -284,7 +291,7 @@ await p.waitForTimeout(800);
 
 // КАРТЫ ЛЕТЯТ, А НЕ ПРЫГАЮТ. Летящая карта живёт отдельным элементом в воздухе (`data-flight`);
 // его-то и ловим сразу после дропа, пока полёт не кончился.
-const at0Now = async () => ((await spots()).piles.find((x) => x.id === "ring") ?? {}).at ?? [];
+const at0Now = async () => ((await spots()).piles.find((x) => x.id === "ring") ?? {}).drew ?? [];
 const flying = () => p.evaluate(() => [...document.querySelectorAll("[data-flight]")].map((e) => e.dataset.flight));
 const four = await ringIds();
 // РОНЯЕМ В ХВОСТ, А НЕ НА КАРТУ: при вставке в середину номера карт и так сдвигаются, и полёт вышел
@@ -418,14 +425,14 @@ check("КРУГ С МЕСТА НЕ СДВИНУЛСЯ", back.spot.x === before.x
   await p.mouse.move(195, 800, { steps: 6 });
   await p.mouse.up();
   await p.waitForTimeout(500);
-  const before = await ringAts();
+  const before = await ringDrew();
   const box = await p.locator("[data-card]").last().boundingBox();
   await p.mouse.move(box.x + box.width / 2, box.y + 8);
   await p.mouse.down();
   await aimAt((await spots()).middle, (aim) => aim.kind === "deck" && aim.pile === "ring");
   await p.waitForTimeout(450);
-  const shown = await ringAts();
-  const shownWho = await ringWho();
+  const shown = await ringDrew();
+  const shownWho = await ringWhereDrawn();
   check("мимо карт — контур показывает, куда ляжет карта", (await p.locator("[data-g=ring-slot]").count()) === 1, null);
   // СТРЕЛКА ВСТАЁТ ЗА КОНТУРОМ, а не за последней лежащей картой: контур и есть будущий хвост круга.
   {
@@ -451,14 +458,14 @@ check("КРУГ С МЕСТА НЕ СДВИНУЛСЯ", back.spot.x === before.x
   await p.waitForTimeout(900);
   // СРАВНИВАЕМ «КТО ГДЕ», а не набор мест: мест-то столько же, и набор совпал бы, даже если превью
   // расставило карты по ним иначе, чем дроп. Именно этот случай и есть враньё превью.
-  const afterWho = await ringWho();
+  const afterWho = await ringWhereDrawn();
   const kept = Object.entries(shownWho).every(([id, at]) => afterWho[id] === at);
   check("ОТПУСТИЛ — КАРТЫ НЕ ДВИНУЛИСЬ: превью показало то, что и вышло", kept, { shown: shownWho, after: afterWho });
 }
 
 // УВЁЛ КАРТУ ИЗ КРУГА — ПРЕВЬЮ СНЯЛОСЬ, и карты вернулись на свои места сами.
 {
-  const rest = await ringAts();
+  const rest = await ringDrew();
   const d = (await spots()).deckTop;
   await p.mouse.move(d.x, d.y);
   await p.mouse.down();
@@ -470,10 +477,10 @@ check("КРУГ С МЕСТА НЕ СДВИНУЛСЯ", back.spot.x === before.x
   await p.mouse.down();
   await aimAt((await spots()).middle, (aim) => aim.kind === "deck" && aim.pile === "ring");
   await p.waitForTimeout(400);
-  check("над кругом круг раздвинут", JSON.stringify(await ringAts()) !== JSON.stringify(rest), { rest, now: await ringAts() });
+  check("над кругом круг раздвинут", JSON.stringify(await ringDrew()) !== JSON.stringify(rest), { rest, now: await ringDrew() });
   await p.mouse.move(360, 780, { steps: 10 });
   await p.waitForTimeout(500);
-  check("увёл прочь — круг вернулся как был", JSON.stringify(await ringAts()) === JSON.stringify(rest), { rest, now: await ringAts() });
+  check("увёл прочь — круг вернулся как был", JSON.stringify(await ringDrew()) === JSON.stringify(rest), { rest, now: await ringDrew() });
   await p.mouse.up();
   await p.waitForTimeout(600);
 }
@@ -580,7 +587,7 @@ const hisRing = async () => JSON.parse(await p2.getAttribute("canvas", "data-spo
 // ПРЕВЬЮ — ТОЛЬКО МОЁ. Пока я вожу картой над кругом, у соседа не должно шевелиться НИЧЕГО: это мой
 // прицел, а не мой ход. Он увидит круг после дропа.
 {
-  const was = (await hisRing()).at;
+  const was = (await hisRing()).drew;
   const d = (await spots()).deckTop;
   await p.mouse.move(d.x, d.y);
   await p.mouse.down();
@@ -592,11 +599,11 @@ const hisRing = async () => JSON.parse(await p2.getAttribute("canvas", "data-spo
   await p.mouse.down();
   await aimAt((await spots()).middle, (aim) => aim.kind === "deck" && aim.pile === "ring");
   await p.waitForTimeout(500);
-  check("у МЕНЯ круг раздвинут", JSON.stringify(await ringAts()) !== JSON.stringify(was), { was, mine: await ringAts() });
-  check("а у СОСЕДА ничего не шелохнулось: превью не его дело", JSON.stringify((await hisRing()).at) === JSON.stringify(was), { was, his: (await hisRing()).at });
+  check("у МЕНЯ круг раздвинут", JSON.stringify(await ringDrew()) !== JSON.stringify(was), { was, mine: await ringDrew() });
+  check("а у СОСЕДА ничего не шелохнулось: превью не его дело", JSON.stringify((await hisRing()).drew) === JSON.stringify(was), { was, his: (await hisRing()).drew });
   await p.mouse.up();
   await p.waitForTimeout(900);
-  check("отпустил — вот теперь и сосед видит новый круг", JSON.stringify((await hisRing()).at) === JSON.stringify(await ringAts()), { his: (await hisRing()).at, mine: await ringAts() });
+  check("отпустил — вот теперь и сосед видит новый круг", JSON.stringify((await hisRing()).drew) === JSON.stringify(await ringDrew()), { his: (await hisRing()).drew, mine: await ringDrew() });
 }
 
 const his = JSON.parse(await p2.getAttribute("canvas", "data-spots")).piles.find((x) => x.id === "ring");
@@ -605,12 +612,12 @@ const mine = (await spots()).piles.find((x) => x.id === "ring");
 // дыры закрылись. Смотрим у соседа: он ничего не трогал, и у него только то, что прислал стол.
 check("у стола мест ровно столько, сколько карт: дыр не осталось", his.spot.slots === his.count, { slots: his.spot.slots, count: his.count });
 check("чужой экран видит те же карты круга", JSON.stringify(his.ids) === JSON.stringify(mine.ids), { his: his.ids, mine: mine.ids });
-check("и на тех же местах — стол разложил, а не догадка", JSON.stringify(his.at) === JSON.stringify(mine.at), { his: his.at, mine: mine.at });
+check("и на тех же номерах — стол раздал, а не догадка", JSON.stringify(his.at) === JSON.stringify(mine.at), { his: his.at, mine: mine.at });
 {
   const turnOf = (one) => { const [x, y] = (one ?? "").split(",").map(Number); return ((Math.atan2(x, -y) * 180) / Math.PI + 360) % 360; };
-  const turns = his.at.map(turnOf);
+  const turns = (his.drew ?? []).filter(Boolean).map(turnOf);
   const steps = turns.slice(1).map((one, i) => ((one - turns[i]) + 360) % 360);
-  check("у КАЖДОЙ карты круга на чужом экране есть место", his.at.every((one) => typeof one === "string"), his.at);
+  check("у КАЖДОЙ карты круга на чужом экране есть номер места", his.at.every((one) => typeof one === "number"), his.at);
   check("СТОЛ НОРМАЛИЗУЕТ КРУГ САМ: шаг между всеми картами один", steps.length >= 2 && steps.every((one) => Number.isFinite(one) && Math.abs(one - steps[0]) < 0.5), { turns, steps });
   check("…и это доля круга без стрелки, делённая на число карт", Math.abs(steps[0] - (360 - 36) / Math.max(3, his.count)) < 0.5, { step: steps[0], n: his.count });
 }

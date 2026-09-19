@@ -166,20 +166,23 @@ export interface RingPlace {
 }
 
 /**
- * РАСКЛАДКА КРУГА — ЕДИНСТВЕННОЕ МЕСТО, ГДЕ У КАРТ ПОЯВЛЯЮТСЯ МЕСТА.
+ * ГДЕ ЛЕЖИТ МЕСТО С ТАКИМ НОМЕРОМ — ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ О ПОЛОЖЕНИИ КАРТ КРУГА.
  *
- * Мест ровно столько, сколько карт, и они равномерны. Зовётся, только когда в круг КЛАДУТ карту:
- * взяли — круг не шелохнулся, осталась дыра; положили — круг сомкнулся весь сразу.
- *
- * `anchor` — УГОЛ СТРЕЛКИ, за который круг держится. Голова стоит сразу за стрелкой, дальше по шагу.
- * Держаться за первую карту нельзя: унесли голову — и круг провернулся бы целиком.
+ * Координат никто не хранит: и стол, и превью, и кисть спрашивают это. Разойтись им негде, потому
+ * что считать по-разному нечем — на входе только номер места, угол зоны и число её мест.
  */
-export function ringLay(middle: { x: number; y: number }, n: number, anchor = 0): RingPlace[] {
-  const slots = Math.max(RING_LEAST, n);
-  const spread = ringSpread(slots);
-  const step = ringStep(slots);
-  return Array.from({ length: n }, (_, i) => ringPlace(middle, anchor + step * i, spread));
+export function ringSlot(middle: { x: number; y: number }, slots: number, anchor: number, slot: number): RingPlace {
+  const room = Math.max(RING_LEAST, slots);
+  return ringPlace(middle, anchor + ringStep(room) * slot, ringSpread(room));
 }
+
+/** Под каким углом лежит место с этим номером — то же число, что внутри `ringSlot`. */
+export const ringSlotTurn = (slots: number, anchor: number, slot: number): number =>
+  ((anchor + ringStep(Math.max(RING_LEAST, slots)) * slot) % 360 + 360) % 360;
+
+/** Места всех `n` карт подряд, от нулевого: раскладка «по порядку», без дыр. */
+export const ringLay = (middle: { x: number; y: number }, n: number, anchor = 0): RingPlace[] =>
+  Array.from({ length: n }, (_, i) => ringSlot(middle, n, anchor, i));
 
 /** Место на кольце под этим углом — точка и поворот разом: их всегда считают вместе. */
 export function ringPlace(middle: { x: number; y: number }, turn: number, spread: number): RingPlace {
@@ -190,9 +193,7 @@ export function ringPlace(middle: { x: number; y: number }, turn: number, spread
 /**
  * КУДА СМОТРИТ СТРЕЛКА — ЗА ХВОСТОМ, остриём прочь от последней карты.
  *
- * Стрелка показывает не начало круга, а его КОНЕЦ: место, куда ляжет следующая карта. Поэтому её угол
- * считается от самой раскладки, а не от хранимого якоря, — и в превью она едет сама, стоит кругу
- * стать длиннее на карту.
+ * Стрелка показывает не начало круга, а его КОНЕЦ: место, куда ляжет следующая карта.
  */
 export const ringArrowTurn = (tail: number, spread: number): number => tail + ringCardHalf(spread) + RING_ARROW / 2;
 
@@ -203,17 +204,12 @@ export function ringArrow(middle: { x: number; y: number }, slots: number, tail:
 }
 
 /**
- * СВОБОДНЫЕ МЕСТА КРУГА — те из его мест, на которых никто не лежит.
+ * СВОБОДНЫЕ НОМЕРА КРУГА — места, на которых никто не лежит.
  *
- * Круг разложен на `slots` мест; сколько их — помнит сама зона. Поэтому дыры НЕ УГАДЫВАЮТСЯ по
- * промежуткам между картами (этот путь врёт дважды: на тесном круге промежуток почти не виден, а если
- * забрать каждую вторую карту, круг сочтёт себя просто разрежённым), а считаются точно.
+ * Считаются вычитанием: все номера зоны минус занятые. Ни геометрии, ни порогов — сравниваются числа.
  */
-export function ringFree(middle: { x: number; y: number }, slots: number, anchor: number, laid: readonly { x: number; y: number }[]): RingPlace[] {
-  const all = ringLay(middle, slots, anchor);
-  const near = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y) < 0.01;
-  return all.filter((place) => !laid.some((one) => near(one, place)));
-}
+export const ringFree = (slots: number, taken: readonly number[]): number[] =>
+  Array.from({ length: Math.max(0, slots) }, (_, i) => i).filter((slot) => !taken.includes(slot));
 
 /**
  * ПОМНИТ ЛИ КАРТА СВОЁ МЕСТО В ЭТОМ КРУГЕ. Место — просто точка стола, и само по себе не говорит, чьё

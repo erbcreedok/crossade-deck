@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Face } from "./contract.js";
-import { RING_ARROW, ringCardHalf, RING_CARDS, ringFree, ringGap, RING_HOME, RING_SPREAD, ringArrow, ringLay, ringStep } from "./ring.js";
+import { RING_ARROW, ringCardHalf, RING_CARDS, ringFree, ringGap, RING_HOME, ringSlot, RING_SPREAD, ringArrow, ringLay, ringStep } from "./ring.js";
 import { SANDBOX, type DeskRules } from "./rules.js";
 import { Table } from "./table.js";
 
@@ -127,19 +127,19 @@ describe("раскладка круга — метод, а не формула",
     expect(away(40), "но дальше контура — никогда").toBeCloseTo(RING_CARDS, 6);
   });
 
-  it("ДЫРЫ — ЭТО МЕСТА БЕЗ КАРТ, и считаются точно, а не угадываются по промежуткам", () => {
-    const было = ringLay(mid, 6, 0);
-    // Забрали КАЖДУЮ ВТОРУЮ — на промежутках такой круг выглядит просто разрежённым, и старое
-    // «выведем шаг из углов» не нашло бы ни одной дыры. По числу мест их ровно три.
-    const остались = было.filter((_, i) => i % 2 === 0);
-    const дыры = ringFree(mid, 6, 0, остались);
-    expect(дыры).toHaveLength(3);
-    for (const [i, one] of дыры.entries()) {
-      expect(one.x).toBeCloseTo(было[i * 2 + 1]!.x, 6);
-      expect(one.y).toBeCloseTo(было[i * 2 + 1]!.y, 6);
-    }
-    expect(ringFree(mid, 6, 0, было), "полный круг дыр не имеет").toEqual([]);
+  it("ДЫРЫ — ЭТО СВОБОДНЫЕ НОМЕРА, и считаются вычитанием, а не по промежуткам", () => {
+    // Забрали КАЖДУЮ ВТОРУЮ карту: по промежуткам такой круг выглядит просто разрежённым, и старое
+    // «выведем шаг из углов» не нашло бы ни одной дыры. По номерам их ровно три.
+    expect(ringFree(6, [0, 2, 4])).toEqual([1, 3, 5]);
+    expect(ringFree(6, [0, 1, 2, 3, 4, 5]), "полный круг дыр не имеет").toEqual([]);
+    expect(ringFree(6, []), "пустой круг — все места свободны").toEqual([0, 1, 2, 3, 4, 5]);
   });
+
+  it("МЕСТО С НОМЕРОМ — ОДНА ФУНКЦИЯ НА ВСЕХ: раскладка подряд это просто её вызовы", () => {
+    const подряд = ringLay(mid, 5, 30);
+    for (const [i, one] of подряд.entries()) expect(ringSlot(mid, 5, 30, i)).toEqual(one);
+  });
+
   it("ЯКОРЬ — УГОЛ СТРЕЛКИ: круг не проворачивается целиком от каждого перекладывания", () => {
     const turned = ringLay(mid, 4, 90);
     expect(turned[0]!.x).toBeCloseTo(RING_HOME, 6);

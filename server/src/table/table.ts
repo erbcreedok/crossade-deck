@@ -54,7 +54,7 @@ import {
 import { arranged, samePack, shuffled } from "./arrange.js";
 import { allowed, grantedTo, may, no, type Ask, type Key, type Role, type Verdict } from "./access.js";
 import { SANDBOX, type DeskAsk, type DeskRules, type DeskZone } from "./rules.js";
-import { croupierAngle, deckHome, freeAngle, ringKeeps, ringLay, RING_SPREAD, seatPoint } from "./ring.js";
+import { croupierAngle, deckHome, freeAngle, RING_SPREAD, ringSlotTurn, seatPoint } from "./ring.js";
 
 /** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
 export const FELT_REACH = 8 - 0.86;
@@ -103,7 +103,11 @@ export class Table {
    * ГДЕ ЛЕЖИТ КАРТА ВНУТРИ ЗОНЫ — по карте, а не по зоне. Пишет только раскладка (`lay`), читает
    * только снимок. Зона не помнит ни числа мест, ни дыр: дыры видны из самих карт.
    */
-  private laid = new Map<string, Laid>();
+  /**
+   * НОМЕР МЕСТА КАЖДОЙ КАРТЫ ЗОНЫ — и ничего кроме. Где это место лежит на столе, стол не помнит и
+   * не считает: это дело отрисовки, и считает она одной общей функцией.
+   */
+  private laid = new Map<string, number>();
   /** Зоны, которые только что переложились: по ним пойдёт диф целиком. */
   private relaid = new Set<string>();
   private piles = new Map<string, PileRow>([[MAIN_PILE, { spot: { ...DEFAULT_SPOT, ...deckHome(), below: [] }, cards: [], shuffles: 0 }]]);
@@ -1403,11 +1407,12 @@ export class Table {
     if (to.in === "deck") {
       if (typeof to.pile !== "string") return null;
       const spot = this.piles.get(to.pile)?.spot;
-      // ТОЧНОЕ МЕСТО принимают только зоны с раскладкой и только внутри самой зоны: «положить в дыру»
-      // не должно превращаться в «положить куда угодно на сукне».
-      if (to.at && spot?.pose === "ring" && [to.at.x, to.at.y, to.at.angle].every(Number.isFinite)
-        && Math.hypot(to.at.x - spot.x, to.at.y - spot.y) <= RING_SPREAD) {
-        return { in: "deck", pile: to.pile, at: { x: to.at.x, y: to.at.y, angle: turnOf(to.at.angle) } };
+      // НОМЕР МЕСТА принимают только зоны с раскладкой, и только если он ЕСТЬ и СВОБОДЕН: «сесть в
+      // дыру» не должно превращаться в «сесть на чужую карту» или в место, которого у круга нет.
+      const занято = this.piles.get(to.pile)?.cards.map((one) => this.laid.get(one)) ?? [];
+      if (to.slot !== undefined && spot?.pose === "ring" && Number.isInteger(to.slot)
+        && to.slot >= 0 && to.slot < (spot.slots ?? 0) && !занято.includes(to.slot)) {
+        return { in: "deck", pile: to.pile, slot: to.slot };
       }
       return Number.isInteger(to.i) && !spot?.lock ? { in: "deck", pile: to.pile, i: to.i } : { in: "deck", pile: to.pile };
     }
@@ -1455,7 +1460,7 @@ export class Table {
   private whenceOf(from: Where): number {
     if (from.in === "hand") return this.chairs.get(from.chair)?.angle ?? 0;
     const at = from.in === "felt" ? { x: from.x, y: from.y } : this.piles.get(from.pile)?.spot;
-    return at ? this.turnOfLaid({ x: 0, y: 0 }, { x: at.x, y: at.y, angle: 0 }) : 0;
+    return at ? this.turnOfPoint(at) : 0;
   }
 
   private take(id: string, from: Where): void {
@@ -1484,12 +1489,8 @@ export class Table {
     const pile = this.piles.get(pileId);
     if (!pile || pile.spot.pose !== "ring") return;
     this.relaid.add(pileId);
-    // ЯКОРЬ — УГОЛ СТРЕЛКИ, и он лежит в самой зоне. Держаться за первую карту нельзя: унесли голову —
-    // и круг провернулся бы весь оттого, что кто-то взял одну карту.
-    const anchor = pile.spot.turn ?? 0;
-    const places = ringLay(pile.spot, pile.cards.length, anchor);
-    pile.cards.forEach((id, i) => this.laid.set(id, places[i]!));
-    // МЕСТ РОВНО СТОЛЬКО, СКОЛЬКО КАРТ. Дыры закрылись все разом — это и есть перекладывание.
+    // НОМЕРА РАЗДАЮТСЯ ЗАНОВО, ОТ НУЛЯ И ПОДРЯД: дыры закрылись все разом — это и есть перекладывание.
+    pile.cards.forEach((id, i) => this.laid.set(id, i));
     pile.spot = { ...pile.spot, slots: pile.cards.length };
   }
 
@@ -1506,21 +1507,17 @@ export class Table {
     return [this.spotOp(pileId), { t: "deck", pile: pileId, cards: pile.cards.map((one) => ({ id: one })), shuffled: false }];
   }
 
-  /** Под каким углом от середины зоны лежит это место — по нему круг знает свой порядок. */
-  private turnOfLaid(middle: { x: number; y: number }, at: Laid): number {
-    const deg = (Math.atan2(at.x - middle.x, middle.y - at.y) * 180) / Math.PI;
+  /** Под каким углом от середины стола лежит эта точка — по нему пустой круг выбирает себе якорь. */
+  private turnOfPoint(at: { x: number; y: number }): number {
+    const deg = (Math.atan2(at.x, -at.y) * 180) / Math.PI;
     return ((deg % 360) + 360) % 360;
   }
 
   /** Куда в стопке встаёт карта, положенная на точное место: порядок в круге — это порядок по кругу. */
   private byTurn(pile: PileRow, id: string): number {
     const mine = this.laid.get(id);
-    if (!mine) return pile.cards.length;
-    const turn = this.turnOfLaid(pile.spot, mine);
-    const i = pile.cards.findIndex((one) => {
-      const at = this.laid.get(one);
-      return at !== undefined && this.turnOfLaid(pile.spot, at) > turn;
-    });
+    if (mine === undefined) return pile.cards.length;
+    const i = pile.cards.findIndex((one) => (this.laid.get(one) ?? -1) > mine);
     return i === -1 ? pile.cards.length : i;
   }
 
@@ -1533,8 +1530,9 @@ export class Table {
   private stepArrow(pileId: string): void {
     const pile = this.piles.get(pileId);
     const head = pile?.cards[0] === undefined ? undefined : this.laid.get(pile.cards[0]!);
-    if (!pile || !head) return;
-    pile.spot = { ...pile.spot, turn: this.turnOfLaid(pile.spot, head) };
+    if (!pile || head === undefined) return;
+    // Якорь переезжает на место новой головы: её номер известен, угол считается из него.
+    pile.spot = { ...pile.spot, turn: ringSlotTurn(pile.spot.slots ?? pile.cards.length, pile.spot.turn ?? 0, head) };
     // Якорь переехал — об этом надо сказать: у зрителя он свой, и сам он его не пересчитает.
     this.relaid.add(pileId);
   }
@@ -1555,15 +1553,15 @@ export class Table {
       if (pile.spot.pose === "ring" && cards.length === 0) pile.spot = { ...pile.spot, turn: carried?.whence ?? 0, slots: 0 };
       // НАЗВАЛИ ТОЧНОЕ МЕСТО (дыра или то, откуда взяли) — карта ложится туда, и НИЧЕГО не
       // перекладывается. Порядок в стопке при этом идёт за порядком по кругу: круг хода — это он и есть.
-      if (to.at && pile.spot.pose === "ring") {
-        this.laid.set(id, { ...to.at });
+      if (to.slot !== undefined && pile.spot.pose === "ring") {
+        this.laid.set(id, to.slot);
         cards.splice(this.byTurn(pile, id), 0, id);
         return { in: "deck", pile: to.pile, i: cards.indexOf(id) };
       }
       // ВЕРНУЛИ В КРУГ, НИ ВО ЧТО НЕ ЦЕЛЯСЬ. Карта из него и не уходила — своё место она помнит, на
       // него и садится. Двигать остальных не за чем: круг шевелится только там, где иначе не встать.
       const mine = to.i === undefined && pile.spot.pose === "ring" ? this.laid.get(id) : undefined;
-      if (mine && ringKeeps(pile.spot, mine)) {
+      if (mine !== undefined && mine < (pile.spot.slots ?? 0)) {
         cards.splice(this.byTurn(pile, id), 0, id);
         return { in: "deck", pile: to.pile, i: cards.indexOf(id) };
       }
@@ -1613,9 +1611,10 @@ export class Table {
   private seen(id: string, viewer: string, where: Where): SeenCard {
     const card: SeenCard = this.visibleTo(viewer, where, id) ? { id, face: this.faces.get(id)! } : { id };
     if (where.in !== "felt" && this.turned.has(id)) card.up = true;
-    // МЕСТО ВНУТРИ ЗОНЫ едет вместе с картой: рисованию нечего вычислять, оно читает записанное.
-    const at = where.in === "deck" ? this.laid.get(id) : undefined;
-    if (at) card.at = { ...at };
+    // НОМЕР МЕСТА В ЗОНЕ едет вместе с картой. Не координаты: где это место, каждый посчитает сам,
+    // одной и той же функцией, — и разойтись им будет негде.
+    const slot = where.in === "deck" ? this.laid.get(id) : undefined;
+    if (slot !== undefined) card.slot = slot;
     return card;
   }
 
