@@ -1,0 +1,35 @@
+.night/log.md
+  s_9ed0da107cbc4a::t_e457efbfdf4544 370
+server/scripts/tableRing.mjs
+  s_9ed0da107cbc4a::t_c9fc23904c5c13 151,185-186,188,194-197,244-245,259-261,264,398-399,515-555,591-593
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_b3bb3ba23f4f3b 181-188
+server/src/table/patch.ts
+  s_9ed0da107cbc4a::t_349254a243cb41 83-86,213-214
+server/src/table/ring.ts
+  s_9ed0da107cbc4a::t_ccf6e34c76240b 191,193-195,197-203,206,208-215
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_a5ab59190f3982 807,1492-1493,1503-1506,1536-1539,1555,1590-1593,1595
+server/src/table/zones.test.ts
+  s_9ed0da107cbc4a::t_90317f1beb4824 11,58,98,100,102-103,105-106,108-110,130-142
+server/table-client/felt.ts
+  s_9ed0da107cbc4a::t_f27d72681526f5 9,85-86,477,549,625,640-650,744
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_d7be327ddc9dc6 25,1926-1933,2620,2871,2874-2880,2882-2884,2892,3207-3221,3248-3249,3263-3266,3268,3272,3274-3276,3278-3279,3281-3289,3292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0820999f180e1e7c7ded4a59207f65d936c3e76a",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
