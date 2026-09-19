@@ -76,6 +76,7 @@ export function localStore(): TableStore {
     eyes: [],
     watch: () => {},
     command: () => {},
+    log: () => {},
     live: () => {},
     rtc: () => {},
     onRtc: () => {},

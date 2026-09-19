@@ -36,9 +36,21 @@ export const MAX_WHAT_BYTES = 8 * 1024;
 /** Сколько дней журнал живёт. Дальше он не отвечает ни на один вопрос, а место занимает. */
 export const KEEP_DAYS = 30;
 
+/**
+ * Числа, приехавшие по сети 64-битными целыми, распаковываются как `bigint`, а его `JSON.stringify`
+ * не умеет и БРОСАЕТ. Журнал не имеет права падать из-за того, что ему рассказали, — поэтому большие
+ * целые записываются числами, а на всякую другую неожиданность есть последняя сеть внизу.
+ */
+const plain = (_key: string, value: unknown): unknown => (typeof value === "bigint" ? Number(value) : value);
+
 const packed = (what: unknown): string | null => {
   if (what === undefined) return null;
-  const text = JSON.stringify(what) ?? "null";
+  let text: string;
+  try {
+    text = JSON.stringify(what, plain) ?? "null";
+  } catch {
+    return JSON.stringify({ unreadable: String(what).slice(0, 200) });
+  }
   return text.length > MAX_WHAT_BYTES ? JSON.stringify({ cut: text.length, head: text.slice(0, 512) }) : text;
 };
 

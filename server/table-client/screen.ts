@@ -25,6 +25,7 @@ import { FELT_REACH } from "../src/table/table.js";
 import { ringFree, RING_LEAST, ringSlot, RING_SPREAD } from "../src/table/ring.js";
 import type { RingPlace as Laid3 } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
+import type { ScreenHealth } from "./watch.js";
 import { HOST } from "./host.js";
 
 /** Цвет отметки карты в строке — светлые версии красок колоды: буквы строки стоят на сукне с чёрной обводкой. */
@@ -285,7 +286,7 @@ interface Drag {
 }
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
-export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Promise<void> } {
+export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Promise<void>; health: ScreenHealth } {
   const canvas = stage.querySelector("canvas")!;
   const over = stage.querySelector<HTMLElement>("#over")!;
   const images: Record<string, HTMLImageElement> = {};
@@ -4119,7 +4120,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     face(p);
     return settled(images[p.key]!);
   });
-  return { ready: Promise.all([art.warm(store.state.rules), document.fonts?.ready, ...photos]).then(() => {}) };
+  return {
+    ready: Promise.all([art.warm(store.state.rules), document.fonts?.ready, ...photos]).then(() => {}),
+    // ОКОШКО ДЛЯ ЖУРНАЛА: правда о звуке и о дошедшем голосе. Экран её не отправляет и о журнале не
+    // знает — только отвечает, когда спросят.
+    health: { sound: () => sound.health, voice: () => mesh.stats() },
+  };
 }
 
 function escape(text: string): string {

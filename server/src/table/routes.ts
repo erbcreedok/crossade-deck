@@ -15,6 +15,7 @@ import { isCrew } from "./crews.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
 import { closeEntry, findEntry, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, runIn, setAdmin } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
+import { deeds, roomsSeen } from "../db/eventsRepo.js";
 
 /** Этот запуск. Новый процесс — новый `boot`: по нему бот понимает, что прежних столов нет. */
 export const BOOT = randomBytes(6).toString("hex");
@@ -93,6 +94,23 @@ export function tableRoutes(): Router {
   const r = express.Router();
 
   r.get("/table/health", (_req, res) => res.json({ boot: BOOT }));
+
+  /**
+   * ЖУРНАЛ НАРУЖУ — под тем же секретом, что и управление столом. Читать его будет разбор жалобы, а
+   * не игрок: в записях лежат ключи людей, их нажатия и ошибки их браузеров.
+   *
+   * Без комнаты отдаётся список комнат, о которых журнал вообще что-то помнит: с него начинается
+   * любой разбор, потому что комнату по жалобе обычно и надо сперва найти.
+   */
+  r.get("/table/journal", guarded, (req, res) => {
+    const q = req.query as Record<string, string | undefined>;
+    if (q.room === undefined) return void res.json({ rooms: roomsSeen(Number(q.limit) || 50) });
+    const limit = Math.min(Number(q.limit) || 500, 5000);
+    res.json({
+      room: q.room,
+      deeds: deeds({ room: q.room, ...(q.who ? { who: q.who } : {}), ...(q.kind ? { kind: q.kind } : {}), ...(q.since ? { since: Number(q.since) } : {}), limit }),
+    });
+  });
 
   r.post("/table/rooms", guarded, (req, res) => {
     const body = (req.body ?? {}) as Partial<OpenRoom> & { room?: string };

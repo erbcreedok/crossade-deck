@@ -112,6 +112,24 @@ export interface TableSound {
   /** `x`, `z` — место на экране в долях от середины (см. `Played`). */
   /** `cutMs` — звук обрывается, когда кончилась анимация, которую он озвучивает. */
   play(kind: CueKind, x: number, z: number, mine: boolean, cutMs?: number): void;
+  /**
+   * ЧТО СО ЗВУКОМ НА САМОМ ДЕЛЕ. Дальше колонки не видно никому, но всё до неё — видно, и «не
+   * слышу» почти всегда объясняется именно здесь: браузер не пустил (`state` не `running`, пока
+   * человек не коснулся экрана), звук заглушён своими настройками, или файл ещё не доехал.
+   */
+  readonly health: SoundHealth;
+}
+
+export interface SoundHealth {
+  /** Состояние звуковой машины: `none` — её ещё не создавали, `suspended` — браузер не пустил. */
+  state: "none" | AudioContextState;
+  /** Сколько раз стол просил звук. */
+  asked: number;
+  /** Сколько из них прозвучало. */
+  played: number;
+  /** Сколько промолчало — и почему промолчало последнее. */
+  silent: number;
+  why?: "off" | "asleep" | "no-file";
 }
 
 export function tableSound(): TableSound {
@@ -140,8 +158,14 @@ export function tableSound(): TableSound {
   };
   addEventListener("pointerdown", wake, { capture: true });
 
+  const health: SoundHealth = { state: "none", asked: 0, played: 0, silent: 0 };
+
   const sound: TableSound = {
     prefs: readSoundPrefs(),
+    get health() {
+      health.state = ctx?.state ?? "none";
+      return health;
+    },
     get on() {
       return !sound.prefs.muted && !sound.prefs.uiMuted && sound.prefs.volume > 0;
     },
@@ -152,14 +176,24 @@ export function tableSound(): TableSound {
     voiceGain: (mine) => (sound.voiceOn ? (mine ? VOICE_GAIN.mine : VOICE_GAIN.other) * (sound.prefs.voiceVolume / 100) : 0),
     save: () => writeSoundPrefs(sound.prefs),
     play(kind, x, z, mine, cutMs) {
-      if (!sound.on) return;
+      health.asked += 1;
+      if (!sound.on) {
+        health.silent += 1;
+        health.why = "off";
+        return;
+      }
       const gain = (mine ? GAIN.mine : GAIN.other) * (sound.prefs.volume / 100);
       if (!sound.prefs.spatial) x = z = 0;
       const file = SOUND_OF[kind];
       log.push({ kind, file, x: +x.toFixed(2), z: +z.toFixed(2), gain, ...(cutMs ? { cutMs } : {}) });
       if (log.length > 50) log.shift();
       const buf = buffers.get(`${file}-${1 + Math.floor(Math.random() * FILES[file])}`);
-      if (!ctx || !buf || ctx.state !== "running") return;
+      if (!ctx || !buf || ctx.state !== "running") {
+        health.silent += 1;
+        health.why = !buf ? "no-file" : "asleep";
+        return;
+      }
+      health.played += 1;
       const src = ctx.createBufferSource();
       src.buffer = buf;
       const vol = ctx.createGain();

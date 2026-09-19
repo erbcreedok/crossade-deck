@@ -44,6 +44,7 @@ const LAYOUT_RADIUS = 4;
 import { readCommand } from "./routes.js";
 import { roomIsSigned } from "./roomIds.js";
 import { Chronicle } from "./chronicle.js";
+import { cleanWitnessed, Witnesses } from "./witness.js";
 import { Table } from "./table.js";
 
 const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "grip", "turn", "flip", "arrange", "pose", "stand", "sit", "flag", "deckMove", "deckDo", "deckForever", "deckPin", "deckGuard", "gather", "pick", "unpick", "moveMany", "turnMany", "pileDrop", "rules", "sync", "crew", "dealer"]);
@@ -56,6 +57,8 @@ export class TableRoom extends Room {
   /** Сколько голосовых человек отправил за последние секунды: больше предела сервер не пересылает. */
   private talk = new LiveTalk();
   private signals = new Signals();
+  /** Сколько рассказов о себе прислал каждый экран: больше предела журнал не берёт. */
+  private witnesses = new Witnesses();
   maxClients = 16;
 
   private table!: Table;
@@ -253,6 +256,15 @@ export class TableRoom extends Room {
       const windows = this.clients.filter((one) => this.seats.get(one.sessionId) === out.to);
       const at = ear(windows.map((one) => one.sessionId));
       for (const one of windows) if (one.sessionId === at) one.send(MSG.rtc, note);
+    });
+
+    // ЧТО ВИДЕЛ ЭКРАН — прямо в журнал, рядом с правдой стола. Ответа нет: рассказ ни на что не
+    // влияет, и единственное, что с ним может случиться, — он не поместится в предел и пропадёт.
+    this.onMessage(MSG.log, (client, raw: unknown) => {
+      const me = this.personOf(client.sessionId);
+      const told = cleanWitnessed(raw);
+      if (!told || !this.witnesses.take(me?.key ?? client.sessionId, Date.now())) return;
+      this.book.heard(told.seen, me?.key);
     });
 
     this.onMessage(MSG.stickers, (client) => {
@@ -572,6 +584,7 @@ export class TableRoom extends Room {
     if (this.eyes.forget(key)) this.spreadEyes();
     this.talk.forget(key);
     this.signals.forget(key);
+    this.witnesses.forget(key);
     this.spread(this.table.leave(key));
   }
 

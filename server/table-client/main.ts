@@ -11,6 +11,7 @@ import { loadingCross } from "../../look/src/loading.js";
 import { mountGround } from "./ground.js";
 import { mountScreen } from "./screen.js";
 import type { TableStore } from "./store.js";
+import { watchScreen, witnessed, type ScreenHealth } from "./watch.js";
 
 interface TelegramWebApp {
   initData: string;
@@ -62,15 +63,29 @@ mountGround(stage);
 const loading = loadingCross(document.body, "Загружаю стол");
 (document.body.lastElementChild as HTMLElement).style.zIndex = "1000";
 
+// ЖУРНАЛ ЭКРАНА НАЧИНАЕТСЯ ДО ВХОДА: падение при загрузке — тоже рассказ, и именно его разобрать
+// труднее всего. Пока хранилища нет, рассказывать некуда, и пачка ждёт в памяти до первого `tell`
+// после входа.
+let tellStore: TableStore | undefined;
+let screenHealth: ScreenHealth | undefined;
+const witness = watchScreen((seen) => tellStore?.log(seen), {
+  sound: () => screenHealth?.sound() ?? null,
+  voice: () => screenHealth?.voice() ?? null,
+});
+
 open()
   .then((store) => {
+    tellStore = store;
     document.title = store.title;
-    const screen = mountScreen(stage, store);
+    const screen = mountScreen(stage, witnessed(store, witness));
+    screenHealth = screen.health;
     store.onGone(() => say("Стол закрыт."));
     return screen.ready.then(() => loading.done());
   })
   .catch((err: unknown) => {
     loading.done();
     const text = err instanceof Error ? err.message : String(err);
+    witness.saw("open.failed", { text: text.slice(0, 300) });
+    witness.tell();
     say(/who are you|unsigned/.test(text) ? "Сюда так не войти. Открой стол по ссылке из чата." : text);
   });

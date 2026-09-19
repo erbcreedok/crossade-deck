@@ -69,6 +69,19 @@ describe("events.the-journal-remembers-what-state-forgets", () => {
     expect(JSON.stringify(one.what).length).toBeLessThan(MAX_WHAT_BYTES);
   });
 
+  it("подробности с 64-битным целым записываются, а не роняют журнал", () => {
+    // `JSON.stringify` бросает на `bigint`, а такие числа приезжают по сети сами собой.
+    put("frame", { what: { at: 1758300000000n, cards: 36 } });
+    expect(deedsOf("к1", 100, at)[0]!.what).toEqual({ at: 1758300000000, cards: 36 });
+  });
+
+  it("совсем несериализуемые подробности не роняют журнал", () => {
+    const loop: Record<string, unknown> = {};
+    loop.self = loop;
+    expect(() => put("frame", { what: loop })).not.toThrow();
+    expect(deedsOf("к1", 100, at)[0]!.what).toMatchObject({ unreadable: expect.any(String) });
+  });
+
   it("пачка пишется целиком или не пишется вовсе", () => {
     tellAll(
       [
