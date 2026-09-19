@@ -39,7 +39,14 @@ async function start(): Promise<void> {
   const secret = params.get("secret");
   if (!room || !secret) return say("Нужны комната и секрет: /table/replay?room=…&secret=…");
 
-  const res = await fetch(`${HOST}/table/journal?room=${encodeURIComponent(room)}&limit=5000`, { headers: { "x-table-secret": secret } });
+  // Секрет идёт заголовком, а заголовок держит только латиницу: кириллица в нём роняет сам запрос,
+  // и без этой сети страница падала бы молча вместо простого «не подошёл».
+  let res: Response;
+  try {
+    res = await fetch(`${HOST}/table/journal?room=${encodeURIComponent(room)}&limit=5000`, { headers: { "x-table-secret": secret } });
+  } catch {
+    return say("Секрет не подошёл: в нём есть буквы, которых не бывает в ключе.");
+  }
   if (!res.ok) return say(res.status === 401 || res.status === 403 ? "Секрет не подошёл." : `Журнал не ответил: ${res.status}`);
   const { deeds } = (await res.json()) as { deeds: Told[] };
   if (deeds.length === 0) return say("Про эту комнату журнал ничего не помнит.");
