@@ -145,8 +145,9 @@ export function replayStore(deeds: readonly Told[], me: Person): Replay {
     for (let i = 0; i <= upto && i < deeds.length; i += 1) {
       const d = deeds[i]!;
       if (!isPatch(d)) continue;
-      const { v, ops } = d.what as { v: number; ops: Op[] };
-      state = applyPatch(state, { v, ops });
+      const ops = opsOf(d);
+      if (ops.length === 0) continue;
+      state = applyPatch(state, { v: (d.what as { v: number }).v, ops });
     }
   };
 
