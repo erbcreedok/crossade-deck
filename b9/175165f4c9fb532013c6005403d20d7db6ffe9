@@ -1,0 +1,25 @@
+server/scripts/tableReplay.mjs
+  s_9ed0da107cbc4a::t_367f136b46b65d 48-73,75-77,86-88,90,92,98-99,126-131,142,145-168
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_c8dca8836b27b1 67-68,571-584,645-647
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_0fe90fc033643c 661-665,1106-1107,1641-1649,1652,1654,1658
+server/src/table/zones.test.ts
+  s_9ed0da107cbc4a::t_0e23b965532a6b 151-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b9175165f4c9fb532013c6005403d20d7db6ffe9",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
