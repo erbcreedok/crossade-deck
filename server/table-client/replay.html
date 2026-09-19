@@ -20,6 +20,9 @@
       #deed { font-family: ui-monospace, Menlo, monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .hurt { color: #e8836f; }
       #note { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: #9aa3a1; }
+      /* СКРЫТОЕ НЕ ЛОВИТ ПАЛЕЦ. `display: grid` выше перебивает атрибут «скрыт», и пустая плашка
+         накрывала всю страницу невидимым стеклом: ни одна кнопка не нажималась. */
+      #note[hidden] { display: none; }
     </style>
   </head>
   <body>

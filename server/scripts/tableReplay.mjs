@@ -163,6 +163,20 @@ check("с чужим секретом запись не показывается
   const twice = await browser.newPage({ viewport: { width: 900, height: 900 } });
   await twice.goto(`${base}/table/replay?room=${room}&pass=${encodeURIComponent(pass ?? "нет")}`);
   await twice.waitForTimeout(1800);
+  // НАСТОЯЩИЕ НАЖАТИЯ, а не вызов обработчика: кнопку может накрыть невидимый слой, и подмена
+  // пальца программой этого не увидит — однажды так и вышло.
+  const before = await twice.evaluate(() => document.getElementById("now").textContent);
+  await twice.click("#fwd", { timeout: 4000 }).catch(() => {});
+  await twice.waitForTimeout(400);
+  const after = await twice.evaluate(() => document.getElementById("now").textContent);
+  check("кнопку шага можно НАЖАТЬ пальцем", before !== after, { было: before, стало: after });
+
+  await twice.click("#play", { timeout: 4000 }).catch(() => {});
+  await twice.waitForTimeout(2500);
+  const rolling = await twice.evaluate(() => document.getElementById("now").textContent);
+  check("play и правда крутит запись", rolling !== after, { нажали: after, стало: rolling });
+  await twice.click("#play", { timeout: 4000 }).catch(() => {});
+
   const last = await twice.evaluate(() => Number(document.getElementById("bar").max));
   await twice.evaluate((m) => {
     const b = document.getElementById("bar");
