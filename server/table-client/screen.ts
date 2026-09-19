@@ -5,7 +5,7 @@
 // уходит намерением; пока ответ не пришёл, экран показывает ожидаемое (`pending`), а отказ просто
 // возвращает настоящий снимок.
 
-import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type Pile, type GatherSide, MAIN_PILE, DEFAULT_SPOT, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
+import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type Pile, type Refusal, REFUSAL_SAYS, type GatherSide, MAIN_PILE, DEFAULT_SPOT, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, R, RIM, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
@@ -3918,7 +3918,30 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     draw();
   });
 
-  store.onRefused((intent: Intent) => {
+  /**
+   * ПОЧЕМУ НЕ ДАЛИ — СЛОВАМИ. Без этого отказ выглядит поломкой: карта дёрнулась и вернулась, а
+   * почему — неизвестно, и человек пробует снова. В живой партии втроём так набралось 35 отказов.
+   *
+   * Показываются только причины, которые игрок может исправить сам. Техническим («не держишь»,
+   * «неверный ход») здесь места нет: они означают рассинхрон, и говорить о нём человеку нечего.
+   */
+
+  const whyNote = document.createElement("div");
+  whyNote.dataset.g = "why";
+  whyNote.style.cssText = "position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--bar-h, 96px) + 16px);background:rgba(28,22,16,.92);color:#f0e6d2;border:1px solid rgba(240,230,210,.25);border-radius:10px;padding:7px 14px;font-size:14px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .16s;z-index:200";
+  stage.appendChild(whyNote);
+  let whyTimer: ReturnType<typeof setTimeout> | undefined;
+  const sayWhy = (refusal: Refusal): void => {
+    const text = REFUSAL_SAYS[refusal];
+    if (!text) return;
+    whyNote.textContent = text;
+    whyNote.style.opacity = "1";
+    clearTimeout(whyTimer);
+    whyTimer = setTimeout(() => (whyNote.style.opacity = "0"), 2200);
+  };
+
+  store.onRefused((intent: Intent, refusal: Refusal) => {
+    sayWhy(refusal);
     // ОТКАЗ — догадка снимается, и нарисованное возвращается к тому, что на столе.
     // Узнаётся по виду намерения и стулу, а не по тексту целиком: сервер возвращает то, что до него дошло.
     const chairOfIntent = (i: Intent) => ("chair" in i ? i.chair : "pile" in i ? i.pile : undefined);

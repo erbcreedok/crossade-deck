@@ -52,7 +52,7 @@ import {
   CARD_FACES,
 } from "./contract.js";
 import { arranged, samePack, shuffled } from "./arrange.js";
-import { allowed, grantedTo, may, no, type Ask, type Key, type Role, type Verdict } from "./access.js";
+import { allowed, grantedTo, may, no, why, type Ask, type Key, type Role, type Verdict } from "./access.js";
 import { SANDBOX, type DeskAsk, type DeskRules, type DeskZone } from "./rules.js";
 import { croupierAngle, deckHome, freeAngle, RING_SPREAD, ringSlotTurn, seatPoint, SEAT_KEEP } from "./ring.js";
 
@@ -602,7 +602,9 @@ export class Table {
     if (at.in === "hand" && !allowed(this.handAsk(by, at.chair, "hand.take"))) return { refused: "chair-locked" };
     // ПРАВИЛА РОДА СТОЛА — последними: зона уже сказала своё, теперь слово игре (`rules.ts`).
     const game = this.desk.says(this.ask, at.in === "hand" ? "hand.take" : "pile.take", { by, card: id, at });
-    if (!allowed(game)) return { refused: "locked" };
+    // ПРИЧИНУ РОДА НЕ ЗАТИРАЕМ. Род уже объяснил, почему нельзя, — донести это до игрока дороже, чем
+    // сказать «занято»: «сейчас не твой ход» он поймёт с первого раза и ждать будет спокойно.
+    if (!allowed(game)) return { refused: why(game)! };
     return { at };
   }
 
@@ -649,8 +651,10 @@ export class Table {
     const target = this.clean(to as Where);
     if (!target || target.in === "felt" || (target.in === "deck" && target.pile === id)) return { refused: "bad" };
     if (source.spot.pin || source.spot.shut || source.spot.seal) return { refused: "locked" };
-    if (!allowed(this.desk.says(this.ask, "pile.grip", { by, pile: id }))) return { refused: "locked" };
-    if (!allowed(this.desk.says(this.ask, "pile.drop", { by, pile: id, at: target, whole: true }))) return { refused: "locked" };
+    const mayGrip = this.desk.says(this.ask, "pile.grip", { by, pile: id });
+    if (!allowed(mayGrip)) return { refused: why(mayGrip)! };
+    const mayDrop = this.desk.says(this.ask, "pile.drop", { by, pile: id, at: target, whole: true });
+    if (!allowed(mayDrop)) return { refused: why(mayDrop)! };
     if (source.cards.some((one) => (this.locks.has(one) && this.locks.get(one)!.by !== by) || (this.picks.has(one) && this.picks.get(one) !== by))) return { refused: "locked" };
     if (source.cards.length === 0) return { refused: "bad" };
     if (target.in === "hand" && !allowed(this.handAsk(by, target.chair, "hand.drop"))) return { refused: "chair-locked" };
@@ -828,9 +832,13 @@ export class Table {
    */
   private ruleRefusal(by: string, id: string, to: Where): Refusal | null {
     const key = to.in === "hand" ? "hand.drop" : "pile.drop";
-    if (!allowed(this.desk.says(this.ask, key, { by, card: id, at: to, ...(to.in === "hand" ? { chair: to.chair } : {}) }))) return "locked";
+    const mayLay = this.desk.says(this.ask, key, { by, card: id, at: to, ...(to.in === "hand" ? { chair: to.chair } : {}) });
+    if (!allowed(mayLay)) return why(mayLay)!;
     const over = this.coveredBy(to);
-    if (over !== null && !allowed(this.desk.says(this.ask, "card.cover", { by, card: id, over, at: to }))) return "locked";
+    if (over !== null) {
+      const mayCover = this.desk.says(this.ask, "card.cover", { by, card: id, over, at: to });
+      if (!allowed(mayCover)) return why(mayCover)!;
+    }
     return null;
   }
 

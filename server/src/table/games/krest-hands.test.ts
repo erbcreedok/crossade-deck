@@ -54,7 +54,9 @@ describe("за столом крестового", () => {
     const t = krestTable();
     const was = t.seenBy("Аня").piles.find((p) => p.id === MAIN_PILE)!.cards.length;
     const out = t.act("Аня", { t: "pileDrop", pile: MAIN_PILE, to: { in: "hand", chair: chairOf(t, "Аня"), i: 0 } }, 0);
-    expect("refused" in out ? out.refused : "ok").toBe("locked");
+    // Причина — та, что назвал род стола: «не твоё», а не размытое «занято». Игрок читает её словами,
+    // и «занято» на месте правила заставляет пробовать снова — так и набрались 35 отказов за партию.
+    expect("refused" in out ? out.refused : "ok").toBe("not-yours");
     expect(t.seenBy("Аня").piles.find((p) => p.id === MAIN_PILE)!.cards.length).toBe(was);
     expect(t.layout().chairs.find((c) => c.owner === "Аня")!.hand).toHaveLength(0);
   });
@@ -62,7 +64,9 @@ describe("за столом крестового", () => {
   it("и в чужую руку тоже", () => {
     const t = krestTable();
     const out = t.act("Аня", { t: "pileDrop", pile: MAIN_PILE, to: { in: "hand", chair: chairOf(t, "Боря"), i: 0 } }, 0);
-    expect("refused" in out ? out.refused : "ok").toBe("locked");
+    // Причина — та, что назвал род стола: «не твоё», а не размытое «занято». Игрок читает её словами,
+    // и «занято» на месте правила заставляет пробовать снова — так и набрались 35 отказов за партию.
+    expect("refused" in out ? out.refused : "ok").toBe("not-yours");
   });
 
   it("а ПО ОДНОЙ КАРТЕ в руку — пожалуйста", () => {
