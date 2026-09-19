@@ -1719,14 +1719,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
    * часть стула, только пока он на этом стуле сидит: его диск тогда тоже принимает тап и карту, но
    * своей границей стул не обрезает.
    */
-  function chairUnder(s: Snapshot, x: number, y: number): Spot | undefined {
+  function chairUnder(s: Snapshot, x: number, y: number, spare = 0): Spot | undefined {
     if (!view) return undefined;
     const v = view;
     const finger = v.toDesk({ x, y });
     return spots.find((sp) => {
       const chair = chairOf(s, sp.key);
       if (!chair) return false;
-      if (Math.hypot(finger.x - sp.seat.x, finger.y - sp.seat.y) <= SEAT_REACH) return true;
+      if (Math.hypot(finger.x - sp.seat.x, finger.y - sp.seat.y) <= SEAT_REACH + spare) return true;
       const seat = v.toGlass(sp.seat);
       const sitting = chair.owner !== null && Math.hypot(sp.x - seat.x, sp.y - seat.y) <= SEAT_REACH * v.k;
       return sitting && Math.hypot(x - sp.x, y - sp.y) <= sp.r;
@@ -3242,7 +3242,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
       }
     }
     // НА СТУЛ — в руку его стула, в конец. Под локом стул карту не берёт: она вернётся, откуда взята.
-    const chair = chairUnder(s, x, y);
+    //
+    // СТОПКУ стул ловит, едва она его ЗАДЕЛА, а не когда её середина попала внутрь: стопка шириной в
+    // карту, и целясь одной точкой, её можно наполовину надвинуть на стул и всё равно промахнуться —
+    // тогда она молча уезжает ПОД стул на сукно, вместо того чтобы лечь в руку или получить отказ.
+    const chair = chairUnder(s, x, y, skip === undefined ? 0 : FELT_CARD.h / 2);
     if (chair) return closed(s, chair.key) ? { kind: "back" } : { kind: "chair", which: chair.key };
     // НА СУКНО — туда, где середина несомой карты, а не где палец: за неё и держат.
     return { kind: "felt", at: d ? view!.toDesk({ x: x - d.gx + d.w / 2, y: y - d.gy + d.h / 2 }) : view!.toDesk(centre) };

@@ -54,7 +54,7 @@ import {
 import { arranged, samePack, shuffled } from "./arrange.js";
 import { allowed, grantedTo, may, no, type Ask, type Key, type Role, type Verdict } from "./access.js";
 import { SANDBOX, type DeskAsk, type DeskRules, type DeskZone } from "./rules.js";
-import { croupierAngle, deckHome, freeAngle, RING_SPREAD, ringSlotTurn, seatPoint } from "./ring.js";
+import { croupierAngle, deckHome, freeAngle, RING_SPREAD, ringSlotTurn, seatPoint, SEAT_KEEP } from "./ring.js";
 
 /** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
 export const FELT_REACH = 8 - 0.86;
@@ -946,6 +946,10 @@ export class Table {
     if (!pile) return { refused: "gone" };
     if (pile.spot.pin) return { refused: "locked" };
     if (![x, y, angle].every(Number.isFinite)) return { refused: "bad" };
+    // ПОД СТУЛ СТОПКУ НЕ ПРЯЧУТ. Место стула накрыто его аркой и рукой: стопка, поставленная туда,
+    // пропадает с глаз — игрок отпустил её у себя и больше не находит. Отказ честнее пропажи, а
+    // положить карты в руку — отдельный жест, у которого свои правила и свой отказ.
+    if (this.onSeat(x, y)) return { refused: "full" };
     // МЕСТО РОДА С МЕСТА НЕ СДВИНУТЬ. Круг хода очерчен на сукне раз и навсегда; за грип тянут КАРТЫ,
     // а не поле. Отпустили на сукне — карты легли туда новой стопкой, а круг остался, где был.
     if (this.zoned.has(id)) return pile.cards.length === 0 ? { refused: "locked" } : this.spill(id, x, y, angle);
@@ -956,6 +960,14 @@ export class Table {
     this.piles.delete(id);
     this.piles.set(id, pile);
     return { ops: this.commit([{ ...this.spotOp(id), top: true }]) };
+  }
+
+  /** Накрыто ли это место чьим-нибудь стулом. */
+  private onSeat(x: number, y: number): boolean {
+    return [...this.chairs.values()].some((chair) => {
+      const at = seatPoint(chair.angle);
+      return Math.hypot(x - at.x, y - at.y) < SEAT_KEEP;
+    });
   }
 
   /** ВЫСЫПАТЬ КАРТЫ МЕСТА РОДА на сукно новой стопкой: место остаётся пустым и на своём месте. */

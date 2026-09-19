@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import type { Face } from "./contract.js";
 import { RING_ARROW, ringCardHalf, RING_CARDS, ringFree, ringGap, RING_HOME, ringSlot, RING_SPREAD, ringArrow, ringLay, ringStep } from "./ring.js";
 import { SANDBOX, type DeskRules } from "./rules.js";
+import { seatPoint } from "./ring.js";
 import { Table } from "./table.js";
 
 const cards: { id: string; face: Face }[] = [
@@ -199,5 +200,45 @@ describe("зона — часть стола, а не вещь на нём", () 
     const table = new Table(cards.slice(), "я");
     table.join({ key: "я", name: "Я", ink: "#fff", door: "guest" });
     expect(table.seenBy("я").piles.find((p) => p.id === "deck")).toBeDefined();
+  });
+});
+
+describe("под стул стопку не прячут", () => {
+  // Жалоба владельца: высыпал круг у своего места — стопка легла ПОД стул и пропала с глаз. Стол
+  // молчал, будто всё вышло. Отказ честнее пропажи.
+  const seated = () => {
+    const rules: DeskRules = { ...SANDBOX, zones: [{ id: "круг", x: 0, y: 0, pose: "ring" }] };
+    const table = new Table(cards.slice(), "я", rules);
+    table.join({ key: "я", name: "Я", ink: "#fff", door: "guest" });
+    for (const id of ["a", "b"]) {
+      table.act("я", { t: "grab", id }, 0);
+      table.act("я", { t: "drop", id, to: { in: "deck", pile: "круг" } }, 0);
+    }
+    const seat = table.seenBy("я").chairs.find((c) => c.owner === "я")!;
+    return { table, at: seatPoint(seat.angle) };
+  };
+
+  it("стопку не поставить на занятое место", () => {
+    const { table, at } = seated();
+    const out = table.act("я", { t: "deckMove", pile: "круг", x: at.x, y: at.y, angle: 0 }, 0);
+    expect(out).toEqual({ refused: "full" });
+  });
+
+  it("и рядом с ним, под самой аркой, — тоже", () => {
+    const { table, at } = seated();
+    const near = { x: at.x * 0.9, y: at.y * 0.9 };
+    expect(table.act("я", { t: "deckMove", pile: "круг", x: near.x, y: near.y, angle: 0 }, 0)).toEqual({ refused: "full" });
+  });
+
+  it("карты при отказе остаются в круге, а не пропадают", () => {
+    const { table, at } = seated();
+    table.act("я", { t: "deckMove", pile: "круг", x: at.x, y: at.y, angle: 0 }, 0);
+    expect(table.seenBy("я").piles.find((p) => p.id === "круг")?.cards).toHaveLength(2);
+  });
+
+  it("а на свободное сукно — сколько угодно", () => {
+    const { table } = seated();
+    const out = table.act("я", { t: "deckMove", pile: "круг", x: 3, y: -3, angle: 0 }, 0);
+    expect(out).not.toHaveProperty("refused");
   });
 });
