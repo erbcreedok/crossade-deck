@@ -314,4 +314,31 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 17,
+    up(db) {
+      // ЖУРНАЛ — одна строка на каждое событие стола и экрана. Не состояние: состояние лежит в своих
+      // таблицах и всегда показывает «сейчас», а на вопрос «что тут было полчаса назад» ответить нечем.
+      //
+      // Строка отвечает на пять вещей: когда, в какой комнате, кто, с какой стороны (стол или экран
+      // игрока) и что именно. Подробности — JSON в `what`, потому что у каждого вида события они свои,
+      // а заводить колонку под каждый вид значит менять схему на каждый новый вид.
+      //
+      // `room` и `who` пустые у событий, случившихся до того, как человек сел за стол.
+      db.exec(`
+        CREATE TABLE events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          at INTEGER NOT NULL,
+          room TEXT,
+          who TEXT,
+          side TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          what TEXT
+        );
+        CREATE INDEX events_by_room ON events(room, id);
+        CREATE INDEX events_by_time ON events(at);
+        CREATE INDEX events_by_kind ON events(kind, at);
+      `);
+    },
+  },
 ];
