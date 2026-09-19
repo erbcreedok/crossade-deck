@@ -35,6 +35,8 @@ export interface Replay {
   store: TableStore;
   /** Кадр записан столом или восстановлен из ходов — зрителю это надо знать. */
   readonly guessed: boolean;
+  /** Сколько ходов в записи обрезано и потому не применяется. */
+  readonly lost: number;
   /** Мгновения, по которым можно встать: первый кадр, каждый диф и каждое событие экрана. */
   moments: Moment[];
   /** Встать на мгновение с этим номером. */
@@ -46,7 +48,17 @@ export interface Replay {
 
 const isPatch = (d: Told): boolean => d.side === "table" && d.kind === "patch";
 
-const opsOf = (d: Told): Op[] => (d.what as { ops?: Op[] }).ops ?? [];
+/**
+ * Изменения из строки журнала. Пусто — строка ОБРЕЗАНА: слишком длинные подробности журнал режет, и
+ * у записей, сделанных до того, как предел подняли, самые большие ходы сохранились огрызком. Такой
+ * ход не применить, и делать вид, что его не было, тоже нельзя — он считается потерянным.
+ */
+const opsOf = (d: Told): Op[] => {
+  const ops = (d.what as { ops?: unknown }).ops;
+  return Array.isArray(ops) ? (ops as Op[]) : [];
+};
+
+const isCut = (d: Told): boolean => isPatch(d) && opsOf(d).length === 0;
 
 /**
  * КАДР, ВОССТАНОВЛЕННЫЙ ИЗ САМИХ ХОДОВ — для партий, записанных до того, как стол научился писать
@@ -175,6 +187,7 @@ export function replayStore(deeds: readonly Told[], me: Person): Replay {
   return {
     store,
     guessed: first === undefined,
+    lost: deeds.filter(isCut).length,
     moments,
     get at() {
       return step;
