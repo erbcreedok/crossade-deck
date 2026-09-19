@@ -8,7 +8,7 @@
 // Отсюда и единственное, без чего кино не собрать: ПЕРВЫЙ КАДР. Дифы рассказывают, что изменилось, а
 // с чего всё началось — не рассказывает никто, и колода роздана раньше первой записи.
 
-import type { Intent, Op, Person, Refusal, Snapshot } from "../src/table/contract.js";
+import type { Intent, Op, Person, Pile, Refusal, SeenCard, Snapshot, TableRules } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import type { TableStore } from "./store.js";
 
@@ -33,6 +33,8 @@ export interface Moment {
 
 export interface Replay {
   store: TableStore;
+  /** Кадр записан столом или восстановлен из ходов — зрителю это надо знать. */
+  readonly guessed: boolean;
   /** Мгновения, по которым можно встать: первый кадр, каждый диф и каждое событие экрана. */
   moments: Moment[];
   /** Встать на мгновение с этим номером. */
@@ -44,6 +46,66 @@ export interface Replay {
 
 const isPatch = (d: Told): boolean => d.side === "table" && d.kind === "patch";
 
+const opsOf = (d: Told): Op[] => (d.what as { ops?: Op[] }).ops ?? [];
+
+/**
+ * КАДР, ВОССТАНОВЛЕННЫЙ ИЗ САМИХ ХОДОВ — для партий, записанных до того, как стол научился писать
+ * первый кадр.
+ *
+ * Держится на одном допущении: стол был В ДЕФОЛТЕ, пока к нему не притронулись, — колода собрана,
+ * сукно пусто, стульев нет. Тогда всё остальное рассказывают сами ходы: каждый перенос несёт карту
+ * вместе с лицом и местом, откуда она уехала, а стулья и люди приезжают первыми же дифами.
+ *
+ * Чего восстановить НЕЛЬЗЯ: карты, которых за всю партию ни разу не трогали. Их в ходах нет, и они
+ * ложатся рубашкой — счёт колоды верный, лица неизвестны. Врать про них нельзя: показанная не та
+ * карта хуже честной рубашки.
+ */
+function guessFirst(deeds: readonly Told[]): Snapshot {
+  // Карты, уехавшие из колоды, — в порядке, в котором их брали. Берут сверху, значит первая взятая
+  // лежала последней: колода собирается в обратном порядке.
+  const fromDeck: SeenCard[] = [];
+  const met = new Set<string>();
+  let size = 0;
+  let spot: Pile | undefined;
+  let rules: TableRules | undefined;
+
+  for (const d of deeds) {
+    if (!isPatch(d)) continue;
+    for (const op of opsOf(d)) {
+      if (op.t === "rules") rules = op.rules;
+      if (op.t === "deck" && op.pile === "deck") size = Math.max(size, op.cards.length);
+      if (op.t === "spot" && op.pile === "deck" && op.spot) spot = { ...op.spot, id: "deck", cards: [], shuffles: 0 };
+      if (op.t === "move" && op.from.in === "deck" && op.from.pile === "deck" && !met.has(op.card.id)) {
+        met.add(op.card.id);
+        fromDeck.push({ id: op.card.id, ...(op.card.face === undefined ? {} : { face: op.card.face }) });
+      }
+    }
+  }
+
+  // Сколько карт было всего: сказанное дифом, иначе обычная колода. Недостающие — безликие: их не
+  // трогали, и что это за карты, запись не знает.
+  const total = Math.max(size, 36, fromDeck.length);
+  const unknown: SeenCard[] = Array.from({ length: total - fromDeck.length }, (_, i) => ({ id: `не-видели-${i}` }));
+  const deck: Pile = spot ?? { id: "deck", cards: [], shuffles: 0, x: 0, y: 0, angle: 0, below: [], forever: false, pin: false, lock: false, shut: false, seal: false };
+
+  return {
+    // Ноль: первый записанный диф несёт первую версию, и она ляжет поверх этой.
+    v: 0,
+    people: [],
+    chairs: [],
+    piles: [{ ...deck, cards: [...unknown, ...fromDeck.reverse()] }],
+    felt: [],
+    trails: {},
+    locks: {},
+    picks: {},
+    rules: rules ?? ({} as TableRules),
+    admin: null,
+    dealer: null,
+    rights: [],
+    play: null,
+  };
+}
+
 /**
  * Собрать запись из ленты журнала.
  *
@@ -53,8 +115,7 @@ const isPatch = (d: Told): boolean => d.side === "table" && d.kind === "patch";
  */
 export function replayStore(deeds: readonly Told[], me: Person): Replay {
   const first = deeds.find((d) => d.kind === "table.first");
-  if (!first) throw new Error("В записи нет первого кадра: эта партия началась раньше, чем журнал научился его писать.");
-  const start = (first.what as { snapshot: Snapshot }).snapshot;
+  const start = first ? (first.what as { snapshot: Snapshot }).snapshot : guessFirst(deeds);
 
   // Мгновения — всё, что вообще случилось: дифы двигают стол, события экрана его не трогают, но
   // именно ради них кино и смотрят («вот тут он ткнул, и ничего»).
@@ -113,6 +174,7 @@ export function replayStore(deeds: readonly Told[], me: Person): Replay {
 
   return {
     store,
+    guessed: first === undefined,
     moments,
     get at() {
       return step;

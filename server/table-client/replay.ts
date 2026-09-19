@@ -63,6 +63,14 @@ async function start(): Promise<void> {
   }
 
   mountScreen(stage, replay.store);
+  // ЧЕСТНОСТЬ ПЕРЕД ЗРИТЕЛЕМ: у восстановленной записи карты, которых не трогали, лежат рубашкой —
+  // не потому что они закрыты, а потому что запись про них не знает.
+  if (replay.guessed) {
+    const warn = document.createElement("div");
+    warn.textContent = "Кадр восстановлен из ходов: нетронутые карты — рубашкой, их запись не видела.";
+    warn.style.cssText = "position:absolute;left:14px;top:10px;background:#3a2f1c;color:#e8c98a;padding:6px 10px;border-radius:7px;font-size:12px;z-index:50";
+    stage.appendChild(warn);
+  }
   const t0 = deeds[0]!.at;
   bar.max = String(replay.moments.length - 1);
 
