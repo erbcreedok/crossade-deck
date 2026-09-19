@@ -37,6 +37,8 @@ export interface Replay {
   readonly guessed: boolean;
   /** Сколько ходов в записи обрезано и потому не применяется. */
   readonly lost: number;
+  /** Сколько прошлых посиделок этой комнаты осталось за кадром. */
+  readonly older: number;
   /** Мгновения, по которым можно встать: первый кадр, каждый диф и каждое событие экрана. */
   moments: Moment[];
   /** Встать на мгновение с этим номером. */
@@ -135,7 +137,15 @@ function guessFirst(deeds: readonly Told[]): Snapshot {
  * @param me    чьими глазами смотрим (на раскраску «своё/чужое»); запись хранится правдой, поэтому
  *              лица видны все, кем бы ни смотрели
  */
-export function replayStore(deeds: readonly Told[], me: Person): Replay {
+export function replayStore(all: readonly Told[], me: Person): Replay {
+  // ТОЛЬКО ПОСЛЕДНЯЯ ПОСИДЕЛКА. Комната живёт в памяти и умирает с перезапуском, а ссылка на неё
+  // остаётся: по той же ссылке открывается НОВЫЙ стол с тем же именем, и его записи ложатся в ту же
+  // ленту, следом за старыми. Взять ленту целиком значит применить к свежему столу ходы вчерашнего.
+  //
+  // Граница — открытие комнаты: с него начинается жизнь стола, и всё, что до, относится к прошлой.
+  const opened = all.map((d, i) => (d.kind === "room.open" ? i : -1)).filter((i) => i >= 0);
+  const deeds = opened.length > 1 ? all.slice(opened[opened.length - 1]!) : all;
+
   const first = deeds.find((d) => d.kind === "table.first");
   const start = first ? (first.what as { snapshot: Snapshot }).snapshot : guessFirst(deeds);
 
@@ -199,6 +209,7 @@ export function replayStore(deeds: readonly Told[], me: Person): Replay {
     store,
     guessed: first === undefined,
     lost: deeds.filter(isCut).length,
+    older: Math.max(0, opened.length - 1),
     moments,
     get at() {
       return step;

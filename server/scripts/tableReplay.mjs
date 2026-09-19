@@ -137,6 +137,46 @@ await bare.waitForTimeout(900);
 const jail = await bare.evaluate(() => document.getElementById("note").textContent);
 check("с чужим секретом запись не показывается", /секрет/i.test(jail ?? ""), jail);
 
+// 5. ВТОРАЯ ПОСИДЕЛКА ЗА ТЕМ ЖЕ СТОЛОМ. Комната живёт в памяти и умирает с перезапуском, а ссылка
+// остаётся: по ней открывается новый стол с тем же именем. Записи ложатся в ту же ленту, и запись
+// обязана показать ПОСЛЕДНЮЮ — иначе к свежему столу применятся вчерашние ходы.
+{
+  // Комнату закрывают — стол умирает, как умирает он и при перезапуске сервера.
+  await fetch(`${base}/table/rooms/${room}`, { method: "DELETE", headers: { "x-table-secret": secret } });
+  await new Promise((r) => setTimeout(r, 800));
+
+  // А ссылка живёт: по ней открывается НОВЫЙ стол с тем же именем, и его записи лягут в ту же ленту.
+  const again = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await again.goto(`${base}/table/?room=${room}&name=B`);
+  await again.waitForSelector("[data-section]");
+  await again.waitForTimeout(900);
+  const from = (await spotsOf(again)).deckTop;
+  await again.mouse.move(from.x, from.y);
+  await again.mouse.down();
+  await again.mouse.move(195, 800, { steps: 6 });
+  await again.mouse.up();
+  await again.waitForTimeout(700);
+  const deckNow = (await spotsOf(again)).deck;
+  await again.close();
+  await new Promise((r) => setTimeout(r, 3500));
+
+  const twice = await browser.newPage({ viewport: { width: 900, height: 900 } });
+  await twice.goto(`${base}/table/replay?room=${room}&pass=${encodeURIComponent(pass ?? "нет")}`);
+  await twice.waitForTimeout(1800);
+  const last = await twice.evaluate(() => Number(document.getElementById("bar").max));
+  await twice.evaluate((m) => {
+    const b = document.getElementById("bar");
+    b.value = String(m);
+    b.dispatchEvent(new Event("input"));
+  }, last);
+  await twice.waitForTimeout(800);
+  const shown = (await spotsOf(twice)).deck;
+  // У новой посиделки колода своя: если бы ленту склеили, из неё убыло бы вдвое больше карт.
+  check("показана последняя посиделка, а не склейка с прошлой", shown === deckNow, { запись: shown, стол: deckNow });
+  const said = await twice.evaluate(() => document.body.textContent.includes("прежних в журнале"));
+  check("…и про прежние посиделки сказано честно", said, said);
+}
+
 await browser.close();
 let bad = 0;
 for (const c of checks) {

@@ -55,8 +55,8 @@ async function start(): Promise<void> {
   const { deeds } = (await res.json()) as { deeds: Told[] };
   if (deeds.length === 0) return say("Про эту комнату журнал ничего не помнит.");
 
-  // Смотрим глазами того, кто в этой партии играл: раскраска «своё / чужое» тогда та же, что видел он.
-  const played = deeds.find((d) => d.kind === "join" && d.who !== undefined);
+  // Смотрим глазами того, кто играл ПОСЛЕДНИМ: его рука и его права — то, ради чего запись открыли.
+  const played = [...deeds].reverse().find((d) => d.kind === "join" && d.who !== undefined);
   const me: Person = { key: played?.who ?? "", name: "разбор", ink: "#e8c34e", door: "guest" };
 
   let replay;
@@ -69,11 +69,12 @@ async function start(): Promise<void> {
   mountScreen(stage, replay.store);
   // ЧЕСТНОСТЬ ПЕРЕД ЗРИТЕЛЕМ: у восстановленной записи карты, которых не трогали, лежат рубашкой —
   // не потому что они закрыты, а потому что запись про них не знает.
-  if (replay.guessed || replay.lost > 0) {
+  if (replay.guessed || replay.lost > 0 || replay.older > 0) {
     const warn = document.createElement("div");
     warn.textContent = [
       replay.guessed ? "Кадр восстановлен из ходов: нетронутые карты — рубашкой, их запись не видела." : "",
       replay.lost > 0 ? `Ходов обрезано и потеряно: ${replay.lost} — запись делалась со старым пределом.` : "",
+      replay.older > 0 ? `Показана последняя посиделка за этим столом; прежних в журнале ещё ${replay.older}.` : "",
     ].filter(Boolean).join(" ");
     warn.style.cssText = "position:absolute;left:14px;top:10px;background:#3a2f1c;color:#e8c98a;padding:6px 10px;border-radius:7px;font-size:12px;z-index:50";
     stage.appendChild(warn);
