@@ -43,6 +43,7 @@ import { seatPoint } from "./ring.js";
 const LAYOUT_RADIUS = 4;
 import { readCommand } from "./routes.js";
 import { roomIsSigned } from "./roomIds.js";
+import { Chronicle } from "./chronicle.js";
 import { Table } from "./table.js";
 
 const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "grip", "turn", "flip", "arrange", "pose", "stand", "sit", "flag", "deckMove", "deckDo", "deckForever", "deckPin", "deckGuard", "gather", "pick", "unpick", "moveMany", "turnMany", "pileDrop", "rules", "sync", "crew", "dealer"]);
@@ -58,6 +59,8 @@ export class TableRoom extends Room {
   maxClients = 16;
 
   private table!: Table;
+  /** Летопись комнаты. Создаётся вместе с комнатой и переживает её ровно до последнего сброса. */
+  private book!: Chronicle;
   private room = "";
   /**
    * ПАРТИЯ, ЕСЛИ ОНА ИДЁТ. Ведётся ПО СТУЛЬЯМ, а не по людям: рука принадлежит стулу, человек может
@@ -77,6 +80,8 @@ export class TableRoom extends Room {
     const { secret } = tableConfig();
     if (!secret || !roomIsSigned(options.room, secret)) throw new Error("unsigned room");
     this.room = options.room;
+    this.book = new Chronicle(this.room);
+    this.book.tell("room.open", undefined, { kind: kindOf(this.room), title: titleOf(this.room), by: creatorOf(this.room) });
     this.autoDispose = false;
     // КОМНАТА, ОТКРЫТАЯ ВХОДОМ, А НЕ БОТОМ: inline-карточка, чьё сообщение бот ещё не записал.
     openEntry(this.room, { kind: "inline", message: "" }, "");
@@ -93,7 +98,11 @@ export class TableRoom extends Room {
       people: () => this.table.here.filter((p) => !p.bot),
       seats: () => this.seatCards(),
       deck: () => this.deckCard(),
-      close: () => void this.disconnect(),
+      close: () => {
+        this.book.tell("room.close", undefined);
+        this.book.flush();
+        void this.disconnect();
+      },
       run: (by, command) => this.run(by, command),
       claim: (by) => this.spread(this.table.claim(by)),
       // РОД СМЕНИЛИ НА ХОДУ: стол берёт другие правила, а карты и люди остаются на местах. Партия
@@ -131,8 +140,13 @@ export class TableRoom extends Room {
       // ДЕЛО КРУПЬЕ — не ход по столу, а состав стола: его исполняет комната.
       if (intent.t === "crew") return void this.crewAct(me.key, intent.act);
       const result = this.table.act(me.key, intent, Date.now());
-      if ("refused" in result) client.send(MSG.refused, { intent, why: result.refused });
-      else {
+      if ("refused" in result) {
+        // ОТКАЗ — САМОЕ ЦЕННОЕ В ЖУРНАЛЕ: человек пробовал, а стол не дал. Жалобы приходят именно
+        // отсюда, и без записи причину потом не назвать.
+        this.book.tell("refused", me.key, { intent, why: result.refused });
+        client.send(MSG.refused, { intent, why: result.refused });
+      } else {
+        this.book.tell("act", me.key, { intent });
         this.spread(result.ops);
         this.followMatch(me.key, intent);
       }
@@ -197,6 +211,7 @@ export class TableRoom extends Room {
       const out = cleanMic(raw);
       if (!me?.seat || !out) return;
       const mic: Mic = { ...out, by: me.key };
+      this.book.tell("mic", me.key, { on: out.on, ...(out.to === undefined ? {} : { to: out.to }) });
       for (const other of this.clients) {
         const key = this.seats.get(other.sessionId);
         if (key !== undefined && key !== me.key) other.send(MSG.mic, mic);
@@ -540,6 +555,7 @@ export class TableRoom extends Room {
       }
     }
     this.seats.set(client.sessionId, person.key);
+    this.book.tell("join", person.key, { name: person.name, again: sitting !== undefined, windows: [...this.seats.values()].filter((k) => k === person.key).length });
     this.spread(this.table.join(person));
   }
 
@@ -548,7 +564,11 @@ export class TableRoom extends Room {
     this.seats.delete(client.sessionId);
     if (key === undefined) return;
     // С ДРУГОГО УСТРОЙСТВА ОН ЕЩЁ ЗДЕСЬ — тогда не уходит никто.
-    if ([...this.seats.values()].includes(key)) return;
+    if ([...this.seats.values()].includes(key)) {
+      this.book.tell("window.close", key, { left: [...this.seats.values()].filter((k) => k === key).length });
+      return;
+    }
+    this.book.tell("leave", key);
     if (this.eyes.forget(key)) this.spreadEyes();
     this.talk.forget(key);
     this.signals.forget(key);
@@ -588,6 +608,12 @@ export class TableRoom extends Room {
   private spread(ops: Op[]): void {
     if (ops.length === 0) return;
     const v = this.table.version;
+    // ЛЕНТА ПРОИГРЫВАТЕЛЯ ПИШЕТСЯ ЗДЕСЬ — в единственном месте, через которое уходит любое изменение
+    // стола. Не в обработчике хода: ходом стол меняют не только руки игрока, но и команда админа,
+    // крупье и смена рода, и лента, собранная по рукам, окажется дырявой.
+    //
+    // Пишется ПРАВДА стола, а не то, что видно каждому: реплей должен показывать партию как она шла.
+    this.book.tell("patch", undefined, { v, ops });
     for (const client of this.clients) {
       const key = this.seats.get(client.sessionId);
       if (key !== undefined) client.send(MSG.patch, { v, ops: ops.map((op) => this.table.seenOp(op, key)) });

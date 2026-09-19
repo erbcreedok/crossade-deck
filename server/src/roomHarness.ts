@@ -40,6 +40,7 @@ export const TEST_PORTS = {
   kitRoom: 2674,
   table: 2675,
   tableRoutes: 2676,
+  tableChronicle: 2677,
 } as const;
 
 export function createGameServer() {
