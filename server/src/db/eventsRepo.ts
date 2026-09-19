@@ -148,6 +148,25 @@ export function roomsSeen(limit = 50, at: DatabaseSync = db()): { room: string; 
     .all(limit) as unknown as { room: string; first: number; last: number; deeds: number }[];
 }
 
+/** Как часто журнал подчищает себя сам. */
+export const SWEEP_EVERY_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Забывать старое по часам. Журнал растёт молча, и без этого он однажды становится самой большой
+ * вещью на диске — за день до того, как это заметят.
+ */
+export function sweepJournal(every = SWEEP_EVERY_MS): void {
+  const sweep = () => {
+    try {
+      forget();
+    } catch {
+      // Не вышло сейчас — выйдет через шесть часов. Ронять сервер из-за уборки нельзя.
+    }
+  };
+  sweep();
+  setInterval(sweep, every).unref?.();
+}
+
 /** Забыть старое. Зовётся по часам, а не при каждой записи. */
 export function forget(now = Date.now(), days = KEEP_DAYS, at: DatabaseSync = db()): number {
   return Number(at.prepare("DELETE FROM events WHERE at < ?").run(now - days * 24 * 60 * 60 * 1000).changes);
