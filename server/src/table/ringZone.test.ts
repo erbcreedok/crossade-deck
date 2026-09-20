@@ -9,7 +9,7 @@ import { deskOf } from "./desks.js";
 import { Table } from "./table.js";
 import { RING } from "./games/krest.js";
 import { MAIN_PILE, type Person } from "./contract.js";
-import { deckHome, RING_ARROW, ringSlot, RING_SPREAD } from "./ring.js";
+import { deckHome, ringCardStep, ringTurned, RING_SPREAD } from "./ring.js";
 import { SANDBOX } from "./rules.js";
 
 const person = (key: string): Person => ({ key, name: key, ink: "#fff", door: "guest" });
@@ -63,19 +63,19 @@ describe("круг хода стоит на месте", () => {
     expect(ring(t)).toMatchObject({ pose: "ring", forever: true, name: "Круг хода" });
   });
 
-  it("МЕСТО УХОДИТ ВМЕСТЕ С КАРТОЙ: вынесли — и оно ей больше не принадлежит", () => {
+  it("УГОЛ УХОДИТ ВМЕСТЕ С КАРТОЙ: вынесли — и он ей больше не принадлежит", () => {
     const t = ringTable();
     intoRing(t);
     intoRing(t);
     const cards = ring(t)!.cards;
-    const was = cards[1]!.slot;
-    expect(was, "лежащая в круге карта знает номер своего места").toBeDefined();
+    const was = cards[1]!.turn;
+    expect(was, "лежащая в круге карта знает свой угол").toBeDefined();
     const low = cards[0]!.id;
     t.act("Аня", { t: "grab", id: low }, 0);
     t.act("Аня", { t: "drop", id: low, to: { in: "hand", chair: chairOf(t), i: 0 } }, 0);
-    expect(ring(t)!.cards[0]!.slot, "оставшаяся держит свой номер").toBe(was);
+    expect(ring(t)!.cards[0]!.turn, "оставшаяся лежит там же, где лежала").toBe(was);
     const hand = t.seenBy("Аня").chairs.find((c) => c.id === chairOf(t))!.hand;
-    expect(hand.every((c) => c.slot === undefined), "у карты в руке номера зоны нет").toBe(true);
+    expect(hand.every((c) => c.turn === undefined), "у карты в руке угла зоны нет").toBe(true);
   });
 
   it("обычная стопка двигается по-прежнему", () => {
@@ -97,67 +97,64 @@ describe("колода не спорит с кругом за середину",
 
 describe("ЯКОРЬ КРУГА — ЗОНЫ, а не первой карты", () => {
   /** Где лежит место с этим номером — та же функция, которой считают стол, превью и кисть. */
-  const место = (t: Table, slot: number) => {
-    const z = ring(t)!;
-    return ringSlot({ x: z.x, y: z.y }, Math.max(1, z.slots ?? z.cards.length), z.turn ?? 0, slot);
-  };
   const turnOf = (at: { x: number; y: number }) => ((Math.atan2(at.x, -at.y) * 180) / Math.PI + 360) % 360;
 
-  it("УНЕСЛИ ГОЛОВУ — якорь шагнул на новую, и НИКТО не сменил своего номера", () => {
+  it("УНЕСЛИ ПЕРВУЮ ВОШЕДШУЮ — остальные лежат, где лежали", () => {
     const t = ringTable();
     intoRing(t);
     intoRing(t);
     intoRing(t);
-    const было = ring(t)!.cards.map((c) => c.slot);
-    const головаУгол = turnOf(место(t, 1));
-    const head = ring(t)!.cards[0]!.id;
-    t.act("Аня", { t: "grab", id: head }, 0);
-    t.act("Аня", { t: "drop", id: head, to: { in: "hand", chair: chairOf(t), i: 0 } }, 0);
+    const было = ring(t)!.cards.map((c) => ({ id: c.id, turn: c.turn }));
+    const первая = было[0]!.id;
+    t.act("Аня", { t: "grab", id: первая }, 0);
+    t.act("Аня", { t: "drop", id: первая, to: { in: "hand", chair: chairOf(t), i: 0 } }, 0);
     const now = ring(t)!;
-    expect(now.cards.map((c) => c.slot), "номера у оставшихся прежние").toEqual([было[1], было[2]]);
-    expect(now.slots, "и мест столько же: на месте головы осталась дыра").toBe(3);
-    expect(now.turn, "а якорь встал на новую голову").toBeCloseTo(головаУгол, 4);
+    expect(now.cards.map((c) => ({ id: c.id, turn: c.turn })), "оставшиеся не шелохнулись").toEqual([было[1], было[2]]);
   });
 
-  it("ПЕРЕЛОЖИЛИ ГОЛОВУ ВНУТРИ КРУГА — якорь на месте, номера розданы заново", () => {
+  it("ПОРЯДОК ВХОДА — ЭТО И ЕСТЬ ПОРЯДОК КРУГА: вернулась — вошла последней", () => {
     const t = ringTable();
     intoRing(t);
     intoRing(t);
     intoRing(t);
-    const was = ring(t)!;
-    const anchor = was.turn!;
-    const [head, second, third] = was.cards.map((c) => c.id);
-    t.act("Аня", { t: "grab", id: head! }, 0);
-    // В КОНЕЦ, а не «мимо всего»: брошенная мимо всего своя карта возвращается домой и ничего не меняет.
-    t.act("Аня", { t: "drop", id: head!, to: { in: "deck", pile: RING, i: 2 } }, 0);
-    const now = ring(t)!;
-    expect(now.turn, "якорь не шелохнулся").toBeCloseTo(anchor, 4);
-    expect(now.cards.map((c) => c.id), "бывшая вторая стала головой").toEqual([second, third, head]);
-    expect(now.cards.map((c) => c.slot), "номера подряд от нуля").toEqual([0, 1, 2]);
+    const [первая, вторая, третья] = ring(t)!.cards.map((c) => c.id);
+    t.act("Аня", { t: "grab", id: первая! }, 0);
+    t.act("Аня", { t: "drop", id: первая!, to: { in: "hand", chair: chairOf(t), i: 0 } }, 0);
+    t.act("Аня", { t: "grab", id: первая! }, 0);
+    t.act("Аня", { t: "drop", id: первая!, to: { in: "deck", pile: RING } }, 0);
+    expect(ring(t)!.cards.map((c) => c.id), "ушла и вернулась — теперь она последняя").toEqual([вторая, третья, первая]);
   });
 
   it("ПУСТОЙ КРУГ ПРИНИМАЕТ ПЕРВУЮ КАРТУ СО СТОРОНЫ ТОГО, КТО ЕЁ ПРИНЁС", () => {
     const t = ringTable();
-    // Стул отвёрнут от нуля НАРОЧНО: с нулевого угла подмена якоря на ноль была бы незаметна.
+    // Стул отвёрнут от нуля НАРОЧНО: с нулевого угла подмена на ноль была бы незаметна.
     t.turnChair(chairOf(t), 90);
     const chair = t.layout().chairs.find((c) => c.id === chairOf(t))!;
     expect(chair.angle, "стул и правда не на нуле").toBe(90);
     intoRing(t);
-    expect(ring(t)!.turn, "якорь встал по стулу").toBeCloseTo(chair.angle, 4);
-    expect(turnOf(место(t, 0)), "и голова легла ровно на него").toBeCloseTo(chair.angle, 4);
+    expect(ring(t)!.cards[0]!.turn, "карта легла со стороны принёсшего").toBeCloseTo(chair.angle, 4);
   });
 
-  it("ДОЛЯ СТРЕЛКИ НЕ ОТДАЁТСЯ КАРТАМ: разрыв перед головой держится при любом числе карт", () => {
+  it("КАРТЫ ДРУГ ДРУГА НЕ ПРЯЧУТ: у каждой свой угол", () => {
     const t = ringTable();
-    for (let i = 0; i < 6; i += 1) {
-      intoRing(t);
-      const cards = ring(t)!.cards;
-      // Пока карт меньше, чем мест (их не меньше трёх), в круге есть пустые места, и разрыв больше доли.
-      if (cards.length < 3) continue;
-      const углы = cards.map((c) => turnOf(место(t, c.slot!)));
-      const step = ((углы[1]! - углы[0]!) + 360) % 360;
-      const gap = ((углы[0]! - углы.at(-1)!) + 360) % 360;
-      expect(gap - step, `${cards.length} карт: разрыв минус шаг — это доля стрелки`).toBeCloseTo(RING_ARROW, 3);
+    for (let i = 0; i < 6; i += 1) intoRing(t);
+    const углы = ring(t)!.cards.map((c) => c.turn!);
+    expect(new Set(углы).size, "шесть карт — шесть разных углов").toBe(углы.length);
+    for (const one of углы) {
+      for (const two of углы) {
+        if (one === two) continue;
+        const away = Math.abs(((one - two) % 360 + 540) % 360 - 180);
+        expect(Math.min(away, 360 - away), "и ни одна не налезла на соседку").toBeGreaterThanOrEqual(ringCardStep() - 0.001);
+      }
     }
+  });
+
+  it("место карты считается из её угла — одной функцией на всех", () => {
+    const t = ringTable();
+    intoRing(t);
+    const z = ring(t)!;
+    const card = z.cards[0]!;
+    const at = ringTurned({ x: z.x, y: z.y }, card.turn!);
+    expect(turnOf(at), "угол места и есть угол карты").toBeCloseTo(card.turn!, 4);
   });
 });

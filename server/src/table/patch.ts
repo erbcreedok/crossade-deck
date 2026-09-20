@@ -8,7 +8,7 @@
 // целиком (`needsSync`), а не угадывает.
 
 import type { Op, Patch, SeenCard, Snapshot, Where } from "./contract.js";
-import { ringSlotTurn } from "./ring.js";
+import { ringLanding } from "./ring.js";
 
 
 export const needsSync = (state: Snapshot, patch: Patch): boolean => patch.v !== state.v + 1;
@@ -68,25 +68,13 @@ function applyOp(s: Snapshot, op: Op): void {
       return;
     }
     case "move": {
-      // КАРТА В `move` ПРИХОДИТ НОВЫМ СНИМКОМ, и своего места в зоне она может не нести — так его
-      // строит оптимистичная догадка. Место при этом никуда не делось: оно лежит там, откуда карту
-      // сейчас поднимут. Без этой строки зона считала бы вернувшуюся карту новой и перекладывалась.
-      const held = op.card.slot ?? held0(s, op.card.id);
-      const card = held === undefined ? op.card : { ...op.card, slot: held };
-      // ЯКОРЬ КРУГА ЖИВЁТ ПО ТОМУ ЖЕ ЗАКОНУ, ЧТО И НА СТОЛЕ. Иначе догадка разложит круг от другого
-      // угла, чем стол, и карты дёрнутся, когда придёт ответ.
-      const from = op.from;
-      const was = from.in === "deck" ? s.piles.find((one) => one.id === from.pile) : undefined;
-      const head = was?.pose === "ring" && was.cards[0]?.id === op.card.id;
+      // КАРТА В `move` ПРИХОДИТ НОВЫМ СНИМКОМ, и своего угла в зоне она может не нести — так его
+      // строит оптимистичная догадка. Угол при этом никуда не делся: он лежит там, откуда карту
+      // сейчас поднимут. Без этой строки зона считала бы вернувшуюся карту новой.
+      const held = op.card.turn ?? held0(s, op.card.id);
+      const card = held === undefined ? op.card : { ...op.card, turn: held };
       lift(s, op.card.id, op.from);
-      const to = op.to;
-      const target = to.in === "deck" ? s.piles.find((one) => one.id === to.pile) : undefined;
-      if (target?.pose === "ring" && target.cards.length === 0) {
-        target.turn = whenceOf(s, op.from);
-        target.slots = 0;
-      }
-      else if (was && head && target !== was) stepArrow(was);
-      place(s, card, op.to);
+      place(s, card, op.to, whenceOf(s, op.from));
       if (op.trail) (s.trails ??= {})[op.card.id] = op.trail;
       return;
     }
@@ -152,17 +140,11 @@ function whenceOf(s: Snapshot, from: Where): number {
   return at ? turnOfPlace({ x: 0, y: 0 }, at) : 0;
 }
 
-/** Стрелка шагает на новую голову: круг от этого не шевелится, двигается только якорь. */
-function stepArrow(pile: { cards: SeenCard[]; turn?: number; slots?: number }): void {
-  const head = pile.cards[0]?.slot;
-  if (head !== undefined) pile.turn = ringSlotTurn(pile.slots ?? pile.cards.length, pile.turn ?? 0, head);
-}
-
-/** Номер места, на котором карта лежит в зоне прямо сейчас, — до того, как её подняли. */
+/** Угол, на котором карта лежит в зоне прямо сейчас, — до того, как её подняли. */
 function held0(s: Snapshot, id: string): number | undefined {
   for (const pile of s.piles) {
     const one = pile.cards.find((card) => card.id === id);
-    if (one) return one.slot;
+    if (one) return one.turn;
   }
   return undefined;
 }
@@ -186,40 +168,25 @@ function turnOfPlace(middle: { x: number; y: number }, at: { x: number; y: numbe
   return ((deg % 360) + 360) % 360;
 }
 
-/** Порядок круга — это порядок его мест: карта, севшая на свободный номер, встаёт по нему. */
-function bySlot(pile: { cards: SeenCard[] }): void {
-  pile.cards.sort((a, b) => (a.slot ?? Infinity) - (b.slot ?? Infinity));
-}
-
-function place(s: Snapshot, card: SeenCard, to: Where): void {
+function place(s: Snapshot, card: SeenCard, to: Where, whence = 0): void {
   if (to.in === "deck") {
     const pile = s.piles.find((one) => one.id === to.pile);
     if (!pile) return;
+    // КРУГ КЛАДЁТ ПО УГЛУ, тем же законом, что и стол: целились сюда — сюда и ляжет, занято —
+    // встанет рядом, не прячась под соседку. Порядок в стопке — порядок ВХОДА: по нему круг помнит,
+    // какая карта зашла первой.
+    if (pile.pose === "ring") {
+      const busy = pile.cards.map((one) => one.turn).filter((one): one is number => one !== undefined);
+      card.turn = ringLanding(to.turn ?? card.turn ?? whence, busy);
+      pile.cards.push(card);
+      return;
+    }
     if (to.i === undefined) pile.cards.push(card);
     else pile.cards.splice(Math.max(0, Math.min(pile.cards.length, to.i)), 0, card);
-    // ЗОНА РАСКЛАДЫВАЕТ ТУТ ЖЕ — той же раскладкой, что и стол. Иначе карта, положенная своей рукой,
-    // на миг оказывалась бы в середине зоны (места у неё ещё нет) и летела бы оттуда на место: два
-    // прыжка вместо одного полёта. Названо точное место — раскладка не нужна, карта уже знает своё.
-    if (pile.pose === "ring") {
-      // ТРИ СЛУЧАЯ, И ВСЕ ТРИ — ПРО НОМЕР МЕСТА, а не про координаты.
-      //
-      //   назван свободный номер — карта села на него, круг не тронут (это посадка в дыру);
-      //   свой номер и не спрашивали — осталась на нём (вернулась туда, откуда её взяли);
-      //   иначе — СМЕНА ПОРЯДКА: номера раздаются заново, от нуля и подряд, дыры закрываются.
-      if (to.slot !== undefined) {
-        card.slot = to.slot;
-        bySlot(pile);
-      } else if (card.slot !== undefined && to.i === undefined && card.slot < (pile.slots ?? 0)) {
-        bySlot(pile);
-      } else {
-        pile.cards.forEach((one, i) => (one.slot = i));
-        pile.slots = pile.cards.length;
-      }
-    }
   }
-  else if (to.in === "felt") { card.slot = undefined; s.felt.push({ ...card, x: to.x, y: to.y, up: to.up, angle: to.angle, ...(to.under ? { under: true } : {}) }); }
+  else if (to.in === "felt") { card.turn = undefined; s.felt.push({ ...card, x: to.x, y: to.y, up: to.up, angle: to.angle, ...(to.under ? { under: true } : {}) }); }
   else {
-    card.slot = undefined;
+    card.turn = undefined;
     s.chairs.find((one) => one.id === to.chair)?.hand.splice(to.i, 0, card);
   }
 }

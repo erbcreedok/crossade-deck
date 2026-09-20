@@ -121,9 +121,9 @@ describe("кольцо рвётся, а не сдвигается", () => {
     expect("refused" in drop ? drop.refused : "ok").toBe("ok");
   };
 
-  /** Номера мест карт круга, как их видит зритель: координат в столе нет ни у кого. */
+  /** Углы карт круга, как их видит зритель: координат в столе нет ни у кого. */
   const places = (k: ReturnType<typeof krestTable>) =>
-    k.t.seenBy("Аня").piles.find((p) => p.id === RING)!.cards.map((c) => c.slot);
+    k.t.seenBy("Аня").piles.find((p) => p.id === RING)!.cards.map((c) => c.turn);
 
   it("ВЗЯЛИ ЛЮБУЮ — ОСТАЛЬНЫЕ НЕ ШЕЛОХНУЛИСЬ, даже на пиксель", () => {
     const k = krestTable(["Аня"]);
@@ -150,25 +150,26 @@ describe("кольцо рвётся, а не сдвигается", () => {
     k.t.act("Аня", { t: "grab", id: more }, 0);
     k.t.act("Аня", { t: "drop", id: more, to: { in: "deck", pile: RING, i: 1 } }, 0);
     const круг = зона();
-    expect(круг.cards.map((c) => c.id), "встал вторым, остальные съехали").toEqual([three[0], more, three[1], three[2]]);
-    expect(круг.cards.map((c) => c.slot), "номера раздались заново, подряд").toEqual([0, 1, 2, 3]);
-    expect(круг.slots, "и мест теперь столько, сколько карт").toBe(4);
-    expect(круг.turn, "якорь на месте — круг не провернулся").toBe(якорь);
+    // ПОРЯДОК В КРУГЕ — ПОРЯДОК ВХОДА, и место в стопке его не меняет: четвёртая карта зашла
+    // четвёртой, куда бы её ни положили на сукне.
+    expect(круг.cards.map((c) => c.id), "порядок входа").toEqual([...three, more]);
+    expect(круг.cards.every((c) => c.turn !== undefined), "у каждой карты свой угол").toBe(true);
+    expect(new Set(круг.cards.map((c) => c.turn)).size, "и углы у всех разные").toBe(4);
   });
 
-  it("ПОЛОЖИЛИ НА СВОБОДНЫЙ НОМЕР — встал туда, и НИЧЕГО не переложилось", () => {
+  it("ПОЛОЖИЛИ НА СВОБОДНЫЙ УГОЛ — встал туда, и НИЧЕГО не переложилось", () => {
     const k = krestTable(["Аня"]);
     const three = [toHand(k.t, "Аня"), toHand(k.t, "Аня"), toHand(k.t, "Аня")];
     for (const one of three) intoRing(k.t, "Аня", one);
-    const was = places(k);
-    const hole = k.t.seenBy("Аня").piles.find((p) => p.id === RING)!.cards[1]!.slot!;
-    // Вынули среднюю и вернули в ту же дыру.
+    const место = k.t.seenBy("Аня").piles.find((p) => p.id === RING)!.cards[1]!.turn!;
+    // Вынули среднюю и вернули на тот же угол.
     k.t.act("Аня", { t: "grab", id: three[1]! }, 0);
     k.t.act("Аня", { t: "drop", id: three[1]!, to: { in: "hand", chair: k.chairOf("Аня"), i: 0 } }, 0);
     k.t.act("Аня", { t: "grab", id: three[1]! }, 0);
-    k.t.act("Аня", { t: "drop", id: three[1]!, to: { in: "deck", pile: RING, slot: hole } }, 0);
-    expect(places(k), "круг вернулся ровно таким, каким был").toEqual(was);
-    expect(k.t.seenBy("Аня").piles.find((p) => p.id === RING)!.cards[1]!.id, "и порядок хода тот же").toBe(three[1]);
+    k.t.act("Аня", { t: "drop", id: three[1]!, to: { in: "deck", pile: RING, turn: место } }, 0);
+    const круг = k.t.seenBy("Аня").piles.find((p) => p.id === RING)!;
+    expect(круг.cards.find((c) => c.id === three[1])!.turn, "легла ровно туда, куда просили").toBe(место);
+    expect(круг.cards.map((c) => c.id).at(-1), "но вошла последней: она уходила и вернулась").toBe(three[1]);
   });
 
   it("обычной стопки это не касается вовсе", () => {
@@ -176,6 +177,6 @@ describe("кольцо рвётся, а не сдвигается", () => {
     const card = toHand(k.t, "Аня");
     k.t.act("Аня", { t: "grab", id: card }, 0);
     k.t.act("Аня", { t: "drop", id: card, to: { in: "felt", x: 2, y: 2, up: false, angle: 0 } }, 0);
-    expect(k.t.seenBy("Аня").piles.find((p) => p.id === "deck")!.cards.every((c) => c.slot === undefined), "у карт колоды мест нет").toBe(true);
+    expect(k.t.seenBy("Аня").piles.find((p) => p.id === "deck")!.cards.every((c) => c.turn === undefined), "у карт колоды углов нет").toBe(true);
   });
 });
