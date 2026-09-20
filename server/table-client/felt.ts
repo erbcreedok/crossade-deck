@@ -6,7 +6,7 @@
 
 import { apply, invert, type Transform } from "../../game-kit/src/core/transform.js";
 import type { Face, ZonePose } from "../src/table/contract.js";
-import { CROUPIER_RADIUS, RING_ARROW, ringArrow, RING_LEAST, ringSlot, ringSlotTurn, RING_SPREAD, ringSpread, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
+import { CROUPIER_RADIUS, RING_LAY, RING_SPREAD, ringTurned, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
 import type { Laid } from "../src/table/contract.js";
 
 export interface Pose {
@@ -198,40 +198,52 @@ function posePlan(pose: Pose, n: number): { at: Point; angle: number }[] {
 
 
 /**
- * СТРЕЛКА КРУГА — дуга по его радиусу, с остриём на конце.
+ * СТРЕЛКА КРУГА — луч ИЗ СЕРЕДИНЫ на первую вошедшую карту.
  *
- * Показывает, где круг обрывается и начинается: остриё смотрит на голову. Рисуется дугой, а не
- * треугольником, потому что она живёт НА кольце и обязана лежать по нему, как лежат карты.
+ * Не дуга сбоку и не метка сверху: круг помнит, кто зашёл первым, и показать это можно только
+ * направлением из его середины. Забрали первую — луч повернулся к следующей вошедшей, и ни одна
+ * карта при этом не шелохнулась.
+ *
+ * Позже рядом встанет вторая стрелка — «чей ход», — и разметка направления круга. Тогда эта
+ * останется той, что помнит начало, а та будет вести игру.
  */
-function ringArrowArc(g: CanvasRenderingContext2D, turn: number, spread: number): void {
-  // Углы круга считаются от шести часов по часовой, у холста — от трёх против; отсюда поворот на четверть.
-  const rad = (deg: number) => ((deg - 90) * Math.PI) / 180;
-  const from = turn - RING_ARROW / 2;
-  const to = turn + RING_ARROW / 2;
-  const tip = { x: spread * Math.sin((to * Math.PI) / 180), y: -spread * Math.cos((to * Math.PI) / 180) };
-  const wide = CARD.w * 0.16;
-  g.save();
-  g.lineCap = "round";
-  g.beginPath();
-  g.arc(0, 0, spread, rad(from), rad(to));
-  g.lineWidth = wide;
-  g.strokeStyle = SEAT.black;
-  g.stroke();
-  g.lineWidth = wide * 0.5;
-  g.strokeStyle = SEAT.cream;
-  g.stroke();
-  // Остриё: две чёрточки от конца дуги назад и внутрь-наружу — обычная стрелка, только на дуге.
-  const back = ((to - RING_ARROW * 0.3) * Math.PI) / 180;
-  for (const away of [spread - CARD.w * 0.18, spread + CARD.w * 0.18]) {
-    g.beginPath();
-    g.moveTo(away * Math.sin(back), -away * Math.cos(back));
-    g.lineTo(tip.x, tip.y);
+function ringArrowFromMiddle(g: CanvasRenderingContext2D, turn: number): void {
+  const rad = (turn * Math.PI) / 180;
+  const point = (away: number) => ({ x: away * Math.sin(rad), y: -away * Math.cos(rad) });
+  // Луч не достаёт до карты: он показывает на неё, а не упирается в неё.
+  const от = CARD.w * 0.22;
+  const до = RING_LAY - CARD.h * 0.62;
+  if (до <= от) return;
+  const tip = point(до);
+  const wide = CARD.w * 0.13;
+  const twice = (draw: () => void) => {
     g.lineWidth = wide;
     g.strokeStyle = SEAT.black;
-    g.stroke();
+    draw();
     g.lineWidth = wide * 0.5;
     g.strokeStyle = SEAT.cream;
+    draw();
+  };
+  g.save();
+  g.lineCap = "round";
+  g.lineJoin = "round";
+  const start = point(от);
+  twice(() => {
+    g.beginPath();
+    g.moveTo(start.x, start.y);
+    g.lineTo(tip.x, tip.y);
     g.stroke();
+  });
+  // Остриё — две чёрточки назад под углом: обычная стрелка, только на луче.
+  const barb = CARD.w * 0.26;
+  for (const side of [-1, 1]) {
+    const away = rad + side * 0.62;
+    twice(() => {
+      g.beginPath();
+      g.moveTo(tip.x - barb * Math.sin(away), tip.y + barb * Math.cos(away));
+      g.lineTo(tip.x, tip.y);
+      g.stroke();
+    });
   }
   g.restore();
 }
@@ -474,7 +486,7 @@ export interface FeltScene {
   /** Карта переворачивается: доля пути и какой она была до (сторона и лицо). */
   turning?: (id: string) => { p: number; up: boolean; face?: Face } | undefined;
   /** Стопки в порядке «кто сверху»: место, поворот, что под ней и карты снизу вверх. */
-  piles: (Point & { id: string; angle: number; pose?: ZonePose; turn?: number; slots?: number; carried?: boolean; ghost?: number; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean; slot?: number }[] })[];
+  piles: (Point & { id: string; angle: number; pose?: ZonePose; carried?: boolean; below: readonly string[]; cards: { id: string; face?: Face; up?: boolean; turn?: number }[] })[];
   felt: FeltItem[];
   /** Id вещи → цвет того, кто её сейчас держит (кроме меня). */
   held: Record<string, string>;
@@ -532,9 +544,9 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   /** Место карты зоны — считается из её НОМЕРА. Записанных координат в столе нет ни у кого. */
   const deckPlace = (pile: string, i: number): { x: number; y: number; angle: number } | undefined => {
     const spot = o.piles.find((one) => one.id === pile);
-    const slot = spot?.cards[i]?.slot;
-    if (!spot || spot.pose !== "ring" || slot === undefined) return undefined;
-    return ringSlot({ x: spot.x, y: spot.y }, Math.max(1, spot.slots ?? spot.cards.length), spot.turn ?? 0, slot);
+    const turn = spot?.cards[i]?.turn;
+    if (!spot || spot.pose !== "ring" || turn === undefined) return undefined;
+    return ringTurned({ x: spot.x, y: spot.y }, turn);
   };
   const deckFacing = (pile: string, i: number, n: number): number => {
     const spot = o.piles.find((one) => one.id === pile);
@@ -641,21 +653,15 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       g.lineWidth = CARD.w * 0.035;
       g.strokeStyle = "rgba(245,234,208,.75)";
       g.stroke();
-      // СТРЕЛКА СТОИТ ПЕРЕД ГОЛОВОЙ — и только когда в круге есть карты: показывать не на что.
-      // СТРЕЛКА СТОИТ ЗА ХВОСТОМ и показывает КОНЕЦ круга — место, куда ляжет следующая карта. Её
-      // угол считается от последней карты, поэтому в превью она едет сама: круг стал длиннее — и она
-      // отступила дальше. Карты несут — стрелка ждёт на месте: они ещё могут вернуться.
-      // ХВОСТ — САМЫЙ БОЛЬШОЙ ЗАНЯТЫЙ НОМЕР, а контур несомой карты — такой же номер, как у прочих.
-      const anchor = pile.turn ?? 0;
-      const slots = Math.max(RING_LEAST, pile.slots ?? pile.cards.length);
-      const номера = [...pile.cards.map((one) => one.slot).filter((one): one is number => one !== undefined), ...(pile.ghost === undefined ? [] : [pile.ghost])];
-      if (номера.length > 0) {
-        const tail = ringSlotTurn(slots, anchor, Math.max(...номера));
-        const spot = ringArrow({ x: pile.x, y: pile.y }, slots, tail);
-        const turn = ((Math.atan2(spot.x - pile.x, pile.y - spot.y) * 180) / Math.PI + 360) % 360;
-        const spread = Math.hypot(spot.x - pile.x, spot.y - pile.y);
-        arrows[pile.id] = { turn, spread, x: spot.x, y: spot.y };
-        ringArrowArc(g, turn, spread);
+      // СТРЕЛКА ПОКАЗЫВАЕТ ПЕРВУЮ ВОШЕДШУЮ КАРТУ и идёт ИЗ СЕРЕДИНЫ наружу.
+      //
+      // Круг помнит порядок входа, а не положение: первая вошедшая — первая в стопке, где бы она ни
+      // лежала на сукне. Забрали её — стрелка переходит к следующей вошедшей, и остальные при этом
+      // не шевелятся.
+      const первая = pile.cards[0]?.turn;
+      if (первая !== undefined) {
+        arrows[pile.id] = { turn: первая, spread: RING_LAY, x: pile.x, y: pile.y };
+        ringArrowFromMiddle(g, первая);
       }
       g.restore();
     } else if (cards.length === 0) {
