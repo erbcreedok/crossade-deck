@@ -1,0 +1,29 @@
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_b15aa322eeb7fd 50-54,385-396
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_10e4594be734b0 721-728
+server/src/table/routes.ts
+  s_9ed0da107cbc4a::t_acec922403be05 51-52
+server/src/table/script.test.ts
+  s_9ed0da107cbc4a::t_50167761e19321 343-393
+server/src/table/script.ts
+  s_9ed0da107cbc4a::t_1e439a8867f114 203,205
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_29064ddfa85cf1 417-440
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "da4bb05087be4bc7f417e5f2ede2b2131f691ea6",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
