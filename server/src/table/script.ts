@@ -20,6 +20,8 @@ export const PACE = {
   deal: 150,
   /** Карта в колоду при сборке. */
   collect: 80,
+  /** Охапка карт разом: пауза между охапками, а не между картами. */
+  sweep: 420,
   /** Перемешивание — одно на всю колоду. */
   shuffle: 1400,
   /** Шестёрка на край, козырь под колоду. */
@@ -32,6 +34,19 @@ export type Step =
   | { t: "move"; id: string; to: Where; ms: number }
   | { t: "shuffle"; ms: number }
   | { t: "restock"; faces: Face[] }
+  /**
+   * ОХАПКА КАРТ РАЗОМ — одним движением, а не по одной.
+   *
+   * Сбор колоды со стола на четверых — это полсотни карт, и по одной они едут почти минуту: человек
+   * сидит и смотрит, как крупье возит карту за картой. Стопкой это одно движение, и за столом так и
+   * делают: сгрёб сукно, забрал руку соседа, забрал следующую.
+   */
+  | { t: "sweep"; ids: string[]; to: Where; ms: number }
+  /**
+   * СТОПКА ЦЕЛИКОМ — колода, круг, любая стопка на сукне. Их нельзя черпать по карте: с колоды
+   * берут только верхнюю, и охапка карт из середины была бы воровством в обход правила.
+   */
+  | { t: "sweepPile"; pile: string; to: { in: "deck"; pile: string; i?: number } | { in: "hand"; chair: string; i: number }; ms: number }
   /** Этих карт на столе больше нет — уходят прямо оттуда, где лежали. */
   | { t: "unmake"; ids: string[] }
   /** Этих карт не хватало — появляются в руке крупье. */
@@ -97,16 +112,50 @@ export function collectSteps(table: Table, keep: ReadonlySet<string> = new Set()
   const at = table.layout();
   const hands = table.croupierSeat();
   const steps: Step[] = [];
+  // КУДА ЛОЖИТСЯ ОХАПКА: в руку крупье, следом за тем, что там уже есть. Номер места растёт на
+  // размер охапки — следующая ляжет за ней, а не поверх.
   let n = hands ? (at.chairs.find((c) => c.id === hands)?.hand.length ?? 0) : 0;
-  const to = (): Where => (hands ? { in: "hand", chair: hands, i: n++ } : DECK);
-  for (const one of [...at.felt].reverse()) if (!keep.has(one.id)) steps.push({ t: "move", id: one.id, to: to(), ms: PACE.collect });
-  for (const id of [...at.deck].reverse()) if (hands) steps.push({ t: "move", id, to: to(), ms: PACE.collect });
+  const to = (take: number): Where => {
+    const where: Where = hands ? { in: "hand", chair: hands, i: n } : DECK;
+    n += take;
+    return where;
+  };
+  /** Охапка, если в ней есть что нести. Пустых шагов в сценарии быть не должно. */
+  const sweep = (ids: string[]): void => {
+    if (ids.length > 0) steps.push({ t: "sweep", ids, to: to(ids.length), ms: PACE.sweep });
+  };
+
+  /** Стопка целиком — своим движением: по карте её черпать нельзя. */
+  const sweepPile = (pile: string, count: number): void => {
+    if (count > 0) steps.push({ t: "sweepPile", pile, to: to(count) as { in: "deck"; pile: string } | { in: "hand"; chair: string; i: number }, ms: PACE.sweep });
+  };
+
+  // ПО ОЧЕРЕДИ, НО ЦЕЛИКОМ. Сначала сукно, потом колода, потом руки — каждая своим движением, — и
+  // напоследок стопки. Видно, откуда что пришло, а ждать полсотни отдельных перелётов не приходится.
+  sweep([...at.felt].reverse().filter((one) => !keep.has(one.id)).map((one) => one.id));
+  if (hands) sweepPile(MAIN_PILE, at.deck.length);
   for (const chair of at.chairs) {
     if (chair.id === hands) continue;
-    for (const id of [...chair.hand].reverse()) steps.push({ t: "move", id, to: to(), ms: PACE.collect });
+    sweep([...chair.hand].reverse());
   }
-  for (const pile of [...at.piles].reverse()) for (const id of [...pile.cards].reverse()) steps.push({ t: "move", id, to: to(), ms: PACE.collect });
+  for (const pile of [...at.piles].reverse()) sweepPile(pile.id, pile.cards.length);
   return steps;
+}
+
+/**
+ * СКОЛЬКО КАРТ ПРИНЕСЁТ СБОР. Считается по картам, а не по шагам: шаг — это охапка, и в ней бывает
+ * и одна карта, и вся колода. Счёт по шагам однажды уже решил, что собранной колоды не хватает на
+ * раздачу, — и раздача не пошла.
+ */
+function cardsIn(steps: readonly Step[], table: Table): number {
+  const at = table.layout();
+  let n = 0;
+  for (const step of steps) {
+    if (step.t === "sweep") n += step.ids.length;
+    else if (step.t === "sweepPile") n += step.pile === MAIN_PILE ? at.deck.length : (at.piles.find((p) => p.id === step.pile)?.cards.length ?? 0);
+    else if (step.t === "move") n += 1;
+  }
+  return n;
 }
 
 /** Карты, которые СЧИТАЮТСЯ СОБРАННЫМИ: колода и рука крупье — он держит её вместо стола. */
@@ -265,7 +314,7 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
     if (!command.force) return { error: "needs-collect" };
     const back = collectSteps(table, sixes);
     steps.push(...back, { t: "shuffle", ms: PACE.shuffle });
-    deck += back.length;
+    deck += cardsIn(back, table);
   }
 
 
@@ -328,6 +377,20 @@ export async function execute(table: Table, steps: Step[], actor: string, io: Io
       }
       if (step.t === "rules") {
         io.spread(table.setRules(step.rules));
+        continue;
+      }
+      if (step.t === "sweepPile") {
+        const done = table.act(actor, { t: "pileDrop", pile: step.pile, to: step.to }, io.now(), true);
+        if (!("refused" in done)) io.spread(done.ops);
+        await io.sleep(step.ms);
+        continue;
+      }
+      if (step.t === "sweep") {
+        // ОДНИМ ПАТЧЕМ И ОДНИМ ОТКАЗОМ: карты, которые место не примет, просто останутся лежать —
+        // сбор не должен вставать из-за одной чужой карты под замком.
+        const done = table.act(actor, { t: "moveMany", moves: step.ids.map((id) => ({ id, to: step.to })) }, io.now(), true);
+        if (!("refused" in done)) io.spread(done.ops);
+        await io.sleep(step.ms);
         continue;
       }
       if (step.t === "unmake") {

@@ -1669,7 +1669,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     return `<div data-croupier-acts style="position:absolute;left:${box.left}px;top:${box.top + box.height + 8}px;width:${box.w}px;box-sizing:border-box;z-index:41;`
       + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:10px;`
       + `display:flex;flex-wrap:wrap;gap:6px">`
-      + act("collect", "Собрать карты") + act("shuffle", "Перемешать") + act("deal", "Раздать")
+      // СБОРА ЗДЕСЬ НЕТ. Собирать — дело НАБОРА крупье, и оно рисуется своей кнопкой ниже; вторая
+      // такая же кнопка рядом означала бы, что у стола два разных сбора, а он один.
+      + act("shuffle", "Перемешать") + act("deal", "Раздать")
       + act("remove", "Увести крупье") + `</div>`;
   }
 

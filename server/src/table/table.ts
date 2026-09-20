@@ -512,7 +512,7 @@ export class Table {
       case "pick":
         return this.pick(by, intent.ids, intent.on);
       case "moveMany":
-        return this.moveMany(by, intent.moves, now);
+        return this.moveMany(by, intent.moves, now, auto);
       case "pileDrop":
         return this.pileDrop(by, intent.pile, intent.to, now);
       case "turnMany":
@@ -757,7 +757,7 @@ export class Table {
    * ПЕРЕНЕСТИ ВЫДЕЛЕННОЕ РАЗОМ — по одному переносу на карту, каждый по правилам дропа, одним патчем. Карта, которую
    * взять нельзя (чужая в пальце или выделена другим, под замком, из-под лока) или которую место не примет, остаётся.
    */
-  private moveMany(by: string, moves: unknown, now: number): Result {
+  private moveMany(by: string, moves: unknown, now: number, auto = false): Result {
     if (!Array.isArray(moves) || moves.length === 0) return { refused: "bad" };
     const ops: Op[] = [];
     const seen = new Set<string>();
@@ -765,12 +765,17 @@ export class Table {
       if (typeof move?.id !== "string" || typeof move.to !== "object" || move.to === null || seen.has(move.id)) continue;
       seen.add(move.id);
       const id = move.id;
-      const may = this.touchable(by, id);
-      if ("refused" in may) continue;
-      if (may.at.in === "deck" && this.piles.get(may.at.pile)!.spot.shut) continue;
+      // КОМАНДА КРУПЬЕ БЕРЁТ ТАМ, ГДЕ РУКА НЕ БЕРЁТ. Сбор колоды идёт по чужим рукам и закрытым
+      // стопкам: это не ход игрока, а уборка стола, и спрашивать у замков разрешения ей незачем.
+      const may = auto ? this.whereIs(id) : (() => {
+        const can = this.touchable(by, id);
+        return "refused" in can ? null : can.at;
+      })();
+      if (!may) continue;
+      if (!auto && may.in === "deck" && this.piles.get(may.pile)!.spot.shut) continue;
       const had = this.locks.get(id);
       if (!had) this.locks.set(id, { by, until: now + LOCK_TTL_MS });
-      const done = this.dropOps(by, id, move.to as Where, now);
+      const done = this.dropOps(by, id, move.to as Where, now, auto);
       if ("refused" in done) {
         if (!had) this.locks.delete(id);
         continue;

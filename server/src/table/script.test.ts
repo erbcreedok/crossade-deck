@@ -276,3 +276,36 @@ describe("СОБРАТЬ — В РУКИ КРУПЬЕ, а не в стопку �
     expect(t.layout().chairs.find((c) => c.id === seat)!.hand.length, "и взяты из руки крупье").toBeLessThan(36);
   });
 });
+
+// КРУПЬЕ СОБИРАЕТ ОХАПКАМИ, А НЕ ПО ОДНОЙ КАРТЕ.
+//
+// Полсотни карт по одной едут почти минуту, и человек сидит и смотрит, как крупье возит карту за
+// картой. За настоящим столом сгребают: сукно, потом руку соседа, потом следующую.
+describe("сбор идёт охапками", () => {
+  it("на весь стол уходит по одному движению на место, а не на карту", async () => {
+    const s = table("a", "b", "c");
+    await s.run({ t: "deal", rule: "each", n: 5 });
+    const steps = collectSteps(s.t);
+    expect(steps.length, "движений должно быть единицы, а не десятки").toBeLessThan(8);
+    expect(steps.every((one) => one.t === "sweep" || one.t === "sweepPile"), "и каждое — охапка").toBe(true);
+  });
+
+  it("после сбора вся колода у крупье, а стол пуст", async () => {
+    const s = table("a", "b", "c");
+    await s.run({ t: "deal", rule: "each", n: 5 });
+    expect(await s.run({ t: "collect" })).toBe("ok");
+    const at = s.t.layout();
+    const held = at.chairs.find((c) => c.croupier)?.hand.length ?? 0;
+    expect(held + at.deck.length, "все карты собраны").toBe(36);
+    expect(at.chairs.filter((c) => !c.croupier).every((c) => c.hand.length === 0), "руки игроков пусты").toBe(true);
+    expect(at.felt, "и сукно пусто").toHaveLength(0);
+  });
+
+  it("собранное считается ПО КАРТАМ: раздача после сбора идёт", async () => {
+    // Счёт по шагам однажды уже решил, что собранной колоды не хватает: шаг стал охапкой, а счёт
+    // остался прежним, и раздача встала с «не хватает карт».
+    const s = table("a", "b", "c");
+    await s.run({ t: "deal", rule: "each", n: 5 });
+    expect(await s.run({ t: "deal", rule: "each", n: 5, force: true })).toBe("ok");
+  });
+});
