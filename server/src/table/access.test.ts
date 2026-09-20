@@ -156,15 +156,20 @@ describe("ХОЗЯИН И РАСПОРЯДИТЕЛЬ", () => {
 });
 
 describe("ПРАВО НЕ ОБХОДИТ ЗАМОК РУКИ", () => {
-  it("замок чужой руки админу не по зубам — и снять его он тоже не может", () => {
+  it("замок чужой руки админу не по зубам — но СНЯТЬ его он может", () => {
     const t = table("Аня", "Боря");
     const his = seatOf(t, "Боря");
     const top = t.seenBy("Боря").piles.find((p) => p.id === MAIN_PILE)!.cards.at(-1)!.id;
     t.act("Боря", { t: "grab", id: top }, 0);
     t.act("Боря", { t: "drop", id: top, to: { in: "hand", chair: his, i: 0 } }, 0);
     t.act("Боря", { t: "flag", chair: his, flag: "lock", on: true }, 0);
+    // ЗАМОК ДЕЙСТВУЕТ НА ВСЕХ, включая распорядителя: пока он стоит, чужая рука закрыта и ему.
     expect(t.act("Аня", { t: "grab", id: top }, 0)).toEqual({ refused: "chair-locked" });
-    expect(t.act("Аня", { t: "flag", chair: his, flag: "lock", on: false }, 0)).toEqual({ refused: "not-yours" });
+    // А вот снять его распорядитель вправе: замок переживает хозяина — человек ушёл, стул остался
+    // заперт, и разгрести это больше некому.
+    expect("refused" in t.act("Аня", { t: "flag", chair: his, flag: "lock", on: false }, 0)).toBe(false);
+    // И только теперь рука открыта — право не обошло замок, а сняло его.
+    expect("refused" in t.act("Аня", { t: "grab", id: top }, 0)).toBe(false);
   });
 
   it("и отклонение чужой руки — тоже: право открывает дверь, а не ломает замок", () => {
