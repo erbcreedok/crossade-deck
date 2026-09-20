@@ -633,6 +633,22 @@ export class TableRoom extends Room {
     }
   }
 
+  /**
+   * ЧТО С ПАРТИЕЙ — в журнал, при каждом изменении.
+   *
+   * Партия не едет дифами: чей ход и что кому можно, стол считает для каждого зрителя заново, при
+   * каждом снимке. Для игры этого довольно, а для записи — нет: отказ «сейчас не твой ход» в ней
+   * виден, а чей ход был на самом деле — нет, и разобрать жалобу нечем. Один раз это уже случилось.
+   */
+  private matchTold = "";
+  private tellMatch(): void {
+    const now = this.match === null ? { идёт: false } : { идёт: true, ход: this.match.turn, закрыл: this.match.closer, вышли: [...this.match.out] };
+    const line = JSON.stringify(now);
+    if (line === this.matchTold) return;
+    this.matchTold = line;
+    this.book.tell("match", undefined, now);
+  }
+
   /** Разослать дифы — каждому, какими их видно ему. */
   private spread(ops: Op[]): void {
     if (ops.length === 0) return;
@@ -645,6 +661,7 @@ export class TableRoom extends Room {
     // Но пройти через `seenOp` обязана и она: там к карте прибавляется номер её места в зоне, без
     // которого круг хода рисуется стопкой посередине.
     this.book.tell("patch", undefined, { v, ops: ops.map((op) => this.table.seenOp(op, "", true)) });
+    this.tellMatch();
     for (const client of this.clients) {
       const key = this.seats.get(client.sessionId);
       if (key !== undefined) client.send(MSG.patch, { v, ops: ops.map((op) => this.table.seenOp(op, key)) });
