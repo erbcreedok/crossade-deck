@@ -895,13 +895,22 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       const from = whereIs(s, one.id);
       if (from) s = applyPatch(s, { v: s.v, ops: [{ t: "move", card: one.card, from, to: one.to }] });
     }
-    // В ВОЗДУХЕ — МОЯ КАРТА И ЧУЖИЕ: со своего места они сняты, пока их несут.
+    // В ВОЗДУХЕ — МОЯ КАРТА И ЧУЖИЕ. Со своего места они сняты только на СУКНЕ: там место карты и
+    // есть сама карта, и держать за ней пустоту не за что.
+    //
+    // А ИЗ СТОПКИ И РУКИ КАРТА НЕ ВЫПАДАЕТ, пока её просто держат: она остаётся в составе, её место
+    // не освобождается и порядок не сбивается. Рисуется она при этом у пальца (`placesOf` перезапишет
+    // ей место), а на её месте встаёт контур в цвете держащего — соседям видно, что место занято и
+    // кем. Вернул, не отпустив над другим местом, — ничего не случилось, человек передумал.
+    //
+    // Так решил владелец, и так же устроен СЕРВЕР: там карта уходит из стопки только настоящим
+    // дропом (`take` живёт внутри `dropOps`). Экран, снимавший её с места при захвате, расходился со
+    // столом — и круг у всех выглядел пустым, пока карту держат.
     const up = new Set(store.carries.flatMap((c) => [c.id, ...(c.with ?? []).map((w) => w.card.id)]));
     if (drag) up.add(drag.card.id);
     for (const id of massFlock()) up.add(id);
     if (up.size === 0) return s;
-    const chairs = s.chairs.map((c) => ({ ...c, hand: c.hand.filter((card) => !up.has(card.id)) }));
-    return { ...s, chairs, piles: s.piles.map((p) => ({ ...p, cards: p.cards.filter((c) => !up.has(c.id)) })), felt: s.felt.filter((c) => !up.has(c.id)) };
+    return { ...s, felt: s.felt.filter((c) => !up.has(c.id)) };
   }
 
   /**
@@ -1967,6 +1976,33 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   }
 
   /**
+   * МЕСТО УДЕРЖИВАЕМОЙ КАРТЫ — контур В ЦВЕТЕ ДЕРЖАЩЕГО, и его видят ВСЕ.
+   *
+   * Карта, которую тянут, из стопки не выпадает: место остаётся за ней, порядок не сбивается. Но
+   * сама она уехала к пальцу, и без метки место выглядит пустым — сосед видит дыру там, где дыры
+   * нет, и целится в занятое.
+   *
+   * Цвет — того, кто держит: за столом это единственный способ понять, кто именно сейчас думает над
+   * этой картой. Свою руку не размечаем: там карта и так видна хозяину.
+   */
+  function heldMarksHtml(s: Snapshot): string {
+    if (!view) return "";
+    const v = view;
+    const w = FELT_CARD.w * v.k;
+    const h = FELT_CARD.h * v.k;
+    const out: string[] = [];
+    for (const pile of s.piles) {
+      pile.cards.forEach((card, i) => {
+        const by = s.locks[card.id];
+        if (by === undefined) return;
+        const at = v.toGlass(v.deckAt(pile.id, i, pile.cards.length));
+        out.push(markHtml(w, h, v.rotation + v.deckFacing(pile.id, i, pile.cards.length), at.x, at.y, 28, v.squash, inkOf(s, by)).replace('data-g="mark"', `data-g="held" data-held-by="${escape(by)}"`));
+      });
+    }
+    return out.join("");
+  }
+
+  /**
    * КОНТУРЫ КРУГА ХОДА — два, и оба только у того, кто держит карту.
    *
    *   держатель  место, откуда карту взяли: оно ждёт её обратно, и круг не пересобирается;
@@ -2638,7 +2674,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // колебание его голоса — кольца живут на холсте, а не здесь. Переписывать при этом `innerHTML` значит
     // десятки раз в секунду выбрасывать кнопки из-под пальца: нажатие начинается на одной, а заканчивается
     // на другой, и до onclick дело не доходит вовсе — заглушить говорящего было нельзя, пока он не замолчит.
-    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + ringMarksHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml();
+    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml();
     if (html !== lastOver) {
       lastOver = html;
       over.innerHTML = html;
