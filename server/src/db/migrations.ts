@@ -6,7 +6,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { inkFor } from "../profileInks.js";
 import { readFileSync, existsSync } from "fs";
-import { LEGACY_ACCOUNTS_FILE } from "./paths.js";
+import { legacyAccountsFile } from "./paths.js";
 
 export interface Migration {
   readonly version: number;
@@ -93,7 +93,7 @@ export const MIGRATIONS: readonly Migration[] = [
   {
     version: 2,
     up(db) {
-      importLegacyAccounts(db, LEGACY_ACCOUNTS_FILE);
+      importLegacyAccounts(db, legacyAccountsFile());
     },
   },
   {

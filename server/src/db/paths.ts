@@ -17,5 +17,14 @@ export function dbFile(): string {
   return process.env.CROSSADE_DB_FILE || path.join(DATA_DIR, "crossade.db");
 }
 
-/** Где люди лежали до базы. Читается один раз, миграцией. */
-export const LEGACY_ACCOUNTS_FILE = path.join(DATA_DIR, "accounts.json");
+/**
+ * Где люди лежали до базы. Читается один раз, миграцией.
+ *
+ * `CROSSADE_LEGACY_ACCOUNTS` перебивает путь — тем же приёмом, что и база выше, и ровно затем же:
+ * иначе база «в памяти» всё равно оказывается не пустой, потому что миграция молча втягивает в неё
+ * НАСТОЯЩИХ людей с диска. Прогон с тремя сотнями чужих аккаунтов внутри проверяет не тот закон,
+ * который написан, и падает у того, у кого рядом лежит живой сервер.
+ */
+export function legacyAccountsFile(): string {
+  return process.env.CROSSADE_LEGACY_ACCOUNTS || path.join(DATA_DIR, "accounts.json");
+}
