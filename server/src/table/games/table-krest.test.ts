@@ -1,4 +1,4 @@
-// СТОЛ КРЕСТОВОГО ЦЕЛИКОМ: раздали все карты — партия пошла, и кольцо стережёт очередь.
+// СТОЛ КРЕСТОВОГО ЦЕЛИКОМ: раздали все карты — партия пошла, а кольцо принимает карты от любого.
 //
 // Здесь проверяется связка, а не правила: правила уже разобраны в `krest.test.ts` и `match.test.ts`.
 // Связка ломается иначе — тем, что стол и судья начинают расходиться, и за столом это видно как
@@ -56,7 +56,7 @@ function toHand(t: Table, key: string): string {
   return top;
 }
 
-describe("стол крестового: кольцо стережёт очередь", () => {
+describe("стол крестового: кольцо принимает от любого", () => {
   it("партии нет — в кольцо кладёт кто угодно, как в песочнице", () => {
     const k = krestTable(["Аня", "Боря"]);
     const card = toHand(k.t, "Боря");
@@ -65,7 +65,7 @@ describe("стол крестового: кольцо стережёт очер�
     expect("refused" in drop ? drop.refused : "ok").toBe("ok");
   });
 
-  it("партия идёт — чужой в кольцо не положит, а тот, чей ход, положит", () => {
+  it("ПАРТИЯ ИДЁТ — а кольцо всё равно принимает от любого", () => {
     const k = krestTable(["Аня", "Боря"]);
     const mine = toHand(k.t, "Аня");
     const his = toHand(k.t, "Боря");
@@ -76,9 +76,11 @@ describe("стол крестового: кольцо стережёт очер�
     const otherCard = other === "Аня" ? mine : his;
     const turnCard = turn === "Аня" ? mine : his;
 
+    // Судейство снято: стол крестового — песочница с удобным кругом, и очередь он не сторожит.
+    // Вернётся вместе с режимом игры без читерства, и тогда этот прогон снова будет ждать отказа.
     k.t.act(other, { t: "grab", id: otherCard }, 0);
-    const refused = k.t.act(other, { t: "drop", id: otherCard, to: { in: "deck", pile: RING } }, 0);
-    expect("refused" in refused, `${other} ходит не в свой черёд`).toBe(true);
+    const notHisTurn = k.t.act(other, { t: "drop", id: otherCard, to: { in: "deck", pile: RING } }, 0);
+    expect("refused" in notHisTurn ? notHisTurn.refused : "ok", `${other} кладёт не в свой черёд — и стол не спорит`).toBe("ok");
 
     k.t.act(turn, { t: "grab", id: turnCard }, 0);
     const allowed = k.t.act(turn, { t: "drop", id: turnCard, to: { in: "deck", pile: RING } }, 0);

@@ -149,10 +149,12 @@ describe("конфиг стола мастодонта", () => {
     expect(desk.zones[0]!.name, "у места есть имя для человека: его видно на грипе и в окне стопки").toBe("Круг хода");
   });
 
-  it("«накрыть» у стола — это и есть старшинство игры", () => {
-    const desk = krestDesk(() => ({ turn: null, closer: null }));
-    expect(allowed(desk.says(ask, "card.cover", { by: "кто-то", card: "six", over: "joker" })), "шестёрка бьёт джокера").toBe(true);
-    expect(allowed(desk.says(ask, "card.cover", { by: "кто-то", card: "king", over: "joker" })), "король джокера не бьёт").toBe(false);
+  it("СТАРШИНСТВО СНЯТО: на любую карту ложится любая, даже когда партия идёт", () => {
+    // Снято по живой игре: судья, который спорит с рукой, хуже отсутствия судьи. Вернётся вместе с
+    // режимом игры без читерства — тогда этот прогон снова будет ждать `beats`.
+    const desk = krestDesk(() => ({ turn: "Аня", closer: null }));
+    expect(allowed(desk.says(ask, "card.cover", { by: "кто-то", card: "king", over: "joker" })), "король ложится на джокера").toBe(true);
+    expect(allowed(desk.says(ask, "card.cover", { by: "кто-то", card: "six", over: "joker" })), "и шестёрка тоже").toBe(true);
   });
 
   it("ПОКА ПАРТИИ НЕТ — СТАРШИНСТВА НЕТ: в круг кладут любую карту на любую", () => {
@@ -181,16 +183,19 @@ describe("конфиг стола мастодонта", () => {
   });
 });
 
-describe("в кольцо кладёт только тот, чей ход", () => {
+describe("кольцо очередь БОЛЬШЕ НЕ стережёт", () => {
   const ask: DeskAsk = { face: () => undefined, pile: () => [], hand: () => [], admin: (k) => k === "админ" , croupier: () => false };
   const ring = { in: "deck" as const, pile: RING };
   const other = { in: "deck" as const, pile: "стопка" };
 
-  it("партия идёт: чужому в кольцо нельзя, своему можно", () => {
+  it("ОЧЕРЕДЬ СНЯТА: в кольцо кладёт кто угодно, даже когда партия идёт", () => {
+    // Втроём за партию набралось 36 отказов, и каждый выглядел поломкой: человек вёл карту в круг, а
+    // она возвращалась без объяснения. За настоящим столом никто не отнимает карту со словами «не
+    // твой ход». Правило вернётся с режимом игры без читерства.
     const desk = krestDesk(() => ({ turn: "Аня", closer: null }));
-    expect(allowed(desk.says(ask, "pile.drop", { by: "Аня", card: "карта", at: ring }))).toBe(true);
-    expect(allowed(desk.says(ask, "pile.drop", { by: "Боря", card: "карта", at: ring }))).toBe(false);
-    expect(allowed(desk.says(ask, "pile.drop", { by: "Боря", card: "карта", at: other })), "прочие стопки очередь не сторожат").toBe(true);
+    expect(allowed(desk.says(ask, "pile.drop", { by: "Аня", card: "карта", at: ring })), "чей ход — кладёт").toBe(true);
+    expect(allowed(desk.says(ask, "pile.drop", { by: "Боря", card: "карта", at: ring })), "и не чей ход — тоже кладёт").toBe(true);
+    expect(allowed(desk.says(ask, "pile.drop", { by: "Боря", card: "карта", at: other })), "прочие стопки и подавно").toBe(true);
     expect(allowed(desk.says(ask, "pile.drop", { by: "Боря", card: "карта", at: { in: "felt" } })), "и сукно тоже").toBe(true);
   });
 
