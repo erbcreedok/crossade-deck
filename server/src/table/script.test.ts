@@ -340,3 +340,54 @@ describe("раздача не спотыкается о замок руки", ()
     expect("refused" in out ? out.refused : "ok").toBe("chair-locked");
   });
 });
+
+// ИГРОК БЕЗ ЧЕЛОВЕКА САДИТСЯ САМ.
+//
+// Стол не спрашивает, откуда пришёл игрок: телеграм, ссылка, переписка — это дело двери. Бот такая
+// же дверь, просто за ней никого нет. Раньше тестовых игроков держали открытые окна браузера: стол
+// о них ничего не знал, и стоило окну закрыться — стол пустел.
+describe("за стол садятся игроки без человека", () => {
+  const посадить = (t: ReturnType<typeof table>["t"], n: number) => {
+    for (let i = 0; i < n; i += 1) t.seatBot({ key: `bot:игрок${i + 1}`, name: `Игрок ${i + 1}`, ink: "#fff", door: "guest" });
+  };
+  const сидят = (t: ReturnType<typeof table>["t"]) => t.layout().chairs.filter((c) => !c.croupier && c.owner !== null && c.owner !== "a");
+
+  it("садятся со своим стулом, как все", () => {
+    const s = table("a");
+    посадить(s.t, 3);
+    expect(сидят(s.t), "трое сели").toHaveLength(3);
+    expect(сидят(s.t).every((c) => c.owner !== null), "и у каждого своё место").toBe(true);
+  });
+
+  it("им раздают наравне с людьми", async () => {
+    const s = table("a");
+    посадить(s.t, 2);
+    expect(await s.run({ t: "deal", rule: "each", n: 4 })).toBe("ok");
+    const руки = s.t.layout().chairs.filter((c) => !c.croupier).map((c) => c.hand.length);
+    expect(руки, "карты пришли всем троим").toEqual([4, 4, 4]);
+  });
+
+  it("уходят все разом, а крупье остаётся: он служебный", () => {
+    const s = table("a");
+    посадить(s.t, 3);
+    s.t.seatCroupier({ key: "bot:table", name: "Крупье", ink: "#0f0", door: "guest" });
+    s.t.dropBots();
+    expect(сидят(s.t), "ботов за столом нет").toHaveLength(0);
+    expect(s.t.layout().chairs.some((c) => c.croupier), "а крупье на месте").toBe(true);
+  });
+
+  it("посаженный дважды не задваивается", () => {
+    const s = table("a");
+    посадить(s.t, 2);
+    посадить(s.t, 2);
+    expect(сидят(s.t).length, "их всё ещё двое").toBe(2);
+  });
+
+  it("служебный бот крупье стула не занимает, а игрок — занимает", () => {
+    const s = table("a");
+    s.t.joinBot({ key: "bot:служебный", name: "Служебный", ink: "#fff", door: "guest" });
+    expect(сидят(s.t), "служебный сел без стула").toHaveLength(0);
+    s.t.seatBot({ key: "bot:игрок", name: "Игрок", ink: "#fff", door: "guest" });
+    expect(сидят(s.t), "а игрок — со стулом").toHaveLength(1);
+  });
+});

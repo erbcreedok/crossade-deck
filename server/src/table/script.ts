@@ -200,8 +200,9 @@ export function plan(table: Table, command: TableCommand, people: Who[], admin: 
   switch (command.t) {
     case "collect":
       return { steps: collectSteps(table), actor: "bot" };
-    // Крупье исполняет комната сама: он не ход, а состав стола.
+    // Крупье и игроков без человека исполняет комната сама: это состав стола, а не ход.
     case "croupier":
+    case "bots":
       return { error: "bad" };
     // Перераздачу и рассадку комната делает сама: одной нужна память о прошлой раздаче, другой — люди
     // в комнате, а не карты на столе.

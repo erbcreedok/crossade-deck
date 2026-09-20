@@ -47,6 +47,11 @@ import { Chronicle } from "./chronicle.js";
 import { cleanWitnessed, Witnesses } from "./witness.js";
 import { Table } from "./table.js";
 
+/** Имена игроков без человека — чтобы за столом сидели не «Бот 1», а кто-то. */
+const BOT_NAMES = ["Айдос", "Батыр", "Ержан", "Санжар", "Данияр", "Тимур", "Алия", "Мадина"] as const;
+/** Больше этого за стол не сажают: мест всё-таки шестнадцать, и половину стоит оставить людям. */
+const BOTS_MOST = 8;
+
 const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "grip", "turn", "flip", "arrange", "pose", "stand", "sit", "flag", "deckMove", "deckDo", "deckForever", "deckPin", "deckGuard", "gather", "pick", "unpick", "moveMany", "turnMany", "pileDrop", "rules", "sync", "crew", "dealer"]);
 
 export class TableRoom extends Room {
@@ -375,6 +380,18 @@ export class TableRoom extends Room {
     if (command.t === "look") {
       const steps = plan(this.table, command, [], by);
       if ("steps" in steps) for (const step of steps.steps) if (step.t === "rules") this.spread(this.table.setRules(step.rules));
+      return { ok: true };
+    }
+    // ИГРОКИ БЕЗ ЧЕЛОВЕКА — тоже состав стола, а не ход. Садятся и уходят сразу.
+    if (command.t === "bots") {
+      if (command.n <= 0) {
+        this.spread(this.table.dropBots());
+        return { ok: true };
+      }
+      const было = this.table.here.filter((one) => one.bot === true && one.seat !== undefined).length;
+      for (let i = было; i < Math.min(было + command.n, BOTS_MOST); i += 1) {
+        this.spread(this.table.seatBot({ key: `bot:игрок${i + 1}`, name: BOT_NAMES[i % BOT_NAMES.length]!, ink: this.freeInk(), door: "guest" }));
+      }
       return { ok: true };
     }
     // КРУПЬЕ — не ход, а состав стола: садится и уходит сразу, даже посреди раздачи он не нужен как ход.

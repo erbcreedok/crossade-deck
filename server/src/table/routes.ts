@@ -48,6 +48,8 @@ export function readCommand(raw: unknown): TableCommand | null {
   if (!c || typeof c.t !== "string") return null;
   if (c.t === "collect" || c.t === "shuffle") return { t: c.t };
   if (c.t === "croupier" && typeof c.on === "boolean") return { t: "croupier", on: c.on };
+  // Игроки без человека: сколько посадить; ноль уводит всех.
+  if (c.t === "bots" && Number.isInteger(c.n)) return { t: "bots", n: Math.max(0, Math.min(8, c.n as number)) };
   // Разбор пришедшего значения идёт по СПИСКУ родов (`GAMES`), а не по перечню имён в коде.
   const game = (g: unknown) => ((GAMES as readonly unknown[]).includes(g) ? (g as Game) : null);
   if (c.t === "preset") {

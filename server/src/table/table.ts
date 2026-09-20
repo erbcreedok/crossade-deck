@@ -414,6 +414,30 @@ export class Table {
     return this.commit([{ t: "join", person: bot }]);
   }
 
+  /**
+   * ИГРОК БЕЗ ЧЕЛОВЕКА — садится за стол со своим стулом и рукой, как все.
+   *
+   * Стол не спрашивает, откуда человек пришёл: телеграм, ссылка, переписка — это дело ДВЕРИ, а не
+   * стола. Бот — такая же дверь, просто за ней никого нет; и место за столом он держит сам, а не
+   * чужим открытым окном.
+   *
+   * Отличается от `joinBot` одним: тот сажает служебного бота БЕЗ стула (так живёт крупье), а этот —
+   * полноправного игрока.
+   */
+  seatBot(person: Person): Op[] {
+    if (this.people.has(person.key)) return [];
+    return this.join({ ...person, bot: true });
+  }
+
+  /** Увести всех ботов-игроков: крупье не трогается — он служебный и уходит своей командой. */
+  dropBots(): Op[] {
+    const ops: Op[] = [];
+    for (const one of [...this.people.values()]) {
+      if (one.bot === true && this.chairs.get(one.seat ?? "")?.croupier !== true) ops.push(...this.leave(one.key));
+    }
+    return ops;
+  }
+
   /** Уйти. Всё, что держал, отпускается; стул остаётся покинутым — или уходит по правилу стола. */
   leave(key: string): Op[] {
     const person = this.people.get(key);
