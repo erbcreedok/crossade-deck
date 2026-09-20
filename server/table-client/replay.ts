@@ -56,9 +56,18 @@ async function start(): Promise<void> {
   const { deeds } = (await res.json()) as { deeds: Told[] };
   if (deeds.length === 0) return say("Про эту комнату журнал ничего не помнит.");
 
-  // Смотрим глазами того, кто играл ПОСЛЕДНИМ: его рука и его права — то, ради чего запись открыли.
-  const played = [...deeds].reverse().find((d) => d.kind === "join" && d.who !== undefined);
-  const me: Person = { key: played?.who ?? "", name: "разбор", ink: "#e8c34e", door: "guest" };
+  // ЧЬИМИ ГЛАЗАМИ. За столом трое, и «его рука» у каждого своя: без выбора разобрать жалобу одного
+  // из троих нельзя. По умолчанию — тот, кто сел последним; дальше человек переключает сам.
+  const players = new Map<string, string>();
+  for (const d of deeds) {
+    if (d.kind === "join" && d.who) players.set(d.who, (d.what as { name?: string })?.name ?? d.who);
+  }
+  const asked = params.get("eyes");
+  const first = asked && players.has(asked) ? asked : [...players.keys()].at(-1) ?? "";
+  const me: Person = { key: first, name: players.get(first) ?? "разбор", ink: "#e8c34e", door: "guest" };
+
+  const eyes = document.getElementById("eyes") as HTMLSelectElement;
+  eyes.innerHTML = [...players].map(([key, name]) => `<option value="${key}"${key === first ? " selected" : ""}>глазами ${name}</option>`).join("");
 
   let replay;
   try {
@@ -129,8 +138,14 @@ async function start(): Promise<void> {
     deedText.textContent = lineOf(moment.deed, t0);
     deedText.className = HURT.has(moment.deed.kind) ? "hurt" : "";
   };
+  // Взгляд меняет ВСЁ: чья рука своя, чьи карты видно, чьи права. Проще открыть запись заново тем же
+  // мгновением, чем пересобирать экран на ходу.
+  eyes.onchange = () => {
+    location.search = new URLSearchParams({ ...Object.fromEntries(params), eyes: eyes.value, at: String(replay.at) }).toString();
+  };
+
   replay.onSeek(show);
-  replay.seek(0);
+  replay.seek(Number(params.get("at")) || 0);
 
   bar.oninput = () => replay.seek(Number(bar.value));
   document.getElementById("back")!.onclick = () => replay.seek(replay.at - 1);

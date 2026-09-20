@@ -71,6 +71,7 @@ let screenHealth: ScreenHealth | undefined;
 const witness = watchScreen((seen) => tellStore?.log(seen), {
   sound: () => screenHealth?.sound() ?? null,
   voice: () => screenHealth?.voice() ?? null,
+  links: () => screenHealth?.links() ?? null,
 });
 
 open()

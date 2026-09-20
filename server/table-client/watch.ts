@@ -98,6 +98,7 @@ export interface SeenThrough {
 export interface ScreenHealth {
   sound(): SoundHealth;
   voice(): Promise<Record<string, number>>;
+  links(): { who: string; state: string; hears: boolean; heard: boolean }[];
 }
 
 export interface Watched {
@@ -105,6 +106,8 @@ export interface Watched {
   sound?: () => SoundHealth | null;
   /** Сколько звуковой энергии дошло от каждого собеседника. */
   voice?: () => Promise<Record<string, number>> | null;
+  /** Состояние каждой голосовой связи: договорились или всё ещё договариваются. */
+  links?: () => { who: string; state: string; hears: boolean; heard: boolean }[] | null;
 }
 
 /**
@@ -176,6 +179,7 @@ export function watchScreen(send: (seen: readonly Seen[]) => void, watched: Watc
   // происходит. Записывается только то, что ИЗМЕНИЛОСЬ: неизменное состояние каждые пятнадцать секунд
   // — это шум, в котором тонет момент перемены.
   let lastHealth = "";
+  let lastLinks = "";
   const look = (): void => {
     const health = watched.sound?.() ?? null;
     if (health) {
@@ -185,12 +189,26 @@ export function watchScreen(send: (seen: readonly Seen[]) => void, watched: Watc
         told.saw("sound", { state: health.state, asked: health.asked, played: health.played, silent: health.silent, ...(health.why === undefined ? {} : { why: health.why }) });
       }
     }
+    // СВЯЗЬ ИЛИ ТИШИНА — это РАЗНОЕ. Ноль звуковой энергии бывает и когда собеседник просто молчит:
+    // по нему одному диагноз не поставить. А вот связь, которая застряла на «договариваемся» и не
+    // стала «соединено», — это уже поломка, и видно её только здесь.
+    const links = watched.links?.() ?? null;
+    if (links) {
+      const line = JSON.stringify(links.map((l) => `${l.who}:${l.state}${l.hears ? "" : "/не-шлю"}${l.heard ? "" : "/не-слышу"}`).sort());
+      if (line !== lastLinks) {
+        lastLinks = line;
+        told.saw("voice.links", { links: links.map((l) => ({ who: l.who, state: l.state, hears: l.hears, heard: l.heard })) });
+      }
+    }
+
     const heard = watched.voice?.();
     void heard
       ?.then((energy) => {
+        // ТОЛЬКО ПРИ ЖИВОЙ СВЯЗИ. Молчащий собеседник даёт тот же ноль, что и оборванный, и запись
+        // «от него не доезжает» на молчании — ложь, из-за которой в журнале уже был ложный след.
+        const connected = new Set((links ?? []).filter((l) => l.state === "connected").map((l) => l.who));
         const talking = Object.entries(energy).filter(([, e]) => e > 0).length;
-        const mute = Object.entries(energy).filter(([, e]) => e === 0).map(([who]) => who);
-        // Собеседник есть, а энергии от него ноль — его голос до этого экрана не доезжает.
+        const mute = Object.entries(energy).filter(([who, e]) => e === 0 && connected.has(who)).map(([who]) => who);
         if (mute.length > 0) told.saw("voice.silent", { mute, talking });
       })
       .catch(() => {});

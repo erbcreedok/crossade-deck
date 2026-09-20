@@ -4223,7 +4223,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     ready: Promise.all([art.warm(store.state.rules), document.fonts?.ready, ...photos]).then(() => {}),
     // ОКОШКО ДЛЯ ЖУРНАЛА: правда о звуке и о дошедшем голосе. Экран её не отправляет и о журнале не
     // знает — только отвечает, когда спросят.
-    health: { sound: () => sound.health, voice: () => mesh.stats() },
+    health: { sound: () => sound.health, voice: () => mesh.stats(), links: () => mesh.links() },
     // ВЗГЛЯД СНАРУЖИ — им пользуется запись: стол показывается тем взглядом, каким его видел человек.
     // Живой игре это окошко не нужно и ею не зовётся.
     look: {
