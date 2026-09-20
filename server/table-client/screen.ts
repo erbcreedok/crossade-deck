@@ -1282,10 +1282,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * Экран ничего не решает сам: он читает СОСТОЯНИЕ, которое прислал сервер (`Snapshot.play`).
    */
   function playHint(s: Snapshot, id: string, owner: string): "lay" | "idle" | null {
-    const play = s.play;
-    if (!play || play.turn === null || owner !== mine(s)) return null;
-    if (play.turn !== me()) return "idle";
-    return play.lay.includes(id) ? "lay" : "idle";
+    // ПОДСКАЗКА МОЛЧИТ, ПОКА СТОЛ НЕ СУДИТ.
+    //
+    // Судейство снято (`games/krest.ts`): очередь и старшинство не действуют, класть можно что
+    // угодно и когда угодно. А подсказка осталась и гасила половину руки — человек видел свои карты
+    // «под тенью» и не понимал, почему: ходить-то ими можно.
+    //
+    // Вернётся вместе с правилами, в том же режиме игры без читерства: гасить карту честно только
+    // там, где ею и правда нельзя пойти.
+    void s;
+    void id;
+    void owner;
+    return null;
   }
 
   function slotCard(c: SeenCard, geom: Geom, slot: Slot, z: number, owner: string, held?: string, shut = false, under = false): string {
@@ -2198,6 +2206,21 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     return { x: home.x, y: home.y - h * CARRY_CLEAR, w, h, at: gripPress.at, n: one.cards.length };
   }
 
+  /**
+   * ОЧЕРЧЕННОЕ ПОЛЕ КРУГА — тем же пунктиром, что у зон стульев, и тем же золотом под прицелом.
+   *
+   * Один элемент на всё: и поле стола, и приёмка. Раньше поле рисовала кисть, а приёмку — зона
+   * поверх него, и получалось два круга: один не загорался, другой появлялся ниоткуда.
+   */
+  function ringZoneHtml(pile: Pile, box: { left: number; top: number; right: number; bottom: number }, ink: string, here: boolean, opacity: number): string {
+    return `<div data-g="deck-zone" data-pile="${pile.id}" data-here="${here}" style="position:absolute;left:${box.left}px;top:${box.top}px;`
+      + `width:${box.right - box.left}px;height:${box.bottom - box.top}px;box-sizing:border-box;z-index:1;pointer-events:none;`
+      + `border-radius:50%;border:2px dashed ${ink};opacity:${opacity};`
+      + `background:${here ? `color-mix(in srgb, ${ink} 22%, transparent)` : "transparent"};`
+      + (here ? `box-shadow:0 0 12px 4px color-mix(in srgb, ${ink} 55%, transparent);` : "")
+      + `"></div>`;
+  }
+
   /** Зона приёмки стопки на стекле — рамка всей стопки с полем. */
   function deckZone(pile: Pile): { left: number; top: number; right: number; bottom: number } | null {
     if (!view) return null;
@@ -2225,8 +2248,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    */
   function deckZoneHtml(s: Snapshot): string {
     const aim = aiming();
-    if (!aim && !store.carries.some((c) => c.over.in === "deck")) return "";
+    const несут = aim !== null || store.carries.some((c) => c.over.in === "deck");
     return s.piles.map((pile) => {
+      // ОЧЕРЧЕННОЕ ПОЛЕ ВИДНО ВСЕГДА, даже когда в руках ничего нет: это часть стола, а не подсказка
+      // на время жеста. Оттого и рисует его зона, а не кисть, — иначе у круга было бы два контура.
+      if (pile.pose === "ring" && !несут) {
+        const box = deckZone(pile);
+        return box === null ? "" : ringZoneHtml(pile, box, T.inkDim, false, 0.5);
+      }
+      if (!несут) return "";
       const zone = deckZone(pile);
       if (!zone || deckCarry(s, pile.id)) return "";
       // ЗАЖИГАЕМ ТОЛЬКО ТО, ЧТО ПРИМЕТ. Круг не берёт охапку — значит и гореть ему, пока в руке
@@ -2234,9 +2264,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       if (!willTake(s, { in: "deck", pile: pile.id })) return "";
       const other = store.carries.find((c) => c.over.in === "deck" && c.over.pile === pile.id);
       if (!aim && !other) return "";
-      const here = aim ? aim.kind === "deck" && aim.pile === pile.id : true;
+      // ЦЕЛЬ КРУГА ТЕПЕРЬ СВОЯ — угол; не знай об этом подсветка, поле под пальцем не загоралось бы.
+      const here = aim ? "pile" in aim && aim.pile === pile.id : true;
       const ink = aim ? (here ? T.gold : T.inkDim) : inkOf(s, other!.by);
-      const r = pile.pose === "ring" ? "50%" : `${Math.round(0.16 * FELT_CARD.w * (view?.k ?? 40))}px`;
+      if (pile.pose === "ring") return ringZoneHtml(pile, zone, ink, here, here ? 1 : 0.75);
+      const r = `${Math.round(0.16 * FELT_CARD.w * (view?.k ?? 40))}px`;
       return `<div data-g="deck-zone" data-pile="${pile.id}" data-here="${here}" style="position:absolute;left:${zone.left}px;top:${zone.top}px;width:${zone.right - zone.left}px;height:${zone.bottom - zone.top}px;`
         + `box-sizing:border-box;z-index:1;pointer-events:none;border-radius:${r};border:2px dashed ${ink};`
         + `background:${here ? `color-mix(in srgb, ${ink} 22%, transparent)` : "rgba(245,234,208,.06)"};`

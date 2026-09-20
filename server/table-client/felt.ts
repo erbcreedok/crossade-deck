@@ -639,6 +639,9 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     // КРУГ ХОДА — КОНТУР НА МЕСТЕ ВСЕГДА, с картами и без: это не «пустая стопка», а очерченное поле,
     // внутри которого идёт круг. Периметр статичен — меняется только то, что в нём лежит.
     if (pile.pose === "ring") {
+      // ОЧЕРЧЕННОЕ ПОЛЕ РИСУЕТ НЕ КИСТЬ, А ЗОНА — тем же пунктиром, что у стульев, и тем же цветом,
+      // когда над ней несут карту. Двух разных кругов у стола быть не должно: один был бы полем,
+      // другой — приёмкой, и они бы спорили.
       rings[pile.id] = { x: pile.x, y: pile.y, r: RING_SPREAD };
       g.save();
       g.translate(pile.x, pile.y);
@@ -646,13 +649,6 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       g.arc(0, 0, RING_SPREAD, 0, Math.PI * 2);
       g.fillStyle = "rgba(11,7,4,.10)";
       g.fill();
-      g.setLineDash([CARD.w * 0.16, CARD.w * 0.12]);
-      g.lineWidth = CARD.w * 0.07;
-      g.strokeStyle = SEAT.black;
-      g.stroke();
-      g.lineWidth = CARD.w * 0.035;
-      g.strokeStyle = "rgba(245,234,208,.75)";
-      g.stroke();
       // СТРЕЛКА ПОКАЗЫВАЕТ ПЕРВУЮ ВОШЕДШУЮ КАРТУ и идёт ИЗ СЕРЕДИНЫ наружу.
       //
       // Круг помнит порядок входа, а не положение: первая вошедшая — первая в стопке, где бы она ни

@@ -274,6 +274,34 @@ const вКруг = async (turn) => {
   check("а углы соседей не изменились ни на градус", до.every((one) => после.includes(one)), { до, после });
 }
 
+// ОЧЕРЧЕННОЕ ПОЛЕ КРУГА — ОДНО НА ВСЁ: и поле стола, и приёмка. Раньше поле рисовала кисть, а
+// приёмку — зона поверх него: один контур не загорался, другой появлялся ниоткуда.
+{
+  const поле = () => p.$$eval('[data-g="deck-zone"][data-pile="ring"]', (els) => els.map((e) => ({
+    here: e.getAttribute("data-here"), border: getComputedStyle(e).borderStyle, radius: getComputedStyle(e).borderRadius,
+  })));
+  const стулья = () => p.$$eval('[data-g="chair-zone"]', (els) => els.map((e) => getComputedStyle(e).borderStyle));
+
+  const впокое = await поле();
+  check("круг очерчен всегда, даже когда в руках ничего нет", впокое.length === 1, впокое);
+  check("…и очерчен тем же пунктиром, что зоны стульев", впокое[0]?.border === "dashed", впокое[0]);
+
+  const карта = await вРуку();
+  const box = await карта.boundingBox();
+  const цель = await наУглу(0);
+  await p.mouse.move(box.x + box.width / 2, box.y + 8);
+  await p.mouse.down();
+  await p.mouse.move(цель.x, цель.y, { steps: 8 });
+  await p.waitForTimeout(300);
+  const подПальцем = await поле();
+  const стульяТоже = await стулья();
+  await p.mouse.up();
+  await p.waitForTimeout(600);
+  check("под пальцем круг ЗАГОРАЕТСЯ", подПальцем[0]?.here === "true", подПальцем);
+  check("…и всё ещё один контур, а не два", подПальцем.length === 1, подПальцем);
+  check("…и стулья очерчены тем же самым пунктиром", стульяТоже.every((one) => one === "dashed"), стульяТоже);
+}
+
 // ГОРИТ ТОЛЬКО ТО, ЧТО ПРИМЕТ: круг берёт карту и не берёт охапку, а охапку в крестовом принимает
 // только рука крупье.
 {
@@ -292,6 +320,8 @@ const вКруг = async (turn) => {
   await p.mouse.up();
   await p.waitForTimeout(400);
   check("под картой горит круг", подКарту.стопки.includes("ring"), подКарту);
+  const горит = async () => p.$$eval('[data-g="deck-zone"][data-pile="ring"]', (els) => els.map((e) => ({ here: e.getAttribute("data-here"), border: getComputedStyle(e).borderStyle })));
+  check("…и это ТОТ ЖЕ контур, что виден всегда: один круг, а не два", (await горит()).length === 1, await горит());
 
   const ручка = await ringGrip();
   check("у круга с картами есть ручка", ручка !== null, ручка);
