@@ -1,0 +1,20 @@
+server/src/table/RING.md
+  s_9ed0da107cbc4a::t_437c8a2dcd9985 1-154
+  s_9ed0da107cbc4a::t_617f10235f155d 155-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fa6ce3aa385c74130f9fb86d638bec7ca17104e2",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
