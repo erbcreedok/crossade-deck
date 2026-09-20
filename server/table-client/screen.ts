@@ -25,7 +25,8 @@ import { FELT_REACH } from "../src/table/table.js";
 import { ringFree, RING_LEAST, ringSlot, RING_SPREAD } from "../src/table/ring.js";
 import type { RingPlace as Laid3 } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
-import type { ScreenHealth } from "./watch.js";
+import type { ScreenHealth, SeenThrough } from "./watch.js";
+import type { Witness } from "../src/table/telling.js";
 import { HOST } from "./host.js";
 
 /** Цвет отметки карты в строке — светлые версии красок колоды: буквы строки стоят на сукне с чёрной обводкой. */
@@ -286,7 +287,7 @@ interface Drag {
 }
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
-export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Promise<void>; health: ScreenHealth } {
+export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Witness): { ready: Promise<void>; health: ScreenHealth; look: SeenThrough } {
   const canvas = stage.querySelector("canvas")!;
   const over = stage.querySelector<HTMLElement>("#over")!;
   const images: Record<string, HTMLImageElement> = {};
@@ -523,6 +524,75 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     requestAnimationFrame(tick);
   };
   const cam = tableCamera(canvas, () => lastFrame, redraw);
+
+  /**
+   * СЛЕПОК ЭКРАНА — всё личное состояние человека одной строкой, и в журнал идёт только то, что
+   * ИЗМЕНИЛОСЬ.
+   *
+   * Так, а не десятком отдельных записей, по одной причине: половина этих вещей не сообщает о своём
+   * изменении — их меняют прямым присваиванием в обработчике жеста. Ловить каждую значило бы
+   * рассыпать журнал по всему экрану и ломать его первой же правкой. Слепок снимается там, где кадр
+   * и так пересобирается, и новое поле попадает в запись само.
+   *
+   * Чего здесь нет: промежуточных кадров анимаций, координат окон и служебных счётчиков. Они
+   * меняются каждый кадр и не отвечают ни на один вопрос о человеке.
+   */
+  const SNAP_EVERY_MS = 500;
+  let snapTold = "";
+  let snapAt = 0;
+  const tellSnap = (): void => {
+    if (!witness) return;
+    const now = performance.now();
+    if (now - snapAt < SNAP_EVERY_MS) return;
+    snapAt = now;
+    const p = sound.prefs;
+    const snap = {
+      // ЧТО ОТКРЫТО
+      menu: local.section,
+      tips: local.tips.length === 0 ? undefined : [...local.tips],
+      pile: local.deckTip ?? undefined,
+      card: cardTip?.id,
+      deal: local.deal ? local.deal.rule : undefined,
+      asks: local.confirmLeave || undefined,
+      tool: local.tool === "cursor" ? undefined : local.tool,
+      // ЧТО НАСТРОЕНО
+      sound: `${p.volume}${p.muted ? "/тихо" : ""}${p.uiMuted ? "/без-стола" : ""}${p.voiceMuted ? "/без-голосов" : ""}${p.spatial ? "" : "/плоско"}`,
+      voice: p.voiceVolume,
+      look: `${look.fourColour ? "4цвета" : ""}${look.cyrillic ? " кириллица" : ""}`.trim() || undefined,
+      motion: `${motion.speed}${motion.reduce ? "/меньше" : ""}`,
+      buzz: haptic.on || undefined,
+      // КОГО ЗАГЛУШИЛ ЛИЧНО — стол об этом не знает: для него все говорят.
+      hush: muted.size + voiceMuted.size === 0 ? undefined : { слова: [...muted], голос: [...voiceMuted] },
+      // КАКОВ ЕГО ЭКРАН СЕЙЧАС: телефон переворачивают посреди партии.
+      w: innerWidth,
+      h: innerHeight,
+    };
+    const line = JSON.stringify(snap);
+    if (line === snapTold) return;
+    snapTold = line;
+    witness.saw("screen", snap);
+  };
+
+  /**
+   * КУДА ЧЕЛОВЕК СМОТРЕЛ. Камера — это пять чисел, и по ним запись покажет стол ровно тем взглядом,
+   * каким его видел он: куда подвёл, как приблизил, как повернул и наклонил.
+   *
+   * Пишется ПРОРЕЖЁННО и только при изменении: камера меняется каждый кадр жеста, и писать каждый —
+   * значит завалить журнал дрожанием пальца. Раз в четверть секунды видно и движение, и то, как он
+   * в итоге её поставил.
+   */
+  const VIEW_EVERY_MS = 250;
+  let viewTold = "";
+  let viewAt = 0;
+  const tellView = (c: { target: { x: number; y: number }; zoom: number; rotation: number; pitch: number }): void => {
+    if (!witness) return;
+    const now = performance.now();
+    const round = `${c.target.x.toFixed(1)},${c.target.y.toFixed(1)},${c.zoom.toFixed(2)},${Math.round(c.rotation)},${Math.round(c.pitch)}`;
+    if (round === viewTold || now - viewAt < VIEW_EVERY_MS) return;
+    viewTold = round;
+    viewAt = now;
+    witness.saw("view", { x: +c.target.x.toFixed(1), y: +c.target.y.toFixed(1), zoom: +c.zoom.toFixed(2), turn: Math.round(c.rotation), lean: Math.round(c.pitch) });
+  };
   /** Кадр сменился (рука выросла, телефон повернули) — камера держит стол в новом. */
   let seenFrame = "";
   const syncCamera = () => {
@@ -2514,6 +2584,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // Взгляд — на холсте атрибутом: его видно в инспекторе и его читает прогон жестов.
     const c = cam.camera;
     canvas.dataset.view = `${c.target.x.toFixed(2)},${c.target.y.toFixed(2)},${c.zoom.toFixed(3)},${c.rotation.toFixed(1)},${c.pitch.toFixed(1)}`;
+    tellView(c);
+    tellSnap();
     const middle = view.toGlass({ x: 0, y: 0 });
     canvas.dataset.spots = JSON.stringify({
       frame: lastFrame,
@@ -4152,6 +4224,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore): { ready: Pro
     // ОКОШКО ДЛЯ ЖУРНАЛА: правда о звуке и о дошедшем голосе. Экран её не отправляет и о журнале не
     // знает — только отвечает, когда спросят.
     health: { sound: () => sound.health, voice: () => mesh.stats() },
+    // ВЗГЛЯД СНАРУЖИ — им пользуется запись: стол показывается тем взглядом, каким его видел человек.
+    // Живой игре это окошко не нужно и ею не зовётся.
+    look: {
+      to(v) {
+        cam.camera.lookAt({ x: v.x, y: v.y });
+        cam.camera.setZoom(v.zoom);
+        cam.camera.turnTo(v.turn);
+        cam.camera.tiltTo(v.lean);
+        draw();
+      },
+    },
   };
 }
 

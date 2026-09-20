@@ -9,6 +9,7 @@
 
 import type { Person } from "../src/table/contract.js";
 import { mountScreen } from "./screen.js";
+import type { SeenView } from "./watch.js";
 import { replayStore, type Told } from "./replayStore.js";
 import { HOST } from "./host.js";
 
@@ -66,7 +67,26 @@ async function start(): Promise<void> {
     return say(err instanceof Error ? err.message : String(err));
   }
 
-  mountScreen(stage, replay.store);
+  // ЭКРАН РАЗМЕРОМ С ЕГО ЭКРАН. Стол на телефоне и на десктопе — это разные столы: там, где у него
+  // рука закрывала треть поля, у меня остаётся пустое сукно, и половина жалоб на вёрстку становится
+  // невидимой. Размер берётся из его же рассказа при открытии.
+  const opened = deeds.find((d) => d.kind === "open")?.what as { w?: number; h?: number } | undefined;
+  if (opened?.w && opened?.h) {
+    const fit = Math.min(1, (innerHeight - 160) / opened.h, innerWidth / opened.w);
+    stage.style.width = `${opened.w}px`;
+    stage.style.height = `${opened.h}px`;
+    stage.style.left = "50%";
+    stage.style.right = "auto";
+    stage.style.top = "12px";
+    stage.style.bottom = "auto";
+    stage.style.transform = `translateX(-50%) scale(${fit.toFixed(3)})`;
+    stage.style.transformOrigin = "top center";
+    stage.style.outline = "1px solid #2a2f30";
+    stage.style.borderRadius = "10px";
+    stage.style.overflow = "hidden";
+  }
+
+  const screen = mountScreen(stage, replay.store);
   // ЧЕСТНОСТЬ ПЕРЕД ЗРИТЕЛЕМ: у восстановленной записи карты, которых не трогали, лежат рубашкой —
   // не потому что они закрыты, а потому что запись про них не знает.
   if (replay.guessed || replay.lost > 0 || replay.older > 0) {
@@ -82,8 +102,28 @@ async function start(): Promise<void> {
   const t0 = deeds[0]!.at;
   bar.max = String(replay.moments.length - 1);
 
+  // ВЗГЛЯД ЧЕЛОВЕКА. Камера едет по записи так же, как ехала у него: берётся последнее, что он
+  // сделал с ней до этого мгновения.
+  let lastView = "";
+  const lookAsHe = (upto: number): void => {
+    let seen: SeenView | undefined;
+    for (let i = 0; i <= upto; i += 1) {
+      const d = replay.moments[i]?.deed;
+      if (d?.kind === "view") seen = d.what as SeenView;
+    }
+    // В самом начале он камеру ещё не трогал — значит стол стоял так, как встал при открытии. Взять
+    // первое, что он о ней рассказал: иначе запись открылась бы взглядом ПРОШЛОГО просмотра.
+    seen ??= replay.moments.find((m) => m.deed.kind === "view")?.deed.what as SeenView | undefined;
+    if (!seen) return;
+    const line = JSON.stringify(seen);
+    if (line === lastView) return;
+    lastView = line;
+    screen.look.to(seen);
+  };
+
   const show = (): void => {
     const moment = replay.moments[replay.at]!;
+    lookAsHe(replay.at);
     bar.value = String(replay.at);
     nowText.textContent = `${((moment.at - t0) / 1000).toFixed(1)}с   ${replay.at + 1} / ${replay.moments.length}`;
     deedText.textContent = lineOf(moment.deed, t0);

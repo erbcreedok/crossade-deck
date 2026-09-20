@@ -71,7 +71,18 @@ const ringInPlay = p.evaluate(() => {
   return r ? { count: r.count, slots: r.at ?? null } : null;
 }).catch(() => null);
 
+// Двигаем камеру — запись обязана это повторить.
+await p.mouse.move(195, 400);
+await p.mouse.down();
+await p.mouse.move(250, 320, { steps: 10 });
+await p.mouse.up();
+await p.waitForTimeout(600);
+
 const played = await spotsOf(p);
+// Экран рассказывает о себе пачкой раз в несколько секунд — дадим ему договорить, иначе в записи не
+// будет ни его размера, ни того, как он двигал камеру.
+await p.waitForTimeout(6000);
+
 const hand = await handsOf(p);
 const opened = await openOf(p);
 check("в столе и правда играли: карта осталась в руке", hand === 1, hand);
@@ -86,10 +97,13 @@ const journal = async () => {
 // Ждём не «хоть что-нибудь», а ПОСЛЕДНИЙ ход партии: журнал уходит пачкой раз в пару секунд, и
 // страница, открытая раньше, покажет запись без её конца — а проверка соврёт, что конца там и не было.
 const landed = (list) => list.some((d) => d.kind === "patch" && Array.isArray(d.what?.ops) && d.what.ops.some((o) => o.t === "move" && o.to?.pile === "ring"));
+// Рассказ экрана уходит пачкой раз в несколько секунд: без него в записи не будет ни размера его
+// экрана, ни того, как он двигал камеру.
+const told = (list) => list.some((d) => d.side === "screen" && d.kind === "open") && list.some((d) => d.side === "screen" && d.kind === "view");
 let deeds = [];
 for (let i = 0; i < 60; i += 1) {
   deeds = await journal();
-  if (deeds.some((d) => d.kind === "table.first") && landed(deeds)) break;
+  if (deeds.some((d) => d.kind === "table.first") && landed(deeds) && told(deeds)) break;
   await new Promise((r) => setTimeout(r, 250));
 }
 const first = deeds.find((d) => d.kind === "table.first");
@@ -164,6 +178,28 @@ check("отмотали назад — стол вернулся к началу
     const inFilm = await ring(r);
     check("круг в записи знает места карт, а не валит их в стопку", JSON.stringify(inFilm?.slots) === JSON.stringify(inPlay.slots), { запись: inFilm?.slots, партия: inPlay.slots });
   }
+}
+
+// 2в. ЗАПИСЬ СМОТРИТ ЕГО ГЛАЗАМИ И В ЕГО РАЗМЕРЕ. Стол на телефоне и на десктопе — разные столы:
+// там, где у него рука закрывала треть поля, у меня пустое сукно, и половина жалоб на вёрстку
+// становится невидимой.
+{
+  const frameOf = (page) => page.evaluate(() => {
+    const st = document.getElementById("stage");
+    return { w: Math.round(st.getBoundingClientRect().width / (st.style.transform.match(/scale\(([\d.]+)\)/)?.[1] ?? 1)), css: st.style.width };
+  });
+  const box = await frameOf(r);
+  check("запись открыта в размере экрана игрока", box.css === "390px", box);
+
+  const viewOf = (page) => page.getAttribute("canvas", "data-view");
+  await r.evaluate(() => { const b = document.getElementById("bar"); b.value = "0"; b.dispatchEvent(new Event("input")); });
+  await r.waitForTimeout(500);
+  const first = await viewOf(r);
+  await r.evaluate(() => { const b = document.getElementById("bar"); b.value = b.max; b.dispatchEvent(new Event("input")); });
+  await r.waitForTimeout(700);
+  const last = await viewOf(r);
+  // В партии камеру двигали — значит и в записи взгляд обязан поменяться.
+  check("камера в записи едет так же, как ехала у него", first !== last, { начало: first, конец: last });
 }
 
 // 3. ПРОПУСК — обычный способ смотреть запись: одна комната, свой срок, без ключа от стола.

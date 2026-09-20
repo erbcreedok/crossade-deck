@@ -77,7 +77,7 @@ open()
   .then((store) => {
     tellStore = store;
     document.title = store.title;
-    const screen = mountScreen(stage, witnessed(store, witness));
+    const screen = mountScreen(stage, witnessed(store, witness), witness);
     screenHealth = screen.health;
     store.onGone(() => say("Стол закрыт."));
     return screen.ready.then(() => loading.done());

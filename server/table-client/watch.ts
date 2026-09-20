@@ -80,6 +80,20 @@ export function witnessed(store: TableStore, w: Witness): TableStore {
   };
 }
 
+/** Взгляд человека на стол: пять чисел, которыми описывается камера. */
+export interface SeenView {
+  x: number;
+  y: number;
+  zoom: number;
+  turn: number;
+  lean: number;
+}
+
+/** Поставить стол под тем же взглядом — этим пользуется запись. */
+export interface SeenThrough {
+  to(view: SeenView): void;
+}
+
 /** Чем экран отвечает журналу, когда тот спрашивает про звук. */
 export interface ScreenHealth {
   sound(): SoundHealth;
