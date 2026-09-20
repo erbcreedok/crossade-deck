@@ -26,6 +26,8 @@ import { ringFree, RING_LEAST, ringSlot, RING_SPREAD } from "../src/table/ring.j
 import type { RingPlace as Laid3 } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
 import type { ScreenHealth, SeenThrough } from "./watch.js";
+import { lands, type Load } from "../src/table/landing.js";
+import { deskOf } from "../src/table/desks.js";
 import type { Witness } from "../src/table/telling.js";
 import { HOST } from "./host.js";
 
@@ -1942,10 +1944,23 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   }
 
   /** Примет ли эта рука карту — тем же разбором, что ответит сервер: замок, отклонение, своё/чужое. */
-  const takes = (s: Snapshot, chairId: string) => {
-    const chair = chairOf(s, chairId);
-    return chair !== undefined && iMay(s, "hand.drop", { locks: { lock: chair.lock, reject: chair.reject }, mine: chair.owner === me() });
-  };
+  /**
+   * ЧТО У МЕНЯ В РУКЕ — карта или охапка. От этого зависит, кто её примет: круг берёт карту и не
+   * берёт охапку, чужая рука берёт карту, а охапку — только рука крупье и только там, где так решил
+   * род стола.
+   */
+  const load = (): Load => (gripPress?.moved || massFlock().length > 0 ? "pile" : "card");
+
+  /**
+   * ПРИМЕТ ЛИ ЭТО МЕСТО ТО, ЧТО Я НЕСУ — тем же законом, каким ответит стол (`landing.ts`).
+   *
+   * Раньше экран спрашивал только про замки и зажигал всё остальное: игрок поднимал стопку и видел
+   * контуры на стульях, куда её не примут, а узнавал об этом отказом. Теперь вопрос один на оба
+   * конца, и подсветка не может разойтись с ответом.
+   */
+  const willTake = (s: Snapshot, to: Where): boolean => lands(s, me(), load(), to, deskOf(store.desk, () => null)).yes;
+
+  const takes = (s: Snapshot, chairId: string) => willTake(s, { in: "hand", chair: chairId, i: 0 });
 
   function chairZonesHtml(s: Snapshot): string {
     if (!view) return "";
@@ -2216,7 +2231,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     if (!aim && !store.carries.some((c) => c.over.in === "deck")) return "";
     return s.piles.map((pile) => {
       const zone = deckZone(pile);
-      if (!zone || pile.shut || deckCarry(s, pile.id)) return "";
+      if (!zone || deckCarry(s, pile.id)) return "";
+      // ЗАЖИГАЕМ ТОЛЬКО ТО, ЧТО ПРИМЕТ. Круг не берёт охапку — значит и гореть ему, пока в руке
+      // стопка, незачем.
+      if (!willTake(s, { in: "deck", pile: pile.id })) return "";
       const other = store.carries.find((c) => c.over.in === "deck" && c.over.pile === pile.id);
       if (!aim && !other) return "";
       const here = aim ? aim.kind === "deck" && aim.pile === pile.id : true;

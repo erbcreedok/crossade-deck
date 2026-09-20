@@ -643,6 +643,59 @@ check("и на тех же номерах — стол раздал, а не д�
   check("высыпанная стопка родилась на сукне", born.length > 0, born.map((one) => one.id));
 }
 
+// ГОРИТ ТОЛЬКО ТО, ЧТО ПРИМЕТ. Экран спрашивает тот же закон, каким ответит стол: круг берёт карту и
+// не берёт охапку, а охапку в крестовом принимает только рука крупье. Пока экран зажигал всё подряд,
+// игрок поднимал стопку и видел контуры на стульях, куда её всё равно не положат.
+{
+  const lit = async () => ({
+    стопки: await p.$$eval('[data-g="deck-zone"]', (els) => els.map((e) => e.getAttribute("data-pile"))),
+    стулья: await p.$$eval('[data-g="chair-zone"]', (els) => els.map((e) => e.getAttribute("data-chair"))),
+  });
+  const крупье = (await spots()).seats.filter((one) => one.croupier).map((one) => one.key);
+
+  // НЕСУ КАРТУ: круг её берёт.
+  const top = (await spots()).deckTop;
+  await p.mouse.move(top.x, top.y);
+  await p.mouse.down();
+  await p.mouse.move(top.x + 30, top.y + 60, { steps: 6 });
+  await p.waitForTimeout(350);
+  const подКарту = await lit();
+  await p.mouse.up();
+  await p.waitForTimeout(400);
+  check("под картой горит круг", подКарту.стопки.includes("ring"), подКарту);
+
+  // НЕСУ ОХАПКУ: круг её не берёт, а рука крупье берёт. Ручка появляется только у круга с картами —
+  // если он пуст, сперва кладём в него карту.
+  if (((await spots()).piles.find((one) => one.id === "ring")?.count ?? 0) === 0) {
+    const ещё = (await spots()).deckTop;
+    await p.mouse.move(ещё.x, ещё.y);
+    await p.mouse.down();
+    await p.mouse.move(195, 800, { steps: 6 });
+    await p.mouse.up();
+    await p.waitForTimeout(450);
+    const вРуке = await p.locator("[data-card]").last().boundingBox();
+    const середина = (await spots()).middle;
+    await p.mouse.move(вРуке.x + вРуке.width / 2, вРуке.y + 8);
+    await p.mouse.down();
+    await p.mouse.move(середина.x, середина.y, { steps: 8 });
+    await p.mouse.up();
+    await p.waitForTimeout(650);
+  }
+  const ручка = (await spots()).piles.find((one) => one.id === "ring")?.grip;
+  check("у круга с картами есть ручка", Boolean(ручка && ручка.x > 0), ручка);
+  if (ручка && ручка.x > 0) {
+    await p.mouse.move(ручка.x, ручка.y);
+    await p.mouse.down();
+    await p.mouse.move(ручка.x + 20, ручка.y + 70, { steps: 8 });
+    await p.waitForTimeout(450);
+    const подСтопку = await lit();
+    await p.mouse.up();
+    check("под стопкой круг НЕ горит: охапку он не берёт", !подСтопку.стопки.includes("ring"), подСтопку);
+    check("…а рука крупье горит: ей охапку можно", крупье.every((one) => подСтопку.стулья.includes(one)), { горят: подСтопку.стулья, крупье });
+    check("…и чужие стулья не горят", подСтопку.стулья.every((one) => крупье.includes(one)), подСтопку.стулья);
+  }
+}
+
 await browser.close();
 let bad = 0;
 for (const c of checks) {

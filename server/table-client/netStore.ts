@@ -95,6 +95,9 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     get ice() {
       return welcome?.ice ?? [];
     },
+    get desk() {
+      return welcome!.desk ?? "sandbox";
+    },
     get crew() {
       return welcome!.crew ?? [];
     },

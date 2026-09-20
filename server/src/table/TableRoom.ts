@@ -131,7 +131,7 @@ export class TableRoom extends Room {
     this.onMessage(MSG.hello, (client) => {
       const me = this.personOf(client.sessionId);
       if (!me) return;
-      const welcome: Welcome = { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], ice: iceServers() };
+      const welcome: Welcome = { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], desk: kindOf(this.room), ice: iceServers() };
       client.send(MSG.welcome, welcome);
     });
 
@@ -139,7 +139,7 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       if (!me || !intent || !INTENTS.has(intent.t)) return;
       if (intent.t === "sync") {
-        client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], ice: iceServers() } satisfies Welcome);
+        client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], desk: kindOf(this.room), ice: iceServers() } satisfies Welcome);
         return;
       }
       // ДЕЛО КРУПЬЕ — не ход по столу, а состав стола: его исполняет комната.
@@ -631,7 +631,7 @@ export class TableRoom extends Room {
     for (const client of this.clients) {
       const me = this.personOf(client.sessionId);
       if (!me) continue;
-      client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], ice: iceServers() } satisfies Welcome);
+      client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], desk: kindOf(this.room), ice: iceServers() } satisfies Welcome);
     }
   }
 

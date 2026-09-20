@@ -13,6 +13,8 @@ export interface TableStore {
   readonly title: string;
   /** Что умеет крупье этой комнаты (`crews.ts`) — по этому списку рисуются кнопки в его окне. */
   readonly crew: readonly { id: string; name: string; adminOnly?: true }[];
+  /** Род стола — по нему экран спрашивает правила игры сам, тем же кодом, что и сервер. */
+  readonly desk: string;
   /** Через что голосам искать друг друга: приходит с сервера, а не записано здесь (`config.ts`). */
   readonly ice: readonly IceServer[];
   readonly state: Snapshot;
