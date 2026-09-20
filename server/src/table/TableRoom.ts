@@ -426,6 +426,8 @@ export class TableRoom extends Room {
       },
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       now: () => Date.now(),
+      // Что у команды не вышло — в журнал: молчаливая раздача на одного из трёх уже случалась.
+      failed: (step, why, what) => this.book.tell("crew.failed", undefined, { шаг: step, почему: why, ...(what === undefined ? {} : { что: what }) }),
     };
   }
 

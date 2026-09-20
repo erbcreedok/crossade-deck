@@ -356,6 +356,12 @@ export interface Io {
   carry(id: string, by: string): void;
   sleep(ms: number): Promise<void>;
   now(): number;
+  /**
+   * ШАГ КОМАНДЫ НЕ ВЫШЕЛ. Сценарий идёт дальше — одна несложившаяся карта не повод бросать раздачу,
+   * — но молчать об этом нельзя: однажды раздача дошла до одного игрока из трёх, и понять это по
+   * записи было нечем. Необязательно: старым вызовам знать о журнале незачем.
+   */
+  failed?(step: string, why: string, what?: unknown): void;
 }
 
 /**
@@ -381,7 +387,8 @@ export async function execute(table: Table, steps: Step[], actor: string, io: Io
       }
       if (step.t === "sweepPile") {
         const done = table.act(actor, { t: "pileDrop", pile: step.pile, to: step.to }, io.now(), true);
-        if (!("refused" in done)) io.spread(done.ops);
+        if ("refused" in done) io.failed?.("sweepPile", done.refused, { стопка: step.pile, куда: step.to });
+        else io.spread(done.ops);
         await io.sleep(step.ms);
         continue;
       }
@@ -389,7 +396,8 @@ export async function execute(table: Table, steps: Step[], actor: string, io: Io
         // ОДНИМ ПАТЧЕМ И ОДНИМ ОТКАЗОМ: карты, которые место не примет, просто останутся лежать —
         // сбор не должен вставать из-за одной чужой карты под замком.
         const done = table.act(actor, { t: "moveMany", moves: step.ids.map((id) => ({ id, to: step.to })) }, io.now(), true);
-        if (!("refused" in done)) io.spread(done.ops);
+        if ("refused" in done) io.failed?.("sweep", done.refused, { карт: step.ids.length, куда: step.to });
+        else io.spread(done.ops);
         await io.sleep(step.ms);
         continue;
       }
@@ -428,6 +436,7 @@ export async function execute(table: Table, steps: Step[], actor: string, io: Io
       await io.sleep(Math.round(step.ms * 0.66));
       const drop = table.act(actor, { t: "drop", id, to: step.to }, io.now(), true);
       if ("refused" in drop) {
+        io.failed?.("move", drop.refused, { карта: id, куда: step.to });
         const back = table.act(actor, { t: "release", id }, io.now(), true);
         if ("ops" in back) io.spread(back.ops);
       } else io.spread(drop.ops);

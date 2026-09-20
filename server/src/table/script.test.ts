@@ -309,3 +309,34 @@ describe("сбор идёт охапками", () => {
     expect(await s.run({ t: "deal", rule: "each", n: 5, force: true })).toBe("ok");
   });
 });
+
+// ЗАМОК РУКИ — ОТ ЧУЖИХ ПАЛЬЦЕВ, А НЕ ОТ КРУПЬЕ.
+//
+// Жалоба из живой игры: раздали на троих, карты пришли одному. У двоих рука была заперта, крупье в
+// неё не смог, и стол об этом промолчал — ни на экране, ни в записи.
+describe("раздача не спотыкается о замок руки", () => {
+  it("запертая рука получает карты наравне со всеми", async () => {
+    const s = table("a", "b", "c");
+    const chairOf = (k: string) => s.t.layout().chairs.find((one) => one.owner === k)!.id;
+    // Двое заперли свои руки — «не лезь», а не «не раздавай мне».
+    s.t.act("b", { t: "flag", chair: chairOf("b"), flag: "lock", on: true }, 0);
+    s.t.act("c", { t: "flag", chair: chairOf("c"), flag: "lock", on: true }, 0);
+    expect(s.t.seenBy("a").chairs.filter((one) => one.lock), "замки и правда стоят").toHaveLength(2);
+
+    expect(await s.run({ t: "deal", rule: "each", n: 5 })).toBe("ok");
+    const counts = ["a", "b", "c"].map((k) => s.hand(k).length);
+    expect(counts, "карты пришли всем троим").toEqual([5, 5, 5]);
+  });
+
+  it("и своей рукой в запертую чужую по-прежнему не залезть", async () => {
+    // Замок никуда не делся: он просто не про команду стола.
+    const s = table("a", "b");
+    const his = s.t.layout().chairs.find((one) => one.owner === "b")!.id;
+    s.t.act("b", { t: "flag", chair: his, flag: "lock", on: true }, 0);
+    await s.run({ t: "deal", rule: "each", n: 3 });
+    const mine = s.hand("a")[0]!.id;
+    s.t.act("a", { t: "grab", id: mine }, 0);
+    const out = s.t.act("a", { t: "drop", id: mine, to: { in: "hand", chair: his, i: 0 } }, 0);
+    expect("refused" in out ? out.refused : "ok").toBe("chair-locked");
+  });
+});

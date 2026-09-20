@@ -790,7 +790,10 @@ export class Table {
     if (!lock || lock.by !== by) return { refused: "not-held" };
     const target = this.clean(to, auto);
     if (!target) return { refused: "bad" };
-    if (target.in === "hand" && !allowed(this.handAsk(by, target.chair, "hand.drop"))) return { refused: "chair-locked" };
+    // ЗАМОК РУКИ — ОТ ЧУЖИХ ПАЛЬЦЕВ, А НЕ ОТ КРУПЬЕ. Команда стола (раздача, сбор) кладёт и в
+    // запертую руку: игрок запирает её, чтобы сосед не лазил, а не чтобы остаться без карт. Однажды
+    // из-за этого раздача дошла до одного игрока из трёх, и стол об этом промолчал.
+    if (!auto && target.in === "hand" && !allowed(this.handAsk(by, target.chair, "hand.drop"))) return { refused: "chair-locked" };
     const from = this.whereIs(id)!;
     const refusal = this.ruleRefusal(by, id, target);
     if (refusal) return { refused: refusal };
