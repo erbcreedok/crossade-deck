@@ -33,6 +33,7 @@ import { RING } from "./games/krest.js";
 import { allowed as allowedIn, move, start, type Match } from "./games/match.js";
 import { adminsOf, attach, creatorOf, crewKind, kindOf, openEntry, titleOf } from "./lobby.js";
 import { actOf, crewOf } from "./crews.js";
+import { readIntent } from "./intent.js";
 import type { Play } from "./contract.js";
 import { seatPoint } from "./ring.js";
 
@@ -52,7 +53,6 @@ const BOT_NAMES = ["Айдос", "Батыр", "Ержан", "Санжар", "Д
 /** Больше этого за стол не сажают: мест всё-таки шестнадцать, и половину стоит оставить людям. */
 const BOTS_MOST = 8;
 
-const INTENTS = new Set<Intent["t"]>(["grab", "hold", "drop", "release", "grip", "turn", "flip", "arrange", "pose", "stand", "sit", "flag", "deckMove", "deckDo", "deckForever", "deckPin", "deckGuard", "gather", "pick", "unpick", "moveMany", "turnMany", "pileDrop", "rules", "sync", "crew", "dealer"]);
 
 export class TableRoom extends Room {
   /** Слоты выстрелов стикерами; окно чуть короче клиентского — на запаздывание сети. */
@@ -81,6 +81,11 @@ export class TableRoom extends Room {
   private seats = new Map<string, string>();
 
   /** Человек, каким его знает стол сейчас, — со стулом, на который он сел. */
+  /** Стол целиком глазами этого человека — при входе и когда у него разошлись версии (`sync`). */
+  private welcomeFor(me: Person): Welcome {
+    return { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], desk: kindOf(this.room), ice: iceServers() };
+  }
+
   private personOf(session: string): Person | undefined {
     const key = this.seats.get(session);
     return key === undefined ? undefined : this.table.here.find((one) => one.key === key);
@@ -136,15 +141,15 @@ export class TableRoom extends Room {
     this.onMessage(MSG.hello, (client) => {
       const me = this.personOf(client.sessionId);
       if (!me) return;
-      const welcome: Welcome = { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], desk: kindOf(this.room), ice: iceServers() };
-      client.send(MSG.welcome, welcome);
+      client.send(MSG.welcome, this.welcomeFor(me));
     });
 
-    this.onMessage(MSG.intent, (client, intent: Intent) => {
+    this.onMessage(MSG.intent, (client, raw: unknown) => {
       const me = this.personOf(client.sessionId);
-      if (!me || !intent || !INTENTS.has(intent.t)) return;
+      const intent = readIntent(raw);
+      if (!me || !intent) return;
       if (intent.t === "sync") {
-        client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], desk: kindOf(this.room), ice: iceServers() } satisfies Welcome);
+        client.send(MSG.welcome, this.welcomeFor(me));
         return;
       }
       // ДЕЛО КРУПЬЕ — не ход по столу, а состав стола: его исполняет комната.
