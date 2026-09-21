@@ -7,7 +7,6 @@
 import { apply, invert, type Transform } from "../../game-kit/src/core/transform.js";
 import type { Face, ZonePose } from "../src/table/contract.js";
 import { CROUPIER_RADIUS, RING_LAY, RING_SPREAD, ringTurned, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
-import type { Laid } from "../src/table/contract.js";
 
 export interface Pose {
   fan: boolean;

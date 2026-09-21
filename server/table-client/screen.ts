@@ -138,17 +138,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   });
 
 
-  /** Где сидит автор записи — в долях от середины экрана, как у звуков стола. */
-  function chairPlace(by: string): { x: number; z: number } {
-    const s = seen();
-    const chair = s.chairs.find((c) => c.owner === by);
-    const spot = chair && spots.find((sp) => sp.key === chair.id);
-    if (!spot || !view) return { x: 0, z: 0 };
-    const at = view.toGlass(spot.seat);
-    const g = glass();
-    return { x: (at.x - g.w / 2) / (g.w / 2), z: (at.y - g.h / 2) / (g.h / 2) };
-  }
-
   /** Когда я последний раз касался экрана: перемена кадра вскоре после касания — моя, звучит громче. */
   let touchedAt = -Infinity;
   /** Последнее место каждой карты, какое было видно: из кадра её вынимают, пока держат. */
@@ -1731,13 +1720,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     }
     return html;
   }
-
-  /** Угол от `a` к `b` по часовой, в радианах: между соседями по кругу он и есть шаг. */
-  const span = (a: number, b: number): number => {
-    const d = b - a;
-    const full = Math.PI * 2;
-    return ((d % full) + full) % full || full;
-  };
 
   function feltMarkHtml(): string {
     if (!drag || drag.target.kind !== "felt" || !view) return "";
