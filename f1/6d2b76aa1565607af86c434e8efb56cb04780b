@@ -1,0 +1,25 @@
+server/scripts/seedTestRoom.ts
+  s_eea5b32ea4af25::t_6b2451adafe80e 29,33
+docker-compose.yml
+  s_eea5b32ea4af25::t_6b2451adafe80e 30-31
+DEPLOY.md
+  s_eea5b32ea4af25::t_6b2451adafe80e 23-24,174-176,178,181-182,185
+DEPLOY_RU.md
+  s_eea5b32ea4af25::t_36e5e1da46b371 16-17,166-168,170,172-173,176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f16d2b76aa1565607af86c434e8efb56cb04780b",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
