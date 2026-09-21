@@ -1,0 +1,27 @@
+server/src/table/table.ts
+  s_eea5b32ea4af25::t_d212ef51fb6584 57,1595-1596,1598,1608
+server/src/table/zones.test.ts
+  s_eea5b32ea4af25::t_f5e0a544331c80 11,62-66
+server/src/table/RING.md
+  s_eea5b32ea4af25::t_f469d69b239e97 1,5,7,9,11-13,15-17,19,21,25-28,30-31,33,35-37,39-42,44,46-47,49,51-54
+server/src/table/games/table-krest.test.ts
+  s_eea5b32ea4af25::t_fda7a53e405d61 143
+server/CLAUDE.md
+  s_eea5b32ea4af25::t_9b09ab302e2261 3-5,8,13-49,77,105-106,109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e93b82f29554b78d7f475ed5bd6e50332317a8c9",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
