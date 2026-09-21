@@ -1,0 +1,27 @@
+apps/hub/src/hub/shell.ts
+  s_eea5b32ea4af25::t_e334ba5a71d603 33,39
+deploy/table.Dockerfile
+  s_eea5b32ea4af25::t_6b2a8b32a34039 4
+look/src/index.ts
+  s_eea5b32ea4af25::t_5062df1ba3d46f 25-26
+server/src/table/clientBoundary.test.ts
+  s_eea5b32ea4af25::t_01940f676b3e97 1-27
+server/table-client/ground.ts
+  s_eea5b32ea4af25::t_f133270cf5464d 8-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d2ec316939b31de7b0a7cd602364874f010cfd5f",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
