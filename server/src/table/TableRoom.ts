@@ -34,6 +34,7 @@ import { allowed as allowedIn, move, start, type Match } from "./games/match.js"
 import { adminsOf, attach, creatorOf, crewKind, keepStateOf, keptStateOf, kindOf, openEntry, titleOf } from "./lobby.js";
 import { actOf, crewOf } from "./crews.js";
 import { readIntent } from "./intent.js";
+import { Flood } from "./flood.js";
 import { PULSE_EVERY_MS, type Pulse } from "./freshness.js";
 import type { Play } from "./contract.js";
 import { seatPoint } from "./ring.js";
@@ -67,6 +68,8 @@ export class TableRoom extends Room {
   private signals = new Signals();
   /** Сколько рассказов о себе прислал каждый экран: больше предела журнал не берёт. */
   private witnesses = new Witnesses();
+  /** Мера на всё, что человек шлёт комнате: намерения, палец, речь, взгляды, команды (`flood.ts`). */
+  private flood = new Flood();
   maxClients = 16;
 
   private table!: Table;
@@ -191,7 +194,7 @@ export class TableRoom extends Room {
     this.onMessage(MSG.intent, (client, raw: unknown) => {
       const me = this.personOf(client.sessionId);
       const intent = readIntent(raw);
-      if (!me || !intent) return;
+      if (!me || !intent || !this.flood.take(me.key, "intent", Date.now())) return;
       if (intent.t === "sync") {
         client.send(MSG.welcome, this.welcomeFor(me));
         return;
@@ -215,7 +218,7 @@ export class TableRoom extends Room {
     // ПАЛЕЦ В ВОЗДУХЕ — остальным, каждому своими глазами; отправителю не возвращается.
     this.onMessage(MSG.carry, (client, out: CarryOut) => {
       const me = this.personOf(client.sessionId);
-      if (!me || "refused" in this.table.carry(me.key, out, Date.now())) return;
+      if (!me || !this.flood.take(me.key, "carry", Date.now()) || "refused" in this.table.carry(me.key, out, Date.now())) return;
       for (const other of this.clients) {
         const key = this.seats.get(other.sessionId);
         if (key === undefined || key === me.key) continue;
@@ -228,7 +231,7 @@ export class TableRoom extends Room {
     this.onMessage(MSG.say, (client, raw: unknown) => {
       const me = this.personOf(client.sessionId);
       const out = cleanSay(raw);
-      if (!me?.seat || !out) return;
+      if (!me?.seat || !out || !this.flood.take(me.key, "say", Date.now())) return;
       const say: Say = { ...out, by: me.key };
       for (const other of this.clients) {
         const key = this.seats.get(other.sessionId);
@@ -253,7 +256,7 @@ export class TableRoom extends Room {
     this.onMessage(MSG.eyes, (client, raw: unknown) => {
       const me = this.personOf(client.sessionId);
       const spots = cleanWatch(raw);
-      if (!me || !spots) return;
+      if (!me || !spots || !this.flood.take(me.key, "eyes", Date.now())) return;
       if (this.eyes.look(me.key, spots, Date.now())) this.spreadEyes();
     });
 
@@ -261,7 +264,7 @@ export class TableRoom extends Room {
     this.onMessage(MSG.command, (client, raw: unknown) => {
       const me = this.personOf(client.sessionId);
       const command = readCommand(raw);
-      if (!me || !command) return;
+      if (!me || !command || !this.flood.take(me.key, "command", Date.now())) return;
       void this.run(me.key, command);
     });
 
@@ -269,7 +272,7 @@ export class TableRoom extends Room {
     this.onMessage(MSG.mic, (client, raw: unknown) => {
       const me = this.personOf(client.sessionId);
       const out = cleanMic(raw);
-      if (!me?.seat || !out) return;
+      if (!me?.seat || !out || !this.flood.take(me.key, "mic", Date.now())) return;
       const mic: Mic = { ...out, by: me.key };
       this.book.tell("mic", me.key, { on: out.on, ...(out.to === undefined ? {} : { to: out.to }) });
       for (const other of this.clients) {
@@ -674,6 +677,7 @@ export class TableRoom extends Room {
     this.talk.forget(key);
     this.signals.forget(key);
     this.witnesses.forget(key);
+    this.flood.forget(key);
     this.spread(this.table.leave(key));
   }
 
