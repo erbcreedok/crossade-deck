@@ -4,7 +4,7 @@
 //   в Telegram (Mini App)          дверь `telegram`, комната — `start_param` (или `?room=`)
 //   в браузере                     дверь `guest`: пустит, только если серверу это разрешено
 
-import type { JoinOptions } from "../src/table/contract.js";
+import { STALE_CLIENT, type JoinOptions } from "../src/table/contract.js";
 import { localStore } from "./localStore.js";
 import { netStore } from "./netStore.js";
 import { loadingCross } from "../../look/src/loading.js";
@@ -20,6 +20,21 @@ interface TelegramWebApp {
   expand(): void;
   disableVerticalSwipes?(): void;
 }
+
+/** Перезагрузка за свежей сборкой — не чаще раза за вкладку. Хранилище может быть закрыто: тогда не пробуем вовсе. */
+const stale = {
+  tried(): boolean {
+    try {
+      return sessionStorage.getItem("table.stale") !== null;
+    } catch {
+      return true;
+    }
+  },
+  reload(): void {
+    sessionStorage.setItem("table.stale", "1");
+    location.reload();
+  },
+};
 
 const telegram = (globalThis as { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
 const stage = document.getElementById("stage")!;
@@ -96,6 +111,9 @@ open()
   .catch((err: unknown) => {
     loading.done();
     const text = err instanceof Error ? err.message : String(err);
+    // СЕРВЕР УШЁЛ ВПЕРЁД, а телефон держит старую сборку: перезагрузка — один раз, иначе при настоящей
+    // несовместимости страница крутилась бы вечно.
+    if (text.includes(STALE_CLIENT) && !stale.tried()) return void stale.reload();
     witness.saw("open.failed", { text: text.slice(0, 300) });
     witness.tell();
     say(/who are you|unsigned/.test(text) ? "Сюда так не войти. Открой стол по ссылке из чата." : text);

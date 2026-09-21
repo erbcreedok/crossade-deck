@@ -11,7 +11,7 @@
 // Хранилище при этом одно и то же: слушатели живут в нём, а не на сокете, и сокет под ним меняется.
 
 import { Client, type Room } from "colyseus.js";
-import { MSG, TABLE_ROOM, type Carry, type CarryOut, type Intent, type JoinOptions, type Patch, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
+import { MSG, PROTOCOL, TABLE_ROOM, type Carry, type CarryOut, type Intent, type JoinOptions, type Patch, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
 import { Freshness, type Pulse } from "../src/table/freshness.js";
 import { applyPatch, needsSync } from "../src/table/patch.js";
 import type { Eye } from "../src/table/eyes.js";
@@ -28,7 +28,7 @@ type Listener = (msg: never) => void;
 
 export async function netStore(options: JoinOptions): Promise<TableStore> {
   const endpoint = HOST.replace(/^http/, "ws");
-  const join = () => new Client(endpoint).joinOrCreate(TABLE_ROOM, options);
+  const join = () => new Client(endpoint).joinOrCreate(TABLE_ROOM, { ...options, protocol: PROTOCOL } satisfies JoinOptions);
 
   const changed: (() => void)[] = [];
   const gone: (() => void)[] = [];

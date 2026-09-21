@@ -2,7 +2,7 @@ import { addSticker } from "../db/stickersRepo.js";
 import { createHmac } from "crypto";
 import { describe, expect, it } from "vitest";
 import { TEST_PORTS, useTestServer } from "../roomHarness.js";
-import { MSG, TABLE_ROOM, type Carry, type Patch, type Refused, type Welcome } from "./contract.js";
+import { MSG, PROTOCOL, STALE_CLIENT, TABLE_ROOM, type Carry, type Patch, type Refused, type Welcome } from "./contract.js";
 import { mintRoom } from "./roomIds.js";
 import { applyPatch } from "./patch.js";
 import { findEntry, keepLobbyIn, openEntry, runIn } from "./lobby.js";
@@ -123,6 +123,13 @@ describe("TableRoom", () => {
     await new Promise((r) => setTimeout(r, 120));
     expect(bots()).toHaveLength(0);
     expect(await runIn(room, guest.welcome.you.key, { t: "bots", n: 1 })).toEqual({ error: "not-admin" });
+  });
+
+  it("клиент другого протокола не входит; свой и безымянный (собранный до номера) — входят", async () => {
+    const room = mintRoom(SECRET);
+    await expect(server().sdk.joinOrCreate(TABLE_ROOM, { room, client: "html", door: "guest", name: "A", protocol: PROTOCOL + 1 })).rejects.toThrow(STALE_CLIENT);
+    await expect(sit(room, { door: "guest", name: "A", protocol: PROTOCOL })).resolves.toBeDefined();
+    await expect(sit(room, { door: "guest", name: "B" })).resolves.toBeDefined();
   });
 
   it("без подписи комнату не открыть, без двери — не войти", async () => {

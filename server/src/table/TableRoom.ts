@@ -12,7 +12,7 @@ import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
 import { iceServers, tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
-import { MSG, type CarryOut, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type SeatCard, type TableCommand, type Welcome } from "./contract.js";
+import { MSG, PROTOCOL, STALE_CLIENT, type CarryOut, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type SeatCard, type TableCommand, type Welcome } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
 import { cleanLive, ear, LiveTalk, liveTally, type Live } from "./live.js";
 import { cleanSignal, Signals, type Signal } from "./rtc.js";
@@ -628,6 +628,7 @@ export class TableRoom extends Room {
   onAuth(client: Client, options: Partial<JoinOptions>): Who {
     const { botToken, guests, secret } = tableConfig();
     if (!secret || !roomIsSigned(options.room, secret)) throw new Error("unsigned room");
+    if (options.protocol !== undefined && options.protocol !== PROTOCOL) throw new Error(STALE_CLIENT);
     const who = whoIs(options, client.sessionId, { botToken, guests });
     if (!who) throw new Error("who are you");
     return who;
