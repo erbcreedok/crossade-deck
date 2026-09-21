@@ -140,12 +140,11 @@ describe("кольцо рвётся, а не сдвигается", () => {
     expect(places(k), "и снова стоят там же").toEqual([was[0], was[2]]);
   });
 
-  it("ПОЛОЖИЛИ СО СМЕНОЙ ПОРЯДКА — НОМЕРА РАЗДАНЫ ЗАНОВО, а якорь не сдвинулся", () => {
+  it("ПОЛОЖИЛИ С МЕСТОМ В СТОПКЕ — порядок в круге остаётся порядком входа, у каждой карты свой угол", () => {
     const k = krestTable(["Аня"]);
     const three = [toHand(k.t, "Аня"), toHand(k.t, "Аня"), toHand(k.t, "Аня")];
     for (const one of three) intoRing(k.t, "Аня", one);
     const зона = () => k.t.seenBy("Аня").piles.find((p) => p.id === RING)!;
-    const якорь = зона().turn;
     const more = toHand(k.t, "Аня");
     k.t.act("Аня", { t: "grab", id: more }, 0);
     k.t.act("Аня", { t: "drop", id: more, to: { in: "deck", pile: RING, i: 1 } }, 0);

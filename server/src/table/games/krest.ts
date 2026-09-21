@@ -11,7 +11,6 @@
 // Козырь всегда буби и не выбирается.
 
 import type { Face } from "../contract.js";
-import { ringSpot } from "../ring.js";
 import { SANDBOX, type DeskAsk, type DeskRules, type Move } from "../rules.js";
 import { no, yes, type Key, type Verdict } from "../access.js";
 
@@ -164,5 +163,3 @@ export function krestDesk(judge: () => { turn: string | null; closer: string | n
   };
 }
 
-/** Место i-й из n карт в кольце — общая правда с отрисовкой (`ring.ts`). */
-export const ringAt = ringSpot;

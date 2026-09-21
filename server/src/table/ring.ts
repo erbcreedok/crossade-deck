@@ -160,63 +160,6 @@ export function ringLanding(turn: number, busy: readonly number[]): number {
 }
 
 /**
- * МЕСТ В КРУГЕ НЕ МЕНЬШЕ ТРЁХ — дело самого метода раскладки, а не настройка зоны.
- *
- * Три и меньше карт стоят через 120°: круг читается как круг с первой же карты, а не как кучка рядом.
- */
-export const RING_LEAST = 3;
-
-/**
- * ДОЛЯ СТРЕЛКИ — постоянные градусы, которые круг никогда не отдаёт картам.
- *
- * Стрелка стоит в разрыве круга и показывает на голову: по ней видно, где круг обрывается и
- * начинается. 36° — примерно ширина карты на её радиусе, поэтому разрыв читается как разрыв, а не
- * как щель между соседями. Число постоянно при любом числе карт: доля стрелки не делится.
- */
-export const RING_ARROW = 36;
-
-/**
- * ШАГ МЕЖДУ СОСЕДЯМИ ПО КРУГУ, в градусах: карты делят поровну всё, кроме доли стрелки.
- *
- * Делится на ЧИСЛО КАРТ, а не на число промежутков между ними. Разница не арифметическая: при делении
- * на промежутки карты растягиваются на весь круг, разрыв съёживается до одной доли стрелки, и хвост
- * прилипает к ней вплотную. При делении на карты разрыв получает свой шаг сверх доли — и дышит.
- */
-export const ringStep = (slots: number): number => (360 - RING_ARROW) / Math.max(1, slots);
-
-/**
- * ПОЛОВИНА КАРТЫ В ГРАДУСАХ — сколько дуги занимает сама карта, лёжа на этом радиусе.
- *
- * Стрелка стоит вплотную к голове, и «вплотную» меряется от КРАЯ карты, а не от её середины: карта
- * шире своей середины, и от середины дуга оказалась бы под картой.
- */
-export const ringCardHalf = (spread: number): number =>
-  (Math.asin(Math.min(1, (CARD_W * APART) / 2 / Math.max(0.001, spread))) * 180) / Math.PI;
-
-/**
- * ВЕСЬ РАЗРЫВ КРУГА — от середины хвоста до середины головы: доля стрелки и один шаг сверх неё.
- *
- * Шаг внутри разрыва и есть то место, которого стрелке не хватало: карта шире своей середины, и без
- * него край головы ложился бы прямо на дугу.
- */
-export const ringGap = (slots: number): number => RING_ARROW + ringStep(slots);
-
-/**
- * КАК ДАЛЕКО ОТ СЕРЕДИНЫ ЛЕЖИТ КРУГ.
- *
- * Кольцо у самого контура читается как ободок, а не как ход; кольцо в середине — как узел, где карты
- * стоят впритык. Отсюда `RING_HOME`: две трети пути до контура. Стало тесно — круг РАЗДВИГАЕТСЯ
- * наружу, пока соседям не хватит места, и дальше контура не уходит никогда.
- */
-export const RING_HOME = 1.5;
-
-export function ringSpread(slots: number): number {
-  const half = (ringStep(slots) * Math.PI) / 360;
-  const need = slots < 2 ? 0 : (CARD_W * APART) / (2 * Math.sin(half));
-  return Math.min(RING_CARDS, Math.max(RING_HOME, need));
-}
-
-/**
  * ГДЕ ЛЕЖИТ i-е ИЗ `slots` МЕСТ — по окружности, в порядке хода, от угла зоны по часовой.
  *
  * Живёт здесь, а не в рисовании, потому что это ОБЩАЯ правда: по ней раскладка пишет места, а
@@ -246,60 +189,11 @@ export interface RingPlace {
   angle: number;
 }
 
-/**
- * ГДЕ ЛЕЖИТ МЕСТО С ТАКИМ НОМЕРОМ — ЕДИНСТВЕННЫЙ ИСТОЧНИК ПРАВДЫ О ПОЛОЖЕНИИ КАРТ КРУГА.
- *
- * Координат никто не хранит: и стол, и превью, и кисть спрашивают это. Разойтись им негде, потому
- * что считать по-разному нечем — на входе только номер места, угол зоны и число её мест.
- */
-export function ringSlot(middle: { x: number; y: number }, slots: number, anchor: number, slot: number): RingPlace {
-  const room = Math.max(RING_LEAST, slots);
-  return ringPlace(middle, anchor + ringStep(room) * slot, ringSpread(room));
-}
-
-/** Под каким углом лежит место с этим номером — то же число, что внутри `ringSlot`. */
-export const ringSlotTurn = (slots: number, anchor: number, slot: number): number =>
-  ((anchor + ringStep(Math.max(RING_LEAST, slots)) * slot) % 360 + 360) % 360;
-
-/** Места всех `n` карт подряд, от нулевого: раскладка «по порядку», без дыр. */
-export const ringLay = (middle: { x: number; y: number }, n: number, anchor = 0): RingPlace[] =>
-  Array.from({ length: n }, (_, i) => ringSlot(middle, n, anchor, i));
-
 /** Место на кольце под этим углом — точка и поворот разом: их всегда считают вместе. */
 export function ringPlace(middle: { x: number; y: number }, turn: number, spread: number): RingPlace {
   const at = ringSpot(middle, turn, spread);
   return { x: at.x, y: at.y, angle: ringFace(turn) };
 }
-
-/**
- * КУДА СМОТРИТ СТРЕЛКА — ЗА ХВОСТОМ, остриём прочь от последней карты.
- *
- * Стрелка показывает не начало круга, а его КОНЕЦ: место, куда ляжет следующая карта.
- */
-export const ringArrowTurn = (tail: number, spread: number): number => tail + ringCardHalf(spread) + RING_ARROW / 2;
-
-/** Где стрелка лежит на столе: за последней картой, на том же радиусе, что и карты этого круга. */
-export function ringArrow(middle: { x: number; y: number }, slots: number, tail: number): RingPlace {
-  const spread = ringSpread(Math.max(RING_LEAST, slots));
-  return ringPlace(middle, ringArrowTurn(tail, spread), spread);
-}
-
-/**
- * СВОБОДНЫЕ НОМЕРА КРУГА — места, на которых никто не лежит.
- *
- * Считаются вычитанием: все номера зоны минус занятые. Ни геометрии, ни порогов — сравниваются числа.
- */
-export const ringFree = (slots: number, taken: readonly number[]): number[] =>
-  Array.from({ length: Math.max(0, slots) }, (_, i) => i).filter((slot) => !taken.includes(slot));
-
-/**
- * ПОМНИТ ЛИ КАРТА СВОЁ МЕСТО В ЭТОМ КРУГЕ. Место — просто точка стола, и само по себе не говорит, чьё
- * оно: круг узнаёт своё по тому, что оно лежит внутри его поля. Чужое или устаревшее — не подойдёт, и
- * карте дадут новое.
- */
-export const ringKeeps = (middle: { x: number; y: number }, at: { x: number; y: number }): boolean =>
-  Math.hypot(at.x - middle.x, at.y - middle.y) <= RING_SPREAD;
-
 
 /**
  * ПОЛЕ КРУГА НА СТЕКЛЕ — рамка эллипса вокруг середины `mid` (уже в пикселях стекла). `k` — пикселей в
@@ -314,7 +208,6 @@ export function ringZoneBox(mid: { x: number; y: number }, k: number, squash: nu
   return { left: mid.x - reach, right: mid.x + reach, top: mid.y - reach * squash, bottom: mid.y + reach * squash };
 }
 
-
 /** Внутри ли точка стекла очерченного поля — по эллипсу, а не по рамке: в углах рамки поля нет. */
 export function inRingZone(box: { left: number; right: number; top: number; bottom: number }, p: { x: number; y: number }): boolean {
   const [rx, ry] = [(box.right - box.left) / 2, (box.bottom - box.top) / 2];
@@ -322,5 +215,3 @@ export function inRingZone(box: { left: number; right: number; top: number; bott
   const [nx, ny] = [(p.x - (box.left + rx)) / rx, (p.y - (box.top + ry)) / ry];
   return nx * nx + ny * ny <= 1;
 }
-
-const norm = (deg: number): number => ((deg % 360) + 360) % 360;

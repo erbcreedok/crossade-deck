@@ -30,7 +30,6 @@ import {
   type DeckDo,
   type DeckSpot,
   type Carry,
-  type Laid,
   type CarryOut,
   DEFAULT_POSE,
   HAND_POSE_KEYS,
@@ -55,7 +54,7 @@ import {
 import { arranged, samePack, shuffled } from "./arrange.js";
 import { allowed, grantedTo, may, mayFlagChair, no, why, type Ask, type Key, type Role, type Verdict } from "./access.js";
 import { SANDBOX, type DeskAsk, type DeskRules, type DeskZone } from "./rules.js";
-import { croupierAngle, deckHome, freeAngle, ringLanding, RING_SPREAD, ringSlotTurn, seatPoint, SEAT_KEEP } from "./ring.js";
+import { croupierAngle, deckHome, freeAngle, ringLanding, seatPoint, SEAT_KEEP } from "./ring.js";
 
 /** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
 export const FELT_REACH = 8 - 0.86;
@@ -1593,13 +1592,10 @@ export class Table {
   }
 
   /**
-   * ЧТО СЕЙЧАС НЕСУТ — на один шаг, от `take` до `put`.
-   *
-   * Эти двое всегда ходят парой, и якорю круга нужно знать обоих разом: снялась ли ГОЛОВА и вернулась
-   * ли она в тот же круг. Снялась и ушла — стрелка шагает вперёд; вернулась — стоит. Из одного `take`
-   * этого не видно, из одного `put` тоже.
+   * ОТКУДА НЕСУТ КАРТУ — на один шаг, от `take` до `put`: по этому углу пустой круг принимает свою
+   * первую карту. Из одного `put` этого не видно: карта к тому моменту уже снята со своего места.
    */
-  private carried: { ring: string | null; head: boolean; whence: number } | null = null;
+  private carried: { whence: number } | null = null;
 
   /** С КАКОЙ СТОРОНЫ КАРТУ НЕСУТ — угол, под которым пустой круг примет свою первую карту. */
   private whenceOf(from: Where): number {
@@ -1609,11 +1605,10 @@ export class Table {
   }
 
   private take(id: string, from: Where): void {
-    this.carried = { ring: null, head: false, whence: this.whenceOf(from) };
+    this.carried = { whence: this.whenceOf(from) };
     if (from.in === "deck") {
       const pile = this.piles.get(from.pile)!;
       const at = pile.cards.indexOf(id);
-      if (pile.spot.pose === "ring") this.carried = { ...this.carried, ring: from.pile, head: at === 0 };
       pile.cards.splice(at, 1);
       // ВЗЯЛИ КАРТУ — И БОЛЬШЕ НИЧЕГО. Соседи не двигаются, потому что двигать их некому: их места
       // записаны у них самих. На месте взятой остаётся дыра — она и есть след того, что кто-то взял.
@@ -1656,38 +1651,10 @@ export class Table {
     return ((deg % 360) + 360) % 360;
   }
 
-  /** Куда в стопке встаёт карта, положенная на точное место: порядок в круге — это порядок по кругу. */
-  private byTurn(pile: PileRow, id: string): number {
-    const mine = this.laid.get(id);
-    if (mine === undefined) return pile.cards.length;
-    const i = pile.cards.findIndex((one) => (this.laid.get(one) ?? -1) > mine);
-    return i === -1 ? pile.cards.length : i;
-  }
-
-  /**
-   * СТРЕЛКА ШАГАЕТ НА ОДНО МЕСТО ВПЕРЁД — туда, где лежит новая голова.
-   *
-   * Берётся не шаг круга, а место самой карты: оно и есть правда о том, где теперь начало. Круг от
-   * этого не шевелится — двигается только якорь.
-   */
-  private stepArrow(pileId: string): void {
-    const pile = this.piles.get(pileId);
-    const head = pile?.cards[0] === undefined ? undefined : this.laid.get(pile.cards[0]!);
-    if (!pile || head === undefined) return;
-    // Якорь переезжает на место новой головы: её номер известен, угол считается из него.
-    pile.spot = { ...pile.spot, turn: ringSlotTurn(pile.spot.slots ?? pile.cards.length, pile.spot.turn ?? 0, head) };
-    // Якорь переехал — об этом надо сказать: у зрителя он свой, и сам он его не пересчитает.
-    this.relaid.add(pileId);
-  }
-
   /** Положить и вернуть, куда легло НА САМОМ ДЕЛЕ: индекс руки прижимается к её длине. */
   private put(id: string, to: Where): Where {
     const carried = this.carried;
     this.carried = null;
-    // УНЕСЛИ ГОЛОВУ ИЗ КРУГА — СТРЕЛКА ШАГАЕТ ВПЕРЁД, к той карте, что стала головой. Никто при этом
-    // не двигается: места у карт свои, и шагает только якорь. Переложили голову внутри того же круга —
-    // стрелка стоит, и это видно здесь: цель та же зона.
-    if (carried?.ring && carried.head && !(to.in === "deck" && to.pile === carried.ring)) this.stepArrow(carried.ring);
     if (to.in === "deck") {
       const pile = this.piles.get(to.pile)!;
       const cards = pile.cards;
