@@ -1,0 +1,22 @@
+server/table-client/main.ts
+  s_eea5b32ea4af25::t_5b43a4eabe368a 98-99,103-104
+server/table-client/screen.ts
+  s_eea5b32ea4af25::t_1ceaa1ac7521f9 292-315,2639,4268-4277
+  s_eea5b32ea4af25::t_1d71121563a099 4278
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9c25c6407bb7afed3cabc34672d1a59a73429777",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
