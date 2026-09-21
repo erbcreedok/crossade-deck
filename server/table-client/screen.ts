@@ -10,7 +10,7 @@ import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, R, RIM, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { LEAN_PER_PX, LEAN_STEP, orbits, tableCamera } from "./camera.js";
-import { allowed, may as mayDo, type Ask, type Key } from "../src/table/access.js";
+import { allowed, may as mayDo, mayFlagChair, type Ask, type Key } from "../src/table/access.js";
 import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.js";
 import { tableHaptic, type Haptic } from "./haptic.js";
 import { tableMotion } from "./motion.js";
@@ -941,8 +941,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * он приносит разбору набор ключей из снимка и замки вещи, и рисует кнопку по ответу.
    */
   const iMay = (s: Snapshot, key: Key, ask: Omit<Ask, "granted"> = {}) => allowed(mayDo(key, { ...ask, granted: s.rights }));
-  /** Флаги стула меняет его хозяин, любой — у покинутого, стул крупье — у кого есть право. */
-  const mayFlag = (s: Snapshot, chair: Chair) => (chair.croupier ? iMay(s, "table.croupier") : chair.owner === null || chair.owner === me());
+  /** Флаги стула — тем же правилом, что и сервер (`mayFlagChair`): своей копии у экрана нет. */
+  const mayFlag = (s: Snapshot, chair: Chair) => mayFlagChair(s.rights, chair, me());
   /** Замок закрывает руку стула для всех, кроме того, кто на нём сидит — разбором, а не на глаз. */
   const closed = (s: Snapshot, chairId: string) => {
     const chair = chairOf(s, chairId);

@@ -167,3 +167,15 @@ export const grantedTo = (roles: Iterable<Role>, extra: readonly Key[] = []): Ke
 
 /** Есть ли такая роль. Разбор пришедшего значения идёт по таблице, а не по перечню имён в коде. */
 export const isRole = (role: unknown): role is Role => typeof role === "string" && Object.hasOwn(ROLES, role);
+
+/**
+ * КТО МЕНЯЕТ ФЛАГИ СТУЛА — одно правило на сервер и на экран. Свой стул — хозяин; покинутый — любой;
+ * чужой — тот, у кого право `hand.flags`; стул крупье — у кого `table.croupier`.
+ *
+ * Правило однажды уже разошлось само с собой: сервер разрешал распорядителю снять чужой замок, а экран
+ * держал старую копию «свой или покинутый» и кнопок не рисовал — снять было можно, но нечем.
+ */
+export function mayFlagChair(granted: Ask["granted"], chair: { owner: string | null; croupier?: true }, who: string): boolean {
+  if (chair.croupier) return allowed(may("table.croupier", { granted }));
+  return chair.owner === null || chair.owner === who || allowed(may("hand.flags", { granted }));
+}

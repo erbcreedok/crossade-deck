@@ -53,7 +53,7 @@ import {
   CARD_FACES,
 } from "./contract.js";
 import { arranged, samePack, shuffled } from "./arrange.js";
-import { allowed, grantedTo, may, no, why, type Ask, type Key, type Role, type Verdict } from "./access.js";
+import { allowed, grantedTo, may, mayFlagChair, no, why, type Ask, type Key, type Role, type Verdict } from "./access.js";
 import { SANDBOX, type DeskAsk, type DeskRules, type DeskZone } from "./rules.js";
 import { croupierAngle, deckHome, freeAngle, ringLanding, RING_SPREAD, ringSlotTurn, seatPoint, SEAT_KEEP } from "./ring.js";
 
@@ -1202,8 +1202,7 @@ export class Table {
    * Замок, пока стоит, действует на ВСЕХ, включая распорядителя: снять он может, обойти — нет.
    */
   mayFlag(by: string, chair: { owner: string | null; croupier?: true }): boolean {
-    if (chair.croupier) return this.may(by, "table.croupier");
-    return chair.owner === null || chair.owner === by || this.may(by, "hand.flags");
+    return mayFlagChair(this.granted(by), chair, by);
   }
 
   /**

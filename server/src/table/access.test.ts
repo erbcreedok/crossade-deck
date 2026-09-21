@@ -4,9 +4,10 @@
 // вопрос «вправе ли». Иначе новая роль потребует обойти восемь мест, и одно из них забудут.
 
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { allowed, grantedTo, isRole, KEYS, may, no, ROLES, why, type Key, type Role } from "./access.js";
+import { allowed, grantedTo, isRole, KEYS, may, mayFlagChair, no, ROLES, why, type Key, type Role } from "./access.js";
 import { deal } from "./deal.js";
 import { Table } from "./table.js";
 import { MAIN_PILE, type Person } from "./contract.js";
@@ -211,5 +212,30 @@ describe("ЗАКОН: модель доступа одна", () => {
   it("замки вещей называет один файл: у стола и у экрана имена одни", () => {
     const contract = readFileSync(join(dir, "contract.ts"), "utf8");
     for (const lock of ["lock", "hide", "reject"]) expect(contract, `флаг ${lock} объявлен в контракте`).toContain(`${lock}: boolean`);
+  });
+});
+
+describe("ФЛАГИ СТУЛА — одно правило на сервер и на экран", () => {
+  const chair = (owner: string | null, croupier?: true) => ({ owner, ...(croupier ? { croupier } : {}) });
+
+  it("свой — хозяин, покинутый — любой, чужой — только с правом hand.flags", () => {
+    expect(mayFlagChair([], chair("я"), "я")).toBe(true);
+    expect(mayFlagChair([], chair(null), "я")).toBe(true);
+    expect(mayFlagChair([], chair("сосед"), "я")).toBe(false);
+    expect(mayFlagChair(grantedTo(["owner"]), chair("сосед"), "я")).toBe(true);
+    expect(mayFlagChair(grantedTo(["admin"]), chair("сосед"), "я")).toBe(true);
+    expect(mayFlagChair(grantedTo(["dealer"]), chair("сосед"), "я")).toBe(false);
+  });
+
+  it("стул крупье — только с правом на крупье, даже покинутый", () => {
+    expect(mayFlagChair([], chair(null, true), "я")).toBe(false);
+    expect(mayFlagChair(grantedTo(["admin"]), chair(null, true), "я")).toBe(true);
+  });
+
+  it("экран не держит своей копии правила", () => {
+    const screen = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "table-client", "screen.ts"), "utf8");
+    const gate = screen.split("\n").find((line) => line.includes("const mayFlag ="))!;
+    expect(gate).toContain("mayFlagChair(");
+    expect(gate).not.toContain("chair.owner");
   });
 });
