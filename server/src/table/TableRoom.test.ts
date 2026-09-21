@@ -5,7 +5,8 @@ import { TEST_PORTS, useTestServer } from "../roomHarness.js";
 import { MSG, TABLE_ROOM, type Carry, type Patch, type Refused, type Welcome } from "./contract.js";
 import { mintRoom } from "./roomIds.js";
 import { applyPatch } from "./patch.js";
-import { findEntry, openEntry, runIn } from "./lobby.js";
+import { findEntry, keepLobbyIn, openEntry, runIn } from "./lobby.js";
+import { dropRoom, keepCard, keepState, keptRooms, keptState } from "../db/tableRoomsRepo.js";
 import { BOT_KEY } from "./botPerson.js";
 import type { Say, Shot } from "./say.js";
 import { PULSE_EVERY_MS, type Pulse } from "./freshness.js";
@@ -66,6 +67,40 @@ describe("TableRoom", () => {
     const pulse = await next<Pulse>(a.client, MSG.pulse);
     expect(pulse.v).toBe(a.patches.reduce(applyPatch, a.welcome.snapshot).v);
   }, PULSE_EVERY_MS + 3000);
+
+  it("комната переживает остановку: карты лежат, где лежали, и человек садится на свой стул", async () => {
+    keepLobbyIn({ card: keepCard, drop: dropRoom, all: keptRooms, state: keepState, stateOf: keptState });
+    try {
+      const room = mintRoom(SECRET);
+      openEntry(room, { kind: "inline", message: "m" }, "tg:7", "Живучий");
+      const a = await sit(room, { door: "telegram", initData: initData(7, "Аня") });
+      const mine = a.welcome.snapshot.people.find((p) => p.key === "tg:7")!.seat!;
+      const top = a.welcome.snapshot.piles[0]!.cards.at(-1)!.id;
+      a.client.send(MSG.intent, { t: "grab", id: top });
+      a.client.send(MSG.intent, { t: "drop", id: top, to: { in: "hand", chair: mine, i: 0 } });
+      // Замок уход со стула снимает сам (`vacate`) — это закон стола, а не слепка; «отклонять» уход переживает.
+      a.client.send(MSG.intent, { t: "flag", chair: mine, flag: "reject", on: true });
+      await new Promise((r) => setTimeout(r, 80));
+      const before = a.patches.reduce(applyPatch, a.welcome.snapshot);
+
+      // Процесс останавливают: комната Colyseus гаснет, запись остаётся.
+      await server().getRoomById(a.client.roomId).disconnect();
+      await new Promise((r) => setTimeout(r, 80));
+
+      const b = await sit(room, { door: "telegram", initData: initData(7, "Аня") });
+      const after = b.welcome.snapshot;
+      expect(b.client.roomId).not.toBe(a.client.roomId);
+      expect(after.people.find((p) => p.key === "tg:7")!.seat).toBe(mine);
+      const chair = after.chairs.find((c) => c.id === mine)!;
+      expect(chair.hand.map((h) => h.id)).toEqual([top]);
+      expect(chair.reject).toBe(true);
+      expect(after.piles[0]!.cards).toHaveLength(before.piles[0]!.cards.length);
+      expect(after.v).toBeGreaterThan(before.v);
+      expect(b.welcome.title).toBe("Живучий");
+    } finally {
+      keepLobbyIn(null);
+    }
+  });
 
   it("без подписи комнату не открыть, без двери — не войти", async () => {
     await expect(server().sdk.joinOrCreate(TABLE_ROOM, { room: "x".repeat(22), door: "guest" })).rejects.toThrow();

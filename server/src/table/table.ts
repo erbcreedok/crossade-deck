@@ -99,6 +99,28 @@ interface PileRow {
   shuffles: number;
 }
 
+/** Номер формата слепка. Поменялась форма — слепок старого формата не поднимается, стол начинается заново. */
+const DUMP_FORMAT = 1;
+
+/** Стол как простое значение (`Table.dump`). Снаружи это непрозрачный JSON. */
+export interface TableDump {
+  format: number;
+  v: number;
+  seq: number;
+  pileSeq: number;
+  faces: [string, Face][];
+  laid: [string, number][];
+  piles: [string, PileRow][];
+  felt: { id: string; x: number; y: number; up: boolean; angle: number; under?: boolean }[];
+  chairs: ChairRow[];
+  bots: Person[];
+  rules: TableRules;
+  trails: [string, Trail][];
+  turned: string[];
+  names: [string, string][];
+  dealer: string | null;
+}
+
 export class Table {
   private v = 0;
   private seq = 0;
@@ -221,6 +243,61 @@ export class Table {
     for (const zone of desk.zones) if (!this.piles.has(zone.id)) this.openZone(zone);
     this.deckStays();
     this.v += 1;
+  }
+
+  // ── СЛЕПОК ─────────────────────────────────────────────────────────────────────────────────
+  //
+  // Стол переживает процесс: всё, что ЛЕЖИТ (карты, стопки, руки, стулья, правила, следы), уходит в
+  // слепок; всё, что ДЕРЖАТ (блокировки, выделения, пальцы в воздухе, идущая команда), — нет: держать
+  // после перезапуска некому.
+
+  /** Стол как простое значение — в JSON и обратно. */
+  dump(): TableDump {
+    return {
+      format: DUMP_FORMAT,
+      v: this.v,
+      seq: this.seq,
+      pileSeq: this.pileSeq,
+      faces: [...this.faces],
+      laid: [...this.laid],
+      piles: [...this.piles].map(([id, row]) => [id, structuredClone(row)]),
+      felt: structuredClone(this.felt),
+      chairs: [...this.chairs.values()].map((c) => structuredClone(c)),
+      bots: [...this.people.values()].filter((p) => p.bot === true).map((p) => ({ ...p })),
+      rules: { ...this.rules },
+      trails: [...this.trails].map(([id, t]) => [id, structuredClone(t)]),
+      turned: [...this.turned],
+      names: [...this.names],
+      dealer: this.dealer,
+    };
+  }
+
+  /**
+   * ПОДНЯТЬ СТОЛ ИЗ СЛЕПКА. Люди на этот момент не за столом: их стулья стоят покинутыми и помнят,
+   * чьи они (`last`), — вошедший сядет на свой стул к своей руке обычным `join`. Игроки без человека
+   * остаются сидеть: им возвращаться неоткуда. Версия растёт, чтобы клиент со старым снимком попросил новый.
+   */
+  static restore(dump: TableDump, creator: string | null, desk: DeskRules): Table {
+    if (dump?.format !== DUMP_FORMAT) throw new Error("слепок стола другого формата");
+    const t = new Table([], creator, desk);
+    const bots = new Set(dump.bots.map((p) => p.key));
+    t.v = dump.v + 1;
+    t.seq = dump.seq;
+    t.pileSeq = dump.pileSeq;
+    t.faces = new Map(dump.faces);
+    t.laid = new Map(dump.laid);
+    // Места рода стола, которых в слепке нет (род дописали), остаются от конструктора.
+    for (const [id, row] of dump.piles) t.piles.set(id, structuredClone(row));
+    t.felt = structuredClone(dump.felt);
+    t.chairs = new Map(dump.chairs.map((c) => [c.id, { ...structuredClone(c), owner: c.owner !== null && bots.has(c.owner) ? c.owner : null, last: c.owner ?? c.last }]));
+    t.people = new Map(dump.bots.map((p) => [p.key, { ...p }]));
+    t.rules = { ...DEFAULT_RULES, ...dump.rules };
+    t.trails = new Map(dump.trails.map(([id, trail]) => [id, structuredClone(trail)]));
+    t.turned = new Set(dump.turned);
+    t.names = new Map(dump.names);
+    t.dealer = dump.dealer;
+    t.deckStays();
+    return t;
   }
 
   get version(): number {

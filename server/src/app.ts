@@ -14,6 +14,8 @@ import { TableRoom } from "./table/TableRoom.js";
 import { TABLE_ROOM } from "./table/contract.js";
 import { relayRoutes, tableRoutes } from "./table/routes.js";
 import { clientRoutes } from "./table/client.js";
+import { keepLobbyIn } from "./table/lobby.js";
+import { dropRoom, forgetStaleRooms, keepCard, keepState, keptRooms, keptState } from "./db/tableRoomsRepo.js";
 import {
   accountByTelegram,
   createAccount,
@@ -163,6 +165,9 @@ function telegramFaceOf(user: { username?: string; first_name?: string; last_nam
 }
 
 export function createApp() {
+  // КОМНАТЫ СТОЛА ПОДНИМАЮТСЯ ИЗ БАЗЫ: перезапуск и выкатка не отнимают у людей их столы.
+  forgetStaleRooms();
+  keepLobbyIn({ card: keepCard, drop: dropRoom, all: keptRooms, state: keepState, stateOf: keptState });
   const app = express();
   app.use(express.json());
   app.use((req, res, next) => {

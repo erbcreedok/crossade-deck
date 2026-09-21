@@ -1,8 +1,8 @@
-// СПИСОК КОМНАТ СТОЛА — в памяти, и только в ней.
+// СПИСОК КОМНАТ СТОЛА. Работает из памяти, а переживает процесс через порт `LobbyKeep`.
 //
-// Комната живёт ровно столько, сколько живёт этот процесс: перезапуск Colyseus — и столов нет. Это
-// решение, а не недосмотр: писать их на диск значило бы обещать то, чего сервер на ноутбуке не
-// сдержит. Бот узнаёт о перезапуске по маяку (новый `boot`) и сам говорит чатам, что их столы закрылись.
+// Комната принадлежит человеку, а не процессу: перезапуск и выкатка не должны отнимать у него стол.
+// Каждое изменение записи тут же уходит в хранилище, а при старте список поднимается из него.
+// Хранилища может не быть вовсе (тесты, стенд) — тогда список живёт, пока жив процесс.
 //
 // Одна запись — одна комната: где она живёт в Telegram, как называется и — пока в ней кто-то
 // был — сама комната Colyseus, чтобы закрыть её отсюда.
@@ -28,6 +28,52 @@ interface Entry {
 }
 
 const rooms = new Map<string, Entry>();
+
+/** Куда список пишет себя. Что внутри строки, хранилище не знает. */
+export interface LobbyKeep {
+  card(room: string, json: string): void;
+  drop(room: string): void;
+  all(): { room: string; card: string }[];
+  /** Слепок стола этой комнаты — непрозрачный JSON; пишется только комнате, у которой есть запись. */
+  state(room: string, json: string): void;
+  stateOf(room: string): string | null;
+}
+
+let keep: LobbyKeep | null = null;
+
+/** Записать комнату как есть. Живая комната Colyseus в запись не входит: она принадлежит процессу. */
+function save(e: Entry): void {
+  if (!keep) return;
+  const { live: _live, ...row } = e;
+  try {
+    keep.card(e.room, JSON.stringify(row));
+  } catch (err) {
+    // Беда хранилища не становится бедой стола: комната работает из памяти, как работала.
+    console.error(`комната ${e.room} не записалась:`, err);
+  }
+}
+
+/**
+ * ПОДНЯТЬ СПИСОК ИЗ ХРАНИЛИЩА и дальше писать в него. Зовётся один раз при старте сервера. Битая строка
+ * пропускается: одна испорченная запись не должна оставить без столов всех остальных.
+ */
+export function keepLobbyIn(store: LobbyKeep | null): number {
+  keep = store;
+  if (!store) return 0;
+  let raised = 0;
+  for (const row of store.all()) {
+    try {
+      const e = JSON.parse(row.card) as Entry;
+      if (typeof e.room !== "string" || e.room !== row.room || typeof e.title !== "string" || !e.home) continue;
+      if (rooms.has(e.room)) continue;
+      rooms.set(e.room, { room: e.room, title: e.title, kind: isDesk(e.kind) ? e.kind : DEFAULT_DESK, crew: isCrew(e.crew) ? e.crew : DEFAULT_CREW, admins: Array.isArray(e.admins) ? e.admins.filter((k) => typeof k === "string") : [], home: e.home, by: typeof e.by === "string" ? e.by : "", createdAt: Number(e.createdAt) || Date.now() });
+      raised += 1;
+    } catch {
+      // пропускаем
+    }
+  }
+  return raised;
+}
 
 export const DEFAULT_TITLE = ROOM_WORD;
 
@@ -58,6 +104,7 @@ export function openEntry(room: string, home: Home, by: string, title?: string, 
       had.home = home;
       if (title?.trim()) had.title = uniqueTitle(title.trim(), takenTitles(room));
       had.live?.claim?.(by);
+      save(had);
     }
     return card(had);
   }
@@ -74,6 +121,7 @@ export function openEntry(room: string, home: Home, by: string, title?: string, 
     createdAt: now,
   };
   rooms.set(room, entry);
+  save(entry);
   return card(entry);
 }
 
@@ -111,6 +159,7 @@ export function rehome(room: string, home: Home): RoomCard | undefined {
   const e = rooms.get(room);
   if (!e) return undefined;
   e.home = home;
+  save(e);
   return card(e);
 }
 
@@ -127,6 +176,7 @@ export function recast(room: string, kind: string): RoomCard | undefined {
   e.title = uniqueTitle(retitled(e.title, deskName(e.kind), deskName(kind)), takenTitles(room));
   e.kind = kind;
   e.live?.recast?.(kind);
+  save(e);
   return card(e);
 }
 
@@ -146,6 +196,7 @@ export function setAdmin(room: string, by: string, key: string, on: boolean): Ro
   else keys.delete(key);
   e.admins = [...keys];
   e.live?.admins?.(e.admins);
+  save(e);
   return card(e);
 }
 
@@ -155,6 +206,7 @@ export function recrew(room: string, crew: string): RoomCard | undefined {
   if (!e || !isCrew(crew)) return undefined;
   e.crew = crew;
   e.live?.recrew?.(crew);
+  save(e);
   return card(e);
 }
 
@@ -162,6 +214,7 @@ export function rename(room: string, title: string): RoomCard | undefined {
   const e = rooms.get(room);
   if (!e || !title.trim()) return undefined;
   e.title = uniqueTitle(title.trim(), takenTitles(room));
+  save(e);
   return card(e);
 }
 
@@ -175,6 +228,11 @@ export function closeEntry(room: string): boolean {
   const e = rooms.get(room);
   if (!e) return false;
   rooms.delete(room);
+  try {
+    keep?.drop(room);
+  } catch (err) {
+    console.error(`комната ${room} не стёрлась из хранилища:`, err);
+  }
   e.live?.close();
   return true;
 }
@@ -193,6 +251,25 @@ export async function runIn(room: string, by: string, command: TableCommand): Pr
   return e.live.run(by, command);
 }
 
+/** Слепок стола — в хранилище. Нет хранилища или комнату уже закрыли — не пишется. */
+export function keepStateOf(room: string, json: string): void {
+  if (!keep || !rooms.has(room)) return;
+  try {
+    keep.state(room, json);
+  } catch (err) {
+    console.error(`слепок комнаты ${room} не записался:`, err);
+  }
+}
+
+export function keptStateOf(room: string): string | null {
+  try {
+    return keep?.stateOf(room) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Забыть всё, что в памяти. Хранилище не трогается: так в тестах и выглядит перезапуск процесса. */
 export function forgetAll(): void {
   rooms.clear();
 }

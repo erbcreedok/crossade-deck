@@ -31,7 +31,7 @@ import { whoIs, type Who } from "./identity.js";
 import { deskOf } from "./desks.js";
 import { RING } from "./games/krest.js";
 import { allowed as allowedIn, move, start, type Match } from "./games/match.js";
-import { adminsOf, attach, creatorOf, crewKind, kindOf, openEntry, titleOf } from "./lobby.js";
+import { adminsOf, attach, creatorOf, crewKind, keepStateOf, keptStateOf, kindOf, openEntry, titleOf } from "./lobby.js";
 import { actOf, crewOf } from "./crews.js";
 import { readIntent } from "./intent.js";
 import { PULSE_EVERY_MS, type Pulse } from "./freshness.js";
@@ -47,9 +47,11 @@ import { readCommand } from "./routes.js";
 import { roomIsSigned } from "./roomIds.js";
 import { Chronicle } from "./chronicle.js";
 import { cleanWitnessed, Witnesses } from "./witness.js";
-import { Table } from "./table.js";
+import { Table, type TableDump } from "./table.js";
 
 /** Имена игроков без человека — чтобы за столом сидели не «Бот 1», а кто-то. */
+/** Столько стол должен молчать, чтобы его слепок записался. */
+const KEEP_AFTER_MS = 1500;
 const BOT_NAMES = ["Айдос", "Батыр", "Ержан", "Санжар", "Данияр", "Тимур", "Алия", "Мадина"] as const;
 /** Больше этого за стол не сажают: мест всё-таки шестнадцать, и половину стоит оставить людям. */
 const BOTS_MOST = 8;
@@ -82,8 +84,44 @@ export class TableRoom extends Room {
   private seats = new Map<string, string>();
 
   /** Человек, каким его знает стол сейчас, — со стулом, на который он сел. */
+  /**
+   * СТОЛ ИЗ СЛЕПКА, если комната уже жила до этого процесса. Слепок не поднялся (другой формат, битый
+   * JSON) — стол начинается заново: потерянная раскладка лучше комнаты, в которую нельзя войти.
+   */
+  private raised(): Table | null {
+    const json = keptStateOf(this.room);
+    if (json === null) return null;
+    try {
+      const kept = JSON.parse(json) as { table: TableDump; match: Match | null };
+      const table = Table.restore(kept.table, creatorOf(this.room), deskOf(kindOf(this.room), () => this.judgeView()));
+      this.match = kept.match ?? null;
+      this.book.tell("room.raised", undefined, { v: table.version, партия: this.match !== null });
+      return table;
+    } catch (err) {
+      this.book.tell("room.raise-failed", undefined, { почему: String(err).slice(0, 200) });
+      return null;
+    }
+  }
+
+  private keeping: ReturnType<typeof setTimeout> | undefined;
+  /** Слепок пишется, когда стол ЗАТИХ, а не на каждый ход: перетаскивание — десятки патчей в секунду. */
+  private keepSoon(): void {
+    if (this.keeping !== undefined) return;
+    this.keeping = setTimeout(() => this.keepNow(), KEEP_AFTER_MS);
+    this.keeping.unref?.();
+  }
+
+  private keepNow(): void {
+    if (this.keeping !== undefined) clearTimeout(this.keeping);
+    this.keeping = undefined;
+    // Посреди команды бота стол не пишется: половина раздачи — не состояние, в которое стоит вернуться.
+    if (this.table.busy) return void this.keepSoon();
+    keepStateOf(this.room, JSON.stringify({ table: this.table.dump(), match: this.match }));
+  }
+
   /** Как бы комната ни кончилась — опустела, закрыта ботом, сервер останавливают, — журнал дописан. */
   onDispose(): void {
+    if (!this.table.busy) this.keepNow();
     this.book.flush();
   }
 
@@ -111,7 +149,7 @@ export class TableRoom extends Room {
     // он получает правила и работает с ними, как с любыми другими.
     // СУДЬЯ ЖИВЁТ В КОМНАТЕ, а правила спрашивают его через это окошко: чей ход и кто закрыл круг.
     // Партии нет — окно отдаёт `null`, и стол ведёт себя как песочница.
-    this.table = new Table(deal(), creatorOf(this.room), deskOf(kindOf(this.room), () => this.judgeView()));
+    this.table = this.raised() ?? new Table(deal(), creatorOf(this.room), deskOf(kindOf(this.room), () => this.judgeView()));
     // СОСТОЯНИЕ ПАРТИИ В СНИМКЕ: стол её не судит, он только возит то, что скажет комната.
     this.table.play = (viewer) => this.playFor(viewer);
     this.table.setAdmins(adminsOf(this.room));
@@ -694,6 +732,7 @@ export class TableRoom extends Room {
     // которого круг хода рисуется стопкой посередине.
     this.book.tell("patch", undefined, { v, ops: ops.map((op) => this.table.seenOp(op, "", true)) });
     this.tellMatch();
+    this.keepSoon();
     for (const client of this.clients) {
       const key = this.seats.get(client.sessionId);
       if (key !== undefined) client.send(MSG.patch, { v, ops: ops.map((op) => this.table.seenOp(op, key)) });
