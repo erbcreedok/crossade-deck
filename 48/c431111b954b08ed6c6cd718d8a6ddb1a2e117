@@ -1,0 +1,27 @@
+server/table-client/optimistic.ts
+  s_eea5b32ea4af25::t_21f12917f20455 1-71,73-134
+  s_eea5b32ea4af25::t_3ea0fb1b5fc672 72
+server/table-client/screen.ts
+  s_eea5b32ea4af25::t_841646fd307e78 8,33
+  s_eea5b32ea4af25::t_21f12917f20455 403-405
+server/table-client/optimistic.test.ts
+  s_eea5b32ea4af25::t_e4d7a33ed72cf8 1-97
+server/vitest.config.ts
+  s_eea5b32ea4af25::t_e4d7a33ed72cf8 9-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "48c431111b954b08ed6c6cd718d8a6ddb1a2e117",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
