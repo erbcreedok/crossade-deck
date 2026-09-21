@@ -23,7 +23,7 @@ import type { Key } from "./access.js";
 /** ЧТО КАКОЙ КОМАНДОЙ ДВИГАЮТ — ключ на каждую (`access.ts`). Команды без ключа здесь нет. */
 const RUN_RIGHTS: Record<string, Key> = {
   deal: "table.deal", redeal: "table.deal", collect: "table.collect", shuffle: "table.shuffle",
-  preset: "table.preset", look: "table.look", croupier: "table.croupier",
+  preset: "table.preset", look: "table.look", croupier: "table.croupier", bots: "table.seats",
 };
 import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
 import { deal } from "./deal.js";
@@ -602,6 +602,9 @@ export class TableRoom extends Room {
     // Дело набора — обычный ключ: `crew.collect`, `crew.layout`. Помеченные `adminOnly` живут в
     // наборе распорядителя, прочие открыты всем, кого пускает замок стула крупье.
     if (item.adminOnly && !this.table.may(by, "table.croupier")) return;
+    // ИГРОКИ БЕЗ ЧЕЛОВЕКА — та же команда, что приходит из бота: состав стола, а не ход.
+    if (act === "bot-add") return void this.run(by, { t: "bots", n: 1 });
+    if (act === "bots-off") return void this.run(by, { t: "bots", n: 0 });
     if (this.table.busy) return;
     // ВЫКЛАДКА — ОДНО ДВИЖЕНИЕ: стопка кладётся целиком, её не носят по карте.
     if (act === "layout") return void this.layout(by, chair.id, chair.angle);

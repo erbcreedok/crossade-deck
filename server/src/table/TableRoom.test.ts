@@ -102,6 +102,29 @@ describe("TableRoom", () => {
     }
   });
 
+  it("дело крупье «Посадить игрока»: распорядителю — сажает, остальным — нет; «Убрать» снимает всех", async () => {
+    const room = mintRoom(SECRET);
+    openEntry(room, { kind: "inline", message: "m" }, "tg:7", "С ботами");
+    const owner = await sit(room, { door: "telegram", initData: initData(7, "Аня") });
+    const guest = await sit(room, { door: "guest", name: "Боря" });
+    expect(owner.welcome.crew.map((act) => act.id)).toEqual(expect.arrayContaining(["bot-add", "bots-off"]));
+    const bots = () => owner.patches.reduce(applyPatch, owner.welcome.snapshot).people.filter((p) => p.bot && p.seat !== undefined && p.key.startsWith("bot:игрок"));
+
+    guest.client.send(MSG.intent, { t: "crew", act: "bot-add" });
+    await new Promise((r) => setTimeout(r, 80));
+    expect(bots()).toHaveLength(0);
+
+    owner.client.send(MSG.intent, { t: "crew", act: "bot-add" });
+    owner.client.send(MSG.intent, { t: "crew", act: "bot-add" });
+    await new Promise((r) => setTimeout(r, 120));
+    expect(bots()).toHaveLength(2);
+
+    owner.client.send(MSG.intent, { t: "crew", act: "bots-off" });
+    await new Promise((r) => setTimeout(r, 120));
+    expect(bots()).toHaveLength(0);
+    expect(await runIn(room, guest.welcome.you.key, { t: "bots", n: 1 })).toEqual({ error: "not-admin" });
+  });
+
   it("без подписи комнату не открыть, без двери — не войти", async () => {
     await expect(server().sdk.joinOrCreate(TABLE_ROOM, { room: "x".repeat(22), door: "guest" })).rejects.toThrow();
     await expect(server().sdk.joinOrCreate(TABLE_ROOM, { room: mintRoom(SECRET), door: "telegram", initData: "hash=00" })).rejects.toThrow();
