@@ -563,6 +563,8 @@ export const MSG = {
   rtc: "rtc",
   /** Клиент → сервер: `WatchOut` — что у него открыто; сервер → всем: `Eye[]` (`eyes.ts`). Тоже мимо версий. */
   eyes: "eyes",
+  /** Сервер → всем: `Pulse` — версия стола, раз в `PULSE_EVERY_MS` (`freshness.ts`). По ней клиент замечает, что отстал, даже в тишине. */
+  pulse: "pulse",
 } as const;
 
 /**

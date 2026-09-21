@@ -80,7 +80,17 @@ open()
     document.title = store.title;
     const screen = mountScreen(stage, witnessed(store, witness), witness);
     screenHealth = screen.health;
-    store.onGone(() => say("Стол закрыт."));
+    let gone = false;
+    store.onGone(() => {
+      gone = true;
+      say("Стол закрыт.");
+    });
+    // СВЯЗЬ ПРОПАЛА — стол тот же и вернётся сам: человеку нужно только знать, что он сейчас не в игре.
+    store.onLink?.((up) => {
+      if (gone) return;
+      if (up) document.getElementById("note")!.hidden = true;
+      else say("Связь пропала. Возвращаюсь за стол…");
+    });
     return screen.ready.then(() => loading.done());
   })
   .catch((err: unknown) => {

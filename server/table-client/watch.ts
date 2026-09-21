@@ -77,6 +77,12 @@ export function witnessed(store: TableStore, w: Witness): TableStore {
         listener();
       });
     },
+    onLink(listener) {
+      store.onLink?.((up) => {
+        w.saw("link", { up });
+        listener(up);
+      });
+    },
   };
 }
 

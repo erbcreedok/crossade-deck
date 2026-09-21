@@ -8,6 +8,7 @@ import { applyPatch } from "./patch.js";
 import { findEntry, openEntry, runIn } from "./lobby.js";
 import { BOT_KEY } from "./botPerson.js";
 import type { Say, Shot } from "./say.js";
+import { PULSE_EVERY_MS, type Pulse } from "./freshness.js";
 
 const SECRET = "table-secret";
 const BOT = "bot-token";
@@ -36,6 +37,35 @@ describe("TableRoom", () => {
     client.send(MSG.hello);
     return { client, welcome: await welcome, patches };
   }
+
+  it("отказ в дропе: отказнику — причина, соседу — карта отпущена, и стол у него не отстал", async () => {
+    const room = mintRoom(SECRET);
+    const a = await sit(room, { door: "guest", name: "Аня" });
+    const b = await sit(room, { door: "guest", name: "Боря" });
+    const his = b.welcome.snapshot.people.find((p) => p.key === b.welcome.you.key)!.seat!;
+    b.client.send(MSG.intent, { t: "flag", chair: his, flag: "reject", on: true });
+    const top = a.welcome.snapshot.piles[0]!.cards.at(-1)!.id;
+    a.client.send(MSG.intent, { t: "grab", id: top });
+    const carried = next<Carry>(b.client, MSG.carry);
+    await new Promise((r) => setTimeout(r, 50));
+    a.client.send(MSG.carry, { id: top, over: { in: "hand", chair: his, i: 0 } });
+    expect((await carried).id).toBe(top);
+
+    const refused = next<Refused>(a.client, MSG.refused);
+    a.client.send(MSG.intent, { t: "drop", id: top, to: { in: "hand", chair: his, i: 0 } });
+    expect((await refused).why).toBe("chair-locked");
+    await new Promise((r) => setTimeout(r, 50));
+    const seen = b.patches.reduce(applyPatch, b.welcome.snapshot);
+    expect(seen.locks[top]).toBeUndefined();
+    expect(b.patches.at(-1)!.ops).toContainEqual({ t: "unlock", id: top });
+  });
+
+  it("пульс: сервер сам называет версию стола, и она та же, что у снимка", async () => {
+    const room = mintRoom(SECRET);
+    const a = await sit(room, { door: "guest", name: "Аня" });
+    const pulse = await next<Pulse>(a.client, MSG.pulse);
+    expect(pulse.v).toBe(a.patches.reduce(applyPatch, a.welcome.snapshot).v);
+  }, PULSE_EVERY_MS + 3000);
 
   it("без подписи комнату не открыть, без двери — не войти", async () => {
     await expect(server().sdk.joinOrCreate(TABLE_ROOM, { room: "x".repeat(22), door: "guest" })).rejects.toThrow();

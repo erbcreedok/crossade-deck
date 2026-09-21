@@ -34,6 +34,7 @@ import { allowed as allowedIn, move, start, type Match } from "./games/match.js"
 import { adminsOf, attach, creatorOf, crewKind, kindOf, openEntry, titleOf } from "./lobby.js";
 import { actOf, crewOf } from "./crews.js";
 import { readIntent } from "./intent.js";
+import { PULSE_EVERY_MS, type Pulse } from "./freshness.js";
 import type { Play } from "./contract.js";
 import { seatPoint } from "./ring.js";
 
@@ -291,6 +292,7 @@ export class TableRoom extends Room {
     });
 
     this.clock.setInterval(() => this.spread(this.table.sweep(Date.now())), 1000);
+    this.clock.setInterval(() => this.broadcast(MSG.pulse, { v: this.table.version } satisfies Pulse), PULSE_EVERY_MS);
   }
 
   /**

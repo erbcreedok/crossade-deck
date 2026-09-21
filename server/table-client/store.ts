@@ -62,6 +62,8 @@ export interface TableStore {
   onChange(listener: () => void): void;
   /** Намерение не случилось — экран отпускает то, что держал. */
   onRefused(listener: (intent: Intent, why: Refusal) => void): void;
-  /** Стола больше нет: его закрыли в боте, или сервер ушёл. */
+  /** Стола больше нет: его закрыли в боте, или сервер ушёл и вернуться не вышло. */
   onGone(listener: () => void): void;
+  /** Связь со столом пропала (`false`) или вернулась (`true`) — стол при этом тот же. Есть только у сетевого стола. */
+  onLink?(listener: (up: boolean) => void): void;
 }

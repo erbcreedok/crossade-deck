@@ -2,24 +2,46 @@
 //
 // Снимок приходит один раз (`welcome`), дальше — только дифы. Диф не следующей версии значит, что
 // что-то потерялось по дороге: клиент не угадывает, а просит стол целиком (`sync`).
+//
+// СТОЛ ЧИНИТ СЕБЯ САМ, без перезагрузки страницы:
+//   отстал в тишине      сервер называет версию пульсом; она впереди и патч не долетел — `sync`
+//   попросил и не дали   просит снова (`Freshness`)
+//   вкладка была в фоне  вернулась — `sync`: телефон мог заморозить и таймеры, и сокет
+//   связь оборвалась     входит заново той же дверью; новый `welcome` и есть свежий стол
+// Хранилище при этом одно и то же: слушатели живут в нём, а не на сокете, и сокет под ним меняется.
 
-import { Client } from "colyseus.js";
+import { Client, type Room } from "colyseus.js";
 import { MSG, TABLE_ROOM, type Carry, type CarryOut, type Intent, type JoinOptions, type Patch, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
+import { Freshness, type Pulse } from "../src/table/freshness.js";
 import { applyPatch, needsSync } from "../src/table/patch.js";
 import type { Eye } from "../src/table/eyes.js";
 import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 import type { TableStore } from "./store.js";
 import { HOST } from "./host.js";
 
+/** Комнату закрыл сервер (`room.disconnect()`): стола больше нет, возвращаться некуда. */
+const CLOSED_BY_SERVER = 4000;
+/** Паузы между попытками вернуться. Кончились — стола нет. */
+const RETRY_MS = [300, 1000, 2000, 4000, 8000, 8000, 8000, 8000, 8000];
+
+type Listener = (msg: never) => void;
+
 export async function netStore(options: JoinOptions): Promise<TableStore> {
   const endpoint = HOST.replace(/^http/, "ws");
-  const room = await new Client(endpoint).joinOrCreate(TABLE_ROOM, options);
+  const join = () => new Client(endpoint).joinOrCreate(TABLE_ROOM, options);
 
   const changed: (() => void)[] = [];
-  const refused: ((intent: Intent, why: Refused["why"]) => void)[] = [];
+  const gone: (() => void)[] = [];
+  const linked: ((up: boolean) => void)[] = [];
+  /** Кто что слушает — по имени сообщения. Переживает смену сокета. */
+  const heard = new Map<string, Listener[]>();
+  const listen = <T>(type: string, listener: (msg: T) => void) => void heard.set(type, [...(heard.get(type) ?? []), listener as Listener]);
+
+  let room: Room;
   let state: Snapshot | null = null;
   let welcome: Welcome | null = null;
-  let asked = false;
+  let up = false;
+  const fresh = new Freshness();
   /** На сколько часы сервера впереди моих. */
   let skew = 0;
   const early: Patch[] = [];
@@ -35,55 +57,102 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     for (const listener of changed) listener();
   };
 
+  /** Сокет мог закрыться между проверкой и отправкой — потерянное намерение вернёт свежий стол. */
+  const post = (type: string, body?: unknown) => {
+    if (!up) return;
+    try {
+      room.send(type, body);
+    } catch {
+      // Связь рвётся — этим займётся `onLeave`.
+    }
+  };
+
   const take = (patch: Patch) => {
     if (!state) return void early.push(patch);
     if (patch.v <= state.v) return;
-    if (needsSync(state, patch)) {
-      if (!asked) room.send(MSG.intent, { t: "sync" } satisfies Intent);
-      asked = true;
-      return;
-    }
+    if (needsSync(state, patch)) return void fresh.gap(Date.now());
     state = applyPatch(state, patch);
     stillHeld();
     tell();
   };
 
-  room.onMessage(MSG.patch, take);
-  room.onMessage(MSG.carry, (c: Carry) => {
+  listen<Patch>(MSG.patch, take);
+  listen<Carry>(MSG.carry, (c) => {
     // Пришёл раньше своей блокировки или позже её снятия — не показывается.
     if (!state || state.locks[c.id] !== c.by) return;
     carries.set(c.id, c);
     tell();
   });
-  const said: ((say: Say) => void)[] = [];
-  room.onMessage(MSG.eyes, (all: Eye[]) => {
+  listen<Eye[]>(MSG.eyes, (all) => {
     eyes = Array.isArray(all) ? all : [];
     tell();
   });
-  room.onMessage(MSG.say, (say: Say) => {
-    for (const listener of said) listener(say);
-  });
-  room.onMessage(MSG.refused, (msg: Refused) => {
-    for (const listener of refused) listener(msg.intent, msg.why);
+  listen<Pulse>(MSG.pulse, (pulse) => {
+    if (state && Number.isFinite(pulse?.v)) fresh.pulse(pulse.v, state.v, Date.now());
   });
 
-  const first = new Promise<Welcome>((resolve) => {
-    room.onMessage(MSG.welcome, (msg: Welcome) => {
-      welcome = msg;
-      if (Number.isFinite(msg.now)) skew = msg.now - Date.now();
-      state = msg.snapshot;
-      carries = new Map((msg.carries ?? []).map((c) => [c.id, c]));
-      eyes = msg.eyes ?? [];
-      stillHeld();
-      asked = false;
-      // Дифы, пришедшие раньше снимка, догоняются по порядку; старше снимка — выбрасываются.
-      for (const patch of early.splice(0)) take(patch);
-      resolve(msg);
-      tell();
-    });
+  let welcomed: (() => void) | null = null;
+  listen<Welcome>(MSG.welcome, (msg) => {
+    welcome = msg;
+    if (Number.isFinite(msg.now)) skew = msg.now - Date.now();
+    state = msg.snapshot;
+    carries = new Map((msg.carries ?? []).map((c) => [c.id, c]));
+    eyes = msg.eyes ?? [];
+    stillHeld();
+    fresh.welcomed();
+    // Дифы, пришедшие раньше снимка, догоняются по порядку; старше снимка — выбрасываются.
+    for (const patch of early.splice(0)) take(patch);
+    welcomed?.();
+    tell();
   });
-  room.send(MSG.hello);
+
+  function attach(next: Room): void {
+    room = next;
+    up = true;
+    for (const type of Object.values(MSG)) {
+      next.onMessage(type, (msg: never) => {
+        for (const listener of heard.get(type) ?? []) listener(msg);
+      });
+    }
+    next.onLeave((code) => {
+      if (next !== room) return;
+      up = false;
+      if (code === CLOSED_BY_SERVER) return void gone.forEach((listener) => listener());
+      void comeBack();
+    });
+    post(MSG.hello);
+  }
+
+  async function comeBack(): Promise<void> {
+    for (const listener of linked) listener(false);
+    for (const wait of RETRY_MS) {
+      await new Promise((r) => setTimeout(r, wait));
+      try {
+        attach(await join());
+        for (const listener of linked) listener(true);
+        return;
+      } catch {
+        // Сети ещё нет или сервер поднимается — следующая попытка.
+      }
+    }
+    for (const listener of gone) listener();
+  }
+
+  const first = new Promise<void>((resolve) => (welcomed = resolve));
+  attach(await join());
   await first;
+  welcomed = null;
+
+  // Раз в секунду: пора ли просить стол целиком.
+  setInterval(() => {
+    const now = Date.now();
+    if (!up || !fresh.due(now)) return;
+    fresh.asked(now);
+    post(MSG.intent, { t: "sync" } satisfies Intent);
+  }, 1000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") fresh.doubt(Date.now());
+  });
 
   return {
     get me() {
@@ -104,32 +173,33 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     get state() {
       return state!;
     },
-    send: (intent) => room.send(MSG.intent, intent),
+    send: (intent) => post(MSG.intent, intent),
     get carries() {
       return [...carries.values()];
     },
     get eyes() {
       return eyes;
     },
-    watch: (spots) => room.send(MSG.eyes, { spots }),
-    carry: (out: CarryOut) => room.send(MSG.carry, out),
-    command: (command) => room.send(MSG.command, command),
-    log: (seen) => room.send(MSG.log, { seen }),
-    live: (out) => room.send(MSG.live, out),
-    rtc: (out) => room.send(MSG.rtc, out),
-    onRtc: (listener) => void room.onMessage(MSG.rtc, (note: { from: string; kind: string; body: string }) => listener(note)),
-    onLive: (listener) => void room.onMessage(MSG.live, (clip: { by: string; seq: number; bytes: Uint8Array }) => listener(clip)),
-    mic: (on, to) => room.send(MSG.mic, to === undefined ? { on } : { on, to }),
-    onMic: (listener) => void room.onMessage(MSG.mic, (mic: { by: string; on: boolean; to?: string }) => listener(mic)),
-    say: (out: SayOut) => room.send(MSG.say, out),
-    onSay: (listener) => void said.push(listener),
-    askStickers: () => room.send(MSG.stickers, {}),
-    shoot: (out: ShotOut) => room.send(MSG.shot, out),
-    onShot: (listener) => void room.onMessage(MSG.shot, (shot: Shot) => listener(shot)),
-    onStickers: (listener) => void room.onMessage(MSG.stickers, (ids: string[]) => listener(ids)),
+    watch: (spots) => post(MSG.eyes, { spots }),
+    carry: (out: CarryOut) => post(MSG.carry, out),
+    command: (command) => post(MSG.command, command),
+    log: (seen) => post(MSG.log, { seen }),
+    live: (out) => post(MSG.live, out),
+    rtc: (out) => post(MSG.rtc, out),
+    onRtc: (listener) => listen<{ from: string; kind: string; body: string }>(MSG.rtc, listener),
+    onLive: (listener) => listen<{ by: string; seq: number; bytes: Uint8Array }>(MSG.live, listener),
+    mic: (on, to) => post(MSG.mic, to === undefined ? { on } : { on, to }),
+    onMic: (listener) => listen<{ by: string; on: boolean; to?: string }>(MSG.mic, listener),
+    say: (out: SayOut) => post(MSG.say, out),
+    onSay: (listener) => listen<Say>(MSG.say, listener),
+    askStickers: () => post(MSG.stickers, {}),
+    shoot: (out: ShotOut) => post(MSG.shot, out),
+    onShot: (listener) => listen<Shot>(MSG.shot, listener),
+    onStickers: (listener) => listen<string[]>(MSG.stickers, listener),
     now: () => Date.now() + skew,
     onChange: (listener) => void changed.push(listener),
-    onRefused: (listener) => void refused.push(listener),
-    onGone: (listener) => void room.onLeave(() => listener()),
+    onRefused: (listener) => listen<Refused>(MSG.refused, (msg) => listener(msg.intent, msg.why)),
+    onGone: (listener) => void gone.push(listener),
+    onLink: (listener) => void linked.push(listener),
   };
 }
