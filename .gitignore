@@ -4,8 +4,8 @@ build/
 
 # Локальные данные и настройки — не для коммита
 server/data/
-client/.env.local
-client2/.env.local
+**/.env*
+!**/.env.example
 .claude/settings.local.json
 
 # ОС/редакторы
@@ -15,16 +15,11 @@ client2/.env.local
 # Отчёты тестировщика — локальные
 todo/
 
-# Производное от atoms-map.md — генерится через scripts/md-to-pdf.mjs, в git не нужно
-client2/docs/atoms-map.html
-client2/docs/atoms-map.pdf
-
 # Артефакты Playwright MCP (скриншоты/логи браузера из отладочных сессий)
 .playwright-mcp/
 
 # Артефакты прогона Playwright (скриншоты/трейсы упавших тестов) — производные, пересоздаются
 test-results/
-client2/test-results/
 
 # оркестрация: задача и отчёт в полёте, история — в коммитах
 .agent/NEXT.md
