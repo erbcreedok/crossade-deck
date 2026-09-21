@@ -165,6 +165,7 @@ export class TableRoom extends Room {
         // отсюда, и без записи причину потом не назвать.
         this.book.tell("refused", me.key, { intent, why: result.refused });
         client.send(MSG.refused, { intent, why: result.refused });
+        if (result.ops?.length) this.spread(result.ops);
       } else {
         this.book.tell("act", me.key, { intent });
         this.spread(result.ops);

@@ -439,7 +439,7 @@ export async function execute(table: Table, steps: Step[], actor: string, io: Io
       if ("refused" in drop) {
         io.failed?.("move", drop.refused, { карта: id, куда: step.to });
         const back = table.act(actor, { t: "release", id }, io.now(), true);
-        if ("ops" in back) io.spread(back.ops);
+        if (!("refused" in back)) io.spread(back.ops);
       } else io.spread(drop.ops);
       await io.sleep(Math.round(step.ms * 0.34));
     }

@@ -342,10 +342,11 @@ describe("Table: флаги и права", () => {
     expect(t.act("admin", { t: "grab", id: card }, 0)).toEqual({ refused: "chair-locked" });
     const top = t.seenBy("admin").piles[0]!.cards.at(-1)!.id;
     ops(t.act("admin", { t: "grab", id: top }, 0));
-    expect(t.act("admin", { t: "drop", id: top, to: { in: "hand", chair: b, i: 0 } }, 0)).toEqual({ refused: "chair-locked" });
+    expect(t.act("admin", { t: "drop", id: top, to: { in: "hand", chair: b, i: 0 } }, 0)).toMatchObject({ refused: "chair-locked" });
     // ОБОЙТИ замок распорядитель не может — обе попытки выше отказаны, пока он стоит. А вот СНЯТЬ
     // вправе: замок переживает хозяина, и запертый стул ушедшего иначе не разгрести.
     ops(t.act("admin", { t: "flag", chair: b, flag: "lock", on: false }, 0));
+    ops(t.act("admin", { t: "grab", id: top }, 0));
     ops(t.act("admin", { t: "drop", id: top, to: { in: "hand", chair: b, i: 0 } }, 0));
     ops(t.act("b", { t: "flag", chair: b, flag: "lock", on: true }, 0));
     expect("ops" in t.act("b", { t: "grab", id: card }, 0)).toBe(true);

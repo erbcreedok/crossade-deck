@@ -86,7 +86,11 @@ interface ChairRow {
   hand: string[];
 }
 
-type Result = { ops: Op[] } | { refused: Refusal };
+/**
+ * Отказ может нести `ops`: жест кончился, и то, что он держал, отпущено — это видят все, а причину
+ * слышит только тот, кому отказали.
+ */
+type Result = { ops: Op[] } | { refused: Refusal; ops?: Op[] };
 
 /** Стопка на сервере: место и флаги, карты снизу вверх. */
 interface PileRow {
@@ -775,7 +779,13 @@ export class Table {
 
   private drop(by: string, id: string, to: Where, now: number, auto = false): Result {
     const done = this.dropOps(by, id, to, now, auto);
-    return "refused" in done ? done : { ops: this.commit(done.ops) };
+    if (!("refused" in done)) return { ops: this.commit(done.ops) };
+    // ДРОП — КОНЕЦ ЖЕСТА ПРИ ЛЮБОМ ИСХОДЕ. Палец уже отпущен, продлевать блокировку некому: без этого
+    // карта висела бы «в руке» отказника у всех остальных, пока её не снимет метла (`LOCK_TTL_MS`).
+    // Команда бота держит карту сама и сама решает, что делать с отказом.
+    if (auto || this.locks.get(id)?.by !== by) return done;
+    this.locks.delete(id);
+    return { refused: done.refused, ops: this.commit([{ t: "unlock", id }]) };
   }
 
   /**

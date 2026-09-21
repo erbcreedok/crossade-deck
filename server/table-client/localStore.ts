@@ -69,6 +69,7 @@ export function localStore(): TableStore {
       const result = table.act(me.key, intent, Date.now());
       if ("refused" in result) {
         for (const listener of refused) listener(intent, result.refused);
+        if (result.ops?.length) spread(result.ops);
         return;
       }
       spread(result.ops);

@@ -33,6 +33,33 @@ function toHand(t: Table, by: string, chair: string): string {
 const backUp = (t: Table, owner: string, chair: string, card: string) =>
   t.seenBy(owner).chairs.find((c) => c.id === chair)!.hand.find((h) => h.id === card)!.up === true;
 
+describe("ОТКАЗ В ДРОПЕ ОТПУСКАЕТ КАРТУ", () => {
+  it("отказали — карта больше не в пальце, и у соседа она не висит в воздухе", () => {
+    const t = table("Аня", "Боря");
+    const his = seatOf(t, "Боря");
+    ok(t.act("Боря", { t: "flag", chair: his, flag: "reject", on: true }, 0));
+    const top = t.seenBy("Аня").piles.find((p) => p.id === MAIN_PILE)!.cards.at(-1)!.id;
+    ok(t.act("Аня", { t: "grab", id: top }, 0));
+    expect(t.carry("Аня", { id: top, over: { in: "hand", chair: his, i: 0 } }, 0)).toEqual({ ok: true });
+    expect(t.carriesSeenBy("Боря").map((c) => c.id)).toEqual([top]);
+
+    const v = t.seenBy("Боря").v;
+    const out = t.act("Аня", { t: "drop", id: top, to: { in: "hand", chair: his, i: 0 } }, 0);
+    expect(out).toMatchObject({ refused: "chair-locked", ops: [{ t: "unlock", id: top }] });
+    expect(t.seenBy("Боря").locks[top]).toBeUndefined();
+    expect(t.seenBy("Боря").v).toBe(v + 1);
+    expect(t.carriesSeenBy("Боря")).toEqual([]);
+  });
+
+  it("отказ тому, кто карту и не держал, ничего не отпускает", () => {
+    const t = table("Аня", "Боря");
+    const top = t.seenBy("Аня").piles.find((p) => p.id === MAIN_PILE)!.cards.at(-1)!.id;
+    ok(t.act("Аня", { t: "grab", id: top }, 0));
+    expect(t.act("Боря", { t: "drop", id: top, to: { in: "felt", x: 0, y: 0, up: false, angle: 0 } }, 0)).toEqual({ refused: "not-held" });
+    expect(t.seenBy("Боря").locks[top]).toBe("Аня");
+  });
+});
+
 describe("ОТКЛОНЯТЬ: рука не принимает, но отдаёт", () => {
   it("с отклонением карту в руку не положить — ни чужую, ни свою", () => {
     const t = table("Аня", "Боря");
@@ -40,7 +67,8 @@ describe("ОТКЛОНЯТЬ: рука не принимает, но отдаё�
     ok(t.act("Аня", { t: "flag", chair: mine, flag: "reject", on: true }, 0));
     const top = t.seenBy("Аня").piles.find((p) => p.id === MAIN_PILE)!.cards.at(-1)!.id;
     ok(t.act("Аня", { t: "grab", id: top }, 0));
-    expect(t.act("Аня", { t: "drop", id: top, to: { in: "hand", chair: mine, i: 0 } }, 0)).toEqual({ refused: "chair-locked" });
+    expect(t.act("Аня", { t: "drop", id: top, to: { in: "hand", chair: mine, i: 0 } }, 0)).toMatchObject({ refused: "chair-locked" });
+    ok(t.act("Аня", { t: "grab", id: top }, 0));
     ok(t.act("Аня", { t: "drop", id: top, to: { in: "felt", x: 1, y: 1, up: false, angle: 0 } }, 0));
   });
 

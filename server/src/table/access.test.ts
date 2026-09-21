@@ -178,7 +178,7 @@ describe("ПРАВО НЕ ОБХОДИТ ЗАМОК РУКИ", () => {
     t.act("Боря", { t: "flag", chair: his, flag: "reject", on: true }, 0);
     const top = t.seenBy("Аня").piles.find((p) => p.id === MAIN_PILE)!.cards.at(-1)!.id;
     t.act("Аня", { t: "grab", id: top }, 0);
-    expect(t.act("Аня", { t: "drop", id: top, to: { in: "hand", chair: his, i: 0 } }, 0)).toEqual({ refused: "chair-locked" });
+    expect(t.act("Аня", { t: "drop", id: top, to: { in: "hand", chair: his, i: 0 } }, 0)).toMatchObject({ refused: "chair-locked" });
   });
 });
 

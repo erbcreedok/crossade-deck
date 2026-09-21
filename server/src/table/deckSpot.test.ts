@@ -87,7 +87,8 @@ describe("колода: место, вечность и действия из т
     ok(t.act("b", { t: "turn", id: "c7" }, 0));
     // Верхнюю взяли — вернуть в колоду нельзя (перестановка), в руку — можно.
     ok(t.act("b", { t: "grab", id: "c7" }, 0));
-    expect(t.act("b", { t: "drop", id: "c7", to: { in: "deck", pile: "deck", i: 0 } }, 0)).toEqual({ refused: "locked" });
+    expect(t.act("b", { t: "drop", id: "c7", to: { in: "deck", pile: "deck", i: 0 } }, 0)).toMatchObject({ refused: "locked" });
+    ok(t.act("b", { t: "grab", id: "c7" }, 0));
     ok(t.act("b", { t: "drop", id: "c7", to: { in: "hand", chair: a, i: 0 } }, 0));
     // Сверху класть можно — и место в колоде под локом не выбрать: наверх.
     ok(t.act("a", { t: "grab", id: "c7" }, 0));
@@ -109,10 +110,9 @@ describe("колода: место, вечность и действия из т
     ok(t.act("a", { t: "deckGuard", pile: "deck", guard: "shut", on: true }, 0));
     // Положить нельзя никому.
     ok(t.act("b", { t: "grab", id: "c7" }, 0));
-    expect(t.act("b", { t: "drop", id: "c7", to: { in: "deck", pile: "deck" } }, 0)).toEqual({ refused: "locked" });
-    ok(t.act("b", { t: "release", id: "c7" }, 0));
+    expect(t.act("b", { t: "drop", id: "c7", to: { in: "deck", pile: "deck" } }, 0)).toMatchObject({ refused: "locked" });
     ok(t.act("a", { t: "grab", id: "c7" }, 0));
-    expect(t.act("a", { t: "drop", id: "c7", to: { in: "deck", pile: "deck", i: 3 } }, 0)).toEqual({ refused: "locked" });
+    expect(t.act("a", { t: "drop", id: "c7", to: { in: "deck", pile: "deck", i: 3 } }, 0)).toMatchObject({ refused: "locked" });
   });
 
   it("пин: приколоть может любой, приколотую не двигает никто, открепляет только админ", () => {
@@ -136,7 +136,7 @@ describe("колода: место, вечность и действия из т
     expect(t.seenBy("b").piles).toEqual([]);
     const id = t.seenBy("a").felt[0]!.id;
     ok(t.act("a", { t: "grab", id }, 0));
-    expect(t.act("a", { t: "drop", id, to: { in: "deck", pile: "deck" } }, 0)).toEqual({ refused: "gone" });
+    expect(t.act("a", { t: "drop", id, to: { in: "deck", pile: "deck" } }, 0)).toMatchObject({ refused: "gone" });
     expect(t.act("a", { t: "deckDo", pile: "deck", how: "shuffle" }, 0)).toEqual({ refused: "gone" });
     expect(t.act("a", { t: "deckMove", pile: "deck", x: 0, y: 0 }, 0)).toEqual({ refused: "gone" });
   });
