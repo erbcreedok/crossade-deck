@@ -95,9 +95,13 @@ open()
     document.title = store.title;
     const screen = mountScreen(stage, witnessed(store, witness), witness);
     screenHealth = screen.health;
+    // Окошко для отладки и сторожей — как у звука и голоса (`__tableAudio`, `__tableMesh`).
+    (globalThis as { __tableScreen?: { destroy(): void } }).__tableScreen = screen;
     let gone = false;
     store.onGone(() => {
       gone = true;
+      // Стола больше нет — экран снимает с окна всё, что на него вешал.
+      screen.destroy();
       say("Стол закрыт.");
     });
     // СВЯЗЬ ПРОПАЛА — стол тот же и вернётся сам: человеку нужно только знать, что он сейчас не в игре.

@@ -289,7 +289,30 @@ interface Drag {
 }
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
-export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Witness): { ready: Promise<void>; health: ScreenHealth; look: SeenThrough } {
+export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Witness): { ready: Promise<void>; health: ScreenHealth; look: SeenThrough; destroy(): void } {
+  // ВСЁ, ЧТО ЭКРАН ПОВЕСИЛ НА ОКНО, ОН И СНИМАЕТ. Внутри экрана `addEventListener` и `setInterval` — не
+  // оконные, а эти: они запоминают, что снять, и `destroy()` возвращает окно таким, каким оно было.
+  // Без этого стол нельзя убрать со страницы и нельзя поставить второй: слушатели первого остаются жить.
+  const undo = new Set<() => void>();
+  const heard = new Map<unknown, () => void>();
+  const addEventListener = <K extends keyof WindowEventMap>(type: K, fn: (e: WindowEventMap[K]) => void, options?: AddEventListenerOptions): void => {
+    window.addEventListener(type, fn, options);
+    const off = () => window.removeEventListener(type, fn, options);
+    heard.set(fn, off);
+    undo.add(off);
+  };
+  const removeEventListener = <K extends keyof WindowEventMap>(type: K, fn: (e: WindowEventMap[K]) => void, options?: EventListenerOptions): void => {
+    window.removeEventListener(type, fn, options);
+    const off = heard.get(fn);
+    if (off) undo.delete(off);
+    heard.delete(fn);
+  };
+  const setInterval = (fn: () => void, ms: number): number => {
+    const id = window.setInterval(fn, ms);
+    undo.add(() => window.clearInterval(id));
+    return id;
+  };
+  let dead = false;
   const canvas = stage.querySelector("canvas")!;
   const over = stage.querySelector<HTMLElement>("#over")!;
   const images: Record<string, HTMLImageElement> = {};
@@ -2613,6 +2636,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   let lastOver = "";
 
   function draw(): void {
+    if (dead) return;
     const g = glass();
     // КАДР РИСУЕТСЯ С ПРЕВЬЮ, А ПРИЦЕЛИВАНИЕ СЧИТАЕТСЯ БЕЗ НЕГО: цель нельзя выводить из мест, которые
     // сама же цель и подвинула, — палец попал бы в петлю и круг задрожал.
@@ -4240,6 +4264,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         cam.camera.tiltTo(v.lean);
         draw();
       },
+    },
+    destroy() {
+      dead = true;
+      for (const off of undo) off();
+      undo.clear();
+      if (drag) window.clearInterval(drag.hold);
+      if (gripPress?.hold !== undefined) window.clearInterval(gripPress.hold);
+      mesh.close();
+      settings.hide();
+      keyframes.remove();
+      over.innerHTML = "";
     },
   };
 }
