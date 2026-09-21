@@ -49,11 +49,13 @@ async function open(url) {
   await s.tapEl(`[data-flag="forever"][data-chair="${empty.key}"]`);
   check("вечный включается на пустом стуле", (await s.page.getAttribute(`[data-flag="forever"][data-chair="${empty.key}"]`, "aria-pressed")) === "true", null);
 
-  // ЛОК НА СВОЮ РУКУ СТАВИТ ЕЁ ХОЗЯЙКА, не админ: флаги чужого занятого стула ему не подчиняются.
-  // Алия заперла руку на стенде; админ видит статус и не берёт её карты.
+  // РАСПОРЯДИТЕЛЬ СНИМАЕТ ЧУЖОЙ ЗАМОК, НО НЕ ОБХОДИТ ЕГО (`access.mayFlagChair`, право `hand.flags`):
+  // флаги занятого чужого стула у него кнопками — иначе запертый стул ушедшего разгрести нечем, —
+  // а карты из запертой руки он, пока замок стоит, не берёт. Алия заперла руку на стенде.
   await s.tapEl(`[data-shut="${empty.key}"]`);
   await s.tap(alia.x, alia.y);
-  check("флаги чужого занятого стула — значками, не кнопками", (await s.page.locator(`[data-flag][data-chair="${alia.key}"]`).count()) === 0, null);
+  const flagButtons = await s.page.locator(`[data-flag][data-chair="${alia.key}"]`).count();
+  check("распорядитель: флаги чужого занятого стула — кнопками", flagButtons === 4, flagButtons);
   const shut = await s.page.locator(`[data-owner="${alia.key}"]`).first().evaluate((e) => getComputedStyle(e).pointerEvents);
   check("рука Алии заперта — её карты не берутся", shut === "none", shut);
 

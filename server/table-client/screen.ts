@@ -30,10 +30,11 @@ import { lands, type Load } from "../src/table/landing.js";
 import { deskOf } from "../src/table/desks.js";
 import type { Witness } from "../src/table/telling.js";
 import { HOST } from "./host.js";
+import { barHeightU, handBoxOf, handPlan, handWideOf, hudUnitOf, mineGeomOf } from "./handGeom.js";
 import { flipIn, pileOf, predict as predictAs, sideIn, whereIs, type BatchIntent } from "./optimistic.js";
 
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
-import { Aim, BAR, BAR_LOOK, CARD, CARRY_CLEAR, CUE_HAPTIC, DISC_EYE, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HAND_MAX_PX, HAND_PAD, HAND_ROOM, HUD_CARDS, HUD_FAN, HUD_GAP, HUD_HEIGHT_SHARE, HUD_MARGIN, HUD_UNIT_FRACTION, HUD_UNIT_MAX, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TUCK_TIP, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
+import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DISC_EYE, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
 export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Witness): { ready: Promise<void>; health: ScreenHealth; look: SeenThrough; destroy(): void } {
@@ -624,71 +625,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   // ── ГЕОМЕТРИЯ ───────────────────────────────────────────────────────────────────────────────
 
   const glass = () => ({ w: stage.clientWidth, h: stage.clientHeight });
-  const hudUnit = () => {
-    const g = glass();
-    return Math.max(1, Math.round(Math.min(HUD_UNIT_MAX, Math.min(g.w, g.h) * HUD_UNIT_FRACTION, g.h * HUD_HEIGHT_SHARE)));
-  };
+  const hudUnit = () => hudUnitOf(glass());
   /** Во сколько пикселей укладывается полоса руки: на телефоне — весь кадр, на широком — контейнер по центру. */
-  const handWide = () => Math.min(glass().w, HAND_MAX_PX);
-  const barHeight = () => BAR.size + 2 * BAR.pad;
-
-  /** ГДЕ СТОИТ КАЖДАЯ КАРТА РУКИ НА СТЕКЛЕ — на дуге, если веер, и в ряд, если нет. */
-  function handPlan(pose: Pose, n: number, w: number, h: number, roomU: number): Slot[] {
-    // СЖАТЫ — все карты стопкой за верхней: видна одна.
-    if (pose.shrink) return Array.from({ length: n }, () => ({ x: 0, y: 0, angle: 0 }));
-    const apart = HUD_FAN.apart * w;
-    const mid = (n - 1) / 2;
-    if (!pose.fan) {
-      const step = n > 1 ? Math.min(apart, Math.max(0, roomU - 2 * (w / 2 + HUD_FAN.edge * w)) / (n - 1)) : 0;
-      return Array.from({ length: n }, (_, i) => ({ x: (i - mid) * step, y: 0, angle: 0 }));
-    }
-    const R = HUD_FAN.radius * h;
-    const deg = (rad: number) => (rad * 180) / Math.PI;
-    const most = deg(2 * Math.asin(Math.min(1, apart / (2 * R))));
-    let step = 0;
-    if (n > 1) {
-      // Край считается по УГЛУ наклонной карты, а не по её середине — три прохода сходятся.
-      let reach = w / 2;
-      for (let pass = 0; pass < 3; pass += 1) {
-        const chord = Math.max(0, Math.min(1, (roomU - 2 * (reach + HUD_FAN.edge * w)) / (2 * R)));
-        step = Math.min(most, deg(2 * Math.asin(chord)) / (n - 1));
-        const outer = ((step * (n - 1)) / 2 / 180) * Math.PI;
-        reach = (w / 2) * Math.cos(outer) + (h / 2) * Math.sin(outer);
-      }
-    }
-    return Array.from({ length: n }, (_, i) => {
-      const angle = (i - mid) * step;
-      const rad = (angle * Math.PI) / 180;
-      return { x: R * Math.sin(rad), y: R * (1 - Math.cos(rad)), angle };
-    });
-  }
-
+  const handWide = () => handWideOf(glass());
+  const barHeight = barHeightU;
   /** Полоса руки на столько карт, сколько будет ПОСЛЕ того, как карту в воздухе положат. */
-  function handBox(count: number) {
-    const u = hudUnit();
-    const g = glass();
-    const room = handWide() / u - 2 * HUD_MARGIN;
-    const scale = Math.min(1, room / (HUD_CARDS * CARD.w * (1 + HUD_GAP)));
-    const wide = Math.max(1, handWide() / u / scale);
-    const pose = poseNow(mine());
-    const plan = handPlan(pose, count, CARD.w, CARD.h, wide);
-    const drop = plan.reduce((m, p) => Math.max(m, p.y), 0);
-    const high = CARD.h + drop + 2 * HAND_PAD + HAND_ROOM;
-    const barTop = g.h - barHeight() * u;
-    const shown = pose.tuck ? TUCK_TIP : Math.max(0, (high - HAND_ROOM) * scale - BAR.tuck);
-    const cardsBottom = barTop + BAR.tuck * u + (pose.tuck ? Math.max(0, (high - HAND_ROOM) * scale * u - TUCK_TIP * u) : 0);
-    const mid = cardsBottom + (HAND_ROOM - high / 2) * scale * u;
-    return { u, scale, wide, plan, barTop, mid, shown };
-  }
-
-  function mineGeom(count: number): Geom {
-    const { u, scale, barTop, mid, plan } = handBox(count);
-    const g = glass();
-    return {
-      which: mine(), mirror: false, w: CARD.w * scale * u, h: CARD.h * scale * u, barTop,
-      slots: plan.map((p) => ({ x: g.w / 2 + p.x * scale * u, y: mid + p.y * scale * u, angle: p.angle })),
-    };
-  }
+  const handBox = (count: number) => handBoxOf(glass(), poseNow(mine()), count);
+  const mineGeom = (count: number): Geom => mineGeomOf(glass(), poseNow(mine()), count, mine());
 
   /**
    * ГДЕ СТОИТ ОКНО ЧУЖОЙ РУКИ — лучшее из мест вокруг человека, а не одно заранее выбранное.
