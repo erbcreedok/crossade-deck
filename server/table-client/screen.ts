@@ -22,7 +22,7 @@ import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as 
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
-import { ringCardStep, ringHour, RING_HOUR, RING_HOURS, ringLanding, RING_SPREAD, ringTurned, ringZoneBox } from "../src/table/ring.js";
+import { ringCardStep, ringHour, RING_HOUR, RING_HOURS, inRingZone, ringLanding, RING_SPREAD, ringTurned, ringZoneBox } from "../src/table/ring.js";
 import type { RingPlace as Laid3 } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
 import type { ScreenHealth, SeenThrough } from "./watch.js";
@@ -3342,7 +3342,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       // стопки в себя не целятся — это была бы перестановка сама в себя.
       if (pile.id === skip && pile.pose !== "ring") continue;
       const zone = deckZone(pile);
-      if (zone && centre.x >= zone.left && centre.x <= zone.right && centre.y >= zone.top && centre.y <= zone.bottom) {
+      const inside = zone !== null && (pile.pose === "ring" ? inRingZone(zone, centre) : centre.x >= zone.left && centre.x <= zone.right && centre.y >= zone.top && centre.y <= zone.bottom);
+      if (inside) {
         if (pile.shut) return { kind: "back" };
         // КРУГ ХОДА: навёл ТОЧНО НА КАРТУ — встанет сразу после неё; мимо карт — в конец, как везде.
         // ЧУЖУЮ ОХАПКУ КРУГ НЕ ПРИНИМАЕТ: в него кладут по одной карте. Своя, из него же взятая, — вернётся.

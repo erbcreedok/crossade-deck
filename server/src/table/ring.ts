@@ -315,4 +315,12 @@ export function ringZoneBox(mid: { x: number; y: number }, k: number, squash: nu
 }
 
 
+/** Внутри ли точка стекла очерченного поля — по эллипсу, а не по рамке: в углах рамки поля нет. */
+export function inRingZone(box: { left: number; right: number; top: number; bottom: number }, p: { x: number; y: number }): boolean {
+  const [rx, ry] = [(box.right - box.left) / 2, (box.bottom - box.top) / 2];
+  if (rx <= 0 || ry <= 0) return false;
+  const [nx, ny] = [(p.x - (box.left + rx)) / rx, (p.y - (box.top + ry)) / ry];
+  return nx * nx + ny * ny <= 1;
+}
+
 const norm = (deg: number): number => ((deg % 360) + 360) % 360;

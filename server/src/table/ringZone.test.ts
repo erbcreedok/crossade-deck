@@ -9,7 +9,7 @@ import { deskOf } from "./desks.js";
 import { Table } from "./table.js";
 import { RING } from "./games/krest.js";
 import { MAIN_PILE, type Person } from "./contract.js";
-import { deckHome, ringCardStep, ringTurned, ringZoneBox, RING_SPREAD } from "./ring.js";
+import { deckHome, inRingZone, ringCardStep, ringTurned, ringZoneBox, RING_SPREAD } from "./ring.js";
 import { SANDBOX } from "./rules.js";
 
 const person = (key: string): Person => ({ key, name: key, ink: "#fff", door: "guest" });
@@ -186,5 +186,15 @@ describe("поле круга на стекле не зависит от тог�
         expect(nx * nx + ny * ny, `поворот ${turn}, карта на ${deg}`).toBeLessThanOrEqual(1);
       }
     }
+  });
+
+  it("попадание — по эллипсу: в углу рамки поля нет, на оси у самого края — есть", () => {
+    const box = ringZoneBox({ x: 200, y: 300 }, 40, 0.6);
+    const [rx, ry] = [(box.right - box.left) / 2, (box.bottom - box.top) / 2];
+    expect(inRingZone(box, { x: 200, y: 300 })).toBe(true);
+    expect(inRingZone(box, { x: 200 + rx - 1, y: 300 })).toBe(true);
+    expect(inRingZone(box, { x: 200, y: 300 - ry + 1 })).toBe(true);
+    expect(inRingZone(box, { x: box.right - 2, y: box.top + 2 })).toBe(false);
+    expect(inRingZone(box, { x: 200 + rx + 1, y: 300 })).toBe(false);
   });
 });
