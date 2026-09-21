@@ -1,0 +1,43 @@
+server/src/db/tableRoomsRepo.ts
+  s_eea5b32ea4af25::t_c3a81d4787d849 35-42
+  s_eea5b32ea4af25::t_03baabba908b4b 1-34
+server/src/table/lobby.ts
+  s_eea5b32ea4af25::t_995a94de5e749a 37-39,254-270
+  s_eea5b32ea4af25::t_f34b47b6c16450 1,3-5,32-36,40-77,107,124,162,179,199,209,217,231-235,272
+  s_eea5b32ea4af25::t_2d1383afb99e27 271
+server/src/table/TableRoom.ts
+  s_eea5b32ea4af25::t_c3a81d4787d849 34,50,53-54
+  s_eea5b32ea4af25::t_995a94de5e749a 87-121,124,152,735
+server/src/table/lobbyKeep.test.ts
+  s_eea5b32ea4af25::t_995a94de5e749a 15-16
+  s_eea5b32ea4af25::t_f34b47b6c16450 1-14,17-78
+server/src/app.ts
+  s_eea5b32ea4af25::t_c3a81d4787d849 17-18,168-170
+server/src/table/table.ts
+  s_eea5b32ea4af25::t_b3ee4f9622c029 102-123,248-301
+  s_eea5b32ea4af25::t_1d57a28be79ef8 302
+server/src/table/dump.test.ts
+  s_eea5b32ea4af25::t_bebfbd02e92926 1-75
+server/src/db/migrations.ts
+  s_eea5b32ea4af25::t_03baabba908b4b 344-362
+server/src/table/TableRoom.test.ts
+  s_eea5b32ea4af25::t_73bcf881982529 81-82,96
+  s_eea5b32ea4af25::t_d00d68bd39f668 8-9,71-80,83-95,97-103
+  s_eea5b32ea4af25::t_8e5c392bc7e754 104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "089d7eb9502bc209c5ed53ba7422b5874d8136e0",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
