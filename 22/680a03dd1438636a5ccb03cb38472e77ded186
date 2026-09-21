@@ -1,0 +1,25 @@
+server/table-client/glyphs.ts
+  s_eea5b32ea4af25::t_c60f97e61f6925 5
+  s_eea5b32ea4af25::t_571d512618ea64 1-4,6-76
+server/table-client/screen.ts
+  s_eea5b32ea4af25::t_28b0879d09da66 11,15,25,34-35
+server/table-client/screenConst.ts
+  s_eea5b32ea4af25::t_28b0879d09da66 5
+  s_eea5b32ea4af25::t_571d512618ea64 1-4,6-192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "22680a03dd1438636a5ccb03cb38472e77ded186",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
