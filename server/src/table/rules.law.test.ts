@@ -85,3 +85,11 @@ describe("рантайм стола не знает, какая на нём иг
     expect(own, "новая мысль игры — не новый метод, а ответ на ключ").toEqual([]);
   });
 });
+
+describe("комната не знает, какая игра на столе", () => {
+  it("room.knows-no-game: ни имён игр, ни их модулей в TableRoom — судью ей даёт каталог", () => {
+    const room = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "TableRoom.ts"), "utf8");
+    expect(room).not.toMatch(/from "\.\/games\//);
+    expect(room).not.toMatch(/krest|durak|belka/i);
+  });
+});

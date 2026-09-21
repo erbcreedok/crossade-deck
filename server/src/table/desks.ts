@@ -8,6 +8,8 @@
 // комбинация правил — ещё одной. Таблица отвечает на все вопросы сразу и не растёт в коде.
 
 import { krestDesk } from "./games/krest.js";
+import { krestReferee } from "./games/krestReferee.js";
+import type { Referee } from "./referee.js";
 import { SANDBOX, type DeskRules } from "./rules.js";
 
 /**
@@ -53,3 +55,14 @@ export const isDesk = (kind: unknown): kind is string => typeof kind === "string
  * случае получит стол, где разрешено всё, — а не закрытую дверь.
  */
 export const deskOf = (kind: unknown, judge: Judge = () => null): DeskRules => (isDesk(kind) ? DESKS[kind]!(judge) : SANDBOX);
+
+/**
+ * СУДЬИ ПАРТИЙ — у каких родов стола партия есть. Строка здесь — и комната начинает вести партию этой
+ * игры; нет строки — стол живёт без судьи. Сборщик, а не готовый судья: у каждой комнаты партия своя.
+ */
+const REFEREES: Record<string, () => Referee> = {
+  krest: krestReferee,
+};
+
+/** Судья этого рода стола, если у рода есть партия. */
+export const refereeOf = (kind: unknown): Referee | null => (typeof kind === "string" && Object.hasOwn(REFEREES, kind) ? REFEREES[kind]!() : null);

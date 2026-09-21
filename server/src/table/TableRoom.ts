@@ -28,9 +28,8 @@ const RUN_RIGHTS: Record<string, Key> = {
 import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
 import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
-import { deskOf } from "./desks.js";
-import { RING } from "./games/krest.js";
-import { allowed as allowedIn, move, start, type Match } from "./games/match.js";
+import { deskOf, refereeOf } from "./desks.js";
+import type { Referee, Seats } from "./referee.js";
 import { adminsOf, attach, creatorOf, crewKind, keepStateOf, keptStateOf, kindOf, openEntry, titleOf } from "./lobby.js";
 import { actOf, crewOf } from "./crews.js";
 import { readIntent } from "./intent.js";
@@ -79,10 +78,10 @@ export class TableRoom extends Room {
   private filmed = false;
   private room = "";
   /**
-   * ПАРТИЯ, ЕСЛИ ОНА ИДЁТ. Ведётся ПО СТУЛЬЯМ, а не по людям: рука принадлежит стулу, человек может
-   * уйти и вернуться, а очередь от этого не должна сбиваться.
+   * СУДЬЯ ПАРТИИ, если у рода стола партия есть (`desks.ts`). Какая это игра, комната не знает: она
+   * зовёт судью, когда раздали, когда сходили и когда спрашивают, что сейчас в игре.
    */
-  private match: Match | null = null;
+  private referee: Referee | null = null;
   /** Сессия → ключ человека. Один человек может сидеть с двух устройств: ключ у них общий. */
   private seats = new Map<string, string>();
 
@@ -95,10 +94,10 @@ export class TableRoom extends Room {
     const json = keptStateOf(this.room);
     if (json === null) return null;
     try {
-      const kept = JSON.parse(json) as { table: TableDump; match: Match | null };
+      const kept = JSON.parse(json) as { table: TableDump; match?: unknown };
       const table = Table.restore(kept.table, creatorOf(this.room), deskOf(kindOf(this.room), () => this.judgeView()));
-      this.match = kept.match ?? null;
-      this.book.tell("room.raised", undefined, { v: table.version, партия: this.match !== null });
+      this.referee?.load(kept.match ?? null);
+      this.book.tell("room.raised", undefined, { v: table.version });
       return table;
     } catch (err) {
       this.book.tell("room.raise-failed", undefined, { почему: String(err).slice(0, 200) });
@@ -119,7 +118,7 @@ export class TableRoom extends Room {
     this.keeping = undefined;
     // Посреди команды бота стол не пишется: половина раздачи — не состояние, в которое стоит вернуться.
     if (this.table.busy) return void this.keepSoon();
-    keepStateOf(this.room, JSON.stringify({ table: this.table.dump(), match: this.match }));
+    keepStateOf(this.room, JSON.stringify({ table: this.table.dump(), match: this.referee?.dump() ?? null }));
   }
 
   /** Как бы комната ни кончилась — опустела, закрыта ботом, сервер останавливают, — журнал дописан. */
@@ -152,6 +151,7 @@ export class TableRoom extends Room {
     // он получает правила и работает с ними, как с любыми другими.
     // СУДЬЯ ЖИВЁТ В КОМНАТЕ, а правила спрашивают его через это окошко: чей ход и кто закрыл круг.
     // Партии нет — окно отдаёт `null`, и стол ведёт себя как песочница.
+    this.referee = refereeOf(kindOf(this.room));
     this.table = this.raised() ?? new Table(deal(), creatorOf(this.room), deskOf(kindOf(this.room), () => this.judgeView()));
     // СОСТОЯНИЕ ПАРТИИ В СНИМКЕ: стол её не судит, он только возит то, что скажет комната.
     this.table.play = (viewer) => this.playFor(viewer);
@@ -176,7 +176,7 @@ export class TableRoom extends Room {
         this.resend();
       },
       recast: (kind) => {
-        this.match = null;
+        this.referee = refereeOf(kind);
         this.table.recast(deskOf(kind, () => this.judgeView()));
         this.resend();
       },
@@ -211,7 +211,7 @@ export class TableRoom extends Room {
       } else {
         this.book.tell("act", me.key, { intent });
         this.spread(result.ops);
-        this.followMatch(me.key, intent);
+        if (this.referee?.follow(this.seats_(), me.key, intent)) this.resend();
       }
     });
 
@@ -336,26 +336,9 @@ export class TableRoom extends Room {
     this.clock.setInterval(() => this.broadcast(MSG.pulse, { v: this.table.version } satisfies Pulse), PULSE_EVERY_MS);
   }
 
-  /**
-   * СУДЬЯ ИДЁТ ЗА РУКОЙ ЧЕЛОВЕКА, а не наоборот.
-   *
-   * Стол уже пропустил ход — права спросили у правил, а права спросили у судьи. Значит остаётся
-   * ДОГНАТЬ судью тем же ходом: положил в кольцо — `lay`, забрал из кольца в руку — `take`.
-   * Если судья вдруг откажет, мы его не слушаем: стол уже сходил, и расходиться им нельзя.
-   */
-  private followMatch(by: string, intent: Intent): void {
-    if (this.match === null || intent.t !== "drop") return;
-    const chair = this.table.layout().chairs.find((c) => c.owner === by);
-    if (!chair || chair.id !== this.match.turn) return;
-    const to = intent.to as { in?: string; pile?: string; chair?: string };
-    const face = this.table.faceOf(intent.id);
-    const laid = to.in === "deck" && to.pile === RING && face !== undefined;
-    const took = to.in === "hand" && to.chair === chair.id;
-    if (!laid && !took) return;
-    const next = move(this.match, chair.id, laid ? { t: "lay", card: face! } : { t: "take" });
-    if ("refused" in next) return;
-    this.match = next;
-    this.tellPlay();
+  /** Стол глазами судьи: стулья с руками и лицо карты. */
+  private seats_(): Seats {
+    return { chairs: this.table.layout().chairs, faceOf: (card) => this.table.faceOf(card) };
   }
 
   /**
@@ -363,56 +346,23 @@ export class TableRoom extends Room {
    * можно ли взять, чей ход. Не кнопки и не правила — состояние; правила у обоих концов одни.
    */
   private playFor(viewer: string): Play | null {
-    if (this.match === null) return null;
-    const chairs = this.table.layout().chairs;
-    const owner = (chair: string | null) => (chair === null ? null : (chairs.find((c) => c.id === chair)?.owner ?? null));
-    const seat = chairs.find((c) => c.owner === viewer);
-    const can = seat ? allowedIn(this.match, seat.id) : { lay: [], take: false };
-    // Судья говорит лицами карт, а экран знает их по id — переводим здесь, у самой руки.
-    const hand = seat?.hand ?? [];
-    const left = [...can.lay];
-    const lay: string[] = [];
-    for (const id of hand) {
-      const face = this.table.faceOf(id);
-      const at = face === undefined ? -1 : left.findIndex((one) => one.rank === face.rank && one.suit === face.suit);
-      if (at !== -1) {
-        left.splice(at, 1);
-        lay.push(id);
-      }
-    }
-    return { turn: owner(this.match.turn), closer: owner(this.match.closer), lay, take: can.take, loser: owner(this.match.loser) };
-  }
-
-  /**
-   * ПАРТИЯ СДВИНУЛАСЬ — каждому своё состояние: у всех разные руки и разные подсветки.
-   *
-   * Шлём снимок целиком, а не диф: версия стола от хода судьи не меняется, и диф чужой версии
-   * клиент справедливо не примет. Ходы идут человеческим темпом, снимок дёшев.
-   */
-  private tellPlay(): void {
-    this.resend();
+    return this.referee?.play(this.seats_(), viewer) ?? null;
   }
 
   /** Что правила видят о партии: очередь и закрывший — В КЛЮЧАХ ЛЮДЕЙ, потому что правам нужны люди. */
   private judgeView(): { turn: string | null; closer: string | null } | null {
-    if (this.match === null) return null;
-    const owner = (chair: string | null) => (chair === null ? null : (this.table.layout().chairs.find((c) => c.id === chair)?.owner ?? null));
-    return { turn: owner(this.match.turn), closer: owner(this.match.closer) };
+    return this.referee?.view(this.seats_()) ?? null;
   }
 
   /**
-   * РАЗДАЛИ ВСЕ КАРТЫ — ПАРТИЯ НАЧАЛАСЬ. Отдельной кнопки «начать» нет и не нужно: раздача этой игры
-   * и есть начало, а судья собирается из того, что легло в руки.
+   * РАЗДАЛИ — ПАРТИЯ НАЧАЛАСЬ, если у игры она есть. Отдельной кнопки «начать» нет: раздача и есть
+   * начало. Снимок уходит каждому целиком, а не дифом: версия стола от хода судьи не меняется, и диф
+   * чужой версии клиент справедливо не примет.
    */
   private openMatch(dealer: string | null): void {
-    const at = this.table.layout();
-    const hands: Record<string, readonly Face[]> = {};
-    for (const chair of at.chairs) {
-      if (chair.croupier || chair.hand.length === 0) continue;
-      hands[chair.id] = chair.hand.map((id) => this.table.faceOf(id)).filter((f): f is Face => f !== undefined);
-    }
-    this.match = Object.keys(hands).length > 1 ? start(hands, dealer) : null;
-    this.tellPlay();
+    if (!this.referee) return;
+    this.referee.start(this.seats_(), dealer);
+    this.resend();
   }
 
   /**
@@ -720,7 +670,8 @@ export class TableRoom extends Room {
    */
   private matchTold = "";
   private tellMatch(): void {
-    const now = this.match === null ? { идёт: false } : { идёт: true, ход: this.match.turn, закрыл: this.match.closer, вышли: [...this.match.out] };
+    if (!this.referee) return;
+    const now = this.referee.told();
     const line = JSON.stringify(now);
     if (line === this.matchTold) return;
     this.matchTold = line;
