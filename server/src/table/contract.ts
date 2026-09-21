@@ -709,6 +709,8 @@ export type DealRule = "each" | Game;
  * (`rules.law.test.ts` следит за этим).
  */
 export interface DealPreset {
+  /** Как раздача зовётся на кнопке — экран берёт имя отсюда и сам игр не называет. */
+  name: string;
   /** Сколько карт каждому. `"all"` — всю колоду по кругу, пока она не кончится. */
   each: number | "all";
   /** Можно ли спросить у человека другое число. Белке нельзя: восемь — это и есть белка. */
@@ -724,10 +726,10 @@ export interface DealPreset {
 }
 
 export const DEAL_PRESETS: Record<DealRule, DealPreset> = {
-  each: { each: 1, askable: true, seats: 0, skipEmpty: false, sixesOut: false, trump: false },
-  durak: { each: 6, askable: true, seats: 0, skipEmpty: false, sixesOut: false, trump: true },
-  belka: { each: 8, askable: false, seats: 4, skipEmpty: true, sixesOut: true, trump: false },
-  krest: { each: "all", askable: false, seats: 0, skipEmpty: false, sixesOut: false, trump: false },
+  each: { name: "По N", each: 1, askable: true, seats: 0, skipEmpty: false, sixesOut: false, trump: false },
+  durak: { name: "Дурак", each: 6, askable: true, seats: 0, skipEmpty: false, sixesOut: false, trump: true },
+  krest: { name: "Крестовый", each: "all", askable: false, seats: 0, skipEmpty: false, sixesOut: false, trump: false },
+  belka: { name: "Белка", each: 8, askable: false, seats: 4, skipEmpty: true, sixesOut: true, trump: false },
 };
 
 export type TableCommand =

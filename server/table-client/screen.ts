@@ -5,11 +5,11 @@
 // уходит намерением; пока ответ не пришёл, экран показывает ожидаемое (`pending`), а отказ просто
 // возвращает настоящий снимок.
 
-import { CARRY_EVERY_MS, DEFAULT_POSE, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type Pile, type Refusal, REFUSAL_SAYS, type GatherSide, MAIN_PILE, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
+import { CARRY_EVERY_MS, DEAL_PRESETS, DEFAULT_POSE, type DealPreset, type DealRule, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type Pile, type Refusal, REFUSAL_SAYS, type GatherSide, MAIN_PILE, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
-import { LEAN_PER_PX, LEAN_STEP, orbits, tableCamera } from "./camera.js";
+import { orbits, tableCamera } from "./camera.js";
 import { allowed, may as mayDo, mayFlagChair, type Ask, type Key } from "../src/table/access.js";
 import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.js";
 import { tableHaptic } from "./haptic.js";
@@ -30,11 +30,13 @@ import { lands, type Load } from "../src/table/landing.js";
 import { deskOf } from "../src/table/desks.js";
 import type { Witness } from "../src/table/telling.js";
 import { HOST } from "./host.js";
+import { apart } from "./angles.js";
+import { tableCompass } from "./compass.js";
 import { barHeightU, handBoxOf, handPlan, handWideOf, hudUnitOf, mineGeomOf } from "./handGeom.js";
 import { flipIn, pileOf, predict as predictAs, sideIn, whereIs, type BatchIntent } from "./optimistic.js";
 
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
-import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DISC_EYE, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
+import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
 export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Witness): { ready: Promise<void>; health: ScreenHealth; look: SeenThrough; destroy(): void } {
@@ -195,7 +197,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     /** Открытый тултип стопки — id стопки. */
     deckTip: null as string | null,
     /** Окно раздачи крупье: серия вопросов тому, кто нажал «Раздать». */
-    deal: null as null | { rule: "each" | "durak" | "krest" | "belka"; n: number; all: boolean; skipEmpty: boolean },
+    deal: null as null | { rule: DealRule; n: number; all: boolean; skipEmpty: boolean },
     /** Жест голоса: зажата 💬 — где палец, ушёл ли он с кнопки и кому сейчас слышно. */
     mic: null as null | { off: boolean; x: number; y: number; from: { x: number; y: number }; open: boolean; to: string | null | undefined; fail: "no-mic" | "denied" | null },
     /** Лассо: инструмент, вид грэба и сторона сборки — живут, пока открыт экран. */
@@ -1304,14 +1306,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const row = (title: string, inner: string) =>
       `<div style="display:flex;flex-direction:column;gap:6px"><span style="font:400 11px Tiny5,monospace;color:${T.inkDim}">${title}</span>`
       + `<div style="display:flex;flex-wrap:wrap;gap:6px">${inner}</div></div>`;
-    const rules: [typeof d.rule, string][] = [["each", "По N"], ["durak", "Дурак"], ["krest", "Крестовый"], ["belka", "Белка"]];
+    // КАКИЕ РАЗДАЧИ ЕСТЬ И КАК ОНИ ЗОВУТСЯ — из контракта (`DEAL_PRESETS`): экран не называет ни одной игры.
+    const rules = Object.entries(DEAL_PRESETS) as [DealRule, DealPreset][];
     return `<div data-deal-panel role="dialog" aria-label="Раздача" style="position:absolute;left:${Math.round((g.w - w) / 2)}px;top:${Math.round(Math.max(24, g.h * 0.18))}px;width:${w}px;`
       + `box-sizing:border-box;z-index:70;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 8px 0 rgba(11,7,4,.5);`
       + `border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px">`
       + `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="font:400 15px Tiny5,monospace;color:${T.ink}">Раздача</span>`
       + `<button data-deal-shut style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim};background:transparent">Закрыть</button></div>`
-      + row("По пресету", rules.map(([r, label]) => chip(d.rule === r, `data-deal-rule="${r}"`, label)).join(""))
-      + (d.rule === "each" || d.rule === "durak"
+      + row("По пресету", rules.map(([r, preset]) => chip(d.rule === r, `data-deal-rule="${r}"`, preset.name)).join(""))
+      + (DEAL_PRESETS[d.rule].askable
         ? row("Сколько карт", [1, 2, 3, 5, 6, 8, 10].map((n) => chip(!d.all && d.n === n, `data-deal-n="${n}"`, String(n))).join("") + chip(d.all, "data-deal-all", "Все по одной"))
         : "")
       + row("Кому", chip(!d.skipEmpty, "data-deal-empty", d.skipEmpty ? "Только сидящим" : "Всем стульям"))
@@ -2217,7 +2220,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     }
     const seat = mine(s);
     const floor = talk.open ? talk.height() : hudFloor(handOf(s, seat).length);
-    aimCamera(s);
+    compass.aim(s);
     const seats: Seat[] = s.chairs.map((c) => {
       const sitter = sitterOf(s, c);
       return {
@@ -2306,7 +2309,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // колебание его голоса — кольца живут на холсте, а не здесь. Переписывать при этом `innerHTML` значит
     // десятки раз в секунду выбрасывать кнопки из-под пальца: нажатие начинается на одной, а заканчивается
     // на другой, и до onclick дело не доходит вовсе — заглушить говорящего было нельзя, пока он не замолчит.
-    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + homeHtml(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml();
+    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + compass.html(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml();
     if (html !== lastOver) {
       lastOver = html;
       over.innerHTML = html;
@@ -2407,132 +2410,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
 
   // ── КАМЕРА И МОЙ СТУЛ ──────────────────────────────────────────────────────────────────────
 
-  /**
-   * СВОЙ СТУЛ — ВНИЗУ, И ЭТО ДЕЛАЕТ КАМЕРА, А НЕ РИСОВАНИЕ. Стол, стулья и карты у всех в одних осях
-   * стола; у каждого зрителя камера по умолчанию повёрнута на угол его стула. Сел впервые — камера
-   * встаёт сразу; пересел (или стул сдвинули) — доворачивается плавно, и то, что игрок накрутил сам,
-   * до тех пор не трогается.
-   */
-  let aimedAt: { chair: string; angle: number } | null = null;
-  function aimCamera(s: Snapshot): void {
-    const chair = chairOf(s, mine(s));
-    if (!chair) return;
-    if (aimedAt && aimedAt.chair === chair.id && aimedAt.angle === chair.angle) return;
-    if (!aimedAt) cam.camera.turnTo(chair.angle);
-    else {
-      cam.camera.glideTurnTo(chair.angle);
-      redraw();
-    }
-    aimedAt = { chair: chair.id, angle: chair.angle };
-  }
-
-  /** Наклон меньше этого считается нулевым: глазами такой стол уже плоский, а ровно нуля после глайда не бывает. */
-  const LEAN_EPS = 0.5;
-
-  /** Вернуть камеру к своему стулу: и поворот, и наклон. То, чем была стрелка «домой». */
-  function goHome(): void {
-    const chair = chairOf(store.state, mine());
-    if (!chair) return;
-    cam.camera.glideTurnTo(chair.angle);
-    cam.camera.glideTiltTo(0);
-    redraw();
-  }
-
-  /** Положить стол на `LEAN_STEP` или поднять обратно — один и тот же тумблер у диска и у своего аватара. */
-  function leanToggle(): void {
-    cam.camera.glideTiltTo(cam.camera.pitch > LEAN_EPS ? 0 : LEAN_STEP);
-    redraw();
-  }
-
-  /** Сдвиг с места, после которого нажатие на компас — уже жест, а не тап, в пикселях стекла. */
-  const COMPASS_SLOP = 4;
-
-  /** Кратчайший путь между двумя углами, в градусах. */
-  const shortWay = (a: number, b: number): number => ((((a - b) % 360) + 540) % 360) - 180;
-
-  /**
-   * КОМПАС ТЯНЕТСЯ РУКОЙ. Кольцо крутят пальцем по кругу — стол поворачивается вслед за ним; диск
-   * тянут вверх-вниз — стол кладётся и встаёт.
-   *
-   * Это единственный способ повернуть и наклонить стол ОДНИМ пальцем и БЕЗ Ctrl/Cmd: на телефоне
-   * модификаторов нет вовсе, а два пальца там уже заняты щипком. Не сдвинулся с места — это тап, и
-   * работает прежнее: кольцо возвращает к стулу, диск кладёт стол на `LEAN_STEP`.
-   */
-  function compassDrag(down: PointerEvent, part: "ring" | "lean", ring: HTMLElement): void {
-    const box = ring.getBoundingClientRect();
-    const mid = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
-    const aimAt = (e: { clientX: number; clientY: number }) => (Math.atan2(e.clientY - mid.y, e.clientX - mid.x) * 180) / Math.PI;
-    const from = { rotation: cam.camera.rotation, pitch: cam.camera.pitch, aim: aimAt(down), y: down.clientY };
-    let moved = false;
-    const move = (e: PointerEvent) => {
-      if (e.pointerId !== down.pointerId) return;
-      const turned = shortWay(aimAt(e), from.aim);
-      // Порог у кольца меряется по дуге под пальцем, а не в градусах: кольцо маленькое, и градус на нём — доли пикселя.
-      const far = part === "ring" ? Math.abs((turned * Math.PI * box.width) / 360) : Math.abs(e.clientY - from.y);
-      if (!moved && far < COMPASS_SLOP) return;
-      moved = true;
-      if (part === "ring") cam.camera.turnTo(from.rotation - turned);
-      else cam.camera.tiltTo(from.pitch - (e.clientY - from.y) * LEAN_PER_PX);
-      redraw();
-    };
-    const up = (e: PointerEvent) => {
-      if (e.pointerId !== down.pointerId) return;
-      removeEventListener("pointermove", move);
-      removeEventListener("pointerup", up);
-      removeEventListener("pointercancel", up);
-      if (moved) return;
-      if (part === "lean") leanToggle();
-      else goHome();
-    };
-    addEventListener("pointermove", move);
-    addEventListener("pointerup", up);
-    addEventListener("pointercancel", up);
-  }
-
-  /** Насколько камера ушла от своего стула — поворот коротким путём, в градусах. */
-  function offSeat(s: Snapshot): number {
-    const chair = chairOf(s, mine(s));
-    if (!chair) return 0;
-    const d = (((cam.camera.rotation - chair.angle) % 360) + 540) % 360 - 180;
-    return Math.max(Math.abs(d), cam.camera.pitch);
-  }
-
-  /**
-   * КОМПАС СТОЛА — кольцо с диском внутри, в правом верхнем углу кадра.
-   *
-   * Кольцо крутится вместе с камерой: золотая стрелка смотрит на ТВОЙ стул (севера за карточным
-   * столом нет), деревянная — в противоположную сторону. Тап по кольцу возвращает и поворот, и
-   * наклон. Диск внутри — наклон: камера светлым по панели, пока стол лежит плоско, и тёмным по
-   * золоту, когда наклон не ноль. Тап по диску кладёт стол на 45° и возвращает в ноль.
-   *
-   * Красок со стороны здесь нет: те же гербовые цвета, что у бара и у окон, — зелень сукна, дерево
-   * канта, золото и светлая охра букв.
-   *
-   * Висит ВСЕГДА, а не только когда камера ушла: по нему видно, как стол повёрнут, и это полезно
-   * ровно тогда, когда возвращаться ещё не надо.
-   */
-  function homeHtml(s: Snapshot): string {
-    const chair = chairOf(s, mine(s));
-    if (!chair) return "";
-    const turn = chair.angle - cam.camera.rotation;
-    const lean = cam.camera.pitch > LEAN_EPS;
-    const disc = lean
-      ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}`
-      : `background:linear-gradient(${T.panelLight},${T.panel});color:${T.inkDim}`;
-    // ДИСК ЛЕЖИТ ПАРАЛЛЕЛЬНО СТОЛУ: он наклонён ровно на тот же угол, и по его сплющенности видно
-    // наклон, не трогая камеру. Плоский стол — круг, положенный — эллипс, как сам стол в кадре.
-    const lie = `transform:perspective(${DISC_EYE}px) rotateX(${cam.camera.pitch.toFixed(1)}deg)`;
-    return `<button data-home aria-label="К своему стулу" style="position:absolute;right:12px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:52px;height:52px;border:0;padding:0;z-index:45;`
-      + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;`
-      + `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}">`
-      + `<svg viewBox="0 0 52 52" width="52" height="52" style="position:absolute;left:0;top:0;transform:rotate(${turn}deg);pointer-events:none">`
-      + `<path d="M26 5 L30 14 L22 14 Z" fill="${T.gold}"/><path d="M26 47 L22 38 L30 38 Z" fill="${BAR_LOOK.rim}"/>`
-      + `<circle cx="7" cy="26" r="2" fill="${T.inkDim}" opacity=".7"/><circle cx="45" cy="26" r="2" fill="${T.inkDim}" opacity=".7"/></svg>`
-      + `<span data-lean style="position:relative;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;`
-      + `box-shadow:inset 0 0 0 2px ${T.black};${lie};${disc}">`
-      + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="pointer-events:none">`
-      + `<rect x="2.5" y="7" width="12.5" height="10" rx="2.5"/><path d="M15 10.5 L21.5 7 v10 L15 13.5 Z"/></svg></span></button>`;
-  }
+  /** Компас и «свой стул внизу» — отдельной вещью (`compass.ts`); экран даёт ей камеру и мой стул. */
+  const compass = tableCompass({
+    cam,
+    redraw,
+    myChair: (st = store.state) => chairOf(st, mine(st)),
+    listen: addEventListener,
+    unlisten: removeEventListener,
+  });
+  const { goHome, leanToggle } = compass;
 
   /** ЗВУК ПО МЕСТУ — что поменялось между нарисованными кадрами, там, где это на экране. */
   function soundCues(prev: Snapshot, next: Snapshot, g: { w: number; h: number }): void {
@@ -2978,14 +2864,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const p = view.toDesk(at);
     const сырой = ((Math.atan2(p.x - pile.x, pile.y - p.y) * 180) / Math.PI + 360) % 360;
     const час = ringHour(сырой);
-    const занят = pile.cards.some((one) => one.turn !== undefined && врозь(one.turn, час) < ringCardStep());
+    const занят = pile.cards.some((one) => one.turn !== undefined && apart(one.turn, час) < ringCardStep());
     return занят ? сырой : час;
-  }
-
-  /** Насколько два угла отстоят друг от друга, в градусах: кратчайшей дугой. */
-  function врозь(a: number, b: number): number {
-    const away = Math.abs(((a - b) % 360 + 540) % 360 - 180);
-    return Math.min(away, 360 - away);
   }
 
   /** Что под пальцем на сукне: сверху вниз, и с колоды — только верхняя. */
@@ -3291,7 +3171,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         e.preventDefault();
         e.stopPropagation();
         // Диск внутри кольца — наклон; всё остальное кольцо — поворот. Тап и жест разбирает `compassDrag`.
-        compassDrag(e, (e.target as HTMLElement | null)?.closest("[data-lean]") ? "lean" : "ring", el);
+        compass.drag(e, (e.target as HTMLElement | null)?.closest("[data-lean]") ? "lean" : "ring", el);
       };
     }
     for (const el of over.children) {
@@ -3393,7 +3273,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
           store.command({
             t: "deal",
             rule: d.rule,
-            ...(d.rule === "each" || d.rule === "durak" ? (d.all ? { n: 1 } : { n: d.n }) : {}),
+            ...(DEAL_PRESETS[d.rule].askable ? (d.all ? { n: 1 } : { n: d.n }) : {}),
             ...(d.skipEmpty ? { skipEmpty: true } : {}),
             force: true,
           });
@@ -3778,7 +3658,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       // Камера ушла — нормализует; уже в норме — кладёт стол на те же 45°, что и диск компаса.
       if (hit.key === mine()) {
         e.stopPropagation();
-        if (offSeat(store.state) < 1.5) leanToggle();
+        if (compass.offSeat(store.state) < 1.5) leanToggle();
         else goHome();
         return;
       }

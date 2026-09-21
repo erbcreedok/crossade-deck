@@ -222,6 +222,8 @@ export function started(command: TableCommand, title: string): string {
       return `Раздаю${command.rule === "each" ? ` по ${command.n ?? 1}` : ` — ${GAME[command.rule]}`} на «${title}».`;
     case "redeal":
       return `Перераздаю на «${title}» — тем же стульям, что и в прошлый раз.`;
+    case "bots":
+      return command.n > 0 ? `Сажаю игроков без человека за «${title}»: ${command.n}.` : `Увожу игроков без человека из «${title}».`;
     case "seat":
       return {
         kick: `Выгоняю из «${title}».`,

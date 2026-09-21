@@ -24,4 +24,14 @@ describe("клиент стола выходит из своей папки то
     }
     expect(strays).toEqual([]);
   });
+
+  it("table-client.names-no-game: какие игры и раздачи есть, клиент узнаёт из контракта, а не знает сам", () => {
+    const named: string[] = [];
+    for (const file of readdirSync(CLIENT).filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))) {
+      readFileSync(join(CLIENT, file), "utf8").split("\n").forEach((line, i) => {
+        if (/\b(durak|krest|belka)\b/i.test(line) && !line.trimStart().startsWith("//") && !line.trimStart().startsWith("*")) named.push(`${file}:${i + 1}`);
+      });
+    }
+    expect(named).toEqual([]);
+  });
 });
