@@ -20,8 +20,8 @@ for every environment — there is nothing in it to point somewhere else.
 The kit's catalogue (`game-kit`) is the third face and takes a different road entirely: it is not
 an image at all, it goes to **GitHub Pages** — see the section at the end.
 
-Requirements: **Node 22+**, git. Nothing else — no database, no Redis. Account data lives in the
-JSON file `server/data/accounts.json`.
+Requirements: **Node 22+**, git. Nothing else — no database server, no Redis. Accounts, table rooms
+and the journal live in one SQLite file, `server/data/crossade.db` (`node:sqlite`, no native build).
 
 ## Layout
 
@@ -171,17 +171,18 @@ sudo systemctl restart crossade-deck
 No need to restart the static server — `serve` reads files straight off disk. The page will most
 likely need a hard reload.
 
-> ⚠️ Rooms, invite codes, and player hands live **in memory only** — restarting the
-> server kicks everyone out of their game. Don't update mid-session. Accounts
-> (`server/data/accounts.json`) are on disk and survive a restart.
+> Table rooms (`/table/`) survive a restart: the room record and a snapshot of the table are kept in
+> `server/data/crossade.db`, people rejoin on their own and sit back on their chairs. `card_room` /
+> `kit_room` sessions and invite codes still live **in memory only** — don't update those mid-session.
 
-## 7. Backing up accounts
+## 7. Backing up the database
 
 `server/data/` is in `.gitignore`, `git pull` won't touch it. Once a day via
-`crontab -e`:
+`crontab -e` — with `.backup`, not `cp`: the server writes in WAL mode, and a plain copy of a live
+file can be torn:
 
 ```
-0 4 * * * mkdir -p ~/backups && cp ~/crossade-deck/server/data/accounts.json ~/backups/accounts-$(date +\%F).json
+0 4 * * * mkdir -p ~/backups && sqlite3 ~/crossade-deck/server/data/crossade.db ".backup '$HOME/backups/crossade-$(date +\%F).db'"
 ```
 
 ## Known quirks
