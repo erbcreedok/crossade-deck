@@ -1,0 +1,21 @@
+server/table-client/felt.ts
+  s_9ed0da107cbc4a::t_789d5c2c1bacc5 9,201,203-208,210-219,222,225-234,236-246,489,547-549,656-664
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_33d88073cef72f 25,202,2050-2052,2055-2057,2590,2739,2741,2751-2758,3004,3006-3007,3009-3010,3012,3014,3017-3018,3041-3043,3321-3323,3342,3348,3350-3352,3354-3356,3358-3359,3361-3364,3367-3370,3554
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "84f1361773d3decfa897639d6519d4831d8cd401",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}

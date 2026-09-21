@@ -1,0 +1,27 @@
+server/src/table/pass.test.ts
+  s_9ed0da107cbc4a::t_7ffad5f84d9e1f 1-52
+server/src/table/pass.ts
+  s_9ed0da107cbc4a::t_0e46a9a31cfd4a 1-46
+server/scripts/tableReplay.mjs
+  s_9ed0da107cbc4a::t_e4c4638cb02bc9 110-133
+server/src/table/routes.ts
+  s_9ed0da107cbc4a::t_32b26080339d3b 19,106-126
+server/table-client/replay.ts
+  s_9ed0da107cbc4a::t_e7c1cda829eee1 3-4,6-8,41,43,47,50,52,54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "602f053d599359eff7b1bab2da0f51244bdb7fa2",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}

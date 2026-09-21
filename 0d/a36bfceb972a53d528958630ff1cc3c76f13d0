@@ -1,0 +1,27 @@
+server/scripts/tableReplay.mjs
+  s_9ed0da107cbc4a::t_6030ada0c3621d 74-80,82-85,100-102,106,183-204
+server/table-client/main.ts
+  s_9ed0da107cbc4a::t_79668310bd83aa 80
+server/table-client/replay.ts
+  s_9ed0da107cbc4a::t_7a34d8bbc220ed 12,70-89,105-123,126
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_dc7809a0f5d204 28-29,290,527-595,2587-2588,4227-4237
+server/table-client/watch.ts
+  s_9ed0da107cbc4a::t_780de803c9c798 82-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0da36bfceb972a53d528958630ff1cc3c76f13d0",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}

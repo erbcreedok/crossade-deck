@@ -1,0 +1,21 @@
+server/table-client/replay.html
+  s_9ed0da107cbc4a::t_99c5f4f3b3403f 9-11
+server/table-client/replayStore.ts
+  s_9ed0da107cbc4a::t_24b6e8a71d272b 11,83-87,93-97,116-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "926c2feaad2d2a50e7e2eb75cdff7aebbd75d578",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}

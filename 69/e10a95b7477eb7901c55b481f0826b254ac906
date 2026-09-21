@@ -1,0 +1,24 @@
+server/src/table/ringZone.test.ts
+  s_eea5b32ea4af25::t_9cdde818e261c4 12,190-198
+  s_eea5b32ea4af25::t_231bed567a0122 199
+server/table-client/screen.ts
+  s_eea5b32ea4af25::t_9cdde818e261c4 25,3345-3346
+server/src/table/ring.ts
+  s_eea5b32ea4af25::t_9cdde818e261c4 318-325
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "69e10a95b7477eb7901c55b481f0826b254ac906",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}

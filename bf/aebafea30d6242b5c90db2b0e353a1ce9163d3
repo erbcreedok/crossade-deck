@@ -1,0 +1,575 @@
+server/table-client/replay.html
+  s_9ed0da107cbc4a::t_35d7e8dadf6c81 1-38
+server/table-client/replayStore.ts
+  s_9ed0da107cbc4a::t_0d7a24c1ea1348 1-128
+server/table-client/replay.ts
+  s_9ed0da107cbc4a::t_af7550ce03b639 1-110
+server/src/db/eventsRepo.ts
+  s_9ed0da107cbc4a::t_c6e7cff6211cec 33-38
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_5c20979d447080 126-130
+server/src/table/client.ts
+  s_9ed0da107cbc4a::t_b5658050f47d68 29-43,73-74,77,82,96
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_d25dcd8d7c7b06 1611-1612,1632-1633,1650-1656,1658,1669
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bfaebafea30d6242b5c90db2b0e353a1ce9163d3",
+  "prompts": {},
+  "sessions": {
+    "s_02d2b2551d639d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8da0b53-5591-487a-bfe3-9c407ed097bd",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_03b7d76c4864e0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e6589070-f8de-44dc-90cd-de1017e0a8e9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_097d9b5a02d238": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c1d73ed-2be8-47e5-8988-704a5dd2bfe9",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_0a8bfe9f816683": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cfb31417-6df8-4b4d-bed8-fe35a69e1131",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_0d759a5c7989d1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf630b63-bfff-4ae9-9f59-6c77f0b5d943",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_15fd8c001d463e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fa3bd2a-522b-48b9-9006-4dc26d0bef1e",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_16ab28aa9cef24": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e6f77293-27f1-4ca8-a99c-ce49b685d593",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_1c41d530d47dba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f9ddc85-0215-45c5-897c-176241291b3e",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_2049b128b4ff77": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f5ba828-d84d-455f-8f95-01ad6b176644",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_22643a1f2fc3c8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f39f0f5f-a882-42f8-929d-40a7edbe09f3",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_24cff4b360b617": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "41d0d1bf-efd5-4957-95ea-2101d984ddd3",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_25db68b260c9b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ab4a38ee-62d4-4158-bdc4-b2c1dc32bac1",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_2c69ae1969faac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8c92c26-2fc3-4335-9c4a-96452c84816d",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_2c86cd3b42b469": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56ef04db-97e0-481d-a023-2a2d25b4a76b",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_2cd23d7834a0dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f7c4d04-3850-44b9-9798-7182185b2e84",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_30274b1dbebc96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "127fb714-094e-4785-9eec-61fd95954ec8",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_33ba456da3c675": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7e7a1a0-be6f-4aba-a360-ed0229d591f1",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_357f670d370d4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "afed883f-4e3e-491b-a83a-b12d1e6e3097",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_3cb8f8b8f55c86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "98608d2f-bc33-4c8b-a9f5-d1a8de3b6793",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_3e3d377e2062a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b73179a-0f56-4fc0-9f67-ad1eb3283d8b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_43d43287e65f30": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a292e3a-438a-4b3b-8fe9-6df5bcbf8850",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_4a1b4003bd04a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "16c49127-51a9-4323-9edf-5ef02dd9a7d3",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_4d96c75e177e78": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3ec4e42e-f74d-4b43-853e-97d80cfc7530",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_577679fb8a8b23": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "587be924-fad5-42a4-ae6e-69b786b9f72f",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_5b703f4700e37e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff377796-1d26-43d8-a4c4-3da52b5eec48",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_5bf40fff1190e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a0c2972626488fcd8",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_66ed5fe0dd37a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d66808f2-46da-4b0f-bf3c-e73d1e3274ef",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_67ba9bed1f354d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "216a8199-79d3-456c-8e82-555816bf7c25",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_6ae737829b3914": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6322cea0-d48e-4eda-871a-6a83cf6bd712",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_720a9fea8afa4e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a4d11136e24e56981",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_83103128408c47": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0801707c-5f8a-4d50-b3fb-743d0ea69880",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_83eda124053e39": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1324e9eb-858a-4c26-9291-f33d3d48a044",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_878e3f8c166470": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9faf375c-6d5f-419c-aa84-b489e20480d1",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_8ae2e28dd89c96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a86ff102-f911-4465-9925-8d69c05f0384",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_8d9fef7e37fb76": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "03d82099-29c7-497b-9f32-73ee3fc45495",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_8db38d9d25fcd4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "63b2e4f4-432b-42b5-9705-d560f6a38886",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_95be32036b3300": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "59e9f493-8a54-49f1-89ba-9822aca0cc0c",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_97c5179defe02d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fd54eca-32a0-450d-97ef-f21e47696f10",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_9c0017ee03009c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2b0b42f8-eaa3-4d7a-9fa7-94988d2a6e72",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_9c17d410c5d625": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8e6c574-e003-4c40-b530-87b52aa8269f",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_9c64ca6181a720": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "835d9c46-9dcb-49d3-ba41-edb3a28a2d37",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_a189a4274af398": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "026e77e4-67e1-4941-aa28-5c747381596f",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_aa626dc485b2af": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f685a33b-6190-4749-96bb-d37fe5f1a97a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_ae3d443694655a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1da1af8-53ea-4433-8e8b-56c40d2b11bc",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_aed72f37e1464b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ec552c25-45cd-4ae3-b887-49137e3403d1",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_b09ff39956dd00": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f14ecbb8-ab89-44d5-9fb8-a176a8e8d4de",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_b322c10463ca49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b21a58b-c13e-4d83-ab37-adf4e5ca8cce",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_b3bdabe19f5f0b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ba847ddf-a7c0-432a-a215-8e4c768d1eaa",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_b3d4243dd9bb42": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2bdd7125-1daa-4894-a095-c4328ba1c1f4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_b5499c57996b39": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7fdce205-57a2-4705-a0e1-0a0c16bfdcbe",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_b763f387170b87": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "323c91fb-5de1-4d71-85ce-59414f858ffc",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_b777b356cb20c9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fec91b81-4b9b-4a26-9b98-9c06957b9602",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_b8021be7a17848": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33c70cab-763b-4be9-a830-42e058c6eeb9",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_bb50e143b631d0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac9a435e-029c-40b8-961a-8bc9e262422d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_bd354289b0b0c2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f0ccb807-5274-4dc6-b6aa-9d0292adc1c3",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_bd739c11a6ea02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56ef1daf-fa56-420e-b743-51ac3ee73780",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_c6e93280233a0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "979169d3-1666-4efb-8f94-d2f22c7a517d",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_c7f851543cbeac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "523d603b-cf10-4c6d-bfca-ecaaaaa27811",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_caef6f174c7809": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04767a8f-a6f5-41de-b686-4e9fae70dab3",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_cc7fc0eed75428": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5e250383-ce71-495d-b55f-a0e0fe96fb7b",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_cd42187a5cf28d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "32d50a29-fc33-4cfb-a283-6140eb266c18",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_cd58e22f555142": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "99811d1d-1012-4072-b2e3-eeda8b62a432",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_d6a5578edc929a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ae357b-b272-4945-85c4-5faec932f56e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_d8fcf86eb002e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b860e2bd-ce91-40dc-a2f4-396663e880d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_e76c26065d321f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1ccfb24-97a6-476e-af4f-d93723b944e9",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_e7d8d23fc6b1a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f04bea02-7905-4e40-9d94-e1bb533300c4",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_f048273bf61f35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "35a7153b-a316-4f55-99e2-a1c4cb563723",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_ff9e4193d2064f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d79af82-74c7-4d50-a5c7-3db6e843bcb4",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+server/src/db/migrations.ts
+  s_9ed0da107cbc4a::t_1a908ebf07dea1 9,96
+server/src/db/paths.ts
+  s_9ed0da107cbc4a::t_3158af825655d4 20-30
+server/vitest.config.ts
+  s_9ed0da107cbc4a::t_6616b3a8f58a78 13-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7e0a1ecab54b7d8dbf35e11998d56e4b685ecc90",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}

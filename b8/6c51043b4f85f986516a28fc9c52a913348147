@@ -1,0 +1,25 @@
+server/src/index.ts
+  s_eea5b32ea4af25::t_208a3749ea2745 4,6,8,13,15-20
+server/src/shutdown.test.ts
+  s_eea5b32ea4af25::t_f31d7f4bc96e76 1-20
+server/src/shutdown.ts
+  s_eea5b32ea4af25::t_d71b4c04147287 1-19
+server/src/table/TableRoom.ts
+  s_eea5b32ea4af25::t_20330c8c591e8e 84-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b86c51043b4f85f986516a28fc9c52a913348147",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}

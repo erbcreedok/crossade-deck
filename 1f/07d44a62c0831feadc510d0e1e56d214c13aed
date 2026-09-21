@@ -1,0 +1,27 @@
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_0afc00302ba599 493-503,509-533
+server/src/table/games/krest-hands.test.ts
+  s_9ed0da107cbc4a::t_00e09eec45107a 57-59,67-69
+server/src/table/refusal.test.ts
+  s_9ed0da107cbc4a::t_5c03441a256acc 1-34
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_7a78d072c88e5a 55,605-607,654-657,835-836,838-841
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_d7b89026dabf03 8,3921-3944
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1f07d44a62c0831feadc510d0e1e56d214c13aed",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
