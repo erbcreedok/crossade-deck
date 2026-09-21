@@ -301,4 +301,18 @@ export const ringKeeps = (middle: { x: number; y: number }, at: { x: number; y: 
   Math.hypot(at.x - middle.x, at.y - middle.y) <= RING_SPREAD;
 
 
+/**
+ * ПОЛЕ КРУГА НА СТЕКЛЕ — рамка эллипса вокруг середины `mid` (уже в пикселях стекла). `k` — пикселей в
+ * единице сукна, `squash` — во сколько раз камера сжала вертикаль.
+ *
+ * Радиус берётся из МАСШТАБА, а не из проекции точки на оси стола: у каждого игрока стол повёрнут к его
+ * стулу, и точка «радиус вправо по столу» у того, кто сидит сбоку, уходит на стекле вверх — поле
+ * схлопывалось в черту, и вместе с ним пропадали контур, подсветка и прицел.
+ */
+export function ringZoneBox(mid: { x: number; y: number }, k: number, squash: number): { left: number; right: number; top: number; bottom: number } {
+  const reach = (RING_SPREAD + CARD_H / 2) * k;
+  return { left: mid.x - reach, right: mid.x + reach, top: mid.y - reach * squash, bottom: mid.y + reach * squash };
+}
+
+
 const norm = (deg: number): number => ((deg % 360) + 360) % 360;

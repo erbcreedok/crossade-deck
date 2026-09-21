@@ -22,7 +22,7 @@ import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as 
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
-import { ringCardStep, ringHour, RING_HOUR, RING_HOURS, ringLanding, RING_SPREAD, ringTurned } from "../src/table/ring.js";
+import { ringCardStep, ringHour, RING_HOUR, RING_HOURS, ringLanding, RING_SPREAD, ringTurned, ringZoneBox } from "../src/table/ring.js";
 import type { RingPlace as Laid3 } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
 import type { ScreenHealth, SeenThrough } from "./watch.js";
@@ -2228,10 +2228,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // КРУГ ХОДА ПРИНИМАЕТ ВЕСЬ СВОЙ КРУГ, а не клочок сукна под первой картой: очерченное поле и есть
     // приёмка, иначе карта, брошенная в середину круга, падает мимо него на сукно.
     if (pile.pose === "ring") {
-      const mid = v.toGlass({ x: pile.x, y: pile.y });
-      const edge = v.toGlass({ x: pile.x + RING_SPREAD + FELT_CARD.h / 2, y: pile.y });
-      const reach = Math.abs(edge.x - mid.x);
-      return { left: mid.x - reach, right: mid.x + reach, top: mid.y - reach * v.squash, bottom: mid.y + reach * v.squash };
+      return ringZoneBox(v.toGlass({ x: pile.x, y: pile.y }), v.k, v.squash);
     }
     const n = Math.max(1, pile.cards.length);
     const pts = [v.deckAt(pile.id, 0, n), v.deckAt(pile.id, n - 1, n)].flatMap((c) => deckCorners(pile, c));

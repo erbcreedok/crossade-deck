@@ -9,7 +9,7 @@ import { deskOf } from "./desks.js";
 import { Table } from "./table.js";
 import { RING } from "./games/krest.js";
 import { MAIN_PILE, type Person } from "./contract.js";
-import { deckHome, ringCardStep, ringTurned, RING_SPREAD } from "./ring.js";
+import { deckHome, ringCardStep, ringTurned, ringZoneBox, RING_SPREAD } from "./ring.js";
 import { SANDBOX } from "./rules.js";
 
 const person = (key: string): Person => ({ key, name: key, ink: "#fff", door: "guest" });
@@ -156,5 +156,35 @@ describe("ЯКОРЬ КРУГА — ЗОНЫ, а не первой карты", 
     const card = z.cards[0]!;
     const at = ringTurned({ x: z.x, y: z.y }, card.turn!);
     expect(turnOf(at), "угол места и есть угол карты").toBeCloseTo(card.turn!, 4);
+  });
+});
+
+describe("поле круга на стекле не зависит от того, куда повёрнут стол", () => {
+  // Камера каждого игрока повёрнута к его стулу. Проекция — поворот, сжатие вертикали и сдвиг.
+  const camera = (turnDeg: number, k: number, squash: number) => (p: { x: number; y: number }) => {
+    const a = (turnDeg * Math.PI) / 180;
+    return { x: 200 + k * (p.x * Math.cos(a) - p.y * Math.sin(a)), y: 300 + k * squash * (p.x * Math.sin(a) + p.y * Math.cos(a)) };
+  };
+
+  it("у сидящего сбоку поле такое же, как у сидящего напротив", () => {
+    const [k, squash] = [40, 0.6];
+    const boxes = [0, 60, 90, 180, 270].map((turn) => ringZoneBox(camera(turn, k, squash)({ x: 0, y: 0 }), k, squash));
+    for (const box of boxes) expect(box).toEqual(boxes[0]);
+    const reach = (boxes[0]!.right - boxes[0]!.left) / 2;
+    expect(reach).toBeCloseTo((RING_SPREAD + 0.7) * k);
+    expect((boxes[0]!.bottom - boxes[0]!.top) / 2).toBeCloseTo(reach * squash);
+  });
+
+  it("карта на краю круга лежит внутри поля при любом повороте", () => {
+    const [k, squash] = [40, 0.6];
+    for (const turn of [0, 45, 90, 135, 200, 315]) {
+      const see = camera(turn, k, squash);
+      const box = ringZoneBox(see({ x: 0, y: 0 }), k, squash);
+      for (let deg = 0; deg < 360; deg += 30) {
+        const at = see({ x: RING_SPREAD * Math.cos((deg * Math.PI) / 180), y: RING_SPREAD * Math.sin((deg * Math.PI) / 180) });
+        const [nx, ny] = [(at.x - 200) / ((box.right - box.left) / 2), (at.y - 300) / ((box.bottom - box.top) / 2)];
+        expect(nx * nx + ny * ny, `поворот ${turn}, карта на ${deg}`).toBeLessThanOrEqual(1);
+      }
+    }
   });
 });
