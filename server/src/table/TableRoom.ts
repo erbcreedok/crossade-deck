@@ -81,6 +81,11 @@ export class TableRoom extends Room {
   private seats = new Map<string, string>();
 
   /** Человек, каким его знает стол сейчас, — со стулом, на который он сел. */
+  /** Как бы комната ни кончилась — опустела, закрыта ботом, сервер останавливают, — журнал дописан. */
+  onDispose(): void {
+    this.book.flush();
+  }
+
   /** Стол целиком глазами этого человека — при входе и когда у него разошлись версии (`sync`). */
   private welcomeFor(me: Person): Welcome {
     return { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], desk: kindOf(this.room), ice: iceServers() };
