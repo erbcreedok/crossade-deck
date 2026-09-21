@@ -5,8 +5,8 @@
 
 import { clubTile, diamondTile } from "../../look/src/feltTiles.js";
 import { PALETTE } from "../../look/src/palette.js";
-import { twinkleLevel, twinkleStep } from "../../apps/hub/src/hub/twinkle.js";
-import { AT_REST, DRIFT, DRIFT_DIAMONDS, driftStep } from "../../apps/hub/src/hub/drift.js";
+import { twinkleLevel, twinkleStep } from "../../look/src/twinkle.js";
+import { AT_REST, DRIFT, DRIFT_DIAMONDS, driftStep } from "../../look/src/drift.js";
 
 /** Хаб кладёт 9.2 единицы на ширину экрана, плитка трилистника — 9.2/18 единицы: ширина / 18. */
 const CLUBS_ACROSS = 18;

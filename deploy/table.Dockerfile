@@ -1,7 +1,7 @@
 # Сервер столов вместе с HTML-клиентом стола — для хоста, а не для мака.
 #
 # Контекст сборки — КОРЕНЬ репозитория: клиент стола (`server/table-client`) собирается из кода,
-# который лежит за пределами `server/` — `look`, `game-kit`, два файла хаба и растры колоды. Все они
+# который лежит за пределами `server/` — `look`, `game-kit` и растры колоды. Все они
 # тянутся относительными путями и не несут своих npm-зависимостей, поэтому ставится только `server/`.
 #
 # Клиент собирается ЗДЕСЬ, заранее (`build:table-client`), и сервер раздаёт готовую папку
@@ -17,7 +17,6 @@ COPY server/scripts/buildTableClient.ts ./scripts/
 COPY server/table-client ./table-client
 COPY look/src /app/look/src
 COPY game-kit/src /app/game-kit/src
-COPY apps/hub/src/hub /app/apps/hub/src/hub
 COPY game-presets/cards/src/decks/baked /app/game-presets/cards/src/decks/baked
 
 ARG APP_BUILD=dev
