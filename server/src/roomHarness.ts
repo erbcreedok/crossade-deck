@@ -2,38 +2,22 @@ import { afterAll, beforeAll, beforeEach } from "vitest";
 import { ColyseusTestServer } from "@colyseus/testing";
 import { Server } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
-import { CardRoom } from "./CardRoom.js";
-import { TestRoom } from "./TestRoom.js";
-import { SandboxRoom } from "./SandboxRoom.js";
 import { KitRoom } from "./KitRoom.js";
 import { TableRoom } from "./table/TableRoom.js";
 import { TABLE_ROOM } from "./table/contract.js";
 
 // Общая обвязка тестов комнаты: поднять сервер, поделить его на все случаи одного файла,
-// прибрать между тестами. Вынесено из CardRoom.test.ts, который вырос до тысячи строк и
-// был разрезан по темам — обвязка у всех кусков одна и та же.
+// прибрать между тестами.
 //
 // vi.mock("./accounts.js") сюда переехать НЕ может: он хойстится в рамках файла теста,
 // поэтому остаётся в каждом файле (четыре строки).
 
 // Короткие таймауты — тесты не ждут реальные секунды. Комната читает их «лениво»
 // (при каждом обращении, см. roomConfig.ts), ровно ради тестируемости.
-process.env.VOTE_TIMEOUT_MS = "150";
 process.env.EMPTY_ROOM_TTL_MS = "300"; // сколько живёт опустевшая (все на паузе) комната
-process.env.SHUFFLE_LOCK_MS = "300"; // сторож сессии тасовки, если клиент отвалился
 
 /** По порту на файл тестов: параллельные воркеры vitest не должны делить сокет. */
 export const TEST_PORTS = {
-  lifecycle: 2661,
-  votes: 2662,
-  deck: 2663,
-  facing: 2664,
-  hands: 2665,
-  bots: 2666,
-  free: 2667,
-  play: 2668,
-  move: 2669,
-  sandbox: 2670,
   kit: 2671,
   kitCounts: 2672,
   kitDeeds: 2673,
@@ -45,9 +29,6 @@ export const TEST_PORTS = {
 
 export function createGameServer() {
   const server = new Server({ transport: new WebSocketTransport() });
-  server.define("card_room", CardRoom);
-  server.define("test_room", TestRoom);
-  server.define("sandbox_room", SandboxRoom);
   server.define("kit_room", KitRoom);
   server.define(TABLE_ROOM, TableRoom).filterBy(["room"]);
   return server;

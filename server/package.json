@@ -16,8 +16,7 @@
     "@colyseus/schema": "^2.0.0",
     "@colyseus/ws-transport": "^0.15.3",
     "colyseus": "^0.15.0",
-    "express": "^4.19.0",
-    "firebase-admin": "^12.0.0"
+    "express": "^4.19.0"
   },
   "devDependencies": {
     "@colyseus/testing": "^0.15.4",

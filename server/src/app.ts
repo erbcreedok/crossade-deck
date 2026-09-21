@@ -5,9 +5,6 @@ import { createServer } from "http";
 // (пакет ре-экспортирует @colyseus/core динамически, cjs-module-lexer это не видит).
 import colyseusPkg from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
-import { CardRoom } from "./CardRoom.js";
-import { TestRoom } from "./TestRoom.js";
-import { SandboxRoom } from "./SandboxRoom.js";
 import { KitRoom } from "./KitRoom.js";
 import { TableRoom } from "./table/TableRoom.js";
 import { TABLE_ROOM } from "./table/contract.js";
@@ -32,7 +29,6 @@ import {
   updateProfile,
   accountName,
 } from "./accounts.js";
-import { getLastRoom } from "./lastRooms.js";
 import { verifyTelegramInitData } from "./telegramAuth.js";
 import { botUsername } from "./telegramMe.js";
 import { offerFor } from "./telegramOffer.js";
@@ -184,11 +180,6 @@ export function createApp() {
   const httpServer = createServer(app);
   const gameServer = new Server({ transport: new WebSocketTransport({ server: httpServer, maxPayload: 1024 * 1024 }) });
 
-  gameServer.define("card_room", CardRoom);
-  // Тестовая комната с ботами за столом — площадка для посадки/вёрстки/дроп-зон.
-  gameServer.define("test_room", TestRoom);
-  // Песочница-live: отдельная комната-ретранслятор (снимки борды + присутствие), вход без токена.
-  gameServer.define("sandbox_room", SandboxRoom);
   gameServer.define("kit_room", KitRoom);
   // СТОЛ ДЛЯ TELEGRAM — отдельный клиент со своим контрактом (`table/contract.ts`). Одна подписанная
   // комната — одна сессия: `filterBy` сводит всех, кто пришёл с тем же id, в неё.
@@ -432,7 +423,7 @@ export function createApp() {
   // что показывает клиент (у них общий формат — см. version.ts обоих пакетов).
   app.get("/health", (_req, res) => res.json({ status: "ok", ...BUILD_INFO }));
 
-  // Свои аккаунты (без Firebase): сервер выдаёт accountId + recoveryHash,
+  // Свои аккаунты: сервер выдаёт accountId + recoveryHash,
   // клиент хранит их локально. recoveryHash позволяет восстановить того же
   // пользователя с другого устройства/браузера.
   app.post("/accounts", (req, res) => {
@@ -719,14 +710,6 @@ export function createApp() {
   // Прежнее имя того же вопроса — отвечает из той же правды, что и `/rooms`.
   app.get("/rooms/public", (_req, res) => {
     res.json(search().map((room) => seenFromOutside(room)));
-  });
-
-  // Последняя посещённая аккаунтом комната (для кнопки «вернуться в игру» в лобби).
-  // Запись существует, только пока комната ещё жива (чистится на её диспоузе).
-  app.get("/accounts/:id/last-room", (req, res) => {
-    const last = getLastRoom(req.params.id);
-    if (!last) return res.status(404).json({ error: "not_found" });
-    res.json(last);
   });
 
   return { app, httpServer, gameServer };

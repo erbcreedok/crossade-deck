@@ -172,8 +172,8 @@ No need to restart the static server — `serve` reads files straight off disk. 
 likely need a hard reload.
 
 > Table rooms (`/table/`) survive a restart: the room record and a snapshot of the table are kept in
-> `server/data/crossade.db`, people rejoin on their own and sit back on their chairs. `card_room` /
-> `kit_room` sessions and invite codes still live **in memory only** — don't update those mid-session.
+> `server/data/crossade.db`, people rejoin on their own and sit back on their chairs. `kit_room`
+> sessions still live **in memory only** — don't update those mid-session.
 
 ## 7. Backing up the database
 
