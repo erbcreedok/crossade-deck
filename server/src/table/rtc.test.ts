@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { iceServers } from "./config.js";
-import { callsFirst, cleanSignal, SIGNAL_MAX, Signals, SIGNALS_PER_SEC } from "./rtc.js";
+import { callsFirst, cleanSignal, ear, SIGNAL_MAX, Signals, SIGNALS_PER_SEC } from "./rtc.js";
 
 describe("знакомство голосов", () => {
   it("записка из сети: кому, какая и не длиннее предела", () => {
@@ -60,5 +60,13 @@ describe("через что голосам искать друг друга", ()
     expect(list).toHaveLength(2);
     expect(list[0]!.urls[0]!.startsWith("stun:"), "сперва дешёвый путь: напрямую").toBe(true);
     expect(list[1]).toEqual({ urls: ["turn:relay.example:3478", "turns:relay.example:5349"], username: "стол", credential: "пароль" });
+  });
+
+  it("одно ухо на человека — слушает последнее открытое окно", () => {
+    expect(ear(["s1"])).toBe("s1");
+    // Открыл стол заново, старое окно висит в фоне: говорим в новое.
+    expect(ear(["s1", "s2"])).toBe("s2");
+    expect(ear(["s1", "s2", "s3"])).toBe("s3");
+    expect(ear([])).toBeNull();
   });
 });

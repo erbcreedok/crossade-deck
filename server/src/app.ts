@@ -1,5 +1,4 @@
 import { stickerRoutes } from "./table/stickers.js";
-import { liveTally } from "./table/live.js";
 import express from "express";
 import { createServer } from "http";
 // Именованный импорт из "colyseus" не отдаёт Server под нативным Node ESM
@@ -431,7 +430,7 @@ export function createApp() {
 
   // /health отдаёт и версию: по ней видно, что на проде крутится, и совпадает ли она с той,
   // что показывает клиент (у них общий формат — см. version.ts обоих пакетов).
-  app.get("/health", (_req, res) => res.json({ status: "ok", ...BUILD_INFO, live: liveTally }));
+  app.get("/health", (_req, res) => res.json({ status: "ok", ...BUILD_INFO }));
 
   // Свои аккаунты (без Firebase): сервер выдаёт accountId + recoveryHash,
   // клиент хранит их локально. recoveryHash позволяет восстановить того же

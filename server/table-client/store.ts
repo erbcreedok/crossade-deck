@@ -37,11 +37,6 @@ export interface TableStore {
   command(command: TableCommand): void;
   /** Рассказать столу, что видел и делал этот экран. Ответа нет — рассказ идёт только в журнал. */
   log(seen: readonly Seen[]): void;
-  /** Моё голосовое — остальным. Нигде не хранится. */
-  /** Кусок речи наружу: наведён на стул — `to`, на сукно — без него. */
-  live(out: { seq: number; bytes: Uint8Array; to?: string }): void;
-  /** Чужое голосовое пришло. */
-  onLive(listener: (clip: { by: string; seq: number; bytes: Uint8Array }) => void): void;
   /** Записка тому, с кем сводим голоса напрямую. */
   rtc(out: { to: string; kind: string; body: string }): void;
   onRtc(listener: (note: { from: string; kind: string; body: string }) => void): void;

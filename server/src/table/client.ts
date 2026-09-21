@@ -67,12 +67,5 @@ export function clientRoutes(source: ClientSource = fromEnv()): Router {
     });
   });
 
-  // МИКРОФОН ЖИВЬЁМ — отдельным файлом и своим адресом: `AudioWorklet` иначе его не возьмёт.
-  r.get("/table/live-worklet.js", fresh, (_req, res) => {
-    res.type("js").sendFile(source.worklet, (err) => {
-      if (err && !res.headersSent) res.status(404).end();
-    });
-  });
-
   return r;
 }

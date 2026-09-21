@@ -14,8 +14,7 @@ import { iceServers, tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
 import { MSG, PROTOCOL, STALE_CLIENT, type CarryOut, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type SeatCard, type TableCommand, type Welcome } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
-import { cleanLive, ear, LiveTalk, liveTally, type Live } from "./live.js";
-import { cleanSignal, Signals, type Signal } from "./rtc.js";
+import { cleanSignal, ear, Signals, type Signal } from "./rtc.js";
 import { cleanMic, type Mic } from "./voice.js";
 import { clockwise, collectSteps, execute, plan, type DealMemo } from "./script.js";
 import type { Key } from "./access.js";
@@ -62,8 +61,6 @@ export class TableRoom extends Room {
   private shots = new Shots(SHOT_MS - 150);
   /** Кто на что смотрит: открытые окна стопок и стульев. Живёт, пока человек в комнате. */
   private eyes = new Eyes();
-  /** Сколько голосовых человек отправил за последние секунды: больше предела сервер не пересылает. */
-  private talk = new LiveTalk();
   private signals = new Signals();
   /** Сколько рассказов о себе прислал каждый экран: больше предела журнал не берёт. */
   private witnesses = new Witnesses();
@@ -278,31 +275,6 @@ export class TableRoom extends Room {
       for (const other of this.clients) {
         const key = this.seats.get(other.sessionId);
         if (key !== undefined && key !== me.key) other.send(MSG.mic, mic);
-      }
-    });
-
-    // ЖИВОЙ ГОЛОС — кусок речи остальным, пока он говорит: на сукно всем, на стул — лично тому, кто на нём.
-    this.onMessage(MSG.live, (client, raw: unknown) => {
-      const me = this.personOf(client.sessionId);
-      const out = cleanLive(raw);
-      liveTally.got += 1;
-      liveTally.last = Date.now();
-      if (!out) liveTally.bad += 1;
-      if (!me?.seat || !out || !this.talk.take(me.key, Date.now())) return;
-      const live: Live = { ...out, by: me.key };
-      // ОДНО УХО НА ЧЕЛОВЕКА: в остальные его окна речь не идёт, иначе он слышит её столько раз, сколько их.
-      const ears = new Map<string, string[]>();
-      for (const other of this.clients) {
-        const key = this.seats.get(other.sessionId);
-        if (key === undefined || key === me.key) continue;
-        if (out.to !== undefined && key !== out.to) continue;
-        ears.set(key, [...(ears.get(key) ?? []), other.sessionId]);
-      }
-      const heard = new Set([...ears.values()].map((list) => ear(list)));
-      for (const other of this.clients) {
-        if (!heard.has(other.sessionId)) continue;
-        liveTally.sent += 1;
-        other.send(MSG.live, live);
       }
     });
 
@@ -625,7 +597,6 @@ export class TableRoom extends Room {
     }
     this.book.tell("leave", key);
     if (this.eyes.forget(key)) this.spreadEyes();
-    this.talk.forget(key);
     this.signals.forget(key);
     this.witnesses.forget(key);
     this.flood.forget(key);

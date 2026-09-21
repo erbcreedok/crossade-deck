@@ -26,7 +26,6 @@ export interface ClientSource {
   page(name: ClientPage): Promise<string>;
   script(name: ClientScript): Promise<{ js: string; map: string }>;
   /** Файлы, которые отдаются как есть: сервер сам проверяет имя, источник говорит только папку. */
-  readonly worklet: string;
   readonly sounds: string;
   readonly cards: string;
 }
@@ -68,7 +67,6 @@ export function liveSource(): ClientSource {
         delete built[name];
         throw err;
       })),
-    worklet: join(SOURCES, "live-worklet.js"),
     sounds: join(SOURCES, "sounds"),
     cards: BAKED_CARDS,
   };
@@ -82,7 +80,6 @@ export function builtSource(dir: string): ClientSource {
       js: await readFile(join(dir, `${name}.js`), "utf8"),
       map: await readFile(join(dir, `${name}.js.map`), "utf8"),
     }),
-    worklet: join(dir, "live-worklet.js"),
     sounds: join(dir, "sounds"),
     cards: join(dir, "cards"),
   };
@@ -96,7 +93,6 @@ export async function buildClient(dir: string): Promise<void> {
     await writeFile(join(dir, `${name}.js`), js);
     await writeFile(join(dir, `${name}.js.map`), map);
   }
-  await cp(join(SOURCES, "live-worklet.js"), join(dir, "live-worklet.js"));
   await cp(join(SOURCES, "sounds"), join(dir, "sounds"), { recursive: true });
   await cp(BAKED_CARDS, join(dir, "cards"), { recursive: true });
 }

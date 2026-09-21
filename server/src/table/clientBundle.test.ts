@@ -36,7 +36,7 @@ afterAll(async () => {
 describe("клиент стола: собранный заранее и собранный на лету", () => {
   it("папка сборки несёт всё, что нужно странице, и ничего из исходников", async () => {
     const files = await readdir(dir);
-    expect(files.sort()).toEqual(["app.js", "app.js.map", "cards", "index.html", "live-worklet.js", "replay.html", "replay.js", "replay.js.map", "sounds"]);
+    expect(files.sort()).toEqual(["app.js", "app.js.map", "cards", "index.html", "replay.html", "replay.js", "replay.js.map", "sounds"]);
   });
 
   for (const kind of ["live", "built"] as const) {
@@ -49,7 +49,6 @@ describe("клиент стола: собранный заранее и собр
         ["/table/replay.js", "javascript"],
         ["/table/app.js.map", "application/json"],
         ["/table/replay.js.map", "application/json"],
-        ["/table/live-worklet.js", "javascript"],
         ["/table/sounds/drop-1.m4a", "audio/mp4"],
         ["/table/cards/classic/spade-A.webp", "image/webp"],
       ] as const) {
