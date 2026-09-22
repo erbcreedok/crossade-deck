@@ -93,6 +93,7 @@ export function readCommand(raw: unknown): TableCommand | null {
       ...(typeof c.dealer === "string" && c.dealer ? { dealer: c.dealer.slice(0, 64) } : {}),
       ...(typeof c.from === "string" && c.from ? { from: c.from.slice(0, 64) } : {}),
       ...(Array.isArray(c.seats) ? { seats: c.seats.filter((s): s is string => typeof s === "string").slice(0, 32) } : {}),
+      ...(c.dir === "cw" || c.dir === "ccw" ? { dir: c.dir } : {}),
       ...(c.skipEmpty === true ? { skipEmpty: true } : {}),
       ...(c.asDealer === true ? { asDealer: true } : {}),
       ...(c.force === true ? { force: true } : {}),

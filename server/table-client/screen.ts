@@ -5,7 +5,7 @@
 // уходит намерением; пока ответ не пришёл, экран показывает ожидаемое (`pending`), а отказ просто
 // возвращает настоящий снимок.
 
-import { CARRY_EVERY_MS, DEAL_PRESETS, DEFAULT_POSE, type DealPreset, type DealRule, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type Pile, type Refusal, REFUSAL_SAYS, type GatherSide, MAIN_PILE, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
+import { CARRY_EVERY_MS, DEAL_PRESETS, DEFAULT_POSE, type DealPreset, type DealRule, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type Pile, type Refusal, REFUSAL_SAYS, type GatherSide, MAIN_PILE, type SeenCard, type Snapshot, type Where , type DealDir } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
@@ -197,7 +197,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     /** Открытый тултип стопки — id стопки. */
     deckTip: null as string | null,
     /** Окно раздачи крупье: серия вопросов тому, кто нажал «Раздать». `seats` — кому, по стульям. */
-    deal: null as null | { rule: DealRule; n: number; all: boolean; seats: string[]; from: string | null },
+    deal: null as null | { rule: DealRule; n: number; all: boolean; seats: string[]; from: string | null; dir: DealDir },
     /**
      * ПЕРЕСАДКА (дело крупье «Пересадить»): стулья тянутся по кромке, где хочет распорядитель; внизу
      * вместо руки — «Отменить» и «Подтвердить». Углы живут здесь, пока не подтверждены; камера на время
@@ -1335,10 +1335,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * Кому вообще можно раздать: сидящие за игровыми стульями, с именем и цветом — В ПОРЯДКЕ РАЗДАЧИ,
    * по часовой от крупье (нет крупье — от нуля): так же, как их обходит раздача на сервере.
    */
-  function dealablePlayers(s: Snapshot): { chair: string; name: string; ink: string }[] {
+  function dealablePlayers(s: Snapshot, dir: DealDir): { chair: string; name: string; ink: string }[] {
     const from = s.chairs.find((c) => c.croupier)?.angle ?? 0;
+    // Угол растёт против часовой: по часовой — это убывание угла от крупье.
+    const step = (c: Chair) => (dir === "cw" ? (from - c.angle + 360) % 360 : (c.angle - from + 360) % 360);
     return [...s.chairs]
-      .sort((a, b) => ((a.angle - from + 360) % 360) - ((b.angle - from + 360) % 360))
+      .sort((a, b) => step(a) - step(b))
       .flatMap((c) => {
         const sitter = !c.croupier && c.owner !== null ? sitterOf(s, c) : undefined;
         return sitter ? [{ chair: c.id, name: sitter.name, ink: sitter.ink }] : [];
@@ -1360,7 +1362,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // КАКИЕ РАЗДАЧИ ЕСТЬ И КАК ОНИ ЗОВУТСЯ — из контракта (`DEAL_PRESETS`): экран не называет ни одной игры.
     // …а КАКИЕ ИЗ НИХ ЗДЕСЬ — говорит род стола (`store.deals`).
     const rules = (Object.entries(DEAL_PRESETS) as [DealRule, DealPreset][]).filter(([r]) => store.deals.includes(r));
-    const players = dealablePlayers(seen());
+    const players = dealablePlayers(seen(), d.dir);
     const dot = (ink: string) => `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${ink};box-shadow:inset 0 0 0 1px ${T.black};margin-right:5px;vertical-align:-1px"></span>`;
     // Первым — кто-то из тех, кому раздают: выключили его — первым становится следующий по кругу.
     if (d.from !== null && !d.seats.includes(d.from)) d.from = null;
@@ -1377,6 +1379,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       + (DEAL_PRESETS[d.rule].askable
         ? row("Сколько карт", [1, 2, 3, 5, 6, 8, 10].map((n) => chip(!d.all && d.n === n, `data-deal-n="${n}"`, String(n))).join("") + chip(d.all, "data-deal-all", "Все по одной"))
         : "")
+      // КУДА ИДЁТ КРУГ — до «кому»: от этого зависит порядок в списке ниже.
+      + row("Куда", chip(d.dir === "cw", `data-deal-dir="cw"`, "По часовой") + chip(d.dir === "ccw", `data-deal-dir="ccw"`, "Против часовой"))
       // КОМУ — каждый сидящий игрок своим именем и цветом; тогл выключает его из раздачи.
       + row("Кому", players.map((p) => chip(d.seats.includes(p.chair), `data-deal-seat="${p.chair}"`, dot(p.ink) + escape(p.name))).join("")
         || `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim}">За столом никого</span>`)
@@ -3314,7 +3318,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       el.onclick = (e) => {
         e.stopPropagation();
         const what = el.dataset.croupier;
-        if (what === "deal") local.deal = { rule: store.deals[0] ?? "each", n: 6, all: false, seats: dealablePlayers(seen()).map((p) => p.chair), from: null };
+        if (what === "deal") local.deal = { rule: store.deals[0] ?? "each", n: 6, all: false, seats: dealablePlayers(seen(), "cw").map((p) => p.chair), from: null, dir: "cw" };
         else if (what === "collect") store.command({ t: "collect" });
         else if (what === "shuffle") store.command({ t: "shuffle" });
         else if (what === "remove") store.command({ t: "croupier", on: false });
@@ -3337,6 +3341,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
           const chair = el.dataset.dealSeat;
           d.seats = d.seats.includes(chair) ? d.seats.filter((one) => one !== chair) : [...d.seats, chair];
         } else if (el.dataset.dealFrom !== undefined) d.from = el.dataset.dealFrom;
+        else if (el.dataset.dealDir !== undefined) d.dir = el.dataset.dealDir as DealDir;
         else if (el.dataset.dealGo !== undefined) {
           // «Все по одной» — это раздача по одной карте до конца колоды: правило `each` без числа.
           // КОМУ — ровно те, кого оставили включёнными: список стульев уходит с командой.
@@ -3345,6 +3350,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
             rule: d.rule,
             ...(DEAL_PRESETS[d.rule].askable ? (d.all ? { n: 1 } : { n: d.n }) : {}),
             seats: d.seats,
+            dir: d.dir,
             ...(d.from !== null ? { from: d.from } : {}),
             force: true,
           });

@@ -10,7 +10,7 @@
 // ПОРЯДОК РАЗДАЧИ — по часовой, со следующего после раздающего; раздающему — последним. Поэтому при
 // раздаче всей колоды у раздающего карт не больше, чем у всех, а у следующего — не меньше.
 
-import { DEAL_PRESETS, GAME_PRESETS, MAIN_PILE, PRESET_FACES, type DealRule, type DeckSize, type Face, type Game, type RunError, type Suit, type TableCommand, type TableRules, type Where } from "./contract.js";
+import { DEAL_PRESETS, GAME_PRESETS, MAIN_PILE, PRESET_FACES, type DealRule, type DeckSize, type Face, type Game, type RunError, type Suit, type TableCommand, type TableRules, type Where , type DealDir } from "./contract.js";
 import type { Table } from "./table.js";
 import { freeAngle, seatPoint } from "./ring.js";
 
@@ -63,6 +63,7 @@ export interface DealMemo {
   n?: number;
   seats: string[];
   from: string;
+  dir: DealDir;
 }
 
 export type Plan = { steps: Step[]; actor: "bot" | string; deal?: DealMemo } | { error: RunError };
@@ -166,8 +167,12 @@ function packOf(table: Table): { deck: number; hand: string | null } {
 }
 
 /** Стулья по часовой, начиная с `from` (включительно). */
-export function clockwise<T extends { id: string; angle: number }>(chairs: T[], from: string): T[] {
-  const sorted = [...chairs].sort((a, b) => a.angle - b.angle);
+/**
+ * ПО КРУГУ ОТ СТУЛА. Угол стула растёт от шести часов к трём — на экране это против часовой, поэтому
+ * «по часовой» (как за настоящим столом, и так по умолчанию) — это УБЫВАНИЕ угла.
+ */
+export function clockwise<T extends { id: string; angle: number }>(chairs: T[], from: string, dir: DealDir = "cw"): T[] {
+  const sorted = [...chairs].sort((a, b) => (dir === "cw" ? b.angle - a.angle : a.angle - b.angle));
   const i = Math.max(0, sorted.findIndex((c) => c.id === from));
   return [...sorted.slice(i), ...sorted.slice(0, i)];
 }
@@ -291,8 +296,8 @@ function sixesSteps(anchor: number): Step[] {
 }
 
 /** Порядок «со следующего после раздающего, ему — последним». Раздающий без стула в круге — просто с его места по часовой. */
-function afterDealer<T extends { id: string; angle: number }>(chairs: T[], playable: T[], anchor: string): T[] {
-  const ring = clockwise([...chairs, ...playable.filter((c) => c.id === anchor && !chairs.includes(c))], anchor);
+function afterDealer<T extends { id: string; angle: number }>(chairs: T[], playable: T[], anchor: string, dir: DealDir): T[] {
+  const ring = clockwise([...chairs, ...playable.filter((c) => c.id === anchor && !chairs.includes(c))], anchor, dir);
   return (ring[0]?.id === anchor ? [...ring.slice(1), ring[0]!] : ring).filter((c) => chairs.includes(c));
 }
 
@@ -341,7 +346,8 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
   // С КОГО ПОШЛА РАЗДАЧА. Назвали стул — первая карта ему самому и дальше по часовой. Не назвали —
   // по старому: со следующего после раздающего, а раздающему последним.
   const first = command.from !== undefined && chairs.some((c) => c.id === command.from) ? command.from : null;
-  const order = first !== null ? clockwise(chairs, first) : afterDealer(chairs, at.chairs, anchor);
+  const dir: DealDir = command.dir ?? "cw";
+  const order = first !== null ? clockwise(chairs, first, dir) : afterDealer(chairs, at.chairs, anchor, dir);
 
   // «Всю колоду» раздают по кругу, пока карты не кончатся; иначе — по стольку каждому, и число
   // можно спросить у человека ровно там, где пресет это позволяет.
@@ -352,7 +358,7 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
 
   for (let k = 0; k < dealt; k += 1) steps.push({ t: "move", id: "top", to: toHand(order[k % order.length]!.id), ms: PACE.deal });
   if (preset.trump) steps.push({ t: "move", id: "top", to: TRUMP, ms: PACE.lay });
-  const memo: DealMemo = { rule, ...(preset.each === "all" ? {} : { n }), seats: order.map((c) => c.id), from: order[0]!.id };
+  const memo: DealMemo = { rule, ...(preset.each === "all" ? {} : { n }), seats: order.map((c) => c.id), from: order[0]!.id, dir };
   return { steps, actor: command.asDealer ? dealer.key : "bot", deal: memo };
 }
 

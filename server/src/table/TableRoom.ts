@@ -510,11 +510,11 @@ export class TableRoom extends Room {
     if (seats.length === 0) return { error: "not-enough-players" };
     const mine = playable.find((c) => c.owner === by)?.id;
     const from = mine !== undefined
-      ? clockwise(playable, mine).slice(1).concat(clockwise(playable, mine)[0]!).find((c) => seats.includes(c.id))?.id
+      ? clockwise(playable, mine, last.dir).slice(1).concat(clockwise(playable, mine, last.dir)[0]!).find((c) => seats.includes(c.id))?.id
       : seats.includes(last.from) ? last.from : undefined;
     if (from === undefined) return { error: "pick-seat" };
     // Карты на столе с прошлой партии — их собирают и мешают без лишнего вопроса: в этом и смысл одного нажатия.
-    return { command: { t: "deal", rule: last.rule, ...(last.n === undefined ? {} : { n: last.n }), seats, from, force: true } };
+    return { command: { t: "deal", rule: last.rule, ...(last.n === undefined ? {} : { n: last.n }), seats, from, dir: last.dir, force: true } };
   }
 
   /**

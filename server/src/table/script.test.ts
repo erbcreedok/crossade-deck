@@ -34,8 +34,9 @@ function table(...keys: string[]) {
   return { t, run, hand, seen: () => seen, log };
 }
 
+/** По часовой на экране — по убыванию угла (угол растёт от шести часов к трём). */
 const clockwiseFrom = (t: Table, key: string, keys: string[]) => {
-  const chairs = t.layout().chairs.filter((c) => keys.includes(c.owner!)).sort((a, b) => a.angle - b.angle);
+  const chairs = t.layout().chairs.filter((c) => keys.includes(c.owner!)).sort((a, b) => b.angle - a.angle);
   const i = chairs.findIndex((c) => c.owner === key);
   return [...chairs.slice(i + 1), ...chairs.slice(0, i + 1)].map((c) => c.owner!);
 };
@@ -59,19 +60,22 @@ describe("команды стола: раздача", () => {
     s.t.seatCroupier({ key: "bot:table", name: "Крупье", ink: "#fff", door: "guest", bot: true });
     const chairOf = (k: string) => s.t.layout().chairs.find((c) => c.owner === k)!.id;
     const croupier = s.t.layout().chairs.find((c) => c.croupier)!;
-    // Рассадка рукой: по часовой от крупье — c, a, b.
+    // Рассадка рукой: угол растёт против часовой, поэтому по часовой от крупье — b, a, c.
     s.t.turnChair(chairOf("c"), croupier.angle + 40);
     s.t.turnChair(chairOf("a"), croupier.angle + 150);
     s.t.turnChair(chairOf("b"), croupier.angle + 260);
     expect(await s.run({ t: "deal", rule: "each", n: 1 })).toBe("ok");
     const toHand = (op: Op) => (op.t === "move" && op.to.in === "hand" ? [op.to.chair] : []);
     const went = s.log.flat().flatMap(toHand);
-    expect(went).toEqual([chairOf("c"), chairOf("a"), chairOf("b")]);
+    expect(went).toEqual([chairOf("b"), chairOf("a"), chairOf("c")]);
+    // Против часовой — с другого конца.
+    expect(await s.run({ t: "deal", rule: "each", n: 1, dir: "ccw", force: true })).toBe("ok");
+    expect(s.log.flat().flatMap(toHand).slice(-3)).toEqual([chairOf("c"), chairOf("a"), chairOf("b")]);
     // Пересадили — порядок другой.
     s.t.turnChair(chairOf("b"), croupier.angle + 20);
     expect(await s.run({ t: "deal", rule: "each", n: 1, force: true })).toBe("ok");
     const again = s.log.flat().flatMap(toHand).slice(-3);
-    expect(again).toEqual([chairOf("b"), chairOf("c"), chairOf("a")]);
+    expect(again).toEqual([chairOf("a"), chairOf("c"), chairOf("b")]);
   });
 
   it("крестовый: всё поровну, у раздающего не больше всех, у следующего — не меньше", async () => {

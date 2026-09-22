@@ -747,6 +747,8 @@ export type TableCommand =
       from?: string;
       /** Кому раздавать — стулья списком. Не сказано — всем игровым, кроме крупье. */
       seats?: string[];
+      /** КУДА ИДЁТ КРУГ: по часовой (как за настоящим столом, и так по умолчанию) или против. */
+      dir?: DealDir;
       /** Не раздавать покинутым стульям. */
       skipEmpty?: boolean;
       /** Раздавать от лица раздающего: его цвет, его курсор, «двигал он». Иначе — от лица бота. */
@@ -780,6 +782,9 @@ export interface RunCommand {
   by: string;
   command: TableCommand;
 }
+/** Направление круга раздачи. Угол стула растёт от шести часов к трём, то есть ПРОТИВ часовой на экране. */
+export type DealDir = "cw" | "ccw";
+
 export type RunError = "not-admin" | "busy" | "needs-collect" | "not-enough-cards" | "not-enough-players" | "wrong-players" | "no-dealer" | "no-deal-yet" | "pick-seat" | "empty" | "bad";
 export type RunResult = { ok: true } | { error: RunError };
 
