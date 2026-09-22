@@ -16,7 +16,7 @@ import { MSG, PROTOCOL, STALE_CLIENT, type CarryOut, type Face, type Intent, typ
 import { cleanWatch, Eyes } from "./eyes.js";
 import { cleanSignal, ear, Signals, type Signal } from "./rtc.js";
 import { cleanMic, type Mic } from "./voice.js";
-import { clockwise, collectSteps, execute, plan, type DealMemo } from "./script.js";
+import { clockwise, collectSteps, deckOf, execute, plan, tuneSteps, type DealMemo } from "./script.js";
 import type { Key } from "./access.js";
 
 /** ЧТО КАКОЙ КОМАНДОЙ ДВИГАЮТ — ключ на каждую (`access.ts`). Команды без ключа здесь нет. */
@@ -530,6 +530,14 @@ export class TableRoom extends Room {
     if (this.table.busy) return;
     // ВЫКЛАДКА — ОДНО ДВИЖЕНИЕ: стопка кладётся целиком, её не носят по карте.
     if (act === "layout") return void this.layout(by, chair.id, chair.angle);
+    // СОСТАВ КОЛОДЫ — разница, а не пересборка: недостающие карты летят крупье в руки, лишние уходят.
+    if (act === "deck" || act === "jokers") {
+      const now = this.deckCard();
+      const want = act === "deck" ? deckOf(now.size === 36 ? 52 : 36, now.jokers) : deckOf(now.size, !now.jokers);
+      const steps = tuneSteps(this.table, want);
+      if (steps.length === 0) return;
+      return void execute(this.table, steps, by, this.io());
+    }
     const steps = act === "collect" ? collectSteps(this.table) : [];
     if (steps.length === 0) return;
     void execute(this.table, steps, by, this.io());

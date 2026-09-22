@@ -674,10 +674,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   function crewHeight(s: Snapshot, chairId: string): number {
     const chair = s.chairs.find((c) => c.id === chairId);
     if (!chair?.croupier) return 0;
-    const acts = store.crew.filter((act) => !act.adminOnly || iMay(s, "table.croupier"));
-    if (acts.length === 0) return 0;
-    const rows = Math.ceil(acts.length / CREW_IN_ROW);
+    const n = crewButtons(s).length;
+    if (n === 0) return 0;
+    const rows = Math.ceil(n / CREW_IN_ROW);
     return CREW_PAD + rows * CREW_ROW + (rows - 1) * CREW_GAP;
+  }
+
+  /**
+   * КНОПКИ В ОКНЕ КРУПЬЕ: дела набора, какие дали, плюс «Перевернуть» его руку — она у распорядителя,
+   * как у меня в своей руке: колода в руках крупье лежит рубашкой, и открыть её иначе нечем.
+   */
+  function crewButtons(s: Snapshot): { data: string; name: string }[] {
+    const admin = iMay(s, "table.croupier");
+    const acts = store.crew.filter((act) => !act.adminOnly || admin).map((act) => ({ data: `data-crew="${escape(act.id)}"`, name: act.name }));
+    return admin ? [...acts, { data: "data-flip-chair", name: "Перевернуть" }] : acts;
   }
 
   function tipBox(spot: Spot, taken: readonly TipBox[], extra = 0): TipBox {
@@ -1328,11 +1338,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * экран не знает ни одной игры и рисует ровно тот список, который дали.
    */
   function crewHtml(s: Snapshot, chair: Chair): string {
-    if (!chair.croupier || store.crew.length === 0) return "";
-    const acts = store.crew.filter((act) => !act.adminOnly || iMay(s, "table.croupier"));
+    if (!chair.croupier) return "";
+    const acts = crewButtons(s);
     if (acts.length === 0) return "";
     return `<div style="display:flex;flex-wrap:wrap;gap:${CREW_GAP}px;padding-top:${CREW_PAD}px">`
-      + acts.map((act) => `<button data-crew="${escape(act.id)}" style="width:calc(${100 / CREW_IN_ROW}% - ${(CREW_GAP * (CREW_IN_ROW - 1)) / CREW_IN_ROW}px);height:${CREW_ROW}px;box-sizing:border-box;border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:0 8px;`
+      + acts.map((act) => `<button ${act.data} style="width:calc(${100 / CREW_IN_ROW}% - ${(CREW_GAP * (CREW_IN_ROW - 1)) / CREW_IN_ROW}px);height:${CREW_ROW}px;box-sizing:border-box;border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:0 8px;`
         + `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};color:${T.ink}">${escape(act.name)}</button>`).join("")
       + `</div>`;
   }
@@ -3318,6 +3328,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         e.preventDefault();
         e.stopPropagation();
         store.send({ t: "crew", act: el.dataset.crew! });
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-flip-chair]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const chair = seen().chairs.find((c) => c.croupier);
+        if (chair) store.send({ t: "flip", chair: chair.id });
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-flag]")) {

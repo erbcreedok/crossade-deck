@@ -73,8 +73,8 @@ await p.goto(`${base}/table/?room=${await open("krest")}`);
 await seat(p);
 await openCroupier(p);
 const acts = await crewButtons(p);
-check("у крупье крестового две кнопки", acts.length === 2, acts);
-check("и это «Собрать колоду» и «Выложить карты на стол»", acts.map((a) => a.act).join(",") === "collect,layout", acts);
+check("у крупье крестового четыре кнопки", acts.length === 4, acts);
+check("и это сбор, выкладка, состав колоды и джокеры", acts.map((a) => a.act).join(",") === "collect,layout,deck,jokers", acts);
 
 // Собрать: все карты должны оказаться в руке крупье.
 const before = await spots(p);
@@ -91,19 +91,31 @@ check("колода со стола ушла, а была", before.deck === 36, 
 // Веер рисуется НАД окном (его край не должен резать карты), поэтому место под него окно обязано
 // отвести с запасом на ряд дел крупье — иначе кнопки уходят под карты и их не нажать.
 const overlap = await p.evaluate(() => {
-  const acts = [...document.querySelectorAll("[data-crew]")].map((e) => e.getBoundingClientRect());
+  const acts = [...document.querySelectorAll("[data-crew],[data-flip-chair]")].map((e) => e.getBoundingClientRect());
   const cards = [...document.querySelectorAll("[data-card]")].map((e) => e.getBoundingClientRect());
   const lowest = Math.max(...acts.map((r) => r.bottom));
   const highest = Math.min(...cards.map((r) => r.top));
   const covered = acts.filter((r) => {
     const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return !at || !at.closest("[data-crew]");
+    return !at || !at.closest("[data-crew],[data-flip-chair]");
   }).length;
   const tip = document.querySelector("[data-tip]")?.getBoundingClientRect();
   return { lowest, highest, covered, acts: acts.length, cards: cards.length, tipTop: tip?.top, tipH: tip?.height, act0: acts[0]?.top };
 });
 check("кнопки крупье не под картами", overlap.covered === 0, overlap);
 check("веер начинается ниже кнопок", overlap.highest >= overlap.lowest, overlap);
+
+// Перевернуть руку крупье — кнопка распорядителя, как у меня в своей: собранная колода открывается лицом.
+// Карты окна лежат отдельно от его рамки: они помечены стулом, чью руку показывают.
+const croupierChair = after.seats.find((s) => s.croupier)?.key;
+const sides = () => p.evaluate((chair) => [...document.querySelectorAll(`[data-card][data-owner="${chair}"]`)].map((e) => e.querySelector("[aria-label]")?.getAttribute("aria-label") ?? "?"), croupierChair);
+const closedBefore = (await sides()).filter((l) => l === "рубашка").length;
+check("собранная колода в руках крупье — рубашкой, вся", closedBefore === 36, { closedBefore, all: (await sides()).length });
+check("у распорядителя есть «Перевернуть» руку крупье", (await p.locator("[data-flip-chair]").count()) === 1);
+await p.locator("[data-flip-chair]").dispatchEvent("pointerdown");
+await p.waitForTimeout(800);
+const closedAfter = (await sides()).filter((l) => l === "рубашка").length;
+check("перевернул — вся рука лицом", closedAfter === 0 && (await sides()).length === 36, { closedAfter, all: (await sides()).length });
 
 // Выложить: рука уходит одной закрытой стопкой на сукно.
 // Окно крупье уже открыто — второй тап по его месту попал бы в само окно, а не по аватару.

@@ -120,6 +120,46 @@ describe("TableRoom", () => {
     expect(bots()).toHaveLength(2);
   });
 
+  it("состав колоды из окна крупье: 36 ↔ 52 и джокеры — недостающие прилетают крупье в руки, лишние уходят", async () => {
+    const room = mintRoom(SECRET);
+    openEntry(room, { kind: "inline", message: "m" }, "tg:7", "Колода");
+    const owner = await sit(room, { door: "telegram", initData: initData(7, "Аня") });
+    const guest = await sit(room, { door: "guest", name: "Боря" });
+    await runIn(room, "tg:7", { t: "croupier", on: true });
+    await new Promise((r) => setTimeout(r, 80));
+    const state = () => owner.patches.reduce(applyPatch, owner.welcome.snapshot);
+    const everyCard = () => {
+      const s = state();
+      return [...s.piles.flatMap((p) => p.cards), ...s.felt, ...s.chairs.flatMap((c) => c.hand)];
+    };
+    const croupierHand = () => state().chairs.find((c) => c.croupier)!.hand.length;
+    expect(everyCard()).toHaveLength(36);
+
+    guest.client.send(MSG.intent, { t: "crew", act: "deck" });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(everyCard(), "не распорядителю состав колоды не менять").toHaveLength(36);
+
+    owner.client.send(MSG.intent, { t: "crew", act: "deck" });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(everyCard()).toHaveLength(52);
+    expect(croupierHand(), "шестнадцать новых — в руках крупье").toBe(16);
+
+    owner.client.send(MSG.intent, { t: "crew", act: "jokers" });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(everyCard()).toHaveLength(54);
+    expect(croupierHand()).toBe(18);
+
+    owner.client.send(MSG.intent, { t: "crew", act: "deck" });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(everyCard(), "лишние ушли, джокеры остались").toHaveLength(38);
+    expect(croupierHand()).toBe(2);
+
+    owner.client.send(MSG.intent, { t: "crew", act: "jokers" });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(everyCard()).toHaveLength(36);
+    expect(croupierHand()).toBe(0);
+  });
+
   it("без подписи комнату не открыть, без двери — не войти", async () => {
     await expect(server().sdk.joinOrCreate(TABLE_ROOM, { room: "x".repeat(22), door: "guest" })).rejects.toThrow();
     await expect(server().sdk.joinOrCreate(TABLE_ROOM, { room: mintRoom(SECRET), door: "telegram", initData: "hash=00" })).rejects.toThrow();
