@@ -194,8 +194,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     confirmLeave: false,
     /** Открытые окна стульев — id стульев, по порядку открытия. */
     tips: [] as string[],
-    /** Стул, которому распорядитель ищет пару для обмена местами: следующий тап по стулу — обмен. */
-    swap: null as string | null,
     /** Открытый тултип стопки — id стопки. */
     deckTip: null as string | null,
     /** Окно раздачи крупье: серия вопросов тому, кто нажал «Раздать». */
@@ -1182,13 +1180,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * Пока палец на кнопке, микрофона нет — только подсказка, куда тянуть. Дальше речь идёт ровно туда, где
    * микрофон висит: сукно — всем за столом, чужой занятый стул — только ему. Мимо зоны — молчание.
    */
-  /** Подсказка на время выбора пары для обмена местами. */
-  function swapHintHtml(): string {
-    if (local.swap === null) return "";
-    return `<div data-swap-hint style="position:absolute;left:8px;right:8px;top:56px;z-index:62;pointer-events:none;text-align:center;`
-      + `font:400 12px Tiny5,monospace;color:${T.ink};text-shadow:0 2px 0 ${T.black}">Тапни стул, с которым поменять местами</div>`;
-  }
-
   function micHtml(barTop: number): string {
     const m = local.mic;
     if (!m) return "";
@@ -1372,11 +1363,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         + `<span data-sit="${chair.id}" role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
         + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">Сесть</span>`;
     const flags = RIGHTS.map((flag) => flagChip(chair, flag, may)).join("");
-    // ПОМЕНЯТЬ МЕСТАМИ — рассадка, дело распорядителя: этот стул и тот, по которому тапнут следом.
-    const swap = !chair.croupier && iMay(s, "table.seats")
-      ? `<span data-swap="${chair.id}" role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:6px;padding:2px 6px;`
-        + `box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim};white-space:nowrap">Поменять местами</span>`
-      : "";
     // ПОЗУ ЧУЖОЙ РУКИ МЕНЯЕТ ТОТ, У КОГО ЕСТЬ ПРАВО, — здесь же, у самой руки.
     const poses = iMay(s, "hand.pose") && chair.owner !== me()
       ? `<span style="width:2px;height:22px;background:${T.wood};margin:0 2px"></span>` + FOLDS.map((k) => poseChip(chair, k)).join("")
@@ -1400,7 +1386,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       + `<span data-shut="${chair.id}" role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
       + `box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
       + `<div style="display:flex;align-items:center;gap:6px;height:16px">`
-      + `${swap}<span style="flex:1"></span>${flags}${poses}</div>`
+      + `<span style="flex:1"></span>${flags}${poses}</div>`
       + crewHtml(s, chair)
 
       + `<div style="position:relative;height:${box.rowH}px"></div></div>`;
@@ -2333,7 +2319,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // колебание его голоса — кольца живут на холсте, а не здесь. Переписывать при этом `innerHTML` значит
     // десятки раз в секунду выбрасывать кнопки из-под пальца: нажатие начинается на одной, а заканчивается
     // на другой, и до onclick дело не доходит вовсе — заглушить говорящего было нельзя, пока он не замолчит.
-    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + compass.html(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + swapHintHtml() + settingsHtml();
+    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + compass.html(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml();
     if (html !== lastOver) {
       lastOver = html;
       over.innerHTML = html;
@@ -3344,15 +3330,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         store.send({ t: "crew", act: el.dataset.crew! });
       };
     }
-    for (const el of over.querySelectorAll<HTMLElement>("[data-swap]")) {
-      el.onpointerdown = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        local.swap = el.dataset.swap!;
-        local.tips = [];
-        draw();
-      };
-    }
     for (const el of over.querySelectorAll<HTMLElement>("[data-flip-chair]")) {
       el.onpointerdown = (e) => {
         e.preventDefault();
@@ -3694,14 +3671,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       }
       // ОКНО ОТКРЫВАЕТСЯ И ЗАКРЫВАЕТСЯ ТАПОМ ПО СТУЛУ — и по аватару, пока он на стуле (`chairUnder`).
       const hit = chairUnder(store.state, e.clientX, e.clientY);
-      // ИЩЕМ ПАРУ ДЛЯ ОБМЕНА: тап по другому стулу — обмен, любой другой тап — отбой.
-      if (local.swap !== null) {
-        e.stopPropagation();
-        if (hit && hit.key !== local.swap && !chairOf(store.state, hit.key)?.croupier) store.command({ t: "seat", do: "swap", chair: local.swap, with: hit.key });
-        local.swap = null;
-        draw();
-        return;
-      }
       if (!hit) return;
       // СВОЙ АВАТАР — КАМЕРА, А НЕ ОКНО: окно своего стула не открывается принципиально, место свободно.
       // Камера ушла — нормализует; уже в норме — кладёт стол на те же 45°, что и диск компаса.

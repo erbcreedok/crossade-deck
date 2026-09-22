@@ -56,7 +56,6 @@ async function open(url) {
   await s.tap(alia.x, alia.y);
   const flagButtons = await s.page.locator(`[data-flag][data-chair="${alia.key}"]`).count();
   check("распорядитель: флаги чужого занятого стула — кнопками", flagButtons === 4, flagButtons);
-  check("распорядитель: «Поменять местами» в окне чужого стула", (await s.page.locator(`[data-swap="${alia.key}"]`).count()) === 1, null);
   const shut = await s.page.locator(`[data-owner="${alia.key}"]`).first().evaluate((e) => getComputedStyle(e).pointerEvents);
   check("рука Алии заперта — её карты не берутся", shut === "none", shut);
 
