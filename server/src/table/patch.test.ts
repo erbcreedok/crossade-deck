@@ -10,7 +10,7 @@ import { ringCardStep, ringHour } from "./ring.js";
 describe("круг кладёт по углу — и в разборе патча тем же правилом, что и стол", () => {
   const ring = (cards: { id: string; turn?: number }[]): Snapshot => ({
     v: 1, people: [], felt: [], trails: {}, locks: {}, picks: {}, admin: null, dealer: null, rights: [], play: null,
-    chairs: [{ id: "c1", angle: 0, owner: "я", lock: false, hide: false, reject: false, forever: false, out: false, pose: { fan: true, shrink: false, tuck: false }, hand: [] }],
+    chairs: [{ id: "c1", angle: 0, owner: "я", lock: false, hide: false, reject: false, forever: false, pose: { fan: true, shrink: false, tuck: false }, hand: [] }],
     rules: DEFAULT_RULES,
     piles: [{ ...DEFAULT_SPOT, id: "круг", pose: "ring", x: 0, y: 0, cards, shuffles: 0 }],
   });

@@ -44,7 +44,7 @@ async function open(url) {
   check("тап по пустому стулу открывает его окно", (await tip.count()) === 1, null);
   check("в окне — «Пустой стул» и кнопка «Сесть»", (await tip.innerText()).includes("Пустой стул") && (await s.page.locator(`[data-sit="${empty.key}"]`).count()) === 1, await tip.innerText());
   check("в окне пустого стула — оставшиеся карты", (await s.page.locator(`[data-owner="${empty.key}"]`).count()) === 3, null);
-  check("флаги пустого стула — кнопками", (await s.page.locator(`[data-flag][data-chair="${empty.key}"]`).count()) === 5, null);
+  check("флаги пустого стула — кнопками", (await s.page.locator(`[data-flag][data-chair="${empty.key}"]`).count()) === 4, null);
 
   await s.tapEl(`[data-flag="forever"][data-chair="${empty.key}"]`);
   check("вечный включается на пустом стуле", (await s.page.getAttribute(`[data-flag="forever"][data-chair="${empty.key}"]`, "aria-pressed")) === "true", null);
@@ -55,7 +55,7 @@ async function open(url) {
   await s.tapEl(`[data-shut="${empty.key}"]`);
   await s.tap(alia.x, alia.y);
   const flagButtons = await s.page.locator(`[data-flag][data-chair="${alia.key}"]`).count();
-  check("распорядитель: флаги чужого занятого стула — кнопками", flagButtons === 5, flagButtons);
+  check("распорядитель: флаги чужого занятого стула — кнопками", flagButtons === 4, flagButtons);
   check("распорядитель: «Поменять местами» в окне чужого стула", (await s.page.locator(`[data-swap="${alia.key}"]`).count()) === 1, null);
   const shut = await s.page.locator(`[data-owner="${alia.key}"]`).first().evaluate((e) => getComputedStyle(e).pointerEvents);
   check("рука Алии заперта — её карты не берутся", shut === "none", shut);
@@ -105,7 +105,7 @@ async function open(url) {
   const as = await a.scene();
   const bSeat = as.seats.find((x) => x.who === "B");
   await a.tap(bSeat.x, bSeat.y);
-  check("не админ: флаги чужого стула — значками, не кнопками", (await a.page.locator(`[data-tip="${bSeat.key}"] [data-status]`).count()) === 5 && (await a.page.locator(`[data-tip="${bSeat.key}"] [data-flag]`).count()) === 0, null);
+  check("не админ: флаги чужого стула — значками, не кнопками", (await a.page.locator(`[data-tip="${bSeat.key}"] [data-status]`).count()) === 4 && (await a.page.locator(`[data-tip="${bSeat.key}"] [data-flag]`).count()) === 0, null);
   check("скрыть по умолчанию — чужая карта рубашкой", (await a.page.locator(`[data-owner="${bSeat.key}"] span span`).count()) === 1, null);
 
   await b.ctx.close();
@@ -113,7 +113,7 @@ async function open(url) {
   const as2 = await a.scene();
   const left = as2.seats.find((x) => x.key === bSeat.key);
   check("B ушёл с картой — стул остался покинутым", left && left.who === undefined, as2.seats);
-  check("у покинутого стула флаги — кнопками", (await a.page.locator(`[data-tip="${bSeat.key}"] [data-flag]`).count()) === 5, null);
+  check("у покинутого стула флаги — кнопками", (await a.page.locator(`[data-tip="${bSeat.key}"] [data-flag]`).count()) === 4, null);
   await a.tapEl(`[data-sit="${bSeat.key}"]`);
   await a.page.waitForTimeout(500);
   check("A сел на стул B и держит его карту", (await a.page.locator(`[data-owner="${bSeat.key}"]`).count()) === 1, null);

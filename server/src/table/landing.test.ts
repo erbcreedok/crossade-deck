@@ -13,9 +13,9 @@ const стол = (ход: Partial<Snapshot> = {}): Snapshot => ({
   v: 1,
   people: [],
   chairs: [
-    { id: "c1", angle: 0, owner: "я", lock: false, hide: false, reject: false, forever: false, out: false, pose: { fan: true, shrink: false, tuck: false }, hand: [] },
-    { id: "c2", angle: 180, owner: "сосед", lock: false, hide: false, reject: false, forever: false, out: false, pose: { fan: true, shrink: false, tuck: false }, hand: [] },
-    { id: "c3", angle: 90, owner: "бот", croupier: true, lock: false, hide: false, reject: false, forever: false, out: false, pose: { fan: true, shrink: false, tuck: false }, hand: [] },
+    { id: "c1", angle: 0, owner: "я", lock: false, hide: false, reject: false, forever: false, pose: { fan: true, shrink: false, tuck: false }, hand: [] },
+    { id: "c2", angle: 180, owner: "сосед", lock: false, hide: false, reject: false, forever: false, pose: { fan: true, shrink: false, tuck: false }, hand: [] },
+    { id: "c3", angle: 90, owner: "бот", croupier: true, lock: false, hide: false, reject: false, forever: false, pose: { fan: true, shrink: false, tuck: false }, hand: [] },
   ],
   piles: [
     { id: "deck", cards: [], shuffles: 0, x: 3, y: 0, angle: 0, below: [], forever: true, pin: false, lock: false, shut: false, seal: false },

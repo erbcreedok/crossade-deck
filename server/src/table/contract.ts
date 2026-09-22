@@ -145,14 +145,9 @@ export interface ChairFlags {
    */
   reject: boolean;
   forever: boolean;
-  /**
-   * НЕ РАЗДАВАТЬ — стул сидит, но раздача его обходит: гость смотрит, вышедший ждёт кон. Ставит хозяин
-   * стула или тот, у кого право на флаги; раздача, которой стулья названы списком, флаг не спрашивает.
-   */
-  out: boolean;
 }
 export type ChairFlag = keyof ChairFlags;
-export const CHAIR_FLAGS: readonly ChairFlag[] = ["lock", "hide", "reject", "forever", "out"];
+export const CHAIR_FLAGS: readonly ChairFlag[] = ["lock", "hide", "reject", "forever"];
 
 /**
  * ПОЗА РУКИ — как хозяин держит карты; видят все, рисуют по ней худ, окно стула и стул на столе.

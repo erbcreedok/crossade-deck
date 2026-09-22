@@ -1371,8 +1371,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         + `<span style="font:400 14px Tiny5,monospace;color:${T.inkDim};flex:1">Пустой стул</span>`
         + `<span data-sit="${chair.id}" role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
         + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">Сесть</span>`;
-    // «Не раздавать» у крупье не бывает: ему и так не раздают.
-    const flags = RIGHTS.filter((flag) => flag !== "out" || !chair.croupier).map((flag) => flagChip(chair, flag, may)).join("");
+    const flags = RIGHTS.map((flag) => flagChip(chair, flag, may)).join("");
     // ПОМЕНЯТЬ МЕСТАМИ — рассадка, дело распорядителя: этот стул и тот, по которому тапнут следом.
     const swap = !chair.croupier && iMay(s, "table.seats")
       ? `<span data-swap="${chair.id}" role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:6px;padding:2px 6px;`

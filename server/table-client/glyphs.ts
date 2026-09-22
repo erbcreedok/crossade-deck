@@ -5,7 +5,7 @@
 import type { Arrange, ChairFlag, GatherSide } from "../src/table/contract.js";
 
 /** Флаги стула в нижнем HUD и в окне стула — одни и те же кнопки, одни и те же значки. */
-export const RIGHTS = ["lock", "hide", "reject", "forever", "out"] as const satisfies readonly ChairFlag[];
+export const RIGHTS = ["lock", "hide", "reject", "forever"] as const satisfies readonly ChairFlag[];
 export const FOLDS = ["fan", "shrink", "tuck"] as const;
 export const ORDERS = ["suit", "rank", "reverse", "shuffle"] as const satisfies readonly Arrange[];
 /**
@@ -53,8 +53,6 @@ export const GLYPH: Record<BarKey | ChairFlag | `sec-${Section}` | "back" | "dec
   shrink: '<rect x="8" y="5" width="8" height="14" rx="1"/><path d="M2 12h4"/><path d="M4 9.5 6.5 12 4 14.5"/><path d="M22 12h-4"/><path d="M20 9.5 17.5 12l2.5 2.5"/>',
   tuck: '<rect x="8" y="3" width="8" height="11" rx="1"/><path d="M3 18h18"/><path d="M12 14v-4"/><path d="M9.5 12.5 12 15l2.5-2.5"/>',
   leave: '<path d="M14 4h5v16h-5"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h10"/>',
-  /** Не раздавать: карта перечёркнута. */
-  out: '<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M4 4l16 16"/>',
   suit: '<path d="M7 4c-2 2.5-4 4-4 6a2 2 0 0 0 4 .5 2 2 0 0 0 4-.5c0-2-2-3.5-4-6z"/><path d="M7 11v3"/><path d="M17 20c2-2.5 4-4 4-6a2 2 0 0 0-4-.5 2 2 0 0 0-4 .5c0 2 2 3.5 4 6z"/>',
   rank: '<path d="M4 7h3v10"/><path d="M4 17h6"/><path d="M14 7h4a2 2 0 0 1 0 4h-2a2 2 0 0 0-2 2v4h6"/>',
   shuffle: '<path d="M3 7h4l10 10h4"/><path d="M3 17h4l3-3"/><path d="M14 10l3-3h4"/><path d="M18.5 4.5 21 7l-2.5 2.5"/><path d="M18.5 14.5 21 17l-2.5 2.5"/>',

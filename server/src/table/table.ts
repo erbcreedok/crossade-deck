@@ -78,7 +78,6 @@ interface ChairRow {
   hide: boolean;
   reject: boolean;
   forever: boolean;
-  out: boolean;
   croupier?: true;
   /** Рука одной стороной: одну карту не перевернуть, положенная ложится как лежит рука. */
   even?: true;
@@ -295,8 +294,7 @@ export class Table {
     t.piles = new Map(dump.piles.map(([id, row]) => [id, structuredClone(row)]));
     for (const [id, row] of own) if (!t.piles.has(id)) t.piles.set(id, row);
     t.felt = structuredClone(dump.felt);
-    // Слепок, снятый до флага «не раздавать», его не несёт: такой стул раздаче открыт.
-    t.chairs = new Map(dump.chairs.map((c) => [c.id, { ...structuredClone(c), out: (c as { out?: boolean }).out === true, owner: c.owner !== null && bots.has(c.owner) ? c.owner : null, last: c.owner ?? c.last }]));
+    t.chairs = new Map(dump.chairs.map((c) => [c.id, { ...structuredClone(c), owner: c.owner !== null && bots.has(c.owner) ? c.owner : null, last: c.owner ?? c.last }]));
     t.people = new Map(dump.bots.map((p) => [p.key, { ...p }]));
     t.rules = { ...DEFAULT_RULES, ...dump.rules };
     t.trails = new Map(dump.trails.map(([id, trail]) => [id, structuredClone(trail)]));
@@ -451,7 +449,6 @@ export class Table {
       hide: false,
       reject: false,
       forever: true,
-      out: false,
       croupier: true,
       // Рука крупье — колода в руках: вся одной стороной, рубашкой вверх.
       even: true,
@@ -1339,12 +1336,12 @@ export class Table {
   }
 
   /** Где что лежит — без лиц, для плана команды. */
-  layout(): { deck: string[]; piles: { id: string; cards: string[] }[]; felt: { id: string; x: number; y: number; under?: boolean }[]; chairs: { id: string; angle: number; owner: string | null; hand: string[]; out: boolean; croupier?: true }[] } {
+  layout(): { deck: string[]; piles: { id: string; cards: string[] }[]; felt: { id: string; x: number; y: number; under?: boolean }[]; chairs: { id: string; angle: number; owner: string | null; hand: string[]; croupier?: true }[] } {
     return {
       deck: [...(this.main?.cards ?? [])],
       piles: [...this.piles].filter(([id]) => id !== MAIN_PILE).map(([id, pile]) => ({ id, cards: [...pile.cards] })),
       felt: this.felt.map(({ id, x, y, under }) => ({ id, x, y, ...(under ? { under } : {}) })),
-      chairs: [...this.chairs.values()].map((c) => ({ id: c.id, angle: c.angle, owner: c.owner, hand: [...c.hand], out: c.out, ...(c.croupier ? { croupier: true as const } : {}) })),
+      chairs: [...this.chairs.values()].map((c) => ({ id: c.id, angle: c.angle, owner: c.owner, hand: [...c.hand], ...(c.croupier ? { croupier: true as const } : {}) })),
     };
   }
 
@@ -1516,7 +1513,6 @@ export class Table {
       hide: true,
       reject: false,
       forever: false,
-      out: false,
       pose: { ...DEFAULT_POSE },
       hand: [],
     };
