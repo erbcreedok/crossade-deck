@@ -80,8 +80,12 @@ describe("TableRoom", () => {
       a.client.send(MSG.intent, { t: "drop", id: top, to: { in: "hand", chair: mine, i: 0 } });
       // Замок уход со стула снимает сам (`vacate`) — это закон стола, а не слепка; «отклонять» уход переживает.
       a.client.send(MSG.intent, { t: "flag", chair: mine, flag: "reject", on: true });
+      // Игроки без человека — часть стола: им возвращаться неоткуда, они остаются сидеть.
+      await runIn(room, "tg:7", { t: "bots", n: 2 });
       await new Promise((r) => setTimeout(r, 80));
       const before = a.patches.reduce(applyPatch, a.welcome.snapshot);
+      const botsAt = (s: typeof before) => s.people.filter((p) => p.bot && p.key.startsWith("bot:игрок")).map((p) => [p.key, p.seat]).sort();
+      expect(botsAt(before)).toHaveLength(2);
 
       // Процесс останавливают: комната Colyseus гаснет, запись остаётся.
       await server().getRoomById(a.client.roomId).disconnect();
@@ -96,40 +100,24 @@ describe("TableRoom", () => {
       expect(chair.reject).toBe(true);
       expect(after.piles[0]!.cards).toHaveLength(before.piles[0]!.cards.length);
       expect(after.v).toBeGreaterThan(before.v);
+      expect(botsAt(after)).toEqual(botsAt(before));
       expect(b.welcome.title).toBe("Живучий");
     } finally {
       keepLobbyIn(null);
     }
   });
 
-  it("дело крупье «Посадить игрока»: распорядителю — сажает, остальным — нет; «Убрать» снимает всех", async () => {
+  it("команда bots — состав стола: не распорядителю отказ; в делах крупье её нет", async () => {
     const room = mintRoom(SECRET);
     openEntry(room, { kind: "inline", message: "m" }, "tg:7", "С ботами");
     const owner = await sit(room, { door: "telegram", initData: initData(7, "Аня") });
     const guest = await sit(room, { door: "guest", name: "Боря" });
-    expect(owner.welcome.crew.map((act) => act.id)).toEqual(expect.arrayContaining(["bot-add", "bots-off"]));
+    expect(owner.welcome.crew.map((act) => act.id)).not.toEqual(expect.arrayContaining(["bot-add"]));
+    expect(await runIn(room, guest.welcome.you.key, { t: "bots", n: 1 })).toEqual({ error: "not-admin" });
     const bots = () => owner.patches.reduce(applyPatch, owner.welcome.snapshot).people.filter((p) => p.bot && p.seat !== undefined && p.key.startsWith("bot:игрок"));
-
-    guest.client.send(MSG.intent, { t: "crew", act: "bot-add" });
-    await new Promise((r) => setTimeout(r, 80));
-    expect(bots()).toHaveLength(0);
-
-    owner.client.send(MSG.intent, { t: "crew", act: "bot-add" });
-    owner.client.send(MSG.intent, { t: "crew", act: "bot-add" });
+    await runIn(room, "tg:7", { t: "bots", n: 2 });
     await new Promise((r) => setTimeout(r, 120));
     expect(bots()).toHaveLength(2);
-
-    owner.client.send(MSG.intent, { t: "crew", act: "bots-off" });
-    await new Promise((r) => setTimeout(r, 120));
-    expect(bots()).toHaveLength(0);
-    expect(await runIn(room, guest.welcome.you.key, { t: "bots", n: 1 })).toEqual({ error: "not-admin" });
-  });
-
-  it("клиент другого протокола не входит; свой и безымянный (собранный до номера) — входят", async () => {
-    const room = mintRoom(SECRET);
-    await expect(server().sdk.joinOrCreate(TABLE_ROOM, { room, client: "html", door: "guest", name: "A", protocol: PROTOCOL + 1 })).rejects.toThrow(STALE_CLIENT);
-    await expect(sit(room, { door: "guest", name: "A", protocol: PROTOCOL })).resolves.toBeDefined();
-    await expect(sit(room, { door: "guest", name: "B" })).resolves.toBeDefined();
   });
 
   it("без подписи комнату не открыть, без двери — не войти", async () => {

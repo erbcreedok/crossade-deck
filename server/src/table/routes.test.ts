@@ -1,13 +1,13 @@
 import type { AddressInfo } from "net";
 import express from "express";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync } from "fs";
 import { join } from "path";
-import { BEACON_TTL_MS, CARD_BACKS, CARD_FACES, SECRET_HEADER } from "./contract.js";
+import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, SECRET_HEADER } from "./contract.js";
 import { clientRoutes } from "./client.js";
 import { forgetAll } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
-import { BOOT, forgetBeacon, hostPage, readCommand, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
+import { BOOT, DOOR_DEAD_AFTER, forgetBeacon, hostPage, readCommand, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
 
 process.env.TABLE_SECRET = "s3cret";
 
@@ -169,13 +169,55 @@ describe("реле и маяк", () => {
     expect(relayStatus(Date.now() + BEACON_TTL_MS + 1).up).toBe(false);
   });
 
+  /** Своя дверь мака отвечает, всё остальное — в сеть как есть. */
+  const doorOpen: typeof fetch = (url, init) => (String(url).startsWith("https://mac.example") ? Promise.resolve(new Response("ok")) : fetch(url, init));
+
   it("маяк мака шлёт свой адрес и boot", async () => {
     process.env.TABLE_PUBLIC_URL = "https://mac.example";
     process.env.TABLE_RELAY_URL = base;
-    const stop = startBeacon();
+    const stop = startBeacon(doorOpen);
     await new Promise((r) => setTimeout(r, 100));
     stop();
     expect(relayStatus()).toMatchObject({ up: true, url: "https://mac.example", boot: BOOT });
+  });
+
+  it("своя дверь не отвечает — маяк молчит; не отвечает подряд — зовёт на перезапуск и замолкает совсем", async () => {
+    process.env.TABLE_PUBLIC_URL = "https://mac.example";
+    process.env.TABLE_RELAY_URL = base;
+    vi.useFakeTimers();
+    try {
+      let door = true;
+      const posted: string[] = [];
+      const send: typeof fetch = async (url) => {
+        if (String(url).startsWith("https://mac.example")) {
+          if (!door) throw new Error("dns");
+          return new Response("ok");
+        }
+        posted.push(String(url));
+        return new Response("{}");
+      };
+      const dead = vi.fn();
+      const stop = startBeacon(send, dead);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(posted).toHaveLength(1);
+
+      door = false;
+      for (let i = 1; i < DOOR_DEAD_AFTER; i++) {
+        await vi.advanceTimersByTimeAsync(BEACON_EVERY_MS);
+        expect(dead).not.toHaveBeenCalled();
+      }
+      expect(posted).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(BEACON_EVERY_MS);
+      expect(dead).toHaveBeenCalledTimes(1);
+
+      door = true;
+      await vi.advanceTimersByTimeAsync(BEACON_EVERY_MS * 2);
+      expect(posted).toHaveLength(1);
+      expect(dead).toHaveBeenCalledTimes(1);
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

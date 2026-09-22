@@ -272,20 +272,47 @@ export function hostPage(html: string, host: string): string {
 const DOWN_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Стол недоступен</title>
 <body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0704;color:#f5ead0;font:16px system-ui;text-align:center;padding:24px">
-<div><p style="font-size:20px">Столы сейчас недоступны</p><p style="color:#cdb98f">Сервер стола выключен. Попробуй позже.</p></div>`;
+<div><p style="font-size:20px">Столы сейчас недоступны</p><p style="color:#cdb98f">Стол не отвечает. Попробуй через минуту.</p></div>`;
 
 // ── МАЯК ──────────────────────────────────────────────────────────────────────────────────────
 
-export function startBeacon(send: typeof fetch = fetch): () => void {
+/** Столько раз подряд своя дверь не открылась — туннель мёртв, и `doorDead` зовётся один раз. */
+export const DOOR_DEAD_AFTER = 3;
+const DOOR_WAIT_MS = 8_000;
+
+/**
+ * СНАЧАЛА СВОЯ ДВЕРЬ, ПОТОМ МАЯК. Маяк несёт адрес — значит, ручается, что по адресу открывают. А туннель
+ * умирает молча: процесс жив, реле держит «свежий» адрес, снаружи — ничего. Поэтому перед каждым ударом
+ * маяк сам стучится в свой адрес снаружи; не открыли — реле не врут; не открыли `DOOR_DEAD_AFTER` раз
+ * подряд — `doorDead`, и тому, кто запускал процесс, проще поднять его с новым туннелем, чем ждать.
+ */
+export function startBeacon(send: typeof fetch = fetch, doorDead: () => void = () => {}): () => void {
   const { publicUrl, relayUrl, secret } = tableConfig();
   if (!publicUrl || !relayUrl || !secret) return () => {};
-  const beat = () =>
-    send(`${relayUrl.replace(/\/+$/, "")}/relay/table`, {
+  const door = publicUrl.replace(/\/+$/, "");
+  let misses = 0;
+  let timer: ReturnType<typeof setInterval> | undefined;
+  const beat = async () => {
+    try {
+      const answer = await send(`${door}/health`, { signal: AbortSignal.timeout(DOOR_WAIT_MS) });
+      if (!answer.ok) throw new Error(`HTTP ${answer.status}`);
+      misses = 0;
+    } catch (err) {
+      misses += 1;
+      console.warn(`своя дверь ${door} не отвечает (${misses}/${DOOR_DEAD_AFTER}):`, String(err));
+      if (misses >= DOOR_DEAD_AFTER) {
+        clearInterval(timer);
+        doorDead();
+      }
+      return;
+    }
+    await send(`${relayUrl.replace(/\/+$/, "")}/relay/table`, {
       method: "POST",
       headers: { "content-type": "application/json", [SECRET_HEADER]: secret },
       body: JSON.stringify({ url: publicUrl, boot: BOOT } satisfies Beacon),
     }).catch((err) => console.warn("маяк стола не дошёл до реле:", String(err)));
+  };
   void beat();
-  const timer = setInterval(beat, BEACON_EVERY_MS);
+  timer = setInterval(beat, BEACON_EVERY_MS);
   return () => clearInterval(timer);
 }

@@ -10,7 +10,9 @@ const { httpServer, gameServer } = createApp();
 const PORT = Number(process.env.PORT) || 2567;
 httpServer.listen(PORT, () => {
   console.log(`Crossade Deck ${formatVersion()} server listening on :${PORT}`);
-  const stopBeacon = startBeacon();
+  // Туннель наружу умер — процесс уходит целиком (комнаты дописываются в базу), и кто его держит
+  // (launchd, супервизор хоста) поднимает заново уже с новой дверью.
+  const stopBeacon = startBeacon(fetch, () => void gameServer.gracefullyShutdown(true, new Error("своя дверь не отвечает")));
   sweepJournal();
   gameServer.onShutdown(() =>
     runStop([

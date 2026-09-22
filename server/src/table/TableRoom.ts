@@ -527,9 +527,6 @@ export class TableRoom extends Room {
     // Дело набора — обычный ключ: `crew.collect`, `crew.layout`. Помеченные `adminOnly` живут в
     // наборе распорядителя, прочие открыты всем, кого пускает замок стула крупье.
     if (item.adminOnly && !this.table.may(by, "table.croupier")) return;
-    // ИГРОКИ БЕЗ ЧЕЛОВЕКА — та же команда, что приходит из бота: состав стола, а не ход.
-    if (act === "bot-add") return void this.run(by, { t: "bots", n: 1 });
-    if (act === "bots-off") return void this.run(by, { t: "bots", n: 0 });
     if (this.table.busy) return;
     // ВЫКЛАДКА — ОДНО ДВИЖЕНИЕ: стопка кладётся целиком, её не носят по карте.
     if (act === "layout") return void this.layout(by, chair.id, chair.angle);
