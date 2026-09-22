@@ -775,6 +775,9 @@ export class Table {
     // СТОРОНА: цель вся одной стороной — ею; вперемешку или пустая — как лежали.
     const pack = into ? into.cards.map((one) => this.turned.has(one)) : [];
     const side = pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0] : undefined;
+    // В РУКУ — лицом к хозяину; в РОВНУЮ руку — как лежит рука (пустая — рубашкой): стопка целиком
+    // подчиняется тому же, что и одна карта, иначе колода, собранная в руки крупье, оказывается открытой.
+    const evenUp = target.in === "hand" ? this.evenSide(target.chair) : undefined;
     const ops: Op[] = [];
     const cards = [...source.cards];
     let i = target.in === "hand" ? target.i : into!.spot.lock ? undefined : target.i;
@@ -782,8 +785,10 @@ export class Table {
       const from = this.whereIs(one)!;
       const trail = this.trailOf(one, by, from, target.in, now);
       this.take(one, from);
-      if (target.in === "hand") this.turned.delete(one);
-      else if (side !== undefined) {
+      if (target.in === "hand") {
+        this.turned.delete(one);
+        if (evenUp === true) this.turned.add(one);
+      } else if (side !== undefined) {
         this.turned.delete(one);
         if (side) this.turned.add(one);
       }

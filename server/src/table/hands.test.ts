@@ -124,6 +124,23 @@ describe("РОВНАЯ РУКА КРУПЬЕ: вся одной стороной
     expect(backUp(t, "Крупье", seat, second), "и пришедшая легла так же").toBe(false);
   });
 
+  it("СТОПКА ЦЕЛИКОМ ложится, как рука: в пустую — рубашкой, в открытую — лицом, а не как лежала", () => {
+    const t = withCroupier();
+    const seat = croupierSeat(t);
+    // Колода в руки крупье — одним броском: так собирают колоду.
+    ok(t.act("Аня", { t: "pileDrop", pile: MAIN_PILE, to: { in: "hand", chair: seat, i: 0 } }, 0));
+    const hand = t.seenBy("Крупье").chairs.find((c) => c.id === seat)!.hand;
+    expect(hand.length).toBeGreaterThan(10);
+    expect(hand.every((h) => h.up === true), "вся колода в руках закрытой").toBe(true);
+
+    ok(t.act("Аня", { t: "flip", chair: seat }, 0));
+    ok(t.act("Аня", { t: "gather", ids: hand.slice(0, 3).map((h) => h.id), side: "down", to: { x: 2, y: 2, angle: 0 } }, 0));
+    const pile = t.seenBy("Аня").piles.find((p) => p.id !== MAIN_PILE)!;
+    ok(t.act("Аня", { t: "pileDrop", pile: pile.id, to: { in: "hand", chair: seat, i: 0 } }, 0));
+    const open = t.seenBy("Крупье").chairs.find((c) => c.id === seat)!.hand;
+    expect(open.every((h) => h.up !== true), "рука открыта — и стопка легла лицом, хоть лежала рубашкой").toBe(true);
+  });
+
   it("ОДНУ КАРТУ В НЕЙ НЕ ПЕРЕВЕРНУТЬ — отказ", () => {
     const t = withCroupier();
     const seat = croupierSeat(t);
