@@ -18,7 +18,7 @@ export const TABLE_ROOM = "table_room";
  * Клиент называет номер при входе; сервер с другим номером не пускает (`STALE_CLIENT`), и клиент
  * перезагружает страницу — один раз, за свежей сборкой.
  */
-export const PROTOCOL = 1;
+export const PROTOCOL = 2;
 /** Текст отказа во входе клиенту другого протокола. По нему клиент понимает, что надо обновиться. */
 export const STALE_CLIENT = "stale client";
 
@@ -145,9 +145,14 @@ export interface ChairFlags {
    */
   reject: boolean;
   forever: boolean;
+  /**
+   * НЕ РАЗДАВАТЬ — стул сидит, но раздача его обходит: гость смотрит, вышедший ждёт кон. Ставит хозяин
+   * стула или тот, у кого право на флаги; раздача, которой стулья названы списком, флаг не спрашивает.
+   */
+  out: boolean;
 }
 export type ChairFlag = keyof ChairFlags;
-export const CHAIR_FLAGS: readonly ChairFlag[] = ["lock", "hide", "reject", "forever"];
+export const CHAIR_FLAGS: readonly ChairFlag[] = ["lock", "hide", "reject", "forever", "out"];
 
 /**
  * ПОЗА РУКИ — как хозяин держит карты; видят все, рисуют по ней худ, окно стула и стул на столе.

@@ -131,14 +131,15 @@ const q = await browser.newPage({ viewport: { width: 390, height: 844 } });
 await q.goto(`${base}/table/?room=${await open("sandbox")}&name=B`);
 await seat(q);
 await openCroupier(q);
-check("у крупье песочницы дел нет — и кнопок нет", (await crewButtons(q)).length === 0, await crewButtons(q));
+// НАБОРЫ ПОКА ОДНИ: крупье песочницы умеет то же, что крестового. Гостю видны дела без права — одна выкладка.
+check("у крупье песочницы те же дела, что у крестового: гостю — «Выложить»", (await crewButtons(q)).map((a) => a.act).join(",") === "layout", await crewButtons(q));
 
 // ── Набор — деталь конструктора: крестовый с крупье песочницы ────────────────────────────────────
 const r = await browser.newPage({ viewport: { width: 390, height: 844 } });
 await r.goto(`${base}/table/?room=${await open("krest", "sandbox")}&name=C`);
 await seat(r);
 await openCroupier(r);
-check("КРЕСТОВЫЙ С КРУПЬЕ ПЕСОЧНИЦЫ — законная комната, и кнопок в ней нет", (await crewButtons(r)).length === 0, await crewButtons(r));
+check("КРЕСТОВЫЙ С КРУПЬЕ ПЕСОЧНИЦЫ — законная комната, и дела в ней те же", (await crewButtons(r)).map((a) => a.act).join(",") === "layout", await crewButtons(r));
 
 await browser.close();
 let bad = 0;

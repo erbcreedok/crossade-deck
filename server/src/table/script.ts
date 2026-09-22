@@ -326,7 +326,8 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
   // КОМУ РАЗДАЁМ. Сказали списком — ровно им (исчезнувшие стулья просто выпадают); не сказали —
   // всем игровым, как раньше.
   const named = command.seats ? new Set(command.seats) : null;
-  let chairs = playable.filter((c) => (named ? named.has(c.id) : !(command.skipEmpty || preset.skipEmpty) || (c.owner !== null && people.some((p) => p.key === c.owner))));
+  // «НЕ РАЗДАВАТЬ» НА СТУЛЕ обходится, как пустой при skipEmpty; названный списком стул флаг не спрашивает.
+  let chairs = playable.filter((c) => (named ? named.has(c.id) : !c.out && (!(command.skipEmpty || preset.skipEmpty) || (c.owner !== null && people.some((p) => p.key === c.owner)))));
   if (preset.seats > 0) {
     const around = clockwise(chairs, chairs.some((c) => c.id === anchor) ? anchor : (chairs[0]?.id ?? anchor));
     chairs = around.slice(0, preset.seats);

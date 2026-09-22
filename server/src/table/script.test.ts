@@ -108,6 +108,22 @@ describe("команды стола: раздача", () => {
     expect(s.log).toHaveLength(0);
   });
 
+  it("стул с флагом «не раздавать» раздача обходит; названный списком — раздаёт", async () => {
+    const t = new Table(deal(), "a");
+    for (const k of ["a", "b", "c"]) t.join(person(k));
+    const who = (): Who[] => t.seenBy("a").people.map((p) => ({ key: p.key, name: p.name, username: p.username, seat: p.seat }));
+    const bSeat = who().find((p) => p.key === "b")!.seat!;
+    expect("ops" in t.act("b", { t: "flag", chair: bSeat, flag: "out", on: true }, 0)).toBe(true);
+    const made = plan(t, { t: "deal", rule: "each", n: 2 }, who(), "a");
+    expect("steps" in made).toBe(true);
+    if (!("steps" in made)) return;
+    const toB = made.steps.filter((s) => s.t === "move" && s.to.in === "hand" && s.to.chair === bSeat);
+    expect(toB).toHaveLength(0);
+    expect(made.steps.filter((s) => s.t === "move" && s.to.in === "hand")).toHaveLength(4);
+    const named = plan(t, { t: "deal", rule: "each", n: 1, seats: [bSeat] }, who(), "a");
+    expect("steps" in named && named.steps.filter((s) => s.t === "move" && s.to.in === "hand" && s.to.chair === bSeat)).toHaveLength(1);
+  });
+
   it("покинутым стульям раздаёт, а с skipEmpty — нет", async () => {
     const s = table("a", "b", "c");
     s.t.act("c", { t: "flag", chair: s.t.seenBy("c").people.find((p) => p.key === "c")!.seat!, flag: "forever", on: true }, 0);
