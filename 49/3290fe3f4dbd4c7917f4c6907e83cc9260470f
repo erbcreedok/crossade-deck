@@ -1,0 +1,31 @@
+server/src/table/crews.ts
+  s_eea5b32ea4af25::t_9d66de4ab4a16a 27-34
+  s_eea5b32ea4af25::t_c965cb60d92832 49,60
+  s_eea5b32ea4af25::t_2879159c2434fe 26
+server/scripts/tableCrew.mjs
+  s_eea5b32ea4af25::t_899938c09db1a5 109-111
+  s_eea5b32ea4af25::t_c965cb60d92832 76-77,119
+  s_eea5b32ea4af25::t_bb596ac81398cb 94,100,108,112-118
+server/src/table/TableRoom.ts
+  s_eea5b32ea4af25::t_c965cb60d92832 19,533-540
+server/table-client/screen.ts
+  s_eea5b32ea4af25::t_bb596ac81398cb 677-679,683-692,1341-1342,1345,3333-3340
+server/src/table/TableRoom.test.ts
+  s_eea5b32ea4af25::t_c965cb60d92832 123-162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "493290fe3f4dbd4c7917f4c6907e83cc9260470f",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
