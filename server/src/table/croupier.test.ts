@@ -3,7 +3,8 @@ import { croupierAngle } from "./ring.js";
 import { plan } from "./script.js";
 import { deal } from "./deal.js";
 import { Table } from "./table.js";
-import type { Person } from "./contract.js";
+import { MAIN_PILE, type Person } from "./contract.js";
+import { deskOf } from "./desks.js";
 
 const bot: Person = { key: "bot:table", name: "CrossaderBot", door: "telegram", ink: "#fff", bot: true };
 const man: Person = { key: "tg:1", name: "А", door: "telegram", ink: "#0f0" };
@@ -60,6 +61,32 @@ describe("крупье", () => {
     table.join(man);
     const mine = table.seenBy(man.key).chairs.find((c) => c.owner === man.key)!;
     expect(mine.croupier).toBeUndefined();
+  });
+
+  it("КОЛОДА В ЕГО РУКАХ — ПУСТОГО КОНТУРА НА СУКНЕ НЕТ, если род стола колоду не держит: ни после смены колоды, ни после убранных карт", () => {
+    const table = new Table(deal(), man.key, deskOf("krest"));
+    table.join(man);
+    table.seatCroupier(bot);
+    const his = table.croupierChair()!.id;
+    // Колода целиком в руки крупье — контур ушёл вместе с последней картой.
+    expect("ops" in table.act(man.key, { t: "pileDrop", pile: MAIN_PILE, to: { in: "hand", chair: his, i: 0 } }, 0)).toBe(true);
+    expect(table.seenBy(man.key).piles.some((p) => p.id === MAIN_PILE)).toBe(false);
+    // Новая колода при смене ложится ему же в руки — и контура на сукне не появляется.
+    const faces = table.layout().chairs.find((c) => c.id === his)!.hand.map((id) => table.faceOf(id)!);
+    expect(table.restock(faces)).not.toBeNull();
+    expect(table.seenBy(man.key).piles.some((p) => p.id === MAIN_PILE), "после смены колоды").toBe(false);
+    // Карты убрали со стола совсем — опустевшая стопка уходит следом.
+    const fresh = new Table(deal(), man.key, deskOf("krest"));
+    fresh.join(man);
+    fresh.unmake(fresh.layout().deck);
+    expect(fresh.seenBy(man.key).piles.some((p) => p.id === MAIN_PILE), "после unmake").toBe(false);
+    // Слепок с пустой вечной колодой (песочница) поднят как крестовый — контур не поднимается с ним.
+    const sand = new Table(deal(), man.key);
+    sand.join(man);
+    sand.unmake(sand.layout().deck);
+    expect(sand.seenBy(man.key).piles.some((p) => p.id === MAIN_PILE), "в песочнице колода вечная").toBe(true);
+    const raised = Table.restore(sand.dump(), man.key, deskOf("krest"));
+    expect(raised.seenBy(man.key).piles.some((p) => p.id === MAIN_PILE), "после подъёма слепка").toBe(false);
   });
 
   it("убрали — карты падают на стол закрытой стопкой, сам он уходит", () => {

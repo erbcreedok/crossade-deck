@@ -191,7 +191,10 @@ export class Table {
   /** Колода стоит пустой или исчезает — как сказал род стола. */
   private deckStays(): void {
     const main = this.piles.get(MAIN_PILE);
-    if (main) main.spot.forever = this.desk.deckForever ?? true;
+    if (!main) return;
+    main.spot.forever = this.desk.deckForever ?? true;
+    // Пустая и не вечная — уходит сразу: слепок или прежний род могли оставить её стоять.
+    if (main.cards.length === 0 && !main.spot.forever) this.piles.delete(MAIN_PILE);
   }
 
   /** Имена мест, объявленных родом стола: их нельзя двигать и нельзя закрывать. */
@@ -286,8 +289,11 @@ export class Table {
     t.pileSeq = dump.pileSeq;
     t.faces = new Map(dump.faces);
     t.laid = new Map(dump.laid);
-    // Места рода стола, которых в слепке нет (род дописали), остаются от конструктора.
-    for (const [id, row] of dump.piles) t.piles.set(id, structuredClone(row));
+    // Стопки — в порядке слепка: он и есть порядок на сукне. Места рода стола, которых в слепке нет
+    // (род дописали), остаются от конструктора — следом.
+    const own = t.piles;
+    t.piles = new Map(dump.piles.map(([id, row]) => [id, structuredClone(row)]));
+    for (const [id, row] of own) if (!t.piles.has(id)) t.piles.set(id, row);
     t.felt = structuredClone(dump.felt);
     // Слепок, снятый до флага «не раздавать», его не несёт: такой стул раздаче открыт.
     t.chairs = new Map(dump.chairs.map((c) => [c.id, { ...structuredClone(c), out: (c as { out?: boolean }).out === true, owner: c.owner !== null && bots.has(c.owner) ? c.owner : null, last: c.owner ?? c.last }]));
@@ -1388,9 +1394,11 @@ export class Table {
     const held = this.croupierChair();
     const busy = [...this.chairs.values()].some((c) => c.id !== held?.id && c.hand.length > 0);
     if (this.felt.length > 0 || busy || [...this.piles].some(([id, pile]) => id !== MAIN_PILE && pile.cards.length > 0) || this.locks.size > 0) return null;
-    const born = this.ensureDeck();
-    const main = this.main!;
-    const old = [...main.cards, ...(held?.hand ?? [])];
+    // Колоду держит крупье — пустого места колоды на сукне не ставится: род стола, у которого колода
+    // не вечная, иначе получил бы пустой контур рядом с ним.
+    const born = held ? [] : this.ensureDeck();
+    const main = this.main;
+    const old = [...(main?.cards ?? []), ...(held?.hand ?? [])];
     born.push(...this.dropPicks(old));
     for (const id of old) {
       this.turned.delete(id);
@@ -1404,13 +1412,13 @@ export class Table {
     });
     // Колоду держал крупье — новая ложится ему же в руку, рубашкой вверх, как лежала.
     if (held) {
-      main.cards = [];
+      if (main) main.cards = [];
       held.hand = fresh;
       for (const id of fresh) this.turned.add(id);
-      return this.commit([...born, { t: "deck", pile: MAIN_PILE, cards: [], shuffled: false }, { t: "chair", chair: this.chairOut(held) }]);
+      return this.commit([...born, ...(main ? [{ t: "deck" as const, pile: MAIN_PILE, cards: [], shuffled: false }] : []), { t: "chair", chair: this.chairOut(held) }, ...this.sweepPile(MAIN_PILE)]);
     }
-    main.cards = fresh;
-    return this.commit([...born, { t: "deck", pile: MAIN_PILE, cards: main.cards.map((id) => ({ id })), shuffled: false }]);
+    main!.cards = fresh;
+    return this.commit([...born, { t: "deck", pile: MAIN_PILE, cards: main!.cards.map((id) => ({ id })), shuffled: false }]);
   }
 
   /**
@@ -1422,7 +1430,12 @@ export class Table {
   unmake(ids: readonly string[]): Op[] {
     const gone = new Set(ids.filter((id) => this.faces.has(id)));
     if (gone.size === 0) return [];
-    for (const pile of this.piles.values()) pile.cards = pile.cards.filter((id) => !gone.has(id));
+    const thinned: string[] = [];
+    for (const [id, pile] of this.piles) {
+      const left = pile.cards.filter((one) => !gone.has(one));
+      if (left.length !== pile.cards.length) thinned.push(id);
+      pile.cards = left;
+    }
     for (const chair of this.chairs.values()) chair.hand = chair.hand.filter((id) => !gone.has(id));
     this.felt = this.felt.filter((card) => !gone.has(card.id));
     const ops: Op[] = [...this.dropPicks([...gone])];
@@ -1432,7 +1445,10 @@ export class Table {
       this.trails.delete(id);
       if (this.locks.delete(id)) ops.push({ t: "unlock", id });
     }
-    return this.commit([...ops, { t: "unmake", ids: [...gone] }]);
+    ops.push({ t: "unmake", ids: [...gone] });
+    // Стопка, опустевшая от убранных карт, уходит по общему правилу — как ушла бы, унеси их рука.
+    for (const id of thinned) ops.push(...this.sweepPile(id));
+    return this.commit(ops);
   }
 
   /**
