@@ -1,0 +1,42 @@
+server/table-client/screen.ts
+  s_eea5b32ea4af25::t_81d27af413cf67 197-198,1375-1379,1403,3347-3355,3697-3704
+  s_eea5b32ea4af25::t_e39e613a9cc098 1185-1191,2336
+server/src/table/patch.test.ts
+  s_eea5b32ea4af25::t_42d50e8a6472b5 13
+server/scripts/tableChairs.mjs
+  s_eea5b32ea4af25::t_e39e613a9cc098 47,58-59
+  s_eea5b32ea4af25::t_2ebd493cafa4f5 108,116
+server/src/table/contract.ts
+  s_eea5b32ea4af25::t_81d27af413cf67 21,148-152,155
+server/src/table/landing.test.ts
+  s_eea5b32ea4af25::t_42d50e8a6472b5 16-18
+server/src/table/table.ts
+  s_eea5b32ea4af25::t_42d50e8a6472b5 1336,1341
+  s_eea5b32ea4af25::t_81d27af413cf67 81,292-293,448,1503
+server/src/table/script.test.ts
+  s_eea5b32ea4af25::t_81d27af413cf67 111-126
+server/table-client/glyphs.ts
+  s_eea5b32ea4af25::t_81d27af413cf67 8,56-57
+server/scripts/tableCrew.mjs
+  s_eea5b32ea4af25::t_5f5275b6943402 134-135,142
+server/src/table/script.ts
+  s_eea5b32ea4af25::t_81d27af413cf67 329-330
+server/src/table/crews.ts
+  s_eea5b32ea4af25::t_81d27af413cf67 41-53,55-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "46dfb43731556be4f91b6b71d6e9294173af3b24",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
