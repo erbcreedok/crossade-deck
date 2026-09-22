@@ -276,35 +276,48 @@ const DOWN_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" co
 
 // ── МАЯК ──────────────────────────────────────────────────────────────────────────────────────
 
-/** Столько раз подряд своя дверь не открылась — туннель мёртв, и `doorDead` зовётся один раз. */
-export const DOOR_DEAD_AFTER = 3;
+/** Столько раз подряд дверь, которая уже открывалась, не открылась — туннель мёртв, и `doorDead` зовётся один раз. */
+export const DOOR_DEAD_AFTER = 6;
 const DOOR_WAIT_MS = 8_000;
 
 /**
- * СНАЧАЛА СВОЯ ДВЕРЬ, ПОТОМ МАЯК. Маяк несёт адрес — значит, ручается, что по адресу открывают. А туннель
- * умирает молча: процесс жив, реле держит «свежий» адрес, снаружи — ничего. Поэтому перед каждым ударом
- * маяк сам стучится в свой адрес снаружи; не открыли — реле не врут; не открыли `DOOR_DEAD_AFTER` раз
- * подряд — `doorDead`, и тому, кто запускал процесс, проще поднять его с новым туннелем, чем ждать.
+ * МАЯК СТУЧИТСЯ И В СВОЮ ДВЕРЬ. Туннель умирает молча: процесс жив, реле держит «свежий» адрес, снаружи —
+ * ничего, и так весь день. Поэтому перед каждым ударом маяк пробует свой адрес снаружи. Дверь, которая
+ * уже открывалась, не открылась `DOOR_DEAD_AFTER` раз подряд — `doorDead`: тому, кто держит процесс,
+ * проще поднять его с новым туннелем, чем ждать.
+ *
+ * Дверь, которая ещё НИ РАЗУ не открылась, смертью не считается: свежее имя туннеля домашний резолвер
+ * узнаёт с опозданием в минуты, а снаружи оно открыто с первой секунды. Маяк бьёт всегда — жив ли адрес,
+ * реле проверяет само, когда отдаёт страницу.
  */
 export function startBeacon(send: typeof fetch = fetch, doorDead: () => void = () => {}): () => void {
   const { publicUrl, relayUrl, secret } = tableConfig();
   if (!publicUrl || !relayUrl || !secret) return () => {};
   const door = publicUrl.replace(/\/+$/, "");
+  let opened = false;
   let misses = 0;
   let timer: ReturnType<typeof setInterval> | undefined;
-  const beat = async () => {
+  const knock = async (): Promise<string | null> => {
     try {
       const answer = await send(`${door}/health`, { signal: AbortSignal.timeout(DOOR_WAIT_MS) });
-      if (!answer.ok) throw new Error(`HTTP ${answer.status}`);
-      misses = 0;
+      return answer.ok ? null : `HTTP ${answer.status}`;
     } catch (err) {
+      return String(err);
+    }
+  };
+  const beat = async () => {
+    const closed = await knock();
+    if (closed === null) {
+      opened = true;
+      misses = 0;
+    } else if (opened) {
       misses += 1;
-      console.warn(`своя дверь ${door} не отвечает (${misses}/${DOOR_DEAD_AFTER}):`, String(err));
+      console.warn(`своя дверь ${door} не отвечает (${misses}/${DOOR_DEAD_AFTER}):`, closed);
       if (misses >= DOOR_DEAD_AFTER) {
         clearInterval(timer);
         doorDead();
+        return;
       }
-      return;
     }
     await send(`${relayUrl.replace(/\/+$/, "")}/relay/table`, {
       method: "POST",

@@ -181,12 +181,12 @@ describe("реле и маяк", () => {
     expect(relayStatus()).toMatchObject({ up: true, url: "https://mac.example", boot: BOOT });
   });
 
-  it("своя дверь не отвечает — маяк молчит; не отвечает подряд — зовёт на перезапуск и замолкает совсем", async () => {
+  it("дверь, что ещё не открывалась, — не смерть, маяк бьёт; открылась и пропала подряд — зовёт на перезапуск и замолкает", async () => {
     process.env.TABLE_PUBLIC_URL = "https://mac.example";
     process.env.TABLE_RELAY_URL = base;
     vi.useFakeTimers();
     try {
-      let door = true;
+      let door = false;
       const posted: string[] = [];
       const send: typeof fetch = async (url) => {
         if (String(url).startsWith("https://mac.example")) {
@@ -198,21 +198,26 @@ describe("реле и маяк", () => {
       };
       const dead = vi.fn();
       const stop = startBeacon(send, dead);
-      await vi.advanceTimersByTimeAsync(0);
-      expect(posted).toHaveLength(1);
+      for (let i = 0; i <= DOOR_DEAD_AFTER; i++) await vi.advanceTimersByTimeAsync(BEACON_EVERY_MS);
+      expect(posted.length).toBeGreaterThan(DOOR_DEAD_AFTER);
+      expect(dead).not.toHaveBeenCalled();
 
+      door = true;
+      await vi.advanceTimersByTimeAsync(BEACON_EVERY_MS);
       door = false;
+      const was = posted.length;
       for (let i = 1; i < DOOR_DEAD_AFTER; i++) {
         await vi.advanceTimersByTimeAsync(BEACON_EVERY_MS);
         expect(dead).not.toHaveBeenCalled();
       }
-      expect(posted).toHaveLength(1);
+      expect(posted.length).toBe(was + DOOR_DEAD_AFTER - 1);
       await vi.advanceTimersByTimeAsync(BEACON_EVERY_MS);
       expect(dead).toHaveBeenCalledTimes(1);
 
       door = true;
+      const after = posted.length;
       await vi.advanceTimersByTimeAsync(BEACON_EVERY_MS * 2);
-      expect(posted).toHaveLength(1);
+      expect(posted.length).toBe(after);
       expect(dead).toHaveBeenCalledTimes(1);
       stop();
     } finally {
