@@ -623,6 +623,8 @@ export interface Welcome {
   now: number;
   /** ЧТО УМЕЕТ КРУПЬЕ ЭТОЙ КОМНАТЫ (`crews.ts`) — по этому списку рисуются кнопки в его окне. */
   crew: { id: string; name: string; adminOnly?: true }[];
+  /** КАКИЕ РАЗДАЧИ ПРЕДЛАГАЕТ ЭТОТ РОД СТОЛА — окно раздачи показывает ровно их. */
+  deals: DealRule[];
   /**
    * РОД СТОЛА — чтобы экран мог спросить его правила САМ, тем же кодом, что и сервер (`landing.ts`).
    *
@@ -769,14 +771,16 @@ export type TableCommand =
    *   dealer  назначить сидящего раздающим; со старого раздающего роль при этом слетает.
    *   swap    поменять два стула местами — вместе с людьми и картами, которые на них.
    */
-  | { t: "seat"; do: "kick" | "add" | "sweep" | "dealer" | "swap"; chair?: string; with?: string };
+  | { t: "seat"; do: "kick" | "add" | "sweep" | "dealer" | "swap"; chair?: string; with?: string }
+  /** РАССАДКА РУКОЙ: каждому названному стулу — его новый угол; стул крупье не двигают. */
+  | { t: "seat"; do: "place"; chairs: { chair: string; angle: number }[] };
 
 /** `POST /table/rooms/:room/run` */
 export interface RunCommand {
   by: string;
   command: TableCommand;
 }
-export type RunError = "not-admin" | "busy" | "needs-collect" | "not-enough-cards" | "not-enough-players" | "no-dealer" | "no-deal-yet" | "pick-seat" | "empty" | "bad";
+export type RunError = "not-admin" | "busy" | "needs-collect" | "not-enough-cards" | "not-enough-players" | "wrong-players" | "no-dealer" | "no-deal-yet" | "pick-seat" | "empty" | "bad";
 export type RunResult = { ok: true } | { error: RunError };
 
 // ── HTTP: бот ↔ сервер стола ↔ реле на Fly ─────────────────────────────────────────────────────

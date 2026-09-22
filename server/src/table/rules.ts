@@ -10,7 +10,7 @@
 // ЧТО ЗДЕСЬ НЕ ЖИВЁТ: свойства ЗОНЫ — закрыта ли приёмка, приколота ли стопка, видна ли рука. Это
 // не правила игры, а состояние предмета на столе, и его меняют руками во время любой игры.
 
-import type { Face, ZonePose } from "./contract.js";
+import type { DealRule, Face, ZonePose } from "./contract.js";
 import { yes, type Key, type Verdict } from "./access.js";
 
 /** Где лежит карта, в словах правил: сукно, стопка или чья-то рука. */
@@ -105,6 +105,8 @@ export interface DeskRules {
    * где колоду раздают до конца, пустое место посреди сукна только мешает — раздали, и её нет.
    */
   readonly deckForever?: boolean;
+  /** КАКИЕ РАЗДАЧИ ПРЕДЛАГАЕТ РОД. Не сказано — все, что есть в контракте. */
+  readonly deals?: readonly DealRule[];
   /** Имя рода стола — для людей и для карточки комнаты, а не для ветвлений. */
   readonly kind: string;
   /**

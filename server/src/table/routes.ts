@@ -64,6 +64,14 @@ export function readCommand(raw: unknown): TableCommand | null {
     return { t: "look", ...(faces ? { faces } : {}), ...(back ? { back } : {}) };
   }
   if (c.t === "redeal") return { t: "redeal" };
+  if (c.t === "seat" && c.do === "place") {
+    if (!Array.isArray(c.chairs)) return null;
+    const chairs = c.chairs
+      .filter((one): one is { chair: string; angle: number } => typeof one === "object" && one !== null && typeof (one as { chair?: unknown }).chair === "string" && Number.isFinite((one as { angle?: unknown }).angle))
+      .slice(0, 32)
+      .map((one) => ({ chair: one.chair.slice(0, 64), angle: one.angle }));
+    return chairs.length > 0 ? { t: "seat", do: "place", chairs } : null;
+  }
   if (c.t === "seat") {
     const acts = ["kick", "add", "sweep", "dealer", "swap"] as const;
     const act = acts.find((a) => a === c.do);

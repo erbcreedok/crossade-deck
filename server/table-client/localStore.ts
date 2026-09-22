@@ -3,7 +3,7 @@
 // Стенд не отдельная копия клиента: это клиент без сети. Правила, блокировки и дифы здесь те же
 // самые, что у живой комнаты, — жест, настроенный на стенде, ведёт себя в игре так же.
 
-import type { Face, Intent, Op, Person, Refusal, Suit } from "../src/table/contract.js";
+import { DEAL_PRESETS, type DealRule, type Face, type Intent, type Op, type Person, type Refusal, type Suit } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { Table } from "../src/table/table.js";
 import type { TableStore } from "./store.js";
@@ -60,6 +60,7 @@ export function localStore(): TableStore {
     me,
     crew: [],
     desk: "sandbox",
+    deals: Object.keys(DEAL_PRESETS) as DealRule[],
     ice: [],
     title: "Стенд жеста",
     get state() {

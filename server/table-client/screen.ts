@@ -196,8 +196,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     tips: [] as string[],
     /** Открытый тултип стопки — id стопки. */
     deckTip: null as string | null,
-    /** Окно раздачи крупье: серия вопросов тому, кто нажал «Раздать». */
-    deal: null as null | { rule: DealRule; n: number; all: boolean; skipEmpty: boolean },
+    /** Окно раздачи крупье: серия вопросов тому, кто нажал «Раздать». `seats` — кому, по стульям. */
+    deal: null as null | { rule: DealRule; n: number; all: boolean; seats: string[] },
+    /**
+     * ПЕРЕСАДКА (дело крупье «Пересадить»): стулья тянутся по кромке, где хочет распорядитель; внизу
+     * вместо руки — «Отменить» и «Подтвердить». Углы живут здесь, пока не подтверждены; камера на время
+     * не доворачивается за своим стулом. `drag` — стул под пальцем.
+     */
+    reseat: null as null | { angles: Record<string, number>; drag: { chair: string; pid: number } | null },
     /** Жест голоса: зажата 💬 — где палец, ушёл ли он с кнопки и кому сейчас слышно. */
     mic: null as null | { off: boolean; x: number; y: number; from: { x: number; y: number }; open: boolean; to: string | null | undefined; fail: "no-mic" | "denied" | null },
     /** Лассо: инструмент, вид грэба и сторона сборки — живут, пока открыт экран. */
@@ -558,6 +564,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
 
   function seen(): Snapshot {
     let s = truth();
+    // ПЕРЕСАДКА: стулья там, куда их дотянули, — до подтверждения это видно только мне.
+    if (local.reseat && Object.keys(local.reseat.angles).length > 0) {
+      const at = local.reseat.angles;
+      s = { ...s, chairs: s.chairs.map((c) => (at[c.id] !== undefined ? { ...c, angle: at[c.id]! } : c)) };
+    }
     // Карты, положенные подряд быстрее ответа сервера, — все на своих новых местах, по порядку.
     for (const one of pendings) {
       const from = whereIs(s, one.id);
@@ -1009,9 +1020,25 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       + `letter-spacing:.14em;color:${line};text-shadow:0 1px 0 ${T.black}">В РУКУ</span></div>`;
   }
 
+  /** Внизу на время пересадки: ни руки, ни бара — только отменить и подтвердить. */
+  function reseatHudHtml(): string {
+    const g = glass();
+    const u = hudUnit();
+    const h = Math.round(barHeight() * u);
+    const btn = (data: string, label: string, gold: boolean) =>
+      `<button ${data} style="border:0;cursor:pointer;font:400 13px Tiny5,monospace;border-radius:8px;padding:9px 16px;`
+      + (gold ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}` : `background:transparent;color:${T.ink};box-shadow:inset 0 0 0 2px ${T.wood}`)
+      + `">${label}</button>`;
+    return `<div data-g="bar" data-reseat style="position:absolute;left:0;right:0;top:${g.h - h}px;height:${h}px;z-index:10;`
+      + `background:linear-gradient(${T.panel},${T.well});box-shadow:inset 0 3px 0 -1px ${T.black};display:flex;align-items:center;justify-content:center;gap:12px">`
+      + btn("data-reseat-cancel", "Отменить", false) + btn("data-reseat-ok", "Подтвердить", true) + `</div>`
+      + `<div style="position:absolute;left:8px;right:8px;top:56px;z-index:62;pointer-events:none;text-align:center;font:400 12px Tiny5,monospace;color:${T.ink};text-shadow:0 2px 0 ${T.black}">Тяни стулья по кромке стола</div>`;
+  }
+
   function hudHtml(s: Snapshot): string {
     // ОТКРЫТ ДИАЛОГ — вместо руки и бара клавиатура.
     if (talk.open) return "";
+    if (local.reseat) return reseatHudHtml();
     const g = glass();
     const cards = handOf(s, mine(s));
     const gaps = gapsIn(s, mine(s));
@@ -1304,6 +1331,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * ОКНО РАЗДАЧИ — отдельным окном тому, кто нажал «Раздать» у крупье: пресет, по сколько карт и считать ли
    * покинутые стулья. Раздаёт сам крупье: его курсор, его метки.
    */
+  /** Кому вообще можно раздать: сидящие за игровыми стульями, с именем и цветом. */
+  function dealablePlayers(s: Snapshot): { chair: string; name: string; ink: string }[] {
+    return s.chairs.flatMap((c) => {
+      const sitter = !c.croupier && c.owner !== null ? sitterOf(s, c) : undefined;
+      return sitter ? [{ chair: c.id, name: sitter.name, ink: sitter.ink }] : [];
+    });
+  }
+
   function dealHtml(): string {
     const d = local.deal;
     if (!d) return "";
@@ -1317,7 +1352,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       `<div style="display:flex;flex-direction:column;gap:6px"><span style="font:400 11px Tiny5,monospace;color:${T.inkDim}">${title}</span>`
       + `<div style="display:flex;flex-wrap:wrap;gap:6px">${inner}</div></div>`;
     // КАКИЕ РАЗДАЧИ ЕСТЬ И КАК ОНИ ЗОВУТСЯ — из контракта (`DEAL_PRESETS`): экран не называет ни одной игры.
-    const rules = Object.entries(DEAL_PRESETS) as [DealRule, DealPreset][];
+    // …а КАКИЕ ИЗ НИХ ЗДЕСЬ — говорит род стола (`store.deals`).
+    const rules = (Object.entries(DEAL_PRESETS) as [DealRule, DealPreset][]).filter(([r]) => store.deals.includes(r));
+    const players = dealablePlayers(seen());
+    // РАЗДАЧА НА СТРОГОЕ ЧИСЛО МЕСТ: пока выбрано не ровно столько, «Раздать» погашена.
+    const want = DEAL_PRESETS[d.rule].seats;
+    const exact = want === 0 || d.seats.length === want;
     return `<div data-deal-panel role="dialog" aria-label="Раздача" style="position:absolute;left:${Math.round((g.w - w) / 2)}px;top:${Math.round(Math.max(24, g.h * 0.18))}px;width:${w}px;`
       + `box-sizing:border-box;z-index:70;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 8px 0 rgba(11,7,4,.5);`
       + `border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px">`
@@ -1327,9 +1367,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       + (DEAL_PRESETS[d.rule].askable
         ? row("Сколько карт", [1, 2, 3, 5, 6, 8, 10].map((n) => chip(!d.all && d.n === n, `data-deal-n="${n}"`, String(n))).join("") + chip(d.all, "data-deal-all", "Все по одной"))
         : "")
-      + row("Кому", chip(!d.skipEmpty, "data-deal-empty", d.skipEmpty ? "Только сидящим" : "Всем стульям"))
-      + `<button data-deal-go style="border:0;cursor:pointer;font:400 13px Tiny5,monospace;border-radius:8px;padding:9px 10px;`
-      + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">Раздать</button>`
+      // КОМУ — каждый сидящий игрок своим именем и цветом; тогл выключает его из раздачи.
+      + row("Кому", players.map((p) => chip(d.seats.includes(p.chair), `data-deal-seat="${p.chair}"`,
+        `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${p.ink};box-shadow:inset 0 0 0 1px ${T.black};margin-right:5px;vertical-align:-1px"></span>${escape(p.name)}`)).join("")
+        || `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim}">За столом никого</span>`)
+      + (exact ? "" : `<span style="font:400 11px Tiny5,monospace;color:${T.gold}">Нужно ровно ${want} игрока — выбрано ${d.seats.length}</span>`)
+      + `<button data-deal-go ${exact ? "" : "disabled"} style="border:0;cursor:pointer;font:400 13px Tiny5,monospace;border-radius:8px;padding:9px 10px;`
+      + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black};${exact ? "" : "opacity:.45;cursor:default"}">Раздать</button>`
       + `<span style="font:400 10px Tiny5,monospace;color:${T.inkDim}">Раздаёт крупье: его курсор и его метки. Себе не раздаёт.</span></div>`;
   }
 
@@ -2230,7 +2274,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     }
     const seat = mine(s);
     const floor = talk.open ? talk.height() : hudFloor(handOf(s, seat).length);
-    compass.aim(s);
+    if (!local.reseat) compass.aim(s);
     const seats: Seat[] = s.chairs.map((c) => {
       const sitter = sitterOf(s, c);
       return {
@@ -3258,7 +3302,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       el.onclick = (e) => {
         e.stopPropagation();
         const what = el.dataset.croupier;
-        if (what === "deal") local.deal = { rule: "each", n: 6, all: false, skipEmpty: false };
+        if (what === "deal") local.deal = { rule: store.deals[0] ?? "each", n: 6, all: false, seats: dealablePlayers(seen()).map((p) => p.chair) };
         else if (what === "collect") store.command({ t: "collect" });
         else if (what === "shuffle") store.command({ t: "shuffle" });
         else if (what === "remove") store.command({ t: "croupier", on: false });
@@ -3277,14 +3321,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
           d.n = Number(dealN);
           d.all = false;
         } else if (el.dataset.dealAll !== undefined) d.all = !d.all;
-        else if (el.dataset.dealEmpty !== undefined) d.skipEmpty = !d.skipEmpty;
-        else if (el.dataset.dealGo !== undefined) {
+        else if (el.dataset.dealSeat !== undefined) {
+          const chair = el.dataset.dealSeat;
+          d.seats = d.seats.includes(chair) ? d.seats.filter((one) => one !== chair) : [...d.seats, chair];
+        } else if (el.dataset.dealGo !== undefined) {
           // «Все по одной» — это раздача по одной карте до конца колоды: правило `each` без числа.
+          // КОМУ — ровно те, кого оставили включёнными: список стульев уходит с командой.
           store.command({
             t: "deal",
             rule: d.rule,
             ...(DEAL_PRESETS[d.rule].askable ? (d.all ? { n: 1 } : { n: d.n }) : {}),
-            ...(d.skipEmpty ? { skipEmpty: true } : {}),
+            seats: d.seats,
             force: true,
           });
           local.deal = null;
@@ -3327,7 +3374,25 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       el.onpointerdown = (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (el.dataset.crew === "reseat") {
+          local.reseat = { angles: {}, drag: null };
+          local.tips = [];
+          local.deckTip = null;
+          return draw();
+        }
         store.send({ t: "crew", act: el.dataset.crew! });
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-reseat-cancel],[data-reseat-ok]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const r = local.reseat;
+        if (!r) return;
+        const chairs = Object.entries(r.angles).map(([chair, angle]) => ({ chair, angle }));
+        if (el.dataset.reseatOk !== undefined && chairs.length > 0) store.command({ t: "seat", do: "place", chairs });
+        local.reseat = null;
+        draw();
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-flip-chair]")) {
@@ -3634,6 +3699,22 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   };
   addEventListener("pointerup", endGrip);
   addEventListener("pointercancel", endGrip);
+  // ПЕРЕСАДКА: угол стула — от середины стола к пальцу, в тех же осях, что `seatPoint` (0° — шесть часов, к +x).
+  const reseatMove = (e: PointerEvent) => {
+    const r = local.reseat;
+    if (!r?.drag || r.drag.pid !== e.pointerId || !view) return;
+    const at = view.toDesk({ x: e.clientX, y: e.clientY });
+    if (Math.hypot(at.x, at.y) < 0.5) return;
+    r.angles[r.drag.chair] = Math.round(((Math.atan2(at.x, at.y) * 180) / Math.PI + 360) % 360);
+    draw();
+  };
+  const reseatEnd = (e: PointerEvent) => {
+    const r = local.reseat;
+    if (r?.drag && r.drag.pid === e.pointerId) r.drag = null;
+  };
+  addEventListener("pointermove", reseatMove, { passive: true });
+  addEventListener("pointerup", reseatEnd);
+  addEventListener("pointercancel", reseatEnd);
   addEventListener("pointermove", moveDrag, { passive: true });
   addEventListener("pointerup", endDrag);
   addEventListener("pointercancel", endDrag);
@@ -3670,7 +3751,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         return grabFromFelt(e, pick);
       }
       // ОКНО ОТКРЫВАЕТСЯ И ЗАКРЫВАЕТСЯ ТАПОМ ПО СТУЛУ — и по аватару, пока он на стуле (`chairUnder`).
-      const hit = chairUnder(store.state, e.clientX, e.clientY);
+      const hit = chairUnder(seen(), e.clientX, e.clientY);
+      // ПЕРЕСАДКА: стул под пальцем едет по кромке за пальцем; всё прочее на сукне не трогается.
+      if (local.reseat) {
+        e.stopPropagation();
+        if (hit && !chairOf(seen(), hit.key)?.croupier) {
+          e.preventDefault();
+          local.reseat.drag = { chair: hit.key, pid: e.pointerId };
+        }
+        return;
+      }
       if (!hit) return;
       // СВОЙ АВАТАР — КАМЕРА, А НЕ ОКНО: окно своего стула не открывается принципиально, место свободно.
       // Камера ушла — нормализует; уже в норме — кладёт стол на те же 45°, что и диск компаса.

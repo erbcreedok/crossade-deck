@@ -204,6 +204,9 @@ describe("команды стола: колода и пресеты", () => {
   it("белка без четырёх игроков — отказ", async () => {
     const s = table("a", "b");
     expect(await s.run({ t: "preset", game: "belka" })).toBe("not-enough-players");
+    // НАЗВАЛИ СТУЛЬЯ — их должно быть ровно четыре: три или пять — отказ, а не «первые четыре».
+    const four = s.t.layout().chairs.filter((c) => !c.croupier).map((c) => c.id);
+    expect(await s.run({ t: "deal", rule: "belka", seats: four.slice(0, 3), force: true })).toBe("wrong-players");
   });
 
   it("вид колоды: белка — классика, дурак и крестовый — минимал; рубашку пресет не трогает", async () => {

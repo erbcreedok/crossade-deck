@@ -129,6 +129,8 @@ export function krestDesk(judge: () => { turn: string | null; closer: string | n
     zones: [{ id: RING, name: "Круг хода", x: 0, y: 0, pose: "ring", forever: true }],
     // КОЛОДЫ В ЭТОЙ ИГРЕ НЕТ КАК МЕСТА: её раздают всю, и пустой контур посреди сукна только мешает.
     deckForever: false,
+    // За крестовым столом раздают только по-крестовому.
+    deals: ["krest"],
     /**
      * ЧТО ЭТА ИГРА ГОВОРИТ ПРО ХОД. Один ответ на все ключи — и ни одного своего метода.
      *

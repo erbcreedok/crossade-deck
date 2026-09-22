@@ -73,8 +73,8 @@ await p.goto(`${base}/table/?room=${await open("krest")}`);
 await seat(p);
 await openCroupier(p);
 const acts = await crewButtons(p);
-check("у крупье крестового четыре кнопки", acts.length === 4, acts);
-check("и это сбор, выкладка, состав колоды и джокеры", acts.map((a) => a.act).join(",") === "collect,layout,deck,jokers", acts);
+check("у крупье крестового пять кнопок", acts.length === 5, acts);
+check("и это сбор, выкладка, состав колоды, джокеры и пересадка", acts.map((a) => a.act).join(",") === "collect,layout,deck,jokers,reseat", acts);
 
 // Собрать: все карты должны оказаться в руке крупье.
 const before = await spots(p);

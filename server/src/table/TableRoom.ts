@@ -12,7 +12,7 @@ import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
 import { iceServers, tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
-import { MSG, PROTOCOL, STALE_CLIENT, type CarryOut, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type SeatCard, type TableCommand, type Welcome } from "./contract.js";
+import { DEAL_PRESETS, MSG, PROTOCOL, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type SeatCard, type TableCommand, type Welcome } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
 import { cleanSignal, ear, Signals, type Signal } from "./rtc.js";
 import { cleanMic, type Mic } from "./voice.js";
@@ -126,7 +126,7 @@ export class TableRoom extends Room {
 
   /** Стол целиком глазами этого человека — при входе и когда у него разошлись версии (`sync`). */
   private welcomeFor(me: Person): Welcome {
-    return { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], desk: kindOf(this.room), ice: iceServers() };
+    return { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], deals: [...(deskOf(kindOf(this.room)).deals ?? (Object.keys(DEAL_PRESETS) as DealRule[]))], desk: kindOf(this.room), ice: iceServers() };
   }
 
   private personOf(session: string): Person | undefined {
@@ -433,6 +433,11 @@ export class TableRoom extends Room {
       this.spread(this.table.addChair());
       return { ok: true };
     }
+    if (order.do === "place") {
+      const known = new Set(this.table.layout().chairs.filter((c) => !c.croupier).map((c) => c.id));
+      for (const one of order.chairs) if (known.has(one.chair)) this.spread(this.table.turnChair(one.chair, one.angle));
+      return { ok: true };
+    }
     const chair = this.table.layout().chairs.find((c) => c.id === order.chair && !c.croupier);
     if (!chair) return { error: "no-dealer" };
     if (order.do === "swap") {
@@ -633,7 +638,7 @@ export class TableRoom extends Room {
     for (const client of this.clients) {
       const me = this.personOf(client.sessionId);
       if (!me) continue;
-      client.send(MSG.welcome, { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], desk: kindOf(this.room), ice: iceServers() } satisfies Welcome);
+      client.send(MSG.welcome, this.welcomeFor(me));
     }
   }
 

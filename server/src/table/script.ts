@@ -327,6 +327,8 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
   // всем игровым, как раньше.
   const named = command.seats ? new Set(command.seats) : null;
   let chairs = playable.filter((c) => (named ? named.has(c.id) : !(command.skipEmpty || preset.skipEmpty) || (c.owner !== null && people.some((p) => p.key === c.owner))));
+  // РАЗДАЧА НА СТРОГОЕ ЧИСЛО МЕСТ: назвали стулья — их должно быть ровно столько, ни больше, ни меньше.
+  if (preset.seats > 0 && named && chairs.length !== preset.seats) return { error: "wrong-players" };
   if (preset.seats > 0) {
     const around = clockwise(chairs, chairs.some((c) => c.id === anchor) ? anchor : (chairs[0]?.id ?? anchor));
     chairs = around.slice(0, preset.seats);

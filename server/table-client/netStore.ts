@@ -11,7 +11,7 @@
 // Хранилище при этом одно и то же: слушатели живут в нём, а не на сокете, и сокет под ним меняется.
 
 import { Client, type Room } from "colyseus.js";
-import { MSG, PROTOCOL, TABLE_ROOM, type Carry, type CarryOut, type Intent, type JoinOptions, type Patch, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
+import { DEAL_PRESETS, MSG, PROTOCOL, TABLE_ROOM, type Carry, type DealRule, type CarryOut, type Intent, type JoinOptions, type Patch, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
 import { Freshness, type Pulse } from "../src/table/freshness.js";
 import { applyPatch, needsSync } from "../src/table/patch.js";
 import type { Eye } from "../src/table/eyes.js";
@@ -166,6 +166,9 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     },
     get desk() {
       return welcome!.desk ?? "sandbox";
+    },
+    get deals() {
+      return welcome!.deals ?? (Object.keys(DEAL_PRESETS) as DealRule[]);
     },
     get crew() {
       return welcome!.crew ?? [];

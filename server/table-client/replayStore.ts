@@ -174,6 +174,7 @@ export function replayStore(all: readonly Told[], me: Person): Replay {
   const store: TableStore = {
     me,
     crew: [],
+    deals: [],
     // Род стола в записи берётся из первого кадра — тем же, чем его знал живой стол.
     desk: (first?.what as { desk?: string } | undefined)?.desk ?? "sandbox",
     ice: [],

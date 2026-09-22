@@ -326,6 +326,10 @@ describe("TableRoom", () => {
     expect(await runIn(room, "tg:11", { t: "seat", do: "swap", chair: before[0]!, with: before[1]! })).toEqual({ ok: true });
     const after = findEntry(room)!.seats.map((s) => s.id);
     expect(after.slice(0, 2)).toEqual([before[1], before[0]]);
+    // РАССАДКА РУКОЙ: названным стульям — их углы, как поставил распорядитель; чужого стула в списке нет.
+    const [p, q] = after;
+    expect(await runIn(room, "tg:11", { t: "seat", do: "place", chairs: [{ chair: p!, angle: 30 }, { chair: q!, angle: 300 }, { chair: "nope", angle: 5 }] })).toEqual({ ok: true });
+    expect(await runIn(room, "tg:12", { t: "seat", do: "place", chairs: [{ chair: p!, angle: 90 }] })).toEqual({ error: "not-admin" });
     void a;
     void b;
   }, 15000);

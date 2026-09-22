@@ -93,3 +93,10 @@ describe("имена родов для человека", () => {
     expect(names.find((n) => n.id === "krest")?.name).toBe("крестовый");
   });
 });
+
+describe("какие раздачи предлагает род", () => {
+  it("песочница — все, крестовый — только крестовую", () => {
+    expect(deskOf("sandbox").deals).toBeUndefined();
+    expect(deskOf("krest").deals).toEqual(["krest"]);
+  });
+});
