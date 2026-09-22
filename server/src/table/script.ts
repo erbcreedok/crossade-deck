@@ -321,7 +321,10 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
 
   // РАЗДАЮТ ТОЛЬКО ИГРОВЫМ СТУЛЬЯМ. Стул крупье в круг не входит: он раздаёт, а не играет.
   const playable = at.chairs.filter((c) => !c.croupier);
-  const anchor = dealer.seat ?? playable.find((c) => c.owner === admin)?.id ?? playable[0]?.id;
+  // ОТКУДА ИДЁТ РАЗДАЧА. Крупье за столом — с первого стула по часовой от него: рассадка вокруг крупье
+  // и есть порядок раздачи. Крупье нет — по-старому, от раздающего.
+  const hands = at.chairs.find((c) => c.croupier)?.id ?? null;
+  const anchor = hands ?? dealer.seat ?? playable.find((c) => c.owner === admin)?.id ?? playable[0]?.id;
   if (!anchor) return { error: "not-enough-players" };
   // КОМУ РАЗДАЁМ. Сказали списком — ровно им (исчезнувшие стулья просто выпадают); не сказали —
   // всем игровым, как раньше.
@@ -338,7 +341,7 @@ function dealPlan(table: Table, command: Extract<TableCommand, { t: "deal" }>, p
   // С КОГО ПОШЛА РАЗДАЧА. Назвали стул — первая карта ему самому и дальше по часовой. Не назвали —
   // по старому: со следующего после раздающего, а раздающему последним.
   const first = command.from !== undefined && chairs.some((c) => c.id === command.from) ? command.from : null;
-  const order = first !== null ? clockwise(chairs, first) : afterDealer(chairs, playable, anchor);
+  const order = first !== null ? clockwise(chairs, first) : afterDealer(chairs, at.chairs, anchor);
 
   // «Всю колоду» раздают по кругу, пока карты не кончатся; иначе — по стольку каждому, и число
   // можно спросить у человека ровно там, где пресет это позволяет.

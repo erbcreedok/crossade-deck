@@ -1331,12 +1331,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * ОКНО РАЗДАЧИ — отдельным окном тому, кто нажал «Раздать» у крупье: пресет, по сколько карт и считать ли
    * покинутые стулья. Раздаёт сам крупье: его курсор, его метки.
    */
-  /** Кому вообще можно раздать: сидящие за игровыми стульями, с именем и цветом. */
+  /**
+   * Кому вообще можно раздать: сидящие за игровыми стульями, с именем и цветом — В ПОРЯДКЕ РАЗДАЧИ,
+   * по часовой от крупье (нет крупье — от нуля): так же, как их обходит раздача на сервере.
+   */
   function dealablePlayers(s: Snapshot): { chair: string; name: string; ink: string }[] {
-    return s.chairs.flatMap((c) => {
-      const sitter = !c.croupier && c.owner !== null ? sitterOf(s, c) : undefined;
-      return sitter ? [{ chair: c.id, name: sitter.name, ink: sitter.ink }] : [];
-    });
+    const from = s.chairs.find((c) => c.croupier)?.angle ?? 0;
+    return [...s.chairs]
+      .sort((a, b) => ((a.angle - from + 360) % 360) - ((b.angle - from + 360) % 360))
+      .flatMap((c) => {
+        const sitter = !c.croupier && c.owner !== null ? sitterOf(s, c) : undefined;
+        return sitter ? [{ chair: c.id, name: sitter.name, ink: sitter.ink }] : [];
+      });
   }
 
   function dealHtml(): string {

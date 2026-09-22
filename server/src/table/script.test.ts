@@ -54,6 +54,26 @@ describe("команды стола: раздача", () => {
     expect(s.t.seenBy("a").trails[s.hand("b")[0]!.id]).toMatchObject({ by: BOT, from: "deck" });
   });
 
+  it("КРУПЬЕ ЗА СТОЛОМ — раздача идёт по часовой от него: пересадка меняет порядок", async () => {
+    const s = table("a", "b", "c");
+    s.t.seatCroupier({ key: "bot:table", name: "Крупье", ink: "#fff", door: "guest", bot: true });
+    const chairOf = (k: string) => s.t.layout().chairs.find((c) => c.owner === k)!.id;
+    const croupier = s.t.layout().chairs.find((c) => c.croupier)!;
+    // Рассадка рукой: по часовой от крупье — c, a, b.
+    s.t.turnChair(chairOf("c"), croupier.angle + 40);
+    s.t.turnChair(chairOf("a"), croupier.angle + 150);
+    s.t.turnChair(chairOf("b"), croupier.angle + 260);
+    expect(await s.run({ t: "deal", rule: "each", n: 1 })).toBe("ok");
+    const toHand = (op: Op) => (op.t === "move" && op.to.in === "hand" ? [op.to.chair] : []);
+    const went = s.log.flat().flatMap(toHand);
+    expect(went).toEqual([chairOf("c"), chairOf("a"), chairOf("b")]);
+    // Пересадили — порядок другой.
+    s.t.turnChair(chairOf("b"), croupier.angle + 20);
+    expect(await s.run({ t: "deal", rule: "each", n: 1, force: true })).toBe("ok");
+    const again = s.log.flat().flatMap(toHand).slice(-3);
+    expect(again).toEqual([chairOf("b"), chairOf("c"), chairOf("a")]);
+  });
+
   it("крестовый: всё поровну, у раздающего не больше всех, у следующего — не меньше", async () => {
     const keys = ["a", "b", "c", "d", "e"];
     const s = table(...keys);
