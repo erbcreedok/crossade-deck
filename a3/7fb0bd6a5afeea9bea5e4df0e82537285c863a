@@ -1,0 +1,24 @@
+server/src/table/script.test.ts
+  s_eea5b32ea4af25::t_54c4c94829cbc9 67-73
+  s_eea5b32ea4af25::t_020856f0befac8 57-66,74-76
+server/src/table/script.ts
+  s_eea5b32ea4af25::t_b2377e27c6c173 324-327,344
+server/table-client/screen.ts
+  s_eea5b32ea4af25::t_b9b2a70bb5afe5 1334-1337,1339-1345
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a37fb0bd6a5afeea9bea5e4df0e82537285c863a",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
