@@ -197,7 +197,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     /** Открытый тултип стопки — id стопки. */
     deckTip: null as string | null,
     /** Окно раздачи крупье: серия вопросов тому, кто нажал «Раздать». `seats` — кому, по стульям. */
-    deal: null as null | { rule: DealRule; n: number; all: boolean; seats: string[] },
+    deal: null as null | { rule: DealRule; n: number; all: boolean; seats: string[]; from: string | null },
     /**
      * ПЕРЕСАДКА (дело крупье «Пересадить»): стулья тянутся по кромке, где хочет распорядитель; внизу
      * вместо руки — «Отменить» и «Подтвердить». Углы живут здесь, пока не подтверждены; камера на время
@@ -1361,6 +1361,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // …а КАКИЕ ИЗ НИХ ЗДЕСЬ — говорит род стола (`store.deals`).
     const rules = (Object.entries(DEAL_PRESETS) as [DealRule, DealPreset][]).filter(([r]) => store.deals.includes(r));
     const players = dealablePlayers(seen());
+    const dot = (ink: string) => `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${ink};box-shadow:inset 0 0 0 1px ${T.black};margin-right:5px;vertical-align:-1px"></span>`;
+    // Первым — кто-то из тех, кому раздают: выключили его — первым становится следующий по кругу.
+    if (d.from !== null && !d.seats.includes(d.from)) d.from = null;
+    if (d.from === null) d.from = players.find((p) => d.seats.includes(p.chair))?.chair ?? null;
     // РАЗДАЧА НА СТРОГОЕ ЧИСЛО МЕСТ: пока выбрано не ровно столько, «Раздать» погашена.
     const want = DEAL_PRESETS[d.rule].seats;
     const exact = want === 0 || d.seats.length === want;
@@ -1374,9 +1378,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         ? row("Сколько карт", [1, 2, 3, 5, 6, 8, 10].map((n) => chip(!d.all && d.n === n, `data-deal-n="${n}"`, String(n))).join("") + chip(d.all, "data-deal-all", "Все по одной"))
         : "")
       // КОМУ — каждый сидящий игрок своим именем и цветом; тогл выключает его из раздачи.
-      + row("Кому", players.map((p) => chip(d.seats.includes(p.chair), `data-deal-seat="${p.chair}"`,
-        `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${p.ink};box-shadow:inset 0 0 0 1px ${T.black};margin-right:5px;vertical-align:-1px"></span>${escape(p.name)}`)).join("")
+      + row("Кому", players.map((p) => chip(d.seats.includes(p.chair), `data-deal-seat="${p.chair}"`, dot(p.ink) + escape(p.name))).join("")
         || `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim}">За столом никого</span>`)
+      // КОМУ ПЕРВЫМ — ему первая карта, дальше по кругу. Выбирается из тех, кому раздают.
+      + row("Кому первым", players.filter((p) => d.seats.includes(p.chair)).map((p) => chip(d.from === p.chair, `data-deal-from="${p.chair}"`, dot(p.ink) + escape(p.name))).join("")
+        || `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim}">Никого не выбрано</span>`)
       + (exact ? "" : `<span style="font:400 11px Tiny5,monospace;color:${T.gold}">Нужно ровно ${want} игрока — выбрано ${d.seats.length}</span>`)
       + `<button data-deal-go ${exact ? "" : "disabled"} style="border:0;cursor:pointer;font:400 13px Tiny5,monospace;border-radius:8px;padding:9px 10px;`
       + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black};${exact ? "" : "opacity:.45;cursor:default"}">Раздать</button>`
@@ -3308,7 +3314,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       el.onclick = (e) => {
         e.stopPropagation();
         const what = el.dataset.croupier;
-        if (what === "deal") local.deal = { rule: store.deals[0] ?? "each", n: 6, all: false, seats: dealablePlayers(seen()).map((p) => p.chair) };
+        if (what === "deal") local.deal = { rule: store.deals[0] ?? "each", n: 6, all: false, seats: dealablePlayers(seen()).map((p) => p.chair), from: null };
         else if (what === "collect") store.command({ t: "collect" });
         else if (what === "shuffle") store.command({ t: "shuffle" });
         else if (what === "remove") store.command({ t: "croupier", on: false });
@@ -3330,7 +3336,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         else if (el.dataset.dealSeat !== undefined) {
           const chair = el.dataset.dealSeat;
           d.seats = d.seats.includes(chair) ? d.seats.filter((one) => one !== chair) : [...d.seats, chair];
-        } else if (el.dataset.dealGo !== undefined) {
+        } else if (el.dataset.dealFrom !== undefined) d.from = el.dataset.dealFrom;
+        else if (el.dataset.dealGo !== undefined) {
           // «Все по одной» — это раздача по одной карте до конца колоды: правило `each` без числа.
           // КОМУ — ровно те, кого оставили включёнными: список стульев уходит с командой.
           store.command({
@@ -3338,6 +3345,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
             rule: d.rule,
             ...(DEAL_PRESETS[d.rule].askable ? (d.all ? { n: 1 } : { n: d.n }) : {}),
             seats: d.seats,
+            ...(d.from !== null ? { from: d.from } : {}),
             force: true,
           });
           local.deal = null;

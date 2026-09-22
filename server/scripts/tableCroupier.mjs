@@ -118,6 +118,11 @@ check("«Раздать» открывает своё окно", (await A.$("[da
 check("в нём спрашивают пресет и сколько карт", (await A.$$eval("[data-deal-rule]", (els) => els.length)) === 4 && (await A.$$eval("[data-deal-n]", (els) => els.length)) > 0);
 await A.click('[data-deal-rule="durak"]');
 check("пресет выбирается", (await A.getAttribute('[data-deal-rule="durak"]', "aria-pressed")) === "true");
+// КОМУ ПЕРВЫМ — из тех, кому раздают; по умолчанию первый по кругу, и его можно сменить.
+const firsts = await A.$$eval("[data-deal-from]", (els) => els.map((e) => [e.dataset.dealFrom, e.getAttribute("aria-pressed")]));
+check("«Кому первым» перечисляет тех, кому раздают, и один из них выбран", firsts.length === 2 && firsts.filter(([, on]) => on === "true").length === 1, firsts);
+await A.click(`[data-deal-from="${firsts[1][0]}"]`);
+check("первого можно сменить", (await A.getAttribute(`[data-deal-from="${firsts[1][0]}"]`, "aria-pressed")) === "true");
 await A.click("[data-deal-shut]");
 check("окно закрывается", (await A.$("[data-deal-panel]")) === null);
 
