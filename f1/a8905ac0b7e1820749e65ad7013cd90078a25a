@@ -1,0 +1,21 @@
+server/src/table/routes.test.ts
+  s_eea5b32ea4af25::t_63fef32682d70f 184,189,201-203,205-206,208,213,218,220
+server/src/table/routes.ts
+  s_eea5b32ea4af25::t_2aa4e539a4fb43 279-280,284-291,297,300,303,305-313,315,319
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f1a8905ac0b7e1820749e65ad7013cd90078a25a",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
