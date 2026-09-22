@@ -1,0 +1,26 @@
+server/src/table/croupier.test.ts
+  s_eea5b32ea4af25::t_72676f59367826 73,77,82
+  s_eea5b32ea4af25::t_5726d1b6ef95f0 6-7,66-72,74-76,78-81,87-88,91-92
+  s_eea5b32ea4af25::t_b5c2d6dccf3aa4 83-86,89-90
+server/src/table/table.ts
+  s_eea5b32ea4af25::t_8502e50608129d 1418,1448
+  s_eea5b32ea4af25::t_c58fe01127dfdb 194-197,1394-1398,1412,1415,1417,1430-1435,1445-1447
+server/table-client/screen.ts
+  s_eea5b32ea4af25::t_cb12b71bb23750 1374-1375
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4d2f353e4aa769f2ea517279183c84f544a607f2",
+  "prompts": {},
+  "sessions": {
+    "s_eea5b32ea4af25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929389f5-74f9-42a3-86bd-19ef8e204969",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
