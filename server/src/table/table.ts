@@ -848,7 +848,8 @@ export class Table {
     const at = may.at;
     // РОВНАЯ РУКА ПЕРЕВОРАЧИВАЕТСЯ ЦЕЛИКОМ. Одна карта лицом посреди колоды — не ход, а ошибка,
     // которую потом никто не заметит; поэтому её не сделать, а не «не советуем».
-    if (at.in === "hand" && this.chairs.get(at.chair)?.even) return { refused: "locked" };
+    // Причина своя: «Занято» посылало искать того, кто держит карту, а держать её некому.
+    if (at.in === "hand" && this.chairs.get(at.chair)?.even) return { refused: "even-hand" };
     let up: boolean;
     if (at.in === "felt") {
       const one = this.felt.find((f) => f.id === id)!;

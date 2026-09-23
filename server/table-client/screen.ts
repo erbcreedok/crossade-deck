@@ -34,6 +34,7 @@ import { apart } from "./angles.js";
 import { tableCompass } from "./compass.js";
 import { barHeightU, handBoxOf, handPlan, handWideOf, hudUnitOf, mineGeomOf } from "./handGeom.js";
 import { flipIn, pileOf, predict as predictAs, sideIn, whereIs, type BatchIntent } from "./optimistic.js";
+import { doubleTap, type Tap } from "./tap.js";
 
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
@@ -251,8 +252,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * `key` — место, где карта была, когда его открыли: карта уехала — тултип закрыт.
    */
   let cardTip: { id: string; key: string } | null = null;
-  /** Прошлый тап по карте — для двойного. */
-  let lastTap: { id: string; at: number } | null = null;
+  /** Прошлый тап по карте — для двойного: и по какой карте, и КУДА пришёлся палец. */
+  let lastTap: Tap | null = null;
   /**
    * ПЕРЕВОРОТЫ. Сторона каждой карты прошлым кадром — и где карта лежала: сменилась сторона на том же месте —
    * карта переворачивается (своя, чужая, догадка или ответ сервера — всё равно). Сменилось место — это перенос.
@@ -630,8 +631,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   /** Поза, как она нарисована сейчас — с догадками. */
   const poseNow = (chair: string): Pose => poseOf(guesses.length ? truth() : store.state, chair);
   const inkOf = (s: Snapshot, key: string) => s.people.find((p) => p.key === key)?.ink ?? T.inkDim;
-  const heldByOthers = (s: Snapshot): Record<string, string> =>
-    Object.fromEntries(Object.entries(s.locks).filter(([, by]) => by !== me()).map(([id, by]) => [id, inkOf(s, by)]));
+  /**
+   * КАРТА В ВОЗДУХЕ — ЦВЕТ ТОГО, КТО ЕЁ ДЕРЖИТ. Своего замка это касается наравне с чужим: карта
+   * лежит в стопке или в руке, но её ТЯНУТ, и на месте у всех — и у держащего, и у наблюдателей —
+   * стоит контур, а не вторая такая же карта. Пока свой замок отсюда выбрасывался, хозяин видел
+   * джокера дважды: под пальцем и в руке.
+   */
+  const heldInk = (s: Snapshot): Record<string, string> =>
+    Object.fromEntries(Object.entries(s.locks).map(([id, by]) => [id, inkOf(s, by)]));
 
 
 
@@ -914,6 +921,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   }
 
   function slotCard(c: SeenCard, geom: Geom, slot: Slot, z: number, owner: string, held?: string, shut = false, under = false): string {
+    // ЕЁ ТЯНУТ — ЗНАЧИТ ЕЁ ЗДЕСЬ НЕТ. Место за картой остаётся (порядок не сбивается), но лицо
+    // уехало к пальцу: на месте — контур в цвете держащего, иначе одна и та же карта видна дважды.
+    if (held) return markHtml(geom.w, geom.h, slot.angle, slot.x, slot.y, z, 1, held);
     const hint = playHint(frame(), c.id, owner);
     const play = hint === "lay"
       ? `outline:2px solid ${T.gold};outline-offset:-2px;border-radius:${geom.w * 0.12}px;`
@@ -1072,7 +1082,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       + `background:linear-gradient(to top, rgba(11,7,4,.85), rgba(11,7,4,0));pointer-events:none"></div>`)
       + handZoneHtml(mark === null && cards.length === 0 ? mineGeom(1) : geom)
       // СВОИ КАРТЫ Я ВИЖУ ВСЕГДА, КАК ДЕРЖУ: «скрыть» — про то, что видят другие, а не я.
-      + layHand(geom, cards, gaps, mine(s), heldByOthers(s))
+      + layHand(geom, cards, gaps, mine(s), heldInk(s))
       // ПОЛОСА — ПОВЕРХ КАРТ: карты уходят под её край на `BAR.tuck`.
       + `<div data-g="bar" style="position:absolute;left:${inset}px;right:${inset}px;top:${geom.barTop}px;height:${barHeight() * u}px;z-index:${cards.length + 10};`
       + `background:linear-gradient(${T.panel},${T.well});${edge}">`
@@ -1457,7 +1467,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         + `height:${box.top + box.height - 5 - (box.rowTop + 8 + box.ch * TIP_TUCK)}px;z-index:${42 + cards.length + gaps.length};background:${T.well};`
         + `border-radius:0 0 8px 8px;box-shadow:inset 0 3px 0 -1px ${T.black}"></div>`
       : "";
-    return { shell: shell + croupierActsHtml(s, chair, box), cards: layHand(geom, cards, gaps, chair.id, heldByOthers(s), closed(s, chair.id)) + curtain };
+    return { shell: shell + croupierActsHtml(s, chair, box), cards: layHand(geom, cards, gaps, chair.id, heldInk(s), closed(s, chair.id)) + curtain };
   }
 
   /**
@@ -1673,8 +1683,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * нет, и целится в занятое.
    *
    * Цвет — того, кто держит: за столом это единственный способ понять, кто именно сейчас думает над
-   * этой картой. Свою руку не размечаем: там карта и так видна хозяину.
+   * этой картой. Свой замок размечается наравне с чужим: карта в воздухе — значит её нет на месте
+   * ни для кого, включая того, кто её держит.
    */
+  /**
+   * КОГО ХОЛСТ НЕ РИСУЕТ: карты в перелёте и карты, которые тянут ИЗ СТОПКИ — их место уже размечено
+   * контуром (`heldMarksHtml`). Одиночную карту на сукне сюда не берут: контура на сукне нет, и
+   * скрытая карта просто исчезла бы у наблюдателя без следа.
+   */
+  const heldInPiles = (s: Snapshot, also: ReadonlySet<string>): Set<string> => {
+    const out = new Set(also);
+    for (const pile of s.piles) for (const card of pile.cards) if (s.locks[card.id] !== undefined) out.add(card.id);
+    return out;
+  };
+
   function heldMarksHtml(s: Snapshot): string {
     if (!view) return "";
     const v = view;
@@ -2111,13 +2133,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const admin = iMay(s, "pile.guard");
     const list: (SeenCard | Gap)[] = [...cards];
     for (const gap of gaps) list.splice(Math.max(0, Math.min(list.length, gap.index)), 0, gap);
-    const held = heldByOthers(s);
+    const held = heldInk(s);
     const top = cards.at(-1)?.id;
     const laidCards = list.map((one, i) => {
       const slot = slots[i]!;
       if ("index" in one) return markHtml(box.cw, box.ch, slot.angle, slot.x, slot.y, 42 + i, 1, one.ink);
       const shut = pile.shut || (pile.lock && one.id !== top);
       const hand = held[one.id];
+      // Та же правда, что и в руке: карту тянут — на её месте контур, а не второй её экземпляр.
+      if (hand) return markHtml(box.cw, box.ch, slot.angle, slot.x, slot.y, 42 + i, 1, hand);
       return `<div data-card="${one.id}" data-owner="deck" data-pile="${pile.id}"${pickAttr(one.id)} style="position:absolute;width:${box.cw}px;height:${box.ch}px;left:${slot.x - box.cw / 2}px;top:${slot.y - box.ch / 2}px;${pickCss(one.id, box.cw)}`
         + `transform:rotate(${slot.angle}deg);z-index:${42 + i};touch-action:none;`
         + (hand ? `pointer-events:none;filter:brightness(.6);outline:3px solid ${hand};border-radius:${box.cw * 0.12}px;` : shut ? "pointer-events:none;" : "cursor:grab;")
@@ -2318,7 +2342,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         // ОЧЕРЧЕННОЕ МЕСТО НЕ УЛЕТАЕТ ВМЕСТЕ С КАРТАМИ. За грип тянут его карты, а сам круг остаётся
         // виден и пуст — и стрелка с ним, пока карты в воздухе: они ещё могут вернуться.
         return p.zone ? [{ ...p, cards: [], carried: true }] : [];
-      }), felt: s.felt, held: heldByOthers(s), picked: Object.fromEntries(Object.keys(s.picks ?? {}).map((id) => [id, pickInk(s, id)!])), hidden: flying,
+      }), felt: s.felt, held: heldInk(s), picked: Object.fromEntries(Object.keys(s.picks ?? {}).map((id) => [id, pickInk(s, id)!])), hidden: heldInPiles(s, flying),
       view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
       rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
     });
@@ -3186,13 +3210,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         return draw();
       }
       // ДВОЙНОЙ ТАП — переворот. Первый тап уже открыл тултип; второй его не трогает.
-      const at = performance.now();
-      if (lastTap?.id === d.card.id && at - lastTap.at < DOUBLE_TAP_MS) {
+      //
+      // ПАРУ СОБИРАЕТ ТОЧКА, А НЕ КАРТА. Первый тап поднял карту, веер разъехался, и второй тап сел
+      // на соседнюю — но палец не двигался, и целился человек в ту же карту. Переворачивается та,
+      // которую назвал ПЕРВЫЙ тап: она и была целью.
+      const now: Tap = { id: d.card.id, at: performance.now(), x: d.sx, y: d.sy };
+      const aim = doubleTap(lastTap, now);
+      if (aim !== null) {
         lastTap = null;
-        turnCard(d.card.id);
+        turnCard(aim);
         return draw();
       }
-      lastTap = { id: d.card.id, at };
+      lastTap = now;
       const key = tipKeyOf(store.state, d.card.id);
       if (tipAtDown !== d.card.id && key) cardTip = { id: d.card.id, key };
       return draw();

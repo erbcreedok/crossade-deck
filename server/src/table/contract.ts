@@ -500,7 +500,7 @@ import type { Eye } from "./eyes.js";
  */
 export type Refusal =
   | "busy" | "locked" | "not-held" | "not-top" | "gone" | "bad" | "chair-locked" | "taken" | "full"
-  | "not-yours" | "rejects" | "not-your-turn" | "beats" | "no-right";
+  | "not-yours" | "rejects" | "not-your-turn" | "beats" | "no-right" | "even-hand";
 export interface Refused {
   intent: Intent;
   why: Refusal;
@@ -521,6 +521,7 @@ export const REFUSAL_SAYS: Record<Refusal, string> = {
   beats: "Этой картой не побить",
   "no-right": "Нет права на это",
   locked: "Занято",
+  "even-hand": "Ровная рука переворачивается целиком",
   "chair-locked": "Стул закрыт",
   "not-top": "Брать можно только верхнюю",
   taken: "Уже занято",

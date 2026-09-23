@@ -145,7 +145,7 @@ describe("РОВНАЯ РУКА КРУПЬЕ: вся одной стороной
     const t = withCroupier();
     const seat = croupierSeat(t);
     const card = toHand(t, "Аня", seat);
-    expect(t.act("Аня", { t: "turn", id: card }, 0)).toEqual({ refused: "locked" });
+    expect(t.act("Аня", { t: "turn", id: card }, 0)).toEqual({ refused: "even-hand" });
   });
 
   it("в обычной руке одну карту перевернуть можно — это отличие крупье, а не общий запрет", () => {
