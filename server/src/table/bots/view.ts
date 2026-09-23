@@ -39,10 +39,15 @@ export function legalMoves(seats: Seats, match: Match, chair: string): Move[] {
     const at = face === undefined ? -1 : left.findIndex((one) => one.rank === face.rank && one.suit === face.suit);
     if (at !== -1) {
       left.splice(at, 1);
-      moves.push({ t: "lay", id, card: face! });
+      // МЕСТО НАЗЫВАЕТ ИГРА: комната ведёт карту туда, куда сказано, не зная ни круга, ни правил.
+      moves.push({ t: "lay", id, card: face!, to: { in: "deck", pile: RING } });
     }
   }
-  if (can.take) moves.push({ t: "take" });
+  if (can.take) {
+    const low = seats.pile(RING)[0];
+    const face = low === undefined ? undefined : seats.faceOf(low);
+    if (low !== undefined && face !== undefined) moves.push({ t: "take", id: low, card: face, to: { in: "hand", chair, i: 0 } });
+  }
   return moves;
 }
 

@@ -13,7 +13,10 @@ import { PROFILES, profileOf } from "./profiles.js";
 
 const c = (rank: string, suit: Face["suit"]): Face => ({ rank, suit });
 const id = (f: Face) => `${f.rank}${f.suit}`;
-const lay = (f: Face): Move => ({ t: "lay", id: id(f), card: f });
+const RING_TO = { in: "deck", pile: "ring" } as const;
+const MY_HAND = { in: "hand", chair: "a", i: 0 } as const;
+const lay = (f: Face): Move => ({ t: "lay", id: id(f), card: f, to: RING_TO });
+const take = (f: Face): Move => ({ t: "take", id: id(f), card: f, to: MY_HAND });
 
 const view = (hand: Face[], ring: Face[] = [], closesIfLay = false): BotView => ({
   ring,
@@ -43,14 +46,14 @@ describe("bots.a-profile-changes-the-move", () => {
   it("ЗАКРЫВАЛА закрывает круг даже дорогой картой, копитель — нет", () => {
     // Рука не на исходе: иначе верх берёт другой закон — «скидывай, пока можешь выйти».
     const hand = [c("A", "d"), c("K", "h"), c("9", "s")];
-    const legal: Move[] = [lay(c("A", "d")), { t: "take" }];
+    const legal: Move[] = [lay(c("A", "d")), take(c("K", "s"))];
     expect(best(legal, view(hand, [c("K", "s")], true), PROFILES["закрывала"]!).t, "закрыть важнее, чем сберечь").toBe("lay");
     expect(best(legal, view(hand, [c("K", "s")], false), PROFILES["копитель"]!).t, "круг не закроется — козырь жалко").toBe("take");
   });
 
   it("рука почти пуста — скидывать важнее, чем беречь: выигрывает тот, кто вышел", () => {
     const hand = [c("JK", "r")];
-    const legal: Move[] = [lay(c("JK", "r")), { t: "take" }];
+    const legal: Move[] = [lay(c("JK", "r")), take(c("K", "s"))];
     expect(best(legal, view(hand, [c("K", "s")]), PROFILES["копитель"]!).t, "последняя карта уходит, даже джокер").toBe("lay");
   });
 
@@ -67,17 +70,17 @@ describe("bots.a-profile-changes-the-move", () => {
 });
 
 describe("bots.a-brain-answer-must-come-from-the-list", () => {
-  const legal: Move[] = [lay(c("6", "d")), { t: "take" }];
+  const legal: Move[] = [lay(c("6", "d")), take(c("K", "s"))];
 
   it("ход из списка узнаётся по карте, а не по ссылке", () => {
-    expect(fromList(legal, { t: "lay", id: id(c("6", "d")), card: c("6", "d") })).toEqual(legal[0]);
-    expect(sameMove({ t: "take" }, { t: "take" })).toBe(true);
+    expect(fromList(legal, { t: "lay", id: id(c("6", "d")), card: c("6", "d"), to: RING_TO })).toEqual(legal[0]);
+    expect(sameMove(take(c("K", "s")), take(c("K", "s")))).toBe(true);
   });
 
   it("ход не из списка — null, и комната возьмёт запасной", () => {
     expect(fromList(legal, lay(c("A", "s"))), "такой карты в списке нет").toBe(null);
     expect(fromList(legal, null)).toBe(null);
-    expect(fromList([], { t: "take" }), "списка нет — и хода нет").toBe(null);
+    expect(fromList([], take(c("K", "s"))), "списка нет — и хода нет").toBe(null);
   });
 
   it("скриптовый мозг всегда отвечает ходом из списка", async () => {

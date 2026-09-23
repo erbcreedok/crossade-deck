@@ -1332,6 +1332,16 @@ export class Table {
     return this.scripted;
   }
 
+  /**
+   * ЧЬИ-ТО ПАЛЬЦЫ НА СТОЛЕ — хоть одна карта под замком.
+   *
+   * Боту этого довольно, чтобы подождать: человек думает над картой, и ход, влетевший ему под руку,
+   * читается как «стол дёрнулся сам».
+   */
+  get handsOn(): boolean {
+    return this.locks.size > 0;
+  }
+
   faceOf(id: string): Face | undefined {
     return this.faces.get(id);
   }

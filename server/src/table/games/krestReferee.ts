@@ -11,6 +11,8 @@ import type { Face, Intent, Play } from "../contract.js";
 import type { Referee, Seats } from "../referee.js";
 import { RING } from "./krest.js";
 import { advance, allowed, start, type Board, type Match } from "./match.js";
+import type { Deed } from "./krestMemory.js";
+import { botView, legalMoves } from "../bots/view.js";
 
 const ownerOf = (seats: Seats, chair: string | null): string | null => (chair === null ? null : (seats.chairs.find((c) => c.id === chair)?.owner ?? null));
 
@@ -27,13 +29,18 @@ function boardOf(seats: Seats): Board {
 
 export function krestReferee(): Referee {
   let match: Match | null = null;
+  // ИСТОРИЯ ХОДОВ — единственное, что судья копит сверх тени. Со стола её не прочесть: карты
+  // показывают, что лежит, а не кто чем бил и кто брал, не сумев побить.
+  let deeds: Deed[] = [];
   return {
     start(seats, dealer) {
       const board = boardOf(seats);
+      deeds = [];
       match = Object.values(board.hands).filter((h) => h.length > 0).length > 1 ? start(board, dealer) : null;
     },
     stop() {
       match = null;
+      deeds = [];
     },
     follow(seats, by, intent: Intent) {
       if (match === null || intent.t !== "drop") return false;
@@ -43,7 +50,13 @@ export function krestReferee(): Referee {
       const laid = intent.to.in === "deck" && intent.to.pile === RING && seats.faceOf(intent.id) !== undefined;
       const took = intent.to.in === "hand" && intent.to.chair === chair.id;
       if (!laid && !took) return false;
+      // ЧТО ЛЕЖАЛО СВЕРХУ ДО ХОДА — по этому потом видно, чем он бил и чего у него не было. Круг
+      // уже изменился, поэтому верх считается обратным ходом: положил — предпоследняя, взял — верхняя.
+      const circle = boardOf(seats).circle;
+      const card = seats.faceOf(intent.id);
+      const over = laid ? circle[circle.length - 2] : circle[circle.length - 1];
       match = advance(match, boardOf(seats), chair.id, laid ? "laid" : "taken");
+      if (card !== undefined) deeds.push({ who: chair.id, how: laid ? "laid" : "taken", card, ...(over === undefined ? {} : { over }) });
       return true;
     },
     view(seats) {
@@ -70,10 +83,24 @@ export function krestReferee(): Referee {
       return match === null ? { идёт: false } : { идёт: true, ход: match.turn, закрыл: match.closer, порог: match.threshold, вышли: [...match.out] };
     },
     dump() {
-      return match;
+      // Слепок несёт и историю: после перезапуска бот должен помнить партию, а не сесть за стол заново.
+      return match === null ? null : { match, deeds };
     },
     load(kept) {
-      match = kept && typeof kept === "object" ? (kept as Match) : null;
+      if (!kept || typeof kept !== "object") {
+        match = null;
+        deeds = [];
+        return;
+      }
+      // Старые слепки — это сама тень без истории; новые — пара. Разбираем оба, чтобы рестор не падал.
+      const pair = kept as { match?: Match; deeds?: Deed[] };
+      match = (pair.match ?? (kept as Match)) || null;
+      deeds = pair.deeds ?? [];
+    },
+    bot(seats, chair) {
+      if (match === null || match.turn !== chair) return null;
+      const legal = legalMoves(seats, match, chair);
+      return legal.length === 0 ? null : { legal, view: botView(seats, match, chair, deeds) };
     },
   };
 }

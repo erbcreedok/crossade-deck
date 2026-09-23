@@ -68,6 +68,6 @@ describe("bots.a-bot-picks-from-a-legal-list", () => {
   it("рука пуста, круг есть — остаётся только взять", () => {
     const t = стол({ a: [], b: [c("7", "d")] }, [c("6", "d")]);
     const m: Match = { ...t.m, turn: "a", threshold: 2 };
-    expect(legalMoves(t.seats, m, "a")).toEqual([{ t: "take" }]);
+    expect(legalMoves(t.seats, m, "a")).toEqual([{ t: "take", id: id(c("6", "d")), card: c("6", "d"), to: { in: "hand", chair: "a", i: 0 } }]);
   });
 });

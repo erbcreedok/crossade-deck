@@ -9,11 +9,24 @@
 //   3. ПАДЕНИЕ — НЕ БЕДА. Мозг может упасть, зависнуть, вернуть чушь; комната берёт запасной и
 //      ходит. Бот, из-за которого встал стол, хуже отсутствия бота.
 
-import type { Face } from "../contract.js";
+import type { Face, Where } from "../contract.js";
 import type { Facts } from "../games/krestMemory.js";
 
-/** Ход бота. Ровно то же, что может человек: положить свою карту в круг или взять из круга. */
-export type Move = { t: "lay"; id: string; card: Face } | { t: "take" };
+/**
+ * ХОД БОТА — ровно то же, что делает человек: взять карту и положить её КУДА-ТО.
+ *
+ * Место (`to`) называет ИГРА, а не комната: комната во что играют не знает и знать не должна
+ * (`room.knows-no-game`). Она берёт `id`, ведёт его в `to` — и на этом её участие кончается.
+ */
+export type Move = {
+  t: "lay" | "take";
+  /** Какую карту вести: своя из руки при `lay`, нижняя из круга при `take`. */
+  id: string;
+  /** Её лицо — мозгу надо знать, чем он ходит и что поднимает. */
+  card: Face;
+  /** Куда вести. */
+  to: Where;
+};
 
 /** Стол глазами бота. Чужих карт здесь нет — есть только их количество. */
 export interface BotView {
@@ -63,8 +76,7 @@ export interface Brain {
 }
 
 /** Тот же ход по смыслу: сравнивать мозговой ответ со списком надо по карте, а не по ссылке. */
-export const sameMove = (a: Move, b: Move): boolean =>
-  a.t === "take" ? b.t === "take" : b.t === "lay" && a.id === b.id;
+export const sameMove = (a: Move, b: Move): boolean => a.t === b.t && a.id === b.id;
 
 /** Ответ мозга, приведённый к списку. Не из списка — `null`, и комната возьмёт запасной. */
 export const fromList = (legal: readonly Move[], picked: Move | null | undefined): Move | null =>

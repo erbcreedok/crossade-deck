@@ -34,7 +34,7 @@ import { actOf, crewOf } from "./crews.js";
 import { readIntent } from "./intent.js";
 import { Flood } from "./flood.js";
 import { PULSE_EVERY_MS, type Pulse } from "./freshness.js";
-import type { Play } from "./contract.js";
+import type { Play, Where } from "./contract.js";
 import { seatPoint } from "./ring.js";
 
 /**
@@ -47,6 +47,11 @@ import { roomIsSigned } from "./roomIds.js";
 import { Chronicle } from "./chronicle.js";
 import { cleanWitnessed, Witnesses } from "./witness.js";
 import { Table, type TableDump } from "./table.js";
+import type { Brain, BotView, Move, Profile } from "./bots/brain.js";
+import { fromList } from "./bots/brain.js";
+import { best, greedyBrain } from "./bots/greedy.js";
+import { PROFILE_KEYS, profileOf } from "./bots/profiles.js";
+import { nextLook, ready } from "./bots/nudge.js";
 
 /** Имена игроков без человека — чтобы за столом сидели не «Бот 1», а кто-то. */
 /** Столько стол должен молчать, чтобы его слепок записался. */
@@ -54,6 +59,8 @@ const KEEP_AFTER_MS = 1500;
 const BOT_NAMES = ["Айдос", "Батыр", "Ержан", "Санжар", "Данияр", "Тимур", "Алия", "Мадина"] as const;
 /** Больше этого за стол не сажают: мест всё-таки шестнадцать, и половину стоит оставить людям. */
 const BOTS_MOST = 8;
+/** Сколько бот думает над ходом, прежде чем за него сходит запасной. */
+const BOT_THINK_MS = 4000;
 
 
 export class TableRoom extends Room {
@@ -79,6 +86,17 @@ export class TableRoom extends Room {
    * зовёт судью, когда раздали, когда сходили и когда спрашивают, что сейчас в игре.
    */
   private referee: Referee | null = null;
+  /**
+   * БОТЫ ЗА СТОЛОМ. Мозг у каждого свой экземпляр: упадёт один — остальные играют. Характер
+   * закреплён за ключом бота, поэтому переживает перезапуск, не будучи записанным в слепок.
+   */
+  private brains = new Map<string, Brain>();
+  /** Кто уже думает: пока ответа нет, второй толчок этому боту ничего не делает. */
+  private thinking = new Set<string>();
+  /** Когда стол шевелился в последний раз — от этого отсчитывается тишина. */
+  private stirredAt = 0;
+  /** Живой таймер следующего заглядывания. */
+  private botTimer: { clear(): void } | null = null;
   /** Сессия → ключ человека. Один человек может сидеть с двух устройств: ключ у них общий. */
   private seats = new Map<string, string>();
 
@@ -192,6 +210,9 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       const intent = readIntent(raw);
       if (!me || !intent || !this.flood.take(me.key, "intent", Date.now())) return;
+      // ЧЕЛОВЕК ШЕВЕЛЬНУЛСЯ — тишина сначала. Даже `sync` и палец в воздухе: бот ждёт не хода, а
+      // затишья, и лезть под руку тому, кто сейчас что-то делает, ему нечего.
+      this.stirredAt = Date.now();
       if (intent.t === "sync") {
         client.send(MSG.welcome, this.welcomeFor(me));
         return;
@@ -209,6 +230,8 @@ export class TableRoom extends Room {
         this.book.tell("act", me.key, { intent });
         this.spread(result.ops);
         if (this.referee?.follow(this.seats_(), me.key, intent)) this.resend();
+        // Человек сходил — теперь очередь может быть уже за ботом. Ждать он начнёт с этого мига.
+        this.nudgeBots();
       }
     });
 
@@ -336,6 +359,8 @@ export class TableRoom extends Room {
     if (!this.referee) return;
     this.referee.start(this.seats_(), dealer);
     this.resend();
+    // Первый ход может оказаться за ботом: шестёрка буби легла ему. Отсчёт его паузы — отсюда.
+    this.stir();
   }
 
   /**
@@ -623,6 +648,107 @@ export class TableRoom extends Room {
   private async seatCroupier(): Promise<void> {
     const who = await botPerson(tableConfig().botToken);
     this.spread(this.table.seatCroupier({ ...who, ink: this.freeInk() }));
+  }
+
+  // ── БОТЫ ────────────────────────────────────────────────────────────────────────────────────
+  //
+  // Бот ходит В ТУ ЖЕ ДВЕРЬ, ЧТО ЧЕЛОВЕК: `table.act` → судья → дифы по экранам. Не через команду
+  // стола: команда ставит `busy` и запирает руки людей, а бот — игрок, а не раздача.
+
+  /** Стол шевельнулся — отсчёт тишины сначала. */
+  private stir(now = Date.now()): void {
+    this.stirredAt = now;
+    this.nudgeBots();
+  }
+
+  /**
+   * ХАРАКТЕР БОТА. Выводится из его ключа, а не хранится: ключ (`bot:игрок2`) переживает и
+   * перезапуск, и рестор комнаты, поэтому бот после перезапуска остаётся собой. Характеры
+   * раздаются по кругу — за столом из четырёх ботов все четыре разные.
+   */
+  private profileFor(key: string): Profile {
+    const n = [...this.table.here].filter((one) => one.bot === true).findIndex((one) => one.key === key);
+    return profileOf(PROFILE_KEYS[(n < 0 ? 0 : n) % PROFILE_KEYS.length]);
+  }
+
+  /** Мозг бота: свой экземпляр на каждого, чтобы падение одного не трогало остальных. */
+  private brainFor(key: string): Brain {
+    const kept = this.brains.get(key);
+    if (kept) return kept;
+    const made = greedyBrain();
+    this.brains.set(key, made);
+    return made;
+  }
+
+  /**
+   * ЗАГЛЯНУТЬ: не пора ли кому-то из ботов сходить. Зовётся после каждого движения стола и по
+   * таймеру — второй раз потому, что тишина наступает не от события, а от его отсутствия.
+   */
+  private nudgeBots(): void {
+    this.botTimer?.clear();
+    this.botTimer = null;
+    if (!this.referee?.bot) return;
+    // Крупье — не игрок: он раздаёт и сгребает, но ходов у него нет.
+    const desks = new Set(this.table.layout().chairs.filter((c) => c.croupier === true).map((c) => c.id));
+    const bots = this.table.here.filter((one) => one.bot === true && one.seat !== undefined && !desks.has(one.seat));
+    if (bots.length === 0) return;
+    const now = Date.now();
+    const quiet = { busy: this.table.busy, handsOn: this.table.handsOn, stirredAt: this.stirredAt, now };
+    const waits: number[] = [];
+    for (const bot of bots) {
+      const profile = this.profileFor(bot.key);
+      waits.push(profile.waitMs);
+      if (this.thinking.has(bot.key)) continue;
+      if (!ready(quiet, profile.waitMs)) continue;
+      const brief = this.referee.bot(this.seats_(), bot.seat!);
+      if (brief === null) continue;
+      void this.botPlays(bot.key, brief, profile);
+    }
+    const wait = Math.max(120, nextLook(quiet, waits));
+    this.botTimer = this.clock.setTimeout(() => this.nudgeBots(), wait);
+  }
+
+  /**
+   * ХОД ОДНОГО БОТА. Мозг может упасть, зависнуть или назвать ход не из списка — тогда ходит
+   * скриптовый запасной: бот, из-за которого встал стол, хуже отсутствия бота.
+   */
+  private async botPlays(key: string, brief: { legal: readonly Move[]; view: BotView }, profile: Profile): Promise<void> {
+    this.thinking.add(key);
+    try {
+      const picked = await this.brainFor(key).choose(brief.legal, brief.view, profile, BOT_THINK_MS);
+      // Ответ не из списка — запасной. Сам список собран сервером, поэтому подлога быть не может.
+      this.botMoves(key, fromList(brief.legal, picked) ?? best(brief.legal, brief.view, profile));
+    } catch (err) {
+      // Упал, завис, ответил чушью — ходит запасной. Стол из-за бота не встаёт.
+      this.book.tell("bot.failed", key, { почему: String(err).slice(0, 200) });
+      this.botMoves(key, best(brief.legal, brief.view, profile));
+    } finally {
+      this.thinking.delete(key);
+    }
+  }
+
+  /** Довести ход до стола теми же намерениями, какими его шлёт палец человека. */
+  private botMoves(key: string, move: Move): void {
+    const now = Date.now();
+    // КОМНАТА НЕ ЗНАЕТ ИГРЫ: и карту, и место назвал судья. Здесь только два жеста — те же, что
+    // делает палец человека.
+    const { id, to } = move;
+    const grab = this.table.act(key, { t: "grab", id }, now);
+    if ("refused" in grab) return void this.book.tell("bot.refused", key, { шаг: "grab", why: grab.refused });
+    this.spread(grab.ops);
+    const drop = this.table.act(key, { t: "drop", id, to }, now);
+    if ("refused" in drop) {
+      // Положить не вышло — карту надо ОТПУСТИТЬ, иначе она останется в кулаке бота навсегда и
+      // стол замрёт: никто другой её уже не возьмёт.
+      this.book.tell("bot.refused", key, { шаг: "drop", why: drop.refused });
+      const back = this.table.act(key, { t: "release", id }, now);
+      if (!("refused" in back)) this.spread(back.ops);
+      return;
+    }
+    this.book.tell("bot.act", key, { move: move.t, id });
+    this.spread(drop.ops);
+    if (this.referee?.follow(this.seats_(), key, { t: "drop", id, to })) this.resend();
+    this.stir(now);
   }
 
   /** Глаза — всем одинаковым списком. */
