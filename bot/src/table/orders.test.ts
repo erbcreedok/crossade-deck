@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
-import { dealMenu, MENU, menuOf, parseOrder, refusedSay, seatCard, seatMenu } from "./orders.js";
+import { dealMenu, MENU, menuOf, parseOrder, refusedSay, seatCard, seatMenu, started } from "./orders.js";
 
 const card: RoomCard = { room: "R".repeat(23), title: "Дурак", by: "tg:1", home: { kind: "chat", chat: "-1" }, people: [], seats: [], deck: { size: 36, jokers: false }, createdAt: 0, kind: "sandbox", crew: "sandbox", admins: [] };
 
@@ -211,5 +211,21 @@ describe("меню крестового: по одному решению в с�
     const empty = said.rows.find((r) => r[0]!.text === "пустой стул")!;
     expect(empty, "невыбранный стул можно включить").toEqual([{ text: "пустой стул", data: "tbq:p1:c3" }]);
     expect(said.rows.at(-1)).toEqual([{ text: "Раздать", data: "tbe:p1" }]);
+  });
+});
+
+describe("игроки без человека: чем думают и какие они", () => {
+  it("мозг и характер названы, только если их выбрали", () => {
+    // Молчаливый выбор за спиной владельца хуже лишней строки: попросил характер — увидел его.
+    expect(started({ t: "bots", n: 3 }, "Стол")).toBe("Сажаю игроков без человека за «Стол»: 3.");
+    expect(started({ t: "bots", n: 2, profile: "агрессор" }, "Стол")).toContain("характер — агрессор");
+    expect(started({ t: "bots", n: 1, brain: "claude" }, "Стол")).toContain("думают через claude");
+    expect(started({ t: "bots", n: 4, brain: "jev", profile: "копитель" }, "Стол")).toBe(
+      "Сажаю игроков без человека за «Стол»: 4 (характер — копитель, думают через jev).",
+    );
+  });
+
+  it("увели — и говорить не о чем", () => {
+    expect(started({ t: "bots", n: 0, brain: "claude" }, "Стол")).toBe("Увожу игроков без человека из «Стол».");
   });
 });

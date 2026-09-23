@@ -1,0 +1,11 @@
+{
+  "name": "@crossade/mcp-table",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": { "crossade-table": "./dist/index.js" },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/index.ts"
+  }
+}

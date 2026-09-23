@@ -53,6 +53,8 @@ import { best } from "./bots/greedy.js";
 import { brainOf } from "./bots/brains.js";
 import { PROFILE_KEYS, profileOf } from "./bots/profiles.js";
 import { nextLook, ready } from "./bots/nudge.js";
+import { chosen, looked, type Looked, type Played } from "./bots/outside.js";
+import { moveSays } from "./bots/say.js";
 
 /** Имена игроков без человека — чтобы за столом сидели не «Бот 1», а кто-то. */
 /** Столько стол должен молчать, чтобы его слепок записался. */
@@ -187,6 +189,9 @@ export class TableRoom extends Room {
         void this.disconnect();
       },
       run: (by, command) => this.run(by, command),
+      // ВНЕШНИЙ ИГРОК (MCP): смотрит и ходит теми же дверями, что человек.
+      look: (by) => this.lookFor(by),
+      play: (by, n) => this.playFor_(by, n),
       claim: (by) => this.spread(this.table.claim(by)),
       // РОД СМЕНИЛИ НА ХОДУ: стол берёт другие правила, а карты и люди остаются на местах. Партия
       // старого рода при этом кончается — судить её стало нечем.
@@ -767,6 +772,49 @@ export class TableRoom extends Room {
     this.spread(drop.ops);
     if (this.referee?.follow(this.seats_(), key, { t: "drop", id, to })) this.resend();
     this.stir(now);
+  }
+
+  // ── ВНЕШНИЙ ИГРОК ───────────────────────────────────────────────────────────────────────────
+  //
+  // Агент снаружи (MCP) спрашивает стол и ходит сам. Своего мозга у комнаты для него нет и толчок по
+  // тишине его не касается: он человек, просто набранный из букв.
+
+  /** Стул этого игрока — по ключу, как у всех. */
+  private chairOfKey(key: string): string | null {
+    return this.table.layout().chairs.find((c) => c.owner === key)?.id ?? null;
+  }
+
+  /** ЧТО ВИДНО ВНЕШНЕМУ ИГРОКУ. Чужих карт здесь нет — взгляд тот же, что у бота. */
+  lookFor(key: string): Looked {
+    const turn = this.referee?.view(this.seats_())?.turn ?? null;
+    const chair = this.chairOfKey(key);
+    const brief = chair === null ? null : (this.referee?.bot?.(this.seats_(), chair) ?? null);
+    return looked(turn, turn === key && brief !== null, brief?.legal ?? [], brief?.view ?? null);
+  }
+
+  /** СХОДИТЬ ЗА ВНЕШНЕГО ИГРОКА — теми же жестами и с теми же отказами, что у всех. */
+  playFor_(key: string, n: unknown): Played {
+    const chair = this.chairOfKey(key);
+    if (chair === null) return { ok: false, why: "no-match", says: "Ты не за этим столом" };
+    const brief = this.referee?.bot?.(this.seats_(), chair) ?? null;
+    if (brief === null) return { ok: false, why: "not-your-turn", says: "Сейчас не твой ход" };
+    const move = chosen(brief.legal, n);
+    if (move === null) return { ok: false, why: "no-such-move", says: `Такого хода нет: назови число от 1 до ${brief.legal.length}` };
+    const now = Date.now();
+    const grab = this.table.act(key, { t: "grab", id: move.id }, now);
+    if ("refused" in grab) return { ok: false, why: "refused", says: `Стол не дал взять карту: ${grab.refused}` };
+    this.spread(grab.ops);
+    const drop = this.table.act(key, { t: "drop", id: move.id, to: move.to }, now);
+    if ("refused" in drop) {
+      const back = this.table.act(key, { t: "release", id: move.id }, now);
+      if (!("refused" in back)) this.spread(back.ops);
+      return { ok: false, why: "refused", says: `Стол не принял ход: ${drop.refused}` };
+    }
+    this.book.tell("outside.act", key, { move: move.t, id: move.id });
+    this.spread(drop.ops);
+    if (this.referee?.follow(this.seats_(), key, { t: "drop", id: move.id, to: move.to })) this.resend();
+    this.stir(now);
+    return { ok: true, did: moveSays(move) };
   }
 
   /** Глаза — всем одинаковым списком. */

@@ -8,6 +8,7 @@
 // был — сама комната Colyseus, чтобы закрыть её отсюда.
 
 import type { DeckSize, Home, Person, RoomCard, RunResult, SeatCard, TableCommand } from "./contract.js";
+import type { Looked, Played } from "./bots/outside.js";
 import { DEFAULT_DESK, deskCrew, deskName, isDesk } from "./desks.js";
 import { retitled, ROOM_WORD, titleFrom, uniqueTitle } from "./names.js";
 import { DEFAULT_CREW, isCrew } from "./crews.js";
@@ -24,7 +25,7 @@ interface Entry {
   home: Home;
   by: string;
   createdAt: number;
-  live?: { people: () => Person[]; seats?: () => SeatCard[]; deck?: () => { size: DeckSize; jokers: boolean }; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; claim?: (by: string) => void; recast?: (kind: string) => void; recrew?: (crew: string) => void; admins?: (keys: string[]) => void };
+  live?: { people: () => Person[]; seats?: () => SeatCard[]; deck?: () => { size: DeckSize; jokers: boolean }; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; look?: (by: string) => Looked; play?: (by: string, n: unknown) => Played; claim?: (by: string) => void; recast?: (kind: string) => void; recrew?: (crew: string) => void; admins?: (keys: string[]) => void };
 }
 
 const rooms = new Map<string, Entry>();
@@ -241,6 +242,19 @@ export function closeEntry(room: string): boolean {
 export function attach(room: string, live: Entry["live"]): void {
   const e = rooms.get(room);
   if (e) e.live = live;
+}
+
+/**
+ * ВНЕШНЕМУ ИГРОКУ — ПОСМОТРЕТЬ. Комнаты нет или она не поднята в памяти — `undefined`: агент узнаёт
+ * это как «стол ещё не открыт», а не как молчание.
+ */
+export function lookIn(room: string, by: string): Looked | undefined {
+  return rooms.get(room)?.live?.look?.(by);
+}
+
+/** ВНЕШНЕМУ ИГРОКУ — СХОДИТЬ. Ход называется номером из списка, который дал `lookIn`. */
+export function playIn(room: string, by: string, n: unknown): Played | undefined {
+  return rooms.get(room)?.live?.play?.(by, n);
 }
 
 /** Команду — живой комнате. Комнаты нет (стол ещё никто не открывал) — `empty`, записи нет — `undefined`. */

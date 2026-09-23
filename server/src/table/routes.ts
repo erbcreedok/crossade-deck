@@ -13,7 +13,7 @@ import { tableConfig } from "./config.js";
 import { DEFAULT_DESK, isDesk } from "./desks.js";
 import { isCrew } from "./crews.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
-import { closeEntry, findEntry, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, runIn, setAdmin } from "./lobby.js";
+import { closeEntry, findEntry, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, lookIn, playIn, runIn, setAdmin } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 import { deeds, roomsSeen } from "../db/eventsRepo.js";
 import { mintPass, passRoom, PASS_HOURS } from "./pass.js";
@@ -202,6 +202,27 @@ export function tableRoutes(): Router {
     if (typeof body.by !== "string" || !command) return void res.status(400).json({ error: "bad_request" });
     const out = await runIn(req.params.room, body.by, command);
     if (!out) return void res.status(404).json({ error: "not_found" });
+    res.json(out);
+  });
+
+  /**
+   * ВНЕШНИЙ ИГРОК СМОТРИТ НА СТОЛ. Чужих карт в ответе нет — взгляд тот же, что у бота
+   * (`bots/view.ts`), и это не вежливость: агент, видящий сквозь рубашку, портит партию всем.
+   */
+  r.get("/table/rooms/:room/look", guarded, (req, res) => {
+    const by = typeof req.query.by === "string" ? req.query.by : null;
+    if (by === null) return void res.status(400).json({ error: "bad_request" });
+    const out = lookIn(req.params.room, by);
+    if (out === undefined) return void res.status(404).json({ error: "not_found" });
+    res.json(out);
+  });
+
+  /** ВНЕШНИЙ ИГРОК ХОДИТ. Ход называется НОМЕРОМ из списка, который дал `look`. */
+  r.post("/table/rooms/:room/play", guarded, (req, res) => {
+    const body = (req.body ?? {}) as { by?: unknown; n?: unknown };
+    if (typeof body.by !== "string") return void res.status(400).json({ error: "bad_request" });
+    const out = playIn(req.params.room, body.by, body.n);
+    if (out === undefined) return void res.status(404).json({ error: "not_found" });
     res.json(out);
   });
 
