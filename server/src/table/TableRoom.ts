@@ -49,7 +49,8 @@ import { cleanWitnessed, Witnesses } from "./witness.js";
 import { Table, type TableDump } from "./table.js";
 import type { Brain, BotView, Move, Profile } from "./bots/brain.js";
 import { fromList } from "./bots/brain.js";
-import { best, greedyBrain } from "./bots/greedy.js";
+import { best } from "./bots/greedy.js";
+import { brainOf } from "./bots/brains.js";
 import { PROFILE_KEYS, profileOf } from "./bots/profiles.js";
 import { nextLook, ready } from "./bots/nudge.js";
 
@@ -91,6 +92,11 @@ export class TableRoom extends Room {
    * закреплён за ключом бота, поэтому переживает перезапуск, не будучи записанным в слепок.
    */
   private brains = new Map<string, Brain>();
+  /**
+   * ЧТО ЗАКАЗАЛИ ЭТОМУ БОТУ — мозг и характер из команды `bots`. Хранится по ключу бота, а не по
+   * стулу: бота пересаживают, и характер должен ехать с ним.
+   */
+  private botOrders = new Map<string, { brain?: string; profile?: string }>();
   /** Кто уже думает: пока ответа нет, второй толчок этому боту ничего не делает. */
   private thinking = new Set<string>();
   /** Когда стол шевелился в последний раз — от этого отсчитывается тишина. */
@@ -392,7 +398,16 @@ export class TableRoom extends Room {
       }
       const было = this.table.here.filter((one) => one.bot === true && one.seat !== undefined).length;
       for (let i = было; i < Math.min(было + command.n, BOTS_MOST); i += 1) {
-        this.spread(this.table.seatBot({ key: `bot:игрок${i + 1}`, name: BOT_NAMES[i % BOT_NAMES.length]!, ink: this.freeInk(), door: "guest" }));
+        const key = `bot:игрок${i + 1}`;
+        // Мозг и характер запоминаются ДО посадки: бот садится уже собой, а не переучивается после.
+        if (command.brain !== undefined || command.profile !== undefined) {
+          this.botOrders.set(key, {
+            ...(command.brain === undefined ? {} : { brain: command.brain }),
+            ...(command.profile === undefined ? {} : { profile: command.profile }),
+          });
+          this.brains.delete(key);
+        }
+        this.spread(this.table.seatBot({ key, name: BOT_NAMES[i % BOT_NAMES.length]!, ink: this.freeInk(), door: "guest" }));
       }
       return { ok: true };
     }
@@ -667,6 +682,8 @@ export class TableRoom extends Room {
    * раздаются по кругу — за столом из четырёх ботов все четыре разные.
    */
   private profileFor(key: string): Profile {
+    const asked = this.botOrders.get(key)?.profile;
+    if (asked !== undefined) return profileOf(asked);
     const n = [...this.table.here].filter((one) => one.bot === true).findIndex((one) => one.key === key);
     return profileOf(PROFILE_KEYS[(n < 0 ? 0 : n) % PROFILE_KEYS.length]);
   }
@@ -675,7 +692,7 @@ export class TableRoom extends Room {
   private brainFor(key: string): Brain {
     const kept = this.brains.get(key);
     if (kept) return kept;
-    const made = greedyBrain();
+    const made = brainOf(this.botOrders.get(key)?.brain);
     this.brains.set(key, made);
     return made;
   }
@@ -715,7 +732,8 @@ export class TableRoom extends Room {
   private async botPlays(key: string, brief: { legal: readonly Move[]; view: BotView }, profile: Profile): Promise<void> {
     this.thinking.add(key);
     try {
-      const picked = await this.brainFor(key).choose(brief.legal, brief.view, profile, BOT_THINK_MS);
+      const brain = this.brainFor(key);
+      const picked = await brain.choose(brief.legal, brief.view, profile, brain.thinkMs ?? BOT_THINK_MS);
       // Ответ не из списка — запасной. Сам список собран сервером, поэтому подлога быть не может.
       this.botMoves(key, fromList(brief.legal, picked) ?? best(brief.legal, brief.view, profile));
     } catch (err) {
