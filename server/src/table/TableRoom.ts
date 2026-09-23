@@ -310,7 +310,8 @@ export class TableRoom extends Room {
 
   /** Стол глазами судьи: стулья с руками и лицо карты. */
   private seats_(): Seats {
-    return { chairs: this.table.layout().chairs, faceOf: (card) => this.table.faceOf(card) };
+    const at = this.table.layout();
+    return { chairs: at.chairs, faceOf: (card) => this.table.faceOf(card), pile: (id) => at.piles.find((p) => p.id === id)?.cards ?? [] };
   }
 
   /**

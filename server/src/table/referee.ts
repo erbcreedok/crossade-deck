@@ -9,10 +9,18 @@
 
 import type { Face, Intent, Play } from "./contract.js";
 
-/** Что судья видит на столе: стулья с руками и лицо любой карты. */
+/**
+ * Что судья видит на столе: стулья с руками, стопки и лицо любой карты.
+ *
+ * Стопки нужны судье не меньше рук: круг хода — обычная стопка, и партия читает его оттуда, а не из
+ * своей памяти. Всё, что здесь есть, читается ЗАНОВО перед каждым ответом: между двумя ходами стол
+ * могли переложить руками, и судья должен видеть результат, а не то, что помнил.
+ */
 export interface Seats {
   chairs: readonly { id: string; owner: string | null; hand: readonly string[]; croupier?: true }[];
   faceOf(card: string): Face | undefined;
+  /** Карты стопки снизу вверх. Нет такой стопки — пусто. */
+  pile(id: string): readonly string[];
 }
 
 export interface Referee {

@@ -25,6 +25,7 @@ function krestTable(keys: string[]) {
   const t: Table = new Table(deal(), keys[0]!, deskOf("krest", () => (match === null ? null : { turn: owner(match.turn), closer: owner(match.closer) })));
   const owner = (chair: string | null): string | null => (chair === null ? null : (t.layout().chairs.find((c) => c.id === chair)?.owner ?? null));
   for (const k of keys) t.join(person(k));
+  const ring = (): readonly Face[] => (t.layout().piles.find((p) => p.id === "ring")?.cards ?? []).map((id) => t.faceOf(id)!).filter(Boolean);
   const hands = (): Record<string, readonly Face[]> =>
     Object.fromEntries(
       t
@@ -35,7 +36,7 @@ function krestTable(keys: string[]) {
   return {
     t,
     open: (dealer: string | null) => {
-      match = start(hands(), dealer);
+      match = start({ hands: hands(), circle: ring() }, dealer);
       return match;
     },
     get match() {

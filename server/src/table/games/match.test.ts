@@ -1,144 +1,231 @@
-// СУДЬЯ ПАРТИИ — таблицей случаев. Каждый случай здесь однажды придётся объяснять живому человеку
+// ТЕНЬ ПАРТИИ — таблицей случаев. Каждый случай здесь однажды придётся объяснять живому человеку
 // за столом; если тест его не проверяет, объяснять придётся по памяти.
+//
+// Тень карт не помнит: стол двигают, она идёт следом. Поэтому здесь есть маленький стол (`деск`) —
+// он и есть та физика, которую в бою двигают пальцы игроков и руки админа.
 
 import { describe, expect, it } from "vitest";
 import type { Face } from "../contract.js";
-import { allowed, move, start, type Match } from "./match.js";
+import { advance, allowed, may, start, type Board, type Match } from "./match.js";
 
 const c = (rank: string, suit: Face["suit"]): Face => ({ rank, suit });
 const RED = c("JK", "r");
+const same = (a: Face, b: Face) => a.rank === b.rank && a.suit === b.suit;
+const id = (f: Face) => `${f.rank}${f.suit}`;
 
-/** Ход, который обязан пройти: отказ здесь — ошибка теста, а не игры. */
-const ok = (m: Match, who: string, mv: Parameters<typeof move>[2]): Match => {
-  const next = move(m, who, mv);
-  if ("refused" in next) throw new Error(`${who}: отказ «${next.refused}»`);
-  return next;
-};
+/**
+ * СТОЛ. Карты живут здесь, а не в тени: `lay`/`take` — это ход, `admin` — руки за столом.
+ * После каждого хода тень двигается ровно так, как её двинет судья в бою.
+ */
+function десk(hands: Record<string, Face[]>, dealer: string | null) {
+  const board: { hands: Record<string, Face[]>; circle: Face[] } = { hands, circle: [] };
+  const faceOf = (one: string): Face | undefined => [...Object.values(board.hands).flat(), ...board.circle].find((f) => id(f) === one);
+  let m: Match = start(board as Board, dealer);
+  const drop = (who: string, card: Face) => {
+    const hand = board.hands[who] ?? [];
+    const at = hand.findIndex((f) => same(f, card));
+    if (at === -1) throw new Error(`${who}: нет карты ${id(card)}`);
+    hand.splice(at, 1);
+  };
+  return {
+    get m() { return m; },
+    get board() { return board as Board; },
+    faceOf,
+    lay(who: string, card: Face) {
+      drop(who, card);
+      board.circle.push(card);
+      m = advance(m, board as Board, who, "laid");
+      return m;
+    },
+    take(who: string) {
+      const low = board.circle.shift();
+      if (low !== undefined) (board.hands[who] ??= []).push(low);
+      m = advance(m, board as Board, who, "taken");
+      return m;
+    },
+    /** РУКИ АДМИНА: стол переложили, тень об этом не знает и знать не должна. */
+    admin(change: (b: { hands: Record<string, Face[]>; circle: Face[] }) => void) {
+      change(board);
+    },
+  };
+}
 
 describe("начало партии", () => {
   it("ходит тот, у кого шестёрка буби", () => {
-    const m = start({ Аня: [c("K", "s")], Боря: [c("6", "d")] }, "Аня");
-    expect(m.turn).toBe("Боря");
-    expect(m.circle).toBe(null);
+    const t = десk({ Аня: [c("K", "s")], Боря: [c("6", "d")] }, "Аня");
+    expect(t.m.turn).toBe("Боря");
+    expect(t.m.threshold, "круга нет").toBe(0);
   });
 
   it("шестёрки буби нет ни у кого — ходит раздающий", () => {
-    expect(start({ Аня: [c("K", "s")], Боря: [c("7", "h")] }, "Аня").turn).toBe("Аня");
+    expect(десk({ Аня: [c("K", "s")], Боря: [c("7", "h")] }, "Аня").m.turn).toBe("Аня");
   });
 
   it("круг открывают любой картой, даже джокером", () => {
-    // Шестёрка буби у Ани, значит ходит она; джокер в её же руке — и он разрешён.
-    const m = start({ Аня: [RED, c("6", "d")], Боря: [c("K", "s")] }, "Боря");
-    expect(m.turn).toBe("Аня");
-    expect(allowed(m, "Аня").lay, "круга нет — бить нечего, класть можно что угодно").toEqual([RED, c("6", "d")]);
+    const t = десk({ Аня: [RED, c("6", "d")], Боря: [c("K", "s")] }, "Боря");
+    expect(t.m.turn).toBe("Аня");
+    expect(allowed(t.m, t.board, "Аня").lay, "круга нет — бить нечего, класть можно что угодно").toEqual([RED, c("6", "d")]);
   });
 });
 
 describe("ход и отказы", () => {
-  const two = () => start({ Аня: [c("6", "d"), c("K", "s")], Боря: [c("7", "d"), c("8", "c")] }, "Аня");
+  const two = () => десk({ Аня: [c("6", "d"), c("K", "s")], Боря: [c("7", "d"), c("8", "c")] }, "Аня");
 
-  it("чужой ход — отказ", () => {
-    expect(move(two(), "Боря", { t: "lay", card: c("7", "d") })).toEqual({ refused: "не-твой-ход" });
+  it("чужой ход — нельзя", () => {
+    const t = two();
+    expect(may(t.m, t.board, "Боря", { t: "lay", id: id(c("7", "d")) }, t.faceOf)).toEqual({ refused: "не-твой-ход" });
   });
 
-  it("карты нет в руке — отказ", () => {
-    expect(move(two(), "Аня", { t: "lay", card: c("A", "s") })).toEqual({ refused: "нет-такой-карты" });
-  });
-
-  it("не бьёт — отказ, и ход остаётся у него", () => {
-    const m = ok(two(), "Аня", { t: "lay", card: c("6", "d") });
-    expect(move(m, "Боря", { t: "lay", card: c("8", "c") }), "крести не бьют буби").toEqual({ refused: "не-бьёт" });
-    expect(m.turn).toBe("Боря");
+  it("не бьёт — нельзя, и ход остаётся у него", () => {
+    const t = two();
+    t.lay("Аня", c("6", "d"));
+    expect(may(t.m, t.board, "Боря", { t: "lay", id: id(c("8", "c")) }, t.faceOf), "крести не бьют буби").toEqual({ refused: "не-бьёт" });
+    expect(t.m.turn).toBe("Боря");
   });
 
   it("круга нет — брать нечего", () => {
-    expect(move(two(), "Аня", { t: "take" })).toEqual({ refused: "круг-надо-открыть" });
+    const t = two();
+    expect(may(t.m, t.board, "Аня", { t: "take" }, t.faceOf)).toEqual({ refused: "круг-надо-открыть" });
   });
 });
 
 describe("круг закрывается и открывается снова", () => {
   it("двое: положили две карты — круг закрыт, открывает положивший вторую", () => {
-    let m = start({ Аня: [c("6", "d"), c("K", "s")], Боря: [c("7", "d"), c("9", "h")] }, "Аня");
-    m = ok(m, "Аня", { t: "lay", card: c("6", "d") });
-    expect(m.circle?.table.length).toBe(1);
-    m = ok(m, "Боря", { t: "lay", card: c("7", "d") });
-    expect(m.circle, "круг закрыт — кольцо пустеет").toBe(null);
-    expect(m.closer).toBe("Боря");
-    expect(m.turn, "начинает тот, кто закрыл").toBe("Боря");
+    const t = десk({ Аня: [c("6", "d"), c("K", "s")], Боря: [c("7", "d"), c("9", "h")] }, "Аня");
+    t.lay("Аня", c("6", "d"));
+    expect(t.board.circle.length).toBe(1);
+    t.lay("Боря", c("7", "d"));
+    expect(t.m.threshold, "круг закрыт — порога больше нет").toBe(0);
+    expect(t.m.closer).toBe("Боря");
+    expect(t.m.turn, "начинает тот, кто закрыл").toBe("Боря");
   });
 
   it("стол разобрали — следующий круг открывает СЛЕДУЮЩИЙ за взявшим", () => {
-    let m = start({ Аня: [c("6", "d")], Боря: [c("9", "h")], Вика: [c("K", "s")] }, "Аня");
-    m = ok(m, "Аня", { t: "lay", card: c("6", "d") });
-    m = ok(m, "Боря", { t: "take" });
-    expect(m.circle, "стол опустел — круг закрыт").toBe(null);
-    expect(m.hands["Боря"]).toEqual([c("9", "h"), c("6", "d")]);
-    expect(m.turn, "не Боря, а следующий за ним").toBe("Вика");
+    const t = десk({ Аня: [c("6", "d")], Боря: [c("9", "h")], Вика: [c("K", "s")] }, "Аня");
+    t.lay("Аня", c("6", "d"));
+    t.take("Боря");
+    expect(t.board.circle, "стол опустел — круг закрыт").toEqual([]);
+    expect(t.board.hands["Боря"]).toEqual([c("9", "h"), c("6", "d")]);
+    expect(t.m.turn, "не Боря, а следующий за ним").toBe("Вика");
   });
 
   it("порог берётся при старте круга и внутри не меняется", () => {
-    // Трое с картами: круг закроется на третьей карте, а не на второй.
-    let m = start({ Аня: [c("6", "d"), c("K", "s")], Боря: [c("7", "d")], Вика: [c("8", "d")] }, "Аня");
-    m = ok(m, "Аня", { t: "lay", card: c("6", "d") });
-    m = ok(m, "Боря", { t: "lay", card: c("7", "d") });
-    expect(m.circle?.table.length, "две карты при пороге три — круг жив").toBe(2);
-    m = ok(m, "Вика", { t: "lay", card: c("8", "d") });
-    expect(m.circle).toBe(null);
+    const t = десk({ Аня: [c("6", "d"), c("K", "s")], Боря: [c("7", "d")], Вика: [c("8", "d")] }, "Аня");
+    t.lay("Аня", c("6", "d"));
+    expect(t.m.threshold, "трое с картами").toBe(3);
+    t.lay("Боря", c("7", "d"));
+    expect(t.board.circle.length, "две карты при пороге три — круг жив").toBe(2);
+    expect(t.m.threshold).toBe(3);
+    t.lay("Вика", c("8", "d"));
+    expect(t.m.threshold, "круг закрыт").toBe(0);
   });
 });
 
 describe("САМЫЙ КОВАРНЫЙ СЛУЧАЙ: пустая рука внутри незакрытого круга", () => {
   it("очередь доходит до опустевшего, ему нечем бить — он поднимает нижнюю и снова с картами", () => {
-    // Трое. Аня кладёт последнюю карту, круг не закрыт (порог три, карт одна).
-    let m = start({ Аня: [c("6", "d")], Боря: [c("7", "d")], Вика: [c("K", "s")] }, "Аня");
-    m = ok(m, "Аня", { t: "lay", card: c("6", "d") });
-    expect(m.hands["Аня"], "рука пуста").toEqual([]);
-    expect(m.out, "но он НЕ вышел: круг не закрыт").toEqual([]);
-    m = ok(m, "Боря", { t: "lay", card: c("7", "d") });
-    expect(m.circle?.table.length).toBe(2);
-    expect(m.turn, "очередь дошла до Вики").toBe("Вика");
-    m = ok(m, "Вика", { t: "take" });
-    expect(m.turn, "и снова до Ани — она всё ещё в круге").toBe("Аня");
-    expect(allowed(m, "Аня"), "рука пуста: класть нечего, но взять можно").toEqual({ lay: [], take: true });
-    m = ok(m, "Аня", { t: "take" });
-    expect(m.hands["Аня"], "подняла нижнюю и снова с картами").toEqual([c("7", "d")]);
+    const t = десk({ Аня: [c("6", "d")], Боря: [c("7", "d")], Вика: [c("K", "s")] }, "Аня");
+    t.lay("Аня", c("6", "d"));
+    expect(t.board.hands["Аня"], "рука пуста").toEqual([]);
+    expect(t.m.out, "но он НЕ вышел: круг не закрыт").toEqual([]);
+    t.lay("Боря", c("7", "d"));
+    expect(t.board.circle.length).toBe(2);
+    expect(t.m.turn, "очередь дошла до Вики").toBe("Вика");
+    t.take("Вика");
+    expect(t.m.turn, "и снова до Ани — она всё ещё в круге").toBe("Аня");
+    expect(allowed(t.m, t.board, "Аня"), "рука пуста: класть нечего, но взять можно").toEqual({ lay: [], take: true });
+    t.take("Аня");
+    expect(t.board.hands["Аня"], "подняла нижнюю и снова с картами").toEqual([c("7", "d")]);
   });
 });
 
 describe("выход, проигравший и раздающий", () => {
   it("вышли только те, у кого пусто НА МОМЕНТ закрытия круга", () => {
-    let m = start({ Аня: [c("6", "d")], Боря: [c("7", "d")], Вика: [c("8", "d"), c("K", "s")] }, "Аня");
-    m = ok(m, "Аня", { t: "lay", card: c("6", "d") });
-    m = ok(m, "Боря", { t: "lay", card: c("7", "d") });
-    m = ok(m, "Вика", { t: "lay", card: c("8", "d") });
-    expect(m.circle, "три карты при пороге три").toBe(null);
-    expect([...m.out].sort(), "Аня и Боря пусты — вышли").toEqual(["Аня", "Боря"]);
-    expect(m.ring).toEqual(["Вика"]);
-    expect(m.loser, "осталась одна с картами — проиграла").toBe("Вика");
-    expect(m.dealer, "проигравший раздаёт следующую").toBe("Вика");
-    expect(m.turn, "партия кончена").toBe(null);
+    const t = десk({ Аня: [c("6", "d")], Боря: [c("7", "d")], Вика: [c("8", "d"), c("K", "s")] }, "Аня");
+    t.lay("Аня", c("6", "d"));
+    t.lay("Боря", c("7", "d"));
+    t.lay("Вика", c("8", "d"));
+    expect(t.m.threshold, "три карты при пороге три").toBe(0);
+    expect([...t.m.out].sort(), "Аня и Боря пусты — вышли").toEqual(["Аня", "Боря"]);
+    expect(t.m.ring).toEqual(["Вика"]);
+    expect(t.m.loser, "осталась одна с картами — проиграла").toBe("Вика");
+    expect(t.m.dealer, "проигравший раздаёт следующую").toBe("Вика");
+    expect(t.m.turn, "партия кончена").toBe(null);
   });
 
   it("после конца партии ходов больше нет", () => {
-    let m = start({ Аня: [c("6", "d")], Боря: [c("7", "d"), c("K", "s")] }, "Аня");
-    m = ok(m, "Аня", { t: "lay", card: c("6", "d") });
-    m = ok(m, "Боря", { t: "lay", card: c("7", "d") });
-    expect(m.loser).toBe("Боря");
-    expect(move(m, "Боря", { t: "take" })).toEqual({ refused: "партия-кончена" });
+    const t = десk({ Аня: [c("6", "d")], Боря: [c("7", "d"), c("K", "s")] }, "Аня");
+    t.lay("Аня", c("6", "d"));
+    t.lay("Боря", c("7", "d"));
+    expect(t.m.loser).toBe("Боря");
+    expect(may(t.m, t.board, "Боря", { t: "take" }, t.faceOf)).toEqual({ refused: "партия-кончена" });
   });
 });
 
 describe("что можно прямо сейчас", () => {
   it("не твой ход — ничего", () => {
-    const m = start({ Аня: [c("6", "d")], Боря: [c("7", "d")] }, "Аня");
-    expect(allowed(m, "Боря")).toEqual({ lay: [], take: false });
+    const t = десk({ Аня: [c("6", "d")], Боря: [c("7", "d")] }, "Аня");
+    expect(allowed(t.m, t.board, "Боря")).toEqual({ lay: [], take: false });
   });
 
   it("в круге видно ровно те карты, что бьют верхнюю", () => {
-    let m = start({ Аня: [c("6", "c")], Боря: [c("7", "c"), c("A", "d"), RED] }, "Аня");
-    m = ok(m, "Аня", { t: "lay", card: c("6", "c") });
-    const may = allowed(m, "Боря");
-    expect(may.lay, "крести бьются крестями и джокером; туз буби — нет").toEqual([c("7", "c"), RED]);
-    expect(may.take).toBe(true);
+    const t = десk({ Аня: [c("6", "c")], Боря: [c("7", "c"), c("A", "d"), RED] }, "Аня");
+    t.lay("Аня", c("6", "c"));
+    const can = allowed(t.m, t.board, "Боря");
+    expect(can.lay, "крести бьются крестями и джокером; туз буби — нет").toEqual([c("7", "c"), RED]);
+    expect(can.take).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// ТЕНЬ СЧИТАЕТ ПО СТОЛУ. Стол правят руками — и это законно: админ за настоящим столом делает что
+// хочет. Тень обязана принять результат и не развалиться.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+describe("shadow.the-shadow-reads-the-table", () => {
+  it("КЕЙС ВЛАДЕЛЬЦА: взял не ту карту, админ вернул её и дал нужную — ход идёт дальше, круг = [7]", () => {
+    // Раймондо должен был взять шестёрку, а поднял семёрку. Админ кладёт семёрку назад в круг и
+    // выдаёт ему шестёрку рукой. Ход при этом уже состоялся — очередь ушла к следующему.
+    const t = десk({ Аня: [c("6", "d")], Раймондо: [c("K", "s")], Вика: [c("9", "h")] }, "Аня");
+    t.lay("Аня", c("6", "d"));
+    t.admin((b) => b.circle.push(c("7", "d")));
+    t.take("Раймондо");
+    expect(t.board.hands["Раймондо"], "поднял нижнюю — шестёрку").toEqual([c("K", "s"), c("6", "d")]);
+    const ход = t.m.turn;
+
+    // Админ правит: шестёрка из руки Раймондо обратно в круг, семёрка… уже там; меняем местами.
+    t.admin((b) => {
+      b.hands["Раймондо"] = [c("K", "s"), c("7", "d")];
+      b.circle = [c("6", "d")];
+    });
+    expect(t.m.turn, "уборка стола очередь не сдвинула").toBe(ход);
+    expect(allowed(t.m, t.board, ход!).take, "круг не пуст — взять можно").toBe(true);
+  });
+
+  it("ход из ЧУЖОЙ руки очередь не двигает — это уборка, а не ход", () => {
+    const t = десk({ Аня: [c("6", "d"), c("K", "s")], Боря: [c("7", "d")], Вика: [c("9", "h")] }, "Аня");
+    t.lay("Аня", c("6", "d"));
+    const ход = t.m.turn;
+    t.admin((b) => {
+      b.hands["Вика"] = [];
+      b.circle.push(c("9", "h"));
+    });
+    expect(t.m.turn, "тень не шевельнулась: судья такой жест ходом не считает").toBe(ход);
+  });
+
+  it("карта пришла в руку ниоткуда — партия не ломается, тень читает новую руку", () => {
+    const t = десk({ Аня: [c("6", "d")], Боря: [c("7", "d")], Вика: [c("K", "s")] }, "Аня");
+    t.lay("Аня", c("6", "d"));
+    t.admin((b) => (b.hands["Аня"] = [c("A", "d"), c("8", "d")]));
+    t.lay("Боря", c("7", "d"));
+    t.take("Вика");
+    expect(t.m.turn, "очередь дошла до Ани — и она снова с картами").toBe("Аня");
+    expect(allowed(t.m, t.board, "Аня").lay.length, "тень видит обе выданные карты").toBe(2);
+  });
+
+  it("админ опустошил круг посреди хода — тень видит пустой стол, а не свою память", () => {
+    const t = десk({ Аня: [c("6", "d"), c("K", "s")], Боря: [c("7", "d"), c("9", "h")] }, "Аня");
+    t.lay("Аня", c("6", "d"));
+    t.admin((b) => (b.circle = []));
+    expect(allowed(t.m, t.board, "Боря"), "брать нечего, а класть можно что угодно: бить некого").toEqual({ lay: [c("7", "d"), c("9", "h")], take: false });
   });
 });
