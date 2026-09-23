@@ -1,0 +1,43 @@
+server/src/table/lobby.ts
+  s_9ed0da107cbc4a::t_75e8c5c0cfcf43 28,247-259
+  s_9ed0da107cbc4a::t_5438f3500d7444 11
+bot/src/table/orders.ts
+  s_9ed0da107cbc4a::t_23f42d6f200c4e 225-231
+server/src/table/bots/outside.ts
+  s_9ed0da107cbc4a::t_fada89f65bc5b8 1-46
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_eb9f81002cc81b 777-819
+  s_9ed0da107cbc4a::t_38cf7855e908ed 56-57,192-194
+mcp-table/src/index.ts
+  s_9ed0da107cbc4a::t_39ea9d29403764 1-124
+server/src/table/bots/outside.test.ts
+  s_9ed0da107cbc4a::t_0dc254ed79f1e3 1-68
+.night/log.md
+  s_9ed0da107cbc4a::t_941985a8fe48d8 16-27
+bot/src/table/orders.test.ts
+  s_9ed0da107cbc4a::t_cfbc31f98f4cb0 3,216-231
+mcp-table/README.md
+  s_9ed0da107cbc4a::t_a360de89c3788b 1-31
+mcp-table/package.json
+  s_9ed0da107cbc4a::t_486857a4e004ce 1-11
+mcp-table/tsconfig.json
+  s_9ed0da107cbc4a::t_8724ad8cf6a88a 1-17
+server/src/table/routes.ts
+  s_9ed0da107cbc4a::t_a6836cea8b03d6 16,208-228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5809c9a3d90733332605f153571255b391c91cb8",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
