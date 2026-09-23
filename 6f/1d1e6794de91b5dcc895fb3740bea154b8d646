@@ -1,0 +1,33 @@
+server/src/table/games/match.test.ts
+  s_9ed0da107cbc4a::t_bfcfd99088886e 1,3-5,9,13-51,55-57,61,65-67,72,74-76,79-83,87-88,94-100,104-109,113-120,126-137,143-152,156-160,166-167,171-229
+server/src/table/referee.ts
+  s_9ed0da107cbc4a::t_b33614272f1a81 12-18,22-23
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_8fafee0a85d801 313-314
+server/src/table/games/krestReferee.test.ts
+  s_9ed0da107cbc4a::t_1bece3821f320c 1-89
+server/src/table/games/match.ts
+  s_9ed0da107cbc4a::t_c172329e2c77b4 1,3-10,18,20,28-32,41-56,59-60,63,65,80-83,85,88-90,92-96,100-101,103,105-113,117-120,123-125,128-129,131-135
+server/src/table/games/krestReferee.ts
+  s_9ed0da107cbc4a::t_f4e4b620396f11 1,3-8,13,17-27,32-33,42-43,46,55-56,70
+.night/log.md
+  s_9ed0da107cbc4a::t_36bc9544daa7ae 1,3-5,7-10
+server/src/table/games/table-krest.test.ts
+  s_9ed0da107cbc4a::t_5ab23cc96ea0c4 28,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6f1d1e6794de91b5dcc895fb3740bea154b8d646",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
