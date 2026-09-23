@@ -1,0 +1,57 @@
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_db1006d8390321 1335-1344
+server/src/table/bots/nudge.test.ts
+  s_9ed0da107cbc4a::t_5eee7a3659a221 1-57
+server/src/table/games/krestReferee.ts
+  s_9ed0da107cbc4a::t_a4ba08442303fb 32-34,38,43
+  s_9ed0da107cbc4a::t_87b7202c05b7a9 53-57,59
+  s_9ed0da107cbc4a::t_83b9c4e4036928 86-87,90-103
+  s_9ed0da107cbc4a::t_ab9ab6edf80876 14-15
+server/src/table/bots/plays.test.ts
+  s_9ed0da107cbc4a::t_8107fdeb2859f5 93,96-98
+  s_9ed0da107cbc4a::t_81fe187d12e5d1 1-76,79-92,94-95,99-129
+  s_9ed0da107cbc4a::t_9cfedf8516da6e 77-78
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_cd1cbf1ab69bea 741-742,744-745
+  s_9ed0da107cbc4a::t_41767466fc96d8 718-720,722,724
+  s_9ed0da107cbc4a::t_b9c599e2e76a44 733-735
+  s_9ed0da107cbc4a::t_ee90318557f991 653-663,669,671-673,675-677,679-690,694-717,721,723,725-732,736-740,743,746-753
+  s_9ed0da107cbc4a::t_9019bc7170d127 89-99
+  s_9ed0da107cbc4a::t_f4541d4ebd392c 664-668,670,674,678
+  s_9ed0da107cbc4a::t_03859f7f786f7d 362-363
+  s_9ed0da107cbc4a::t_40389c532ccdfc 213-215
+  s_9ed0da107cbc4a::t_a3055896923ed1 233-234
+  s_9ed0da107cbc4a::t_b0b748cfbe5993 37,50-54,62-63,691-693
+server/src/table/referee.ts
+  s_9ed0da107cbc4a::t_2c8d31ffe07e26 43-50
+  s_9ed0da107cbc4a::t_e8c51ebecd6071 11
+server/src/table/bots/brain.ts
+  s_9ed0da107cbc4a::t_2186c5673d174e 15-29
+  s_9ed0da107cbc4a::t_c109962b34f999 12,79
+server/src/table/bots/view.ts
+  s_9ed0da107cbc4a::t_b159036fb7178d 42-43,46-50
+server/src/table/bots/nudge.ts
+  s_9ed0da107cbc4a::t_dcee887f26fb19 1-42
+.night/log.md
+  s_9ed0da107cbc4a::t_31bc1f7e16111c 13
+server/src/table/bots/greedy.test.ts
+  s_9ed0da107cbc4a::t_dce55d427df7e5 16-19,49,56,73,76-77,83
+server/src/table/bots/view.test.ts
+  s_9ed0da107cbc4a::t_34792ea5e2fc69 71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "af0600cca2b966fd72bd52945a2e867b21d95e34",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
