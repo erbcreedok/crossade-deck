@@ -1,0 +1,44 @@
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_35e214a83c7d35 851-852
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_01e61c882f17e2 1686-1687
+  s_9ed0da107cbc4a::t_f822251b1957fe 37
+  s_9ed0da107cbc4a::t_cc19da2ad09007 255-256
+  s_9ed0da107cbc4a::t_7ddc7c97cbe639 3213-3216,3221
+  s_9ed0da107cbc4a::t_f8f9ec75bcfcf3 2345
+  s_9ed0da107cbc4a::t_c15799a4436e73 1689-1692,1694-1699
+  s_9ed0da107cbc4a::t_9aba997c79b90f 924-926
+  s_9ed0da107cbc4a::t_e218668c819b92 3217-3219,3224
+  s_9ed0da107cbc4a::t_54f7d5d36b74aa 634-641,1688
+  s_9ed0da107cbc4a::t_ddaa67fc8ae899 2143-2144
+  s_9ed0da107cbc4a::t_1c3d92ffbb5ca9 1085,1470,2136
+server/table-client/tap.ts
+  s_9ed0da107cbc4a::t_0f63c607181bbb 1-32
+server/table-client/tap.test.ts
+  s_9ed0da107cbc4a::t_9a9c477ac01474 1-36
+server/scripts/tableHeldMark.mjs
+  s_9ed0da107cbc4a::t_59a15c688e8b4e 1-52
+server/table-client/screenConst.ts
+  s_9ed0da107cbc4a::t_eaf4a7224cd35b 138,140-146
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_1a5e1a68ca531b 503
+  s_9ed0da107cbc4a::t_62387304a36ca2 524
+server/src/table/hands.test.ts
+  s_9ed0da107cbc4a::t_70bb21c11720e3 148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "14d7ab0a19999035869ec2a83e55c24846c5b6e9",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
