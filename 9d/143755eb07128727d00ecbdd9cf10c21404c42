@@ -1,0 +1,67 @@
+server/src/table/referee.ts
+  s_9ed0da107cbc4a::t_16f143acec158a 10
+  s_9ed0da107cbc4a::t_0c61fb75300670 44-51
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_9200ed820f20d7 296-305
+  s_9ed0da107cbc4a::t_790a2678ae9dd1 317
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_ba883606201d63 295
+  s_9ed0da107cbc4a::t_e36ac7dd6be91c 77-88
+  s_9ed0da107cbc4a::t_a26cc232289ec0 1146-1147
+  s_9ed0da107cbc4a::t_acc69915dcd84a 1193-1194
+  s_9ed0da107cbc4a::t_899503a62d1709 640-644
+server/src/table/games/krestReferee.ts
+  s_9ed0da107cbc4a::t_185c280ccd7aa3 74-79,81-88,90,96-101
+  s_9ed0da107cbc4a::t_7c36d6242d7d32 3-5,7-13
+  s_9ed0da107cbc4a::t_7105f19fc87434 71,80
+  s_9ed0da107cbc4a::t_3b7db06de3fbe2 15
+server/table-client/journal.ts
+  s_9ed0da107cbc4a::t_4ce3bfc909c34e 90-92
+  s_9ed0da107cbc4a::t_b711f7e234d52b 111-113
+server/src/table/games/krestReferee.test.ts
+  s_9ed0da107cbc4a::t_5a86ae26153d62 124-145
+  s_9ed0da107cbc4a::t_f1be05c619f7d2 51-81,122
+  s_9ed0da107cbc4a::t_b62d9f6db3bf0b 105-113,116,119-121
+  s_9ed0da107cbc4a::t_c79c53f96135de 123
+  s_9ed0da107cbc4a::t_67bf3861c93d43 4-6,41,190,231,257,287
+server/table-client/felt.ts
+  s_9ed0da107cbc4a::t_f415110fb91f73 475-508
+  s_9ed0da107cbc4a::t_cf024c02a15a57 36-42,795-796
+server/src/table/bots/plays.test.ts
+  s_9ed0da107cbc4a::t_c58a92fb5afab1 91-92,94-95
+server/src/table/TableRoom.test.ts
+  s_9ed0da107cbc4a::t_03cbb2022edc15 123-151
+server/scripts/tableTurnMark.mjs
+  s_9ed0da107cbc4a::t_f91b34c223f6f6 1-104
+  s_9ed0da107cbc4a::t_3ff39fa46b8618 105
+server/src/table/crews.ts
+  s_9ed0da107cbc4a::t_8c187c01acdbb9 46-48
+server/src/table/landing.test.ts
+  s_9ed0da107cbc4a::t_988f170a1346d4 28
+server/src/table/table.test.ts
+  s_9ed0da107cbc4a::t_f63a56516f1d19 239
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_6557450b4eec78 1872
+server/table-client/journal.test.ts
+  s_9ed0da107cbc4a::t_be7b2c00687cc9 78,114-138
+server/table-client/main.ts
+  s_9ed0da107cbc4a::t_a6f2e5fabe9fe8 14,122-125
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_8e119f3330d10c 2436-2438,2481-2483
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9d143755eb07128727d00ecbdd9cf10c21404c42",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
