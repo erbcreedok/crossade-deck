@@ -65,8 +65,8 @@ export const CLI_BRAINS: Record<string, CliBrain> = {
   ollama: { cmd: "ollama", args: ["run", "qwen2.5:3b"] },
 };
 
-/** Запустить программу, отдать ей вопрос в stdin и дождаться ответа — или убить по сроку. */
-export function runCli(one: CliBrain, question: string, deadlineMs: number): Promise<string> {
+/** Запустить программу, отдать ей вопрос и дождаться ответа — или убить по сроку либо по отмене. */
+export function runCli(one: CliBrain, question: string, deadlineMs: number, stop?: AbortSignal): Promise<string> {
   return new Promise((done, fail) => {
     if (one.needs && !process.env[one.needs.env]) return void fail(new Error(one.needs.says));
     const args = one.args;
@@ -79,6 +79,16 @@ export function runCli(one: CliBrain, question: string, deadlineMs: number): Pro
       fail(new Error(`не уложился в ${deadlineMs} мс`));
     }, deadlineMs);
     timer.unref?.();
+    // ДУМАТЬ СТАЛО НЕЗАЧЕМ — убиваем сейчас же, не дожидаясь срока. Иначе после закрытия стола
+    // программа живёт ещё полминуты и доводит до конца ответ, который никто не прочтёт; у платного
+    // мозга это прямые деньги на ветер.
+    const бросить = () => {
+      clearTimeout(timer);
+      child.kill("SIGKILL");
+      fail(new Error("стол закрылся"));
+    };
+    if (stop?.aborted) return void бросить();
+    stop?.addEventListener("abort", бросить, { once: true });
     child.stdout.on("data", (chunk) => (out += String(chunk)));
     child.stderr.on("data", (chunk) => (err += String(chunk)));
     child.on("error", (why) => {
@@ -106,9 +116,9 @@ const CLI_THINK_MS = 30000;
 export const cliBrain = (key: string, one: CliBrain): Brain => ({
   key,
   thinkMs: one.thinkMs ?? CLI_THINK_MS,
-  choose: async (legal, view, profile, deadlineMs): Promise<Move> => {
+  choose: async (legal, view, profile, deadlineMs, stop): Promise<Move> => {
     if (legal.length <= 1) return best(legal, view, profile);
-    const said = await runCli(one, ask(legal, view, profile), deadlineMs);
+    const said = await runCli(one, ask(legal, view, profile), deadlineMs, stop);
     const move = pick(legal, said);
     if (move === null) throw new Error(`ответ не разобран: ${said.slice(0, 120)}`);
     return move;

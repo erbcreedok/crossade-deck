@@ -76,8 +76,12 @@ export interface Brain {
   /**
    * Выбрать ход из списка. Дольше `deadlineMs` или ответ не из списка — комната берёт запасной.
    * Бросать исключения можно: их ловят.
+   *
+   * `stop` взводится, когда думать стало незачем: комнату закрыли, стол разогнали. Мозг обязан
+   * бросить работу — за столом, которого нет, ответ никому не нужен, а платный мозг всё это время
+   * тратит деньги впустую.
    */
-  choose(legal: readonly Move[], view: BotView, profile: Profile, deadlineMs: number): Promise<Move>;
+  choose(legal: readonly Move[], view: BotView, profile: Profile, deadlineMs: number, stop?: AbortSignal): Promise<Move>;
 }
 
 /** Тот же ход по смыслу: сравнивать мозговой ответ со списком надо по карте, а не по ссылке. */

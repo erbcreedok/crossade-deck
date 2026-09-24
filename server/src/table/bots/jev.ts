@@ -58,16 +58,17 @@ export const jevBrain = (how: Pickiness = "sample"): Brain => ({
   key: "jev",
   // Jev отвечает за 70–500 мс: срок короткий нарочно, чтобы стол не ждал сеть.
   thinkMs: 3000,
-  choose: async (legal, view, profile, deadlineMs): Promise<Move> => {
+  choose: async (legal, view, profile, deadlineMs, stop): Promise<Move> => {
     if (legal.length <= 1) return best(legal, view, profile);
     const key = process.env["JEV_API_KEY"];
     if (!key) throw new Error("нет JEV_API_KEY");
-    const stop = AbortSignal.timeout(deadlineMs);
+    // Бросаем и по сроку, и по отмене: стол закрылся — ответ уже никому не нужен.
+    const бросить = stop ? AbortSignal.any([AbortSignal.timeout(deadlineMs), stop]) : AbortSignal.timeout(deadlineMs);
     const answer = await fetch(JEV_URL, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
       body: JSON.stringify({ state: ask(legal, view, profile), choices: legal.map(moveSays) }),
-      signal: stop,
+      signal: бросить,
     });
     if (!answer.ok) throw new Error(`jev: ${answer.status}`);
     const said = (await answer.json()) as JevSaid;

@@ -111,6 +111,11 @@ export class TableRoom extends Room {
   private stirredAt = 0;
   /** Живой таймер следующего заглядывания. */
   private botTimer: { clear(): void } | null = null;
+  /**
+   * КОМНАТЫ БОЛЬШЕ НЕТ. Взводится при закрытии и обрывает всё, что боты успели начать: думающий
+   * мозг бросает работу, додуманный ход не кладётся на стол, которого уже нет.
+   */
+  private gone = new AbortController();
   /** Сессия → ключ человека. Один человек может сидеть с двух устройств: ключ у них общий. */
   private seats = new Map<string, string>();
 
@@ -152,6 +157,11 @@ export class TableRoom extends Room {
 
   /** Как бы комната ни кончилась — опустела, закрыта ботом, сервер останавливают, — журнал дописан. */
   onDispose(): void {
+    // СПЕРВА ОБОРВАТЬ БОТОВ. Думающий мозг — живой чужой процесс; без этого он доводит ответ до
+    // конца и умирает только по своему сроку, до минуты спустя, впустую тратя деньги у платного.
+    this.gone.abort();
+    this.botTimer?.clear();
+    this.botTimer = null;
     if (!this.table.busy) this.keepNow();
     this.book.flush();
   }
@@ -761,7 +771,7 @@ export class TableRoom extends Room {
       let move: Move;
       try {
         const brain = this.brainFor(key);
-        const picked = await brain.choose(brief.legal, brief.view, profile, brain.thinkMs ?? BOT_THINK_MS);
+        const picked = await brain.choose(brief.legal, brief.view, profile, brain.thinkMs ?? BOT_THINK_MS, this.gone.signal);
         // Ответ не из списка — запасной. Сам список собран сервером, поэтому подлога быть не может.
         move = fromList(brief.legal, picked) ?? best(brief.legal, brief.view, profile);
       } catch (err) {
@@ -774,10 +784,17 @@ export class TableRoom extends Room {
       }
       track.lastMs = Date.now() - t0;
       track.lastSays = moveSays(move);
+      // КОМНАТЫ УЖЕ НЕТ — ход некуда класть. Мозг мог ответить за миг до закрытия либо оказаться
+      // скриптовым, которого не обрывают вовсе.
+      if (this.gone.signal.aborted) return;
       // ДОДЕРЖАТЬ ПАУЗУ, если мысль оказалась быстрее неё. Скриптовый мозг отвечает мгновенно, и без
       // этого он клал бы карту в тот же миг, что и человек, — стол читался бы как машина.
+      //
+      // Ждём ОБЫЧНЫМ таймером, а не часами комнаты: часы закрытой комнаты не идут, и ожидание на
+      // них не кончилось бы никогда — эта задача осталась бы висеть вместе со всем, что держит.
       const left = profile.waitMs - (Date.now() - this.stirredAt);
-      if (left > 0) await new Promise((done) => this.clock.setTimeout(done, left));
+      if (left > 0) await new Promise((done) => setTimeout(done, left).unref?.());
+      if (this.gone.signal.aborted) return;
       // Пока думали, стол мог зашевелиться: человек взял карту, пошла раздача. Тогда ход отменяется
       // и назначается заново — свежей мыслью по новому столу, а не этой, уже устаревшей.
       if (!ready({ busy: this.table.busy, handsOn: this.table.handsOn, stirredAt: this.stirredAt, now: Date.now() }, profile.waitMs)) {
