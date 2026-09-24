@@ -783,10 +783,22 @@ export class TableRoom extends Room {
   }
 
   /** Мозг бота: свой экземпляр на каждого, чтобы падение одного не трогало остальных. */
+  /**
+   * ЧЕМ ЭТОТ ИГРОК ДУМАЕТ — ОДИН ОТВЕТ НА ВЕСЬ СТОЛ: и для самой мысли, и для подписи на табличке, и
+   * для страницы наблюдения.
+   *
+   * Заказ (`botOrders`) живёт в памяти процесса и умирает с перезапуском, а сам игрок переживает его
+   * в слепке стола — вместе с полем `brain`. Пока эти два места читались порознь, после перезапуска
+   * табличка говорила «ollama», а думал скриптовый: подпись и правда разъезжались молча.
+   */
+  private brainNameOf(key: string): string {
+    return this.botOrders.get(key)?.brain ?? this.table.here.find((one) => one.key === key)?.brain ?? "greedy";
+  }
+
   private brainFor(key: string): Brain {
     const kept = this.brains.get(key);
     if (kept) return kept;
-    const made = brainOf(this.botOrders.get(key)?.brain);
+    const made = brainOf(this.brainNameOf(key));
     this.brains.set(key, made);
     return made;
   }
@@ -812,7 +824,7 @@ export class TableRoom extends Room {
       // ЗА НЕГО ДУМАЮТ СНАРУЖИ. Стул, имя и цвет — как у всех, но своего мозга нет: ход придёт от
       // агента через MCP, когда тот решит. Толчок по тишине его не касается, иначе стол сходил бы
       // за него первым и агенту осталось бы смотреть.
-      if (this.botOrders.get(bot.key)?.brain === OUTSIDE_BRAIN) continue;
+      if (this.brainNameOf(bot.key) === OUTSIDE_BRAIN) continue;
       if (this.thinking.has(bot.key)) continue;
       // ДУМАТЬ МОЖНО ВО ВРЕМЯ ПАУЗЫ, А НЕ ПОСЛЕ НЕЁ. Пауза нужна, чтобы бот не лез под руку
       // человеку, — а не чтобы он сидел без дела: мысль занимает секунды, и начатая вместе с паузой
@@ -1073,7 +1085,7 @@ export class TableRoom extends Room {
             key: one.key,
             name: one.name,
             chair: one.seat!,
-            brain: this.botOrders.get(one.key)?.brain ?? "greedy",
+            brain: this.brainNameOf(one.key),
             profile: this.profileFor(one.key).key,
             waitMs: this.profileFor(one.key).waitMs,
             turn: turn === one.key,
