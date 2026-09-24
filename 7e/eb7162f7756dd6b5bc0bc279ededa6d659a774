@@ -1,0 +1,25 @@
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_6ddc2264940993 401-402
+server/src/table/games/krestReferee.test.ts
+  s_9ed0da107cbc4a::t_d6576a63419493 132-194
+server/src/table/games/krestReferee.ts
+  s_9ed0da107cbc4a::t_621f42f0d91325 10,20-33,40,48-52,54-58,76,79,89,108-111
+server/src/table/referee.ts
+  s_9ed0da107cbc4a::t_e730a693249271 10,35-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7eeb7162f7756dd6b5bc0bc279ededa6d659a774",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
