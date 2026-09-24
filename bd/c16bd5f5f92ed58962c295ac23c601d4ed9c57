@@ -1,0 +1,23 @@
+server/src/table/lobby.ts
+  s_9ed0da107cbc4a::t_816397c41bf7dc 46-62,85-90,121-123,258,260-262,264,266,325-326
+server/src/table/lobbyKeep.test.ts
+  s_9ed0da107cbc4a::t_5b9f2d3428427f 5,79-113
+server/src/table/routes.ts
+  s_9ed0da107cbc4a::t_59ab9feb7b7735 16,160-162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bdc16bd5f5f92ed58962c295ac23c601d4ed9c57",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
