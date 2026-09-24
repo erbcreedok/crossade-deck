@@ -4,9 +4,11 @@
 // городить свой клиент к чужому API: авторизация уже сделана, и её не надо ни хранить, ни обновлять.
 //
 // ТРИ ВЕЩИ, БЕЗ КОТОРЫХ ЭТОТ МОЗГ ОПАСЕН, И ВСЕ ТРИ ЗДЕСЬ ЕСТЬ:
-//   1. ДЕДЛАЙН. Процесс убивается по сроку — иначе зависший `claude` останавливает стол насовсем.
-//   2. ВОПРОС ЧЕРЕЗ stdin, а не через аргументы: в карте бывает что угодно, а склейка строки в
-//      команду — это дыра, через которую однажды приедет чужая команда.
+//   1. ДЕДЛАЙН. Процесс убивается по сроку — иначе зависший мозг останавливает стол насовсем. Срок
+//      у каждой программы свой: `claude` отвечает за 5–6 с, `agy` доходил до 20 с.
+//   2. ВОПРОС — ОДИН ДОВОД ИЛИ ПОТОК, НИКОГДА НЕ СТРОКА КОМАНДЫ. `spawn` получает доводы массивом и
+//      запускает программу без оболочки, поэтому вопрос доезжает целиком, что бы в нём ни стояло.
+//      Опасна была бы склейка команды в строку — её здесь нет.
 //   3. ОТВЕТ — ТОЛЬКО НОМЕР. Что бы программа ни написала, берётся первое число, и оно сверяется со
 //      списком (`say.pick`). Не сошлось — ходит запасной.
 //
@@ -23,25 +25,42 @@ import { best } from "./greedy.js";
 export interface CliBrain {
   /** Что запустить. */
   cmd: string;
-  /** С какими доводами. Вопрос сюда НЕ подставляется: он уходит в stdin. */
-  args: readonly string[];
+  /**
+   * Как дать программе вопрос — они просят по-разному, и это не мелочь:
+   *
+   *   `stdin` — доводы постоянные, вопрос уходит в поток (`claude`, `ollama`);
+   *   функция — вопрос входит в доводы (`agy` читает его только флагом `-p=…`).
+   *
+   * ОБА СПОСОБА БЕЗОПАСНЫ. Доводы уходят массивом в `spawn` без оболочки, поэтому вопрос остаётся
+   * одним доводом целиком — что бы в нём ни стояло. Опасна была бы склейка команды в строку, а её
+   * здесь нет и быть не может.
+   */
+  args: readonly string[] | ((question: string) => string[]);
   /** Понадобится ли программе что-то в окружении — и что сказать, если этого нет. */
   needs?: { env: string; says: string };
+  /** Свой срок, если эта программа думает дольше прочих. */
+  thinkMs?: number;
 }
 
 /**
  * ЧТО СТОИТ НА ЭТОЙ МАШИНЕ. Имя слева — то, что владелец пишет в команде `bots`.
  *
- * `claude` и `ollama` работают как есть. `flash` (Gemini через Antigravity) требует запущенного
- * Antigravity: его язык-сервер подставляет адрес в `ANTIGRAVITY_LS_ADDRESS`, и без него программа
- * отвечает отказом — поэтому мозг честно скажет об этом в журнал, а стол продолжит играть.
+ * Все они носят свою авторизацию с собой, поэтому запускаются откуда угодно. У `agy` она в самом
+ * Antigravity, но CLI ходит в него сам — запущенного окна для этого не нужно.
  */
 export const CLI_BRAINS: Record<string, CliBrain> = {
   claude: { cmd: join(homedir(), ".local/bin/claude"), args: ["-p", "--model", "sonnet", "--output-format", "text"] },
+  // Gemini через Antigravity. Берётся самая быстрая ступень: боту нужен номер хода, а не рассуждение.
   flash: {
-    cmd: join(homedir(), ".gemini/antigravity-cli/bin/agentapi"),
-    args: ["new-conversation", "--model=flash"],
-    needs: { env: "ANTIGRAVITY_LS_ADDRESS", says: "нужен запущенный Antigravity" },
+    cmd: join(homedir(), ".local/bin/agy"),
+    args: (question) => ["--model", "gemini-3.8-flash-low", "--output-format", "text", "--disable-slash-commands", `-p=${question}`],
+    // Он заметно медленнее Клода: живьём попадались ходы по 20 с. Тридцати секунд не хватало.
+    thinkMs: 60000,
+  },
+  pro: {
+    cmd: join(homedir(), ".local/bin/agy"),
+    args: (question) => ["--model", "gemini-3.1-pro-low", "--output-format", "text", "--disable-slash-commands", `-p=${question}`],
+    thinkMs: 90000,
   },
   ollama: { cmd: "ollama", args: ["run", "qwen2.5:3b"] },
 };
@@ -50,7 +69,9 @@ export const CLI_BRAINS: Record<string, CliBrain> = {
 export function runCli(one: CliBrain, question: string, deadlineMs: number): Promise<string> {
   return new Promise((done, fail) => {
     if (one.needs && !process.env[one.needs.env]) return void fail(new Error(one.needs.says));
-    const child = spawn(one.cmd, [...one.args], { stdio: ["pipe", "pipe", "pipe"] });
+    const args = one.args;
+    const byArgs = typeof args === "function";
+    const child = spawn(one.cmd, byArgs ? args(question) : [...args], { stdio: ["pipe", "pipe", "pipe"] });
     let out = "";
     let err = "";
     const timer = setTimeout(() => {
@@ -69,7 +90,8 @@ export function runCli(one: CliBrain, question: string, deadlineMs: number): Pro
       if (code === 0) return void done(out);
       fail(new Error(`${one.cmd}: ${code} ${err.slice(0, 200)}`));
     });
-    child.stdin.end(question);
+    // Вопрос ушёл доводом — в поток идёт пустота, но закрыть его надо: иначе программа ждёт ввода.
+    child.stdin.end(byArgs ? "" : question);
   });
 }
 
@@ -83,7 +105,7 @@ const CLI_THINK_MS = 30000;
 
 export const cliBrain = (key: string, one: CliBrain): Brain => ({
   key,
-  thinkMs: CLI_THINK_MS,
+  thinkMs: one.thinkMs ?? CLI_THINK_MS,
   choose: async (legal, view, profile, deadlineMs): Promise<Move> => {
     if (legal.length <= 1) return best(legal, view, profile);
     const said = await runCli(one, ask(legal, view, profile), deadlineMs);
