@@ -1,0 +1,21 @@
+server/scripts/tableClosed.mjs
+  s_9ed0da107cbc4a::t_f5dbbc6244d343 1-38
+server/table-client/main.ts
+  s_9ed0da107cbc4a::t_caa7f97701bb39 49-69,146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ff00fb57db4218c4fcdeb51b90a46cd66958ecab",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
