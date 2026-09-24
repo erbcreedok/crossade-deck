@@ -26,12 +26,25 @@ const check = (name, ok, got) => checks.push({ name, ok, got });
 const ask = (path, init = {}) =>
   fetch(`${base}${path}`, { ...init, headers: { "x-table-secret": secret, "content-type": "application/json", ...(init.headers ?? {}) } });
 
-await ask("/table/rooms", { method: "POST", body: JSON.stringify({ by: "tg:1", home: { kind: "inline", message: "m" }, kind: "krest", room }) });
+const TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "test";
+function initData(id, name) {
+  const fields = { auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id, first_name: name, username: name.toLowerCase() }) };
+  const sum = Object.keys(fields).sort().map((k) => `${k}=${fields[k]}`).join("\n");
+  const key = createHmac("sha256", "WebAppData").update(TOKEN).digest();
+  return new URLSearchParams({ ...fields, hash: createHmac("sha256", key).update(sum).digest("hex") }).toString();
+}
+
+await ask("/table/rooms", { method: "POST", body: JSON.stringify({ by: "tg:7", home: { kind: "inline", message: "m" }, kind: "krest", room }) });
 
 const browser = await chromium.launch();
-const open = async (name) => {
+const open = async (name, tg) => {
   const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
   p.on("pageerror", (e) => console.log(name, "ERROR", e.message));
+  if (tg) await p.addInitScript((data) => {
+    const app = {};
+    Object.defineProperty(app, "WebApp", { value: { initData: data, initDataUnsafe: {}, ready() {}, expand() {} }, writable: false });
+    Object.defineProperty(window, "Telegram", { value: app, writable: false });
+  }, initData(tg, name));
   await p.goto(`${base}/table/?room=${room}&name=${name}`);
   await p.waitForSelector("[data-section]");
   await p.waitForSelector(".crossade-loading", { state: "detached" });
@@ -39,16 +52,27 @@ const open = async (name) => {
   return p;
 };
 
-const a = await open("A");
+const a = await open("A", 7);
 const b = await open("B");
 const spots = async (p) => JSON.parse(await p.getAttribute("canvas", "data-spots"));
-const snap = async (p) => JSON.parse(await p.getAttribute("canvas", "data-snap"));
+const snap = (p) => p.evaluate(() => JSON.parse(JSON.stringify(window.__tableState())));
 const awaited = async (p) => (await spots(p)).awaited ?? [];
 
 // РАЗДАЧА КРЕСТОМ — партия начинается, и судья называет чей-то ход.
 const me = (await snap(a)).people.find((one) => one.name === "A");
-await ask(`/table/rooms/${room}/run`, { method: "POST", body: JSON.stringify({ by: me.key, cmd: { t: "deal", rule: "krest" } }) });
-await a.waitForTimeout(2500);
+// РАЗДАЁТ РАСПОРЯДИТЕЛЬ — тот, кто завёл комнату: гостю за столом раздача не принадлежит.
+const роздано = await (await ask(`/table/rooms/${room}/run`, { method: "POST", body: JSON.stringify({ by: "tg:7", command: { t: "deal", rule: "krest" } }) })).json();
+check("раздача прошла", !роздано?.error, роздано);
+// РАЗДАЧА ИДЁТ ПО ОДНОЙ КАРТЕ, и партия начинается, только когда она кончилась. Ждём событие, а не
+// секунды: на медленной машине фиксированная пауза врёт, и прогон падает не там, где ошибка.
+const ждём = async (что, ms = 30000) => {
+  for (let ждал = 0; ждал < ms; ждал += 250) {
+    if (await что()) return true;
+    await a.waitForTimeout(250);
+  }
+  return false;
+};
+check("партия началась", await ждём(async () => (await snap(a)).play !== null), null);
 
 const play = (await snap(a)).play;
 check("партия идёт — судья назвал ход", play !== null && play.turn !== null, play?.turn ?? null);
@@ -61,6 +85,11 @@ check("и второй экран показывает ту же", JSON.stringif
 
 // ЖЕСТ, НЕ МЕНЯЮЩИЙ КРУГ, СТРЕЛКУ НЕ ДВИГАЕТ: поправка карт в своей руке — самое частое движение за
 // столом, и раньше именно она уводила очередь.
+if ((await snap(a)).play === null) {
+  console.log("партии нет — раздача не дошла. руки:", JSON.stringify((await snap(a)).chairs.map((c) => ({ id: c.id, n: c.hand.length, owner: c.owner }))));
+  await browser.close();
+  process.exit(1);
+}
 const чей = (await snap(a)).play.turn;
 const рука = (await snap(a)).chairs.find((c) => c.owner === чей);
 const экран = чей === me.key ? a : b;
