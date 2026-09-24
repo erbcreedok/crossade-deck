@@ -6,6 +6,9 @@
 import { describe, expect, it } from "vitest";
 import { MAIN_PILE, type Person } from "./contract.js";
 import { Table } from "./table.js";
+import { deskOf } from "./desks.js";
+import { deal } from "./deal.js";
+import { execute, plan } from "./script.js";
 
 const person = (key: string): Person => ({ key, name: key, ink: "#fff", door: "guest" });
 const cards = Array.from({ length: 10 }, (_, i) => ({ id: `c${i}`, face: { rank: String(i + 6), suit: "s" as const } }));
@@ -95,5 +98,37 @@ describe("chairs.a-bot-sits-where-it-is-put", () => {
     t.seatBot(person("bot:игрок1"), мой.id);
     expect(t.layout().chairs.find((c) => c.owner === "Аня")!.id, "Аня на месте").toBe(мой.id);
     expect(t.layout().chairs.find((c) => c.owner === "bot:игрок1")!.id, "машина села на другой стул").not.toBe(мой.id);
+  });
+});
+
+// РАЗДАЧА НЕ ОСТАВЛЯЕТ КАРТ НА СТОЛЕ.
+//
+// Жалоба владельца: «почему при раздаче остаётся одна карта на столе». Правило «невечная стопка из
+// одной карты — не стопка» писано для рук: человек разобрал стопку, и остаток незачем держать
+// стопкой. Но раздача берёт карты одну за одной, и на предпоследней колода обрушивалась — последняя
+// ложилась на сукно ровно там, где стояла колода, и взять её раздача уже не могла.
+// РАЗДАЧА НЕ ОСТАВЛЯЕТ КАРТ НА СТОЛЕ.
+//
+// Жалоба владельца: «почему при раздаче остаётся одна карта на столе». Правило «невечная стопка из
+// одной карты — не стопка» писано для рук: человек разобрал стопку, и остаток незачем держать
+// стопкой. Но раздача берёт карты одну за одной, и на ПРЕДпоследней колода обрушивалась — последняя
+// ложилась на сукно, а шаг «взять верхнюю» уходил в пустоту: роздано 35 из 36.
+describe("deal.a-deal-leaves-nothing-on-the-felt", () => {
+  it("вся колода уходит в руки, на сукне пусто", async () => {
+    const t = new Table(deal(), "Аня", deskOf("krest"));
+    for (const k of ["Аня", "Боря", "Вика"]) t.join(person(k));
+    t.seatCroupier({ key: "bot:стол", name: "CrossaderBot", ink: "#0ff", door: "guest" });
+    const люди = t.seenBy("Аня").people.map((p) => ({ key: p.key, name: p.name, seat: p.seat }));
+    const план = plan(t, { t: "deal", rule: "krest", force: true }, люди, "Аня");
+    expect("error" in план ? план.error : "ok", "план раздачи собрался").toBe("ok");
+    if ("error" in план) return;
+    await execute(t, план.steps, "bot:стол", { spread: () => {}, carry: () => {}, sleep: async () => {}, now: () => 0 });
+
+    const снимок = t.seenBy("Аня", true);
+    const вРуках = снимок.chairs.reduce((n, c) => n + c.hand.length, 0);
+    const вСтопках = снимок.piles.reduce((n, p) => n + p.cards.length, 0);
+    expect(снимок.felt.length, "на сукне не осталось ни одной карты").toBe(0);
+    expect(вРуках + вСтопках, "все карты колоды на месте").toBe(deal().length);
+    expect(вСтопках, "и все они в руках, а не в стопках").toBe(0);
   });
 });
