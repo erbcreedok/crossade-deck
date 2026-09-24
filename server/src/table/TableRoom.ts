@@ -275,6 +275,10 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       if (!me) return;
       client.send(MSG.welcome, this.welcomeFor(me));
+      // ИГРОКИ БЕЗ ЧЕЛОВЕКА — СРАЗУ ЗА ПРИВЕТСТВИЕМ. Это состояние стола, а не новость: пока оно
+      // рассылалось только по событию, обновивший страницу не знал, что за стулом машина, — значок
+      // пропадал, а вместе с ним и кнопки распорядителя под её рукой, до первой же её мысли.
+      client.send(MSG.minds, this.mindsNow());
     });
 
     this.onMessage(MSG.intent, (client, raw: unknown) => {
@@ -286,6 +290,10 @@ export class TableRoom extends Room {
       if (stirs(intent)) this.stirredAt = Date.now();
       if (intent.t === "sync") {
         client.send(MSG.welcome, this.welcomeFor(me));
+      // ИГРОКИ БЕЗ ЧЕЛОВЕКА — СРАЗУ ЗА ПРИВЕТСТВИЕМ. Это состояние стола, а не новость: пока оно
+      // рассылалось только по событию, обновивший страницу не знал, что за стулом машина, — значок
+      // пропадал, а вместе с ним и кнопки распорядителя под её рукой, до первой же её мысли.
+      client.send(MSG.minds, this.mindsNow());
         return;
       }
       // ДЕЛО КРУПЬЕ — не ход по столу, а состав стола: его исполняет комната.
@@ -462,6 +470,8 @@ export class TableRoom extends Room {
     if (command.t === "bots") {
       if (command.n <= 0) {
         this.spread(this.table.dropBots());
+        // Ушли — и окна под их руками должны исчезнуть сразу, а не после чьей-то мысли.
+        this.spreadMinds();
         return { ok: true };
       }
       const было = this.table.here.filter((one) => one.bot === true && one.seat !== undefined).length;
@@ -478,6 +488,9 @@ export class TableRoom extends Room {
         const brain = this.botOrders.get(key)?.brain ?? "greedy";
         this.spread(this.table.seatBot({ key, name: BOT_NAMES[i % BOT_NAMES.length]!, ink: this.freeInk(), door: "guest", brain }));
       }
+      // СЕЛИ — И ЭТО СРАЗУ ВИДНО. Пока состояние уходило только с первой мыслью, машина за столом
+      // была неотличима от человека: ни значка у стула, ни кнопок распорядителя под её рукой.
+      this.spreadMinds();
       return { ok: true };
     }
     // КРУПЬЕ — не ход, а состав стола: садится и уходит сразу, даже посреди раздачи он не нужен как ход.
@@ -1214,8 +1227,12 @@ export class TableRoom extends Room {
    * тут нечего скрывать: чем думает машина, видно и так на её табличке.
    */
   private mindsTold = "";
-  private spreadMinds(): void {
-    const minds: Minds = this.botsSeen().bots.map((one) => ({
+  /**
+   * ИГРОКИ БЕЗ ЧЕЛОВЕКА — КАК ОНИ СЕЙЧАС. Состояние, а не событие: по нему экран рисует значок
+   * машины у стула и окно под её рукой, где распорядитель толкает, обрывает мысль и уводит.
+   */
+  private mindsNow(): Minds {
+    return this.botsSeen().bots.map((one) => ({
       key: one.key,
       chair: one.chair,
       brain: one.brain,
@@ -1227,6 +1244,10 @@ export class TableRoom extends Room {
       ...(one.lastSays === undefined ? {} : { lastSays: one.lastSays }),
       ...(one.lastWhy === undefined ? {} : { lastWhy: one.lastWhy }),
     }));
+  }
+
+  private spreadMinds(): void {
+    const minds = this.mindsNow();
     // «Думает 3 с» и «думает 4 с» — одно и то же событие: сравниваем БЕЗ счётчика времени, иначе
     // рассылка шла бы каждый кадр. Экран сам считает, сколько прошло.
     const line = JSON.stringify(minds.map((one) => ({ ...one, thinkingMs: one.thinkingMs === null ? null : 0 })));
@@ -1250,6 +1271,10 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       if (!me) continue;
       client.send(MSG.welcome, this.welcomeFor(me));
+      // ИГРОКИ БЕЗ ЧЕЛОВЕКА — СРАЗУ ЗА ПРИВЕТСТВИЕМ. Это состояние стола, а не новость: пока оно
+      // рассылалось только по событию, обновивший страницу не знал, что за стулом машина, — значок
+      // пропадал, а вместе с ним и кнопки распорядителя под её рукой, до первой же её мысли.
+      client.send(MSG.minds, this.mindsNow());
     }
   }
 
