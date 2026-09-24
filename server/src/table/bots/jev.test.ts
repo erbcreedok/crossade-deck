@@ -10,7 +10,7 @@ import { krestMemory } from "../games/krestMemory.js";
 import type { BotView, Move } from "./brain.js";
 import { choose, jevBrain } from "./jev.js";
 import { PROFILES } from "./profiles.js";
-import { brainOf, BRAIN_KEYS } from "./brains.js";
+import { brainOf, BRAIN_KEYS, OUTSIDE_BRAIN } from "./brains.js";
 
 const c = (rank: string, suit: Face["suit"]): Face => ({ rank, suit });
 const id = (f: Face) => `${f.rank}${f.suit}`;
@@ -99,6 +99,15 @@ describe("bots.the-catalogue-always-gives-a-brain", () => {
   });
 
   it("все названные мозги выдаются по имени", () => {
-    for (const key of BRAIN_KEYS) expect(brainOf(key).key, key).toBe(key === "greedy" ? "greedy" : key);
+    for (const key of BRAIN_KEYS) {
+      if (key === OUTSIDE_BRAIN) continue;
+      expect(brainOf(key).key, key).toBe(key);
+    }
+  });
+
+  it("«СНАРУЖИ» — НЕ МОЗГ, а его отсутствие: спросили всё равно — ходит скриптовый", () => {
+    // Этот бот ждёт хода от внешнего агента и комнатой не толкается. Но если его всё же спросят
+    // (пересадили, сменили заказ), стол не должен встать на пустом месте.
+    expect(brainOf(OUTSIDE_BRAIN).key).toBe("greedy");
   });
 });

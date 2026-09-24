@@ -50,7 +50,7 @@ import { Table, type TableDump } from "./table.js";
 import type { Brain, BotView, Move, Profile } from "./bots/brain.js";
 import { fromList } from "./bots/brain.js";
 import { best } from "./bots/greedy.js";
-import { brainOf } from "./bots/brains.js";
+import { brainOf, OUTSIDE_BRAIN } from "./bots/brains.js";
 import { PROFILE_KEYS, profileOf } from "./bots/profiles.js";
 import { nextLook, ready } from "./bots/nudge.js";
 import { chosen, looked, type Looked, type Played } from "./bots/outside.js";
@@ -720,6 +720,10 @@ export class TableRoom extends Room {
     for (const bot of bots) {
       const profile = this.profileFor(bot.key);
       waits.push(profile.waitMs);
+      // ЗА НЕГО ДУМАЮТ СНАРУЖИ. Стул, имя и цвет — как у всех, но своего мозга нет: ход придёт от
+      // агента через MCP, когда тот решит. Толчок по тишине его не касается, иначе стол сходил бы
+      // за него первым и агенту осталось бы смотреть.
+      if (this.botOrders.get(bot.key)?.brain === OUTSIDE_BRAIN) continue;
       if (this.thinking.has(bot.key)) continue;
       if (!ready(quiet, profile.waitMs)) continue;
       const brief = this.referee.bot(this.seats_(), bot.seat!);

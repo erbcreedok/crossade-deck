@@ -9,11 +9,21 @@ import { greedyBrain, randomBrain } from "./greedy.js";
 import { cliBrain, CLI_BRAINS } from "./cli.js";
 import { jevBrain } from "./jev.js";
 
+/**
+ * ЗА НЕГО ДУМАЮТ СНАРУЖИ — не мозг, а его отсутствие: стул занят, но ходов от комнаты не будет.
+ * Ход придёт от внешнего агента (MCP) под ключом этого бота, когда тот решит.
+ *
+ * Так внешний игрок получает то, чего у него иначе нет: место за столом, имя, цвет и руку, которые
+ * переживают перезапуск. Отдельной сущности «гость-агент» для этого заводить не пришлось.
+ */
+export const OUTSIDE_BRAIN = "outside";
+
 /** Какие мозги вообще бывают — для подсказки в телеграм-боте. */
-export const BRAIN_KEYS = ["greedy", "random", ...Object.keys(CLI_BRAINS), "jev"] as const;
+export const BRAIN_KEYS = ["greedy", "random", ...Object.keys(CLI_BRAINS), "jev", OUTSIDE_BRAIN] as const;
 
 export function brainOf(key: string | undefined): Brain {
-  if (key === undefined || key === "greedy") return greedyBrain();
+  // «Снаружи» мозгом не становится: если его всё же спросят, ходит скриптовый — стол не встаёт.
+  if (key === undefined || key === "greedy" || key === OUTSIDE_BRAIN) return greedyBrain();
   if (key === "random") return randomBrain();
   if (key === "jev") return jevBrain();
   const cli = CLI_BRAINS[key];
