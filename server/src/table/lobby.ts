@@ -7,7 +7,7 @@
 // Одна запись — одна комната: где она живёт в Telegram, как называется и — пока в ней кто-то
 // был — сама комната Colyseus, чтобы закрыть её отсюда.
 
-import type { DeckSize, Home, Person, RoomCard, RunResult, SeatCard, TableCommand } from "./contract.js";
+import { ROOM_CLOSED, type DeckSize, type Home, type Person, type RoomCard, type RunResult, type SeatCard, type TableCommand } from "./contract.js";
 import type { Looked, Played } from "./bots/outside.js";
 import type { BotsSeen } from "./bots/watch.js";
 import { DEFAULT_DESK, deskCrew, deskName, isDesk } from "./desks.js";
@@ -121,7 +121,14 @@ const card = (e: Entry): RoomCard => ({
 /** Эту комнату закрыли — открывать заново нечего. По этому бот понимает, что пора её забыть. */
 export const isBuried = (room: string): boolean => buried.has(room);
 
+/**
+ * @throws если комнату уже закрыли. Закон стоит ЗДЕСЬ, а не у дверей: дверей несколько — бот, HTTP,
+ *   вход по ссылке, — и стоит забыть одну, как закрытая комната воскресает через неё. Так уже было:
+ *   надгробие сторожило дверь бота, а вход по старой ссылке поднимал стол заново, без хозяина и с
+ *   новым случайным именем.
+ */
 export function openEntry(room: string, home: Home, by: string, title?: string, now = Date.now(), kind: string = DEFAULT_DESK, crew?: string): RoomCard {
+  if (buried.has(room)) throw new Error(ROOM_CLOSED);
   const had = rooms.get(room);
   if (had) {
     // ХОЗЯИН ВЕРНУЛСЯ К СВОЕЙ КОМНАТЕ. Её мог завести вошедший (после перезапуска сервера) — тогда она

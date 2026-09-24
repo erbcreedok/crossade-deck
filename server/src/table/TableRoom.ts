@@ -12,7 +12,7 @@ import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
 import { iceServers, tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
-import { DEAL_PRESETS, MSG, PROTOCOL, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type SeatCard, type TableCommand, type Welcome } from "./contract.js";
+import { DEAL_PRESETS, MSG, PROTOCOL, ROOM_CLOSED, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type SeatCard, type TableCommand, type Welcome } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
 import { cleanSignal, ear, Signals, type Signal } from "./rtc.js";
 import { cleanMic, type Mic } from "./voice.js";
@@ -29,7 +29,7 @@ import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
 import { deskOf, refereeOf } from "./desks.js";
 import type { Referee, Seats } from "./referee.js";
-import { adminsOf, attach, creatorOf, crewKind, keepStateOf, keptStateOf, kindOf, openEntry, titleOf } from "./lobby.js";
+import { adminsOf, attach, creatorOf, crewKind, isBuried, keepStateOf, keptStateOf, kindOf, openEntry, titleOf } from "./lobby.js";
 import { actOf, crewOf } from "./crews.js";
 import { readIntent } from "./intent.js";
 import { Flood } from "./flood.js";
@@ -695,6 +695,11 @@ export class TableRoom extends Room {
   onAuth(client: Client, options: Partial<JoinOptions>): Who {
     const { botToken, guests, secret } = tableConfig();
     if (!secret || !roomIsSigned(options.room, secret)) throw new Error("unsigned room");
+    // ЗАКРЫТУЮ КОМНАТУ ВХОДОМ НЕ ВОСКРЕСИТЬ. Вход заводит комнату, если её нет (inline-карточка, чьё
+    // сообщение бот ещё не записал), — и этой же дверью старая ссылка поднимала только что удалённый
+    // стол ЗАНОВО: без хозяина, с новым случайным именем. Человек жал свою ссылку и попадал за чужой
+    // безымянный стол, где он никто, — и не понимал, куда делся его.
+    if (options.room !== undefined && isBuried(options.room)) throw new Error(ROOM_CLOSED);
     if (options.protocol !== undefined && options.protocol !== PROTOCOL) throw new Error(STALE_CLIENT);
     const who = whoIs(options, client.sessionId, { botToken, guests });
     if (!who) throw new Error("who are you");

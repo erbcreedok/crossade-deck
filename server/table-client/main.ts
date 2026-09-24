@@ -4,7 +4,7 @@
 //   в Telegram (Mini App)          дверь `telegram`, комната — `start_param` (или `?room=`)
 //   в браузере                     дверь `guest`: пустит, только если серверу это разрешено
 
-import { STALE_CLIENT, type JoinOptions } from "../src/table/contract.js";
+import { ROOM_CLOSED, STALE_CLIENT, type JoinOptions } from "../src/table/contract.js";
 import { localStore } from "./localStore.js";
 import { netStore } from "./netStore.js";
 import { loadingCross } from "../../look/src/loading.js";
@@ -120,5 +120,8 @@ open()
     if (text.includes(STALE_CLIENT) && !stale.tried()) return void stale.reload();
     witness.saw("open.failed", { text: text.slice(0, 300) });
     witness.tell();
+    // ЗАКРЫТЫЙ СТОЛ — ОТДЕЛЬНОЕ СЛОВО. Раньше по старой ссылке молча заводился новый стол, и человек
+    // не понимал, куда делся его: имя другое, карт нет, и он там никто.
+    if (text.includes(ROOM_CLOSED)) return void say("Этот стол закрыли. Открой новый в чате с ботом.");
     say(/who are you|unsigned/.test(text) ? "Сюда так не войти. Открой стол по ссылке из чата." : text);
   });

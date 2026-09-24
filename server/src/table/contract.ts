@@ -21,6 +21,11 @@ export const TABLE_ROOM = "table_room";
 export const PROTOCOL = 2;
 /** Текст отказа во входе клиенту другого протокола. По нему клиент понимает, что надо обновиться. */
 export const STALE_CLIENT = "stale client";
+/**
+ * ТЕКСТ ОТКАЗА ВО ВХОДЕ В ЗАКРЫТУЮ КОМНАТУ. По нему клиент говорит человеку «стол закрыт», а не
+ * молча заводит новый: войдя по старой ссылке, он оказывался за безымянным столом, где он никто.
+ */
+export const ROOM_CLOSED = "room closed";
 
 export type Door = "telegram" | "guest";
 export type ClientKind = "html" | "kit" | (string & {});

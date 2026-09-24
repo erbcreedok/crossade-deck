@@ -111,3 +111,21 @@ describe("lobby.a-closed-room-stays-closed", () => {
     expect(findEntry(room), "и в списке её нет").toBeUndefined();
   });
 });
+
+// ЗАКРЫТУЮ КОМНАТУ НЕ ВОСКРЕСИТЬ И ВХОДОМ.
+//
+// Вход заводит комнату, если её нет: так открывается inline-карточка, чьё сообщение бот ещё не
+// записал. Этой же дверью старая ссылка поднимала только что удалённый стол ЗАНОВО — без хозяина и
+// с новым случайным именем. Человек жал свою ссылку, попадал за чужой безымянный стол, где он
+// никто, и не понимал, куда делся его.
+describe("lobby.entering-does-not-resurrect-a-closed-room", () => {
+  it("комната закрыта — она закрыта для любой двери", () => {
+    const room = "В".repeat(23);
+    openEntry(room, { kind: "chat", chat: "9" }, "tg:1", "Был стол");
+    closeEntry(room);
+    // Ровно то, что делает вход: заводит комнату, если её нет. Теперь — отказом.
+    expect(() => openEntry(room, { kind: "inline", message: "" }, "")).toThrow();
+    expect(isBuried(room), "надгробие на месте").toBe(true);
+    expect(findEntry(room), "и комната не воскресла").toBeUndefined();
+  });
+});
