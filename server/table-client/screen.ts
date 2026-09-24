@@ -36,6 +36,7 @@ import { barHeightU, handBoxOf, handPlan, handWideOf, hudUnitOf, mineGeomOf } fr
 import { flipIn, pileOf, predict as predictAs, sideIn, whereIs, type BatchIntent } from "./optimistic.js";
 import { doubleTap, type Tap } from "./tap.js";
 import { journal } from "./journal.js";
+import { tipKeyOf } from "./tipKey.js";
 import type { BotAct, Minds } from "../src/table/contract.js";
 
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
@@ -1844,15 +1845,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     return markHtml(FELT_CARD.w * view.k, FELT_CARD.h * view.k, view.rotation + dropAngle(), at.x, at.y, 30, view.squash);
   }
 
-  /** Место карты словами — сменилось, значит карта переехала. В руке — только чья рука: перестановка не переезд. */
-  function tipKeyOf(s: Snapshot, id: string): string | null {
-    const f = s.felt.find((c) => c.id === id);
-    if (f) return `felt:${f.x},${f.y},${f.angle},${f.up}`;
-    const pile = s.piles.find((p) => p.cards.at(-1)?.id === id);
-    if (pile) return `deck:${pile.id}`;
-    const chair = s.chairs.find((c) => c.hand.some((card) => card.id === id));
-    return chair ? `hand:${chair.id}` : null;
-  }
+
 
   function agoText(at: number): string {
     const sec = Math.max(0, Math.floor((store.now() - at) / 1000));
