@@ -398,7 +398,8 @@ export class TableRoom extends Room {
    */
   private openMatch(dealer: string | null): void {
     if (!this.referee) return;
-    this.referee.start(this.seats_(), dealer);
+    // СТОРОНУ БЕРЁМ ИЗ САМОЙ РАЗДАЧИ: раздали против часовой — и очередь пойдёт против часовой.
+    this.referee.start(this.seats_(), dealer, this.lastDeal?.dir ?? "cw");
     this.resend();
     // Первый ход может оказаться за ботом: шестёрка буби легла ему. Отсчёт его паузы — отсюда.
     this.stir();

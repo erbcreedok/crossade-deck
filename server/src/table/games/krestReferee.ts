@@ -7,7 +7,7 @@
 //
 // Если тень вдруг сказала бы «нельзя», судья её не слушает: стол уже сходил, и расходиться им нельзя.
 
-import type { Face, Intent, Play } from "../contract.js";
+import type { DealDir, Face, Intent, Play } from "../contract.js";
 import type { Referee, Seats } from "../referee.js";
 import { RING } from "./krest.js";
 import { advance, allowed, start, type Board, type Match } from "./match.js";
@@ -17,21 +17,27 @@ import { botView, legalMoves } from "../bots/view.js";
 const ownerOf = (seats: Seats, chair: string | null): string | null => (chair === null ? null : (seats.chairs.find((c) => c.id === chair)?.owner ?? null));
 
 /** СТОЛ ГЛАЗАМИ ТЕНИ — читается заново перед каждым ответом, ни одна карта не кэшируется. */
-function boardOf(seats: Seats): Board {
+/**
+ * СТУЛЬЯ ПО КРУГУ СТОЛА, в сторону раздачи.
+ *
+ * Угол стула считается от шести часов ПО ЧАСОВОЙ, и по-настоящему по часовой стол обходят, УБЫВАЯ
+ * по этому углу: шесть → девять → двенадцать → три. Против часовой — наоборот.
+ */
+const seatOrder = (seats: Seats, dir: DealDir): string[] =>
+  seats.chairs
+    .filter((chair) => !chair.croupier)
+    .slice()
+    .sort((a, b) => (dir === "ccw" ? a.angle - b.angle : b.angle - a.angle))
+    .map((chair) => chair.id);
+
+function boardOf(seats: Seats, dir: DealDir = "cw"): Board {
   const hands: Record<string, readonly Face[]> = {};
   for (const chair of seats.chairs) {
     if (chair.croupier) continue;
     hands[chair.id] = chair.hand.map((id) => seats.faceOf(id)).filter((f): f is Face => f !== undefined);
   }
   const circle = seats.pile(RING).map((id) => seats.faceOf(id)).filter((f): f is Face => f !== undefined);
-  // ПО ЧАСОВОЙ СТРЕЛКЕ, как идёт раздача: угол стула считается от шести часов по часовой, а
-  // по-настоящему по часовой стол обходят, УБЫВАЯ по этому углу (шесть → девять → двенадцать → три).
-  const order = seats.chairs
-    .filter((chair) => !chair.croupier)
-    .slice()
-    .sort((a, b) => b.angle - a.angle)
-    .map((chair) => chair.id);
-  return { hands, circle, order };
+  return { hands, circle, order: seatOrder(seats, dir) };
 }
 
 export function krestReferee(): Referee {
@@ -39,9 +45,17 @@ export function krestReferee(): Referee {
   // ИСТОРИЯ ХОДОВ — единственное, что судья копит сверх тени. Со стола её не прочесть: карты
   // показывают, что лежит, а не кто чем бил и кто брал, не сумев побить.
   let deeds: Deed[] = [];
+  /**
+   * В какую сторону раздали — туда же идёт и очередь. Нужна ровно при постройке кольца: дальше
+   * порядок живёт в самой тени, и слепку эта сторона не нужна.
+   */
+  let way: DealDir = "cw";
   return {
-    start(seats, dealer) {
-      const board = boardOf(seats);
+    start(seats, dealer, dir = "cw") {
+      // СТОРОНА ЗАПОМИНАЕТСЯ НА ВСЮ ПАРТИЮ: раздали один раз, а стол перечитывается перед каждым
+      // ответом, и без памяти очередь на втором круге пошла бы по умолчанию.
+      way = dir;
+      const board = boardOf(seats, way);
       deeds = [];
       match = Object.values(board.hands).filter((h) => h.length > 0).length > 1 ? start(board, dealer) : null;
     },
@@ -59,10 +73,10 @@ export function krestReferee(): Referee {
       if (!laid && !took) return false;
       // ЧТО ЛЕЖАЛО СВЕРХУ ДО ХОДА — по этому потом видно, чем он бил и чего у него не было. Круг
       // уже изменился, поэтому верх считается обратным ходом: положил — предпоследняя, взял — верхняя.
-      const circle = boardOf(seats).circle;
+      const circle = boardOf(seats, way).circle;
       const card = seats.faceOf(intent.id);
       const over = laid ? circle[circle.length - 2] : circle[circle.length - 1];
-      match = advance(match, boardOf(seats), chair.id, laid ? "laid" : "taken");
+      match = advance(match, boardOf(seats, way), chair.id, laid ? "laid" : "taken");
       if (card !== undefined) deeds.push({ who: chair.id, how: laid ? "laid" : "taken", card, ...(over === undefined ? {} : { over }) });
       return true;
     },
@@ -72,7 +86,7 @@ export function krestReferee(): Referee {
     play(seats, viewer): Play | null {
       if (match === null) return null;
       const seat = seats.chairs.find((c) => c.owner === viewer);
-      const can = seat ? allowed(match, boardOf(seats), seat.id) : { lay: [], take: false };
+      const can = seat ? allowed(match, boardOf(seats, way), seat.id) : { lay: [], take: false };
       // Тень говорит лицами карт, а экран знает их по id — переводим здесь, у самой руки.
       const left = [...can.lay];
       const lay: string[] = [];
@@ -91,6 +105,10 @@ export function krestReferee(): Referee {
     },
     dump() {
       // Слепок несёт и историю: после перезапуска бот должен помнить партию, а не сесть за стол заново.
+      //
+      // СТОРОНЫ ЗДЕСЬ НЕТ НАРОЧНО. Она нужна ровно один раз — когда строится кольцо; дальше порядок
+      // живёт в самой тени (`Match.ring`) и переживает перезапуск вместе с ней. Записать сторону
+      // ещё и сюда значило бы завести второй источник правды об одном и том же.
       return match === null ? null : { match, deeds };
     },
     load(kept) {

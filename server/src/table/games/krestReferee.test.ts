@@ -129,3 +129,66 @@ describe("referee.the-turn-goes-around-the-table", () => {
     expect(порядок).not.toEqual(["c3", "c4", "c5", "c6"]);
   });
 });
+
+// ОЧЕРЕДЬ ИДЁТ ТУДА ЖЕ, КУДА РАЗДАВАЛИ.
+//
+// Раздали против часовой, а ход пошёл по часовой — и стол читается наоборот, хотя каждый отдельный
+// ход законный. За столом это тот же вопрос, что и «почему ход скачет»: человек ждёт своей очереди
+// не с той стороны.
+describe("referee.the-turn-follows-the-deal", () => {
+  function рассадка() {
+    const hands: Record<string, Face[]> = { c3: [c("6", "d")], c4: [c("7", "d")], c5: [c("8", "d")], c6: [c("9", "d")] };
+    const углы: Record<string, number> = { c3: 0, c6: 90, c4: 180, c5: 270 };
+    const circle: Face[] = [];
+    const seats: Seats = {
+      get chairs() {
+        return Object.keys(hands).map((chair) => ({ id: chair, owner: `кто:${chair}`, hand: (hands[chair] ?? []).map(id), angle: углы[chair]! }));
+      },
+      faceOf: (one) => [...Object.values(hands).flat(), ...circle].find((f) => id(f) === one),
+      pile: (p) => (p === RING ? circle.map(id) : []),
+    };
+    return { hands, circle, seats };
+  }
+
+  const обход = (dir: "cw" | "ccw"): string[] => {
+    const t = рассадка();
+    const ref = krestReferee();
+    ref.start(t.seats, "c3", dir);
+    const порядок: string[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      const turn = ref.view(t.seats)!.turn!;
+      const chair = turn.replace("кто:", "");
+      порядок.push(chair);
+      const карта = t.hands[chair]![0]!;
+      t.hands[chair] = [];
+      t.circle.push(карта);
+      ref.follow(t.seats, turn, { t: "drop", id: id(карта), to: { in: "deck", pile: RING } });
+    }
+    return порядок;
+  };
+
+  it("против часовой очередь идёт в обратную сторону", () => {
+    // Шесть → три → двенадцать → девять: ровно наоборот к обходу по часовой.
+    expect(обход("ccw")).toEqual(["c3", "c6", "c4", "c5"]);
+  });
+
+  it("две стороны дают разный порядок — иначе направление существует только на словах", () => {
+    expect(обход("ccw")).not.toEqual(обход("cw"));
+  });
+
+  // Сторона нужна один раз — при постройке кольца; дальше порядок живёт в самой тени. Проверяется
+  // именно это: после рестора очередь идёт тем же кругом, хотя сторону слепок не нёс.
+  it("ПОРЯДОК ПЕРЕЖИВАЕТ ПЕРЕЗАПУСК: вторая половина партии не разворачивается", () => {
+    const t = рассадка();
+    const ref = krestReferee();
+    ref.start(t.seats, "c3", "ccw");
+    const снова = krestReferee();
+    снова.load(ref.dump());
+    const первый = снова.view(t.seats)!.turn!;
+    const карта = t.hands[первый.replace("кто:", "")]![0]!;
+    t.hands[первый.replace("кто:", "")] = [];
+    t.circle.push(карта);
+    снова.follow(t.seats, первый, { t: "drop", id: id(карта), to: { in: "deck", pile: RING } });
+    expect(снова.view(t.seats)?.turn, "после рестора очередь всё ещё против часовой").toBe("кто:c6");
+  });
+});

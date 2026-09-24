@@ -7,7 +7,7 @@
 //
 // Чистый модуль: судья видит стол только через `Seats` и ничего не меняет в нём сам.
 
-import type { Face, Intent, Play } from "./contract.js";
+import type { DealDir, Face, Intent, Play } from "./contract.js";
 import type { BotView, Move } from "./bots/brain.js";
 
 /**
@@ -32,8 +32,13 @@ export interface Seats {
 }
 
 export interface Referee {
-  /** Раздача кончилась — партия начинается с того, что легло в руки. `dealer` — стул раздавшего. */
-  start(seats: Seats, dealer: string | null): void;
+  /**
+   * Раздача кончилась — партия начинается с того, что легло в руки. `dealer` — стул раздавшего.
+   *
+   * `dir` — В КАКУЮ СТОРОНУ РАЗДАВАЛИ. Очередь обязана идти туда же: раздали против часовой, а ход
+   * пошёл по часовой — и стол читается наоборот, хотя каждый отдельный ход законный.
+   */
+  start(seats: Seats, dealer: string | null, dir?: DealDir): void;
   /** Партии больше нет: сменили род стола. */
   stop(): void;
   /** Стол уже пропустил этот ход — догнать его. `true` — партия сдвинулась. */
