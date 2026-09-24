@@ -36,6 +36,7 @@ import { barHeightU, handBoxOf, handPlan, handWideOf, hudUnitOf, mineGeomOf } fr
 import { flipIn, pileOf, predict as predictAs, sideIn, whereIs, type BatchIntent } from "./optimistic.js";
 import { doubleTap, type Tap } from "./tap.js";
 import { journal } from "./journal.js";
+import type { Minds } from "../src/table/contract.js";
 
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
@@ -255,6 +256,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * `key` — место, где карта была, когда его открыли: карта уехала — тултип закрыт.
    */
   let cardTip: { id: string; key: string } | null = null;
+  /** ЧТО С ИГРОКАМИ БЕЗ ЧЕЛОВЕКА: думает ли, чем думает, сколько ходов. Приходит мимо версий стола. */
+  let minds: Minds = [];
   /** ЖУРНАЛ ПАРТИИ. Копит записи из потока операций — тех самых, что уже прорезаны под меня. */
   const book = journal();
   /** Прошлый тап по карте — для двойного: и по какой карте, и КУДА пришёлся палец. */
@@ -1593,6 +1596,33 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     return html;
   }
 
+  /**
+   * ДУМАЕТ — значок над стулом, как микрофон: у самого аватара, а не флажком за спиной.
+   *
+   * Это СОСТОЯНИЕ, а не реплика: оно гаснет само, его не надо читать и оно не засоряет стол. Реплики
+   * боты берегут для значимого — закрыл круг, взял, вышел.
+   */
+  function mindMarksHtml(s: Snapshot): string {
+    if (!view) return "";
+    let html = "";
+    for (const mind of minds) {
+      if (mind.thinkingMs === null) continue;
+      const spot = spots.find((sp) => sp.key === mind.chair);
+      if (!spot) continue;
+      const size = Math.max(16, Math.round(0.3 * view.k));
+      const ink = inkOf(s, mind.key);
+      const left = Math.round(spot.x - spot.r * 0.72);
+      const top = Math.round(spot.y - spot.r * 0.72);
+      html += `<div data-mind-mark="${escape(mind.key)}" style="position:absolute;left:${left}px;top:${top}px;`
+        + `transform:translate(-50%,-50%);z-index:27;pointer-events:none;width:${size}px;height:${size}px;border-radius:50%;`
+        + `display:flex;align-items:center;justify-content:center;background:${ink};box-shadow:inset 0 0 0 2px ${T.black};`
+        + (motion.reduce ? "" : "animation:mic-pulse 1100ms ease-in-out infinite;")
+        + `"><svg viewBox="0 0 24 24" width="${Math.round(size * 0.6)}" height="${Math.round(size * 0.6)}" fill="none" stroke="${T.black}" stroke-width="2.4" stroke-linecap="round">`
+        + `<circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg></div>`;
+    }
+    return html;
+  }
+
   function micMarksHtml(s: Snapshot): string {
     if (!view) return "";
     let html = "";
@@ -2410,7 +2440,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // колебание его голоса — кольца живут на холсте, а не здесь. Переписывать при этом `innerHTML` значит
     // десятки раз в секунду выбрасывать кнопки из-под пальца: нажатие начинается на одной, а заканчивается
     // на другой, и до onclick дело не доходит вовсе — заглушить говорящего было нельзя, пока он не замолчит.
-    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + compass.html(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml() + journalHtml(s);
+    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + mindMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + compass.html(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml() + journalHtml(s);
     if (html !== lastOver) {
       lastOver = html;
       over.innerHTML = html;
@@ -3697,6 +3727,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   // ЖУРНАЛ ВЕДЁТСЯ ВСЕГДА, открыт он или нет: иначе открывший увидел бы пустоту и решил, что
   // ничего не было. Перерисовываем только когда он на виду — незачем трогать экран ради записи,
   // которую никто не читает.
+  store.onMinds?.((told) => {
+    minds = told;
+    draw();
+  });
+
   store.onOps?.((ops) => {
     if (book.take(ops, seen(), Date.now()) && local.journal) draw();
   });

@@ -4,7 +4,7 @@
 // (`localStore`, стенд). Он читает снимок, шлёт намерения и слушает, когда снимок сменился. Отказ
 // сервера приходит тем же путём: снимок снова тот, что был, — и экран просто рисует его.
 
-import type { IceServer, Carry, CarryOut, DealRule, Intent, Op, Person, Refusal, Seen, Snapshot, TableCommand } from "../src/table/contract.js";
+import type { IceServer, Carry, CarryOut, DealRule, Intent, Minds, Op, Person, Refusal, Seen, Snapshot, TableCommand } from "../src/table/contract.js";
 import type { Eye, Spot } from "../src/table/eyes.js";
 import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 
@@ -66,6 +66,8 @@ export interface TableStore {
    * проводить заново — и однажды провести неверно.
    */
   onOps?(listener: (ops: readonly Op[]) => void): void;
+  /** Что с игроками без человека: думает ли, чем думает, сколько ходов. Есть только у сетевого стола. */
+  onMinds?(listener: (minds: Minds) => void): void;
   /** Намерение не случилось — экран отпускает то, что держал. */
   onRefused(listener: (intent: Intent, why: Refusal) => void): void;
   /** Стола больше нет: его закрыли в боте, или сервер ушёл и вернуться не вышло. */

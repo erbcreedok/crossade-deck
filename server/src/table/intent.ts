@@ -6,7 +6,7 @@
 //
 // Чистый модуль: ни комнаты, ни сети. Кто бы ни принимал намерения — принимает их через эту дверь.
 
-import { CARD_BACKS, CARD_FACES, DECK_DOS, GATHER_SIDES, PILE_GUARDS, type Arrange, type ChairFlag, type HandPose, type Intent, type TableRules, type Where } from "./contract.js";
+import { BOT_ACTS, CARD_BACKS, CARD_FACES, DECK_DOS, GATHER_SIDES, PILE_GUARDS, type Arrange, type BotAct, type ChairFlag, type HandPose, type Intent, type TableRules, type Where } from "./contract.js";
 
 /** Имя карты, стопки, стула, человека, дела — короткая строка. */
 const NAME_MAX = 120;
@@ -89,6 +89,8 @@ const READERS: { [K in Intent["t"]]: (raw: Raw) => Extract<Intent, { t: K }> | n
   flip: (r) => (r.chair === undefined ? { t: "flip" } : name(r.chair) ? { t: "flip", chair: r.chair } : null),
   dealer: (r) => (r.key === null || name(r.key) ? { t: "dealer", key: r.key } : null),
   crew: (r) => (name(r.act) ? { t: "crew", act: r.act } : null),
+  // Управление игроком без человека: только известные дела из каталога, только по имени стула.
+  bot: (r) => (name(r.chair) && (BOT_ACTS as readonly unknown[]).includes(r.act) ? { t: "bot", chair: r.chair as string, act: r.act as BotAct } : null),
   arrange: (r) => {
     if (!oneOf(ARRANGES, r.how)) return null;
     if (r.ids === undefined) return { t: "arrange", how: r.how };

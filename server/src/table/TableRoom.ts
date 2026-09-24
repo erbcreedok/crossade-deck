@@ -24,7 +24,7 @@ const RUN_RIGHTS: Record<string, Key> = {
   deal: "table.deal", redeal: "table.deal", collect: "table.collect", shuffle: "table.shuffle",
   preset: "table.preset", look: "table.look", croupier: "table.croupier", bots: "table.seats",
 };
-import { SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
+import { LINE_MAX, SHOT_MS, Shots, cleanSay, cleanShot, type Say, type Shot } from "./say.js";
 import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
 import { deskOf, refereeOf } from "./desks.js";
@@ -34,7 +34,7 @@ import { actOf, crewOf } from "./crews.js";
 import { readIntent } from "./intent.js";
 import { Flood } from "./flood.js";
 import { PULSE_EVERY_MS, type Pulse } from "./freshness.js";
-import type { Play, Where } from "./contract.js";
+import type { BotAct, Minds, Play, Where } from "./contract.js";
 import { seatPoint } from "./ring.js";
 
 /**
@@ -56,6 +56,7 @@ import { nextLook, ready, stirs } from "./bots/nudge.js";
 import { chosen, looked, type Looked, type Played } from "./bots/outside.js";
 import { moveSays } from "./bots/say.js";
 import { botSeen, type BotsSeen, type BotTrack } from "./bots/watch.js";
+import { mayReturnRing } from "./crewRing.js";
 
 /** Имена игроков без человека — чтобы за столом сидели не «Бот 1», а кто-то. */
 /** Столько стол должен молчать, чтобы его слепок записался. */
@@ -65,6 +66,8 @@ const BOT_NAMES = ["Айдос", "Батыр", "Ержан", "Санжар", "Д
 const BOTS_MOST = 8;
 /** Сколько бот думает над ходом, прежде чем за него сходит запасной. */
 const BOT_THINK_MS = 4000;
+/** Пауза перед тем, как крупье уберёт круг: реплику просящего надо успеть прочесть. */
+const CROUPIER_HAND_MS = 1400;
 
 
 export class TableRoom extends Room {
@@ -116,6 +119,18 @@ export class TableRoom extends Room {
    * мозг бросает работу, додуманный ход не кладётся на стол, которого уже нет.
    */
   private gone = new AbortController();
+  /**
+   * ЧЕМ ОБОРВАТЬ МЫСЛЬ ОДНОГО БОТА — свой сигнал на каждого думающего. Общего на комнату мало:
+   * админ обрывает зависшего, а не всех сразу, и соседи должны додумать своё.
+   */
+  private minds = new Map<string, AbortController>();
+  /**
+   * ЧТО КРУПЬЕ УНЁС С КРУГА ПРОШЛЫЙ РАЗ — чтобы вернуть ровно это, если нажали не туда.
+   *
+   * Помнится одно последнее сгребание: отмена — это «ой, не то», а не история ходов. Журнал помнит
+   * всё, и разбирать по нему.
+   */
+  private swept: { zone: string; ids: string[] } | null = null;
   /** Сессия → ключ человека. Один человек может сидеть с двух устройств: ключ у них общий. */
   private seats = new Map<string, string>();
 
@@ -247,6 +262,8 @@ export class TableRoom extends Room {
       }
       // ДЕЛО КРУПЬЕ — не ход по столу, а состав стола: его исполняет комната.
       if (intent.t === "crew") return void this.crewAct(me.key, intent.act);
+      // УПРАВЛЕНИЕ ИГРОКОМ БЕЗ ЧЕЛОВЕКА — тоже дело комнаты: стол о мозгах не знает.
+      if (intent.t === "bot") return void this.botAct(me.key, intent.chair, intent.act);
       const result = this.table.act(me.key, intent, Date.now());
       if ("refused" in result) {
         // ОТКАЗ — САМОЕ ЦЕННОЕ В ЖУРНАЛЕ: человек пробовал, а стол не дал. Жалобы приходят именно
@@ -280,11 +297,7 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       const out = cleanSay(raw);
       if (!me?.seat || !out || !this.flood.take(me.key, "say", Date.now())) return;
-      const say: Say = { ...out, by: me.key };
-      for (const other of this.clients) {
-        const key = this.seats.get(other.sessionId);
-        if (key !== undefined && key !== me.key) other.send(MSG.say, say);
-      }
+      this.saySpread({ ...out, by: me.key });
     });
 
     // СТИКЕР ВЫСТРЕЛОМ — из своего набора и только в свободный слот; лишний не долетает ни до кого.
@@ -599,6 +612,9 @@ export class TableRoom extends Room {
     if (this.table.busy) return;
     // ВЫКЛАДКА — ОДНО ДВИЖЕНИЕ: стопка кладётся целиком, её не носят по карте.
     if (act === "layout") return void this.layout(by, chair.id, chair.angle);
+    // СОБРАТЬ КРУГ — закрытая куча уходит крупье в руки, и стол снова чист.
+    if (act === "ring") return void this.sweepRing(by, chair.id);
+    if (act === "ring-back") return void this.unsweepRing(by, chair.id);
     // СОСТАВ КОЛОДЫ — разница, а не пересборка: недостающие карты летят крупье в руки, лишние уходят.
     if (act === "deck" || act === "jokers") {
       const now = this.deckCard();
@@ -610,6 +626,51 @@ export class TableRoom extends Room {
     const steps = act === "collect" ? collectSteps(this.table) : [];
     if (steps.length === 0) return;
     void execute(this.table, steps, by, this.io());
+  }
+
+  /**
+   * КРУГ — В РУКИ КРУПЬЕ. Одним движением: стопка целиком, её не носят по карте.
+   *
+   * Зону сгребает крупье, а не закрывший: у закрывшего в руках своя игра, а куча посреди стола —
+   * хозяйство, и за настоящим столом её убирает тот, кто за стол отвечает.
+   *
+   * Какая именно зона — спрашивается у рода стола, а не пишется здесь: комната игры не знает
+   * (`room.knows-no-game`). Зон нет — и собирать нечего.
+   */
+  private sweepRing(by: string, seat: string): void {
+    const zones = deskOf(kindOf(this.room)).zones ?? [];
+    const at = this.table.layout();
+    for (const zone of zones) {
+      const pile = at.piles.find((p) => p.id === zone.id);
+      if (!pile || pile.cards.length === 0) continue;
+      // ЗАПОМНИТЬ, ЧТО ИМЕННО УНЕСЛИ, — чтобы можно было вернуть ровно это, если нажали не туда.
+      this.swept = { zone: pile.id, ids: [...pile.cards] };
+      const out = this.table.act(by, { t: "pileDrop", pile: pile.id, to: { in: "hand", chair: seat, i: 0 } }, Date.now());
+      if (!("refused" in out)) this.spread(out.ops);
+    }
+  }
+
+  /**
+   * ВЕРНУТЬ КРУГ — отмена для того, кто нажал не туда.
+   *
+   * ТОЛЬКО В ПУСТОЙ КРУГ, и это не придирка: успел кто-то положить карту — круг уже новый, и
+   * вернуть в него прошлую кучу значило бы подменить чужой ход. Сперва освободи круг.
+   *
+   * Возвращается ровно то, что унесли, и только пока эти карты у крупье в руке: раздали их дальше —
+   * возвращать нечего, и молчание тут честнее половинчатого возврата.
+   */
+  private unsweepRing(by: string, seat: string): void {
+    const было = this.swept;
+    const at = this.table.layout();
+    const ring = было ? (at.piles.find((p) => p.id === было.zone)?.cards ?? []) : [];
+    const hand = at.chairs.find((c) => c.id === seat)?.hand ?? [];
+    const нельзя = mayReturnRing(было, ring, hand);
+    if (нельзя !== null || !было) return void this.book.tell("crew.refused", by, { дело: "ring-back", почему: нельзя });
+    // Порядок тот же, каким лежали: снизу вверх, карта за картой.
+    const out = this.table.act(by, { t: "gather", ids: [...было.ids], side: "keep", to: { pile: было.zone } }, Date.now());
+    if ("refused" in out) return;
+    this.spread(out.ops);
+    this.swept = null;
   }
 
   /** ВСЯ РУКА КРУПЬЕ — ОДНОЙ ЗАКРЫТОЙ СТОПКОЙ ПЕРЕД НИМ. */
@@ -768,11 +829,16 @@ export class TableRoom extends Room {
     const t0 = Date.now();
     track.since = t0;
     delete track.lastWhy;
+    // Оборвать можно и стол целиком (`gone`), и одного бота (кнопкой админа) — мозг слушает оба.
+    const свой = new AbortController();
+    this.minds.set(key, свой);
+    const stop = AbortSignal.any([this.gone.signal, свой.signal]);
+    this.spreadMinds();
     try {
       let move: Move;
       try {
         const brain = this.brainFor(key);
-        const picked = await brain.choose(brief.legal, brief.view, profile, brain.thinkMs ?? BOT_THINK_MS, this.gone.signal);
+        const picked = await brain.choose(brief.legal, brief.view, profile, brain.thinkMs ?? BOT_THINK_MS, stop);
         // Ответ не из списка — запасной. Сам список собран сервером, поэтому подлога быть не может.
         move = fromList(brief.legal, picked) ?? best(brief.legal, brief.view, profile);
       } catch (err) {
@@ -805,8 +871,91 @@ export class TableRoom extends Room {
       track.moves += 1;
     } finally {
       this.thinking.delete(key);
+      this.minds.delete(key);
       delete track.since;
+      this.spreadMinds();
     }
+  }
+
+  /**
+   * АДМИН УПРАВЛЯЕТ ИГРОКОМ БЕЗ ЧЕЛОВЕКА. Право то же, что на посадку: кто сажал, тот и распоряжается.
+   *
+   *   `nudge`  — походи сейчас: тишина считается выдержанной, пауза не ждётся;
+   *   `cancel` — брось мысль; мозг обрывается, и за него тут же ходит запасной;
+   *   `kick`   — уведи со стула.
+   */
+  private botAct(by: string, chair: string, act: BotAct): void {
+    if (!this.table.may(by, "table.seats")) return;
+    const seat = this.table.layout().chairs.find((c) => c.id === chair);
+    const key = seat?.owner;
+    if (!key || !this.table.here.some((one) => one.key === key && one.bot === true)) return;
+    this.book.tell("bot.order", by, { кому: key, дело: act });
+    if (act === "kick") {
+      this.brains.delete(key);
+      this.botOrders.delete(key);
+      this.tracks.delete(key);
+      this.spread(this.table.leave(key));
+      return void this.spreadMinds();
+    }
+    // ОБРЫВ МЫСЛИ — своим сигналом на этого бота: чужие думают дальше, их обрывать не за что.
+    if (act === "cancel") {
+      this.minds.get(key)?.abort();
+      this.minds.delete(key);
+      return;
+    }
+    // ТОЛЧОК: тишина считается выдержанной прямо сейчас, и ближайший осмотр застанет бота готовым.
+    this.stirredAt = 0;
+    this.nudgeBots();
+  }
+
+  /**
+   * СЛОВО ОТ СТУЛА — остальным. Одно место и для человека, и для игрока без человека: если бы бот
+   * говорил своим путём, его слова однажды разошлись бы с людскими — другой вид, другой лимит,
+   * другая рассылка.
+   */
+  private saySpread(say: Say): void {
+    for (const other of this.clients) {
+      const key = this.seats.get(other.sessionId);
+      if (key !== undefined && key !== say.by) other.send(MSG.say, say);
+    }
+  }
+
+  /**
+   * ИГРОК БЕЗ ЧЕЛОВЕКА ГОВОРИТ. Только на ЗНАЧИМОЕ — закрыл круг, взял, вышел: обычный ход виден и
+   * так, а стол, где три машины отчитываются за каждую карту, читать невозможно.
+   *
+   * Номер строки растёт: у каждой реплики свой, иначе они затирают друг друга на экране.
+   */
+  private botLines = new Map<string, number>();
+  private botSays(key: string, text: string): void {
+    const n = (this.botLines.get(key) ?? 0) + 1;
+    this.botLines.set(key, n);
+    this.saySpread({ by: key, n, pieces: [{ t: "text", text: text.slice(0, LINE_MAX) }], done: true });
+  }
+
+  /**
+   * ЧТО БОТ СКАЖЕТ И ПОПРОСИТ ПОСЛЕ СВОЕГО ХОДА.
+   *
+   * ЗАКРЫЛ КРУГ — просит крупье убрать кучу, и крупье убирает. Сгребает не закрывший: у него в
+   * руках своя игра, а куча посреди стола — хозяйство, и за настоящим столом её уносит тот, кто за
+   * стол отвечает. Человек, закрывший круг, жмёт ту же кнопку сам.
+   *
+   * ВЗЯЛ ИЗ КРУГА — говорит: это признание слабости, и за столом его произносят вслух.
+   *
+   * Обычный ход — молча: он виден и так, и лежит в журнале.
+   */
+  private afterBotMove(key: string, move: Move, closerWas: string | null): void {
+    if (move.t === "take") return void this.botSays(key, "Беру");
+    const closer = this.judgeView()?.closer ?? null;
+    if (closer === null || closer !== key || closer === closerWas) return;
+    this.botSays(key, "Круг мой — крупье, забери");
+    // Крупье убирает не мгновенно: реплику надо успеть прочесть, да и рука у стола не машина.
+    const seat = this.table.layout().chairs.find((c) => c.croupier);
+    if (!seat) return;
+    this.clock.setTimeout(() => {
+      if (this.gone.signal.aborted) return;
+      this.crewAct(BOT_KEY, "ring");
+    }, CROUPIER_HAND_MS);
   }
 
   private trackOf(key: string): BotTrack {
@@ -869,7 +1018,9 @@ export class TableRoom extends Room {
     }
     this.book.tell("bot.act", key, { move: move.t, id });
     this.spread(drop.ops);
+    const было = this.judgeView()?.closer ?? null;
     if (this.referee?.follow(this.seats_(), key, { t: "drop", id, to })) this.resend();
+    this.afterBotMove(key, move, было);
     this.stir(now);
   }
 
@@ -914,6 +1065,34 @@ export class TableRoom extends Room {
     if (this.referee?.follow(this.seats_(), key, { t: "drop", id: move.id, to: move.to })) this.resend();
     this.stir(now);
     return { ok: true, did: moveSays(move) };
+  }
+
+  /**
+   * ЧТО С ИГРОКАМИ БЕЗ ЧЕЛОВЕКА — всем. Шлётся, когда меняется: начал думать, сходил, сорвался.
+   *
+   * Мимо версий стола: это не карты, а состояние игроков, и меняется оно чаще. Одинаково всем —
+   * тут нечего скрывать: чем думает машина, видно и так на её табличке.
+   */
+  private mindsTold = "";
+  private spreadMinds(): void {
+    const minds: Minds = this.botsSeen().bots.map((one) => ({
+      key: one.key,
+      chair: one.chair,
+      brain: one.brain,
+      profile: one.profile,
+      waitMs: one.waitMs,
+      thinkingMs: one.thinkingMs,
+      moves: one.moves,
+      failed: one.failed,
+      ...(one.lastSays === undefined ? {} : { lastSays: one.lastSays }),
+      ...(one.lastWhy === undefined ? {} : { lastWhy: one.lastWhy }),
+    }));
+    // «Думает 3 с» и «думает 4 с» — одно и то же событие: сравниваем БЕЗ счётчика времени, иначе
+    // рассылка шла бы каждый кадр. Экран сам считает, сколько прошло.
+    const line = JSON.stringify(minds.map((one) => ({ ...one, thinkingMs: one.thinkingMs === null ? null : 0 })));
+    if (line === this.mindsTold) return;
+    this.mindsTold = line;
+    this.broadcast(MSG.minds, minds);
   }
 
   /** Глаза — всем одинаковым списком. */

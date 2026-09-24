@@ -85,7 +85,7 @@ export function runCli(one: CliBrain, question: string, deadlineMs: number, stop
     const бросить = () => {
       clearTimeout(timer);
       child.kill("SIGKILL");
-      fail(new Error("стол закрылся"));
+      fail(new Error("мысль оборвана"));
     };
     if (stop?.aborted) return void бросить();
     stop?.addEventListener("abort", бросить, { once: true });

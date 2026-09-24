@@ -432,7 +432,10 @@ function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: stri
   // видно, кто из соседей машина и какая именно. У людей строчки нет вовсе.
   const мозг = who.brain ?? "";
   const мозгEm = PLATE_EM * 0.74;
-  const wide = Math.max([...who.name].length * PLATE_EM, [...мозг].length * мозгEm);
+  // МАШИНА ОТЛИЧАЕТСЯ ЗНАЧКОМ, а не только подписью: имя читают, значок узнают. За столом надо
+  // понимать, кто перед тобой, боковым зрением — не вчитываясь в мелкую строчку.
+  const значок = мозг ? PLATE_EM * 0.92 : 0;
+  const wide = Math.max([...who.name].length * PLATE_EM + значок * 1.3, [...мозг].length * мозгEm);
   const w = Math.max(1, wide + 2 * PLATE.padX);
   const h = (мозг ? PLATE_EM * 1.6 + мозгEm * 1.15 : PLATE_EM * 1.6) + 2 * PLATE.padY;
   roundRect(g, -w / 2, PLATE.at - h / 2, w, h, h * 0.3);
@@ -445,12 +448,41 @@ function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: stri
   g.textAlign = "center";
   g.textBaseline = "middle";
   g.font = `${PLATE_EM}px Tiny5, monospace`;
-  g.fillText(who.name, 0, PLATE.at - (мозг ? мозгEm * 0.6 : 0));
+  const имяY = PLATE.at - (мозг ? мозгEm * 0.6 : 0);
+  // Имя сдвигается вправо ровно на значок — чтобы пара «значок + имя» стояла по центру таблички.
+  g.fillText(who.name, значок ? значок * 0.65 : 0, имяY);
   if (мозг) {
+    const имяW = g.measureText(who.name).width;
+    computerGlyph(g, -имяW / 2 - значок * 0.35, имяY, значок, who.ink);
     g.font = `${мозгEm}px Tiny5, monospace`;
     g.fillStyle = who.ink;
     g.fillText(мозг, 0, PLATE.at + PLATE_EM * 0.68);
   }
+}
+
+/**
+ * ЗНАЧОК МАШИНЫ — крошечный монитор на подставке. Рисуется путями, а не картинкой: размер его
+ * меняется вместе с масштабом стола, и картинка на дальнем стуле расплылась бы.
+ */
+function computerGlyph(g: CanvasRenderingContext2D, x: number, y: number, size: number, ink: string): void {
+  const w = size;
+  const h = size * 0.78;
+  g.save();
+  g.translate(x, y);
+  g.lineWidth = Math.max(0.6, size * 0.1);
+  g.strokeStyle = ink;
+  g.fillStyle = ink;
+  // Экран.
+  roundRect(g, -w / 2, -h / 2 - size * 0.08, w, h * 0.78, size * 0.12);
+  g.stroke();
+  // Подставка: ножка и основание.
+  g.beginPath();
+  g.moveTo(0, -h / 2 - size * 0.08 + h * 0.78);
+  g.lineTo(0, h / 2);
+  g.moveTo(-w * 0.3, h / 2);
+  g.lineTo(w * 0.3, h / 2);
+  g.stroke();
+  g.restore();
 }
 
 /**
