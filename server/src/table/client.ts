@@ -25,6 +25,13 @@ export function clientRoutes(source: ClientSource = fromEnv()): Router {
     ["/table/", "index", "app"],
     ["/table/replay", "replay", "replay"],
   ];
+  // СМОТРЕЛКА ЗА БОТАМИ — страница без своего бандла: весь её код в ней самой, потому что она
+  // только спрашивает одну дверь и рисует список. Сама по себе не показывает ничего: комнату и
+  // пропуск ей дают адресом, а дверь их проверяет.
+  r.get("/table/bots", fresh, async (_req, res) => {
+    res.type("html").send(await source.page("bots"));
+  });
+
   for (const [path, page, script] of pages) {
     r.get(path, fresh, async (_req, res) => {
       res.type("html").send(await source.page(page));

@@ -9,6 +9,7 @@
 
 import type { DeckSize, Home, Person, RoomCard, RunResult, SeatCard, TableCommand } from "./contract.js";
 import type { Looked, Played } from "./bots/outside.js";
+import type { BotsSeen } from "./bots/watch.js";
 import { DEFAULT_DESK, deskCrew, deskName, isDesk } from "./desks.js";
 import { retitled, ROOM_WORD, titleFrom, uniqueTitle } from "./names.js";
 import { DEFAULT_CREW, isCrew } from "./crews.js";
@@ -25,7 +26,7 @@ interface Entry {
   home: Home;
   by: string;
   createdAt: number;
-  live?: { people: () => Person[]; seats?: () => SeatCard[]; deck?: () => { size: DeckSize; jokers: boolean }; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; look?: (by: string) => Looked; play?: (by: string, n: unknown) => Played; claim?: (by: string) => void; recast?: (kind: string) => void; recrew?: (crew: string) => void; admins?: (keys: string[]) => void };
+  live?: { people: () => Person[]; seats?: () => SeatCard[]; deck?: () => { size: DeckSize; jokers: boolean }; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; look?: (by: string) => Looked; play?: (by: string, n: unknown) => Played; bots?: () => BotsSeen; claim?: (by: string) => void; recast?: (kind: string) => void; recrew?: (crew: string) => void; admins?: (keys: string[]) => void };
 }
 
 const rooms = new Map<string, Entry>();
@@ -250,6 +251,11 @@ export function attach(room: string, live: Entry["live"]): void {
  */
 export function lookIn(room: string, by: string): Looked | undefined {
   return rooms.get(room)?.live?.look?.(by);
+}
+
+/** ЧТО С БОТАМИ В ЭТОЙ КОМНАТЕ — для наблюдения. */
+export function botsIn(room: string): BotsSeen | undefined {
+  return rooms.get(room)?.live?.bots?.();
 }
 
 /** ВНЕШНЕМУ ИГРОКУ — СХОДИТЬ. Ход называется номером из списка, который дал `lookIn`. */

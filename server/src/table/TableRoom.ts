@@ -55,6 +55,7 @@ import { PROFILE_KEYS, profileOf } from "./bots/profiles.js";
 import { nextLook, ready } from "./bots/nudge.js";
 import { chosen, looked, type Looked, type Played } from "./bots/outside.js";
 import { moveSays } from "./bots/say.js";
+import { botSeen, type BotsSeen, type BotTrack } from "./bots/watch.js";
 
 /** Имена игроков без человека — чтобы за столом сидели не «Бот 1», а кто-то. */
 /** Столько стол должен молчать, чтобы его слепок записался. */
@@ -101,6 +102,11 @@ export class TableRoom extends Room {
   private botOrders = new Map<string, { brain?: string; profile?: string }>();
   /** Кто уже думает: пока ответа нет, второй толчок этому боту ничего не делает. */
   private thinking = new Set<string>();
+  /**
+   * ЧТО С КАЖДЫМ БОТОМ — для наблюдения снаружи (`bots/watch.ts`). Журнал отвечает задним числом, а
+   * «почему он не ходит» спрашивают, пока он молчит.
+   */
+  private tracks = new Map<string, BotTrack>();
   /** Когда стол шевелился в последний раз — от этого отсчитывается тишина. */
   private stirredAt = 0;
   /** Живой таймер следующего заглядывания. */
@@ -191,6 +197,7 @@ export class TableRoom extends Room {
       run: (by, command) => this.run(by, command),
       // ВНЕШНИЙ ИГРОК (MCP): смотрит и ходит теми же дверями, что человек.
       look: (by) => this.lookFor(by),
+      bots: () => this.botsSeen(),
       play: (by, n) => this.playFor_(by, n),
       claim: (by) => this.spread(this.table.claim(by)),
       // РОД СМЕНИЛИ НА ХОДУ: стол берёт другие правила, а карты и люди остаются на местах. Партия
@@ -746,6 +753,10 @@ export class TableRoom extends Room {
    */
   private async botPlays(key: string, brief: { legal: readonly Move[]; view: BotView }, profile: Profile): Promise<void> {
     this.thinking.add(key);
+    const track = this.trackOf(key);
+    const t0 = Date.now();
+    track.since = t0;
+    delete track.lastWhy;
     try {
       let move: Move;
       try {
@@ -755,9 +766,14 @@ export class TableRoom extends Room {
         move = fromList(brief.legal, picked) ?? best(brief.legal, brief.view, profile);
       } catch (err) {
         // Упал, завис, ответил чушью — ходит запасной. Стол из-за бота не встаёт.
-        this.book.tell("bot.failed", key, { почему: String(err).slice(0, 200) });
+        const why = String(err).slice(0, 200);
+        this.book.tell("bot.failed", key, { почему: why });
+        track.failed += 1;
+        track.lastWhy = why;
         move = best(brief.legal, brief.view, profile);
       }
+      track.lastMs = Date.now() - t0;
+      track.lastSays = moveSays(move);
       // ДОДЕРЖАТЬ ПАУЗУ, если мысль оказалась быстрее неё. Скриптовый мозг отвечает мгновенно, и без
       // этого он клал бы карту в тот же миг, что и человек, — стол читался бы как машина.
       const left = profile.waitMs - (Date.now() - this.stirredAt);
@@ -768,9 +784,48 @@ export class TableRoom extends Room {
         return void this.nudgeBots();
       }
       this.botMoves(key, move);
+      track.moves += 1;
     } finally {
       this.thinking.delete(key);
+      delete track.since;
     }
+  }
+
+  private trackOf(key: string): BotTrack {
+    const had = this.tracks.get(key);
+    if (had) return had;
+    const made: BotTrack = { moves: 0, failed: 0 };
+    this.tracks.set(key, made);
+    return made;
+  }
+
+  /**
+   * ЧТО С БОТАМИ ПРЯМО СЕЙЧАС — наружу. Отвечает на вопрос, который задают, ПОКА бот молчит:
+   * чем он думает, думает ли вот сейчас и сколько уже, чем кончилась прошлая мысль.
+   */
+  botsSeen(): BotsSeen {
+    const now = Date.now();
+    const chairs = this.table.layout().chairs;
+    const desks = new Set(chairs.filter((c) => c.croupier === true).map((c) => c.id));
+    const turn = this.referee?.view(this.seats_())?.turn ?? null;
+    const bots = this.table.here
+      .filter((one) => one.bot === true && one.seat !== undefined && !desks.has(one.seat))
+      .map((one) =>
+        botSeen(
+          {
+            key: one.key,
+            name: one.name,
+            chair: one.seat!,
+            brain: this.botOrders.get(one.key)?.brain ?? "greedy",
+            profile: this.profileFor(one.key).key,
+            waitMs: this.profileFor(one.key).waitMs,
+            turn: turn === one.key,
+          },
+          this.tracks.get(one.key),
+          now,
+        ),
+      );
+    return { turn, busy: this.table.busy, handsOn: this.table.handsOn, quietMs: Math.max(0, now - this.stirredAt), bots };
   }
 
   /** Довести ход до стола теми же намерениями, какими его шлёт палец человека. */

@@ -13,7 +13,7 @@ import { tableConfig } from "./config.js";
 import { DEFAULT_DESK, isDesk } from "./desks.js";
 import { isCrew } from "./crews.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
-import { closeEntry, findEntry, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, lookIn, playIn, runIn, setAdmin } from "./lobby.js";
+import { closeEntry, findEntry, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, botsIn, lookIn, playIn, runIn, setAdmin } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 import { deeds, roomsSeen } from "../db/eventsRepo.js";
 import { mintPass, passRoom, PASS_HOURS } from "./pass.js";
@@ -213,6 +213,23 @@ export function tableRoutes(): Router {
     const by = typeof req.query.by === "string" ? req.query.by : null;
     if (by === null) return void res.status(400).json({ error: "bad_request" });
     const out = lookIn(req.params.room, by);
+    if (out === undefined) return void res.status(404).json({ error: "not_found" });
+    res.json(out);
+  });
+
+  /**
+   * ЧТО С БОТАМИ ПРЯМО СЕЙЧАС: кто на каком мозге, кто думает и сколько уже, чем кончилась
+   * прошлая мысль. Журнал отвечает на это задним числом, а спрашивают — пока бот молчит.
+   *
+   * Под пропуском на эту комнату ИЛИ под секретом стола: смотреть за своими ботами не должно
+   * требовать ключа от всех комнат сразу.
+   */
+  r.get("/table/rooms/:room/bots", (req, res, next) => {
+    const pass = passRoom(typeof req.query.pass === "string" ? req.query.pass : undefined, tableConfig().secret ?? "");
+    if (pass !== null && pass === req.params.room) return void next();
+    return void guarded(req, res, next);
+  }, (req, res) => {
+    const out = botsIn(req.params.room);
     if (out === undefined) return void res.status(404).json({ error: "not_found" });
     res.json(out);
   });

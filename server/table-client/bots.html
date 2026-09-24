@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Боты стола</title>
+    <style>
+      :root { --felt: #14291f; --card: #16191a; --line: #2a2f30; --ink: #e8e4d9; --dim: #9aa3a1; --gold: #c9a227; --live: #6fd08c; --hurt: #e8836f; }
+      html, body { margin: 0; background: var(--felt); color: var(--ink); font: 15px/1.5 system-ui, sans-serif; }
+      .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
+      h1 { font-size: 19px; margin: 0 0 2px; }
+      .sub { color: var(--dim); font-size: 13px; margin: 0 0 14px; font-family: ui-monospace, Menlo, monospace; }
+      .stol { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; font-size: 12.5px; }
+      .chip { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; color: var(--dim); }
+      .chip b { color: var(--ink); font-variant-numeric: tabular-nums; }
+      .bot { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+      /* ЧЕЙ ХОД — видно краем, не цветом текста: за столом важно найти его глазом, не читая. */
+      .bot.turn { border-left: 4px solid var(--gold); }
+      .bot.думает { border-left: 4px solid var(--live); }
+      .шапка { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+      .имя { font-size: 17px; font-weight: 600; }
+      .мозг { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--gold); }
+      .харак { font-size: 12px; color: var(--dim); }
+      .состояние { margin-top: 6px; font-size: 14px; }
+      .живой { color: var(--live); }
+      .плохо { color: var(--hurt); }
+      .счёт { margin-top: 6px; color: var(--dim); font-size: 12.5px; font-family: ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+      .пусто { color: var(--dim); padding: 24px 0; text-align: center; }
+      /* Точка «живёт» пульсирует, пока страница обновляется: замерла — значит связь пропала. */
+      @keyframes бьётся { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
+      .пульс { animation: бьётся 1.6s ease-in-out infinite; }
+      @media (prefers-reduced-motion: reduce) { .пульс { animation: none } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Боты стола</h1>
+      <p class="sub" id="комната">—</p>
+      <div class="stol" id="стол"></div>
+      <div id="список"><div class="пусто">Спрашиваю стол…</div></div>
+    </div>
+    <script type="module">
+      const адрес = new URL(location.href);
+      const комната = адрес.searchParams.get("room") ?? "";
+      const пропуск = адрес.searchParams.get("pass") ?? "";
+      const секрет = адрес.searchParams.get("secret") ?? "";
+      document.getElementById("комната").textContent = комната || "комната не названа: ?room=…";
+
+      const мс = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)} с` : `${n} мс`);
+
+      async function спросить() {
+        if (!комната) return;
+        const путь = `/table/rooms/${encodeURIComponent(комната)}/bots${пропуск ? `?pass=${encodeURIComponent(пропуск)}` : ""}`;
+        const ответ = await fetch(путь, секрет ? { headers: { "x-table-secret": секрет } } : {});
+        if (!ответ.ok) throw new Error(`стол ответил ${ответ.status}`);
+        return ответ.json();
+      }
+
+      function нарисовать(это) {
+        document.getElementById("стол").innerHTML = [
+          `<span class="chip пульс">тишина <b>${мс(это.quietMs)}</b></span>`,
+          это.busy ? `<span class="chip">идёт команда стола</span>` : "",
+          это.handsOn ? `<span class="chip">кто-то держит карту</span>` : "",
+          `<span class="chip">ход: <b>${это.turn ?? "—"}</b></span>`,
+        ].filter(Boolean).join("");
+
+        const список = document.getElementById("список");
+        if (это.bots.length === 0) {
+          список.innerHTML = `<div class="пусто">За этим столом ботов нет.</div>`;
+          return;
+        }
+        список.innerHTML = это.bots.map((one) => {
+          const думает = one.thinkingMs !== null;
+          // ПОЧЕМУ ОН МОЛЧИТ — главный вопрос, ради которого эту страницу и открывают.
+          const состояние = думает
+            ? `<span class="живой">думает… ${мс(one.thinkingMs)}</span>`
+            : one.turn
+              ? (это.busy || это.handsOn ? `ждёт: стол занят` : `ждёт тишины — ему нужно ${мс(one.waitMs)}`)
+              : `не его ход`;
+          const прошлый = one.lastSays
+            ? `<div class="счёт">прошлый ход: ${one.lastSays}${one.lastMs === undefined ? "" : ` · думал ${мс(one.lastMs)}`}</div>`
+            : "";
+          const сорвался = one.lastWhy ? `<div class="счёт плохо">мозг сорвался: ${one.lastWhy}</div>` : "";
+          return `<div class="bot ${думает ? "думает" : one.turn ? "turn" : ""}">
+            <div class="шапка">
+              <span class="имя">${one.name}</span>
+              <span class="мозг">${one.brain}</span>
+              <span class="харак">${one.profile} · пауза ${мс(one.waitMs)}</span>
+            </div>
+            <div class="состояние">${состояние}</div>
+            ${прошлый}${сорвался}
+            <div class="счёт">ходов ${one.moves} · срывов ${one.failed} · стул ${one.chair}</div>
+          </div>`;
+        }).join("");
+      }
+
+      async function круг() {
+        try {
+          const это = await спросить();
+          if (это) нарисовать(это);
+        } catch (err) {
+          document.getElementById("список").innerHTML = `<div class="пусто плохо">${String(err)}</div>`;
+        }
+      }
+      круг();
+      // Чаще секунды незачем: пауза характера — секунды, а мысль — единицы секунд.
+      setInterval(круг, 1000);
+    </script>
+  </body>
+</html>
