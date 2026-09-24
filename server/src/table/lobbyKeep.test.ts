@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, it } from "vitest";
 import { migrate } from "../db/open.js";
 import { dropRoom, keepCard, keepState, keptRooms, keptState } from "../db/tableRoomsRepo.js";
-import { closeEntry, findEntry, forgetAll, keepLobbyIn, openEntry, recast, rename, roomsBy, setAdmin, type LobbyKeep } from "./lobby.js";
+import { closeEntry, findEntry, forgetAll, isBuried, keepLobbyIn, openEntry, recast, rename, roomsBy, setAdmin, type LobbyKeep } from "./lobby.js";
 
 // КОМНАТА ПЕРЕЖИВАЕТ ПРОЦЕСС. «Перезапуск» здесь — `forgetAll()` (память пуста) и новый `keepLobbyIn`
 // поверх той же базы: ровно то, что видит сервер, поднявшись заново.
@@ -74,5 +74,40 @@ describe("комната стола переживает перезапуск", 
     openEntry("r1", { kind: "chat", chat: "9" }, "tg:1");
     expect(findEntry("r1")).toBeDefined();
     expect(keptRooms(base)).toEqual([]);
+  });
+});
+
+// ЗАКРЫТУЮ КОМНАТУ НЕ ВОСКРЕСИТЬ.
+//
+// Бот после перезапуска сервера открывает заново всё, что помнит, — иначе человек зайдёт по своей
+// же ссылке в безымянную комнату, где он никто. Но той же дверью он воскрешал и только что
+// закрытые: удалил комнату, перезапустил стол — она снова тут. Со стороны это читается как
+// «удаление не работает», и так оно и было.
+describe("lobby.a-closed-room-stays-closed", () => {
+  it("закрытая помечена, и открыть её заново нечем", () => {
+    const room = "З".repeat(23);
+    openEntry(room, { kind: "chat", chat: "1" }, "tg:1", "Стол");
+    expect(findEntry(room)).toBeDefined();
+    expect(closeEntry(room)).toBe(true);
+    expect(isBuried(room), "надгробие поставлено").toBe(true);
+    expect(findEntry(room), "и комнаты нет").toBeUndefined();
+  });
+
+  it("живая комната надгробия не имеет — иначе не открылась бы ни одна", () => {
+    const room = "Ж".repeat(23);
+    openEntry(room, { kind: "chat", chat: "2" }, "tg:1", "Живой");
+    expect(isBuried(room)).toBe(false);
+  });
+
+  it("НАДГРОБИЕ ПЕРЕЖИВАЕТ ПЕРЕЗАПУСК — иначе бот воскресит комнату тем же именем", () => {
+    // Бот открывает свои комнаты ровно ПОСЛЕ перезапуска: памяти процесса тут мало, она умирает в
+    // тот самый миг, когда надгробие и нужно.
+    const room = "П".repeat(23);
+    openEntry(room, { kind: "chat", chat: "3" }, "tg:1", "Был да сплыл");
+    closeEntry(room);
+    forgetAll();
+    keepLobbyIn(keepIn(base));
+    expect(isBuried(room), "после перезапуска комната всё ещё закрыта").toBe(true);
+    expect(findEntry(room), "и в списке её нет").toBeUndefined();
   });
 });

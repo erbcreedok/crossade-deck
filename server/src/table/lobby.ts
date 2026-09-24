@@ -43,6 +43,23 @@ export interface LobbyKeep {
 
 let keep: LobbyKeep | null = null;
 
+/**
+ * ЗАКРЫТЫЕ КОМНАТЫ — НАДГРОБИЯ, и без них закрытие не окончательно.
+ *
+ * Бот держит свой список и после перезапуска сервера открывает всё, что помнит: иначе человек зайдёт
+ * по своей же ссылке в безымянную комнату, где он никто. Но ту же дверь он использует и для комнаты,
+ * которую только что закрыли, — и она встаёт из мёртвых. Со стороны это выглядит как «удаление не
+ * работает», и так оно и есть.
+ *
+ * НАДГРОБИЕ ПЕРЕЖИВАЕТ ПЕРЕЗАПУСК, и иначе нельзя: бот открывает свои комнаты ровно ПОСЛЕ
+ * перезапуска, тем же именем и тем же id. Памяти процесса тут мало — она умирает в тот самый миг,
+ * когда надгробие и нужно.
+ *
+ * Лежит оно там же, где записи комнат, отдельной строкой `{ closed: true }`: новой таблицы для
+ * одного поля заводить незачем, а поднимаясь, список отличит её от живой записи.
+ */
+const buried = new Set<string>();
+
 /** Записать комнату как есть. Живая комната Colyseus в запись не входит: она принадлежит процессу. */
 function save(e: Entry): void {
   if (!keep) return;
@@ -65,7 +82,12 @@ export function keepLobbyIn(store: LobbyKeep | null): number {
   let raised = 0;
   for (const row of store.all()) {
     try {
-      const e = JSON.parse(row.card) as Entry;
+      const e = JSON.parse(row.card) as Entry & { closed?: boolean };
+      // НАДГРОБИЕ — не комната: она закрыта, и открывать её заново нечем.
+      if (e.closed === true) {
+        buried.add(row.room);
+        continue;
+      }
       if (typeof e.room !== "string" || e.room !== row.room || typeof e.title !== "string" || !e.home) continue;
       if (rooms.has(e.room)) continue;
       rooms.set(e.room, { room: e.room, title: e.title, kind: isDesk(e.kind) ? e.kind : DEFAULT_DESK, crew: isCrew(e.crew) ? e.crew : DEFAULT_CREW, admins: Array.isArray(e.admins) ? e.admins.filter((k) => typeof k === "string") : [], home: e.home, by: typeof e.by === "string" ? e.by : "", createdAt: Number(e.createdAt) || Date.now() });
@@ -95,6 +117,9 @@ const card = (e: Entry): RoomCard => ({
   deck: e.live?.deck?.() ?? { size: 36, jokers: false },
   createdAt: e.createdAt,
 });
+
+/** Эту комнату закрыли — открывать заново нечего. По этому бот понимает, что пора её забыть. */
+export const isBuried = (room: string): boolean => buried.has(room);
 
 export function openEntry(room: string, home: Home, by: string, title?: string, now = Date.now(), kind: string = DEFAULT_DESK, crew?: string): RoomCard {
   const had = rooms.get(room);
@@ -230,10 +255,15 @@ export function closeEntry(room: string): boolean {
   const e = rooms.get(room);
   if (!e) return false;
   rooms.delete(room);
+  buried.add(room);
   try {
+    // Сперва стереть всё — вместе с комнатой уходит и слепок стола: карты закрытой комнаты никому
+    // не нужны, а место занимают. И только потом ставится надгробие: стёртую подчистую бот открыл бы
+    // заново тем же именем.
     keep?.drop(room);
+    keep?.card(room, JSON.stringify({ room, closed: true }));
   } catch (err) {
-    console.error(`комната ${room} не стёрлась из хранилища:`, err);
+    console.error(`комната ${room} не закрылась в хранилище:`, err);
   }
   e.live?.close();
   return true;
@@ -292,4 +322,6 @@ export function keptStateOf(room: string): string | null {
 /** Забыть всё, что в памяти. Хранилище не трогается: так в тестах и выглядит перезапуск процесса. */
 export function forgetAll(): void {
   rooms.clear();
+  // Надгробия тоже в памяти процесса: новый запуск начинается с чистого кладбища, как и задумано.
+  buried.clear();
 }

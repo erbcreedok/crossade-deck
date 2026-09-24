@@ -13,7 +13,7 @@ import { tableConfig } from "./config.js";
 import { DEFAULT_DESK, isDesk } from "./desks.js";
 import { isCrew } from "./crews.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
-import { closeEntry, findEntry, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, botsIn, lookIn, playIn, runIn, setAdmin } from "./lobby.js";
+import { closeEntry, findEntry, isBuried, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, botsIn, lookIn, playIn, runIn, setAdmin } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 import { deeds, roomsSeen } from "../db/eventsRepo.js";
 import { mintPass, passRoom, PASS_HOURS } from "./pass.js";
@@ -157,6 +157,9 @@ export function tableRoutes(): Router {
     // ИМЯ, ВЫПИСАННОЕ БОТОМ ЗАРАНЕЕ (inline-карточка), принимается только с его подписью.
     if (body.room !== undefined && !roomIsSigned(body.room, secret)) return void res.status(400).json({ error: "bad_request" });
     const room = body.room ?? mintRoom(secret);
+    // ЗАКРЫТУЮ КОМНАТУ НЕ ОТКРЫТЬ ЗАНОВО. Бот после перезапуска сервера открывает всё, что помнит, —
+    // и этой дверью воскрешал только что закрытые. `404` он читает как «её больше нет» и забывает.
+    if (isBuried(room)) return void res.status(404).json({ error: "not_found" });
     // РОД СТОЛА — необязателен и разбирается по каталогу (`desks.ts`): незнакомый род не ломает
     // открытие, а даёт песочницу. Бот и сервер обновляются порознь.
     res.json(openEntry(room, home, body.by, typeof body.title === "string" ? body.title : undefined, Date.now(), isDesk(body.kind) ? body.kind : DEFAULT_DESK, isCrew(body.crew) ? body.crew : undefined));
