@@ -725,7 +725,13 @@ export class TableRoom extends Room {
       // за него первым и агенту осталось бы смотреть.
       if (this.botOrders.get(bot.key)?.brain === OUTSIDE_BRAIN) continue;
       if (this.thinking.has(bot.key)) continue;
-      if (!ready(quiet, profile.waitMs)) continue;
+      // ДУМАТЬ МОЖНО ВО ВРЕМЯ ПАУЗЫ, А НЕ ПОСЛЕ НЕЁ. Пауза нужна, чтобы бот не лез под руку
+      // человеку, — а не чтобы он сидел без дела: мысль занимает секунды, и начатая вместе с паузой
+      // она к её концу готова. Ход ложится в тот же миг, но раньше по часам на всю длину паузы.
+      //
+      // Порог здесь нулевой: стол должен быть свободен (никто не держит карту, не идёт команда), но
+      // ждать своей паузы, чтобы ПОДУМАТЬ, незачем — она про то, когда ходить.
+      if (!ready(quiet, 0)) continue;
       const brief = this.referee.bot(this.seats_(), bot.seat!);
       if (brief === null) continue;
       void this.botPlays(bot.key, brief, profile);
@@ -741,14 +747,27 @@ export class TableRoom extends Room {
   private async botPlays(key: string, brief: { legal: readonly Move[]; view: BotView }, profile: Profile): Promise<void> {
     this.thinking.add(key);
     try {
-      const brain = this.brainFor(key);
-      const picked = await brain.choose(brief.legal, brief.view, profile, brain.thinkMs ?? BOT_THINK_MS);
-      // Ответ не из списка — запасной. Сам список собран сервером, поэтому подлога быть не может.
-      this.botMoves(key, fromList(brief.legal, picked) ?? best(brief.legal, brief.view, profile));
-    } catch (err) {
-      // Упал, завис, ответил чушью — ходит запасной. Стол из-за бота не встаёт.
-      this.book.tell("bot.failed", key, { почему: String(err).slice(0, 200) });
-      this.botMoves(key, best(brief.legal, brief.view, profile));
+      let move: Move;
+      try {
+        const brain = this.brainFor(key);
+        const picked = await brain.choose(brief.legal, brief.view, profile, brain.thinkMs ?? BOT_THINK_MS);
+        // Ответ не из списка — запасной. Сам список собран сервером, поэтому подлога быть не может.
+        move = fromList(brief.legal, picked) ?? best(brief.legal, brief.view, profile);
+      } catch (err) {
+        // Упал, завис, ответил чушью — ходит запасной. Стол из-за бота не встаёт.
+        this.book.tell("bot.failed", key, { почему: String(err).slice(0, 200) });
+        move = best(brief.legal, brief.view, profile);
+      }
+      // ДОДЕРЖАТЬ ПАУЗУ, если мысль оказалась быстрее неё. Скриптовый мозг отвечает мгновенно, и без
+      // этого он клал бы карту в тот же миг, что и человек, — стол читался бы как машина.
+      const left = profile.waitMs - (Date.now() - this.stirredAt);
+      if (left > 0) await new Promise((done) => this.clock.setTimeout(done, left));
+      // Пока думали, стол мог зашевелиться: человек взял карту, пошла раздача. Тогда ход отменяется
+      // и назначается заново — свежей мыслью по новому столу, а не этой, уже устаревшей.
+      if (!ready({ busy: this.table.busy, handsOn: this.table.handsOn, stirredAt: this.stirredAt, now: Date.now() }, profile.waitMs)) {
+        return void this.nudgeBots();
+      }
+      this.botMoves(key, move);
     } finally {
       this.thinking.delete(key);
     }

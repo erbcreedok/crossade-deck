@@ -8,7 +8,8 @@ import type { Face } from "../contract.js";
 import { krestMemory } from "../games/krestMemory.js";
 import type { BotView, Move } from "./brain.js";
 import { fromList, sameMove } from "./brain.js";
-import { best, worth, randomBrain, greedyBrain } from "./greedy.js";
+import { best, price, worth, randomBrain, greedyBrain } from "./greedy.js";
+import { ask } from "./say.js";
 import { PROFILES, profileOf } from "./profiles.js";
 
 const c = (rank: string, suit: Face["suit"]): Face => ({ rank, suit });
@@ -93,5 +94,30 @@ describe("bots.a-brain-answer-must-come-from-the-list", () => {
       const pick = await randomBrain(rnd).choose(legal, view([c("6", "d")]), PROFILES["новичок"]!, 100);
       expect(fromList(legal, pick)).not.toBe(null);
     }
+  });
+});
+
+// ЦЕЛЬ ИГРЫ — ИЗБАВИТЬСЯ ОТ КАРТ. Не оттенок характера, а главный закон: без него боты играют в
+// «красиво побить», а не в «выиграть», и это видно за столом — они вечно берут из круга.
+describe("bots.the-goal-is-to-run-out-of-cards", () => {
+  it("чем меньше карт в руке, тем дороже взять", () => {
+    const много = view(Array.from({ length: 8 }, (_, i) => c(String(i + 6), "s")), [c("K", "h")]);
+    const мало = view([c("7", "h"), c("8", "h")], [c("K", "h")]);
+    const брать = take(c("K", "h"));
+    expect(price(брать, мало, PROFILES["новичок"]!), "у края взять дороже, чем с полной рукой")
+      .toBeGreaterThan(price(брать, много, PROFILES["новичок"]!));
+  });
+
+  it("ДАЖЕ НОВИЧОК на последней карте кладёт, а не берёт", () => {
+    // Иначе партия не кончается: игрок у победы сам отодвигает её, забирая карту из круга.
+    const hand = [c("6", "h")];
+    const legal: Move[] = [lay(c("6", "h")), take(c("K", "s"))];
+    expect(best(legal, view(hand, [c("K", "s")]), PROFILES["новичок"]!).t).toBe("lay");
+  });
+
+  it("цель названа в вопросе модели — первой строкой", () => {
+    const текст = ask([lay(c("6", "h"))], view([c("6", "h")]), PROFILES["новичок"]!);
+    expect(текст).toContain("ЦЕЛЬ: первым избавиться от всех своих карт");
+    expect(текст, "и чем кончается для проигравшего").toContain("остался с картами последним — проиграл");
   });
 });
