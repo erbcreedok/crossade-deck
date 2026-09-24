@@ -129,3 +129,31 @@ describe("lobby.entering-does-not-resurrect-a-closed-room", () => {
     expect(findEntry(room), "и комната не воскресла").toBeUndefined();
   });
 });
+
+// КОМНАТА, ПОДНЯТАЯ ЧУЖИМ ВХОДОМ, ВОЗВРАЩАЕТ СЕБЕ РОД.
+//
+// Вошедший рода не знает — он открывает дверь, а не стол, — и комната заводится песочницей. Бот
+// приходит следом и забирает своё. Пока род не возвращали, крестовая комната оставалась песочницей
+// НАВСЕГДА: та же ссылка, то же место в чате, а за столом ни круга хода, ни правил.
+describe("lobby.a-room-raised-by-entry-gets-its-kind-back", () => {
+  it("вошедший завёл песочницу — бот вернул крестовый", () => {
+    const room = "Р".repeat(23);
+    // Ровно то, что делает вход: без хозяина, без имени, без рода.
+    openEntry(room, { kind: "inline", message: "" }, "");
+    expect(findEntry(room)!.kind, "вход завёл песочницей").toBe("sandbox");
+
+    // А теперь бот открывает ту же комнату, какой она была.
+    const card = openEntry(room, { kind: "chat", chat: "7" }, "tg:1", "Крестовый", Date.now(), "krest");
+    expect(card.kind, "род вернулся").toBe("krest");
+    expect(card.by, "и хозяин").toBe("tg:1");
+    expect(card.title, "и имя").toBe("Крестовый");
+  });
+
+  it("у комнаты с хозяином род чужим входом не меняется", () => {
+    const room = "Х".repeat(23);
+    openEntry(room, { kind: "chat", chat: "8" }, "tg:1", "Крестовый", Date.now(), "krest");
+    // Кто-то вошёл по ссылке — род трогать нечего, комната уже чья-то.
+    openEntry(room, { kind: "inline", message: "" }, "");
+    expect(findEntry(room)!.kind).toBe("krest");
+  });
+});
