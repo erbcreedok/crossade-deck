@@ -52,7 +52,7 @@ import { fromList } from "./bots/brain.js";
 import { best } from "./bots/greedy.js";
 import { brainOf, OUTSIDE_BRAIN } from "./bots/brains.js";
 import { PROFILE_KEYS, profileOf } from "./bots/profiles.js";
-import { nextLook, ready } from "./bots/nudge.js";
+import { nextLook, ready, stirs } from "./bots/nudge.js";
 import { chosen, looked, type Looked, type Played } from "./bots/outside.js";
 import { moveSays } from "./bots/say.js";
 import { botSeen, type BotsSeen, type BotTrack } from "./bots/watch.js";
@@ -238,9 +238,9 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       const intent = readIntent(raw);
       if (!me || !intent || !this.flood.take(me.key, "intent", Date.now())) return;
-      // ЧЕЛОВЕК ШЕВЕЛЬНУЛСЯ — тишина сначала. Даже `sync` и палец в воздухе: бот ждёт не хода, а
-      // затишья, и лезть под руку тому, кто сейчас что-то делает, ему нечего.
-      this.stirredAt = Date.now();
+      // ЧЕЛОВЕК ТРОНУЛ ВЕЩИ — тишина сначала. Именно вещи: замок на чужой руке, поза, выделение и
+      // взгляд стол не двигают, и боту пережидать их незачем (`stirs`).
+      if (stirs(intent)) this.stirredAt = Date.now();
       if (intent.t === "sync") {
         client.send(MSG.welcome, this.welcomeFor(me));
         return;
@@ -429,7 +429,8 @@ export class TableRoom extends Room {
           });
           this.brains.delete(key);
         }
-        this.spread(this.table.seatBot({ key, name: BOT_NAMES[i % BOT_NAMES.length]!, ink: this.freeInk(), door: "guest" }));
+        const brain = this.botOrders.get(key)?.brain ?? "greedy";
+        this.spread(this.table.seatBot({ key, name: BOT_NAMES[i % BOT_NAMES.length]!, ink: this.freeInk(), door: "guest", brain }));
       }
       return { ok: true };
     }

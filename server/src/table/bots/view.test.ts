@@ -54,7 +54,8 @@ describe("bots.a-bot-picks-from-a-legal-list", () => {
 
   it("в круге — только то, что бьёт верхнюю, плюс «взять»", () => {
     const t = стол({ a: [c("7", "c"), c("A", "d"), c("JK", "r")], b: [] }, [c("6", "c")]);
-    const m: Match = { ...t.m, turn: "a", threshold: 2 };
+    // `opened: 0` — карта в кольце принадлежит ЭТОМУ кругу, а не прошлому несгребённому.
+    const m: Match = { ...t.m, turn: "a", threshold: 2, opened: 0 };
     const legal = legalMoves(t.seats, m, "a");
     expect(legal.map((one) => (one.t === "lay" ? one.id : "take")), "крести бьются крестями и джокером; туз буби — нет")
       .toEqual([id(c("7", "c")), id(c("JK", "r")), "take"]);
@@ -67,7 +68,8 @@ describe("bots.a-bot-picks-from-a-legal-list", () => {
 
   it("рука пуста, круг есть — остаётся только взять", () => {
     const t = стол({ a: [], b: [c("7", "d")] }, [c("6", "d")]);
-    const m: Match = { ...t.m, turn: "a", threshold: 2 };
+    // `opened: 0` — карта в кольце принадлежит ЭТОМУ кругу, а не прошлому несгребённому.
+    const m: Match = { ...t.m, turn: "a", threshold: 2, opened: 0 };
     expect(legalMoves(t.seats, m, "a")).toEqual([{ t: "take", id: id(c("6", "d")), card: c("6", "d"), to: { in: "hand", chair: "a", i: 0 } }]);
   });
 });

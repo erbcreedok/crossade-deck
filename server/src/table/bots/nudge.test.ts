@@ -5,7 +5,7 @@
 // бота сходили одновременно; бот не сходил вовсе, потому что ждал события, которого не будет.
 
 import { describe, expect, it } from "vitest";
-import { nextLook, ready, type Quiet } from "./nudge.js";
+import { nextLook, ready, stirs, type Quiet } from "./nudge.js";
 import { PROFILES } from "./profiles.js";
 
 const тишина = (было: number, прошло: number): Quiet => ({ busy: false, handsOn: false, stirredAt: было, now: было + прошло });
@@ -53,5 +53,22 @@ describe("bots.the-room-looks-again-by-the-clock", () => {
 
   it("ботов за столом нет — заглядывать не за кем", () => {
     expect(nextLook(тишина(0, 100), [])).toBe(0);
+  });
+});
+
+// ЧТО СБИВАЕТ ТИШИНУ. Пауза защищает от одного: бот не кладёт карту человеку под руку. Значит и
+// считать надо только то, что двигает ВЕЩИ. Щёлкать замком на чужой руке можно хоть минуту — стол
+// от этого не шевелится, и бот, замирающий от каждого нажатия, выглядит сломанным.
+describe("bots.only-touching-things-breaks-the-silence", () => {
+  it("руки на вещах — тишина сбивается", () => {
+    for (const t of ["grab", "hold", "drop", "release", "grip", "turn", "flip", "arrange", "gather", "massDrop", "pileDrop", "deckMove", "deckDo"]) {
+      expect(stirs({ t }), t).toBe(true);
+    }
+  });
+
+  it("ФЛАГИ, ПОЗЫ И ВЗГЛЯДЫ — НЕ СБИВАЮТ: они к игре отношения не имеют", () => {
+    for (const t of ["flag", "pose", "pick", "unpick", "sit", "stand", "sync", "look", "dealer", "crew", "deckPin", "deckGuard", "deckForever"]) {
+      expect(stirs({ t }), t).toBe(false);
+    }
   });
 });

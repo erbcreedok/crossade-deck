@@ -2334,6 +2334,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         // На стуле лицом наружу — перевёрнутые.
         hand: c.id === seat ? [] : c.hand.filter((card) => !flying.has(card.id)).map((card) => ({ id: card.id, ...(card.up && card.face ? { face: card.face } : {}) })),
         ...(sitter ? { name: sitter.name, ink: sitter.ink } : {}),
+        // ЧЕМ ДУМАЕТ ИГРОК БЕЗ ЧЕЛОВЕКА — прямо на табличке: играя против машины, надо видеть, против какой.
+        ...(sitter?.brain ? { brain: sitter.brain } : {}),
         ...(sitter?.photo ? { face: face(sitter) } : {}),
       };
     });

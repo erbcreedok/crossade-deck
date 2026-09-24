@@ -30,6 +30,18 @@ export interface Match {
    * Внутри круга не меняется, даже если кто-то опустошил руку: в этом вся трудность выигрыша.
    */
   threshold: number;
+  /**
+   * С КАКОГО МЕСТА В КОЛЬЦЕ НАЧАЛСЯ НЫНЕШНИЙ КРУГ. Карты ниже — прошлые круги: их закрывший ещё не
+   * сгрёб, и они лежат в том же кольце.
+   *
+   * Без этого числа тень считала кругом ВСЮ кучу. Несгребённых карт быстро становилось больше, чем
+   * игроков, — и круг оказывался закрытым всегда: положил, круг «закрыт», открываешь снова ты же,
+   * снова закрыт… За живой партией это выглядело так, что один бот выкладывает восемь карт подряд,
+   * а остальные не ходят вовсе.
+   *
+   * На столе этого не написано — обе кучи лежат в одном кольце, — потому и помнит тень.
+   */
+  opened: number;
   /** Вышедшие, в порядке выхода: первый — первый победитель. */
   out: readonly string[];
   /** Кто раздавал эту партию. Партия кончилась — раздаёт проигравший. */
@@ -52,8 +64,14 @@ export type Refusal = "не-твой-ход" | "не-бьёт" | "нечего-�
 const handOf = (board: Board, who: string): readonly Face[] => board.hands[who] ?? [];
 const withCards = (board: Board, ring: readonly string[]): string[] => ring.filter((p) => handOf(board, p).length > 0);
 
-/** Круг таким, каким его видит `krest.ts`: карты со стола, порог из памяти. */
-const circleOf = (m: Match, board: Board): Circle | null => (m.threshold === 0 && board.circle.length === 0 ? null : { table: board.circle, threshold: m.threshold });
+/** КАРТЫ НЫНЕШНЕГО КРУГА — без тех, что закрывший ещё не сгрёб. */
+export const liveCircle = (m: Match, board: Board): readonly Face[] => board.circle.slice(m.opened);
+
+/** Круг таким, каким его видит `krest.ts`: карты нынешнего круга, порог из памяти. */
+const circleOf = (m: Match, board: Board): Circle | null => {
+  const table = liveCircle(m, board);
+  return m.threshold === 0 && table.length === 0 ? null : { table, threshold: m.threshold };
+};
 
 /** Начало партии: ходит тот, у кого шестёрка буби, иначе раздающий. */
 export function start(board: Board, dealer: string | null): Match {
@@ -63,6 +81,7 @@ export function start(board: Board, dealer: string | null): Match {
     turn: firstMover(board.hands as Record<string, readonly Face[]>) ?? dealer ?? ring[0] ?? null,
     closer: null,
     threshold: 0,
+    opened: board.circle.length,
     out: [],
     dealer,
     loser: null,
@@ -87,11 +106,12 @@ export function may(m: Match, board: Board, who: string, mv: Move, faceOf: (id: 
   if (who !== m.turn) return { refused: "не-твой-ход" };
   if (mv.t === "take") {
     if (m.threshold === 0) return { refused: "круг-надо-открыть" };
-    return board.circle.length === 0 ? { refused: "нечего-брать" } : true;
+    return liveCircle(m, board).length === 0 ? { refused: "нечего-брать" } : true;
   }
   const face = faceOf(mv.id);
   if (face === undefined) return { refused: "не-бьёт" };
-  const over = board.circle[board.circle.length - 1];
+  const live = liveCircle(m, board);
+  const over = live[live.length - 1];
   if (m.threshold === 0 || over === undefined) return true;
   return beats(face, over) ? true : { refused: "не-бьёт" };
 }
@@ -105,10 +125,10 @@ export function may(m: Match, board: Board, who: string, mv: Move, faceOf: (id: 
 export function advance(m: Match, board: Board, who: string, how: "laid" | "taken"): Match {
   // КРУГ ОТКРЫЛСЯ ЭТИМ ХОДОМ — порог берётся один раз и держится до закрытия. Положивший считается
   // имевшим карты, даже если положил последнюю: он участник круга, который сам и открыл.
-  const threshold = how === "laid" && m.threshold === 0
-    ? new Set([...withCards(board, m.ring), who]).size
-    : m.threshold;
-  const grown: Match = { ...m, threshold };
+  const открыт = how === "laid" && m.threshold === 0;
+  const threshold = открыт ? new Set([...withCards(board, m.ring), who]).size : m.threshold;
+  // КРУГ ОТКРЫЛСЯ ЭТОЙ КАРТОЙ — значит он начинается с неё, а всё, что лежало ниже, прошлое.
+  const grown: Match = { ...m, threshold, ...(открыт ? { opened: Math.max(0, board.circle.length - 1) } : {}) };
   const circle = circleOf(grown, board);
   if (circle === null || !closed(circle)) return { ...grown, turn: after(m.ring, who) };
 
@@ -117,6 +137,8 @@ export function advance(m: Match, board: Board, who: string, how: "laid" | "take
   const left = withCards(board, m.ring);
   const gone = m.ring.filter((p) => handOf(board, p).length === 0);
   const opener = nextOpener(how === "laid" ? { by: "laid", who } : { by: "taken", who }, m.ring);
+  // ЗАКРЫТЫЙ КРУГ ОСТАЁТСЯ ЛЕЖАТЬ, пока закрывший его не сгребёт руками. Граница переедет сама,
+  // когда откроется следующий: она считается от того, что в кольце на тот миг.
   const shut: Match = { ...grown, threshold: 0, ring: left, out: [...m.out, ...gone], closer: who };
 
   // Партия кончается, когда с картами остался один: он проигравший и он же раздаёт следующую.
@@ -132,5 +154,5 @@ export function allowed(m: Match, board: Board, who: string): { lay: Face[]; tak
   if (m.threshold === 0) return { lay: [...hand], take: false };
   const circle = circleOf(m, board);
   const over = circle === null ? undefined : top(circle);
-  return { lay: over === undefined ? [...hand] : hand.filter((f) => beats(f, over)), take: board.circle.length > 0 };
+  return { lay: over === undefined ? [...hand] : hand.filter((f) => beats(f, over)), take: liveCircle(m, board).length > 0 };
 }
