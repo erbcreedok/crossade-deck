@@ -11,7 +11,7 @@
 // Хранилище при этом одно и то же: слушатели живут в нём, а не на сокете, и сокет под ним меняется.
 
 import { Client, type Room } from "colyseus.js";
-import { DEAL_PRESETS, MSG, PROTOCOL, TABLE_ROOM, type Carry, type DealRule, type CarryOut, type Intent, type JoinOptions, type Patch, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
+import { DEAL_PRESETS, MSG, PROTOCOL, TABLE_ROOM, type Carry, type DealRule, type CarryOut, type Intent, type JoinOptions, type Op, type Patch, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
 import { Freshness, type Pulse } from "../src/table/freshness.js";
 import { applyPatch, needsSync } from "../src/table/patch.js";
 import type { Eye } from "../src/table/eyes.js";
@@ -67,6 +67,9 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     }
   };
 
+  /** Кто слушает поток операций — журнал партии. */
+  const opsHeard: Array<(ops: readonly Op[]) => void> = [];
+
   const take = (patch: Patch) => {
     if (!state) return void early.push(patch);
     if (patch.v <= state.v) return;
@@ -74,6 +77,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     state = applyPatch(state, patch);
     stillHeld();
     tell();
+    for (const heard of opsHeard) heard(patch.ops);
   };
 
   listen<Patch>(MSG.patch, take);
@@ -200,6 +204,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     now: () => Date.now() + skew,
     onChange: (listener) => void changed.push(listener),
     onRefused: (listener) => listen<Refused>(MSG.refused, (msg) => listener(msg.intent, msg.why)),
+    onOps: (listener) => opsHeard.push(listener),
     onGone: (listener) => void gone.push(listener),
     onLink: (listener) => void linked.push(listener),
   };

@@ -50,10 +50,16 @@ export function localStore(): TableStore {
   const changed: (() => void)[] = [];
   const refused: ((intent: Intent, why: Refusal) => void)[] = [];
 
+  /** Кто слушает поток операций — журнал партии. */
+  const opsHeard: Array<(ops: readonly Op[]) => void> = [];
+
   const spread = (ops: Op[]) => {
     if (ops.length === 0) return;
-    state = applyPatch(state, { v: table.version, ops: ops.map((op) => table.seenOp(op, me.key)) });
+    // Операции режутся под меня ровно как в сети: стенд не должен показывать больше живого стола.
+    const mine = ops.map((op) => table.seenOp(op, me.key));
+    state = applyPatch(state, { v: table.version, ops: mine });
     for (const listener of changed) listener();
+    for (const heard of opsHeard) heard(mine);
   };
 
   return {
@@ -94,6 +100,7 @@ export function localStore(): TableStore {
     now: () => Date.now(),
     onChange: (listener) => void changed.push(listener),
     onRefused: (listener) => void refused.push(listener),
+    onOps: (listener) => void opsHeard.push(listener),
     onGone: () => {},
   };
 }

@@ -35,6 +35,7 @@ import { tableCompass } from "./compass.js";
 import { barHeightU, handBoxOf, handPlan, handWideOf, hudUnitOf, mineGeomOf } from "./handGeom.js";
 import { flipIn, pileOf, predict as predictAs, sideIn, whereIs, type BatchIntent } from "./optimistic.js";
 import { doubleTap, type Tap } from "./tap.js";
+import { journal } from "./journal.js";
 
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
@@ -191,6 +192,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     section: null as Section | null,
     sectionFrom: null as Section | null,
     sectionAt: -Infinity,
+    /** Открыт журнал партии — окно «кто что когда». */
+    journal: false,
     /** Открыт вопрос «Покинуть стул?». */
     confirmLeave: false,
     /** Открытые окна стульев — id стульев, по порядку открытия. */
@@ -252,6 +255,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * `key` — место, где карта была, когда его открыли: карта уехала — тултип закрыт.
    */
   let cardTip: { id: string; key: string } | null = null;
+  /** ЖУРНАЛ ПАРТИИ. Копит записи из потока операций — тех самых, что уже прорезаны под меня. */
+  const book = journal();
   /** Прошлый тап по карте — для двойного: и по какой карте, и КУДА пришёлся палец. */
   let lastTap: Tap | null = null;
   /**
@@ -2403,7 +2408,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // колебание его голоса — кольца живут на холсте, а не здесь. Переписывать при этом `innerHTML` значит
     // десятки раз в секунду выбрасывать кнопки из-под пальца: нажатие начинается на одной, а заканчивается
     // на другой, и до onclick дело не доходит вовсе — заглушить говорящего было нельзя, пока он не замолчит.
-    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + compass.html(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml();
+    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + compass.html(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml() + journalHtml(s);
     if (html !== lastOver) {
       lastOver = html;
       over.innerHTML = html;
@@ -2564,6 +2569,41 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     return { label: `${rank}${SUITS[suit][0]}`, ink };
   }
 
+  /**
+   * ЖУРНАЛ ПАРТИИ — кто что когда сделал.
+   *
+   * Показывает РОВНО ТО, ЧТО ВИДНО И ТАК: лицо карты стоит в строке, только если стол его этому
+   * игроку показал (`journal.ts`). Ушла в закрытую стопку или в чужую скрытую руку — рубашка.
+   */
+  function journalHtml(s: Snapshot): string {
+    if (!local.journal) return "";
+    const deeds = [...book.all()].reverse();
+    const карта = (face: Face | null): string => {
+      if (face === null) return `<span style="color:${MENTION_INK.back}">🂠</span>`;
+      if (face.rank === "JK") return `<span style="color:${face.suit === "b" ? MENTION_INK.black : MENTION_INK.red}">${look.cyrillic ? "ДЖ" : "JK"}</span>`;
+      const rank = look.cyrillic ? ({ J: "В", Q: "Д", K: "К", A: "Т" } as Record<string, string>)[face.rank] ?? face.rank : face.rank;
+      const suit = face.suit as "s" | "h" | "d" | "c";
+      const ink = look.fourColour ? MENTION_INK.four[suit] : suit === "h" || suit === "d" ? MENTION_INK.red : MENTION_INK.black;
+      return `<span style="color:${ink}">${escape(rank)}${SUITS[suit][0]}</span>`;
+    };
+    const час = (at: number) => new Date(at).toLocaleTimeString("ru-RU", { hour12: false }).slice(0, 5);
+    const строки = deeds.length === 0
+      ? `<div style="padding:18px 14px;color:${T.inkDim};text-align:center">Пока ничего не происходило.</div>`
+      : deeds.map((one) => {
+        const кто = one.who ? `<b style="color:${one.ink ?? T.ink};font-weight:600">${escape(one.who)}</b> ` : "";
+        const карты = one.cards ? ` ${one.cards.map(карта).join(" ")}` : one.count !== undefined ? ` <span style="color:${T.inkDim}">${one.count} шт.</span>` : "";
+        return `<div style="padding:7px 14px;border-top:1px solid ${BAR_LOOK.rim};display:flex;gap:8px;align-items:baseline">`
+          + `<span style="color:${T.inkDim};font:400 11px Tiny5,monospace;flex:0 0 auto">${час(one.at)}</span>`
+          + `<span style="flex:1 1 auto;min-width:0">${кто}${escape(one.says)}${карты}</span></div>`;
+      }).join("");
+    const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
+    // Окно висит под своей кнопкой и не закрывает стол целиком: партия продолжается, пока читают.
+    return `<div data-g="journal" style="position:absolute;left:12px;right:12px;top:calc(60px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));`
+      + `max-height:min(52vh,420px);overflow-y:auto;z-index:62;border-radius:14px;font:400 13px/1.45 Tiny5,monospace;color:${T.ink};${plate}">`
+      + `<div style="padding:9px 14px;color:${T.inkDim};font-size:11px;position:sticky;top:0;${plate};border-radius:14px 14px 0 0">`
+      + `Журнал · видно только то, что видно за столом</div>${строки}</div>`;
+  }
+
   /** НАСТРОЙКИ — шестерёнка сверху; окно — своим слоем (`settings.ts`). */
   function settingsHtml(): string {
     const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
@@ -2571,11 +2611,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">`
       + `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
       + `<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`;
+    // ЖУРНАЛ ПАРТИИ — рядом с шестерёнкой: кто что когда сделал, словами и только то, что видно.
+    const book = `<button data-journal aria-label="Журнал партии" aria-expanded="${local.journal}" style="position:absolute;left:60px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:40px;height:40px;border:0;padding:0;z-index:61;`
+      + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">`
+      + `<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="${local.journal ? T.gold : "white"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
+      + `<path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h7M8 11h7M8 15h4"/></svg></button>`;
     // ПЛАШКА С ИМЕНЕМ КОМНАТЫ — шапку Telegram не поменять, она из BotFather; имя стола висит своей плашкой.
-    const name = `<div data-table-name style="position:absolute;left:60px;right:12px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));height:40px;z-index:60;`
+    //
+    // ОТСТУПЫ СИММЕТРИЧНЫ, и это не вкусовщина: слева две кнопки по 40, справа компас на 52, и имя,
+    // центрованное по остатку, уезжало вбок. Центр плашки должен быть центром ЭКРАНА, а не центром
+    // того, что осталось между кнопками.
+    const name = `<div data-table-name style="position:absolute;left:108px;right:108px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));height:40px;z-index:60;`
       + `display:flex;align-items:center;justify-content:center;pointer-events:none"><span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`
       + `padding:0 12px;border-radius:12px;font:400 13px Tiny5,monospace;color:${T.ink};line-height:28px;${plate}">${escape(store.title)}</span></div>`;
-    return gear + name;
+    return gear + book + name;
   }
 
   // ── ЧУЖИЕ РУКИ В ВОЗДУХЕ И ПЕРЕЛЁТЫ ────────────────────────────────────────────────────────────
@@ -3396,6 +3445,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         draw();
       };
     }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-journal]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        local.journal = !local.journal;
+        draw();
+      };
+    }
     for (const el of over.querySelectorAll<HTMLElement>("[data-settings]")) {
       el.onclick = (e) => {
         e.stopPropagation();
@@ -3617,6 +3673,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     clearTimeout(whyTimer);
     whyTimer = setTimeout(() => (whyNote.style.opacity = "0"), 2200);
   };
+
+  // ЖУРНАЛ ВЕДЁТСЯ ВСЕГДА, открыт он или нет: иначе открывший увидел бы пустоту и решил, что
+  // ничего не было. Перерисовываем только когда он на виду — незачем трогать экран ради записи,
+  // которую никто не читает.
+  store.onOps?.((ops) => {
+    if (book.take(ops, seen(), Date.now()) && local.journal) draw();
+  });
 
   store.onRefused((intent: Intent, refusal: Refusal) => {
     sayWhy(refusal);

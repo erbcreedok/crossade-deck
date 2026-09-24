@@ -4,7 +4,7 @@
 // (`localStore`, стенд). Он читает снимок, шлёт намерения и слушает, когда снимок сменился. Отказ
 // сервера приходит тем же путём: снимок снова тот, что был, — и экран просто рисует его.
 
-import type { IceServer, Carry, CarryOut, DealRule, Intent, Person, Refusal, Seen, Snapshot, TableCommand } from "../src/table/contract.js";
+import type { IceServer, Carry, CarryOut, DealRule, Intent, Op, Person, Refusal, Seen, Snapshot, TableCommand } from "../src/table/contract.js";
 import type { Eye, Spot } from "../src/table/eyes.js";
 import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 
@@ -57,6 +57,15 @@ export interface TableStore {
   onStickers(listener: (ids: string[]) => void): void;
   /** Снимок сменился (дифом, синком или отказом) или сдвинулся чужой палец в воздухе. */
   onChange(listener: () => void): void;
+  /**
+   * ЧТО ПРОИЗОШЛО НА СТОЛЕ — теми же операциями, какими их прислал стол. Из них экран ведёт журнал
+   * партии (`journal.ts`).
+   *
+   * Важно, что это ИМЕННО операции, а не снимок: операции уже прорезаны под зрителя (`seenOp`), и
+   * лица карты, которой он не видел, в них нет. Собирая журнал из снимка, эту границу пришлось бы
+   * проводить заново — и однажды провести неверно.
+   */
+  onOps?(listener: (ops: readonly Op[]) => void): void;
   /** Намерение не случилось — экран отпускает то, что держал. */
   onRefused(listener: (intent: Intent, why: Refusal) => void): void;
   /** Стола больше нет: его закрыли в боте, или сервер ушёл и вернуться не вышло. */
