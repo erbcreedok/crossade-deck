@@ -46,6 +46,27 @@ function say(text: string): void {
   note.hidden = false;
 }
 
+/**
+ * ЗАКРЫТЫЙ СТОЛ — ЭКРАН, А НЕ СТРОКА ОШИБКИ.
+ *
+ * По старой ссылке человек попадал сюда молча: раньше — за подменённый стол с чужим именем, потом —
+ * на голую строку посреди чёрного поля. И то и другое читается как поломка. Закрытый стол — не
+ * поломка, а обычный конец: стол убрали, и об этом надо сказать так же спокойно, как сказал бы
+ * человек за настоящим столом.
+ */
+function closedTable(): void {
+  const note = document.getElementById("note")!;
+  note.innerHTML = `<div style="max-width:320px;display:flex;flex-direction:column;gap:14px;align-items:center">`
+    + `<div style="width:76px;height:76px;border-radius:50%;display:grid;place-items:center;`
+    + `background:linear-gradient(#2a3a30,#16231d);box-shadow:inset 0 0 0 3px #0b0704,inset 0 0 0 5px #3c5245">`
+    + `<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#cdb98f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">`
+    + `<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>`
+    + `<div style="font-size:18px;color:#f5ead0">Стол закрыт</div>`
+    + `<div style="font-size:14px;line-height:1.5;color:#9aa3a1">Его убрали со стола. Карты этой партии уже не вернуть — открой новый стол в чате с ботом.</div>`
+    + `</div>`;
+  note.hidden = false;
+}
+
 async function open(): Promise<TableStore> {
   if (params.has("stand")) return localStore();
   const room = telegram?.initDataUnsafe.start_param || params.get("room") || params.get("tgWebAppStartParam");
@@ -122,6 +143,6 @@ open()
     witness.tell();
     // ЗАКРЫТЫЙ СТОЛ — ОТДЕЛЬНОЕ СЛОВО. Раньше по старой ссылке молча заводился новый стол, и человек
     // не понимал, куда делся его: имя другое, карт нет, и он там никто.
-    if (text.includes(ROOM_CLOSED)) return void say("Этот стол закрыли. Открой новый в чате с ботом.");
+    if (text.includes(ROOM_CLOSED)) return void closedTable();
     say(/who are you|unsigned/.test(text) ? "Сюда так не войти. Открой стол по ссылке из чата." : text);
   });
