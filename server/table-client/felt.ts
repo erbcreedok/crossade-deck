@@ -7,6 +7,7 @@
 import { apply, invert, type Transform } from "../../game-kit/src/core/transform.js";
 import type { Face, ZonePose } from "../src/table/contract.js";
 import { CROUPIER_RADIUS, RING_LAY, RING_SPREAD, ringTurned, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
+import { ringTurnOfSeat } from "../src/table/bots/view.js";
 
 export interface Pose {
   fan: boolean;
@@ -472,34 +473,38 @@ function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: stri
   }
 }
 
-/** Стрелка ожидания: насколько далеко от стула к середине стола и какого размера. */
-const TURN_MARK = { at: -1.5, w: 0.62, h: 0.78, line: 0.1 };
+/** Стрелка ожидания: насколько она вынесена за кромку круга и какого размера. */
+const TURN_MARK = { out: 0.75, w: 0.62, h: 0.9, line: 0.11 };
 
 /**
- * СТРЕЛКА ОЖИДАНИЯ — «ходит он». Стоит перед стулом, между хозяином и кругом, и смотрит на круг:
- * от игрока к столу идёт действие, которого ждут.
+ * СТРЕЛКА ОЖИДАНИЯ — «ходит он». Стоит НА КРОМКЕ КРУГА, в секторе того, от кого ждут действия, и
+ * смотрит наружу — на него.
+ *
+ * Круг, а не стул, — потому что во время партии смотрят в круг: там лежит, чем бьют, и там же
+ * кончается ход. Стрелка у стула заставляла бы шарить глазами по столу в поисках того, кто ходит;
+ * на кромке круга она попадает в тот же взгляд, каким читают карты.
  *
  * Она ничего не держит и ничему не мешает — ни одна зона приёма её не касается. Это подсказка того
  * же рода, что подсветка карт в руке: стол проговаривает вслух то, о чём за живым столом спрашивают
  * соседа. Гасится правилом стола (`TableRules.turnMark`).
  */
 function turnMark(g: CanvasRenderingContext2D, ink: string): void {
-  const { at, w, h, line } = TURN_MARK;
+  const { w, h, line } = TURN_MARK;
   g.save();
-  g.translate(0, at);
+  // Рисуется в осях круга: -y — наружу, к тому, кого ждут; +y — в середину круга.
   g.beginPath();
-  // Древко.
-  g.moveTo(0, -h / 2);
-  g.lineTo(0, h * 0.1);
+  // Древко — от круга наружу.
+  g.moveTo(0, h / 2);
+  g.lineTo(0, -h * 0.1);
   g.lineWidth = line;
   g.strokeStyle = ink;
   g.lineCap = "round";
   g.stroke();
-  // Наконечник — к столу.
+  // Наконечник — В ИГРОКА: «ждут тебя».
   g.beginPath();
-  g.moveTo(-w / 2, h * 0.02);
-  g.lineTo(w / 2, h * 0.02);
-  g.lineTo(0, h / 2);
+  g.moveTo(-w / 2, -h * 0.02);
+  g.lineTo(w / 2, -h * 0.02);
+  g.lineTo(0, -h / 2);
   g.closePath();
   g.fillStyle = ink;
   g.fill();
@@ -750,6 +755,18 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
         arrows[pile.id] = { turn: первая, spread: RING_LAY, x: pile.x, y: pile.y };
         ringArrowFromMiddle(g, первая);
       }
+      // ЖДУТ ЕГО — стрелка на кромке круга, в секторе этого игрока и в его цвете.
+      //
+      // Место сектора — то же, куда сам игрок кладёт карту (`ringTurnOfSeat`): человек ищет свою
+      // сторону круга там, где привык её видеть, а не там, где удобнее было рисовать.
+      const ждут = people.find((one) => one.awaited && !one.croupier);
+      if (ждут) {
+        g.save();
+        g.rotate((ringTurnOfSeat(ждут.angle) * Math.PI) / 180);
+        g.translate(0, -(RING_SPREAD + TURN_MARK.out));
+        turnMark(g, ждут.ink ?? SEAT.ink);
+        g.restore();
+      }
       g.restore();
     } else if (cards.length === 0) {
       g.save();
@@ -792,8 +809,6 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     const sitter = who.name !== undefined && who.ink !== undefined ? (who as Seat & { name: string; ink: string }) : null;
     if (sitter) chair(g, sitter);
     else emptyChair(g);
-    // ЖДУТ ЕГО — стрелка перед стулом, в его цвете: видно, от кого стол ждёт действия.
-    if (who.awaited) turnMark(g, sitter?.ink ?? SEAT.ink);
     posePlan(who.pose ?? { fan: false, shrink: false, tuck: false }, who.cards).forEach((p, i) => {
       g.save();
       g.translate(p.at.x, p.at.y);
