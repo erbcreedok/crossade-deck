@@ -36,7 +36,7 @@ import { barHeightU, handBoxOf, handPlan, handWideOf, hudUnitOf, mineGeomOf } fr
 import { flipIn, pileOf, predict as predictAs, sideIn, whereIs, type BatchIntent } from "./optimistic.js";
 import { doubleTap, type Tap } from "./tap.js";
 import { journal } from "./journal.js";
-import type { Minds } from "../src/table/contract.js";
+import type { BotAct, Minds } from "../src/table/contract.js";
 
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
@@ -193,6 +193,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     section: null as Section | null,
     sectionFrom: null as Section | null,
     sectionAt: -Infinity,
+    /** У какого стула раскрыто «кто это» — чем думает, какой характер, сколько сыграл. */
+    mindInfo: null as string | null,
     /** Открыт журнал партии — окно «кто что когда». */
     journal: false,
     /** Открыт вопрос «Покинуть стул?». */
@@ -1331,6 +1333,47 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * ОКНО КРУПЬЕ. HUD не меняется ни у кого — вся разница здесь: админ видит кнопки («собрать», «колода на стол»,
    * «раздать»), игрок — только то, что админ ему оставил, то есть состояние руки.
    */
+  /**
+   * ОКНО ИГРОКА БЕЗ ЧЕЛОВЕКА — под его рукой, как окно крупье под своей.
+   *
+   * Две части: КТО ЭТО (чем думает, какой характер, сколько сыграл) и ЧТО С НИМ СДЕЛАТЬ (толкнуть,
+   * оборвать мысль, увести). Первая видна всем — играя против машины, надо знать, против какой;
+   * вторая только распорядителю, потому что сажал ботов он.
+   *
+   * Это окно нарочно не названо «ботовым»: у стула оно одно, и у человека в нём встанет своё —
+   * сколько сыграно, с кем дружит. Поэтому и кнопка зовётся «инфо», а не «про бота».
+   */
+  function mindActsHtml(s: Snapshot, chair: Chair, box: { left: number; top: number; w: number; height: number }): string {
+    const mind = minds.find((one) => one.chair === chair.id);
+    if (!mind) return "";
+    const admin = iMay(s, "table.seats");
+    const act = (what: string, label: string) =>
+      `<button data-bot="${what}" data-chair="${escape(chair.id)}" style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
+      + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">${label}</button>`;
+    const строка = (ключ: string, знач: string) =>
+      `<div style="display:flex;gap:8px;justify-content:space-between"><span style="color:${T.inkDim}">${ключ}</span><span>${escape(знач)}</span></div>`;
+    const мс = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)} с` : `${n} мс`);
+    const кто = local.mindInfo === chair.id
+      ? `<div style="display:flex;flex-direction:column;gap:3px;font:400 11px Tiny5,monospace;color:${T.ink};width:100%;margin-bottom:2px">`
+        + строка("думает", mind.brain)
+        + строка("характер", mind.profile)
+        + строка("пауза", мс(mind.waitMs))
+        + строка("ходов", String(mind.moves))
+        + (mind.failed > 0 ? строка("срывов", String(mind.failed)) : "")
+        + (mind.lastSays ? строка("прошлый ход", mind.lastSays) : "")
+        + (mind.lastWhy ? `<div style="color:${MENTION_INK.red}">${escape(mind.lastWhy)}</div>` : "")
+        + `</div>`
+      : "";
+    const инфо = `<button data-mind-info="${escape(chair.id)}" aria-label="Кто это" aria-expanded="${local.mindInfo === chair.id}" style="border:0;cursor:pointer;font:400 12px Tiny5,monospace;`
+      + `border-radius:50%;width:26px;height:26px;background:${local.mindInfo === chair.id ? T.gold : T.wood};color:${T.black}">i</button>`;
+    return `<div data-mind-acts style="position:absolute;left:${box.left}px;top:${box.top + box.height + 8}px;width:${box.w}px;box-sizing:border-box;z-index:41;`
+      + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:10px;`
+      + `display:flex;flex-wrap:wrap;gap:6px;align-items:center">`
+      + кто + инфо
+      + (admin ? act("nudge", "Походи") + act("cancel", "Оборвать мысль") + act("kick", "Увести") : "")
+      + `</div>`;
+  }
+
   function croupierActsHtml(s: Snapshot, chair: Chair, box: { left: number; top: number; w: number; height: number }): string {
     if (!chair.croupier || !iMay(s, "table.croupier")) return "";
     const act = (what: string, label: string) =>
@@ -1475,7 +1518,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         + `height:${box.top + box.height - 5 - (box.rowTop + 8 + box.ch * TIP_TUCK)}px;z-index:${42 + cards.length + gaps.length};background:${T.well};`
         + `border-radius:0 0 8px 8px;box-shadow:inset 0 3px 0 -1px ${T.black}"></div>`
       : "";
-    return { shell: shell + croupierActsHtml(s, chair, box), cards: layHand(geom, cards, gaps, chair.id, heldInk(s), closed(s, chair.id)) + curtain };
+    return { shell: shell + croupierActsHtml(s, chair, box) + mindActsHtml(s, chair, box), cards: layHand(geom, cards, gaps, chair.id, heldInk(s), closed(s, chair.id)) + curtain };
   }
 
   /**
@@ -3494,6 +3537,22 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     for (const el of over.querySelectorAll<HTMLElement>(String.raw`[data-g="journal"]`)) {
       el.onpointerdown = (e) => e.stopPropagation();
       el.onwheel = (e) => e.stopPropagation();
+    }
+    // КТО ЭТО — раскрыть или свернуть карточку игрока под его рукой.
+    for (const el of over.querySelectorAll<HTMLElement>("[data-mind-info]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const chair = el.dataset["mindInfo"]!;
+        local.mindInfo = local.mindInfo === chair ? null : chair;
+        draw();
+      };
+    }
+    // УПРАВЛЕНИЕ ИГРОКОМ БЕЗ ЧЕЛОВЕКА — те же намерения, что и всё остальное: стол решает, можно ли.
+    for (const el of over.querySelectorAll<HTMLElement>("[data-bot]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        store.send({ t: "bot", chair: el.dataset["chair"]!, act: el.dataset["bot"] as BotAct });
+      };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-journal]")) {
       el.onclick = (e) => {

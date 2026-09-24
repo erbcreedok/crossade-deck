@@ -428,15 +428,20 @@ function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: stri
   g.strokeStyle = who.ink;
   g.stroke();
   g.restore();
-  // ЧЕМ ДУМАЕТ — ВТОРОЙ СТРОЧКОЙ, мельче и приглушённо: имя остаётся главным, но за столом сразу
-  // видно, кто из соседей машина и какая именно. У людей строчки нет вовсе.
+  // ЧЕМ ДУМАЕТ — ВТОРОЙ СТРОЧКОЙ: значок машины и название мозга. Имя остаётся главным и стоит
+  // ровно по центру, как у людей; машинное — ниже, мельче и в цвете игрока.
+  //
+  // Значок стоит именно здесь, а не у имени: у имени он налезал на первую букву — ширина таблички
+  // считается по среднему кеглю, а настоящая ширина надписи от него отличается. Рядом с мозгом он и
+  // по смыслу на месте: это одна мысль — «машина, и вот какая».
   const мозг = who.brain ?? "";
   const мозгEm = PLATE_EM * 0.74;
-  // МАШИНА ОТЛИЧАЕТСЯ ЗНАЧКОМ, а не только подписью: имя читают, значок узнают. За столом надо
-  // понимать, кто перед тобой, боковым зрением — не вчитываясь в мелкую строчку.
-  const значок = мозг ? PLATE_EM * 0.92 : 0;
-  const wide = Math.max([...who.name].length * PLATE_EM + значок * 1.3, [...мозг].length * мозгEm);
-  const w = Math.max(1, wide + 2 * PLATE.padX);
+  const значок = мозг ? мозгEm * 1.05 : 0;
+  g.font = `${PLATE_EM}px Tiny5, monospace`;
+  const имяW = g.measureText(who.name).width;
+  g.font = `${мозгEm}px Tiny5, monospace`;
+  const мозгW = мозг ? g.measureText(мозг).width + значок * 1.5 : 0;
+  const w = Math.max(1, Math.max(имяW, мозгW) + 2 * PLATE.padX);
   const h = (мозг ? PLATE_EM * 1.6 + мозгEm * 1.15 : PLATE_EM * 1.6) + 2 * PLATE.padY;
   roundRect(g, -w / 2, PLATE.at - h / 2, w, h, h * 0.3);
   g.fillStyle = SEAT.black;
@@ -448,15 +453,15 @@ function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: stri
   g.textAlign = "center";
   g.textBaseline = "middle";
   g.font = `${PLATE_EM}px Tiny5, monospace`;
-  const имяY = PLATE.at - (мозг ? мозгEm * 0.6 : 0);
-  // Имя сдвигается вправо ровно на значок — чтобы пара «значок + имя» стояла по центру таблички.
-  g.fillText(who.name, значок ? значок * 0.65 : 0, имяY);
+  g.fillText(who.name, 0, PLATE.at - (мозг ? мозгEm * 0.6 : 0));
   if (мозг) {
-    const имяW = g.measureText(who.name).width;
-    computerGlyph(g, -имяW / 2 - значок * 0.35, имяY, значок, who.ink);
+    const строкаY = PLATE.at + PLATE_EM * 0.68;
     g.font = `${мозгEm}px Tiny5, monospace`;
     g.fillStyle = who.ink;
-    g.fillText(мозг, 0, PLATE.at + PLATE_EM * 0.68);
+    // Значок слева, мозг справа — пара стоит по центру таблички как одно целое.
+    const мозгТекстW = g.measureText(мозг).width;
+    g.fillText(мозг, значок * 0.75, строкаY);
+    computerGlyph(g, -мозгТекстW / 2 - значок * 0.2, строкаY, значок, who.ink);
   }
 }
 
@@ -469,7 +474,9 @@ function computerGlyph(g: CanvasRenderingContext2D, x: number, y: number, size: 
   const h = size * 0.78;
   g.save();
   g.translate(x, y);
-  g.lineWidth = Math.max(0.6, size * 0.1);
+  // Толщина — В ЕДИНИЦАХ СТОЛА, как у рамки таблички (`PLATE.line`), а не в пикселях. Пиксельный
+  // пол здесь превращал значок в жирную кляксу: 0.6 единицы — это больше полкарты.
+  g.lineWidth = PLATE.line * 0.7;
   g.strokeStyle = ink;
   g.fillStyle = ink;
   // Экран.
