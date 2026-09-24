@@ -56,6 +56,14 @@ export interface Board {
   hands: Readonly<Record<string, readonly Face[]>>;
   /** Круг снизу вверх: `circle[0]` — нижняя, последняя — верхняя. */
   circle: readonly Face[];
+  /**
+   * СТУЛЬЯ ПО КРУГУ СТОЛА — в том же порядке, в каком по ним идёт раздача.
+   *
+   * Без этого очередь шла по ИМЕНАМ стульев (`c3, c4, c5, c6`), а имена к рассадке отношения не
+   * имеют: стулья двигают, пересаживают, добавляют. За живой партией ход метался через стол —
+   * «шесть часов → двенадцать → три → девять» — и понять его было нельзя.
+   */
+  order: readonly string[];
 }
 
 export type Move = { t: "lay"; id: string } | { t: "take" };
@@ -75,7 +83,8 @@ const circleOf = (m: Match, board: Board): Circle | null => {
 
 /** Начало партии: ходит тот, у кого шестёрка буби, иначе раздающий. */
 export function start(board: Board, dealer: string | null): Match {
-  const ring = Object.keys(board.hands).filter((who) => handOf(board, who).length > 0);
+  // КОЛЬЦО — ПО РАССАДКЕ, а не по именам стульев: очередь обходит стол, а не скачет по нему.
+  const ring = board.order.filter((who) => handOf(board, who).length > 0);
   return {
     ring,
     turn: firstMover(board.hands as Record<string, readonly Face[]>) ?? dealer ?? ring[0] ?? null,

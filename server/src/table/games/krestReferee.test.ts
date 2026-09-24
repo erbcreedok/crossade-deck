@@ -17,7 +17,7 @@ function стол(hands: Record<string, Face[]>, circle: Face[] = []) {
   const board = { hands, circle };
   const seats: Seats = {
     get chairs() {
-      return Object.keys(board.hands).map((chair) => ({ id: chair, owner: `кто:${chair}`, hand: (board.hands[chair] ?? []).map(id) }));
+      return Object.keys(board.hands).map((chair) => ({ id: chair, owner: `кто:${chair}`, hand: (board.hands[chair] ?? []).map(id), angle: 0 }));
     },
     faceOf: (one) => [...Object.values(board.hands).flat(), ...board.circle].find((f) => id(f) === one),
     pile: (p) => (p === RING ? board.circle.map(id) : []),
@@ -85,5 +85,47 @@ describe("referee.a-move-is-only-between-my-hand-and-the-ring", () => {
     ref.start(t.seats, "a");
     t.board.hands["a"] = [c("A", "s"), c("K", "h")];
     expect(ref.play(t.seats, t.who("a"))?.lay.length, "две выданные карты, а не запомненная одна").toBe(2);
+  });
+});
+
+// ОЧЕРЕДЬ ОБХОДИТ СТОЛ, А НЕ СКАЧЕТ ПО НЕМУ.
+//
+// Кольцо строилось из имён стульев (`c3, c4, c5, c6`), а имена к рассадке отношения не имеют:
+// стулья двигают, пересаживают, добавляют. За живой партией владельца ход шёл «шесть часов →
+// двенадцать → три → девять» — через стол, и понять его было нельзя.
+describe("referee.the-turn-goes-around-the-table", () => {
+  /** Стол с настоящими углами той самой партии: c3 внизу, c6 справа, c4 наверху, c5 слева. */
+  function рассадка() {
+    const hands: Record<string, Face[]> = { c3: [c("6", "d")], c4: [c("7", "d")], c5: [c("8", "d")], c6: [c("9", "d")] };
+    const углы: Record<string, number> = { c3: 0, c6: 90, c4: 180, c5: 270 };
+    const circle: Face[] = [];
+    const seats: Seats = {
+      get chairs() {
+        return Object.keys(hands).map((chair) => ({ id: chair, owner: `кто:${chair}`, hand: (hands[chair] ?? []).map(id), angle: углы[chair]! }));
+      },
+      faceOf: (one) => [...Object.values(hands).flat(), ...circle].find((f) => id(f) === one),
+      pile: (p) => (p === RING ? circle.map(id) : []),
+    };
+    return { hands, circle, seats };
+  }
+
+  it("ход идёт ПО ЧАСОВОЙ по углам стульев, а не по их номерам", () => {
+    const t = рассадка();
+    const ref = krestReferee();
+    ref.start(t.seats, "c3");
+    const порядок: string[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      const turn = ref.view(t.seats)!.turn!;
+      const chair = turn.replace("кто:", "");
+      порядок.push(chair);
+      const карта = t.hands[chair]![0]!;
+      t.hands[chair] = [];
+      t.circle.push(карта);
+      ref.follow(t.seats, turn, { t: "drop", id: id(карта), to: { in: "deck", pile: RING } });
+    }
+    // Шесть часов → девять → двенадцать → три: стол обходится кругом.
+    expect(порядок).toEqual(["c3", "c5", "c4", "c6"]);
+    // А по именам вышло бы «c3 → c4 → c5 → c6» — метание через стол.
+    expect(порядок).not.toEqual(["c3", "c4", "c5", "c6"]);
   });
 });

@@ -24,7 +24,14 @@ function boardOf(seats: Seats): Board {
     hands[chair.id] = chair.hand.map((id) => seats.faceOf(id)).filter((f): f is Face => f !== undefined);
   }
   const circle = seats.pile(RING).map((id) => seats.faceOf(id)).filter((f): f is Face => f !== undefined);
-  return { hands, circle };
+  // ПО ЧАСОВОЙ СТРЕЛКЕ, как идёт раздача: угол стула считается от шести часов по часовой, а
+  // по-настоящему по часовой стол обходят, УБЫВАЯ по этому углу (шесть → девять → двенадцать → три).
+  const order = seats.chairs
+    .filter((chair) => !chair.croupier)
+    .slice()
+    .sort((a, b) => b.angle - a.angle)
+    .map((chair) => chair.id);
+  return { hands, circle, order };
 }
 
 export function krestReferee(): Referee {

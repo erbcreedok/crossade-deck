@@ -39,7 +39,7 @@ function стол(players: string[], perHand: number) {
   const circle: string[] = [];
   const seats: Seats = {
     get chairs() {
-      return players.map((chair) => ({ id: chair, owner: `кто:${chair}`, hand: [...(hands[chair] ?? [])] }));
+      return players.map((chair) => ({ id: chair, owner: `кто:${chair}`, hand: [...(hands[chair] ?? [])], angle: 0 }));
     },
     faceOf: (one) => faces.get(one),
     pile: (p) => (p === RING ? [...circle] : []),

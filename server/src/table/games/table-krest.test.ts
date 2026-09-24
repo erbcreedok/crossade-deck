@@ -36,7 +36,7 @@ function krestTable(keys: string[]) {
   return {
     t,
     open: (dealer: string | null) => {
-      match = start({ hands: hands(), circle: ring() }, dealer);
+      match = start({ hands: hands(), circle: ring(), order: Object.keys(hands()) }, dealer);
       return match;
     },
     get match() {

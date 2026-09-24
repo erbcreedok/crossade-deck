@@ -9,7 +9,7 @@ import type { Face } from "../contract.js";
 import type { Seats } from "../referee.js";
 import { RING } from "../games/krest.js";
 import { start, type Board, type Match } from "../games/match.js";
-import { botView, legalMoves } from "./view.js";
+import { botView, legalMoves, ringTurnOfSeat } from "./view.js";
 
 const c = (rank: string, suit: Face["suit"]): Face => ({ rank, suit });
 const id = (f: Face) => `${f.rank}${f.suit}`;
@@ -18,12 +18,12 @@ function стол(hands: Record<string, Face[]>, circle: Face[] = []) {
   const board = { hands, circle };
   const seats: Seats = {
     get chairs() {
-      return Object.keys(board.hands).map((chair) => ({ id: chair, owner: `кто:${chair}`, hand: (board.hands[chair] ?? []).map(id) }));
+      return Object.keys(board.hands).map((chair) => ({ id: chair, owner: `кто:${chair}`, hand: (board.hands[chair] ?? []).map(id), angle: 0 }));
     },
     faceOf: (one) => [...Object.values(board.hands).flat(), ...board.circle].find((f) => id(f) === one),
     pile: (p) => (p === RING ? board.circle.map(id) : []),
   };
-  const m: Match = start({ hands, circle } as Board, "a");
+  const m: Match = start({ hands, circle, order: Object.keys(hands) } as Board, "a");
   return { board, seats, m };
 }
 
@@ -71,5 +71,27 @@ describe("bots.a-bot-picks-from-a-legal-list", () => {
     // `opened: 0` — карта в кольце принадлежит ЭТОМУ кругу, а не прошлому несгребённому.
     const m: Match = { ...t.m, turn: "a", threshold: 2, opened: 0 };
     expect(legalMoves(t.seats, m, "a")).toEqual([{ t: "take", id: id(c("6", "d")), card: c("6", "d"), to: { in: "hand", chair: "a", i: 0 } }]);
+  });
+});
+
+// КАРТА БОТА ЛОЖИТСЯ ПЕРЕД ЕГО СТУЛОМ.
+//
+// Без угла все боты целятся в один и тот же ноль: их карты сбиваются в ком у севера стола, круг
+// перестаёт читаться как круг, и за живой партией это выглядит кучей в углу кольца.
+describe("bots.a-bot-lays-in-front-of-its-own-seat", () => {
+  it("угол стула переводится в угол круга зеркалом", () => {
+    // Круг считается от СЕВЕРА, стул — от ШЕСТИ ЧАСОВ, обе стрелки по часовой.
+    expect(ringTurnOfSeat(0), "свой стул (юг) — карта ложится на юге круга").toBe(180);
+    expect(ringTurnOfSeat(180), "напротив (север) — на севере").toBe(0);
+    expect(ringTurnOfSeat(90), "справа — справа").toBe(90);
+    expect(ringTurnOfSeat(270), "слева — слева").toBe(270);
+  });
+
+  it("в ход бота угол проставлен, а не брошен на усмотрение стола", () => {
+    const t = стол({ a: [c("6", "d")], b: [c("7", "d")] });
+    const legal = legalMoves(t.seats, t.m, "a");
+    const lay = legal.find((one) => one.t === "lay")!;
+    expect(lay.to, "иначе все боты целятся в ноль и кладут друг на друга")
+      .toEqual({ in: "deck", pile: RING, turn: ringTurnOfSeat(0) });
   });
 });

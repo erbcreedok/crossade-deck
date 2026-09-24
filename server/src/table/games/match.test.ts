@@ -18,9 +18,11 @@ const id = (f: Face) => `${f.rank}${f.suit}`;
  * После каждого хода тень двигается ровно так, как её двинет судья в бою.
  */
 function десk(hands: Record<string, Face[]>, dealer: string | null) {
-  const board: { hands: Record<string, Face[]>; circle: Face[] } = { hands, circle: [] };
+  // Порядок по кругу — тот, в каком стулья перечислены: в тесте рассадка задаётся списком.
+  const board = { hands, circle: [] as Face[], order: Object.keys(hands) };
+  const доска = () => board as unknown as Board;
   const faceOf = (one: string): Face | undefined => [...Object.values(board.hands).flat(), ...board.circle].find((f) => id(f) === one);
-  let m: Match = start(board as Board, dealer);
+  let m: Match = start(доска(), dealer);
   const drop = (who: string, card: Face) => {
     const hand = board.hands[who] ?? [];
     const at = hand.findIndex((f) => same(f, card));
@@ -29,18 +31,18 @@ function десk(hands: Record<string, Face[]>, dealer: string | null) {
   };
   return {
     get m() { return m; },
-    get board() { return board as Board; },
+    get board() { return доска(); },
     faceOf,
     lay(who: string, card: Face) {
       drop(who, card);
       board.circle.push(card);
-      m = advance(m, board as Board, who, "laid");
+      m = advance(m, доска(), who, "laid");
       return m;
     },
     take(who: string) {
       const low = board.circle.shift();
       if (low !== undefined) (board.hands[who] ??= []).push(low);
-      m = advance(m, board as Board, who, "taken");
+      m = advance(m, доска(), who, "taken");
       return m;
     },
     /** РУКИ АДМИНА: стол переложили, тень об этом не знает и знать не должна. */

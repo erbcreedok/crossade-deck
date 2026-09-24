@@ -15,13 +15,23 @@ import { krestMemory, type Deed } from "../games/krestMemory.js";
 import type { BotView, Move } from "./brain.js";
 
 /** Стол глазами тени: те же руки и круг, что читает судья. */
+/**
+ * КУДА В КРУГЕ КЛАДЁТ ТОТ, КТО СИДИТ НА ЭТОМ УГЛУ — перед собой.
+ *
+ * Угол круга отсчитывается от СЕВЕРА стола, угол стула — от ШЕСТИ ЧАСОВ (своей стороны), и обе
+ * стрелки идут по часовой. Поэтому одно переводится в другое зеркалом: `180 − угол`.
+ */
+export const ringTurnOfSeat = (angle: number): number => ((180 - angle) % 360 + 360) % 360;
+
 export function boardOf(seats: Seats): Board {
   const hands: Record<string, readonly Face[]> = {};
   for (const chair of seats.chairs) {
     if (chair.croupier) continue;
     hands[chair.id] = chair.hand.map((id) => seats.faceOf(id)).filter((f): f is Face => f !== undefined);
   }
-  return { hands, circle: seats.pile(RING).map((id) => seats.faceOf(id)).filter((f): f is Face => f !== undefined) };
+  // Порядок — тот же, что у судьи: по кругу стола, убывая по углу стула (`krestReferee.boardOf`).
+  const order = seats.chairs.filter((chair) => !chair.croupier).slice().sort((a, b) => b.angle - a.angle).map((chair) => chair.id);
+  return { hands, circle: seats.pile(RING).map((id) => seats.faceOf(id)).filter((f): f is Face => f !== undefined), order };
 }
 
 /**
@@ -40,7 +50,11 @@ export function legalMoves(seats: Seats, match: Match, chair: string): Move[] {
     if (at !== -1) {
       left.splice(at, 1);
       // МЕСТО НАЗЫВАЕТ ИГРА: комната ведёт карту туда, куда сказано, не зная ни круга, ни правил.
-      moves.push({ t: "lay", id, card: face!, to: { in: "deck", pile: RING } });
+      //
+      // УГОЛ — ПЕРЕД СВОИМ СТУЛОМ, как положил бы человек, сидящий там же. Без угла все боты целятся
+      // в один и тот же ноль, их карты сбиваются в ком у севера стола, и круг перестаёт читаться как
+      // круг. Угол круга считается от севера, угол стула — от шести часов, оттого и `180 −`.
+      moves.push({ t: "lay", id, card: face!, to: { in: "deck", pile: RING, turn: ringTurnOfSeat(seat?.angle ?? 0) } });
     }
   }
   if (can.take) {

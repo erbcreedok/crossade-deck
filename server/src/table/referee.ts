@@ -18,7 +18,14 @@ import type { BotView, Move } from "./bots/brain.js";
  * могли переложить руками, и судья должен видеть результат, а не то, что помнил.
  */
 export interface Seats {
-  chairs: readonly { id: string; owner: string | null; hand: readonly string[]; croupier?: true }[];
+  chairs: readonly {
+    id: string;
+    owner: string | null;
+    hand: readonly string[];
+    croupier?: true;
+    /** Место за столом — угол от своей стороны (шесть часов), по часовой. Игре нужен, чтобы класть карту перед игроком. */
+    angle: number;
+  }[];
   faceOf(card: string): Face | undefined;
   /** Карты стопки снизу вверх. Нет такой стопки — пусто. */
   pile(id: string): readonly string[];
