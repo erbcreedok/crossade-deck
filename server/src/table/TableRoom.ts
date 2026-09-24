@@ -825,7 +825,10 @@ export class TableRoom extends Room {
           now,
         ),
       );
-    return { turn, busy: this.table.busy, handsOn: this.table.handsOn, quietMs: Math.max(0, now - this.stirredAt), bots };
+    // Стол ещё ни разу не шевелился — тишина не «с начала эпохи», а просто ноль: иначе на странице
+    // светится пятидесятилетнее число, и первое, что человек видит, — враньё.
+    const quietMs = this.stirredAt === 0 ? 0 : Math.max(0, now - this.stirredAt);
+    return { turn, busy: this.table.busy, handsOn: this.table.handsOn, quietMs, bots };
   }
 
   /** Довести ход до стола теми же намерениями, какими его шлёт палец человека. */
