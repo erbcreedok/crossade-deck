@@ -1,0 +1,23 @@
+server/table-client/tipKey.ts
+  s_9ed0da107cbc4a::t_adc0d45cce4b49 1-31
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_bff783319d8f04 39,1848
+server/table-client/tipKey.test.ts
+  s_9ed0da107cbc4a::t_a6e03122858981 1-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7656b1f3d4530c53a899837ce0db412cd9774589",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
