@@ -44,7 +44,13 @@ export interface Referee {
   /** Стол уже пропустил этот ход — догнать его. `true` — партия сдвинулась. */
   follow(seats: Seats, by: string, intent: Intent): boolean;
   /** Что правам нужно знать о партии — в ключах людей. Партии нет — `null`. */
-  view(seats: Seats): { turn: string | null; closer: string | null } | null;
+  /**
+   * `out` — КТО УЖЕ ВЫШЕЛ, в порядке выхода: первый вышедший и есть первый победитель.
+   *
+   * Выход — самое значимое, что бывает за партией, и до сих пор он проходил молча: человек видел
+   * только, что рука соседа опустела, и то если смотрел. Объявляет его комната, а не игра.
+   */
+  view(seats: Seats): { turn: string | null; closer: string | null; out: string[] } | null;
   /** Что сейчас в игре глазами этого человека. Партии нет — `null`. */
   play(seats: Seats, viewer: string): Play | null;
   /** Строка для журнала: как партия стоит сейчас. */

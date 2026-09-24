@@ -192,3 +192,34 @@ describe("referee.the-turn-follows-the-deal", () => {
     expect(снова.view(t.seats)?.turn, "после рестора очередь всё ещё против часовой").toBe("кто:c6");
   });
 });
+
+// КТО ВЫШЕЛ — СУДЬЯ ГОВОРИТ ЭТО НАРУЖУ.
+//
+// Выход — самое значимое, что бывает за партией: кто-то выиграл. До сих пор он проходил молча, и
+// три события подряд — «вышел», «взял», «походил» — сливались для человека в одно движение.
+describe("referee.who-is-out-is-said-aloud", () => {
+  it("вышедшие называются в порядке выхода — первый вышедший первый победитель", () => {
+    const hands: Record<string, Face[]> = { a: [c("6", "d")], b: [c("7", "d")], v: [c("8", "d"), c("K", "s")] };
+    const circle: Face[] = [];
+    const seats: Seats = {
+      get chairs() {
+        return Object.keys(hands).map((chair) => ({ id: chair, owner: `кто:${chair}`, hand: (hands[chair] ?? []).map(id), angle: 0 }));
+      },
+      faceOf: (one) => [...Object.values(hands).flat(), ...circle].find((f) => id(f) === one),
+      pile: (p) => (p === RING ? circle.map(id) : []),
+    };
+    const ref = krestReferee();
+    ref.start(seats, "a");
+    expect(ref.view(seats)?.out, "пока не вышел никто").toEqual([]);
+
+    // Все трое кладут по карте — круг закрывается, и двое с пустыми руками выходят.
+    for (const кто of ["a", "b", "v"]) {
+      const turn = ref.view(seats)!.turn!;
+      const карта = hands[кто]![0]!;
+      hands[кто] = hands[кто]!.slice(1);
+      circle.push(карта);
+      ref.follow(seats, turn, { t: "drop", id: id(карта), to: { in: "deck", pile: RING } });
+    }
+    expect(ref.view(seats)?.out, "вышли оба, у кого рука опустела").toEqual(["кто:a", "кто:b"]);
+  });
+});

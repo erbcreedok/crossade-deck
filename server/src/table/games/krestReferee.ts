@@ -81,7 +81,9 @@ export function krestReferee(): Referee {
       return true;
     },
     view(seats) {
-      return match === null ? null : { turn: ownerOf(seats, match.turn), closer: ownerOf(seats, match.closer) };
+      if (match === null) return null;
+      const out = match.out.map((chair) => ownerOf(seats, chair)).filter((one): one is string => one !== null);
+      return { turn: ownerOf(seats, match.turn), closer: ownerOf(seats, match.closer), out };
     },
     play(seats, viewer): Play | null {
       if (match === null) return null;

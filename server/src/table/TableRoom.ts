@@ -68,6 +68,11 @@ const BOTS_MOST = 8;
 const BOT_THINK_MS = 4000;
 /** Пауза перед тем, как крупье уберёт круг: реплику просящего надо успеть прочесть. */
 const CROUPIER_HAND_MS = 1400;
+/**
+ * СКОЛЬКО СТОЛ МОЛЧИТ ПОСЛЕ ЧЬЕГО-ТО ВЫХОДА. Не для красоты: без этой паузы «вышел», «взял» и
+ * «походил» идут подряд за две секунды и для человека сливаются в одно событие.
+ */
+const OUT_BEAT_MS = 1600;
 
 
 export class TableRoom extends Room {
@@ -275,6 +280,7 @@ export class TableRoom extends Room {
         this.book.tell("act", me.key, { intent });
         this.spread(result.ops);
         if (this.referee?.follow(this.seats_(), me.key, intent)) this.resend();
+        this.tellWhoLeft();
         // Человек сходил — теперь очередь может быть уже за ботом. Ждать он начнёт с этого мига.
         this.nudgeBots();
       }
@@ -400,6 +406,8 @@ export class TableRoom extends Room {
     if (!this.referee) return;
     // СТОРОНУ БЕРЁМ ИЗ САМОЙ РАЗДАЧИ: раздали против часовой — и очередь пойдёт против часовой.
     this.referee.start(this.seats_(), dealer, this.lastDeal?.dir ?? "cw");
+    // Новая партия — и вышедшие заново: иначе прошлые победители остались бы «уже объявленными».
+    this.left.clear();
     this.resend();
     // Первый ход может оказаться за ботом: шестёрка буби легла ему. Отсчёт его паузы — отсюда.
     this.stir();
@@ -922,13 +930,14 @@ export class TableRoom extends Room {
   }
 
   /**
-   * ИГРОК БЕЗ ЧЕЛОВЕКА ГОВОРИТ. Только на ЗНАЧИМОЕ — закрыл круг, взял, вышел: обычный ход виден и
-   * так, а стол, где три машины отчитываются за каждую карту, читать невозможно.
+   * СЛОВО ОТ СТУЛА — говорит игрок, чей это стул: бот своей репликой, человек — строкой от его
+   * имени. Только на ЗНАЧИМОЕ: закрыл круг, взял, вышел. Обычный ход виден и так, а стол, где трое
+   * отчитываются за каждую карту, читать невозможно.
    *
    * Номер строки растёт: у каждой реплики свой, иначе они затирают друг друга на экране.
    */
   private botLines = new Map<string, number>();
-  private botSays(key: string, text: string): void {
+  private seatSays(key: string, text: string): void {
     const n = (this.botLines.get(key) ?? 0) + 1;
     this.botLines.set(key, n);
     this.saySpread({ by: key, n, pieces: [{ t: "text", text: text.slice(0, LINE_MAX) }], done: true });
@@ -946,10 +955,10 @@ export class TableRoom extends Room {
    * Обычный ход — молча: он виден и так, и лежит в журнале.
    */
   private afterBotMove(key: string, move: Move, closerWas: string | null): void {
-    if (move.t === "take") return void this.botSays(key, "Беру");
+    if (move.t === "take") return void this.seatSays(key, "Беру");
     const closer = this.judgeView()?.closer ?? null;
     if (closer === null || closer !== key || closer === closerWas) return;
-    this.botSays(key, "Круг мой — крупье, забери");
+    this.seatSays(key, "Круг мой — крупье, забери");
     // Крупье убирает не мгновенно: реплику надо успеть прочесть, да и рука у стола не машина.
     const seat = this.table.layout().chairs.find((c) => c.croupier);
     if (!seat) return;
@@ -957,6 +966,31 @@ export class TableRoom extends Room {
       if (this.gone.signal.aborted) return;
       this.crewAct(BOT_KEY, "ring");
     }, CROUPIER_HAND_MS);
+  }
+
+  /**
+   * КТО УЖЕ ВЫШЕЛ ИЗ ПАРТИИ — чтобы объявить нового ровно один раз.
+   *
+   * До сих пор выход проходил МОЛЧА, и три события подряд — «вышел», «взял», «походил» — сливались
+   * для человека в одно: он видел только, что карты шевелятся. А выход — самое значимое, что бывает
+   * за партией: кто-то выиграл.
+   */
+  private left = new Set<string>();
+  private tellWhoLeft(): void {
+    const out = this.referee?.view(this.seats_())?.out ?? [];
+    for (const key of out) {
+      if (this.left.has(key)) continue;
+      this.left.add(key);
+      const место = this.left.size;
+      const кто = this.table.here.find((one) => one.key === key);
+      this.book.tell("match.out", key, { место });
+      // Говорит сам вышедший — со своего стула, как и всё за столом. У бота это его же реплика, у
+      // человека — строка от его имени: правило одно, и выход читается одинаково, кто бы ни вышел.
+      if (кто !== undefined) this.seatSays(key, место === 1 ? "Я вышел — первым!" : `Я вышел, ${место}-м`);
+      // СТОЛУ НАДО ЗАМЕТИТЬ ВЫХОД. Без этого следующий бот ходит через свою обычную паузу, и три
+      // события подряд читаются как одно движение.
+      this.stirredAt = Date.now() + OUT_BEAT_MS;
+    }
   }
 
   private trackOf(key: string): BotTrack {
@@ -1023,6 +1057,9 @@ export class TableRoom extends Room {
     if (this.referee?.follow(this.seats_(), key, { t: "drop", id, to })) this.resend();
     this.afterBotMove(key, move, было);
     this.stir(now);
+    // ПОСЛЕ `stir`, а не до: объявление выхода ставит столу долгую паузу, и `stir` её затирал —
+    // события снова шли подряд, ровно как жаловался владелец.
+    this.tellWhoLeft();
   }
 
   // ── ВНЕШНИЙ ИГРОК ───────────────────────────────────────────────────────────────────────────
