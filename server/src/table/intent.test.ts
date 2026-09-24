@@ -19,7 +19,7 @@ function table(): Table {
 
 describe("readIntent — намерение читается целиком или не читается", () => {
   it("знает каждое намерение контракта", () => {
-    expect(INTENT_KINDS.size).toBe(28);
+    expect(INTENT_KINDS.size).toBe(29);
   });
 
   it("мусор вместо намерения — null", () => {

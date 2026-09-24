@@ -268,7 +268,8 @@ export class TableRoom extends Room {
       // ДЕЛО КРУПЬЕ — не ход по столу, а состав стола: его исполняет комната.
       if (intent.t === "crew") return void this.crewAct(me.key, intent.act);
       // УПРАВЛЕНИЕ ИГРОКОМ БЕЗ ЧЕЛОВЕКА — тоже дело комнаты: стол о мозгах не знает.
-      if (intent.t === "bot") return void this.botAct(me.key, intent.chair, intent.act);
+      if (intent.t === "bot") return void this.botAct(me.key, intent.chair, intent.act, intent.brain);
+      if (intent.t === "chair") return void this.chairAct(me.key, intent.act, intent.chair);
       const result = this.table.act(me.key, intent, Date.now());
       if ("refused" in result) {
         // ОТКАЗ — САМОЕ ЦЕННОЕ В ЖУРНАЛЕ: человек пробовал, а стол не дал. Жалобы приходят именно
@@ -893,9 +894,12 @@ export class TableRoom extends Room {
    *   `cancel` — брось мысль; мозг обрывается, и за него тут же ходит запасной;
    *   `kick`   — уведи со стула.
    */
-  private botAct(by: string, chair: string, act: BotAct): void {
+  private botAct(by: string, chair: string, act: BotAct, brain?: string): void {
     if (!this.table.may(by, "table.seats")) return;
     const seat = this.table.layout().chairs.find((c) => c.id === chair);
+    // ПОСАДИТЬ — единственное дело, для которого стул должен быть ПУСТ. Остальные — про того, кто
+    // на нём уже сидит.
+    if (act === "seat") return void this.seatBotAt(by, chair, brain);
     const key = seat?.owner;
     if (!key || !this.table.here.some((one) => one.key === key && one.bot === true)) return;
     this.book.tell("bot.order", by, { кому: key, дело: act });
@@ -991,6 +995,57 @@ export class TableRoom extends Room {
       // события подряд читаются как одно движение.
       this.stirredAt = Date.now() + OUT_BEAT_MS;
     }
+  }
+
+  /**
+   * ПОСАДИТЬ ИГРОКА БЕЗ ЧЕЛОВЕКА НА ЭТОТ СТУЛ — с тем мозгом, который выбрали.
+   *
+   * Стул должен быть пуст: сажать поверх человека нельзя, и это не оплошность, а правило — за столом
+   * никого не сгоняют молча.
+   */
+  private seatBotAt(by: string, chair: string, brain?: string): void {
+    const seat = this.table.layout().chairs.find((c) => c.id === chair);
+    if (!seat || seat.owner !== null || seat.croupier === true) return;
+    const занято = new Set(this.table.here.map((one) => one.key));
+    let n = 1;
+    while (занято.has(`bot:игрок${n}`)) n += 1;
+    const key = `bot:игрок${n}`;
+    if (brain !== undefined) this.botOrders.set(key, { brain });
+    this.brains.delete(key);
+    this.book.tell("bot.seated", by, { кому: key, стул: chair, мозг: brain ?? "greedy" });
+    // Стул называется прямо: иначе машина заведёт себе новый рядом с тем, который ей приготовили.
+    this.spread(this.table.seatBot({ key, name: BOT_NAMES[(n - 1) % BOT_NAMES.length]!, ink: this.freeInk(), door: "guest", brain: brain ?? "greedy" }, chair));
+    this.spreadMinds();
+  }
+
+  /**
+   * СТУЛЬЯ ЗА СТОЛОМ — поставить ещё один или убрать пустой.
+   *
+   * КАРТЫ УБРАННОГО СТУЛА УХОДЯТ КРУПЬЕ, а не остаются на сукне: на сукне они легли бы кучей посреди
+   * игры, и убирать её пришлось бы отдельно. Сперва рука, потом стул — иначе убирать будет уже нечего.
+   */
+  private chairAct(by: string, act: "add" | "drop", chair?: string): void {
+    if (!this.table.may(by, "table.seats")) return;
+    if (act === "add") {
+      this.book.tell("chair.add", by, {});
+      return void this.spread(this.table.addChair());
+    }
+    if (chair === undefined) return;
+    const seat = this.table.layout().chairs.find((c) => c.id === chair);
+    if (!seat || seat.owner !== null || seat.croupier === true) return;
+    const hands = this.table.croupierSeat();
+    if (seat.hand.length > 0 && hands) {
+      let i = this.table.layout().chairs.find((c) => c.id === hands)?.hand.length ?? 0;
+      for (const id of [...seat.hand].reverse()) {
+        const out = this.table.act(BOT_KEY, { t: "grab", id }, Date.now(), true);
+        if ("refused" in out) continue;
+        this.spread(out.ops);
+        const put = this.table.act(BOT_KEY, { t: "drop", id, to: { in: "hand", chair: hands, i: i++ } }, Date.now(), true);
+        if (!("refused" in put)) this.spread(put.ops);
+      }
+    }
+    this.book.tell("chair.drop", by, { стул: chair, карт: seat.hand.length });
+    this.spread(this.table.dropChair(chair));
   }
 
   private trackOf(key: string): BotTrack {

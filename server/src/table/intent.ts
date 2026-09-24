@@ -90,7 +90,13 @@ const READERS: { [K in Intent["t"]]: (raw: Raw) => Extract<Intent, { t: K }> | n
   dealer: (r) => (r.key === null || name(r.key) ? { t: "dealer", key: r.key } : null),
   crew: (r) => (name(r.act) ? { t: "crew", act: r.act } : null),
   // Управление игроком без человека: только известные дела из каталога, только по имени стула.
-  bot: (r) => (name(r.chair) && (BOT_ACTS as readonly unknown[]).includes(r.act) ? { t: "bot", chair: r.chair as string, act: r.act as BotAct } : null),
+  bot: (r) => {
+    if (!name(r.chair) || !(BOT_ACTS as readonly unknown[]).includes(r.act)) return null;
+    // Мозг — только именем из каталога и только короткой строкой: длинное сюда не приедет.
+    const brain = typeof r.brain === "string" && r.brain.length > 0 && r.brain.length <= 32 ? r.brain : undefined;
+    return { t: "bot", chair: r.chair as string, act: r.act as BotAct, ...(brain === undefined ? {} : { brain }) };
+  },
+  chair: (r) => (r.act === "add" || r.act === "drop" ? { t: "chair", act: r.act, ...(name(r.chair) ? { chair: r.chair as string } : {}) } : null),
   arrange: (r) => {
     if (!oneOf(ARRANGES, r.how)) return null;
     if (r.ids === undefined) return { t: "arrange", how: r.how };

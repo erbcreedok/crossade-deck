@@ -37,7 +37,7 @@ import { flipIn, pileOf, predict as predictAs, sideIn, whereIs, type BatchIntent
 import { doubleTap, type Tap } from "./tap.js";
 import { journal } from "./journal.js";
 import { tipKeyOf } from "./tipKey.js";
-import type { BotAct, Minds } from "../src/table/contract.js";
+import { BRAIN_PICKS, type BotAct, type Minds } from "../src/table/contract.js";
 
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
@@ -1346,7 +1346,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    */
   function mindActsHtml(s: Snapshot, chair: Chair, box: { left: number; top: number; w: number; height: number }): string {
     const mind = minds.find((one) => one.chair === chair.id);
-    if (!mind) return "";
+    // ПУСТОЙ СТУЛ — СВОИ ДЕЛА: посадить машину или убрать стул совсем. Оба только распорядителю.
+    if (!mind) return chair.owner === null && !chair.croupier ? emptySeatActsHtml(s, chair, box) : "";
     const admin = iMay(s, "table.seats");
     const act = (what: string, label: string) =>
       `<button data-bot="${what}" data-chair="${escape(chair.id)}" style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
@@ -1367,11 +1368,36 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       : "";
     const инфо = `<button data-mind-info="${escape(chair.id)}" aria-label="Кто это" aria-expanded="${local.mindInfo === chair.id}" style="border:0;cursor:pointer;font:400 12px Tiny5,monospace;`
       + `border-radius:50%;width:26px;height:26px;background:${local.mindInfo === chair.id ? T.gold : T.wood};color:${T.black}">i</button>`;
-    return `<div data-mind-acts style="position:absolute;left:${box.left}px;top:${box.top + box.height + 8}px;width:${box.w}px;box-sizing:border-box;z-index:41;`
+    return `<div data-mind-acts data-chair="${escape(chair.id)}" style="position:absolute;left:${box.left}px;top:${box.top + box.height + 8}px;width:${box.w}px;box-sizing:border-box;z-index:41;`
       + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:10px;`
       + `display:flex;flex-wrap:wrap;gap:6px;align-items:center">`
       + кто + инфо
       + (admin ? act("nudge", "Походи") + act("cancel", "Оборвать мысль") + act("kick", "Увести") : "")
+      + `</div>`;
+  }
+
+  /**
+   * ПУСТОЙ СТУЛ ГЛАЗАМИ РАСПОРЯДИТЕЛЯ: посадить машину — и сразу выбрать, чем ей думать, — или
+   * убрать стул со стола.
+   *
+   * Про карты сказано прямо на кнопке: убранный стул отдаёт руку крупье, а не сыплет её на сукно.
+   * Человек должен знать, куда денутся карты, ДО нажатия, а не искать их после.
+   */
+  function emptySeatActsHtml(s: Snapshot, chair: Chair, box: { left: number; top: number; w: number; height: number }): string {
+    if (!iMay(s, "table.seats")) return "";
+    const кнопка = (attrs: string, label: string, gold = true) =>
+      `<button ${attrs} style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
+      + (gold ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}` : `background:${T.wood};color:${T.ink}`)
+      + `">${label}</button>`;
+    const мозги = BRAIN_PICKS.map((brain) =>
+      кнопка(`data-bot="seat" data-chair="${escape(chair.id)}" data-brain="${escape(brain)}"`, brain, false)).join("");
+    const карт = chair.hand.length;
+    return `<div data-mind-acts data-chair="${escape(chair.id)}" style="position:absolute;left:${box.left}px;top:${box.top + box.height + 8}px;width:${box.w}px;box-sizing:border-box;z-index:41;`
+      + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:10px;`
+      + `display:flex;flex-wrap:wrap;gap:6px;align-items:center">`
+      + `<span style="width:100%;font:400 11px Tiny5,monospace;color:${T.inkDim}">Посадить машину:</span>${мозги}`
+      + `<span style="width:2px;height:22px;background:${T.wood};margin:0 2px"></span>`
+      + кнопка(`data-chair-act="drop" data-chair="${escape(chair.id)}"`, карт > 0 ? `Убрать стул (${карт} карт — крупье)` : "Убрать стул")
       + `</div>`;
   }
 
@@ -1386,6 +1412,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       // СБОРА ЗДЕСЬ НЕТ. Собирать — дело НАБОРА крупье, и оно рисуется своей кнопкой ниже; вторая
       // такая же кнопка рядом означала бы, что у стола два разных сбора, а он один.
       + act("shuffle", "Перемешать") + act("deal", "Раздать")
+      // СТУЛ ДОБАВЛЯЕТСЯ ОТСЮДА, а не из окна пустого стула: пустых может не быть вовсе, и тогда
+      // поставить первый было бы неоткуда. Состав стола — дело крупье, у него кнопка и живёт.
+      + `<button data-chair-act="add" style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
+      + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">Ещё стул</button>`
       + act("remove", "Увести крупье") + `</div>`;
   }
 
@@ -3544,7 +3574,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     for (const el of over.querySelectorAll<HTMLElement>("[data-bot]")) {
       el.onclick = (e) => {
         e.stopPropagation();
-        store.send({ t: "bot", chair: el.dataset["chair"]!, act: el.dataset["bot"] as BotAct });
+        const brain = el.dataset["brain"];
+        store.send({ t: "bot", chair: el.dataset["chair"]!, act: el.dataset["bot"] as BotAct, ...(brain === undefined ? {} : { brain }) });
+      };
+    }
+    // СТУЛЬЯ ЗА СТОЛОМ: поставить ещё один или убрать пустой.
+    for (const el of over.querySelectorAll<HTMLElement>("[data-chair-act]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const chair = el.dataset["chair"];
+        store.send({ t: "chair", act: el.dataset["chairAct"] as "add" | "drop", ...(chair === undefined ? {} : { chair }) });
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-journal]")) {

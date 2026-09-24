@@ -414,11 +414,20 @@ export class Table {
   // ── ЛЮДИ ───────────────────────────────────────────────────────────────────────────────────
 
   /** Сесть за стол: на свой прежний стул, если он ещё стоит и свободен, иначе — на новый. */
-  join(person: Person): Op[] {
+  /**
+   * @param at НА КАКОЙ СТУЛ ПОСАДИТЬ. Обычный вход стула не выбирает: человек садится на свой или
+   *   на новый. Выбирают только когда сажают — распорядитель ставит машину на конкретное место, и
+   *   без этого она заводила бы себе ещё один стул рядом с тем, который ей приготовили.
+   *
+   *   Стул берётся, только если он ПУСТ и не крупьейский: за столом никого не сгоняют.
+   */
+  join(person: Person, at?: string): Op[] {
     const ops: Op[] = [];
     const wasAdmin = this.admin;
+    const asked = at === undefined ? undefined : this.chairs.get(at);
     const chair =
       [...this.chairs.values()].find((c) => c.owner === person.key) ??
+      (asked !== undefined && asked.owner === null && asked.croupier !== true ? asked : undefined) ??
       [...this.chairs.values()].find((c) => c.owner === null && c.last === person.key) ??
       this.newChair();
     chair.owner = person.key;
@@ -510,9 +519,9 @@ export class Table {
    * Отличается от `joinBot` одним: тот сажает служебного бота БЕЗ стула (так живёт крупье), а этот —
    * полноправного игрока.
    */
-  seatBot(person: Person): Op[] {
+  seatBot(person: Person, at?: string): Op[] {
     if (this.people.has(person.key)) return [];
-    return this.join({ ...person, bot: true });
+    return this.join({ ...person, bot: true }, at);
   }
 
   /** Увести всех ботов-игроков: крупье не трогается — он служебный и уходит своей командой. */
@@ -643,6 +652,7 @@ export class Table {
       // ТО ЖЕ С УПРАВЛЕНИЕМ ИГРОКОМ БЕЗ ЧЕЛОВЕКА: толкнуть, оборвать мысль, увести со стула — это
       // про то, КТО за столом, а не про карты. Стол о мозгах не знает.
       case "bot":
+      case "chair":
         return { refused: "bad" };
       case "dealer":
         return this.setDealer(by, intent.key);
@@ -1510,6 +1520,18 @@ export class Table {
    * ПОСТАВИТЬ ПУСТОЙ СТУЛ. Он «вечный»: поставленный рукой стул не должен исчезать сам по правилу
    * «пустой покинутый — вон», иначе его не дождётся тот, для кого его и ставили.
    */
+  /**
+   * УБРАТЬ ПУСТОЙ СТУЛ ПО ПРОСЬБЕ АДМИНА — в отличие от правила стола, которое убирает сам.
+   *
+   * Стул с хозяином не убирается: человека сперва выводят со стула, и это отдельное дело. Карты, если
+   * они в руке остались, ложатся на его место закрытой стопкой — комната потом унесёт их крупье.
+   */
+  dropChair(id: string): Op[] {
+    const chair = this.chairs.get(id);
+    if (!chair || chair.owner !== null || chair.croupier === true) return [];
+    return this.commit(this.removeChair(chair));
+  }
+
   addChair(): Op[] {
     const chair = this.newChair();
     chair.forever = true;
