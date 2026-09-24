@@ -205,6 +205,9 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     onChange: (listener) => void changed.push(listener),
     onRefused: (listener) => listen<Refused>(MSG.refused, (msg) => listener(msg.intent, msg.why)),
     onOps: (listener) => opsHeard.push(listener),
+    get recent() {
+      return welcome?.recent ?? [];
+    },
     onMinds: (listener) => listen<Minds>(MSG.minds, listener),
     onGone: (listener) => void gone.push(listener),
     onLink: (listener) => void linked.push(listener),

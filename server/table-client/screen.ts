@@ -2705,7 +2705,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
             ? ` <span style="color:${T.inkDim}">${one.cards.length} шт.</span>`
             : ` ${one.cards.map(карта).join(" ")}`)
           : one.count !== undefined ? ` <span style="color:${T.inkDim}">${one.count} шт.</span>` : "";
-        return `<div style="padding:7px 14px;border-top:1px solid ${BAR_LOOK.rim};display:flex;gap:8px;align-items:baseline">`
+        // Строка помечена именем: сторожу нужно читать журнал тем же путём, каким его читает
+        // человек, — глазами по окну, а не через внутренности экрана.
+        return `<div data-deed style="padding:7px 14px;border-top:1px solid ${BAR_LOOK.rim};display:flex;gap:8px;align-items:baseline">`
           + `<span style="color:${T.inkDim};font:400 11px Tiny5,monospace;flex:0 0 auto">${час(one.at)}</span>`
           + `<span style="flex:1 1 auto;min-width:0">${кто}${escape(one.says)}${карты}</span></div>`;
       }).join("");
@@ -3837,6 +3839,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     minds = told;
     draw();
   });
+
+  // ЧТО БЫЛО ДО МЕНЯ — в журнал сразу. Иначе обновление страницы стирало партию: экран начинал
+  // поток с нуля, и журнал открывался пустым посреди игры.
+  //
+  // ПАЧКАМИ, А НЕ ПО ОДНОЙ: одно движение приходит пачкой операций, и журнал склеивает их в одну
+  // строку. Скорми он их по одной — сбор круга снова растянулся бы на пять одинаковых строк, но уже
+  // только у того, кто обновил страницу.
+  for (let i = 0; i < (store.recent?.length ?? 0); ) {
+    const было = store.recent![i]!.at;
+    let до = i;
+    while (до < store.recent!.length && store.recent![до]!.at === было) до += 1;
+    book.take(store.recent!.slice(i, до).map((one) => one.op), seen(), было);
+    i = до;
+  }
 
   store.onOps?.((ops) => {
     if (book.take(ops, seen(), Date.now()) && local.journal) draw();

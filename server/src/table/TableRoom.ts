@@ -73,6 +73,11 @@ const CROUPIER_HAND_MS = 1400;
  * «походил» идут подряд за две секунды и для человека сливаются в одно событие.
  */
 const OUT_BEAT_MS = 1600;
+/**
+ * СКОЛЬКО СЛУЧИВШЕГОСЯ КОМНАТА ДЕРЖИТ ДЛЯ ВОШЕДШЕГО. Ровно столько же, сколько показывает журнал
+ * экрана (`JOURNAL_KEEP`): держать больше бессмысленно — лишнее всё равно не покажут.
+ */
+const RECENT_KEEP = 200;
 
 /**
  * ОТКУДА КАРТА ПРИЕХАЛА — по тому, что стол уже сделал, а не по тому, что просили.
@@ -110,6 +115,12 @@ export class TableRoom extends Room {
    * зовёт судью, когда раздали, когда сходили и когда спрашивают, что сейчас в игре.
    */
   private referee: Referee | null = null;
+  /**
+   * ХВОСТ ОПЕРАЦИЙ ДЛЯ ВОШЕДШЕГО: столько же, сколько держит журнал экрана.
+   *
+   * `seen` — что видел КАЖДЫЙ из сидевших в тот миг: журнал не должен беднеть задним числом.
+   */
+  private recent: { at: number; op: Op; seen: Record<string, Op> }[] = [];
   /**
    * БОТЫ ЗА СТОЛОМ. Мозг у каждого свой экземпляр: упадёт один — остальные играют. Характер
    * закреплён за ключом бота, поэтому переживает перезапуск, не будучи записанным в слепок.
@@ -200,7 +211,7 @@ export class TableRoom extends Room {
 
   /** Стол целиком глазами этого человека — при входе и когда у него разошлись версии (`sync`). */
   private welcomeFor(me: Person): Welcome {
-    return { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), crew: [...crewOf(crewKind(this.room)).acts], deals: [...(deskOf(kindOf(this.room)).deals ?? (Object.keys(DEAL_PRESETS) as DealRule[]))], desk: kindOf(this.room), ice: iceServers() };
+    return { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), recent: this.recent.map(({ at, op, seen }) => ({ at, op: seen[me.key] ?? this.table.seenOp(op, me.key) })), crew: [...crewOf(crewKind(this.room)).acts], deals: [...(deskOf(kindOf(this.room)).deals ?? (Object.keys(DEAL_PRESETS) as DealRule[]))], desk: kindOf(this.room), ice: iceServers() };
   }
 
   private personOf(session: string): Person | undefined {
@@ -1263,6 +1274,25 @@ export class TableRoom extends Room {
   private spread(ops: Op[]): void {
     if (ops.length === 0) return;
     const v = this.table.version;
+    // ХВОСТ СЛУЧИВШЕГОСЯ — для того, кто обновит страницу или войдёт.
+    //
+    // КАЖДОМУ ЗАПОМИНАЕТСЯ ТО, ЧТО ОН ВИДЕЛ В ТОТ МИГ, а не то, что видно теперь. Резать хвост
+    // сегодняшним столом — значит отнимать у человека уже увиденное: карта, которую он держал в
+    // руке, ушла в закрытую стопку, и в его же журнале она задним числом становилась рубашкой.
+    //
+    // Тому, кого за столом тогда не было, достаётся правда стола, прорезанная при выдаче: он не
+    // видел ничего, и показывать ему больше, чем видно сейчас, нельзя.
+    const now = Date.now();
+    const seen: Record<string, Op> = {};
+    for (const op of ops) {
+      for (const client of this.clients) {
+        const key = this.seats.get(client.sessionId);
+        if (key !== undefined && seen[key] === undefined) seen[key] = this.table.seenOp(op, key);
+      }
+      this.recent.push({ at: now, op, seen: { ...seen } });
+      for (const key of Object.keys(seen)) delete seen[key];
+    }
+    if (this.recent.length > RECENT_KEEP) this.recent = this.recent.slice(-RECENT_KEEP);
     // ЛЕНТА ПРОИГРЫВАТЕЛЯ ПИШЕТСЯ ЗДЕСЬ — в единственном месте, через которое уходит любое изменение
     // стола. Не в обработчике хода: ходом стол меняют не только руки игрока, но и команда админа,
     // крупье и смена рода, и лента, собранная по рукам, окажется дырявой.
