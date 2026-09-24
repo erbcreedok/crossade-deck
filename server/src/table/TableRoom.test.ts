@@ -120,6 +120,35 @@ describe("TableRoom", () => {
     expect(bots()).toHaveLength(2);
   });
 
+  /**
+   * УКАЗАТЕЛЬ ХОДА ГАСИТСЯ РАСПОРЯДИТЕЛЕМ — и это обычное правило стола, а не личная настройка:
+   * погасил один — погасло у всех, как лица карт и рубашка.
+   */
+  it("указатель хода из окна крупье: гасит и зажигает только распорядитель, и всем сразу", async () => {
+    const room = mintRoom(SECRET);
+    openEntry(room, { kind: "inline", message: "m" }, "tg:7", "Стрелка");
+    const owner = await sit(room, { door: "telegram", initData: initData(7, "Аня") });
+    const guest = await sit(room, { door: "guest", name: "Боря" });
+    await runIn(room, "tg:7", { t: "croupier", on: true });
+    await new Promise((r) => setTimeout(r, 80));
+    const мой = () => owner.patches.reduce(applyPatch, owner.welcome.snapshot).rules.turnMark;
+    const чужой = () => guest.patches.reduce(applyPatch, guest.welcome.snapshot).rules.turnMark;
+    expect(мой(), "по умолчанию стрелка горит").toBe(true);
+
+    guest.client.send(MSG.intent, { t: "crew", act: "turn-mark" });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(мой(), "не распорядителю указатель не трогать").toBe(true);
+
+    owner.client.send(MSG.intent, { t: "crew", act: "turn-mark" });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(мой(), "погасил").toBe(false);
+    expect(чужой(), "и погасло у всех за столом").toBe(false);
+
+    owner.client.send(MSG.intent, { t: "crew", act: "turn-mark" });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(мой(), "зажёг обратно").toBe(true);
+  });
+
   it("состав колоды из окна крупье: 36 ↔ 52 и джокеры — недостающие прилетают крупье в руки, лишние уходят", async () => {
     const room = mintRoom(SECRET);
     openEntry(room, { kind: "inline", message: "m" }, "tg:7", "Колода");

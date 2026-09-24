@@ -33,6 +33,13 @@ export interface Seat {
   hand?: { id: string; face?: Face }[];
   face?: string;
   pose?: Pose;
+  /**
+   * ОТ НЕГО ЖДУТ ДЕЙСТВИЯ — чей сейчас ход. Рисуется стрелкой перед стулом, вне круга.
+   *
+   * Ничего не запрещает: это ответ на вопрос, который за живым столом задают вслух. Круг человек
+   * прочтёт и сам — чем бьют и что осталось видно, — а вот чья очередь, по картам не видно никак.
+   */
+  awaited?: boolean;
 }
 
 export interface FeltItem {
@@ -465,6 +472,40 @@ function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: stri
   }
 }
 
+/** Стрелка ожидания: насколько далеко от стула к середине стола и какого размера. */
+const TURN_MARK = { at: -1.5, w: 0.62, h: 0.78, line: 0.1 };
+
+/**
+ * СТРЕЛКА ОЖИДАНИЯ — «ходит он». Стоит перед стулом, между хозяином и кругом, и смотрит на круг:
+ * от игрока к столу идёт действие, которого ждут.
+ *
+ * Она ничего не держит и ничему не мешает — ни одна зона приёма её не касается. Это подсказка того
+ * же рода, что подсветка карт в руке: стол проговаривает вслух то, о чём за живым столом спрашивают
+ * соседа. Гасится правилом стола (`TableRules.turnMark`).
+ */
+function turnMark(g: CanvasRenderingContext2D, ink: string): void {
+  const { at, w, h, line } = TURN_MARK;
+  g.save();
+  g.translate(0, at);
+  g.beginPath();
+  // Древко.
+  g.moveTo(0, -h / 2);
+  g.lineTo(0, h * 0.1);
+  g.lineWidth = line;
+  g.strokeStyle = ink;
+  g.lineCap = "round";
+  g.stroke();
+  // Наконечник — к столу.
+  g.beginPath();
+  g.moveTo(-w / 2, h * 0.02);
+  g.lineTo(w / 2, h * 0.02);
+  g.lineTo(0, h / 2);
+  g.closePath();
+  g.fillStyle = ink;
+  g.fill();
+  g.restore();
+}
+
 /**
  * ЗНАЧОК МАШИНЫ — крошечный монитор на подставке. Рисуется путями, а не картинкой: размер его
  * меняется вместе с масштабом стола, и картинка на дальнем стуле расплылась бы.
@@ -751,6 +792,8 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     const sitter = who.name !== undefined && who.ink !== undefined ? (who as Seat & { name: string; ink: string }) : null;
     if (sitter) chair(g, sitter);
     else emptyChair(g);
+    // ЖДУТ ЕГО — стрелка перед стулом, в его цвете: видно, от кого стол ждёт действия.
+    if (who.awaited) turnMark(g, sitter?.ink ?? SEAT.ink);
     posePlan(who.pose ?? { fan: false, shrink: false, tuck: false }, who.cards).forEach((p, i) => {
       g.save();
       g.translate(p.at.x, p.at.y);

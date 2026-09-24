@@ -2433,6 +2433,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         // ЧЕМ ДУМАЕТ ИГРОК БЕЗ ЧЕЛОВЕКА — прямо на табличке: играя против машины, надо видеть, против какой.
         ...(sitter?.brain ? { brain: sitter.brain } : {}),
         ...(sitter?.photo ? { face: face(sitter) } : {}),
+        // ОТ КОГО ЖДУТ ХОДА — стрелка перед его стулом. Читается из судьи (`Snapshot.play`), гасится
+        // правилом стола: за столом, где ходы считают сами, подсказка мешает.
+        ...(s.rules.turnMark && s.play?.turn !== null && s.play?.turn === sitter?.key ? { awaited: true } : {}),
       };
     });
     noteTurns(s);
@@ -2475,6 +2478,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       ...pileSpots(s, MAIN_PILE, "deck"),
       piles: s.piles.map((p) => ({ id: p.id, ...pileSpots(s, p.id, "pile") })),
       turning: [...turns.keys()],
+      // КОМУ ЭКРАН РИСУЕТ СТРЕЛКУ ОЖИДАНИЯ. Стрелка живёт на холсте, и прочесть её иначе прогон не
+      // может: пиксели он не разбирает, а закон про неё проверять надо.
+      awaited: seats.filter((one) => one.awaited).map((one) => one.key),
       mine: seat,
       // Кто сейчас звучит и насколько громко дышит его аватар — прогон жестов читает это отсюда.
       speaking: mesh.speaking,

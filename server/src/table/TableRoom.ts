@@ -74,6 +74,18 @@ const CROUPIER_HAND_MS = 1400;
  */
 const OUT_BEAT_MS = 1600;
 
+/**
+ * ОТКУДА КАРТА ПРИЕХАЛА — по тому, что стол уже сделал, а не по тому, что просили.
+ *
+ * Намерение несёт только «куда»: по нему движение внутри своей руки и взятие из круга выглядят
+ * одинаково, и судья партии, гадавший по одному концу жеста, засчитывал ходом обычную поправку
+ * карт в руке. Стол знает оба конца — он их и пишет в `ops`; судье остаётся прочесть.
+ */
+const cameFrom = (ops: readonly Op[] | undefined, intent: Intent): Where | null => {
+  if (intent.t !== "drop") return null;
+  const moved = (ops ?? []).find((op) => op.t === "move" && op.card.id === intent.id);
+  return moved?.t === "move" ? moved.from : null;
+};
 
 export class TableRoom extends Room {
   /** Слоты выстрелов стикерами; окно чуть короче клиентского — на запаздывание сети. */
@@ -280,7 +292,7 @@ export class TableRoom extends Room {
       } else {
         this.book.tell("act", me.key, { intent });
         this.spread(result.ops);
-        if (this.referee?.follow(this.seats_(), me.key, intent)) this.resend();
+        if (this.referee?.follow(this.seats_(), me.key, intent, cameFrom(result.ops, intent))) this.resend();
         this.tellWhoLeft();
         // Человек сходил — теперь очередь может быть уже за ботом. Ждать он начнёт с этого мига.
         this.nudgeBots();
@@ -625,6 +637,11 @@ export class TableRoom extends Room {
     // СОБРАТЬ КРУГ — закрытая куча уходит крупье в руки, и стол снова чист.
     if (act === "ring") return void this.sweepRing(by, chair.id);
     if (act === "ring-back") return void this.unsweepRing(by, chair.id);
+    // УКАЗАТЕЛЬ ХОДА — обычное правило стола, как лица и рубашка: сменился — разошёлся всем сразу.
+    if (act === "turn-mark") {
+      const was = this.table.seenBy(by).rules.turnMark;
+      return void this.spread(this.table.act(by, { t: "rules", rules: { turnMark: !was } }, Date.now()).ops ?? []);
+    }
     // СОСТАВ КОЛОДЫ — разница, а не пересборка: недостающие карты летят крупье в руки, лишние уходят.
     if (act === "deck" || act === "jokers") {
       const now = this.deckCard();
@@ -1126,7 +1143,8 @@ export class TableRoom extends Room {
     this.book.tell("bot.act", key, { move: move.t, id });
     this.spread(drop.ops);
     const было = this.judgeView()?.closer ?? null;
-    if (this.referee?.follow(this.seats_(), key, { t: "drop", id, to })) this.resend();
+    const шаг: Intent = { t: "drop", id, to };
+    if (this.referee?.follow(this.seats_(), key, шаг, cameFrom(drop.ops, шаг))) this.resend();
     this.afterBotMove(key, move, было);
     this.stir(now);
     // ПОСЛЕ `stir`, а не до: объявление выхода ставит столу долгую паузу, и `stir` её затирал —
@@ -1172,7 +1190,8 @@ export class TableRoom extends Room {
     }
     this.book.tell("outside.act", key, { move: move.t, id: move.id });
     this.spread(drop.ops);
-    if (this.referee?.follow(this.seats_(), key, { t: "drop", id: move.id, to: move.to })) this.resend();
+    const шаг: Intent = { t: "drop", id: move.id, to: move.to };
+    if (this.referee?.follow(this.seats_(), key, шаг, cameFrom(drop.ops, шаг))) this.resend();
     this.stir(now);
     return { ok: true, did: moveSays(move) };
   }

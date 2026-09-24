@@ -11,6 +11,7 @@ import { loadingCross } from "../../look/src/loading.js";
 import { mountGround } from "./ground.js";
 import { mountScreen } from "./screen.js";
 import type { TableStore } from "./store.js";
+import type { Intent } from "../src/table/contract.js";
 import { watchScreen, witnessed, type ScreenHealth } from "./watch.js";
 
 interface TelegramWebApp {
@@ -118,6 +119,10 @@ open()
     screenHealth = screen.health;
     // Окошко для отладки и сторожей — как у звука и голоса (`__tableAudio`, `__tableMesh`).
     (globalThis as { __tableScreen?: { destroy(): void } }).__tableScreen = screen;
+    // ТО ЖЕ ОКОШКО ДЛЯ НАМЕРЕНИЙ. Прогоны действуют пальцем там, где проверяют палец; но закон вроде
+    // «стрелка переезжает после изменения круга» — не про палец, и тащить ради него карту мышью
+    // значит мерить заодно и перетаскивание. Здесь намерение уходит тем же путём, что от пальца.
+    (globalThis as { __tableSend?: (intent: Intent) => void }).__tableSend = (intent) => store.send(intent);
     let gone = false;
     store.onGone(() => {
       gone = true;

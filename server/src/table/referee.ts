@@ -7,7 +7,7 @@
 //
 // Чистый модуль: судья видит стол только через `Seats` и ничего не меняет в нём сам.
 
-import type { DealDir, Face, Intent, Play } from "./contract.js";
+import type { DealDir, Face, Intent, Play, Where } from "./contract.js";
 import type { BotView, Move } from "./bots/brain.js";
 
 /**
@@ -41,8 +41,14 @@ export interface Referee {
   start(seats: Seats, dealer: string | null, dir?: DealDir): void;
   /** Партии больше нет: сменили род стола. */
   stop(): void;
-  /** Стол уже пропустил этот ход — догнать его. `true` — партия сдвинулась. */
-  follow(seats: Seats, by: string, intent: Intent): boolean;
+  /**
+   * Стол уже пропустил этот ход — догнать его. `true` — партия сдвинулась.
+   *
+   * `from` — ОТКУДА карта пришла, словами самого стола (`ops`), а не догадкой по намерению:
+   * намерение говорит только «куда», и по нему перекладывание в своей руке неотличимо от взятия из
+   * круга. Стол это знает точно — он же и пишет след карты.
+   */
+  follow(seats: Seats, by: string, intent: Intent, from?: Where | null): boolean;
   /** Что правам нужно знать о партии — в ключах людей. Партии нет — `null`. */
   /**
    * `out` — КТО УЖЕ ВЫШЕЛ, в порядке выхода: первый вышедший и есть первый победитель.

@@ -1869,5 +1869,6 @@ function pickRules(raw: Partial<TableRules>): Partial<TableRules> {
   if (typeof raw?.dropEmptyChairs === "boolean") out.dropEmptyChairs = raw.dropEmptyChairs;
   if ((CARD_FACES as readonly unknown[]).includes(raw?.faces)) out.faces = raw.faces;
   if ((CARD_BACKS as readonly unknown[]).includes(raw?.back)) out.back = raw.back;
+  if (typeof raw?.turnMark === "boolean") out.turnMark = raw.turnMark;
   return out;
 }

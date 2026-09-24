@@ -88,8 +88,11 @@ describe("bots.a-bot-finishes-the-game", () => {
       expect(brief!.legal).toContainEqual(move);
       const done = t.do(chair, move);
       expect(done, "стол принял ход").not.toBe(null);
+      // ХОД НАЗЫВАЕТ ОБА КОНЦА: положил — из руки в круг, взял — из круга в свою руку. По одному
+      // «куда» взятие неотличимо от поправки карт в собственной руке.
       const to = move.t === "lay" ? { in: "deck" as const, pile: RING } : { in: "hand" as const, chair, i: 0 };
-      expect(ref.follow(t.seats, turn, { t: "drop", id: done!.one, to }), "судья засчитал ход").toBe(true);
+      const from = move.t === "lay" ? { in: "hand" as const, chair, i: 0 } : { in: "deck" as const, pile: RING };
+      expect(ref.follow(t.seats, turn, { t: "drop", id: done!.one, to }, from), "судья засчитал ход").toBe(true);
       сходил[chair] = (сходил[chair] ?? 0) + 1;
     }
     expect(ходов, "партия кончилась, а не зациклилась").toBeLessThan(400);

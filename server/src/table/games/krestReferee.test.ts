@@ -1,7 +1,9 @@
 // СУДЬЯ КРЕСТОВОГО — что он считает ХОДОМ, а что уборкой стола.
 //
 // Это граница, на которой ломается всё остальное: сдвинь очередь на чужом жесте — и партия разойдётся
-// со столом, а вернуть её потом нечем. Поэтому ход здесь ровно один: карта между СВОЕЙ рукой и кругом.
+// со столом, а вернуть её потом нечем. Поэтому ход здесь ровно один: ИЗМЕНЕНИЕ КРУГА — карта из своей
+// руки в круг или из круга в свою руку. И оба конца жеста считаются: по одному «куда» поправка карт в
+// собственной руке неотличима от взятия из круга.
 
 import { describe, expect, it } from "vitest";
 import type { Face, Intent } from "../contract.js";
@@ -36,7 +38,7 @@ describe("referee.a-move-is-only-between-my-hand-and-the-ring", () => {
     expect(ref.view(t.seats)?.turn).toBe(t.who("a"));
     t.board.hands["a"] = [];
     t.board.circle.push(c("6", "d"));
-    expect(ref.follow(t.seats, t.who("a"), drop(id(c("6", "d")), { in: "deck", pile: RING })), "это ход").toBe(true);
+    expect(ref.follow(t.seats, t.who("a"), drop(id(c("6", "d")), { in: "deck", pile: RING }), { in: "hand", chair: "a", i: 0 }), "это ход").toBe(true);
     expect(ref.view(t.seats)?.turn, "очередь у второго").toBe(t.who("b"));
   });
 
@@ -46,7 +48,37 @@ describe("referee.a-move-is-only-between-my-hand-and-the-ring", () => {
     ref.start(t.seats, "a");
     t.board.circle = [];
     t.board.hands["a"] = [c("K", "s"), c("6", "d")];
-    expect(ref.follow(t.seats, t.who("a"), drop(id(c("6", "d")), { in: "hand", chair: "a", i: 0 })), "взял — тоже ход").toBe(true);
+    expect(ref.follow(t.seats, t.who("a"), drop(id(c("6", "d")), { in: "hand", chair: "a", i: 0 }), { in: "deck", pile: RING }), "взял — тоже ход").toBe(true);
+  });
+
+  /**
+   * ПЕРЕКЛАДЫВАНИЕ В СВОЕЙ РУКЕ — НЕ ХОД, и это не мелочь.
+   *
+   * Живая партия: человек трижды поправил карты в своей руке, пока ждал очереди. Каждое движение
+   * судья засчитал как «взял из круга» — закрыл круг, сбросил порог, увёл очередь. Его настоящий ход
+   * после этого отвергли («не твой ход»), карта всё равно легла (стол крестового не судит) — и тень
+   * разошлась со столом навсегда: в круге четыре карты, тень видит три, а бот с порогом `0` получил
+   * право класть ЛЮБУЮ карту и накрыл семёрку червей восьмёркой пик.
+   */
+  it("УБОРКА: перекладывание карты внутри СВОЕЙ руки — очередь стоит", () => {
+    const t = стол({ a: [c("K", "s"), c("9", "h")], b: [c("7", "d")], v: [c("8", "c")] }, [c("6", "d")]);
+    const ref = krestReferee();
+    ref.start(t.seats, "a");
+    const был = ref.view(t.seats)?.turn;
+    t.board.hands["a"] = [c("9", "h"), c("K", "s")];
+    expect(ref.follow(t.seats, t.who("a"), drop(id(c("9", "h")), { in: "hand", chair: "a", i: 0 }), { in: "hand", chair: "a", i: 1 }), "не ход").toBe(false);
+    expect(ref.view(t.seats)?.turn, "очередь не сдвинулась").toBe(был);
+    expect(t.board.circle.length, "круг не тронут").toBe(1);
+  });
+
+  it("УБОРКА: карта пришла в руку с сукна, а не из круга — очередь стоит", () => {
+    const t = стол({ a: [c("K", "s")], b: [c("7", "d")], v: [c("8", "c")] }, [c("6", "d")]);
+    const ref = krestReferee();
+    ref.start(t.seats, "a");
+    const был = ref.view(t.seats)?.turn;
+    t.board.hands["a"] = [c("K", "s"), c("9", "h")];
+    expect(ref.follow(t.seats, t.who("a"), drop(id(c("9", "h")), { in: "hand", chair: "a", i: 1 }), { in: "felt", x: 0, y: 0, up: true, angle: 0 }), "не ход").toBe(false);
+    expect(ref.view(t.seats)?.turn, "очередь не сдвинулась").toBe(был);
   });
 
   it("УБОРКА: админ положил в круг карту из ЧУЖОЙ руки — очередь стоит", () => {
@@ -70,13 +102,47 @@ describe("referee.a-move-is-only-between-my-hand-and-the-ring", () => {
     expect(ref.view(t.seats)?.turn).toBe(был);
   });
 
-  it("чужой жест в свой же круг очередь не двигает: ходит не он", () => {
-    const t = стол({ a: [c("6", "d")], b: [c("7", "d")] });
+  /**
+   * СУДЬЯ НЕ СПОРИТ СО СТОЛОМ. Сходил не тот, кого ждали, — карта уже в круге, её видят все, и
+   * отменить её судье нечем. Очередь переезжает к тому, кто сходил на самом деле.
+   *
+   * Спор здесь стоил ровно того, чем однажды и кончился: стол принял карту (крестовый не судит),
+   * судья её выбросил — и круг на столе разошёлся с кругом в памяти судьи до конца партии.
+   */
+  it("сходил не тот, кого ждали, — очередь идёт от него, а ход не теряется", () => {
+    const t = стол({ a: [c("6", "d")], b: [c("7", "d")], v: [c("8", "d")] });
     const ref = krestReferee();
     ref.start(t.seats, "a");
+    expect(ref.view(t.seats)?.turn, "ждали первого").toBe(t.who("a"));
     t.board.hands["b"] = [];
     t.board.circle.push(c("7", "d"));
-    expect(ref.follow(t.seats, t.who("b"), drop(id(c("7", "d")), { in: "deck", pile: RING })), "сейчас ход первого").toBe(false);
+    expect(ref.follow(t.seats, t.who("b"), drop(id(c("7", "d")), { in: "deck", pile: RING }), { in: "hand", chair: "b", i: 0 }), "ход засчитан").toBe(true);
+    expect(ref.view(t.seats)?.turn, "очередь пошла от сходившего").not.toBe(t.who("b"));
+    expect(ref.play(t.seats, t.who("b"))?.turn, "и партия цела").not.toBe(undefined);
+  });
+
+  /**
+   * КРУПЬЕ НЕ ХОДИТ. Он уносит закрытый круг к себе в руки и возвращает его обратно — и то и другое
+   * меняет круг сильнее любого хода. Считать это ходом значило бы гонять очередь по столу каждый
+   * раз, когда стол просто убирают.
+   */
+  it("УБОРКА: крупье унёс круг себе в руку — очередь стоит", () => {
+    const hands: Record<string, Face[]> = { a: [c("K", "s")], b: [c("7", "d")], v: [c("8", "c")] };
+    const круг: Face[] = [c("6", "d")];
+    const seats: Seats = {
+      get chairs() {
+        const игроки = Object.keys(hands).map((chair) => ({ id: chair, owner: `кто:${chair}`, hand: (hands[chair] ?? []).map(id), angle: 0 }));
+        return [...игроки, { id: "kr", owner: "кто:kr", hand: [] as string[], angle: 0, croupier: true as const }];
+      },
+      faceOf: (one) => [...Object.values(hands).flat(), ...круг].find((f) => id(f) === one),
+      pile: (p) => (p === RING ? круг.map(id) : []),
+    };
+    const ref = krestReferee();
+    ref.start(seats, "a");
+    const был = ref.view(seats)?.turn;
+    круг.length = 0;
+    expect(ref.follow(seats, "кто:kr", drop(id(c("6", "d")), { in: "hand", chair: "kr", i: 0 }), { in: "deck", pile: RING }), "не ход").toBe(false);
+    expect(ref.view(seats)?.turn, "очередь не сдвинулась").toBe(был);
   });
 
   it("СУДЬЯ ЧИТАЕТ СТОЛ: админ переложил руки между ходами — подсказка идёт по новой руке", () => {
@@ -121,7 +187,7 @@ describe("referee.the-turn-goes-around-the-table", () => {
       const карта = t.hands[chair]![0]!;
       t.hands[chair] = [];
       t.circle.push(карта);
-      ref.follow(t.seats, turn, { t: "drop", id: id(карта), to: { in: "deck", pile: RING } });
+      ref.follow(t.seats, turn, { t: "drop", id: id(карта), to: { in: "deck", pile: RING } }, { in: "hand", chair, i: 0 });
     }
     // Шесть часов → девять → двенадцать → три: стол обходится кругом.
     expect(порядок).toEqual(["c3", "c5", "c4", "c6"]);
@@ -162,7 +228,7 @@ describe("referee.the-turn-follows-the-deal", () => {
       const карта = t.hands[chair]![0]!;
       t.hands[chair] = [];
       t.circle.push(карта);
-      ref.follow(t.seats, turn, { t: "drop", id: id(карта), to: { in: "deck", pile: RING } });
+      ref.follow(t.seats, turn, { t: "drop", id: id(карта), to: { in: "deck", pile: RING } }, { in: "hand", chair, i: 0 });
     }
     return порядок;
   };
@@ -188,7 +254,7 @@ describe("referee.the-turn-follows-the-deal", () => {
     const карта = t.hands[первый.replace("кто:", "")]![0]!;
     t.hands[первый.replace("кто:", "")] = [];
     t.circle.push(карта);
-    снова.follow(t.seats, первый, { t: "drop", id: id(карта), to: { in: "deck", pile: RING } });
+    снова.follow(t.seats, первый, { t: "drop", id: id(карта), to: { in: "deck", pile: RING } }, { in: "hand", chair: первый.replace("кто:", ""), i: 0 });
     expect(снова.view(t.seats)?.turn, "после рестора очередь всё ещё против часовой").toBe("кто:c6");
   });
 });
@@ -218,7 +284,7 @@ describe("referee.who-is-out-is-said-aloud", () => {
       const карта = hands[кто]![0]!;
       hands[кто] = hands[кто]!.slice(1);
       circle.push(карта);
-      ref.follow(seats, turn, { t: "drop", id: id(карта), to: { in: "deck", pile: RING } });
+      ref.follow(seats, turn, { t: "drop", id: id(карта), to: { in: "deck", pile: RING } }, { in: "hand", chair: кто, i: 0 });
     }
     expect(ref.view(seats)?.out, "вышли оба, у кого рука опустела").toEqual(["кто:a", "кто:b"]);
   });

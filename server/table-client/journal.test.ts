@@ -75,7 +75,7 @@ describe("journal.a-journal-shows-only-what-the-viewer-sees", () => {
     const снимок = { people: [], chairs: [], piles: [] } as unknown as Snapshot;
     const op: Op = { t: "deck", pile: MAIN_PILE, cards: [{ id: "a" }, { id: "b" }], shuffled: true };
     const deed = deedOf(op, снимок, 0)!;
-    expect(deed.says).toBe("перемешал стопку");
+    expect(deed.says).toBe("перемешал «колода»");
     expect(deed.count).toBe(2);
     expect(deed.cards, "карт по одной не показываем").toBeUndefined();
   });
@@ -109,6 +109,31 @@ describe("journal.a-journal-reads-as-a-story", () => {
     };
     const piles = [{ id: "ring", name: "Круг хода", cards: [] }] as unknown as Snapshot["piles"];
     expect(deedOf(op, снимок({ piles }), 0)!.says).toBe("со стола в круг хода");
+  });
+
+  /**
+   * РЕОРДЕР В СВОЕЙ РУКЕ — НЕ СОБЫТИЕ ПАРТИИ. Человек поправляет карты у себя в руке десятки раз за
+   * круг, и стол честно шлёт на каждую поправку `move`. В журнале это выходило строкой «Ye из своей
+   * руки себе в руку 6 крести» — шум, за которым не видно самой игры.
+   */
+  it("ШУМ: карта переложена внутри одной и той же руки — записи нет", () => {
+    const внутри = (chair: string, куда: string): Op => ({
+      t: "move",
+      card: { id: "c1", face },
+      from: { in: "hand", chair, i: 0 },
+      to: { in: "hand", chair: куда, i: 3 },
+      trail: { by: "Аня", byName: "Аня", from: "hand", at: 0, hand: "Аня" },
+    });
+    expect(deedOf(внутри("s1", "s1"), снимок(), 0), "своя рука").toBe(null);
+    expect(deedOf(внутри("s1", "s2"), снимок(), 0), "а в ЧУЖУЮ руку — событие").not.toBe(null);
+  });
+
+  /** «Собрал стопку 3шт» не говорит, ЧТО собрали: за столом стопок много, и круг хода — одна из них. */
+  it("сборка и перемешивание называют стопку", () => {
+    const piles = [{ id: "ring", name: "Круг хода", cards: [] }] as unknown as Snapshot["piles"];
+    const op = (shuffled: boolean): Op => ({ t: "deck", pile: "ring", cards: [{ id: "c1" }, { id: "c2" }], shuffled });
+    expect(deedOf(op(false), снимок({ piles }), 0)!.says).toBe("собрал «круг хода»");
+    expect(deedOf(op(true), снимок({ piles }), 0)!.says).toBe("перемешал «круг хода»");
   });
 
   it("ШУМ В ЖУРНАЛ НЕ ПОПАДАЕТ: замки, выделения и права человеку ничего не говорят", () => {

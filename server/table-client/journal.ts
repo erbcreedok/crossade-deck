@@ -87,6 +87,9 @@ export function deedOf(op: Op, snap: Snapshot, now: number): Deed | null {
   const chairs = new Map(snap.chairs.map((one) => [one.id, one]));
   switch (op.t) {
     case "move": {
+      // ПОПРАВКА КАРТ В ОДНОЙ И ТОЙ ЖЕ РУКЕ — не событие партии, а привычка: её делают десятки раз
+      // за круг, и в журнале она выходила строкой «из своей руки себе в руку».
+      if (op.from.in === "hand" && op.to.in === "hand" && op.from.chair === op.to.chair) return null;
       // СЛЕД ЗНАЕТ, КТО НЁС, — он же переживает то, что карта уже в новом месте.
       const by = op.trail ? { who: op.trail.byName, ink: snap.people.find((p) => p.key === op.trail!.by)?.ink } : {};
       return {
@@ -105,8 +108,9 @@ export function deedOf(op: Op, snap: Snapshot, now: number): Deed | null {
         cards: [faceOf(op.card)],
       };
     case "deck":
-      // Перемешали — карты новые и лиц у них нет ни у кого: показывать нечего, кроме числа.
-      return { at: now, says: op.shuffled ? "перемешал стопку" : "собрал стопку", count: op.cards.length };
+      // Перемешали — карты новые и лиц у них нет ни у кого: показывать нечего, кроме числа. Но
+      // НАЗВАТЬ СТОПКУ надо: стопок за столом много, и «собрал стопку» не говорит, какую именно.
+      return { at: now, says: `${op.shuffled ? "перемешал" : "собрал"} «${pileOf(op.pile, snap)}»`, count: op.cards.length };
     case "join":
       return { at: now, who: op.person.name, ink: op.person.ink, says: "сел за стол" };
     case "leave":

@@ -293,6 +293,16 @@ export interface TableRules {
   faces: CardFaces;
   /** Рубашка — одна на весь стол, выбирает админ. */
   back: CardBack;
+  /**
+   * УКАЗАТЕЛЬ ХОДА — стрелка у стула того, от кого сейчас ждут действия.
+   *
+   * Ничего не запрещает и ничего не двигает: это ответ на вопрос, который за настоящим столом
+   * задают вслух — «мой ход?». Вернувшийся к столу через минуту читает круг сам, а вот чья очередь
+   * — по кругу не видно никак, и спросить некого, если за столом машины.
+   *
+   * Выключается распорядителем через крупье: за столом, где считают ходы в уме, подсказка мешает.
+   */
+  turnMark: boolean;
 }
 
 /**
@@ -304,7 +314,7 @@ export type CardFaces = (typeof CARD_FACES)[number];
 export const CARD_BACKS = ["plaid", "argyle", "club", "lattice", "crest", "ink"] as const;
 export type CardBack = (typeof CARD_BACKS)[number];
 
-export const DEFAULT_RULES: TableRules = { dropEmptyChairs: true, faces: "classic", back: "plaid" };
+export const DEFAULT_RULES: TableRules = { dropEmptyChairs: true, faces: "classic", back: "plaid", turnMark: true };
 
 /** Лица по пресету: белка — классика, остальные — минимал. Рубашку пресет не трогает. */
 export const PRESET_FACES: Record<Game, CardFaces> = { belka: "classic", durak: "minimal", krest: "minimal" };
