@@ -1,0 +1,21 @@
+server/scripts/tableBotActs.mjs
+  s_9ed0da107cbc4a::t_2f73cf15ec2c94 1-84
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_1949975393a36f 278-281,293-296,473-474,491-493,1230-1235,1247-1250,1274-1277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "367939ce98d29639d704d1439f64c6fc3eb696dc",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
