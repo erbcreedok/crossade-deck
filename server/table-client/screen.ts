@@ -2598,8 +2598,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       }).join("");
     const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
     // Окно висит под своей кнопкой и не закрывает стол целиком: партия продолжается, пока читают.
-    return `<div data-g="journal" style="position:absolute;left:12px;right:12px;top:calc(60px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));`
-      + `max-height:min(52vh,420px);overflow-y:auto;z-index:62;border-radius:14px;font:400 13px/1.45 Tiny5,monospace;color:${T.ink};${plate}">`
+    //
+    // ПРОКРУЧИВАЕТСЯ ПАЛЬЦЕМ, и это надо объявить прямо. У страницы стола `touch-action:none` —
+    // палец там тянет карту, а не страницу; без `pan-y` журнал стоял бы намертво. `contain` не даёт
+    // прокрутке дойти до конца и потянуть за собой стол.
+    return `<div data-g="journal" data-scroll style="position:absolute;left:12px;right:12px;top:calc(60px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));`
+      + `max-height:min(52vh,420px);overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;`
+      + `z-index:62;border-radius:14px;font:400 13px/1.45 Tiny5,monospace;color:${T.ink};${plate}">`
       + `<div style="padding:9px 14px;color:${T.inkDim};font-size:11px;position:sticky;top:0;${plate};border-radius:14px 14px 0 0">`
       + `Журнал · видно только то, что видно за столом</div>${строки}</div>`;
   }
@@ -3323,6 +3328,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       };
     }
     for (const el of over.children) {
+      // ПРОКРУЧИВАЕМОЕ ОКНО ОТМЕНУ НЕ ПОЛУЧАЕТ. `keepPage` глушит любой `touchmove` — и вместе с
+      // закрытием приложения свайпом глушит прокрутку внутри окна: журнал стоял намертво, хотя
+      // `touch-action:pan-y` у него был правильный.
+      //
+      // Окну настроек это не грозило: оно живёт своим слоем, а не среди детей стола, — и потому
+      // ловушка обнаружилась только со вторым окном.
+      if ((el as HTMLElement).dataset?.["scroll"] !== undefined) continue;
       el.addEventListener("touchmove", keepPage, { passive: false });
     }
     // 💬 — ЗАЖАЛ И УВЁЛ ПАЛЕЦ: в руке микрофон. Тап по ней (без жеста) по-прежнему открывает клавиатуру.
@@ -3444,6 +3456,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         lassoAct(el.dataset.lassoAct as (typeof LASSO_ACTS)[number][0]);
         draw();
       };
+    }
+    // ПАЛЕЦ НА ЖУРНАЛЕ — ЕГО СОБСТВЕННЫЙ. Без этого стол считает касание началом переноса карты и
+    // глотает прокрутку: окно стоит намертво.
+    for (const el of over.querySelectorAll<HTMLElement>(String.raw`[data-g="journal"]`)) {
+      el.onpointerdown = (e) => e.stopPropagation();
+      el.onwheel = (e) => e.stopPropagation();
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-journal]")) {
       el.onclick = (e) => {
