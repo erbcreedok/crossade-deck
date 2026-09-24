@@ -1,0 +1,33 @@
+server/scripts/tableChairs.mjs
+  s_9ed0da107cbc4a::t_1db8d10256fe31 1,3-4,6-30,32-33,35-43,45-63,66-68,70-104,107-110
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_ad2a528aef36b0 271-272,897,900-902,1000-1050
+server/src/table/chairs.test.ts
+  s_9ed0da107cbc4a::t_bcfa766f68b502 1-99
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_9ed21c5f78e870 378-387,415,420-428
+server/src/table/intent.test.ts
+  s_9ed0da107cbc4a::t_b8313a12e7e4c0 22
+server/src/table/intent.ts
+  s_9ed0da107cbc4a::t_889e37bcb4dbae 93-99
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_6916aa6986b574 417-424,427,430,522,524,655,1523-1534
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_c88c7635809b6a 40,1349-1350,1371,1379-1403,1415-1418,3577-3586
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "58759d95cbd9234f7192a60d141beb8e512f2a06",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
