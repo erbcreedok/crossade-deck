@@ -128,11 +128,52 @@ describe("journal.a-journal-reads-as-a-story", () => {
     expect(deedOf(внутри("s1", "s2"), снимок(), 0), "а в ЧУЖУЮ руку — событие").not.toBe(null);
   });
 
-  /** «Собрал стопку 3шт» не говорит, ЧТО собрали: за столом стопок много, и круг хода — одна из них. */
-  it("сборка и перемешивание называют стопку", () => {
+  /**
+   * ОДНО ДВИЖЕНИЕ — ОДНА ЗАПИСЬ. Крупье уносит круг одним движением (`pileDrop`), но стол честно
+   * сообщает о каждой карте: пять карт — пять `move`. В журнале это выходило пятью одинаковыми
+   * строками подряд, за которыми уже не видно самой партии.
+   */
+  it("пачка одинаковых движений слипается в одну запись с числом карт", () => {
+    const одна = (id: string, rank: string): Op => ({
+      t: "move",
+      card: { id, face: { rank, suit: "h" } },
+      from: { in: "deck", pile: "ring" },
+      to: { in: "hand", chair: "kr", i: 0 },
+      trail: { by: "Аня", byName: "Аня", from: "deck", at: 0 },
+    });
+    const j = journal();
+    j.take([одна("c1", "7"), одна("c2", "8"), одна("c3", "9")], снимок(), 0);
+    const all = j.all();
+    expect(all.length, "одна строка вместо трёх").toBe(1);
+    expect(all[0]!.count, "и в ней сказано, сколько карт").toBe(3);
+    expect(all[0]!.cards?.length, "карты все на месте — их видно, как видно на столе").toBe(3);
+  });
+
+  it("разные движения в одной пачке не слипаются", () => {
+    const в = (chair: string): Op => ({
+      t: "move",
+      card: { id: "c1", face },
+      from: { in: "deck", pile: "ring" },
+      to: { in: "hand", chair, i: 0 },
+      trail: { by: "Аня", byName: "Аня", from: "deck", at: 0 },
+    });
+    // Руки разных людей: их и называют по-разному, значит и записи разные.
+    const люди = [person("Аня"), person("Боря")];
+    const chairs = [{ id: "k1", owner: "Аня" }, { id: "k2", owner: "Боря" }] as unknown as Snapshot["chairs"];
+    const j = journal();
+    j.take([в("k1"), в("k2")], снимок({ chairs, people: люди }), 0);
+    expect(j.all().length).toBe(2);
+  });
+
+  /**
+   * «СОБРАЛ СТОПКУ N ШТ.» — НЕ СОБЫТИЕ. Стол шлёт `deck` всякий раз, когда состав стопки переписан, —
+   * в том числе после каждой положенной в круг карты. Человеку это ничего не говорит: карту, что
+   * легла в круг, он уже увидел строкой выше. Остаётся только перемешивание: оно и вправду событие.
+   */
+  it("пересборка стопки в журнал не идёт, а перемешивание — идёт и называет стопку", () => {
     const piles = [{ id: "ring", name: "Круг хода", cards: [] }] as unknown as Snapshot["piles"];
     const op = (shuffled: boolean): Op => ({ t: "deck", pile: "ring", cards: [{ id: "c1" }, { id: "c2" }], shuffled });
-    expect(deedOf(op(false), снимок({ piles }), 0)!.says).toBe("собрал «круг хода»");
+    expect(deedOf(op(false), снимок({ piles }), 0), "пересборка — шум").toBe(null);
     expect(deedOf(op(true), снимок({ piles }), 0)!.says).toBe("перемешал «круг хода»");
   });
 

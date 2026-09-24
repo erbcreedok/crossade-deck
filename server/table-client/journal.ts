@@ -108,9 +108,13 @@ export function deedOf(op: Op, snap: Snapshot, now: number): Deed | null {
         cards: [faceOf(op.card)],
       };
     case "deck":
-      // Перемешали — карты новые и лиц у них нет ни у кого: показывать нечего, кроме числа. Но
-      // НАЗВАТЬ СТОПКУ надо: стопок за столом много, и «собрал стопку» не говорит, какую именно.
-      return { at: now, says: `${op.shuffled ? "перемешал" : "собрал"} «${pileOf(op.pile, snap)}»`, count: op.cards.length };
+      // ПЕРЕСБОРКА СТОПКИ — НЕ СОБЫТИЕ. Стол переписывает состав стопки всякий раз, когда в неё
+      // что-то легло или из неё ушло, — и на каждую карту круга приходила строка «собрал стопку».
+      // Саму карту человек уже увидел строкой выше; это был чистый шум.
+      //
+      // ПЕРЕМЕШИВАНИЕ остаётся: карты после него новые, лиц у них нет ни у кого, и показывать
+      // нечего, кроме числа, — но само оно событие, и стопку надо назвать.
+      return op.shuffled ? { at: now, says: `перемешал «${pileOf(op.pile, snap)}»`, count: op.cards.length } : null;
     case "join":
       return { at: now, who: op.person.name, ink: op.person.ink, says: "сел за стол" };
     case "leave":
@@ -130,6 +134,34 @@ export function deedOf(op: Op, snap: Snapshot, now: number): Deed | null {
   }
 }
 
+/**
+ * ОДНО ДВИЖЕНИЕ — ОДНА ЗАПИСЬ. Стол сообщает о каждой карте отдельно, и это правильно: он двигает
+ * карты, а не рассказы. Но крупье уносит круг ОДНИМ движением, и пять карт превращались в пять
+ * одинаковых строк подряд, за которыми уже не видно партии.
+ *
+ * Слипаются только СОСЕДНИЕ записи одного человека с одинаковыми словами — то есть то, что и было
+ * одним жестом: карты из одного места в одно место. Два разных движения так не слипнутся, и чужое
+ * между своими разорвёт пачку, как и должно.
+ */
+const склеить = (deeds: readonly Deed[]): Deed[] => {
+  const out: Deed[] = [];
+  for (const one of deeds) {
+    const прошлая = out[out.length - 1];
+    const та_же = prev(прошлая, one);
+    if (прошлая && та_же) {
+      прошлая.cards = [...(прошлая.cards ?? []), ...(one.cards ?? [])];
+      прошлая.count = прошлая.cards.length;
+      continue;
+    }
+    out.push({ ...one, ...(one.cards ? { cards: [...one.cards] } : {}) });
+  }
+  return out;
+};
+
+/** Одно ли это движение: тот же человек, те же слова, и обе записи про карты. */
+const prev = (a: Deed | undefined, b: Deed): boolean =>
+  a !== undefined && a.who === b.who && a.says === b.says && a.cards !== undefined && b.cards !== undefined;
+
 /** Сколько записей журнал держит. Больше телефон не прокрутит, а память за партию вырастет заметно. */
 export const JOURNAL_KEEP = 200;
 
@@ -139,7 +171,7 @@ export function journal(keep = JOURNAL_KEEP) {
   return {
     /** Принять пачку операций. Возвращает, добавилось ли что-то: по этому экран решает, перерисовывать ли. */
     take(ops: readonly Op[], snap: Snapshot, now: number): boolean {
-      const свежие = ops.map((op) => deedOf(op, snap, now)).filter((one): one is Deed => one !== null);
+      const свежие = склеить(ops.map((op) => deedOf(op, snap, now)).filter((one): one is Deed => one !== null));
       if (свежие.length === 0) return false;
       deeds = [...deeds, ...свежие].slice(-keep);
       return true;

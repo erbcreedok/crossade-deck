@@ -2679,6 +2679,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * Показывает РОВНО ТО, ЧТО ВИДНО И ТАК: лицо карты стоит в строке, только если стол его этому
    * игроку показал (`journal.ts`). Ушла в закрытую стопку или в чужую скрытую руку — рубашка.
    */
+  /** Докуда карты одной записи показываются лицами, а дальше — числом. */
+  const JOURNAL_FACES = 6;
+
   function journalHtml(s: Snapshot): string {
     if (!local.journal) return "";
     const deeds = [...book.all()].reverse();
@@ -2695,7 +2698,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       ? `<div style="padding:18px 14px;color:${T.inkDim};text-align:center">Пока ничего не происходило.</div>`
       : deeds.map((one) => {
         const кто = one.who ? `<b style="color:${one.ink ?? T.ink};font-weight:600">${escape(one.who)}</b> ` : "";
-        const карты = one.cards ? ` ${one.cards.map(карта).join(" ")}` : one.count !== undefined ? ` <span style="color:${T.inkDim}">${one.count} шт.</span>` : "";
+        // ОДНО ДВИЖЕНИЕ — ОДНА СТРОКА, но и она не должна растягиваться на полэкрана: круг уносят
+        // разом, и двадцать значков подряд читаются хуже, чем честное «20 шт.».
+        const карты = one.cards
+          ? (one.cards.length > JOURNAL_FACES
+            ? ` <span style="color:${T.inkDim}">${one.cards.length} шт.</span>`
+            : ` ${one.cards.map(карта).join(" ")}`)
+          : one.count !== undefined ? ` <span style="color:${T.inkDim}">${one.count} шт.</span>` : "";
         return `<div style="padding:7px 14px;border-top:1px solid ${BAR_LOOK.rim};display:flex;gap:8px;align-items:baseline">`
           + `<span style="color:${T.inkDim};font:400 11px Tiny5,monospace;flex:0 0 auto">${час(one.at)}</span>`
           + `<span style="flex:1 1 auto;min-width:0">${кто}${escape(one.says)}${карты}</span></div>`;
