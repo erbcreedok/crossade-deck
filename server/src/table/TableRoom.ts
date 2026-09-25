@@ -12,7 +12,7 @@ import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
 import { iceServers, tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
-import { DEAL_PRESETS, MSG, PROTOCOL, ROOM_CLOSED, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type SeatCard, type TableCommand, type Welcome } from "./contract.js";
+import { DEAL_PRESETS, MSG, PROTOCOL, ROOM_CLOSED, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type SeatCard, type TableCommand, type Welcome, TOLD_OPS } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
 import { cleanSignal, ear, Signals, type Signal } from "./rtc.js";
 import { cleanMic, type Mic } from "./voice.js";
@@ -1314,6 +1314,9 @@ export class TableRoom extends Room {
     const now = Date.now();
     const seen: Record<string, Op> = {};
     for (const op of ops) {
+      // ТОЛЬКО ТО, ИЗ ЧЕГО СОСТОИТ РАССКАЗ. Замки, права, флаги стульев и прочая служебная мелочь
+      // журналу не нужны, а место в хвосте занимают — и вытесняют из него саму партию.
+      if (!TOLD_OPS.includes(op.t)) continue;
       for (const client of this.clients) {
         const key = this.seats.get(client.sessionId);
         if (key !== undefined && seen[key] === undefined) seen[key] = this.table.seenOp(op, key);

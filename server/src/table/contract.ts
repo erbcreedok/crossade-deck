@@ -30,6 +30,16 @@ export const ROOM_CLOSED = "room closed";
 export type Door = "telegram" | "guest";
 export type ClientKind = "html" | "kit" | (string & {});
 
+/**
+ * ИЗ ЧЕГО СОСТОИТ РАССКАЗ О ПАРТИИ — виды операций, которые журнал показывает человеку.
+ *
+ * Список один на оба конца: журнал печатает ровно эти (`table-client/journal.ts`), и комната хранит
+ * для вошедшего ровно их. Держи она всё подряд — хвост забивался бы замками, правами и флагами
+ * стульев: на сорок движений карт приходится под сотню служебных, и человек, обновивший страницу,
+ * получал бы пустой журнал при полном столе.
+ */
+export const TOLD_OPS: readonly string[] = ["move", "turn", "join", "leave", "unchair", "unmake", "rules", "dealer", "deck"];
+
 /** Что клиент кладёт в `joinOrCreate(TABLE_ROOM, …)`. */
 export interface JoinOptions {
   /** Подписанный id комнаты (`roomIds.ts`) — без подписи комнату не открыть. */

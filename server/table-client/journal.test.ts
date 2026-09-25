@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Face, Op, Snapshot } from "../src/table/contract.js";
-import { MAIN_PILE } from "../src/table/contract.js";
+import { MAIN_PILE, TOLD_OPS } from "../src/table/contract.js";
 import { Table } from "../src/table/table.js";
 import { deedOf, journal } from "./journal.js";
 
@@ -250,6 +250,23 @@ describe("journal.a-journal-reads-as-a-story", () => {
       { t: "order", chair: "c1", ids: [] },
     ] as Op[]) {
       expect(deedOf(op, снимок(), 0), op.t).toBe(null);
+    }
+  });
+
+  /**
+   * ОДИН СПИСОК НА ОБА КОНЦА. Журнал печатает одни виды операций, а комната хранит для вошедшего
+   * другие — и человек, обновивший страницу, увидит не то, что видели остальные. Живая партия
+   * показала это наглядно: на сорок движений карт пришлось под сотню замков и прав, хвост забился
+   * ими, и журнал открывался пустым при полном столе.
+   */
+  it("что журнал печатает, то комната и хранит — список общий", () => {
+    const показан = (kind: string): boolean => TOLD_OPS.includes(kind);
+    for (const kind of ["move", "turn", "join", "leave", "deck"]) {
+      expect(показан(kind), `${kind} — часть рассказа`).toBe(true);
+    }
+    for (const kind of ["lock", "unlock", "pick", "admin", "play", "spot"]) {
+      expect(показан(kind), `${kind} — служебное`).toBe(false);
+      expect(deedOf({ t: kind } as unknown as Op, снимок(), 0), `${kind} в журнал не идёт`).toBe(null);
     }
   });
 

@@ -12,6 +12,7 @@
 // «Ye взял 7 черв», для соседа — «Ye взял карту». Поэтому строки собираются на экране, а не на
 // сервере: сервер разослал бы всем одинаковые.
 
+import { TOLD_OPS } from "../src/table/contract.js";
 import type { Chair, Face, Op, SeenCard, Snapshot, Where } from "../src/table/contract.js";
 
 /** Одна запись журнала. `card` — лицо, если зритель его видел; иначе рубашка. */
@@ -90,6 +91,9 @@ const whoOf = (snap: Snapshot, key: string | undefined): { who?: string; ink?: s
  * @param snap стол ПОСЛЕ операции — из него берутся имена людей, стульев и стопок
  */
 export function deedOf(op: Op, snap: Snapshot, now: number): Deed | null {
+  // ОДИН СПИСОК НА ОБА КОНЦА: что печатает журнал, то и хранит комната для вошедшего (`TOLD_OPS`).
+  // Разойдись они — и человек, обновивший страницу, увидел бы не то, что видели остальные.
+  if (!TOLD_OPS.includes(op.t)) return null;
   const chairs = new Map(snap.chairs.map((one) => [one.id, one]));
   switch (op.t) {
     case "move": {

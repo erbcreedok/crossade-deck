@@ -2,7 +2,7 @@ import { addSticker } from "../db/stickersRepo.js";
 import { createHmac } from "crypto";
 import { describe, expect, it } from "vitest";
 import { TEST_PORTS, useTestServer } from "../roomHarness.js";
-import { MSG, PROTOCOL, STALE_CLIENT, TABLE_ROOM, type Carry, type Patch, type Refused, type Welcome } from "./contract.js";
+import { MSG, PROTOCOL, STALE_CLIENT, TABLE_ROOM, TOLD_OPS, type Carry, type Patch, type Refused, type Welcome } from "./contract.js";
 import { mintRoom } from "./roomIds.js";
 import { applyPatch } from "./patch.js";
 import { findEntry, keepLobbyIn, keptStateOf, openEntry, runIn } from "./lobby.js";
@@ -136,10 +136,15 @@ describe("TableRoom", () => {
       for (let ждал = 0; ждал < 8000 && !(keptStateOf(room) ?? "").includes("\"recent\""); ждал += 200) {
         await new Promise((r) => setTimeout(r, 200));
       }
-      const kept = JSON.parse(keptStateOf(room) ?? "{}") as { recent?: unknown[] };
+      const kept = JSON.parse(keptStateOf(room) ?? "{}") as { recent?: { op: { t: string } }[] };
       expect(Array.isArray(kept.recent), "хвост в слепке есть").toBe(true);
       expect(kept.recent!.length, "и он не пуст: карты уже раздали").toBeGreaterThan(0);
       expect(owner.welcome.recent, "а вошедшему он приходит с приветствием").toBeDefined();
+      // В ХВОСТЕ ТОЛЬКО РАССКАЗ. Замки и права занимали бы место партии: на сорок движений карт их
+      // под сотню, и хвост, набитый ими, доходил до человека пустым при полном столе.
+      const шум = kept.recent!.filter((one) => !TOLD_OPS.includes(one.op.t)).map((one) => one.op.t);
+      expect(шум, "служебных операций в хвосте нет").toEqual([]);
+      expect(kept.recent!.some((one) => one.op.t === "move"), "а движения карт есть").toBe(true);
     } finally {
       keepLobbyIn(null);
     }
