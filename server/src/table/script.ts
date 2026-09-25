@@ -381,8 +381,8 @@ export interface Io {
  * — над местом, куда ляжет, в конце шага — положить. Стол на всё время — `busy` для людей.
  * Шаг, который уже не выполнить (карту кто-то успел унести), пропускается, а не рушит команду.
  */
-export async function execute(table: Table, steps: Step[], actor: string, io: Io): Promise<void> {
-  table.script(true);
+export async function execute(table: Table, steps: Step[], actor: string, io: Io, kind: string | boolean = true): Promise<void> {
+  table.script(kind);
   try {
     for (const step of steps) {
       if (step.t === "shuffle") {

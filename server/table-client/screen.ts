@@ -2698,9 +2698,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       ? `<div style="padding:18px 14px;color:${T.inkDim};text-align:center">Пока ничего не происходило.</div>`
       : deeds.map((one) => {
         const кто = one.who ? `<b style="color:${one.ink ?? T.ink};font-weight:600">${escape(one.who)}</b> ` : "";
+        // РАЗДАЧА — КОМУ СКОЛЬКО. Лица карт здесь не нужны: свои человек видит в руке, а чужие ему
+        // и не положено; важно только, сколько кому досталось.
+        const раздача = one.deal
+          ? ` <span style="color:${T.inkDim}">${escape(one.deal.map((d) => `${d.hand} ${d.n}`).join(", "))}</span>`
+          : "";
         // ОДНО ДВИЖЕНИЕ — ОДНА СТРОКА, но и она не должна растягиваться на полэкрана: круг уносят
         // разом, и двадцать значков подряд читаются хуже, чем честное «20 шт.».
-        const карты = one.cards
+        const карты = one.deal ? "" : one.cards
           ? (one.cards.length > JOURNAL_FACES
             ? ` <span style="color:${T.inkDim}">${one.cards.length} шт.</span>`
             : ` ${one.cards.map(карта).join(" ")}`)
@@ -2709,7 +2714,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         // человек, — глазами по окну, а не через внутренности экрана.
         return `<div data-deed style="padding:7px 14px;border-top:1px solid ${BAR_LOOK.rim};display:flex;gap:8px;align-items:baseline">`
           + `<span style="color:${T.inkDim};font:400 11px Tiny5,monospace;flex:0 0 auto">${час(one.at)}</span>`
-          + `<span style="flex:1 1 auto;min-width:0">${кто}${escape(one.says)}${карты}</span></div>`;
+          + `<span style="flex:1 1 auto;min-width:0">${кто}${escape(one.says)}${карты}${раздача}</span></div>`;
       }).join("");
     const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
     // Окно висит под своей кнопкой и не закрывает стол целиком: партия продолжается, пока читают.

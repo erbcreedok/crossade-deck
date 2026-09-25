@@ -5,7 +5,7 @@
 // бота сходили одновременно; бот не сходил вовсе, потому что ждал события, которого не будет.
 
 import { describe, expect, it } from "vitest";
-import { nextLook, ready, stirs, type Quiet } from "./nudge.js";
+import { beatOf, BOT_BEAT_MS, nextLook, ready, stirs, type Quiet } from "./nudge.js";
 import { PROFILES } from "./profiles.js";
 
 const тишина = (было: number, прошло: number): Quiet => ({ busy: false, handsOn: false, stirredAt: было, now: было + прошло });
@@ -70,5 +70,24 @@ describe("bots.only-touching-things-breaks-the-silence", () => {
     for (const t of ["flag", "pose", "pick", "unpick", "sit", "stand", "sync", "look", "dealer", "crew", "deckPin", "deckGuard", "deckForever"]) {
       expect(stirs({ t }), t).toBe(false);
     }
+  });
+});
+
+/**
+ * ТАКТ СТОЛА — НИЖНЯЯ ГРАНИЦА ПАУЗЫ, и она не про вежливость.
+ *
+ * Пауза отсчитывается от мига, когда чужой ход ЗАПИСАН, а человек видит его позже: карта ещё летит
+ * через стол. Самый быстрый характер клал свою раньше, чем чужая долетала, и за столом это читалось
+ * как «двое сходили одновременно».
+ */
+describe("bots.no-one-moves-faster-than-the-table-beats", () => {
+  it("самый нетерпеливый характер всё равно ждёт такт", () => {
+    expect(beatOf(1200)).toBe(BOT_BEAT_MS);
+    expect(beatOf(0)).toBe(BOT_BEAT_MS);
+  });
+
+  it("а медленные характеры остаются собой — разнообразие не съедено", () => {
+    expect(beatOf(2600)).toBe(2600);
+    expect(beatOf(2900)).toBe(2900);
   });
 });

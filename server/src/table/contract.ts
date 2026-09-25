@@ -327,6 +327,13 @@ export const PRESET_FACES: Record<Game, CardFaces> = { belka: "classic", durak: 
 export interface Trail {
   by: string;
   byName: string;
+  /**
+   * КАРТУ ПРИНЕСЛА РАЗДАЧА — не догадка по виду движения, а факт: так сказал тот, кто её вёл.
+   *
+   * Журналу без этого пришлось бы угадывать раздачу по тому, что карты идут из колоды по рукам
+   * подряд. Но крупье может и просто выдать всем по карте — и это НЕ раздача; угадывание тут врёт.
+   */
+  deal?: true;
   from: "deck" | "hand" | "felt";
   hand?: string;
   /**

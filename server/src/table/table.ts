@@ -140,7 +140,7 @@ export class Table {
   private pileSeq = 0;
   private felt: { id: string; x: number; y: number; up: boolean; angle: number; under?: boolean }[] = [];
   /** Идёт команда бота: руки людей до конца неё стол не трогают (`busy`). */
-  private scripted = false;
+  private scripted: string | null = null;
   private chairs = new Map<string, ChairRow>();
   private people = new Map<string, Person>();
   private locks = new Map<string, Lock>();
@@ -560,7 +560,7 @@ export class Table {
    * отказывается `busy`: раздача не должна делиться с чужой рукой, которая тянет ту же колоду.
    */
   act(by: string, intent: Intent, now: number, auto = false): Result {
-    if (this.scripted && !auto && intent.t !== "sync" && intent.t !== "hold" && intent.t !== "release") return { refused: "busy" };
+    if (this.scripted !== null && !auto && intent.t !== "sync" && intent.t !== "hold" && intent.t !== "release") return { refused: "busy" };
     switch (intent.t) {
       case "grab":
         return this.grab(by, intent.id, now, auto);
@@ -1009,7 +1009,7 @@ export class Table {
     const byName = this.names.get(by) ?? by;
     const was = this.trails.get(id);
     if (from.in === "felt" && to === "felt" && was) return { ...was, by, byName, at };
-    const trail: Trail = { by, byName, from: from.in, at };
+    const trail: Trail = { by, byName, from: from.in, at, ...(this.scripted === "deal" && from.in === "deck" && to === "hand" ? { deal: true as const } : {}) };
     // ИЗ КАКОЙ ИМЕННО СТОПКИ: у зоны есть имя, и след обязан его нести — «из круга хода», а не «из колоды».
     if (from.in === "deck") {
       const name = this.piles.get(from.pile)?.spot.name;
@@ -1275,7 +1275,7 @@ export class Table {
     // раздача не могла её взять. За столом это выглядело так: роздано 35 карт, одна лежит посреди стола.
     //
     // Пустую стопку убираем и во время команды: убирать там уже нечего, а пустой контур мешает.
-    if (this.scripted && pile.cards.length === 1) return [];
+    if (this.scripted !== null && pile.cards.length === 1) return [];
     const ops: Op[] = [];
     const last = pile.cards[0];
     if (last !== undefined) {
@@ -1344,12 +1344,16 @@ export class Table {
   }
 
   /** Команда началась или кончилась. */
-  script(on: boolean): void {
-    this.scripted = on;
+  /**
+   * ИДЁТ КОМАНДА СТОЛА — и КАКАЯ именно. Вид нужен следу карты: «эту принесла раздача» — факт,
+   * который потом читает журнал, а не догадка по виду движения.
+   */
+  script(on: boolean | string): void {
+    this.scripted = on === false ? null : on === true ? "" : on;
   }
 
   get busy(): boolean {
-    return this.scripted;
+    return this.scripted !== null;
   }
 
   /**

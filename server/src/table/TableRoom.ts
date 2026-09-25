@@ -52,7 +52,7 @@ import { fromList } from "./bots/brain.js";
 import { best } from "./bots/greedy.js";
 import { brainOf, OUTSIDE_BRAIN } from "./bots/brains.js";
 import { PROFILE_KEYS, profileOf } from "./bots/profiles.js";
-import { nextLook, ready, stirs } from "./bots/nudge.js";
+import { beatOf, nextLook, ready, stirs } from "./bots/nudge.js";
 import { chosen, looked, type Looked, type Played } from "./bots/outside.js";
 import { moveSays } from "./bots/say.js";
 import { botSeen, type BotsSeen, type BotTrack } from "./bots/watch.js";
@@ -513,7 +513,7 @@ export class TableRoom extends Room {
     if ("error" in p) return p;
     if (p.deal) this.lastDeal = p.deal;
     const actor = p.actor === "bot" ? BOT_KEY : p.actor;
-    void execute(this.table, p.steps, actor, this.io()).then(() => {
+    void execute(this.table, p.steps, actor, this.io(), command.t).then(() => {
       // Раздача кончилась — собираем судью из того, что легло в руки. Раздающий у этой игры ходит
       // последним, но первым ходит тот, у кого шестёрка козыря, — это решает сам судья.
       if (command.t === "deal") this.openMatch(this.table.layout().chairs.find((c) => c.owner === by)?.id ?? null);
@@ -870,7 +870,7 @@ export class TableRoom extends Room {
     const waits: number[] = [];
     for (const bot of bots) {
       const profile = this.profileFor(bot.key);
-      waits.push(profile.waitMs);
+      waits.push(beatOf(profile.waitMs));
       // ЗА НЕГО ДУМАЮТ СНАРУЖИ. Стул, имя и цвет — как у всех, но своего мозга нет: ход придёт от
       // агента через MCP, когда тот решит. Толчок по тишине его не касается, иначе стол сходил бы
       // за него первым и агенту осталось бы смотреть.
@@ -931,12 +931,12 @@ export class TableRoom extends Room {
       //
       // Ждём ОБЫЧНЫМ таймером, а не часами комнаты: часы закрытой комнаты не идут, и ожидание на
       // них не кончилось бы никогда — эта задача осталась бы висеть вместе со всем, что держит.
-      const left = profile.waitMs - (Date.now() - this.stirredAt);
+      const left = beatOf(profile.waitMs) - (Date.now() - this.stirredAt);
       if (left > 0) await new Promise((done) => setTimeout(done, left).unref?.());
       if (this.gone.signal.aborted) return;
       // Пока думали, стол мог зашевелиться: человек взял карту, пошла раздача. Тогда ход отменяется
       // и назначается заново — свежей мыслью по новому столу, а не этой, уже устаревшей.
-      if (!ready({ busy: this.table.busy, handsOn: this.table.handsOn, stirredAt: this.stirredAt, now: Date.now() }, profile.waitMs)) {
+      if (!ready({ busy: this.table.busy, handsOn: this.table.handsOn, stirredAt: this.stirredAt, now: Date.now() }, beatOf(profile.waitMs))) {
         return void this.nudgeBots();
       }
       this.botMoves(key, move);
@@ -1137,7 +1137,7 @@ export class TableRoom extends Room {
             chair: one.seat!,
             brain: this.brainNameOf(one.key),
             profile: this.profileFor(one.key).key,
-            waitMs: this.profileFor(one.key).waitMs,
+            waitMs: beatOf(this.profileFor(one.key).waitMs),
             turn: turn === one.key,
           },
           this.tracks.get(one.key),

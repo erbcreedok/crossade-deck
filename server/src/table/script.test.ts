@@ -19,6 +19,7 @@ function table(...keys: string[]) {
   const run = async (command: TableCommand, by = keys[0]!) => {
     const p = plan(t, command, who(), by);
     if ("error" in p) return p.error;
+    // Вид команды называется так же, как его называет комната: по нему след карты узнаёт раздачу.
     await execute(t, p.steps, p.actor === "bot" ? BOT : p.actor, {
       spread: (ops) => {
         log.push(ops);
@@ -27,7 +28,7 @@ function table(...keys: string[]) {
       carry: () => {},
       sleep: async () => {},
       now: () => 0,
-    });
+    }, command.t);
     return "ok";
   };
   const hand = (k: string) => t.seenBy(k).chairs.find((c) => c.owner === k)!.hand;
@@ -42,6 +43,30 @@ const clockwiseFrom = (t: Table, key: string, keys: string[]) => {
 };
 
 describe("команды стола: раздача", () => {
+  /**
+   * КАРТА, ПРИНЕСЁННАЯ РАЗДАЧЕЙ, ГОВОРИТ ОБ ЭТОМ САМА — в своём следе.
+   *
+   * Иначе журналу пришлось бы угадывать раздачу по виду движения: «карты идут из колоды по рукам
+   * подряд — значит раздают». Но крупье может просто выдать всем по карте, и это НЕ раздача;
+   * угадывание тут врёт, а след — нет.
+   */
+  it("след карты говорит, что её принесла раздача, а обычная выдача — нет", async () => {
+    const t = table("а", "б");
+    expect(await t.run({ t: "deal", rule: "each", n: 2 })).toBe("ok");
+    const раздано = t.hand("а");
+    const следы = раздано.map((card) => t.seen().trails[card.id]);
+    expect(следы.length).toBeGreaterThan(0);
+    expect(следы.every((one) => one?.deal === true), "все карты раздачи помечены").toBe(true);
+
+    // А теперь крупье просто выдаёт карту рукой — тем же путём, каким её дал бы человек.
+    const верх = t.t.layout().deck.at(-1)!;
+    const стул = t.t.layout().chairs.find((c) => c.owner === "а")!.id;
+    t.t.act("а", { t: "grab", id: верх }, 0);
+    const дал = t.t.act("а", { t: "drop", id: верх, to: { in: "hand", chair: стул, i: 0 } }, 0);
+    const move = ("ops" in дал ? (дал.ops ?? []) : []).find((op) => op.t === "move");
+    expect(move && move.t === "move" ? move.trail?.deal : "нет хода", "выдача рукой — не раздача").toBe(undefined);
+  });
+
   it("по N каждому, по часовой со следующего после раздающего", async () => {
     const s = table("a", "b", "c");
     expect(await s.run({ t: "deal", rule: "each", n: 3 })).toBe("ok");
