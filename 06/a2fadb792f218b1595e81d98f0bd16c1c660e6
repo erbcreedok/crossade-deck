@@ -1,0 +1,19 @@
+server/table-client/felt.ts
+  s_9ed0da107cbc4a::t_c0e9b98775c0f2 483,497-498,500,502-510,516-522,524-530,786
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "06a2fadb792f218b1595e81d98f0bd16c1c660e6",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
