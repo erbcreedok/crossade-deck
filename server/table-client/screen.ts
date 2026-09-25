@@ -1423,17 +1423,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const admin = iMay(s, "table.croupier");
     // Дела набора — там, где объявлены; к ним добавляются те, что исполняет сам экран.
     const свои: { part: string; data: string; name: string }[] = [
-      { part: "раздача", data: `data-croupier="deal"`, name: "Раздать" },
-      { part: "раздача", data: `data-croupier="shuffle"`, name: "Перемешать" },
+      { part: "колода", data: `data-croupier="deal"`, name: "Раздать" },
+      { part: "колода", data: `data-croupier="shuffle"`, name: "Перемешать" },
       // СТУЛ СТАВЯТ ОТСЮДА: пустых может не быть вовсе, и тогда поставить первый было бы неоткуда.
       { part: "стол", data: `data-chair-act="add"`, name: "Ещё стул" },
-      ...(admin ? [{ part: "стол", data: "data-flip-chair", name: "Перевернуть руку" }] : []),
+      ...(admin ? [{ part: "рука", data: "data-flip-chair", name: "Перевернуть руку" }] : []),
     ];
     const все = [
       ...store.crew.filter((one) => !one.adminOnly || admin).map((one) => ({ part: one.part, data: `data-crew="${escape(one.id)}"`, name: one.name })),
       ...свои,
     ];
-    const разделы = (["игра", "раздача", "стол"] as const).map((part) => {
+    const разделы = (["игра", "колода", "рука", "стол"] as const).map((part) => {
       const кнопки = все.filter((one) => one.part === part);
       if (кнопки.length === 0) return "";
       return `<div style="font:400 10px Tiny5,monospace;color:${T.inkDim};letter-spacing:.06em;padding:2px 0 0;width:100%">${part.toUpperCase()}</div>`

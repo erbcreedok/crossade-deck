@@ -156,7 +156,8 @@ describe("TableRoom", () => {
    */
   it("указатель хода из окна крупье: гасит и зажигает только распорядитель, и всем сразу", async () => {
     const room = mintRoom(SECRET);
-    openEntry(room, { kind: "inline", message: "m" }, "tg:7", "Стрелка");
+    // КРЕСТОВЫЙ: указатель хода — дело ИГРЫ. В песочнице очереди нет вовсе, и указывать там нечего.
+    openEntry(room, { kind: "inline", message: "m" }, "tg:7", "Стрелка", Date.now(), "krest");
     const owner = await sit(room, { door: "telegram", initData: initData(7, "Аня") });
     const guest = await sit(room, { door: "guest", name: "Боря" });
     await runIn(room, "tg:7", { t: "croupier", on: true });
