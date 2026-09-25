@@ -1,0 +1,21 @@
+server/scripts/tableBeat.mjs
+  s_9ed0da107cbc4a::t_07aa4d56ce8464 1-122
+server/table-client/netStore.ts
+  s_9ed0da107cbc4a::t_876be225cc2390 73-96,100,106-132,145-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "06e006c0217f3f08f2fc241d4dc1ef79a8f6a2b8",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
