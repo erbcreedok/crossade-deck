@@ -156,7 +156,7 @@ describe("the people at a live desk", () => {
     expect(asked).toEqual([mine]);
   });
 
-  it("live.only-the-owner-may-move-a-place — and nothing at all may move a disc", () => {
+  it("live.a-pin-is-the-only-ban-on-a-place — and nothing at all may move a disc", () => {
     const desk = roundMap(SEATS);
     const people = wire(desk, [screenOf("south", "accent", 0)]);
     people.publish();
@@ -166,7 +166,7 @@ describe("the people at a live desk", () => {
     const chair = byId(desk, chairId(mine))!;
     expect(caps(chair).has("Draggable")).toBe(true);
     expect(mayTake(chair, mine)).toBe(true);
-    expect(mayTake(chair, theirs)).toBe(false);
+    expect(mayTake(chair, theirs), "an unpinned chair is moved by anybody").toBe(true);
     expect(grippableBy(chair, theirs), "an open hand is dealt from by anybody").toBe(true);
     // A DISC IS NOT PICKED UP AT ALL: it is a reading of a camera, not a thing on the desk.
     expect(caps(byId(desk, avatarId(mine))!).has("Draggable")).toBe(false);

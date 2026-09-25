@@ -259,7 +259,10 @@ describe("the people at a live desk", () => {
 
     expect(people.pressed("south", control("pin"))).toBe(true);
     expect(chairPinned(ring)).toBe(true);
-    expect(mayTake(ring, "south"), "a pinned chair moves for nobody").toBe(false);
+    // A PIN IS PUT UP AGAINST OTHER HANDS, NOT ONE'S OWN (`seatPlace.mayTake`): the owner still
+    // moves their own chair, and the pin stops everybody else — the admin included.
+    expect(mayTake(ring, "south"), "the owner moves their own chair, pinned or not").toBe(true);
+    expect(mayTake(ring, "north"), "and a pinned chair moves for nobody else").toBe(false);
     expect(marked("pin")).toBe(true);
 
     // A FOLD IS ONE TOGGLE OF THE HAND'S POSE, written on the chair like the rest — and the other
@@ -280,17 +283,18 @@ describe("the people at a live desk", () => {
     expect(shown("north", "ace"), "shown again, north sees the side south set").toBe("cardBack");
   });
 
-  it("live.only-the-owner-may-move-a-place — and nothing at all may move a disc", () => {
+  it("live.a-pin-is-the-only-ban-on-a-place — and nothing at all may move a disc", () => {
     const desk = roundMap(SEATS);
     const people = wire(desk, [screenOf("south", "accent", 0)]);
     people.publish();
     const [mine, theirs] = SEATS.map(({ seat }) => seat) as [string, string];
-    // A RING IS PICKED UP BY ITS OWN SEAT AND BY NOBODY ELSE — and the refusal is `mayTake` rather
-    // than a grip, because a grip cuts the subtree and would shut the hand inside the ring for ever.
+    // A CHAIR IS MOVED BY ANY HAND UNTIL ITS OWNER PINS IT — the pin is the only ban, and it is
+    // personal (`seatPlace.mayTake`). The refusal is `mayTake` rather than a grip, because a grip
+    // cuts the subtree and would shut the hand inside the ring for ever.
     const chair = byId(desk, chairId(mine))!;
     expect(caps(chair).has("Draggable")).toBe(true);
     expect(mayTake(chair, mine)).toBe(true);
-    expect(mayTake(chair, theirs)).toBe(false);
+    expect(mayTake(chair, theirs), "an unpinned chair is moved by anybody").toBe(true);
     expect(grippableBy(chair, theirs), "an open hand is dealt from by anybody").toBe(true);
     // A DISC IS NOT PICKED UP AT ALL: it is a reading of a camera, not a thing on the desk.
     expect(caps(byId(desk, avatarId(mine))!).has("Draggable")).toBe(false);
