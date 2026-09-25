@@ -14,10 +14,9 @@ const secret = process.argv[3] ?? "dev";
 const body = randomBytes(8).toString("base64url");
 const room = body + createHmac("sha256", secret).update(body).digest("base64url").slice(0, 12);
 
-/** Стол и его кромка в единицах — те же числа, что в `felt.ts`; поле вокруг равно радиусу. */
-const R = 8;
+/** Стол и его кромка в единицах — те же числа, что в `felt.ts` и `ring.ts`. */
+const R = 6.4;
 const RIM = 0.09 + 0.33 + 0.18;
-const MARGIN = R;
 /** На сколько кладёт стол одно нажатие — `LEAN_STEP` в `camera.ts`. */
 const STEP = 45;
 /** Потолок наклона руками — `MAX_LEAN` там же. */
@@ -193,7 +192,8 @@ const half = s.frame.h / 2 / s.k;
 await drag(195, 200, 195, 660);
 await drag(195, 200, 195, 660);
 v = await view();
-const reach = R + RIM + MARGIN - half;
+// Поле — `deskBox` из `felt.ts`: середину стола можно довести до края кадра, но не дальше.
+const reach = Math.max(2 * half, R + RIM + half) - half;
 check("стол уводится вниз за кромку — поле вокруг есть", Math.abs(v.y) > 0.5, [v, { reach, half }]);
 check("и не уходит дальше поля", Math.abs(v.y) <= reach + 0.2, [v, { reach }]);
 

@@ -12,7 +12,7 @@
 import { Camera, type CameraLimits } from "../../game-kit/src/render/camera/index.js";
 import { TILT_PER_PX, wireCamera, type CameraControl } from "../../game-kit/src/render/cameraInput.js";
 import type { Host } from "../../game-kit/src/render/host.js";
-import { DESK_BOX, R, RIM } from "./felt.js";
+import { deskBox, R, RIM } from "./felt.js";
 
 /**
  * ПОТОЛОК НАКЛОНА РУКАМИ — 60°, выше стокового китового сорокапятиградусного.
@@ -64,7 +64,14 @@ export function tableCamera(canvas: HTMLCanvasElement, frame: () => { w: number;
     hudRoot: undefined,
     root: undefined as unknown as Host["root"],
   };
-  const control = wireCamera({ host: host as Host, camera, content: () => DESK_BOX, unit, onView });
+  // ПОЛЕ СТОЛА ЗАВИСИТ ОТ ЗУМА (`deskBox`), а кит берёт его только при смене кадра — поэтому после
+  // каждого движения камеры поле обновляется здесь же, до следующего шага жеста.
+  const box = () => deskBox(frame(), unit() * camera.zoom);
+  const viewed = () => {
+    camera.setContent(box(), unit());
+    onView();
+  };
+  const control = wireCamera({ host: host as Host, camera, content: box, unit, onView: viewed });
 
   // ПОВОРОТ МЫШЬЮ, КАК В 2ГИС. Точка стола под курсором взята в момент нажатия и держится под ним:
   // мышь влево-вправо — стол поворачивается, вверх-вниз — наклоняется, и то и другое сразу.
@@ -92,7 +99,7 @@ export function tableCamera(canvas: HTMLCanvasElement, frame: () => { w: number;
         camera.tiltTo(from.pitch - (at.y - start.y) * LEAN_PER_PX);
         camera.holdAt(anchor, start.x, start.y, camera.zoom);
       } else camera.holdAt(grip, at.x, at.y, camera.zoom);
-      onView();
+      viewed();
     };
     const key = (e: KeyboardEvent) => {
       if (mode !== "orbit" || right || e.ctrlKey || e.metaKey) return;
