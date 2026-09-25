@@ -78,6 +78,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   /** Личная скорость анимаций и «меньше анимаций». */
   const motion = tableMotion();
   motion.onChange(() => draw());
+  /** Ссылка на запись партии — та, что пришла со стола последней. */
+  let замок: string | null = null;
   const settings = mountSettings(document.body, {
     sound, haptic, motion, look,
     lookChanged: () => {
@@ -86,6 +88,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       draw();
     },
     soundChanged: () => mesh.gains(),
+    /**
+     * ЗАПИСЬ ПАРТИИ — распорядителю. Адрес собирается ЗДЕСЬ, от того имени, по которому открыт сам
+     * стол: сервер живёт за туннелем и своего внешнего имени не знает.
+     */
+    replay: {
+      may: () => iMay(seen(), "table.croupier"),
+      ask: () => store.askReplay?.(),
+      link: () => замок,
+    },
     /**
      * СТРОКА О ГОЛОСЕ — ПО ЧЕЛОВЕКУ И ПО СТОРОНАМ, а не числом.
      *
@@ -2759,15 +2770,24 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       + `Журнал · видно только то, что видно за столом</div>${строки}</div>`;
   }
 
+  /**
+   * ОТСТУП КНОПОК ОТ ЛЕВОГО КРАЯ.
+   *
+   * У самого края телефон забирает касания себе: там живёт системный жест «назад». Кнопка в 12px
+   * от края почти не нажималась — палец попадал в этот жест, и настройки открывались только через
+   * меню Telegram. Полоса жеста около двух десятков точек, поэтому кнопки стоят за ней.
+   */
+  const RIM_LEFT = 28;
+
   /** НАСТРОЙКИ — шестерёнка сверху; окно — своим слоем (`settings.ts`). */
   function settingsHtml(): string {
     const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
-    const gear = `<button data-settings aria-label="Настройки" aria-expanded="${settings.open}" style="position:absolute;left:12px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:40px;height:40px;border:0;padding:0;z-index:61;`
+    const gear = `<button data-settings aria-label="Настройки" aria-expanded="${settings.open}" style="position:absolute;left:${RIM_LEFT}px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:40px;height:40px;border:0;padding:0;z-index:61;`
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">`
       + `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
       + `<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`;
     // ЖУРНАЛ ПАРТИИ — рядом с шестерёнкой: кто что когда сделал, словами и только то, что видно.
-    const book = `<button data-journal aria-label="Журнал партии" aria-expanded="${local.journal}" style="position:absolute;left:60px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:40px;height:40px;border:0;padding:0;z-index:61;`
+    const book = `<button data-journal aria-label="Журнал партии" aria-expanded="${local.journal}" style="position:absolute;left:${RIM_LEFT + 48}px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:40px;height:40px;border:0;padding:0;z-index:61;`
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">`
       + `<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="${local.journal ? T.gold : "white"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
       + `<path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h7M8 11h7M8 15h4"/></svg></button>`;
@@ -2776,7 +2796,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // ОТСТУПЫ СИММЕТРИЧНЫ, и это не вкусовщина: слева две кнопки по 40, справа компас на 52, и имя,
     // центрованное по остатку, уезжало вбок. Центр плашки должен быть центром ЭКРАНА, а не центром
     // того, что осталось между кнопками.
-    const name = `<div data-table-name style="position:absolute;left:108px;right:108px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));height:40px;z-index:60;`
+    const name = `<div data-table-name style="position:absolute;left:${RIM_LEFT + 96}px;right:108px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));height:40px;z-index:60;`
       + `display:flex;align-items:center;justify-content:center;pointer-events:none"><span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`
       + `padding:0 12px;border-radius:12px;font:400 13px Tiny5,monospace;color:${T.ink};line-height:28px;${plate}">${escape(store.title)}</span></div>`;
     return gear + book + name;
@@ -3874,6 +3894,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   // ЖУРНАЛ ВЕДЁТСЯ ВСЕГДА, открыт он или нет: иначе открывший увидел бы пустоту и решил, что
   // ничего не было. Перерисовываем только когда он на виду — незачем трогать экран ради записи,
   // которую никто не читает.
+  // ПРОПУСК НА ЗАПИСЬ ПРИШЁЛ — собираем адрес от того имени, по которому открыт стол, и показываем.
+  store.onReplay?.((one) => {
+    const адрес = new URL("replay", `${location.origin}${location.pathname.replace(/[^/]*$/, "")}`);
+    адрес.searchParams.set("room", one.room);
+    адрес.searchParams.set("pass", one.pass);
+    замок = адрес.toString();
+    settings.refresh();
+    draw();
+  });
+
   store.onMinds?.((told) => {
     minds = told;
     draw();

@@ -9,7 +9,7 @@ import type { TableHaptic } from "./haptic.js";
 import type { Motion } from "./motion.js";
 import { VOLUME_STEP, type TableSound } from "./sound.js";
 
-const INK = { black: "#0b0704", ink: "#f5ead0", dim: "#cdb98f", off: "#6f6452", well: "#1c120b", wood: "#6b4d2c", plateHi: "#25321f", plateLo: "#16210f", rim: "#6b4d2c", goldHi: "#f8d885", goldLo: "#b08a26" };
+const INK = { black: "#0b0704", ink: "#f5ead0", dim: "#cdb98f", off: "#6f6452", well: "#1c120b", wood: "#6b4d2c", plateHi: "#25321f", plateLo: "#16210f", rim: "#6b4d2c", goldHi: "#f8d885", goldLo: "#b08a26", gold: "#f0c86a" };
 
 interface TelegramApp {
   isVersionAtLeast?(v: string): boolean;
@@ -33,12 +33,26 @@ export interface SettingsWorld {
   footer(): string;
   /** Открылось или закрылось — стол перерисовывает шестерёнку. */
   changed(): void;
+  /**
+   * ЗАПИСЬ ПАРТИИ — только распорядителю. `may` говорит, показывать ли раздел; `ask` просит у стола
+   * пропуск, `link` отдаёт готовый адрес, когда пропуск пришёл.
+   *
+   * Ссылку собирает экран, а не сервер: страница открыта по тому имени, по которому стол виден
+   * снаружи, а сервер своего внешнего имени может и не знать — он живёт за туннелем.
+   */
+  replay: {
+    may(): boolean;
+    ask(): void;
+    link(): string | null;
+  };
 }
 
 export interface Settings {
   readonly open: boolean;
   show(): void;
   hide(): void;
+  /** Перерисовать, если открыто: пришло то, что окно показывает (ссылка на запись). */
+  refresh(): void;
 }
 
 export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings {
@@ -51,6 +65,23 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
     + "padding:calc(16px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom));"
     + "touch-action:pan-y;background:rgba(11,7,4,.62)";
   host.append(layer);
+
+  /**
+   * ЗАПИСЬ ПАРТИИ: кнопка просит ссылку, и она же показывает её, когда та пришла.
+   *
+   * Ссылка показывается целиком, а не прячется за «скопировано»: её пересылают из Telegram, где
+   * буфер обмена работает не везде, и увидеть её глазами надо всегда.
+   */
+  const replayHtml = () => {
+    const адрес = world.replay.link();
+    const кнопка = `<button data-look="replay" style="width:100%;min-height:40px;border:0;cursor:pointer;border-radius:10px;padding:8px 12px;`
+      + `background:linear-gradient(${INK.goldHi},${INK.goldLo});color:${INK.black};font:400 13px Tiny5,monospace">`
+      + `${адрес === null ? "Получить ссылку" : "Обновить ссылку"}</button>`;
+    const строка = адрес === null
+      ? `<div style="font:400 11px Tiny5,monospace;color:${INK.dim};padding-top:6px">Ссылку можно переслать: она открывает только эту запись.</div>`
+      : `<a data-replay-link href="${адрес}" target="_blank" rel="noreferrer" style="display:block;word-break:break-all;font:400 11px Tiny5,monospace;color:${INK.gold};padding-top:6px">${адрес}</a>`;
+    return кнопка + строка;
+  };
 
   const section = (title: string) => `<div style="font:400 11px Tiny5,monospace;color:${INK.dim};padding:14px 0 4px;letter-spacing:.04em">${title}</div>`;
   const toggle = (key: string, label: string, on: boolean) => {
@@ -104,6 +135,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><span style="font:400 18px Tiny5,monospace;color:${INK.ink}">Настройки</span>`
       + `<button data-settings-close aria-label="Закрыть" style="width:40px;height:40px;border:0;border-radius:10px;cursor:pointer;color:${INK.ink};font:400 18px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${INK.rim}">✕</button></div>`
       + (fullscreenable() ? section("Экран") + toggle("fullscreen", "Полный экран", app()?.isFullscreen === true) : "")
+      + (world.replay.may() ? section("Запись партии") + replayHtml() : "")
       + section(haptic.supported ? "Звук и вибрация" : "Звук")
       + toggle("mute", "Отключить все звуки", sound.prefs.muted)
       + toggle("uiMute", "Отключить звуки интерфейса", sound.prefs.uiMuted)
@@ -133,6 +165,9 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
     if (!el) return;
     const { sound, haptic, motion, look } = world;
     switch (el.dataset.look) {
+      case "replay":
+        world.replay.ask();
+        break;
       case "fullscreen":
         if (app()?.isFullscreen) app()?.exitFullscreen?.();
         else app()?.requestFullscreen?.();
@@ -196,6 +231,9 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       render();
       layer.style.display = "flex";
       world.changed();
+    },
+    refresh() {
+      if (layer.style.display !== "none") render();
     },
     hide() {
       layer.style.display = "none";

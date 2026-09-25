@@ -12,8 +12,9 @@ import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
 import { iceServers, tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
-import { DEAL_PRESETS, MSG, PROTOCOL, ROOM_CLOSED, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type SeatCard, type TableCommand, type Welcome, TOLD_OPS } from "./contract.js";
+import { DEAL_PRESETS, MSG, PROTOCOL, ROOM_CLOSED, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type Recording, type SeatCard, type TableCommand, type Welcome, TOLD_OPS } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
+import { mintPass, PASS_HOURS } from "./pass.js";
 import { cleanSignal, ear, Signals, type Signal } from "./rtc.js";
 import { cleanMic, type Mic } from "./voice.js";
 import { clockwise, collectSteps, deckOf, execute, plan, tuneSteps, type DealMemo } from "./script.js";
@@ -320,6 +321,22 @@ export class TableRoom extends Room {
         // Человек сходил — теперь очередь может быть уже за ботом. Ждать он начнёт с этого мига.
         this.nudgeBots();
       }
+    });
+
+    /**
+     * ССЫЛКА НА ЗАПИСЬ ПАРТИИ — распорядителю по просьбе.
+     *
+     * Пропуск выписывается по секрету стола, но живёт отдельно от него: его можно переслать, не
+     * отдавая ключ от всех комнат. Сам адрес собирает экран — он открыт по тому имени, по которому
+     * стол виден снаружи, а сервер своего внешнего имени может и не знать (туннель, реле).
+     */
+    this.onMessage(MSG.replay, (client) => {
+      const me = this.personOf(client.sessionId);
+      const secret = tableConfig().secret;
+      if (!me || !secret || !this.table.may(me.key, "table.croupier")) return;
+      const until = Date.now() + PASS_HOURS * 60 * 60 * 1000;
+      this.book.tell("replay.pass", me.key, { until });
+      client.send(MSG.replay, { room: this.room, pass: mintPass(this.room, secret, until), until } satisfies Recording);
     });
 
     // ПАЛЕЦ В ВОЗДУХЕ — остальным, каждому своими глазами; отправителю не возвращается.
