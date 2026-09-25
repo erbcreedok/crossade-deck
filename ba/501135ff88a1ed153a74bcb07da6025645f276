@@ -1,0 +1,23 @@
+.gitignore
+  s_9ed0da107cbc4a::t_ce2bd288014c28 55-57
+server/src/table/TableRoom.test.ts
+  s_9ed0da107cbc4a::t_11922527fbe8d4 123-167
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_0682f0b31ec7fe 78-83,85,1366-1369,1372-1374
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ba501135ff88a1ed153a74bcb07da6025645f276",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
