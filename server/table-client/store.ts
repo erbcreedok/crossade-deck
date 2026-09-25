@@ -73,6 +73,9 @@ export interface TableStore {
    * начинался с нуля, а всё, что было до, экран не видел никогда.
    */
   readonly recent?: readonly { at: number; op: Op }[];
+  /** Эхо для измерителя пинга: метка уходит на сервер и возвращается в `onPing` той же. Есть только у сетевого стола. */
+  ping?(t: number): void;
+  onPing?(listener: (t: number) => void): void;
   /** Попросить у стола пропуск на запись партии — ответ придёт в `onReplay`. Право спрашивает стол. */
   askReplay?(): void;
   onReplay?(listener: (one: Recording) => void): void;

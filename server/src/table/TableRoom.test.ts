@@ -61,6 +61,20 @@ describe("TableRoom", () => {
     expect(b.patches.at(-1)!.ops).toContainEqual({ t: "unlock", id: top });
   });
 
+  it("эхо для измерителя пинга: метка возвращается ровно та же и только тому, кто спросил", async () => {
+    const room = mintRoom(SECRET);
+    const a = await sit(room, { door: "guest", name: "Аня" });
+    const b = await sit(room, { door: "guest", name: "Боря" });
+    let чужому = false;
+    b.client.onMessage(MSG.ping, () => (чужому = true));
+    const echo = next<{ t: number }>(a.client, MSG.ping);
+    a.client.send(MSG.ping, { t: 1234.5 });
+    expect(await echo).toEqual({ t: 1234.5 });
+    a.client.send(MSG.ping, { t: "мусор" });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(чужому, "соседу эхо не приходит").toBe(false);
+  });
+
   it("пульс: сервер сам называет версию стола, и она та же, что у снимка", async () => {
     const room = mintRoom(SECRET);
     const a = await sit(room, { door: "guest", name: "Аня" });

@@ -45,6 +45,8 @@ export interface SettingsWorld {
     ask(): void;
     link(): string | null;
   };
+  /** Измерители поверх стола: пинг, кадры, камера (`meters.ts`). */
+  meters: { on(): boolean; toggle(): void };
 }
 
 export interface Settings {
@@ -149,6 +151,8 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + toggle("reduce", motion.chosen || !motion.reduce ? "Меньше анимаций" : "Меньше анимаций · авто", motion.reduce)
       + section("Колода")
       + toggle("fourColour", "4 цвета", look.fourColour) + toggle("cyrillic", "Кириллица", look.cyrillic)
+      + section("Отладка")
+      + toggle("meters", "Пинг, кадры и камера", world.meters.on())
       + `<div data-client style="font:400 10px Tiny5,monospace;color:${INK.dim};padding-top:14px">${world.footer()}</div></div>`;
   }
 
@@ -167,6 +171,9 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
     switch (el.dataset.look) {
       case "replay":
         world.replay.ask();
+        break;
+      case "meters":
+        world.meters.toggle();
         break;
       case "fullscreen":
         if (app()?.isFullscreen) app()?.exitFullscreen?.();

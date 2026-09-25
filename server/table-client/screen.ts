@@ -41,6 +41,7 @@ import { BRAIN_PICKS, type BotAct, type Minds } from "../src/table/contract.js";
 
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
 import { lens } from "./lens.js";
+import { mountMeters } from "./meters.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
@@ -98,6 +99,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       ask: () => store.askReplay?.(),
       link: () => замок,
     },
+    // Измерители заводятся ниже, вместе с камерой: окно спрашивает их только когда открыто.
+    meters: { on: () => meters.on, toggle: () => meters.toggle() },
     /**
      * СТРОКА О ГОЛОСЕ — ПО ЧЕЛОВЕКУ И ПО СТОРОНАМ, а не числом.
      *
@@ -323,6 +326,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     requestAnimationFrame(tick);
   };
   const cam = tableCamera(canvas, () => lastFrame, redraw);
+  /** ИЗМЕРИТЕЛИ — пинг, кадры, камера; включаются в настройках (`meters.ts`). */
+  const meters = mountMeters(document.body, {
+    ...(store.ping ? { ping: (t: number) => store.ping!(t) } : {}),
+    ...(store.onPing ? { onPing: (listener: (t: number) => void) => store.onPing!(listener) } : {}),
+    camera: () => ({ x: cam.camera.target.x, y: cam.camera.target.y, zoom: cam.camera.zoom, turn: cam.camera.rotation, lean: cam.camera.pitch, k: cam.camera.pixelsPerUnit }),
+  });
 
   /**
    * СЛЕПОК ЭКРАНА — всё личное состояние человека одной строкой, и в журнал идёт только то, что

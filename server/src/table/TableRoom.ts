@@ -334,6 +334,11 @@ export class TableRoom extends Room {
      * отдавая ключ от всех комнат. Сам адрес собирает экран — он открыт по тому имени, по которому
      * стол виден снаружи, а сервер своего внешнего имени может и не знать (туннель, реле).
      */
+    // ЭХО — ровно то, что прислали, и только числом: измеритель пинга на экране, больше ничего.
+    this.onMessage(MSG.ping, (client, raw: unknown) => {
+      const t = (raw as { t?: unknown } | null)?.t;
+      if (typeof t === "number" && Number.isFinite(t)) client.send(MSG.ping, { t });
+    });
     this.onMessage(MSG.replay, (client) => {
       const me = this.personOf(client.sessionId);
       const secret = tableConfig().secret;

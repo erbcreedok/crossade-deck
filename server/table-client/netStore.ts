@@ -322,6 +322,8 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     onMinds: (listener) => void mindsHeard.push(listener),
     // ЗАПИСЬ ПАРТИИ — пропуск по просьбе; право спрашивает стол, экран лишь передаёт просьбу.
     askReplay: () => post(MSG.replay),
+    ping: (t) => post(MSG.ping, { t }),
+    onPing: (listener) => listen<{ t: number }>(MSG.ping, (msg) => listener(msg.t)),
     onReplay: (listener) => listen<Recording>(MSG.replay, listener),
     onGone: (listener) => void gone.push(listener),
     onLink: (listener) => void linked.push(listener),
