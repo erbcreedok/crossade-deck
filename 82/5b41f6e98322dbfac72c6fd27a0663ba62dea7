@@ -1,0 +1,55 @@
+server/scripts/tableBeat.mjs
+  s_9ed0da107cbc4a::t_9f4dbe99c4dc7d 96-97,105-106,108,110,114-115,117-120,122
+server/scripts/tableJournalKeeps.mjs
+  s_9ed0da107cbc4a::t_a466a722611116 77-92
+server/scripts/tableTurnMark.mjs
+  s_9ed0da107cbc4a::t_111a9e64a547f6 130-146
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_6e3b3e7ec334c5 304,473-477,521-522,524-532,671,673,685-692
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_d6bb241b2f5bd3 41,443-444,527-533,744,839-846
+server/src/table/crews.ts
+  s_9ed0da107cbc4a::t_6d7c350074e874 10-19,26-27,43-44,60,63,65,69,82,91-99,103
+server/src/table/games/krestReferee.ts
+  s_9ed0da107cbc4a::t_d65523f1c2f2e0 105-111
+server/src/table/intent.test.ts
+  s_9ed0da107cbc4a::t_6d121bf43f60cd 83-100
+server/src/table/intent.ts
+  s_9ed0da107cbc4a::t_04629756d260ba 91-93
+server/src/table/patch.ts
+  s_9ed0da107cbc4a::t_ee569fe1a3cd59 133-136
+server/src/table/referee.ts
+  s_9ed0da107cbc4a::t_9bd9f8d35a5834 60-65
+server/src/table/routes.ts
+  s_9ed0da107cbc4a::t_d88d2fbdf23ef9 50-54
+server/src/table/script.ts
+  s_9ed0da107cbc4a::t_e4560e4028d99d 208-209
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_b82ce7dbc0c0c7 1756-1766
+server/table-client/journal.test.ts
+  s_9ed0da107cbc4a::t_17e54f82fc9ca6 181-185,187,190-191,193,195,197-205
+server/table-client/journal.ts
+  s_9ed0da107cbc4a::t_1de11ffdc53e3a 105-107,131-139,168,171,197-198
+server/table-client/netStore.ts
+  s_9ed0da107cbc4a::t_b8b9388a18b82c 95-109,126-127
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_3675987119718f 203-207,721-722,1407-1417,1420-1441,1444-1448,1521,1524,3674-3678,4102-4109
+server/table-client/store.ts
+  s_9ed0da107cbc4a::t_16941ca342e969 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "825b41f6e98322dbfac72c6fd27a0663ba62dea7",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
