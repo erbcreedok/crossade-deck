@@ -53,7 +53,7 @@ import { fromList } from "./bots/brain.js";
 import { best } from "./bots/greedy.js";
 import { brainOf, OUTSIDE_BRAIN } from "./bots/brains.js";
 import { PROFILE_KEYS, profileOf } from "./bots/profiles.js";
-import { beatOf, nextLook, ready, stirs } from "./bots/nudge.js";
+import { asksSweep, beatOf, nextLook, ready, stirs } from "./bots/nudge.js";
 import { chosen, looked, type Looked, type Played } from "./bots/outside.js";
 import { moveSays } from "./bots/say.js";
 import { botSeen, type BotsSeen, type BotTrack } from "./bots/watch.js";
@@ -450,7 +450,7 @@ export class TableRoom extends Room {
   }
 
   /** Что правила видят о партии: очередь и закрывший — В КЛЮЧАХ ЛЮДЕЙ, потому что правам нужны люди. */
-  private judgeView(): { turn: string | null; closer: string | null } | null {
+  private judgeView(): { turn: string | null; closer: string | null; sweep?: boolean } | null {
     return this.referee?.view(this.seats_()) ?? null;
   }
 
@@ -911,6 +911,10 @@ export class TableRoom extends Room {
     const desks = new Set(this.table.layout().chairs.filter((c) => c.croupier === true).map((c) => c.id));
     const bots = this.table.here.filter((one) => one.bot === true && one.seat !== undefined && !desks.has(one.seat));
     if (bots.length === 0) return;
+    // ОЧЕРЕДЬ У БОТА, А КРУГ ЛЕЖИТ ЗАКРЫТЫМ — закрыл его человек и не сгрёб. Ходить боту некуда
+    // (`legalMoves`), и он просит крупье, а не ждёт, пока догадаются.
+    const judge = this.judgeView();
+    if (judge?.sweep === true && bots.some((one) => one.key === judge.turn)) this.callSweep();
     const now = Date.now();
     const quiet = { busy: this.table.busy, handsOn: this.table.handsOn, stirredAt: this.stirredAt, now };
     const waits: number[] = [];
@@ -1066,18 +1070,33 @@ export class TableRoom extends Room {
    *
    * Обычный ход — молча: он виден и так, и лежит в журнале.
    */
-  private afterBotMove(key: string, move: Move, closerWas: string | null): void {
+  private afterBotMove(key: string, move: Move): void {
     if (move.t === "take") return void this.seatSays(key, "Беру");
-    const closer = this.judgeView()?.closer ?? null;
-    if (closer === null || closer !== key || closer === closerWas) return;
+    if (!asksSweep(this.judgeView(), key)) return;
     this.seatSays(key, "Круг мой — крупье, забери");
-    // Крупье убирает не мгновенно: реплику надо успеть прочесть, да и рука у стола не машина.
-    const seat = this.table.layout().chairs.find((c) => c.croupier);
-    if (!seat) return;
-    this.clock.setTimeout(() => {
-      if (this.gone.signal.aborted) return;
+    this.callSweep();
+  }
+
+  /** Просьба к крупье уже в пути — второй раз не просим. */
+  private sweepAsked = false;
+
+  /**
+   * КРУПЬЕ, ЗАБЕРИ КРУГ. Убирает не мгновенно: реплику надо успеть прочесть, да и рука у стола не
+   * машина. Стол в этот миг занят (кто-то держит карту, идёт раздача) — пробуем снова: забытая
+   * просьба оставила бы бота ждать навсегда.
+   */
+  private callSweep(): void {
+    if (this.sweepAsked || !this.table.layout().chairs.some((c) => c.croupier)) return;
+    this.sweepAsked = true;
+    const attempt = (): void => {
+      if (this.gone.signal.aborted) return void (this.sweepAsked = false);
+      if (this.judgeView()?.sweep !== true) return void (this.sweepAsked = false);
+      if (this.table.busy) return void this.clock.setTimeout(attempt, CROUPIER_HAND_MS);
+      this.sweepAsked = false;
       this.crewAct(BOT_KEY, "ring");
-    }, CROUPIER_HAND_MS);
+      this.nudgeBots();
+    };
+    this.clock.setTimeout(attempt, CROUPIER_HAND_MS);
   }
 
   /**
@@ -1216,10 +1235,9 @@ export class TableRoom extends Room {
     }
     this.book.tell("bot.act", key, { move: move.t, id });
     this.spread(drop.ops);
-    const было = this.judgeView()?.closer ?? null;
     const шаг: Intent = { t: "drop", id, to };
     if (this.referee?.follow(this.seats_(), key, шаг, cameFrom(drop.ops, шаг))) this.resend();
-    this.afterBotMove(key, move, было);
+    this.afterBotMove(key, move);
     this.stir(now);
     // ПОСЛЕ `stir`, а не до: объявление выхода ставит столу долгую паузу, и `stir` её затирал —
     // события снова шли подряд, ровно как жаловался владелец.

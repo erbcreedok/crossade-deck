@@ -5,7 +5,7 @@
 // бота сходили одновременно; бот не сходил вовсе, потому что ждал события, которого не будет.
 
 import { describe, expect, it } from "vitest";
-import { beatOf, BOT_BEAT_MS, nextLook, ready, stirs, type Quiet } from "./nudge.js";
+import { asksSweep, beatOf, BOT_BEAT_MS, nextLook, ready, stirs, type Quiet } from "./nudge.js";
 import { PROFILES } from "./profiles.js";
 
 const тишина = (было: number, прошло: number): Quiet => ({ busy: false, handsOn: false, stirredAt: было, now: было + прошло });
@@ -89,5 +89,17 @@ describe("bots.no-one-moves-faster-than-the-table-beats", () => {
   it("а медленные характеры остаются собой — разнообразие не съедено", () => {
     expect(beatOf(2600)).toBe(2600);
     expect(beatOf(2900)).toBe(2900);
+  });
+});
+
+describe("bots.closer-asks-the-croupier-every-time", () => {
+  it("закрыл второй круг подряд — просит снова: прежний закрывший тут ни при чём", () => {
+    // Закрывшим он был и до хода: комната, глядевшая на СМЕНУ закрывшего, тут молчала.
+    expect(asksSweep({ closer: "bot:1", sweep: true }, "bot:1")).toBe(true);
+  });
+  it("круг убран или закрыл другой — не просит", () => {
+    expect(asksSweep({ closer: "bot:1", sweep: false }, "bot:1")).toBe(false);
+    expect(asksSweep({ closer: "tg:7", sweep: true }, "bot:1")).toBe(false);
+    expect(asksSweep(null, "bot:1")).toBe(false);
   });
 });

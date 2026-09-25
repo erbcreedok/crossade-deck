@@ -9,7 +9,7 @@
 
 import type { Face } from "../contract.js";
 import type { Seats } from "../referee.js";
-import { allowed, type Board, type Match } from "../games/match.js";
+import { allowed, awaitsSweep, type Board, type Match } from "../games/match.js";
 import { closed, nextOpener, RING } from "../games/krest.js";
 import { krestMemory, type Deed } from "../games/krestMemory.js";
 import type { BotView, Move } from "./brain.js";
@@ -40,6 +40,9 @@ export function boardOf(seats: Seats): Board {
  */
 export function legalMoves(seats: Seats, match: Match, chair: string): Move[] {
   const board = boardOf(seats);
+  // КРУГ ЗАКРЫТ И НЕ СГРЕБЁН — бот ждёт крупье. Карта, положенная сейчас, легла бы четвёртой в круг
+  // на троих: человек так может (стол никого не судит), бот — никогда.
+  if (awaitsSweep(match, board)) return [];
   const can = allowed(match, board, chair);
   const seat = seats.chairs.find((one) => one.id === chair);
   const left = [...can.lay];

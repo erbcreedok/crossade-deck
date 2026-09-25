@@ -77,7 +77,16 @@ describe("bots.a-bot-finishes-the-game", () => {
     /** Сколько раз ходил каждый: партия, где ходит один и тот же, — это не партия. */
     const сходил: Record<string, number> = { a: 0, b: 0, v: 0 };
     let ходов = 0;
+    let убрано = 0;
     for (; ходов < 400; ходов += 1) {
+      // ЗАКРЫТЫЙ КРУГ ЛЕЖИТ — боту ходить некуда, куча уходит крупье. Без этого бот клал бы
+      // четвёртую карту в закрытый круг на троих.
+      if (ref.view(t.seats)?.sweep === true) {
+        expect(ref.bot!(t.seats, players.find((one) => `кто:${one}` === ref.view(t.seats)?.turn)!), "поверх несгребённого круга не ходят").toBe(null);
+        t.circle.length = 0;
+        убрано += 1;
+        continue;
+      }
       const turn = ref.view(t.seats)?.turn;
       if (turn === null || turn === undefined) break;
       const chair = players.find((one) => `кто:${one}` === turn)!;
@@ -94,7 +103,10 @@ describe("bots.a-bot-finishes-the-game", () => {
       const from = move.t === "lay" ? { in: "hand" as const, chair, i: 0 } : { in: "deck" as const, pile: RING };
       expect(ref.follow(t.seats, turn, { t: "drop", id: done!.one, to }, from), "судья засчитал ход").toBe(true);
       сходил[chair] = (сходил[chair] ?? 0) + 1;
+      // В КРУГЕ НИКОГДА НЕ БОЛЬШЕ КАРТ, ЧЕМ ИГРОКОВ: лишней там не место.
+      expect(t.circle.length, "лишняя карта в круге").toBeLessThanOrEqual(players.length);
     }
+    expect(убрано, "круги закрывались и убирались").toBeGreaterThan(0);
     expect(ходов, "партия кончилась, а не зациклилась").toBeLessThan(400);
     // ОЧЕРЕДЬ ОБОШЛА СТОЛ. Без этого «партия кончилась» проходит и тогда, когда ходит один и тот же
     // игрок, пока не опустеет рука, — а это уже не игра, и по экрану такое не отличить от зависания.

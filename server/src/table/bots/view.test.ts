@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import type { Face } from "../contract.js";
 import type { Seats } from "../referee.js";
 import { RING } from "../games/krest.js";
-import { start, type Board, type Match } from "../games/match.js";
+import { advance, awaitsSweep, start, type Board, type Match } from "../games/match.js";
 import { botView, legalMoves, ringTurnOfSeat } from "./view.js";
 
 const c = (rank: string, suit: Face["suit"]): Face => ({ rank, suit });
@@ -124,5 +124,24 @@ describe("bots.a-bot-lays-in-front-of-its-own-seat", () => {
     const lay = legal.find((one) => one.t === "lay")!;
     expect(lay.to, "иначе все боты целятся в ноль и кладут друг на друга")
       .toEqual({ in: "deck", pile: RING, turn: ringTurnOfSeat(0) });
+  });
+});
+
+describe("bots.never-lays-onto-an-unswept-circle", () => {
+  // ЖИВАЯ ПАРТИЯ: трое в игре, Айдос кладёт третью — круг закрыт, открывать ему же, и он тут же
+  // клал четвёртую поверх несгребённой кучи. Дважды подряд: закрывшим он уже был, и по «смене
+  // закрывшего» комната не заметила, что круг закрыт снова.
+  it("закрыл круг — ходить некуда, пока крупье не уберёт; уберёт — ходи", () => {
+    const t = стол({ a: [c("K", "s")], b: [c("9", "h")], v: [c("Q", "d"), c("8", "c")] }, [c("7", "s"), c("8", "s"), c("A", "s")]);
+    const board: Board = { hands: t.board.hands, circle: t.board.circle, order: ["a", "b", "v"] };
+    // Круг на троих, в нём уже три карты — только что закрыт тем же «v», что закрыл и прошлый.
+    const закрыт = advance({ ...t.m, turn: "v", closer: "v", threshold: 3, opened: 0 }, board, "v", "laid");
+    expect(закрыт, "круг закрыт, открывать тому же").toMatchObject({ turn: "v", closer: "v", threshold: 0 });
+    expect(awaitsSweep(закрыт, board), "круг лежит несгребённым").toBe(true);
+    expect(legalMoves(t.seats, закрыт, "v"), "четвёртой в круге на троих не место").toEqual([]);
+
+    t.board.circle.length = 0;
+    expect(awaitsSweep(закрыт, { ...board, circle: [] }), "убрали — ждать нечего").toBe(false);
+    expect(legalMoves(t.seats, закрыт, "v").length, "новый круг открывает он").toBeGreaterThan(0);
   });
 });

@@ -160,6 +160,13 @@ export function advance(m: Match, board: Board, who: string, how: "laid" | "take
   return { ...shut, turn: turn ?? left[0]! };
 }
 
+/**
+ * ЗАКРЫТЫЙ КРУГ ЛЕЖИТ НЕСГРЕБЁННЫМ: порог сброшен, а кольцо не пусто. Новый круг в этот миг открывать
+ * некуда — положенная карта стала бы лишней в чужом, уже закрытом круге (третья из трёх и сверху
+ * четвёртая). Сначала крупье убирает кучу.
+ */
+export const awaitsSweep = (m: Match, board: Board): boolean => m.turn !== null && m.threshold === 0 && board.circle.length > 0;
+
 /** Что этот игрок может прямо сейчас — по этому стол зажигает зоны и подсказки, и из этого же выбирает бот. */
 export function allowed(m: Match, board: Board, who: string): { lay: Face[]; take: boolean } {
   if (m.turn !== who) return { lay: [], take: false };

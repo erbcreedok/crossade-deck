@@ -89,3 +89,13 @@ export function nextLook(q: Quiet, waits: readonly number[]): number {
   const left = waits.map((wait) => Math.max(0, wait - (q.now - q.stirredAt)));
   return left.length === 0 ? shortest : Math.min(...left);
 }
+
+/**
+ * ПРОСИТЬ ЛИ КРУПЬЕ УБРАТЬ КРУГ — после хода этого игрока.
+ *
+ * Решает СТОЛ СЕЙЧАС: закрывший — он, и круг лежит закрытым. Не «сменился ли закрывший»: закрой бот
+ * два круга подряд, закрывший остался бы прежним, и второй круг остался бы лежать — а открывать
+ * следующий ему же, поверх несгребённого.
+ */
+export const asksSweep = (judge: { closer: string | null; sweep?: boolean } | null, key: string): boolean =>
+  judge !== null && judge.closer === key && judge.sweep === true;

@@ -15,7 +15,7 @@
 import type { DealDir, Face, Intent, Play, Where } from "../contract.js";
 import type { Referee, Seats } from "../referee.js";
 import { RING } from "./krest.js";
-import { advance, allowed, start, type Board, type Match } from "./match.js";
+import { advance, allowed, awaitsSweep, start, type Board, type Match } from "./match.js";
 import type { Deed } from "./krestMemory.js";
 import { botView, legalMoves } from "../bots/view.js";
 
@@ -112,7 +112,7 @@ export function krestReferee(): Referee {
     view(seats) {
       if (match === null) return null;
       const out = match.out.map((chair) => ownerOf(seats, chair)).filter((one): one is string => one !== null);
-      return { turn: ownerOf(seats, match.turn), closer: ownerOf(seats, match.closer), out };
+      return { turn: ownerOf(seats, match.turn), closer: ownerOf(seats, match.closer), out, sweep: awaitsSweep(match, boardOf(seats, way)) };
     },
     play(seats, viewer): Play | null {
       if (match === null) return null;
