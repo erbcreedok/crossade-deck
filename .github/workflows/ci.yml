@@ -65,6 +65,29 @@ jobs:
       - run: npm test
       - run: npx tsc --noEmit
 
+  # БОТ И MCP-СТОЛ — ТОЖЕ НЕ ВОРКСПЕЙСЫ: у каждого своя установка, поэтому и джоба своя. Без неё
+  # их никто не проверял: сторож `check-ci.mjs` на это и ругался, и весь CI из-за этого стоял
+  # красным — а значит, не собирались образы, и выкатывать было нечего.
+  outside:
+    name: ${{ matrix.pkg }} — типы и тесты
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg: [bot, mcp-table]
+    defaults:
+      run:
+        working-directory: ${{ matrix.pkg }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npx tsc --noEmit
+      # Тесты есть не у каждого: у кого нет — шаг не выдумывает их, а честно пропускается.
+      - run: npm test --if-present
+
   workspaces:
     name: ${{ matrix.pkg }}
     needs: guard

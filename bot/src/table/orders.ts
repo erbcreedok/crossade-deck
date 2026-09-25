@@ -229,6 +229,11 @@ export function started(command: TableCommand, title: string): string {
       const кто = [command.profile && `характер — ${command.profile}`, command.brain && `думают через ${command.brain}`].filter(Boolean).join(", ");
       return `Сажаю игроков без человека за «${title}»: ${command.n}${кто ? ` (${кто})` : ""}.`;
     }
+    // ДЕЛО СТОЛА — то же, что кнопка в окне крупье: собрать круг, вернуть его, указать ход. Имён дел
+    // бот не знает наизусть и не выдумывает: их каталог живёт на сервере (`crews.ts`), и завтра там
+    // будет другая игра с другими делами. Бот говорит то, что знает точно.
+    case "crew":
+      return `Делаю за крупье «${command.act}» — «${title}».`;
     case "seat":
       return {
         kick: `Выгоняю из «${title}».`,
