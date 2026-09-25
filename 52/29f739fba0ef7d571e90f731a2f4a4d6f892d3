@@ -1,0 +1,23 @@
+server/src/table/croupier.test.ts
+  s_9ed0da107cbc4a::t_425b8809e31786 3,49,51,107-180
+server/src/table/hands.test.ts
+  s_9ed0da107cbc4a::t_2bef6a20ab0753 105,114,122,124,127,134,137,141
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_16dc55a2415d25 84-88,307-313,457-461,474,478,480,814-815,1351-1353,1822
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5229f739fba0ef7d571e90f731a2f4a4d6f892d3",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
