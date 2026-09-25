@@ -200,6 +200,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     journal: false,
     /** Открыт вопрос «Покинуть стул?». */
     confirmLeave: false,
+    /**
+     * ЖДЁМ, НА КОГО УКАЗАТЬ. Крупье нажал «Указать ход» — следующий тап по стулу назначает ход ему.
+     * Выбор пальцем прямо по столу, а не список имён в окне: за столом показывают рукой.
+     */
+    pointing: false,
     /** Открытые окна стульев — id стульев, по порядку открытия. */
     tips: [] as string[],
     /** Открытый тултип стопки — id стопки. */
@@ -713,10 +718,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * КНОПКИ В ОКНЕ КРУПЬЕ: дела набора, какие дали, плюс «Перевернуть» его руку — она у распорядителя,
    * как у меня в своей руке: колода в руках крупье лежит рубашкой, и открыть её иначе нечем.
    */
-  function crewButtons(s: Snapshot): { data: string; name: string }[] {
-    const admin = iMay(s, "table.croupier");
-    const acts = store.crew.filter((act) => !act.adminOnly || admin).map((act) => ({ data: `data-crew="${escape(act.id)}"`, name: act.name }));
-    return admin ? [...acts, { data: "data-flip-chair", name: "Перевернуть" }] : acts;
+  function crewButtons(_s: Snapshot): { data: string; name: string }[] {
+    return [];
   }
 
   function tipBox(spot: Spot, taken: readonly TipBox[], extra = 0): TipBox {
@@ -1401,22 +1404,48 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       + `</div>`;
   }
 
+  /**
+   * ОКНО КРУПЬЕ — ОДНО, И В НЁМ РАЗДЕЛЫ.
+   *
+   * Кнопки лежали двумя кучами: часть внутри окна, часть под ним, игровые вперемешку с
+   * хозяйственными, у крестового одни, у песочницы другие — и понять, что за что отвечает, было
+   * нельзя. Теперь раздел отвечает на вопрос «я сейчас про партию, про раздачу или про сам стол?»,
+   * а дела расходятся по ним там же, где объявлены (`crews.ts`).
+   *
+   * КРУПЬЕ НЕ УВОДЯТ. Он часть стола, а не гость: без него некому раздать, собрать и держать колоду,
+   * и стол после его ухода чинится только через бота. Кнопки нет ни у кого.
+   */
   function croupierActsHtml(s: Snapshot, chair: Chair, box: { left: number; top: number; w: number; height: number }): string {
     if (!chair.croupier || !iMay(s, "table.croupier")) return "";
-    const act = (what: string, label: string) =>
-      `<button data-croupier="${what}" style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
-      + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">${label}</button>`;
+    const кнопка = (data: string, label: string) =>
+      `<button ${data} style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
+      + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">${escape(label)}</button>`;
+    const admin = iMay(s, "table.croupier");
+    // Дела набора — там, где объявлены; к ним добавляются те, что исполняет сам экран.
+    const свои: { part: string; data: string; name: string }[] = [
+      { part: "раздача", data: `data-croupier="deal"`, name: "Раздать" },
+      { part: "раздача", data: `data-croupier="shuffle"`, name: "Перемешать" },
+      // СТУЛ СТАВЯТ ОТСЮДА: пустых может не быть вовсе, и тогда поставить первый было бы неоткуда.
+      { part: "стол", data: `data-chair-act="add"`, name: "Ещё стул" },
+      ...(admin ? [{ part: "стол", data: "data-flip-chair", name: "Перевернуть руку" }] : []),
+    ];
+    const все = [
+      ...store.crew.filter((one) => !one.adminOnly || admin).map((one) => ({ part: one.part, data: `data-crew="${escape(one.id)}"`, name: one.name })),
+      ...свои,
+    ];
+    const разделы = (["игра", "раздача", "стол"] as const).map((part) => {
+      const кнопки = все.filter((one) => one.part === part);
+      if (кнопки.length === 0) return "";
+      return `<div style="font:400 10px Tiny5,monospace;color:${T.inkDim};letter-spacing:.06em;padding:2px 0 0;width:100%">${part.toUpperCase()}</div>`
+        + `<div style="display:flex;flex-wrap:wrap;gap:6px;width:100%">${кнопки.map((one) => кнопка(one.data, one.name)).join("")}</div>`;
+    }).join("");
     return `<div data-croupier-acts style="position:absolute;left:${box.left}px;top:${box.top + box.height + 8}px;width:${box.w}px;box-sizing:border-box;z-index:41;`
       + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:10px;`
-      + `display:flex;flex-wrap:wrap;gap:6px">`
-      // СБОРА ЗДЕСЬ НЕТ. Собирать — дело НАБОРА крупье, и оно рисуется своей кнопкой ниже; вторая
-      // такая же кнопка рядом означала бы, что у стола два разных сбора, а он один.
-      + act("shuffle", "Перемешать") + act("deal", "Раздать")
-      // СТУЛ ДОБАВЛЯЕТСЯ ОТСЮДА, а не из окна пустого стула: пустых может не быть вовсе, и тогда
-      // поставить первый было бы неоткуда. Состав стола — дело крупье, у него кнопка и живёт.
-      + `<button data-chair-act="add" style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
-      + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">Ещё стул</button>`
-      + act("remove", "Увести крупье") + `</div>`;
+      + `display:flex;flex-wrap:wrap;gap:6px">${разделы}`
+      + (local.pointing
+        ? `<div data-pointing style="width:100%;font:400 11px Tiny5,monospace;color:${T.gold};padding-top:4px">Тапни по стулу — чей ход</div>`
+        : "")
+      + `</div>`;
   }
 
   /**
@@ -1489,9 +1518,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * ДЕЛА КРУПЬЕ — кнопками в его окне. Что он умеет, приходит с сервера набором комнаты (`crews.ts`):
    * экран не знает ни одной игры и рисует ровно тот список, который дали.
    */
+  /** Дела набора переехали в окно под рукой крупье (`croupierActsHtml`): у стола одно окно, не два. */
   function crewHtml(s: Snapshot, chair: Chair): string {
     if (!chair.croupier) return "";
-    const acts = crewButtons(s);
+    const acts: { data: string; name: string }[] = [];
     if (acts.length === 0) return "";
     return `<div style="display:flex;flex-wrap:wrap;gap:${CREW_GAP}px;padding-top:${CREW_PAD}px">`
       + acts.map((act) => `<button ${act.data} style="width:calc(${100 / CREW_IN_ROW}% - ${(CREW_GAP * (CREW_IN_ROW - 1)) / CREW_IN_ROW}px);height:${CREW_ROW}px;box-sizing:border-box;border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:0 8px;`
@@ -3531,7 +3561,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         if (what === "deal") local.deal = { rule: store.deals[0] ?? "each", n: 6, all: false, seats: dealablePlayers(seen(), "cw").map((p) => p.chair), from: null, dir: "cw" };
         else if (what === "collect") store.command({ t: "collect" });
         else if (what === "shuffle") store.command({ t: "shuffle" });
-        else if (what === "remove") store.command({ t: "croupier", on: false });
         draw();
       };
     }
@@ -3642,6 +3671,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       el.onpointerdown = (e) => {
         e.preventDefault();
         e.stopPropagation();
+        // «УКАЗАТЬ ХОД» — не команда, а вопрос «кому?»: дальше крупье тапает по стулу.
+        if (el.dataset.crew === "point") {
+          local.pointing = !local.pointing;
+          return draw();
+        }
         if (el.dataset.crew === "reseat") {
           local.reseat = { angles: {}, drag: null };
           local.tips = [];
@@ -4065,6 +4099,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         return;
       }
       e.stopPropagation();
+      // КРУПЬЕ ПОКАЗЫВАЕТ РУКОЙ, ЧЕЙ ХОД. Выбор тапом по самому стулу, а не списком имён в окне: за
+      // столом на игрока показывают, а не зачитывают его имя.
+      if (local.pointing) {
+        local.pointing = false;
+        const стул = chairOf(seen(), hit.key);
+        if (стул && !стул.croupier) store.send({ t: "crew", act: "point", chair: стул.id });
+        return draw();
+      }
       local.tips = local.tips.includes(hit.key) ? local.tips.filter((k) => k !== hit.key) : [...local.tips, hit.key];
       draw();
     },

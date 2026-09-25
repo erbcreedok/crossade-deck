@@ -102,6 +102,13 @@ export function krestReferee(): Referee {
       if (card !== undefined) deeds.push({ who: chair.id, how: laid ? "laid" : "taken", card, ...(over === undefined ? {} : { over }) });
       return true;
     },
+    point(seats, chair) {
+      // Стул должен быть в кольце этой партии: указать на выбывшего или на крупье нельзя.
+      if (match === null || !match.ring.includes(chair)) return false;
+      if (seats.chairs.find((one) => one.id === chair)?.croupier === true) return false;
+      match = { ...match, turn: chair };
+      return true;
+    },
     view(seats) {
       if (match === null) return null;
       const out = match.out.map((chair) => ownerOf(seats, chair)).filter((one): one is string => one !== null);

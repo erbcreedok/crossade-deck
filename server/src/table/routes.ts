@@ -47,6 +47,11 @@ export function readCommand(raw: unknown): TableCommand | null {
   const c = raw as Record<string, unknown> | undefined;
   if (!c || typeof c.t !== "string") return null;
   if (c.t === "collect" || c.t === "shuffle") return { t: c.t };
+  // ДЕЛО СТОЛА ИЗВНЕ — то же, что кнопка в окне крупье: исполнение одно, входов много. Имя дела
+  // проверит сам стол по каталогу набора; здесь только форма.
+  if (c.t === "crew" && typeof c.act === "string" && c.act.length <= 32) {
+    return { t: "crew", act: c.act, ...(typeof c.chair === "string" && c.chair.length <= 32 ? { chair: c.chair } : {}) };
+  }
   if (c.t === "croupier" && typeof c.on === "boolean") return { t: "croupier", on: c.on };
   // Игроки без человека: сколько посадить; ноль уводит всех.
   if (c.t === "bots" && Number.isInteger(c.n)) {

@@ -38,7 +38,7 @@ export type ClientKind = "html" | "kit" | (string & {});
  * стульев: на сорок движений карт приходится под сотню служебных, и человек, обновивший страницу,
  * получал бы пустой журнал при полном столе.
  */
-export const TOLD_OPS: readonly string[] = ["move", "turn", "join", "leave", "unchair", "unmake", "rules", "dealer", "deck"];
+export const TOLD_OPS: readonly string[] = ["move", "turn", "join", "leave", "unchair", "unmake", "rules", "dealer", "deck", "dealt"];
 
 /** Что клиент кладёт в `joinOrCreate(TABLE_ROOM, …)`. */
 export interface JoinOptions {
@@ -440,7 +440,8 @@ export type Intent =
   /** Выдать роль раздающего этому человеку (`key: null` — снять). Право `roles`. */
   | { t: "dealer"; key: string | null }
   /** ДЕЛО КРУПЬЕ из набора комнаты (`crews.ts`): собрать колоду, выложить на стол и что там ещё будет. */
-  | { t: "crew"; act: string }
+  /** Дело крупье. `chair` — кому оно адресовано, если дело того требует («указать ход»). */
+  | { t: "crew"; act: string; chair?: string }
   /**
    * УПРАВИТЬ ИГРОКОМ БЕЗ ЧЕЛОВЕКА — право `table.seats`, как и посадка.
    *
@@ -523,6 +524,13 @@ export type Op =
   /** Вещь переехала. `card.face` есть, только если на новом месте зрителю её видно. */
   | { t: "move"; card: SeenCard; from: Where; to: Where; trail?: Trail }
   | { t: "order"; chair: string; ids: string[] }
+  /**
+   * РАЗДАЧА СЛУЧИЛАСЬ — кому сколько досталось. Одно событие, объявленное тем, кто его сделал.
+   *
+   * Считать раздачу по картам на экране нельзя: карты летят по одной, экран мог подключиться
+   * посреди, и у каждого выходило своё число. Тот, кто раздал, знает точно — он и говорит.
+   */
+  | { t: "dealt"; by: string; byName: string; parts: { chair: string; n: number }[] }
   /** Карта перевёрнута на месте: `card` — какой её теперь видно зрителю, `up` — новая сторона. */
   | { t: "turn"; card: SeenCard; up: boolean; trail: Trail }
   /** Карты стопки целиком заменены: перемешаны (новые id — чтобы увиденную карту нельзя было отследить) или набраны заново. */
@@ -733,7 +741,7 @@ export interface Welcome {
    */
   recent: { at: number; op: Op }[];
   /** ЧТО УМЕЕТ КРУПЬЕ ЭТОЙ КОМНАТЫ (`crews.ts`) — по этому списку рисуются кнопки в его окне. */
-  crew: { id: string; name: string; adminOnly?: true }[];
+  crew: { id: string; name: string; part: string; adminOnly?: true }[];
   /** КАКИЕ РАЗДАЧИ ПРЕДЛАГАЕТ ЭТОТ РОД СТОЛА — окно раздачи показывает ровно их. */
   deals: DealRule[];
   /**
@@ -828,6 +836,14 @@ export const DEAL_PRESETS: Record<DealRule, DealPreset> = {
 };
 
 export type TableCommand =
+  /**
+   * ДЕЛО СТОЛА, ВЫЗВАННОЕ ИЗВНЕ — то же самое, что кнопка в окне крупье.
+   *
+   * Дела вроде «собрать круг» или «указать ход» принадлежат КОМНАТЕ, а не крупье: крупье лишь лицо,
+   * у которого лежат карты и чьими руками их делают. В другой игре тем же местом станет зона или
+   * меню настроек, а исполнение останется одно — поэтому у него один вход и для экрана, и для бота.
+   */
+  | { t: "crew"; act: string; chair?: string }
   | { t: "collect" }
   /** Посадить крупье или убрать его. Убранный роняет свои карты на стол закрытой стопкой. */
   | { t: "croupier"; on: boolean }

@@ -93,7 +93,8 @@ const смотреть = (ms) => p.evaluate((ms) => new Promise((done) => {
   const было = [];
   let прошлое = -1;
   const t = setInterval(() => {
-    const n = window.__tableState().felt.length;
+    const круг = window.__tableState().piles.find((one) => one.id === "ring");
+    const n = круг ? круг.cards.length : 0;
     if (n !== прошлое) { было.push({ at: Date.now(), n }); прошлое = n; }
   }, 30);
   setTimeout(() => { clearInterval(t); done(было); }, ms);
@@ -101,19 +102,24 @@ const смотреть = (ms) => p.evaluate((ms) => new Promise((done) => {
 
 const следим = смотреть(5000);
 await сосед.waitForTimeout(300);
-// Три движения одно за другим, без единой паузы между ними.
+// Три ХОДА одно за другим, без единой паузы: разносятся во времени именно ходы — карта в круг и
+// карта из круга. Раздача, уборка и прочее ждать не должны, иначе стол лишь копит опоздание.
 await сосед.evaluate((ids) => {
-  ids.forEach((id, i) => {
+  ids.forEach((id) => {
     window.__tableSend({ t: "grab", id });
-    window.__tableSend({ t: "drop", id, to: { in: "felt", x: -2 + i * 2, y: 0, up: true, angle: 0 } });
+    window.__tableSend({ t: "drop", id, to: { in: "deck", pile: "ring" } });
   });
 }, трое);
 const кадры = await следим;
-const шаги = кадры.filter((one) => one.n > 0);
+const начало = кадры.length > 0 ? кадры[0].n : 0;
+const шаги = кадры.filter((one) => one.n > начало);
 check("чужие движения дошли до экрана", шаги.length >= 3, кадры);
-const зазоры = шаги.slice(1).map((one, i) => one.at - шаги[i].at);
+// МЕРЯЕМ ТОЛЬКО ТРИ ХОДА СОСЕДА. Дальше в круг ходят машины — своим темпом, и их зазоры к этому
+// закону отношения не имеют.
+const трижды = шаги.slice(0, 3);
+const зазоры = трижды.slice(1).map((one, i) => one.at - трижды[i].at);
 const тесно = зазоры.filter((ms) => ms < 300);
-check("и показались ПО ОДНОМУ, а не одним кадром", тесно.length === 0, { зазоры, тесно });
+check("и показались ПО ОДНОМУ, а не одним кадром", трижды.length === 3 && тесно.length === 0, { зазоры, тесно });
 
 await browser.close();
 for (const one of checks) console.log(one.ok ? "ok  " : "FAIL", one.name, one.ok ? "" : JSON.stringify(one.got));

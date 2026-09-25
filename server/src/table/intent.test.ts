@@ -80,3 +80,21 @@ describe("readIntent — намерение читается целиком ил
     expect(readIntent({ t: "pick", on: true, ids: Array.from({ length: 1000 }, (_, i) => `c${i}`) })).toBeNull();
   });
 });
+
+/**
+ * ДЕЛО КРУПЬЕ НЕСЁТ АДРЕСАТА. «Указать ход» без стула — дело ни о чём: оно доходило до стола
+ * безадресным и молча ничего не делало, а на экране это выглядело как «кнопка не работает».
+ */
+describe("intent.a-crew-act-keeps-its-target", () => {
+  it("стул дела сохраняется", () => {
+    expect(readIntent({ t: "crew", act: "point", chair: "c3" })).toEqual({ t: "crew", act: "point", chair: "c3" });
+  });
+
+  it("а дело без адресата остаётся безадресным", () => {
+    expect(readIntent({ t: "crew", act: "ring" })).toEqual({ t: "crew", act: "ring" });
+  });
+
+  it("чужой мусор в поле стула не проходит", () => {
+    expect(readIntent({ t: "crew", act: "point", chair: 5 })).toEqual({ t: "crew", act: "point" });
+  });
+});

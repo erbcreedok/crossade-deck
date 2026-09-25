@@ -92,6 +92,21 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
   const мой = (patch: Patch): boolean =>
     welcome !== null && patch.ops.some((op) => (op.t === "move" || op.t === "turn") && op.trail?.by === welcome!.you.key);
 
+  /**
+   * ХОД ЛИ ЭТО — то есть то, что вообще имеет смысл разносить во времени.
+   *
+   * Такт нужен между ХОДАМИ: карту положили в круг, карту забрали из круга. Раздача, сбор, реплики
+   * и служебная мелочь идут своим чередом и ждать не должны — иначе раздача из тридцати шести карт
+   * растягивается на полминуты, а всё, что за ней, приходит с опозданием.
+   */
+  const ход = (patch: Patch): boolean => {
+    // ЧТО ЗА МЕСТО — СПРАШИВАЕТСЯ У СТОЛА, а не у правил игры: клиент про игры не знает и знать не
+    // должен (`table-client.names-no-game`). Очерченное место игры узнаётся по позе зоны.
+    const зона = (pile: string) => state?.piles.some((one) => one.id === pile && one.pose === "ring") === true;
+    return patch.ops.some((op) => op.t === "move" && op.trail?.deal !== true
+      && ((op.to.in === "deck" && зона(op.to.pile)) || (op.from.in === "deck" && зона(op.from.pile))));
+  };
+
   const применить = (patch: Patch) => {
     if (!state) return;
     if (patch.v <= state.v) return;
@@ -108,7 +123,8 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     const patch = очередь[0];
     if (patch === undefined) return;
     // Толпа накопилась — показываем без пауз, пока не разгребём: отставший стол хуже слитных ходов.
-    const такт = очередь.length >= HURRY_AT ? 0 : BEAT_MS;
+    // И ждать имеет смысл только перед ХОДОМ: всё остальное не сливается, а лишь копит опоздание.
+    const такт = очередь.length >= HURRY_AT || !ход(patch) ? 0 : BEAT_MS;
     const ждать = такт - (Date.now() - показано);
     if (ждать > 0) {
       тикер = setTimeout(качать, ждать);

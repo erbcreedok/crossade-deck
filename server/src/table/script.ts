@@ -205,7 +205,8 @@ export function plan(table: Table, command: TableCommand, people: Who[], admin: 
   switch (command.t) {
     case "collect":
       return { steps: collectSteps(table), actor: "bot" };
-    // Крупье и игроков без человека исполняет комната сама: это состав стола, а не ход.
+    // Крупье, игроков без человека и дела стола исполняет комната сама: это не ход по сукну.
+    case "crew":
     case "croupier":
     case "bots":
       return { error: "bad" };

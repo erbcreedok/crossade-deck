@@ -88,7 +88,9 @@ const READERS: { [K in Intent["t"]]: (raw: Raw) => Extract<Intent, { t: K }> | n
   grip: (r) => (name(r.pile) ? { t: "grip", pile: r.pile } : null),
   flip: (r) => (r.chair === undefined ? { t: "flip" } : name(r.chair) ? { t: "flip", chair: r.chair } : null),
   dealer: (r) => (r.key === null || name(r.key) ? { t: "dealer", key: r.key } : null),
-  crew: (r) => (name(r.act) ? { t: "crew", act: r.act } : null),
+  // Дело крупье. `chair` — кому оно адресовано, если дело того требует («указать ход»): без него
+  // такое дело доходило до стола безадресным и молча ничего не делало.
+  crew: (r) => (name(r.act) ? { t: "crew", act: r.act, ...(name(r.chair) ? { chair: r.chair } : {}) } : null),
   // Управление игроком без человека: только известные дела из каталога, только по имени стула.
   bot: (r) => {
     if (!name(r.chair) || !(BOT_ACTS as readonly unknown[]).includes(r.act)) return null;

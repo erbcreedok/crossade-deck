@@ -178,36 +178,33 @@ describe("journal.a-journal-reads-as-a-story", () => {
   });
 
   /**
-   * РАЗДАЧА — ОДНО СОБЫТИЕ, а не тридцать восемь. Карты летят по одной, каждая своим патчем, и в
-   * журнале это было тридцать восемь одинаковых строк «CrossaderBot из «колода» в руку — …», за
-   * которыми не видно ничего. Человеку важно одно: раздали, и вот кому сколько.
+   * РАЗДАЧУ ОБЪЯВЛЯЕТ ТОТ, КТО ЕЁ СДЕЛАЛ, — одним событием с числами.
+   *
+   * Считать её по картам на экране нельзя: карты летят по одной, кто-то подключился посреди, у
+   * кого-то часть пришла до подписки — и у каждого выходило своё число. За живым столом так и
+   * вышло: тридцать четыре карты у одного зрителя против тридцати шести на самом деле.
    */
-  it("раздача по карте за раз слипается в одну запись с разбивкой по рукам", () => {
+  it("раздача — одна строка с числами, а карты раздачи молчат", () => {
     const chairs = [{ id: "s1", owner: "Аня" }, { id: "s2", owner: "Боря" }] as unknown as Snapshot["chairs"];
     const люди = [person("Аня"), person("Боря")];
-    const карта = (chair: string): Op => ({
-      t: "move",
-      card: { id: `c${Math.random()}`, face },
-      from: { in: "deck", pile: MAIN_PILE },
-      to: { in: "hand", chair, i: 0 },
-      trail: { by: "bot", byName: "CrossaderBot", from: "deck", at: 0, deal: true },
-    });
-    const j = journal();
     const снимок_ = снимок({ chairs, people: люди });
-    // Каждая карта приходит СВОИМ патчем — как на настоящем столе.
-    for (const chair of ["s1", "s2", "s1", "s2", "s1"]) j.take([карта(chair)], снимок_, 0);
-    const all = j.all();
-    expect(all.length, "одна строка на всю раздачу").toBe(1);
-    expect(all[0]!.says).toBe("раздал");
-    expect(all[0]!.deal).toEqual([{ hand: "Аня", n: 3 }, { hand: "Боря", n: 2 }]);
-    expect(all[0]!.count, "и всего карт").toBe(5);
-    expect(all[0]!.cards, "лиц карт в раздаче нет: свои видно в руке, чужие не положено").toBeUndefined();
+    const карта: Op = {
+      t: "move",
+      card: { id: "c1", face },
+      from: { in: "deck", pile: MAIN_PILE },
+      to: { in: "hand", chair: "s1", i: 0 },
+      trail: { by: "bot", byName: "CrossaderBot", from: "deck", at: 0, deal: true },
+    };
+    expect(deedOf(карта, снимок_, 0), "карта раздачи — не строка").toBe(null);
+
+    const сказано: Op = { t: "dealt", by: "bot", byName: "CrossaderBot", parts: [{ chair: "s1", n: 18 }, { chair: "s2", n: 18 }] };
+    const deed = deedOf(сказано, снимок_, 0)!;
+    expect(deed.who).toBe("CrossaderBot");
+    expect(deed.says).toBe("раздал");
+    expect(deed.deal).toEqual([{ hand: "Аня", n: 18 }, { hand: "Боря", n: 18 }]);
+    expect(deed.count).toBe(36);
   });
 
-  /**
-   * КРУПЬЕ ПРОСТО ВЫДАЛ ВСЕМ ПО КАРТЕ — ЭТО НЕ РАЗДАЧА, сколько бы карт подряд он ни выдал. Раздача
-   * — команда стола, и признак её несёт след карты, а не форма движения.
-   */
   it("карты из колоды по рукам БЕЗ признака раздачи остаются отдельными записями", () => {
     const chairs = [{ id: "s1", owner: "Аня" }, { id: "s2", owner: "Боря" }] as unknown as Snapshot["chairs"];
     const карта = (chair: string): Op => ({
@@ -221,23 +218,6 @@ describe("journal.a-journal-reads-as-a-story", () => {
     const снимок_ = снимок({ chairs, people: [person("Аня"), person("Боря")] });
     for (const chair of ["s1", "s2", "s1"]) j.take([карта(chair)], снимок_, 0);
     expect(j.all().length, "три выдачи — три записи").toBe(3);
-    expect(j.all().every((one) => one.deal === undefined)).toBe(true);
-  });
-
-  it("а карта из колоды через минуту — отдельное событие, а не хвост раздачи", () => {
-    const chairs = [{ id: "s1", owner: "Аня" }] as unknown as Snapshot["chairs"];
-    const карта = (): Op => ({
-      t: "move",
-      card: { id: `c${Math.random()}`, face },
-      from: { in: "deck", pile: MAIN_PILE },
-      to: { in: "hand", chair: "s1", i: 0 },
-      trail: { by: "bot", byName: "CrossaderBot", from: "deck", at: 0, deal: true },
-    });
-    const j = journal();
-    const снимок_ = снимок({ chairs, people: [person("Аня")] });
-    j.take([карта()], снимок_, 0);
-    j.take([карта()], снимок_, 60_000);
-    expect(j.all().length).toBe(2);
   });
 
   it("ШУМ В ЖУРНАЛ НЕ ПОПАДАЕТ: замки, выделения и права человеку ничего не говорят", () => {

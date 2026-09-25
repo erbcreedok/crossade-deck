@@ -301,7 +301,7 @@ export class TableRoom extends Room {
         return;
       }
       // ДЕЛО КРУПЬЕ — не ход по столу, а состав стола: его исполняет комната.
-      if (intent.t === "crew") return void this.crewAct(me.key, intent.act);
+      if (intent.t === "crew") return void this.crewAct(me.key, intent.act, intent.chair);
       // УПРАВЛЕНИЕ ИГРОКОМ БЕЗ ЧЕЛОВЕКА — тоже дело комнаты: стол о мозгах не знает.
       if (intent.t === "bot") return void this.botAct(me.key, intent.chair, intent.act, intent.brain);
       if (intent.t === "chair") return void this.chairAct(me.key, intent.act, intent.chair);
@@ -470,6 +470,11 @@ export class TableRoom extends Room {
       if ("steps" in steps) for (const step of steps.steps) if (step.t === "rules") this.spread(this.table.setRules(step.rules));
       return { ok: true };
     }
+    // ДЕЛО СТОЛА ИЗВНЕ — тем же путём, что и кнопка в окне крупье: исполнение одно на все входы.
+    if (command.t === "crew") {
+      this.crewAct(by, command.act, command.chair);
+      return { ok: true };
+    }
     // ИГРОКИ БЕЗ ЧЕЛОВЕКА — тоже состав стола, а не ход. Садятся и уходят сразу.
     if (command.t === "bots") {
       if (command.n <= 0) {
@@ -513,7 +518,18 @@ export class TableRoom extends Room {
     if ("error" in p) return p;
     if (p.deal) this.lastDeal = p.deal;
     const actor = p.actor === "bot" ? BOT_KEY : p.actor;
+    // СКОЛЬКО У КОГО БЫЛО ДО — чтобы объявить раздачу числами, а не пересчитывать её по картам.
+    const было = new Map(this.table.layout().chairs.map((c) => [c.id, c.hand.length]));
     void execute(this.table, p.steps, actor, this.io(), command.t).then(() => {
+      // РАЗДАЧА ОБЪЯВЛЯЕТСЯ ОДНИМ СОБЫТИЕМ. Экран не должен считать её по картам: они летят по одной,
+      // кто-то подключился посреди, и у каждого выходит своё число. Раздавший знает точно.
+      if (command.t === "deal") {
+        const parts = this.table.layout().chairs
+          .map((c) => ({ chair: c.id, n: c.hand.length - (было.get(c.id) ?? 0) }))
+          .filter((one) => one.n > 0);
+        const who = this.table.here.find((one) => one.key === actor);
+        if (parts.length > 0) this.spread(this.table.say({ t: "dealt", by: actor, byName: who?.name ?? actor, parts }));
+      }
       // Раздача кончилась — собираем судью из того, что легло в руки. Раздающий у этой игры ходит
       // последним, но первым ходит тот, у кого шестёрка козыря, — это решает сам судья.
       if (command.t === "deal") this.openMatch(this.table.layout().chairs.find((c) => c.owner === by)?.id ?? null);
@@ -652,8 +668,9 @@ export class TableRoom extends Room {
    * Сами дела идут теми же шагами, что и команды бота: карта за картой, с паузой, чтобы за столом
    * было видно, что происходит, а не «всё вдруг стало иначе».
    */
-  private crewAct(by: string, act: string): void {
+  private crewAct(by: string, act: string, куда?: string): void {
     const item = actOf(crewKind(this.room), act);
+    // `chair` — стул КРУПЬЕ, чьими руками дело делается; `куда` — кому оно адресовано, если надо.
     const chair = this.table.layout().chairs.find((c) => c.croupier);
     if (!item || !chair) return;
     // Дело набора — обычный ключ: `crew.collect`, `crew.layout`. Помеченные `adminOnly` живут в
@@ -665,6 +682,14 @@ export class TableRoom extends Room {
     // СОБРАТЬ КРУГ — закрытая куча уходит крупье в руки, и стол снова чист.
     if (act === "ring") return void this.sweepRing(by, chair.id);
     if (act === "ring-back") return void this.unsweepRing(by, chair.id);
+    // УКАЗАТЬ ХОД — слово ведущего сильнее счёта судьи: за столом спор решает тот, кто его ведёт.
+    if (act === "point") {
+      if (!куда || !this.referee?.point?.(this.seats_(), куда)) return;
+      this.book.tell("crew.point", by, { стул: куда });
+      this.resend();
+      this.nudgeBots();
+      return;
+    }
     // УКАЗАТЕЛЬ ХОДА — обычное правило стола, как лица и рубашка: сменился — разошёлся всем сразу.
     if (act === "turn-mark") {
       const was = this.table.seenBy(by).rules.turnMark;

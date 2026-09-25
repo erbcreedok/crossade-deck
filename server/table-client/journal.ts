@@ -102,15 +102,14 @@ export function deedOf(op: Op, snap: Snapshot, now: number): Deed | null {
       if (op.from.in === "hand" && op.to.in === "hand" && op.from.chair === op.to.chair) return null;
       // СЛЕД ЗНАЕТ, КТО НЁС, — он же переживает то, что карта уже в новом месте.
       const by = op.trail ? { who: op.trail.byName, ink: snap.people.find((p) => p.key === op.trail!.by)?.ink } : {};
-      // КАРТУ ПРИНЕСЛА РАЗДАЧА — так сказал след, и журнал ему верит. Угадывать раздачу по виду
-      // движения нельзя: крупье может просто выдать всем по карте, и это НЕ раздача.
-      const рука = op.trail?.deal === true && op.to.in === "hand" ? (handOf(op.to.chair, snap, chairs, undefined) ?? "пустой стул") : null;
+      // КАРТЫ РАЗДАЧИ МОЛЧАТ. Раздачу объявляет одним событием тот, кто её сделал (`dealt`), — а
+      // тридцать восемь строк «из «колода» в руку» ничего не рассказывают о партии.
+      if (op.trail?.deal === true) return null;
       return {
         at: now,
         ...by,
         says: `${fromSays(op.from, snap, chairs, op.trail?.by)} ${whereSays(op.to, snap, chairs, op.trail?.by)}`,
         cards: [faceOf(op.card)],
-        ...(рука === null ? {} : { deal: [{ hand: рука, n: 1 }] }),
       };
     }
     case "turn":
@@ -129,6 +128,15 @@ export function deedOf(op: Op, snap: Snapshot, now: number): Deed | null {
       // ПЕРЕМЕШИВАНИЕ остаётся: карты после него новые, лиц у них нет ни у кого, и показывать
       // нечего, кроме числа, — но само оно событие, и стопку надо назвать.
       return op.shuffled ? { at: now, says: `перемешал «${pileOf(op.pile, snap)}»`, count: op.cards.length } : null;
+    case "dealt": {
+      // ПОРЯДОК ИМЁН — ПО СТУЛЬЯМ, а не по тому, в каком порядке стол их перечислил: строка про одну
+      // и ту же раздачу должна читаться одинаково у всех и после обновления страницы тоже.
+      const кому = [...op.parts]
+        .sort((a, b) => a.chair.localeCompare(b.chair))
+        .map((one) => ({ hand: handOf(one.chair, snap, chairs, undefined) ?? "пустой стул", n: one.n }))
+        .filter((one) => one.n > 0);
+      return { at: now, who: op.byName, ink: snap.people.find((p) => p.key === op.by)?.ink, says: "раздал", deal: кому, count: кому.reduce((sum, one) => sum + one.n, 0) };
+    }
     case "join":
       return { at: now, who: op.person.name, ink: op.person.ink, says: "сел за стол" };
     case "leave":
@@ -157,17 +165,10 @@ export function deedOf(op: Op, snap: Snapshot, now: number): Deed | null {
  * одним жестом: карты из одного места в одно место. Два разных движения так не слипнутся, и чужое
  * между своими разорвёт пачку, как и должно.
  */
-const склеить = (deeds: readonly Deed[], хвост?: Deed): Deed[] => {
+const склеить = (deeds: readonly Deed[]): Deed[] => {
   const out: Deed[] = [];
   for (const one of deeds) {
-    // РАЗДАЧА ТЯНЕТСЯ ЧЕРЕЗ ПАЧКИ: карты летят по одной, каждая своим патчем, и внутри одной пачки
-    // её не собрать — поэтому первая свежая запись примеряется и к последней строке журнала.
-    const тянется = out.length === 0 ? хвост : out[out.length - 1];
-    if (тянется && раздача(тянется, one)) {
-      слить(тянется, one);
-      continue;
-    }
-    // ОСТАЛЬНОЕ СЛИПАЕТСЯ ТОЛЬКО ВНУТРИ ОДНОГО ЖЕСТА, то есть внутри своей пачки: два одинаковых
+    // СЛИПАЕТСЯ ТОЛЬКО ТО, ЧТО БЫЛО ОДНИМ ЖЕСТОМ, то есть пришло одной пачкой: два одинаковых
     // движения, разделённые минутой, — два разных события, как их и видел человек.
     const прошлая = out[out.length - 1];
     if (прошлая && то_же(прошлая, one)) {
@@ -184,27 +185,6 @@ const склеить = (deeds: readonly Deed[], хвост?: Deed): Deed[] => {
 const то_же = (a: Deed | undefined, b: Deed): boolean =>
   a !== undefined && a.who === b.who && a.says === b.says && a.cards !== undefined && b.cards !== undefined;
 
-/** Насколько далеко друг от друга могут лежать карты одной раздачи. Раздают быстрее. */
-const DEAL_GAP_MS = 6000;
-
-/** Обе записи — карты ОДНОЙ раздачи: так сказал след каждой из них, и идут они подряд. */
-const раздача = (a: Deed, b: Deed): boolean =>
-  a.deal !== undefined && b.deal !== undefined && a.who === b.who && b.at - a.at < DEAL_GAP_MS;
-
-/**
- * СЛИТЬ КАРТУ В РАЗДАЧУ. Карты по одной больше не показываются — их десятки, и лица своих человек
- * всё равно видит в руке. Остаётся то, что важно: кому сколько досталось.
- */
-const слить = (в: Deed, одна: Deed): void => {
-  const кому = одна.deal![0]!.hand;
-  const есть = в.deal!.find((one) => one.hand === кому);
-  if (есть) есть.n += 1;
-  else в.deal!.push({ hand: кому, n: 1 });
-  в.says = "раздал";
-  в.count = в.deal!.reduce((sum, one) => sum + one.n, 0);
-  delete в.cards;
-};
-
 /** Сколько записей журнал держит. Больше телефон не прокрутит, а память за партию вырастет заметно. */
 export const JOURNAL_KEEP = 200;
 
@@ -214,12 +194,8 @@ export function journal(keep = JOURNAL_KEEP) {
   return {
     /** Принять пачку операций. Возвращает, добавилось ли что-то: по этому экран решает, перерисовывать ли. */
     take(ops: readonly Op[], snap: Snapshot, now: number): boolean {
-      const хвост = deeds[deeds.length - 1];
-      const было = хвост === undefined ? "" : JSON.stringify(хвост);
-      const свежие = склеить(ops.map((op) => deedOf(op, snap, now)).filter((one): one is Deed => one !== null), хвост);
-      // Пачка могла целиком влиться в последнюю строку (раздача) — тогда новых записей нет, но
-      // строка изменилась, и экран надо перерисовать.
-      if (свежие.length === 0) return хвост !== undefined && JSON.stringify(хвост) !== было;
+      const свежие = склеить(ops.map((op) => deedOf(op, snap, now)).filter((one): one is Deed => one !== null));
+      if (свежие.length === 0) return false;
       deeds = [...deeds, ...свежие].slice(-keep);
       return true;
     },

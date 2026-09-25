@@ -127,6 +127,23 @@ await a.evaluate(() => window.__tableSend({ t: "crew", act: "turn-mark" }));
 await a.waitForTimeout(700);
 check("зажёг обратно", (await awaited(a)).length === 1, await awaited(a));
 
+/**
+ * КРУПЬЕ УКАЗЫВАЕТ, ЧЕЙ ХОД. Партия идёт не по книжке: кто-то отвлёкся, кто-то сходил вне очереди,
+ * стол переложили руками. Спорить с этим судье нечем — решает слово ведущего.
+ */
+const сейчас = await snap(a);
+const ктоСейчас = (await awaited(a))[0];
+const другой = сейчас.chairs.find((c) => !c.croupier && c.owner !== null && c.id !== ктоСейчас);
+if (другой) {
+  await a.evaluate(([chair]) => window.__tableSend({ t: "crew", act: "point", chair }), [другой.id]);
+  await a.waitForTimeout(800);
+  check("стрелка переехала туда, куда указал крупье", (await awaited(a))[0] === другой.id, { стрелка: await awaited(a), хотели: другой.id });
+  const после = await snap(a);
+  check("и судья считает ход его", после.chairs.find((c) => c.owner === после.play.turn)?.id === другой.id, после.play.turn);
+} else {
+  check("стрелка переехала туда, куда указал крупье", false, "не нашлось второго стула");
+}
+
 await browser.close();
 for (const one of checks) console.log(one.ok ? "ok  " : "FAIL", one.name, one.ok ? "" : JSON.stringify(one.got));
 const bad = checks.filter((one) => !one.ok).length;
