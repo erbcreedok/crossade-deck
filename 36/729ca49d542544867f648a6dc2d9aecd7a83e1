@@ -1,0 +1,23 @@
+server/src/table/ring.ts
+  s_9ed0da107cbc4a::t_4c6af96638adec 6-13,45,48,73,78
+server/table-client/felt.ts
+  s_9ed0da107cbc4a::t_84ab140f136718 9,132-133,137,139-140,702-715
+server/table-client/netStore.ts
+  s_9ed0da107cbc4a::t_f89501665f21af 203-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "36729ca49d542544867f648a6dc2d9aecd7a83e1",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
