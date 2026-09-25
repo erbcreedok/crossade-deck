@@ -70,14 +70,64 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
   /** Кто слушает поток операций — журнал партии. */
   const opsHeard: Array<(ops: readonly Op[]) => void> = [];
 
-  const take = (patch: Patch) => {
-    if (!state) return void early.push(patch);
+  /**
+   * ТЕМП ПОКАЗА ЧУЖИХ ХОДОВ.
+   *
+   * Стол шлёт ходы так быстро, как они случились, и два хода, разделённые на сервере секундой,
+   * сливались на экране в один кадр: семёрка исчезла, валет появился, а реплика «беру» пришла
+   * после. Человек видел не партию, а подмену — и не мог сказать, кто что сделал.
+   *
+   * Поэтому ЧУЖИЕ ходы встают в очередь и показываются по одному, не чаще такта. СВОИ показываются
+   * мгновенно: собственный палец ждать не должен.
+   *
+   * Отставать бесконечно очередь не может: набежала толпа — такт сжимается, и стол догоняет.
+   */
+  const BEAT_MS = 700;
+  const HURRY_AT = 4;
+  const очередь: Patch[] = [];
+  let показано = 0;
+  let тикер: ReturnType<typeof setTimeout> | undefined;
+
+  /** Мой ли это жест: хоть одна карта в патче двигалась моей рукой. */
+  const мой = (patch: Patch): boolean =>
+    welcome !== null && patch.ops.some((op) => (op.t === "move" || op.t === "turn") && op.trail?.by === welcome!.you.key);
+
+  const применить = (patch: Patch) => {
+    if (!state) return;
     if (patch.v <= state.v) return;
     if (needsSync(state, patch)) return void fresh.gap(Date.now());
     state = applyPatch(state, patch);
+    показано = Date.now();
     stillHeld();
     tell();
     for (const heard of opsHeard) heard(patch.ops);
+  };
+
+  const качать = () => {
+    тикер = undefined;
+    const patch = очередь[0];
+    if (patch === undefined) return;
+    // Толпа накопилась — показываем без пауз, пока не разгребём: отставший стол хуже слитных ходов.
+    const такт = очередь.length >= HURRY_AT ? 0 : BEAT_MS;
+    const ждать = такт - (Date.now() - показано);
+    if (ждать > 0) {
+      тикер = setTimeout(качать, ждать);
+      return;
+    }
+    очередь.shift();
+    применить(patch);
+    if (очередь.length > 0) тикер = setTimeout(качать, 0);
+  };
+
+  const take = (patch: Patch) => {
+    if (!state) return void early.push(patch);
+    // СВОЁ — СРАЗУ, и очередь при этом не ломается: всё, что уже ждёт, показывается перед ним.
+    if (мой(patch)) {
+      while (очередь.length > 0) применить(очередь.shift()!);
+      return void применить(patch);
+    }
+    очередь.push(patch);
+    if (тикер === undefined) качать();
   };
 
   listen<Patch>(MSG.patch, take);
@@ -92,7 +142,10 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     tell();
   });
   listen<Pulse>(MSG.pulse, (pulse) => {
-    if (state && Number.isFinite(pulse?.v)) fresh.pulse(pulse.v, state.v, Date.now());
+    // СВЕЖЕСТЬ МЕРЯЕТСЯ ПОЛУЧЕННЫМ, А НЕ ПОКАЗАННЫМ. Очередь показа нарочно держит ходы по одному, и
+    // считать эту задержку отставанием значило бы гнать стол на пересинхронизацию на ровном месте.
+    const принято = очередь.length > 0 ? очередь[очередь.length - 1]!.v : (state?.v ?? 0);
+    if (state && Number.isFinite(pulse?.v)) fresh.pulse(pulse.v, принято, Date.now());
   });
 
   let welcomed: (() => void) | null = null;
