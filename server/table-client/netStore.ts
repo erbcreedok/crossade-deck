@@ -83,9 +83,25 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
    * Отставать бесконечно очередь не может: набежала толпа — такт сжимается, и стол догоняет.
    */
   const BEAT_MS = 700;
-  const HURRY_AT = 4;
-  const очередь: Patch[] = [];
-  let показано = 0;
+  const HURRY_AT = 3;
+  /**
+   * ОЧЕРЕДЬ ПОКАЗА — и патчи, и вести о думающих машинах В ОДНОМ ПОТОКЕ.
+   *
+   * Вести летели мимо очереди и приходили мгновенно: «думает» вспыхивало и гасло раньше, чем экран
+   * показывал сам ход. Стрелка при этом замирала на прошлом игроке — она едет с патчем, а весть уже
+   * ушла вперёд. Порядок важнее скорости: что случилось раньше, то раньше и видно.
+   */
+  type Весть = { kind: "patch"; patch: Patch } | { kind: "minds"; minds: Minds };
+  const очередь: Весть[] = [];
+  const mindsHeard: Array<(minds: Minds) => void> = [];
+  /**
+   * КОГДА ПОКАЗАН ПОСЛЕДНИЙ ХОД — и только ход.
+   *
+   * Считать такт от любого патча нельзя: между ходами идут раздача, уборка, флаги и реплики, и
+   * каждый такой патч отодвигал следующий ход ещё на такт. Отставание копилось, экран замирал, а
+   * потом догонял рывком — за столом это выглядело как «залагало и перенесло на шесть секунд вперёд».
+   */
+  let ходПоказан = 0;
   let тикер: ReturnType<typeof setTimeout> | undefined;
 
   /** Мой ли это жест: хоть одна карта в патче двигалась моей рукой. */
@@ -111,8 +127,9 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     if (!state) return;
     if (patch.v <= state.v) return;
     if (needsSync(state, patch)) return void fresh.gap(Date.now());
+    const это_ход = ход(patch);
     state = applyPatch(state, patch);
-    показано = Date.now();
+    if (это_ход) ходПоказан = Date.now();
     stillHeld();
     tell();
     for (const heard of opsHeard) heard(patch.ops);
@@ -120,12 +137,19 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
 
   const качать = () => {
     тикер = undefined;
-    const patch = очередь[0];
-    if (patch === undefined) return;
-    // Толпа накопилась — показываем без пауз, пока не разгребём: отставший стол хуже слитных ходов.
-    // И ждать имеет смысл только перед ХОДОМ: всё остальное не сливается, а лишь копит опоздание.
+    const весть = очередь[0];
+    if (весть === undefined) return;
+    if (весть.kind === "minds") {
+      очередь.shift();
+      for (const heard of mindsHeard) heard(весть.minds);
+      tell();
+      return void качать();
+    }
+    const patch = весть.patch;
+    // Ждать имеет смысл только перед ХОДОМ и только от прошлого ХОДА. Толпа накопилась — показываем
+    // без пауз: отставший стол хуже слитных ходов.
     const такт = очередь.length >= HURRY_AT || !ход(patch) ? 0 : BEAT_MS;
-    const ждать = такт - (Date.now() - показано);
+    const ждать = такт - (Date.now() - ходПоказан);
     if (ждать > 0) {
       тикер = setTimeout(качать, ждать);
       return;
@@ -135,18 +159,34 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     if (очередь.length > 0) тикер = setTimeout(качать, 0);
   };
 
+  /** Показать всё, что ждёт, прямо сейчас — порядок сохраняется, ожидание отменяется. */
+  const разгрести = () => {
+    for (const весть of очередь.splice(0)) {
+      if (весть.kind === "patch") применить(весть.patch);
+      else for (const heard of mindsHeard) heard(весть.minds);
+    }
+  };
+
   const take = (patch: Patch) => {
     if (!state) return void early.push(patch);
     // СВОЁ — СРАЗУ, и очередь при этом не ломается: всё, что уже ждёт, показывается перед ним.
     if (мой(patch)) {
-      while (очередь.length > 0) применить(очередь.shift()!);
+      разгрести();
       return void применить(patch);
     }
-    очередь.push(patch);
+    очередь.push({ kind: "patch", patch });
     if (тикер === undefined) качать();
   };
 
   listen<Patch>(MSG.patch, take);
+  // ВЕСТИ О МАШИНАХ — в ту же очередь: «думает» должно появляться там же, где и ход, которого ждут.
+  listen<Minds>(MSG.minds, (minds) => {
+    if (очередь.length === 0) {
+      for (const heard of mindsHeard) heard(minds);
+      return void tell();
+    }
+    очередь.push({ kind: "minds", minds });
+  });
   listen<Carry>(MSG.carry, (c) => {
     // Пришёл раньше своей блокировки или позже её снятия — не показывается.
     if (!state || state.locks[c.id] !== c.by) return;
@@ -277,7 +317,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     get recent() {
       return welcome?.recent ?? [];
     },
-    onMinds: (listener) => listen<Minds>(MSG.minds, listener),
+    onMinds: (listener) => void mindsHeard.push(listener),
     onGone: (listener) => void gone.push(listener),
     onLink: (listener) => void linked.push(listener),
   };

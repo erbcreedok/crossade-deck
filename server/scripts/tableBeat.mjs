@@ -121,6 +121,23 @@ const зазоры = трижды.slice(1).map((one, i) => one.at - трижды
 const тесно = зазоры.filter((ms) => ms < 300);
 check("и показались ПО ОДНОМУ, а не одним кадром", трижды.length === 3 && тесно.length === 0, { зазоры, тесно });
 
+/**
+ * ЭКРАН НЕ ОТСТАЁТ ОТ СТОЛА. Такт разносит ходы, но не имеет права копить опоздание: за живой
+ * партией это выглядело так, что журнал пуст, стрелка замерла, а потом стол «прыгал на шесть секунд
+ * вперёд». Смотрим, как долго версия экрана отличается от версии стола.
+ */
+const версия = () => p.evaluate(() => window.__tableState().v);
+let худшее = 0;
+for (let i = 0; i < 40; i += 1) {
+  const мой = await версия();
+  const лог = await (await ask(`/table/journal?room=${room}&limit=8`)).json();
+  const патчи = (лог.deeds ?? []).filter((d) => d.kind === "patch");
+  const столV = патчи.length > 0 ? патчи[патчи.length - 1].what.v : мой;
+  худшее = Math.max(худшее, столV - мой);
+  await p.waitForTimeout(500);
+}
+check("экран не отстаёт от стола больше чем на пару событий", худшее <= 2, { отставание: худшее });
+
 await browser.close();
 for (const one of checks) console.log(one.ok ? "ok  " : "FAIL", one.name, one.ok ? "" : JSON.stringify(one.got));
 const bad = checks.filter((one) => !one.ok).length;
