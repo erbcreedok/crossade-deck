@@ -6,7 +6,7 @@
 
 import { apply, invert, type Transform } from "../../game-kit/src/core/transform.js";
 import type { Face, ZonePose } from "../src/table/contract.js";
-import { CROUPIER_RADIUS, RING_LAY, RING_SPREAD, ringTurned, seatPoint, SEAT_RADIUS } from "../src/table/ring.js";
+import { CROUPIER_RADIUS, RING_LAY, RING_SPREAD, ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../src/table/ring.js";
 import { ringTurnOfSeat } from "../src/table/bots/view.js";
 
 export interface Pose {
@@ -129,11 +129,15 @@ const ROUND = {
   black: "#0b0704",
   woodDark: "#3a2a1d",
   woodLight: "#6b4d2c",
+  /** Торец столешницы у самой кромки — светлее низа: на него падает свет сверху. */
+  woodSide: "#4e3823",
 };
 
 /** Стол: радиус сукна и три кольца кромки. */
-export const R = 8;
+export const R = TABLE_RADIUS;
 const EDGE = { line: 0.09, dark: 0.33, light: 0.18 };
+/** Толщина столешницы, в единицах: торец, который открывается наклоном. */
+const TABLE_THICK = 0.9;
 export const RIM = EDGE.line + EDGE.dark + EDGE.light;
 
 /** Стул: арка и её линия. */
@@ -695,6 +699,20 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     g.fillStyle = paint;
     g.fill();
   };
+  // ТОРЕЦ СТОЛА — он виден, только когда стол наклонён: сверху у плиты нет боковины, а лёгший стол
+  // без неё читается листом бумаги. Торец — та же кромка, опущенная по ЭКРАНУ вниз на толщину
+  // столешницы, настолько, насколько наклон её открывает (`sin`).
+  const открыт = Math.sqrt(Math.max(0, 1 - o.squash * o.squash));
+  if (открыт > 0.01) {
+    const шагов = 14;
+    for (let i = шагов; i >= 1; i -= 1) {
+      const at = onScreen(0, TABLE_THICK * открыт * (i / шагов));
+      g.beginPath();
+      g.arc(at.x, at.y, R + RIM, 0, Math.PI * 2);
+      g.fillStyle = i === шагов ? ROUND.black : i / шагов > 0.5 ? ROUND.woodDark : ROUND.woodSide;
+      g.fill();
+    }
+  }
   ring(R + RIM, ROUND.black);
   ring(R + EDGE.dark + EDGE.light, ROUND.woodDark);
   ring(R + EDGE.light, ROUND.woodLight);

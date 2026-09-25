@@ -200,7 +200,9 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
   listen<Pulse>(MSG.pulse, (pulse) => {
     // СВЕЖЕСТЬ МЕРЯЕТСЯ ПОЛУЧЕННЫМ, А НЕ ПОКАЗАННЫМ. Очередь показа нарочно держит ходы по одному, и
     // считать эту задержку отставанием значило бы гнать стол на пересинхронизацию на ровном месте.
-    const принято = очередь.length > 0 ? очередь[очередь.length - 1]!.v : (state?.v ?? 0);
+    // Вести о ботах версии не несут — принятое читается по последнему ПАТЧУ в очереди.
+    let принято = state?.v ?? 0;
+    for (const one of очередь) if (one.kind === "patch") принято = one.patch.v;
     if (state && Number.isFinite(pulse?.v)) fresh.pulse(pulse.v, принято, Date.now());
   });
 
