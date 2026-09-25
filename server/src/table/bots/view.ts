@@ -58,7 +58,11 @@ export function legalMoves(seats: Seats, match: Match, chair: string): Move[] {
     }
   }
   if (can.take) {
-    const low = seats.pile(RING)[0];
+    // НИЖНЯЯ ЖИВОГО КРУГА, А НЕ ВСЕЙ КУЧИ. Закрытый круг лежит, пока крупье его не сгребёт, и новый
+    // растёт поверх него в той же зоне — граница между ними живёт в тени (`Match.opened`). Со дна
+    // кучи ушла бы чужая карта прошлого круга: живой круг не изменился бы, а судья засчитал бы
+    // взятие — круг «закрыт», порог сброшен, и следующий кладёт что угодно на небитую карту.
+    const low = seats.pile(RING)[match.opened];
     const face = low === undefined ? undefined : seats.faceOf(low);
     if (low !== undefined && face !== undefined) moves.push({ t: "take", id: low, card: face, to: { in: "hand", chair, i: 0 } });
   }

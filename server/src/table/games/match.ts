@@ -137,7 +137,11 @@ export function advance(m: Match, board: Board, who: string, how: "laid" | "take
   const открыт = how === "laid" && m.threshold === 0;
   const threshold = открыт ? new Set([...withCards(board, m.ring), who]).size : m.threshold;
   // КРУГ ОТКРЫЛСЯ ЭТОЙ КАРТОЙ — значит он начинается с неё, а всё, что лежало ниже, прошлое.
-  const grown: Match = { ...m, threshold, ...(открыт ? { opened: Math.max(0, board.circle.length - 1) } : {}) };
+  // ГРАНИЦА НЕ МОЖЕТ СТОЯТЬ ЗА КРАЕМ КУЧИ. Карту из круга уносят не только по правилу: админ убирает
+  // руками, человек тянет пальцем со дна, крупье сгребает. Останься граница выше того, что лежит, —
+  // живой круг оказался бы пустым при полном столе, и тень объявила бы его закрытым.
+  const край = Math.min(m.opened, board.circle.length);
+  const grown: Match = { ...m, opened: край, threshold, ...(открыт ? { opened: Math.max(0, board.circle.length - 1) } : {}) };
   const circle = circleOf(grown, board);
   if (circle === null || !closed(circle)) return { ...grown, turn: after(m.ring, who) };
 

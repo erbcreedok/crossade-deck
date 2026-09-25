@@ -5,7 +5,7 @@ import { TEST_PORTS, useTestServer } from "../roomHarness.js";
 import { MSG, PROTOCOL, STALE_CLIENT, TABLE_ROOM, type Carry, type Patch, type Refused, type Welcome } from "./contract.js";
 import { mintRoom } from "./roomIds.js";
 import { applyPatch } from "./patch.js";
-import { findEntry, keepLobbyIn, openEntry, runIn } from "./lobby.js";
+import { findEntry, keepLobbyIn, keptStateOf, openEntry, runIn } from "./lobby.js";
 import { dropRoom, keepCard, keepState, keptRooms, keptState } from "../db/tableRoomsRepo.js";
 import { BOT_KEY } from "./botPerson.js";
 import type { Say, Shot } from "./say.js";
@@ -119,6 +119,31 @@ describe("TableRoom", () => {
     await new Promise((r) => setTimeout(r, 120));
     expect(bots()).toHaveLength(2);
   });
+
+  /**
+   * ЖУРНАЛ ПЕРЕЖИВАЕТ И ПЕРЕЗАПУСК СЕРВЕРА, а не только обновление страницы. Хвост случившегося
+   * лежал бы в памяти комнаты — и с перезапуском люди возвращались бы к столу, где партия будто
+   * началась с их прихода, хотя карты на сукне говорят обратное.
+   */
+  it("хвост случившегося уезжает в слепок комнаты вместе со столом", async () => {
+    keepLobbyIn({ card: keepCard, drop: dropRoom, all: keptRooms, state: keepState, stateOf: keptState });
+    try {
+      const room = mintRoom(SECRET);
+      openEntry(room, { kind: "inline", message: "m" }, "tg:7", "Хвост");
+      const owner = await sit(room, { door: "telegram", initData: initData(7, "Аня") });
+      await runIn(room, "tg:7", { t: "deal", rule: "each", n: 2 });
+      // Слепок пишется, когда стол замолчит (`KEEP_AFTER_MS`), — ждём его, а не угадываем.
+      for (let ждал = 0; ждал < 8000 && !(keptStateOf(room) ?? "").includes("\"recent\""); ждал += 200) {
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      const kept = JSON.parse(keptStateOf(room) ?? "{}") as { recent?: unknown[] };
+      expect(Array.isArray(kept.recent), "хвост в слепке есть").toBe(true);
+      expect(kept.recent!.length, "и он не пуст: карты уже раздали").toBeGreaterThan(0);
+      expect(owner.welcome.recent, "а вошедшему он приходит с приветствием").toBeDefined();
+    } finally {
+      keepLobbyIn(null);
+    }
+  }, 20000);
 
   /**
    * УКАЗАТЕЛЬ ХОДА ГАСИТСЯ РАСПОРЯДИТЕЛЕМ — и это обычное правило стола, а не личная настройка:

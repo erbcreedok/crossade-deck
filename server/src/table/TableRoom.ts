@@ -171,9 +171,10 @@ export class TableRoom extends Room {
     const json = keptStateOf(this.room);
     if (json === null) return null;
     try {
-      const kept = JSON.parse(json) as { table: TableDump; match?: unknown };
+      const kept = JSON.parse(json) as { table: TableDump; match?: unknown; recent?: { at: number; op: Op; seen: Record<string, Op> }[] };
       const table = Table.restore(kept.table, creatorOf(this.room), deskOf(kindOf(this.room), () => this.judgeView()));
       this.referee?.load(kept.match ?? null);
+      this.recent = Array.isArray(kept.recent) ? kept.recent.slice(-RECENT_KEEP) : [];
       this.book.tell("room.raised", undefined, { v: table.version });
       return table;
     } catch (err) {
@@ -195,7 +196,10 @@ export class TableRoom extends Room {
     this.keeping = undefined;
     // Посреди команды бота стол не пишется: половина раздачи — не состояние, в которое стоит вернуться.
     if (this.table.busy) return void this.keepSoon();
-    keepStateOf(this.room, JSON.stringify({ table: this.table.dump(), match: this.referee?.dump() ?? null }));
+    // ХВОСТ СЛУЧИВШЕГОСЯ ЕДЕТ В СЛЕПОК ВМЕСТЕ СО СТОЛОМ. Держи его только в памяти — и перезапуск
+    // сервера стирал бы журнал у всех: люди возвращались к столу, где партия будто началась с их
+    // прихода, хотя карты на сукне говорили обратное.
+    keepStateOf(this.room, JSON.stringify({ table: this.table.dump(), match: this.referee?.dump() ?? null, recent: this.recent }));
   }
 
   /** Как бы комната ни кончилась — опустела, закрыта ботом, сервер останавливают, — журнал дописан. */
