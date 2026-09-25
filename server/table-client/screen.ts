@@ -8,7 +8,7 @@
 import { CARRY_EVERY_MS, DEAL_PRESETS, DEFAULT_POSE, type DealPreset, type DealRule, HOLD_EVERY_MS, type Arrange, type DeckDo, type Carry, type Chair, type ChairFlag, type Face, type Intent, type Person, type Pile, type Refusal, REFUSAL_SAYS, type GatherSide, MAIN_PILE, type SeenCard, type Snapshot, type Where , type DealDir } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
-import { CARD as FELT_CARD, HAND_SCALE, SEAT_REACH, SUITS, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
+import { CARD as FELT_CARD, HAND_SCALE, R, RIM, SEAT_REACH, SUITS, TABLE_THICK, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
 import { orbits, tableCamera } from "./camera.js";
 import { allowed, may as mayDo, mayFlagChair, type Ask, type Key } from "../src/table/access.js";
 import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.js";
@@ -40,6 +40,7 @@ import { tipKeyOf } from "./tipKey.js";
 import { BRAIN_PICKS, type BotAct, type Minds } from "../src/table/contract.js";
 
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
+import { lens } from "./lens.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
@@ -2491,6 +2492,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         return p.zone ? [{ ...p, cards: [], carried: true }] : [];
       }), felt: s.felt, held: heldInk(s), picked: Object.fromEntries(Object.keys(s.picks ?? {}).map((id) => [id, pickInk(s, id)!])), hidden: heldInPiles(s, flying),
       view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
+      lens: lens(cam.camera.transform(), cam.camera.pitch, cam.camera.pixelsPerUnit, lastFrame, { r: R + RIM, depth: TABLE_THICK }),
       rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
     });
     spots = view.spots;

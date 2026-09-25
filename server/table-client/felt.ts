@@ -8,6 +8,7 @@ import { apply, invert, type Transform } from "../../game-kit/src/core/transform
 import type { Face, ZonePose } from "../src/table/contract.js";
 import { CROUPIER_RADIUS, RING_LAY, RING_SPREAD, ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../src/table/ring.js";
 import { ringTurnOfSeat } from "../src/table/bots/view.js";
+import type { Lens } from "./lens.js";
 
 export interface Pose {
   fan: boolean;
@@ -137,7 +138,7 @@ const ROUND = {
 export const R = TABLE_RADIUS;
 const EDGE = { line: 0.09, dark: 0.33, light: 0.18 };
 /** Толщина столешницы, в единицах: торец, который открывается наклоном. */
-const TABLE_THICK = 0.9;
+export const TABLE_THICK = 0.9;
 export const RIM = EDGE.line + EDGE.dark + EDGE.light;
 
 /** Стул: арка и её линия. */
@@ -618,6 +619,8 @@ export interface FeltScene {
   hidden?: ReadonlySet<string>;
   /** Взгляд камеры: единицы стола → пиксели стекла (`Camera.transform()`). */
   view: Transform;
+  /** Перспектива поверх взгляда камеры (`lens.ts`): по ней рисуется и читается всё, что лежит на сукне. */
+  lens: Lens;
   /** Наклон как доля наибольшего: 0 — сверху, 1 — лёг до конца. Даёт стопкам высоту. */
   rise: number;
   k: number;
@@ -652,9 +655,28 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   // лежат в ней; диски с лицами — нет (ниже).
   const v = o.view;
   const desk = () => g.setTransform(dpr * v.a, dpr * v.b, dpr * v.c, dpr * v.d, dpr * v.e, dpr * v.f);
-  const toGlass = (p: Point) => apply(v, p);
-  const back = invert(v)!;
-  const toDesk = (p: Point) => apply(back, p);
+  // ГДЕ ЧТО НА СТЕКЛЕ — ПО ЛИНЗЕ, а не по матрице камеры: наклон уводит дальний край вдаль, и палец
+  // обязан попадать туда же, куда легла кисть.
+  const toGlass = (p: Point) => o.lens.toGlass(p);
+  const toDesk = (p: Point) => o.lens.toDesk(p);
+  /** Рисовать рядом с этой точкой стола — её локальной матрицей линзы. */
+  const nearAt = (p: Point) => {
+    const m = o.lens.near(p);
+    g.setTransform(dpr * m.a, dpr * m.b, dpr * m.c, dpr * m.d, dpr * m.e, dpr * m.f);
+  };
+  /** Круг на сукне — контуром из спроецированных точек: на размере стола перспектива уже не аффинна. */
+  const deskCircle = (cx: number, cy: number, r: number, height = 0) => {
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.beginPath();
+    const n = 96;
+    for (let i = 0; i <= n; i += 1) {
+      const t = (i / n) * Math.PI * 2;
+      const q = o.lens.toGlass({ x: cx + Math.cos(t) * r, y: cy + Math.sin(t) * r }, height);
+      if (i === 0) g.moveTo(q.x, q.y);
+      else g.lineTo(q.x, q.y);
+    }
+    g.closePath();
+  };
   // СДВИГ НА ЭКРАНЕ → СДВИГ НА СТОЛЕ. Стопка растёт вверх и вправо по экрану, а рисуется в осях стола:
   // обратная матрица без переноса поворачивает, растягивает наклон назад и делит на зум.
   const turn = invert({ a: v.a, b: v.b, c: v.c, d: v.d, e: 0, f: 0 });
@@ -694,21 +716,16 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   desk();
 
   const ring = (radius: number, paint: string | CanvasGradient) => {
-    g.beginPath();
-    g.arc(0, 0, radius, 0, Math.PI * 2);
+    deskCircle(0, 0, radius);
     g.fillStyle = paint;
     g.fill();
   };
-  // ТОРЕЦ СТОЛА — он виден, только когда стол наклонён: сверху у плиты нет боковины, а лёгший стол
-  // без неё читается листом бумаги. Торец — та же кромка, опущенная по ЭКРАНУ вниз на толщину
-  // столешницы, настолько, насколько наклон её открывает (`sin`).
-  const открыт = Math.sqrt(Math.max(0, 1 - o.squash * o.squash));
-  if (открыт > 0.01) {
+  // ТОРЕЦ СТОЛА — кромка, опущенная на толщину столешницы ВНИЗ ОТ СУКНА. Сверху его не видно вовсе,
+  // при наклоне его открывает сама линза: нижний обод стоит ближе к глазу и ниже по экрану.
+  if (o.squash < 0.999) {
     const шагов = 14;
     for (let i = шагов; i >= 1; i -= 1) {
-      const at = onScreen(0, TABLE_THICK * открыт * (i / шагов));
-      g.beginPath();
-      g.arc(at.x, at.y, R + RIM, 0, Math.PI * 2);
+      deskCircle(0, 0, R + RIM, -TABLE_THICK * (i / шагов));
       g.fillStyle = i === шагов ? ROUND.black : i / шагов > 0.5 ? ROUND.woodDark : ROUND.woodSide;
       g.fill();
     }
@@ -716,11 +733,14 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   ring(R + RIM, ROUND.black);
   ring(R + EDGE.dark + EDGE.light, ROUND.woodDark);
   ring(R + EDGE.light, ROUND.woodLight);
-  const felt = g.createRadialGradient(0, 0, 0, 0, 0, R);
+  // Свет сукна — из середины стола, где бы она ни оказалась на стекле.
+  const mid = o.lens.toGlass({ x: 0, y: 0 });
+  const felt = g.createRadialGradient(mid.x, mid.y, 0, mid.x, mid.y, R * o.lens.kAt({ x: 0, y: 0 }));
   felt.addColorStop(0, ROUND.feltHi);
   felt.addColorStop(0.62, ROUND.feltMid);
   felt.addColorStop(1, ROUND.feltLo);
   ring(R, felt);
+  desk();
 
   /**
    * КАРТА НА ХОЛСТЕ — со своим переворотом. Переворот сжимает её по ширине до нуля и разжимает: первую
@@ -742,6 +762,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     // ПОДНЯТАЯ КАРТА ОТБРАСЫВАЕТ ТЕНЬ туда, где лежала бы на сукне: так видно, что под ней другая.
     if ((levels.get(one.id) ?? 0) > 0) {
       g.save();
+      nearAt({ x: one.x, y: one.y });
       g.translate(one.x, one.y);
       g.rotate((one.angle * Math.PI) / 180);
       roundRect(g, -CARD.w / 2, -CARD.h / 2, CARD.w, CARD.h, CARD.w * 0.12);
@@ -750,6 +771,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       g.restore();
     }
     g.save();
+    nearAt({ x: at.x, y: at.y });
     g.translate(at.x, at.y);
     g.rotate((one.angle * Math.PI) / 180);
     paint(one.id, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
@@ -778,11 +800,13 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       // другой — приёмкой, и они бы спорили.
       rings[pile.id] = { x: pile.x, y: pile.y, r: RING_SPREAD };
       g.save();
+      nearAt({ x: pile.x, y: pile.y });
       g.translate(pile.x, pile.y);
-      g.beginPath();
-      g.arc(0, 0, RING_SPREAD, 0, Math.PI * 2);
+      deskCircle(pile.x, pile.y, RING_SPREAD);
       g.fillStyle = "rgba(11,7,4,.10)";
       g.fill();
+      nearAt({ x: pile.x, y: pile.y });
+      g.translate(pile.x, pile.y);
       // СТРЕЛКА ПОКАЗЫВАЕТ ПЕРВУЮ ВОШЕДШУЮ КАРТУ и идёт ИЗ СЕРЕДИНЫ наружу.
       //
       // Круг помнит порядок входа, а не положение: первая вошедшая — первая в стопке, где бы она ни
@@ -807,6 +831,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       g.restore();
     } else if (cards.length === 0) {
       g.save();
+      nearAt({ x: pile.x, y: pile.y });
       g.translate(pile.x, pile.y);
       g.rotate((pile.angle * Math.PI) / 180);
       roundRect(g, -CARD.w / 2, -CARD.h / 2, CARD.w, CARD.h, CARD.w * 0.12);
@@ -827,6 +852,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       const at = deckAt(pile.id, i, n);
       const angle = deckFacing(pile.id, i, n);
       drew[one.id] = { x: at.x, y: at.y, angle };
+      nearAt({ x: at.x, y: at.y });
       g.translate(at.x, at.y);
       g.rotate((angle * Math.PI) / 180);
       paint(one.id, one.up ? one.face : undefined, CARD.w, CARD.h, o.held[one.id]);
@@ -840,6 +866,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   people.forEach((who) => {
     const place = { at: seatPoint(who.angle, who.croupier ? CROUPIER_RADIUS : SEAT_RADIUS), facing: who.angle };
     g.save();
+    nearAt({ x: place.at.x, y: place.at.y });
     g.translate(place.at.x, place.at.y);
     // СТУЛ ПОВЁРНУТ ЛИЦОМ К СТОЛУ; угол со знаком минус — места считаются от шести часов к +x.
     g.rotate((-place.facing * Math.PI) / 180);
@@ -860,12 +887,14 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     // ДИСК СТОИТ, А НЕ ЛЕЖИТ: ни поворот стола, ни наклон его не трогают — лицо смотрит на того, кто
     // глядит на стол (`Oriented: "viewer"` у кита). Ставится в точку стола, размером — по зуму.
     const at = toGlass(place.at);
+    // ДАЛЬНИЙ ДИСК МЕЛЬЧЕ БЛИЖНЕГО — ровно настолько, насколько линза уменьшает там сукно.
+    const kk = o.lens.kAt(place.at);
     // АВАТАР ДЫШИТ ПОД ГОЛОС: пока звучит его запись, кружок раздувается по её громкости — заметно,
     // но подпись с именем при этом стоит на месте (масштаб живёт внутри `disc`).
     const puff = 1 + 0.55 * Math.max(0, Math.min(1, who.speaking ?? 0));
     const rings = who.speaking ? voiceRings(puff, performance.now()) : [];
     if (sitter) {
-      g.setTransform(dpr * o.k, 0, 0, dpr * o.k, dpr * at.x, dpr * at.y);
+      g.setTransform(dpr * kk, 0, 0, dpr * kk, dpr * at.x, dpr * at.y);
       // Кольца идут ПОД аватаром: он их источник, а не то, что ими перечёркнуто.
       for (const r of rings) {
         const life = Math.max(0, Math.min(1, (r - (DISC / 2) * puff) / (DISC * 0.9)));
@@ -878,8 +907,8 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       disc(g, sitter, images, puff);
       desk();
     }
-    const plateW = Math.max(1, [...(who.name ?? "")].length * PLATE_EM + 2 * PLATE.padX) * o.k;
-    const plateH = (PLATE_EM * 1.6 + 2 * PLATE.padY) * o.k;
+    const plateW = Math.max(1, [...(who.name ?? "")].length * PLATE_EM + 2 * PLATE.padX) * kk;
+    const plateH = (PLATE_EM * 1.6 + 2 * PLATE.padY) * kk;
     spots.push({
       key: who.key,
       x: at.x,
@@ -887,11 +916,11 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       // РАДИУС — В ПОКОЕ, БЕЗ ДЫХАНИЯ. По нему кладут тултипы, ловят палец и отмеряют облачко речи: пусти
       // сюда пульс — и всё это заходит ходуном, пока человек говорит, а кнопки уезжают из-под пальца.
       // Дыхание живёт только в рисунке выше и в `puff` отдельной строкой.
-      r: (DISC / 2) * o.k,
+      r: (DISC / 2) * kk,
       seat: place.at,
       puff: +puff.toFixed(3),
-      rings: rings.map((r) => +(r * o.k).toFixed(1)),
-      ...(sitter ? { plate: { x: at.x - plateW / 2, y: at.y + PLATE.at * o.k - plateH / 2, w: plateW, h: plateH } } : {}),
+      rings: rings.map((r) => +(r * kk).toFixed(1)),
+      ...(sitter ? { plate: { x: at.x - plateW / 2, y: at.y + PLATE.at * kk - plateH / 2, w: plateW, h: plateH } } : {}),
     });
   });
 
