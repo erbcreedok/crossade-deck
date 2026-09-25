@@ -156,6 +156,23 @@ describe("реле и маяк", () => {
     expect((await call("/t/", { secret: null })).status).toBe(503);
   });
 
+  /**
+   * ЗАПИСЬ ПАРТИИ ОТКРЫВАЕТСЯ ЧЕРЕЗ ТОТ ЖЕ ПОСТОЯННЫЙ АДРЕС.
+   *
+   * Ссылку на запись пересылают и открывают позже, а имя мака живёт до следующего перезапуска
+   * туннеля. Ссылка на мак протухала молча: человек получал «сюда так не войти» вместо партии.
+   */
+  it("/t/replay отдаёт страницу записи, а не стол", async () => {
+    await call("/relay/table", { method: "POST", json: { url: `${base}/`, boot: "b1" } });
+    const стол = await (await call("/t/?room=x", { secret: null })).text();
+    const запись = await (await call("/t/replay?room=x&pass=y", { secret: null })).text();
+    expect(запись).toContain(`<base href="${base}/table/">`);
+    // Страницы разные: у записи свой скрипт, у стола свой.
+    expect(запись).toContain("replay.js");
+    expect(стол).toContain("app.js");
+    expect(запись).not.toBe(стол);
+  });
+
   it("адрес мака в страницу — без разрыва разметки", () => {
     const out = hostPage("<html><head><title>x</title>", 'https://a"b</script>');
     expect(out).not.toContain('a"b</script>');

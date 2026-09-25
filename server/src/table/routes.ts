@@ -306,12 +306,15 @@ export function relayRoutes(fetchPage: (url: string) => Promise<Response> = (url
   // запоминает адрес, по которому открыл приложение, и молча выбрасывает события со страницы другого адреса:
   // вибрацию, `expand`, запрет свайпа. Поэтому страница берётся с мака в момент запроса (правка на маке видна
   // сразу) и получает адрес мака — оттуда она грузит скрипт, картинки, звуки и туда же открывает комнату.
-  r.get(/^\/t(\/.*)?$/, async (_req, res) => {
+  r.get(/^\/t(\/.*)?$/, async (req, res) => {
     const status = relayStatus();
     const down = () => void res.status(503).type("html").send(DOWN_PAGE);
     if (!status.up || !status.url) return down();
+    // ЗАПИСЬ ПАРТИИ — ТОЖЕ ЧЕРЕЗ ПОСТОЯННЫЙ АДРЕС. Ссылку на запись пересылают и открывают позже, а
+    // адрес мака живёт до следующего перезапуска туннеля: постоянным он бывает только здесь.
+    const страница = /^\/t\/replay\/?$/.test(req.path) ? "replay" : "";
     try {
-      const page = await fetchPage(`${status.url}/table/`);
+      const page = await fetchPage(`${status.url}/table/${страница}`);
       if (!page.ok) return down();
       res.header("Cache-Control", "no-store, must-revalidate");
       res.type("html").send(hostPage(await page.text(), status.url));

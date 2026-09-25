@@ -3896,7 +3896,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   // которую никто не читает.
   // ПРОПУСК НА ЗАПИСЬ ПРИШЁЛ — собираем адрес от того имени, по которому открыт стол, и показываем.
   store.onReplay?.((one) => {
-    const адрес = new URL("replay", `${location.origin}${location.pathname.replace(/[^/]*$/, "")}`);
+    // АДРЕС — ТОТ ЖЕ, ПО КОТОРОМУ ОТКРЫТ СТОЛ, и путь тот же: снаружи стол живёт за постоянным
+    // адресом реле (`/t/`), а мак за туннелем меняет имя при каждом перезапуске. Ссылку на запись
+    // пересылают и открывают позже — она обязана вести туда, где её примут и завтра.
+    const дом = location.pathname.replace(/[^/]*$/, "");
+    const адрес = new URL(`${дом}replay`, location.origin);
     адрес.searchParams.set("room", one.room);
     адрес.searchParams.set("pass", one.pass);
     замок = адрес.toString();
