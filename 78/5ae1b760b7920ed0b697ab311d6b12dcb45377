@@ -1,0 +1,39 @@
+server/table-client/meters.ts
+  s_9ed0da107cbc4a::t_5a026136303c80 1-110
+server/scripts/tableLook.mjs
+  s_9ed0da107cbc4a::t_ac5ba38d10c90e 56
+server/scripts/tableMeters.mjs
+  s_9ed0da107cbc4a::t_18782aff18213c 1-66
+server/src/table/TableRoom.test.ts
+  s_9ed0da107cbc4a::t_2c6a8b71ba5ae8 64-77
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_e47311ef1140a7 337-341
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_15e97f171f6d37 690-694
+server/table-client/meters.test.ts
+  s_9ed0da107cbc4a::t_f5ddab8d3ab4eb 1-10
+server/table-client/netStore.ts
+  s_9ed0da107cbc4a::t_9484da7e93245f 325-326
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_6f3f2cfd4a2f8c 44,102-103,329-334
+server/table-client/settings.ts
+  s_9ed0da107cbc4a::t_bf25277673e6b4 48-49,154-155,175-177
+server/table-client/store.ts
+  s_9ed0da107cbc4a::t_11a0b2677b2148 76-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "785ae1b760b7920ed0b697ab311d6b12dcb45377",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
