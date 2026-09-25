@@ -121,6 +121,51 @@ describe("TableRoom", () => {
   });
 
   /**
+   * ПРИВЕТСТВИЕ ДОЛЖНО БЫТЬ ЛЁГКИМ.
+   *
+   * Оно едет при каждом входе, а входов у одного человека за партию бывает десяток: связь на
+   * телефоне рвётся сама, и тяжёлый вход эту рвань усиливает — за живой партией один игрок вошёл
+   * девять раз, каждый раз таща сто двадцать килобайт хвоста, а второй не вышел ни разу.
+   *
+   * Здесь меряется то, что уходит в сеть: целое приветствие после полной раздачи и полусотни ходов.
+   */
+  it("приветствие остаётся лёгким даже после долгой партии", async () => {
+    const room = mintRoom(SECRET);
+    openEntry(room, { kind: "inline", message: "m" }, "tg:7", "Вес", Date.now(), "krest");
+    const owner = await sit(room, { door: "telegram", initData: initData(7, "Аня") });
+    const guest = await sit(room, { door: "guest", name: "Боря" });
+    await runIn(room, "tg:7", { t: "deal", rule: "krest" });
+    await new Promise((r) => setTimeout(r, 4000));
+
+    // ХВОСТ НАБИВАЕТСЯ ДОВЕРХУ: мерить надо полный, а не тот, что случайно набрался за минуту.
+    // Движения в своей руке для этого годятся — стол шлёт их так же, как любые другие.
+    const мой = owner.patches.reduce(applyPatch, owner.welcome.snapshot).people.find((p) => p.key === "tg:7")!.seat!;
+    const рука = () => owner.patches.reduce(applyPatch, owner.welcome.snapshot).chairs.find((c) => c.id === мой)!.hand;
+    for (let i = 0; i < 260; i += 1) {
+      const карты = рука();
+      const карта = карты[i % Math.max(1, карты.length)];
+      if (!карта) break;
+      owner.client.send(MSG.intent, { t: "grab", id: карта.id });
+      owner.client.send(MSG.intent, { t: "drop", id: карта.id, to: { in: "hand", chair: мой, i: карты.length - 1 } });
+      await new Promise((r) => setTimeout(r, 8));
+    }
+    await new Promise((r) => setTimeout(r, 600));
+
+    const третий = await sit(room, { door: "guest", name: "Вера" });
+    const вес = Buffer.byteLength(JSON.stringify(третий.welcome), "utf8");
+    const хвост = Buffer.byteLength(JSON.stringify(третий.welcome.recent), "utf8");
+    expect(вес, `приветствие весит ${(вес / 1024).toFixed(1)} КБ, из них хвост ${(хвост / 1024).toFixed(1)} КБ`).toBeLessThan(64 * 1024);
+    expect(третий.welcome.recent.length, "и хвост в нём есть").toBeGreaterThan(0);
+    // ХВОСТ НЕ РАСТЁТ БЕЗ ГРАНИЦ: он едет при каждом входе, а входов за партию бывает десяток.
+    expect(третий.welcome.recent.length, "и он держится в своих берегах").toBeLessThanOrEqual(60);
+    // И СОБЫТИЕ В НЁМ СТОИТ НЕДОРОГО: копия операции на каждого зрителя умножала хвост на число
+    // сидящих — при трёх зрителях это втрое, при шести вшестеро.
+    const наСобытие = хвост / Math.max(1, третий.welcome.recent.length);
+    expect(наСобытие, `событие хвоста весит ${Math.round(наСобытие)} байт`).toBeLessThan(400);
+    expect(guest.welcome.you.key).toBeDefined();
+  }, 30000);
+
+  /**
    * ЖУРНАЛ ПЕРЕЖИВАЕТ И ПЕРЕЗАПУСК СЕРВЕРА, а не только обновление страницы. Хвост случившегося
    * лежал бы в памяти комнаты — и с перезапуском люди возвращались бы к столу, где партия будто
    * началась с их прихода, хотя карты на сукне говорят обратное.
