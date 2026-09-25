@@ -1,0 +1,25 @@
+.github/workflows/ci.yml
+  s_9ed0da107cbc4a::t_2c238417a6bd30 68-90
+bot/package-lock.json
+  s_9ed0da107cbc4a::t_059c9698dc4ca0 1-841
+bot/src/table/orders.ts
+  s_9ed0da107cbc4a::t_ded6d3878d2cad 232-236
+mcp-table/package-lock.json
+  s_9ed0da107cbc4a::t_755b26d26bcfb7 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cb8f9e7442476ef0bc734be9bb58b30dbb58fe9d",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
