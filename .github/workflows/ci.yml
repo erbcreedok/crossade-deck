@@ -83,7 +83,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+      # `--legacy-peer-deps` — не украшение: npm падает на дереве этих пакетов («Cannot read
+      # properties of null»), и без флага установка не доходит до конца ни здесь, ни на маке.
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
       - run: npx tsc --noEmit
       # Тесты есть не у каждого: у кого нет — шаг не выдумывает их, а честно пропускается.
       - run: npm test --if-present

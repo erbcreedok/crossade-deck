@@ -3,9 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "bin": { "crossade-table": "./dist/index.js" },
+  "bin": {
+    "crossade-table": "./dist/index.js"
+  },
   "scripts": {
     "build": "tsc",
     "start": "tsx src/index.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0"
   }
 }
