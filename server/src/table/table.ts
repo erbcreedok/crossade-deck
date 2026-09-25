@@ -81,6 +81,11 @@ interface ChairRow {
   croupier?: true;
   /** Рука одной стороной: одну карту не перевернуть, положенная ложится как лежит рука. */
   even?: true;
+  /**
+   * КРУПЬЕ ДЕРЖИТ КАРТЫ ЛИЦОМ К СЕБЕ — стул сел уже по этому закону. Слепки, где метки нет, сидели
+   * наоборот (лицом ко всем, рубашкой к себе) и при подъёме переворачиваются один раз.
+   */
+  facing?: true;
   pose: HandPose;
   hand: string[];
 }
@@ -299,6 +304,13 @@ export class Table {
     t.rules = { ...DEFAULT_RULES, ...dump.rules };
     t.trails = new Map(dump.trails.map(([id, trail]) => [id, structuredClone(trail)]));
     t.turned = new Set(dump.turned);
+    // КРУПЬЕ ИЗ СТАРОГО СЛЕПКА сидел наоборот — повернуть его руку к нему один раз.
+    for (const chair of t.chairs.values()) {
+      if (!chair.croupier || chair.facing) continue;
+      chair.hide = true;
+      chair.facing = true;
+      for (const id of chair.hand) t.turned.delete(id);
+    }
     t.names = new Map(dump.names);
     t.dealer = dump.dealer;
     t.deckStays();
@@ -442,7 +454,11 @@ export class Table {
 
   /**
    * КРУПЬЕ САДИТСЯ. Он один на комнату: это бот стола, но со своим местом вне кольца и своей рукой.
-   * Рука открыта, без замка и принимает карты — пока админ не решит иначе.
+   * Без замка и принимает карты — пока админ не решит иначе.
+   *
+   * КАРТЫ У НЕГО ЛИЦОМ К НЕМУ, РУБАШКОЙ К ОСТАЛЬНЫМ, как у сдающего за настоящим столом. В руке это
+   * два разных рычага: «перевёрнута» — рубашкой к ХОЗЯИНУ, «скрыт» — рубашкой ко ВСЕМ ОСТАЛЬНЫМ.
+   * Поэтому стул скрыт, а карты не перевёрнуты.
    */
   seatCroupier(person: Person): Op[] {
     const had = this.croupierChair();
@@ -455,12 +471,13 @@ export class Table {
       owner: person.key,
       last: person.key,
       lock: false,
-      hide: false,
+      hide: true,
       reject: false,
       forever: true,
       croupier: true,
-      // Рука крупье — колода в руках: вся одной стороной, рубашкой вверх.
+      // Рука крупье — колода в руках: вся одной стороной, лицом к нему.
       even: true,
+      facing: true,
       pose: { ...DEFAULT_POSE },
       hand: [],
     };
@@ -794,8 +811,8 @@ export class Table {
     // СТОРОНА: цель вся одной стороной — ею; вперемешку или пустая — как лежали.
     const pack = into ? into.cards.map((one) => this.turned.has(one)) : [];
     const side = pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0] : undefined;
-    // В РУКУ — лицом к хозяину; в РОВНУЮ руку — как лежит рука (пустая — рубашкой): стопка целиком
-    // подчиняется тому же, что и одна карта, иначе колода, собранная в руки крупье, оказывается открытой.
+    // В РУКУ — лицом к хозяину; в РОВНУЮ руку — как лежит рука (пустая — лицом к хозяину): стопка
+    // целиком подчиняется тому же, что и одна карта.
     const evenUp = target.in === "hand" ? this.evenSide(target.chair) : undefined;
     const ops: Op[] = [];
     const cards = [...source.cards];
@@ -1331,7 +1348,9 @@ export class Table {
     const chair = this.chairs.get(chairId);
     if (!chair?.even) return undefined;
     const first = chair.hand[0];
-    return first === undefined ? true : this.turned.has(first);
+    // ПУСТАЯ РОВНАЯ РУКА ПРИНИМАЕТ ЛИЦОМ К ХОЗЯИНУ — как любая рука. Рубашку остальным даёт скрытый стул,
+    // а не переворот: перевёрнутая в руке карта смотрит рубашкой к самому хозяину и лицом ко всем.
+    return first === undefined ? false : this.turned.has(first);
   }
 
   // ── ДЛЯ КОМАНД БОТА ─────────────────────────────────────────────────────────────────────────
@@ -1800,7 +1819,7 @@ export class Table {
 
   /** Стул в полном виде — лица в руке режет `seenOp`. */
   private chairOut(chair: ChairRow): Chair {
-    const { last: _last, hand, pose, ...rest } = chair;
+    const { last: _last, facing: _facing, hand, pose, ...rest } = chair;
     return { ...rest, pose: { ...pose }, hand: hand.map((id) => ({ id })) };
   }
 

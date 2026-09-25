@@ -102,7 +102,7 @@ describe("РОВНАЯ РУКА КРУПЬЕ: вся одной стороной
     return t;
   };
 
-  it("пустая ровная рука принимает рубашкой вверх — даже карту, которую несли ЛИЦОМ", () => {
+  it("пустая ровная рука принимает лицом к крупье — даже карту, которую несли лицом ко всем", () => {
     const t = withCroupier();
     const seat = croupierSeat(t);
     // Карта с колоды на сукно лицом вверх, и уже оттуда — в руку крупье.
@@ -111,7 +111,7 @@ describe("РОВНАЯ РУКА КРУПЬЕ: вся одной стороной
     ok(t.act("Аня", { t: "drop", id: top, to: { in: "felt", x: 2, y: 2, up: true, angle: 0 } }, 0));
     ok(t.act("Аня", { t: "grab", id: top }, 0));
     ok(t.act("Аня", { t: "drop", id: top, to: { in: "hand", chair: seat, i: 0 } }, 0));
-    expect(backUp(t, "Крупье", seat, top), "легла закрытой, как лежит колода в руках").toBe(true);
+    expect(backUp(t, "Крупье", seat, top), "легла лицом к нему: рубашку остальным даёт скрытый стул").toBe(false);
   });
 
   it("следующая карта равняется на руку, а не на того, кто несёт", () => {
@@ -119,26 +119,26 @@ describe("РОВНАЯ РУКА КРУПЬЕ: вся одной стороной
     const seat = croupierSeat(t);
     const first = toHand(t, "Аня", seat);
     ok(t.act("Аня", { t: "flip", chair: seat }, 0));
-    expect(backUp(t, "Крупье", seat, first), "руку перевернули — она открыта").toBe(false);
+    expect(backUp(t, "Крупье", seat, first), "руку перевернули — она рубашкой к нему").toBe(true);
     const second = toHand(t, "Аня", seat);
-    expect(backUp(t, "Крупье", seat, second), "и пришедшая легла так же").toBe(false);
+    expect(backUp(t, "Крупье", seat, second), "и пришедшая легла так же").toBe(true);
   });
 
-  it("СТОПКА ЦЕЛИКОМ ложится, как рука: в пустую — рубашкой, в открытую — лицом, а не как лежала", () => {
+  it("СТОПКА ЦЕЛИКОМ ложится, как рука: в пустую — лицом к нему, в перевёрнутую — рубашкой, а не как лежала", () => {
     const t = withCroupier();
     const seat = croupierSeat(t);
     // Колода в руки крупье — одним броском: так собирают колоду.
     ok(t.act("Аня", { t: "pileDrop", pile: MAIN_PILE, to: { in: "hand", chair: seat, i: 0 } }, 0));
     const hand = t.seenBy("Крупье").chairs.find((c) => c.id === seat)!.hand;
     expect(hand.length).toBeGreaterThan(10);
-    expect(hand.every((h) => h.up === true), "вся колода в руках закрытой").toBe(true);
+    expect(hand.every((h) => h.up !== true), "вся колода у него в руках лицом к нему").toBe(true);
 
     ok(t.act("Аня", { t: "flip", chair: seat }, 0));
-    ok(t.act("Аня", { t: "gather", ids: hand.slice(0, 3).map((h) => h.id), side: "down", to: { x: 2, y: 2, angle: 0 } }, 0));
+    ok(t.act("Аня", { t: "gather", ids: hand.slice(0, 3).map((h) => h.id), side: "up", to: { x: 2, y: 2, angle: 0 } }, 0));
     const pile = t.seenBy("Аня").piles.find((p) => p.id !== MAIN_PILE)!;
     ok(t.act("Аня", { t: "pileDrop", pile: pile.id, to: { in: "hand", chair: seat, i: 0 } }, 0));
     const open = t.seenBy("Крупье").chairs.find((c) => c.id === seat)!.hand;
-    expect(open.every((h) => h.up !== true), "рука открыта — и стопка легла лицом, хоть лежала рубашкой").toBe(true);
+    expect(open.every((h) => h.up === true), "рука перевёрнута — и стопка легла рубашкой к нему, хоть лежала лицом").toBe(true);
   });
 
   it("ОДНУ КАРТУ В НЕЙ НЕ ПЕРЕВЕРНУТЬ — отказ", () => {

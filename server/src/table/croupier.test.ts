@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { croupierAngle } from "./ring.js";
-import { plan } from "./script.js";
+import { collectSteps, execute, plan } from "./script.js";
 import { deal } from "./deal.js";
 import { Table } from "./table.js";
 import { MAIN_PILE, type Person } from "./contract.js";
@@ -46,9 +46,9 @@ describe("крупье", () => {
     expect(his).toHaveLength(1);
     expect(his[0]!.croupier).toBe(true);
     expect(his[0]!.owner).toBe(bot.key);
-    // Рука открыта, без замка и принимает карты — пока админ не решит иначе.
+    // Без замка и принимает карты; рука скрыта — карты у него лицом к нему, рубашкой к остальным.
     expect(his[0]!.lock).toBe(false);
-    expect(his[0]!.hide).toBe(false);
+    expect(his[0]!.hide).toBe(true);
     expect(table.hasCroupier).toBe(true);
     // Второго не бывает.
     expect(table.seatCroupier(bot)).toEqual([]);
@@ -102,5 +102,79 @@ describe("крупье", () => {
     expect(after.chairs.some((c) => c.croupier)).toBe(false);
     expect(after.people.some((p) => p.key === bot.key)).toBe(false);
     expect(after.felt.length).toBe(feltWas + 3);
+  });
+});
+
+describe("крупье держит карты лицом к себе", () => {
+  // Сбор шёл наоборот: крупье видел рубашки, остальные — лица. «Перевёрнута» в руке значит «рубашкой
+  // к хозяину», а рубашку остальным даёт скрытый стул — и стул крупье сидел открытым.
+  const io = { spread: () => {}, carry: () => {}, sleep: async () => {}, now: () => 0 };
+  const other: Person = { key: "tg:2", name: "Б", door: "telegram", ink: "#00f" };
+
+  /** Карты руки крупье глазами этого человека: сколько с лицом из скольких. */
+  const faces = (table: Table, viewer: string) => {
+    const hand = table.seenBy(viewer).chairs.find((c) => c.croupier)!.hand;
+    // «Лицом» — и знает лицо, и видит его: перевёрнутая карта на стуле показана лицом всем.
+    return { всего: hand.length, лицом: hand.filter((one) => one.face !== undefined || one.up === true).length };
+  };
+
+  it("любой сбор — охапка с сукна, стопки целиком, руки игроков: крупье видит лица, остальные — рубашки", async () => {
+    const table = new Table(deal(), man.key, deskOf("krest", () => null));
+    table.join(man);
+    table.join(other);
+    table.seatCroupier(bot);
+    const people = [man, other].map((p) => ({ key: p.key, name: p.name, seat: table.seenBy(p.key).chairs.find((c) => c.owner === p.key)!.id }));
+    const dealt = plan(table, { t: "deal", rule: "each", n: 3 }, people, man.key);
+    if (!("steps" in dealt)) throw new Error("раздача не спланирована");
+    await execute(table, dealt.steps, man.key, io);
+    // Карта лицом вверх на сукне — её сбор не должен открыть всем.
+    const mine = table.seenBy(man.key).chairs.find((c) => c.owner === man.key)!.hand[0]!.id;
+    table.act(man.key, { t: "grab", id: mine }, 0);
+    table.act(man.key, { t: "drop", id: mine, to: { in: "felt", x: 1, y: 1, up: true, angle: 0 } }, 0);
+
+    await execute(table, collectSteps(table), man.key, io);
+    const held = faces(table, bot.key);
+    expect(held.всего, "всё собрано крупье").toBeGreaterThan(30);
+    expect(held.лицом, "крупье видит все свои карты").toBe(held.всего);
+    expect(faces(table, man.key).лицом, "админ видит рубашки").toBe(0);
+    expect(faces(table, other.key).лицом, "игрок видит рубашки").toBe(0);
+  });
+
+  it("карта, отданная крупье рукой, ложится так же", () => {
+    const table = new Table(deal(), man.key);
+    table.join(man);
+    table.seatCroupier(bot);
+    const his = table.croupierChair()!.id;
+    const top = table.seenBy(man.key).piles.find((p) => p.id === MAIN_PILE)!.cards.at(-1)!.id;
+    table.act(man.key, { t: "grab", id: top }, 0);
+    table.act(man.key, { t: "drop", id: top, to: { in: "hand", chair: his, i: 0 } }, 0);
+    expect(faces(table, bot.key)).toEqual({ всего: 1, лицом: 1 });
+    expect(faces(table, man.key)).toEqual({ всего: 1, лицом: 0 });
+  });
+});
+
+describe("крупье из старого слепка", () => {
+  it("сидел наоборот (открыт, рука рубашкой к нему) — поднимается лицом к себе, один раз", () => {
+    const table = new Table(deal(), man.key);
+    table.join(man);
+    table.seatCroupier(bot);
+    const his = table.croupierChair()!.id;
+    table.act(man.key, { t: "pileDrop", pile: MAIN_PILE, to: { in: "hand", chair: his, i: 0 } }, 0);
+    // Так лежал крупье до правки: стул открыт, карты «перевёрнуты», метки нет.
+    const old = table.dump();
+    const chair = old.chairs.find((c) => c.id === his)!;
+    chair.hide = false;
+    delete (chair as { facing?: true }).facing;
+    old.turned = [...old.turned, ...chair.hand];
+
+    const up = Table.restore(old, man.key, deskOf("sandbox", () => null));
+    const seen = (viewer: string) => up.seenBy(viewer).chairs.find((c) => c.id === his)!.hand;
+    expect(seen(bot.key).every((one) => one.face !== undefined && one.up !== true), "крупье видит лица").toBe(true);
+    expect(seen(man.key).every((one) => one.face === undefined && one.up !== true), "остальные — рубашки").toBe(true);
+
+    // Метка поставлена: если админ потом откроет стул сам, следующий подъём его не закроет.
+    const again = up.dump();
+    again.chairs.find((c) => c.id === his)!.hide = false;
+    expect(Table.restore(again, man.key, deskOf("sandbox", () => null)).seenBy(man.key).chairs.find((c) => c.id === his)!.hide).toBe(false);
   });
 });
