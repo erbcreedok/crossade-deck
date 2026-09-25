@@ -480,7 +480,7 @@ function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: stri
  * не висит рядом. Оторванная от круга, она читалась как случайная закорючка на сукне — метка на
  * ободе говорит «эта сторона круга», и глазу не надо ничего додумывать.
  */
-const TURN_MARK = { out: 0.2, w: 1.1, h: 0.62, line: 0.19 };
+const TURN_MARK = { base: 1.9, stem: 0.5, w: 0.95, h: 0.52, line: 0.17 };
 
 /**
  * СТРЕЛКА ОЖИДАНИЯ — «ходит он». Стоит НА КРОМКЕ КРУГА, в секторе того, от кого ждут действия, и
@@ -494,22 +494,40 @@ const TURN_MARK = { out: 0.2, w: 1.1, h: 0.62, line: 0.19 };
  * же рода, что подсветка карт в руке: стол проговаривает вслух то, о чём за живым столом спрашивают
  * соседа. Гасится правилом стола (`TableRules.turnMark`).
  */
-function turnMark(g: CanvasRenderingContext2D, ink: string): void {
-  const { w, h, line } = TURN_MARK;
+function turnMark(g: CanvasRenderingContext2D, ink: string, r: number): void {
+  const { base, stem, w, h, line } = TURN_MARK;
   g.save();
-  // ШЕВРОН, А НЕ СТРЕЛА: две линии, сходящиеся остриём к игроку. Древко с наконечником рядом с
-  // картами выглядело обрубком — знак должен читаться как направление, а не как предмет на сукне.
+  // ЗНАК СТОИТ НА ОБОДЕ, А НЕ РЯДОМ С НИМ. Три части, и каждая нужна:
   //
-  // Рисуется в осях круга: -y — наружу, к тому, кого ждут; +y — в середину круга.
+  //   ПЕРЕКЛАДИНА — дуга ПО САМОМУ ободу круга. Она отмечает СТОРОНУ круга — ту, что принадлежит
+  //   этому игроку, — и потому повторяет кривизну обода, а не лежит поперёк него прямой чертой.
+  //   Без неё знак висел сам по себе и читался как закорючка на сукне.
+  //   ДРЕВКО — короткая ножка от середины дуги наружу.
+  //   ОСТРИЁ — широкий треугольник в игрока: «ждут тебя».
+  //
+  // Оси: -y — наружу, к тому, кого ждут; +y — в середину круга. Начало — в середине круга, чтобы
+  // дугу можно было вести тем же радиусом, каким очерчен сам круг.
+  const половина = base / 2 / r;
   g.lineWidth = line;
   g.strokeStyle = ink;
   g.lineCap = "round";
   g.lineJoin = "round";
   g.beginPath();
-  g.moveTo(-w / 2, h / 2);
-  g.lineTo(0, -h / 2);
-  g.lineTo(w / 2, h / 2);
+  g.arc(0, 0, r, -Math.PI / 2 - половина, -Math.PI / 2 + половина);
   g.stroke();
+  // Древко и остриё стоят на середине дуги, снаружи круга.
+  g.translate(0, -r);
+  g.beginPath();
+  g.moveTo(0, 0);
+  g.lineTo(0, -stem);
+  g.stroke();
+  g.beginPath();
+  g.moveTo(-w / 2, -stem);
+  g.lineTo(w / 2, -stem);
+  g.lineTo(0, -stem - h);
+  g.closePath();
+  g.fillStyle = ink;
+  g.fill();
   g.restore();
 }
 
@@ -765,8 +783,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       if (ждут) {
         g.save();
         g.rotate((ringTurnOfSeat(ждут.angle) * Math.PI) / 180);
-        g.translate(0, -(RING_SPREAD + TURN_MARK.out));
-        turnMark(g, ждут.ink ?? SEAT.ink);
+        turnMark(g, ждут.ink ?? SEAT.ink, RING_SPREAD);
         g.restore();
       }
       g.restore();
