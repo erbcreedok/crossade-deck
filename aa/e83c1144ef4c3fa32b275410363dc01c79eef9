@@ -1,0 +1,23 @@
+game-kit/.storybook/stories/avatars.test.ts
+  s_9ed0da107cbc4a::t_6a4b26a82bd1bf 159,169
+game-kit/docs/test-plan/67-live.md
+  s_9ed0da107cbc4a::t_2f2d4963753712 26
+game-kit/src/render/avatars.test.ts
+  s_9ed0da107cbc4a::t_64a2ad10a7ba73 262-265,286,291-293,297
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aae83c1144ef4c3fa32b275410363dc01c79eef9",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
