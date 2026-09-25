@@ -1,0 +1,31 @@
+server/scripts/tableReplayLink.mjs
+  s_9ed0da107cbc4a::t_5cdd234dacda1b 1-92
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_8a49fe64f1dc7a 15,17,326-341
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_8b36b86499fc5e 43-49,663-670
+server/table-client/netStore.ts
+  s_9ed0da107cbc4a::t_d002a613edf40f 14,321-323
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_e3acf2316b5b73 81-82,91-99,2773-2781,2785,2790,2799,3897-3906
+server/table-client/settings.ts
+  s_9ed0da107cbc4a::t_3019a42bea82c6 12,36-47,54-55,69-85,138,168-170,235-237
+server/table-client/store.ts
+  s_9ed0da107cbc4a::t_0cb073ff4d64db 7,76-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ee6f6896c9fa29a721e61923ad3e2c069dba6bf0",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
