@@ -75,14 +75,11 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
 
   // ЗАПИСИ ПАРТИЙ — по команде, а не сами: чат не засыпается ссылками после каждой партии.
   bot.command("records", async (ctx) => {
-    const cards = await tablesFor(ctx);
-    if (cards === "down") return void (await ctx.reply(DOWN));
-    const tables: TableRecords[] = [];
-    for (const card of cards) {
-      const got = await api.records(card.room);
-      if (got === "down" || got === "missing") continue;
-      tables.push({ title: card.title, records: got, url: (m) => api.replayUrl(card.room, got.pass, m.from, m.to) });
-    }
+    // В ЛИЧКЕ — всё, что касается человека: столы, которые он открыл или за которыми сидел. В ГРУППЕ —
+    // столы этого чата. И то и другое — по журналу стола: закрытый стол свои партии не прячет.
+    const got = await api.recordsFor(inPrivate(ctx) ? { by: byOf(ctx) } : { chat: chatOf(ctx) });
+    if (got === "down" || got === "missing") return void (await ctx.reply(DOWN));
+    const tables: TableRecords[] = got.rooms.map((one) => ({ title: one.title, live: one.live, records: one.records, url: (m) => api.replayUrl(one.room, one.pass, m.from, m.to) }));
     const said = recordsSay(tables);
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
   });

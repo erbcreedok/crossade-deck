@@ -15,7 +15,7 @@ import { isCrew } from "./crews.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
 import { allEntries, closeEntry, findEntry, isBuried, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, botsIn, lookIn, playIn, runIn, setAdmin } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
-import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomsSeen } from "../db/eventsRepo.js";
+import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomsOfJournal, roomsSeen } from "../db/eventsRepo.js";
 import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
 import { verifyTelegramInitData } from "../telegramAuth.js";
@@ -200,6 +200,26 @@ export function tableRoutes(): Router {
     const until = Date.now() + KEEP_DAYS * 24 * 60 * 60 * 1000;
     const records = recordsOf(log);
     res.json({ room, ...records, title: findEntry(room)?.title ?? records.title, pass: mintPass(room, tableConfig().secret!, until), until });
+  });
+
+  /**
+   * ЗАПИСИ ДЛЯ ЧЕЛОВЕКА ИЛИ ЧАТА — живые комнаты и закрытые. Кому что показывать, решает здесь журнал,
+   * а не список открытых столов: закрытие стола не прячет его партии.
+   *
+   *   `?by=<ключ>`   — столы, которые он открыл или за которыми сидел (личка);
+   *   `?chat=<чат>`  — столы этого чата.
+   *
+   * Закрытая комната отсюда не оживает: она лишь читается из журнала.
+   */
+  r.get("/table/records", guarded, (req, res) => {
+    const by = typeof req.query.by === "string" && req.query.by ? req.query.by : undefined;
+    const chat = typeof req.query.chat === "string" && req.query.chat ? req.query.chat : undefined;
+    if (!by && !chat) return void res.status(400).json({ error: "bad_request" });
+    const live = [...(chat ? roomsAt({ kind: "chat", chat }) : []), ...(by ? roomsBy(by) : [])];
+    const seen = roomsOfJournal({ ...(by ? { by } : {}), ...(chat ? { chat } : {}) });
+    const until = Date.now() + KEEP_DAYS * 24 * 60 * 60 * 1000;
+    const rooms = roomsReport(seen, live, (room) => deedsOfKinds(room, RECORD_KINDS)).map(({ room, title, live: alive, lastAt, records }) => ({ room, title, live: alive, lastAt, records, pass: mintPass(room, tableConfig().secret!, until) }));
+    res.json({ rooms, until });
   });
 
   /**

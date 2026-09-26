@@ -280,6 +280,48 @@ describe("/table/rooms/:room/records — записи комнаты для бо
   });
 });
 
+describe("/table/records — записи человека или чата, живые и закрытые", () => {
+  type Got = { rooms: { room: string; title: string; live: boolean; pass: string; records: { sessions: { matches: { to: number | null; guessed?: boolean }[] }[] } }[] };
+  const ask = async (q: string) => ((await (await call(`/table/records?${q}`)).json()) as Got).rooms;
+
+  it("закрытый стол не прячет записи; доступ — тем, кто открыл или сидел, и чату, где стол жил; чужому — ничего", async () => {
+    const now = Date.now();
+    // ЖИВОЙ СТОЛ tg:1 в чате c1: партия начата и не доиграна.
+    const live = (await (await call("/table/rooms", { method: "POST", json: { home: { kind: "chat", chat: "c1" }, by: "tg:1" } })).json()) as { room: string };
+    tellAll([
+      { at: now, room: live.room, side: "table", kind: "room.open", what: { by: "tg:1", home: { kind: "chat", chat: "c1" } } },
+      { at: now + 1, room: live.room, who: "tg:1", side: "table", kind: "match.start", what: { игроки: [{ key: "tg:1", name: "Ye" }] } },
+    ]);
+    // ЗАКРЫТЫЙ СТОЛ tg:1 в чате c1: в лобби его нет, в журнале — старая партия без `match.start`, доиграна.
+    tellAll([
+      { at: now, room: "closed-room", side: "table", kind: "room.open", what: { title: "Крестовый. Брод", by: "tg:1", home: { kind: "chat", chat: "c1" } } },
+      { at: now + 1, room: "closed-room", who: "tg:2", side: "table", kind: "join", what: { name: "Бо" } },
+      { at: now + 2, room: "closed-room", side: "table", kind: "match", what: { идёт: true, ход: "c1", вышли: [] } },
+      { at: now + 3, room: "closed-room", who: "tg:2", side: "table", kind: "act", what: { intent: { t: "grab", id: "x" } } },
+      { at: now + 4, room: "closed-room", side: "table", kind: "match", what: { идёт: true, ход: null, вышли: ["c1"] } },
+      { at: now + 5, room: "closed-room", side: "table", kind: "room.close", what: { home: { kind: "chat", chat: "c1" } } },
+      { at: now, room: "other-room", side: "table", kind: "room.open", what: { by: "tg:9", home: { kind: "chat", chat: "c9" } } },
+    ]);
+
+    const mine = await ask("by=tg:1");
+    expect(mine.map((r) => [r.room, r.live]).sort()).toEqual([["closed-room", false], [live.room, true]].sort());
+    const closed = mine.find((r) => r.room === "closed-room")!;
+    expect(closed.title).toBe("Крестовый. Брод");
+    expect(closed.records.sessions[0]!.matches, "старая партия — по ходу партии, доиграна").toEqual([expect.objectContaining({ guessed: true, to: expect.any(Number) })]);
+    expect(mine.find((r) => r.room === live.room)!.records.sessions[0]!.matches, "не доиграна").toEqual([expect.objectContaining({ to: null })]);
+    expect(typeof closed.pass).toBe("string");
+
+    expect((await ask("by=tg:2")).map((r) => r.room), "сидел — видит").toEqual(["closed-room"]);
+    expect(await ask("by=tg:3"), "чужой — ничего").toEqual([]);
+    expect((await ask("chat=c1")).map((r) => r.room).sort()).toEqual(["closed-room", live.room].sort());
+    expect((await ask("chat=c9")).map((r) => r.room)).toEqual(["other-room"]);
+    expect(await ask("chat=nothing"), "нет записей — пусто, а не ошибка").toEqual([]);
+    expect((await call("/table/records?by=tg:1", { secret: null })).status, "без секрета").toBe(401);
+    expect((await call("/table/records")).status, "без кого").toBe(400);
+    expect((await ask("by=tg:1")).some((r) => r.room === "closed-room" && r.live), "закрытый не ожил").toBe(false);
+  });
+});
+
 describe("/table/admin/rooms — «Все столы» только хозяевам", () => {
   const signed = (id: number) => {
     const fields = { auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id, first_name: "X" }) };

@@ -28,14 +28,16 @@ export function tableEnv(source: NodeJS.ProcessEnv = process.env): TableEnv | un
 
 const trim = (url: string) => url.replace(/\/+$/, "");
 
-/** Жив ли стол и какой это запуск. Никакого ответа — «не жив»: врать комнатой нельзя. */
-export interface RoomRecords extends Records {
+/** Записи одного стола в ответе `/table/records`. */
+export interface FoundRecords {
   room: string;
-  title: string | null;
+  title: string;
+  live: boolean;
+  records: Records;
   pass: string;
-  until: number;
 }
 
+/** Жив ли стол и какой это запуск. Никакого ответа — «не жив»: врать комнатой нельзя. */
 export type Where = { up: true; url: string; boot: string } | { up: false };
 
 export class TableApi {
@@ -102,9 +104,13 @@ export class TableApi {
     return this.call<RoomCard>("PATCH", `/table/rooms/${room}`, { kind });
   }
 
-  /** Записи комнаты: кто бывал, посиделки, партии и пропуск на их просмотр (`records.ts` на сервере). */
-  records(room: string) {
-    return this.call<RoomRecords>("GET", `/table/rooms/${encodeURIComponent(room)}/records`);
+  /**
+   * ЗАПИСИ ДЛЯ ЛЮДЕЙ — по журналу, а не по открытым столам: закрытый стол не прячет своих партий.
+   * `by` — столы, которые человек открыл или за которыми сидел; `chat` — столы этого чата.
+   */
+  recordsFor(ask: { by: string } | { chat: string }) {
+    const q = "by" in ask ? `by=${encodeURIComponent(ask.by)}` : `chat=${encodeURIComponent(ask.chat)}`;
+    return this.call<{ rooms: FoundRecords[]; until: number }>("GET", `/table/records?${q}`);
   }
 
   /** «Все столы» — страница хозяина, на постоянном адресе: оттуда Telegram отдаёт мини-аппу подпись. */

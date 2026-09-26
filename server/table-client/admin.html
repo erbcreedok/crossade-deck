@@ -65,7 +65,7 @@
       function партияHtml(стол, партия) {
         const имя = (key) => стол.records.people.find((p) => p.key === key)?.name ?? (key?.startsWith("bot:") ? "бот" : key ?? "—");
         const кто = партия.players.map(имя).join(", ");
-        const итог = партия.to === null ? "не доиграна" : партия.loser === null ? "ничья" : `проиграл <span class="проиграл">${esc(имя(партия.loser))}</span>`;
+        const итог = партия.to === null ? "не доиграна" : партия.guessed ? "итог не записан" : партия.loser === null ? "ничья" : `проиграл <span class="проиграл">${esc(имя(партия.loser))}</span>`;
         const глаза = [`<a class="главная" href="${esc(запись(стол, партия))}">Смотреть · глазами крупье</a>`]
           .concat(партия.players.map((key) => `<a href="${esc(запись(стол, партия, key))}">глазами ${esc(имя(key))}</a>`));
         return `<div class="партия"><div class="итог">${часы(партия.at)} · ${esc(кто)} — ${итог}</div><div class="глаза">${глаза.join("")}</div></div>`;

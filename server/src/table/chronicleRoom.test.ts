@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { TEST_PORTS, useTestServer } from "../roomHarness.js";
 import { MSG, TABLE_ROOM, type Patch, type Welcome } from "./contract.js";
 import { applyPatch } from "./patch.js";
-import { openEntry, runIn } from "./lobby.js";
+import { closeEntry, openEntry, runIn } from "./lobby.js";
 import { mintRoom } from "./roomIds.js";
 import { deedsOf } from "../db/eventsRepo.js";
 
@@ -59,6 +59,17 @@ describe("chronicle.no-deed-passes-the-journal-by", () => {
     const join = deedsOf(room, 500).find((d) => d.kind === "join")!;
     expect(join.who).toBe("tg:42");
     expect(join.what).toMatchObject({ name: "Ербол" });
+  });
+
+  it("чат комнаты записан при открытии и при закрытии — по нему бот находит записи закрытого стола", async () => {
+    const room = mintRoom(SECRET);
+    openEntry(room, { kind: "chat", chat: "c77" }, "tg:42");
+    await sit(room);
+    await until(room, (k) => k.includes("join"));
+    expect(deedsOf(room, 500).find((d) => d.kind === "room.open")!.what).toMatchObject({ by: "tg:42", home: { kind: "chat", chat: "c77" } });
+    closeEntry(room);
+    await until(room, (k) => k.includes("room.close"));
+    expect(deedsOf(room, 500).find((d) => d.kind === "room.close")?.what).toMatchObject({ home: { kind: "chat", chat: "c77" } });
   });
 
   it("ход игрока и разосланные дифы попали в ленту", async () => {

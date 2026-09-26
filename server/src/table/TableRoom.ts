@@ -30,7 +30,7 @@ import { deal } from "./deal.js";
 import { whoIs, type Who } from "./identity.js";
 import { deskOf, refereeOf } from "./desks.js";
 import type { Referee, Seats } from "./referee.js";
-import { adminsOf, attach, creatorOf, crewKind, isBuried, keepStateOf, keptStateOf, kindOf, openEntry, titleOf } from "./lobby.js";
+import { adminsOf, attach, creatorOf, crewKind, homeOf, isBuried, keepStateOf, keptStateOf, kindOf, openEntry, titleOf } from "./lobby.js";
 import { actOf, crewOf } from "./crews.js";
 import { readIntent } from "./intent.js";
 import { Flood } from "./flood.js";
@@ -237,7 +237,9 @@ export class TableRoom extends Room {
     if (!secret || !roomIsSigned(options.room, secret)) throw new Error("unsigned room");
     this.room = options.room;
     this.book = new Chronicle(this.room);
-    this.book.tell("room.open", undefined, { kind: kindOf(this.room), title: titleOf(this.room), by: creatorOf(this.room) });
+    // ГДЕ КОМНАТА ЖИВЁТ — в журнал: лобби забывает закрытую комнату, а её записи остаются, и кому их
+    // показывать в чате, после закрытия знает только журнал (`/table/records`).
+    this.book.tell("room.open", undefined, { kind: kindOf(this.room), title: titleOf(this.room), by: creatorOf(this.room), home: homeOf(this.room) });
     this.autoDispose = false;
     // КОМНАТА, ОТКРЫТАЯ ВХОДОМ, А НЕ БОТОМ: inline-карточка, чьё сообщение бот ещё не записал.
     openEntry(this.room, { kind: "inline", message: "" }, "");
@@ -255,8 +257,8 @@ export class TableRoom extends Room {
       people: () => this.table.here.filter((p) => !p.bot),
       seats: () => this.seatCards(),
       deck: () => this.deckCard(),
-      close: () => {
-        this.book.tell("room.close", undefined);
+      close: (home) => {
+        this.book.tell("room.close", undefined, { home });
         this.book.flush();
         void this.disconnect();
       },

@@ -26,7 +26,7 @@ interface Entry {
   home: Home;
   by: string;
   createdAt: number;
-  live?: { people: () => Person[]; seats?: () => SeatCard[]; deck?: () => { size: DeckSize; jokers: boolean }; close: () => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; look?: (by: string) => Looked; play?: (by: string, n: unknown) => Played; bots?: () => BotsSeen; claim?: (by: string) => void; recast?: (kind: string) => void; recrew?: (crew: string) => void; admins?: (keys: string[]) => void };
+  live?: { people: () => Person[]; seats?: () => SeatCard[]; deck?: () => { size: DeckSize; jokers: boolean }; close: (home: Home) => void; run?: (by: string, command: TableCommand) => Promise<RunResult>; look?: (by: string) => Looked; play?: (by: string, n: unknown) => Played; bots?: () => BotsSeen; claim?: (by: string) => void; recast?: (kind: string) => void; recrew?: (crew: string) => void; admins?: (keys: string[]) => void };
 }
 
 const rooms = new Map<string, Entry>();
@@ -177,6 +177,9 @@ export const findEntry = (room: string): RoomCard | undefined => {
 
 export const titleOf = (room: string): string => rooms.get(room)?.title ?? DEFAULT_TITLE;
 
+/** Где комната живёт — чат или inline-сообщение. */
+export const homeOf = (room: string): Home | null => rooms.get(room)?.home ?? null;
+
 /** Кто открыл комнату — ключ человека (`tg:<id>`). Он админ стола. Комната, открытая входом, — ничья. */
 export const creatorOf = (room: string): string | null => rooms.get(room)?.by || null;
 
@@ -286,7 +289,7 @@ export function closeEntry(room: string): boolean {
   } catch (err) {
     console.error(`комната ${room} не закрылась в хранилище:`, err);
   }
-  e.live?.close();
+  e.live?.close(e.home);
   return true;
 }
 

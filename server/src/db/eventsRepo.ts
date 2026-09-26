@@ -174,6 +174,30 @@ export function roomsSeen(limit = 50, at: DatabaseSync = db()): { room: string; 
     .all(limit) as unknown as { room: string; first: number; last: number; deeds: number }[];
 }
 
+/**
+ * КОМНАТЫ, ЗАПИСИ КОТОРЫХ КАСАЮТСЯ ЭТОГО ЧЕЛОВЕКА ИЛИ ЧАТА — по журналу, а не по лобби: закрытую
+ * комнату лобби забывает, а её партии остаются смотреть на весь срок журнала.
+ *
+ *   `by`   — комнаты, которые он открыл или за которыми сидел;
+ *   `chat` — комнаты, жившие в этом чате (чат пишется в `room.open` и `room.close`).
+ */
+export function roomsOfJournal(ask: { by?: string; chat?: string }, limit = 200, at: DatabaseSync = db()): { room: string; last: number }[] {
+  const where: string[] = [];
+  const args: string[] = [];
+  if (ask.by) {
+    where.push("(kind = 'join' AND who = ?)", "(kind = 'room.open' AND json_extract(what, '$.by') = ?)");
+    args.push(ask.by, ask.by);
+  }
+  if (ask.chat) {
+    where.push("(kind IN ('room.open', 'room.close') AND json_extract(what, '$.home.chat') = ?)");
+    args.push(ask.chat);
+  }
+  if (where.length === 0) return [];
+  return at
+    .prepare(`SELECT room, MAX(at) AS last FROM events WHERE room IS NOT NULL AND (${where.join(" OR ")}) GROUP BY room ORDER BY last DESC LIMIT ?`)
+    .all(...args, limit) as unknown as { room: string; last: number }[];
+}
+
 /** Как часто журнал подчищает себя сам. */
 export const SWEEP_EVERY_MS = 6 * 60 * 60 * 1000;
 
