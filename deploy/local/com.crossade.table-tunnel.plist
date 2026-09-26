@@ -1,19 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  ТУННЕЛЬ К СТОЛУ — ОТДЕЛЬНО ОТ СТОЛА. Быстрый туннель Cloudflare получает новый адрес при каждом
-  запуске, а новому адресу нужно время, чтобы телефоны его нашли: пока туннель жил внутри стола, каждый
-  перезапуск стола (а он после каждой правки) давал долгий чёрный первый заход в мини-апп.
+  ТУННЕЛЬ К СТОЛУ — ОТДЕЛЬНО ОТ СТОЛА, и адрес у него ПОСТОЯННЫЙ.
 
-  Теперь туннель живёт сам. Свой адрес он кладёт в /tmp/crossade-table-url, и стол читает его оттуда.
-  Стол он перезапускает только когда адрес на самом деле сменился (перезагрузка мака, падение туннеля):
-  маяк стола несёт реле тот адрес, с которым стол запущен.
+  Первым выбором — Tailscale Funnel (`tailscale funnel --bg 2590`): адрес мака в tailnet
+  (`https://<мак>.<tailnet>.ts.net`) не меняется никогда, сертификат настоящий. Берётся, только если
+  ОТВЕЧАЕТ СНАРУЖИ — проверка идёт через публичный DNS, мимо tailnet: сам мак видит свой Funnel всегда,
+  даже когда из интернета он рвёт TLS (так было на Tailscale 1.102.1). Пока он жив, служба проверяет
+  его раз в минуту; три промаха подряд — выходит, launchd поднимает её снова, и она берёт ЗАПАСНОЙ —
+  быстрый туннель Cloudflare (новый адрес на каждый запуск).
+
+  Адрес кладётся в /tmp/crossade-table-url, стол читает его оттуда (`com.crossade.table`). Стол
+  перезапускается только когда адрес на самом деле сменился: маяк несёт реле тот адрес, с которым стол
+  запущен. Перезапуск самого стола адрес не трогает — раньше трогал, и мини-апп висел чёрным.
 -->
 <plist version="1.0"><dict>
   <key>Label</key><string>com.crossade.table-tunnel</string>
   <key>ProgramArguments</key><array>
     <string>/bin/bash</string><string>-lc</string>
-    <string>export PATH=/opt/homebrew/bin:$PATH; URLF=/tmp/crossade-table-url; LOG=/tmp/crossade-table-tunnel.log; : &gt; $LOG; cloudflared tunnel --url http://127.0.0.1:2590 --no-autoupdate &gt; $LOG 2&gt;&amp;1 &amp; T=$!; trap "kill $T" EXIT; URL=; for i in $(seq 60); do sleep 1; URL=$(grep -o "https://[a-z0-9-]*\.trycloudflare\.com" $LOG | grep -v "^https://api\." | tail -1); [ -n "$URL" ] &amp;&amp; break; done; [ -n "$URL" ] || exit 1; echo "туннель стола: $URL"; if [ "$(cat $URLF 2&gt;/dev/null)" != "$URL" ]; then echo "$URL" &gt; $URLF; launchctl kickstart -k gui/$(id -u)/com.crossade.table || true; fi; wait $T</string>
+    <string>export PATH=/opt/homebrew/bin:$PATH; URLF=/tmp/crossade-table-url; TS=/Applications/Tailscale.app/Contents/MacOS/Tailscale; put() { echo "туннель стола: $1"; if [ "$(cat $URLF 2&gt;/dev/null)" != "$1" ]; then echo "$1" &gt; $URLF; launchctl kickstart -k gui/$(id -u)/com.crossade.table || true; fi; }; FUN=$($TS funnel status 2&gt;/dev/null | grep "(Funnel on)" | grep -o "https://[a-z0-9.-]*\.ts\.net" | head -1); outside() { H=${FUN#https://}; IP=$(dig +short @1.1.1.1 $H A | tail -1); [ -n "$IP" ] &amp;&amp; [ "$(curl -s -o /dev/null -w %{http_code} --max-time 10 --resolve $H:443:$IP $FUN/health)" = 200 ]; }; if [ -n "$FUN" ] &amp;&amp; outside; then put "$FUN"; miss=0; while [ $miss -lt 3 ]; do sleep 60; if outside; then miss=0; else miss=$((miss+1)); fi; done; echo "Funnel не отвечает снаружи — перехожу на запасной"; exit 0; fi; [ -n "$FUN" ] &amp;&amp; echo "Funnel включён, но снаружи не отвечает — беру запасной"; LOG=/tmp/crossade-table-tunnel.log; : &gt; $LOG; cloudflared tunnel --url http://127.0.0.1:2590 --no-autoupdate &gt; $LOG 2&gt;&amp;1 &amp; T=$!; trap "kill $T" EXIT; URL=; for i in $(seq 60); do sleep 1; URL=$(grep -o "https://[a-z0-9-]*\.trycloudflare\.com" $LOG | grep -v "^https://api\." | tail -1); [ -n "$URL" ] &amp;&amp; break; done; [ -n "$URL" ] || exit 1; put "$URL"; wait $T</string>
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
