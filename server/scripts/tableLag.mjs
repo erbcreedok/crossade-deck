@@ -56,8 +56,9 @@ const flightsSince = (p, from, to = Infinity) => p.evaluate(([from, to]) => wind
 
 const A = await open("A");
 const B = await open("B");
-const m = (await spots(A)).middle;
+// КАРТЫ — С КОЛОДЫ, а она лежит у крупье, не в середине стола: в середине — круг хода и голое сукно.
 for (let i = 0; i < 5; i += 1) {
+  const m = (await spots(A)).deckTop;
   await A.mouse.move(m.x, m.y);
   await A.mouse.down();
   await A.mouse.move(195, 700, { steps: 8 });

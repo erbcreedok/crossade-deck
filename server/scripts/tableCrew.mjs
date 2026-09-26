@@ -73,8 +73,11 @@ await p.goto(`${base}/table/?room=${await open("krest")}`);
 await seat(p);
 await openCroupier(p);
 const acts = await crewButtons(p);
-check("у крупье крестового пять кнопок", acts.length === 5, acts);
-check("и это сбор, выкладка, состав колоды, джокеры и пересадка", acts.map((a) => a.act).join(",") === "collect,layout,deck,jokers,reseat", acts);
+// ДЕЛА ПО РАЗДЕЛАМ: игра (круг, очередь), колода, рука, стол — объявлены в `crews.ts`.
+const ids = acts.map((a) => a.act);
+check("у крупье крестового дела партии: собрать и вернуть круг, указать ход, указатель", ["ring", "ring-back", "point", "turn-mark"].every((one) => ids.includes(one)), ids);
+check("и дела стола: сбор, состав колоды, джокеры, выкладка, пересадка", ["collect", "deck", "jokers", "layout", "reseat"].every((one) => ids.includes(one)), ids);
+check("увести крупье — ни у кого, даже у распорядителя", !ids.includes("remove") && (await p.$('[data-croupier="remove"]')) === null, ids);
 
 // Собрать: все карты должны оказаться в руке крупье.
 const before = await spots(p);
@@ -103,7 +106,13 @@ const overlap = await p.evaluate(() => {
   return { lowest, highest, covered, acts: acts.length, cards: cards.length, tipTop: tip?.top, tipH: tip?.height, act0: acts[0]?.top };
 });
 check("кнопки крупье не под картами", overlap.covered === 0, overlap);
-check("веер начинается ниже кнопок", overlap.highest >= overlap.lowest, overlap);
+// Окно дел — ПОД окном руки крупье: веер сверху, дела под ним, и одно на другое не наезжает.
+const stack = await p.evaluate(() => {
+  const acts = document.querySelector("[data-croupier-acts]")?.getBoundingClientRect();
+  const tip = document.querySelector("[data-tip]")?.getBoundingClientRect();
+  return acts && tip ? { actsTop: acts.top, tipBottom: tip.bottom } : null;
+});
+check("окно дел под веером, а не поверх него", stack !== null && stack.actsTop >= stack.tipBottom, stack);
 
 // Перевернуть руку крупье — кнопка распорядителя, как у меня в своей: собранная колода открывается лицом.
 // Карты окна лежат отдельно от его рамки: они помечены стулом, чью руку показывают.
@@ -115,7 +124,9 @@ check("у распорядителя есть «Перевернуть» рук�
 await p.locator("[data-flip-chair]").dispatchEvent("pointerdown");
 await p.waitForTimeout(800);
 const closedAfter = (await sides()).filter((l) => l === "рубашка").length;
-check("перевернул — вся рука лицом", closedAfter === 0 && (await sides()).length === 36, { closedAfter, all: (await sides()).length });
+// Стул крупье скрыт: карты у него лицом к НЕМУ, рубашкой ко всем остальным — и переворот этого не
+// открывает: он поворачивает карты к самому крупье, а не к столу.
+check("перевернул — остальным по-прежнему рубашки: стул крупье скрыт", closedAfter === 36 && (await sides()).length === 36, { closedAfter, all: (await sides()).length });
 
 // Выложить: рука уходит одной закрытой стопкой на сукно.
 // Окно крупье уже открыто — второй тап по его месту попал бы в само окно, а не по аватару.

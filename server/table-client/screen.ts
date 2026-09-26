@@ -1445,19 +1445,22 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * и стол после его ухода чинится только через бота. Кнопки нет ни у кого.
    */
   function croupierActsHtml(s: Snapshot, chair: Chair, box: { left: number; top: number; w: number; height: number }): string {
-    if (!chair.croupier || !iMay(s, "table.croupier")) return "";
+    // ОКНО ДЕЛ — ВСЕМ, А ДЕЛА — ПО ПРАВАМ. Дело без `adminOnly` открыто каждому, кого пускает замок стула
+    // крупье (`crews.ts`): «собрать круг» жмёт тот, кто его закрыл, а не только распорядитель.
+    if (!chair.croupier) return "";
     const кнопка = (data: string, label: string) =>
       `<button ${data} style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;`
       + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">${escape(label)}</button>`;
     const admin = iMay(s, "table.croupier");
     // Дела набора — там, где объявлены; к ним добавляются те, что исполняет сам экран.
-    const свои: { part: string; data: string; name: string }[] = [
+    // Свои дела экрана — раздача, мешание, стулья, переворот руки — только распорядителю: это его команды.
+    const свои: { part: string; data: string; name: string }[] = admin ? [
       { part: "колода", data: `data-croupier="deal"`, name: "Раздать" },
       { part: "колода", data: `data-croupier="shuffle"`, name: "Перемешать" },
       // СТУЛ СТАВЯТ ОТСЮДА: пустых может не быть вовсе, и тогда поставить первый было бы неоткуда.
       { part: "стол", data: `data-chair-act="add"`, name: "Ещё стул" },
-      ...(admin ? [{ part: "рука", data: "data-flip-chair", name: "Перевернуть руку" }] : []),
-    ];
+      { part: "рука", data: "data-flip-chair", name: "Перевернуть руку" },
+    ] : [];
     const все = [
       ...store.crew.filter((one) => !one.adminOnly || admin).map((one) => ({ part: one.part, data: `data-crew="${escape(one.id)}"`, name: one.name })),
       ...свои,
@@ -1468,6 +1471,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       return `<div style="font:400 10px Tiny5,monospace;color:${T.inkDim};letter-spacing:.06em;padding:2px 0 0;width:100%">${part.toUpperCase()}</div>`
         + `<div style="display:flex;flex-wrap:wrap;gap:6px;width:100%">${кнопки.map((one) => кнопка(one.data, one.name)).join("")}</div>`;
     }).join("");
+    if (разделы === "") return "";
     return `<div data-croupier-acts style="position:absolute;left:${box.left}px;top:${box.top + box.height + 8}px;width:${box.w}px;box-sizing:border-box;z-index:41;`
       + `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:10px;`
       + `display:flex;flex-wrap:wrap;gap:6px">${разделы}`

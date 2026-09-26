@@ -27,7 +27,7 @@ const BUTTON_OF_UNIT = 0.6;
 const BOARD_SHARE = 0.62;
 const MIN_KEY = 24;
 /** Стол с кромкой — те же числа, что в `felt.ts`. */
-const R = 8;
+const R = 6.4; // `TABLE_RADIUS` в `ring.ts`
 const RIM = 0.09 + 0.33 + 0.18;
 
 const browser = await chromium.launch();
