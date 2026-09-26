@@ -2547,6 +2547,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
 
   /** Разметка слоя поверх холста в прошлом кадре: та же — значит трогать её нечем и незачем. */
   let lastOver = "";
+  /** Домашний вид при входе поставлен — больше камеру без спроса не трогаем. */
+  let homed = false;
   /**
    * ПАЛЕЦ НА КНОПКЕ — СЛОЙ НЕ ПЕРЕСОБИРАЕТСЯ. Слой поверх стола собирается целиком из строки, и любая
    * перемена в нём (метка у стула переехала) пересоздаёт и кнопки. Пока стол стоит, этого не видно; в AR
@@ -2648,6 +2650,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         }),
     });
     spots = view.spots;
+    // ВХОД — ДОМАШНИМ ВИДОМ (`SEAT_VIEW`): как только мой стул на столе, камера ставит его над рукой.
+    // Один раз: дальше камера — дело рук человека. Запись смотрит чужими глазами, AR держит телефон.
+    if (!homed && !watch && !ar) {
+      const chair = chairOf(s, mine(s));
+      const seatAt = chair && spots.find((sp) => sp.key === chair.id)?.seat;
+      if (chair && seatAt) {
+        homed = true;
+        cam.camera.lookAt(seatAtHand(seatAt, { zoom: cam.camera.zoom, turn: chair.angle, lean: 0, above: SEAT_VIEW.above }));
+        redraw();
+      }
+    }
     talk.place(wordAnchors(s));
     // Взгляд — на холсте атрибутом: его видно в инспекторе и его читает прогон жестов.
     const c = cam.camera;
@@ -4414,10 +4427,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const c = cam.camera;
     const atSeat = c.pitch > LEAN_STEP / 2 && Math.abs(c.zoom - SEAT_VIEW.zoom) < 0.08;
     const seat = spots.find((sp) => sp.key === chair.id)?.seat ?? { x: 0, y: 0 };
-    const to = atSeat
-      ? { x: 0, y: 0, zoom: firstZoom(), turn: chair.angle, lean: 0 }
-      : { x: seat.x * SEAT_VIEW.toward, y: seat.y * SEAT_VIEW.toward, zoom: SEAT_VIEW.zoom, turn: chair.angle, lean: LEAN_STEP };
     const from = { x: c.target.x, y: c.target.y, zoom: c.zoom, turn: c.rotation, lean: c.pitch };
+    const view = atSeat
+      ? { zoom: firstZoom(), turn: chair.angle, lean: 0, above: SEAT_VIEW.above }
+      : { zoom: SEAT_VIEW.zoom, turn: chair.angle, lean: LEAN_STEP, above: SEAT_VIEW.above };
+    const to = { ...view, ...seatAtHand(seat, view) };
     const dTurn = ((((to.turn - from.turn) % 360) + 540) % 360) - 180;
     const put = (p: number): void => {
       const e = 1 - Math.pow(1 - p, 3);
@@ -4435,6 +4449,39 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       if (p < 1 && !dead) requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
+  };
+
+  /**
+   * ЦЕНТР КАМЕРЫ, ПРИ КОТОРОМ МОЙ СТУЛ СТОИТ НАД РУКОЙ (`SEAT_VIEW.above`) — на прямой от стула через
+   * середину стола. Ищется половинным делением по настоящей линзе: при наклоне перспектива нелинейна, и
+   * формула «на глаз» держала бы стул у руки только сверху. Камера на время примерки ставится в этот вид
+   * и возвращается как была — наружу ничего не видно.
+   */
+  const seatAtHand = (seat: { x: number; y: number }, v: { zoom: number; turn: number; lean: number; above: number }): { x: number; y: number } => {
+    const c = cam.camera;
+    const was = { x: c.target.x, y: c.target.y, zoom: c.zoom, turn: c.rotation, lean: c.pitch };
+    const len = Math.hypot(seat.x, seat.y);
+    if (len < 1e-6) return { x: 0, y: 0 };
+    const away = { x: -seat.x / len, y: -seat.y / len };
+    c.setZoom(v.zoom);
+    c.glideTurnTo(v.turn, 0);
+    c.glideTiltTo(v.lean, 0);
+    const seatY = (d: number): number => {
+      c.lookAt({ x: away.x * d, y: away.y * d });
+      return lens(c.transform(), c.pitch, c.pixelsPerUnit, lastFrame, { r: R + RIM, depth: TABLE_THICK }).toGlass(seat).y;
+    };
+    const want = lastFrame.h - v.above;
+    let lo = -len, hi = 2 * len;
+    for (let i = 0; i < 30; i += 1) {
+      const mid = (lo + hi) / 2;
+      if (seatY(mid) < want) lo = mid; else hi = mid;
+    }
+    const at = { x: c.target.x, y: c.target.y };
+    c.setZoom(was.zoom);
+    c.glideTurnTo(was.turn, 0);
+    c.glideTiltTo(was.lean, 0);
+    c.lookAt({ x: was.x, y: was.y });
+    return at;
   };
 
   let chairPress: { pid: number; x: number; y: number; at: number; key: string } | null = null;
