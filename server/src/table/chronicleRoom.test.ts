@@ -8,7 +8,9 @@
 import { createHmac } from "crypto";
 import { describe, expect, it } from "vitest";
 import { TEST_PORTS, useTestServer } from "../roomHarness.js";
-import { MSG, TABLE_ROOM, type Welcome } from "./contract.js";
+import { MSG, TABLE_ROOM, type Patch, type Welcome } from "./contract.js";
+import { applyPatch } from "./patch.js";
+import { openEntry, runIn } from "./lobby.js";
 import { mintRoom } from "./roomIds.js";
 import { deedsOf } from "../db/eventsRepo.js";
 
@@ -90,4 +92,49 @@ describe("chronicle.no-deed-passes-the-journal-by", () => {
     const kinds = await until(room, (k) => k.includes("leave"));
     expect(kinds).toContain("leave");
   });
+});
+
+describe("chronicle.a-match-has-edges", () => {
+  const server = useTestServer(TEST_PORTS.tableChronicle + 1);
+
+  it("раздача пишет начало партии с игроками, последний ход — её конец", async () => {
+    const room = mintRoom(SECRET);
+    openEntry(room, { kind: "inline", message: "m" }, "tg:7", undefined, Date.now(), "krest");
+    const seat = async (id: number, name: string) => {
+      const client = await server().sdk.joinOrCreate(TABLE_ROOM, { room, client: "html", door: "telegram", initData: initData(id, name) });
+      // Состояние партии комната рассылает НОВЫМ СНИМКОМ, а не дифом: держим последний и дифы после него.
+      let w: Welcome | null = null;
+      let patches: Patch[] = [];
+      client.onMessage(MSG.patch, (p: Patch) => patches.push(p));
+      client.onMessage(MSG.welcome, (m: Welcome) => {
+        w = m;
+        patches = [];
+      });
+      client.send(MSG.hello);
+      for (let i = 0; i < 50 && !w; i += 1) await new Promise((r) => setTimeout(r, 20));
+      return { client, state: () => patches.reduce(applyPatch, w!.snapshot) };
+    };
+    const ye = await seat(7, "Ye");
+    const bo = await seat(8, "Bo");
+    expect(await runIn(room, "tg:7", { t: "deal", rule: "each", n: 1, force: true })).toEqual({ ok: true });
+    await until(room, (k) => k.includes("match.start"), 80);
+    const start = deedsOf(room, 2000).find((d) => d.kind === "match.start")!;
+    expect(start.who, "раздавал распорядитель").toBe("tg:7");
+    expect((start.what as { игроки: { key: string }[] }).игроки.map((one) => one.key).sort()).toEqual(["tg:7", "tg:8"]);
+
+    // Каждый кладёт свою единственную карту в круг — по очереди, и партия кончается: руки пусты.
+    for (let i = 0; i < 2; i += 1) {
+      const s = ye.state();
+      const turn = s.play?.turn;
+      const who = turn === "tg:7" ? ye : bo;
+      const card = s.chairs.find((c) => c.owner === turn)!.hand[0]!.id;
+      who.client.send(MSG.intent, { t: "grab", id: card });
+      await new Promise((r) => setTimeout(r, 150));
+      who.client.send(MSG.intent, { t: "drop", id: card, to: { in: "deck", pile: "ring" } });
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    const kinds = await until(room, (k) => k.includes("match.end"), 80);
+    expect(kinds, "конец партии записан").toContain("match.end");
+    expect(kinds.filter((k) => k === "match.end"), "и ровно один раз").toHaveLength(1);
+  }, 30000);
 });

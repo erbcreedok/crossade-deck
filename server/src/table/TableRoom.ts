@@ -474,6 +474,7 @@ export class TableRoom extends Room {
     this.referee.start(this.seats_(), dealer, this.lastDeal?.dir ?? "cw");
     // Новая партия — и вышедшие заново: иначе прошлые победители остались бы «уже объявленными».
     this.left.clear();
+    this.tellMatchStart(dealer);
     this.resend();
     // Первый ход может оказаться за ботом: шестёрка буби легла ему. Отсчёт его паузы — отсюда.
     this.stir();
@@ -1134,6 +1135,9 @@ export class TableRoom extends Room {
       // события подряд читаются как одно движение.
       this.stirredAt = Date.now() + OUT_BEAT_MS;
     }
+    // Последний выход и есть конец партии — журнал должен увидеть его здесь, после хода, а не на
+    // следующем взятии карты, которого может и не быть.
+    this.tellMatch();
   }
 
   /**
@@ -1373,6 +1377,34 @@ export class TableRoom extends Room {
     if (line === this.matchTold) return;
     this.matchTold = line;
     this.book.tell("match", undefined, now);
+    this.tellMatchEnd();
+  }
+
+  /**
+   * ГРАНИЦЫ ПАРТИИ В ЖУРНАЛЕ — явные: `match.start` на раздаче, `match.end` на последнем ходе. По ним
+   * записи режутся на партии (`records.ts`): «с какого события по какое», кто играл, кто проиграл.
+   * Без них границу пришлось бы угадывать по смене состояния — а угадывание однажды соврёт.
+   */
+  private matchOpen = false;
+  private tellMatchStart(dealer: string | null): void {
+    const view = this.referee?.view(this.seats_());
+    if (!view) return;
+    const at = this.table.layout();
+    const who = (chair: string | null) => (chair === null ? null : at.chairs.find((c) => c.id === chair)?.owner ?? null);
+    const players = at.chairs
+      .filter((c) => !c.croupier && c.owner !== null && c.hand.length > 0)
+      .map((c) => ({ key: c.owner!, name: this.table.here.find((one) => one.key === c.owner)?.name ?? c.owner! }));
+    this.matchOpen = true;
+    this.book.tell("match.start", who(dealer) ?? undefined, { игроки: players });
+  }
+  private tellMatchEnd(): void {
+    if (!this.matchOpen) return;
+    const play = this.referee?.play(this.seats_(), "");
+    const view = this.referee?.view(this.seats_());
+    // Очереди больше нет — партия кончилась. Проигравшего может и не быть: руки опустели у всех разом.
+    if (!view || view.turn !== null) return;
+    this.matchOpen = false;
+    this.book.tell("match.end", play?.loser ?? undefined, { вышли: view.out });
   }
 
   /** Разослать дифы — каждому, какими их видно ему. */
