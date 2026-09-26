@@ -9,12 +9,13 @@ import { localStore } from "./localStore.js";
 import { netStore } from "./netStore.js";
 import { loadingCross } from "../../look/src/loading.js";
 import { mountGround } from "./ground.js";
+import { startFullscreen, type FullscreenApp } from "./fullscreen.js";
 import { mountScreen } from "./screen.js";
 import type { TableStore } from "./store.js";
 import type { Intent } from "../src/table/contract.js";
 import { watchScreen, witnessed, type ScreenHealth } from "./watch.js";
 
-interface TelegramWebApp {
+interface TelegramWebApp extends FullscreenApp {
   initData: string;
   initDataUnsafe: { start_param?: string };
   ready(): void;
@@ -88,6 +89,7 @@ async function open(): Promise<TableStore> {
 telegram?.ready();
 telegram?.expand();
 telegram?.disableVerticalSwipes?.();
+startFullscreen(telegram);
 document.addEventListener(
   "touchmove",
   (e) => {

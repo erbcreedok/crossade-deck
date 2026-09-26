@@ -5,6 +5,7 @@
 
 import { SPEEDS, type Speed } from "../src/table/motion.js";
 import type { DeckLook } from "./deckArt.js";
+import { fullscreenable as canFullscreen } from "./fullscreen.js";
 import type { TableHaptic } from "./haptic.js";
 import type { Motion } from "./motion.js";
 import { VOLUME_STEP, type TableSound } from "./sound.js";
@@ -61,7 +62,7 @@ export interface Settings {
 
 export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings {
   const app = () => (globalThis as { Telegram?: { WebApp?: TelegramApp } }).Telegram?.WebApp;
-  const fullscreenable = () => Boolean(app()?.isVersionAtLeast?.("8.0") && app()?.requestFullscreen);
+  const fullscreenable = () => canFullscreen(app());
 
   const layer = document.createElement("div");
   layer.dataset.settingsLayer = "";
