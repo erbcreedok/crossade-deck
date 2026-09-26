@@ -1,0 +1,57 @@
+design/serve.py
+  s_e1c4165d82711d::t_4ea23e93d75e49 17-22,25-28,30,34-35,45-70,75-83
+design/ar/pose.js
+  s_e1c4165d82711d::t_07b0784ff10ea1 1-77
+design/ar/pose.test.mjs
+  s_e1c4165d82711d::t_c7d34d41021130 1-14,16-59
+  s_e1c4165d82711d::t_6b6aeeffa25e69 15
+design/ar/app.js
+  s_e1c4165d82711d::t_76b8ba14de81de 90-92
+  s_e1c4165d82711d::t_ab3185985dcb03 80
+  s_e1c4165d82711d::t_7c1883490574a1 1-21,23-79,81-89,93-201,203-524
+  s_e1c4165d82711d::t_e0c41cc286f4d1 22,202
+design/ar/store.js
+  s_e1c4165d82711d::t_4fda4483c25268 1-38
+design/ar/quality.js
+  s_e1c4165d82711d::t_93ce5820facc47 7,31,38-43,76
+  s_e1c4165d82711d::t_e3426f09b82334 1-6,8-16,18-30,32-37,44-75,77-90
+  s_e1c4165d82711d::t_81a24a6169d574 17
+design/ar/quality.test.mjs
+  s_e1c4165d82711d::t_81a24a6169d574 64,85
+  s_e1c4165d82711d::t_1d4d2c5b27a587 1-63,65-84,86
+design/ar/index.html
+  s_e1c4165d82711d::t_5506b887c547fa 1-36,38-103
+  s_e1c4165d82711d::t_e0c41cc286f4d1 37
+design/ar/table.js
+  s_e1c4165d82711d::t_557dbb266d354b 1-109
+.claude/launch.json
+  s_e1c4165d82711d::t_4ea23e93d75e49 119-130
+.gitignore
+  s_e1c4165d82711d::t_4ea23e93d75e49 58-60
+design/ar/package.json
+  s_e1c4165d82711d::t_c8af8079cbb240 1
+design/ar/check.mjs
+  s_e1c4165d82711d::t_21384a75c030a7 1-75,81-98,100-113,124,126-167,169-190
+  s_e1c4165d82711d::t_19025deca0a424 114,116-123,125,168
+  s_e1c4165d82711d::t_d0c517056e5101 99
+  s_e1c4165d82711d::t_a4f8379beefae7 115
+  s_e1c4165d82711d::t_a11eec42f1d319 76-80
+CLAUDE.md
+  s_e1c4165d82711d::t_d6a4bf2865a193 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "308581e8bac49c862fb621e9e645079c1ef406bb",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
