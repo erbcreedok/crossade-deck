@@ -27,7 +27,7 @@ const FAKE = `(() => {
     else { c.beginPath(); c.arc(r() * 512, r() * 512, 5 + r() * 30, 0, 7); c.fill(); }
   }
   c.fillStyle = "#111"; c.font = "bold 64px serif"; c.fillText("КРЕСТ", 90, 280);
-  const F = window.__fake = { scene: "cover", x: 360, y: 510, side: 520, rot: 0, img: null };
+  const F = window.__fake = { gum: 0, scene: "cover", x: 360, y: 510, side: 520, rot: 0, img: null };
   setInterval(() => {
     g.fillStyle = "#6f6a60"; g.fillRect(0, 0, VW, VH);
     g.save(); g.translate(F.x, F.y); g.rotate(F.rot);
@@ -36,7 +36,7 @@ const FAKE = `(() => {
     g.restore();
   }, 33);
   const stream = cam.captureStream(30);
-  navigator.mediaDevices.getUserMedia = async () => stream;
+  navigator.mediaDevices.getUserMedia = async () => { F.gum += 1; return stream; };
 })();`;
 
 const fails = [];
@@ -79,9 +79,33 @@ const worst = (a, b) => {
   return e;
 };
 
-// 1. старт → съёмка
-await page.getByText("Включить камеру").click();
+// 0. ГИРО по умолчанию: без камеры, стол стоит в мире, пока телефон поворачивают
+const orient = (alpha, beta, gamma) => page.evaluate(([a, b, g]) => dispatchEvent(new DeviceOrientationEvent("deviceorientation", { alpha: a, beta: b, gamma: g })), [alpha, beta, gamma]);
+await page.getByText("Начать").click();
+await waitFor(() => window.__ar.screen === "play" && window.__ar.mode === "gyro");
+await orient(0, 60, 0); // телефон в руке, смотрит вперёд-вниз
+// первый кадр WebGL на программном рендере компилирует шейдеры долго — ждём, пока сцена отрисовалась
+await waitFor(() => { const { anchor, camera } = window.__ar.three; return window.__ar.orient && anchor.matrixWorld.elements[14] !== 0 && Math.abs(camera.matrixWorld.elements[9] - 0.5) < 0.01; });
+const tableCentre = () => page.evaluate(() => {
+  const { anchor, camera } = window.__ar.three;
+  const v = new anchor.position.constructor(0, 0, 0).applyMatrix4(anchor.matrixWorld).project(camera);
+  return { x: ((v.x + 1) / 2) * innerWidth, y: ((1 - v.y) / 2) * innerHeight, m: anchor.matrix.elements.slice() };
+});
+const g1 = await tableCentre();
+ok(await S(() => window.__fake.gum === 0), "ГИРО: камера не запрошена");
+ok(Math.abs(g1.x - SW / 2) < 2 && Math.abs(g1.y - SH / 2) < 2, "ГИРО: стол встал в центр взгляда, когда датчик заговорил", `центр ${g1.x.toFixed(0)},${g1.y.toFixed(0)}`);
+await shot("0-gyro");
+await orient(20, 60, 0); // повернулся влево на 20°
+await page.waitForTimeout(500);
+const g2 = await tableCentre();
+ok(g2.m.every((v, i) => Math.abs(v - g1.m[i]) < 1e-9), "ГИРО: стол не поехал вслед за телефоном");
+ok(g2.x > g1.x + 40, "ГИРО: повернул телефон влево — стол уплыл вправо", `${g1.x.toFixed(0)} → ${g2.x.toFixed(0)}`);
+await orient(0, 60, 0);
+
+// 1. ФОТО → камера → съёмка
+await page.locator('#top .chip[data-mode="image"]').click();
 await waitFor(() => window.__ar.screen === "capture");
+ok(await S(() => window.__fake.gum === 1), "ФОТО: камера включилась");
 await page.waitForTimeout(800);
 ok(await S(() => window.__ar.q?.verdict === "ok"), "обложка в рамке — «годится»", JSON.stringify(await S(() => { const q = window.__ar.q; return q && { v: q.verdict, n: q.count, cov: +q.coverage.toFixed(2), sharp: +q.sharp.toFixed(2) }; })));
 await shot("1-capture");
@@ -169,16 +193,18 @@ err = worst(await projectedCorners(), drawnCorners({ x: 360, y: 560, rot: 0.2 },
 ok(err < 14, "КОД: углы кода легли на нарисованный квадрат", `худший угол ${err.toFixed(1)} px`);
 await shot("4-code");
 
-// 7. ГИРО
+// 7. обратно в ГИРО — камера гаснет
 await page.locator('#top .chip[data-mode="gyro"]').click();
 await page.waitForTimeout(500);
-ok(await S(() => window.__ar.three.anchor.visible), "ГИРО: стол стоит без метки");
+ok(await S(() => window.__ar.three.anchor.visible && !document.getElementById("cam").srcObject), "ГИРО: стол стоит, камера выключена");
 await shot("5-gyro");
 
 // 8. перезагрузка — метка осталась
 await page.reload();
-await page.getByText("Включить камеру").click();
+await page.getByText("Начать").click();
 await waitFor(() => window.__ar.screen === "play", 30000);
+await page.locator('#top .chip[data-mode="image"]').click();
+await waitFor(() => window.__ar.screen === "play" && window.__ar.mode === "image", 30000);
 ok(await S(() => window.__ar.markers.length === 1 && window.__ar.active === window.__ar.markers[0].id), "после перезагрузки метка на месте и выбрана");
 await waitFor(() => window.__ar.three.anchor.visible, 60000).catch(() => {});
 ok(await S(() => window.__ar.three.anchor.visible), "сохранённая метка снова трекается");

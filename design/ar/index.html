@@ -23,7 +23,7 @@
   button:disabled { opacity: .4; }
   b { color: var(--gold); font-weight: 400; }
 
-  #stage { position: fixed; inset: 0; overflow: hidden; background: #000; touch-action: none; }
+  #stage { position: fixed; inset: 0; overflow: hidden; background: radial-gradient(120% 80% at 50% 35%, #1b2a22, #07100b); touch-action: none; }
   #cam { position: absolute; }
   #gl { position: absolute; inset: 0; width: 100%; height: 100%; }
   #frame { position: absolute; display: none; border: 3px solid var(--gold); border-radius: 14px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.45); pointer-events: none; }
@@ -86,9 +86,9 @@
   <div id="frame"><div class="hint">наведи на то, на чём будешь играть</div><canvas id="dots"></canvas></div>
 </div>
 <div id="top">
+  <div class="chip" data-mode="gyro">ГИРО</div>
   <div class="chip" data-mode="image">ФОТО</div>
   <div class="chip" data-mode="code">КОД</div>
-  <div class="chip" data-mode="gyro">ГИРО</div>
   <div id="status"></div>
 </div>
 <div id="knob">РУЧКИ</div>

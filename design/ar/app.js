@@ -6,6 +6,10 @@
 //   ГИРО — без метки вообще: стол висит в пространстве и держится только за гироскоп.
 // Стол — обычный 2D-canvas (table.js), натянутый текстурой; тап идёт лучом обратно в его пиксели.
 // Рука — поверх экрана, как в продукте: AR её не касается.
+//
+// ГИРО — режим по умолчанию: ему не нужна камера, только датчик наклона. Камера включается, когда
+// режим её требует (ФОТО, КОД), или по кнопке «фон: камера» в ГИРО. Без неё за столом — пол-сетка,
+// чтобы поворот телефона читался как поворот головы, а не как дрожь картинки.
 
 import * as THREE from "three";
 import { assess, greyOf, DEFAULTS as QD } from "./quality.js";
@@ -44,7 +48,7 @@ const KNOBS = [
   ["Гироскоп", [
     ["gyroFov", "обзор камеры, °", "вертикальный, портрет", 62, 30, 100, 1],
     ["gyroUnit", "ширина метки, м", "масштаб стола в пространстве", 0.2, 0.05, 1, 0.01],
-    ["gyroDist", "вперёд, м", "", 0.45, 0.1, 3, 0.05],
+    ["gyroDist", "вперёд, м", "если телефон смотрит в горизонт", 0.45, 0.1, 3, 0.05],
     ["gyroDrop", "вниз, м", "", 0.35, 0, 2, 0.05],
   ]],
 ];
@@ -55,7 +59,7 @@ const qOpts = () => ({ corner: K.corner, enough: K.enough, okScore: K.okScore, s
 
 // ─── состояние ────────────────────────────────────────────────────────────────────────────────────
 const S = {
-  screen: "start", mode: "image", markers: [], active: null,
+  screen: "start", mode: "gyro", gyroCam: false, gyroPlaced: false, markers: [], active: null,
   controller: null, detector: null, orient: null, fit: null, q: null, table: createTable(), hand: [],
   dirty: true, seen: -1e9, frame: 0, fps: 0, fpsCount: 0, fpsAt: performance.now(), log: [],
 };
@@ -79,6 +83,9 @@ const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, TH / TW), new THREE.MeshB
 anchor.add(mesh);
 S.three = { anchor, camera, mesh };
 const applyScale = () => mesh.scale.setScalar(K.tableScale);
+const floor = new THREE.GridHelper(6, 30, 0x6b4d2c, 0x2a3a31);
+floor.visible = false;
+scene.add(floor);
 applyScale();
 
 // ─── раскладка ────────────────────────────────────────────────────────────────────────────────────
@@ -109,15 +116,23 @@ function frameInVideo() {
 }
 
 // ─── камера и датчики ─────────────────────────────────────────────────────────────────────────────
+/** Датчик наклона. На iOS разрешение спрашивается только из жеста — поэтому зовётся из кнопки «Начать». */
+let sensorsOn = false;
+async function startSensors() {
+  if (sensorsOn) return;
+  sensorsOn = true;
+  const ask = globalThis.DeviceOrientationEvent?.requestPermission;
+  if (ask) await ask.call(DeviceOrientationEvent).catch(() => {});
+  addEventListener("deviceorientation", (e) => { if (e.beta != null) S.orient = { alpha: e.alpha ?? 0, beta: e.beta, gamma: e.gamma ?? 0 }; });
+}
+
 async function startCamera() {
+  if (cam.srcObject) return true;
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
     status(`камера закрыта: нужен https (${location.hostname}:9583)`, "bad");
     return false;
   }
   try {
-    const ask = globalThis.DeviceOrientationEvent?.requestPermission;
-    if (ask) await ask.call(DeviceOrientationEvent).catch(() => {});
-    addEventListener("deviceorientation", (e) => { if (e.beta != null) S.orient = { alpha: e.alpha ?? 0, beta: e.beta, gamma: e.gamma ?? 0 }; });
     const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } });
     cam.srcObject = stream;
     await cam.play();
@@ -128,6 +143,12 @@ async function startCamera() {
     status(`камера: ${err.name || err}`, "bad");
     return false;
   }
+}
+
+/** Камера гасится целиком, а не прячется: ГИРО без фона не должен держать её включённой. */
+function stopCamera() {
+  cam.srcObject?.getTracks().forEach((t) => t.stop());
+  cam.srcObject = null;
 }
 
 // ─── режимы ───────────────────────────────────────────────────────────────────────────────────────
@@ -145,6 +166,11 @@ async function setMode(mode) {
   document.querySelectorAll("#top .chip").forEach((c) => c.classList.toggle("on", c.dataset.mode === mode));
   if (S.screen === "start") return render();
   stopTrackers();
+  const needsCamera = mode !== "gyro" || S.gyroCam;
+  if (needsCamera && !(await startCamera())) return;
+  if (!needsCamera) stopCamera();
+  cam.style.visibility = needsCamera ? "visible" : "hidden";
+  floor.visible = !needsCamera;
   layout();
   if (mode === "image") {
     const m = S.markers.find((x) => x.id === S.active);
@@ -199,8 +225,11 @@ function startGyro() {
   camera.near = 0.01; camera.far = 100; camera.updateProjectionMatrix();
   aimCamera();
   placeGyro();
-  status(S.orient ? "гироскоп" : "нет гироскопа", S.orient ? "ok" : "bad");
+  S.gyroPlaced = !!S.orient; // датчик может заговорить позже — тогда стол переставится в цикле
+  gyroStatus();
 }
+
+const gyroStatus = () => status(S.orient ? "гироскоп" : "нет гироскопа", S.orient ? "ok" : "bad");
 
 const script = (src) => new Promise((resolve, reject) => {
   const el = document.createElement("script");
@@ -247,14 +276,19 @@ function aimCamera() {
   }
 }
 
-/** Стол лёжа, впереди по взгляду и ниже глаз. */
+/**
+ * Стол лёжа, ниже глаз на `gyroDrop` — там, куда упирается взгляд: «поставить сюда» значит сюда.
+ * Если телефон смотрит почти горизонтально (взгляд до стола не дотянется), стол встаёт на `gyroDist`.
+ */
 function placeGyro() {
   const f = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
   const yaw = Math.atan2(-f.x, -f.z);
-  const pos = new THREE.Vector3(0, -K.gyroDrop, -K.gyroDist).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+  const ahead = f.y < -0.1 ? Math.min(3, Math.max(0.15, (K.gyroDrop / -f.y) * Math.hypot(f.x, f.z))) : K.gyroDist;
+  const pos = new THREE.Vector3(0, -K.gyroDrop, -ahead).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
   const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, yaw, 0, "YXZ"));
   anchor.matrix.compose(pos, q, new THREE.Vector3().setScalar(K.gyroUnit));
   anchor.visible = true;
+  floor.position.set(0, -K.gyroDrop - 0.005, 0);
 }
 
 // ─── съёмка метки ─────────────────────────────────────────────────────────────────────────────────
@@ -397,9 +431,9 @@ function render() {
 
   if (S.screen === "start") {
     sheet.innerHTML = `<h1>AR-стол</h1>
-      <p>Наведи камеру на плоский предмет с рисунком — обложку, коробку, скатерть. Он станет меткой, и стол ляжет на него. Запасные режимы сверху: <b>КОД</b> — квадратный код на экране второго телефона, <b>ГИРО</b> — вовсе без метки.</p>
-      <div class="row"><button id="go">Включить камеру</button></div>`;
-    $("go").onclick = async () => { if (await startCamera()) { S.screen = "ready"; setMode(S.mode); } };
+      <p>Стол повиснет перед тобой — наклоняй телефон, чтобы осмотреться. Камера не нужна. Другие режимы сверху: <b>ФОТО</b> — стол ложится на любую вещь с рисунком, <b>КОД</b> — на квадратный код с экрана второго телефона.</p>
+      <div class="row"><button id="go">Начать</button></div>`;
+    $("go").onclick = async () => { await startSensors(); S.screen = "ready"; setMode(S.mode); };
   } else if (S.screen === "capture") {
     sheet.innerHTML = `<h1>Новая метка</h1>
       <div class="meter"><i></i></div><div class="verdict"></div><div class="nums"></div>
@@ -439,8 +473,9 @@ function render() {
       sheet.innerHTML = `<div class="row"><button class="ghost" id="show">показать код №${K.arucoId}</button><span class="nums">на экране второго телефона или на бумаге</span></div>`;
       $("show").onclick = showCode;
     } else {
-      sheet.innerHTML = `<div class="row"><button class="ghost" id="here">поставить сюда</button><span class="nums">стол держится только за гироскоп</span></div>`;
+      sheet.innerHTML = `<div class="row"><button class="ghost" id="here">поставить сюда</button><button class="ghost" id="bg">фон: ${S.gyroCam ? "камера" : "сетка"}</button></div>`;
       $("here").onclick = () => { aimCamera(); placeGyro(); };
+      $("bg").onclick = () => { S.gyroCam = !S.gyroCam; setMode("gyro"); };
     }
     if (!S.hand.length) refill(); else renderHand();
   } else {
@@ -507,7 +542,10 @@ $("knob").onclick = () => $("panel").classList.toggle("open");
 function loop(now) {
   requestAnimationFrame(loop);
   if (S.screen === "play" && S.mode === "code") detectCode();
-  if (S.screen === "play" && S.mode === "gyro") aimCamera();
+  if (S.screen === "play" && S.mode === "gyro") {
+    aimCamera();
+    if (S.orient && !S.gyroPlaced) { placeGyro(); S.gyroPlaced = true; gyroStatus(); }
+  }
   const ringing = S.table.tap && now - S.table.tap.at < 900;
   if (S.dirty || ringing) { drawTable(tg, S.table, now); texture.needsUpdate = true; S.dirty = false; }
   renderer.render(scene, camera);
@@ -517,7 +555,7 @@ function loop(now) {
   S.markers = await listMarkers();
   S.active = S.markers[0]?.id ?? null;
   buildPanel();
-  setMode("image");
+  setMode(S.mode);
   render();
   layout();
   requestAnimationFrame(loop);
