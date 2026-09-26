@@ -124,7 +124,9 @@ const aTip = await A.evaluate(() => {
 });
 await A.mouse.move(...aTip, { steps: 8 });
 await wait(400);
-check("у B в нижней руке щель под карту A", await B.evaluate(() => document.querySelectorAll('[data-g="mark"]').length === 1), null);
+// ДВА КОНТУРА В РУКЕ B: гнездо его карты, которую унёс A, и щель, куда A её вернёт, — оба в цвете A.
+const bMarks = await B.evaluate(() => [...document.querySelectorAll('[data-g="mark"]')].map((m) => m.style.borderColor || m.style.border));
+check("у B в нижней руке щель под карту A и гнездо унесённой", bMarks.length === 2 && new Set(bMarks).size === 1, bMarks);
 
 // ── 5. A бросает её на сукно: у C она ложится туда, где стояла над сукном ─────────────────────
 await watchFlights(C);

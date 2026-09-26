@@ -93,8 +93,9 @@ let ids = (await spots(A)).deckIds;
 const mover = ids[3];
 const tip = await tipBox(A);
 let hover = await carry(A, await cardAt(A, mover), { x: tip.x + 16, y: tip.y + tip.height - 40 }, async () => ({ marks: await tipMarks(A), bMarks: await tipMarks(B) }));
-check("пока несут над окном — в окне контур места", hover.marks.length === 1, hover);
-check("у B в окне колоды — контур в цвете A", hover.bMarks.length === 1, hover);
+// ДВА КОНТУРА: куда ляжет карта и гнездо, откуда её взяли (контур вместо призрака).
+check("пока несут над окном — в окне контур места и гнездо взятой", hover.marks.length === 2, hover);
+check("у B в окне колоды — оба контура в цвете A", hover.bMarks.length === 2 && new Set(hover.bMarks).size === 1, hover);
 let bIds = (await spots(B)).deckIds;
 check("карта встала вниз колоды у всех", bIds[0] === mover && bIds.length === 36 && (await spots(A)).deckIds.join() === bIds.join(), bIds.slice(0, 5));
 
@@ -170,7 +171,10 @@ let tb = await tipBox(S);
 await carry(S, await cardAt(S, topId), { x: tb.x + 16, y: tb.y + tb.height - 40 });
 st = await spots(S);
 check("верхнюю — обратно в низ колоды под локом нельзя: порядок тот же", st.deckIds.at(-1) === topId && st.deck === N && st.felt.length === 0, st.deckIds.slice(-3));
-await carry(S, await cardAt(S, topId), { x: 300, y: 345 });
+// НА СУКНО — считая от сцены, а не пикселями наугад: середину стола закрывает само окно колоды, а
+// точка сбоку при другом размере стола оказывается зоной стула. Выше окна — голое сукно.
+const feltSpot = { x: (await spots(S)).middle.x, y: (await tipBox(S)).y - 50 };
+await carry(S, await cardAt(S, topId), feltSpot);
 const out = (await spots(S)).felt.at(-1);
 tb = await tipBox(S);
 hover = await carry(S, out, { x: tb.x + 16, y: tb.y + tb.height - 40 }, async () => S.evaluate(() => {
@@ -192,7 +196,7 @@ const allPe = await S.locator('[data-owner="deck"]').evaluateAll((els) => els.ev
 check("приёмка закрыта: в окне не тянется ни одна", allPe, null);
 await S.locator('[data-deck-shut]').dispatchEvent("pointerdown");
 await wait(S, 200);
-await carry(S, st.deckTop, { x: 300, y: 345 });
+await carry(S, st.deckTop, feltSpot);
 st = await spots(S);
 check("приёмка закрыта: верхнюю с колоды на столе не взять", st.deck === N && st.felt.length === 0, { deck: st.deck, felt: st.felt.length });
 // Карту из руки — на колоду: вернулась в руку.
