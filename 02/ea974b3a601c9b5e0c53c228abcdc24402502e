@@ -1,0 +1,22 @@
+server/scripts/tableHand.mjs
+  s_e1c4165d82711d::t_6813c55a1effd9 90-109
+server/table-client/screen.ts
+  s_e1c4165d82711d::t_d81b430103c390 1277-1288,1291,1363,1392-1397
+  s_e1c4165d82711d::t_7aeb0bfb7c1d84 1300-1302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "02ea974b3a601c9b5e0c53c228abcdc24402502e",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
