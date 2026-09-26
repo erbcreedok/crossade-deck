@@ -98,11 +98,11 @@ t = await tip(A);
 check("тап по колоде — тултип верхней карты", t && /в колоде|Рубашкой/.test(t.text), t);
 
 // Кнопка HUD срабатывает и закрывает тултип.
-await A.locator('[data-section="pose"]').click();
+await A.locator('[data-section="chair"]').click();
 await A.waitForTimeout(400);
-check("кнопка HUD сработала", (await A.locator('[data-bar="fan"]').count()) === 1, null);
+check("кнопка HUD сработала", (await A.locator('[data-bar="lock"]').count()) === 1, null);
 check("и тултип закрылся", !(await tip(A)), null);
-await A.locator('[data-section="pose"]').click();
+await A.locator('[data-section="chair"]').click();
 await A.waitForTimeout(400);
 
 // Открытая карта: колода → рука → стол на север. Верх колоды спрашиваем ЗАНОВО: с неё уже снимали,

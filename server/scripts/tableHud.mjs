@@ -31,6 +31,11 @@ const bar = (p) => p.evaluate(() => ({
   subs: [...document.querySelectorAll("button[data-bar]:not([data-g=ghost])")].map((b) => b.dataset.bar),
   ghosts: document.querySelectorAll("[data-g=ghost]").length,
 }));
+
+/** Ручка позы на углу руки: тянуть — поза, тап — меню порядка. */
+const handleAt = async (p) => { const b = await p.locator("[data-pose-handle]").boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+const poseDrag = async (p, dx, dy) => { const h = await handleAt(p); await p.mouse.move(h.x, h.y); await p.mouse.down(); await p.mouse.move(h.x + dx, h.y + dy, { steps: 8 }); const t0 = await p.evaluate(() => performance.now()); await p.mouse.up(); return t0; };
+const openHandMenu = async (p) => { const h = await handleAt(p); await p.mouse.click(h.x, h.y); await p.waitForTimeout(200); };
 const drag = async (p, x, y, x2, y2) => {
   await p.mouse.move(x, y);
   await p.mouse.down();
@@ -51,31 +56,29 @@ const A = await open("A");
 const B = await open("B");
 const aSeat = (await spots(A)).seats.find((s) => s.who === "A").key;
 
-// ── 1. Бар: три секции; открыть — кнопка уезжает влево, остальные улетают, прилетают свои; ещё раз — закрыть ──
+// ── 1. Бар: «Стул» и «Выбор» (поза и порядок — у ручки руки, чат — своей кнопкой над рукой); открыть —
+// кнопка уезжает влево, соседняя улетает, прилетают свои; ещё раз — закрыть ──
 let b = await bar(A);
-check("в баре пять кнопок секций (с лассо и диалогом) и больше ничего", b.sections.join() === "pose,chair,order,lasso,say" && b.subs.length === 0, b);
-const x0 = await A.locator('[data-section="pose"]').evaluate((e) => e.getBoundingClientRect().left);
-await A.click('[data-section="order"]');
+check("в баре «Стул» и «Выбор», чат — отдельной кнопкой", b.sections.join() === "chair,lasso,say" && b.subs.length === 0, b);
+const x0 = await A.locator('[data-section="chair"]').evaluate((e) => e.getBoundingClientRect().left);
+await A.click('[data-section="chair"]');
 await wait(A, 70);
-const mid = await A.evaluate(() => ({
-  ghosts: document.querySelectorAll("[data-g=ghost]").length,
-  moved: getComputedStyle(document.querySelector('[data-section="order"]')).transform,
-}));
-check("посреди перелёта: улетающие копии есть, кнопка секции в пути", mid.ghosts === 4 && mid.moved !== "none", mid);
+const mid = await A.evaluate(() => ({ ghosts: document.querySelectorAll("[data-g=ghost]").length }));
+check("посреди перелёта: улетающая соседка есть", mid.ghosts === 1, mid);
 await wait(A);
 b = await bar(A);
-const x1 = await A.locator('[data-section="order"]').evaluate((e) => e.getBoundingClientRect().left);
-check("секция открыта: её кнопка слева, остальных нет, её кнопки на месте", b.sections.join() === "order" && x1 === x0 && b.subs.join() === "suit,rank,reverse,shuffle" && b.ghosts === 0, [b, x0, x1]);
-check("кнопка секции горит", (await A.getAttribute('[data-section="order"]', "aria-pressed")) === "true", null);
+const x1 = await A.locator('[data-section="chair"]').evaluate((e) => e.getBoundingClientRect().left);
+check("секция открыта: её кнопка на месте, соседки нет, её кнопки на месте", b.sections.join() === "chair,say" && x1 === x0 && b.subs.join() === "lock,hide,reject,forever,leave" && b.ghosts === 0, [b, x0, x1]);
+check("кнопка секции горит", (await A.getAttribute('[data-section="chair"]', "aria-pressed")) === "true", null);
 const looks = await A.evaluate(() => {
-  const sec = getComputedStyle(document.querySelector('[data-section="order"]'));
-  return { round: sec.borderRadius.startsWith("50%") || parseFloat(sec.borderRadius) >= 20, fill: sec.backgroundImage, divider: Boolean(document.querySelector("[data-g=divider]")), back: document.querySelector('[data-section="order"] path')?.getAttribute("d") };
+  const sec = getComputedStyle(document.querySelector('[data-section="chair"]'));
+  return { round: sec.borderRadius.startsWith("50%") || parseFloat(sec.borderRadius) >= 20, fill: sec.backgroundImage, divider: Boolean(document.querySelector("[data-g=divider]")), back: document.querySelector('[data-section="chair"] path')?.getAttribute("d") };
 });
 check("открытая секция не похожа на включённую кнопку: круг, без золотой заливки, «назад», черта", looks.round && !/248, 216, 133/.test(looks.fill) && looks.back === "M14.5 5.5 8 12l6.5 6.5" && looks.divider, looks);
-await A.click('[data-section="order"]');
+await A.click('[data-section="chair"]');
 await wait(A);
 b = await bar(A);
-check("та же кнопка закрыла секцию", b.sections.join() === "pose,chair,order,lasso,say" && b.subs.length === 0 && b.ghosts === 0, b);
+check("та же кнопка закрыла секцию", b.sections.join() === "chair,lasso,say" && b.subs.length === 0 && b.ghosts === 0, b);
 
 // ── 2. Четыре карты в руку A ─────────────────────────────────────────────────────────────────────
 const m = (await spots(A)).deckTop;
@@ -85,14 +88,14 @@ check("у A в руке 4 карты", (await cardsOf(A, aSeat)).length === 4, a
 // ── 3. Порядок: по номиналу — один раз ───────────────────────────────────────────────────────────
 const RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 const rankOf = (t) => RANKS.findIndex((r) => t.startsWith(r) && !(r === "1"));
-await A.click('[data-section="order"]');
-await wait(A);
-await A.click('[data-bar="rank"]');
+await openHandMenu(A);
+await A.click('[data-hand-do="rank"]');
 await wait(A, 600);
 const ranks = (await cardsOf(A, aSeat)).sort((p, q) => p.x - q.x).map((c) => rankOf(c.rank.replace(/[♠♥♦♣★]/g, "")));
 check("по номиналу: слева направо не убывает", ranks.every((r, i) => i === 0 || ranks[i - 1] <= r), ranks);
 // Реверс: перелёты карт не выходят за верх нижнего бара.
-await A.click('[data-bar="reverse"]');
+await openHandMenu(A);
+await A.click('[data-hand-do="reverse"]');
 await wait(A, 90);
 const under = await A.evaluate(() => {
   const barTop = document.querySelector("[data-g=bar]").getBoundingClientRect().top;
@@ -103,8 +106,6 @@ const under = await A.evaluate(() => {
 });
 check("реверс: карты летят, и их слой обрезан по верху бара", under.length >= 2 && under.every((f) => f.clip), under);
 await wait(A, 500);
-await A.click('[data-section="order"]');
-await wait(A);
 
 // ── 4. B открывает окно стула A: подписи с числом нет, позы у не-админа нет ────────────────────────
 const aSpot = (await spots(B)).seats.find((s) => s.who === "A");
@@ -115,9 +116,7 @@ check("окно стула A открыто и без «РУКА · N»", tipTex
 check("B не админ — позы чужой руки в окне нет", (await B.locator("[data-pose]").count()) === 0, null);
 
 // ── 5. Сжать: одна карта видна, касание — только у верхней; и у A, и у B ───────────────────────────
-await A.click('[data-section="pose"]');
-await wait(A);
-await A.click('[data-bar="shrink"]');
+await poseDrag(A, -200, 0);
 await wait(A, 600);
 for (const [who, p] of [["A", A], ["B", B]]) {
   const cs = await cardsOf(p, aSeat);
@@ -126,11 +125,11 @@ for (const [who, p] of [["A", A], ["B", B]]) {
   const under = await p.evaluate((o) => [...document.querySelectorAll(`[data-card][data-owner="${o}"]`)].slice(0, -1).every((el) => getComputedStyle(el).pointerEvents === "none"), aSeat);
   check(`сжата у ${who}: карты стопкой, под пальцем верхняя, остальные касание не ловят`, cs.length === 4 && same && (await hit(p, cs[0].x, cs[0].y)) === top && under, cs);
 }
-await A.click('[data-bar="shrink"]');
+await poseDrag(A, 200, 0);
 await wait(A, 600);
 
 // ── 6. Скрыть: у B рука за краем окна — торчит край, за него тянется; ниже — занавес ────────────────
-await A.click('[data-bar="tuck"]');
+await poseDrag(A, 0, 200);
 await wait(A, 600);
 const tucked = await cardsOf(B, aSeat);
 const curtainTop = await B.evaluate(() => document.querySelector("[data-g=curtain]")?.getBoundingClientRect().top ?? null);
@@ -140,10 +139,8 @@ check("скрыта у B: торчащий край карты ловит кас
 check("скрыта у B: середина карты под занавесом", (await hit(B, edge.x, Math.round(curtainTop + 6))) === "curtain", null);
 await drag(B, edge.x, Math.round((edge.top + curtainTop) / 2), 195, 380);
 check("B вытянул карту из скрытой руки за край", (await spots(B)).felt.length === 1, (await spots(B)).felt);
-await A.click('[data-bar="tuck"]');
+await poseDrag(A, 0, -90);
 await wait(A, 600);
-await A.click('[data-section="pose"]');
-await wait(A);
 
 // ── 7. Покинуть стул: вопрос, тап мимо закрывает, «Встать» — встал ────────────────────────────────
 await A.click('[data-section="chair"]');

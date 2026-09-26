@@ -32,7 +32,8 @@ export interface Compass {
   drag(down: PointerEvent, part: "ring" | "lean", ring: HTMLElement): void;
   /** Насколько камера ушла от своего стула — поворот коротким путём или наклон, в градусах. */
   offSeat(s: Snapshot): number;
-  html(s: Snapshot): string;
+  /** `at` — где стоять (левый верхний угол, px); не сказано — прежнее место справа сверху. */
+  html(s: Snapshot, at?: { left: number; top: number }): string;
 }
 
 export function tableCompass(o: CompassWorld): Compass {
@@ -146,7 +147,7 @@ export function tableCompass(o: CompassWorld): Compass {
    * Висит ВСЕГДА, а не только когда камера ушла: по нему видно, как стол повёрнут, и это полезно
    * ровно тогда, когда возвращаться ещё не надо.
    */
-  function html(s: Snapshot): string {
+  function html(s: Snapshot, at?: { left: number; top: number }): string {
     const chair = o.myChair(s);
     if (!chair) return "";
     const turn = chair.angle - o.cam.camera.rotation;
@@ -164,7 +165,7 @@ export function tableCompass(o: CompassWorld): Compass {
       : `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="pointer-events:none">`
         + `<rect x="2.5" y="7" width="12.5" height="10" rx="2.5"/><path d="M15 10.5 L21.5 7 v10 L15 13.5 Z"/></svg>`;
     const discLook = ar ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}` : disc;
-    return `<button data-home${ar ? " data-ar" : ""} aria-label="${ar ? "Выровнять; удержать — выйти из AR" : "К своему стулу; удержать — AR"}" style="position:absolute;right:12px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:52px;height:52px;border:0;padding:0;z-index:45;`
+    return `<button data-home${ar ? " data-ar" : ""} aria-label="${ar ? "Выровнять; удержать — выйти из AR" : "К своему стулу; удержать — AR"}" style="position:absolute;${at ? `left:${at.left}px;top:${at.top}px` : "right:12px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px))"};width:52px;height:52px;border:0;padding:0;z-index:45;`
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;`
       + `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}">`
       + `<svg viewBox="0 0 52 52" width="52" height="52" style="position:absolute;left:0;top:0;transform:rotate(${turn}deg);pointer-events:none">`

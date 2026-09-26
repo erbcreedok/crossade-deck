@@ -33,7 +33,7 @@ import type { Witness } from "../src/table/telling.js";
 import { HOST } from "./host.js";
 import { apart } from "./angles.js";
 import { tableCompass } from "./compass.js";
-import { barHeightU, handBoxOf, handPlan, handWideOf, hudUnitOf, mineGeomOf } from "./handGeom.js";
+import { barHeightU, blendOf, handBoxOf, handPlan, handWideOf, hudUnitOf, mineGeomOf, snapPose, type PoseBlend } from "./handGeom.js";
 import { flipIn, pileOf, predict as predictAs, sideIn, whereIs, type BatchIntent } from "./optimistic.js";
 import { doubleTap, isTap, type Tap } from "./tap.js";
 import { journal } from "./journal.js";
@@ -45,7 +45,7 @@ import { lens } from "./lens.js";
 import { mountMeters } from "./meters.js";
 import { readRecording, writeRecording } from "./watch.js";
 import { slingLanding, slingPull } from "./sling.js";
-import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
+import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, VOICE_OPEN, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
 /**
@@ -254,6 +254,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
      */
     reseat: null as null | { angles: Record<string, number>; drag: { chair: string; pid: number } | null },
     /** Жест голоса: зажата 💬 — где палец, ушёл ли он с кнопки и кому сейчас слышно. */
+    /** Палец тянет ручку позы руки (`handGeom.ts`, `PoseBlend`): откуда тянул и где поза под пальцем сейчас. */
+    poseDrag: null as null | { id: number; x0: number; y0: number; b0: PoseBlend; b: PoseBlend },
+    /** Тап по ручке открыл меню порядка руки. */
+    handMenu: false,
     mic: null as null | { off: boolean; x: number; y: number; from: { x: number; y: number }; open: boolean; to: string | null | undefined; fail: "no-mic" | "denied" | null },
     /** Лассо: инструмент, вид грэба и сторона сборки — живут, пока открыт экран. */
     tool: "cursor" as "cursor" | "lasso",
@@ -505,6 +509,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       (s) => chairOf(s, chair)?.pose[k] === on);
   }
 
+  /** Поза целиком — с ручки: три флажка одним намерением, как садится ступень. */
+  function guessPoseAll(chair: string, next: Pose): void {
+    guess(`pose:${chair}:all`, { t: "pose", chair, pose: { ...next } },
+      (s) => withChair(s, chair, (c) => ({ ...c, pose: { ...c.pose, ...next } })),
+      (s) => { const p = chairOf(s, chair)?.pose; return !!p && p.fan === next.fan && p.shrink === next.shrink && p.tuck === next.tuck; });
+  }
+
   function guessFlag(chair: string, flag: ChairFlag, on: boolean): void {
     guess(`flag:${chair}:${flag}`, { t: "flag", chair, flag, on },
       (s) => withChair(s, chair, (c) => ({ ...c, [flag]: on })),
@@ -733,13 +744,45 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   // ── ГЕОМЕТРИЯ ───────────────────────────────────────────────────────────────────────────────
 
   const glass = () => ({ w: stage.clientWidth, h: stage.clientHeight });
+  /**
+   * СИСТЕМНЫЙ ОТСТУП СНИЗУ — полоса «домой» айфона: сколько скажет устройство (`safe-area-inset-bottom`) или
+   * Telegram (`--tg-safe-area-inset-bottom`), и ни пикселя сверх. Нет её (браузер со своей панелью,
+   * десктоп, Telegram не во весь экран) — ноль. Меряется живым элементом: CSS знает, JS — нет.
+   */
+  const safeProbe = document.createElement("div");
+  safeProbe.style.cssText = "position:fixed;left:0;bottom:0;width:0;visibility:hidden;pointer-events:none;"
+    + "height:max(env(safe-area-inset-bottom,0px),var(--tg-safe-area-inset-bottom,0px))";
+  document.body.append(safeProbe);
+  undo.add(() => safeProbe.remove());
+  const safeBottom = (): number => safeProbe.offsetHeight;
+  /**
+   * НА СКОЛЬКО ПОДНЯТ ПОЛ РУКИ. Пол — бар над системным отступом; открыт диалог — верх клавиатуры: бар
+   * прячется под ней, а карты поднимаются над ней и не скрываются.
+   */
+  const handLift = (): number => {
+    if (!talk.open) return safeBottom();
+    // КАРТЫ НЕ ЗАХОДЯТ ПОД КЛАВИАТУРУ ВОВСЕ: под бар рука подсовывает низ карт, под клавиатуру — нет.
+    // Сначала пол — верх клавиатуры, потом рука поднимается на то, что самая низкая карта (с наклоном
+    // в веере) под неё залезла.
+    const g = glass();
+    const base = Math.max(0, talk.height() - barHeightU() * hudUnitOf(g));
+    const s = truth();
+    const count = handOf(s, mine(s)).length + gapsIn(s, mine(s)).length;
+    if (!count) return base;
+    const geom = mineGeomOf(g, poseNow(mine()), count, mine(), local.poseDrag?.b, base);
+    const low = Math.max(...geom.slots.map((sl) => {
+      const a = (Math.abs(sl.angle) * Math.PI) / 180;
+      return sl.y + (geom.h / 2) * Math.cos(a) + (geom.w / 2) * Math.sin(a);
+    }));
+    return base + Math.max(0, low - (g.h - talk.height())) + 6;
+  };
   const hudUnit = () => hudUnitOf(glass());
   /** Во сколько пикселей укладывается полоса руки: на телефоне — весь кадр, на широком — контейнер по центру. */
   const handWide = () => handWideOf(glass());
   const barHeight = barHeightU;
   /** Полоса руки на столько карт, сколько будет ПОСЛЕ того, как карту в воздухе положат. */
-  const handBox = (count: number) => handBoxOf(glass(), poseNow(mine()), count);
-  const mineGeom = (count: number): Geom => mineGeomOf(glass(), poseNow(mine()), count, mine());
+  const handBox = (count: number) => handBoxOf(glass(), poseNow(mine()), count, local.poseDrag?.b, handLift());
+  const mineGeom = (count: number): Geom => mineGeomOf(glass(), poseNow(mine()), count, mine(), local.poseDrag?.b, handLift());
 
   /**
    * ГДЕ СТОИТ ОКНО ЧУЖОЙ РУКИ — лучшее из мест вокруг человека, а не одно заранее выбранное.
@@ -1135,8 +1178,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   }
 
   function hudHtml(s: Snapshot): string {
-    // ОТКРЫТ ДИАЛОГ — вместо руки и бара клавиатура.
-    if (talk.open) return "";
+    // ОТКРЫТ ДИАЛОГ — вместо бара клавиатура, а рука стоит над ней (`handGlass`): карты не прячутся.
+    if (talk.open) {
+      const cards = handOf(s, mine(s)), gaps = gapsIn(s, mine(s));
+      return layHand(mineGeom(cards.length + gaps.length), cards, gaps, mine(s), heldInk(s));
+    }
     if (local.reseat) return reseatHudHtml();
     const g = glass();
     const cards = handOf(s, mine(s));
@@ -1173,7 +1219,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       // СВОИ КАРТЫ Я ВИЖУ ВСЕГДА, КАК ДЕРЖУ: «скрыть» — про то, что видят другие, а не я.
       + layHand(geom, cards, gaps, mine(s), heldInk(s))
       // ПОЛОСА — ПОВЕРХ КАРТ: карты уходят под её край на `BAR.tuck`.
-      + `<div data-g="bar" style="position:absolute;left:${inset}px;right:${inset}px;top:${geom.barTop}px;height:${barHeight() * u}px;z-index:${cards.length + 10};`
+      // Бар стоит над системным отступом, а его фон доходит до низа экрана — это тот же бар, не плашка.
+      + `<div data-g="bar" style="position:absolute;left:${inset}px;right:${inset}px;top:${geom.barTop}px;height:${barHeight() * u + safeBottom()}px;z-index:${cards.length + 10};`
       + `background:linear-gradient(${T.panel},${T.well});${edge}">`
       + `<div style="position:absolute;left:${rowLeft}px;right:${rowLeft}px;top:${(barHeight() * u - side) / 2}px;height:${side}px">`
       + barRow(s, side, step) + `</div>`
@@ -1184,7 +1231,110 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       })())
       + `</div>`
       + leaveHtml(geom.barTop!, inset + rowLeft, side, step)
+      + poseHandleHtml(geom, cards.length + gaps.length)
+      + thumbHtml(s, side)
       + micHtml(geom.barTop!);
+  }
+
+  /** Верх моей руки на стекле — над ним встают ручка позы, чат и компас. Карт нет — верх бара. */
+  function handTopOf(geom: Geom): number {
+    return geom.slots.length ? Math.min(...geom.slots.map((sl) => sl.y - geom.h / 2)) : geom.barTop!;
+  }
+  /** Правый край руки — у него ручка позы. */
+  const handRightOf = (geom: Geom): number => Math.max(...geom.slots.map((sl) => sl.x + geom.w / 2));
+
+  /** Имя ступени, в которую сядет поза, — у ручки, пока её тянут. */
+  const POSE_NAME = (p: Pose): string => (p.tuck ? "Спрятать" : p.shrink ? "Стопкой" : p.fan ? "Веер" : "В ряд");
+
+  /**
+   * РУЧКА ПОЗЫ — одна вместо трёх кнопок, на верхнем правом углу руки. Вбок — шире или стопкой, вверх —
+   * выровнять в ряд, вниз — спрятать, веер — посередине (`PoseBlend`). Карт нет — позы нет, нет и ручки.
+   */
+  function poseHandleHtml(geom: Geom, count: number): string {
+    if (count === 0) return "";
+    const size = Math.round(Math.max(30, Math.min(40, geom.w * 0.42)));
+    const x = Math.min(glass().w - size / 2 - 4, handRightOf(geom) - size * 0.2);
+    const y = handTopOf(geom) + size * 0.2;
+    const drag = local.poseDrag;
+    const label = drag
+      ? `<div data-pose-name style="position:absolute;left:${Math.round(x - 60)}px;top:${Math.round(y - size / 2 - 26)}px;width:120px;text-align:center;z-index:${count + 13};pointer-events:none;`
+        + `font:400 12px Tiny5,monospace;color:${T.ink};text-shadow:0 2px 0 ${T.black}">${POSE_NAME(snapPose(drag.b, poseNow(mine())))}</div>`
+      : "";
+    return `<button data-pose-handle aria-label="Поза руки: вбок — шире или стопкой, вверх — в ряд, вниз — спрятать" style="position:absolute;left:${Math.round(x - size / 2)}px;top:${Math.round(y - size / 2)}px;`
+      + `width:${size}px;height:${size}px;border:0;padding:0;border-radius:50%;z-index:${count + 12};touch-action:none;cursor:grab;display:flex;align-items:center;justify-content:center;`
+      + (drag ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 3px ${T.black}` : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`)
+      + `"><svg viewBox="0 0 24 24" width="${Math.round(size * 0.55)}" height="${Math.round(size * 0.55)}" fill="none" stroke="${drag ? T.black : "white"}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">`
+      + `<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg></button>` + label
+      + handMenuHtml(x + size / 2, y - size / 2 - 8, count);
+  }
+
+  /** Меню порядка руки — над ручкой, прижато к её правому краю. */
+  const HAND_DOS: [string, string][] = [["suit", "По масти"], ["rank", "По номиналу"], ["shuffle", "Перемешать"], ["flip", "Перевернуть"], ["reverse", "Наоборот"]];
+  function handMenuHtml(right: number, bottom: number, count: number): string {
+    if (!local.handMenu) return "";
+    const W = glass().w;
+    return `<div data-hand-menu style="position:absolute;right:${Math.round(Math.max(8, W - right))}px;bottom:${Math.round(glass().h - bottom)}px;z-index:70;`
+      + `display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:10px;background:linear-gradient(${T.panel},${T.well});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${BAR_LOOK.rim}">`
+      + HAND_DOS.map(([what, name]) => `<button data-hand-do="${what}" style="border:0;cursor:pointer;text-align:left;white-space:nowrap;font:400 13px Tiny5,monospace;color:${T.ink};`
+        + `padding:9px 14px;border-radius:7px;background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black}">${name}</button>`).join("")
+      + `</div>`;
+  }
+
+  /** Сколько пикселей пальца — вся ось позы: вбок от стопки до широкой, вверх-вниз от спрятанной до ряда. */
+  const POSE_PX = { wide: 140, lift: 180 };
+  function startPoseDrag(e: PointerEvent): void {
+    const b0 = blendOf(poseNow(mine()));
+    local.poseDrag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, b0, b: { ...b0 } };
+    const clamp = (v: number) => Math.max(0, Math.min(1, v));
+    const move = (ev: PointerEvent) => {
+      const d = local.poseDrag;
+      if (!d || ev.pointerId !== d.id) return;
+      d.b = { wide: clamp(d.b0.wide + (ev.clientX - d.x0) / POSE_PX.wide), lift: clamp(d.b0.lift - (ev.clientY - d.y0) / POSE_PX.lift) };
+      draw();
+    };
+    const up = (ev: PointerEvent) => {
+      const d = local.poseDrag;
+      if (!d || ev.pointerId !== d.id) return;
+      removeEventListener("pointermove", move);
+      removeEventListener("pointerup", up);
+      removeEventListener("pointercancel", up);
+      local.poseDrag = null;
+      // НЕ ТЯНУЛ — ТАП: меню порядка руки открывается и закрывается.
+      if (ev.type === "pointerup" && Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) < TAP_PX) {
+        local.handMenu = !local.handMenu;
+        return draw();
+      }
+      local.handMenu = false;
+      const seat = chairOf(truth(), mine(truth()));
+      const was = poseNow(mine());
+      const next = snapPose(d.b, was);
+      if (seat && (next.fan !== was.fan || next.shrink !== was.shrink || next.tuck !== was.tuck)) guessPoseAll(seat.id, next);
+      else draw();
+    };
+    addEventListener("pointermove", move, { passive: true });
+    addEventListener("pointerup", up);
+    addEventListener("pointercancel", up);
+    draw();
+  }
+
+  /**
+   * КНОПКИ ПОД БОЛЬШИМИ ПАЛЬЦАМИ, над рукой: чат — справа, чуть выше ручки позы. Компас — слева
+   * (`compass.html` получает место отсюда же). Верх экрана для пальца далёк, держать там частое — мучение.
+   */
+  function thumbHtml(s: Snapshot, side: number): string {
+    if (!chairOf(s, mine(s))) return "";
+    const geom = mineGeom(handOf(s, mine(s)).length + gapsIn(s, mine(s)).length);
+    const inset = Math.round((glass().w - handWide()) / 2);
+    const top = handTopOf(geom) - side - 30;
+    return `<div data-g="thumb-chat" style="position:absolute;right:${inset + 12}px;top:${Math.round(top)}px;width:${side}px;height:${side}px;z-index:40">`
+      + barButton("sec-say", talk.open, side, 0) + `</div>`;
+  }
+  /** Где компасу стоять — слева над рукой, на одной высоте с чатом. */
+  function compassAt(s: Snapshot): { left: number; top: number } {
+    const side = BAR.size * hudUnit();
+    const geom = mineGeom(handOf(s, mine(s)).length + gapsIn(s, mine(s)).length);
+    const inset = Math.round((glass().w - handWide()) / 2);
+    return { left: inset + 12, top: Math.round(handTopOf(geom) - side - 30 + (side - 52) / 2) };
   }
 
   /** Горит ли кнопка секции: поза и флаги — как стоят, «покинуть» — пока открыт вопрос. */
@@ -1200,6 +1350,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * РЯД БАРА. Разметка пересобирается каждым кадром, поэтому перелёт — анимация с отрицательной задержкой:
    * кадр, пришедший посреди перелёта, продолжает его с того же места, а не начинает заново.
    */
+  /**
+   * СЕКЦИИ В БАРЕ. Позы и порядка здесь нет — они у ручки на углу руки (`poseHandleHtml`: тянуть — поза,
+   * тап — меню порядка); чата нет — у него своя кнопка над рукой (`thumbHtml`).
+   */
+  const barSections = (_s: Snapshot): Section[] => SECTIONS.filter((sec) => sec !== "pose" && sec !== "say" && sec !== "order");
+
   function barRow(s: Snapshot, side: number, step: number): string {
     // МИКРОФОН В РУКЕ: кнопки уходят, остаётся 💬 — видно, что палец ведёт именно её. Пока палец на самой
     // кнопке, бар не меняется вовсе: с виду это обычное касание.
@@ -1209,21 +1365,23 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const anim = (name: string, delay = 0, from = 0) =>
       moving ? `--from:${Math.round(from)}px;animation:${name} ${SECTION_MS}ms ease-out ${Math.round(delay - since)}ms both;` : "";
     const ghost = (html: string) => html.replace("<button ", '<button data-g="ghost" tabindex="-1" ').replace("position:absolute;", "position:absolute;pointer-events:none;");
+    const list = barSections(s);
+    if (local.section && !list.includes(local.section)) local.section = null;
     const open = local.section;
     let row = "";
     if (open) {
-      const at = SECTIONS.indexOf(open);
+      const at = list.indexOf(open);
       row += barButton(`sec-${open}`, true, side, 0, anim("bar-slide", 0, at * step));
       // Черта между кнопкой секции и её кнопками.
       row += `<span data-g="divider" style="position:absolute;left:${Math.round(side + (step - side) / 2 - 1)}px;top:${Math.round(side * 0.15)}px;width:2px;height:${Math.round(side * 0.7)}px;`
         + `border-radius:1px;background:${BAR_LOOK.rim};${anim("bar-in", 20)}"></span>`;
       SUBS[open].forEach((what, j) => (row += barButton(what, barLit(s, what), side, (j + 1) * step, anim("bar-in", 40 + j * 30))));
       if (moving && !local.sectionFrom) {
-        SECTIONS.forEach((sec, j) => sec !== open && (row += ghost(barButton(`sec-${sec}`, false, side, j * step, anim("bar-out")))));
+        list.forEach((sec, j) => sec !== open && (row += ghost(barButton(`sec-${sec}`, false, side, j * step, anim("bar-out")))));
       }
     } else {
       const from = local.sectionFrom;
-      SECTIONS.forEach((sec, j) =>
+      list.forEach((sec, j) =>
         (row += barButton(`sec-${sec}`, false, side, j * step, sec === from ? anim("bar-slide", 0, -j * step) : from ? anim("bar-in", 40 + j * 30) : "")));
       if (moving && from) SUBS[from].forEach((what, j) => (row += ghost(barButton(what, barLit(s, what), side, (j + 1) * step, anim("bar-out")))));
     }
@@ -2567,11 +2725,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   };
   /** Дольше этого слой не ждёт ни при каком раскладе: отпускание может потеряться, а кнопка — сработать на касании. */
   const HOLD_MAX_MS = 600;
+  // МЕНЮ ПОРЯДКА ЗАКРЫВАЕТСЯ КАСАНИЕМ МИМО — как любое всплывающее меню.
+  addEventListener("pointerdown", (e) => {
+    if (!local.handMenu) return;
+    if ((e.target as Element | null)?.closest?.("[data-hand-menu],[data-pose-handle]")) return;
+    local.handMenu = false;
+    draw();
+  }, { capture: true });
   over.addEventListener("pointerdown", (e) => {
     // Только в AR: без него стол стоит, слой не пересобирается каждый кадр, и ждать нечего.
     if (!ar) return;
     const b = (e.target as Element | null)?.closest?.("button");
-    if (!b || b.closest("[data-home]")) return;
+    if (!b || b.closest("[data-home],[data-pose-handle]")) return;
     buttonHeld = e.pointerId;
     clearTimeout(letGoTimer);
     letGoTimer = window.setTimeout(release, HOLD_MAX_MS);
@@ -2605,7 +2770,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       seenShuffles.set(pile.id, pile.shuffles);
     }
     const seat = mine(s);
-    const floor = talk.open ? talk.height() : hudFloor(handOf(s, seat).length);
+    const floor = hudFloor(handOf(s, seat).length) + (talk.open ? Math.max(0, talk.height() - barHeight() * hudUnit()) : safeBottom());
     if (!local.reseat && !lookedFrom) compass.aim(s);
     const seats: Seat[] = s.chairs.map((c) => {
       const sitter = sitterOf(s, c);
@@ -2720,7 +2885,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // колебание его голоса — кольца живут на холсте, а не здесь. Переписывать при этом `innerHTML` значит
     // десятки раз в секунду выбрасывать кнопки из-под пальца: нажатие начинается на одной, а заканчивается
     // на другой, и до onclick дело не доходит вовсе — заглушить говорящего было нельзя, пока он не замолчит.
-    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + mindMarksHtml(s) + earMarksHtml(s) + slingHtml() + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + compass.html(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml() + journalHtml(s);
+    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + mindMarksHtml(s) + earMarksHtml(s) + slingHtml() + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + compass.html(s, local.reseat ? undefined : compassAt(s)) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml() + journalHtml(s);
     if (html !== lastOver) {
       if (buttonHeld !== null) overStale = true;
       else {
@@ -3799,7 +3964,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
           if (!m) return;
           m.x = ev.clientX;
           m.y = ev.clientY;
-          if (!m.off && Math.hypot(m.x - m.from.x, m.y - m.from.y) >= MIC_OFF) {
+          if (VOICE_OPEN && !m.off && Math.hypot(m.x - m.from.x, m.y - m.from.y) >= MIC_OFF) {
             m.off = true;
             void carryMic();
           }
@@ -3956,6 +4121,23 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         local.confirmLeave = false;
         store.send({ t: "stand" });
         draw();
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-hand-do]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        local.handMenu = false;
+        const what = el.dataset.handDo!;
+        if (what === "flip") store.send({ t: "flip" });
+        else guessOrder(what as Arrange);
+        draw();
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-pose-handle]")) {
+      el.onpointerdown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        startPoseDrag(e);
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-pose]")) {

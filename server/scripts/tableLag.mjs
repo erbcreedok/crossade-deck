@@ -43,6 +43,11 @@ const hand = (p) => p.evaluate(() => [...document.querySelectorAll("[data-card]"
   .map((el) => ({ id: el.dataset.card, x: Math.round(el.getBoundingClientRect().left) }))
   .sort((a, b) => a.x - b.x));
 /** Нажать и через `after` мс снять: что на экране и сколько перелётов с нажатия. */
+
+/** Ручка позы на углу руки: тянуть — поза, тап — меню порядка. */
+const handleAt = async (p) => { const b = await p.locator("[data-pose-handle]").boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+const poseDrag = async (p, dx, dy) => { const h = await handleAt(p); await p.mouse.move(h.x, h.y); await p.mouse.down(); await p.mouse.move(h.x + dx, h.y + dy, { steps: 8 }); const t0 = await p.evaluate(() => performance.now()); await p.mouse.up(); return t0; };
+const openHandMenu = async (p) => { const h = await handleAt(p); await p.mouse.click(h.x, h.y); await p.waitForTimeout(200); };
 const press = async (p, sel, after = 60) => {
   const t0 = await p.evaluate((sel) => {
     const t = performance.now();
@@ -67,29 +72,25 @@ for (let i = 0; i < 5; i += 1) {
 }
 await A.evaluate((lag) => (window.__lag = lag), LAG);
 
-// ── 1. Поза: сжать — стопкой через 60 мс, после ответа сервера ничего не летит второй раз ────────────
-await A.click('[data-section="pose"]');
-await wait(A, 400);
-let t0 = await press(A, '[data-bar="shrink"]');
+// ── 1. Поза: сжать ручкой — стопкой через 60 мс, после ответа сервера ничего не летит второй раз ────
+let t0 = await poseDrag(A, -200, 0);
+await wait(A, 60);
 let cs = await hand(A);
 check("сжать: через 60 мс рука уже стопкой", cs.length === 5 && new Set(cs.map((c) => c.x)).size === 1, cs);
-check("кнопка горит сразу", (await A.getAttribute('[data-bar="shrink"]', "aria-pressed")) === "true", null);
 await wait(A, LAG + 700);
 const tSettled = await A.evaluate(() => performance.now());
 check("ответ сервера: рука так и стопкой", new Set((await hand(A)).map((c) => c.x)).size === 1, await hand(A));
 check("ответ сервера не запустил второй перелёт", (await flightsSince(A, t0 + 300, tSettled)) === 0, await flightsSince(A, t0 + 300, tSettled));
-t0 = await press(A, '[data-bar="shrink"]');
+t0 = await poseDrag(A, 200, 0);
+await wait(A, 60);
 check("разжать — сразу", new Set((await hand(A)).map((c) => c.x)).size === 5, await hand(A));
 await wait(A, LAG + 700);
-await A.click('[data-section="pose"]');
-await wait(A, 400);
 
-// ── 2. Порядок: по номиналу и шафл — карты летят сразу; ответ сервера не гоняет их второй раз ───────
-await A.click('[data-section="order"]');
-await wait(A, 400);
+// ── 2. Порядок из меню ручки: по номиналу и шафл — карты летят сразу; ответ сервера не гоняет их второй раз
 for (const how of ["rank", "shuffle", "reverse"]) {
   const before = (await hand(A)).map((c) => c.id).join();
-  t0 = await press(A, `[data-bar="${how}"]`, 80);
+  await openHandMenu(A);
+  t0 = await press(A, `[data-hand-do="${how}"]`, 80);
   const early = await flightsSince(A, t0);
   await wait(A, 400);
   const guessed = (await hand(A)).map((c) => c.id).join();
@@ -101,8 +102,6 @@ for (const how of ["rank", "shuffle", "reverse"]) {
 }
 
 // ── 3. Флаг: лок горит сразу ─────────────────────────────────────────────────────────────────────
-await A.click('[data-section="order"]');
-await wait(A, 400);
 await A.click('[data-section="chair"]');
 await wait(A, 400);
 await press(A, '[data-bar="lock"]');
@@ -113,9 +112,8 @@ check("лок: горит и после ответа", (await A.getAttribute('[d
 // ── 4. Сервер и клиент считают порядок одинаково: B видит у A тот же порядок, что A нарисовал ──────────
 await A.click('[data-section="chair"]');
 await wait(A, 400);
-await A.click('[data-section="order"]');
-await wait(A, 400);
-await press(A, '[data-bar="suit"]', LAG + 900);
+await openHandMenu(A);
+await press(A, '[data-hand-do="suit"]', LAG + 900);
 const aIds = (await hand(A)).map((c) => c.id);
 const bSeat = (await spots(B)).seats.find((x) => x.who === "A");
 await B.mouse.click(bSeat.x, bSeat.y);
@@ -146,7 +144,8 @@ await A.evaluate(() => {
   };
 });
 const settledIds = (await hand(A)).map((c) => c.id).join();
-await press(A, '[data-bar="shuffle"]', 80);
+await openHandMenu(A);
+await press(A, '[data-hand-do="shuffle"]', 80);
 const guessedIds = (await hand(A)).map((c) => c.id).join();
 await wait(A, LAG + 900);
 const backIds = (await hand(A)).map((c) => c.id).join();

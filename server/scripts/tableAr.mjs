@@ -90,8 +90,8 @@ await p.evaluate(() => {
 await p.waitForTimeout(300);
 const tap = async (sel) => { const b = await p.locator(sel).first().boundingBox(); await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await p.mouse.down(); await p.waitForTimeout(120); await p.mouse.up(); await p.waitForTimeout(250); };
 // Сначала бар: окно настроек, открытое шестерёнкой, модальное — оно легло бы поверх бара.
-await tap('[data-section="pose"]');
-check("под потоком датчика кнопка нижнего бара открывает свою секцию", (await p.locator('[data-bar="fan"]').count()) > 0);
+await tap('[data-section="chair"]');
+check("под потоком датчика кнопка нижнего бара открывает свою секцию", (await p.locator('[data-bar="lock"]').count()) > 0);
 await tap("[data-settings]");
 check("под потоком датчика шестерёнка открывает настройки", (await p.locator('[data-settings][aria-expanded="true"]').count()) === 1);
 await p.evaluate(() => clearInterval(window.__shake));

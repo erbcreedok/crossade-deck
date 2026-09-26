@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handBoxOf, handPlan, hudUnitOf, mineGeomOf } from "./handGeom.js";
+import { blendOf, handBoxOf, handPlan, handPlanBlend, hudUnitOf, mineGeomOf, snapPose } from "./handGeom.js";
 import { HAND_MAX_PX } from "./screenConst.js";
 
 // РУКА ВНИЗУ ЭКРАНА. Вёрстка выверяется под портрет айфона (390×844), десктоп — вторым.
@@ -70,5 +70,48 @@ describe("полоса моей руки на стекле", () => {
 
   it("спрятанная рука торчит меньше раскрытой", () => {
     expect(handBoxOf(PHONE, { ...FAN, tuck: true }, 6).shown).toBeLessThan(handBoxOf(PHONE, FAN, 6).shown);
+  });
+});
+
+describe("hand.pose-handle — поза под пальцем", () => {
+  const TUCKED = { fan: true, shrink: false, tuck: true };
+  const SHRUNK = { fan: true, shrink: true, tuck: false };
+  const eq = (a: { x: number; y: number; angle: number }[], b: { x: number; y: number; angle: number }[]) => {
+    expect(a).toHaveLength(b.length);
+    a.forEach((s, i) => { expect(s.x).toBeCloseTo(b[i]!.x, 9); expect(s.y).toBeCloseTo(b[i]!.y, 9); expect(s.angle).toBeCloseTo(b[i]!.angle, 9); });
+  };
+
+  it("каждая ступень — там же, где кнопочная поза: веер, ряд, стопка, спрятана", () => {
+    for (const pose of [FAN, ROW, SHRUNK, TUCKED]) {
+      const back = snapPose(blendOf(pose), pose);
+      expect(back, JSON.stringify(pose)).toEqual(pose);
+    }
+  });
+
+  it("на ступенях карты стоят ровно как у кнопочной позы", () => {
+    for (const pose of [FAN, ROW, SHRUNK]) eq(handPlanBlend(blendOf(pose), pose.fan, 6, 1, 1.4, 5), handPlan(pose, 6, 1, 1.4, 5));
+  });
+
+  it("между ступенями — плавно: половина пути от ряда к вееру — середина между ними", () => {
+    const fan = handPlan(FAN, 6, 1, 1.4, 5), row = handPlan(ROW, 6, 1, 1.4, 5);
+    const half = handPlanBlend({ wide: 1, lift: 0.75 }, true, 6, 1, 1.4, 5);
+    half.forEach((s, i) => { expect(s.x).toBeCloseTo((fan[i]!.x + row[i]!.x) / 2, 9); expect(s.angle).toBeCloseTo((fan[i]!.angle + row[i]!.angle) / 2, 9); });
+  });
+
+  it("отпустил — садится в ближайшую ступень; у узкой руки веера нет", () => {
+    expect(snapPose({ wide: 0.8, lift: 0.4 }, FAN)).toEqual(FAN);
+    expect(snapPose({ wide: 0.8, lift: 0.9 }, FAN)).toEqual(ROW);
+    expect(snapPose({ wide: 0.8, lift: 0.1 }, FAN)).toEqual({ ...FAN, tuck: true });
+    expect(snapPose({ wide: 0.2, lift: 0.5 }, FAN)).toEqual(SHRUNK); // узкая: середина уходит в «показана»
+    expect(snapPose({ wide: 0.2, lift: 0.3 }, FAN)).toEqual({ ...SHRUNK, tuck: true });
+  });
+
+  it("опускаешь — рука плавно уходит вниз до спрятанной", () => {
+    const shown = handBoxOf(PHONE, FAN, 6);
+    const tucked = handBoxOf(PHONE, TUCKED, 6);
+    const half = handBoxOf(PHONE, FAN, 6, { wide: 1, lift: 0.25 });
+    expect(half.mid).toBeGreaterThan(shown.mid);
+    expect(half.mid).toBeLessThan(tucked.mid);
+    expect(handBoxOf(PHONE, FAN, 6, { wide: 1, lift: 0 }).mid).toBeCloseTo(tucked.mid, 6);
   });
 });
