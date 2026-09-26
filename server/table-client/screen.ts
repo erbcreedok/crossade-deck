@@ -3139,6 +3139,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       cam.camera.setZoom(firstZoom());
       redraw();
     },
+    walkAr: (id, from, at) => ar?.stick(id, from, at),
     listen: addEventListener,
     unlisten: removeEventListener,
   });
@@ -4792,9 +4793,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       // отпустили быстро и почти на месте (`isTap`) — раньше он срабатывал сразу, и камеру
       // перекидывало посреди жеста.
       if (hit) chairPress = { pid: e.pointerId, x: e.clientX, y: e.clientY, at: performance.now(), key: hit.key };
-      // AR: ПУСТОЕ СУКНО — ДЖОЙСТИК ХОДЬБЫ (`ar.ts`). Камера жест тоже получает: второй палец — щипок
-      // или поворот стола, и тогда ходьба отдаёт ему дорогу.
-      else if (ar) ar.stick(e);
+      // AR: ПУСТОЕ СУКНО — ХВАТ: точка под пальцем идёт за ним, стол едет вместе с ней (`ar.ts`). Камера жест
+      // тоже получает: второй палец — щипок или поворот стола, и тогда хват отдаёт ему дорогу.
+      else if (ar) ar.grab(e);
     },
     { capture: true },
   );

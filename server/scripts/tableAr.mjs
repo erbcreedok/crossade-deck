@@ -1,7 +1,7 @@
 // AR-СТОЛ: стол держит наклон телефона, а палец попадает туда же, куда легла кисть.
 //
-// AR — личный вид игрока: стенд с ботами (`?stand`), AR включается долгим нажатием на компас и помнится
-// на устройстве; датчик — подделанными событиями `deviceorientation`. Всё читается из `canvas.dataset.spots` — там экран говорит, где у него середина
+// AR — личный вид игрока: стенд с ботами (`?stand`), AR включается долгим нажатием на компас, при старте
+// всегда выключен; датчик — подделанными событиями `deviceorientation`. Всё читается из `canvas.dataset.spots` — там экран говорит, где у него середина
 // стола и стулья, — а не глазами.
 //   TABLE_SECRET=probe TABLE_GUESTS=1 PORT=2611 npx tsx src/index.ts   (в соседнем окне; preview «table-probe»)
 //   node scripts/tableAr.mjs [base] [скриншот.png]
@@ -99,24 +99,24 @@ await p.evaluate(() => clearInterval(window.__shake));
 {
 // окно настроек, открытое шагом выше, модальное — закрыть
 if (await p.locator("[data-settings-close]").count()) { await p.locator("[data-settings-close]").click(); await settle(); }
-// 5в. ДЖОЙСТИК: палец на пустом сукне — ходьба. Вперёд — к столу (стол крупнее); сильнее тянешь — быстрее;
-// дальше от стула — тяжелее, и сверху подсказка, сколько ещё можно; тап по компасу — «Выровнять».
+// 5в. ДЖОЙСТИК — НА КОМПАСЕ: повёл палец от компаса — ходьба. Вперёд — к столу (стол крупнее); сильнее тянешь —
+// быстрее; дальше от стула — тяжелее, и сверху подсказка, сколько ещё можно; тап по компасу — «Выровнять».
+// Пустое сукно — хват: взятая точка идёт за пальцем.
 await orient(0, 50);
 await settle();
 const recenter = async () => { await p.locator("[data-home]").click(); await settle(); };
 await recenter(); // от выровненного: у своего стула, исходный размер
 const home = await spots();
-const emptyFelt = async () => {
-  for (const [dx, dy] of [[0, -70], [60, -40], [-60, -40], [0, 60], [90, 0], [-90, 0]]) {
-    const x = home.middle.x + dx, y = home.middle.y + dy;
-    await p.mouse.move(x, y); await p.mouse.down(); await p.waitForTimeout(60);
-    if ((await p.locator("[data-ar-stick]").count()) === 1) return { x, y };
-    await p.mouse.up(); await p.waitForTimeout(100);
-  }
+const fromCompass = async () => {
+  const c = await compass();
+  await p.mouse.move(c.x, c.y); await p.mouse.down();
+  await p.mouse.move(c.x, c.y - 8); await p.waitForTimeout(60);
+  if ((await p.locator("[data-ar-stick]").count()) === 1) return c;
+  await p.mouse.up(); await p.waitForTimeout(100);
   return null;
 };
 const walkFor = async (pull, ms) => {
-  const at = await emptyFelt();
+  const at = await fromCompass();
   if (!at) return null;
   await p.mouse.move(at.x, at.y - pull, { steps: 4 });
   await p.waitForTimeout(ms);
@@ -125,14 +125,15 @@ const walkFor = async (pull, ms) => {
   return (await spots()).k;
 };
 const kSoft = await walkFor(20, 600);
-check("палец на пустом сукне — джойстик", kSoft !== null);
+check("повёл палец от компаса — джойстик, середина в компасе", kSoft !== null && kSoft > home.k, kSoft);
+check("…и AR не выключился удержанием", await floor());
 const kSoftGain = kSoft - home.k;
 await recenter();
 const kHard = await walkFor(70, 600);
 check("потянул сильнее — прошёл дальше за то же время", kHard - home.k > kSoftGain * 2, `${(home.k).toFixed(1)} → слабо ${kSoft?.toFixed(1)}, сильно ${kHard?.toFixed(1)}`);
 // далеко: тянем сильно и долго — подсказка появляется и доходит до нуля, стол встаёт
 await recenter();
-const at = await emptyFelt();
+const at = (await fromCompass()) ?? (await compass());
 await p.mouse.move(at.x, at.y - 100, { steps: 4 });
 await p.waitForTimeout(700);
 const early = await p.locator("[data-ar-hint]").evaluate((e) => ({ on: getComputedStyle(e).opacity === "1", text: e.textContent }));
@@ -145,6 +146,15 @@ await p.mouse.up(); await settle();
 check("ушёл за полметра — сверху «дальше можно ещё …»", early.on && /дальше можно ещё \d/.test(early.text), early.text);
 check("у предела — «ещё 0.0 м», и стол больше не приближается", /ещё 0\.0 м/.test(late) && Math.abs(k2 - k1) < 0.01, `${late}; k ${k1.toFixed(2)} → ${k2.toFixed(2)}`);
 check("отпустил — подсказка гаснет", await p.locator("[data-ar-hint]").evaluate((e) => getComputedStyle(e).opacity === "0"));
+// хват: пустое место за столом — взял и повёл вниз; стол едет за пальцем, джойстика нет
+await recenter();
+const g0 = await spots();
+await p.mouse.move(W / 2, 200); await p.mouse.down();
+await p.mouse.move(W / 2, 260, { steps: 6 }); await p.waitForTimeout(80);
+const noStick = (await p.locator("[data-ar-stick]").count()) === 0;
+await p.mouse.up(); await settle();
+const g1 = await spots();
+check("сукно: взял и повёл вниз — стол поехал за пальцем, джойстика нет", noStick && g1.middle.y - g0.middle.y > 20 && Math.abs(g1.middle.x - g0.middle.x) < 5, { noStick, y: `${g0.middle.y.toFixed(0)} → ${g1.middle.y.toFixed(0)}` });
 await recenter();
 const back = await spots();
 check("тап по компасу — «Выровнять»: стол снова перед тобой в исходном размере", Math.abs(back.middle.x - W / 2) <= 2 && Math.abs(back.middle.y - H / 2) <= 2 && Math.abs(back.k - home.k) < 0.5, { middle: back.middle, k: back.k.toFixed(1) });

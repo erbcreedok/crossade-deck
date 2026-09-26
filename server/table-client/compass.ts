@@ -19,6 +19,8 @@ export interface CompassWorld {
   toggleAr(): void;
   /** В AR: вернуться к своему стулу и поставить стол перед собой. */
   recenterAr(): void;
+  /** В AR: джойстик ходьбы с серединой `from`, палец `id` уже в `at` (`ar.ts`). */
+  walkAr(id: number, from: { x: number; y: number }, at: { x: number; y: number }): void;
   /** Слушатели окна — экранные: он их и снимет, когда уйдёт со страницы. */
   listen<K extends keyof WindowEventMap>(type: K, fn: (e: WindowEventMap[K]) => void): void;
   unlisten<K extends keyof WindowEventMap>(type: K, fn: (e: WindowEventMap[K]) => void): void;
@@ -88,8 +90,9 @@ export function tableCompass(o: CompassWorld): Compass {
    * работает прежнее: кольцо возвращает к стулу, диск кладёт стол на `LEAN_STEP`.
    *
    * КОМПАС ЖЕ — ДВЕРЬ В AR. Удержал палец на месте — AR включается; в AR удержание — выход, а тап —
-   * «Выровнять»: назад к своему стулу, стол перед собой. Кольцо и в AR крутит стол пальцем — поворот AR
-   * берёт у той же камеры.
+   * «Выровнять»: назад к своему стулу, стол перед собой. В AR весь компас — ДЖОЙСТИК ХОДЬБЫ: повело палец —
+   * середина джойстика в середине компаса, дальше палец ведёт его (`ar.ts`). Крутить и класть стол в AR
+   * незачем — это делает сам телефон.
    */
   function drag(down: PointerEvent, part: "ring" | "lean", ring: HTMLElement): void {
     const box = ring.getBoundingClientRect();
@@ -101,6 +104,15 @@ export function tableCompass(o: CompassWorld): Compass {
     const hold = setTimeout(() => { if (!moved) { held = true; o.toggleAr(); } }, AR_HOLD_MS);
     const move = (e: PointerEvent) => {
       if (e.pointerId !== down.pointerId) return;
+      if (o.ar()) {
+        if (Math.hypot(e.clientX - down.clientX, e.clientY - down.clientY) < COMPASS_SLOP) return;
+        moved = true;
+        clearTimeout(hold);
+        o.unlisten("pointermove", move);
+        o.unlisten("pointerup", up);
+        o.unlisten("pointercancel", up);
+        return o.walkAr(e.pointerId, mid, { x: e.clientX, y: e.clientY });
+      }
       const turned = shortWay(aimAt(e), from.aim);
       // Порог у кольца меряется по дуге под пальцем, а не в градусах: кольцо маленькое, и градус на нём — доли пикселя.
       const far = part === "ring" ? Math.abs((turned * Math.PI * box.width) / 360) : Math.abs(e.clientY - from.y);

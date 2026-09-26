@@ -11,7 +11,7 @@
 // датчик молчит, поверх стола висит кнопка «Включить наклон».
 
 import { arLens, deviceQuat, placeAtGaze, type ArLens, type ArPlace, type Quat } from "./arLens.js";
-import { leftToGo, walkStep } from "./arWalk.js";
+import { leftToGo, walkStep, WALK } from "./arWalk.js";
 import { R, RIM } from "./felt.js";
 
 /** Вертикальный обзор: телефонный экран в портрете. */
@@ -49,8 +49,10 @@ export interface ArRig {
   place(): void;
   /** ВЫРОВНЯТЬ: вернуться к своему стулу и поставить стол перед собой. */
   recenter(): void;
-  /** Палец лёг на пустое сукно — джойстик ходьбы под ним, пока палец не поднят. */
-  stick(down: PointerEvent): void;
+  /** Джойстик ходьбы с серединой `from` (компас), палец `id` уже в `at`; живёт, пока палец не поднят. */
+  stick(id: number, from: { x: number; y: number }, at: { x: number; y: number }): void;
+  /** Палец лёг на пустое сукно — хват: точка стола под пальцем идёт за ним, пока палец не поднят. */
+  grab(down: PointerEvent): void;
   dispose(): void;
 }
 
@@ -155,9 +157,10 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     axis.setAttribute("d", d0);
   };
 
-  // ── ходьба: джойстик и подсказка ───────────────────────────────────────────────────────────────
-  // Джойстик ПЛАВАЮЩИЙ: появляется там, где палец лёг на пустое сукно, и уходит с пальцем — постоянного
-  // кружка на экране нет. Второй палец — это щипок или поворот: ходьба прекращается и отдаёт жест камере.
+  // ── ходьба: джойстик, хват и подсказка ─────────────────────────────────────────────────────────
+  // Джойстик — НА КОМПАСЕ (`compass.ts`): повёл палец от компаса — кольцо встаёт вокруг него, ручка идёт
+  // за пальцем. Пустое сукно — ХВАТ: взятая точка стола остаётся под пальцем, глаз едет по полу вместо неё.
+  // Второй палец — это щипок или поворот: ходьба и хват прекращаются и отдают жест камере.
   const hint = document.createElement("div");
   hint.dataset.arHint = "";
   hint.style.cssText = "position:fixed;left:50%;top:calc(76px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));"
@@ -190,30 +193,61 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     changed();
     requestAnimationFrame(stepWalk);
   };
-  const stick = (down: PointerEvent): void => {
+  const stick = (id: number, from: { x: number; y: number }, at: { x: number; y: number }): void => {
     stopWalk();
+    grabbing = null;
     const ring = document.createElement("div");
     ring.dataset.arStick = "";
     const size = STICK_R * 2;
-    ring.style.cssText = `position:fixed;left:${down.clientX - STICK_R}px;top:${down.clientY - STICK_R}px;width:${size}px;height:${size}px;border-radius:50%;`
-      + "z-index:43;pointer-events:none;box-shadow:inset 0 0 0 2px rgba(245,234,208,.45);background:rgba(11,7,4,.18)";
+    // Над компасом: ручка стартует из его середины и должна быть видна поверх.
+    ring.style.cssText = `position:fixed;left:${from.x - STICK_R}px;top:${from.y - STICK_R}px;width:${size}px;height:${size}px;border-radius:50%;`
+      + "z-index:46;pointer-events:none;box-shadow:inset 0 0 0 2px rgba(245,234,208,.45);background:rgba(11,7,4,.18)";
     const knob = document.createElement("div");
     knob.style.cssText = `position:absolute;left:${STICK_R - 22}px;top:${STICK_R - 22}px;width:44px;height:44px;border-radius:50%;`
       + "background:linear-gradient(#f8d885,#b08a26);box-shadow:inset 0 0 0 2px #0b0704";
     ring.append(knob);
     document.body.append(ring);
-    walking = { id: down.pointerId, x0: down.clientX, y0: down.clientY, x: down.clientX, y: down.clientY, at: performance.now(), ring, knob };
+    walking = { id, x0: from.x, y0: from.y, x: from.x, y: from.y, at: performance.now(), ring, knob };
+    moveKnob(at.x, at.y);
     requestAnimationFrame(stepWalk);
   };
-  const onMove = (e: PointerEvent): void => {
-    if (!walking || e.pointerId !== walking.id) return;
-    walking.x = e.clientX;
-    walking.y = e.clientY;
-    const dx = e.clientX - walking.x0, dy = e.clientY - walking.y0, len = Math.hypot(dx, dy), k = len > STICK_R ? STICK_R / len : 1;
+  /** Хват: точка стола под пальцем в миг касания; глаз двигается так, чтобы она оставалась под ним. */
+  let grabbing: { id: number; desk: { x: number; y: number } } | null = null;
+  let seenLens: ArLens | null = null;
+  let metre = 1;
+  const grab = (down: PointerEvent): void => {
+    if (!seenLens) return;
+    stopWalk();
+    grabbing = { id: down.pointerId, desk: seenLens.toDesk({ x: down.clientX, y: down.clientY }) };
+  };
+  const dragGrab = (e: PointerEvent): void => {
+    if (!grabbing || !seenLens || e.pointerId !== grabbing.id) return;
+    const want = seenLens.toWorld(grabbing.desk), got = seenLens.toWorld(seenLens.toDesk({ x: e.clientX, y: e.clientY }));
+    let x = walk.x + (want[0] - got[0]) / metre, z = walk.z + (want[2] - got[2]) / metre;
+    const d = Math.hypot(x, z);
+    if (d > WALK.MAX) { x = (x / d) * WALK.MAX; z = (z / d) * WALK.MAX; }
+    walk = { x, z };
+    changed();
+  };
+  const moveKnob = (x: number, y: number): void => {
+    if (!walking) return;
+    walking.x = x;
+    walking.y = y;
+    const dx = x - walking.x0, dy = y - walking.y0, len = Math.hypot(dx, dy), k = len > STICK_R ? STICK_R / len : 1;
     walking.knob.style.transform = `translate(${dx * k}px,${dy * k}px)`;
   };
-  const onUp = (e: PointerEvent): void => { if (walking && e.pointerId === walking.id) stopWalk(); };
-  const onSecond = (e: PointerEvent): void => { if (walking && e.pointerId !== walking.id) stopWalk(); };
+  const onMove = (e: PointerEvent): void => {
+    if (walking && e.pointerId === walking.id) moveKnob(e.clientX, e.clientY);
+    dragGrab(e);
+  };
+  const onUp = (e: PointerEvent): void => {
+    if (walking && e.pointerId === walking.id) stopWalk();
+    if (grabbing && e.pointerId === grabbing.id) grabbing = null;
+  };
+  const onSecond = (e: PointerEvent): void => {
+    if (walking && e.pointerId !== walking.id) stopWalk();
+    if (grabbing && e.pointerId !== grabbing.id) grabbing = null;
+  };
   addEventListener("pointermove", onMove);
   addEventListener("pointerup", onUp);
   addEventListener("pointercancel", onUp);
@@ -229,18 +263,21 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   return {
     lens(frame, turn, zoom) {
       // Условный метр — радиус стола в мире при нынешнем зуме: подошёл к большому столу — прошёл больше.
-      const metre = (R + RIM) * UNIT * zoom;
+      metre = (R + RIM) * UNIT * zoom;
       const l = arLens({ q, fov: FOV, pos: [walk.x * metre, 0, walk.z * metre] }, placed, turn, zoom, frame);
       drawFloor(l);
+      seenLens = l;
       return l;
     },
     place,
     recenter() {
       stopWalk();
+      grabbing = null;
       walk = { x: 0, z: 0 };
       place();
     },
     stick,
+    grab,
     dispose() { for (const fn of off.splice(0)) fn(); },
   };
 }
