@@ -75,6 +75,30 @@ describe("TableRoom", () => {
     expect(чужому, "соседу эхо не приходит").toBe(false);
   });
 
+  it("хвост журнала хранит ход таким, каким его видели ТОГДА: закрытая потом карта не теряет лица", async () => {
+    const room = mintRoom(SECRET);
+    const a = await sit(room, { door: "guest", name: "Аня" });
+    const top = a.welcome.snapshot.piles[0]!.cards.at(-1)!.id;
+    // Шаг за шагом, как палец: пачку намерений разом стол режет ограничителем частоты. Карта с колоды
+    // ложится рубашкой, первый переворот её ОТКРЫВАЕТ всем, второй — закрывает снова.
+    for (const intent of [
+      { t: "grab", id: top },
+      { t: "drop", id: top, to: { in: "felt", x: 1, y: 1, up: false, angle: 0 } },
+      { t: "grab", id: top },
+      { t: "turn", id: top },
+      { t: "turn", id: top },
+      { t: "release", id: top },
+    ]) {
+      a.client.send(MSG.intent, intent);
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    const b = await sit(room, { door: "guest", name: "Боря" });
+    expect(b.welcome.snapshot.felt.find((f) => f.id === top), "стол сейчас — рубашкой").toMatchObject({ up: false });
+    const открыл = b.welcome.recent.find((one) => one.op.t === "turn" && one.op.up === true);
+    expect(открыл, "в журнале есть «открыл»").toBeDefined();
+    expect((открыл!.op as { card: { face?: unknown } }).card.face, "и в нём лицо, как его видели все").toBeDefined();
+  });
+
   it("пульс: сервер сам называет версию стола, и она та же, что у снимка", async () => {
     const room = mintRoom(SECRET);
     const a = await sit(room, { door: "guest", name: "Аня" });

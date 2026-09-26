@@ -125,7 +125,11 @@ export class TableRoom extends Room {
    *
    * `seen` — что видел КАЖДЫЙ из сидевших в тот миг: журнал не должен беднеть задним числом.
    */
-  private recent: { at: number; op: Op; seen: Record<string, Op> }[] = [];
+  /**
+   * `cut` — `op` уже прорезан ОБЩИМ видом на тот миг (что видел любой за столом). У записей без неё
+   * `op` — правда сервера, и её режут при выдаче.
+   */
+  private recent: { at: number; op: Op; seen: Record<string, Op>; cut?: true }[] = [];
   /**
    * БОТЫ ЗА СТОЛОМ. Мозг у каждого свой экземпляр: упадёт один — остальные играют. Характер
    * закреплён за ключом бота, поэтому переживает перезапуск, не будучи записанным в слепок.
@@ -176,7 +180,7 @@ export class TableRoom extends Room {
     const json = keptStateOf(this.room);
     if (json === null) return null;
     try {
-      const kept = JSON.parse(json) as { table: TableDump; match?: unknown; recent?: { at: number; op: Op; seen: Record<string, Op> }[] };
+      const kept = JSON.parse(json) as { table: TableDump; match?: unknown; recent?: { at: number; op: Op; seen: Record<string, Op>; cut?: true }[] };
       const table = Table.restore(kept.table, creatorOf(this.room), deskOf(kindOf(this.room), () => this.judgeView()));
       this.referee?.load(kept.match ?? null);
       this.recent = Array.isArray(kept.recent) ? kept.recent.slice(-RECENT_KEEP) : [];
@@ -220,7 +224,7 @@ export class TableRoom extends Room {
 
   /** Стол целиком глазами этого человека — при входе и когда у него разошлись версии (`sync`). */
   private welcomeFor(me: Person): Welcome {
-    return { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), recent: this.recent.map(({ at, op, seen }) => ({ at, op: seen[me.key] ?? this.table.seenOp(op, me.key) })), crew: [...crewOf(crewKind(this.room)).acts], deals: [...(deskOf(kindOf(this.room)).deals ?? (Object.keys(DEAL_PRESETS) as DealRule[]))], desk: kindOf(this.room), ice: iceServers() };
+    return { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), recent: this.recent.map(({ at, op, seen, cut }) => ({ at, op: seen[me.key] ?? (cut ? op : this.table.seenOp(op, me.key)) })), crew: [...crewOf(crewKind(this.room)).acts], deals: [...(deskOf(kindOf(this.room)).deals ?? (Object.keys(DEAL_PRESETS) as DealRule[]))], desk: kindOf(this.room), ice: iceServers() };
   }
 
   private personOf(session: string): Person | undefined {
@@ -1392,14 +1396,20 @@ export class TableRoom extends Room {
       // ЗАПОМИНАЕТСЯ ТОЛЬКО ТО, ЧТО ОТЛИЧАЕТСЯ. Почти всегда операция для зрителя та же, что и
       // общая: карта легла лицом вверх, стул сменил флаг, человек вышел. Хранить её копию на
       // каждого — значит умножать хвост на число сидящих, а весит он и без того немало.
-      const общий = JSON.stringify(this.table.seenOp(op, ""));
+      //
+      // А ОБЩИЙ ВИД ХРАНИТСЯ ТАКИМ, КАКИМ БЫЛ В ТОТ МИГ. Досчитывать его при выдаче по нынешнему столу
+      // нельзя: карта, лёгшая в круг лицом, потом уходит в скрытую руку крупье, и строка «положил 9♣»
+      // у самого положившего после обновления становилась рубашкой. Больше, чем было открыто всем
+      // тогда, общий вид не показывает никому — поэтому он годится и тем, кого тогда не было.
+      const общий = this.table.seenOp(op, "");
+      const общийТекст = JSON.stringify(общий);
       for (const client of this.clients) {
         const key = this.seats.get(client.sessionId);
         if (key === undefined || seen[key] !== undefined) continue;
         const свой = this.table.seenOp(op, key);
-        if (JSON.stringify(свой) !== общий) seen[key] = свой;
+        if (JSON.stringify(свой) !== общийТекст) seen[key] = свой;
       }
-      this.recent.push({ at: now, op, seen: { ...seen } });
+      this.recent.push({ at: now, op: общий, seen: { ...seen }, cut: true });
       for (const key of Object.keys(seen)) delete seen[key];
     }
     if (this.recent.length > RECENT_KEEP) this.recent = this.recent.slice(-RECENT_KEEP);
