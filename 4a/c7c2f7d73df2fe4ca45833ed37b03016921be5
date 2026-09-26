@@ -1,0 +1,42 @@
+design/ar/seat.test.mjs
+  s_9ed0da107cbc4a::t_40aed07c894062 1-8,10-63
+  s_9ed0da107cbc4a::t_bb181660863157 9
+design/ar/fuse.js
+  s_e1c4165d82711d::t_4f233976e0c948 8-9,16-17,29-31,73-86,138,141,153,160-162,164-165,167-168,170-172
+  s_9ed0da107cbc4a::t_a9f8aa18b7295a 18-21,148,178-179
+design/ar/fuse.test.mjs
+  s_e1c4165d82711d::t_4f233976e0c948 3,15,17,22-23,53,89-110,113-120,123,133,168,170,178
+  s_9ed0da107cbc4a::t_a62163973034c3 166-167,169,171-177
+design/ar/seat.js
+  s_9ed0da107cbc4a::t_9ad29c65e83d20 1-21,23-101
+  s_9ed0da107cbc4a::t_f51f6f2ad90b07 22
+design/ar/app.js
+  s_e1c4165d82711d::t_6b4ac98ce495b9 635
+  s_9ed0da107cbc4a::t_4e7b1a245ac2ff 9-12,25-26,62-64,69-71,87,92,114-123,218-220,237,259-260,340-341,375-376,398-400,486,492,501-550,591-593,629-634,636-637,640-643,645,650,653,658-664
+design/ar/check.mjs
+  s_9ed0da107cbc4a::t_73e0637baea0c7 249-253,255-258,260,262-335
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4ac7c2f7d73df2fe4ca45833ed37b03016921be5",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
