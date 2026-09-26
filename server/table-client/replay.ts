@@ -13,6 +13,8 @@ import type { Person } from "../src/table/contract.js";
 import { mountScreen } from "./screen.js";
 import type { SeenView } from "./watch.js";
 import { replayStore, type Told } from "./replayStore.js";
+import { cardText, describe, rawSeen, type LogLine } from "./replayLog.js";
+import type { Face } from "../src/table/contract.js";
 import { HOST } from "./host.js";
 
 const params = new URLSearchParams(location.search);
@@ -31,13 +33,15 @@ const say = (text: string): void => {
 /** Плохое — то, ради чего запись и смотрят. */
 const HURT = new Set(["refused", "press.idle", "boom", "open.failed", "voice.silent"]);
 
-/** Событие одной строкой — так же, как его читает разбор в терминале. */
-function lineOf(deed: Told, t0: number): string {
-  const sec = ((deed.at - t0) / 1000).toFixed(1);
-  const who = deed.who ?? "—";
-  const what = deed.what === undefined ? "" : deed.kind === "patch" ? `${(deed.what as { ops?: unknown[] }).ops?.length ?? 0} изменений` : JSON.stringify(deed.what).slice(0, 120);
-  return `${sec}с  ${deed.side === "table" ? "стол " : "экран"}  ${who}  ${deed.kind}  ${what}`;
-}
+const esc = (text: string): string => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+/** Карта значком: лицо в цвете масти или рубашка. */
+const cardHtml = (face: Face | null): string =>
+  `<span class="card${face === null ? " back" : face.suit === "h" || face.suit === "d" || face.suit === "r" ? " red" : ""}">${esc(cardText(face))}</span>`;
+
+/** Строка события: кто — что — какие карты. */
+const lineHtml = (line: LogLine): string =>
+  `${line.who ? `<span class="who">${esc(line.who)}</span> ` : ""}<span${line.known ? "" : ' class="unknown"'}>${esc(line.says)}</span>${line.cards.length ? ` ${line.cards.map(cardHtml).join(" ")}` : ""}`;
 
 async function start(): Promise<void> {
   const room = params.get("room");
@@ -121,6 +125,9 @@ async function start(): Promise<void> {
     stage.appendChild(warn);
   }
   const t0 = deeds[0]!.at;
+  const nameOf = (key: string): string => players.get(key) ?? replay.store.state.people.find((p) => p.key === key)?.name ?? (key.startsWith("bot:") ? "бот" : key);
+  /** Событие мгновения глазами выбранного зрителя: лица режутся по его месту за столом. */
+  const linesAt = (i: number): LogLine[] => describe(replay.moments[i]!.deed, replay.store.state, me.key, nameOf);
   bar.max = String(replay.moments.length - 1);
 
   // ВЗГЛЯД ЧЕЛОВЕКА. Камера едет по записи так же, как ехала у него: берётся последнее, что он
@@ -147,8 +154,43 @@ async function start(): Promise<void> {
     lookAsHe(replay.at);
     bar.value = String(replay.at);
     nowText.textContent = `${((moment.at - t0) / 1000).toFixed(1)}с   ${replay.at + 1} / ${replay.moments.length}`;
-    deedText.textContent = lineOf(moment.deed, t0);
+    const lines = linesAt(replay.at);
+    deedText.innerHTML = lines.map(lineHtml).join(" · ");
     deedText.className = HURT.has(moment.deed.kind) ? "hurt" : "";
+    if (!sheet.hidden) fillSheet(lines);
+  };
+
+  // ПОДРОБНОСТИ МГНОВЕНИЯ — лист снизу. Сверху словами, ниже, свёрнуто, — техническое: вид события,
+  // сторона, номер и сырое содержимое. Сырое — ради разбора, а не для чтения, поэтому спрятано.
+  const sheet = document.getElementById("sheet")!;
+  const sheetTitle = document.getElementById("sheetTitle")!;
+  const sheetBody = document.getElementById("sheetBody")!;
+  let techOpen = false;
+  const fillSheet = (lines: LogLine[]): void => {
+    const d = replay.moments[replay.at]!.deed;
+    sheetTitle.textContent = `${((d.at - t0) / 1000).toFixed(1)} с · ${replay.at + 1} из ${replay.moments.length} · глазами ${players.get(me.key) ?? me.name}`;
+    const raw = JSON.stringify(rawSeen(d, replay.store.state, me.key), null, 2) ?? "";
+    sheetBody.innerHTML = lines.map((line) => `<div class="line">${lineHtml(line)}</div>`).join("")
+      + `<details id="tech"${techOpen ? " open" : ""}><summary>Технические подробности</summary>`
+      + `<dl><dt>вид</dt><dd>${esc(d.kind)}</dd><dt>откуда</dt><dd>${d.side === "table" ? "стол" : "экран игрока"}</dd><dt>номер</dt><dd>${d.id}</dd><dt>кто</dt><dd>${esc(d.who ?? "—")}</dd></dl>`
+      + `<pre>${esc(raw)}</pre></details>`;
+    (sheetBody.querySelector("#tech") as HTMLDetailsElement).ontoggle = (e) => void (techOpen = (e.target as HTMLDetailsElement).open);
+  };
+  const openSheet = (): void => {
+    sheet.hidden = false;
+    fillSheet(linesAt(replay.at));
+    document.getElementById("sheetClose")!.focus();
+  };
+  const closeSheet = (): void => {
+    sheet.hidden = true;
+    document.getElementById("more")!.focus();
+  };
+  document.getElementById("more")!.onclick = openSheet;
+  document.getElementById("sheetClose")!.onclick = closeSheet;
+  document.getElementById("sheetBack")!.onclick = () => replay.seek(replay.at - 1);
+  document.getElementById("sheetFwd")!.onclick = () => replay.seek(replay.at + 1);
+  sheet.onclick = (e) => {
+    if (e.target === sheet) closeSheet();
   };
   // Взгляд меняет ВСЁ: чья рука своя, чьи карты видно, чьи права. Проще открыть запись заново тем же
   // мгновением, чем пересобирать экран на ходу.
@@ -188,6 +230,7 @@ async function start(): Promise<void> {
   };
 
   addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !sheet.hidden) return closeSheet();
     if (e.key === "ArrowRight") replay.seek(replay.at + 1);
     if (e.key === "ArrowLeft") replay.seek(replay.at - 1);
     if (e.key === " ") {
