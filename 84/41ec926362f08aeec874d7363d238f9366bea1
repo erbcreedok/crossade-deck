@@ -1,0 +1,35 @@
+server/scripts/tableReplayClock.mjs
+  s_9ed0da107cbc4a::t_cb8b45ebf43541 77
+server/scripts/tableReplayControls.mjs
+  s_9ed0da107cbc4a::t_82d0673287fafd 1-160
+server/table-client/replay.html
+  s_9ed0da107cbc4a::t_bc62ab2f48d31f 8,10-16,19-35,39,53-58,77-85,89,92,106-114
+server/table-client/replay.ts
+  s_9ed0da107cbc4a::t_13987e14fa0861 16,20,101-110,123-125,127,155-184,186-195,274-317,320-327,380
+server/table-client/replayMarks.test.ts
+  s_9ed0da107cbc4a::t_74597398bd4c6b 1-87
+server/table-client/replayMarks.ts
+  s_9ed0da107cbc4a::t_a77762338c1e57 1-109
+server/table-client/replayStore.ts
+  s_9ed0da107cbc4a::t_48fecfc9986fb9 44-45,216
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_56ce45d3378aa7 50-55,86-94,355-364,2634,4293-4305,4376-4389,4411-4417,4420-4422,4426,4428-4429
+server/table-client/watch.ts
+  s_9ed0da107cbc4a::t_7e1937990913da 103-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8441ec926362f08aeec874d7363d238f9366bea1",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
