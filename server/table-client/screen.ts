@@ -2872,7 +2872,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // ОТСТУПЫ СИММЕТРИЧНЫ, и это не вкусовщина: слева две кнопки по 40, справа компас на 52, и имя,
     // центрованное по остатку, уезжало вбок. Центр плашки должен быть центром ЭКРАНА, а не центром
     // того, что осталось между кнопками.
-    const name = `<div data-table-name style="position:absolute;left:${RIM_LEFT + 96}px;right:108px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));height:40px;z-index:60;`
+    // ИМЯ — ПО ЦЕНТРУ ЭКРАНА: поля с обеих сторон одинаковые, по большему из двух (кнопки слева, компас справа).
+    const aside = Math.max(RIM_LEFT + 96, 108);
+    const name = `<div data-table-name style="position:absolute;left:${aside}px;right:${aside}px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));height:40px;z-index:60;`
       + `display:flex;align-items:center;justify-content:center;pointer-events:none"><span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`
       + `padding:0 12px;border-radius:12px;font:400 13px Tiny5,monospace;color:${T.ink};line-height:28px;${plate}">${escape(store.title)}</span></div>`;
     return gear + book + name;

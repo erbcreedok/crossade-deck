@@ -36,7 +36,8 @@ const again = await open(chat, "Чат пиццы");
 check("закрыли [2] — номер снова свободен", again.title === "[2] Песочница. Чат пиццы", again.title);
 
 const nameless = await open(`${chat}-inline`, undefined);
-check("без названия чата — имя похода", /^Песочница\. [^ ]+ [^ ]+$/.test(nameless.title), nameless.title);
+// Имён походов всего 16×16, и на долго живущем сервере такое уже может быть занято — тогда законный номер.
+check("без названия чата — имя похода", /^(\[\d+\] )?Песочница\. [^ ]+ [^ ]+$/.test(nameless.title), nameless.title);
 
 const renamed = await api("PATCH", `/table/rooms/${three.room}`, { title: "Песочница. Чат пиццы" });
 check("переименование в занятое имя — тоже с номером", renamed.title === "[3] Песочница. Чат пиццы", renamed.title);

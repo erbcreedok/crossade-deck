@@ -112,7 +112,7 @@ await setVolume(43);
 check("ползунок — ступенями по 10", (await A.$eval('[data-volume="table"]', (el) => el.value)) === "40");
 await shut(A);
 await heard(A);
-await drag(A, (await spots(A)).deckTop, { x: middle.x - 3 * k, y: middle.y - 1.5 * k });
+await drag(A, (await spots(A)).deckTop, { x: middle.x + 3 * k, y: middle.y - 1.5 * k });
 await A.waitForTimeout(900);
 let a = await heard(A);
 check("свой дроп при громкости 40 — 0.4", a.some((s) => s.kind === "drop" && s.gain === 0.4), a);
