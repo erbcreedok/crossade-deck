@@ -1,0 +1,41 @@
+server/table-client/sling.test.ts
+  s_9ed0da107cbc4a::t_386151a7fb5933 1-61
+server/table-client/sling.ts
+  s_9ed0da107cbc4a::t_65f33366162831 1-53
+server/scripts/tableSling.mjs
+  s_9ed0da107cbc4a::t_3e71aa01a9c9a0 1-113
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_6003719926829c 361-365,440-441
+server/src/table/cues.test.ts
+  s_9ed0da107cbc4a::t_88ccb527846797 86-108
+server/src/table/cues.ts
+  s_9ed0da107cbc4a::t_b429cee1579351 9-13,54-60,66-69
+server/src/table/intent.ts
+  s_9ed0da107cbc4a::t_dc980d689a72d3 86
+server/src/table/table.ts
+  s_9ed0da107cbc4a::t_82ce30d3af5bc8 599,898-899,941,953-954,1026,1029-1034
+server/src/table/throw.test.ts
+  s_9ed0da107cbc4a::t_7d9016acdb7169 1-73
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_4b387dd521eb51 45-46,271-277,1930-1970,2617,2629-2631,2748-2751,2753-2754,3082-3084,3117-3167,3522-3540,3550-3564,3629-3632,3638
+server/table-client/screenConst.ts
+  s_9ed0da107cbc4a::t_1aa8720b9deae2 159,167-178,211-215
+server/table-client/sound.ts
+  s_9ed0da107cbc4a::t_15857c5f317725 16-22,206-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4efd8a96f93a375ba1b10714191bf37266606330",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
