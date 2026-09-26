@@ -1110,6 +1110,28 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * ЩЕЛИ В РУКЕ СТУЛА — под мою карту в воздухе и под чужие, которые держат над этой рукой. Их видят все,
    * у кого эта рука на экране: хозяин внизу, остальные — в окне стула.
    */
+  /**
+   * НЕСУ СВОЮ КАРТУ ИЗ СВОЕЙ РУКИ — её место в руке (иначе −1). Пока она целится в ту же руку, на старом месте
+   * контура нет: место, куда она встанет, показывает щель, и двух контуров разом не бывает. Несут на стол или
+   * натянута рогатка — контур на старом месте стоит, как у любой карты в воздухе.
+   */
+  function ownHeld(s: Snapshot): number {
+    if (!drag || drag.mass || drag.from.in !== "hand" || drag.from.chair !== mine(s)) return -1;
+    return handOf(s, mine(s)).findIndex((c) => c.id === drag!.card.id);
+  }
+  /** Своя рука, как её рисовать: при перестановке — без несомой карты, щель цели — в том же счёте. */
+  function ownHand(s: Snapshot): { cards: SeenCard[]; gaps: Gap[] } {
+    const all = handOf(s, mine(s));
+    const gaps = gapsIn(s, mine(s));
+    const held = ownHeld(s);
+    const aim = aiming();
+    if (held < 0 || aim?.kind !== "hand" || aim.which !== mine(s)) return { cards: all, gaps };
+    return {
+      cards: all.filter((_, i) => i !== held),
+      gaps: gaps.map((g) => (g.carry === undefined && g.index > held ? { ...g, index: g.index - 1 } : g)),
+    };
+  }
+
   function gapsIn(s: Snapshot, chair: string): Gap[] {
     const out: Gap[] = [];
     const aim = aiming();
@@ -1182,13 +1204,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   function hudHtml(s: Snapshot): string {
     // ОТКРЫТ ДИАЛОГ — вместо бара клавиатура, а рука стоит над ней (`handGlass`): карты не прячутся.
     if (talk.open) {
-      const cards = handOf(s, mine(s)), gaps = gapsIn(s, mine(s));
+      const { cards, gaps } = ownHand(s);
       return layHand(mineGeom(cards.length + gaps.length), cards, gaps, mine(s), heldInk(s));
     }
     if (local.reseat) return reseatHudHtml();
     const g = glass();
-    const cards = handOf(s, mine(s));
-    const gaps = gapsIn(s, mine(s));
+    const { cards, gaps } = ownHand(s);
     const aim = aiming();
     const mark = aim?.kind === "hand" && aim.which === mine(s) ? aim.index : null;
     const geom = mineGeom(cards.length + gaps.length);
@@ -3566,11 +3587,17 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         return { kind: "hand", which: key, index: poseOf(s, key).shrink ? room : slotAt(geom, x, room) };
       }
     }
-    const room = handOf(s, mine(s)).length;
+    // ПЕРЕСТАНОВКА В СВОЕЙ РУКЕ — несомой карты среди мест нет (`ownHeld`): место ищется среди остальных,
+    // а наружу индекс уходит в прежнем счёте — с ней на её месте, как его ждёт стол.
+    const held = ownHeld(s);
+    const room = handOf(s, mine(s)).length - (held >= 0 ? 1 : 0);
     const geom = mineGeom(room + 1);
     // Рука принимает ровно там, где горит её зона: верх карт и поле над ними (`handZoneHtml`).
     const top = geom.slots.reduce((m, sl) => Math.min(m, sl.y - geom.h / 2), Infinity) - geom.h * 0.12;
-    if (y >= top && x >= 0 && x <= glass().w) return { kind: "hand", which: mine(s), index: poseOf(s, mine(s)).shrink ? room : slotAt(geom, x, room) };
+    if (y >= top && x >= 0 && x <= glass().w) {
+      const at = poseOf(s, mine(s)).shrink ? room : slotAt(geom, x, room);
+      return { kind: "hand", which: mine(s), index: held >= 0 && at > held ? at + 1 : at };
+    }
     // В СТОПКУ — если середина несомой карты над её зоной. Раньше стула: колода, придвинутая к стулу, лежит
     // перед ним, и целятся в неё. Одиночная карта на сукне карту не принимает.
     const d = drag;

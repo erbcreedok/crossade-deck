@@ -34,6 +34,34 @@ const drag = async (dx, dy) => {
   await p.mouse.move(h.x + dx, h.y + dy, { steps: 8 }); await p.mouse.up(); await settle();
 };
 
+// 0. ПЕРЕСТАНОВКА — ОДИН КОНТУР: куда встанет. На старом месте контура нет, пока карта целится в свою руку;
+// понёс на стол — контур на старом месте есть (карта вернётся туда, если передумать).
+{
+  const me = await p.evaluate(() => JSON.parse(document.querySelector("canvas").dataset.spots).seats.find((x) => x.who === "Ye").key);
+  const ids = () => p.evaluate((o) => [...document.querySelectorAll(`[data-card][data-owner="${o}"]`)].sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).map((e) => e.dataset.card), me);
+  // Контуры мест в руке — без контура места на сукне (у него свой `data-felt-mark`).
+  const marks = () => p.evaluate(() => document.querySelectorAll('[data-g="mark"]:not([data-felt-mark])').length);
+  const order0 = await ids();
+  const first = await p.locator(`[data-card="${order0[0]}"]`).boundingBox();
+  const last = await p.locator(`[data-card="${order0.at(-1)}"]`).boundingBox();
+  await p.mouse.move(first.x + first.width / 2, first.y + first.height / 2); await p.mouse.down();
+  await p.mouse.move(first.x + first.width / 2 + 20, first.y + first.height / 2 - 8, { steps: 5 }); await settle();
+  check("взял карту и веду по руке — один контур", (await marks()) === 1, await marks());
+  await p.mouse.move(Math.min(W - 8, last.x + last.width * 0.9), last.y + last.height / 2 - 8, { steps: 10 }); await settle();
+  check("довёл до края руки — всё так же один", (await marks()) === 1, await marks());
+  await p.mouse.up(); await p.waitForTimeout(700);
+  const order1 = await ids();
+  check("перестановка: карта встала в конец, остальные по порядку", order1.at(-1) === order0[0] && order1.slice(0, -1).join() === order0.slice(1).join(), { order0, order1 });
+  const c2 = await p.locator(`[data-card="${order1[1]}"]`).boundingBox();
+  await p.mouse.move(c2.x + c2.width / 2, c2.y + c2.height / 2); await p.mouse.down();
+  await p.mouse.move(W / 2, 330, { steps: 10 }); await settle();
+  check("понёс на стол — контур на старом месте есть", (await marks()) === 1 && (await p.locator("[data-felt-mark]").count()) === 1, await marks());
+  await p.mouse.move(c2.x + c2.width / 2, c2.y + c2.height / 2, { steps: 10 }); await settle();
+  check("вернул в руку — снова один контур, куда встанет", (await marks()) === 1, await marks());
+  await p.mouse.up(); await p.waitForTimeout(700);
+  check("отпустил на своём месте — порядок тот же", (await ids()).join() === order1.join(), await ids());
+}
+
 // 1. бар
 const secs = await p.evaluate(() => [...document.querySelectorAll('[data-g="bar"] [data-section]')].map((e) => e.dataset.section));
 check("в баре только «Стул» и «Выбор»", secs.join() === "chair,lasso", secs);
