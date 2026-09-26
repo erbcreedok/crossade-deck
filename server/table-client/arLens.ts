@@ -6,7 +6,8 @@
 //
 //   мир        — метры, Y вверх; глаз (телефон) в `eye.pos` (ноль — место у своего стула, откуда
 //                стол ставили; джойстик его двигает, `arWalk.ts`), его поворот — кватернион датчика;
-//   стол       — плоскость ниже глаза: середина в `place.at`, «ко мне» по направлению `place.yaw`;
+//   стол       — плоскость: середина в `place.at`, «ко мне» по направлению `place.yaw`. Обычно она
+//                лежит ниже глаза; с `place.q` — как угодно: на стене, под наклоном (якорь — картина);
 //   единица    — ширина карты, `place.unit` метров (щипок её растит: `zoom`);
 //   поворот    — `turn`, те же градусы, что `Camera.rotation`: свой стул — ближе всех ко мне.
 //
@@ -16,7 +17,7 @@ import type { Transform } from "../../game-kit/src/core/transform.js";
 import type { Lens } from "./lens.js";
 
 type Point = { x: number; y: number };
-type Vec = [number, number, number];
+export type Vec = [number, number, number];
 export type Quat = [number, number, number, number];
 
 export interface ArPlace {
@@ -26,6 +27,11 @@ export interface ArPlace {
   yaw: number;
   /** Метров в единице стола (ширине карты). */
   unit: number;
+  /**
+   * Поворот стола в мире: X — вправо, Y — нормаль (над сукном), Z — «ко мне». Нет — стол лежит,
+   * повёрнутый на `yaw` (это то же, что поворот на `yaw` вокруг вертикали).
+   */
+  q?: Quat;
 }
 
 export interface ArView {
@@ -40,6 +46,8 @@ export interface ArView {
 export interface ArLens extends Lens {
   /** Точка стола → стекло, или `null`, если она за спиной (для сетки пола: отрезок за глазом не рисуется). */
   project(p: Point, height?: number): Point | null;
+  /** Точка стола → мир, метры: хват за сукно двигает глаз на разницу двух таких точек. */
+  toWorld(p: Point): Vec;
   /** Для `FeltScene`: взгляд у середины стола одной аффинной матрицей, масштаб, поворот, сжатие, наклон. */
   view: Transform;
   k: number;
@@ -58,21 +66,19 @@ export function arLens(eye: ArView, place: ArPlace, turn: number, zoom: number, 
   const u = place.unit * zoom;
   const t = (turn * Math.PI) / 180;
   const cosT = Math.cos(t), sinT = Math.sin(t);
-  const right: Vec = [Math.cos(place.yaw), 0, -Math.sin(place.yaw)];
-  const toMe: Vec = [Math.sin(place.yaw), 0, Math.cos(place.yaw)];
+  const tq = place.q ?? yawQuat(place.yaw);
+  const right = rot(tq, [1, 0, 0]), up = rot(tq, [0, 1, 0]), toMe = rot(tq, [0, 0, 1]);
   const inv = conj(eye.q);
   const [ex, ey, ez] = eye.pos ?? [0, 0, 0];
+  /** Глаз над сукном (+) или под ним (−): у стола на стене «над» — это перед картиной. */
+  const side = dot([ex - place.at[0], ey - place.at[1], ez - place.at[2]], up) >= 0 ? 1 : -1;
   /** Мир → камера: сперва от глаза, потом поворот глаза. */
   const seen = (w: Vec): Vec => rot(inv, [w[0] - ex, w[1] - ey, w[2] - ez]);
 
   /** Точка стола → мир. Поворот `turn` — как `rotate()` кита: x' = cos·x − sin·y, y' = sin·x + cos·y. */
   const world = (p: Point, height = 0): Vec => {
     const x = cosT * p.x - sinT * p.y, y = sinT * p.x + cosT * p.y;
-    return [
-      place.at[0] + u * (x * right[0] + y * toMe[0]),
-      place.at[1] + u * height,
-      place.at[2] + u * (x * right[2] + y * toMe[2]),
-    ];
+    return [0, 1, 2].map((i) => place.at[i]! + u * (x * right[i]! + y * toMe[i]! + height * up[i]!)) as Vec;
   };
   const project = (p: Point, height = 0): Point | null => {
     const [x, y, z] = seen(world(p, height));
@@ -89,11 +95,13 @@ export function arLens(eye: ArView, place: ArPlace, turn: number, zoom: number, 
   };
   const toDesk = (q: Point): Point => {
     let d = rot(eye.q, [(q.x - cx) / f, -(q.y - cy) / f, -1]);
-    // Взгляд выше горизонта до стола не дотянется — берётся точка далеко впереди по тому же курсу.
-    if (d[1] > -1e-3) d = [d[0], -1e-3, d[2]];
-    const s = (place.at[1] - ey) / d[1];
-    const hit: Vec = [ex + d[0] * s - place.at[0], 0, ez + d[2] * s - place.at[2]];
-    const x = (hit[0] * right[0] + hit[2] * right[2]) / u, y = (hit[0] * toMe[0] + hit[2] * toMe[2]) / u;
+    // Взгляд мимо плоскости стола (выше горизонта у лежащего) до неё не дотянется — берётся точка
+    // далеко впереди по тому же курсу: к сукну взгляд прижимается на волосок.
+    const along = dot(d, up) * side;
+    if (along > -1e-3) d = [0, 1, 2].map((i) => d[i]! - up[i]! * side * (along + 1e-3)) as Vec;
+    const s = dot([place.at[0] - ex, place.at[1] - ey, place.at[2] - ez], up) / dot(d, up);
+    const hit: Vec = [ex + d[0] * s - place.at[0], ey + d[1] * s - place.at[1], ez + d[2] * s - place.at[2]];
+    const x = dot(hit, right) / u, y = dot(hit, toMe) / u;
     return { x: cosT * x + sinT * y, y: -sinT * x + cosT * y };
   };
   const near = (p: Point): Transform => {
@@ -112,11 +120,11 @@ export function arLens(eye: ArView, place: ArPlace, turn: number, zoom: number, 
   // Сжатие — отношение меньшего растяжения к большему (сингулярные числа 2×2).
   const s1 = a * a + b * b + c * c + d * d, s2 = Math.sqrt(Math.max(0, (a * a + b * b - c * c - d * d) ** 2 + 4 * (a * c + b * d) ** 2));
   const big = Math.sqrt((s1 + s2) / 2), small = Math.sqrt(Math.max(0, (s1 - s2) / 2));
-  // Наклон — угол между взглядом и вертикалью вниз: сверху 0, «лёг» к горизонту — больше.
+  // Наклон — угол между взглядом и нормалью стола «в сукно»: в упор 0, вдоль стола — больше.
   const look = rot(eye.q, [0, 0, -1]);
-  const lean = (Math.acos(Math.min(1, Math.max(-1, -look[1]))) * 180) / Math.PI;
+  const lean = (Math.acos(Math.min(1, Math.max(-1, -dot(look, up) * side))) * 180) / Math.PI;
   return {
-    toGlass, toDesk, near, kAt, project, view,
+    toGlass, toDesk, near, kAt, project, view, toWorld: (p) => world(p),
     k: kAt({ x: 0, y: 0 }),
     rotation: (Math.atan2(b, a) * 180) / Math.PI,
     squash: big > 0 ? small / big : 1,
@@ -152,6 +160,13 @@ export function deviceQuat(alpha: number, beta: number, gamma: number, screenAng
   const o = (-screenAngle * r) / 2;
   return mul(q, [0, 0, Math.sin(o), Math.cos(o)]);
 }
+
+/** Поворот на `yaw` вокруг вертикали: стол лёжа, «ко мне» — (sin, 0, cos). */
+export function yawQuat(yaw: number): Quat {
+  return [0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2)];
+}
+
+const dot = (a: Vec, b: Vec): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
 function mul([ax, ay, az, aw]: Quat, [bx, by, bz, bw]: Quat): Quat {
   return [ax * bw + aw * bx + ay * bz - az * by, ay * bw + aw * by + az * bx - ax * bz, az * bw + aw * bz + ax * by - ay * bx, aw * bw - ax * bx - ay * by - az * bz];
