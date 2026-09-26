@@ -76,6 +76,30 @@ await A.waitForTimeout(900);
 check("отпустил после отмены — карта осталась в руке", (await myHand()).length === before.length, [before, await myHand()]);
 check("и удара не было", (await slams(A)) === 0, await slams(A));
 
+// ── 1б. Передумал по-человечески: вернул карту ПРИМЕРНО к месту (не в пиксель) — стрелки и контура нет,
+// и отпущенная карта не улетает. Стрелка — обещание: видна — улетит, не видна — нет.
+at = await grip();
+await A.mouse.move(at.x, at.y);
+await A.mouse.down();
+await A.mouse.move(at.x, at.y + 60, { steps: 6 });
+check("снова оттянул — стрелка есть", (await sling(A)) !== null);
+await A.mouse.move(at.x + 6, at.y + 18, { steps: 6 });
+check("вернул примерно к месту — стрелки и контура нет", (await sling(A)) === null && (await A.$("[data-felt-mark], [data-g=ring-slot]")) === null, await sling(A));
+await A.mouse.up();
+await A.waitForTimeout(900);
+check("отпустил — карта в руке, удара нет", (await myHand()).length === before.length && (await slams(A)) === 0, [before.length, (await myHand()).length, await slams(A)]);
+
+// ── 1в. Палец вернулся и тут же поднят — без движения между: решает точка, где подняли, а не последнее движение
+at = await grip();
+await A.mouse.move(at.x, at.y);
+await A.mouse.down();
+await A.mouse.move(at.x, at.y + 60, { steps: 6 });
+check("оттянул — стрелка есть", (await sling(A)) !== null);
+await A.evaluate(([x, y]) => dispatchEvent(new PointerEvent("pointerup", { clientX: x, clientY: y, pointerId: 1, pointerType: "mouse", bubbles: true })), [at.x, at.y + 5]);
+await A.mouse.up();
+await A.waitForTimeout(900);
+check("поднят у места без движения — не улетела", (await myHand()).length === before.length && (await slams(A)) === 0, [before.length, (await myHand()).length, await slams(A)]);
+
 // ── 2. Средний бросок прямо вверх — середина стола, то есть круг хода, со снеппингом ────────────────
 at = await grip();
 const id = (await A.locator("[data-card]").first().getAttribute("data-card")) ?? "";

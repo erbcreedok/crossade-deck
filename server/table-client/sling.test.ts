@@ -33,6 +33,21 @@ describe("sling.the-pull", () => {
   });
 });
 
+describe("sling.the-release — передумал", () => {
+  // Стрелка и контур — обещание: видны — отпущенная карта улетит, не видны — нет. Правило одно: `slingPull`.
+  it("вернул карту к месту — натяг снят, и стрелки нет", () => {
+    expect(slingPull(at, { x: 200, y: 700 + SLING.cancel - 1 }, true)).toBeNull();
+    expect(slingPull(at, { x: 206, y: 712 }, true), "в пределах пальца от места").toBeNull();
+  });
+  it("«к месту» — не с точностью до пикселя: хватает вернуть под палец", () => {
+    expect(SLING.cancel).toBeGreaterThanOrEqual(20);
+    expect(SLING.start - SLING.cancel, "между порогами — только защита от дрожи").toBeLessThanOrEqual(8);
+  });
+  it("потянул вниз, потом увёл вбок — натяга нет: это перестановка", () => {
+    expect(slingPull(at, { x: 200 + 90, y: 700 + 30 }, true)).toBeNull();
+  });
+});
+
 describe("sling.the-landing", () => {
   // Стол радиуса 5, я сижу внизу (y = +8) и бросаю прямо вверх.
   const from = { x: 0, y: 8 };

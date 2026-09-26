@@ -3884,8 +3884,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     draw();
   }
 
-  function endDrag() {
+  function endDrag(e?: PointerEvent) {
     if (!drag) return;
+    // РОГАТКА РЕШАЕТСЯ ТАМ, ГДЕ ПАЛЕЦ ПОДНЯТ, — тем же правилом, что рисует стрелку и контур: видны —
+    // улетит, не видны — нет. Последнее движение могло прийти раньше, чем палец вернулся к месту.
+    if (e?.type === "pointerup" && drag.sling) steer(e);
     const d = drag;
     drag = null;
     clearInterval(d.hold);
