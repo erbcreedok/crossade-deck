@@ -1,5 +1,7 @@
-// СИЛЬНЫЙ БРОСОК РОГАТКОЙ — карту из руки оттягивают вниз, видна стрелка и место приземления; отпустил —
-// карта летит и бьёт о стол у ВСЕХ; вернул палец — натяг снят, и карта не вылетает.
+// РОГАТКА — бросок карты из руки в ЦЕНТР КАМЕРЫ. Палец вышел под карту — карта пружинит на месте, видна точка
+// попадания и растущая полупрозрачная стрелка, идёт вибрация; подержал — зарядилась: контур и толчок «готово»,
+// и только теперь отпускание бросает (у ВСЕХ, с ударом). Раньше отпустил, вернул палец на карту — отмена; цель
+// мимо сукна — отказ с вибрацией ошибки. Контур виден — карта улетит.
 //   TABLE_SECRET=probe TABLE_GUESTS=1 TELEGRAM_BOT_TOKEN=test CROSSADE_DB_FILE=":memory:" PORT=2597 npx tsx src/index.ts
 //   node scripts/tableSling.mjs [base] [secret] [shot.png]
 import { createHmac, randomBytes } from "crypto";
@@ -30,7 +32,9 @@ const open = async (id, name) => {
   p.on("pageerror", (e) => console.log(name, "ERROR", e.message));
   await p.addInitScript((d) => {
     const a = {};
-    Object.defineProperty(a, "WebApp", { value: { initData: d, initDataUnsafe: {}, ready() {}, expand() {} } });
+    // Телефон в Telegram — иначе вибрация молчит, и прогону нечего сверить.
+    const haptic = { impactOccurred() {}, notificationOccurred() {}, selectionChanged() {} };
+    Object.defineProperty(a, "WebApp", { value: { initData: d, initDataUnsafe: {}, ready() {}, expand() {}, platform: "ios", version: "8.0", isVersionAtLeast: () => true, HapticFeedback: haptic, onEvent() {} } });
     Object.defineProperty(window, "Telegram", { value: a });
   }, initData(id, name));
   await p.goto(`${base}/table/?room=${room}&name=${name}`);
@@ -50,86 +54,93 @@ await A.waitForTimeout(3500);
 const slams = (p) => p.evaluate(() => (window.__tableSounds ?? []).filter((one) => one.kind === "slam").length);
 const sling = (p) => p.evaluate(() => {
   const el = document.querySelector("[data-sling]");
-  return el ? { power: Number(el.dataset.power), land: el.dataset.land } : null;
+  return el ? { charge: Number(el.dataset.charge), armed: el.dataset.armed === "true", valid: el.dataset.valid === "true", land: el.dataset.land } : null;
 });
+const outline = (p) => p.evaluate(() => document.querySelector("[data-felt-mark], [data-g=ring-slot]") !== null);
+const buzzes = (p) => p.evaluate(() => [...(window.__tableHaptics ?? [])]);
+const mineChair = (await state(A)).chairs.find((c) => c.owner === "tg:7").id;
 const myHand = async () => (await state(A)).chairs.find((c) => c.owner === "tg:7").hand.map((c) => c.id);
-/** Середина карты руки на экране — за неё и берутся. */
-const grip = async () => {
-  const box = await A.locator("[data-card]").first().boundingBox();
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+/** Карта моей руки на экране: середина и нижний край. */
+const card = async () => {
+  const box = await A.locator(`[data-card][data-owner="${mineChair}"]`).first().boundingBox();
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2, bottom: box.y + box.height };
 };
-
-// ── 1. Потянул — натяг; вернул — натяга нет; отпустил — карта в руке, удара нет ─────────────────────
-let at = await grip();
+const carryTop = () => A.evaluate(() => document.querySelector("[data-g=carry]")?.getBoundingClientRect().top ?? null);
 const before = await myHand();
-await A.mouse.move(at.x, at.y);
+
+// ── 1. Палец в пределах карты — натяга нет ─────────────────────────────────────────────────────────
+let c = await card();
+await A.mouse.move(c.x, c.y);
 await A.mouse.down();
-await A.mouse.move(at.x, at.y + 12, { steps: 4 });
-check("чуть потянул — натяга ещё нет", (await sling(A)) === null, await sling(A));
-await A.mouse.move(at.x, at.y + 60, { steps: 6 });
-const pulled = await sling(A);
-check("оттянул вниз — стрелка натяга и место приземления", pulled !== null && pulled.power > 0 && (await A.$("[data-felt-mark], [data-g=ring-slot]")) !== null, pulled);
-await A.mouse.move(at.x, at.y + 4, { steps: 6 });
-check("вернул палец — натяг снят", (await sling(A)) === null, await sling(A));
+await A.mouse.move(c.x, c.bottom - 6, { steps: 4 });
+check("палец ещё на карте — натяга нет", (await sling(A)) === null, await sling(A));
+
+// ── 2. Вышел под карту — точка, стрелка вполсилы, без контура; карта стоит; вибрация пошла ─────────────
+const top0 = await carryTop();
+await A.mouse.move(c.x, c.bottom + 60, { steps: 6 });
+await A.waitForTimeout(120);
+let sl = await sling(A);
+check("под картой — точка попадания и стрелка, заряд ещё идёт", sl !== null && !sl.armed && sl.charge > 0 && sl.charge < 1, sl);
+check("…контура места ещё нет", !(await outline(A)));
+const top1 = await carryTop();
+check("карта за пальцем не поехала — только пружинит", top0 !== null && top1 !== null && top1 - top0 <= 15, { top0, top1 });
+check("натяг вибрирует", (await buzzes(A)).includes("light"), await buzzes(A));
+
+// ── 3. Отпустил, не дождавшись — отмена ───────────────────────────────────────────────────────────
 await A.mouse.up();
 await A.waitForTimeout(900);
-check("отпустил после отмены — карта осталась в руке", (await myHand()).length === before.length, [before, await myHand()]);
-check("и удара не было", (await slams(A)) === 0, await slams(A));
+check("отпустил раньше заряда — карта в руке, удара нет", (await myHand()).length === before.length && (await slams(A)) === 0, [before.length, (await myHand()).length]);
+check("…и вибрация отмены", (await buzzes(A)).includes("warning"), await buzzes(A));
 
-// ── 1б. Передумал по-человечески: вернул карту ПРИМЕРНО к месту (не в пиксель) — стрелки и контура нет,
-// и отпущенная карта не улетает. Стрелка — обещание: видна — улетит, не видна — нет.
-at = await grip();
-await A.mouse.move(at.x, at.y);
+// ── 4. Подержал — зарядилась: контур, толчок «готово», бросок в центр камеры ────────────────────────
+c = await card();
+const thrown = await A.locator(`[data-card][data-owner="${mineChair}"]`).first().getAttribute("data-card");
+await A.mouse.move(c.x, c.y);
 await A.mouse.down();
-await A.mouse.move(at.x, at.y + 60, { steps: 6 });
-check("снова оттянул — стрелка есть", (await sling(A)) !== null);
-await A.mouse.move(at.x + 6, at.y + 18, { steps: 6 });
-check("вернул примерно к месту — стрелки и контура нет", (await sling(A)) === null && (await A.$("[data-felt-mark], [data-g=ring-slot]")) === null, await sling(A));
+await A.mouse.move(c.x, c.bottom + 60, { steps: 6 });
+await A.waitForTimeout(1500);
+sl = await sling(A);
+check("подержал — заряжена", sl?.armed === true && sl.valid === true, sl);
+check("…контур места появился", await outline(A));
+check("…и толчок «готово»", (await buzzes(A)).includes("success"), await buzzes(A));
+const land = sl.land.split(",").map(Number);
+check("цель — центр камеры, а не куда тянул палец", Math.abs(land[0] - 195) < 40, sl.land);
+await A.mouse.up();
+await A.waitForTimeout(1300);
+const onB = [...(await state(B)).felt, ...(await state(B)).piles.flatMap((p) => p.cards)].some((one) => one.id === thrown);
+check("бросок: у соседа карта на столе", onB, thrown);
+check("удар у обоих", (await slams(A)) === 1 && (await slams(B)) === 1, [await slams(A), await slams(B)]);
+
+// ── 5. Зарядил и вернул палец на карту — натяга нет, не улетает ──────────────────────────────────────
+c = await card();
+const handNow = (await myHand()).length;
+await A.mouse.move(c.x, c.y);
+await A.mouse.down();
+await A.mouse.move(c.x, c.bottom + 60, { steps: 6 });
+await A.waitForTimeout(1500);
+check("снова заряжена", (await sling(A))?.armed === true);
+await A.mouse.move(c.x, c.y, { steps: 6 });
+check("палец снова на карте — натяга нет", (await sling(A)) === null);
 await A.mouse.up();
 await A.waitForTimeout(900);
-check("отпустил — карта в руке, удара нет", (await myHand()).length === before.length && (await slams(A)) === 0, [before.length, (await myHand()).length, await slams(A)]);
+check("…и карта не улетела", (await myHand()).length === handNow && (await slams(A)) === 1, [(await myHand()).length, handNow]);
 
-// ── 1в. Палец вернулся и тут же поднят — без движения между: решает точка, где подняли, а не последнее движение
-at = await grip();
-await A.mouse.move(at.x, at.y);
+// ── 6. Центр камеры мимо сукна — точка красная; заряженный бросок отказывает ──────────────────────────
+await A.mouse.move(195, 250);
+for (let i = 0; i < 12; i += 1) { await A.mouse.wheel(0, -400); await A.waitForTimeout(40); }
+await A.waitForTimeout(500);
+c = await card();
+await A.mouse.move(c.x, c.y);
 await A.mouse.down();
-await A.mouse.move(at.x, at.y + 60, { steps: 6 });
-check("оттянул — стрелка есть", (await sling(A)) !== null);
-await A.evaluate(([x, y]) => dispatchEvent(new PointerEvent("pointerup", { clientX: x, clientY: y, pointerId: 1, pointerType: "mouse", bubbles: true })), [at.x, at.y + 5]);
+await A.mouse.move(c.x, c.bottom + 60, { steps: 6 });
+await A.waitForTimeout(1500);
+sl = await sling(A);
+check("цель мимо сукна — точка красная, заряд всё равно идёт", sl?.valid === false && sl.armed === true, sl);
+check("…и контура места нет", !(await outline(A)));
 await A.mouse.up();
 await A.waitForTimeout(900);
-check("поднят у места без движения — не улетела", (await myHand()).length === before.length && (await slams(A)) === 0, [before.length, (await myHand()).length, await slams(A)]);
-
-// ── 2. Средний бросок прямо вверх — середина стола, то есть круг хода, со снеппингом ────────────────
-at = await grip();
-const id = (await A.locator("[data-card]").first().getAttribute("data-card")) ?? "";
-await A.mouse.move(at.x, at.y);
-await A.mouse.down();
-await A.mouse.move(at.x, at.y + 60, { steps: 8 });
-const aimed = await sling(A);
-check("средний натяг целится в круг хода", (await A.$("[data-g=ring-slot]")) !== null, aimed);
-await A.screenshot({ path: process.argv[4] ?? "sling.png" });
-await A.mouse.up();
-await A.waitForTimeout(1200);
-const ringB = (await state(B)).piles.find((one) => one.id === "ring")?.cards.map((c) => c.id) ?? [];
-check("у соседа карта легла в круг хода", ringB.includes(id), { id, ringB });
-check("у соседа след броска", (await state(B)).trails[id]?.thrown === true, (await state(B)).trails[id]);
-check("у меня удар прозвучал", (await slams(A)) === 1, await slams(A));
-check("у соседа удар прозвучал", (await slams(B)) === 1, await slams(B));
-
-// ── 3. Полный бросок — к дальней кромке, на сукно ──────────────────────────────────────────────────
-at = await grip();
-const far = (await A.locator("[data-card]").first().getAttribute("data-card")) ?? "";
-await A.mouse.move(at.x, at.y);
-await A.mouse.down();
-await A.mouse.move(at.x, at.y + 110, { steps: 8 });
-check("полный натяг — сила 1", (await sling(A))?.power === 1, await sling(A));
-await A.mouse.up();
-await A.waitForTimeout(1200);
-const feltB = (await state(B)).felt.find((one) => one.id === far);
-check("полный бросок лёг на сукно, а не в круг", feltB !== undefined, feltB);
-check("далеко от меня: за серединой стола", feltB !== undefined && feltB.y < 0, feltB);
-check("и снова удар у обоих", (await slams(A)) === 2 && (await slams(B)) === 2, [await slams(A), await slams(B)]);
+check("отпустил — отказ: карта в руке, удара нет", (await myHand()).length === handNow && (await slams(A)) === 1, [(await myHand()).length, handNow]);
+check("…вибрация ошибки", (await buzzes(A)).includes("error"), await buzzes(A));
 
 await browser.close();
 for (const one of checks) console.log(one.ok ? "✓" : "✗", one.name, one.ok ? "" : JSON.stringify(one.got));

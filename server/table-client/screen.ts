@@ -44,7 +44,8 @@ import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Sec
 import { lens } from "./lens.js";
 import { mountMeters } from "./meters.js";
 import { readRecording, writeRecording } from "./watch.js";
-import { slingLanding, slingPull } from "./sling.js";
+import { buzzEvery, charged, onRelease, spring, tensed } from "./sling.js";
+import { PALETTE } from "../../look/src/palette.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, VOICE_OPEN, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
@@ -1146,7 +1147,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   /** ЗОНА РУКИ, КОТОРАЯ ЗАГОРАЕТСЯ, ПОКА КАРТА В ВОЗДУХЕ. Под картами (`z-index: 0`), не крышка. */
   function handZoneHtml(geom: Geom): string {
     const aim = aiming();
-    if (!aim) return "";
+    // Натянута рогатка — карта летит в стол, а не в руку: зона руки не горит.
+    if (!aim || drag?.sling) return "";
     const pad = geom.h * 0.12;
     const left = geom.slots.reduce((m, s) => Math.min(m, s.x - geom.w / 2), Infinity) - pad;
     const right = geom.slots.reduce((m, s) => Math.max(m, s.x + geom.w / 2), -Infinity) + pad;
@@ -2162,8 +2164,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * ободе, посчитанное той же функцией, что и контур (`ringSoon`/`ringTurned`).
    */
   function landGlass(): { x: number; y: number } | null {
-    if (!drag || !view) return null;
-    const aim = drag.target;
+    return drag ? landOf(drag.target) ?? drag.sling?.land ?? null : null;
+  }
+  function landOf(aim: Aim): { x: number; y: number } | null {
+    if (!view) return null;
     if (aim.kind === "felt") return view.toGlass(aim.at);
     if (aim.kind === "deckTurn") {
       const s = seen();
@@ -2171,31 +2175,43 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       const turn = ringSoon(s);
       return pile && turn !== null ? view.toGlass(ringTurned(pile, turn)) : null;
     }
-    return drag.sling?.land ?? null;
+    return null;
   }
 
   /**
-   * НАТЯГ РОГАТКИ — пунктирная стрелка от места карты в руке туда, где она упадёт. Толще — сильнее.
-   * Сам контур приземления рисуют те же марки, что и при обычном переносе (`feltMarkHtml`, `ring-slot`).
+   * РОГАТКА НА ЭКРАНЕ (`sling.ts`). С первого мгновения натяга — точка попадания в центре камеры: золотая,
+   * если там сукно или круг, красная — если мимо. К ней от карты растёт пунктирная стрелка, полупрозрачная,
+   * пока заряд идёт; зарядилась — стрелка дотянулась и стала плотной, а контур места рисуют те же марки, что
+   * у обычного переноса (`feltMarkHtml`, `ring-slot`): цель переноса ставится только заряженной рогатке.
    */
   function slingHtml(): string {
     if (!drag?.sling) return "";
-    const a = { x: drag.sx, y: drag.sy };
-    const b = landGlass() ?? drag.sling.land;
-    const len = Math.hypot(b.x - a.x, b.y - a.y);
-    if (len < 8) return "";
-    const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
-    const wide = 3 + 4 * drag.sling.power;
-    const head = 10 + 8 * drag.sling.power;
-    // Древко кончается у основания острия, остриё — в самой точке приземления.
-    const end = { x: b.x - ux * head, y: b.y - uy * head };
-    const tip = (k: number) => `${b.x - ux * head - uy * head * k},${b.y - uy * head + ux * head * k}`;
-    const arrow = `<line x1="${a.x}" y1="${a.y}" x2="${end.x}" y2="${end.y}" stroke-linecap="round" stroke-dasharray="${wide * 2.2} ${wide * 1.6}"/>`
-      + `<polygon points="${b.x},${b.y} ${tip(0.6)} ${tip(-0.6)}" stroke-linejoin="round"/>`;
-    return `<svg data-sling data-power="${drag.sling.power.toFixed(2)}" data-land="${Math.round(b.x)},${Math.round(b.y)}" width="${glass().w}" height="${glass().h}" `
+    const s = drag.sling;
+    const a = { x: drag.x - drag.gx + drag.w / 2, y: drag.y - drag.gy - drag.h * CARRY_CLEAR + drag.h / 2 };
+    const b = s.land;
+    const k = s.armed ? 1 : s.charge;
+    const tipAt = { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
+    const len = Math.hypot(tipAt.x - a.x, tipAt.y - a.y);
+    const wide = 5;
+    const head = 16;
+    let arrow = "";
+    if (len > head + 4) {
+      const ux = (tipAt.x - a.x) / len, uy = (tipAt.y - a.y) / len;
+      const end = { x: tipAt.x - ux * head, y: tipAt.y - uy * head };
+      const tip = (q: number) => `${tipAt.x - ux * head - uy * head * q},${tipAt.y - uy * head + ux * head * q}`;
+      arrow = `<line x1="${a.x}" y1="${a.y}" x2="${end.x}" y2="${end.y}" stroke-linecap="round" stroke-dasharray="${wide * 2.2} ${wide * 1.6}"/>`
+        + `<polygon points="${tipAt.x},${tipAt.y} ${tip(0.6)} ${tip(-0.6)}" stroke-linejoin="round"/>`;
+    }
+    const ink = s.valid ? T.gold : PALETTE.danger;
+    const dot = s.valid
+      ? `<circle cx="${b.x}" cy="${b.y}" r="7" fill="${ink}" stroke="${T.black}" stroke-width="3"/>`
+      : `<g stroke-linecap="round"><path d="M${b.x - 8} ${b.y - 8}L${b.x + 8} ${b.y + 8}M${b.x + 8} ${b.y - 8}L${b.x - 8} ${b.y + 8}" stroke="${T.black}" stroke-width="7"/>`
+        + `<path d="M${b.x - 8} ${b.y - 8}L${b.x + 8} ${b.y + 8}M${b.x + 8} ${b.y - 8}L${b.x - 8} ${b.y + 8}" stroke="${ink}" stroke-width="3.5"/></g>`;
+    const alpha = s.armed ? 1 : 0.35 + 0.5 * s.charge;
+    return `<svg data-sling data-charge="${s.charge.toFixed(2)}" data-armed="${s.armed}" data-valid="${s.valid}" data-land="${Math.round(b.x)},${Math.round(b.y)}" width="${glass().w}" height="${glass().h}" `
       + `style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:29">`
-      + `<g fill="none" stroke="${T.black}" stroke-width="${wide + 3}">${arrow}</g>`
-      + `<g fill="none" stroke="${T.gold}" stroke-width="${wide}">${arrow}</g></svg>`;
+      + `<g opacity="${alpha.toFixed(2)}"><g fill="none" stroke="${T.black}" stroke-width="${wide + 3}">${arrow}</g><g fill="none" stroke="${ink}" stroke-width="${wide}">${arrow}</g></g>`
+      + dot + `</svg>`;
   }
 
   function feltMarkHtml(): string {
@@ -3827,46 +3843,78 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   }
 
   /**
-   * НАТЯГ РОГАТКИ ПО ПАЛЬЦУ — только у карты из МОЕЙ руки и только у одной: охапку лассо не бросают.
-   *
-   * Куда упадёт — считается НА СТОЛЕ, а не на стекле: луч от места карты в руке проводится через линзу,
-   * и прямая на экране остаётся прямой на сукне при любом наклоне. Упала в круг — прицел круга со
-   * снеппингом к часам (`aimAt`); куда-либо ещё (чужая рука, стопка) — на сукно в ту же точку.
+   * ЦЕЛЬ РОГАТКИ — ЦЕНТР КАМЕРЫ, куда бы ни тянул палец: середина кадра над рукой, в AR — середина экрана.
+   * Там круг — прилипает к кругу (`aimAt`); там сукно — на сукно; мимо — цель есть, но бросок откажет.
    */
-  function slingOf(d: Drag, x: number, y: number): { land: { x: number; y: number }; power: number; aim: Aim } | null {
-    if (!view || d.mass || d.from.in !== "hand" || d.from.chair !== mine()) return null;
-    const pull = slingPull({ x: d.sx, y: d.sy }, { x, y }, d.sling !== undefined);
-    if (!pull) return null;
-    const from = view.toDesk({ x: d.sx, y: d.sy });
-    const toward = view.toDesk({ x: d.sx + pull.dir.x * 40, y: d.sy + pull.dir.y * 40 });
-    const land = slingLanding(from, toward, R - SLING.edge, pull.power);
-    const at = view.toGlass(land);
-    const hit = aimAt(at.x, at.y, at);
-    return { land: at, power: pull.power, aim: hit.kind === "deckTurn" ? hit : { kind: "felt", at: land } };
+  function slingTarget(): { aim: Aim; land: { x: number; y: number }; valid: boolean } {
+    const c = ar ? { x: glass().w / 2, y: glass().h / 2 } : { x: lastFrame.w / 2, y: lastFrame.h / 2 };
+    const hit = aimAt(c.x, c.y, c);
+    if (hit.kind === "deckTurn") return { aim: hit, land: landOf(hit) ?? c, valid: true };
+    const at = view ? view.toDesk(c) : { x: 0, y: 0 };
+    return { aim: { kind: "felt", at }, land: c, valid: Math.hypot(at.x, at.y) <= R - SLING.edge };
+  }
+
+  /**
+   * НАТЯГ ПО ПАЛЬЦУ — только у одной карты из МОЕЙ руки (охапку лассо не бросают). Палец вышел под карту —
+   * карта остаётся на месте и пружинит, заряд идёт сам (`slingTick`); вернулся на карту — натяг снят, дальше
+   * обычный перенос. `true` — палец сейчас в натяге.
+   */
+  function slingSteer(d: Drag, x: number, y: number): boolean {
+    if (!view || d.mass || d.from.in !== "hand" || d.from.chair !== mine()) return false;
+    const dist = y - (d.sy - d.gy + d.h);
+    if (!tensed(dist)) {
+      if (d.sling) {
+        delete d.sling;
+        d.markKind = undefined;
+      }
+      return false;
+    }
+    const now = performance.now();
+    if (!d.sling) {
+      d.sling = { charge: 0, armed: false, fx: x, fy: y, at: now, buzzAt: now + buzzEvery(0), ...slingTarget() };
+      haptic.buzz("light");
+      requestAnimationFrame(slingTick);
+    }
+    d.sling.fx = x;
+    d.sling.fy = y;
+    d.x = d.sx;
+    d.y = d.sy + spring(dist);
+    d.target = d.sling.armed && d.sling.valid ? d.sling.aim : { kind: "back" };
+    return true;
+  }
+
+  /** ЗАРЯД ИДЁТ, ПОКА ПАЛЕЦ ДЕРЖИТ: кадр за кадром, с вибрацией; цель пересчитывается — в AR её доводят. */
+  function slingTick(now: number): void {
+    const d = drag;
+    const s = d?.sling;
+    if (!d || !s) return;
+    const dist = s.fy - (d.sy - d.gy + d.h);
+    s.charge = charged(s.charge, dist, (now - s.at) / 1000);
+    s.at = now;
+    Object.assign(s, slingTarget());
+    if (!s.armed && s.charge >= 1) {
+      s.armed = true;
+      haptic.buzz("success");
+    } else if (!s.armed && now >= s.buzzAt) {
+      haptic.buzz("light");
+      s.buzzAt = now + buzzEvery(s.charge);
+    }
+    d.target = s.armed && s.valid ? s.aim : { kind: "back" };
+    d.markKind = undefined;
+    draw();
+    requestAnimationFrame(slingTick);
   }
 
   function steer(e: PointerEvent) {
     if (!drag) return;
+    // НАТЯГ — раньше всего: пока палец под картой, карта стоит на месте, а целится рогатка.
+    if (slingSteer(drag, e.clientX, e.clientY)) return draw();
     drag.x = e.clientX;
     drag.y = e.clientY;
     const carry = over.querySelector<HTMLElement>('[data-g="carry"]');
     if (carry) {
       carry.style.left = `${drag.x - drag.gx}px`;
       carry.style.top = `${drag.y - drag.gy - drag.h * CARRY_CLEAR}px`;
-    }
-    // НАТЯГ РОГАТКИ — раньше обычного прицела: пока карта оттянута вниз, она целится туда, куда
-    // упадёт, а не в веер руки под пальцем.
-    const sling = slingOf(drag, e.clientX, e.clientY);
-    if (sling) {
-      drag.sling = { land: sling.land, power: sling.power };
-      drag.target = sling.aim;
-      drag.markKind = undefined;
-      return draw();
-    }
-    if (drag.sling) {
-      // Натяг отпущен, палец ещё держит: дальше это обычный перенос, и бросать нечего.
-      delete drag.sling;
-      drag.markKind = undefined;
     }
     const aim = aimAt(e.clientX, e.clientY);
     if (sameAim(aim, drag.target) && aim.kind !== "felt") return;
@@ -3886,9 +3934,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
 
   function endDrag(e?: PointerEvent) {
     if (!drag) return;
-    // РОГАТКА РЕШАЕТСЯ ТАМ, ГДЕ ПАЛЕЦ ПОДНЯТ, — тем же правилом, что рисует стрелку и контур: видны —
-    // улетит, не видны — нет. Последнее движение могло прийти раньше, чем палец вернулся к месту.
+    // РОГАТКА РЕШАЕТСЯ ТАМ, ГДЕ ПАЛЕЦ ПОДНЯТ: вернулся на карту — натяга нет. Дальше — `onRelease`:
+    // бросок только заряженной и в сукно; не зарядилась — отмена; заряжена, а цель мимо — отказ. Карта
+    // без броска возвращается на место с вибрацией отмены.
     if (e?.type === "pointerup" && drag.sling) steer(e);
+    if (drag.sling) {
+      const how = onRelease(drag.sling.armed, drag.sling.valid);
+      if (how !== "throw") {
+        haptic.buzz(how === "refuse" ? "error" : "warning");
+        drag.target = { kind: "back" };
+        delete drag.sling;
+      }
+    }
     const d = drag;
     drag = null;
     clearInterval(d.hold);
