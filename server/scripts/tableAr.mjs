@@ -41,7 +41,7 @@ await p.waitForTimeout(750);
 await p.mouse.up();
 await settle();
 check("удержал компас — AR включился", await floor());
-check("компас в AR — это выход", (await p.locator("[data-home][data-ar]").count()) === 1);
+check("компас в AR — «Выровнять», удержание — выход", (await p.locator("[data-home][data-ar]").count()) === 1);
 await orient(0, 50);
 await settle();
 let s = await spots();
@@ -96,14 +96,71 @@ await tap("[data-settings]");
 check("под потоком датчика шестерёнка открывает настройки", (await p.locator('[data-settings][aria-expanded="true"]').count()) === 1);
 await p.evaluate(() => clearInterval(window.__shake));
 
+{
+// окно настроек, открытое шагом выше, модальное — закрыть
+if (await p.locator("[data-settings-close]").count()) { await p.locator("[data-settings-close]").click(); await settle(); }
+// 5в. ДЖОЙСТИК: палец на пустом сукне — ходьба. Вперёд — к столу (стол крупнее); сильнее тянешь — быстрее;
+// дальше от стула — тяжелее, и сверху подсказка, сколько ещё можно; тап по компасу — «Выровнять».
+await orient(0, 50);
+await settle();
+const recenter = async () => { await p.locator("[data-home]").click(); await settle(); };
+await recenter(); // от выровненного: у своего стула, исходный размер
+const home = await spots();
+const emptyFelt = async () => {
+  for (const [dx, dy] of [[0, -70], [60, -40], [-60, -40], [0, 60], [90, 0], [-90, 0]]) {
+    const x = home.middle.x + dx, y = home.middle.y + dy;
+    await p.mouse.move(x, y); await p.mouse.down(); await p.waitForTimeout(60);
+    if ((await p.locator("[data-ar-stick]").count()) === 1) return { x, y };
+    await p.mouse.up(); await p.waitForTimeout(100);
+  }
+  return null;
+};
+const walkFor = async (pull, ms) => {
+  const at = await emptyFelt();
+  if (!at) return null;
+  await p.mouse.move(at.x, at.y - pull, { steps: 4 });
+  await p.waitForTimeout(ms);
+  await p.mouse.up();
+  await settle();
+  return (await spots()).k;
+};
+const kSoft = await walkFor(20, 600);
+check("палец на пустом сукне — джойстик", kSoft !== null);
+const kSoftGain = kSoft - home.k;
+await recenter();
+const kHard = await walkFor(70, 600);
+check("потянул сильнее — прошёл дальше за то же время", kHard - home.k > kSoftGain * 2, `${(home.k).toFixed(1)} → слабо ${kSoft?.toFixed(1)}, сильно ${kHard?.toFixed(1)}`);
+// далеко: тянем сильно и долго — подсказка появляется и доходит до нуля, стол встаёт
+await recenter();
+const at = await emptyFelt();
+await p.mouse.move(at.x, at.y - 100, { steps: 4 });
+await p.waitForTimeout(700);
+const early = await p.locator("[data-ar-hint]").evaluate((e) => ({ on: getComputedStyle(e).opacity === "1", text: e.textContent }));
+await p.waitForTimeout(9000);
+const late = await p.locator("[data-ar-hint]").evaluate((e) => e.textContent);
+const k1 = (await spots()).k;
+await p.waitForTimeout(1000);
+const k2 = (await spots()).k;
+await p.mouse.up(); await settle();
+check("ушёл за полметра — сверху «дальше можно ещё …»", early.on && /дальше можно ещё \d/.test(early.text), early.text);
+check("у предела — «ещё 0.0 м», и стол больше не приближается", /ещё 0\.0 м/.test(late) && Math.abs(k2 - k1) < 0.01, `${late}; k ${k1.toFixed(2)} → ${k2.toFixed(2)}`);
+check("отпустил — подсказка гаснет", await p.locator("[data-ar-hint]").evaluate((e) => getComputedStyle(e).opacity === "0"));
+await recenter();
+const back = await spots();
+check("тап по компасу — «Выровнять»: стол снова перед тобой в исходном размере", Math.abs(back.middle.x - W / 2) <= 2 && Math.abs(back.middle.y - H / 2) <= 2 && Math.abs(back.k - home.k) < 0.5, { middle: back.middle, k: back.k.toFixed(1) });
+}
+
 // 6. выбор живёт на устройстве: перезагрузка — снова AR; тап по компасу — обычный стол, и тоже помнится
 await p.reload();
 await ready();
 check("после перезагрузки AR помнится", await floor());
 const c1 = await compass();
-await p.mouse.click(c1.x, c1.y);
+await p.mouse.move(c1.x, c1.y);
+await p.mouse.down();
+await p.waitForTimeout(750);
+await p.mouse.up();
 await settle();
-check("тап по компасу в AR — обычный стол", !(await floor()));
+check("удержание компаса в AR — обычный стол", !(await floor()));
 await p.reload();
 await ready();
 check("…и выключенный тоже помнится", !(await floor()));

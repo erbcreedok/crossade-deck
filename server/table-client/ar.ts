@@ -10,6 +10,8 @@
 // датчик молчит, поверх стола висит кнопка «Включить наклон».
 
 import { arLens, deviceQuat, placeAtGaze, type ArLens, type ArPlace, type Quat } from "./arLens.js";
+import { leftToGo, walkStep } from "./arWalk.js";
+import { R, RIM } from "./felt.js";
 
 /** Вертикальный обзор: телефонный экран в портрете. */
 const FOV = 62;
@@ -22,6 +24,8 @@ const UNIT = 0.022;
 const STILL_BETA = 55;
 /** Сколько ждать датчик, прежде чем попросить разрешение кнопкой. */
 const SILENT_MS = 700;
+/** Радиус джойстика, px: натяжка меряется в них, перетянуть можно (`WALK.PULL_MAX`). */
+const STICK_R = 56;
 
 interface TelegramOrientation {
   isStarted?: boolean;
@@ -55,6 +59,10 @@ export interface ArRig {
   lens(frame: { w: number; h: number }, turn: number, zoom: number): ArLens;
   /** Поставить стол туда, куда сейчас смотрит телефон. */
   place(): void;
+  /** ВЫРОВНЯТЬ: вернуться к своему стулу и поставить стол перед собой. */
+  recenter(): void;
+  /** Палец лёг на пустое сукно — джойстик ходьбы под ним, пока палец не поднят. */
+  stick(down: PointerEvent): void;
   dispose(): void;
 }
 
@@ -62,6 +70,8 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   let q: Quat = deviceQuat(0, STILL_BETA, 0, 0);
   let placed: ArPlace = placeAtGaze(q, DROP, AHEAD, UNIT);
   let heard = false;
+  /** Где стоишь — условные метры от своего стула (метр — радиус стола), `arWalk.ts`. */
+  let walk = { x: 0, z: 0 };
   const off: Array<() => void> = [];
 
   const screenAngle = (): number => screen.orientation?.angle ?? (globalThis as { orientation?: number }).orientation ?? 0;
@@ -157,13 +167,92 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     axis.setAttribute("d", d0);
   };
 
+  // ── ходьба: джойстик и подсказка ───────────────────────────────────────────────────────────────
+  // Джойстик ПЛАВАЮЩИЙ: появляется там, где палец лёг на пустое сукно, и уходит с пальцем — постоянного
+  // кружка на экране нет. Второй палец — это щипок или поворот: ходьба прекращается и отдаёт жест камере.
+  const hint = document.createElement("div");
+  hint.dataset.arHint = "";
+  hint.style.cssText = "position:fixed;left:50%;top:calc(76px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));"
+    + "transform:translateX(-50%);z-index:44;padding:6px 12px;border-radius:8px;background:rgba(11,7,4,.82);color:#f5ead0;"
+    + "font:400 12px/1 Tiny5,monospace;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s";
+  document.body.append(hint);
+  off.push(() => hint.remove());
+
+  /** Курс телефона по полу — как у `placeAtGaze`: взгляд плюс верх экрана, чтобы не терять его, глядя вниз. */
+  const yawOf = (): number => {
+    const t = placeAtGaze(q, DROP, AHEAD, UNIT);
+    return t.yaw;
+  };
+  let walking: { id: number; x0: number; y0: number; x: number; y: number; at: number; ring: HTMLElement; knob: HTMLElement } | null = null;
+  const stopWalk = (): void => {
+    if (!walking) return;
+    walking.ring.remove();
+    walking = null;
+    hint.style.opacity = "0";
+  };
+  const stepWalk = (now: number): void => {
+    if (!walking) return;
+    const dt = Math.min(0.05, (now - walking.at) / 1000);
+    walking.at = now;
+    const stick = { x: (walking.x - walking.x0) / STICK_R, y: -(walking.y - walking.y0) / STICK_R };
+    walk = walkStep(walk, stick, yawOf(), dt);
+    const left = leftToGo(Math.hypot(walk.x, walk.z));
+    hint.style.opacity = left === null ? "0" : "1";
+    if (left !== null) hint.textContent = `дальше можно ещё ${left.toFixed(1)} м`;
+    changed();
+    requestAnimationFrame(stepWalk);
+  };
+  const stick = (down: PointerEvent): void => {
+    stopWalk();
+    const ring = document.createElement("div");
+    ring.dataset.arStick = "";
+    const size = STICK_R * 2;
+    ring.style.cssText = `position:fixed;left:${down.clientX - STICK_R}px;top:${down.clientY - STICK_R}px;width:${size}px;height:${size}px;border-radius:50%;`
+      + "z-index:43;pointer-events:none;box-shadow:inset 0 0 0 2px rgba(245,234,208,.45);background:rgba(11,7,4,.18)";
+    const knob = document.createElement("div");
+    knob.style.cssText = `position:absolute;left:${STICK_R - 22}px;top:${STICK_R - 22}px;width:44px;height:44px;border-radius:50%;`
+      + "background:linear-gradient(#f8d885,#b08a26);box-shadow:inset 0 0 0 2px #0b0704";
+    ring.append(knob);
+    document.body.append(ring);
+    walking = { id: down.pointerId, x0: down.clientX, y0: down.clientY, x: down.clientX, y: down.clientY, at: performance.now(), ring, knob };
+    requestAnimationFrame(stepWalk);
+  };
+  const onMove = (e: PointerEvent): void => {
+    if (!walking || e.pointerId !== walking.id) return;
+    walking.x = e.clientX;
+    walking.y = e.clientY;
+    const dx = e.clientX - walking.x0, dy = e.clientY - walking.y0, len = Math.hypot(dx, dy), k = len > STICK_R ? STICK_R / len : 1;
+    walking.knob.style.transform = `translate(${dx * k}px,${dy * k}px)`;
+  };
+  const onUp = (e: PointerEvent): void => { if (walking && e.pointerId === walking.id) stopWalk(); };
+  const onSecond = (e: PointerEvent): void => { if (walking && e.pointerId !== walking.id) stopWalk(); };
+  addEventListener("pointermove", onMove);
+  addEventListener("pointerup", onUp);
+  addEventListener("pointercancel", onUp);
+  addEventListener("pointerdown", onSecond, true);
+  off.push(() => {
+    stopWalk();
+    removeEventListener("pointermove", onMove);
+    removeEventListener("pointerup", onUp);
+    removeEventListener("pointercancel", onUp);
+    removeEventListener("pointerdown", onSecond, true);
+  });
+
   return {
     lens(frame, turn, zoom) {
-      const l = arLens({ q, fov: FOV }, placed, turn, zoom, frame);
+      // Условный метр — радиус стола в мире при нынешнем зуме: подошёл к большому столу — прошёл больше.
+      const metre = (R + RIM) * UNIT * zoom;
+      const l = arLens({ q, fov: FOV, pos: [walk.x * metre, 0, walk.z * metre] }, placed, turn, zoom, frame);
       drawFloor(l);
       return l;
     },
     place,
+    recenter() {
+      stopWalk();
+      walk = { x: 0, z: 0 };
+      place();
+    },
+    stick,
     dispose() { for (const fn of off.splice(0)) fn(); },
   };
 }

@@ -4,7 +4,8 @@
 // всё — сукно, карты, стулья, тултипы, бросок — работает в AR без единой своей строчки. Отличие одно:
 // откуда перспектива. Здесь это настоящая камера-обскура в мире телефона:
 //
-//   мир        — метры, Y вверх; глаз (телефон) в нуле, его поворот — кватернион датчика;
+//   мир        — метры, Y вверх; глаз (телефон) в `eye.pos` (ноль — место у своего стула, откуда
+//                стол ставили; джойстик его двигает, `arWalk.ts`), его поворот — кватернион датчика;
 //   стол       — плоскость ниже глаза: середина в `place.at`, «ко мне» по направлению `place.yaw`;
 //   единица    — ширина карты, `place.unit` метров (щипок её растит: `zoom`);
 //   поворот    — `turn`, те же градусы, что `Camera.rotation`: свой стул — ближе всех ко мне.
@@ -32,6 +33,8 @@ export interface ArView {
   q: Quat;
   /** Вертикальный обзор экрана, градусы. */
   fov: number;
+  /** Где глаз, метры; нет — в нуле. */
+  pos?: Vec;
 }
 
 export interface ArLens extends Lens {
@@ -58,6 +61,9 @@ export function arLens(eye: ArView, place: ArPlace, turn: number, zoom: number, 
   const right: Vec = [Math.cos(place.yaw), 0, -Math.sin(place.yaw)];
   const toMe: Vec = [Math.sin(place.yaw), 0, Math.cos(place.yaw)];
   const inv = conj(eye.q);
+  const [ex, ey, ez] = eye.pos ?? [0, 0, 0];
+  /** Мир → камера: сперва от глаза, потом поворот глаза. */
+  const seen = (w: Vec): Vec => rot(inv, [w[0] - ex, w[1] - ey, w[2] - ez]);
 
   /** Точка стола → мир. Поворот `turn` — как `rotate()` кита: x' = cos·x − sin·y, y' = sin·x + cos·y. */
   const world = (p: Point, height = 0): Vec => {
@@ -69,7 +75,7 @@ export function arLens(eye: ArView, place: ArPlace, turn: number, zoom: number, 
     ];
   };
   const project = (p: Point, height = 0): Point | null => {
-    const [x, y, z] = rot(inv, world(p, height));
+    const [x, y, z] = seen(world(p, height));
     if (z > -NEAR) return null;
     return { x: cx + (f * x) / -z, y: cy - (f * y) / -z };
   };
@@ -78,15 +84,15 @@ export function arLens(eye: ArView, place: ArPlace, turn: number, zoom: number, 
   const toGlass = (p: Point, height = 0): Point => {
     const got = project(p, height);
     if (got) return got;
-    const [x, y] = rot(inv, world(p, height));
+    const [x, y] = seen(world(p, height));
     return { x: cx + (f * x) / NEAR, y: cy - (f * y) / NEAR };
   };
   const toDesk = (q: Point): Point => {
     let d = rot(eye.q, [(q.x - cx) / f, -(q.y - cy) / f, -1]);
     // Взгляд выше горизонта до стола не дотянется — берётся точка далеко впереди по тому же курсу.
     if (d[1] > -1e-3) d = [d[0], -1e-3, d[2]];
-    const s = place.at[1] / d[1];
-    const hit: Vec = [d[0] * s - place.at[0], 0, d[2] * s - place.at[2]];
+    const s = (place.at[1] - ey) / d[1];
+    const hit: Vec = [ex + d[0] * s - place.at[0], 0, ez + d[2] * s - place.at[2]];
     const x = (hit[0] * right[0] + hit[2] * right[2]) / u, y = (hit[0] * toMe[0] + hit[2] * toMe[2]) / u;
     return { x: cosT * x + sinT * y, y: -sinT * x + cosT * y };
   };

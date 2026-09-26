@@ -85,3 +85,20 @@ describe("ar-lens.gaze", () => {
     expect(p.at[1]).toBeCloseTo(-0.35, 6);
   });
 });
+
+describe("ar-lens.walks", () => {
+  it("шаг к столу — стол крупнее; шаг вправо — стол уезжает влево; палец попадает туда же", () => {
+    const q = held(0, 50);
+    const place = placeAtGaze(q, 0.35, 0.45, UNIT);
+    const home = arLens({ q, fov: FOV }, place, 0, 1, frame);
+    const closer = arLens({ q, fov: FOV, pos: [0, 0, -0.15] }, place, 0, 1, frame);
+    expect(closer.k).toBeGreaterThan(home.k * 1.2);
+    const right = arLens({ q, fov: FOV, pos: [0.1, 0, 0] }, place, 0, 1, frame);
+    expect(right.toGlass({ x: 0, y: 0 }).x).toBeLessThan(home.toGlass({ x: 0, y: 0 }).x - 30);
+    for (const p of [{ x: 0, y: 0 }, { x: 4, y: -3 }]) {
+      const back = right.toDesk(right.toGlass(p));
+      expect(back.x).toBeCloseTo(p.x, 6);
+      expect(back.y).toBeCloseTo(p.y, 6);
+    }
+  });
+});

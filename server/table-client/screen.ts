@@ -2836,6 +2836,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     myChair: (st = store.state) => chairOf(st, mine(st)),
     ar: () => ar !== null,
     toggleAr,
+    // ВЫРОВНЯТЬ — назад к своему стулу, стол перед собой, размер исходный.
+    recenterAr: () => {
+      ar?.recenter();
+      cam.camera.setZoom(firstZoom());
+      redraw();
+    },
     listen: addEventListener,
     unlisten: removeEventListener,
   });
@@ -4412,6 +4418,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       // отпустили быстро и почти на месте (`isTap`) — раньше он срабатывал сразу, и камеру
       // перекидывало посреди жеста.
       if (hit) chairPress = { pid: e.pointerId, x: e.clientX, y: e.clientY, at: performance.now(), key: hit.key };
+      // AR: ПУСТОЕ СУКНО — ДЖОЙСТИК ХОДЬБЫ (`ar.ts`). Камера жест тоже получает: второй палец — щипок
+      // или поворот стола, и тогда ходьба отдаёт ему дорогу.
+      else if (ar) ar.stick(e);
     },
     { capture: true },
   );

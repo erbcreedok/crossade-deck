@@ -17,6 +17,8 @@ export interface CompassWorld {
   /** Включён ли AR у этого человека, и как его переключить (`ar.ts`). */
   ar(): boolean;
   toggleAr(): void;
+  /** В AR: вернуться к своему стулу и поставить стол перед собой. */
+  recenterAr(): void;
   /** Слушатели окна — экранные: он их и снимет, когда уйдёт со страницы. */
   listen<K extends keyof WindowEventMap>(type: K, fn: (e: WindowEventMap[K]) => void): void;
   unlisten<K extends keyof WindowEventMap>(type: K, fn: (e: WindowEventMap[K]) => void): void;
@@ -84,8 +86,9 @@ export function tableCompass(o: CompassWorld): Compass {
    * модификаторов нет вовсе, а два пальца там уже заняты щипком. Не сдвинулся с места — это тап, и
    * работает прежнее: кольцо возвращает к стулу, диск кладёт стол на `LEAN_STEP`.
    *
-   * КОМПАС ЖЕ — ДВЕРЬ В AR. Удержал палец на месте — AR включается; в AR компас становится выходом: тап
-   * по нему возвращает обычный стол. Кольцо и в AR крутит стол пальцем — поворот AR берёт у той же камеры.
+   * КОМПАС ЖЕ — ДВЕРЬ В AR. Удержал палец на месте — AR включается; в AR удержание — выход, а тап —
+   * «Выровнять»: назад к своему стулу, стол перед собой. Кольцо и в AR крутит стол пальцем — поворот AR
+   * берёт у той же камеры.
    */
   function drag(down: PointerEvent, part: "ring" | "lean", ring: HTMLElement): void {
     const box = ring.getBoundingClientRect();
@@ -94,7 +97,7 @@ export function tableCompass(o: CompassWorld): Compass {
     const from = { rotation: o.cam.camera.rotation, pitch: o.cam.camera.pitch, aim: aimAt(down), y: down.clientY };
     let moved = false;
     let held = false;
-    const hold = o.ar() ? 0 : setTimeout(() => { if (!moved) { held = true; o.toggleAr(); } }, AR_HOLD_MS);
+    const hold = setTimeout(() => { if (!moved) { held = true; o.toggleAr(); } }, AR_HOLD_MS);
     const move = (e: PointerEvent) => {
       if (e.pointerId !== down.pointerId) return;
       const turned = shortWay(aimAt(e), from.aim);
@@ -113,7 +116,7 @@ export function tableCompass(o: CompassWorld): Compass {
       o.unlisten("pointercancel", up);
       clearTimeout(hold);
       if (moved || held || e.type === "pointercancel") return;
-      if (o.ar()) return o.toggleAr();
+      if (o.ar()) { goHome(); return o.recenterAr(); }
       if (part === "lean") leanToggle();
       else goHome();
     };
@@ -161,7 +164,7 @@ export function tableCompass(o: CompassWorld): Compass {
       : `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="pointer-events:none">`
         + `<rect x="2.5" y="7" width="12.5" height="10" rx="2.5"/><path d="M15 10.5 L21.5 7 v10 L15 13.5 Z"/></svg>`;
     const discLook = ar ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}` : disc;
-    return `<button data-home${ar ? " data-ar" : ""} aria-label="${ar ? "Выйти из AR" : "К своему стулу; удержать — AR"}" style="position:absolute;right:12px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:52px;height:52px;border:0;padding:0;z-index:45;`
+    return `<button data-home${ar ? " data-ar" : ""} aria-label="${ar ? "Выровнять; удержать — выйти из AR" : "К своему стулу; удержать — AR"}" style="position:absolute;right:12px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:52px;height:52px;border:0;padding:0;z-index:45;`
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;`
       + `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}">`
       + `<svg viewBox="0 0 52 52" width="52" height="52" style="position:absolute;left:0;top:0;transform:rotate(${turn}deg);pointer-events:none">`
