@@ -1,0 +1,21 @@
+server/src/app.ts
+  s_9ed0da107cbc4a::t_9f44216bbfa978 149-156,183
+server/src/cors.test.ts
+  s_9ed0da107cbc4a::t_21a0bd09c371aa 8-10,36-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "604870d4358aa1d2b8ad854d5100d415204234b1",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
