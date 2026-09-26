@@ -116,6 +116,18 @@
         "design/grab"
       ],
       "port": 9581
+    },
+    {
+      "name": "ar-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "design/serve.py",
+        "9582",
+        "design/ar",
+        "--tls",
+        "9583"
+      ],
+      "port": 9582
     }
   ]
 }

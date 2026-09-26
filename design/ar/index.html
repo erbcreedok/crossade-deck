@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>AR-стол — стенд</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Handjet&family=Press+Start+2P&family=Tiny5&display=swap" rel="stylesheet">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+  "mind-ar": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"
+} }
+</script>
+<style>
+  :root { --bg: #0d2118; --panel: #123527; --ink: #f5ead0; --dim: #cdb98f; --gold: #f2c14e; --black: #0b0704; --rim: #3a2a1d; --ok: #7fd1b9; --bad: #e0483f; --warn: #e08b3f; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--dim); font: 400 17px/1.35 'Handjet', monospace; overflow: hidden; overscroll-behavior: none; }
+  button { font: 400 13px/1 'Tiny5', monospace; color: var(--black); background: var(--gold); border: 0; padding: 11px 14px; border-radius: 6px; box-shadow: inset 0 -3px 0 rgba(0,0,0,.25); cursor: pointer; touch-action: manipulation; }
+  button.ghost { background: none; color: var(--gold); box-shadow: inset 0 0 0 2px var(--gold); }
+  button:disabled { opacity: .4; }
+  b { color: var(--gold); font-weight: 400; }
+
+  #stage { position: fixed; inset: 0; overflow: hidden; background: #000; touch-action: none; }
+  #cam { position: absolute; }
+  #gl { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #frame { position: absolute; display: none; border: 3px solid var(--gold); border-radius: 14px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.45); pointer-events: none; }
+  #frame.ok { border-color: var(--ok); }
+  #frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #frame .hint { position: absolute; left: 0; right: 0; top: -34px; text-align: center; color: var(--ink); font-size: 18px; }
+
+  #top { position: fixed; left: 0; right: 0; top: 0; padding: calc(8px + env(safe-area-inset-top)) 10px 8px; display: flex; gap: 6px; align-items: center; background: linear-gradient(rgba(13,33,24,.92), rgba(13,33,24,.0)); z-index: 5; }
+  #top .chip { font: 400 11px/1 'Tiny5', monospace; padding: 8px 9px; border-radius: 6px; background: rgba(18,53,39,.9); color: var(--dim); box-shadow: inset 0 0 0 2px var(--rim); }
+  #top .chip.on { color: var(--black); background: var(--gold); box-shadow: none; }
+  #status { margin-left: auto; font: 400 10px/1.3 'Press Start 2P', monospace; color: var(--ink); text-align: right; max-width: 56vw; }
+  #status.bad { color: var(--bad); } #status.ok { color: var(--ok); }
+
+  #sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); background: rgba(13,33,24,.94); box-shadow: 0 -3px 0 var(--black), 0 -6px 0 var(--rim); display: flex; flex-direction: column; gap: 10px; max-height: 62dvh; overflow: auto; }
+  #sheet:empty { display: none; }
+  #sheet h1 { margin: 0; font: 400 20px/1.2 'Tiny5', monospace; color: var(--gold); }
+  #sheet p { margin: 0; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .meter { height: 12px; border-radius: 6px; background: var(--black); overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: var(--bad); transition: width .2s, background .2s; }
+  .verdict { font: 400 14px/1.2 'Tiny5', monospace; }
+  .nums { font-size: 15px; color: var(--dim); }
+  .marker { display: grid; grid-template-columns: 56px 1fr auto; gap: 10px; align-items: center; padding: 6px; border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 2px var(--rim); }
+  .marker.on { box-shadow: inset 0 0 0 2px var(--gold); }
+  .marker img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; display: block; }
+  .marker .x { background: none; color: var(--bad); box-shadow: none; font-size: 16px; padding: 8px; }
+
+  #hand { position: fixed; left: 0; right: 0; bottom: calc(10px + env(safe-area-inset-bottom)); height: 118px; z-index: 4; display: none; justify-content: center; pointer-events: none; }
+  #hand.on { display: flex; }
+  #hand .c { pointer-events: auto; width: 70px; height: 100px; margin: 0 -9px; border-radius: 8px; background: #f7f1e6; box-shadow: inset 0 0 0 2px var(--black), 0 4px 8px rgba(0,0,0,.5); font: 700 22px/1 Georgia, serif; padding: 7px; position: relative; transform-origin: 50% 160%; }
+  #hand .c span { position: absolute; left: 50%; top: 56%; transform: translate(-50%, -50%); font-size: 40px; }
+  #handbar { position: fixed; right: 10px; bottom: calc(136px + env(safe-area-inset-bottom)); z-index: 4; display: none; gap: 6px; }
+  #handbar.on { display: flex; }
+
+  #toast { position: fixed; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translateX(-50%); z-index: 7; background: rgba(11,7,4,.85); color: var(--ink); padding: 6px 12px; border-radius: 6px; font-size: 18px; opacity: 0; transition: opacity .25s; pointer-events: none; white-space: nowrap; }
+  #toast.on { opacity: 1; }
+
+  #code { position: fixed; inset: 0; z-index: 20; background: #fff; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 18px; color: #000; }
+  #code.on { display: flex; }
+  #code svg { width: min(86vw, 70vh); height: auto; image-rendering: pixelated; }
+  #code button { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; }
+  @media print { body > *:not(#code) { display: none !important; } #code { display: flex !important; position: static; } #code button, #code p { display: none; } }
+
+  #knob { position: fixed; right: 10px; top: calc(52px + env(safe-area-inset-top)); z-index: 8; width: 46px; height: 46px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(#25321f, #16210f); box-shadow: inset 0 0 0 3px var(--black), inset 0 0 0 5px #6b4d2c; color: var(--gold); font: 400 9px 'Tiny5', monospace; }
+  #panel { position: fixed; left: 0; right: 0; top: 0; z-index: 9; max-height: 80dvh; overflow: auto; padding: calc(14px + env(safe-area-inset-top)) 14px 14px; background: var(--bg); box-shadow: 0 3px 0 var(--black), 0 6px 0 var(--rim);
+    transform: translateY(-105%); transition: transform .22s cubic-bezier(.2,.85,.25,1); display: flex; flex-direction: column; gap: 12px; }
+  #panel.open { transform: none; }
+  #panel h2 { margin: 0; font: 400 15px/1.2 'Tiny5', monospace; color: var(--gold); }
+  #panel .k { display: grid; grid-template-columns: 1fr 96px; gap: 8px; align-items: center; color: var(--ink); }
+  #panel .k small { display: block; color: var(--dim); font-size: 14px; }
+  #panel input { width: 96px; font: 400 16px 'Handjet', monospace; padding: 6px; background: var(--panel); color: var(--gold); border: 2px solid var(--rim); border-radius: 6px; }
+  @media (min-width: 900px) and (pointer: fine) { #panel { left: auto; width: 420px; bottom: 0; max-height: none; transform: translateX(105%); } #panel.open { transform: none; } }
+</style>
+</head>
+<body>
+<div id="stage">
+  <video id="cam" playsinline muted autoplay></video>
+  <canvas id="gl"></canvas>
+  <div id="frame"><div class="hint">наведи на то, на чём будешь играть</div><canvas id="dots"></canvas></div>
+</div>
+<div id="top">
+  <div class="chip" data-mode="image">ФОТО</div>
+  <div class="chip" data-mode="code">КОД</div>
+  <div class="chip" data-mode="gyro">ГИРО</div>
+  <div id="status"></div>
+</div>
+<div id="knob">РУЧКИ</div>
+<div id="panel"></div>
+<div id="toast"></div>
+<div id="handbar"><button class="ghost" id="refill">добрать</button></div>
+<div id="hand"></div>
+<div id="sheet"></div>
+<div id="code"><button id="codeClose">закрыть</button><div id="codeSvg"></div><p>покажи этот экран камере другого телефона — или распечатай (⌘P)</p></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
