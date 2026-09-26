@@ -1,0 +1,23 @@
+deploy/local/com.crossade.table-tunnel.plist
+  s_e1c4165d82711d::t_ff1dbc8f3c5bd0 1-23
+deploy/local/com.crossade.table.plist
+  s_e1c4165d82711d::t_ff1dbc8f3c5bd0 6-9,15
+deploy/local/README.md
+  s_e1c4165d82711d::t_6e0f1e27e3332b 20-24,28-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d294ac921ca8ce266e86f05baca980009814801e",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
