@@ -83,3 +83,26 @@ describe("звуковые поводы", () => {
     expect(cuesBetween(prev, next)).toHaveLength(CUES_PER_FRAME);
   });
 });
+
+describe("cues.a-throw-slams", () => {
+  const thrown = { by: "me", byName: "me", from: "hand", thrown: true, at: 5 };
+  const withTrails = (s: Snapshot, trails: Record<string, unknown>): Snapshot => ({ ...s, trails }) as unknown as Snapshot;
+
+  it("брошенная из руки на сукно — удар, а не стук", () => {
+    const was = snap({ chairs: [chair("me", ["a"])] });
+    const now = withTrails(snap({ chairs: [chair("me", [])], felt: [felt("a", 1, 2, true)] }), { a: thrown });
+    expect(cuesBetween(was, now)).toEqual([{ kind: "slam", at: { felt: { x: 1, y: 2 } } }]);
+  });
+
+  it("брошенная в круг — удар по кругу, а не «положил в стопку»", () => {
+    const was = snap({ chairs: [chair("me", ["a"])], piles: [pile("ring", [])] });
+    const now = withTrails(snap({ chairs: [chair("me", [])], piles: [pile("ring", ["a"])] }), { a: thrown });
+    expect(cuesBetween(was, now)).toEqual([{ kind: "slam", at: { pile: "ring" } }]);
+  });
+
+  it("удар звучит один раз: тот же след в следующем кадре — не новый бросок", () => {
+    const one = withTrails(snap({ felt: [felt("a", 1, 2, true)] }), { a: thrown });
+    const two = withTrails(snap({ felt: [felt("a", 1, 2, true)], piles: [pile("deck", ["x"])] }), { a: thrown });
+    expect(cuesBetween(one, two).some((c) => c.kind === "slam")).toBe(false);
+  });
+});

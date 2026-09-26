@@ -596,7 +596,7 @@ export class Table {
       case "grip":
         return this.grip(by, intent.pile, now);
       case "drop":
-        return this.drop(by, intent.id, intent.to, now, auto);
+        return this.drop(by, intent.id, intent.to, now, auto, intent.throw === true);
       case "turn":
         return this.turn(by, intent.id, now);
       case "flip":
@@ -895,8 +895,8 @@ export class Table {
     return { ops: [{ t: "turn", card: { id }, up, trail }] };
   }
 
-  private drop(by: string, id: string, to: Where, now: number, auto = false): Result {
-    const done = this.dropOps(by, id, to, now, auto);
+  private drop(by: string, id: string, to: Where, now: number, auto = false, thrown = false): Result {
+    const done = this.dropOps(by, id, to, now, auto, thrown);
     if (!("refused" in done)) return { ops: this.commit(done.ops) };
     // ДРОП — КОНЕЦ ЖЕСТА ПРИ ЛЮБОМ ИСХОДЕ. Палец уже отпущен, продлевать блокировку некому: без этого
     // карта висела бы «в руке» отказника у всех остальных, пока её не снимет метла (`LOCK_TTL_MS`).
@@ -938,7 +938,7 @@ export class Table {
     return ops.length ? { ops: this.commit(ops) } : { refused: "bad" };
   }
 
-  private dropOps(by: string, id: string, to: Where, now: number, auto = false): { ops: Op[] } | { refused: Refusal } {
+  private dropOps(by: string, id: string, to: Where, now: number, auto = false, thrown = false): { ops: Op[] } | { refused: Refusal } {
     const lock = this.locks.get(id);
     if (!lock || lock.by !== by) return { refused: "not-held" };
     const target = this.clean(to, auto);
@@ -950,7 +950,8 @@ export class Table {
     const from = this.whereIs(id)!;
     const refusal = this.ruleRefusal(by, id, target);
     if (refusal) return { refused: refusal };
-    const trail = this.trailOf(id, by, from, target.in, now);
+    // БРОСОК — только из руки и только на стол: на сукно или в стопку. В руку не бросают.
+    const trail = this.trailOf(id, by, from, target.in, now, thrown && from.in === "hand" && target.in !== "hand");
     // СТОРОНА КАРТЫ. В руку — всегда лицом к хозяину. Команда кладёт, как сказано. Рука кладёт, как несла:
     // из руки — лицом, если его было видно в худе; с сукна и колоды — как лежала.
     // В СТОПКУ, КОТОРОЙ НЕТ, кладёт только команда бота, и только в колоду — ставит новую посередине.
@@ -1022,11 +1023,15 @@ export class Table {
    * «ОТКУДА» — последняя стопка или рука, из которой карта пришла. Сдвиг по сукну его не перетирает: карта,
    * брошенная Джемалем из руки и передвинутая мной, всё ещё «из руки Джемаля», а «двигал» — уже я.
    */
-  private trailOf(id: string, by: string, from: Where, to: Where["in"], at: number): Trail {
+  private trailOf(id: string, by: string, from: Where, to: Where["in"], at: number, thrown = false): Trail {
     const byName = this.names.get(by) ?? by;
     const was = this.trails.get(id);
-    if (from.in === "felt" && to === "felt" && was) return { ...was, by, byName, at };
-    const trail: Trail = { by, byName, from: from.in, at, ...(this.scripted === "deal" && from.in === "deck" && to === "hand" ? { deal: true as const } : {}) };
+    // Сдвиг по сукну хранит происхождение карты, но не бросок: он был у прошлого движения.
+    if (from.in === "felt" && to === "felt" && was) {
+      const { thrown: _thrown, ...kept } = was;
+      return { ...kept, by, byName, at };
+    }
+    const trail: Trail = { by, byName, from: from.in, at, ...(this.scripted === "deal" && from.in === "deck" && to === "hand" ? { deal: true as const } : {}), ...(thrown ? { thrown: true as const } : {}) };
     // ИЗ КАКОЙ ИМЕННО СТОПКИ: у зоны есть имя, и след обязан его нести — «из круга хода», а не «из колоды».
     if (from.in === "deck") {
       const name = this.piles.get(from.pile)?.spot.name;

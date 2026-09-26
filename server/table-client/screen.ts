@@ -42,7 +42,8 @@ import { BRAIN_PICKS, type BotAct, type Minds } from "../src/table/contract.js";
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
 import { lens } from "./lens.js";
 import { mountMeters } from "./meters.js";
-import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
+import { slingLanding, slingPull } from "./sling.js";
+import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
 export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Witness): { ready: Promise<void>; health: ScreenHealth; look: SeenThrough; destroy(): void } {
@@ -267,6 +268,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   let prevPlaces = new Map<string, Place>();
   /** Карта, отпущенная над закрытым стулом: летит из-под пальца на своё место в следующем кадре. */
   let returning: { id: string; from: Place } | null = null;
+  /**
+   * БРОШЕННЫЕ КАРТЫ, ЧЕЙ ПОЛЁТ ЕЩЁ НЕ ЗАПУЩЕН: чужие — по свежему следу броска в кадре (`soundCues`),
+   * свои — с отпускания пальца. Полёт такой карты — с подлётом и ударом, и звук удара звучит в миг
+   * приземления, а не когда пришла весть.
+   */
+  const throwing = new Set<string>();
+  const myThrows = new Set<string>();
   /**
    * ПОЛОЖЕНО, НО СЕРВЕР ЕЩЁ НЕ ОТВЕТИЛ: показываем то, что ждём. Ответ узнаётся по блокировке — она
    * была моей и снялась (дроп приходит вместе с `unlock`). По месту карты его не узнать: карта,
@@ -1919,6 +1927,47 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     return html;
   }
 
+  /**
+   * КУДА ЛЯЖЕТ КАРТА — середина её контура на стекле: на сукне — точка прицела, в круге — его место на
+   * ободе, посчитанное той же функцией, что и контур (`ringSoon`/`ringTurned`).
+   */
+  function landGlass(): { x: number; y: number } | null {
+    if (!drag || !view) return null;
+    const aim = drag.target;
+    if (aim.kind === "felt") return view.toGlass(aim.at);
+    if (aim.kind === "deckTurn") {
+      const s = seen();
+      const pile = pileOf(s, aim.pile);
+      const turn = ringSoon(s);
+      return pile && turn !== null ? view.toGlass(ringTurned(pile, turn)) : null;
+    }
+    return drag.sling?.land ?? null;
+  }
+
+  /**
+   * НАТЯГ РОГАТКИ — пунктирная стрелка от места карты в руке туда, где она упадёт. Толще — сильнее.
+   * Сам контур приземления рисуют те же марки, что и при обычном переносе (`feltMarkHtml`, `ring-slot`).
+   */
+  function slingHtml(): string {
+    if (!drag?.sling) return "";
+    const a = { x: drag.sx, y: drag.sy };
+    const b = landGlass() ?? drag.sling.land;
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len < 8) return "";
+    const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+    const wide = 3 + 4 * drag.sling.power;
+    const head = 10 + 8 * drag.sling.power;
+    // Древко кончается у основания острия, остриё — в самой точке приземления.
+    const end = { x: b.x - ux * head, y: b.y - uy * head };
+    const tip = (k: number) => `${b.x - ux * head - uy * head * k},${b.y - uy * head + ux * head * k}`;
+    const arrow = `<line x1="${a.x}" y1="${a.y}" x2="${end.x}" y2="${end.y}" stroke-linecap="round" stroke-dasharray="${wide * 2.2} ${wide * 1.6}"/>`
+      + `<polygon points="${b.x},${b.y} ${tip(0.6)} ${tip(-0.6)}" stroke-linejoin="round"/>`;
+    return `<svg data-sling data-power="${drag.sling.power.toFixed(2)}" data-land="${Math.round(b.x)},${Math.round(b.y)}" width="${glass().w}" height="${glass().h}" `
+      + `style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:29">`
+      + `<g fill="none" stroke="${T.black}" stroke-width="${wide + 3}">${arrow}</g>`
+      + `<g fill="none" stroke="${T.gold}" stroke-width="${wide}">${arrow}</g></svg>`;
+  }
+
   function feltMarkHtml(): string {
     if (!drag || drag.target.kind !== "felt" || !view) return "";
     const at = view.toGlass(drag.target.at);
@@ -2565,7 +2614,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // колебание его голоса — кольца живут на холсте, а не здесь. Переписывать при этом `innerHTML` значит
     // десятки раз в секунду выбрасывать кнопки из-под пальца: нажатие начинается на одной, а заканчивается
     // на другой, и до onclick дело не доходит вовсе — заглушить говорящего было нельзя, пока он не замолчит.
-    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + mindMarksHtml(s) + earMarksHtml(s) + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + compass.html(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml() + journalHtml(s);
+    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + mindMarksHtml(s) + earMarksHtml(s) + slingHtml() + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + compass.html(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml() + journalHtml(s);
     if (html !== lastOver) {
       lastOver = html;
       over.innerHTML = html;
@@ -2577,6 +2626,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // во втором проходе места те же, и нового перелёта не будет.
     const places = placesOf(s);
     let started = fly(places);
+    // Бросок, чей полёт не начался (карты у меня на экране не было), дальше не ждёт: иначе следующий
+    // обычный перенос этой карты «шлёпнул» бы.
+    throwing.clear();
     // ПЕРЕМЕШИВАНИЕ В ОКНЕ КОЛОДЫ. У карт новые id, и перелёту не с чем сравнить: каждая карта прилетает на своё
     // место из чужого гнезда, как будто колоду перетасовали на глазах.
     if (shuffledInTip) {
@@ -2693,7 +2745,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       return spot ? { x: spot.x, y: spot.y } : null;
     };
     for (const [id, spot] of cueSpots(prev)) knownSpots.set(id, spot);
+    for (const [id, trail] of Object.entries(next.trails ?? {})) {
+      // Свой бросок уже летит с отпускания пальца: эхо сервера его не повторяет.
+      if (trail.thrown === true && prev.trails?.[id]?.at !== trail.at && trail.by !== me()) throwing.add(id);
+    }
     for (const cue of cuesBetween(prev, next, knownSpots)) {
+      // УДАР ЗВУЧИТ В МИГ ПРИЗЕМЛЕНИЯ — его играет полёт (`launch`). Без анимаций полёта нет — звучит сразу.
+      if (cue.kind === "slam" && (!motion.reduce || own)) continue;
       const p = glassOf(cue.at);
       // Мерж и шафл звучат, пока идёт их анимация: перелёт карт в стопку, веер шафла.
       const cut = cue.kind === "merge" ? Math.max(60, motion.ms(FLIGHT_MS)) : cue.kind === "shuffle" ? SHUFFLE_MS + (SHUFFLE_CARDS - 1) * SHUFFLE_STAGGER_MS : undefined;
@@ -3021,6 +3079,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    */
   const RING_LEAST_MS = 200;
   function launch(id: string, from: Place, to: Place, wait = 0): void {
+    const mineThrow = myThrows.delete(id);
+    const slam = throwing.delete(id) || mineThrow;
+    if (slam) return throwFlight(id, from, to, mineThrow);
     const arc = ringArc(from, to);
     // «Меньше анимаций» — карта сразу на месте. Но не там, где без движения теряется смысл.
     const flightMs = motion.ms(FLIGHT_MS, arc ? RING_LEAST_MS : 0);
@@ -3051,6 +3112,57 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       if (!air.querySelector(`[data-flight="${id}"]`) && !airUnder.querySelector(`[data-flight="${id}"]`)) flying.delete(id);
       draw();
     };
+  }
+
+  /**
+   * ПОЛЁТ БРОШЕННОЙ КАРТЫ — с подлётом к глазу, разгоном и ударом: в конце карту на миг придавливает к
+   * сукну, стол вздрагивает, звучит удар, а у бросившего — сильная вибрация. «Меньше анимаций» — карта
+   * сразу на месте, удар — одним звуком.
+   */
+  function throwFlight(id: string, from: Place, to: Place, own: boolean): void {
+    const flightMs = motion.ms(SLAM.ms);
+    if (flightMs === 0) return impact(to, own);
+    from = { ...from, angle: to.angle + (((((from.angle - to.angle) % 360) + 540) % 360) - 180) };
+    for (const one of [air, airUnder]) one.querySelector(`[data-flight="${id}"]`)?.remove();
+    flying.add(id);
+    const el = document.createElement("div");
+    el.dataset.flight = id;
+    el.dataset.slam = "";
+    el.style.cssText = `position:absolute;left:0;top:0;width:${to.w}px;height:${to.h}px;transform-origin:50% 50%;transform:${poseCss(from, to)}`;
+    el.innerHTML = cardHtml(to.face, to.w);
+    air.append(el);
+    const mid: Place = { ...to, x: (from.x + to.x) / 2, y: (from.y + to.y) / 2, w: (from.w + to.w) / 2, h: (from.h + to.h) / 2, angle: (from.angle + to.angle) / 2, squash: (from.squash + to.squash) / 2 };
+    const run = el.animate([
+      { transform: poseCss(from, to), easing: "cubic-bezier(.2,.6,.4,1)" },
+      { transform: `${poseCss(mid, to)} scale(${SLAM.lift})`, offset: 0.45, easing: "cubic-bezier(.6,0,1,.6)" },
+      { transform: `${poseCss(to, to)} scale(${SLAM.squash})`, offset: 0.88 },
+      { transform: poseCss(to, to) },
+    ], { duration: flightMs });
+    window.setTimeout(() => impact(to, own), flightMs * 0.88);
+    run.onfinish = () => {
+      if (el.isConnected) el.remove();
+      if (!air.querySelector(`[data-flight="${id}"]`) && !airUnder.querySelector(`[data-flight="${id}"]`)) flying.delete(id);
+      draw();
+    };
+  }
+
+  /** УДАР О СТОЛ: звук по месту, вибрация бросившему и короткая дрожь стола у всех. */
+  function impact(at: Place, own: boolean): void {
+    const g = glass();
+    sound.play("slam", (at.x - g.w / 2) / (g.w / 2), (at.y - g.h / 2) / (g.h / 2), own);
+    if (own) {
+      haptic.buzz("heavy");
+      window.setTimeout(() => haptic.buzz("heavy"), 70);
+    }
+    if (!motion.reduce) {
+      canvas.animate([
+        { transform: "translate(0,0)" },
+        { transform: "translate(-3px,2px)" },
+        { transform: "translate(3px,-2px)" },
+        { transform: "translate(-1px,1px)" },
+        { transform: "translate(0,0)" },
+      ], { duration: 150 });
+    }
   }
 
   /**
@@ -3407,16 +3519,49 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     tellCarry();
   }
 
+  /**
+   * НАТЯГ РОГАТКИ ПО ПАЛЬЦУ — только у карты из МОЕЙ руки и только у одной: охапку лассо не бросают.
+   *
+   * Куда упадёт — считается НА СТОЛЕ, а не на стекле: луч от места карты в руке проводится через линзу,
+   * и прямая на экране остаётся прямой на сукне при любом наклоне. Упала в круг — прицел круга со
+   * снеппингом к часам (`aimAt`); куда-либо ещё (чужая рука, стопка) — на сукно в ту же точку.
+   */
+  function slingOf(d: Drag, x: number, y: number): { land: { x: number; y: number }; power: number; aim: Aim } | null {
+    if (!view || d.mass || d.from.in !== "hand" || d.from.chair !== mine()) return null;
+    const pull = slingPull({ x: d.sx, y: d.sy }, { x, y }, d.sling !== undefined);
+    if (!pull) return null;
+    const from = view.toDesk({ x: d.sx, y: d.sy });
+    const toward = view.toDesk({ x: d.sx + pull.dir.x * 40, y: d.sy + pull.dir.y * 40 });
+    const land = slingLanding(from, toward, R - SLING.edge, pull.power);
+    const at = view.toGlass(land);
+    const hit = aimAt(at.x, at.y, at);
+    return { land: at, power: pull.power, aim: hit.kind === "deckTurn" ? hit : { kind: "felt", at: land } };
+  }
+
   function steer(e: PointerEvent) {
     if (!drag) return;
     drag.x = e.clientX;
     drag.y = e.clientY;
-    const aim = aimAt(e.clientX, e.clientY);
     const carry = over.querySelector<HTMLElement>('[data-g="carry"]');
     if (carry) {
       carry.style.left = `${drag.x - drag.gx}px`;
       carry.style.top = `${drag.y - drag.gy - drag.h * CARRY_CLEAR}px`;
     }
+    // НАТЯГ РОГАТКИ — раньше обычного прицела: пока карта оттянута вниз, она целится туда, куда
+    // упадёт, а не в веер руки под пальцем.
+    const sling = slingOf(drag, e.clientX, e.clientY);
+    if (sling) {
+      drag.sling = { land: sling.land, power: sling.power };
+      drag.target = sling.aim;
+      drag.markKind = undefined;
+      return draw();
+    }
+    if (drag.sling) {
+      // Натяг отпущен, палец ещё держит: дальше это обычный перенос, и бросать нечего.
+      delete drag.sling;
+      drag.markKind = undefined;
+    }
+    const aim = aimAt(e.clientX, e.clientY);
     if (sameAim(aim, drag.target) && aim.kind !== "felt") return;
     drag.target = aim;
     // НА СУКНЕ ДВИГАЕТСЯ ОДИН КОНТУР, А НЕ ВЕСЬ ЭКРАН — и именно контур СУКНА: контуром зовётся и
@@ -3481,14 +3626,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       const keepsFace = (to.in === "hand" && to.chair === mine()) || (to.in === "felt" && to.up) || (to.in === "deck" && deckSide(store.state, to.pile, d.card.id, d.shown));
       const card: SeenCard = keepsFace && d.card.face ? { id: d.card.id, face: d.card.face, ...(to.in === "deck" ? { up: true } : {}) } : { id: d.card.id };
       pendings = [...pendings.filter((one) => one.id !== d.card.id), { id: d.card.id, from, to, card, sawLock: store.state.locks[d.card.id] === me() }];
-      // ОТПУСТИЛИ НАД ЗОНОЙ — карта летит из-под пальца на своё место, а не прыгает туда.
-      if (to.in === "deck" && pileOf(store.state, to.pile)?.pose === "ring") {
+      // ОТПУСТИЛИ НАД ЗОНОЙ — карта летит из-под пальца на своё место, а не прыгает туда. Брошенная —
+      // тоже из-под пальца, куда бы ни упала: полёт и есть бросок.
+      if (d.sling) myThrows.add(d.card.id);
+      if (d.sling || (to.in === "deck" && pileOf(store.state, to.pile)?.pose === "ring")) {
         returning = {
           id: d.card.id,
           from: { key: "finger", x: d.x - d.gx + d.w / 2, y: d.y - d.gy - d.h * CARRY_CLEAR + d.h / 2, w: d.w, h: d.h, angle: 0, squash: 1, face: d.shown ? d.card.face : undefined },
         };
       }
-      store.send({ t: "drop", id: d.card.id, to });
+      store.send({ t: "drop", id: d.card.id, to, ...(d.sling ? { throw: true as const } : {}) });
     }
     draw();
   }

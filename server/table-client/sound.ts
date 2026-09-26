@@ -13,7 +13,13 @@ import { HOST } from "./host.js";
 // shuffle — card-shuffle, gather — card-shove-1/2/4.
 const FILES = { drop: 1, hand: 1, turn: 1, gather: 3, merge: 1, shuffle: 1, sort: 1 } as const;
 /** Какой файл на какой повод: в руку — стук (place-1), из руки на сукно — скольжение (slide-1), перестановка в руке — place-4. */
-export const SOUND_OF: Record<CueKind, keyof typeof FILES> = { drop: "drop", hand: "drop", out: "hand", turn: "turn", gather: "gather", merge: "merge", shuffle: "shuffle", sort: "sort" };
+export const SOUND_OF: Record<CueKind, keyof typeof FILES> = { drop: "drop", hand: "drop", out: "hand", turn: "turn", gather: "gather", merge: "merge", shuffle: "shuffle", sort: "sort", slam: "drop" };
+/**
+ * УДАР БРОШЕННОЙ КАРТЫ — тот же стук, но ниже, громче и с низким «бумом» под ним: своего файла нет,
+ * удар собирается из стука. `rate` — во сколько раз медленнее (ниже), `gain` — во сколько громче,
+ * `boom` — низкий тон удара: с какой частоты, до какой, сколько длится и какой громкости.
+ */
+export const SLAM = { rate: 0.72, gain: 1.8, boom: { from: 95, to: 42, ms: 140, gain: 0.9 } } as const;
 /** Громкость своего и чужого. */
 export const GAIN = { mine: 1, other: 0.6 } as const;
 /** Голосовые: своё — фоном, чужое — в полный голос. */
@@ -197,7 +203,23 @@ export function tableSound(): TableSound {
       const src = ctx.createBufferSource();
       src.buffer = buf;
       const vol = ctx.createGain();
-      vol.gain.value = gain;
+      const slam = kind === "slam";
+      if (slam) src.playbackRate.value = SLAM.rate;
+      vol.gain.value = slam ? gain * SLAM.gain : gain;
+      if (slam) {
+        // НИЗКИЙ «БУМ» ПОД СТУКОМ — стол отозвался на удар. Короткий, со спадом, без щелчка в конце.
+        const boom = ctx.createOscillator();
+        const env = ctx.createGain();
+        const t0 = ctx.currentTime;
+        const end = t0 + SLAM.boom.ms / 1000;
+        boom.frequency.setValueAtTime(SLAM.boom.from, t0);
+        boom.frequency.exponentialRampToValueAtTime(SLAM.boom.to, end);
+        env.gain.setValueAtTime(gain * SLAM.boom.gain, t0);
+        env.gain.exponentialRampToValueAtTime(0.0001, end);
+        boom.connect(env).connect(ctx.destination);
+        boom.start(t0);
+        boom.stop(end + 0.02);
+      }
       const pan = ctx.createPanner();
       pan.panningModel = "HRTF";
       pan.distanceModel = "inverse";

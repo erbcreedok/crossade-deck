@@ -6,8 +6,11 @@
 
 import type { Snapshot } from "./contract.js";
 
-/** `out` — карта из руки на сукно, `sort` — карту переставили внутри своей же руки. */
-export const CUE_KINDS = ["drop", "hand", "out", "turn", "gather", "merge", "shuffle", "sort"] as const;
+/**
+ * `out` — карта из руки на сукно, `sort` — карту переставили внутри своей же руки, `slam` — карту
+ * БРОСИЛИ из руки с силой (`Trail.thrown`): удар, а не стук.
+ */
+export const CUE_KINDS = ["drop", "hand", "out", "turn", "gather", "merge", "shuffle", "sort", "slam"] as const;
 export type CueKind = (typeof CUE_KINDS)[number];
 
 export type CueAt = { felt: { x: number; y: number } } | { pile: string } | { chair: string };
@@ -48,11 +51,22 @@ export function cuesBetween(prev: Snapshot, next: Snapshot, known: ReadonlyMap<s
     out.push({ kind, at });
   };
 
+  // БРОШЕНА — удар там, где легла. Свежий след броска: его время сменилось с прошлого кадра, иначе тот
+  // же след в каждом следующем кадре бил бы снова.
+  const slammed = new Set<string>();
+  for (const [id, trail] of Object.entries(next.trails ?? {})) {
+    if (trail.thrown === true && prev.trails?.[id]?.at !== trail.at) slammed.add(id);
+  }
+
   // ПРИШЛО В СТОПКУ — откуда: из другой стопки (мерж), с сукна двумя и больше (сборка), иначе — просто положили.
   const intoPile = new Map<string, { fromPiles: number; fromFelt: number; other: number }>();
   for (const [id, n] of now) {
     // Не было в прошлом кадре — карту несли в воздухе (из кадра она вынута) и положили.
     const w = was.get(id);
+    if (slammed.has(id)) {
+      say("slam", n.in === "felt" ? { felt: { x: n.x, y: n.y } } : n.in === "pile" ? { pile: n.pile } : { chair: n.chair });
+      continue;
+    }
     if (w && place(w) === place(n)) {
       if (n.in === "felt" && w.in === "felt" && (w.x !== n.x || w.y !== n.y)) say("drop", { felt: { x: n.x, y: n.y } });
       else if (w.up !== n.up && n.in !== "chair") say("turn", n.in === "felt" ? { felt: { x: n.x, y: n.y } } : { pile: (n as { pile: string }).pile });

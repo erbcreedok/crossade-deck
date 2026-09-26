@@ -83,7 +83,7 @@ const READERS: { [K in Intent["t"]]: (raw: Raw) => Extract<Intent, { t: K }> | n
   turn: (r) => (name(r.id) ? { t: "turn", id: r.id } : null),
   drop: (r) => {
     const to = readWhere(r.to);
-    return name(r.id) && to ? { t: "drop", id: r.id, to } : null;
+    return name(r.id) && to ? { t: "drop", id: r.id, to, ...(r.throw === true ? { throw: true as const } : {}) } : null;
   },
   grip: (r) => (name(r.pile) ? { t: "grip", pile: r.pile } : null),
   flip: (r) => (r.chair === undefined ? { t: "flip" } : name(r.chair) ? { t: "flip", chair: r.chair } : null),

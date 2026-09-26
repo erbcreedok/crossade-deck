@@ -156,7 +156,7 @@ declare const __TABLE_BUILD__: string | undefined;
 /** Номер сборки стола — подставляет сервер, собирая клиент. */
 export const TABLE_BUILD = typeof __TABLE_BUILD__ === "string" ? __TABLE_BUILD__ : "dev";
 /** Вибрация на перемену стола. */
-export const CUE_HAPTIC: Record<Exclude<CueKind, "shuffle">, Haptic> = { drop: "soft", turn: "rigid", hand: "light", out: "soft", sort: "light", merge: "medium", gather: "medium" };
+export const CUE_HAPTIC: Record<Exclude<CueKind, "shuffle">, Haptic> = { drop: "soft", turn: "rigid", hand: "light", out: "soft", sort: "light", merge: "medium", gather: "medium", slam: "heavy" };
 export const SHUFFLE_TICK_MS = 120;
 
 /** Сколько догадка ждёт ответа сервера, прежде чем уступить столу. */
@@ -164,6 +164,18 @@ export const GUESS_MS = 4000;
 
 /** Сколько летит карта из места в место. */
 export const FLIGHT_MS = 260;
+
+/**
+ * СИЛЬНЫЙ БРОСОК РОГАТКОЙ, в пикселях стекла. Карту из руки тянут ВНИЗ от точки захвата: `start` —
+ * натяг схватился, `cancel` — отпустил натяг обратно (меньше `start`, чтобы не дрожало на границе),
+ * `max` — сильнее некуда: карта долетит до дальней кромки. Под рукой до края экрана около сотни
+ * пикселей — сильнее тянуть на телефоне просто некуда. `down` — насколько отвесно надо тянуть:
+ * вбок по руке — это перестановка карт, а не натяг. `edge` — в единицах стола: карта ложится не на
+ * кромку, а целиком на сукно.
+ */
+export const SLING = { start: 24, cancel: 14, max: 95, down: 0.55, edge: 0.8 } as const;
+/** Сколько летит брошенная карта и во сколько раз она «приподнимается» в полёте — к глазу. */
+export const SLAM = { ms: 320, lift: 1.3, squash: 0.9 } as const;
 /** Шафл стопки: круг веера и задержка последней из восьми карт. */
 export const SHUFFLE_MS = 1300, SHUFFLE_STAGGER_MS = 18, SHUFFLE_CARDS = 8;
 
@@ -196,4 +208,9 @@ export interface Drag {
    * нормально, пока палец не отпустил.
    */
   ringHome?: { at: { x: number; y: number }; angle: number };
+  /**
+   * НАТЯГ РОГАТКИ: карту из руки оттянули вниз. `land` — куда она упадёт, на стекле; `power` — 0…1,
+   * сила натяга. Есть натяг — отпущенная карта ЛЕТИТ с ударом; натяг отпустили — обычный перенос.
+   */
+  sling?: { land: { x: number; y: number }; power: number };
 }
