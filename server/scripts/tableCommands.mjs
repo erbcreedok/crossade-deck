@@ -68,10 +68,14 @@ await B.waitForTimeout(1500);
 check("в конце у A 3, у B 3", (await handCount(A)) === 3 && (await handCount(B)) === 3, [await handCount(A), await handCount(B)]);
 check("B видел курсор бота с именем", (await B.evaluate(() => [...window.__tags])).some((t) => /Crossader/i.test(t)), await B.evaluate(() => [...window.__tags]));
 check("и A тоже", (await A.evaluate(() => [...window.__tags])).some((t) => /Crossader/i.test(t)), null);
-check("бот не сел на стул", (await spots(A)).seats.length === 2, (await spots(A)).seats);
+// Бот-крупье сидит всегда, но на своём месте вне кольца: игровых стульев — ровно двое.
+check("бот не сел на игровой стул", (await spots(A)).seats.filter((one) => !one.croupier).length === 2, (await spots(A)).seats.map((one) => one.who));
 
 // ── 2. Не собрано — просит; пресет дурака на 52 с джокерами собирает, набирает 54, мешает ────────
 check("не собрано — needs-collect", (await run({ t: "deal", rule: "durak" })).error === "needs-collect", null);
+// Пресет стол НЕ собирает — смена колоды это разница, карты лежат где лежали. Собрать — своей командой.
+check("сбор — ok", (await run({ t: "collect" })).ok === true, null);
+await A.waitForTimeout(36 * 80 + 1400);
 check("пресет — ok", (await run({ t: "preset", game: "durak", size: 52, jokers: true })).ok === true, null);
 // Сборка идёт КАРТА ЗА КАРТОЙ В РУКУ КРУПЬЕ — это дольше, чем сгрести их в стопку.
 await A.waitForTimeout(42 * 80 + 1400 + 1500);
@@ -91,9 +95,8 @@ check("у крупье осталось 54 − 12 − 1", (await croupierHand(A)
 check("A видел курсор с именем Bee", (await A.evaluate(() => [...window.__tags])).includes("Bee"), await A.evaluate(() => [...window.__tags]));
 check("и сам Bee видел свой курсор раздачи", (await B.evaluate(() => [...window.__tags])).includes("Bee"), await B.evaluate(() => [...window.__tags]));
 const t0 = trump[0];
-// Колода в руках у крупье, и её место на сукне пусто — отсчитываем от самого крупье.
-const dt = (await spots(A)).seats.find((x) => x.croupier);
-await A.mouse.move(t0.x + (t0.x - dt.x) * 0.6, t0.y + (t0.y - dt.y) * 0.6);
+// Колода в руках у крупье, и на сукне козырь ничем не накрыт — тап прямо по нему.
+await A.mouse.move(t0.x, t0.y);
 await A.mouse.down();
 await A.mouse.up();
 await A.waitForTimeout(300);
