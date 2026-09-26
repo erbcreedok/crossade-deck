@@ -74,6 +74,6 @@ check("телефон 390: все кнопки в экране, прокрутк
 await R.screenshot({ path: process.env.SHOT ?? "replay-clock.png" });
 check("без ошибок страницы", errors.length === 0, errors);
 await browser.close();
-for (const one of checks) console.log(one.ok ? "✓" : "✗", one.name, one.ok ? "" : JSON.stringify(one.got).slice(0, 400));
+for (const one of checks) console.log(one.ok ? "✓" : "✗", one.name, one.ok ? "" : JSON.stringify(one.got).slice(0, 2000));
 console.log(`${checks.filter((one) => one.ok).length}/${checks.length}`);
 if (checks.some((one) => !one.ok)) process.exitCode = 1;

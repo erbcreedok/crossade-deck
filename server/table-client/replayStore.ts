@@ -41,6 +41,8 @@ export interface Replay {
   readonly older: number;
   /** Мгновения, по которым можно встать: первый кадр, каждый диф и каждое событие экрана. */
   moments: Moment[];
+  /** Первый кадр записи — с него пересчитывается любое мгновение (и метки, `replayMarks.ts`). */
+  readonly start: Snapshot;
   /** Встать на мгновение с этим номером. */
   seek(step: number): void;
   /** Где стоим сейчас. */
@@ -211,6 +213,7 @@ export function replayStore(all: readonly Told[], me: Person): Replay {
   return {
     store,
     guessed: first === undefined,
+    start,
     lost: deeds.filter(isCut).length,
     older: Math.max(0, opened.length - 1),
     moments,

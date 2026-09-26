@@ -47,7 +47,12 @@ import { slingLanding, slingPull } from "./sling.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
-export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Witness): { ready: Promise<void>; health: ScreenHealth; look: SeenThrough; destroy(): void } {
+/**
+ * `watch` — ТОЛЬКО СМОТРЕТЬ (запись): палец по сукну двигает камеру и открывает окна стульев, но карту не
+ * берёт, лассо не тянет, стулья не пересаживает и крупье не указывает. Окна, открытые зрителем, не
+ * закрываются оттого, что на этом мгновении стула не было, — перемотка их не трогает.
+ */
+export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Witness, opts: { watch?: boolean } = {}): { ready: Promise<void>; health: ScreenHealth; look: SeenThrough; destroy(): void } {
   // ВСЁ, ЧТО ЭКРАН ПОВЕСИЛ НА ОКНО, ОН И СНИМАЕТ. Внутри экрана `addEventListener` и `setInterval` — не
   // оконные, а эти: они запоминают, что снять, и `destroy()` возвращает окно таким, каким оно было.
   // Без этого стол нельзя убрать со страницы и нельзя поставить второй: слушатели первого остаются жить.
@@ -78,6 +83,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   const look: DeckLook = readLook();
   /** Камерой ведёт запись (`look.to`): свой стул компас тогда не доворачивает. */
   let lookedFrom = false;
+  /** Камеру ставит запись (`look.to`) — это не рука зрителя. */
+  let driving = false;
+  const watch = opts.watch === true;
+  /** Когда зритель последний раз трогал стол — движение камеры рядом с этим сделал он, а не запись. */
+  let handAt = -Infinity;
+  /** Пальцы, опущенные НА СТОЛ: кнопки проигрывателя вокруг — не рука на столе. */
+  const handsDown = new Set<number>();
+  let coasting = false;
+  const movedByHand: (() => void)[] = [];
   const art = deckArt(() => draw(), () => look);
   const sound = tableSound();
   const haptic = tableHaptic();
@@ -338,7 +352,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     };
     requestAnimationFrame(tick);
   };
-  const cam = tableCamera(canvas, () => lastFrame, redraw);
+  /** Камера словами — чтобы отличить ракурс, поставленный записью, от сдвинутого рукой. */
+  const camLine = () => { const c = cam.camera; return `${c.target.x.toFixed(2)},${c.target.y.toFixed(2)},${c.zoom.toFixed(3)},${c.rotation.toFixed(1)},${c.pitch.toFixed(1)}`; };
+  let drivenLine = "";
+  const cam = tableCamera(canvas, () => lastFrame, () => {
+    // Рука — пока палец на столе и пока стол докатывается после него по инерции.
+    const byHand = handsDown.size > 0 || coasting || performance.now() - handAt < 800;
+    if (watch && !driving && byHand && camLine() !== drivenLine) for (const fn of movedByHand) fn();
+    if (coasting && handsDown.size === 0 && !cam.camera.flinging) coasting = false;
+    redraw();
+  });
   /** ИЗМЕРИТЕЛИ — пинг, кадры, камера; включаются в настройках (`meters.ts`). */
   const meters = mountMeters(document.body, {
     ...(store.ping ? { ping: (t: number) => store.ping!(t) } : {}),
@@ -2608,7 +2631,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         return { key: sp.key, hand: c?.hand.length ?? 0, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, ...(c?.croupier ? { croupier: true } : {}), x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), puff: sp.puff, rings: sp.rings, ...(sp.plate ? { plate: sp.plate } : {}), chair: Math.round(SEAT_REACH * view!.k) };
       }),
     });
-    local.tips = local.tips.filter((id) => id !== seat && chairOf(s, id) !== undefined);
+    local.tips = local.tips.filter((id) => id !== seat && (watch || chairOf(s, id) !== undefined));
     tellWatch();
     // ОКНА СТАВЯТСЯ ПО ОЧЕРЕДИ ОТКРЫТИЯ: каждое знает, где уже стоят раньше открытые.
     placedTips = new Map();
@@ -4267,6 +4290,19 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     (e) => {
       if (e.target !== canvas) return;
       if (drag) return void e.stopPropagation();
+      // ТОЛЬКО СМОТРЕТЬ: стул — его окно; своё место — камера; всё остальное — камера. Ни карты, ни лассо.
+      if (watch) {
+        // Запись показывает стол уменьшенным и сдвинутым (экран того, кто играл, — в моём окне): палец
+        // переводится в точки холста, иначе он попадал бы мимо стула.
+        const r = canvas.getBoundingClientRect();
+        const k = r.width / (canvas.clientWidth || r.width);
+        const hit = chairUnder(seen(), (e.clientX - r.left) / k, (e.clientY - r.top) / k);
+        if (!hit) return;
+        e.stopPropagation();
+        if (hit.key === mine()) return compass.offSeat(store.state) < 1.5 ? leanToggle() : goHome();
+        local.tips = local.tips.includes(hit.key) ? local.tips.filter((k) => k !== hit.key) : [...local.tips, hit.key];
+        return draw();
+      }
       // Мышь с Ctrl/Cmd или правой кнопкой — всегда камера: карта не берётся, окно не открывается.
       if (orbits(e)) {
         e.preventDefault();
@@ -4337,6 +4373,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     + ":root[data-reduce-motion] [data-bar],:root[data-reduce-motion] [data-section],:root[data-reduce-motion] [data-eye]{animation:none!important}";
   document.head.append(keyframes);
 
+  // РУКА ЗРИТЕЛЯ НА СТОЛЕ — в захвате, до камеры и до всего остального: так видно и жест, и колёсико.
+  if (watch) {
+    const touch = () => void (handAt = performance.now());
+    stage.addEventListener("pointerdown", (e) => { handsDown.add(e.pointerId); touch(); }, { capture: true });
+    const up = (e: PointerEvent) => {
+      if (!handsDown.delete(e.pointerId)) return;
+      touch();
+      coasting = true;
+    };
+    addEventListener("pointerup", up);
+    addEventListener("pointercancel", up);
+    stage.addEventListener("wheel", touch, { capture: true, passive: true });
+  }
+
   addEventListener("resize", draw);
   addEventListener("orientationchange", draw);
   void document.fonts?.ready.then(draw);
@@ -4358,13 +4408,25 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // обрывается (глайд с нулевым временем встаёт на место сразу). Иначе стул, сдвинутый перемоткой,
     // уводил бы записанный взгляд в сторону — на ракурс, которого не было ни у кого.
     look: {
+      onHand(fn: () => void) {
+        movedByHand.push(fn);
+      },
+      now() {
+        const c = cam.camera;
+        return { x: c.target.x, y: c.target.y, zoom: c.zoom, turn: c.rotation, lean: c.pitch };
+      },
       to(v) {
         lookedFrom = true;
-        cam.camera.lookAt({ x: v.x, y: v.y });
+        driving = true;
+        // ЦЕНТР — ПОСЛЕДНИМ: наклон и зум меняют, куда камере можно смотреть, и центр, поставленный
+        // раньше них, съезжал бы при их подгонке — тот же взгляд, поставленный дважды, давал разный стол.
         cam.camera.setZoom(v.zoom);
         cam.camera.glideTurnTo(v.turn, 0);
         cam.camera.glideTiltTo(v.lean, 0);
+        cam.camera.lookAt({ x: v.x, y: v.y });
         draw();
+        drivenLine = camLine();
+        driving = false;
       },
       home() {
         const chair = chairOf(store.state, mine(store.state));

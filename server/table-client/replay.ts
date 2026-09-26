@@ -13,9 +13,11 @@ import type { Person } from "../src/table/contract.js";
 import { mountScreen } from "./screen.js";
 import { replayStore, viewOf, type Told } from "./replayStore.js";
 import { cardText, describe, rawSeen, type LogLine } from "./replayLog.js";
+import { clusters, MARK_NAMES, markNear, marksOf, type Mark } from "./replayMarks.js";
 import { clockText, playhead, REPLAY_MODES, REPLAY_SPEEDS, type ReplayMode } from "./replayClock.js";
 import type { Face } from "../src/table/contract.js";
 import { HOST } from "./host.js";
+import type { SeenView } from "./watch.js";
 
 const params = new URLSearchParams(location.search);
 const stage = document.getElementById("stage")!;
@@ -96,22 +98,33 @@ async function start(): Promise<void> {
   // рука закрывала треть поля, у меня остаётся пустое сукно, и половина жалоб на вёрстку становится
   // невидимой. Размер берётся из его же рассказа при открытии.
   const opened = deeds.find((d) => d.kind === "open")?.what as { w?: number; h?: number } | undefined;
+  // ПАНЕЛЬ ВЫСОТОЙ СО СВОЁ СОДЕРЖИМОЕ: на узком телефоне ряды переносятся, и стол встаёт над ней, а не
+  // под неё — по её настоящей высоте, заново при каждом изменении.
+  const panel = document.getElementById("panel")!;
+  const fitStage = (): void => {
+    const below = panel.offsetHeight;
+    document.documentElement.style.setProperty("--panel", `${below}px`);
+    if (!opened?.w || !opened?.h) return;
+    const fit = Math.min(1, (innerHeight - below - 24) / opened.h, innerWidth / opened.w);
+    stage.style.transform = `translateX(-50%) scale(${fit.toFixed(3)})`;
+  };
   if (opened?.w && opened?.h) {
-    const fit = Math.min(1, (innerHeight - 178) / opened.h, innerWidth / opened.w);
     stage.style.width = `${opened.w}px`;
     stage.style.height = `${opened.h}px`;
     stage.style.left = "50%";
     stage.style.right = "auto";
     stage.style.top = "12px";
     stage.style.bottom = "auto";
-    stage.style.transform = `translateX(-50%) scale(${fit.toFixed(3)})`;
     stage.style.transformOrigin = "top center";
     stage.style.outline = "1px solid #2a2f30";
     stage.style.borderRadius = "10px";
     stage.style.overflow = "hidden";
   }
+  fitStage();
+  new ResizeObserver(fitStage).observe(panel);
+  addEventListener("resize", fitStage);
 
-  const screen = mountScreen(stage, replay.store);
+  const screen = mountScreen(stage, replay.store, undefined, { watch: true });
   // ЧЕСТНОСТЬ ПЕРЕД ЗРИТЕЛЕМ: у восстановленной записи карты, которых не трогали, лежат рубашкой —
   // не потому что они закрыты, а потому что запись про них не знает.
   if (replay.guessed || replay.lost > 0 || replay.older > 0) {
@@ -139,7 +152,47 @@ async function start(): Promise<void> {
   blind.hidden = true;
   stage.appendChild(blind);
   let lastView = "";
+  // ДВА РЕЖИМА КАМЕРЫ. «Как у игрока» — камера едет по его записи. «Свободная» — зритель повёл стол
+  // сам (или нажал кнопку), и дальше ракурс держит он: перемотка его не трогает. Кнопка возвращает
+  // записанную камеру выбранного игрока на текущее мгновение. Рука и видимость карт — от «чьими
+  // глазами», а не от камеры: свободная камера только смотрит с другой стороны.
+  let camFree = false;
+  /**
+   * Ракурс, поставленный зрителем РУКОЙ (с докатом по инерции): перемотка возвращает его. Только от руки —
+   * не с экрана после перемотки: там центр уже поджат краем стола под другую руку внизу, и ракурс
+   * уползал бы с каждым шагом.
+   */
+  let freeView: SeenView | null = null;
+  const camButton = document.getElementById("cam")!;
+  const setFree = (on: boolean): void => {
+    camFree = on;
+    camButton.textContent = on ? "свободная камера · вернуть" : "камера игрока";
+    camButton.toggleAttribute("data-free", on);
+    camButton.setAttribute("aria-pressed", String(on));
+    if (!on) {
+      lastView = "";
+      lookAsHe(replay.at);
+    } else {
+      blind.hidden = true;
+      freeView = screen.look.now();
+    }
+  };
+  camButton.onclick = () => setFree(!camFree);
+  screen.look.onHand(() => {
+    if (!camFree) setFree(true);
+    freeView = screen.look.now();
+  });
   const lookAsHe = (upto: number): void => {
+    if (camFree) {
+      // Дважды: сейчас и кадром позже — экран подгоняет камеру под новый кадр (рука выросла) уже на
+      // следующей отрисовке, и ракурс зрителя должен лечь поверх этого.
+      const keep = freeView;
+      if (keep) {
+        screen.look.to(keep);
+        requestAnimationFrame(() => camFree && freeView === keep && screen.look.to(keep));
+      }
+      return;
+    }
     const his = viewOf(replay.moments, upto, me.key);
     blind.hidden = his !== null;
     // Без камеры — своё место внизу. Стул мог сдвинуться на этом мгновении, поэтому ставится заново
@@ -218,8 +271,60 @@ async function start(): Promise<void> {
     location.search = new URLSearchParams({ ...Object.fromEntries(params), eyes: eyes.value, at: String(replay.at), mode, speed: String(speed) }).toString();
   };
 
+  // МЕТКИ — важные мгновения партии (`replayMarks.ts`): на шкале, в списке «События» и в переходах
+  // «к прошлому / следующему важному». Переход по метке ставит просмотр на паузу: к событию идут, чтобы
+  // его разглядеть.
+  const marks = marksOf(replay.moments.map((m) => m.deed), replay.start);
+  const total = Math.max(1, replay.moments.length - 1);
+  const jump = (step: number): void => {
+    if (playing) stop();
+    moved(step);
+  };
+  const marksBox = document.getElementById("marks")!;
+  /** Теснее этой доли шкалы метки пальцем не различить — они собираются в группу. */
+  const GAP = 22 / Math.max(200, marksBox.clientWidth || innerWidth - 44);
+  const groups = clusters(marks, total, GAP);
+  marksBox.innerHTML = groups
+    .map((g, i) => {
+      const left = `${((g[0]!.step / total) * 100).toFixed(2)}%`;
+      if (g.length === 1) return `<button class="mark ${g[0]!.kind}" data-mark="${g[0]!.step}" style="left:${left}" aria-label="${esc(`${MARK_NAMES[g[0]!.kind]}: ${g[0]!.says}`)}"><i></i></button>`;
+      return `<button class="mark group" data-group="${i}" style="left:${left}" aria-label="${g.length} событий рядом"><i>${g.length}</i></button>`;
+    })
+    .join("");
+  for (const el of marksBox.querySelectorAll<HTMLElement>("[data-mark]")) el.onclick = () => jump(Number(el.dataset.mark));
+  for (const el of marksBox.querySelectorAll<HTMLElement>("[data-group]")) el.onclick = () => openEvents(groups[Number(el.dataset.group)]!);
+  document.getElementById("prevMark")!.onclick = () => { const m = markNear(marks, replay.at, -1); if (m) jump(m.step); };
+  document.getElementById("nextMark")!.onclick = () => { const m = markNear(marks, replay.at, 1); if (m) jump(m.step); };
+
+  // СОБЫТИЯ — крупный список, время и что случилось. Тап — к событию, на паузе, и список закрывается.
+  const events = document.getElementById("events")!;
+  const eventsBody = document.getElementById("eventsBody")!;
+  const eventsTitle = document.getElementById("eventsTitle")!;
+  const openEvents = (list: readonly Mark[] = marks): void => {
+    eventsTitle.textContent = list === marks ? `События партии · ${marks.length}` : `${list.length} событий рядом`;
+    eventsBody.innerHTML = list.length === 0
+      ? `<div class="line">Важных событий в записи нет: раздачи, закрытия и сбора круга, конца партии стол не записал.</div>`
+      : list.map((m) => `<button class="ev${m.step === replay.at ? " now" : ""}" data-step="${m.step}"><time>${clockText(m.at - t0)}</time><b class="kind-${m.kind}">${MARK_NAMES[m.kind]}</b><span>${esc(m.says)}</span></button>`).join("");
+    for (const el of eventsBody.querySelectorAll<HTMLElement>("[data-step]")) el.onclick = () => { events.hidden = true; jump(Number(el.dataset.step)); };
+    events.hidden = false;
+    document.getElementById("eventsClose")!.focus();
+  };
+  document.getElementById("eventsOpen")!.onclick = () => openEvents();
+  document.getElementById("eventsClose")!.onclick = () => void (events.hidden = true);
+  events.onclick = (e) => {
+    if (e.target === events) events.hidden = true;
+  };
+
   replay.onSeek(show);
   replay.seek(Number(params.get("at")) || 0);
+  // КАДР ВСТАЁТ ПОЗЖЕ ПЕРВОГО ШАГА: экран подгоняет камеру под свой размер, когда дорисуется, — после
+  // этого (и после поворота телефона) записанный взгляд ставится заново.
+  const relook = (): void => {
+    lastView = "";
+    lookAsHe(replay.at);
+  };
+  void screen.ready.then(relook);
+  addEventListener("resize", () => requestAnimationFrame(relook));
 
 
   // ПРОИГРЫВАНИЕ — в реальном времени записи или пошагово, на выбранной скорости (`replayClock.ts`).
@@ -272,6 +377,7 @@ async function start(): Promise<void> {
   document.getElementById("fwd")!.onclick = () => moved(replay.at + 1);
 
   addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !events.hidden) return void (events.hidden = true);
     if (e.key === "Escape" && !sheet.hidden) return closeSheet();
     if (e.key === "ArrowRight") moved(replay.at + 1);
     if (e.key === "ArrowLeft") moved(replay.at - 1);
