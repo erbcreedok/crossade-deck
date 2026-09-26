@@ -1,0 +1,23 @@
+server/scripts/tableCardTip.mjs
+  s_9ed0da107cbc4a::t_a4e5978e8822e8 56-58,63,68-69,89-93,164
+server/scripts/tablePlay.mjs
+  s_9ed0da107cbc4a::t_d98e73862b587e 1,3-6,80,83-88,90,93,103-104
+server/scripts/tableTalk.mjs
+  s_9ed0da107cbc4a::t_3d42ad0c6aa26e 218-219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "35313a6b481e2776ad496241a81c85c4ecc8c60e",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
