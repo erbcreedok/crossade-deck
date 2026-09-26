@@ -28,6 +28,7 @@ import type { TableStore } from "./store.js";
 import type { ScreenHealth, SeenThrough } from "./watch.js";
 import { lands, type Load } from "../src/table/landing.js";
 import { deskOf } from "../src/table/desks.js";
+import { mountAr } from "./ar.js";
 import type { Witness } from "../src/table/telling.js";
 import { HOST } from "./host.js";
 import { apart } from "./angles.js";
@@ -363,6 +364,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     redraw();
   });
   /** ИЗМЕРИТЕЛИ — пинг, кадры, камера; включаются в настройках (`meters.ts`). */
+  /**
+   * AR-СТОЛ — род стола так сказал (`DeskRules.view`). Тогда линзу даёт телефон (`ar.ts`), а пальцевая
+   * камера остаётся только поворотом и зумом: два пальца крутят и растят стол, компас ставит свой стул
+   * ко мне. Всё остальное на экране об AR не знает — оно спрашивает ту же линзу.
+   */
+  const ar = deskOf(store.desk, () => null).view === "ar" && !watch ? mountAr(stage, canvas, redraw) : null;
+  if (ar) undo.add(() => ar.dispose());
   const meters = mountMeters(document.body, {
     ...(store.ping ? { ping: (t: number) => store.ping!(t) } : {}),
     ...(store.onPing ? { onPing: (listener: (t: number) => void) => store.onPing!(listener) } : {}),
@@ -2578,6 +2586,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     lastFrame = { w: g.w, h: g.h - floor };
     syncCamera();
     art.warm(s.rules);
+    const arGlass = ar?.lens({ w: g.w, h: g.h }, cam.camera.rotation, cam.camera.zoom);
     view = drawFelt(canvas, {
       W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), turning, piles: s.piles.flatMap((p) => {
         if (!deckCarry(s, p.id)) return [p];
@@ -2585,9 +2594,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         // виден и пуст — и стрелка с ним, пока карты в воздухе: они ещё могут вернуться.
         return p.zone ? [{ ...p, cards: [], carried: true }] : [];
       }), felt: s.felt, held: heldInk(s), picked: Object.fromEntries(Object.keys(s.picks ?? {}).map((id) => [id, pickInk(s, id)!])), hidden: heldInPiles(s, flying),
-      view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
-      lens: lens(cam.camera.transform(), cam.camera.pitch, cam.camera.pixelsPerUnit, lastFrame, { r: R + RIM, depth: TABLE_THICK }),
-      rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
+      ...(arGlass
+        ? { view: arGlass.view, k: arGlass.k, squash: arGlass.squash, rotation: arGlass.rotation, lens: arGlass, rise: arGlass.rise }
+        : {
+          view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
+          lens: lens(cam.camera.transform(), cam.camera.pitch, cam.camera.pixelsPerUnit, lastFrame, { r: R + RIM, depth: TABLE_THICK }),
+          rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
+        }),
     });
     spots = view.spots;
     talk.place(wordAnchors(s));
@@ -4381,8 +4394,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     chairPress = null;
     if (e.type !== "pointerup" || !isTap(press, { x: e.clientX, y: e.clientY, at: performance.now() })) return;
     // СВОЙ АВАТАР — КАМЕРА, А НЕ ОКНО: окно своего стула не открывается принципиально, место свободно.
-    // Тап переключает «вид со стула» и домашний (`SEAT_VIEW`).
-    if (press.key === mine()) return seatView();
+    // Тап переключает «вид со стула» и домашний (`SEAT_VIEW`). В AR вид держит телефон — тап ставит
+    // стол туда, куда он сейчас смотрит.
+    if (press.key === mine()) return ar ? ar.place() : seatView();
     // КРУПЬЕ ПОКАЗЫВАЕТ РУКОЙ, ЧЕЙ ХОД. Выбор тапом по самому стулу, а не списком имён в окне: за
     // столом на игрока показывают, а не зачитывают его имя.
     if (local.pointing && !watch) {

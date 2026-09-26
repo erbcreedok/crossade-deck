@@ -1,6 +1,7 @@
 // ВХОД В СТОЛ — решает, откуда стол, и больше ничего.
 //
 //   ?stand                         стенд: стол в этой вкладке, за ним боты
+//   ?stand&desk=sandbox-ar         тот же стенд в AR: стол держит наклон телефона
 //   в Telegram (Mini App)          дверь `telegram`, комната — `start_param` (или `?room=`)
 //   в браузере                     дверь `guest`: пустит, только если серверу это разрешено
 
@@ -78,7 +79,7 @@ function closedTable(): void {
 }
 
 async function open(): Promise<TableStore> {
-  if (params.has("stand")) return localStore();
+  if (params.has("stand")) return localStore(params.get("desk") ?? undefined);
   const room = roomAsked;
   if (!room) throw new Error("Нет комнаты. Открой стол по ссылке из чата.");
   const options: JoinOptions = telegram?.initData

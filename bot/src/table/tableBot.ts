@@ -422,9 +422,9 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     }
     // ПО КАРТОЧКЕ НА КАЖДЫЙ РОД СТОЛА, и у каждой своя комната: человек выбирает род ровно один раз —
     // здесь. Имена родов берутся из каталога сервера, второго списка названий нет.
-    const fresh = deskNames().map(({ id, name }) => {
+    const fresh = deskNames().map(({ id, name, about }) => {
       const room = mintRoom(secret);
-      const card = inviteArticle(id, name, room, links);
+      const card = inviteArticle(name, about, room, links);
       return {
         type: "article",
         id: `tbl:${id}:${room}`,

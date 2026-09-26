@@ -23,6 +23,9 @@ export type Judge = () => { turn: string | null; closer: string | null } | null;
 
 export const DESKS: Record<string, (judge: Judge) => DeskRules> = {
   sandbox: () => SANDBOX,
+  // ТА ЖЕ ПЕСОЧНИЦА, ТОЛЬКО В AR: стол висит перед человеком и осматривается наклоном телефона.
+  // Правила те же до буквы — отличается только то, чем экран смотрит на стол (`DeskRules.view`).
+  "sandbox-ar": () => ({ ...SANDBOX, kind: "AR-песочница", about: "Песочница в AR: стол висит перед тобой, осматривайся наклоном телефона", view: "ar" }),
   // Крестовому нужен судья: он говорит, чей ход и кто закрыл круг. Судья живёт в КОМНАТЕ, а не в
   // каталоге, — поэтому сюда его передают, а не хранят здесь.
   krest: (judge) => krestDesk(judge),
@@ -38,8 +41,11 @@ export const deskName = (kind: string): string => (isDesk(kind) ? DESKS[kind]!((
 /** Какой набор крупье эта игра предлагает по умолчанию. */
 export const deskCrew = (kind: string): string | undefined => (isDesk(kind) ? DESKS[kind]!(() => null).crew : undefined);
 
-export const deskNames = (): Array<{ id: string; name: string }> =>
-  Object.entries(DESKS).map(([id, make]) => ({ id, name: make(() => null).kind }));
+export const deskNames = (): Array<{ id: string; name: string; about?: string }> =>
+  Object.entries(DESKS).map(([id, make]) => {
+    const rules = make(() => null);
+    return { id, name: rules.kind, ...(rules.about ? { about: rules.about } : {}) };
+  });
 
 /** Род, которым открывается стол, если про род ничего не сказали. */
 export const DEFAULT_DESK = "sandbox";

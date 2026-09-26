@@ -125,6 +125,8 @@ export function krestDesk(judge: () => { turn: string | null; closer: string | n
   return {
     ...SANDBOX,
     kind: "крестовый",
+    // Своя строка обязательна: без неё из песочницы наследовалось «Комната без правил».
+    about: "Комната с правилами: крестовый",
     crew: "krest",
     zones: [{ id: RING, name: "Круг хода", x: 0, y: 0, pose: "ring", forever: true }],
     // КОЛОДЫ В ЭТОЙ ИГРЕ НЕТ КАК МЕСТА: её раздают всю, и пустой контур посреди сукна только мешает.

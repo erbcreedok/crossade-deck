@@ -128,6 +128,24 @@
         "9583"
       ],
       "port": 9582
+    },
+    {
+      "name": "table-probe",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "--prefix",
+        "server",
+        "tsx",
+        "server/src/index.ts"
+      ],
+      "env": {
+        "PORT": "2611",
+        "TABLE_SECRET": "probe",
+        "TABLE_GUESTS": "1",
+        "TELEGRAM_BOT_TOKEN": "test",
+        "CROSSADE_DB_FILE": ":memory:"
+      },
+      "port": 2611
     }
   ]
 }

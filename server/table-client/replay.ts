@@ -87,7 +87,7 @@ async function start(): Promise<void> {
   const eyes = document.getElementById("eyes") as HTMLSelectElement;
   eyes.innerHTML = [...players].map(([key, name]) => `<option value="${key}"${key === first ? " selected" : ""}>глазами ${name}</option>`).join("");
 
-  let replay;
+  let replay: ReturnType<typeof replayStore>;
   try {
     replay = replayStore(deeds, me);
   } catch (err) {

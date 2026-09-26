@@ -47,6 +47,10 @@ They need a server started with `TABLE_SECRET=dev TELEGRAM_BOT_TOKEN=test TABLE_
   and bundled on the fly in development (`clientBundle.ts`); the bundle is built once per process, so
   a client edit needs a restart of the live table too.
 - The turn ring is described in `src/table/RING.md`.
+- **AR is a way of looking, not a game**: a desk kind with `view: "ar"` (`sandbox-ar`) makes the screen take
+  its `Lens` from the phone's tilt (`table-client/ar.ts`, `arLens.ts`) instead of the finger camera; every
+  drawing and hit-test already goes through that lens, so nothing else knows. Live check: `scripts/tableAr.mjs`
+  on the stand (`/table/?stand&desk=sandbox-ar`).
 
 ## Accounts
 

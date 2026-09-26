@@ -1,3 +1,4 @@
+import { deskNames } from "../../../server/src/table/desks.js";
 import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
 import { cardRows, enter, inviteArticle, inviteExisting, listed, mayManage, opened } from "./talk.js";
@@ -81,12 +82,14 @@ describe("каким столом я вправе распоряжаться", (
 
 describe("карточка нового комнаты: род выбирается здесь", () => {
   it("у каждого рода своя карточка, и род назван человеческим именем", () => {
-    const sand = inviteArticle("sandbox", "песочница", "r1", links);
-    const krest = inviteArticle("krest", "крестовый", "r2", links);
-    expect(sand.title).toContain("песочница");
-    expect(krest.title).toContain("крестовый");
-    expect(sand.description, "у песочницы правил нет — так и сказано").toContain("без правил");
-    expect(krest.description).toContain("крестовый");
+    const by = Object.fromEntries(deskNames().map((d) => [d.id, d]));
+    const card = (id: string) => inviteArticle(by[id]!.name, by[id]!.about, id, links);
+    expect(card("sandbox").title).toContain("песочница");
+    expect(card("krest").title).toContain("крестовый");
+    expect(card("sandbox").description, "у песочницы правил нет — так и сказано").toContain("без правил");
+    expect(card("krest").description).toContain("крестовый");
+    expect(card("sandbox-ar").title).toContain("AR-песочница");
+    expect(card("sandbox-ar").description, "AR-комната говорит, чем она другая").toContain("наклоном");
   });
 
   it("у открытого комнаты есть вход и «Меню» — управление хозяину", () => {

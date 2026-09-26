@@ -119,10 +119,10 @@ export function inviteExisting(card: RoomCard, links: Links, admin: boolean): { 
  * КАРТОЧКА НОВОГО СТОЛА — по одной на род (`desks.ts`). Род выбирается здесь и только здесь: дальше
  * он едет с комнатой, и ни бот, ни стол больше про него не спрашивают.
  */
-export function inviteArticle(kind: string, name: string, room: string, links: Links): { title: string; description: string; text: string; button: Button } {
+export function inviteArticle(name: string, about: string | undefined, room: string, links: Links): { title: string; description: string; text: string; button: Button } {
   return {
     title: `Новая комната · ${name}`,
-    description: kind === "sandbox" ? "Комната без правил: раскладывай руками" : `Комната с правилами: ${name}`,
+    description: about ?? `Комната с правилами: ${name}`,
     text: `«${name}» открыта — заходи.`,
     button: enter(room, links, false),
   };
