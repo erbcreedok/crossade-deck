@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Нижний бар — стенд</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Handjet&family=Press+Start+2P&family=Tiny5&display=swap" rel="stylesheet">
+<script src="card-kit.js"></script>
+<style>
+  :root { --felt: #173d2d; --feltDark: #0f2e22; --panel: #3a2a1d; --plateHi: #2c3a26; --plateLo: #16210f; --rim: #6b4d2c;
+    --ink: #f5ead0; --inkDim: #cdb98f; --gold: #f2c14e; --goldHi: #f8d885; --goldLo: #b08a26; --black: #0b0704; --bad: #e0483f; }
+  body { margin: 0; background: #0d2118; color: var(--inkDim); font: 400 16px/1.45 'Handjet', monospace; }
+  .page { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; padding: 32px; }
+  .phone { flex: none; width: 390px; height: 844px; position: relative; overflow: hidden; border-radius: 44px; background: var(--feltDark); box-shadow: inset 0 0 0 3px var(--black); }
+  .panel { flex: 1; min-width: 320px; max-width: 460px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font: 400 26px/1.2 'Tiny5', monospace; color: var(--gold); }
+  .sec { padding: 12px 14px; background: #123527; box-shadow: inset 0 0 0 3px var(--black), inset 0 0 0 5px var(--panel); display: flex; flex-direction: column; gap: 6px; }
+  .sec h2 { margin: 0 0 4px; font: 400 16px/1.2 'Tiny5', monospace; color: var(--gold); }
+  .k { display: grid; grid-template-columns: 1fr 120px; gap: 8px; align-items: center; color: var(--ink); }
+  .k input[type=number], .k select { width: 120px; box-sizing: border-box; font: 400 16px 'Handjet', monospace; padding: 4px 6px; background: #0f2e22; color: var(--gold); border: 2px solid var(--panel); border-radius: 6px; }
+  .k input[type=checkbox] { justify-self: start; width: 20px; height: 20px; }
+  button.reset { align-self: flex-start; font: inherit; color: var(--gold); background: none; border: 2px solid var(--gold); padding: 4px 10px; cursor: pointer; }
+  .knob { display: none; }
+  @media (max-width: 700px), (pointer: coarse) and (max-width: 1000px) {
+    body { overflow: hidden; }
+    .page { padding: 0; gap: 0; }
+    .phone { position: fixed; inset: 0; width: 100vw; height: 100dvh; border-radius: 0; box-shadow: none; }
+    .panel { position: fixed; left: 0; right: 0; top: 0; max-width: none; max-height: 70dvh; overflow: auto; padding: calc(14px + env(safe-area-inset-top)) 14px 14px; box-sizing: border-box;
+      background: #0d2118; box-shadow: 0 3px 0 var(--black), 0 6px 0 var(--panel); transform: translateY(-105%); transition: transform .22s cubic-bezier(.2,.85,.25,1); z-index: 90; }
+    .panel.open { transform: none; }
+    .knob { display: flex; position: fixed; left: 50%; transform: translateX(-50%); top: calc(64px + env(safe-area-inset-top)); z-index: 95; height: 30px; padding: 0 12px; border-radius: 8px; align-items: center;
+      background: linear-gradient(#25321f, #16210f); box-shadow: inset 0 0 0 2px var(--black), inset 0 0 0 4px var(--rim); color: var(--gold); font: 400 10px 'Tiny5', monospace; }
+  }
+
+  /* ── экран стола ── */
+  .felt { position: absolute; left: 50%; top: 42%; width: 118%; aspect-ratio: 1; transform: translate(-50%, -50%) scaleY(.78); border-radius: 50%;
+    background: radial-gradient(circle, #1b4835 0%, var(--felt) 70%); box-shadow: 0 0 0 14px #3a2a1d, 0 0 0 17px var(--black); }
+  .top { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 8px; padding: calc(12px + var(--safeTop)) 14px 0; z-index: 20; }
+  .round { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--inkDim);
+    background: linear-gradient(var(--plateHi), var(--plateLo)); box-shadow: inset 0 0 0 3px var(--black), inset 0 0 0 5px var(--rim); flex: none; }
+  .title { flex: 1; text-align: center; font: 400 11px 'Tiny5', monospace; color: var(--ink); padding: 9px 10px; border-radius: 8px; background: var(--black); box-shadow: inset 0 0 0 2px var(--rim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .compass { width: 48px; height: 48px; }
+
+  .hand { position: absolute; left: 0; right: 0; z-index: 10; height: 0; }
+  .hand .c { position: absolute; transform-origin: 50% 170%; filter: drop-shadow(0 4px 6px rgba(0,0,0,.45)); }
+
+  .bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; justify-content: center; align-items: flex-start; }
+  .bar .shelf { position: absolute; inset: 0; background: linear-gradient(#2a1d12, #1a110a); box-shadow: 0 -3px 0 var(--black), 0 -5px 0 var(--rim); }
+  .bar .row { position: relative; display: flex; gap: var(--gap); align-items: flex-start; }
+  .b { display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; user-select: none; -webkit-user-select: none; }
+  .b .face { width: var(--btn); height: var(--btn); display: grid; place-items: center; color: var(--inkDim);
+    background: linear-gradient(var(--plateHi), var(--plateLo)); box-shadow: inset 0 0 0 3px var(--black), inset 0 0 0 5px var(--rim); }
+  .b.round .face, .b .face.round { border-radius: 50%; }
+  .b.plate .face { border-radius: 12px; }
+  .b.lit .face { background: linear-gradient(var(--goldHi), var(--goldLo)); color: var(--black); box-shadow: inset 0 0 0 3px var(--black); }
+  .b.sec-open .face { box-shadow: inset 0 0 0 2px var(--black), inset 0 0 0 5px var(--goldHi), 0 0 0 2px var(--black); color: var(--gold); }
+  .b .lab { font: 400 var(--lab) 'Tiny5', monospace; color: var(--ink); letter-spacing: .02em; white-space: nowrap; }
+  .b.only-lab .face { width: auto; min-width: var(--btn); padding: 0 10px; font: 400 calc(var(--lab) + 1px) 'Tiny5', monospace; }
+  .sep { width: 2px; align-self: stretch; margin: 4px 2px; background: var(--rim); opacity: .6; }
+
+  .home { position: absolute; left: 50%; transform: translateX(-50%); width: 134px; height: 5px; border-radius: 3px; background: #f5ead0; opacity: .85; z-index: 60; pointer-events: none; }
+  .danger { position: absolute; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, rgba(224,72,63,.35) 0 8px, rgba(224,72,63,.15) 8px 16px); z-index: 59; pointer-events: none; }
+  .danger span { position: absolute; right: 8px; top: 2px; font: 400 9px 'Tiny5', monospace; color: #fff; }
+
+  .main { position: absolute; z-index: 35; padding: 12px 18px; border-radius: 12px; font: 400 13px 'Tiny5', monospace; color: var(--black); cursor: pointer;
+    background: linear-gradient(var(--goldHi), var(--goldLo)); box-shadow: inset 0 0 0 3px var(--black), 0 4px 0 rgba(11,7,4,.6); display: flex; gap: 8px; align-items: center; }
+
+  .chatbtn { position: absolute; z-index: 36; }
+  .chat { position: absolute; left: 10px; right: 10px; z-index: 40; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px;
+    background: rgba(11,7,4,.88); box-shadow: inset 0 0 0 2px var(--rim); }
+  .chat .line { display: flex; gap: 8px; }
+  .chat .field { flex: 1; font: 400 16px 'Handjet', monospace; color: var(--inkDim); padding: 8px 10px; border-radius: 8px; background: #0f2e22; box-shadow: inset 0 0 0 2px var(--panel); }
+  .chat .send { font: 400 11px 'Tiny5', monospace; color: var(--black); background: var(--gold); border-radius: 8px; padding: 0 12px; display: grid; place-items: center; }
+  .chat .quick { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chat .quick span { font: 400 15px 'Handjet', monospace; color: var(--ink); padding: 4px 10px; border-radius: 14px; background: #123527; box-shadow: inset 0 0 0 2px var(--panel); }
+
+  .toast { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); z-index: 70; padding: 6px 12px; border-radius: 8px; background: rgba(11,7,4,.9); color: var(--ink); font-size: 18px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; }
+  .ring { position: absolute; left: 50%; top: 40%; width: 150px; height: 110px; transform: translate(-50%, -50%); border-radius: 50%; border: 3px dashed rgba(242,193,78,.45); z-index: 5; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="phone" id="phone"></div>
+  <div class="knob" id="knob">РУЧКИ</div>
+  <div class="panel" id="panel">
+    <h1>Нижний бар</h1>
+    <div>Бар из четырёх секций — <b>Рука, Стул, Порядок, Выбор</b>, у каждой кнопки подпись. «Рука» и «Порядок» появляются, только когда карты есть. <b>Чат — не в баре</b>: своя кнопка и полоса, которая не закрывает ни руку, ни стол. <b>Низ</b> — над полосой «домой» айфона (её можно подсветить). В крестовом у закрывшего круг — <b>«Закрыть круг»</b>: карты круга уходят крупье. <b>AR</b> — строка «Поставить сюда / Стол − +». Всё нажимается: секции открываются, чат открывается.</div>
+    <div id="controls"></div>
+    <button class="reset" id="reset">сбросить</button>
+  </div>
+</div>
+<script>
+(function () {
+  const phone = document.getElementById("phone");
+  const real = () => matchMedia("(max-width: 700px), (pointer: coarse) and (max-width: 1000px)").matches;
+
+  // ── ЗНАЧКИ: 24×24, линией, как в баре стола ─────────────────────────────────────────────────────
+  const svg = (body, fill = "none") => `<svg viewBox="0 0 24 24" width="60%" height="60%" fill="${fill}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+  const card = (x, y, a) => `<rect x="${x}" y="${y}" width="8" height="11" rx="1.5" transform="rotate(${a} ${x + 4} ${y + 11})"/>`;
+  const ICON = {
+    hand: svg(card(4, 7, -18) + card(8, 5, 0) + card(12, 7, 18)),
+    fan: svg(card(4, 8, -22) + card(8, 6, 0) + card(12, 8, 22)),
+    shrink: svg(card(6, 6, 0) + card(9, 6, 0) + card(12, 6, 0)),
+    tuck: svg(card(8, 11, 0) + '<path d="M3 15h18"/>'),
+    chair: svg('<path d="M7 3v9h10V3M6 12h12v3H6zM7 15v6M17 15v6"/>'),
+    lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+    hide: svg('<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 4l16 16"/>'),
+    reject: svg('<circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/>'),
+    forever: svg('<path d="M12 12c-2-3-6-3-6 0s4 3 6 0 6-3 6 0-4 3-6 0z"/>'),
+    leave: svg('<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/>'),
+    order: svg('<path d="M4 6h10M4 12h7M4 18h4M18 5v14M15 16l3 3 3-3"/>'),
+    suit: `<span style="font:700 15px Georgia,serif">♠<span style="color:#b3221f">♥</span></span>`,
+    rank: `<span style="font:700 12px Georgia,serif">A‥K</span>`,
+    reverse: svg('<path d="M7 4v16M4 17l3 3 3-3M17 20V4M14 7l3-3 3 3"/>'),
+    shuffle: svg('<path d="M3 7h4l10 10h4M3 17h4l3-3M14 10l3-3h4M18 4l3 3-3 3M18 14l3 3-3 3"/>'),
+    select: svg('<ellipse cx="13" cy="9" rx="7" ry="5" stroke-dasharray="3 2.4"/><path d="M8 13c-2 1.5-2.5 4 0 5.5 1.5 1 3 .5 3.5-.5"/>'),
+    finger: svg('<path d="M9 11V5a1.5 1.5 0 0 1 3 0v6M12 10V9a1.5 1.5 0 0 1 3 0v2M15 11a1.5 1.5 0 0 1 3 0v3a6 6 0 0 1-6 6h-1a5 5 0 0 1-4-2l-3-4a1.5 1.5 0 0 1 2.3-2L9 14"/>'),
+    lasso: svg('<ellipse cx="13" cy="9" rx="7" ry="5" stroke-dasharray="3 2.4"/><path d="M8 13c-2 1.5-2.5 4 0 5.5 1.5 1 3 .5 3.5-.5"/>'),
+    grab: svg('<path d="M7 12V7a1.5 1.5 0 0 1 3 0v4M10 11V5.5a1.5 1.5 0 0 1 3 0V11M13 11V6.5a1.5 1.5 0 0 1 3 0V12M16 12V9a1.5 1.5 0 0 1 3 0v4a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-2-4a1.5 1.5 0 0 1 2.6-1.5L7 14"/>'),
+    side: svg('<path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/>'),
+    chat: svg('<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>'),
+    place: svg('<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>'),
+    minus: svg('<path d="M6 12h12"/>'),
+    plus: svg('<path d="M6 12h12M12 6v12"/>'),
+    gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>'),
+    journal: svg('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>'),
+    closeRing: svg('<ellipse cx="12" cy="12" rx="9" ry="6" stroke-dasharray="3 2.4"/><path d="M9 12h6M13 9.5l2.5 2.5-2.5 2.5"/>'),
+  };
+
+  // ── СЕКЦИИ БАРА (без чата) ──────────────────────────────────────────────────────────────────────
+  const SECTIONS = [
+    { id: "hand", lab: "Рука", needsCards: true, subs: [["fan", "Веер"], ["shrink", "Сжать"], ["tuck", "Спрятать"]] },
+    { id: "chair", lab: "Стул", subs: [["lock", "Замок"], ["hide", "Скрыть"], ["reject", "Не брать"], ["forever", "Навсегда"], ["leave", "Встать"]] },
+    { id: "order", lab: "Порядок", needsCards: true, subs: [["suit", "Масть"], ["rank", "Старшинство"], ["reverse", "Наоборот"], ["shuffle", "Перемешать"]] },
+    { id: "select", lab: "Выбор", subs: [["finger", "Палец"], ["lasso", "Лассо"], ["grab", "Взять"], ["side", "Сторона"]] },
+  ];
+
+  // ── РУЧКИ ───────────────────────────────────────────────────────────────────────────────────────
+  const SPEC = [
+    ["Низ экрана", [
+      ["safe", "полоса «домой», px", "num", 34, 0, 60, "на телефоне — настоящая"],
+      ["lift", "зазор над ней, px", "num", 10, 0, 60],
+      ["danger", "подсветить зону свайпа", "bool", true],
+      ["barPad", "поле полки сверху, px", "num", 10, 0, 40],
+    ]],
+    ["Кнопки", [
+      ["labels", "подписи", "enum", "значок + подпись", ["значок + подпись", "только значок", "только подпись"]],
+      ["shape", "форма", "enum", "круг", ["круг", "плашка"]],
+      ["btn", "кнопка, px", "num", 50, 32, 72],
+      ["gap", "зазор, px", "num", 12, 0, 30],
+      ["lab", "подпись, px", "num", 9, 7, 14],
+      ["opens", "секция открывается", "enum", "полкой над баром", ["полкой над баром", "вместо бара (как сейчас)"]],
+    ]],
+    ["Рука", [
+      ["cards", "карт в руке", "num", 5, 0, 14, "0 — «Рука» и «Порядок» пропадают"],
+      ["cardW", "карта, px", "num", 70, 40, 110],
+      ["overlap", "карты над полкой, px", "num", 70, 0, 140],
+    ]],
+    ["Чат", [
+      ["chatAt", "кнопка чата", "enum", "сбоку над рукой", ["сбоку над рукой", "сверху у журнала", "в баре (как сейчас)"]],
+      ["chatOpen", "чат открыт", "bool", false],
+      ["chatWhere", "полоса чата", "enum", "сверху, под шапкой", ["сверху, под шапкой", "над рукой"]],
+    ]],
+    ["Игра", [
+      ["game", "стол", "enum", "крестовый", ["песочница", "крестовый"]],
+      ["closed", "круг закрыл я", "bool", true],
+      ["mainAt", "«Закрыть круг» — где", "enum", "над рукой по центру", ["над рукой по центру", "справа над рукой", "в баре первой"]],
+    ]],
+    ["AR", [
+      ["ar", "AR включён", "bool", false],
+      ["arAt", "кнопки AR", "enum", "строкой над баром", ["строкой над баром", "столбиком справа"]],
+    ]],
+  ];
+  const DEFAULTS = {};
+  for (const [, rows] of SPEC) for (const [k, , , d] of rows) DEFAULTS[k] = d;
+  const readHash = () => {
+    const out = { ...DEFAULTS };
+    for (const pair of location.hash.replace(/^#/, "").split("&").filter(Boolean)) {
+      const [k, v] = pair.split("=").map(decodeURIComponent);
+      if (!(k in DEFAULTS)) continue;
+      const d = DEFAULTS[k];
+      out[k] = typeof d === "number" ? Number(v) : typeof d === "boolean" ? v === "1" : v;
+    }
+    return out;
+  };
+  const writeHash = () => {
+    const parts = [];
+    for (const k in DEFAULTS) if (P[k] !== DEFAULTS[k]) parts.push(`${k}=${encodeURIComponent(typeof P[k] === "boolean" ? (P[k] ? "1" : "0") : P[k])}`);
+    history.replaceState(null, "", parts.length ? `#${parts.join("&")}` : location.pathname);
+  };
+  let P = readHash();
+  const S = { open: null, lit: { fan: true, finger: true, lock: true } };
+
+  const controls = document.getElementById("controls");
+  const build = () => {
+    controls.innerHTML = SPEC.map(([title, rows]) => `<div class="sec"><h2>${title}</h2>` + rows.map(([k, label, kind, , a, b, note]) => {
+      const lab = `<span>${label}${note ? `<br><small style="color:var(--inkDim)">${note}</small>` : ""}</span>`;
+      if (kind === "num") return `<label class="k">${lab}<input type="number" data-k="${k}" min="${a}" max="${b}" step="1" value="${P[k]}"></label>`;
+      if (kind === "enum") return `<label class="k">${lab}<select data-k="${k}">${a.map((o) => `<option${o === P[k] ? " selected" : ""}>${o}</option>`).join("")}</select></label>`;
+      return `<label class="k">${lab}<input type="checkbox" data-k="${k}"${P[k] ? " checked" : ""}></label>`;
+    }).join("") + `</div>`).join("");
+    for (const el of controls.querySelectorAll("[data-k]")) {
+      el.addEventListener(el.type === "checkbox" ? "change" : el.tagName === "SELECT" ? "change" : "input", () => {
+        const k = el.dataset.k;
+        P[k] = el.type === "checkbox" ? el.checked : el.type === "number" ? Number(el.value) : el.value;
+        render();
+      });
+    }
+  };
+  document.getElementById("reset").onclick = () => { P = { ...DEFAULTS }; build(); render(); };
+  document.getElementById("knob").onclick = () => document.getElementById("panel").classList.toggle("open");
+
+  // ── РИСОВАНИЕ ───────────────────────────────────────────────────────────────────────────────────
+  const btn = (id, lab, { lit = false, open = false, cls = "", attr = "" } = {}) => {
+    const shape = P.shape === "круг" ? "round" : "plate";
+    const only = P.labels === "только подпись";
+    const face = only ? lab : ICON[id] ?? "";
+    const label = P.labels === "значок + подпись" ? `<span class="lab">${lab}</span>` : "";
+    return `<div class="b ${shape}${lit ? " lit" : ""}${open ? " sec-open" : ""}${only ? " only-lab" : ""} ${cls}" ${attr}><div class="face">${face}</div>${label}</div>`;
+  };
+  const RANKS = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2", "A"], SUITS = ["s", "h", "d", "c"];
+
+  function render() {
+    writeHash();
+    const W = phone.clientWidth, H = phone.clientHeight;
+    const safe = real() ? 0 : P.safe;                      // на телефоне отступ даёт сам env()
+    const safeCss = real() ? `max(env(safe-area-inset-bottom), ${P.safe}px)` : `${P.safe}px`;
+    const labH = P.labels === "значок + подпись" ? P.lab + 5 : 0;
+    const rowH = P.btn + labH;
+    const shelfH = P.barPad + rowH + P.lift;               // над полосой «домой»
+    const cards = P.cards;
+    const sections = SECTIONS.filter((s) => !s.needsCards || cards > 0);
+    if (S.open && !sections.some((s) => s.id === S.open)) S.open = null;
+    const chatInBar = P.chatAt === "в баре (как сейчас)";
+    const mainInBar = P.game === "крестовый" && P.closed && P.mainAt === "в баре первой";
+
+    // строка бара
+    let row;
+    const openSec = sections.find((s) => s.id === S.open);
+    const subs = openSec ? openSec.subs.map(([id, lab]) => btn(id, lab, { lit: !!S.lit[id], attr: `data-sub="${id}"` })).join("") : "";
+    if (openSec && P.opens === "вместо бара (как сейчас)") {
+      row = btn(openSec.id === "hand" ? "hand" : openSec.id, openSec.lab, { open: true, attr: `data-sec="${openSec.id}"` }) + `<div class="sep"></div>` + subs;
+    } else {
+      row = (mainInBar ? btn("closeRing", "Закрыть круг", { lit: true, attr: "data-main" }) + `<div class="sep"></div>` : "")
+        + sections.map((s) => btn(s.id, s.lab, { open: s.id === S.open, attr: `data-sec="${s.id}"` })).join("")
+        + (chatInBar ? btn("chat", "Чат", { attr: "data-chat", open: P.chatOpen }) : "");
+    }
+    const shelfOpen = openSec && P.opens === "полкой над баром";
+
+    // рука: веер над полкой
+    const cw = P.cardW, ch = Math.round(cw * CardKit.ASPECT);
+    const handBase = shelfH + (real() ? 0 : safe) + (shelfOpen ? rowH + 16 : 0);   // низ карт над полкой
+    const handTop = H - handBase - P.overlap;
+    let hand = "";
+    const n = cards, step = Math.min(cw * 0.62, (W - 40 - cw) / Math.max(1, n - 1));
+    for (let i = 0; i < n; i += 1) {
+      const x = W / 2 - ((n - 1) * step) / 2 + i * step - cw / 2;
+      const a = (i - (n - 1) / 2) * 5;
+      hand += `<div class="c" style="left:${x}px;top:0;transform:rotate(${a}deg)">${CardKit.html(CardKit.face(cw, RANKS[i % RANKS.length], SUITS[i % 4]))}</div>`;
+    }
+
+    // главная кнопка игры
+    let main = "";
+    if (P.game === "крестовый" && P.closed && !mainInBar) {
+      const y = handTop - 58;
+      main = P.mainAt === "справа над рукой"
+        ? `<div class="main" data-main style="right:14px;top:${y}px">${ICON.closeRing.replace('width="60%" height="60%"', 'width="18" height="18"')}Закрыть круг</div>`
+        : `<div class="main" data-main style="left:50%;transform:translateX(-50%);top:${y}px">${ICON.closeRing.replace('width="60%" height="60%"', 'width="18" height="18"')}Закрыть круг</div>`;
+    }
+
+    // кнопка чата
+    let chatBtn = "";
+    if (P.chatAt === "сбоку над рукой") chatBtn = `<div class="chatbtn" style="right:12px;top:${handTop - 66}px">${btn("chat", "Чат", { open: P.chatOpen, attr: "data-chat" })}</div>`;
+    // полоса чата
+    let chat = "";
+    if (P.chatOpen) {
+      const where = P.chatWhere === "над рукой" ? `top:${handTop - 150}px` : `top:calc(64px + var(--safeTop))`;
+      chat = `<div class="chat" style="${where}"><div class="line"><div class="field">написать всем…</div><div class="send">ОК</div></div>`
+        + `<div class="quick"><span>мой ход?</span><span>пас</span><span>беру</span><span>👍</span><span>ха</span><span>ещё раз?</span></div></div>`;
+    }
+
+    // AR
+    let ar = "";
+    if (P.ar) {
+      const items = btn("place", "Сюда", { attr: "data-ar" }) + btn("minus", "Стол −", { attr: "data-ar" }) + btn("plus", "Стол +", { attr: "data-ar" });
+      ar = P.arAt === "столбиком справа"
+        ? `<div style="position:absolute;right:12px;top:${handTop - 260}px;display:flex;flex-direction:column;gap:${P.gap}px;z-index:34">${items}</div>`
+        : `<div style="position:absolute;left:0;right:0;top:${handTop - rowH - 18}px;display:flex;justify-content:center;gap:${P.gap}px;z-index:34">${items}</div>`;
+    }
+
+    const topChat = P.chatAt === "сверху у журнала" ? btn("chat", "", { open: P.chatOpen, attr: "data-chat", cls: "top-chat" }) : "";
+    phone.style.setProperty("--btn", `${P.btn}px`);
+    phone.style.setProperty("--gap", `${P.gap}px`);
+    phone.style.setProperty("--lab", `${P.lab}px`);
+    phone.style.setProperty("--safeTop", real() ? "env(safe-area-inset-top)" : "44px");
+    phone.innerHTML = `<div class="felt"></div><div class="ring"></div>`
+      + `<div class="top"><div class="round">${ICON.gear}</div><div class="round">${ICON.journal}</div>${topChat}<div class="title">Крестовый. Кривой обоз</div><div class="round compass">${ICON.place}</div></div>`
+      + `<div class="hand" style="top:${handTop}px">${hand}</div>`
+      + main + chatBtn + chat + ar
+      + (shelfOpen ? `<div style="position:absolute;left:0;right:0;bottom:calc(${safeCss} + ${shelfH - (real() ? 0 : 0)}px);display:flex;justify-content:center;gap:${P.gap}px;padding:8px 0;z-index:31;background:linear-gradient(rgba(26,17,10,0),rgba(26,17,10,.92) 30%);">${subs}</div>` : "")
+      + `<div class="bar" style="height:calc(${safeCss} + ${shelfH}px)"><div class="shelf"></div><div class="row" style="margin-top:${P.barPad}px">${row}</div></div>`
+      + (real() ? "" : `<div class="home" style="bottom:8px"></div>`)
+      + (P.danger ? `<div class="danger" style="height:${safeCss}"><span>зона свайпа «домой»</span></div>` : "")
+      + `<div class="toast" id="toast"></div>`;
+    for (const el of phone.querySelectorAll(".top-chat .lab")) el.remove();
+    wire();
+  }
+
+  let toastT = 0;
+  const toast = (t) => { const el = document.getElementById("toast"); el.textContent = t; el.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("on"), 1200); };
+  function wire() {
+    for (const el of phone.querySelectorAll("[data-sec]")) el.onclick = () => { S.open = S.open === el.dataset.sec ? null : el.dataset.sec; render(); };
+    for (const el of phone.querySelectorAll("[data-sub]")) el.onclick = () => {
+      const id = el.dataset.sub, sec = SECTIONS.find((s) => s.subs.some(([x]) => x === id));
+      if (sec.id === "hand" || sec.id === "select") for (const [x] of sec.subs) S.lit[x] = x === id; else S.lit[id] = !S.lit[id];
+      render();
+    };
+    for (const el of phone.querySelectorAll("[data-chat]")) el.onclick = () => { P.chatOpen = !P.chatOpen; build(); render(); };
+    for (const el of phone.querySelectorAll("[data-main]")) el.onclick = () => toast("карты круга ушли крупье");
+    for (const el of phone.querySelectorAll("[data-ar]")) el.onclick = () => toast(el.textContent.trim() || "AR");
+  }
+
+  addEventListener("resize", render);
+  if (typeof CardKit.loadCourts === "function") CardKit.loadCourts().then(render);
+  build();
+  render();
+})();
+</script>
+</body>
+</html>

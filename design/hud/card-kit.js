@@ -313,6 +313,13 @@
     };
   };
 
-  root.CardKit = { T, ASPECT, SUIT, SUIT_F, COURT_F, PLAID, PLAID_BG, DUST, pipMask, pipSpots, cornerSt, scrambled, face, pile,
+  /** Лицо карты (`face`) → разметка: одна сборка на все страницы стенда. */
+  const q = (st) => String(st).replace(/"/g, "&quot;");
+  const html = (f) => `<div style="${q(f.wrap)}"><div style="${q(f.faceSt)}"></div><div style="position:absolute;inset:0">`
+    + `<div style="${q(f.corner)}"><div style="${q(f.rankSt)}">${f.rank}</div><div style="${q(f.pipSt)}"></div></div>`
+    + `<div style="${q(f.cornerB)}"><div style="${q(f.rankSt)}">${f.rank}</div><div style="${q(f.pipSt)}"></div></div>`
+    + f.pips.map((pp) => `<div style="${q(pp.st)}"></div>`).join("") + `<div style="${q(f.figure)}"></div></div></div>`;
+
+  root.CardKit = { T, ASPECT, SUIT, SUIT_F, COURT_F, PLAID, PLAID_BG, DUST, pipMask, pipSpots, cornerSt, scrambled, face, pile, html,
     loadCourts, courtArt, courtsReady };
 })(window);

@@ -192,13 +192,7 @@
   // ВНУТРИ АТРИБУТА style КАВЫЧКИ ЭКРАНИРУЮТСЯ: маски и рубашки — это url("…"), и без этого
   // атрибут обрывался на первой кавычке, а карты стояли пустыми.
   const a = (st) => String(st).replace(/"/g, "&quot;");
-  const cardHtml = (f) => {
-    const pips = f.pips.map((pp) => `<div style="${a(pp.st)}"></div>`).join("");
-    return `<div style="${a(f.wrap)}"><div style="${a(f.faceSt)}"></div><div style="position:absolute;inset:0">`
-      + `<div style="${a(f.corner)}"><div style="${a(f.rankSt)}">${f.rank}</div><div style="${a(f.pipSt)}"></div></div>`
-      + `<div style="${a(f.cornerB)}"><div style="${a(f.rankSt)}">${f.rank}</div><div style="${a(f.pipSt)}"></div></div>`
-      + pips + `<div style="${a(f.figure)}"></div></div></div>`;
-  };
+  const cardHtml = (f) => CardKit.html(f);
   const pileHtml = (cards, full) => cards.map((c) => full
     ? `<div style="${a(c.st)}"><div style="${a(c.corner)}"><div style="${a(c.rankSt)}">${c.rank}</div><div style="${a(c.pipSt)}"></div></div><div style="${a(c.cornerB)}"><div style="${a(c.rankSt)}">${c.rank}</div><div style="${a(c.pipSt)}"></div></div>${c.pips.map((pp) => `<div style="${a(pp.st)}"></div>`).join("")}<div style="${a(c.figure)}"></div></div>`
     : `<div style="${a(c.st)}"></div>`).join("");
