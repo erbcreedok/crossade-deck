@@ -87,6 +87,26 @@ const fan = await hand();
 const fys = fan.map((c) => c.top);
 check("посередине — веер", Math.max(...fys) - Math.min(...fys) > 4, fys.map((y) => y.toFixed(0)).join(","));
 
+// 2б. РУЧКА НЕ НАЕЗЖАЕТ НА КАРТЫ — ни в веере, ни в ряду; чат над ней, а не на ней.
+{
+  const overlap = (a, b) => a && b && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const cardsBoxes = () => p.evaluate(() => {
+    const me = JSON.parse(document.querySelector("canvas").dataset.spots).seats.find((x) => x.who === "Ye").key;
+    return [...document.querySelectorAll(`[data-card][data-owner="${me}"]`)].map((e) => { const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; });
+  });
+  const check2 = async (pose) => {
+    const hb = await box("[data-pose-handle]");
+    const hit = (await cardsBoxes()).some((c) => overlap(hb, c));
+    check(`${pose}: ручка не наезжает ни на одну карту`, !hit, hb);
+    check(`${pose}: чат не наезжает на ручку`, !overlap(await box('[data-g="thumb-chat"]'), hb));
+    check(`${pose}: ручка не меньше 44 px`, hb.right - hb.left >= 44, hb.right - hb.left);
+  };
+  await check2("веер");
+  await drag(0, -400);
+  await check2("ряд");
+  await drag(0, 90);
+}
+
 // 3. меню порядка
 const hb = await box("[data-pose-handle]");
 await p.mouse.click(hb.x, hb.y); await settle();
