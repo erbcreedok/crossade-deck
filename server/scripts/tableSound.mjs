@@ -43,11 +43,12 @@ await heard(B);
 const { k, middle } = await spots(A);
 
 // 1. A кладёт карту с колоды левее середины.
-await drag(A, (await spots(A)).deckTop, { x: middle.x - 3 * k, y: middle.y - 1.5 * k });
+// Вправо от середины: слева-сверху сидит крупье, и колода у него лежит ровно там.
+await drag(A, (await spots(A)).deckTop, { x: middle.x + 3 * k, y: middle.y - 1.5 * k });
 await A.waitForTimeout(900);
 let a = await heard(A), b = await heard(B);
 const aDrop = a.find((s) => s.kind === "drop"), bDrop = b.find((s) => s.kind === "drop");
-check("A слышит свой дроп громко и слева", aDrop && aDrop.gain === 1 && aDrop.x < -0.2, a);
+check("A слышит свой дроп громко и справа — там, куда положил", aDrop && aDrop.gain === 1 && aDrop.x > 0.2, a);
 check("B слышит чужой дроп тише", bDrop && bDrop.gain < 1, b);
 check("звук не повторился ответом сервера", a.filter((s) => s.kind === "drop").length === 1, a);
 

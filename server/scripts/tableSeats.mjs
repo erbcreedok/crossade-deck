@@ -24,6 +24,14 @@ const open = async (name) => {
 const checks = [];
 const check = (name, ok, got) => checks.push({ name, ok, got });
 const spots = async (p) => JSON.parse(await p.getAttribute("canvas", "data-spots"));
+/**
+ * ТАП ПО КОЛЬЦУ КОМПАСА — настоящим нажатием и отпусканием: компас отличает тап от поворота по
+ * отпусканию. И по самому кольцу, а не по середине: там диск наклона, у него своё дело.
+ */
+const tapRing = async (p) => {
+  const b = await p.locator("[data-home]").boundingBox();
+  await p.mouse.click(b.x + b.width * 0.12, b.y + b.height / 2);
+};
 const view = async (p) => (await p.getAttribute("canvas", "data-view")).split(",").map(Number);
 const seatOf = async (p, who) => (await spots(p)).seats.find((s) => s.who === who);
 const turnOf = (deg) => ((((deg + 180) % 360) + 360) % 360) - 180;
@@ -40,8 +48,10 @@ for (const [p, me, other] of [[A, "A", "B"], [B, "B", "A"]]) {
 }
 
 // ── 2. A тянет карту с колоды на юг своего экрана — у B она на севере его экрана ──────────────────
+// КОЛОДА ЛЕЖИТ У КРУПЬЕ, а не в середине стола: карту берём с неё, кладём — на юг от середины.
 const m = (await spots(A)).middle;
-await A.mouse.move(m.x, m.y);
+const deck = (await spots(A)).deckTop;
+await A.mouse.move(deck.x, deck.y);
 await A.mouse.down();
 await A.mouse.move(m.x, m.y + 90, { steps: 8 });
 await A.mouse.up();
@@ -49,8 +59,8 @@ await A.waitForTimeout(800);
 const onA = (await spots(A)).felt[0];
 const onB = (await spots(B)).felt[0];
 const mb = (await spots(B)).middle;
-check("A положил карту ниже колоды у себя", onA && onA.y > m.y + 40, onA);
-check("у B та же карта выше колоды — он сидит напротив", onB && onB.y < mb.y - 40, [onB, mb]);
+check("A положил карту ниже середины у себя", onA && onA.y > m.y + 40, onA);
+check("у B та же карта выше середины — он сидит напротив", onB && onB.y < mb.y - 40, [onB, mb]);
 check("и у B она лежит повёрнутой, как у A ровно", onB && Math.abs(turnOf((await view(B))[3] + onB.angle - 180)) < 2, [onB, await view(B)]);
 
 // ── 3. Компас-кольцо: висит всегда, поворачивается с камерой, тапом возвращает к своему стулу ────
@@ -64,7 +74,7 @@ await A.keyboard.up("Control");
 await A.waitForTimeout(200);
 const turned = await view(A);
 check("после поворота и наклона компас на месте", (await A.locator("[data-home]").count()) === 1 && Math.abs(turned[3] - (await spots(A)).seatAngle) > 10, turned);
-await A.locator("[data-home]").dispatchEvent("pointerdown");
+await tapRing(A);
 await A.waitForTimeout(900);
 const home = await view(A);
 check("кнопка вернула поворот к стулу и сняла наклон", Math.abs(turnOf(home[3] - (await spots(A)).seatAngle)) < 1 && home[4] < 0.5, home);
@@ -72,7 +82,7 @@ check("и осталась на месте: компас нужен и когд�
 
 // ── 4. Высота стопок: колода растёт вверх при наклоне, разбег — к правому верху при любом повороте ───
 const flatTop = (await spots(A)).deckTop;
-const flatMid = (await spots(A)).middle;
+const flatMid = (await spots(A)).deckBase;
 await A.keyboard.down("Control");
 await A.mouse.move(195, 300);
 await A.mouse.down();
@@ -82,8 +92,9 @@ await A.keyboard.up("Control");
 await A.waitForTimeout(200);
 const tilt = await spots(A);
 const flatRise = flatMid.y - flatTop.y;
-const tiltRise = tilt.middle.y - tilt.deckTop.y;
-check("наклон — колода выше", (await view(A))[4] > 20 && tiltRise > flatRise + 3, [flatRise, tiltRise, await view(A)]);
+const tiltRise = tilt.deckBase.y - tilt.deckTop.y;
+// Колода лежит у дальнего края, а в перспективе даль мельче: прибавка в пару пикселей — уже рост.
+check("наклон — колода выше", (await view(A))[4] > 20 && tiltRise > flatRise + 2, [flatRise, tiltRise, await view(A)]);
 await A.keyboard.down("Control");
 await A.mouse.move(100, 300);
 await A.mouse.down();
@@ -92,14 +103,16 @@ await A.mouse.up();
 await A.keyboard.up("Control");
 await A.waitForTimeout(200);
 const spun = await spots(A);
-check("повернул стол — разбег колоды всё равно вправо-вверх экрана", spun.deckTop.x > spun.middle.x && spun.deckTop.y < spun.middle.y, [spun.deckTop, spun.middle, await view(A)]);
-await A.locator("[data-home]").dispatchEvent("pointerdown");
+check("повернул стол — разбег колоды всё равно вправо-вверх экрана", spun.deckTop.x > spun.deckBase.x && spun.deckTop.y < spun.deckBase.y, [spun.deckTop, spun.deckBase, await view(A)]);
+await tapRing(A);
 await A.waitForTimeout(900);
 
 // ── 5. Карта на карте поднята; при наклоне — выше ───────────────────────────────────────────────
+// С КОЛОДЫ — она лежит у крупье, не в середине стола.
 const put = async (dx, dy) => {
   const mm = (await spots(A)).middle;
-  await A.mouse.move(mm.x, mm.y);
+  const deck = (await spots(A)).deckTop;
+  await A.mouse.move(deck.x, deck.y);
   await A.mouse.down();
   await A.mouse.move(mm.x + dx, mm.y + dy, { steps: 8 });
   await A.mouse.up();
@@ -121,7 +134,7 @@ const pairT = (await spots(A)).felt;
 check("при наклоне поднята, но не больше толщины карты", pairT[1].rise > 0 && pairT[1].rise <= 1, [pairT, await view(A)]);
 
 // ── 5б. Прокрутил камеру за полоборота — своя карта, поднятая и положенная, не летит и не крутится ──
-await A.locator("[data-home]").dispatchEvent("pointerdown");
+await tapRing(A);
 await A.waitForTimeout(900);
 for (let k = 0; k < 2; k += 1) {
   await A.keyboard.down("Control");
@@ -147,7 +160,8 @@ check("камера прокручена за полоборота — своя 
 
 // ── 6. Пересел — камера доворачивается плавно, и новый стул внизу ────────────────────────────────
 const C = await open("C");
-const cm = (await spots(C)).middle;
+// Карту — с колоды: с ней в руке стул C остаётся стоять, когда C уйдёт.
+const cm = (await spots(C)).deckTop;
 await C.mouse.move(cm.x, cm.y);
 await C.mouse.down();
 await C.mouse.move(195, 760, { steps: 8 });

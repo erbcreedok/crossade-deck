@@ -54,7 +54,8 @@ await felt(B);
 const { k, middle } = await spots(A);
 
 // 1. A кладёт карту с колоды на стол: взял — light, положил — soft. У B — ничего.
-await drag(A, (await spots(A)).deckTop, { x: middle.x - 3 * k, y: middle.y - 1.5 * k });
+// Вправо от середины: слева-сверху сидит крупье, и колода у него лежит ровно там.
+await drag(A, (await spots(A)).deckTop, { x: middle.x + 3 * k, y: middle.y - 1.5 * k });
 await A.waitForTimeout(900);
 let a = await felt(A), b = await felt(B);
 check("A: взял — light, положил — soft", a[0] === "light" && a.includes("soft"), a);
@@ -75,7 +76,9 @@ check("B: чужой переворот — тишина", b.length === 0, b);
 await B.waitForTimeout(800);
 await felt(B);
 const bSeat = (await spots(A)).seats.find((s) => s.who === "B");
-await A.mouse.move(middle.x, middle.y);
+// Та карта, что лежит на сукне, — а не «что-то в середине»: в середине стола пусто.
+const onFelt = (await spots(A)).felt[0];
+await A.mouse.move(onFelt.x, onFelt.y);
 await A.mouse.down();
 await A.mouse.move(bSeat.x + 4, bSeat.y + bSeat.chair * 0.6, { steps: 10 });
 await A.waitForTimeout(300);

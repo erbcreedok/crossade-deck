@@ -171,12 +171,20 @@ check("отпустил над колодой — карта в колоде, н
 check("после дропа зоны нет", (await zone(A)) === null, null);
 
 // ── 12. Сторона: стопка вся рубашкой — карта, которую несли лицом, ложится рубашкой ─────────────
+/**
+ * ТОЧКА НА СУКНЕ — в единицах стола от его середины, а не в пикселях: стол меняет размер, и пиксель,
+ * бывший сукном, оказывается колодой крупье или стулом. Правая половина свободна от обоих.
+ */
+const onTable = async (ux, uy) => {
+  const s = await spots(A);
+  return { x: s.middle.x + ux * s.k, y: s.middle.y + uy * s.k };
+};
 const toFelt = async (at) => {
   const t = (await spots(A)).deckTop;
   await dragCard(A, t, at);
   return (await spots(A)).felt.at(-1);
 };
-felt = await toFelt({ x: 110, y: 330 });
+felt = await toFelt(await onTable(2.5, 0));
 await A.mouse.click(felt.x, felt.y);
 await wait(A, 90);
 await A.mouse.click(felt.x, felt.y);
@@ -194,7 +202,7 @@ await wait(A, 80);
 await tap(A);
 await wait(A, 700);
 await A.locator("[data-deck-shut]").dispatchEvent("pointerdown").catch(() => {});
-felt = await toFelt({ x: 110, y: 330 });
+felt = await toFelt(await onTable(2.5, 0));
 await A.mouse.click(felt.x, felt.y);
 await wait(A, 90);
 await A.mouse.click(felt.x, felt.y);
@@ -207,8 +215,8 @@ sb2 = await spots(B);
 check("вся стопка лицом — легла лицом", sb2.deck === 36 && sb2.deckFace !== null, sb2.deckFace);
 
 // ── 14. Одиночная карта карту не принимает ──────────────────────────────────────────────────────
-const one = await toFelt({ x: 100, y: 300 });
-const two = await toFelt({ x: 290, y: 300 });
+const one = await toFelt(await onTable(2.2, -1.6));
+const two = await toFelt(await onTable(2.2, 1.6));
 let over2 = null;
 await dragCard(A, two, { x: one.x, y: one.y + 0.32 * 1.4 * (await spots(A)).k }, async (phase) => phase === "over" && (over2 = await zone(A)));
 sb2 = await spots(B);

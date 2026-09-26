@@ -2666,6 +2666,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       grip: round(gripAt(s, id) ?? { x: -1, y: -1 }),
       face: cards.at(-1)?.up ? (cards.at(-1)!.face?.rank ?? null) : null,
       top,
+      // ОСНОВАНИЕ СТОПКИ на экране — нижняя карта: от неё мерят, насколько стопка выросла при наклоне.
+      base: pile && view ? round(view.toGlass(pile)) : null,
       air: Boolean(deckCarry(s, id)),
       ids: cards.map((c) => c.id),
       // УГЛЫ КАРТ — это состояние, а не картинка: прогон смотрит на них, чтобы увидеть, что взятая
@@ -2694,7 +2696,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       ghost: (pile as { ghost?: Laid3 } | undefined)?.ghost ?? null,
     };
     if (as === "pile") return out;
-    return { deck: out.count, spot: out.spot, grip: out.grip, deckFace: out.face, deckTop: out.top, deckAir: out.air, deckIds: out.ids, deckUp: out.up };
+    return { deck: out.count, spot: out.spot, grip: out.grip, deckFace: out.face, deckTop: out.top, deckBase: out.base, deckAir: out.air, deckIds: out.ids, deckUp: out.up };
   }
 
   /**
