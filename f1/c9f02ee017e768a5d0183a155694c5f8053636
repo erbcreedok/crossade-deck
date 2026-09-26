@@ -1,0 +1,25 @@
+bot/src/table/tableBot.ts
+  s_e1c4165d82711d::t_97e4a8cff93066 16,336,400
+bot/src/table/talk.test.ts
+  s_e1c4165d82711d::t_97e4a8cff93066 4,95-98
+  s_e1c4165d82711d::t_cdbd97a25c1ee2 99-100
+bot/src/table/talk.ts
+  s_e1c4165d82711d::t_97e4a8cff93066 119-124
+  s_e1c4165d82711d::t_18c467add39352 118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f1c9f02ee017e768a5d0183a155694c5f8053636",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
