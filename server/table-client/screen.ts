@@ -1487,7 +1487,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    */
   function micHtml(barTop: number): string {
     const m = local.mic;
-    if (!m) return "";
+    // Голос закрыт — ни подсказки «потяни», ни шайбы: кнопка чата просто открывает чат.
+    if (!m || !VOICE_OPEN) return "";
     // ПАЛЕЦ ЕЩЁ НА КНОПКЕ — микрофона нет, есть только подсказка: тянуть, а не ждать.
     if (!m.off) {
       return `<div data-mic-hint style="position:absolute;left:8px;right:8px;top:${Math.round(barTop - 34)}px;z-index:62;pointer-events:none;text-align:center;`

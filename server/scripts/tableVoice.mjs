@@ -9,6 +9,7 @@ import { createHmac, randomBytes } from "crypto";
 import { createRequire } from "module";
 const require = createRequire(process.env.PW_FROM ?? import.meta.url);
 const { chromium } = require("playwright");
+import { voiceOpen, VOICE_WAITS } from "./voiceGate.mjs";
 
 const base = process.argv[2] ?? "http://localhost:2599";
 const secret = process.argv[3] ?? "dev";
@@ -26,6 +27,10 @@ const open = async (name) => {
   await p.addInitScript(() => {
     window.__cancels = 0;
     addEventListener("pointercancel", () => { window.__cancels += 1; }, { capture: true });
+    // Сколько раз страница просила микрофон — голос закрыт, значит, ни разу.
+    window.__gum = 0;
+    const gum = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
+    if (gum) navigator.mediaDevices.getUserMedia = (...a) => { window.__gum += 1; return gum(...a); };
   });
   await p.route("https://telegram.org/**", (r) => r.abort());
   await p.goto(`${base}/table/?room=${room}&name=${name}`);
@@ -39,6 +44,40 @@ const check = (name, ok, got) => checks.push({ name, ok, got });
 
 const A = await open("A");
 const B = await open("B");
+
+// ГОЛОС ЗАКРЫТ — проверяется то, что работает сейчас: кнопка чата не становится микрофоном ни касанием,
+// ни зажатием с уводом пальца, микрофон не просится, в эфир ничего не уходит, а кнопка открывает чат.
+if (!voiceOpen()) {
+  console.log(VOICE_WAITS);
+  await A.waitForTimeout(600);
+  const at = await (async () => { for (let t = 0; t < 15000; t += 200) { const b = await A.locator('[data-section="say"]').boundingBox().catch(() => null); if (b && b.width > 0) return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; await A.waitForTimeout(200); } return null; })();
+  check("кнопка чата на месте", at !== null);
+  await A.mouse.move(at.x, at.y);
+  await A.mouse.down();
+  await A.waitForTimeout(500);
+  check("палец на кнопке — ни подсказки «потяни», ни шайбы", (await A.$("[data-mic-hint]")) === null && (await A.$("[data-mic-puck]")) === null);
+  await A.mouse.move(at.x - 120, at.y - 200, { steps: 10 });
+  await A.waitForTimeout(900);
+  check("увёл палец — микрофона нет: ни шайбы, ни зон", (await A.$("[data-mic-puck]")) === null && (await A.$("[data-mic-drop]")) === null);
+  check("микрофон не просился", (await A.evaluate(() => window.__gum)) === 0, await A.evaluate(() => window.__gum));
+  const mesh = await A.evaluate(() => ({ ...window.__tableMesh }));
+  check("в эфир ничего не ушло", (mesh.talking ?? []).length === 0, mesh);
+  check("у соседа нет микрофона над моим аватаром", (await B.$$eval("[data-mic-mark]", (els) => els.length)) === 0);
+  await A.mouse.up();
+  await A.waitForTimeout(500);
+  check("отпустил — открылся чат", await A.locator("[data-keyboard]").isVisible());
+  await A.locator('[data-key-act="close"]').click();
+  await A.waitForTimeout(400);
+  await A.mouse.click(at.x, at.y);
+  await A.waitForTimeout(500);
+  check("касание кнопки — чат", await A.locator("[data-keyboard]").isVisible());
+  await browser.close();
+  let bad = 0;
+  for (const c of checks) { if (!c.ok) bad += 1; console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got)); }
+  console.log(`${checks.length - bad}/${checks.length}`);
+  process.exit(bad ? 1 : 0);
+}
+
 const C = await open("C");
 await A.waitForTimeout(400);
 

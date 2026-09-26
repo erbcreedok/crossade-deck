@@ -9,6 +9,13 @@ import { createHmac, randomBytes } from "crypto";
 import { createRequire } from "module";
 const require = createRequire(process.env.PW_FROM ?? import.meta.url);
 const { chromium } = require("playwright");
+import { voiceOpen, VOICE_WAITS } from "./voiceGate.mjs";
+
+// Голос закрыт — говорить некому и нечем: весь прогон про разговор втроём, он ждёт возвращения голоса.
+if (!voiceOpen()) {
+  console.log(VOICE_WAITS);
+  process.exit(0);
+}
 
 const base = process.argv[2] ?? "http://localhost:2599";
 const secret = process.argv[3] ?? "dev";
