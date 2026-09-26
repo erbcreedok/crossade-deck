@@ -9,7 +9,7 @@ import { CARRY_EVERY_MS, DEAL_PRESETS, DEFAULT_POSE, type DealPreset, type DealR
 import { applyPatch } from "../src/table/patch.js";
 import { arranged, samePack, shuffled } from "../src/table/arrange.js";
 import { CARD as FELT_CARD, HAND_SCALE, R, RIM, SEAT_REACH, SUITS, TABLE_THICK, drawFelt, type FeltView, type Pose, type Seat, type Spot } from "./felt.js";
-import { orbits, tableCamera } from "./camera.js";
+import { LEAN_STEP, orbits, SEAT_VIEW, tableCamera } from "./camera.js";
 import { allowed, may as mayDo, mayFlagChair, type Ask, type Key } from "../src/table/access.js";
 import { deckArt, readLook, settled, writeLook, type DeckLook } from "./deckArt.js";
 import { tableHaptic } from "./haptic.js";
@@ -34,7 +34,7 @@ import { apart } from "./angles.js";
 import { tableCompass } from "./compass.js";
 import { barHeightU, handBoxOf, handPlan, handWideOf, hudUnitOf, mineGeomOf } from "./handGeom.js";
 import { flipIn, pileOf, predict as predictAs, sideIn, whereIs, type BatchIntent } from "./optimistic.js";
-import { doubleTap, type Tap } from "./tap.js";
+import { doubleTap, isTap, type Tap } from "./tap.js";
 import { journal } from "./journal.js";
 import { tipKeyOf } from "./tipKey.js";
 import { BRAIN_PICKS, type BotAct, type Minds } from "../src/table/contract.js";
@@ -2763,7 +2763,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     listen: addEventListener,
     unlisten: removeEventListener,
   });
-  const { goHome, leanToggle } = compass;
 
   /** ЗВУК ПО МЕСТУ — что поменялось между нарисованными кадрами, там, где это на экране. */
   function soundCues(prev: Snapshot, next: Snapshot, g: { w: number; h: number }): void {
@@ -4297,11 +4296,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         const r = canvas.getBoundingClientRect();
         const k = r.width / (canvas.clientWidth || r.width);
         const hit = chairUnder(seen(), (e.clientX - r.left) / k, (e.clientY - r.top) / k);
-        if (!hit) return;
-        e.stopPropagation();
-        if (hit.key === mine()) return compass.offSeat(store.state) < 1.5 ? leanToggle() : goHome();
-        local.tips = local.tips.includes(hit.key) ? local.tips.filter((k) => k !== hit.key) : [...local.tips, hit.key];
-        return draw();
+        if (hit) chairPress = { pid: e.pointerId, x: e.clientX, y: e.clientY, at: performance.now(), key: hit.key };
+        return;
       }
       // Мышь с Ctrl/Cmd или правой кнопкой — всегда камера: карта не берётся, окно не открывается.
       if (orbits(e)) {
@@ -4335,29 +4331,71 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         }
         return;
       }
-      if (!hit) return;
-      // СВОЙ АВАТАР — КАМЕРА, А НЕ ОКНО: окно своего стула не открывается принципиально, место свободно.
-      // Камера ушла — нормализует; уже в норме — кладёт стол на те же 45°, что и диск компаса.
-      if (hit.key === mine()) {
-        e.stopPropagation();
-        if (compass.offSeat(store.state) < 1.5) leanToggle();
-        else goHome();
-        return;
-      }
-      e.stopPropagation();
-      // КРУПЬЕ ПОКАЗЫВАЕТ РУКОЙ, ЧЕЙ ХОД. Выбор тапом по самому стулу, а не списком имён в окне: за
-      // столом на игрока показывают, а не зачитывают его имя.
-      if (local.pointing) {
-        local.pointing = false;
-        const стул = chairOf(seen(), hit.key);
-        if (стул && !стул.croupier) store.send({ t: "crew", act: "point", chair: стул.id });
-        return draw();
-      }
-      local.tips = local.tips.includes(hit.key) ? local.tips.filter((k) => k !== hit.key) : [...local.tips, hit.key];
-      draw();
+      // СТУЛ — НА ТАП, А НЕ НА КАСАНИЕ. Палец, опущенный на стул, ещё ничего не решил: зажал и повёл —
+      // это камера, и она получает жест как с пустого сукна. Стул делает своё, только когда палец
+      // отпустили быстро и почти на месте (`isTap`) — раньше он срабатывал сразу, и камеру
+      // перекидывало посреди жеста.
+      if (hit) chairPress = { pid: e.pointerId, x: e.clientX, y: e.clientY, at: performance.now(), key: hit.key };
     },
     { capture: true },
   );
+
+  /**
+   * ВИД СО СТУЛА ↔ ДОМАШНИЙ. Со стула сейчас (стол положен) — домой; иначе, откуда бы ни смотрели, —
+   * на вид со стула. Переход — один, всеми пятью числами сразу, коротким сглаживанием.
+   */
+  const seatView = (): void => {
+    const s = seen();
+    const chair = chairOf(s, mine());
+    if (!chair) return;
+    const c = cam.camera;
+    const atSeat = c.pitch > LEAN_STEP / 2 && Math.abs(c.zoom - SEAT_VIEW.zoom) < 0.08;
+    const seat = spots.find((sp) => sp.key === chair.id)?.seat ?? { x: 0, y: 0 };
+    const to = atSeat
+      ? { x: 0, y: 0, zoom: firstZoom(), turn: chair.angle, lean: 0 }
+      : { x: seat.x * SEAT_VIEW.toward, y: seat.y * SEAT_VIEW.toward, zoom: SEAT_VIEW.zoom, turn: chair.angle, lean: LEAN_STEP };
+    const from = { x: c.target.x, y: c.target.y, zoom: c.zoom, turn: c.rotation, lean: c.pitch };
+    const dTurn = ((((to.turn - from.turn) % 360) + 540) % 360) - 180;
+    const put = (p: number): void => {
+      const e = 1 - Math.pow(1 - p, 3);
+      c.setZoom(from.zoom + (to.zoom - from.zoom) * e);
+      c.glideTurnTo(from.turn + dTurn * e, 0);
+      c.glideTiltTo(from.lean + (to.lean - from.lean) * e, 0);
+      c.lookAt({ x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e });
+      draw();
+    };
+    if (motion.reduce) return put(1);
+    const t0 = performance.now();
+    const step = (): void => {
+      const p = Math.min(1, (performance.now() - t0) / SEAT_VIEW.ms);
+      put(p);
+      if (p < 1 && !dead) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+
+  let chairPress: { pid: number; x: number; y: number; at: number; key: string } | null = null;
+  const chairTap = (e: PointerEvent): void => {
+    const press = chairPress;
+    if (!press || press.pid !== e.pointerId) return;
+    chairPress = null;
+    if (e.type !== "pointerup" || !isTap(press, { x: e.clientX, y: e.clientY, at: performance.now() })) return;
+    // СВОЙ АВАТАР — КАМЕРА, А НЕ ОКНО: окно своего стула не открывается принципиально, место свободно.
+    // Тап переключает «вид со стула» и домашний (`SEAT_VIEW`).
+    if (press.key === mine()) return seatView();
+    // КРУПЬЕ ПОКАЗЫВАЕТ РУКОЙ, ЧЕЙ ХОД. Выбор тапом по самому стулу, а не списком имён в окне: за
+    // столом на игрока показывают, а не зачитывают его имя.
+    if (local.pointing && !watch) {
+      local.pointing = false;
+      const стул = chairOf(seen(), press.key);
+      if (стул && !стул.croupier) store.send({ t: "crew", act: "point", chair: стул.id });
+      return draw();
+    }
+    local.tips = local.tips.includes(press.key) ? local.tips.filter((k) => k !== press.key) : [...local.tips, press.key];
+    draw();
+  };
+  addEventListener("pointerup", chairTap);
+  addEventListener("pointercancel", chairTap);
 
   const keyframes = document.createElement("style");
   keyframes.textContent = "@keyframes bar-slide{from{transform:translateX(var(--from))}to{transform:none}}"

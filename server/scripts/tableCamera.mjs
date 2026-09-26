@@ -81,6 +81,9 @@ const drag = async (x, y, x2, y2) => {
   await wait(700);
 };
 
+/** Вид, каким стол встал при входе, — домашний. */
+const entry = await view();
+
 // ── 1. Компас висит ВСЕГДА, а не только когда камера ушла ────────────────────────────────────────
 let v = await view();
 let c = await ring();
@@ -158,26 +161,58 @@ await tapRing();
 v = await view();
 check("тап по кольцу вернул камеру к своему стулу: и поворот, и наклон", Math.abs(v.rotation) < 1.5 && v.pitch < 0.5, v);
 
-// ── 6. Свой аватар: в норме — наклоняет ──────────────────────────────────────────────────────────
-const seat = (await spots()).seats.find((s) => s.who === "A");
-await p.mouse.click(seat.x, seat.y);
-await wait(700);
+// ── 6. Свой аватар: тап — вид со стула, повторный — домашний (снимки владельца) ─────────────────
+// Вид со стула: стол на 45°, зум 1.25, взгляд сдвинут к своему месту. Домашний — как при входе. Тап
+// ставит всё разом — и зум, и поворот, и наклон, и центр.
+const mineKey = (await spots()).mine;
+const seatOf = async () => (await spots()).seats.find((s) => s.key === mineKey);
+const tapSeat = async () => {
+  const at = await seatOf();
+  await p.mouse.click(at.x, at.y);
+  await wait(700);
+};
+const angle = (await spots()).seatAngle ?? 0;
+const turned = (r) => Math.abs(((((r - angle) % 360) + 540) % 360) - 180) < 1.5;
+await tapSeat();
 v = await view();
-check(`тап по своему аватару при нормальной камере кладёт стол на ${STEP}°`, Math.abs(v.pitch - STEP) < 1, v);
+check(`тап по своему аватару — вид со стула: ${STEP}°, зум 1.25, свой стул внизу`, Math.abs(v.pitch - STEP) < 1 && Math.abs(v.zoom - 1.25) < 0.01 && turned(v.rotation), v);
+check("вид со стула смотрит ближе к своему месту", Math.hypot(v.x, v.y) > 0.5, v);
 check("окно своего стула при этом не открылось", (await p.evaluate(() => document.querySelectorAll("[data-shut]").length)) === 0, null);
+await tapSeat();
+v = await view();
+check("повторный тап — домашний вид, каким стол встал при входе", v.pitch < 0.5 && Math.abs(v.zoom - entry.zoom) < 0.01 && turned(v.rotation) && Math.abs(v.x - entry.x) < 0.05 && Math.abs(v.y - entry.y) < 0.05, [entry, v]);
 
-// ── 7. Свой аватар: камера ушла — нормализует ────────────────────────────────────────────────────
-// Поворот НЕБОЛЬШОЙ: при зуме по умолчанию стол крупный, и сильный поворот уводит собственный
-// аватар за край кадра — тогда тапать становится нечего, и проверка мерила бы промах, а не закон.
+// ── 7. Камера ушла куда угодно — тап всё равно ставит вид со стула целиком ───────────────────────
 await orbit(60, 0);
+await drag(195, 250, 150, 320);
 v = await view();
-check("камера ушла от стула", Math.abs(v.rotation) > 10, v);
-const seat2 = (await spots()).seats.find((s) => s.who === "A");
+check("камера ушла от стула", Math.abs(v.rotation - angle) > 10, v);
+const seat2 = await seatOf();
 check("свой аватар остался в кадре", seat2.x > 0 && seat2.x < 390 && seat2.y > 0 && seat2.y < 844, seat2);
-await p.mouse.click(seat2.x, seat2.y);
-await wait(700);
+await tapSeat();
 v = await view();
-check("тап по своему аватару при ушедшей камере нормализует её", Math.abs(v.rotation) < 1.5 && v.pitch < 0.5, v);
+check("тап с ушедшей камеры — вид со стула: и зум, и поворот, и наклон", Math.abs(v.pitch - STEP) < 1 && Math.abs(v.zoom - 1.25) < 0.01 && turned(v.rotation), v);
+await tapSeat();
+
+// ── 7б. Зажал стул и повёл — это камера, а не тап ────────────────────────────────────────────────
+const before = await view();
+const from = await seatOf();
+await drag(from.x, from.y, from.x + 70, from.y - 90);
+await wait(400);
+v = await view();
+check("зажал свой аватар и повёл — стол поехал, вид со стула не включился", (Math.abs(v.x - before.x) > 0.3 || Math.abs(v.y - before.y) > 0.3) && v.pitch < 0.5 && Math.abs(v.zoom - before.zoom) < 0.01, [before, v]);
+const other = (await spots()).seats.find((s) => s.key !== mineKey && s.x > 20 && s.x < 370 && s.y > 60 && s.y < 700);
+if (other) {
+  await drag(other.x, other.y, other.x - 60, other.y + 60);
+  await wait(300);
+  check("зажал чужой стул и повёл — окно не открылось", (await p.evaluate(() => document.querySelectorAll("[data-shut]").length)) === 0, other.key);
+  const again = (await spots()).seats.find((s) => s.key === other.key);
+  await p.mouse.click(again.x, again.y);
+  await wait(300);
+  check("а тапом — открылось", (await p.evaluate(() => document.querySelectorAll("[data-shut]").length)) === 1, other.key);
+  await p.click("[data-shut]");
+  await wait(300);
+}
 
 // ── 8. Потолок наклона руками — 60°, а не 45° ────────────────────────────────────────────────────
 await orbit(0, -400);

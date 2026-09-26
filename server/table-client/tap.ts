@@ -8,7 +8,7 @@
 // Поэтому пару собирает ТОЧКА: попал рядом — тот же тап. Целью остаётся карта ПЕРВОГО тапа: в неё
 // человек и целился, прежде чем стол под пальцем сдвинулся.
 
-import { DOUBLE_TAP_MS, DOUBLE_TAP_PX } from "./screenConst.js";
+import { DOUBLE_TAP_MS, DOUBLE_TAP_PX, TAP_MS, TAP_PX } from "./screenConst.js";
 
 /** Тап по карте: какая карта и куда пришёлся палец. */
 export interface Tap {
@@ -29,4 +29,12 @@ export function doubleTap(last: Tap | null, now: Tap): string | null {
   const same = last.id === now.id;
   const near = Math.hypot(now.x - last.x, now.y - last.y) < DOUBLE_TAP_PX;
   return same || near ? last.id : null;
+}
+
+/**
+ * ТАП, А НЕ ЖЕСТ: палец отпустили быстро и почти там же, где опустили. Всё прочее — зажал и повёл —
+ * это камера, и стул под пальцем ничего делать не должен.
+ */
+export function isTap(down: { x: number; y: number; at: number }, up: { x: number; y: number; at: number }): boolean {
+  return up.at - down.at < TAP_MS && Math.hypot(up.x - down.x, up.y - down.y) <= TAP_PX;
 }

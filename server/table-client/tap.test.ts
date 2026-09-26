@@ -34,3 +34,13 @@ describe("tap.a-double-tap-aims-at-a-point", () => {
     expect(doubleTap(tap("к1", 0, 100, 100), tap("к1", 100, 400, 400))).toBe("к1");
   });
 });
+
+describe("tap.is-a-tap-not-a-gesture", () => {
+  it("тап — быстро и на месте; зажал или повёл — жест", async () => {
+    const { isTap } = await import("./tap.js");
+    const down = { x: 100, y: 100, at: 0 };
+    expect(isTap(down, { x: 103, y: 104, at: 120 })).toBe(true);
+    expect(isTap(down, { x: 100, y: 100, at: 600 }), "зажал").toBe(false);
+    expect(isTap(down, { x: 140, y: 100, at: 120 }), "повёл").toBe(false);
+  });
+});
