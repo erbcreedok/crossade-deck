@@ -1,9 +1,17 @@
 // СТУЛЬЯ ГЛАЗАМИ АДМИНА: добавить, посадить машину выбранным мозгом, убрать пустой.
+//   node scripts/tableChairs.mjs [base] [room] [secret] [shot.png]
 import { createRequire } from "module";
 import { createHmac } from "crypto";
 const require = createRequire(process.env.PW_FROM);
 const { chromium } = require("playwright");
-const [base, room] = process.argv.slice(2);
+const [base, room, secret = "dev"] = process.argv.slice(2);
+// КОМНАТУ ЗАВОДИТ Ye — он в ней распорядитель: «Ещё стул» и посадка машины — его дела. Комната уже есть
+// (прогон по живой) — сервер ответит отказом, и это не беда.
+await fetch(`${base}/table/rooms`, {
+  method: "POST",
+  headers: { "content-type": "application/json", "x-table-secret": secret },
+  body: JSON.stringify({ by: "tg:254410503", home: { kind: "inline", message: "m" }, room }),
+}).catch(() => {});
 const initData = (id, name) => {
   const f = { auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id, first_name: name }) };
   const check = Object.keys(f).sort().map((k) => `${k}=${f[k]}`).join("\n");
@@ -104,7 +112,7 @@ if (свежий) {
   }
 }
 
-await p.screenshot({ path: process.argv[4] ?? "chairs.png" });
+await p.screenshot({ path: process.argv[5] ?? "chairs.png" });
 await b.close();
 for (const c of проверки) console.log(c.ок ? "✓" : "✗", c.имя, c.ок ? "" : JSON.stringify(c.что));
 if (проверки.some((c) => !c.ок)) process.exitCode = 1;
