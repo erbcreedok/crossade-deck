@@ -256,7 +256,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     reseat: null as null | { angles: Record<string, number>; drag: { chair: string; pid: number } | null },
     /** Жест голоса: зажата 💬 — где палец, ушёл ли он с кнопки и кому сейчас слышно. */
     /** Палец тянет ручку позы руки (`handGeom.ts`, `PoseBlend`): откуда тянул и где поза под пальцем сейчас. */
-    poseDrag: null as null | { id: number; x0: number; y0: number; b0: PoseBlend; b: PoseBlend },
+    poseDrag: null as null | { id: number; x0: number; y0: number; b0: PoseBlend; b: PoseBlend; moved?: boolean },
     /** Тап по ручке открыл меню порядка руки. */
     handMenu: false,
     mic: null as null | { off: boolean; x: number; y: number; from: { x: number; y: number }; open: boolean; to: string | null | undefined; fail: "no-mic" | "denied" | null },
@@ -1219,7 +1219,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // краю, а рука стоит посередине: два HUD вместо одного.
     const wide = handWide();
     const inset = Math.round((g.w - wide) / 2);
-    const most = 1 + Math.max(...SECTIONS.map((sec) => SUBS[sec].length));
+    // Рука спрятана — в ряду ещё и ручка позы, последней справа (`barHandleHtml`).
+    const inBar = handleInBar(cards.length + gaps.length);
+    const most = Math.max(1 + Math.max(...SECTIONS.map((sec) => SUBS[sec].length)), 1 + Math.max(...barSections(s).map((sec) => SUBS[sec].length)) + (inBar ? 1 : 0));
     const need = most * BAR.size + (most - 1) * BAR.gap + 2 * BAR.margin;
     const fit = wide / u > 0 && need > wide / u ? Math.max(0.5, wide / u / need) : 1;
     const side = BAR.size * u * fit;
@@ -1247,13 +1249,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       + `<div data-g="bar" style="position:absolute;left:${inset}px;right:${inset}px;top:${geom.barTop}px;height:${barHeight() * u + safeBottom()}px;z-index:${cards.length + 10};`
       + `background:linear-gradient(${T.panel},${T.well});${edge}">`
       + `<div style="position:absolute;left:${rowLeft}px;right:${rowLeft}px;top:${(barHeight() * u - side) / 2}px;height:${side}px">`
-      + barRow(s, side, step) + `</div>`
+      + barRow(s, side, step) + (inBar ? barHandleHtml(side, (most - 1) * step) : "") + `</div>`
       // СВОЙ СТУЛ — глаза на своей полосе: над столом их не видно, зато здесь их помещается больше.
       + (watchedByMe(`chair:${mine(s)}` as EyeSpot) ? "" : (() => {
         const row = eyeRowHtml(s, `chair:${mine(s)}` as EyeSpot, EYES_IN_PANEL, 18);
         return row ? `<div style="position:absolute;right:${margin}px;top:${-24}px;z-index:2;pointer-events:none">${row}</div>` : "";
       })())
       + `</div>`
+      + (inBar ? handMenuHtml(inset + rowLeft + (most - 1) * step + side, geom.barTop! + (barHeight() * u - side) / 2 - 8, cards.length + gaps.length) : "")
       + leaveHtml(geom.barTop!, inset + rowLeft, side, step)
       + poseHandleHtml(geom, cards.length + gaps.length)
       + thumbHtml(s, side)
@@ -1280,31 +1283,79 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * выровнять в ряд, вниз — спрятать, веер — посередине (`PoseBlend`). Карт нет — позы нет, нет и ручки.
    */
   /**
-   * ГДЕ РУЧКА ПОЗЫ — над верхним правым углом руки, целиком вне карт: не наезжает на крайнюю ни в веере, ни в
-   * ряду. Над ней — чат (`thumbHtml`), на той же высоте слева — компас (`compassAt`).
+   * ГДЕ РУЧКА ПОЗЫ. Рука на виду — буквой Г на верхнем правом углу крайней карты, с её наклоном: плашка со
+   * стопкой — за углом, целиком вне карт, плечи — вдоль верхнего и правого края. Над ней — чат (`thumbHtml`),
+   * на той же высоте слева — компас (`compassAt`). Рука спрятана и её не тянут — ручка стоит в баре
+   * (`barRow`), над рукой её нет.
    */
-  const HANDLE = { size: 46, gap: 8 };
+  const HANDLE = { size: 44, gap: 4, arm: 34, thick: 10 };
+  // Пока палец на ручке в баре не сдвинулся — это ещё тап (меню), и ручка остаётся, где её нажали.
+  const handleInBar = (count: number): boolean => count > 0 && !local.poseDrag?.moved && poseNow(mine()).tuck;
+  /** Правая верхняя карта руки: её угол и наклон. */
+  function cornerOf(geom: Geom): { x: number; y: number; angle: number } {
+    const sl = geom.slots.reduce((a, b) => (b.x > a.x ? b : a));
+    const r = (sl.angle * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);
+    return { x: sl.x + cos * (geom.w / 2) + sin * (geom.h / 2), y: sl.y + sin * (geom.w / 2) - cos * (geom.h / 2), angle: sl.angle };
+  }
+  /**
+   * Угол Г на стекле, её наклон и насколько плашка съехала влево ВДОЛЬ верхнего края карты (`slide`, px в системе
+   * карты): у края экрана она уезжает по плечу, оставаясь над картой, а правое плечо пусть уходит за край.
+   */
+  function handleFrame(geom: Geom): { x: number; y: number; angle: number; slide: number } {
+    const c = cornerOf(geom);
+    const r = (c.angle * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);
+    const { gap, thick, size } = HANDLE;
+    const far = Math.max(...[-(gap + size), -gap].map((y) => c.x + cos * (gap + thick) - sin * y));
+    const over = Math.max(0, far - (glass().w - 4));
+    return { ...c, slide: cos > 0.2 ? over / cos : over };
+  }
+  /** Центр плашки на стекле: в системе карты — над верхним краем, правым боком по правому плечу, минус `slide`. */
   function handleAt(geom: Geom): { x: number; y: number; size: number } {
-    const size = HANDLE.size;
-    const x = Math.min(glass().w - size / 2 - 6, handRightOf(geom) + size * 0.15);
-    const y = handTopOf(geom) - size / 2 - HANDLE.gap;
-    return { x, y, size };
+    const c = handleFrame(geom);
+    const k = { x: HANDLE.gap + HANDLE.thick - HANDLE.size / 2 - c.slide, y: -(HANDLE.gap + HANDLE.size / 2) };
+    const r = (c.angle * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);
+    return { x: c.x + cos * k.x - sin * k.y, y: c.y + sin * k.x + cos * k.y, size: HANDLE.size };
+  }
+
+  const handleFace = (size: number, lit: boolean): string =>
+    // СТОПКА — тот же значок, что у грипа колоды (`GLYPH.deck`): одна картинка на весь стол.
+    `<svg viewBox="0 0 24 20" width="${Math.round(size * 0.62)}" height="${Math.round(size * 0.52)}" fill="none" stroke="${T.black}" stroke-width="1.6" stroke-linejoin="round">`
+    + `<g fill="${lit ? T.ink : BAR_LOOK.goldHi}">${GLYPH.deck}</g></svg>`;
+  const handleLook = (lit: boolean): string => lit
+    ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 3px ${T.black}`
+    : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
+  const HANDLE_LABEL = "Поза руки: вбок — шире или стопкой, вверх — в ряд, вниз — спрятать";
+
+  /** Ручка в баре — рука спрятана: такая же кнопка, как секции, на правом краю ряда. */
+  function barHandleHtml(side: number, left: number): string {
+    return `<button data-pose-handle data-in-bar aria-label="${HANDLE_LABEL}" style="position:absolute;left:${Math.round(left)}px;top:0;width:${Math.round(side)}px;height:${Math.round(side)}px;`
+      + `border:0;padding:0;border-radius:50%;touch-action:none;cursor:grab;display:flex;align-items:center;justify-content:center;${handleLook(false)}">`
+      + handleFace(side * 0.9, false) + `</button>`;
   }
 
   function poseHandleHtml(geom: Geom, count: number): string {
     if (count === 0) return "";
-    const { x, y, size } = handleAt(geom);
     const drag = local.poseDrag;
+    if (handleInBar(count)) return "";
+    const { x, y, size } = handleAt(geom);
+    const c = handleFrame(geom);
     const label = drag
       ? `<div data-pose-name style="position:absolute;left:${Math.round(x - 60)}px;top:${Math.round(y - size / 2 - 26)}px;width:120px;text-align:center;z-index:${count + 13};pointer-events:none;`
         + `font:400 12px Tiny5,monospace;color:${T.ink};text-shadow:0 2px 0 ${T.black}">${POSE_NAME(snapPose(drag.b, poseNow(mine())))}</div>`
       : "";
-    return `<button data-pose-handle aria-label="Поза руки: вбок — шире или стопкой, вверх — в ряд, вниз — спрятать" style="position:absolute;left:${Math.round(x - size / 2)}px;top:${Math.round(y - size / 2)}px;`
-      + `width:${size}px;height:${size}px;border:0;padding:0;border-radius:50%;z-index:${count + 12};touch-action:none;cursor:grab;display:flex;align-items:center;justify-content:center;`
-      + (drag ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 3px ${T.black}` : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`)
-      // СТОПКА — тот же значок, что у грипа колоды (`GLYPH.deck`): одна картинка на весь стол.
-      + `"><svg viewBox="0 0 24 20" width="${Math.round(size * 0.62)}" height="${Math.round(size * 0.52)}" fill="none" stroke="${T.black}" stroke-width="1.6" stroke-linejoin="round">`
-      + `<g fill="${drag ? T.ink : BAR_LOOK.goldHi}">${GLYPH.deck}</g></svg></button>` + label
+    // Г: всё в системе карты — начало в её верхнем правом углу, поворот её же. Плечи — тоже ручка.
+    const { gap, arm, thick } = HANDLE;
+    const knobLeft = gap + thick - size - c.slide;
+    const arms = [
+      [knobLeft - arm, -(gap + thick), gap + thick - knobLeft + arm, thick], // вдоль верхнего края до угла, из-под плашки
+      [gap, -gap - thick, thick, arm + thick], // вдоль правого, из-под плашки
+    ].map(([l, t, w, h]) => `<button data-pose-handle data-pose-arm tabindex="-1" aria-hidden="true" style="position:absolute;left:${l}px;top:${t}px;width:${w}px;height:${h}px;border:0;padding:0;`
+      + `border-radius:${thick / 2}px;touch-action:none;cursor:grab;${handleLook(!!drag)}"></button>`).join("");
+    const knob = `<button data-pose-handle aria-label="${HANDLE_LABEL}" style="position:absolute;left:${knobLeft}px;top:${-(gap + size)}px;width:${size}px;height:${size}px;border:0;padding:0;`
+      + `border-radius:${Math.round(size * 0.3)}px ${Math.round(size * 0.3)}px ${Math.round(size * 0.3)}px 4px;touch-action:none;cursor:grab;display:flex;align-items:center;justify-content:center;${handleLook(!!drag)}">`
+      + handleFace(size, !!drag) + `</button>`;
+    return `<div data-g="pose-handle" style="position:absolute;left:${Math.round(c.x)}px;top:${Math.round(c.y)}px;width:0;height:0;z-index:${count + 12};transform:rotate(${c.angle}deg)">`
+      + arms + knob + `</div>` + label
       + handMenuHtml(x + size / 2, y - size / 2 - 8, count);
   }
 
@@ -1341,6 +1392,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         removeEventListener("pointercancel", up);
         return;
       }
+      d.moved ||= Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) >= TAP_PX;
       d.b = { wide: clamp(d.b0.wide + (ev.clientX - d.x0) / POSE_PX.wide), lift: clamp(d.b0.lift - (ev.clientY - d.y0) / POSE_PX.lift) };
       draw();
     };
@@ -1436,7 +1488,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   }
   /** Верх кнопок под большими пальцами — над ручкой позы (есть карты) или над рукой. */
   function thumbTopOf(geom: Geom, side: number): number {
-    const base = geom.slots.length ? handleAt(geom).y - HANDLE.size / 2 : handTopOf(geom);
+    const base = geom.slots.length && !handleInBar(geom.slots.length) ? handleAt(geom).y - HANDLE.size / 2 : handTopOf(geom);
     return base - side - 10;
   }
 

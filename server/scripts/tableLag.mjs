@@ -45,7 +45,7 @@ const hand = (p) => p.evaluate(() => [...document.querySelectorAll("[data-card]"
 /** Нажать и через `after` мс снять: что на экране и сколько перелётов с нажатия. */
 
 /** Ручка позы на углу руки: тянуть — поза, тап — меню порядка. */
-const handleAt = async (p) => { const b = await p.locator("[data-pose-handle]").boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+const handleAt = async (p) => { const b = await p.locator("[data-pose-handle]:not([data-pose-arm])").boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
 const poseDrag = async (p, dx, dy) => { const h = await handleAt(p); await p.mouse.move(h.x, h.y); await p.mouse.down(); await p.mouse.move(h.x + dx, h.y + dy, { steps: 8 }); const t0 = await p.evaluate(() => performance.now()); await p.mouse.up(); return t0; };
 const openHandMenu = async (p) => { const h = await handleAt(p); await p.mouse.click(h.x, h.y); await p.waitForTimeout(200); };
 const press = async (p, sel, after = 60) => {
