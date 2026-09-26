@@ -6,6 +6,7 @@ import { join } from "path";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, SECRET_HEADER } from "./contract.js";
 import { clientRoutes } from "./client.js";
 import { forgetAll } from "./lobby.js";
+import { tellAll } from "../db/eventsRepo.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 import { BOOT, DOOR_DEAD_AFTER, forgetBeacon, hostPage, readCommand, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
 
@@ -253,5 +254,27 @@ describe("/table/rooms/:room/run — команда админа", () => {
     expect(await (await run(one.room, { by: "tg:1", command: { t: "collect" } })).json()).toEqual({ error: "empty" });
     expect((await (await call("/table/rooms?by=tg:1")).json()).map((c: { room: string }) => c.room)).toEqual([one.room]);
     expect((await call(`/table/rooms/${one.room}/run`, { method: "POST", json: { by: "tg:1", command: { t: "collect" } }, secret: null })).status).toBe(401);
+  });
+});
+
+describe("/table/rooms/:room/records — записи комнаты для бота и страницы", () => {
+  it("под секретом — люди, посиделки, партии и пропуск; без секрета — отказ", async () => {
+    const room = "rec-room";
+    tellAll([
+      { at: 1, room, side: "table", kind: "room.open" },
+      { at: 2, room, who: "tg:7", side: "table", kind: "join", what: { name: "Ye" } },
+      { at: 3, room, who: "tg:7", side: "table", kind: "match.start", what: { игроки: [{ key: "tg:7", name: "Ye" }], snapshot: { big: 1 } } },
+      { at: 4, room, who: "tg:8", side: "table", kind: "match.end", what: { вышли: ["tg:7"] } },
+      { at: 5, room, side: "table", kind: "patch", what: { v: 1, ops: [] } },
+    ]);
+    expect((await call(`/table/rooms/${room}/records`, { secret: null })).status).toBe(401);
+    const got = (await (await call(`/table/rooms/${room}/records`)).json()) as { people: { name: string }[]; sessions: { matches: { loser: string }[] }[]; pass: string; until: number };
+    expect(got.people.map((one) => one.name)).toEqual(["Ye"]);
+    expect(got.sessions[0]!.matches).toEqual([expect.objectContaining({ loser: "tg:8", out: ["tg:7"] })]);
+    expect(typeof got.pass).toBe("string");
+    // Пропуск открывает ленту ровно этой партии — по номерам её границ.
+    const m = got.sessions[0]!.matches[0] as unknown as { from: number; to: number };
+    const lane = (await (await call(`/table/journal?room=${room}&pass=${encodeURIComponent(got.pass)}&from=${m.from}&to=${m.to}`, { secret: null })).json()) as { deeds: { kind: string }[] };
+    expect(lane.deeds.map((d) => d.kind)).toEqual(["match.start", "match.end"]);
   });
 });

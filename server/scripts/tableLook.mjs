@@ -53,7 +53,7 @@ const mid0 = (await spots(A)).middle;
 check("окна настроек нет, пока не нажата шестерёнка", (await A.$("[data-settings-panel]")) === null);
 await A.click("[data-settings]");
 await A.waitForTimeout(200);
-check("шестерёнка открывает окно: три выключателя звука, объёмный, меньше анимаций, 4 цвета, кириллица, измерители (вибрации и полного экрана в браузере нет)", (await A.$$("[data-settings-panel] [data-look]")).length === 8);
+check("шестерёнка открывает окно: три выключателя звука, объёмный, меньше анимаций, 4 цвета, кириллица, измерители, ссылка на запись и запись своего экрана (вибрации и полного экрана в браузере нет)", (await A.$$("[data-settings-panel] [data-look]")).length === 10);
 check("нажатие шестерёнки не двигает стол", JSON.stringify((await spots(A)).middle) === JSON.stringify(mid0), [(await spots(A)).middle, mid0]);
 
 await A.click("[data-look=fourColour]");
@@ -65,7 +65,8 @@ check("A грузит набор classic-4c-cyr", (await loaded(A)).includes("cl
 check("в руке A лицо classic-4c-cyr", (await handArt(A)).some((b) => b.includes("/classic-4c-cyr/")), await handArt(A));
 check("B своих настроек не трогал — у него только обычный набор", (await loaded(B)).every((s) => s === "classic"), [...new Set(await loaded(B))]);
 
-await A.mouse.click(195, 20);
+// Мимо окна — в поле вокруг него: высокое окно доходит почти до верха экрана.
+await A.mouse.click(195, 6);
 await A.waitForTimeout(300);
 check("касание мимо окна закрывает его", (await A.$("[data-settings-panel]")) === null);
 

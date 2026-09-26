@@ -34,7 +34,7 @@ export interface SettingsWorld {
   /** Открылось или закрылось — стол перерисовывает шестерёнку. */
   changed(): void;
   /**
-   * ЗАПИСЬ ПАРТИИ — только распорядителю. `may` говорит, показывать ли раздел; `ask` просит у стола
+   * ЗАПИСЬ ПАРТИИ — каждому за столом. `may` говорит, показывать ли раздел; `ask` просит у стола
    * пропуск, `link` отдаёт готовый адрес, когда пропуск пришёл.
    *
    * Ссылку собирает экран, а не сервер: страница открыта по тому имени, по которому стол виден
@@ -47,6 +47,8 @@ export interface SettingsWorld {
   };
   /** Измерители поверх стола: пинг, кадры, камера (`meters.ts`). */
   meters: { on(): boolean; toggle(): void };
+  /** Запись моего экрана — камера, нажатия, звук (`SCREEN_PRIVATE`); по умолчанию выключена. */
+  record: { on(): boolean; toggle(): void };
 }
 
 export interface Settings {
@@ -138,6 +140,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + `<button data-settings-close aria-label="Закрыть" style="width:40px;height:40px;border:0;border-radius:10px;cursor:pointer;color:${INK.ink};font:400 18px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${INK.rim}">✕</button></div>`
       + (fullscreenable() ? section("Экран") + toggle("fullscreen", "Полный экран", app()?.isFullscreen === true) : "")
       + (world.replay.may() ? section("Запись партии") + replayHtml() : "")
+      + toggle("record", "Записывать мой экран", world.record.on())
       + section(haptic.supported ? "Звук и вибрация" : "Звук")
       + toggle("mute", "Отключить все звуки", sound.prefs.muted)
       + toggle("uiMute", "Отключить звуки интерфейса", sound.prefs.uiMuted)
@@ -174,6 +177,9 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
         break;
       case "meters":
         world.meters.toggle();
+        break;
+      case "record":
+        world.record.toggle();
         break;
       case "fullscreen":
         if (app()?.isFullscreen) app()?.exitFullscreen?.();

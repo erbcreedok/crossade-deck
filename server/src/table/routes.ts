@@ -15,7 +15,8 @@ import { isCrew } from "./crews.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
 import { closeEntry, findEntry, isBuried, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, botsIn, lookIn, playIn, runIn, setAdmin } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
-import { deeds, roomsSeen } from "../db/eventsRepo.js";
+import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomsSeen } from "../db/eventsRepo.js";
+import { RECORD_KINDS, recordsOf } from "./records.js";
 import { mintPass, passRoom, PASS_HOURS } from "./pass.js";
 
 /** Этот запуск. Новый процесс — новый `boot`: по нему бот понимает, что прежних столов нет. */
@@ -147,6 +148,13 @@ export function tableRoutes(): Router {
   r.get("/table/journal", journalGuard, (req, res) => {
     const q = req.query as Record<string, string | undefined>;
     if (q.room === undefined) return void res.json({ rooms: roomsSeen(Number(q.limit) || 50) });
+    // ЗАПИСЬ ОДНОЙ ПАРТИИ — лента от её начала до конца, целиком, без обрезки «последних пяти тысяч».
+    if (q.from !== undefined) {
+      const from = Number(q.from);
+      const to = q.to === undefined || q.to === "" ? null : Number(q.to);
+      if (!Number.isInteger(from) || (to !== null && !Number.isInteger(to))) return void res.status(400).json({ error: "bad_request" });
+      return void res.json({ room: q.room, deeds: deedsBetween(q.room, from, to) });
+    }
     const limit = Math.min(Number(q.limit) || 500, 5000);
     res.json({
       room: q.room,
@@ -175,6 +183,17 @@ export function tableRoutes(): Router {
     if (!chat && typeof req.query.by === "string" && req.query.by) return void res.json(roomsBy(req.query.by));
     if (!chat) return void res.status(400).json({ error: "bad_request" });
     res.json(roomsAt({ kind: "chat", chat }));
+  });
+
+  /**
+   * ЗАПИСИ КОМНАТЫ — кто бывал, какие были посиделки и партии (`records.ts`), и пропуск на все её
+   * записи на весь срок журнала: ссылки из них собирает тот, кто показывает, — бот или страница.
+   */
+  r.get("/table/rooms/:room/records", guarded, (req, res) => {
+    const room = req.params.room;
+    const log = deedsOfKinds(room, RECORD_KINDS);
+    const until = Date.now() + KEEP_DAYS * 24 * 60 * 60 * 1000;
+    res.json({ room, title: findEntry(room)?.title ?? null, ...recordsOf(log), pass: mintPass(room, tableConfig().secret!, until), until });
   });
 
   r.get("/table/rooms/:room", guarded, (req, res) => {

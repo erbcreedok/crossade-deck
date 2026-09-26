@@ -8,6 +8,12 @@
 
 import type { Told } from "../db/eventsRepo.js";
 
+/**
+ * ИЗ ЧЕГО ЗАПИСИ СОБИРАЮТСЯ: границы и люди, плюс ходы — по ним видно, что за столом была жизнь, а не
+ * тишина. Дифы и события экранов сюда не берутся: их тысячи, а записей они не меняют.
+ */
+export const RECORD_KINDS = ["room.open", "join", "leave", "act", "match.start", "match.end"] as const;
+
 /** Сколько тишины разрезает посиделки. */
 export const SESSION_GAP_MS = 20 * 60 * 1000;
 

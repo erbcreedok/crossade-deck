@@ -42,6 +42,7 @@ import { BRAIN_PICKS, type BotAct, type Minds } from "../src/table/contract.js";
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
 import { lens } from "./lens.js";
 import { mountMeters } from "./meters.js";
+import { readRecording, writeRecording } from "./watch.js";
 import { slingLanding, slingPull } from "./sling.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
@@ -96,12 +97,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
      * стол: сервер живёт за туннелем и своего внешнего имени не знает.
      */
     replay: {
-      may: () => iMay(seen(), "table.croupier"),
+      // Запись смотрит каждый, кто за столом: партия сыграна — секретов в ней нет.
+      may: () => true,
       ask: () => store.askReplay?.(),
       link: () => замок,
     },
     // Измерители заводятся ниже, вместе с камерой: окно спрашивает их только когда открыто.
     meters: { on: () => meters.on, toggle: () => meters.toggle() },
+    record: { on: () => readRecording(), toggle: () => writeRecording(!readRecording()) },
     /**
      * СТРОКА О ГОЛОСЕ — ПО ЧЕЛОВЕКУ И ПО СТОРОНАМ, а не числом.
      *

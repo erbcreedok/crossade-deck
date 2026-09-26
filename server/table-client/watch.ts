@@ -16,7 +16,7 @@
 import type { Intent, Seen } from "../src/table/contract.js";
 import type { SoundHealth } from "./sound.js";
 import type { TableStore } from "./store.js";
-import { tableWitness, type Witness } from "../src/table/telling.js";
+import { recorded, tableWitness, type Witness } from "../src/table/telling.js";
 
 /** Через сколько после нажатия жест считается безрезультатным. */
 export const IDLE_MS = 600;
@@ -116,10 +116,27 @@ export interface Watched {
   links?: () => { who: string; state: string; hears: boolean; heard: boolean }[] | null;
 }
 
+const RECORD_KEY = "crossade.table.record";
+/** Пишется ли мой экран — выбор на устройстве, по умолчанию нет. */
+export function readRecording(): boolean {
+  try {
+    return localStorage.getItem(RECORD_KEY) === "on";
+  } catch {
+    return false;
+  }
+}
+export function writeRecording(on: boolean): void {
+  try {
+    localStorage.setItem(RECORD_KEY, on ? "on" : "off");
+  } catch {
+    // Хранилище закрыто — выбор проживёт до перезагрузки.
+  }
+}
+
 /**
  * Начать наблюдение за окном. Возвращает свидетеля — тем же, которым оборачивается хранилище.
  */
-export function watchScreen(send: (seen: readonly Seen[]) => void, watched: Watched = {}): Witness {
+export function watchScreen(send: (seen: readonly Seen[]) => void, watched: Watched = {}, recording: () => boolean = readRecording): Witness {
   const w = tableWitness(send, clock);
   let acts = 0;
   /** Тот же свидетель, но считающий ушедшие действия: по ним видно нажатие впустую. */
@@ -129,6 +146,8 @@ export function watchScreen(send: (seen: readonly Seen[]) => void, watched: Watc
     },
     saw(kind, what) {
       if (kind === "act") acts += 1;
+      // ЗАПИСЬ ЭКРАНА ВЫКЛЮЧЕНА — личное не уходит вовсе (`SCREEN_PRIVATE`); диагностика — всегда.
+      if (!recorded(kind, recording())) return;
       w.saw(kind, what);
     },
     tell: () => w.tell(),

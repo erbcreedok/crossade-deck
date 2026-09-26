@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { openDb } from "./open.js";
-import { tell, tellAll, deeds, deedsOf, roomsSeen, forget, MAX_WHAT_BYTES } from "./eventsRepo.js";
+import { tell, tellAll, deeds, deedsBetween, deedsOf, deedsOfKinds, roomsSeen, forget, MAX_WHAT_BYTES } from "./eventsRepo.js";
 
 let at: ReturnType<typeof openDb>;
 
@@ -110,5 +110,25 @@ describe("events.the-journal-remembers-what-state-forgets", () => {
     put("act", { at: now - 1000 });
     expect(forget(now, 30, at)).toBe(1);
     expect(deedsOf("к1", 100, at)).toHaveLength(1);
+  });
+});
+
+describe("events.a-match-by-its-edges", () => {
+  it("лента партии — ровно от её начала до конца, в порядке случившегося", () => {
+    for (const kind of ["join", "match.start", "act", "act", "match.end", "act"]) put(kind);
+    const all = deedsOf("к1", 100, at);
+    const from = all.find((d) => d.kind === "match.start")!.id;
+    const to = all.find((d) => d.kind === "match.end")!.id;
+    expect(deedsBetween("к1", from, to, 100, at).map((d) => d.kind)).toEqual(["match.start", "act", "act", "match.end"]);
+    expect(deedsBetween("к1", from, null, 100, at).map((d) => d.kind), "не доиграна — до последнего").toHaveLength(5);
+  });
+
+  it("выборка по видам — без кадров стола: список записей не тянет сотни килобайт", () => {
+    put("match.start", { what: { игроки: [{ key: "tg:7", name: "Ye" }], snapshot: { big: "x".repeat(1000) } } });
+    put("act");
+    put("patch");
+    const got = deedsOfKinds("к1", ["match.start", "act"], 100, at);
+    expect(got.map((d) => d.kind)).toEqual(["match.start", "act"]);
+    expect(got[0]!.what).toEqual({ игроки: [{ key: "tg:7", name: "Ye" }] });
   });
 });

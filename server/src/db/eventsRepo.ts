@@ -112,6 +112,28 @@ export function deedsOf(room: string, limit = 5000, at: DatabaseSync = db()): To
   return rows.map(told);
 }
 
+/**
+ * ЛЕНТА МЕЖДУ ДВУМЯ СОБЫТИЯМИ — запись одной партии: от её начала (`match.start`, с кадром стола) до
+ * конца. Номера — те, что журнал выдал событиям; `to` пустой — до последнего.
+ */
+export function deedsBetween(room: string, from: number, to: number | null, limit = 20000, at: DatabaseSync = db()): Told[] {
+  const rows = at
+    .prepare(`SELECT * FROM events WHERE room = ? AND id >= ?${to === null ? "" : " AND id <= ?"} ORDER BY id LIMIT ?`)
+    .all(...(to === null ? [room, from, limit] : [room, from, to, limit])) as unknown as Row[];
+  return rows.map(told);
+}
+
+/**
+ * События комнаты только этих видов — из них собираются записи (`records.ts`), без тысяч дифов. И БЕЗ
+ * КАДРОВ СТОЛА: начало партии несёт снимок в сотню килобайт, а списку записей нужны только имена.
+ */
+export function deedsOfKinds(room: string, kinds: readonly string[], limit = 50000, at: DatabaseSync = db()): Told[] {
+  const rows = at
+    .prepare(`SELECT id, at, room, who, side, kind, CASE WHEN json_valid(what) THEN json_remove(what, '$.snapshot') ELSE what END AS what FROM events WHERE room = ? AND kind IN (${kinds.map(() => "?").join(",")}) ORDER BY id LIMIT ?`)
+    .all(room, ...kinds, limit) as unknown as Row[];
+  return rows.map(told);
+}
+
 export interface Ask {
   room?: string;
   who?: string;

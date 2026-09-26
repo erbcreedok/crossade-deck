@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import type { Seen } from "./contract.js";
-import { tableWitness, HEAP_MAX, SAME_MS } from "./telling.js";
+import { tableWitness, HEAP_MAX, SAME_MS, recorded } from "./telling.js";
 
 /** Часы, которые идут туда, куда скажут. */
 function fakeClock() {
@@ -124,5 +124,15 @@ describe("witness.the-screen-tells-without-getting-in-the-way", () => {
     w.tell();
     w.tell();
     expect(sent).toHaveLength(1);
+  });
+});
+
+describe("telling.the-screen-record-is-personal", () => {
+  it("выключена — камера, нажатия, экран, звук не уходят; ошибки, связь и размер — уходят", () => {
+    for (const kind of ["view", "screen", "press", "press.idle", "act", "refused", "sound"]) expect(recorded(kind, false), kind).toBe(false);
+    for (const kind of ["open", "boom", "link", "gone", "voice.links", "voice.silent", "open.failed"]) expect(recorded(kind, false), kind).toBe(true);
+  });
+  it("включена — уходит всё", () => {
+    for (const kind of ["view", "press", "boom"]) expect(recorded(kind, true), kind).toBe(true);
   });
 });

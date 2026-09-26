@@ -346,7 +346,8 @@ export class TableRoom extends Room {
     this.onMessage(MSG.replay, (client) => {
       const me = this.personOf(client.sessionId);
       const secret = tableConfig().secret;
-      if (!me || !secret || !this.table.may(me.key, "table.croupier")) return;
+      // ЗАПИСЬ СМОТРИТ КАЖДЫЙ, кто за этим столом: партия сыграна — секретов в ней нет (так решил владелец).
+      if (!me || !secret) return;
       const until = Date.now() + PASS_HOURS * 60 * 60 * 1000;
       this.book.tell("replay.pass", me.key, { until });
       client.send(MSG.replay, { room: this.room, pass: mintPass(this.room, secret, until), until } satisfies Recording);
@@ -1395,7 +1396,9 @@ export class TableRoom extends Room {
       .filter((c) => !c.croupier && c.owner !== null && c.hand.length > 0)
       .map((c) => ({ key: c.owner!, name: this.table.here.find((one) => one.key === c.owner)?.name ?? c.owner! }));
     this.matchOpen = true;
-    this.book.tell("match.start", who(dealer) ?? undefined, { игроки: players });
+    // С КАДРОМ СТОЛА НА НАЧАЛО: запись партии проигрывается от него, а не от первого кадра посиделок —
+    // тот мог быть тысячи событий назад, и лента партии его не несёт. Правдой, как и первый кадр.
+    this.book.tell("match.start", who(dealer) ?? undefined, { игроки: players, snapshot: this.table.seenBy("", true), desk: kindOf(this.room) });
   }
   private tellMatchEnd(): void {
     if (!this.matchOpen) return;

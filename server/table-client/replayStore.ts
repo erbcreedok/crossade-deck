@@ -146,7 +146,9 @@ export function replayStore(all: readonly Told[], me: Person): Replay {
   const opened = all.map((d, i) => (d.kind === "room.open" ? i : -1)).filter((i) => i >= 0);
   const deeds = opened.length > 1 ? all.slice(opened[opened.length - 1]!) : all;
 
-  const first = deeds.find((d) => d.kind === "table.first");
+  // ПЕРВЫЙ КАДР — кадр посиделок или, у записи одной партии, кадр её начала: стол кладёт его в
+  // `match.start`, и лента партии начинается ровно с него.
+  const first = deeds.find((d) => d.kind === "table.first") ?? (deeds[0]?.kind === "match.start" && (deeds[0].what as { snapshot?: unknown }).snapshot ? deeds[0] : undefined);
   const start = first ? (first.what as { snapshot: Snapshot }).snapshot : guessFirst(deeds);
 
   // Мгновения — всё, что вообще случилось: дифы двигают стол, события экрана его не трогают, но

@@ -60,7 +60,9 @@ await настройки(хозяин);
 check("кнопка записи есть у распорядителя", await хозяин.evaluate(() => document.querySelector('[data-look="replay"]') !== null), null);
 
 await настройки(гость);
-check("а у гостя её нет", await гость.evaluate(() => document.querySelector('[data-look="replay"]') === null), null);
+// ЗАПИСЬ СМОТРИТ КАЖДЫЙ за столом — не только распорядитель.
+check("и у гостя она есть", await гость.evaluate(() => document.querySelector('[data-look="replay"]') !== null), null);
+check("у каждого — выключатель записи своего экрана, по умолчанию выключен", await гость.evaluate(() => document.querySelector('[data-look="record"]')?.getAttribute("aria-checked") === "false"), null);
 
 // Сделаем, что записывать: раздача и пара ходов машин.
 await ask(`/table/rooms/${room}/run`, { method: "POST", body: JSON.stringify({ by: "tg:7", command: { t: "bots", n: 2 } }) });

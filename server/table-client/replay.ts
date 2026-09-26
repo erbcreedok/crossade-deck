@@ -1,6 +1,8 @@
 // ВХОД В ЗАПИСЬ. Грузит ленту комнаты и отдаёт её тому же экрану, что рисует живой стол.
 //
 //   /table/replay?room=<комната>&pass=<пропуск>      обычный путь: пропуск на одну эту запись
+//   …&from=<номер>&to=<номер>                        одна партия: от её начала до конца (`records.ts`)
+//   …&eyes=<ключ>                                    чьими глазами; по умолчанию — глазами крупье
 //   /table/replay?room=<комната>&secret=<секрет>     свой стол под рукой
 //
 // Пропуск лучше секрета ровно тем, что его не жалко: он назван одной комнатой и протухает. Секрет
@@ -45,7 +47,10 @@ async function start(): Promise<void> {
 
   // Секрет идёт заголовком, а заголовок держит только латиницу: кириллица в нём роняет сам запрос,
   // и без этой сети страница падала бы молча вместо простого «не подошёл».
-  const where = `${HOST}/table/journal?room=${encodeURIComponent(room)}&limit=5000${pass ? `&pass=${encodeURIComponent(pass)}` : ""}`;
+  const from = params.get("from");
+  const to = params.get("to");
+  const lane = from ? `&from=${encodeURIComponent(from)}${to ? `&to=${encodeURIComponent(to)}` : ""}` : "&limit=5000";
+  const where = `${HOST}/table/journal?room=${encodeURIComponent(room)}${lane}${pass ? `&pass=${encodeURIComponent(pass)}` : ""}`;
   let res: Response;
   try {
     res = await fetch(where, secret && !pass ? { headers: { "x-table-secret": secret } } : {});
@@ -58,12 +63,19 @@ async function start(): Promise<void> {
 
   // ЧЬИМИ ГЛАЗАМИ. За столом трое, и «его рука» у каждого своя: без выбора разобрать жалобу одного
   // из троих нельзя. По умолчанию — тот, кто сел последним; дальше человек переключает сам.
+  //
+  // ПО УМОЛЧАНИЮ — ГЛАЗАМИ КРУПЬЕ: он сидит за столом, но своей игры у него нет, и запись с его места —
+  // это просто партия, без «своей руки». Дальше человек переключает сам, на любого игрока.
   const players = new Map<string, string>();
+  const framed = deeds.find((d) => (d.kind === "table.first" || d.kind === "match.start") && (d.what as { snapshot?: unknown })?.snapshot);
+  const croupier = (framed?.what as { snapshot?: { chairs: { croupier?: boolean; owner: string | null }[] } } | undefined)?.snapshot?.chairs.find((c) => c.croupier)?.owner ?? null;
+  if (croupier) players.set(croupier, "крупье");
   for (const d of deeds) {
     if (d.kind === "join" && d.who) players.set(d.who, (d.what as { name?: string })?.name ?? d.who);
+    if (d.kind === "match.start") for (const one of (d.what as { игроки?: { key: string; name: string }[] })?.игроки ?? []) if (!players.has(one.key)) players.set(one.key, one.name);
   }
   const asked = params.get("eyes");
-  const first = asked && players.has(asked) ? asked : [...players.keys()].at(-1) ?? "";
+  const first = asked && players.has(asked) ? asked : croupier ?? [...players.keys()].at(-1) ?? "";
   const me: Person = { key: first, name: players.get(first) ?? "разбор", ink: "#e8c34e", door: "guest" };
 
   const eyes = document.getElementById("eyes") as HTMLSelectElement;

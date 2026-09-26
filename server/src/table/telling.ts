@@ -40,6 +40,18 @@ interface Held extends Seen {
 const same = (a: Held, kind: string, what: unknown, at: number): boolean =>
   a.kind === kind && at - a.at < SAME_MS && JSON.stringify(a.what) === JSON.stringify(what);
 
+/**
+ * ЗАПИСЬ ЭКРАНА — ЛИЧНАЯ, И ПО УМОЛЧАНИЮ ВЫКЛЮЧЕНА. Это то, что показывает, КАК человек играл: куда
+ * смотрела камера, куда он жал, что было на экране, какие звуки слышал. Включает её каждый сам.
+ *
+ * Всё прочее — размер экрана, ошибки страницы, связь, голос — пишется всегда: это не про игру, а про
+ * «у меня зависло», и без него жалобу не разобрать. Ходы стола пишет сервер, выключатель их не касается.
+ */
+export const SCREEN_PRIVATE: ReadonlySet<string> = new Set(["view", "screen", "press", "press.idle", "act", "refused", "sound"]);
+
+/** Уходит ли этот рассказ экрана при таком выключателе. */
+export const recorded = (kind: string, on: boolean): boolean => on || !SCREEN_PRIVATE.has(kind);
+
 export interface Clock {
   now(): number;
   later(run: () => void, ms: number): unknown;
