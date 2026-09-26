@@ -13,7 +13,7 @@ import { deskNames } from "../../../server/src/table/desks.js";
 import type { TableApi } from "./api.js";
 import type { Home, RoomCard, TableCommand } from "../../../server/src/table/contract.js";
 import { dealMenu, MENU, menuOf, seatCard, seatMenu, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
-import { DOWN, askTitle, closed, gone, inlineOpened, inviteArticle, inviteExisting, listed, mayManage, notOwner, notYours, opened, recast, renamed, roleSaid, type Button, type Links } from "./talk.js";
+import { DOWN, askTitle, closed, gone, inlineOpened, inviteArticle, inviteExisting, KIND_RE, listed, mayManage, notOwner, notYours, opened, recast, renamed, roleSaid, type Button, type Links } from "./talk.js";
 import type { Registry } from "./registry.js";
 import type { Watch } from "./watch.js";
 import { installStickers } from "./stickers.js";
@@ -333,7 +333,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
   });
 
   // РОД СТОЛА СМЕНИЛИ КНОПКОЙ. Стол не разгоняется: меняются правила, карты и люди остаются.
-  bot.callbackQuery(/^tbk:([A-Za-z0-9_-]+):([a-z]+)$/, async (ctx) => {
+  bot.callbackQuery(new RegExp(`^tbk:([A-Za-z0-9_-]+):(${KIND_RE})$`), async (ctx) => {
     await ctx.answerCallbackQuery();
     const [, room, kind] = ctx.match as unknown as [string, string, string];
     const cards = await tablesFor(ctx);
@@ -397,7 +397,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
   // КАРТОЧКА СТАЛА СООБЩЕНИЕМ — теперь известно, где стол живёт. Приходит, только если в BotFather
   // включён `/setinlinefeedback`; без него стол заводится первым вошедшим (`TableRoom.onCreate`).
   bot.on("chosen_inline_result", async (ctx) => {
-    const chosen = /^tbl:([a-z]+):(.+)$/.exec(ctx.chosenInlineResult.result_id);
+    const chosen = new RegExp(`^tbl:(${KIND_RE}):(.+)$`).exec(ctx.chosenInlineResult.result_id);
     const room = chosen?.[2];
     const message = ctx.chosenInlineResult.inline_message_id;
     if (!room) return;

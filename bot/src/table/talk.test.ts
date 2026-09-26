@@ -1,7 +1,7 @@
 import { deskNames } from "../../../server/src/table/desks.js";
 import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
-import { cardRows, enter, inviteArticle, inviteExisting, listed, mayManage, opened } from "./talk.js";
+import { cardRows, enter, inviteArticle, inviteExisting, KIND_RE, listed, mayManage, opened } from "./talk.js";
 
 const links = { anywhere: (r: string) => `https://t.me/bot/table?startapp=${r}`, app: (r: string) => `https://fly/t/?room=${r}` };
 const card = (room: string, title: string, by = "tg:1"): RoomCard => ({ room, title, by, home: { kind: "chat", chat: "-1" }, people: [], seats: [], deck: { size: 36, jokers: false }, createdAt: 0, kind: "sandbox", crew: "sandbox", admins: [] });
@@ -90,6 +90,12 @@ describe("карточка нового комнаты: род выбирает�
     expect(card("krest").description).toContain("крестовый");
     expect(card("sandbox-ar").title).toContain("AR-песочница");
     expect(card("sandbox-ar").description, "AR-комната говорит, чем она другая").toContain("наклоном");
+  });
+
+  it("каждый род из каталога проходит разбор бота — иначе выбранный род молча теряется", () => {
+    const kind = new RegExp(`^${KIND_RE}$`);
+    for (const { id } of deskNames()) expect(id, `род «${id}»`).toMatch(kind);
+    expect("tbl:sandbox-ar:r1").toMatch(new RegExp(`^tbl:(${KIND_RE}):(.+)$`));
   });
 
   it("у открытого комнаты есть вход и «Меню» — управление хозяину", () => {
