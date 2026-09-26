@@ -203,8 +203,10 @@ async function main(): Promise<void> {
         ]
       : []),
   ]);
-  // КНОПКА МЕНЮ — ОБЫЧНАЯ: хаба у бота больше нет, стол зовётся карточкой в переписку.
-  await bot.api.setChatMenuButton({ menu_button: { type: "commands" } });
+  // КНОПКА МЕНЮ — «Мои комнаты» (мини-апп стола без комнаты), если это включено (`TABLE_MENU_APP=1`);
+  // иначе обычная: список команд. Включение — решение хозяина: кнопка меняется у всех чатов бота.
+  const rooms = table && process.env.TABLE_MENU_APP === "1" ? table.roomsUrl() : null;
+  await bot.api.setChatMenuButton({ menu_button: rooms ? { type: "web_app", text: "Мои комнаты", web_app: { url: rooms } } : { type: "commands" } });
   await table?.start(me.username, (chat, text) => bot.api.sendMessage(chat, text));
   console.log(`бот @${me.username} запущен, long polling`);
   // ВЫБРАННАЯ INLINE-КАРТОЧКА ПРИХОДИТ, ТОЛЬКО ЕСЛИ ЕЁ ПОПРОСИТЬ: по умолчанию Telegram её не шлёт.

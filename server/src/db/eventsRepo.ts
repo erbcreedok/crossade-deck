@@ -198,6 +198,22 @@ export function roomsOfJournal(ask: { by?: string; chat?: string }, limit = 200,
     .all(...args, limit) as unknown as { room: string; last: number }[];
 }
 
+/**
+ * Где жила комната — чат или inline-сообщение (последнее открытие или закрытие) — и как её звали при
+ * открытии: у закрытой комнаты другого имени уже нет.
+ */
+export function roomInJournal(room: string, at: DatabaseSync = db()): { home: unknown; title: string | null } | null {
+  const home = at
+    .prepare(`SELECT json_extract(what, '$.home') AS home FROM events
+       WHERE room = ? AND kind IN ('room.open', 'room.close') AND json_extract(what, '$.home') IS NOT NULL ORDER BY id DESC LIMIT 1`)
+    .get(room) as { home: string } | undefined;
+  const title = at
+    .prepare(`SELECT json_extract(what, '$.title') AS title FROM events WHERE room = ? AND kind = 'room.open' ORDER BY id DESC LIMIT 1`)
+    .get(room) as { title: string | null } | undefined;
+  if (!home && !title) return null;
+  return { home: home ? JSON.parse(home.home) : null, title: title?.title ?? null };
+}
+
 /** Как часто журнал подчищает себя сам. */
 export const SWEEP_EVERY_MS = 6 * 60 * 60 * 1000;
 

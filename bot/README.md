@@ -78,6 +78,7 @@ App (`https://t.me/<bot>/<app>?startapp=<code>`), если `TELEGRAM_APP_NAME` �
 | `TABLE_RELAY_URL` | сервер на Fly: знает по маяку, где мак, и держит постоянный адрес `/t/` |
 | `TABLE_SERVER_URL` | вместо реле — прямо на сервер стола (только для разработки на одной машине) |
 | `TABLE_APP_NAME` | короткое имя Mini App стола; без него ссылки в группах и inline ведут в браузер, где без Telegram не пускают |
+| `TABLE_MENU_APP` | `1` — кнопка меню бота «Мои комнаты» открывает мини-апп стола без комнаты (список комнат человека); без неё кнопка — список команд |
 | `TABLE_CHATS_FILE` | где бот помнит чаты со столами (по умолчанию `bot/data/table-chats.json`) |
 
 Один раз в BotFather: `/newapp` → имя `table` → URL `<TABLE_RELAY_URL>/t/`; `/setinlinefeedback` → Enabled.

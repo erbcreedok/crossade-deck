@@ -479,5 +479,5 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     setInterval(() => void poll(), POLL_MS);
   }
 
-  return { inlineResults, start };
+  return { inlineResults, start, roomsUrl: () => api.roomsUrl() };
 }

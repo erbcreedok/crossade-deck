@@ -11,11 +11,13 @@ import { loadingCross } from "../../look/src/loading.js";
 import { mountGround } from "./ground.js";
 import { startFullscreen, type FullscreenApp } from "./fullscreen.js";
 import { mountScreen } from "./screen.js";
+import { mountRooms } from "./rooms.js";
 import type { TableStore } from "./store.js";
 import type { Intent } from "../src/table/contract.js";
 import { watchScreen, witnessed, type ScreenHealth } from "./watch.js";
 
 interface TelegramWebApp extends FullscreenApp {
+  BackButton?: { show(): void; onClick(fn: () => void): void };
   initData: string;
   initDataUnsafe: { start_param?: string };
   ready(): void;
@@ -41,6 +43,12 @@ const stale = {
 const telegram = (globalThis as { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
 const stage = document.getElementById("stage")!;
 const params = new URLSearchParams(location.search);
+/**
+ * КАКОЙ СТОЛ. Адрес страницы — первым: список комнат уводит в стол адресом, а Telegram после этого всё
+ * ещё помнит параметр запуска (`start_param`) той ссылки, с которой мини-апп открыли. `?rooms` — назад
+ * к списку, даже если мини-апп открыли ссылкой на стол.
+ */
+const roomAsked = params.has("rooms") ? null : params.get("room") || telegram?.initDataUnsafe.start_param || params.get("tgWebAppStartParam");
 
 function say(text: string): void {
   const note = document.getElementById("note")!;
@@ -71,7 +79,7 @@ function closedTable(): void {
 
 async function open(): Promise<TableStore> {
   if (params.has("stand")) return localStore();
-  const room = telegram?.initDataUnsafe.start_param || params.get("room") || params.get("tgWebAppStartParam");
+  const room = roomAsked;
   if (!room) throw new Error("Нет комнаты. Открой стол по ссылке из чата.");
   const options: JoinOptions = telegram?.initData
     ? { room, client: "html", door: "telegram", initData: telegram.initData }
@@ -113,7 +121,19 @@ const witness = watchScreen((seen) => tellStore?.log(seen), {
   links: () => screenHealth?.links() ?? null,
 });
 
-open()
+// БЕЗ ССЫЛКИ НА СТОЛ — «Мои комнаты» (`rooms.ts`): кнопка меню, ярлык, профиль бота.
+const choosing = !params.has("stand") && !roomAsked;
+if (choosing) {
+  loading.done();
+  mountRooms(document.body, telegram);
+}
+// ИЗ СПИСКА В СТОЛ — кнопка «назад» Telegram возвращает к списку.
+if (params.get("from") === "rooms" && telegram?.BackButton) {
+  telegram.BackButton.onClick(() => void (location.href = "?rooms"));
+  telegram.BackButton.show();
+}
+
+(choosing ? new Promise<TableStore>(() => {}) : open())
   .then((store) => {
     tellStore = store;
     document.title = store.title;

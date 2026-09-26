@@ -15,9 +15,10 @@ import { isCrew } from "./crews.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
 import { allEntries, closeEntry, findEntry, isBuried, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, botsIn, lookIn, playIn, runIn, setAdmin } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
-import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomsOfJournal, roomsSeen } from "../db/eventsRepo.js";
+import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomInJournal, roomsOfJournal, roomsSeen } from "../db/eventsRepo.js";
 import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
+import { myRooms } from "./mine.js";
 import { verifyTelegramInitData } from "../telegramAuth.js";
 
 /** Подпись Mini App — заголовком: в адресе ей не место, адрес пересылают. */
@@ -220,6 +221,28 @@ export function tableRoutes(): Router {
     const until = Date.now() + KEEP_DAYS * 24 * 60 * 60 * 1000;
     const rooms = roomsReport(seen, live, (room) => deedsOfKinds(room, RECORD_KINDS)).map(({ room, title, live: alive, lastAt, records }) => ({ room, title, live: alive, lastAt, records, pass: mintPass(room, tableConfig().secret!, until) }));
     res.json({ rooms, until });
+  });
+
+  /**
+   * МОИ КОМНАТЫ — стартовая страница мини-аппа без ссылки на стол (`mine.ts`). Кто спрашивает, говорит
+   * подпись Telegram в заголовке — другого способа узнать человека у страницы нет, и без неё отказ.
+   * Закрытые приходят отдельно, с пропуском на запись последней партии, если она есть.
+   */
+  r.get("/table/my", (req, res) => {
+    const config = tableConfig();
+    const signed = req.header(TELEGRAM_HEADER);
+    const user = signed && config.botToken ? verifyTelegramInitData(signed, config.botToken) : null;
+    if (!user) return void res.status(401).json({ error: "who_are_you" });
+    const key = `tg:${user.id}`;
+    const found = new Map<string, ReturnType<typeof roomInJournal>>();
+    const journal = (room: string) => (found.has(room) ? found.get(room)! : (found.set(room, roomInJournal(room)), found.get(room)!));
+    const mine = myRooms(key, allEntries(), roomsOfJournal({ by: key }), (room) => (journal(room)?.home as Home | null) ?? null, (room) => journal(room)?.title ?? null);
+    const until = Date.now() + KEEP_DAYS * 24 * 60 * 60 * 1000;
+    const closed = mine.closed.slice(0, 8).map((one) => {
+      const last = recordsOf(deedsOfKinds(one.room, RECORD_KINDS)).sessions.flatMap((s) => s.matches).at(-1);
+      return { ...one, ...(last ? { replay: { pass: mintPass(one.room, config.secret!, until), from: last.from, to: last.to } } : {}) };
+    });
+    res.json({ rooms: mine.rooms, closed });
   });
 
   /**

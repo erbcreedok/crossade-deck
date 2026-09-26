@@ -25,5 +25,7 @@ describe("бот ищет сервер стола через реле", () => {
   it("ссылка на стол — постоянный адрес реле, а не текущий адрес мака", () => {
     expect(new TableApi({ secret: "s", relayUrl: "https://fly" }).openUrl("r1")).toBe("https://fly/t/?room=r1");
     expect(new TableApi({ secret: "s", serverUrl: "http://localhost:2590" }).openUrl("r1")).toBe("http://localhost:2590/table/?room=r1");
+    // «Мои комнаты» — тот же постоянный адрес без комнаты: кнопка меню ведёт на него.
+    expect(new TableApi({ secret: "s", relayUrl: "https://fly" }).roomsUrl()).toBe("https://fly/t/");
   });
 });

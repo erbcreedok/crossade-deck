@@ -6,7 +6,7 @@ import { existsSync } from "fs";
 import { join } from "path";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, SECRET_HEADER } from "./contract.js";
 import { clientRoutes } from "./client.js";
-import { forgetAll } from "./lobby.js";
+import { forgetAll, setAdmin } from "./lobby.js";
 import { tellAll } from "../db/eventsRepo.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 import { BOOT, DOOR_DEAD_AFTER, forgetBeacon, hostPage, readCommand, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
@@ -319,6 +319,60 @@ describe("/table/records — записи человека или чата, жи
     expect((await call("/table/records?by=tg:1", { secret: null })).status, "без секрета").toBe(401);
     expect((await call("/table/records")).status, "без кого").toBe(400);
     expect((await ask("by=tg:1")).some((r) => r.room === "closed-room" && r.live), "закрытый не ожил").toBe(false);
+  });
+});
+
+describe("/table/my — «Мои комнаты» по подписи Telegram", () => {
+  const signed = (id: number) => {
+    const fields = { auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id, first_name: "X" }) };
+    const line = Object.keys(fields).sort().map((k) => `${k}=${fields[k as keyof typeof fields]}`).join("\n");
+    const key = createHmac("sha256", "WebAppData").update("bot-token").digest();
+    return new URLSearchParams({ ...fields, hash: createHmac("sha256", key).update(line).digest("hex") }).toString();
+  };
+  type Mine = { rooms: { room: string; why: string[]; chat: string | null }[]; closed: { room: string; title: string; replay?: { pass: string; from: number; to: number | null } }[] };
+  const my = async (id: number) => (await (await fetch(`${base}/table/my`, { headers: { "x-telegram-init-data": signed(id) } })).json()) as Mine;
+  const open = async (by: string, chat: string, title?: string) =>
+    ((await (await call("/table/rooms", { method: "POST", json: { home: { kind: "chat", chat, chatTitle: `Чат ${chat}` }, by, ...(title ? { title } : {}) } })).json()) as { room: string }).room;
+
+  it("основания: создал, админ, сидел, комната чата, где он бывал; чужой чат не показан; дублей нет; закрытая — отдельно, с записью", async () => {
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+    const now = Date.now();
+    const owned = await open("tg:101", "my-a");
+    const adminOf = await open("tg:900", "my-b");
+    setAdmin(adminOf, "tg:900", "tg:101", true);
+    const visited = await open("tg:900", "my-c");
+    const sameChat = await open("tg:901", "my-c");
+    const stranger = await open("tg:902", "my-z");
+    tellAll([
+      { at: now, room: visited, who: "tg:101", side: "table", kind: "join", what: { name: "Ye" } },
+      { at: now, room: owned, who: "tg:101", side: "table", kind: "join", what: { name: "Ye" } },
+      // Закрытая: в лобби её нет, в журнале — открытие с чатом, его вход и доигранная партия.
+      { at: now - 5000, room: "my-closed", side: "table", kind: "room.open", what: { title: "Крестовый. Брод", by: "tg:900", home: { kind: "chat", chat: "my-y" } } },
+      { at: now - 4000, room: "my-closed", who: "tg:101", side: "table", kind: "join", what: { name: "Ye" } },
+      { at: now - 3000, room: "my-closed", who: "tg:101", side: "table", kind: "match.start", what: { игроки: [{ key: "tg:101", name: "Ye" }] } },
+      { at: now - 2000, room: "my-closed", who: "tg:101", side: "table", kind: "match.end", what: { вышли: [] } },
+      { at: now - 1000, room: "my-closed", side: "table", kind: "room.close", what: { home: { kind: "chat", chat: "my-y" } } },
+    ]);
+    const got = await my(101);
+    const why = Object.fromEntries(got.rooms.map((r) => [r.room, r.why]));
+    expect(why[owned]).toEqual(["owner", "visited"]);
+    expect(why[adminOf]).toEqual(["admin"]);
+    expect(why[visited]).toEqual(["visited"]);
+    expect(why[sameChat], "живёт в чате, где он сидел за столом").toEqual(["chat"]);
+    expect(why[stranger], "чужой чат — не его").toBeUndefined();
+    expect(got.rooms.filter((r) => r.room === owned), "одна строка на комнату").toHaveLength(1);
+    expect(got.rooms.find((r) => r.room === sameChat)?.chat).toBe("Чат my-c");
+    expect(got.rooms.some((r) => r.room === "my-closed"), "закрытая — не действующая").toBe(false);
+    expect(got.closed).toEqual([expect.objectContaining({ room: "my-closed", title: "Крестовый. Брод", replay: expect.objectContaining({ from: expect.any(Number), to: expect.any(Number) }) })]);
+    expect((await call("/table/rooms?by=tg:900")).status, "список не оживил закрытую").toBe(200);
+    expect(((await (await call("/table/rooms?by=tg:900")).json()) as { room: string }[]).some((r) => r.room === "my-closed")).toBe(false);
+  });
+
+  it("никого не знает — пустой список; без подписи — отказ", async () => {
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+    expect(await my(555)).toEqual({ rooms: [], closed: [] });
+    expect((await fetch(`${base}/table/my`)).status).toBe(401);
+    expect((await fetch(`${base}/table/my`, { headers: { "x-telegram-init-data": "hash=forged&user=%7B%22id%22%3A1%7D" } })).status).toBe(401);
   });
 });
 

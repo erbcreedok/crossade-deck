@@ -67,6 +67,11 @@ export class TableApi {
     return `${this.env.relayUrl ?? this.env.serverUrl}/${this.env.relayUrl ? "t" : "table"}/?room=${encodeURIComponent(room)}`;
   }
 
+  /** Мини-апп без стола — «Мои комнаты»: тот же постоянный адрес, только без комнаты. */
+  roomsUrl(): string {
+    return `${this.env.relayUrl ?? this.env.serverUrl}/${this.env.relayUrl ? "t" : "table"}/`;
+  }
+
   get appName(): string | undefined {
     return this.env.appName;
   }
