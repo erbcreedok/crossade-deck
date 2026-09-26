@@ -1,0 +1,41 @@
+server/scripts/tableBotRing.mjs
+  s_9ed0da107cbc4a::t_75d8a8086c27fe 1-89
+bot/src/table/orders.test.ts
+  s_9ed0da107cbc4a::t_0fadc5db418985 57-58
+bot/src/table/orders.ts
+  s_9ed0da107cbc4a::t_52250b16152661 263
+server/scripts/tableCroupier.mjs
+  s_9ed0da107cbc4a::t_37eac311a20b04 133-140
+server/scripts/tableDeck.mjs
+  s_9ed0da107cbc4a::t_c6981d9d4e5c9a 48-49,51,102-104,117-119,156-158
+server/scripts/tableDrop.mjs
+  s_9ed0da107cbc4a::t_fc8c4a0cf3aeca 37-39,42-43,47,51-53,55,62-63,68
+server/src/table/TableRoom.test.ts
+  s_9ed0da107cbc4a::t_b6a3d4a2f636fb 124-137
+server/src/table/contract.ts
+  s_9ed0da107cbc4a::t_da5226d2aee9c5 942-943
+server/src/table/games/match.test.ts
+  s_9ed0da107cbc4a::t_b99a42505dc8e2 66-84
+server/src/table/games/match.ts
+  s_9ed0da107cbc4a::t_3b5070b162a6ab 84-103,109
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_889287aa11d2ab 1926-1927,3422-3424
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_b7080ce651bdcf 533-535,537
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "45a5b6884a953bc8d3b76556cb4d9b01e50a76e0",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
