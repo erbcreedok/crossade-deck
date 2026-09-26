@@ -54,6 +54,8 @@ describe("команды комнаты в чате", () => {
   it("не собрано — кнопка «Собрать и раздать»", () => {
     expect(refusedSay("needs-collect", "r", "p1").rows[0]![0]).toEqual({ text: "Собрать и раздать", data: "tbf:r:p1" });
     expect(refusedSay("busy", "r", "p1").rows).toEqual([]);
+    // Крупье не уводят — бот говорит это словами, а не молчит и не пишет «не понял».
+    expect(refusedSay("croupier-stays", "r", "p1").text).toMatch(/Крупье не уводят/);
   });
 });
 

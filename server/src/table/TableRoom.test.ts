@@ -121,6 +121,20 @@ describe("TableRoom", () => {
     }
   });
 
+  it("крупье не уводят никому: команда «убрать» отказывает, крупье остаётся, и в делах крупье такой кнопки нет", async () => {
+    const room = mintRoom(SECRET);
+    openEntry(room, { kind: "inline", message: "m" }, "tg:7", "С крупье");
+    const owner = await sit(room, { door: "telegram", initData: initData(7, "Аня") });
+    const seated = () => owner.patches.reduce(applyPatch, owner.welcome.snapshot).chairs.some((c) => c.croupier);
+    await runIn(room, "tg:7", { t: "croupier", on: true });
+    await new Promise((r) => setTimeout(r, 120));
+    expect(seated(), "крупье за столом").toBe(true);
+    expect(await runIn(room, "tg:7", { t: "croupier", on: false }), "даже распорядителю").toEqual({ error: "croupier-stays" });
+    await new Promise((r) => setTimeout(r, 120));
+    expect(seated(), "и он на месте").toBe(true);
+    expect(owner.welcome.crew.map((act) => act.id)).not.toContain("remove");
+  });
+
   it("команда bots — состав стола: не распорядителю отказ; в делах крупье её нет", async () => {
     const room = mintRoom(SECRET);
     openEntry(room, { kind: "inline", message: "m" }, "tg:7", "С ботами");

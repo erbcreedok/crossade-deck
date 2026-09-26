@@ -34,29 +34,38 @@ const rotation = (await view())[3];
 check("стол повёрнут", Math.abs(rotation) > 20, rotation);
 
 // Карта из руки — на сукно, медленно, со сверкой контура на каждом шаге.
+//
+// КУДА — в середину стола, а не в пиксели наугад: стол меняет размер, стулья пересаживаются, и точка,
+// бывшая когда-то сукном, оказывается зоной чужой руки — там горит её гнездо, а не контур на сукне.
 const card = await page.locator("[data-card]").first().boundingBox();
 const start = [card.x + card.width / 2, card.y + card.height / 2];
-const end = [150, 330];
+const mid = (await scene()).middle;
+const end = [mid.x, mid.y];
 await touch("touchStart", [start]);
 let worst = 0;
 let markAngle = null;
+let onFelt = 0;
 for (let i = 1; i <= 20; i += 1) {
   const p = [start[0] + ((end[0] - start[0]) * i) / 20, start[1] + ((end[1] - start[1]) * i) / 20];
   await touch("touchMove", [p]);
+  // СВЕРЯЕМ ТОЛЬКО ТАМ, ГДЕ ЭКРАН САМ ЦЕЛИТСЯ В СУКНО: над рукой, стулом или стопкой горит их зона.
+  const aim = (await scene()).aim;
+  if (aim?.kind !== "felt") continue;
   const m = await page.evaluate(() => {
-    const mark = document.querySelector('[data-g="mark"]');
+    const mark = document.querySelector("[data-felt-mark]");
     const carry = document.querySelector('[data-g="carry"]');
     if (!mark || !carry) return null;
     const a = mark.getBoundingClientRect();
     const c = carry.getBoundingClientRect();
     return { mx: a.left + a.width / 2, cx: c.left + c.width / 2, t: mark.style.transform };
   });
-  // Пока палец над рукой, контур стоит в гнезде руки; сверяем только сукно — там контур идёт за пальцем.
-  if (m && i > 10) {
+  if (m) {
+    onFelt += 1;
     worst = Math.max(worst, Math.abs(m.mx - m.cx));
     markAngle = m.t;
   }
 }
+check("палец прошёл над сукном — было что сверять", onFelt >= 3, onFelt);
 check("контур на сукне идёт за пальцем без отставания (по x ≤ 1.5px)", worst <= 1.5, worst);
 const turned = /rotate\((-?[\d.]+)deg\)/.exec(markAngle ?? "");
 check("контур стоит ровно к экрану (поворот стола + карты = 0)", turned && Math.abs(Number(turned[1])) < 0.01, markAngle);

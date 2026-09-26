@@ -260,6 +260,7 @@ export function refusedSay(error: RunError, room: string, pending: string): Said
     "pick-seat": "Не понял, с кого начать: тебя за столом нет, а прошлый начальный стул уже пуст. Раздай заново и укажи стул.",
     empty: "В этой комнате ещё никого не было — зайди, и команды заработают.",
     bad: "Не понял команду.",
+    "croupier-stays": "Крупье не уводят: без него некому раздавать и сгребать круг.",
   };
   return { text: text[error], rows: error === "needs-collect" ? [[{ text: "Собрать и раздать", data: `tbf:${room}:${pending}` }]] : [] };
 }

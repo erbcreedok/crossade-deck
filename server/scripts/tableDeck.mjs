@@ -45,9 +45,10 @@ await p.addInitScript(() => {
     const sheet = document.querySelector(".crossade-loading:not(.gone)");
     const c = document.querySelector("canvas");
     const spots = c?.dataset.spots && JSON.parse(c.dataset.spots);
-    if (spots?.middle) {
+    // КОЛОДА ЛЕЖИТ У КРУПЬЕ, а не в середине стола: в середине — круг хода и голое сукно.
+    if (spots?.deckTop) {
       const k = c.width / c.getBoundingClientRect().width;
-      const [r, g, b] = c.getContext("2d").getImageData(Math.round(spots.middle.x * k), Math.round(spots.middle.y * k), 1, 1).data;
+      const [r, g, b] = c.getContext("2d").getImageData(Math.round(spots.deckTop.x * k), Math.round(spots.deckTop.y * k), 1, 1).data;
       window.__frames.push({ covered: Boolean(sheet), light: (r + g + b) / 3 });
     }
     requestAnimationFrame(tick);
@@ -98,19 +99,10 @@ const g1 = await p.evaluate(() => ({ pos: document.querySelector("[data-g=ground
 check("фон: цвет сукна хаба и плитка трилистника", g0 && g0.color === "rgb(23, 61, 45)" && g0.image.startsWith('url("data:image/svg+xml'), g0);
 check("фон: трилистники и ромбики ползут", g0 && g0.pos !== g1.pos && g0.spark !== g1.spark, [g0, g1]);
 check("фон: ромбики приглушены и мерцают", g0 && g1.opacity > 0.25 && g1.opacity <= 0.55 && g0.opacity !== g1.opacity, [g0?.opacity, g1.opacity]);
-// Стол при входе занимает почти весь кадр (зум считается от читаемости карты, а не от «сколько
-// влезло»), поэтому свободный от сукна угол надо сперва СДЕЛАТЬ: отъезжаем до упора, смотрим на
-// пиксель и возвращаем вид обратно, чтобы дальше мерить то же, что и всегда.
-await p.keyboard.down("Control");
-await p.mouse.move(195, 300);
-for (let i = 0; i < 8; i += 1) await p.mouse.wheel(0, 900);
-await p.keyboard.up("Control");
-await wait(600);
+// Стол при входе вписан по ширине кадра, и угол экрана над ним — пустой: там должен быть виден фон.
+// Отъезжать и возвращаться колесом нельзя: зум прилипает к пределам, и «туда-обратно» приходит к 2.5, а
+// не к единице — колода уезжает за край, и все проверки ниже мерят пустоту.
 check("холст вокруг стола прозрачный — фон виден", (await canvasAt(4, 4)).a === 0, await canvasAt(4, 4));
-await p.keyboard.down("Control");
-for (let i = 0; i < 8; i += 1) await p.mouse.wheel(0, -900);
-await p.keyboard.up("Control");
-await wait(600);
 
 // ── 2. По умолчанию: рубашка — плед (светлая), лица — классика ────────────────────────────────────
 const m = (await spots()).deckTop;
@@ -122,7 +114,9 @@ const rim = await p.evaluate(([x, y]) => {
   for (let dx = 0; dx < 60; dx += 0.5) {
     const [r, gg, b] = g.getImageData(Math.round((x - dx) * k), Math.round(y * k), 1, 1).data;
     if ((r + gg + b) / 3 < 40) return { dx, r, g: gg, b };
-    if ((r + gg + b) / 3 < 120) return { dx, felt: true, r, g: gg, b };
+    // СУКНО — ЗЕЛЁНОЕ. Серый пиксель на стыке светлой рубашки и чёрной кромки — сглаживание края, а не
+    // сукно: без проверки цвета он выдавал кромку за её отсутствие.
+    if ((r + gg + b) / 3 < 120 && gg > r + 12) return { dx, felt: true, r, g: gg, b };
   }
   return null;
 }, [m.x, m.y]);
@@ -159,6 +153,9 @@ await wait(600);
 check("вернули классику", (await handArt()).every((c) => c.url.includes("/classic/")), await handArt());
 check("пресет дурака принят", (await run({ t: "preset", game: "durak" })).ok === true, null);
 await wait(4000);
+// Пресет стол не собирает: смена колоды — разница, карты лежат где лежали. Собрать — отдельной командой.
+check("сбор после пресета принят", (await run({ t: "collect" })).ok === true, null);
+await wait(3000);
 await run({ t: "deal", rule: "each", n: 1 });
 await wait(1500);
 hand = await handArt();

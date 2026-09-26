@@ -81,13 +81,32 @@ const circleOf = (m: Match, board: Board): Circle | null => {
   return m.threshold === 0 && table.length === 0 ? null : { table, threshold: m.threshold };
 };
 
-/** Начало партии: ходит тот, у кого шестёрка буби, иначе раздающий. */
+/**
+ * КТО ОТКРЫВАЕТ, ЕСЛИ ШЕСТЁРКИ БУБИ НИ У КОГО НЕТ: раздающий — если он сам в партии. Раздал другим
+ * (себе ни карты) — следующий за ним по рассадке, у кого карты есть. Раздавал тот, кого в рассадке
+ * нет вовсе (крупье), — первый в кольце.
+ *
+ * Очередь у того, кто не играет, — это вставшая партия: ходить ему нечем, а остальные ждут его.
+ */
+function opener(order: readonly string[], ring: readonly string[], dealer: string | null): string | null {
+  if (dealer !== null && ring.includes(dealer)) return dealer;
+  const at = dealer === null ? -1 : order.indexOf(dealer);
+  if (at !== -1) {
+    for (let step = 1; step <= order.length; step += 1) {
+      const next = order[(at + step) % order.length]!;
+      if (ring.includes(next)) return next;
+    }
+  }
+  return ring[0] ?? null;
+}
+
+/** Начало партии: ходит тот, у кого шестёрка буби, иначе раздающий (`opener`). */
 export function start(board: Board, dealer: string | null): Match {
   // КОЛЬЦО — ПО РАССАДКЕ, а не по именам стульев: очередь обходит стол, а не скачет по нему.
   const ring = board.order.filter((who) => handOf(board, who).length > 0);
   return {
     ring,
-    turn: firstMover(board.hands as Record<string, readonly Face[]>) ?? dealer ?? ring[0] ?? null,
+    turn: firstMover(board.hands as Record<string, readonly Face[]>) ?? opener(board.order, ring, dealer),
     closer: null,
     threshold: 0,
     opened: board.circle.length,

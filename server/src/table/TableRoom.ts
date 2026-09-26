@@ -530,8 +530,11 @@ export class TableRoom extends Room {
     }
     // КРУПЬЕ — не ход, а состав стола: садится и уходит сразу, даже посреди раздачи он не нужен как ход.
     if (command.t === "croupier") {
+      // УВЕСТИ КРУПЬЕ НЕЛЬЗЯ НИКОМУ — ни кнопкой, ни из бота: без него некому сгребать круг и раздавать.
+      // Посадить обратно можно: это то, что комната делает и сама.
+      if (!command.on) return { error: "croupier-stays" };
       const who = await botPerson(tableConfig().botToken);
-      this.spread(command.on ? this.table.seatCroupier({ ...who, ink: this.freeInk() }) : this.table.removeCroupier());
+      this.spread(this.table.seatCroupier({ ...who, ink: this.freeInk() }));
       return { ok: true };
     }
     if (this.table.busy) return { error: "busy" };

@@ -939,7 +939,8 @@ export interface RunCommand {
 /** Направление круга раздачи. Угол стула растёт от шести часов к трём, то есть ПРОТИВ часовой на экране. */
 export type DealDir = "cw" | "ccw";
 
-export type RunError = "not-admin" | "busy" | "needs-collect" | "not-enough-cards" | "not-enough-players" | "wrong-players" | "no-dealer" | "no-deal-yet" | "pick-seat" | "empty" | "bad";
+/** `croupier-stays` — крупье не уводят: этого пока нельзя никому, ни кнопкой, ни командой. */
+export type RunError = "not-admin" | "busy" | "needs-collect" | "not-enough-cards" | "not-enough-players" | "wrong-players" | "no-dealer" | "no-deal-yet" | "pick-seat" | "empty" | "bad" | "croupier-stays";
 export type RunResult = { ok: true } | { error: RunError };
 
 // ── HTTP: бот ↔ сервер стола ↔ реле на Fly ─────────────────────────────────────────────────────

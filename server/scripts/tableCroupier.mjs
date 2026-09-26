@@ -130,15 +130,14 @@ check("первого можно сменить", (await A.getAttribute(`[data-d
 await A.click("[data-deal-shut]");
 check("окно закрывается", (await A.$("[data-deal-panel]")) === null);
 
-// Увести крупье: его карты падают на стол, сам он уходит. Окно крупье у админа всё ещё открыто.
-await A.click('[data-croupier="remove"]');
-await A.waitForTimeout(800);
-check("«Увести крупье» убирает его со стола", !((await spots(A)).seats ?? []).some((sp) => sp.croupier));
-// …и командой его можно посадить обратно.
-const again = await api("POST", `/table/rooms/${room}/run`, { by: admin, command: { t: "croupier", on: true } });
-check("команда сажает его обратно", again.status === 200, again.status);
-await A.waitForTimeout(900);
-check("крупье снова за столом", ((await spots(A)).seats ?? []).some((sp) => sp.croupier));
+// Увести крупье нельзя НИКОМУ: ни кнопки в окне, ни команды из бота — без него некому раздавать.
+await openCroupier(A);
+check("кнопки «Увести крупье» нет даже у админа", (await A.$('[data-croupier="remove"]')) === null);
+const away = await api("POST", `/table/rooms/${room}/run`, { by: admin, command: { t: "croupier", on: false } });
+const said = await away.json().catch(() => null);
+check("команда «убрать» отказывает", said?.error === "croupier-stays", [away.status, said]);
+await A.waitForTimeout(600);
+check("крупье остался за столом", ((await spots(A)).seats ?? []).some((sp) => sp.croupier));
 
 await browser.close();
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));

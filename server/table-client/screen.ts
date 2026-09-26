@@ -1923,7 +1923,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     if (!drag || drag.target.kind !== "felt" || !view) return "";
     const at = view.toGlass(drag.target.at);
     // На экране: поворот стола + поворот карты = 0, и остаётся только наклон — контур стоит ровно, сжатый.
-    return markHtml(FELT_CARD.w * view.k, FELT_CARD.h * view.k, view.rotation + dropAngle(), at.x, at.y, 30, view.squash);
+    // Своя метка: контуром зовутся и гнёзда рук, а этот — то место на СУКНЕ, куда ляжет карта.
+    return markHtml(FELT_CARD.w * view.k, FELT_CARD.h * view.k, view.rotation + dropAngle(), at.x, at.y, 30, view.squash).replace('data-g="mark"', 'data-g="mark" data-felt-mark');
   }
 
 
@@ -3418,8 +3419,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     }
     if (sameAim(aim, drag.target) && aim.kind !== "felt") return;
     drag.target = aim;
-    // НА СУКНЕ ДВИГАЕТСЯ ОДИН КОНТУР, А НЕ ВЕСЬ ЭКРАН.
-    const mark = over.querySelector<HTMLElement>('[data-g="mark"]');
+    // НА СУКНЕ ДВИГАЕТСЯ ОДИН КОНТУР, А НЕ ВЕСЬ ЭКРАН — и именно контур СУКНА: контуром зовётся и
+    // гнездо в руке, откуда взяли карту, и первым в разметке стоит оно.
+    const mark = over.querySelector<HTMLElement>("[data-felt-mark]");
     if (aim.kind === "felt" && mark && drag.markKind === "felt" && view && !massShift(drag)) {
       const at = view.toGlass(aim.at);
       mark.style.left = `${at.x - (FELT_CARD.w * view.k) / 2}px`;
