@@ -80,6 +80,22 @@ await settle();
 const k1 = (await spots()).k;
 check("щипок растит стол", k1 > k0 * 1.1, `${k0.toFixed(1)} → ${k1.toFixed(1)}`);
 
+// 5б. КНОПКИ ПОД ПОТОКОМ ДАТЧИКА. На телефоне наклон идёт десятки раз в секунду, и каждый сдвигает стол
+// на экране — а слой поверх стола пересобирался целиком, и кнопка исчезала между касанием и отпусканием.
+// Поток здесь настоящий: 60 событий в секунду с дрожью руки, пока жмутся кнопки верхнего и нижнего HUD.
+await p.evaluate(() => {
+  let t = 0;
+  window.__shake = setInterval(() => { t += 1; dispatchEvent(new DeviceOrientationEvent("deviceorientation", { alpha: Math.sin(t / 7) * 3, beta: 50 + Math.cos(t / 5) * 2, gamma: 0 })); }, 16);
+});
+await p.waitForTimeout(300);
+const tap = async (sel) => { const b = await p.locator(sel).first().boundingBox(); await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await p.mouse.down(); await p.waitForTimeout(120); await p.mouse.up(); await p.waitForTimeout(250); };
+// Сначала бар: окно настроек, открытое шестерёнкой, модальное — оно легло бы поверх бара.
+await tap('[data-section="pose"]');
+check("под потоком датчика кнопка нижнего бара открывает свою секцию", (await p.locator('[data-bar="fan"]').count()) > 0);
+await tap("[data-settings]");
+check("под потоком датчика шестерёнка открывает настройки", (await p.locator('[data-settings][aria-expanded="true"]').count()) === 1);
+await p.evaluate(() => clearInterval(window.__shake));
+
 // 6. выбор живёт на устройстве: перезагрузка — снова AR; тап по компасу — обычный стол, и тоже помнится
 await p.reload();
 await ready();

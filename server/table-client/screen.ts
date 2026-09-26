@@ -2547,6 +2547,44 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
 
   /** Разметка слоя поверх холста в прошлом кадре: та же — значит трогать её нечем и незачем. */
   let lastOver = "";
+  /**
+   * ПАЛЕЦ НА КНОПКЕ — СЛОЙ НЕ ПЕРЕСОБИРАЕТСЯ. Слой поверх стола собирается целиком из строки, и любая
+   * перемена в нём (метка у стула переехала) пересоздаёт и кнопки. Пока стол стоит, этого не видно; в AR
+   * он сдвигается на каждом отсчёте датчика, и кнопка исчезала между касанием и отпусканием — тап не
+   * доходил ни до верхнего HUD, ни до нижнего. Поэтому, пока палец на кнопке, слой ждёт и догоняет в
+   * миг клика. Компас не держит: он ловит палец на окне, и его стрелка должна крутиться под пальцем.
+   */
+  let buttonHeld: number | null = null;
+  let overStale = false;
+  let letGoTimer = 0;
+  const release = (): void => {
+    clearTimeout(letGoTimer);
+    if (buttonHeld === null) return;
+    buttonHeld = null;
+    if (overStale) { overStale = false; draw(); }
+  };
+  /** Дольше этого слой не ждёт ни при каком раскладе: отпускание может потеряться, а кнопка — сработать на касании. */
+  const HOLD_MAX_MS = 600;
+  over.addEventListener("pointerdown", (e) => {
+    // Только в AR: без него стол стоит, слой не пересобирается каждый кадр, и ждать нечего.
+    if (!ar) return;
+    const b = (e.target as Element | null)?.closest?.("button");
+    if (!b || b.closest("[data-home]")) return;
+    buttonHeld = e.pointerId;
+    clearTimeout(letGoTimer);
+    letGoTimer = window.setTimeout(release, HOLD_MAX_MS);
+  }, { capture: true });
+  // КЛИК УЖЕ У КНОПКИ — отпускаем в захвате, ДО её обработчика: он перерисует слой как обычно, и
+  // следующее нажатие увидит новое состояние сразу (кнопки гасят всплытие, поэтому захват).
+  addEventListener("click", release, { capture: true });
+  // Клика может не быть — палец увели с кнопки. Тогда слой догоняет сам, чуть погодя.
+  const letGo = (e: PointerEvent): void => {
+    if (e.pointerId !== buttonHeld) return;
+    clearTimeout(letGoTimer);
+    letGoTimer = window.setTimeout(release, 250);
+  };
+  addEventListener("pointerup", letGo);
+  addEventListener("pointercancel", letGo);
 
   function draw(): void {
     if (dead) return;
@@ -2671,9 +2709,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // на другой, и до onclick дело не доходит вовсе — заглушить говорящего было нельзя, пока он не замолчит.
     const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + mindMarksHtml(s) + earMarksHtml(s) + slingHtml() + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + compass.html(s) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml() + journalHtml(s);
     if (html !== lastOver) {
-      lastOver = html;
-      over.innerHTML = html;
-      wire();
+      if (buttonHeld !== null) overStale = true;
+      else {
+        lastOver = html;
+        over.innerHTML = html;
+        wire();
+      }
     }
     airUnder.style.height = `${mineGeom(handOf(s, mine(s)).length).barTop}px`;
 
