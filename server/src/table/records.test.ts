@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { recordsOf, SESSION_GAP_MS } from "./records.js";
-import type { Told } from "../db/eventsRepo.js";
+import type { RecordDeed } from "./records.js";
 
 let id = 0;
-const ev = (at: number, kind: string, who?: string, what?: unknown): Told => ({ id: ++id, at, room: "r", side: "table", kind, ...(who ? { who } : {}), ...(what === undefined ? {} : { what }) });
+const ev = (at: number, kind: string, who?: string, what?: unknown): RecordDeed => ({ id: ++id, at, kind, ...(who ? { who } : {}), ...(what === undefined ? {} : { what }) });
 
 describe("records.sessions-and-matches", () => {
   it("открыли, сели, сыграли две партии — одна сессия, две партии с игроками и проигравшим", () => {

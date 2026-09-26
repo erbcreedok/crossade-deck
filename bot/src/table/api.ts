@@ -5,6 +5,7 @@
 // Контракт — тот же файл, что читают сервер и клиент (`server/src/table/contract.ts`).
 
 import { SECRET_HEADER, type Home, type RelayStatus, type RoomCard, type RunResult, type TableCommand } from "../../../server/src/table/contract.js";
+import type { Records } from "../../../server/src/table/records.js";
 
 export interface TableEnv {
   secret: string;
@@ -28,6 +29,13 @@ export function tableEnv(source: NodeJS.ProcessEnv = process.env): TableEnv | un
 const trim = (url: string) => url.replace(/\/+$/, "");
 
 /** Жив ли стол и какой это запуск. Никакого ответа — «не жив»: врать комнатой нельзя. */
+export interface RoomRecords extends Records {
+  room: string;
+  title: string | null;
+  pass: string;
+  until: number;
+}
+
 export type Where = { up: true; url: string; boot: string } | { up: false };
 
 export class TableApi {
@@ -92,6 +100,17 @@ export class TableApi {
   /** Сменить род стола на ходу. */
   recast(room: string, kind: string) {
     return this.call<RoomCard>("PATCH", `/table/rooms/${room}`, { kind });
+  }
+
+  /** Записи комнаты: кто бывал, посиделки, партии и пропуск на их просмотр (`records.ts` на сервере). */
+  records(room: string) {
+    return this.call<RoomRecords>("GET", `/table/rooms/${encodeURIComponent(room)}/records`);
+  }
+
+  /** Постоянная ссылка на запись одной партии — через реле, как и сам стол. По умолчанию глазами крупье. */
+  replayUrl(room: string, pass: string, from: number, to: number | null): string {
+    const q = new URLSearchParams({ room, pass, from: String(from), ...(to === null ? {} : { to: String(to) }) });
+    return `${this.env.relayUrl ?? this.env.serverUrl}/${this.env.relayUrl ? "t" : "table"}/replay?${q}`;
   }
 
   list(chat: string) {

@@ -188,6 +188,7 @@ async function main(): Promise<void> {
       ? [
           { command: "table", description: "Открыть стол в этом чате: /table [название]" },
           { command: "tables", description: "Столы этого чата" },
+          { command: "records", description: "Записи сыгранных партий — смотрит любой" },
           { command: "sticker", description: "Добавить стикеры в свой набор (в личке)" },
           { command: "stickers", description: "Мой набор стикеров (в личке)" },
           { command: "menu", description: "Меню стола: сбор, пресеты, раздачи" },

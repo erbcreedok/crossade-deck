@@ -17,6 +17,7 @@ import { DOWN, askTitle, closed, gone, inlineOpened, inviteArticle, inviteExisti
 import type { Registry } from "./registry.js";
 import type { Watch } from "./watch.js";
 import { installStickers } from "./stickers.js";
+import { recordsSay, type TableRecords } from "./records.js";
 
 const POLL_MS = 30_000;
 const DOWN_POLLS = 3;
@@ -62,6 +63,20 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     registry.remember(card.room, { home: homeOf(ctx), by: byOf(ctx), title: card.title, kind: card.kind });
     const all = await api.list(chatOf(ctx));
     const said = opened(card, Array.isArray(all) ? all.length : 1, links, inPrivate(ctx));
+    await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
+  });
+
+  // ЗАПИСИ ПАРТИЙ — по команде, а не сами: чат не засыпается ссылками после каждой партии.
+  bot.command("records", async (ctx) => {
+    const cards = await tablesFor(ctx);
+    if (cards === "down") return void (await ctx.reply(DOWN));
+    const tables: TableRecords[] = [];
+    for (const card of cards) {
+      const got = await api.records(card.room);
+      if (got === "down" || got === "missing") continue;
+      tables.push({ title: card.title, records: got, url: (m) => api.replayUrl(card.room, got.pass, m.from, m.to) });
+    }
+    const said = recordsSay(tables);
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
   });
 

@@ -6,7 +6,17 @@
 //
 // Чистая функция: журнал на вход, записи на выход. Ни базы, ни часов.
 
-import type { Told } from "../db/eventsRepo.js";
+/**
+ * СОБЫТИЕ ЖУРНАЛА — ровно то, что записям нужно от строки `events`. Своим типом, а не типом
+ * хранилища: записи читает и бот, а тянуть к нему базу сервера ради формы строки незачем.
+ */
+export interface RecordDeed {
+  id: number;
+  at: number;
+  who?: string;
+  kind: string;
+  what?: unknown;
+}
 
 /**
  * ИЗ ЧЕГО ЗАПИСИ СОБИРАЮТСЯ: границы и люди, плюс ходы — по ним видно, что за столом была жизнь, а не
@@ -48,7 +58,7 @@ export interface Records {
   sessions: RecordSession[];
 }
 
-export function recordsOf(log: readonly Told[]): Records {
+export function recordsOf(log: readonly RecordDeed[]): Records {
   const people = new Map<string, { key: string; name: string; firstAt: number; lastAt: number }>();
   const sessions: RecordSession[] = [];
   let session: RecordSession | null = null;
