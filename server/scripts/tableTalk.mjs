@@ -215,7 +215,8 @@ check("пустой набор — подсказка про /sticker", (await A
 const aKey = (await words(A)).at(-1)?.by;
 {
   const { DatabaseSync } = await import("node:sqlite");
-  const db = new DatabaseSync(new URL("../data/crossade.db", import.meta.url).pathname);
+  // ТА ЖЕ БАЗА, ЧТО У СЕРВЕРА ПРОГОНА (`CROSSADE_DB_FILE`), — не база живого стола: сорить в ней нельзя.
+  const db = new DatabaseSync(process.env.CROSSADE_DB_FILE ?? new URL("../data/crossade.db", import.meta.url).pathname);
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
   for (let i = 0; i < 20; i += 1) db.prepare("INSERT INTO stickers (id, owner, type, bytes, created_at) VALUES (?, ?, ?, ?, ?)").run(`e2e${Date.now()}${String(i).padStart(2, "0")}`, aKey, "image/png", png, Date.now() + i);
   db.close();

@@ -53,18 +53,20 @@ check("тап по карте открыл её тултип", t && t.id === dow
 check("закрытая — без названия, из колоды, двигал A", t && /Рубашкой вверх/.test(t.text) && /из колоды/.test(t.text) && /двигал A/.test(t.text), t);
 check("тап не сдвинул карту", JSON.stringify((await spots(A)).felt[0]) === JSON.stringify(down), [(await spots(A)).felt[0], down]);
 
-await tap(A, 40, 200);
+// ПУСТОЕ СУКНО — справа от середины: слева у края сидит крупье, и тап туда открывает его окно.
+const blank = await (async () => { const s0 = await spots(A); return { x: s0.middle.x + 2.5 * s0.k, y: s0.middle.y - 1.5 * s0.k }; })();
+await tap(A, blank.x, blank.y);
 check("тап по пустому сукну закрыл", !(await tip(A)), null);
 
 await tap(A, down.x, down.y);
 const w1 = (await tip(A))?.w;
-await drag(A, 60, 150, 120, 190);
+await drag(A, blank.x, blank.y - 40, blank.x - 60, blank.y);
 check("пан камеры тултип не закрыл", !!(await tip(A)), null);
 // Щипок двумя пальцами по пустому сукну — зум, это камера.
 const cdp = await A.context().newCDPSession(A);
 const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
-await touch("touchStart", [[60, 330], [120, 330]]);
-for (let i = 1; i <= 12; i += 1) await touch("touchMove", [[60 - i * 3, 330], [120 + i * 3, 330]]);
+await touch("touchStart", [[blank.x - 30, blank.y + 60], [blank.x + 30, blank.y + 60]]);
+for (let i = 1; i <= 12; i += 1) await touch("touchMove", [[blank.x - 30 - i * 3, blank.y + 60], [blank.x + 30 + i * 3, blank.y + 60]]);
 await touch("touchEnd", []);
 await A.waitForTimeout(500);
 const w2 = (await tip(A))?.w;
@@ -84,7 +86,11 @@ await A.mouse.up();
 await A.waitForTimeout(400);
 check("зажатие тултип не открыло", !(await tip(A)), null);
 
-// Колода — тултип верхней.
+// Колода. ВИД — ОБРАТНО К ВХОДНОМУ: пан и щипок выше сдвинули стол (камера теперь свободна), и колода
+// могла уехать за край кадра.
+await A.reload();
+await A.waitForSelector("[data-section]");
+await A.waitForTimeout(700);
 const m2 = (await spots(A)).deckTop;
 const top = (await spots(A)).deckTop;
 await tap(A, top.x, top.y);
@@ -155,7 +161,7 @@ check("тап по карте в своей руке — тултип над н�
 check("своя — с названием, из колоды, двигал A", t && !/Рубашкой/.test(t.text) && /из колоды/.test(t.text) && /двигал A/.test(t.text), t);
 check("тап по руке карту не переложил", (await A.locator(`[data-card][data-owner="${mineSeat}"]`).count()) === handBefore && (await cardEl(A, `[data-card][data-owner="${mineSeat}"]`)).id === hc.id, null);
 check("и не открыл тултип карты на столе", t && t.id === hc.id, t);
-await tap(A, 40, 200);
+await tap(A, blank.x, blank.y);
 check("тап по сукну закрыл тултип руки", !(await tip(A)), null);
 await B.waitForTimeout(300);
 const seatA = (await spots(B)).seats.find((x) => x.who === "A");

@@ -1,8 +1,9 @@
-// ПАРТИЯ НА ЭКРАНЕ: чей ход и чем можно ходить — видно ГЛАЗАМИ, а не только по отказам сервера.
+// ПАРТИЯ НА ЭКРАНЕ: раздали — партия пошла, сходил — очередь перешла. А РУКА НЕ ГАСНЕТ.
 //
-// Состояние партии приезжает в снимке (`Snapshot.play`), подсветку экран выводит из него тем же
-// разбором, что и сервер. Ломается это тихо: сервер судит верно, а человек не понимает, почему его
-// карта не ложится.
+// Подсветка «чем можно ходить» снята нарочно (`playHint` в `screen.ts`): стол никого не судит, класть
+// можно что угодно, а подсказка гасила половину руки, и человек не понимал, почему его картами «нельзя».
+// Чей ход — показывает стрелка у круга (`tableTurnMark`); здесь стережётся, что партия идёт и что
+// подсветка не вернулась тайком.
 //   TABLE_SECRET=dev TABLE_GUESTS=1 TELEGRAM_BOT_TOKEN=test PORT=2599 npx tsx src/index.ts
 //   node scripts/tablePlay.mjs [base] [secret]
 import { createHmac, randomBytes } from "crypto";
@@ -76,16 +77,20 @@ await A.waitForTimeout(36 * 150 + 2500);
 const [a, b] = [await hand(A), await hand(B)];
 const mine = [a, b];
 check("карты розданы обоим", a.length > 0 && b.length > 0, [a.length, b.length]);
-check("ПАРТИЯ ИДЁТ — рука размечена: у каждой карты есть ответ", mine.every((h) => h.every((one) => one !== "none")), mine);
-check("ТОЛЬКО У ОДНОГО ЕСТЬ ЧЕМ ХОДИТЬ: круг открывает тот, чей ход", [a, b].filter((h) => h.includes("lay")).length === 1, mine);
-check("у второго все карты пригашены — не его черёд", [a, b].filter((h) => h.every((one) => one === "idle")).length === 1, mine);
+check("партия идёт, а рука не размечена: подсказка молчит, пока стол не судит", mine.every((h) => h.every((one) => one === "none")), mine);
 
 // ХОД СДЕЛАН — И ВТОРОМУ ВИДНО, ЧЕМ КРЫТЬ: часть руки горит, часть пригашена.
-const opener = a.includes("lay") ? A : B;
+// ОЧЕРЕДЬ — ИЗ СОСТОЯНИЯ ПАРТИИ, а не из подсветки: её нет. Ходит тот, чей ход; его карта — в круг.
+const turnOf = (p) => p.evaluate(() => window.__tableState().play?.turn ?? null);
+// Ключи — по тому, кто есть кто: A вошёл дверью Telegram (`tg:1`), B — гостем по имени.
+const keyOf = async (p) => (p === A ? "tg:1" : (await A.evaluate(() => window.__tableState().people.find((one) => one.name === "B")?.key ?? null)));
+const first = await turnOf(A);
+const opener = first === (await keyOf(A)) ? A : B;
 const other = opener === A ? B : A;
+check("партия идёт: очередь у одного из двоих", first !== null && [await keyOf(A), await keyOf(B)].includes(first), first);
 const mid = await opener.evaluate(() => JSON.parse(document.querySelector("canvas").dataset.spots).middle);
 const card = await opener.evaluate(() => {
-  const one = [...document.querySelectorAll('[data-card][data-play="lay"]')].at(-1);
+  const one = [...document.querySelectorAll("[data-card][data-owner]")].filter((e) => e.getBoundingClientRect().top > 600).at(-1);
   const r = one.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + 8 };
 });
@@ -95,10 +100,8 @@ await opener.mouse.move(mid.x, mid.y, { steps: 10 });
 await opener.mouse.up();
 await opener.waitForTimeout(900);
 
-const after = await hand(other);
-check("ход сделан — очередь перешла", (await play(other))?.turn !== null, await play(other));
-check("ВТОРОМУ ВИДНО, ЧЕМ КРЫТЬ: часть карт горит, часть пригашена", after.includes("lay") && after.includes("idle"), after);
-check("а у сходившего теперь всё пригашено — не его черёд", (await hand(opener)).every((one) => one === "idle"), await hand(opener));
+check("ход сделан — очередь перешла ко второму", (await turnOf(other)) === (await keyOf(other)), [await turnOf(other), await keyOf(other)]);
+check("и после хода ни одна карта не погашена и не подсвечена", [...(await hand(A)), ...(await hand(B))].every((one) => one === "none"), [await hand(A), await hand(B)]);
 
 await browser.close();
 let bad = 0;
