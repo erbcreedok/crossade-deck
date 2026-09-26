@@ -17,13 +17,16 @@ scripts/hub-tunnel.sh            # текущий адрес хаба — тем
 
 ## Стол, сервер дев-кита и стенд
 
-`com.crossade.table` — сервер HTML-столов на :2590 и туннель к нему; адрес туннеля сервер сам несёт
-реле на Fly маяком (`bot/README.md`). `com.crossade.server` — сервер дев-кита на :2567,
+`com.crossade.table` — сервер HTML-столов на :2590; адрес туннеля сервер сам несёт реле на Fly маяком
+(`bot/README.md`). `com.crossade.table-tunnel` — туннель к нему, ОТДЕЛЬНОЙ службой: у быстрого туннеля
+новый адрес на каждый запуск, и новому адресу нужно время, чтобы телефон его нашёл (долгий чёрный
+первый заход). Туннель кладёт адрес в `/tmp/crossade-table-url` и перезапускает стол только если адрес
+сменился; перезапуск стола адрес не трогает. `com.crossade.server` — сервер дев-кита на :2567,
 `com.crossade.stand` — стенды `design/` на :8791.
 
 ```bash
-cp deploy/local/com.crossade.{table,server,stand}.plist ~/Library/LaunchAgents/
-for n in table server stand; do launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.crossade.$n.plist; done
+cp deploy/local/com.crossade.{table-tunnel,table,server,stand}.plist ~/Library/LaunchAgents/
+for n in table-tunnel table server stand; do launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.crossade.$n.plist; done
 ```
 
 Две ловушки, обе уже стоили перезапусков по кругу:

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  ТУННЕЛЬ К СТОЛУ — ОТДЕЛЬНО ОТ СТОЛА. Быстрый туннель Cloudflare получает новый адрес при каждом
+  запуске, а новому адресу нужно время, чтобы телефоны его нашли: пока туннель жил внутри стола, каждый
+  перезапуск стола (а он после каждой правки) давал долгий чёрный первый заход в мини-апп.
+
+  Теперь туннель живёт сам. Свой адрес он кладёт в /tmp/crossade-table-url, и стол читает его оттуда.
+  Стол он перезапускает только когда адрес на самом деле сменился (перезагрузка мака, падение туннеля):
+  маяк стола несёт реле тот адрес, с которым стол запущен.
+-->
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.crossade.table-tunnel</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/bash</string><string>-lc</string>
+    <string>export PATH=/opt/homebrew/bin:$PATH; URLF=/tmp/crossade-table-url; LOG=/tmp/crossade-table-tunnel.log; : &gt; $LOG; cloudflared tunnel --url http://127.0.0.1:2590 --no-autoupdate &gt; $LOG 2&gt;&amp;1 &amp; T=$!; trap "kill $T" EXIT; URL=; for i in $(seq 60); do sleep 1; URL=$(grep -o "https://[a-z0-9-]*\.trycloudflare\.com" $LOG | grep -v "^https://api\." | tail -1); [ -n "$URL" ] &amp;&amp; break; done; [ -n "$URL" ] || exit 1; echo "туннель стола: $URL"; if [ "$(cat $URLF 2&gt;/dev/null)" != "$URL" ]; then echo "$URL" &gt; $URLF; launchctl kickstart -k gui/$(id -u)/com.crossade.table || true; fi; wait $T</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>15</integer>
+  <key>StandardOutPath</key><string>/tmp/crossade-table-tunnel.job.log</string>
+  <key>StandardErrorPath</key><string>/tmp/crossade-table-tunnel.job.log</string>
+</dict></plist>

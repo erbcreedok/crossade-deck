@@ -3,13 +3,16 @@
 <!--
   СТОЛ НА ЭТОМ МАКЕ — то же, что `scripts/table-mac.sh`, но строкой здесь, а не файлом: bash, которого
   запустил launchd, macOS не пускает читать файлы в Desktop (TCC), а node пускает. Поэтому bash только
-  поднимает туннель в /tmp, а всё из репозитория читает node.
+  берёт адрес туннеля из /tmp, а всё из репозитория читает node.
+
+  Туннель — отдельная служба (`com.crossade.table-tunnel`): перезапуск стола адрес не меняет. Её адрес
+  лежит в /tmp/crossade-table-url; стол ждёт его, если туннель ещё поднимается.
 -->
 <plist version="1.0"><dict>
   <key>Label</key><string>com.crossade.table</string>
   <key>ProgramArguments</key><array>
     <string>/bin/bash</string><string>-lc</string>
-    <string>export PATH=$HOME/.nvm/versions/node/v22.23.2/bin:/opt/homebrew/bin:$PATH; LOG=/tmp/crossade-table-tunnel.log; : &gt; $LOG; cloudflared tunnel --url http://127.0.0.1:2590 --no-autoupdate &gt; $LOG 2&gt;&amp;1 &amp; T=$!; trap "kill $T" EXIT; URL=; for i in $(seq 30); do sleep 1; URL=$(grep -o "https://[a-z0-9-]*\.trycloudflare\.com" $LOG | grep -v "^https://api\." | tail -1); [ -n "$URL" ] &amp;&amp; break; done; [ -n "$URL" ] || exit 1; echo "стол снаружи: $URL/table/"; cd $HOME/Desktop/crossade-deck/server &amp;&amp; TABLE_PUBLIC_URL=$URL PORT=2590 node --env-file=.env.table --import tsx src/index.ts</string>
+    <string>export PATH=$HOME/.nvm/versions/node/v22.23.2/bin:/opt/homebrew/bin:$PATH; URLF=/tmp/crossade-table-url; for i in $(seq 90); do [ -s $URLF ] &amp;&amp; break; sleep 1; done; [ -s $URLF ] || exit 1; URL=$(cat $URLF); echo "стол снаружи: $URL/table/"; cd $HOME/Desktop/crossade-deck/server &amp;&amp; TABLE_PUBLIC_URL=$URL PORT=2590 node --env-file=.env.table --import tsx src/index.ts</string>
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
