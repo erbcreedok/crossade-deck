@@ -13,6 +13,7 @@ import type { Person } from "../src/table/contract.js";
 import { mountScreen } from "./screen.js";
 import { replayStore, viewOf, type Told } from "./replayStore.js";
 import { cardText, describe, rawSeen, type LogLine } from "./replayLog.js";
+import { clockText, playhead, REPLAY_MODES, REPLAY_SPEEDS, type ReplayMode } from "./replayClock.js";
 import type { Face } from "../src/table/contract.js";
 import { HOST } from "./host.js";
 
@@ -96,7 +97,7 @@ async function start(): Promise<void> {
   // невидимой. Размер берётся из его же рассказа при открытии.
   const opened = deeds.find((d) => d.kind === "open")?.what as { w?: number; h?: number } | undefined;
   if (opened?.w && opened?.h) {
-    const fit = Math.min(1, (innerHeight - 160) / opened.h, innerWidth / opened.w);
+    const fit = Math.min(1, (innerHeight - 178) / opened.h, innerWidth / opened.w);
     stage.style.width = `${opened.w}px`;
     stage.style.height = `${opened.h}px`;
     stage.style.left = "50%";
@@ -153,11 +154,26 @@ async function start(): Promise<void> {
     screen.look.to(his);
   };
 
+  // РЕЖИМ И СКОРОСТЬ — из адреса: смена глаз перезагружает страницу и не должна их сбрасывать.
+  const modeSelect = document.getElementById("mode") as HTMLSelectElement;
+  const speedSelect = document.getElementById("speed") as HTMLSelectElement;
+  let mode: ReplayMode = REPLAY_MODES.includes(params.get("mode") as ReplayMode) ? (params.get("mode") as ReplayMode) : "time";
+  let speed: number = (REPLAY_SPEEDS as readonly number[]).includes(Number(params.get("speed"))) ? Number(params.get("speed")) : 1;
+  modeSelect.value = mode;
+  speedSelect.value = String(speed);
+  let playing = false;
+  const ats = replay.moments.map((m) => m.at);
+  /** Часы записи: идут непрерывно, пока играет, и стоят на времени шага, пока нет. */
+  const clock = (recordAt: number): void => {
+    nowText.textContent = `${clockText(recordAt - t0)} / ${clockText(ats[ats.length - 1]! - t0)} · ${replay.at + 1}/${replay.moments.length}`;
+    nowText.dataset.recordAt = String(Math.round(recordAt - t0));
+  };
+
   const show = (): void => {
     const moment = replay.moments[replay.at]!;
     lookAsHe(replay.at);
     bar.value = String(replay.at);
-    nowText.textContent = `${((moment.at - t0) / 1000).toFixed(1)}с   ${replay.at + 1} / ${replay.moments.length}`;
+    if (!playing) clock(moment.at);
     const lines = linesAt(replay.at);
     deedText.innerHTML = lines.map(lineHtml).join(" · ");
     deedText.className = HURT.has(moment.deed.kind) ? "hurt" : "";
@@ -191,52 +207,74 @@ async function start(): Promise<void> {
   };
   document.getElementById("more")!.onclick = openSheet;
   document.getElementById("sheetClose")!.onclick = closeSheet;
-  document.getElementById("sheetBack")!.onclick = () => replay.seek(replay.at - 1);
-  document.getElementById("sheetFwd")!.onclick = () => replay.seek(replay.at + 1);
+  document.getElementById("sheetBack")!.onclick = () => moved(replay.at - 1);
+  document.getElementById("sheetFwd")!.onclick = () => moved(replay.at + 1);
   sheet.onclick = (e) => {
     if (e.target === sheet) closeSheet();
   };
   // Взгляд меняет ВСЁ: чья рука своя, чьи карты видно, чьи права. Проще открыть запись заново тем же
   // мгновением, чем пересобирать экран на ходу.
   eyes.onchange = () => {
-    location.search = new URLSearchParams({ ...Object.fromEntries(params), eyes: eyes.value, at: String(replay.at) }).toString();
+    location.search = new URLSearchParams({ ...Object.fromEntries(params), eyes: eyes.value, at: String(replay.at), mode, speed: String(speed) }).toString();
   };
 
   replay.onSeek(show);
   replay.seek(Number(params.get("at")) || 0);
 
-  bar.oninput = () => replay.seek(Number(bar.value));
-  document.getElementById("back")!.onclick = () => replay.seek(replay.at - 1);
-  document.getElementById("fwd")!.onclick = () => replay.seek(replay.at + 1);
 
-  // ИДЁТ В НАСТОЯЩЕМ ВРЕМЕНИ ПАРТИИ: пауза между шагами такая же, какой она была у игрока, — иначе не
-  // видно, что он сидел и думал, а что делал в спешке. Длинные паузы поджимаются: смотреть, как
-  // человек минуту не трогал стол, незачем.
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const stop = (): void => {
-    clearTimeout(timer);
-    timer = undefined;
+  // ПРОИГРЫВАНИЕ — в реальном времени записи или пошагово, на выбранной скорости (`replayClock.ts`).
+  // Шаг считается от точки, где нажали «играть» (или сменили режим, скорость, перемотали), по
+  // настенным часам — кадр браузера, пропущенный под нагрузкой, запись не сдвигает.
+  let raf = 0;
+  let head: ReturnType<typeof playhead> | null = null;
+  const frame = (): void => {
+    if (!head) return;
+    const now = performance.now();
+    const step = head.step(now);
+    if (step !== replay.at) replay.seek(step);
+    clock(head.recordAt(now));
+    if (step >= replay.moments.length - 1 && head.recordAt(now) >= ats[ats.length - 1]!) return stop();
+    raf = requestAnimationFrame(frame);
+  };
+  const anchor = (): void => {
+    if (playing) head = playhead(ats, { step: replay.at, wall: performance.now() }, mode, speed);
+  };
+  function stop(): void {
+    cancelAnimationFrame(raf);
+    playing = false;
+    head = null;
     playButton.textContent = "▶";
-  };
-  const tick = (): void => {
-    if (replay.at >= replay.moments.length - 1) return stop();
-    const gap = Math.min(2000, Math.max(60, replay.moments[replay.at + 1]!.at - replay.moments[replay.at]!.at));
-    timer = setTimeout(() => {
-      replay.seek(replay.at + 1);
-      tick();
-    }, gap);
-  };
+    clock(replay.moments[replay.at]!.at);
+  }
   playButton.onclick = () => {
-    if (timer !== undefined) return stop();
+    if (playing) return stop();
     if (replay.at >= replay.moments.length - 1) replay.seek(0);
+    playing = true;
     playButton.textContent = "❚❚";
-    tick();
+    anchor();
+    raf = requestAnimationFrame(frame);
   };
+  modeSelect.onchange = () => {
+    mode = modeSelect.value as ReplayMode;
+    anchor();
+  };
+  speedSelect.onchange = () => {
+    speed = Number(speedSelect.value);
+    anchor();
+  };
+  // Перемотка руками во время игры — играет дальше уже оттуда.
+  const moved = (to: number): void => {
+    replay.seek(to);
+    anchor();
+  };
+  bar.oninput = () => moved(Number(bar.value));
+  document.getElementById("back")!.onclick = () => moved(replay.at - 1);
+  document.getElementById("fwd")!.onclick = () => moved(replay.at + 1);
 
   addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !sheet.hidden) return closeSheet();
-    if (e.key === "ArrowRight") replay.seek(replay.at + 1);
-    if (e.key === "ArrowLeft") replay.seek(replay.at - 1);
+    if (e.key === "ArrowRight") moved(replay.at + 1);
+    if (e.key === "ArrowLeft") moved(replay.at - 1);
     if (e.key === " ") {
       e.preventDefault();
       playButton.click();
