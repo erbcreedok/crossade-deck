@@ -48,7 +48,7 @@ They need a server started with `TABLE_SECRET=dev TELEGRAM_BOT_TOKEN=test TABLE_
   a client edit needs a restart of the live table too.
 - The turn ring is described in `src/table/RING.md`.
 - **AR is a way of looking, not a game — and not a room kind**: each player turns it on for themselves
-  (long press on the compass; the choice lives on the device). The screen then takes its `Lens` from the
+  (long press on the compass; the table always opens in the normal view — AR is never restored on start). The screen then takes its `Lens` from the
   phone's tilt (`table-client/ar.ts`, `arLens.ts`) instead of the finger camera; every drawing and hit-test
   already goes through that lens, so nothing else knows. Live check: `scripts/tableAr.mjs` on the stand.
 

@@ -78,7 +78,7 @@ const topFan = Math.min(...(await hand()).map((c) => c.top));
 await drag(0, 200);
 const tucked = await hand();
 check("вниз — рука спрятана", Math.min(...tucked.map((c) => c.top)) > topFan + 40, `${topFan.toFixed(0)} → ${Math.min(...tucked.map((c) => c.top)).toFixed(0)}`);
-await drag(0, -400);
+await drag(0, -140); // от спрятанной до ряда — вся ось, но в пределах зоны руки
 const row = await hand();
 const ys = row.map((c) => c.top);
 check("вверх до конца — выровнена в ряд", Math.max(...ys) - Math.min(...ys) < 2, ys.map((y) => y.toFixed(0)).join(","));
@@ -102,7 +102,7 @@ check("посередине — веер", Math.max(...fys) - Math.min(...fys) >
     check(`${pose}: ручка не меньше 44 px`, hb.right - hb.left >= 44, hb.right - hb.left);
   };
   await check2("веер");
-  await drag(0, -400);
+  await drag(0, -85); // вверх в пределах зоны руки: выше — это уже вынос на стол
   await check2("ряд");
   await drag(0, 90);
 }
@@ -146,6 +146,34 @@ await p.evaluate(() => document.documentElement.style.removeProperty("--tg-safe-
 await p.evaluate(() => dispatchEvent(new Event("resize"))); await settle();
 const btn1 = await box('[data-g="bar"] [data-section]');
 check("отступ 34 px — кнопки бара выше ровно на 34", Math.abs(btn1.top - btn0.top - 34) < 1.5, `${btn0.top.toFixed(1)} vs ${btn1.top.toFixed(1)}`);
+
+// 7. ВЫНОС РУКИ СТОПКОЙ — ручку увели выше зоны руки: в пальце вся рука, в руке контуры, на сукне один контур;
+// вернул в руку — всё как было; отпустил на сукне — стопка рубашкой вверх, рука пуста.
+{
+  const state = () => p.evaluate(() => JSON.parse(JSON.stringify(window.__tableState())));
+  const me = await p.evaluate(() => JSON.parse(document.querySelector("canvas").dataset.spots).seats.find((x) => x.who === "Ye").key);
+  const handIds = async () => (await state()).chairs.find((c) => c.id === me).hand.map((c) => c.id);
+  const before = await handIds();
+  let h = await box("[data-pose-handle]");
+  await p.mouse.move(h.x, h.y); await p.mouse.down();
+  await p.mouse.move(h.x - 60, h.y - 260, { steps: 12 }); await settle();
+  const carry = await p.evaluate(() => ({ carry: !!document.querySelector("[data-g=carry]"), count: document.querySelector("[data-g=mass-count]")?.dataset.n ?? null }));
+  check("вынес ручку на стол — в пальце стопка всей руки", carry.carry && Number(carry.count) === before.length, { ...carry, hand: before.length });
+  check("…на сукне один контур, а не по карте", (await p.locator("[data-felt-mark]").count()) === 1);
+  check("…в руке карты стоят контурами", (await p.evaluate(() => document.querySelectorAll('[data-g="mark"]:not([data-felt-mark])').length)) === before.length);
+  await p.mouse.move(h.x, h.y + 10, { steps: 12 }); await settle();
+  await p.mouse.up(); await p.waitForTimeout(700);
+  check("вернул в руку и отпустил — рука как была", (await handIds()).join() === before.join(), await handIds());
+  h = await box("[data-pose-handle]");
+  await p.mouse.move(h.x, h.y); await p.mouse.down();
+  await p.mouse.move(W / 2, 330, { steps: 14 }); await settle();
+  await p.mouse.up(); await p.waitForTimeout(900);
+  const s = await state();
+  const pile = s.piles.find((one) => before.every((id) => one.cards.some((c) => c.id === id)));
+  check("отпустил на сукне — вся рука одной стопкой", !!pile && pile.cards.length === before.length, pile && pile.cards.length);
+  check("…рубашкой вверх", !!pile && pile.cards.every((c) => c.up !== true), pile?.cards.map((c) => c.up));
+  check("…и рука пуста", (await handIds()).length === 0, await handIds());
+}
 
 check("без ошибок на странице", errors.length === 0, errors.slice(0, 2).join(" | "));
 await browser.close();

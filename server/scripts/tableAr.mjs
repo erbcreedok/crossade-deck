@@ -150,20 +150,17 @@ const back = await spots();
 check("тап по компасу — «Выровнять»: стол снова перед тобой в исходном размере", Math.abs(back.middle.x - W / 2) <= 2 && Math.abs(back.middle.y - H / 2) <= 2 && Math.abs(back.k - home.k) < 0.5, { middle: back.middle, k: back.k.toFixed(1) });
 }
 
-// 6. выбор живёт на устройстве: перезагрузка — снова AR; тап по компасу — обычный стол, и тоже помнится
+// 6. стол ВСЕГДА открывается обычным — даже если из игры вышли в AR; выход из AR — удержанием компаса
 await p.reload();
 await ready();
-check("после перезагрузки AR помнится", await floor());
+check("после перезагрузки — обычный стол, хоть и уходил в AR", !(await floor()));
 const c1 = await compass();
-await p.mouse.move(c1.x, c1.y);
-await p.mouse.down();
-await p.waitForTimeout(750);
-await p.mouse.up();
+await p.mouse.move(c1.x, c1.y); await p.mouse.down(); await p.waitForTimeout(750); await p.mouse.up();
+await settle();
+check("удержал компас — снова AR", await floor());
+await p.mouse.move(c1.x, c1.y); await p.mouse.down(); await p.waitForTimeout(750); await p.mouse.up();
 await settle();
 check("удержание компаса в AR — обычный стол", !(await floor()));
-await p.reload();
-await ready();
-check("…и выключенный тоже помнится", !(await floor()));
 
 check("без ошибок на странице", errors.length === 0, errors.slice(0, 2).join(" | "));
 await browser.close();

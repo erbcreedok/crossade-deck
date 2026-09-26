@@ -28,7 +28,7 @@ import type { TableStore } from "./store.js";
 import type { ScreenHealth, SeenThrough } from "./watch.js";
 import { lands, type Load } from "../src/table/landing.js";
 import { deskOf } from "../src/table/desks.js";
-import { arWanted, mountAr, rememberAr, type ArRig } from "./ar.js";
+import { mountAr, type ArRig } from "./ar.js";
 import type { Witness } from "../src/table/telling.js";
 import { HOST } from "./host.js";
 import { apart } from "./angles.js";
@@ -370,16 +370,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   });
   /** ИЗМЕРИТЕЛИ — пинг, кадры, камера; включаются в настройках (`meters.ts`). */
   /**
-   * AR-СТОЛ — ЛИЧНЫЙ ВИД этого человека (`ar.ts`), включается долгим нажатием на компас. Тогда линзу даёт
+   * AR-СТОЛ — ЛИЧНЫЙ ВИД этого человека (`ar.ts`), включается долгим нажатием на компас и только им: стол
+   * ВСЕГДА открывается обычным, даже если из игры вышли в AR (так решил владелец). Тогда линзу даёт
    * телефон, а пальцевая камера остаётся только поворотом и зумом: два пальца крутят и растят стол, компас
    * ставит свой стул ко мне. Всё остальное на экране об AR не знает — оно спрашивает ту же линзу.
    * Запись (`watch`) — всегда пальцами: там смотрят чужую партию, а не держат стол.
    */
-  let ar: ArRig | null = arWanted() && !watch ? mountAr(stage, canvas, redraw) : null;
+  let ar: ArRig | null = null;
   const toggleAr = (): void => {
     if (watch) return;
     if (ar) { ar.dispose(); ar = null; } else ar = mountAr(stage, canvas, redraw);
-    rememberAr(ar !== null);
     redraw();
   };
   undo.add(() => ar?.dispose());
@@ -698,6 +698,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * со своих мест, пока их несут; после дропа их сразу раскладывает догадка (`guessBatch`).
    */
   function massFlock(): string[] {
+    if (drag?.stack) return drag.stack.filter((id) => id !== drag!.card.id);
     if (!drag?.mass || local.grab !== "collect") return [];
     const key = me();
     return Object.entries(store.state.picks ?? {}).filter(([id, by]) => by === key && id !== drag!.card.id).map(([id]) => id);
@@ -1205,7 +1206,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // ОТКРЫТ ДИАЛОГ — вместо бара клавиатура, а рука стоит над ней (`handGlass`): карты не прячутся.
     if (talk.open) {
       const { cards, gaps } = ownHand(s);
-      return layHand(mineGeom(cards.length + gaps.length), cards, gaps, mine(s), heldInk(s));
+      return layHand(mineGeom(cards.length + gaps.length), cards, gaps, mine(s), { ...heldInk(s), ...stackInk(s) });
     }
     if (local.reseat) return reseatHudHtml();
     const g = glass();
@@ -1240,7 +1241,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       + `background:linear-gradient(to top, rgba(11,7,4,.85), rgba(11,7,4,0));pointer-events:none"></div>`)
       + handZoneHtml(mark === null && cards.length === 0 ? mineGeom(1) : geom)
       // СВОИ КАРТЫ Я ВИЖУ ВСЕГДА, КАК ДЕРЖУ: «скрыть» — про то, что видят другие, а не я.
-      + layHand(geom, cards, gaps, mine(s), heldInk(s))
+      + layHand(geom, cards, gaps, mine(s), { ...heldInk(s), ...stackInk(s) })
       // ПОЛОСА — ПОВЕРХ КАРТ: карты уходят под её край на `BAR.tuck`.
       // Бар стоит над системным отступом, а его фон доходит до низа экрана — это тот же бар, не плашка.
       + `<div data-g="bar" style="position:absolute;left:${inset}px;right:${inset}px;top:${geom.barTop}px;height:${barHeight() * u + safeBottom()}px;z-index:${cards.length + 10};`
@@ -1266,6 +1267,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   }
   /** Правый край руки — у него ручка позы. */
   const handRightOf = (geom: Geom): number => Math.max(...geom.slots.map((sl) => sl.x + geom.w / 2));
+
+  /** Несу свою руку стопкой — все её карты на местах контурами в моём цвете, как у любой карты в воздухе. */
+  const stackInk = (s: Snapshot): Record<string, string> =>
+    drag?.stack ? Object.fromEntries(drag.stack.map((id) => [id, inkOf(s, me())])) : {};
 
   /** Имя ступени, в которую сядет поза, — у ручки, пока её тянут. */
   const POSE_NAME = (p: Pose): string => (p.tuck ? "Спрятать" : p.shrink ? "Стопкой" : p.fan ? "Веер" : "В ряд");
@@ -1316,7 +1321,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   }
 
   /** Сколько пикселей пальца — вся ось позы: вбок от стопки до широкой, вверх-вниз от спрятанной до ряда. */
-  const POSE_PX = { wide: 140, lift: 180 };
+  const POSE_PX = { wide: 140, lift: 120 };
+  /**
+   * ЗОНА РУКИ ДЛЯ РУЧКИ — её верх: докуда поза ещё поднимается до ряда, и столько пикселей сверх. Внутри — поза;
+   * выше — вынос на стол: поза возвращается, какой была, в пальце — вся рука стопкой.
+   */
+  const CARRY_OUT = 50;
   function startPoseDrag(e: PointerEvent): void {
     const b0 = blendOf(poseNow(mine()));
     local.poseDrag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, b0, b: { ...b0 } };
@@ -1324,6 +1334,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const move = (ev: PointerEvent) => {
       const d = local.poseDrag;
       if (!d || ev.pointerId !== d.id) return;
+      const edge = d.y0 - (1 - d.b0.lift) * POSE_PX.lift - CARRY_OUT;
+      if (ev.clientY < edge && carryHand(ev, edge)) {
+        removeEventListener("pointermove", move);
+        removeEventListener("pointerup", up);
+        removeEventListener("pointercancel", up);
+        return;
+      }
       d.b = { wide: clamp(d.b0.wide + (ev.clientX - d.x0) / POSE_PX.wide), lift: clamp(d.b0.lift - (ev.clientY - d.y0) / POSE_PX.lift) };
       draw();
     };
@@ -1350,6 +1367,32 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     addEventListener("pointerup", up);
     addEventListener("pointercancel", up);
     draw();
+  }
+
+  /**
+   * ВЫНОС РУКИ СТОПКОЙ — ручку увели за зону руки. Поза бросается (какой была, такой и осталась), верхняя
+   * карта руки поднимается как обычная, и за ней — вся рука охапкой (`drag.stack`): дальше это обычный перенос
+   * охапки со всеми его правилами. `false` — брать нечего.
+   */
+  function carryHand(ev: PointerEvent, safe: number): boolean {
+    const s = truth();
+    const hand = handOf(s, mine(s));
+    const lead = hand.at(-1);
+    if (!lead) return false;
+    local.poseDrag = null;
+    local.handMenu = false;
+    const el = over.querySelector<HTMLElement>(`[data-card="${lead.id}"]`);
+    const r = el?.getBoundingClientRect();
+    const w = r?.width ?? 60, h = r?.height ?? 84;
+    lift(lead, lead.face !== undefined, { left: ev.clientX - w / 2, top: ev.clientY - h / 2, w, h }, ev, { kind: "back" });
+    if (!drag) return false;
+    drag.mass = true;
+    drag.stack = hand.map((c) => c.id);
+    drag.stackSafe = safe;
+    drag.moved = true;
+    steer(ev);
+    tellCarry();
+    return true;
   }
 
   /**
@@ -2661,8 +2704,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // остальные, показывают контуры на сукне (`massMarksHtml`).
     const s = frame();
     // Считать по столу, а не по кадру: в кадре стянутых к пальцу уже нет на местах.
-    const rest = drag.mass ? myPicks(truth()).filter((id) => id !== drag!.card.id) : [];
-    const stack = drag.mass && local.grab === "collect" ? Math.min(rest.length, 4) : 0;
+    const rest = drag.mass ? (drag.stack ?? myPicks(truth())).filter((id) => id !== drag!.card.id) : [];
+    const stack = drag.mass && (drag.stack || local.grab === "collect") ? Math.min(rest.length, 4) : 0;
     const under = Array.from({ length: stack }, (_, i) => {
       const d = stack - i;
       return `<div style="position:absolute;left:${-d * 3}px;top:${d * 3}px;width:${drag!.w}px;height:${drag!.h}px">${cardHtml(undefined, drag!.w)}</div>`;
@@ -2754,6 +2797,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    */
   function dropMass(d: Drag): void {
     const s = truth();
+    // СВОЯ РУКА СТОПКОЙ (`drag.stack`): на сукно и в стопку — рубашкой вверх, в чужую руку — подряд. В свою руку
+    // её не кладут: цель над своей рукой — «назад», и всё остаётся как было.
+    if (d.stack) {
+      const ids = [...d.stack.filter((id) => id !== d.card.id), d.card.id];
+      const aim = d.target;
+      if ((aim.kind === "hand" || aim.kind === "chair") && aim.which !== mine(s)) {
+        const start = aim.kind === "hand" ? aim.index : handOf(s, aim.which).length;
+        guessBatch({ t: "moveMany", moves: ids.map((id, k) => ({ id, to: { in: "hand" as const, chair: aim.which, i: start + k } })) });
+        return;
+      }
+      const to = aim.kind === "deck" || aim.kind === "deckAt" ? { pile: aim.pile } : aim.kind === "felt" ? { ...aim.at, angle: dropAngle() } : null;
+      if (to) guessBatch({ t: "gather", ids, side: "down", to });
+      return;
+    }
     const shift = massShift(d);
     const feltPicks = s.felt.filter((f) => s.picks?.[f.id] === me());
     if (shift) {
@@ -3959,7 +4016,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       carry.style.left = `${drag.x - drag.gx}px`;
       carry.style.top = `${drag.y - drag.gy - drag.h * CARRY_CLEAR}px`;
     }
-    const aim = aimAt(e.clientX, e.clientY);
+    let aim = aimAt(e.clientX, e.clientY);
+    // Стопку своей руки в свою же руку не кладут — это «передумал»: всё остаётся как было. Зона руки для неё —
+    // и сама рука, и полоса ручки, где она меняла позу (`stackSafe`).
+    if (drag.stack && ((drag.stackSafe !== undefined && e.clientY > drag.stackSafe) || ((aim.kind === "hand" || aim.kind === "chair") && aim.which === mine()))) aim = { kind: "back" };
     if (sameAim(aim, drag.target) && aim.kind !== "felt") return;
     drag.target = aim;
     // НА СУКНЕ ДВИГАЕТСЯ ОДИН КОНТУР, А НЕ ВЕСЬ ЭКРАН — и именно контур СУКНА: контуром зовётся и
