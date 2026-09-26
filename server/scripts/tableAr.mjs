@@ -1,7 +1,7 @@
 // AR-СТОЛ: стол держит наклон телефона, а палец попадает туда же, куда легла кисть.
 //
-// Стенд с ботами в роде `sandbox-ar` (`?stand&desk=sandbox-ar`), датчик — подделанными событиями
-// `deviceorientation`. Всё читается из `canvas.dataset.spots` — там экран говорит, где у него середина
+// AR — личный вид игрока: стенд с ботами (`?stand`), AR включается долгим нажатием на компас и помнится
+// на устройстве; датчик — подделанными событиями `deviceorientation`. Всё читается из `canvas.dataset.spots` — там экран говорит, где у него середина
 // стола и стулья, — а не глазами.
 //   TABLE_SECRET=probe TABLE_GUESTS=1 PORT=2611 npx tsx src/index.ts   (в соседнем окне; preview «table-probe»)
 //   node scripts/tableAr.mjs [base] [скриншот.png]
@@ -24,15 +24,24 @@ const spots = () => p.evaluate(() => JSON.parse(document.querySelector("canvas")
 const orient = (alpha, beta, gamma = 0) => p.evaluate(([a, b, g]) => dispatchEvent(new DeviceOrientationEvent("deviceorientation", { alpha: a, beta: b, gamma: g })), [alpha, beta, gamma]);
 const settle = () => p.waitForTimeout(250);
 
-// 0. обычный стенд — без AR: пол не появляется, род не протекает
-await p.goto(`${base}/table/?stand`);
-await p.waitForFunction(() => !!document.querySelector("canvas")?.dataset.spots);
-check("обычная песочница — без AR", (await p.locator("[data-ar-floor]").count()) === 0);
+const ready = () => p.waitForFunction(() => !!document.querySelector("canvas")?.dataset.spots);
+const floor = async () => (await p.locator("[data-ar-floor]").count()) === 1;
+const compass = async () => { const b = await p.locator("[data-home]").boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
 
-// 1. AR-песочница: датчик заговорил — стол встал в середину взгляда
-await p.goto(`${base}/table/?stand&desk=sandbox-ar`);
-await p.waitForFunction(() => !!document.querySelector("canvas")?.dataset.spots);
-check("AR-песочница — пол под столом", (await p.locator("[data-ar-floor]").count()) === 1);
+// 0. по умолчанию — обычный стол пальцами
+await p.goto(`${base}/table/?stand`);
+await ready();
+check("по умолчанию AR выключен", !(await floor()));
+
+// 1. удержал палец на компасе — AR; компас стал выходом
+const c0 = await compass();
+await p.mouse.move(c0.x, c0.y);
+await p.mouse.down();
+await p.waitForTimeout(750);
+await p.mouse.up();
+await settle();
+check("удержал компас — AR включился", await floor());
+check("компас в AR — это выход", (await p.locator("[data-home][data-ar]").count()) === 1);
 await orient(0, 50);
 await settle();
 let s = await spots();
@@ -47,12 +56,9 @@ await settle();
 const turned = await spots();
 check("повернул телефон влево на 15° — стол уехал вправо", turned.middle.x > s.middle.x + 60, `${s.middle.x} → ${turned.middle.x}`);
 
-// 3. тап по своему аватару — стол переставляется туда, куда теперь смотришь
-const mine = turned.seats.find((x) => x.who === "Ye");
-await p.mouse.click(mine.x, mine.y);
+await orient(0, 50);
 await settle();
 s = await spots();
-check("тап по своему аватару — стол снова в середине взгляда", Math.abs(s.middle.x - W / 2) <= 2 && Math.abs(s.middle.y - H / 2) <= 2, s.middle);
 
 // 4. палец через AR-линзу: тап по чужому стулу открывает его окно
 const other = s.seats.find((x) => x.who && x.who !== "Ye");
@@ -73,6 +79,18 @@ await p.keyboard.up("Control");
 await settle();
 const k1 = (await spots()).k;
 check("щипок растит стол", k1 > k0 * 1.1, `${k0.toFixed(1)} → ${k1.toFixed(1)}`);
+
+// 6. выбор живёт на устройстве: перезагрузка — снова AR; тап по компасу — обычный стол, и тоже помнится
+await p.reload();
+await ready();
+check("после перезагрузки AR помнится", await floor());
+const c1 = await compass();
+await p.mouse.click(c1.x, c1.y);
+await settle();
+check("тап по компасу в AR — обычный стол", !(await floor()));
+await p.reload();
+await ready();
+check("…и выключенный тоже помнится", !(await floor()));
 
 check("без ошибок на странице", errors.length === 0, errors.slice(0, 2).join(" | "));
 await browser.close();

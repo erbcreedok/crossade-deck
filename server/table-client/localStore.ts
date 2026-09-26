@@ -19,8 +19,7 @@ function deal(): { id: string; face: Face }[] {
   return cards;
 }
 
-/** `desk` — род стола, каким стенд притворяется: правила здесь песочница всегда, род меняет только вид (`?stand&desk=sandbox-ar`). */
-export function localStore(desk = "sandbox"): TableStore {
+export function localStore(): TableStore {
   const me: Person = { key: "me", name: "Ye", ink: "#f2c14e", door: "guest" };
   // На стенде админ — я: иначе флаги чужих стульев не проверить.
   const table = new Table(deal(), me.key);
@@ -66,7 +65,7 @@ export function localStore(desk = "sandbox"): TableStore {
   return {
     me,
     crew: [],
-    desk,
+    desk: "sandbox",
     deals: Object.keys(DEAL_PRESETS) as DealRule[],
     ice: [],
     title: "Стенд жеста",

@@ -23,9 +23,6 @@ export type Judge = () => { turn: string | null; closer: string | null } | null;
 
 export const DESKS: Record<string, (judge: Judge) => DeskRules> = {
   sandbox: () => SANDBOX,
-  // ТА ЖЕ ПЕСОЧНИЦА, ТОЛЬКО В AR: стол висит перед человеком и осматривается наклоном телефона.
-  // Правила те же до буквы — отличается только то, чем экран смотрит на стол (`DeskRules.view`).
-  "sandbox-ar": () => ({ ...SANDBOX, kind: "AR-песочница", about: "Песочница в AR: стол висит перед тобой, осматривайся наклоном телефона", view: "ar" }),
   // Крестовому нужен судья: он говорит, чей ход и кто закрыл круг. Судья живёт в КОМНАТЕ, а не в
   // каталоге, — поэтому сюда его передают, а не хранят здесь.
   krest: (judge) => krestDesk(judge),

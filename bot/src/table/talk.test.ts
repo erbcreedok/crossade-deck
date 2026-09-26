@@ -88,14 +88,12 @@ describe("карточка нового комнаты: род выбирает�
     expect(card("krest").title).toContain("крестовый");
     expect(card("sandbox").description, "у песочницы правил нет — так и сказано").toContain("без правил");
     expect(card("krest").description).toContain("крестовый");
-    expect(card("sandbox-ar").title).toContain("AR-песочница");
-    expect(card("sandbox-ar").description, "AR-комната говорит, чем она другая").toContain("наклоном");
   });
 
   it("каждый род из каталога проходит разбор бота — иначе выбранный род молча теряется", () => {
     const kind = new RegExp(`^${KIND_RE}$`);
     for (const { id } of deskNames()) expect(id, `род «${id}»`).toMatch(kind);
-    expect("tbl:sandbox-ar:r1").toMatch(new RegExp(`^tbl:(${KIND_RE}):(.+)$`));
+    expect("tbl:some-kind:r1", "род с дефисом").toMatch(new RegExp(`^tbl:(${KIND_RE}):(.+)$`));
   });
 
   it("у открытого комнаты есть вход и «Меню» — управление хозяину", () => {
