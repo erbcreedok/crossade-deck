@@ -246,13 +246,93 @@ await page.waitForTimeout(2500);
 err = worst(await projectedCorners(), drawnCorners({ x: 470, y: 600, rot: 0.2 }, 420 * 0.8));
 ok(err < 14, "СВЯЗКА: шагнул — стол снова лёг на код", `худший угол ${err.toFixed(1)} px`);
 const tableM2 = await S(() => window.__ar.three.anchor.matrix.elements.slice());
-ok(tableM2.every((v, i) => Math.abs(v - tableM[i]) < 0.05), "СВЯЗКА: сдвинулся телефон, а не стол в мире");
+// Камера-подделка сдвигает картинку, а не перспективу — поворот метки чуть врёт, и якорь его честно
+// подтягивает; место стола в мире не меняется.
+const moveOf = (a, b) => Math.hypot(a[12] - b[12], a[13] - b[13], a[14] - b[14]);
+const turnOf = (a, b) => (Math.acos(Math.min(1, (a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[4] * b[4] + a[5] * b[5] + a[6] * b[6] + a[8] * b[8] + a[9] * b[9] + a[10] * b[10] - 1) / 2)) * 180) / Math.PI;
+ok(moveOf(tableM, tableM2) < 0.05 && turnOf(tableM, tableM2) < 5, "СВЯЗКА: сдвинулся телефон, а не стол в мире", `стол сдвинулся на ${moveOf(tableM, tableM2).toFixed(3)} ширины, повернулся на ${turnOf(tableM, tableM2).toFixed(1)}°`);
 await shot("4b-fused");
-await orient(0, 60, 0); // датчик: смотрю вперёд — а метка «в лоб», значит стоит стоймя
+
+// 6в. КАРТИНА НА СТЕНЕ: телефон стоймя смотрит вперёд, метка «в лоб» — значит висит на стене.
+await S(() => Object.assign(window.__fake, { x: 360, y: 560, rot: 0.2 }));
+await orient(0, 90, 0);
 await page.locator("#again").click();
+await waitFor(() => window.__ar.fusion.locked && window.__ar.three.anchor.visible, 15000);
 await page.waitForTimeout(1500);
-ok(await S(() => !window.__ar.fusion.locked && window.__ar.fusion.last === "tilt" && !window.__ar.three.anchor.visible), "СВЯЗКА: метка стоймя — стол на неё не ставится");
-await S(() => Object.assign(window.__fake, { x: 360, y: 560 }));
+/** Нормаль стола в мире (ось Z якоря вместе с посадкой). */
+const normal = () => S(() => { const e = window.__ar.three.anchor.matrixWorld.elements, n = Math.hypot(e[8], e[9], e[10]); return [e[8] / n, e[9] / n, e[10] / n]; });
+err = worst(await projectedCorners(), drawnCorners({ x: 360, y: 560, rot: 0.2 }, 420 * 0.8));
+ok(err < 14, "КАРТИНА: стол лёг на картину на стене", `худший угол ${err.toFixed(1)} px`);
+let n = await normal();
+ok(Math.abs(n[1]) < 0.1, "КАРТИНА: стол в плоскости стены, а не плашмя", `нормаль ${n.map((v) => v.toFixed(2)).join(", ")}`);
+await shot("4c-wall");
+await page.locator("#lie").click();
+await waitFor(() => window.__ar.fusion.locked && window.__ar.three.anchor.visible, 15000);
+await page.waitForTimeout(800);
+n = await normal();
+ok(n[1] > 0.99, "КАРТИНА, «плашмя»: стол лёг по гравитации", `нормаль ${n.map((v) => v.toFixed(2)).join(", ")}`);
+await page.locator("#lie").click();
+await waitFor(() => window.__ar.fusion.locked && !window.__ar.seat.flat, 15000);
+await page.waitForTimeout(1500);
+
+// 6г. ПОДГОНКА жестами — синтетические касания, как пальцы телефона
+const touch = (steps) => page.evaluate(async (steps) => {
+  const el = document.getElementById("stage");
+  for (const [type, id, x, y] of steps) {
+    el.dispatchEvent(new PointerEvent(type, { pointerId: id, clientX: x, clientY: y, bubbles: true, pointerType: "touch", isPrimary: id === 1 }));
+    await new Promise((r) => setTimeout(r, 16));
+  }
+  await new Promise((r) => setTimeout(r, 300)); // matrixWorld стола обновляет отрисовка, а она на программном GL не каждые 16 мс
+}, steps);
+const two = (c, r, from, to, k = 1, lift = 0, n = 8) => {
+  const steps = [];
+  const at = (i) => { const t = i / n, a = from + (to - from) * t, rr = r * (1 + (k - 1) * t), dy = lift * t; return [[c.x + rr * Math.cos(a), c.y + rr * Math.sin(a) + dy], [c.x - rr * Math.cos(a), c.y - rr * Math.sin(a) + dy]]; };
+  const [p0, q0] = at(0);
+  steps.push(["pointerdown", 1, ...p0], ["pointerdown", 2, ...q0]);
+  for (let i = 1; i <= n; i += 1) { const [p, q] = at(i); steps.push(["pointermove", 1, ...p], ["pointermove", 2, ...q]); }
+  const [p1, q1] = at(n);
+  steps.push(["pointerup", 1, ...p1], ["pointerup", 2, ...q1]);
+  return steps;
+};
+const shape = async () => {
+  const c = await projectedCorners(), centre = await centreNow();
+  return { c, centre, angle: Math.atan2(c[1].y - c[0].y, c[1].x - c[0].x), width: Math.hypot(c[1].x - c[0].x, c[1].y - c[0].y), height: Math.hypot(c[3].x - c[0].x, c[3].y - c[0].y) };
+};
+await page.locator("#fit").click();
+ok(await S(() => window.__ar.fitting && document.getElementById("fitDone") !== null), "подгонка открылась");
+const logsBefore = await S(() => window.__ar.log.length);
+let before = await shape();
+await touch(two(before.centre, 80, 0, Math.PI / 6));
+let after = await shape();
+const turned = ((after.angle - before.angle) * 180) / Math.PI;
+ok(Math.abs(turned - 30) < 3, "ПОДГОНКА: два пальца повернул на 30° по часовой — стол повернулся так же", `${turned.toFixed(1)}°`);
+before = after;
+await touch(two(before.centre, 60, 0, 0, 1.5));
+after = await shape();
+ok(Math.abs(after.width / before.width - 1.5) < 0.08, "ПОДГОНКА: развёл пальцы в 1.5 раза — стол вырос в 1.5 раза", `×${(after.width / before.width).toFixed(2)}`);
+before = after;
+await touch([["pointerdown", 1, before.centre.x, before.centre.y], ...[1, 2, 3, 4, 5, 6].map((i) => ["pointermove", 1, before.centre.x + i * 10, before.centre.y]), ["pointerup", 1, before.centre.x + 60, before.centre.y]]);
+after = await shape();
+ok(Math.abs(after.centre.x - before.centre.x - 60) < 4 && Math.abs(after.centre.y - before.centre.y) < 4, "ПОДГОНКА: один палец повёл на 60 px — стол поехал за пальцем", `${(after.centre.x - before.centre.x).toFixed(1)}, ${(after.centre.y - before.centre.y).toFixed(1)} px`);
+before = after;
+await touch(two(before.centre, 60, 0, 0, 1, -100));
+after = await shape();
+const seat = await S(() => window.__ar.seat);
+ok(Math.abs(seat.tilt + 30) < 1 && after.height < before.height * 0.97, "ПОДГОНКА: два пальца вверх на 100 px — стол наклонился от меня на 30°", `наклон ${seat.tilt.toFixed(1)}°, высота ×${(after.height / before.height).toFixed(2)}`);
+const deckNow = await deckPoint();
+await page.mouse.click(deckNow.x, deckNow.y);
+await page.waitForTimeout(300);
+ok(await page.evaluate((n) => window.__ar.log.length === n, logsBefore), "ПОДГОНКА: жесты и тап по колоде не сыграли по столу");
+await shot("4d-fit");
+await page.locator("#fitDone").click();
+const saved = await S(() => window.__ar.seat);
+await page.locator('#top .chip[data-mode="gyro"]').click();
+await page.waitForTimeout(300);
+ok(await S(() => window.__ar.seat.scale === 1 && window.__ar.seat.yaw === 0), "ГИРО: своя посадка, не посадка картины");
+// Камера-подделка после ГИРО не оживает (её дорожки остановлены) — память проверяется по записи.
+const kept = await S(() => JSON.parse(localStorage.getItem("ar-stand-seats") || "{}")["code:0"]);
+ok(!!kept && ["x", "y", "yaw", "tilt", "scale"].every((k) => Math.abs(kept[k] - saved[k]) < 1e-9), "ПОДГОНКА: «готово» — посадка кода записана на устройстве", JSON.stringify(kept));
+await S(() => { localStorage.removeItem("ar-stand-seats"); });
 
 // 7. обратно в ГИРО — камера гаснет
 await page.locator('#top .chip[data-mode="gyro"]').click();

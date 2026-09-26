@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createFusion, FUSE, gyroTrack, levelQ, qconj, qmul, rotate, slerp } from "./fuse.js";
+import { createFusion, FUSE, gyroTrack, levelQ, qangle, qconj, qmul, rotate, slerp } from "./fuse.js";
 
 const near = (a, b, eps = 1e-6, what = "") => assert.ok(Math.abs(a - b) < eps, `${what} ${a} ≈ ${b}`);
 const nearV = (a, b, eps, what) => a.forEach((v, i) => near(v, b[i], eps, `${what}[${i}]`));
@@ -12,15 +12,15 @@ const TABLE = [0.4, -2, -1.5], TABLE_YAW = 0.3;
 /** Что увидит трекер: метка в кадре камеры, стоящей в `at` с поворотом `q`. */
 const seen = (q, at, table = TABLE, yaw = TABLE_YAW) => ({ t: rotate(qconj(q), table.map((v, i) => v - at[i])), m: qmul(qconj(q), levelQ(yaw)) });
 /** Где стол на экране: в кадре показанной камеры. */
-const onScreen = (f, q) => rotate(qconj(q), f.S.table.pos.map((v, i) => v - f.S.shown[i]));
+const onScreen = (f, q) => rotate(qconj(q), f.S.anchor.pos.map((v, i) => v - f.S.shown[i]));
 
-test("первый кадр: стол встаёт туда, где метка, лёжа и с её курсом; телефон — в нуле", () => {
+test("первый кадр: якорь встаёт туда, где метка, с её поворотом; телефон — в нуле", () => {
   const f = createFusion();
   const q = phone(10);
   const { t, m } = seen(q, [0, 0, 0]);
   assert.equal(f.measure(q, t, m, 0), "lock");
-  nearV(f.S.table.pos, TABLE, 1e-9, "стол");
-  near(f.S.table.yaw, TABLE_YAW, 1e-9, "курс");
+  nearV(f.S.anchor.pos, TABLE, 1e-9, "якорь");
+  near(qangle(f.S.anchor.q, levelQ(TABLE_YAW)), 0, 1e-6, "поворот");
   nearV(f.S.shown, [0, 0, 0], 1e-12, "телефон");
 });
 
@@ -50,7 +50,7 @@ test("шаг в сторону: телефон уходит туда, куда �
     for (let k = 0; k < 4; k += 1) f.frame(16.5);
   }
   nearV(f.S.shown, to, 0.02, "телефон");
-  nearV(f.S.table.pos, TABLE, 1e-9, "стол");
+  nearV(f.S.anchor.pos, TABLE, 1e-9, "якорь");
 });
 
 test("дрожь трекера: стол на экране дрожит в разы меньше, чем метка в кадре", () => {
@@ -86,16 +86,41 @@ test("один дикий кадр — выброс; то же место чет
   nearV(f.S.cam, [3, 0, 0], 1e-9, "принял");
 });
 
-test("метка стоймя — трекер ошибся, измерение выброшено", () => {
+/** Картина на стене перед тобой: нормаль смотрит на тебя (+Z мира), низ картины — вниз. */
+const WALL = [0, 0, 0, 1];
+const lookAhead = axis(1, 0, 0, 0); // телефон стоймя, смотрит вперёд (−Z)
+
+test("картина на стене: якорь встаёт в её плоскость, а не плашмя", () => {
   const f = createFusion();
-  const q = phone(0);
-  const { t } = seen(q, [0, 0, 0]);
-  const upright = qmul(qconj(q), qmul(levelQ(TABLE_YAW), axis(1, 0, 0, 60)));
-  assert.equal(f.measure(q, t, upright, 0), "tilt");
-  assert.equal(f.S.locked, false);
+  const { t } = seen(lookAhead, [0, 0, 0], [0, 0, -3], 0);
+  const wall = qmul(qconj(lookAhead), WALL);
+  assert.equal(f.measure(lookAhead, t, wall, 0), "lock");
+  const n = rotate(f.S.anchor.q, [0, 0, 1]);
+  nearV(n, [0, 0, 1], 1e-9, "нормаль стола смотрит на меня");
 });
 
-test("гироскоп уплыл по курсу на 8° — курс стола догоняет метку", () => {
+test("картина на стене, «плашмя»: якорь лёжа по гравитации, курс — вдоль картины", () => {
+  const f = createFusion(() => ({ ...FUSE, flat: true }));
+  const { t } = seen(lookAhead, [0, 0, 0], [0, 0, -3], 0);
+  f.measure(lookAhead, t, qmul(qconj(lookAhead), WALL), 0);
+  nearV(rotate(f.S.anchor.q, [0, 0, 1]), [0, 1, 0], 1e-9, "нормаль вверх");
+  nearV(rotate(f.S.anchor.q, [1, 0, 0]), [1, 0, 0], 1e-9, "ось X — вдоль картины");
+});
+
+test("метка вдруг повёрнута на 60° — выброс; четыре кадра подряд — метку переложили", () => {
+  const f = createFusion();
+  const q = phone(0);
+  const { t, m } = seen(q, [0, 0, 0]);
+  f.measure(q, t, m, 0);
+  const turned = qmul(m, axis(1, 0, 0, 60));
+  const said = [];
+  for (let i = 1; i <= FUSE.jumpFrames; i += 1) said.push(f.measure(q, t, turned, i * 66));
+  assert.deepEqual(said, ["held", "held", "held", "jump"]);
+  near(qangle(f.S.anchor.q, qmul(q, turned)), 0, 1e-6, "якорь по свежей метке");
+  nearV(f.S.cam, [0, 0, 0], 1e-9, "телефон на месте");
+});
+
+test("гироскоп уплыл по курсу на 8° — якорь догоняет метку", () => {
   const f = createFusion();
   let { t, m } = seen(phone(0), [0, 0, 0]);
   f.measure(phone(0), t, m, 0);
@@ -105,7 +130,7 @@ test("гироскоп уплыл по курсу на 8° — курс стол
     ({ t, m } = seen(truth, [0, 0, 0]));
     f.measure(qmul(drift, truth), t, m, i * 66);
   }
-  near(f.S.table.yaw, TABLE_YAW + (8 * Math.PI) / 180, 0.01, "курс");
+  near(qangle(f.S.anchor.q, qmul(drift, levelQ(TABLE_YAW))), 0, 0.01, "поворот");
 });
 
 test("память гироскопа: поворот в прошлом — между замерами, раньше первого — первый", () => {
@@ -137,4 +162,17 @@ test("кадр трекера из прошлого: с поворотом то�
   };
   assert.ok(run(true) < 1e-6, "поворот того мига");
   assert.ok(run(false) > 0.05, `нынешний поворот уводит телефон на ${run(false).toFixed(2)}`);
+});
+
+test("метка врёт в наклоне на 10° — стол не наклоняется; врёт в курсе — курс подтягивается", () => {
+  const f = createFusion();
+  const q = phone(0);
+  const { t, m } = seen(q, [0, 0, 0]);
+  for (let i = 0; i < FUSE.settle; i += 1) f.measure(q, t, m, i * 66);
+  const tilted = qmul(m, axis(1, 0, 0, 10));
+  for (let i = 0; i < 200; i += 1) f.measure(q, t, tilted, 2000 + i * 66);
+  near(qangle(f.S.anchor.q, levelQ(TABLE_YAW)), 0, 1e-6, "наклон не пошёл");
+  const turned = qmul(qconj(q), qmul(axis(0, 1, 0, 10), levelQ(TABLE_YAW)));
+  for (let i = 0; i < 200; i += 1) f.measure(q, t, turned, 20000 + i * 66);
+  near(qangle(f.S.anchor.q, qmul(axis(0, 1, 0, 10), levelQ(TABLE_YAW))), 0, 0.005, "курс догнал");
 });
