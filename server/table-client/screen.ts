@@ -761,12 +761,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // `extra` — ряды, которые есть не у всякого стула (дела крупье): без них карта легла бы на них.
     const height = 12 + 30 + 8 + 16 + extra + rowH + 12;
     const k = view?.k ?? 1;
+    // КОЛОДА И СЕРЕДИНА СТОЛА — РАЗНЫЕ ТОЧКИ: колода лежит у крупье. Окно не ложится на колоду, а
+    // уходит НАРУЖУ от середины стола — туда, где за стулом свободно. Луч от колоды уводил окно на сам стул.
     const middle = view ? view.toGlass(pileOf(store.state, MAIN_PILE) ?? { x: 0, y: 0 }) : { x: frame.w / 2, y: frame.h / 2 };
+    const centre = view ? view.toGlass({ x: 0, y: 0 }) : { x: frame.w / 2, y: frame.h / 2 };
     const deck = { w: (FELT_CARD.w / 2) * k, h: (FELT_CARD.h / 2) * k };
     const chair = SEAT_REACH * k;
 
-    const len = Math.hypot(spot.x - middle.x, spot.y - middle.y);
-    const ray = len < 1 ? { x: 0, y: -1 } : { x: (spot.x - middle.x) / len, y: (spot.y - middle.y) / len };
+    const len = Math.hypot(spot.x - centre.x, spot.y - centre.y);
+    const ray = len < 1 ? { x: 0, y: -1 } : { x: (spot.x - centre.x) / len, y: (spot.y - centre.y) / len };
     const along = (d: { x: number; y: number }) => {
       const reach = Math.abs(d.x) * (w / 2) + Math.abs(d.y) * (height / 2);
       return { x: spot.x + d.x * (spot.r + GAP + reach), y: spot.y + d.y * (spot.r + GAP + reach) };

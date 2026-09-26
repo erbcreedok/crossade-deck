@@ -78,13 +78,17 @@ await placed("зум 1");
 
 // Приблизить и повернуть — окна идут за людьми и остаются в кадре.
 // Жесты — по сукну, не задевая окон: окно ловит палец само, камере он не достаётся.
+// Полоса ищется НА СТОЛЕ, от середины наружу: у низа кадра на стенде лежит своя рука, и щипок уходит в неё.
 const free = async () => {
-  const { frame } = await scene();
+  const { frame, middle, k } = await scene();
   const boxes = await tips();
-  for (let y = frame.h - 30; y > 30; y -= 10) {
-    if (boxes.every((b) => y < b.top - 20 || y > b.bottom + 20)) return y;
+  const reach = 6 * k;
+  for (let dy = 0; dy < reach; dy += 10) {
+    for (const y of [middle.y + dy, middle.y - dy]) {
+      if (y > 30 && y < frame.h - 30 && boxes.every((b) => y < b.top - 20 || y > b.bottom + 20)) return y;
+    }
   }
-  return frame.h - 30;
+  return middle.y;
 };
 let y = await free();
 await gesture([[170, y], [220, y]], [[120, y], [270, y]]);

@@ -135,6 +135,9 @@ await bar(A, "lasso").click();
 check("инструмент лассо включён, курсор погас", (await bar(A, "lasso").getAttribute("aria-pressed")) === "true" && (await bar(A, "cursor").getAttribute("aria-pressed")) === "false", null);
 
 // ── 5б. Инструмент лассо: петля выделяет карты сукна внутри, стопку — нет; карту не берёт ─────────────
+// Окно колоды из раздела 4 закрыть: колода лежит у крупье, и её окно встаёт как раз над картами сукна.
+if (await A.locator("[data-deck-shut]").count()) await A.locator("[data-deck-shut]").dispatchEvent("pointerdown");
+await wait(A, 300);
 sa = await spots(A);
 await tap(A, sa.felt.find((f) => f.id === f1.id));
 await bar(A, "lasso").click();
