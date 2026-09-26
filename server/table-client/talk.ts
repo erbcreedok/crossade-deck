@@ -8,7 +8,8 @@
 // встаёт снизу, старые поднимаются, ушедшая улетает вверх, — это переходы браузера, а пересборка их бы убила.
 
 import { EMOJI } from "../src/table/emoji.js";
-import { EVERYWHERE, KEYBOARD, KEYBOARD_SECTIONS, LINE_PAUSE_MS, Lines, SHOT_MS, Shots, Typer, graphemes, type KeyboardSection, type Line, type Piece } from "../src/table/say.js";
+import { SAY_EVERY_MS } from "../src/table/contract.js";
+import { EVERYWHERE, KEYBOARD, KEYBOARD_SECTIONS, LINE_PAUSE_MS, Lines, SayPacer, SHOT_MS, Shots, Typer, graphemes, type KeyboardSection, type Line, type Piece } from "../src/table/say.js";
 import { tableHaptic } from "./haptic.js";
 import { tableMotion } from "./motion.js";
 import type { TableStore } from "./store.js";
@@ -80,9 +81,12 @@ export interface Talk {
 export function mountTalk(stage: HTMLElement, store: TableStore, redraw: () => void, world: TalkWorld): Talk {
   const lines = new Lines();
   const length = (p: Piece) => (p.t === "text" ? graphemes(p.text).length : p.t === "who" ? graphemes(world.who(p.key)?.name ?? "?").length : p.t === "card" ? graphemes(world.card(p.id).label).length : 1);
+  // СВОЯ СТРОКА — СРАЗУ, соседям — шагом (`SayPacer`): стол принимает реплики мерой, и буква на каждое
+  // нажатие у быстро печатающего отсекалась — вместе с последней, и строка у соседей не кончалась.
+  const pacer = new SayPacer((out) => store.say(out), SAY_EVERY_MS);
   const typer = new Typer((out) => {
     lines.hear(store.me.key, out, performance.now());
-    store.say(out);
+    pacer.push(out);
     paint();
     counter();
   }, length);

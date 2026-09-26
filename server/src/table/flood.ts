@@ -7,12 +7,12 @@
 //
 // Лишнее молча выбрасывается. Отвечать на него отказом значило бы удвоить тот самый поток.
 
-import { CARRY_EVERY_MS } from "./contract.js";
+import { CARRY_EVERY_MS, SAY_EVERY_MS } from "./contract.js";
 
 export const PER_SECOND = {
   intent: 30,
   carry: Math.ceil((1000 / CARRY_EVERY_MS) * 2),
-  say: 5,
+  say: Math.ceil((1000 / SAY_EVERY_MS) * 2),
   eyes: 20,
   command: 5,
   mic: 10,

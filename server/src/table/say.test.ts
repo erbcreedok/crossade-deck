@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { KEYBOARD, LINE_LINGER_MS, LINE_MAX, LINES_MAX, Lines, SHOT_MS, SHOTS_MAX, SYMBOLS, Shots, Typer, cleanSay, cleanShot, graphemes, type Piece, type SayOut } from "./say.js";
+import { KEYBOARD, LINE_LINGER_MS, LINE_MAX, LINES_MAX, Lines, SayPacer, SHOT_MS, SHOTS_MAX, SYMBOLS, Shots, Typer, cleanSay, cleanShot, graphemes, type Piece, type SayOut } from "./say.js";
 
 const text = (out: SayOut) => out.pieces.map((p) => (p.t === "text" ? p.text : `<${p.t}:${"key" in p ? p.key : p.id}>`)).join("");
 const say = (n: number, t: string, done?: true): SayOut => ({ n, pieces: t ? [{ t: "text", text: t }] : [], ...(done ? { done } : {}) });
@@ -104,5 +104,50 @@ describe("строки у стула", () => {
     expect(w.who).toEqual(["a"]);
     w.drop("a");
     expect(w.who).toEqual([]);
+  });
+});
+
+describe("say.the-last-state-always-goes", () => {
+  /** Поддельные часы: время двигает тест, отложенное срабатывает, когда до него дошли. */
+  function clock() {
+    let now = 0;
+    const later: { at: number; fn: () => void }[] = [];
+    return {
+      now: () => now,
+      later: (fn: () => void, ms: number) => (later.push({ at: now + ms, fn }), 0 as unknown as ReturnType<typeof setTimeout>),
+      go(ms: number) {
+        now += ms;
+        for (const one of later.splice(0).sort((a, b) => a.at - b.at)) {
+          if (one.at <= now) one.fn();
+          else later.push(one);
+        }
+      },
+    };
+  }
+  const line = (n: number, text: string, done = false): SayOut => ({ n, pieces: [{ t: "text", text }], ...(done ? { done: true as const } : {}) });
+
+  it("быстрый набор — не чаще шага, и последняя буква всегда доходит", () => {
+    const sent: SayOut[] = [];
+    const c = clock();
+    const pace = new SayPacer((one) => sent.push(one), 100, c);
+    for (const text of ["П", "Пр", "При", "Прив", "Приве", "Привет"]) {
+      pace.push(line(1, text));
+      c.go(20);
+    }
+    c.go(200);
+    expect(sent.length, "шесть букв за 120 мс — не шесть сообщений").toBeLessThanOrEqual(3);
+    expect(sent.at(-1), "но последнее — вся строка").toEqual(line(1, "Привет"));
+  });
+
+  it("Enter и первая буква новой строки разом — «закончена» не тонет", () => {
+    const sent: SayOut[] = [];
+    const c = clock();
+    const pace = new SayPacer((one) => sent.push(one), 100, c);
+    pace.push(line(1, "да"));
+    pace.push(line(1, "да", true));
+    pace.push(line(2, "н"));
+    c.go(150);
+    expect(sent.some((one) => one.n === 1 && one.done === true), "строка 1 закончена у соседей").toBe(true);
+    expect(sent.at(-1)).toEqual(line(2, "н"));
   });
 });

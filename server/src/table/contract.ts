@@ -747,6 +747,11 @@ export interface Carry extends Omit<CarryOut, "with"> {
 }
 /** Как часто палец в воздухе шлёт, над чем он. Сглаживание у зрителя — на столько же. */
 export const CARRY_EVERY_MS = 50;
+/**
+ * КАК ЧАСТО ЭКРАН ШЛЁТ НАБИРАЕМУЮ СТРОКУ. Каждое сообщение несёт строку целиком, поэтому промежуточные
+ * можно пропустить, а последнее — нельзя: без него строка у соседей не закончится (`SayPacer`).
+ */
+export const SAY_EVERY_MS = 100;
 
 export interface Welcome {
   you: Person;

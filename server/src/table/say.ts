@@ -296,3 +296,46 @@ export class Typer {
     return this.open;
   }
 }
+
+/**
+ * ШАГ НАБИРАЕМОЙ СТРОКИ: не чаще `every` мс, но ПОСЛЕДНЕЕ СОСТОЯНИЕ КАЖДОЙ СТРОКИ уходит всегда.
+ *
+ * Экран шлёт строку на каждую букву, а стол принимает их мерой (`flood.ts`) и лишнее выбрасывает
+ * молча. Промежуточные буквы терять не страшно — каждое сообщение несёт строку целиком. Страшно
+ * потерять последнее: «строка закончена» не дошла — и у соседей она не закончится никогда.
+ *
+ * Строки держатся порознь, по номеру: Enter в одной и первая буква следующей приходят почти разом,
+ * и «закончена» не должна утонуть под новой строкой.
+ */
+export class SayPacer {
+  private waiting = new Map<number, SayOut>();
+  private lastAt = -Infinity;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(
+    private readonly send: (out: SayOut) => void,
+    private readonly every: number,
+    private readonly clock: { now(): number; later(fn: () => void, ms: number): ReturnType<typeof setTimeout> } = {
+      now: () => Date.now(),
+      later: (fn, ms) => setTimeout(fn, ms),
+    },
+  ) {}
+
+  push(out: SayOut): void {
+    this.waiting.delete(out.n);
+    this.waiting.set(out.n, out);
+    const wait = this.lastAt + this.every - this.clock.now();
+    if (wait <= 0) return this.flush();
+    this.timer ??= this.clock.later(() => {
+      this.timer = null;
+      this.flush();
+    }, wait);
+  }
+
+  private flush(): void {
+    this.lastAt = this.clock.now();
+    const all = [...this.waiting.values()].sort((a, b) => a.n - b.n);
+    this.waiting.clear();
+    for (const one of all) this.send(one);
+  }
+}
