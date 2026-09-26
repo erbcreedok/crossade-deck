@@ -1,0 +1,27 @@
+server/scripts/tableGrip.mjs
+  s_9ed0da107cbc4a::t_8c204290fba93c 174-181,187,205,218-219
+server/scripts/tableHaptic.mjs
+  s_9ed0da107cbc4a::t_d4af801150b3cf 57-58,79-81
+server/scripts/tableSeats.mjs
+  s_9ed0da107cbc4a::t_cec58ff058ccc9 27-34,51,53-54,62-63,77,85,95-97,106-107,111,114-115,137,163-164
+server/scripts/tableSound.mjs
+  s_9ed0da107cbc4a::t_58059ee313fe7c 46-47,51
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_9392d959b473db 2669-2670,2699
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "08576583779a946099d7d78d2b128a655ef4474f",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
