@@ -1233,6 +1233,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       + leaveHtml(geom.barTop!, inset + rowLeft, side, step)
       + poseHandleHtml(geom, cards.length + gaps.length)
       + thumbHtml(s, side)
+      + closeRingHtml(s, geom)
       + micHtml(geom.barTop!);
   }
 
@@ -1329,6 +1330,26 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     return `<div data-g="thumb-chat" style="position:absolute;right:${inset + 12}px;top:${Math.round(top)}px;width:${side}px;height:${side}px;z-index:40">`
       + barButton("sec-say", talk.open, side, 0) + `</div>`;
   }
+  /**
+   * «ЗАКРЫТЬ КРУГ» — у того, кто его закрыл: круг-зона с картами, закрыл её я (судья знает — `play.closer`),
+   * за столом есть крупье. Одно нажатие — охапка круга уходит в руку крупье, то же, что жест за грип. Бот,
+   * закрыв круг, зовёт крупье сам; человек отдаёт круг этой кнопкой. Об игре экран не знает ничего: только
+   * «круг», «закрывший» и «крупье».
+   */
+  function ringToClose(s: Snapshot): { pile: string; croupier: string; i: number } | null {
+    const ring = s.piles.find((p) => p.pose === "ring" && p.cards.length > 0);
+    const croupier = s.chairs.find((c) => c.croupier);
+    if (!ring || !croupier || s.play?.closer !== me() || deckCarry(s, ring.id)) return null;
+    return { pile: ring.id, croupier: croupier.id, i: croupier.hand.length };
+  }
+  function closeRingHtml(s: Snapshot, geom: Geom): string {
+    if (!ringToClose(s)) return "";
+    const top = handTopOf(geom) - 58;
+    return `<button data-close-ring style="position:absolute;left:50%;transform:translateX(-50%);top:${Math.round(top)}px;z-index:41;border:0;cursor:pointer;`
+      + `padding:11px 18px;border-radius:10px;font:400 13px Tiny5,monospace;color:${T.black};white-space:nowrap;`
+      + `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 3px ${T.black},0 4px 0 rgba(11,7,4,.6)">Закрыть круг</button>`;
+  }
+
   /** Где компасу стоять — слева над рукой, на одной высоте с чатом. */
   function compassAt(s: Snapshot): { left: number; top: number } {
     const side = BAR.size * hudUnit();
@@ -4121,6 +4142,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         local.confirmLeave = false;
         store.send({ t: "stand" });
         draw();
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-close-ring]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const go = ringToClose(truth());
+        if (go) guessBatch({ t: "pileDrop", pile: go.pile, to: { in: "hand", chair: go.croupier, i: go.i } });
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-hand-do]")) {
