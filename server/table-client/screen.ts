@@ -76,6 +76,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   const images: Record<string, HTMLImageElement> = {};
   /** Личный вид колоды: четыре цвета и кириллица — у каждого свой, на его устройстве. */
   const look: DeckLook = readLook();
+  /** Камерой ведёт запись (`look.to`): свой стул компас тогда не доворачивает. */
+  let lookedFrom = false;
   const art = deckArt(() => draw(), () => look);
   const sound = tableSound();
   const haptic = tableHaptic();
@@ -2526,7 +2528,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     }
     const seat = mine(s);
     const floor = talk.open ? talk.height() : hudFloor(handOf(s, seat).length);
-    if (!local.reseat) compass.aim(s);
+    if (!local.reseat && !lookedFrom) compass.aim(s);
     const seats: Seat[] = s.chairs.map((c) => {
       const sitter = sitterOf(s, c);
       return {
@@ -4352,13 +4354,21 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     health: { sound: () => sound.health, voice: () => mesh.stats(), links: () => mesh.links() },
     // ВЗГЛЯД СНАРУЖИ — им пользуется запись: стол показывается тем взглядом, каким его видел человек.
     // Живой игре это окошко не нужно и ею не зовётся.
+    // КАМЕРОЙ ВЕДЁТ ЗАПИСЬ — и только она: компас здесь стул не доворачивает, а начатый им доворот
+    // обрывается (глайд с нулевым временем встаёт на место сразу). Иначе стул, сдвинутый перемоткой,
+    // уводил бы записанный взгляд в сторону — на ракурс, которого не было ни у кого.
     look: {
       to(v) {
+        lookedFrom = true;
         cam.camera.lookAt({ x: v.x, y: v.y });
         cam.camera.setZoom(v.zoom);
-        cam.camera.turnTo(v.turn);
-        cam.camera.tiltTo(v.lean);
+        cam.camera.glideTurnTo(v.turn, 0);
+        cam.camera.glideTiltTo(v.lean, 0);
         draw();
+      },
+      home() {
+        const chair = chairOf(store.state, mine(store.state));
+        this.to({ x: 0, y: 0, zoom: 1, turn: chair?.angle ?? 0, lean: 0 });
       },
     },
     destroy() {

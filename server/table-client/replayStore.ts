@@ -226,3 +226,24 @@ export function replayStore(all: readonly Told[], me: Person): Replay {
     onSeek: (listener) => void seeked.push(listener),
   };
 }
+
+/** Взгляд на стол, как его рассказывает экран игрока (`view`): центр, зум, поворот, наклон. */
+export interface ReplayView {
+  x: number;
+  y: number;
+  zoom: number;
+  turn: number;
+  lean: number;
+}
+
+/**
+ * КАМЕРА ГЛАЗАМИ ОДНОГО ИГРОКА. Экраны пишут свою камеру все, и журнал у стола общий — брать из него
+ * последнюю камеру подряд значило бы прыгать с чужого экрана на чужой, как только другой двинул стол.
+ * Берётся только камера `key`: последняя до мгновения `upto`, а до первого движения — первая, с какой
+ * он открыл стол. `null` — его экран камеры не записывал (крупье, выключенная запись).
+ */
+export function viewOf(moments: readonly Moment[], upto: number, key: string): ReplayView | null {
+  const his = (m: Moment | undefined) => m !== undefined && m.deed.side === "screen" && m.deed.kind === "view" && m.deed.who === key;
+  for (let i = Math.min(upto, moments.length - 1); i >= 0; i -= 1) if (his(moments[i])) return moments[i]!.deed.what as ReplayView;
+  return (moments.find(his)?.deed.what as ReplayView | undefined) ?? null;
+}
