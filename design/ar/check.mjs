@@ -101,6 +101,9 @@ const g2 = await tableCentre();
 ok(g2.m.every((v, i) => Math.abs(v - g1.m[i]) < 1e-9), "ГИРО: стол не поехал вслед за телефоном");
 ok(g2.x > g1.x + 40, "ГИРО: повернул телефон влево — стол уплыл вправо", `${g1.x.toFixed(0)} → ${g2.x.toFixed(0)}`);
 await orient(0, 60, 0);
+// ФОТО и КОД ниже проверяют сырой трекер: камера-подделка рисует метку «в лоб», а датчик говорит «смотрю
+// вперёд» — связка такую метку честно выбросит как стоящую. Связка — отдельно, в п. 6б.
+await S(() => { window.__ar.K.fuse = 0; });
 
 // 1. ФОТО → камера → съёмка
 await page.locator('#top .chip[data-mode="image"]').click();
@@ -192,6 +195,64 @@ await page.waitForTimeout(1500);
 err = worst(await projectedCorners(), drawnCorners({ x: 360, y: 560, rot: 0.2 }, 420 * 0.8));
 ok(err < 14, "КОД: углы кода легли на нарисованный квадрат", `худший угол ${err.toFixed(1)} px`);
 await shot("4-code");
+
+// 6б. СВЯЗКА на коде: телефон лежит экраном вверх (камера смотрит вниз) — метка «в лоб» лежит плашмя.
+const centreNow = () => page.evaluate(() => {
+  const { anchor, camera } = window.__ar.three;
+  const v = new anchor.position.constructor(0, 0, 0).applyMatrix4(anchor.matrixWorld).project(camera);
+  return { x: ((v.x + 1) / 2) * innerWidth, y: ((1 - v.y) / 2) * innerHeight };
+});
+const jiggle = (ms) => page.evaluate((ms) => new Promise((done) => {
+  const F = window.__fake, x0 = F.x, y0 = F.y, got = [], t0 = performance.now();
+  let s = 11; const r = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32 - 0.5);
+  const shake = setInterval(() => { F.x = x0 + r() * 8; F.y = y0 + r() * 8; }, 33);
+  const look = setInterval(() => {
+    const { anchor, camera } = window.__ar.three;
+    const v = new anchor.position.constructor(0, 0, 0).applyMatrix4(anchor.matrixWorld).project(camera);
+    got.push(v.x * innerWidth / 2);
+    if (performance.now() - t0 > ms) { clearInterval(shake); clearInterval(look); F.x = x0; F.y = y0; const w = got.slice(got.length / 3); done(Math.max(...w) - Math.min(...w)); }
+  }, 40);
+}), ms);
+await S(() => { window.__ar.K.arucoSmooth = 0; });
+const rawSpread = await jiggle(2500);
+await orient(0, 0, 0);
+await S(() => { window.__ar.K.fuse = 1; });
+await page.locator('#top .chip[data-mode="code"]').click();
+await waitFor(() => window.__ar.fusion.locked && window.__ar.three.anchor.visible, 15000);
+await page.waitForTimeout(1500);
+err = worst(await projectedCorners(), drawnCorners({ x: 360, y: 560, rot: 0.2 }, 420 * 0.8));
+ok(err < 14, "СВЯЗКА: стол встал на код", `худший угол ${err.toFixed(1)} px`);
+const fusedSpread = await jiggle(2500);
+ok(fusedSpread < rawSpread / 2, "СВЯЗКА: трекер дрожит ±4 px — стол дрожит в разы меньше сырого", `связка ${fusedSpread.toFixed(1)} px, сырой ${rawSpread.toFixed(1)} px`);
+await page.waitForTimeout(1500);
+const seenCorners = await projectedCorners();
+const tableM = await S(() => window.__ar.three.anchor.matrix.elements.slice());
+await S(() => { window.__fake.scene = "blank"; });
+await page.waitForTimeout(1200);
+ok(await S(() => window.__ar.three.anchor.visible), "СВЯЗКА: метку закрыли — стол остался");
+err = worst(await projectedCorners(), seenCorners);
+ok(err < 2, "СВЯЗКА: без метки стол стоит там же", `сдвиг ${err.toFixed(1)} px`);
+const c0 = await centreNow();
+await orient(0, 15, 0); // наклонил телефон на 15°, метки не видно
+await page.waitForTimeout(600);
+const c1 = await centreNow();
+ok(Math.hypot(c1.x - c0.x, c1.y - c0.y) > 40, "СВЯЗКА: без метки поворот телефона ведёт стол гироскопом", `${c0.x.toFixed(0)},${c0.y.toFixed(0)} → ${c1.x.toFixed(0)},${c1.y.toFixed(0)}`);
+await orient(0, 0, 0);
+await page.waitForTimeout(600);
+err = worst(await projectedCorners(), seenCorners);
+ok(err < 2, "СВЯЗКА: повернулся обратно — стол ровно там же", `сдвиг ${err.toFixed(1)} px`);
+await S(() => Object.assign(window.__fake, { scene: "code", x: 470, y: 600 })); // шагнул — метка в кадре съехала
+await page.waitForTimeout(2500);
+err = worst(await projectedCorners(), drawnCorners({ x: 470, y: 600, rot: 0.2 }, 420 * 0.8));
+ok(err < 14, "СВЯЗКА: шагнул — стол снова лёг на код", `худший угол ${err.toFixed(1)} px`);
+const tableM2 = await S(() => window.__ar.three.anchor.matrix.elements.slice());
+ok(tableM2.every((v, i) => Math.abs(v - tableM[i]) < 0.05), "СВЯЗКА: сдвинулся телефон, а не стол в мире");
+await shot("4b-fused");
+await orient(0, 60, 0); // датчик: смотрю вперёд — а метка «в лоб», значит стоит стоймя
+await page.locator("#again").click();
+await page.waitForTimeout(1500);
+ok(await S(() => !window.__ar.fusion.locked && window.__ar.fusion.last === "tilt" && !window.__ar.three.anchor.visible), "СВЯЗКА: метка стоймя — стол на неё не ставится");
+await S(() => Object.assign(window.__fake, { x: 360, y: 560 }));
 
 // 7. обратно в ГИРО — камера гаснет
 await page.locator('#top .chip[data-mode="gyro"]').click();

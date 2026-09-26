@@ -4,6 +4,8 @@
 //   ФОТО — метка из снимка: MindAR компилирует её прямо в браузере и трекает;
 //   КОД  — запасная: квадратный код ArUco (js-aruco2) на экране второго телефона или на бумаге;
 //   ГИРО — без метки вообще: стол висит в пространстве и держится только за гироскоп.
+// В ФОТО и КОД по умолчанию включена СВЯЗКА (fuse.js): поворот — гироскоп, метка — только где стоит
+// телефон. Ручка «связка» = 0 возвращает сырой трекер, чтобы сравнить.
 // Стол — обычный 2D-canvas (table.js), натянутый текстурой; тап идёт лучом обратно в его пиксели.
 // Рука — поверх экрана, как в продукте: AR её не касается.
 //
@@ -16,6 +18,7 @@ import { assess, greyOf, DEFAULTS as QD } from "./quality.js";
 import { centred, coverFit, deviceQuaternion, focalPx, positMatrix, screenFov } from "./pose.js";
 import { createTable, drawTable, name, RANK_OF, SUIT_OF, tapTable, TH, throwToPile, TW } from "./table.js";
 import { deleteMarker, listMarkers, saveMarker } from "./store.js";
+import { createFusion, FUSE, gyroTrack, levelQ } from "./fuse.js";
 
 const $ = (id) => document.getElementById(id);
 const stage = $("stage"), cam = $("cam"), sheet = $("sheet"), statusEl = $("status"), frameEl = $("frame"), dots = $("dots");
@@ -45,8 +48,19 @@ const KNOBS = [
     ["arucoSmooth", "сглаживание", "0 — сырое, 0.9 — вязкое", 0.5, 0, 0.95, 0.05],
     ["arucoHold", "кадров до пропажи", "", 8, 0, 60, 1],
   ]],
+  ["Связка: гиро + метка", [
+    ["fuse", "связка", "1 — поворот от гиро, метка только двигает; 0 — сырой трекер", 1, 0, 1, 1],
+    ["gyroFov", "обзор камеры телефона, °", "вертикальный, портрет. Врёт — стол при повороте плывёт по фону", 62, 30, 100, 1],
+    ["videoLag", "опоздание видео, мс", "на сколько кадр камеры старше гироскопа", 60, 0, 300, 5],
+    ["gate", "скачок до, ширин метки", "дальше — выброс", FUSE.gate, 0.1, 10, 0.1],
+    ["jumpFrames", "кадров подряд для скачка", "", FUSE.jumpFrames, 1, 30, 1],
+    ["maxTilt", "наклон метки до, °", "метка лежит плашмя; больше — трекер ошибся", FUSE.maxTilt, 5, 90, 1],
+    ["yawGain", "подтяжка курса", "0 — не поправлять уход гироскопа", FUSE.yawGain, 0, 1, 0.01],
+    ["minCutoff", "гладкость стоя, Гц", "меньше — меньше дрожи", FUSE.minCutoff, 0.01, 10, 0.01],
+    ["beta", "догон при ходьбе", "больше — меньше отставания", FUSE.beta, 0, 10, 0.05],
+    ["glideMs", "доводка, мс", "между кадрами трекера", FUSE.glideMs, 0, 1000, 10],
+  ]],
   ["Гироскоп", [
-    ["gyroFov", "обзор камеры, °", "вертикальный, портрет", 62, 30, 100, 1],
     ["gyroUnit", "ширина метки, м", "масштаб стола в пространстве", 0.2, 0.05, 1, 0.01],
     ["gyroDist", "вперёд, м", "если телефон смотрит в горизонт", 0.45, 0.1, 3, 0.05],
     ["gyroDrop", "вниз, м", "", 0.35, 0, 2, 0.05],
@@ -63,7 +77,13 @@ const S = {
   controller: null, detector: null, orient: null, fit: null, q: null, table: createTable(), hand: [],
   dirty: true, seen: -1e9, frame: 0, fps: 0, fpsCount: 0, fpsAt: performance.now(), log: [],
 };
+S.K = K;
+const gyro = gyroTrack();
+const fusion = createFusion(() => K);
+S.fusion = fusion.S;
 window.__ar = S; // для прогона Playwright
+/** Связка работает, когда она включена, есть гироскоп и режим с меткой. */
+const fused = () => K.fuse >= 0.5 && !!S.orient && S.mode !== "gyro";
 
 // ─── сцена ────────────────────────────────────────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ canvas: $("gl"), antialias: true, alpha: true });
@@ -100,7 +120,11 @@ function layout() {
     S.fit = coverFit(cam.videoWidth, cam.videoHeight, cw, ch);
     Object.assign(cam.style, { width: `${S.fit.w}px`, height: `${S.fit.h}px`, left: `${S.fit.left}px`, top: `${S.fit.top}px` });
   }
-  camera.fov = S.mode === "gyro" ? K.gyroFov : S.fit ? screenFov(cam.videoHeight, S.fit, ch) : 45;
+  // Видео на экране — «cover»: его вертикаль срезана под экран. Трекер и сцена берут один обзор:
+  // в связке — настоящий, иначе поворот от гироскопа и сдвиг фона разойдутся.
+  const shown = S.fit && cam.srcObject && cam.style.visibility !== "hidden";
+  const input = S.mode === "gyro" || fused() ? K.gyroFov : undefined;
+  camera.fov = shown ? screenFov(cam.videoHeight, S.fit, ch, input) : S.mode === "gyro" ? K.gyroFov : 45;
   camera.updateProjectionMatrix();
   const side = Math.round(Math.min(cw, ch) * 0.78);
   Object.assign(frameEl.style, { width: `${side}px`, height: `${side}px`, left: `${(cw - side) / 2}px`, top: `${Math.max(90, ch * 0.4 - side / 2)}px` });
@@ -123,7 +147,11 @@ async function startSensors() {
   sensorsOn = true;
   const ask = globalThis.DeviceOrientationEvent?.requestPermission;
   if (ask) await ask.call(DeviceOrientationEvent).catch(() => {});
-  addEventListener("deviceorientation", (e) => { if (e.beta != null) S.orient = { alpha: e.alpha ?? 0, beta: e.beta, gamma: e.gamma ?? 0 }; });
+  addEventListener("deviceorientation", (e) => {
+    if (e.beta == null) return;
+    S.orient = { alpha: e.alpha ?? 0, beta: e.beta, gamma: e.gamma ?? 0 };
+    gyro.push(performance.now(), orientQ());
+  });
 }
 
 async function startCamera() {
@@ -157,6 +185,7 @@ function stopTrackers() {
   S.controller?.dispose?.();
   S.controller = null;
   anchor.visible = false;
+  fusion.reset();
   camera.position.set(0, 0, 0);
   camera.quaternion.identity();
 }
@@ -184,22 +213,36 @@ async function setMode(mode) {
 async function startImage(marker) {
   go("play");
   status("гружу трекер…");
-  camera.near = 10; camera.far = 1e5; camera.updateProjectionMatrix();
   const { Controller } = await import("mind-ar");
   if (S.mode !== "image") return;
+  const fuse = fused();
+  setNearFar(fuse ? 0.05 : 10, fuse ? 200 : 1e5);
+  // Кадр трекера схвачен сразу после конца прошлого разбора — в этот миг и берётся поворот к нему.
+  let grabbedAt = performance.now();
   const ctl = new Controller({
     inputWidth: cam.videoWidth, inputHeight: cam.videoHeight,
-    filterMinCF: K.filterMinCF, filterBeta: K.filterBeta, warmupTolerance: K.warmup, missTolerance: K.miss,
+    // В связке сглаживает мир, а не кадр: своё сглаживание MindAR только опаздывает к повороту руки.
+    filterMinCF: fuse ? 1e4 : K.filterMinCF, filterBeta: fuse ? 0 : K.filterBeta, warmupTolerance: K.warmup, missTolerance: K.miss,
     onUpdate: (d) => {
       if (S.controller !== ctl) return;
-      if (d.type === "processDone") { tick(); return; }
+      if (d.type === "processDone") { grabbedAt = performance.now(); tick(); return; }
       if (d.type !== "updateMatrix") return;
+      if (fuse) {
+        if (d.worldMatrix) feed(new THREE.Matrix4().fromArray(d.worldMatrix).multiply(post), grabbedAt);
+        return;
+      }
       if (!d.worldMatrix) { anchor.visible = false; status("ищу метку…"); return; }
       anchor.matrix.fromArray(d.worldMatrix).multiply(post);
       anchor.visible = true;
       status(`держу · ${S.fps} к/с`, "ok");
     },
   });
+  // Обзор MindAR зашит в 45°; до `addImageTargets…` его матрицу ещё можно поправить на месте —
+  // трекер и воркер получают её там.
+  if (fuse) {
+    const f = focalPx(cam.videoHeight, K.gyroFov);
+    ctl.projectionTransform[0][0] = f; ctl.projectionTransform[1][1] = f;
+  }
   const { dimensions } = ctl.addImageTargetsFromBuffer(marker.buf);
   const [w, h] = dimensions[0];
   const post = new THREE.Matrix4().compose(new THREE.Vector3(w / 2, h / 2, 0), new THREE.Quaternion(), new THREE.Vector3(w, w, w));
@@ -211,7 +254,7 @@ async function startImage(marker) {
 
 async function startCode() {
   go("play");
-  camera.near = 0.01; camera.far = 100; camera.updateProjectionMatrix();
+  setNearFar(0.01, 100);
   if (!window.AR) {
     status("гружу детектор…");
     for (const f of ["cv.js", "aruco.js", "svd.js", "posit1.js"]) await script(`https://cdn.jsdelivr.net/npm/js-aruco2@2.0.0/src/${f}`);
@@ -222,12 +265,14 @@ async function startCode() {
 
 function startGyro() {
   go("play");
-  camera.near = 0.01; camera.far = 100; camera.updateProjectionMatrix();
+  setNearFar(0.01, 100);
   aimCamera();
   placeGyro();
   S.gyroPlaced = !!S.orient; // датчик может заговорить позже — тогда стол переставится в цикле
   gyroStatus();
 }
+
+function setNearFar(near, far) { camera.near = near; camera.far = far; camera.updateProjectionMatrix(); }
 
 const gyroStatus = () => status(S.orient ? "гироскоп" : "нет гироскопа", S.orient ? "ok" : "bad");
 
@@ -250,6 +295,12 @@ function detectCode() {
   const found = S.detector.detect(dg.getImageData(0, 0, dw, dh));
   tick();
   const m = found.find((x) => x.id === K.arucoId);
+  if (fused()) {
+    if (!m) return;
+    const pose = new POS.Posit(1, focalPx(dh, K.gyroFov)).pose(centred(m.corners, dw, dh));
+    feed(new THREE.Matrix4().fromArray(positMatrix(pose.bestRotation, pose.bestTranslation)), performance.now());
+    return;
+  }
   if (!m) {
     if (S.frame - S.seen > K.arucoHold) { anchor.visible = false; smoothed.has = false; status(found.length ? `вижу код №${found[0].id}, жду №${K.arucoId}` : `ищу код №${K.arucoId}…`); }
     return;
@@ -267,10 +318,19 @@ function detectCode() {
 }
 
 // ─── гироскоп ─────────────────────────────────────────────────────────────────────────────────────
+const orientQ = () => {
+  const o = S.orient, angle = screen.orientation?.angle ?? window.orientation ?? 0;
+  return deviceQuaternion(o.alpha, o.beta, o.gamma, angle);
+};
+
+/**
+ * Поворот камеры. Когда за столом видео, кадр на экране старше датчика на `videoLag` — сцена берёт
+ * поворот того мига, иначе при повороте руки стол бежит впереди фона.
+ */
 function aimCamera() {
   if (S.orient) {
-    const o = S.orient, angle = screen.orientation?.angle ?? window.orientation ?? 0;
-    camera.quaternion.fromArray(deviceQuaternion(o.alpha, o.beta, o.gamma, angle));
+    const late = cam.srcObject && cam.style.visibility !== "hidden" ? K.videoLag : 0;
+    camera.quaternion.fromArray((late && gyro.at(performance.now() - late)) || orientQ());
   } else {
     camera.quaternion.setFromEuler(new THREE.Euler(-0.6, 0, 0));
   }
@@ -289,6 +349,31 @@ function placeGyro() {
   anchor.matrix.compose(pos, q, new THREE.Vector3().setScalar(K.gyroUnit));
   anchor.visible = true;
   floor.position.set(0, -K.gyroDrop - 0.005, 0);
+}
+
+// ─── связка ───────────────────────────────────────────────────────────────────────────────────────
+const vp = new THREE.Vector3(), vq = new THREE.Quaternion(), vs = new THREE.Vector3();
+
+/** Кадр трекера → измерение связки. `m` — метка в кадре камеры; `at` — миг, когда кадр снят. */
+function feed(m, at) {
+  const q = gyro.at(at - K.videoLag);
+  if (!q) return;
+  m.decompose(vp, vq, vs);
+  const said = fusion.measure(q, vp.toArray().map((v) => v / vs.x), vq.toArray(), performance.now());
+  if (said === "lock") toast("стол поставлен на метку");
+}
+
+let lastFrameAt = performance.now();
+/** Каждый кадр экрана: стол стоит в мире, камера — гироскоп + где её видела метка. */
+function placeFused(now) {
+  const shown = fusion.frame(now - lastFrameAt);
+  if (!fusion.S.locked) { anchor.visible = false; status(S.mode === "code" ? `ищу код №${K.arucoId}…` : "ищу метку…"); return; }
+  const { pos, yaw } = fusion.S.table;
+  anchor.matrix.compose(vp.fromArray(pos), vq.fromArray(levelQ(yaw)), vs.set(1, 1, 1));
+  anchor.visible = true;
+  camera.position.fromArray(shown);
+  const sees = now - fusion.S.seenAt < 400;
+  status(sees ? `держу · метка · ${S.fps} к/с` : "держу гиро · метку не вижу", sees ? "ok" : "");
 }
 
 // ─── съёмка метки ─────────────────────────────────────────────────────────────────────────────────
@@ -464,19 +549,21 @@ function render() {
     $("add").onclick = () => { stopTrackers(); go("capture"); };
   } else if (play) {
     const m = S.markers.find((x) => x.id === S.active);
+    const again = K.fuse >= 0.5 && S.mode !== "gyro" ? '<button class="ghost" id="again">поставить заново</button>' : "";
     if (S.mode === "image") {
-      sheet.innerHTML = `<div class="row"><button class="ghost" id="lib">метки</button><button class="ghost" id="add">новая</button>
+      sheet.innerHTML = `<div class="row"><button class="ghost" id="lib">метки</button><button class="ghost" id="add">новая</button>${again}
         <span class="nums">${m ? `${m.name} · точек ${m.stats.tracking}` : ""}</span></div>`;
       $("lib").onclick = () => { stopTrackers(); go("library"); };
       $("add").onclick = () => { stopTrackers(); go("capture"); };
     } else if (S.mode === "code") {
-      sheet.innerHTML = `<div class="row"><button class="ghost" id="show">показать код №${K.arucoId}</button><span class="nums">на экране второго телефона или на бумаге</span></div>`;
+      sheet.innerHTML = `<div class="row"><button class="ghost" id="show">показать код №${K.arucoId}</button>${again}<span class="nums">на экране второго телефона или на бумаге, лёжа</span></div>`;
       $("show").onclick = showCode;
     } else {
       sheet.innerHTML = `<div class="row"><button class="ghost" id="here">поставить сюда</button><button class="ghost" id="bg">фон: ${S.gyroCam ? "камера" : "сетка"}</button></div>`;
       $("here").onclick = () => { aimCamera(); placeGyro(); };
       $("bg").onclick = () => { S.gyroCam = !S.gyroCam; setMode("gyro"); };
     }
+    if ($("again")) $("again").onclick = () => { fusion.reset(); camera.position.set(0, 0, 0); };
     if (!S.hand.length) refill(); else renderHand();
   } else {
     sheet.innerHTML = "";
@@ -513,7 +600,7 @@ function tick() {
 }
 
 // ─── панель ручек ─────────────────────────────────────────────────────────────────────────────────
-const RESTART = new Set(["filterMinCF", "filterBeta", "warmup", "miss"]);
+const RESTART = new Set(["filterMinCF", "filterBeta", "warmup", "miss", "fuse", "gyroFov"]);
 function buildPanel() {
   const panel = $("panel");
   panel.innerHTML = KNOBS.map(([title, list]) => `<h2>${title}</h2>` + list.map(([k, label, note, , min, max, step]) =>
@@ -528,7 +615,7 @@ function buildPanel() {
     layout();
     if (S.mode === "image" && S.screen === "play" && RESTART.has(inp.dataset.k)) setMode("image");
     if (S.mode === "gyro" && S.screen === "play") placeGyro();
-    if (S.mode === "code" && S.screen === "play") render();
+    if (S.mode === "code" && S.screen === "play") { if (inp.dataset.k === "fuse") setMode("code"); else render(); }
   }));
   $("resetKnobs").onclick = () => {
     try { localStorage.removeItem(KEY); } catch { /* без памяти */ }
@@ -542,6 +629,8 @@ $("knob").onclick = () => $("panel").classList.toggle("open");
 function loop(now) {
   requestAnimationFrame(loop);
   if (S.screen === "play" && S.mode === "code") detectCode();
+  if (S.screen === "play" && fused()) { aimCamera(); placeFused(now); }
+  lastFrameAt = now;
   if (S.screen === "play" && S.mode === "gyro") {
     aimCamera();
     if (S.orient && !S.gyroPlaced) { placeGyro(); S.gyroPlaced = true; gyroStatus(); }
