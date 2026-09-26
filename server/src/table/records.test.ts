@@ -9,7 +9,7 @@ describe("records.sessions-and-matches", () => {
   it("открыли, сели, сыграли две партии — одна сессия, две партии с игроками и проигравшим", () => {
     id = 0;
     const log = [
-      ev(0, "room.open"),
+      ev(0, "room.open", "tg:1", { kind: "krest", title: "Крестовый. Брод", by: "tg:1" }),
       ev(10, "join", "tg:1", { name: "Ye" }),
       ev(20, "join", "tg:2", { name: "Батыр" }),
       ev(30, "match.start", "tg:1", { игроки: [{ key: "tg:1", name: "Ye" }, { key: "tg:2", name: "Батыр" }] }),
@@ -20,6 +20,7 @@ describe("records.sessions-and-matches", () => {
     ];
     const r = recordsOf(log);
     expect(r.people.map((one) => one.name)).toEqual(["Ye", "Батыр"]);
+    expect(r, "имя и род — какими стол открыли").toMatchObject({ title: "Крестовый. Брод", kind: "krest" });
     expect(r.sessions).toHaveLength(1);
     const [first, second] = r.sessions[0]!.matches;
     expect(first).toMatchObject({ from: 4, to: 6, dealer: "tg:1", loser: "tg:2", out: ["tg:1"], players: ["tg:1", "tg:2"] });

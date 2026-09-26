@@ -53,6 +53,9 @@ export interface RecordSession {
 }
 
 export interface Records {
+  /** Имя и род стола, какими его открыли (`room.open`), — у закрытой комнаты другого имени уже нет. */
+  title: string | null;
+  kind: string | null;
   /** Все, кто бывал в комнате: имя — последнее, каким входил. */
   people: { key: string; name: string; firstAt: number; lastAt: number }[];
   sessions: RecordSession[];
@@ -64,6 +67,8 @@ export function recordsOf(log: readonly RecordDeed[]): Records {
   let session: RecordSession | null = null;
   let lastAt = -Infinity;
   let open: RecordMatch | null = null;
+  let title: string | null = null;
+  let kind: string | null = null;
 
   for (const e of log) {
     const cut = e.kind === "room.open" || e.at - lastAt > SESSION_GAP_MS;
@@ -76,6 +81,11 @@ export function recordsOf(log: readonly RecordDeed[]): Records {
     session.endAt = e.at;
     lastAt = e.at;
 
+    if (e.kind === "room.open") {
+      const was = e.what as { title?: unknown; kind?: unknown } | undefined;
+      if (typeof was?.title === "string") title = was.title;
+      if (typeof was?.kind === "string") kind = was.kind;
+    }
     if (e.kind === "join" && e.who) {
       const name = (e.what as { name?: unknown } | undefined)?.name;
       const was = people.get(e.who);
@@ -95,5 +105,5 @@ export function recordsOf(log: readonly RecordDeed[]): Records {
       open = null;
     }
   }
-  return { people: [...people.values()], sessions };
+  return { title, kind, people: [...people.values()], sessions };
 }

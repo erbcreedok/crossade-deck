@@ -9,6 +9,8 @@
 //   TABLE_TURN_URL       ретранслятор голоса (`turn:host:3478`), через запятую — несколько
 //   TABLE_TURN_USER      имя и пароль к нему
 //   TABLE_TURN_PASS
+//   TABLE_OWNERS         хозяева всех столов — ключи через запятую (`tg:254410503`): им открыта
+//                        страница «Все столы». Не секрет, а список: кого пускать.
 
 import type { IceServer } from "./contract.js";
 
@@ -18,6 +20,7 @@ export const tableConfig = () => ({
   guests: process.env.TABLE_GUESTS === "1",
   publicUrl: process.env.TABLE_PUBLIC_URL || undefined,
   relayUrl: process.env.TABLE_RELAY_URL || undefined,
+  owners: (process.env.TABLE_OWNERS ?? "").split(",").map((one) => one.trim()).filter(Boolean),
   turn: turnOf(),
 });
 

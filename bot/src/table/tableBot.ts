@@ -66,6 +66,13 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
   });
 
+  // «ВСЕ СТОЛЫ» — страница хозяина. Кнопка мини-аппа живёт только в личке: там Telegram подписывает,
+  // кто открыл, и стол пускает по этой подписи. Кого пускать, решает стол (`TABLE_OWNERS`), а не бот.
+  bot.command("admin", async (ctx) => {
+    if (!inPrivate(ctx)) return void (await ctx.reply("«Все столы» открываются в личке со мной: напиши мне /admin."));
+    await ctx.reply("Все столы: кто сидит и сидел, сколько партий, записи — глазами крупье или любого игрока.", { reply_markup: keyboardOf([[{ text: "Все столы", app: api.adminUrl() }]]) });
+  });
+
   // ЗАПИСИ ПАРТИЙ — по команде, а не сами: чат не засыпается ссылками после каждой партии.
   bot.command("records", async (ctx) => {
     const cards = await tablesFor(ctx);

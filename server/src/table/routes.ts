@@ -13,10 +13,15 @@ import { tableConfig } from "./config.js";
 import { DEFAULT_DESK, isDesk } from "./desks.js";
 import { isCrew } from "./crews.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
-import { closeEntry, findEntry, isBuried, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, botsIn, lookIn, playIn, runIn, setAdmin } from "./lobby.js";
+import { allEntries, closeEntry, findEntry, isBuried, openEntry, ownerOf, recast, recrew, rehome, rename, roomsAt, roomsBy, botsIn, lookIn, playIn, runIn, setAdmin } from "./lobby.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomsSeen } from "../db/eventsRepo.js";
 import { RECORD_KINDS, recordsOf } from "./records.js";
+import { roomsReport } from "./admin.js";
+import { verifyTelegramInitData } from "../telegramAuth.js";
+
+/** Подпись Mini App — заголовком: в адресе ей не место, адрес пересылают. */
+export const TELEGRAM_HEADER = "x-telegram-init-data";
 import { mintPass, passRoom, PASS_HOURS } from "./pass.js";
 
 /** Этот запуск. Новый процесс — новый `boot`: по нему бот понимает, что прежних столов нет. */
@@ -193,7 +198,23 @@ export function tableRoutes(): Router {
     const room = req.params.room;
     const log = deedsOfKinds(room, RECORD_KINDS);
     const until = Date.now() + KEEP_DAYS * 24 * 60 * 60 * 1000;
-    res.json({ room, title: findEntry(room)?.title ?? null, ...recordsOf(log), pass: mintPass(room, tableConfig().secret!, until), until });
+    const records = recordsOf(log);
+    res.json({ room, ...records, title: findEntry(room)?.title ?? records.title, pass: mintPass(room, tableConfig().secret!, until), until });
+  });
+
+  /**
+   * «ВСЕ СТОЛЫ» — только хозяевам (`TABLE_OWNERS`). Человек приходит из Mini App с подписью Telegram
+   * в заголовке — секрета в ссылке нет, пересылать нечего. Секрет стола тоже пускает: так ходят прогоны.
+   */
+  r.get("/table/admin/rooms", (req, res) => {
+    const config = tableConfig();
+    const signed = req.header(TELEGRAM_HEADER);
+    const user = signed && config.botToken ? verifyTelegramInitData(signed, config.botToken) : null;
+    const owner = sameSecret(req.header(SECRET_HEADER), config.secret) || (user !== null && config.owners.includes(`tg:${user.id}`));
+    if (!owner) return void res.status(403).json({ error: "not_owner" });
+    const until = Date.now() + KEEP_DAYS * 24 * 60 * 60 * 1000;
+    const rooms = roomsReport(roomsSeen(200), allEntries(), (room) => deedsOfKinds(room, RECORD_KINDS)).map((one) => ({ ...one, pass: mintPass(one.room, config.secret!, until) }));
+    res.json({ rooms, until });
   });
 
   r.get("/table/rooms/:room", guarded, (req, res) => {
@@ -331,7 +352,8 @@ export function relayRoutes(fetchPage: (url: string) => Promise<Response> = (url
     if (!status.up || !status.url) return down();
     // ЗАПИСЬ ПАРТИИ — ТОЖЕ ЧЕРЕЗ ПОСТОЯННЫЙ АДРЕС. Ссылку на запись пересылают и открывают позже, а
     // адрес мака живёт до следующего перезапуска туннеля: постоянным он бывает только здесь.
-    const страница = /^\/t\/replay\/?$/.test(req.path) ? "replay" : "";
+    // «ВСЕ СТОЛЫ» — туда же: Mini App открывается с постоянного адреса, иначе Telegram не отдаст подпись.
+    const страница = /^\/t\/replay\/?$/.test(req.path) ? "replay" : /^\/t\/admin\/?$/.test(req.path) ? "admin" : "";
     try {
       const page = await fetchPage(`${status.url}/table/${страница}`);
       if (!page.ok) return down();

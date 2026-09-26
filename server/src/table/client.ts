@@ -31,6 +31,11 @@ export function clientRoutes(source: ClientSource = fromEnv()): Router {
   r.get("/table/bots", fresh, async (_req, res) => {
     res.type("html").send(await source.page("bots"));
   });
+  // «ВСЕ СТОЛЫ» — страница хозяина, тоже без бандла. Сама ничего не знает: стол пускает по подписи
+  // Telegram, которую она приносит (`/table/admin/rooms`).
+  r.get("/table/admin", fresh, async (_req, res) => {
+    res.type("html").send(await source.page("admin"));
+  });
 
   for (const [path, page, script] of pages) {
     r.get(path, fresh, async (_req, res) => {

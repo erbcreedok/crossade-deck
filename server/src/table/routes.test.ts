@@ -1,4 +1,5 @@
 import type { AddressInfo } from "net";
+import { createHmac } from "crypto";
 import express from "express";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync } from "fs";
@@ -276,5 +277,32 @@ describe("/table/rooms/:room/records — записи комнаты для бо
     const m = got.sessions[0]!.matches[0] as unknown as { from: number; to: number };
     const lane = (await (await call(`/table/journal?room=${room}&pass=${encodeURIComponent(got.pass)}&from=${m.from}&to=${m.to}`, { secret: null })).json()) as { deeds: { kind: string }[] };
     expect(lane.deeds.map((d) => d.kind)).toEqual(["match.start", "match.end"]);
+  });
+});
+
+describe("/table/admin/rooms — «Все столы» только хозяевам", () => {
+  const signed = (id: number) => {
+    const fields = { auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id, first_name: "X" }) };
+    const line = Object.keys(fields).sort().map((k) => `${k}=${fields[k as keyof typeof fields]}`).join("\n");
+    const key = createHmac("sha256", "WebAppData").update("bot-token").digest();
+    return new URLSearchParams({ ...fields, hash: createHmac("sha256", key).update(line).digest("hex") }).toString();
+  };
+
+  it("хозяин по подписи Telegram видит комнаты с записями; чужой и без подписи — нет", async () => {
+    process.env.TELEGRAM_BOT_TOKEN = "bot-token";
+    process.env.TABLE_OWNERS = "tg:254410503";
+    tellAll([
+      { at: Date.now(), room: "admin-room", side: "table", kind: "room.open", what: { title: "Крестовый. Брод", kind: "krest" } },
+      { at: Date.now(), room: "admin-room", who: "tg:7", side: "table", kind: "join", what: { name: "Ye" } },
+    ]);
+    expect((await call("/table/admin/rooms", { secret: null })).status, "без подписи").toBe(403);
+    expect((await fetch(`${base}/table/admin/rooms`, { headers: { "x-telegram-init-data": signed(1) } })).status, "чужой").toBe(403);
+    const res = await fetch(`${base}/table/admin/rooms`, { headers: { "x-telegram-init-data": signed(254410503) } });
+    expect(res.status, "хозяин").toBe(200);
+    const { rooms } = (await res.json()) as { rooms: { room: string; title: string; live: boolean; pass: string; records: { people: { name: string }[] } }[] };
+    const one = rooms.find((r) => r.room === "admin-room");
+    expect(one, "закрытая комната из журнала — с именем, каким её открыли").toMatchObject({ title: "Крестовый. Брод", live: false });
+    expect(one!.records.people.map((p) => p.name)).toEqual(["Ye"]);
+    expect(typeof one!.pass).toBe("string");
   });
 });

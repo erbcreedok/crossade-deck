@@ -107,6 +107,11 @@ export class TableApi {
     return this.call<RoomRecords>("GET", `/table/rooms/${encodeURIComponent(room)}/records`);
   }
 
+  /** «Все столы» — страница хозяина, на постоянном адресе: оттуда Telegram отдаёт мини-аппу подпись. */
+  adminUrl(): string {
+    return `${this.env.relayUrl ?? this.env.serverUrl}/${this.env.relayUrl ? "t" : "table"}/admin`;
+  }
+
   /** Постоянная ссылка на запись одной партии — через реле, как и сам стол. По умолчанию глазами крупье. */
   replayUrl(room: string, pass: string, from: number, to: number | null): string {
     const q = new URLSearchParams({ room, pass, from: String(from), ...(to === null ? {} : { to: String(to) }) });

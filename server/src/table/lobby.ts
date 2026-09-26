@@ -186,6 +186,9 @@ export const kindOf = (room: string): string => rooms.get(room)?.kind ?? DEFAULT
 /** Набор крупье этой комнаты. */
 export const crewKind = (room: string): string => rooms.get(room)?.crew ?? DEFAULT_CREW;
 
+/** Все живые комнаты — для страницы хозяина («Все столы»). */
+export const allEntries = (): RoomCard[] => [...rooms.values()].map(card);
+
 export function roomsAt(home: Home): RoomCard[] {
   return [...rooms.values()]
     .filter((e) => (home.kind === "chat" ? e.home.kind === "chat" && e.home.chat === home.chat : e.home.kind === "inline" && e.home.message === home.message))

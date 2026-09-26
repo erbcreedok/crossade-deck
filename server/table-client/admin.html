@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Все столы</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      :root { --felt: #14291f; --card: #16191a; --line: #2a2f30; --ink: #e8e4d9; --dim: #9aa3a1; --gold: #c9a227; --live: #6fd08c; --hurt: #e8836f; }
+      html, body { margin: 0; background: var(--felt); color: var(--ink); font: 15px/1.5 system-ui, sans-serif; }
+      .wrap { max-width: 720px; margin: 0 auto; padding: 16px; padding-top: calc(16px + var(--tg-content-safe-area-inset-top, 0px) + var(--tg-safe-area-inset-top, 0px)); }
+      h1 { font-size: 20px; margin: 0 0 2px; }
+      .sub { color: var(--dim); font-size: 13px; margin: 0 0 14px; }
+      .стол { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+      .стол.жив { border-left: 4px solid var(--live); }
+      .шапка { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+      .имя { font-size: 17px; font-weight: 600; }
+      .метка { font-size: 12px; color: var(--dim); font-family: ui-monospace, Menlo, monospace; }
+      .метка.жив { color: var(--live); }
+      .люди { margin-top: 6px; font-size: 13.5px; color: var(--dim); }
+      .люди b { color: var(--ink); font-weight: 500; }
+      details { margin-top: 8px; }
+      summary { cursor: pointer; color: var(--gold); font-size: 13.5px; list-style: none; }
+      summary::-webkit-details-marker { display: none; }
+      summary::before { content: "▸ "; }
+      details[open] > summary::before { content: "▾ "; }
+      .посиделки { margin: 8px 0 0 8px; padding-left: 10px; border-left: 1px solid var(--line); }
+      .когда { font-size: 12.5px; color: var(--dim); margin: 8px 0 4px; font-family: ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+      .партия { padding: 8px 0; border-top: 1px solid var(--line); }
+      .партия:first-of-type { border-top: 0; }
+      .итог { font-size: 14px; }
+      .итог .проиграл { color: var(--hurt); }
+      .глаза { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+      .глаза a { text-decoration: none; font-size: 12.5px; color: var(--ink); background: #22282a; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; }
+      .глаза a.главная { background: var(--gold); color: #0b0704; border-color: var(--gold); font-weight: 600; }
+      .глаза a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+      .пусто { color: var(--dim); padding: 24px 0; text-align: center; }
+      .плохо { color: var(--hurt); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Все столы</h1>
+      <p class="sub" id="итог">Спрашиваю стол…</p>
+      <div id="список"></div>
+    </div>
+    <script>
+      // «ВСЕ СТОЛЫ» — страница хозяина. Пускает стол, а не страница: она лишь приносит подпись Telegram
+      // (`x-telegram-init-data`), а сервер сверяет её со списком хозяев. Под реле страница живёт на
+      // постоянном адресе, а стол спрашивает по адресу мака (`__TABLE_HOST__`).
+      const HOST = (window.__TABLE_HOST__ ?? location.origin).replace(/\/+$/, "");
+      const tg = window.Telegram?.WebApp;
+      tg?.ready?.();
+      tg?.expand?.();
+      const esc = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+      const время = (at) => new Date(at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+      const часы = (at) => new Date(at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+
+      /** Запись партии — соседняя страница: под реле `/t/replay`, на маке `/table/replay`. */
+      const запись = (стол, партия, глаза) => {
+        const q = new URLSearchParams({ room: стол.room, pass: стол.pass, from: String(партия.from), ...(партия.to === null ? {} : { to: String(партия.to) }), ...(глаза ? { eyes: глаза } : {}) });
+        return new URL(`replay?${q}`, location.href).toString();
+      };
+
+      function партияHtml(стол, партия) {
+        const имя = (key) => стол.records.people.find((p) => p.key === key)?.name ?? (key?.startsWith("bot:") ? "бот" : key ?? "—");
+        const кто = партия.players.map(имя).join(", ");
+        const итог = партия.to === null ? "не доиграна" : партия.loser === null ? "ничья" : `проиграл <span class="проиграл">${esc(имя(партия.loser))}</span>`;
+        const глаза = [`<a class="главная" href="${esc(запись(стол, партия))}">Смотреть · глазами крупье</a>`]
+          .concat(партия.players.map((key) => `<a href="${esc(запись(стол, партия, key))}">глазами ${esc(имя(key))}</a>`));
+        return `<div class="партия"><div class="итог">${часы(партия.at)} · ${esc(кто)} — ${итог}</div><div class="глаза">${глаза.join("")}</div></div>`;
+      }
+
+      function столHtml(стол) {
+        const бывали = стол.records.people.map((p) => p.name);
+        const посиделки = стол.records.sessions.filter((s) => s.matches.length > 0).reverse();
+        const партии = посиделки.map((s) => `<div class="когда">${время(s.at)}–${часы(s.endAt)} · партий: ${s.matches.length}</div>${[...s.matches].reverse().map((m) => партияHtml(стол, m)).join("")}`).join("");
+        return `<div class="стол${стол.live ? " жив" : ""}">`
+          + `<div class="шапка"><span class="имя">${esc(стол.title)}</span><span class="метка${стол.live ? " жив" : ""}">${стол.live ? "живой" : "закрыт"}</span><span class="метка">${esc(стол.kind ?? "")} · ${время(стол.lastAt)}</span></div>`
+          + `<div class="люди">Сейчас: <b>${стол.now.length ? esc(стол.now.join(", ")) : "никого"}</b></div>`
+          + `<div class="люди">Бывали: <b>${бывали.length ? esc(бывали.join(", ")) : "—"}</b> · партий сыграно: <b>${стол.played}</b></div>`
+          + (посиделки.length ? `<details><summary>Записи</summary><div class="посиделки">${партии}</div></details>` : "")
+          + `</div>`;
+      }
+
+      async function показать() {
+        const итог = document.getElementById("итог");
+        const подпись = tg?.initData ?? "";
+        if (!подпись) {
+          итог.innerHTML = `<span class="плохо">Открой эту страницу из бота — кнопкой «Все столы»: без Telegram стол не знает, кто ты.</span>`;
+          return;
+        }
+        const ответ = await fetch(`${HOST}/table/admin/rooms`, { headers: { "x-telegram-init-data": подпись } }).catch(() => null);
+        if (!ответ) return void (итог.innerHTML = `<span class="плохо">Стол не отвечает.</span>`);
+        if (ответ.status === 403) return void (итог.innerHTML = `<span class="плохо">Эта страница — только хозяевам столов.</span>`);
+        if (!ответ.ok) return void (итог.innerHTML = `<span class="плохо">Стол ответил ${ответ.status}.</span>`);
+        const { rooms } = await ответ.json();
+        const живых = rooms.filter((r) => r.live).length;
+        итог.textContent = `Столов: ${rooms.length}, живых: ${живых}. Записи хранятся 30 дней.`;
+        document.getElementById("список").innerHTML = rooms.length ? rooms.map(столHtml).join("") : `<div class="пусто">Столов пока не было.</div>`;
+      }
+      показать();
+    </script>
+  </body>
+</html>

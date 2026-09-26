@@ -4,6 +4,8 @@ import { RECORDS_SHOWN, recordsSay } from "./records.js";
 
 const match = (from: number, at: number, loser: string | null, to: number | null = from + 1) => ({ from, to, at, endAt: at + 1, dealer: "tg:1", players: ["tg:1", "tg:2", "bot:игрок1"], loser, out: [] });
 const records = (matches: ReturnType<typeof match>[]): Records => ({
+  title: null,
+  kind: null,
   people: [{ key: "tg:1", name: "Ye", firstAt: 0, lastAt: 0 }, { key: "tg:2", name: "Батыр", firstAt: 0, lastAt: 0 }],
   sessions: [{ from: 1, to: 99, at: 0, endAt: 0, people: ["tg:1", "tg:2"], matches }],
 });
