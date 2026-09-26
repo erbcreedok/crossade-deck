@@ -1,0 +1,25 @@
+server/src/table/records.test.ts
+  s_9ed0da107cbc4a::t_625aa27f55364c 1-50
+server/src/table/records.ts
+  s_9ed0da107cbc4a::t_35945805323f7f 1-83
+server/src/table/TableRoom.ts
+  s_9ed0da107cbc4a::t_565f11be909670 477,1138-1140,1380-1407
+server/src/table/chronicleRoom.test.ts
+  s_9ed0da107cbc4a::t_dff90ac3f8cf41 11-13,96-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4e6bdec95e7011dc95404bc0971368c8d85fd395",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
