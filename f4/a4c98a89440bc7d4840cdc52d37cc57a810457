@@ -1,0 +1,24 @@
+server/scripts/tableCloseRing.mjs
+  s_e1c4165d82711d::t_6f5a2bb8c92b26 1-73,75-76,79-98
+  s_e1c4165d82711d::t_6e7e46dbe5b8cf 74
+  s_e1c4165d82711d::t_3aeb93fb68089f 77-78
+server/table-client/screen.ts
+  s_e1c4165d82711d::t_789fba27243d10 1236,1333-1352,4147-4151
+  s_e1c4165d82711d::t_e339930c382326 4152-4153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f4a4c98a89440bc7d4840cdc52d37cc57a810457",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
