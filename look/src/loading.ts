@@ -97,15 +97,21 @@ export interface Loading {
 export function loadingCross(over: HTMLElement, label: string): Loading {
   installStyle();
 
-  const sheet = document.createElement("div");
-  sheet.className = "crossade-loading";
-  sheet.innerHTML =
-    `<svg viewBox="-8 -8 116 116" aria-hidden="true"><path class="line" pathLength="1" d="${CROSS_PATH}"/></svg>` +
-    `<div class="said"></div>`;
+  // ALREADY ON SCREEN? A page that must not show a blank while its script travels carries the
+  // screen in its own markup (`loadingMarkup`). The script then TAKES THAT ONE rather than raising a
+  // second on top of it: the cross keeps its phase, and there is no cut at the handover.
+  const baked = over.querySelector<HTMLElement>(":scope > .crossade-loading[data-baked]");
+  const sheet = baked ?? document.createElement("div");
+  if (!baked) {
+    sheet.className = "crossade-loading";
+    sheet.innerHTML =
+      `<svg viewBox="-8 -8 116 116" aria-hidden="true"><path class="line" pathLength="1" d="${CROSS_PATH}"/></svg>` +
+      `<div class="said"></div>`;
+    over.appendChild(sheet);
+  }
   // THE LABEL AS TEXT, never as markup: it is a game's name today and a name somebody types
   // tomorrow, and a screen is not a place to find out that the difference matters.
   (sheet.lastElementChild as HTMLElement).textContent = label;
-  over.appendChild(sheet);
 
   let up = true;
   return {
@@ -119,4 +125,16 @@ export function loadingCross(over: HTMLElement, label: string): Loading {
     },
     showing: () => up,
   };
+}
+
+/**
+ * THE SAME SCREEN AS MARKUP, for a page to carry in its own HTML — on screen before a single script
+ * has arrived. One source: a page pastes exactly this string, and a guard compares the page with
+ * it, so the page's copy cannot drift from the module's (`server/table-client/boot.test.ts`).
+ * `loadingCross` adopts it when the script comes (`data-baked`).
+ */
+export function loadingMarkup(label: string): string {
+  const said = label.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  return `<style id="${SHEET_ID}">${CSS}</style>`
+    + `<div class="crossade-loading" data-baked><svg viewBox="-8 -8 116 116" aria-hidden="true"><path class="line" pathLength="1" d="${CROSS_PATH}"/></svg><div class="said">${said}</div></div>`;
 }

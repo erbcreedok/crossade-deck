@@ -108,8 +108,9 @@ document.addEventListener(
 );
 mountGround(stage);
 // ЛОАДЕР ХАБА — до входа и до последней картинки колоды. Поверх всего: у стола свои слои выше.
+// Крест уже висит — он в самой странице (`index.html`), и `loadingCross` подхватывает его, а не рисует второй.
 const loading = loadingCross(document.body, "Загружаю стол");
-(document.body.lastElementChild as HTMLElement).style.zIndex = "1000";
+document.querySelector<HTMLElement>("body > .crossade-loading")!.style.zIndex = "1000";
 
 // ЖУРНАЛ ЭКРАНА НАЧИНАЕТСЯ ДО ВХОДА: падение при загрузке — тоже рассказ, и именно его разобрать
 // труднее всего. Пока хранилища нет, рассказывать некуда, и пачка ждёт в памяти до первого `tell`

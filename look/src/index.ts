@@ -21,6 +21,6 @@ export {
   TITLE,
 } from "./surfaces.js";
 export { hubRuler } from "./fonts.js";
-export { loadingCross, CROSS_PATH, LOADING_MS, type Loading } from "./loading.js";
+export { loadingCross, loadingMarkup, CROSS_PATH, LOADING_MS, type Loading } from "./loading.js";
 export { TWINKLE, twinkleLevel, twinkleStep } from "./twinkle.js";
 export { AT_REST, DRIFT, DRIFT_DIAMONDS, driftStep, type Drift } from "./drift.js";

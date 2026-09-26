@@ -10,7 +10,7 @@
 // the product, not to one game: a cross for everybody, and the LABEL says what is coming.
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { CROSS_PATH, loadingCross } from "./loading.js";
+import { CROSS_PATH, loadingCross, loadingMarkup } from "./loading.js";
 
 const stage = (): HTMLElement => {
   const el = document.createElement("div");
@@ -81,5 +81,26 @@ describe("look.the-loading-screen-goes-away", () => {
     loadingCross(over, "<img src=x onerror=1>");
     expect(over.querySelectorAll("img").length).toBe(0);
     expect(over.textContent).toBe("<img src=x onerror=1>");
+  });
+});
+
+describe("loading.adopts-the-baked-cross", () => {
+  it("a page that carries the cross in its HTML gets THAT one taken over, not a second on top", () => {
+    const over = stage();
+    over.innerHTML = loadingMarkup("Загружаю стол");
+    const baked = over.querySelector(".crossade-loading");
+    const l = loadingCross(over, "Загружаю стол");
+    expect(over.querySelectorAll(".crossade-loading")).toHaveLength(1);
+    expect(over.querySelector(".crossade-loading")).toBe(baked);
+    l.done();
+    expect(l.showing()).toBe(false);
+    expect(baked!.classList.contains("gone")).toBe(true);
+  });
+
+  it("the markup is the module's own drawing and says its label as text", () => {
+    const html = loadingMarkup("<стол>");
+    expect(html).toContain(`d="${CROSS_PATH}"`);
+    expect(html).toContain("&lt;стол>");
+    expect(html).not.toContain("url(");
   });
 });
