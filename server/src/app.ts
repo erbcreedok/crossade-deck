@@ -147,6 +147,14 @@ const APP_SOURCE = (process.env.APP_SOURCE || "").trim().toLowerCase().replace(/
 export const ALLOWED_METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"] as const;
 
 /**
+ * ЗАГОЛОВКИ, КОТОРЫЕ СТРАНИЦА МОЖЕТ ПРИСЛАТЬ С ЧУЖОГО АДРЕСА. Страница стола живёт на реле (Fly), а
+ * спрашивает мак — и заголовок, которого нет в этом списке, браузер режет до отправки: «Load failed»,
+ * хотя маршрут жив. Так «Мои комнаты» и «Все столы» не открывались с телефона. Сторож сверяет список со
+ * всем, что шлют страницы стола (`cors.test.ts`).
+ */
+export const ALLOWED_HEADERS = ["Content-Type", "x-telegram-init-data", "x-table-secret"] as const;
+
+/**
  * ЧТО ТЕЛЕГА ПРЕДЛАГАЕТ ЧЕЛОВЕКУ, как это видно из подписанной `initData`: подпись двери, тамошнее
  * имя и тамошнее лицо. Ссылка на лицо здесь приходит готовой — у Mini App она есть без токена.
  */
@@ -172,7 +180,7 @@ export function createApp() {
     // он недостижим — и выглядит это как «сервер не отвечает». Сторож сверяет список с тем, что
     // приложение и правда зарегистрировало (`cors.test.ts`).
     res.header("Access-Control-Allow-Methods", ALLOWED_METHODS.join(", "));
-    res.header("Access-Control-Allow-Headers", "Content-Type");
+    res.header("Access-Control-Allow-Headers", ALLOWED_HEADERS.join(", "));
     if (req.method === "OPTIONS") return res.sendStatus(204);
     next();
   });

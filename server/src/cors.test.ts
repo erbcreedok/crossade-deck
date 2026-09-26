@@ -5,7 +5,9 @@
 // Ровно так `DELETE` на отвязке телеграма провисел до первого живого нажатия.
 
 import { describe, it, expect } from "vitest";
-import { ALLOWED_METHODS, createApp } from "./app.js";
+import { readdirSync, readFileSync } from "fs";
+import { join } from "path";
+import { ALLOWED_HEADERS, ALLOWED_METHODS, createApp } from "./app.js";
 
 /** Все глаголы, под которые приложение зарегистрировало хоть один маршрут. */
 function registeredVerbs(app: ReturnType<typeof createApp>["app"]): string[] {
@@ -29,5 +31,18 @@ describe("cors.every-verb-the-app-answers-is-allowed", () => {
     const verbs = registeredVerbs(createApp().app);
     expect(verbs).toContain("DELETE");
     expect(verbs.length).toBeGreaterThan(3);
+  });
+});
+
+describe("cors.every-header-the-pages-send-is-allowed", () => {
+  it("каждый свой заголовок, который шлют страницы стола, есть в списке для браузера", () => {
+    const dir = join(__dirname, "..", "table-client");
+    const sent = new Set<string>();
+    for (const file of readdirSync(dir).filter((f) => /\.(ts|html)$/.test(f) && !f.endsWith(".test.ts"))) {
+      for (const m of readFileSync(join(dir, file), "utf8").matchAll(/["'](x-[a-z-]+)["']\s*:/g)) sent.add(m[1]!);
+    }
+    expect(sent.size, "сторож видит настоящие заголовки").toBeGreaterThan(0);
+    const allowed = ALLOWED_HEADERS.map((h) => h.toLowerCase());
+    expect([...sent].filter((h) => !allowed.includes(h))).toEqual([]);
   });
 });
