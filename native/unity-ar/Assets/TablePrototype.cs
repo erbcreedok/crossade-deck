@@ -18,7 +18,12 @@ public sealed class TablePrototype : MonoBehaviour
     Transform table;
     ARAnchor anchor;
     Font font;
-    static Mesh cube;
+    TableView tableView;
+    TableLink link;
+    Dictionary<string, object> snapshot;
+    string me, status = "";
+    float syncAt = -1, retryAt = -1;
+    int failures;
     bool ar, placing, busy;
     int generation;
     float yaw, pitch = 52, distance = 1.5f;
@@ -60,53 +65,18 @@ public sealed class TablePrototype : MonoBehaviour
         session.enabled = false;
         sessionObject.SetActive(true);
         table = new GameObject("Card Table").transform;
-        MakeTable();
+        tableView = new TableView(table, font);
         Orbit();
+        Application.deepLinkActivated += Opened;
+        if (!string.IsNullOrEmpty(Application.absoluteURL)) Opened(Application.absoluteURL);
+        else if (PlayerPrefs.HasKey(PASS)) Connect();
+        else status = "Открой стол в Telegram: Настройки → Приложение Crossade AR";
     }
 
     void SetComponents(bool enabled)
     {
         cameraManager.enabled = background.enabled = poseDriver.enabled = enabled;
         planes.enabled = rays.enabled = anchors.enabled = enabled;
-    }
-
-    void MakeTable()
-    {
-        Box("Felt", new Vector3(0, -.025f, 0), new Vector3(.85f, .045f, 1.15f), new Color(.07f,.34f,.25f));
-        for (int i = 0; i < 7; i++)
-            Card(new Vector3((i-3)*.072f, .008f, -.38f), i%2 == 0, i+6);
-        for (int i = 0; i < 4; i++)
-            Card(new Vector3((i%2-.5f)*.12f, .008f+i*.001f, (i/2-.5f)*.17f), i%2 == 0, i+7);
-        Box("Deck", new Vector3(.28f,.025f,.36f), new Vector3(.064f,.05f,.09f), new Color(.65f,.12f,.18f));
-    }
-
-    void Card(Vector3 at, bool red, int rank)
-    {
-        Box("Card", at, new Vector3(.064f,.002f,.09f), Color.white);
-        var label = new GameObject("Rank").AddComponent<TextMesh>();
-        label.transform.SetParent(table, false);
-        label.transform.localPosition = at + Vector3.up*.002f;
-        label.transform.localRotation = Quaternion.Euler(90,0,0);
-        label.anchor = TextAnchor.MiddleCenter;
-        label.characterSize = .013f;
-        label.fontSize = 48;
-        label.text = rank <= 10 ? rank.ToString() : "J";
-        label.color = red ? new Color(.7f,.06f,.12f) : Color.black;
-        if (font != null) { label.font = font; label.GetComponent<Renderer>().sharedMaterial = font.material; }
-        else label.gameObject.SetActive(false);
-    }
-
-    void Box(string name, Vector3 at, Vector3 size, Color color)
-    {
-        // A bare mesh, not CreatePrimitive: that one adds a BoxCollider, and physics is stripped from the build.
-        var obj = new GameObject(name);
-        obj.transform.SetParent(table, false);
-        obj.transform.localPosition = at;
-        obj.transform.localScale = size;
-        obj.AddComponent<MeshFilter>().sharedMesh = cube ??= Resources.GetBuiltinResource<Mesh>("Cube.fbx");
-        var material = new Material(Shader.Find("Unlit/Color"));
-        material.color = color;
-        obj.AddComponent<MeshRenderer>().sharedMaterial = material;
     }
 
     void ChangeMode()
@@ -130,8 +100,113 @@ public sealed class TablePrototype : MonoBehaviour
         view.transform.LookAt(Vector3.zero);
     }
 
+    // ─── ЗА СТОЛОМ ───────────────────────────────────────────────────────────────────────────────
+    // Пропуск приходит ссылкой из Telegram (`crossade://table?room&pass&host`) и живёт в памяти телефона:
+    // приложение, открытое без ссылки, садится за последний стол. Адрес мака меняется при перезапуске
+    // туннеля — тогда новый берётся у реле.
+    const string ROOM = "crossade.room", PASS = "crossade.pass", HOST = "crossade.host";
+    const string RELAY = "https://crossade-deck-server.fly.dev/relay/table";
+    const int PROTOCOL = 2;
+
+    void Opened(string url)
+    {
+        var query = new System.Uri(url).Query.TrimStart('?').Split('&');
+        foreach (var pair in query)
+        {
+            var cut = pair.IndexOf('=');
+            if (cut <= 0) continue;
+            var value = System.Uri.UnescapeDataString(pair[(cut + 1)..].Replace('+', ' '));
+            switch (pair[..cut])
+            {
+                case "room": PlayerPrefs.SetString(ROOM, value); break;
+                case "pass": PlayerPrefs.SetString(PASS, value); break;
+                case "host": PlayerPrefs.SetString(HOST, value); break;
+            }
+        }
+        PlayerPrefs.Save();
+        failures = 0;
+        Connect();
+    }
+
+    async void Connect()
+    {
+        link?.Leave();
+        link = null;
+        retryAt = -1;
+        string room = PlayerPrefs.GetString(ROOM), pass = PlayerPrefs.GetString(PASS), host = PlayerPrefs.GetString(HOST);
+        status = "Сажусь за стол…";
+        try
+        {
+            // Со второй неудачи подряд адрес мака спрашиваем у реле: туннель мог смениться.
+            if (failures > 0 || string.IsNullOrEmpty(host))
+            {
+                using var http = new System.Net.Http.HttpClient { Timeout = System.TimeSpan.FromSeconds(10) };
+                var fresh = TableLink.Field(await http.GetStringAsync(RELAY), "url");
+                if (!string.IsNullOrEmpty(fresh)) { host = fresh; PlayerPrefs.SetString(HOST, host); }
+            }
+            var joined = await TableLink.Join(host, new Dictionary<string, string> {
+                ["room"] = room, ["client"] = "unity", ["door"] = "app", ["pass"] = pass, ["protocol"] = PROTOCOL.ToString() });
+            link = joined;
+            link.Message += Heard;
+            link.Closed += Lost;
+            link.Send("hello");
+        }
+        catch (System.Exception e)
+        {
+            Lost(e.Message);
+        }
+    }
+
+    void Lost(string why)
+    {
+        link = null;
+        failures++;
+        // Отказ стола по пропуску не лечится повтором — нужна новая ссылка из Telegram.
+        if (why.Contains("who are you") || why.Contains("room closed") || why.Contains("unsigned room"))
+        {
+            status = why.Contains("who are you") ? "Пропуск протух — возьми новый в Telegram" : "Стол закрыт";
+            return;
+        }
+        status = "Нет связи со столом: " + why;
+        retryAt = Time.realtimeSinceStartup + Mathf.Min(10, 2 * failures);
+    }
+
+    void Heard(string type, object body)
+    {
+        switch (type)
+        {
+            case "welcome":
+                failures = 0;
+                me = body.Obj("you").Str("key");
+                snapshot = body.Obj("snapshot");
+                status = body.Obj("you").Str("name") ?? "";
+                if (snapshot != null) tableView.Show(snapshot, me);
+                break;
+            // Стол изменился. Чтобы смотреть, перекладывать операции не нужно: просим свежий снимок, не чаще
+            // четырёх раз в секунду, — движение собирается в одну перестройку.
+            case "patch":
+                if (syncAt < 0) syncAt = Time.realtimeSinceStartup + .25f;
+                break;
+            case "pulse":
+                if (snapshot != null && body.Num("v") != snapshot.Num("v") && syncAt < 0) syncAt = Time.realtimeSinceStartup;
+                break;
+        }
+    }
+
+    void OnApplicationPause(bool paused)
+    {
+        if (paused) { link?.Leave(); link = null; }
+        else if (PlayerPrefs.HasKey(PASS) && link == null) Connect();
+    }
+
     void Update()
     {
+        if (syncAt >= 0 && Time.realtimeSinceStartup >= syncAt)
+        {
+            syncAt = -1;
+            link?.Send("intent", new Dictionary<string, object> { ["t"] = "sync" });
+        }
+        if (retryAt >= 0 && Time.realtimeSinceStartup >= retryAt) Connect();
         if (ar || !Input.GetMouseButton(0) || Input.mousePosition.y < Screen.height*.18f) return;
         yaw += Input.GetAxis("Mouse X")*3;
         pitch = Mathf.Clamp(pitch-Input.GetAxis("Mouse Y")*3,15,85);
@@ -174,10 +249,13 @@ public sealed class TablePrototype : MonoBehaviour
         float bottom = (Screen.height-Screen.safeArea.yMin)/scale-68;
         GUI.skin.button.fontSize = 20;
         GUI.skin.label.fontSize = 20;
+        float top = (Screen.height-Screen.safeArea.yMax)/scale+12;
+        GUI.skin.label.wordWrap = true;
+        GUI.Label(new Rect(16,top,358,60), status);
         if (GUI.Button(new Rect(12,bottom,108,48), ar ? "Table" : "AR")) ChangeMode();
         if (ar)
         {
-            GUI.Label(new Rect(16,(Screen.height-Screen.safeArea.yMax)/scale+12,358,60),
+            GUI.Label(new Rect(16,top+30,358,60),
                 notice.Length > 0 ? notice : ARSession.state == ARSessionState.SessionTracking ? (placing ? "Surface" : "Tracking") : ARSession.state.ToString());
             if (placing) GUI.Label(new Rect(184,Screen.height/scale*.5f-16,32,32), "+");
             GUI.enabled = !busy;

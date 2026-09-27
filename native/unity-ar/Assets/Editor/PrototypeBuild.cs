@@ -30,15 +30,19 @@ public static class PrototypeBuild
         // TablePrototype makes its materials from Shader.Find at runtime; a shader no asset references is stripped from the build.
         var graphics = new SerializedObject(AssetDatabase.LoadAssetAtPath<UnityEngine.Rendering.GraphicsSettings>("ProjectSettings/GraphicsSettings.asset"));
         var always = graphics.FindProperty("m_AlwaysIncludedShaders");
-        var unlit = Shader.Find("Unlit/Color");
-        bool listed = false;
-        for (int i = 0; i < always.arraySize; i++) listed |= always.GetArrayElementAtIndex(i).objectReferenceValue == unlit;
-        if (!listed)
+        foreach (var name in new[] { "Unlit/Color", "Unlit/Transparent" })
         {
+            var shader = Shader.Find(name);
+            bool listed = false;
+            for (int i = 0; i < always.arraySize; i++) listed |= always.GetArrayElementAtIndex(i).objectReferenceValue == shader;
+            if (listed) continue;
             always.InsertArrayElementAtIndex(always.arraySize);
-            always.GetArrayElementAtIndex(always.arraySize - 1).objectReferenceValue = unlit;
-            graphics.ApplyModifiedProperties();
+            always.GetArrayElementAtIndex(always.arraySize - 1).objectReferenceValue = shader;
         }
+        graphics.ApplyModifiedProperties();
+        // Ссылка из Telegram открывает приложение по этой схеме: crossade://table?room=…&pass=…&host=…
+        PlayerSettings.iOS.iOSUrlSchemes = new[] { "crossade" };
+        BakeCards();
 
         var perTarget = AssetDatabase.LoadAssetAtPath<XRGeneralSettingsPerBuildTarget>("Assets/XRSettings.asset");
         if (perTarget == null)
@@ -78,6 +82,31 @@ public static class PrototypeBuild
         EditorUtility.SetDirty(general.Manager);
         AssetDatabase.SaveAssets();
         Debug.Log("CROSSADE_PREPARED");
+    }
+
+    /**
+     * КАРТЫ — те же растры, что у веба (`game-presets/cards/src/decks/baked`), но в PNG: WebP Unity не читает.
+     * Переводит `sips` из macOS; готовые не трогает. Набор — обычный и минимальный, плюс рубашки.
+     */
+    static void BakeCards()
+    {
+        var from = Path.GetFullPath("../../game-presets/cards/src/decks/baked");
+        bool added = false;
+        foreach (var set in new[] { "classic", "minimal", "backs" })
+        {
+            var to = Path.Combine("Assets/Resources/Cards", set);
+            Directory.CreateDirectory(to);
+            foreach (var webp in Directory.GetFiles(Path.Combine(from, set), "*.webp"))
+            {
+                var png = Path.Combine(to, Path.GetFileNameWithoutExtension(webp) + ".png");
+                if (File.Exists(png)) continue;
+                var sips = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("/usr/bin/sips", $"-s format png \"{webp}\" --out \"{png}\"") { UseShellExecute = false, RedirectStandardOutput = true });
+                sips.WaitForExit();
+                if (sips.ExitCode != 0) throw new Exception("sips failed: " + webp);
+                added = true;
+            }
+        }
+        if (added) AssetDatabase.Refresh();
     }
 
     public static void ExportIOS()
