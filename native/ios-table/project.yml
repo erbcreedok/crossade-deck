@@ -1,0 +1,24 @@
+name: CrossadeTable
+options:
+  bundleIdPrefix: com.crossade
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    DEVELOPMENT_TEAM: 49HDCB8S45
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "0.2"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  CrossadeTable:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.crossade.arprototype
+        PRODUCT_NAME: Crossade
+        INFOPLIST_FILE: Sources/Info.plist
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""

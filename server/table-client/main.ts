@@ -4,6 +4,7 @@
 //   в Telegram (Mini App)          дверь `telegram`, комната — `start_param` (или `?room=`)
 //   в браузере                     дверь `guest`: пустит, только если серверу это разрешено
 
+import { nativeShell } from "./arNative.js";
 import { ROOM_CLOSED, STALE_CLIENT, type JoinOptions } from "../src/table/contract.js";
 import { localStore } from "./localStore.js";
 import { netStore } from "./netStore.js";
@@ -100,9 +101,13 @@ async function open(): Promise<TableStore> {
   if (params.has("stand")) return localStore();
   const room = roomAsked;
   if (!room) throw new Error("Нет комнаты. Открой стол по ссылке из чата.");
+  // Пропуск в адресе — стол открыт в приложении Crossade (`appPass.ts`): подписи Telegram там нет.
+  const pass = params.get("pass");
   const options: JoinOptions = initData
     ? { room, client: "html", door: "telegram", initData }
-    : { room, client: "html", door: "guest", name: params.get("name") ?? "Гость" };
+    : pass
+      ? { room, client: nativeShell() ? "ios" : "html", door: "app", pass }
+      : { room, client: "html", door: "guest", name: params.get("name") ?? "Гость" };
   return netStore(options);
 }
 

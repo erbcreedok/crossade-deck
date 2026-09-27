@@ -19,6 +19,7 @@
 
 import { createFusion, FUSE, gyroTrack } from "./arFuse.js";
 import { captureBox, mountHud, type HudState } from "./arHud.js";
+import { hearNative, nativeShell, type NativePose } from "./arNative.js";
 import { arLens, deviceQuat, placeAtGaze, yawQuat, type ArLens, type ArPlace, type Quat } from "./arLens.js";
 import { deleteMarker, listMarkers, makeMarker, openCamera, saveMarker, track, VIDEO_LAG, warm, type Backdrop, type StoredMarker } from "./arMarker.js";
 import { assess, greyOf } from "./arQuality.js";
@@ -81,7 +82,16 @@ export interface ArRig {
 export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: () => void, exit: () => void): ArRig {
   let q: Quat = deviceQuat(0, STILL_BETA, 0, 0);
   const gyro = gyroTrack();
-  let placed: ArPlace = placeAtGaze(q, DROP, AHEAD, UNIT);
+  // В ПРИЛОЖЕНИИ (`arNative.ts`) поворот и место телефона — от ARKit, камера — под страницей.
+  const shell = nativeShell();
+  let native: NativePose | null = null;
+  /** Стол перед глазами: куда смотришь, на `DROP` ниже глаза; в приложении — от того места, где стоишь. */
+  function gazePlace(): ArPlace {
+    const p = placeAtGaze(q, DROP, AHEAD, UNIT);
+    const at = native?.pos;
+    return at ? { ...p, at: [p.at[0] + at[0], p.at[1] + at[1], p.at[2] + at[2]] } : p;
+  }
+  let placed: ArPlace = gazePlace();
   let heard = false;
   /** Где стоишь — условные метры от своего стула (метр — радиус стола), `arWalk.ts`. */
   let walk = { x: 0, z: 0 };
@@ -89,7 +99,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
 
   const screenAngle = (): number => screen.orientation?.angle ?? (globalThis as { orientation?: number }).orientation ?? 0;
   const place = (): void => {
-    placed = placeAtGaze(q, DROP, AHEAD, UNIT);
+    placed = gazePlace();
     changed();
   };
   const hear = (alpha: number, beta: number, gamma: number): void => {
@@ -98,7 +108,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     if (!heard) {
       heard = true;
       ask.remove();
-      placed = placeAtGaze(q, DROP, AHEAD, UNIT); // первое слово датчика — стол встаёт туда, куда смотришь
+      placed = gazePlace(); // первое слово датчика — стол встаёт туда, куда смотришь
     }
     changed();
   };
@@ -106,7 +116,20 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   // ── датчик ─────────────────────────────────────────────────────────────────────────────────────
   const tg = (globalThis as { Telegram?: { WebApp?: TelegramApp } }).Telegram?.WebApp;
   const tgo = tg?.DeviceOrientation;
-  if (tgo?.start && tg?.onEvent) {
+  if (shell) {
+    shell.ar(true);
+    off.push(() => shell.ar(false));
+    off.push(hearNative((pose) => {
+      native = pose;
+      q = pose.q;
+      if (!heard) {
+        heard = true;
+        placed = gazePlace();
+      }
+      changed();
+    }));
+  }
+  if (tgo?.start && tg?.onEvent && !shell) {
     const deg = 180 / Math.PI;
     const read = (): void => {
       if (tgo.beta == null) return;
@@ -119,8 +142,10 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   const onBrowser = (e: DeviceOrientationEvent): void => {
     if (e.beta != null) hear(e.alpha ?? 0, e.beta, e.gamma ?? 0);
   };
-  addEventListener("deviceorientation", onBrowser);
-  off.push(() => removeEventListener("deviceorientation", onBrowser));
+  if (!shell) {
+    addEventListener("deviceorientation", onBrowser);
+    off.push(() => removeEventListener("deviceorientation", onBrowser));
+  }
 
   // Разрешение на iOS — только из жеста. Кнопка появляется, если датчик молчит, и уходит, как заговорит.
   const ask = document.createElement("button");
@@ -137,7 +162,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     ask.textContent = "Датчик молчит — стол стоит на месте";
     setTimeout(() => ask.remove(), 1800);
   };
-  const needsAsk = typeof (globalThis as { DeviceOrientationEvent?: { requestPermission?: unknown } }).DeviceOrientationEvent?.requestPermission === "function";
+  const needsAsk = !shell && typeof (globalThis as { DeviceOrientationEvent?: { requestPermission?: unknown } }).DeviceOrientationEvent?.requestPermission === "function";
   const silent = setTimeout(() => { if (!heard && needsAsk) document.body.append(ask); }, SILENT_MS);
   off.push(() => { clearTimeout(silent); ask.remove(); });
 
@@ -161,6 +186,14 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   floor.append(grid);
   stage.insertBefore(floor, felt);
   off.push(() => floor.remove());
+  // В приложении под страницей — камера: пол и все фоны страницы прозрачны, пока AR включён.
+  if (shell) {
+    floor.style.background = "transparent";
+    const clear = [document.documentElement, document.body, stage];
+    const was = clear.map((el) => el.style.background);
+    for (const el of clear) el.style.background = "transparent";
+    off.push(() => clear.forEach((el, i) => { el.style.background = was[i]!; }));
+  }
 
   const drawFloor = (l: ArLens): void => {
     const STEP = 4, SPAN = 64, SEG = 32;
@@ -460,7 +493,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   const stopGlide = (): void => { cancelAnimationFrame(glide); glide = 0; };
   function glideHome(): void {
     stopGlide();
-    const to = placeAtGaze(q, DROP, AHEAD, UNIT);
+    const to = gazePlace();
     if (document.documentElement.dataset.reduceMotion !== undefined) {
       walk = { x: 0, z: 0 };
       lift = 0;
@@ -615,12 +648,14 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
       // Условный метр — радиус стола в мире при нынешнем зуме: подошёл к большому столу — прошёл больше.
       metre = (R + RIM) * unit * z;
       const stepped: [number, number, number] = [walk.x * metre, onMarker ? 0 : lift, walk.z * metre];
-      const pos = onMarker ? ([0, 1, 2].map((i) => shown[i]! + stepped[i]!) as [number, number, number]) : stepped;
+      const pos = onMarker
+        ? ([0, 1, 2].map((i) => shown[i]! + stepped[i]!) as [number, number, number])
+        : native ? ([0, 1, 2].map((i) => native!.pos[i]! + stepped[i]!) as [number, number, number]) : stepped;
       const base: ArPlace = onMarker ? { at: fusion.S.anchor.pos, yaw: 0, unit, q: tableOnMarker(fusion.S.anchor.q) } : placed;
       // Кадр камеры на экране старше датчика: сцена берёт поворот того мига, иначе стол бежит впереди фона.
-      const eye = backdrop ? (gyro.at(now - VIDEO_LAG) ?? q) : q;
-      const l = arLens({ q: eye, fov: backdrop ? backdrop.fov(frame.h) : FOV, pos }, seated(base, seat), turn, z, frame);
-      if (!backdrop) drawFloor(l);
+      const eye = native ? native.q : backdrop ? (gyro.at(now - VIDEO_LAG) ?? q) : q;
+      const l = arLens({ q: eye, fov: native ? native.fov : backdrop ? backdrop.fov(frame.h) : FOV, pos }, seated(base, seat), turn, z, frame);
+      if (!backdrop && !shell) drawFloor(l);
       seenLens = l;
       lastTurn = turn;
       lastZoom = z;
@@ -637,6 +672,8 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     stick,
     grab,
     stride(on) {
+      // В приложении шаги и так знает ARKit — своя камера для прогулки не нужна.
+      if (shell) return;
       if (on) void stride.start();
       else stride.stop();
     },
