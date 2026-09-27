@@ -84,7 +84,7 @@ function closedTable(): void {
   note.hidden = false;
 }
 
-/** Дольше этого после входа заставка не ждёт картинок и шрифта. */
+/** Дольше этого после входа заставка не ждёт картинок и лиц (шрифт она ждёт всегда). */
 const READY_CAP_MS = 3000;
 /** Запросы страницы дольше `SLOW_MS` — адрес без запроса (там бывают подписи) и сколько шёл. */
 const SLOW_MS = 1500;
@@ -185,10 +185,11 @@ if (params.get("from") === "rooms" && telegram?.BackButton) {
     // (аватарка с t.me, шрифт, картинка через туннель) иначе держит весь стол за заставкой сколько угодно;
     // недогруженное дорисуется само, когда придёт.
     const joined = performance.now();
-    const shown = Promise.race([
-      screen.ready.then(() => "ready" as const),
-      new Promise<"cap">((r) => setTimeout(() => r("cap"), READY_CAP_MS)),
-    ]);
+    // Шрифт — без потолка: он с нашего адреса, и чужого начертания не должно быть видно ни мига.
+    const shown = Promise.all([
+      (globalThis as { __fonts?: Promise<void> }).__fonts,
+      Promise.race([screen.ready.then(() => "ready" as const), new Promise<"cap">((r) => setTimeout(() => r("cap"), READY_CAP_MS))]),
+    ]).then(([, how]) => how);
     return shown.then((how) => {
       loading.done();
       // СКОЛЬКО ОТКРЫВАЛСЯ СТОЛ — в журнал экрана, с самыми медленными запросами: «грузится долго» на

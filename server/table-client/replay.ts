@@ -124,6 +124,8 @@ async function start(): Promise<void> {
   new ResizeObserver(fitStage).observe(panel);
   addEventListener("resize", fitStage);
 
+  // Стол рисуется уже своим шрифтом: холст, нарисованный до него, показал бы чужое начертание.
+  await (globalThis as { __fonts?: Promise<void> }).__fonts;
   const screen = mountScreen(stage, replay.store, undefined, { watch: true });
   // ЧЕСТНОСТЬ ПЕРЕД ЗРИТЕЛЕМ: у восстановленной записи карты, которых не трогали, лежат рубашкой —
   // не потому что они закрыты, а потому что запись про них не знает.

@@ -27,6 +27,8 @@ export interface ClientSource {
   script(name: ClientScript): Promise<{ js: string; map: string }>;
   /** Файлы, которые отдаются как есть: сервер сам проверяет имя, источник говорит только папку. */
   readonly sounds: string;
+  /** Свой шрифт стола (Tiny5, OFL) — чтобы не ждать чужой сервер и не видеть чужое начертание. */
+  readonly fonts: string;
   readonly cards: string;
 }
 
@@ -70,6 +72,7 @@ export function liveSource(): ClientSource {
         throw err;
       })),
     sounds: join(SOURCES, "sounds"),
+    fonts: join(SOURCES, "fonts"),
     cards: BAKED_CARDS,
   };
 }
@@ -83,6 +86,7 @@ export function builtSource(dir: string): ClientSource {
       map: await readFile(join(dir, `${name}.js.map`), "utf8"),
     }),
     sounds: join(dir, "sounds"),
+    fonts: join(dir, "fonts"),
     cards: join(dir, "cards"),
   };
 }
@@ -96,5 +100,6 @@ export async function buildClient(dir: string): Promise<void> {
     await writeFile(join(dir, `${name}.js.map`), map);
   }
   await cp(join(SOURCES, "sounds"), join(dir, "sounds"), { recursive: true });
+  await cp(join(SOURCES, "fonts"), join(dir, "fonts"), { recursive: true });
   await cp(BAKED_CARDS, join(dir, "cards"), { recursive: true });
 }

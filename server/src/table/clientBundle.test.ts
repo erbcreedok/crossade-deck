@@ -36,7 +36,7 @@ afterAll(async () => {
 describe("клиент стола: собранный заранее и собранный на лету", () => {
   it("папка сборки несёт всё, что нужно странице, и ничего из исходников", async () => {
     const files = await readdir(dir);
-    expect(files.sort()).toEqual(["admin.html", "app.js", "app.js.map", "bots.html", "cards", "index.html", "replay.html", "replay.js", "replay.js.map", "sounds"]);
+    expect(files.sort()).toEqual(["admin.html", "app.js", "app.js.map", "bots.html", "cards", "fonts", "index.html", "replay.html", "replay.js", "replay.js.map", "sounds"]);
   });
 
   for (const kind of ["live", "built"] as const) {
@@ -50,6 +50,7 @@ describe("клиент стола: собранный заранее и собр
         ["/table/app.js.map", "application/json"],
         ["/table/replay.js.map", "application/json"],
         ["/table/sounds/drop-1.m4a", "audio/mp4"],
+        ["/table/fonts/tiny5-cyrillic.woff2", "font/woff2"],
         ["/table/cards/classic/spade-A.webp", "image/webp"],
       ] as const) {
         const res = await fetch(`${base}${path}`);
@@ -58,6 +59,7 @@ describe("клиент стола: собранный заранее и собр
       }
       expect((await fetch(`${base}/table/cards/classic/..%2F..%2Fbacks%2Fplaid.webp`)).status).toBe(404);
       expect((await fetch(`${base}/table/sounds/boom-1.m4a`)).status).toBe(404);
+      expect((await fetch(`${base}/table/fonts/..%2Findex.html`)).status).toBe(404);
     });
 
     it(`${kind}: ссылка на карту исходников ведёт туда, где карта лежит`, async () => {

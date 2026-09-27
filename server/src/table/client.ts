@@ -71,6 +71,16 @@ export function clientRoutes(source: ClientSource = fromEnv()): Router {
     });
   });
 
+  // ШРИФТ — Tiny5 (OFL), свой. Страница стола открывается и с адреса реле, а файл берётся с мака: без
+  // разрешения чужому адресу браузер шрифт не применит.
+  r.get(/^\/table\/fonts\/(tiny5-(?:cyrillic|latin))\.woff2$/, (req, res) => {
+    res.header("Cache-Control", "public, max-age=31536000, immutable");
+    res.header("Access-Control-Allow-Origin", "*");
+    res.type("font/woff2").sendFile(join(source.fonts, `${req.params[0]!}.woff2`), (err) => {
+      if (err && !res.headersSent) res.status(404).end();
+    });
+  });
+
   // ЗВУКИ — записи Kenney «Casino Audio» (CC0), имя из известного вида.
   r.get(/^\/table\/sounds\/((?:drop|hand|turn|gather|merge|shuffle|sort)-[0-9])\.m4a$/, (req, res) => {
     res.header("Cache-Control", "public, max-age=86400");
