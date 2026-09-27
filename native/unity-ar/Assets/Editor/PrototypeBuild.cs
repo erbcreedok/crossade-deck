@@ -16,6 +16,10 @@ public static class PrototypeBuild
         PlayerSettings.companyName = "Crossade";
         PlayerSettings.productName = "Crossade AR Prototype";
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, "com.crossade.arprototype");
+        // Каждая сборка — свой номер: iOS заменяет приложение только более новым, а на экране видно, какое стоит.
+        var stamp = DateTime.UtcNow.ToString("MMddHHmm");
+        PlayerSettings.bundleVersion = "0.1." + stamp;
+        PlayerSettings.iOS.buildNumber = DateTime.UtcNow.ToString("yyMMddHHmm");
         PlayerSettings.SetScriptingBackend(NamedBuildTarget.iOS, ScriptingImplementation.IL2CPP);
         PlayerSettings.iOS.targetOSVersionString = "15.0";
         PlayerSettings.iOS.cameraUsageDescription = "Place the card table on a real surface and walk around it.";

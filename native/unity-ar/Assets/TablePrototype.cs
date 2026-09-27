@@ -216,8 +216,11 @@ public sealed class TablePrototype : MonoBehaviour
     async void Place()
     {
         if (busy || ARSession.state != ARSessionState.SessionTracking) return;
-        if (!rays.Raycast(new Vector2(Screen.width*.5f, Screen.height*.5f), hits, TrackableType.PlaneWithinPolygon))
-        { notice = "No surface"; return; }
+        // Найденная плоскость — лучше всего; пока её нет (темно, однотонно, телефон не двигался), ARKit даёт
+        // оценённую на глаз — стол встаёт сразу, а не после минуты водить телефоном.
+        var centre = new Vector2(Screen.width*.5f, Screen.height*.5f);
+        if (!rays.Raycast(centre, hits, TrackableType.PlaneWithinPolygon) && !rays.Raycast(centre, hits, TrackableType.PlaneEstimated))
+        { notice = "Не вижу поверхности — поводи телефоном над столом или полом"; return; }
         busy = true;
         int request = generation;
         try
@@ -252,11 +255,15 @@ public sealed class TablePrototype : MonoBehaviour
         float top = (Screen.height-Screen.safeArea.yMax)/scale+12;
         GUI.skin.label.wordWrap = true;
         GUI.Label(new Rect(16,top,358,60), status);
+        // Номер сборки — чтобы с телефона было видно, какая стоит.
+        GUI.skin.label.fontSize = 11;
+        GUI.Label(new Rect(250,bottom+50,130,20), "сборка " + Application.version);
+        GUI.skin.label.fontSize = 20;
         if (GUI.Button(new Rect(12,bottom,108,48), ar ? "Table" : "AR")) ChangeMode();
         if (ar)
         {
             GUI.Label(new Rect(16,top+30,358,60),
-                notice.Length > 0 ? notice : ARSession.state == ARSessionState.SessionTracking ? (placing ? "Surface" : "Tracking") : ARSession.state.ToString());
+                notice.Length > 0 ? notice : ARSession.state == ARSessionState.SessionTracking ? (placing ? "Наведи крестик на стол или пол" : "") : "Камера запускается…");
             if (placing) GUI.Label(new Rect(184,Screen.height/scale*.5f-16,32,32), "+");
             GUI.enabled = !busy;
             if (GUI.Button(new Rect(132,bottom,246,48), placing ? "Place table" : "Reposition"))
