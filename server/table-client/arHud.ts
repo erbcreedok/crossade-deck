@@ -10,14 +10,20 @@
 // Окно якоря — того же вида, что «Настройки»: строка «сейчас» (за что держится стол, что с камерой),
 // камера за столом, предметы, «плашмя», «подогнать». Съёмка, сборка метки и подгонка — плашкой под
 // верхним рядом: окно на это время уходит, чтобы не закрывать стол.
+//
+// СЪЁМКА ПОКАЗЫВАЕТ, ГОДИТСЯ ЛИ КАДР, ПОКА ЦЕЛИШЬСЯ: опорные точки — прямо в рамке, под ними — полоса и
+// приговор (`arQuality.ts`), как на стенде. Обновляются они на месте, без пересборки плашки: кнопка
+// «Снять» под пальцем не пересоздаётся.
 
+import type { Quality } from "./arQuality.js";
 import type { ArSeat } from "./arSeat.js";
 import { BAR_LOOK, T } from "./screenConst.js";
 
 export interface HudMarker { id: string; name: string; thumb: string; points: number }
 
 export interface HudState {
-  anchor: "gravity" | "marker";
+  /** За что держится стол: гравитация, предмет из «моих», автометка — то, что под столом. */
+  anchor: "gravity" | "marker" | "auto";
   seen: "search" | "seen" | "lost";
   /** Камера за столом: выключена, включается, включена, или словами — почему её нет. */
   camera: "off" | "starting" | "on" | { error: string };
@@ -68,7 +74,7 @@ export function captureBox(w: number, h: number): { x: number; y: number; side: 
 const ANCHOR_ICON = `<circle cx="12" cy="5" r="2"/><path d="M12 7v14"/><path d="M8 11h8"/><path d="M5 13a7 7 0 0 0 14 0"/>`;
 const EXIT_ICON = `<path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M15 16l4-4-4-4"/><path d="M19 12H9"/>`;
 
-export function mountHud(on: HudActions): { render(s: HudState): void; dispose(): void } {
+export function mountHud(on: HudActions): { render(s: HudState): void; quality(q: Quality, side: number): void; dispose(): void } {
   const bar = document.createElement("div");
   bar.dataset.arBar = "";
   bar.style.cssText = "position:fixed;inset:0;z-index:61;pointer-events:none;";
@@ -84,6 +90,10 @@ export function mountHud(on: HudActions): { render(s: HudState): void; dispose()
   const frame = document.createElement("div");
   frame.dataset.arFrame = "";
   frame.style.cssText = `position:fixed;z-index:44;display:none;border:3px solid ${T.gold};border-radius:14px;box-shadow:0 0 0 100vmax rgba(11,7,4,.45);pointer-events:none;`;
+  const dots = document.createElement("canvas");
+  dots.dataset.arDots = "";
+  dots.style.cssText = "position:absolute;inset:0;width:100%;height:100%;";
+  frame.append(dots);
   const ring = document.createElement("div");
   ring.dataset.arFitRing = "";
   ring.style.cssText = `position:fixed;inset:0;z-index:43;display:none;pointer-events:none;box-shadow:inset 0 0 0 3px ${T.gold};`;
@@ -130,7 +140,14 @@ export function mountHud(on: HudActions): { render(s: HudState): void; dispose()
 
   const status = (s: HudState): string => {
     const cam = s.camera === "on" ? "камера включена" : s.camera === "starting" ? "камера включается…" : s.camera === "off" ? "камера выключена" : `камеры нет: ${esc(s.camera.error)}`;
-    if (s.anchor === "gravity") return `стол перед тобой, держится гироскопом · ${cam}`;
+    if (s.anchor === "gravity") {
+      const seek = s.camera === "on" ? " · ищу рисунок под столом, чтобы зацепиться: пол, скатерть, доска" : "";
+      return `стол перед тобой, держится гироскопом · ${cam}${seek}`;
+    }
+    if (s.anchor === "auto") {
+      const seen = s.seen === "seen" ? "виден" : s.seen === "lost" ? "не виден — стол держит гироскоп" : "ищу его в кадре…";
+      return `стол зацепился за то, что под ним: ${seen} · ${cam}`;
+    }
     const name = s.markers.find((m) => m.id === s.active)?.name ?? "предмет";
     const seen = s.seen === "seen" ? "виден" : s.seen === "lost" ? "не виден — стол держит гироскоп" : "ищу его в кадре…";
     return `стол на «${esc(name)}»: ${seen} · ${cam}`;
@@ -139,13 +156,13 @@ export function mountHud(on: HudActions): { render(s: HudState): void; dispose()
   function render(s: HudState): void {
     state = s;
     // ── кнопки ряда ─────────────────────────────────────────────────────────────────────────────
-    const colour = s.anchor === "marker" ? (s.seen === "seen" ? T.gold : "rgba(255,255,255,.45)") : "white";
+    const colour = s.anchor !== "gravity" ? (s.seen === "seen" ? T.gold : "rgba(255,255,255,.45)") : "white";
     const round = (right: number, what: string, label: string, icon: string, stroke: string, extra = ""): string =>
       `<button data-ar-do="${what}" aria-label="${label}" style="position:absolute;right:${right}px;top:${ROW_TOP};width:40px;height:40px;border:0;padding:0;`
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;pointer-events:auto;${plate}">`
       + `<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>${extra}</button>`;
     const dot = s.camera === "on" ? `<span data-ar-cam-dot style="position:absolute;right:6px;bottom:6px;width:8px;height:8px;border-radius:50%;background:${T.gold};box-shadow:0 0 0 2px ${T.black}"></span>` : "";
-    const anchorSays = s.anchor === "gravity" ? "перед собой" : s.seen === "seen" ? "предмет виден" : "предмет не виден";
+    const anchorSays = s.anchor === "gravity" ? "перед собой" : s.seen === "seen" ? (s.anchor === "auto" ? "зацепился за то, что под столом" : "предмет виден") : "предмет не виден";
     put(bar, "bar", round(RIM + 48, "menu", `Якорь стола: ${anchorSays}`, ANCHOR_ICON, colour, dot) + round(RIM, "exit", "Выйти из AR", EXIT_ICON, "white"));
 
     // ── окно якоря ──────────────────────────────────────────────────────────────────────────────
@@ -177,7 +194,7 @@ export function mountHud(on: HudActions): { render(s: HudState): void; dispose()
         + section("Камера") + toggle("camera", "Камера за столом", s.camera === "on" || s.camera === "starting")
         + section("Стол держится за") + row(button("gravity", "Перед собой", s.anchor === "gravity") + button("new", "Снять предмет"))
         + (markers ? `<div style="display:flex;flex-direction:column;gap:6px;padding-top:8px">${markers}</div>` : "")
-        + (s.anchor === "marker" ? section("На предмете") + toggle("flat", "Стол плашмя", s.seat.flat) + row(button("again", "Поставить заново")) : "")
+        + (s.anchor !== "gravity" ? section("На предмете") + toggle("flat", "Стол плашмя", s.seat.flat) + row(button("again", "Поставить заново")) : "")
         + section("Посадка") + row(button("fit", "Подогнать"))
         + `</div>`;
     }
@@ -195,6 +212,8 @@ export function mountHud(on: HudActions): { render(s: HudState): void; dispose()
         + row(button("done", "Готово", true) + button("reset", "Сброс") + button("cancel", "Отмена"));
     } else if (s.sheet === "capture") {
       note = title("Новый предмет") + small("наведи рамку на плоскую вещь с рисунком — картину, доску, журнал")
+        + `<div style="height:10px;border-radius:5px;background:${T.black};overflow:hidden"><i data-ar-meter style="display:block;height:100%;width:0;background:#e0483f"></i></div>`
+        + `<div data-ar-verdict style="font-size:13px"></div><div data-ar-nums style="color:${DIM};font-size:12px"></div>`
         + row(button("shoot", "Снять", true) + button("close", "Отмена"));
     } else if (s.sheet === "compile") {
       note = title("Собираю метку…") + `<div style="height:10px;border-radius:5px;background:${T.black};overflow:hidden"><i style="display:block;height:100%;width:${Math.round(s.progress)}%;background:${T.gold}"></i></div>`
@@ -209,8 +228,31 @@ export function mountHud(on: HudActions): { render(s: HudState): void; dispose()
     ring.style.display = s.fitting ? "block" : "none";
   }
 
+  const VERDICT: Record<Quality["verdict"], [string, string]> = {
+    ok: ["годится — жми «Снять»", "#7fd1b9"],
+    few: ["мало рисунка — нужен узор по всей рамке", "#e0483f"],
+    blur: ["смазано — замри или добавь света", "#e08b3f"],
+    glare: ["блик — наклони, убери отражение", "#e08b3f"],
+  };
+  /** Годность кадра в рамке съёмки: точки поверх рамки, полоса, приговор, числа. `side` — сторона разбора, px. */
+  function quality(q: Quality, side: number): void {
+    const px = frame.clientWidth * (devicePixelRatio || 1);
+    if (dots.width !== px) { dots.width = px; dots.height = px; }
+    const g = dots.getContext("2d")!, k = px / side;
+    g.clearRect(0, 0, px, px);
+    g.fillStyle = q.verdict === "ok" ? "#7fd1b9" : T.gold;
+    for (const p of q.points) { g.beginPath(); g.arc(p.x * k, p.y * k, 2.5 * (devicePixelRatio || 1), 0, Math.PI * 2); g.fill(); }
+    const [text, colour] = VERDICT[q.verdict];
+    frame.style.borderColor = q.verdict === "ok" ? "#7fd1b9" : T.gold;
+    const meter = strip.querySelector<HTMLElement>("[data-ar-meter]"), verdict = strip.querySelector<HTMLElement>("[data-ar-verdict]"), nums = strip.querySelector<HTMLElement>("[data-ar-nums]");
+    if (meter) { meter.style.width = `${Math.round(q.score * 100)}%`; meter.style.background = colour; }
+    if (verdict) { verdict.textContent = text; verdict.style.color = colour; verdict.dataset.verdict = q.verdict; }
+    if (nums) nums.textContent = `углов ${q.count} · покрытие ${Math.round(q.coverage * 100)}% · резкость ${q.sharp.toFixed(2)} · блик ${Math.round(q.glare * 100)}%`;
+  }
+
   return {
     render,
+    quality,
     dispose() { bar.remove(); layer.remove(); strip.remove(); frame.remove(); ring.remove(); },
   };
 }

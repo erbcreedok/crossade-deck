@@ -19,6 +19,12 @@ const MINDAR = "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.pro
 export const CAM_FOV = 62;
 /** На сколько кадр камеры на экране старше датчика наклона, мс. */
 export const VIDEO_LAG = 60;
+/**
+ * Сторона снимка метки, px. Время сборки почти не зависит от стороны — его съедает ПЕРВЫЙ запуск
+ * трекера (программы видеокарты под этот размер): 480 px в первый раз — 8 с, во второй — 0.4 с. Поэтому
+ * сторона одна на все снимки, и трекер прогревается ею заранее (`warm`). Меньше 320 — теряются точки слежения.
+ */
+export const SHOT_SIDE = 320;
 
 // ─── камера ───────────────────────────────────────────────────────────────────────────────────────
 export interface Backdrop {
@@ -111,6 +117,24 @@ interface MindModule {
 let mind: Promise<MindModule> | null = null;
 /** Адрес — переменной: сборщик не должен пытаться найти CDN у себя на диске. */
 const loadMind = (url = MINDAR): Promise<MindModule> => (mind ??= import(/* @vite-ignore */ url) as Promise<MindModule>);
+let warmed: Promise<void> | null = null;
+/**
+ * ПРОГРЕВ — один раз, как только включилась камера: трекер грузится и собирает пустой снимок той же
+ * стороны. Потом настоящая метка собирается за доли секунды, а не за полминуты на глазах у человека.
+ */
+export function warm(): Promise<void> {
+  return (warmed ??= (async () => {
+    const { Compiler } = await loadMind();
+    const blank = document.createElement("canvas");
+    blank.width = blank.height = SHOT_SIDE;
+    const g = blank.getContext("2d")!;
+    for (let i = 0; i < 400; i += 1) {
+      g.fillStyle = `hsl(${(i * 47) % 360},50%,${20 + ((i * 13) % 60)}%)`;
+      g.fillRect((i * 37) % SHOT_SIDE, (i * 91) % SHOT_SIDE, 6 + (i % 30), 6 + ((i * 7) % 30));
+    }
+    await new Compiler().compileImageTargets([blank], () => undefined);
+  })().catch(() => { warmed = null; }));
+}
 
 export interface MarkerPose {
   /** Середина метки в кадре камеры, в ширинах метки (камера смотрит в −Z, верх — +Y). */
@@ -193,7 +217,7 @@ export interface StoredMarker {
 
 /** Снять метку из квадрата кадра (`rect` — в пикселях видео) и собрать её на телефоне. */
 export async function makeMarker(video: HTMLVideoElement, rect: { x: number; y: number; w: number; h: number }, count: number, progress: (p: number) => void): Promise<StoredMarker> {
-  const side = Math.min(480, Math.round(rect.w));
+  const side = SHOT_SIDE;
   const shot = document.createElement("canvas");
   shot.width = shot.height = side;
   shot.getContext("2d")!.drawImage(video, rect.x, rect.y, rect.w, rect.h, 0, 0, side, side);
