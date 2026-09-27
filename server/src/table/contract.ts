@@ -27,7 +27,7 @@ export const STALE_CLIENT = "stale client";
  */
 export const ROOM_CLOSED = "room closed";
 
-export type Door = "telegram" | "guest";
+export type Door = "telegram" | "guest" | "app";
 export type ClientKind = "html" | "kit" | (string & {});
 
 /**
@@ -47,6 +47,13 @@ export interface Recording {
   until: number;
 }
 
+/** Пропуск в нативное приложение: комната, пропуск и до каких пор. */
+export interface AppPass {
+  room: string;
+  pass: string;
+  until: number;
+}
+
 /** Что клиент кладёт в `joinOrCreate(TABLE_ROOM, …)`. */
 export interface JoinOptions {
   /** Подписанный id комнаты (`roomIds.ts`) — без подписи комнату не открыть. */
@@ -57,6 +64,8 @@ export interface JoinOptions {
   initData?: string;
   /** `door: "guest"` — как назваться. Сервер пускает гостей, только если ему это разрешено. */
   name?: string;
+  /** `door: "app"` — пропуск из `MSG.app` (`appPass.ts`): тот же человек, что в Telegram, в нативном приложении. */
+  pass?: string;
   /** `PROTOCOL` сборки клиента. Нет номера — клиент собран до его появления, и его пускают. */
   protocol?: number;
 }
@@ -674,6 +683,11 @@ export const MSG = {
    * а сервер своего внешнего имени может и не знать.
    */
   replay: "replay",
+  /**
+   * ПРИЛОЖЕНИЕ: клиент → сервер пустое, сервер → ему же `AppPass` — пропуск, с которым нативное приложение
+   * входит за этот стол тем же человеком (`appPass.ts`). Адрес собирает экран, как и у записи.
+   */
+  app: "app",
   /**
    * Клиент → сервер: `Witnessed` — пачка того, что видел и делал экран. Ответа нет и не ждётся:
    * рассказ экрана не влияет на стол, он только ложится в журнал рядом с правдой сервера.

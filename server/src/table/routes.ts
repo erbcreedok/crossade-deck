@@ -124,6 +124,14 @@ export function tableRoutes(): Router {
 
   r.get("/table/health", (_req, res) => res.json({ boot: BOOT }));
 
+  // ПЕРЕХОД В ПРИЛОЖЕНИЕ. Telegram открывает наружу только http(s), а приложение зовётся своей схемой
+  // `crossade://` — поэтому Mini App открывает эту страницу в Safari, а она уже передаёт комнату и пропуск
+  // приложению. Кнопка — на случай, если Safari не перешёл сам.
+  r.get("/table/app", (_req, res) => {
+    res.header("Cache-Control", "no-store");
+    res.type("html").send(APP_PAGE);
+  });
+
   /**
    * ЖУРНАЛ НАРУЖУ — под тем же секретом, что и управление столом. Читать его будет разбор жалобы, а
    * не игрок: в записях лежат ключи людей, их нажатия и ошибки их браузеров.
@@ -415,6 +423,14 @@ export function hostPage(html: string, host: string): string {
   const safe = JSON.stringify(host).replace(/</g, "\\u003c");
   return html.replace(/<head>/i, `<head>\n<base href="${host.replace(/"/g, "&quot;")}/table/">\n<script>window.__TABLE_HOST__ = ${safe};</script>`);
 }
+
+const APP_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crossade AR</title>
+<body style="margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#1c120b;color:#f5ead0;font:16px -apple-system,system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box">
+<a id="go" style="display:block;padding:14px 22px;border-radius:12px;background:#f0c86a;color:#0b0704;text-decoration:none;font-weight:600">Открыть в приложении</a>
+<div style="color:#cdb98f;font-size:13px;max-width:280px">Не открывается — приложение Crossade AR не установлено на этом телефоне.</div>
+<script>var u="crossade://table"+location.search;document.getElementById("go").href=u;location.href=u;</script>
+</body>`;
 
 const DOWN_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Стол недоступен</title>

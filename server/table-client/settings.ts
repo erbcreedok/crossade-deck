@@ -46,6 +46,17 @@ export interface SettingsWorld {
     ask(): void;
     link(): string | null;
   };
+  /**
+   * НАТИВНОЕ ПРИЛОЖЕНИЕ (Crossade AR) — тем же человеком за этот же стол. `ask` просит у стола пропуск,
+   * `link` отдаёт адрес перехода, когда пропуск пришёл, `open` открывает его наружу — в Safari, откуда
+   * он передаётся приложению.
+   */
+  app: {
+    may(): boolean;
+    ask(): void;
+    link(): string | null;
+    open(url: string): void;
+  };
   /** Измерители поверх стола: пинг, кадры, камера (`meters.ts`). */
   meters: { on(): boolean; toggle(): void };
   /** Запись моего экрана — камера, нажатия, звук (`SCREEN_PRIVATE`); по умолчанию выключена. */
@@ -86,6 +97,19 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       ? `<div style="font:400 11px Tiny5,monospace;color:${INK.dim};padding-top:6px">Ссылку можно переслать: она открывает только эту запись.</div>`
       : `<a data-replay-link href="${адрес}" target="_blank" rel="noreferrer" style="display:block;word-break:break-all;font:400 11px Tiny5,monospace;color:${INK.gold};padding-top:6px">${адрес}</a>`;
     return кнопка + строка;
+  };
+
+  /**
+   * ПРИЛОЖЕНИЕ: первая кнопка просит пропуск, вторая открывает приложение. В два нажатия, потому что
+   * Telegram открывает внешнюю ссылку только прямо из нажатия, а пропуск приходит с сервера позже.
+   */
+  const appHtml = () => {
+    const адрес = world.app.link();
+    return `<button data-look="${адрес === null ? "app" : "appOpen"}" style="width:100%;min-height:40px;border:0;cursor:pointer;border-radius:10px;padding:8px 12px;`
+      + `background:linear-gradient(${INK.goldHi},${INK.goldLo});color:${INK.black};font:400 13px Tiny5,monospace">`
+      + `${адрес === null ? "Получить пропуск" : "Открыть в приложении"}</button>`
+      + `<div style="font:400 11px Tiny5,monospace;color:${INK.dim};padding-top:6px">`
+      + `${адрес === null ? "Приложение сядет за этот стол тобой, на твой стул." : "Пропуск на 12 часов. Не пересылай: с ним за стол садятся тобой."}</div>`;
   };
 
   const section = (title: string) => `<div style="font:400 11px Tiny5,monospace;color:${INK.dim};padding:14px 0 4px;letter-spacing:.04em">${title}</div>`;
@@ -142,6 +166,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + (fullscreenable() ? section("Экран") + toggle("fullscreen", "Полный экран", app()?.isFullscreen === true) : "")
       + (world.replay.may() ? section("Запись партии") + replayHtml() : "")
       + toggle("record", "Записывать мой экран", world.record.on())
+      + (world.app.may() ? section("Приложение Crossade AR") + appHtml() : "")
       + section(haptic.supported ? "Звук и вибрация" : "Звук")
       + toggle("mute", "Отключить все звуки", sound.prefs.muted)
       + toggle("uiMute", "Отключить звуки интерфейса", sound.prefs.uiMuted)
@@ -176,6 +201,14 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       case "replay":
         world.replay.ask();
         break;
+      case "app":
+        world.app.ask();
+        break;
+      case "appOpen": {
+        const адрес = world.app.link();
+        if (адрес !== null) world.app.open(адрес);
+        break;
+      }
       case "meters":
         world.meters.toggle();
         break;

@@ -4,7 +4,7 @@
 // (`localStore`, стенд). Он читает снимок, шлёт намерения и слушает, когда снимок сменился. Отказ
 // сервера приходит тем же путём: снимок снова тот, что был, — и экран просто рисует его.
 
-import type { IceServer, Carry, CarryOut, DealRule, Intent, Minds, Op, Person, Recording, Refusal, Seen, Snapshot, TableCommand } from "../src/table/contract.js";
+import type { AppPass, IceServer, Carry, CarryOut, DealRule, Intent, Minds, Op, Person, Recording, Refusal, Seen, Snapshot, TableCommand } from "../src/table/contract.js";
 import type { Eye, Spot } from "../src/table/eyes.js";
 import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 
@@ -79,6 +79,9 @@ export interface TableStore {
   /** Попросить у стола пропуск на запись партии — ответ придёт в `onReplay`. Право спрашивает стол. */
   askReplay?(): void;
   onReplay?(listener: (one: Recording) => void): void;
+  /** Попросить пропуск в нативное приложение — ответ придёт в `onApp`. Гостю стол не выписывает. */
+  askApp?(): void;
+  onApp?(listener: (one: AppPass) => void): void;
   /** Что с игроками без человека: думает ли, чем думает, сколько ходов. Есть только у сетевого стола. */
   onMinds?(listener: (minds: Minds) => void): void;
   /** Намерение не случилось — экран отпускает то, что держал. */

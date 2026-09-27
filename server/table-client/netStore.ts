@@ -11,7 +11,7 @@
 // Хранилище при этом одно и то же: слушатели живут в нём, а не на сокете, и сокет под ним меняется.
 
 import { Client, type Room } from "colyseus.js";
-import { DEAL_PRESETS, MSG, PROTOCOL, TABLE_ROOM, type Carry, type DealRule, type CarryOut, type Intent, type JoinOptions, type Minds, type Op, type Patch, type Recording, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
+import { DEAL_PRESETS, MSG, PROTOCOL, TABLE_ROOM, type Carry, type DealRule, type CarryOut, type Intent, type JoinOptions, type Minds, type Op, type Patch, type Recording, type AppPass, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
 import { Freshness, type Pulse } from "../src/table/freshness.js";
 import { applyPatch, needsSync } from "../src/table/patch.js";
 import type { Eye } from "../src/table/eyes.js";
@@ -325,6 +325,8 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     ping: (t) => post(MSG.ping, { t }),
     onPing: (listener) => listen<{ t: number }>(MSG.ping, (msg) => listener(msg.t)),
     onReplay: (listener) => listen<Recording>(MSG.replay, listener),
+    askApp: () => post(MSG.app),
+    onApp: (listener) => listen<AppPass>(MSG.app, listener),
     onGone: (listener) => void gone.push(listener),
     onLink: (listener) => void linked.push(listener),
   };

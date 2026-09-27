@@ -115,6 +115,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   motion.onChange(() => draw());
   /** Ссылка на запись партии — та, что пришла со стола последней. */
   let замок: string | null = null;
+  /** Переход в приложение — адрес с пропуском, что пришёл со стола последним. */
+  let переход: string | null = null;
   const settings = mountSettings(document.body, {
     sound, haptic, motion, look,
     lookChanged: () => {
@@ -132,6 +134,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       may: () => true,
       ask: () => store.askReplay?.(),
       link: () => замок,
+    },
+    // ПРИЛОЖЕНИЕ — переход на странице мака (`/table/app`): она зовёт `crossade://` с комнатой, пропуском и
+    // адресом мака, по которому приложению открывать комнату.
+    app: {
+      may: () => store.askApp !== undefined && store.me.door !== "guest",
+      ask: () => store.askApp?.(),
+      link: () => переход,
+      open: (url) => {
+        const tg = (globalThis as { Telegram?: { WebApp?: { openLink?(url: string): void } } }).Telegram?.WebApp;
+        if (tg?.openLink) tg.openLink(url);
+        else window.open(url, "_blank", "noreferrer");
+      },
     },
     // Измерители заводятся ниже, вместе с камерой: окно спрашивает их только когда открыто.
     meters: { on: () => meters.on, toggle: () => meters.toggle() },
@@ -4644,6 +4658,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     замок = адрес.toString();
     settings.refresh();
     draw();
+  });
+
+  store.onApp?.((one) => {
+    const адрес = new URL(`${HOST}/table/app`);
+    адрес.searchParams.set("room", one.room);
+    адрес.searchParams.set("pass", one.pass);
+    адрес.searchParams.set("host", HOST);
+    переход = адрес.toString();
+    settings.refresh();
   });
 
   store.onMinds?.((told) => {
