@@ -25,6 +25,9 @@ bot.command("start", async (ctx) => {
   // ССЫЛКА ИЗ ПРОФИЛЯ ПРИХОДИТ СЮДА ЖЕ — телега кладёт код в payload команды. Это тот самый
   // обратный поток: про человека заранее не известно ничего, а нажав «Запустить», он сообщает
   // боту свой chat_id, и этого достаточно.
+  // «В ПРИЛОЖЕНИИ» С КАРТОЧКИ СТОЛА — пропуск лично нажавшему (`appLink.ts`).
+  const native = /^app-([A-Za-z0-9_-]{12,60})$/.exec(ctx.match?.trim() ?? "");
+  if (native && table) return void (await table.app(ctx, native[1]!));
   const start = readStart(ctx.match);
   if (start) {
     // КОМУ АДРЕСОВАНО — СКАЗАНО В САМОЙ ССЫЛКЕ: у бота несколько приложений, и подтверждение
@@ -189,6 +192,7 @@ async function main(): Promise<void> {
           { command: "table", description: "Открыть стол в этом чате: /table [название]" },
           { command: "tables", description: "Столы этого чата" },
           { command: "records", description: "Записи сыгранных партий — смотрит любой" },
+          { command: "app", description: "Открыть стол в приложении Crossade AR (в личке)" },
           { command: "admin", description: "Все столы — для хозяина (в личке)" },
           { command: "sticker", description: "Добавить стикеры в свой набор (в личке)" },
           { command: "stickers", description: "Мой набор стикеров (в личке)" },

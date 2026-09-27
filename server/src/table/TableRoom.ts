@@ -828,7 +828,8 @@ export class TableRoom extends Room {
   onJoin(client: Client, _options?: unknown, who?: Who): void {
     if (!who) return;
     const sitting = this.table.here.find((one) => one.key === who.key);
-    const person: Person = { ...who, ink: sitting?.ink ?? this.freeInk() };
+    // Аватар приложение не приносит (пропуск от бота его не знает) — пусть остаётся тот, что был.
+    const person: Person = { ...(sitting?.photo ? { photo: sitting.photo } : {}), ...who, ink: sitting?.ink ?? this.freeInk() };
     // ОТКРЫЛ СТОЛ В НОВОМ ОКНЕ — старым голос больше не принадлежит: иначе они дерутся за одну связь, и
     // речь достаётся тому, кого человек уже не видит.
     for (const one of this.clients) {

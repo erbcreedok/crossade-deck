@@ -3,10 +3,20 @@ import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
 import { cardRows, enter, inviteArticle, inviteExisting, KIND_RE, listed, mayManage, opened } from "./talk.js";
 
-const links = { anywhere: (r: string) => `https://t.me/bot/table?startapp=${r}`, app: (r: string) => `https://fly/t/?room=${r}` };
+const links = { anywhere: (r: string) => `https://t.me/bot/table?startapp=${r}`, app: (r: string) => `https://fly/t/?room=${r}`, native: () => null };
+const withApp = { ...links, native: (r: string) => `https://t.me/bot?start=app-${r}` };
 const card = (room: string, title: string, by = "tg:1"): RoomCard => ({ room, title, by, home: { kind: "chat", chat: "-1" }, people: [], seats: [], deck: { size: 36, jokers: false }, createdAt: 0, kind: "sandbox", crew: "sandbox", admins: [] });
 
 describe("слова бота про комнаты", () => {
+  it("рядом с каждым «Играть» — «В приложении»: ведёт в личку с ботом, пропуск он выдаст там лично", () => {
+    const native = { text: "В приложении", url: "https://t.me/bot?start=app-r1" };
+    expect(cardRows("r1", withApp, false)[0]).toEqual([{ text: "Играть", url: "https://t.me/bot/table?startapp=r1" }, native, { text: "Меню", data: "tbm:r1" }]);
+    expect(cardRows("r1", withApp, true)[0]![1]).toEqual(native);
+    expect(listed([card("r1", "«Чат»", "tg:1"), card("r2", "«Бандиты»", "tg:9")], withApp, true, "tg:1").rows.map((r) => r[1])).toEqual([native, { text: "В приложении", url: "https://t.me/bot?start=app-r2" }]);
+    expect(inviteExisting(card("r1", "«Пицца»"), withApp, false).rows[0]).toEqual([{ text: "Играть", url: "https://t.me/bot/table?startapp=r1" }, native]);
+  });
+
+
   it("в личке — все мои комнаты: своими управляю, в чужие просто захожу", () => {
     const said = listed([card("r1", "«Чат»", "tg:1"), card("r2", "«Бандиты»", "tg:9")], links, true, "tg:1");
     expect(said.text).toContain("Твои комнаты (2)");

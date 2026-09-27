@@ -20,6 +20,12 @@ export interface Links {
   anywhere(room: string): string;
   /** Адрес для `web_app` в личке. */
   app(room: string): string;
+  /**
+   * «В ПРИЛОЖЕНИИ» — нативный Crossade AR. Ссылка ведёт в личку с ботом (`?start=app-<комната>`), и пропуск
+   * бот выдаёт уже там, лично нажавшему: кнопку в общем чате видят все, а по пропуску садятся тобой.
+   * `null` — кнопки нет (имя бота ещё не узнано).
+   */
+  native(room: string): string | null;
 }
 
 export const DOWN = "Комнаты сейчас недоступны: сервер выключен. Попробуй позже.";
@@ -27,6 +33,12 @@ export const DOWN = "Комнаты сейчас недоступны: серв�
 /** Кнопка входа: в личке — Mini App прямо здесь, в группе и в чужой переписке — ссылкой. */
 export function enter(room: string, links: Links, inPrivate: boolean, text = "Играть"): Button {
   return inPrivate ? { text, app: links.app(room) } : { text, url: links.anywhere(room) };
+}
+
+/** Вход и рядом «В приложении», если оно есть. */
+export function enterAll(room: string, links: Links, inPrivate: boolean, text = "Играть"): Button[] {
+  const native = links.native(room);
+  return native ? [enter(room, links, inPrivate, text), { text: "В приложении", url: native }] : [enter(room, links, inPrivate, text)];
 }
 
 const who = (card: RoomCard) => (card.people.length ? ` · внутри: ${card.people.map((p) => p.name).join(", ")}` : "");
@@ -59,12 +71,12 @@ export function listed(cards: RoomCard[], links: Links, inPrivate: boolean, me?:
     rows: cards.map((c) =>
       mine(c) || !inPrivate
         ? [
-            enter(c.room, links, inPrivate, c.title),
+            ...enterAll(c.room, links, inPrivate, c.title),
             { text: "Управлять", data: `tbm:${c.room}` },
             { text: "Переименовать", data: `tbl:ren:${c.room}` },
             { text: "Закрыть", data: `tbl:del:${c.room}` },
           ]
-        : [enter(c.room, links, inPrivate, c.title)],
+        : enterAll(c.room, links, inPrivate, c.title),
     ),
   };
 }
@@ -111,7 +123,7 @@ export function inviteExisting(card: RoomCard, links: Links, admin: boolean): { 
     title: card.title,
     description: `Позвать в эту комнату · ${where}`,
     text: `«${card.title}» — заходи.`,
-    rows: [admin ? [enter(card.room, links, false, "Играть"), { text: "Управлять", data: `tbm:${card.room}` }] : [enter(card.room, links, false, "Играть")]],
+    rows: [admin ? [...enterAll(card.room, links, false, "Играть"), { text: "Управлять", data: `tbm:${card.room}` }] : enterAll(card.room, links, false, "Играть")],
   };
 }
 
@@ -137,5 +149,5 @@ export function inviteArticle(name: string, about: string | undefined, room: str
 
 /** Карточка только что открытого стола: вход для всех и «Меню» — для хозяина. */
 export const cardRows = (room: string, links: Links, inPrivate: boolean, title = "Играть"): Button[][] => [
-  [enter(room, links, inPrivate, title), { text: "Меню", data: `tbm:${room}` }],
+  [...enterAll(room, links, inPrivate, title), { text: "Меню", data: `tbm:${room}` }],
 ];

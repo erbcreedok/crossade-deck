@@ -18,6 +18,7 @@ import type { Registry } from "./registry.js";
 import type { Watch } from "./watch.js";
 import { installStickers } from "./stickers.js";
 import { recordsSay, type TableRecords } from "./records.js";
+import { appLinks, bearerOf } from "./appLink.js";
 
 const POLL_MS = 30_000;
 const DOWN_POLLS = 3;
@@ -41,6 +42,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
   const links: Links = {
     anywhere: (room) => (api.appName && botName ? `https://t.me/${botName}/${api.appName}?startapp=${room}` : api.openUrl(room)),
     app: (room) => api.openUrl(room),
+    native: (room) => (botName && `app-${room}`.length <= 64 ? `https://t.me/${botName}?start=app-${room}` : null),
   };
   /** Кто сейчас переименовывает какой стол: `чат:человек` → комната. */
   const naming = new Map<string, string>();
@@ -74,6 +76,20 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
   });
 
   // ЗАПИСИ ПАРТИЙ — по команде, а не сами: чат не засыпается ссылками после каждой партии.
+  // ПРИЛОЖЕНИЕ CROSSADE AR — ссылка с пропуском, мимо Mini App. Только в личке: по ссылке садятся тобой.
+  // `only` — один стол: так приходит кнопка «В приложении» (`/start app-<комната>`).
+  async function appSay(ctx: Context, only?: string): Promise<void> {
+    if (!inPrivate(ctx)) return void (await ctx.reply("Ссылку в приложение даю только в личке: по ней садятся за стол тобой. Напиши мне /app."));
+    const at = await api.where();
+    if (!at.up) return void (await ctx.reply(DOWN));
+    const cards = await tablesFor(ctx);
+    if (cards === "down") return void (await ctx.reply(DOWN));
+    const pick = only === undefined ? cards : [cards.find((c) => c.room === only) ?? ({ room: only, title: "Стол" } as RoomCard)];
+    const said = appLinks(pick, bearerOf(ctx.from!), at.url, secret);
+    await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
+  }
+  bot.command("app", (ctx) => appSay(ctx));
+
   bot.command("records", async (ctx) => {
     // В ЛИЧКЕ — всё, что касается человека: столы, которые он открыл или за которыми сидел. В ГРУППЕ —
     // столы этого чата. И то и другое — по журналу стола: закрытый стол свои партии не прячет.
@@ -479,5 +495,5 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     setInterval(() => void poll(), POLL_MS);
   }
 
-  return { inlineResults, start, roomsUrl: () => api.roomsUrl() };
+  return { inlineResults, start, roomsUrl: () => api.roomsUrl(), app: (ctx: Context, room: string) => appSay(ctx, room) };
 }
