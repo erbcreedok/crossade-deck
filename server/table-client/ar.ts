@@ -219,6 +219,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   };
   const stick = (id: number, from: { x: number; y: number }, at: { x: number; y: number }): void => {
     if (feet()) return;
+    stopGlide();
     stopWalk();
     grabbing = null;
     const ring = document.createElement("div");
@@ -242,6 +243,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   let metre = 1;
   const grab = (down: PointerEvent): void => {
     if (!seenLens || feet()) return;
+    stopGlide();
     stopWalk();
     grabbing = { id: down.pointerId, desk: seenLens.toDesk({ x: down.clientX, y: down.clientY }) };
   };
@@ -449,6 +451,42 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   off.push(() => ui.dispose());
   void listMarkers().then((list) => { markers = list; showHud(); });
 
+  // ── «выровнять» — плавно ─────────────────────────────────────────────────────────────────────────
+  // Тап по компасу: назад к своему стулу, стол перед собой. Прыжком это читалось как телепорт; теперь стол
+  // едет на новое место за то же время, что компас доворачивает поворот (600 мс), с разгоном и торможением.
+  // «Меньше анимаций» — прыжком, как раньше. Джойстик, хват или прогулка посреди пути — путь бросается.
+  const GLIDE_MS = 600;
+  let glide = 0;
+  const stopGlide = (): void => { cancelAnimationFrame(glide); glide = 0; };
+  function glideHome(): void {
+    stopGlide();
+    const to = placeAtGaze(q, DROP, AHEAD, UNIT);
+    if (document.documentElement.dataset.reduceMotion !== undefined) {
+      walk = { x: 0, z: 0 };
+      lift = 0;
+      placed = to;
+      changed();
+      return;
+    }
+    const from = { walk: { ...walk }, lift, placed }, t0 = performance.now();
+    let turn = to.yaw - from.placed.yaw;
+    turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+    const step = (now: number): void => {
+      const t = Math.min(1, (now - t0) / GLIDE_MS), k = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+      walk = { x: from.walk.x * (1 - k), z: from.walk.z * (1 - k) };
+      lift = from.lift * (1 - k);
+      placed = {
+        at: [0, 1, 2].map((i) => from.placed.at[i]! + (to.at[i]! - from.placed.at[i]!) * k) as [number, number, number],
+        yaw: from.placed.yaw + turn * k,
+        unit: to.unit,
+      };
+      changed();
+      glide = t < 1 ? requestAnimationFrame(step) : 0;
+    };
+    glide = requestAnimationFrame(step);
+  }
+  off.push(stopGlide);
+
   // ── годность кадра в рамке съёмки ───────────────────────────────────────────────────────────────
   const shot = document.createElement("canvas");
   shot.width = shot.height = ASSESS;
@@ -473,6 +511,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     return {
       async start(): Promise<void> {
         want = true;
+        stopGlide();
         if (session) return;
         if (anchor.kind !== "gravity") { say("держусь за предмет — ходи ногами", 1600); return; }
         say("включаю камеру…");
@@ -593,9 +632,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     recenter() {
       stopWalk();
       grabbing = null;
-      walk = { x: 0, z: 0 };
-      lift = 0;
-      place();
+      glideHome();
     },
     stick,
     grab,

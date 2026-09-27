@@ -104,7 +104,8 @@ if (await p.locator("[data-settings-close]").count()) { await p.locator("[data-s
 // Пустое сукно — хват: взятая точка идёт за пальцем.
 await orient(0, 50);
 await settle();
-const recenter = async () => { await p.locator("[data-home]").click(); await settle(); };
+// «Выровнять» едет плавно, 600 мс (стол, шаги, зум), — меряем, когда доехал.
+const recenter = async () => { await p.locator("[data-home]").click(); await p.waitForTimeout(800); };
 await recenter(); // от выровненного: у своего стула, исходный размер
 const home = await spots();
 const fromCompass = async () => {

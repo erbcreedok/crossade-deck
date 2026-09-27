@@ -260,6 +260,31 @@ await touch1("touchEnd", hub.x, hub.y);
 await settle();
 await p.evaluate(() => Object.assign(window.__fake, { scene: "blank", x: 360, y: 510, side: 520 }));
 
+// 2г. «ВЫРОВНЯТЬ» — ПЛАВНО: ушёл джойстиком, тап по компасу — стол едет домой, а не прыгает.
+await orient(0, 50);
+await p.locator("[data-home]").click();
+await p.waitForTimeout(900);
+const home = await spots();
+await touch1("touchStart", hub.x, hub.y);
+await touch1("touchMove", hub.x, hub.y - 60);
+await p.waitForTimeout(900);
+await touch1("touchEnd", hub.x, hub.y);
+await settle(400);
+const away = await spots();
+// Кривая — каждые 50 мс, пока стол едет: на медленной машине кадр рисуется реже, и «через 300 мс» ловит то
+// начало, то конец. Плавно — значит, по дороге есть хоть одно значение между «ушёл» и «дома».
+const curve = p.evaluate(() => new Promise((done) => {
+  const out = [], t0 = performance.now();
+  const t = setInterval(() => { out.push(JSON.parse(document.querySelector("canvas").dataset.spots || "{}").k); if (performance.now() - t0 > 2500) { clearInterval(t); done(out); } }, 50);
+}));
+await p.locator("[data-home]").click();
+const ks = await curve;
+const back = await spots();
+const gone = away.k - home.k;
+const between = ks.filter((k) => k < away.k - gone * 0.1 && k > home.k + gone * 0.1);
+check("тап по компасу — домой плавно: по дороге стол проходит промежуточные размеры, потом дома", gone > 2 && between.length >= 1 && Math.abs(back.k - home.k) < 0.8 && Math.hypot(back.middle.x - home.middle.x, back.middle.y - home.middle.y) < 3,
+  `размер ${home.k.toFixed(1)} → ушёл ${away.k.toFixed(1)} → по дороге ${[...new Set(ks.map((k) => k.toFixed(1)))].join(" ")} → дома ${back.k.toFixed(1)}`);
+
 // 3. предмет: картина на стене — телефон стоймя смотрит вперёд
 await orient(0, 90);
 await settle();

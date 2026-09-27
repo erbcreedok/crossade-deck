@@ -3208,8 +3208,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // ВЫРОВНЯТЬ — назад к своему стулу, стол перед собой, размер исходный.
     recenterAr: () => {
       ar?.recenter();
-      cam.camera.setZoom(firstZoom());
-      redraw();
+      // Зум — к исходному тем же ходом, что стол едет к своему месту (`ar.ts`, 600 мс): прыжком садился резко.
+      const from = cam.camera.zoom, to = firstZoom(), t0 = performance.now();
+      if (motion.reduce || Math.abs(to - from) < 1e-3) { cam.camera.setZoom(to); redraw(); return; }
+      const step = (now: number): void => {
+        const t = Math.min(1, (now - t0) / 600), k = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+        cam.camera.setZoom(from + (to - from) * k);
+        redraw();
+        if (t < 1 && ar) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
     },
     walkAr: (id, from, at) => ar?.stick(id, from, at),
     strideAr: (on) => ar?.stride(on),
