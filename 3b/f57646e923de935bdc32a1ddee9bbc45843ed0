@@ -1,0 +1,149 @@
+native/unity-ar/Assets/TablePrototype.cs
+  s_9ed0da107cbc4a::t_c8fac1a5f2709f 101-109
+  s_9ed0da107cbc4a::t_fdac0bba2994d1 21
+  s_9ed0da107cbc4a::t_a0728db6248fea 18-20
+  s_9ed0da107cbc4a::t_904d859ac24e5f 22-24,98-100
+  s_9ed0da107cbc4a::t_0858360b6386c9 110-112
+  s_9ed0da107cbc4a::t_b4175ed460bd03 1-17,25-97,113-197
+native/unity-ar/Assets/Editor/PrototypeBuild.cs
+  s_9ed0da107cbc4a::t_66378643b9915e 23-25
+  s_9ed0da107cbc4a::t_329cd7a09283bb 30-41,45,48,52,56,58,61
+  s_9ed0da107cbc4a::t_93964c76a08c1e 63-67
+  s_9ed0da107cbc4a::t_a7b6d49bdb4ccb 20-22
+  s_9ed0da107cbc4a::t_cd2e4077a6b58c 26-29
+  s_9ed0da107cbc4a::t_1a48c13db74721 42-44
+  s_9ed0da107cbc4a::t_84b34597557f0f 46-47
+  s_9ed0da107cbc4a::t_702f9b3e19f576 49-51
+  s_9ed0da107cbc4a::t_ab5280c5f60c4c 53-55
+  s_9ed0da107cbc4a::t_28322f2b24a46c 57
+  s_9ed0da107cbc4a::t_bba149431ba127 59-60
+  s_9ed0da107cbc4a::t_1ea0b9dc88df66 62
+  s_9ed0da107cbc4a::t_7249f2b8302b05 68-70
+  s_9ed0da107cbc4a::t_ca33cd19639ea1 1-19,71-96
+native/unity-ar/.gitignore
+  s_9ed0da107cbc4a::t_b0454bc44d688e 1-8
+native/unity-ar/Assets/Editor.meta
+  s_9ed0da107cbc4a::t_fec3859bca0e6c 1-8
+native/unity-ar/Assets/Editor/PrototypeBuild.cs.meta
+  s_9ed0da107cbc4a::t_98885f2ebfefc5 1-2
+native/unity-ar/Assets/Resources.meta
+  s_9ed0da107cbc4a::t_a523ade9f67a50 1-8
+native/unity-ar/Assets/Resources/Tiny5-OFL.txt
+  s_9ed0da107cbc4a::t_57e5f9a516bfcc 1-93
+native/unity-ar/Assets/Resources/Tiny5-OFL.txt.meta
+  s_9ed0da107cbc4a::t_107ae60af815d5 1-7
+native/unity-ar/Assets/Resources/Tiny5.ttf.meta
+  s_9ed0da107cbc4a::t_64e02e732b3a4b 1-21
+native/unity-ar/Assets/Scenes.meta
+  s_9ed0da107cbc4a::t_e9fc13b9453084 1-8
+native/unity-ar/Assets/Scenes/Table.unity
+  s_9ed0da107cbc4a::t_1924740ea90c06 1-170
+native/unity-ar/Assets/Scenes/Table.unity.meta
+  s_9ed0da107cbc4a::t_6552aa78f1ea34 1-7
+native/unity-ar/Assets/TablePrototype.cs.meta
+  s_9ed0da107cbc4a::t_d3d07dcf3b60e7 1-2
+native/unity-ar/Assets/XR.meta
+  s_9ed0da107cbc4a::t_61073a10a84af7 1-8
+native/unity-ar/Assets/XR/Loaders.meta
+  s_9ed0da107cbc4a::t_a44a44c95e6b9e 1-8
+native/unity-ar/Assets/XR/Loaders/ARKitLoader.asset
+  s_9ed0da107cbc4a::t_972fb7d20d6c7a 1-14
+native/unity-ar/Assets/XR/Loaders/ARKitLoader.asset.meta
+  s_9ed0da107cbc4a::t_22e20507adcd02 1-8
+native/unity-ar/Assets/XR/Loaders/SimulationLoader.asset
+  s_9ed0da107cbc4a::t_023411759882dd 1-14
+native/unity-ar/Assets/XR/Loaders/SimulationLoader.asset.meta
+  s_9ed0da107cbc4a::t_8287396f1c5e25 1-8
+native/unity-ar/Assets/XR/Resources.meta
+  s_9ed0da107cbc4a::t_97cf8d945a6148 1-8
+native/unity-ar/Assets/XR/Resources/XRSimulationRuntimeSettings.asset
+  s_9ed0da107cbc4a::t_95dcaf4aefb419 1-67
+native/unity-ar/Assets/XR/Resources/XRSimulationRuntimeSettings.asset.meta
+  s_9ed0da107cbc4a::t_68958f8f7f91c5 1-8
+native/unity-ar/Assets/XR/Settings.meta
+  s_9ed0da107cbc4a::t_95e74f48de3a48 1-8
+native/unity-ar/Assets/XR/Settings/ARKitSettings.asset
+  s_9ed0da107cbc4a::t_d7d15283af45d5 1-16
+native/unity-ar/Assets/XR/Settings/ARKitSettings.asset.meta
+  s_9ed0da107cbc4a::t_a6c66a660a1fc0 1-8
+native/unity-ar/Assets/XR/Settings/XRSimulationSettings.asset
+  s_9ed0da107cbc4a::t_9c5d28025df714 1-14
+native/unity-ar/Assets/XR/Settings/XRSimulationSettings.asset.meta
+  s_9ed0da107cbc4a::t_a96cfb487fa598 1-8
+native/unity-ar/Assets/XR/UserSimulationSettings.meta
+  s_9ed0da107cbc4a::t_a72c30bdf4e898 1-8
+native/unity-ar/Assets/XR/UserSimulationSettings/Resources.meta
+  s_9ed0da107cbc4a::t_814dbc54014819 1-8
+native/unity-ar/Assets/XR/UserSimulationSettings/Resources/XRSimulationPreferences.asset
+  s_9ed0da107cbc4a::t_cbc78c2ddc6585 1-24
+native/unity-ar/Assets/XR/UserSimulationSettings/Resources/XRSimulationPreferences.asset.meta
+  s_9ed0da107cbc4a::t_ec21b080bd077b 1-8
+native/unity-ar/Assets/XRSettings.asset
+  s_9ed0da107cbc4a::t_d03b3dd09dc6ed 1-48
+native/unity-ar/Assets/XRSettings.asset.meta
+  s_9ed0da107cbc4a::t_bd5aed7e01daca 1-8
+native/unity-ar/Packages/manifest.json
+  s_9ed0da107cbc4a::t_2be7290bd0fc84 1-10
+native/unity-ar/Packages/packages-lock.json
+  s_9ed0da107cbc4a::t_6a72fa2d18f104 1-187
+native/unity-ar/ProjectSettings/AudioManager.asset
+  s_9ed0da107cbc4a::t_e2abf9575eb8d5 1-20
+native/unity-ar/ProjectSettings/ClusterInputManager.asset
+  s_9ed0da107cbc4a::t_bafa1ec3937ad5 1-6
+native/unity-ar/ProjectSettings/DynamicsManager.asset
+  s_9ed0da107cbc4a::t_a8b3fad2d3537d 1-45
+native/unity-ar/ProjectSettings/EditorBuildSettings.asset
+  s_9ed0da107cbc4a::t_ceff780b1dc5c7 1-15
+native/unity-ar/ProjectSettings/EditorSettings.asset
+  s_9ed0da107cbc4a::t_c6774a41bee481 1-50
+native/unity-ar/ProjectSettings/GraphicsSettings.asset
+  s_9ed0da107cbc4a::t_59dc37f777e189 1-67
+native/unity-ar/ProjectSettings/InputManager.asset
+  s_9ed0da107cbc4a::t_3d949202587656 1-296
+native/unity-ar/ProjectSettings/MemorySettings.asset
+  s_9ed0da107cbc4a::t_ccae2de3499158 1-35
+native/unity-ar/ProjectSettings/MultiplayerManager.asset
+  s_9ed0da107cbc4a::t_43819826210121 1-7
+native/unity-ar/ProjectSettings/NavMeshAreas.asset
+  s_9ed0da107cbc4a::t_dc3df7cd19d00a 1-93
+native/unity-ar/ProjectSettings/Physics2DSettings.asset
+  s_9ed0da107cbc4a::t_b1058309f1ced8 1-56
+native/unity-ar/ProjectSettings/PresetManager.asset
+  s_9ed0da107cbc4a::t_45d86f7434bfc2 1-7
+native/unity-ar/ProjectSettings/ProjectSettings.asset
+  s_9ed0da107cbc4a::t_06b309e30543b6 1-797
+native/unity-ar/ProjectSettings/ProjectVersion.txt
+  s_9ed0da107cbc4a::t_3dcbecded7f4d8 1-2
+native/unity-ar/ProjectSettings/QualitySettings.asset
+  s_9ed0da107cbc4a::t_a890ca02e4d5eb 1-341
+native/unity-ar/ProjectSettings/SceneTemplateSettings.json
+  s_9ed0da107cbc4a::t_b50561c696ce6c 1-121
+native/unity-ar/ProjectSettings/TagManager.asset
+  s_9ed0da107cbc4a::t_1940a43f27205d 1-45
+native/unity-ar/ProjectSettings/TimeManager.asset
+  s_9ed0da107cbc4a::t_9644c696b2767f 1-14
+native/unity-ar/ProjectSettings/UnityConnectSettings.asset
+  s_9ed0da107cbc4a::t_32c2a464c58638 1-40
+native/unity-ar/ProjectSettings/VFXManager.asset
+  s_9ed0da107cbc4a::t_700a841ba3f448 1-19
+native/unity-ar/ProjectSettings/VersionControlSettings.asset
+  s_9ed0da107cbc4a::t_5ae60c7ef8e1d6 1-7
+native/unity-ar/ProjectSettings/XRPackageSettings.asset
+  s_9ed0da107cbc4a::t_1cc89e61f030ef 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3bf57646e923de935bdc32a1ddee9bbc45843ed0",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
