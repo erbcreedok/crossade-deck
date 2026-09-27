@@ -1,0 +1,23 @@
+native/unity-ar/Assets/Editor/PrototypeBuild.cs
+  s_9ed0da107cbc4a::t_52b705bbaf2c36 19-22
+native/unity-ar/Assets/TablePrototype.cs
+  s_9ed0da107cbc4a::t_401197684f3874 219-223,258-261,266
+native/unity-ar/ProjectSettings/ProjectSettings.asset
+  s_9ed0da107cbc4a::t_12eb0633c576d4 145,172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e985c4f302725535a26d4c9aa29c8a2798588134",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
