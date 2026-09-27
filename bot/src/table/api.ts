@@ -62,6 +62,22 @@ export class TableApi {
     }
   }
 
+  /**
+   * АДРЕС МАКА СНАРУЖИ — тот, по которому до стола дотянется телефон. Бот живёт на том же маке и ходит к
+   * столу по `serverUrl` (127.0.0.1), но в ссылку человеку годится только адрес туннеля, а его знает реле.
+   */
+  async publicUrl(): Promise<string | null> {
+    if (!this.env.relayUrl) return this.env.serverUrl ?? null;
+    try {
+      const res = await this.http(`${this.env.relayUrl}/relay/table`);
+      if (!res.ok) return null;
+      const s = (await res.json()) as RelayStatus;
+      return s.up && s.url ? s.url : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Постоянный адрес стола в браузере — через реле, чтобы ссылка пережила смену адреса мака. */
   openUrl(room: string): string {
     return `${this.env.relayUrl ?? this.env.serverUrl}/${this.env.relayUrl ? "t" : "table"}/?room=${encodeURIComponent(room)}`;

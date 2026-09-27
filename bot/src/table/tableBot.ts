@@ -80,12 +80,12 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
   // `only` — один стол: так приходит кнопка «В приложении» (`/start app-<комната>`).
   async function appSay(ctx: Context, only?: string): Promise<void> {
     if (!inPrivate(ctx)) return void (await ctx.reply("Ссылку в приложение даю только в личке: по ней садятся за стол тобой. Напиши мне /app."));
-    const at = await api.where();
-    if (!at.up) return void (await ctx.reply(DOWN));
+    const host = await api.publicUrl();
+    if (!host) return void (await ctx.reply(DOWN));
     const cards = await tablesFor(ctx);
     if (cards === "down") return void (await ctx.reply(DOWN));
     const pick = only === undefined ? cards : [cards.find((c) => c.room === only) ?? ({ room: only, title: "Стол" } as RoomCard)];
-    const said = appLinks(pick, bearerOf(ctx.from!), at.url, secret);
+    const said = appLinks(pick, bearerOf(ctx.from!), host, secret);
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
   }
   bot.command("app", (ctx) => appSay(ctx));
