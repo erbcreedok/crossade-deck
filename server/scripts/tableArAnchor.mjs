@@ -1,6 +1,6 @@
-// AR-СТОЛ НА ЯКОРЕ: кнопки якоря и выхода в верхнем ряду, окно якоря, камера за столом (и честный отказ),
-// подгонка пальцами, предмет с камеры — стол на картине на стене, «плашмя», пропажа предмета, джойстик
-// спит, пока предмет виден. И главное: касаниями пальца под потоком датчика кнопки HUD нажимаются
+// AR-СТОЛ НА ЯКОРЕ: кнопки якоря и выхода в верхнем ряду, окно якоря, подгонка пальцами, прогулка с
+// камерой по удержанию компаса, предмет с камеры (и честный отказ) — стол на картине на стене, «плашмя»,
+// пропажа предмета, джойстик спит, пока предмет виден. И главное: касаниями пальца под потоком датчика кнопки HUD нажимаются
 // каждый раз — стол, сдвигаясь за камерой, их больше не пересоздаёт.
 //
 // Камера — подделка: холст 720×1280 с «обложкой» (пёстрый квадрат), отдаётся через getUserMedia.
@@ -155,7 +155,7 @@ const hudRounds = async () => {
     if (!shut && (await p.locator("[data-settings-close]").count())) await p.locator("[data-settings-close]").click();
   }
   await p.evaluate(() => { window.__shake = 0; });
-  await p.waitForTimeout(200);
+  await p.waitForTimeout(800); // стол успокоился после дрожи — дальше меряют, где он
   return got;
 };
 await orient(0, 50);
@@ -164,8 +164,8 @@ check("под потоком датчика пальцем: шестерёнка
 
 let s0 = await spots();
 await click('[data-ar-do="menu"]');
-check("якорь — окно в виде «Настроек»: сейчас, камера, за что держится стол, подогнать", (await p.locator("[data-ar-now]").count()) === 1 && (await p.locator('[data-ar-do="camera"][role="switch"]').count()) === 1 && (await p.locator('[data-ar-do="fit"]').count()) === 1, await p.locator("[data-ar-now]").textContent());
-check("сейчас: стол перед тобой, гироскоп, камера выключена", /перед тобой.*гироскоп.*камера выключена/.test(await p.locator("[data-ar-now]").textContent()));
+check("якорь — окно в виде «Настроек»: сейчас, за что держится стол, подогнать", (await p.locator("[data-ar-now]").count()) === 1 && (await p.locator('[data-ar-do="new"]').count()) === 1 && (await p.locator('[data-ar-do="fit"]').count()) === 1, await p.locator("[data-ar-now]").textContent());
+check("сейчас: стол перед тобой на гироскопе, и как ходить", /перед тобой.*гироскоп.*зажми компас/.test(await p.locator("[data-ar-now]").textContent()), await p.locator("[data-ar-now]").textContent());
 await click('[data-ar-do="fit"]');
 check("«подогнать» — окно ушло, рамка подгонки и плашка", await p.locator("[data-ar-fit-ring]").isVisible() && !(await p.locator("[data-ar-sheet]").isVisible()) && (await p.locator('[data-ar-do="done"]').count()) === 1);
 await touch([["pointerdown", 1, s0.middle.x, s0.middle.y], ...[1, 2, 3, 4, 5, 6].map((i) => ["pointermove", 1, s0.middle.x + i * 10, s0.middle.y]), ["pointerup", 1, s0.middle.x + 60, s0.middle.y]]);
@@ -200,47 +200,65 @@ await click('[data-ar-do="fit"]');
 await click('[data-ar-do="reset"]');
 await click('[data-ar-do="done"]');
 
-// 2б. камера за столом: отказ — словами в окне; разрешили — видео под сукном, стол держит гироскоп
+// 2б. камеру не дали — предмет не снять, и окно якоря говорит почему
 await p.evaluate(() => { window.__fake.deny = true; });
 await click('[data-ar-do="menu"]');
-await click('[data-ar-do="camera"]');
+await click('[data-ar-do="new"]');
 await p.waitForFunction(() => /камеры нет/.test(document.querySelector("[data-ar-now]")?.textContent ?? ""), null, { timeout: 10000 }).catch(() => {});
-check("камеру не дали — окно якоря говорит почему, значок без точки", /камеры нет: камеру не разрешили/.test(await p.locator("[data-ar-now]").textContent()) && (await p.locator("[data-ar-cam-dot]").count()) === 0, await p.locator("[data-ar-now]").textContent());
-await p.evaluate(() => { window.__fake.deny = false; window.__fake.scene = "blank"; }); // пока под столом пусто — цепляться не за что
-await click('[data-ar-do="camera"]');
-await p.waitForFunction(() => /камера включена/.test(document.querySelector("[data-ar-now]")?.textContent ?? ""), null, { timeout: 20000 }).catch(() => {});
-check("«Камера за столом» — видео под сукном, стол держится гироскопом, на значке точка", (await p.locator("[data-ar-camera]").count()) === 1 && /перед тобой.*гироскоп.*камера включена/.test(await p.locator("[data-ar-now]").textContent()) && (await p.locator("[data-ar-cam-dot]").count()) === 1, await p.locator("[data-ar-now]").textContent());
+check("камеру не дали — окно якоря говорит почему", /камеры нет: камеру не разрешили/.test(await p.locator("[data-ar-now]").textContent() ?? ""), await p.locator("[data-ar-now]").textContent());
+await p.evaluate(() => { window.__fake.deny = false; });
 await click('[data-ar-do="close"]');
 
-// 2в. АВТОМЕТКА: телефон смотрит вниз, под столом — рисунок. Стол цепляется сам, не сдвинувшись и не
-// сменив размер; «Перед собой» — отцепиться.
+// 2в. ПРОГУЛКА С КАМЕРОЙ: телефон смотрит вниз, под столом — пол с рисунком. Зажал компас на секунду —
+// камера невидимо включилась и ведёт шаги; телефон сдвинулся — пол поехал в кадре, и стол, лежащий на
+// полу, едет вместе с ним; отпустил — камера погасла, стол там же. Фон — всё та же сетка.
 await orient(0, 0);
-await p.locator("[data-home]").click(); // «Выровнять»: стол встаёт туда, куда смотришь, — под телефон
+await p.locator("[data-home]").click(); // «Выровнять»: стол под телефоном
 await settle(600);
-const pre = await spots();
-// Телефон смотрит прямо вниз — стол встаёт чуть впереди, у верха экрана. Квадрат автометки тогда
-// упирается в поле у края кадра и сдвигается вниз, внутрь (там трекер точки берёт); узор — под квадратом,
-// на 102 px ниже середины стола. Посадка обязана вернуть стол туда, где он был.
-const vk = Math.max(W / VW, H / VH), vLeft = (W - VW * vk) / 2;
-await p.evaluate(([x, y]) => Object.assign(window.__fake, { scene: "cover", x, y, side: 400 }), [(pre.middle.x - vLeft) / vk, (pre.middle.y + 102) / vk]);
-const tAuto = Date.now();
-await p.waitForFunction(() => [...document.querySelectorAll("*")].some((e) => e.dataset?.arAnchor === "auto:seen"), null, { timeout: 30000, polling: 200 }).catch(() => {});
-check("автометка: камера видит рисунок под столом — стол зацепился сам, быстро (трекер прогрет)", (await anchor()) === "auto:seen" && Date.now() - tAuto < 9000, `${await anchor()} за ${((Date.now() - tAuto) / 1000).toFixed(1)} с`);
-await settle(1500);
-const post = await spots();
-check("автометка: стол не сдвинулся и не сменил размер", Math.hypot(post.middle.x - pre.middle.x, post.middle.y - pre.middle.y) < 12 && Math.abs(post.k / pre.k - 1) < 0.1, `середина ${pre.middle.x},${pre.middle.y} → ${post.middle.x},${post.middle.y}; размер ×${(post.k / pre.k).toFixed(2)}`);
-await shot("2-auto");
-await click('[data-ar-do="menu"]');
-check("окно говорит: зацепился за то, что под столом", /зацепился за то, что под ним: виден/.test(await p.locator("[data-ar-now]").textContent()), await p.locator("[data-ar-now]").textContent());
-await click('[data-ar-do="gravity"]');
-check("«Перед собой» — отцепился, стол снова на гироскопе, камера осталась", (await anchor()) === "gravity:search" && (await p.locator("[data-ar-camera]").count()) === 1);
-await settle(1500);
-check("«Перед собой» — и не цепляется снова сам", (await anchor()) === "gravity:search", await anchor());
-await click('[data-ar-do="menu"]');
-await click('[data-ar-do="camera"]');
-check("выключил камеру — видео нет", (await p.locator("[data-ar-camera]").count()) === 0 && /камера выключена/.test(await p.locator("[data-ar-now]").textContent()));
-await click('[data-ar-do="close"]');
-await p.evaluate(() => Object.assign(window.__fake, { x: 360, y: 510, side: 520 }));
+await p.evaluate(() => Object.assign(window.__fake, { scene: "cover", x: 360, y: 640, side: 1300 })); // пол во весь кадр
+const hub = await compass();
+const touch1 = (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y, id: 1 }] });
+const gum0 = await p.evaluate(() => window.__fake.gum);
+await touch1("touchStart", hub.x, hub.y);
+await p.waitForTimeout(1300);
+await p.waitForFunction(() => /иду с камерой/.test(document.querySelector("[data-ar-hint]")?.textContent ?? ""), null, { timeout: 8000 }).catch(() => {});
+const hidden = await p.evaluate(() => { const v = document.querySelector("[data-ar-camera]"); return !!v && getComputedStyle(v).opacity === "0" && getComputedStyle(document.querySelector("[data-ar-floor]")).display !== "none"; });
+check("зажал компас секунду — камера включилась невидимо, фон — сетка, сверху «иду с камерой»", (await p.evaluate(() => window.__fake.gum)) === gum0 + 1 && hidden && /иду с камерой/.test(await p.locator("[data-ar-hint]").textContent()), await p.locator("[data-ar-hint]").textContent());
+await settle(500);
+const before = await spots();
+// Телефон сдвинулся влево — пол в кадре уехал вправо на 60 px кадра (≈40 px экрана), плавно, как рука.
+await p.evaluate(() => new Promise((done) => { const F = window.__fake, x0 = F.x; let k = 0; const t = setInterval(() => { k += 1; F.x = x0 + k * 3; if (k >= 20) { clearInterval(t); done(); } }, 40); }));
+const floorShift = 60 * Math.max(W / VW, H / VH);
+// Машина может быть нагружена: ждём, пока стол реально доедет (или 8 с), а не фиксированное время.
+await p.waitForFunction(([x0, want]) => { const s = JSON.parse(document.querySelector("canvas").dataset.spots || "{}"); return s.middle && s.middle.x - x0 >= want * 0.9; }, [before.middle.x, floorShift], { timeout: 8000, polling: 200 }).catch(() => {});
+await settle(800);
+const strideCost = await p.evaluate(() => [...document.querySelectorAll("*")].find((e) => e.dataset?.arStride)?.dataset.arStride);
+const after = await spots();
+check("прошёл с телефоном — стол остался на полу: сдвинулся в кадре вместе с полом", Math.abs(after.middle.x - before.middle.x - floorShift) < floorShift * 0.3 && Math.abs(after.middle.y - before.middle.y) < 8,
+  `стол ${(after.middle.x - before.middle.x).toFixed(1)}, ${(after.middle.y - before.middle.y).toFixed(1)} px при сдвиге пола ${floorShift.toFixed(1)} px; точек:мс на кадр ${strideCost}`);
+await shot("2-stride");
+await touch1("touchEnd", hub.x, hub.y);
+await settle(600);
+const released = await spots();
+check("отпустил — камера погасла, стол там же, где пришёл", (await p.locator("[data-ar-camera]").count()) === 0 && Math.hypot(released.middle.x - after.middle.x, released.middle.y - after.middle.y) < 3,
+  `${after.middle.x},${after.middle.y} → ${released.middle.x},${released.middle.y}`);
+// Повёл палец — джойстик, камера не включается.
+const gum1 = await p.evaluate(() => window.__fake.gum);
+await touch1("touchStart", hub.x, hub.y);
+await touch1("touchMove", hub.x, hub.y - 40); // быстрый свайп от компаса
+await p.waitForTimeout(1300);
+check("повёл палец от компаса — джойстик, камера не работает", (await p.locator("[data-ar-stick]").count()) === 1 && (await p.locator("[data-ar-camera]").count()) === 0, `джойстик ${await p.locator("[data-ar-stick]").count()}, камера ${await p.locator("[data-ar-camera]").count()}, сверху «${await p.locator("[data-ar-hint]").textContent()}»`);
+await touch1("touchEnd", hub.x, hub.y);
+await settle();
+// Палец дрожит на месте (10 px) — это ещё удержание.
+const gum2 = await p.evaluate(() => window.__fake.gum);
+await touch1("touchStart", hub.x, hub.y);
+await touch1("touchMove", hub.x + 6, hub.y - 8);
+await p.waitForTimeout(1400);
+check("палец дрогнул на 10 px — всё равно удержание: камера включилась", (await p.evaluate(() => window.__fake.gum)) === gum2 + 1 && (await p.locator("[data-ar-stick]").count()) === 0, `камера запрошена ${(await p.evaluate(() => window.__fake.gum)) - gum2} раз, джойстик ${await p.locator("[data-ar-stick]").count()}`);
+await touch1("touchEnd", hub.x, hub.y);
+await settle();
+await p.evaluate(() => Object.assign(window.__fake, { scene: "blank", x: 360, y: 510, side: 520 }));
 
 // 3. предмет: картина на стене — телефон стоймя смотрит вперёд
 await orient(0, 90);
@@ -249,19 +267,20 @@ await click('[data-ar-do="menu"]');
 check("в окне: перед собой, снять предмет", (await p.locator('[data-ar-do="gravity"]').count()) === 1 && (await p.locator('[data-ar-do="new"]').count()) === 1);
 await p.evaluate(() => { window.__fake.scene = "cover"; });
 await click('[data-ar-do="new"]');
+await p.waitForTimeout(1500); // первый кадр только что включённой камеры может быть старым — ждём свежих
 await p.waitForFunction(() => getComputedStyle(document.querySelector("[data-ar-frame]")).display !== "none" || /камеры нет/.test(document.querySelector("[data-ar-now]")?.textContent ?? ""), null, { timeout: 20000 }).catch(() => {});
 check("«снять предмет» — камера под столом и рамка", (await p.locator("[data-ar-camera]").count()) === 1 && (await p.locator("[data-ar-frame]").isVisible()), `${await p.locator("[data-ar-strip]").textContent()} | gum ${await p.evaluate(() => window.__fake.gum)} | ${errors.join(" / ")}`);
-await p.waitForTimeout(800);
+await p.waitForFunction(() => document.querySelector("[data-ar-verdict]")?.dataset.verdict === "ok", null, { timeout: 5000 }).catch(() => {});
 const verdictNow = () => p.evaluate(() => { const v = document.querySelector("[data-ar-verdict]"); return { v: v?.dataset.verdict, nums: document.querySelector("[data-ar-nums]")?.textContent ?? "" }; });
 let q = await verdictNow();
 check("съёмка: в рамке опорные точки и приговор — на обложке «годится»", q.v === "ok" && Number(/углов (\d+)/.exec(q.nums)?.[1] ?? 0) > 20, `${q.v} · ${q.nums}`);
 await shot("2-capture");
 await p.evaluate(() => { window.__fake.scene = "blank"; });
-await p.waitForTimeout(700);
+await p.waitForFunction(() => document.querySelector("[data-ar-verdict]")?.dataset.verdict === "few", null, { timeout: 5000 }).catch(() => {});
 q = await verdictNow();
 check("съёмка: пустой стол — «мало рисунка»", q.v === "few", `${q.v} · ${q.nums}`);
 await p.evaluate(() => { window.__fake.scene = "cover"; });
-await p.waitForTimeout(700);
+await p.waitForFunction(() => document.querySelector("[data-ar-verdict]")?.dataset.verdict === "ok", null, { timeout: 5000 }).catch(() => {});
 await click('[data-ar-do="shoot"]');
 const t0 = Date.now();
 await p.waitForFunction(() => [...document.querySelectorAll("*")].some((e) => e.dataset?.arAnchor === "marker:seen"), null, { timeout: 180000, polling: 250 }).catch(() => {});
@@ -306,13 +325,10 @@ check("предмета не видно — компас снова ходит",
 await p.mouse.up();
 await shot("5-lost");
 
-// 6. «перед собой» — стол снова на гравитации, камера остаётся фоном, пока её не выключишь
+// 6. «перед собой» — стол снова на гироскопе, камера не нужна и гаснет
 await click('[data-ar-do="menu"]');
 await click('[data-ar-do="gravity"]');
-check("«перед собой» — якорь гравитация, камера фоном осталась", (await p.locator("[data-ar-camera]").count()) === 1 && (await anchor()) === "gravity:search", await anchor());
-await click('[data-ar-do="menu"]');
-await click('[data-ar-do="camera"]');
-check("камеру выключил — видео нет", (await p.locator("[data-ar-camera]").count()) === 0);
+check("«перед собой» — якорь гравитация, камера выключена", (await p.locator("[data-ar-camera]").count()) === 0 && (await anchor()) === "gravity:search", await anchor());
 
 check("без ошибок на странице", errors.length === 0, errors.slice(0, 3).join(" | "));
 await browser.close();

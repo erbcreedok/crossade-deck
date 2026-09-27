@@ -3212,6 +3212,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       redraw();
     },
     walkAr: (id, from, at) => ar?.stick(id, from, at),
+    strideAr: (on) => ar?.stride(on),
     listen: addEventListener,
     unlisten: removeEventListener,
   });

@@ -37,8 +37,11 @@ export interface Backdrop {
   stop(): void;
 }
 
-/** Камера под сукном. Строка вместо фона — почему не вышло, словами для человека. */
-export async function openCamera(stage: HTMLElement, felt: HTMLElement): Promise<Backdrop | string> {
+/**
+ * Камера под сукном. Строка вместо фона — почему не вышло, словами для человека. `hidden` — камера
+ * смотрит, но не показывается (прогулка с камерой: фон остаётся сеткой).
+ */
+export async function openCamera(stage: HTMLElement, felt: HTMLElement, opts: { hidden?: boolean } = {}): Promise<Backdrop | string> {
   if (!globalThis.isSecureContext || !navigator.mediaDevices?.getUserMedia) return "камера здесь закрыта: нужен https";
   let stream: MediaStream;
   try {
@@ -52,7 +55,7 @@ export async function openCamera(stage: HTMLElement, felt: HTMLElement): Promise
   video.muted = true;
   video.playsInline = true;
   video.setAttribute("playsinline", "");
-  video.style.cssText = "position:absolute;pointer-events:none;";
+  video.style.cssText = `position:absolute;pointer-events:none;${opts.hidden ? "opacity:0;" : ""}`;
   video.srcObject = stream;
   stage.insertBefore(video, felt);
   // `play()` у потока камеры может не ответить вовсе (кадр ещё не пришёл) — ждём с пределом, а не вечно.

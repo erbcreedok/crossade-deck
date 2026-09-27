@@ -5,10 +5,10 @@
 //
 // Кнопки — того же вида, что шестерёнка и журнал, и зеркально им: тот же отступ от края, тот же ряд;
 // имя стола остаётся по центру экрана. Значок якоря говорит, за что держится стол: белый — перед собой,
-// золотой — предмет виден, тусклый — предмет не виден; точка — включена камера.
+// золотой — предмет виден, тусклый — предмет не виден; точка — камера смотрит на предмет.
 //
 // Окно якоря — того же вида, что «Настройки»: строка «сейчас» (за что держится стол, что с камерой),
-// камера за столом, предметы, «плашмя», «подогнать». Съёмка, сборка метки и подгонка — плашкой под
+// предметы, «плашмя», «подогнать». Съёмка, сборка метки и подгонка — плашкой под
 // верхним рядом: окно на это время уходит, чтобы не закрывать стол.
 //
 // СЪЁМКА ПОКАЗЫВАЕТ, ГОДИТСЯ ЛИ КАДР, ПОКА ЦЕЛИШЬСЯ: опорные точки — прямо в рамке, под ними — полоса и
@@ -22,8 +22,8 @@ import { BAR_LOOK, T } from "./screenConst.js";
 export interface HudMarker { id: string; name: string; thumb: string; points: number }
 
 export interface HudState {
-  /** За что держится стол: гравитация, предмет из «моих», автометка — то, что под столом. */
-  anchor: "gravity" | "marker" | "auto";
+  /** За что держится стол: гравитация или предмет из «моих». */
+  anchor: "gravity" | "marker";
   seen: "search" | "seen" | "lost";
   /** Камера за столом: выключена, включается, включена, или словами — почему её нет. */
   camera: "off" | "starting" | "on" | { error: string };
@@ -39,7 +39,8 @@ export interface HudState {
 export interface HudActions {
   exit(): void;
   menu(open: boolean): void;
-  camera(on: boolean): void;
+  /** Закрыть окно или бросить съёмку. */
+  close(): void;
   fit(on: boolean): void;
   fitDone(): void;
   fitReset(): void;
@@ -110,8 +111,7 @@ export function mountHud(on: HudActions): { render(s: HudState): void; quality(q
   const act = (what: string, id: string | undefined): void => {
     if (what === "exit") on.exit();
     else if (what === "menu") on.menu(state?.sheet !== "menu");
-    else if (what === "close") on.menu(false);
-    else if (what === "camera") on.camera(state?.camera !== "on" && state?.camera !== "starting");
+    else if (what === "close") on.close();
     else if (what === "fit") on.fit(true);
     else if (what === "done") on.fitDone();
     else if (what === "reset") on.fitReset();
@@ -128,7 +128,7 @@ export function mountHud(on: HudActions): { render(s: HudState): void; quality(q
   for (const root of [bar, layer, strip]) {
     root.addEventListener("click", (e) => {
       const t = e.target as HTMLElement;
-      if (root === layer && t === layer) return void on.menu(false); // мимо окна — закрыть
+      if (root === layer && t === layer) return void on.close(); // мимо окна — закрыть
       const b = t.closest<HTMLElement>("[data-ar-do]");
       if (!b) return;
       e.stopPropagation();
@@ -140,14 +140,7 @@ export function mountHud(on: HudActions): { render(s: HudState): void; quality(q
 
   const status = (s: HudState): string => {
     const cam = s.camera === "on" ? "камера включена" : s.camera === "starting" ? "камера включается…" : s.camera === "off" ? "камера выключена" : `камеры нет: ${esc(s.camera.error)}`;
-    if (s.anchor === "gravity") {
-      const seek = s.camera === "on" ? " · ищу рисунок под столом, чтобы зацепиться: пол, скатерть, доска" : "";
-      return `стол перед тобой, держится гироскопом · ${cam}${seek}`;
-    }
-    if (s.anchor === "auto") {
-      const seen = s.seen === "seen" ? "виден" : s.seen === "lost" ? "не виден — стол держит гироскоп" : "ищу его в кадре…";
-      return `стол зацепился за то, что под ним: ${seen} · ${cam}`;
-    }
+    if (s.anchor === "gravity") return `стол перед тобой, держится гироскопом${typeof s.camera === "object" ? ` · камеры нет: ${esc(s.camera.error)}` : ""} · ходить — зажми компас на секунду`;
     const name = s.markers.find((m) => m.id === s.active)?.name ?? "предмет";
     const seen = s.seen === "seen" ? "виден" : s.seen === "lost" ? "не виден — стол держит гироскоп" : "ищу его в кадре…";
     return `стол на «${esc(name)}»: ${seen} · ${cam}`;
@@ -156,13 +149,13 @@ export function mountHud(on: HudActions): { render(s: HudState): void; quality(q
   function render(s: HudState): void {
     state = s;
     // ── кнопки ряда ─────────────────────────────────────────────────────────────────────────────
-    const colour = s.anchor !== "gravity" ? (s.seen === "seen" ? T.gold : "rgba(255,255,255,.45)") : "white";
+    const colour = s.anchor === "marker" ? (s.seen === "seen" ? T.gold : "rgba(255,255,255,.45)") : "white";
     const round = (right: number, what: string, label: string, icon: string, stroke: string, extra = ""): string =>
       `<button data-ar-do="${what}" aria-label="${label}" style="position:absolute;right:${right}px;top:${ROW_TOP};width:40px;height:40px;border:0;padding:0;`
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;pointer-events:auto;${plate}">`
       + `<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>${extra}</button>`;
     const dot = s.camera === "on" ? `<span data-ar-cam-dot style="position:absolute;right:6px;bottom:6px;width:8px;height:8px;border-radius:50%;background:${T.gold};box-shadow:0 0 0 2px ${T.black}"></span>` : "";
-    const anchorSays = s.anchor === "gravity" ? "перед собой" : s.seen === "seen" ? (s.anchor === "auto" ? "зацепился за то, что под столом" : "предмет виден") : "предмет не виден";
+    const anchorSays = s.anchor === "gravity" ? "перед собой" : s.seen === "seen" ? "предмет виден" : "предмет не виден";
     put(bar, "bar", round(RIM + 48, "menu", `Якорь стола: ${anchorSays}`, ANCHOR_ICON, colour, dot) + round(RIM, "exit", "Выйти из AR", EXIT_ICON, "white"));
 
     // ── окно якоря ──────────────────────────────────────────────────────────────────────────────
@@ -191,10 +184,9 @@ export function mountHud(on: HudActions): { render(s: HudState): void; quality(q
         + `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><span style="font:400 18px Tiny5,monospace;color:${T.ink}">Якорь стола</span>`
         + `<button data-ar-do="close" aria-label="Закрыть" style="width:40px;height:40px;border:0;border-radius:10px;cursor:pointer;color:${T.ink};font:400 18px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${BAR_LOOK.rim}">✕</button></div>`
         + `<div data-ar-now style="font:400 12px/1.5 Tiny5,monospace;color:${DIM};padding-top:8px">Сейчас: ${status(s)}</div>`
-        + section("Камера") + toggle("camera", "Камера за столом", s.camera === "on" || s.camera === "starting")
         + section("Стол держится за") + row(button("gravity", "Перед собой", s.anchor === "gravity") + button("new", "Снять предмет"))
         + (markers ? `<div style="display:flex;flex-direction:column;gap:6px;padding-top:8px">${markers}</div>` : "")
-        + (s.anchor !== "gravity" ? section("На предмете") + toggle("flat", "Стол плашмя", s.seat.flat) + row(button("again", "Поставить заново")) : "")
+        + (s.anchor === "marker" ? section("На предмете") + toggle("flat", "Стол плашмя", s.seat.flat) + row(button("again", "Поставить заново")) : "")
         + section("Посадка") + row(button("fit", "Подогнать"))
         + `</div>`;
     }

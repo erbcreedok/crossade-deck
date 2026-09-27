@@ -41,7 +41,7 @@ await p.waitForTimeout(750);
 await p.mouse.up();
 await settle();
 check("удержал компас — AR включился", await floor());
-check("компас в AR — «Выровнять», удержание — выход", (await p.locator("[data-home][data-ar]").count()) === 1);
+check("компас в AR — «Выровнять», сверху кнопка выхода", (await p.locator("[data-home][data-ar]").count()) === 1 && (await p.locator('[data-ar-do="exit"]').count()) === 1);
 await orient(0, 50);
 await settle();
 let s = await spots();
@@ -109,8 +109,9 @@ await recenter(); // от выровненного: у своего стула, 
 const home = await spots();
 const fromCompass = async () => {
   const c = await compass();
+  // Джойстик начинается, когда палец ушёл от компаса дальше 24 px: ближе — это ещё удержание (прогулка с камерой).
   await p.mouse.move(c.x, c.y); await p.mouse.down();
-  await p.mouse.move(c.x, c.y - 8); await p.waitForTimeout(60);
+  await p.mouse.move(c.x, c.y - 30); await p.waitForTimeout(60);
   if ((await p.locator("[data-ar-stick]").count()) === 1) return c;
   await p.mouse.up(); await p.waitForTimeout(100);
   return null;
@@ -124,7 +125,7 @@ const walkFor = async (pull, ms) => {
   await settle();
   return (await spots()).k;
 };
-const kSoft = await walkFor(20, 600);
+const kSoft = await walkFor(30, 600);
 check("повёл палец от компаса — джойстик, середина в компасе", kSoft !== null && kSoft > home.k, kSoft);
 check("…и AR не выключился удержанием", await floor());
 const kSoftGain = kSoft - home.k;
@@ -160,7 +161,8 @@ const back = await spots();
 check("тап по компасу — «Выровнять»: стол снова перед тобой в исходном размере", Math.abs(back.middle.x - W / 2) <= 2 && Math.abs(back.middle.y - H / 2) <= 2 && Math.abs(back.k - home.k) < 0.5, { middle: back.middle, k: back.k.toFixed(1) });
 }
 
-// 6. стол ВСЕГДА открывается обычным — даже если из игры вышли в AR; выход из AR — удержанием компаса
+// 6. стол ВСЕГДА открывается обычным — даже если из игры вышли в AR; выход из AR — кнопкой сверху, а
+// удержание компаса в AR — прогулка с камерой (`tableArAnchor.mjs`), не выход
 await p.reload();
 await ready();
 check("после перезагрузки — обычный стол, хоть и уходил в AR", !(await floor()));
@@ -168,9 +170,12 @@ const c1 = await compass();
 await p.mouse.move(c1.x, c1.y); await p.mouse.down(); await p.waitForTimeout(750); await p.mouse.up();
 await settle();
 check("удержал компас — снова AR", await floor());
-await p.mouse.move(c1.x, c1.y); await p.mouse.down(); await p.waitForTimeout(750); await p.mouse.up();
+await p.mouse.move(c1.x, c1.y); await p.mouse.down(); await p.waitForTimeout(1200); await p.mouse.up();
 await settle();
-check("удержание компаса в AR — обычный стол", !(await floor()));
+check("удержание компаса в AR — не выход: AR остался", await floor());
+await p.locator('[data-ar-do="exit"]').click();
+await settle();
+check("кнопка выхода сверху — обычный стол", !(await floor()));
 
 check("без ошибок на странице", errors.length === 0, errors.slice(0, 2).join(" | "));
 await browser.close();

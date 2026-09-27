@@ -1,14 +1,14 @@
 // AR-СТОЛ НА ЭКРАНЕ — датчик наклона, место стола в мире и пол под ним.
 //
 // СТОЛ = ЯКОРЬ + ПОСАДКА (`arSeat.ts`). Якорь по умолчанию — гравитация: стол встаёт туда, куда
-// смотришь, камера не нужна. По желанию — предмет (картина, доска): тогда включается камера, стол
-// ложится в плоскость предмета (или плашмя), и вдоль предмета можно ходить ногами (`arMarker.ts`,
-// `arFuse.ts`: поворот — гироскоп, метка говорит лишь, где стоит телефон). Камера включена, а предмет не
-// выбран — АВТОМЕТКА: стол сам ищет рисунок под собой (пол, скатерть), проверяет кадр той же оценкой,
-// что съёмка (`arQuality.ts`), и цепляется за него, не меняя ни места, ни размера на экране. Посадку — сдвиг, наклон,
-// размер — человек подгоняет сам («подогнать»), она своя у каждого якоря. Полоса сверху — `arHud.ts`.
+// смотришь, камера не нужна. Ходить — джойстиком с компаса или ПРОГУЛКОЙ С КАМЕРОЙ: зажал компас и держишь
+// секунду — камера невидимо смотрит на пол и ведёт шаги (`arStride.ts`), отпустил — погасла. По желанию —
+// предмет (картина, доска): камера фоном, стол ложится в плоскость предмета (или плашмя), и вдоль него
+// можно ходить ногами (`arMarker.ts`, `arFuse.ts`: поворот — гироскоп, метка говорит лишь, где стоит
+// телефон). Посадку — сдвиг, наклон, размер — человек подгоняет сам («подогнать»), она своя у каждого
+// якоря. Кнопки сверху — `arHud.ts`.
 //
-// Включает его сам человек — долгим нажатием на компас (`compass.ts`), выход — удержанием его же; стол
+// Включает AR сам человек — долгим нажатием на компас (`compass.ts`), выходит — кнопкой сверху; стол
 // всегда открывается обычным. Экран
 // (`screen.ts`) спрашивает отсюда линзу (`arLens.ts`) вместо линзы пальцевой камеры — и больше ничего не знает. От пальцевой камеры AR берёт только поворот и зум: два пальца крутят и растят стол,
 // а свой стул ставит ко мне тот же компас (`compass.ts`). Сдвиг и наклон — дело самого телефона.
@@ -19,10 +19,12 @@
 
 import { createFusion, FUSE, gyroTrack } from "./arFuse.js";
 import { captureBox, mountHud, type HudState } from "./arHud.js";
-import { arLens, deviceQuat, placeAtGaze, type ArLens, type ArPlace, type Quat } from "./arLens.js";
-import { deleteMarker, listMarkers, makeMarker, openCamera, saveMarker, SHOT_SIDE, track, VIDEO_LAG, warm, type Backdrop, type StoredMarker } from "./arMarker.js";
+import { arLens, deviceQuat, placeAtGaze, yawQuat, type ArLens, type ArPlace, type Quat } from "./arLens.js";
+import { deleteMarker, listMarkers, makeMarker, openCamera, saveMarker, track, VIDEO_LAG, warm, type Backdrop, type StoredMarker } from "./arMarker.js";
 import { assess, greyOf } from "./arQuality.js";
 import { clampSeat, readSeat, SEAT0, seated, tableOnMarker, tiltBy, writeSeat, type ArSeat } from "./arSeat.js";
+import { startStride } from "./arStride.js";
+import { rotate } from "./arTrack.js";
 import { leftToGo, walkStep, WALK } from "./arWalk.js";
 import { R, RIM } from "./felt.js";
 
@@ -45,16 +47,6 @@ const MARKER_UNIT = 0.6 / (R + RIM);
 const SEEN_MS = 400;
 /** Сторона серого кадра для оценки годности, px — как у стенда. */
 const ASSESS = 160;
-/** Столько оценок подряд «годится» — и автометка снимается: одна удачная может быть случайной. */
-const AUTO_STREAK = 2;
-/**
- * Квадрат автометки — целиком внутри кадра, с полем: у самого края трекер опорных точек не берёт, и
- * метку, снятую вплотную к краю, он потом не узнаёт вовсе. Меньше `AUTO_MIN` px — рисунка мало.
- */
-const AUTO_MARGIN = 48;
-const AUTO_MIN = 140;
-/** Автометку не узнали за столько мс — отцепиться и искать снова, а не висеть в «ищу». */
-const AUTO_WAIT_MS = 3000;
 
 interface TelegramOrientation {
   isStarted?: boolean;
@@ -81,6 +73,8 @@ export interface ArRig {
   stick(id: number, from: { x: number; y: number }, at: { x: number; y: number }): void;
   /** Палец лёг на пустое сукно — хват: точка стола под пальцем идёт за ним, пока палец не поднят. */
   grab(down: PointerEvent): void;
+  /** Компас зажат секунду — прогулка с камерой, пока палец не поднят (`arStride.ts`). */
+  stride(on: boolean): void;
   dispose(): void;
 }
 
@@ -292,20 +286,15 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   });
 
   // ── якорь, посадка, камера ─────────────────────────────────────────────────────────────────────
-  /**
-   * `unit` — ширин метки в единице стола: у предмета — своя мерка, у автометки — чтобы стол не сменил размер.
-   * `seat` у автометки — посадка, с которой стол останется, где был; она встаёт в миг, когда метку узнали.
-   */
-  type Anchor = { kind: "gravity" } | { kind: "marker"; id: string; unit: number } | { kind: "auto"; unit: number; seat: ArSeat };
+  /** `unit` — ширин метки в единице стола: у предмета своя мерка. */
+  type Anchor = { kind: "gravity" } | { kind: "marker"; id: string; unit: number };
   let anchor: Anchor = { kind: "gravity" };
   let seat: ArSeat = readSeat(localStorage, "gravity");
   const seatKey = (): string => (anchor.kind === "marker" ? `marker:${anchor.id}` : anchor.kind);
-  /** Искать ли автометку: камера включена и человек не попросил «перед собой». */
-  let seekAuto = true;
   /**
-   * ПОКОЛЕНИЕ ЯКОРЯ. Захват метки долгий (сборка, запуск трекера), а человек за это время может выбрать
-   * другое: «перед собой», другой предмет, «Выровнять». Каждая смена якоря — новое поколение; захват,
-   * чьё поколение устарело, останавливает свой трекер и ничего не трогает.
+   * ПОКОЛЕНИЕ ЯКОРЯ. Привязка к предмету долгая (камера, запуск трекера), а человек за это время может
+   * выбрать другое. Каждая смена якоря — новое поколение; привязка, чьё поколение устарело, останавливает
+   * свой трекер и ничего не трогает.
    */
   let gen = 0;
   const fusion = createFusion(() => ({ ...FUSE, flat: seat.flat }));
@@ -319,23 +308,24 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     if (anchor.kind === "gravity" || !fusion.S.locked) return "search";
     return performance.now() - fusion.S.seenAt < SEEN_MS ? "seen" : "lost";
   };
+  /** Сказать сверху (там же, где «дальше можно ещё …»); `null` — убрать. */
+  const say = (text: string | null, ms = 0): void => {
+    hint.style.opacity = text ? "1" : "0";
+    if (text) hint.textContent = text;
+    if (text && ms) setTimeout(() => { if (hint.textContent === text && !walking) hint.style.opacity = "0"; }, ms);
+  };
   /** Предмет виден — ходишь ногами: джойстик и хват спят, об этом — подсказка. */
   const feet = (): boolean => {
     if (seenNow() !== "seen") return false;
-    hint.textContent = "предмет виден — ходи ногами";
-    hint.style.opacity = "1";
-    setTimeout(() => { if (!walking) hint.style.opacity = "0"; }, 1400);
+    say("предмет виден — ходи ногами", 1400);
     return true;
   };
 
-  /** Камера за столом — выбор этого устройства: включил однажды — следующий AR открывается с ней. */
-  const CAMERA_KEY = "crossade.table.ar.camera";
   const hud: HudState = { anchor: "gravity", seen: "search", camera: "off", fitting: false, seat, markers: [], active: null, sheet: null, progress: 0 };
   const showHud = (): void => {
     Object.assign(hud, { anchor: anchor.kind, seat, active: anchor.kind === "marker" ? anchor.id : null, markers: markers.map(({ id, name, thumb, points }) => ({ id, name, thumb, points })) });
     stage.dataset.arAnchor = `${anchor.kind}:${hud.seen}`;
     stage.dataset.arSeat = JSON.stringify(seat);
-    stage.dataset.arCam = typeof hud.camera === "string" ? hud.camera : "error";
     ui.render(hud);
   };
   const sheet = (s: HudState["sheet"]): void => { hud.sheet = s; showHud(); };
@@ -348,9 +338,10 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     floor.style.display = "";
     if (hud.camera === "on" || hud.camera === "starting") hud.camera = "off";
   };
-  /** Камера под сукном. Не вышло — почему, видно в окне якоря: оно открывается само. */
+  /** Камера под сукном — только для предмета: его надо видеть. Не вышло — почему, видно в окне якоря. */
   const camera = async (): Promise<Backdrop | null> => {
     if (backdrop) return backdrop;
+    stride.stop();
     hud.camera = "starting";
     showHud();
     const got = await openCamera(stage, felt);
@@ -367,38 +358,37 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     changed();
     return backdrop;
   };
-  const remember = (on: boolean): void => { try { localStorage.setItem(CAMERA_KEY, on ? "on" : "off"); } catch { /* без памяти — до выхода */ } };
   const useSeat = (): void => { seat = readSeat(localStorage, seatKey()); showHud(); changed(); };
 
+  /** Перед собой: стол держит гироскоп, камера не нужна. */
   const gravity = (): void => {
     gen += 1;
-    stopTrack();
+    stopCamera();
     anchor = { kind: "gravity" };
     useSeat();
     place();
   };
-  /** Стол держится за метку `m`; `next` — какой это якорь (предмет или автометка). */
-  const attach = async (m: StoredMarker, next: Anchor, mine = ++gen): Promise<void> => {
+  /** Стол держится за предмет `m`. */
+  const attach = async (m: StoredMarker, next: Anchor & { kind: "marker" }, mine = ++gen): Promise<void> => {
     const cam = await camera();
     if (!cam || mine !== gen) return;
     stopTrack();
     anchor = next;
     hud.sheet = null;
-    if (next.kind === "marker") useSeat();
-    else { showHud(); changed(); }
+    // Где телефон, теперь говорит предмет: пройденные джойстиком и с камерой шаги к нему не относятся.
+    walk = { x: 0, z: 0 };
+    lift = 0;
+    useSeat();
     const stop = await track(cam.video, m.buf, (pose, grabbedAt) => {
       if (!pose) return;
       const was = seenNow();
       const q0 = gyro.at(grabbedAt - VIDEO_LAG) ?? q;
-      // Прошёл джойстиком, пока метки не было, — шаги вливаются в связку до её слова.
+      // Прошёл джойстиком, пока предмета не было видно, — шаги вливаются в связку до её слова.
       if (was === "lost" && (walk.x || walk.z)) {
         fusion.shift([walk.x * metre, 0, walk.z * metre]);
         walk = { x: 0, z: 0 };
       }
-      const said = fusion.measure(q0, pose.t, pose.q, performance.now());
-      // Автометку узнали — посадка, с которой стол остаётся на месте, встаёт только теперь: до этого стол
-      // держит гироскоп, и сдвиг под метку увёл бы его.
-      if (said === "lock" && next.kind === "auto") { seat = next.seat; showHud(); }
+      fusion.measure(q0, pose.t, pose.q, performance.now());
       changed();
     });
     if (mine === gen && anchor === next && backdrop === cam) untrack = stop;
@@ -413,24 +403,17 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   const ui = mountHud({
     exit,
     menu: (open) => {
+      // Окно якоря открыли — значит, возможно, будут снимать предмет: трекер греется, пока человек читает и
+      // целится, и метка потом собирается за доли секунды.
+      if (open) void warm();
       if (open) void listMarkers().then((list) => { markers = list; sheet("menu"); });
       else sheet(null);
-    },
-    camera: (on) => {
-      remember(on);
-      seekAuto = on;
-      if (on) { void camera(); return; }
-      // Предмет без камеры не видно: выключил камеру — стол снова держится за гравитацию.
-      if (anchor.kind !== "gravity") gravity();
-      stopCamera();
-      showHud();
-      changed();
     },
     fit,
     fitDone: () => { writeSeat(localStorage, seatKey(), seat); fit(false); },
     fitReset: () => { seat = { ...SEAT0, flat: seat.flat }; showHud(); changed(); },
     fitCancel: () => { fit(false); useSeat(); },
-    gravity: () => { hud.sheet = null; seekAuto = false; gravity(); },
+    gravity: () => { hud.sheet = null; gravity(); },
     use: (id) => void use(id),
     forget: (id) => void deleteMarker(id).then(listMarkers).then((list) => {
       markers = list;
@@ -456,78 +439,71 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
       }
     })(),
     flat: () => { seat = { ...seat, flat: !seat.flat }; writeSeat(localStorage, seatKey(), seat); fusion.reset(); showHud(); changed(); },
-    again: () => {
-      walk = { x: 0, z: 0 };
+    again: () => { walk = { x: 0, z: 0 }; sheet(null); fusion.reset(); changed(); },
+    close: () => {
+      // Съёмку бросили — камера была нужна только ей.
+      if (hud.sheet === "capture" && anchor.kind === "gravity") stopCamera();
       sheet(null);
-      // Автометку «заново» — это искать заново там, где стол сейчас; предмет — поставить на него снова.
-      if (anchor.kind === "auto") { seekAuto = true; gravity(); } else fusion.reset();
-      changed();
     },
   });
   off.push(() => ui.dispose());
   void listMarkers().then((list) => { markers = list; showHud(); });
-  try { if (localStorage.getItem(CAMERA_KEY) === "on") void camera(); } catch { /* без памяти — камера по кнопке */ }
 
-  // ── годность кадра: рамка съёмки и автометка ────────────────────────────────────────────────────
+  // ── годность кадра в рамке съёмки ───────────────────────────────────────────────────────────────
   const shot = document.createElement("canvas");
   shot.width = shot.height = ASSESS;
   const shotG = shot.getContext("2d", { willReadFrequently: true })!;
-  /** Квадрат экрана → квадрат кадра камеры → серое ASSESS×ASSESS и его оценка. */
-  const judge = (cam: Backdrop, x: number, y: number, side: number) => {
-    const a = cam.toVideo(x, y), b = cam.toVideo(x + side, y + side);
-    const rect = { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
-    shotG.drawImage(cam.video, rect.x, rect.y, rect.w, rect.h, 0, 0, ASSESS, ASSESS);
-    return { q: assess(greyOf(shotG, ASSESS, ASSESS)), rect };
-  };
-  let streak = 0;
-  let autoBusy = false;
-  /** После неудачной автометки — передышка: не собирать метку по кругу, грея телефон. */
-  let autoRestUntil = 0;
   const look = window.setInterval(() => {
     const cam = backdrop;
-    if (!cam || !cam.video.videoWidth) return;
-    if (hud.sheet === "capture") {
-      const box = captureBox(innerWidth, innerHeight);
-      ui.quality(judge(cam, box.x, box.y, box.side).q, ASSESS);
-      return;
-    }
-    // АВТОМЕТКА — квадрат под столом: середина стола на экране, сторона — поперёк стола.
-    if (!seekAuto || anchor.kind !== "gravity" || hud.fitting || hud.sheet || autoBusy || !seenLens || !heard || performance.now() < autoRestUntil) { streak = 0; return; }
-    const mid = seenLens.toGlass({ x: 0, y: 0 });
-    // Квадрат — поперёк стола, по его середине, но целиком в кадре с полем; стол у края — квадрат сдвигается
-    // внутрь, и посадка потом вернёт стол туда, где он был. Стола на экране нет — искать нечего.
-    if (mid.x < 0 || mid.y < 0 || mid.x > innerWidth || mid.y > innerHeight) { streak = 0; return; }
-    const across = 2 * (R + RIM) * seenLens.k;
-    const side = Math.min(across, innerWidth - 2 * AUTO_MARGIN, innerHeight - 2 * AUTO_MARGIN);
-    if (side < AUTO_MIN) { streak = 0; return; }
-    const x = Math.max(AUTO_MARGIN, Math.min(innerWidth - AUTO_MARGIN - side, mid.x - side / 2));
-    const y = Math.max(AUTO_MARGIN, Math.min(innerHeight - AUTO_MARGIN - side, mid.y - side / 2));
-    const { q: got, rect } = judge(cam, x, y, side);
-    streak = got.verdict === "ok" ? streak + 1 : 0;
-    if (streak < AUTO_STREAK) return;
-    streak = 0;
-    autoBusy = true;
-    // Мерка — чтобы стол остался того же размера: его поперечник на экране — `across`, квадрат метки — `side`.
-    const unit = across / (2 * side * (R + RIM) * lastZoom);
-    // Где стол относительно середины квадрата: пиксели → ширины метки (квадрат — одна ширина) → единицы
-    // посадки (`unit` ширин). Вглубь стола — вверх по экрану.
-    const off = { x: mid.x - (x + side / 2), y: mid.y - (y + side / 2) };
-    const stay: ArSeat = { ...seat, x: off.x / side / unit, y: -off.y / side / unit };
-    const mine = gen;
-    void makeMarker(cam.video, rect, 0, () => undefined).then(async (m) => {
-      if (mine !== gen || anchor.kind !== "gravity" || !seekAuto || backdrop !== cam) return;
-      const next: Anchor = { kind: "auto", unit, seat: stay };
-      const tried = ++gen;
-      await attach({ ...m, name: "под столом" }, next, tried);
-      // Не узнали — отцепиться: метка из неудачного кадра стол держать не будет.
-      setTimeout(() => {
-        if (gen !== tried || anchor !== next || fusion.S.locked) return;
-        autoRestUntil = performance.now() + AUTO_WAIT_MS;
-        gravity();
-      }, AUTO_WAIT_MS);
-    }).catch(() => undefined).finally(() => { autoBusy = false; });
+    if (!cam || !cam.video.videoWidth || hud.sheet !== "capture") return;
+    const box = captureBox(innerWidth, innerHeight);
+    const a = cam.toVideo(box.x, box.y), b = cam.toVideo(box.x + box.side, box.y + box.side);
+    shotG.drawImage(cam.video, a.x, a.y, b.x - a.x, b.y - a.y, 0, 0, ASSESS, ASSESS);
+    ui.quality(assess(greyOf(shotG, ASSESS, ASSESS)), ASSESS);
   }, 250);
   off.push(() => clearInterval(look));
+
+  // ── прогулка с камерой: пока держишь компас ─────────────────────────────────────────────────────
+  // Камера невидимо смотрит на пол, пока палец на компасе (`arStride.ts`), и двигает глаз по полу: шаги
+  // ногами становятся шагами у стола. Отпустил — камера гаснет, ты там, куда пришёл.
+  let lift = 0;
+  const stride = (() => {
+    let session: { stop(): void } | null = null;
+    let want = false;
+    return {
+      async start(): Promise<void> {
+        want = true;
+        if (session) return;
+        if (anchor.kind !== "gravity") { say("держусь за предмет — ходи ногами", 1600); return; }
+        say("включаю камеру…");
+        const tableQ = (): Quat => { const p = seated(placed, seat); return p.q ?? yawQuat(p.yaw); };
+        const got = await startStride({
+          stage, felt,
+          turnAt: (t) => gyro.at(t) ?? q,
+          plane: () => ({ at: seated(placed, seat).at, n: rotate(tableQ(), [0, 1, 0]) }),
+          eye: () => [walk.x * metre, lift, walk.z * metre],
+          move: ([x, y, z]) => {
+            let wx = x / metre, wz = z / metre;
+            const d = Math.hypot(wx, wz);
+            if (d > WALK.MAX) { wx = (wx / d) * WALK.MAX; wz = (wz / d) * WALK.MAX; }
+            walk = { x: wx, z: wz };
+            lift = y;
+            changed();
+          },
+          say: (text) => say(text),
+        });
+        if (typeof got === "string") { say(`камера: ${got}`, 2400); return; }
+        if (!want) { got.stop(); return; }
+        session = got;
+      },
+      stop(): void {
+        want = false;
+        session?.stop();
+        session = null;
+      },
+    };
+  })();
+  off.push(() => stride.stop());
 
   // ── подгонка: пальцы по сукну ──────────────────────────────────────────────────────────────────
   // Пока подгонка, стол не играет: касание сукна перехватывается на окне, в захвате, раньше стола. Кнопки
@@ -599,7 +575,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
       const unit = anchor.kind !== "gravity" && onMarker ? anchor.unit : UNIT;
       // Условный метр — радиус стола в мире при нынешнем зуме: подошёл к большому столу — прошёл больше.
       metre = (R + RIM) * unit * z;
-      const stepped: [number, number, number] = [walk.x * metre, 0, walk.z * metre];
+      const stepped: [number, number, number] = [walk.x * metre, onMarker ? 0 : lift, walk.z * metre];
       const pos = onMarker ? ([0, 1, 2].map((i) => shown[i]! + stepped[i]!) as [number, number, number]) : stepped;
       const base: ArPlace = onMarker ? { at: fusion.S.anchor.pos, yaw: 0, unit, q: tableOnMarker(fusion.S.anchor.q) } : placed;
       // Кадр камеры на экране старше датчика: сцена берёт поворот того мига, иначе стол бежит впереди фона.
@@ -618,12 +594,15 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
       stopWalk();
       grabbing = null;
       walk = { x: 0, z: 0 };
-      // «Выровнять» у автометки — отцепиться и искать заново там, куда смотришь.
-      if (anchor.kind === "auto") gravity();
+      lift = 0;
       place();
     },
     stick,
     grab,
+    stride(on) {
+      if (on) void stride.start();
+      else stride.stop();
+    },
     dispose() {
       stopCamera();
       for (const fn of off.splice(0)) fn();
