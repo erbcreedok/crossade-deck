@@ -379,7 +379,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   let ar: ArRig | null = null;
   const toggleAr = (): void => {
     if (watch) return;
-    if (ar) { ar.dispose(); ar = null; } else ar = mountAr(stage, canvas, redraw);
+    if (ar) { ar.dispose(); ar = null; } else ar = mountAr(stage, canvas, redraw, toggleAr);
     redraw();
   };
   undo.add(() => ar?.dispose());

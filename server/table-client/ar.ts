@@ -1,5 +1,10 @@
-// AR-СТОЛ НА ЭКРАНЕ — датчик наклона, место стола в мире и пол под ним. Камеры здесь нет: стол держится
-// только за то, как повёрнут телефон.
+// AR-СТОЛ НА ЭКРАНЕ — датчик наклона, место стола в мире и пол под ним.
+//
+// СТОЛ = ЯКОРЬ + ПОСАДКА (`arSeat.ts`). Якорь по умолчанию — гравитация: стол встаёт туда, куда
+// смотришь, камера не нужна. По желанию — предмет (картина, доска): тогда включается камера, стол
+// ложится в плоскость предмета (или плашмя), и вдоль предмета можно ходить ногами (`arMarker.ts`,
+// `arFuse.ts`: поворот — гироскоп, метка говорит лишь, где стоит телефон). Посадку — сдвиг, наклон,
+// размер — человек подгоняет сам («подогнать»), она своя у каждого якоря. Полоса сверху — `arHud.ts`.
 //
 // Включает его сам человек — долгим нажатием на компас (`compass.ts`), выход — удержанием его же; стол
 // всегда открывается обычным. Экран
@@ -10,7 +15,11 @@
 // `deviceorientation` (градусы). iOS даёт браузерный только после разрешения из жеста — поэтому, пока
 // датчик молчит, поверх стола висит кнопка «Включить наклон».
 
+import { createFusion, FUSE, gyroTrack } from "./arFuse.js";
+import { captureBox, mountHud, type HudState } from "./arHud.js";
 import { arLens, deviceQuat, placeAtGaze, type ArLens, type ArPlace, type Quat } from "./arLens.js";
+import { deleteMarker, listMarkers, makeMarker, openCamera, saveMarker, track, VIDEO_LAG, type Backdrop, type StoredMarker } from "./arMarker.js";
+import { clampSeat, readSeat, SEAT0, seated, tableOnMarker, tiltBy, writeSeat, type ArSeat } from "./arSeat.js";
 import { leftToGo, walkStep, WALK } from "./arWalk.js";
 import { R, RIM } from "./felt.js";
 
@@ -27,6 +36,10 @@ const STILL_BETA = 55;
 const SILENT_MS = 700;
 /** Радиус джойстика, px: натяжка меряется в них, перетянуть можно (`WALK.PULL_MAX`). */
 const STICK_R = 56;
+/** На предмете мир меряется ширинами метки: стол радиусом в 0.6 ширины — чуть шире картины. */
+const MARKER_UNIT = 0.6 / (R + RIM);
+/** Метку видели не дольше стольких мс назад — «видна»: ходьба ногами, джойстик спит. */
+const SEEN_MS = 400;
 
 interface TelegramOrientation {
   isStarted?: boolean;
@@ -56,8 +69,9 @@ export interface ArRig {
   dispose(): void;
 }
 
-export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: () => void): ArRig {
+export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: () => void, exit: () => void): ArRig {
   let q: Quat = deviceQuat(0, STILL_BETA, 0, 0);
+  const gyro = gyroTrack();
   let placed: ArPlace = placeAtGaze(q, DROP, AHEAD, UNIT);
   let heard = false;
   /** Где стоишь — условные метры от своего стула (метр — радиус стола), `arWalk.ts`. */
@@ -71,6 +85,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   };
   const hear = (alpha: number, beta: number, gamma: number): void => {
     q = deviceQuat(alpha, beta, gamma, screenAngle());
+    gyro.push(performance.now(), q);
     if (!heard) {
       heard = true;
       ask.remove();
@@ -163,7 +178,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   // Второй палец — это щипок или поворот: ходьба и хват прекращаются и отдают жест камере.
   const hint = document.createElement("div");
   hint.dataset.arHint = "";
-  hint.style.cssText = "position:fixed;left:50%;top:calc(76px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));"
+  hint.style.cssText = "position:fixed;left:50%;top:calc(112px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));"
     + "transform:translateX(-50%);z-index:44;padding:6px 12px;border-radius:8px;background:rgba(11,7,4,.82);color:#f5ead0;"
     + "font:400 12px/1 Tiny5,monospace;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s";
   document.body.append(hint);
@@ -194,6 +209,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     requestAnimationFrame(stepWalk);
   };
   const stick = (id: number, from: { x: number; y: number }, at: { x: number; y: number }): void => {
+    if (feet()) return;
     stopWalk();
     grabbing = null;
     const ring = document.createElement("div");
@@ -216,7 +232,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   let seenLens: ArLens | null = null;
   let metre = 1;
   const grab = (down: PointerEvent): void => {
-    if (!seenLens) return;
+    if (!seenLens || feet()) return;
     stopWalk();
     grabbing = { id: down.pointerId, desk: seenLens.toDesk({ x: down.clientX, y: down.clientY }) };
   };
@@ -260,13 +276,186 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     removeEventListener("pointerdown", onSecond, true);
   });
 
+  // ── якорь, посадка, камера ─────────────────────────────────────────────────────────────────────
+  type Anchor = { kind: "gravity" } | { kind: "marker"; id: string };
+  let anchor: Anchor = { kind: "gravity" };
+  let seat: ArSeat = readSeat(localStorage, "gravity");
+  const seatKey = (): string => (anchor.kind === "gravity" ? "gravity" : `marker:${anchor.id}`);
+  const fusion = createFusion(() => ({ ...FUSE, flat: seat.flat }));
+  let backdrop: Backdrop | null = null;
+  let untrack: (() => void) | null = null;
+  let markers: StoredMarker[] = [];
+  let lensAt = performance.now();
+  let lastTurn = 0;
+  let lastZoom = 1;
+  const seenNow = (): HudState["seen"] => {
+    if (anchor.kind !== "marker" || !fusion.S.locked) return "search";
+    return performance.now() - fusion.S.seenAt < SEEN_MS ? "seen" : "lost";
+  };
+  /** Предмет виден — ходишь ногами: джойстик и хват спят, об этом — подсказка. */
+  const feet = (): boolean => {
+    if (seenNow() !== "seen") return false;
+    hint.textContent = "предмет виден — ходи ногами";
+    hint.style.opacity = "1";
+    setTimeout(() => { if (!walking) hint.style.opacity = "0"; }, 1400);
+    return true;
+  };
+
+  const hud: HudState = { anchor: "gravity", seen: "search", fitting: false, seat, markers: [], active: null, sheet: null, progress: 0 };
+  const showHud = (): void => {
+    Object.assign(hud, { anchor: anchor.kind, seat, active: anchor.kind === "marker" ? anchor.id : null, markers: markers.map(({ id, name, thumb, points }) => ({ id, name, thumb, points })) });
+    stage.dataset.arAnchor = `${anchor.kind}:${hud.seen}`;
+    stage.dataset.arSeat = JSON.stringify(seat);
+    ui.render(hud);
+  };
+  const sheet = (s: HudState["sheet"]): void => { hud.sheet = s; showHud(); };
+
+  const stopTrack = (): void => { untrack?.(); untrack = null; fusion.reset(); };
+  const stopCamera = (): void => {
+    stopTrack();
+    backdrop?.stop();
+    backdrop = null;
+    floor.style.display = "";
+  };
+  const camera = async (): Promise<Backdrop | null> => {
+    if (backdrop) return backdrop;
+    const got = await openCamera(stage, felt);
+    if (typeof got === "string") { sheet({ error: got }); return null; }
+    backdrop = got;
+    floor.style.display = "none";
+    changed();
+    return backdrop;
+  };
+  const useSeat = (): void => { seat = readSeat(localStorage, seatKey()); showHud(); changed(); };
+
+  const gravity = (): void => {
+    stopCamera();
+    anchor = { kind: "gravity" };
+    useSeat();
+    place();
+  };
+  const use = async (id: string): Promise<void> => {
+    const m = markers.find((x) => x.id === id);
+    const cam = m ? await camera() : null;
+    if (!m || !cam) return;
+    stopTrack();
+    anchor = { kind: "marker", id };
+    hud.sheet = null;
+    useSeat();
+    const stop = await track(cam.video, m.buf, (pose, grabbedAt) => {
+      if (!pose) return;
+      const was = seenNow();
+      const q0 = gyro.at(grabbedAt - VIDEO_LAG) ?? q;
+      // Прошёл джойстиком, пока метки не было, — шаги вливаются в связку до её слова.
+      if (was === "lost" && (walk.x || walk.z)) {
+        fusion.shift([walk.x * metre, 0, walk.z * metre]);
+        walk = { x: 0, z: 0 };
+      }
+      fusion.measure(q0, pose.t, pose.q, performance.now());
+      changed();
+    });
+    if (anchor.kind === "marker" && anchor.id === id && backdrop === cam) untrack = stop;
+    else stop();
+  };
+
+  const ui = mountHud({
+    exit,
+    menu: (open) => {
+      if (open) void listMarkers().then((list) => { markers = list; sheet("menu"); });
+      else sheet(null);
+    },
+    fit: (on) => { hud.fitting = on; fitLayer.style.display = on ? "block" : "none"; fingers.clear(); showHud(); },
+    fitDone: () => { writeSeat(localStorage, seatKey(), seat); hud.fitting = false; fitLayer.style.display = "none"; showHud(); },
+    fitReset: () => { seat = { ...SEAT0, flat: seat.flat }; showHud(); changed(); },
+    fitCancel: () => { hud.fitting = false; fitLayer.style.display = "none"; useSeat(); },
+    gravity: () => { hud.sheet = null; gravity(); },
+    use: (id) => void use(id),
+    forget: (id) => void deleteMarker(id).then(listMarkers).then((list) => {
+      markers = list;
+      if (anchor.kind === "marker" && anchor.id === id) gravity();
+      sheet("menu");
+    }),
+    capture: () => void camera().then((cam) => { if (cam) sheet("capture"); }),
+    shoot: () => void (async () => {
+      const cam = backdrop;
+      if (!cam) return;
+      const box = captureBox(innerWidth, innerHeight);
+      const a = cam.toVideo(box.x, box.y), b = cam.toVideo(box.x + box.side, box.y + box.side);
+      hud.progress = 0;
+      sheet("compile");
+      try {
+        const m = await makeMarker(cam.video, { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y }, markers.length, (p) => { hud.progress = p; showHud(); });
+        await saveMarker(m);
+        markers = await listMarkers();
+        await use(m.id);
+      } catch (err) {
+        sheet({ error: `метка не собралась: ${String((err as Error)?.message ?? err)}` });
+      }
+    })(),
+    flat: () => { seat = { ...seat, flat: !seat.flat }; writeSeat(localStorage, seatKey(), seat); fusion.reset(); showHud(); changed(); },
+    again: () => { fusion.reset(); walk = { x: 0, z: 0 }; sheet(null); changed(); },
+  });
+  off.push(() => ui.dispose());
+  void listMarkers().then((list) => { markers = list; showHud(); });
+
+  // ── подгонка: слой поверх стола ────────────────────────────────────────────────────────────────
+  // Пока подгонка, стол не играет: все пальцы достаются слою. Один — стол едет за пальцем по плоскости
+  // якоря; два — развести (размер), вместе вверх-вниз (наклон).
+  const fitLayer = document.createElement("div");
+  fitLayer.dataset.arFit = "";
+  fitLayer.style.cssText = "position:fixed;inset:0;z-index:41;display:none;touch-action:none;";
+  document.body.append(fitLayer);
+  off.push(() => fitLayer.remove());
+  const fingers = new Map<number, { x: number; y: number }>();
+  fitLayer.addEventListener("pointerdown", (e) => {
+    e.stopPropagation();
+    fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { fitLayer.setPointerCapture(e.pointerId); } catch { /* палец уже поднят — ловить нечего */ }
+  });
+  fitLayer.addEventListener("pointermove", (e) => {
+    const was = fingers.get(e.pointerId);
+    if (!was || !seenLens) return;
+    const prev = new Map(fingers);
+    fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const ids = [...fingers.keys()];
+    if (ids.length === 1) {
+      const a = seenLens.toDesk(was), b = seenLens.toDesk({ x: e.clientX, y: e.clientY });
+      const dx = b.x - a.x, dy = b.y - a.y, t = (lastTurn * Math.PI) / 180;
+      const lx = Math.cos(t) * dx - Math.sin(t) * dy, ly = Math.sin(t) * dx + Math.cos(t) * dy;
+      seat = { ...seat, x: seat.x + lx * lastZoom, y: seat.y - ly * lastZoom };
+    } else {
+      const [i, j] = ids as [number, number];
+      const a0 = prev.get(i)!, b0 = prev.get(j)!, a1 = fingers.get(i)!, b1 = fingers.get(j)!;
+      const d0 = Math.hypot(b0.x - a0.x, b0.y - a0.y), d1 = Math.hypot(b1.x - a1.x, b1.y - a1.y);
+      seat = tiltBy(clampSeat({ ...seat, zoom: seat.zoom * (d0 > 1 ? d1 / d0 : 1) }), a0, b0, a1, b1);
+    }
+    showHud();
+    changed();
+  });
+  for (const kind of ["pointerup", "pointercancel"] as const) fitLayer.addEventListener(kind, (e) => { e.stopPropagation(); fingers.delete(e.pointerId); });
+
   return {
     lens(frame, turn, zoom) {
+      const now = performance.now();
+      const shown = fusion.frame(now - lensAt);
+      lensAt = now;
+      const z = zoom * seat.zoom;
+      const onMarker = anchor.kind === "marker" && fusion.S.locked;
+      const unit = onMarker ? MARKER_UNIT : UNIT;
       // Условный метр — радиус стола в мире при нынешнем зуме: подошёл к большому столу — прошёл больше.
-      metre = (R + RIM) * UNIT * zoom;
-      const l = arLens({ q, fov: FOV, pos: [walk.x * metre, 0, walk.z * metre] }, placed, turn, zoom, frame);
-      drawFloor(l);
+      metre = (R + RIM) * unit * z;
+      const stepped: [number, number, number] = [walk.x * metre, 0, walk.z * metre];
+      const pos = onMarker ? ([0, 1, 2].map((i) => shown[i]! + stepped[i]!) as [number, number, number]) : stepped;
+      const base: ArPlace = onMarker ? { at: fusion.S.anchor.pos, yaw: 0, unit, q: tableOnMarker(fusion.S.anchor.q) } : placed;
+      // Кадр камеры на экране старше датчика: сцена берёт поворот того мига, иначе стол бежит впереди фона.
+      const eye = backdrop ? (gyro.at(now - VIDEO_LAG) ?? q) : q;
+      const l = arLens({ q: eye, fov: backdrop ? backdrop.fov(frame.h) : FOV, pos }, seated(base, seat), turn, z, frame);
+      if (!backdrop) drawFloor(l);
       seenLens = l;
+      lastTurn = turn;
+      lastZoom = z;
+      const sees = seenNow();
+      if (sees !== hud.seen) { hud.seen = sees; showHud(); }
       return l;
     },
     place,
@@ -278,6 +467,9 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     },
     stick,
     grab,
-    dispose() { for (const fn of off.splice(0)) fn(); },
+    dispose() {
+      stopCamera();
+      for (const fn of off.splice(0)) fn();
+    },
   };
 }

@@ -208,9 +208,19 @@ export function createFusion(opts: () => FuseOpts = () => FUSE) {
     return S.shown;
   }
 
+  /**
+   * Сдвинуть телефон в мире на `v`, не дожидаясь метки: так в связку вливается ходьба джойстиком, пока
+   * метки не было, — вернулась метка, и место плавно встаёт по ней, а не прыгает.
+   */
+  function shift(v: Vec): void {
+    S.cam = S.cam.map((p, i) => p + v[i]!) as Vec;
+    S.shown = S.shown.map((p, i) => p + v[i]!) as Vec;
+    filter.reset(S.cam, S.seenAt);
+  }
+
   function reset(): void {
     S.locked = false; S.pending = []; S.taken = 0; S.cam = [0, 0, 0]; S.shown = [0, 0, 0]; S.last = null;
   }
 
-  return { S, measure, frame, reset };
+  return { S, measure, frame, shift, reset };
 }

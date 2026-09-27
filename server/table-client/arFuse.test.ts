@@ -185,4 +185,16 @@ it("метка врёт в наклоне на 10° — стол не накло
   for (let i = 0; i < 200; i += 1) f.measure(q, t, turned, 20000 + i * 66);
   near(qangle(f.S.anchor.q, qmul(axis(0, 1, 0, 10), levelQ(TABLE_YAW))), 0, 0.005, "курс догнал");
 });
+
+it("ходьба без метки вливается в связку: телефон сдвинут, метка вернулась там же — стол не прыгает", () => {
+  const f = createFusion();
+  const q = phone(0);
+  let { t, m } = seen(q, [0, 0, 0]);
+  f.measure(q, t, m, 0);
+  f.shift([0.5, 0, -0.2]);
+  nearV(f.S.shown, [0.5, 0, -0.2], 1e-12, "показанный");
+  ({ t, m } = seen(q, [0.5, 0, -0.2]));
+  assert.equal(f.measure(q, t, m, 5000), "ok");
+  nearV(f.S.cam, [0.5, 0, -0.2], 1e-9, "метка согласна — без скачка");
+});
 });

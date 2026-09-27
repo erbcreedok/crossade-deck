@@ -7,8 +7,7 @@
 // ПОСАДКА — поправка поверх якоря, человек её подгоняет сам:
 //   x, y    сдвиг по плоскости якоря: вправо и вглубь стола, в единицах стола при зуме 1;
 //   tilt    наклон вокруг поперечной оси, градусы; + — дальний край поднимается к тебе;
-//   turn    поворот и `zoom` размер — это поворот и зум пальцевой камеры, та же пара, что крутят
-//           двумя пальцами; посадка их лишь помнит за якорем;
+//   zoom    размер поверх зума пальцевой камеры (поворот стола — у камеры и компаса, не здесь);
 //   flat    для предмета: стол плашмя по гравитации, а не в плоскости предмета.
 //
 // Посадка своя у каждого якоря и живёт на устройстве. Чистая математика: `arSeat.test.ts`.
@@ -19,12 +18,11 @@ export interface ArSeat {
   x: number;
   y: number;
   tilt: number;
-  turn: number;
   zoom: number;
   flat: boolean;
 }
 
-export const SEAT0: Readonly<ArSeat> = Object.freeze({ x: 0, y: 0, tilt: 0, turn: 0, zoom: 1, flat: false });
+export const SEAT0: Readonly<ArSeat> = Object.freeze({ x: 0, y: 0, tilt: 0, zoom: 1, flat: false });
 
 export const SEAT_LIMITS = { tilt: 85, zoomMin: 0.2, zoomMax: 10 } as const;
 
