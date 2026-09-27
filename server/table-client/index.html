@@ -6,8 +6,16 @@
 <title>Стол</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Tiny5&display=swap" rel="stylesheet">
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<!-- Чужое — в фоне: зависший на телефоне шрифт или SDK Telegram иначе держит всю страницу (boot.test.ts). -->
+<link href="https://fonts.googleapis.com/css2?family=Tiny5&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<script>
+  window.__tg = new Promise(function (done) {
+    var s = document.createElement("script");
+    s.src = "https://telegram.org/js/telegram-web-app.js";
+    s.onload = s.onerror = function () { done(); };
+    document.head.appendChild(s);
+  });
+</script>
 <style>
   /*
     СТРАНИЦА НЕ ЕДЕТ НИКУДА: ни прокрутки, ни резинки, ни жестов браузера. В Mini App тянуть страницу

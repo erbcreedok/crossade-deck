@@ -40,7 +40,14 @@ const stale = {
   },
 };
 
+// SDK TELEGRAM ГРУЗИТСЯ В ФОНЕ (`index.html`): стол ждёт его не дольше `TG_WAIT_MS`. Не пришёл — вход
+// берётся из адреса, куда Telegram кладёт подпись (`#tgWebAppData`), а вибрация и прочее SDK — когда дойдёт.
+const TG_WAIT_MS = 2500;
+await Promise.race([(globalThis as { __tg?: Promise<void> }).__tg, new Promise((r) => setTimeout(r, TG_WAIT_MS))]);
 const telegram = (globalThis as { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
+const hashData = new URLSearchParams(location.hash.slice(1)).get("tgWebAppData") ?? "";
+const initData = telegram?.initData || hashData;
+const startParam = telegram?.initDataUnsafe.start_param || new URLSearchParams(hashData).get("start_param") || undefined;
 const stage = document.getElementById("stage")!;
 const params = new URLSearchParams(location.search);
 /**
@@ -48,7 +55,7 @@ const params = new URLSearchParams(location.search);
  * ещё помнит параметр запуска (`start_param`) той ссылки, с которой мини-апп открыли. `?rooms` — назад
  * к списку, даже если мини-апп открыли ссылкой на стол.
  */
-const roomAsked = params.has("rooms") ? null : params.get("room") || telegram?.initDataUnsafe.start_param || params.get("tgWebAppStartParam");
+const roomAsked = params.has("rooms") ? null : params.get("room") || startParam || params.get("tgWebAppStartParam");
 
 function say(text: string): void {
   const note = document.getElementById("note")!;
@@ -77,12 +84,24 @@ function closedTable(): void {
   note.hidden = false;
 }
 
+/** Дольше этого после входа заставка не ждёт картинок и шрифта. */
+const READY_CAP_MS = 3000;
+/** Запросы страницы дольше `SLOW_MS` — адрес без запроса (там бывают подписи) и сколько шёл. */
+const SLOW_MS = 1500;
+function slowLoads(): { url: string; ms: number }[] {
+  return (performance.getEntriesByType?.("resource") ?? [])
+    .filter((e) => e.duration > SLOW_MS)
+    .sort((a, b) => b.duration - a.duration)
+    .slice(0, 8)
+    .map((e) => ({ url: e.name.split("?")[0]!.slice(0, 120), ms: Math.round(e.duration) }));
+}
+
 async function open(): Promise<TableStore> {
   if (params.has("stand")) return localStore();
   const room = roomAsked;
   if (!room) throw new Error("Нет комнаты. Открой стол по ссылке из чата.");
-  const options: JoinOptions = telegram?.initData
-    ? { room, client: "html", door: "telegram", initData: telegram.initData }
+  const options: JoinOptions = initData
+    ? { room, client: "html", door: "telegram", initData }
     : { room, client: "html", door: "guest", name: params.get("name") ?? "Гость" };
   return netStore(options);
 }
@@ -162,7 +181,22 @@ if (params.get("from") === "rooms" && telegram?.BackButton) {
       if (up) document.getElementById("note")!.hidden = true;
       else say("Связь пропала. Возвращаюсь за стол…");
     });
-    return screen.ready.then(() => loading.done());
+    // ЗАСТАВКА ЖДЁТ КОЛОДУ, ШРИФТ И ЛИЦА — НО НЕ ДОЛЬШЕ `READY_CAP_MS` ПОСЛЕ ВХОДА. Один зависший запрос
+    // (аватарка с t.me, шрифт, картинка через туннель) иначе держит весь стол за заставкой сколько угодно;
+    // недогруженное дорисуется само, когда придёт.
+    const joined = performance.now();
+    const shown = Promise.race([
+      screen.ready.then(() => "ready" as const),
+      new Promise<"cap">((r) => setTimeout(() => r("cap"), READY_CAP_MS)),
+    ]);
+    return shown.then((how) => {
+      loading.done();
+      // СКОЛЬКО ОТКРЫВАЛСЯ СТОЛ — в журнал экрана, с самыми медленными запросами: «грузится долго» на
+      // чужом телефоне иначе не разобрать.
+      witness.saw("boot", { ms: Math.round(performance.now()), joined: Math.round(joined), how, slow: slowLoads() });
+      witness.tell();
+      if (how === "cap") void screen.ready.then(() => witness.saw("boot.late", { ms: Math.round(performance.now()), slow: slowLoads() }));
+    });
   })
   .catch((err: unknown) => {
     loading.done();

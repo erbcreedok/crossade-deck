@@ -38,6 +38,8 @@ async function bundle(name: ClientScript): Promise<{ js: string; map: string }> 
     write: false,
     format: "esm",
     target: "es2020",
+    // Ожидание SDK Telegram на верхнем уровне модуля (`main.ts`): модульный скрипт его умеет с iOS 15.
+    supported: { "top-level-await": true },
     // Имя файла — то, под которым скрипт отдаётся: от него esbuild пишет ссылку на карту исходников.
     outfile: join(SOURCES, `${name}.js`),
     // КАРТА ИСХОДНИКОВ — ОТДЕЛЬНЫМ ФАЙЛОМ, а не внутри. Вшитая, она весила вчетверо больше самого

@@ -29,3 +29,21 @@ describe("table.the-cross-is-in-the-page", () => {
     expect(MAIN).toContain('loadingCross(document.body, "Загружаю стол")');
   });
 });
+
+// ОТКРЫТИЕ СТОЛА НЕ ЖДЁТ ЧУЖИХ СЕРВЕРОВ. Блокирующий стиль или скрипт с чужого адреса держит страницу, пока
+// тот не ответит: зависший на телефоне Google Fonts или telegram.org — это десятки секунд чёрного экрана
+// при живом столе. Чужое грузится в фоне: шрифт — `media="print"` с переключением по загрузке, SDK
+// Telegram — из встроенного скрипта, и стол ждёт его не дольше `TG_WAIT_MS` (`main.ts`).
+describe("table.the-page-waits-for-no-stranger", () => {
+  it("ни одного блокирующего стиля или скрипта с чужого адреса", () => {
+    const tags = PAGE.match(/<(link|script)\b[^>]*>/gi) ?? [];
+    const blocking = tags.filter((tag) => {
+      const src = /(?:href|src)="(https?:[^"]+)"/i.exec(tag)?.[1];
+      if (!src) return false;
+      if (/^<link/i.test(tag)) return /rel="stylesheet"/i.test(tag) && !/media="print"/i.test(tag);
+      return !/\b(async|defer)\b/i.test(tag) && !/type="module"/i.test(tag);
+    });
+    expect(blocking).toEqual([]);
+  });
+});
+
