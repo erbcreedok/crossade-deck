@@ -40,9 +40,29 @@ check("AR включился — приложение позвали включ�
 
 // Телефон смотрит вниз на 50°, стоит в нуле.
 const down = (deg) => [Math.sin((-deg * Math.PI) / 360), 0, 0, Math.cos((deg * Math.PI) / 360)];
-const frame = (pos, deg = 50, fov = 62) => p.evaluate(([q, x, fv]) => window.__arFrame(q[0], q[1], q[2], q[3], x[0], x[1], x[2], fv, 1), [down(deg), pos, fov]);
-await frame([0, 0, 0]);
+const frame = (pos, deg = 50, fov = 62, sure = 1) => p.evaluate(([q, x, fv, t]) => window.__arFrame(q[0], q[1], q[2], q[3], x[0], x[1], x[2], fv, t), [down(deg), pos, fov, sure]);
+const look = () => p.evaluate(() => { const s = JSON.parse(document.querySelector("canvas").dataset.spots || "{}"); return { ...s.middle, k: s.k }; });
+const before = await look();
+// ARKit ещё не поймал комнату: поворот в первых кадрах нулевой (смотрит в горизонт) — по нему стол не ставится.
+await frame([0, 0, 0], 0, 62, 0);
 await p.waitForTimeout(300);
+const unsure = await look();
+check("неуверенный кадр ARKit стол не трогает — обычный вид как был", Math.abs(unsure.x - before.x) < 2 && Math.abs(unsure.y - before.y) < 2 && Math.abs(unsure.k - before.k) < 0.01, [before, unsure]);
+await frame([0, 0, 0]);
+// Переезд: пишем путь середины стола кадр за кадром, пока он не встанет.
+const path = await p.evaluate(() => new Promise((done) => {
+  const out = [];
+  const t0 = performance.now();
+  const tick = () => {
+    const s = JSON.parse(document.querySelector("canvas").dataset.spots || "{}");
+    out.push(s.k);
+    if (performance.now() - t0 < 1000) requestAnimationFrame(tick); else done(out);
+  };
+  tick();
+}));
+const kinds = new Set(path.map((k) => k.toFixed(2)));
+check("вход в AR — переездом: стол проходит через промежуточные размеры, а не прыгает", kinds.size >= 5, [path[0], path[Math.floor(path.length / 2)], path.at(-1), kinds.size]);
+await p.waitForTimeout(200);
 const bg = await p.evaluate(() => ({
   floor: getComputedStyle(document.querySelector("[data-ar-floor]")).backgroundImage + "|" + getComputedStyle(document.querySelector("[data-ar-floor]")).backgroundColor,
   body: getComputedStyle(document.body).backgroundColor,
@@ -51,6 +71,20 @@ const bg = await p.evaluate(() => ({
 }));
 check("в AR страница прозрачна — под ней камера приложения", bg.floor === "none|rgba(0, 0, 0, 0)" && bg.body === "rgba(0, 0, 0, 0)" && bg.html === "rgba(0, 0, 0, 0)", bg);
 check("сетки пола нет — пол настоящий", bg.grid === "", bg.grid.slice(0, 40));
+// Пиксели: снимок без фона — верх экрана (над столом, под кнопками) прозрачен насквозь.
+{
+  const png = await p.screenshot({ omitBackground: true, clip: { x: 20, y: 110, width: 350, height: 60 } });
+  const [seen, all] = await p.evaluate(async (b64) => {
+    const bmp = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
+    const c = new OffscreenCanvas(bmp.width, bmp.height), g = c.getContext("2d");
+    g.drawImage(bmp, 0, 0);
+    const d = g.getImageData(0, 0, bmp.width, bmp.height).data;
+    let n = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 8) n += 1;
+    return [n, bmp.width * bmp.height];
+  }, png.toString("base64"));
+  check("над столом насквозь видно камеру — ни обоев, ни блёсток", seen < all * 0.02, `${seen} непрозрачных из ${all}`);
+}
 await p.waitForTimeout(2500);
 check("кнопки «Включить наклон» нет — датчик не нужен", (await p.locator("[data-ar-ask]").count()) === 0);
 

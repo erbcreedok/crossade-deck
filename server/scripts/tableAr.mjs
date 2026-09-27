@@ -43,7 +43,8 @@ await settle();
 check("удержал компас — AR включился", await floor());
 check("компас в AR — «Выровнять», сверху кнопка выхода", (await p.locator("[data-home][data-ar]").count()) === 1 && (await p.locator('[data-ar-do="exit"]').count()) === 1);
 await orient(0, 50);
-await settle();
+// Вход в AR — переездом из обычного вида (`arBlend.ts`, 700 мс): стол читается, когда доехал.
+await p.waitForTimeout(900);
 let s = await spots();
 check("стол встал туда, куда смотрит телефон", Math.abs(s.middle.x - W / 2) <= 2 && Math.abs(s.middle.y - H / 2) <= 2, s.middle);
 check("свой стул — ближний к себе (ниже середины)", (() => { const mine = s.seats?.find((x) => x.who === "Ye"); return mine && mine.y > s.middle.y; })(), s.seats?.map((x) => `${x.who}:${Math.round(x.x)},${Math.round(x.y)}`).join(" "));

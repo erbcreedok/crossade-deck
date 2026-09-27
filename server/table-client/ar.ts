@@ -20,6 +20,7 @@
 import { createFusion, FUSE, gyroTrack } from "./arFuse.js";
 import { captureBox, mountHud, type HudState } from "./arHud.js";
 import { hearNative, nativeShell, type NativePose } from "./arNative.js";
+import { ease } from "./arBlend.js";
 import { arLens, deviceQuat, placeAtGaze, yawQuat, type ArLens, type ArPlace, type Quat } from "./arLens.js";
 import { deleteMarker, listMarkers, makeMarker, openCamera, saveMarker, track, VIDEO_LAG, warm, type Backdrop, type StoredMarker } from "./arMarker.js";
 import { assess, greyOf } from "./arQuality.js";
@@ -31,6 +32,8 @@ import { R, RIM } from "./felt.js";
 
 /** Вертикальный обзор: телефонный экран в портрете. */
 const FOV = 62;
+/** Сколько стол переезжает из обычного вида в AR, мс — как «Выровнять». */
+const ENTRY_MS = 700;
 /** Стол ниже глаз на столько метров, а если смотреть в горизонт — на столько впереди. */
 const DROP = 0.35;
 const AHEAD = 0.45;
@@ -76,6 +79,11 @@ export interface ArRig {
   grab(down: PointerEvent): void;
   /** Компас зажат секунду — прогулка с камерой, пока палец не поднят (`arStride.ts`). */
   stride(on: boolean): void;
+  /**
+   * ВХОД: 0 — AR ещё не знает, где телефон, и экран держит обычный вид; дальше за `ENTRY_MS` доходит до 1 —
+   * стол переезжает из обычного вида в AR (`arBlend.ts`), а не прыгает туда, где его надо искать.
+   */
+  entry(): number;
   dispose(): void;
 }
 
@@ -93,6 +101,8 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   }
   let placed: ArPlace = gazePlace();
   let heard = false;
+  /** Когда AR впервые узнал, где телефон: с этого мига идёт переезд из обычного вида. */
+  let heardAt = 0;
   /** Где стоишь — условные метры от своего стула (метр — радиус стола), `arWalk.ts`. */
   let walk = { x: 0, z: 0 };
   const off: Array<() => void> = [];
@@ -107,6 +117,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     gyro.push(performance.now(), q);
     if (!heard) {
       heard = true;
+      heardAt = performance.now();
       ask.remove();
       placed = gazePlace(); // первое слово датчика — стол встаёт туда, куда смотришь
     }
@@ -120,10 +131,14 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     shell.ar(true);
     off.push(() => shell.ar(false));
     off.push(hearNative((pose) => {
+      // Первые кадры ARKit, пока он не поймал комнату, — поворот нулевой и мир ещё не встал на место: стол,
+      // поставленный по ним, оказывался сбоку или над горизонтом. Ставим по первому уверенному.
+      if (!heard && !pose.tracking) return;
       native = pose;
       q = pose.q;
       if (!heard) {
         heard = true;
+        heardAt = performance.now();
         placed = gazePlace();
       }
       changed();
@@ -192,7 +207,11 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     const clear = [document.documentElement, document.body, stage];
     const was = clear.map((el) => el.style.background);
     for (const el of clear) el.style.background = "transparent";
-    off.push(() => clear.forEach((el, i) => { el.style.background = was[i]!; }));
+    // Обои экрана (узор и блёстки под столом) — тоже прочь: под столом комната.
+    const hide = document.createElement("style");
+    hide.textContent = "[data-g=ground],[data-g=sparkle]{display:none!important}";
+    document.head.append(hide);
+    off.push(() => { hide.remove(); clear.forEach((el, i) => { el.style.background = was[i]!; }); });
   }
 
   const drawFloor = (l: ArLens): void => {
@@ -671,6 +690,13 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     },
     stick,
     grab,
+    entry() {
+      if (!heard) return 0;
+      if (document.documentElement.dataset.reduceMotion !== undefined) return 1;
+      const t = Math.min(1, (performance.now() - heardAt) / ENTRY_MS);
+      if (t < 1) requestAnimationFrame(() => changed());
+      return ease(t);
+    },
     stride(on) {
       // В приложении шаги и так знает ARKit — своя камера для прогулки не нужна.
       if (shell) return;

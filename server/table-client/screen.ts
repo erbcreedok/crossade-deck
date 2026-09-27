@@ -29,6 +29,7 @@ import type { ScreenHealth, SeenThrough } from "./watch.js";
 import { lands, type Load } from "../src/table/landing.js";
 import { deskOf } from "../src/table/desks.js";
 import { mountAr, type ArRig } from "./ar.js";
+import { blendLook } from "./arBlend.js";
 import type { Witness } from "../src/table/telling.js";
 import { HOST } from "./host.js";
 import { apart } from "./angles.js";
@@ -3023,13 +3024,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         // виден и пуст — и стрелка с ним, пока карты в воздухе: они ещё могут вернуться.
         return p.zone ? [{ ...p, cards: [], carried: true }] : [];
       }), felt: s.felt, held: heldInk(s), picked: Object.fromEntries(Object.keys(s.picks ?? {}).map((id) => [id, pickInk(s, id)!])), hidden: heldInPiles(s, flying),
-      ...(arGlass
-        ? { view: arGlass.view, k: arGlass.k, squash: arGlass.squash, rotation: arGlass.rotation, lens: arGlass, rise: arGlass.rise }
-        : {
+      // ВХОД В AR — ПЕРЕЕЗДОМ из обычного вида (`arBlend.ts`), а не прыжком туда, где стол надо искать.
+      ...(() => {
+        const flat = {
           view: cam.camera.transform(), k: cam.camera.pixelsPerUnit, squash: cam.camera.squash, rotation: cam.camera.rotation,
           lens: lens(cam.camera.transform(), cam.camera.pitch, cam.camera.pixelsPerUnit, lastFrame, { r: R + RIM, depth: TABLE_THICK }),
           rise: cam.camera.maxPitch > 0 ? cam.camera.pitch / cam.camera.maxPitch : 0,
-        }),
+        };
+        if (!arGlass || !ar) return flat;
+        return blendLook(flat, { view: arGlass.view, k: arGlass.k, squash: arGlass.squash, rotation: arGlass.rotation, lens: arGlass, rise: arGlass.rise }, ar.entry());
+      })(),
     });
     spots = view.spots;
     // ВХОД — ДОМАШНИМ ВИДОМ (`SEAT_VIEW`): как только мой стул на столе, камера ставит его над рукой.
