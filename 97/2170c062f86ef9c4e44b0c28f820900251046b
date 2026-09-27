@@ -1,0 +1,23 @@
+bot/src/table/api.test.ts
+  s_9ed0da107cbc4a::t_14aca1f951bc95 25-31
+bot/src/table/api.ts
+  s_9ed0da107cbc4a::t_f27a3e3dba5d4e 65-80
+bot/src/table/tableBot.ts
+  s_9ed0da107cbc4a::t_f77715ebdb14a9 83-84,88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "972170c062f86ef9c4e44b0c28f820900251046b",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
