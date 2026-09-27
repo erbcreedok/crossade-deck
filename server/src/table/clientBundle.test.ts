@@ -69,4 +69,23 @@ describe("клиент стола: собранный заранее и собр
       }
     });
   }
+
+  // СКРИПТ СТОЛА ТЕЛЕФОН ДЕРЖИТ У СЕБЯ: страница зовёт его по отпечатку содержимого, и по нему он хранится
+  // год. Без этого 144 КБ ехали через туннель на каждое открытие — у владельца однажды 30 секунд.
+  for (const kind of ["live", "built"] as const) {
+    it(`${kind}: страница зовёт скрипт по отпечатку, по нему он кэшируется насовсем`, async () => {
+      const base = bases[kind];
+      for (const [page, script] of [["/table/", "app"], ["/table/replay", "replay"]] as const) {
+        const html = await (await fetch(`${base}${page}`)).text();
+        const v = new RegExp(`src="${script}\\.js\\?v=([0-9a-f]{12})"`).exec(html)?.[1];
+        expect(v, page).toBeTruthy();
+        const js = await fetch(`${base}/table/${script}.js?v=${v}`);
+        expect(js.headers.get("cache-control"), script).toContain("immutable");
+        const stale = await fetch(`${base}/table/${script}.js?v=000000000000`);
+        expect(stale.headers.get("cache-control"), `${script} чужой отпечаток`).toContain("no-store");
+        expect(await stale.text()).toBe(await js.text());
+      }
+    });
+  }
 });
+
