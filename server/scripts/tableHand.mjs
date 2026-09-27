@@ -122,9 +122,10 @@ check("посередине — веер", Math.max(...fys) - Math.min(...fys) >
     const last = cards.reduce((a, b) => (b.getBoundingClientRect().right > a.getBoundingClientRect().right ? b : a));
     const angle = (el) => { const m = new DOMMatrix(getComputedStyle(el).transform); return Math.round((Math.atan2(m.b, m.a) * 180) / Math.PI); };
     const g = document.querySelector('[data-g="pose-handle"]');
-    return { card: angle(last), handle: g ? angle(g) : null, arms: document.querySelectorAll("[data-pose-arm]").length, inBar: document.querySelectorAll("[data-in-bar]").length };
+    const tab = document.querySelector('[data-g="pose-tab"] path')?.getBoundingClientRect();
+    return { card: angle(last), handle: g ? angle(g) : null, tab: tab && Math.round(Math.max(tab.width, tab.height)), inBar: document.querySelectorAll("[data-in-bar]").length };
   });
-  check("веер: ручка — Г с плечами, наклон как у крайней карты; в баре её нет", tilt.arms === 2 && tilt.inBar === 0 && tilt.card !== 0 && Math.abs(tilt.handle - tilt.card) <= 1, tilt);
+  check("веер: ручка — язычок на углу крайней карты, с её наклоном; кружка нет", tilt.tab > 12 && tilt.tab < 40 && tilt.inBar === 0 && tilt.card !== 0 && Math.abs(tilt.handle - tilt.card) <= 1, tilt);
   await drag(0, -85); // вверх в пределах зоны руки: выше — это уже вынос на стол
   await check2("ряд");
   await drag(0, 90);
@@ -186,6 +187,13 @@ check("отступ 34 px — кнопки бара выше ровно на 34"
   check("…на сукне один контур, а не по карте", (await p.locator("[data-felt-mark]").count()) === 1);
   check("…в руке карты стоят контурами", (await p.evaluate(() => document.querySelectorAll('[data-g="mark"]:not([data-felt-mark])').length)) === before.length);
   await p.mouse.move(h.x, h.y + 10, { steps: 12 }); await settle();
+  const back = await p.evaluate(() => ({
+    carry: !!document.querySelector("[data-g=carry]"),
+    marks: document.querySelectorAll('[data-g="mark"]').length,
+    handle: !!document.querySelector('[data-g="pose-handle"]'),
+    pose: !!document.querySelector("[data-pose-name]"),
+  }));
+  check("вернул стопку в зону руки, не отпуская — выноса нет, рука без контуров, под пальцем снова ручка", !back.carry && back.marks === 0 && back.handle && back.pose, back);
   await p.mouse.up(); await p.waitForTimeout(700);
   check("вернул в руку и отпустил — рука как была", (await handIds()).join() === before.join(), await handIds());
   h = await box("[data-pose-handle]:not([data-pose-arm])");
