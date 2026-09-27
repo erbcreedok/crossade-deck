@@ -106,6 +106,55 @@ await p.waitForTimeout(300);
 const after = await p.evaluate(() => ({ calls: window.__arCalls, body: document.body.style.background, floor: document.querySelectorAll("[data-ar-floor]").length }));
 check("вышел из AR — камеру выключили, фоны вернулись", JSON.stringify(after.calls) === "[true,false]" && after.body === "" && after.floor === 0, after);
 
+// ── жесты супер-AR: палец двигает стол, два пальца вниз — наклон ─────────────────────────────────
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  const t = await ctx.newPage();
+  await t.addInitScript(() => { window.__crossadeNative = { version: 1, ar() {} }; });
+  await t.goto(`${base}/table/?stand`);
+  await t.waitForFunction(() => !!document.querySelector("canvas")?.dataset.spots);
+  const cdp = await ctx.newCDPSession(t);
+  const touch = (type, points) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map(([x, y], id) => ({ x, y, id: id + 1 })) });
+  const h = await t.locator("[data-home]").boundingBox();
+  await touch("touchStart", [[h.x + h.width / 2, h.y + h.height / 2]]);
+  await t.waitForTimeout(750);
+  await touch("touchEnd", []);
+  await t.evaluate(() => window.__arFrame(Math.sin(-50 * Math.PI / 360), 0, 0, Math.cos(50 * Math.PI / 360), 0, 0, 0, 62, 1));
+  await t.waitForTimeout(1000);
+  const read = () => t.evaluate(() => {
+    const s = JSON.parse(document.querySelector("canvas").dataset.spots || "{}");
+    const seat = JSON.parse(document.querySelector("[data-ar-seat]")?.dataset.arSeat ?? "{}");
+    return { ...s.middle, k: s.k, squash: s.squash, sx: seat.x ?? 0, sy: seat.y ?? 0, tilt: Math.round(seat.tilt ?? 0) };
+  });
+  const s0 = await read();
+  // Пустое сукно правее середины стола — палец вверх на 120 px, по шагам.
+  const x = 280, y = 420;
+  await touch("touchStart", [[x, y]]);
+  for (let i = 1; i <= 6; i += 1) { await touch("touchMove", [[x, y - i * 20]]); await t.waitForTimeout(30); }
+  await touch("touchEnd", []);
+  await t.waitForTimeout(200);
+  const s1 = await read();
+  check("палец по пустому сукну — едет САМ СТОЛ (посадка), а не глаз: вверх — от тебя", s0.y - s1.y > 40 && s1.k < s0.k && s1.sy > s0.sy + 1, [s0, s1]);
+  // Два пальца вместе вниз — наклон: стол меняет сжатие, а размер (щипок) — нет.
+  await touch("touchStart", [[140, 500], [250, 500]]);
+  for (let i = 1; i <= 6; i += 1) { await touch("touchMove", [[140, 500 + i * 20], [250, 500 + i * 20]]); await t.waitForTimeout(30); }
+  await touch("touchEnd", []);
+  await t.waitForTimeout(200);
+  const s2 = await read();
+  check("два пальца вниз — стол наклонился и остался на экране", Math.abs(s2.squash - s1.squash) > 0.03 && s2.x > 0 && s2.x < 390 && s2.y > 0 && s2.y < 844, [s1, s2]);
+  // Очень длинный жест — наклон упирается в предел: стол не встаёт на ребро и не переворачивается.
+  const tilts = [];
+  for (const dir of [1, -1]) {
+    await touch("touchStart", [[140, 420], [250, 420]]);
+    for (let i = 1; i <= 20; i += 1) { await touch("touchMove", [[140, 420 + dir * i * 20], [250, 420 + dir * i * 20]]); await t.waitForTimeout(15); }
+    await touch("touchEnd", []);
+    await t.waitForTimeout(150);
+    tilts.push(await read());
+  }
+  check("наклон с пределом 60°: и туда, и обратно стол виден плашмя, не ребром и не изнанкой", tilts.every((q) => q.squash > 0.25 && Math.abs(q.tilt) === 60), tilts);
+  await ctx.close();
+}
+
 // ── вход по пропуску ─────────────────────────────────────────────────────────────────────────────
 const body = randomBytes(8).toString("base64url");
 const room = body + createHmac("sha256", secret).update(body).digest("base64url").slice(0, 12);

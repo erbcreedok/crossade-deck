@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { arLens, deviceQuat, placeAtGaze, yawQuat, type ArPlace, type Quat } from "./arLens.js";
-import { readSeat, SEAT0, SEATS_KEY, seated, tableFlatBy, tableOnMarker, tiltBy, writeSeat } from "./arSeat.js";
+import { moveSeat, readSeat, SEAT0, SEATS_KEY, seated, SUPER_REACH, SUPER_TILT, superClamp, tableFlatBy, tableOnMarker, tiltBy, writeSeat } from "./arSeat.js";
 
 const frame = { w: 390, h: 844 };
 const FOV = 62;
@@ -94,5 +94,33 @@ describe("ar-seat.memory", () => {
     expect(readSeat(shelf, "gravity")).toEqual(SEAT0);
     box.set(SEATS_KEY, "{битое");
     expect(readSeat(shelf, "marker:a")).toEqual(SEAT0);
+  });
+});
+
+describe("ar-seat.super-ar-limits", () => {
+  it("наклон — не больше 60° в обе стороны: стол не встаёт на ребро", () => {
+    expect(superClamp({ ...SEAT0, tilt: 80 }).tilt).toBe(SUPER_TILT);
+    expect(superClamp({ ...SEAT0, tilt: -80 }).tilt).toBe(-SUPER_TILT);
+    expect(superClamp({ ...SEAT0, tilt: 30 }).tilt).toBe(30);
+  });
+
+  it("стол не увести дальше трёх диаметров — ни пальцем, ни жестом", () => {
+    const far = superClamp({ ...SEAT0, x: 300, y: 400 });
+    expect(Math.hypot(far.x, far.y)).toBeCloseTo(SUPER_REACH);
+    expect(far.x / far.y).toBeCloseTo(0.75);
+    const lens = { toDesk: (q: { x: number; y: number }) => ({ x: q.x / 10, y: q.y / 10 }) };
+    const dragged = moveSeat(SEAT0, lens, { x: 0, y: 0 }, { x: 99999, y: 0 }, 0, 1);
+    expect(Math.hypot(dragged.x, dragged.y)).toBeCloseTo(SUPER_REACH);
+  });
+
+  it("стол идёт за пальцем: палец вправо — стол вправо, вниз экрана — к тебе", () => {
+    const lens = { toDesk: (q: { x: number; y: number }) => ({ x: q.x / 10, y: q.y / 10 }) };
+    expect(moveSeat(SEAT0, lens, { x: 0, y: 0 }, { x: 20, y: 0 }, 0, 1)).toMatchObject({ x: 2, y: 0 });
+    expect(moveSeat(SEAT0, lens, { x: 0, y: 0 }, { x: 0, y: 30 }, 0, 1)).toMatchObject({ x: 0, y: -3 });
+  });
+
+  it("сдвиг пальцем наклон подгонки не срезает", () => {
+    const lens = { toDesk: (q: { x: number; y: number }) => q };
+    expect(moveSeat({ ...SEAT0, tilt: 80 }, lens, { x: 0, y: 0 }, { x: 1, y: 0 }, 0, 1).tilt).toBe(80);
   });
 });

@@ -24,7 +24,7 @@ import { ease } from "./arBlend.js";
 import { arLens, deviceQuat, placeAtGaze, yawQuat, type ArLens, type ArPlace, type Quat } from "./arLens.js";
 import { deleteMarker, listMarkers, makeMarker, openCamera, saveMarker, track, VIDEO_LAG, warm, type Backdrop, type StoredMarker } from "./arMarker.js";
 import { assess, greyOf } from "./arQuality.js";
-import { clampSeat, readSeat, SEAT0, seated, tableOnMarker, tiltBy, writeSeat, type ArSeat } from "./arSeat.js";
+import { clampSeat, moveSeat, readSeat, SEAT0, seated, superClamp, tableOnMarker, tiltBy, writeSeat, type ArSeat } from "./arSeat.js";
 import { startStride } from "./arStride.js";
 import { rotate } from "./arTrack.js";
 import { leftToGo, walkStep, WALK } from "./arWalk.js";
@@ -290,17 +290,31 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     requestAnimationFrame(stepWalk);
   };
   /** Хват: точка стола под пальцем в миг касания; глаз двигается так, чтобы она оставалась под ним. */
-  let grabbing: { id: number; desk: { x: number; y: number } } | null = null;
+  /** Хват: `desk` — точка стола под пальцем; `at` — где палец был, если хват двигает стол (супер-AR). */
+  let grabbing: { id: number; desk: { x: number; y: number }; at?: { x: number; y: number } } | null = null;
+  /** СУПЕР-AR — стол держится за настоящий мир: ARKit в приложении или пойманная метка. Гироскоп — нет. */
+  const superAr = (): boolean => native !== null || (anchor.kind !== "gravity" && fusion.S.locked);
   let seenLens: ArLens | null = null;
   let metre = 1;
   const grab = (down: PointerEvent): void => {
-    if (!seenLens || feet()) return;
+    if (!seenLens) return;
+    // СУПЕР-AR (ARKit или пойманная метка): палец ДВИГАЕТ СТОЛ по его плоскости — ходить здесь ногами, а стол
+    // ставить рукой. На гироскопе палец по-прежнему шагает глазом.
+    const table = superAr();
+    if (!table && feet()) return;
     stopGlide();
     stopWalk();
-    grabbing = { id: down.pointerId, desk: seenLens.toDesk({ x: down.clientX, y: down.clientY }) };
+    grabbing = { id: down.pointerId, desk: seenLens.toDesk({ x: down.clientX, y: down.clientY }), ...(table ? { at: { x: down.clientX, y: down.clientY } } : {}) };
   };
   const dragGrab = (e: PointerEvent): void => {
     if (!grabbing || !seenLens || e.pointerId !== grabbing.id) return;
+    if (grabbing.at) {
+      seat = moveSeat(seat, seenLens, grabbing.at, { x: e.clientX, y: e.clientY }, lastTurn, lastZoom);
+      grabbing.at = { x: e.clientX, y: e.clientY };
+      showHud();
+      changed();
+      return;
+    }
     const want = seenLens.toWorld(grabbing.desk), got = seenLens.toWorld(seenLens.toDesk({ x: e.clientX, y: e.clientY }));
     let x = walk.x + (want[0] - got[0]) / metre, z = walk.z + (want[2] - got[2]) / metre;
     const d = Math.hypot(x, z);
@@ -326,7 +340,31 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   const onSecond = (e: PointerEvent): void => {
     if (walking && e.pointerId !== walking.id) stopWalk();
     if (grabbing && e.pointerId !== grabbing.id) grabbing = null;
+    touching.set(e.pointerId, { x: e.clientX, y: e.clientY });
   };
+  // НАКЛОН В СУПЕР-AR — два пальца вместе вверх-вниз. Жест только подсматривается: щипок и поворот тех же
+  // пальцев остаются пальцевой камере (масштаб и поворот стола), а параллельный ход их не меняет.
+  const touching = new Map<number, { x: number; y: number }>();
+  const onTilt = (e: PointerEvent): void => {
+    const was = touching.get(e.pointerId);
+    if (!was) return;
+    const prev = new Map(touching);
+    touching.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touching.size !== 2 || !superAr() || hud.fitting) return;
+    const [i, j] = [...touching.keys()] as [number, number];
+    seat = superClamp(tiltBy(seat, prev.get(i)!, prev.get(j)!, touching.get(i)!, touching.get(j)!));
+    showHud();
+    changed();
+  };
+  const onLift = (e: PointerEvent): void => { touching.delete(e.pointerId); };
+  addEventListener("pointermove", onTilt, true);
+  addEventListener("pointerup", onLift, true);
+  addEventListener("pointercancel", onLift, true);
+  off.push(() => {
+    removeEventListener("pointermove", onTilt, true);
+    removeEventListener("pointerup", onLift, true);
+    removeEventListener("pointercancel", onLift, true);
+  });
   addEventListener("pointermove", onMove);
   addEventListener("pointerup", onUp);
   addEventListener("pointercancel", onUp);
@@ -619,10 +657,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const ids = [...fingers.keys()];
     if (ids.length === 1) {
-      const a = seenLens.toDesk(was), b = seenLens.toDesk({ x: e.clientX, y: e.clientY });
-      const dx = b.x - a.x, dy = b.y - a.y, t = (lastTurn * Math.PI) / 180;
-      const lx = Math.cos(t) * dx - Math.sin(t) * dy, ly = Math.sin(t) * dx + Math.cos(t) * dy;
-      seat = { ...seat, x: seat.x + lx * lastZoom, y: seat.y - ly * lastZoom };
+      seat = moveSeat(seat, seenLens, was, { x: e.clientX, y: e.clientY }, lastTurn, lastZoom);
     } else {
       const [i, j] = ids as [number, number];
       const a0 = prev.get(i)!, b0 = prev.get(j)!, a1 = fingers.get(i)!, b1 = fingers.get(j)!;

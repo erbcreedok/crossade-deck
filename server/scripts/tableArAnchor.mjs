@@ -263,27 +263,44 @@ await p.evaluate(() => Object.assign(window.__fake, { scene: "blank", x: 360, y:
 // 2г. «ВЫРОВНЯТЬ» — ПЛАВНО: ушёл джойстиком, тап по компасу — стол едет домой, а не прыгает.
 await orient(0, 50);
 await p.locator("[data-home]").click();
-await p.waitForTimeout(900);
+// Дома — когда стол перестал ехать (размер не меняется 300 мс): на нагруженной машине 900 мс ловили его в пути.
+const still = () => p.waitForFunction(() => {
+  const k = JSON.parse(document.querySelector("canvas").dataset.spots || "{}").k, w = window;
+  if (w.__stillK !== k) { w.__stillK = k; w.__stillAt = performance.now(); return false; }
+  return performance.now() - w.__stillAt > 300;
+}, null, { polling: 50, timeout: 5000 });
+await p.waitForTimeout(300); // переезд после тапа начинается не в тот же кадр
+await still();
 const home = await spots();
-await touch1("touchStart", hub.x, hub.y);
-await touch1("touchMove", hub.x, hub.y - 60);
-await p.waitForTimeout(900);
-await touch1("touchEnd", hub.x, hub.y);
-await settle(400);
-const away = await spots();
-// Кривая — каждые 50 мс, пока стол едет: на медленной машине кадр рисуется реже, и «через 300 мс» ловит то
-// начало, то конец. Плавно — значит, по дороге есть хоть одно значение между «ушёл» и «дома».
-const curve = p.evaluate(() => new Promise((done) => {
-  const out = [], t0 = performance.now();
-  const t = setInterval(() => { out.push(JSON.parse(document.querySelector("canvas").dataset.spots || "{}").k); if (performance.now() - t0 > 2500) { clearInterval(t); done(out); } }, 50);
-}));
-await p.locator("[data-home]").click();
-const ks = await curve;
-const back = await spots();
+// Кривая — каждый нарисованный кадр, пока стол едет. Плавно — значит, по дороге есть хоть одно значение между
+// «ушёл» и «дома». Нагруженная машина рисует по 3–4 кадра в секунду, и кадр может не попасть в переезд (600 мс):
+// путь повторяется до трёх раз, и плавность засчитывается, если хоть раз кадр застал стол в пути. Прыжок не
+// покажет промежуточного размера ни в одной попытке при любой частоте кадров.
+let glide;
+for (let tries = 0; tries < 3; tries += 1) {
+  await touch1("touchStart", hub.x, hub.y);
+  await touch1("touchMove", hub.x, hub.y - 60);
+  await p.waitForTimeout(900);
+  await touch1("touchEnd", hub.x, hub.y);
+  await settle(400);
+  const away = await spots();
+  const curve = p.evaluate(() => new Promise((done) => {
+    const out = [], t0 = performance.now();
+    const tick = () => { const now = performance.now(); out.push({ k: JSON.parse(document.querySelector("canvas").dataset.spots || "{}").k, t: now - t0 }); if (now - t0 > 2500) done(out); else requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }));
+  await p.locator("[data-home]").click();
+  const frames = await curve;
+  await still();
+  glide = { away, ks: frames.map((f) => f.k), early: frames.filter((f) => f.t < 700).length, back: await spots(), times: frames.map((f) => `${Math.round(f.t)}:${f.k.toFixed(1)}`).join(" ") };
+  const g = away.k - home.k;
+  if (glide.ks.some((k) => k < away.k - g * 0.1 && k > home.k + g * 0.1)) break;
+}
+const { away, ks, back } = glide;
 const gone = away.k - home.k;
 const between = ks.filter((k) => k < away.k - gone * 0.1 && k > home.k + gone * 0.1);
 check("тап по компасу — домой плавно: по дороге стол проходит промежуточные размеры, потом дома", gone > 2 && between.length >= 1 && Math.abs(back.k - home.k) < 0.8 && Math.hypot(back.middle.x - home.middle.x, back.middle.y - home.middle.y) < 3,
-  `размер ${home.k.toFixed(1)} → ушёл ${away.k.toFixed(1)} → по дороге ${[...new Set(ks.map((k) => k.toFixed(1)))].join(" ")} → дома ${back.k.toFixed(1)}`);
+  `размер ${home.k.toFixed(1)} → ушёл ${away.k.toFixed(1)} → по дороге ${[...new Set(ks.map((k) => k.toFixed(1)))].join(" ")} → дома ${back.k.toFixed(1)} (кадры ${glide.times})`);
 
 // 3. предмет: картина на стене — телефон стоймя смотрит вперёд
 await orient(0, 90);

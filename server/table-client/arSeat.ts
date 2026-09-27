@@ -51,6 +51,37 @@ export function tiltBy(seat: ArSeat, a0: { y: number }, b0: { y: number }, a1: {
 }
 
 /**
+ * ПРЕДЕЛЫ СУПЕР-AR — там стол двигается жестами всегда, а не в подгонке, и его легко увести: наклон — до 60°
+ * (стол не встаёт на ребро и не переворачивается), сдвиг — не дальше `SUPER_REACH` единиц стола от места,
+ * где его поставили (три диаметра), масштаб — как у подгонки.
+ */
+export const SUPER_TILT = 60;
+export const SUPER_REACH = 42;
+
+/** Не дальше `SUPER_REACH` от места, где стол поставили. */
+function inReach(seat: ArSeat): ArSeat {
+  const d = Math.hypot(seat.x, seat.y), k = d > SUPER_REACH ? SUPER_REACH / d : 1;
+  return { ...seat, x: seat.x * k, y: seat.y * k };
+}
+
+export function superClamp(seat: ArSeat): ArSeat {
+  const c = inReach(clampSeat(seat));
+  return { ...c, tilt: Math.max(-SUPER_TILT, Math.min(SUPER_TILT, c.tilt)) };
+}
+
+/**
+ * СТОЛ ЗА ПАЛЬЦЕМ: палец ушёл из `from` в `to` (px стекла) — точка стола под ним едет следом. Разница точек
+ * сукна поворачивается назад на поворот пальцевой камеры и растягивается на её зум: посадка живёт в осях
+ * стола без них.
+ */
+export function moveSeat(seat: ArSeat, lens: { toDesk(q: { x: number; y: number }): { x: number; y: number } }, from: { x: number; y: number }, to: { x: number; y: number }, turn: number, zoom: number): ArSeat {
+  const a = lens.toDesk(from), b = lens.toDesk(to);
+  const dx = b.x - a.x, dy = b.y - a.y, t = (turn * Math.PI) / 180;
+  const lx = Math.cos(t) * dx - Math.sin(t) * dy, ly = Math.sin(t) * dx + Math.cos(t) * dy;
+  return inReach({ ...seat, x: seat.x + lx * zoom, y: seat.y - ly * zoom });
+}
+
+/**
  * Предмет → стол. У метки X — вправо, Y — вверх по картинке, Z — из неё к тебе; у стола Y — нормаль,
  * Z — «ко мне». Нормаль стола — нормаль предмета, «ко мне» — к нижнему краю картинки.
  */
