@@ -80,6 +80,19 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   let dead = false;
   const canvas = stage.querySelector("canvas")!;
   const over = stage.querySelector<HTMLElement>("#over")!;
+  /**
+   * СЛОЙ ПОВЕРХ ХОЛСТА — ДВЕ ПОЛОВИНЫ. На сукне — то, что стоит на столе (зоны стульев, метки, окна
+   * стульев): оно едет вместе с камерой. HUD — бар, рука, компас, шестерёнка, журнал: камера его не
+   * касается. Одной строкой они пересобирались вместе, и в AR, где стол сдвигается на каждом отсчёте
+   * датчика, кнопки HUD пересоздавались под пальцем — нажатие терялось. Половины сравниваются и
+   * переписываются порознь. `display:contents` — обёртки не меняют ни раскладку, ни наслоение.
+   */
+  const overWorld = document.createElement("div");
+  const overHud = document.createElement("div");
+  overWorld.dataset.overWorld = "";
+  overHud.dataset.overHud = "";
+  overWorld.style.display = overHud.style.display = "contents";
+  over.append(overWorld, overHud);
   const images: Record<string, HTMLImageElement> = {};
   /** Личный вид колоды: четыре цвета и кириллица — у каждого свой, на его устройстве. */
   const look: DeckLook = readLook();
@@ -2892,8 +2905,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
 
   // ── РИСОВАНИЕ ───────────────────────────────────────────────────────────────────────────────
 
-  /** Разметка слоя поверх холста в прошлом кадре: та же — значит трогать её нечем и незачем. */
-  let lastOver = "";
+  /** Разметка половин слоя поверх холста в прошлом кадре: та же — значит трогать её нечем и незачем. */
+  let lastWorld = "";
+  let lastHud = "";
   /** Домашний вид при входе поставлен — больше камеру без спроса не трогаем. */
   let homed = false;
   /**
@@ -3074,12 +3088,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // колебание его голоса — кольца живут на холсте, а не здесь. Переписывать при этом `innerHTML` значит
     // десятки раз в секунду выбрасывать кнопки из-под пальца: нажатие начинается на одной, а заканчивается
     // на другой, и до onclick дело не доходит вовсе — заглушить говорящего было нельзя, пока он не замолчит.
-    const html = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + hudHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + mindMarksHtml(s) + earMarksHtml(s) + slingHtml() + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + compass.html(s, local.reseat ? undefined : compassAt(s)) + lassoHtml(s) + lassoActsHtml(s) + dealHtml() + settingsHtml() + journalHtml(s);
-    if (html !== lastOver) {
+    const world = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + mindMarksHtml(s) + earMarksHtml(s) + slingHtml() + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + lassoHtml(s);
+    const hud = hudHtml(s) + compass.html(s, local.reseat ? undefined : compassAt(s)) + lassoActsHtml(s) + dealHtml() + settingsHtml() + journalHtml(s);
+    if (world !== lastWorld || hud !== lastHud) {
       if (buttonHeld !== null) overStale = true;
       else {
-        lastOver = html;
-        over.innerHTML = html;
+        if (world !== lastWorld) { lastWorld = world; overWorld.innerHTML = world; }
+        if (hud !== lastHud) { lastHud = hud; overHud.innerHTML = hud; }
         wire();
       }
     }
@@ -4187,7 +4202,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         compass.drag(e, (e.target as HTMLElement | null)?.closest("[data-lean]") ? "lean" : "ring", el);
       };
     }
-    for (const el of over.children) {
+    for (const el of [...overWorld.children, ...overHud.children]) {
       // ПРОКРУЧИВАЕМОЕ ОКНО ОТМЕНУ НЕ ПОЛУЧАЕТ. `keepPage` глушит любой `touchmove` — и вместе с
       // закрытием приложения свайпом глушит прокрутку внутри окна: журнал стоял намертво, хотя
       // `touch-action:pan-y` у него был правильный.

@@ -178,7 +178,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   // Второй палец — это щипок или поворот: ходьба и хват прекращаются и отдают жест камере.
   const hint = document.createElement("div");
   hint.dataset.arHint = "";
-  hint.style.cssText = "position:fixed;left:50%;top:calc(112px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));"
+  hint.style.cssText = "position:fixed;left:50%;top:calc(76px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));"
     + "transform:translateX(-50%);z-index:44;padding:6px 12px;border-radius:8px;background:rgba(11,7,4,.82);color:#f5ead0;"
     + "font:400 12px/1 Tiny5,monospace;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s";
   document.body.append(hint);
@@ -301,11 +301,14 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     return true;
   };
 
-  const hud: HudState = { anchor: "gravity", seen: "search", fitting: false, seat, markers: [], active: null, sheet: null, progress: 0 };
+  /** Камера за столом — выбор этого устройства: включил однажды — следующий AR открывается с ней. */
+  const CAMERA_KEY = "crossade.table.ar.camera";
+  const hud: HudState = { anchor: "gravity", seen: "search", camera: "off", fitting: false, seat, markers: [], active: null, sheet: null, progress: 0 };
   const showHud = (): void => {
     Object.assign(hud, { anchor: anchor.kind, seat, active: anchor.kind === "marker" ? anchor.id : null, markers: markers.map(({ id, name, thumb, points }) => ({ id, name, thumb, points })) });
     stage.dataset.arAnchor = `${anchor.kind}:${hud.seen}`;
     stage.dataset.arSeat = JSON.stringify(seat);
+    stage.dataset.arCam = typeof hud.camera === "string" ? hud.camera : "error";
     ui.render(hud);
   };
   const sheet = (s: HudState["sheet"]): void => { hud.sheet = s; showHud(); };
@@ -316,20 +319,31 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     backdrop?.stop();
     backdrop = null;
     floor.style.display = "";
+    if (hud.camera === "on" || hud.camera === "starting") hud.camera = "off";
   };
+  /** Камера под сукном. Не вышло — почему, видно в окне якоря: оно открывается само. */
   const camera = async (): Promise<Backdrop | null> => {
     if (backdrop) return backdrop;
+    hud.camera = "starting";
+    showHud();
     const got = await openCamera(stage, felt);
-    if (typeof got === "string") { sheet({ error: got }); return null; }
+    if (typeof got === "string") {
+      hud.camera = { error: got };
+      sheet("menu");
+      return null;
+    }
     backdrop = got;
+    hud.camera = "on";
     floor.style.display = "none";
+    showHud();
     changed();
     return backdrop;
   };
+  const remember = (on: boolean): void => { try { localStorage.setItem(CAMERA_KEY, on ? "on" : "off"); } catch { /* без памяти — до выхода */ } };
   const useSeat = (): void => { seat = readSeat(localStorage, seatKey()); showHud(); changed(); };
 
   const gravity = (): void => {
-    stopCamera();
+    stopTrack();
     anchor = { kind: "gravity" };
     useSeat();
     place();
@@ -357,6 +371,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     if (anchor.kind === "marker" && anchor.id === id && backdrop === cam) untrack = stop;
     else stop();
   };
+  const fit = (on: boolean): void => { hud.fitting = on; hud.sheet = null; fingers.clear(); showHud(); };
 
   const ui = mountHud({
     exit,
@@ -364,10 +379,19 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
       if (open) void listMarkers().then((list) => { markers = list; sheet("menu"); });
       else sheet(null);
     },
-    fit: (on) => { hud.fitting = on; fitLayer.style.display = on ? "block" : "none"; fingers.clear(); showHud(); },
-    fitDone: () => { writeSeat(localStorage, seatKey(), seat); hud.fitting = false; fitLayer.style.display = "none"; showHud(); },
+    camera: (on) => {
+      remember(on);
+      if (on) { void camera(); return; }
+      // Предмет без камеры не видно: выключил камеру — стол снова держится за гравитацию.
+      if (anchor.kind === "marker") gravity();
+      stopCamera();
+      showHud();
+      changed();
+    },
+    fit,
+    fitDone: () => { writeSeat(localStorage, seatKey(), seat); fit(false); },
     fitReset: () => { seat = { ...SEAT0, flat: seat.flat }; showHud(); changed(); },
-    fitCancel: () => { hud.fitting = false; fitLayer.style.display = "none"; useSeat(); },
+    fitCancel: () => { fit(false); useSeat(); },
     gravity: () => { hud.sheet = null; gravity(); },
     use: (id) => void use(id),
     forget: (id) => void deleteMarker(id).then(listMarkers).then((list) => {
@@ -389,7 +413,8 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
         markers = await listMarkers();
         await use(m.id);
       } catch (err) {
-        sheet({ error: `метка не собралась: ${String((err as Error)?.message ?? err)}` });
+        hud.camera = { error: `метка не собралась: ${String((err as Error)?.message ?? err)}` };
+        sheet("menu");
       }
     })(),
     flat: () => { seat = { ...seat, flat: !seat.flat }; writeSeat(localStorage, seatKey(), seat); fusion.reset(); showHud(); changed(); },
@@ -397,24 +422,27 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   });
   off.push(() => ui.dispose());
   void listMarkers().then((list) => { markers = list; showHud(); });
+  try { if (localStorage.getItem(CAMERA_KEY) === "on") void camera(); } catch { /* без памяти — камера по кнопке */ }
 
-  // ── подгонка: слой поверх стола ────────────────────────────────────────────────────────────────
-  // Пока подгонка, стол не играет: все пальцы достаются слою. Один — стол едет за пальцем по плоскости
-  // якоря; два — развести (размер), вместе вверх-вниз (наклон).
-  const fitLayer = document.createElement("div");
-  fitLayer.dataset.arFit = "";
-  fitLayer.style.cssText = "position:fixed;inset:0;z-index:41;display:none;touch-action:none;";
-  document.body.append(fitLayer);
-  off.push(() => fitLayer.remove());
+  // ── подгонка: пальцы по сукну ──────────────────────────────────────────────────────────────────
+  // Пока подгонка, стол не играет: касание сукна перехватывается на окне, в захвате, раньше стола. Кнопки
+  // HUD, окно якоря и «Настройки» пропускаются как есть — поверх страницы ничего не лежит. Один палец —
+  // стол едет за пальцем по плоскости якоря; два — развести (размер), вместе вверх-вниз (наклон).
+  const PASS = "[data-over-hud],[data-ar-bar],[data-ar-sheet],[data-ar-strip],[data-settings-layer]";
   const fingers = new Map<number, { x: number; y: number }>();
-  fitLayer.addEventListener("pointerdown", (e) => {
+  let fitTouchedAt = 0;
+  const onFitDown = (e: PointerEvent): void => {
+    if (!hud.fitting || (e.target as Element | null)?.closest?.(PASS)) return;
     e.stopPropagation();
+    e.preventDefault();
     fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    try { fitLayer.setPointerCapture(e.pointerId); } catch { /* палец уже поднят — ловить нечего */ }
-  });
-  fitLayer.addEventListener("pointermove", (e) => {
+    fitTouchedAt = performance.now();
+  };
+  const onFitMove = (e: PointerEvent): void => {
     const was = fingers.get(e.pointerId);
-    if (!was || !seenLens) return;
+    if (!was) return;
+    e.stopPropagation();
+    if (!seenLens) return;
     const prev = new Map(fingers);
     fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const ids = [...fingers.keys()];
@@ -431,8 +459,30 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     }
     showHud();
     changed();
+  };
+  const onFitUp = (e: PointerEvent): void => {
+    if (!fingers.delete(e.pointerId)) return;
+    e.stopPropagation();
+    fitTouchedAt = performance.now();
+  };
+  // Клик после касания сукна тоже не столу: иначе тап по стулу открыл бы его окно.
+  const onFitClick = (e: MouseEvent): void => {
+    if (!hud.fitting || (e.target as Element | null)?.closest?.(PASS) || performance.now() - fitTouchedAt > 600) return;
+    e.stopPropagation();
+    e.preventDefault();
+  };
+  addEventListener("pointerdown", onFitDown, true);
+  addEventListener("pointermove", onFitMove, true);
+  addEventListener("pointerup", onFitUp, true);
+  addEventListener("pointercancel", onFitUp, true);
+  addEventListener("click", onFitClick, true);
+  off.push(() => {
+    removeEventListener("pointerdown", onFitDown, true);
+    removeEventListener("pointermove", onFitMove, true);
+    removeEventListener("pointerup", onFitUp, true);
+    removeEventListener("pointercancel", onFitUp, true);
+    removeEventListener("click", onFitClick, true);
   });
-  for (const kind of ["pointerup", "pointercancel"] as const) fitLayer.addEventListener(kind, (e) => { e.stopPropagation(); fingers.delete(e.pointerId); });
 
   return {
     lens(frame, turn, zoom) {

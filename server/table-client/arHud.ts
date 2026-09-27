@@ -1,12 +1,15 @@
-// HUD AR-СТОЛА — верхняя полоса и листы снизу. Только разметка и кнопки: что они делают, решает `ar.ts`.
+// HUD AR-СТОЛА — две круглые кнопки справа в верхнем ряду и окно якоря. Только разметка и кнопки: что
+// они делают, решает `ar.ts`.
 //
-//   [✕]  [⚓ якорь]  [подогнать]        — полоса слева сверху, вторым рядом под шапкой стола
+//   ( ⚙ )( ☰ )     [ имя стола ]     ( якорь )( выход )
 //
-// ЯКОРЬ говорит, за что держится стол: «перед собой» (гравитация), «картина ✓» (предмет виден),
-// «картину не вижу», «ищу картину…». Тап по нему — лист якоря: перед собой, мои предметы, снять новый,
-// «на предмет / плашмя», «поставить заново».
+// Кнопки — того же вида, что шестерёнка и журнал, и зеркально им: тот же отступ от края, тот же ряд;
+// имя стола остаётся по центру экрана. Значок якоря говорит, за что держится стол: белый — перед собой,
+// золотой — предмет виден, тусклый — предмет не виден; точка — включена камера.
 //
-// ПОДГОНКА — свой лист и слой поверх стола (его держит `ar.ts`): один палец — сдвиг, два — размер и наклон.
+// Окно якоря — того же вида, что «Настройки»: строка «сейчас» (за что держится стол, что с камерой),
+// камера за столом, предметы, «плашмя», «подогнать». Съёмка, сборка метки и подгонка — плашкой под
+// верхним рядом: окно на это время уходит, чтобы не закрывать стол.
 
 import type { ArSeat } from "./arSeat.js";
 import { BAR_LOOK, T } from "./screenConst.js";
@@ -16,18 +19,21 @@ export interface HudMarker { id: string; name: string; thumb: string; points: nu
 export interface HudState {
   anchor: "gravity" | "marker";
   seen: "search" | "seen" | "lost";
+  /** Камера за столом: выключена, включается, включена, или словами — почему её нет. */
+  camera: "off" | "starting" | "on" | { error: string };
   fitting: boolean;
   seat: ArSeat;
   markers: HudMarker[];
   active: string | null;
-  /** Лист снизу: меню якоря, съёмка, сборка метки, ошибка словами. */
-  sheet: null | "menu" | "capture" | "compile" | { error: string };
+  /** Что открыто поверх стола: окно якоря, съёмка, сборка метки. */
+  sheet: null | "menu" | "capture" | "compile";
   progress: number;
 }
 
 export interface HudActions {
   exit(): void;
   menu(open: boolean): void;
+  camera(on: boolean): void;
   fit(on: boolean): void;
   fitDone(): void;
   fitReset(): void;
@@ -41,120 +47,170 @@ export interface HudActions {
   again(): void;
 }
 
-/** Вторым рядом, под шестерёнкой, журналом и именем стола (они — 12…52 px). */
-const TOP = "calc(60px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px))";
-const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});color:${T.ink};box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};`;
-const gold = `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black};box-shadow:inset 0 0 0 2px ${T.black};`;
-const btn = "border:0;border-radius:8px;height:40px;padding:0 12px;font:400 12px/1 Tiny5,monospace;white-space:nowrap;cursor:pointer;touch-action:manipulation;";
+/** Правый край ряда — как левый у шестерёнки (`RIM_LEFT` экрана): у края телефон забирает касания себе. */
+const RIM = 28;
+const ROW_TOP = "calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px))";
+const DIM = "#cdb98f";
+const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
+const panelLook = `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 10px 0 rgba(11,7,4,.5)`;
+const chip = (on: boolean): string => (on
+  ? `color:${T.black};background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black}`
+  : `color:${T.ink};background:transparent;box-shadow:inset 0 0 0 2px ${BAR_LOOK.rim}`);
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-/** Квадрат съёмки на экране — там, где его рисует лист «снять». */
+/** Квадрат съёмки на экране — там, где его рисует рамка «снять». */
 export function captureBox(w: number, h: number): { x: number; y: number; side: number } {
   const side = Math.round(Math.min(w, h) * 0.72);
-  return { x: (w - side) / 2, y: Math.max(96, h * 0.38 - side / 2), side };
+  return { x: (w - side) / 2, y: Math.max(180, h * 0.42 - side / 2), side };
 }
+
+const ANCHOR_ICON = `<circle cx="12" cy="5" r="2"/><path d="M12 7v14"/><path d="M8 11h8"/><path d="M5 13a7 7 0 0 0 14 0"/>`;
+const EXIT_ICON = `<path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M15 16l4-4-4-4"/><path d="M19 12H9"/>`;
 
 export function mountHud(on: HudActions): { render(s: HudState): void; dispose(): void } {
   const bar = document.createElement("div");
   bar.dataset.arBar = "";
-  bar.style.cssText = `position:fixed;left:12px;top:${TOP};z-index:45;display:flex;gap:6px;align-items:center;`;
-  const sheet = document.createElement("div");
-  sheet.dataset.arSheet = "";
-  sheet.style.cssText = `position:fixed;left:0;right:0;bottom:0;z-index:48;display:none;flex-direction:column;gap:10px;padding:14px 14px calc(14px + env(safe-area-inset-bottom,0px));`
-    + `background:linear-gradient(${T.panel},${T.well});box-shadow:0 -3px 0 ${T.black},0 -5px 0 ${BAR_LOOK.rim};color:${T.ink};font:400 13px/1.45 Tiny5,monospace;max-height:64dvh;overflow:auto;`;
+  bar.style.cssText = "position:fixed;inset:0;z-index:61;pointer-events:none;";
+  const layer = document.createElement("div");
+  layer.dataset.arSheet = "";
+  layer.style.cssText = "position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;box-sizing:border-box;"
+    + "padding:calc(16px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom));"
+    + "touch-action:pan-y;background:rgba(11,7,4,.62)";
+  const strip = document.createElement("div");
+  strip.dataset.arStrip = "";
+  strip.style.cssText = `position:fixed;left:12px;right:12px;top:calc(60px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));z-index:62;display:none;`
+    + `flex-direction:column;gap:8px;box-sizing:border-box;padding:12px 14px;border-radius:14px;${panelLook};color:${T.ink};font:400 13px/1.4 Tiny5,monospace`;
   const frame = document.createElement("div");
   frame.dataset.arFrame = "";
-  frame.style.cssText = `position:fixed;z-index:46;display:none;border:3px solid ${T.gold};border-radius:14px;box-shadow:0 0 0 100vmax rgba(11,7,4,.45);pointer-events:none;`;
-  const fitRing = document.createElement("div");
-  fitRing.dataset.arFitRing = "";
-  fitRing.style.cssText = `position:fixed;inset:0;z-index:42;display:none;pointer-events:none;box-shadow:inset 0 0 0 3px ${T.gold};`;
-  document.body.append(bar, sheet, frame, fitRing);
+  frame.style.cssText = `position:fixed;z-index:44;display:none;border:3px solid ${T.gold};border-radius:14px;box-shadow:0 0 0 100vmax rgba(11,7,4,.45);pointer-events:none;`;
+  const ring = document.createElement("div");
+  ring.dataset.arFitRing = "";
+  ring.style.cssText = `position:fixed;inset:0;z-index:43;display:none;pointer-events:none;box-shadow:inset 0 0 0 3px ${T.gold};`;
+  document.body.append(bar, layer, strip, frame, ring);
 
   let state: HudState | null = null;
-  let sheetHtml = "";
-  const click = (root: HTMLElement): void => {
-    root.querySelectorAll<HTMLElement>("[data-ar-do]").forEach((el) => {
-      el.onclick = (e) => {
-        e.stopPropagation();
-        const [what, id] = (el.dataset.arDo ?? "").split(":");
-        if (what === "exit") on.exit();
-        else if (what === "menu") on.menu(state?.sheet !== "menu");
-        else if (what === "close") on.menu(false);
-        else if (what === "fit") on.fit(!state?.fitting);
-        else if (what === "done") on.fitDone();
-        else if (what === "reset") on.fitReset();
-        else if (what === "cancel") on.fitCancel();
-        else if (what === "gravity") on.gravity();
-        else if (what === "use" && id) on.use(id);
-        else if (what === "forget" && id) on.forget(id);
-        else if (what === "new") on.capture();
-        else if (what === "shoot") on.shoot();
-        else if (what === "flat") on.flat();
-        else if (what === "again") on.again();
-      };
-    });
+  const html: Record<string, string> = {};
+  /** Разметка переписывается, только если изменилась: кнопка, пересозданная под пальцем, клика не получает. */
+  const put = (el: HTMLElement, key: string, next: string): void => {
+    if (html[key] === next) return;
+    html[key] = next;
+    el.innerHTML = next;
   };
-  // Касание HUD не должно доставаться столу: ни хвату, ни камере, ни тапу по сукну.
-  for (const el of [bar, sheet]) for (const kind of ["pointerdown", "pointerup", "pointermove"]) el.addEventListener(kind, (e) => e.stopPropagation());
+  const act = (what: string, id: string | undefined): void => {
+    if (what === "exit") on.exit();
+    else if (what === "menu") on.menu(state?.sheet !== "menu");
+    else if (what === "close") on.menu(false);
+    else if (what === "camera") on.camera(state?.camera !== "on" && state?.camera !== "starting");
+    else if (what === "fit") on.fit(true);
+    else if (what === "done") on.fitDone();
+    else if (what === "reset") on.fitReset();
+    else if (what === "cancel") on.fitCancel();
+    else if (what === "gravity") on.gravity();
+    else if (what === "use" && id) on.use(id);
+    else if (what === "forget" && id) on.forget(id);
+    else if (what === "new") on.capture();
+    else if (what === "shoot") on.shoot();
+    else if (what === "flat") on.flat();
+    else if (what === "again") on.again();
+  };
+  // Делегат на корне, а не на кнопке: пересобранная разметка не теряет обработчик.
+  for (const root of [bar, layer, strip]) {
+    root.addEventListener("click", (e) => {
+      const t = e.target as HTMLElement;
+      if (root === layer && t === layer) return void on.menu(false); // мимо окна — закрыть
+      const b = t.closest<HTMLElement>("[data-ar-do]");
+      if (!b) return;
+      e.stopPropagation();
+      const [what, id] = (b.dataset.arDo ?? "").split(":");
+      act(what ?? "", id);
+    });
+    root.addEventListener("pointerdown", (e) => e.stopPropagation());
+  }
 
-  const anchorText = (s: HudState): string => {
-    if (s.anchor === "gravity") return "⚓ перед собой";
-    return s.seen === "seen" ? "⚓ предмет ✓" : s.seen === "lost" ? "⚓ предмет не вижу" : "⚓ ищу предмет…";
+  const status = (s: HudState): string => {
+    const cam = s.camera === "on" ? "камера включена" : s.camera === "starting" ? "камера включается…" : s.camera === "off" ? "камера выключена" : `камеры нет: ${esc(s.camera.error)}`;
+    if (s.anchor === "gravity") return `стол перед тобой, держится гироскопом · ${cam}`;
+    const name = s.markers.find((m) => m.id === s.active)?.name ?? "предмет";
+    const seen = s.seen === "seen" ? "виден" : s.seen === "lost" ? "не виден — стол держит гироскоп" : "ищу его в кадре…";
+    return `стол на «${esc(name)}»: ${seen} · ${cam}`;
   };
 
   function render(s: HudState): void {
     state = s;
-    const lit = s.anchor === "marker" && s.seen === "seen";
-    const barHtml = `<button data-ar-do="exit" aria-label="Выйти из AR" style="${btn}${plate}width:40px;padding:0;font-size:16px">✕</button>`
-      + `<button data-ar-do="menu" data-ar-anchor="${s.anchor}:${s.seen}" style="${btn}${lit || s.sheet === "menu" ? gold : plate}">${anchorText(s)}</button>`
-      + `<button data-ar-do="fit" style="${btn}${s.fitting ? gold : plate}">подогнать</button>`;
-    // Разметка переписывается, только если изменилась: иначе кнопка, пересозданная между касанием и
-    // отпусканием, клика не получает (стол перерисовывается десятки раз в секунду).
-    if (bar.innerHTML !== barHtml) { bar.innerHTML = barHtml; click(bar); }
-    fitRing.style.display = s.fitting ? "block" : "none";
+    // ── кнопки ряда ─────────────────────────────────────────────────────────────────────────────
+    const colour = s.anchor === "marker" ? (s.seen === "seen" ? T.gold : "rgba(255,255,255,.45)") : "white";
+    const round = (right: number, what: string, label: string, icon: string, stroke: string, extra = ""): string =>
+      `<button data-ar-do="${what}" aria-label="${label}" style="position:absolute;right:${right}px;top:${ROW_TOP};width:40px;height:40px;border:0;padding:0;`
+      + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;pointer-events:auto;${plate}">`
+      + `<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>${extra}</button>`;
+    const dot = s.camera === "on" ? `<span data-ar-cam-dot style="position:absolute;right:6px;bottom:6px;width:8px;height:8px;border-radius:50%;background:${T.gold};box-shadow:0 0 0 2px ${T.black}"></span>` : "";
+    const anchorSays = s.anchor === "gravity" ? "перед собой" : s.seen === "seen" ? "предмет виден" : "предмет не виден";
+    put(bar, "bar", round(RIM + 48, "menu", `Якорь стола: ${anchorSays}`, ANCHOR_ICON, colour, dot) + round(RIM, "exit", "Выйти из AR", EXIT_ICON, "white"));
+
+    // ── окно якоря ──────────────────────────────────────────────────────────────────────────────
+    const section = (title: string): string => `<div style="font:400 11px Tiny5,monospace;color:${DIM};padding:14px 0 4px;letter-spacing:.04em">${title}</div>`;
+    const button = (what: string, label: string, onNow = false): string =>
+      `<button data-ar-do="${what}" aria-pressed="${onNow}" style="height:32px;border:0;border-radius:8px;cursor:pointer;padding:0 12px;font:400 13px Tiny5,monospace;${chip(onNow)}">${label}</button>`;
+    const toggle = (what: string, label: string, onNow: boolean): string => {
+      const knob = onNow
+        ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});box-shadow:inset 0 0 0 2px ${T.black}`
+        : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim}`;
+      return `<button data-ar-do="${what}" role="switch" aria-checked="${onNow}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:40px;border:0;padding:4px 0;background:none;cursor:pointer;color:${T.ink};font:400 14px Tiny5,monospace;text-align:left">`
+        + `<span>${label}</span><span style="flex:none;width:44px;height:24px;border-radius:12px;position:relative;${knob}">`
+        + `<span style="position:absolute;top:4px;left:${onNow ? 24 : 4}px;width:16px;height:16px;border-radius:50%;background:${onNow ? T.black : DIM}"></span></span></button>`;
+    };
+    const row = (inner: string): string => `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${inner}</div>`;
+    let menu = "";
+    if (s.sheet === "menu") {
+      const markers = s.markers.map((m) => {
+        const onNow = s.anchor === "marker" && m.id === s.active;
+        return `<div style="display:flex;gap:10px;align-items:center;min-height:48px">`
+          + `<button data-ar-do="use:${m.id}" aria-pressed="${onNow}" style="flex:1;min-width:0;display:flex;gap:10px;align-items:center;border:0;border-radius:8px;padding:4px;cursor:pointer;text-align:left;font:400 13px Tiny5,monospace;${chip(onNow)}">`
+          + `<img src="${m.thumb}" alt="" style="width:40px;height:40px;border-radius:6px;object-fit:cover;flex:none"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.name)}</span></button>`
+          + `<button data-ar-do="forget:${m.id}" aria-label="Удалить ${esc(m.name)}" style="flex:none;width:32px;height:32px;border:0;border-radius:8px;cursor:pointer;font:400 14px Tiny5,monospace;${chip(false)}">✕</button></div>`;
+      }).join("");
+      menu = `<div role="dialog" aria-modal="true" aria-label="Якорь стола" data-scroll style="width:min(360px,100%);max-height:100%;overflow-y:auto;box-sizing:border-box;padding:14px 18px 16px;border-radius:14px;${panelLook}">`
+        + `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><span style="font:400 18px Tiny5,monospace;color:${T.ink}">Якорь стола</span>`
+        + `<button data-ar-do="close" aria-label="Закрыть" style="width:40px;height:40px;border:0;border-radius:10px;cursor:pointer;color:${T.ink};font:400 18px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${BAR_LOOK.rim}">✕</button></div>`
+        + `<div data-ar-now style="font:400 12px/1.5 Tiny5,monospace;color:${DIM};padding-top:8px">Сейчас: ${status(s)}</div>`
+        + section("Камера") + toggle("camera", "Камера за столом", s.camera === "on" || s.camera === "starting")
+        + section("Стол держится за") + row(button("gravity", "Перед собой", s.anchor === "gravity") + button("new", "Снять предмет"))
+        + (markers ? `<div style="display:flex;flex-direction:column;gap:6px;padding-top:8px">${markers}</div>` : "")
+        + (s.anchor === "marker" ? section("На предмете") + toggle("flat", "Стол плашмя", s.seat.flat) + row(button("again", "Поставить заново")) : "")
+        + section("Посадка") + row(button("fit", "Подогнать"))
+        + `</div>`;
+    }
+    put(layer, "menu", menu);
+    layer.style.display = menu ? "flex" : "none";
+
+    // ── плашка: подгонка, съёмка, сборка ────────────────────────────────────────────────────────
+    let note = "";
+    const small = (t: string): string => `<div style="color:${DIM};font-size:12px">${t}</div>`;
+    const title = (t: string): string => `<div style="font:400 15px Tiny5,monospace;color:${T.ink}">${t}</div>`;
+    if (s.fitting) {
+      const st = s.seat;
+      note = title("Подгонка") + small("один палец — сдвиг · два: развести — размер, вместе вверх-вниз — наклон")
+        + `<div data-ar-seat style="color:${DIM};font-size:12px">наклон <span style="color:${T.gold}">${Math.round(st.tilt)}°</span> · размер <span style="color:${T.gold}">×${st.zoom.toFixed(2)}</span> · сдвиг <span style="color:${T.gold}">${st.x.toFixed(1)}, ${st.y.toFixed(1)}</span></div>`
+        + row(button("done", "Готово", true) + button("reset", "Сброс") + button("cancel", "Отмена"));
+    } else if (s.sheet === "capture") {
+      note = title("Новый предмет") + small("наведи рамку на плоскую вещь с рисунком — картину, доску, журнал")
+        + row(button("shoot", "Снять", true) + button("close", "Отмена"));
+    } else if (s.sheet === "compile") {
+      note = title("Собираю метку…") + `<div style="height:10px;border-radius:5px;background:${T.black};overflow:hidden"><i style="display:block;height:100%;width:${Math.round(s.progress)}%;background:${T.gold}"></i></div>`
+        + small(`${Math.round(s.progress)}% · всё считается на телефоне`);
+    }
+    put(strip, "note", note);
+    strip.style.display = note ? "flex" : "none";
 
     const box = captureBox(innerWidth, innerHeight);
     frame.style.display = s.sheet === "capture" ? "block" : "none";
     Object.assign(frame.style, { left: `${box.x}px`, top: `${box.y}px`, width: `${box.side}px`, height: `${box.side}px` });
-
-    let html = "";
-    const row = (inner: string): string => `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${inner}</div>`;
-    const b = (what: string, text: string, main = false): string => `<button data-ar-do="${what}" style="${btn}${main ? gold : plate}">${text}</button>`;
-    const title = (t: string): string => `<div style="font:400 18px/1.2 Tiny5,monospace;color:${T.gold}">${t}</div>`;
-    const small = (t: string): string => `<div style="color:${T.inkDim}">${t}</div>`;
-    if (s.fitting) {
-      const st = s.seat;
-      html = title("Подгонка")
-        + small("один палец — сдвиг · два пальца: развести — размер, вместе вверх-вниз — наклон")
-        + `<div data-ar-seat style="color:${T.inkDim}">наклон <b style="color:${T.gold};font-weight:400">${Math.round(st.tilt)}°</b> · размер <b style="color:${T.gold};font-weight:400">×${st.zoom.toFixed(2)}</b> · сдвиг <b style="color:${T.gold};font-weight:400">${st.x.toFixed(1)}, ${st.y.toFixed(1)}</b></div>`
-        + row(b("done", "готово", true) + b("reset", "сброс") + b("cancel", "отмена"));
-    } else if (s.sheet === "menu") {
-      const list = s.markers.map((m) => `<div style="display:flex;gap:10px;align-items:center;padding:6px;border-radius:8px;${m.id === s.active && s.anchor === "marker" ? `box-shadow:inset 0 0 0 2px ${T.gold}` : `box-shadow:inset 0 0 0 2px ${BAR_LOOK.rim}`}">`
-        + `<button data-ar-do="use:${m.id}" style="display:flex;gap:10px;align-items:center;flex:1;border:0;background:none;color:${T.ink};font:inherit;text-align:left;cursor:pointer;padding:0">`
-        + `<img src="${m.thumb}" alt="" style="width:48px;height:48px;border-radius:6px;object-fit:cover"><span>${esc(m.name)}<br><span style="color:${T.inkDim}">точек ${m.points}</span></span></button>`
-        + `<button data-ar-do="forget:${m.id}" aria-label="Удалить" style="${btn}background:none;color:#e0483f;box-shadow:none">✕</button></div>`).join("");
-      html = title("Якорь стола")
-        + small("Стол держится за то, что ты выберешь. Предмет — картина, доска, журнал: всё плоское с рисунком.")
-        + row(b("gravity", "перед собой", s.anchor === "gravity") + b("new", "снять предмет"))
-        + list
-        + (s.anchor === "marker" ? row(b("flat", s.seat.flat ? "стол: плашмя" : "стол: на предмете") + b("again", "поставить заново")) : "")
-        + row(b("close", "закрыть"));
-    } else if (s.sheet === "capture") {
-      html = title("Новый предмет") + small("Наведи рамку на плоскую вещь с рисунком и сними. Метка собирается на телефоне, в сеть не уходит.")
-        + row(b("shoot", "снять", true) + b("close", "отмена"));
-    } else if (s.sheet === "compile") {
-      html = title("Собираю метку…") + `<div style="height:12px;border-radius:6px;background:${T.black};overflow:hidden"><i style="display:block;height:100%;width:${Math.round(s.progress)}%;background:${T.gold}"></i></div>`
-        + small(`${Math.round(s.progress)}%`);
-    } else if (s.sheet && typeof s.sheet === "object") {
-      html = title("Не вышло") + small(esc(s.sheet.error)) + row(b("close", "закрыть"));
-    }
-    if (sheetHtml !== html) { sheetHtml = html; sheet.innerHTML = html; click(sheet); }
-    sheet.style.display = html ? "flex" : "none";
+    ring.style.display = s.fitting ? "block" : "none";
   }
 
   return {
     render,
-    dispose() { bar.remove(); sheet.remove(); frame.remove(); fitRing.remove(); },
+    dispose() { bar.remove(); layer.remove(); strip.remove(); frame.remove(); ring.remove(); },
   };
 }
