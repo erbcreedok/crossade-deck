@@ -30,6 +30,7 @@ import { lands, type Load } from "../src/table/landing.js";
 import { deskOf } from "../src/table/desks.js";
 import { mountAr, type ArRig } from "./ar.js";
 import { blendLook } from "./arBlend.js";
+import { nativeShell } from "./arNative.js";
 import type { Witness } from "../src/table/telling.js";
 import { HOST } from "./host.js";
 import { apart } from "./angles.js";
@@ -139,7 +140,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // ПРИЛОЖЕНИЕ — переход на странице мака (`/table/app`): она зовёт `crossade://` с комнатой, пропуском и
     // адресом мака, по которому приложению открывать комнату.
     app: {
-      may: () => store.askApp !== undefined && store.me.door !== "guest",
+      // В самом приложении пропуск в него ни к чему.
+      may: () => store.askApp !== undefined && store.me.door !== "guest" && nativeShell() === null,
       ask: () => store.askApp?.(),
       link: () => переход,
       open: (url) => {

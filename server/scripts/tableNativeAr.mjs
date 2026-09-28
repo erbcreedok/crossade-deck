@@ -164,6 +164,9 @@ await app.waitForSelector("[data-section]", { timeout: 15000 }).catch(() => {});
 await app.waitForTimeout(800);
 const owners = await app.evaluate(() => window.__tableState?.().chairs.filter((c) => c.owner === "tg:7").length ?? -1).catch(() => -1);
 check("по ссылке с пропуском страница входит тем же человеком, на тот же стул", owners === 1, owners);
+await app.click("[data-settings]");
+await app.waitForTimeout(300);
+check("в настройках приложения нет раздела «Приложение» — пропуск в самого себя ни к чему", (await app.locator('[data-look="app"]').count()) === 0 && (await app.locator("[data-settings-panel]").count()) === 1);
 await web.leave();
 
 await browser.close();

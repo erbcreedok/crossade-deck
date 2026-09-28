@@ -192,7 +192,7 @@ async function main(): Promise<void> {
           { command: "table", description: "Открыть стол в этом чате: /table [название]" },
           { command: "tables", description: "Столы этого чата" },
           { command: "records", description: "Записи сыгранных партий — смотрит любой" },
-          { command: "app", description: "Открыть стол в приложении Crossade AR (в личке)" },
+          { command: "app", description: "Открыть стол в приложении Crossade (в личке)" },
           { command: "admin", description: "Все столы — для хозяина (в личке)" },
           { command: "sticker", description: "Добавить стикеры в свой набор (в личке)" },
           { command: "stickers", description: "Мой набор стикеров (в личке)" },

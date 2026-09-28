@@ -31,10 +31,14 @@ final class App: UIResponder, UIApplicationDelegate {
 final class TableController: UIViewController, WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate, ARSessionDelegate {
     /** Постоянный адрес стола: реле отдаёт страницу мака, где бы мак сейчас ни жил. */
     static let relay = "https://crossade-deck-server.fly.dev"
+    /** Мост в страницу: она зовёт камеру приложения (`arNative.ts`). */
+    static let bridge = "window.__crossadeNative = { version: 1, ar: function (on) { window.webkit.messageHandlers.crossade.postMessage({ ar: !!on }); } };"
 
     let camera = ARSCNView()
     var web: WKWebView!
     let note = UILabel()
+    /** Таблетка Crossade вокруг островка — как у PWA из client2: только на айфоне с вырезом. */
+    let badge = UILabel()
     var arOn = false
     var lastFrame: TimeInterval = 0
 
@@ -55,8 +59,7 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
-        let bridge = "window.__crossadeNative = { version: 1, ar: function (on) { window.webkit.messageHandlers.crossade.postMessage({ ar: !!on }); } };"
-        config.userContentController.addUserScript(WKUserScript(source: bridge, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        config.userContentController.addUserScript(WKUserScript(source: Self.bridge, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         config.userContentController.add(self, name: "crossade")
         web = WKWebView(frame: view.bounds, configuration: config)
         web.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -77,6 +80,47 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
         note.textColor = UIColor(red: 0.96, green: 0.92, blue: 0.82, alpha: 1)
         note.font = .systemFont(ofSize: 16)
         view.addSubview(note)
+
+        badge.text = "🃏 crossade"
+        badge.font = UIFont(name: "Tiny5-Regular", size: 15) ?? .monospacedSystemFont(ofSize: 15, weight: .regular)
+        badge.textColor = UIColor(red: 0.17, green: 0.11, blue: 0.04, alpha: 1)
+        badge.backgroundColor = UIColor(red: 0.95, green: 0.76, blue: 0.31, alpha: 1)
+        badge.textAlignment = .center
+        badge.layer.cornerRadius = 11
+        badge.layer.masksToBounds = true
+        badge.isUserInteractionEnabled = false
+        view.addSubview(badge)
+    }
+
+    // ─── safe-зоны ───────────────────────────────────────────────────────────────────────────────
+    // Страница стола отступает от выреза и полоски «домой» по переменным Telegram (`--tg-safe-area-inset-*`):
+    // приложение ставит их сами, из настоящих отступов экрана, — и в Telegram, и здесь вёрстка одна.
+    func insetsJs() -> String {
+        let i = view.window?.safeAreaInsets ?? view.safeAreaInsets
+        return "(function(){var s=document.documentElement.style;"
+            + "s.setProperty('--tg-safe-area-inset-top','\(Int(i.top))px');s.setProperty('--tg-safe-area-inset-bottom','\(Int(i.bottom))px');"
+            + "s.setProperty('--tg-safe-area-inset-left','\(Int(i.left))px');s.setProperty('--tg-safe-area-inset-right','\(Int(i.right))px');})();"
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        web?.evaluateJavaScript(insetsJs())
+        placeBadge()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        placeBadge()
+    }
+
+    /** По центру верхней safe-зоны; нет выреза (зона меньше 30 pt) — таблетки нет. */
+    func placeBadge() {
+        let top = view.safeAreaInsets.top
+        badge.isHidden = top < 30
+        let size = badge.intrinsicContentSize
+        badge.bounds = CGRect(x: 0, y: 0, width: size.width + 24, height: 22)
+        badge.center = CGPoint(x: view.bounds.midX, y: top / 2)
+        view.bringSubviewToFront(badge)
     }
 
     // ─── вход ────────────────────────────────────────────────────────────────────────────────────
@@ -108,6 +152,11 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
         setAr(false)
         var url = URLComponents(string: Self.relay + "/t/")!
         url.queryItems = [URLQueryItem(name: "room", value: room), URLQueryItem(name: "pass", value: pass)]
+        // Отступы — до первых скриптов страницы: иначе кнопки на первом кадре сидят под островком.
+        let scripts = web.configuration.userContentController
+        scripts.removeAllUserScripts()
+        scripts.addUserScript(WKUserScript(source: Self.bridge, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        scripts.addUserScript(WKUserScript(source: insetsJs(), injectionTime: .atDocumentStart, forMainFrameOnly: true))
         web.load(URLRequest(url: url.url!))
     }
 

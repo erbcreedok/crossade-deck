@@ -47,7 +47,7 @@ export interface SettingsWorld {
     link(): string | null;
   };
   /**
-   * НАТИВНОЕ ПРИЛОЖЕНИЕ (Crossade AR) — тем же человеком за этот же стол. `ask` просит у стола пропуск,
+   * НАТИВНОЕ ПРИЛОЖЕНИЕ (Crossade) — тем же человеком за этот же стол. `ask` просит у стола пропуск,
    * `link` отдаёт адрес перехода, когда пропуск пришёл, `open` открывает его наружу — в Safari, откуда
    * он передаётся приложению.
    */
@@ -166,7 +166,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + (fullscreenable() ? section("Экран") + toggle("fullscreen", "Полный экран", app()?.isFullscreen === true) : "")
       + (world.replay.may() ? section("Запись партии") + replayHtml() : "")
       + toggle("record", "Записывать мой экран", world.record.on())
-      + (world.app.may() ? section("Приложение Crossade AR") + appHtml() : "")
+      + (world.app.may() ? section("Приложение Crossade") + appHtml() : "")
       + section(haptic.supported ? "Звук и вибрация" : "Звук")
       + toggle("mute", "Отключить все звуки", sound.prefs.muted)
       + toggle("uiMute", "Отключить звуки интерфейса", sound.prefs.uiMuted)

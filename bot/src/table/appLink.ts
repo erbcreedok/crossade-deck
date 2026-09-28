@@ -26,7 +26,7 @@ export function appLinks(cards: RoomCard[], who: Bearer, host: string, secret: s
     return [{ text: card.title || "Стол", url: url.toString() }];
   });
   return {
-    text: `Открыть в приложении Crossade AR — сядешь за стол собой. Ссылки живут ${PASS_HOURS} часов; не пересылай их: по ним садятся тобой.`,
+    text: `Открыть в приложении Crossade — сядешь за стол собой. Ссылки живут ${PASS_HOURS} часов; не пересылай их: по ним садятся тобой.`,
     rows,
   };
 }

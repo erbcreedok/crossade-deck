@@ -425,10 +425,10 @@ export function hostPage(html: string, host: string): string {
 }
 
 const APP_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Crossade AR</title>
+<title>Crossade</title>
 <body style="margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#1c120b;color:#f5ead0;font:16px -apple-system,system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box">
 <a id="go" style="display:block;padding:14px 22px;border-radius:12px;background:#f0c86a;color:#0b0704;text-decoration:none;font-weight:600">Открыть в приложении</a>
-<div style="color:#cdb98f;font-size:13px;max-width:280px">Не открывается — приложение Crossade AR не установлено на этом телефоне.</div>
+<div style="color:#cdb98f;font-size:13px;max-width:280px">Не открывается — приложение Crossade не установлено на этом телефоне.</div>
 <script>var u="crossade://table"+location.search;document.getElementById("go").href=u;location.href=u;</script>
 </body>`;
 
