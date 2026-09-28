@@ -5,7 +5,7 @@
 //   в браузере                     дверь `guest`: пустит, только если серверу это разрешено
 
 import { mountLogin } from "./login.js";
-import { nativeShell } from "./arNative.js";
+import { menuUrl, nativeShell } from "./arNative.js";
 import { ROOM_CLOSED, STALE_CLIENT, type JoinOptions } from "../src/table/contract.js";
 import { localStore } from "./localStore.js";
 import { netStore } from "./netStore.js";
@@ -58,6 +58,21 @@ const params = new URLSearchParams(location.search);
  * к списку, даже если мини-апп открыли ссылкой на стол.
  */
 const roomAsked = params.has("rooms") ? null : params.get("room") || startParam || params.get("tgWebAppStartParam");
+
+/**
+ * ВЫХОД В МЕНЮ ИЗ НЕОТКРЫВШЕГОСЯ СТОЛА — в приложении. У Telegram на такой случай есть его «назад» и крестик,
+ * у приложения — только это: иначе упавший или зависший вход запирал человека на экране загрузки.
+ */
+function menuExit(): void {
+  if (!nativeShell() || document.querySelector("[data-menu-exit]")) return;
+  const exit = document.createElement("a");
+  exit.dataset.menuExit = "";
+  exit.href = menuUrl();
+  exit.textContent = "‹ В меню";
+  exit.style.cssText = "position:fixed;left:50%;bottom:calc(40px + var(--tg-safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:1000;"
+    + "padding:12px 20px;border-radius:12px;background:#f0c86a;color:#0b0704;font:600 15px system-ui,sans-serif;text-decoration:none";
+  document.body.append(exit);
+}
 
 function say(text: string): void {
   const note = document.getElementById("note")!;
@@ -163,8 +178,12 @@ if (params.get("from") === "rooms" && telegram?.BackButton) {
   telegram.BackButton.show();
 }
 
+// ЗАВИС ВХОД — через 10 с в приложении появляется выход в меню; открылся стол — таймер снят.
+const stuck = choosing ? 0 : setTimeout(menuExit, 10_000);
+
 (choosing ? new Promise<TableStore>(() => {}) : open())
   .then((store) => {
+    clearTimeout(stuck);
     tellStore = store;
     document.title = store.title;
     const screen = mountScreen(stage, witnessed(store, witness), witness);
@@ -220,5 +239,6 @@ if (params.get("from") === "rooms" && telegram?.BackButton) {
     // ЗАКРЫТЫЙ СТОЛ — ОТДЕЛЬНОЕ СЛОВО. Раньше по старой ссылке молча заводился новый стол, и человек
     // не понимал, куда делся его: имя другое, карт нет, и он там никто.
     if (text.includes(ROOM_CLOSED)) return void closedTable();
-    say(/who are you|unsigned/.test(text) ? "Сюда так не войти. Открой стол по ссылке из чата." : text);
+    say(/who are you|unsigned/.test(text) ? (nativeShell() ? "Сюда так не войти: пропуск устарел." : "Сюда так не войти. Открой стол по ссылке из чата.") : text);
+    menuExit();
   });

@@ -32,6 +32,15 @@ export function nativeShell(): Shell | null {
   return (globalThis as { __crossadeNative?: Shell }).__crossadeNative ?? null;
 }
 
+/**
+ * МЕНЮ ПРИЛОЖЕНИЯ — «Мои комнаты» с ключом, без ключа — экран входа (`rooms.ts`). Системной кнопки «назад»,
+ * как у Telegram, в приложении нет: сюда ведут имя стола и выход из зависшей загрузки.
+ */
+export function menuUrl(): string {
+  const key = new URLSearchParams(location.search).get("key");
+  return key ? `?rooms&key=${encodeURIComponent(key)}` : "?rooms";
+}
+
 /** Слушать позу от приложения; вернёт, как перестать. */
 export function hearNative(heard: (pose: NativePose) => void): () => void {
   const g = globalThis as { __arFrame?: (...n: number[]) => void };

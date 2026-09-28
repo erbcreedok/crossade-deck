@@ -30,7 +30,7 @@ import { lands, type Load } from "../src/table/landing.js";
 import { deskOf } from "../src/table/desks.js";
 import { mountAr, type ArRig } from "./ar.js";
 import { blendLook } from "./arBlend.js";
-import { nativeShell } from "./arNative.js";
+import { menuUrl, nativeShell } from "./arNative.js";
 import type { Witness } from "../src/table/telling.js";
 import { HOST } from "./host.js";
 import { apart } from "./angles.js";
@@ -3385,7 +3385,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // ИМЯ — ПО ЦЕНТРУ ЭКРАНА: поля с обеих сторон одинаковые, по большему из двух (кнопки слева, компас справа).
     const aside = Math.max(RIM_LEFT + 96, 108);
     // В ПРИЛОЖЕНИИ имя стола — ещё и «назад» к «Моим комнатам»: системной кнопки «назад», как у Telegram, там нет.
-    const back = nativeShell() !== null && new URLSearchParams(location.search).has("key");
+    const back = nativeShell() !== null;
     const name = `<div data-table-name style="position:absolute;left:${aside}px;right:${aside}px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));height:40px;z-index:60;`
       + `display:flex;align-items:center;justify-content:center;pointer-events:none"><span ${back ? `data-rooms-back role="button" aria-label="К списку столов" ` : ""}style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`
       + `padding:0 12px;border-radius:12px;font:400 13px Tiny5,monospace;color:${T.ink};line-height:28px;${back ? "pointer-events:auto;cursor:pointer;" : ""}${plate}">${back ? "‹ " : ""}${escape(store.title)}</span></div>`;
@@ -4407,7 +4407,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     for (const el of over.querySelectorAll<HTMLElement>("[data-rooms-back]")) {
       el.onclick = (e) => {
         e.stopPropagation();
-        location.href = `?rooms&key=${encodeURIComponent(new URLSearchParams(location.search).get("key") ?? "")}`;
+        location.href = menuUrl();
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-ar-enter]")) {
