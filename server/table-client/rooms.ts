@@ -294,8 +294,35 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
     const py = art.shoulder / (1 + EXTEND);
     const hw = DOLL_SIZE.head * unit, hh = (hw * head.h) / head.w;
     const headY = shoulderY - ((hh / unit) * 0.45 + 0.2) * unit;
-    return `<img src="${torso.src}" alt="" style="left:calc(50% - ${tw / 2}px);top:${shoulderY - th * py}px;width:${tw}px;height:${th}px">`
-      + `<img src="${head.src}" alt="" style="left:calc(50% - ${hw / 2}px);top:${headY - hh / 2}px;width:${hw}px;height:${hh}px">`;
+    queueMicrotask(() => alive(art.looks, unit));
+    return `<img data-part="torso" src="${torso.src}" alt="" style="left:calc(50% - ${tw / 2}px);top:${shoulderY - th * py}px;width:${tw}px;height:${th}px">`
+      + `<img data-part="head" src="${head.src}" alt="" style="left:calc(50% - ${hw / 2}px);top:${headY - hh / 2}px;width:${hw}px;height:${hh}px">`;
+  }
+
+  /**
+   * КУКЛА ЖИВАЯ, как на стенде (`design/persona`, вид «профиль»): дышит — плечи и голова чуть ходят вверх-вниз,
+   * водит взглядом — голова смещается к тому, куда смотрит, и поворачивается лицом туда. Кадр за кадром,
+   * пока превью на странице; кто просил меньше движения — стоит спокойно.
+   */
+  function alive(looks: -1 | 1, unit: number): void {
+    const box = layer.querySelector<HTMLElement>("[data-doll-preview]");
+    if (!box || box.dataset.alive) return;
+    box.dataset.alive = "1";
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const torso = box.querySelector<HTMLElement>('[data-part="torso"]'), head = box.querySelector<HTMLElement>('[data-part="head"]');
+      if (!box.isConnected || !torso || !head) return;
+      const t = (now - t0) / 1000;
+      const breath = Math.sin((t * 2 * Math.PI) / 3.2);
+      const gx = Math.sin(t * 0.8) * 5, toward = gx / Math.hypot(gx, 8);
+      const flip = (looks < 0) === toward > 0 ? -1 : 1;
+      torso.style.transform = `translateY(${(-breath * 0.08 * unit).toFixed(2)}px)`;
+      head.style.transform = `translate(${(toward * 0.4 * unit).toFixed(2)}px,${(-breath * 0.13 * unit).toFixed(2)}px) scaleX(${flip})`;
+      box.dataset.breath = breath.toFixed(2);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 }
 

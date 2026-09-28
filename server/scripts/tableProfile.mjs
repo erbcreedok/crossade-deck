@@ -40,6 +40,12 @@ await p.waitForTimeout(1200); // заставка стола гаснет
 if (shots) await p.screenshot({ path: `${shots}/profile-1-rooms.png` });
 await openProfile();
 check("профиль открылся: кукла крупно — туловище и голова", (await p.locator("[data-doll-preview] img").count()) === 2, await p.locator("[data-doll-preview]").innerHTML());
+// Кукла живая: дышит и водит головой — два снимка через полсекунды разные.
+const pose = () => p.evaluate(() => ({ head: document.querySelector('[data-doll-preview] [data-part="head"]')?.style.transform, torso: document.querySelector('[data-doll-preview] [data-part="torso"]')?.style.transform }));
+const pose1 = await pose();
+await p.waitForTimeout(700);
+const pose2 = await pose();
+check("кукла в профиле живая: дышит (туловище ходит) и водит головой", Boolean(pose1.head) && pose1.head !== pose2.head && pose1.torso !== pose2.torso, [pose1, pose2]);
 check("расцветок сразу 5, по «ещё» — 16", (await p.locator("[data-pal]").count()) <= 6, await p.locator("[data-pal]").count());
 await p.click("[data-more]");
 check("…по «ещё» — все 16", (await p.locator("[data-pal]").count()) === 16, await p.locator("[data-pal]").count());
