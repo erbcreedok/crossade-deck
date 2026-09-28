@@ -209,6 +209,7 @@ describe("TableRoom", () => {
     await runIn(room, "tg:7", { t: "bots", n: 2 });
     await new Promise((r) => setTimeout(r, 120));
     expect(bots()).toHaveLength(2);
+    expect(bots().map((p) => p.name), "крупье имени из списка не берёт: игроки — с первого имени").toEqual(["Ботырхан", "Айбот"]);
   });
 
   /**

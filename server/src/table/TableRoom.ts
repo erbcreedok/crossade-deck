@@ -554,6 +554,7 @@ export class TableRoom extends Room {
         return { ok: true };
       }
       const было = this.table.here.filter((one) => one.bot === true && one.seat !== undefined).length;
+      const крупье = this.table.here.filter((one) => one.key === BOT_KEY && one.seat !== undefined).length;
       for (let i = было; i < Math.min(было + command.n, BOTS_MOST); i += 1) {
         const key = `bot:игрок${i + 1}`;
         // Мозг и характер запоминаются ДО посадки: бот садится уже собой, а не переучивается после.
@@ -565,7 +566,8 @@ export class TableRoom extends Room {
           this.brains.delete(key);
         }
         const brain = this.botOrders.get(key)?.brain ?? "greedy";
-        this.spread(this.table.seatBot({ key, name: BOT_NAMES[i % BOT_NAMES.length]!, ink: this.freeInk(), door: "guest", brain }));
+        // Крупье тоже сидит ботом, но имени из списка не берёт: первый игрок — первое имя.
+        this.spread(this.table.seatBot({ key, name: BOT_NAMES[Math.max(0, i - крупье) % BOT_NAMES.length]!, ink: this.freeInk(), door: "guest", brain }));
       }
       // СЕЛИ — И ЭТО СРАЗУ ВИДНО. Пока состояние уходило только с первой мыслью, машина за столом
       // была неотличима от человека: ни значка у стула, ни кнопок распорядителя под её рукой.
