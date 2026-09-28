@@ -126,6 +126,8 @@ export const SEAT = {
   cream: "#cdb98f",
   discHi: "#3d4a3a",
   discLo: "#1b2418",
+  /** Затылок — головка со спины. */
+  nape: "#5a4230",
 };
 
 /** Цвета стола (`ROUND_LOOK`). */
@@ -409,6 +411,9 @@ function voiceRings(puff: number, now: number): number[] {
   return out;
 }
 
+/** Насколько взгляд должен уходить вверх по экрану (доля), чтобы голова была видна затылком. */
+const BACK_TURN = 0.35;
+
 /** НОС — треугольник на кромке кружка в сторону взгляда (`dir` — угол на стекле, радианы). Под кружком: торчит только острие. */
 function gaze(g: CanvasRenderingContext2D, dir: number, ink: string, puff: number): void {
   const r = (DISC / 2) * puff;
@@ -428,7 +433,7 @@ function gaze(g: CanvasRenderingContext2D, dir: number, ink: string, puff: numbe
 }
 
 /** `puff` — во сколько раз раздут КРУЖОК: подпись с именем стоит на месте и не прыгает вместе с ним. */
-function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: string }, images: Record<string, HTMLImageElement>, puff = 1): void {
+function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: string }, images: Record<string, HTMLImageElement>, puff = 1, back = false): void {
   const r = DISC / 2;
   g.save();
   g.scale(puff, puff);
@@ -438,7 +443,13 @@ function disc(g: CanvasRenderingContext2D, who: Seat & { name: string; ink: stri
   g.fill();
   const inner = r - DISC_LINE;
   const picture = who.face ? images[who.face] : undefined;
-  if (picture && picture.complete && picture.naturalWidth > 0) {
+  if (back) {
+    // СО СПИНЫ — ЗАТЫЛОК: без фото и букв, тёмный, в кольце его цвета — видно, что смотришь ему в спину.
+    g.beginPath();
+    g.arc(0, 0, inner, 0, Math.PI * 2);
+    g.fillStyle = SEAT.nape;
+    g.fill();
+  } else if (picture && picture.complete && picture.naturalWidth > 0) {
     g.save();
     g.beginPath();
     g.arc(0, 0, inner, 0, Math.PI * 2);
@@ -944,8 +955,8 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     // но подпись с именем при этом стоит на месте (масштаб живёт внутри `disc`).
     const puff = 1 + 0.55 * Math.max(0, Math.min(1, who.speaking ?? 0));
     const rings = who.speaking ? voiceRings(puff, performance.now()) : [];
-    // ВИД «СПРАЙТЫ» — голову с именем рисует слой тел (`bodyView.ts`), кружка здесь нет.
-    if (sitter && (who.body?.model ?? "seat") === "seat") {
+    // Пока у всех один вид — аватар: голова-кружок у каждого, какой бы вид ни прислал старый клиент.
+    if (sitter) {
       g.setTransform(dpr * kk, 0, 0, dpr * kk, dpr * at.x, dpr * at.y);
       // Кольца идут ПОД аватаром: он их источник, а не то, что ими перечёркнуто.
       for (const r of rings) {
@@ -957,11 +968,14 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
         g.stroke();
       }
       // КУДА СМОТРИТ — нос на кромке кружка, по взгляду на стекле: под поворотом и наклоном стола тоже.
+      // ЛИЦОМ ИЛИ ЗАТЫЛКОМ: смотрит от меня — вверх по экрану, в глубину стола — я вижу ему в затылок.
+      let back = false;
       if (who.body) {
         const ahead = o.lens.toGlass({ x: headAt.x + Math.sin((who.body.yaw * Math.PI) / 180), y: headAt.y - Math.cos((who.body.yaw * Math.PI) / 180) }, who.body.head.h);
         gaze(g, Math.atan2(ahead.y - at.y, ahead.x - at.x), sitter.ink, puff);
+        back = (ahead.y - at.y) / (Math.hypot(ahead.x - at.x, ahead.y - at.y) || 1) < -BACK_TURN;
       }
-      disc(g, sitter, images, puff);
+      disc(g, sitter, images, puff, back);
       desk();
     }
     const plateW = Math.max(1, [...(who.name ?? "")].length * PLATE_EM + 2 * PLATE.padX) * kk;

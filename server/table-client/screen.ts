@@ -43,24 +43,17 @@ import { tipKeyOf } from "./tipKey.js";
 import { BRAIN_PICKS, type BotAct, type Minds } from "../src/table/contract.js";
 
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
-import { FOCAL, lens } from "./lens.js";
+import { lens } from "./lens.js";
 import { mountMeters } from "./meters.js";
 import { readRecording, writeRecording } from "./watch.js";
 import { buzzEvery, charged, onRelease, spring, tensed } from "./sling.js";
 import { PALETTE } from "../../look/src/palette.js";
-import { BODY_EVERY_MS, MODELS, headOf, leftHandOf, shoulders3, type Model, type Point3, type Stance } from "../src/table/bodies.js";
+import { BODY_EVERY_MS, HEAD, headOf, leftHandOf, restHead, shoulders3, type Point3, type Stance } from "../src/table/bodies.js";
 
-/** Где устройство помнит вид аватара. */
-const AVATAR_KEY = "crossade.avatar";
-function readAvatar(): Model {
-  try {
-    const got = localStorage.getItem(AVATAR_KEY);
-    return (MODELS as readonly (string | null)[]).includes(got) ? (got as Model) : "seat";
-  } catch {
-    return "seat";
-  }
-}
-import { baseZoom, freshNeck, neckStep } from "./neck.js";
+/** Пикселей тени карты в воздухе на пиксель её высоты над сукном: высота читается по тени. */
+const CARRY_SHADOW = 0.3;
+
+import { baseZoom, freshNeck, headAt, neckStep, risesAt } from "./neck.js";
 import { bodiesHtml } from "./bodyView.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, VOICE_OPEN, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
@@ -135,20 +128,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   let переход: string | null = null;
   const settings = mountSettings(document.body, {
     sound, haptic, motion, look,
-    avatar: {
-      model: () => local.model,
-      set: (model) => {
-        if (!(MODELS as readonly string[]).includes(model)) return;
-        local.model = model as Model;
-        try {
-          localStorage.setItem(AVATAR_KEY, model);
-        } catch {
-          // Хранилище закрыто — вид живёт до закрытия стола.
-        }
-        tellBody(true);
-        draw();
-      },
-    },
     lookChanged: () => {
       writeLook(look);
       art.warm(store.state.rules);
@@ -287,8 +266,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   const local = {
     /** Поза тела (`bodies.ts`): сидит или стоит. Правило стола «играть стоя» сильнее её. */
     stance: "sit" as Stance,
-    /** Вид аватара — личный, живёт на устройстве (`AVATAR_KEY`). */
-    model: readAvatar(),
     /** Сколько шея уже вытерпела: 0 — свободно, 1 — камера сейчас отъедет (`neck.ts`). */
     worn: 0,
     /** Открытая секция нижнего бара, прошлая и когда сменилась — для перелёта кнопок. */
@@ -442,6 +419,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   /** Поза сидя — вид «со стула» (`SEAT_VIEW`): за него шея не наказывает. */
   const neckBase = (s: Snapshot): number => baseZoom(stanceOf(s), SEAT_VIEW.zoom);
   let neck = freshNeck(performance.now());
+  /** Камера едет к новой позе (кнопка) — сама, не рукой: вставать от этого не надо. */
+  let stanceMoving = false;
   let stretchNow = 0;
   let neckFrame = false;
   let rightHand: { x: number; y: number } | null = null;
@@ -454,7 +433,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       stretchNow = 0;
       return;
     }
-    const step = neckStep(neck, performance.now(), cam.camera.zoom, neckBase(s));
+    const now = performance.now();
+    // СИДЯ ОТЪЕХАЛ ДАЛЬШЕ ПОЗЫ СТОЯ — ВСТАЛ. Не пока камера сама едет к позе после кнопки «сесть».
+    if (!s.rules.stand && local.stance === "sit" && !stanceMoving && cam.camera.zoom < risesAt(SEAT_VIEW.zoom) - 1e-3) {
+      local.stance = "stand";
+      neck = freshNeck(now);
+      tellBody(true);
+    }
+    const step = neckStep(neck, now, cam.camera.zoom, neckBase(s), stanceOf(s));
     neck = step.neck;
     if (step.zoom !== undefined && Math.abs(step.zoom - cam.camera.zoom) > 1e-4) cam.camera.setZoom(step.zoom);
     local.worn = step.worn;
@@ -478,7 +464,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const e = eyeOf();
     const out = {
       stance: stanceOf(s),
-      model: local.model,
+      // Пока у всех один вид — аватар; выбор вида переедет на страницу аватара.
+      model: "seat" as const,
       eye: { x: +e.x.toFixed(2), y: +e.y.toFixed(2), h: +e.h.toFixed(2) },
       stretch: +stretchNow.toFixed(2),
       yaw: Math.round(((-c.rotation % 360) + 540) % 360 - 180),
@@ -491,23 +478,26 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     store.body(out);
   };
   /**
-   * ГДЕ МОЙ ГЛАЗ НАД СТОЛОМ — над точкой, куда смотрит камера, на высоте её взгляда (фокус линзы `lens.ts`,
-   * поделённый на масштаб, и наклон). Не место самой линзы: её глаз стоит далеко позади, это приём
-   * перспективы, и голова, потянувшись туда, уходила бы от стола. Живой человек тянется к тому, на что смотрит.
+   * ГДЕ МОЯ ГОЛОВА — над точкой, куда смотрит камера (к ней голова тянется), на высоте, которую даёт зум:
+   * камера — это голова (`neck.ts`, `headAt`). Не место самой линзы: её глаз стоит далеко позади, это приём
+   * перспективы.
    */
   const eyeOf = (): Point3 => {
     const c = cam.camera;
-    const dist = (FOCAL * Math.max(1, lastFrame.h)) / Math.max(1e-3, c.pixelsPerUnit);
-    return { x: c.target.x, y: c.target.y, h: dist * Math.cos((c.pitch * Math.PI) / 180) };
+    const s = store.state;
+    const h = s ? headAt(c.zoom, neckBase(s), stanceOf(s)) : 0;
+    return { x: c.target.x, y: c.target.y, h };
   };
   /** Сменили позу — камера плавно встаёт на её расстояние. */
   const toStance = (): void => {
     const s = store.state;
     const from = cam.camera.zoom, to = neckBase(s), t0 = performance.now();
     neck = freshNeck(t0);
+    stanceMoving = true;
     const step = (now: number) => {
       const t = Math.min(1, (now - t0) / SEAT_VIEW.ms);
       cam.camera.setZoom(from + (to - from) * (1 - (1 - t) ** 3));
+      if (t >= 1) stanceMoving = false;
       redraw();
       if (t < 1) requestAnimationFrame(step);
       else tellBody(true);
@@ -2957,8 +2947,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     }).join("");
     const badge = drag.mass ? `<span data-g="mass-count" data-n="${rest.length + 1}" style="position:absolute;right:${-8}px;top:${-8}px;min-width:20px;height:20px;padding:0 5px;box-sizing:border-box;border-radius:10px;`
       + `background:${inkOf(s, me())};box-shadow:0 0 0 2px ${T.black};font:400 12px/20px Tiny5,monospace;color:${T.black};text-align:center;z-index:2">${rest.length + 1}</span>` : "";
-    return `<div data-g="carry"${drag.mass ? ` data-mass="${local.grab}"` : ""} style="position:fixed;width:${drag.w}px;height:${drag.h}px;left:${drag.x - drag.gx}px;`
-      + `top:${drag.y - drag.gy - drag.h * CARRY_CLEAR}px;z-index:60;pointer-events:none;filter:drop-shadow(0 ${Math.round(drag.h * 0.12)}px 0 rgba(11,7,4,.45))">`
+    // СВОЯ КАРТА В РУКЕ — тоже на доле высоты моей головы: нагнулся к столу — тень ближе к карте.
+    const liftPx = Math.round(HEAD.lift * headAt(cam.camera.zoom, neckBase(s), stanceOf(s)) * (view?.k ?? 30) * CARRY_SHADOW);
+    return `<div data-g="carry"${drag.mass ? ` data-mass="${local.grab}"` : ""} data-lift="${liftPx}" style="position:fixed;width:${drag.w}px;height:${drag.h}px;left:${drag.x - drag.gx}px;`
+      + `top:${drag.y - drag.gy - drag.h * CARRY_CLEAR}px;z-index:60;pointer-events:none;filter:drop-shadow(0 ${liftPx}px 0 rgba(11,7,4,.45))">`
       + under + `<div style="position:absolute;inset:0">${cardHtml(drag.shown ? drag.card.face : undefined, drag.w)}</div>` + badge + `</div>`;
   }
 
@@ -3143,7 +3135,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const holding = store.carries.some((c) => c.by === body.by);
     return [{ body, angle: chair.angle, ink: person.ink, name: person.name, holding }];
     });
-    return bodiesHtml(looks, (p, h) => lens.toGlass(p, h), lens.k, { black: T.black, ink: T.ink, danger: PALETTE.danger }, spriteUrl);
+    return bodiesHtml(looks, (p, h) => lens.toGlass(p, h), { black: T.black, ink: T.ink, danger: PALETTE.danger }, spriteUrl);
   }
 
   /** Спрайт тела — рядом со страницей стола, как шрифты и звуки. */
@@ -3200,7 +3192,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         ...(() => {
           const body = sitter && sitter.key !== me() ? store.bodies.find((b) => b.by === sitter.key) : undefined;
           if (!body) return {};
-          const head = headOf(shoulders3(c.angle, body.stance), body.eye, body.stretch);
+          const head = headOf(shoulders3(c.angle, body.stance), body.eye, body.stretch, body.yaw);
           return { body: { head, left: leftHandOf(head, body.yaw), yaw: body.yaw, model: body.model } };
         })(),
       };
@@ -3692,9 +3684,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     if (!view) return null;
     const v = view;
     const key = `carry:${c.by}`;
+    // КАРТА В ЧУЖОЙ РУКЕ ВИСИТ НА ДОЛЕ ВЫСОТЫ ЕГО ГОЛОВЫ: нагнулся к столу — ниже, встал — выше. Тень — на сукне.
+    const lift = HEAD.lift * headHeightOf(s, c.by);
     const onDesk = (at: { x: number; y: number }, angle: number): Place => {
-      const p = v.toGlass(at);
-      return { key, x: p.x, y: p.y, w: FELT_CARD.w * v.k, h: FELT_CARD.h * v.k, angle: v.rotation + angle, squash: v.squash, face: c.card.face };
+      const p = v.toGlass(at, lift);
+      return { key, x: p.x, y: p.y, w: FELT_CARD.w * v.k, h: FELT_CARD.h * v.k, angle: v.rotation + angle, squash: v.squash, face: c.card.face, lift: lift * v.k * CARRY_SHADOW };
     };
     const over = c.over;
     if (over.in === "felt") return onDesk(over, over.angle);
@@ -3707,6 +3701,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     if (hand && gap) return { key, x: gap.slot.x, y: gap.slot.y, w: hand.geom.w, h: hand.geom.h, angle: gap.slot.angle, squash: 1, face: c.card.face };
     const spot = spots.find((sp) => sp.key === over.chair);
     return spot ? onDesk(spot.seat, 0) : null;
+  }
+
+  /** Высота головы человека над столом — из его тела; тела нет — голова в покое сидя. */
+  function headHeightOf(s: Snapshot, by: string): number {
+    const body = store.bodies.find((b) => b.by === by);
+    const seat = s.people.find((p) => p.key === by)?.seat;
+    const chair = seat ? chairOf(s, seat) : undefined;
+    if (!body || !chair) return restHead("sit");
+    return headOf(shoulders3(chair.angle, body.stance), body.eye, body.stretch, body.yaw).h;
   }
 
   /** Поза копии карты на стекле: середина, наклон стола, поворот и размер относительно конечного. */
@@ -3750,6 +3753,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       const card = el.firstElementChild as HTMLElement;
       el.style.cssText = `position:absolute;left:0;top:0;transform:translate(${at.x - at.w / 2}px,${at.y - at.h / 2}px);`
         + `transition:transform ${CARRY_EVERY_MS * 2}ms linear;${flying.has(c.id) ? "visibility:hidden;" : ""}`;
+      // Тень — по высоте, на которой он её держит: каждый кадр, без перестройки разметки.
+      const held = el.querySelector<HTMLElement>('[data-g="carried"]');
+      if (held) {
+        held.style.boxShadow = `0 0 0 3px ${ink},0 ${Math.round(at.lift ?? at.h * 0.12)}px 0 rgba(11,7,4,.45)`;
+        held.dataset.lift = String(Math.round(at.lift ?? 0));
+      }
       card.style.transform = `scale(1,${at.squash}) rotate(${at.angle}deg)`;
     }
     for (const el of air.querySelectorAll<HTMLElement>("[data-carry]")) if (!live.has(el.dataset.carry!)) el.remove();

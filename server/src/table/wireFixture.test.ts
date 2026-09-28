@@ -16,7 +16,7 @@ import { describe, expect, it, vi } from "vitest";
 import { BRAIN_PICKS, DEAL_PRESETS, PROTOCOL, REFUSAL_SAYS, type Intent, type Op, type Patch, type Person, type Snapshot } from "./contract.js";
 import { applyPatch } from "./patch.js";
 import { deskOf } from "./desks.js";
-import { BODY_EVERY_MS, NECK, NECK_LEN, SHOULDER_H, STANCE_ZOOM, headOf, holdFor, leftHandOf, shoulders3, type Body } from "./bodies.js";
+import { AWAY_DEG, BODY_EVERY_MS, HEAD, NECK, NECK_LEN, SHOULDER_H, STANCE_ZOOM, headOf, holdFor, leftHandOf, shoulders3, type Body } from "./bodies.js";
 import { Table } from "./table.js";
 
 const FIXTURE = fileURLToPath(new URL("../../../unity/Assets/Tests/Editor/Fixtures/wire.json", import.meta.url));
@@ -131,11 +131,13 @@ describe("эталон протокола для Unity", () => {
     // Слова и списки, которые Unity повторяет у себя: тексты отказов, раздачи, мозги машин.
     // Тело за столом: как его шлют, шея и её время — Unity читает и пишет то же самое.
     const body: Body = { by: "a", stance: "stand", model: "king", eye: { x: 1.5, y: -2, h: 14 }, stretch: 0.45, yaw: -30, right: { x: 0.25, y: 3 } };
-    const neck = { ...NECK, len: NECK_LEN, shoulderH: SHOULDER_H, stanceZoom: STANCE_ZOOM, everyMs: BODY_EVERY_MS, holds: [0, 0.3, 0.5, 0.8, 1].map((s) => ({ stretch: s, ms: Number.isFinite(holdFor(s)) ? holdFor(s) : -1 })) };
-    const shapes = [0, 90, 200].flatMap((angle) => [0, 0.5, 1].map((stretch) => {
-      const s = shoulders3(angle, body.stance), head = headOf(s, body.eye, stretch);
-      return { angle, stretch, eye: body.eye, yaw: body.yaw, shoulders: s, head, left: leftHandOf(head, body.yaw) };
-    }));
+    const neck = { ...NECK, len: NECK_LEN, head: HEAD, awayDeg: AWAY_DEG, shoulderH: SHOULDER_H, stanceZoom: STANCE_ZOOM, everyMs: BODY_EVERY_MS, holds: [0, 0.3, 0.5, 0.8, 1].map((s) => ({ stretch: s, ms: Number.isFinite(holdFor(s)) ? holdFor(s) : -1 })) };
+    // Глаз — голова на высоте 5 (нагнулся), поворот — свой (голова у тела) и чужой (голова ушла).
+    const eye = { ...body.eye, h: 5 };
+    const shapes = [0, 90, 200].flatMap((angle) => [0, 0.5, 1].flatMap((stretch) => [-angle, body.yaw].map((yaw) => {
+      const s = shoulders3(angle, body.stance), head = headOf(s, eye, stretch, yaw);
+      return { angle, stretch, eye, yaw, shoulders: s, head, left: leftHandOf(head, yaw) };
+    })));
     const words = { says: REFUSAL_SAYS, deals: DEAL_PRESETS, brains: BRAIN_PICKS, body, neck, shapes };
     const written = JSON.stringify({ protocol: PROTOCOL, words, reels: { sandbox: sandbox(), krest: krest() } }, null, 1) + "\n";
     if (process.env.UPDATE_WIRE) writeFileSync(FIXTURE, written);

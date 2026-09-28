@@ -1,19 +1,21 @@
-// ЧУЖИЕ ТЕЛА НА СТОЛЕ — сверху, как стол виден веб-клиенту: плечи у стула (сидит — поменьше, стоит —
-// крупнее, с тенью), шея к голове и правая рука — только когда она в деле. Саму голову (аватар с носом-
-// взглядом) и карты в левой руке рисует сукно (`felt.ts`, `Seat.body`): они там же, где аватар и карты
-// стула. Своё тело не рисуется: своя голова — это камера.
+// ЧУЖИЕ ТЕЛА НА СТОЛЕ — аватар: палка от стола до плеч, плечи, шея к голове, руки-хваты. Голову (кружок с
+// фото, нос-взгляд, затылок со спины) и карты в левой руке рисует сукно (`felt.ts`, `Seat.body`): они там же,
+// где аватар стула. Своё тело не рисуется: своя голова — камера.
 //
-// Геометрия — общая (`src/table/bodies.ts`); здесь только вид. Спрайты придут картинками — места под них
-// те же, что у этих временных фигур.
+// Всё в единицах стола, размер — по месту: отъехал камерой — тело мельчает вместе со столом, а не держит
+// размер экрана. Тело — это стул: оно сидит на месте. Повернул человек камеру на другую сторону стола —
+// туда ушли голова и левая рука с картами, а к телу тянется ниточка его цвета; на месте — пустой круг.
+//
+// Геометрия — общая (`src/table/bodies.ts`); здесь только вид. Пока у всех один вид — аватар; выбор вида
+// будет на странице аватара.
 
 import type { Body } from "../src/table/bodies.js";
-import { NECK, headOf, leftHandOf, shoulders3, type Point3 } from "../src/table/bodies.js";
+import { HEAD, NECK, awayOf, headOf, leftHandOf, shoulders3, type Point3 } from "../src/table/bodies.js";
 import { DISC } from "./felt.js";
 
 type Point = { x: number; y: number };
 /** Точка стола на стекле — с высотой над сукном. */
 type ToGlass = (p: Point, h?: number) => Point;
-const up = (toGlass: ToGlass, p: Point3): Point => toGlass(p, p.h);
 
 export interface BodyLook {
   body: Body;
@@ -21,7 +23,7 @@ export interface BodyLook {
   angle: number;
   ink: string;
   name: string;
-  /** Несёт карту — правая рука сжата. */
+  /** Несёт карту — правая рука сжата и держит её на своей высоте. */
   holding?: boolean;
 }
 
@@ -31,77 +33,67 @@ export interface BodyColors {
   danger: string;
 }
 
+/** Кукла в единицах стола: толщина палки, полуширина плеч, кисть. */
+const DOLL = { spine: 0.42, bar: 1.4, arm: 0.26, hand: 1.5, seat: 0.8, reach: 5 } as const;
+
 const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-/** Разметка тел: `toGlass` — точка стола на стекле, `k` — пикселей в единице стола. */
-export function bodiesHtml(all: readonly BodyLook[], toGlass: ToGlass, k: number, T: BodyColors, sprite: (name: string) => string): string {
-  return all.map((one) => (one.body.model === "king" ? kingHtml(one, toGlass, k, T, sprite) : bodyHtml(one, toGlass, k, T))).join("");
+/** Разметка тел: `toGlass` — точка стола на стекле, `sprite` — адрес картинки руки. */
+export function bodiesHtml(all: readonly BodyLook[], toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string): string {
+  return all.map((one) => avatarHtml(one, toGlass, T, sprite)).join("");
 }
 
-/**
- * ВИД «КОРОЛЬ» — спрайты стоят, а не лежат (лицом к смотрящему, как кружок-аватар): туловище короля треф
- * у плеч, шея, его голова там, где голова, табличка с именем под ней, руки-хваты. Левая держит карты —
- * сами карты рисует сукно под ней; правая открыта у курсора и сжата, когда несёт карту.
- */
-function kingHtml({ body, angle, ink, name, holding }: BodyLook, toGlass: ToGlass, k: number, T: BodyColors, sprite: (name: string) => string): string {
-  const shoulders = shoulders3(angle, body.stance);
-  const head = headOf(shoulders, body.eye, body.stretch);
-  const S = up(toGlass, shoulders), H = up(toGlass, head), L = up(toGlass, leftHandOf(head, body.yaw));
-  const standing = body.stance === "stand";
-  // ТУЛОВИЩЕ СТОИТ ЗА СТОЛОМ: низ — на уровне стола у кромки, линия плеч (верхняя пятая часть спрайта) — на
-  // высоте плеч. Стоя плечи выше — и туловище выше от того же низа. Сверху высоты не видно — тогда оно
-  // хотя бы своего размера, а не исчезает.
-  const base = toGlass(shoulders, 0);
-  const rise = Math.hypot(S.x - base.x, S.y - base.y);
-  const bodyH = Math.max(rise / 0.8, k * (standing ? 2.7 : 2.2));
-  const bodyW = bodyH * (123 / 92);
-  const bodyTop = { x: S.x, y: S.y - bodyH * 0.2 };
-  // Голова и руки — в пропорции к туловищу, как на самой карте: вырос — выросли и они.
-  const headW = bodyW * 0.5, headH = headW * (58 / 70);
-  const handW = bodyW * 0.28;
+function avatarHtml({ body, angle, ink, name, holding }: BodyLook, toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string): string {
+  const at = (p: Point3): Point => toGlass(p, p.h);
+  // МЕСТНЫЙ МАСШТАБ — пикселей в единице стола в этой точке и на этой высоте: дальше и ниже — мельче.
+  const kAt = (p: Point3): number => {
+    const a = at(p), b = toGlass({ x: p.x + 0.5, y: p.y }, p.h);
+    return Math.hypot(b.x - a.x, b.y - a.y) * 2;
+  };
+  const s = shoulders3(angle, body.stance);
+  const away = awayOf(s, body.yaw);
+  const head = headOf(s, body.eye, body.stretch, body.yaw);
+  const left = leftHandOf(head, body.yaw);
+  // Лицом к столу: правое плечо — справа от взгляда внутрь.
+  const r = Math.hypot(s.x, s.y) || 1;
+  const inward = { x: -s.x / r, y: -s.y / r };
+  const rightDir = { x: -inward.y, y: inward.x };
+  const shoulder = (d: number): Point3 => ({ x: s.x + rightDir.x * d, y: s.y + rightDir.y * d, h: s.h });
+  const shL = shoulder(-DOLL.bar), shR = shoulder(DOLL.bar);
+  const k = kAt(s);
+  const S = at(s), H = at(head), L = at(left), base = toGlass(s, 0);
+  const line = (a: Point, b: Point, w: number, color: string, extra = "") =>
+    `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${color}" stroke-width="${Math.max(1.5, w).toFixed(1)}" stroke-linecap="round"${extra}/>`;
+  const stick = (a: Point, b: Point, w: number) => line(a, b, w * k, T.black) + line(a, b, w * k * 0.55, ink);
+  // Правая рука — у пальца; несёт карту — на той высоте, где висит карта: на доле высоты его головы.
+  const right: Point3 | null = body.right ? { ...body.right, h: holding ? HEAD.lift * head.h : 0.4 } : null;
+  // ШЕЯ ДОХОДИТ ДО КРОМКИ ГОЛОВЫ, а не до её середины: голова — аватар, шея не перечёркивает лицо.
+  const len = Math.hypot(H.x - S.x, H.y - S.y) || 1;
+  const cut = Math.min(len, (DISC / 2) * kAt(head));
+  const chin = { x: H.x - ((H.x - S.x) / len) * cut, y: H.y - ((H.y - S.y) / len) * cut };
   const strained = body.stretch > NECK.free;
-  const img = (src: string, x: number, y: number, w: number, h: number, g: string, extra = "") =>
-    `<img data-g="${g}" src="${src}" alt="" draggable="false" style="position:absolute;left:${(x - w / 2).toFixed(1)}px;top:${(y - h / 2).toFixed(1)}px;width:${w.toFixed(1)}px;height:${h.toFixed(1)}px;pointer-events:none;${extra}">`;
-  // Правая рука — у пальца, чуть над сукном: она держит карту, а не лежит на столе.
-  const right = body.right ? toGlass(body.right, 0.4) : null;
-  return `<div data-g="body" data-model="king" data-by="${esc(body.by)}" data-name="${esc(name)}" data-stance="${body.stance}" data-stretch="${body.stretch.toFixed(2)}" style="position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:24">`
-    + img(sprite("king-body"), bodyTop.x, bodyTop.y + bodyH / 2, bodyW, bodyH, "king-body", standing ? `filter:drop-shadow(0 ${k * 0.3}px 0 rgba(11,7,4,.45))` : "")
-    + `<svg style="position:absolute;left:0;top:0;overflow:visible" width="1" height="1"><line x1="${S.x}" y1="${S.y}" x2="${H.x}" y2="${H.y + headH * 0.3}" stroke="${strained ? T.danger : T.black}" stroke-width="${Math.max(4, k * 0.35)}" stroke-linecap="round"/></svg>`
-    + img(sprite("king-head"), H.x, H.y, headW, headH, "head")
-    + `<span style="position:absolute;left:${H.x.toFixed(1)}px;top:${(H.y + headH / 2 + 2).toFixed(1)}px;transform:translateX(-50%);white-space:nowrap;padding:1px 6px;border-radius:6px;`
-    + `background:${T.black};box-shadow:inset 0 0 0 1.5px ${ink};font:400 ${Math.max(9, k * 0.42).toFixed(0)}px Tiny5,monospace;color:${T.ink}">${esc(name)}</span>`
-    + img(sprite("hand-closed"), L.x, L.y + k * 0.5, handW, handW, "left-hand")
-    + (right ? img(sprite(holding ? "hand-closed" : "hand-open"), right.x, right.y, handW, handW, "right-hand") : "")
-    + `</div>`;
-}
-
-function bodyHtml({ body, angle, ink, name }: BodyLook, toGlass: ToGlass, k: number, T: BodyColors): string {
-  const shoulders = shoulders3(angle, body.stance);
-  const head = headOf(shoulders, body.eye, body.stretch);
-  const S = up(toGlass, shoulders), center = up(toGlass, head);
-  // ШЕЯ ДОХОДИТ ДО КРОМКИ ГОЛОВЫ, а не до её середины: голова — аватар на сукне, шея не перечёркивает лицо.
-  const len = Math.hypot(center.x - S.x, center.y - S.y) || 1;
-  const cut = Math.min(len, (DISC / 2) * k);
-  const H = { x: center.x - ((center.x - S.x) / len) * cut, y: center.y - ((center.y - S.y) / len) * cut };
-  const standing = body.stance === "stand";
-  const torso = k * (standing ? 1.9 : 1.5);
-  // Шея натянута сильнее свободного — краснеет: видно, кто тянется и сколько ему ещё терпеть.
-  const strained = body.stretch > NECK.free;
-  const neckInk = strained ? T.danger : ink;
-  // Правая рука — у пальца, чуть над сукном: она держит карту, а не лежит на столе.
-  const right = body.right ? toGlass(body.right, 0.4) : null;
-  const svg = `<svg data-g="body" data-by="${esc(body.by)}" data-name="${esc(name)}" data-stance="${body.stance}" data-stretch="${body.stretch.toFixed(2)}" style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:24" width="1" height="1">`
-    // Тело — овал плеч; стоя — крупнее и с тенью под ногами.
-    + (standing ? `<ellipse cx="${S.x}" cy="${S.y}" rx="${torso * 0.62}" ry="${torso * 0.42}" fill="${T.black}" opacity=".35"/>` : "")
-    + `<ellipse cx="${S.x}" cy="${S.y}" rx="${torso / 2}" ry="${torso * 0.32}" fill="${ink}" stroke="${T.black}" stroke-width="2.5"/>`
-    // Шея.
-    + `<line x1="${S.x}" y1="${S.y}" x2="${H.x}" y2="${H.y}" stroke="${T.black}" stroke-width="${Math.max(4, k * 0.34)}" stroke-linecap="round"/>`
-    + `<line x1="${S.x}" y1="${S.y}" x2="${H.x}" y2="${H.y}" stroke="${neckInk}" stroke-width="${Math.max(2, k * 0.2)}" stroke-linecap="round"/>`
-    // Правая рука — от плеч к пальцу, только в деле.
-    + (right
-      ? `<line x1="${S.x}" y1="${S.y}" x2="${right.x}" y2="${right.y}" stroke="${ink}" stroke-width="${Math.max(2, k * 0.14)}" stroke-dasharray="${k * 0.3} ${k * 0.2}" opacity=".7"/>`
-        + `<circle data-g="right-hand" cx="${right.x}" cy="${right.y}" r="${Math.max(6, k * 0.32)}" fill="${ink}" stroke="${T.black}" stroke-width="2.5"/>`
-      : "")
+  const svg = `<svg style="position:absolute;left:0;top:0;overflow:visible" width="1" height="1">`
+    // Ушёл головой с места — пустой круг его цвета у стула: видно, откуда он смотрит в другую сторону.
+    + (away ? `<circle data-g="empty-seat" cx="${base.x.toFixed(1)}" cy="${base.y.toFixed(1)}" r="${(DOLL.seat * kAt({ ...s, h: 0 })).toFixed(1)}" fill="none" stroke="${ink}" stroke-width="2" stroke-dasharray="5 4" opacity=".7"/>` : "")
+    // Палка — от стола до плеч, плечи — поперёк.
+    + stick(base, S, DOLL.spine)
+    + stick(at(shL), at(shR), DOLL.spine)
+    // Руки палкой от плеч — пока голова у тела; ушла — руки ушли с ней.
+    // Правая — курсор: дальше вытянутой руки кисть висит сама, палка через весь стол не тянется.
+    + (away ? "" : stick(at(shL), L, DOLL.arm) + (right && Math.hypot(right.x - shR.x, right.y - shR.y) <= DOLL.reach ? stick(at(shR), at(right), DOLL.arm) : ""))
+    // Шея — или ниточка, если голова на другой стороне стола.
+    + (away
+      ? line(S, H, 2, ink, ` stroke-dasharray="3 5" opacity=".55" data-g="tether"`)
+      : line(S, chin, DOLL.spine * k, T.black) + line(S, chin, DOLL.spine * k * 0.55, strained ? T.danger : ink))
     + `</svg>`;
-  return svg;
+  // РУКИ-ХВАТЫ: нарисованы правой рукой; левая — отражённая. Размер — по месту кисти.
+  const hand = (p: Point3, img: string, g: string, mirror: boolean) => {
+    const q = at(p), w = DOLL.hand * kAt(p);
+    return `<img data-g="${g}" src="${sprite(img)}" alt="" draggable="false" style="position:absolute;left:${(q.x - w / 2).toFixed(1)}px;top:${(q.y - w / 2).toFixed(1)}px;width:${w.toFixed(1)}px;height:${w.toFixed(1)}px;pointer-events:none${mirror ? ";transform:scaleX(-1)" : ""}">`;
+  };
+  return `<div data-g="body" data-model="avatar" data-by="${esc(body.by)}" data-name="${esc(name)}" data-stance="${body.stance}" data-stretch="${body.stretch.toFixed(2)}" data-away="${away ? 1 : 0}" data-head-h="${head.h.toFixed(2)}" style="position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:24">`
+    + svg
+    + hand(left, "hand-closed", "left-hand", true)
+    + (right ? hand(right, holding ? "hand-closed" : "hand-open", "right-hand", false) : "")
+    + `</div>`;
 }

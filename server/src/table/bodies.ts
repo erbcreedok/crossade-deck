@@ -10,8 +10,11 @@
 //   правая рука — только в деле: палец на столе (`right`), на компьютере — курсор. Без дела — `null`, и
 //               её не рисуют.
 //
-// Шея считается на своём экране (`NECK`): приблизил камеру ближе позы — голова тянется к столу; держать
-// так можно недолго, потом камера сама возвращается.
+// КАМЕРА — ЭТО ГОЛОВА. Высота головы над столом и есть отдаление камеры: сидя голова в покое на `up` выше
+// плеч, стоя — выше вместе с плечами, и камера дальше. Приблизил — голова опускается к столу и тянется
+// вперёд, но не ниже `HEAD.min` (карту и колоду ещё можно перетянуть); держать так можно недолго (`NECK`),
+// потом камера сама возвращается. Повернул камеру на другую сторону стола — туда уходит голова с картами,
+// тело остаётся на стуле: тело — это стул.
 
 import type { TableRules } from "./contract.js";
 import { seatPoint, TABLE_RADIUS } from "./ring.js";
@@ -65,16 +68,11 @@ export const BODY_EVERY_MS = 100;
  *   backMs    за сколько камера возвращается к позе, когда время вышло;
  *   restMs    сколько после возврата шея отдыхает: натянуть её снова нельзя.
  */
-export const NECK = { zoom: 1.6, free: 0.3, holdMs: 2000, backMs: 500, restMs: 1000 } as const;
+export const NECK = { free: 0.05, holdMs: 2000, backMs: 500, restMs: 1000 } as const;
 
-/** Во сколько раз камера дальше от стола стоя, чем сидя: зум позы. */
-export const STANCE_ZOOM: Record<Stance, number> = { sit: 1, stand: 0.72 };
-
-/** Сколько можно держать такой натяг, мс. До `free` — бесконечно. */
+/** Сколько можно держать такой натяг, мс: чуть нагнулся — сколько угодно, дальше — `holdMs`. */
 export function holdFor(stretch: number): number {
-  if (stretch <= NECK.free) return Infinity;
-  const over = Math.min(1, (stretch - NECK.free) / (1 - NECK.free));
-  return NECK.holdMs * (1 + (1 - over) * 2);
+  return stretch <= NECK.free ? Infinity : NECK.holdMs;
 }
 
 // ── ГДЕ ТЕЛО НА СТОЛЕ — одна геометрия на все клиенты: веб рисует сверху, Unity — в объёме. ─────────
@@ -94,22 +92,60 @@ export const SHOULDER_H: Record<Stance, number> = { sit: 4, stand: 7 };
  */
 export const NECK_LEN = { rest: 2.5, reach: 3.5, up: 2 } as const;
 
+/**
+ * ГОЛОВА НАД СТОЛОМ: ниже `min` не опускается — ближе камера не подъезжает; `lift` — на какой доле высоты
+ * головы висит карта в руке: нагнулся к столу — и карта ниже.
+ */
+export const HEAD = { min: 3, lift: 0.3 } as const;
+
+/** Голова в покое: на `up` выше плеч позы. */
+export const restHead = (stance: Stance): number => SHOULDER_H[stance] + NECK_LEN.up;
+
+/** Во сколько раз камера дальше от стола стоя, чем сидя: во столько же выше голова. */
+export const STANCE_ZOOM: Record<Stance, number> = { sit: 1, stand: restHead("sit") / restHead("stand") };
+
+/** Отклонение поворота камеры от своего места, после которого голова уходит на ту сторону стола, градусы. */
+export const AWAY_DEG = 14;
+
 /** Плечи с высотой. */
 export const shoulders3 = (angle: number, stance: Stance): Point3 => ({ ...shouldersOf(angle), h: SHOULDER_H[stance] });
 
 /**
- * ГОЛОВА — от плеч к глазу, но не дальше шеи: глаз может висеть высоко над серединой стола, а голова
- * остаётся у тела и только наклоняется туда, откуда человек смотрит. Ниже сукна голова не опускается.
+ * С КАКОЙ СТОРОНЫ СТОЛА СМОТРИТ КАМЕРА — угол места (как у стула, `seatPoint`) под нижним краем экрана.
+ * На своём месте камера повёрнута так, что свой стул внизу: сторона камеры — это сам стул.
  */
-export function headOf(s: Point3, eye: Point3, stretch: number): Point3 {
-  const dx = eye.x - s.x, dy = eye.y - s.y, dh = eye.h - s.h;
-  const len = NECK_LEN.rest + NECK_LEN.reach * Math.max(0, Math.min(1, stretch));
-  if (Math.hypot(dx, dy, dh) <= len && dh <= NECK_LEN.up) return { x: eye.x, y: eye.y, h: Math.max(0.5, eye.h) };
-  const flat = Math.hypot(dx, dy);
-  const v = Math.max(0.5 - s.h, Math.min(NECK_LEN.up, dh, len));
-  const along = Math.min(flat, Math.sqrt(Math.max(0, len * len - v * v)));
+export const sideOf = (yaw: number): number => -yaw;
+
+/** Разница двух углов места, градусы, 0…180. */
+const apart = (a: number, b: number): number => Math.abs((((a - b) % 360) + 540) % 360 - 180);
+
+/** Голова ушла от тела: камера повёрнута на другую сторону стола дальше `AWAY_DEG`. */
+export function awayOf(s: Point3, yaw: number): boolean {
+  const seat = (Math.atan2(s.x, s.y) * 180) / Math.PI;
+  return apart(sideOf(yaw), seat) > AWAY_DEG;
+}
+
+/**
+ * ГОЛОВА. Высота — от камеры (`eye.h` — высота головы): не выше покоя позы, не ниже `HEAD.min`. Вперёд, к
+ * тому, на что человек смотрит (`eye.x, eye.y`), — на длину шеи: в покое она короткая, нагнулся — длиннее
+ * (`stretch` или сама глубина нагиба, что больше), но не дальше самой точки взгляда. С `yaw` голова считается
+ * от той стороны стола, куда повёрнута камера: тело на стуле, голова с картами — там.
+ */
+export function headOf(s: Point3, eye: Point3, stretch: number, yaw?: number): Point3 {
+  let from = s;
+  if (yaw !== undefined && awayOf(s, yaw)) {
+    const r = Math.hypot(s.x, s.y), a = (sideOf(yaw) * Math.PI) / 180;
+    from = { x: Math.sin(a) * r, y: Math.cos(a) * r, h: s.h };
+  }
+  const rest = from.h + NECK_LEN.up;
+  const h = Math.max(HEAD.min, Math.min(rest, eye.h));
+  const bent = Math.max(0, Math.min(1, Math.max(stretch, (rest - h) / Math.max(1e-6, rest - HEAD.min))));
+  const len = NECK_LEN.rest + NECK_LEN.reach * bent;
+  const up = h - from.h;
+  const dx = eye.x - from.x, dy = eye.y - from.y, flat = Math.hypot(dx, dy);
+  const along = Math.min(flat, Math.sqrt(Math.max(0, len * len - up * up)));
   const f = flat < 1e-6 ? 0 : along / flat;
-  return { x: s.x + dx * f, y: s.y + dy * f, h: s.h + v };
+  return { x: from.x + dx * f, y: from.y + dy * f, h };
 }
 
 /** Куда смотрит голова — единичный вектор в осях стола из `yaw` (градусы от севера по часовой). */

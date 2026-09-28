@@ -1,7 +1,7 @@
 // ТЕЛА — разбор из сети, правило «играть стоя» и шея: одно на все клиенты.
 
 import { describe, expect, it } from "vitest";
-import { Bodies, cleanBody, headOf, holdFor, NECK, NECK_LEN, shoulders3 } from "./bodies.js";
+import { AWAY_DEG, Bodies, cleanBody, HEAD, headOf, holdFor, NECK, NECK_LEN, restHead, shoulders3, STANCE_ZOOM, awayOf } from "./bodies.js";
 
 const body = { stance: "sit", model: "seat", eye: { x: 1, y: -2, h: 12 }, stretch: 0.2, yaw: 30, right: null };
 
@@ -47,31 +47,56 @@ describe("bodies.stand-rule-stands-everyone", () => {
 });
 
 describe("bodies.head-stays-on-the-neck", () => {
-  it("голова — от плеч к глазу, не дальше шеи; натяг удлиняет шею; ниже сукна не опускается", () => {
+  it("камера высоко — голова в покое: на up выше плеч, на короткой шее к взгляду", () => {
     const s = shoulders3(0, "sit");
-    const far = { x: 0, y: -30, h: 40 };
-    const rest = headOf(s, far, 0);
+    const rest = headOf(s, { x: 0, y: 0, h: 40 }, 0);
+    expect(rest.h).toBeCloseTo(restHead("sit"), 6);
     expect(Math.hypot(rest.x - s.x, rest.y - s.y, rest.h - s.h)).toBeCloseTo(NECK_LEN.rest, 6);
-    expect(rest.h - s.h, "глаз высоко — голова выше плеч не больше чем на up").toBeCloseTo(NECK_LEN.up, 6);
-    const reach = headOf(s, far, 1);
-    expect(Math.hypot(reach.x - s.x, reach.y - s.y, reach.h - s.h)).toBeCloseTo(NECK_LEN.rest + NECK_LEN.reach, 6);
-    expect(Math.hypot(reach.x - s.x, reach.y - s.y), "натянул — голова ушла вперёд над столом").toBeGreaterThan(Math.hypot(rest.x - s.x, rest.y - s.y) + 3);
-    const near = { x: s.x, y: s.y - 1, h: s.h + 1 };
-    expect(headOf(s, near, 0)).toEqual(near);
-    expect(headOf(s, { x: s.x, y: s.y, h: -50 }, 1).h).toBe(0.5);
   });
 
-  it("стоя плечи выше", () => {
+  it("камера ниже — голова опускается к столу и тянется вперёд, но не ниже HEAD.min", () => {
+    const s = shoulders3(0, "sit");
+    const rest = headOf(s, { x: 0, y: 0, h: 40 }, 0);
+    const bent = headOf(s, { x: 0, y: 0, h: 4.5 }, 0);
+    expect(bent.h).toBeCloseTo(4.5, 6);
+    expect(Math.hypot(bent.x - s.x, bent.y - s.y), "нагнулся — голова дальше над столом").toBeGreaterThan(Math.hypot(rest.x - s.x, rest.y - s.y) + 1);
+    expect(headOf(s, { x: 0, y: 0, h: 0 }, 0).h).toBe(HEAD.min);
+  });
+
+  it("голова не проходит дальше точки взгляда", () => {
+    const s = shoulders3(0, "sit");
+    const near = { x: s.x, y: s.y - 0.5, h: 3 };
+    const head = headOf(s, near, 1);
+    expect(Math.hypot(head.x - s.x, head.y - s.y)).toBeLessThanOrEqual(0.5 + 1e-9);
+  });
+
+  it("стоя плечи и голова в покое выше; стоя камера дальше во столько же раз", () => {
     expect(shoulders3(0, "stand").h).toBeGreaterThan(shoulders3(0, "sit").h);
+    expect(STANCE_ZOOM.stand).toBeCloseTo(restHead("sit") / restHead("stand"), 9);
+  });
+});
+
+describe("bodies.head-follows-the-camera", () => {
+  it("камера на своём месте — голова у своего стула; повёрнута на другую сторону — голова там, тело на стуле", () => {
+    const s = shoulders3(0, "sit");
+    // Стул на юге (угол 0): свой поворот — 0; повёрнута на 180 — камера смотрит с севера.
+    expect(awayOf(s, 0)).toBe(false);
+    expect(awayOf(s, AWAY_DEG - 1)).toBe(false);
+    expect(awayOf(s, 180)).toBe(true);
+    const home = headOf(s, { x: 0, y: 0, h: 40 }, 0, 0);
+    const there = headOf(s, { x: 0, y: 0, h: 40 }, 0, 180);
+    expect(home.y).toBeGreaterThan(0);
+    expect(there.y, "голова ушла на северную сторону").toBeLessThan(0);
+    // Стул на востоке (90°) у себя смотрит поворотом −90.
+    expect(awayOf(shoulders3(90, "sit"), -90)).toBe(false);
   });
 });
 
 describe("bodies.neck-hold", () => {
-  it("до свободного натяга — сколько угодно; на пределе — holdMs; между — дольше", () => {
+  it("чуть нагнулся — сколько угодно; сильнее — holdMs", () => {
     expect(holdFor(0)).toBe(Infinity);
     expect(holdFor(NECK.free)).toBe(Infinity);
+    expect(holdFor(0.5)).toBe(NECK.holdMs);
     expect(holdFor(1)).toBe(NECK.holdMs);
-    expect(holdFor(0.65)).toBeGreaterThan(NECK.holdMs);
-    expect(holdFor(0.65)).toBeLessThan(holdFor(0.4));
   });
 });

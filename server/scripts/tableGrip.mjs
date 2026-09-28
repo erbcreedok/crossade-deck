@@ -360,11 +360,11 @@ check("над одиночной картой зона не горит, карт
   await wait(C, 400);
   const cdp = await ctx.newCDPSession(C);
   const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
-  const pinch = async (from, to) => {
+  const pinch = async (from, to, settle = 800) => {
     await touch("touchStart", from);
     for (let i = 1; i <= 16; i += 1) await touch("touchMove", from.map(([x, y], k) => [x + ((to[k][0] - x) * i) / 16, y + ((to[k][1] - y) * i) / 16]));
     await touch("touchEnd", []);
-    await wait(C, 800);
+    await wait(C, settle);
   };
   const ratio = async () => {
     const k = (await spots(C)).k;
@@ -375,8 +375,9 @@ check("над одиночной картой зона не горит, карт
   await pinch([[60, 150], [330, 150]], [[180, 150], [210, 150]]);
   const far = await ratio();
   check("мелкий зум: пипс не выше половины карты", far.h <= far.half + 1, far);
-  await pinch([[180, 150], [210, 150]], [[20, 150], [370, 150]]);
-  await pinch([[180, 150], [210, 150]], [[20, 150], [370, 150]]);
+  // Крупный зум — это наклон к столу: шея терпит его пару секунд (`neck.ts`), поэтому мерить сразу.
+  await pinch([[180, 150], [210, 150]], [[20, 150], [370, 150]], 120);
+  await pinch([[180, 150], [210, 150]], [[20, 150], [370, 150]], 120);
   const close = await ratio();
   check("крупный зум: пипс своего размера, не растёт с картой", close.half > 25 && Math.abs(close.h - 24) < 1.5, close);
   await ctx.close();

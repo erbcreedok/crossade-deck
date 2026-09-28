@@ -1,4 +1,6 @@
-// ТЕЛА ЗА СТОЛОМ — сосед видит моё тело: голову, позу, правую руку в деле; шея не даёт долго висеть над столом.
+// ТЕЛА ЗА СТОЛОМ — сосед видит моё тело аватаром: палка, плечи, руки-хваты, голова-кружок. Камера — это голова:
+// зум — её высота; отъехал сидя — встал; нагнулся — ненадолго; повернул камеру на другую сторону — туда ушла
+// голова, тело осталось на стуле. Карта в руке висит на доле высоты головы.
 //   TABLE_SECRET=probe TABLE_GUESTS=1 PORT=2611 npx tsx src/index.ts   (в соседнем окне; `table-probe`)
 //   node scripts/tableBody.mjs [base] [secret] [shots-dir]
 import { createHmac, randomBytes } from "crypto";
@@ -34,18 +36,35 @@ const until = async (fn, ms = 4000) => {
 };
 const bodyOf = (p, name) => p.evaluate((name) => {
   const el = [...document.querySelectorAll('[data-g="body"]')].find((b) => b.dataset.name === name);
-  return el && { stance: el.dataset.stance, stretch: +el.dataset.stretch, right: !!el.querySelector('[data-g="right-hand"]') };
+  if (!el) return null;
+  const box = (g) => { const r = el.querySelector(`[data-g="${g}"]`)?.getBoundingClientRect(); return r && { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width }; };
+  return {
+    model: el.dataset.model, stance: el.dataset.stance, stretch: +el.dataset.stretch, away: el.dataset.away === "1", headH: +el.dataset.headH,
+    right: !!el.querySelector('[data-g="right-hand"]'), left: box("left-hand"), empty: !!el.querySelector('[data-g="empty-seat"]'), tether: !!el.querySelector('[data-g="tether"]'),
+  };
 }, name);
+const spotOf = async (p, name) => (JSON.parse(await p.getAttribute("canvas", "data-spots")).seats ?? []).find((one) => one.who === name);
+const zoomOf = async (p) => +(await p.getAttribute("canvas", "data-view")).split(",")[2];
+const wheel = async (p, dy, n) => {
+  await p.mouse.move(195, 400);
+  await p.keyboard.down("Control");
+  for (let i = 0; i < n; i++) { await p.mouse.wheel(0, dy); await p.waitForTimeout(30); }
+  await p.keyboard.up("Control");
+  await p.waitForTimeout(300);
+};
 
 const A = await open("Аня", false);
-const B = await open("Боря");
+const B = await open("Боря", false);
 
 // Б видит тело Ани у её стула.
 await A.mouse.move(195, 300);
 let seen = await until(() => bodyOf(B, "Аня"));
 check("Б видит тело Ани", !!seen, seen);
 check("Аня сидит", seen?.stance === "sit", seen);
-
+check("вид — аватар: палка и левая рука-хват", seen?.model === "avatar" && !!seen.left, seen);
+const loaded = await B.evaluate(() => [...document.querySelectorAll('[data-g="body"] img')].every((i) => i.complete && i.naturalWidth > 0));
+check("руки-хваты загрузились", loaded, loaded);
+check("камеру не трогала — голова не ушла, пустого стула нет", seen && !seen.away && !seen.empty, seen);
 if (shots) await B.screenshot({ path: `${shots}/body-1-sit.png` });
 
 // Мышь Ани над столом — у Б её правая рука.
@@ -54,7 +73,7 @@ await A.mouse.move(210, 390);
 seen = await until(async () => (await bodyOf(B, "Аня"))?.right && (await bodyOf(B, "Аня")));
 check("мышь над столом — правая рука видна", seen?.right === true, seen);
 
-// КАРТЫ В ЛЕВОЙ РУКЕ: Аня берёт три карты с колоды — у Б они веером у её головы, а не у стула.
+// КАРТЫ В ЛЕВОЙ РУКЕ: Аня берёт три карты с колоды.
 for (let i = 0; i < 3; i++) {
   const top = JSON.parse(await A.getAttribute("canvas", "data-spots")).deckTop;
   await A.mouse.move(top.x, top.y);
@@ -64,80 +83,76 @@ for (let i = 0; i < 3; i++) {
   await A.waitForTimeout(500);
 }
 
-// ГОЛОВА — ЭТО АВАТАР: у Б кружок Ани стоит там, где её голова, и едет, когда она ведёт камеру по столу.
-const avatarOf = async (p, name) => (JSON.parse(await p.getAttribute("canvas", "data-spots")).seats ?? []).find((one) => one.who === name);
-if (shots) await B.screenshot({ path: `${shots}/body-1b-head-moved.png` });
+// РАЗМЕР ПО МЕСТУ: Боря отъезжает камерой — рука Ани у него мельчает вместе со столом, а не держит размер экрана.
+const across = async () => { const a = await spotOf(B, "Аня"), b = await spotOf(B, "Боря"); return Math.hypot(a.x - b.x, a.y - b.y); };
+const nearHand = (await bodyOf(B, "Аня")).left.w, nearTable = await across();
+await wheel(B, 120, 6);
+const farHand = (await bodyOf(B, "Аня")).left.w, farTable = await across();
+check("Боря отъехал — стол правда меньше", farTable < nearTable * 0.9, { nearTable, farTable });
+check("…и рука Ани мельчает как стол (±15%)", Math.abs(farHand / nearHand / (farTable / nearTable) - 1) < 0.15, { hand: (farHand / nearHand).toFixed(3), table: (farTable / nearTable).toFixed(3) });
 
-// ВИД АВАТАРА: Аня в настройках выбирает «Король треф» — у Б её тело спрайтами: туловище, голова, руки.
-await A.click("[data-settings]");
-await A.waitForTimeout(300);
-await A.click('[data-look="avatar-king"]');
-await A.click("[data-settings-close]");
-const king = await until(() => B.evaluate(() => {
-  const el = [...document.querySelectorAll('[data-g="body"]')].find((b) => b.dataset.name === "Аня");
-  return el?.dataset.model === "king" && { head: !!el.querySelector('[data-g="head"]'), body: !!el.querySelector('[data-g="king-body"]'), left: !!el.querySelector('[data-g="left-hand"]') };
-}));
-check("Б видит Аню королём: туловище, голова, левая рука", king?.head && king.body && king.left, king);
-const loaded = await B.evaluate(() => [...document.querySelectorAll('[data-model="king"] img')].every((i) => i.complete && i.naturalWidth > 0));
-check("спрайты загрузились", loaded, loaded);
-// ВЫСОТА: Аня — в виде «со стула» (тап по своему стулу), Боря — тоже, с наклоном; голова Ани у Бори над её телом,
-// а не ниже его на сукне.
-const tapSeat = async (p, name) => { const me = (JSON.parse(await p.getAttribute("canvas", "data-spots")).seats ?? []).find((one) => one.who === name); await p.mouse.click(me.x, me.y); await p.waitForTimeout(700); };
-await tapSeat(A, "Аня");
-await tapSeat(B, "Боря");
-await B.waitForTimeout(500);
-const parts = await B.evaluate(() => {
-  const el = [...document.querySelectorAll('[data-g="body"]')].find((b) => b.dataset.name === "Аня");
-  const r = (g) => { const one = el?.querySelector(`[data-g="${g}"]`)?.getBoundingClientRect(); return one && { x: one.left + one.width / 2, y: one.top + one.height / 2 }; };
-  return { head: r("head"), body: r("king-body") };
-});
-check("с наклоном голова Ани — над её туловищем, а не под ним", parts.head && parts.body && parts.head.y < parts.body.y + 5, parts);
-if (shots) await B.screenshot({ path: `${shots}/body-king-lean.png` });
-const torso = () => B.evaluate(() => {
-  const el = [...document.querySelectorAll('[data-g="body"]')].find((b) => b.dataset.name === "Аня")?.querySelector('[data-g="king-body"]');
-  const r = el?.getBoundingClientRect();
-  return r && { top: r.top, bottom: r.bottom };
-});
-const sitting = await torso();
-if (shots) await B.screenshot({ path: `${shots}/body-king.png` });
-
-// Аня встаёт кнопкой позы.
-check("кнопка позы над компасом, бар не тронут", (await A.locator('[data-g="thumb-stance"] [data-stance-toggle]').count()) === 1, null);
-await A.locator("[data-stance-toggle]").click();
-seen = await until(async () => (await bodyOf(B, "Аня"))?.stance === "stand" && (await bodyOf(B, "Аня")));
-check("Б видит: Аня стоит", seen?.stance === "stand", seen);
-check("у Ани кнопка горит", (await A.getAttribute("[data-stance-toggle]", "aria-pressed")) === "true", null);
+// КАМЕРА — ГОЛОВА: сидя отъехала дальше позы стоя — встала.
+const sitHead = (await bodyOf(B, "Аня")).headH;
+await wheel(A, 120, 8);
+seen = await until(async () => { const b = await bodyOf(B, "Аня"); return b?.stance === "stand" && b; });
+check("сидя отъехала дальше — встала сама", seen?.stance === "stand", seen);
+check("у Ани кнопка позы горит", (await A.getAttribute("[data-stance-toggle]", "aria-pressed")) === "true", null);
+check("встала — голова выше (сидя 6, стоя 9)", seen && seen.headH > sitHead + 2, { sitHead, standHead: seen?.headH });
 if (shots) await B.screenshot({ path: `${shots}/body-2-stand.png` });
-const standingT = await torso();
-check("встала — туловище выше от того же низа (стоит за столом, а не висит)", sitting && standingT && standingT.top < sitting.top - 5 && Math.abs(standingT.bottom - sitting.bottom) < 6, { sitting, standingT });
-const zoomOf = async (p) => +(await p.getAttribute("canvas", "data-view")).split(",")[2];
 const standZoom = await zoomOf(A);
 
-// Шея: Аня приближает колесом сильнее позы — полоска терпения растёт, потом камера сама отъезжает.
-const restHead = await avatarOf(B, "Аня");
-// Колесо у стола ведёт его; приближает — колесо с Ctrl (щипок тачпада).
-await A.mouse.move(195, 400);
+// Кнопкой — села.
+await A.locator("[data-stance-toggle]").click();
+seen = await until(async () => { const b = await bodyOf(B, "Аня"); return b?.stance === "sit" && b; });
+check("кнопкой — села, и не встала от своего же отъезда камеры", seen?.stance === "sit", seen);
+await A.waitForTimeout(600);
+const sitZoom = await zoomOf(A);
+check("сидя камера ближе, чем стоя", sitZoom > standZoom, { sitZoom, standZoom });
+
+// НАГНУЛАСЬ: приближает колесом — голова ниже и вперёд, шея терпит недолго, потом камера сама отъезжает.
+const restHead = await spotOf(B, "Аня");
+await wheel(A, -120, 12);
+const worn = await A.evaluate(() => +(document.querySelector('[data-g="neck-worn"]')?.dataset.worn ?? 0));
+check("нагнулась — шея терпит (полоска)", worn > 0, { worn });
+seen = await until(async () => { const b = await bodyOf(B, "Аня"); return b && b.stretch > 0.3 && b; });
+check("Б видит: нагнулась", seen?.stretch > 0.3, seen);
+check("…голова опустилась к столу", seen && seen.headH < sitHead - 1, { sitHead, now: seen?.headH });
+const leaned = await spotOf(B, "Аня");
+check("…и ушла вперёд над столом, к столу", leaned && Math.hypot(leaned.x - restHead.x, leaned.y - restHead.y) > 15 && leaned.y > restHead.y, { restHead, leaned });
+if (shots) await B.screenshot({ path: `${shots}/body-3-lean.png` });
+const back = await until(async () => { const z = await zoomOf(A); return z <= sitZoom * 1.05 && z; }, 9000);
+check("время вышло — камера сама отъехала к позе", back !== null, { back, sitZoom, now: await zoomOf(A) });
+
+// КАРТА В РУКЕ: Аня несёт карту с колоды — у Б она висит над сукном, с тенью; у самой Ани — тоже.
+await A.waitForTimeout(1200);
+const from = JSON.parse(await A.getAttribute("canvas", "data-spots")).deckTop;
+await A.mouse.move(from.x, from.y);
+await A.mouse.down();
+await A.mouse.move(195, 430, { steps: 10 });
+const ownLift = await until(() => A.evaluate(() => +(document.querySelector('[data-g="carry"]')?.dataset.lift ?? 0)));
+check("своя карта в руке — с тенью по высоте головы", ownLift > 0, { ownLift });
+const theirLift = await until(() => B.evaluate(() => +(document.querySelector('[data-g="carried"]')?.dataset.lift ?? 0)));
+check("у Б её карта висит над сукном (тень по высоте её головы)", theirLift > 0, { theirLift });
+if (shots) await B.screenshot({ path: `${shots}/body-4-carry.png` });
+await A.mouse.up();
+await A.waitForTimeout(500);
+
+// ГОЛОВА ИДЁТ ЗА КАМЕРОЙ: Аня крутит стол на 180° (Ctrl + мышь) — у Б её голова с картами ушла на его сторону,
+// тело на стуле, пустой круг у стула и ниточка к голове.
 await A.keyboard.down("Control");
-for (let i = 0; i < 12; i++) {
-  await A.mouse.wheel(0, -120);
-  await A.waitForTimeout(30);
+for (let i = 0; i < 3; i++) {
+  await A.mouse.move(40, 300);
+  await A.mouse.down();
+  await A.mouse.move(340, 300, { steps: 12 });
+  await A.mouse.up();
 }
 await A.keyboard.up("Control");
-await A.waitForTimeout(300);
-const leaned = await zoomOf(A);
-const worn = await A.evaluate(() => +(document.querySelector('[data-g="neck-worn"]')?.dataset.worn ?? 0));
-check("приблизилась — шея терпит (полоска)", worn > 0, { worn, leaned, standZoom });
-seen = await until(async () => { const b = await bodyOf(B, "Аня"); return b && b.stretch > 0.3 && b; });
-check("Б видит натянутую шею", seen?.stretch > 0.3, seen);
-const leaned2 = await avatarOf(B, "Аня");
-check("натянула шею — голова ушла вперёд над столом", leaned2 && Math.hypot(leaned2.x - restHead.x, leaned2.y - restHead.y) > 15, { restHead, leaned2 });
-// Аня сидит напротив Бори (сверху его экрана): вперёд к столу — это ВНИЗ по его экрану, а не вверх и прочь.
-check("…к столу, а не от него", leaned2 && leaned2.y > restHead.y, { restHead, leaned2 });
-
-if (shots) await B.screenshot({ path: `${shots}/body-3-stretch.png` });
-const back = await until(async () => { const z = await zoomOf(A); return z <= standZoom * 1.05 && z; }, 9000);
-check("время вышло — камера сама отъехала к позе", back !== null, { back, leaned, standZoom, now: await zoomOf(A) });
-if (shots) await A.screenshot({ path: `${shots}/body-4-back.png` });
+seen = await until(async () => { const b = await bodyOf(B, "Аня"); return b?.away && b; });
+check("повернула камеру на другую сторону — голова ушла", seen?.away === true, seen);
+check("…у стула пустой круг, к голове ниточка", seen?.empty && seen?.tether, seen);
+const went = await spotOf(B, "Аня");
+check("…голова теперь на стороне Бори (низ его экрана)", went && went.y > 422, went);
+if (shots) await B.screenshot({ path: `${shots}/body-5-away.png` });
 
 const bad = checks.filter((c) => !c.ok);
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));
