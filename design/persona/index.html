@@ -18,6 +18,23 @@
   .cap:empty { display: none; }
   .sit { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); background: #0b0704; font: 400 14px 'Tiny5', monospace; }
   .sit[hidden] { display: none; }
+  /* ПРОФИЛЬ — вид профиля хаба (design/hubhome): зелёный лист, пиксельный шрифт, золотые кнопки. */
+  .prof { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px 22px; background: #173f2e; border-radius: 22px 22px 0 0;
+    box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #3a2a1d, 0 -6px 16px rgba(0,0,0,.35); font: 400 13px 'Tiny5', monospace; color: #f5ead0; }
+  .prof[hidden] { display: none; }
+  .prof .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .prof h3 { margin: 0; font: 400 16px 'Tiny5', monospace; color: #f2c14e; letter-spacing: 1px; }
+  .prof .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 2px solid #0b0704; }
+  .prof .label { color: #cdb98f; }
+  .prof .opts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .prof .btn { font: 400 12px 'Tiny5', monospace; border: 0; border-radius: 7px; padding: 7px 12px; cursor: pointer; color: #f5ead0; background: #1f1510; box-shadow: inset 0 0 0 2px #6b4d2c; }
+  .prof .btn.on, .prof .btn.gold { color: #1a0f06; background: linear-gradient(#f8d885, #d9a93a); box-shadow: inset 0 0 0 2px #0b0704, 0 3px 0 #0b0704; }
+  .prof .chip { width: 38px; height: 26px; border-radius: 7px; border: 0; cursor: pointer; display: flex; gap: 2px; align-items: center; justify-content: center; background: #1f1510; box-shadow: inset 0 0 0 2px #6b4d2c; }
+  .prof .chip.on { box-shadow: inset 0 0 0 2px #0b0704, 0 0 0 2px #f5ead0; }
+  .prof .chip i { width: 8px; height: 14px; border-radius: 2px; display: block; }
+  .prof .dot { width: 26px; height: 26px; border-radius: 50%; border: 0; cursor: pointer; box-shadow: inset 0 0 0 2px #0b0704; }
+  .prof .dot.on { box-shadow: inset 0 0 0 2px #0b0704, 0 0 0 3px #f5ead0; }
+  .prof .name { font: 400 15px 'Tiny5', monospace; color: #f5ead0; }
   .panel { flex: 1; min-width: 320px; max-width: 470px; display: flex; flex-direction: column; gap: 14px; }
   h1 { margin: 0; font: 400 26px/1.2 'Tiny5', monospace; color: #f2c14e; }
   .sec { padding: 12px 14px; background: #123527; box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #3a2a1d; display: flex; flex-direction: column; gap: 6px; }
@@ -49,7 +66,7 @@
 </head>
 <body>
 <div class="page">
-  <div class="phone" id="phone"><canvas id="scene"></canvas><div class="cap" id="cap1"></div><button class="sit" id="sit" hidden>сесть</button></div>
+  <div class="phone" id="phone"><canvas id="scene"></canvas><div class="cap" id="cap1"></div><button class="sit" id="sit" hidden>сесть</button><div class="prof" id="prof" hidden></div></div>
   <div class="phone" id="phone2" hidden><canvas id="scene2"></canvas><div class="cap" id="cap2"></div></div>
   <div class="knob" id="knob">РУЧКИ</div>
   <div class="panel" id="panel">
@@ -73,15 +90,18 @@
   };
   const INKS = ["#7fd1b9", "#b98fe0", "#f2c14e", "#e0483f"];
   const MODELS = [["stick", "палка"], ["avatar", "аватар"], ["chair", "голова и стул"], ["king", "король треф"], ["queen", "дама бубен"]];
-  const NAMES = ["Палка", "Ерик", "Король", "Дама"];
+  const NAMES = ["Аня", "Ерик", "Боря", "Дина"];
   const SEATS = [200, 250, 290, 340].map((d) => (d * Math.PI) / 180);
   const R = 6.4, SHOULDERS = R + 1, CARD = { w: 1, h: 1.4 };
 
   // РУЧКИ. Числа — полем, а не ползунком: точное значение важнее «подкрутить».
   const SPEC = [
     ["Сцена", [
-      ["scene", "вид", "enum", "стол", ["стол", "витрина", "два игрока"]],
-      ["duoA", "Аня (камеру не трогает)", "enum", "avatar", MODELS.map((m) => m[0])],
+      ["scene", "вид", "enum", "стол", ["стол", "витрина", "два игрока", "профиль"]],
+      ["meModel", "профиль: кукла", "enum", "king", ["king", "queen"]],
+      ["mePal", "профиль: расцветка", "num", 0, 0, 4, 1],
+      ["meInk", "профиль: мой цвет", "num", 0, 0, 7, 1],
+      ["duoA", "Аня (камеру не трогает)", "enum", "queen", MODELS.map((m) => m[0])],
       ["duoB", "Боря (крутит камеру)", "enum", "king", MODELS.map((m) => m[0])],
       ["walk", "камера ушла вбок", "enum", "идёт голова", ["идёт голова", "идёт всё тело", "сидит, крутит головой"]],
       ["chairs", "стул под всеми", "bool", false],
@@ -97,11 +117,13 @@
       ["zoom", "зум", "num", 1, 0.3, 4, 0.05],
       ["pitch", "наклон, °", "num", 58, 0, 85, 1],
       ["yaw", "поворот, °", "num", 0, -180, 180, 5],
-      ["seat0", "слева", "enum", "stick", MODELS.map((m) => m[0])],
-      ["seat1", "слева сверху", "enum", "avatar", MODELS.map((m) => m[0])],
+      ["seat0", "слева", "enum", "king", MODELS.map((m) => m[0])],
+      ["seat1", "слева сверху", "enum", "queen", MODELS.map((m) => m[0])],
       ["seat2", "справа сверху", "enum", "king", MODELS.map((m) => m[0])],
       ["seat3", "справа", "enum", "queen", MODELS.map((m) => m[0])],
       ["face", "спрайт смотрит", "enum", "в камеру", ["в камеру", "в стол", "плашмя к экрану"]],
+      ["palettes", "расцветки кукол", "enum", "разные", ["разные", "одна у всех"]],
+      ["outline", "обводка своим цветом", "bool", true],
     ]],
     ["Кукла, в единицах стола", [
       ["headW", "голова, ширина", "num", 2.4, 0.5, 6, 0.1],
@@ -223,9 +245,48 @@
   const decode = async (src) => { const i = new Image(); i.src = src; await i.decode(); return i; };
   const svgUrl = (svg) => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
   const K = 6, EXTEND = 1.2;
-  async function cut(svg, box, { extend = 0, oval = false } = {}) {
+  // РАСЦВЕТКИ КУКОЛ: у фигуры колоды три краски — красная, синяя, золото. Подменяются в самом рисунке до
+  // запекания: одинаковые короли за столом не сливаются. Свой цвет игрока — обводкой поверх любой расцветки.
+  const PALETTES = [
+    { name: "классика", red: "#b3221f", blue: "#1d4f80", gold: "#f2c14e" },
+    { name: "изумруд", red: "#2f7d4f", blue: "#173a2c", gold: "#e7c766" },
+    { name: "аметист", red: "#6b3fa0", blue: "#2b2560", gold: "#d9c9a0" },
+    { name: "уголь", red: "#3a3a3a", blue: "#5b6570", gold: "#c9ccd1" },
+    { name: "закат", red: "#d9602a", blue: "#6e1f3a", gold: "#f2d24e" },
+  ];
+  /** Любимые цвета — те же восемь, что в профиле хаба. */
+  const ACCENTS = ["#f2c14e", "#7fd1b9", "#e8893a", "#b98fe0", "#8fb4e0", "#e0483f", "#a8e08a", "#e08fb4"];
+  const recolour = (svg, pal) => svg.replace(/#f2c14e/gi, pal.gold).replace(/#1d4f80/gi, pal.blue);
+  /** Обводка силуэта цветом игрока: спрайт, залитый цветом, — по кругу со сдвигом, сам спрайт — сверху. */
+  const outlines = new Map();
+  function outlined(img, ink, w = 11) {
+    const key = img;
+    let byInk = outlines.get(key);
+    if (!byInk) outlines.set(key, (byInk = new Map()));
+    if (byInk.has(ink)) return byInk.get(ink);
+    const tint = document.createElement("canvas");
+    tint.width = img.width; tint.height = img.height;
+    const tg = tint.getContext("2d");
+    tg.drawImage(img, 0, 0);
+    tg.globalCompositeOperation = "source-in";
+    tg.fillStyle = ink; tg.fillRect(0, 0, tint.width, tint.height);
+    const c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    const g = c.getContext("2d");
+    for (let a = 0; a < 16; a += 1) g.drawImage(tint, Math.cos((a / 16) * Math.PI * 2) * w, Math.sin((a / 16) * Math.PI * 2) * w);
+    g.drawImage(img, 0, 0);
+    byInk.set(ink, c);
+    return c;
+  }
+  /** Номер 9 — я сам на странице профиля: расцветка — моя. */
+  const palOf = (i) => (i === 9 ? S.mePal : S.palettes === "одна у всех" ? 0 : i % PALETTES.length);
+  const skin = (model, i, part, ink) => {
+    const img = SP[model][palOf(i)][part];
+    return S.outline ? outlined(img, ink) : img;
+  };
+  async function cut(svg, box, { extend = 0, oval = false, red = T.accent } = {}) {
     const vb = /viewBox="([\d.\s-]+)"/.exec(svg)[1].trim().split(/\s+/).map(Number);
-    const full = svg.replace("<svg ", `<svg width="${vb[2] * K}" height="${vb[3] * K}" color="${T.accent}" `);
+    const full = svg.replace("<svg ", `<svg width="${vb[2] * K}" height="${vb[3] * K}" color="${red}" `);
     const img = await decode(svgUrl(full));
     const [x, y, w, h] = box;
     const c = document.createElement("canvas");
@@ -367,7 +428,8 @@
   };
 
   let cam;
-  const vitrina = () => S.scene === "витрина";
+  const vitrina = () => S.scene === "витрина" || S.scene === "профиль";
+  const profile = () => S.scene === "профиль";
   const duo = () => S.scene === "два игрока";
   /** Глаз смотрит на `target` с наклона `pitch` (0 — сверху) с расстояния `dist`; `rect` — куда на экране. */
   function makeCamera(rect, target, pitch, dist, yawDeg = S.yaw) {
@@ -385,6 +447,28 @@
     };
     return { C, r, f, d, p, target, dist, proj };
   }
+
+  // ── ПРОФИЛЬ: лист в виде хаба. Кукла наверху рисуется холстом, выбор — разметкой здесь. ─────────────
+  const prof = document.getElementById("prof");
+  const profilePanelH = () => (prof.hidden ? 0 : prof.offsetHeight || 380);
+  function renderProfile() {
+    const btn = (on, attr, label) => `<button class="btn${on ? " on" : ""}" ${attr}>${label}</button>`;
+    prof.innerHTML = `<div class="top"><h3>ПРОФИЛЬ</h3>${btn(false, "data-p-close", "Закрыть")}</div>`
+      + `<div class="row"><span class="label">Имя</span><span class="name">Ерик</span>${btn(false, "data-p-name", "Назваться")}</div>`
+      + `<div class="row"><span class="label">Кукла</span><span class="opts">${btn(S.meModel === "king", 'data-p-model="king"', "Король")}${btn(S.meModel === "queen", 'data-p-model="queen"', "Дама")}</span></div>`
+      + `<div class="row"><span class="label">Расцветка</span><span class="opts">${PALETTES.map((p, k) => `<button class="chip${S.mePal === k ? " on" : ""}" data-p-pal="${k}" title="${p.name}"><i style="background:${p.red}"></i><i style="background:${p.blue}"></i><i style="background:${p.gold}"></i></button>`).join("")}</span></div>`
+      + `<div class="row" style="flex-direction:column;align-items:stretch"><span class="label">Мой цвет — обводка куклы и ниточка за столом</span><span class="opts" style="justify-content:space-between;margin-top:8px">${ACCENTS.map((c, k) => `<button class="dot${S.meInk === k ? " on" : ""}" data-p-ink="${k}" style="background:${c}"></button>`).join("")}</span></div>`
+      + `<div class="row"><span class="label">Telegram</span><button class="btn gold" data-p-tg>Привязать</button></div>`;
+  }
+  prof.addEventListener("pointerdown", (e) => e.stopPropagation());
+  prof.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.pModel) setKnob("meModel", b.dataset.pModel);
+    if (b.dataset.pPal !== undefined) setKnob("mePal", +b.dataset.pPal);
+    if (b.dataset.pInk !== undefined) setKnob("meInk", +b.dataset.pInk);
+    renderProfile();
+  });
 
   // ОДНА ПЛОСКОСТЬ В МИРЕ: картинка натянута на две оси мира `ax`, `ay` (единичные), `w×h` — её размер в
   // единицах стола, `pivot` — какая точка картинки стоит в `P`. Размер на экране — от расстояния до глаза.
@@ -573,7 +657,7 @@
       return;
     }
     const front = seesFront(P);
-    const art = ART[model], img = front ? SP[model].body : SP[model].bodyBack;
+    const art = ART[model], img = skin(model, i, front ? "body" : "bodyBack", ink);
     const { ax, ay } = standAxes(P.inward);
     const w = S.torsoW;
     const h = (w * img.height) / img.width * S.torsoX;
@@ -635,7 +719,7 @@
       const n = cross(ax, ay);
       const rx = add(mul(ax, c), mul(cross(n, ax), s));
       const ry = add(mul(ay, c), mul(cross(n, ay), s));
-      board(front ? SP[model].head : SP[model].headBack, P.head, mul(rx, flip), ry, S.headW, headH, [0.5, 0.5], `head${i}`);
+      board(skin(model, i, front ? "head" : "headBack", ink), P.head, mul(rx, flip), ry, S.headW, headH, [0.5, 0.5], `head${i}`);
     } else {
       const r = S.ball * hq.s;
       ctx.save();
@@ -804,6 +888,7 @@
     last = now;
     for (const k in boxes) delete boxes[k];
     phone2.hidden = !duo();
+    if (prof.hidden === profile()) { prof.hidden = !profile(); if (profile()) renderProfile(); }
     phone.parentElement.classList.toggle("duo", duo());
     const A = anna();
     if (duo() && S.speed > 0) neckTick(dtReal, now);
@@ -816,7 +901,20 @@
     ctx.clearRect(0, 0, W, H);
     const all = [0, 1, 2, 3].map((i) => ({ i, model: S[`seat${i}`], ink: INKS[i], name: NAMES[i], P: pose(i, t) }));
     const active = S.a_turn ? Math.floor(t / 3.5) % 4 : -1;
-    if (vitrina()) {
+    if (profile()) {
+      // ПРОФИЛЬ: я крупно наверху — так, как меня увидят за столом; под этим — выбор (панель разметкой).
+      const rect = { x: 0, y: 56, w: W, h: Math.max(200, H - 56 - profilePanelH()) };
+      cam = makeCamera(rect, [0, 0.8, S.sitH + 0.6], 30, 30 / clamp(S.zoom, 0.1, 10));
+      const sig = `${S.meModel}|${S.mePal}|${S.meInk}`;
+      if (prof.dataset.sig !== sig) { prof.dataset.sig = sig; renderProfile(); }
+      const P = pose(0, t);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(rect.x, rect.y, rect.w, rect.h); ctx.clip();
+      drawTorso(9, P, S.meModel, ACCENTS[S.meInk]);
+      drawEdge();
+      drawUpper(9, P, S.meModel, ACCENTS[S.meInk], "Ты", false, t);
+      ctx.restore();
+    } else if (vitrina()) {
       // ВИТРИНА: четыре клетки, в каждой — один персонаж у кусочка кромки стола, крупно.
       for (const c of all) {
         const rect = { x: (c.i % 2) * (W / 2), y: Math.floor(c.i / 2) * (H / 2), w: W / 2, h: H / 2 };
@@ -873,11 +971,15 @@
   (async () => {
     for (const [key, art] of Object.entries(ART)) {
       const svg = await (await fetch(art.url)).text();
-      SP[key] = { head: await cut(svg, art.head, { oval: art.oval }), body: await cut(svg, art.body, { extend: EXTEND }) };
+      SP[key] = [];
+      for (const pal of PALETTES) {
+        const one = recolour(svg, pal);
+        SP[key].push({ head: await cut(one, art.head, { oval: art.oval, red: pal.red }), body: await cut(one, art.body, { extend: EXTEND, red: pal.red }) });
+      }
     }
     SP.open = await decode(svgUrl(HAND(false)));
     SP.closed = await decode(svgUrl(HAND(true)));
-    for (const key of Object.keys(ART)) { SP[key].headBack = backOf(SP[key].head, 0.9); SP[key].bodyBack = backOf(SP[key].body, 0.8); }
+    for (const key of Object.keys(ART)) for (const one of SP[key]) { one.headBack = backOf(one.head, 0.9); one.bodyBack = backOf(one.body, 0.8); }
     // Кисть со спины — тыльная сторона, темнее; отражение решает сама рука (какая она и откуда глаз).
     SP.openBack = backOf(SP.open, 0.45, "#8a7f70", false);
     SP.closedBack = backOf(SP.closed, 0.45, "#8a7f70", false);
