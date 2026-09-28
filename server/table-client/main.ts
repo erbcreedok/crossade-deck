@@ -45,7 +45,10 @@ const stale = {
 // SDK TELEGRAM ГРУЗИТСЯ В ФОНЕ (`index.html`): стол ждёт его не дольше `TG_WAIT_MS`. Не пришёл — вход
 // берётся из адреса, куда Telegram кладёт подпись (`#tgWebAppData`), а вибрация и прочее SDK — когда дойдёт.
 const TG_WAIT_MS = 2500;
+/** ЭТАПЫ ВХОДА — мс от начала загрузки страницы; уходят в журнал записью `boot` (`bootStages`). */
+const marks: Record<string, number> = { run: Math.round(performance.now()) };
 await Promise.race([(globalThis as { __tg?: Promise<void> }).__tg, new Promise((r) => setTimeout(r, TG_WAIT_MS))]);
+marks.tg = Math.round(performance.now());
 const telegram = (globalThis as { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
 const hashData = new URLSearchParams(location.hash.slice(1)).get("tgWebAppData") ?? "";
 const initData = telegram?.initData || hashData;
@@ -111,6 +114,28 @@ function slowLoads(): { url: string; ms: number }[] {
     .sort((a, b) => b.duration - a.duration)
     .slice(0, 8)
     .map((e) => ({ url: e.name.split("?")[0]!.slice(0, 120), ms: Math.round(e.duration) }));
+}
+
+/**
+ * ГДЕ ШЛО ВРЕМЯ ВХОДА, по этапам — мс от начала загрузки страницы:
+ *   native  — сколько приложение ждало до запроса страницы (его отметка `__nativeAt`, если есть);
+ *   dns, tls, html, dom — страница: адрес, соединение, пришёл HTML, разобран;
+ *   js      — скрипт стола: начал и кончил качаться, из кэша ли;
+ *   run, tg — скрипт пошёл; дождались SDK Telegram;
+ *   connect, joined — вход на сервер начат и принят;
+ *   fonts, ready — шрифт и всё, что рисует экран (колода, лица, куклы).
+ */
+function bootStages(): Record<string, unknown> {
+  const nav = performance.getEntriesByType?.("navigation")[0] as PerformanceNavigationTiming | undefined;
+  const js = (performance.getEntriesByType?.("resource") as PerformanceResourceTiming[] | undefined)?.find((e) => /\/app\.js/.test(e.name));
+  const r = (v: number | undefined) => (v === undefined ? undefined : Math.round(v));
+  const nativeAt = (globalThis as { __nativeAt?: number }).__nativeAt;
+  return {
+    ...(nativeAt ? { native: Math.round(performance.timeOrigin - nativeAt) } : {}),
+    ...(nav ? { dns: r(nav.domainLookupEnd), tls: r(nav.connectEnd), ttfb: r(nav.responseStart), html: r(nav.responseEnd), dom: r(nav.domInteractive) } : {}),
+    ...(js ? { js: [r(js.startTime), r(js.responseEnd)], jsCached: js.transferSize === 0, jsKb: Math.round(js.transferSize / 1024) } : {}),
+    ...marks,
+  };
 }
 
 async function open(): Promise<TableStore> {
@@ -183,6 +208,7 @@ if (params.get("from") === "rooms" && telegram?.BackButton) {
 // ЗАВИС ВХОД — через 10 с в приложении появляется выход в меню; открылся стол — таймер снят.
 const stuck = choosing ? 0 : setTimeout(menuExit, 10_000);
 
+marks.connect = Math.round(performance.now());
 (choosing ? new Promise<TableStore>(() => {}) : open())
   .then((store) => {
     // Стол открылся — выход в меню больше не нужен, даже если вход шёл дольше десяти секунд и он успел появиться.
@@ -218,6 +244,8 @@ const stuck = choosing ? 0 : setTimeout(menuExit, 10_000);
     // (аватарка с t.me, шрифт, картинка через туннель) иначе держит весь стол за заставкой сколько угодно;
     // недогруженное дорисуется само, когда придёт.
     const joined = performance.now();
+    marks.joined = Math.round(joined);
+    void (globalThis as { __fonts?: Promise<void> }).__fonts?.then(() => { marks.fonts = Math.round(performance.now()); });
     loading.say("Загружаю комнату");
     // Шрифт — без потолка: он с нашего адреса, и чужого начертания не должно быть видно ни мига.
     const shown = Promise.all([
@@ -225,10 +253,11 @@ const stuck = choosing ? 0 : setTimeout(menuExit, 10_000);
       Promise.race([screen.ready.then(() => "ready" as const), new Promise<"cap">((r) => setTimeout(() => r("cap"), READY_CAP_MS))]),
     ]).then(([, how]) => how);
     return shown.then((how) => {
+      marks.ready = Math.round(performance.now());
       loading.done();
       // СКОЛЬКО ОТКРЫВАЛСЯ СТОЛ — в журнал экрана, с самыми медленными запросами: «грузится долго» на
       // чужом телефоне иначе не разобрать.
-      witness.saw("boot", { ms: Math.round(performance.now()), joined: Math.round(joined), how, slow: slowLoads() });
+      witness.saw("boot", { ms: Math.round(performance.now()), joined: Math.round(joined), how, slow: slowLoads(), stages: bootStages() });
       witness.tell();
       if (how === "cap") void screen.ready.then(() => witness.saw("boot.late", { ms: Math.round(performance.now()), slow: slowLoads() }));
     });

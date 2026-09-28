@@ -177,6 +177,8 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
         scripts.removeAllUserScripts()
         scripts.addUserScript(WKUserScript(source: Self.bridge, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         scripts.addUserScript(WKUserScript(source: insetsJs(), injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        // Когда приложение начало грузить страницу — журнал входа сравнит с началом самой страницы.
+        scripts.addUserScript(WKUserScript(source: "window.__nativeAt = \(Int(Date().timeIntervalSince1970 * 1000));", injectionTime: .atDocumentStart, forMainFrameOnly: true))
         web.load(URLRequest(url: url.url!))
     }
 
