@@ -158,6 +158,25 @@
       "port": 2611
     },
     {
+      "name": "table-probe-all",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "--prefix",
+        "server",
+        "tsx",
+        "server/src/index.ts"
+      ],
+      "env": {
+        "PORT": "2612",
+        "TABLE_SECRET": "probe",
+        "TABLE_GUESTS": "1",
+        "TELEGRAM_BOT_TOKEN": "test",
+        "CROSSADE_DB_FILE": ":memory:",
+        "TABLE_OWN_ALL": "1"
+      },
+      "port": 2612
+    },
+    {
       "name": "skinmaker-stand",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
