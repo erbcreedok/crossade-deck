@@ -2934,6 +2934,26 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       + `</div>` + laidCards;
   }
 
+  /**
+   * ГДЕ МОЯ КАРТА В РУКЕ НА ЭКРАНЕ. Над столом — настоящая карта в мире: над точкой, куда ляжет (её показывает
+   * контур на сукне), на доле высоты моей головы (`HEAD.lift`), того размера, какой даёт линза на этой высоте, и
+   * лёжа вдоль стола — повёрнута к моему экрану, как ляжет. Над своей рукой внизу — карта руки, у пальца.
+   */
+  function heldPlace(d: Drag): Place & { lift: number; ground: { x: number; y: number } } {
+    const centre = { x: d.x - d.gx + d.w / 2, y: d.y - d.gy - d.h * CARRY_CLEAR + d.h / 2 };
+    const screenPlace = { key: "finger", ...centre, w: d.w, h: d.h, angle: 0, squash: 1, lift: 0, ground: centre };
+    if (!view || d.target.kind === "hand") return screenPlace;
+    const v = view;
+    const s = frame();
+    const lift = HEAD.lift * headAt(cam.camera.zoom, neckBase(s), stanceOf(s));
+    const under = v.toDesk(centre);
+    const q = v.toGlass(under, lift);
+    const side = v.toGlass({ x: under.x + 0.5, y: under.y }, lift);
+    const k = Math.hypot(side.x - q.x, side.y - q.y) * 2;
+    const ground = v.toGlass(under, 0);
+    return { key: "finger", x: q.x, y: q.y, w: FELT_CARD.w * k, h: FELT_CARD.h * k, angle: 0, squash: v.squash, lift: Math.max(ground.y - q.y, lift * k * CARRY_SHADOW), ground };
+  }
+
   function carryHtml(): string {
     if (!drag) return "";
     // МАССА В ПАЛЬЦЕ: стянутая к пальцу — стопкой под картой хвата и числом; как лежат — одна карта, а где лягут
@@ -2942,17 +2962,18 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // Считать по столу, а не по кадру: в кадре стянутых к пальцу уже нет на местах.
     const rest = drag.mass ? (drag.stack ?? myPicks(truth())).filter((id) => id !== drag!.card.id) : [];
     const stack = drag.mass && (drag.stack || local.grab === "collect") ? Math.min(rest.length, 4) : 0;
+    const at = heldPlace(drag);
     const under = Array.from({ length: stack }, (_, i) => {
       const d = stack - i;
-      return `<div style="position:absolute;left:${-d * 3}px;top:${d * 3}px;width:${drag!.w}px;height:${drag!.h}px">${cardHtml(undefined, drag!.w)}</div>`;
+      return `<div style="position:absolute;left:${-d * 3}px;top:${d * 3}px;width:${at.w}px;height:${at.h}px">${cardHtml(undefined, at.w)}</div>`;
     }).join("");
     const badge = drag.mass ? `<span data-g="mass-count" data-n="${rest.length + 1}" style="position:absolute;right:${-8}px;top:${-8}px;min-width:20px;height:20px;padding:0 5px;box-sizing:border-box;border-radius:10px;`
       + `background:${inkOf(s, me())};box-shadow:0 0 0 2px ${T.black};font:400 12px/20px Tiny5,monospace;color:${T.black};text-align:center;z-index:2">${rest.length + 1}</span>` : "";
-    // СВОЯ КАРТА В РУКЕ — тоже на доле высоты моей головы: нагнулся к столу — тень ближе к карте.
-    const liftPx = Math.round(HEAD.lift * headAt(cam.camera.zoom, neckBase(s), stanceOf(s)) * (view?.k ?? 30) * CARRY_SHADOW);
-    return `<div data-g="carry"${drag.mass ? ` data-mass="${local.grab}"` : ""} data-lift="${liftPx}" style="position:fixed;width:${drag.w}px;height:${drag.h}px;left:${drag.x - drag.gx}px;`
-      + `top:${drag.y - drag.gy - drag.h * CARRY_CLEAR}px;z-index:60;pointer-events:none;filter:drop-shadow(0 ${liftPx}px 0 rgba(11,7,4,.45))">`
-      + under + `<div style="position:absolute;inset:0">${cardHtml(drag.shown ? drag.card.face : undefined, drag.w)}</div>` + badge + `</div>`;
+    // Тень падает на сукно — туда, где карта ляжет: чем выше держу, тем дальше тень.
+    const liftPx = Math.round(at.lift || drag.h * 0.12);
+    return `<div data-g="carry"${drag.mass ? ` data-mass="${local.grab}"` : ""} data-lift="${liftPx}" data-w="${Math.round(at.w)}" data-ground="${at.ground.x.toFixed(1)},${at.ground.y.toFixed(1)}" style="position:fixed;width:${at.w.toFixed(1)}px;height:${at.h.toFixed(1)}px;left:${(at.x - at.w / 2).toFixed(1)}px;`
+      + `top:${(at.y - at.h / 2).toFixed(1)}px;transform:scale(1,${at.squash.toFixed(3)});z-index:60;pointer-events:none;filter:drop-shadow(0 ${liftPx}px 0 rgba(11,7,4,.45))">`
+      + under + `<div style="position:absolute;inset:0">${cardHtml(drag.shown ? drag.card.face : undefined, at.w)}</div>` + badge + `</div>`;
   }
 
   /**
@@ -3180,8 +3201,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         // Своя рука — внизу, на стекле; в своём стуле карт не рисуем.
         pose: c.pose,
         cards: c.id === seat ? 0 : c.hand.filter((card) => !flying.has(card.id)).length + gapsIn(s, c.id).filter((gap) => gap.carry).length,
-        // На стуле лицом наружу — перевёрнутые.
-        hand: c.id === seat ? [] : c.hand.filter((card) => !flying.has(card.id)).map((card) => ({ id: card.id, ...(card.up && card.face ? { face: card.face } : {}) })),
+        // Какой стороной карта к зрителю, решает сукно (`felt.ts`): на стуле — наружу, в руке у головы — к хозяину.
+        hand: c.id === seat ? [] : c.hand.filter((card) => !flying.has(card.id)).map((card) => ({ id: card.id, ...(card.face ? { face: card.face } : {}), ...(card.up ? { up: true } : {}) })),
         ...(sitter ? { name: sitter.name, ink: sitter.ink } : {}),
         // ЧЕМ ДУМАЕТ ИГРОК БЕЗ ЧЕЛОВЕКА — прямо на табличке: играя против машины, надо видеть, против какой.
         ...(sitter?.brain ? { brain: sitter.brain } : {}),
@@ -3271,7 +3292,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       seatAngle: chairOf(s, seat)?.angle ?? null,
       seats: spots.map((sp) => {
         const c = chairOf(s, sp.key);
-        return { key: sp.key, hand: c?.hand.length ?? 0, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, ...(c?.croupier ? { croupier: true } : {}), x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), puff: sp.puff, rings: sp.rings, ...(sp.plate ? { plate: sp.plate } : {}), chair: Math.round(SEAT_REACH * view!.k), ...(sp.body ? { body: { chairAt: { x: Math.round(sp.body.chairAt.x), y: Math.round(sp.body.chairAt.y) }, cardsAt: { x: Math.round(sp.body.cardsAt.x), y: Math.round(sp.body.cardsAt.y) } } } : {}) };
+        return { key: sp.key, hand: c?.hand.length ?? 0, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, ...(c?.croupier ? { croupier: true } : {}), x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), puff: sp.puff, rings: sp.rings, ...(sp.plate ? { plate: sp.plate } : {}), chair: Math.round(SEAT_REACH * view!.k), ...(sp.body ? { body: { chairAt: { x: Math.round(sp.body.chairAt.x), y: Math.round(sp.body.chairAt.y) }, cardsAt: { x: Math.round(sp.body.cardsAt.x), y: Math.round(sp.body.cardsAt.y) }, faces: sp.body.faces } } : {}) };
       }),
     });
     local.tips = local.tips.filter((id) => id !== seat && (watch || chairOf(s, id) !== undefined));
@@ -3674,7 +3695,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // Стянутые к моему пальцу — туда, где висит карта хвата.
     if (drag) {
       const d = drag;
-      const finger: Place = { key: "finger", x: d.x - d.gx + d.w / 2, y: d.y - d.gy - d.h * CARRY_CLEAR + d.h / 2, w: d.w, h: d.h, angle: 0, squash: 1 };
+      const { lift: _, ground: __, ...finger } = heldPlace(d);
       massFlock().forEach((id, i) => out.set(id, { ...finger, x: finger.x - (i + 1) * 3, y: finger.y + (i + 1) * 3 }));
     }
     return out;
@@ -4325,11 +4346,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     if (slingSteer(drag, e.clientX, e.clientY)) return draw();
     drag.x = e.clientX;
     drag.y = e.clientY;
+    // Размер карты в мире меняется с местом (линза), поэтому она пересобирается целиком, а не только сдвигается.
     const carry = over.querySelector<HTMLElement>('[data-g="carry"]');
-    if (carry) {
-      carry.style.left = `${drag.x - drag.gx}px`;
-      carry.style.top = `${drag.y - drag.gy - drag.h * CARRY_CLEAR}px`;
-    }
+    if (carry) carry.outerHTML = carryHtml();
     // СТОПКУ ВЕРНУЛИ В ЗОНУ РУКИ — выноса больше нет: рука как была, без контуров, а под пальцем снова ручка.
     if (drag.stack && drag.stackFrom && drag.stackSafe !== undefined && e.clientY > drag.stackSafe + STACK_BACK) return uncarryHand(e);
     let aim = aimAt(e.clientX, e.clientY);
@@ -4396,7 +4415,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     if (d.target.kind === "back") {
       returning = {
         id: d.card.id,
-        from: { key: "finger", x: d.x - d.gx + d.w / 2, y: d.y - d.gy - d.h * CARRY_CLEAR + d.h / 2, w: d.w, h: d.h, angle: 0, squash: 1, face: d.shown ? d.card.face : undefined },
+        from: { ...heldPlace(d), lift: undefined, face: d.shown ? d.card.face : undefined },
       };
       store.send({ t: "release", id: d.card.id });
       return draw();
@@ -4417,7 +4436,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       if (d.sling || (to.in === "deck" && pileOf(store.state, to.pile)?.pose === "ring")) {
         returning = {
           id: d.card.id,
-          from: { key: "finger", x: d.x - d.gx + d.w / 2, y: d.y - d.gy - d.h * CARRY_CLEAR + d.h / 2, w: d.w, h: d.h, angle: 0, squash: 1, face: d.shown ? d.card.face : undefined },
+          from: { ...heldPlace(d), lift: undefined, face: d.shown ? d.card.face : undefined },
         };
       }
       store.send({ t: "drop", id: d.card.id, to, ...(d.sling ? { throw: true as const } : {}) });

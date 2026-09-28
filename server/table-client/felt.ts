@@ -32,7 +32,11 @@ export interface Seat {
   speaking?: number;
   cards: number;
   /** Карты руки по порядку, каким их видно на стуле: лицо — только у перевёрнутой. Щели — дальше, без карт. */
-  hand?: { id: string; face?: Face }[];
+  /**
+   * Карты руки: `face` — если зрителю его видно (стул не скрыт или это открытая карта), `up` — перевёрнута:
+   * лицом наружу, а не к хозяину.
+   */
+  hand?: { id: string; face?: Face; up?: boolean }[];
   face?: string;
   pose?: Pose;
   /**
@@ -78,7 +82,7 @@ export interface Spot {
    * У сидящего есть тело: кружок — его голова, и она законно не у стула (тянется к столу, уходит за камерой).
    * Тогда `chairAt` — где на стекле сам стул, `cardsAt` — где его карты: в левой руке у головы.
    */
-  body?: { chairAt: Point; cardsAt: Point };
+  body?: { chairAt: Point; cardsAt: Point; faces: number };
 }
 
 /** Где что легло, и как переводить между столом и стеклом — тем же взглядом, каким рисовали. */
@@ -917,6 +921,13 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
 
   for (const one of o.felt) paintOnce(one);
 
+  /** Зритель смотрит этой голове в затылок: её взгляд уходит вверх по моему экрану, в глубину стола. */
+  const seenFromBehind = (body: NonNullable<Seat["body"]>): boolean => {
+    const at = o.lens.toGlass(body.head, body.head.h);
+    const ahead = o.lens.toGlass({ x: body.head.x + Math.sin((body.yaw * Math.PI) / 180), y: body.head.y - Math.cos((body.yaw * Math.PI) / 180) }, body.head.h);
+    return (ahead.y - at.y) / (Math.hypot(ahead.x - at.x, ahead.y - at.y) || 1) < -BACK_TURN;
+  };
+
   const spots: Spot[] = [];
   people.forEach((who) => {
     const place = { at: seatPoint(who.angle, who.croupier ? CROUPIER_RADIUS : SEAT_RADIUS), facing: who.angle };
@@ -928,12 +939,19 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     const sitter = who.name !== undefined && who.ink !== undefined ? (who as Seat & { name: string; ink: string }) : null;
     if (sitter) chair(g, sitter);
     else emptyChair(g);
+    // КАКОЙ СТОРОНОЙ ВЕЕР К ЗРИТЕЛЮ. На стуле карты лежат лицом наружу — видны перевёрнутые. В руке у головы
+    // обычная карта смотрит лицом на хозяина: смотришь ему из-за спины — видишь её лицо (если стул не скрыт,
+    // лицо и приходит); спереди — рубашку, а лицом к тебе только перевёрнутые.
+    const behind = who.body ? seenFromBehind(who.body) : false;
+    let faces = 0;
     const fan = () => posePlan(who.pose ?? { fan: false, shrink: false, tuck: false }, who.cards).forEach((p, i) => {
       g.save();
       g.translate(p.at.x, p.at.y);
       g.rotate((p.angle * Math.PI) / 180);
       const one = who.hand?.[i];
-      if (one) paint(one.id, one.face, CARD.w * HAND_SCALE, CARD.h * HAND_SCALE);
+      const shown = one?.face && (who.body ? (one.up ? !behind : behind) : one.up) ? one.face : undefined;
+      if (shown) faces += 1;
+      if (one) paint(one.id, shown, CARD.w * HAND_SCALE, CARD.h * HAND_SCALE);
       else card(g, undefined, CARD.w * HAND_SCALE, CARD.h * HAND_SCALE, undefined, o.art);
       g.restore();
     });
@@ -974,13 +992,11 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       }
       // КУДА СМОТРИТ — нос на кромке кружка, по взгляду на стекле: под поворотом и наклоном стола тоже.
       // ЛИЦОМ ИЛИ ЗАТЫЛКОМ: смотрит от меня — вверх по экрану, в глубину стола — я вижу ему в затылок.
-      let back = false;
       if (who.body) {
         const ahead = o.lens.toGlass({ x: headAt.x + Math.sin((who.body.yaw * Math.PI) / 180), y: headAt.y - Math.cos((who.body.yaw * Math.PI) / 180) }, who.body.head.h);
         gaze(g, Math.atan2(ahead.y - at.y, ahead.x - at.x), sitter.ink, puff);
-        back = (ahead.y - at.y) / (Math.hypot(ahead.x - at.x, ahead.y - at.y) || 1) < -BACK_TURN;
       }
-      disc(g, sitter, images, puff, back);
+      disc(g, sitter, images, puff, behind);
       desk();
     }
     const plateW = Math.max(1, [...(who.name ?? "")].length * PLATE_EM + 2 * PLATE.padX) * kk;
@@ -997,7 +1013,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       puff: +puff.toFixed(3),
       rings: rings.map((r) => +(r * kk).toFixed(1)),
       ...(sitter ? { plate: { x: at.x - plateW / 2, y: at.y + PLATE.at * kk - plateH / 2, w: plateW, h: plateH } } : {}),
-      ...(who.body ? { body: { chairAt: o.lens.toGlass(place.at), cardsAt: o.lens.toGlass(who.body.left, who.body.left.h) } } : {}),
+      ...(who.body ? { body: { chairAt: o.lens.toGlass(place.at), cardsAt: o.lens.toGlass(who.body.left, who.body.left.h), faces } } : {}),
     });
   });
 

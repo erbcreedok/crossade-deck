@@ -131,11 +131,29 @@ await A.mouse.down();
 await A.mouse.move(195, 430, { steps: 10 });
 const ownLift = await until(() => A.evaluate(() => +(document.querySelector('[data-g="carry"]')?.dataset.lift ?? 0)));
 check("своя карта в руке — с тенью по высоте головы", ownLift > 0, { ownLift });
+// Настоящего размера: как её место на сукне (контур под ней), чуть крупнее — она ближе к глазу, поднята.
+const sizes = await A.evaluate(() => {
+  const carry = document.querySelector('[data-g="carry"]');
+  const mark = document.querySelector("[data-felt-mark] polygon");
+  if (!carry || !mark) return null;
+  const pts = mark.getAttribute("points").split(" ").map((one) => one.split(",").map(Number));
+  return { card: +carry.dataset.w, spot: Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]) };
+});
+check("своя карта в руке — размером со своё место на сукне (1…1.3 его ширины)", sizes && sizes.card >= sizes.spot * 0.97 && sizes.card <= sizes.spot * 1.3, sizes);
+if (shots) await A.screenshot({ path: `${shots}/body-4-held.png` });
 const theirLift = await until(() => B.evaluate(() => +(document.querySelector('[data-g="carried"]')?.dataset.lift ?? 0)));
 check("у Б её карта висит над сукном (тень по высоте её головы)", theirLift > 0, { theirLift });
 if (shots) await B.screenshot({ path: `${shots}/body-4-carry.png` });
 await A.mouse.up();
 await A.waitForTimeout(500);
+
+// ПОДГЛЯДЕТЬ: Аня снимает «скрыть». Спереди её карты смотрят лицом на неё — Боря видит рубашки.
+await A.click('[data-section="chair"]');
+await A.waitForTimeout(300);
+await A.click('[data-bar="hide"]');
+await A.waitForTimeout(900);
+const facesOf = async () => (await spotOf(B, "Аня"))?.body?.faces;
+check("не скрыта, Боря смотрит ей в лицо — её карты у него рубашкой", (await facesOf()) === 0, await spotOf(B, "Аня"));
 
 // ГОЛОВА ИДЁТ ЗА КАМЕРОЙ: Аня крутит стол на 180° (Ctrl + мышь) — у Б её голова с картами ушла на его сторону,
 // тело на стуле, пустой круг у стула и ниточка к голове.
@@ -153,6 +171,9 @@ check("…у стула пустой круг, к голове ниточка", 
 const went = await spotOf(B, "Аня");
 check("…голова теперь на стороне Бори (низ его экрана)", went && went.y > 422, went);
 if (shots) await B.screenshot({ path: `${shots}/body-5-away.png` });
+// Её голова теперь у Бори и смотрит от него в стол — он ей за спиной и видит её карты лицом.
+const peek = await until(async () => { const n = await facesOf(); return n > 0 && n; });
+check("из-за спины (стул не скрыт) — её карты у Бори лицом", peek >= 3, { faces: await facesOf() });
 
 const bad = checks.filter((c) => !c.ok);
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));

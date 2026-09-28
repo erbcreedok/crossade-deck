@@ -59,7 +59,10 @@ for (let i = 1; i <= 20; i += 1) {
     const c = carry.getBoundingClientRect();
     // Контур — настоящие углы карты на сукне: верхняя кромка — от первого угла ко второму.
     const [p0, p1] = mark.querySelector("polygon").getAttribute("points").split(" ").map((one) => one.split(",").map(Number));
-    return { mx: a.left + a.width / 2, cx: c.left + c.width / 2, t: (Math.atan2(p1[1] - p0[1], p1[0] - p0[0]) * 180) / Math.PI };
+    // Карта в руке поднята над сукном на высоту руки — сверять контур с её точкой НА СУКНЕ (`data-ground`), а не
+    // с серединой поднятой карты: линза честно сдвигает поднятое.
+    const ground = carry.dataset.ground ? +carry.dataset.ground.split(",")[0] : c.left + c.width / 2;
+    return { mx: a.left + a.width / 2, cx: ground, t: (Math.atan2(p1[1] - p0[1], p1[0] - p0[0]) * 180) / Math.PI };
   });
   if (m) {
     onFelt += 1;
