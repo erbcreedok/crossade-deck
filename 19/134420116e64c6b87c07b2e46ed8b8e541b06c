@@ -1,0 +1,31 @@
+server/table-client/arNative.ts
+  s_e1c4165d82711d::t_ca402ba13ee0ee 26-30
+server/table-client/rooms.ts
+  s_e1c4165d82711d::t_662ec4c48404fa 17-18,110,112,290,292-299
+  s_e1c4165d82711d::t_f33a8a75c27ff2 1-4,6-7,13-15,19,45-54,57,62,64-109,111,122,133-138,146-155,158-172,174,176-194,197-199,201-203,205-211,214-215,217-223,227-234,236,239-240,242,244-289,291,300,304,319
+native/ios-table/Sources/App.swift
+  s_e1c4165d82711d::t_ca402ba13ee0ee 40,187-188,191,218
+server/table-client/login.ts
+  s_e1c4165d82711d::t_ca402ba13ee0ee 25-27
+server/scripts/tableNativeAr.mjs
+  s_e1c4165d82711d::t_1518665e2e5d3c 259,266-267
+server/scripts/tableProfile.mjs
+  s_e1c4165d82711d::t_89ab61a748498a 1-15,18-37,40-71
+  s_e1c4165d82711d::t_24a02f0949506b 16-17,38-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "19134420116e64c6b87c07b2e46ed8b8e541b06c",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
