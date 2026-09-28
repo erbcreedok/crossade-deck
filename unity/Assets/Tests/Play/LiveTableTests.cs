@@ -19,6 +19,7 @@ using Crossade.Wire;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
 
 public class LiveTableTests
 {
@@ -90,6 +91,8 @@ public class LiveTableTests
         var host = Env("CROSSADE_HOST");
         if (string.IsNullOrEmpty(host)) Assert.Ignore("нет CROSSADE_HOST — живой стол не задан");
         yield return Until(() => (app = UnityEngine.Object.FindAnyObjectByType<App>()) != null, 5, "приложение");
+        // Другая проверка могла увести приложение из-за стола — садимся за стол из окружения заново.
+        if (app.Store == null || app.Store.S == null || app.Store.Me.Name != Env("CROSSADE_NAME")) app.Open(App.Read());
         yield return Until(() => app.Store?.S != null || app.Failed != null, 20, "вход за стол");
         Assert.IsNull(app.Failed, "вход: " + app.Failed);
         rt = new RenderTexture(W, H, 24);
@@ -134,6 +137,49 @@ public class LiveTableTests
         yield return Until(() => watch.S.Felt.First(c => c.Id == top).Up == false, 5, "карта перевёрнута");
         yield return Settle();
         Shoot("4-turned");
+    }
+
+    Button Find(string text) =>
+        UnityEngine.Object.FindObjectsByType<Button>(FindObjectsSortMode.None).FirstOrDefault(b => b.GetComponentInChildren<Text>()?.text == text && b.isActiveAndEnabled);
+
+    [UnityTest]
+    public IEnumerator LobbyLetsAGuestOpenATable()
+    {
+        var host = Env("CROSSADE_HOST");
+        if (string.IsNullOrEmpty(host)) Assert.Ignore("нет CROSSADE_HOST — живой стол не задан");
+        yield return Until(() => (app = UnityEngine.Object.FindAnyObjectByType<App>()) != null, 5, "приложение");
+        rt ??= new RenderTexture(W, H, 24);
+        app.Rig.Cam.targetTexture = rt;
+        var keep = Crossade.Net.Account.Key;
+        Crossade.Net.Account.Key = null;
+        try
+        {
+            app.Home();
+            yield return Until(() => Find("Играть гостем") != null, 15, "кнопка «Играть гостем»");
+            yield return Settle(.3f);
+            Shoot("5-door");
+            Find("Играть гостем").onClick.Invoke();
+            yield return Until(() => Find("Новый стол") != null, 15, "«Мои комнаты» с кнопкой «Новый стол»");
+            Assert.IsNotNull(Crossade.Net.Account.Key, "ключ гостя на устройстве");
+            yield return Settle(.3f);
+            Shoot("6-rooms");
+            Find("Новый стол").onClick.Invoke();
+            yield return Until(() => app.Store?.S != null || app.Failed != null, 20, "за новым столом");
+            Assert.IsNull(app.Failed, "вход: " + app.Failed);
+            Assert.AreEqual("app", app.Store.Me.Door, "вошёл ключом приложения");
+            Assert.IsNotNull(app.Store.MyChair, "сидит на стуле");
+            yield return Settle(1);
+            Shoot("7-new-table");
+            // Назад — и новый стол уже в списке.
+            app.Home();
+            yield return Until(() => Find(app.Lobby != null ? "Новый стол" : "") != null, 15, "снова «Мои комнаты»");
+            yield return Settle(1.5f);
+            Shoot("8-rooms-again");
+        }
+        finally
+        {
+            Crossade.Net.Account.Key = keep;
+        }
     }
 
     [TearDown]

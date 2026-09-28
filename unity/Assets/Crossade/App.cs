@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Generic;
+using Crossade.Net;
 using Crossade.Play;
 using Crossade.Table;
 using Crossade.View;
@@ -21,6 +22,7 @@ namespace Crossade
         public Rig Rig { get; private set; }
         public Hud Hud { get; private set; }
         public Finger Finger { get; private set; }
+        public Lobby Lobby { get; private set; }
         /** Чем кончился вход: `null` — ещё идёт. */
         public string Failed { get; private set; }
 
@@ -82,21 +84,35 @@ namespace Crossade
             Board = Board.Make();
             Board.Hand = HandRig.Make(Rig.Cam);
             Hud = Hud.Make(Rig.Cam, Board.Hand.BarPx);
+            Hud.Home = Home;
+            Lobby = Lobby.Make();
+            Lobby.Sit = (host, room) => Open(new Door { Host = host, Room = room, Key = Account.Key });
             Application.deepLinkActivated += url =>
             {
                 if (Read(url) is { } door) Open(door);
             };
             if (Read() is { } first) Open(first);
-            else Hud.Title("Открой стол из Telegram");
+            else Home();
+        }
+
+        /** Назад к «Моим комнатам»: из-за стола встаём, стул остаётся за нами. */
+        public void Home()
+        {
+            Store?.Leave();
+            Store = null;
+            Board.Clear();
+            Lobby.Show(true);
         }
 
         public async void Open(Door door)
         {
+            Lobby.Show(false);
             Store?.Leave();
             Store = null;
             Failed = null;
             Hud.Title("Входим…");
             var join = new Dictionary<string, object> { ["room"] = door.Room };
+            if (door.Key != null && door.Key != Account.Key) Account.Key = door.Key;
             if (door.Pass != null || door.Key != null)
             {
                 join["door"] = "app";

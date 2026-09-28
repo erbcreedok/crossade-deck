@@ -8,6 +8,8 @@ namespace Crossade.View
 {
     public sealed class Hud : MonoBehaviour
     {
+        /** Тап по названию стола. */
+        public System.Action Home;
         Text title, toast;
         Image toastBack, bar;
         float toastUntil;
@@ -27,8 +29,14 @@ namespace Crossade.View
             Pin(hud.bar.rectTransform, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, barPx), new Vector2(.5f, 0));
 
             var pill = Box(hud.transform, "title", Look.Well);
+            pill.sprite = Ui.Round;
+            pill.type = Image.Type.Sliced;
             Pin(pill.rectTransform, new Vector2(.2f, 1), new Vector2(.8f, 1), new Vector2(0, 64), new Vector2(.5f, 1), -56);
             hud.title = Words(pill.transform, "", 30, Look.Ink);
+            // Тап по названию — назад к «Моим комнатам».
+            pill.raycastTarget = true;
+            pill.gameObject.AddComponent<Button>().onClick.AddListener(() => hud.Home?.Invoke());
+            Ui.Events();
 
             hud.toastBack = Box(hud.transform, "toast", new Color(0, 0, 0, .72f));
             Pin(hud.toastBack.rectTransform, new Vector2(.08f, 0), new Vector2(.92f, 0), new Vector2(0, 72), new Vector2(.5f, 0), barPx + 360);

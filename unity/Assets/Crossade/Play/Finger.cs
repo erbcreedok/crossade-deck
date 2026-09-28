@@ -288,6 +288,7 @@ namespace Crossade.Play
             {
                 foreach (var t in Input.touches)
                 {
+                    if (t.phase == TouchPhase.Began && View.Ui.Busy(t.fingerId)) continue;
                     if (t.phase == TouchPhase.Began) Finger.Down(t.fingerId, t.position, now);
                     else if (t.phase == TouchPhase.Moved || t.phase == TouchPhase.Stationary) Finger.Move(t.fingerId, t.position, now);
                     else Finger.Up(t.fingerId, t.position, now);
@@ -295,7 +296,7 @@ namespace Crossade.Play
                 return;
             }
             Vector2 m = Input.mousePosition;
-            if (Input.GetMouseButtonDown(0)) Finger.Down(-1, m, now);
+            if (Input.GetMouseButtonDown(0) && !View.Ui.Busy(-1)) Finger.Down(-1, m, now);
             else if (Input.GetMouseButton(0)) Finger.Move(-1, m, now);
             else if (Input.GetMouseButtonUp(0)) Finger.Up(-1, m, now);
             if (Rig != null && Mathf.Abs(Input.mouseScrollDelta.y) > .01f) Rig.Zoom = Mathf.Clamp(Rig.Zoom * (1 + Input.mouseScrollDelta.y * .08f), Rig.MinZoom, Rig.MaxZoom);

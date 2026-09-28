@@ -202,6 +202,18 @@ namespace Crossade.View
             n.Move(parent);
         }
 
+        /** Стол пуст — ушли из-за него. */
+        public void Clear()
+        {
+            foreach (var n in cards.Values) Destroy(n.gameObject);
+            cards.Clear();
+            foreach (var n in seats.Values) Destroy(n.gameObject);
+            seats.Clear();
+            foreach (var m in marks) Destroy(m.gameObject);
+            marks.Clear();
+            Lifted = null;
+        }
+
         public SeatNode Seat(string id) => seats.TryGetValue(id, out var s) ? s : null;
     }
 }
