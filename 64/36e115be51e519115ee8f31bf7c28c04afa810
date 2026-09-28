@@ -1,0 +1,35 @@
+server/table-client/felt.ts
+  s_e1c4165d82711d::t_d743bd3de57d78 45-49,411-428,905,914,916-924,928-930,932,948-952
+unity/Assets/Tests/Editor/Fixtures/wire.json
+  s_e1c4165d82711d::t_3b58a0275fef9c 121,127-128,131-132,142,148-149,152-153,163,169-170,173-174,184,190-191,194-195,205,211-212,215-216,226,232-233,236-237,247,253-254,257-258,268,274-275,278-279,289,295-296,299-300
+server/scripts/tableBody.mjs
+  s_e1c4165d82711d::t_f066ba89d7d784 37,67-77,103
+  s_e1c4165d82711d::t_06766040ce6c0b 48
+  s_e1c4165d82711d::t_ccb5a9a02e6d0e 57-66
+server/table-client/screen.ts
+  s_e1c4165d82711d::t_dfccee518da040 51,3097,3099,3149-3155
+server/src/table/wireFixture.test.ts
+  s_e1c4165d82711d::t_6deff6672f883b 137
+server/src/table/bodies.ts
+  s_e1c4165d82711d::t_6deff6672f883b 69-70,72,74-75,78-83,85
+  s_e1c4165d82711d::t_d743bd3de57d78 48
+server/table-client/bodyView.ts
+  s_e1c4165d82711d::t_ccb5a9a02e6d0e 11,39-43
+  s_e1c4165d82711d::t_dfccee518da040 1-4,10,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6436e115be51e519115ee8f31bf7c28c04afa810",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
