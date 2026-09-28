@@ -88,6 +88,10 @@ namespace Crossade.View
 
         /** Id карты, которую держит мой палец: её место решает жест, а не снимок. */
         public string Lifted;
+        /** Стопку тянут за индикатор: она стоит под пальцем, а не там, где её помнит стол. */
+        public (string pile, double x, double y)? Moving;
+
+        public (double x, double y) PileAt(Pile pile) => Moving is { } m && m.pile == pile.Id ? (m.x, m.y) : (pile.X, pile.Y);
 
         public void Show(Store store)
         {
@@ -115,14 +119,15 @@ namespace Crossade.View
             marks.Clear();
             foreach (var pile in s.Piles)
             {
+                var (px, py) = PileAt(pile);
                 if (pile.Ring)
                 {
-                    marks.Add(PileMark.Ring(Table, pile));
+                    marks.Add(PileMark.Ring(Table, pile, px, py));
                     int k = 0;
                     foreach (var c in pile.Cards)
                     {
                         var turn = c.Turn ?? 0;
-                        var (x, y) = Ring.Spot(pile.X, pile.Y, turn, Ring.Lay);
+                        var (x, y) = Ring.Spot(px, py, turn, Ring.Lay);
                         var n = Get(c);
                         Park(n, Table);
                         n.Paint(FaceArt(c.Face), backArt);
@@ -137,7 +142,7 @@ namespace Crossade.View
                     Park(n, Table);
                     n.Paint(FaceArt(c.Face), backArt);
                     var shift = i * PILE_SHIFT;
-                    n.Aim(At(pile.X + shift, pile.Y - shift, CardNode.Thick * (pileLayer + i)), (float)pile.Angle, c.Up == true);
+                    n.Aim(At(px + shift, py - shift, CardNode.Thick * (pileLayer + i)), (float)pile.Angle, c.Up == true);
                 }
                 pileLayer += pile.Cards.Count + 1;
             }
@@ -240,6 +245,7 @@ namespace Crossade.View
             foreach (var m in marks) Destroy(m.gameObject);
             marks.Clear();
             Lifted = null;
+            Moving = null;
         }
 
         public SeatNode Seat(string id) => seats.TryGetValue(id, out var s) ? s : null;

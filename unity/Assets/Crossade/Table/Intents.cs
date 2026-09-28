@@ -49,6 +49,11 @@ namespace Crossade.Table
             return o;
         }
 
+        public static Dictionary<string, object> DeckPin(string pile, bool on) { var o = Of("deckPin"); o["pile"] = pile; o["on"] = on; return o; }
+        public static Dictionary<string, object> DeckForever(string pile, bool on) { var o = Of("deckForever"); o["pile"] = pile; o["on"] = on; return o; }
+        /** `guard` — `lock`, `shut` или `seal` (`PILE_GUARDS`). */
+        public static Dictionary<string, object> DeckGuard(string pile, string guard, bool on) { var o = Of("deckGuard"); o["pile"] = pile; o["guard"] = guard; o["on"] = on; return o; }
+
         public static Dictionary<string, object> Arrange(string how) { var o = Of("arrange"); o["how"] = how; return o; }
         public static Dictionary<string, object> Flip() => Of("flip");
         public static Dictionary<string, object> Sit(string chair) { var o = Of("sit"); o["chair"] = chair; return o; }

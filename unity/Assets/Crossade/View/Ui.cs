@@ -76,15 +76,15 @@ namespace Crossade.View
             return (RectTransform)go.transform;
         }
 
-        public static Text Words(Transform parent, string text, int size, Color color, TextAnchor align = TextAnchor.MiddleCenter)
+        public static Text Words(Transform parent, string text, int size, Color color, TextAnchor align = TextAnchor.MiddleCenter, float pad = 20)
         {
             var go = new GameObject("text", typeof(RectTransform), typeof(Text));
             go.transform.SetParent(parent, false);
             var r = (RectTransform)go.transform;
             r.anchorMin = Vector2.zero;
             r.anchorMax = Vector2.one;
-            r.offsetMin = new Vector2(20, 0);
-            r.offsetMax = new Vector2(-20, 0);
+            r.offsetMin = new Vector2(pad, 0);
+            r.offsetMax = new Vector2(-pad, 0);
             var t = go.GetComponent<Text>();
             t.font = Look.Font;
             t.fontSize = size;
@@ -106,7 +106,9 @@ namespace Crossade.View
             face.anchorMax = Vector2.one;
             face.offsetMin = new Vector2(5, 5);
             face.offsetMax = new Vector2(-5, -5);
-            Words(face, text, size, ink ?? Look.Ink);
+            // Надпись кнопки — в строку: короткую кнопку не переносит по буквам.
+            var words = Words(face, text, size, ink ?? Look.Ink, TextAnchor.MiddleCenter, Mathf.Min(12, size * .6f));
+            words.horizontalOverflow = HorizontalWrapMode.Overflow;
             var img = frame.GetComponent<Image>();
             img.raycastTarget = true;
             var b = frame.gameObject.AddComponent<Button>();

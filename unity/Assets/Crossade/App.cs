@@ -24,6 +24,7 @@ namespace Crossade
         public Finger Finger { get; private set; }
         public Lobby Lobby { get; private set; }
         public PoseHandle Handle { get; private set; }
+        public PileGrips Grips { get; private set; }
         /** Чем кончился вход: `null` — ещё идёт. */
         public string Failed { get; private set; }
 
@@ -86,6 +87,7 @@ namespace Crossade
             Board.Hand = HandRig.Make(Rig.Cam);
             Hud = Hud.Make(Rig.Cam);
             Hud.Home = Home;
+            Grips = PileGrips.Make(Hud, Board, Board.Hand, () => Store, Draw);
             Handle = PoseHandle.Make(Hud, Board.Hand, () => Store, Draw);
             Lobby = Lobby.Make();
             Lobby.Sit = (host, room) => Open(new Door { Host = host, Room = room, Key = Account.Key });
@@ -111,6 +113,7 @@ namespace Crossade
             Store = null;
             Board.Clear();
             Handle.Place();
+            Grips.Sync();
             Lobby.Show(true);
         }
 
@@ -166,6 +169,7 @@ namespace Crossade
             Board.Show(Store);
             Hud.Fit(Board.Hand.Dpr, Board.Hand.BarPx);
             Handle.Place();
+            Grips.Sync();
         }
 
         void OnDestroy() => Store?.Leave();

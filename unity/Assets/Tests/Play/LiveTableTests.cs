@@ -178,6 +178,35 @@ public class LiveTableTests
         yield return Until(() => Mine(watch).Pose.Tuck, 5, "рука спрятана — глазами второго клиента");
         yield return Settle();
         Shoot("8-tucked");
+
+        // Колода: тап по индикатору — окно; «Перемешать» — второй клиент видит перемешивание.
+        GameObject Grip() => GameObject.Find("grip deck");
+        Pile Deck(Store st) => st.S.Piles.First(p => p.Id == "deck");
+        var shuffles = Deck(watch).Shuffles;
+        Press(Grip(), Vector2.zero, Vector2.zero);
+        yield return Until(() => Find("Перемешать") != null, 3, "окно колоды");
+        yield return Settle(.3f);
+        Shoot("9-deck-tip");
+        Find("Перемешать").onClick.Invoke();
+        yield return Until(() => Deck(watch).Shuffles > shuffles, 5, "колода перемешана — глазами второго клиента");
+        Find("Закрыть").onClick.Invoke();
+        yield return Until(() => Find("Перемешать") == null, 3, "окно колоды закрыто");
+
+        // Тяга индикатора — колода переехала туда, где отпустили.
+        var from = new Vector2((float)Deck(watch).X, (float)Deck(watch).Y);
+        var target = (Vector2)app.Rig.Cam.WorldToScreenPoint(app.Board.Table.TransformPoint(Board.At(2.5, -2)));
+        var gripAt = (Vector2)RectTransformUtility.WorldToScreenPoint(app.Rig.Cam, Grip().transform.position);
+        Press(Grip(), Vector2.zero, target - gripAt);
+        yield return Until(() => Vector2.Distance(new Vector2((float)Deck(watch).X, (float)Deck(watch).Y), from) > 1, 5, "колода переехала — глазами второго клиента");
+        yield return Settle();
+        Shoot("10-deck-moved");
+
+        // Двойной тап — колода перевёрнута: верхняя лицом вверх.
+        Press(Grip(), Vector2.zero, Vector2.zero);
+        Press(Grip(), Vector2.zero, Vector2.zero);
+        yield return Until(() => Deck(watch).Cards[^1].Up == true, 5, "колода перевёрнута — глазами второго клиента");
+        yield return Settle();
+        Shoot("11-deck-flipped");
     }
 
     /** Нажать на объект интерфейса, провести на `by` пикселей и отпустить (или тап, если `by` — ноль). */

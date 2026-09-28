@@ -74,11 +74,11 @@ namespace Crossade.View
     /** Очерченное место на сукне — круг хода. */
     public sealed class PileMark : MonoBehaviour
     {
-        public static PileMark Ring(Transform table, Pile pile)
+        public static PileMark Ring(Transform table, Pile pile, double x, double y)
         {
             var mark = new GameObject("mark " + pile.Id).AddComponent<PileMark>();
             mark.transform.SetParent(table, false);
-            mark.transform.localPosition = Board.At(pile.X, pile.Y, .002f);
+            mark.transform.localPosition = Board.At(x, y, .002f);
             var line = mark.gameObject.AddComponent<LineRenderer>();
             line.useWorldSpace = false;
             line.loop = true;
