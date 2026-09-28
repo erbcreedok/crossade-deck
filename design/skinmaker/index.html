@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Конструктор скинов — стенд</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Handjet&family=Tiny5&display=swap" rel="stylesheet">
+<!--
+  КОНСТРУКТОР СКИНОВ — стенд. Скин — это НАБОР ЧАСТЕЙ: голова, причёска, тело, руки, ноги. У КАЖДОЙ ЧАСТИ свой
+  набор ракурсов (как спрайты в Doom): голова может быть односторонней, тело — с 18 углами обзора. Каждый кадр
+  каждая часть сама выбирает ближайший к глазу ракурс в СВОИХ осях: тело смотрит, куда стул, голова — куда
+  человек. Готовые наборы («Пёс», «Король пик») заполняют все части сразу; дальше любую часть можно сменить.
+
+  Рисунки: фигуры колоды — `courts/` (из game-presets/cards/art/courts), пёс, кошка, крестоносец и ноги —
+  `../persona/skins/` (Antigravity), остальное рисуется кодом здесь же.
+    python3 design/serve.py 9585 design   →   http://localhost:9585/skinmaker/
+-->
+<style>
+  :root { --felt: #173d2d; --felt2: #123527; --panel: #1f1510; --wood: #6b4d2c; --black: #0b0704; --ink: #f5ead0; --dim: #cdb98f; --gold: #f2c14e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0d2118; color: var(--dim); font: 400 13px/1.4 'Tiny5', monospace; -webkit-user-select: none; user-select: none; }
+  .app { max-width: 430px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; background: var(--felt2); box-shadow: 0 0 0 3px var(--black); }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; }
+  header h1 { margin: 0; font: 400 17px 'Tiny5', monospace; color: var(--gold); letter-spacing: 1px; }
+  header .name { font: 400 13px 'Tiny5', monospace; color: var(--ink); background: var(--panel); border: 0; border-radius: 7px; padding: 6px 9px; width: 150px; box-shadow: inset 0 0 0 2px var(--wood); }
+  /* СЦЕНА — кукла крупно, крутится пальцем: вбок — обход вокруг, вверх-вниз — выше или ниже глазом. */
+  .stage { position: relative; height: 330px; margin: 0 10px; border-radius: 14px; overflow: hidden; touch-action: none; cursor: grab;
+    background: radial-gradient(110% 80% at 50% 25%, #2a2019, #120c08); box-shadow: inset 0 0 0 3px var(--black), inset 0 0 0 5px #3a2a1d; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .stage .hint { position: absolute; left: 10px; top: 8px; color: var(--dim); font-size: 11px; pointer-events: none; }
+  .stage .eye { position: absolute; right: 10px; top: 8px; width: 54px; height: 54px; pointer-events: none; }
+  .stage .pose { position: absolute; left: 10px; bottom: 10px; display: flex; gap: 6px; }
+  /* РАКУРСЫ СЕЙЧАС — у каждой части свой, и видно, что они выбираются независимо. */
+  .views { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 12px 0; }
+  .views .v { padding: 3px 7px; border-radius: 6px; background: var(--black); color: var(--ink); font-size: 11px; box-shadow: inset 0 0 0 1.5px var(--wood); }
+  .views .v b { color: var(--gold); font-weight: 400; }
+  .btn { font: 400 12px 'Tiny5', monospace; border: 0; border-radius: 7px; padding: 7px 11px; cursor: pointer; color: var(--ink); background: var(--panel); box-shadow: inset 0 0 0 2px var(--wood); }
+  .btn.on, .btn.gold { color: #1a0f06; background: linear-gradient(#f8d885, #d9a93a); box-shadow: inset 0 0 0 2px var(--black), 0 3px 0 var(--black); }
+  .sec { margin: 10px 10px 0; padding: 10px 12px 12px; background: var(--felt); border-radius: 14px; box-shadow: inset 0 0 0 3px var(--black), inset 0 0 0 5px #3a2a1d; }
+  .sec h2 { margin: 0 0 8px; font: 400 14px 'Tiny5', monospace; color: var(--gold); display: flex; justify-content: space-between; align-items: baseline; }
+  .sec h2 small { color: var(--dim); font-size: 11px; }
+  .sets { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .card { position: relative; height: 92px; border-radius: 10px; border: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; padding: 6px 4px;
+    background: var(--panel); box-shadow: inset 0 0 0 2px var(--wood); font: 400 11px 'Tiny5', monospace; color: var(--ink); flex: none; }
+  .sets .card { width: 88px; }
+  .card.on { box-shadow: inset 0 0 0 2px var(--black), 0 0 0 2px var(--gold); }
+  .card canvas { width: 52px; height: 52px; }
+  .card .sides { position: absolute; top: 5px; right: 5px; min-width: 18px; padding: 1px 4px; border-radius: 5px; background: var(--black); color: var(--gold); font-size: 10px; box-shadow: inset 0 0 0 1px var(--gold); }
+  .card .none { width: 52px; height: 52px; display: grid; place-items: center; color: var(--dim); font-size: 20px; }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .chip { width: 38px; height: 26px; border-radius: 7px; border: 0; cursor: pointer; display: flex; gap: 2px; align-items: center; justify-content: center; background: var(--panel); box-shadow: inset 0 0 0 2px var(--wood); }
+  .chip.on { box-shadow: inset 0 0 0 2px var(--black), 0 0 0 2px var(--ink); }
+  .chip i { width: 8px; height: 14px; border-radius: 2px; display: block; }
+  .dot { width: 26px; height: 26px; border-radius: 50%; border: 0; cursor: pointer; box-shadow: inset 0 0 0 2px var(--black); }
+  .dot.on { box-shadow: inset 0 0 0 2px var(--black), 0 0 0 3px var(--ink); }
+  .label { color: var(--dim); font-size: 11px; margin: 10px 0 6px; }
+  .head-turn { width: 100%; }
+  footer { position: sticky; bottom: 0; margin-top: 12px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: #0d2118; box-shadow: 0 -3px 0 var(--black); display: flex; gap: 8px; align-items: center; }
+  footer .sum { flex: 1; font-size: 11px; color: var(--dim); }
+  footer .sum b { color: var(--ink); font-weight: 400; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header><h1>СКИН</h1><input class="name" data-name value="Мой скин" maxlength="18"></header>
+  <div class="stage" data-stage>
+    <canvas data-canvas></canvas>
+    <div class="hint">тяни: вбок — обойти, вверх-вниз — выше/ниже</div>
+    <svg class="eye" viewBox="-30 -30 60 60" data-eye></svg>
+    <div class="pose"><button class="btn on" data-stance="sit">сидит</button><button class="btn" data-stance="stand">стоит</button></div>
+  </div>
+  <div class="views" data-views></div>
+
+  <div class="sec">
+    <h2>Готовые наборы <small>заполнят все части</small></h2>
+    <div class="sets" data-sets></div>
+  </div>
+
+  <div class="sec">
+    <h2>Части <small>у каждой свои стороны</small></h2>
+    <div class="tabs" data-tabs></div>
+    <div class="grid" data-grid></div>
+    <div data-extra></div>
+  </div>
+
+  <div class="sec">
+    <h2>Цвета</h2>
+    <div class="label">Расцветка — подменяет красную, синюю и золото у всех частей</div>
+    <div class="row" data-pals></div>
+    <div class="label">Мой цвет — обводка всей фигуры</div>
+    <div class="row" data-inks></div>
+  </div>
+
+  <footer><div class="sum" data-sum></div><button class="btn gold" data-save>Сохранить</button></footer>
+</div>
+
+<script>
+// ── ДАННЫЕ ──────────────────────────────────────────────────────────────────────────────────────────────
+const PAL = [
+  { name: "классика", red: "#b3221f", blue: "#1d4f80", gold: "#f2c14e", ink: "#e0483f" },
+  { name: "изумруд", red: "#2f7d4f", blue: "#173a2c", gold: "#e7c766", ink: "#a8e08f" },
+  { name: "аметист", red: "#6b3fa0", blue: "#2b2560", gold: "#d9c9a0", ink: "#b98fe0" },
+  { name: "уголь", red: "#3a3a3a", blue: "#5b6570", gold: "#c9ccd1", ink: "#f2c14e" },
+  { name: "закат", red: "#d9602a", blue: "#6e1f3a", gold: "#f2d24e", ink: "#e08b3f" },
+];
+const INKS = ["#f2c14e", "#7fd1b9", "#e08b3f", "#b98fe0", "#8fb4e0", "#e0483f", "#a8e08f", "#e08fb4"];
+const PAPER = "#f7f1e6", BLACK = "#0b0704";
+
+/** Направления ракурсов в осях части: x — её правая рука, y — куда она смотрит, z — вверх. */
+const D = { front: [0, 1, 0], back: [0, -1, 0], right: [1, 0, 0], left: [-1, 0, 0], top: [0, 0, 1], bottom: [0, 0, -1] };
+/** N ракурсов по кругу (вид сбоку через каждые 360/N°): «a0» — спереди, дальше по часовой, если смотреть сверху. */
+const ring = (n) => Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2; return [`a${Math.round((i / n) * 360)}`, [Math.sin(a), Math.cos(a), 0]]; });
+
+const SLOTS = [["head", "Голова"], ["hair", "Причёска"], ["body", "Тело"], ["hands", "Руки"], ["legs", "Ноги"]];
+const COURTS = {
+  "club-K": { head: [28, 0, 70, 58], body: [0, 50, 123, 50], sh: 0.22 }, "club-Q": { head: [68, 23, 56, 50], body: [30, 64, 116, 56], sh: 0.14, oval: 1 },
+  "club-J": { head: [56, 22, 74, 64], body: [23, 78, 122, 52], sh: 0.16 }, "diamond-K": { head: [50, 23, 78, 58], body: [22, 76, 123, 54], sh: 0.12 },
+  "diamond-Q": { head: [69, 23, 50, 52], body: [36, 66, 114, 56], sh: 0.12, oval: 1 }, "diamond-J": { head: [54, 23, 72, 60], body: [23, 78, 122, 52], sh: 0.14 },
+  "heart-K": { head: [50, 23, 80, 57], body: [23, 74, 122, 54], sh: 0.1 }, "heart-Q": { head: [62, 23, 62, 50], body: [23, 66, 122, 56], sh: 0.1, oval: 1 },
+  "heart-J": { head: [50, 23, 74, 52], body: [23, 70, 122, 54], sh: 0.12 }, "spade-K": { head: [50, 23, 78, 57], body: [22, 74, 123, 54], sh: 0.1 },
+  "spade-Q": { head: [76, 23, 62, 50], body: [23, 64, 122, 56], sh: 0.12, oval: 1 }, "spade-J": { head: [52, 23, 74, 50], body: [23, 68, 122, 56], sh: 0.1 },
+};
+const SUIT = { club: "треф", diamond: "бубен", heart: "червей", spade: "пик" }, RANK = { K: "Король", Q: "Дама", J: "Валет" };
+
+/**
+ * ЧАСТЬ: слот, имя, ракурсы (`views`: имя → направление), отражения (`mirror`: показать левый как отражённый
+ * правый) и как её нарисовать (`svg(view)` → строка SVG или `court` — кусок карты).
+ */
+const PARTS = [];
+const part = (p) => (PARTS.push(p), p);
+for (const id of Object.keys(COURTS)) {
+  const [suit, rank] = id.split("-"), name = `${RANK[rank]} ${SUIT[suit]}`;
+  part({ id: `${id}:head`, slot: "head", name, set: id, court: id, views: { front: D.front, back: D.back } });
+  part({ id: `${id}:body`, slot: "body", name, set: id, court: id, views: { front: D.front, back: D.back } });
+}
+for (const [id, name, views] of [["dog", "Пёс", ["front", "back", "right"]], ["cat", "Кошка", ["front", "back", "right"]], ["crusader", "Крестоносец", ["front", "back", "right", "top", "bottom"]]]) {
+  for (const slot of ["head", "body"]) part({ id: `${id}:${slot}`, slot, name, set: id, file: (v) => `../persona/skins/${id}/${v}-${slot}.svg`, views: Object.fromEntries([...views.map((v) => [v, D[v]]), ["left", D.left]]), mirror: { left: "right" } });
+}
+// Кодом: палка с шаром (одна сторона), бочонок с 18 ракурсами, причёски, руки, ноги-палки.
+part({ id: "ball:head", slot: "head", name: "Шар", set: "stick", views: { front: D.front }, svg: () => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="52" r="40" fill="${PAPER}" stroke="${BLACK}" stroke-width="6"/><circle cx="50" cy="52" r="30" fill="#b3221f" opacity=".18"/></svg>` });
+part({ id: "stick:body", slot: "body", name: "Палка", set: "stick", views: { front: D.front }, svg: () => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100"><path d="M20 20 H100 M60 20 V100" stroke="${BLACK}" stroke-width="12" stroke-linecap="round"/><path d="M20 20 H100 M60 20 V100" stroke="#b3221f" stroke-width="5" stroke-linecap="round"/></svg>` });
+part({ id: "barrel:body", slot: "body", name: "Бочонок", views: Object.fromEntries(ring(18)), svg: barrel });
+part({ id: "cube:head", slot: "head", name: "Кубик", views: { ...D }, svg: cubeFace });
+part({ id: "none:hair", slot: "hair", name: "Без", views: { front: D.front }, empty: true });
+part({ id: "crown:hair", slot: "hair", name: "Корона", views: { front: D.front, back: D.back, right: D.right, left: D.left }, mirror: { left: "right" }, svg: crown });
+part({ id: "cap:hair", slot: "hair", name: "Колпак", views: { front: D.front }, svg: () => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M18 88 Q50 -10 86 30 Q70 50 82 88 Z" fill="#b3221f" stroke="${BLACK}" stroke-width="5"/><circle cx="86" cy="30" r="9" fill="#f2c14e" stroke="${BLACK}" stroke-width="4"/><rect x="12" y="80" width="78" height="14" rx="6" fill="${PAPER}" stroke="${BLACK}" stroke-width="4"/></svg>` });
+part({ id: "none:hands", slot: "hands", name: "Без", views: { front: D.front }, empty: true });
+part({ id: "hand:hands", slot: "hands", name: "Руки", views: { front: D.front }, png: "hand-open.png" });
+part({ id: "stick:legs", slot: "legs", name: "Две линии", set: "stick", views: { front: D.front }, svg: () => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100"><path d="M60 0 L42 100 M60 0 L78 100" stroke="${BLACK}" stroke-width="10" stroke-linecap="round"/><path d="M60 0 L42 100 M60 0 L78 100" stroke="#b3221f" stroke-width="4" stroke-linecap="round"/></svg>` });
+for (const [id, name] of [["legs-card", "Двор"], ["legs-beast", "Лапы"]]) part({ id: `${id}:legs`, slot: "legs", name, file: (v) => `../persona/skins/${id}/${v}-legs.svg`, views: { front: D.front, back: D.back, right: D.right, left: D.left }, mirror: { left: "right" } });
+
+/** ГОТОВЫЕ НАБОРЫ: все части сразу. */
+const SETS = [
+  ...Object.keys(COURTS).map((id) => { const [s, r] = id.split("-"); return { id, name: `${RANK[r]} ${SUIT[s]}`, parts: { head: `${id}:head`, hair: "none:hair", body: `${id}:body`, hands: "hand:hands", legs: "legs-card:legs" } }; }),
+  { id: "dog", name: "Пёс", parts: { head: "dog:head", hair: "none:hair", body: "dog:body", hands: "hand:hands", legs: "legs-beast:legs" } },
+  { id: "cat", name: "Кошка", parts: { head: "cat:head", hair: "none:hair", body: "cat:body", hands: "hand:hands", legs: "legs-beast:legs" } },
+  { id: "crusader", name: "Крестоносец", parts: { head: "crusader:head", hair: "none:hair", body: "crusader:body", hands: "hand:hands", legs: "legs-card:legs" } },
+  { id: "stick", name: "Палка", parts: { head: "ball:head", hair: "none:hair", body: "stick:body", hands: "none:hands", legs: "stick:legs" } },
+  { id: "mix", name: "Шар + бочонок", parts: { head: "ball:head", hair: "cap:hair", body: "barrel:body", hands: "hand:hands", legs: "stick:legs" } },
+];
+const partOf = (id) => PARTS.find((p) => p.id === id);
+const sidesOf = (p) => Object.keys(p.views).length;
+
+// ── РИСУНКИ КОДОМ ───────────────────────────────────────────────────────────────────────────────────────
+function barrel(view) {
+  // Бочонок в 18 ракурсах: эмблема едет по кругу — видно, на сколько он повёрнут.
+  const a = (parseInt(view.slice(1), 10) * Math.PI) / 180, x = 60 + Math.sin(a) * 34, front = Math.cos(a) > 0;
+  const hoops = [30, 62, 92].map((y) => `<path d="M16 ${y} Q60 ${y + 6} 104 ${y}" fill="none" stroke="#f2c14e" stroke-width="5"/>`).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100"><path d="M18 100 Q8 58 22 16 Q60 6 98 16 Q112 58 102 100 Z" fill="#1d4f80" stroke="${BLACK}" stroke-width="5"/>${hoops}`
+    + (front ? `<circle cx="${x}" cy="46" r="${9 + 5 * Math.cos(a)}" fill="#b3221f" stroke="${BLACK}" stroke-width="3"/>` : `<rect x="${x - 4}" y="40" width="8" height="12" fill="${BLACK}" opacity=".5"/>`) + `</svg>`;
+}
+function cubeFace(view) {
+  const n = { front: 1, back: 6, right: 3, left: 4, top: 5, bottom: 2 }[view];
+  const at = { 1: [[50, 50]], 2: [[28, 28], [72, 72]], 3: [[26, 26], [50, 50], [74, 74]], 4: [[28, 28], [72, 28], [28, 72], [72, 72]], 5: [[26, 26], [74, 26], [50, 50], [26, 74], [74, 74]], 6: [[28, 24], [72, 24], [28, 50], [72, 50], [28, 76], [72, 76]] }[n];
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="5" y="5" width="90" height="90" rx="16" fill="${PAPER}" stroke="${BLACK}" stroke-width="5"/>${at.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="8" fill="#b3221f" stroke="${BLACK}" stroke-width="2"/>`).join("")}</svg>`;
+}
+function crown(view) {
+  const side = view === "right";
+  const w = side ? 44 : 70, x = 50 - w / 2;
+  const teeth = side ? `M${x} 70 L${x} 40 L${x + 14} 56 L${x + 26} 32 L${x + 36} 56 L${x + w} 44 L${x + w} 70 Z` : `M${x} 70 L${x} 38 L${x + 17} 56 L${x + 35} 28 L${x + 53} 56 L${x + w} 38 L${x + w} 70 Z`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="${teeth}" fill="#f2c14e" stroke="${BLACK}" stroke-width="5" stroke-linejoin="round"/><rect x="${x}" y="62" width="${w}" height="12" fill="#b3221f" stroke="${BLACK}" stroke-width="4"/>${view === "back" ? "" : `<circle cx="50" cy="${side ? 46 : 42}" r="6" fill="#1d4f80" stroke="${BLACK}" stroke-width="3"/>`}</svg>`;
+}
+
+// ── ПЕЧЬ: часть в ракурсе → холст в расцветке ──────────────────────────────────────────────────────────
+const K = 4;
+const texts = new Map();
+const text = (url) => (texts.has(url) ? texts.get(url) : (texts.set(url, fetch(url).then((r) => (r.ok ? r.text() : Promise.reject(r.status)))), texts.get(url)));
+const recolor = (svg, pal) => svg.replace(/#b3221f/gi, pal.red).replace(/#1d4f80/gi, pal.blue).replace(/#f2c14e/gi, pal.gold);
+async function raster(svg, box, paper, oval) {
+  const vb = /viewBox="([^"]+)"/.exec(svg)[1].trim().split(/[\s,]+/).map(Number);
+  const full = svg.replace(/<svg\b[^>]*>/, (root) => root.replace(/\s(width|height)="[^"]*"/g, "").replace("<svg", `<svg width="${vb[2] * K}" height="${vb[3] * K}"`));
+  const img = new Image();
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(full);
+  await img.decode();
+  const [x, y, w, h] = box ?? vb;
+  const c = document.createElement("canvas");
+  c.width = Math.round(w * K); c.height = Math.round(h * K);
+  const g = c.getContext("2d", { willReadFrequently: true });
+  if (paper) { g.fillStyle = PAPER; g.fillRect(0, 0, c.width, c.height); }
+  g.drawImage(img, -(x - vb[0]) * K, -(y - vb[1]) * K);
+  if (paper) {
+    const d = g.getImageData(0, 0, c.width, c.height), px = d.data, W = c.width, H = c.height, st = [];
+    const isPaper = (i) => Math.abs(px[i] - 0xf7) + Math.abs(px[i + 1] - 0xf1) + Math.abs(px[i + 2] - 0xe6) < 60 && px[i + 3] > 0;
+    for (let i = 0; i < W; i++) st.push(i, (H - 1) * W + i);
+    for (let j = 0; j < H; j++) st.push(j * W, j * W + W - 1);
+    while (st.length) { const p = st.pop(), i = p * 4; if (!isPaper(i)) continue; px[i + 3] = 0; const x0 = p % W; if (x0 > 0) st.push(p - 1); if (x0 < W - 1) st.push(p + 1); if (p >= W) st.push(p - W); if (p < W * (H - 1)) st.push(p + W); }
+    g.putImageData(d, 0, 0);
+  }
+  if (oval) { g.globalCompositeOperation = "destination-in"; g.beginPath(); g.ellipse(c.width / 2, c.height * 0.52, c.width / 2, c.height * 0.52, 0, 0, 7); g.fill(); }
+  return c;
+}
+function darkMirror(img) {
+  const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+  const g = c.getContext("2d"); g.translate(c.width, 0); g.scale(-1, 1); g.drawImage(img, 0, 0); g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalCompositeOperation = "source-atop"; g.globalAlpha = 0.85; g.fillStyle = "#1c140e"; g.fillRect(0, 0, c.width, c.height); return c;
+}
+const baked = new Map();
+/** Нарисованный ракурс части в расцветке; `null` — ещё печётся (перерисуется сама). */
+function sprite(p, view, pal) {
+  const key = `${p.id}|${view}|${pal.name}`;
+  if (baked.has(key)) return baked.get(key);
+  baked.set(key, null);
+  (async () => {
+    let c;
+    if (p.court) {
+      const box = COURTS[p.court][p.slot];
+      const front = await raster(recolor(await text(`courts/${p.court}.svg`), pal), box, true, p.slot === "head" && COURTS[p.court].oval);
+      c = view === "back" ? darkMirror(front) : front;
+    } else if (p.file) c = await raster(recolor(await text(p.file(view)), pal));
+    else if (p.png) { const img = new Image(); img.src = p.png; await img.decode(); c = document.createElement("canvas"); c.width = img.width; c.height = img.height; c.getContext("2d").drawImage(img, 0, 0); }
+    else if (p.svg) c = await raster(recolor(p.svg(view), pal));
+    baked.set(key, c ?? "none");
+    draw();
+  })().catch(() => { baked.set(key, "none"); draw(); });
+  return null;
+}
+
+// ── ВЫБОР РАКУРСА (как `server/src/table/skins.ts`, `pickView`) ────────────────────────────────────────
+const HOLD = 0.08;
+const held = {};
+function pick(p, v, slot) {
+  const n = Math.hypot(...v) || 1, u = v.map((c) => c / n);
+  const score = (name) => { const d = p.views[name]; return d[0] * u[0] + d[1] * u[1] + d[2] * u[2]; };
+  let best = Object.keys(p.views)[0];
+  for (const name of Object.keys(p.views)) if (score(name) > score(best)) best = name;
+  const was = held[slot];
+  const got = was && p.views[was] && score(was) >= score(best) - HOLD ? was : best;
+  held[slot] = got;
+  return got;
+}
+const drawn = (p, view) => (p.mirror?.[view] ? { view: p.mirror[view], mirror: true } : { view, mirror: false });
+
+// ── СОСТОЯНИЕ ──────────────────────────────────────────────────────────────────────────────────────────
+const S = { parts: { ...SETS.find((s) => s.id === "dog").parts }, pal: 0, ink: INKS[1], stance: "sit", yaw: 20, elev: 12, headTurn: 0, tab: "head", set: "dog" };
+
+// ── СЦЕНА ──────────────────────────────────────────────────────────────────────────────────────────────
+const stage = document.querySelector("[data-stage]"), cv = document.querySelector("[data-canvas]");
+let frame = 0;
+function draw() { if (!frame) frame = requestAnimationFrame(render); }
+function outline(g, c, x, y, w, h, mirror, ink) {
+  const t = document.createElement("canvas"); t.width = c.width; t.height = c.height;
+  const tg = t.getContext("2d"); tg.drawImage(c, 0, 0); tg.globalCompositeOperation = "source-in"; tg.fillStyle = ink; tg.fillRect(0, 0, t.width, t.height);
+  g.save(); g.translate(x + (mirror ? w : 0), y); g.scale(mirror ? -1 : 1, 1);
+  for (let a = 0; a < 12; a++) g.drawImage(t, Math.cos((a / 12) * 6.283) * 2.2, Math.sin((a / 12) * 6.283) * 2.2, w, h);
+  g.drawImage(c, 0, 0, w, h); g.restore();
+}
+function render() {
+  frame = 0;
+  const dpr = devicePixelRatio || 1, W = stage.clientWidth, H = stage.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext("2d"); g.scale(dpr, dpr);
+  const pal = PAL[S.pal], t = performance.now() / 1000, breath = Math.sin((t * 2 * Math.PI) / 3.2);
+  // Откуда я смотрю в осях фигуры, что смотрит «ко мне» при yaw=0: обход вбок и подъём глаза.
+  const toMe = (turn) => { const a = ((S.yaw - turn) * Math.PI) / 180, e = (S.elev * Math.PI) / 180; return [Math.sin(a) * Math.cos(e), Math.cos(a) * Math.cos(e), Math.sin(e)]; };
+  const standing = S.stance === "stand";
+  const u = standing ? 25 : 34;
+  const floor = H - 26;
+  const shoulderY = standing ? floor - 7.2 * u : floor - 4.2 * u;
+  const got = {}, info = [];
+  for (const [slot] of SLOTS) {
+    const p = partOf(S.parts[slot]);
+    if (!p || p.empty) continue;
+    const view = pick(p, toMe(slot === "head" || slot === "hair" ? S.headTurn : 0), slot);
+    const d = drawn(p, view);
+    got[slot] = { p, view, ...d, img: sprite(p, d.view, pal) };
+    info.push([slot, view, sidesOf(p)]);
+  }
+  // пол и стол
+  g.fillStyle = "#0b0704"; g.fillRect(0, floor, W, H - floor);
+  const cx = W / 2;
+  const put = (slot, w, h, y, dx = 0) => { const s = got[slot]; if (s?.img && s.img !== "none") outline(g, s.img, cx - w / 2 + dx, y, w, h, s.mirror, S.ink); };
+  // НОГИ — только стоя: от пояса до пола.
+  if (standing && got.legs) put("legs", 3.4 * u, 4.2 * u, floor - 4.2 * u);
+  // ТУЛОВИЩЕ: плечи на линии, стоя — видно до пояса, сидя — уходит за спинку стула.
+  if (got.body?.img && got.body.img !== "none") {
+    const img = got.body.img, w = 5.2 * u, h = (w * img.height) / img.width * 1.15, sh = got.body.p.court ? COURTS[got.body.p.court].sh : 0.18;
+    const top = shoulderY - h * sh - breath * 2;
+    g.save(); g.beginPath(); g.rect(0, 0, W, standing ? floor - 3.9 * u : floor); g.clip();
+    outline(g, img, cx - w / 2, top, w, h, got.body.mirror, S.ink); g.restore();
+  }
+  if (!standing) {
+    // спинка стула перед куклой
+    g.fillStyle = "#4a3420"; g.strokeStyle = BLACK; g.lineWidth = 4;
+    const bw = 3.6 * u, bh = 2.4 * u, bx = cx - bw / 2, by = floor - bh;
+    g.beginPath(); g.roundRect(bx, by, bw, bh + 6, [14, 14, 0, 0]); g.fill(); g.stroke();
+    g.strokeStyle = S.ink; g.lineWidth = 2; g.stroke();
+  }
+  // РУКИ — по бокам на уровне груди.
+  // Боком руки сходятся к телу — одна перед ним, другая за ним.
+  const spread = 2.2 * u * Math.max(0.2, Math.abs(Math.cos((S.yaw * Math.PI) / 180)));
+  if (got.hands) { put("hands", 1.3 * u, 1.3 * u, shoulderY + 1.3 * u, -spread); put("hands", 1.3 * u, 1.3 * u, shoulderY + 1.3 * u, spread); }
+  // ГОЛОВА и ПРИЧЁСКА поверх неё — у них свой поворот (куда смотрит человек).
+  const hw = 2.5 * u, headY = shoulderY - 1.35 * u - breath * 3;
+  if (got.head?.img && got.head.img !== "none") { const img = got.head.img, hh = (hw * img.height) / img.width; outline(g, img, cx - hw / 2, headY - hh / 2, hw, hh, got.head.mirror, S.ink); }
+  if (got.hair) put("hair", hw * 1.05, hw * 1.05, headY - hw * 0.95);
+  // что сейчас показано
+  document.querySelector("[data-views]").innerHTML = info.map(([slot, view, n]) => `<span class="v" data-slot-view="${slot}" data-view="${view}">${SLOTS.find((s) => s[0] === slot)[1]}: <b>${VIEW_NAME(view)}</b> · ${n}</span>`).join("");
+  drawEye();
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) draw();
+}
+const VIEW_NAME = (v) => ({ front: "лицо", back: "спина", right: "правый бок", left: "левый бок", top: "сверху", bottom: "снизу" })[v] ?? `${v.slice(1)}°`;
+function drawEye() {
+  const a = (S.yaw * Math.PI) / 180, r = 22 * Math.cos((S.elev * Math.PI) / 180);
+  document.querySelector("[data-eye]").innerHTML = `<circle r="26" fill="#0b0704" stroke="#6b4d2c" stroke-width="2"/><circle r="6" fill="${S.ink}"/><path d="M0 -6 L0 -12" stroke="${S.ink}" stroke-width="2"/>`
+    + `<circle cx="${(Math.sin(a) * r).toFixed(1)}" cy="${(Math.cos(a) * r).toFixed(1)}" r="4" fill="#f2c14e"/>`;
+}
+let drag = null;
+stage.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) return; drag = { x: e.clientX, y: e.clientY }; stage.setPointerCapture(e.pointerId); });
+stage.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  S.yaw = (S.yaw + (e.clientX - drag.x) * 0.9) % 360;
+  S.elev = Math.max(-70, Math.min(85, S.elev - (e.clientY - drag.y) * 0.6));
+  drag = { x: e.clientX, y: e.clientY };
+  stage.dataset.yaw = Math.round(S.yaw); stage.dataset.elev = Math.round(S.elev);
+  draw();
+});
+const up = () => (drag = null);
+stage.addEventListener("pointerup", up); stage.addEventListener("pointercancel", up);
+
+// ── ПАНЕЛИ ─────────────────────────────────────────────────────────────────────────────────────────────
+function thumb(p) {
+  const c = document.createElement("canvas"); c.width = 104; c.height = 104;
+  const view = Object.keys(p.views)[0], d = drawn(p, view), img = p.empty ? "none" : sprite(p, d.view, PAL[S.pal]);
+  if (img && img !== "none") { const g = c.getContext("2d"), s = Math.min(96 / img.width, 96 / img.height); g.drawImage(img, (104 - img.width * s) / 2, (104 - img.height * s) / 2, img.width * s, img.height * s); }
+  return img === "none" && p.empty ? `<span class="none">—</span>` : c;
+}
+function fill(el, items) { el.innerHTML = ""; for (const it of items) el.append(it); }
+function card(label, img, on, data, badge) {
+  const b = document.createElement("button");
+  b.className = `card${on ? " on" : ""}`;
+  Object.assign(b.dataset, data);
+  if (typeof img === "string") b.insertAdjacentHTML("beforeend", img); else b.append(img);
+  b.insertAdjacentHTML("beforeend", `${badge ? `<span class="sides">${badge}</span>` : ""}<span>${label}</span>`);
+  return b;
+}
+function panels() {
+  fill(document.querySelector("[data-sets]"), SETS.map((s) => card(s.name, thumb(partOf(s.parts.head)), S.set === s.id, { set: s.id })));
+  fill(document.querySelector("[data-tabs]"), SLOTS.map(([slot, name]) => { const b = document.createElement("button"); b.className = `btn${S.tab === slot ? " on" : ""}`; b.dataset.tab = slot; b.textContent = name; return b; }));
+  fill(document.querySelector("[data-grid]"), PARTS.filter((p) => p.slot === S.tab).map((p) => card(p.name, thumb(p), S.parts[p.slot] === p.id, { part: p.id }, p.empty ? "" : sidesOf(p))));
+  document.querySelector("[data-extra]").innerHTML = S.tab === "head" || S.tab === "hair"
+    ? `<div class="label">Голова повёрнута — куда смотрит человек (у головы и причёски свои оси): <b data-turn-say>${S.headTurn}°</b></div><input class="head-turn" type="range" min="-90" max="90" value="${S.headTurn}" data-head-turn>` : "";
+  document.querySelector("[data-pals]").innerHTML = PAL.map((p, k) => `<button class="chip${S.pal === k ? " on" : ""}" data-pal="${k}" title="${p.name}"><i style="background:${p.red}"></i><i style="background:${p.blue}"></i><i style="background:${p.gold}"></i></button>`).join("");
+  document.querySelector("[data-inks]").innerHTML = INKS.map((c) => `<button class="dot${S.ink === c ? " on" : ""}" data-ink="${c}" style="background:${c}"></button>`).join("");
+  document.querySelector("[data-sum]").innerHTML = SLOTS.map(([slot, name]) => { const p = partOf(S.parts[slot]); return p && !p.empty ? `${name} <b>${p.name}</b> ${sidesOf(p)}` : ""; }).filter(Boolean).join(" · ");
+  for (const b of document.querySelectorAll("[data-stance]")) b.classList.toggle("on", b.dataset.stance === S.stance);
+}
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.set) { S.set = t.dataset.set; S.parts = { ...SETS.find((s) => s.id === S.set).parts }; }
+  else if (t.dataset.tab) S.tab = t.dataset.tab;
+  else if (t.dataset.part) { S.parts[S.tab] = t.dataset.part; S.set = SETS.find((s) => SLOTS.every(([k]) => s.parts[k] === S.parts[k]))?.id ?? "свой"; }
+  else if (t.dataset.pal) { S.pal = Number(t.dataset.pal); S.ink = PAL[S.pal].ink; }
+  else if (t.dataset.ink) S.ink = t.dataset.ink;
+  else if (t.dataset.stance) S.stance = t.dataset.stance;
+  else if (t.dataset.save) { t.textContent = "Сохранено ✓"; setTimeout(() => (t.textContent = "Сохранить"), 1200); return; }
+  else return;
+  for (const k of Object.keys(held)) delete held[k];
+  panels(); draw();
+});
+document.addEventListener("input", (e) => { if (e.target.dataset.headTurn !== undefined) { S.headTurn = Number(e.target.value); document.querySelector("[data-turn-say]").textContent = `${S.headTurn}°`; draw(); } });
+// Превью наборов и частей допекаются — перерисовать панели, когда печь закончила.
+let settle = 0;
+const redrawPanels = () => { clearTimeout(settle); settle = setTimeout(panels, 250); };
+const _set = baked.set.bind(baked);
+baked.set = (k, v) => { const r = _set(k, v); if (v) redrawPanels(); return r; };
+panels(); draw();
+window.__skinmaker = { S, PARTS, SETS, pick, partOf };
+</script>
+</body>
+</html>

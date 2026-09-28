@@ -156,6 +156,17 @@
         "CROSSADE_DB_FILE": ":memory:"
       },
       "port": 2611
+    },
+    {
+      "name": "skinmaker-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "design/serve.py",
+        "9585",
+        "design"
+      ],
+      "port": 9585,
+      "url": "http://localhost:9585"
     }
   ]
 }

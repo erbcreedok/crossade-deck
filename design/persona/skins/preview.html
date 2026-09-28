@@ -124,6 +124,21 @@
       width: 120px;
       height: 100px;
     }
+    .sprite-img.legs {
+      width: 120px;
+      height: 100px;
+    }
+    .assembled-stage.standing {
+      height: 240px;
+    }
+    .assembled-stage img.legs {
+      position: absolute;
+      width: 120px;
+      height: 100px;
+      left: 10px;
+      top: 145px;
+      z-index: 0;
+    }
     .sprite-label {
       font-size: 12px;
       color: #f2c14e;
@@ -180,6 +195,7 @@
     <div class="swatch"><div class="swatch-color" style="background:#c98a4b;"></div>#c98a4b / #8a5a2b Шерсть пса</div>
     <div class="swatch"><div class="swatch-color" style="background:#9a9a9a;"></div>#9a9a9a / #5f5f5f Шерсть кошки</div>
     <div class="swatch"><div class="swatch-color" style="background:#9aa3ab;"></div>#9aa3ab / #5d666e Металл крестоносца</div>
+    <div class="swatch"><div class="swatch-color" style="background:#9a8a78;"></div>#9a8a78 / #6b5d50 Шерсть лап зверя</div>
   </div>
 
   <!-- DOG SECTION -->
@@ -445,6 +461,138 @@
           <div class="assembled-stage">
             <img class="head" src="crusader/bottom-head.svg" alt="crusader bottom-head">
             <img class="body" src="crusader/bottom-body.svg" alt="crusader bottom-body">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEGS: CARD SECTION -->
+  <section class="character-section">
+    <div class="character-title">
+      <span>НОГИ (Legs) — Фигуры колоды: legs-card</span>
+      <span style="font-size:14px; color:#e2dac9;">короли, дамы, валеты, крестоносец</span>
+    </div>
+    <div class="views-grid">
+      <!-- Front View -->
+      <div class="view-card">
+        <div class="view-name">Front (Лицо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img legs" src="legs-card/front-legs.svg" alt="legs-card/front-legs.svg">
+            <span class="sprite-label">front-legs.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе стоя (Крестоносец):</span>
+          <div class="assembled-stage standing">
+            <img class="head" src="crusader/front-head.svg" alt="crusader front-head">
+            <img class="body" src="crusader/front-body.svg" alt="crusader front-body">
+            <img class="legs" src="legs-card/front-legs.svg" alt="legs-card front-legs">
+          </div>
+        </div>
+      </div>
+
+      <!-- Back View -->
+      <div class="view-card">
+        <div class="view-name">Back (Спина)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img legs" src="legs-card/back-legs.svg" alt="legs-card/back-legs.svg">
+            <span class="sprite-label">back-legs.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе стоя (Крестоносец):</span>
+          <div class="assembled-stage standing">
+            <img class="head" src="crusader/back-head.svg" alt="crusader back-head">
+            <img class="body" src="crusader/back-body.svg" alt="crusader back-body">
+            <img class="legs" src="legs-card/back-legs.svg" alt="legs-card back-legs">
+          </div>
+        </div>
+      </div>
+
+      <!-- Right View -->
+      <div class="view-card">
+        <div class="view-name">Right (Профиль вправо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img legs" src="legs-card/right-legs.svg" alt="legs-card/right-legs.svg">
+            <span class="sprite-label">right-legs.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе стоя (Крестоносец):</span>
+          <div class="assembled-stage standing">
+            <img class="head" src="crusader/right-head.svg" alt="crusader right-head">
+            <img class="body" src="crusader/right-body.svg" alt="crusader right-body">
+            <img class="legs" src="legs-card/right-legs.svg" alt="legs-card right-legs">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEGS: BEAST SECTION -->
+  <section class="character-section">
+    <div class="character-title">
+      <span>НОГИ (Legs) — Звери: legs-beast</span>
+      <span style="font-size:14px; color:#e2dac9;">пёс, кошка</span>
+    </div>
+    <div class="views-grid">
+      <!-- Front View -->
+      <div class="view-card">
+        <div class="view-name">Front (Лицо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img legs" src="legs-beast/front-legs.svg" alt="legs-beast/front-legs.svg">
+            <span class="sprite-label">front-legs.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе стоя (Кошка):</span>
+          <div class="assembled-stage standing">
+            <img class="head" src="cat/front-head.svg" alt="cat front-head">
+            <img class="body" src="cat/front-body.svg" alt="cat front-body">
+            <img class="legs" src="legs-beast/front-legs.svg" alt="legs-beast front-legs">
+          </div>
+        </div>
+      </div>
+
+      <!-- Back View -->
+      <div class="view-card">
+        <div class="view-name">Back (Спина)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img legs" src="legs-beast/back-legs.svg" alt="legs-beast/back-legs.svg">
+            <span class="sprite-label">back-legs.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе стоя (Кошка):</span>
+          <div class="assembled-stage standing">
+            <img class="head" src="cat/back-head.svg" alt="cat back-head">
+            <img class="body" src="cat/back-body.svg" alt="cat back-body">
+            <img class="legs" src="legs-beast/back-legs.svg" alt="legs-beast back-legs">
+          </div>
+        </div>
+      </div>
+
+      <!-- Right View -->
+      <div class="view-card">
+        <div class="view-name">Right (Профиль вправо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img legs" src="legs-beast/right-legs.svg" alt="legs-beast/right-legs.svg">
+            <span class="sprite-label">right-legs.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе стоя (Кошка):</span>
+          <div class="assembled-stage standing">
+            <img class="head" src="cat/right-head.svg" alt="cat right-head">
+            <img class="body" src="cat/right-body.svg" alt="cat right-body">
+            <img class="legs" src="legs-beast/right-legs.svg" alt="legs-beast right-legs">
           </div>
         </div>
       </div>
