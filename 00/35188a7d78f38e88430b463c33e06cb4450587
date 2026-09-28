@@ -1,0 +1,21 @@
+design/persona/check.mjs
+  s_e1c4165d82711d::t_0effbd9c00de50 53-66
+design/persona/index.html
+  s_e1c4165d82711d::t_46bfbbd83358e1 380-385,423-424,453-455,492,515-522
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0035188a7d78f38e88430b463c33e06cb4450587",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
