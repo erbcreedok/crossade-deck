@@ -1,0 +1,51 @@
+unity/Assets/Crossade/App.cs
+  s_e1c4165d82711d::t_e29e016f0413c4 10,25,87-89,95-104,109,115
+unity/Assets/Crossade/Editor/Build.cs
+  s_e1c4165d82711d::t_b96782478c1ff4 1-95
+unity/Assets/Crossade/Art.meta
+  s_e1c4165d82711d::t_c82c90a0eb55f9 1-8
+unity/Assets/Tests/Play/LiveTableTests.cs
+  s_e1c4165d82711d::t_b792de3ea0551c 94-95
+  s_e1c4165d82711d::t_be80c57476ca5b 22,142-182
+  s_e1c4165d82711d::t_bde788e5f5ab9e 183-184
+unity/Assets/Crossade/Art/icon.png.meta
+  s_e1c4165d82711d::t_c82c90a0eb55f9 1-130
+unity/Assets/Crossade/View/Lobby.cs.meta
+  s_e1c4165d82711d::t_c82c90a0eb55f9 1-2
+unity/Assets/Crossade/View/Board.cs
+  s_e1c4165d82711d::t_e29e016f0413c4 205-216
+unity/Assets/Crossade/View/Lobby.cs
+  s_e1c4165d82711d::t_e8297cecf26e1e 1-147
+unity/Assets/Crossade/Net/Account.cs
+  s_e1c4165d82711d::t_34273582eb1c0d 1-19,21-22,26-98,100-111
+  s_e1c4165d82711d::t_d6372ad4e982be 20,23-25,99
+unity/Assets/Crossade/View/Ui.cs
+  s_e1c4165d82711d::t_a2c5ef29028d6f 1-34,39-42,46-145
+  s_e1c4165d82711d::t_be80c57476ca5b 35-38,43-45
+unity/Assets/Crossade/View/Ui.cs.meta
+  s_e1c4165d82711d::t_c82c90a0eb55f9 1-2
+unity/Assets/Crossade/Play/Finger.cs
+  s_e1c4165d82711d::t_eda6e75881260d 291,299
+unity/Assets/Crossade/Net/Account.cs.meta
+  s_e1c4165d82711d::t_c82c90a0eb55f9 1-2
+unity/Assets/Crossade/View/Hud.cs
+  s_e1c4165d82711d::t_eda6e75881260d 11-12,32-33,36-39
+unity/Assets/Crossade/Editor/Build.cs.meta
+  s_e1c4165d82711d::t_c82c90a0eb55f9 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "53dfeb1ae8700a7c9ea0678781e698e3858037a9",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
