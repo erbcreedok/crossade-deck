@@ -10,9 +10,8 @@
 // «не умею» или «уже добавлен»: на iPhone статус всегда приходит `unknown`, и прятать кнопку по нему
 // значило бы спрятать её там, где добавление работает. Ярлык открывает мини-апп без параметра — сюда же.
 
-import { PALETTE } from "../../look/src/palette.js";
+import { FAVOURITE_INKS as INKS, PALETTE } from "../../look/src/palette.js";
 import { DOLLS, MAIN_PALETTES, PALETTES, type Doll } from "../src/table/dolls.js";
-import { INKS } from "../src/profileInks.js";
 import { nativeShell } from "./arNative.js";
 import { DOLL_SIZE } from "./bodyView.js";
 import { ART, EXTEND, dollSprite } from "./dollSprites.js";
