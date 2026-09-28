@@ -93,6 +93,12 @@ const parts = await B.evaluate(() => {
 });
 check("с наклоном голова Ани — над её туловищем, а не под ним", parts.head && parts.body && parts.head.y < parts.body.y + 5, parts);
 if (shots) await B.screenshot({ path: `${shots}/body-king-lean.png` });
+const torso = () => B.evaluate(() => {
+  const el = [...document.querySelectorAll('[data-g="body"]')].find((b) => b.dataset.name === "Аня")?.querySelector('[data-g="king-body"]');
+  const r = el?.getBoundingClientRect();
+  return r && { top: r.top, bottom: r.bottom };
+});
+const sitting = await torso();
 if (shots) await B.screenshot({ path: `${shots}/body-king.png` });
 
 // Аня встаёт кнопкой позы.
@@ -102,6 +108,8 @@ seen = await until(async () => (await bodyOf(B, "Аня"))?.stance === "stand" &
 check("Б видит: Аня стоит", seen?.stance === "stand", seen);
 check("у Ани кнопка горит", (await A.getAttribute("[data-stance-toggle]", "aria-pressed")) === "true", null);
 if (shots) await B.screenshot({ path: `${shots}/body-2-stand.png` });
+const standingT = await torso();
+check("встала — туловище выше от того же низа (стоит за столом, а не висит)", sitting && standingT && standingT.top < sitting.top - 5 && Math.abs(standingT.bottom - sitting.bottom) < 6, { sitting, standingT });
 const zoomOf = async (p) => +(await p.getAttribute("canvas", "data-view")).split(",")[2];
 const standZoom = await zoomOf(A);
 

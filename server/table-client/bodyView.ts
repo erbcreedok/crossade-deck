@@ -48,18 +48,24 @@ function kingHtml({ body, angle, ink, name, holding }: BodyLook, toGlass: ToGlas
   const head = headOf(shoulders, body.eye, body.stretch);
   const S = up(toGlass, shoulders), H = up(toGlass, head), L = up(toGlass, leftHandOf(head, body.yaw));
   const standing = body.stance === "stand";
-  // Размеры — в единицах стола через `k`: сидя туловище в три карты шириной, стоя — крупнее.
-  const bodyW = k * (standing ? 3.6 : 3), bodyH = bodyW * (92 / 123);
-  const headW = k * 1.9, headH = headW * (58 / 70);
-  const handW = k * 1.1;
+  // ТУЛОВИЩЕ СТОИТ ЗА СТОЛОМ: низ — на уровне стола у кромки, линия плеч (верхняя пятая часть спрайта) — на
+  // высоте плеч. Стоя плечи выше — и туловище выше от того же низа. Сверху высоты не видно — тогда оно
+  // хотя бы своего размера, а не исчезает.
+  const base = toGlass(shoulders, 0);
+  const rise = Math.hypot(S.x - base.x, S.y - base.y);
+  const bodyH = Math.max(rise / 0.8, k * (standing ? 2.7 : 2.2));
+  const bodyW = bodyH * (123 / 92);
+  const bodyTop = { x: S.x, y: S.y - bodyH * 0.2 };
+  // Голова и руки — в пропорции к туловищу, как на самой карте: вырос — выросли и они.
+  const headW = bodyW * 0.5, headH = headW * (58 / 70);
+  const handW = bodyW * 0.28;
   const strained = body.stretch > NECK.free;
   const img = (src: string, x: number, y: number, w: number, h: number, g: string, extra = "") =>
     `<img data-g="${g}" src="${src}" alt="" draggable="false" style="position:absolute;left:${(x - w / 2).toFixed(1)}px;top:${(y - h / 2).toFixed(1)}px;width:${w.toFixed(1)}px;height:${h.toFixed(1)}px;pointer-events:none;${extra}">`;
   // Правая рука — у пальца, чуть над сукном: она держит карту, а не лежит на столе.
   const right = body.right ? toGlass(body.right, 0.4) : null;
   return `<div data-g="body" data-model="king" data-by="${esc(body.by)}" data-name="${esc(name)}" data-stance="${body.stance}" data-stretch="${body.stretch.toFixed(2)}" style="position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:24">`
-    // Туловище висит от плеч вниз: линия плеч спрайта (его верхняя пятая часть) — у плеч.
-    + img(sprite("king-body"), S.x, S.y + bodyH * 0.35, bodyW, bodyH, "king-body", standing ? `filter:drop-shadow(0 ${k * 0.3}px 0 rgba(11,7,4,.45))` : "")
+    + img(sprite("king-body"), bodyTop.x, bodyTop.y + bodyH / 2, bodyW, bodyH, "king-body", standing ? `filter:drop-shadow(0 ${k * 0.3}px 0 rgba(11,7,4,.45))` : "")
     + `<svg style="position:absolute;left:0;top:0;overflow:visible" width="1" height="1"><line x1="${S.x}" y1="${S.y}" x2="${H.x}" y2="${H.y + headH * 0.3}" stroke="${strained ? T.danger : T.black}" stroke-width="${Math.max(4, k * 0.35)}" stroke-linecap="round"/></svg>`
     + img(sprite("king-head"), H.x, H.y, headW, headH, "head")
     + `<span style="position:absolute;left:${H.x.toFixed(1)}px;top:${(H.y + headH / 2 + 2).toFixed(1)}px;transform:translateX(-50%);white-space:nowrap;padding:1px 6px;border-radius:6px;`

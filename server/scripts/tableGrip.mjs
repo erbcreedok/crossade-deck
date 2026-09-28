@@ -134,7 +134,8 @@ check("индикатор ушёл вместе с колодой", Math.abs((aw
 // ── 10. Верхняя карта с колоды на новом месте по-прежнему берётся ─────────────────────────────
 await A.mouse.move(sa.deckTop.x, sa.deckTop.y);
 await A.mouse.down();
-await A.mouse.move(195, 300, { steps: 8 });
+// Кладём на середину стола — где она на стекле, говорит сам стол: камеру выше уже водили.
+await A.mouse.move(sa.middle.x, sa.middle.y, { steps: 8 });
 await A.mouse.up();
 await wait(B, 500);
 check("карта с колоды на новом месте берётся", (await spots(B)).deck === 35 && (await spots(B)).felt.length === 1, null);

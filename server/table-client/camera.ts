@@ -78,7 +78,7 @@ export function tableCamera(canvas: HTMLCanvasElement, frame: () => { w: number;
   };
   // ПОЛЕ СТОЛА ЗАВИСИТ ОТ ЗУМА (`deskBox`), а кит берёт его только при смене кадра — поэтому после
   // каждого движения камеры поле обновляется здесь же, до следующего шага жеста.
-  const box = () => deskBox(frame(), unit() * camera.zoom);
+  const box = () => deskBox(frame(), unit() * camera.zoom, camera.pitch);
   const viewed = () => {
     camera.setContent(box(), unit());
     onView();

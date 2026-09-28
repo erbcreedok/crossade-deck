@@ -227,8 +227,8 @@ const half = s.frame.h / 2 / s.k;
 await drag(195, 200, 195, 660);
 await drag(195, 200, 195, 660);
 v = await view();
-// Поле — `deskBox` из `felt.ts`: середину стола можно довести до края кадра, но не дальше.
-const reach = Math.max(2 * half, R + RIM + half) - half;
+// Поле — `deskBox` из `felt.ts`: середину кадра можно увести за кромку стола ещё на пол-кадра, но не дальше.
+const reach = Math.max(2 * half, R + RIM + 2 * half) - half;
 check("стол уводится вниз за кромку — поле вокруг есть", Math.abs(v.y) > 0.5, [v, { reach, half }]);
 check("и не уходит дальше поля", Math.abs(v.y) <= reach + 0.2, [v, { reach }]);
 

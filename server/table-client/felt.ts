@@ -663,10 +663,13 @@ export interface FeltScene {
  * прижимается к краю экрана и вблизи, и издали, а совсем потерять стол нельзя — половина его
  * остаётся в кадре. Карты в это поле не кладутся: зон приёма там нет, оно только для камеры.
  */
-export function deskBox(frame: { w: number; h: number }, k: number): { x: number; y: number; w: number; h: number } {
+export function deskBox(frame: { w: number; h: number }, k: number, pitch = 0): { x: number; y: number; w: number; h: number } {
   const px = Math.max(1, k);
-  const hx = Math.max(frame.w / px, R + RIM + frame.w / 2 / px);
-  const hy = Math.max(frame.h / px, R + RIM + frame.h / 2 / px);
+  // ЗА КРОМКУ — ЕЩЁ ПОЛ-КАДРА: за столом стоят люди (`bodies.ts`), и дальнего, стоящего за дальней кромкой,
+  // надо суметь увидеть целиком. С наклоном вертикаль стекла сжата — запас по ней растёт на столько же.
+  const lean = Math.max(0.25, Math.cos((pitch * Math.PI) / 180));
+  const hx = Math.max(frame.w / px, R + RIM + frame.w / px);
+  const hy = Math.max(frame.h / px, R + RIM + frame.h / px / lean);
   return { x: -hx, y: -hy, w: 2 * hx, h: 2 * hy };
 }
 
