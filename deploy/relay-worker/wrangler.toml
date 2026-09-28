@@ -1,0 +1,10 @@
+# Постоянный адрес стола без домена: https://crossade-table.<аккаунт>.workers.dev (`index.ts`).
+# Секрет стола — не здесь: `npx wrangler secret put TABLE_SECRET --config deploy/relay-worker/wrangler.toml`.
+name = "crossade-table"
+main = "index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "RELAY"
+id = "bb31b042821a426eb505d06eaf8740ac"

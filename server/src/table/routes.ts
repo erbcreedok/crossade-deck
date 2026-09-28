@@ -11,6 +11,7 @@ import { appKeyBearer, KEY_DAYS, mintAppKey } from "./appPass.js";
 import { randomBytes, timingSafeEqual } from "crypto";
 import express, { type Router } from "express";
 import { tableConfig } from "./config.js";
+import { DOWN_PAGE, hostPage } from "./hostPage.js";
 import { DEFAULT_DESK, isDesk } from "./desks.js";
 import { isCrew } from "./crews.js";
 import { BEACON_EVERY_MS, BEACON_TTL_MS, CARD_BACKS, CARD_FACES, GAMES, SECRET_HEADER, type Beacon, type Game, type Home, type OpenRoom, type RelayStatus, type RunCommand, type TableCommand } from "./contract.js";
@@ -494,12 +495,6 @@ export function relayRoutes(fetchPage: (url: string) => Promise<Response> = (url
   return r;
 }
 
-/** Страница мака под чужим адресом: относительные пути — к маку, адрес мака — столу. */
-export function hostPage(html: string, host: string): string {
-  const safe = JSON.stringify(host).replace(/</g, "\\u003c");
-  return html.replace(/<head>/i, `<head>\n<base href="${host.replace(/"/g, "&quot;")}/table/">\n<script>window.__TABLE_HOST__ = ${safe};</script>`);
-}
-
 const APP_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Crossade</title>
 <body style="margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#1c120b;color:#f5ead0;font:16px -apple-system,system-ui,sans-serif;text-align:center;padding:24px;box-sizing:border-box">
@@ -508,10 +503,7 @@ const APP_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" con
 <script>var u="crossade://table"+location.search;document.getElementById("go").href=u;location.href=u;</script>
 </body>`;
 
-const DOWN_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Стол недоступен</title>
-<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0704;color:#f5ead0;font:16px system-ui;text-align:center;padding:24px">
-<div><p style="font-size:20px">Столы сейчас недоступны</p><p style="color:#cdb98f">Стол не отвечает. Попробуй через минуту.</p></div>`;
+
 
 // ── МАЯК ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -558,11 +550,14 @@ export function startBeacon(send: typeof fetch = fetch, doorDead: () => void = (
         return;
       }
     }
-    await send(`${relayUrl.replace(/\/+$/, "")}/relay/table`, {
-      method: "POST",
-      headers: { "content-type": "application/json", [SECRET_HEADER]: secret },
-      body: JSON.stringify({ url: publicUrl, boot: BOOT } satisfies Beacon),
-    }).catch((err) => console.warn("маяк стола не дошёл до реле:", String(err)));
+    // РЕЛЕ МОЖЕТ БЫТЬ НЕСКОЛЬКО (через запятую) — на время переезда с одного постоянного адреса на другой.
+    for (const relay of relayUrl.split(",").map((u) => u.trim().replace(/\/+$/, "")).filter(Boolean)) {
+      await send(`${relay}/relay/table`, {
+        method: "POST",
+        headers: { "content-type": "application/json", [SECRET_HEADER]: secret },
+        body: JSON.stringify({ url: publicUrl, boot: BOOT } satisfies Beacon),
+      }).catch((err) => console.warn(`маяк стола не дошёл до реле ${relay}:`, String(err)));
+    }
   };
   void beat();
   timer = setInterval(beat, BEACON_EVERY_MS);

@@ -32,7 +32,7 @@ final class App: UIResponder, UIApplicationDelegate {
 
 final class TableController: UIViewController, WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate, ARSessionDelegate, ASWebAuthenticationPresentationContextProviding {
     /** Постоянный адрес стола: реле отдаёт страницу мака, где бы мак сейчас ни жил. */
-    static let relay = "https://crossade-deck-server.fly.dev"
+    static let relay = "https://crossade-table.erbcreedok.workers.dev"
     /** Мост в страницу: она зовёт камеру приложения (`arNative.ts`). */
     static let bridge = "window.__crossadeNative = { version: 1, "
         + "ar: function (on) { window.webkit.messageHandlers.crossade.postMessage({ ar: !!on }); }, "

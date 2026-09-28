@@ -5,7 +5,7 @@
 //   TABLE_SECRET         общий с ботом секрет: подпись id комнат и управление ими по HTTP
 //   TABLE_GUESTS=1       пускать без Telegram (браузер разработчика)
 //   TABLE_PUBLIC_URL     где этот сервер виден снаружи — его маяк несёт реле
-//   TABLE_RELAY_URL      куда слать маяк (сервер на Fly)
+//   TABLE_RELAY_URL      куда слать маяк: реле (Worker на workers.dev, fly); несколько — через запятую
 //   TABLE_TURN_URL       ретранслятор голоса (`turn:host:3478`), через запятую — несколько
 //   TABLE_TURN_USER      имя и пароль к нему
 //   TABLE_TURN_PASS

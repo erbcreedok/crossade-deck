@@ -10,7 +10,8 @@ import { forgetAll, setAdmin } from "./lobby.js";
 import { tellAll } from "../db/eventsRepo.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
 import { mintAppKey } from "./appPass.js";
-import { BOOT, DOOR_DEAD_AFTER, forgetBeacon, hostPage, readCommand, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
+import { BOOT, DOOR_DEAD_AFTER, forgetBeacon, readCommand, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
+import { hostPage } from "./hostPage.js";
 
 process.env.TABLE_SECRET = "s3cret";
 
@@ -199,6 +200,20 @@ describe("реле и маяк", () => {
     await new Promise((r) => setTimeout(r, 100));
     stop();
     expect(relayStatus()).toMatchObject({ up: true, url: "https://mac.example", boot: BOOT });
+  });
+
+  it("реле несколько через запятую — маяк бьёт в каждое", async () => {
+    process.env.TABLE_PUBLIC_URL = "https://mac.example";
+    process.env.TABLE_RELAY_URL = "https://fly.example/, https://w.example";
+    const posted: string[] = [];
+    const send: typeof fetch = async (url) => {
+      if (!String(url).startsWith("https://mac.example")) posted.push(String(url));
+      return new Response("{}");
+    };
+    const stop = startBeacon(send);
+    await new Promise((r) => setTimeout(r, 50));
+    stop();
+    expect(posted).toEqual(["https://fly.example/relay/table", "https://w.example/relay/table"]);
   });
 
   it("дверь, что ещё не открывалась, — не смерть, маяк бьёт; открылась и пропала подряд — зовёт на перезапуск и замолкает", async () => {
