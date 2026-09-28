@@ -1,0 +1,63 @@
+server/src/table/contract.ts
+  s_12c15dae591e76::t_9159786e4eca3c 732-733
+server/table-client/rooms.ts
+  s_12c15dae591e76::t_d756d97a225951 53-54,304-307,312,315-316
+server/scripts/tableProfile.mjs
+  s_12c15dae591e76::t_29bf040456b3dc 4,56-58,69-85,88,101-102,104,109
+  s_12c15dae591e76::t_3b3c2861049d5a 89-98
+server/src/db/tableOwnedRepo.test.ts
+  s_12c15dae591e76::t_22e78817dcbc6b 1-2,4-7,9-29
+  s_12c15dae591e76::t_232ff9d5eefc43 3,8
+server/src/table/rewards.test.ts
+  s_12c15dae591e76::t_eb47e06e18e7d2 1-35
+server/src/table/routes.test.ts
+  s_12c15dae591e76::t_39fdf88ed79208 15-16,457-460,466-475,477,489
+server/table-client/store.ts
+  s_12c15dae591e76::t_1e1be797261be6 87-88
+server/src/table/TableRoom.test.ts
+  s_12c15dae591e76::t_c08a632180c539 11-12,71,80,84-93
+  s_12c15dae591e76::t_39fdf88ed79208 37,41,94-101
+  s_12c15dae591e76::t_dfa09ab275ea32 102-103
+server/table-client/screen.ts
+  s_12c15dae591e76::t_1e1be797261be6 4962-4975
+server/scripts/tableArHead.mjs
+  s_12c15dae591e76::t_474dcaa47d742d 3
+server/src/table/TableRoom.ts
+  s_12c15dae591e76::t_29bf040456b3dc 937-939
+  s_12c15dae591e76::t_474dcaa47d742d 16,869-871
+  s_12c15dae591e76::t_9225105c643e39 941-942,944,946-948
+  s_12c15dae591e76::t_9159786e4eca3c 17,302,306,866-867,873-874,919-936,940,943,945,949-954
+  s_12c15dae591e76::t_83561bfdfb5c2c 13
+  s_12c15dae591e76::t_3890386a24e41d 955
+server/src/table/rewards.ts
+  s_12c15dae591e76::t_474dcaa47d742d 8,27-34
+  s_12c15dae591e76::t_4a4457be8af0c7 1-7,9-26,35-58
+server/src/db/tableOwnedRepo.ts
+  s_12c15dae591e76::t_22e78817dcbc6b 1-34
+server/src/table/dolls.ts
+  s_12c15dae591e76::t_9159786e4eca3c 13-14,63
+server/src/db/migrations.ts
+  s_12c15dae591e76::t_22e78817dcbc6b 388-408
+server/src/table/routes.ts
+  s_12c15dae591e76::t_9159786e4eca3c 28-29,285-287,299-304,307,336
+server/table-client/netStore.ts
+  s_12c15dae591e76::t_1e1be797261be6 355
+server/scripts/tableBody.mjs
+  s_12c15dae591e76::t_474dcaa47d742d 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "229dfc908a85e8f7e57c272875372cad192c8caa",
+  "prompts": {},
+  "sessions": {
+    "s_12c15dae591e76": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0fe1da9a-8ecb-4b09-99b9-1b4963d888e6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
