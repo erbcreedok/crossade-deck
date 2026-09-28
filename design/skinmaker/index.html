@@ -277,6 +277,19 @@ const turnZ = (v, deg) => { const a = (deg * Math.PI) / 180, c = Math.cos(a), s 
  * ПЛОСКОСТЬ РАКУРСА: лицом по направлению ракурса `n` (в мире). Верх — вертикаль, а у видов сверху и снизу —
  * «вперёд» части. Поперёк — правая рука того, кто смотрит на неё прямо по ракурсу.
  */
+/** Спинка стула: шире туловища (5.2), ниже плеч сидящего (4.2), за спиной. */
+const CHAIR = { w: 4.4, h: 3.7, behind: 0.7 };
+/** Какая доля ширины картинки занята рисунком (не прозрачна) — по ней спинка стула встаёт по ширине фигуры. */
+const solid = new WeakMap();
+function solidWidth(img) {
+  if (solid.has(img)) return solid.get(img);
+  const g = img.getContext("2d", { willReadFrequently: true }), d = g.getImageData(0, 0, img.width, img.height).data;
+  let lo = img.width, hi = -1;
+  for (let y = 0; y < img.height; y += 3) for (let x = 0; x < img.width; x += 3) if (d[(y * img.width + x) * 4 + 3] > 40) { if (x < lo) lo = x; if (x > hi) hi = x; }
+  const got = hi < lo ? 1 : (hi - lo) / img.width;
+  solid.set(img, got);
+  return got;
+}
 function basis(n, fwd) {
   const up = Math.abs(n[2]) > 0.9 ? fwd : [0, 0, 1];
   return { up: norm(sub(up, mul(n, dot(up, n)))), across: norm(cross(mul(n, -1), up)) };
@@ -328,8 +341,9 @@ function render() {
     const A = proj(p0), B = proj(p1);
     if (A && B) { g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.stroke(); }
   }
-  // спинка стула перед сидящим
-  if (!standing) quads.push({ chair: true, tl: [-1.8, 0.8, 2.7], tr: [1.8, 0.8, 2.7], bl: [-1.8, 0.8, 0], at: [0, 0.8, 1.35] });
+  // СПИНКА СТУЛА — ЗА СПИНОЙ сидящего, шире его туловища и ниже плеч: спереди её не видно, сзади она закрывает спину.
+  if (!standing) { const body = partOf(S.parts.body), bimg = body && !body.empty ? sprite(body, drawn(body, Object.keys(body.views)[0]).view, pal) : null;
+    const hw = (bimg && bimg !== "none" ? solidWidth(bimg) * 5.2 * 0.92 : CHAIR.w) / 2, y = -CHAIR.behind; quads.push({ chair: true, tl: [-hw, y, CHAIR.h], tr: [hw, y, CHAIR.h], bl: [-hw, y, 0], at: [0, y, CHAIR.h / 2] }); }
   // ДАЛЬНЕЕ — СНАЧАЛА
   quads.sort((q1, q2) => Math.hypot(...sub(q2.at, eye)) - Math.hypot(...sub(q1.at, eye)));
   for (const q of quads) {

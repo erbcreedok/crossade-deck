@@ -159,7 +159,7 @@ export const TABLE_THICK = 0.9;
 export const RIM = EDGE.line + EDGE.dark + EDGE.light;
 
 /** Стул: арка и её линия. */
-export const ARCH_R = 1.1;
+const ARCH_R = 1.1;
 const CHAIR_LINE = 0.09;
 /**
  * ДОКУДА ОТ СЕРЕДИНЫ МЕСТА ДОСТАЁТ СТУЛ, в единицах: арка — полукруг спереди и квадрат спинки сзади,

@@ -10,12 +10,12 @@
 // будет на странице аватара.
 
 import type { Body } from "../src/table/bodies.js";
-import { HEAD, NECK, awayOf, gazeOf, headOf, leftHandOf, shoulders3, type Point3 } from "../src/table/bodies.js";
+import { HEAD, NECK, SHOULDERS, awayOf, gazeOf, headOf, leftHandOf, shoulders3, type Point3 } from "../src/table/bodies.js";
 import type { Doll } from "../src/table/dolls.js";
 import { DOLL_HEAD_ASPECT, dollGeom, dollSprite } from "./dollSprites.js";
 import { VIEW_DIRS, drawnView, pickView, skinOf } from "../src/table/skins.js";
-import { ARCH_R, DISC, R, RIM, SEAT } from "./felt.js";
-import { SEAT_RADIUS, seatPoint } from "../src/table/ring.js";
+import { DISC, R, RIM, SEAT } from "./felt.js";
+import { seatPoint } from "../src/table/ring.js";
 
 type Point = { x: number; y: number };
 /** Точка стола на стекле — с высотой над сукном. */
@@ -104,14 +104,14 @@ export function dollPose(body: Body, angle: number, doll: Doll, toGlass: ToGlass
   return { shoulders: s, head: dollHead, left: leftHandOf(dollHead, body.yaw), up, headUp, away, headH };
 }
 
-/** Спинка стула, в единицах стола: чуть уже туловища куклы, высотой — до его середины (плечи на 4). */
-export const CHAIR_BACK = { w: 3.6, h: 2.7 };
+/** Спинка стула, в единицах стола: ниже плеч сидящего (плечи на 4) и на столько за ними. Ширина — по фигуре. */
+export const CHAIR_BACK = { h: 3.7, behind: 0.7 };
 const backs = new Map<string, { src: string; w: number; h: number }>();
 /** Картинка спинки — дерево стула, обводка — свой цвет сидящего, как у арки на сукне. */
 function chairBackOf(ink: string): { src: string; w: number; h: number } {
   let got = backs.get(ink);
   if (!got) {
-    const w = 100, h = Math.round((100 * CHAIR_BACK.h) / CHAIR_BACK.w);
+    const w = 100, h = Math.round((100 * CHAIR_BACK.h) / 4.4);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`
       + `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${SEAT.woodHi}"/><stop offset="1" stop-color="${SEAT.woodLo}"/></linearGradient></defs>`
       + `<path d="M4 ${h} V22 Q4 4 22 4 H${w - 22} Q${w - 4} 4 ${w - 4} 22 V${h} Z" fill="url(#g)" stroke="${SEAT.black}" stroke-width="7"/>`
@@ -204,12 +204,13 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette }: BodyLook, 
     const m = [(ax.x * w) / img.w, (ax.y * w) / img.w, (-ay.x * h) / img.h, (-ay.y * h) / img.h, tl.x, tl.y].map((v) => v.toFixed(4)).join(",");
     return `<img data-g="${g}" src="${img.src}" alt="" draggable="false" style="position:absolute;left:0;top:0;width:${img.w}px;height:${img.h}px;transform-origin:0 0;transform:matrix(${m});pointer-events:none${clipBottom > 0 ? `;clip-path:inset(0 0 ${(clipBottom * 100).toFixed(1)}% 0)` : ""}">`;
   };
-  // СПИНКА СТУЛА — стоит на краю стула (за аркой) и закрывает кукле низ: кукла сидит за своим стулом. Стоит
-  // честно вертикально: сбоку — во весь рост, сверху — сходит в полоску у края стула (кукла там лежит от стола
-  // наружу, и лежащая спинка закрыла бы ей плечи).
-  const backAt = { ...seatPoint(angle, SEAT_RADIUS + ARCH_R), h: 0 };
+  // СПИНКА СТУЛА — ЗА СПИНОЙ сидящего: чуть дальше от стола, чем его плечи, по ширине его туловища и ниже плеч.
+  // Со стороны стола её не видно (закрыта фигурой), со спины она закрывает спину. Стоит честно вертикально: сверху
+  // сходит в полоску.
+  const backAt = { ...seatPoint(angle, SHOULDERS + CHAIR_BACK.behind), h: 0 };
   const rise = Math.hypot(at({ ...backAt, h: 1 }).x - at(backAt).x, at({ ...backAt, h: 1 }).y - at(backAt).y) / (local(toGlass, backAt) || 1);
-  const chairBack = rise > 0.12 ? plane(chairBackOf(ink), backAt, { x: 0, y: 0, h: 1 }, CHAIR_BACK.w, CHAIR_BACK.h, [0.5, 1], false, "chair-back") : "";
+  const backW = Math.max(2.4, DOLL_SIZE.torso * torso.solid * 0.92);
+  const chairBack = rise > 0.12 ? plane(chairBackOf(ink), backAt, { x: 0, y: 0, h: 1 }, backW, CHAIR_BACK.h, [0.5, 1], false, "chair-back", 0, { x: -inward.y, y: inward.x, h: 0 }) : "";
   // ТУЛОВИЩЕ СТОИТ ЗА СТОЛОМ: линия плеч — на высоте плеч, всё, что ниже уровня стола, срезано.
   const tw = DOLL_SIZE.torso, th = ((tw * torso.h) / torso.w) * DOLL_SIZE.stretch;
   const py = geom.shoulder;
@@ -247,8 +248,9 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette }: BodyLook, 
   const tag = `<span data-g="name" style="position:absolute;left:${H.x.toFixed(1)}px;top:${(H.y - pose.headH * 0.62 * hk - fs - 6).toFixed(1)}px;transform:translateX(-50%);white-space:nowrap;padding:1px 6px;border-radius:6px;`
     + `background:${T.black};box-shadow:inset 0 0 0 1.5px ${ink};font:400 ${fs.toFixed(0)}px Tiny5,monospace;color:${T.ink}">${esc(name)}</span>`;
   return `<div data-g="body" data-model="${doll}" data-palette="${palette}" data-by="${esc(body.by)}" data-name="${esc(name)}" data-stance="${body.stance}" data-yaw="${body.yaw}" data-stretch="${body.stretch.toFixed(2)}" data-away="${pose.away ? 1 : 0}" data-behind="${behind ? 1 : 0}" data-view="${bodyView}" data-head-view="${headView}" data-head-h="${pose.head.h.toFixed(2)}" style="position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:24">`
+    + (behind ? "" : chairBack)
     + plane(torso, pose.shoulders, pose.up, tw, th, [0.5, py], bodyDrawn.mirror, "doll-body", below, bodyAcross)
-    + chairBack
+    + (behind ? chairBack : "")
     + svg
     + plane(face, pose.head, pose.away ? pose.headUp : pose.up, hw, pose.headH, [0.5, 0.5], flip, "doll-head", 0, headAcross)
     + hand(pose.left, "hand-closed", "left-hand", !behind)

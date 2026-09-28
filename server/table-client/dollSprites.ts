@@ -39,6 +39,15 @@ export interface DollSprite {
   src: string;
   w: number;
   h: number;
+  /** Какая доля ширины занята рисунком (не прозрачна): по ней спинка стула встаёт по ширине фигуры. */
+  solid: number;
+}
+
+function solidOf(c: HTMLCanvasElement): number {
+  const d = c.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, c.width, c.height).data;
+  let lo = c.width, hi = -1;
+  for (let y = 0; y < c.height; y += 4) for (let x = 0; x < c.width; x += 4) if (d[(y * c.width + x) * 4 + 3]! > 40) { if (x < lo) lo = x; if (x > hi) hi = x; }
+  return hi < lo ? 1 : (hi - lo) / c.width;
 }
 
 /**
@@ -235,7 +244,7 @@ function make(doll: string, palette: number, view: string, part: Part, ink: stri
       if (!canvas) return;
       const done = outlined(canvas, ink);
       const blob = await new Promise<Blob | null>((ok) => done.toBlob(ok, "image/png"));
-      if (blob) urls.set(key, { src: URL.createObjectURL(blob), w: done.width, h: done.height });
+      if (blob) urls.set(key, { src: URL.createObjectURL(blob), w: done.width, h: done.height, solid: part === "body" ? solidOf(canvas) : 1 });
     } catch {
       // Не испеклась (нет сети, у скина ещё нет рисунков) — остаётся простая фигура.
       failedAt.set(set, Date.now());
