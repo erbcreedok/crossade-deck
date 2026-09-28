@@ -1,0 +1,30 @@
+server/table-client/netStore.ts
+  s_e1c4165d82711d::t_ea63219bbe6886 30-38,228,245,254,269-270,278
+server/src/table/TableRoom.ts
+  s_e1c4165d82711d::t_05e744a5f505d5 298-301
+native/ios-table/Sources/App.swift
+  s_e1c4165d82711d::t_ca183f68690743 176,226
+  s_e1c4165d82711d::t_4519901ab550df 43-49,89-97,183-186,225,227,230-233
+server/table-client/boot.test.ts
+  s_e1c4165d82711d::t_ca183f68690743 30-34
+  s_e1c4165d82711d::t_3000ca06d95fa1 9
+server/table-client/main.ts
+  s_e1c4165d82711d::t_05e744a5f505d5 11
+  s_e1c4165d82711d::t_ea63219bbe6886 138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "59c521a7127a2491da86b09a1257c01d4bfaca38",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
