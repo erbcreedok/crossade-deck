@@ -67,8 +67,20 @@ for (const yaw of [0, 90, 180]) {
 // ДВА ИГРОКА: оба не трогали камеру — каждый видит другого сверху; тело рисуется у обоих экранов.
 const duo = await at("speed=0&scene=два игрока&pitch=0");
 check("два игрока: Боря видит голову Ани, Аня — голову Бори", !!duo.head1 && !!duo.head2, Object.keys(duo));
+// ОБОШЁЛ СТОЛ: Боря повернул камеру на 180° — его глаз теперь со стороны Ани. У Ани на экране он встал и
+// стоит внизу, у её края; сам он видит Аню со спины. В режиме «сидит» — остался на месте.
+const D = "speed=0&scene=два игрока&pitch=0";
+const went = await at(`${D}&yaw=180&pitch=40`);
+check("обошёл стол: у Ани на экране Боря ушёл со стула", went.away2 === 1, went.away2);
+check("…и стоит внизу её экрана, у её края", went.head2 && (went.head2[1] + went.head2[3]) / 2 > 422, went.head2);
+check("…а сам видит Аню со спины", went.back1 === 1, { back1: went.back1 });
+const home = await at(`${D}&pitch=40`);
+check("не ходил — Аню видит в лицо", home.back1 === 0, { back1: home.back1 });
+const sat = await at(`${D}&yaw=180&pitch=40&walk=сидит, крутит головой`);
+check("режим «сидит»: Боря остался на стуле", sat.away2 === 0 && (sat.head2[1] + sat.head2[3]) / 2 < 422, { away: sat.away2, head: sat.head2 });
+
 if (shots) {
-  for (const [name, hash] of [["duo-idle", "speed=0&scene=два игрока&pitch=0"], ["duo-tilt", "speed=0&scene=два игрока&pitch=58"], ["duo-king", "speed=0&scene=два игрока&pitch=0&duoA=king&duoB=queen"]]) {
+  for (const [name, hash] of [["duo-walk", `${D}&yaw=180&pitch=40`], ["duo-walk-side", `${D}&yaw=90&pitch=30&aPitch=35`], ["duo-idle", "speed=0&scene=два игрока&pitch=0"], ["duo-tilt", "speed=0&scene=два игрока&pitch=58"], ["duo-king", "speed=0&scene=два игрока&pitch=0&duoA=king&duoB=queen"]]) {
     await at(hash);
     await page.screenshot({ path: `${shots}/persona-${name}.png`, clip: { x: 0, y: 0, width: 880, height: 880 } });
   }
