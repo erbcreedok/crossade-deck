@@ -14,7 +14,7 @@ import REPLAY from "./replay.html?raw";
 
 describe("table.the-cross-is-in-the-page", () => {
   it("страница несёт крест — ровно тот, что рисует `look`", () => {
-    expect(PAGE).toContain(loadingMarkup("Загружаю стол"));
+    expect(PAGE).toContain(loadingMarkup("Загружаю скрипты"));
   });
 
   it("он стоит до скрипта стола и ничего не грузит сам", () => {
@@ -27,7 +27,7 @@ describe("table.the-cross-is-in-the-page", () => {
   });
 
   it("скрипт подхватывает его, а не поднимает второй", () => {
-    expect(MAIN).toContain('loadingCross(document.body, "Загружаю стол")');
+    expect(MAIN).toContain('loadingCross(document.body, "Подключаюсь к серверу")');
   });
 });
 

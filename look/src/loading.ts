@@ -85,6 +85,8 @@ export interface Loading {
   done(): void;
   /** Whether it is still up — read by tests, and by whoever wonders if they already finished. */
   showing(): boolean;
+  /** What is being waited for NOW — a wait in steps says each step as it starts, not one label for all. */
+  say(label: string): void;
 }
 
 /**
@@ -111,7 +113,8 @@ export function loadingCross(over: HTMLElement, label: string): Loading {
   }
   // THE LABEL AS TEXT, never as markup: it is a game's name today and a name somebody types
   // tomorrow, and a screen is not a place to find out that the difference matters.
-  (sheet.lastElementChild as HTMLElement).textContent = label;
+  const said = sheet.lastElementChild as HTMLElement;
+  said.textContent = label;
 
   let up = true;
   return {
@@ -124,6 +127,9 @@ export function loadingCross(over: HTMLElement, label: string): Loading {
       setTimeout(() => sheet.remove(), 240);
     },
     showing: () => up,
+    say(label) {
+      said.textContent = label;
+    },
   };
 }
 

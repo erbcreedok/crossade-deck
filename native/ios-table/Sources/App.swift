@@ -157,13 +157,14 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
         let keep = UserDefaults.standard
         if keep.string(forKey: "key") != nil { return load(room: nil, pass: nil) }
         if let room = keep.string(forKey: "room"), let pass = keep.string(forKey: "pass") { return load(room: room, pass: pass) }
-        note.text = "Открой стол ссылкой из Telegram: кнопка «В приложении» у бота или /app в личке с ним."
+        note.text = "Открой комнату ссылкой из Telegram: кнопка «В приложении» у бота или /app в личке с ним."
     }
 
     /** `room` нет — «Мои комнаты»; `pass` нет — входим ключом. */
     func load(room: String?, pass: String?) {
         loadViewIfNeeded()
-        note.text = nil
+        // Пока страница едет — своя подпись; пришла — дальше говорит её собственный крест.
+        note.text = "Загружаю Crossade"
         setAr(false)
         var items: [URLQueryItem] = []
         if let room { items.append(URLQueryItem(name: "room", value: room)) } else { items.append(URLQueryItem(name: "rooms", value: "")) }
@@ -200,9 +201,10 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor { view.window ?? ASPresentationAnchor() }
 
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) { note.text = nil }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { failed(error) }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failed(error) }
-    func failed(_ error: Error) { note.text = "Стол не открылся: \(error.localizedDescription)" }
+    func failed(_ error: Error) { note.text = "Комната не открылась: \(error.localizedDescription)" }
 
     // Голос за столом — микрофон странице без второго вопроса: приложение уже спросило своё.
     @available(iOS 15.0, *)

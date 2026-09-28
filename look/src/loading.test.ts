@@ -84,6 +84,16 @@ describe("look.the-loading-screen-goes-away", () => {
   });
 });
 
+describe("loading.says-the-step", () => {
+  it("a wait in steps relabels the same screen", () => {
+    const over = stage();
+    const l = loadingCross(over, "Подключаюсь к серверу");
+    l.say("Загружаю комнату");
+    expect(over.querySelectorAll(".crossade-loading")).toHaveLength(1);
+    expect(over.textContent).toBe("Загружаю комнату");
+  });
+});
+
 describe("loading.adopts-the-baked-cross", () => {
   it("a page that carries the cross in its HTML gets THAT one taken over, not a second on top", () => {
     const over = stage();
