@@ -1,6 +1,6 @@
 {
   "name": "Crossade.Editor",
-  "references": ["Crossade"],
+  "references": ["Crossade", "Unity.XR.Management", "Unity.XR.Management.Editor"],
   "includePlatforms": ["Editor"],
   "autoReferenced": false
 }

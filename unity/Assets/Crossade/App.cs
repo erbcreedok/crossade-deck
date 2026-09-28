@@ -26,6 +26,7 @@ namespace Crossade
         public PoseHandle Handle { get; private set; }
         public PileGrips Grips { get; private set; }
         public ChairWindow Chairs { get; private set; }
+        public ArMode Ar { get; private set; }
         /** Чем кончился вход: `null` — ещё идёт. */
         public string Failed { get; private set; }
 
@@ -90,6 +91,24 @@ namespace Crossade
             Hud.Home = Home;
             Grips = PileGrips.Make(Hud, Board, Board.Hand, () => Store, Draw);
             Chairs = ChairWindow.Make(Hud, () => Store);
+            Ar = ArMode.Make(Board);
+            Ar.Says += text =>
+            {
+                if (!string.IsNullOrEmpty(text)) Hud.Say(text, 4);
+            };
+            Ar.Switched += on =>
+            {
+                var cam = on ? Ar.Cam : Rig.Cam;
+                Rig.Cam.gameObject.SetActive(!on);
+                Board.Hand.Retarget(cam, on);
+                Hud.Retarget(cam, on);
+                Draw();
+            };
+            Hud.ArTapped = () =>
+            {
+                if (Ar.On) Ar.Exit();
+                else Ar.Enter();
+            };
             Handle = PoseHandle.Make(Hud, Board.Hand, () => Store, Draw);
             Lobby = Lobby.Make();
             Lobby.Sit = (host, room) => Open(new Door { Host = host, Room = room, Key = Account.Key });
@@ -111,6 +130,7 @@ namespace Crossade
         /** Назад к «Моим комнатам»: из-за стола встаём, стул остаётся за нами. */
         public void Home()
         {
+            Ar.Exit();
             Store?.Leave();
             Store = null;
             Board.Clear();
@@ -158,7 +178,7 @@ namespace Crossade
                 Hud.Say("Связь: " + why, 6);
                 Failed = why;
             };
-            Finger = new Finger(Store, Board, Rig);
+            Finger = new Finger(Store, Board, Rig) { Ar = Ar };
             Finger.SeatTapped = id => Chairs.Show(Chairs.Chair == id ? null : id);
             Finger.Missed = () => Chairs.Show(null);
             var pointer = gameObject.GetComponent<Pointer>() ?? gameObject.AddComponent<Pointer>();

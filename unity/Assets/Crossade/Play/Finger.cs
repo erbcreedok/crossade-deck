@@ -27,6 +27,8 @@ namespace Crossade.Play
         readonly Store store;
         readonly Board board;
         readonly Rig rig;
+        /** В AR палец по сукну двигает стол, щипок — меняет его размер. */
+        public ArMode Ar;
 
         enum Mode { None, Card, Orbit, Seat }
         /** Тап по стулу — открыть его окно. */
@@ -55,7 +57,7 @@ namespace Crossade.Play
             this.rig = rig;
         }
 
-        Camera Cam => rig.Cam;
+        Camera Cam => Ar != null && Ar.On ? Ar.Cam : rig.Cam;
 
         public void Down(int id, Vector2 px, float now)
         {
@@ -92,7 +94,13 @@ namespace Crossade.Play
             {
                 var p = new List<Vector2>(touches.Values);
                 var d = Vector2.Distance(p[0], p[1]);
-                if (pinch0 > 1) rig.Zoom = Mathf.Clamp(zoom0 * d / pinch0, Rig.MinZoom, Rig.MaxZoom);
+                if (pinch0 <= 1) return;
+                if (Ar != null && Ar.On)
+                {
+                    Ar.Scale(d / pinch0);
+                    pinch0 = d;
+                }
+                else rig.Zoom = Mathf.Clamp(zoom0 * d / pinch0, Rig.MinZoom, Rig.MaxZoom);
                 return;
             }
             if (!moved && Vector2.Distance(px, downAt) > TAP_PX)
@@ -103,7 +111,8 @@ namespace Crossade.Play
                 if (mode == Mode.Seat) mode = Mode.Orbit;
             }
             if (!moved) return;
-            if (mode == Mode.Orbit)
+            if (mode == Mode.Orbit && Ar != null && Ar.On) Ar.Drag(lastAt, px);
+            else if (mode == Mode.Orbit)
             {
                 var d = px - lastAt;
                 rig.Yaw += d.x * 180f / Cam.pixelWidth;

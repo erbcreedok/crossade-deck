@@ -1,6 +1,6 @@
 {
   "name": "Crossade",
   "rootNamespace": "Crossade",
-  "references": ["UnityEngine.UI"],
+  "references": ["UnityEngine.UI", "Unity.XR.ARFoundation", "Unity.XR.ARSubsystems", "Unity.XR.CoreUtils"],
   "autoReferenced": true
 }

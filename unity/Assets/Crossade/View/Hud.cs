@@ -13,6 +13,10 @@ namespace Crossade.View
     {
         /** Тап по названию стола. */
         public System.Action Home;
+        /** Кнопка AR справа сверху; в AR на её месте выход. */
+        public System.Action ArTapped;
+        RectTransform arButton;
+        Text arLabel;
         public Canvas Canvas { get; private set; }
         public RectTransform Root => (RectTransform)transform;
         CanvasScaler scaler;
@@ -26,7 +30,7 @@ namespace Crossade.View
             var canvas = hud.Canvas = hud.gameObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceCamera;
             canvas.worldCamera = cam;
-            canvas.planeDistance = HandRig.Depth + 2;
+            canvas.planeDistance = HandRig.FarDepth + 2;
             hud.scaler = hud.gameObject.AddComponent<CanvasScaler>();
             hud.scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
             hud.gameObject.AddComponent<GraphicRaycaster>();
@@ -57,6 +61,20 @@ namespace Crossade.View
             img.raycastTarget = true;
             pill.gameObject.AddComponent<Button>().onClick.AddListener(() => hud.Home?.Invoke());
 
+            // AR — справа сверху, круглая, как у веба; только там, где AR есть.
+            hud.arButton = Ui.Box(hud.transform, "ar", Look.Black);
+            hud.arButton.anchorMin = hud.arButton.anchorMax = new Vector2(1, 1);
+            hud.arButton.pivot = new Vector2(1, 1);
+            hud.arButton.sizeDelta = new Vector2(46, 46);
+            hud.arButton.anchoredPosition = new Vector2(-14, -16);
+            var arFace = Ui.Fill(Ui.Box(hud.arButton, "face", Look.Panel));
+            arFace.offsetMin = new Vector2(3, 3);
+            arFace.offsetMax = new Vector2(-3, -3);
+            hud.arLabel = Ui.Words(arFace, "AR", 14, Look.Gold, TextAnchor.MiddleCenter, 0);
+            hud.arButton.GetComponent<Image>().raycastTarget = true;
+            hud.arButton.gameObject.AddComponent<Button>().onClick.AddListener(() => hud.ArTapped?.Invoke());
+            hud.arButton.gameObject.SetActive(ArMode.Supported);
+
             hud.toastBox = Ui.Box(hud.transform, "toast", new Color(0, 0, 0, .78f));
             hud.toastBox.anchorMin = hud.toastBox.anchorMax = new Vector2(.5f, 0);
             hud.toastBox.pivot = new Vector2(.5f, 0);
@@ -75,6 +93,16 @@ namespace Crossade.View
         }
 
         public void Title(string text) => title.text = text ?? "";
+
+        /** Холст переезжает на камеру AR и обратно; кнопка AR становится выходом. */
+        public void Retarget(Camera cam, bool ar)
+        {
+            Canvas.worldCamera = cam;
+            // Худ — дальше руки, ближе стола: в AR между стеклом и столом полметра.
+            Canvas.planeDistance = ar ? HandRig.NearDepth * 1.5f : HandRig.FarDepth + 2;
+            arLabel.text = ar ? "X" : "AR";
+            bar.gameObject.SetActive(true);
+        }
 
         public void Say(string text, float seconds = 2.5f)
         {

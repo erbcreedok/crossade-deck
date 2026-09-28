@@ -11,6 +11,9 @@ using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
+using UnityEditor.XR.Management;
+using UnityEditor.XR.Management.Metadata;
+using UnityEngine.XR.Management;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -50,6 +53,7 @@ namespace Crossade.Editor
             var icon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Crossade/Art/icon.png");
             if (icon != null) PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
             Include();
+            Xr();
             // Окно входа Telegram — из AuthenticationServices.
             if (AssetImporter.GetAtPath("Assets/Plugins/iOS/CrossadeLogin.mm") is PluginImporter login)
             {
@@ -58,6 +62,46 @@ namespace Crossade.Editor
                 login.SaveAndReimport();
             }
             AssetDatabase.SaveAssets();
+        }
+
+        /**
+         * ARKIT ДЛЯ iOS — загрузчик в настройках XR. Пакет ARKit ставит флаг `UNITY_XR_ARKIT_LOADER_ENABLED`
+         * только из окна редактора, а в пакетной сборке — никогда, и без него сборка выбрасывает
+         * libUnityARKit.a: AR стоит в состоянии None (ловушка прототипа `native/unity-ar`). Флаг действует со
+         * следующего запуска Unity — первая сборка после его появления требует второй.
+         */
+        static void Xr()
+        {
+            const string path = "Assets/XR/XRSettings.asset";
+            var perTarget = AssetDatabase.LoadAssetAtPath<XRGeneralSettingsPerBuildTarget>(path);
+            if (perTarget == null)
+            {
+                Directory.CreateDirectory("Assets/XR");
+                perTarget = ScriptableObject.CreateInstance<XRGeneralSettingsPerBuildTarget>();
+                AssetDatabase.CreateAsset(perTarget, path);
+            }
+            EditorBuildSettings.AddConfigObject(XRGeneralSettings.k_SettingsKey, perTarget, true);
+            var general = perTarget.SettingsForBuildTarget(BuildTargetGroup.iOS);
+            if (general == null)
+            {
+                general = ScriptableObject.CreateInstance<XRGeneralSettings>();
+                AssetDatabase.AddObjectToAsset(general, perTarget);
+                perTarget.SetSettingsForBuildTarget(BuildTargetGroup.iOS, general);
+            }
+            if (general.Manager == null)
+            {
+                general.Manager = ScriptableObject.CreateInstance<XRManagerSettings>();
+                AssetDatabase.AddObjectToAsset(general.Manager, perTarget);
+            }
+            general.InitManagerOnStart = true;
+            var defines = PlayerSettings.GetScriptingDefineSymbols(NamedBuildTarget.iOS);
+            if (!defines.Contains("UNITY_XR_ARKIT_LOADER_ENABLED"))
+                PlayerSettings.SetScriptingDefineSymbols(NamedBuildTarget.iOS, (defines + ";UNITY_XR_ARKIT_LOADER_ENABLED").Trim(';'));
+            if (!XRPackageMetadataStore.AssignLoader(general.Manager, "UnityEngine.XR.ARKit.ARKitLoader", BuildTargetGroup.iOS))
+                throw new Exception("не вышло поставить загрузчик ARKit");
+            EditorUtility.SetDirty(perTarget);
+            EditorUtility.SetDirty(general);
+            EditorUtility.SetDirty(general.Manager);
         }
 
         static void Scene()

@@ -27,7 +27,10 @@ namespace Crossade.View
         readonly Dictionary<string, CardNode> cards = new();
         readonly Dictionary<string, SeatNode> seats = new();
         readonly List<PileMark> marks = new();
-        Transform felt;
+        Transform felt, ground;
+
+        /** Обои под столом — только в обычном виде; в AR под столом комната. */
+        public void Room(bool on) => ground.gameObject.SetActive(on);
 
         public static Board Make()
         {
@@ -38,7 +41,7 @@ namespace Crossade.View
 
         void Build()
         {
-            var ground = Solid("Ground", transform, Look.Quad, Look.FeltDark, false);
+            ground = Solid("Ground", transform, Look.Quad, Look.FeltDark, false);
             ground.localRotation = Quaternion.Euler(90, 0, 0);
             ground.localScale = new Vector3(80, 80, 1);
             ground.localPosition = new Vector3(0, -.62f, 0);

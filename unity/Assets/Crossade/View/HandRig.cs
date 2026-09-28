@@ -13,8 +13,13 @@ namespace Crossade.View
 {
     public sealed class HandRig : MonoBehaviour
     {
-        /** Как далеко от глаза висят карты руки: ближе стола, дальше худа. */
-        public const float Depth = 3f;
+        /**
+         * КАК ДАЛЕКО ОТ ГЛАЗА ВИСЯТ КАРТЫ РУКИ: ближе стола, дальше худа. В обычном виде стол в десятках
+         * метров — хватает трёх; в AR стол в полуметре, и рука жмётся к самому стеклу, иначе стол её закроет.
+         * На экране рука одного размера при любой глубине: она масштабируется по ней же (`Metre`).
+         */
+        public const float FarDepth = 3f, NearDepth = .08f;
+        public float Depth { get; private set; } = FarDepth;
 
         Camera cam;
         public Chair Chair { get; private set; }
@@ -36,6 +41,15 @@ namespace Crossade.View
             rig.transform.SetParent(cam.transform, false);
             rig.Measure();
             return rig;
+        }
+
+        /** Рука переезжает на другую камеру (AR и обратно). */
+        public void Retarget(Camera to, bool near)
+        {
+            cam = to;
+            Depth = near ? NearDepth : FarDepth;
+            transform.SetParent(to.transform, false);
+            Measure();
         }
 
         /**
@@ -79,7 +93,7 @@ namespace Crossade.View
                 Angles[i] = (float)s.Angle;
                 // Карта стоит к глазу лицом: плашка «лежит» в XZ, −90° по X ставит её на ребро к камере; наклон
                 // веера у веба — по часовой при y вниз, у Unity по Z против часовой — знак меняется.
-                var at = Local(new Vector2(x, y)) + new Vector3(0, 0, -i * .002f);
+                var at = Local(new Vector2(x, y)) + new Vector3(0, 0, -i * Depth * .0007f);
                 node.Aim(at, 0, c.Up != true, w * Metre, Quaternion.Euler(0, 0, -(float)s.Angle) * Quaternion.Euler(-90, 0, 0));
             }
         }
