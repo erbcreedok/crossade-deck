@@ -1,6 +1,6 @@
 {
   "name": "Crossade",
   "rootNamespace": "Crossade",
-  "references": [],
+  "references": ["UnityEngine.UI"],
   "autoReferenced": true
 }

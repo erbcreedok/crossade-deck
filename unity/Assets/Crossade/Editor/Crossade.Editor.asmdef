@@ -1,0 +1,6 @@
+{
+  "name": "Crossade.Editor",
+  "references": ["Crossade"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": false
+}
