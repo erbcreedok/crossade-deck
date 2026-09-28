@@ -1,0 +1,47 @@
+server/src/table/contract.ts
+  s_e1c4165d82711d::t_16ba1112220939 336-340,352,626,720-721,790-791
+unity/Assets/Tests/Editor/Fixtures/wire.json
+  s_e1c4165d82711d::t_5f1afe3004f90a 64-113,256-257,1724-1725,2181-2182,2342-2343,3789-3790,4246-4247,4394-4395,5833-5834,6290-6291,6457-6458,6991-6992,7169-7170,7690-7691
+server/src/table/wireFixture.test.ts
+  s_e1c4165d82711d::t_5f1afe3004f90a 19,132-135
+server/src/table/bodies.test.ts
+  s_e1c4165d82711d::t_fb1d201d6c7eca 1-49
+unity/Assets/Crossade/Wire/Contract.cs
+  s_e1c4165d82711d::t_67b2001b63d45c 212-213,218,221
+server/src/table/crews.ts
+  s_e1c4165d82711d::t_16ba1112220939 68-69
+server/src/table/landing.test.ts
+  s_e1c4165d82711d::t_f55743aee38e1d 28
+server/table-client/handFixture.test.ts
+  s_e1c4165d82711d::t_cac7efcba2639b 1-2,6-7,35
+server/src/table/table.ts
+  s_e1c4165d82711d::t_16ba1112220939 1912
+server/src/table/flood.ts
+  s_e1c4165d82711d::t_7418a3378f6e7b 11,20
+server/src/table/TableRoom.ts
+  s_e1c4165d82711d::t_7418a3378f6e7b 17,107-108,231,414-425,762-768,892
+server/src/table/TableRoom.test.ts
+  s_e1c4165d82711d::t_fb1d201d6c7eca 13,281-303
+  s_e1c4165d82711d::t_2adc6189737a28 304-305
+server/src/table/bodies.ts
+  s_e1c4165d82711d::t_7418a3378f6e7b 44
+  s_e1c4165d82711d::t_f3d4999b31d08a 1-43,45-111
+server/src/table/table.test.ts
+  s_e1c4165d82711d::t_a0aa2fd9643a4d 239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b2074e9d748041def0f874728fe78fa6ca49c0f5",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
