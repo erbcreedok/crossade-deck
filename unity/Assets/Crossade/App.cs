@@ -23,6 +23,7 @@ namespace Crossade
         public Hud Hud { get; private set; }
         public Finger Finger { get; private set; }
         public Lobby Lobby { get; private set; }
+        public PoseHandle Handle { get; private set; }
         /** Чем кончился вход: `null` — ещё идёт. */
         public string Failed { get; private set; }
 
@@ -83,8 +84,9 @@ namespace Crossade
             Rig = Rig.Make();
             Board = Board.Make();
             Board.Hand = HandRig.Make(Rig.Cam);
-            Hud = Hud.Make(Rig.Cam, Board.Hand.BarPx);
+            Hud = Hud.Make(Rig.Cam);
             Hud.Home = Home;
+            Handle = PoseHandle.Make(Hud, Board.Hand, () => Store, Draw);
             Lobby = Lobby.Make();
             Lobby.Sit = (host, room) => Open(new Door { Host = host, Room = room, Key = Account.Key });
             Application.deepLinkActivated += url =>
@@ -108,6 +110,7 @@ namespace Crossade
             Store?.Leave();
             Store = null;
             Board.Clear();
+            Handle.Place();
             Lobby.Show(true);
         }
 
@@ -161,6 +164,8 @@ namespace Crossade
             if (Store?.S == null) return;
             Hud.Title(Store.Title);
             Board.Show(Store);
+            Hud.Fit(Board.Hand.Dpr, Board.Hand.BarPx);
+            Handle.Place();
         }
 
         void OnDestroy() => Store?.Leave();

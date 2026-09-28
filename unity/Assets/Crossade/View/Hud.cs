@@ -1,5 +1,8 @@
 // ХУД — то, что поверх стола: название вверху, полоса внизу под рукой, всплывающая строка (почему стол
 // не дал, что со связью). Холст висит на камере дальше руки: карты руки лежат поверх полосы.
+//
+// Размеры — в пикселях веба (точках iOS): холст масштабируется плотностью экрана (`HandRig.Dpr`), и
+// числа здесь те же, что у мини-аппа.
 
 using UnityEngine;
 using UnityEngine.UI;
@@ -10,78 +13,65 @@ namespace Crossade.View
     {
         /** Тап по названию стола. */
         public System.Action Home;
+        public Canvas Canvas { get; private set; }
+        public RectTransform Root => (RectTransform)transform;
+        CanvasScaler scaler;
         Text title, toast;
-        Image toastBack, bar;
+        RectTransform bar, toastBox;
         float toastUntil;
 
-        public static Hud Make(Camera cam, float barPx)
+        public static Hud Make(Camera cam)
         {
             var hud = new GameObject("Hud").AddComponent<Hud>();
-            var canvas = hud.gameObject.AddComponent<Canvas>();
+            var canvas = hud.Canvas = hud.gameObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceCamera;
             canvas.worldCamera = cam;
             canvas.planeDistance = HandRig.Depth + 2;
-            var scaler = hud.gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+            hud.scaler = hud.gameObject.AddComponent<CanvasScaler>();
+            hud.scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
             hud.gameObject.AddComponent<GraphicRaycaster>();
-
-            hud.bar = Box(hud.transform, "bar", Look.Panel);
-            Pin(hud.bar.rectTransform, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, barPx), new Vector2(.5f, 0));
-
-            var pill = Box(hud.transform, "title", Look.Well);
-            pill.sprite = Ui.Round;
-            pill.type = Image.Type.Sliced;
-            Pin(pill.rectTransform, new Vector2(.2f, 1), new Vector2(.8f, 1), new Vector2(0, 64), new Vector2(.5f, 1), -56);
-            hud.title = Words(pill.transform, "", 30, Look.Ink);
-            // Тап по названию — назад к «Моим комнатам».
-            pill.raycastTarget = true;
-            pill.gameObject.AddComponent<Button>().onClick.AddListener(() => hud.Home?.Invoke());
             Ui.Events();
 
-            hud.toastBack = Box(hud.transform, "toast", new Color(0, 0, 0, .72f));
-            Pin(hud.toastBack.rectTransform, new Vector2(.08f, 0), new Vector2(.92f, 0), new Vector2(0, 72), new Vector2(.5f, 0), barPx + 360);
-            hud.toast = Words(hud.toastBack.transform, "", 28, Look.Ink);
-            hud.toastBack.gameObject.SetActive(false);
+            hud.bar = Ui.Box(hud.transform, "bar", Look.Panel, false);
+            hud.bar.anchorMin = new Vector2(0, 0);
+            hud.bar.anchorMax = new Vector2(1, 0);
+            hud.bar.pivot = new Vector2(.5f, 0);
+            var edge = Ui.Box(hud.bar, "edge", Look.Black, false);
+            edge.anchorMin = new Vector2(0, 1);
+            edge.anchorMax = new Vector2(1, 1);
+            edge.pivot = new Vector2(.5f, 1);
+            edge.sizeDelta = new Vector2(0, 2);
+
+            var pill = Ui.Box(hud.transform, "title", Look.Black);
+            pill.anchorMin = pill.anchorMax = new Vector2(.5f, 1);
+            pill.pivot = new Vector2(.5f, 1);
+            pill.sizeDelta = new Vector2(240, 34);
+            pill.anchoredPosition = new Vector2(0, -22);
+            var face = Ui.Fill(Ui.Box(pill, "face", Look.Well));
+            face.offsetMin = new Vector2(3, 3);
+            face.offsetMax = new Vector2(-3, -3);
+            hud.title = Ui.Words(face, "", 14, Look.Ink);
+            hud.title.horizontalOverflow = HorizontalWrapMode.Overflow;
+            // Тап по названию — назад к «Моим комнатам».
+            var img = pill.GetComponent<Image>();
+            img.raycastTarget = true;
+            pill.gameObject.AddComponent<Button>().onClick.AddListener(() => hud.Home?.Invoke());
+
+            hud.toastBox = Ui.Box(hud.transform, "toast", new Color(0, 0, 0, .78f));
+            hud.toastBox.anchorMin = hud.toastBox.anchorMax = new Vector2(.5f, 0);
+            hud.toastBox.pivot = new Vector2(.5f, 0);
+            hud.toastBox.sizeDelta = new Vector2(320, 40);
+            hud.toast = Ui.Words(hud.toastBox, "", 13, Look.Ink);
+            hud.toastBox.gameObject.SetActive(false);
             return hud;
         }
 
-        static Image Box(Transform parent, string name, Color color)
+        /** Плотность экрана и высота полосы (пиксели экрана) — от руки: полоса ровно под ней. */
+        public void Fit(float dpr, float barPx)
         {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
-            go.transform.SetParent(parent, false);
-            var img = go.GetComponent<Image>();
-            img.color = color;
-            img.raycastTarget = false;
-            return img;
-        }
-
-        static void Pin(RectTransform r, Vector2 min, Vector2 max, Vector2 size, Vector2 pivot, float y = 0)
-        {
-            r.anchorMin = min;
-            r.anchorMax = max;
-            r.pivot = pivot;
-            r.sizeDelta = size;
-            r.anchoredPosition = new Vector2(0, y);
-        }
-
-        static Text Words(Transform parent, string text, int size, Color color)
-        {
-            var go = new GameObject("text", typeof(RectTransform), typeof(Text));
-            go.transform.SetParent(parent, false);
-            var r = (RectTransform)go.transform;
-            r.anchorMin = Vector2.zero;
-            r.anchorMax = Vector2.one;
-            r.sizeDelta = new Vector2(-24, 0);
-            var t = go.GetComponent<Text>();
-            t.font = Look.Font;
-            t.fontSize = size;
-            t.color = color;
-            t.alignment = TextAnchor.MiddleCenter;
-            t.horizontalOverflow = HorizontalWrapMode.Wrap;
-            t.verticalOverflow = VerticalWrapMode.Truncate;
-            t.raycastTarget = false;
-            t.text = text;
-            return t;
+            scaler.scaleFactor = dpr;
+            bar.sizeDelta = new Vector2(0, barPx / dpr);
+            toastBox.anchoredPosition = new Vector2(0, barPx / dpr + 170);
         }
 
         public void Title(string text) => title.text = text ?? "";
@@ -90,13 +80,13 @@ namespace Crossade.View
         {
             if (string.IsNullOrEmpty(text)) return;
             toast.text = text;
-            toastBack.gameObject.SetActive(true);
+            toastBox.gameObject.SetActive(true);
             toastUntil = Time.realtimeSinceStartup + seconds;
         }
 
         void Update()
         {
-            if (toastBack.gameObject.activeSelf && Time.realtimeSinceStartup > toastUntil) toastBack.gameObject.SetActive(false);
+            if (toastBox.gameObject.activeSelf && Time.realtimeSinceStartup > toastUntil) toastBox.gameObject.SetActive(false);
         }
     }
 }

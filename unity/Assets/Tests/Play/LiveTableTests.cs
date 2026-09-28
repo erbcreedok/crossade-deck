@@ -151,6 +151,49 @@ public class LiveTableTests
         Shoot("5-carried");
         watch.Act(Intents.Release(top));
         yield return Until(() => node.transform.position.y < .1f, 5, "отпущенная карта снова на сукне");
+
+        // Рука из трёх карт, и ручка позы на углу крайней.
+        for (int k = 0; k < 3; k++)
+        {
+            var id = app.Store.S.Piles.First(p => p.Id == "deck").Cards[^1].Id;
+            yield return Drag(OnScreen(app.Board.Node(id)), new Vector2(W / 2f, app.Board.Hand.BarPx + 100));
+            yield return Until(() => Mine(watch).Hand.Any(c => c.Id == id), 5, "карта в руке");
+        }
+        yield return Settle();
+        var handle = app.Handle.gameObject;
+        Assert.IsTrue(handle.activeSelf, "ручка позы есть, раз есть карты");
+        Shoot("6-hand-of-three");
+
+        // Тап по ручке — меню; «Наоборот» — порядок руки у второго клиента перевернулся.
+        var before = Mine(watch).Hand.Select(c => c.Id).ToList();
+        Press(handle, Vector2.zero, Vector2.zero);
+        yield return Until(() => Find("Наоборот") != null, 3, "меню порядка руки");
+        Shoot("7-hand-menu");
+        Find("Наоборот").onClick.Invoke();
+        before.Reverse();
+        yield return Until(() => Mine(watch).Hand.Select(c => c.Id).SequenceEqual(before), 5, "рука наоборот — глазами второго клиента");
+
+        // Тяга ручки вниз — рука спрятана; ручка встала в полосу.
+        Press(handle, Vector2.zero, new Vector2(0, -150 * app.Board.Hand.Dpr));
+        yield return Until(() => Mine(watch).Pose.Tuck, 5, "рука спрятана — глазами второго клиента");
+        yield return Settle();
+        Shoot("8-tucked");
+    }
+
+    /** Нажать на объект интерфейса, провести на `by` пикселей и отпустить (или тап, если `by` — ноль). */
+    static void Press(GameObject target, Vector2 at, Vector2 by)
+    {
+        var es = UnityEngine.EventSystems.EventSystem.current;
+        var start = (Vector2)RectTransformUtility.WorldToScreenPoint(Camera.main, target.transform.position);
+        var e = new UnityEngine.EventSystems.PointerEventData(es) { position = start + at, pressPosition = start + at };
+        UnityEngine.EventSystems.ExecuteEvents.Execute(target, e, UnityEngine.EventSystems.ExecuteEvents.pointerDownHandler);
+        if (by != Vector2.zero)
+            for (int i = 1; i <= 8; i++)
+            {
+                e.position = start + at + by * i / 8f;
+                UnityEngine.EventSystems.ExecuteEvents.Execute(target, e, UnityEngine.EventSystems.ExecuteEvents.dragHandler);
+            }
+        UnityEngine.EventSystems.ExecuteEvents.Execute(target, e, UnityEngine.EventSystems.ExecuteEvents.pointerUpHandler);
     }
 
     Button Find(string text) =>
