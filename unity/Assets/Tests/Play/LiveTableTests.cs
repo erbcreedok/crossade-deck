@@ -207,6 +207,26 @@ public class LiveTableTests
         yield return Until(() => Deck(watch).Cards[^1].Up == true, 5, "колода перевёрнута — глазами второго клиента");
         yield return Settle();
         Shoot("11-deck-flipped");
+
+        // Тап по своему стулу — окно стула; «Замок» — второй клиент видит флаг.
+        var seatAt = (Vector2)app.Rig.Cam.WorldToScreenPoint(app.Board.Seat(myChair.Id).transform.position);
+        yield return Tap(seatAt);
+        yield return Until(() => Find("Замок") != null, 3, "окно своего стула");
+        yield return Settle(.3f);
+        Shoot("12-chair-window");
+        Find("Замок").onClick.Invoke();
+        yield return Until(() => Mine(watch).Lock, 5, "замок на стуле — глазами второго клиента");
+        Find("Закрыть").onClick.Invoke();
+
+        // Тап по стулу крупье — его окно с делами набора комнаты.
+        var croupier = app.Store.S.Chairs.FirstOrDefault(c => c.Croupier);
+        if (croupier != null)
+        {
+            yield return Tap((Vector2)app.Rig.Cam.WorldToScreenPoint(app.Board.Seat(croupier.Id).transform.position));
+            yield return Until(() => GameObject.Find("chair " + croupier.Id) != null, 3, "окно крупье");
+            yield return Settle(.3f);
+            Shoot("13-croupier");
+        }
     }
 
     /** Нажать на объект интерфейса, провести на `by` пикселей и отпустить (или тап, если `by` — ноль). */

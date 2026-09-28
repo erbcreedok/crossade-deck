@@ -58,13 +58,17 @@ namespace Crossade.Table
         public static Dictionary<string, object> Flip() => Of("flip");
         public static Dictionary<string, object> Sit(string chair) { var o = Of("sit"); o["chair"] = chair; return o; }
         public static Dictionary<string, object> Stand() => Of("stand");
+        public static Dictionary<string, object> Crew(string act, string chair = null) { var o = Of("crew"); o["act"] = act; if (chair != null) o["chair"] = chair; return o; }
+        public static Dictionary<string, object> Bot(string chair, string act, string brain = null) { var o = Of("bot"); o["chair"] = chair; o["act"] = act; if (brain != null) o["brain"] = brain; return o; }
+        public static Dictionary<string, object> Chair(string act, string chair = null) { var o = Of("chair"); o["act"] = act; if (chair != null) o["chair"] = chair; return o; }
+        public static Dictionary<string, object> FlipChair(string chair) { var o = Of("flip"); o["chair"] = chair; return o; }
         public static Dictionary<string, object> Flag(string chair, string flag, bool on) { var o = Of("flag"); o["chair"] = chair; o["flag"] = flag; o["on"] = on; return o; }
     }
 
     /** Слова для человека — `REFUSAL_SAYS` сервера. */
     public static class Says
     {
-        static readonly Dictionary<string, string> refusals = new()
+        public static readonly Dictionary<string, string> Refusals = new()
         {
             ["not-your-turn"] = "Сейчас не твой ход",
             ["not-yours"] = "Это не твоё",
@@ -80,6 +84,6 @@ namespace Crossade.Table
             ["gone"] = "Этого уже нет на столе",
         };
 
-        public static string Refusal(string why) => refusals.TryGetValue(why, out var s) ? s : "";
+        public static string Refusal(string why) => Refusals.TryGetValue(why, out var s) ? s : "";
     }
 }

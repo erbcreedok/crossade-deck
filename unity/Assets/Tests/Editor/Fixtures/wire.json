@@ -1,5 +1,68 @@
 {
  "protocol": 2,
+ "words": {
+  "says": {
+   "not-your-turn": "Сейчас не твой ход",
+   "not-yours": "Это не твоё",
+   "rejects": "Рука не принимает карты",
+   "beats": "Этой картой не побить",
+   "no-right": "Нет права на это",
+   "locked": "Занято",
+   "even-hand": "Ровная рука переворачивается целиком",
+   "chair-locked": "Стул закрыт",
+   "not-top": "Брать можно только верхнюю",
+   "taken": "Уже занято",
+   "full": "Больше не помещается",
+   "gone": "Этого уже нет на столе",
+   "busy": "",
+   "not-held": "",
+   "bad": ""
+  },
+  "deals": {
+   "each": {
+    "name": "По N",
+    "each": 1,
+    "askable": true,
+    "seats": 0,
+    "skipEmpty": false,
+    "sixesOut": false,
+    "trump": false
+   },
+   "durak": {
+    "name": "Дурак",
+    "each": 6,
+    "askable": true,
+    "seats": 0,
+    "skipEmpty": false,
+    "sixesOut": false,
+    "trump": true
+   },
+   "krest": {
+    "name": "Крестовый",
+    "each": "all",
+    "askable": false,
+    "seats": 0,
+    "skipEmpty": false,
+    "sixesOut": false,
+    "trump": false
+   },
+   "belka": {
+    "name": "Белка",
+    "each": 8,
+    "askable": false,
+    "seats": 4,
+    "skipEmpty": true,
+    "sixesOut": true,
+    "trump": false
+   }
+  },
+  "brains": [
+   "greedy",
+   "claude",
+   "flash",
+   "ollama"
+  ]
+ },
  "reels": {
   "sandbox": [
    {

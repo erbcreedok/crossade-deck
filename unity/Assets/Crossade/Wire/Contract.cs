@@ -26,6 +26,7 @@ namespace Crossade.Wire
     public static class Msg
     {
         public const string Hello = "hello", Welcome = "welcome", Intent = "intent", Patch = "patch", Refused = "refused";
+        public const string Command = "command";
         public const string Carry = "carry", Say = "say", Eyes = "eyes", Minds = "minds", Pulse = "pulse", Ping = "ping", Log = "log";
     }
 

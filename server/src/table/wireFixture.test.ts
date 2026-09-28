@@ -13,7 +13,7 @@
 import { readFileSync, writeFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { describe, expect, it, vi } from "vitest";
-import { PROTOCOL, type Intent, type Op, type Patch, type Person, type Snapshot } from "./contract.js";
+import { BRAIN_PICKS, DEAL_PRESETS, PROTOCOL, REFUSAL_SAYS, type Intent, type Op, type Patch, type Person, type Snapshot } from "./contract.js";
 import { applyPatch } from "./patch.js";
 import { deskOf } from "./desks.js";
 import { Table } from "./table.js";
@@ -127,7 +127,9 @@ describe("эталон протокола для Unity", () => {
     vi.spyOn(Math, "random").mockImplementation(() => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646);
     let fresh = 0;
     vi.spyOn(globalThis.crypto, "randomUUID").mockImplementation(() => `${String((fresh += 1)).padStart(8, "0")}-0000-4000-8000-000000000000`);
-    const written = JSON.stringify({ protocol: PROTOCOL, reels: { sandbox: sandbox(), krest: krest() } }, null, 1) + "\n";
+    // Слова и списки, которые Unity повторяет у себя: тексты отказов, раздачи, мозги машин.
+    const words = { says: REFUSAL_SAYS, deals: DEAL_PRESETS, brains: BRAIN_PICKS };
+    const written = JSON.stringify({ protocol: PROTOCOL, words, reels: { sandbox: sandbox(), krest: krest() } }, null, 1) + "\n";
     if (process.env.UPDATE_WIRE) writeFileSync(FIXTURE, written);
     expect(readFileSync(FIXTURE, "utf8"), "эталон устарел: UPDATE_WIRE=1 и тесты Unity").toBe(written);
   });

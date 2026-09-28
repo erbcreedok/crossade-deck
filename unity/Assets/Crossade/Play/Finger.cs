@@ -28,7 +28,12 @@ namespace Crossade.Play
         readonly Board board;
         readonly Rig rig;
 
-        enum Mode { None, Card, Orbit }
+        enum Mode { None, Card, Orbit, Seat }
+        /** Тап по стулу — открыть его окно. */
+        public System.Action<string> SeatTapped;
+        /** Тап мимо всего — закрыть окна. */
+        public System.Action Missed;
+        string seatDown;
         Mode mode;
         Vector2 downAt, lastAt;
         float downTime;
@@ -75,7 +80,8 @@ namespace Crossade.Play
                 mode = Mode.Card;
                 return;
             }
-            mode = Mode.Orbit;
+            seatDown = SeatUnder(px);
+            mode = seatDown != null ? Mode.Seat : Mode.Orbit;
         }
 
         public void Move(int id, Vector2 px, float now)
@@ -93,6 +99,8 @@ namespace Crossade.Play
             {
                 moved = true;
                 if (mode == Mode.Card) Lift();
+                // Со стула тянут — это вращение стола, а не тап.
+                if (mode == Mode.Seat) mode = Mode.Orbit;
             }
             if (!moved) return;
             if (mode == Mode.Orbit)
@@ -127,6 +135,8 @@ namespace Crossade.Play
                 if (moved) Drop(px);
                 else Tap(heldCard.Id, now);
             }
+            if (mode == Mode.Seat && !moved) SeatTapped?.Invoke(seatDown);
+            if (mode == Mode.Orbit && !moved) Missed?.Invoke();
             mode = Mode.None;
             held = null;
             heldCard = null;
@@ -188,6 +198,13 @@ namespace Crossade.Play
                 var card = pile.Ring ? pile.Cards.Find(c => c.Id == node.Id) : pile.Cards[^1];
                 return (board.Node(card.Id), Where.Deck(pile.Id), card);
             }
+            return null;
+        }
+
+        string SeatUnder(Vector2 px)
+        {
+            foreach (var hit in Physics.RaycastAll(Cam.ScreenPointToRay(px), 200))
+                if (hit.collider.GetComponent<SeatNode>() is { } seat) return seat.Id;
             return null;
         }
 

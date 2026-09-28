@@ -20,6 +20,23 @@ public class WireTests
     }
 
     [Test]
+    public void WordsMatchServer()
+    {
+        var words = Fixture().Get("words");
+        foreach (var kv in words.Obj("says")) Assert.AreEqual(kv.Value as string, Says.Refusal(kv.Key), "отказ " + kv.Key);
+        Assert.AreEqual(words.Obj("says").Count, Says.Refusals.Count + 3, "отказы: у сервера есть причины, которых нет у Unity (три технические — без слов)");
+        foreach (var kv in words.Obj("deals"))
+        {
+            Assert.IsTrue(Crossade.View.DealWindow.Presets.TryGetValue(kv.Key, out var mine), "раздача " + kv.Key);
+            Assert.AreEqual(kv.Value.Str("name"), mine.name, "имя раздачи " + kv.Key);
+            Assert.AreEqual(kv.Value.Flag("askable"), mine.askable, "askable " + kv.Key);
+            Assert.AreEqual(kv.Value.Int("seats"), mine.seats, "seats " + kv.Key);
+        }
+        Assert.AreEqual(words.Obj("deals").Count, Crossade.View.DealWindow.Presets.Count);
+        CollectionAssert.AreEqual(words.Strs("brains"), Crossade.View.ChairWindow.Brains, "мозги машин");
+    }
+
+    [Test]
     public void SnapshotsRoundTrip()
     {
         int n = 0;

@@ -26,6 +26,13 @@ namespace Crossade.Table
         };
     }
 
+    /** Дело крупье: кнопка в его окне (`crews.ts`). */
+    public sealed class CrewAct
+    {
+        public string Id, Name, Part;
+        public bool AdminOnly;
+    }
+
     public sealed class Store
     {
         public Snapshot S { get; private set; }
@@ -33,6 +40,10 @@ namespace Crossade.Table
         public string Title { get; private set; }
         /** Род стола (`Welcome.desk`). */
         public string Desk { get; private set; }
+        /** Что умеет крупье этой комнаты (`Welcome.crew`). */
+        public readonly List<CrewAct> Crew = new();
+        /** Какие раздачи предлагает род стола (`Welcome.deals`). */
+        public readonly List<string> Deals = new();
         /** Чужие пальцы в воздухе по id карты. */
         public readonly Dictionary<string, Carry> Carries = new();
 
@@ -73,6 +84,11 @@ namespace Crossade.Table
 
         public void Act(Dictionary<string, object> intent) => link?.Send(Msg.Intent, intent);
 
+        /** Команда столу от распорядителя — то же, что из бота (`TableCommand`). */
+        public void Command(Dictionary<string, object> command) => link?.Send(Msg.Command, command);
+
+        public bool May(string right) => S?.Rights.Contains(right) == true;
+
         /** Палец несёт карту над этим местом (`CarryOut`). */
         public void CarryOut(string id, Where over) => link?.Send(Msg.Carry, new Dictionary<string, object> { ["id"] = id, ["over"] = over.Write() });
 
@@ -88,6 +104,10 @@ namespace Crossade.Table
                     Title = body.Str("title");
                     Desk = body.Str("desk");
                     Carries.Clear();
+                    Crew.Clear();
+                    foreach (var c in body.Arr("crew")) Crew.Add(new CrewAct { Id = c.Str("id"), Name = c.Str("name"), Part = c.Str("part"), AdminOnly = c.Flag("adminOnly") });
+                    Deals.Clear();
+                    Deals.AddRange(body.Strs("deals"));
                     foreach (var c in body.Arr("carries")) Hold(Carry.Read(c));
                     syncing = false;
                     Changed?.Invoke();
