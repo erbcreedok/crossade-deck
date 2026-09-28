@@ -17,6 +17,9 @@ const shots = process.argv[3] ?? null;
 const W = 390, H = 844, VW = 720, VH = 1280;
 
 const FAKE = `(() => {
+  // АНИМАЦИИ ВЫБРАНЫ РУКАМИ — ВКЛЮЧЕНЫ. Иначе «авто» меряет кадры, и на нагруженной машине (3–4 кадра в секунду)
+  // сам включает «меньше анимаций»: стол тогда честно едет домой скачком, и проверка плавности меряет не то.
+  try { localStorage.setItem("crossade.table.motion", JSON.stringify({ reduce: false })); } catch {}
   const VW = ${VW}, VH = ${VH};
   const cam = document.createElement("canvas"); cam.width = VW; cam.height = VH;
   const g = cam.getContext("2d");

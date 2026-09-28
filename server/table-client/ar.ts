@@ -49,6 +49,8 @@ const STICK_R = 56;
 const MARKER_UNIT = 0.6 / (R + RIM);
 /** Метку видели не дольше стольких мс назад — «видна»: ходьба ногами, джойстик спит. */
 const SEEN_MS = 400;
+/** Сколько вспыхивает место стола после «Выровнять», мс. */
+const FLASH_MS = 1200;
 /** Сторона серого кадра для оценки годности, px — как у стенда. */
 const ASSESS = 160;
 
@@ -295,6 +297,30 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   /** СУПЕР-AR — стол держится за настоящий мир: ARKit в приложении или пойманная метка. Гироскоп — нет. */
   const superAr = (): boolean => native !== null || (anchor.kind !== "gravity" && fusion.S.locked);
   let seenLens: ArLens | null = null;
+  // ВСПЫШКА ВЫБРАННОГО МЕСТА: после «Выровнять» кромка стола вспыхивает и расходится кольцом — видно, куда он встал.
+  let flashAt = 0;
+  const flashSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  flashSvg.setAttribute("data-ar-flash", "");
+  flashSvg.setAttribute("style", "position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:4");
+  flashSvg.innerHTML = `<polygon fill="none" stroke="#f2c14e" stroke-linejoin="round"/><polygon fill="rgba(242,193,78,.12)" stroke="none"/>`;
+  stage.append(flashSvg);
+  off.push(() => flashSvg.remove());
+  const drawFlash = (l: ArLens, now: number): void => {
+    const t = flashAt ? (now - flashAt) / FLASH_MS : 1;
+    const [ring, fill] = [...flashSvg.querySelectorAll("polygon")] as [SVGPolygonElement, SVGPolygonElement];
+    flashSvg.dataset.on = t < 1 ? "1" : "0";
+    if (t >= 1) { ring.setAttribute("points", ""); fill.setAttribute("points", ""); return; }
+    const rim = (r: number) => Array.from({ length: 48 }, (_, i) => {
+      const a = (i / 48) * Math.PI * 2, q = l.project({ x: Math.cos(a) * r, y: Math.sin(a) * r }, 0);
+      return q ? `${q.x.toFixed(1)},${q.y.toFixed(1)}` : "";
+    }).filter(Boolean).join(" ");
+    ring.setAttribute("points", rim((R + RIM) * (1 + t * 0.35)));
+    ring.setAttribute("stroke-width", (5 * (1 - t) + 1).toFixed(1));
+    ring.setAttribute("opacity", (1 - t).toFixed(2));
+    fill.setAttribute("points", rim(R + RIM));
+    fill.setAttribute("opacity", (1 - t).toFixed(2));
+    requestAnimationFrame(() => changed());
+  };
   let metre = 1;
   const grab = (down: PointerEvent): void => {
     if (!seenLens) return;
@@ -551,20 +577,28 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   function glideHome(): void {
     stopGlide();
     const to = gazePlace();
+    // ВЫРОВНЯТЬ — ЭТО ВСЁ: и посадку (сдвиг пальцем, наклон двумя, размер) — к нулю. Иначе стол вставал к
+    // взгляду, но уехавшим и накренённым, и компас «ничего не восстанавливал».
+    const home: ArSeat = { ...SEAT0, flat: seat.flat };
+    writeSeat(localStorage, seatKey(), home);
+    flashAt = performance.now();
     if (document.documentElement.dataset.reduceMotion !== undefined) {
       walk = { x: 0, z: 0 };
       lift = 0;
       placed = to;
+      seat = home;
+      showHud();
       changed();
       return;
     }
-    const from = { walk: { ...walk }, lift, placed }, t0 = performance.now();
+    const from = { walk: { ...walk }, lift, placed, seat: { ...seat } }, t0 = performance.now();
     let turn = to.yaw - from.placed.yaw;
     turn = Math.atan2(Math.sin(turn), Math.cos(turn));
     const step = (now: number): void => {
       const t = Math.min(1, (now - t0) / GLIDE_MS), k = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
       walk = { x: from.walk.x * (1 - k), z: from.walk.z * (1 - k) };
       lift = from.lift * (1 - k);
+      seat = { ...home, x: from.seat.x * (1 - k), y: from.seat.y * (1 - k), tilt: from.seat.tilt * (1 - k), zoom: from.seat.zoom + (home.zoom - from.seat.zoom) * k };
       placed = {
         at: [0, 1, 2].map((i) => from.placed.at[i]! + (to.at[i]! - from.placed.at[i]!) * k) as [number, number, number],
         yaw: from.placed.yaw + turn * k,
@@ -572,6 +606,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
       };
       changed();
       glide = t < 1 ? requestAnimationFrame(step) : 0;
+      if (t >= 1) showHud();
     };
     glide = requestAnimationFrame(step);
   }
@@ -711,6 +746,7 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
       const l = arLens({ q: eye, fov: native ? native.fov : backdrop ? backdrop.fov(frame.h) : FOV, pos }, seated(base, seat), turn, z, frame);
       if (!backdrop && !shell) drawFloor(l);
       seenLens = l;
+      drawFlash(l, now);
       lastTurn = turn;
       lastZoom = z;
       const sees = seenNow();

@@ -147,6 +147,31 @@ check("вышел из AR — камеру выключили, фоны верн
     tilts.push(await read());
   }
   check("наклон с пределом 60°: и туда, и обратно стол виден плашмя, не ребром и не изнанкой", tilts.every((q) => q.squash > 0.25 && Math.abs(q.tilt) === 60), tilts);
+  // ПОВОРОТ ДВУМЯ ПАЛЬЦАМИ — НЕ ДАЛЬШЕ 90° от своего стула: стол не переворачивается вверх ногами.
+  const view = async () => { const v = (await t.getAttribute("canvas", "data-view")).split(",").map(Number); return { rotation: v[3] }; };
+  const seatAngle = JSON.parse(await t.getAttribute("canvas", "data-spots")).seatAngle ?? 0;
+  const offSeat = (r) => Math.abs(((((r - seatAngle) % 360) + 540) % 360) - 180);
+  const cx = 195, cy = 430, rr = 90;
+  const twist = (a) => [[cx + Math.cos(a) * rr, cy + Math.sin(a) * rr], [cx - Math.cos(a) * rr, cy - Math.sin(a) * rr]];
+  await touch("touchStart", twist(0));
+  for (let i = 1; i <= 90; i += 1) { await touch("touchMove", twist((i / 90) * Math.PI)); await t.waitForTimeout(16); }
+  await touch("touchEnd", []);
+  await t.waitForTimeout(300);
+  const turned = await view();
+  check("два пальца крутят стол на 180° — он упирается в 90° от своего стула, не переворачивается", offSeat(turned.rotation) <= 91 && offSeat(turned.rotation) >= 45, { turned, seatAngle });
+  // КОМПАС — ВЫРОВНЯТЬ ВСЁ: посадка (сдвиг, наклон) к нулю, поворот к своему стулу; место вспыхивает.
+  const home = await t.locator("[data-home]").boundingBox();
+  await touch("touchStart", [[home.x + home.width / 2, home.y + 8]]);
+  await touch("touchEnd", []);
+  await t.waitForTimeout(150);
+  const flashed = await t.evaluate(() => document.querySelector("[data-ar-flash]")?.dataset.on === "1");
+  check("тап по компасу — выбранное место вспыхнуло", flashed, flashed);
+  await t.waitForTimeout(1500);
+  const back = await read();
+  const again = await view();
+  check("…посадка к нулю: ни сдвига, ни наклона", Math.abs(back.sx) < 0.05 && Math.abs(back.sy) < 0.05 && back.tilt === 0, back);
+  check("…поворот — к своему стулу", offSeat(again.rotation) < 2, { again, seatAngle });
+  check("…вспышка погасла", await t.evaluate(() => document.querySelector("[data-ar-flash]")?.dataset.on === "0"), null);
   await ctx.close();
 }
 

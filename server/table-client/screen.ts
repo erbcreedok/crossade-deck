@@ -399,10 +399,33 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     };
     requestAnimationFrame(tick);
   };
+  /**
+   * В AR СТОЛ НЕ ПЕРЕВОРАЧИВАЕТСЯ: два пальца крутят его не дальше `AR_TURN` от своего стула в каждую сторону.
+   * Дальше — свой стул уезжал на ту сторону, стол вставал вверх ногами, и всё «ехало».
+   */
+  const AR_TURN = 90;
+  let turnLimiting = false;
+  /** Где стол стоял прошлый раз, относительно своего стула: у предела держится та сторона, откуда он пришёл. */
+  let arTurnWas = 0;
+  const arTurnLimit = (): void => {
+    if (!ar || turnLimiting) return;
+    const s = store.state;
+    const chair = s ? chairOf(s, mine(s)) : undefined;
+    if (!chair) return;
+    const off = ((((cam.camera.rotation - chair.angle) % 360) + 540) % 360) - 180;
+    if (Math.abs(off) <= AR_TURN) { arTurnWas = off; return; }
+    // Жест за 180° «коротким путём» перескакивает на другую сторону — предел остаётся той, где стол был.
+    const side = Math.abs(arTurnWas) > AR_TURN / 2 ? Math.sign(arTurnWas) : Math.sign(off);
+    turnLimiting = true;
+    cam.camera.turnTo(chair.angle + side * AR_TURN);
+    arTurnWas = side * AR_TURN;
+    turnLimiting = false;
+  };
   /** Камера словами — чтобы отличить ракурс, поставленный записью, от сдвинутого рукой. */
   const camLine = () => { const c = cam.camera; return `${c.target.x.toFixed(2)},${c.target.y.toFixed(2)},${c.zoom.toFixed(3)},${c.rotation.toFixed(1)},${c.pitch.toFixed(1)}`; };
   let drivenLine = "";
   const cam = tableCamera(canvas, () => lastFrame, () => {
+    arTurnLimit();
     neckTick();
     // Рука — пока палец на столе и пока стол докатывается после него по инерции.
     const byHand = handsDown.size > 0 || coasting || performance.now() - handAt < 800;
