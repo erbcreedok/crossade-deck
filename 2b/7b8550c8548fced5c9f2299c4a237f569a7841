@@ -1,0 +1,46 @@
+server/table-client/settings.ts
+  s_e1c4165d82711d::t_a79204e38e3385 62-63,183-185,220-223
+server/src/table/TableRoom.test.ts
+  s_e1c4165d82711d::t_dce2924ffed66d 287
+server/scripts/tableBody.mjs
+  s_e1c4165d82711d::t_bba18fedd736a1 78-91
+unity/Assets/Tests/Editor/Fixtures/wire.json
+  s_e1c4165d82711d::t_64c88a7f24d100 68
+server/src/table/client.ts
+  s_e1c4165d82711d::t_6a3121061a6def 104-112
+server/src/table/bodies.test.ts
+  s_e1c4165d82711d::t_dce2924ffed66d 6,14-20
+server/table-client/bodyView.ts
+  s_e1c4165d82711d::t_96b501e40536d5 10,21-22,34-64
+server/scripts/bakeSprites.mjs
+  s_e1c4165d82711d::t_003e2c24005a61 1-86
+server/src/table/clientBundle.ts
+  s_e1c4165d82711d::t_6a3121061a6def 32-33,78,93,108
+server/src/table/wireFixture.test.ts
+  s_e1c4165d82711d::t_dce2924ffed66d 133
+server/table-client/felt.ts
+  s_e1c4165d82711d::t_a79204e38e3385 49,937-938
+server/src/table/clientBundle.test.ts
+  s_e1c4165d82711d::t_6a3121061a6def 39,54
+server/src/table/bodies.ts
+  s_e1c4165d82711d::t_dce2924ffed66d 22-29,33,115-117
+server/table-client/screen.ts
+  s_e1c4165d82711d::t_96b501e40536d5 3133
+  s_e1c4165d82711d::t_a79204e38e3385 51-62,138-151,290-291,480,3125-3127,3129,3132,3134,3187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2b7b8550c8548fced5c9f2299c4a237f569a7841",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
