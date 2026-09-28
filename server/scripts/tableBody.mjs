@@ -61,7 +61,7 @@ await A.mouse.move(195, 300);
 let seen = await until(() => bodyOf(B, "Аня"));
 check("Б видит тело Ани", !!seen, seen);
 check("Аня сидит", seen?.stance === "sit", seen);
-check("вид — аватар: палка и левая рука-хват", seen?.model === "avatar" && !!seen.left, seen);
+check("вид — кукла: король или дама, и левая рука-хват", ["king", "queen"].includes(seen?.model) && !!seen.left, seen);
 const loaded = await B.evaluate(() => [...document.querySelectorAll('[data-g="body"] img')].every((i) => i.complete && i.naturalWidth > 0));
 check("руки-хваты загрузились", loaded, loaded);
 check("камеру не трогала — голова не ушла, пустого стула нет", seen && !seen.away && !seen.empty, seen);
@@ -157,14 +157,19 @@ check("не скрыта, Боря смотрит ей в лицо — её ка
 
 // ГОЛОВА ИДЁТ ЗА КАМЕРОЙ: Аня крутит стол на 180° (Ctrl + мышь) — у Б её голова с картами ушла на его сторону,
 // тело на стуле, пустой круг у стула и ниточка к голове.
+// Поворот мышью — 0.3° на пиксель (`TURN_PER_PX`): две протяжки по 300 px — ровно 180°.
+const rotOf = async (p) => +(await p.getAttribute("canvas", "data-view")).split(",")[3];
+const rot0 = await rotOf(A);
 await A.keyboard.down("Control");
-for (let i = 0; i < 3; i++) {
+for (let i = 0; i < 2; i++) {
   await A.mouse.move(40, 300);
   await A.mouse.down();
   await A.mouse.move(340, 300, { steps: 12 });
   await A.mouse.up();
 }
 await A.keyboard.up("Control");
+const turnedBy = Math.abs(((((await rotOf(A)) - rot0) % 360) + 540) % 360 - 180);
+check("Аня повернула стол на 180°", Math.abs(turnedBy - 180) < 3, { rot0, now: await rotOf(A) });
 seen = await until(async () => { const b = await bodyOf(B, "Аня"); return b?.away && b; });
 check("повернула камеру на другую сторону — голова ушла", seen?.away === true, seen);
 check("…у стула пустой круг, к голове ниточка", seen?.empty && seen?.tether, seen);
@@ -173,7 +178,7 @@ check("…голова теперь на стороне Бори (низ его 
 if (shots) await B.screenshot({ path: `${shots}/body-5-away.png` });
 // Её голова теперь у Бори и смотрит от него в стол — он ей за спиной и видит её карты лицом.
 const peek = await until(async () => { const n = await facesOf(); return n > 0 && n; });
-check("из-за спины (стул не скрыт) — её карты у Бори лицом", peek >= 3, { faces: await facesOf() });
+check("из-за спины (стул не скрыт) — её карты у Бори лицом", peek >= 3, { faces: await facesOf(), spot: await spotOf(B, "Аня"), hide: await A.evaluate(() => window.__tableState?.().chairs.map((c) => [c.owner, c.hide, c.hand.length])) });
 
 const bad = checks.filter((c) => !c.ok);
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));

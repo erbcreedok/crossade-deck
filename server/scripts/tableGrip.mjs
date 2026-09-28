@@ -105,10 +105,12 @@ g = await gripBox(A);
 const gx = g.x + g.width / 2, gy = g.y + g.height / 2;
 await A.mouse.move(gx, gy);
 await A.mouse.down();
-await A.mouse.move(gx + 60, gy - 110, { steps: 10 });
+// Вправо, по свободному сукну: сверху над колодой — голова куклы соседа, снизу — свой аватар, а бросок на
+// голову — это «отдать ему».
+await A.mouse.move(gx + 60, gy - 20, { steps: 10 });
 await wait(A, 80);
 const mid = await spots(A);
-check("пока тянут: колода едет за пальцем и висит над ним", Math.abs(mid.deckTop.x - (s.deckTop.x + 60)) < 6 && mid.deckTop.y < gy - 110, { top: mid.deckTop, finger: { x: gx + 60, y: gy - 110 } });
+check("пока тянут: колода едет за пальцем и висит над ним", Math.abs(mid.deckTop.x - (s.deckTop.x + 60)) < 6 && mid.deckTop.y < gy - 20, { top: mid.deckTop, finger: { x: gx + 60, y: gy - 20 } });
 await A.mouse.up();
 await wait(B, 500);
 const aSpot = (await spots(A)).spot, bSpot = (await spots(B)).spot;

@@ -978,8 +978,9 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     // но подпись с именем при этом стоит на месте (масштаб живёт внутри `disc`).
     const puff = 1 + 0.55 * Math.max(0, Math.min(1, who.speaking ?? 0));
     const rings = who.speaking ? voiceRings(puff, performance.now()) : [];
-    // Пока у всех один вид — аватар: голова-кружок у каждого, какой бы вид ни прислал старый клиент.
-    if (sitter) {
+    // КУКЛА (король или дама) — голову и имя рисует слой тел (`bodyView.ts`); кружок — у тех, чья кукла ещё не
+    // испеклась, и у кого тела нет (бот, крупье).
+    if (sitter && who.body?.model !== "doll") {
       g.setTransform(dpr * kk, 0, 0, dpr * kk, dpr * at.x, dpr * at.y);
       // Кольца идут ПОД аватаром: он их источник, а не то, что ими перечёркнуто.
       for (const r of rings) {

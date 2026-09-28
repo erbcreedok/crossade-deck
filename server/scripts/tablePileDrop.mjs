@@ -122,7 +122,8 @@ check("колода вмержена — вечность потеряна, ко
 // ── 4. Стопку — на стул B: в руку стула B ───────────────────────────────────────────────────────────
 const bSeat = (await spots(A)).seats.find((x) => x.who === "B");
 const bigN = (await pileOf(A, p3.id)).count;
-await carry(A, await gripOf(p3.id), { x: bSeat.x, y: bSeat.y + 30 });
+// На сам стул: у сидящего с телом кружок — голова куклы, она не у стула (`body.chairAt`).
+await carry(A, await gripOf(p3.id), bSeat.body?.chairAt ?? { x: bSeat.x, y: bSeat.y + 30 });
 await wait(B, 800);
 const bHand = await B.locator("#over [data-card]").count();
 check("стопка на стуле B — вся в руке B", bHand === bigN && !(await pileOf(B, p3.id)), { bHand, bigN });

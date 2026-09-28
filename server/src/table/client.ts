@@ -109,6 +109,14 @@ export function clientRoutes(source: ClientSource = fromEnv()): Router {
       if (err && !res.headersSent) res.status(404).end();
     });
   });
+  // КУКЛЫ ЗА СТОЛОМ — король и дама из колоды векторами: расцветку и обводку экран печёт сам (`dollSprites.ts`).
+  r.get(/^\/table\/sprites\/((?:club-K|diamond-Q))\.svg$/, (req, res) => {
+    res.header("Cache-Control", "public, max-age=86400");
+    res.header("Access-Control-Allow-Origin", "*");
+    res.type("image/svg+xml").sendFile(join(source.sprites, `${req.params[0]!}.svg`), (err) => {
+      if (err && !res.headersSent) res.status(404).end();
+    });
+  });
 
   // ЗВУКИ — записи Kenney «Casino Audio» (CC0), имя из известного вида.
   r.get(/^\/table\/sounds\/((?:drop|hand|turn|gather|merge|shuffle|sort)-[0-9])\.m4a$/, (req, res) => {

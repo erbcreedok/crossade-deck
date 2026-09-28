@@ -29,6 +29,8 @@ const check = (name, ok, got) => checks.push({ name, ok, got });
 
 const spots = async (p) => JSON.parse(await p.getAttribute("canvas", "data-spots"));
 const seatOf = async (p, who) => (await spots(p)).seats.find((s) => s.who === who);
+// КУДА БРОСАТЬ НА СТУЛ: у сидящего с телом кружок — голова куклы, она не у стула; сам стул — `body.chairAt`.
+const dropAt = (seat) => (seat.body ? [seat.body.chairAt.x + 4, seat.body.chairAt.y] : [seat.x + 4, seat.y + seat.chair * 0.6]);
 const myHand = (p) => p.evaluate(() => document.querySelectorAll('[data-card]').length);
 const zone = (p, chair) => p.evaluate((id) => {
   const el = document.querySelector(`[data-g="chair-zone"][data-chair="${id}"]`);
@@ -41,7 +43,7 @@ const bSeat = await seatOf(A, "B");
 const bHand = await myHand(B);
 await A.mouse.move(m.x, m.y);
 await A.mouse.down();
-await A.mouse.move(bSeat.x + 4, bSeat.y + bSeat.chair * 0.6, { steps: 10 });
+await A.mouse.move(...dropAt(bSeat), { steps: 10 });
 await A.waitForTimeout(400);
 const aZone = await zone(A, bSeat.key);
 const cZone = await zone(C, bSeat.key);
@@ -73,7 +75,7 @@ await A.evaluate(() => {
 });
 await A.mouse.move(m.x, m.y);
 await A.mouse.down();
-await A.mouse.move(bSeat.x + 4, bSeat.y + bSeat.chair * 0.6, { steps: 10 });
+await A.mouse.move(...dropAt(bSeat), { steps: 10 });
 await A.waitForTimeout(400);
 check("под локом зона стула B не горит у A", (await zone(A, bSeat.key)) === null, await zone(A, bSeat.key));
 check("…и у C", (await zone(C, bSeat.key)) === null, await zone(C, bSeat.key));
@@ -94,9 +96,12 @@ check("стул и голова на экране — разные места (�
 await C.mouse.click(chairAt.x, chairAt.y);
 await C.waitForTimeout(300);
 check("тап по стулу мимо аватара открыл окно", await C.evaluate((id) => Boolean(document.querySelector(`[data-tip="${id}"]`)), cSeat.key), null);
-await C.mouse.click(cSeat.x, cSeat.y);
+// Голова куклы сбоку стола при виде сверху лежит за краем экрана — тогда закрывают тапом по стулу.
+const headOnScreen = cSeat.x > 10 && cSeat.x < 380 && cSeat.y > 80 && cSeat.y < 700;
+const again = headOnScreen ? [cSeat.x, cSeat.y] : [chairAt.x, chairAt.y];
+await C.mouse.click(...again);
 await C.waitForTimeout(300);
-check("тап по аватару на стуле закрыл его", await C.evaluate((id) => !document.querySelector(`[data-tip="${id}"]`), cSeat.key), null);
+check(headOnScreen ? "тап по аватару на стуле закрыл его" : "тап по стулу ещё раз закрыл его (голова за краем экрана)", await C.evaluate((id) => !document.querySelector(`[data-tip="${id}"]`), cSeat.key), { head: [cSeat.x, cSeat.y], under: await C.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e && (e.tagName + " " + [...e.attributes].map((a) => a.name).join(",")); }, [cSeat.x, cSeat.y]) });
 
 await C.screenshot({ path: process.argv[4] ?? "chair-drop.png" });
 await browser.close();

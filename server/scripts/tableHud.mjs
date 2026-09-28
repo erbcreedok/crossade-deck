@@ -137,7 +137,9 @@ const edge = tucked.sort((p, q) => p.x - q.x)[0];
 check("скрыта у B: занавес есть", curtainTop !== null, curtainTop);
 check("скрыта у B: торчащий край карты ловит касание", curtainTop !== null && (await hit(B, edge.x, Math.round((edge.top + curtainTop) / 2))) !== null && (await hit(B, edge.x, Math.round((edge.top + curtainTop) / 2))) !== "curtain", [edge, curtainTop]);
 check("скрыта у B: середина карты под занавесом", (await hit(B, edge.x, Math.round(curtainTop + 6))) === "curtain", null);
-await drag(B, edge.x, Math.round((edge.top + curtainTop) / 2), 195, 380);
+// На сукно — ниже окна стула: окно ставится у головы, и середина стола бывает под ним.
+const tipBottom = await B.evaluate(() => Math.max(0, ...[...document.querySelectorAll("[data-tip]")].map((e) => e.getBoundingClientRect().bottom)));
+await drag(B, edge.x, Math.round((edge.top + curtainTop) / 2), 195, Math.max(380, Math.round(tipBottom + 40)));
 check("B вытянул карту из скрытой руки за край", (await spots(B)).felt.length === 1, (await spots(B)).felt);
 await poseDrag(A, 0, -90);
 await wait(A, 600);
