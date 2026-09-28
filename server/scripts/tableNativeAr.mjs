@@ -30,11 +30,7 @@ const page = async (url) => {
 // ── AR на стенде ─────────────────────────────────────────────────────────────────────────────────
 const p = await page(`${base}/table/?stand`);
 await p.waitForFunction(() => !!document.querySelector("canvas")?.dataset.spots);
-const home = await p.locator("[data-home]").boundingBox();
-await p.mouse.move(home.x + home.width / 2, home.y + home.height / 2);
-await p.mouse.down();
-await p.waitForTimeout(750);
-await p.mouse.up();
+await p.locator("[data-ar-enter]").click();
 await p.waitForTimeout(250);
 check("AR включился — приложение позвали включить камеру", JSON.stringify(await p.evaluate(() => window.__arCalls)) === "[true]", await p.evaluate(() => window.__arCalls));
 
@@ -115,9 +111,8 @@ check("вышел из AR — камеру выключили, фоны верн
   await t.waitForFunction(() => !!document.querySelector("canvas")?.dataset.spots);
   const cdp = await ctx.newCDPSession(t);
   const touch = (type, points) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map(([x, y], id) => ({ x, y, id: id + 1 })) });
-  const h = await t.locator("[data-home]").boundingBox();
+  const h = await t.locator("[data-ar-enter]").boundingBox();
   await touch("touchStart", [[h.x + h.width / 2, h.y + h.height / 2]]);
-  await t.waitForTimeout(750);
   await touch("touchEnd", []);
   await t.evaluate(() => window.__arFrame(Math.sin(-50 * Math.PI / 360), 0, 0, Math.cos(50 * Math.PI / 360), 0, 0, 0, 62, 1));
   await t.waitForTimeout(1000);

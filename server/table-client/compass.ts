@@ -14,9 +14,8 @@ export interface CompassWorld {
   redraw(): void;
   /** Стул, на котором я сижу, — в этом снимке или в текущем. */
   myChair(s?: Snapshot): Chair | undefined;
-  /** Включён ли AR у этого человека, и как его переключить (`ar.ts`). */
+  /** Включён ли AR у этого человека (`ar.ts`). */
   ar(): boolean;
-  toggleAr(): void;
   /** В AR: вернуться к своему стулу и поставить стол перед собой. */
   recenterAr(): void;
   /** В AR: джойстик ходьбы с серединой `from`, палец `id` уже в `at` (`ar.ts`). */
@@ -80,8 +79,6 @@ export function tableCompass(o: CompassWorld): Compass {
 
   /** Сдвиг с места, после которого нажатие на компас — уже жест, а не тап, в пикселях стекла. */
   const COMPASS_SLOP = 4;
-  /** Столько держать палец на компасе, не сдвигая, чтобы включить AR. */
-  const AR_HOLD_MS = 550;
   /**
    * В AR УДЕРЖАНИЕ — ПРОГУЛКА С КАМЕРОЙ: секунду на месте — и камера ведёт шаги, пока палец не поднят. Порог
    * щедрый: палец на компасе дрожит, и 24 px дрожи — ещё удержание, а не джойстик. Повёл дальше до конца
@@ -98,7 +95,7 @@ export function tableCompass(o: CompassWorld): Compass {
    * модификаторов нет вовсе, а два пальца там уже заняты щипком. Не сдвинулся с места — это тап, и
    * работает прежнее: кольцо возвращает к стулу, диск кладёт стол на `LEAN_STEP`.
    *
-   * КОМПАС ЖЕ — ДВЕРЬ В AR. Удержал палец на месте — AR включается (выход из AR — кнопкой сверху). В AR тап —
+   * В AR (вход и выход — кнопкой сверху справа) тап по компасу —
    * «Выровнять»: назад к своему стулу, стол перед собой; повело палец — ДЖОЙСТИК ХОДЬБЫ, середина в середине
    * компаса (`ar.ts`); удержал секунду на месте — ПРОГУЛКА С КАМЕРОЙ, пока палец не поднят. Крутить и
    * класть стол в AR незачем — это делает сам телефон.
@@ -111,12 +108,12 @@ export function tableCompass(o: CompassWorld): Compass {
     let moved = false;
     let held = false;
     const inAr = o.ar();
-    const hold = setTimeout(() => {
+    // Удержание что-то значит только в AR — прогулка с камерой. Вход в AR — кнопкой сверху справа.
+    const hold = inAr ? setTimeout(() => {
       if (moved) return;
       held = true;
-      if (inAr) o.strideAr(true);
-      else o.toggleAr();
-    }, inAr ? STRIDE_MS : AR_HOLD_MS);
+      o.strideAr(true);
+    }, STRIDE_MS) : undefined;
     const move = (e: PointerEvent) => {
       if (e.pointerId !== down.pointerId) return;
       if (inAr) {
@@ -198,7 +195,7 @@ export function tableCompass(o: CompassWorld): Compass {
       : `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="pointer-events:none">`
         + `<rect x="2.5" y="7" width="12.5" height="10" rx="2.5"/><path d="M15 10.5 L21.5 7 v10 L15 13.5 Z"/></svg>`;
     const discLook = ar ? `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}` : disc;
-    return `<button data-home${ar ? " data-ar" : ""} aria-label="${ar ? "Выровнять; повести — идти; удержать секунду — идти с камерой" : "К своему стулу; удержать — AR"}" style="position:absolute;${at ? `left:${at.left}px;top:${at.top}px` : "right:12px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px))"};width:52px;height:52px;border:0;padding:0;z-index:45;`
+    return `<button data-home${ar ? " data-ar" : ""} aria-label="${ar ? "Выровнять; повести — идти; удержать секунду — идти с камерой" : "К своему стулу"}" style="position:absolute;${at ? `left:${at.left}px;top:${at.top}px` : "right:12px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px))"};width:52px;height:52px;border:0;padding:0;z-index:45;`
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;`
       + `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}">`
       + `<svg viewBox="0 0 52 52" width="52" height="52" style="position:absolute;left:0;top:0;transform:rotate(${turn}deg);pointer-events:none">`

@@ -33,14 +33,17 @@ await p.goto(`${base}/table/?stand`);
 await ready();
 check("по умолчанию AR выключен", !(await floor()));
 
-// 1. удержал палец на компасе — AR; компас стал выходом
+// 1. удержание компаса AR больше не включает; вход — кнопкой справа сверху, на её месте в AR — выход
 const c0 = await compass();
 await p.mouse.move(c0.x, c0.y);
 await p.mouse.down();
 await p.waitForTimeout(750);
 await p.mouse.up();
 await settle();
-check("удержал компас — AR включился", await floor());
+check("удержал компас — AR не включился: вход кнопкой сверху", !(await floor()));
+await p.locator("[data-ar-enter]").click();
+await settle();
+check("кнопка AR справа сверху — AR включился, на её месте выход", (await floor()) && (await p.locator("[data-ar-enter]").count()) === 0);
 check("компас в AR — «Выровнять», сверху кнопка выхода", (await p.locator("[data-home][data-ar]").count()) === 1 && (await p.locator('[data-ar-do="exit"]').count()) === 1);
 await orient(0, 50);
 // Вход в AR — переездом из обычного вида (`arBlend.ts`, 700 мс): стол читается, когда доехал.
@@ -169,9 +172,9 @@ await p.reload();
 await ready();
 check("после перезагрузки — обычный стол, хоть и уходил в AR", !(await floor()));
 const c1 = await compass();
-await p.mouse.move(c1.x, c1.y); await p.mouse.down(); await p.waitForTimeout(750); await p.mouse.up();
+await p.locator("[data-ar-enter]").click();
 await settle();
-check("удержал компас — снова AR", await floor());
+check("кнопка AR — снова AR", await floor());
 await p.mouse.move(c1.x, c1.y); await p.mouse.down(); await p.waitForTimeout(1200); await p.mouse.up();
 await settle();
 check("удержание компаса в AR — не выход: AR остался", await floor());

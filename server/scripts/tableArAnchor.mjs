@@ -89,9 +89,7 @@ const box = async (sel) => p.locator(sel).first().boundingBox();
 const click = async (sel) => { const b = await box(sel); await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await settle(); };
 const compass = async () => { const b = await box("[data-home]"); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
 const enterAr = async () => {
-  const c = await compass();
-  await p.mouse.move(c.x, c.y); await p.mouse.down(); await p.waitForTimeout(750); await p.mouse.up();
-  await settle();
+  await click("[data-ar-enter]");
 };
 /** Синтетические касания двумя пальцами — туда, что лежит под точкой (у мыши палец один). */
 const touch = (steps) => p.evaluate(async (steps) => {

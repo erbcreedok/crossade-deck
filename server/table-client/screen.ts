@@ -3222,7 +3222,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     redraw,
     myChair: (st = store.state) => chairOf(st, mine(st)),
     ar: () => ar !== null,
-    toggleAr,
     // ВЫРОВНЯТЬ — назад к своему стулу, стол перед собой, размер исходный.
     recenterAr: () => {
       ar?.recenter();
@@ -3386,7 +3385,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const name = `<div data-table-name style="position:absolute;left:${aside}px;right:${aside}px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));height:40px;z-index:60;`
       + `display:flex;align-items:center;justify-content:center;pointer-events:none"><span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`
       + `padding:0 12px;border-radius:12px;font:400 13px Tiny5,monospace;color:${T.ink};line-height:28px;${plate}">${escape(store.title)}</span></div>`;
-    return gear + book + name;
+    // ВХОД В AR — кнопкой справа сверху, там же, где в AR живут якорь и выход: вошёл — на её месте выход.
+    const enter = ar ? "" : `<button data-ar-enter aria-label="AR — стол в комнате" style="position:absolute;right:${RIM_LEFT}px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:40px;height:40px;border:0;padding:0;z-index:61;`
+      + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">`
+      + `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
+      + `<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></button>`;
+    return gear + book + name + enter;
   }
 
   // ── ЧУЖИЕ РУКИ В ВОЗДУХЕ И ПЕРЕЛЁТЫ ────────────────────────────────────────────────────────────
@@ -4394,6 +4398,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         e.stopPropagation();
         local.journal = !local.journal;
         draw();
+      };
+    }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-ar-enter]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        if (!ar) toggleAr();
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-settings]")) {
