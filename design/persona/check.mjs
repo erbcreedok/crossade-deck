@@ -50,6 +50,16 @@ const stand = await at("speed=0&a_look=0&stance=стоит");
 check("встал — туловище выше на экране", stand.torso2[1] < sit.torso2[1] - 10, { sit: sit.torso2, stand: stand.torso2 });
 check("встал — туловище того же размера", Math.abs(height(stand.torso2) / height(sit.torso2) - 1) < 0.08, { sit: height(sit.torso2), stand: height(stand.torso2) });
 
+// ДВА ИГРОКА: оба не трогали камеру — каждый видит другого сверху; тело рисуется у обоих экранов.
+const duo = await at("speed=0&scene=два игрока&pitch=0");
+check("два игрока: Боря видит голову Ани, Аня — голову Бори", !!duo.head1 && !!duo.head2, Object.keys(duo));
+if (shots) {
+  for (const [name, hash] of [["duo-idle", "speed=0&scene=два игрока&pitch=0"], ["duo-tilt", "speed=0&scene=два игрока&pitch=58"], ["duo-king", "speed=0&scene=два игрока&pitch=0&duoA=king&duoB=queen"]]) {
+    await at(hash);
+    await page.screenshot({ path: `${shots}/persona-${name}.png`, clip: { x: 0, y: 0, width: 880, height: 880 } });
+  }
+}
+
 const bad = checks.filter((c) => !c.ok);
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));
 console.log(`persona ${checks.length - bad.length}/${checks.length}`);
