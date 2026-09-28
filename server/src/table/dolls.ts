@@ -1,0 +1,66 @@
+// КУКЛЫ ЗА СТОЛОМ — кем человек сидит: король или дама из колоды, в одной из расцветок. Выбирает сам
+// (профиль стола, `tableProfilesRepo.ts`), видят все. У фигуры колоды три краски — красная, синяя и золото;
+// расцветка их подменяет, чтобы одинаковые куклы за столом не сливались. Свой цвет человека (`Person.ink`)
+// поверх любой расцветки — обводкой: он всегда различает двоих.
+//
+// Одно место на сервер, веб и Unity: чистые данные.
+
+export const DOLLS = ["king", "queen"] as const;
+export type Doll = (typeof DOLLS)[number];
+
+/** Три краски расцветки: чем заменить красную, синюю и золото рисунка. */
+export interface Palette {
+  name: string;
+  red: string;
+  blue: string;
+  gold: string;
+}
+
+/** Шестнадцать расцветок; первые `MAIN_PALETTES` — основные, видны сразу, остальные — под «ещё». */
+export const PALETTES: readonly Palette[] = [
+  { name: "классика", red: "#b3221f", blue: "#1d4f80", gold: "#f2c14e" },
+  { name: "изумруд", red: "#2f7d4f", blue: "#173a2c", gold: "#e7c766" },
+  { name: "аметист", red: "#6b3fa0", blue: "#2b2560", gold: "#d9c9a0" },
+  { name: "уголь", red: "#3a3a3a", blue: "#5b6570", gold: "#c9ccd1" },
+  { name: "закат", red: "#d9602a", blue: "#6e1f3a", gold: "#f2d24e" },
+  { name: "лёд", red: "#3f8fbf", blue: "#1b3550", gold: "#dfe9f2" },
+  { name: "роза", red: "#c2457a", blue: "#4a2340", gold: "#f2c6a8" },
+  { name: "мох", red: "#6f7d2f", blue: "#2f3a1c", gold: "#d8c98a" },
+  { name: "медь", red: "#a8552a", blue: "#3d2a1f", gold: "#e0a060" },
+  { name: "бирюза", red: "#1f9a8f", blue: "#15434a", gold: "#f0d9a0" },
+  { name: "вино", red: "#7a1f2e", blue: "#2a1a2e", gold: "#c9a55a" },
+  { name: "песок", red: "#b89a5a", blue: "#5a4a30", gold: "#f2e2b0" },
+  { name: "ночь", red: "#3a4ab0", blue: "#10163a", gold: "#b8c4f2" },
+  { name: "лава", red: "#e0301f", blue: "#2a0f0a", gold: "#ffb02e" },
+  { name: "мята", red: "#4fb88a", blue: "#1f4a3a", gold: "#e8f2c8" },
+  { name: "сирень", red: "#9a6ad0", blue: "#3a2a5a", gold: "#f0d0f0" },
+];
+export const MAIN_PALETTES = 5;
+
+/** Что человек выбрал себе. */
+export interface DollLook {
+  doll: Doll;
+  palette: number;
+}
+
+/** Хэш ключа: одинаковый при каждом вопросе, разный у разных людей. */
+function hash(key: string): number {
+  let sum = 0;
+  for (const ch of key) sum = (sum * 31 + ch.codePointAt(0)!) % 0x7fffffff;
+  return sum;
+}
+
+/** Кукла того, кто ещё ничего не выбрал: по ключу — король или дама, и одна из основных расцветок. */
+export function dollFor(key: string): DollLook {
+  const h = hash(key);
+  return { doll: DOLLS[h % DOLLS.length]!, palette: Math.floor(h / DOLLS.length) % MAIN_PALETTES };
+}
+
+/** Разбор выбора из сети: кукла и расцветка — каждое поле или годное, или его нет. */
+export function cleanDoll(raw: unknown): Partial<DollLook> {
+  const o = (raw ?? {}) as { doll?: unknown; palette?: unknown };
+  const out: Partial<DollLook> = {};
+  if ((DOLLS as readonly unknown[]).includes(o.doll)) out.doll = o.doll as Doll;
+  if (typeof o.palette === "number" && Number.isInteger(o.palette) && o.palette >= 0 && o.palette < PALETTES.length) out.palette = o.palette;
+  return out;
+}

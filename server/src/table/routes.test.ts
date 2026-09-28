@@ -9,6 +9,7 @@ import { clientRoutes } from "./client.js";
 import { forgetAll, setAdmin } from "./lobby.js";
 import { tellAll } from "../db/eventsRepo.js";
 import { mintRoom, roomIsSigned } from "./roomIds.js";
+import { mintAppKey } from "./appPass.js";
 import { BOOT, DOOR_DEAD_AFTER, forgetBeacon, hostPage, readCommand, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
 
 process.env.TABLE_SECRET = "s3cret";
@@ -400,5 +401,31 @@ describe("/table/admin/rooms — «Все столы» только хозяев
     expect(one, "закрытая комната из журнала — с именем, каким её открыли").toMatchObject({ title: "Крестовый. Брод", live: false });
     expect(one!.records.people.map((p) => p.name)).toEqual(["Ye"]);
     expect(typeof one!.pass).toBe("string");
+  });
+});
+
+describe("/table/profile — кем сижу и мой цвет", () => {
+  const key = (who: string) => mintAppKey({ key: who, name: "Гость 1" }, "s3cret", Date.now() + 60_000);
+  const ask = (who: string | null, init: RequestInit & { json?: unknown } = {}) =>
+    fetch(`${base}/table/profile`, {
+      ...init,
+      headers: { "content-type": "application/json", ...(who ? { "x-crossade-app-key": key(who) } : {}) },
+      ...(init.json !== undefined ? { body: JSON.stringify(init.json) } : {}),
+    });
+
+  it("без ключа — 401; с ключом — кукла по ключу, пока не выбирал", async () => {
+    expect((await ask(null)).status).toBe(401);
+    const got = (await (await ask("dev:p1")).json()) as { doll: string; palette: number; chosen: boolean; telegram: boolean };
+    expect(["king", "queen"]).toContain(got.doll);
+    expect(got.palette).toBeGreaterThanOrEqual(0);
+    expect(got.chosen).toBe(false);
+    expect(got.telegram).toBe(false);
+  });
+
+  it("выбрал — запомнилось; негодное (чужая кукла, расцветка вне списка, цвет не из восьми) не принимается", async () => {
+    const saved = (await (await ask("dev:p2", { method: "PATCH", json: { doll: "queen", palette: 12, color: "#e0483f" } })).json()) as { doll: string; palette: number; color: string; chosen: boolean };
+    expect(saved).toMatchObject({ doll: "queen", palette: 12, color: "#e0483f", chosen: true });
+    const bad = (await (await ask("dev:p2", { method: "PATCH", json: { doll: "jester", palette: 99, color: "#123456" } })).json()) as { doll: string; palette: number; color: string };
+    expect(bad).toMatchObject({ doll: "queen", palette: 12, color: "#e0483f" });
   });
 });

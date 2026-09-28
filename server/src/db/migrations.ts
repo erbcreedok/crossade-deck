@@ -360,4 +360,21 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 19,
+    up(db) {
+      // ПРОФИЛЬ ЗА СТОЛОМ — кем человек сидит (кукла, расцветка) и его цвет. Ключ — тот же, каким стол знает
+      // человека (`tg:…` у Telegram, `dev:…` у гостя приложения): у Telegram профиль один на Mini App и
+      // приложение, у гостя — пока он гость. Пустое поле — ещё не выбирал.
+      db.exec(`
+        CREATE TABLE table_profiles (
+          key TEXT PRIMARY KEY,
+          doll TEXT,
+          palette INTEGER,
+          color TEXT,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];

@@ -20,6 +20,9 @@ import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomInJournal, roomsOfJou
 import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
 import { myRooms } from "./mine.js";
+import { carryTableProfile, saveTableProfile, tableProfile } from "../db/tableProfilesRepo.js";
+import { cleanDoll, dollFor } from "./dolls.js";
+import { INKS, inkFor } from "../profileInks.js";
 import { verifyTelegramInitData, verifyTelegramLogin } from "../telegramAuth.js";
 
 /** Подпись Mini App — заголовком: в адресе ей не место, адрес пересылают. */
@@ -259,6 +262,35 @@ export function tableRoutes(): Router {
     res.json({ rooms: mine.rooms, closed });
   });
 
+  // ─── ПРОФИЛЬ СТОЛА: кем сижу (кукла, расцветка) и мой цвет ────────────────────────────────────────
+  // Кто спрашивает — так же, как у «Моих комнат»: подпись Telegram или ключ приложения.
+  const whoAsks = (req: express.Request): { key: string; name: string; photo?: string } | null => {
+    const config = tableConfig();
+    const signed = req.header(TELEGRAM_HEADER);
+    const user = signed && config.botToken ? verifyTelegramInitData(signed, config.botToken) : null;
+    if (user) return { key: `tg:${user.id}`, name: [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username || `#${user.id}`, ...(user.photo_url ? { photo: user.photo_url } : {}) };
+    const bearer = config.secret ? appKeyBearer(req.header(APP_KEY_HEADER), config.secret) : null;
+    return bearer && { key: bearer.key, name: bearer.name, ...(bearer.photo ? { photo: bearer.photo } : {}) };
+  };
+  const profileOut = (who: { key: string; name: string; photo?: string }) => {
+    const row = tableProfile(who.key);
+    const look = { ...dollFor(who.key), ...cleanDoll(row) };
+    return { name: who.name, ...(who.photo ? { photo: who.photo } : {}), telegram: who.key.startsWith("tg:"), doll: look.doll, palette: look.palette, color: row?.color ?? inkFor(who.key), chosen: row !== null };
+  };
+  r.get("/table/profile", (req, res) => {
+    const who = whoAsks(req);
+    if (!who) return void res.status(401).json({ error: "who_are_you" });
+    res.json(profileOut(who));
+  });
+  r.patch("/table/profile", (req, res) => {
+    const who = whoAsks(req);
+    if (!who) return void res.status(401).json({ error: "who_are_you" });
+    const body = (req.body ?? {}) as { color?: unknown };
+    const color = typeof body.color === "string" && (INKS as readonly string[]).includes(body.color) ? body.color : undefined;
+    saveTableProfile(who.key, { ...cleanDoll(body), ...(color ? { color } : {}) });
+    res.json(profileOut(who));
+  });
+
   // ─── ПРИЛОЖЕНИЕ CROSSADE: свой вход, без Telegram Mini App ────────────────────────────────────────
   // Приложение входит КЛЮЧОМ (`appPass.ts`). Ключ даёт одна из дверей ниже: гость — сразу, на это устройство;
   // Telegram — кнопкой входа Telegram (Login Widget), тем же человеком, что в Mini App.
@@ -281,6 +313,9 @@ export function tableRoutes(): Router {
     if (!user) return void res.status(401).json({ error: "who_are_you" });
     const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username || `#${user.id}`;
     const who = { key: `tg:${user.id}`, name, ...(user.username ? { username: user.username } : {}), ...(user.photo_url ? { photo: user.photo_url } : {}) };
+    // ПРИВЯЗАЛ TELEGRAM ИЗ ГОСТЯ: его выбор в профиле стола переезжает на Telegram (если там своего нет).
+    const guest = appKeyBearer(req.header(APP_KEY_HEADER), secret);
+    if (guest && guest.key !== who.key) carryTableProfile(guest.key, who.key);
     res.json({ key: mintAppKey(who, secret, Date.now() + KEY_DAYS * DAY), name });
   });
 

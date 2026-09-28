@@ -10,6 +10,8 @@ import {
  hasSticker, stickersOf } from "../db/stickersRepo.js";
 import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
+import { tableProfile } from "../db/tableProfilesRepo.js";
+import { cleanDoll, dollFor } from "./dolls.js";
 import { iceServers, tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
 import { DEAL_PRESETS, MSG, PROTOCOL, ROOM_CLOSED, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type Recording, type AppPass, type SeatCard, type TableCommand, type Welcome, TOLD_OPS } from "./contract.js";
@@ -851,7 +853,12 @@ export class TableRoom extends Room {
     if (!who) return;
     const sitting = this.table.here.find((one) => one.key === who.key);
     // Аватар приложение не приносит (пропуск от бота его не знает) — пусть остаётся тот, что был.
-    const person: Person = { ...(sitting?.photo ? { photo: sitting.photo } : {}), ...who, ink: sitting?.ink ?? this.freeInk() };
+    // КЕМ СИДИТ И КАКОГО ЦВЕТА — из профиля стола (`tableProfilesRepo.ts`): кукла, расцветка, свой цвет. Не
+    // выбирал — кукла по ключу (`dollFor`). Свой цвет — если за этим столом он свободен; занят — свободный.
+    const chosen = this.profileOf(who.key);
+    const look = { ...dollFor(who.key), ...cleanDoll(chosen) };
+    const wanted = chosen?.color && !this.table.here.some((one) => one.key !== who.key && one.ink === chosen.color) ? chosen.color : null;
+    const person: Person = { ...(sitting?.photo ? { photo: sitting.photo } : {}), ...who, ink: wanted ?? sitting?.ink ?? this.freeInk(), doll: look.doll, palette: look.palette };
     // ОТКРЫЛ СТОЛ В НОВОМ ОКНЕ — старым голос больше не принадлежит: иначе они дерутся за одну связь, и
     // речь достаётся тому, кого человек уже не видит.
     for (const one of this.clients) {
@@ -894,6 +901,16 @@ export class TableRoom extends Room {
     this.witnesses.forget(key);
     this.flood.forget(key);
     this.spread(this.table.leave(key));
+  }
+
+  /** Профиль стола человека; база недоступна (тесты без неё) — нет профиля. */
+  private profileOf(key: string): { doll?: unknown; palette?: unknown; color?: string } | null {
+    try {
+      const row = tableProfile(key);
+      return row && { ...(row.doll ? { doll: row.doll } : {}), ...(row.palette !== null ? { palette: row.palette } : {}), ...(row.color ? { color: row.color } : {}) };
+    } catch {
+      return null;
+    }
   }
 
   private freeInk(): string {
