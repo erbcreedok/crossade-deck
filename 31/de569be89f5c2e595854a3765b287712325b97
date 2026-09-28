@@ -1,0 +1,26 @@
+server/scripts/tableNativeAr.mjs
+  s_e1c4165d82711d::t_40d3261bdc0c11 109-110,176-192
+server/table-client/arNative.ts
+  s_e1c4165d82711d::t_fa21c6eac79a90 28-33,50-56
+  s_e1c4165d82711d::t_034d3b93ec6180 57-58
+native/ios-table/Sources/App.swift
+  s_e1c4165d82711d::t_2d46c5ed3230ba 4,40-41,217-239
+server/table-client/ar.ts
+  s_e1c4165d82711d::t_fa21c6eac79a90 22,52-53,113-134,169-170,603,605,786-792
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "31de569be89f5c2e595854a3765b287712325b97",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
