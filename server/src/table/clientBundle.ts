@@ -29,6 +29,8 @@ export interface ClientSource {
   readonly sounds: string;
   /** Свой шрифт стола (Tiny5, OFL) — чтобы не ждать чужой сервер и не видеть чужое начертание. */
   readonly fonts: string;
+  /** Спрайты тела — второй вид аватара (`scripts/bakeSprites.mjs`). */
+  readonly sprites: string;
   readonly cards: string;
 }
 
@@ -73,6 +75,7 @@ export function liveSource(): ClientSource {
       })),
     sounds: join(SOURCES, "sounds"),
     fonts: join(SOURCES, "fonts"),
+    sprites: join(SOURCES, "sprites"),
     cards: BAKED_CARDS,
   };
 }
@@ -87,6 +90,7 @@ export function builtSource(dir: string): ClientSource {
     }),
     sounds: join(dir, "sounds"),
     fonts: join(dir, "fonts"),
+    sprites: join(dir, "sprites"),
     cards: join(dir, "cards"),
   };
 }
@@ -101,5 +105,6 @@ export async function buildClient(dir: string): Promise<void> {
   }
   await cp(join(SOURCES, "sounds"), join(dir, "sounds"), { recursive: true });
   await cp(join(SOURCES, "fonts"), join(dir, "fonts"), { recursive: true });
+  await cp(join(SOURCES, "sprites"), join(dir, "sprites"), { recursive: true });
   await cp(BAKED_CARDS, join(dir, "cards"), { recursive: true });
 }

@@ -36,7 +36,7 @@ afterAll(async () => {
 describe("клиент стола: собранный заранее и собранный на лету", () => {
   it("папка сборки несёт всё, что нужно странице, и ничего из исходников", async () => {
     const files = await readdir(dir);
-    expect(files.sort()).toEqual(["admin.html", "app.js", "app.js.map", "bots.html", "cards", "fonts", "index.html", "replay.html", "replay.js", "replay.js.map", "sounds"]);
+    expect(files.sort()).toEqual(["admin.html", "app.js", "app.js.map", "bots.html", "cards", "fonts", "index.html", "replay.html", "replay.js", "replay.js.map", "sounds", "sprites"]);
   });
 
   for (const kind of ["live", "built"] as const) {
@@ -51,6 +51,7 @@ describe("клиент стола: собранный заранее и собр
         ["/table/replay.js.map", "application/json"],
         ["/table/sounds/drop-1.m4a", "audio/mp4"],
         ["/table/fonts/tiny5-cyrillic.woff2", "font/woff2"],
+        ["/table/sprites/king-body.png", "image/png"],
         ["/table/cards/classic/spade-A.webp", "image/webp"],
       ] as const) {
         const res = await fetch(`${base}${path}`);

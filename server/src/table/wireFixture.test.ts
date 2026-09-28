@@ -130,7 +130,7 @@ describe("эталон протокола для Unity", () => {
     vi.spyOn(globalThis.crypto, "randomUUID").mockImplementation(() => `${String((fresh += 1)).padStart(8, "0")}-0000-4000-8000-000000000000`);
     // Слова и списки, которые Unity повторяет у себя: тексты отказов, раздачи, мозги машин.
     // Тело за столом: как его шлют, шея и её время — Unity читает и пишет то же самое.
-    const body: Body = { by: "a", stance: "stand", look: { x: 1.5, y: -2 }, stretch: 0.45, yaw: -30, right: { x: 0.25, y: 3 } };
+    const body: Body = { by: "a", stance: "stand", model: "king", look: { x: 1.5, y: -2 }, stretch: 0.45, yaw: -30, right: { x: 0.25, y: 3 } };
     const neck = { ...NECK, stanceZoom: STANCE_ZOOM, everyMs: BODY_EVERY_MS, holds: [0, 0.3, 0.5, 0.8, 1].map((s) => ({ stretch: s, ms: Number.isFinite(holdFor(s)) ? holdFor(s) : -1 })) };
     const shapes = [0, 90, 200].flatMap((angle) => [0, 0.5, 1].map((stretch) => {
       const s = shouldersOf(angle), head = headOf(s, body.look, stretch);

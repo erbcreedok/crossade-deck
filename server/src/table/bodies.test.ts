@@ -3,12 +3,19 @@
 import { describe, expect, it } from "vitest";
 import { Bodies, cleanBody, holdFor, NECK } from "./bodies.js";
 
-const body = { stance: "sit", look: { x: 1, y: -2 }, stretch: 0.2, yaw: 30, right: null };
+const body = { stance: "sit", model: "seat", look: { x: 1, y: -2 }, stretch: 0.2, yaw: 30, right: null };
 
 describe("bodies.read-whole-or-nothing", () => {
   it("целое тело принимается, правая рука без дела — null", () => {
     expect(cleanBody(body)).toEqual(body);
     expect(cleanBody({ ...body, right: { x: 3, y: 4 } })!.right).toEqual({ x: 3, y: 4 });
+  });
+
+  it("вид аватара: знакомый — как есть, незнакомый или не сказан — первый", () => {
+    expect(cleanBody({ ...body, model: "king" })!.model).toBe("king");
+    expect(cleanBody({ ...body, model: "dragon" })!.model).toBe("seat");
+    const { model: _, ...old } = body;
+    expect(cleanBody(old)!.model).toBe("seat");
   });
 
   it("мусор — отказ целиком, числа — в пределах", () => {

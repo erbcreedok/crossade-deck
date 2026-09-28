@@ -19,9 +19,18 @@ import { seatPoint, TABLE_RADIUS } from "./ring.js";
 export type Stance = "sit" | "stand";
 export const STANCES: readonly Stance[] = ["sit", "stand"];
 
+/**
+ * ВИД АВАТАРА — выбирает сам человек, видят все:
+ *   seat  стул, кружок-аватар (он же голова) и карты — первый, по умолчанию;
+ *   king  спрайты: тело и голова короля треф, руки-хваты (`scripts/bakeSprites.mjs`).
+ */
+export const MODELS = ["seat", "king"] as const;
+export type Model = (typeof MODELS)[number];
+
 /** Клиент → сервер: своё тело сейчас. */
 export interface BodyOut {
   stance: Stance;
+  model: Model;
   look: { x: number; y: number };
   stretch: number;
   yaw: number;
@@ -103,7 +112,9 @@ export function cleanBody(raw: unknown): BodyOut | null {
   if (!look || stretch === null || yaw === null) return null;
   const right = b.right === null || b.right === undefined ? null : point(b.right);
   if (b.right !== null && b.right !== undefined && !right) return null;
-  return { stance: b.stance as Stance, look, stretch, yaw, right };
+  // Незнакомый вид — первый: старый клиент вида не шлёт, новый вид старому не страшен.
+  const model: Model = (MODELS as readonly unknown[]).includes(b.model) ? (b.model as Model) : "seat";
+  return { stance: b.stance as Stance, model, look, stretch, yaw, right };
 }
 
 export class Bodies {

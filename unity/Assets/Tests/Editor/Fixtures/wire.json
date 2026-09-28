@@ -65,6 +65,7 @@
   "body": {
    "by": "a",
    "stance": "stand",
+   "model": "king",
    "look": {
     "x": 1.5,
     "y": -2

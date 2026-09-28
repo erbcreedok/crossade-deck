@@ -59,6 +59,8 @@ export interface SettingsWorld {
   };
   /** Измерители поверх стола: пинг, кадры, камера (`meters.ts`). */
   meters: { on(): boolean; toggle(): void };
+  /** ВИД АВАТАРА — как меня видят за столом (`bodies.ts`, `MODELS`): стул или спрайты короля. */
+  avatar: { model(): string; set(model: string): void };
   /** Запись моего экрана — камера, нажатия, звук (`SCREEN_PRIVATE`); по умолчанию выключена. */
   record: { on(): boolean; toggle(): void };
 }
@@ -178,6 +180,9 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + section("Анимации")
       + speedHtml()
       + toggle("reduce", motion.chosen || !motion.reduce ? "Меньше анимаций" : "Меньше анимаций · авто", motion.reduce)
+      + section("Аватар")
+      + toggle("avatar-seat", "Стул", world.avatar.model() === "seat")
+      + toggle("avatar-king", "Король треф", world.avatar.model() === "king")
       + section("Колода")
       + toggle("fourColour", "4 цвета", look.fourColour) + toggle("cyrillic", "Кириллица", look.cyrillic)
       + section("Отладка")
@@ -211,6 +216,10 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       }
       case "meters":
         world.meters.toggle();
+        break;
+      case "avatar-seat":
+      case "avatar-king":
+        world.avatar.set(el.dataset.look.slice("avatar-".length));
         break;
       case "record":
         world.record.toggle();

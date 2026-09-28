@@ -7,7 +7,7 @@
 // те же, что у этих временных фигур.
 
 import type { Body } from "../src/table/bodies.js";
-import { NECK, headOf, shouldersOf } from "../src/table/bodies.js";
+import { NECK, headOf, leftHandOf, shouldersOf } from "../src/table/bodies.js";
 import { DISC } from "./felt.js";
 
 type Point = { x: number; y: number };
@@ -18,6 +18,8 @@ export interface BodyLook {
   angle: number;
   ink: string;
   name: string;
+  /** Несёт карту — правая рука сжата. */
+  holding?: boolean;
 }
 
 export interface BodyColors {
@@ -29,8 +31,37 @@ export interface BodyColors {
 const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 /** Разметка тел: `toGlass` — точка стола на стекле, `k` — пикселей в единице стола. */
-export function bodiesHtml(all: readonly BodyLook[], toGlass: (p: Point) => Point, k: number, T: BodyColors): string {
-  return all.map((one) => bodyHtml(one, toGlass, k, T)).join("");
+export function bodiesHtml(all: readonly BodyLook[], toGlass: (p: Point) => Point, k: number, T: BodyColors, sprite: (name: string) => string): string {
+  return all.map((one) => (one.body.model === "king" ? kingHtml(one, toGlass, k, T, sprite) : bodyHtml(one, toGlass, k, T))).join("");
+}
+
+/**
+ * ВИД «КОРОЛЬ» — спрайты стоят, а не лежат (лицом к смотрящему, как кружок-аватар): туловище короля треф
+ * у плеч, шея, его голова там, где голова, табличка с именем под ней, руки-хваты. Левая держит карты —
+ * сами карты рисует сукно под ней; правая открыта у курсора и сжата, когда несёт карту.
+ */
+function kingHtml({ body, angle, ink, name, holding }: BodyLook, toGlass: (p: Point) => Point, k: number, T: BodyColors, sprite: (name: string) => string): string {
+  const shoulders = shouldersOf(angle);
+  const head = headOf(shoulders, body.look, body.stretch);
+  const S = toGlass(shoulders), H = toGlass(head), L = toGlass(leftHandOf(head, body.yaw));
+  const standing = body.stance === "stand";
+  // Размеры — в единицах стола через `k`: сидя туловище в три карты шириной, стоя — крупнее.
+  const bodyW = k * (standing ? 3.6 : 3), bodyH = bodyW * (92 / 123);
+  const headW = k * 1.9, headH = headW * (58 / 70);
+  const handW = k * 1.1;
+  const strained = body.stretch > NECK.free;
+  const img = (src: string, x: number, y: number, w: number, h: number, g: string, extra = "") =>
+    `<img data-g="${g}" src="${src}" alt="" draggable="false" style="position:absolute;left:${(x - w / 2).toFixed(1)}px;top:${(y - h / 2).toFixed(1)}px;width:${w.toFixed(1)}px;height:${h.toFixed(1)}px;pointer-events:none;${extra}">`;
+  const right = body.right ? toGlass(body.right) : null;
+  return `<div data-g="body" data-model="king" data-by="${esc(body.by)}" data-name="${esc(name)}" data-stance="${body.stance}" data-stretch="${body.stretch.toFixed(2)}" style="position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:24">`
+    + img(sprite("king-body"), S.x, S.y, bodyW, bodyH, "king-body", standing ? `filter:drop-shadow(0 ${k * 0.3}px 0 rgba(11,7,4,.45))` : "")
+    + `<svg style="position:absolute;left:0;top:0;overflow:visible" width="1" height="1"><line x1="${S.x}" y1="${S.y - bodyH * 0.35}" x2="${H.x}" y2="${H.y + headH * 0.3}" stroke="${strained ? T.danger : T.black}" stroke-width="${Math.max(4, k * 0.35)}" stroke-linecap="round"/></svg>`
+    + img(sprite("king-head"), H.x, H.y, headW, headH, "head")
+    + `<span style="position:absolute;left:${H.x.toFixed(1)}px;top:${(H.y + headH / 2 + 2).toFixed(1)}px;transform:translateX(-50%);white-space:nowrap;padding:1px 6px;border-radius:6px;`
+    + `background:${T.black};box-shadow:inset 0 0 0 1.5px ${ink};font:400 ${Math.max(9, k * 0.42).toFixed(0)}px Tiny5,monospace;color:${T.ink}">${esc(name)}</span>`
+    + img(sprite("hand-closed"), L.x, L.y + k * 0.5, handW, handW, "left-hand")
+    + (right ? img(sprite(holding ? "hand-closed" : "hand-open"), right.x, right.y, handW, handW, "right-hand") : "")
+    + `</div>`;
 }
 
 function bodyHtml({ body, angle, ink, name }: BodyLook, toGlass: (p: Point) => Point, k: number, T: BodyColors): string {

@@ -75,6 +75,20 @@ const moved = await until(async () => { const now = await avatarOf(B, "Аня");
 check("Аня повела камеру — её аватар поехал по столу у Б", !!moved, { was, moved });
 if (shots) await B.screenshot({ path: `${shots}/body-1b-head-moved.png` });
 
+// ВИД АВАТАРА: Аня в настройках выбирает «Король треф» — у Б её тело спрайтами: туловище, голова, руки.
+await A.click("[data-settings]");
+await A.waitForTimeout(300);
+await A.click('[data-look="avatar-king"]');
+await A.click("[data-settings-close]");
+const king = await until(() => B.evaluate(() => {
+  const el = [...document.querySelectorAll('[data-g="body"]')].find((b) => b.dataset.name === "Аня");
+  return el?.dataset.model === "king" && { head: !!el.querySelector('[data-g="head"]'), body: !!el.querySelector('[data-g="king-body"]'), left: !!el.querySelector('[data-g="left-hand"]') };
+}));
+check("Б видит Аню королём: туловище, голова, левая рука", king?.head && king.body && king.left, king);
+const loaded = await B.evaluate(() => [...document.querySelectorAll('[data-model="king"] img')].every((i) => i.complete && i.naturalWidth > 0));
+check("спрайты загрузились", loaded, loaded);
+if (shots) await B.screenshot({ path: `${shots}/body-king.png` });
+
 // Аня встаёт кнопкой позы.
 check("кнопка позы над компасом, бар не тронут", (await A.locator('[data-g="thumb-stance"] [data-stance-toggle]').count()) === 1, null);
 await A.locator("[data-stance-toggle]").click();

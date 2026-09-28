@@ -101,6 +101,15 @@ export function clientRoutes(source: ClientSource = fromEnv()): Router {
     });
   });
 
+  // СПРАЙТЫ ТЕЛА — второй вид аватара; имя — из известного списка, как у звуков.
+  r.get(/^\/table\/sprites\/((?:king-body|king-head|hand-open|hand-closed))\.png$/, (req, res) => {
+    res.header("Cache-Control", "public, max-age=86400");
+    res.header("Access-Control-Allow-Origin", "*");
+    res.type("image/png").sendFile(join(source.sprites, `${req.params[0]!}.png`), (err) => {
+      if (err && !res.headersSent) res.status(404).end();
+    });
+  });
+
   // ЗВУКИ — записи Kenney «Casino Audio» (CC0), имя из известного вида.
   r.get(/^\/table\/sounds\/((?:drop|hand|turn|gather|merge|shuffle|sort)-[0-9])\.m4a$/, (req, res) => {
     res.header("Cache-Control", "public, max-age=86400");

@@ -48,7 +48,18 @@ import { mountMeters } from "./meters.js";
 import { readRecording, writeRecording } from "./watch.js";
 import { buzzEvery, charged, onRelease, spring, tensed } from "./sling.js";
 import { PALETTE } from "../../look/src/palette.js";
-import { BODY_EVERY_MS, headOf, leftHandOf, shouldersOf, type Stance } from "../src/table/bodies.js";
+import { BODY_EVERY_MS, MODELS, headOf, leftHandOf, shouldersOf, type Model, type Stance } from "../src/table/bodies.js";
+
+/** Где устройство помнит вид аватара. */
+const AVATAR_KEY = "crossade.avatar";
+function readAvatar(): Model {
+  try {
+    const got = localStorage.getItem(AVATAR_KEY);
+    return (MODELS as readonly (string | null)[]).includes(got) ? (got as Model) : "seat";
+  } catch {
+    return "seat";
+  }
+}
 import { baseZoom, freshNeck, neckStep } from "./neck.js";
 import { bodiesHtml } from "./bodyView.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, VOICE_OPEN, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
@@ -124,6 +135,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   let переход: string | null = null;
   const settings = mountSettings(document.body, {
     sound, haptic, motion, look,
+    avatar: {
+      model: () => local.model,
+      set: (model) => {
+        if (!(MODELS as readonly string[]).includes(model)) return;
+        local.model = model as Model;
+        try {
+          localStorage.setItem(AVATAR_KEY, model);
+        } catch {
+          // Хранилище закрыто — вид живёт до закрытия стола.
+        }
+        tellBody(true);
+        draw();
+      },
+    },
     lookChanged: () => {
       writeLook(look);
       art.warm(store.state.rules);
@@ -262,6 +287,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   const local = {
     /** Поза тела (`bodies.ts`): сидит или стоит. Правило стола «играть стоя» сильнее её. */
     stance: "sit" as Stance,
+    /** Вид аватара — личный, живёт на устройстве (`AVATAR_KEY`). */
+    model: readAvatar(),
     /** Сколько шея уже вытерпела: 0 — свободно, 1 — камера сейчас отъедет (`neck.ts`). */
     worn: 0,
     /** Открытая секция нижнего бара, прошлая и когда сменилась — для перелёта кнопок. */
@@ -450,6 +477,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const c = cam.camera;
     const out = {
       stance: stanceOf(s),
+      model: local.model,
       look: { x: +c.target.x.toFixed(2), y: +c.target.y.toFixed(2) },
       stretch: +stretchNow.toFixed(2),
       yaw: Math.round(((-c.rotation % 360) + 540) % 360 - 180),
@@ -3094,10 +3122,15 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       const person = s.people.find((p) => p.key === body.by);
       const chair = person?.seat ? chairOf(s, person.seat) : undefined;
       if (!person || !chair || body.by === me()) return [];
-      return [{ body, angle: chair.angle, ink: person.ink, name: person.name }];
+      // Несёт ли он сейчас карту — правая рука тогда сжата.
+    const holding = store.carries.some((c) => c.by === body.by);
+    return [{ body, angle: chair.angle, ink: person.ink, name: person.name, holding }];
     });
-    return bodiesHtml(looks, (p) => lens.toGlass(p), lens.k, { black: T.black, ink: T.ink, danger: PALETTE.danger });
+    return bodiesHtml(looks, (p) => lens.toGlass(p), lens.k, { black: T.black, ink: T.ink, danger: PALETTE.danger }, spriteUrl);
   }
+
+  /** Спрайт тела — рядом со страницей стола, как шрифты и звуки. */
+  const spriteUrl = (name: string): string => `${HOST}/table/sprites/${name}.png`;
 
   /** ШЕЯ ТЕРПИТ — полоска по верху кадра: дорастёт до края — камера отъедет к позе. */
   function neckWornHtml(): string {
@@ -3151,7 +3184,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
           const body = sitter && sitter.key !== me() ? store.bodies.find((b) => b.by === sitter.key) : undefined;
           if (!body) return {};
           const head = headOf(shouldersOf(c.angle), body.look, body.stretch);
-          return { body: { head, left: leftHandOf(head, body.yaw), yaw: body.yaw } };
+          return { body: { head, left: leftHandOf(head, body.yaw), yaw: body.yaw, model: body.model } };
         })(),
       };
     });

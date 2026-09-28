@@ -46,7 +46,7 @@ export interface Seat {
    * ТЕЛО ЗА СТОЛОМ (`bodies.ts`): голова — это его аватар, и он там, где голова, а не на стуле; нос на
    * кружке — куда смотрит; карты руки — веером в левой руке у головы, повёрнуты по взгляду. Стул остаётся.
    */
-  body?: { head: { x: number; y: number }; left: { x: number; y: number }; yaw: number };
+  body?: { head: { x: number; y: number }; left: { x: number; y: number }; yaw: number; model?: string };
 }
 
 export interface FeltItem {
@@ -934,7 +934,8 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     // но подпись с именем при этом стоит на месте (масштаб живёт внутри `disc`).
     const puff = 1 + 0.55 * Math.max(0, Math.min(1, who.speaking ?? 0));
     const rings = who.speaking ? voiceRings(puff, performance.now()) : [];
-    if (sitter) {
+    // ВИД «СПРАЙТЫ» — голову с именем рисует слой тел (`bodyView.ts`), кружка здесь нет.
+    if (sitter && (who.body?.model ?? "seat") === "seat") {
       g.setTransform(dpr * kk, 0, 0, dpr * kk, dpr * at.x, dpr * at.y);
       // Кольца идут ПОД аватаром: он их источник, а не то, что ими перечёркнуто.
       for (const r of rings) {
