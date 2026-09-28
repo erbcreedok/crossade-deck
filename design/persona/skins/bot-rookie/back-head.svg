@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Neck Connector Post (#5d666e) -->
+  <path d="M 38 80 L 62 80 L 60 92 L 40 92 Z" fill="#5d666e" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <line x1="44" y1="86" x2="56" y2="86" stroke="#0b0704" stroke-width="1.8"/>
+
+  <!-- Round Ear Muff Capsules on Sides (#1d4f80, #f2c14e) -->
+  <rect x="10" y="38" width="6" height="18" rx="3" fill="#1d4f80" stroke="#0b0704" stroke-width="1.8"/>
+  <circle cx="13" cy="47" r="2" fill="#f2c14e"/>
+  <rect x="84" y="38" width="6" height="18" rx="3" fill="#1d4f80" stroke="#0b0704" stroke-width="1.8"/>
+  <circle cx="87" cy="47" r="2" fill="#f2c14e"/>
+
+  <!-- Spring Antenna from Behind -->
+  <path d="M 44 20 C 44 16, 56 16, 56 20 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="1.6"/>
+  <path d="M 50 17 Q 56 15, 50 13 Q 44 11, 52 9 Q 58 7, 54 5" fill="none" stroke="#5d666e" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M 50 17 Q 56 15, 50 13 Q 44 11, 52 9 Q 58 7, 54 5" fill="none" stroke="#0b0704" stroke-width="0.8" stroke-linecap="round"/>
+  <circle cx="55" cy="6" r="4.5" fill="#f2c14e" stroke="#0b0704" stroke-width="1.6"/>
+  <circle cx="53.5" cy="4.5" r="1.3" fill="#f7f1e6"/>
+
+  <!-- Round Soft Head Silhouette from Behind (#b3221f) -->
+  <path d="M 26 20 C 38 15, 62 15, 74 20 C 86 28, 88 64, 76 78 C 64 86, 36 86, 24 78 C 12 64, 14 28, 26 20 Z" fill="#b3221f" stroke="#0b0704" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Gold Nape / Crown Trim Arc (#f2c14e) -->
+  <path d="M 32 23 C 42 19, 58 19, 68 23" fill="none" stroke="#f2c14e" stroke-width="1.8" stroke-linecap="round"/>
+
+  <!-- Round Battery / Maintenance Port (#1d4f80) -->
+  <circle cx="50" cy="48" r="17" fill="#1d4f80" stroke="#0b0704" stroke-width="2.2"/>
+  <circle cx="50" cy="48" r="14" fill="none" stroke="#f2c14e" stroke-width="1.5"/>
+
+  <!-- Center Steel Core with Winding / Charging Slot (#5d666e & #0b0704) -->
+  <circle cx="50" cy="48" r="9" fill="#5d666e" stroke="#0b0704" stroke-width="1.6"/>
+  <rect x="44" y="46.5" width="12" height="3" rx="1" fill="#0b0704"/>
+  <circle cx="50" cy="48" r="2.5" fill="#f2c14e"/>
+
+  <!-- Brass Port Screws (#f2c14e) -->
+  <circle cx="50" cy="34" r="1.5" fill="#f2c14e"/>
+  <circle cx="50" cy="62" r="1.5" fill="#f2c14e"/>
+  <circle cx="36" cy="48" r="1.5" fill="#f2c14e"/>
+  <circle cx="64" cy="48" r="1.5" fill="#f2c14e"/>
+
+  <!-- Woodcut Hatches -->
+  <path d="M 22 32 C 26 36, 30 38, 34 38" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <path d="M 78 32 C 74 36, 70 38, 66 38" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <path d="M 26 70 C 32 74, 40 76, 46 76" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <path d="M 74 70 C 68 74, 60 76, 54 76" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+</svg>

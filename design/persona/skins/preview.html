@@ -179,23 +179,110 @@
       top: 60px;
       z-index: 1;
     }
+    /* Bot colorway controls & styles */
+    .palette-toolbar {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0 30px;
+      flex-wrap: wrap;
+    }
+    .palette-btn {
+      background: rgba(11, 7, 4, 0.7);
+      border: 1px solid rgba(242, 193, 78, 0.4);
+      color: #f7f1e6;
+      padding: 10px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.2s ease;
+    }
+    .palette-btn:hover {
+      background: rgba(242, 193, 78, 0.2);
+      border-color: #f2c14e;
+    }
+    .palette-btn.active {
+      background: #f2c14e;
+      color: #0b0704;
+      border-color: #f2c14e;
+      box-shadow: 0 0 12px rgba(242, 193, 78, 0.5);
+    }
+    .palette-dots {
+      display: inline-flex;
+      gap: 5px;
+    }
+    .palette-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1px solid #0b0704;
+    }
+    .colorway-row {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      width: 100%;
+      margin-bottom: 28px;
+      background: rgba(247, 241, 230, 0.03);
+      border: 1px solid rgba(242, 193, 78, 0.2);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .colorway-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 10px;
+      border-bottom: 1px dashed rgba(242, 193, 78, 0.3);
+    }
+    .colorway-label {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f2c14e;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .colorway-bots-strip {
+      display: flex;
+      justify-content: space-around;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .colorway-bot-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .colorway-bot-name {
+      font-size: 13px;
+      color: #f7f1e6;
+      font-weight: 500;
+    }
   </style>
 </head>
 <body>
 
-  <h1>Карточные фигурные скины кукол</h1>
-  <p class="subtitle">Стиль игральной колоды (король / дама) — плоский вектор, толстая обводка, строгая палитра</p>
+  <h1>Карточные фигурные скины: Персоны и Роботы-Боты</h1>
+  <p class="subtitle">Стиль игральной колоды (король / дама / роботы) — плоский вектор, толстая обводка, строгая палитра</p>
 
   <div class="palette">
-    <div class="swatch"><div class="swatch-color" style="background:#b3221f;"></div>#b3221f Красный</div>
-    <div class="swatch"><div class="swatch-color" style="background:#1d4f80;"></div>#1d4f80 Синий</div>
-    <div class="swatch"><div class="swatch-color" style="background:#f2c14e;"></div>#f2c14e Золото</div>
-    <div class="swatch"><div class="swatch-color" style="background:#0b0704;"></div>#0b0704 Чёрный</div>
-    <div class="swatch"><div class="swatch-color" style="background:#f7f1e6;"></div>#f7f1e6 Бумага</div>
-    <div class="swatch"><div class="swatch-color" style="background:#c98a4b;"></div>#c98a4b / #8a5a2b Шерсть пса</div>
-    <div class="swatch"><div class="swatch-color" style="background:#9a9a9a;"></div>#9a9a9a / #5f5f5f Шерсть кошки</div>
-    <div class="swatch"><div class="swatch-color" style="background:#9aa3ab;"></div>#9aa3ab / #5d666e Металл крестоносца</div>
-    <div class="swatch"><div class="swatch-color" style="background:#9a8a78;"></div>#9a8a78 / #6b5d50 Шерсть лап зверя</div>
+    <div class="swatch"><div class="swatch-color" style="background:#b3221f;"></div>#b3221f Бот: Основной корпус</div>
+    <div class="swatch"><div class="swatch-color" style="background:#1d4f80;"></div>#1d4f80 Бот: Панели / Визор</div>
+    <div class="swatch"><div class="swatch-color" style="background:#f2c14e;"></div>#f2c14e Бот: Акцент / Золото</div>
+    <div class="swatch"><div class="swatch-color" style="background:#0b0704;"></div>#0b0704 Обводка / Чёрный</div>
+    <div class="swatch"><div class="swatch-color" style="background:#f7f1e6;"></div>#f7f1e6 Бумага / Белый</div>
+    <div class="swatch"><div class="swatch-color" style="background:#5d666e;"></div>#5d666e Металл / Шасси</div>
+    <div class="swatch"><div class="swatch-color" style="background:#c98a4b;"></div>#c98a4b Пёс</div>
+    <div class="swatch"><div class="swatch-color" style="background:#9a9a9a;"></div>#9a9a9a Кошка</div>
+    <div class="swatch"><div class="swatch-color" style="background:#9aa3ab;"></div>#9aa3ab Крестоносец</div>
   </div>
 
   <!-- DOG SECTION -->
@@ -598,6 +685,820 @@
       </div>
     </div>
   </section>
+
+  <!-- ========================================== -->
+  <!-- BOT SECTION: РОБОТ-КРУПЬЕ И 4 ГОЛОВЫ БОТОВ -->
+  <!-- ========================================== -->
+
+  <!-- PALETTE CONTROLS TOOLBAR -->
+  <div class="palette-toolbar">
+    <span style="font-size:15px; font-weight:700; color:#f2c14e;">Переключение палитры всех ботов:</span>
+    <button class="palette-btn active" data-palette="ruby" onclick="setBotPalette('ruby')">
+      <span class="palette-dots">
+        <span class="palette-dot" style="background:#b3221f;"></span>
+        <span class="palette-dot" style="background:#1d4f80;"></span>
+        <span class="palette-dot" style="background:#f2c14e;"></span>
+      </span>
+      Палитра 1: Рубин и Синий (Default)
+    </button>
+    <button class="palette-btn" data-palette="emerald" onclick="setBotPalette('emerald')">
+      <span class="palette-dots">
+        <span class="palette-dot" style="background:#1b6e41;"></span>
+        <span class="palette-dot" style="background:#53286b;"></span>
+        <span class="palette-dot" style="background:#f5ba38;"></span>
+      </span>
+      Палитра 2: Изумруд и Пурпур (Казино)
+    </button>
+    <button class="palette-btn" data-palette="graphite" onclick="setBotPalette('graphite')">
+      <span class="palette-dots">
+        <span class="palette-dot" style="background:#263238;"></span>
+        <span class="palette-dot" style="background:#b85d19;"></span>
+        <span class="palette-dot" style="background:#38d9a9;"></span>
+      </span>
+      Палитра 3: Графит и Бирюза (Киберпанк)
+    </button>
+  </div>
+
+  <!-- 1. BOT CROUPIER BODY SECTION -->
+  <section class="character-section" id="bot-body-section">
+    <div class="character-title">
+      <span>РОБОТ-КРУПЬЕ (Bot Croupier) — Общее тело: bot/</span>
+      <span style="font-size:14px; color:#e2dac9;">корпус-туловище с плечами, без головы</span>
+    </div>
+    <div class="views-grid">
+      <!-- Front View -->
+      <div class="view-card">
+        <div class="view-name">Front (Грудь / Лицо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/front-body.svg" alt="bot/front-body.svg">
+            <span class="sprite-label">front-body.svg</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Back View -->
+      <div class="view-card">
+        <div class="view-name">Back (Спина)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/back-body.svg" alt="bot/back-body.svg">
+            <span class="sprite-label">back-body.svg</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right View -->
+      <div class="view-card">
+        <div class="view-name">Right (Профиль вправо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/right-body.svg" alt="bot/right-body.svg">
+            <span class="sprite-label">right-body.svg</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top View -->
+      <div class="view-card">
+        <div class="view-name">Top (Вид сверху)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/top-body.svg" alt="bot/top-body.svg">
+            <span class="sprite-label">top-body.svg</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom View -->
+      <div class="view-card">
+        <div class="view-name">Bottom (Вид снизу)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/bottom-body.svg" alt="bot/bottom-body.svg">
+            <span class="sprite-label">bottom-body.svg</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. BOT: HOARDER («КОПИТЕЛЬ») -->
+  <section class="character-section" id="bot-hoarder-section">
+    <div class="character-title">
+      <span>БОТ: «КОПИТЕЛЬ» (Bot Hoarder) — bot-hoarder/</span>
+      <span style="font-size:14px; color:#e2dac9;">бережёт козыри: сейф/копилка, щель для монет, прищур, замочек</span>
+    </div>
+    <div class="views-grid">
+      <!-- Front View -->
+      <div class="view-card">
+        <div class="view-name">Front (Лицо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-hoarder/front-head.svg" alt="bot-hoarder/front-head.svg">
+            <span class="sprite-label">front-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/front-body.svg" alt="bot/front-body.svg">
+            <span class="sprite-label">front-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-hoarder/front-head.svg" alt="bot-hoarder front-head">
+            <img class="body bot-dynamic-sprite" src="bot/front-body.svg" alt="bot front-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Back View -->
+      <div class="view-card">
+        <div class="view-name">Back (Спина)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-hoarder/back-head.svg" alt="bot-hoarder/back-head.svg">
+            <span class="sprite-label">back-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/back-body.svg" alt="bot/back-body.svg">
+            <span class="sprite-label">back-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-hoarder/back-head.svg" alt="bot-hoarder back-head">
+            <img class="body bot-dynamic-sprite" src="bot/back-body.svg" alt="bot back-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Right View -->
+      <div class="view-card">
+        <div class="view-name">Right (Профиль вправо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-hoarder/right-head.svg" alt="bot-hoarder/right-head.svg">
+            <span class="sprite-label">right-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/right-body.svg" alt="bot/right-body.svg">
+            <span class="sprite-label">right-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-hoarder/right-head.svg" alt="bot-hoarder right-head">
+            <img class="body bot-dynamic-sprite" src="bot/right-body.svg" alt="bot right-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Top View -->
+      <div class="view-card">
+        <div class="view-name">Top (Вид сверху)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-hoarder/top-head.svg" alt="bot-hoarder/top-head.svg">
+            <span class="sprite-label">top-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/top-body.svg" alt="bot/top-body.svg">
+            <span class="sprite-label">top-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-hoarder/top-head.svg" alt="bot-hoarder top-head">
+            <img class="body bot-dynamic-sprite" src="bot/top-body.svg" alt="bot top-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom View -->
+      <div class="view-card">
+        <div class="view-name">Bottom (Вид снизу)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-hoarder/bottom-head.svg" alt="bot-hoarder/bottom-head.svg">
+            <span class="sprite-label">bottom-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/bottom-body.svg" alt="bot/bottom-body.svg">
+            <span class="sprite-label">bottom-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-hoarder/bottom-head.svg" alt="bot-hoarder bottom-head">
+            <img class="body bot-dynamic-sprite" src="bot/bottom-body.svg" alt="bot bottom-body">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. BOT: CLOSER («ЗАКРЫВАЛА») -->
+  <section class="character-section" id="bot-closer-section">
+    <div class="character-title">
+      <span>БОТ: «ЗАКРЫВАЛА» (Bot Closer) — bot-closer/</span>
+      <span style="font-size:14px; color:#e2dac9;">любит закрывать круг: деловой, визор-шторка, щеколда/засов, спокойный прямой взгляд</span>
+    </div>
+    <div class="views-grid">
+      <!-- Front View -->
+      <div class="view-card">
+        <div class="view-name">Front (Лицо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-closer/front-head.svg" alt="bot-closer/front-head.svg">
+            <span class="sprite-label">front-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/front-body.svg" alt="bot/front-body.svg">
+            <span class="sprite-label">front-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-closer/front-head.svg" alt="bot-closer front-head">
+            <img class="body bot-dynamic-sprite" src="bot/front-body.svg" alt="bot front-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Back View -->
+      <div class="view-card">
+        <div class="view-name">Back (Спина)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-closer/back-head.svg" alt="bot-closer/back-head.svg">
+            <span class="sprite-label">back-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/back-body.svg" alt="bot/back-body.svg">
+            <span class="sprite-label">back-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-closer/back-head.svg" alt="bot-closer back-head">
+            <img class="body bot-dynamic-sprite" src="bot/back-body.svg" alt="bot back-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Right View -->
+      <div class="view-card">
+        <div class="view-name">Right (Профиль вправо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-closer/right-head.svg" alt="bot-closer/right-head.svg">
+            <span class="sprite-label">right-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/right-body.svg" alt="bot/right-body.svg">
+            <span class="sprite-label">right-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-closer/right-head.svg" alt="bot-closer right-head">
+            <img class="body bot-dynamic-sprite" src="bot/right-body.svg" alt="bot right-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Top View -->
+      <div class="view-card">
+        <div class="view-name">Top (Вид сверху)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-closer/top-head.svg" alt="bot-closer/top-head.svg">
+            <span class="sprite-label">top-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/top-body.svg" alt="bot/top-body.svg">
+            <span class="sprite-label">top-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-closer/top-head.svg" alt="bot-closer top-head">
+            <img class="body bot-dynamic-sprite" src="bot/top-body.svg" alt="bot top-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom View -->
+      <div class="view-card">
+        <div class="view-name">Bottom (Вид снизу)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-closer/bottom-head.svg" alt="bot-closer/bottom-head.svg">
+            <span class="sprite-label">bottom-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/bottom-body.svg" alt="bot/bottom-body.svg">
+            <span class="sprite-label">bottom-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-closer/bottom-head.svg" alt="bot-closer bottom-head">
+            <img class="body bot-dynamic-sprite" src="bot/bottom-body.svg" alt="bot bottom-body">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. BOT: AGGRESSOR («АГРЕССОР») -->
+  <section class="character-section" id="bot-aggressor-section">
+    <div class="character-title">
+      <span>БОТ: «АГРЕССОР» (Bot Aggressor) — bot-aggressor/</span>
+      <span style="font-size:14px; color:#e2dac9;">бьёт всегда: острые углы, рога-антенны, злой красный визор, скошенный лоб</span>
+    </div>
+    <div class="views-grid">
+      <!-- Front View -->
+      <div class="view-card">
+        <div class="view-name">Front (Лицо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-aggressor/front-head.svg" alt="bot-aggressor/front-head.svg">
+            <span class="sprite-label">front-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/front-body.svg" alt="bot/front-body.svg">
+            <span class="sprite-label">front-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-aggressor/front-head.svg" alt="bot-aggressor front-head">
+            <img class="body bot-dynamic-sprite" src="bot/front-body.svg" alt="bot front-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Back View -->
+      <div class="view-card">
+        <div class="view-name">Back (Спина)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-aggressor/back-head.svg" alt="bot-aggressor/back-head.svg">
+            <span class="sprite-label">back-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/back-body.svg" alt="bot/back-body.svg">
+            <span class="sprite-label">back-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-aggressor/back-head.svg" alt="bot-aggressor back-head">
+            <img class="body bot-dynamic-sprite" src="bot/back-body.svg" alt="bot back-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Right View -->
+      <div class="view-card">
+        <div class="view-name">Right (Профиль вправо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-aggressor/right-head.svg" alt="bot-aggressor/right-head.svg">
+            <span class="sprite-label">right-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/right-body.svg" alt="bot/right-body.svg">
+            <span class="sprite-label">right-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-aggressor/right-head.svg" alt="bot-aggressor right-head">
+            <img class="body bot-dynamic-sprite" src="bot/right-body.svg" alt="bot right-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Top View -->
+      <div class="view-card">
+        <div class="view-name">Top (Вид сверху)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-aggressor/top-head.svg" alt="bot-aggressor/top-head.svg">
+            <span class="sprite-label">top-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/top-body.svg" alt="bot/top-body.svg">
+            <span class="sprite-label">top-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-aggressor/top-head.svg" alt="bot-aggressor top-head">
+            <img class="body bot-dynamic-sprite" src="bot/top-body.svg" alt="bot top-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom View -->
+      <div class="view-card">
+        <div class="view-name">Bottom (Вид снизу)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-aggressor/bottom-head.svg" alt="bot-aggressor/bottom-head.svg">
+            <span class="sprite-label">bottom-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/bottom-body.svg" alt="bot/bottom-body.svg">
+            <span class="sprite-label">bottom-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-aggressor/bottom-head.svg" alt="bot-aggressor bottom-head">
+            <img class="body bot-dynamic-sprite" src="bot/bottom-body.svg" alt="bot bottom-body">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. BOT: ROOKIE («НОВИЧОК») -->
+  <section class="character-section" id="bot-rookie-section">
+    <div class="character-title">
+      <span>БОТ: «НОВИЧОК» (Bot Rookie) — bot-rookie/</span>
+      <span style="font-size:14px; color:#e2dac9;">играет как придётся: круглая мягкая голова, большие глаза, пружинка-антенна, растерянная улыбка</span>
+    </div>
+    <div class="views-grid">
+      <!-- Front View -->
+      <div class="view-card">
+        <div class="view-name">Front (Лицо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-rookie/front-head.svg" alt="bot-rookie/front-head.svg">
+            <span class="sprite-label">front-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/front-body.svg" alt="bot/front-body.svg">
+            <span class="sprite-label">front-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-rookie/front-head.svg" alt="bot-rookie front-head">
+            <img class="body bot-dynamic-sprite" src="bot/front-body.svg" alt="bot front-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Back View -->
+      <div class="view-card">
+        <div class="view-name">Back (Спина)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-rookie/back-head.svg" alt="bot-rookie/back-head.svg">
+            <span class="sprite-label">back-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/back-body.svg" alt="bot/back-body.svg">
+            <span class="sprite-label">back-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-rookie/back-head.svg" alt="bot-rookie back-head">
+            <img class="body bot-dynamic-sprite" src="bot/back-body.svg" alt="bot back-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Right View -->
+      <div class="view-card">
+        <div class="view-name">Right (Профиль вправо)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-rookie/right-head.svg" alt="bot-rookie/right-head.svg">
+            <span class="sprite-label">right-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/right-body.svg" alt="bot/right-body.svg">
+            <span class="sprite-label">right-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-rookie/right-head.svg" alt="bot-rookie right-head">
+            <img class="body bot-dynamic-sprite" src="bot/right-body.svg" alt="bot right-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Top View -->
+      <div class="view-card">
+        <div class="view-name">Top (Вид сверху)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-rookie/top-head.svg" alt="bot-rookie/top-head.svg">
+            <span class="sprite-label">top-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/top-body.svg" alt="bot/top-body.svg">
+            <span class="sprite-label">top-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-rookie/top-head.svg" alt="bot-rookie top-head">
+            <img class="body bot-dynamic-sprite" src="bot/top-body.svg" alt="bot top-body">
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom View -->
+      <div class="view-card">
+        <div class="view-name">Bottom (Вид снизу)</div>
+        <div class="sprites-row">
+          <div class="sprite-box">
+            <img class="sprite-img head bot-dynamic-sprite" src="bot-rookie/bottom-head.svg" alt="bot-rookie/bottom-head.svg">
+            <span class="sprite-label">bottom-head.svg</span>
+          </div>
+          <div class="sprite-box">
+            <img class="sprite-img body bot-dynamic-sprite" src="bot/bottom-body.svg" alt="bot/bottom-body.svg">
+            <span class="sprite-label">bottom-body.svg</span>
+          </div>
+        </div>
+        <div class="assembled-box">
+          <span style="font-size:12px; color:#e2dac9; margin-bottom:6px;">В сборе:</span>
+          <div class="assembled-stage">
+            <img class="head bot-dynamic-sprite" src="bot-rookie/bottom-head.svg" alt="bot-rookie bottom-head">
+            <img class="body bot-dynamic-sprite" src="bot/bottom-body.svg" alt="bot bottom-body">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. THREE COLORWAYS SHOWCASE -->
+  <section class="character-section" id="bot-colorways-section">
+    <div class="character-title">
+      <span>ТРИ РАСЦВЕТКИ БОТОВ — Сравнение подмены 3-х цветов</span>
+      <span style="font-size:14px; color:#e2dac9;">перекраска: основной / второй / акцент</span>
+    </div>
+
+    <!-- Colorway 1: Ruby & Navy (Default) -->
+    <div class="colorway-row">
+      <div class="colorway-header">
+        <span class="colorway-label">
+          <span class="palette-dots">
+            <span class="palette-dot" style="background:#b3221f;"></span>
+            <span class="palette-dot" style="background:#1d4f80;"></span>
+            <span class="palette-dot" style="background:#f2c14e;"></span>
+          </span>
+          Расцветка 1: «Рубин и Сталь» (Классическая колода)
+        </span>
+        <span style="font-size:13px; color:#e2dac9; font-family:monospace;">#b3221f (основной) &bull; #1d4f80 (панели) &bull; #f2c14e (акцент)</span>
+      </div>
+      <div class="colorway-bots-strip">
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">Крупье (Тело)</span>
+          <img class="sprite-img body" src="bot/front-body.svg" style="width:100px; height:84px;" alt="Body Ruby">
+        </div>
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">«Копитель»</span>
+          <div class="assembled-stage" style="transform:scale(0.85); transform-origin:top center;">
+            <img class="head" src="bot-hoarder/front-head.svg" alt="Hoarder">
+            <img class="body" src="bot/front-body.svg" alt="Body">
+          </div>
+        </div>
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">«Закрывала»</span>
+          <div class="assembled-stage" style="transform:scale(0.85); transform-origin:top center;">
+            <img class="head" src="bot-closer/front-head.svg" alt="Closer">
+            <img class="body" src="bot/front-body.svg" alt="Body">
+          </div>
+        </div>
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">«Агрессор»</span>
+          <div class="assembled-stage" style="transform:scale(0.85); transform-origin:top center;">
+            <img class="head" src="bot-aggressor/front-head.svg" alt="Aggressor">
+            <img class="body" src="bot/front-body.svg" alt="Body">
+          </div>
+        </div>
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">«Новичок»</span>
+          <div class="assembled-stage" style="transform:scale(0.85); transform-origin:top center;">
+            <img class="head" src="bot-rookie/front-head.svg" alt="Rookie">
+            <img class="body" src="bot/front-body.svg" alt="Body">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colorway 2: Emerald & Amethyst -->
+    <div class="colorway-row">
+      <div class="colorway-header">
+        <span class="colorway-label">
+          <span class="palette-dots">
+            <span class="palette-dot" style="background:#1b6e41;"></span>
+            <span class="palette-dot" style="background:#53286b;"></span>
+            <span class="palette-dot" style="background:#f5ba38;"></span>
+          </span>
+          Расцветка 2: «Изумруд и Пурпур» (Зелёное сукно и фишки)
+        </span>
+        <span style="font-size:13px; color:#e2dac9; font-family:monospace;">#1b6e41 (основной) &bull; #53286b (панели) &bull; #f5ba38 (акцент)</span>
+      </div>
+      <div class="colorway-bots-strip">
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">Крупье (Тело)</span>
+          <img class="sprite-img body static-colorway" data-raw-src="bot/front-body.svg" data-palette="emerald" style="width:100px; height:84px;" alt="Body Emerald">
+        </div>
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">«Копитель»</span>
+          <div class="assembled-stage" style="transform:scale(0.85); transform-origin:top center;">
+            <img class="head static-colorway" data-raw-src="bot-hoarder/front-head.svg" data-palette="emerald" alt="Hoarder Emerald">
+            <img class="body static-colorway" data-raw-src="bot/front-body.svg" data-palette="emerald" alt="Body Emerald">
+          </div>
+        </div>
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">«Закрывала»</span>
+          <div class="assembled-stage" style="transform:scale(0.85); transform-origin:top center;">
+            <img class="head static-colorway" data-raw-src="bot-closer/front-head.svg" data-palette="emerald" alt="Closer Emerald">
+            <img class="body static-colorway" data-raw-src="bot/front-body.svg" data-palette="emerald" alt="Body Emerald">
+          </div>
+        </div>
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">«Агрессор»</span>
+          <div class="assembled-stage" style="transform:scale(0.85); transform-origin:top center;">
+            <img class="head static-colorway" data-raw-src="bot-aggressor/front-head.svg" data-palette="emerald" alt="Aggressor Emerald">
+            <img class="body static-colorway" data-raw-src="bot/front-body.svg" data-palette="emerald" alt="Body Emerald">
+          </div>
+        </div>
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">«Новичок»</span>
+          <div class="assembled-stage" style="transform:scale(0.85); transform-origin:top center;">
+            <img class="head static-colorway" data-raw-src="bot-rookie/front-head.svg" data-palette="emerald" alt="Rookie Emerald">
+            <img class="body static-colorway" data-raw-src="bot/front-body.svg" data-palette="emerald" alt="Body Emerald">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colorway 3: Graphite & Neon Cyan -->
+    <div class="colorway-row">
+      <div class="colorway-header">
+        <span class="colorway-label">
+          <span class="palette-dots">
+            <span class="palette-dot" style="background:#263238;"></span>
+            <span class="palette-dot" style="background:#b85d19;"></span>
+            <span class="palette-dot" style="background:#38d9a9;"></span>
+          </span>
+          Расцветка 3: «Графит и Бирюза» (Киберпанк-автомат)
+        </span>
+        <span style="font-size:13px; color:#e2dac9; font-family:monospace;">#263238 (основной) &bull; #b85d19 (панели) &bull; #38d9a9 (акцент)</span>
+      </div>
+      <div class="colorway-bots-strip">
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">Крупье (Тело)</span>
+          <img class="sprite-img body static-colorway" data-raw-src="bot/front-body.svg" data-palette="graphite" style="width:100px; height:84px;" alt="Body Graphite">
+        </div>
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">«Копитель»</span>
+          <div class="assembled-stage" style="transform:scale(0.85); transform-origin:top center;">
+            <img class="head static-colorway" data-raw-src="bot-hoarder/front-head.svg" data-palette="graphite" alt="Hoarder Graphite">
+            <img class="body static-colorway" data-raw-src="bot/front-body.svg" data-palette="graphite" alt="Body Graphite">
+          </div>
+        </div>
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">«Закрывала»</span>
+          <div class="assembled-stage" style="transform:scale(0.85); transform-origin:top center;">
+            <img class="head static-colorway" data-raw-src="bot-closer/front-head.svg" data-palette="graphite" alt="Closer Graphite">
+            <img class="body static-colorway" data-raw-src="bot/front-body.svg" data-palette="graphite" alt="Body Graphite">
+          </div>
+        </div>
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">«Агрессор»</span>
+          <div class="assembled-stage" style="transform:scale(0.85); transform-origin:top center;">
+            <img class="head static-colorway" data-raw-src="bot-aggressor/front-head.svg" data-palette="graphite" alt="Aggressor Graphite">
+            <img class="body static-colorway" data-raw-src="bot/front-body.svg" data-palette="graphite" alt="Body Graphite">
+          </div>
+        </div>
+        <div class="colorway-bot-item">
+          <span class="colorway-bot-name">«Новичок»</span>
+          <div class="assembled-stage" style="transform:scale(0.85); transform-origin:top center;">
+            <img class="head static-colorway" data-raw-src="bot-rookie/front-head.svg" data-palette="graphite" alt="Rookie Graphite">
+            <img class="body static-colorway" data-raw-src="bot/front-body.svg" data-palette="graphite" alt="Body Graphite">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PALETTE COLORWAY RECOLORING ENGINE -->
+  <script>
+    const BOT_PALETTES = {
+      ruby: {
+        c1: '#b3221f',
+        c2: '#1d4f80',
+        c3: '#f2c14e'
+      },
+      emerald: {
+        c1: '#1b6e41',
+        c2: '#53286b',
+        c3: '#f5ba38'
+      },
+      graphite: {
+        c1: '#263238',
+        c2: '#b85d19',
+        c3: '#38d9a9'
+      }
+    };
+
+    const svgCache = {};
+
+    async function fetchSvg(url) {
+      if (svgCache[url]) return svgCache[url];
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Fetch failed: ' + url);
+        const text = await res.text();
+        svgCache[url] = text;
+        return text;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function recolorSvgString(svgText, palette) {
+      return svgText
+        .split('#b3221f').join(palette.c1)
+        .split('#B3221F').join(palette.c1)
+        .split('#1d4f80').join(palette.c2)
+        .split('#1D4F80').join(palette.c2)
+        .split('#f2c14e').join(palette.c3)
+        .split('#F2C14E').join(palette.c3);
+    }
+
+    async function setBotPalette(key) {
+      document.querySelectorAll('.palette-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.palette === key);
+      });
+      const palette = BOT_PALETTES[key];
+      const images = document.querySelectorAll('.bot-dynamic-sprite');
+      for (const img of images) {
+        const orig = img.getAttribute('data-original-src') || img.getAttribute('src');
+        if (!img.getAttribute('data-original-src')) {
+          img.setAttribute('data-original-src', orig);
+        }
+        if (key === 'ruby') {
+          img.src = orig;
+        } else {
+          const raw = await fetchSvg(orig);
+          if (raw) {
+            const recolored = recolorSvgString(raw, palette);
+            img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(recolored);
+          }
+        }
+      }
+    }
+
+    // Initialize static colorway comparison rows on load
+    window.addEventListener('DOMContentLoaded', async () => {
+      const staticImgs = document.querySelectorAll('.static-colorway');
+      for (const img of staticImgs) {
+        const rawSrc = img.getAttribute('data-raw-src');
+        const pKey = img.getAttribute('data-palette');
+        const palette = BOT_PALETTES[pKey];
+        if (rawSrc && palette) {
+          const rawSvg = await fetchSvg(rawSrc);
+          if (rawSvg) {
+            const recolored = recolorSvgString(rawSvg, palette);
+            img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(recolored);
+          }
+        }
+      }
+    });
+  </script>
 
 </body>
 </html>

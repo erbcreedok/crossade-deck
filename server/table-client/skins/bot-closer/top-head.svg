@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Head Top Plate (#b3221f) -->
+  <!-- Top = Back / Nape (y~18), Bottom = Face / Brow (y~82) -->
+  <path d="M 24 18 L 76 18 L 84 26 L 84 74 L 76 82 L 24 82 L 16 74 L 16 26 Z" fill="#b3221f" stroke="#0b0704" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Ear Spool Dials on Sides from Above (#1d4f80, #f2c14e) -->
+  <rect x="11" y="40" width="6" height="18" rx="2" fill="#1d4f80" stroke="#0b0704" stroke-width="1.6"/>
+  <circle cx="14" cy="49" r="2" fill="#f2c14e"/>
+  <rect x="83" y="40" width="6" height="18" rx="2" fill="#1d4f80" stroke="#0b0704" stroke-width="1.6"/>
+  <circle cx="86" cy="49" r="2" fill="#f2c14e"/>
+
+  <!-- Top Inset Casing Panel (#1d4f80) -->
+  <rect x="24" y="26" width="52" height="38" rx="2" fill="#1d4f80" stroke="#0b0704" stroke-width="2.2"/>
+  <rect x="27" y="29" width="46" height="32" rx="1.5" fill="none" stroke="#f2c14e" stroke-width="1.4"/>
+
+  <!-- Rear Radiator Vents from Above at Top Edge (y=20..25) -->
+  <line x1="30" y1="21" x2="70" y2="21" stroke="#0b0704" stroke-width="1.8"/>
+  <line x1="30" y1="24" x2="70" y2="24" stroke="#0b0704" stroke-width="1.8"/>
+
+  <!-- Center Top Cross Seam & Core Boss (#5d666e & #f2c14e) -->
+  <line x1="28" y1="45" x2="72" y2="45" stroke="#f2c14e" stroke-width="1.5"/>
+  <circle cx="50" cy="45" r="5" fill="#5d666e" stroke="#0b0704" stroke-width="1.4"/>
+  <circle cx="50" cy="45" r="2" fill="#f2c14e"/>
+
+  <!-- Sliding Deadbolt Assembly («щеколда/засов») at Front Brow (y=66..82) -->
+  <!-- Slide Track Base (#5d666e) -->
+  <rect x="22" y="68" width="56" height="10" rx="2" fill="#5d666e" stroke="#0b0704" stroke-width="1.8"/>
+  <!-- Keeper Bracket Left (#1d4f80) -->
+  <rect x="20" y="67" width="9" height="12" rx="1.5" fill="#1d4f80" stroke="#0b0704" stroke-width="1.4"/>
+  <!-- Right Guide Bracket (#1d4f80) -->
+  <rect x="71" y="67" width="9" height="12" rx="1.5" fill="#1d4f80" stroke="#0b0704" stroke-width="1.4"/>
+  <!-- Gold Sliding Deadbolt Bar («засов») (#f2c14e) -->
+  <rect x="24" y="70" width="46" height="6" rx="2" fill="#f2c14e" stroke="#0b0704" stroke-width="1.6"/>
+  <!-- Deadbolt Knob protruding forward (down) -->
+  <rect x="52" y="72" width="8" height="9" rx="2" fill="#f2c14e" stroke="#0b0704" stroke-width="1.5"/>
+  <circle cx="56" cy="76" r="1.8" fill="#b3221f"/>
+
+  <!-- Visor Overhang Edge at Bottom (y=80..84) -->
+  <path d="M 22 80 L 78 80" stroke="#f2c14e" stroke-width="1.8" fill="none"/>
+
+  <!-- Woodcut Hatches -->
+  <path d="M 28 34 L 34 31 M 66 34 L 72 31" stroke="#0b0704" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M 28 56 L 34 53 M 66 56 L 72 53" stroke="#0b0704" stroke-width="1.4" stroke-linecap="round"/>
+</svg>

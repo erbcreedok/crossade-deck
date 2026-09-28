@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Neck Connector Post (#5d666e) -->
+  <path d="M 38 80 L 62 80 L 60 92 L 40 92 Z" fill="#5d666e" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <line x1="44" y1="86" x2="56" y2="86" stroke="#0b0704" stroke-width="1.8"/>
+
+  <!-- Round Ear Muff Capsules on Sides (#1d4f80, #f2c14e) -->
+  <rect x="10" y="38" width="6" height="18" rx="3" fill="#1d4f80" stroke="#0b0704" stroke-width="1.8"/>
+  <circle cx="13" cy="47" r="2" fill="#f2c14e"/>
+  <rect x="84" y="38" width="6" height="18" rx="3" fill="#1d4f80" stroke="#0b0704" stroke-width="1.8"/>
+  <circle cx="87" cy="47" r="2" fill="#f2c14e"/>
+
+  <!-- Whimsical Spring Antenna («пружинка-антенна») at Top -->
+  <!-- Antenna Mounting Dome Base (#1d4f80) -->
+  <path d="M 44 20 C 44 16, 56 16, 56 20 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="1.6"/>
+  <!-- Coiled Wire Spring (#5d666e) -->
+  <path d="M 50 17 Q 56 15, 50 13 Q 44 11, 52 9 Q 58 7, 54 5" fill="none" stroke="#5d666e" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M 50 17 Q 56 15, 50 13 Q 44 11, 52 9 Q 58 7, 54 5" fill="none" stroke="#0b0704" stroke-width="0.8" stroke-linecap="round"/>
+  <!-- Shiny Brass Top Ball (#f2c14e) -->
+  <circle cx="55" cy="6" r="4.5" fill="#f2c14e" stroke="#0b0704" stroke-width="1.6"/>
+  <circle cx="53.5" cy="4.5" r="1.3" fill="#f7f1e6"/>
+
+  <!-- Round Soft Head Main Silhouette («круглая мягкая голова») (#b3221f) -->
+  <path d="M 26 20 C 38 15, 62 15, 74 20 C 86 28, 88 64, 76 78 C 64 86, 36 86, 24 78 C 12 64, 14 28, 26 20 Z" fill="#b3221f" stroke="#0b0704" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Soft Forehead Panel Seam (#f2c14e) -->
+  <path d="M 32 23 C 42 19, 58 19, 68 23" fill="none" stroke="#f2c14e" stroke-width="1.8" stroke-linecap="round"/>
+
+  <!-- Recessed Eye Screen Aperture (#1d4f80) -->
+  <path d="M 22 34 C 32 30, 68 30, 78 34 C 84 42, 82 58, 76 64 C 64 68, 36 68, 24 64 C 18 58, 16 42, 22 34 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2.2"/>
+  <path d="M 24 36 C 34 32, 66 32, 76 36 C 80 44, 78 56, 74 61 C 64 65, 36 65, 26 61 C 22 56, 20 44, 24 36 Z" fill="none" stroke="#f2c14e" stroke-width="1"/>
+
+  <!-- Big Round Expressive Eyes («большие глаза») -->
+  <!-- Left Eye -->
+  <circle cx="36" cy="47" r="11" fill="#f7f1e6" stroke="#0b0704" stroke-width="2"/>
+  <circle cx="37" cy="47" r="6.5" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+  <circle cx="38" cy="46" r="3.5" fill="#0b0704"/>
+  <circle cx="36.5" cy="44.5" r="1.3" fill="#f7f1e6"/>
+
+  <!-- Right Eye -->
+  <circle cx="64" cy="47" r="11" fill="#f7f1e6" stroke="#0b0704" stroke-width="2"/>
+  <circle cx="63" cy="47" r="6.5" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+  <circle cx="62" cy="46" r="3.5" fill="#0b0704"/>
+  <circle cx="63.5" cy="44.5" r="1.3" fill="#f7f1e6"/>
+
+  <!-- Blushing Cheek Rivets (#f2c14e) -->
+  <circle cx="23" cy="56" r="2.2" fill="#f2c14e" stroke="#0b0704" stroke-width="1"/>
+  <circle cx="77" cy="56" r="2.2" fill="#f2c14e" stroke="#0b0704" stroke-width="1"/>
+
+  <!-- Confused / Sheepish Smile («растерянная улыбка») -->
+  <!-- Wavy Crooked Mouth Opening (#0b0704 & #f2c14e) -->
+  <path d="M 36 69 Q 44 65, 50 70 Q 56 74, 64 68 Q 54 77, 36 69 Z" fill="#0b0704" stroke="#0b0704" stroke-width="1.8" stroke-linejoin="round"/>
+  <!-- Sheepish Grin Highlight / Teeth Ticks (#f7f1e6) -->
+  <path d="M 40 68 Q 44 66, 48 70" stroke="#f7f1e6" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+  <line x1="52" y1="71" x2="60" y2="69" stroke="#f2c14e" stroke-width="1.6" stroke-linecap="round"/>
+
+  <!-- Woodcut Soft Curvature Hatches -->
+  <path d="M 22 28 C 26 25, 30 24, 34 24" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <path d="M 78 28 C 74 25, 70 24, 66 24" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <path d="M 26 74 C 32 78, 40 80, 44 80" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <path d="M 74 74 C 68 78, 60 80, 56 80" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+</svg>

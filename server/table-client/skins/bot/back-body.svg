@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100">
+  <!-- Croupier Jacket Silhouette from Behind (#b3221f) -->
+  <path d="M 24 18 L 8 34 L 12 100 L 108 100 L 112 34 L 96 18 C 84 24, 36 24, 24 18 Z" fill="#b3221f" stroke="#0b0704" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Blue Sleeve Facing & Trim (#1d4f80) -->
+  <path d="M 8 34 L 16 38 L 18 52 L 10 50 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M 112 34 L 104 38 L 102 52 L 110 50 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- Gold Sleeve Garters (#f2c14e) -->
+  <rect x="9" y="44" width="10" height="4" rx="1" fill="#f2c14e" stroke="#0b0704" stroke-width="1.5"/>
+  <rect x="101" y="44" width="10" height="4" rx="1" fill="#f2c14e" stroke="#0b0704" stroke-width="1.5"/>
+
+  <!-- Articulated Shoulder Spheres (#5d666e) & Gold Boss (#f2c14e) -->
+  <circle cx="18" cy="28" r="7" fill="#5d666e" stroke="#0b0704" stroke-width="2"/>
+  <circle cx="18" cy="28" r="3" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+  <circle cx="102" cy="28" r="7" fill="#5d666e" stroke="#0b0704" stroke-width="2"/>
+  <circle cx="102" cy="28" r="3" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+
+  <!-- Neck Collar Rim from Behind (#5d666e) -->
+  <path d="M 38 18 C 44 14, 76 14, 82 18 L 86 28 C 76 34, 44 34, 34 28 Z" fill="#5d666e" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 44 20 C 52 23, 68 23, 76 20" stroke="#f2c14e" stroke-width="2" stroke-linecap="round" fill="none"/>
+
+  <!-- Mechanical Spine / Exhaust Heat-Sink Panel (#1d4f80) -->
+  <rect x="52" y="28" width="16" height="42" rx="2" fill="#1d4f80" stroke="#0b0704" stroke-width="2.2"/>
+  <line x1="52" y1="28" x2="52" y2="70" stroke="#f2c14e" stroke-width="1.6"/>
+  <line x1="68" y1="28" x2="68" y2="70" stroke="#f2c14e" stroke-width="1.6"/>
+
+  <!-- Radiator Vent Slats (#0b0704 & #5d666e) -->
+  <line x1="55" y1="34" x2="65" y2="34" stroke="#0b0704" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="55" y1="40" x2="65" y2="40" stroke="#0b0704" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="55" y1="46" x2="65" y2="46" stroke="#0b0704" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="55" y1="52" x2="65" y2="52" stroke="#0b0704" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="55" y1="58" x2="65" y2="58" stroke="#0b0704" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="55" y1="64" x2="65" y2="64" stroke="#0b0704" stroke-width="2.2" stroke-linecap="round"/>
+
+  <!-- Gold Panel Screws (#f2c14e) -->
+  <circle cx="50" cy="32" r="1.5" fill="#f2c14e"/>
+  <circle cx="50" cy="66" r="1.5" fill="#f2c14e"/>
+  <circle cx="70" cy="32" r="1.5" fill="#f2c14e"/>
+  <circle cx="70" cy="66" r="1.5" fill="#f2c14e"/>
+
+  <!-- Vest Waist Cinch Straps (#1d4f80) & Buckle (#f2c14e) -->
+  <path d="M 30 72 L 54 74 L 54 78 L 30 76 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="1.8"/>
+  <path d="M 90 72 L 66 74 L 66 78 L 90 76 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="1.8"/>
+  <rect x="54" y="72" width="12" height="8" rx="1.5" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <line x1="60" y1="72" x2="60" y2="80" stroke="#0b0704" stroke-width="1.8"/>
+
+  <!-- Coat Tails Split & Blue Lining (#1d4f80) -->
+  <polygon points="60,82 50,100 70,100" fill="#1d4f80" stroke="#0b0704" stroke-width="2"/>
+  <polygon points="60,86 54,100 66,100" fill="#0b0704"/>
+
+  <!-- Pelvic Chassis Core seen through Tail Split (#5d666e) -->
+  <circle cx="60" cy="92" r="3" fill="#5d666e" stroke="#f2c14e" stroke-width="1"/>
+
+  <!-- Coat Tails Gold Border Trim (#f2c14e) -->
+  <path d="M 12 100 L 50 100 L 60 82 L 70 100 L 108 100" fill="none" stroke="#f2c14e" stroke-width="2.2"/>
+
+  <!-- Woodcut Drapery & Plate Hatch Lines -->
+  <!-- Left Scapula & Flank Hatches -->
+  <path d="M 34 38 L 42 35 M 32 46 L 40 43 M 34 56 L 42 53 M 16 66 L 24 62 M 18 78 L 26 74" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Right Scapula & Flank Hatches -->
+  <path d="M 86 38 L 78 35 M 88 46 L 80 43 M 86 56 L 78 53 M 104 66 L 96 62 M 102 78 L 94 74" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Tail Hatches -->
+  <path d="M 38 88 L 44 85 M 36 94 L 42 91 M 82 88 L 76 85 M 84 94 L 78 91" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

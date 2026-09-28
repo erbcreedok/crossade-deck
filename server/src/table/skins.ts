@@ -76,10 +76,15 @@ const COURTS = [
 ] as const;
 const BEASTS = [["dog", "Пёс", ["front", "back", "right"]], ["cat", "Кошка", ["front", "back", "right"]], ["crusader", "Крестоносец", ["front", "back", "right", "top", "bottom"]]] as const;
 const SIDE_MIRROR = { left: "right" } as const;
+/** Боты: общее тело крупье и голова по характеру (`bots/profiles.ts`); стороны — как у крестоносца. */
+const BOT_HEADS = [["bot-hoarder", "Копитель"], ["bot-closer", "Закрывала"], ["bot-aggressor", "Агрессор"], ["bot-rookie", "Новичок"]] as const;
+const SIX = ["front", "back", "right", "top", "bottom"] as const;
 
 export const PARTS: readonly Part[] = [
   ...COURTS.flatMap(([id, card, name]) => (["head", "body"] as const).map((slot): Part => ({ id: `${id}:${slot}`, slot, name, art: { kind: "court", card }, views: ["front", "back"], facing: "tilt", recolor: true }))),
   ...BEASTS.flatMap(([id, name, views]) => (["head", "body"] as const).map((slot): Part => ({ id: `${id}:${slot}`, slot, name, art: { kind: "file", dir: id }, views, mirror: SIDE_MIRROR, facing: id === "crusader" ? "view" : "tilt", recolor: true }))),
+  { id: "bot:body", slot: "body", name: "Робот", art: { kind: "file", dir: "bot" }, views: [...SIX], mirror: SIDE_MIRROR, facing: "view", recolor: true },
+  ...BOT_HEADS.map(([id, name]): Part => ({ id: `${id}:head`, slot: "head", name, art: { kind: "file", dir: id }, views: [...SIX], mirror: SIDE_MIRROR, facing: "view", recolor: true })),
   { id: "ball:head", slot: "head", name: "Шар", art: { kind: "draw", art: "ball" }, views: ["front"], facing: "camera", recolor: true },
   // Голова-аватар: тот же шар, но в нём — фото человека из Telegram (рисует его стол, фото у каждого своё).
   { id: "avatar:head", slot: "head", name: "Аватар", art: { kind: "draw", art: "ball" }, views: ["front"], facing: "camera", recolor: true },
@@ -102,6 +107,7 @@ export const SETS: readonly SkinSet[] = [
   set("cat", "Кошка", "cat:head", "cat:body", "legs-beast:legs"),
   set("crusader", "Крестоносец", "crusader:head", "crusader:body", "legs-card:legs"),
   set("cube", "Кубик", "cube:head", "barrel:body", "stick:legs"),
+  ...BOT_HEADS.map(([id, name]) => set(id, name, `${id}:head`, "bot:body", "legs-card:legs")),
   set("stick", "Палка", "ball:head", "stick:body", "stick:legs"),
   set("mix", "Шар и бочонок", "ball:head", "barrel:body", "stick:legs", "cap:hair"),
 ];

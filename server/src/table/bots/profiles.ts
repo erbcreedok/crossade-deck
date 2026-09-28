@@ -1,6 +1,8 @@
 // ХАРАКТЕРЫ БОТОВ — четыре, подтверждённые владельцем. Это данные, а не код: новый характер
 // добавляется строкой, и ни один мозг от этого не меняется.
 //
+// `skin` — голова по характеру на общем теле бота, и свой цвет у каждого.
+//
 // `waitMs` у каждого свой по прямому слову владельца: за столом из четырёх ботов ходы не должны
 // падать строем. Две секунды — середина, вокруг которой они разошлись.
 
@@ -14,6 +16,7 @@ export const PROFILES: Record<string, Profile> = {
     hoards: 0.9,
     closes: 0.3,
     presses: 0.2,
+    skin: { set: "bot-hoarder", palette: 11 },
     waitMs: 2600,
   },
   закрывала: {
@@ -23,6 +26,7 @@ export const PROFILES: Record<string, Profile> = {
     hoards: 0.5,
     closes: 0.95,
     presses: 0.6,
+    skin: { set: "bot-closer", palette: 5 },
     waitMs: 1700,
   },
   агрессор: {
@@ -32,6 +36,7 @@ export const PROFILES: Record<string, Profile> = {
     hoards: 0.1,
     closes: 0.5,
     presses: 0.95,
+    skin: { set: "bot-aggressor", palette: 13 },
     waitMs: 1200,
   },
   новичок: {
@@ -41,6 +46,7 @@ export const PROFILES: Record<string, Profile> = {
     hoards: 0.05,
     closes: 0.1,
     presses: 0.4,
+    skin: { set: "bot-rookie", palette: 14 },
     waitMs: 2900,
   },
 };

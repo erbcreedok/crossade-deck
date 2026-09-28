@@ -210,6 +210,10 @@ describe("TableRoom", () => {
     await new Promise((r) => setTimeout(r, 120));
     expect(bots()).toHaveLength(2);
     expect(bots().map((p) => p.name), "крупье имени из списка не берёт: игроки — с первого имени").toEqual(["Ботырхан", "Айбот"]);
+    expect(bots().map((p) => p.parts?.body), "у ботов — тело бота").toEqual(["bot:body", "bot:body"]);
+    const heads = bots().map((p) => p.parts?.head), pals = bots().map((p) => p.palette);
+    expect(new Set(heads).size, "голова — по характеру, у разных характеров разная").toBe(2);
+    expect(new Set(pals).size, "и свой цвет у каждого").toBe(2);
   });
 
   /**

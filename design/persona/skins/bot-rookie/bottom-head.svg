@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Round Head Bottom Silhouette (#b3221f) -->
+  <!-- Top = Face / Chin (y~18), Bottom = Back / Nape (y~82) -->
+  <path d="M 26 22 C 38 16, 62 16, 74 22 C 86 32, 88 62, 76 76 C 64 86, 36 86, 24 76 C 12 62, 14 32, 26 22 Z" fill="#b3221f" stroke="#0b0704" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Ear Muff Dial Capsules on Sides (#1d4f80, #f2c14e) -->
+  <rect x="10" y="38" width="6" height="18" rx="3" fill="#1d4f80" stroke="#0b0704" stroke-width="1.8"/>
+  <circle cx="13" cy="47" r="2" fill="#f2c14e"/>
+  <rect x="84" y="38" width="6" height="18" rx="3" fill="#1d4f80" stroke="#0b0704" stroke-width="1.8"/>
+  <circle cx="87" cy="47" r="2" fill="#f2c14e"/>
+
+  <!-- Underside Chin Plate & Sheepish Mouth Curve at Top (y=18..28) -->
+  <path d="M 32 20 C 42 26, 58 26, 68 20" stroke="#f2c14e" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M 40 24 Q 46 22, 52 26" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+
+  <!-- Central Neck Connector Hub for Mounting to Body Collar -->
+  <circle cx="50" cy="52" r="16" fill="#5d666e" stroke="#0b0704" stroke-width="2.5"/>
+  <circle cx="50" cy="52" r="13" fill="none" stroke="#f2c14e" stroke-width="1.8"/>
+  <!-- Central Void Socket (#0b0704) -->
+  <circle cx="50" cy="52" r="8" fill="#0b0704"/>
+  <rect x="48.5" y="42" width="3" height="4" fill="#0b0704"/>
+
+  <!-- Gold Anchor Screws (#f2c14e) -->
+  <circle cx="39" cy="41" r="1.5" fill="#f2c14e"/>
+  <circle cx="61" cy="41" r="1.5" fill="#f2c14e"/>
+  <circle cx="39" cy="63" r="1.5" fill="#f2c14e"/>
+  <circle cx="61" cy="63" r="1.5" fill="#f2c14e"/>
+
+  <!-- Soft Nape Flange at Bottom (y=74..80) -->
+  <path d="M 34 76 C 44 80, 56 80, 66 76" stroke="#f2c14e" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+
+  <!-- Woodcut Soft Curvature Hatches -->
+  <path d="M 22 40 C 26 44, 30 46, 34 46" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <path d="M 78 40 C 74 44, 70 46, 66 46" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <path d="M 26 66 C 32 70, 40 72, 46 72" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <path d="M 74 66 C 68 70, 60 72, 54 72" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+</svg>

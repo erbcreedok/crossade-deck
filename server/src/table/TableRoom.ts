@@ -20,7 +20,7 @@ import { iceServers, tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
 import { DEAL_PRESETS, MSG, PROTOCOL, ROOM_CLOSED, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type Recording, type AppPass, type SeatCard, type TableCommand, type Welcome, TOLD_OPS } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
-import { Bodies, cleanBody } from "./bodies.js";
+import { Bodies, cleanBody, restHead, shouldersOf } from "./bodies.js";
 import { mintPass, PASS_HOURS } from "./pass.js";
 import { KEY_DAYS, mintAppKey, mintAppPass } from "./appPass.js";
 import { cleanSignal, ear, Signals, type Signal } from "./rtc.js";
@@ -299,6 +299,7 @@ export class TableRoom extends Room {
     this.onMessage(MSG.hello, (client) => {
       const me = this.personOf(client.sessionId);
       if (!me) return;
+      this.restBots();
       const welcome = this.welcomeFor(me);
       // ПРИВЕТСТВИЕ В ЖУРНАЛ — когда дошло «hello» и сколько весит ответ: медленный вход разбирается по нему.
       this.book.tell("hello", me.key, { kb: Math.round(JSON.stringify(welcome).length / 1024) });
@@ -566,9 +567,15 @@ export class TableRoom extends Room {
           this.brains.delete(key);
         }
         const brain = this.botOrders.get(key)?.brain ?? "greedy";
+        // СКИН — ПО ХАРАКТЕРУ: общее тело бота, голова и цвет его характера (`bots/profiles.ts`). Характер — тот же,
+        // что выдаст `profileFor` севшему: по кругу среди ботов стола.
+        const asked = this.botOrders.get(key)?.profile;
+        const nth = this.table.here.filter((one) => one.bot === true).length;
+        const skin = (asked !== undefined ? profileOf(asked) : profileOf(PROFILE_KEYS[nth % PROFILE_KEYS.length])).skin;
         // Крупье тоже сидит ботом, но имени из списка не берёт: первый игрок — первое имя.
-        this.spread(this.table.seatBot({ key, name: BOT_NAMES[Math.max(0, i - крупье) % BOT_NAMES.length]!, ink: this.freeInk(), door: "guest", brain }));
+        this.spread(this.table.seatBot({ key, name: BOT_NAMES[Math.max(0, i - крупье) % BOT_NAMES.length]!, ink: this.freeInk(), door: "guest", brain, doll: skin.set, palette: skin.palette, parts: partsFor(skin.set) }));
       }
+      this.restBots();
       // СЕЛИ — И ЭТО СРАЗУ ВИДНО. Пока состояние уходило только с первой мыслью, машина за столом
       // была неотличима от человека: ни значка у стула, ни кнопок распорядителя под её рукой.
       this.spreadMinds();
@@ -933,6 +940,24 @@ export class TableRoom extends Room {
       return row && { ...(row.doll ? { doll: row.doll } : {}), ...(row.palette !== null ? { palette: row.palette } : {}), ...(row.color ? { color: row.color } : {}), ...(row.parts ? { parts: row.parts } : {}) };
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * ТЕЛО БОТА — сидит на своём стуле лицом к середине стола, голова в покое. Своего тела бот не присылает, а без
+   * тела стол рисует его кружком, а не куклой в его скине. Крупье — не игрок, у него своё место.
+   */
+  private restBots(): void {
+    const chairs = this.table.layout().chairs;
+    for (const one of this.table.here) {
+      if (one.bot !== true || one.key === BOT_KEY || one.seat === undefined) continue;
+      const chair = chairs.find((c) => c.id === one.seat);
+      if (!chair || chair.croupier === true) continue;
+      const was = this.bodies.list().find((b) => b.by === one.key);
+      if (was && was.yaw === -chair.angle) continue;
+      const s = shouldersOf(chair.angle);
+      const body = this.bodies.set(one.key, { stance: "sit", model: "seat", eye: { x: s.x * 0.4, y: s.y * 0.4, h: restHead("sit") }, stretch: 0, yaw: -chair.angle, right: null }, this.table.seenBy("").rules);
+      this.broadcast(MSG.body, body);
     }
   }
 
