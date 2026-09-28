@@ -15,6 +15,7 @@ import { DEAL_PRESETS, MSG, PROTOCOL, TABLE_ROOM, type Carry, type DealRule, typ
 import { Freshness, type Pulse } from "../src/table/freshness.js";
 import { applyPatch, needsSync } from "../src/table/patch.js";
 import type { Eye } from "../src/table/eyes.js";
+import type { Body } from "../src/table/bodies.js";
 import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 import type { TableStore } from "./store.js";
 import { HOST } from "./host.js";
@@ -48,6 +49,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
   /** Чужие пальцы в воздухе — по id карты. Держится, пока карта заблокирована тем же человеком. */
   let carries = new Map<string, Carry>();
   let eyes: Eye[] = [];
+  let bodies = new Map<string, Body>();
   const stillHeld = () => {
     if (!state) return;
     for (const [id, c] of carries) if (state.locks[id] !== c.by) carries.delete(id);
@@ -193,6 +195,11 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     carries.set(c.id, c);
     tell();
   });
+  listen<Body>(MSG.body, (b) => {
+    if (!b?.by) return;
+    bodies.set(b.by, b);
+    tell();
+  });
   listen<Eye[]>(MSG.eyes, (all) => {
     eyes = Array.isArray(all) ? all : [];
     tell();
@@ -213,6 +220,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     state = msg.snapshot;
     carries = new Map((msg.carries ?? []).map((c) => [c.id, c]));
     eyes = msg.eyes ?? [];
+    bodies = new Map((msg.bodies ?? []).map((b) => [b.by, b]));
     stillHeld();
     fresh.welcomed();
     // Дифы, пришедшие раньше снимка, догоняются по порядку; старше снимка — выбрасываются.
@@ -299,6 +307,11 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
       return eyes;
     },
     watch: (spots) => post(MSG.eyes, { spots }),
+    // Тела ушедших не рисуются: тело живёт, пока человек за столом.
+    get bodies() {
+      return [...bodies.values()].filter((b) => state?.people.some((p) => p.key === b.by));
+    },
+    body: (out) => post(MSG.body, out),
     carry: (out: CarryOut) => post(MSG.carry, out),
     command: (command) => post(MSG.command, command),
     log: (seen) => post(MSG.log, { seen }),

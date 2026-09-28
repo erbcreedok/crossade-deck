@@ -48,6 +48,9 @@ import { mountMeters } from "./meters.js";
 import { readRecording, writeRecording } from "./watch.js";
 import { buzzEvery, charged, onRelease, spring, tensed } from "./sling.js";
 import { PALETTE } from "../../look/src/palette.js";
+import { BODY_EVERY_MS, type Stance } from "../src/table/bodies.js";
+import { baseZoom, freshNeck, neckStep } from "./neck.js";
+import { bodiesHtml } from "./bodyView.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, VOICE_OPEN, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
@@ -257,6 +260,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
 
   /** Только то, что есть у этого экрана и больше нигде. */
   const local = {
+    /** Поза тела (`bodies.ts`): сидит или стоит. Правило стола «играть стоя» сильнее её. */
+    stance: "sit" as Stance,
+    /** Сколько шея уже вытерпела: 0 — свободно, 1 — камера сейчас отъедет (`neck.ts`). */
+    worn: 0,
     /** Открытая секция нижнего бара, прошлая и когда сменилась — для перелёта кнопок. */
     section: null as Section | null,
     sectionFrom: null as Section | null,
@@ -392,12 +399,99 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   const camLine = () => { const c = cam.camera; return `${c.target.x.toFixed(2)},${c.target.y.toFixed(2)},${c.zoom.toFixed(3)},${c.rotation.toFixed(1)},${c.pitch.toFixed(1)}`; };
   let drivenLine = "";
   const cam = tableCamera(canvas, () => lastFrame, () => {
+    neckTick();
     // Рука — пока палец на столе и пока стол докатывается после него по инерции.
     const byHand = handsDown.size > 0 || coasting || performance.now() - handAt < 800;
     if (watch && !driving && byHand && camLine() !== drivenLine) for (const fn of movedByHand) fn();
     if (coasting && handsDown.size === 0 && !cam.camera.flinging) coasting = false;
     redraw();
   });
+  // ── ТЕЛО: ПОЗА, ШЕЯ, ПРАВАЯ РУКА (`bodies.ts`, `neck.ts`) ─────────────────────────────────────
+  //
+  // Голова — это камера. Приблизил ближе позы — шея натянулась; терпит недолго, потом камера сама
+  // отъезжает к позе. Остальным уходит тело: поза, куда смотрит голова и насколько тянется, где правая
+  // рука, пока она в деле (палец несёт карту; мышь — всегда, пока она над столом).
+  const stanceOf = (s: Snapshot): Stance => (s.rules.stand ? "stand" : local.stance);
+  /** Поза сидя — вид «со стула» (`SEAT_VIEW`): за него шея не наказывает. */
+  const neckBase = (s: Snapshot): number => baseZoom(stanceOf(s), SEAT_VIEW.zoom);
+  let neck = freshNeck(performance.now());
+  let stretchNow = 0;
+  let neckFrame = false;
+  let rightHand: { x: number; y: number } | null = null;
+  let bodyTold = "";
+  let bodyAt = 0;
+  const neckTick = (): void => {
+    const s = store.state;
+    if (!s || ar || !chairOf(s, mine(s))) {
+      local.worn = 0;
+      stretchNow = 0;
+      return;
+    }
+    const step = neckStep(neck, performance.now(), cam.camera.zoom, neckBase(s));
+    neck = step.neck;
+    if (step.zoom !== undefined && Math.abs(step.zoom - cam.camera.zoom) > 1e-4) cam.camera.setZoom(step.zoom);
+    local.worn = step.worn;
+    stretchNow = step.stretch;
+    tellBody();
+    // Пока шея терпит, едет назад или отдыхает — шаг каждый кадр, даже без жеста.
+    if ((step.worn > 0 || step.resting) && !neckFrame) {
+      neckFrame = true;
+      requestAnimationFrame(() => {
+        neckFrame = false;
+        neckTick();
+        redraw();
+      });
+    }
+  };
+  const tellBody = (force = false): void => {
+    const s = store.state;
+    if (!s || !chairOf(s, mine(s))) return;
+    const now = performance.now();
+    const c = cam.camera;
+    const out = {
+      stance: stanceOf(s),
+      look: { x: +c.target.x.toFixed(2), y: +c.target.y.toFixed(2) },
+      stretch: +stretchNow.toFixed(2),
+      yaw: Math.round(((-c.rotation % 360) + 540) % 360 - 180),
+      right: rightHand && { x: +rightHand.x.toFixed(2), y: +rightHand.y.toFixed(2) },
+    };
+    const line = JSON.stringify(out);
+    if (line === bodyTold || (!force && now - bodyAt < BODY_EVERY_MS)) return;
+    bodyTold = line;
+    bodyAt = now;
+    store.body(out);
+  };
+  /** Сменили позу — камера плавно встаёт на её расстояние. */
+  const toStance = (): void => {
+    const s = store.state;
+    const from = cam.camera.zoom, to = neckBase(s), t0 = performance.now();
+    neck = freshNeck(t0);
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / SEAT_VIEW.ms);
+      cam.camera.setZoom(from + (to - from) * (1 - (1 - t) ** 3));
+      redraw();
+      if (t < 1) requestAnimationFrame(step);
+      else tellBody(true);
+    };
+    requestAnimationFrame(step);
+  };
+  // ПРАВАЯ РУКА: мышь над столом — всегда; палец — пока несёт карту. Иначе её нет.
+  addEventListener("pointermove", (e) => {
+    const touching = e.pointerType !== "mouse";
+    if (!view || (touching && !drag)) return;
+    const p = view.toDesk({ x: e.clientX, y: e.clientY });
+    rightHand = Math.hypot(p.x, p.y) <= R + RIM ? p : null;
+    tellBody();
+  }, { passive: true });
+  const dropRight = (e: PointerEvent) => {
+    if (e.pointerType === "mouse" && e.type !== "pointerleave") return;
+    rightHand = null;
+    tellBody(true);
+  };
+  addEventListener("pointerup", dropRight);
+  addEventListener("pointercancel", dropRight);
+  document.addEventListener("pointerleave", dropRight);
+
   /** ИЗМЕРИТЕЛИ — пинг, кадры, камера; включаются в настройках (`meters.ts`). */
   /**
    * AR-СТОЛ — ЛИЧНЫЙ ВИД этого человека (`ar.ts`), включается долгим нажатием на компас и только им: стол
@@ -1492,7 +1586,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const inset = Math.round((glass().w - handWide()) / 2);
     const top = thumbTopOf(geom, side);
     return `<div data-g="thumb-chat" style="position:absolute;right:${inset + 12}px;top:${Math.round(top)}px;width:${side}px;height:${side}px;z-index:40">`
-      + barButton("sec-say", talk.open, side, 0) + `</div>`;
+      + barButton("sec-say", talk.open, side, 0) + `</div>`
+      // ПОЗА ТЕЛА — над компасом: компас ведёт камеру, поза решает, как далеко она от стола. В баре ей места нет:
+      // бар меряет кнопки по самому длинному ряду, и лишняя в «Стуле» ужала бы все.
+      + `<div data-g="thumb-stance" style="position:absolute;left:${inset + 12 + (52 - side) / 2}px;top:${Math.round(top - side - 12)}px;width:${side}px;height:${side}px;z-index:40">`
+      + barButton("stance", stanceOf(s) === "stand", side, 0).replace('data-bar="stance"', "data-stance-toggle") + `</div>`;
   }
   /**
    * «ЗАКРЫТЬ КРУГ» — у того, кто его закрыл: круг-зона с картами, закрыл её я (судья знает — `play.closer`),
@@ -2973,6 +3071,27 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   addEventListener("pointerup", letGo);
   addEventListener("pointercancel", letGo);
 
+  /** Чужие тела — у их стульев (`bodyView.ts`). Своё не рисуется: своя голова — камера. */
+  function othersBodiesHtml(s: Snapshot): string {
+    if (!view) return "";
+    const lens = view;
+    const looks = store.bodies.flatMap((body) => {
+      const person = s.people.find((p) => p.key === body.by);
+      const chair = person?.seat ? chairOf(s, person.seat) : undefined;
+      if (!person || !chair || body.by === me()) return [];
+      return [{ body, angle: chair.angle, ink: person.ink, name: person.name, cards: chair.hand.length }];
+    });
+    return bodiesHtml(looks, (p) => lens.toGlass(p), lens.k, { black: T.black, ink: T.ink, danger: PALETTE.danger, paper: T.panelLight });
+  }
+
+  /** ШЕЯ ТЕРПИТ — полоска по верху кадра: дорастёт до края — камера отъедет к позе. */
+  function neckWornHtml(): string {
+    if (local.worn <= 0) return "";
+    const w = Math.round(local.worn * 100);
+    return `<div data-g="neck-worn" data-worn="${local.worn.toFixed(2)}" style="position:absolute;left:0;top:0;height:4px;width:${w}%;z-index:80;pointer-events:none;`
+      + `background:linear-gradient(90deg,${T.gold},${PALETTE.danger});box-shadow:0 1px 0 ${T.black}"></div>`;
+  }
+
   function draw(): void {
     if (dead) return;
     const g = glass();
@@ -3108,8 +3227,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // колебание его голоса — кольца живут на холсте, а не здесь. Переписывать при этом `innerHTML` значит
     // десятки раз в секунду выбрасывать кнопки из-под пальца: нажатие начинается на одной, а заканчивается
     // на другой, и до onclick дело не доходит вовсе — заглушить говорящего было нельзя, пока он не замолчит.
-    const world = deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + mindMarksHtml(s) + earMarksHtml(s) + slingHtml() + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + lassoHtml(s);
-    const hud = hudHtml(s) + compass.html(s, local.reseat ? undefined : compassAt(s)) + lassoActsHtml(s) + dealHtml() + settingsHtml() + journalHtml(s);
+    const world = othersBodiesHtml(s) + deckZoneHtml(s) + cardTipHtml(s) + deckCarryHtml(s) + gripHtml(s) + open.map((t) => t.shell).join("") + open.map((t) => t.cards).join("") + deckTipHtml(s) + chairZonesHtml(s) + chairEyesHtml(s) + micMarksHtml(s) + mindMarksHtml(s) + earMarksHtml(s) + slingHtml() + feltMarkHtml() + heldMarksHtml(s) + ringMarksHtml() + massMarksHtml(s) + carryHtml() + lassoHtml(s);
+    const hud = neckWornHtml() + hudHtml(s) + compass.html(s, local.reseat ? undefined : compassAt(s)) + lassoActsHtml(s) + dealHtml() + settingsHtml() + journalHtml(s);
     if (world !== lastWorld || hud !== lastHud) {
       if (buttonHeld !== null) overStale = true;
       else {
@@ -4310,6 +4429,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         else if ((RIGHTS as readonly string[]).includes(what)) return guessFlag(seat.id, what as ChairFlag, !seat[what as ChairFlag]);
         else if ((FOLDS as readonly string[]).includes(what)) return guessPose(seat.id, what as keyof Pose, !seat.pose[what as keyof Pose]);
         else return guessOrder(what as Arrange);
+        draw();
+      };
+    }
+    // ПОЗА ТЕЛА — сам игрок; правило «играть стоя» держит его на ногах, и кнопка тогда не отзывается.
+    for (const el of over.querySelectorAll<HTMLElement>("[data-stance-toggle]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        if (truth().rules.stand) return;
+        local.stance = local.stance === "sit" ? "stand" : "sit";
+        toStance();
         draw();
       };
     }

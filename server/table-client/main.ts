@@ -70,7 +70,7 @@ function menuExit(): void {
   exit.href = menuUrl();
   exit.textContent = "‹ В меню";
   exit.style.cssText = "position:fixed;left:50%;bottom:calc(40px + var(--tg-safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:1000;"
-    + "padding:12px 20px;border-radius:12px;background:#f0c86a;color:#0b0704;font:600 15px system-ui,sans-serif;text-decoration:none";
+    + "padding:12px 20px;border-radius:12px;background:#f0c86a;color:#0b0704;font:400 15px Tiny5,monospace;text-decoration:none";
   document.body.append(exit);
 }
 
@@ -183,7 +183,9 @@ const stuck = choosing ? 0 : setTimeout(menuExit, 10_000);
 
 (choosing ? new Promise<TableStore>(() => {}) : open())
   .then((store) => {
+    // Стол открылся — выход в меню больше не нужен, даже если вход шёл дольше десяти секунд и он успел появиться.
     clearTimeout(stuck);
+    document.querySelector("[data-menu-exit]")?.remove();
     tellStore = store;
     document.title = store.title;
     const screen = mountScreen(stage, witnessed(store, witness), witness);

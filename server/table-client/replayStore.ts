@@ -191,6 +191,8 @@ export function replayStore(all: readonly Told[], me: Person): Replay {
     carries: [],
     eyes: [],
     watch: () => {},
+    bodies: [],
+    body: () => {},
     command: () => {},
     log: () => {},
     rtc: () => {},

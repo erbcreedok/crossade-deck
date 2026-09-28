@@ -84,6 +84,8 @@ export function localStore(): TableStore {
     carries: [],
     eyes: [],
     watch: () => {},
+    bodies: [],
+    body: () => {},
     command: () => {},
     log: () => {},
     rtc: () => {},

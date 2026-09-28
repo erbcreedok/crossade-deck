@@ -6,6 +6,7 @@
 
 import type { AppPass, IceServer, Carry, CarryOut, DealRule, Intent, Minds, Op, Person, Recording, Refusal, Seen, Snapshot, TableCommand } from "../src/table/contract.js";
 import type { Eye, Spot } from "../src/table/eyes.js";
+import type { Body, BodyOut } from "../src/table/bodies.js";
 import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 
 export interface TableStore {
@@ -27,6 +28,10 @@ export interface TableStore {
   readonly eyes: readonly Eye[];
   /** Что открыто у меня — остальным. Без ответа, как палец. */
   watch(spots: Spot[]): void;
+  /** Тела за столом — чужие; своё экран держит сам (`bodies.ts`). */
+  readonly bodies: readonly Body[];
+  /** Моё тело — остальным. Без ответа, как палец; если правило поставило на ноги — сервер скажет. */
+  body(out: BodyOut): void;
   /** Часы сервера сейчас — по ним считается «10 сек назад» у следов карт. */
   now(): number;
   /** Мой палец в воздухе — над чем он. Без ответа: это поток, а не намерение. */

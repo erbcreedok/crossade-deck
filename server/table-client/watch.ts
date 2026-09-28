@@ -46,8 +46,8 @@ function hitOf(target: EventTarget | null): string {
 export function witnessed(store: TableStore, w: Witness): TableStore {
   return {
     ...store,
-    // Геттеры у хранилища живые (`state`, `carries`, `eyes`, `title`), и через `...` они бы застыли
-    // на своём первом значении. Поэтому обёртка их переобъявляет, а не копирует.
+    // Геттеры у хранилища живые, и через `...` они бы застыли на своём первом значении. Поэтому обёртка
+    // их переобъявляет, а не копирует — все до одного (`watch.test.ts` сверяет с `netStore.ts`).
     get state() {
       return store.state;
     },
@@ -56,6 +56,27 @@ export function witnessed(store: TableStore, w: Witness): TableStore {
     },
     get eyes() {
       return store.eyes;
+    },
+    get bodies() {
+      return store.bodies;
+    },
+    get me() {
+      return store.me;
+    },
+    get ice() {
+      return store.ice;
+    },
+    get desk() {
+      return store.desk;
+    },
+    get deals() {
+      return store.deals;
+    },
+    get crew() {
+      return store.crew;
+    },
+    get recent() {
+      return store.recent;
     },
     get title() {
       return store.title;
