@@ -324,8 +324,46 @@ function box(p, center, w, turn, pal) {
     const tl = add(add(c, mul(across, -w / 2)), mul(up, w / 2));
     // Свет сверху-спереди-слева: верх светлее, бока темнее — видно, что это тело, а не открытки.
     const light = norm([-0.4, 0.5, 0.9]), shade = 0.55 * (1 - Math.max(0, dot(n, light)));
-    boxQuads.list.push({ img, tl, tr: add(tl, mul(across, w)), bl: add(tl, mul(up, -w)), at: c, face: true, shade, box: center });
+    boxQuads.list.push({ img, tl, tr: add(tl, mul(across, w)), bl: add(tl, mul(up, -w)), at: c, face: name, shade, box: center });
   }
+}
+const PIP_AT = { front: [[.5, .5]], bottom: [[.28, .28], [.72, .72]], right: [[.26, .26], [.5, .5], [.74, .74]], left: [[.28, .28], [.72, .28], [.28, .72], [.72, .72]],
+  top: [[.26, .26], [.74, .26], [.5, .5], [.26, .74], [.74, .74]], back: [[.28, .24], [.72, .24], [.28, .5], [.72, .5], [.28, .76], [.72, .76]] };
+/**
+ * КАРТИНКА НА ПЛОСКОСТИ В ПЕРСПЕКТИВЕ: холст не умеет перспективу одной матрицей (три угла дают параллелограмм,
+ * дальний край — той же длины, что ближний, и глаз читает фигуру вывернутой). Поэтому картинка режется на
+ * ячейки, и у каждой — свои спроецированные углы.
+ */
+function drawProjected(g, dpr, img, P, cells = 4) {
+  const iw = img.width, ih = img.height;
+  for (let j = 0; j < cells; j++) for (let i = 0; i < cells; i++) {
+    const u0 = i / cells, u1 = (i + 1) / cells, v0 = j / cells, v1 = (j + 1) / cells;
+    const A = P(u0, v0), B = P(u1, v0), C = P(u0, v1), D = P(u1, v1);
+    if (!A || !B || !C || !D) continue;
+    // ячейку чуть раздуть: иначе между ячейками видны волоски шва
+    const mx = (A.x + D.x) / 2, my = (A.y + D.y) / 2, grow = (q) => ({ x: q.x + (q.x - mx) * 0.04, y: q.y + (q.y - my) * 0.04 });
+    const a = grow(A), b = grow(B), c = grow(C), d = grow(D);
+    g.save();
+    g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.lineTo(d.x, d.y); g.lineTo(c.x, c.y); g.closePath(); g.clip();
+    const sw = iw / cells, sh = ih / cells;
+    g.setTransform(dpr * (B.x - A.x) / sw, dpr * (B.y - A.y) / sw, dpr * (C.x - A.x) / sh, dpr * (C.y - A.y) / sh, dpr * A.x, dpr * A.y);
+    g.drawImage(img, i * sw, j * sh, sw * 1.04, sh * 1.04, 0, 0, sw * 1.04, sh * 1.04);
+    g.restore();
+  }
+}
+/** Картинка с обводкой своим цветом — один раз на картинку и цвет, а не дюжина копий каждый кадр. */
+const ringed = new WeakMap();
+function withRing(img, ink) {
+  let m = ringed.get(img); if (!m) ringed.set(img, (m = new Map()));
+  if (!m.has(ink)) {
+    const o = Math.round(img.width * 0.018), c = document.createElement("canvas");
+    c.width = img.width + 2 * o; c.height = img.height + 2 * o;
+    const g = c.getContext("2d"), t = tinted(img, ink);
+    for (let k = 0; k < 16; k++) g.drawImage(t, o + Math.cos((k / 16) * 6.283) * o, o + Math.sin((k / 16) * 6.283) * o);
+    g.drawImage(img, o, o);
+    m.set(ink, { c, o });
+  }
+  return m.get(ink);
 }
 function render() {
   frame = 0;
@@ -402,31 +440,33 @@ function render() {
     const A = proj(q.tl), B = proj(q.tr), C = proj(q.bl);
     if (!A || !B || !C) continue;
     if (q.chair) {
-      const D = { x: B.x + C.x - A.x, y: B.y + C.y - A.y };
+      const D = proj(add(q.tr, sub(q.bl, q.tl)));
+      if (!D) continue;
       g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.lineTo(D.x, D.y); g.lineTo(C.x, C.y); g.closePath();
       g.fillStyle = "#4a3420"; g.fill(); g.lineWidth = 3; g.strokeStyle = BLACK; g.stroke(); g.lineWidth = 1.5; g.strokeStyle = S.ink; g.stroke();
       continue;
     }
-    const iw = q.img.width, ih = q.img.height;
+    const lerp3 = (u, v) => add(add(q.tl, mul(sub(q.tr, q.tl), u)), mul(sub(q.bl, q.tl), v));
     if (q.face) {
-      // ГРАНЬ КУБА: рисунок, тень по свету, чёрные рёбра по контуру — без обводки картинки.
-      const D = { x: B.x + C.x - A.x, y: B.y + C.y - A.y };
-      g.save();
-      g.setTransform(dpr * (B.x - A.x) / iw, dpr * (B.y - A.y) / iw, dpr * (C.x - A.x) / ih, dpr * (C.y - A.y) / ih, dpr * A.x, dpr * A.y);
-      g.drawImage(q.img, 0, 0);
-      g.fillStyle = `rgba(28,20,14,${q.shade.toFixed(2)})`; g.fillRect(0, 0, iw, ih);
-      g.restore();
-      g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.lineTo(D.x, D.y); g.lineTo(C.x, C.y); g.closePath();
-      g.lineJoin = "round"; g.lineWidth = 3.5; g.strokeStyle = BLACK; g.stroke();
+      // ГРАНЬ КУБА — нарисована прямо в проекции: заливка по четырём углам, очки — круги на плоскости грани, тень
+      // по свету, чёрные рёбра. Дальний край честно меньше ближнего.
+      const corner = [lerp3(0, 0), lerp3(1, 0), lerp3(1, 1), lerp3(0, 1)].map(proj);
+      if (corner.some((c) => !c)) continue;
+      const poly = (pts) => { g.beginPath(); pts.forEach((c, k) => (k ? g.lineTo(c.x, c.y) : g.moveTo(c.x, c.y))); g.closePath(); };
+      const shade = (hex) => { const k = 1 - q.shade, n = parseInt(hex.slice(1), 16); return `rgb(${Math.round(((n >> 16) & 255) * k)},${Math.round(((n >> 8) & 255) * k)},${Math.round((n & 255) * k)})`; };
+      poly(corner); g.fillStyle = shade(PAPER); g.fill();
+      g.fillStyle = shade(pal.red);
+      for (const [pu, pv] of PIP_AT[q.face]) {
+        const ring = Array.from({ length: 18 }, (_, k) => { const t = (k / 18) * Math.PI * 2; return proj(lerp3(pu + Math.cos(t) * 0.085, pv + Math.sin(t) * 0.085)); });
+        if (ring.every(Boolean)) { poly(ring); g.fill(); }
+      }
+      poly(corner); g.lineJoin = "round"; g.lineWidth = 3.5; g.strokeStyle = BLACK; g.stroke();
       continue;
     }
-    g.save();
-    g.setTransform(dpr * (B.x - A.x) / iw, dpr * (B.y - A.y) / iw, dpr * (C.x - A.x) / ih, dpr * (C.y - A.y) / ih, dpr * A.x, dpr * A.y);
-    // обводка своим цветом: тонированные копии вокруг
-    const tint = tinted(q.img, S.ink), o = iw * 0.018;
-    for (let k = 0; k < 12; k++) g.drawImage(tint, Math.cos((k / 12) * 6.283) * o, Math.sin((k / 12) * 6.283) * o);
-    g.drawImage(q.img, 0, 0);
-    g.restore();
+    // КАРТИНКА ЧАСТИ — с обводкой, в перспективе: ячейками, у каждой свои углы.
+    const { c: ringImg, o } = withRing(q.img, S.ink);
+    const ou = o / q.img.width, ov = o / q.img.height;
+    drawProjected(g, dpr, ringImg, (u, v) => proj(lerp3(u * (1 + 2 * ou) - ou, v * (1 + 2 * ov) - ov)));
   }
   window.__skinmaker.shown = quads.filter((q) => q.slot).map((q) => q.slot);
   document.querySelector("[data-views]").innerHTML = info.map(([slot, view, n]) => `<span class="v" data-slot-view="${slot}" data-view="${view}">${SLOTS.find((s) => s[0] === slot)[1]}: <b>${VIEW_NAME(view)}</b> · ${n}</span>`).join("");
