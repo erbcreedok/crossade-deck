@@ -39,6 +39,8 @@ check("в списке — карточка своего стола с «Вой�
 await p.waitForTimeout(1200); // заставка стола гаснет
 if (shots) await p.screenshot({ path: `${shots}/profile-1-rooms.png` });
 await openProfile();
+const scroll = await p.evaluate(() => { const sh = document.querySelector("[data-profile]"); return { marked: sh.hasAttribute("data-scroll"), overflow: getComputedStyle(sh).overflowY, long: sh.scrollHeight > sh.clientHeight }; });
+check("лист профиля прокручивается пальцем: стол не гасит в нём жест (data-scroll), и он длиннее экрана", scroll.marked && scroll.overflow === "auto", scroll);
 check("профиль открылся: кукла крупно — туловище и голова", (await p.locator("[data-doll-preview] img").count()) === 2, await p.locator("[data-doll-preview]").innerHTML());
 // Кукла живая: дышит и водит головой — два снимка через полсекунды разные.
 const pose = () => p.evaluate(() => ({ head: document.querySelector('[data-doll-preview] [data-part="head"]')?.style.transform, torso: document.querySelector('[data-doll-preview] [data-part="torso"]')?.style.transform }));
@@ -60,7 +62,10 @@ check("кукла крутится пальцем, как в Doom: вбок — 
 check("расцветок сразу 5, по «ещё» — 16", (await p.locator("[data-pal]").count()) <= 6, await p.locator("[data-pal]").count());
 await p.click("[data-more]");
 check("…по «ещё» — все 16", (await p.locator("[data-pal]").count()) === 16, await p.locator("[data-pal]").count());
+await p.click("[data-pick-skin]");
+check("кем сидеть — отдельным списком, со сторонами у каждого", (await p.locator("[data-skin-list] [data-doll]").count()) === 17, await p.locator("[data-skin-list] [data-doll]").count());
 await p.click('[data-doll="queen"]');
+await p.waitForSelector("[data-profile]");
 await p.click('[data-pal="12"]');
 check("выбрал расцветку — обводка встала её предпочитаемым цветом", await p.evaluate(() => document.querySelector("[data-ink].on")?.dataset.ink) === "#8fb4e0", await p.evaluate(() => document.querySelector("[data-ink].on")?.dataset.ink));
 await p.click('[data-ink="#e0483f"]');
@@ -72,7 +77,7 @@ check("«Привязать Telegram» — вход приложения, с к�
 // После перезагрузки — то же: выбор в профиле стола, а не на странице.
 await open();
 await openProfile();
-const on = await p.evaluate(() => ({ doll: document.querySelector("[data-doll].on")?.dataset.doll, pal: document.querySelector("[data-pal].on")?.dataset.pal, ink: document.querySelector("[data-ink].on")?.dataset.ink }));
+const on = await p.evaluate(() => ({ doll: document.querySelector("[data-pick-skin]")?.dataset.current, pal: document.querySelector("[data-pal].on")?.dataset.pal, ink: document.querySelector("[data-ink].on")?.dataset.ink }));
 check("перезагрузил — выбор на месте: дама, расцветка 12, красный", on.doll === "queen" && on.pal === "12" && on.ink === "#e0483f", on);
 
 // За стол — дамой в этой расцветке и своего цвета.

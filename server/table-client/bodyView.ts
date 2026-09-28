@@ -13,7 +13,7 @@ import type { Body } from "../src/table/bodies.js";
 import { HEAD, NECK, awayOf, gazeOf, headOf, leftHandOf, shoulders3, type Point3 } from "../src/table/bodies.js";
 import type { Doll } from "../src/table/dolls.js";
 import { DOLL_HEAD_ASPECT, dollGeom, dollSprite } from "./dollSprites.js";
-import { drawnView, pickView, skinOf } from "../src/table/skins.js";
+import { VIEW_DIRS, drawnView, pickView, skinOf } from "../src/table/skins.js";
 import { ARCH_R, DISC, R, RIM, SEAT } from "./felt.js";
 import { SEAT_RADIUS, seatPoint } from "../src/table/ring.js";
 
@@ -171,6 +171,18 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette }: BodyLook, 
     return v;
   };
   const bodyView = view("body", pose.shoulders, inward), headView = view("head", pose.head, g);
+  /**
+   * ПЛОСКОСТЬ РАКУРСА ПОВЁРНУТА К НЕМУ: ракурс «спереди» — плоскость лицом вперёд фигуры, «правый бок» — лицом
+   * вправо. Смотришь на неё под углом — она сужается, как картонка; перешёл границу ракурса — сменился рисунок.
+   * Поперёк плоскости — правая рука того, кто смотрит на неё прямо по ракурсу.
+   */
+  const acrossOf = (name: string, f: Point): Point3 => {
+    const d = VIEW_DIRS[name] ?? VIEW_DIRS.front!, R = { x: -f.y, y: f.x };
+    const dw = { x: R.x * d[0] + f.x * d[1], y: R.y * d[0] + f.y * d[1] };
+    const n = Math.hypot(dw.x, dw.y);
+    return n < 1e-6 ? { x: R.x, y: R.y, h: 0 } : { x: dw.y / n, y: -dw.x / n, h: 0 };
+  };
+  const bodyAcross = acrossOf(bodyView, inward), headAcross = acrossOf(headView, g);
   const behind = bodyView === "back";
   const bodyDrawn = drawnView(skin, bodyView), headDrawn = drawnView(skin, headView);
   const torso = dollSprite(doll, palette, bodyDrawn.view, "body", ink, src.base, src.ready);
@@ -178,12 +190,16 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette }: BodyLook, 
   if (!torso || !face) return null;
   const ahead = at({ x: pose.head.x + g.x, y: pose.head.y + g.y, h: pose.head.h });
   /** Картинка на плоскости: верх — мировой вектор `up` в точке `P`, ширина — поперёк него на экране. */
-  const plane = (img: { src: string; w: number; h: number }, P: Point3, up: Point3, w: number, h: number, pivot: [number, number], mirror: boolean, g: string, clipBottom = 0) => {
+  const plane = (img: { src: string; w: number; h: number }, P: Point3, up: Point3, w: number, h: number, pivot: [number, number], mirror: boolean, g: string, clipBottom = 0, across?: Point3) => {
     const k = local(toGlass, P);
     const o = at(P), t = at({ x: P.x + up.x, y: P.y + up.y, h: P.h + up.h });
     const ay = { x: t.x - o.x, y: t.y - o.y };
     const len = Math.hypot(ay.x, ay.y) || 1;
-    const ax = { x: (-ay.y / len) * k * (mirror ? -1 : 1), y: (ay.x / len) * k * (mirror ? -1 : 1) };
+    // ПОПЕРЁК — настоящее направление в мире (плоскость повёрнута к своему ракурсу, и сбоку она сужается), или —
+    // без него — просто поперёк экрана.
+    const side = across ? at({ x: P.x + across.x, y: P.y + across.y, h: P.h + across.h }) : null;
+    const m0 = mirror ? -1 : 1;
+    const ax = side ? { x: (side.x - o.x) * m0, y: (side.y - o.y) * m0 } : { x: (-ay.y / len) * k * m0, y: (ay.x / len) * k * m0 };
     const tl = { x: o.x - ax.x * w * pivot[0] + ay.x * h * pivot[1], y: o.y - ax.y * w * pivot[0] + ay.y * h * pivot[1] };
     const m = [(ax.x * w) / img.w, (ax.y * w) / img.w, (-ay.x * h) / img.h, (-ay.y * h) / img.h, tl.x, tl.y].map((v) => v.toFixed(4)).join(",");
     return `<img data-g="${g}" src="${img.src}" alt="" draggable="false" style="position:absolute;left:0;top:0;width:${img.w}px;height:${img.h}px;transform-origin:0 0;transform:matrix(${m});pointer-events:none${clipBottom > 0 ? `;clip-path:inset(0 0 ${(clipBottom * 100).toFixed(1)}% 0)` : ""}">`;
@@ -231,10 +247,10 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette }: BodyLook, 
   const tag = `<span data-g="name" style="position:absolute;left:${H.x.toFixed(1)}px;top:${(H.y - pose.headH * 0.62 * hk - fs - 6).toFixed(1)}px;transform:translateX(-50%);white-space:nowrap;padding:1px 6px;border-radius:6px;`
     + `background:${T.black};box-shadow:inset 0 0 0 1.5px ${ink};font:400 ${fs.toFixed(0)}px Tiny5,monospace;color:${T.ink}">${esc(name)}</span>`;
   return `<div data-g="body" data-model="${doll}" data-palette="${palette}" data-by="${esc(body.by)}" data-name="${esc(name)}" data-stance="${body.stance}" data-yaw="${body.yaw}" data-stretch="${body.stretch.toFixed(2)}" data-away="${pose.away ? 1 : 0}" data-behind="${behind ? 1 : 0}" data-view="${bodyView}" data-head-view="${headView}" data-head-h="${pose.head.h.toFixed(2)}" style="position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:24">`
-    + plane(torso, pose.shoulders, pose.up, tw, th, [0.5, py], bodyDrawn.mirror, "doll-body", below)
+    + plane(torso, pose.shoulders, pose.up, tw, th, [0.5, py], bodyDrawn.mirror, "doll-body", below, bodyAcross)
     + chairBack
     + svg
-    + plane(face, pose.head, pose.away ? pose.headUp : pose.up, hw, pose.headH, [0.5, 0.5], flip, "doll-head")
+    + plane(face, pose.head, pose.away ? pose.headUp : pose.up, hw, pose.headH, [0.5, 0.5], flip, "doll-head", 0, headAcross)
     + hand(pose.left, "hand-closed", "left-hand", !behind)
     + (right ? hand(right, holding ? "hand-closed" : "hand-open", "right-hand", behind) : "")
     + tag

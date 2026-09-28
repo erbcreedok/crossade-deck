@@ -12,7 +12,7 @@
 
 import { FAVOURITE_INKS as INKS, PALETTE } from "../../look/src/palette.js";
 import { MAIN_PALETTES, PALETTES, type Doll } from "../src/table/dolls.js";
-import { drawnView, pickView, skinOf, SKINS, type Skin } from "../src/table/skins.js";
+import { VIEW_DIRS, drawnView, pickView, skinOf, SKINS, type Skin } from "../src/table/skins.js";
 import { nativeShell } from "./arNative.js";
 import { DOLL_SIZE } from "./bodyView.js";
 import { dollGeom, dollSprite, type DollSprite } from "./dollSprites.js";
@@ -101,6 +101,14 @@ const CSS = `
 [data-rooms] .sheet .label{color:${P.inkDim};font-size:12px}
 [data-rooms] .opts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 [data-rooms] .btn.on{color:#1a0f06;background:linear-gradient(${P.goldLight},${P.goldDark});box-shadow:inset 0 0 0 2px ${P.black},0 3px 0 ${P.black}}
+[data-rooms] .pick{display:flex;align-items:center;gap:8px;border:0;border-radius:9px;padding:4px 10px 4px 4px;cursor:pointer;background:${P.well};box-shadow:inset 0 0 0 2px ${P.wood};font:400 12px Tiny5,monospace;color:${P.ink}}
+[data-rooms] .pick .face,[data-rooms] .pick .none{width:34px;height:34px;object-fit:contain;display:grid;place-items:center}
+[data-rooms] .pick i{font-style:normal;color:${P.gold}}
+[data-rooms] .skinrow{width:100%;display:flex;align-items:center;gap:12px;border:0;border-top:2px solid ${P.black};padding:8px 4px;cursor:pointer;background:none;font:400 13px Tiny5,monospace;color:${P.ink};text-align:left}
+[data-rooms] .skinrow .face,[data-rooms] .skinrow .none{width:48px;height:48px;object-fit:contain;display:grid;place-items:center;flex:none}
+[data-rooms] .skinrow span{flex:1}
+[data-rooms] .skinrow small{color:${P.inkDim};font-size:11px}
+[data-rooms] .skinrow.on span{color:${P.gold}}
 [data-rooms] .skins{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
 [data-rooms] .skin{height:82px;border-radius:10px;border:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;padding:6px 4px;background:${P.well};box-shadow:inset 0 0 0 2px ${P.wood};font:400 11px Tiny5,monospace;color:${P.ink}}
 [data-rooms] .skin.on{box-shadow:inset 0 0 0 2px ${P.black},0 0 0 2px ${P.gold}}
@@ -260,13 +268,25 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
         .then(async (res) => { if (res.ok) { Object.assign(p, (await res.json()) as Profile); drawBar(); } })
         .catch(() => {});
     };
+    /** СПИСОК СКИНОВ — отдельным листом, как выпадашка: лицо, имя, сколько сторон. Выбрал — назад в профиль. */
+    let picking = false;
+    const drawPicker = () => {
+      layer.innerHTML = `<div class="veil" data-close></div><div class="sheet" data-skin-list data-scroll>`
+        + `<div class="top"><h3>КЕМ СИДЕТЬ</h3><button class="btn" data-back>Назад</button></div>`
+        + SKINS.map((sk) => `<button class="skinrow${p.doll === sk.id ? " on" : ""}" data-doll="${sk.id}">${skinThumb(sk, p)}<span>${esc(sk.name)}</span><small>${sidesSaid(sk)}</small></button>`).join("")
+        + `</div>`;
+      for (const el of layer.querySelectorAll<HTMLElement>("[data-close]")) el.onclick = () => { picking = false; layer.innerHTML = ""; };
+      layer.querySelector<HTMLElement>("[data-back]")!.onclick = () => { picking = false; draw(); };
+      for (const el of layer.querySelectorAll<HTMLElement>("[data-doll]")) el.onclick = () => { picking = false; save({ doll: el.dataset.doll as Doll }); };
+    };
     const draw = () => {
       const pals = PALETTES.map((pal, k) => ({ pal, k })).filter(({ k }) => more || k < MAIN_PALETTES || k === p.palette);
-      layer.innerHTML = `<div class="veil" data-close></div><div class="sheet" data-profile>`
+      if (picking) return drawPicker();
+      layer.innerHTML = `<div class="veil" data-close></div><div class="sheet" data-profile data-scroll>`
         + `<div class="top"><h3>ПРОФИЛЬ</h3><button class="btn" data-close>Закрыть</button></div>`
         + `<div class="doll" data-doll-preview>${dollPreview(p)}<div class="edge"></div></div>`
         + `<div class="row"><span class="label">Имя</span><span>${esc(p.name)}</span></div>`
-        + `<div class="row col"><span class="label">Кем сидеть</span><span class="skins">${SKINS.map((sk) => `<button class="skin${p.doll === sk.id ? " on" : ""}" data-doll="${sk.id}">${skinThumb(sk, p)}<span>${esc(sk.name)}</span></button>`).join("")}</span></div>`
+        + `<div class="row"><span class="label">Кем сидеть</span><button class="pick" data-pick-skin data-current="${esc(p.doll)}">${skinThumb(skinOf(p.doll) ?? SKINS[0]!, p)}<span>${esc(skinOf(p.doll)?.name ?? p.doll)}</span><i>▾</i></button></div>`
         + `<div class="row col"><span class="label">Расцветка — чтобы одинаковые куклы за столом не сливались</span><span class="opts" style="justify-content:flex-start;margin-top:8px">`
         + pals.map(({ pal, k }) => `<button class="chip${p.palette === k ? " on" : ""}" data-pal="${k}" title="${esc(pal.name)}"><i style="background:${pal.red}"></i><i style="background:${pal.blue}"></i><i style="background:${pal.gold}"></i></button>`).join("")
         + `<button class="btn" data-more>${more ? "меньше" : `ещё ${PALETTES.length - MAIN_PALETTES}`}</button></span></div>`
@@ -275,7 +295,7 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
         + `<div class="row"><span class="label">Telegram</span>${p.telegram ? `<span style="color:${P.gold}">привязан</span>` : native ? `<button class="btn gold" data-tg-link>Привязать</button>` : `<span class="lead">вход через бота</span>`}</div>`
         + `</div>`;
       for (const el of layer.querySelectorAll<HTMLElement>("[data-close]")) el.onclick = () => { layer.innerHTML = ""; };
-      for (const el of layer.querySelectorAll<HTMLElement>("[data-doll]")) el.onclick = () => save({ doll: el.dataset.doll as Doll });
+      layer.querySelector<HTMLElement>("[data-pick-skin]")!.onclick = () => { picking = true; draw(); };
       for (const el of layer.querySelectorAll<HTMLElement>("[data-pal]")) el.onclick = () => {
         // РАСЦВЕТКА ПРИВОДИТ СВОЙ ЦВЕТ: обводка встаёт предпочитаемой для неё; поменять её можно ниже, отдельно.
         const k = Number(el.dataset.pal);
@@ -289,12 +309,18 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
     draw();
   }
 
+  /** Сколько у скина сторон — словами для списка. */
+  function sidesSaid(sk: Skin): string {
+    const n = sk.views.length + Object.keys(sk.mirror ?? {}).length;
+    return n === 1 ? "1 сторона" : n < 5 ? `${n} стороны` : `${n} сторон`;
+  }
+
   /** Лицо скина в галерее — его голова спереди в моей расцветке; стика или ещё не испеклось — знак. */
   function skinThumb(sk: Skin, p: Profile): string {
     if (sk.source === "stick") return `<span class="none">⚲</span>`;
-    const ready = () => { const el = layer.querySelector(`[data-doll="${sk.id}"] .none`); if (el) el.outerHTML = skinThumb(sk, p); };
+    const ready = () => { for (const el of layer.querySelectorAll(`[data-thumb="${sk.id}"]`)) el.outerHTML = skinThumb(sk, p); };
     const face = dollSprite(sk.id, p.palette, sk.views[0]!, "head", p.color, HOST, ready);
-    return face ? `<img class="face" src="${face.src}" alt="">` : `<span class="none">…</span>`;
+    return face ? `<img class="face" src="${face.src}" alt="">` : `<span class="none" data-thumb="${sk.id}">…</span>`;
   }
 
   /** Кукла крупно, как её увидят за столом: туловище за кромкой, голова над воротом, обводка моим цветом. */
@@ -372,8 +398,11 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
       set(head, "head");
       const turned = looks !== 0 && (drawn.view === "front" || drawn.view === "back");
       const flip = turned ? ((looks < 0) === toward > 0 ? -1 : 1) : drawn.mirror ? -1 : 1;
-      torso.style.transform = `translateY(${(-breath * 0.08 * unit).toFixed(2)}px) scaleX(${drawn.mirror ? -1 : 1})`;
-      head.style.transform = `translate(${(toward * 0.4 * unit).toFixed(2)}px,${(-breath * 0.13 * unit).toFixed(2)}px) scaleX(${flip})`;
+      // ПЛОСКОСТЬ РАКУРСА ПОВЁРНУТА К НЕМУ: смотришь под углом к ракурсу — картинка сужается, как картонка.
+      const d = VIEW_DIRS[shown] ?? VIEW_DIRS.front!;
+      const squeeze = Math.max(0.03, Math.cos(a - Math.atan2(d[0], d[1]))).toFixed(3);
+      torso.style.transform = `translateY(${(-breath * 0.08 * unit).toFixed(2)}px) scaleX(${drawn.mirror ? "-" : ""}${squeeze})`;
+      head.style.transform = `translate(${(toward * 0.4 * unit).toFixed(2)}px,${(-breath * 0.13 * unit).toFixed(2)}px) scaleX(${flip < 0 ? "-" : ""}${squeeze})`;
       box.dataset.turn = String(Math.round(turn));
       box.dataset.view = shown;
       box.dataset.back = shown === "back" ? "1" : "0";
