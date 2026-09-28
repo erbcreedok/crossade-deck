@@ -285,7 +285,9 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
     const ready = () => { const el = layer.querySelector("[data-doll-preview]"); if (el) el.innerHTML = dollPreview(p) + `<div class="edge"></div>`; };
     const torso = dollSprite(p.doll, p.palette, "body", p.color, HOST, ready);
     const head = dollSprite(p.doll, p.palette, "head", p.color, HOST, ready);
-    if (!torso || !head) return `<span class="lead" style="position:absolute;left:0;right:0;top:90px;text-align:center">кукла печётся…</span>`;
+    const torsoBack = dollSprite(p.doll, p.palette, "bodyBack", p.color, HOST, ready);
+    const headBack = dollSprite(p.doll, p.palette, "headBack", p.color, HOST, ready);
+    if (!torso || !head || !torsoBack || !headBack) return `<span class="lead" style="position:absolute;left:0;right:0;top:90px;text-align:center">кукла печётся…</span>`;
     // Та же мера, что за столом (`DOLL_SIZE`): плечи на высоте 4 над кромкой, голова пришита к вороту.
     const art = ART[p.doll];
     const unit = 26, edge = 210 - 30;
@@ -295,32 +297,56 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
     const hw = DOLL_SIZE.head * unit, hh = (hw * head.h) / head.w;
     const headY = shoulderY - ((hh / unit) * 0.45 + 0.2) * unit;
     queueMicrotask(() => alive(art.looks, unit));
-    return `<img data-part="torso" src="${torso.src}" alt="" style="left:calc(50% - ${tw / 2}px);top:${shoulderY - th * py}px;width:${tw}px;height:${th}px">`
-      + `<img data-part="head" src="${head.src}" alt="" style="left:calc(50% - ${hw / 2}px);top:${headY - hh / 2}px;width:${hw}px;height:${hh}px">`;
+    return `<img data-part="torso" data-front="${torso.src}" data-back="${torsoBack.src}" src="${torso.src}" alt="" style="left:calc(50% - ${tw / 2}px);top:${shoulderY - th * py}px;width:${tw}px;height:${th}px">`
+      + `<img data-part="head" data-front="${head.src}" data-back="${headBack.src}" src="${head.src}" alt="" style="left:calc(50% - ${hw / 2}px);top:${headY - hh / 2}px;width:${hw}px;height:${hh}px">`;
   }
 
   /**
    * КУКЛА ЖИВАЯ, как на стенде (`design/persona`, вид «профиль»): дышит — плечи и голова чуть ходят вверх-вниз,
    * водит взглядом — голова смещается к тому, куда смотрит, и поворачивается лицом туда. Кадр за кадром,
    * пока превью на странице; кто просил меньше движения — стоит спокойно.
+   * КРУТИТСЯ ПАЛЬЦЕМ: тянешь вбок — кукла поворачивается вокруг себя (картонка сужается), за четверть оборота —
+   * спиной; где отпустил, там и стоит.
    */
+  /** Куда кукла повёрнута — переживает перерисовку листа (сменил расцветку — стоит, как стояла). */
+  let spun = 0;
   function alive(looks: -1 | 1, unit: number): void {
     const box = layer.querySelector<HTMLElement>("[data-doll-preview]");
     if (!box || box.dataset.alive) return;
     box.dataset.alive = "1";
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let turn = spun;
+    let from: number | null = null;
+    box.style.touchAction = "none";
+    box.addEventListener("pointerdown", (e) => { from = e.clientX; box.setPointerCapture(e.pointerId); });
+    box.addEventListener("pointermove", (e) => {
+      if (from === null) return;
+      turn += (e.clientX - from) * 0.9;
+      spun = turn;
+      from = e.clientX;
+      if (still) tick(performance.now());
+    });
+    const up = () => { from = null; };
+    box.addEventListener("pointerup", up);
+    box.addEventListener("pointercancel", up);
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const t0 = performance.now();
     const tick = (now: number) => {
       const torso = box.querySelector<HTMLElement>('[data-part="torso"]'), head = box.querySelector<HTMLElement>('[data-part="head"]');
       if (!box.isConnected || !torso || !head) return;
-      const t = (now - t0) / 1000;
+      const t = still ? 0 : (now - t0) / 1000;
       const breath = Math.sin((t * 2 * Math.PI) / 3.2);
       const gx = Math.sin(t * 0.8) * 5, toward = gx / Math.hypot(gx, 8);
-      const flip = (looks < 0) === toward > 0 ? -1 : 1;
-      torso.style.transform = `translateY(${(-breath * 0.08 * unit).toFixed(2)}px)`;
-      head.style.transform = `translate(${(toward * 0.4 * unit).toFixed(2)}px,${(-breath * 0.13 * unit).toFixed(2)}px) scaleX(${flip})`;
-      box.dataset.breath = breath.toFixed(2);
-      requestAnimationFrame(tick);
+      const c = Math.cos((turn * Math.PI) / 180), back = c < 0, w = Math.max(0.06, Math.abs(c));
+      const flip = back ? 1 : (looks < 0) === toward > 0 ? -1 : 1;
+      for (const [img, want] of [[torso, back], [head, back]] as const) {
+        const src = want ? img.dataset.back! : img.dataset.front!;
+        if (img.getAttribute("src") !== src) img.src = src;
+      }
+      torso.style.transform = `translateY(${(-breath * 0.08 * unit).toFixed(2)}px) scaleX(${w.toFixed(3)})`;
+      head.style.transform = `translate(${(toward * 0.4 * unit * c).toFixed(2)}px,${(-breath * 0.13 * unit).toFixed(2)}px) scaleX(${(flip * w).toFixed(3)})`;
+      box.dataset.turn = String(Math.round(turn));
+      box.dataset.back = back ? "1" : "0";
+      if (!still) requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   }

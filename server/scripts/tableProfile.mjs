@@ -46,6 +46,16 @@ const pose1 = await pose();
 await p.waitForTimeout(700);
 const pose2 = await pose();
 check("кукла в профиле живая: дышит (туловище ходит) и водит головой", Boolean(pose1.head) && pose1.head !== pose2.head && pose1.torso !== pose2.torso, [pose1, pose2]);
+// Крутится пальцем: вбок на 200 px — кукла спиной (тёмные картинки), столько же обратно — снова лицом.
+const box = await p.locator("[data-doll-preview]").boundingBox();
+const spin = async (dx) => { await p.mouse.move(box.x + box.width / 2, box.y + 100); await p.mouse.down(); for (let i = 1; i <= 10; i += 1) await p.mouse.move(box.x + box.width / 2 + (dx * i) / 10, box.y + 100); await p.mouse.up(); await p.waitForTimeout(150); };
+const side = () => p.evaluate(() => { const b = document.querySelector("[data-doll-preview]"); const t = b.querySelector('[data-part="torso"]'); return { back: b.dataset.back, turn: b.dataset.turn, src: t.getAttribute("src") === t.dataset.back ? "back" : "front" }; });
+await spin(200);
+const spunBack = await side();
+if (shots) await p.screenshot({ path: `${shots}/profile-3-back.png` });
+await spin(-200);
+const spunFront = await side();
+check("кукла крутится пальцем: вбок — спиной, обратно — лицом", spunBack.back === "1" && spunBack.src === "back" && spunFront.back === "0" && spunFront.src === "front", [spunBack, spunFront]);
 check("расцветок сразу 5, по «ещё» — 16", (await p.locator("[data-pal]").count()) <= 6, await p.locator("[data-pal]").count());
 await p.click("[data-more]");
 check("…по «ещё» — все 16", (await p.locator("[data-pal]").count()) === 16, await p.locator("[data-pal]").count());
