@@ -1,0 +1,45 @@
+server/table-client/dollSprites.ts
+  s_e1c4165d82711d::t_3bd208aa790a92 1-157
+server/scripts/tableHud.mjs
+  s_e1c4165d82711d::t_f8f1d3bbd2077c 140-142
+server/table-client/felt.ts
+  s_e1c4165d82711d::t_111e43f7457732 981-983
+server/table-client/bodyView.ts
+  s_e1c4165d82711d::t_9f835e938d835f 13-15,30-38,53-59,62-131,138-170
+  s_e1c4165d82711d::t_a8e071e3a0a0b0 16,60-61,132-137
+server/scripts/tablePileDrop.mjs
+  s_e1c4165d82711d::t_3e8601a0102cba 125-126
+server/scripts/tableBody.mjs
+  s_e1c4165d82711d::t_f2482ad97e49e6 64,181
+  s_e1c4165d82711d::t_34b83f60a0cd9c 160-162,164,171-172
+server/table-client/sprites/diamond-Q.svg
+  s_e1c4165d82711d::t_919bbf96d2d984 1
+server/scripts/tableChairDrop.mjs
+  s_e1c4165d82711d::t_5d206b4c7917b2 32-33,46,78
+  s_e1c4165d82711d::t_422ffe1cba93e2 99-102,104
+server/scripts/tableGrip.mjs
+  s_e1c4165d82711d::t_cb8e8940014645 108-110,113
+server/table-client/screen.ts
+  s_e1c4165d82711d::t_111e43f7457732 57-59,3183,3185,3188-3192,3247-3255
+  s_e1c4165d82711d::t_ca2ec8d4751d3b 3246
+server/src/table/client.ts
+  s_e1c4165d82711d::t_919bbf96d2d984 112-119
+server/table-client/sprites/club-K.svg
+  s_e1c4165d82711d::t_919bbf96d2d984 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "72d99ee2b94f90a886dc55fb6ec65307909a17de",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
