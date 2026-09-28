@@ -1,0 +1,31 @@
+unity/Assets/Crossade/View/SlingView.cs
+  s_e1c4165d82711d::t_e6222db7f2e689 1-80
+unity/Assets/Crossade/Play/Finger.cs
+  s_e1c4165d82711d::t_d7b9e6b496881c 47-61,98,139,143,160-161,164,172-237,240,398
+unity/Assets/Tests/Play/LiveTableTests.cs
+  s_e1c4165d82711d::t_cd6f45bfaec265 211-230
+unity/Assets/Crossade/App.cs
+  s_e1c4165d82711d::t_cd6f45bfaec265 94
+unity/Assets/Crossade/Play/Sling.cs
+  s_e1c4165d82711d::t_fee440b603d924 1-32
+unity/Assets/Crossade/Play/Sling.cs.meta
+  s_e1c4165d82711d::t_cd6f45bfaec265 1-2
+unity/Assets/Crossade/View/SlingView.cs.meta
+  s_e1c4165d82711d::t_cd6f45bfaec265 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d2a620a84ec547ca2ee3a490e1439440e360b9e6",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
