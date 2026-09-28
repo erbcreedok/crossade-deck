@@ -13,7 +13,8 @@ import type { Body } from "../src/table/bodies.js";
 import { HEAD, NECK, awayOf, gazeOf, headOf, leftHandOf, shoulders3, type Point3 } from "../src/table/bodies.js";
 import type { Doll } from "../src/table/dolls.js";
 import { ART, EXTEND, dollSprite, type Part } from "./dollSprites.js";
-import { DISC, R, RIM } from "./felt.js";
+import { ARCH_R, DISC, R, RIM, SEAT } from "./felt.js";
+import { SEAT_RADIUS, seatPoint } from "../src/table/ring.js";
 
 type Point = { x: number; y: number };
 /** Точка стола на стекле — с высотой над сукном. */
@@ -103,6 +104,26 @@ export function dollPose(body: Body, angle: number, doll: Doll, toGlass: ToGlass
   return { shoulders: s, head: dollHead, left: leftHandOf(dollHead, body.yaw), up, headUp, away, headH };
 }
 
+/** Спинка стула, в единицах стола: чуть уже туловища куклы, высотой — до его середины (плечи на 4). */
+export const CHAIR_BACK = { w: 3.6, h: 2.7 };
+const backs = new Map<string, { src: string; w: number; h: number }>();
+/** Картинка спинки — дерево стула, обводка — свой цвет сидящего, как у арки на сукне. */
+function chairBackOf(ink: string): { src: string; w: number; h: number } {
+  let got = backs.get(ink);
+  if (!got) {
+    const w = 100, h = Math.round((100 * CHAIR_BACK.h) / CHAIR_BACK.w);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`
+      + `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${SEAT.woodHi}"/><stop offset="1" stop-color="${SEAT.woodLo}"/></linearGradient></defs>`
+      + `<path d="M4 ${h} V22 Q4 4 22 4 H${w - 22} Q${w - 4} 4 ${w - 4} 22 V${h} Z" fill="url(#g)" stroke="${SEAT.black}" stroke-width="7"/>`
+      + `<path d="M4 ${h} V22 Q4 4 22 4 H${w - 22} Q${w - 4} 4 ${w - 4} 22 V${h}" fill="none" stroke="${ink}" stroke-width="3.5"/>`
+      + `<path d="M22 ${h} V30 M${w / 2} ${h} V30 M${w - 22} ${h} V30" stroke="${SEAT.black}" stroke-opacity=".35" stroke-width="3"/>`
+      + `</svg>`;
+    got = { src: `data:image/svg+xml,${encodeURIComponent(svg)}`, w, h };
+    backs.set(ink, got);
+  }
+  return got;
+}
+
 function dollHtml({ body, angle, ink, name, holding, doll, palette }: BodyLook, toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string, src: DollSource): string | null {
   const pose = dollPose(body, angle, doll, toGlass);
   const art = ART[doll];
@@ -126,6 +147,12 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette }: BodyLook, 
     const m = [(ax.x * w) / img.w, (ax.y * w) / img.w, (-ay.x * h) / img.h, (-ay.y * h) / img.h, tl.x, tl.y].map((v) => v.toFixed(4)).join(",");
     return `<img data-g="${g}" src="${img.src}" alt="" draggable="false" style="position:absolute;left:0;top:0;width:${img.w}px;height:${img.h}px;transform-origin:0 0;transform:matrix(${m});pointer-events:none${clipBottom > 0 ? `;clip-path:inset(0 0 ${(clipBottom * 100).toFixed(1)}% 0)` : ""}">`;
   };
+  // СПИНКА СТУЛА — стоит на краю стула (за аркой) и закрывает кукле низ: кукла сидит за своим стулом. Стоит
+  // честно вертикально: сбоку — во весь рост, сверху — сходит в полоску у края стула (кукла там лежит от стола
+  // наружу, и лежащая спинка закрыла бы ей плечи).
+  const backAt = { ...seatPoint(angle, SEAT_RADIUS + ARCH_R), h: 0 };
+  const rise = Math.hypot(at({ ...backAt, h: 1 }).x - at(backAt).x, at({ ...backAt, h: 1 }).y - at(backAt).y) / (local(toGlass, backAt) || 1);
+  const chairBack = rise > 0.12 ? plane(chairBackOf(ink), backAt, { x: 0, y: 0, h: 1 }, CHAIR_BACK.w, CHAIR_BACK.h, [0.5, 1], false, "chair-back") : "";
   // ТУЛОВИЩЕ СТОИТ ЗА СТОЛОМ: линия плеч — на высоте плеч, всё, что ниже уровня стола, срезано.
   const tw = DOLL_SIZE.torso, th = ((tw * torso.h) / torso.w) * DOLL_SIZE.stretch;
   const py = art.shoulder / (1 + EXTEND);
@@ -162,6 +189,7 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette }: BodyLook, 
     + `background:${T.black};box-shadow:inset 0 0 0 1.5px ${ink};font:400 ${fs.toFixed(0)}px Tiny5,monospace;color:${T.ink}">${esc(name)}</span>`;
   return `<div data-g="body" data-model="${doll}" data-palette="${palette}" data-by="${esc(body.by)}" data-name="${esc(name)}" data-stance="${body.stance}" data-yaw="${body.yaw}" data-stretch="${body.stretch.toFixed(2)}" data-away="${pose.away ? 1 : 0}" data-behind="${behind ? 1 : 0}" data-head-h="${pose.head.h.toFixed(2)}" style="position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:24">`
     + plane(torso, pose.shoulders, pose.up, tw, th, [0.5, py], false, "doll-body", below)
+    + chairBack
     + svg
     + plane(face, pose.head, pose.away ? pose.headUp : pose.up, hw, pose.headH, [0.5, 0.5], flip, "doll-head")
     + hand(pose.left, "hand-closed", "left-hand", !behind)
