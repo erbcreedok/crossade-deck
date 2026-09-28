@@ -1,0 +1,28 @@
+server/table-client/bodyView.ts
+  s_e1c4165d82711d::t_71bffcf4144178 17-18,213
+  s_e1c4165d82711d::t_543c5dfbf69ed4 13,107-108,114,207-210,212,251,253
+server/table-client/felt.ts
+  s_e1c4165d82711d::t_71bffcf4144178 162
+server/table-client/dollSprites.ts
+  s_e1c4165d82711d::t_543c5dfbf69ed4 42-50,247
+design/skinmaker/index.html
+  s_e1c4165d82711d::t_588ef35b28038a 345
+  s_e1c4165d82711d::t_51b53cfed8da69 280,344
+  s_e1c4165d82711d::t_a5bc174de0bef5 281-292,346
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a9532bdbb3a0c4694fbba2e81f31592442a9a478",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
