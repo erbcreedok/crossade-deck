@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 
 export interface TelegramUser {
   id: number;
@@ -47,4 +47,29 @@ export function verifyTelegramInitData(initData: string, botToken: string, now =
   } catch {
     return null;
   }
+}
+
+/**
+ * ВХОД ЧЕРЕЗ TELEGRAM НА САЙТЕ (Login Widget) — не Mini App, а кнопка «Войти через Telegram»: поля человека
+ * приходят как есть, подпись — по ключу SHA256(токен бота), а не HMAC("WebAppData"). Так входит приложение
+ * Crossade, у которого своего Telegram нет.
+ */
+export function verifyTelegramLogin(fields: Record<string, unknown>, botToken: string, now = Date.now()): TelegramUser | null {
+  const hash = typeof fields.hash === "string" ? fields.hash : "";
+  if (!/^[0-9a-f]{64}$/.test(hash)) return null;
+  const pairs = Object.entries(fields)
+    .filter(([key, value]) => key !== "hash" && value !== undefined && value !== null && value !== "")
+    .map(([key, value]) => [key, String(value)] as const)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const dataCheckString = pairs.map(([key, value]) => `${key}=${value}`).join("\n");
+  const secretKey = createHash("sha256").update(botToken).digest();
+  const expected = Buffer.from(createHmac("sha256", secretKey).update(dataCheckString).digest("hex"), "hex");
+  const actual = Buffer.from(hash, "hex");
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
+  const authDate = Number(fields.auth_date);
+  if (!authDate || now - authDate * 1000 > MAX_AUTH_AGE_MS) return null;
+  const id = Number(fields.id);
+  if (!Number.isSafeInteger(id)) return null;
+  const text = (key: string) => (typeof fields[key] === "string" ? (fields[key] as string) : undefined);
+  return { id, first_name: text("first_name"), last_name: text("last_name"), username: text("username"), photo_url: text("photo_url") };
 }

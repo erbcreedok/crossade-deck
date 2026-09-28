@@ -978,7 +978,9 @@ export type RunResult = { ok: true } | { error: RunError };
 export type Home =
   /** `chatTitle` — как чат называется в Telegram: из него растёт имя стола. */
   | { kind: "chat"; chat: string; chatTitle?: string }
-  | { kind: "inline"; message: string };
+  | { kind: "inline"; message: string }
+  /** Стол заведён в приложении Crossade — своего чата у него нет, зовут по ссылке. */
+  | { kind: "app" };
 
 /**
  * СТУЛ, КАКИМ ЕГО ВИДИТ МЕНЮ В ЧАТЕ. Не снимок стола: здесь только то, из чего рисуются кнопки

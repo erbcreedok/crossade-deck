@@ -5,6 +5,7 @@
 // Вход — ссылкой из бота или из настроек стола: crossade://table?room=…&pass=…&host=…
 
 import ARKit
+import AuthenticationServices
 import UIKit
 import WebKit
 
@@ -28,11 +29,14 @@ final class App: UIResponder, UIApplicationDelegate {
     }
 }
 
-final class TableController: UIViewController, WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate, ARSessionDelegate {
+final class TableController: UIViewController, WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate, ARSessionDelegate, ASWebAuthenticationPresentationContextProviding {
     /** Постоянный адрес стола: реле отдаёт страницу мака, где бы мак сейчас ни жил. */
     static let relay = "https://crossade-deck-server.fly.dev"
     /** Мост в страницу: она зовёт камеру приложения (`arNative.ts`). */
-    static let bridge = "window.__crossadeNative = { version: 1, ar: function (on) { window.webkit.messageHandlers.crossade.postMessage({ ar: !!on }); } };"
+    static let bridge = "window.__crossadeNative = { version: 1, "
+        + "ar: function (on) { window.webkit.messageHandlers.crossade.postMessage({ ar: !!on }); }, "
+        + "key: function (k) { window.webkit.messageHandlers.crossade.postMessage({ key: String(k) }); }, "
+        + "login: function () { window.webkit.messageHandlers.crossade.postMessage({ login: true }); } };"
 
     let camera = ARSCNView()
     var web: WKWebView!
@@ -128,6 +132,11 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
     // ссылка с пропуском на один стол тоже годится — тогда только этот стол.
     func opened(_ url: URL) {
         guard url.scheme == "crossade", let parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
+        // Вход через Telegram вернул ключ — и сразу в «Мои комнаты».
+        if url.host == "login", let key = parts.queryItems?.first(where: { $0.name == "key" })?.value {
+            UserDefaults.standard.set(key, forKey: "key")
+            return load(room: nil, pass: nil)
+        }
         var room: String?, pass: String?, key: String?
         for item in parts.queryItems ?? [] {
             if item.name == "room" { room = item.value }
@@ -168,6 +177,25 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
         web.load(URLRequest(url: url.url!))
     }
 
+    // ─── вход через Telegram ─────────────────────────────────────────────────────────────────────
+    // Системное окно входа: кнопка Telegram на странице `?login` (`login.ts`) живёт только на домене бота, и её
+    // окно подтверждения — как в Safari. Страница заканчивает адресом crossade://login?key=… — окно его ловит.
+    var auth: ASWebAuthenticationSession?
+
+    func login() {
+        var url = URLComponents(string: Self.relay + "/t/")!
+        url.queryItems = [URLQueryItem(name: "login", value: "")]
+        let session = ASWebAuthenticationSession(url: url.url!, callbackURLScheme: "crossade") { [weak self] back, _ in
+            if let back { self?.opened(back) }
+        }
+        session.presentationContextProvider = self
+        session.prefersEphemeralWebBrowserSession = false
+        auth = session
+        session.start()
+    }
+
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor { view.window ?? ASPresentationAnchor() }
+
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { failed(error) }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failed(error) }
     func failed(_ error: Error) { note.text = "Стол не открылся: \(error.localizedDescription)" }
@@ -180,8 +208,10 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
 
     // ─── AR ──────────────────────────────────────────────────────────────────────────────────────
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let body = message.body as? [String: Any], let on = body["ar"] as? Bool else { return }
-        setAr(on)
+        guard let body = message.body as? [String: Any] else { return }
+        if let on = body["ar"] as? Bool { setAr(on) }
+        if let key = body["key"] as? String { UserDefaults.standard.set(key, forKey: "key") }
+        if body["login"] as? Bool == true { login() }
     }
 
     func setAr(_ on: Bool) {

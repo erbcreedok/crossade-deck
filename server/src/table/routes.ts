@@ -7,7 +7,7 @@
 // Один и тот же код сервера стоит и там, и там — включается то, что сконфигурировано. Дев-кит этих
 // путей не касается.
 
-import { appKeyBearer } from "./appPass.js";
+import { appKeyBearer, KEY_DAYS, mintAppKey } from "./appPass.js";
 import { randomBytes, timingSafeEqual } from "crypto";
 import express, { type Router } from "express";
 import { tableConfig } from "./config.js";
@@ -20,7 +20,7 @@ import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomInJournal, roomsOfJou
 import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
 import { myRooms } from "./mine.js";
-import { verifyTelegramInitData } from "../telegramAuth.js";
+import { verifyTelegramInitData, verifyTelegramLogin } from "../telegramAuth.js";
 
 /** Подпись Mini App — заголовком: в адресе ей не место, адрес пересылают. */
 export const TELEGRAM_HEADER = "x-telegram-init-data";
@@ -49,6 +49,7 @@ function readHome(raw: unknown): Home | null {
     return { kind: "chat", chat: home.chat, ...(typeof home.chatTitle === "string" && home.chatTitle.trim() ? { chatTitle: home.chatTitle.trim().slice(0, 48) } : {}) };
   }
   if (home?.kind === "inline" && typeof home.message === "string") return { kind: "inline", message: home.message };
+  if (home?.kind === "app") return { kind: "app" };
   return null;
 }
 
@@ -256,6 +257,41 @@ export function tableRoutes(): Router {
       return { ...one, ...(last ? { replay: { pass: mintPass(one.room, config.secret!, until), from: last.from, to: last.to } } : {}) };
     });
     res.json({ rooms: mine.rooms, closed });
+  });
+
+  // ─── ПРИЛОЖЕНИЕ CROSSADE: свой вход, без Telegram Mini App ────────────────────────────────────────
+  // Приложение входит КЛЮЧОМ (`appPass.ts`). Ключ даёт одна из дверей ниже: гость — сразу, на это устройство;
+  // Telegram — кнопкой входа Telegram (Login Widget), тем же человеком, что в Mini App.
+  const DAY = 24 * 60 * 60 * 1000;
+  /** Гость живёт на своём телефоне долго: протухни ключ через месяц — он потерял бы свои столы. */
+  const GUEST_DAYS = 365;
+
+  r.post("/table/app/guest", (_req, res) => {
+    const secret = tableConfig().secret;
+    if (!secret) return void res.status(503).json({ error: "no_secret" });
+    const name = `Гость ${1000 + Math.floor(Math.random() * 9000)}`;
+    const who = { key: `dev:${randomBytes(9).toString("base64url")}`, name };
+    res.json({ key: mintAppKey(who, secret, Date.now() + GUEST_DAYS * DAY), name });
+  });
+
+  r.post("/table/app/telegram", (req, res) => {
+    const { secret, botToken } = tableConfig();
+    if (!secret || !botToken) return void res.status(503).json({ error: "no_secret" });
+    const user = verifyTelegramLogin((req.body ?? {}) as Record<string, unknown>, botToken);
+    if (!user) return void res.status(401).json({ error: "who_are_you" });
+    const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username || `#${user.id}`;
+    const who = { key: `tg:${user.id}`, name, ...(user.username ? { username: user.username } : {}), ...(user.photo_url ? { photo: user.photo_url } : {}) };
+    res.json({ key: mintAppKey(who, secret, Date.now() + KEY_DAYS * DAY), name });
+  });
+
+  // НОВЫЙ СТОЛ ИЗ ПРИЛОЖЕНИЯ — хозяин тот, кто назван ключом; своего чата у стола нет (`home: app`).
+  r.post("/table/app/rooms", (req, res) => {
+    const secret = tableConfig().secret;
+    const who = secret ? appKeyBearer(req.header(APP_KEY_HEADER), secret) : null;
+    if (!secret || !who) return void res.status(401).json({ error: "who_are_you" });
+    const body = (req.body ?? {}) as { kind?: unknown; title?: unknown };
+    const card = openEntry(mintRoom(secret), { kind: "app" }, who.key, typeof body.title === "string" ? body.title.slice(0, 40) : undefined, Date.now(), isDesk(body.kind) ? body.kind : DEFAULT_DESK);
+    res.json({ room: card.room, title: card.title });
   });
 
   /**

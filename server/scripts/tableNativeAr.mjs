@@ -189,6 +189,52 @@ check("в настройках приложения нет раздела «Пр
 }
 await web.leave();
 
+// ── приложение без ключа: вход гостем, свой стол; вход через Telegram ──────────────────────────────
+{
+  const g = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await g.addInitScript(() => {
+    window.__keys = []; window.__logins = 0;
+    window.__crossadeNative = { version: 1, ar() {}, key: (k) => window.__keys.push(k), login: () => { window.__logins += 1; } };
+  });
+  await g.goto(`${base}/table/?rooms`);
+  await g.waitForSelector("[data-guest]", { timeout: 15000 }).catch(() => {});
+  check("приложение без ключа — вход: гостем или через Telegram", (await g.locator("[data-guest]").count()) === 1 && (await g.locator("[data-tg-login]").count()) === 1);
+  await g.locator("[data-tg-login]").click().catch(() => {});
+  check("«Войти через Telegram» зовёт окно входа приложения", (await g.evaluate(() => window.__logins)) === 1);
+  // Ключ гостя приложение должно получить ДО перехода на список: после перехода страница другая.
+  await g.evaluate(() => { const was = window.__crossadeNative.key; window.__crossadeNative.key = (k) => { sessionStorage.setItem("gotKey", k); was(k); }; });
+  await g.locator("[data-guest]").click().catch(() => {});
+  await g.waitForSelector("[data-new]", { timeout: 15000 }).catch(() => {});
+  const guestKey = await g.evaluate(() => sessionStorage.getItem("gotKey"));
+  check("гость: ключ отдан приложению, список — «ты: Гость …»", typeof guestKey === "string" && /Ты: Гость \d{4} · гость/.test(await g.locator("[data-rooms]").innerText()), await g.locator("[data-rooms]").innerText().catch(() => ""));
+  await g.locator("[data-new]").click().catch(() => {});
+  await g.waitForSelector("[data-section]", { timeout: 15000 }).catch(() => {});
+  await g.waitForTimeout(800);
+  const owner = await g.evaluate(() => { const s = window.__tableState?.(); return s ? { admin: s.admin, me: s.people.find((p) => p.key.startsWith("dev:"))?.key } : null; }).catch(() => null);
+  check("«Новый стол» — стол гостя: он за ним и он хозяин", owner && owner.me && owner.admin === owner.me, owner);
+  await g.locator("[data-rooms-back]").click().catch(() => {});
+  await g.waitForSelector(".room", { timeout: 15000 }).catch(() => {});
+  check("и стол уже в «Моих комнатах» гостя", (await g.locator(".room").count()) === 1);
+
+  // Вход через Telegram: подпись кнопки входа (Login Widget) → ключ на того же человека, что в мини-аппе.
+  const fields = { id: 7, first_name: "Ye", auth_date: Math.floor(Date.now() / 1000) };
+  const check7 = Object.keys(fields).sort().map((k) => `${k}=${fields[k]}`).join("\n");
+  const { createHash } = await import("crypto");
+  const hash = createHmac("sha256", createHash("sha256").update(TOKEN).digest()).update(check7).digest("hex");
+  const login = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await login.addInitScript(() => { window.__keys = []; window.__crossadeNative = { version: 1, ar() {}, key: (k) => window.__keys.push(k) }; });
+  await login.goto(`${base}/table/?login`);
+  await login.waitForSelector("[data-login]", { timeout: 15000 }).catch(() => {});
+  check("страница входа — кнопка Telegram на месте", (await login.locator('[data-login-widget] script[data-telegram-login]').count()) === 1);
+  await login.evaluate((u) => window.onCrossadeTelegram(u), { ...fields, hash });
+  await login.waitForFunction(() => window.__keys.length > 0, null, { timeout: 10000 }).catch(() => {});
+  const tgKey = (await login.evaluate(() => window.__keys))[0];
+  const myList = tgKey ? await (await fetch(`${base}/table/my`, { headers: { "x-crossade-app-key": tgKey } })).json() : null;
+  check("вход через Telegram — ключ на того же человека: в его «Моих комнатах» его стол", !!myList?.rooms?.some((r) => r.room === room), myList?.rooms?.map((r) => r.room));
+  const forged = await (await fetch(`${base}/table/app/telegram`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...fields, id: 8, hash }) })).status;
+  check("подпись Telegram не сходится — ключа нет (401)", forged === 401, forged);
+}
+
 await browser.close();
 let bad = 0;
 for (const c of checks) {

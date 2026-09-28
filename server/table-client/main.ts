@@ -4,6 +4,7 @@
 //   в Telegram (Mini App)          дверь `telegram`, комната — `start_param` (или `?room=`)
 //   в браузере                     дверь `guest`: пустит, только если серверу это разрешено
 
+import { mountLogin } from "./login.js";
 import { nativeShell } from "./arNative.js";
 import { ROOM_CLOSED, STALE_CLIENT, type JoinOptions } from "../src/table/contract.js";
 import { localStore } from "./localStore.js";
@@ -148,7 +149,11 @@ const witness = watchScreen((seen) => tellStore?.log(seen), {
 
 // БЕЗ ССЫЛКИ НА СТОЛ — «Мои комнаты» (`rooms.ts`): кнопка меню, ярлык, профиль бота.
 const choosing = !params.has("stand") && !roomAsked;
-if (choosing) {
+// ВХОД ЧЕРЕЗ TELEGRAM для приложения Crossade (`login.ts`) — вместо списка.
+if (choosing && params.has("login")) {
+  loading.done();
+  mountLogin(document.body, params.get("bot") || "CrossaderBot");
+} else if (choosing) {
   loading.done();
   mountRooms(document.body, telegram);
 }

@@ -8,6 +8,7 @@
 // «не умею» или «уже добавлен»: на iPhone статус всегда приходит `unknown`, и прятать кнопку по нему
 // значило бы спрятать её там, где добавление работает. Ярлык открывает мини-апп без параметра — сюда же.
 
+import { nativeShell } from "./arNative.js";
 import { HOST } from "./host.js";
 
 interface TelegramApp {
@@ -68,6 +69,17 @@ const appKey = (): string | null => new URLSearchParams(location.search).get("ke
 const replayUrl = (room: string, r: NonNullable<MyClosed["replay"]>): string =>
   `replay?${new URLSearchParams({ room, pass: r.pass, from: String(r.from), ...(r.to === null ? {} : { to: String(r.to) }) })}`;
 
+/** Кто назван ключом приложения — для подписи «ты: …»; ключ подписан сервером, здесь его только читают. */
+const keyName = (key: string): { name: string; guest: boolean } | null => {
+  try {
+    const bytes = Uint8Array.from(atob(key.split(".")[0]!.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+    const who = JSON.parse(new TextDecoder().decode(bytes)) as { key?: string; name?: string };
+    return who.name ? { name: who.name, guest: who.key?.startsWith("dev:") === true } : null;
+  } catch {
+    return null;
+  }
+};
+
 export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): void {
   const style = document.createElement("style");
   style.textContent = CSS;
@@ -106,10 +118,23 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
   shell(`<div class="empty">Спрашиваю стол…</div>`);
   const signed = app?.initData ?? "";
   const key = appKey();
+  const native = nativeShell();
+  // ПРИЛОЖЕНИЕ БЕЗ КЛЮЧА — ВХОД: гостем сразу или тем же человеком, что в Telegram.
+  if (!signed && !key && native) {
+    last = `<h2>Вход</h2><button class="home" data-guest>Играть гостем</button><button class="home" data-tg-login>Войти через Telegram</button>`
+      + `<p class="sub">Гость живёт на этом телефоне. Через Telegram — ты тот же, что в мини-аппе, со своими столами.</p>`;
+    redraw();
+    return wireLogin(page, native);
+  }
   if (!signed && !key) {
     last = `<div class="empty">Открой эту страницу из Telegram — кнопкой меню бота: без Telegram стол не знает, кто ты.</div>`;
     return redraw();
   }
+  // С КЛЮЧОМ — кто я и новый стол; гостю — ещё вход через Telegram.
+  const me = key ? keyName(key) : null;
+  const head = key
+    ? `<p class="sub">Ты: ${esc(me?.name ?? "—")}${me?.guest ? " · гость" : ""}</p><button class="home" data-new>＋ Новый стол</button>${me?.guest && native ? `<button class="home" data-tg-login>Войти через Telegram</button>` : ""}`
+    : "";
   void fetch(`${HOST}/table/my`, { headers: signed ? { "x-telegram-init-data": signed } : { "x-crossade-app-key": key! } })
     .then(async (res) => {
       if (!res.ok) throw new Error(res.status === 401 ? (signed ? "Telegram не подтвердил, кто ты. Закрой и открой мини-апп заново." : "Ключ приложения устарел — возьми новый у бота: /app в личке.") : `Стол ответил ${res.status}.`);
@@ -122,17 +147,49 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
               return `<button class="room" data-room="${esc(r.room)}"><span class="name">${esc(r.title)}</span><span class="meta">${tags}<span>${who}</span></span></button>`;
             })
             .join("")
-        : `<div class="empty">Пока ни одного стола. Открой стол в чате с ботом командой /table — он появится здесь.</div>`;
+        : `<div class="empty">${key ? "Пока ни одного стола — открой свой: «Новый стол»." : "Пока ни одного стола. Открой стол в чате с ботом командой /table — он появится здесь."}</div>`;
       const gone = closed.length
         ? `<h2>Закрытые — только записи</h2>${closed
             .map((c) => `<div class="closed" data-closed="${esc(c.room)}"><span class="name">${esc(c.title)} · ${when(c.lastAt)}</span>${c.replay ? `<a href="${esc(replayUrl(c.room, c.replay))}">Запись</a>` : ""}</div>`)
             .join("")}`
         : "";
-      last = `<h2>Столы</h2>${live}${gone}`;
+      last = `${head}<h2>Столы</h2>${live}${gone}`;
       redraw();
+      if (native) wireLogin(page, native);
+      const make = page.querySelector<HTMLElement>("[data-new]");
+      if (make && key) {
+        make.onclick = () => {
+          make.textContent = "Открываю стол…";
+          void fetch(`${HOST}/table/app/rooms`, { method: "POST", headers: { "content-type": "application/json", "x-crossade-app-key": key }, body: "{}" })
+            .then(async (res) => {
+              if (!res.ok) throw new Error(String(res.status));
+              location.href = tableUrl(((await res.json()) as { room: string }).room);
+            })
+            .catch(() => { make.textContent = "Стол не открылся — ещё раз"; });
+        };
+      }
     })
     .catch((err: unknown) => {
       last = `<div class="empty bad">${esc(err instanceof Error ? err.message : "Стол не отвечает.")}</div>`;
       redraw();
     });
+}
+
+/** Кнопки входа: гость — ключ у стола сразу; Telegram — окно входа приложения (`native/ios-table`). */
+function wireLogin(page: HTMLElement, shell: NonNullable<ReturnType<typeof nativeShell>>): void {
+  const guest = page.querySelector<HTMLElement>("[data-guest]");
+  if (guest) {
+    guest.onclick = () => {
+      guest.textContent = "Сажаю гостя…";
+      void fetch(`${HOST}/table/app/guest`, { method: "POST" })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(String(res.status));
+          const { key } = (await res.json()) as { key: string };
+          shell.key?.(key);
+          location.href = `?rooms&key=${encodeURIComponent(key)}`;
+        })
+        .catch(() => { guest.textContent = "Стол не отвечает — ещё раз"; });
+    };
+  }
+  for (const el of page.querySelectorAll<HTMLElement>("[data-tg-login]")) el.onclick = () => shell.login?.();
 }

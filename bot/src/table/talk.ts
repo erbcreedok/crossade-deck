@@ -61,6 +61,7 @@ export function listed(cards: RoomCard[], links: Links, inPrivate: boolean, me?:
   const where = (c: RoomCard) => {
     if (!inPrivate) return "";
     if (c.home.kind === "inline") return " · в переписке";
+    if (c.home.kind === "app") return " · в приложении";
     return c.home.chatTitle ? ` · чат «${c.home.chatTitle}»` : " · в чате";
   };
   return {
@@ -118,7 +119,7 @@ export function inlineOpened(card: RoomCard, links: Links): Said {
 
 /** Готовый стол карточкой в чужую переписку: имя, где живёт, и кнопка входа; админу — ещё «Управлять». */
 export function inviteExisting(card: RoomCard, links: Links, admin: boolean): { title: string; description: string; text: string; rows: Button[][] } {
-  const where = card.home.kind === "inline" ? "в переписке" : card.home.chatTitle ? `чат «${card.home.chatTitle}»` : "в чате";
+  const where = card.home.kind === "inline" ? "в переписке" : card.home.kind === "app" ? "в приложении" : card.home.chatTitle ? `чат «${card.home.chatTitle}»` : "в чате";
   return {
     title: card.title,
     description: `Позвать в эту комнату · ${where}`,

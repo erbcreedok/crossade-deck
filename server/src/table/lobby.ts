@@ -194,7 +194,7 @@ export const allEntries = (): RoomCard[] => [...rooms.values()].map(card);
 
 export function roomsAt(home: Home): RoomCard[] {
   return [...rooms.values()]
-    .filter((e) => (home.kind === "chat" ? e.home.kind === "chat" && e.home.chat === home.chat : e.home.kind === "inline" && e.home.message === home.message))
+    .filter((e) => (home.kind === "chat" ? e.home.kind === "chat" && e.home.chat === home.chat : home.kind === "inline" ? e.home.kind === "inline" && e.home.message === home.message : false))
     .map(card);
 }
 
