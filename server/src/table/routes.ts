@@ -530,6 +530,20 @@ export function startBeacon(send: typeof fetch = fetch, doorDead: () => void = (
   const door = publicUrl.replace(/\/+$/, "");
   let opened = false;
   let misses = 0;
+  /**
+   * ПРОГРЕВ КЭША РЕЛЕ: после запуска у скрипта новый отпечаток, и первый вошедший ждал бы, пока реле
+   * сходит за ним сюда через туннель (10 с с телефона). Поэтому, как только реле узнало стол, стол сам
+   * просит у него свою страницу и скрипт — и тот ложится в кэш Cloudflare раньше людей.
+   */
+  const warmed = new Set<string>();
+  const warm = async (relay: string): Promise<void> => {
+    try {
+      const page = await (await send(`${relay}/t/`, { signal: AbortSignal.timeout(20_000) })).text();
+      for (const script of page.match(/app\.js\?v=[a-f0-9]+/g) ?? []) await send(`${relay}/table/${script}`, { signal: AbortSignal.timeout(60_000) }).then((r) => r.arrayBuffer());
+    } catch (err) {
+      console.warn(`прогрев реле ${relay} не удался:`, String(err));
+    }
+  };
   let timer: ReturnType<typeof setInterval> | undefined;
   const knock = async (): Promise<string | null> => {
     try {
@@ -555,11 +569,15 @@ export function startBeacon(send: typeof fetch = fetch, doorDead: () => void = (
     }
     // РЕЛЕ МОЖЕТ БЫТЬ НЕСКОЛЬКО (через запятую) — на время переезда с одного постоянного адреса на другой.
     for (const relay of relayUrl.split(",").map((u) => u.trim().replace(/\/+$/, "")).filter(Boolean)) {
-      await send(`${relay}/relay/table`, {
+      const told = await send(`${relay}/relay/table`, {
         method: "POST",
         headers: { "content-type": "application/json", [SECRET_HEADER]: secret },
         body: JSON.stringify({ url: publicUrl, boot: BOOT } satisfies Beacon),
-      }).catch((err) => console.warn(`маяк стола не дошёл до реле ${relay}:`, String(err)));
+      }).catch((err) => void console.warn(`маяк стола не дошёл до реле ${relay}:`, String(err)));
+      if (told?.ok && !warmed.has(relay)) {
+        warmed.add(relay);
+        void warm(relay);
+      }
     }
   };
   void beat();

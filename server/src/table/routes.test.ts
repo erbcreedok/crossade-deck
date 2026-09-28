@@ -213,7 +213,29 @@ describe("реле и маяк", () => {
     const stop = startBeacon(send);
     await new Promise((r) => setTimeout(r, 50));
     stop();
-    expect(posted).toEqual(["https://fly.example/relay/table", "https://w.example/relay/table"]);
+    expect(posted.filter((u) => u.endsWith("/relay/table"))).toEqual(["https://fly.example/relay/table", "https://w.example/relay/table"]);
+  });
+
+  it("реле узнало стол — стол один раз прогревает его кэш своим скриптом", async () => {
+    process.env.TABLE_PUBLIC_URL = "https://mac.example";
+    process.env.TABLE_RELAY_URL = "https://w.example";
+    vi.useFakeTimers();
+    try {
+      const got: string[] = [];
+      const send: typeof fetch = async (url) => {
+        const u = String(url);
+        if (!u.startsWith("https://mac.example")) got.push(u);
+        if (u.endsWith("/t/")) return new Response('<script type="module" src="app.js?v=abc123"></script>');
+        return new Response("{}");
+      };
+      const stop = startBeacon(send);
+      for (let i = 0; i < 3; i++) await vi.advanceTimersByTimeAsync(BEACON_EVERY_MS);
+      stop();
+      expect(got.filter((u) => u === "https://w.example/table/app.js?v=abc123")).toHaveLength(1);
+      expect(got.filter((u) => u.endsWith("/relay/table")).length).toBeGreaterThanOrEqual(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("дверь, что ещё не открывалась, — не смерть, маяк бьёт; открылась и пропала подряд — зовёт на перезапуск и замолкает", async () => {
