@@ -1,0 +1,45 @@
+server/src/table/wireFixture.test.ts
+  s_e1c4165d82711d::t_0c2c9709ce5664 16,130-132
+unity/Assets/Crossade/Table/Store.cs
+  s_e1c4165d82711d::t_4909459178e4bb 29-35,43-46,87-91,107-110
+unity/Assets/Crossade/Table/Intents.cs
+  s_e1c4165d82711d::t_4909459178e4bb 61-64
+  s_e1c4165d82711d::t_0c2c9709ce5664 71,87
+unity/Assets/Crossade/Wire/Contract.cs
+  s_e1c4165d82711d::t_4909459178e4bb 29
+unity/Assets/Crossade/View/Panel.cs
+  s_e1c4165d82711d::t_0930b1b3c9a8c6 1-128
+unity/Assets/Crossade/Play/Finger.cs
+  s_e1c4165d82711d::t_7137796382b6f9 31-36,83-84,102-103,138-139,204-210
+unity/Assets/Crossade/View/ChairWindow.cs
+  s_e1c4165d82711d::t_0c2c9709ce5664 24,156
+  s_e1c4165d82711d::t_2fb644044407de 1-23,25-155,157-259
+unity/Assets/Crossade/App.cs
+  s_e1c4165d82711d::t_7137796382b6f9 28,92,119,162-163,178
+unity/Assets/Tests/Editor/Fixtures/wire.json
+  s_e1c4165d82711d::t_0c2c9709ce5664 3-65
+unity/Assets/Crossade/View/Panel.cs.meta
+  s_e1c4165d82711d::t_0c3e0aa0a35afe 1-2
+unity/Assets/Tests/Play/LiveTableTests.cs
+  s_e1c4165d82711d::t_0c3e0aa0a35afe 210-229
+unity/Assets/Tests/Editor/WireTests.cs
+  s_e1c4165d82711d::t_0c2c9709ce5664 22-38
+unity/Assets/Crossade/View/ChairWindow.cs.meta
+  s_e1c4165d82711d::t_0c3e0aa0a35afe 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ef911eace15b28a96abd2bb9a6408fd1c327b5cb",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
