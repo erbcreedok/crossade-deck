@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Персонажи за столом — стенд</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Handjet&family=Press+Start+2P&family=Tiny5&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #0d2118; color: #cdb98f; font: 400 16px/1.45 'Handjet', monospace; }
+  .page { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; padding: 32px; }
+  .phone { flex: none; width: 390px; height: 844px; position: relative; overflow: hidden; border-radius: 44px;
+    background: radial-gradient(120% 90% at 50% 30%, #2a2019, #120c08); box-shadow: inset 0 0 0 3px #0b0704; touch-action: none; user-select: none; }
+  .phone canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .panel { flex: 1; min-width: 320px; max-width: 470px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font: 400 26px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .sec { padding: 12px 14px; background: #123527; box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #3a2a1d; display: flex; flex-direction: column; gap: 6px; }
+  .sec h2 { margin: 0 0 4px; font: 400 16px/1.2 'Tiny5', monospace; color: #f2c14e; }
+  .row { display: grid; grid-template-columns: 190px 1fr; align-items: center; gap: 8px; }
+  .row label { color: #f5ead0; }
+  .row select, .row input { justify-self: start; font: 400 16px 'Handjet', monospace; }
+  .row input[type=number] { width: 80px; }
+  .note { font-size: 15px; }
+  .note b { color: #f2c14e; font-weight: 400; }
+  button { font: inherit; color: #f2c14e; background: none; border: 2px solid #f2c14e; padding: 4px 10px; cursor: pointer; }
+  .knob { display: none; }
+  @media (max-width: 700px), (pointer: coarse) and (max-width: 1000px) {
+    body { overflow: hidden; }
+    .page { padding: 0; gap: 0; }
+    .phone { position: fixed; inset: 0; width: 100vw; height: 100dvh; border-radius: 0; box-shadow: none; }
+    .panel { position: fixed; left: 0; right: 0; bottom: 0; max-width: none; max-height: 72dvh; overflow: auto; padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); box-sizing: border-box;
+      background: #0d2118; box-shadow: 0 -3px 0 #0b0704, 0 -6px 0 #3a2a1d; transform: translateY(100%); transition: transform .22s cubic-bezier(.2,.85,.25,1); z-index: 30; }
+    .panel.open { transform: none; }
+    .knob { display: flex; position: fixed; left: 14px; top: calc(14px + env(safe-area-inset-top)); z-index: 40; width: 46px; height: 46px; border-radius: 8px; align-items: center; justify-content: center;
+      background: linear-gradient(#25321f, #16210f); box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #6b4d2c, 0 4px 0 rgba(11,7,4,.6); color: #f2c14e; font: 400 9px 'Tiny5', monospace; }
+    h1 { font-size: 20px; }
+    .row { grid-template-columns: 150px 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="phone" id="phone"><canvas id="scene"></canvas></div>
+  <div class="knob" id="knob">РУЧКИ</div>
+  <div class="panel" id="panel">
+    <h1>Персонажи за столом</h1>
+    <div class="note"><b>Персонаж — одна кукла в единицах стола.</b> Карта на сукне 1×1.4, плечи сидя на высоте 4, стоя — 7. Голова, туловище, руки и карты в руке мерятся теми же единицами, поэтому отъехал камерой — кукла мельчает вместе со столом, а не держит размер экрана.<br>
+    <b>Туловище стоит за столом:</b> низ уходит под кромку, стол его закрывает. Встал — из-за кромки видно больше тела, а само тело не раздувается.<br>
+    <b>Камера:</b> тяни по экрану — поворот и наклон, колесо или щипок — зум.</div>
+    <div id="controls"></div>
+    <div class="sec"><h2>Фото для аватара</h2>
+      <div class="note">Сюда своё фото: выбери файл или перетащи на экран. Оно остаётся только в этом браузере. Ещё можно положить файл <b>design/persona/art/me.jpg</b>.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><input type="file" id="photo" accept="image/*"><button id="photoReset">убрать фото</button></div>
+    </div>
+    <button id="reset" style="align-self:flex-start">сбросить ручки</button>
+  </div>
+</div>
+<script>
+(function () {
+  const T = {
+    ink: "#f5ead0", inkDim: "#cdb98f", gold: "#f2c14e", danger: "#e0483f", black: "#0b0704", wood: "#6b4d2c", woodDark: "#3a2a1d",
+    felt: "#1b4835", feltDark: "#0f2d20", paper: "#f7f1e6", accent: "#b3221f",
+  };
+  const INKS = ["#7fd1b9", "#b98fe0", "#f2c14e", "#e0483f"];
+  const MODELS = [["stick", "палка"], ["avatar", "аватар"], ["king", "король треф"], ["queen", "дама бубен"]];
+  const NAMES = ["Палка", "Ерик", "Король", "Дама"];
+  const SEATS = [200, 250, 290, 340].map((d) => (d * Math.PI) / 180);
+  const R = 6.4, SHOULDERS = R + 1, CARD = { w: 1, h: 1.4 };
+
+  // РУЧКИ. Числа — полем, а не ползунком: точное значение важнее «подкрутить».
+  const SPEC = [
+    ["Сцена", [
+      ["scene", "вид", "enum", "стол", ["стол", "витрина"]],
+      ["zoom", "зум", "num", 1, 0.3, 4, 0.05],
+      ["pitch", "наклон, °", "num", 58, 0, 85, 1],
+      ["yaw", "поворот, °", "num", 0, -180, 180, 5],
+      ["seat0", "слева", "enum", "stick", MODELS.map((m) => m[0])],
+      ["seat1", "слева сверху", "enum", "avatar", MODELS.map((m) => m[0])],
+      ["seat2", "справа сверху", "enum", "king", MODELS.map((m) => m[0])],
+      ["seat3", "справа", "enum", "queen", MODELS.map((m) => m[0])],
+      ["face", "спрайт смотрит", "enum", "в камеру", ["в камеру", "в стол", "плашмя к экрану"]],
+    ]],
+    ["Кукла, в единицах стола", [
+      ["headW", "голова, ширина", "num", 2.4, 0.5, 6, 0.1],
+      ["ball", "голова-шар, радиус", "num", 1.1, 0.3, 3, 0.05],
+      ["torsoW", "туловище, ширина", "num", 5.2, 1, 10, 0.1],
+      ["torsoX", "туловище, вытянуть", "num", 1.3, 0.5, 3, 0.05],
+      ["handW", "кисть", "num", 1.5, 0.3, 4, 0.1],
+      ["sitH", "плечи сидя, высота", "num", 4, 0, 12, 0.1],
+      ["standH", "плечи стоя, высота", "num", 7, 0, 14, 0.1],
+      ["stance", "поза", "enum", "сидит", ["сидит", "стоит"]],
+      ["neck", "шея в покое", "num", 1.5, 0, 4, 0.1],
+      ["reach", "шея натянута, вперёд", "num", 3.5, 0, 8, 0.1],
+      ["fan", "карт в левой руке", "num", 5, 0, 12, 1],
+      ["faces", "лица чужих карт (AR)", "bool", false],
+      ["ray", "луч взгляда", "bool", false],
+      ["names", "таблички имён", "bool", true],
+    ]],
+    ["Анимации", [
+      ["speed", "скорость", "num", 1, 0, 4, 0.1],
+      ["a_breathe", "дышит", "bool", true],
+      ["a_look", "водит взглядом по столу", "bool", true],
+      ["a_grab", "берёт карту с колоды", "bool", true],
+      ["a_turn", "чей ход — подсветка", "bool", true],
+      ["a_stretch", "тянет шею к столу", "bool", false],
+      ["a_stand", "встаёт и садится", "bool", false],
+      ["a_think", "думает — качает головой", "bool", false],
+      ["a_wave", "машет рукой", "bool", false],
+      ["a_win", "радуется — подпрыгивает", "bool", false],
+    ]],
+  ];
+  const DEFAULTS = {};
+  const KIND = {};
+  for (const [, rows] of SPEC) for (const [k, , kind, d] of rows) { DEFAULTS[k] = d; KIND[k] = kind; }
+  const readHash = () => {
+    const out = {};
+    for (const [k, v] of new URLSearchParams(location.hash.slice(1))) {
+      if (!(k in DEFAULTS)) continue;
+      out[k] = KIND[k] === "num" ? +v : KIND[k] === "bool" ? v === "1" : v;
+    }
+    return out;
+  };
+  const S = { ...DEFAULTS, ...readHash() };
+  const writeHash = () => {
+    const q = new URLSearchParams();
+    for (const k in S) if (S[k] !== DEFAULTS[k]) q.set(k, KIND[k] === "bool" ? (S[k] ? "1" : "0") : String(S[k]));
+    history.replaceState(null, "", "#" + q.toString());
+  };
+
+  const controls = document.getElementById("controls");
+  const inputs = {};
+  const renderControls = () => {
+    controls.innerHTML = "";
+    for (const [title, rows] of SPEC) {
+      const sec = document.createElement("div");
+      sec.className = "sec";
+      sec.innerHTML = `<h2>${title}</h2>`;
+      for (const [k, label, kind, , a, b, step] of rows) {
+        const row = document.createElement("div");
+        row.className = "row";
+        let el;
+        if (kind === "num") {
+          el = document.createElement("input");
+          el.type = "number"; el.min = a; el.max = b; el.step = step ?? 1; el.value = S[k];
+          el.oninput = () => { if (el.value !== "" && !isNaN(+el.value)) { S[k] = +el.value; writeHash(); } };
+        } else if (kind === "bool") {
+          el = document.createElement("input");
+          el.type = "checkbox"; el.checked = S[k];
+          el.onchange = () => { S[k] = el.checked; writeHash(); };
+        } else {
+          el = document.createElement("select");
+          for (const v of a) {
+            const o = document.createElement("option");
+            o.value = v; o.textContent = (MODELS.find((m) => m[0] === v) ?? [v, v])[1];
+            el.appendChild(o);
+          }
+          el.value = S[k];
+          el.onchange = () => { S[k] = el.value; writeHash(); };
+        }
+        el.dataset.knob = k;
+        inputs[k] = el;
+        const l = document.createElement("label");
+        l.textContent = label;
+        row.append(l, el);
+        sec.appendChild(row);
+      }
+      controls.appendChild(sec);
+    }
+  };
+  renderControls();
+  const setKnob = (k, v) => { S[k] = v; if (inputs[k]) inputs[k].value = v; writeHash(); };
+  document.getElementById("reset").onclick = () => { Object.assign(S, DEFAULTS); writeHash(); renderControls(); };
+  window.addEventListener("hashchange", () => { Object.assign(S, DEFAULTS, readHash()); renderControls(); });
+  document.getElementById("knob").onclick = () => document.getElementById("panel").classList.toggle("open");
+
+  // ВЕКТОРЫ: мир — x вправо, y к смотрящему (низ экрана сверху), h вверх над сукном; единица — ширина карты.
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const norm = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+  const lerp = (a, b, t) => add(a, mul(sub(b, a), t));
+  const UP = [0, 0, 1];
+  const ease = (t) => t * t * (3 - 2 * t);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // СПРАЙТЫ ПЕКУТСЯ ЗДЕСЬ ЖЕ, ИЗ ВЕКТОРОВ КОЛОДЫ: кусок фигуры кладётся на бумагу, и прозрачной становится
+  // только бумага снаружи силуэта (заливка от краёв). Туловище под срезом продолжено последней строкой
+  // пикселей — мантия уходит вниз под стол, а не обрывается в воздухе.
+  const ART = {
+    king: { url: "art/club-K.svg", head: [28, 0, 70, 58], body: [0, 50, 123, 50], shoulder: 0.22, looks: -1 },
+    queen: { url: "art/diamond-Q.svg", head: [69, 23, 50, 52], body: [36, 66, 114, 56], shoulder: 0.12, looks: -1, oval: true },
+  };
+  const HAND = (closed) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<g fill="#fff" stroke="#0b0704" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">${closed
+    ? `<path d="M9 14c0-1.7 1.3-2.6 2.6-2.3.4-1.6 1.7-2.2 3-1.8.6-1.3 2-1.7 3.2-1.1.8-.9 2.2-.9 3 0 1 .9 1.2 2.4 1.2 4.2v5c0 4.5-2.8 7.5-6.8 7.5h-1.4c-2.6 0-4.1-1.1-5.3-3.2L6.4 18c-.7-1.2-.3-2.6.9-3.1 1-.4 1.8 0 2.6.9z"/><path d="M11.6 11.7v4.8M14.6 9.9v5.6M17.8 8.8v6.3M20.8 8.8v6.5"/>`
+    : `<path d="M11 15V6.8c0-1.4 1-2.3 2.1-2.3s2.1.9 2.1 2.3V13V4.9c0-1.4 1-2.3 2.1-2.3s2.1.9 2.1 2.3V13V6.3c0-1.4 1-2.3 2.1-2.3s2.1.9 2.1 2.3V20c0 5-3 8.5-7.4 8.5h-1.2c-2.8 0-4.4-1.2-5.8-3.4l-3.8-6c-.8-1.3-.4-2.8.9-3.3 1.1-.5 2.2 0 3 1.1z"/><path d="M15.2 13V6.8M19.4 13V6.3"/>`}</g></svg>`;
+
+  const decode = async (src) => { const i = new Image(); i.src = src; await i.decode(); return i; };
+  const svgUrl = (svg) => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  const K = 6, EXTEND = 1.2;
+  async function cut(svg, box, { extend = 0, oval = false } = {}) {
+    const vb = /viewBox="([\d.\s-]+)"/.exec(svg)[1].trim().split(/\s+/).map(Number);
+    const full = svg.replace("<svg ", `<svg width="${vb[2] * K}" height="${vb[3] * K}" color="${T.accent}" `);
+    const img = await decode(svgUrl(full));
+    const [x, y, w, h] = box;
+    const c = document.createElement("canvas");
+    const W = Math.round(w * K), H = Math.round(h * K);
+    c.width = W; c.height = H;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.fillStyle = T.paper; g.fillRect(0, 0, W, H);
+    g.drawImage(img, -(x - vb[0]) * K, -(y - vb[1]) * K);
+    const d = g.getImageData(0, 0, W, H), px = d.data;
+    const pr = 0xf7, pg = 0xf1, pb = 0xe6;
+    const paperAt = (i) => Math.abs(px[i] - pr) + Math.abs(px[i + 1] - pg) + Math.abs(px[i + 2] - pb) < 60 && px[i + 3] > 0;
+    const stack = [];
+    for (let i = 0; i < W; i += 1) stack.push(i, (H - 1) * W + i);
+    for (let j = 0; j < H; j += 1) stack.push(j * W, j * W + W - 1);
+    while (stack.length) {
+      const p = stack.pop(), i = p * 4;
+      if (!paperAt(i)) continue;
+      px[i + 3] = 0;
+      const x0 = p % W, y0 = (p - x0) / W;
+      if (x0 > 0) stack.push(p - 1);
+      if (x0 < W - 1) stack.push(p + 1);
+      if (y0 > 0) stack.push(p - W);
+      if (y0 < H - 1) stack.push(p + W);
+    }
+    g.putImageData(d, 0, 0);
+    if (oval) {
+      // Голова дамы срезана краем карты и перечёркнута лентой — овал оставляет лицо и волосы.
+      g.globalCompositeOperation = "destination-in";
+      g.beginPath(); g.ellipse(W / 2, H * 0.52, W * 0.5, H * 0.52, 0, 0, Math.PI * 2); g.fill();
+      g.globalCompositeOperation = "source-over";
+    }
+    if (!extend) return c;
+    const e = document.createElement("canvas");
+    e.width = W; e.height = Math.round(H * (1 + extend));
+    const eg = e.getContext("2d");
+    eg.drawImage(c, 0, 0);
+    eg.drawImage(c, 0, H - 2, W, 2, 0, H - 1, W, e.height - H + 1);
+    // Ниже среза мантия уходит в тень под столом, а не тянется полосами на свету.
+    const fade = eg.createLinearGradient(0, H - 1, 0, e.height);
+    fade.addColorStop(0, "rgba(11,7,4,.35)");
+    fade.addColorStop(0.5, "rgba(11,7,4,.85)");
+    fade.addColorStop(1, "rgba(11,7,4,1)");
+    eg.globalCompositeOperation = "source-atop";
+    eg.fillStyle = fade;
+    eg.fillRect(0, H - 1, W, e.height - H + 1);
+    return e;
+  }
+
+  function cardFace(rank, suit, red) {
+    const c = document.createElement("canvas");
+    c.width = 100; c.height = 140;
+    const g = c.getContext("2d");
+    g.fillStyle = T.paper; g.beginPath(); g.roundRect(1, 1, 98, 138, 12); g.fill();
+    g.strokeStyle = T.black; g.lineWidth = 3; g.stroke();
+    g.fillStyle = red ? T.accent : T.black;
+    g.font = "400 34px Tiny5, monospace"; g.textAlign = "left"; g.textBaseline = "top";
+    g.fillText(rank, 10, 8);
+    g.font = "400 30px serif"; g.fillText(suit, 12, 44);
+    g.font = "400 60px serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(suit, 58, 88);
+    return c;
+  }
+  function cardBack() {
+    const c = document.createElement("canvas");
+    c.width = 100; c.height = 140;
+    const g = c.getContext("2d");
+    g.fillStyle = T.paper; g.beginPath(); g.roundRect(1, 1, 98, 138, 12); g.fill();
+    g.strokeStyle = T.black; g.lineWidth = 3; g.stroke();
+    g.fillStyle = T.accent; g.beginPath(); g.roundRect(9, 9, 82, 122, 6); g.fill();
+    g.strokeStyle = "rgba(247,241,230,.55)"; g.lineWidth = 2;
+    for (let i = -140; i < 140; i += 12) {
+      g.beginPath(); g.moveTo(9 + i, 9); g.lineTo(9 + i + 122, 131); g.stroke();
+      g.beginPath(); g.moveTo(91 - i, 9); g.lineTo(91 - i - 122, 131); g.stroke();
+    }
+    g.globalCompositeOperation = "destination-in";
+    g.beginPath(); g.roundRect(1, 1, 98, 138, 12); g.fill();
+    return c;
+  }
+
+  const SP = {};
+  let photo = null;
+  const PHOTO_KEY = "persona-photo";
+  const loadPhoto = async () => {
+    let src = null;
+    try { src = localStorage.getItem(PHOTO_KEY); } catch {}
+    try { photo = await decode(src ?? "art/me.jpg"); } catch { photo = null; }
+  };
+  const photoInput = document.getElementById("photo");
+  const takeFile = (file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    const r = new FileReader();
+    r.onload = async () => {
+      // Ужать до 256 px: аватар — кружок, а не обои, и localStorage не резиновый.
+      const img = await decode(r.result);
+      const c = document.createElement("canvas");
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      c.width = c.height = 256;
+      c.getContext("2d").drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, 256, 256);
+      const url = c.toDataURL("image/jpeg", 0.85);
+      try { localStorage.setItem(PHOTO_KEY, url); } catch {}
+      photo = await decode(url);
+    };
+    r.readAsDataURL(file);
+  };
+  photoInput.onchange = () => takeFile(photoInput.files[0]);
+  document.getElementById("photoReset").onclick = async () => { try { localStorage.removeItem(PHOTO_KEY); } catch {} await loadPhoto(); };
+  const phone = document.getElementById("phone");
+  phone.addEventListener("dragover", (e) => e.preventDefault());
+  phone.addEventListener("drop", (e) => { e.preventDefault(); takeFile(e.dataTransfer.files[0]); });
+
+  // КАМЕРА — настоящая: глаз на орбите вокруг середины стола. Зум — это глаз ближе, а не картинка крупнее.
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  let W = 0, H = 0;
+  const resize = () => {
+    const r = phone.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    W = r.width; H = r.height;
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+  new ResizeObserver(resize).observe(phone);
+  resize();
+
+  let cam;
+  const vitrina = () => S.scene === "витрина";
+  /** Глаз смотрит на `target` с наклона `pitch` (0 — сверху) с расстояния `dist`; `rect` — куда на экране. */
+  function makeCamera(rect, target, pitch, dist) {
+    const p = (clamp(pitch, 0, 85) * Math.PI) / 180;
+    const y = (S.yaw * Math.PI) / 180;
+    const rz = (v) => [v[0] * Math.cos(y) - v[1] * Math.sin(y), v[0] * Math.sin(y) + v[1] * Math.cos(y), v[2]];
+    const r = rz([1, 0, 0]), f = rz([0, -Math.sin(p), -Math.cos(p)]), d = rz([0, Math.cos(p), -Math.sin(p)]);
+    const C = sub(target, mul(f, dist));
+    const F = 1.6 * H;
+    const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+    const proj = (P) => {
+      const q = sub(P, C);
+      const z = Math.max(0.5, dot(q, f));
+      return { x: cx + (F * dot(q, r)) / z, y: cy + (F * dot(q, d)) / z, s: F / z, z };
+    };
+    return { C, r, f, d, proj };
+  }
+
+  // ОДНА ПЛОСКОСТЬ В МИРЕ: картинка натянута на две оси мира `ax`, `ay` (единичные), `w×h` — её размер в
+  // единицах стола, `pivot` — какая точка картинки стоит в `P`. Размер на экране — от расстояния до глаза.
+  const boxes = {};
+  function board(img, P, ax, ay, w, h, pivot, key, alpha = 1) {
+    const TL = add(add(P, mul(ax, -w * pivot[0])), mul(ay, h * pivot[1]));
+    const a = cam.proj(TL), b = cam.proj(add(TL, mul(ax, w))), c = cam.proj(sub(TL, mul(ay, h)));
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr * (b.x - a.x) / img.width, dpr * (b.y - a.y) / img.width, dpr * (c.x - a.x) / img.height, dpr * (c.y - a.y) / img.height, dpr * a.x, dpr * a.y);
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
+    if (key) {
+      const d = { x: b.x + c.x - a.x, y: b.y + c.y - a.y };
+      boxes[key] = [Math.min(a.x, b.x, c.x, d.x), Math.min(a.y, b.y, c.y, d.y), Math.max(a.x, b.x, c.x, d.x), Math.max(a.y, b.y, c.y, d.y)];
+    }
+  }
+  /** Оси спрайта, который стоит: по ручке «спрайт смотрит». */
+  function standAxes(inward) {
+    if (S.face === "в стол") {
+      return { ax: norm(cross(inward, UP)), ay: UP };
+    }
+    if (S.face === "плашмя к экрану") return { ax: cam.r, ay: mul(cam.d, -1) };
+    return { ax: norm([cam.r[0], cam.r[1], 0]), ay: UP };
+  }
+
+  // ПОЗА — всё, что двигается, в одном месте: из времени и ручек получается точка каждой части.
+  function pose(i, t) {
+    const ph = t + i * 1.37;
+    const a = SEATS[i];
+    // В витрине каждый сидит в своей клетке со своей камерой — у себя в начале координат.
+    const base = vitrina() ? [0, 0, 0] : [Math.cos(a) * SHOULDERS, Math.sin(a) * SHOULDERS, 0];
+    const inward = vitrina() ? [0, 1, 0] : norm([-base[0], -base[1], 0]);
+    const right = cross(UP, inward), left = mul(right, -1);
+    const stand = S.a_stand ? ease(clamp(Math.sin((ph * 2 * Math.PI) / 5) * 1.6 + 0.5, 0, 1)) : S.stance === "стоит" ? 1 : 0;
+    const breath = S.a_breathe ? Math.sin((ph * 2 * Math.PI) / 3.2) : 0;
+    const hop = S.a_win ? Math.max(0, Math.sin((ph * 2 * Math.PI) / 1.1)) * 1.3 : 0;
+    const shoulders = add(base, [0, 0, S.sitH + (S.standH - S.sitH) * stand + breath * 0.08 + hop]);
+    let gaze;
+    if (vitrina()) gaze = add(base, [Math.sin(ph * 0.8) * 5, 8, 0]);
+    else if (S.a_look) { const g = a + Math.PI + Math.sin(ph * 0.7) * 1.1; gaze = [Math.cos(g) * 3.2, Math.sin(g) * 3.2, 0]; }
+    else gaze = [0, 0, 0];
+    const flat = sub(gaze, shoulders); flat[2] = 0;
+    const toward = norm(flat);
+    const stretch = S.a_stretch ? Math.pow(Math.max(0, Math.sin((ph * 2 * Math.PI) / 4.5)), 1.5) : 0;
+    const head = add(add(shoulders, mul(toward, 0.4 + stretch * S.reach)), [0, 0, S.neck - stretch * 1.3 + breath * 0.05]);
+    const tilt = S.a_think ? Math.sin((ph * 2 * Math.PI) / 2.4) * 0.2 : 0;
+    const leftHand = add(add(add(head, mul(toward, 1.3)), mul(left, 0.9)), [0, 0, -1.6]);
+    let rightHand = null, closed = false, carry = false, spin = 0;
+    if (S.a_wave) {
+      rightHand = add(add(head, mul(right, 1.8)), [0, 0, 0.7 + Math.sin((ph * 2 * Math.PI) / 0.9) * 0.15]);
+      spin = Math.sin((ph * 2 * Math.PI) / 0.9) * 0.5;
+    } else if (S.a_grab) {
+      const c = ((ph / 4.5) % 1 + 1) % 1;
+      const rest = add(add(shoulders, mul(right, 1.8)), [0, 0, -1.8]);
+      const deck = vitrina() ? [0, 4, 0.4] : [0, 0, 0.4];
+      const arc = (u) => [0, 0, Math.sin(Math.PI * u) * 1.4];
+      if (c < 0.35) { const u = ease(c / 0.35); rightHand = add(lerp(rest, deck, u), arc(u)); }
+      else if (c < 0.45) { rightHand = deck; closed = true; }
+      else if (c < 0.8) { const u = ease((c - 0.45) / 0.35); rightHand = add(lerp(deck, leftHand, u), arc(u)); closed = true; carry = true; }
+    }
+    return { base, inward, right, left, shoulders, head, gaze, toward, stretch, tilt, leftHand, rightHand, closed, carry, spin, stand };
+  }
+
+  const HANDS_CARDS = [["A", "♠", 0], ["K", "♥", 1], ["7", "♦", 1], ["Q", "♣", 0], ["10", "♥", 1], ["J", "♠", 0], ["9", "♦", 1], ["6", "♣", 0], ["8", "♠", 0], ["2", "♥", 1], ["5", "♦", 1], ["3", "♣", 0]];
+
+  function drawTable() {
+    const ring = (r, h) => { ctx.beginPath(); for (let i = 0; i <= 64; i += 1) { const a = (i / 64) * Math.PI * 2; const q = cam.proj([Math.cos(a) * r, Math.sin(a) * r, h]); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.closePath(); };
+    ring(R + 0.5, -0.9); ctx.fillStyle = T.woodDark; ctx.fill();
+    ring(R + 0.5, 0); ctx.fillStyle = T.wood; ctx.fill(); ctx.strokeStyle = T.black; ctx.lineWidth = 2; ctx.stroke();
+    ring(R, 0); ctx.fillStyle = T.felt; ctx.fill();
+    ring(R * 0.45, 0); ctx.strokeStyle = "rgba(242,193,78,.25)"; ctx.lineWidth = 2; ctx.stroke();
+    const q0 = cam.proj([-R - 0.5, 0, 0]), q1 = cam.proj([R + 0.5, 0, 0]);
+    boxes.table = [q0.x, 0, q1.x, 0];
+    // Колода посередине и пара карт на сукне — лёжа, той же мерой.
+    for (let i = 0; i < 10; i += 1) board(SP.back, [0.05 * i, 0, 0.03 * i], [1, 0, 0], [0, -1, 0], CARD.w, CARD.h, [0.5, 0.5]);
+    board(SP.faces[1], [2.2, 1.2, 0], [Math.cos(0.3), Math.sin(0.3), 0], [Math.sin(0.3), -Math.cos(0.3), 0], CARD.w, CARD.h, [0.5, 0.5]);
+    board(SP.faces[3], [-2, 1.6, 0], [Math.cos(-0.2), Math.sin(-0.2), 0], [Math.sin(-0.2), -Math.cos(-0.2), 0], CARD.w, CARD.h, [0.5, 0.5]);
+  }
+
+  /** Кусок кромки стола перед персонажем в витрине — он прячет низ туловища, как настоящий стол. */
+  function drawEdge() {
+    const quad = (pts, fill) => { ctx.beginPath(); pts.forEach((p, k) => { const q = cam.proj(p); k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); };
+    const y0 = 1, y1 = 9, x = 7;
+    quad([[-x, y0, -0.9], [x, y0, -0.9], [x, y0, 0], [-x, y0, 0]], T.woodDark);
+    quad([[-x, y0, 0], [x, y0, 0], [x, y0 + 0.5, 0], [-x, y0 + 0.5, 0]], T.wood);
+    quad([[-x, y0 + 0.5, 0], [x, y0 + 0.5, 0], [x, y1, 0], [-x, y1, 0]], T.felt);
+    for (let k = 0; k < 4; k += 1) board(SP.back, [0.05 * k, 4, 0.03 * k], [1, 0, 0], [0, -1, 0], CARD.w, CARD.h, [0.5, 0.5]);
+  }
+
+  function line(A, B, w, color, cap = "round") {
+    const a = cam.proj(A), b = cam.proj(B);
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+    ctx.lineWidth = Math.max(1.5, w * (a.s + b.s) / 2); ctx.strokeStyle = color; ctx.lineCap = cap; ctx.stroke();
+  }
+
+  /** Туловище — до стола: низ уходит под кромку, стол нарисуется поверх. */
+  function drawTorso(i, P, model, ink) {
+    if (model === "stick" || model === "avatar") {
+      const hip = add(P.base, [0, 0, -3]);
+      line(hip, P.shoulders, 0.45, T.black);
+      line(hip, P.shoulders, 0.25, ink);
+      line(add(P.shoulders, mul(P.left, 1.4)), add(P.shoulders, mul(P.right, 1.4)), 0.45, T.black);
+      line(add(P.shoulders, mul(P.left, 1.4)), add(P.shoulders, mul(P.right, 1.4)), 0.25, ink);
+      boxes[`torso${i}`] = (() => { const a = cam.proj(hip), b = cam.proj(P.shoulders); return [b.x - 2, b.y, a.x + 2, a.y]; })();
+      return;
+    }
+    const art = ART[model], img = SP[model].body;
+    const { ax, ay } = standAxes(P.inward);
+    const w = S.torsoW;
+    const h = (w * img.height) / img.width * S.torsoX;
+    // Линия плеч в спрайте — доля высоты среза; срез продолжен вниз, поэтому доля делится на удлинение.
+    board(img, P.shoulders, ax, ay, w, h, [0.5, art.shoulder / (1 + EXTEND)], `torso${i}`);
+  }
+
+  function drawUpper(i, P, model, ink, name, turn, t) {
+    const sprite = model === "king" || model === "queen";
+    const art = sprite && ART[model];
+    const { ax, ay } = standAxes(P.inward);
+    const headH = sprite ? (S.headW * art.head[3]) / art.head[2] : S.ball * 2;
+    // Шея — от ворота к голове; натянута сильнее свободного — краснеет.
+    const collar = add(P.shoulders, [0, 0, sprite ? 0.2 : 0]);
+    const chin = add(P.head, [0, 0, -headH * 0.35]);
+    const strained = P.stretch > 0.3;
+    line(collar, chin, 0.55, T.black);
+    line(collar, chin, 0.32, strained ? T.danger : sprite ? "#e9c9a0" : ink);
+    // Левая рука у стика — палкой от плеча.
+    if (!sprite) {
+      line(add(P.shoulders, mul(P.left, 1.4)), P.leftHand, 0.3, T.black);
+      line(add(P.shoulders, mul(P.left, 1.4)), P.leftHand, 0.16, ink);
+      if (P.rightHand) { line(add(P.shoulders, mul(P.right, 1.4)), P.rightHand, 0.3, T.black); line(add(P.shoulders, mul(P.right, 1.4)), P.rightHand, 0.16, ink); }
+    }
+    const hq = cam.proj(P.head);
+    // Чей ход — золотое сияние за головой.
+    if (turn) {
+      const pulse = 0.5 + 0.5 * Math.sin(t * 5);
+      ctx.beginPath(); ctx.arc(hq.x, hq.y, hq.s * (headH * 0.75 + 0.3 * pulse), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(242,193,78,${0.18 + 0.2 * pulse})`; ctx.fill();
+    }
+    if (S.ray) {
+      const g = cam.proj(P.gaze);
+      ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.moveTo(hq.x, hq.y); ctx.lineTo(g.x, g.y); ctx.strokeStyle = ink; ctx.globalAlpha = 0.6; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
+    // ГОЛОВА. Картинка карты смотрит в свою сторону — взгляд в другую сторону экрана зеркалит её.
+    const gs = cam.proj(add(P.head, P.toward));
+    const looksRight = gs.x > hq.x;
+    if (sprite) {
+      const flip = (art.looks < 0) === looksRight ? -1 : 1;
+      const c = Math.cos(P.tilt), s = Math.sin(P.tilt);
+      const n = cross(ax, ay);
+      const rx = add(mul(ax, c), mul(cross(n, ax), s));
+      const ry = add(mul(ay, c), mul(cross(n, ay), s));
+      board(SP[model].head, P.head, mul(rx, flip), ry, S.headW, headH, [0.5, 0.5], `head${i}`);
+    } else {
+      const r = S.ball * hq.s;
+      ctx.save();
+      ctx.translate(hq.x, hq.y); ctx.rotate(P.tilt);
+      // Нос — треугольник на кромке шара в сторону взгляда.
+      const dir = Math.atan2(gs.y - hq.y, gs.x - hq.x) - P.tilt;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(dir) * r * 1.45, Math.sin(dir) * r * 1.45);
+      ctx.lineTo(Math.cos(dir + 0.45) * r * 0.9, Math.sin(dir + 0.45) * r * 0.9);
+      ctx.lineTo(Math.cos(dir - 0.45) * r * 0.9, Math.sin(dir - 0.45) * r * 0.9);
+      ctx.closePath(); ctx.fillStyle = ink; ctx.fill(); ctx.strokeStyle = T.black; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fillStyle = T.paper; ctx.fill();
+      if (model === "avatar" && photo) { ctx.save(); ctx.clip(); ctx.drawImage(photo, -r, -r, r * 2, r * 2); ctx.restore(); }
+      else { ctx.fillStyle = T.black; ctx.font = `400 ${Math.max(8, r * 1.1).toFixed(0)}px Tiny5, monospace`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(name[0], 0, r * 0.08); }
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.lineWidth = Math.max(2, r * 0.16); ctx.strokeStyle = ink; ctx.stroke();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = T.black; ctx.beginPath(); ctx.arc(0, 0, r + Math.max(1, r * 0.08), 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+      boxes[`head${i}`] = [hq.x - r, hq.y - r, hq.x + r, hq.y + r];
+    }
+    // КАРТЫ В ЛЕВОЙ РУКЕ — настоящего размера, веером, лицом к хозяину. Глаз с его стороны видит лица,
+    // с остальных — рубашки (ручка «лица чужих карт» — как в AR).
+    const n = S.fan;
+    const fx = P.right, fy = norm(add(UP, mul(P.inward, -0.35)));
+    const faceSeen = S.faces || dot(mul(P.inward, -1), sub(cam.C, P.leftHand)) > 0;
+    for (let k = 0; k < n; k += 1) {
+      const ang = n > 1 ? (k / (n - 1) - 0.5) * 0.9 : 0;
+      const cx = add(mul(fx, Math.cos(ang)), mul(fy, -Math.sin(ang)));
+      const cy = add(mul(fx, Math.sin(ang)), mul(fy, Math.cos(ang)));
+      board(faceSeen ? SP.faces[k % SP.faces.length] : SP.back, P.leftHand, cx, cy, CARD.w, CARD.h, [0.5, 0.92]);
+    }
+    const hand = (img, at, spin, key) => {
+      const q = cam.proj(at), s = S.handW * q.s;
+      ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(spin); ctx.drawImage(img, -s / 2, -s / 2, s, s); ctx.restore();
+      boxes[key] = [q.x - s / 2, q.y - s / 2, q.x + s / 2, q.y + s / 2];
+    };
+    hand(SP.closed, P.leftHand, 0, `left${i}`);
+    if (P.rightHand) {
+      if (P.carry) board(SP.back, add(P.rightHand, [0, 0, 0.1]), fx, fy, CARD.w, CARD.h, [0.5, 0.8]);
+      hand(P.closed ? SP.closed : SP.open, P.rightHand, P.spin, `right${i}`);
+    }
+    if (S.names) {
+      const top = cam.proj(add(P.head, [0, 0, headH * 0.62]));
+      const fs = Math.max(9, 0.6 * top.s);
+      ctx.font = `400 ${fs.toFixed(0)}px Tiny5, monospace`;
+      const tw = ctx.measureText(name).width;
+      ctx.fillStyle = turn ? T.gold : T.black;
+      ctx.beginPath(); ctx.roundRect(top.x - tw / 2 - 6, top.y - fs - 4, tw + 12, fs + 6, 6); ctx.fill();
+      ctx.strokeStyle = ink; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = turn ? T.black : T.ink; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      ctx.fillText(name, top.x, top.y);
+    }
+  }
+
+  let t = 0, last = performance.now();
+  function frame(now) {
+    t += ((now - last) / 1000) * S.speed;
+    last = now;
+    ctx.clearRect(0, 0, W, H);
+    for (const k in boxes) delete boxes[k];
+    const all = [0, 1, 2, 3].map((i) => ({ i, model: S[`seat${i}`], ink: INKS[i], name: NAMES[i], P: pose(i, t) }));
+    const active = S.a_turn ? Math.floor(t / 3.5) % 4 : -1;
+    if (vitrina()) {
+      // ВИТРИНА: четыре клетки, в каждой — один персонаж у кусочка кромки стола, крупно.
+      for (const c of all) {
+        const rect = { x: (c.i % 2) * (W / 2), y: Math.floor(c.i / 2) * (H / 2), w: W / 2, h: H / 2 };
+        cam = makeCamera(rect, [0, 0.8, S.sitH], clamp(S.pitch, 0, 85), 36 / clamp(S.zoom, 0.1, 10));
+        ctx.save();
+        ctx.beginPath(); ctx.rect(rect.x, rect.y, rect.w, rect.h); ctx.clip();
+        drawTorso(c.i, c.P, c.model, c.ink);
+        drawEdge();
+        drawUpper(c.i, c.P, c.model, c.ink, c.name, c.i === active, t);
+        ctx.restore();
+      }
+    } else {
+      cam = makeCamera({ x: 0, y: 0, w: W, h: H }, [0, -1.5, 2], S.pitch, 60 / clamp(S.zoom, 0.1, 10));
+      all.sort((a, b) => cam.proj(b.P.shoulders).z - cam.proj(a.P.shoulders).z);
+      for (const c of all) drawTorso(c.i, c.P, c.model, c.ink);
+      drawTable();
+      for (const c of all) drawUpper(c.i, c.P, c.model, c.ink, c.name, c.i === active, t);
+    }
+    window.__persona = { boxes: JSON.parse(JSON.stringify(boxes)), zoom: S.zoom, ready: true };
+    requestAnimationFrame(frame);
+  }
+
+  // Камера пальцем: тянуть — поворот и наклон, щипок и колесо — зум.
+  const ptrs = new Map();
+  let pinch = 0;
+  phone.addEventListener("pointerdown", (e) => { phone.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); });
+  phone.addEventListener("pointermove", (e) => {
+    const was = ptrs.get(e.pointerId);
+    if (!was) return;
+    const now = { x: e.clientX, y: e.clientY };
+    if (ptrs.size === 1) {
+      setKnob("yaw", Math.round(((S.yaw - (now.x - was.x) * 0.4 + 540) % 360) - 180));
+      setKnob("pitch", Math.round(clamp(S.pitch - (now.y - was.y) * 0.25, 0, 85)));
+    }
+    ptrs.set(e.pointerId, now);
+    if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinch) setKnob("zoom", +clamp(S.zoom * (d / pinch), 0.3, 4).toFixed(2));
+      pinch = d;
+    }
+  });
+  const up = (e) => { ptrs.delete(e.pointerId); pinch = 0; };
+  phone.addEventListener("pointerup", up);
+  phone.addEventListener("pointercancel", up);
+  phone.addEventListener("wheel", (e) => { e.preventDefault(); setKnob("zoom", +clamp(S.zoom * Math.exp(-e.deltaY * 0.0015), 0.3, 4).toFixed(2)); }, { passive: false });
+
+  (async () => {
+    for (const [key, art] of Object.entries(ART)) {
+      const svg = await (await fetch(art.url)).text();
+      SP[key] = { head: await cut(svg, art.head, { oval: art.oval }), body: await cut(svg, art.body, { extend: EXTEND }) };
+    }
+    SP.open = await decode(svgUrl(HAND(false)));
+    SP.closed = await decode(svgUrl(HAND(true)));
+    SP.back = cardBack();
+    SP.faces = HANDS_CARDS.map(([r, s, red]) => cardFace(r, s, red));
+    await loadPhoto();
+    requestAnimationFrame((n) => { last = n; frame(n); });
+  })();
+})();
+</script>
+</body>
+</html>

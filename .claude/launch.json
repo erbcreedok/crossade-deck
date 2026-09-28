@@ -130,6 +130,16 @@
       "port": 9582
     },
     {
+      "name": "persona-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "design/serve.py",
+        "9584",
+        "design/persona"
+      ],
+      "port": 9584
+    },
+    {
       "name": "table-probe",
       "runtimeExecutable": "npx",
       "runtimeArgs": [
