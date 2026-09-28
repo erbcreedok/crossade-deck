@@ -1,0 +1,27 @@
+server/scripts/tableRing.mjs
+  s_e1c4165d82711d::t_17addd2ef46ee2 277-278,281,286,301,323-324
+unity/Assets/Crossade/App.cs
+  s_e1c4165d82711d::t_0df141b95f8381 185
+unity/Assets/Crossade/Play/Finger.cs
+  s_e1c4165d82711d::t_0df141b95f8381 38-39,315-316,323
+unity/Assets/Crossade/View/Board.cs
+  s_e1c4165d82711d::t_0df141b95f8381 128-129
+server/table-client/screen.ts
+  s_e1c4165d82711d::t_07a05fe36863a7 25,2610-2635,2664-2665,2677,3926
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "42eaeb7106777787c37af6e3c0c7c5f67e2b3781",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
