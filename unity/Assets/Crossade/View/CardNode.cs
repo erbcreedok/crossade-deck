@@ -15,7 +15,7 @@ namespace Crossade.View
         public string Id;
 
         Transform body, flipper;
-        MeshRenderer top, bottom;
+        MeshRenderer top, bottom, glow;
         Vector3 aimAt;
         Quaternion aimTurn = Quaternion.identity;
         float aimFlip, flip, aimScale = 1;
@@ -38,6 +38,11 @@ namespace Crossade.View
             node.top = Side(node.flipper, "face", Thick / 2 + .0005f, 90);
             node.bottom = Side(node.flipper, "back", -Thick / 2 - .0005f, -90);
             node.gameObject.AddComponent<BoxCollider>().size = new Vector3(1, Thick * 2, 1.4f);
+            // Подсветка — золотая кайма из-под карты: этой картой сейчас можно ходить (`Play.lay`).
+            node.glow = Side(node.flipper, "glow", Thick / 2 + .0002f, 90);
+            node.glow.transform.localScale = new Vector3(1.16f, 1.4f * 1.12f, 1);
+            node.glow.sharedMaterial = Look.Solid(Look.Gold);
+            node.glow.enabled = false;
             return node;
         }
 
@@ -52,6 +57,8 @@ namespace Crossade.View
             q.gameObject.AddComponent<MeshFilter>().sharedMesh = Look.Quad;
             return q.gameObject.AddComponent<MeshRenderer>();
         }
+
+        public void Glow(bool on) => glow.enabled = on;
 
         /** Что нарисовано: лицо (`null` — лица не видно, обе стороны рубашкой) и рубашка. */
         public void Paint(Material face, Material back)

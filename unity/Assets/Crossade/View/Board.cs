@@ -169,6 +169,7 @@ namespace Crossade.View
 
                 if (chair.Owner != null && chair.Owner == me && Hand != null)
                 {
+                    Hand.Lay = s.Play?.Lay;
                     Hand.Show(chair, this, Get, FaceArt, backArt);
                     continue;
                 }

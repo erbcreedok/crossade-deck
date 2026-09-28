@@ -29,6 +29,8 @@ namespace Crossade.View
         public float[] Angles = Array.Empty<float>();
         /** Верх полосы худа от низа экрана, пиксели. */
         public float BarPx { get; private set; } = 160;
+        /** Какие карты моей руки лягут прямо сейчас (`Play.lay`) — они подсвечены. */
+        public System.Collections.Generic.List<string> Lay;
         /** Поза под пальцем (ручка позы); `null` — поза стола. */
         public PoseBlend? Blend;
         /** Сколько пикселей экрана в пикселе веба. */
@@ -87,6 +89,7 @@ namespace Crossade.View
                 var node = get(c);
                 if (node.Id != board.Lifted) node.Move(transform);
                 node.Paint(faceArt(c.Face), backArt);
+                node.Glow(Lay != null && Lay.Contains(c.Id));
                 var s = g.Slots[i];
                 float x = (float)s.X * Dpr, y = H - (float)s.Y * Dpr;
                 Slots[i] = new Rect(x - w / 2, y - h / 2, w, h);
