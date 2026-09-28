@@ -22,7 +22,7 @@ import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as 
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
-import { ringCardStep, ringHour, RING_HOUR, RING_HOURS, inRingZone, ringLanding, ringTurned, ringZoneBox } from "../src/table/ring.js";
+import { ringCardStep, ringHour, RING_HOUR, RING_HOURS, RING_SPREAD, ringLanding, ringTurned, ringZoneBox } from "../src/table/ring.js";
 import type { RingPlace as Laid3 } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
 import type { ScreenHealth, SeenThrough } from "./watch.js";
@@ -2607,13 +2607,32 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * Один элемент на всё: и поле стола, и приёмка. Раньше поле рисовала кисть, а приёмку — зона
    * поверх него, и получалось два круга: один не загорался, другой появлялся ниоткуда.
    */
-  function ringZoneHtml(pile: Pile, box: { left: number; top: number; right: number; bottom: number }, ink: string, here: boolean, opacity: number): string {
-    return `<div data-g="deck-zone" data-pile="${pile.id}" data-here="${here}" style="position:absolute;left:${box.left}px;top:${box.top}px;`
-      + `width:${box.right - box.left}px;height:${box.bottom - box.top}px;box-sizing:border-box;z-index:1;pointer-events:none;`
-      + `border-radius:50%;border:2px dashed ${ink};opacity:${opacity};`
-      + `background:${here ? `color-mix(in srgb, ${ink} 22%, transparent)` : "transparent"};`
-      + (here ? `box-shadow:0 0 12px 4px color-mix(in srgb, ${ink} 55%, transparent);` : "")
-      + `"></div>`;
+  /** Радиус приёмки круга хода на сукне: круг карт и ещё полкарты — карта у края тоже ложится в круг. */
+  const RING_REACH = RING_SPREAD + FELT_CARD.h / 2;
+
+  /** Внутри ли точка стекла круга хода — по сукну, а не по рамке на стекле: круг лежит в перспективе. */
+  function inRing(pile: Pile, glassAt: { x: number; y: number }): boolean {
+    if (!view) return false;
+    const p = view.toDesk(glassAt);
+    return Math.hypot(p.x - pile.x, p.y - pile.y) <= RING_REACH;
+  }
+
+  /**
+   * КОНТУР КРУГА ХОДА — сам круг на сукне, спроецированный той же линзой, что и стол: при повороте и наклоне
+   * он лежит ровно на нарисованном круге, а не висит эллипсом по осям экрана.
+   */
+  function ringZoneHtml(pile: Pile, ink: string, here: boolean, opacity: number): string {
+    if (!view) return "";
+    const v = view;
+    const pts = Array.from({ length: 72 }, (_, i) => {
+      const a = (i / 72) * Math.PI * 2;
+      const g = v.toGlass({ x: pile.x + RING_REACH * Math.sin(a), y: pile.y - RING_REACH * Math.cos(a) });
+      return `${g.x.toFixed(1)},${g.y.toFixed(1)}`;
+    }).join(" ");
+    const fill = here ? `color-mix(in srgb, ${ink} 22%, transparent)` : "none";
+    return `<svg data-g="deck-zone" data-pile="${pile.id}" data-here="${here}" style="position:absolute;left:0;top:0;overflow:visible;z-index:1;pointer-events:none;opacity:${opacity};`
+      + (here ? `filter:drop-shadow(0 0 6px color-mix(in srgb, ${ink} 70%, transparent));` : "")
+      + `" width="1" height="1"><polygon points="${pts}" fill="${fill}" stroke="${ink}" stroke-width="2" stroke-dasharray="7 5"/></svg>`;
   }
 
   /** Зона приёмки стопки на стекле — рамка всей стопки с полем. */
@@ -2642,12 +2661,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const aim = aiming();
     const несут = aim !== null || store.carries.some((c) => c.over.in === "deck");
     return s.piles.map((pile) => {
-      // ОЧЕРЧЕННОЕ ПОЛЕ ВИДНО ВСЕГДА, даже когда в руках ничего нет: это часть стола, а не подсказка
-      // на время жеста. Оттого и рисует его зона, а не кисть, — иначе у круга было бы два контура.
-      if (pile.pose === "ring" && !несут) {
-        const box = deckZone(pile);
-        return box === null ? "" : ringZoneHtml(pile, box, T.inkDim, false, 0.5);
-      }
+      // КОНТУР — ТОЛЬКО ПОКА ЕСТЬ ЧТО ПОЛОЖИТЬ: в пустых руках круг — просто круг на сукне (так решил
+      // владелец). Несёшь то, что он примет, — контур проступает; навёл — горит.
       if (!несут) return "";
       const zone = deckZone(pile);
       if (!zone || deckCarry(s, pile.id)) return "";
@@ -2659,7 +2674,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       // ЦЕЛЬ КРУГА ТЕПЕРЬ СВОЯ — угол; не знай об этом подсветка, поле под пальцем не загоралось бы.
       const here = aim ? "pile" in aim && aim.pile === pile.id : true;
       const ink = aim ? (here ? T.gold : T.inkDim) : inkOf(s, other!.by);
-      if (pile.pose === "ring") return ringZoneHtml(pile, zone, ink, here, here ? 1 : 0.75);
+      if (pile.pose === "ring") return ringZoneHtml(pile, ink, here, here ? 1 : 0.75);
       const r = `${Math.round(0.16 * FELT_CARD.w * (view?.k ?? 40))}px`;
       return `<div data-g="deck-zone" data-pile="${pile.id}" data-here="${here}" style="position:absolute;left:${zone.left}px;top:${zone.top}px;width:${zone.right - zone.left}px;height:${zone.bottom - zone.top}px;`
         + `box-sizing:border-box;z-index:1;pointer-events:none;border-radius:${r};border:2px dashed ${ink};`
@@ -3908,7 +3923,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       // стопки в себя не целятся — это была бы перестановка сама в себя.
       if (pile.id === skip && pile.pose !== "ring") continue;
       const zone = deckZone(pile);
-      const inside = zone !== null && (pile.pose === "ring" ? inRingZone(zone, centre) : centre.x >= zone.left && centre.x <= zone.right && centre.y >= zone.top && centre.y <= zone.bottom);
+      const inside = zone !== null && (pile.pose === "ring" ? inRing(pile, centre) : centre.x >= zone.left && centre.x <= zone.right && centre.y >= zone.top && centre.y <= zone.bottom);
       if (inside) {
         if (pile.shut) return { kind: "back" };
         // КРУГ ХОДА: навёл ТОЧНО НА КАРТУ — встанет сразу после неё; мимо карт — в конец, как везде.

@@ -35,6 +35,8 @@ namespace Crossade.Play
         public System.Action<string> SeatTapped;
         /** Тап мимо всего — закрыть окна. */
         public System.Action Missed;
+        /** Карту подняли или отпустили — перерисовать то, что зависит от руки в воздухе. */
+        public System.Action Lifted;
         string seatDown;
         Mode mode;
         Vector2 downAt, lastAt;
@@ -310,12 +312,15 @@ namespace Crossade.Play
             held.Move(board.Table);
             store.Act(Intents.Grab(heldCard.Id));
             carryAt = holdAt = Time.realtimeSinceStartup;
+            // Контуры мест, куда можно положить, появляются с первым движением карты.
+            Lifted?.Invoke();
         }
 
         void Unlift()
         {
             if (held != null) held.Held = false;
             board.Lifted = null;
+            Lifted?.Invoke();
         }
 
         void Follow(Vector2 px)

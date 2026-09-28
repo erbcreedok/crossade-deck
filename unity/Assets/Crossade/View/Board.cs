@@ -125,7 +125,8 @@ namespace Crossade.View
                 var (px, py) = PileAt(pile);
                 if (pile.Ring)
                 {
-                    marks.Add(PileMark.Ring(Table, pile, px, py));
+                    // Контур круга — только пока несут то, что можно в него положить (так решил владелец).
+                    if (Lifted != null || store.Carries.Count > 0) marks.Add(PileMark.Ring(Table, pile, px, py));
                     int k = 0;
                     foreach (var c in pile.Cards)
                     {

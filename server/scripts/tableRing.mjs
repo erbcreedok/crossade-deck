@@ -274,17 +274,16 @@ const вКруг = async (turn) => {
   check("а углы соседей не изменились ни на градус", до.every((one) => после.includes(one)), { до, после });
 }
 
-// ОЧЕРЧЕННОЕ ПОЛЕ КРУГА — ОДНО НА ВСЁ: и поле стола, и приёмка. Раньше поле рисовала кисть, а
-// приёмку — зона поверх него: один контур не загорался, другой появлялся ниоткуда.
+// КОНТУР КРУГА — ТОЛЬКО ПОКА ЕСТЬ ЧТО ПОЛОЖИТЬ: в пустых руках его нет (решение владельца). Контур — сам
+// круг на сукне той же линзой, что стол: пунктиром, как зоны стульев.
 {
   const поле = () => p.$$eval('[data-g="deck-zone"][data-pile="ring"]', (els) => els.map((e) => ({
-    here: e.getAttribute("data-here"), border: getComputedStyle(e).borderStyle, radius: getComputedStyle(e).borderRadius,
+    here: e.getAttribute("data-here"), border: e.querySelector("polygon")?.getAttribute("stroke-dasharray") ? "dashed" : "none",
   })));
   const стулья = () => p.$$eval('[data-g="chair-zone"]', (els) => els.map((e) => getComputedStyle(e).borderStyle));
 
   const впокое = await поле();
-  check("круг очерчен всегда, даже когда в руках ничего нет", впокое.length === 1, впокое);
-  check("…и очерчен тем же пунктиром, что зоны стульев", впокое[0]?.border === "dashed", впокое[0]);
+  check("в пустых руках контура круга нет", впокое.length === 0, впокое);
 
   const карта = await вРуку();
   const box = await карта.boundingBox();
@@ -299,6 +298,7 @@ const вКруг = async (turn) => {
   await p.waitForTimeout(600);
   check("под пальцем круг ЗАГОРАЕТСЯ", подПальцем[0]?.here === "true", подПальцем);
   check("…и всё ещё один контур, а не два", подПальцем.length === 1, подПальцем);
+  check("…пунктиром, как зоны стульев", подПальцем[0]?.border === "dashed", подПальцем);
   check("…и стулья очерчены тем же самым пунктиром", стульяТоже.every((one) => one === "dashed"), стульяТоже);
 }
 
@@ -320,8 +320,8 @@ const вКруг = async (turn) => {
   await p.mouse.up();
   await p.waitForTimeout(400);
   check("под картой горит круг", подКарту.стопки.includes("ring"), подКарту);
-  const горит = async () => p.$$eval('[data-g="deck-zone"][data-pile="ring"]', (els) => els.map((e) => ({ here: e.getAttribute("data-here"), border: getComputedStyle(e).borderStyle })));
-  check("…и это ТОТ ЖЕ контур, что виден всегда: один круг, а не два", (await горит()).length === 1, await горит());
+  const горит = async () => p.$$eval('[data-g="deck-zone"][data-pile="ring"]', (els) => els.length);
+  check("отпустил — контур ушёл", (await горит()) === 0, await горит());
 
   const ручка = await ringGrip();
   check("у круга с картами есть ручка", ручка !== null, ручка);

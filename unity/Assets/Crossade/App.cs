@@ -182,6 +182,7 @@ namespace Crossade
             Finger = new Finger(Store, Board, Rig) { Ar = Ar };
             Finger.SeatTapped = id => Chairs.Show(Chairs.Chair == id ? null : id);
             Finger.Missed = () => Chairs.Show(null);
+            Finger.Lifted = Draw;
             var pointer = gameObject.GetComponent<Pointer>() ?? gameObject.AddComponent<Pointer>();
             pointer.Finger = Finger;
             pointer.Rig = Rig;
