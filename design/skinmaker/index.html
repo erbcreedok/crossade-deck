@@ -157,6 +157,12 @@ for (const id of Object.keys(COURTS)) {
 for (const [id, name, views] of [["dog", "Пёс", ["front", "back", "right"]], ["cat", "Кошка", ["front", "back", "right"]], ["crusader", "Крестоносец", ["front", "back", "right", "top", "bottom"]]]) {
   for (const slot of ["head", "body"]) part({ id: `${id}:${slot}`, slot, name, set: id, ...(id === "crusader" ? { facing: "view" } : {}), file: (v) => `../persona/skins/${id}/${v}-${slot}.svg`, views: Object.fromEntries([...views.map((v) => [v, D[v]]), ["left", D.left]]), mirror: { left: "right" } });
 }
+// Боты: общее тело робота-крупье и голова по характеру, 6 сторон, как крестоносец.
+const SIX = ["front", "back", "right", "top", "bottom"];
+const sixViews = () => Object.fromEntries([...SIX.map((v) => [v, D[v]]), ["left", D.left]]);
+part({ id: "bot:body", slot: "body", name: "Робот", facing: "view", file: (v) => `../persona/skins/bot/${v}-body.svg`, views: sixViews(), mirror: { left: "right" } });
+const BOT_HEADS = [["bot-hoarder", "Копитель"], ["bot-closer", "Закрывала"], ["bot-aggressor", "Агрессор"], ["bot-rookie", "Новичок"]];
+for (const [id, name] of BOT_HEADS) part({ id: `${id}:head`, slot: "head", name, set: id, facing: "view", file: (v) => `../persona/skins/${id}/${v}-head.svg`, views: sixViews(), mirror: { left: "right" } });
 // Кодом: палка с шаром (одна сторона), бочонок с 18 ракурсами, причёски, руки, ноги-палки.
 part({ id: "ball:head", slot: "head", name: "Шар", set: "stick", views: { front: D.front }, svg: () => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="52" r="40" fill="${PAPER}" stroke="${BLACK}" stroke-width="6"/><circle cx="50" cy="52" r="30" fill="#b3221f" opacity=".18"/></svg>` });
 part({ id: "stick:body", slot: "body", name: "Палка", set: "stick", views: { front: D.front }, svg: () => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100"><path d="M20 20 H100 M60 20 V100" stroke="${BLACK}" stroke-width="12" stroke-linecap="round"/><path d="M20 20 H100 M60 20 V100" stroke="#b3221f" stroke-width="5" stroke-linecap="round"/></svg>` });
@@ -176,6 +182,7 @@ const SETS = [
   { id: "dog", name: "Пёс", parts: { head: "dog:head", hair: "none:hair", body: "dog:body", hands: "hand:hands", legs: "legs-beast:legs" } },
   { id: "cat", name: "Кошка", parts: { head: "cat:head", hair: "none:hair", body: "cat:body", hands: "hand:hands", legs: "legs-beast:legs" } },
   { id: "crusader", name: "Крестоносец", parts: { head: "crusader:head", hair: "none:hair", body: "crusader:body", hands: "hand:hands", legs: "legs-card:legs" } },
+  ...BOT_HEADS.map(([id, name]) => ({ id, name, parts: { head: `${id}:head`, hair: "none:hair", body: "bot:body", hands: "hand:hands", legs: "legs-card:legs" } })),
   { id: "stick", name: "Палка", parts: { head: "ball:head", hair: "none:hair", body: "stick:body", hands: "none:hands", legs: "stick:legs" } },
   { id: "cube", name: "Кубик", parts: { head: "cube:head", hair: "none:hair", body: "barrel:body", hands: "hand:hands", legs: "stick:legs" } },
   { id: "mix", name: "Шар + бочонок", parts: { head: "ball:head", hair: "cap:hair", body: "barrel:body", hands: "hand:hands", legs: "stick:legs" } },

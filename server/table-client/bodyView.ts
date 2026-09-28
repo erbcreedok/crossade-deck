@@ -12,7 +12,7 @@
 import type { Body } from "../src/table/bodies.js";
 import { HEAD, NECK, SHOULDERS, awayOf, gazeOf, headOf, leftHandOf, shoulders3, type Point3 } from "../src/table/bodies.js";
 import type { Doll } from "../src/table/dolls.js";
-import { partGeom, partSprite, type DollSprite } from "./dollSprites.js";
+import { EXTEND, partGeom, partSprite, type DollSprite } from "./dollSprites.js";
 import { AVATAR, VIEW_DIRS, drawnView, partOf, pickView, type Part, type Parts } from "../src/table/skins.js";
 import { PIP_AT } from "./skinArt.js";
 import { DISC, R, RIM, SEAT } from "./felt.js";
@@ -221,7 +221,15 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo
    *   tilt   — бумажный спрайт: лицом в камеру, а по ширине сужается по углу между ракурсом и взглядом;
    *   camera — лицом в камеру, как есть.
    */
-  const facingOf = (part: Part, name: string, f: Point, P: Point3): { across?: Point3; squeeze: number } => {
+  const facingOf = (part: Part, name: string, f: Point, P: Point3): { across?: Point3; squeeze: number; flat?: Point3 } => {
+    // ВИД СВЕРХУ ИЛИ СНИЗУ — часть лежит плашмя: верх картинки — от стола (−вперёд), поперёк — в осях фигуры
+    // (как на сцене профиля, `skinStage.ts`). Стоймя поперёк стула её у боковых мест видно ребром.
+    const vz = VIEW_DIRS[name]?.[2] ?? 0;
+    if (part.facing === "view" && Math.abs(vz) > 0.9) {
+      const R = { x: -f.y, y: f.x };
+      const side = vz > 0 ? -1 : 1;
+      return { flat: { x: -f.x, y: -f.y, h: 0 }, across: { x: R.x * side, y: R.y * side, h: 0 }, squeeze: 1 };
+    }
     if (part.facing === "view") {
       const dw = viewDir(name, f), n = Math.hypot(dw.x, dw.y);
       const R = { x: -f.y, y: f.x };
@@ -269,7 +277,7 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo
   const headUp = pose.away ? pose.headUp : pose.up;
   const headFace = facingOf(headPart, headView, g, pose.head);
   const hw = DOLL_SIZE.head;
-  const head = headPart.facing === "box" ? cubeSvg(pose.head, hw * 0.9, g, palette) : plane(face, pose.head, headUp, hw * headFace.squeeze, pose.headH, [0.5, 0.5], flip, "doll-head", 0, headFace.across);
+  const head = headPart.facing === "box" ? cubeSvg(pose.head, hw * 0.9, g, palette) : plane(face, pose.head, headFace.flat ?? headUp, hw * headFace.squeeze, pose.headH, [0.5, 0.5], flip, "doll-head", 0, headFace.across);
   // ГОЛОВА-АВАТАР: шар, а в нём — фото человека, кружком поверх.
   const photoD = hw * 0.74 * local(toGlass, pose.head);
   const avatar = parts.head === AVATAR && photo
@@ -338,7 +346,10 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo
   return `<div data-g="body" data-model="${esc(doll)}" data-parts="${esc(Object.values(parts).join(" "))}" data-palette="${palette}" data-by="${esc(body.by)}" data-name="${esc(name)}" data-stance="${body.stance}" data-yaw="${body.yaw}" data-stretch="${body.stretch.toFixed(2)}" data-away="${pose.away ? 1 : 0}" data-behind="${behind ? 1 : 0}" data-view="${bodyView}" data-head-view="${headView}" data-head-h="${pose.head.h.toFixed(2)}" style="position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:24">`
     + (behind ? "" : chairBack)
     + legs
-    + plane(torso, pose.shoulders, pose.up, tw, th, [0.5, py], bodyDrawn.mirror, "doll-body", below, bodyFace.across)
+    + (bodyFace.flat
+      // плашмя — серединой нарисованного (ниже него пустое место, `EXTEND`) на плечах, без среза
+      ? plane(torso, pose.shoulders, bodyFace.flat, tw, th / DOLL_SIZE.stretch, [0.5, 0.5 / (1 + EXTEND)], bodyDrawn.mirror, "doll-body", 0, bodyFace.across)
+      : plane(torso, pose.shoulders, pose.up, tw, th, [0.5, py], bodyDrawn.mirror, "doll-body", below, bodyFace.across))
     + (behind ? chairBack : "")
     + svg
     + head
