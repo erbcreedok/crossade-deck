@@ -17,23 +17,32 @@ export function tgFace(key: string, token: string | undefined, http: typeof fetc
   if (!id || !token || (process.env.VITEST && http === fetch)) return Promise.resolve(undefined);
   const was = known.get(id);
   if (was && now - was.at < HOUR) return was.face;
-  const face = load(id, token, http);
+  const asked = load(id, token, http);
+  const face = asked.then((got) => got.face);
   known.set(id, { at: now, face });
-  // Фото есть — держится весь запуск; нет — через час спросим снова (вдруг поставил).
-  void face.then((got) => { if (got) known.set(id, { at: Infinity, face }); });
+  // Фото есть — держится весь запуск; Telegram ответил «фото нет» — через час спросим снова (вдруг поставил);
+  // не дозвались (сеть, сбой) — не запоминается: следующий вход спросит снова.
+  void asked.then((got) => {
+    if (got.face) known.set(id, { at: Infinity, face });
+    else if (!got.none) known.delete(id);
+  });
   return face;
 }
 
-async function load(id: string, token: string, http: typeof fetch): Promise<string | undefined> {
+async function load(id: string, token: string, http: typeof fetch): Promise<{ face?: string; none?: boolean }> {
   try {
     const res = await http(`https://api.telegram.org/bot${token}/getUserProfilePhotos?user_id=${encodeURIComponent(id)}&limit=1`);
-    const body = (await res.json()) as { ok?: boolean; result?: { photos?: { file_id: string; width: number }[][] } };
-    const sizes = body.ok ? body.result?.photos?.[0] : undefined;
-    if (!sizes?.length) return undefined;
+    const body = (await res.json()) as { ok?: boolean; description?: string; result?: { photos?: { file_id: string; width: number }[][] } };
+    if (!body.ok) throw new Error(`getUserProfilePhotos: ${body.description ?? res.status}`);
+    const sizes = body.result?.photos?.[0];
+    if (!sizes?.length) return { none: true };
     // Кружок — до ~100 px: самый маленький не меньше 96, иначе самый большой.
     const small = [...sizes].sort((a, b) => a.width - b.width).find((s) => s.width >= 96) ?? sizes.at(-1)!;
-    return await photoDataUrl(token, small.file_id, http);
-  } catch {
-    return undefined;
+    const face = await photoDataUrl(token, small.file_id, http);
+    if (!face) throw new Error("файл фото не получен");
+    return { face };
+  } catch (err) {
+    console.error(`фото tg:${id} из Telegram не получено:`, String(err).replaceAll(token, "…").slice(0, 200));
+    return {};
   }
 }

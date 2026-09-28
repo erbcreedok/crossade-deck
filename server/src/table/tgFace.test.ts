@@ -37,4 +37,13 @@ describe("лицо из Telegram, когда подпись его не прин
     await tgFace("tg:503", "TOKEN", http, 2);
     expect(asked.length, "«нет фото» запомнено на час").toBe(n);
   });
+
+  it("не дозвались — не запоминается: следующий вход спросит снова", async () => {
+    let calls = 0;
+    const down = (async () => { calls += 1; throw new Error("сеть"); }) as typeof fetch;
+    expect(await tgFace("tg:504", "TOKEN", down, 1)).toBeUndefined();
+    await new Promise((r) => setTimeout(r, 0));
+    await tgFace("tg:504", "TOKEN", down, 2);
+    expect(calls).toBe(2);
+  });
 });
