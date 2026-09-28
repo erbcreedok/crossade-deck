@@ -44,7 +44,7 @@
 10. **Не добавлять UI, которого не просили.** Выбор мозга — через команду `bots` (телеграм-бот),
     кнопка у крупье — только по слову владельца.
 11. Живой стол `:2590` перезапускать ТОЛЬКО `launchctl kickstart -k gui/$(id -u)/com.crossade.table`,
-    потом проверить `curl https://crossade-deck-server.fly.dev/relay/table` → `up:true` и `/t` → 200.
+    потом проверить `curl https://crossade-table.erbcreedok.workers.dev/relay/table` → `up:true` и `/t` → 200.
     Пробный сервер — на свободном порту (2611) с
     `CROSSADE_DB_FILE=":memory:" TABLE_SECRET=dev TELEGRAM_BOT_TOKEN=test TABLE_GUESTS=1 TABLE_RELAY_URL= TABLE_PUBLIC_URL=`.
 

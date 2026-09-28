@@ -11,7 +11,7 @@
 # server/.env.table:
 #   TELEGRAM_BOT_TOKEN=…           подпись Mini App
 #   TABLE_SECRET=…                 тот же, что у бота и у реле на Fly
-#   TABLE_RELAY_URL=https://crossade-deck-server.fly.dev
+#   TABLE_RELAY_URL=https://crossade-table.erbcreedok.workers.dev
 #   PORT=2590                      не 2567: там может жить сервер дев-кита
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
