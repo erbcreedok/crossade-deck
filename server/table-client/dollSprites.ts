@@ -27,6 +27,11 @@ export const ART: Record<string, { head: [number, number, number, number]; body:
   "spade-Q": { head: [76, 23, 62, 50], body: [23, 64, 122, 56], shoulder: 0.12, looks: -1, oval: true },
   "spade-J": { head: [52, 23, 74, 50], body: [23, 68, 122, 56], shoulder: 0.1, looks: 1 },
 };
+/**
+ * Туловище по высоте занимает прежние свои размеры и ещё столько своих высот ниже — ПУСТЫХ: фигура стоит на своём
+ * месте и своей величины, а ниже нарисованного — ничего, не растянутые полосы.
+ */
+export const EXTEND = 1.2;
 const K = 6;
 const PAPER = "#f7f1e6";
 export interface DollSprite {
@@ -51,8 +56,8 @@ function solidOf(c: HTMLCanvasElement): number {
  */
 export function partGeom(id: string): { shoulder: number; aspect: number; looks: -1 | 0 | 1 } {
   const part = partOf(id), art = part?.art.kind === "court" ? ART[part.art.card] : undefined;
-  if (art) return { shoulder: art.shoulder, aspect: art.head[3] / art.head[2], looks: art.looks };
-  return { shoulder: FILE_SHOULDER, aspect: 1, looks: 0 };
+  if (art) return { shoulder: art.shoulder / (1 + EXTEND), aspect: art.head[3] / art.head[2], looks: art.looks };
+  return { shoulder: FILE_SHOULDER / (1 + EXTEND), aspect: 1, looks: 0 };
 }
 /** Линия плеч на туловище рисунков (`file`, `draw`) — договорённость с художником: y≈18 из 100. */
 const FILE_SHOULDER = 0.18;
@@ -77,8 +82,8 @@ const decode = async (src: string): Promise<HTMLImageElement> => {
 
 const recolor = (svg: string, pal: Palette): string => svg.replace(/#b3221f/gi, pal.red).replace(/#1d4f80/gi, pal.blue).replace(/#f2c14e/gi, pal.gold);
 
-/** Кусок `box` рисунка на холсте; `paper` — бумага снаружи силуэта становится прозрачной. */
-async function cut(svg: string, box: [number, number, number, number] | null, red: string, opts: { oval?: boolean; paper?: boolean } = {}): Promise<HTMLCanvasElement> {
+/** Кусок `box` рисунка на холсте; `paper` — бумага снаружи силуэта становится прозрачной; `extend` — пустое место ниже. */
+async function cut(svg: string, box: [number, number, number, number] | null, red: string, opts: { extend?: number; oval?: boolean; paper?: boolean } = {}): Promise<HTMLCanvasElement> {
   const vb = /viewBox="([\d.\s-]+)"/.exec(svg)![1]!.trim().split(/\s+/).map(Number) as [number, number, number, number];
   // Свой размер у корня рисунка снимается: второй `width` сделал бы SVG невалидным, и он бы не испёкся.
   const full = svg.replace(/<svg\b[^>]*>/, (root) => root.replace(/\s(width|height|color)="[^"]*"/g, "").replace("<svg", `<svg width="${vb[2] * K}" height="${vb[3] * K}" color="${red}"`));
@@ -115,7 +120,11 @@ async function cut(svg: string, box: [number, number, number, number] | null, re
     g.beginPath(); g.ellipse(W / 2, H * 0.52, W * 0.5, H * 0.52, 0, 0, Math.PI * 2); g.fill();
     g.globalCompositeOperation = "source-over";
   }
-  return c;
+  if (!opts.extend) return c;
+  const e = document.createElement("canvas");
+  e.width = W; e.height = Math.round(H * (1 + opts.extend));
+  e.getContext("2d")!.drawImage(c, 0, 0);
+  return e;
 }
 
 /** Со спины: отражённая (его левое — наше левое) и залитая тёмным почти в один тон. */
@@ -153,11 +162,11 @@ function outlined(img: HTMLCanvasElement, ink: string, w = 11): HTMLCanvasElemen
 async function bake(part: Part, palette: number, base: string): Promise<Map<string, HTMLCanvasElement>> {
   const pal = PALETTES[palette] ?? PALETTES[0]!;
   const out = new Map<string, HTMLCanvasElement>();
-  const art = part.art;
+  const art = part.art, extend = part.slot === "body" ? { extend: EXTEND } : {};
   if (art.kind === "court") {
     const box = ART[art.card]!;
     const svg = recolor(await fetchText(`${base}/table/sprites/${art.card}.svg`), pal);
-    const front = await cut(svg, part.slot === "head" ? box.head : box.body, pal.red, { oval: part.slot === "head" && box.oval, paper: true });
+    const front = await cut(svg, part.slot === "head" ? box.head : box.body, pal.red, { ...extend, oval: part.slot === "head" && box.oval, paper: true });
     out.set("front", front).set("back", backOf(front, part.slot === "head" ? 0.9 : 0.8));
     return out;
   }
@@ -172,7 +181,7 @@ async function bake(part: Part, palette: number, base: string): Promise<Map<stri
   for (const view of part.views) {
     const raw = art.kind === "draw" ? drawArt(art.art, view) : art.kind === "file" ? await fetchText(`${base}/table/skins/${art.dir}/${view}-${part.slot}.svg`) : "";
     if (!raw) continue;
-    out.set(view, await cut(part.recolor ? recolor(raw, pal) : raw, null, pal.red));
+    out.set(view, await cut(part.recolor ? recolor(raw, pal) : raw, null, pal.red, extend));
   }
   return out;
 }
