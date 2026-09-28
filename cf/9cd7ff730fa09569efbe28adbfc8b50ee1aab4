@@ -1,0 +1,125 @@
+unity/Assets/Crossade/View/HandRig.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Crossade/Play/Finger.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Crossade/Table/Intents.cs
+  s_e1c4165d82711d::t_96942e485e21c0 1-80
+unity/Assets/Crossade/Net/Link.cs
+  s_e1c4165d82711d::t_a43e23c51908b8 1-39,42-44,46-141
+  s_e1c4165d82711d::t_aab87bae53fc95 40-41,45
+unity/Assets/Crossade/Editor.meta
+  s_e1c4165d82711d::t_ab6ba1e5e4cdf5 2-8
+  s_e1c4165d82711d::t_b4a3ff71892db8 1
+unity/Assets/Tests/Play/LiveTableTests.cs
+  s_e1c4165d82711d::t_2613269deb2afb 53
+  s_e1c4165d82711d::t_ab6ba1e5e4cdf5 18
+  s_e1c4165d82711d::t_36aebea609804e 1-17,19-52,54-145
+unity/Assets/Resources/Fonts/Tiny5.ttf.meta
+  s_e1c4165d82711d::t_ab6ba1e5e4cdf5 2-21
+  s_e1c4165d82711d::t_b4a3ff71892db8 1
+unity/Assets/Tests/Play/Crossade.Tests.Play.asmdef.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1
+  s_e1c4165d82711d::t_ab6ba1e5e4cdf5 2-7
+unity/Assets/Resources/Fonts.meta
+  s_e1c4165d82711d::t_ab6ba1e5e4cdf5 2-8
+  s_e1c4165d82711d::t_b4a3ff71892db8 1
+unity/Assets/Crossade/View/CardNode.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Crossade/Table/Store.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Crossade/View/Look.cs
+  s_e1c4165d82711d::t_838cd6be7a324b 1-75
+unity/ProjectSettings/SceneTemplateSettings.json
+  s_e1c4165d82711d::t_c48e5a09f7db99 1-121
+unity/Assets/Resources.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1
+  s_e1c4165d82711d::t_ab6ba1e5e4cdf5 2-8
+unity/Assets/Crossade/Play.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1
+  s_e1c4165d82711d::t_ab6ba1e5e4cdf5 2-8
+unity/Assets/Crossade/View/Rig.cs
+  s_e1c4165d82711d::t_dca0b199370c0f 1-59
+unity/Assets/Crossade/Play/Finger.cs
+  s_e1c4165d82711d::t_aa7227b1604910 101-102
+  s_e1c4165d82711d::t_7eb7b8189f4c18 185-189,222-227
+  s_e1c4165d82711d::t_cd82cc6f7c2f41 1-100,103-184,190-221,228-304
+unity/Assets/Crossade/Table/Store.cs
+  s_e1c4165d82711d::t_33367ee5ea6fc6 52
+  s_e1c4165d82711d::t_640826bbc8c038 1-51,53-142
+unity/Assets/Crossade/View/Hud.cs
+  s_e1c4165d82711d::t_d99818740dcf75 1-94
+unity/Assets/Crossade/Crossade.asmdef
+  s_e1c4165d82711d::t_aa7227b1604910 4
+unity/Assets/Tests/Play.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1
+  s_e1c4165d82711d::t_ab6ba1e5e4cdf5 2-8
+unity/Assets/Crossade/View/CardNode.cs
+  s_e1c4165d82711d::t_68cf309981c237 1-114
+unity/Assets/Crossade/Editor/Cards.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Crossade/View/SeatNode.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Resources/Fonts/Tiny5-OFL.txt
+  s_e1c4165d82711d::t_10c0f615ade481 1-93
+unity/Assets/Crossade/Editor/Cards.cs
+  s_e1c4165d82711d::t_c621f0d0db45f0 1-39
+unity/Assets/Crossade/App.cs
+  s_e1c4165d82711d::t_a3acb2ac4f0ebd 1-145
+unity/Assets/Crossade/Net/Link.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Crossade/View.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1
+  s_e1c4165d82711d::t_ab6ba1e5e4cdf5 2-8
+unity/Assets/Crossade/Editor/Crossade.Editor.asmdef.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1
+  s_e1c4165d82711d::t_ab6ba1e5e4cdf5 2-7
+unity/Assets/Crossade/View/Hud.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Crossade/App.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Resources/Fonts/Tiny5-OFL.txt.meta
+  s_e1c4165d82711d::t_ab6ba1e5e4cdf5 2-7
+  s_e1c4165d82711d::t_b4a3ff71892db8 1
+unity/Assets/Crossade/View/Shapes.cs.meta
+  s_e1c4165d82711d::t_eeeceb5dd6fe78 1-2
+unity/Assets/Crossade/View/Board.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Crossade/View/Rig.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Crossade/View/Look.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Tests/Play/LiveTableTests.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Crossade/View/Shapes.cs
+  s_e1c4165d82711d::t_a18091a9e4b33a 1-66
+unity/Assets/Crossade/Editor/Crossade.Editor.asmdef
+  s_e1c4165d82711d::t_c621f0d0db45f0 1-6
+unity/Assets/Crossade/View/HandRig.cs
+  s_e1c4165d82711d::t_aa7227b1604910 36,40,46
+  s_e1c4165d82711d::t_544ca9594ac3ac 1-35,37-39,41-45,47-91
+unity/Assets/Crossade/Table/Intents.cs.meta
+  s_e1c4165d82711d::t_b4a3ff71892db8 1-2
+unity/Assets/Tests/Play/Crossade.Tests.Play.asmdef
+  s_e1c4165d82711d::t_c621f0d0db45f0 1-8
+unity/Assets/Crossade/View/SeatNode.cs
+  s_e1c4165d82711d::t_3c6c6e5e9111a7 1-105
+unity/Assets/Crossade/View/Board.cs
+  s_e1c4165d82711d::t_23ff1bfbe3c056 49-56
+  s_e1c4165d82711d::t_314b09372ddb39 1-48,57-207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cf9cd7ff730fa09569efbe28adbfc8b50ee1aab4",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
