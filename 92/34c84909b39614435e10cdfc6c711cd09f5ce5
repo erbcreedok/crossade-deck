@@ -1,0 +1,39 @@
+server/src/table/dolls.ts
+  s_e1c4165d82711d::t_2da9d05e56ecd1 1-66
+server/src/table/routes.ts
+  s_e1c4165d82711d::t_19b92149527f6f 265-293,316-318
+  s_e1c4165d82711d::t_8e4de2f77d430b 23-25
+server/src/table/routes.test.ts
+  s_e1c4165d82711d::t_a9b46b77f5b07b 12
+  s_e1c4165d82711d::t_c15245546f79ba 406-431
+server/src/db/tableProfilesRepo.ts
+  s_e1c4165d82711d::t_f636c0915404a6 1-36
+server/src/table/TableRoom.test.ts
+  s_e1c4165d82711d::t_db5d9289bb6bce 10
+  s_e1c4165d82711d::t_d1eee1b25a9ee0 66-79
+server/src/db/tableProfilesRepo.test.ts
+  s_e1c4165d82711d::t_f636c0915404a6 1-31
+server/src/table/TableRoom.ts
+  s_e1c4165d82711d::t_bb129bb3d42815 13-14,856-861,906-913
+  s_e1c4165d82711d::t_f4ee3edaf9c6b2 914-915
+server/src/table/contract.ts
+  s_e1c4165d82711d::t_bb129bb3d42815 94-96
+server/src/db/migrations.ts
+  s_e1c4165d82711d::t_f636c0915404a6 363-379
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9234c84909b39614435e10cdfc6c711cd09f5ce5",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
