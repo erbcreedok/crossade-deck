@@ -1,0 +1,27 @@
+design/persona/check.mjs
+  s_e1c4165d82711d::t_164749a1342d23 76
+  s_e1c4165d82711d::t_d982ae5a1921cf 70-75,77-81,83
+design/persona/index.html
+  s_e1c4165d82711d::t_56dceffdf43674 84-87,268-269,271-273,275-283,413-414,536-537,766
+  s_e1c4165d82711d::t_164749a1342d23 582
+  s_e1c4165d82711d::t_d20f1fa8a8b130 415
+  s_e1c4165d82711d::t_eed6455980bbeb 270,274,469-475,479,489,581,592,605-608,633-634,637,658,662-669,683,686,698-700,732,734-735,742-743,749,756,767-769
+  s_e1c4165d82711d::t_6f10515124e6fb 657
+  s_e1c4165d82711d::t_3fa0e873e92a7e 407-409
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f667867ad5d5b30381547d04acfaa1ddfd71dc02",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
