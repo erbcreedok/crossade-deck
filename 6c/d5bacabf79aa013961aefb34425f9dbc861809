@@ -1,0 +1,63 @@
+design/skinmaker/courts/diamond-Q.svg
+  s_e1c4165d82711d::t_915f33ee9ac44c 1
+design/skinmaker/courts/spade-K.svg
+  s_e1c4165d82711d::t_915f33ee9ac44c 1
+design/skinmaker/index.html
+  s_e1c4165d82711d::t_cbb50a69dd4846 317
+  s_e1c4165d82711d::t_d90771f195e6ed 279-281,313-315
+  s_e1c4165d82711d::t_dea10dcb2fbc3b 1-278,282-312,316,318-394
+design/skinmaker/check.mjs
+  s_e1c4165d82711d::t_06d07454532f6b 1-32
+design/skinmaker/courts/spade-Q.svg
+  s_e1c4165d82711d::t_915f33ee9ac44c 1
+design/skinmaker/courts/diamond-K.svg
+  s_e1c4165d82711d::t_915f33ee9ac44c 1
+design/skinmaker/courts/club-J.svg
+  s_e1c4165d82711d::t_915f33ee9ac44c 1
+.claude/launch.json
+  s_e1c4165d82711d::t_5171502cd71943 159-169
+design/skinmaker/courts/club-Q.svg
+  s_e1c4165d82711d::t_915f33ee9ac44c 1
+design/skinmaker/courts/heart-J.svg
+  s_e1c4165d82711d::t_915f33ee9ac44c 1
+design/skinmaker/courts/heart-K.svg
+  s_e1c4165d82711d::t_915f33ee9ac44c 1
+design/skinmaker/courts/spade-J.svg
+  s_e1c4165d82711d::t_915f33ee9ac44c 1
+design/skinmaker/courts/club-K.svg
+  s_e1c4165d82711d::t_915f33ee9ac44c 1-53
+design/skinmaker/courts/heart-Q.svg
+  s_e1c4165d82711d::t_915f33ee9ac44c 1
+design/skinmaker/courts/diamond-J.svg
+  s_e1c4165d82711d::t_915f33ee9ac44c 1
+design/persona/skins/legs-beast/back-legs.svg
+  s_e1c4165d82711d::t_193cd715d7abd3 1-76
+design/persona/skins/legs-beast/front-legs.svg
+  s_e1c4165d82711d::t_9e31ed72d613b1 1-79
+design/persona/skins/legs-beast/right-legs.svg
+  s_e1c4165d82711d::t_bf377587e5a89e 1-68
+design/persona/skins/legs-card/back-legs.svg
+  s_e1c4165d82711d::t_a601428e92f4ce 1-64
+design/persona/skins/legs-card/front-legs.svg
+  s_e1c4165d82711d::t_3e6bf191132e99 1-57
+design/persona/skins/legs-card/right-legs.svg
+  s_e1c4165d82711d::t_767cb423870b99 1-48
+design/persona/skins/preview.html
+  s_e1c4165d82711d::t_c382d5194da2fb 127-141,198,470-601
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6cd5bacabf79aa013961aefb34425f9dbc861809",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
