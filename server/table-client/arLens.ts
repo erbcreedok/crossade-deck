@@ -17,6 +17,7 @@ import type { Transform } from "../../game-kit/src/core/transform.js";
 import type { Lens } from "./lens.js";
 
 type Point = { x: number; y: number };
+type Point3 = Point & { h: number };
 export type Vec = [number, number, number];
 export type Quat = [number, number, number, number];
 
@@ -54,6 +55,8 @@ export interface ArLens extends Lens {
   rotation: number;
   squash: number;
   rise: number;
+  /** ГДЕ САМ ТЕЛЕФОН — точка стола под ним и высота над сукном, в единицах стола: в AR голова — это он. */
+  eye: Point3;
 }
 
 /** Потолок наклона для высоты стопок — тот же, что у пальцевой камеры (`camera.ts`). */
@@ -123,8 +126,11 @@ export function arLens(eye: ArView, place: ArPlace, turn: number, zoom: number, 
   // Наклон — угол между взглядом и нормалью стола «в сукно»: в упор 0, вдоль стола — больше.
   const look = rot(eye.q, [0, 0, -1]);
   const lean = (Math.acos(Math.min(1, Math.max(-1, -dot(look, up) * side))) * 180) / Math.PI;
+  const fromAt: Vec = [ex - place.at[0], ey - place.at[1], ez - place.at[2]];
+  const ox = dot(fromAt, right) / u, oy = dot(fromAt, toMe) / u;
+  const eyeAt: Point3 = { x: cosT * ox + sinT * oy, y: -sinT * ox + cosT * oy, h: (dot(fromAt, up) * side) / u };
   return {
-    toGlass, toDesk, near, kAt, project, view, toWorld: (p) => world(p),
+    toGlass, toDesk, near, kAt, project, view, toWorld: (p) => world(p), eye: eyeAt,
     k: kAt({ x: 0, y: 0 }),
     rotation: (Math.atan2(b, a) * 180) / Math.PI,
     squash: big > 0 ? small / big : 1,

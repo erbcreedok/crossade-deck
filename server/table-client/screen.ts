@@ -481,19 +481,25 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       });
     }
   };
+  /** Телефон в AR — в осях стола: где стоит и куда смотрит на сукне (`tellBody`). */
+  let arEye: { at: Point3; gaze: { x: number; y: number } } | null = null;
   const tellBody = (force = false): void => {
     const s = store.state;
     if (!s || !chairOf(s, mine(s))) return;
     const now = performance.now();
     const c = cam.camera;
     const e = eyeOf();
+    // В AR ГОЛОВА — ТЕЛЕФОН: сторона стола — где он стоит, взгляд — куда он смотрит на сукне, высота — его.
+    const phone = arEye;
+    const yaw = phone ? Math.round(-(Math.atan2(phone.at.x, phone.at.y) * 180) / Math.PI) : Math.round(((-c.rotation % 360) + 540) % 360 - 180);
+    if (phone) { e.x = phone.gaze.x; e.y = phone.gaze.y; e.h = phone.at.h; }
     const out = {
       stance: stanceOf(s),
       // Пока у всех один вид — аватар; выбор вида переедет на страницу аватара.
       model: "seat" as const,
       eye: { x: +e.x.toFixed(2), y: +e.y.toFixed(2), h: +e.h.toFixed(2) },
       stretch: +stretchNow.toFixed(2),
-      yaw: Math.round(((-c.rotation % 360) + 540) % 360 - 180),
+      yaw,
       right: rightHand && { x: +rightHand.x.toFixed(2), y: +rightHand.y.toFixed(2) },
     };
     const line = JSON.stringify(out);
@@ -3263,6 +3269,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     syncCamera();
     art.warm(s.rules);
     const arGlass = ar?.lens({ w: g.w, h: g.h }, cam.camera.rotation, cam.camera.zoom);
+    if (arGlass && ar!.entry() >= 1) {
+      arEye = { at: arGlass.eye, gaze: arGlass.toDesk({ x: g.w / 2, y: g.h / 2 }) };
+      tellBody();
+    } else arEye = null;
     view = drawFelt(canvas, {
       W: g.w, H: g.h, people: seats, images, art: (face) => art.image(s.rules, face), turning, piles: s.piles.flatMap((p) => {
         if (!deckCarry(s, p.id)) return [p];
