@@ -15,7 +15,7 @@ import { BOT_KEY, botPerson } from "./botPerson.js";
 import { DEAL_PRESETS, MSG, PROTOCOL, ROOM_CLOSED, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type Recording, type AppPass, type SeatCard, type TableCommand, type Welcome, TOLD_OPS } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
 import { mintPass, PASS_HOURS } from "./pass.js";
-import { mintAppPass } from "./appPass.js";
+import { KEY_DAYS, mintAppKey, mintAppPass } from "./appPass.js";
 import { cleanSignal, ear, Signals, type Signal } from "./rtc.js";
 import { cleanMic, type Mic } from "./voice.js";
 import { clockwise, collectSteps, deckOf, execute, plan, tuneSteps, type DealMemo } from "./script.js";
@@ -364,7 +364,7 @@ export class TableRoom extends Room {
       if (!me || !secret || me.door === "guest" || me.bot) return;
       const until = Date.now() + PASS_HOURS * 60 * 60 * 1000;
       this.book.tell("app.pass", me.key, { until });
-      client.send(MSG.app, { room: this.room, pass: mintAppPass(this.room, me, secret, until), until } satisfies AppPass);
+      client.send(MSG.app, { room: this.room, pass: mintAppPass(this.room, me, secret, until), until, key: mintAppKey(me, secret, Date.now() + KEY_DAYS * 24 * 60 * 60 * 1000) } satisfies AppPass);
     });
 
     // ПАЛЕЦ В ВОЗДУХЕ — остальным, каждому своими глазами; отправителю не возвращается.

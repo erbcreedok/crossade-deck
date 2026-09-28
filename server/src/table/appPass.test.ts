@@ -4,7 +4,7 @@
 // запись партии за него не сойдёт.
 
 import { describe, it, expect } from "vitest";
-import { appPassBearer, mintAppPass } from "./appPass.js";
+import { appKeyBearer, appPassBearer, mintAppKey, mintAppPass } from "./appPass.js";
 import { mintPass } from "./pass.js";
 import { whoIs } from "./identity.js";
 
@@ -52,5 +52,28 @@ describe("app-pass.one-person-one-table-not-for-long", () => {
     expect(whoIs({ door: "app", pass, room: "стол1" }, "s1", { guests: false, secret: SECRET })).toEqual({ ...ME, door: "app" });
     expect(whoIs({ door: "app", pass, room: "стол2" }, "s1", { guests: false, secret: SECRET })).toBeNull();
     expect(whoIs({ door: "app", pass, room: "стол1" }, "s1", { guests: false })).toBeNull();
+  });
+});
+
+describe("app-key.names-a-person-for-any-table", () => {
+  it("ключ называет человека и пускает за любой стол", () => {
+    const key = mintAppKey(ME, SECRET, Date.now() + SOON);
+    expect(appKeyBearer(key, SECRET)).toEqual(ME);
+    expect(whoIs({ door: "app", key, room: "стол1" }, "s", { guests: false, secret: SECRET })).toEqual({ ...ME, door: "app" });
+    expect(whoIs({ door: "app", key, room: "стол2" }, "s", { guests: false, secret: SECRET })).toEqual({ ...ME, door: "app" });
+  });
+
+  it("протухший, чужой подписью или подменённый человек — не пускает", () => {
+    const key = mintAppKey(ME, SECRET, SOON);
+    expect(appKeyBearer(key, SECRET, SOON + 1)).toBeNull();
+    expect(appKeyBearer(mintAppKey(ME, "другой", Date.now() + SOON), SECRET)).toBeNull();
+    const [, until, mark] = mintAppKey(ME, SECRET, Date.now() + SOON).split(".");
+    expect(appKeyBearer(`${Buffer.from(JSON.stringify({ key: "tg:1", name: "Чужой" })).toString("base64url")}.${until}.${mark}`, SECRET)).toBeNull();
+  });
+
+  it("пропуск на стол за ключ не сходит, и ключ за пропуск тоже", () => {
+    const pass = mintAppPass("стол1", ME, SECRET, Date.now() + SOON);
+    expect(appKeyBearer(pass, SECRET)).toBeNull();
+    expect(appPassBearer(mintAppKey(ME, SECRET, Date.now() + SOON), "стол1", SECRET)).toBeNull();
   });
 });

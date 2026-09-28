@@ -52,6 +52,8 @@ export interface AppPass {
   room: string;
   pass: string;
   until: number;
+  /** Ключ приложения на этого человека — с ним приложение открывает «Мои комнаты» и любой его стол. */
+  key: string;
 }
 
 /** Что клиент кладёт в `joinOrCreate(TABLE_ROOM, …)`. */
@@ -66,6 +68,8 @@ export interface JoinOptions {
   name?: string;
   /** `door: "app"` — пропуск из `MSG.app` (`appPass.ts`): тот же человек, что в Telegram, в нативном приложении. */
   pass?: string;
+  /** `door: "app"` — ключ приложения (`appPass.ts`): называет человека, годится за любой стол. */
+  key?: string;
   /** `PROTOCOL` сборки клиента. Нет номера — клиент собран до его появления, и его пускают. */
   protocol?: number;
 }

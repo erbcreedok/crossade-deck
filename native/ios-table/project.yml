@@ -7,8 +7,8 @@ settings:
   base:
     DEVELOPMENT_TEAM: 49HDCB8S45
     CODE_SIGN_STYLE: Automatic
-    MARKETING_VERSION: "0.3"
-    CURRENT_PROJECT_VERSION: "2"
+    MARKETING_VERSION: "0.4"
+    CURRENT_PROJECT_VERSION: "3"
 targets:
   CrossadeTable:
     type: application

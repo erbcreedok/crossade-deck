@@ -3,8 +3,7 @@
 //
 // Только в личке. Пропуск сажает за стол ТОБОЙ — в общем чате его нажал бы любой.
 
-import { mintAppPass, type Bearer } from "../../../server/src/table/appPass.js";
-import { PASS_HOURS } from "../../../server/src/table/pass.js";
+import { KEY_DAYS, mintAppKey, type Bearer } from "../../../server/src/table/appPass.js";
 import type { RoomCard } from "../../../server/src/table/contract.js";
 import type { Button } from "./talk.js";
 
@@ -14,19 +13,22 @@ export function bearerOf(from: { id: number; first_name?: string; last_name?: st
   return { key: `tg:${from.id}`, name, ...(from.username ? { username: from.username } : {}) };
 }
 
-/** Кнопки «открыть в приложении» — по одной на стол; адрес ведёт на переход мака (`/table/app`). */
+/**
+ * Кнопки «открыть в приложении»: первая — «Мои комнаты», дальше по одной на стол. В каждой — КЛЮЧ приложения
+ * (`appPass.ts`): он называет человека, а не стол, и приложение с ним открывает список и любой его стол.
+ * Адрес ведёт на переход мака (`/table/app`).
+ */
 export function appLinks(cards: RoomCard[], who: Bearer, host: string, secret: string, now = Date.now()): { text: string; rows: Button[][] } {
-  if (cards.length === 0) return { text: "Столов нет. Открой стол в чате: /table, потом возвращайся сюда за /app.", rows: [] };
-  const until = now + PASS_HOURS * 60 * 60 * 1000;
-  const rows = cards.slice(0, 8).map((card) => {
+  const key = mintAppKey(who, secret, now + KEY_DAYS * 24 * 60 * 60 * 1000);
+  const link = (room?: string): string => {
     const url = new URL(`${host}/table/app`);
-    url.searchParams.set("room", card.room);
-    url.searchParams.set("pass", mintAppPass(card.room, who, secret, until));
+    if (room) url.searchParams.set("room", room);
+    url.searchParams.set("key", key);
     url.searchParams.set("host", host);
-    return [{ text: card.title || "Стол", url: url.toString() }];
-  });
+    return url.toString();
+  };
   return {
-    text: `Открыть в приложении Crossade — сядешь за стол собой. Ссылки живут ${PASS_HOURS} часов; не пересылай их: по ним садятся тобой.`,
-    rows,
+    text: `Открыть в приложении Crossade — войдёшь собой. Ключ в ссылках живёт ${KEY_DAYS} дней; не пересылай их: по ним входят тобой.`,
+    rows: [[{ text: "Мои комнаты", url: link() }], ...cards.slice(0, 8).map((card) => [{ text: card.title || "Стол", url: link(card.room) }])],
   };
 }

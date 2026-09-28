@@ -102,11 +102,11 @@ async function open(): Promise<TableStore> {
   const room = roomAsked;
   if (!room) throw new Error("Нет комнаты. Открой стол по ссылке из чата.");
   // Пропуск в адресе — стол открыт в приложении Crossade (`appPass.ts`): подписи Telegram там нет.
-  const pass = params.get("pass");
+  const pass = params.get("pass"), key = params.get("key");
   const options: JoinOptions = initData
     ? { room, client: "html", door: "telegram", initData }
-    : pass
-      ? { room, client: nativeShell() ? "ios" : "html", door: "app", pass }
+    : key || pass
+      ? { room, client: nativeShell() ? "ios" : "html", door: "app", ...(key ? { key } : { pass: pass! }) }
       : { room, client: "html", door: "guest", name: params.get("name") ?? "Гость" };
   return netStore(options);
 }

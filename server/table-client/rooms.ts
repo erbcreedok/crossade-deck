@@ -62,7 +62,9 @@ const CSS = `
 `;
 
 /** Адрес стола — соседний с этой страницей: под реле `/t/?room=…`, на маке `/table/?room=…`. */
-const tableUrl = (room: string): string => `?room=${encodeURIComponent(room)}&from=rooms`;
+const tableUrl = (room: string): string => `?room=${encodeURIComponent(room)}&from=rooms${appKey() ? `&key=${encodeURIComponent(appKey()!)}` : ""}`;
+/** Ключ приложения Crossade из адреса (`appPass.ts`) — там, где нет подписи Telegram. */
+const appKey = (): string | null => new URLSearchParams(location.search).get("key");
 const replayUrl = (room: string, r: NonNullable<MyClosed["replay"]>): string =>
   `replay?${new URLSearchParams({ room, pass: r.pass, from: String(r.from), ...(r.to === null ? {} : { to: String(r.to) }) })}`;
 
@@ -103,13 +105,14 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
 
   shell(`<div class="empty">Спрашиваю стол…</div>`);
   const signed = app?.initData ?? "";
-  if (!signed) {
+  const key = appKey();
+  if (!signed && !key) {
     last = `<div class="empty">Открой эту страницу из Telegram — кнопкой меню бота: без Telegram стол не знает, кто ты.</div>`;
     return redraw();
   }
-  void fetch(`${HOST}/table/my`, { headers: { "x-telegram-init-data": signed } })
+  void fetch(`${HOST}/table/my`, { headers: signed ? { "x-telegram-init-data": signed } : { "x-crossade-app-key": key! } })
     .then(async (res) => {
-      if (!res.ok) throw new Error(res.status === 401 ? "Telegram не подтвердил, кто ты. Закрой и открой мини-апп заново." : `Стол ответил ${res.status}.`);
+      if (!res.ok) throw new Error(res.status === 401 ? (signed ? "Telegram не подтвердил, кто ты. Закрой и открой мини-апп заново." : "Ключ приложения устарел — возьми новый у бота: /app в личке.") : `Стол ответил ${res.status}.`);
       const { rooms, closed } = (await res.json()) as { rooms: MyRoom[]; closed: MyClosed[] };
       const live = rooms.length
         ? rooms

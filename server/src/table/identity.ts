@@ -10,7 +10,7 @@
 // только `Person`.
 
 import { verifyTelegramInitData } from "../telegramAuth.js";
-import { appPassBearer } from "./appPass.js";
+import { appKeyBearer, appPassBearer } from "./appPass.js";
 import type { JoinOptions, Person } from "./contract.js";
 
 export interface Doors {
@@ -32,7 +32,8 @@ export function whoIs(options: Partial<JoinOptions>, session: string, doors: Doo
   }
   // ПРИЛОЖЕНИЕ — тот же человек, что уже вошёл через Telegram и взял у стола пропуск (`appPass.ts`).
   if (options.door === "app") {
-    const who = doors.secret ? appPassBearer(options.pass, options.room, doors.secret, now) : null;
+    // Пропуск — на один стол; ключ — на человека, за любой его стол.
+    const who = doors.secret ? (appPassBearer(options.pass, options.room, doors.secret, now) ?? appKeyBearer(options.key, doors.secret, now)) : null;
     return who && { ...who, door: "app" };
   }
   if (options.door === "guest" && doors.guests) {

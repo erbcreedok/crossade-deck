@@ -158,7 +158,8 @@ const sum = Object.keys(f).sort().map((k) => `${k}=${f[k]}`).join("\n");
 const initData = new URLSearchParams({ ...f, hash: createHmac("sha256", createHmac("sha256", "WebAppData").update(TOKEN).digest()).update(sum).digest("hex") }).toString();
 const web = await new Client(base.replace(/^http/, "ws")).joinOrCreate("table_room", { room, client: "html", door: "telegram", initData, protocol: 2 });
 web.onMessage("*", () => {});
-const pass = await new Promise((done) => { web.onMessage("app", (one) => done(one.pass)); web.send("hello"); setTimeout(() => web.send("app"), 300); });
+const got = await new Promise((done) => { web.onMessage("app", (one) => done(one)); web.send("hello"); setTimeout(() => web.send("app"), 300); });
+const pass = got.pass;
 const app = await page(`${base}/table/?room=${room}&pass=${encodeURIComponent(pass)}`);
 await app.waitForSelector("[data-section]", { timeout: 15000 }).catch(() => {});
 await app.waitForTimeout(800);
@@ -167,6 +168,25 @@ check("по ссылке с пропуском страница входит т�
 await app.click("[data-settings]");
 await app.waitForTimeout(300);
 check("в настройках приложения нет раздела «Приложение» — пропуск в самого себя ни к чему", (await app.locator('[data-look="app"]').count()) === 0 && (await app.locator("[data-settings-panel]").count()) === 1);
+
+// ── ключ приложения: «Мои комнаты» → стол → по имени стола назад к списку ────────────────────────
+{
+  const list = await page(`${base}/table/?rooms&key=${encodeURIComponent(got.key)}`);
+  await list.waitForSelector(`[data-room="${room}"]`, { timeout: 15000 }).catch(() => {});
+  check("с ключом — «Мои комнаты»: мой стол в списке", (await list.locator(`[data-room="${room}"]`).count()) === 1, await list.locator("[data-rooms]").innerText().catch(() => ""));
+  await list.locator(`[data-room="${room}"]`).click().catch(() => {});
+  await list.waitForSelector("[data-section]", { timeout: 15000 }).catch(() => {});
+  await list.waitForTimeout(800);
+  const mine = await list.evaluate(() => window.__tableState?.().chairs.filter((c) => c.owner === "tg:7").length ?? -1).catch(() => -1);
+  check("из списка — за стол тем же человеком, ключом", mine === 1 && new URL(list.url()).searchParams.has("key"), [mine, list.url()]);
+  const back = list.locator("[data-rooms-back]");
+  check("в приложении имя стола — «‹ назад» к списку", (await back.count()) === 1 && (await back.innerText()).startsWith("‹"), await back.count());
+  await back.click().catch(() => {});
+  await list.waitForSelector(`[data-room="${room}"]`, { timeout: 15000 }).catch(() => {});
+  check("тап по имени — снова «Мои комнаты»", (await list.locator(`[data-room="${room}"]`).count()) === 1);
+  const refused = await (await fetch(`${base}/table/my`, { headers: { "x-crossade-app-key": got.key.replace(/.$/, (c) => (c === "A" ? "B" : "A")) } })).status;
+  check("подделанный ключ — «Мои комнаты» не отдаются (401)", refused === 401, refused);
+}
 await web.leave();
 
 await browser.close();

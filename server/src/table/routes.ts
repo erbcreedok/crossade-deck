@@ -7,6 +7,7 @@
 // Один и тот же код сервера стоит и там, и там — включается то, что сконфигурировано. Дев-кит этих
 // путей не касается.
 
+import { appKeyBearer } from "./appPass.js";
 import { randomBytes, timingSafeEqual } from "crypto";
 import express, { type Router } from "express";
 import { tableConfig } from "./config.js";
@@ -23,6 +24,8 @@ import { verifyTelegramInitData } from "../telegramAuth.js";
 
 /** Подпись Mini App — заголовком: в адресе ей не место, адрес пересылают. */
 export const TELEGRAM_HEADER = "x-telegram-init-data";
+/** Ключ приложения Crossade — вместо подписи Telegram, там, где её нет. */
+export const APP_KEY_HEADER = "x-crossade-app-key";
 import { mintPass, passRoom, PASS_HOURS } from "./pass.js";
 
 /** Этот запуск. Новый процесс — новый `boot`: по нему бот понимает, что прежних столов нет. */
@@ -240,8 +243,10 @@ export function tableRoutes(): Router {
     const config = tableConfig();
     const signed = req.header(TELEGRAM_HEADER);
     const user = signed && config.botToken ? verifyTelegramInitData(signed, config.botToken) : null;
-    if (!user) return void res.status(401).json({ error: "who_are_you" });
-    const key = `tg:${user.id}`;
+    // Из приложения Crossade — ключом приложения (`appPass.ts`) вместо подписи Telegram.
+    const bearer = !user && config.secret ? appKeyBearer(req.header(APP_KEY_HEADER), config.secret) : null;
+    if (!user && !bearer) return void res.status(401).json({ error: "who_are_you" });
+    const key = user ? `tg:${user.id}` : bearer!.key;
     const found = new Map<string, ReturnType<typeof roomInJournal>>();
     const journal = (room: string) => (found.has(room) ? found.get(room)! : (found.set(room, roomInJournal(room)), found.get(room)!));
     const mine = myRooms(key, allEntries(), roomsOfJournal({ by: key }), (room) => (journal(room)?.home as Home | null) ?? null, (room) => journal(room)?.title ?? null);

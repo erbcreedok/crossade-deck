@@ -152,7 +152,7 @@ export const ALLOWED_METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"] as 
  * хотя маршрут жив. Так «Мои комнаты» и «Все столы» не открывались с телефона. Сторож сверяет список со
  * всем, что шлют страницы стола (`cors.test.ts`).
  */
-export const ALLOWED_HEADERS = ["Content-Type", "x-telegram-init-data", "x-table-secret"] as const;
+export const ALLOWED_HEADERS = ["Content-Type", "x-telegram-init-data", "x-table-secret", "x-crossade-app-key"] as const;
 
 /**
  * ЧТО ТЕЛЕГА ПРЕДЛАГАЕТ ЧЕЛОВЕКУ, как это видно из подписанной `initData`: подпись двери, тамошнее

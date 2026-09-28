@@ -3384,9 +3384,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // того, что осталось между кнопками.
     // ИМЯ — ПО ЦЕНТРУ ЭКРАНА: поля с обеих сторон одинаковые, по большему из двух (кнопки слева, компас справа).
     const aside = Math.max(RIM_LEFT + 96, 108);
+    // В ПРИЛОЖЕНИИ имя стола — ещё и «назад» к «Моим комнатам»: системной кнопки «назад», как у Telegram, там нет.
+    const back = nativeShell() !== null && new URLSearchParams(location.search).has("key");
     const name = `<div data-table-name style="position:absolute;left:${aside}px;right:${aside}px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));height:40px;z-index:60;`
-      + `display:flex;align-items:center;justify-content:center;pointer-events:none"><span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`
-      + `padding:0 12px;border-radius:12px;font:400 13px Tiny5,monospace;color:${T.ink};line-height:28px;${plate}">${escape(store.title)}</span></div>`;
+      + `display:flex;align-items:center;justify-content:center;pointer-events:none"><span ${back ? `data-rooms-back role="button" aria-label="К списку столов" ` : ""}style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`
+      + `padding:0 12px;border-radius:12px;font:400 13px Tiny5,monospace;color:${T.ink};line-height:28px;${back ? "pointer-events:auto;cursor:pointer;" : ""}${plate}">${back ? "‹ " : ""}${escape(store.title)}</span></div>`;
     // ВХОД В AR — кнопкой справа сверху, там же, где в AR живут якорь и выход: вошёл — на её месте выход.
     const enter = ar ? "" : `<button data-ar-enter aria-label="AR — стол в комнате" style="position:absolute;right:${RIM_LEFT}px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:40px;height:40px;border:0;padding:0;z-index:61;`
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">`
@@ -4402,6 +4404,12 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         draw();
       };
     }
+    for (const el of over.querySelectorAll<HTMLElement>("[data-rooms-back]")) {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        location.href = `?rooms&key=${encodeURIComponent(new URLSearchParams(location.search).get("key") ?? "")}`;
+      };
+    }
     for (const el of over.querySelectorAll<HTMLElement>("[data-ar-enter]")) {
       el.onclick = (e) => {
         e.stopPropagation();
@@ -4680,6 +4688,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const адрес = new URL(`${HOST}/table/app`);
     адрес.searchParams.set("room", one.room);
     адрес.searchParams.set("pass", one.pass);
+    адрес.searchParams.set("key", one.key);
     адрес.searchParams.set("host", HOST);
     переход = адрес.toString();
     settings.refresh();

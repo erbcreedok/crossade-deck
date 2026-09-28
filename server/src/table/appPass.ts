@@ -44,3 +44,36 @@ export function appPassBearer(pass: unknown, room: string | undefined, secret: s
     return null;
   }
 }
+
+// ─── КЛЮЧ ПРИЛОЖЕНИЯ ──────────────────────────────────────────────────────────────────────────────
+// Пропуск выше называет стол; ключ — только человека: с ним приложение открывает «Мои комнаты» и садится за
+// любой его стол, а не за один. Живёт дольше (`KEY_DAYS`) и хранится только в телефоне; метка подписи своя —
+// ни пропуск, ни пропуск на запись им не прикинутся.
+
+/** Сколько живёт ключ приложения, дней. */
+export const KEY_DAYS = 30;
+
+const signKey = (body: string, secret: string): string => createHmac("sha256", secret).update(`appkey|${body}`).digest("base64url").slice(0, 24);
+
+export function mintAppKey(who: Bearer, secret: string, until: number): string {
+  const { key, name, username, photo } = who;
+  const body = `${Buffer.from(JSON.stringify({ key, name, username, photo })).toString("base64url")}.${until}`;
+  return `${body}.${signKey(body, secret)}`;
+}
+
+/** Кого называет ключ. `null` — подделан, протух или это не ключ. */
+export function appKeyBearer(appKey: unknown, secret: string, now = Date.now()): Bearer | null {
+  if (typeof appKey !== "string") return null;
+  const parts = appKey.split(".");
+  if (parts.length !== 3) return null;
+  const [who, until, mark] = parts as [string, string, string];
+  const want = Buffer.from(signKey(`${who}.${until}`, secret)), got = Buffer.from(mark);
+  if (want.length !== got.length || !timingSafeEqual(want, got) || !(Number(until) > now)) return null;
+  try {
+    const raw = JSON.parse(Buffer.from(who, "base64url").toString()) as Partial<Bearer>;
+    if (typeof raw.key !== "string" || typeof raw.name !== "string") return null;
+    return { key: raw.key, name: raw.name, ...(raw.username ? { username: raw.username } : {}), ...(raw.photo ? { photo: raw.photo } : {}) };
+  } catch {
+    return null;
+  }
+}

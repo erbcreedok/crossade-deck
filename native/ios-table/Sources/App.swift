@@ -124,34 +124,42 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
     }
 
     // ─── вход ────────────────────────────────────────────────────────────────────────────────────
+    // КЛЮЧ ПРИЛОЖЕНИЯ называет человека (`appPass.ts`): с ним открываются «Мои комнаты» и любой его стол. Старая
+    // ссылка с пропуском на один стол тоже годится — тогда только этот стол.
     func opened(_ url: URL) {
         guard url.scheme == "crossade", let parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
-        var room: String?, pass: String?
+        var room: String?, pass: String?, key: String?
         for item in parts.queryItems ?? [] {
             if item.name == "room" { room = item.value }
             if item.name == "pass" { pass = item.value }
+            if item.name == "key" { key = item.value }
         }
-        guard let room, let pass else { return }
-        UserDefaults.standard.set(room, forKey: "room")
-        UserDefaults.standard.set(pass, forKey: "pass")
-        load(room: room, pass: pass)
+        let keep = UserDefaults.standard
+        if let key { keep.set(key, forKey: "key") }
+        if let room, let pass { keep.set(room, forKey: "room"); keep.set(pass, forKey: "pass") }
+        load(room: room, pass: key == nil ? pass : nil)
     }
 
+    /** С иконки: есть ключ — «Мои комнаты»; есть только старый пропуск — его стол. */
     func resume() {
         loadViewIfNeeded()
-        guard let room = UserDefaults.standard.string(forKey: "room"), let pass = UserDefaults.standard.string(forKey: "pass") else {
-            note.text = "Открой стол ссылкой из Telegram: кнопка «В приложении» у бота или /app в личке с ним."
-            return
-        }
-        load(room: room, pass: pass)
+        let keep = UserDefaults.standard
+        if keep.string(forKey: "key") != nil { return load(room: nil, pass: nil) }
+        if let room = keep.string(forKey: "room"), let pass = keep.string(forKey: "pass") { return load(room: room, pass: pass) }
+        note.text = "Открой стол ссылкой из Telegram: кнопка «В приложении» у бота или /app в личке с ним."
     }
 
-    func load(room: String, pass: String) {
+    /** `room` нет — «Мои комнаты»; `pass` нет — входим ключом. */
+    func load(room: String?, pass: String?) {
         loadViewIfNeeded()
         note.text = nil
         setAr(false)
+        var items: [URLQueryItem] = []
+        if let room { items.append(URLQueryItem(name: "room", value: room)) } else { items.append(URLQueryItem(name: "rooms", value: "")) }
+        if let pass { items.append(URLQueryItem(name: "pass", value: pass)) }
+        else if let key = UserDefaults.standard.string(forKey: "key") { items.append(URLQueryItem(name: "key", value: key)) }
         var url = URLComponents(string: Self.relay + "/t/")!
-        url.queryItems = [URLQueryItem(name: "room", value: room), URLQueryItem(name: "pass", value: pass)]
+        url.queryItems = items
         // Отступы — до первых скриптов страницы: иначе кнопки на первом кадре сидят под островком.
         let scripts = web.configuration.userContentController
         scripts.removeAllUserScripts()
