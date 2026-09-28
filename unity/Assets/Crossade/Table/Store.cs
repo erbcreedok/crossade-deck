@@ -104,8 +104,12 @@ namespace Crossade.Table
                     }
                     Patching.Apply(S, patch);
                     // Карта, которая легла, из воздуха ушла: её несли, и теперь она на месте.
+                    // Отпустили не перекладывая — палец тоже ушёл: замок снят.
                     foreach (var op in patch.Ops)
+                    {
                         if (op.T == "move" && op.Card != null) Carries.Remove(op.Card.Id);
+                        if (op.T == "unlock") Carries.Remove(op.Id);
+                    }
                     Changed?.Invoke();
                     return;
                 }

@@ -19,8 +19,8 @@ namespace Crossade.Editor
     public static class Build
     {
         const string SCENE = "Assets/Scenes/Main.unity";
-        /** Шейдеры, которые вид берёт `Shader.Find`: без ссылки из ассета сборка их выбрасывает. */
-        static readonly string[] Shaders = { "Standard", "Unlit/Color", "Unlit/Transparent Cutout", "UI/Default", "GUI/Text Shader" };
+        /** Шейдеры, которые вид берёт `Shader.Find`: без ссылки из ассета сборка их выбрасывает. Текст (`GUI/Text Shader`) не нужен и не годится: он из «unity default resources», и сборка на нём падает. */
+        static readonly string[] Shaders = { "Standard", "Unlit/Color", "Unlit/Transparent Cutout" };
 
         public static void Prepare()
         {
@@ -50,6 +50,13 @@ namespace Crossade.Editor
             var icon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Crossade/Art/icon.png");
             if (icon != null) PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
             Include();
+            // Окно входа Telegram — из AuthenticationServices.
+            if (AssetImporter.GetAtPath("Assets/Plugins/iOS/CrossadeLogin.mm") is PluginImporter login)
+            {
+                login.SetCompatibleWithPlatform(BuildTarget.iOS, true);
+                login.SetPlatformData(BuildTarget.iOS, "FrameworkDependencies", "AuthenticationServices;");
+                login.SaveAndReimport();
+            }
             AssetDatabase.SaveAssets();
         }
 

@@ -108,6 +108,13 @@ namespace Crossade.View
                 }
             }, Look.Gold, Look.Black, 38);
             Ui.Row((RectTransform)guest.transform, 420, 110);
+            if (!Account.CanTelegram) return;
+            var tg = Ui.Button(page, "Войти через Telegram", () =>
+            {
+                status.text = "Ждём Telegram…";
+                Account.Telegram();
+            }, Look.Hex("#2aabee"), Look.Ink, 36);
+            Ui.Row((RectTransform)tg.transform, 560, 110);
         }
 
         void Rooms(List<RoomCard> rooms)

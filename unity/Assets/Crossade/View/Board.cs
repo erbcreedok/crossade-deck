@@ -188,12 +188,40 @@ namespace Crossade.View
                     seats.Remove(id);
                 }
 
+            // Чужие пальцы в воздухе: карту несут — она висит над тем местом, куда её тянут.
+            foreach (var carry in store.Carries.Values)
+            {
+                if (!cards.TryGetValue(carry.Card.Id, out var n) || carry.Card.Id == Lifted) continue;
+                if (OverAt(s, carry.Over) is not { } over) continue;
+                Park(n, Table);
+                n.Paint(FaceArt(carry.Card.Face), backArt);
+                n.Aim(At(over.x, over.y, .35f), -MyAngle, carry.Card.Up == true || (carry.From?.In == "felt" && carry.From.Up));
+            }
+
             foreach (var id in new List<string>(cards.Keys))
                 if (!seen.Contains(id))
                 {
                     Destroy(cards[id].gameObject);
                     cards.Remove(id);
                 }
+        }
+
+        /** Точка стола над местом `Where`: сукно — сама точка, стопка — её место, рука — стул. */
+        static (double x, double y)? OverAt(Snapshot s, Where w)
+        {
+            if (w == null) return null;
+            switch (w.In)
+            {
+                case "felt": return (w.X, w.Y);
+                case "deck":
+                    var pile = s.Piles.Find(p => p.Id == w.Pile);
+                    if (pile == null) return null;
+                    if (pile.Ring && w.Turn != null) return Ring.Spot(pile.X, pile.Y, w.Turn.Value, Ring.Lay);
+                    return (pile.X, pile.Y);
+                default:
+                    var chair = s.Chairs.Find(c => c.Id == w.Chair);
+                    return chair == null ? null : Ring.SeatPoint(chair.Angle, Ring.SeatRadius - 1.2);
+            }
         }
 
         void Park(CardNode n, Transform parent)

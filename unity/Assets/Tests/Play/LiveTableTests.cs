@@ -137,6 +137,20 @@ public class LiveTableTests
         yield return Until(() => watch.S.Felt.First(c => c.Id == top).Up == false, 5, "карта перевёрнута");
         yield return Settle();
         Shoot("4-turned");
+
+        // Чужой палец: второй клиент взял карту и несёт её — у Unity она висит над сукном; отпустил — легла.
+        var node = app.Board.Node(top);
+        watch.Act(Intents.Grab(top));
+        for (int i = 0; i < 6; i++)
+        {
+            watch.CarryOut(top, Where.Felt(2, -1.5, false, 0));
+            yield return Settle(.06f);
+        }
+        yield return Until(() => node.transform.position.y > .2f, 5, "чужая карта в воздухе");
+        yield return Settle(.4f);
+        Shoot("5-carried");
+        watch.Act(Intents.Release(top));
+        yield return Until(() => node.transform.position.y < .1f, 5, "отпущенная карта снова на сукне");
     }
 
     Button Find(string text) =>

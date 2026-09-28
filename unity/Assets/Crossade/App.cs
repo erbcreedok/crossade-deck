@@ -95,6 +95,13 @@ namespace Crossade
             else Home();
         }
 
+        /** Ответ окна входа Telegram (`CrossadeLogin.mm`): ключ — и в «Мои комнаты». */
+        public void LoggedIn(string url)
+        {
+            if (Account.TakeLogin(url)) Home();
+            else Lobby.Show(true);
+        }
+
         /** Назад к «Моим комнатам»: из-за стола встаём, стул остаётся за нами. */
         public void Home()
         {

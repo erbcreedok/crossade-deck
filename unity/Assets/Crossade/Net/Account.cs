@@ -29,7 +29,7 @@ namespace Crossade.Net
     public static class Account
     {
         public const string Relay = "https://crossade-deck-server.fly.dev";
-        const string KEY = "crossade.key", NAME = "crossade.name";
+        const string KEY = "crossade.key";
         const string APP_KEY_HEADER = "x-crossade-app-key";
 
         static readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(20) };
@@ -45,14 +45,56 @@ namespace Crossade.Net
             }
         }
 
+        /** Имя — из самого ключа: в нём, до подписи, лежит JSON человека (`mintAppKey`). */
         public static string Name
         {
-            get => PlayerPrefs.GetString(NAME, null);
-            set
+            get
             {
-                PlayerPrefs.SetString(NAME, value ?? "");
-                PlayerPrefs.Save();
+                var key = Key;
+                if (key == null) return null;
+                try
+                {
+                    var body = key.Split('.')[0].Replace('-', '+').Replace('_', '/');
+                    body = body.PadRight(body.Length + (4 - body.Length % 4) % 4, '=');
+                    return Json.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(body))).Str("name");
+                }
+                catch
+                {
+                    return null;
+                }
             }
+        }
+
+        /** Ключ из ответа окна входа: `crossade://login?key=…`. */
+        public static bool TakeLogin(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return false;
+            var q = url.IndexOf("key=", StringComparison.Ordinal);
+            if (q < 0) return false;
+            var end = url.IndexOf('&', q);
+            Key = Uri.UnescapeDataString(end < 0 ? url.Substring(q + 4) : url.Substring(q + 4, end - q - 4));
+            return true;
+        }
+
+#if UNITY_IOS && !UNITY_EDITOR
+        [System.Runtime.InteropServices.DllImport("__Internal")]
+        static extern void CrossadeLoginOpen(string url, string scheme);
+#endif
+
+        /** Вход через Telegram есть там, где есть системное окно входа. */
+        public static bool CanTelegram =>
+#if UNITY_IOS && !UNITY_EDITOR
+            true;
+#else
+            false;
+#endif
+
+        /** Открыть окно входа Telegram; ответ придёт в `App.LoggedIn`. */
+        public static void Telegram()
+        {
+#if UNITY_IOS && !UNITY_EDITOR
+            CrossadeLoginOpen(Relay + "/t/?login", "crossade");
+#endif
         }
 
         /** Где мак со столами сейчас: адрес туннеля из реле. Переменная `CROSSADE_HOST` — для проверок. */
@@ -81,7 +123,6 @@ namespace Crossade.Net
         {
             var got = await Call(HttpMethod.Post, host + "/table/app/guest", new Dictionary<string, object>());
             Key = got.Str("key");
-            Name = got.Str("name");
         }
 
         /** Мои столы — открытые и закрытые. */
