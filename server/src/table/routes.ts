@@ -28,6 +28,7 @@ import { carryTableProfile, saveTableProfile, tableProfile } from "../db/tablePr
 import { carryOwned, ownedParts } from "../db/tableOwnedRepo.js";
 import { ownedOf, setsOwned, wearable } from "./rewards.js";
 import { grantDue } from "./gifts.js";
+import { tgFace } from "./tgFace.js";
 import { cleanDoll, dollFor, ownParts } from "./dolls.js";
 import { cleanParts, partsFor } from "./skins.js";
 import { INKS, inkFor } from "../profileInks.js";
@@ -287,9 +288,12 @@ export function tableRoutes(): Router {
     const owned = ownedOf(ownedParts(who.key));
     return { name: who.name, ...(who.photo ? { photo: who.photo } : {}), telegram: who.key.startsWith("tg:"), doll: look.doll, palette: look.palette, parts: wearable(partsFor(look.doll, ownParts(row?.parts)), owned), owned: [...owned], color: row?.color ?? inkFor(who.key), chosen: row !== null };
   };
-  r.get("/table/profile", (req, res) => {
-    const who = whoAsks(req);
-    if (!who) return void res.status(401).json({ error: "who_are_you" });
+  r.get("/table/profile", async (req, res) => {
+    const asked = whoAsks(req);
+    if (!asked) return void res.status(401).json({ error: "who_are_you" });
+    // Фото не пришло с подписью — спросить у бота (`tgFace.ts`).
+    const face = asked.photo ? undefined : await tgFace(asked.key, tableConfig().botToken);
+    const who = face ? { ...asked, photo: face } : asked;
     // ВОШЁЛ ЧЕРЕЗ TELEGRAM — подарок за это (аватар) приходит уже здесь, до первой комнаты (`gifts.ts`).
     grantDue(who.key, false);
     res.json(profileOut(who));

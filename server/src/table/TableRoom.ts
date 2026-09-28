@@ -16,6 +16,7 @@ import { partsFor } from "./skins.js";
 import { ownAll, ownedOf, wearable } from "./rewards.js";
 import { ownedParts } from "../db/tableOwnedRepo.js";
 import { grantDue } from "./gifts.js";
+import { tgFace } from "./tgFace.js";
 import { iceServers, tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
 import { DEAL_PRESETS, MSG, PROTOCOL, ROOM_CLOSED, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type Recording, type AppPass, type SeatCard, type TableCommand, type Welcome, TOLD_OPS } from "./contract.js";
@@ -851,7 +852,7 @@ export class TableRoom extends Room {
     if (!("refused" in out)) this.spread(out.ops);
   }
 
-  onAuth(client: Client, options: Partial<JoinOptions>): Who {
+  async onAuth(client: Client, options: Partial<JoinOptions>): Promise<Who> {
     const { botToken, guests, secret } = tableConfig();
     if (!secret || !roomIsSigned(options.room, secret)) throw new Error("unsigned room");
     // ЗАКРЫТУЮ КОМНАТУ ВХОДОМ НЕ ВОСКРЕСИТЬ. Вход заводит комнату, если её нет (inline-карточка, чьё
@@ -862,6 +863,11 @@ export class TableRoom extends Room {
     if (options.protocol !== undefined && options.protocol !== PROTOCOL) throw new Error(STALE_CLIENT);
     const who = whoIs(options, client.sessionId, { botToken, guests, secret });
     if (!who) throw new Error("who are you");
+    // Telegram не принёс фото (мини-апп не из меню вложений, приложение) — спросить у бота (`tgFace.ts`).
+    if (!who.photo) {
+      const face = await tgFace(who.key, botToken);
+      if (face) return { ...who, photo: face };
+    }
     return who;
   }
 
