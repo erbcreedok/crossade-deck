@@ -85,8 +85,36 @@ check("«голова и стул»: вместо тела нарисован с
 const sat = await at(`${D}&yaw=180&pitch=40&walk=сидит, крутит головой`);
 check("режим «сидит»: Боря остался на стуле", sat.away2 === 0 && (sat.head2[1] + sat.head2[3]) / 2 < 422, { away: sat.away2, head: sat.head2 });
 
+// КАМЕРА — ЭТО ГОЛОВА (Аня): сидя голова на плечах+2, камера в M раз дальше; встала — выше и дальше;
+// нагнулась — ниже, но не ниже предела; карта в руке — на доле высоты головы.
+const anna = async (hash) => { await at(hash); return page.evaluate(() => window.__persona.anna); };
+const sitA = await anna(`${D}`);
+check("Аня сидит: голова на 6, камера на 48", Math.abs(sitA.head - 6) < 0.01 && Math.abs(sitA.dist - 48) < 0.1, sitA);
+const standA = await anna(`${D}&aStance=стоит`);
+check("встала: голова выше, камера дальше", standA.head > sitA.head + 2 && standA.dist > sitA.dist, standA);
+const lowA = await anna(`${D}&aDrop=20`);
+check("нагнулась до упора: голова не ниже предела (3)", Math.abs(lowA.head - 3) < 0.01, lowA);
+check("нагнулась — карта в руке ниже", lowA.cardH < sitA.cardH, { sit: sitA.cardH, low: lowA.cardH });
+const bent = await at(`${D}&aDrop=2&pitch=40`), upright = await at(`${D}&pitch=40`);
+check("у Бори видно: Аня нагнулась — голова сдвинулась", bent.head1 && Math.hypot(bent.head1[0] - upright.head1[0], bent.head1[1] - upright.head1[1]) > 4, { bent: bent.head1, upright: upright.head1 });
+// Колесом от стола сидя — Аня встаёт.
+await at(`${D}&speed=1`);
+const box = await page.locator("#phone").boundingBox();
+await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+for (let k = 0; k < 4; k += 1) { await page.mouse.wheel(0, 200); await page.waitForTimeout(60); }
+const rose = await page.evaluate(() => window.__persona.anna);
+check("отъехала дальше покоя сидя — встала", rose.stance === "стоит", rose);
+// Нагнулась и держит — шея терпит 2 с, потом голова сама возвращается.
+for (let k = 0; k < 4; k += 1) { await page.mouse.wheel(0, -250); await page.waitForTimeout(60); }
+const leaned = await page.evaluate(() => window.__persona.anna.drop);
+await page.waitForTimeout(3200);
+const back = await page.evaluate(() => window.__persona.anna.drop);
+check("нагнулась — через пару секунд голова сама вернулась", leaned > 0.5 && back < 0.05, { leaned, back });
+await page.click("#sit");
+check("кнопка «сесть» сажает", (await page.evaluate(() => window.__persona.anna.stance)) === "сидит", null);
+
 if (shots) {
-  for (const [name, hash] of [["duo-walk", `${D}&yaw=180&pitch=40`], ["duo-walk-side", `${D}&yaw=90&pitch=30&aPitch=35`], ["duo-chair", `${D}&yaw=120&pitch=35&aPitch=35&duoB=chair&duoA=queen&chairs=1`], ["duo-idle", "speed=0&scene=два игрока&pitch=0"], ["duo-tilt", "speed=0&scene=два игрока&pitch=58"], ["duo-king", "speed=0&scene=два игрока&pitch=0&duoA=king&duoB=queen"]]) {
+  for (const [name, hash] of [["duo-lean", `${D}&aDrop=3.5&pitch=40&aCarry=1`], ["duo-walk", `${D}&yaw=180&pitch=40`], ["duo-walk-side", `${D}&yaw=90&pitch=30&aPitch=35`], ["duo-chair", `${D}&yaw=120&pitch=35&aPitch=35&duoB=chair&duoA=queen&chairs=1`], ["duo-idle", "speed=0&scene=два игрока&pitch=0"], ["duo-tilt", "speed=0&scene=два игрока&pitch=58"], ["duo-king", "speed=0&scene=два игрока&pitch=0&duoA=king&duoB=queen"]]) {
     await at(hash);
     await page.screenshot({ path: `${shots}/persona-${name}.png`, clip: { x: 0, y: 0, width: 880, height: 880 } });
   }

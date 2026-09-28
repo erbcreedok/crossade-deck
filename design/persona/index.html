@@ -14,8 +14,10 @@
     background: radial-gradient(120% 90% at 50% 30%, #2a2019, #120c08); box-shadow: inset 0 0 0 3px #0b0704; touch-action: none; user-select: none; }
   .phone canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   .phone[hidden] { display: none; }
-  .cap { position: absolute; left: 0; right: 0; top: 18px; text-align: center; font: 400 13px/1.3 'Tiny5', monospace; color: #f2c14e; pointer-events: none; padding: 0 40px; }
+  .cap { position: absolute; left: 50%; transform: translateX(-50%); top: 14px; white-space: nowrap; text-align: center; font: 400 13px/1.3 'Tiny5', monospace; color: #f2c14e; pointer-events: none; padding: 3px 8px; background: rgba(11,7,4,.85); border-radius: 6px; }
   .cap:empty { display: none; }
+  .sit { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); background: #0b0704; font: 400 14px 'Tiny5', monospace; }
+  .sit[hidden] { display: none; }
   .panel { flex: 1; min-width: 320px; max-width: 470px; display: flex; flex-direction: column; gap: 14px; }
   h1 { margin: 0; font: 400 26px/1.2 'Tiny5', monospace; color: #f2c14e; }
   .sec { padding: 12px 14px; background: #123527; box-shadow: inset 0 0 0 3px #0b0704, inset 0 0 0 5px #3a2a1d; display: flex; flex-direction: column; gap: 6px; }
@@ -47,7 +49,7 @@
 </head>
 <body>
 <div class="page">
-  <div class="phone" id="phone"><canvas id="scene"></canvas><div class="cap" id="cap1"></div></div>
+  <div class="phone" id="phone"><canvas id="scene"></canvas><div class="cap" id="cap1"></div><button class="sit" id="sit" hidden>сесть</button></div>
   <div class="phone" id="phone2" hidden><canvas id="scene2"></canvas><div class="cap" id="cap2"></div></div>
   <div class="knob" id="knob">РУЧКИ</div>
   <div class="panel" id="panel">
@@ -83,7 +85,13 @@
       ["duoB", "Боря (крутит камеру)", "enum", "king", MODELS.map((m) => m[0])],
       ["walk", "камера ушла вбок", "enum", "идёт голова", ["идёт голова", "идёт всё тело", "сидит, крутит головой"]],
       ["chairs", "стул под всеми", "bool", false],
-      ["aZoom", "Аня: зум", "num", 1, 0.3, 4, 0.05],
+      ["aStance", "Аня: поза", "enum", "сидит", ["сидит", "стоит"]],
+      ["aDrop", "Аня: нагнулась на", "num", 0, 0, 12, 0.1],
+      ["M", "камера дальше головы, раз", "num", 8, 2, 20, 0.5],
+      ["minHead", "ближе всего: голова над столом", "num", 3, 1, 10, 0.1],
+      ["neckHold", "шея терпит, с", "num", 2, 0, 10, 0.1],
+      ["aCarry", "Аня несёт карту", "bool", true],
+      ["lift", "карта в руке: доля высоты головы", "num", 0.3, 0, 1, 0.05],
       ["aPitch", "Аня: наклон, °", "num", 0, 0, 85, 1],
       ["aYaw", "Аня: поворот, °", "num", 0, -180, 180, 5],
       ["zoom", "зум", "num", 1, 0.3, 4, 0.05],
@@ -469,7 +477,7 @@
     return [s[0] + dx * f, s[1] + dy * f, s[2] + v];
   }
   /** Поза игрока, у которого камера `c`: без анимаций, только то, что сервер знает о нём. */
-  function poseFrom(seat, c, t, i) {
+  function poseFrom(seat, c, t, i, standing = S.stance === "стоит") {
     // КАМЕРА УШЛА ВБОК — ЧЕЛОВЕК ИДЁТ ЗА НЕЙ: встаёт и становится у кромки там, откуда смотрит его глаз
     // (низ его экрана — его сторона стола). Иначе — сидит на своём месте и только крутит головой.
     // «Идёт голова»: тело — это стул, оно сидит на месте; к краю, откуда смотрит камера, уходят только
@@ -481,7 +489,7 @@
     const base = [Math.cos(angle) * SHOULDERS, Math.sin(angle) * SHOULDERS, 0];
     const inward = norm([-base[0], -base[1], 0]);
     const right = cross(UP, inward), left = mul(right, -1);
-    const stand = S.stance === "стоит" || (away && whole) ? 1 : 0;
+    const stand = standing || (away && whole) ? 1 : 0;
     const breath = S.a_breathe ? Math.sin(((t + i) * 2 * Math.PI) / 3.2) : 0;
     const shoulders = add(base, [0, 0, S.sitH + (S.standH - S.sitH) * stand + breath * 0.08]);
     const eye = [c.target[0], c.target[1], c.dist * Math.cos(c.p)];
@@ -671,8 +679,10 @@
     // Со спины его левая — слева и у нас: отражение снимается, и видна тыльная сторона.
     hand(front ? SP.closed : SP.closedBack, P.leftHand, 0, `left${i}`, front);
     if (P.rightHand) {
-      if (P.carry) board(SP.back, add(P.rightHand, [0, 0, 0.1]), fx, fy, CARD.w, CARD.h, [0.5, 0.8]);
-      hand(front ? (P.closed ? SP.closed : SP.open) : (P.closed ? SP.closedBack : SP.openBack), P.rightHand, P.spin, `right${i}`, !front);
+      // Чужую несомую карту видно рубашкой; рука на ней рисуется там же.
+      if (P.carryFlat) drawCarry(P, i, false);
+      else if (P.carry) board(SP.back, add(P.rightHand, [0, 0, 0.1]), fx, fy, CARD.w, CARD.h, [0.5, 0.8]);
+      if (!P.carryFlat) hand(front ? (P.closed ? SP.closed : SP.open) : (P.closed ? SP.closedBack : SP.openBack), P.rightHand, P.spin, `right${i}`, !front);
     }
     if (S.names) {
       // Над головой — на экране, а не в мире: сверху «выше головы» — это та же точка, и табличка легла бы на лицо.
@@ -688,12 +698,71 @@
     }
   }
 
+  // КАМЕРА — ЭТО ГОЛОВА (у Ани). Голова в покое на `up` выше плеч позы; камера — в M раз дальше от стола, чем
+  // голова: встал — голова выше, камера дальше, виден весь стол. Зум к столу — голова опускается и тянется
+  // вперёд, но не ниже `minHead` (карту и колоду ещё можно перетянуть). Нагнулась — шея терпит `neckHold`
+  // секунд, потом движок тянет голову обратно к плечам, и зум отъезжает сам. Отъехала дальше покоя сидя —
+  // встала. Сесть — кнопкой.
+  const neck = { strain: 0, back: null, lockUntil: 0 };
+  const anna = () => {
+    const rest = (S.aStance === "стоит" ? S.standH : S.sitH) + NECK_LEN.up;
+    const head = Math.max(S.minHead, rest - S.aDrop);
+    return { rest, head, dist: S.M * head, drop: rest - head };
+  };
+  /** Щипок или колесо у Ани: `f` > 1 — ближе к столу. */
+  function annaZoom(f) {
+    if (performance.now() < neck.lockUntil || neck.back) return;
+    const a = anna();
+    let drop = a.rest - a.head / f;
+    if (drop < -0.3 && S.aStance === "сидит") { setKnob("aStance", "стоит"); drop = 0; }
+    setKnob("aDrop", +clamp(drop, 0, a.rest - S.minHead).toFixed(2));
+  }
+  function neckTick(dt, now) {
+    if (neck.back) {
+      const k = clamp((now - neck.back.t0) / 500, 0, 1);
+      setKnob("aDrop", +(neck.back.from * (1 - ease(k))).toFixed(2));
+      if (k >= 1) { neck.back = null; neck.strain = 0; neck.lockUntil = now + 1000; }
+      return;
+    }
+    if (S.aDrop > 0.05) {
+      neck.strain += dt;
+      if (neck.strain >= S.neckHold) neck.back = { from: S.aDrop, t0: now };
+    } else neck.strain = Math.max(0, neck.strain - dt * 2);
+  }
+  document.getElementById("sit").onclick = () => { setKnob("aStance", "сидит"); setKnob("aDrop", 0); };
+  // Нажатие на кнопку — не жест камеры: иначе экран забирает указатель себе, и клика нет.
+  document.getElementById("sit").addEventListener("pointerdown", (e) => e.stopPropagation());
+
+  /** Поза Ани для чужого глаза — из её головы: высота головы, наклон вперёд по нагибу, шея краснеет от терпения. */
+  function poseAnna(c, t) {
+    const P = poseFrom(Math.PI / 2, c, t, 0, S.aStance === "стоит");
+    const a = anna();
+    const fwd = norm([P.toward[0], P.toward[1], 0]);
+    const head = [P.head[0] + fwd[0] * a.drop * 0.6, P.head[1] + fwd[1] * a.drop * 0.6, a.head];
+    const move = sub(head, P.head);
+    const out = { ...P, head, leftHand: add(P.leftHand, move), stretch: a.drop > 0.05 ? 0.31 + 0.69 * clamp(neck.strain / Math.max(0.1, S.neckHold), 0, 1) : 0 };
+    if (S.aCarry) {
+      // КАРТА В РУКЕ ВИСИТ НА ДОЛЕ ВЫСОТЫ ГОЛОВЫ: нагнулась к столу — и карта ниже, встала — выше.
+      out.rightHand = [1.2, 2.4, S.lift * a.head];
+      out.closed = true; out.carryFlat = true;
+    }
+    return out;
+  }
+  /** Своя карта в руке на своём экране: лицом вверх, с тенью на сукне — по тени видно, как высоко она. */
+  function drawCarry(P, i, face = true) {
+    const at = P.rightHand;
+    board(SP.shadow, [at[0] + 0.15, at[1] + 0.15, 0], [1, 0, 0], [0, -1, 0], CARD.w * 1.05, CARD.h * 1.05, [0.5, 0.5]);
+    board(face ? SP.faces[1] : SP.back, at, [1, 0, 0], [0, -1, 0], CARD.w, CARD.h, [0.5, 0.5], `card${i}`);
+    const q = cam.proj(add(at, [0.25, 0.4, 0.05])), s = S.handW * q.s;
+    ctx.save(); ctx.translate(q.x, q.y); ctx.drawImage(SP.closed, -s / 2, -s / 2, s, s); ctx.restore();
+  }
+
   // ДВА ИГРОКА: Аня сидит внизу стола и камеру не трогала — её экран как на живом столе при входе: строго
   // сверху, стол во весь экран. Боря напротив, его камера — ручки «зум / наклон / поворот» и палец на
   // его экране. Каждый видит тело другого по правилам сервера, своё тело не видит: его голова — камера.
   function duoCams() {
     const fit = (h) => (1.6 * h * 2 * (R + 3)) / Math.min(390, W || 390);
-    const a = makeCamera({ x: 0, y: 0, w: W, h: H }, [0, 0, 0], S.aPitch, fit(H) / clamp(S.aZoom, 0.1, 10), S.aYaw);
+    const a = makeCamera({ x: 0, y: 0, w: W, h: H }, [0, 0, 0], S.aPitch, anna().dist, S.aYaw);
     const b = makeCamera({ x: 0, y: 0, w: W, h: H }, [0, 0, 0], S.pitch, fit(H) / clamp(S.zoom, 0.1, 10), 180 + S.yaw);
     return { a, b };
   }
@@ -713,7 +782,7 @@
       const { a, b } = duoCams();
       const me = k === 0 ? a : b;
       const otherIdx = k === 0 ? 1 : 0;
-      const other = poseFrom(angles[otherIdx], otherIdx === 0 ? a : b, t, otherIdx);
+      const other = otherIdx === 0 ? poseAnna(a, t) : poseFrom(angles[otherIdx], b, t, otherIdx);
       cam = me;
       const model = otherIdx === 0 ? S.duoA : S.duoB;
       const name = otherIdx === 0 ? "Аня" : "Боря";
@@ -723,20 +792,26 @@
       drawTable();
       if (other.away) drawEmptySeat(other.seat, INKS[i]);
       drawUpper(i, other, model, INKS[i], name, false, t);
+      // Свою карту Аня видит у себя: своя голова — камера, а рука с картой — вот она.
+      if (k === 0 && S.aCarry) drawCarry(poseAnna(a, t), 0);
     }
   }
 
   let t = 0, last = performance.now();
   function frame(now) {
-    t += ((now - last) / 1000) * S.speed;
+    const dtReal = Math.min(0.1, (now - last) / 1000);
+    t += dtReal * S.speed;
     last = now;
     for (const k in boxes) delete boxes[k];
     phone2.hidden = !duo();
     phone.parentElement.classList.toggle("duo", duo());
-    const still = S.aPitch === 0 && S.aYaw === 0 && S.aZoom === 1;
-    document.getElementById("cap1").textContent = duo() ? (still ? "экран Ани — камеру не трогала" : "экран Ани") : "";
+    const A = anna();
+    if (duo() && S.speed > 0) neckTick(dtReal, now);
+    const bar = S.aDrop > 0.05 ? " · шея " + "▮".repeat(Math.ceil(clamp(neck.strain / Math.max(0.1, S.neckHold), 0, 1) * 5)).padEnd(5, "▯") : "";
+    document.getElementById("cap1").textContent = duo() ? `экран Ани · ${S.aStance} · голова ${A.head.toFixed(1)}${bar}` : "";
+    document.getElementById("sit").hidden = !(duo() && S.aStance === "стоит");
     document.getElementById("cap2").textContent = duo() ? "экран Бори" : "";
-    if (duo()) { drawDuo(); window.__persona = { boxes: JSON.parse(JSON.stringify(boxes)), zoom: S.zoom, ready: true }; requestAnimationFrame(frame); return; }
+    if (duo()) { drawDuo(); window.__persona = { boxes: JSON.parse(JSON.stringify(boxes)), zoom: S.zoom, anna: { ...anna(), stance: S.aStance, cardH: S.lift * anna().head }, ready: true }; requestAnimationFrame(frame); return; }
     use(views[0]);
     ctx.clearRect(0, 0, W, H);
     const all = [0, 1, 2, 3].map((i) => ({ i, model: S[`seat${i}`], ink: INKS[i], name: NAMES[i], P: pose(i, t) }));
@@ -769,7 +844,8 @@
   let pinch = 0;
   // В «два игрока» каждый экран крутит свою камеру: левый — Анину, правый — Борину.
   for (const el of [phone, phone2]) {
-    const key = (k) => (duo() && el === phone ? { yaw: "aYaw", pitch: "aPitch", zoom: "aZoom" }[k] : k);
+    const annas = () => duo() && el === phone;
+    const key = (k) => (annas() ? { yaw: "aYaw", pitch: "aPitch" }[k] : k);
     const mine = () => true;
     el.addEventListener("pointerdown", (e) => { if (!mine()) return; el.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); });
     el.addEventListener("pointermove", (e) => {
@@ -784,14 +860,14 @@
       if (ptrs.size === 2) {
         const [a, b] = [...ptrs.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
-        if (pinch) setKnob(key("zoom"), +clamp(S[key("zoom")] * (d / pinch), 0.3, 4).toFixed(2));
+        if (pinch) { if (annas()) annaZoom(d / pinch); else setKnob("zoom", +clamp(S.zoom * (d / pinch), 0.3, 4).toFixed(2)); }
         pinch = d;
       }
     });
     const up = (e) => { ptrs.delete(e.pointerId); pinch = 0; };
     el.addEventListener("pointerup", up);
     el.addEventListener("pointercancel", up);
-    el.addEventListener("wheel", (e) => { e.preventDefault(); if (!mine()) return; setKnob(key("zoom"), +clamp(S[key("zoom")] * Math.exp(-e.deltaY * 0.0015), 0.3, 4).toFixed(2)); }, { passive: false });
+    el.addEventListener("wheel", (e) => { e.preventDefault(); if (!mine()) return; if (annas()) annaZoom(Math.exp(-e.deltaY * 0.0015)); else setKnob("zoom", +clamp(S.zoom * Math.exp(-e.deltaY * 0.0015), 0.3, 4).toFixed(2)); }, { passive: false });
   }
 
   (async () => {
@@ -806,6 +882,7 @@
     SP.openBack = backOf(SP.open, 0.45, "#8a7f70", false);
     SP.closedBack = backOf(SP.closed, 0.45, "#8a7f70", false);
     SP.back = cardBack();
+    SP.shadow = (() => { const c = document.createElement("canvas"); c.width = 100; c.height = 140; const g = c.getContext("2d"); g.filter = "blur(6px)"; g.fillStyle = "rgba(11,7,4,.55)"; g.beginPath(); g.roundRect(10, 10, 80, 120, 10); g.fill(); return c; })();
     SP.faces = HANDS_CARDS.map(([r, s, red]) => cardFace(r, s, red));
     await loadPhoto();
     requestAnimationFrame((n) => { last = n; frame(n); });
