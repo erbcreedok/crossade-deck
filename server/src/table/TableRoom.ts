@@ -10,11 +10,12 @@ import {
  hasSticker, stickersOf } from "../db/stickersRepo.js";
 import { Room, type Client } from "@colyseus/core";
 import { INKS } from "../profileInks.js";
-import { saveTableProfile, tableProfile } from "../db/tableProfilesRepo.js";
+import { tableProfile } from "../db/tableProfilesRepo.js";
 import { cleanDoll, dollFor, ownParts } from "./dolls.js";
 import { partsFor } from "./skins.js";
-import { giftFor, ownAll, ownedOf, STARTER_SET, VISIT_GAP_MS, wearable, type Gift } from "./rewards.js";
-import { grantParts, ownedParts, visit } from "../db/tableOwnedRepo.js";
+import { ownAll, ownedOf, wearable } from "./rewards.js";
+import { ownedParts } from "../db/tableOwnedRepo.js";
+import { grantDue } from "./gifts.js";
 import { iceServers, tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
 import { DEAL_PRESETS, MSG, PROTOCOL, ROOM_CLOSED, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type Recording, type AppPass, type SeatCard, type TableCommand, type Welcome, TOLD_OPS } from "./contract.js";
@@ -66,10 +67,10 @@ import { moveSays } from "./bots/say.js";
 import { botSeen, type BotsSeen, type BotTrack } from "./bots/watch.js";
 import { mayReturnRing } from "./crewRing.js";
 
-/** Имена игроков без человека — чтобы за столом сидели не «Бот 1», а кто-то. */
 /** Столько стол должен молчать, чтобы его слепок записался. */
 const KEEP_AFTER_MS = 1500;
-const BOT_NAMES = ["Айдос", "Батыр", "Ержан", "Санжар", "Данияр", "Тимур", "Алия", "Мадина"] as const;
+/** Имена игроков без человека — чтобы за столом сидели не «Бот 1», а кто-то, и было слышно, что это бот. */
+const BOT_NAMES = ["Ботырхан", "Айбот", "Ботжан", "Ербот", "Ботагоз", "Нурбот", "Ботабек", "Динабот"] as const;
 /** Больше этого за стол не сажают: мест всё-таки шестнадцать, и половину стоит оставить людям. */
 const BOTS_MOST = 8;
 /** Сколько бот думает над ходом, прежде чем за него сходит запасной. */
@@ -299,11 +300,9 @@ export class TableRoom extends Room {
       const me = this.personOf(client.sessionId);
       if (!me) return;
       const welcome = this.welcomeFor(me);
-      const gift = this.gifts.get(me.key);
       // ПРИВЕТСТВИЕ В ЖУРНАЛ — когда дошло «hello» и сколько весит ответ: медленный вход разбирается по нему.
       this.book.tell("hello", me.key, { kb: Math.round(JSON.stringify(welcome).length / 1024) });
       client.send(MSG.welcome, welcome);
-      if (gift) { this.gifts.delete(me.key); client.send(MSG.gift, gift); }
       // ИГРОКИ БЕЗ ЧЕЛОВЕКА — СРАЗУ ЗА ПРИВЕТСТВИЕМ. Это состояние стола, а не новость: пока оно
       // рассылалось только по событию, обновивший страницу не знал, что за стулом машина, — значок
       // пропадал, а вместе с ним и кнопки распорядителя под её рукой, до первой же её мысли.
@@ -863,15 +862,15 @@ export class TableRoom extends Room {
     // Аватар приложение не приносит (пропуск от бота его не знает) — пусть остаётся тот, что был.
     // КЕМ СИДИТ И КАКОГО ЦВЕТА — из профиля стола (`tableProfilesRepo.ts`): кукла, расцветка, свой цвет. Не
     // выбирал — кукла по ключу (`dollFor`). Свой цвет — если за этим столом он свободен; занят — свободный.
-    // ЗАХОД И НАГРАДА (`rewards.ts`): новый заход — может принести часть скина; сидит человек только тем, что есть.
-    const gift = this.visitOf(who.key);
+    // НАГРАДЫ (`rewards.ts`, `gifts.ts`): с Telegram впервые в комнате — аватар и фигура колоды, в личку от бота; сидит
+    // человек только тем, что есть.
+    for (const gift of grantDue(who.key, true)) this.book.tell("gift", who.key, gift);
     const chosen = this.profileOf(who.key);
     // В прогоне «всё открыто» кто не выбирал — король или дама по ключу, как до наград: так проверяется отрисовка кукол.
     const probe = ownAll() && !chosen?.doll ? { doll: who.key.length % 2 ? "king" : "queen" } : {};
     const look = { ...dollFor(who.key), ...probe, ...cleanDoll(chosen) };
     const wanted = chosen?.color && !this.table.here.some((one) => one.key !== who.key && one.ink === chosen.color) ? chosen.color : null;
     const person: Person = { ...(sitting?.photo ? { photo: sitting.photo } : {}), ...who, ink: wanted ?? sitting?.ink ?? this.freeInk(), doll: look.doll, palette: look.palette, parts: wearable(partsFor(look.doll, ownParts(chosen?.parts)), this.ownedOf(who.key)) };
-    if (gift) this.gifts.set(who.key, gift);
     // ОТКРЫЛ СТОЛ В НОВОМ ОКНЕ — старым голос больше не принадлежит: иначе они дерутся за одну связь, и
     // речь достаётся тому, кого человек уже не видит.
     for (const one of this.clients) {
@@ -916,40 +915,12 @@ export class TableRoom extends Room {
     this.spread(this.table.leave(key));
   }
 
-  /** Награды этого захода — ждут его «hello», тогда уходят ему (`MSG.gift`). */
-  private gifts = new Map<string, Gift>();
-
   /** Что есть у человека из частей скина; база недоступна — только стартовое. */
   private ownedOf(key: string): Set<string> {
     try {
       return ownedOf(ownedParts(key));
     } catch {
       return ownedOf([]);
-    }
-  }
-
-  /**
-   * ЗАХОД ЗА СТОЛ: считается (после перерыва — новый), и на новом заходе может прийти награда. Сидел палкой — новая
-   * фигура надевается сразу, чтобы было видно, что пришло; иначе — лежит в профиле. База недоступна — ничего.
-   */
-  private visitOf(key: string): Gift | null {
-    try {
-      // Перерыв между заходами — `VISIT_GAP_MS`; прогоны задают свой (`TABLE_VISIT_GAP_MS`), чтобы не ждать полчаса.
-      const gap = Number(process.env.TABLE_VISIT_GAP_MS ?? VISIT_GAP_MS);
-      const { visits, fresh } = visit(key, Number.isFinite(gap) ? gap : VISIT_GAP_MS);
-      if (!fresh) return null;
-      const owned = this.ownedOf(key);
-      const gift = giftFor(visits, owned);
-      if (!gift) return null;
-      // Чем он сидит на самом деле — выбранным, если оно у него есть; палкой — если нет.
-      const was = tableProfile(key);
-      const worn = wearable(partsFor(was?.doll ?? STARTER_SET, ownParts(was?.parts)), owned);
-      grantParts(key, gift.parts, `visit-${visits}`);
-      if (worn.body === "stick:body") saveTableProfile(key, { doll: gift.set, parts: null });
-      this.book.tell("gift", key, { ...gift, visits });
-      return gift;
-    } catch {
-      return null;
     }
   }
 

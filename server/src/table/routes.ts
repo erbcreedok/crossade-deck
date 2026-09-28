@@ -27,6 +27,7 @@ import { myRooms } from "./mine.js";
 import { carryTableProfile, saveTableProfile, tableProfile } from "../db/tableProfilesRepo.js";
 import { carryOwned, ownedParts } from "../db/tableOwnedRepo.js";
 import { ownedOf, setsOwned, wearable } from "./rewards.js";
+import { grantDue } from "./gifts.js";
 import { cleanDoll, dollFor, ownParts } from "./dolls.js";
 import { cleanParts, partsFor } from "./skins.js";
 import { INKS, inkFor } from "../profileInks.js";
@@ -289,6 +290,8 @@ export function tableRoutes(): Router {
   r.get("/table/profile", (req, res) => {
     const who = whoAsks(req);
     if (!who) return void res.status(401).json({ error: "who_are_you" });
+    // ВОШЁЛ ЧЕРЕЗ TELEGRAM — подарок за это (аватар) приходит уже здесь, до первой комнаты (`gifts.ts`).
+    grantDue(who.key, false);
     res.json(profileOut(who));
   });
   r.patch("/table/profile", (req, res) => {

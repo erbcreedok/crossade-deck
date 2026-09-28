@@ -13,7 +13,7 @@ import type { Body } from "../src/table/bodies.js";
 import { HEAD, NECK, SHOULDERS, awayOf, gazeOf, headOf, leftHandOf, shoulders3, type Point3 } from "../src/table/bodies.js";
 import type { Doll } from "../src/table/dolls.js";
 import { partGeom, partSprite, type DollSprite } from "./dollSprites.js";
-import { VIEW_DIRS, drawnView, partOf, pickView, type Part, type Parts } from "../src/table/skins.js";
+import { AVATAR, VIEW_DIRS, drawnView, partOf, pickView, type Part, type Parts } from "../src/table/skins.js";
 import { PIP_AT } from "./skinArt.js";
 import { DISC, R, RIM, SEAT } from "./felt.js";
 import { seatPoint } from "../src/table/ring.js";
@@ -38,6 +38,8 @@ export interface BodyLook {
   doll: Doll;
   palette: number;
   parts: Parts;
+  /** Фото из Telegram — в голове-аватаре (`AVATAR`). */
+  photo?: string;
 }
 
 /** Где взять векторы кукол и кого позвать, когда спрайт испёкся. */
@@ -166,7 +168,7 @@ const LEGS_H = 3.8;
 /** Свет на кубике: сверху-спереди — верх светлее, бока темнее. */
 const LIGHT = (() => { const v = { x: -0.4, y: 0.5, h: 0.9 }, n = Math.hypot(v.x, v.y, v.h); return { x: v.x / n, y: v.y / n, h: v.h / n }; })();
 
-function dollHtml({ body, angle, ink, name, holding, doll, palette, parts }: BodyLook, toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string, src: DollSource): string | null {
+function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo }: BodyLook, toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string, src: DollSource): string | null {
   if (isStick(parts)) return null;
   const bodyPart = partOf(parts.body), headPart = partOf(parts.head);
   if (!bodyPart || !headPart) return null;
@@ -268,6 +270,11 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts }: Bod
   const headFace = facingOf(headPart, headView, g, pose.head);
   const hw = DOLL_SIZE.head;
   const head = headPart.facing === "box" ? cubeSvg(pose.head, hw * 0.9, g, palette) : plane(face, pose.head, headUp, hw * headFace.squeeze, pose.headH, [0.5, 0.5], flip, "doll-head", 0, headFace.across);
+  // ГОЛОВА-АВАТАР: шар, а в нём — фото человека, кружком поверх.
+  const photoD = hw * 0.74 * local(toGlass, pose.head);
+  const avatar = parts.head === AVATAR && photo
+    ? `<img data-g="doll-photo" src="${esc(photo)}" alt="" draggable="false" style="position:absolute;left:${(H.x - photoD / 2).toFixed(1)}px;top:${(H.y - photoD / 2).toFixed(1)}px;width:${photoD.toFixed(1)}px;height:${photoD.toFixed(1)}px;border-radius:50%;object-fit:cover;pointer-events:none">`
+    : "";
   // ПРИЧЁСКА — на макушке, в осях головы.
   let hair = "";
   const hairPart = partOf(parts.hair);
@@ -335,6 +342,7 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts }: Bod
     + (behind ? chairBack : "")
     + svg
     + head
+    + avatar
     + hair
     + hand(pose.left, "hand-closed", "left-hand", !behind)
     + (right ? hand(right, holding ? "hand-closed" : "hand-open", "right-hand", behind) : "")

@@ -57,7 +57,7 @@ import { baseZoom, freshNeck, headAt, neckStep, risesAt } from "./neck.js";
 import { bodiesHtml, dollPose, isStick } from "./bodyView.js";
 import { partSprite, warmParts } from "./dollSprites.js";
 import { dollFor, type Doll, type DollLook } from "../src/table/dolls.js";
-import { partOf, partsFor, type Parts } from "../src/table/skins.js";
+import { AVATAR, partOf, partsFor, type Parts } from "../src/table/skins.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, VOICE_OPEN, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
@@ -3187,7 +3187,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       if (!person || !chair || body.by === me()) return [];
       // Несёт ли он сейчас карту — правая рука тогда сжата.
     const holding = store.carries.some((c) => c.by === body.by);
-    return [{ body, angle: chair.angle, ink: person.ink, name: person.name, holding, ...dollOf(person) }];
+    return [{ body, angle: chair.angle, ink: person.ink, name: person.name, holding, ...dollOf(person), ...(person.photo ? { photo: person.photo } : {}) }];
     });
     return bodiesHtml(looks, (p, h) => lens.toGlass(p, h), { black: T.black, ink: T.ink, danger: PALETTE.danger }, spriteUrl, dollSource);
   }
@@ -3247,7 +3247,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         ...(sitter ? { name: sitter.name, ink: sitter.ink } : {}),
         // ЧЕМ ДУМАЕТ ИГРОК БЕЗ ЧЕЛОВЕКА — прямо на табличке: играя против машины, надо видеть, против какой.
         ...(sitter?.brain ? { brain: sitter.brain } : {}),
-        ...(sitter?.photo ? { face: face(sitter) } : {}),
+        // ФОТО В КРУЖКЕ — только у головы-аватара (награда за Telegram, `rewards.ts`) и у крупье; шар — просто шар.
+        ...(sitter?.photo && (sitter.bot || dollOf(sitter).parts.head === AVATAR) ? { face: face(sitter) } : {}),
         // ОТ КОГО ЖДУТ ХОДА — стрелка перед его стулом. Читается из судьи (`Snapshot.play`), гасится
         // правилом стола: за столом, где ходы считают сами, подсказка мешает.
         ...(s.rules.turnMark && s.play?.turn !== null && s.play?.turn === sitter?.key ? { awaited: true } : {}),
@@ -4959,20 +4960,6 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   // ЖУРНАЛ ВЕДЁТСЯ ВСЕГДА, открыт он или нет: иначе открывший увидел бы пустоту и решил, что
   // ничего не было. Перерисовываем только когда он на виду — незачем трогать экран ради записи,
   // которую никто не читает.
-  // НАГРАДА ЗАХОДА (`rewards.ts`) — золотой плашкой сверху, пока не прочитал: что пришло и где его сменить.
-  store.onGift?.((gift) => {
-    const note = document.createElement("div");
-    note.dataset.g = "gift";
-    note.style.cssText = "position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 76px);transform:translateX(-50%);z-index:210;max-width:86%;padding:10px 14px;border-radius:12px;text-align:center;"
-      + "background:linear-gradient(#f8d885,#d9a93a);color:#1a0f06;box-shadow:inset 0 0 0 2px #0b0704,0 4px 0 #0b0704;font:400 13px Tiny5,monospace;opacity:0;transition:opacity .25s";
-    note.textContent = `Награда: ${gift.name} — голова, тело и ноги. Сменить — в профиле`;
-    stage.appendChild(note);
-    requestAnimationFrame(() => (note.style.opacity = "1"));
-    const off = () => { note.style.opacity = "0"; setTimeout(() => note.remove(), 300); };
-    note.addEventListener("pointerdown", off);
-    setTimeout(off, 6000);
-  });
-
   // ПРОПУСК НА ЗАПИСЬ ПРИШЁЛ — собираем адрес от того имени, по которому открыт стол, и показываем.
   store.onReplay?.((one) => {
     // АДРЕС — ТОТ ЖЕ, ПО КОТОРОМУ ОТКРЫТ СТОЛ, и путь тот же: снаружи стол живёт за постоянным

@@ -4,7 +4,7 @@
 // что за столом (`dollSprites.ts`), поэтому в профиле видно ровно то, что увидят за столом.
 
 import { PALETTES } from "../src/table/dolls.js";
-import { drawnView, partOf, pickView, SLOTS, VIEW_DIRS, type Part, type Parts, type Slot } from "../src/table/skins.js";
+import { AVATAR, drawnView, partOf, pickView, SLOTS, VIEW_DIRS, type Part, type Parts, type Slot } from "../src/table/skins.js";
 import { partGeom, partSprite, warmParts } from "./dollSprites.js";
 import { PIP_AT } from "./skinArt.js";
 
@@ -67,6 +67,8 @@ export interface SkinLook {
   parts: Parts;
   palette: number;
   ink: string;
+  /** Фото из Telegram — в голове-аватаре (`AVATAR`). */
+  photo?: string;
 }
 
 export interface SkinStage {
@@ -89,6 +91,12 @@ export function mountSkinStage(box: HTMLElement, base: string, first: SkinLook):
   box.innerHTML = `<canvas style="position:absolute;inset:0;width:100%;height:100%"></canvas>`
     + `<div style="position:absolute;left:8px;bottom:8px;display:flex;gap:6px"><button class="btn on" data-stance="sit">сидит</button><button class="btn" data-stance="stand">стоит</button></div>`;
   const cv = box.querySelector("canvas")!;
+  // ФОТО ГОЛОВЫ-АВАТАРА — кружком поверх холста, в точке головы: на холст чужую картинку не положить.
+  const photo = document.createElement("img");
+  photo.dataset.g = "stage-photo";
+  photo.alt = "";
+  photo.style.cssText = "position:absolute;left:0;top:0;border-radius:50%;object-fit:cover;pointer-events:none;display:none";
+  box.appendChild(photo);
   for (const b of box.querySelectorAll<HTMLElement>("[data-stance]")) {
     b.onclick = (e) => {
       e.stopPropagation();
@@ -225,6 +233,12 @@ export function mountSkinStage(box: HTMLElement, base: string, first: SkinLook):
       }
       drawProjected(g, dpr, q.img!, (u, v) => proj(lerp3(u, v)), q.vMax ?? 1);
     }
+    const face = look.parts.head === AVATAR && look.photo ? proj([0, 0, headZ]) : null;
+    if (face && look.photo) {
+      const z = dot(sub([0, 0, headZ], eye), fw), d = (2.5 * 0.74 * f) / z;
+      if (photo.getAttribute("src") !== look.photo) photo.src = look.photo;
+      Object.assign(photo.style, { display: "block", width: `${d}px`, height: `${d}px`, transform: `translate(${face.x - d / 2}px,${face.y - d / 2}px)` });
+    } else photo.style.display = "none";
     box.dataset.views = SLOTS.map((s) => `${s}:${views[s] ?? "-"}`).join(" ");
     if (!still) draw();
   }

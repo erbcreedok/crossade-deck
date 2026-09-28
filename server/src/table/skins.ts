@@ -81,6 +81,8 @@ export const PARTS: readonly Part[] = [
   ...COURTS.flatMap(([id, card, name]) => (["head", "body"] as const).map((slot): Part => ({ id: `${id}:${slot}`, slot, name, art: { kind: "court", card }, views: ["front", "back"], facing: "tilt", recolor: true }))),
   ...BEASTS.flatMap(([id, name, views]) => (["head", "body"] as const).map((slot): Part => ({ id: `${id}:${slot}`, slot, name, art: { kind: "file", dir: id }, views, mirror: SIDE_MIRROR, facing: id === "crusader" ? "view" : "tilt", recolor: true }))),
   { id: "ball:head", slot: "head", name: "Шар", art: { kind: "draw", art: "ball" }, views: ["front"], facing: "camera", recolor: true },
+  // Голова-аватар: тот же шар, но в нём — фото человека из Telegram (рисует его стол, фото у каждого своё).
+  { id: "avatar:head", slot: "head", name: "Аватар", art: { kind: "draw", art: "ball" }, views: ["front"], facing: "camera", recolor: true },
   { id: "cube:head", slot: "head", name: "Кубик", art: { kind: "draw", art: "cube" }, views: ["front", "back", "right", "left", "top", "bottom"], facing: "box", recolor: true },
   { id: "stick:body", slot: "body", name: "Палка", art: { kind: "draw", art: "stick" }, views: ["front"], facing: "camera", recolor: true },
   { id: "barrel:body", slot: "body", name: "Бочонок", art: { kind: "draw", art: "barrel" }, views: Object.keys(ring(18)), facing: "camera", recolor: true },
@@ -103,6 +105,9 @@ export const SETS: readonly SkinSet[] = [
   set("stick", "Палка", "ball:head", "stick:body", "stick:legs"),
   set("mix", "Шар и бочонок", "ball:head", "barrel:body", "stick:legs", "cap:hair"),
 ];
+
+/** Голова-аватар: кружок с фото человека из Telegram (выдаётся наградой, `rewards.ts`). */
+export const AVATAR = "avatar:head";
 
 export const partOf = (id: string): Part | undefined => PARTS.find((p) => p.id === id);
 export const setOf = (id: string): SkinSet | undefined => SETS.find((s) => s.id === id);

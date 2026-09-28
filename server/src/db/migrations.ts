@@ -406,4 +406,11 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 22,
+    up(db) {
+      // Награды больше не считают заходы: они за вход через Telegram и за первую комнату (`rewards.ts`).
+      db.exec(`DROP TABLE table_visits;`);
+    },
+  },
 ];

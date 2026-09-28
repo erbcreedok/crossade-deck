@@ -1,28 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { FIRST_GIFT_VISIT, giftFor, ownedOf, setsOwned, STARTER, wearable } from "./rewards.js";
+import { AVATAR, giftsDue, giftText, ownedOf, putOn, setsOwned, STARTER, wearable } from "./rewards.js";
 import { partsFor, SETS } from "./skins.js";
 
 describe("награды: не все части открыты всем", () => {
-  it("вначале у каждого только палка с кружком-аватаром — и это единственный целый набор", () => {
+  it("вначале у каждого только шар и палка — и это единственный целый набор; аватара нет", () => {
     const owned = ownedOf([]);
     expect(STARTER).toContain("stick:body");
     expect(STARTER).toContain("ball:head");
+    expect(owned.has(AVATAR)).toBe(false);
     expect(setsOwned(owned).map((s) => s.id)).toEqual(["stick"]);
   });
 
-  it("на втором заходе — случайная фигура колоды: голова, тело и ноги двора; на первом и третьем — ничего", () => {
-    const owned = ownedOf([]);
-    expect(giftFor(1, owned)).toBeNull();
-    const gift = giftFor(FIRST_GIFT_VISIT, owned, () => 0)!;
-    const set = SETS.find((s) => s.id === gift.set)!;
-    expect(gift.parts).toEqual([set.parts.head, set.parts.body, "legs-card:legs"]);
-    expect(giftFor(3, owned)).toBeNull();
+  it("гость приложения без Telegram не получает ничего — ни в профиле, ни в комнате", () => {
+    expect(giftsDue("dev:abc", ownedOf([]), false)).toEqual([]);
+    expect(giftsDue("dev:abc", ownedOf([]), true)).toEqual([]);
   });
 
-  it("случай выбирает разные фигуры, и получивший фигуру второй раз не получает", () => {
-    const a = giftFor(FIRST_GIFT_VISIT, ownedOf([]), () => 0)!, b = giftFor(FIRST_GIFT_VISIT, ownedOf([]), () => 0.99)!;
+  it("вошёл через Telegram — аватар; в профиле фигура колоды не приходит, в первой комнате — приходит целиком", () => {
+    expect(giftsDue("tg:1", ownedOf([]), false).map((g) => g.why)).toEqual(["telegram"]);
+    const [avatar, figure] = giftsDue("tg:1", ownedOf([]), true, () => 0);
+    expect(avatar!.parts).toEqual([AVATAR]);
+    const set = SETS.find((s) => s.id === figure!.set)!;
+    expect(figure!.parts).toEqual([set.parts.head, set.parts.body, "legs-card:legs"]);
+  });
+
+  it("каждая награда — один раз; случай выбирает разные фигуры", () => {
+    const a = giftsDue("tg:1", ownedOf([AVATAR]), true, () => 0)[0]!, b = giftsDue("tg:1", ownedOf([AVATAR]), true, () => 0.99)[0]!;
     expect(a.set).not.toBe(b.set);
-    expect(giftFor(FIRST_GIFT_VISIT, ownedOf(a.parts))).toBeNull();
+    expect(giftsDue("tg:1", ownedOf([AVATAR, ...a.parts]), true)).toEqual([]);
+  });
+
+  it("надевается, только если сидит стартовым: палка → фигура целиком, шар → аватар; своё не трогается", () => {
+    const [avatar, figure] = giftsDue("tg:1", ownedOf([]), true, () => 0);
+    expect(putOn(partsFor("stick"), [avatar!, figure!])).toEqual({ doll: figure!.set, parts: null });
+    expect(putOn(partsFor("stick"), [avatar!])).toEqual({ parts: { head: AVATAR } });
+    expect(putOn(partsFor("cube"), [avatar!])).toBeNull();
+  });
+
+  it("письмо в личку называет, что пришло", () => {
+    const [avatar, figure] = giftsDue("tg:1", ownedOf([]), true, () => 0);
+    expect(giftText(avatar!)).toMatch(/аватар/);
+    expect(giftText(figure!)).toContain(figure!.name);
   });
 
   it("сидеть можно только тем, что есть: чужая часть заменяется стартовой того же слота", () => {

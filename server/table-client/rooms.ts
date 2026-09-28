@@ -12,7 +12,7 @@
 
 import { FAVOURITE_INKS as INKS, PALETTE } from "../../look/src/palette.js";
 import { MAIN_PALETTES, PALETTES, type Doll } from "../src/table/dolls.js";
-import { PARTS, SETS, SLOT_NAMES, SLOTS, partOf, partsFor, setMatching, shownViews, type Facing, type Part, type Parts, type Slot } from "../src/table/skins.js";
+import { AVATAR, PARTS, SETS, SLOT_NAMES, SLOTS, partOf, partsFor, setMatching, shownViews, type Facing, type Part, type Parts, type Slot } from "../src/table/skins.js";
 import { nativeShell } from "./arNative.js";
 import { partSprite } from "./dollSprites.js";
 import { mountSkinStage, type SkinStage } from "./skinStage.js";
@@ -275,7 +275,7 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
   let more = false;
   /** Сцена с моей фигурой — одна на открытый лист (`skinStage.ts`). */
   let stage: SkinStage | null = null;
-  const lookOf = (p: Profile) => ({ parts: p.parts, palette: p.palette, ink: p.color });
+  const lookOf = (p: Profile) => ({ parts: p.parts, palette: p.palette, ink: p.color, ...(p.photo ? { photo: p.photo } : {}) });
   function openProfile(): void {
     if (!profile) return;
     const p = profile;
@@ -313,7 +313,7 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
         + `<div class="label">Части — у каждой свои стороны</div>`
         + `<div class="tabs">${SLOTS.map((slot) => `<button class="btn${tab === slot ? " on" : ""}" data-tab="${slot}">${SLOT_NAMES[slot]}</button>`).join("")}</div>`
         + `<div class="parts">${parts.map((part) => card(part.name, partThumb(part, p), p.parts[tab] === part.id, `data-part="${part.id}"`, part.art.kind === "none" ? "" : String(shownViews(part).length), part.art.kind === "none" ? "" : FACING_SAID[part.facing])).join("")}</div>`
-        + `<div class="lead" style="margin-top:12px">Новые фигуры и части приходят наградой — заходи в игру.</div>`
+        + `<div class="lead" style="margin-top:12px">${p.telegram ? "Новые фигуры и части приходят наградой — бот напишет в личку." : "Привяжи Telegram — придут подарки: твой аватар и фигура колоды."}</div>`
         + `</div>`;
       for (const el of layer.querySelectorAll<HTMLElement>("[data-close]")) el.onclick = () => { building = false; stage?.destroy(); layer.innerHTML = ""; };
       layer.querySelector<HTMLElement>("[data-back]")!.onclick = () => { building = false; draw(); };
@@ -357,6 +357,8 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
   /** Картинка части для карточки — её первая сторона в моей расцветке; нет рисунка или печётся — знак. */
   function partThumb(part: Part, p: Profile): string {
     if (part.art.kind === "none") return `<span class="none">—</span>`;
+    // Голова-аватар — его фото кружком.
+    if (part.id === AVATAR && p.photo) return `<img class="face" src="${esc(p.photo)}" alt="" style="border-radius:50%;object-fit:cover">`;
     const ready = () => { for (const el of layer.querySelectorAll(`[data-thumb="${part.id}"]`)) el.outerHTML = partThumb(part, p); };
     const spr = partSprite(part.id, p.palette, part.views[0]!, p.color, HOST, ready);
     return spr ? `<img class="face" src="${spr.src}" alt="">` : `<span class="none" data-thumb="${part.id}">…</span>`;

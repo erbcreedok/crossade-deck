@@ -1,25 +1,29 @@
 // НАГРАДЫ — ЧТО ЕСТЬ У ЧЕЛОВЕКА ИЗ ЧАСТЕЙ СКИНА (`skins.ts`). Все части не открыты всем: вначале у каждого только
-// палка с кружком, в котором его аватар из Telegram (`STARTER`), остальное приходит наградой. Первая награда — на
-// втором заходе в игру: случайный король, дама или валет колоды — голова, тело и ноги двора.
+// шар и палка (`STARTER`), остальное приходит наградой, и приходит оно в личку от бота (`giftMail.ts`):
+//   - вошёл через Telegram — подарок за Telegram: голова-аватар, кружок с его фото (`AVATAR`);
+//   - с Telegram впервые сел в комнату (любую, хоть одному) — случайный король, дама или валет колоды: голова,
+//     тело и ноги двора.
+// Гость приложения без Telegram наград не получает: писать ему некуда.
 //
-// Заход — вход за стол после перерыва не меньше `VISIT_GAP_MS`: перезагрузка страницы и переподключение — тот же
-// заход. Чистые правила; где что лежит, решает `db/tableOwnedRepo.ts`.
+// Чистые правила; где что лежит, решает `db/tableOwnedRepo.ts`.
 
-import { PARTS, partOf, SETS, SLOTS, type Parts, type SkinSet } from "./skins.js";
+import { AVATAR, PARTS, partOf, SETS, SLOTS, type Parts, type SkinSet } from "./skins.js";
 
-/** С чем приходит каждый: палка, её ноги и кружок-голова (в нём — аватар из Telegram), руки. */
+/** С чем приходит каждый: палка, её ноги, простой шар-голова, руки. */
 export const STARTER_SET = "stick";
 export const STARTER: readonly string[] = [...new Set([...Object.values(SETS.find((s) => s.id === STARTER_SET)!.parts), "none:hair"])];
+export { AVATAR };
 
-/** Перерыв, после которого вход за стол — новый заход. */
-export const VISIT_GAP_MS = 30 * 60_000;
-/** На каком заходе — первая награда. */
-export const FIRST_GIFT_VISIT = 2;
-/** Фигуры колоды — из них первая награда. */
+/** Фигуры колоды — из них награда за первую комнату. */
 const COURT_SETS = SETS.filter((s) => partOf(s.parts.body)?.art.kind === "court");
 
+/** За что награда: `telegram` — вошёл через Telegram, `room` — с Telegram сел в комнату. */
+export type GiftWhy = "telegram" | "room";
+
 export interface Gift {
-  set: string;
+  why: GiftWhy;
+  /** Набор, если награда — целая фигура. */
+  set?: string;
   name: string;
   parts: string[];
 }
@@ -36,17 +40,33 @@ export const ownedOf = (got: readonly string[]): Set<string> => new Set(ownAll()
 /** Готовые наборы, которые целиком есть у человека. */
 export const setsOwned = (owned: ReadonlySet<string>): SkinSet[] => SETS.filter((s) => SLOTS.every((k) => owned.has(s.parts[k])));
 
+/** Ключ человека из Telegram — ему есть куда писать. */
+export const viaTelegram = (key: string): boolean => key.startsWith("tg:");
+
 /**
- * НАГРАДА ЗА ЗАХОД: на `FIRST_GIFT_VISIT`-м — случайная фигура колоды, которой у него ещё нет (голова, тело и ноги
- * двора). Уже получал фигуру или все есть — ничего. `pick` — случайное число [0, 1), подменяется в проверках.
+ * КАКИЕ НАГРАДЫ ЕМУ ПОЛОЖЕНЫ СЕЙЧАС: `inRoom` — он садится в комнату (а не открыл профиль). Каждая — один раз:
+ * что уже есть, второй раз не приходит. `pick` — случайное число [0, 1), подменяется в проверках.
  */
-export function giftFor(visits: number, owned: ReadonlySet<string>, pick: () => number = Math.random): Gift | null {
-  if (visits !== FIRST_GIFT_VISIT) return null;
-  if (COURT_SETS.some((s) => owned.has(s.parts.body))) return null;
-  const left = COURT_SETS.filter((s) => !owned.has(s.parts.body));
-  if (left.length === 0) return null;
-  const set = left[Math.min(left.length - 1, Math.floor(pick() * left.length))]!;
-  return { set: set.id, name: set.name, parts: [set.parts.head, set.parts.body, set.parts.legs] };
+export function giftsDue(key: string, owned: ReadonlySet<string>, inRoom: boolean, pick: () => number = Math.random): Gift[] {
+  if (!viaTelegram(key)) return [];
+  const out: Gift[] = [];
+  if (!owned.has(AVATAR)) out.push({ why: "telegram", name: "Аватар из Telegram", parts: [AVATAR] });
+  if (inRoom && !COURT_SETS.some((s) => owned.has(s.parts.body))) {
+    const set = COURT_SETS[Math.min(COURT_SETS.length - 1, Math.floor(pick() * COURT_SETS.length))]!;
+    out.push({ why: "room", set: set.id, name: set.name, parts: [set.parts.head, set.parts.body, set.parts.legs] });
+  }
+  return out;
+}
+
+/**
+ * НАДЕТЬ ПОЛУЧЕННОЕ, если сидит стартовым: шар-голова меняется на аватар, палка — на фигуру целиком. Что выбрал
+ * сам — не трогается. Отвечает, что записать в профиль, или `null`, если ничего.
+ */
+export function putOn(worn: Parts, gifts: readonly Gift[]): { doll?: string; parts: Partial<Parts> | null } | null {
+  const figure = gifts.find((g) => g.set);
+  if (figure && worn.body === "stick:body") return { doll: figure.set!, parts: null };
+  if (gifts.some((g) => g.parts.includes(AVATAR)) && worn.head === "ball:head") return { parts: { head: AVATAR } };
+  return null;
 }
 
 /** Сборка, которой можно сидеть: часть, которой у человека нет, заменяется стартовой того же слота. */
@@ -55,4 +75,10 @@ export function wearable(parts: Parts, owned: ReadonlySet<string>): Parts {
   const out = { ...parts };
   for (const slot of SLOTS) if (!owned.has(out[slot])) out[slot] = starter[slot];
   return out;
+}
+
+/** Что написать в личку о награде. */
+export function giftText(gift: Gift): string {
+  if (gift.why === "telegram") return "🎁 Подарок за вход через Telegram: твой аватар — кружок с фото — теперь голова твоей фигуры за столом.\nСменить — в профиле, «Кем сидеть».";
+  return `🎁 Тебе пришёл новый скин: ${gift.name} — голова, тело и ноги.\nНадеть или сменить — в профиле комнаты, «Кем сидеть».`;
 }

@@ -1,8 +1,10 @@
-// ПРОФИЛЬ СТОЛА — «Мои комнаты» в виде хаба, сверху я; по тапу — профиль: кукла (король или дама), расцветка
-// (5 основных и «ещё»), мой цвет; «Привязать Telegram» у гостя приложения. Выбор живёт в профиле стола и
-// садится за стол вместе с человеком. Приложение здесь подменено: `__crossadeNative` пишет вызовы входа.
-//   TABLE_SECRET=probe TABLE_GUESTS=1 TELEGRAM_BOT_TOKEN=test CROSSADE_DB_FILE=":memory:" TABLE_VISIT_GAP_MS=0 PORT=2611 npx tsx src/index.ts
+// ПРОФИЛЬ СТОЛА — «Мои комнаты» в виде хаба, сверху я; по тапу — профиль: фигура, расцветка (5 основных и «ещё»),
+// мой цвет; «Привязать Telegram» у гостя приложения. Выбор живёт в профиле стола и садится за стол вместе с
+// человеком. НАГРАДЫ: гость — только шар и палка; привязал Telegram — аватар; первая комната — фигура колоды (в
+// личку от бота; плашки за столом нет). Приложение здесь подменено: `__crossadeNative` пишет вызовы входа.
+//   TABLE_SECRET=probe TABLE_GUESTS=1 TELEGRAM_BOT_TOKEN=test CROSSADE_DB_FILE=":memory:" PORT=2611 npx tsx src/index.ts
 //   node scripts/tableProfile.mjs [base] [shots-dir]
+import { createHash, createHmac } from "node:crypto";
 import { createRequire } from "module";
 const require = createRequire(process.env.PW_FROM ?? import.meta.url);
 const { chromium } = require("playwright");
@@ -12,7 +14,7 @@ const shots = process.argv[3];
 const checks = [];
 const check = (name, ok, got) => checks.push({ name, ok, got });
 
-const { key } = await (await fetch(`${base}/table/app/guest`, { method: "POST" })).json();
+let { key } = await (await fetch(`${base}/table/app/guest`, { method: "POST" })).json();
 // Свой стол у гостя есть сразу — в списке будет карточка.
 const { room } = await (await fetch(`${base}/table/app/rooms`, { method: "POST", headers: { "content-type": "application/json", "x-crossade-app-key": key }, body: JSON.stringify({ title: "Свой стол" }) })).json();
 const browser = await chromium.launch();
@@ -55,7 +57,7 @@ await p.click("[data-pick-skin]");
 await p.waitForSelector("[data-builder]");
 const offered = async () => ({ sets: await p.locator("[data-builder] [data-doll]").evaluateAll((els) => els.map((e) => e.dataset.doll)), heads: await p.locator("[data-builder] [data-part]").evaluateAll((els) => els.map((e) => e.dataset.part)) });
 const start = await offered();
-check("вначале в конструкторе только палка с кружком-аватаром: остальное приходит наградой", JSON.stringify(start.sets) === '["stick"]' && JSON.stringify(start.heads) === '["ball:head"]', start);
+check("вначале у гостя в конструкторе только шар и палка: остальное приходит наградой", JSON.stringify(start.sets) === '["stick"]' && JSON.stringify(start.heads) === '["ball:head"]', start);
 await p.click("[data-back]");
 await p.waitForSelector("[data-profile]");
 await p.click('[data-pal="12"]');
@@ -66,7 +68,6 @@ if (shots) await p.screenshot({ path: `${shots}/profile-2-sheet.png` });
 await p.click('[data-tg-link]');
 check("«Привязать Telegram» — вход приложения, с ключом гостя", JSON.stringify(await p.evaluate(() => window.__logins)) === JSON.stringify([key]), await p.evaluate(() => window.__logins));
 
-// ДВА ЗАХОДА ЗА СТОЛ (перерыв у прогона — ноль): на втором — награда, фигура колоды, и она сразу на нём.
 const enter = async () => {
   await p.goto(`${base}/table/?room=${room}&key=${encodeURIComponent(key)}`);
   await p.waitForSelector("[data-section]", { timeout: 15000 }).catch(() => {});
@@ -74,12 +75,20 @@ const enter = async () => {
 };
 const meAt = () => p.evaluate(() => { const s = window.__tableState?.(); return s?.people.find((x) => x.door === "app" && !x.bot); });
 await enter();
-check("первый заход — палкой, без награды", (await meAt())?.parts?.body === "stick:body" && (await p.locator('[data-g="gift"]').count()) === 0, await meAt());
+check("гость в комнате — шар и палка, наград нет", (await meAt())?.parts?.body === "stick:body" && (await meAt())?.parts?.head === "ball:head", await meAt());
+
+// ПРИВЯЗАЛ TELEGRAM (вход приложения, подписанный токеном бота прогона): ключ гостя едет с ним.
+const login = { id: 99001, first_name: "Проба", auth_date: Math.floor(Date.now() / 1000), photo_url: `${base}/table/sprites/club-K.svg` };
+const dcs = Object.entries(login).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => `${k}=${v}`).join("\n");
+const hash = createHmac("sha256", createHash("sha256").update("test").digest()).update(dcs).digest("hex");
+({ key } = await (await fetch(`${base}/table/app/telegram`, { method: "POST", headers: { "content-type": "application/json", "x-crossade-app-key": key }, body: JSON.stringify({ ...login, hash }) })).json());
+await open();
+await openProfile();
+check("привязал Telegram — подарок: голова-аватар, и шар сменился на неё", await p.evaluate(() => document.querySelector("[data-pick-skin]")?.dataset.current) === "own" && (await p.locator('[data-doll-preview] [data-g="stage-photo"]').isVisible()), await viewsNow());
+
 await enter();
-const giftSaid = await p.locator('[data-g="gift"]').textContent().catch(() => null);
-if (shots) await p.screenshot({ path: `${shots}/profile-5-gift.png` });
 const me = await meAt();
-check("второй заход — награда: плашка «Награда: …», и фигура колоды сразу на нём", /Награда: /.test(giftSaid ?? "") && /:body$/.test(me?.parts?.body ?? "") && me?.parts?.body !== "stick:body" && me?.parts?.legs === "legs-card:legs" && me?.palette === 12 && me?.ink === "#e0483f", { giftSaid, me });
+check("первая комната с Telegram — фигура колоды сразу на нём, расцветка и цвет гостя при нём, плашки нет", /:body$/.test(me?.parts?.body ?? "") && me?.parts?.body !== "stick:body" && me?.parts?.legs === "legs-card:legs" && me?.palette === 12 && me?.ink === "#e0483f" && (await p.locator('[data-g="gift"]').count()) === 0, me);
 const giftSet = me?.doll;
 
 // После — в конструкторе два набора: палка и полученная фигура; её голову можно сменить на шар.
@@ -101,6 +110,8 @@ await p.waitForSelector("[data-builder]");
 const after = await offered();
 check("в конструкторе — палка и полученная фигура", after.sets.length === 2 && after.sets.includes("stick") && after.sets.includes(giftSet), after);
 await p.click('[data-tab="head"]');
+const heads = (await offered()).heads;
+check("среди голов — шар, аватар (его фото) и голова фигуры", heads.includes("ball:head") && heads.includes("avatar:head") && heads.includes(`${giftSet}:head`) && (await p.locator('[data-part="avatar:head"] img').getAttribute("src"))?.includes("club-K"), heads);
 await p.click('[data-part="ball:head"]');
 await p.waitForTimeout(600);
 if (shots) await p.screenshot({ path: `${shots}/profile-4-builder.png` });

@@ -8,7 +8,7 @@ import { applyPatch } from "./patch.js";
 import { findEntry, keepLobbyIn, keptStateOf, openEntry, runIn } from "./lobby.js";
 import { dropRoom, keepCard, keepState, keptRooms, keptState } from "../db/tableRoomsRepo.js";
 import { saveTableProfile } from "../db/tableProfilesRepo.js";
-import { grantParts } from "../db/tableOwnedRepo.js";
+import { grantParts, ownedParts } from "../db/tableOwnedRepo.js";
 import { partsFor } from "./skins.js";
 import { BOT_KEY } from "./botPerson.js";
 import type { Say, Shot } from "./say.js";
@@ -77,28 +77,27 @@ describe("TableRoom", () => {
     const b = await sit(room, { door: "telegram", initData: initData(772, "Боря") });
     const him = b.welcome.snapshot.people.find((p) => p.key === "tg:772")!;
     expect(him.ink, "его цвет уже у Ани — ему свободный").not.toBe("#e0483f");
-    expect(him.doll, "кто не выбирал — палкой: остальное приходит наградой").toBe("stick");
+    expect(him.parts?.body, "кто не выбирал, с Telegram в первой комнате — сразу в полученной фигуре колоды").toMatch(/^(club|diamond|heart|spade|king|queen)[-A-Z]*:body$/);
     expect(typeof him.palette).toBe("number");
   });
 
-  it("выбрал набор, которого у него нет, — сидит палкой; на втором заходе — награда: фигура колоды, и он её видит", async () => {
+  it("с Telegram впервые в комнате — аватар и фигура колоды, надета сразу; второй раз — ничего нового; гость — только шар и палка", async () => {
     saveTableProfile("tg:781", { doll: "crusader" });
     const room = mintRoom(SECRET);
     const first = await sit(room, { door: "telegram", initData: initData(781, "Вера") });
     const me1 = first.welcome.snapshot.people.find((p) => p.key === "tg:781")!;
-    expect(me1.parts?.body, "крестоносца у неё нет").toBe("stick:body");
+    const got = ownedParts("tg:781");
+    expect(got, "аватар — подарок за Telegram").toContain("avatar:head");
+    const figure = got.find((id) => id.endsWith(":body"))!;
+    expect(got, "фигура колоды целиком: голова, тело, ноги двора").toEqual(expect.arrayContaining([figure.replace(":body", ":head"), "legs-card:legs"]));
+    expect(me1.parts?.body, "крестоносца у неё нет, сидела палкой — фигура надета сразу").toBe(figure);
     await first.client.leave();
-    // второй заход — после перерыва: сдвигаем время её прошлого захода назад
-    const { db } = await import("../db/open.js");
-    db().prepare("UPDATE table_visits SET last_at = last_at - ? WHERE key = ?").run(31 * 60_000, "tg:781");
-    let gift: { set: string; parts: string[] } | undefined;
-    const again = await sit(room, { door: "telegram", initData: initData(781, "Вера") }, (c) => c.onMessage(MSG.gift, (g: never) => (gift = g)));
-    await new Promise((r) => setTimeout(r, 100));
-    expect(gift, "награда пришла ей сразу после приветствия").toBeDefined();
-    const me2 = again.welcome.snapshot.people.find((p) => p.key === "tg:781")!;
-    expect(me2.parts?.body, "сидела палкой — новая фигура надета сразу").toBe(`${gift!.set}:body`);
-    expect(gift!.parts).toHaveLength(3);
-    expect(gift!.parts[2]).toBe("legs-card:legs");
+    await sit(room, { door: "telegram", initData: initData(781, "Вера") });
+    expect(ownedParts("tg:781"), "за вторую комнату ничего нового").toEqual(got);
+    const guest = await sit(room, { door: "guest", name: "Гость" });
+    const g = guest.welcome.snapshot.people.find((p) => p.name === "Гость")!;
+    expect(g.parts).toMatchObject({ head: "ball:head", body: "stick:body" });
+    expect(ownedParts(g.key), "гостю писать некуда — наград нет").toEqual([]);
   });
 
   it("эхо для измерителя пинга: метка возвращается ровно та же и только тому, кто спросил", async () => {
