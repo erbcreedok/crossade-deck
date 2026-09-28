@@ -1,0 +1,27 @@
+server/scripts/tableAr.mjs
+  s_9ed0da107cbc4a::t_a0ad1be3aa9574 36,43-46,175,177
+server/scripts/tableArAnchor.mjs
+  s_9ed0da107cbc4a::t_c0e98fd41f6653 92
+server/scripts/tableNativeAr.mjs
+  s_9ed0da107cbc4a::t_6109f5f45398b1 33,114
+server/table-client/compass.ts
+  s_9ed0da107cbc4a::t_dedcdbcbb13706 17,98,111-112,115-116,198
+server/table-client/screen.ts
+  s_9ed0da107cbc4a::t_71642b365446d8 3388-3393,4403-4408
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "293f44259c090ab13f5cba428c54e888498f2122",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
