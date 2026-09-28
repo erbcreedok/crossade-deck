@@ -12,6 +12,8 @@ import { mintRoom, roomIsSigned } from "./roomIds.js";
 import { mintAppKey } from "./appPass.js";
 import { BOOT, DOOR_DEAD_AFTER, forgetBeacon, readCommand, relayRoutes, relayStatus, startBeacon, tableRoutes } from "./routes.js";
 import { hostPage } from "./hostPage.js";
+import { grantParts } from "../db/tableOwnedRepo.js";
+import { partsFor } from "./skins.js";
 
 process.env.TABLE_SECRET = "s3cret";
 
@@ -452,14 +454,27 @@ describe("/table/profile — кем сижу и мой цвет", () => {
 
   it("без ключа — 401; с ключом — кукла по ключу, пока не выбирал", async () => {
     expect((await ask(null)).status).toBe(401);
-    const got = (await (await ask("dev:p1")).json()) as { doll: string; palette: number; chosen: boolean; telegram: boolean };
-    expect(["king", "queen"]).toContain(got.doll);
+    const got = (await (await ask("dev:p1")).json()) as { doll: string; palette: number; chosen: boolean; telegram: boolean; owned: string[] };
+    expect(got.doll, "вначале у всех палка с кружком-аватаром").toBe("stick");
+    expect(got.owned).toContain("stick:body");
+    expect(got.owned).not.toContain("king:body");
     expect(got.palette).toBeGreaterThanOrEqual(0);
     expect(got.chosen).toBe(false);
     expect(got.telegram).toBe(false);
   });
 
+  it("набора, которого нет, не выбрать; выдали — выбирается", async () => {
+    const no = (await (await ask("dev:p8", { method: "PATCH", json: { doll: "dog", parts: { head: "cube:head" } } })).json()) as { doll: string; parts: Record<string, string> };
+    expect(no.doll).toBe("stick");
+    expect(no.parts.head).toBe("ball:head");
+    grantParts("dev:p8", Object.values(partsFor("dog")), "test");
+    const yes = (await (await ask("dev:p8", { method: "PATCH", json: { doll: "dog" } })).json()) as { doll: string; parts: Record<string, string> };
+    expect(yes.doll).toBe("dog");
+    expect(yes.parts.body).toBe("dog:body");
+  });
+
   it("скин — набор частей: своя часть ложится поверх набора, новый набор сбрасывает свои, чужой слот не принимается", async () => {
+    grantParts("dev:p9", [...Object.values(partsFor("dog")), ...Object.values(partsFor("spade-K")), "cube:head", "crown:hair"], "test");
     const dog = (await (await ask("dev:p9", { method: "PATCH", json: { doll: "dog" } })).json()) as { parts: Record<string, string> };
     expect(dog.parts).toMatchObject({ head: "dog:head", body: "dog:body", legs: "legs-beast:legs" });
     const mine = (await (await ask("dev:p9", { method: "PATCH", json: { parts: { head: "cube:head", body: "cube:head" } } })).json()) as { parts: Record<string, string> };
@@ -471,6 +486,7 @@ describe("/table/profile — кем сижу и мой цвет", () => {
   });
 
   it("выбрал — запомнилось; негодное (чужая кукла, расцветка вне списка, цвет не из восьми) не принимается", async () => {
+    grantParts("dev:p2", Object.values(partsFor("queen")), "test");
     const saved = (await (await ask("dev:p2", { method: "PATCH", json: { doll: "queen", palette: 12, color: "#e0483f" } })).json()) as { doll: string; palette: number; color: string; chosen: boolean };
     expect(saved).toMatchObject({ doll: "queen", palette: 12, color: "#e0483f", chosen: true });
     const bad = (await (await ask("dev:p2", { method: "PATCH", json: { doll: "jester", palette: 99, color: "#123456" } })).json()) as { doll: string; palette: number; color: string };

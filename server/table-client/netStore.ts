@@ -352,6 +352,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     ping: (t) => post(MSG.ping, { t }),
     onPing: (listener) => listen<{ t: number }>(MSG.ping, (msg) => listener(msg.t)),
     onReplay: (listener) => listen<Recording>(MSG.replay, listener),
+    onGift: (listener) => listen<{ set: string; name: string; parts: string[] }>(MSG.gift, listener),
     askApp: () => post(MSG.app),
     onApp: (listener) => listen<AppPass>(MSG.app, listener),
     onGone: (listener) => void gone.push(listener),

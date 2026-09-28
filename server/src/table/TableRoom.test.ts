@@ -8,6 +8,8 @@ import { applyPatch } from "./patch.js";
 import { findEntry, keepLobbyIn, keptStateOf, openEntry, runIn } from "./lobby.js";
 import { dropRoom, keepCard, keepState, keptRooms, keptState } from "../db/tableRoomsRepo.js";
 import { saveTableProfile } from "../db/tableProfilesRepo.js";
+import { grantParts } from "../db/tableOwnedRepo.js";
+import { partsFor } from "./skins.js";
 import { BOT_KEY } from "./botPerson.js";
 import type { Say, Shot } from "./say.js";
 import { PULSE_EVERY_MS, type Pulse } from "./freshness.js";
@@ -32,10 +34,11 @@ const next = <T>(client: { onMessage: (t: string, cb: (m: T) => void) => void },
 describe("TableRoom", () => {
   const server = useTestServer(TEST_PORTS.table);
 
-  async function sit(room: string, options: Record<string, unknown>) {
+  async function sit(room: string, options: Record<string, unknown>, before?: (client: { onMessage: (t: string, cb: (m: never) => void) => void }) => void) {
     const client = await server().sdk.joinOrCreate(TABLE_ROOM, { room, client: "html", ...options });
     const patches: Patch[] = [];
     client.onMessage(MSG.patch, (p: Patch) => patches.push(p));
+    before?.(client as never);
     const welcome = next<Welcome>(client, MSG.welcome);
     client.send(MSG.hello);
     return { client, welcome: await welcome, patches };
@@ -65,6 +68,7 @@ describe("TableRoom", () => {
 
   it("кем сижу — из профиля стола: кукла, расцветка и свой цвет, пока он за столом свободен", async () => {
     saveTableProfile("tg:771", { doll: "queen", palette: 9, color: "#e0483f" });
+    grantParts("tg:771", Object.values(partsFor("queen")), "test");
     saveTableProfile("tg:772", { color: "#e0483f" });
     const room = mintRoom(SECRET);
     const a = await sit(room, { door: "telegram", initData: initData(771, "Аня") });
@@ -73,8 +77,28 @@ describe("TableRoom", () => {
     const b = await sit(room, { door: "telegram", initData: initData(772, "Боря") });
     const him = b.welcome.snapshot.people.find((p) => p.key === "tg:772")!;
     expect(him.ink, "его цвет уже у Ани — ему свободный").not.toBe("#e0483f");
-    expect(["king", "queen"]).toContain(him.doll);
+    expect(him.doll, "кто не выбирал — палкой: остальное приходит наградой").toBe("stick");
     expect(typeof him.palette).toBe("number");
+  });
+
+  it("выбрал набор, которого у него нет, — сидит палкой; на втором заходе — награда: фигура колоды, и он её видит", async () => {
+    saveTableProfile("tg:781", { doll: "crusader" });
+    const room = mintRoom(SECRET);
+    const first = await sit(room, { door: "telegram", initData: initData(781, "Вера") });
+    const me1 = first.welcome.snapshot.people.find((p) => p.key === "tg:781")!;
+    expect(me1.parts?.body, "крестоносца у неё нет").toBe("stick:body");
+    await first.client.leave();
+    // второй заход — после перерыва: сдвигаем время её прошлого захода назад
+    const { db } = await import("../db/open.js");
+    db().prepare("UPDATE table_visits SET last_at = last_at - ? WHERE key = ?").run(31 * 60_000, "tg:781");
+    let gift: { set: string; parts: string[] } | undefined;
+    const again = await sit(room, { door: "telegram", initData: initData(781, "Вера") }, (c) => c.onMessage(MSG.gift, (g: never) => (gift = g)));
+    await new Promise((r) => setTimeout(r, 100));
+    expect(gift, "награда пришла ей сразу после приветствия").toBeDefined();
+    const me2 = again.welcome.snapshot.people.find((p) => p.key === "tg:781")!;
+    expect(me2.parts?.body, "сидела палкой — новая фигура надета сразу").toBe(`${gift!.set}:body`);
+    expect(gift!.parts).toHaveLength(3);
+    expect(gift!.parts[2]).toBe("legs-card:legs");
   });
 
   it("эхо для измерителя пинга: метка возвращается ровно та же и только тому, кто спросил", async () => {

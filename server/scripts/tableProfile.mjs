@@ -1,7 +1,7 @@
 // ПРОФИЛЬ СТОЛА — «Мои комнаты» в виде хаба, сверху я; по тапу — профиль: кукла (король или дама), расцветка
 // (5 основных и «ещё»), мой цвет; «Привязать Telegram» у гостя приложения. Выбор живёт в профиле стола и
 // садится за стол вместе с человеком. Приложение здесь подменено: `__crossadeNative` пишет вызовы входа.
-//   TABLE_SECRET=probe TABLE_GUESTS=1 TELEGRAM_BOT_TOKEN=test CROSSADE_DB_FILE=":memory:" PORT=2611 npx tsx src/index.ts
+//   TABLE_SECRET=probe TABLE_GUESTS=1 TELEGRAM_BOT_TOKEN=test CROSSADE_DB_FILE=":memory:" TABLE_VISIT_GAP_MS=0 PORT=2611 npx tsx src/index.ts
 //   node scripts/tableProfile.mjs [base] [shots-dir]
 import { createRequire } from "module";
 const require = createRequire(process.env.PW_FROM ?? import.meta.url);
@@ -48,24 +48,14 @@ const frameOf = () => p.evaluate(() => document.querySelector("[data-doll-previe
 const f1 = await frameOf();
 await p.waitForTimeout(700);
 check("фигура в профиле живая: дышит (кадры меняются)", f1 !== (await frameOf()), f1);
-// Крутится пальцем, как в Doom: вбок на пол-оборота — другая нарисованная сторона (спина), обратно — лицо.
-const box = await p.locator("[data-doll-preview]").boundingBox();
-const spin = async (dx) => { await p.mouse.move(box.x + box.width / 2, box.y + 120); await p.mouse.down(); for (let i = 1; i <= 10; i += 1) await p.mouse.move(box.x + box.width / 2 + (dx * i) / 10, box.y + 120); await p.mouse.up(); await p.waitForTimeout(250); };
-const before = await viewsNow();
-await spin(180);
-const spunBack = await viewsNow();
-if (shots) await p.screenshot({ path: `${shots}/profile-3-back.png` });
-await spin(-180);
-const spunFront = await viewsNow();
-check("фигура крутится пальцем, как в Doom: вбок — спина, обратно — снова лицо", before.body === "front" && spunBack.body === "back" && spunFront.body === "front", [before, spunBack, spunFront]);
 check("расцветок сразу 5, по «ещё» — 16", (await p.locator("[data-pal]").count()) <= 6, await p.locator("[data-pal]").count());
 await p.click("[data-more]");
 check("…по «ещё» — все 16", (await p.locator("[data-pal]").count()) === 16, await p.locator("[data-pal]").count());
 await p.click("[data-pick-skin]");
 await p.waitForSelector("[data-builder]");
-check("кем сидеть — конструктор: готовые наборы и части по слотам, у каждой части число сторон", (await p.locator("[data-builder] [data-doll]").count()) === 18 && (await p.locator("[data-builder] [data-tab]").count()) === 5 && (await p.locator("[data-builder] [data-part] .sides").count()) > 0, [await p.locator("[data-builder] [data-doll]").count(), await p.locator("[data-builder] [data-tab]").count()]);
-await p.click('[data-doll="queen"]');
-await p.waitForTimeout(400);
+const offered = async () => ({ sets: await p.locator("[data-builder] [data-doll]").evaluateAll((els) => els.map((e) => e.dataset.doll)), heads: await p.locator("[data-builder] [data-part]").evaluateAll((els) => els.map((e) => e.dataset.part)) });
+const start = await offered();
+check("вначале в конструкторе только палка с кружком-аватаром: остальное приходит наградой", JSON.stringify(start.sets) === '["stick"]' && JSON.stringify(start.heads) === '["ball:head"]', start);
 await p.click("[data-back]");
 await p.waitForSelector("[data-profile]");
 await p.click('[data-pal="12"]');
@@ -76,29 +66,47 @@ if (shots) await p.screenshot({ path: `${shots}/profile-2-sheet.png` });
 await p.click('[data-tg-link]');
 check("«Привязать Telegram» — вход приложения, с ключом гостя", JSON.stringify(await p.evaluate(() => window.__logins)) === JSON.stringify([key]), await p.evaluate(() => window.__logins));
 
-// После перезагрузки — то же: выбор в профиле стола, а не на странице.
+// ДВА ЗАХОДА ЗА СТОЛ (перерыв у прогона — ноль): на втором — награда, фигура колоды, и она сразу на нём.
+const enter = async () => {
+  await p.goto(`${base}/table/?room=${room}&key=${encodeURIComponent(key)}`);
+  await p.waitForSelector("[data-section]", { timeout: 15000 }).catch(() => {});
+  await p.waitForTimeout(900);
+};
+const meAt = () => p.evaluate(() => { const s = window.__tableState?.(); return s?.people.find((x) => x.door === "app" && !x.bot); });
+await enter();
+check("первый заход — палкой, без награды", (await meAt())?.parts?.body === "stick:body" && (await p.locator('[data-g="gift"]').count()) === 0, await meAt());
+await enter();
+const giftSaid = await p.locator('[data-g="gift"]').textContent().catch(() => null);
+if (shots) await p.screenshot({ path: `${shots}/profile-5-gift.png` });
+const me = await meAt();
+check("второй заход — награда: плашка «Награда: …», и фигура колоды сразу на нём", /Награда: /.test(giftSaid ?? "") && /:body$/.test(me?.parts?.body ?? "") && me?.parts?.body !== "stick:body" && me?.parts?.legs === "legs-card:legs" && me?.palette === 12 && me?.ink === "#e0483f", { giftSaid, me });
+const giftSet = me?.doll;
+
+// После — в конструкторе два набора: палка и полученная фигура; её голову можно сменить на шар.
 await open();
 await openProfile();
-const on = await p.evaluate(() => ({ doll: document.querySelector("[data-pick-skin]")?.dataset.current, pal: document.querySelector("[data-pal].on")?.dataset.pal, ink: document.querySelector("[data-ink].on")?.dataset.ink }));
-check("перезагрузил — выбор на месте: дама, расцветка 12, красный", on.doll === "queen" && on.pal === "12" && on.ink === "#e0483f", on);
-
-// Своя часть поверх набора: голова — кубик. Набор уже не совпадает — «свой скин».
+check("перезагрузил — сижу полученной фигурой, расцветка 12, красный", await p.evaluate(() => document.querySelector("[data-pick-skin]")?.dataset.current) === giftSet && await p.evaluate(() => document.querySelector("[data-pal].on")?.dataset.pal) === "12", giftSet);
+// Крутится пальцем, как в Doom: вбок на пол-оборота — другая нарисованная сторона (спина), обратно — лицо.
+const box = await p.locator("[data-doll-preview]").boundingBox();
+const spin = async (dx) => { await p.mouse.move(box.x + box.width / 2, box.y + 120); await p.mouse.down(); for (let i = 1; i <= 10; i += 1) await p.mouse.move(box.x + box.width / 2 + (dx * i) / 10, box.y + 120); await p.mouse.up(); await p.waitForTimeout(250); };
+const before = await viewsNow();
+await spin(180);
+const spunBack = await viewsNow();
+if (shots) await p.screenshot({ path: `${shots}/profile-3-back.png` });
+await spin(-180);
+const spunFront = await viewsNow();
+check("фигура крутится пальцем, как в Doom: вбок — спина, обратно — снова лицо", before.body === "front" && spunBack.body === "back" && spunFront.body === "front", [before, spunBack, spunFront]);
 await p.click("[data-pick-skin]");
 await p.waitForSelector("[data-builder]");
+const after = await offered();
+check("в конструкторе — палка и полученная фигура", after.sets.length === 2 && after.sets.includes("stick") && after.sets.includes(giftSet), after);
 await p.click('[data-tab="head"]');
-await p.click('[data-part="cube:head"]');
+await p.click('[data-part="ball:head"]');
 await p.waitForTimeout(600);
 if (shots) await p.screenshot({ path: `${shots}/profile-4-builder.png` });
 await p.click("[data-back]");
 await p.waitForSelector("[data-profile]");
-check("поменял голову на кубик — скин уже свой", await p.evaluate(() => document.querySelector("[data-pick-skin]")?.dataset.current) === "own", await p.evaluate(() => document.querySelector("[data-pick-skin]")?.dataset.current));
-
-// За стол — дамой в этой расцветке и своего цвета.
-await p.goto(`${base}/table/?room=${room}&key=${encodeURIComponent(key)}`);
-await p.waitForSelector("[data-section]", { timeout: 15000 }).catch(() => {});
-await p.waitForTimeout(800);
-const me = await p.evaluate(() => { const s = window.__tableState?.(); return s?.people.find((x) => x.seat && s.chairs.find((c) => c.id === x.seat)?.owner === x.key && !x.bot && x.door !== "guest" || x.door === "app"); });
-check("за столом — дама с головой-кубиком, расцветка 12, красный", me?.doll === "queen" && me?.parts?.head === "cube:head" && me?.parts?.body === "queen:body" && me?.palette === 12 && me?.ink === "#e0483f", me);
+check("поменял голову на шар — скин уже свой", await p.evaluate(() => document.querySelector("[data-pick-skin]")?.dataset.current) === "own", await p.evaluate(() => document.querySelector("[data-pick-skin]")?.dataset.current));
 
 const bad = checks.filter((c) => !c.ok);
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got)?.slice(0, 300));

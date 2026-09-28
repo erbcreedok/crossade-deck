@@ -4959,6 +4959,20 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   // ЖУРНАЛ ВЕДЁТСЯ ВСЕГДА, открыт он или нет: иначе открывший увидел бы пустоту и решил, что
   // ничего не было. Перерисовываем только когда он на виду — незачем трогать экран ради записи,
   // которую никто не читает.
+  // НАГРАДА ЗАХОДА (`rewards.ts`) — золотой плашкой сверху, пока не прочитал: что пришло и где его сменить.
+  store.onGift?.((gift) => {
+    const note = document.createElement("div");
+    note.dataset.g = "gift";
+    note.style.cssText = "position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 76px);transform:translateX(-50%);z-index:210;max-width:86%;padding:10px 14px;border-radius:12px;text-align:center;"
+      + "background:linear-gradient(#f8d885,#d9a93a);color:#1a0f06;box-shadow:inset 0 0 0 2px #0b0704,0 4px 0 #0b0704;font:400 13px Tiny5,monospace;opacity:0;transition:opacity .25s";
+    note.textContent = `Награда: ${gift.name} — голова, тело и ноги. Сменить — в профиле`;
+    stage.appendChild(note);
+    requestAnimationFrame(() => (note.style.opacity = "1"));
+    const off = () => { note.style.opacity = "0"; setTimeout(() => note.remove(), 300); };
+    note.addEventListener("pointerdown", off);
+    setTimeout(off, 6000);
+  });
+
   // ПРОПУСК НА ЗАПИСЬ ПРИШЁЛ — собираем адрес от того имени, по которому открыт стол, и показываем.
   store.onReplay?.((one) => {
     // АДРЕС — ТОТ ЖЕ, ПО КОТОРОМУ ОТКРЫТ СТОЛ, и путь тот же: снаружи стол живёт за постоянным

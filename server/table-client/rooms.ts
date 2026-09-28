@@ -50,6 +50,8 @@ interface Profile {
   doll: Doll;
   palette: number;
   parts: Parts;
+  /** Какие части у него есть (`rewards.ts`): стартовые и полученные наградой. */
+  owned: string[];
   color: string;
   chosen: boolean;
 }
@@ -299,14 +301,19 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
       `<button class="part${on ? " on" : ""}" ${data}>${thumb}${badge ? `<span class="sides">${badge}</span>` : ""}<span>${esc(label)}</span>${note ? `<em>${esc(note)}</em>` : ""}</button>`;
     const drawBuilder = () => {
       const current = setMatching(p.parts);
+      // ТОЛЬКО ТО, ЧТО ЕСТЬ: остальное приходит наградой.
+      const has = new Set(p.owned ?? []);
+      const sets = SETS.filter((set) => SLOTS.every((k) => has.has(set.parts[k])));
+      const parts = PARTS.filter((part) => part.slot === tab && has.has(part.id));
       layer.innerHTML = `<div class="veil" data-close></div><div class="sheet" data-builder data-scroll>`
         + `<div class="top"><h3>КЕМ СИДЕТЬ</h3><button class="btn" data-back>Готово</button></div>`
         + `<div class="doll stage" data-doll-preview></div>`
         + `<div class="label">Готовые наборы — заполнят все части</div>`
-        + `<div class="sets">${SETS.map((set) => card(set.name, partThumb(partOf(set.parts.head)!, p), current?.id === set.id, `data-doll="${set.id}"`)).join("")}</div>`
+        + `<div class="sets">${sets.map((set) => card(set.name, partThumb(partOf(set.parts.head)!, p), current?.id === set.id, `data-doll="${set.id}"`)).join("")}</div>`
         + `<div class="label">Части — у каждой свои стороны</div>`
         + `<div class="tabs">${SLOTS.map((slot) => `<button class="btn${tab === slot ? " on" : ""}" data-tab="${slot}">${SLOT_NAMES[slot]}</button>`).join("")}</div>`
-        + `<div class="parts">${PARTS.filter((part) => part.slot === tab).map((part) => card(part.name, partThumb(part, p), p.parts[tab] === part.id, `data-part="${part.id}"`, part.art.kind === "none" ? "" : String(shownViews(part).length), part.art.kind === "none" ? "" : FACING_SAID[part.facing])).join("")}</div>`
+        + `<div class="parts">${parts.map((part) => card(part.name, partThumb(part, p), p.parts[tab] === part.id, `data-part="${part.id}"`, part.art.kind === "none" ? "" : String(shownViews(part).length), part.art.kind === "none" ? "" : FACING_SAID[part.facing])).join("")}</div>`
+        + `<div class="lead" style="margin-top:12px">Новые фигуры и части приходят наградой — заходи в игру.</div>`
         + `</div>`;
       for (const el of layer.querySelectorAll<HTMLElement>("[data-close]")) el.onclick = () => { building = false; stage?.destroy(); layer.innerHTML = ""; };
       layer.querySelector<HTMLElement>("[data-back]")!.onclick = () => { building = false; draw(); };

@@ -1,7 +1,7 @@
 // ТЕЛА ЗА СТОЛОМ — сосед видит моё тело аватаром: палка, плечи, руки-хваты, голова-кружок. Камера — это голова:
 // зум — её высота; отъехал сидя — встал; нагнулся — ненадолго; повернул камеру на другую сторону — туда ушла
 // голова, тело осталось на стуле. Карта в руке висит на доле высоты головы.
-//   TABLE_SECRET=probe TABLE_GUESTS=1 PORT=2611 npx tsx src/index.ts   (в соседнем окне; `table-probe`)
+//   TABLE_SECRET=probe TABLE_GUESTS=1 TABLE_OWN_ALL=1 PORT=2611 npx tsx src/index.ts   (в соседнем окне; `table-probe`)
 //   node scripts/tableBody.mjs [base] [secret] [shots-dir]
 import { createHmac, randomBytes } from "crypto";
 import { createRequire } from "module";

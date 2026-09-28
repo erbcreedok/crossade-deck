@@ -1,6 +1,6 @@
 // В AR ГОЛОВА — ТЕЛЕФОН: A держит стол в приложении и обходит его с телефоном, B смотрит обычным экраном.
 // У B голова A едет туда, где стоит телефон A, а не остаётся там, где A оставил пальцевую камеру.
-//   TABLE_SECRET=probe TABLE_GUESTS=1 PORT=2597 npx tsx src/index.ts
+//   TABLE_SECRET=probe TABLE_GUESTS=1 TABLE_OWN_ALL=1 PORT=2597 npx tsx src/index.ts
 // И куклы печётся до конца заставки: вошёл — все уже собой.
 //   node scripts/tableArHead.mjs [base] [secret]
 import { createHmac, randomBytes } from "crypto";

@@ -84,6 +84,8 @@ export interface TableStore {
   /** Попросить у стола пропуск на запись партии — ответ придёт в `onReplay`. Право спрашивает стол. */
   askReplay?(): void;
   onReplay?(listener: (one: Recording) => void): void;
+  /** Награда этого захода (`rewards.ts`) — приходит сразу после приветствия, только ему. */
+  onGift?(listener: (gift: { set: string; name: string; parts: string[] }) => void): void;
   /** Попросить пропуск в нативное приложение — ответ придёт в `onApp`. Гостю стол не выписывает. */
   askApp?(): void;
   onApp?(listener: (one: AppPass) => void): void;

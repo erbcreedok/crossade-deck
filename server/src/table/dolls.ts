@@ -10,8 +10,8 @@ import { SETS, cleanParts, type Parts } from "./skins.js";
 /** Кем можно сидеть — готовые наборы каталога (`skins.ts`); поверх набора человек меняет части сам. */
 export const DOLLS: readonly string[] = SETS.map((s) => s.id);
 export type Doll = string;
-/** Кем сидит тот, кто ещё не выбирал, — король или дама. */
-const DEFAULT_DOLLS = ["king", "queen"] as const;
+/** Кем сидит тот, кто ещё не выбирал, — палкой с кружком-аватаром: остальное приходит наградой (`rewards.ts`). */
+const DEFAULT_DOLLS = ["stick"] as const;
 
 /** Три краски расцветки: чем заменить красную, синюю и золото рисунка. */
 export interface Palette {
@@ -60,7 +60,7 @@ function hash(key: string): number {
   return sum;
 }
 
-/** Кукла того, кто ещё ничего не выбрал: по ключу — король или дама, и одна из основных расцветок. */
+/** Кукла того, кто ещё ничего не выбрал: палка, и по ключу — одна из основных расцветок. */
 export function dollFor(key: string): DollLook {
   const h = hash(key);
   return { doll: DEFAULT_DOLLS[h % DEFAULT_DOLLS.length]!, palette: Math.floor(h / DEFAULT_DOLLS.length) % MAIN_PALETTES };

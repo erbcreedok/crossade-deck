@@ -385,4 +385,25 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec(`ALTER TABLE table_profiles ADD COLUMN parts TEXT;`);
     },
   },
+  {
+    version: 21,
+    up(db) {
+      // ЧТО ЕСТЬ У ЧЕЛОВЕКА ИЗ ЧАСТЕЙ СКИНА — полученное наградой (`rewards.ts`; стартовое не пишется, оно у всех) —
+      // и его заходы в игру: сколько и когда последний.
+      db.exec(`
+        CREATE TABLE table_owned (
+          key TEXT NOT NULL,
+          part TEXT NOT NULL,
+          why TEXT NOT NULL,
+          got_at INTEGER NOT NULL,
+          PRIMARY KEY (key, part)
+        );
+        CREATE TABLE table_visits (
+          key TEXT PRIMARY KEY,
+          visits INTEGER NOT NULL,
+          last_at INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];

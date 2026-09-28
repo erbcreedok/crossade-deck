@@ -25,6 +25,8 @@ import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
 import { myRooms } from "./mine.js";
 import { carryTableProfile, saveTableProfile, tableProfile } from "../db/tableProfilesRepo.js";
+import { carryOwned, ownedParts } from "../db/tableOwnedRepo.js";
+import { ownedOf, setsOwned, wearable } from "./rewards.js";
 import { cleanDoll, dollFor, ownParts } from "./dolls.js";
 import { cleanParts, partsFor } from "./skins.js";
 import { INKS, inkFor } from "../profileInks.js";
@@ -280,7 +282,9 @@ export function tableRoutes(): Router {
   const profileOut = (who: { key: string; name: string; photo?: string }) => {
     const row = tableProfile(who.key);
     const look = { ...dollFor(who.key), ...cleanDoll(row) };
-    return { name: who.name, ...(who.photo ? { photo: who.photo } : {}), telegram: who.key.startsWith("tg:"), doll: look.doll, palette: look.palette, parts: partsFor(look.doll, ownParts(row?.parts)), color: row?.color ?? inkFor(who.key), chosen: row !== null };
+    // ЧТО ЕСТЬ У ЧЕЛОВЕКА — стартовое и полученное наградой; сидит он только тем, что есть.
+    const owned = ownedOf(ownedParts(who.key));
+    return { name: who.name, ...(who.photo ? { photo: who.photo } : {}), telegram: who.key.startsWith("tg:"), doll: look.doll, palette: look.palette, parts: wearable(partsFor(look.doll, ownParts(row?.parts)), owned), owned: [...owned], color: row?.color ?? inkFor(who.key), chosen: row !== null };
   };
   r.get("/table/profile", (req, res) => {
     const who = whoAsks(req);
@@ -292,10 +296,15 @@ export function tableRoutes(): Router {
     if (!who) return void res.status(401).json({ error: "who_are_you" });
     const body = (req.body ?? {}) as { color?: unknown; parts?: unknown };
     const color = typeof body.color === "string" && (INKS as readonly string[]).includes(body.color) ? body.color : undefined;
-    const doll = cleanDoll(body);
+    // ТОЛЬКО ТО, ЧТО ЕСТЬ: набор — если он есть целиком, часть — если она есть (`rewards.ts`).
+    const owned = ownedOf(ownedParts(who.key));
+    const asked = cleanDoll(body);
+    const doll = asked.doll && !setsOwned(owned).some((s) => s.id === asked.doll) ? { ...asked, doll: undefined } : asked;
+    if (doll.doll === undefined) delete doll.doll;
+    const wanted = Object.fromEntries(Object.entries(cleanParts(body.parts)).filter(([, id]) => owned.has(id)));
     // НАБОР — ЗАНОВО: выбрал набор — свои части сброшены; поменял часть — она ложится поверх того, что было.
     const had = doll.doll ? {} : ownParts(tableProfile(who.key)?.parts);
-    const parts = body.parts !== undefined || doll.doll ? { parts: JSON.stringify({ ...had, ...cleanParts(body.parts) }) } : {};
+    const parts = body.parts !== undefined || doll.doll ? { parts: JSON.stringify({ ...had, ...wanted }) } : {};
     saveTableProfile(who.key, { ...doll, ...(color ? { color } : {}), ...parts });
     res.json(profileOut(who));
   });
@@ -324,7 +333,7 @@ export function tableRoutes(): Router {
     const who = { key: `tg:${user.id}`, name, ...(user.username ? { username: user.username } : {}), ...(user.photo_url ? { photo: user.photo_url } : {}) };
     // ПРИВЯЗАЛ TELEGRAM ИЗ ГОСТЯ: его выбор в профиле стола переезжает на Telegram (если там своего нет).
     const guest = appKeyBearer(req.header(APP_KEY_HEADER), secret);
-    if (guest && guest.key !== who.key) carryTableProfile(guest.key, who.key);
+    if (guest && guest.key !== who.key) { carryTableProfile(guest.key, who.key); carryOwned(guest.key, who.key); }
     res.json({ key: mintAppKey(who, secret, Date.now() + KEY_DAYS * DAY), name });
   });
 
