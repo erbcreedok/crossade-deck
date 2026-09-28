@@ -1,0 +1,164 @@
+server/table-client/skins/crusader/front-head.svg
+  s_e1c4165d82711d::t_7ee7de2fad5ba1 1-78
+server/src/table/client.ts
+  s_e1c4165d82711d::t_6e24f1199f0f08 114
+  s_e1c4165d82711d::t_a2a1a0b56dd4e2 9,122-128
+  s_e1c4165d82711d::t_2546bbabc59140 129-132
+server/table-client/skins/crusader/bottom-body.svg
+  s_e1c4165d82711d::t_7ee7de2fad5ba1 1-59
+server/table-client/sprites/diamond-J.svg
+  s_e1c4165d82711d::t_6e24f1199f0f08 1
+server/table-client/skins/crusader/back-head.svg
+  s_e1c4165d82711d::t_7ee7de2fad5ba1 1-49
+server/table-client/skins/crusader/right-head.svg
+  s_e1c4165d82711d::t_7ee7de2fad5ba1 1-54
+server/table-client/dollSprites.ts
+  s_e1c4165d82711d::t_d814ac0682f194 54-58
+  s_e1c4165d82711d::t_43a93adec1bba5 1-7,12-13,15-16,34-35,37,44-53,59-71,80-83,88,93,95-112,114,120,122,168-187,189-205,208-209,218-219,223-224,229-238,240,251,254-257,261-262,264
+  s_e1c4165d82711d::t_f9b2ae5ca187f6 85-86,213-214,268-271,273-277
+  s_e1c4165d82711d::t_5f118b4ef2ea6c 211-212,215,226,241,265-266,272
+  s_e1c4165d82711d::t_6e24f1199f0f08 19-28
+server/table-client/skins/dog/front-body.svg
+  s_e1c4165d82711d::t_0d2bac05869dc0 1-57
+server/src/table/clientBundle.ts
+  s_e1c4165d82711d::t_a2a1a0b56dd4e2 34-35,81,97,113
+server/table-client/sprites/spade-Q.svg
+  s_e1c4165d82711d::t_6e24f1199f0f08 1
+server/table-client/sprites/heart-Q.svg
+  s_e1c4165d82711d::t_6e24f1199f0f08 1
+server/table-client/skins/dog/right-body.svg
+  s_e1c4165d82711d::t_0d2bac05869dc0 1-40
+server/table-client/sprites/club-Q.svg
+  s_e1c4165d82711d::t_6e24f1199f0f08 1
+server/table-client/skins/cat/back-body.svg
+  s_e1c4165d82711d::t_0d2bac05869dc0 1-29
+server/table-client/skins/crusader/top-body.svg
+  s_e1c4165d82711d::t_7ee7de2fad5ba1 1-59
+server/table-client/skins/cat/back-head.svg
+  s_e1c4165d82711d::t_0d2bac05869dc0 1-29
+design/persona/skins/crusader/back-body.svg
+  s_e1c4165d82711d::t_6e24f1199f0f08 1-45
+server/table-client/skins/crusader/back-body.svg
+  s_e1c4165d82711d::t_7ee7de2fad5ba1 1-45
+design/persona/skins/crusader/top-head.svg
+  s_e1c4165d82711d::t_1c93a2dee24777 1-62
+server/table-client/sprites/spade-J.svg
+  s_e1c4165d82711d::t_6e24f1199f0f08 1
+server/table-client/skins/cat/front-head.svg
+  s_e1c4165d82711d::t_0d2bac05869dc0 1-70
+server/src/table/clientBundle.test.ts
+  s_e1c4165d82711d::t_488213b7662bb7 39
+design/persona/skins/crusader/right-body.svg
+  s_e1c4165d82711d::t_1c93a2dee24777 1-58
+server/table-client/skins/crusader/front-body.svg
+  s_e1c4165d82711d::t_7ee7de2fad5ba1 1-85
+server/scripts/tableProfile.mjs
+  s_e1c4165d82711d::t_9a9aba7d2adf0f 52-53,59
+server/table-client/skins/cat/right-head.svg
+  s_e1c4165d82711d::t_0d2bac05869dc0 1-52
+server/table-client/skins/cat/right-body.svg
+  s_e1c4165d82711d::t_0d2bac05869dc0 1-39
+server/table-client/skins/dog/back-body.svg
+  s_e1c4165d82711d::t_0d2bac05869dc0 1-37
+server/table-client/bodyView.ts
+  s_e1c4165d82711d::t_d814ac0682f194 15
+  s_e1c4165d82711d::t_91c3989b4b0ceb 16,101,127-154,156-157,159,162-165,167-177,179,199,206-207,209-210,233-234
+server/table-client/sprites/club-J.svg
+  s_e1c4165d82711d::t_6e24f1199f0f08 1
+server/table-client/skins/cat/front-body.svg
+  s_e1c4165d82711d::t_0d2bac05869dc0 1-59
+server/table-client/skins/dog/right-head.svg
+  s_e1c4165d82711d::t_0d2bac05869dc0 1-46
+server/table-client/sprites/diamond-K.svg
+  s_e1c4165d82711d::t_6e24f1199f0f08 1
+server/table-client/sprites/heart-J.svg
+  s_e1c4165d82711d::t_6e24f1199f0f08 1
+server/table-client/rooms.ts
+  s_e1c4165d82711d::t_1264c8f47b89b7 295
+  s_e1c4165d82711d::t_001ee62a681d8a 14-15,18,104-108,292-294,296-297
+  s_e1c4165d82711d::t_62ed26473cf485 269,302-317,319,325-327,332-335,339,345,361,366-376,378-379
+  s_e1c4165d82711d::t_7a5f47460e8867 298-299
+server/table-client/skins/dog/front-head.svg
+  s_e1c4165d82711d::t_0d2bac05869dc0 1-62
+server/table-client/screen.ts
+  s_e1c4165d82711d::t_1264c8f47b89b7 60,3257-3258
+server/table-client/sprites/heart-K.svg
+  s_e1c4165d82711d::t_6e24f1199f0f08 1
+server/table-client/skins/crusader/bottom-head.svg
+  s_e1c4165d82711d::t_7ee7de2fad5ba1 1-59
+server/table-client/skins/crusader/right-body.svg
+  s_e1c4165d82711d::t_7ee7de2fad5ba1 1-58
+server/table-client/skins/dog/back-head.svg
+  s_e1c4165d82711d::t_0d2bac05869dc0 1-29
+design/persona/skins/crusader/top-body.svg
+  s_e1c4165d82711d::t_1c93a2dee24777 1-59
+server/table-client/sprites/spade-K.svg
+  s_e1c4165d82711d::t_6e24f1199f0f08 1
+server/table-client/skins/crusader/top-head.svg
+  s_e1c4165d82711d::t_7ee7de2fad5ba1 1-62
+server/src/table/dolls.ts
+  s_e1c4165d82711d::t_31ea1e415ecff8 8-14,66,73
+server/src/table/skins.ts
+  s_e1c4165d82711d::t_6e24f1199f0f08 34-41
+  s_e1c4165d82711d::t_b04da237d14356 1-33,42-43,45-80
+  s_e1c4165d82711d::t_7ee7de2fad5ba1 44
+server/src/table/skins.test.ts
+  s_e1c4165d82711d::t_7ee7de2fad5ba1 30-35
+  s_e1c4165d82711d::t_fa48f431a9d781 1-29,36-52
+design/persona/skins/cat/right-head.svg
+  s_e1c4165d82711d::t_91c3989b4b0ceb 1-52
+design/persona/skins/cat/back-head.svg
+  s_e1c4165d82711d::t_3dc47de71bd814 1-29
+design/persona/skins/crusader/back-head.svg
+  s_e1c4165d82711d::t_249a132b06cd73 1-49
+design/persona/skins/crusader/bottom-body.svg
+  s_e1c4165d82711d::t_5b6f7d88742e24 1-59
+design/persona/skins/crusader/bottom-head.svg
+  s_e1c4165d82711d::t_16acd2b6587932 1-59
+design/persona/skins/dog/back-head.svg
+  s_e1c4165d82711d::t_100ec24731846b 1-29
+design/persona/skins/cat/back-body.svg
+  s_e1c4165d82711d::t_7ffce675dfc41a 1-29
+design/persona/skins/cat/front-body.svg
+  s_e1c4165d82711d::t_e1b41d0c0ce7c7 1-59
+design/persona/skins/cat/front-head.svg
+  s_e1c4165d82711d::t_61fc8c216d9886 1-70
+design/persona/skins/cat/right-body.svg
+  s_e1c4165d82711d::t_12e1478052be58 1-39
+design/persona/skins/crusader/front-body.svg
+  s_e1c4165d82711d::t_1b1ec35a4e358e 1-85
+design/persona/skins/crusader/front-head.svg
+  s_e1c4165d82711d::t_600d332006a8dd 1-78
+design/persona/skins/crusader/right-head.svg
+  s_e1c4165d82711d::t_28d8463ff5e9ac 1-54
+design/persona/skins/dog/back-body.svg
+  s_e1c4165d82711d::t_069ea01ebc07df 1-37
+design/persona/skins/dog/front-body.svg
+  s_e1c4165d82711d::t_1142d8e3232fd8 1-57
+design/persona/skins/dog/front-head.svg
+  s_e1c4165d82711d::t_3c58d753ab4dd1 1-62
+design/persona/skins/dog/right-body.svg
+  s_e1c4165d82711d::t_1ca48c76b91c27 1-40
+design/persona/skins/dog/right-head.svg
+  s_e1c4165d82711d::t_012bee7cf4967a 1-46
+design/persona/skins/manifest.json
+  s_e1c4165d82711d::t_b35ce44b1627ca 1
+design/persona/skins/preview.html
+  s_e1c4165d82711d::t_6b0d5827299437 1-455
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "10d8298bf79c823abb6b5d59a1a44e2c7ce2c397",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
