@@ -236,7 +236,7 @@ describe("Table: стулья", () => {
     t.leave("b");
     expect(chair(t, b)).toBeDefined();
     const [rules, unchair] = ops(t.act("a", { t: "rules", rules: { dropEmptyChairs: true } }, 0));
-    expect(rules).toEqual({ t: "rules", rules: { dropEmptyChairs: true, faces: "classic", back: "plaid", turnMark: true } });
+    expect(rules).toEqual({ t: "rules", rules: { dropEmptyChairs: true, faces: "classic", back: "plaid", turnMark: true, stand: false } });
     expect(unchair).toEqual({ t: "unchair", id: b, felt: [] });
   });
 

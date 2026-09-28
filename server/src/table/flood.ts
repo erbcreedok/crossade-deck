@@ -8,6 +8,7 @@
 // Лишнее молча выбрасывается. Отвечать на него отказом значило бы удвоить тот самый поток.
 
 import { CARRY_EVERY_MS, SAY_EVERY_MS } from "./contract.js";
+import { BODY_EVERY_MS } from "./bodies.js";
 
 export const PER_SECOND = {
   intent: 30,
@@ -16,6 +17,7 @@ export const PER_SECOND = {
   eyes: 20,
   command: 5,
   mic: 10,
+  body: Math.ceil((1000 / BODY_EVERY_MS) * 2),
 } as const;
 
 export type Lane = keyof typeof PER_SECOND;

@@ -333,6 +333,11 @@ export interface TableRules {
    * Выключается распорядителем через крупье: за столом, где считают ходы в уме, подсказка мешает.
    */
   turnMark: boolean;
+  /**
+   * ИГРАТЬ СТОЯ — все за столом стоят (`bodies.ts`): камера держится дальше от стола, и приблизиться
+   * можно только шеей, ненадолго. Включает распорядитель через крупье.
+   */
+  stand: boolean;
 }
 
 /**
@@ -344,7 +349,7 @@ export type CardFaces = (typeof CARD_FACES)[number];
 export const CARD_BACKS = ["plaid", "argyle", "club", "lattice", "crest", "ink"] as const;
 export type CardBack = (typeof CARD_BACKS)[number];
 
-export const DEFAULT_RULES: TableRules = { dropEmptyChairs: true, faces: "classic", back: "plaid", turnMark: true };
+export const DEFAULT_RULES: TableRules = { dropEmptyChairs: true, faces: "classic", back: "plaid", turnMark: true, stand: false };
 
 /** Лица по пресету: белка — классика, остальные — минимал. Рубашку пресет не трогает. */
 export const PRESET_FACES: Record<Game, CardFaces> = { belka: "classic", durak: "minimal", krest: "minimal" };
@@ -618,6 +623,7 @@ export interface Mind {
 export type Minds = Mind[];
 
 import type { Eye } from "./eyes.js";
+import type { Body } from "./bodies.js";
 
 /** Почему намерение не случилось — клиент откатывает у себя то, что успел показать. */
 /**
@@ -711,6 +717,8 @@ export const MSG = {
   minds: "minds",
   /** Сервер → всем: `Pulse` — версия стола, раз в `PULSE_EVERY_MS` (`freshness.ts`). По ней клиент замечает, что отстал, даже в тишине. */
   pulse: "pulse",
+  /** Клиент → сервер: `BodyOut` — своё тело; сервер → остальным: `Body` (`bodies.ts`). Мимо версий. */
+  body: "body",
   /**
    * ЭХО ДЛЯ ИЗМЕРИТЕЛЕЙ: клиент → сервер `{ t }` — метка своих часов; сервер → ему же ровно её.
    * Разница с часами при возврате и есть пинг. Мимо версий стола, в журнал не пишется.
@@ -779,6 +787,8 @@ export interface Welcome {
   carries: Carry[];
   /** Кто на что смотрит сейчас — вошедший сразу видит чужие глаза. */
   eyes: Eye[];
+  /** Тела за столом — вошедший сразу видит, кто сидит, кто стоит и куда тянется. */
+  bodies: Body[];
   /** Часы сервера в момент отправки — по ним клиент считает «10 сек назад» у следов. */
   now: number;
   /**

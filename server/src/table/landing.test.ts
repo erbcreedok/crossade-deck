@@ -25,7 +25,7 @@ const стол = (ход: Partial<Snapshot> = {}): Snapshot => ({
   trails: {},
   locks: {},
   picks: {},
-  rules: { dropEmptyChairs: true, faces: "classic", back: "plaid", turnMark: true },
+  rules: { dropEmptyChairs: true, faces: "classic", back: "plaid", turnMark: true, stand: false },
   admin: "я",
   dealer: null,
   rights: ["hand.drop", "pile.drop"],

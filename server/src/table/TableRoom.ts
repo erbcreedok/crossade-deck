@@ -14,6 +14,7 @@ import { iceServers, tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
 import { DEAL_PRESETS, MSG, PROTOCOL, ROOM_CLOSED, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type Recording, type AppPass, type SeatCard, type TableCommand, type Welcome, TOLD_OPS } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
+import { Bodies, cleanBody } from "./bodies.js";
 import { mintPass, PASS_HOURS } from "./pass.js";
 import { KEY_DAYS, mintAppKey, mintAppPass } from "./appPass.js";
 import { cleanSignal, ear, Signals, type Signal } from "./rtc.js";
@@ -103,6 +104,8 @@ export class TableRoom extends Room {
   private shots = new Shots(SHOT_MS - 150);
   /** Кто на что смотрит: открытые окна стопок и стульев. Живёт, пока человек в комнате. */
   private eyes = new Eyes();
+  /** Тела за столом: поза, голова, правая рука (`bodies.ts`). */
+  private bodies = new Bodies();
   private signals = new Signals();
   /** Сколько рассказов о себе прислал каждый экран: больше предела журнал не берёт. */
   private witnesses = new Witnesses();
@@ -225,7 +228,7 @@ export class TableRoom extends Room {
 
   /** Стол целиком глазами этого человека — при входе и когда у него разошлись версии (`sync`). */
   private welcomeFor(me: Person): Welcome {
-    return { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), now: Date.now(), recent: this.recent.map(({ at, op, seen, cut }) => ({ at, op: seen[me.key] ?? (cut ? op : this.table.seenOp(op, me.key)) })), crew: [...crewOf(crewKind(this.room)).acts], deals: [...(deskOf(kindOf(this.room)).deals ?? (Object.keys(DEAL_PRESETS) as DealRule[]))], desk: kindOf(this.room), ice: iceServers() };
+    return { you: me, snapshot: this.table.seenBy(me.key), title: titleOf(this.room), carries: this.table.carriesSeenBy(me.key), eyes: this.eyes.all(), bodies: this.bodies.list(), now: Date.now(), recent: this.recent.map(({ at, op, seen, cut }) => ({ at, op: seen[me.key] ?? (cut ? op : this.table.seenOp(op, me.key)) })), crew: [...crewOf(crewKind(this.room)).acts], deals: [...(deskOf(kindOf(this.room)).deals ?? (Object.keys(DEAL_PRESETS) as DealRule[]))], desk: kindOf(this.room), ice: iceServers() };
   }
 
   private personOf(session: string): Person | undefined {
@@ -406,6 +409,18 @@ export class TableRoom extends Room {
       const spots = cleanWatch(raw);
       if (!me || !spots || !this.flood.take(me.key, "eyes", Date.now())) return;
       if (this.eyes.look(me.key, spots, Date.now())) this.spreadEyes();
+    });
+
+    // ТЕЛО — поза, голова, правая рука. Остальным сразу, себе — только если правило стола поставило на ноги.
+    this.onMessage(MSG.body, (client, raw: unknown) => {
+      const me = this.personOf(client.sessionId);
+      const out = cleanBody(raw);
+      if (!me?.seat || !out || !this.flood.take(me.key, "body", Date.now())) return;
+      const body = this.bodies.set(me.key, out, this.table.seenBy(me.key).rules);
+      for (const other of this.clients) {
+        const key = this.seats.get(other.sessionId);
+        if (key !== undefined && (key !== me.key || body.stance !== out.stance)) other.send(MSG.body, body);
+      }
     });
 
     // КОМАНДА КНОПКОЙ — то же, что из бота: проверка админа внутри `run`, исполняет крупье или бот.
@@ -744,6 +759,13 @@ export class TableRoom extends Room {
       const was = this.table.seenBy(by).rules.turnMark;
       return void this.spread(this.table.act(by, { t: "rules", rules: { turnMark: !was } }, Date.now()).ops ?? []);
     }
+    // ИГРАТЬ СТОЯ — правило стола; все, кто сидел, встают у всех на глазах сразу, не дожидаясь своего тела.
+    if (act === "stand") {
+      const was = this.table.seenBy(by).rules.stand;
+      this.spread(this.table.act(by, { t: "rules", rules: { stand: !was } }, Date.now()).ops ?? []);
+      for (const body of this.bodies.restand({ stand: !was })) this.broadcast(MSG.body, body);
+      return;
+    }
     // СОСТАВ КОЛОДЫ — разница, а не пересборка: недостающие карты летят крупье в руки, лишние уходят.
     if (act === "deck" || act === "jokers") {
       const now = this.deckCard();
@@ -867,6 +889,7 @@ export class TableRoom extends Room {
     }
     this.book.tell("leave", key);
     if (this.eyes.forget(key)) this.spreadEyes();
+    this.bodies.forget(key);
     this.signals.forget(key);
     this.witnesses.forget(key);
     this.flood.forget(key);

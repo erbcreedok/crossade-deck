@@ -209,14 +209,16 @@ namespace Crossade.Wire
     public sealed class TableRules
     {
         public bool DropEmptyChairs = true, TurnMark = true;
+        /** Играть стоя: все за столом стоят (`bodies.ts`). */
+        public bool Stand;
         public string Faces = "classic", Back = "plaid";
 
         public static TableRules Read(object t) => t == null ? new TableRules() : new TableRules
         {
-            DropEmptyChairs = t.Flag("dropEmptyChairs"), TurnMark = t.Flag("turnMark"), Faces = t.Str("faces"), Back = t.Str("back"),
+            DropEmptyChairs = t.Flag("dropEmptyChairs"), TurnMark = t.Flag("turnMark"), Faces = t.Str("faces"), Back = t.Str("back"), Stand = t.Flag("stand"),
         };
 
-        public object Write() => new Fields().Put("dropEmptyChairs", DropEmptyChairs).Put("faces", Faces).Put("back", Back).Put("turnMark", TurnMark).Map;
+        public object Write() => new Fields().Put("dropEmptyChairs", DropEmptyChairs).Put("faces", Faces).Put("back", Back).Put("turnMark", TurnMark).Put("stand", Stand).Map;
     }
 
     /** След карты: кто последним переносил, откуда и когда. */

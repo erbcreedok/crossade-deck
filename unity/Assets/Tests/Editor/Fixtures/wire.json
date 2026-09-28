@@ -61,7 +61,56 @@
    "claude",
    "flash",
    "ollama"
-  ]
+  ],
+  "body": {
+   "by": "a",
+   "stance": "stand",
+   "look": {
+    "x": 1.5,
+    "y": -2
+   },
+   "stretch": 0.45,
+   "yaw": -30,
+   "right": {
+    "x": 0.25,
+    "y": 3
+   }
+  },
+  "neck": {
+   "zoom": 1.6,
+   "pan": 4,
+   "free": 0.3,
+   "holdMs": 2000,
+   "backMs": 500,
+   "restMs": 1000,
+   "stanceZoom": {
+    "sit": 1,
+    "stand": 0.72
+   },
+   "everyMs": 100,
+   "holds": [
+    {
+     "stretch": 0,
+     "ms": -1
+    },
+    {
+     "stretch": 0.3,
+     "ms": -1
+    },
+    {
+     "stretch": 0.5,
+     "ms": 4857.142857142857
+    },
+    {
+     "stretch": 0.8,
+     "ms": 3142.8571428571427
+    },
+    {
+     "stretch": 1,
+     "ms": 2000
+    }
+   ]
+  }
  },
  "reels": {
   "sandbox": [
@@ -204,7 +253,8 @@
       "dropEmptyChairs": true,
       "faces": "classic",
       "back": "plaid",
-      "turnMark": true
+      "turnMark": true,
+      "stand": false
      },
      "admin": "a",
      "dealer": null,
@@ -1671,7 +1721,8 @@
          "dropEmptyChairs": true,
          "faces": "classic",
          "back": "argyle",
-         "turnMark": true
+         "turnMark": true,
+         "stand": false
         }
        }
       ]
@@ -2127,7 +2178,8 @@
       "dropEmptyChairs": true,
       "faces": "classic",
       "back": "argyle",
-      "turnMark": true
+      "turnMark": true,
+      "stand": false
      },
      "admin": "a",
      "dealer": null,
@@ -2287,7 +2339,8 @@
       "dropEmptyChairs": true,
       "faces": "classic",
       "back": "plaid",
-      "turnMark": true
+      "turnMark": true,
+      "stand": false
      },
      "admin": "a",
      "dealer": null,
@@ -3733,7 +3786,8 @@
          "dropEmptyChairs": true,
          "faces": "classic",
          "back": "argyle",
-         "turnMark": true
+         "turnMark": true,
+         "stand": false
         }
        }
       ]
@@ -4189,7 +4243,8 @@
       "dropEmptyChairs": true,
       "faces": "classic",
       "back": "argyle",
-      "turnMark": true
+      "turnMark": true,
+      "stand": false
      },
      "admin": "a",
      "dealer": null,
@@ -4336,7 +4391,8 @@
       "dropEmptyChairs": true,
       "faces": "classic",
       "back": "plaid",
-      "turnMark": true
+      "turnMark": true,
+      "stand": false
      },
      "admin": "a",
      "dealer": null,
@@ -5774,7 +5830,8 @@
          "dropEmptyChairs": true,
          "faces": "classic",
          "back": "argyle",
-         "turnMark": true
+         "turnMark": true,
+         "stand": false
         }
        }
       ]
@@ -6230,7 +6287,8 @@
       "dropEmptyChairs": true,
       "faces": "classic",
       "back": "argyle",
-      "turnMark": true
+      "turnMark": true,
+      "stand": false
      },
      "admin": "a",
      "dealer": null,
@@ -6396,7 +6454,8 @@
       "dropEmptyChairs": true,
       "faces": "classic",
       "back": "plaid",
-      "turnMark": true
+      "turnMark": true,
+      "stand": false
      },
      "admin": "a",
      "dealer": null,
@@ -6929,7 +6988,8 @@
       "dropEmptyChairs": true,
       "faces": "classic",
       "back": "plaid",
-      "turnMark": true
+      "turnMark": true,
+      "stand": false
      },
      "admin": "a",
      "dealer": null,
@@ -7106,7 +7166,8 @@
       "dropEmptyChairs": true,
       "faces": "classic",
       "back": "plaid",
-      "turnMark": true
+      "turnMark": true,
+      "stand": false
      },
      "admin": "a",
      "dealer": null,
@@ -7626,7 +7687,8 @@
       "dropEmptyChairs": true,
       "faces": "classic",
       "back": "plaid",
-      "turnMark": true
+      "turnMark": true,
+      "stand": false
      },
      "admin": "a",
      "dealer": null,

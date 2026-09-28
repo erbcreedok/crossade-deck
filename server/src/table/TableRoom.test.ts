@@ -10,6 +10,7 @@ import { dropRoom, keepCard, keepState, keptRooms, keptState } from "../db/table
 import { BOT_KEY } from "./botPerson.js";
 import type { Say, Shot } from "./say.js";
 import { PULSE_EVERY_MS, type Pulse } from "./freshness.js";
+import type { Body } from "./bodies.js";
 
 const SECRET = "table-secret";
 const BOT = "bot-token";
@@ -275,6 +276,31 @@ describe("TableRoom", () => {
     owner.client.send(MSG.intent, { t: "crew", act: "turn-mark" });
     await new Promise((r) => setTimeout(r, 200));
     expect(мой(), "зажёг обратно").toBe(true);
+  });
+
+  it("тела: сосед видит мою позу и голову, опоздавший — последнее, «играть стоя» ставит всех на ноги", async () => {
+    const room = mintRoom(SECRET);
+    openEntry(room, { kind: "inline", message: "m" }, "tg:7", "Тела");
+    const owner = await sit(room, { door: "telegram", initData: initData(7, "Аня") });
+    const guest = await sit(room, { door: "guest", name: "Боря" });
+    await runIn(room, "tg:7", { t: "croupier", on: true });
+    const mine = { stance: "sit", look: { x: 1, y: 2 }, stretch: 0.4, yaw: 15, right: { x: 0.5, y: 0.5 } };
+    const seen = next<Body>(owner.client, MSG.body);
+    guest.client.send(MSG.body, mine);
+    expect(await seen).toEqual({ ...mine, by: guest.welcome.you.key });
+    guest.client.send(MSG.body, { ...mine, stance: "lie" });
+
+    const late = await sit(room, { door: "guest", name: "Вера" });
+    expect(late.welcome.bodies).toEqual([{ ...mine, by: guest.welcome.you.key }]);
+
+    const up = next<Body>(guest.client, MSG.body);
+    owner.client.send(MSG.intent, { t: "crew", act: "stand" });
+    expect((await up).stance, "сидевший встал — и сам это узнал").toBe("stand");
+    await new Promise((r) => setTimeout(r, 100));
+    expect(guest.patches.reduce(applyPatch, guest.welcome.snapshot).rules.stand).toBe(true);
+    const again = next<Body>(guest.client, MSG.body);
+    guest.client.send(MSG.body, mine);
+    expect((await again).stance, "сесть при правиле нельзя: сервер поправил и сказал самому").toBe("stand");
   });
 
   it("состав колоды из окна крупье: 36 ↔ 52 и джокеры — недостающие прилетают крупье в руки, лишние уходят", async () => {
