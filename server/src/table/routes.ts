@@ -28,7 +28,8 @@ import { carryTableProfile, saveTableProfile, tableProfile } from "../db/tablePr
 import { carryOwned, ownedParts } from "../db/tableOwnedRepo.js";
 import { ownedOf, setsOwned, wearable } from "./rewards.js";
 import { grantDue } from "./gifts.js";
-import { tgFace } from "./tgFace.js";
+import { faceOf, type Face } from "./avatars.js";
+import { avatarsOf } from "../db/tableAvatarsRepo.js";
 import { cleanDoll, dollFor, ownParts } from "./dolls.js";
 import { cleanParts, partsFor } from "./skins.js";
 import { INKS, inkFor } from "../profileInks.js";
@@ -281,27 +282,31 @@ export function tableRoutes(): Router {
     const bearer = config.secret ? appKeyBearer(req.header(APP_KEY_HEADER), config.secret) : null;
     return bearer && { key: bearer.key, name: bearer.name, ...(bearer.photo ? { photo: bearer.photo } : {}) };
   };
-  const profileOut = (who: { key: string; name: string; photo?: string }) => {
+  const profileOut = (who: { key: string; name: string; photo?: string }, face: Face = { avatars: [] }) => {
     const row = tableProfile(who.key);
     const look = { ...dollFor(who.key), ...cleanDoll(row) };
     // ЧТО ЕСТЬ У ЧЕЛОВЕКА — стартовое и полученное наградой; сидит он только тем, что есть.
     const owned = ownedOf(ownedParts(who.key));
-    return { name: who.name, ...(who.photo ? { photo: who.photo } : {}), telegram: who.key.startsWith("tg:"), doll: look.doll, palette: look.palette, parts: wearable(partsFor(look.doll, ownParts(row?.parts)), owned), owned: [...owned], color: row?.color ?? inkFor(who.key), chosen: row !== null };
+    return { name: who.name, ...(who.photo ? { photo: who.photo } : {}), telegram: who.key.startsWith("tg:"), doll: look.doll, palette: look.palette, parts: wearable(partsFor(look.doll, ownParts(row?.parts)), owned), owned: [...owned], color: row?.color ?? inkFor(who.key), chosen: row !== null, avatars: face.avatars, ...(face.worn ? { avatar: face.worn } : {}) };
   };
   r.get("/table/profile", async (req, res) => {
     const asked = whoAsks(req);
     if (!asked) return void res.status(401).json({ error: "who_are_you" });
-    // Фото не пришло с подписью — спросить у бота (`tgFace.ts`).
-    const face = asked.photo ? undefined : await tgFace(asked.key, tableConfig().botToken);
-    const who = face ? { ...asked, photo: face } : asked;
+    // ЛИЦО — надетый снимок-аватар; новое фото в Telegram — ещё один снимок (`avatars.ts`).
+    const face = await faceOf(asked.key, asked.photo);
+    const who = { ...asked, ...(face.photo ? { photo: face.photo } : {}) };
     // ВОШЁЛ ЧЕРЕЗ TELEGRAM — подарок за это (аватар) приходит уже здесь, до первой комнаты (`gifts.ts`).
     grantDue(who.key, false);
-    res.json(profileOut(who));
+    res.json(profileOut(who, face));
   });
-  r.patch("/table/profile", (req, res) => {
-    const who = whoAsks(req);
-    if (!who) return void res.status(401).json({ error: "who_are_you" });
-    const body = (req.body ?? {}) as { color?: unknown; parts?: unknown };
+  r.patch("/table/profile", async (req, res) => {
+    const asked0 = whoAsks(req);
+    if (!asked0) return void res.status(401).json({ error: "who_are_you" });
+    const body = (req.body ?? {}) as { color?: unknown; parts?: unknown; avatar?: unknown };
+    // КАКОЙ СНИМОК-АВАТАР НАДЕТЬ — только из своих (`avatars.ts`).
+    if (typeof body.avatar === "number" && avatarsOf(asked0.key).some((a) => a.n === body.avatar)) saveTableProfile(asked0.key, { avatar: body.avatar });
+    const face = await faceOf(asked0.key, asked0.photo);
+    const who = { ...asked0, ...(face.photo ? { photo: face.photo } : {}) };
     const color = typeof body.color === "string" && (INKS as readonly string[]).includes(body.color) ? body.color : undefined;
     // ТОЛЬКО ТО, ЧТО ЕСТЬ: набор — если он есть целиком, часть — если она есть (`rewards.ts`).
     const owned = ownedOf(ownedParts(who.key));
@@ -313,7 +318,7 @@ export function tableRoutes(): Router {
     const had = doll.doll ? {} : ownParts(tableProfile(who.key)?.parts);
     const parts = body.parts !== undefined || doll.doll ? { parts: JSON.stringify({ ...had, ...wanted }) } : {};
     saveTableProfile(who.key, { ...doll, ...(color ? { color } : {}), ...parts });
-    res.json(profileOut(who));
+    res.json(profileOut(who, face));
   });
 
   // ─── ПРИЛОЖЕНИЕ CROSSADE: свой вход, без Telegram Mini App ────────────────────────────────────────

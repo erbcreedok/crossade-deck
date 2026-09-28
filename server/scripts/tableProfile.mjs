@@ -78,7 +78,7 @@ await enter();
 check("гость в комнате — шар и палка, наград нет", (await meAt())?.parts?.body === "stick:body" && (await meAt())?.parts?.head === "ball:head", await meAt());
 
 // ПРИВЯЗАЛ TELEGRAM (вход приложения, подписанный токеном бота прогона): ключ гостя едет с ним.
-const login = { id: 99001, first_name: "Проба", auth_date: Math.floor(Date.now() / 1000), photo_url: `${base}/table/sprites/club-K.svg` };
+const login = { id: 90000 + Math.floor(Math.random() * 9_000_000), first_name: "Проба", auth_date: Math.floor(Date.now() / 1000), photo_url: `${base}/table/sprites/club-K.svg` };
 const dcs = Object.entries(login).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => `${k}=${v}`).join("\n");
 const hash = createHmac("sha256", createHash("sha256").update("test").digest()).update(dcs).digest("hex");
 ({ key } = await (await fetch(`${base}/table/app/telegram`, { method: "POST", headers: { "content-type": "application/json", "x-crossade-app-key": key }, body: JSON.stringify({ ...login, hash }) })).json());

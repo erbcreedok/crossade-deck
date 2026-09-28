@@ -413,4 +413,23 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec(`DROP TABLE table_visits;`);
     },
   },
+  {
+    version: 23,
+    up(db) {
+      // АВАТАРЫ — СНИМКИ НАВСЕГДА: каждое новое фото из Telegram — ещё одна голова-аватар, прежние остаются
+      // (`tableAvatarsRepo.ts`). В профиле — какой снимок надет.
+      db.exec(`
+        CREATE TABLE table_avatars (
+          key TEXT NOT NULL,
+          n INTEGER NOT NULL,
+          uid TEXT NOT NULL,
+          photo TEXT NOT NULL,
+          got_at INTEGER NOT NULL,
+          PRIMARY KEY (key, n),
+          UNIQUE (key, uid)
+        );
+        ALTER TABLE table_profiles ADD COLUMN avatar INTEGER;
+      `);
+    },
+  },
 ];

@@ -9,19 +9,21 @@ export interface TableProfileRow {
   color: string | null;
   /** Части, которые человек поменял сам поверх набора `doll`: JSON «слот → часть». */
   parts: string | null;
+  /** Какой снимок-аватар надет, если голова — аватар (`tableAvatarsRepo.ts`); нет — первый. */
+  avatar: number | null;
 }
 
 export function tableProfile(key: string, at: DatabaseSync = db()): TableProfileRow | null {
-  const row = at.prepare("SELECT doll, palette, color, parts FROM table_profiles WHERE key = ?").get(key) as TableProfileRow | undefined;
+  const row = at.prepare("SELECT doll, palette, color, parts, avatar FROM table_profiles WHERE key = ?").get(key) as TableProfileRow | undefined;
   return row ?? null;
 }
 
 /** Записать выбранное; поля, которых нет в `patch`, остаются как были. */
 export function saveTableProfile(key: string, patch: Partial<TableProfileRow>, now = Date.now(), at: DatabaseSync = db()): TableProfileRow {
-  const was = tableProfile(key, at) ?? { doll: null, palette: null, color: null, parts: null };
+  const was = tableProfile(key, at) ?? { doll: null, palette: null, color: null, parts: null, avatar: null };
   const next = { ...was, ...patch };
-  at.prepare("INSERT INTO table_profiles (key, doll, palette, color, parts, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET doll = excluded.doll, palette = excluded.palette, color = excluded.color, parts = excluded.parts, updated_at = excluded.updated_at")
-    .run(key, next.doll, next.palette, next.color, next.parts, now);
+  at.prepare("INSERT INTO table_profiles (key, doll, palette, color, parts, avatar, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET doll = excluded.doll, palette = excluded.palette, color = excluded.color, parts = excluded.parts, avatar = excluded.avatar, updated_at = excluded.updated_at")
+    .run(key, next.doll, next.palette, next.color, next.parts, next.avatar, now);
   return next;
 }
 
