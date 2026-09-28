@@ -1,0 +1,59 @@
+unity/Assets/Crossade/View/Lobby.cs
+  s_e1c4165d82711d::t_ce8d38c2a06f28 111-117
+unity/ProjectSettings/EditorBuildSettings.asset
+  s_e1c4165d82711d::t_37b352a164fcd3 7-10
+unity/ProjectSettings/GraphicsSettings.asset
+  s_e1c4165d82711d::t_37b352a164fcd3 37-39
+unity/Assets/Plugins/iOS.meta
+  s_e1c4165d82711d::t_01e33e9c010531 1-8
+unity/Assets/Tests/Editor/AccountTests.cs.meta
+  s_e1c4165d82711d::t_01e33e9c010531 1-2
+unity/Assets/Plugins/iOS/CrossadeLogin.mm.meta
+  s_e1c4165d82711d::t_01e33e9c010531 1-2
+unity/Assets/Scenes/Main.unity
+  s_e1c4165d82711d::t_37b352a164fcd3 1-125
+unity/Assets/Crossade/Editor/Build.cs
+  s_e1c4165d82711d::t_ce8d38c2a06f28 53-59
+  s_e1c4165d82711d::t_ac2430523798d8 22-23
+unity/Assets/Crossade/Table/Store.cs
+  s_e1c4165d82711d::t_6a4e55337161b3 107,109,111-112
+unity/Assets/Plugins.meta
+  s_e1c4165d82711d::t_01e33e9c010531 1-8
+unity/Assets/Crossade/App.cs
+  s_e1c4165d82711d::t_ce8d38c2a06f28 98-104
+unity/Assets/Crossade/View/Board.cs
+  s_e1c4165d82711d::t_6423ff8db68973 191-200,209-224
+  s_e1c4165d82711d::t_5bfd134267198e 225-226
+unity/Assets/Tests/Editor/AccountTests.cs
+  s_e1c4165d82711d::t_8376297f2480bd 1-39
+unity/Assets/Crossade/Net/Account.cs
+  s_e1c4165d82711d::t_ce8d38c2a06f28 32,48,51,53-64,68-98
+  s_e1c4165d82711d::t_a63bff47b7807d 99
+unity/Assets/Scenes/Main.unity.meta
+  s_e1c4165d82711d::t_37b352a164fcd3 1-7
+unity/Assets/Plugins/iOS/CrossadeLogin.mm
+  s_e1c4165d82711d::t_e1c9ca3365cef3 1-39
+unity/Assets/Tests/Play/LiveTableTests.cs
+  s_e1c4165d82711d::t_8d2faeb8997ead 140-153
+unity/ProjectSettings/ProjectSettings.asset
+  s_e1c4165d82711d::t_ac2430523798d8 145,174
+  s_e1c4165d82711d::t_37b352a164fcd3 11,15-16,20-21,86,167-170,176,195,236-237,246,253,297-304,433-436,697-698,702-703
+unity/Assets/Scenes.meta
+  s_e1c4165d82711d::t_37b352a164fcd3 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7c63047cfcfe5af0a2c9ebd17f1513760ba05183",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
