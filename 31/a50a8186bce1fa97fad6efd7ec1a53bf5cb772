@@ -1,0 +1,47 @@
+server/src/table/bodies.test.ts
+  s_e1c4165d82711d::t_9c931e77a54e60 4,6,23-24,27,49-54,56-57,59-68
+  s_e1c4165d82711d::t_6817c6aec08051 55,58
+server/table-client/felt.ts
+  s_e1c4165d82711d::t_25fddda7ff0c5d 88-89,690
+  s_e1c4165d82711d::t_2628741ab72a4e 49,697-702,926,937,958
+server/scripts/tableBody.mjs
+  s_e1c4165d82711d::t_3d0e1c4937af3f 124
+  s_e1c4165d82711d::t_94dd402ceb0d89 83-95
+  s_e1c4165d82711d::t_be307aa65751b6 109,125
+  s_e1c4165d82711d::t_fbdeb1e27974d1 126-127
+server/src/table/bodies.ts
+  s_e1c4165d82711d::t_6817c6aec08051 90-95,107-112
+  s_e1c4165d82711d::t_9c931e77a54e60 125-126
+  s_e1c4165d82711d::t_97f4a88ab13f23 7,30-36,41-45,88-89,96-99,101-102,104-106,118-119,122,138-139,142,147
+server/table-client/screen.ts
+  s_e1c4165d82711d::t_7172836fc86f33 51,494-496,501
+  s_e1c4165d82711d::t_2628741ab72a4e 46,478,482,493,497-500,502,3203
+  s_e1c4165d82711d::t_25fddda7ff0c5d 3146
+server/src/table/TableRoom.test.ts
+  s_e1c4165d82711d::t_9c931e77a54e60 287
+server/src/table/wireFixture.test.ts
+  s_e1c4165d82711d::t_9c931e77a54e60 19,133-134,136-137
+server/table-client/bodyView.ts
+  s_e1c4165d82711d::t_9c4fb011f9c1c1 47-49
+  s_e1c4165d82711d::t_6817c6aec08051 61-63
+  s_e1c4165d82711d::t_2628741ab72a4e 10,14-16,37,46,58-59,72-75,85-86
+unity/Assets/Tests/Editor/Fixtures/wire.json
+  s_e1c4165d82711d::t_3e33afd4d549ad 69,71-72,87-88,91-95,128,130-131,136-137,153,155-156,161-162,178,180-181,186-187,203,205-206,211-212,228,230-231,236-237,253,255-256,261-262,278,280-281,286-287,303,305-306,311-312,328,330-331,336-337
+  s_e1c4165d82711d::t_6817c6aec08051 89-90,140-142,145-147,165-167,170-172,190-192,195-197,215-217,220-222,240-242,245-247,265-267,270-272,290-292,295-297,315-317,320-322,340-342,345-347
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "31a50a8186bce1fa97fad6efd7ec1a53bf5cb772",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
