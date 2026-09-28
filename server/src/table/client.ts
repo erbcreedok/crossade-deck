@@ -120,7 +120,7 @@ export function clientRoutes(source: ClientSource = fromEnv()): Router {
   });
 
   // ЧАСТИ СКИНОВ ПО РАКУРСАМ — рисунки из каталога (`skins.ts`): папка, ракурс и слот — только те, что там есть.
-  r.get(/^\/table\/skins\/([a-z0-9-]+)\/([a-z]+)-(head|body|legs)\.svg$/, (req, res) => {
+  r.get(/^\/table\/skins\/([a-z0-9-]+)\/([a-z]+)-(head|hair|body|legs)\.svg$/, (req, res) => {
     const [dir, view, slot] = [req.params[0]!, req.params[1]!, req.params[2]!];
     const known = PARTS.some((p) => p.art.kind === "file" && p.art.dir === dir && p.slot === slot && p.views.includes(view));
     if (!known) return void res.status(404).end();
