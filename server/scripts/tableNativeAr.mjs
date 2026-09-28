@@ -256,15 +256,15 @@ await web.leave();
   await g.locator("[data-guest]").click().catch(() => {});
   await g.waitForSelector("[data-new]", { timeout: 15000 }).catch(() => {});
   const guestKey = await g.evaluate(() => sessionStorage.getItem("gotKey"));
-  check("гость: ключ отдан приложению, список — «ты: Гость …»", typeof guestKey === "string" && /Ты: Гость \d{4} · гость/.test(await g.locator("[data-rooms]").innerText()), await g.locator("[data-rooms]").innerText().catch(() => ""));
+  check("гость: ключ отдан приложению, сверху — «Гость …, гость»", typeof guestKey === "string" && /Гость \d{4}\s+гость/.test(await g.locator("[data-rooms] [data-me]").innerText().catch(() => "")), await g.locator("[data-rooms]").innerText().catch(() => ""));
   await g.locator("[data-new]").click().catch(() => {});
   await g.waitForSelector("[data-section]", { timeout: 15000 }).catch(() => {});
   await g.waitForTimeout(800);
   const owner = await g.evaluate(() => { const s = window.__tableState?.(); return s ? { admin: s.admin, me: s.people.find((p) => p.key.startsWith("dev:"))?.key } : null; }).catch(() => null);
   check("«Новый стол» — стол гостя: он за ним и он хозяин", owner && owner.me && owner.admin === owner.me, owner);
   await g.locator("[data-rooms-back]").click().catch(() => {});
-  await g.waitForSelector(".room", { timeout: 15000 }).catch(() => {});
-  check("и стол уже в «Моих комнатах» гостя", (await g.locator(".room").count()) === 1);
+  await g.waitForSelector(".card [data-room]", { timeout: 15000 }).catch(() => {});
+  check("и стол уже в «Моих комнатах» гостя", (await g.locator(".card [data-room]").count()) === 1);
 
   // Вход через Telegram: подпись кнопки входа (Login Widget) → ключ на того же человека, что в мини-аппе.
   const fields = { id: 7, first_name: "Ye", auth_date: Math.floor(Date.now() / 1000) };

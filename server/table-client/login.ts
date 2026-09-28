@@ -22,7 +22,9 @@ export function mountLogin(host: HTMLElement, bot: string): void {
   (globalThis as { onCrossadeTelegram?: (user: Record<string, unknown>) => void }).onCrossadeTelegram = (user) => {
     note.style.color = "#cdb98f";
     note.textContent = "Вхожу…";
-    void fetch(`${HOST}/table/app/telegram`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(user) })
+    // ПРИВЯЗЫВАЕТ ГОСТЬ — его ключ едет с входом (`?login&from=…`): выбор в профиле стола переезжает на Telegram.
+    const from = new URLSearchParams(location.search).get("from");
+    void fetch(`${HOST}/table/app/telegram`, { method: "POST", headers: { "content-type": "application/json", ...(from ? { "x-crossade-app-key": from } : {}) }, body: JSON.stringify(user) })
       .then(async (res) => {
         if (!res.ok) throw new Error(res.status === 401 ? "Telegram не подтвердил вход — попробуй ещё раз." : `Стол ответил ${res.status}.`);
         const { key } = (await res.json()) as { key: string };

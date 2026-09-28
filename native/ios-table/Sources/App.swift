@@ -37,7 +37,7 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
     static let bridge = "window.__crossadeNative = { version: 1, "
         + "ar: function (on) { window.webkit.messageHandlers.crossade.postMessage({ ar: !!on }); }, "
         + "key: function (k) { window.webkit.messageHandlers.crossade.postMessage({ key: String(k) }); }, "
-        + "login: function () { window.webkit.messageHandlers.crossade.postMessage({ login: true }); }, "
+        + "login: function (from) { window.webkit.messageHandlers.crossade.postMessage({ login: true, from: from ? String(from) : \"\" }); }, "
         + "surface: function () { window.webkit.messageHandlers.crossade.postMessage({ surface: true }); } };"
 
     let camera = ARSCNView()
@@ -184,9 +184,11 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
     // окно подтверждения — как в Safari. Страница заканчивает адресом crossade://login?key=… — окно его ловит.
     var auth: ASWebAuthenticationSession?
 
-    func login() {
+    /** `from` — ключ гостя, который привязывает Telegram: страница входа отдаст его столу, и выбор в профиле переедет. */
+    func login(from: String? = nil) {
         var url = URLComponents(string: Self.relay + "/t/")!
         url.queryItems = [URLQueryItem(name: "login", value: "")]
+        if let from, !from.isEmpty { url.queryItems!.append(URLQueryItem(name: "from", value: from)) }
         let session = ASWebAuthenticationSession(url: url.url!, callbackURLScheme: "crossade") { [weak self] back, _ in
             if let back { self?.opened(back) }
         }
@@ -213,7 +215,7 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
         guard let body = message.body as? [String: Any] else { return }
         if let on = body["ar"] as? Bool { setAr(on) }
         if let key = body["key"] as? String { UserDefaults.standard.set(key, forKey: "key") }
-        if body["login"] as? Bool == true { login() }
+        if body["login"] as? Bool == true { login(from: body["from"] as? String) }
         if body["surface"] as? Bool == true { findSurface() }
     }
 
