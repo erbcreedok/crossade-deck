@@ -208,6 +208,26 @@ public class LiveTableTests
         yield return Settle();
         Shoot("11-deck-flipped");
 
+        // Рогатка: палец ушёл под карту руки и держит — заряд; отпустил заряженную — карта брошена в центр камеры.
+        var thrownId = Mine(app.Store).Hand[0].Id;
+        var card0 = app.Board.Hand.Slots[0];
+        var f = app.Finger;
+        f.Down(1, card0.center, Time.realtimeSinceStartup);
+        yield return null;
+        var below = new Vector2(card0.center.x, card0.yMin - 60 * app.Board.Hand.Dpr);
+        for (int i = 1; i <= 6; i++)
+        {
+            f.Move(1, Vector2.Lerp(card0.center, below, i / 6f), Time.realtimeSinceStartup);
+            yield return null;
+        }
+        yield return Until(() => f.Sling != null && f.Sling.Armed, 5, "рогатка заряжена");
+        Shoot("12a-sling-armed");
+        f.Up(1, below, Time.realtimeSinceStartup);
+        yield return Until(() => watch.S.Felt.Any(c => c.Id == thrownId), 5, "брошенная карта на сукне — глазами второго клиента");
+        Assert.IsTrue(watch.S.Trails[thrownId].Thrown, "бросок помечен сильным");
+        yield return Settle();
+        Shoot("12b-thrown");
+
         // Тап по своему стулу — окно стула; «Замок» — второй клиент видит флаг.
         var seatAt = (Vector2)app.Rig.Cam.WorldToScreenPoint(app.Board.Seat(myChair.Id).transform.position);
         yield return Tap(seatAt);

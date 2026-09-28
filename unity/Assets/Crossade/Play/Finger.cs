@@ -44,6 +44,21 @@ namespace Crossade.Play
         Where from;
         Card heldCard;
         float carryAt, holdAt;
+        /** Где стояла карта в руке, когда её взяли: из-под неё натягивают рогатку. */
+        Rect slot;
+
+        /** Рогатка натянута (`Sling`): что видит экран — заряд, куда полетит, долетит ли. */
+        public sealed class Aim
+        {
+            public double Charge, Dist;
+            public bool Armed, Valid;
+            public float At;
+            /** Карта в руке и точка попадания — пиксели экрана. */
+            public Vector2 From, Target;
+            /** Куда ляжет, в осях стола. */
+            public Vector2 Land;
+        }
+        public Aim Sling { get; private set; }
         string lastTapId;
         float lastTapTime = -1;
         /** Второй палец — щипок. */
@@ -80,6 +95,7 @@ namespace Crossade.Play
             {
                 (held, from, heldCard) = hit.Value;
                 mode = Mode.Card;
+                slot = from.In == "hand" && board.Hand != null && from.I < board.Hand.Slots.Length ? board.Hand.Slots[from.I ?? 0] : default;
                 return;
             }
             seatDown = SeatUnder(px);
@@ -120,11 +136,11 @@ namespace Crossade.Play
             }
             else if (mode == Mode.Card && held != null)
             {
-                Follow(px);
+                if (!Steer(px, now)) Follow(px);
                 if (now - carryAt >= Protocol.CarryEveryMs / 1000f)
                 {
                     carryAt = now;
-                    store.CarryOut(heldCard.Id, Target(px));
+                    store.CarryOut(heldCard.Id, Sling != null ? Sling.Armed && Sling.Valid ? Landing() : from : Target(px));
                 }
                 if (now - holdAt >= Protocol.HoldEveryMs / 1000f)
                 {
@@ -141,9 +157,11 @@ namespace Crossade.Play
             if (touches.Count > 0) return;
             if (mode == Mode.Card && heldCard != null)
             {
-                if (moved) Drop(px);
+                if (Sling != null) Loose();
+                else if (moved) Drop(px);
                 else Tap(heldCard.Id, now);
             }
+            Sling = null;
             if (mode == Mode.Seat && !moved) SeatTapped?.Invoke(seatDown);
             if (mode == Mode.Orbit && !moved) Missed?.Invoke();
             mode = Mode.None;
@@ -151,8 +169,75 @@ namespace Crossade.Play
             heldCard = null;
         }
 
+        // ── рогатка ─────────────────────────────────────────────────────────────────────────────
+
+        /** Натяг по пальцу — только у карты из моей руки. `true` — палец сейчас под картой. */
+        bool Steer(Vector2 px, float now)
+        {
+            if (from.In != "hand" || from.Chair != store.MyChair?.Id || board.Hand == null) return false;
+            var dist = (slot.yMin - px.y) / board.Hand.Dpr;
+            if (!Play.Sling.Tensed(dist))
+            {
+                if (Sling != null)
+                {
+                    Sling = null;
+                    held.Held = true;
+                    held.Move(board.Table);
+                }
+                return false;
+            }
+            if (Sling == null)
+            {
+                Sling = new Aim { At = now };
+                // Карта не едет за пальцем — стоит в руке и пружинит.
+                held.Held = false;
+                held.Move(board.Hand.transform);
+            }
+            Sling.Dist = dist;
+            Retarget();
+            return true;
+        }
+
+        /** Заряд идёт, пока палец держит: зовётся каждый кадр. */
+        public void Tick(float now)
+        {
+            if (Sling == null) return;
+            Sling.Charge = Play.Sling.Charged(Sling.Charge, Sling.Dist, now - Sling.At);
+            Sling.At = now;
+            if (Sling.Charge >= 1) Sling.Armed = true;
+            Retarget();
+        }
+
+        /** Цель — центр камеры; на сукне ли она. */
+        void Retarget()
+        {
+            var centre = new Vector2(Cam.pixelWidth / 2f, Cam.pixelHeight / 2f);
+            Sling.From = slot.center + Vector2.up * slot.height / 2;
+            Sling.Target = centre;
+            var desk = board.ToDesk(Cam.ScreenPointToRay(centre));
+            Sling.Land = desk ?? Vector2.zero;
+            Sling.Valid = desk != null && desk.Value.magnitude <= Ring.TableRadius - Play.Sling.Edge;
+        }
+
+        Where Landing() => Where.Felt(Sling.Land.x, Sling.Land.y, heldCard.Up != true, -board.MyAngle);
+
+        void Loose()
+        {
+            switch (Play.Sling.OnRelease(Sling.Armed, Sling.Valid))
+            {
+                case Play.Sling.Release.Throw:
+                    store.Act(Intents.Drop(heldCard.Id, Landing(), thrown: true));
+                    break;
+                default:
+                    store.Act(Intents.Release(heldCard.Id));
+                    break;
+            }
+            Unlift();
+        }
+
         void Cancel()
         {
+            Sling = null;
             if (mode == Mode.Card && moved && heldCard != null)
             {
                 store.Act(Intents.Release(heldCard.Id));
@@ -310,6 +395,7 @@ namespace Crossade.Play
         {
             if (Finger == null) return;
             var now = Time.realtimeSinceStartup;
+            Finger.Tick(now);
             if (Input.touchCount > 0)
             {
                 foreach (var t in Input.touches)

@@ -91,6 +91,7 @@ namespace Crossade
             Hud.Home = Home;
             Grips = PileGrips.Make(Hud, Board, Board.Hand, () => Store, Draw);
             Chairs = ChairWindow.Make(Hud, () => Store);
+            SlingView.Make(Hud, Board.Hand, () => Finger);
             Ar = ArMode.Make(Board);
             Ar.Says += text =>
             {
