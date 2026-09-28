@@ -1,0 +1,10 @@
+/Library/
+/Temp/
+/Obj/
+/Logs/
+/UserSettings/
+/Builds/
+*.csproj
+*.sln
+/Assets/Resources/Cards/
+/Assets/Resources/Cards.meta
