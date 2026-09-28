@@ -223,11 +223,14 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor { view.window ?? ASPresentationAnchor() }
 
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        note.text = nil
         UIView.animate(withDuration: 0.22, delay: 0.15, animations: { self.splash.alpha = 0 }, completion: { _ in self.splash.isHidden = true })
     }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { failed(error) }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failed(error) }
     func failed(_ error: Error) {
+        // ОТМЕНА — НЕ ОШИБКА: страница сама ушла дальше («Мои комнаты» → комната), и WebKit отменил прежнюю загрузку.
+        if (error as NSError).domain == NSURLErrorDomain && (error as NSError).code == NSURLErrorCancelled { return }
         splash.isHidden = true
         note.text = "Комната не открылась: \(error.localizedDescription)"
     }
