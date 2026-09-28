@@ -377,4 +377,12 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 20,
+    up(db) {
+      // СКИН — НАБОР ЧАСТЕЙ (`skins.ts`): голова, причёска, тело, руки, ноги, которые человек поменял сам поверх
+      // набора `doll`. JSON: слот → часть. Пусто — набор как есть.
+      db.exec(`ALTER TABLE table_profiles ADD COLUMN parts TEXT;`);
+    },
+  },
 ];

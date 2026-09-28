@@ -25,7 +25,8 @@ import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
 import { myRooms } from "./mine.js";
 import { carryTableProfile, saveTableProfile, tableProfile } from "../db/tableProfilesRepo.js";
-import { cleanDoll, dollFor } from "./dolls.js";
+import { cleanDoll, dollFor, ownParts } from "./dolls.js";
+import { cleanParts, partsFor } from "./skins.js";
 import { INKS, inkFor } from "../profileInks.js";
 import { verifyTelegramInitData, verifyTelegramLogin } from "../telegramAuth.js";
 
@@ -279,7 +280,7 @@ export function tableRoutes(): Router {
   const profileOut = (who: { key: string; name: string; photo?: string }) => {
     const row = tableProfile(who.key);
     const look = { ...dollFor(who.key), ...cleanDoll(row) };
-    return { name: who.name, ...(who.photo ? { photo: who.photo } : {}), telegram: who.key.startsWith("tg:"), doll: look.doll, palette: look.palette, color: row?.color ?? inkFor(who.key), chosen: row !== null };
+    return { name: who.name, ...(who.photo ? { photo: who.photo } : {}), telegram: who.key.startsWith("tg:"), doll: look.doll, palette: look.palette, parts: partsFor(look.doll, ownParts(row?.parts)), color: row?.color ?? inkFor(who.key), chosen: row !== null };
   };
   r.get("/table/profile", (req, res) => {
     const who = whoAsks(req);
@@ -289,9 +290,13 @@ export function tableRoutes(): Router {
   r.patch("/table/profile", (req, res) => {
     const who = whoAsks(req);
     if (!who) return void res.status(401).json({ error: "who_are_you" });
-    const body = (req.body ?? {}) as { color?: unknown };
+    const body = (req.body ?? {}) as { color?: unknown; parts?: unknown };
     const color = typeof body.color === "string" && (INKS as readonly string[]).includes(body.color) ? body.color : undefined;
-    saveTableProfile(who.key, { ...cleanDoll(body), ...(color ? { color } : {}) });
+    const doll = cleanDoll(body);
+    // НАБОР — ЗАНОВО: выбрал набор — свои части сброшены; поменял часть — она ложится поверх того, что было.
+    const had = doll.doll ? {} : ownParts(tableProfile(who.key)?.parts);
+    const parts = body.parts !== undefined || doll.doll ? { parts: JSON.stringify({ ...had, ...cleanParts(body.parts) }) } : {};
+    saveTableProfile(who.key, { ...doll, ...(color ? { color } : {}), ...parts });
     res.json(profileOut(who));
   });
 

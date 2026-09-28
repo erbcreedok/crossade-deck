@@ -1,40 +1,36 @@
-// СПРАЙТЫ КУКОЛ — печёт их сам экран, по ракурсу (`skins.ts`): голова и туловище каждого нарисованного ракурса,
-// в расцветке, обведённые своим цветом человека. Откуда рисунок — у каждого источника скина своё:
-//   deck  — король и дама из колоды: кусок фигуры карты, бумага снаружи силуэта — прозрачная; спина —
-//           отражённая тёмная копия лица;
-//   files — рисунки скина с сервера (`/table/skins/<скин>/<ракурс>-<часть>.svg`), по одному на ракурс и часть;
-//   cube  — кубик: грани рисуются здесь же;
-//   stick — картинок нет, слой тел рисует простую фигуру.
+// СПРАЙТЫ ЧАСТЕЙ СКИНА — печёт их сам экран, по ракурсу (`skins.ts`): каждая нарисованная сторона части, в
+// расцветке, обведённая своим цветом человека. Откуда рисунок — у каждого источника части своё (`Part.art`):
+//   court — кусок фигуры карты колоды, бумага снаружи силуэта — прозрачная; спина — отражённая тёмная копия лица;
+//   file  — рисунок с сервера (`/table/skins/<папка>/<ракурс>-<слот>.svg`), по одному на ракурс;
+//   draw  — нарисованное кодом (`skinArt.ts`): шар, палка, бочонок, кубик, корона, колпак, ноги-палки;
+//   png   — готовая картинка стола (руки).
 //
 // Печётся лениво, по первой просьбе, и кладётся ссылкой на картинку (`URL.createObjectURL`): пока не готово,
-// `dollSprite` отвечает `null`, и слой тел рисует простую фигуру.
+// `partSprite` отвечает `null`, и слой тел рисует простую фигуру. Заставка входа ждёт `warmParts`.
 
 import { PALETTES, type Palette } from "../src/table/dolls.js";
-import { skinOf, type Skin } from "../src/table/skins.js";
+import { partOf, SLOTS, type Part, type Parts } from "../src/table/skins.js";
+import { drawArt } from "./skinArt.js";
 
-/** Как вырезать короля и даму из рисунка карты: куски в единицах его viewBox, где на туловище линия плеч, куда смотрит лицо. */
-export const ART: Record<string, { file: string; head: [number, number, number, number]; body: [number, number, number, number]; shoulder: number; looks: -1 | 1; oval?: boolean }> = {
-  king: { file: "club-K", head: [28, 0, 70, 58], body: [0, 50, 123, 50], shoulder: 0.22, looks: -1 },
-  queen: { file: "diamond-Q", head: [69, 23, 50, 52], body: [36, 66, 114, 56], shoulder: 0.12, looks: -1, oval: true },
-  "club-Q": { file: "club-Q", head: [68, 23, 56, 50], body: [30, 64, 116, 56], shoulder: 0.14, looks: -1, oval: true },
-  "club-J": { file: "club-J", head: [56, 22, 74, 64], body: [23, 78, 122, 52], shoulder: 0.16, looks: -1 },
-  "diamond-K": { file: "diamond-K", head: [50, 23, 78, 58], body: [22, 76, 123, 54], shoulder: 0.12, looks: -1 },
-  "diamond-J": { file: "diamond-J", head: [54, 23, 72, 60], body: [23, 78, 122, 52], shoulder: 0.14, looks: -1 },
-  "heart-K": { file: "heart-K", head: [50, 23, 80, 57], body: [23, 74, 122, 54], shoulder: 0.1, looks: -1 },
-  "heart-Q": { file: "heart-Q", head: [62, 23, 62, 50], body: [23, 66, 122, 56], shoulder: 0.1, looks: -1, oval: true },
-  "heart-J": { file: "heart-J", head: [50, 23, 74, 52], body: [23, 70, 122, 54], shoulder: 0.12, looks: -1 },
-  "spade-K": { file: "spade-K", head: [50, 23, 78, 57], body: [22, 74, 123, 54], shoulder: 0.1, looks: -1 },
-  "spade-Q": { file: "spade-Q", head: [76, 23, 62, 50], body: [23, 64, 122, 56], shoulder: 0.12, looks: -1, oval: true },
-  "spade-J": { file: "spade-J", head: [52, 23, 74, 50], body: [23, 68, 122, 56], shoulder: 0.1, looks: 1 },
+/** Как вырезать фигуру из рисунка карты: куски в единицах его viewBox, где на туловище линия плеч, куда смотрит лицо. */
+export const ART: Record<string, { head: [number, number, number, number]; body: [number, number, number, number]; shoulder: number; looks: -1 | 1; oval?: boolean }> = {
+  "club-K": { head: [28, 0, 70, 58], body: [0, 50, 123, 50], shoulder: 0.22, looks: -1 },
+  "diamond-Q": { head: [69, 23, 50, 52], body: [36, 66, 114, 56], shoulder: 0.12, looks: -1, oval: true },
+  "club-Q": { head: [68, 23, 56, 50], body: [30, 64, 116, 56], shoulder: 0.14, looks: -1, oval: true },
+  "club-J": { head: [56, 22, 74, 64], body: [23, 78, 122, 52], shoulder: 0.16, looks: -1 },
+  "diamond-K": { head: [50, 23, 78, 58], body: [22, 76, 123, 54], shoulder: 0.12, looks: -1 },
+  "diamond-J": { head: [54, 23, 72, 60], body: [23, 78, 122, 52], shoulder: 0.14, looks: -1 },
+  "heart-K": { head: [50, 23, 80, 57], body: [23, 74, 122, 54], shoulder: 0.1, looks: -1 },
+  "heart-Q": { head: [62, 23, 62, 50], body: [23, 66, 122, 56], shoulder: 0.1, looks: -1, oval: true },
+  "heart-J": { head: [50, 23, 74, 52], body: [23, 70, 122, 54], shoulder: 0.12, looks: -1 },
+  "spade-K": { head: [50, 23, 78, 57], body: [22, 74, 123, 54], shoulder: 0.1, looks: -1 },
+  "spade-Q": { head: [76, 23, 62, 50], body: [23, 64, 122, 56], shoulder: 0.12, looks: -1, oval: true },
+  "spade-J": { head: [52, 23, 74, 50], body: [23, 68, 122, 56], shoulder: 0.1, looks: 1 },
 };
 /** Туловище продолжено вниз на столько своих высот — мантия уходит в тень под столом. */
 export const EXTEND = 1.2;
 const K = 6;
 const PAPER = "#f7f1e6";
-/** Краски колоды, которые подменяет расцветка. */
-const DECK = { red: "#b3221f", blue: "#1d4f80", gold: "#f2c14e" };
-
-export type Part = "head" | "body";
 export interface DollSprite {
   src: string;
   w: number;
@@ -51,21 +47,16 @@ function solidOf(c: HTMLCanvasElement): number {
 }
 
 /**
- * ГЕОМЕТРИЯ СКИНА для слоя тел: где на туловище линия плеч (доля высоты испечённой картинки) и куда смотрит
- * нарисованное лицо (`looks`: −1 — влево, как у фигур колоды, 0 — прямо). Лицо, смотрящее вбок, слой тел
- * зеркалит по взгляду человека.
+ * ГЕОМЕТРИЯ ЧАСТИ для слоя тел: где на туловище линия плеч (доля высоты испечённой картинки), голова — высота к
+ * ширине, куда смотрит нарисованное лицо (`looks`: −1 — влево, как у фигур колоды, 0 — прямо). Лицо, смотрящее
+ * вбок, слой тел зеркалит по взгляду человека.
  */
-export function dollGeom(doll: string): { shoulder: number; looks: -1 | 0 | 1 } {
-  const art = ART[doll];
-  if (art) return { shoulder: art.shoulder / (1 + EXTEND), looks: art.looks };
-  return { shoulder: FILE_SHOULDER / (1 + EXTEND), looks: 0 };
+export function partGeom(id: string): { shoulder: number; aspect: number; looks: -1 | 0 | 1 } {
+  const part = partOf(id), art = part?.art.kind === "court" ? ART[part.art.card] : undefined;
+  if (art) return { shoulder: art.shoulder / (1 + EXTEND), aspect: art.head[3] / art.head[2], looks: art.looks };
+  return { shoulder: FILE_SHOULDER / (1 + EXTEND), aspect: 1, looks: 0 };
 }
-/** Голова скина: высота к ширине (у короля и дамы — по куску карты, у рисунков скина — квадрат). */
-export const DOLL_HEAD_ASPECT = (doll: string): number => {
-  const art = ART[doll];
-  return art ? art.head[3] / art.head[2] : 1;
-};
-/** Линия плеч на туловище рисунков скина (`files`, `cube`) — договорённость с художником: y≈18 из 100. */
+/** Линия плеч на туловище рисунков (`file`, `draw`) — договорённость с художником: y≈18 из 100. */
 const FILE_SHOULDER = 0.18;
 
 const texts = new Map<string, Promise<string>>();
@@ -174,42 +165,30 @@ function outlined(img: HTMLCanvasElement, ink: string, w = 11): HTMLCanvasElemen
   return c;
 }
 
-// ── КУБИК: грани рисуются здесь. Голова — грань с очками (у каждого ракурса своё число), туловище — брусок. ──
-const PIPS: Record<string, number> = { front: 1, back: 6, right: 3, left: 4, top: 5, bottom: 2 };
-const PIP_AT: Record<number, [number, number][]> = {
-  1: [[50, 50]], 2: [[28, 28], [72, 72]], 3: [[26, 26], [50, 50], [74, 74]], 4: [[28, 28], [72, 28], [28, 72], [72, 72]],
-  5: [[26, 26], [74, 26], [50, 50], [26, 74], [74, 74]], 6: [[28, 24], [72, 24], [28, 50], [72, 50], [28, 76], [72, 76]],
-};
-function cubeSvg(view: string, part: Part): string {
-  if (part === "head") {
-    const pips = (PIP_AT[PIPS[view] ?? 1] ?? []).map(([x, y]) => `<circle cx="${x}" cy="${y}" r="8" fill="${DECK.red}" stroke="#0b0704" stroke-width="2"/>`).join("");
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="5" y="5" width="90" height="90" rx="16" fill="${PAPER}" stroke="#0b0704" stroke-width="5"/>${pips}</svg>`;
-  }
-  const side = view === "right" || view === "left";
-  const w = side ? 70 : 104, x = (120 - w) / 2;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100"><path d="M${x} 100 V26 Q${x} 14 ${x + 12} 14 H${x + w - 12} Q${x + w} 14 ${x + w} 26 V100 Z" fill="${DECK.blue}" stroke="#0b0704" stroke-width="5"/>`
-    + `<rect x="${x + w / 2 - 14}" y="14" width="28" height="86" fill="${DECK.red}" stroke="#0b0704" stroke-width="3"/>`
-    + `<rect x="${x + 4}" y="16" width="${w - 8}" height="10" fill="${DECK.gold}" stroke="#0b0704" stroke-width="3"/></svg>`;
-}
-
-/** Все нарисованные ракурсы скина в расцветке: `вид:часть` → холст (без обводки). */
-async function bake(skin: Skin, palette: number, base: string): Promise<Map<string, HTMLCanvasElement>> {
+/** Все нарисованные стороны части в расцветке: ракурс → холст (без обводки). */
+async function bake(part: Part, palette: number, base: string): Promise<Map<string, HTMLCanvasElement>> {
   const pal = PALETTES[palette] ?? PALETTES[0]!;
   const out = new Map<string, HTMLCanvasElement>();
-  if (skin.source === "deck") {
-    const art = ART[skin.id]!;
-    const svg = recolor(await fetchText(`${base}/table/sprites/${art.file}.svg`), pal);
-    const head = await cut(svg, art.head, pal.red, { oval: art.oval, paper: true });
-    const body = await cut(svg, art.body, pal.red, { extend: EXTEND, paper: true });
-    out.set("front:head", head).set("front:body", body).set("back:head", backOf(head, 0.9)).set("back:body", backOf(body, 0.8));
+  const art = part.art, extend = part.slot === "body" ? { extend: EXTEND } : {};
+  if (art.kind === "court") {
+    const box = ART[art.card]!;
+    const svg = recolor(await fetchText(`${base}/table/sprites/${art.card}.svg`), pal);
+    const front = await cut(svg, part.slot === "head" ? box.head : box.body, pal.red, { ...extend, oval: part.slot === "head" && box.oval, paper: true });
+    out.set("front", front).set("back", backOf(front, part.slot === "head" ? 0.9 : 0.8));
     return out;
   }
-  for (const view of skin.views) {
-    for (const part of ["head", "body"] as const) {
-      const raw = skin.source === "cube" ? cubeSvg(view, part) : await fetchText(`${base}/table/skins/${skin.id}/${view}-${part}.svg`);
-      const svg = skin.recolor ? recolor(raw, pal) : raw;
-      out.set(`${view}:${part}`, await cut(svg, null, pal.red, part === "body" ? { extend: EXTEND } : {}));
-    }
+  if (art.kind === "png") {
+    const img = await decode(`${base}/table/sprites/${art.file}.png`);
+    const c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    c.getContext("2d")!.drawImage(img, 0, 0);
+    for (const view of part.views) out.set(view, c);
+    return out;
+  }
+  for (const view of part.views) {
+    const raw = art.kind === "draw" ? drawArt(art.art, view) : art.kind === "file" ? await fetchText(`${base}/table/skins/${art.dir}/${view}-${part.slot}.svg`) : "";
+    if (!raw) continue;
+    out.set(view, await cut(part.recolor ? recolor(raw, pal) : raw, null, pal.red, extend));
   }
   return out;
 }
@@ -217,36 +196,36 @@ async function bake(skin: Skin, palette: number, base: string): Promise<Map<stri
 const baked = new Map<string, Promise<Map<string, HTMLCanvasElement>>>();
 const urls = new Map<string, DollSprite>();
 const making = new Map<string, Promise<void>>();
-/** Скин не испёкся (нет рисунков, нет сети) — когда; до `RETRY_MS` после этого за ним не ходят. */
+/** Часть не испеклась (нет рисунков, нет сети) — когда; до `RETRY_MS` после этого за ней не ходят. */
 const failedAt = new Map<string, number>();
 /** Кто ждёт кусок, пока он печётся. */
 const waiting = new Map<string, Set<() => void>>();
 const RETRY_MS = 30_000;
 
-/** Испечь один кусок (или дождаться уже идущей печки). Не испёкся — промис всё равно выполняется. */
-function make(doll: string, palette: number, view: string, part: Part, ink: string, base: string): Promise<void> {
-  const key = `${doll}|${palette}|${view}|${part}|${ink}`;
+/** Испечь одну сторону части (или дождаться уже идущей печки). Не испеклась — промис всё равно выполняется. */
+function make(id: string, palette: number, view: string, ink: string, base: string): Promise<void> {
+  const key = `${id}|${palette}|${view}|${ink}`;
   if (urls.has(key)) return Promise.resolve();
   const was = making.get(key);
   if (was) return was;
-  const skin = skinOf(doll);
-  if (!skin || skin.source === "stick") return Promise.resolve();
-  const set = `${doll}|${palette}`;
+  const part = partOf(id);
+  if (!part || part.art.kind === "none") return Promise.resolve();
+  const set = `${id}|${palette}`;
   if (Date.now() - (failedAt.get(set) ?? -Infinity) < RETRY_MS) return Promise.resolve();
   const job = (async () => {
     try {
       if (!baked.has(set)) {
-        const b = bake(skin, palette, base);
+        const b = bake(part, palette, base);
         baked.set(set, b);
         b.catch(() => baked.delete(set));
       }
-      const canvas = (await baked.get(set)!).get(`${view}:${part}`);
+      const canvas = (await baked.get(set)!).get(view);
       if (!canvas) return;
       const done = outlined(canvas, ink);
       const blob = await new Promise<Blob | null>((ok) => done.toBlob(ok, "image/png"));
-      if (blob) urls.set(key, { src: URL.createObjectURL(blob), w: done.width, h: done.height, solid: part === "body" ? solidOf(canvas) : 1 });
+      if (blob) urls.set(key, { src: URL.createObjectURL(blob), w: done.width, h: done.height, solid: part.slot === "body" ? solidOf(canvas) : 1 });
     } catch {
-      // Не испеклась (нет сети, у скина ещё нет рисунков) — остаётся простая фигура.
+      // Не испеклась — остаётся простая фигура.
       failedAt.set(set, Date.now());
     } finally {
       making.delete(key);
@@ -257,21 +236,24 @@ function make(doll: string, palette: number, view: string, part: Part, ink: stri
 }
 
 /**
- * ЗАРАНЕЕ, ПРИ ВХОДЕ В КОМНАТУ: все ракурсы куклы этого человека, голова и туловище. Заставка ждёт их, и кукла
- * появляется сразу собой, а не палкой, которую потом сменяет картинка.
+ * ЗАРАНЕЕ — при входе в комнату и при выборе в профиле: все стороны всех частей скина. Поворот не ждёт печки
+ * (иначе кадр без части — мерцание), и заставка входа ждёт их: кукла появляется сразу собой.
  */
-export function warmDoll(doll: string, palette: number, ink: string, base: string): Promise<void> {
-  const skin = skinOf(doll);
-  if (!skin) return Promise.resolve();
-  return Promise.all(skin.views.flatMap((view) => (["head", "body"] as const).map((part) => make(doll, palette, view, part, ink, base)))).then(() => {});
+export function warmParts(parts: Parts, palette: number, ink: string, base: string): Promise<void> {
+  const jobs: Promise<void>[] = [];
+  for (const slot of SLOTS) {
+    const part = partOf(parts[slot]);
+    if (part) for (const view of part.views) jobs.push(make(part.id, palette, view, ink, base));
+  }
+  return Promise.all(jobs).then(() => {});
 }
 
 /**
- * Картинка куклы: нарисованный ракурс `view` скина `doll`, кусок `part`, в расцветке `palette`, обведённый
- * цветом `ink`. Не готова — `null`, а печься она начнёт сейчас и по готовности позовёт `ready`.
+ * Картинка части: нарисованный ракурс `view` части `id`, в расцветке `palette`, обведённый цветом `ink`. Не
+ * готова — `null`, а печься она начнёт сейчас и по готовности позовёт `ready`.
  */
-export function dollSprite(doll: string, palette: number, view: string, part: Part, ink: string, base: string, ready: () => void): DollSprite | null {
-  const key = `${doll}|${palette}|${view}|${part}|${ink}`;
+export function partSprite(id: string, palette: number, view: string, ink: string, base: string, ready: () => void): DollSprite | null {
+  const key = `${id}|${palette}|${view}|${ink}`;
   const got = urls.get(key);
   if (got) return got;
   // ГОТОВО — СКАЗАТЬ ВСЕМ, кто спрашивал, пока пеклось: и превью, и галерее, а не только первому.
@@ -279,7 +261,7 @@ export function dollSprite(doll: string, palette: number, view: string, part: Pa
   if (!asked) waiting.set(key, (asked = new Set()));
   asked.add(ready);
   if (making.has(key)) return null;
-  void make(doll, palette, view, part, ink, base).then(() => {
+  void make(id, palette, view, ink, base).then(() => {
     const all = waiting.get(key);
     waiting.delete(key);
     if (urls.has(key)) for (const fn of all ?? []) fn();

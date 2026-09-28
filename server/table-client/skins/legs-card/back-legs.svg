@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100">
+  <!-- Left Leg (Viewer Left, Back View) - Blue Hose (#1d4f80) -->
+  <path d="M 34 6 C 31 22, 31 38, 34 52 L 36 58 C 37 68, 38 78, 40 84 L 50 84 C 51 78, 53 68, 54 56 L 56 42 C 58 36, 59 32, 60 30 C 48 30, 38 24, 34 6 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2.6" stroke-linejoin="round"/>
+
+  <!-- Right Leg (Viewer Right, Back View) - Red Hose (#b3221f) -->
+  <path d="M 86 6 C 89 22, 89 38, 86 52 L 84 58 C 83 68, 82 78, 80 84 L 70 84 C 69 78, 67 68, 66 56 L 64 42 C 62 36, 61 32, 60 30 C 72 30, 82 24, 86 6 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2.6" stroke-linejoin="round"/>
+
+  <!-- Left Leg Gold Side Trim (#f2c14e) -->
+  <path d="M 34 6 L 39 6 C 36 22, 36 38, 39 52 L 34 52 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <polygon points="36,16 38,20 36,24 34,20" fill="#0b0704"/>
+  <polygon points="36,32 38,36 36,40 34,36" fill="#0b0704"/>
+
+  <!-- Right Leg Gold Side Trim (#f2c14e) -->
+  <path d="M 86 6 L 81 6 C 84 22, 84 38, 81 52 L 86 52 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <polygon points="84,16 86,20 84,24 82,20" fill="#0b0704"/>
+  <polygon points="84,32 86,36 84,40 82,36" fill="#0b0704"/>
+
+  <!-- Gold Waistband Trim (#f2c14e) -->
+  <path d="M 34 0 L 86 0 L 86 6 L 34 6 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+  <line x1="60" y1="0" x2="60" y2="6" stroke="#0b0704" stroke-width="1.6"/>
+
+  <!-- Back Center Seams (Medieval Chausses Tailoring) -->
+  <path d="M 45 10 L 45 52 L 46 80" stroke="#0b0704" stroke-width="1.6" stroke-dasharray="4,2"/>
+  <path d="M 75 10 L 75 52 L 74 80" stroke="#0b0704" stroke-width="1.6" stroke-dasharray="4,2"/>
+
+  <!-- Gluteal Curve / Back Seat Folds -->
+  <path d="M 40 22 C 48 28, 56 26, 60 22 C 64 26, 72 28, 80 22" fill="none" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Knee Garters (Back View) -->
+  <path d="M 34 53 L 54 54 L 54 58 L 35 57 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <line x1="43" y1="53" x2="43" y2="58" stroke="#0b0704" stroke-width="1.5"/>
+  <path d="M 86 53 L 66 54 L 66 58 L 85 57 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <line x1="77" y1="53" x2="77" y2="58" stroke="#0b0704" stroke-width="1.5"/>
+
+  <!-- Back of Knee Creases -->
+  <path d="M 40 55 C 44 57, 48 57, 51 55" stroke="#0b0704" stroke-width="1.5" fill="none"/>
+  <path d="M 70 55 C 73 57, 77 57, 81 55" stroke="#0b0704" stroke-width="1.5" fill="none"/>
+
+  <!-- White Paper Ankle Cuffs (#f7f1e6) -->
+  <path d="M 38 80 L 52 80 L 51 86 L 39 86 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="1.8"/>
+  <path d="M 82 80 L 68 80 L 69 86 L 81 86 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="1.8"/>
+
+  <!-- Left Shoe Poulaine Toe Tip peeking out (Viewer Left) -->
+  <path d="M 39 92 L 18 96 C 15 97, 16 98, 19 98 L 39 98 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- Left Heel & Shoe Back (Viewer Left) - Deep Blue (#1d4f80) -->
+  <path d="M 39 85 C 38 91, 40 96, 42 98 L 49 98 C 50 96, 51 91, 50 85 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2.4" stroke-linejoin="round"/>
+  <!-- Gold Heel Accent -->
+  <path d="M 41 93 L 49 93 L 48 98 L 42 98 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="1.4"/>
+  <line x1="39" y1="98" x2="51" y2="98" stroke="#0b0704" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Right Shoe Poulaine Toe Tip peeking out (Viewer Right) -->
+  <path d="M 81 92 L 102 96 C 105 97, 104 98, 101 98 L 81 98 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- Right Heel & Shoe Back (Viewer Right) - Red (#b3221f) -->
+  <path d="M 81 85 C 82 91, 80 96, 78 98 L 71 98 C 70 96, 69 91, 70 85 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2.4" stroke-linejoin="round"/>
+  <!-- Gold Heel Accent -->
+  <path d="M 79 93 L 71 93 L 72 98 L 78 98 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="1.4"/>
+  <line x1="69" y1="98" x2="81" y2="98" stroke="#0b0704" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Woodcut Hatch Lines -->
+  <path d="M 42 34 L 47 32 M 41 42 L 46 40 M 43 68 L 48 66 M 42 74 L 47 72" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M 78 34 L 73 32 M 79 42 L 74 40 M 77 68 L 72 66 M 78 74 L 73 72" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

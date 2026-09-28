@@ -12,10 +12,10 @@
 
 import { FAVOURITE_INKS as INKS, PALETTE } from "../../look/src/palette.js";
 import { MAIN_PALETTES, PALETTES, type Doll } from "../src/table/dolls.js";
-import { VIEW_DIRS, drawnView, pickView, skinOf, SKINS, type Skin } from "../src/table/skins.js";
+import { PARTS, SETS, SLOT_NAMES, SLOTS, partOf, partsFor, setMatching, shownViews, type Facing, type Part, type Parts, type Slot } from "../src/table/skins.js";
 import { nativeShell } from "./arNative.js";
-import { DOLL_SIZE } from "./bodyView.js";
-import { dollGeom, dollSprite, type DollSprite } from "./dollSprites.js";
+import { partSprite } from "./dollSprites.js";
+import { mountSkinStage, type SkinStage } from "./skinStage.js";
 import { mountGround } from "./ground.js";
 import { HOST } from "./host.js";
 
@@ -49,9 +49,13 @@ interface Profile {
   telegram: boolean;
   doll: Doll;
   palette: number;
+  parts: Parts;
   color: string;
   chosen: boolean;
 }
+
+/** Режим части словами — на карточке конструктора. */
+const FACING_SAID: Record<Facing, string> = { camera: "к камере", box: "тело", view: "по ракурсу", tilt: "наклон" };
 
 const WHY: Record<MyRoom["why"][number], string> = { owner: "создал", admin: "распорядитель", visited: "был", chat: "из чата" };
 
@@ -101,6 +105,16 @@ const CSS = `
 [data-rooms] .sheet .label{color:${P.inkDim};font-size:12px}
 [data-rooms] .opts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 [data-rooms] .btn.on{color:#1a0f06;background:linear-gradient(${P.goldLight},${P.goldDark});box-shadow:inset 0 0 0 2px ${P.black},0 3px 0 ${P.black}}
+[data-rooms] .doll.stage{height:260px;margin:6px -4px 0;border-radius:12px;overflow:hidden;background:radial-gradient(110% 80% at 50% 25%,#2a2019,#120c08);box-shadow:inset 0 0 0 2px ${P.black}}
+[data-rooms] .sets,[data-rooms] .tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+[data-rooms] .tabs{flex-wrap:wrap;margin:6px 0 8px}
+[data-rooms] .parts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+[data-rooms] .part{position:relative;flex:none;width:92px;height:96px;border-radius:10px;border:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;padding:6px 4px;background:${P.well};box-shadow:inset 0 0 0 2px ${P.wood};font:400 11px Tiny5,monospace;color:${P.ink}}
+[data-rooms] .parts .part{width:auto}
+[data-rooms] .part.on{box-shadow:inset 0 0 0 2px ${P.black},0 0 0 2px ${P.gold}}
+[data-rooms] .part .face,[data-rooms] .part .none{width:48px;height:48px;object-fit:contain;display:grid;place-items:center;color:${P.inkDim}}
+[data-rooms] .part .sides{position:absolute;top:5px;right:5px;min-width:16px;padding:1px 4px;border-radius:5px;background:${P.black};color:${P.gold};font-size:10px}
+[data-rooms] .part em{font-style:normal;font-size:9px;color:${P.gold}}
 [data-rooms] .pick{display:flex;align-items:center;gap:8px;border:0;border-radius:9px;padding:4px 10px 4px 4px;cursor:pointer;background:${P.well};box-shadow:inset 0 0 0 2px ${P.wood};font:400 12px Tiny5,monospace;color:${P.ink}}
 [data-rooms] .pick .face,[data-rooms] .pick .none{width:34px;height:34px;object-fit:contain;display:grid;place-items:center}
 [data-rooms] .pick i{font-style:normal;color:${P.gold}}
@@ -257,36 +271,59 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
 
   // ── ПРОФИЛЬ: кем сижу за столом и мой цвет. Каждый выбор — сразу в профиль стола. ────────────────────
   let more = false;
+  /** Сцена с моей фигурой — одна на открытый лист (`skinStage.ts`). */
+  let stage: SkinStage | null = null;
+  const lookOf = (p: Profile) => ({ parts: p.parts, palette: p.palette, ink: p.color });
   function openProfile(): void {
     if (!profile) return;
     const p = profile;
-    const save = (patch: Partial<Pick<Profile, "doll" | "palette" | "color">>) => {
-      Object.assign(p, patch);
+    const save = (patch: { doll?: Doll; palette?: number; color?: string; parts?: Partial<Parts> }) => {
+      if (patch.doll) p.parts = partsFor(patch.doll);
+      if (patch.parts) p.parts = { ...p.parts, ...patch.parts };
+      Object.assign(p, { ...patch, parts: p.parts });
       draw();
       drawBar();
       void fetch(`${HOST}/table/profile`, { method: "PATCH", headers: { "content-type": "application/json", ...auth }, body: JSON.stringify(patch) })
-        .then(async (res) => { if (res.ok) { Object.assign(p, (await res.json()) as Profile); drawBar(); } })
+        .then(async (res) => { if (res.ok) { Object.assign(p, (await res.json()) as Profile); stage?.show(lookOf(p)); drawBar(); } })
         .catch(() => {});
     };
-    /** СПИСОК СКИНОВ — отдельным листом, как выпадашка: лицо, имя, сколько сторон. Выбрал — назад в профиль. */
-    let picking = false;
-    const drawPicker = () => {
-      layer.innerHTML = `<div class="veil" data-close></div><div class="sheet" data-skin-list data-scroll>`
-        + `<div class="top"><h3>КЕМ СИДЕТЬ</h3><button class="btn" data-back>Назад</button></div>`
-        + SKINS.map((sk) => `<button class="skinrow${p.doll === sk.id ? " on" : ""}" data-doll="${sk.id}">${skinThumb(sk, p)}<span>${esc(sk.name)}</span><small>${sidesSaid(sk)}</small></button>`).join("")
+    /** КОНСТРУКТОР — отдельным листом: сцена, готовые наборы, части по слотам. Выбор — сразу в профиль. */
+    let building = false;
+    let tab: Slot = "head";
+    const mountStage = () => {
+      stage?.destroy();
+      const box = layer.querySelector<HTMLElement>("[data-doll-preview]");
+      stage = box ? mountSkinStage(box, HOST, lookOf(p)) : null;
+    };
+    const card = (label: string, thumb: string, on: boolean, data: string, badge = "", note = "") =>
+      `<button class="part${on ? " on" : ""}" ${data}>${thumb}${badge ? `<span class="sides">${badge}</span>` : ""}<span>${esc(label)}</span>${note ? `<em>${esc(note)}</em>` : ""}</button>`;
+    const drawBuilder = () => {
+      const current = setMatching(p.parts);
+      layer.innerHTML = `<div class="veil" data-close></div><div class="sheet" data-builder data-scroll>`
+        + `<div class="top"><h3>КЕМ СИДЕТЬ</h3><button class="btn" data-back>Готово</button></div>`
+        + `<div class="doll stage" data-doll-preview></div>`
+        + `<div class="label">Готовые наборы — заполнят все части</div>`
+        + `<div class="sets">${SETS.map((set) => card(set.name, partThumb(partOf(set.parts.head)!, p), current?.id === set.id, `data-doll="${set.id}"`)).join("")}</div>`
+        + `<div class="label">Части — у каждой свои стороны</div>`
+        + `<div class="tabs">${SLOTS.map((slot) => `<button class="btn${tab === slot ? " on" : ""}" data-tab="${slot}">${SLOT_NAMES[slot]}</button>`).join("")}</div>`
+        + `<div class="parts">${PARTS.filter((part) => part.slot === tab).map((part) => card(part.name, partThumb(part, p), p.parts[tab] === part.id, `data-part="${part.id}"`, part.art.kind === "none" ? "" : String(shownViews(part).length), part.art.kind === "none" ? "" : FACING_SAID[part.facing])).join("")}</div>`
         + `</div>`;
-      for (const el of layer.querySelectorAll<HTMLElement>("[data-close]")) el.onclick = () => { picking = false; layer.innerHTML = ""; };
-      layer.querySelector<HTMLElement>("[data-back]")!.onclick = () => { picking = false; draw(); };
-      for (const el of layer.querySelectorAll<HTMLElement>("[data-doll]")) el.onclick = () => { picking = false; save({ doll: el.dataset.doll as Doll }); };
+      for (const el of layer.querySelectorAll<HTMLElement>("[data-close]")) el.onclick = () => { building = false; stage?.destroy(); layer.innerHTML = ""; };
+      layer.querySelector<HTMLElement>("[data-back]")!.onclick = () => { building = false; draw(); };
+      for (const el of layer.querySelectorAll<HTMLElement>("[data-doll]")) el.onclick = () => save({ doll: el.dataset.doll as Doll });
+      for (const el of layer.querySelectorAll<HTMLElement>("[data-tab]")) el.onclick = () => { tab = el.dataset.tab as Slot; draw(); };
+      for (const el of layer.querySelectorAll<HTMLElement>("[data-part]")) el.onclick = () => save({ parts: { [tab]: el.dataset.part! } });
+      mountStage();
     };
     const draw = () => {
+      if (building) return drawBuilder();
       const pals = PALETTES.map((pal, k) => ({ pal, k })).filter(({ k }) => more || k < MAIN_PALETTES || k === p.palette);
-      if (picking) return drawPicker();
+      const set = setMatching(p.parts);
       layer.innerHTML = `<div class="veil" data-close></div><div class="sheet" data-profile data-scroll>`
         + `<div class="top"><h3>ПРОФИЛЬ</h3><button class="btn" data-close>Закрыть</button></div>`
-        + `<div class="doll" data-doll-preview>${dollPreview(p)}<div class="edge"></div></div>`
+        + `<div class="doll stage" data-doll-preview></div>`
         + `<div class="row"><span class="label">Имя</span><span>${esc(p.name)}</span></div>`
-        + `<div class="row"><span class="label">Кем сидеть</span><button class="pick" data-pick-skin data-current="${esc(p.doll)}">${skinThumb(skinOf(p.doll) ?? SKINS[0]!, p)}<span>${esc(skinOf(p.doll)?.name ?? p.doll)}</span><i>▾</i></button></div>`
+        + `<div class="row"><span class="label">Кем сидеть</span><button class="pick" data-pick-skin data-current="${esc(set?.id ?? "own")}">${partThumb(partOf(p.parts.head)!, p)}<span>${esc(set?.name ?? "Свой скин")}</span><i>▾</i></button></div>`
         + `<div class="row col"><span class="label">Расцветка — чтобы одинаковые куклы за столом не сливались</span><span class="opts" style="justify-content:flex-start;margin-top:8px">`
         + pals.map(({ pal, k }) => `<button class="chip${p.palette === k ? " on" : ""}" data-pal="${k}" title="${esc(pal.name)}"><i style="background:${pal.red}"></i><i style="background:${pal.blue}"></i><i style="background:${pal.gold}"></i></button>`).join("")
         + `<button class="btn" data-more>${more ? "меньше" : `ещё ${PALETTES.length - MAIN_PALETTES}`}</button></span></div>`
@@ -294,8 +331,8 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
         + INKS.map((c) => `<button class="dot${p.color === c ? " on" : ""}" data-ink="${c}" style="background:${c}"></button>`).join("") + `</span></div>`
         + `<div class="row"><span class="label">Telegram</span>${p.telegram ? `<span style="color:${P.gold}">привязан</span>` : native ? `<button class="btn gold" data-tg-link>Привязать</button>` : `<span class="lead">вход через бота</span>`}</div>`
         + `</div>`;
-      for (const el of layer.querySelectorAll<HTMLElement>("[data-close]")) el.onclick = () => { layer.innerHTML = ""; };
-      layer.querySelector<HTMLElement>("[data-pick-skin]")!.onclick = () => { picking = true; draw(); };
+      for (const el of layer.querySelectorAll<HTMLElement>("[data-close]")) el.onclick = () => { stage?.destroy(); layer.innerHTML = ""; };
+      layer.querySelector<HTMLElement>("[data-pick-skin]")!.onclick = () => { building = true; draw(); };
       for (const el of layer.querySelectorAll<HTMLElement>("[data-pal]")) el.onclick = () => {
         // РАСЦВЕТКА ПРИВОДИТ СВОЙ ЦВЕТ: обводка встаёт предпочитаемой для неё; поменять её можно ниже, отдельно.
         const k = Number(el.dataset.pal);
@@ -305,110 +342,17 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
       layer.querySelector<HTMLElement>("[data-more]")!.onclick = () => { more = !more; draw(); };
       // ПРИВЯЗАТЬ TELEGRAM — окно входа приложения; ключ гостя едет с ним, и выбор в профиле переезжает.
       layer.querySelector<HTMLElement>("[data-tg-link]")?.addEventListener("click", () => native?.login?.(key ?? undefined));
+      mountStage();
     };
     draw();
   }
 
-  /** Сколько у скина сторон — словами для списка. */
-  function sidesSaid(sk: Skin): string {
-    const n = sk.views.length + Object.keys(sk.mirror ?? {}).length;
-    return n === 1 ? "1 сторона" : n < 5 ? `${n} стороны` : `${n} сторон`;
-  }
-
-  /** Лицо скина в галерее — его голова спереди в моей расцветке; стика или ещё не испеклось — знак. */
-  function skinThumb(sk: Skin, p: Profile): string {
-    if (sk.source === "stick") return `<span class="none">⚲</span>`;
-    const ready = () => { for (const el of layer.querySelectorAll(`[data-thumb="${sk.id}"]`)) el.outerHTML = skinThumb(sk, p); };
-    const face = dollSprite(sk.id, p.palette, sk.views[0]!, "head", p.color, HOST, ready);
-    return face ? `<img class="face" src="${face.src}" alt="">` : `<span class="none" data-thumb="${sk.id}">…</span>`;
-  }
-
-  /** Кукла крупно, как её увидят за столом: туловище за кромкой, голова над воротом, обводка моим цветом. */
-  function dollPreview(p: Profile): string {
-    const skin = skinOf(p.doll);
-    if (!skin || skin.source === "stick") return `<span class="lead" style="position:absolute;left:0;right:0;top:90px;text-align:center">палка с шаром — как за столом</span>`;
-    const ready = () => { const el = layer.querySelector("[data-doll-preview]"); if (el) { el.innerHTML = dollPreview(p) + `<div class="edge"></div>`; delete (el as HTMLElement).dataset.alive; } };
-    // ВСЕ НАРИСОВАННЫЕ РАКУРСЫ — сразу: кручение пальцем листает их, как в Doom.
-    const views: Record<string, string> = {};
-    let torso: DollSprite | null = null, head: DollSprite | null = null;
-    for (const view of skin.views) {
-      const b = dollSprite(p.doll, p.palette, view, "body", p.color, HOST, ready);
-      const h = dollSprite(p.doll, p.palette, view, "head", p.color, HOST, ready);
-      if (!b || !h) return `<span class="lead" style="position:absolute;left:0;right:0;top:90px;text-align:center">кукла печётся…</span>`;
-      views[`${view}:body`] = b.src;
-      views[`${view}:head`] = h.src;
-      if (view === "front") { torso = b; head = h; }
-    }
-    torso ??= dollSprite(p.doll, p.palette, skin.views[0]!, "body", p.color, HOST, ready)!;
-    head ??= dollSprite(p.doll, p.palette, skin.views[0]!, "head", p.color, HOST, ready)!;
-    // Та же мера, что за столом (`DOLL_SIZE`): плечи на высоте 4 над кромкой, голова пришита к вороту.
-    const geom = dollGeom(p.doll);
-    const unit = 26, edge = 210 - 30;
-    const tw = DOLL_SIZE.torso * unit, th = ((tw * torso.h) / torso.w) * DOLL_SIZE.stretch;
-    const shoulderY = edge - 4 * unit;
-    const hw = DOLL_SIZE.head * unit, hh = (hw * head.h) / head.w;
-    const headY = shoulderY - ((hh / unit) * 0.45 + 0.2) * unit;
-    queueMicrotask(() => alive(skin, geom.looks, unit, views));
-    return `<img data-part="torso" src="${torso.src}" alt="" style="left:calc(50% - ${tw / 2}px);top:${shoulderY - th * geom.shoulder}px;width:${tw}px;height:${th}px">`
-      + `<img data-part="head" src="${head.src}" alt="" style="left:calc(50% - ${hw / 2}px);top:${headY - hh / 2}px;width:${hw}px;height:${hh}px">`;
-  }
-
-  /**
-   * КУКЛА ЖИВАЯ, как на стенде (`design/persona`, вид «профиль»): дышит — плечи и голова чуть ходят вверх-вниз,
-   * водит взглядом — голова смещается к тому, куда смотрит. Кадр за кадром, пока превью на странице; кто просил
-   * меньше движения — стоит спокойно.
-   * КРУТИТСЯ ПАЛЬЦЕМ — КАК В DOOM: тянешь вбок — кукла поворачивается вокруг себя, и показывается ближайший
-   * нарисованный ракурс (`pickView`): у короля — лицо и спина, у пса — ещё бока. Где отпустил, там и стоит.
-   */
-  /** Куда кукла повёрнута — переживает перерисовку листа (сменил расцветку — стоит, как стояла). */
-  let spun = 0;
-  function alive(skin: Skin, looks: -1 | 0 | 1, unit: number, views: Record<string, string>): void {
-    const box = layer.querySelector<HTMLElement>("[data-doll-preview]");
-    if (!box || box.dataset.alive) return;
-    box.dataset.alive = "1";
-    let turn = spun;
-    let from: number | null = null;
-    let shown: string | undefined;
-    box.style.touchAction = "none";
-    box.addEventListener("pointerdown", (e) => { from = e.clientX; box.setPointerCapture(e.pointerId); });
-    box.addEventListener("pointermove", (e) => {
-      if (from === null) return;
-      turn += (e.clientX - from) * 0.9;
-      spun = turn;
-      from = e.clientX;
-      if (still) tick(performance.now());
-    });
-    const up = () => { from = null; };
-    box.addEventListener("pointerup", up);
-    box.addEventListener("pointercancel", up);
-    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const t0 = performance.now();
-    const tick = (now: number) => {
-      const torso = box.querySelector<HTMLImageElement>('[data-part="torso"]'), head = box.querySelector<HTMLImageElement>('[data-part="head"]');
-      if (!box.isConnected || !torso || !head) return;
-      const t = still ? 0 : (now - t0) / 1000;
-      const breath = Math.sin((t * 2 * Math.PI) / 3.2);
-      const gx = Math.sin(t * 0.8) * 5, toward = gx / Math.hypot(gx, 8);
-      // Смотрю на куклу с высоты чуть выше плеч; она повёрнута на `turn` — я вижу её с этой стороны.
-      const a = (turn * Math.PI) / 180;
-      shown = pickView(skin, [Math.sin(a), Math.cos(a), 0.2], shown);
-      const drawn = drawnView(skin, shown);
-      const set = (img: HTMLImageElement, part: string) => { const src = views[`${drawn.view}:${part}`]; if (src && img.getAttribute("src") !== src) img.src = src; };
-      set(torso, "body");
-      set(head, "head");
-      const turned = looks !== 0 && (drawn.view === "front" || drawn.view === "back");
-      const flip = turned ? ((looks < 0) === toward > 0 ? -1 : 1) : drawn.mirror ? -1 : 1;
-      // ПЛОСКОСТЬ РАКУРСА ПОВЁРНУТА К НЕМУ: смотришь под углом к ракурсу — картинка сужается, как картонка.
-      const d = VIEW_DIRS[shown] ?? VIEW_DIRS.front!;
-      const squeeze = Math.max(0.03, Math.cos(a - Math.atan2(d[0], d[1]))).toFixed(3);
-      torso.style.transform = `translateY(${(-breath * 0.08 * unit).toFixed(2)}px) scaleX(${drawn.mirror ? "-" : ""}${squeeze})`;
-      head.style.transform = `translate(${(toward * 0.4 * unit).toFixed(2)}px,${(-breath * 0.13 * unit).toFixed(2)}px) scaleX(${flip < 0 ? "-" : ""}${squeeze})`;
-      box.dataset.turn = String(Math.round(turn));
-      box.dataset.view = shown;
-      box.dataset.back = shown === "back" ? "1" : "0";
-      if (!still) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
+  /** Картинка части для карточки — её первая сторона в моей расцветке; нет рисунка или печётся — знак. */
+  function partThumb(part: Part, p: Profile): string {
+    if (part.art.kind === "none") return `<span class="none">—</span>`;
+    const ready = () => { for (const el of layer.querySelectorAll(`[data-thumb="${part.id}"]`)) el.outerHTML = partThumb(part, p); };
+    const spr = partSprite(part.id, p.palette, part.views[0]!, p.color, HOST, ready);
+    return spr ? `<img class="face" src="${spr.src}" alt="">` : `<span class="none" data-thumb="${part.id}">…</span>`;
   }
 }
 

@@ -5,10 +5,10 @@
 //
 // Одно место на сервер, веб и Unity: чистые данные.
 
-import { SKINS } from "./skins.js";
+import { SETS, cleanParts, type Parts } from "./skins.js";
 
-/** Кем можно сидеть — все скины каталога (`skins.ts`). */
-export const DOLLS: readonly string[] = SKINS.map((s) => s.id);
+/** Кем можно сидеть — готовые наборы каталога (`skins.ts`); поверх набора человек меняет части сам. */
+export const DOLLS: readonly string[] = SETS.map((s) => s.id);
 export type Doll = string;
 /** Кем сидит тот, кто ещё не выбирал, — король или дама. */
 const DEFAULT_DOLLS = ["king", "queen"] as const;
@@ -64,6 +64,16 @@ function hash(key: string): number {
 export function dollFor(key: string): DollLook {
   const h = hash(key);
   return { doll: DEFAULT_DOLLS[h % DEFAULT_DOLLS.length]!, palette: Math.floor(h / DEFAULT_DOLLS.length) % MAIN_PALETTES };
+}
+
+/** Свои части из строки базы (JSON «слот → часть»); испорчена — своих нет. */
+export function ownParts(json: string | null | undefined): Partial<Parts> {
+  if (!json) return {};
+  try {
+    return cleanParts(JSON.parse(json));
+  } catch {
+    return {};
+  }
 }
 
 /** Разбор выбора из сети: кукла и расцветка — каждое поле или годное, или его нет. */

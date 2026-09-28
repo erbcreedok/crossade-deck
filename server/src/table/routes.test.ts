@@ -459,6 +459,17 @@ describe("/table/profile — кем сижу и мой цвет", () => {
     expect(got.telegram).toBe(false);
   });
 
+  it("скин — набор частей: своя часть ложится поверх набора, новый набор сбрасывает свои, чужой слот не принимается", async () => {
+    const dog = (await (await ask("dev:p9", { method: "PATCH", json: { doll: "dog" } })).json()) as { parts: Record<string, string> };
+    expect(dog.parts).toMatchObject({ head: "dog:head", body: "dog:body", legs: "legs-beast:legs" });
+    const mine = (await (await ask("dev:p9", { method: "PATCH", json: { parts: { head: "cube:head", body: "cube:head" } } })).json()) as { parts: Record<string, string> };
+    expect(mine.parts).toMatchObject({ head: "cube:head", body: "dog:body" });
+    const again = (await (await ask("dev:p9", { method: "PATCH", json: { parts: { hair: "crown:hair" } } })).json()) as { parts: Record<string, string> };
+    expect(again.parts).toMatchObject({ head: "cube:head", hair: "crown:hair" });
+    const king = (await (await ask("dev:p9", { method: "PATCH", json: { doll: "spade-K" } })).json()) as { parts: Record<string, string> };
+    expect(king.parts).toMatchObject({ head: "spade-K:head", hair: "none:hair", body: "spade-K:body" });
+  });
+
   it("выбрал — запомнилось; негодное (чужая кукла, расцветка вне списка, цвет не из восьми) не принимается", async () => {
     const saved = (await (await ask("dev:p2", { method: "PATCH", json: { doll: "queen", palette: 12, color: "#e0483f" } })).json()) as { doll: string; palette: number; color: string; chosen: boolean };
     expect(saved).toMatchObject({ doll: "queen", palette: 12, color: "#e0483f", chosen: true });

@@ -54,10 +54,10 @@ import { BODY_EVERY_MS, HEAD, headOf, leftHandOf, restHead, shoulders3, type Poi
 const CARRY_SHADOW = 0.3;
 
 import { baseZoom, freshNeck, headAt, neckStep, risesAt } from "./neck.js";
-import { bodiesHtml, dollPose } from "./bodyView.js";
-import { dollSprite, warmDoll } from "./dollSprites.js";
+import { bodiesHtml, dollPose, isStick } from "./bodyView.js";
+import { partSprite, warmParts } from "./dollSprites.js";
 import { dollFor, type Doll, type DollLook } from "../src/table/dolls.js";
-import { skinOf } from "../src/table/skins.js";
+import { partOf, partsFor, type Parts } from "../src/table/skins.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, VOICE_OPEN, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
@@ -3193,7 +3193,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   }
 
   /** Кем сидит: из его профиля (`Person.doll`), а у старого сервера — по ключу. */
-  const dollOf = (person: { key: string; doll?: Doll; palette?: number }): DollLook => ({ ...dollFor(person.key), ...(person.doll ? { doll: person.doll } : {}), ...(person.palette !== undefined ? { palette: person.palette } : {}) });
+  const dollOf = (person: { key: string; doll?: Doll; palette?: number; parts?: Parts }): DollLook & { parts: Parts } => {
+    const look = { ...dollFor(person.key), ...(person.doll ? { doll: person.doll } : {}), ...(person.palette !== undefined ? { palette: person.palette } : {}) };
+    // Сборка — из профиля; у старого сервера её нет — набор куклы как есть.
+    return { ...look, parts: person.parts ?? partsFor(look.doll) };
+  };
   /** Векторы кукол — с сервера стола; испёкся спрайт — перерисовать. */
   const dollSource = { base: HOST, ready: () => redraw() };
 
@@ -3254,11 +3258,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
           // КУКЛА: голова пришита к вороту по её верху (`dollPose`) — веер у левой руки и тап по голове там же,
           // где их рисует слой тел. Кукла ещё не испеклась — кружок-голова, как раньше.
           const look = dollOf(sitter);
-          const shownSkin = skinOf(look.doll);
-          const drawn = view && shownSkin && dollSprite(look.doll, look.palette, shownSkin.views[0]!, "head", sitter.ink, HOST, () => redraw()) !== null;
+          const torsoPart = partOf(look.parts.body);
+          const drawn = view && torsoPart && !isStick(look.parts) && partSprite(torsoPart.id, look.palette, torsoPart.views[0]!, sitter.ink, HOST, () => redraw()) !== null;
           if (drawn && view) {
             const v = view;
-            const pose = dollPose(body, c.angle, look.doll, (p, h) => v.toGlass(p, h));
+            const pose = dollPose(body, c.angle, look.parts, (p, h) => v.toGlass(p, h));
             return { body: { head: pose.head, left: pose.left, yaw: body.yaw, model: "doll" } };
           }
           const head = headOf(shoulders3(c.angle, body.stance), body.eye, body.stretch, body.yaw);
@@ -5347,7 +5351,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     return settled(images[p.key]!);
   });
   // И КУКЛЫ ВСЕХ В КОМНАТЕ — испечены до конца заставки (`dollSprites.ts`).
-  const dolls = store.state.people.map((p) => { const d = dollOf(p); return warmDoll(d.doll, d.palette, p.ink, HOST); });
+  const dolls = store.state.people.map((p) => { const d = dollOf(p); return warmParts(d.parts, d.palette, p.ink, HOST); });
   return {
     ready: Promise.all([art.warm(store.state.rules), document.fonts?.ready, ...photos, ...dolls]).then(() => {}),
     // ОКОШКО ДЛЯ ЖУРНАЛА: правда о звуке и о дошедшем голосе. Экран её не отправляет и о журнале не

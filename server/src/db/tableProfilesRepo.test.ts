@@ -14,16 +14,23 @@ describe("tableProfiles.keeps-what-was-chosen", () => {
     const d = fresh();
     expect(tableProfile("tg:1", d)).toBeNull();
     saveTableProfile("tg:1", { doll: "queen" }, 1, d);
-    expect(tableProfile("tg:1", d)).toEqual({ doll: "queen", palette: null, color: null });
+    expect(tableProfile("tg:1", d)).toEqual({ doll: "queen", palette: null, color: null, parts: null });
     saveTableProfile("tg:1", { palette: 7, color: "#e0483f" }, 2, d);
-    expect(tableProfile("tg:1", d)).toEqual({ doll: "queen", palette: 7, color: "#e0483f" });
+    expect(tableProfile("tg:1", d)).toEqual({ doll: "queen", palette: 7, color: "#e0483f", parts: null });
+  });
+
+  it("сборка скина хранится строкой и переживает запись других полей", () => {
+    const d = fresh();
+    saveTableProfile("tg:5", { doll: "dog", parts: JSON.stringify({ head: "cube:head" }) }, 1, d);
+    saveTableProfile("tg:5", { palette: 2 }, 2, d);
+    expect(tableProfile("tg:5", d)?.parts).toBe(JSON.stringify({ head: "cube:head" }));
   });
 
   it("привязал Telegram — профиль гостя переезжает, если у Telegram своего нет", () => {
     const d = fresh();
     saveTableProfile("dev:a", { doll: "king", palette: 3 }, 1, d);
     expect(carryTableProfile("dev:a", "tg:9", 2, d)).toBe(true);
-    expect(tableProfile("tg:9", d)).toEqual({ doll: "king", palette: 3, color: null });
+    expect(tableProfile("tg:9", d)).toEqual({ doll: "king", palette: 3, color: null, parts: null });
     saveTableProfile("dev:b", { doll: "queen" }, 3, d);
     expect(carryTableProfile("dev:b", "tg:9", 4, d), "у Telegram уже свой — не перетирается").toBe(false);
     expect(tableProfile("tg:9", d)?.doll).toBe("king");
