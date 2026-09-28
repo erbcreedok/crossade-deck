@@ -588,12 +588,13 @@
       const cy = add(mul(fx, Math.sin(ang)), mul(fy, Math.cos(ang)));
       board(faceSeen ? SP.faces[k % SP.faces.length] : SP.back, P.leftHand, cx, cy, CARD.w, CARD.h, [0.5, 0.92]);
     }
-    const hand = (img, at, spin, key) => {
+    // Хват нарисован правой рукой — левая та же картинка, отражённая.
+    const hand = (img, at, spin, key, mirror = false) => {
       const q = cam.proj(at), s = S.handW * q.s;
-      ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(spin); ctx.drawImage(img, -s / 2, -s / 2, s, s); ctx.restore();
+      ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(spin); if (mirror) ctx.scale(-1, 1); ctx.drawImage(img, -s / 2, -s / 2, s, s); ctx.restore();
       boxes[key] = [q.x - s / 2, q.y - s / 2, q.x + s / 2, q.y + s / 2];
     };
-    hand(SP.closed, P.leftHand, 0, `left${i}`);
+    hand(SP.closed, P.leftHand, 0, `left${i}`, true);
     if (P.rightHand) {
       if (P.carry) board(SP.back, add(P.rightHand, [0, 0, 0.1]), fx, fy, CARD.w, CARD.h, [0.5, 0.8]);
       hand(P.closed ? SP.closed : SP.open, P.rightHand, P.spin, `right${i}`);
