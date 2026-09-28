@@ -50,6 +50,20 @@ const stand = await at("speed=0&a_look=0&stance=стоит");
 check("встал — туловище выше на экране", stand.torso2[1] < sit.torso2[1] - 10, { sit: sit.torso2, stand: stand.torso2 });
 check("встал — туловище того же размера", Math.abs(height(stand.torso2) / height(sit.torso2) - 1) < 0.08, { sit: height(sit.torso2), stand: height(stand.torso2) });
 
+// СВЕРХУ ГОЛОВА НАД ТУЛОВИЩЕМ ПО ЕГО МЕСТУ: от туловища к голове — туда, где «от стола наружу» у этого
+// места; поворот камеры, хоть вверх ногами, этого не меняет.
+const centre = (b) => [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2];
+for (const yaw of [0, 90, 180]) {
+  const top = await at(`speed=0&a_look=0&pitch=0&yaw=${yaw}`);
+  for (const [who, i] of [["король", 2], ["дама", 3]]) {
+    const h = centre(top[`head${i}`]), b = centre(top[`torso${i}`]), o = top[`out${i}`];
+    const v = [h[0] - b[0], h[1] - b[1]];
+    const cos = (v[0] * o[0] + v[1] * o[1]) / (Math.hypot(...v) * Math.hypot(...o) || 1);
+    const apart = Math.hypot(...v) / Math.hypot(top[`head${i}`][3] - top[`head${i}`][1], 1);
+    check(`сверху, поворот ${yaw}°: у ${who === "король" ? "короля" : "дамы"} голова над туловищем от стола наружу`, cos > 0.8 && apart > 0.5, { cos: cos.toFixed(2), apart: apart.toFixed(2) });
+  }
+}
+
 // ДВА ИГРОКА: оба не трогали камеру — каждый видит другого сверху; тело рисуется у обоих экранов.
 const duo = await at("speed=0&scene=два игрока&pitch=0");
 check("два игрока: Боря видит голову Ани, Аня — голову Бори", !!duo.head1 && !!duo.head2, Object.keys(duo));
