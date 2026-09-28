@@ -43,12 +43,12 @@ import { tipKeyOf } from "./tipKey.js";
 import { BRAIN_PICKS, type BotAct, type Minds } from "../src/table/contract.js";
 
 import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Section } from "./glyphs.js";
-import { lens } from "./lens.js";
+import { FOCAL, lens } from "./lens.js";
 import { mountMeters } from "./meters.js";
 import { readRecording, writeRecording } from "./watch.js";
 import { buzzEvery, charged, onRelease, spring, tensed } from "./sling.js";
 import { PALETTE } from "../../look/src/palette.js";
-import { BODY_EVERY_MS, MODELS, headOf, leftHandOf, shouldersOf, type Model, type Stance } from "../src/table/bodies.js";
+import { BODY_EVERY_MS, MODELS, headOf, leftHandOf, shoulders3, type Model, type Point3, type Stance } from "../src/table/bodies.js";
 
 /** Где устройство помнит вид аватара. */
 const AVATAR_KEY = "crossade.avatar";
@@ -475,10 +475,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     if (!s || !chairOf(s, mine(s))) return;
     const now = performance.now();
     const c = cam.camera;
+    const e = eyeOf();
     const out = {
       stance: stanceOf(s),
       model: local.model,
-      look: { x: +c.target.x.toFixed(2), y: +c.target.y.toFixed(2) },
+      eye: { x: +e.x.toFixed(2), y: +e.y.toFixed(2), h: +e.h.toFixed(2) },
       stretch: +stretchNow.toFixed(2),
       yaw: Math.round(((-c.rotation % 360) + 540) % 360 - 180),
       right: rightHand && { x: +rightHand.x.toFixed(2), y: +rightHand.y.toFixed(2) },
@@ -488,6 +489,16 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     bodyTold = line;
     bodyAt = now;
     store.body(out);
+  };
+  /**
+   * ГДЕ МОЙ ГЛАЗ НАД СТОЛОМ — над точкой, куда смотрит камера, на высоте её взгляда (фокус линзы `lens.ts`,
+   * поделённый на масштаб, и наклон). Не место самой линзы: её глаз стоит далеко позади, это приём
+   * перспективы, и голова, потянувшись туда, уходила бы от стола. Живой человек тянется к тому, на что смотрит.
+   */
+  const eyeOf = (): Point3 => {
+    const c = cam.camera;
+    const dist = (FOCAL * Math.max(1, lastFrame.h)) / Math.max(1e-3, c.pixelsPerUnit);
+    return { x: c.target.x, y: c.target.y, h: dist * Math.cos((c.pitch * Math.PI) / 180) };
   };
   /** Сменили позу — камера плавно встаёт на её расстояние. */
   const toStance = (): void => {
@@ -3132,7 +3143,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const holding = store.carries.some((c) => c.by === body.by);
     return [{ body, angle: chair.angle, ink: person.ink, name: person.name, holding }];
     });
-    return bodiesHtml(looks, (p) => lens.toGlass(p), lens.k, { black: T.black, ink: T.ink, danger: PALETTE.danger }, spriteUrl);
+    return bodiesHtml(looks, (p, h) => lens.toGlass(p, h), lens.k, { black: T.black, ink: T.ink, danger: PALETTE.danger }, spriteUrl);
   }
 
   /** Спрайт тела — рядом со страницей стола, как шрифты и звуки. */
@@ -3189,7 +3200,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         ...(() => {
           const body = sitter && sitter.key !== me() ? store.bodies.find((b) => b.by === sitter.key) : undefined;
           if (!body) return {};
-          const head = headOf(shouldersOf(c.angle), body.look, body.stretch);
+          const head = headOf(shoulders3(c.angle, body.stance), body.eye, body.stretch);
           return { body: { head, left: leftHandOf(head, body.yaw), yaw: body.yaw, model: body.model } };
         })(),
       };

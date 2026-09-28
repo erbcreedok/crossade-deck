@@ -284,7 +284,7 @@ describe("TableRoom", () => {
     const owner = await sit(room, { door: "telegram", initData: initData(7, "Аня") });
     const guest = await sit(room, { door: "guest", name: "Боря" });
     await runIn(room, "tg:7", { t: "croupier", on: true });
-    const mine = { stance: "sit", model: "king", look: { x: 1, y: 2 }, stretch: 0.4, yaw: 15, right: { x: 0.5, y: 0.5 } };
+    const mine = { stance: "sit", model: "king", eye: { x: 1, y: 2, h: 9 }, stretch: 0.4, yaw: 15, right: { x: 0.5, y: 0.5 } };
     const seen = next<Body>(owner.client, MSG.body);
     guest.client.send(MSG.body, mine);
     expect(await seen).toEqual({ ...mine, by: guest.welcome.you.key });

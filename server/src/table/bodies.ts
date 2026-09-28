@@ -4,7 +4,7 @@
 //   тело      — привязано к стулу; поза — сидит или стоит (`stance`). Стоя камера дальше от стола.
 //               Правило стола «играть стоя» (`TableRules.stand`) заставляет стоять: сервер сам пишет
 //               `stand`, что бы ни прислал клиент;
-//   голова    — это камера: куда она смотрит на столе (`look`), насколько натянута шея (`stretch`: 0 —
+//   голова    — это камера: где глаз над столом (`eye`, с высотой), насколько натянута шея (`stretch`: 0 —
 //               на месте, 1 — на пределе) и куда повёрнута (`yaw`, градусы от севера стола). По повороту
 //               другие видят, куда смотрит веер в левой руке;
 //   правая рука — только в деле: палец на столе (`right`), на компьютере — курсор. Без дела — `null`, и
@@ -27,11 +27,22 @@ export const STANCES: readonly Stance[] = ["sit", "stand"];
 export const MODELS = ["seat", "king"] as const;
 export type Model = (typeof MODELS)[number];
 
+/** Точка над столом: `x, y` — на сукне, `h` — высота над ним; всё в единицах стола (ширинах карты). */
+export interface Point3 {
+  x: number;
+  y: number;
+  h: number;
+}
+
 /** Клиент → сервер: своё тело сейчас. */
 export interface BodyOut {
   stance: Stance;
   model: Model;
-  look: { x: number; y: number };
+  /**
+   * ГДЕ ГЛАЗ — место камеры этого человека над столом. Голова тянется к нему от плеч на длину шеи: смотрит
+   * со своего стула — голова над стулом; навис над серединой — голова наклонилась туда. В AR это сам телефон.
+   */
+  eye: Point3;
   stretch: number;
   yaw: number;
   right: { x: number; y: number } | null;
@@ -74,27 +85,45 @@ type Point = { x: number; y: number };
 export const SHOULDERS = TABLE_RADIUS + 1;
 export const shouldersOf = (angle: number): Point => seatPoint(angle, SHOULDERS);
 
+/** Высота плеч над сукном: сидя и стоя. */
+export const SHOULDER_H: Record<Stance, number> = { sit: 4, stand: 7 };
 /**
- * ГОЛОВА ХОДИТ ПО СТОЛУ — от плеч к точке, куда смотрит его камера: в покое на `HEAD_SHARE` пути, натянул
- * шею — дальше, до `HEAD_SHARE + HEAD_LEAN`. Повёл камеру через стол — голова поехала через стол.
+ * ШЕЯ В ОБЪЁМЕ — от плеч к голове: в покое `rest`, натянутая — до `rest + reach`; выше плеч голова
+ * поднимается не больше чем на `up`. Глаз камеры бывает высоко над столом, но живой человек, нависая над
+ * столом, тянется вперёд, а не вверх: остаток шеи уходит к месту взгляда.
  */
-export const HEAD_SHARE = 0.3, HEAD_LEAN = 0.5;
-export function headOf(shoulders: Point, look: Point, stretch: number): Point {
-  const share = HEAD_SHARE + HEAD_LEAN * Math.max(0, Math.min(1, stretch));
-  return { x: shoulders.x + (look.x - shoulders.x) * share, y: shoulders.y + (look.y - shoulders.y) * share };
+export const NECK_LEN = { rest: 2.5, reach: 3.5, up: 2 } as const;
+
+/** Плечи с высотой. */
+export const shoulders3 = (angle: number, stance: Stance): Point3 => ({ ...shouldersOf(angle), h: SHOULDER_H[stance] });
+
+/**
+ * ГОЛОВА — от плеч к глазу, но не дальше шеи: глаз может висеть высоко над серединой стола, а голова
+ * остаётся у тела и только наклоняется туда, откуда человек смотрит. Ниже сукна голова не опускается.
+ */
+export function headOf(s: Point3, eye: Point3, stretch: number): Point3 {
+  const dx = eye.x - s.x, dy = eye.y - s.y, dh = eye.h - s.h;
+  const len = NECK_LEN.rest + NECK_LEN.reach * Math.max(0, Math.min(1, stretch));
+  if (Math.hypot(dx, dy, dh) <= len && dh <= NECK_LEN.up) return { x: eye.x, y: eye.y, h: Math.max(0.5, eye.h) };
+  const flat = Math.hypot(dx, dy);
+  const v = Math.max(0.5 - s.h, Math.min(NECK_LEN.up, dh, len));
+  const along = Math.min(flat, Math.sqrt(Math.max(0, len * len - v * v)));
+  const f = flat < 1e-6 ? 0 : along / flat;
+  return { x: s.x + dx * f, y: s.y + dy * f, h: s.h + v };
 }
 
 /** Куда смотрит голова — единичный вектор в осях стола из `yaw` (градусы от севера по часовой). */
 export const gazeOf = (yaw: number): Point => ({ x: Math.sin((yaw * Math.PI) / 180), y: -Math.cos((yaw * Math.PI) / 180) });
 
-/** ЛЕВАЯ РУКА с картами — у головы: чуть вперёд по взгляду и влево от него. */
-export function leftHandOf(head: Point, yaw: number): Point {
+/** ЛЕВАЯ РУКА с картами — у головы: чуть вперёд по взгляду, влево от него и ниже лица. */
+export function leftHandOf(head: Point3, yaw: number): Point3 {
   const f = gazeOf(yaw);
   // Слева от взгляда: при взгляде на север (0, −1) левее — запад (−1, 0).
-  return { x: head.x + f.x * 1.1 + f.y * 0.9, y: head.y + f.y * 1.1 - f.x * 0.9 };
+  return { x: head.x + f.x * 1.1 + f.y * 0.9, y: head.y + f.y * 1.1 - f.x * 0.9, h: Math.max(0.4, head.h - 1.2) };
 }
 
-const REACH = 12;
+/** Дальше этого от середины стола точка тела не бывает: глаз может быть за спиной сидящего и высоко. */
+const REACH = 40;
 const num = (v: unknown, lo: number, hi: number): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : null);
 const point = (v: unknown): { x: number; y: number } | null => {
   const p = v as { x?: unknown; y?: unknown } | null;
@@ -106,15 +135,16 @@ const point = (v: unknown): { x: number; y: number } | null => {
 export function cleanBody(raw: unknown): BodyOut | null {
   const b = (raw ?? {}) as Partial<Record<keyof BodyOut, unknown>>;
   if (!(STANCES as readonly unknown[]).includes(b.stance)) return null;
-  const look = point(b.look);
+  const eye = point(b.eye);
+  const eyeH = num((b.eye as { h?: unknown } | null)?.h, 0, 60);
   const stretch = num(b.stretch, 0, 1);
   const yaw = num(b.yaw, -360, 360);
-  if (!look || stretch === null || yaw === null) return null;
+  if (!eye || eyeH === null || stretch === null || yaw === null) return null;
   const right = b.right === null || b.right === undefined ? null : point(b.right);
   if (b.right !== null && b.right !== undefined && !right) return null;
   // Незнакомый вид — первый: старый клиент вида не шлёт, новый вид старому не страшен.
   const model: Model = (MODELS as readonly unknown[]).includes(b.model) ? (b.model as Model) : "seat";
-  return { stance: b.stance as Stance, model, look, stretch, yaw, right };
+  return { stance: b.stance as Stance, model, eye: { ...eye, h: eyeH }, stretch, yaw, right };
 }
 
 export class Bodies {

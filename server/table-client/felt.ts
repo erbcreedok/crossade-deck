@@ -46,7 +46,7 @@ export interface Seat {
    * ТЕЛО ЗА СТОЛОМ (`bodies.ts`): голова — это его аватар, и он там, где голова, а не на стуле; нос на
    * кружке — куда смотрит; карты руки — веером в левой руке у головы, повёрнуты по взгляду. Стул остаётся.
    */
-  body?: { head: { x: number; y: number }; left: { x: number; y: number }; yaw: number; model?: string };
+  body?: { head: { x: number; y: number; h: number }; left: { x: number; y: number; h: number }; yaw: number; model?: string };
 }
 
 export interface FeltItem {
@@ -85,7 +85,8 @@ export interface FeltView {
   squash: number;
   /** Поворот стола на стекле, в градусах. */
   rotation: number;
-  toGlass(p: { x: number; y: number }): { x: number; y: number };
+  /** Точка стола (и её высота над сукном, в единицах) → точка стекла. */
+  toGlass(p: { x: number; y: number }, height?: number): { x: number; y: number };
   toDesk(p: { x: number; y: number }): { x: number; y: number };
   /** Где на столе нарисована i-я карта стопки `pile` из n — со сдвигом стопки и её высотой. */
   deckAt(pile: string, i: number, n: number): { x: number; y: number };
@@ -686,12 +687,18 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
   const desk = () => g.setTransform(dpr * v.a, dpr * v.b, dpr * v.c, dpr * v.d, dpr * v.e, dpr * v.f);
   // ГДЕ ЧТО НА СТЕКЛЕ — ПО ЛИНЗЕ, а не по матрице камеры: наклон уводит дальний край вдаль, и палец
   // обязан попадать туда же, куда легла кисть.
-  const toGlass = (p: Point) => o.lens.toGlass(p);
+  const toGlass = (p: Point, height = 0) => o.lens.toGlass(p, height);
   const toDesk = (p: Point) => o.lens.toDesk(p);
   /** Рисовать рядом с этой точкой стола — её локальной матрицей линзы. */
   const nearAt = (p: Point) => {
     const m = o.lens.near(p);
     g.setTransform(dpr * m.a, dpr * m.b, dpr * m.c, dpr * m.d, dpr * m.e, dpr * m.f);
+  };
+  /** То же, но над сукном на высоте `h`: матрица точки на сукне, сдвинутая туда, где на стекле её подъём. */
+  const nearAtHeight = (p: Point, h: number) => {
+    const m = o.lens.near(p);
+    const lo = o.lens.toGlass(p), hi = o.lens.toGlass(p, h);
+    g.setTransform(dpr * m.a, dpr * m.b, dpr * m.c, dpr * m.d, dpr * (m.e + hi.x - lo.x), dpr * (m.f + hi.y - lo.y));
   };
   /** Круг на сукне — контуром из спроецированных точек: на размере стола перспектива уже не аффинна. */
   const deskCircle = (cx: number, cy: number, r: number, height = 0) => {
@@ -916,7 +923,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     // КАРТЫ В ЛЕВОЙ РУКЕ — у головы, веером от хозяина по его взгляду: те же карты, что лежали у стула.
     if (who.body) {
       g.save();
-      nearAt(who.body.left);
+      nearAtHeight(who.body.left, who.body.left.h);
       g.translate(who.body.left.x, who.body.left.y);
       g.rotate((who.body.yaw * Math.PI) / 180);
       fan();
@@ -927,7 +934,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     // глядит на стол (`Oriented: "viewer"` у кита). Ставится в точку стола, размером — по зуму.
     // ГОЛОВА — ЭТО АВАТАР: есть тело — кружок там, где голова.
     const headAt = who.body?.head ?? place.at;
-    const at = toGlass(headAt);
+    const at = o.lens.toGlass(headAt, who.body?.head.h ?? 0);
     // ДАЛЬНИЙ ДИСК МЕЛЬЧЕ БЛИЖНЕГО — ровно настолько, насколько линза уменьшает там сукно.
     const kk = o.lens.kAt(headAt);
     // АВАТАР ДЫШИТ ПОД ГОЛОС: пока звучит его запись, кружок раздувается по её громкости — заметно,
@@ -948,7 +955,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       }
       // КУДА СМОТРИТ — нос на кромке кружка, по взгляду на стекле: под поворотом и наклоном стола тоже.
       if (who.body) {
-        const ahead = toGlass({ x: headAt.x + Math.sin((who.body.yaw * Math.PI) / 180), y: headAt.y - Math.cos((who.body.yaw * Math.PI) / 180) });
+        const ahead = o.lens.toGlass({ x: headAt.x + Math.sin((who.body.yaw * Math.PI) / 180), y: headAt.y - Math.cos((who.body.yaw * Math.PI) / 180) }, who.body.head.h);
         gaze(g, Math.atan2(ahead.y - at.y, ahead.x - at.x), sitter.ink, puff);
       }
       disc(g, sitter, images, puff);
