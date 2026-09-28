@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Ears (Outer Dark Grey) -->
+  <path d="M 14 34 L 16 6 L 38 22 Z" fill="#5f5f5f" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 86 34 L 84 6 L 62 22 Z" fill="#5f5f5f" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- Inner Ears (Paper White with Dark Tufts) -->
+  <path d="M 18 30 L 20 12 L 34 23 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M 23 27 L 27 21 M 26 29 L 30 24" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M 82 30 L 80 12 L 66 23 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M 77 27 L 73 21 M 74 29 L 70 24" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Head Base & Fluffy Cheeks (Slate Grey) -->
+  <path d="M 38 22 C 44 20, 56 20, 62 22 C 72 24, 82 34, 86 46 C 90 54, 92 62, 84 72 C 78 78, 68 86, 50 90 C 32 86, 22 78, 16 72 C 8 62, 10 54, 14 46 C 18 34, 28 24, 38 22 Z" fill="#9a9a9a" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- Tabby Markings on Forehead (Charcoal) -->
+  <path d="M 44 22 L 46 34 L 50 26 L 54 34 L 56 22 Z" fill="#5f5f5f" stroke="#0b0704" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M 36 26 L 39 36 L 41 33" stroke="#5f5f5f" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M 64 26 L 61 36 L 59 33" stroke="#5f5f5f" stroke-width="2" stroke-linecap="round" fill="none"/>
+
+  <!-- Cheek Tabby Stripes -->
+  <path d="M 16 54 L 26 52 M 14 62 L 24 58" stroke="#5f5f5f" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M 84 54 L 74 52 M 86 62 L 76 58" stroke="#5f5f5f" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Chin (Paper White) -->
+  <path d="M 44 76 C 44 86, 56 86, 56 76 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Whisker Pads / Muzzle (Paper White) -->
+  <path d="M 36 62 C 34 68, 38 76, 50 75 C 62 76, 66 68, 64 62 C 60 58, 40 58, 36 62 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+
+  <!-- Red Nose -->
+  <polygon points="50,65 45,58 55,58" fill="#b3221f" stroke="#0b0704" stroke-width="1.8" stroke-linejoin="round"/>
+  <line x1="50" y1="65" x2="50" y2="72" stroke="#0b0704" stroke-width="2"/>
+  <path d="M 50 72 C 46 74, 40 73, 38 70" stroke="#0b0704" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M 50 72 C 54 74, 60 73, 62 70" stroke="#0b0704" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+  <!-- Whiskers -->
+  <path d="M 36 65 C 24 64, 14 62, 8 60" stroke="#0b0704" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M 36 68 C 24 69, 14 70, 7 74" stroke="#0b0704" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M 37 72 C 26 76, 16 80, 10 86" stroke="#0b0704" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M 64 65 C 76 64, 86 62, 92 60" stroke="#0b0704" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M 64 68 C 76 69, 86 70, 93 74" stroke="#0b0704" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M 63 72 C 74 76, 84 80, 90 86" stroke="#0b0704" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+
+  <!-- Left Almond Eye -->
+  <path d="M 24 44 C 30 38, 38 39, 42 46 C 36 49, 28 49, 24 44 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <ellipse cx="33" cy="44" rx="4" ry="4" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+  <ellipse cx="33" cy="44" rx="1.8" ry="3.5" fill="#0b0704"/>
+  <circle cx="34" cy="42" r="0.8" fill="#f7f1e6"/>
+  <!-- Winged Eyeliner -->
+  <path d="M 22 43 C 28 36, 38 37, 44 45" stroke="#0b0704" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+
+  <!-- Right Almond Eye -->
+  <path d="M 76 44 C 70 38, 62 39, 58 46 C 64 49, 72 49, 76 44 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <ellipse cx="67" cy="44" rx="4" ry="4" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+  <ellipse cx="67" cy="44" rx="1.8" ry="3.5" fill="#0b0704"/>
+  <circle cx="68" cy="42" r="0.8" fill="#f7f1e6"/>
+  <!-- Winged Eyeliner -->
+  <path d="M 78 43 C 72 36, 62 37, 56 45" stroke="#0b0704" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+
+  <!-- Queen Tiara / Coronet -->
+  <path d="M 34 22 C 44 19, 56 19, 66 22 L 65 26 C 56 23, 44 23, 35 26 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+  <path d="M 35 22 L 36 14 L 43 18 L 50 10 L 57 18 L 64 14 L 65 22 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="50" cy="17" r="2.2" fill="#b3221f" stroke="#0b0704" stroke-width="1.2"/>
+  <circle cx="41" cy="19" r="1.5" fill="#1d4f80" stroke="#0b0704" stroke-width="1"/>
+  <circle cx="59" cy="19" r="1.5" fill="#1d4f80" stroke="#0b0704" stroke-width="1"/>
+
+  <!-- Cheek Woodcut Hatching -->
+  <path d="M 22 72 L 27 75 M 24 77 L 29 80" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M 78 72 L 73 75 M 76 77 L 71 80" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

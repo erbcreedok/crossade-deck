@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Ears (Back View, Dark Charcoal) -->
+  <path d="M 14 34 L 16 6 L 38 22 Z" fill="#5f5f5f" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 18 30 L 20 12 L 34 23 Z" fill="#9a9a9a" stroke="#0b0704" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M 86 34 L 84 6 L 62 22 Z" fill="#5f5f5f" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 82 30 L 80 12 L 66 23 Z" fill="#9a9a9a" stroke="#0b0704" stroke-width="1.5" stroke-linejoin="round"/>
+
+  <!-- Head Base & Fluffy Cheeks (Slate Grey) -->
+  <path d="M 38 22 C 44 20, 56 20, 62 22 C 72 24, 82 34, 86 46 C 90 54, 92 62, 84 72 C 78 78, 68 86, 50 90 C 32 86, 22 78, 16 72 C 8 62, 10 54, 14 46 C 18 34, 28 24, 38 22 Z" fill="#9a9a9a" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- Back of Head Tabby Stripes (Charcoal) -->
+  <path d="M 47 22 L 48 40 L 52 40 L 53 22 Z" fill="#5f5f5f" stroke="#0b0704" stroke-width="1.5"/>
+  <path d="M 40 26 L 43 44 L 45 42" stroke="#5f5f5f" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+  <path d="M 60 26 L 57 44 L 55 42" stroke="#5f5f5f" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+
+  <!-- Queen Tiara (Back Band) -->
+  <path d="M 34 22 C 44 19, 56 19, 66 22 L 65 26 C 56 23, 44 23, 35 26 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+  <circle cx="50" cy="22" r="1.8" fill="#b3221f" stroke="#0b0704" stroke-width="1"/>
+
+  <!-- Woodcut Texture on Back of Head & Nape -->
+  <path d="M 44 54 C 48 56, 52 56, 56 54" stroke="#0b0704" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M 40 64 C 46 67, 54 67, 60 64" stroke="#0b0704" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M 38 74 C 46 78, 54 78, 62 74" stroke="#0b0704" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M 42 84 C 47 87, 53 87, 58 84" stroke="#0b0704" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+  <!-- Cheek Tufts Hatching -->
+  <path d="M 15 54 L 23 52 M 13 62 L 21 59" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M 85 54 L 77 52 M 87 62 L 79 59" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round"/>
+</svg>

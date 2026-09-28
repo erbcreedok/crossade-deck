@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100">
+  <!-- Outer Cloak Silhouette viewed from Below (Red #b3221f) -->
+  <path d="M 24 18 L 8 32 L 2 100 L 118 100 L 112 32 L 96 18 L 78 24 C 68 28, 52 28, 42 24 Z" fill="#b3221f" stroke="#0b0704" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Billowing Cloak Inner Lining at Lower Hem (Deep Royal Blue #1d4f80) -->
+  <!-- Left Billow Lining -->
+  <path d="M 4 84 C 12 78, 22 80, 28 88 L 26 100 L 2 100 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2" stroke-linejoin="round"/>
+  <!-- Right Billow Lining -->
+  <path d="M 116 84 C 108 78, 98 80, 92 88 L 94 100 L 118 100 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- Cloak Gold Brocade Trim on Hem & Folds (#f2c14e) -->
+  <path d="M 24 18 L 8 32 L 4 84 C 12 78, 22 80, 28 88 L 26 100" fill="none" stroke="#f2c14e" stroke-width="2.5"/>
+  <path d="M 96 18 L 112 32 L 116 84 C 108 78, 98 80, 92 88 L 94 100" fill="none" stroke="#f2c14e" stroke-width="2.5"/>
+
+  <!-- Chainmail Aventail / Collar at Top (#5d666e) -->
+  <path d="M 38 18 C 44 14, 76 14, 82 18 L 86 28 C 76 34, 44 34, 34 28 Z" fill="#5d666e" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M 42 23 C 52 26, 68 26, 78 23" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+
+  <!-- Golden Cloak Clasp (#f2c14e) -->
+  <circle cx="48" cy="20" r="3.2" fill="#f2c14e" stroke="#0b0704" stroke-width="1.5"/>
+  <circle cx="72" cy="20" r="3.2" fill="#f2c14e" stroke="#0b0704" stroke-width="1.5"/>
+  <line x1="48" y1="20" x2="72" y2="20" stroke="#f2c14e" stroke-width="3"/>
+  <line x1="48" y1="20" x2="72" y2="20" stroke="#0b0704" stroke-width="1.2"/>
+
+  <!-- White Paper Surcoat (#f7f1e6) tapering down and flaring at hem -->
+  <path d="M 36 26 L 84 26 L 90 84 C 84 86, 74 88, 64 88 L 62 76 L 58 76 L 56 88 C 46 88, 36 86, 30 84 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.6" stroke-linejoin="round"/>
+
+  <!-- Gold Border along Surcoat Hem -->
+  <path d="M 30 84 C 36 86, 46 88, 56 88 L 58 76 L 62 76 L 64 88 C 74 88, 84 86, 90 84" fill="none" stroke="#f2c14e" stroke-width="2.4"/>
+
+  <!-- Chainmail Chausses / Hauberk Skirt seen through Surcoat Split (#5d666e) -->
+  <path d="M 38 86 L 82 86 L 86 100 L 34 100 Z" fill="#5d666e" stroke="#0b0704" stroke-width="2"/>
+  <!-- Chainmail Links Texture on Chausses -->
+  <path d="M 40 91 C 52 94, 68 94, 80 91 M 42 96 C 52 99, 68 99, 78 96" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+
+  <!-- Red Crusader Cross on Surcoat (Seen looking up, foreshortened) (#b3221f) -->
+  <path d="M 56 30 L 64 30 L 62 42 L 74 38 L 76 46 L 64 48 L 66 66 L 54 66 L 56 48 L 44 46 L 46 38 L 58 42 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+
+  <!-- Leather Belt & Scabbard Tip on Viewer Left -->
+  <path d="M 26 62 L 20 92 L 15 90 L 21 62 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="1.6"/>
+  <polygon points="20,92 15,90 17,84 22,85" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+
+  <!-- Heater Shield Point / Lower Half (Viewer Right) -->
+  <path d="M 76 42 C 86 40, 98 42, 104 46 L 100 66 C 96 78, 88 86, 82 92 C 78 86, 74 74, 72 64 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.4" stroke-linejoin="round"/>
+  <!-- Shield Gold Rim -->
+  <path d="M 76 42 C 86 40, 98 42, 104 46 L 100 66 C 96 78, 88 86, 82 92 C 78 86, 74 74, 72 64 Z" fill="none" stroke="#f2c14e" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M 76 42 C 86 40, 98 42, 104 46 L 100 66 C 96 78, 88 86, 82 92 C 78 86, 74 74, 72 64 Z" fill="none" stroke="#0b0704" stroke-width="1.4" stroke-linejoin="round"/>
+  <!-- Shield Red Cross Lower Stem -->
+  <path d="M 85 44 L 91 45 L 87 88 L 84 86 Z" fill="#b3221f" stroke="#0b0704" stroke-width="1.4"/>
+  <path d="M 75 56 L 102 58 L 101 62 L 74 60 Z" fill="#b3221f" stroke="#0b0704" stroke-width="1.4"/>
+
+  <!-- Woodcut Drapery Hatch Lines -->
+  <!-- Left Cloak Folds -->
+  <path d="M 8 50 L 16 46 M 6 62 L 14 58 M 8 72 L 16 68" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Right Cloak Folds -->
+  <path d="M 112 50 L 104 54 M 114 62 L 106 66 M 112 72 L 104 76" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Surcoat Flank Folds -->
+  <path d="M 40 70 L 46 68 M 38 78 L 44 76 M 78 70 L 72 68 M 80 78 L 74 76" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

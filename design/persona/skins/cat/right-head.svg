@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Far Left Ear (Peeking Behind, Charcoal) -->
+  <path d="M 22 28 L 24 8 L 40 22 Z" fill="#5f5f5f" stroke="#0b0704" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M 26 24 L 27 12 L 36 22 Z" fill="#9a9a9a" stroke="#0b0704" stroke-width="1.2"/>
+
+  <!-- Cranium and Nape (Slate Grey) -->
+  <path d="M 36 24 C 24 34, 22 54, 26 72 C 30 84, 40 90, 52 92 C 64 92, 72 84, 74 76 C 72 68, 70 54, 66 42 C 58 28, 46 22, 36 24 Z" fill="#9a9a9a" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- Snout Bridge (Slate Grey) -->
+  <path d="M 64 40 L 88 50 L 86 58 L 66 54 Z" fill="#9a9a9a" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Tabby Cheek & Brow Stripes (Charcoal) -->
+  <path d="M 48 30 L 56 42 L 53 45" stroke="#5f5f5f" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+  <path d="M 38 48 L 48 48 M 36 56 L 46 54" stroke="#5f5f5f" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Paper White Chin & Throat Under-layer -->
+  <path d="M 58 64 C 68 64, 78 68, 78 74 C 70 82, 58 84, 50 84 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Whisker Pad / Muzzle (Paper White) -->
+  <path d="M 72 54 C 80 50, 88 50, 90 54 C 94 58, 92 66, 86 70 C 80 72, 74 72, 70 66 C 68 62, 68 56, 72 54 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+
+  <!-- Red Nose -->
+  <polygon points="94,54 88,49 88,56" fill="#b3221f" stroke="#0b0704" stroke-width="1.8" stroke-linejoin="round"/>
+  <line x1="88" y1="56" x2="82" y2="60" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Whiskers -->
+  <path d="M 86 60 C 94 60, 100 58, 102 56" stroke="#0b0704" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M 86 63 C 94 65, 100 66, 102 69" stroke="#0b0704" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M 84 66 C 92 70, 98 75, 100 80" stroke="#0b0704" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+
+  <!-- Profile Almond Eye -->
+  <path d="M 60 42 C 65 38, 72 38, 75 42 C 71 45, 64 45, 60 42 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+  <ellipse cx="69" cy="42" rx="3.5" ry="3.5" fill="#f2c14e" stroke="#0b0704" stroke-width="1"/>
+  <ellipse cx="70" cy="42" rx="1.5" ry="3" fill="#0b0704"/>
+  <circle cx="71" cy="41" r="0.7" fill="#f7f1e6"/>
+  <!-- Winged Eyeliner -->
+  <path d="M 58 41 C 64 36, 72 36, 77 42" stroke="#0b0704" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+
+  <!-- Near Right Ear (Foreground, Sharp Erect Point) -->
+  <path d="M 32 32 L 38 6 L 56 22 Z" fill="#5f5f5f" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- Inner Ear (Paper White with Tufts) -->
+  <path d="M 36 28 L 40 12 L 52 23 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M 43 25 L 47 20 M 45 28 L 49 22" stroke="#0b0704" stroke-width="1.2" stroke-linecap="round"/>
+
+  <!-- Queen Tiara (Profile View) -->
+  <path d="M 46 22 L 64 18 L 63 23 L 47 26 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <path d="M 48 22 L 48 14 L 54 18 L 60 10 L 64 16 L 64 22 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="56" cy="16" r="2" fill="#b3221f" stroke="#0b0704" stroke-width="1.2"/>
+
+  <!-- Woodcut Fur Hatch Lines -->
+  <path d="M 28 66 L 33 69 M 29 74 L 34 77 M 36 84 L 42 87" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100">
+  <!-- Outer Cloak Silhouette from Above (Red #b3221f) -->
+  <path d="M 24 18 C 36 14, 84 14, 96 18 L 114 34 L 116 100 L 4 100 L 6 34 Z" fill="#b3221f" stroke="#0b0704" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Cloak Shoulder Folds & Gold Brocade Borders (#f2c14e) -->
+  <path d="M 24 18 L 8 32 L 6 100" fill="none" stroke="#f2c14e" stroke-width="2.5"/>
+  <path d="M 96 18 L 112 32 L 114 100" fill="none" stroke="#f2c14e" stroke-width="2.5"/>
+
+  <!-- Deep Blue Cloak Lining Turn-back at Shoulders (#1d4f80) -->
+  <path d="M 14 30 L 26 22 L 32 36 L 18 42 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M 106 30 L 94 22 L 88 36 L 102 42 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="1.8" stroke-linejoin="round"/>
+
+  <!-- Steel Spaulders (Shoulder Armor) from Above (#9aa3ab) -->
+  <!-- Right Shoulder Spaulder (Viewer Left) -->
+  <path d="M 16 28 C 22 20, 32 20, 38 26 C 40 38, 30 46, 20 44 C 14 40, 14 34, 16 28 Z" fill="#9aa3ab" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M 16 28 C 22 20, 32 20, 38 26" stroke="#f2c14e" stroke-width="2" fill="none"/>
+  <!-- Left Shoulder Spaulder (Viewer Right) -->
+  <path d="M 104 28 C 98 20, 88 20, 82 26 C 80 38, 90 46, 100 44 C 106 40, 106 34, 104 28 Z" fill="#9aa3ab" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M 104 28 C 98 20, 88 20, 82 26" stroke="#f2c14e" stroke-width="2" fill="none"/>
+
+  <!-- Chainmail Aventail Collar (#5d666e) around Neck Hole -->
+  <path d="M 38 18 C 44 14, 76 14, 82 18 C 88 24, 86 36, 78 40 C 68 44, 52 44, 42 40 C 34 36, 32 24, 38 18 Z" fill="#5d666e" stroke="#0b0704" stroke-width="2.4" stroke-linejoin="round"/>
+  <!-- Chainmail Rings Texture on Collar -->
+  <path d="M 44 24 C 54 28, 66 28, 76 24 M 46 32 C 54 36, 66 36, 74 32" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+
+  <!-- Neck Opening (Deep Void where head sits) -->
+  <ellipse cx="60" cy="26" rx="14" ry="7" fill="#0b0704"/>
+
+  <!-- Surcoat from Above (White Paper #f7f1e6) sloping forward/down -->
+  <path d="M 36 38 C 44 42, 76 42, 84 38 L 88 100 L 32 100 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.6"/>
+
+  <!-- Red Crusader Cross on Chest seen from Above (#b3221f) -->
+  <path d="M 55 42 L 65 42 L 64 56 L 76 52 L 78 60 L 64 62 L 66 78 L 54 78 L 56 62 L 42 60 L 44 52 L 56 56 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+
+  <!-- Leather Belt (#1d4f80) with Gold Buckle (#f2c14e) -->
+  <path d="M 34 82 L 86 82 L 86 88 L 34 88 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="1.8"/>
+  <rect x="54" y="80" width="12" height="10" rx="1.5" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <line x1="60" y1="80" x2="60" y2="90" stroke="#0b0704" stroke-width="1.8"/>
+
+  <!-- Sword Pommel & Crossguard seen from Above (Viewer Left) -->
+  <circle cx="28" cy="74" r="4" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <path d="M 20 78 L 36 78 L 35 81 L 21 81 Z" fill="#9aa3ab" stroke="#0b0704" stroke-width="1.6" stroke-linejoin="round"/>
+
+  <!-- Heater Shield viewed from Above (Viewer Right, slung on arm) -->
+  <!-- Top Curved Rim & Face of Shield -->
+  <path d="M 78 40 C 90 36, 104 38, 110 42 L 106 72 C 102 84, 94 92, 88 96 L 80 62 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.6" stroke-linejoin="round"/>
+  <!-- Gold Top Rim -->
+  <path d="M 78 40 C 90 36, 104 38, 110 42" stroke="#f2c14e" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+  <path d="M 78 40 C 90 36, 104 38, 110 42" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <!-- Red Cross on Shield Face -->
+  <path d="M 91 40 L 97 41 L 94 90 L 89 87 Z" fill="#b3221f" stroke="#0b0704" stroke-width="1.4"/>
+  <path d="M 80 54 L 108 56 L 107 61 L 80 59 Z" fill="#b3221f" stroke="#0b0704" stroke-width="1.4"/>
+
+  <!-- Woodcut Drapery Hatch Lines -->
+  <!-- Left Shoulder Cloak Folds -->
+  <path d="M 12 56 L 20 52 M 10 66 L 18 62 M 12 76 L 20 72 M 10 86 L 18 82" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Right Shoulder Cloak Folds -->
+  <path d="M 112 60 L 104 64 M 114 70 L 106 74 M 112 80 L 104 84" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round"/>
+</svg>

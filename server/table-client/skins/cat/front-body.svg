@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100">
+  <!-- Outer Gown & Mantle (Deep Blue & Red Trim) -->
+  <path d="M 26 18 L 10 32 L 6 100 L 114 100 L 110 32 L 94 18 L 78 28 C 68 34, 52 34, 42 28 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Red Outer Sleeves / Mantle Drapes -->
+  <path d="M 10 32 L 26 18 L 36 28 L 28 58 L 12 56 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 110 32 L 94 18 L 84 28 L 92 58 L 108 56 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- Gold Shoulder Trim / Epaulets -->
+  <path d="M 26 18 C 32 20, 36 26, 38 34 L 28 32 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <path d="M 94 18 C 88 20, 84 26, 82 34 L 92 32 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+
+  <!-- Center Stomacher / Bodice (Gold & Red Card Diamonds) -->
+  <path d="M 40 30 L 80 30 L 84 100 L 36 100 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2.5"/>
+
+  <!-- Bodice Vertical Red Brocade Inlay -->
+  <path d="M 46 32 L 74 32 L 76 100 L 44 100 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Center Diamond Heraldry -->
+  <polygon points="60,34 68,44 60,54 52,44" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+  <polygon points="60,38 64,44 60,50 56,44" fill="#f7f1e6" stroke="#0b0704" stroke-width="1.2"/>
+  <circle cx="60" cy="44" r="2" fill="#1d4f80"/>
+
+  <!-- Lower Skirt Ornament (y=72..100) -->
+  <polygon points="60,72 72,84 60,96 48,84" fill="#f2c14e" stroke="#0b0704" stroke-width="2.2"/>
+  <polygon points="60,78 66,84 60,90 54,84" fill="#1d4f80" stroke="#0b0704" stroke-width="1.5"/>
+
+  <!-- White Paper Lace Cuffs with Gold Bangles -->
+  <path d="M 32 52 L 44 50 L 42 62 L 30 60 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2"/>
+  <line x1="33" y1="52" x2="31" y2="60" stroke="#f2c14e" stroke-width="3"/>
+  <path d="M 88 52 L 76 50 L 78 62 L 90 60 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2"/>
+  <line x1="87" y1="52" x2="89" y2="60" stroke="#f2c14e" stroke-width="3"/>
+
+  <!-- Cat Paws Resting on Chest -->
+  <!-- Left Paw (Grey with White Tip) -->
+  <path d="M 42 54 C 48 52, 56 54, 60 59 C 58 64, 50 65, 42 61 Z" fill="#9a9a9a" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M 52 53 C 56 54, 60 56, 60 59 C 58 64, 53 64, 51 61 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="1.5"/>
+  <line x1="55" y1="55" x2="57" y2="61" stroke="#0b0704" stroke-width="1.5"/>
+
+  <!-- Right Paw (Grey with White Tip) -->
+  <path d="M 78 54 C 72 52, 64 54, 60 62 C 64 66, 72 65, 78 61 Z" fill="#9a9a9a" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M 68 53 C 64 54, 60 56, 60 62 C 64 66, 68 64, 70 61 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="1.5"/>
+  <line x1="65" y1="55" x2="63" y2="62" stroke="#0b0704" stroke-width="1.5"/>
+
+  <!-- Elizabethan Scalloped Lace Ruff -->
+  <path d="M 38 18 L 44 10 L 50 16 L 60 8 L 70 16 L 76 10 L 82 18 L 78 28 C 68 34, 52 34, 42 28 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- Gold Scallop Tips -->
+  <polygon points="44,10 47,14 41,14" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+  <polygon points="60,8 63,13 57,13" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+  <polygon points="76,10 79,14 73,14" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+  <!-- Ermine Tails / Lace Flecks -->
+  <polygon points="49,20 51,24 47,24" fill="#0b0704"/>
+  <polygon points="71,20 73,24 69,24" fill="#0b0704"/>
+  <polygon points="60,20 62,24 58,24" fill="#0b0704"/>
+  <path d="M 42 26 C 52 32, 68 32, 78 26" stroke="#0b0704" stroke-width="2.5" fill="none"/>
+
+  <!-- Woodcut Drapery Hatch Lines -->
+  <path d="M 14 74 L 24 70 M 12 82 L 22 78 M 106 74 L 96 70 M 108 82 L 98 78" stroke="#0b0704" stroke-width="2" stroke-linecap="round"/>
+</svg>

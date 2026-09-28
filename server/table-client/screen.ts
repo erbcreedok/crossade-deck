@@ -57,6 +57,7 @@ import { baseZoom, freshNeck, headAt, neckStep, risesAt } from "./neck.js";
 import { bodiesHtml, dollPose } from "./bodyView.js";
 import { dollSprite, warmDoll } from "./dollSprites.js";
 import { dollFor, type Doll, type DollLook } from "../src/table/dolls.js";
+import { skinOf } from "../src/table/skins.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, VOICE_OPEN, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
 /** Экран стола. `ready` — когда всё, что он рисует, пришло: колода стола, лица сидящих и шрифт. */
@@ -3253,7 +3254,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
           // КУКЛА: голова пришита к вороту по её верху (`dollPose`) — веер у левой руки и тап по голове там же,
           // где их рисует слой тел. Кукла ещё не испеклась — кружок-голова, как раньше.
           const look = dollOf(sitter);
-          const drawn = view && dollSprite(look.doll, look.palette, "head", sitter.ink, HOST, () => redraw()) !== null;
+          const shownSkin = skinOf(look.doll);
+          const drawn = view && shownSkin && dollSprite(look.doll, look.palette, shownSkin.views[0]!, "head", sitter.ink, HOST, () => redraw()) !== null;
           if (drawn && view) {
             const v = view;
             const pose = dollPose(body, c.angle, look.doll, (p, h) => v.toGlass(p, h));

@@ -11,10 +11,11 @@
 // значило бы спрятать её там, где добавление работает. Ярлык открывает мини-апп без параметра — сюда же.
 
 import { FAVOURITE_INKS as INKS, PALETTE } from "../../look/src/palette.js";
-import { DOLLS, MAIN_PALETTES, PALETTES, type Doll } from "../src/table/dolls.js";
+import { MAIN_PALETTES, PALETTES, type Doll } from "../src/table/dolls.js";
+import { drawnView, pickView, skinOf, SKINS, type Skin } from "../src/table/skins.js";
 import { nativeShell } from "./arNative.js";
 import { DOLL_SIZE } from "./bodyView.js";
-import { ART, EXTEND, dollSprite } from "./dollSprites.js";
+import { dollGeom, dollSprite, type DollSprite } from "./dollSprites.js";
 import { mountGround } from "./ground.js";
 import { HOST } from "./host.js";
 
@@ -53,7 +54,6 @@ interface Profile {
 }
 
 const WHY: Record<MyRoom["why"][number], string> = { owner: "создал", admin: "распорядитель", visited: "был", chat: "из чата" };
-const DOLL_NAME: Record<Doll, string> = { king: "Король", queen: "Дама" };
 
 const esc = (text: string): string => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const when = (at: number): string => new Date(at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -101,6 +101,11 @@ const CSS = `
 [data-rooms] .sheet .label{color:${P.inkDim};font-size:12px}
 [data-rooms] .opts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 [data-rooms] .btn.on{color:#1a0f06;background:linear-gradient(${P.goldLight},${P.goldDark});box-shadow:inset 0 0 0 2px ${P.black},0 3px 0 ${P.black}}
+[data-rooms] .skins{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+[data-rooms] .skin{height:82px;border-radius:10px;border:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;padding:6px 4px;background:${P.well};box-shadow:inset 0 0 0 2px ${P.wood};font:400 11px Tiny5,monospace;color:${P.ink}}
+[data-rooms] .skin.on{box-shadow:inset 0 0 0 2px ${P.black},0 0 0 2px ${P.gold}}
+[data-rooms] .skin .face{width:44px;height:44px;object-fit:contain;display:block}
+[data-rooms] .skin .none{width:44px;height:44px;display:grid;place-items:center;color:${P.inkDim};font-size:18px}
 [data-rooms] .chip{width:40px;height:28px;border-radius:8px;border:0;cursor:pointer;display:flex;gap:2px;align-items:center;justify-content:center;background:${P.well};box-shadow:inset 0 0 0 2px ${P.wood}}
 [data-rooms] .chip.on{box-shadow:inset 0 0 0 2px ${P.black},0 0 0 2px ${P.ink}}
 [data-rooms] .chip i{width:8px;height:15px;border-radius:2px;display:block}
@@ -261,7 +266,7 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
         + `<div class="top"><h3>ПРОФИЛЬ</h3><button class="btn" data-close>Закрыть</button></div>`
         + `<div class="doll" data-doll-preview>${dollPreview(p)}<div class="edge"></div></div>`
         + `<div class="row"><span class="label">Имя</span><span>${esc(p.name)}</span></div>`
-        + `<div class="row"><span class="label">Кукла</span><span class="opts">${DOLLS.map((d) => `<button class="btn${p.doll === d ? " on" : ""}" data-doll="${d}">${DOLL_NAME[d]}</button>`).join("")}</span></div>`
+        + `<div class="row col"><span class="label">Кем сидеть</span><span class="skins">${SKINS.map((sk) => `<button class="skin${p.doll === sk.id ? " on" : ""}" data-doll="${sk.id}">${skinThumb(sk, p)}<span>${esc(sk.name)}</span></button>`).join("")}</span></div>`
         + `<div class="row col"><span class="label">Расцветка — чтобы одинаковые куклы за столом не сливались</span><span class="opts" style="justify-content:flex-start;margin-top:8px">`
         + pals.map(({ pal, k }) => `<button class="chip${p.palette === k ? " on" : ""}" data-pal="${k}" title="${esc(pal.name)}"><i style="background:${pal.red}"></i><i style="background:${pal.blue}"></i><i style="background:${pal.gold}"></i></button>`).join("")
         + `<button class="btn" data-more>${more ? "меньше" : `ещё ${PALETTES.length - MAIN_PALETTES}`}</button></span></div>`
@@ -284,42 +289,60 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
     draw();
   }
 
+  /** Лицо скина в галерее — его голова спереди в моей расцветке; стика или ещё не испеклось — знак. */
+  function skinThumb(sk: Skin, p: Profile): string {
+    if (sk.source === "stick") return `<span class="none">⚲</span>`;
+    const ready = () => { const el = layer.querySelector(`[data-doll="${sk.id}"] .none`); if (el) el.outerHTML = skinThumb(sk, p); };
+    const face = dollSprite(sk.id, p.palette, sk.views[0]!, "head", p.color, HOST, ready);
+    return face ? `<img class="face" src="${face.src}" alt="">` : `<span class="none">…</span>`;
+  }
+
   /** Кукла крупно, как её увидят за столом: туловище за кромкой, голова над воротом, обводка моим цветом. */
   function dollPreview(p: Profile): string {
-    const ready = () => { const el = layer.querySelector("[data-doll-preview]"); if (el) el.innerHTML = dollPreview(p) + `<div class="edge"></div>`; };
-    const torso = dollSprite(p.doll, p.palette, "body", p.color, HOST, ready);
-    const head = dollSprite(p.doll, p.palette, "head", p.color, HOST, ready);
-    const torsoBack = dollSprite(p.doll, p.palette, "bodyBack", p.color, HOST, ready);
-    const headBack = dollSprite(p.doll, p.palette, "headBack", p.color, HOST, ready);
-    if (!torso || !head || !torsoBack || !headBack) return `<span class="lead" style="position:absolute;left:0;right:0;top:90px;text-align:center">кукла печётся…</span>`;
+    const skin = skinOf(p.doll);
+    if (!skin || skin.source === "stick") return `<span class="lead" style="position:absolute;left:0;right:0;top:90px;text-align:center">палка с шаром — как за столом</span>`;
+    const ready = () => { const el = layer.querySelector("[data-doll-preview]"); if (el) { el.innerHTML = dollPreview(p) + `<div class="edge"></div>`; delete (el as HTMLElement).dataset.alive; } };
+    // ВСЕ НАРИСОВАННЫЕ РАКУРСЫ — сразу: кручение пальцем листает их, как в Doom.
+    const views: Record<string, string> = {};
+    let torso: DollSprite | null = null, head: DollSprite | null = null;
+    for (const view of skin.views) {
+      const b = dollSprite(p.doll, p.palette, view, "body", p.color, HOST, ready);
+      const h = dollSprite(p.doll, p.palette, view, "head", p.color, HOST, ready);
+      if (!b || !h) return `<span class="lead" style="position:absolute;left:0;right:0;top:90px;text-align:center">кукла печётся…</span>`;
+      views[`${view}:body`] = b.src;
+      views[`${view}:head`] = h.src;
+      if (view === "front") { torso = b; head = h; }
+    }
+    torso ??= dollSprite(p.doll, p.palette, skin.views[0]!, "body", p.color, HOST, ready)!;
+    head ??= dollSprite(p.doll, p.palette, skin.views[0]!, "head", p.color, HOST, ready)!;
     // Та же мера, что за столом (`DOLL_SIZE`): плечи на высоте 4 над кромкой, голова пришита к вороту.
-    const art = ART[p.doll];
+    const geom = dollGeom(p.doll);
     const unit = 26, edge = 210 - 30;
     const tw = DOLL_SIZE.torso * unit, th = ((tw * torso.h) / torso.w) * DOLL_SIZE.stretch;
     const shoulderY = edge - 4 * unit;
-    const py = art.shoulder / (1 + EXTEND);
     const hw = DOLL_SIZE.head * unit, hh = (hw * head.h) / head.w;
     const headY = shoulderY - ((hh / unit) * 0.45 + 0.2) * unit;
-    queueMicrotask(() => alive(art.looks, unit));
-    return `<img data-part="torso" data-front="${torso.src}" data-back="${torsoBack.src}" src="${torso.src}" alt="" style="left:calc(50% - ${tw / 2}px);top:${shoulderY - th * py}px;width:${tw}px;height:${th}px">`
-      + `<img data-part="head" data-front="${head.src}" data-back="${headBack.src}" src="${head.src}" alt="" style="left:calc(50% - ${hw / 2}px);top:${headY - hh / 2}px;width:${hw}px;height:${hh}px">`;
+    queueMicrotask(() => alive(skin, geom.looks, unit, views));
+    return `<img data-part="torso" src="${torso.src}" alt="" style="left:calc(50% - ${tw / 2}px);top:${shoulderY - th * geom.shoulder}px;width:${tw}px;height:${th}px">`
+      + `<img data-part="head" src="${head.src}" alt="" style="left:calc(50% - ${hw / 2}px);top:${headY - hh / 2}px;width:${hw}px;height:${hh}px">`;
   }
 
   /**
    * КУКЛА ЖИВАЯ, как на стенде (`design/persona`, вид «профиль»): дышит — плечи и голова чуть ходят вверх-вниз,
-   * водит взглядом — голова смещается к тому, куда смотрит, и поворачивается лицом туда. Кадр за кадром,
-   * пока превью на странице; кто просил меньше движения — стоит спокойно.
-   * КРУТИТСЯ ПАЛЬЦЕМ: тянешь вбок — кукла поворачивается вокруг себя (картонка сужается), за четверть оборота —
-   * спиной; где отпустил, там и стоит.
+   * водит взглядом — голова смещается к тому, куда смотрит. Кадр за кадром, пока превью на странице; кто просил
+   * меньше движения — стоит спокойно.
+   * КРУТИТСЯ ПАЛЬЦЕМ — КАК В DOOM: тянешь вбок — кукла поворачивается вокруг себя, и показывается ближайший
+   * нарисованный ракурс (`pickView`): у короля — лицо и спина, у пса — ещё бока. Где отпустил, там и стоит.
    */
   /** Куда кукла повёрнута — переживает перерисовку листа (сменил расцветку — стоит, как стояла). */
   let spun = 0;
-  function alive(looks: -1 | 1, unit: number): void {
+  function alive(skin: Skin, looks: -1 | 0 | 1, unit: number, views: Record<string, string>): void {
     const box = layer.querySelector<HTMLElement>("[data-doll-preview]");
     if (!box || box.dataset.alive) return;
     box.dataset.alive = "1";
     let turn = spun;
     let from: number | null = null;
+    let shown: string | undefined;
     box.style.touchAction = "none";
     box.addEventListener("pointerdown", (e) => { from = e.clientX; box.setPointerCapture(e.pointerId); });
     box.addEventListener("pointermove", (e) => {
@@ -335,21 +358,25 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const t0 = performance.now();
     const tick = (now: number) => {
-      const torso = box.querySelector<HTMLElement>('[data-part="torso"]'), head = box.querySelector<HTMLElement>('[data-part="head"]');
+      const torso = box.querySelector<HTMLImageElement>('[data-part="torso"]'), head = box.querySelector<HTMLImageElement>('[data-part="head"]');
       if (!box.isConnected || !torso || !head) return;
       const t = still ? 0 : (now - t0) / 1000;
       const breath = Math.sin((t * 2 * Math.PI) / 3.2);
       const gx = Math.sin(t * 0.8) * 5, toward = gx / Math.hypot(gx, 8);
-      const c = Math.cos((turn * Math.PI) / 180), back = c < 0, w = Math.max(0.06, Math.abs(c));
-      const flip = back ? 1 : (looks < 0) === toward > 0 ? -1 : 1;
-      for (const [img, want] of [[torso, back], [head, back]] as const) {
-        const src = want ? img.dataset.back! : img.dataset.front!;
-        if (img.getAttribute("src") !== src) img.src = src;
-      }
-      torso.style.transform = `translateY(${(-breath * 0.08 * unit).toFixed(2)}px) scaleX(${w.toFixed(3)})`;
-      head.style.transform = `translate(${(toward * 0.4 * unit * c).toFixed(2)}px,${(-breath * 0.13 * unit).toFixed(2)}px) scaleX(${(flip * w).toFixed(3)})`;
+      // Смотрю на куклу с высоты чуть выше плеч; она повёрнута на `turn` — я вижу её с этой стороны.
+      const a = (turn * Math.PI) / 180;
+      shown = pickView(skin, [Math.sin(a), Math.cos(a), 0.2], shown);
+      const drawn = drawnView(skin, shown);
+      const set = (img: HTMLImageElement, part: string) => { const src = views[`${drawn.view}:${part}`]; if (src && img.getAttribute("src") !== src) img.src = src; };
+      set(torso, "body");
+      set(head, "head");
+      const turned = looks !== 0 && (drawn.view === "front" || drawn.view === "back");
+      const flip = turned ? ((looks < 0) === toward > 0 ? -1 : 1) : drawn.mirror ? -1 : 1;
+      torso.style.transform = `translateY(${(-breath * 0.08 * unit).toFixed(2)}px) scaleX(${drawn.mirror ? -1 : 1})`;
+      head.style.transform = `translate(${(toward * 0.4 * unit).toFixed(2)}px,${(-breath * 0.13 * unit).toFixed(2)}px) scaleX(${flip})`;
       box.dataset.turn = String(Math.round(turn));
-      box.dataset.back = back ? "1" : "0";
+      box.dataset.view = shown;
+      box.dataset.back = shown === "back" ? "1" : "0";
       if (!still) requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);

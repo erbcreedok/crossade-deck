@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Ears (back layer) -->
+  <path d="M 30 20 C 14 20, 7 32, 7 48 C 7 64, 12 75, 20 75 C 28 75, 30 65, 32 50 Z" fill="#8a5a2b" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 18 36 C 14 45, 14 62, 20 70 C 24 68, 25 58, 25 45 Z" fill="#c98a4b" stroke="#0b0704" stroke-width="2"/>
+  <path d="M 70 20 C 86 20, 93 32, 93 48 C 93 64, 88 75, 80 75 C 72 75, 70 65, 68 50 Z" fill="#8a5a2b" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 82 36 C 86 45, 86 62, 80 70 C 76 68, 75 58, 75 45 Z" fill="#c98a4b" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Cranium and Head -->
+  <path d="M 28 24 C 28 14, 72 14, 72 24 C 82 28, 86 44, 84 60 C 82 74, 72 88, 50 92 C 28 88, 18 74, 16 60 C 14 44, 18 28, 28 24 Z" fill="#c98a4b" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- Chestnut Eye Patches -->
+  <path d="M 24 36 C 24 28, 44 28, 44 38 C 44 50, 36 56, 26 52 C 22 46, 24 40, 24 36 Z" fill="#8a5a2b" stroke="#0b0704" stroke-width="2"/>
+  <path d="M 76 36 C 76 28, 56 28, 56 38 C 56 50, 64 56, 74 52 C 78 46, 76 40, 76 36 Z" fill="#8a5a2b" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- White Blaze -->
+  <path d="M 46 16 L 54 16 L 55 42 L 60 52 L 40 52 L 45 42 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Chin -->
+  <path d="M 42 85 C 42 92, 58 92, 58 85 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Muzzle & Drooping Jowls -->
+  <path d="M 38 52 C 44 48, 56 48, 62 52 C 72 54, 76 65, 75 75 C 74 84, 64 86, 54 85 C 51 85, 50 83, 50 82 C 50 83, 49 85, 46 85 C 36 86, 26 84, 25 75 C 24 65, 28 54, 38 52 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- Nose -->
+  <path d="M 41 54 C 44 52, 56 52, 59 54 C 61 60, 58 67, 50 69 C 42 67, 39 60, 41 54 Z" fill="#0b0704"/>
+  <path d="M 45 56 C 48 55, 52 55, 55 56" stroke="#f7f1e6" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+
+  <!-- Philtrum and Mouth -->
+  <line x1="50" y1="69" x2="50" y2="82" stroke="#0b0704" stroke-width="2.5"/>
+  <path d="M 50 82 C 46 82, 38 82, 32 78" stroke="#0b0704" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M 50 82 C 54 82, 62 82, 68 78" stroke="#0b0704" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Whisker Spots -->
+  <circle cx="34" cy="68" r="1.5" fill="#0b0704"/>
+  <circle cx="39" cy="71" r="1.5" fill="#0b0704"/>
+  <circle cx="35" cy="75" r="1.5" fill="#0b0704"/>
+  <circle cx="66" cy="68" r="1.5" fill="#0b0704"/>
+  <circle cx="61" cy="71" r="1.5" fill="#0b0704"/>
+  <circle cx="65" cy="75" r="1.5" fill="#0b0704"/>
+
+  <!-- Left Eye -->
+  <path d="M 28 42 C 32 38, 40 38, 44 43 C 40 47, 32 47, 28 42 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.5"/>
+  <ellipse cx="37" cy="42" rx="3.5" ry="3.5" fill="#0b0704"/>
+  <circle cx="36" cy="41" r="1" fill="#f7f1e6"/>
+  <path d="M 28 36 C 33 33, 41 34, 45 38" stroke="#0b0704" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Right Eye -->
+  <path d="M 72 42 C 68 38, 60 38, 56 43 C 60 47, 68 47, 72 42 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.5"/>
+  <ellipse cx="63" cy="42" rx="3.5" ry="3.5" fill="#0b0704"/>
+  <circle cx="64" cy="41" r="1" fill="#f7f1e6"/>
+  <path d="M 72 36 C 67 33, 59 34, 55 38" stroke="#0b0704" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Playing Card Crown -->
+  <path d="M 34 20 L 66 20 L 65 24 L 35 24 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2.5"/>
+  <path d="M 34 20 L 34 11 L 41 16 L 50 7 L 59 16 L 66 11 L 66 20 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <circle cx="50" cy="15" r="2.5" fill="#b3221f" stroke="#0b0704" stroke-width="1.5"/>
+  <circle cx="40" cy="18" r="1.8" fill="#1d4f80" stroke="#0b0704" stroke-width="1.5"/>
+  <circle cx="60" cy="18" r="1.8" fill="#1d4f80" stroke="#0b0704" stroke-width="1.5"/>
+
+  <!-- Woodcut Hatch Lines -->
+  <path d="M 12 52 L 17 56 M 11 58 L 16 62 M 88 52 L 83 56 M 89 58 L 84 62" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

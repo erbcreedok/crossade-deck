@@ -6,6 +6,7 @@
 //
 // Тот же адрес с `?stand` — стенд жеста: тот же клиент без сети, с ботами за столом.
 
+import { skinOf } from "./skins.js";
 import { createHash } from "crypto";
 import { join } from "path";
 import express, { type Router } from "express";
@@ -110,10 +111,21 @@ export function clientRoutes(source: ClientSource = fromEnv()): Router {
     });
   });
   // КУКЛЫ ЗА СТОЛОМ — король и дама из колоды векторами: расцветку и обводку экран печёт сам (`dollSprites.ts`).
-  r.get(/^\/table\/sprites\/((?:club-K|diamond-Q))\.svg$/, (req, res) => {
+  r.get(/^\/table\/sprites\/((?:club|diamond|heart|spade)-[JQK])\.svg$/, (req, res) => {
     res.header("Cache-Control", "public, max-age=86400");
     res.header("Access-Control-Allow-Origin", "*");
     res.type("image/svg+xml").sendFile(join(source.sprites, `${req.params[0]!}.svg`), (err) => {
+      if (err && !res.headersSent) res.status(404).end();
+    });
+  });
+
+  // СКИНЫ ПО РАКУРСАМ — рисунки из каталога (`skins.ts`): скин и ракурс — из каталога, часть — голова или туловище.
+  r.get(/^\/table\/skins\/([a-z0-9-]+)\/([a-z]+)-(head|body)\.svg$/, (req, res) => {
+    const skin = skinOf(req.params[0]!);
+    if (!skin || skin.source !== "files" || !skin.views.includes(req.params[1]!)) return void res.status(404).end();
+    res.header("Cache-Control", "public, max-age=86400");
+    res.header("Access-Control-Allow-Origin", "*");
+    res.type("image/svg+xml").sendFile(join(source.skins, skin.id, `${req.params[1]!}-${req.params[2]!}.svg`), (err) => {
       if (err && !res.headersSent) res.status(404).end();
     });
   });

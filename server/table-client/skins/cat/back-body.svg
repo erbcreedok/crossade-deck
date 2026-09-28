@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100">
+  <!-- Outer Mantle Silhouette (Deep Blue) -->
+  <path d="M 26 18 L 10 32 L 6 100 L 114 100 L 110 32 L 94 18 L 78 24 C 68 28, 52 28, 42 24 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Red Outer Trim Along Shoulders and Flanks -->
+  <path d="M 10 32 L 26 18 L 36 28 L 22 100 L 6 100 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2"/>
+  <path d="M 110 32 L 94 18 L 84 28 L 98 100 L 114 100 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Gold Shoulder Trim -->
+  <path d="M 26 18 C 32 20, 36 26, 38 34 L 28 32 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <path d="M 94 18 C 88 20, 84 26, 82 34 L 92 32 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+
+  <!-- Central Gold Queen Brocade Motif on Mantle Back -->
+  <polygon points="60,34 74,48 60,62 46,48" fill="#f2c14e" stroke="#0b0704" stroke-width="2.5"/>
+  <polygon points="60,40 68,48 60,56 52,48" fill="#b3221f" stroke="#0b0704" stroke-width="1.8"/>
+  <circle cx="60" cy="48" r="2.5" fill="#1d4f80"/>
+
+  <!-- Lower Back Drapery Diamond (y=70..98) -->
+  <polygon points="60,70 72,82 60,94 48,82" fill="#f2c14e" stroke="#0b0704" stroke-width="2.2"/>
+  <polygon points="60,76 66,82 60,88 54,82" fill="#b3221f" stroke="#0b0704" stroke-width="1.5"/>
+
+  <!-- Standing Lace Ruff (Back View) -->
+  <path d="M 38 18 L 44 10 L 50 16 L 60 8 L 70 16 L 76 10 L 82 18 L 78 24 C 68 28, 52 28, 42 24 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 44 10 L 50 16 L 60 8 L 70 16 L 76 10" stroke="#f2c14e" stroke-width="2" fill="none"/>
+
+  <!-- Woodcut Drapery Hatch Lines -->
+  <path d="M 12 70 L 20 66 M 10 78 L 18 74 M 108 70 L 100 66 M 110 78 L 102 74" stroke="#0b0704" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 38 88 L 44 85 M 39 94 L 45 91 M 82 88 L 76 85 M 81 94 L 75 91" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100">
+  <!-- Back Cloak Drape (Red) -->
+  <path d="M 54 18 L 32 28 L 26 100 L 56 100 L 54 36 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2.8" stroke-linejoin="round"/>
+
+  <!-- Front Chest / Tabard (Blue) -->
+  <path d="M 54 28 L 74 26 L 94 48 C 96 62, 92 82, 90 100 L 54 100 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2.8" stroke-linejoin="round"/>
+
+  <!-- Vertical Gold Border Trim -->
+  <path d="M 54 30 L 60 30 L 62 100 L 56 100 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+  <polygon points="58,50 61,54 58,58 55,54" fill="#0b0704"/>
+  <polygon points="59,74 62,78 59,82 56,78" fill="#0b0704"/>
+
+  <!-- Chest Heraldic Diamond (Profile) -->
+  <polygon points="76,40 86,48 78,56 68,48" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <circle cx="77" cy="48" r="2.5" fill="#b3221f" stroke="#0b0704" stroke-width="1.2"/>
+
+  <!-- Right Arm & Sleeve (Red) -->
+  <path d="M 46 28 C 42 42, 44 56, 52 64 C 60 70, 70 68, 76 64 L 74 52 C 66 54, 58 50, 56 38 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2.5"/>
+
+  <!-- White Paper Cuff -->
+  <path d="M 68 56 L 78 52 L 76 64 L 66 64 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Dog Paw Resting on Chest (Profile) -->
+  <path d="M 76 54 C 82 52, 88 54, 90 60 C 88 66, 80 67, 74 63 Z" fill="#c98a4b" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <line x1="84" y1="55" x2="85" y2="62" stroke="#8a5a2b" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="88" y1="57" x2="87" y2="62" stroke="#8a5a2b" stroke-width="1.8" stroke-linecap="round"/>
+
+  <!-- Gold Epaulet on Shoulder -->
+  <path d="M 40 26 L 54 18 L 68 22 L 62 32 L 40 26 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="54,22 58,26 54,30 50,26" fill="#b3221f" stroke="#0b0704" stroke-width="1.2"/>
+
+  <!-- Standing Collar (Right Profile) -->
+  <path d="M 42 22 L 48 12 L 56 18 L 66 10 L 74 16 L 78 26 C 70 30, 54 30, 42 22 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="48,12 56,18 52,24 45,18" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+  <polygon points="66,10 74,16 70,24 62,18" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+
+  <!-- Woodcut Drapery Hatch Lines -->
+  <path d="M 32 64 L 40 60 M 30 72 L 38 68 M 32 80 L 40 76" stroke="#0b0704" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 80 84 L 72 82 M 82 92 L 74 90" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round"/>
+</svg>

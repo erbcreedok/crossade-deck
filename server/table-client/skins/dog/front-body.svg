@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100">
+  <!-- Outer Cloak / Robe (Red) -->
+  <path d="M 24 18 L 8 32 L 4 100 L 116 100 L 112 32 L 96 18 L 78 28 C 68 34, 52 34, 42 28 Z" fill="#b3221f" stroke="#0b0704" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Left & Right Gold Epaulets -->
+  <path d="M 12 30 L 24 18 L 38 24 L 32 36 L 12 30 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="25,23 29,28 25,33 21,28" fill="#b3221f" stroke="#0b0704" stroke-width="1.5"/>
+  <path d="M 108 30 L 96 18 L 82 24 L 88 36 L 108 30 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="95,23 99,28 95,33 91,28" fill="#b3221f" stroke="#0b0704" stroke-width="1.5"/>
+
+  <!-- Blue Center Tunic -->
+  <path d="M 38 30 L 82 30 L 86 100 L 34 100 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2.5"/>
+
+  <!-- Vertical Gold Border Trims -->
+  <path d="M 32 34 L 38 32 L 35 100 L 29 100 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+  <path d="M 82 32 L 88 34 L 91 100 L 85 100 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Gold Border Diamonds -->
+  <polygon points="34,48 37,52 34,56 31,52" fill="#0b0704"/>
+  <polygon points="33,70 36,74 33,78 30,74" fill="#0b0704"/>
+  <polygon points="86,48 89,52 86,56 83,52" fill="#0b0704"/>
+  <polygon points="87,70 90,74 87,78 84,74" fill="#0b0704"/>
+
+  <!-- Chest Heraldic Ornament -->
+  <path d="M 60 36 L 68 44 L 60 52 L 52 44 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+  <circle cx="60" cy="44" r="3" fill="#b3221f" stroke="#0b0704" stroke-width="1.5"/>
+
+  <!-- Sleeves (Red) -->
+  <path d="M 12 34 C 18 52, 26 62, 38 60 L 34 46 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2.5"/>
+  <path d="M 108 34 C 102 52, 94 62, 82 60 L 86 46 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2.5"/>
+
+  <!-- White Paper Cuffs -->
+  <path d="M 36 54 L 46 52 L 44 64 L 34 62 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2"/>
+  <path d="M 84 54 L 74 52 L 76 64 L 86 62 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Dog Paws Folded on Chest -->
+  <!-- Left Paw -->
+  <path d="M 44 56 C 48 54, 58 56, 62 62 C 60 67, 52 68, 44 63 Z" fill="#c98a4b" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 54 57 L 57 63 M 58 59 L 60 64" stroke="#8a5a2b" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Right Paw -->
+  <path d="M 76 56 C 72 54, 62 58, 58 66 C 62 71, 70 70, 76 64 Z" fill="#c98a4b" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 66 59 L 63 67 M 70 60 L 68 67" stroke="#8a5a2b" stroke-width="1.8" stroke-linecap="round"/>
+
+  <!-- Lower Robe Ornament (y=72..100) -->
+  <polygon points="60,74 72,86 60,98 48,86" fill="#f2c14e" stroke="#0b0704" stroke-width="2.5"/>
+  <polygon points="60,80 66,86 60,92 54,86" fill="#b3221f" stroke="#0b0704" stroke-width="1.8"/>
+
+  <!-- High Standing Scalloped Collar -->
+  <path d="M 38 18 L 44 10 L 50 16 L 60 8 L 70 16 L 76 10 L 82 18 L 78 28 C 68 34, 52 34, 42 28 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="44,10 50,16 46,24 40,18" fill="#f2c14e" stroke="#0b0704" stroke-width="1.5"/>
+  <polygon points="76,10 70,16 74,24 80,18" fill="#f2c14e" stroke="#0b0704" stroke-width="1.5"/>
+  <polygon points="56,12 60,8 64,12 60,20" fill="#f2c14e" stroke="#0b0704" stroke-width="1.5"/>
+  <path d="M 42 26 C 52 32, 68 32, 78 26" stroke="#0b0704" stroke-width="2.5" fill="none"/>
+
+  <!-- Woodcut Hatch Lines -->
+  <path d="M 12 76 L 22 72 M 10 82 L 20 78 M 108 76 L 98 72 M 110 82 L 100 78" stroke="#0b0704" stroke-width="2" stroke-linecap="round"/>
+</svg>

@@ -31,6 +31,8 @@ export interface ClientSource {
   readonly fonts: string;
   /** Спрайты тела — второй вид аватара (`scripts/bakeSprites.mjs`). */
   readonly sprites: string;
+  /** Рисунки скинов по ракурсам (`skins.ts`): `<скин>/<ракурс>-<часть>.svg`. */
+  readonly skins: string;
   readonly cards: string;
 }
 
@@ -76,6 +78,7 @@ export function liveSource(): ClientSource {
     sounds: join(SOURCES, "sounds"),
     fonts: join(SOURCES, "fonts"),
     sprites: join(SOURCES, "sprites"),
+    skins: join(SOURCES, "skins"),
     cards: BAKED_CARDS,
   };
 }
@@ -91,6 +94,7 @@ export function builtSource(dir: string): ClientSource {
     sounds: join(dir, "sounds"),
     fonts: join(dir, "fonts"),
     sprites: join(dir, "sprites"),
+    skins: join(dir, "skins"),
     cards: join(dir, "cards"),
   };
 }
@@ -106,5 +110,6 @@ export async function buildClient(dir: string): Promise<void> {
   await cp(join(SOURCES, "sounds"), join(dir, "sounds"), { recursive: true });
   await cp(join(SOURCES, "fonts"), join(dir, "fonts"), { recursive: true });
   await cp(join(SOURCES, "sprites"), join(dir, "sprites"), { recursive: true });
+  await cp(join(SOURCES, "skins"), join(dir, "skins"), { recursive: true });
   await cp(BAKED_CARDS, join(dir, "cards"), { recursive: true });
 }

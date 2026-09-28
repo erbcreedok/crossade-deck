@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Chainmail Aventail / Coif at Nape and Throat (#5d666e) -->
+  <path d="M 26 74 C 24 84, 30 94, 50 94 C 62 94, 70 88, 74 82 Z" fill="#5d666e" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- Chainmail Texture Rings -->
+  <path d="M 32 82 C 40 85, 52 85, 60 82 M 36 88 C 44 91, 54 91, 62 88" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+
+  <!-- Great Helm Profile Silhouette (Visor Points RIGHT) -->
+  <!-- Base Steel Shape (#9aa3ab) -->
+  <path d="M 30 14 C 42 12, 58 12, 66 12 C 74 20, 82 32, 88 44 C 84 62, 80 76, 76 86 C 64 86, 36 84, 26 78 C 22 62, 22 36, 30 14 Z" fill="#9aa3ab" stroke="#0b0704" stroke-width="2.8" stroke-linejoin="round"/>
+
+  <!-- Rear & Lower Shaded Steel Facet (#5d666e) -->
+  <path d="M 30 14 C 22 36, 22 62, 26 78 C 36 84, 52 85, 54 85 C 48 64, 48 36, 50 12 Z" fill="#5d666e" stroke="#0b0704" stroke-width="1.8" stroke-linejoin="round"/>
+
+  <!-- Top Plate Seam and Rivets -->
+  <path d="M 30 14 C 42 18, 56 18, 66 12" stroke="#0b0704" stroke-width="1.8" fill="none"/>
+  <circle cx="36" cy="18" r="1.3" fill="#0b0704"/>
+  <circle cx="46" cy="18" r="1.3" fill="#0b0704"/>
+  <circle cx="56" cy="17" r="1.3" fill="#0b0704"/>
+
+  <!-- Brass Reinforcing Faceplate & Brow Band (#f2c14e) -->
+  <!-- Horizontal Brow Band across Profile -->
+  <path d="M 23 43 L 88 43 L 86 52 L 24 52 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+  <!-- Front Visor Reinforcing Plate (along snout and jaw) -->
+  <path d="M 64 13 L 74 15 L 88 44 L 76 86 L 68 85 L 78 46 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+
+  <!-- Enamel Red Diamond on Brass Faceplate -->
+  <polygon points="76,26 80,30 76,34 72,30" fill="#b3221f" stroke="#0b0704" stroke-width="1.2"/>
+
+  <!-- Brass Band Rivets -->
+  <circle cx="30" cy="48" r="1.2" fill="#0b0704"/>
+  <circle cx="44" cy="48" r="1.2" fill="#0b0704"/>
+  <circle cx="58" cy="48" r="1.2" fill="#0b0704"/>
+  <circle cx="75" cy="62" r="1.2" fill="#0b0704"/>
+  <circle cx="72" cy="74" r="1.2" fill="#0b0704"/>
+
+  <!-- Right Eye Slit (Ocularium) pointing RIGHT -->
+  <rect x="64" y="46" width="22" height="4" rx="1.5" fill="#0b0704" stroke="#0b0704" stroke-width="1.2"/>
+
+  <!-- Ventilation Breathing Holes (Aspiracula) on Lower Right Cheek -->
+  <circle cx="62" cy="60" r="1.4" fill="#0b0704"/>
+  <circle cx="68" cy="60" r="1.4" fill="#0b0704"/>
+  <circle cx="58" cy="66" r="1.4" fill="#0b0704"/>
+  <circle cx="64" cy="66" r="1.4" fill="#0b0704"/>
+  <circle cx="70" cy="66" r="1.4" fill="#0b0704"/>
+  <circle cx="62" cy="72" r="1.4" fill="#0b0704"/>
+  <circle cx="68" cy="72" r="1.4" fill="#0b0704"/>
+  <circle cx="65" cy="78" r="1.4" fill="#0b0704"/>
+
+  <!-- Woodcut Texture Hatch Lines -->
+  <!-- Rear Cranium Curve Hatches -->
+  <path d="M 28 30 L 35 34 M 27 38 L 34 42 M 28 58 L 35 62 M 30 66 L 37 70" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round"/>
+  <!-- Front Faceplate Angle Hatches -->
+  <path d="M 72 38 L 78 41 M 74 54 L 80 56" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

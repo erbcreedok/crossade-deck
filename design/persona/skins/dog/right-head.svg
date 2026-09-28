@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Cranium and Nape (Tan Fur) -->
+  <path d="M 34 22 C 22 32, 22 52, 26 72 C 28 82, 34 90, 48 92 C 58 92, 66 84, 68 76 C 66 66, 68 50, 66 38 C 56 26, 44 20, 34 22 Z" fill="#c98a4b" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- Chestnut Eye Patch Area -->
+  <path d="M 52 32 C 64 30, 72 36, 70 48 C 66 54, 54 52, 50 44 C 48 38, 50 34, 52 32 Z" fill="#8a5a2b" stroke="#0b0704" stroke-width="1.8"/>
+
+  <!-- Snout Bridge (Tan) -->
+  <path d="M 64 36 L 88 48 L 86 58 L 66 54 Z" fill="#c98a4b" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- White Paper Throat & Chin Under-layer -->
+  <path d="M 54 64 C 64 64, 76 68, 76 76 C 68 86, 54 88, 46 88 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Paper White Muzzle & Drooping Jowl -->
+  <path d="M 66 50 C 74 48, 86 48, 88 52 C 94 56, 94 66, 88 72 C 82 76, 74 76, 68 68 C 64 64, 62 56, 66 50 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- Black Nose -->
+  <path d="M 86 48 C 90 46, 94 48, 94 52 C 94 56, 90 58, 86 56 Z" fill="#0b0704" stroke="#0b0704" stroke-width="1.5" stroke-linejoin="round"/>
+  <ellipse cx="89" cy="50" rx="1.5" ry="0.8" fill="#f7f1e6"/>
+
+  <!-- Mouth Line & Whisker Dots -->
+  <path d="M 88 56 C 84 62, 78 64, 70 64" stroke="#0b0704" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <circle cx="82" cy="59" r="1.3" fill="#0b0704"/>
+  <circle cx="86" cy="62" r="1.3" fill="#0b0704"/>
+  <circle cx="80" cy="65" r="1.3" fill="#0b0704"/>
+
+  <!-- Profile Eye -->
+  <path d="M 56 42 C 60 38, 66 38, 70 42 C 66 45, 60 45, 56 42 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.2"/>
+  <ellipse cx="64" cy="42" rx="3" ry="3" fill="#0b0704"/>
+  <circle cx="65" cy="41" r="0.9" fill="#f7f1e6"/>
+  <path d="M 56 36 C 61 33, 67 34, 71 37" stroke="#0b0704" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+
+  <!-- Floppy Ear (Right / Near Ear in Profile) -->
+  <path d="M 36 24 C 28 26, 20 34, 18 48 C 16 62, 20 74, 28 76 C 34 76, 36 68, 38 52 C 40 40, 42 30, 36 24 Z" fill="#8a5a2b" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- Inner Ear Fold -->
+  <path d="M 26 38 C 22 46, 22 62, 28 70 C 31 68, 32 58, 32 46 Z" fill="#c98a4b" stroke="#0b0704" stroke-width="1.8"/>
+
+  <!-- Crown (Profile View) -->
+  <path d="M 32 22 L 56 18 L 55 23 L 33 26 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+  <path d="M 32 22 L 30 13 L 38 17 L 46 8 L 52 16 L 56 12 L 56 18 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+  <circle cx="46" cy="14" r="2.2" fill="#b3221f" stroke="#0b0704" stroke-width="1.2"/>
+  <circle cx="36" cy="17" r="1.5" fill="#1d4f80" stroke="#0b0704" stroke-width="1"/>
+
+  <!-- Woodcut Hatch Marks -->
+  <path d="M 24 50 L 29 53 M 23 57 L 28 60 M 34 82 L 40 85 M 36 88 L 42 91" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

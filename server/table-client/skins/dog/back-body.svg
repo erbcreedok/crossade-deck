@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100">
+  <!-- Outer Cloak Silhouette (Red) -->
+  <path d="M 24 18 L 8 32 L 4 100 L 116 100 L 112 32 L 96 18 L 78 24 C 68 28, 52 28, 42 24 Z" fill="#b3221f" stroke="#0b0704" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Left & Right Gold Epaulets (Back View) -->
+  <path d="M 12 30 L 24 18 L 38 24 L 32 36 L 12 30 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="25,23 29,28 25,33 21,28" fill="#b3221f" stroke="#0b0704" stroke-width="1.5"/>
+  <path d="M 108 30 L 96 18 L 82 24 L 88 36 L 108 30 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="95,23 99,28 95,33 91,28" fill="#b3221f" stroke="#0b0704" stroke-width="1.5"/>
+
+  <!-- Back Center Mantle Pleat (Blue) -->
+  <path d="M 46 26 L 74 26 L 82 100 L 38 100 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2.5"/>
+
+  <!-- Gold Trim Borders on Mantle Pleat -->
+  <path d="M 40 28 L 46 26 L 38 100 L 32 100 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+  <path d="M 74 26 L 80 28 L 88 100 L 82 100 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Back Royal Chain of Office (Across Shoulder Blades) -->
+  <path d="M 30 32 C 45 42, 75 42, 90 32" stroke="#f2c14e" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M 30 32 C 45 42, 75 42, 90 32" stroke="#0b0704" stroke-width="1.5" stroke-dasharray="3,3" fill="none"/>
+  <!-- Central Order Medallion (Back) -->
+  <circle cx="60" cy="40" r="5" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+  <polygon points="60,37 63,40 60,43 57,40" fill="#b3221f" stroke="#0b0704" stroke-width="1"/>
+
+  <!-- Back Mantle Central Diamond Pattern -->
+  <polygon points="60,56 70,68 60,80 50,68" fill="#f2c14e" stroke="#0b0704" stroke-width="2.5"/>
+  <polygon points="60,61 65,68 60,75 55,68" fill="#b3221f" stroke="#0b0704" stroke-width="1.5"/>
+
+  <!-- Standing Collar (Back View) -->
+  <path d="M 38 18 L 44 10 L 50 16 L 60 8 L 70 16 L 76 10 L 82 18 L 78 24 C 68 28, 52 28, 42 24 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 44 10 L 50 16 L 60 8 L 70 16 L 76 10" stroke="#f2c14e" stroke-width="2" fill="none"/>
+
+  <!-- Woodcut Drapery Hatch Lines -->
+  <path d="M 16 60 L 26 56 M 14 68 L 24 64 M 16 76 L 26 72" stroke="#0b0704" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 104 60 L 94 56 M 106 68 L 96 64 M 104 76 L 94 72" stroke="#0b0704" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 52 88 L 57 85 M 51 93 L 56 90 M 68 88 L 63 85 M 69 93 L 64 90" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round"/>
+</svg>

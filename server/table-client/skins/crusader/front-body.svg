@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100">
+  <!-- Outer Cloak (Red #b3221f) -->
+  <path d="M 24 18 L 8 32 L 4 100 L 116 100 L 112 32 L 96 18 L 78 26 C 68 30, 52 30, 42 26 Z" fill="#b3221f" stroke="#0b0704" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Cloak Blue Inner Lining Turn-backs at Shoulders -->
+  <path d="M 8 32 L 20 22 L 28 34 L 14 42 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M 112 32 L 100 22 L 92 34 L 106 42 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- Gold Brocade Trim on Cloak Edges -->
+  <path d="M 24 18 L 20 22 L 14 100 L 8 100 L 4 100" fill="none" stroke="#f2c14e" stroke-width="2.5"/>
+  <path d="M 96 18 L 100 22 L 106 100 L 112 100 L 116 100" fill="none" stroke="#f2c14e" stroke-width="2.5"/>
+
+  <!-- Chainmail Aventail / Mantle across Shoulders (#5d666e) -->
+  <path d="M 36 18 C 42 16, 78 16, 84 18 L 88 32 C 80 38, 40 38, 32 32 Z" fill="#5d666e" stroke="#0b0704" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- Chainmail Rings Texture on Aventail -->
+  <path d="M 40 24 C 52 27, 68 27, 80 24 M 42 29 C 52 32, 68 32, 78 29" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+
+  <!-- White Paper Surcoat (#f7f1e6) -->
+  <path d="M 36 28 L 84 28 L 88 100 L 32 100 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.8"/>
+  <!-- Surcoat Gold Side Trim -->
+  <path d="M 36 28 L 40 28 L 36 100 L 32 100 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <path d="M 84 28 L 80 28 L 84 100 L 88 100 Z" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+
+  <!-- Large Crusader Cross (Cross Pattée) on Surcoat (#b3221f) -->
+  <path d="M 56 32 L 64 32 L 62 42 L 74 38 L 76 46 L 64 48 L 66 60 L 54 60 L 56 48 L 44 46 L 46 38 L 58 42 Z" fill="#b3221f" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+
+  <!-- Golden Cloak Clasp (Fibula) with Jewels -->
+  <path d="M 46 22 L 74 22" stroke="#f2c14e" stroke-width="4.5" stroke-linecap="round"/>
+  <path d="M 46 22 L 74 22" stroke="#0b0704" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="46" cy="22" r="3.8" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <circle cx="46" cy="22" r="1.8" fill="#b3221f"/>
+  <circle cx="74" cy="22" r="3.8" fill="#f2c14e" stroke="#0b0704" stroke-width="1.8"/>
+  <circle cx="74" cy="22" r="1.8" fill="#b3221f"/>
+  <polygon points="60,19 63,22 60,25 57,22" fill="#1d4f80" stroke="#0b0704" stroke-width="1.2"/>
+
+  <!-- Sword Pommel & Crossguard on Knight's Right Side (Viewer Left) -->
+  <circle cx="28" cy="62" r="4.2" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+  <path d="M 21 68 L 35 68 L 34 72 L 22 72 Z" fill="#9aa3ab" stroke="#0b0704" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M 27 62 L 29 62 L 29 68 L 27 68 Z" fill="#0b0704"/>
+  <path d="M 24 72 L 32 72 L 30 100 L 26 100 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Knight's Right Hand / Gauntlet on Sword -->
+  <path d="M 22 52 C 26 44, 34 46, 38 54 C 36 60, 30 64, 24 60 Z" fill="#9aa3ab" stroke="#0b0704" stroke-width="2.2" stroke-linejoin="round"/>
+  <!-- Chainmail Forearm -->
+  <path d="M 18 36 L 26 48 L 20 54 L 12 42 Z" fill="#5d666e" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Leather Waist Belt (#1d4f80) with Gold Buckle (#f2c14e) -->
+  <rect x="34" y="66" width="52" height="6" fill="#1d4f80" stroke="#0b0704" stroke-width="1.8"/>
+  <rect x="54" y="64" width="12" height="10" rx="1.5" fill="#f2c14e" stroke="#0b0704" stroke-width="2"/>
+  <rect x="57" y="66" width="6" height="6" fill="#1d4f80" stroke="#0b0704" stroke-width="1.2"/>
+  <line x1="60" y1="64" x2="60" y2="74" stroke="#0b0704" stroke-width="2"/>
+
+  <!-- Knight's Heater Shield slung on Shoulder/Arm (Viewer Right) -->
+  <!-- Shield Body: Heater shape with curved top -->
+  <path d="M 72 34 C 84 32, 102 34, 110 38 L 108 64 C 106 78, 92 88, 86 94 C 84 88, 76 74, 74 62 Z" fill="#f7f1e6" stroke="#0b0704" stroke-width="2.8" stroke-linejoin="round"/>
+  <!-- Gold Shield Rim -->
+  <path d="M 72 34 C 84 32, 102 34, 110 38 L 108 64 C 106 78, 92 88, 86 94 C 84 88, 76 74, 74 62 Z" fill="none" stroke="#f2c14e" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M 72 34 C 84 32, 102 34, 110 38 L 108 64 C 106 78, 92 88, 86 94 C 84 88, 76 74, 74 62 Z" fill="none" stroke="#0b0704" stroke-width="1.6" stroke-linejoin="round"/>
+
+  <!-- Bold Red Crusader Cross on Shield (#b3221f) -->
+  <path d="M 87 35 L 94 36 L 93 88 C 91 87, 89 86, 88 85 Z" fill="#b3221f" stroke="#0b0704" stroke-width="1.6"/>
+  <path d="M 74 50 L 108 52 L 107 58 L 74 56 Z" fill="#b3221f" stroke="#0b0704" stroke-width="1.6"/>
+  <polygon points="90,48 95,53 90,58 85,53" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+
+  <!-- Shield Guige Strap across Chest (Leather & Gold Buckle) -->
+  <path d="M 38 24 L 74 38 L 72 43 L 36 29 Z" fill="#1d4f80" stroke="#0b0704" stroke-width="1.8"/>
+  <rect x="52" y="29" width="6" height="7" rx="1" fill="#f2c14e" stroke="#0b0704" stroke-width="1.4"/>
+
+  <!-- Surcoat Lower Riding Split (y=84..100) -->
+  <path d="M 58 84 L 62 84 L 63 100 L 57 100 Z" fill="#0b0704"/>
+  <polygon points="60,80 63,84 57,84" fill="#f2c14e" stroke="#0b0704" stroke-width="1.2"/>
+
+  <!-- Chainmail Skirt visible through split (#5d666e) -->
+  <path d="M 52 86 L 68 86 L 66 100 L 54 100 Z" fill="#5d666e" stroke="#0b0704" stroke-width="1.4"/>
+  <line x1="56" y1="92" x2="64" y2="92" stroke="#0b0704" stroke-width="1.4"/>
+  <line x1="55" y1="97" x2="65" y2="97" stroke="#0b0704" stroke-width="1.4"/>
+
+  <!-- Woodcut Hatch Lines -->
+  <!-- Left Cloak Drapery -->
+  <path d="M 10 60 L 18 56 M 8 68 L 16 64 M 10 76 L 18 72 M 8 84 L 16 80" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Right Cloak Drapery -->
+  <path d="M 110 70 L 104 74 M 112 78 L 106 82 M 110 86 L 104 90" stroke="#0b0704" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Surcoat Shading -->
+  <path d="M 44 86 L 50 84 M 43 92 L 49 90 M 74 86 L 68 84 M 75 92 L 69 90" stroke="#0b0704" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

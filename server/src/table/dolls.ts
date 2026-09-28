@@ -5,8 +5,13 @@
 //
 // Одно место на сервер, веб и Unity: чистые данные.
 
-export const DOLLS = ["king", "queen"] as const;
-export type Doll = (typeof DOLLS)[number];
+import { SKINS } from "./skins.js";
+
+/** Кем можно сидеть — все скины каталога (`skins.ts`). */
+export const DOLLS: readonly string[] = SKINS.map((s) => s.id);
+export type Doll = string;
+/** Кем сидит тот, кто ещё не выбирал, — король или дама. */
+const DEFAULT_DOLLS = ["king", "queen"] as const;
 
 /** Три краски расцветки: чем заменить красную, синюю и золото рисунка. */
 export interface Palette {
@@ -58,14 +63,14 @@ function hash(key: string): number {
 /** Кукла того, кто ещё ничего не выбрал: по ключу — король или дама, и одна из основных расцветок. */
 export function dollFor(key: string): DollLook {
   const h = hash(key);
-  return { doll: DOLLS[h % DOLLS.length]!, palette: Math.floor(h / DOLLS.length) % MAIN_PALETTES };
+  return { doll: DEFAULT_DOLLS[h % DEFAULT_DOLLS.length]!, palette: Math.floor(h / DEFAULT_DOLLS.length) % MAIN_PALETTES };
 }
 
 /** Разбор выбора из сети: кукла и расцветка — каждое поле или годное, или его нет. */
 export function cleanDoll(raw: unknown): Partial<DollLook> {
   const o = (raw ?? {}) as { doll?: unknown; palette?: unknown };
   const out: Partial<DollLook> = {};
-  if ((DOLLS as readonly unknown[]).includes(o.doll)) out.doll = o.doll as Doll;
+  if (typeof o.doll === "string" && DOLLS.includes(o.doll)) out.doll = o.doll;
   if (typeof o.palette === "number" && Number.isInteger(o.palette) && o.palette >= 0 && o.palette < PALETTES.length) out.palette = o.palette;
   return out;
 }
