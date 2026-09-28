@@ -1,0 +1,23 @@
+unity/Assets/Crossade/View/CardNode.cs
+  s_e1c4165d82711d::t_6620325bc234f7 18,41-45,61-62
+unity/Assets/Crossade/View/HandRig.cs
+  s_e1c4165d82711d::t_6620325bc234f7 32-33,92
+unity/Assets/Crossade/View/Board.cs
+  s_e1c4165d82711d::t_6620325bc234f7 172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b8955d82a4b82617bcbb77cf4739fcbe93f7edd9",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
