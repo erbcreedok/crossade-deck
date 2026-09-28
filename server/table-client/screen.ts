@@ -48,7 +48,7 @@ import { mountMeters } from "./meters.js";
 import { readRecording, writeRecording } from "./watch.js";
 import { buzzEvery, charged, onRelease, spring, tensed } from "./sling.js";
 import { PALETTE } from "../../look/src/palette.js";
-import { BODY_EVERY_MS, type Stance } from "../src/table/bodies.js";
+import { BODY_EVERY_MS, headOf, leftHandOf, shouldersOf, type Stance } from "../src/table/bodies.js";
 import { baseZoom, freshNeck, neckStep } from "./neck.js";
 import { bodiesHtml } from "./bodyView.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, VOICE_OPEN, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
@@ -3094,9 +3094,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       const person = s.people.find((p) => p.key === body.by);
       const chair = person?.seat ? chairOf(s, person.seat) : undefined;
       if (!person || !chair || body.by === me()) return [];
-      return [{ body, angle: chair.angle, ink: person.ink, name: person.name, cards: chair.hand.length }];
+      return [{ body, angle: chair.angle, ink: person.ink, name: person.name }];
     });
-    return bodiesHtml(looks, (p) => lens.toGlass(p), lens.k, { black: T.black, ink: T.ink, danger: PALETTE.danger, paper: T.panelLight });
+    return bodiesHtml(looks, (p) => lens.toGlass(p), lens.k, { black: T.black, ink: T.ink, danger: PALETTE.danger });
   }
 
   /** ШЕЯ ТЕРПИТ — полоска по верху кадра: дорастёт до края — камера отъедет к позе. */
@@ -3146,6 +3146,13 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         // ОТ КОГО ЖДУТ ХОДА — стрелка перед его стулом. Читается из судьи (`Snapshot.play`), гасится
         // правилом стола: за столом, где ходы считают сами, подсказка мешает.
         ...(s.rules.turnMark && s.play?.turn !== null && s.play?.turn === sitter?.key ? { awaited: true } : {}),
+        // ТЕЛО: голова — его аватар там, где голова; карты руки — в левой руке у неё (`bodies.ts`). Своё — нет.
+        ...(() => {
+          const body = sitter && sitter.key !== me() ? store.bodies.find((b) => b.by === sitter.key) : undefined;
+          if (!body) return {};
+          const head = headOf(shouldersOf(c.angle), body.look, body.stretch);
+          return { body: { head, left: leftHandOf(head, body.yaw), yaw: body.yaw } };
+        })(),
       };
     });
     noteTurns(s);

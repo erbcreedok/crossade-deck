@@ -134,7 +134,7 @@ describe("эталон протокола для Unity", () => {
     const neck = { ...NECK, stanceZoom: STANCE_ZOOM, everyMs: BODY_EVERY_MS, holds: [0, 0.3, 0.5, 0.8, 1].map((s) => ({ stretch: s, ms: Number.isFinite(holdFor(s)) ? holdFor(s) : -1 })) };
     const shapes = [0, 90, 200].flatMap((angle) => [0, 0.5, 1].map((stretch) => {
       const s = shouldersOf(angle), head = headOf(s, body.look, stretch);
-      return { angle, stretch, look: body.look, shoulders: s, head, left: leftHandOf(s, head) };
+      return { angle, stretch, look: body.look, yaw: body.yaw, shoulders: s, head, left: leftHandOf(head, body.yaw) };
     }));
     const words = { says: REFUSAL_SAYS, deals: DEAL_PRESETS, brains: BRAIN_PICKS, body, neck, shapes };
     const written = JSON.stringify({ protocol: PROTOCOL, words, reels: { sandbox: sandbox(), krest: krest() } }, null, 1) + "\n";

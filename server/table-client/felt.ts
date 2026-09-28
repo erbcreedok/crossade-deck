@@ -42,6 +42,11 @@ export interface Seat {
    * прочтёт и сам — чем бьют и что осталось видно, — а вот чья очередь, по картам не видно никак.
    */
   awaited?: boolean;
+  /**
+   * ТЕЛО ЗА СТОЛОМ (`bodies.ts`): голова — это его аватар, и он там, где голова, а не на стуле; нос на
+   * кружке — куда смотрит; карты руки — веером в левой руке у головы, повёрнуты по взгляду. Стул остаётся.
+   */
+  body?: { head: { x: number; y: number }; left: { x: number; y: number }; yaw: number };
 }
 
 export interface FeltItem {
@@ -401,6 +406,24 @@ function voiceRings(puff: number, now: number): number[] {
     out.push((DISC / 2) * puff + age * DISC * 0.9);
   }
   return out;
+}
+
+/** НОС — треугольник на кромке кружка в сторону взгляда (`dir` — угол на стекле, радианы). Под кружком: торчит только острие. */
+function gaze(g: CanvasRenderingContext2D, dir: number, ink: string, puff: number): void {
+  const r = (DISC / 2) * puff;
+  g.save();
+  g.rotate(dir);
+  g.beginPath();
+  g.moveTo(r + DISC * 0.34, 0);
+  g.lineTo(r - DISC * 0.05, -DISC * 0.22);
+  g.lineTo(r - DISC * 0.05, DISC * 0.22);
+  g.closePath();
+  g.fillStyle = ink;
+  g.fill();
+  g.lineWidth = DISC_LINE * 0.8;
+  g.strokeStyle = SEAT.black;
+  g.stroke();
+  g.restore();
 }
 
 /** `puff` — во сколько раз раздут КРУЖОК: подпись с именем стоит на месте и не прыгает вместе с ним. */
@@ -879,7 +902,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     const sitter = who.name !== undefined && who.ink !== undefined ? (who as Seat & { name: string; ink: string }) : null;
     if (sitter) chair(g, sitter);
     else emptyChair(g);
-    posePlan(who.pose ?? { fan: false, shrink: false, tuck: false }, who.cards).forEach((p, i) => {
+    const fan = () => posePlan(who.pose ?? { fan: false, shrink: false, tuck: false }, who.cards).forEach((p, i) => {
       g.save();
       g.translate(p.at.x, p.at.y);
       g.rotate((p.angle * Math.PI) / 180);
@@ -888,13 +911,25 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       else card(g, undefined, CARD.w * HAND_SCALE, CARD.h * HAND_SCALE, undefined, o.art);
       g.restore();
     });
+    if (!who.body) fan();
     g.restore();
+    // КАРТЫ В ЛЕВОЙ РУКЕ — у головы, веером от хозяина по его взгляду: те же карты, что лежали у стула.
+    if (who.body) {
+      g.save();
+      nearAt(who.body.left);
+      g.translate(who.body.left.x, who.body.left.y);
+      g.rotate((who.body.yaw * Math.PI) / 180);
+      fan();
+      g.restore();
+    }
 
     // ДИСК СТОИТ, А НЕ ЛЕЖИТ: ни поворот стола, ни наклон его не трогают — лицо смотрит на того, кто
     // глядит на стол (`Oriented: "viewer"` у кита). Ставится в точку стола, размером — по зуму.
-    const at = toGlass(place.at);
+    // ГОЛОВА — ЭТО АВАТАР: есть тело — кружок там, где голова.
+    const headAt = who.body?.head ?? place.at;
+    const at = toGlass(headAt);
     // ДАЛЬНИЙ ДИСК МЕЛЬЧЕ БЛИЖНЕГО — ровно настолько, насколько линза уменьшает там сукно.
-    const kk = o.lens.kAt(place.at);
+    const kk = o.lens.kAt(headAt);
     // АВАТАР ДЫШИТ ПОД ГОЛОС: пока звучит его запись, кружок раздувается по её громкости — заметно,
     // но подпись с именем при этом стоит на месте (масштаб живёт внутри `disc`).
     const puff = 1 + 0.55 * Math.max(0, Math.min(1, who.speaking ?? 0));
@@ -909,6 +944,11 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
         g.lineWidth = DISC_LINE * (1 - life) * 1.6;
         g.strokeStyle = `rgba(255,255,255,${(0.5 * (1 - life)).toFixed(3)})`;
         g.stroke();
+      }
+      // КУДА СМОТРИТ — нос на кромке кружка, по взгляду на стекле: под поворотом и наклоном стола тоже.
+      if (who.body) {
+        const ahead = toGlass({ x: headAt.x + Math.sin((who.body.yaw * Math.PI) / 180), y: headAt.y - Math.cos((who.body.yaw * Math.PI) / 180) });
+        gaze(g, Math.atan2(ahead.y - at.y, ahead.x - at.x), sitter.ink, puff);
       }
       disc(g, sitter, images, puff);
       desk();

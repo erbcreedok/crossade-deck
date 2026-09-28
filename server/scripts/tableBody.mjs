@@ -34,7 +34,7 @@ const until = async (fn, ms = 4000) => {
 };
 const bodyOf = (p, name) => p.evaluate((name) => {
   const el = [...document.querySelectorAll('[data-g="body"]')].find((b) => b.dataset.name === name);
-  return el && { stance: el.dataset.stance, stretch: +el.dataset.stretch, right: !!el.querySelector('[data-g="right-hand"]'), head: !!el.querySelector('[data-g="head"]') };
+  return el && { stance: el.dataset.stance, stretch: +el.dataset.stretch, right: !!el.querySelector('[data-g="right-hand"]') };
 }, name);
 
 const A = await open("Аня", false);
@@ -45,7 +45,7 @@ await A.mouse.move(195, 300);
 let seen = await until(() => bodyOf(B, "Аня"));
 check("Б видит тело Ани", !!seen, seen);
 check("Аня сидит", seen?.stance === "sit", seen);
-check("в покое голова — кружок стула, второй не рисуется", seen?.head === false, seen);
+
 if (shots) await B.screenshot({ path: `${shots}/body-1-sit.png` });
 
 // Мышь Ани над столом — у Б её правая рука.
@@ -53,6 +53,27 @@ await A.mouse.move(200, 380);
 await A.mouse.move(210, 390);
 seen = await until(async () => (await bodyOf(B, "Аня"))?.right && (await bodyOf(B, "Аня")));
 check("мышь над столом — правая рука видна", seen?.right === true, seen);
+
+// КАРТЫ В ЛЕВОЙ РУКЕ: Аня берёт три карты с колоды — у Б они веером у её головы, а не у стула.
+for (let i = 0; i < 3; i++) {
+  const top = JSON.parse(await A.getAttribute("canvas", "data-spots")).deckTop;
+  await A.mouse.move(top.x, top.y);
+  await A.mouse.down();
+  await A.mouse.move(195, 790, { steps: 8 });
+  await A.mouse.up();
+  await A.waitForTimeout(500);
+}
+
+// ГОЛОВА — ЭТО АВАТАР: у Б кружок Ани стоит там, где её голова, и едет, когда она ведёт камеру по столу.
+const avatarOf = async (p, name) => (JSON.parse(await p.getAttribute("canvas", "data-spots")).seats ?? []).find((one) => one.who === name);
+const was = await avatarOf(B, "Аня");
+await A.mouse.move(195, 300);
+await A.mouse.down();
+await A.mouse.move(195, 520, { steps: 10 });
+await A.mouse.up();
+const moved = await until(async () => { const now = await avatarOf(B, "Аня"); return now && Math.hypot(now.x - was.x, now.y - was.y) > 15 && now; });
+check("Аня повела камеру — её аватар поехал по столу у Б", !!moved, { was, moved });
+if (shots) await B.screenshot({ path: `${shots}/body-1b-head-moved.png` });
 
 // Аня встаёт кнопкой позы.
 check("кнопка позы над компасом, бар не тронут", (await A.locator('[data-g="thumb-stance"] [data-stance-toggle]').count()) === 1, null);
@@ -79,7 +100,7 @@ const worn = await A.evaluate(() => +(document.querySelector('[data-g="neck-worn
 check("приблизилась — шея терпит (полоска)", worn > 0, { worn, leaned, standZoom });
 seen = await until(async () => { const b = await bodyOf(B, "Аня"); return b && b.stretch > 0.3 && b; });
 check("Б видит натянутую шею", seen?.stretch > 0.3, seen);
-check("натянутая голова отошла от стула — видна отдельно", seen?.head === true, seen);
+
 if (shots) await B.screenshot({ path: `${shots}/body-3-stretch.png` });
 const back = await until(async () => { const z = await zoomOf(A); return z <= standZoom * 1.05 && z; }, 9000);
 check("время вышло — камера сама отъехала к позе", back !== null, { back, leaned, standZoom, now: await zoomOf(A) });

@@ -40,13 +40,12 @@ export const BODY_EVERY_MS = 100;
  * ШЕЯ — одна на все клиенты.
  *
  *   zoom      во сколько раз камера ближе позы, когда шея на пределе (`stretch` = 1);
- *   pan       на сколько единиц стола голова отходит от своего места, когда шея на пределе;
  *   free      натяг, который держится сколько угодно;
  *   holdMs    сколько держится натяг на пределе; у самого `free` — втрое дольше, между — линейно;
  *   backMs    за сколько камера возвращается к позе, когда время вышло;
  *   restMs    сколько после возврата шея отдыхает: натянуть её снова нельзя.
  */
-export const NECK = { zoom: 1.6, pan: 4, free: 0.3, holdMs: 2000, backMs: 500, restMs: 1000 } as const;
+export const NECK = { zoom: 1.6, free: 0.3, holdMs: 2000, backMs: 500, restMs: 1000 } as const;
 
 /** Во сколько раз камера дальше от стола стоя, чем сидя: зум позы. */
 export const STANCE_ZOOM: Record<Stance, number> = { sit: 1, stand: 0.72 };
@@ -67,24 +66,23 @@ export const SHOULDERS = TABLE_RADIUS + 1;
 export const shouldersOf = (angle: number): Point => seatPoint(angle, SHOULDERS);
 
 /**
- * ГОЛОВА — от плеч к точке взгляда: на месте шея короткая (почти половина `NECK.pan`), натянута — во всю
- * длину. Ближе точки взгляда голова не уходит: смотрит — не значит лежит на столе.
+ * ГОЛОВА ХОДИТ ПО СТОЛУ — от плеч к точке, куда смотрит его камера: в покое на `HEAD_SHARE` пути, натянул
+ * шею — дальше, до `HEAD_SHARE + HEAD_LEAN`. Повёл камеру через стол — голова поехала через стол.
  */
+export const HEAD_SHARE = 0.3, HEAD_LEAN = 0.5;
 export function headOf(shoulders: Point, look: Point, stretch: number): Point {
-  const dx = look.x - shoulders.x, dy = look.y - shoulders.y;
-  const d = Math.hypot(dx, dy);
-  if (d < 1e-6) return { ...shoulders };
-  const reach = Math.min(d, NECK.pan * (0.45 + 0.55 * Math.max(0, Math.min(1, stretch))));
-  return { x: shoulders.x + (dx / d) * reach, y: shoulders.y + (dy / d) * reach };
+  const share = HEAD_SHARE + HEAD_LEAN * Math.max(0, Math.min(1, stretch));
+  return { x: shoulders.x + (look.x - shoulders.x) * share, y: shoulders.y + (look.y - shoulders.y) * share };
 }
 
-/** ЛЕВАЯ РУКА со стопкой — у головы, слева от взгляда и чуть впереди. */
-export function leftHandOf(shoulders: Point, head: Point): Point {
-  const dx = head.x - shoulders.x, dy = head.y - shoulders.y;
-  const d = Math.hypot(dx, dy) || 1;
-  const f = { x: dx / d, y: dy / d };
+/** Куда смотрит голова — единичный вектор в осях стола из `yaw` (градусы от севера по часовой). */
+export const gazeOf = (yaw: number): Point => ({ x: Math.sin((yaw * Math.PI) / 180), y: -Math.cos((yaw * Math.PI) / 180) });
+
+/** ЛЕВАЯ РУКА с картами — у головы: чуть вперёд по взгляду и влево от него. */
+export function leftHandOf(head: Point, yaw: number): Point {
+  const f = gazeOf(yaw);
   // Слева от взгляда: при взгляде на север (0, −1) левее — запад (−1, 0).
-  return { x: head.x + f.x * 0.3 + f.y * 0.9, y: head.y + f.y * 0.3 - f.x * 0.9 };
+  return { x: head.x + f.x * 1.1 + f.y * 0.9, y: head.y + f.y * 1.1 - f.x * 0.9 };
 }
 
 const REACH = 12;
