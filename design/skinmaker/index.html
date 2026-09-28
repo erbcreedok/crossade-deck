@@ -54,6 +54,7 @@
   .card.on { box-shadow: inset 0 0 0 2px var(--black), 0 0 0 2px var(--gold); }
   .card canvas { width: 52px; height: 52px; }
   .card .sides { position: absolute; top: 5px; right: 5px; min-width: 18px; padding: 1px 4px; border-radius: 5px; background: var(--black); color: var(--gold); font-size: 10px; box-shadow: inset 0 0 0 1px var(--gold); }
+  .card em { display: block; font-style: normal; font-size: 9px; color: var(--gold); text-align: center; }
   .card .none { width: 52px; height: 52px; display: grid; place-items: center; color: var(--dim); font-size: 20px; }
   .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .chip { width: 38px; height: 26px; border-radius: 7px; border: 0; cursor: pointer; display: flex; gap: 2px; align-items: center; justify-content: center; background: var(--panel); box-shadow: inset 0 0 0 2px var(--wood); }
@@ -137,20 +138,30 @@ const SUIT = { club: "треф", diamond: "бубен", heart: "червей", s
  * правый) и как её нарисовать (`svg(view)` → строка SVG или `court` — кусок карты).
  */
 const PARTS = [];
-const part = (p) => (PARTS.push(p), p);
+/**
+ * КАК ЧАСТЬ СТОИТ К КАМЕРЕ (`facing`):
+ *   camera — всегда лицом в камеру, по углу меняется только рисунок (классический Doom): бочонок, шар, руки;
+ *   box    — настоящая коробка: видно сразу до трёх граней, у каждой свой рисунок: кубик;
+ *   view   — плоскость ровно по своему ракурсу, сверху — плашмя: крестоносец;
+ *   tilt   — по горизонтали по ракурсу (под углом сужается), по вертикали наклонена к камере — сверху не
+ *            становится линией: карты, звери, ноги, причёски.
+ * Не сказано — `tilt`, а у односторонних — `camera`.
+ */
+const FACING = { camera: "к камере", box: "тело", view: "по ракурсу", tilt: "наклон" };
+const part = (p) => (PARTS.push({ facing: Object.keys(p.views).length === 1 ? "camera" : "tilt", ...p }), p);
 for (const id of Object.keys(COURTS)) {
   const [suit, rank] = id.split("-"), name = `${RANK[rank]} ${SUIT[suit]}`;
   part({ id: `${id}:head`, slot: "head", name, set: id, court: id, views: { front: D.front, back: D.back } });
   part({ id: `${id}:body`, slot: "body", name, set: id, court: id, views: { front: D.front, back: D.back } });
 }
 for (const [id, name, views] of [["dog", "Пёс", ["front", "back", "right"]], ["cat", "Кошка", ["front", "back", "right"]], ["crusader", "Крестоносец", ["front", "back", "right", "top", "bottom"]]]) {
-  for (const slot of ["head", "body"]) part({ id: `${id}:${slot}`, slot, name, set: id, file: (v) => `../persona/skins/${id}/${v}-${slot}.svg`, views: Object.fromEntries([...views.map((v) => [v, D[v]]), ["left", D.left]]), mirror: { left: "right" } });
+  for (const slot of ["head", "body"]) part({ id: `${id}:${slot}`, slot, name, set: id, ...(id === "crusader" ? { facing: "view" } : {}), file: (v) => `../persona/skins/${id}/${v}-${slot}.svg`, views: Object.fromEntries([...views.map((v) => [v, D[v]]), ["left", D.left]]), mirror: { left: "right" } });
 }
 // Кодом: палка с шаром (одна сторона), бочонок с 18 ракурсами, причёски, руки, ноги-палки.
 part({ id: "ball:head", slot: "head", name: "Шар", set: "stick", views: { front: D.front }, svg: () => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="52" r="40" fill="${PAPER}" stroke="${BLACK}" stroke-width="6"/><circle cx="50" cy="52" r="30" fill="#b3221f" opacity=".18"/></svg>` });
 part({ id: "stick:body", slot: "body", name: "Палка", set: "stick", views: { front: D.front }, svg: () => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100"><path d="M20 20 H100 M60 20 V100" stroke="${BLACK}" stroke-width="12" stroke-linecap="round"/><path d="M20 20 H100 M60 20 V100" stroke="#b3221f" stroke-width="5" stroke-linecap="round"/></svg>` });
-part({ id: "barrel:body", slot: "body", name: "Бочонок", views: Object.fromEntries(ring(18)), svg: barrel });
-part({ id: "cube:head", slot: "head", name: "Кубик", views: { ...D }, svg: cubeFace });
+part({ id: "barrel:body", slot: "body", name: "Бочонок", facing: "camera", views: Object.fromEntries(ring(18)), svg: barrel });
+part({ id: "cube:head", slot: "head", name: "Кубик", facing: "box", views: { ...D }, svg: cubeFace });
 part({ id: "none:hair", slot: "hair", name: "Без", views: { front: D.front }, empty: true });
 part({ id: "crown:hair", slot: "hair", name: "Корона", views: { front: D.front, back: D.back, right: D.right, left: D.left }, mirror: { left: "right" }, svg: crown });
 part({ id: "cap:hair", slot: "hair", name: "Колпак", views: { front: D.front }, svg: () => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M18 88 Q50 -10 86 30 Q70 50 82 88 Z" fill="#b3221f" stroke="${BLACK}" stroke-width="5"/><circle cx="86" cy="30" r="9" fill="#f2c14e" stroke="${BLACK}" stroke-width="4"/><rect x="12" y="80" width="78" height="14" rx="6" fill="${PAPER}" stroke="${BLACK}" stroke-width="4"/></svg>` });
@@ -166,6 +177,7 @@ const SETS = [
   { id: "cat", name: "Кошка", parts: { head: "cat:head", hair: "none:hair", body: "cat:body", hands: "hand:hands", legs: "legs-beast:legs" } },
   { id: "crusader", name: "Крестоносец", parts: { head: "crusader:head", hair: "none:hair", body: "crusader:body", hands: "hand:hands", legs: "legs-card:legs" } },
   { id: "stick", name: "Палка", parts: { head: "ball:head", hair: "none:hair", body: "stick:body", hands: "none:hands", legs: "stick:legs" } },
+  { id: "cube", name: "Кубик", parts: { head: "cube:head", hair: "none:hair", body: "barrel:body", hands: "hand:hands", legs: "stick:legs" } },
   { id: "mix", name: "Шар + бочонок", parts: { head: "ball:head", hair: "cap:hair", body: "barrel:body", hands: "hand:hands", legs: "stick:legs" } },
 ];
 const partOf = (id) => PARTS.find((p) => p.id === id);
@@ -295,6 +307,22 @@ function basis(n, fwd) {
   const up = Math.abs(n[2]) > 0.9 ? mul(fwd, -1) : [0, 0, 1];
   return { up: norm(sub(up, mul(n, dot(up, n)))), across: norm(cross(mul(n, -1), up)) };
 }
+/** Грань коробки: какой рисунок, её направление и верх (у верхней и нижней — «назад», как у вида сверху). */
+const FACES = [["front", [0, 1, 0]], ["back", [0, -1, 0]], ["right", [1, 0, 0]], ["left", [-1, 0, 0]], ["top", [0, 0, 1]], ["bottom", [0, 0, -1]]];
+let boxQuads = null;
+/** ТЕЛО-КОРОБКА: шесть граней в пространстве; видны те, что смотрят на камеру, — до трёх сразу. */
+function box(p, center, w, turn, pal) {
+  const fwd = turnZ([0, 1, 0], turn);
+  for (const [name, d0] of FACES) {
+    const n = turnZ(d0, turn);
+    if (dot(n, sub(boxQuads.eye, center)) <= 0) continue;
+    const img = sprite(p, name, pal);
+    if (!img || img === "none") continue;
+    const { up, across } = basis(n, fwd), c = add(center, mul(n, w / 2));
+    const tl = add(add(c, mul(across, -w / 2)), mul(up, w / 2));
+    boxQuads.list.push({ img, tl, tr: add(tl, mul(across, w)), bl: add(tl, mul(up, -w)), at: c, face: true });
+  }
+}
 function render() {
   frame = 0;
   const dpr = devicePixelRatio || 1, W = stage.clientWidth, H = stage.clientHeight;
@@ -314,19 +342,35 @@ function render() {
   const inPart = (turn) => turnZ(toEye, -turn);
   const shoulderZ = (standing ? 7.2 : 4.2) + breath * 0.06, headZ = shoulderZ + 1.35 + breath * 0.04;
   const quads = [], info = [];
+  boxQuads = { eye, list: quads };
   const place = (slot, center, w, h, pivotTop, turn = 0) => {
     const p = partOf(S.parts[slot]);
     if (!p || p.empty) return;
     const view = pick(p, inPart(turn), slot), d = drawn(p, view);
-    info.push([slot, view, sidesOf(p)]);
+    info.push([slot, p.facing === "box" ? "тело" : view, sidesOf(p)]);
     const img = sprite(p, d.view, pal);
     if (!img || img === "none") return;
-    // ОДНОСТОРОННЯЯ ЧАСТЬ — спрайт, всегда лицом к камере (другой стороны у неё нет); остальные — плоскость
-    // своего ракурса, и под углом она сужается.
-    const n = sidesOf(p) === 1 ? norm([toEye[0], toEye[1], Math.abs(toEye[2]) > 0.9 ? toEye[2] : 0]) : turnZ(p.views[view], turn);
-    const { up, across } = basis(n, turnZ([0, 1, 0], turn));
+    const fwd = turnZ([0, 1, 0], turn);
+    if (p.facing === "box") return box(p, center, w, turn, pal);
+    let n, up, across;
+    if (p.facing === "camera") {
+      // лицом в камеру: плоскость перпендикулярна взгляду, верх — вертикаль (сверху — «вперёд»)
+      n = toEye; ({ up, across } = basis(n, fwd));
+    } else if (p.facing === "tilt") {
+      // по горизонтали — по ракурсу; по вертикали — наклон к камере, чтобы сверху не стать линией
+      const d = turnZ(p.views[view], turn), flatD = norm([d[0], d[1], 0]);
+      across = norm(cross(mul(flatD, -1), [0, 0, 1]));
+      const toward = sub(toEye, mul(across, dot(toEye, across)));
+      n = norm(dot(toward, flatD) < 0 ? mul(toward, -1) : toward);
+      up = norm(cross(n, across));
+      if (up[2] < 0) up = mul(up, -1);
+      across = norm(cross(up, n));
+      if (dot(across, norm(cross(mul(flatD, -1), [0, 0, 1]))) < 0) across = mul(across, -1);
+    } else {
+      n = turnZ(p.views[view], turn); ({ up, across } = basis(n, fwd));
+    }
     // Сверху и снизу часть лежит плашмя центром на своей точке — плечи вокруг головы, а не позади неё.
-    const flat = Math.abs(n[2]) > 0.9;
+    const flat = p.facing === "view" && Math.abs(n[2]) > 0.9;
     const hh = (h ?? (w * img.height) / img.width), top = add(center, mul(up, hh * (flat ? 0.5 : pivotTop)));
     const ac = mul(across, d.mirror ? -1 : 1);
     const tl = add(top, mul(ac, -w / 2)), tr = add(top, mul(ac, w / 2)), bl = add(tl, mul(up, -hh));
@@ -377,7 +421,7 @@ function tinted(img, ink) {
   if (!m.has(ink)) { const c = document.createElement("canvas"); c.width = img.width; c.height = img.height; const tg = c.getContext("2d"); tg.drawImage(img, 0, 0); tg.globalCompositeOperation = "source-in"; tg.fillStyle = ink; tg.fillRect(0, 0, c.width, c.height); m.set(ink, c); }
   return m.get(ink);
 }
-const VIEW_NAME = (v) => ({ front: "лицо", back: "спина", right: "правый бок", left: "левый бок", top: "сверху", bottom: "снизу" })[v] ?? `${v.slice(1)}°`;
+const VIEW_NAME = (v) => ({ "тело": "все грани", front: "лицо", back: "спина", right: "правый бок", left: "левый бок", top: "сверху", bottom: "снизу" })[v] ?? `${v.slice(1)}°`;
 function drawEye() {
   const a = (S.yaw * Math.PI) / 180, r = 22 * Math.cos((S.elev * Math.PI) / 180);
   document.querySelector("[data-eye]").innerHTML = `<circle r="26" fill="#0b0704" stroke="#6b4d2c" stroke-width="2"/><circle r="6" fill="${S.ink}"/><path d="M0 -6 L0 -12" stroke="${S.ink}" stroke-width="2"/>`
@@ -415,7 +459,7 @@ function card(label, img, on, data, badge) {
 function panels() {
   fill(document.querySelector("[data-sets]"), SETS.map((s) => card(s.name, thumb(partOf(s.parts.head)), S.set === s.id, { set: s.id })));
   fill(document.querySelector("[data-tabs]"), SLOTS.map(([slot, name]) => { const b = document.createElement("button"); b.className = `btn${S.tab === slot ? " on" : ""}`; b.dataset.tab = slot; b.textContent = name; return b; }));
-  fill(document.querySelector("[data-grid]"), PARTS.filter((p) => p.slot === S.tab).map((p) => card(p.name, thumb(p), S.parts[p.slot] === p.id, { part: p.id }, p.empty ? "" : sidesOf(p))));
+  fill(document.querySelector("[data-grid]"), PARTS.filter((p) => p.slot === S.tab).map((p) => card(p.empty ? p.name : `${p.name}<em>${FACING[p.facing]}</em>`, thumb(p), S.parts[p.slot] === p.id, { part: p.id, facing: p.empty ? "" : p.facing }, p.empty ? "" : sidesOf(p))));
   document.querySelector("[data-extra]").innerHTML = S.tab === "head" || S.tab === "hair"
     ? `<div class="label">Голова повёрнута — куда смотрит человек (у головы и причёски свои оси): <b data-turn-say>${S.headTurn}°</b></div><input class="head-turn" type="range" min="-90" max="90" value="${S.headTurn}" data-head-turn>` : "";
   document.querySelector("[data-pals]").innerHTML = PAL.map((p, k) => `<button class="chip${S.pal === k ? " on" : ""}" data-pal="${k}" title="${p.name}"><i style="background:${p.red}"></i><i style="background:${p.blue}"></i><i style="background:${p.gold}"></i></button>`).join("");
