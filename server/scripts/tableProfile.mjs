@@ -61,6 +61,7 @@ await p.click("[data-more]");
 check("…по «ещё» — все 16", (await p.locator("[data-pal]").count()) === 16, await p.locator("[data-pal]").count());
 await p.click('[data-doll="queen"]');
 await p.click('[data-pal="12"]');
+check("выбрал расцветку — обводка встала её предпочитаемым цветом", await p.evaluate(() => document.querySelector("[data-ink].on")?.dataset.ink) === "#8fb4e0", await p.evaluate(() => document.querySelector("[data-ink].on")?.dataset.ink));
 await p.click('[data-ink="#e0483f"]');
 await p.waitForTimeout(600);
 if (shots) await p.screenshot({ path: `${shots}/profile-2-sheet.png` });

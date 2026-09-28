@@ -271,7 +271,11 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
         + `</div>`;
       for (const el of layer.querySelectorAll<HTMLElement>("[data-close]")) el.onclick = () => { layer.innerHTML = ""; };
       for (const el of layer.querySelectorAll<HTMLElement>("[data-doll]")) el.onclick = () => save({ doll: el.dataset.doll as Doll });
-      for (const el of layer.querySelectorAll<HTMLElement>("[data-pal]")) el.onclick = () => save({ palette: Number(el.dataset.pal) });
+      for (const el of layer.querySelectorAll<HTMLElement>("[data-pal]")) el.onclick = () => {
+        // РАСЦВЕТКА ПРИВОДИТ СВОЙ ЦВЕТ: обводка встаёт предпочитаемой для неё; поменять её можно ниже, отдельно.
+        const k = Number(el.dataset.pal);
+        save({ palette: k, color: PALETTES[k]!.ink });
+      };
       for (const el of layer.querySelectorAll<HTMLElement>("[data-ink]")) el.onclick = () => save({ color: el.dataset.ink! });
       layer.querySelector<HTMLElement>("[data-more]")!.onclick = () => { more = !more; draw(); };
       // ПРИВЯЗАТЬ TELEGRAM — окно входа приложения; ключ гостя едет с ним, и выбор в профиле переезжает.
