@@ -19,7 +19,7 @@
 
 import { createFusion, FUSE, gyroTrack } from "./arFuse.js";
 import { captureBox, mountHud, type HudState } from "./arHud.js";
-import { hearNative, nativeShell, type NativePose } from "./arNative.js";
+import { hearNative, hearSurface, nativeShell, type NativePose } from "./arNative.js";
 import { ease } from "./arBlend.js";
 import { arLens, deviceQuat, placeAtGaze, yawQuat, type ArLens, type ArPlace, type Quat } from "./arLens.js";
 import { deleteMarker, listMarkers, makeMarker, openCamera, saveMarker, track, VIDEO_LAG, warm, type Backdrop, type StoredMarker } from "./arMarker.js";
@@ -49,6 +49,8 @@ const STICK_R = 56;
 const MARKER_UNIT = 0.6 / (R + RIM);
 /** Метку видели не дольше стольких мс назад — «видна»: ходьба ногами, джойстик спит. */
 const SEEN_MS = 400;
+/** Сколько ждать ответа приложения «где поверхность», мс: дольше — ставим перед собой. */
+const SURFACE_WAIT_MS = 800;
 /** Сколько вспыхивает место стола после «Выровнять», мс. */
 const FLASH_MS = 1200;
 /** Сторона серого кадра для оценки годности, px — как у стенда. */
@@ -108,6 +110,28 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   /** Где стоишь — условные метры от своего стула (метр — радиус стола), `arWalk.ts`. */
   let walk = { x: 0, z: 0 };
   const off: Array<() => void> = [];
+  // ── ПОВЕРХНОСТЬ ИЗ ARKIT (`Shell.surface`): луч из середины экрана на найденную плоскость. Стол встаёт на неё
+  // серединой, повёрнутый ко мне, как по взгляду. Приложение не ответило или плоскости нет — `null`.
+  let surfaceWant: ((at: ArPlace | null) => void) | null = null;
+  let surfaceTimer = 0;
+  /** Что нашлось в последний раз: «found» — настоящая плоскость, «estimated» — примерная, «none» — ничего. */
+  let surfaceSeen = "";
+  if (shell?.surface) {
+    off.push(hearSurface((at, found) => {
+      surfaceSeen = at ? (found ? "found" : "estimated") : "none";
+      const done = surfaceWant;
+      surfaceWant = null;
+      clearTimeout(surfaceTimer);
+      done?.(at ? { at, yaw: gazePlace().yaw, unit: UNIT } : null);
+    }));
+  }
+  function askSurface(done: (at: ArPlace | null) => void): void {
+    if (!shell?.surface) return done(null);
+    surfaceWant = done;
+    clearTimeout(surfaceTimer);
+    surfaceTimer = window.setTimeout(() => { if (surfaceWant === done) { surfaceWant = null; surfaceSeen = "none"; done(null); } }, SURFACE_WAIT_MS);
+    shell.surface();
+  }
 
   const screenAngle = (): number => screen.orientation?.angle ?? (globalThis as { orientation?: number }).orientation ?? 0;
   const place = (): void => {
@@ -142,6 +166,8 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
         heard = true;
         heardAt = performance.now();
         placed = gazePlace();
+        // Вошёл в AR — стол сразу ищет поверхность под взглядом; нашлась — встаёт на неё.
+        askSurface((at) => { if (at) { placed = at; flashAt = performance.now(); changed(); } });
       }
       changed();
     }));
@@ -574,9 +600,9 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
   const GLIDE_MS = 600;
   let glide = 0;
   const stopGlide = (): void => { cancelAnimationFrame(glide); glide = 0; };
-  function glideHome(): void {
+  function glideHome(target?: ArPlace): void {
     stopGlide();
-    const to = gazePlace();
+    const to = target ?? gazePlace();
     // ВЫРОВНЯТЬ — ЭТО ВСЁ: и посадку (сдвиг пальцем, наклон двумя, размер) — к нулю. Иначе стол вставал к
     // взгляду, но уехавшим и накренённым, и компас «ничего не восстанавливал».
     const home: ArSeat = { ...SEAT0, flat: seat.flat };
@@ -757,7 +783,13 @@ export function mountAr(stage: HTMLElement, felt: HTMLCanvasElement, changed: ()
     recenter() {
       stopWalk();
       grabbing = null;
-      glideHome();
+      // В ПРИЛОЖЕНИИ — заново найти поверхность под взглядом и встать на неё; не нашлась — перед собой.
+      if (!shell?.surface) return glideHome();
+      askSurface((at) => {
+        glideHome(at ?? undefined);
+        flashSvg.dataset.surface = surfaceSeen;
+        if (!at) say("поверхность не нашлась — стол перед тобой", 1800);
+      });
     },
     stick,
     grab,

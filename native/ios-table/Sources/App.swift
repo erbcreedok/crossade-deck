@@ -1,6 +1,7 @@
 // CROSSADE — нативная обёртка над столом из HTML (`server/table-client`). Внутри тот же самый стол, что в
 // Telegram, один в один; приложение добавляет только то, чего вебу не дано:
 //   • ARKit — где телефон в комнате и куда смотрит, каждый кадр, → `window.__arFrame` (`arNative.ts`);
+//   • поверхность под взглядом — по просьбе страницы, лучом на плоскость → `window.__arSurface`;
 //   • камеру — под прозрачной страницей, пока стол в AR.
 // Вход — ссылкой из бота или из настроек стола: crossade://table?room=…&pass=…&host=…
 
@@ -36,7 +37,8 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
     static let bridge = "window.__crossadeNative = { version: 1, "
         + "ar: function (on) { window.webkit.messageHandlers.crossade.postMessage({ ar: !!on }); }, "
         + "key: function (k) { window.webkit.messageHandlers.crossade.postMessage({ key: String(k) }); }, "
-        + "login: function () { window.webkit.messageHandlers.crossade.postMessage({ login: true }); } };"
+        + "login: function () { window.webkit.messageHandlers.crossade.postMessage({ login: true }); }, "
+        + "surface: function () { window.webkit.messageHandlers.crossade.postMessage({ surface: true }); } };"
 
     let camera = ARSCNView()
     var web: WKWebView!
@@ -212,6 +214,29 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
         if let on = body["ar"] as? Bool { setAr(on) }
         if let key = body["key"] as? String { UserDefaults.standard.set(key, forKey: "key") }
         if body["login"] as? Bool == true { login() }
+        if body["surface"] as? Bool == true { findSurface() }
+    }
+
+    /**
+     * ГДЕ ПОВЕРХНОСТЬ ПОД ВЗГЛЯДОМ — луч из середины экрана на горизонтальную плоскость: сперва на уже найденную
+     * (стол, пол — `found` 1), нет такой — на примерную (`found` 0). Ничего — ответ без чисел, и страница ставит
+     * стол перед собой. Точка — в том же мире, что и поза телефона в `__arFrame`.
+     */
+    func findSurface() {
+        guard arOn, camera.session.currentFrame != nil else {
+            web.evaluateJavaScript("window.__arSurface&&window.__arSurface()")
+            return
+        }
+        let middle = CGPoint(x: camera.bounds.midX, y: camera.bounds.midY)
+        let targets: [(ARRaycastQuery.Target, Int)] = [(.existingPlaneGeometry, 1), (.estimatedPlane, 0)]
+        for (target, found) in targets {
+            guard let query = camera.raycastQuery(from: middle, allowing: target, alignment: .horizontal),
+                  let hit = camera.session.raycast(query).first else { continue }
+            let t = hit.worldTransform.columns.3
+            web.evaluateJavaScript(String(format: "window.__arSurface&&window.__arSurface(%.4f,%.4f,%.4f,%d)", t.x, t.y, t.z, found))
+            return
+        }
+        web.evaluateJavaScript("window.__arSurface&&window.__arSurface()")
     }
 
     func setAr(_ on: Bool) {

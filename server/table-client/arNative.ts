@@ -25,6 +25,12 @@ interface Shell {
   key?(key: string): void;
   /** Вход через Telegram: приложение открывает страницу входа в системном окне и ловит ключ. */
   login?(): void;
+  /**
+   * НАЙТИ ПОВЕРХНОСТЬ: ARKit бросает луч из середины экрана на горизонтальную плоскость и отвечает
+   * `window.__arSurface(x, y, z, found)` — точка в метрах мира ARKit; `found` 1 — настоящая найденная плоскость,
+   * 0 — примерная. Ничего — `window.__arSurface()` без чисел. Старое приложение этого не умеет.
+   */
+  surface?(): void;
 }
 
 /** Приложение, в котором открыт стол; `null` — это браузер или Telegram. */
@@ -39,6 +45,15 @@ export function nativeShell(): Shell | null {
 export function menuUrl(): string {
   const key = new URLSearchParams(location.search).get("key");
   return key ? `?rooms&key=${encodeURIComponent(key)}` : "?rooms";
+}
+
+/** Слушать ответ «где поверхность» (`Shell.surface`); вернёт, как перестать. */
+export function hearSurface(heard: (at: Vec | null, found: boolean) => void): () => void {
+  const g = globalThis as { __arSurface?: (...n: number[]) => void };
+  g.__arSurface = (x, y, z, found) => {
+    heard(x === undefined || y === undefined || z === undefined ? null : [x, y, z], found === 1);
+  };
+  return () => { delete g.__arSurface; };
 }
 
 /** Слушать позу от приложения; вернёт, как перестать. */

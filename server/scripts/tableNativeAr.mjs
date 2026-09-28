@@ -106,7 +106,8 @@ check("вышел из AR — камеру выключили, фоны верн
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
   const t = await ctx.newPage();
-  await t.addInitScript(() => { window.__crossadeNative = { version: 1, ar() {} }; });
+  // Приложение с поиском поверхности: отвечает точкой из `__surfaceReply` или «ничего».
+  await t.addInitScript(() => { window.__crossadeNative = { version: 1, ar() {}, surface() { setTimeout(() => (window.__surfaceReply ? window.__arSurface(...window.__surfaceReply) : window.__arSurface()), 30); } }; });
   await t.goto(`${base}/table/?stand`);
   await t.waitForFunction(() => !!document.querySelector("canvas")?.dataset.spots);
   const cdp = await ctx.newCDPSession(t);
@@ -172,6 +173,23 @@ check("вышел из AR — камеру выключили, фоны верн
   check("…посадка к нулю: ни сдвига, ни наклона", Math.abs(back.sx) < 0.05 && Math.abs(back.sy) < 0.05 && back.tilt === 0, back);
   check("…поворот — к своему стулу", offSeat(again.rotation) < 2, { again, seatAngle });
   check("…вспышка погасла", await t.evaluate(() => document.querySelector("[data-ar-flash]")?.dataset.on === "0"), null);
+  // ПОВЕРХНОСТЬ ИЗ ARKIT: приложение нашло плоскость правее и ниже взгляда — компас ставит стол на неё.
+  const gazeAt = await read();
+  await t.evaluate(() => { window.__surfaceReply = [0.18, -0.3, -0.3, 1]; });
+  await touch("touchStart", [[home.x + home.width / 2, home.y + 8]]);
+  await touch("touchEnd", []);
+  await t.waitForTimeout(1500);
+  const onSurface = await read();
+  const seenKind = await t.evaluate(() => document.querySelector("[data-ar-flash]")?.dataset.surface);
+  check("компас — стол встал на найденную поверхность (правее взгляда)", onSurface.x > gazeAt.x + 30 && seenKind === "found", { gazeAt, onSurface, seenKind });
+  // Поверхности нет — стол перед собой, и об этом сказано.
+  await t.evaluate(() => { window.__surfaceReply = null; });
+  await touch("touchStart", [[home.x + home.width / 2, home.y + 8]]);
+  await touch("touchEnd", []);
+  await t.waitForTimeout(1500);
+  const noSurface = await read();
+  const hint = await t.evaluate(() => [...document.querySelectorAll("[data-ar-hint]")].map((e) => e.textContent).join("|"));
+  check("поверхности нет — стол перед собой, и подсказка об этом", Math.abs(noSurface.x - gazeAt.x) < 4 && /поверхность не нашлась/.test(hint), { gazeAt, noSurface, hint });
   await ctx.close();
 }
 
