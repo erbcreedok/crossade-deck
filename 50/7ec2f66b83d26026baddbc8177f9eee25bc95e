@@ -1,0 +1,23 @@
+design/skinmaker/index.html
+  s_e1c4165d82711d::t_decb0af0a3fb43 431
+  s_e1c4165d82711d::t_431666fd85bd2d 197-198,314,325-327,355-358,362,367-372,380-382,411-422,477-483,485
+design/skinmaker/check.mjs
+  s_e1c4165d82711d::t_decb0af0a3fb43 23-26,28-31,34-37
+  s_e1c4165d82711d::t_46d74d86fe9b1a 27,32-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "507ec2f66b83d26026baddbc8177f9eee25bc95e",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
