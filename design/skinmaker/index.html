@@ -194,7 +194,8 @@ function barrel(view) {
 function cubeFace(view) {
   const n = { front: 1, back: 6, right: 3, left: 4, top: 5, bottom: 2 }[view];
   const at = { 1: [[50, 50]], 2: [[28, 28], [72, 72]], 3: [[26, 26], [50, 50], [74, 74]], 4: [[28, 28], [72, 28], [28, 72], [72, 72]], 5: [[26, 26], [74, 26], [50, 50], [26, 74], [74, 74]], 6: [[28, 24], [72, 24], [28, 50], [72, 50], [28, 76], [72, 76]] }[n];
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="5" y="5" width="90" height="90" rx="16" fill="${PAPER}" stroke="${BLACK}" stroke-width="5"/>${at.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="8" fill="#b3221f" stroke="${BLACK}" stroke-width="2"/>`).join("")}</svg>`;
+  // Грань во всю ширину, без полей: рёбра куба рисует сцена по контуру граней.
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="${PAPER}"/>${at.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="8.5" fill="#b3221f"/>`).join("")}</svg>`;
 }
 function crown(view) {
   const side = view === "right";
@@ -310,6 +311,7 @@ function basis(n, fwd) {
 /** Грань коробки: какой рисунок, её направление и верх (у верхней и нижней — «назад», как у вида сверху). */
 const FACES = [["front", [0, 1, 0]], ["back", [0, -1, 0]], ["right", [1, 0, 0]], ["left", [-1, 0, 0]], ["top", [0, 0, 1]], ["bottom", [0, 0, -1]]];
 let boxQuads = null;
+const lastImg = {};
 /** ТЕЛО-КОРОБКА: шесть граней в пространстве; видны те, что смотрят на камеру, — до трёх сразу. */
 function box(p, center, w, turn, pal) {
   const fwd = turnZ([0, 1, 0], turn);
@@ -320,7 +322,9 @@ function box(p, center, w, turn, pal) {
     if (!img || img === "none") continue;
     const { up, across } = basis(n, fwd), c = add(center, mul(n, w / 2));
     const tl = add(add(c, mul(across, -w / 2)), mul(up, w / 2));
-    boxQuads.list.push({ img, tl, tr: add(tl, mul(across, w)), bl: add(tl, mul(up, -w)), at: c, face: true });
+    // Свет сверху-спереди-слева: верх светлее, бока темнее — видно, что это тело, а не открытки.
+    const light = norm([-0.4, 0.5, 0.9]), shade = 0.55 * (1 - Math.max(0, dot(n, light)));
+    boxQuads.list.push({ img, tl, tr: add(tl, mul(across, w)), bl: add(tl, mul(up, -w)), at: c, face: true, shade, box: center });
   }
 }
 function render() {
@@ -348,24 +352,24 @@ function render() {
     if (!p || p.empty) return;
     const view = pick(p, inPart(turn), slot), d = drawn(p, view);
     info.push([slot, p.facing === "box" ? "тело" : view, sidesOf(p)]);
-    const img = sprite(p, d.view, pal);
+    // Нужная сторона ещё печётся — держим прежнюю картинку этой части, а не пропускаем кадр.
+    let img = sprite(p, d.view, pal);
+    if (img && img !== "none") lastImg[slot] = { img, id: p.id };
+    else if (lastImg[slot]?.id === p.id) img = lastImg[slot].img;
     if (!img || img === "none") return;
     const fwd = turnZ([0, 1, 0], turn);
     if (p.facing === "box") return box(p, center, w, turn, pal);
-    let n, up, across;
+    let n, up, across, squeeze = 1;
     if (p.facing === "camera") {
       // лицом в камеру: плоскость перпендикулярна взгляду, верх — вертикаль (сверху — «вперёд»)
       n = toEye; ({ up, across } = basis(n, fwd));
     } else if (p.facing === "tilt") {
-      // по горизонтали — по ракурсу; по вертикали — наклон к камере, чтобы сверху не стать линией
-      const d = turnZ(p.views[view], turn), flatD = norm([d[0], d[1], 0]);
-      across = norm(cross(mul(flatD, -1), [0, 0, 1]));
-      const toward = sub(toEye, mul(across, dot(toEye, across)));
-      n = norm(dot(toward, flatD) < 0 ? mul(toward, -1) : toward);
-      up = norm(cross(n, across));
-      if (up[2] < 0) up = mul(up, -1);
-      across = norm(cross(up, n));
-      if (dot(across, norm(cross(mul(flatD, -1), [0, 0, 1]))) < 0) across = mul(across, -1);
+      // БУМАЖНЫЙ СПРАЙТ: лицом в камеру (без перекоса и сверху не линия), а по ширине сужается по углу между
+      // ракурсом и взглядом по горизонтали — как поворачивающаяся картонка.
+      const d = turnZ(p.views[view], turn), flatD = norm([d[0], d[1], 0]), flatE = [toEye[0], toEye[1], 0];
+      n = toEye; ({ up, across } = basis(n, fwd));
+      const lean = Math.hypot(flatE[0], flatE[1]);
+      squeeze = lean < 1e-3 ? 1 : Math.max(0.12, Math.abs(dot(flatD, mul(flatE, 1 / lean))) * lean + (1 - lean));
     } else {
       n = turnZ(p.views[view], turn); ({ up, across } = basis(n, fwd));
     }
@@ -373,8 +377,9 @@ function render() {
     const flat = p.facing === "view" && Math.abs(n[2]) > 0.9;
     const hh = (h ?? (w * img.height) / img.width), top = add(center, mul(up, hh * (flat ? 0.5 : pivotTop)));
     const ac = mul(across, d.mirror ? -1 : 1);
-    const tl = add(top, mul(ac, -w / 2)), tr = add(top, mul(ac, w / 2)), bl = add(tl, mul(up, -hh));
-    quads.push({ img, tl, tr, bl, at: add(tl, add(mul(ac, w / 2), mul(up, -hh / 2))), slot });
+    const ws = w * squeeze;
+    const tl = add(top, mul(ac, -ws / 2)), tr = add(top, mul(ac, ws / 2)), bl = add(tl, mul(up, -hh));
+    quads.push({ img, tl, tr, bl, at: add(tl, add(mul(ac, ws / 2), mul(up, -hh / 2))), slot });
   };
   const bodyPart = partOf(S.parts.body), sh = bodyPart?.court ? COURTS[bodyPart.court].sh : 0.18;
   if (standing) place("legs", [0, -0.05, 0], 3.4, 4.3, 1);
@@ -403,6 +408,18 @@ function render() {
       continue;
     }
     const iw = q.img.width, ih = q.img.height;
+    if (q.face) {
+      // ГРАНЬ КУБА: рисунок, тень по свету, чёрные рёбра по контуру — без обводки картинки.
+      const D = { x: B.x + C.x - A.x, y: B.y + C.y - A.y };
+      g.save();
+      g.setTransform(dpr * (B.x - A.x) / iw, dpr * (B.y - A.y) / iw, dpr * (C.x - A.x) / ih, dpr * (C.y - A.y) / ih, dpr * A.x, dpr * A.y);
+      g.drawImage(q.img, 0, 0);
+      g.fillStyle = `rgba(28,20,14,${q.shade.toFixed(2)})`; g.fillRect(0, 0, iw, ih);
+      g.restore();
+      g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.lineTo(D.x, D.y); g.lineTo(C.x, C.y); g.closePath();
+      g.lineJoin = "round"; g.lineWidth = 3.5; g.strokeStyle = BLACK; g.stroke();
+      continue;
+    }
     g.save();
     g.setTransform(dpr * (B.x - A.x) / iw, dpr * (B.y - A.y) / iw, dpr * (C.x - A.x) / ih, dpr * (C.y - A.y) / ih, dpr * A.x, dpr * A.y);
     // обводка своим цветом: тонированные копии вокруг
@@ -411,6 +428,7 @@ function render() {
     g.drawImage(q.img, 0, 0);
     g.restore();
   }
+  window.__skinmaker.shown = quads.filter((q) => q.slot).map((q) => q.slot);
   document.querySelector("[data-views]").innerHTML = info.map(([slot, view, n]) => `<span class="v" data-slot-view="${slot}" data-view="${view}">${SLOTS.find((s) => s[0] === slot)[1]}: <b>${VIEW_NAME(view)}</b> · ${n}</span>`).join("");
   drawEye();
   if (!matchMedia("(prefers-reduced-motion: reduce)").matches) draw();
@@ -456,7 +474,15 @@ function card(label, img, on, data, badge) {
   b.insertAdjacentHTML("beforeend", `${badge ? `<span class="sides">${badge}</span>` : ""}<span>${label}</span>`);
   return b;
 }
+/** Все стороны выбранных частей — печь сразу: поворот не должен ждать печки (иначе кадр без части — мерцание). */
+function warm() {
+  for (const [slot] of SLOTS) {
+    const p = partOf(S.parts[slot]);
+    if (p && !p.empty) for (const v of new Set(Object.keys(p.views).map((x) => drawn(p, x).view))) sprite(p, v, PAL[S.pal]);
+  }
+}
 function panels() {
+  warm();
   fill(document.querySelector("[data-sets]"), SETS.map((s) => card(s.name, thumb(partOf(s.parts.head)), S.set === s.id, { set: s.id })));
   fill(document.querySelector("[data-tabs]"), SLOTS.map(([slot, name]) => { const b = document.createElement("button"); b.className = `btn${S.tab === slot ? " on" : ""}`; b.dataset.tab = slot; b.textContent = name; return b; }));
   fill(document.querySelector("[data-grid]"), PARTS.filter((p) => p.slot === S.tab).map((p) => card(p.empty ? p.name : `${p.name}<em>${FACING[p.facing]}</em>`, thumb(p), S.parts[p.slot] === p.id, { part: p.id, facing: p.empty ? "" : p.facing }, p.empty ? "" : sidesOf(p))));

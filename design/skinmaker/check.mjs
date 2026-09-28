@@ -20,6 +20,21 @@ check("пёс: спереди — лицо, сбоку — бок, сзади �
 await p.click('[data-set="mix"]');
 const a = await turn(0), c = await turn(140);
 check("сборный: голова-шар односторонняя, тело-бочонок в 18 ракурсах — голова стоит, тело крутится", a.head === "front" && c.head === "front" && a.body === "a0" && c.body === "a140", [a, c]);
+// БЕЗ МЕРЦАНИЯ: выбрал набор и сразу крутишь — тело есть в каждом кадре (все стороны пекутся заранее).
+await p.click('[data-set="cube"]');
+await p.waitForTimeout(100);
+await p.click('[data-set="mix"]');
+await p.waitForTimeout(400);
+const gaps = await p.evaluate(async () => {
+  let missing = 0;
+  for (let i = 0; i < 90; i++) {
+    window.__skinmaker.S.yaw = i * 4;
+    await new Promise((r) => requestAnimationFrame(r));
+    if (i > 0 && !window.__skinmaker.shown.includes("body")) missing++;
+  }
+  return missing;
+});
+check("бочонок крутится сразу после выбора — ни одного кадра без тела (не мерцает)", gaps === 0, gaps);
 await p.click('[data-set="crusader"]');
 check("крестоносец сверху — макушка, снизу — подбородок", (await turn(0, 80)).head === "top" && (await turn(0, -65)).head === "bottom", await views());
 await p.click('[data-look="0,89"]'); await p.waitForTimeout(300);
