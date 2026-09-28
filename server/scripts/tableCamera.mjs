@@ -41,6 +41,20 @@ const view = async () => {
   return { x, y, zoom, rotation, pitch };
 };
 const spots = async () => JSON.parse(await p.getAttribute("canvas", "data-spots"));
+/**
+ * ЖДАТЬ, ПОКА КАМЕРА ВСТАНЕТ — а не сколько-то миллисекунд: наклон и вид со стула едут скольжением кита, у
+ * него нет своей длительности, и замер «через 700 мс» застаёт стол на 43° вместо 45°.
+ */
+const settle = async (max = 3000) => {
+  const end = Date.now() + max;
+  let was = await p.getAttribute("canvas", "data-view");
+  while (Date.now() < end) {
+    await p.waitForTimeout(150);
+    const now = await p.getAttribute("canvas", "data-view");
+    if (now === was) return;
+    was = now;
+  }
+};
 /** Как выглядит компас: повёрнутое кольцо и диск наклона. */
 const ring = () => p.evaluate(() => {
   const btn = document.querySelector("[data-home]");
@@ -61,7 +75,8 @@ const tapRing = async () => {
 };
 const tapDisc = async () => {
   await p.locator("[data-lean]").click();
-  await wait(700);
+  await wait(300);
+  await settle();
 };
 /** Ctrl с левой кнопкой — поворот и наклон от точки захвата (`orbit` в `camera.ts`). */
 const orbit = async (dx, dy) => {
@@ -169,7 +184,8 @@ const seatOf = async () => (await spots()).seats.find((s) => s.key === mineKey);
 const tapSeat = async () => {
   const at = await seatOf();
   await p.mouse.click(at.x, at.y);
-  await wait(700);
+  await wait(300);
+  await settle();
 };
 const angle = (await spots()).seatAngle ?? 0;
 const turned = (r) => Math.abs(((((r - angle) % 360) + 540) % 360) - 180) < 1.5;
@@ -184,11 +200,14 @@ check("повторный тап — домашний вид, каким сто�
 
 // ── 7. Камера ушла куда угодно — тап всё равно ставит вид со стула целиком ───────────────────────
 await orbit(60, 0);
-await drag(195, 250, 150, 320);
+// Стол ведётся вверх-вправо: свой аватар уходит на свободное сукно, а не под компас и кнопку позы в левом
+// нижнем углу — тап туда попал бы в кнопки, а не в аватар.
+await drag(195, 450, 240, 370);
 v = await view();
 check("камера ушла от стула", Math.abs(v.rotation - angle) > 10, v);
 const seat2 = await seatOf();
 check("свой аватар остался в кадре", seat2.x > 0 && seat2.x < 390 && seat2.y > 0 && seat2.y < 844, seat2);
+check("под своим аватаром стол, а не кнопка", await p.evaluate(([x, y]) => document.elementFromPoint(x, y)?.tagName === "CANVAS" || !document.elementFromPoint(x, y)?.closest("button,[data-home],[data-stance-toggle]"), [seat2.x, seat2.y]), seat2);
 await tapSeat();
 v = await view();
 check("тап с ушедшей камеры — вид со стула: и зум, и поворот, и наклон", Math.abs(v.pitch - STEP) < 1 && Math.abs(v.zoom - 1.25) < 0.01 && turned(v.rotation), v);

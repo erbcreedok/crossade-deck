@@ -2182,7 +2182,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       if (!chair) return false;
       if (Math.hypot(finger.x - sp.seat.x, finger.y - sp.seat.y) <= SEAT_REACH + spare) return true;
       const seat = v.toGlass(sp.seat);
-      const sitting = chair.owner !== null && Math.hypot(sp.x - seat.x, sp.y - seat.y) <= SEAT_REACH * v.k;
+      // Аватар — часть стула, пока сидит на нём; у кого есть тело, кружок — его голова, где бы она ни была.
+      const sitting = chair.owner !== null && (sp.body !== undefined || Math.hypot(sp.x - seat.x, sp.y - seat.y) <= SEAT_REACH * v.k);
       return sitting && Math.hypot(x - sp.x, y - sp.y) <= sp.r;
     });
   }
@@ -3270,7 +3271,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       seatAngle: chairOf(s, seat)?.angle ?? null,
       seats: spots.map((sp) => {
         const c = chairOf(s, sp.key);
-        return { key: sp.key, hand: c?.hand.length ?? 0, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, ...(c?.croupier ? { croupier: true } : {}), x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), puff: sp.puff, rings: sp.rings, ...(sp.plate ? { plate: sp.plate } : {}), chair: Math.round(SEAT_REACH * view!.k) };
+        return { key: sp.key, hand: c?.hand.length ?? 0, open: c ? c.hand.filter((card) => card.up && card.face).map((card) => card.id) : [], who: c && sitterOf(s, c)?.name, ...(c?.croupier ? { croupier: true } : {}), x: Math.round(sp.x), y: Math.round(sp.y), r: Math.round(sp.r), puff: sp.puff, rings: sp.rings, ...(sp.plate ? { plate: sp.plate } : {}), chair: Math.round(SEAT_REACH * view!.k), ...(sp.body ? { body: { chairAt: { x: Math.round(sp.body.chairAt.x), y: Math.round(sp.body.chairAt.y) }, cardsAt: { x: Math.round(sp.body.cardsAt.x), y: Math.round(sp.body.cardsAt.y) } } } : {}) };
       }),
     });
     local.tips = local.tips.filter((id) => id !== seat && (watch || chairOf(s, id) !== undefined));
@@ -3658,7 +3659,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         continue;
       }
       const spot = spots.find((sp) => sp.key === c.id);
-      if (spot) c.hand.forEach((card, i) => out.set(card.id, onDesk(`hand:${c.id}:${i}`, spot.seat, HAND_SCALE, 0)));
+      // У сидящего с телом карты — в левой руке у головы (там их и рисует сукно): туда они и летят.
+      if (spot) c.hand.forEach((card, i) => out.set(card.id, spot.body
+        ? { ...onDesk(`hand:${c.id}:${i}`, spot.seat, HAND_SCALE, 0), x: spot.body.cardsAt.x, y: spot.body.cardsAt.y }
+        : onDesk(`hand:${c.id}:${i}`, spot.seat, HAND_SCALE, 0)));
     }
     for (const c of store.carries) {
       const at = carryPlace(s, c, shown);
@@ -3700,7 +3704,9 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const gap = hand?.lay.find((one) => "gap" in one && one.gap.carry === c.id);
     if (hand && gap) return { key, x: gap.slot.x, y: gap.slot.y, w: hand.geom.w, h: hand.geom.h, angle: gap.slot.angle, squash: 1, face: c.card.face };
     const spot = spots.find((sp) => sp.key === over.chair);
-    return spot ? onDesk(spot.seat, 0) : null;
+    if (!spot) return null;
+    // В руку сидящего с телом — к его левой руке, а не к стулу.
+    return spot.body ? { ...onDesk(spot.seat, 0), x: spot.body.cardsAt.x, y: spot.body.cardsAt.y } : onDesk(spot.seat, 0);
   }
 
   /** Высота головы человека над столом — из его тела; тела нет — голова в покое сидя. */

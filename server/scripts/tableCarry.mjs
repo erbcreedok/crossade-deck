@@ -79,7 +79,9 @@ await wait(600);
 const cSeatA = await seatOf(C, "A");
 const toSeat = (await flights(C)).find((f) => f.id === seen[0]?.id);
 check("у C: полёт от последней точки у A…", toSeat && lastAtC && near(toSeat.frames[0], lastAtC, 40), [toSeat?.frames[0], lastAtC]);
-check("…к стулу A", toSeat && near(toSeat.frames.at(-1), [cSeatA.x, cSeatA.y], 40), [toSeat?.frames.at(-1), cSeatA]);
+// Карты сидящего — в левой руке у головы (`body.cardsAt`), туда и летит.
+const cardsA = cSeatA.body?.cardsAt ?? cSeatA;
+check("…к стулу A — в его левую руку", toSeat && near(toSeat.frames.at(-1), [cardsA.x, cardsA.y], 40), [toSeat?.frames.at(-1), cardsA]);
 const inTip = await B.evaluate((id) => {
   const el = document.querySelector(`[data-card="${id}"]`);
   return el && el.getBoundingClientRect().top > 0 ? [el.getBoundingClientRect().left + el.getBoundingClientRect().width / 2, el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2] : null;
@@ -95,7 +97,9 @@ await B.mouse.down();
 await B.mouse.move(195, 760, { steps: 8 });
 await B.mouse.up();
 await wait(500);
-const bCard = await B.evaluate(() => document.querySelector(`[data-card][data-owner]`)?.dataset.card);
+// Карта именно со стула B: у B ещё открыто окно A, и первая карта с хозяином там — карта A.
+const bChair = JSON.parse(await B.getAttribute("canvas", "data-spots")).mine;
+const bCard = await B.evaluate((chair) => document.querySelector(`[data-card][data-owner="${chair}"]`)?.dataset.card, bChair);
 // A открывает окно B и тянет из него карту на сукно.
 const aSeatB = await seatOf(A, "B");
 await A.mouse.click(aSeatB.x, aSeatB.y);
@@ -115,7 +119,8 @@ const bSees = await carried(B);
 check("у B эта карта в руке у A", bSees.length === 1 && bSees[0].id === bCard && bSees[0].who === "A", bSees);
 const cSeatB = await seatOf(C, "B");
 const fromB = (await flights(C)).find((f) => f.id === bCard);
-check("у C карта вылетела от стула B", fromB && near(fromB.frames[0], [cSeatB.x, cSeatB.y], 40), [fromB?.frames[0], cSeatB]);
+const cardsB = cSeatB.body?.cardsAt ?? cSeatB;
+check("у C карта вылетела от стула B — из его левой руки", fromB && near(fromB.frames[0], [cardsB.x, cardsB.y], 40), [fromB?.frames[0], cardsB]);
 
 // ── 4. A несёт её над рукой B — у B в нижней руке щель в цвете A ────────────────────────────────
 const aTip = await A.evaluate(() => {

@@ -74,6 +74,11 @@ export interface Spot {
   rings: number[];
   /** Подпись с именем на стекле: она не дышит вместе с кружком, и прогон жестов это проверяет. */
   plate?: { x: number; y: number; w: number; h: number };
+  /**
+   * У сидящего есть тело: кружок — его голова, и она законно не у стула (тянется к столу, уходит за камерой).
+   * Тогда `chairAt` — где на стекле сам стул, `cardsAt` — где его карты: в левой руке у головы.
+   */
+  body?: { chairAt: Point; cardsAt: Point };
 }
 
 /** Где что легло, и как переводить между столом и стеклом — тем же взглядом, каким рисовали. */
@@ -992,6 +997,7 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
       puff: +puff.toFixed(3),
       rings: rings.map((r) => +(r * kk).toFixed(1)),
       ...(sitter ? { plate: { x: at.x - plateW / 2, y: at.y + PLATE.at * kk - plateH / 2, w: plateW, h: plateH } } : {}),
+      ...(who.body ? { body: { chairAt: o.lens.toGlass(place.at), cardsAt: o.lens.toGlass(who.body.left, who.body.left.h) } } : {}),
     });
   });
 

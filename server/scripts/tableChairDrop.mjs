@@ -88,7 +88,10 @@ check("колоду снова можно взять", await A.evaluate(() => tr
 
 // ── 3. Тап по стулу мимо аватара открывает окно; по аватару на стуле — тоже ─────────────────────────
 const cSeat = await seatOf(C, "A");
-await C.mouse.click(cSeat.x, cSeat.y + (cSeat.r + cSeat.chair) / 2);
+// У сидящего с телом кружок — голова, и она не на стуле: сам стул — `body.chairAt`.
+const chairAt = cSeat.body?.chairAt ?? { x: cSeat.x, y: cSeat.y + (cSeat.r + cSeat.chair) / 2 };
+check("стул и голова на экране — разные места (тап по стулу не попадает в голову)", Math.hypot(chairAt.x - cSeat.x, chairAt.y - cSeat.y) > cSeat.r, { chairAt, head: cSeat });
+await C.mouse.click(chairAt.x, chairAt.y);
 await C.waitForTimeout(300);
 check("тап по стулу мимо аватара открыл окно", await C.evaluate((id) => Boolean(document.querySelector(`[data-tip="${id}"]`)), cSeat.key), null);
 await C.mouse.click(cSeat.x, cSeat.y);
