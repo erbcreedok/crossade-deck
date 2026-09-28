@@ -55,9 +55,11 @@ for (let i = 1; i <= 20; i += 1) {
     const mark = document.querySelector("[data-felt-mark]");
     const carry = document.querySelector('[data-g="carry"]');
     if (!mark || !carry) return null;
-    const a = mark.getBoundingClientRect();
+    const a = mark.querySelector("polygon").getBoundingClientRect();
     const c = carry.getBoundingClientRect();
-    return { mx: a.left + a.width / 2, cx: c.left + c.width / 2, t: mark.style.transform };
+    // Контур — настоящие углы карты на сукне: верхняя кромка — от первого угла ко второму.
+    const [p0, p1] = mark.querySelector("polygon").getAttribute("points").split(" ").map((one) => one.split(",").map(Number));
+    return { mx: a.left + a.width / 2, cx: c.left + c.width / 2, t: (Math.atan2(p1[1] - p0[1], p1[0] - p0[0]) * 180) / Math.PI };
   });
   if (m) {
     onFelt += 1;
@@ -67,8 +69,7 @@ for (let i = 1; i <= 20; i += 1) {
 }
 check("палец прошёл над сукном — было что сверять", onFelt >= 3, onFelt);
 check("контур на сукне идёт за пальцем без отставания (по x ≤ 1.5px)", worst <= 1.5, worst);
-const turned = /rotate\((-?[\d.]+)deg\)/.exec(markAngle ?? "");
-check("контур стоит ровно к экрану (поворот стола + карты = 0)", turned && Math.abs(Number(turned[1])) < 0.01, markAngle);
+check("контур стоит ровно к экрану (поворот стола + карты = 0)", markAngle !== null && Math.abs(markAngle) < 0.5, markAngle);
 await touch("touchEnd", []);
 await page.waitForTimeout(600);
 

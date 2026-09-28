@@ -1171,6 +1171,25 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    * БЕЗ ПЕРЕХОДОВ. Контур — это «вот сюда ляжет, если отпустить сейчас», и отпустить можно в любой кадр:
    * контур, догоняющий палец за 0.16 с, показывает место, куда карта уже не ляжет.
    */
+  /**
+   * КОНТУР МЕСТА НА СУКНЕ — четыре настоящих угла карты на столе, спроецированные той же линзой, что сукно.
+   * Не прямоугольник общего масштаба: при зуме и наклоне ближняя карта крупнее дальней, и контур обязан
+   * быть ровно той карты, что ляжет сюда (`at` — точка стола, `angle` — поворот карты в осях стола).
+   */
+  function deskMarkHtml(at: { x: number; y: number }, angle: number, z: number, ink: string, g: string, attrs = ""): string {
+    if (!view) return "";
+    const v = view;
+    const t = (angle * Math.PI) / 180, c = Math.cos(t), sn = Math.sin(t);
+    const hw = FELT_CARD.w / 2, hh = FELT_CARD.h / 2;
+    const pts = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([x, y]) => v.toGlass({ x: at.x + x * c - y * sn, y: at.y + x * sn + y * c }));
+    const poly = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+    const w = Math.hypot(pts[1]!.x - pts[0]!.x, pts[1]!.y - pts[0]!.y);
+    const line = Math.max(1.5, w * 0.04);
+    return `<svg data-g="${g}"${attrs} style="position:absolute;left:0;top:0;overflow:visible;z-index:${z};pointer-events:none;opacity:.9" width="1" height="1">`
+      + `<polygon points="${poly}" fill="none" stroke="${T.black}" stroke-width="${(line * 2.2).toFixed(1)}" stroke-linejoin="round"/>`
+      + `<polygon points="${poly}" fill="none" stroke="${ink}" stroke-width="${line.toFixed(1)}" stroke-dasharray="${(line * 3).toFixed(1)} ${(line * 2).toFixed(1)}" stroke-linejoin="round"/></svg>`;
+  }
+
   function markHtml(w: number, h: number, angle: number, x: number, y: number, z: number, squash = 1, ink: string = T.ink): string {
     const line = Math.max(1.5, w * 0.04);
     return `<div data-g="mark" style="position:absolute;width:${w}px;height:${h}px;left:${x - w / 2}px;top:${y - h / 2}px;`
@@ -2421,21 +2440,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     if (gripPress?.moved) {
       const pile = pileOf(seen(), gripPress.pile);
       if (!pile || pile.pose !== "ring") return "";
-      const w = FELT_CARD.w * view.k;
-      const h = FELT_CARD.h * view.k;
-      return pile.cards.map((_, i) => {
-        const at = view!.toGlass(view!.deckAt(pile.id, i, pile.cards.length));
-        return markHtml(w, h, view!.rotation + view!.deckFacing(pile.id, i, pile.cards.length), at.x, at.y, 29, view!.squash, T.inkDim).replace('data-g="mark"', 'data-g="ring-home"');
-      }).join("");
+      return pile.cards.map((_, i) => deskMarkHtml(view!.deckAt(pile.id, i, pile.cards.length), view!.deckFacing(pile.id, i, pile.cards.length), 29, T.inkDim, "ring-home")).join("");
     }
     if (!drag) return "";
-    const w = FELT_CARD.w * view.k;
-    const h = FELT_CARD.h * view.k;
     let html = "";
-    if (drag.ringHome) {
-      const at = view.toGlass(drag.ringHome.at);
-      html += markHtml(w, h, view.rotation + drag.ringHome.angle, at.x, at.y, 29, view.squash, T.inkDim).replace('data-g="mark"', 'data-g="ring-home"');
-    }
+    if (drag.ringHome) html += deskMarkHtml(drag.ringHome.at, drag.ringHome.angle, 29, T.inkDim, "ring-home");
     const aim = drag.target;
     // КОНТУР СЧИТАЕТСЯ ТОЙ ЖЕ ФУНКЦИЕЙ, ЧТО ПОСАДИТ КАРТУ НА СТОЛЕ. Считать его отдельно — значит
     // завести вторую правду о том, куда она ляжет, и однажды они разойдутся.
@@ -2445,8 +2454,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       const turn = ringSoon(s);
       if (pile && turn !== null) {
         const место = ringTurned(pile, turn);
-        const to = view.toGlass(место);
-        html += markHtml(w, h, view.rotation + место.angle, to.x, to.y, 31, view.squash, T.gold).replace('data-g="mark"', 'data-g="ring-slot"');
+        html += deskMarkHtml(место, место.angle, 31, T.gold, "ring-slot");
       }
     }
     return html;
@@ -2509,10 +2517,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
 
   function feltMarkHtml(): string {
     if (!drag || drag.target.kind !== "felt" || !view) return "";
-    const at = view.toGlass(drag.target.at);
-    // На экране: поворот стола + поворот карты = 0, и остаётся только наклон — контур стоит ровно, сжатый.
-    // Своя метка: контуром зовутся и гнёзда рук, а этот — то место на СУКНЕ, куда ляжет карта.
-    return markHtml(FELT_CARD.w * view.k, FELT_CARD.h * view.k, view.rotation + dropAngle(), at.x, at.y, 30, view.squash).replace('data-g="mark"', 'data-g="mark" data-felt-mark');
+    // Своя метка: контуром зовутся и гнёзда рук, а этот — то место на СУКНЕ, куда ляжет карта, её настоящего размера.
+    return deskMarkHtml(drag.target.at, dropAngle(), 30, T.ink, "mark", " data-felt-mark");
   }
 
 
@@ -4310,9 +4316,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // гнездо в руке, откуда взяли карту, и первым в разметке стоит оно.
     const mark = over.querySelector<HTMLElement>("[data-felt-mark]");
     if (aim.kind === "felt" && mark && drag.markKind === "felt" && view && !massShift(drag)) {
-      const at = view.toGlass(aim.at);
-      mark.style.left = `${at.x - (FELT_CARD.w * view.k) / 2}px`;
-      mark.style.top = `${at.y - (FELT_CARD.h * view.k) / 2}px`;
+      // Контур — углы карты на сукне в этой точке: при наклоне он меняет и размер, поэтому пересобирается.
+      mark.outerHTML = deskMarkHtml(aim.at, dropAngle(), 30, T.ink, "mark", " data-felt-mark");
       return;
     }
     drag.markKind = aim.kind;
