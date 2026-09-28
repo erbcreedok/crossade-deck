@@ -1,0 +1,96 @@
+unity/Assets/XR/XRSettings.asset.meta
+  s_e1c4165d82711d::t_1f387ab839d060 1-8
+unity/Assets/XR/UserSimulationSettings/Resources/XRSimulationPreferences.asset.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-8
+unity/Assets/XR.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-8
+unity/Assets/XR/Resources.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-8
+unity/ProjectSettings/EditorBuildSettings.asset
+  s_e1c4165d82711d::t_1f387ab839d060 14
+  s_e1c4165d82711d::t_ff6f6d96a43f27 11-13
+unity/Assets/Crossade/View/Hud.cs
+  s_e1c4165d82711d::t_5a9b98baea86b7 33,101-102
+  s_e1c4165d82711d::t_020bf942ca0537 16-19,64-77,97-100,103-106
+unity/Assets/Crossade/Editor/Crossade.Editor.asmdef
+  s_e1c4165d82711d::t_ff6f6d96a43f27 3
+unity/Assets/XR/Settings/XRSimulationSettings.asset.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-8
+unity/Assets/XR/Loaders/SimulationLoader.asset.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-8
+unity/ProjectSettings/ProjectSettings.asset
+  s_e1c4165d82711d::t_1f387ab839d060 145,174,694-695
+unity/Assets/XR/Loaders/ARKitLoader.asset.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-8
+unity/Packages/manifest.json
+  s_e1c4165d82711d::t_d54cc0b0e9ede9 36-39
+unity/Assets/XR/Loaders/SimulationLoader.asset
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-14
+unity/Packages/packages-lock.json
+  s_e1c4165d82711d::t_ff6f6d96a43f27 3-9,16-31,51-111
+unity/Assets/XR/Settings/XRSimulationSettings.asset
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-14
+unity/Assets/Crossade/View/HandRig.cs
+  s_e1c4165d82711d::t_ff6f6d96a43f27 96
+  s_e1c4165d82711d::t_5a9b98baea86b7 16-22,47,50
+  s_e1c4165d82711d::t_020bf942ca0537 46,48-49,51-54
+unity/Assets/XR/Settings.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-8
+unity/Assets/XR/Resources/XRSimulationRuntimeSettings.asset.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-8
+unity/Assets/Crossade/View/ArMode.cs.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-2
+unity/Assets/XR/XRSettings.asset
+  s_e1c4165d82711d::t_1f387ab839d060 1-48
+unity/Assets/Crossade/View/ArMode.cs
+  s_e1c4165d82711d::t_85387a6716da6b 1-213
+unity/Assets/XR/Loaders/ARKitLoader.asset
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-14
+unity/Assets/Crossade/App.cs
+  s_e1c4165d82711d::t_5a9b98baea86b7 103
+  s_e1c4165d82711d::t_020bf942ca0537 29,94-102,104-111,133,181
+unity/Assets/XR/Loaders.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-8
+unity/Assets/XR/UserSimulationSettings/SimulationEnvironmentAssetsManager.asset
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-16
+unity/Assets/XR/UserSimulationSettings/SimulationEnvironmentAssetsManager.asset.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-8
+unity/Assets/XR/UserSimulationSettings.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-8
+unity/ProjectSettings/XRPackageSettings.asset
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-5
+unity/Assets/XR/Resources/XRSimulationRuntimeSettings.asset
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-67
+unity/Assets/Crossade/View/Board.cs
+  s_e1c4165d82711d::t_020bf942ca0537 30-33,44
+unity/Assets/XR/Settings/ARKitSettings.asset
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-16
+unity/Assets/XR/UserSimulationSettings/Resources/XRSimulationPreferences.asset
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-24
+unity/Assets/XR/UserSimulationSettings/Resources.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-8
+unity/Assets/Crossade/Play/Finger.cs
+  s_e1c4165d82711d::t_020bf942ca0537 30-31,60,97-103,114-115
+unity/Assets/XR/Settings/ARKitSettings.asset.meta
+  s_e1c4165d82711d::t_ff6f6d96a43f27 1-8
+unity/Assets/Crossade/Crossade.asmdef
+  s_e1c4165d82711d::t_020bf942ca0537 4
+unity/Assets/Crossade/Editor/Build.cs
+  s_e1c4165d82711d::t_ff6f6d96a43f27 14-16,56,67-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "36f9b7470ae4b3c172ada12afc4bebbfd7dbb819",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
