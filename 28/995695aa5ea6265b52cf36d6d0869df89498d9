@@ -1,0 +1,27 @@
+server/scripts/tableArAnchor.mjs
+  s_9ed0da107cbc4a::t_ffafbac98fc189 266-273,275-299,303
+server/scripts/tableNativeAr.mjs
+  s_9ed0da107cbc4a::t_0b75fa42dddacf 109-157
+server/table-client/ar.ts
+  s_9ed0da107cbc4a::t_fc141af4527045 27,293-296,300-304,307,311-317,343-357,359-367,660
+server/table-client/arSeat.test.ts
+  s_9ed0da107cbc4a::t_3b37cf5b566b81 5,99-126
+server/table-client/arSeat.ts
+  s_9ed0da107cbc4a::t_778ebee9c24801 53-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "28995695aa5ea6265b52cf36d6d0869df89498d9",
+  "prompts": {},
+  "sessions": {
+    "s_9ed0da107cbc4a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c976551-ea94-4515-8c2a-adcb1b8a45d6",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
