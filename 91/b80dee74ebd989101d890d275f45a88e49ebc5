@@ -1,0 +1,21 @@
+server/src/table/routes.test.ts
+  s_e1c4165d82711d::t_a87afcf24411fe 216-238
+server/src/table/routes.ts
+  s_e1c4165d82711d::t_a87afcf24411fe 533-546,572,576-580
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "91b80dee74ebd989101d890d275f45a88e49ebc5",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
