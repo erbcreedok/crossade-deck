@@ -1,46 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
-import { dealMenu, MENU, menuOf, parseOrder, refusedSay, seatCard, seatMenu, started } from "./orders.js";
+import { dealMenu, MENU, menuOf, refusedSay, seatCard, seatMenu, started } from "./orders.js";
 
 const card: RoomCard = { room: "R".repeat(23), title: "Дурак", by: "tg:1", home: { kind: "chat", chat: "-1" }, people: [], seats: [], deck: { size: 36, jokers: false }, createdAt: 0, kind: "sandbox", crew: "sandbox", admins: [] };
 
 describe("команды комнаты в чате", () => {
-  it("крупье: сажается и уводится словом и кнопкой", () => {
-    expect(parseOrder("croupier", "")).toEqual({ t: "croupier", on: true });
-    expect(parseOrder("croupier", "убрать")).toEqual({ t: "croupier", on: false });
-    expect(parseOrder("croupier", "чепуха")).toBeNull();
+  it("крупье в меню не сажают", () => {
     // В МЕНЮ КРУПЬЕ НЕТ: в крестовом он есть всегда, и сажать его кнопкой незачем.
     const rows = menuOf(card).rows.flat();
     expect(rows.some((b) => b.text.includes("рупье") && "data" in b && b.data.startsWith("tbr:"))).toBe(false);
-  });
-
-  it("сборка и перемешивание — без слов", () => {
-    expect(parseOrder("collect", "")).toEqual({ t: "collect" });
-    expect(parseOrder("shuffle", "")).toEqual({ t: "shuffle" });
-    expect(parseOrder("shuffle", "всё")).toBeNull();
-  });
-
-  it("пресеты: колода отдельно, белка всегда 36", () => {
-    expect(parseOrder("durak", "")).toEqual({ t: "preset", game: "durak", size: 36 });
-    expect(parseOrder("krest", "52 jokers")).toEqual({ t: "preset", game: "krest", size: 52, jokers: true });
-    expect(parseOrder("belka", "")).toEqual({ t: "preset", game: "belka" });
-    expect(parseOrder("durak", "54")).toBeNull();
-  });
-
-  it("вид колоды: лица, рубашка или оба; чужое слово — подсказка", () => {
-    expect(parseOrder("deck", "minimal")).toEqual({ t: "look", faces: "minimal" });
-    expect(parseOrder("deck", "Plaid classic")).toEqual({ t: "look", faces: "classic", back: "plaid" });
-    expect(parseOrder("deck", "")).toBeNull();
-    expect(parseOrder("deck", "ink gothic")).toBeNull();
-  });
-
-  it("раздача: правило, раздающий и флаги", () => {
-    expect(parseOrder("deal", "3")).toEqual({ t: "deal", rule: "each", n: 3 });
-    expect(parseOrder("deal", "krest @Cemal -as-dealer -skip-empty")).toEqual({ t: "deal", rule: "krest", dealer: "@Cemal", asDealer: true, skipEmpty: true });
-    expect(parseOrder("deal", "durak -force")).toEqual({ t: "deal", rule: "durak", force: true });
-    expect(parseOrder("deal", "")).toBeNull();
-    expect(parseOrder("deal", "poker")).toBeNull();
-    expect(parseOrder("deal", "3 -wat")).toBeNull();
   });
 
   it("кнопки меню влезают в 64 байта callback_data и все ведут в команду", () => {

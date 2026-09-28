@@ -1,8 +1,8 @@
 // СТОЛЫ В TELEGRAM — команды, кнопки и inline-карточка стола. Бот здесь только управляет: столы
 // живут на сервере стола, а бот открывает, перечисляет, переименовывает и закрывает их по HTTP.
 //
-//   /table [название]   открыть стол в этом чате (группа или личка с ботом)
-//   /tables             столы этого чата — вход, переименовать, закрыть
+//   /room [название]    предложить комнату в этом чате: какую — кнопками, открывается по нажатию
+//   /rooms              комнаты этого чата — вход, переименовать, закрыть
 //   @бот в любой переписке — карточка нового стола (`inlineResults`)
 //
 // Дев-кит этого файла не касается: его команды и карточки живут в `index.ts` как жили.
@@ -12,8 +12,8 @@ import { mintRoom } from "../../../server/src/table/roomIds.js";
 import { deskNames } from "../../../server/src/table/desks.js";
 import type { TableApi } from "./api.js";
 import type { Home, RoomCard, TableCommand } from "../../../server/src/table/contract.js";
-import { dealMenu, MENU, menuOf, seatCard, seatMenu, ORDER_COMMANDS, ORDERS_HELP, parseOrder, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
-import { DOWN, askTitle, closed, gone, inlineOpened, inviteArticle, inviteExisting, KIND_RE, listed, mayManage, notOwner, notYours, opened, recast, renamed, roleSaid, type Button, type Links } from "./talk.js";
+import { dealMenu, MENU, menuOf, seatCard, seatMenu, pickForMenu, pickTable, refusedSay, started } from "./orders.js";
+import { DOWN, offerDropped, offerGone, offerRoom, askTitle, closed, gone, inlineOpened, inviteArticle, inviteExisting, KIND_RE, listed, mayManage, notOwner, notYours, opened, recast, renamed, roleSaid, type Button, type Links } from "./talk.js";
 import type { Registry } from "./registry.js";
 import type { Watch } from "./watch.js";
 import { installStickers } from "./stickers.js";
@@ -56,15 +56,36 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
   const inPrivate = (ctx: Context) => ctx.chat?.type === "private";
   const byOf = (ctx: Context) => `tg:${ctx.from!.id}`;
 
-  bot.command("table", async (ctx) => {
+  /** Предложенные `/room` комнаты: ждут нажатия того, кто спросил. */
+  const offers = new Map<string, { by: string; title?: string; at: number }>();
+  const OFFER_MS = 10 * 60_000;
+
+  bot.command("room", async (ctx) => {
+    const now = Date.now();
+    for (const [k, v] of offers) if (now - v.at > OFFER_MS) offers.delete(k);
+    const id = Math.random().toString(36).slice(2, 8);
+    const title = ctx.match.trim() || undefined;
+    offers.set(id, { by: byOf(ctx), ...(title ? { title } : {}), at: now });
+    const said = offerRoom(title, deskNames(), id);
+    await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
+  });
+
+  bot.callbackQuery(new RegExp(`^tbo:(no|${KIND_RE}):([a-z0-9]+)$`), async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const [, kind, id] = ctx.match as unknown as [string, string, string];
+    const offer = offers.get(id);
+    if (!offer || offer.by !== byOf(ctx)) return void (await ctx.reply(offerGone));
+    offers.delete(id);
+    if (kind === "no") return void (await ctx.editMessageText(offerDropped).catch(() => ctx.reply(offerDropped)));
     const at = await api.where();
     if (!at.up) return void (await ctx.reply(DOWN));
-    const card = await api.open(homeOf(ctx), byOf(ctx), ctx.match.trim() || undefined);
+    const card = await api.open(homeOf(ctx), offer.by, offer.title, undefined, kind);
     if (card === "down" || card === "missing") return void (await ctx.reply(DOWN));
     watch.remember(chatOf(ctx), card.room, card.title, at.boot);
-    registry.remember(card.room, { home: homeOf(ctx), by: byOf(ctx), title: card.title, kind: card.kind });
+    registry.remember(card.room, { home: homeOf(ctx), by: offer.by, title: card.title, kind: card.kind });
     const all = await api.list(chatOf(ctx));
     const said = opened(card, Array.isArray(all) ? all.length : 1, links, inPrivate(ctx));
+    if (await ctx.editMessageText(said.text, { reply_markup: keyboardOf(said.rows) }).catch(() => null)) return;
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
   });
 
@@ -100,7 +121,7 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
   });
 
-  bot.command("tables", async (ctx) => {
+  bot.command("rooms", async (ctx) => {
     // В ЛИЧКЕ — все столы этого человека, а не «столы этой лички»: там их не бывает вовсе.
     const cards = await tablesFor(ctx);
     if (cards === "down") return void (await ctx.reply(DOWN));
@@ -153,23 +174,10 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
   }
 
-  for (const name of ORDER_COMMANDS) {
-    bot.command(name, async (ctx) => {
-      const command = parseOrder(name, ctx.match);
-      if (!command) return void (await ctx.reply(ORDERS_HELP));
-      const cards = await tablesFor(ctx);
-      if (cards === "down") return void (await ctx.reply(DOWN));
-      if (cards.length === 0) return void (await ctx.reply("Здесь нет комнат. Открыть: /table [название]"));
-      if (cards.length === 1) return runAndSay(ctx, cards[0]!.room, command, byOf(ctx));
-      const said = pickTable(cards, park(command, byOf(ctx)));
-      await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
-    });
-  }
-
   bot.command("menu", async (ctx) => {
     const cards = await tablesFor(ctx);
     if (cards === "down") return void (await ctx.reply(DOWN));
-    if (cards.length === 0) return void (await ctx.reply("Здесь нет комнат. Открыть: /table [название]"));
+    if (cards.length === 0) return void (await ctx.reply("Здесь нет комнат. Открыть: /room [название]"));
     const said = cards.length === 1 ? menuOf(cards[0]!, deskNames(), byOf(ctx)) : pickForMenu(cards);
     await ctx.reply(said.text, { reply_markup: keyboardOf(said.rows) });
   });

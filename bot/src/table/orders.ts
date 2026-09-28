@@ -1,81 +1,12 @@
-// КОМАНДЫ СТОЛА В ЧАТЕ — слова и кнопки, без Telegram. Бот только переводит сообщение в `TableCommand`
+// МЕНЮ КОМНАТЫ В ЧАТЕ — слова и кнопки, без Telegram. Бот только переводит нажатие в `TableCommand`
 // и отдаёт серверу стола; решает сервер (админ ли, собраны ли карты, хватает ли их).
-//
-//   /collect                                  собрать всё крупье в руку
-//   /shuffle                                  перемешать
-//   /durak [36|52] [jokers]                   пресет: колода под дурака
-//   /krest [36|52] [jokers]                   пресет: колода под крестовый
-//   /belka                                    пресет: 36, стулья крестом, шестёрки на край
-//   /deal N|durak|krest|belka [@кто] [-skip-empty] [-as-dealer] [-force]
-//   /deck [classic|minimal] [plaid|argyle|club|lattice|crest|ink]   вид колоды на весь стол
-//   /menu                                     меню стола кнопками
 
-import { CARD_BACKS, CARD_FACES, type CardBack, type CardFaces, type DealRule, type Game, type RoomCard, type RunError, type SeatCard, type TableCommand } from "../../../server/src/table/contract.js";
+import { CARD_BACKS, CARD_FACES, type CardBack, type CardFaces, type Game, type RoomCard, type RunError, type SeatCard, type TableCommand } from "../../../server/src/table/contract.js";
 import type { Button, Said } from "./talk.js";
-
-export const ORDER_COMMANDS = ["collect", "shuffle", "durak", "krest", "belka", "deal", "deck", "croupier"] as const;
 
 /** Имена вида колоды словами — в кнопках и в ответе бота. */
 export const FACES_SAY: Record<CardFaces, string> = { classic: "Классика", minimal: "Минимал" };
 export const BACKS_SAY: Record<CardBack, string> = { plaid: "Плед", argyle: "Ромбы", club: "Трефы", lattice: "Решётка", crest: "Герб", ink: "Чернила" };
-export type OrderName = (typeof ORDER_COMMANDS)[number];
-
-/** Разобрать команду. `null` — слова не сложились, и бот отвечает подсказкой. */
-export function parseOrder(name: OrderName, args: string): TableCommand | null {
-  const words = args.trim().split(/\s+/).filter(Boolean).map((w) => w.toLowerCase());
-  const has = (...flags: string[]) => words.some((w) => flags.includes(w.replace(/^-+/, "")));
-  if (name === "collect" || name === "shuffle") return words.length === 0 ? { t: name } : null;
-  // КРУПЬЕ: без слов — посадить, «убрать» / «off» — увести. Убранный роняет карты на стол.
-  if (name === "croupier") {
-    if (words.length === 0) return { t: "croupier", on: true };
-    return has("убрать", "off", "нет", "no") ? { t: "croupier", on: false } : null;
-  }
-  if (name === "deck") {
-    const faces = CARD_FACES.find((f) => words.includes(f));
-    const back = CARD_BACKS.find((b) => words.includes(b));
-    if (!words.length || words.length !== Number(Boolean(faces)) + Number(Boolean(back))) return null;
-    return { t: "look", ...(faces ? { faces } : {}), ...(back ? { back } : {}) };
-  }
-  if (name === "durak" || name === "krest" || name === "belka") {
-    const size = words.includes("52") ? 52 : 36;
-    const jokers = has("jokers", "joker", "j", "джокеры", "джокер");
-    const unknown = words.filter((w) => !["36", "52"].includes(w) && !["jokers", "joker", "j", "джокеры", "джокер"].includes(w.replace(/^-+/, "")));
-    if (unknown.length) return null;
-    return name === "belka" ? { t: "preset", game: "belka" } : { t: "preset", game: name, size, ...(jokers ? { jokers: true } : {}) };
-  }
-  const [first, ...rest] = args.trim().split(/\s+/).filter(Boolean);
-  if (!first) return null;
-  const low = first.toLowerCase();
-  const rule: DealRule | null = /^\d+$/.test(low) ? "each" : low === "durak" || low === "krest" || low === "belka" ? low : null;
-  if (!rule) return null;
-  const n = rule === "each" ? Number(low) : undefined;
-  if (n !== undefined && (n < 1 || n > 54)) return null;
-  let dealer: string | undefined;
-  const out: Extract<TableCommand, { t: "deal" }> = { t: "deal", rule, ...(n ? { n } : {}) };
-  for (const w of rest) {
-    const flag = w.toLowerCase().replace(/^-+/, "");
-    if (w.startsWith("-") && flag === "skip-empty") out.skipEmpty = true;
-    else if (w.startsWith("-") && flag === "as-dealer") out.asDealer = true;
-    else if (w.startsWith("-") && flag === "force") out.force = true;
-    else if (/^\d+$/.test(w) && rule === "durak") out.n = Number(w);
-    else if (!w.startsWith("-") && dealer === undefined) dealer = w;
-    else return null;
-  }
-  return dealer ? { ...out, dealer } : out;
-}
-
-export const ORDERS_HELP = [
-  "Команды комнаты (только её админ):",
-  "/menu — меню комнаты кнопками",
-  "/collect — собрать всё крупье в руку (крупье за столом нет — в колоду)",
-  "/shuffle — перемешать",
-  "/durak [36|52] [jokers] — колода под дурака",
-  "/krest [36|52] [jokers] — колода под крестовый",
-  "/belka — белка: 36, стулья крестом, шестёрки на край",
-  "/deal N|durak|krest|belka [@кто раздаёт] [-skip-empty] [-as-dealer] [-force]",
-  "/croupier [убрать] — посадить крупье за стол или увести его (его карты лягут стопкой на стол)",
-  "/deck [classic|minimal] [plaid|argyle|club|lattice|crest|ink] — вид колоды на весь стол (или кнопками в /menu)",
-].join("\n");
 
 /** Кнопки меню: короткий код в `callback_data` → команда. */
 export const MENU: Record<string, { label: string; command: TableCommand }> = {

@@ -43,8 +43,21 @@ export function enterAll(room: string, links: Links, inPrivate: boolean, text = 
 
 const who = (card: RoomCard) => (card.people.length ? ` · внутри: ${card.people.map((p) => p.name).join(", ")}` : "");
 
+/**
+ * «/room» НЕ ОТКРЫВАЕТ КОМНАТУ СРАЗУ — сперва спрашивает, какую. Кнопка на каждый род из каталога и
+ * «Отмена»; комната заводится по нажатию, а `id` — короткий ключ ждущего выбора у бота.
+ */
+export function offerRoom(title: string | undefined, kinds: Array<{ id: string; name: string }>, id: string): Said {
+  return {
+    text: title ? `Открыть комнату «${title}» в этом чате? Выбери, во что играть:` : "Открыть комнату в этом чате? Выбери, во что играть:",
+    rows: [...kinds.map((k) => [{ text: k.name, data: `tbo:${k.id}:${id}` }]), [{ text: "Отмена", data: `tbo:no:${id}` }]],
+  };
+}
+export const offerGone = "Эта кнопка устарела — набери /room ещё раз.";
+export const offerDropped = "Хорошо, комнату не открываю.";
+
 export function opened(card: RoomCard, total: number, links: Links, inPrivate: boolean): Said {
-  const more = total > 1 ? `\nВ этом чате комнат: ${total} — список: /tables` : "";
+  const more = total > 1 ? `\nВ этом чате комнат: ${total} — список: /rooms` : "";
   return { text: `«${card.title}» открыта.${more}`, rows: cardRows(card.room, links, inPrivate) };
 }
 
@@ -54,7 +67,7 @@ export function opened(card: RoomCard, total: number, links: Links, inPrivate: b
  */
 export function listed(cards: RoomCard[], links: Links, inPrivate: boolean, me?: string): Said {
   if (cards.length === 0) {
-    return { text: inPrivate ? "Ты пока ни в одной комнате. Открыть: /table [название]" : "В этом чате комнат нет. Открыть: /table [название]", rows: [] };
+    return { text: inPrivate ? "Ты пока ни в одной комнате. Открыть: /room [название]" : "В этом чате комнат нет. Открыть: /room [название]", rows: [] };
   }
   const mine = (c: RoomCard) => me !== undefined && c.by === me;
   // ГДЕ СТОЛ ЖИВЁТ — в личке это важнее всего: столов много, и все они «где-то там».
@@ -108,7 +121,7 @@ export function mayManage(card: { room: string; by?: string } | undefined, by: s
 export function lost(titles: string[], why: "restart" | "down"): string {
   const list = titles.map((t) => `«${t}»`).join(", ");
   return why === "restart"
-    ? `Сервер перезапустился, комнаты закрылись: ${list}. Открыть новую: /table`
+    ? `Сервер перезапустился, комнаты закрылись: ${list}. Открыть новую: /room`
     : `Сервер выключился, комнаты закрылись: ${list}.`;
 }
 

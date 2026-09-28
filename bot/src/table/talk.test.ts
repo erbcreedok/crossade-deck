@@ -1,7 +1,7 @@
 import { deskNames } from "../../../server/src/table/desks.js";
 import { describe, expect, it } from "vitest";
 import type { RoomCard } from "../../../server/src/table/contract.js";
-import { cardRows, enter, inviteArticle, inviteExisting, KIND_RE, listed, mayManage, opened } from "./talk.js";
+import { cardRows, enter, inviteArticle, inviteExisting, KIND_RE, listed, mayManage, offerRoom, opened } from "./talk.js";
 
 const links = { anywhere: (r: string) => `https://t.me/bot/table?startapp=${r}`, app: (r: string) => `https://fly/t/?room=${r}`, native: () => null };
 const withApp = { ...links, native: (r: string) => `https://t.me/bot?start=app-${r}` };
@@ -67,6 +67,21 @@ describe("слова бота про комнаты", () => {
       ["Дурак", "Управлять", "Переименовать", "Закрыть"],
       ["Покер", "Управлять", "Переименовать", "Закрыть"],
     ]);
+  });
+});
+
+describe("/room: сперва спросить, потом открыть", () => {
+  it("кнопка на каждый род и «Отмена»; все влезают в callback_data и проходят разбор бота", () => {
+    const said = offerRoom("Пицца", deskNames(), "abc123");
+    expect(said.text).toContain("«Пицца»");
+    const all = said.rows.flat();
+    expect(all.at(-1)).toEqual({ text: "Отмена", data: "tbo:no:abc123" });
+    expect(all.length).toBe(deskNames().length + 1);
+    const re = new RegExp(`^tbo:(no|${KIND_RE}):([a-z0-9]+)$`);
+    for (const b of all) {
+      expect("data" in b && re.test(b.data)).toBe(true);
+      if ("data" in b) expect(Buffer.byteLength(b.data)).toBeLessThanOrEqual(64);
+    }
   });
 });
 

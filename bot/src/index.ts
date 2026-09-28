@@ -11,8 +11,8 @@ import { Watch } from "./table/watch.js";
 
 /** Что бот отвечает на голый /start: стол зовётся в переписку, а не выбирается из списка игр. */
 const START_SAID = [
-  "Стол живёт в переписке: набери @<бот> в любом чате и выбери, какой стол открыть — песочницу или крестовый.",
-  "Здесь же: /table — открыть стол в этом чате, /tables — твои столы.",
+  "Комната живёт в переписке: набери @<бот> в любом чате и выбери, какую открыть — песочницу или крестовый.",
+  "Здесь же: /room — открыть комнату в этом чате, /rooms — твои комнаты.",
 ].join("\n");
 
 const env = loadEnv();
@@ -189,21 +189,14 @@ async function main(): Promise<void> {
     { command: "start", description: "С чего начать" },
     ...(table
       ? [
-          { command: "table", description: "Открыть стол в этом чате: /table [название]" },
-          { command: "tables", description: "Столы этого чата" },
+          { command: "room", description: "Открыть комнату в этом чате: /room [название]" },
+          { command: "rooms", description: "Комнаты этого чата" },
           { command: "records", description: "Записи сыгранных партий — смотрит любой" },
-          { command: "app", description: "Открыть стол в приложении Crossade (в личке)" },
-          { command: "admin", description: "Все столы — для хозяина (в личке)" },
+          { command: "app", description: "Открыть комнату в приложении Crossade (в личке)" },
+          { command: "admin", description: "Все комнаты — для хозяина (в личке)" },
           { command: "sticker", description: "Добавить стикеры в свой набор (в личке)" },
           { command: "stickers", description: "Мой набор стикеров (в личке)" },
-          { command: "menu", description: "Меню стола: сбор, пресеты, раздачи" },
-          { command: "collect", description: "Собрать все карты крупье в руку" },
-          { command: "shuffle", description: "Перемешать колоду" },
-          { command: "durak", description: "Пресет дурака: /durak [36|52] [jokers]" },
-          { command: "krest", description: "Пресет крестового: /krest [36|52] [jokers]" },
-          { command: "belka", description: "Пресет белки: 36, стулья крестом, шестёрки на край" },
-          { command: "deal", description: "Раздать: /deal N|durak|krest|belka [@кто] [-skip-empty] [-as-dealer] [-force]" },
-          { command: "deck", description: "Вид колоды: /deck [classic|minimal] [plaid|argyle|club|lattice|crest|ink]" },
+          { command: "menu", description: "Меню комнаты: колода, раздача, рассадка" },
         ]
       : []),
   ]);
