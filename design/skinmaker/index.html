@@ -291,7 +291,8 @@ function solidWidth(img) {
   return got;
 }
 function basis(n, fwd) {
-  const up = Math.abs(n[2]) > 0.9 ? fwd : [0, 0, 1];
+  // Сверху и снизу фигура на рисунке обращена к НИЗУ картинки (так рисуют вид сверху): верх картинки — её спина.
+  const up = Math.abs(n[2]) > 0.9 ? mul(fwd, -1) : [0, 0, 1];
   return { up: norm(sub(up, mul(n, dot(up, n)))), across: norm(cross(mul(n, -1), up)) };
 }
 function render() {
@@ -324,7 +325,9 @@ function render() {
     // своего ракурса, и под углом она сужается.
     const n = sidesOf(p) === 1 ? norm([toEye[0], toEye[1], Math.abs(toEye[2]) > 0.9 ? toEye[2] : 0]) : turnZ(p.views[view], turn);
     const { up, across } = basis(n, turnZ([0, 1, 0], turn));
-    const hh = (h ?? (w * img.height) / img.width), top = add(center, mul(up, hh * pivotTop));
+    // Сверху и снизу часть лежит плашмя центром на своей точке — плечи вокруг головы, а не позади неё.
+    const flat = Math.abs(n[2]) > 0.9;
+    const hh = (h ?? (w * img.height) / img.width), top = add(center, mul(up, hh * (flat ? 0.5 : pivotTop)));
     const ac = mul(across, d.mirror ? -1 : 1);
     const tl = add(top, mul(ac, -w / 2)), tr = add(top, mul(ac, w / 2)), bl = add(tl, mul(up, -hh));
     quads.push({ img, tl, tr, bl, at: add(tl, add(mul(ac, w / 2), mul(up, -hh / 2))), slot });
