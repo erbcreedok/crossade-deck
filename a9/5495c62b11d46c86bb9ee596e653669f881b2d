@@ -1,0 +1,38 @@
+server/src/table/hostPage.ts
+  s_e1c4165d82711d::t_1573c12c355de1 8-13
+  s_e1c4165d82711d::t_6eab4fbb765936 1-7
+deploy/relay-worker/wrangler.toml
+  s_e1c4165d82711d::t_bd4e3b57dbbf24 1-10
+native/ios-table/Sources/App.swift
+  s_e1c4165d82711d::t_ba340634b53245 35
+server/src/table/routes.test.ts
+  s_e1c4165d82711d::t_fa6b8596dcecc2 13-14
+  s_e1c4165d82711d::t_b984b20427daff 205-218
+server/src/table/routes.ts
+  s_e1c4165d82711d::t_1573c12c355de1 14,506
+  s_e1c4165d82711d::t_b984b20427daff 553-560
+server/src/table/config.ts
+  s_e1c4165d82711d::t_b984b20427daff 8
+server/src/table/relayWorker.ts
+  s_e1c4165d82711d::t_05d8bd9df5de72 1-135
+deploy/relay-worker/index.ts
+  s_e1c4165d82711d::t_a3d8bb3d3a0862 1-9
+server/src/table/relayWorker.test.ts
+  s_e1c4165d82711d::t_26ec189fbc21b0 1-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a95495c62b11d46c86bb9ee596e653669f881b2d",
+  "prompts": {},
+  "sessions": {
+    "s_e1c4165d82711d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2650f398-2f97-4506-909a-968102eab9ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
