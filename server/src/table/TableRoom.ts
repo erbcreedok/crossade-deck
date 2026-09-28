@@ -295,7 +295,10 @@ export class TableRoom extends Room {
     this.onMessage(MSG.hello, (client) => {
       const me = this.personOf(client.sessionId);
       if (!me) return;
-      client.send(MSG.welcome, this.welcomeFor(me));
+      const welcome = this.welcomeFor(me);
+      // ПРИВЕТСТВИЕ В ЖУРНАЛ — когда дошло «hello» и сколько весит ответ: медленный вход разбирается по нему.
+      this.book.tell("hello", me.key, { kb: Math.round(JSON.stringify(welcome).length / 1024) });
+      client.send(MSG.welcome, welcome);
       // ИГРОКИ БЕЗ ЧЕЛОВЕКА — СРАЗУ ЗА ПРИВЕТСТВИЕМ. Это состояние стола, а не новость: пока оно
       // рассылалось только по событию, обновивший страницу не знал, что за стулом машина, — значок
       // пропадал, а вместе с ним и кнопки распорядителя под её рукой, до первой же её мысли.

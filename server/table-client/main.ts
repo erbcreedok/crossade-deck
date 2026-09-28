@@ -8,7 +8,7 @@ import { mountLogin } from "./login.js";
 import { menuUrl, nativeShell } from "./arNative.js";
 import { ROOM_CLOSED, STALE_CLIENT, type JoinOptions } from "../src/table/contract.js";
 import { localStore } from "./localStore.js";
-import { netStore } from "./netStore.js";
+import { linkLog, netStore } from "./netStore.js";
 import { loadingCross } from "../../look/src/loading.js";
 import { mountGround } from "./ground.js";
 import { startFullscreen, type FullscreenApp } from "./fullscreen.js";
@@ -135,6 +135,7 @@ function bootStages(): Record<string, unknown> {
     ...(nav ? { dns: r(nav.domainLookupEnd), tls: r(nav.connectEnd), ttfb: r(nav.responseStart), html: r(nav.responseEnd), dom: r(nav.domInteractive) } : {}),
     ...(js ? { js: [r(js.startTime), r(js.responseEnd)], jsCached: js.transferSize === 0, jsKb: Math.round(js.transferSize / 1024) } : {}),
     ...marks,
+    ...(linkLog.length ? { link: linkLog } : {}),
   };
 }
 

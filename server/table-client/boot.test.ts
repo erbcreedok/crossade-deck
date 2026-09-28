@@ -6,6 +6,7 @@
 // держится в согласии памятью. Правка креста в `look` роняет этот тест — вставить строку заново.
 
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "fs";
 import { loadingMarkup } from "../../look/src/loading.js";
 // Текстом, а не через `fs`: у клиента стола нет типов Node, он живёт в браузере (`raw.d.ts`).
 import PAGE from "./index.html?raw";
@@ -24,6 +25,11 @@ describe("table.the-cross-is-in-the-page", () => {
     const block = PAGE.slice(at, script);
     expect(block.includes("url("), "без картинок").toBe(false);
     expect(block.includes("<img"), "без картинок").toBe(false);
+  });
+
+  it("заставка приложения — тот же крест из look, с подписью «Загружаю Crossade»", () => {
+    const swift = readFileSync(new URL("../../native/ios-table/Sources/App.swift", import.meta.url), "utf8");
+    expect(swift).toContain(`static let splashMarkup = ${JSON.stringify(loadingMarkup("Загружаю Crossade"))}`);
   });
 
   it("скрипт подхватывает его, а не поднимает второй", () => {

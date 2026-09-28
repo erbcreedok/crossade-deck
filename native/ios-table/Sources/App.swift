@@ -40,6 +40,13 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
         + "login: function (from) { window.webkit.messageHandlers.crossade.postMessage({ login: true, from: from ? String(from) : \"\" }); }, "
         + "surface: function () { window.webkit.messageHandlers.crossade.postMessage({ surface: true }); } };"
 
+    /**
+     * ЗАСТАВКА ПРИЛОЖЕНИЯ — тот же крест, что у страницы (`look/src/loading.ts`, `loadingMarkup`), с подписью
+     * «Загружаю Crossade»: висит, пока едет страница, и уходит, когда та пришла (дальше говорит её крест).
+     * Строка — ровно `loadingMarkup("Загружаю Crossade")`; `server/table-client/boot.test.ts` сверяет.
+     */
+    static let splashMarkup = "<style id=\"crossade-loading\">\n.crossade-loading {\n  position: absolute; inset: 0; z-index: 7;\n  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;\n  background: #173d2d; transition: opacity 220ms ease;\n  pointer-events: auto; touch-action: none;\n}\n.crossade-loading.gone { opacity: 0; pointer-events: none; }\n.crossade-loading svg { width: 96px; height: 96px; }\n.crossade-loading .line {\n  fill: none; stroke: #e0483f; stroke-width: 5;\n  stroke-linecap: round; stroke-linejoin: round;\n  stroke-dasharray: 0 1; animation: crusade 1000ms infinite;\n}\n.crossade-loading .said {\n  font: 600 13px/1.2 ui-sans-serif, system-ui, sans-serif;\n  letter-spacing: .14em; text-transform: uppercase; color: #cdb98f;\n}\n@keyframes crusade {\n  0%    { stroke-dasharray: 0 1; stroke-dashoffset: 0;  stroke-opacity: 1; animation-timing-function: cubic-bezier(.65, 0, .35, 1); }\n  40%   { stroke-dasharray: 1 1; stroke-dashoffset: 0;  animation-timing-function: linear; }\n  50%   { stroke-dasharray: 1 1; stroke-dashoffset: 0;  animation-timing-function: cubic-bezier(.65, 0, .35, 1); }\n  89.5% { stroke-opacity: 1; }\n  90%   { stroke-dasharray: 0 1; stroke-dashoffset: -1; stroke-opacity: 0; animation-timing-function: linear; }\n  100%  { stroke-dasharray: 0 1; stroke-dashoffset: -1; stroke-opacity: 0; }\n}\n@media (prefers-reduced-motion: reduce) {\n  .crossade-loading .line { animation: none; stroke-dasharray: none; }\n}\n</style><div class=\"crossade-loading\" data-baked><svg viewBox=\"-8 -8 116 116\" aria-hidden=\"true\"><path class=\"line\" pathLength=\"1\" d=\"M50 0 L80 0 L66 34 L100 20 L100 80 L66 66 L80 100 L20 100 L34 66 L0 80 L0 20 L34 34 L20 0 Z\"/></svg><div class=\"said\">Загружаю Crossade</div></div>"
+    let splash = WKWebView()
     let camera = ARSCNView()
     var web: WKWebView!
     let note = UILabel()
@@ -78,6 +85,15 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
         web.navigationDelegate = self
         if #available(iOS 16.4, *) { web.isInspectable = true }
         view.addSubview(web)
+
+        splash.frame = view.bounds
+        splash.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        splash.isUserInteractionEnabled = false
+        splash.scrollView.isScrollEnabled = false
+        splash.isOpaque = false
+        splash.backgroundColor = .clear
+        splash.loadHTMLString("<!doctype html><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><body style=\"margin:0;height:100vh;position:relative\">" + Self.splashMarkup, baseURL: nil)
+        view.addSubview(splash)
 
         note.frame = view.bounds.insetBy(dx: 32, dy: 0)
         note.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -157,14 +173,17 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
         let keep = UserDefaults.standard
         if keep.string(forKey: "key") != nil { return load(room: nil, pass: nil) }
         if let room = keep.string(forKey: "room"), let pass = keep.string(forKey: "pass") { return load(room: room, pass: pass) }
+        splash.isHidden = true
         note.text = "Открой комнату ссылкой из Telegram: кнопка «В приложении» у бота или /app в личке с ним."
     }
 
     /** `room` нет — «Мои комнаты»; `pass` нет — входим ключом. */
     func load(room: String?, pass: String?) {
         loadViewIfNeeded()
-        // Пока страница едет — своя подпись; пришла — дальше говорит её собственный крест.
-        note.text = "Загружаю Crossade"
+        // Пока страница едет — заставка приложения; пришла — дальше говорит её собственный крест.
+        note.text = nil
+        splash.alpha = 1
+        splash.isHidden = false
         setAr(false)
         var items: [URLQueryItem] = []
         if let room { items.append(URLQueryItem(name: "room", value: room)) } else { items.append(URLQueryItem(name: "rooms", value: "")) }
@@ -203,10 +222,15 @@ final class TableController: UIViewController, WKScriptMessageHandler, WKUIDeleg
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor { view.window ?? ASPresentationAnchor() }
 
-    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) { note.text = nil }
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        UIView.animate(withDuration: 0.22, delay: 0.15, animations: { self.splash.alpha = 0 }, completion: { _ in self.splash.isHidden = true })
+    }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { failed(error) }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failed(error) }
-    func failed(_ error: Error) { note.text = "Комната не открылась: \(error.localizedDescription)" }
+    func failed(_ error: Error) {
+        splash.isHidden = true
+        note.text = "Комната не открылась: \(error.localizedDescription)"
+    }
 
     // Голос за столом — микрофон странице без второго вопроса: приложение уже спросило своё.
     @available(iOS 15.0, *)

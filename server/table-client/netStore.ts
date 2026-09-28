@@ -27,6 +27,15 @@ const RETRY_MS = [300, 1000, 2000, 4000, 8000, 8000, 8000, 8000, 8000];
 
 type Listener = (msg: never) => void;
 
+/**
+ * ЖУРНАЛ СВЯЗИ ПРИ ВХОДЕ — что происходило с сокетом и когда (мс от начала страницы): вошли, пришло
+ * приветствие, сокет упал (с кодом), повтор не удался. Уходит в запись `boot` (`main.ts`).
+ */
+export const linkLog: [number, string][] = [];
+const logLink = (what: string): void => {
+  if (linkLog.length < 40) linkLog.push([Math.round(performance.now()), what]);
+};
+
 export async function netStore(options: JoinOptions): Promise<TableStore> {
   const endpoint = HOST.replace(/^http/, "ws");
   const join = () => new Client(endpoint).joinOrCreate(TABLE_ROOM, { ...options, protocol: PROTOCOL } satisfies JoinOptions);
@@ -216,6 +225,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
   let welcomed: (() => void) | null = null;
   listen<Welcome>(MSG.welcome, (msg) => {
     welcome = msg;
+    logLink("welcome");
     if (Number.isFinite(msg.now)) skew = msg.now - Date.now();
     state = msg.snapshot;
     carries = new Map((msg.carries ?? []).map((c) => [c.id, c]));
@@ -232,6 +242,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
   function attach(next: Room): void {
     room = next;
     up = true;
+    logLink("join");
     for (const type of Object.values(MSG)) {
       next.onMessage(type, (msg: never) => {
         for (const listener of heard.get(type) ?? []) listener(msg);
@@ -240,6 +251,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     next.onLeave((code) => {
       if (next !== room) return;
       up = false;
+      logLink(`leave:${code}`);
       if (code === CLOSED_BY_SERVER) return void gone.forEach((listener) => listener());
       void comeBack();
     });
@@ -254,7 +266,8 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
         attach(await join());
         for (const listener of linked) listener(true);
         return;
-      } catch {
+      } catch (err) {
+        logLink(`retry-fail:${String((err as Error)?.message ?? err).slice(0, 40)}`);
         // Сети ещё нет или сервер поднимается — следующая попытка.
       }
     }
@@ -262,6 +275,7 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
   }
 
   const first = new Promise<void>((resolve) => (welcomed = resolve));
+  logLink("connect");
   attach(await join());
   await first;
   welcomed = null;
