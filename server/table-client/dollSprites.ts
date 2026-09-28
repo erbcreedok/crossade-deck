@@ -27,7 +27,6 @@ export interface DollSprite {
 const svgs = new Map<Doll, Promise<string>>();
 const baked = new Map<string, Record<Part, HTMLCanvasElement>>();
 const urls = new Map<string, DollSprite>();
-const pending = new Set<string>();
 
 const decode = async (src: string): Promise<HTMLImageElement> => {
   const img = new Image();
@@ -128,30 +127,47 @@ async function bake(doll: Doll, palette: number, base: string): Promise<Record<P
   return { head, body, headBack: backOf(head, 0.9), bodyBack: backOf(body, 0.8) };
 }
 
+const PARTS: Part[] = ["head", "body", "headBack", "bodyBack"];
+const making = new Map<string, Promise<void>>();
+
+/** Испечь один кусок (или дождаться уже идущей печки). Не испёкся — промис всё равно выполняется. */
+function make(doll: Doll, palette: number, part: Part, ink: string, base: string): Promise<void> {
+  const key = `${doll}|${palette}|${part}|${ink}`;
+  if (urls.has(key)) return Promise.resolve();
+  const was = making.get(key);
+  if (was) return was;
+  const set = `${doll}|${palette}`;
+  const job = (async () => {
+    try {
+      if (!baked.has(set)) baked.set(set, await bake(doll, palette, base));
+      const canvas = outlined(baked.get(set)![part], ink);
+      const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, "image/png"));
+      if (blob) urls.set(key, { src: URL.createObjectURL(blob), w: canvas.width, h: canvas.height });
+    } catch {
+      // Не испеклась (нет сети, старый сервер без векторов) — остаётся простая фигура.
+    } finally {
+      making.delete(key);
+    }
+  })();
+  making.set(key, job);
+  return job;
+}
+
+/**
+ * ЗАРАНЕЕ, ПРИ ВХОДЕ В КОМНАТУ: все четыре куска куклы этого человека. Заставка ждёт их, и кукла
+ * появляется сразу собой, а не палкой, которую потом сменяет картинка.
+ */
+export function warmDoll(doll: Doll, palette: number, ink: string, base: string): Promise<void> {
+  return Promise.all(PARTS.map((part) => make(doll, palette, part, ink, base))).then(() => {});
+}
+
 /**
  * Картинка куклы: кусок `part` куклы `doll` в расцветке `palette`, обведённый цветом `ink`. Не готова —
  * `null`, а печься она начнёт сейчас и по готовности позовёт `ready`.
  */
 export function dollSprite(doll: Doll, palette: number, part: Part, ink: string, base: string, ready: () => void): DollSprite | null {
-  const key = `${doll}|${palette}|${part}|${ink}`;
-  const got = urls.get(key);
+  const got = urls.get(`${doll}|${palette}|${part}|${ink}`);
   if (got) return got;
-  if (pending.has(key)) return null;
-  pending.add(key);
-  const set = `${doll}|${palette}`;
-  void (async () => {
-    try {
-      if (!baked.has(set)) baked.set(set, await bake(doll, palette, base));
-      const canvas = outlined(baked.get(set)![part], ink);
-      const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, "image/png"));
-      if (!blob) return;
-      urls.set(key, { src: URL.createObjectURL(blob), w: canvas.width, h: canvas.height });
-      ready();
-    } catch {
-      // Не испеклась (нет сети, старый сервер без векторов) — остаётся простая фигура.
-    } finally {
-      pending.delete(key);
-    }
-  })();
+  void make(doll, palette, part, ink, base).then(ready);
   return null;
 }

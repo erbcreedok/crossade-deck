@@ -55,7 +55,7 @@ const CARRY_SHADOW = 0.3;
 
 import { baseZoom, freshNeck, headAt, neckStep, risesAt } from "./neck.js";
 import { bodiesHtml, dollPose } from "./bodyView.js";
-import { dollSprite } from "./dollSprites.js";
+import { dollSprite, warmDoll } from "./dollSprites.js";
 import { dollFor, type Doll, type DollLook } from "../src/table/dolls.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, VOICE_OPEN, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
 
@@ -5344,8 +5344,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     face(p);
     return settled(images[p.key]!);
   });
+  // И КУКЛЫ ВСЕХ В КОМНАТЕ — испечены до конца заставки (`dollSprites.ts`).
+  const dolls = store.state.people.map((p) => { const d = dollOf(p); return warmDoll(d.doll, d.palette, p.ink, HOST); });
   return {
-    ready: Promise.all([art.warm(store.state.rules), document.fonts?.ready, ...photos]).then(() => {}),
+    ready: Promise.all([art.warm(store.state.rules), document.fonts?.ready, ...photos, ...dolls]).then(() => {}),
     // ОКОШКО ДЛЯ ЖУРНАЛА: правда о звуке и о дошедшем голосе. Экран её не отправляет и о журнале не
     // знает — только отвечает, когда спросят.
     health: { sound: () => sound.health, voice: () => mesh.stats(), links: () => mesh.links() },

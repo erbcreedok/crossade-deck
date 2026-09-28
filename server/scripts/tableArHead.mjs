@@ -1,6 +1,7 @@
 // В AR ГОЛОВА — ТЕЛЕФОН: A держит стол в приложении и обходит его с телефоном, B смотрит обычным экраном.
 // У B голова A едет туда, где стоит телефон A, а не остаётся там, где A оставил пальцевую камеру.
 //   TABLE_SECRET=probe TABLE_GUESTS=1 PORT=2597 npx tsx src/index.ts
+// И куклы печётся до конца заставки: вошёл — все уже собой.
 //   node scripts/tableArHead.mjs [base] [secret]
 import { createHmac, randomBytes } from "crypto";
 import { createRequire } from "module";
@@ -25,7 +26,21 @@ const open = async (name, native) => {
   return p;
 };
 const A = await open("A", true);
-const B = await open("B", false);
+// КУКЛЫ ИСПЕЧЕНЫ ДО КОНЦА ЗАСТАВКИ: в первый же кадр без неё A у B — кукла, а не простая фигура.
+const B = await browser.newPage({ viewport: { width: 390, height: 844 } });
+await B.addInitScript(() => {
+  new MutationObserver(() => {
+    const cover = document.querySelector(".crossade-loading");
+    if (window.__firstSeen === undefined && (!cover || cover.classList.contains("gone")) && document.querySelector("[data-section]")) {
+      window.__firstSeen = document.querySelector('[data-g="body"][data-name="A"]')?.dataset.model ?? "нет тела";
+    }
+  }).observe(document, { subtree: true, childList: true, attributes: true });
+});
+await B.goto(`${base}/table/?room=${room}&name=B`);
+await B.waitForSelector("[data-section]");
+await B.waitForTimeout(800);
+const first = await B.evaluate(() => window.__firstSeen);
+check("заставка сошла — A у B уже кукла (испечена заранее)", first === "king" || first === "queen", first);
 const down = (deg) => [Math.sin((-deg * Math.PI) / 360), 0, 0, Math.cos((deg * Math.PI) / 360)];
 const frame = (pos) => A.evaluate(([q, x]) => window.__arFrame(q[0], q[1], q[2], q[3], x[0], x[1], x[2], 62, 1), [down(50), pos]);
 const yawOfA = () => B.evaluate(() => { const y = document.querySelector('[data-g="body"][data-name="A"]')?.dataset.yaw; return y === undefined ? null : Number(y); });
