@@ -53,7 +53,6 @@ const ART_NAMES = { court: "колода", file: "файлы", draw: "код", p
 const CSS = `
 .sg { max-width: 980px; margin: 0 auto; padding: 12px 16px 40px; }
 .sg .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
-.sg .bar input[type=search] { flex: 1 1 180px; font: inherit; font-size: 15px; color: var(--ink); background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 0; }
 .sg .chip { font: inherit; font-size: 13px; color: var(--ink); background: #22282a; border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; cursor: pointer; }
 .sg .chip.on { background: var(--gold); color: #0b0704; border-color: var(--gold); font-weight: 600; }
 .sg .add { font: inherit; font-size: 14px; font-weight: 600; color: #0b0704; background: var(--gold); border: 1px solid var(--gold); border-radius: 10px; padding: 8px 14px; cursor: pointer; }
@@ -69,8 +68,17 @@ const CSS = `
 .sg .cell b { font-size: 11.5px; font-weight: 500; text-align: center; line-height: 1.25; overflow-wrap: anywhere; }
 .sg .cell i { font-size: 10.5px; color: var(--dim); font-style: normal; text-align: center; }
 .sg .chip small { opacity: .7; margin-left: 3px; }
-.sg .qbox { flex: 1 1 220px; min-width: 0; display: flex; }
-.sg .qbox input { flex: 1; min-width: 0; font: inherit; font-size: 15px; color: var(--ink); background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.sg .qbox { flex: 1 1 220px; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; position: relative; background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; cursor: text; }
+.sg .qbox:focus-within { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+.sg .qbox input:focus-visible { outline: none; }
+.sg .qchips { display: contents; }
+.sg .qbox .qclear { font: inherit; font-size: 12px; color: var(--dim); background: none; border: 0; cursor: pointer; padding: 2px 4px; }
+.sg .qlist { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; right: 0; max-height: 60vh; overflow: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.sg .qg + .qg { margin-top: 8px; }
+.sg .qh { font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+.sg .qrow { display: flex; flex-wrap: wrap; gap: 5px; }
+.sg .qmore { font-size: 12px; color: var(--dim); align-self: center; }
+.sg .qbox input { flex: 1 1 120px; min-width: 100px; font: inherit; font-size: 15px; color: var(--ink); background: transparent; border: 0; outline: none; padding: 5px 4px; }
 .sg .drops { gap: 6px; }
 .sg .drop { position: relative; }
 .sg .dbtn { font: inherit; font-size: 13px; color: var(--ink); background: #22282a; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -163,6 +171,11 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   /** Подпись значения; у тегов значение и есть подпись («~» — без тегов). */
   const labelOf = (id: string, v: string) => (id === "gt" ? (v === "~" ? "без-тегов" : v) : keyOf(id).values!.find(([code]) => code === v)?.[1] ?? v);
   const norm = (t: string) => t.toLowerCase().replace(/ё/g, "е").replace(/[\s_]+/g, "-");
+  /** Набрано в другой раскладке — «rjhjkm» это «король». */
+  const EN = "qwertyuiop[]asdfghjkl;'zxcvbnm,.`", RU = "йцукенгшщзхъфывапролджэячсмитьбюё";
+  const swap = (t: string) => [...t.toLowerCase()].map((c) => { const i = EN.indexOf(c); if (i >= 0) return RU[i]!; const j = RU.indexOf(c); return j >= 0 ? EN[j]! : c; }).join("");
+  /** Подходит ли текст `h` под набранное `w`: подстрока, с «ё» = «е», в любой раскладке. */
+  const fits = (h: string, w: string) => { const H = norm(h), W = norm(w); return H.includes(W) || H.includes(norm(swap(w))); };
   /** Значение из слова: код или подпись (регистр, пробел/дефис — не важны). */
   const valueOf = (id: string, word: string, pool: Shown[]): string | null => {
     const w = norm(word.replace(/^"|"$/g, ""));
@@ -177,7 +190,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   let query = route("gq") ?? "";
   let palette = Math.max(0, Math.min(PALETTES.length - 1, Math.round(routeNum("gp", 0))));
   const filterText = () => [...chosen].filter(([, v]) => v.size).map(([id, v]) => `${keyOf(id).key}:${[...v].map((x) => (labelOf(id, x).includes(" ") ? `"${labelOf(id, x)}"` : labelOf(id, x))).join(",")}`).join(" ");
-  const remember = () => put({ gf: filterText(), gq: query, gp: palette || null });
+  const remember = () => put({ gf: filterText(), gq: query, gw2: terms.join("|"), gp: palette || null });
   /** Перекрашивается ли расцветкой: PNG — нет; SVG — если в нём есть цвета колоды; встроенная — как её деталь. */
   const paints = (s: Shown): boolean => {
     if (s.built) return s.built.recolor && s.built.art !== "png";
@@ -212,9 +225,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   };
 
   root.innerHTML = `<div class="sg"><div data-list>
-    <div class="bar"><div class="qbox"><input type="search" data-q placeholder="Поиск по имени и тегам" aria-label="Поиск по имени и тегам" autocapitalize="off" autocomplete="off" spellcheck="false"></div><button class="add" data-add>Загрузить</button><input type="file" data-file accept=".svg,image/svg+xml,image/png" multiple hidden></div>
-    <div class="bar drops" data-drops></div>
-    <div class="bar" data-chips></div>
+    <div class="bar"><div class="qbox" data-qbox><span class="qchips" data-chips></span><input type="search" data-q placeholder="Поиск: голова, svg, король, agy…" aria-label="Поиск и фильтр" autocapitalize="off" autocomplete="off" spellcheck="false"><div class="qlist" data-qlist hidden></div></div><button class="add" data-add>Загрузить</button><input type="file" data-file accept=".svg,image/svg+xml,image/png" multiple hidden></div>
     <div class="bar into" data-into></div>
     <div class="bar" data-pals></div>
     <div class="said" data-said></div>
@@ -223,10 +234,9 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   </div><div data-page hidden></div></div>`;
   const grid = root.querySelector<HTMLElement>("[data-grid]")!;
   const q = root.querySelector<HTMLInputElement>("[data-q]")!;
-  const drops = root.querySelector<HTMLElement>("[data-drops]")!;
-  /** Какая выпадашка открыта — её id ключа — и что набрано в поиске тегов внутри неё. */
-  let openDrop: string | null = null;
-  let dropFind = "";
+  const qlist = root.querySelector<HTMLElement>("[data-qlist]")!;
+  /** Слова, закреплённые чипами (Enter по свободному тексту), — ищутся везде, как и то, что сейчас в поле. */
+  const terms: string[] = (route("gw2") ?? "").split("|").filter(Boolean);
   /** Разобрать написанное: условия — в чипы, остальное — поиск. `keepLast` — последнее слово ещё набирается. */
   const take = (text: string, keepLast: boolean): string => {
     const words = text.match(/[^\s"]*"[^"]*"\S*|\S+/g) ?? [];
@@ -248,14 +258,40 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   // Из адреса — выбранное и поиск.
   take(route("gf") ?? "", false);
   q.value = query;
-  const apply = (keepLast: boolean) => {
-    const left = take(q.value, keepLast);
-    if (left !== q.value) q.value = left;
-    query = q.value.split(/\s+/).filter((w) => w && !w.includes(":")).join(" ").toLowerCase();
+  // ОДНО ПОЛЕ: набранное ищется сразу по всему, что есть у картинки; под полем — список всех вариантов по группам
+  // (деталь, сторона, формат, откуда, красится, теги) со счётчиками, набранное его сужает; тап — вариант становится
+  // чипом. Enter — набранное становится чипом (вариант, если он один подходит, иначе — слово поиска).
+  q.oninput = () => { query = q.value.trim(); drawGrid(); openList(); };
+  q.onfocus = q.onclick = () => openList();
+  q.onblur = () => setTimeout(() => { if (document.activeElement !== q) qlist.hidden = true; }, 150);
+  const qbox = root.querySelector<HTMLElement>("[data-qbox]")!;
+  qbox.onclick = (e) => { if (e.target === qbox) q.focus(); };
+  // Тап мимо поля — список закрыт сразу, до того как тап дойдёт до того, что под ним.
+  document.addEventListener("pointerdown", (e) => { if (!qbox.contains(e.target as Node)) qlist.hidden = true; }, true);
+  q.onkeydown = (e) => {
+    if (e.key === "Escape") { qlist.hidden = true; return; }
+    // Backspace в пустом поле — убрать последний чип.
+    if (e.key === "Backspace" && !q.value) {
+      if (terms.length) terms.pop();
+      else { const last = [...chosen].filter(([, v]) => v.size).pop(); if (last) { const vals = [...last[1]]; last[1].delete(vals[vals.length - 1]!); } }
+      drawGrid();
+      openList();
+      return;
+    }
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    // «ключ:значение» — как раньше, чипом; что осталось — вариантом или словом поиска.
+    const text = take(q.value.trim(), false).trim();
+    if (!text) { q.value = ""; query = ""; drawGrid(); qlist.hidden = true; return; }
+    const hits = listItems().filter((x) => fits(x.label, text));
+    const exact = hits.find((x) => norm(x.label) === norm(text)) ?? (hits.length === 1 ? hits[0] : undefined);
+    if (exact) pick(exact.id, exact.v);
+    else terms.push(text);
+    q.value = "";
+    query = "";
     drawGrid();
+    qlist.hidden = true;
   };
-  q.oninput = () => apply(true);
-  q.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); apply(false); } };
   const pals = root.querySelector<HTMLElement>("[data-pals]")!;
   const drawPals = () => {
     pals.innerHTML = PALETTES.slice(0, 8).map((p, k) => `<button class="chip pal${k === palette ? " on" : ""}" data-gpal="${k}" title="${esc(p.name)}"><i style="background:${p.red}"></i><i style="background:${p.blue}"></i><i style="background:${p.gold}"></i></button>`).join("");
@@ -285,66 +321,63 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
 
   /** Выбрано ровно одно значение ключа — какое (для загрузки). */
   const one = (id: string): string | null => { const v = chosen.get(id); return v && v.size === 1 ? [...v][0]! : null; };
-  const byQuery = (s: Shown) => !query || query.split(" ").every((w) => s.name.toLowerCase().includes(w) || s.tags.some((t) => t.toLowerCase().includes(w)));
+  /** Всё, что у картинки можно найти: имя, теги, деталь, сторона, откуда, формат, красится ли. */
+  const hay = (s: Shown): string => norm([s.name, ...s.tags, KIND_ONE[s.slot], s.side ? SIDE_NAMES[s.side] ?? s.side : "без стороны", s.own ? ORIGIN_NAMES[s.own.origin] : `встроенный ${labelOf("gw", s.built!.art)}`, labelOf("gf", keyOf("gf").of(s)[0]!), paints(s) ? "красится" : "не красится"].join(" "));
+  const byQuery = (s: Shown) => { const h = hay(s); return [...terms, ...query.split(/\s+/)].filter(Boolean).every((w) => fits(h, w)); };
   /** Проходит ли картинка все условия, кроме ключа `skip`. */
   const passes = (s: Shown, skip = "") => KEYS.every((k) => { const v = chosen.get(k.id); return k.id === skip || !v?.size || k.of(s).some((x) => v.has(x)); }) && byQuery(s);
 
   /** Чипы выбранного и подсказки к тому, что набирается: ключи — а после двоеточия значения со счётчиками. */
   function drawShelves(pool: Shown[]): void {
     const chips = root.querySelector<HTMLElement>("[data-chips]")!;
-    chips.innerHTML = [...chosen].filter(([, v]) => v.size).map(([id, v]) => `<span class="fchip" data-chip="${id}"><b>${keyOf(id).key}:</b>${[...v].map((x) => `<button class="fval" data-chip-v="${esc(x)}" title="убрать">${esc(labelOf(id, x))} ×</button>`).join("")}<button class="fx" data-x title="убрать условие">×</button></span>`).join("")
-      + ([...chosen.values()].some((v) => v.size) ? `<button class="chip" data-clear>сбросить всё</button>` : "");
+    chips.innerHTML = [...chosen].filter(([, v]) => v.size).map(([id, v]) => `<span class="fchip" data-chip="${id}"><b>${keyOf(id).key}:</b>${[...v].map((x) => `<button class="fval" data-chip-v="${esc(x)}" title="убрать">${esc(labelOf(id, x).replace(/-/g, " "))} ×</button>`).join("")}<button class="fx" data-x title="убрать условие">×</button></span>`).join("")
+      + terms.map((t, i) => `<span class="fchip"><b>найти:</b><button class="fval" data-term="${i}" title="убрать">${esc(t)} ×</button></span>`).join("")
+      + ([...chosen.values()].some((v) => v.size) || terms.length ? `<button class="qclear" data-clear title="сбросить всё">сбросить</button>` : "");
     for (const c of chips.querySelectorAll<HTMLElement>("[data-chip]")) {
       const id = c.dataset.chip!;
       c.querySelector<HTMLElement>("[data-x]")!.onclick = () => { chosen.delete(id); drawGrid(); };
       for (const b of c.querySelectorAll<HTMLElement>("[data-chip-v]")) b.onclick = () => { chosen.get(id)?.delete(b.dataset.chipV!); drawGrid(); };
     }
+    for (const b of chips.querySelectorAll<HTMLElement>("[data-term]")) b.onclick = () => { terms.splice(Number(b.dataset.term), 1); drawGrid(); };
     const clear = chips.querySelector<HTMLElement>("[data-clear]");
-    if (clear) clear.onclick = () => { chosen.clear(); drawGrid(); };
-    // ВЫПАДАШКИ — кнопка на ключ: на ней выбранное, внутри — галочки всех значений со счётчиками (сколько картинок
-    // будет при прочих выбранных). Открыта одна; закрывается тапом мимо или Esc.
-    drops.innerHTML = KEYS.map((k) => {
-      const picked = [...(chosen.get(k.id) ?? [])];
-      const title = `${k.key[0]!.toUpperCase()}${k.key.slice(1)}${picked.length ? `: ${picked.map((v) => labelOf(k.id, v)).join(", ")}` : ""}`;
-      let menu = "";
-      if (openDrop === k.id) {
-        const rest = pool.filter((s) => passes(s, k.id));
-        const vals = k.values ? k.values.map(([v]) => v) : ["~", ...[...new Set(pool.flatMap((s) => s.tags))].sort((a, b) => a.localeCompare(b, "ru"))];
-        const rows = vals.map((v) => ({ v, label: labelOf(k.id, v).replace(/-/g, " "), n: rest.filter((s) => k.of(s).includes(v)).length }))
-          .filter((x) => !dropFind || norm(x.label).includes(norm(dropFind)));
-        menu = `<div class="dmenu" data-dmenu>${k.values ? "" : `<input data-dfind placeholder="Найти тег" value="${esc(dropFind)}" aria-label="Найти тег">`}`
-          + rows.map((x) => `<label class="drow${x.n ? "" : " zero"}"><input type="checkbox" data-dv="${esc(x.v)}"${chosen.get(k.id)?.has(x.v) ? " checked" : ""}><span>${esc(x.label)}</span><small>${x.n}</small></label>`).join("")
-          + (picked.length ? `<button class="chip" data-dclear>снять всё</button>` : "") + `</div>`;
-      }
-      return `<div class="drop${picked.length ? " set" : ""}${openDrop === k.id ? " open" : ""}"><button class="dbtn" data-drop="${k.id}" aria-expanded="${openDrop === k.id}">${esc(title)} ▾</button>${menu}</div>`;
-    }).join("");
-    for (const b of drops.querySelectorAll<HTMLElement>("[data-drop]")) b.onclick = (e) => { e.stopPropagation(); openDrop = openDrop === b.dataset.drop ? null : b.dataset.drop!; dropFind = ""; drawGrid(); };
-    const menuEl = drops.querySelector<HTMLElement>("[data-dmenu]");
-    if (menuEl && openDrop) {
-      const id = openDrop;
-      // Меню целиком в экране: кнопка у правого края или на перенесённой строке — сдвигается влево, не за край.
-      const host = menuEl.parentElement!.getBoundingClientRect(), w = menuEl.offsetWidth;
-      const left = Math.max(8, Math.min(host.left, innerWidth - w - 8));
-      menuEl.style.left = `${left - host.left}px`;
-      menuEl.onclick = (e) => e.stopPropagation();
-      for (const c of menuEl.querySelectorAll<HTMLInputElement>("[data-dv]")) c.onchange = () => {
-        const set = chosen.get(id) ?? new Set<string>();
-        if (c.checked) set.add(c.dataset.dv!); else set.delete(c.dataset.dv!);
-        chosen.set(id, set);
-        drawGrid();
-      };
-      const find = menuEl.querySelector<HTMLInputElement>("[data-dfind]");
-      if (find) { find.oninput = () => { dropFind = find.value; const at = find.selectionStart; drawGrid(); const again = drops.querySelector<HTMLInputElement>("[data-dfind]"); again?.focus(); again?.setSelectionRange(at, at); }; }
-      const dclear = menuEl.querySelector<HTMLElement>("[data-dclear]");
-      if (dclear) dclear.onclick = () => { chosen.delete(id); drawGrid(); };
-    }
+    if (clear) clear.onclick = () => { chosen.clear(); terms.length = 0; drawGrid(); };
     const k1 = one("gk") as Kind | null, sd = one("gs");
     const tags = [...(chosen.get("gt") ?? [])].filter((t) => t !== "~");
     root.querySelector<HTMLElement>("[data-into]")!.textContent = `Загрузка ляжет как: ${k1 ? KIND_ONE[k1] : "другое"}${sd && sd !== "none" ? ` · ${SIDE_NAMES[sd]}` : ""}${tags.length ? ` · #${tags.join(" #")}` : ""} — поправить можно на странице картинки.`;
   }
-  const closeDrop = () => { if (openDrop) { openDrop = null; dropFind = ""; drawGrid(); } };
-  document.addEventListener("click", closeDrop);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrop(); });
+  /** Все варианты всех групп — с числом картинок, которые останутся, если выбрать (при прочих выбранных). */
+  function listItems(): { id: string; v: string; label: string; n: number }[] {
+    const pool = [...mine(), ...built()];
+    return KEYS.flatMap((k) => {
+      const rest = pool.filter((s) => passes(s, k.id));
+      const vals = k.values ? k.values.map(([v]) => v) : ["~", ...[...new Set(pool.flatMap((s) => s.tags))].sort((a, b) => a.localeCompare(b, "ru"))];
+      return vals.filter((v) => !chosen.get(k.id)?.has(v)).map((v) => ({ id: k.id, v, label: labelOf(k.id, v).replace(/-/g, " "), n: rest.filter((s) => k.of(s).includes(v)).length }));
+    });
+  }
+  function pick(id: string, v: string): void {
+    const set = chosen.get(id) ?? new Set<string>();
+    set.add(v);
+    chosen.set(id, set);
+  }
+  /** Список под полем: группы с вариантами; набранное сужает. */
+  function openList(): void {
+    if (document.activeElement !== q) return;
+    const text = q.value.trim();
+    const items = listItems().filter((x) => x.n > 0 && (!text || fits(x.label, text)));
+    const groups = KEYS.map((k) => ({ k, rows: items.filter((x) => x.id === k.id) })).filter((g) => g.rows.length);
+    qlist.innerHTML = groups.map(({ k, rows }) => `<div class="qg"><div class="qh">${esc(k.key)}</div><div class="qrow">${rows.slice(0, text ? 60 : 24).map((x) => `<button class="chip" data-qi="${k.id}|${esc(x.v)}">${esc(x.label)}<small>${x.n}</small></button>`).join("")}${rows.length > (text ? 60 : 24) ? `<span class="qmore">ещё ${rows.length - (text ? 60 : 24)} — наберите</span>` : ""}</div></div>`).join("") || `<div class="qh">Ничего не подходит — Enter сделает это словом поиска.</div>`;
+    qlist.hidden = false;
+    for (const b of qlist.querySelectorAll<HTMLElement>("[data-qi]")) b.onmousedown = (e) => {
+      e.preventDefault();
+      const [id, ...v] = b.dataset.qi!.split("|");
+      pick(id!, v.join("|"));
+      q.value = "";
+      query = "";
+      drawGrid();
+      openList();
+    };
+  }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") qlist.hidden = true; });
 
   function drawGrid(): void {
     remember();
