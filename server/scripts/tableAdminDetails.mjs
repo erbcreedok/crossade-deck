@@ -1,4 +1,5 @@
-// СТРАНИЦА ХОЗЯИНА — «Детали»: галерея деталей (свои и встроенные) → страница детали. Деталь одна в объёме, крутится
+// СТРАНИЦА ХОЗЯИНА — «Детали»: галерея деталей (свои и встроенные, поиск по имени и тегам) → страница детали. У детали
+// нет вида (голова, тело…): ширина в единицах стола и теги; картинка ракурса — любая этой стороны. Деталь одна в объёме, крутится
 // пальцем, к тебе — нужная сторона (нет её — ближайшая); у каждого ракурса картинка из библиотеки (выбор — по детали
 // и стороне) или отражение другого, свои сдвиг и величина; как стоит к камере; сохранить, копия, удалить. Всё — в
 // адресе, несохранённое переживает обновление. Встроенные — только смотреть и «Сделать своей копией».
@@ -34,21 +35,22 @@ try {
   const names = await p.locator(".dt [data-detail] b").allTextContents();
   check("галерея деталей: встроенные на месте", names.includes("Король треф") && names.length >= 10, names.slice(0, 6));
   check("старая вкладка — «Подгонка», рядом", (await p.locator('[data-tab="parts"]').innerText()) === "Подгонка", null);
-  await p.click('.dt [data-dk="legs"]');
+  check("полок по виду нет — одно поле поиска", (await p.locator(".dt [data-dk]").count()) === 0 && (await p.locator(".dt [data-dq]").count()) === 1, null);
+  await p.fill(".dt [data-dq]", "ноги");
   const legs = await p.locator(".dt [data-detail] i:first-of-type").allTextContents();
-  check("полка «Ноги» — только ноги, в адресе", legs.length > 0 && legs.every((t) => t.startsWith("ноги")) && hash().get("dk") === "legs", legs);
-  await p.click('.dt [data-dk="head"]');
+  check("поиск по тегу «ноги» — только они, в адресе", legs.length > 0 && legs.every((t) => t.startsWith("ноги")) && hash().get("dq") === "ноги", legs);
+  await p.fill(".dt [data-dq]", "");
   // НОВАЯ
   await p.click(".dt [data-new]");
   await p.waitForSelector("[data-detail-page] [data-dname]");
   const made = (await mine()).find((d) => !before.has(d.id));
-  check("«+ Новая деталь» — на сервере, вид с полки, открыта её страница", made?.slot === "head" && hash().get("detail") === made.id, made);
+  check("«+ Новая деталь» — на сервере, без вида: ширина 2.4, тегов нет; открыта её страница", made && !("slot" in made) && made.width === 2.4 && made.tags.length === 0 && hash().get("detail") === made.id, made);
   await p.fill("[data-dname]", `${tag} Лис`);
   // лицо: выбрать из библиотеки — там только головы-лица
   await p.click("[data-dpick]");
   await p.waitForSelector("[data-picker] [data-pref]");
   const offered = await p.locator("[data-picker] [data-pref] i").allTextContents();
-  check("выбор картинки: библиотека по детали и стороне", offered.length > 0 && offered.every((t) => /лицо$/.test(t)) && (await p.locator(`[data-picker] [data-pref="${sprite.id}"]`).count()) === 1, offered.slice(0, 5));
+  check("выбор картинки: любые картинки этой стороны — и головы, и тела", offered.length > 0 && offered.every((t) => /лицо$/.test(t)) && (await p.locator(`[data-picker] [data-pref="${sprite.id}"]`).count()) === 1 && (await p.locator('[data-picker] [data-pref="b:king:body:front"]').count()) === 1 && (await p.locator('[data-picker] [data-pref="b:cube:head:front"]').count()) === 1, offered.slice(0, 5));
   await p.click(`[data-picker] [data-pref="${sprite.id}"]`);
   await p.waitForFunction(() => document.querySelector("[data-dpic]")?.naturalWidth > 0, null, { timeout: 5000 }).catch(() => {});
   check("лицо поставлено: в клетке ракурса и на сцене", (await p.locator('[data-vw="front"] img').count()) === 1 && (await p.getAttribute("[data-dstage]", "data-seen")) === "front" && await p.locator("[data-dpic]").isVisible(), await p.getAttribute("[data-dstage]", "data-seen"));
@@ -78,13 +80,19 @@ try {
   // несохранённое переживает обновление
   await p.click('[data-vw="front"]');
   await p.click('[data-facing="camera"]');
+  const cellOf = () => p.evaluate(() => parseFloat(document.querySelector("[data-dcells]").style.backgroundSize));
+  const cell0 = await cellOf();
+  await p.fill("[data-dwidth]", "4.8");
+  const cell1 = await cellOf();
+  check("ширина детали в ед. стола: вдвое шире — клетка в 1 ед. вдвое мельче против неё", Math.abs(cell0 / cell1 - 2) < 0.05, [cell0, cell1]);
+  await p.fill("[data-dtags]", "снеговик, зима");
   await p.reload();
   await p.waitForSelector("[data-detail-page] [data-dname]");
   check("обновил страницу — та же деталь, тот же ракурс, несохранённое на месте", (await p.inputValue("[data-dname]")) === `${tag} Лис` && (await p.locator('[data-vw="front"].on').count()) === 1 && (await p.inputValue('[data-dnum="dx"]')) === "1" && !(await p.locator("[data-dsave]").isDisabled()), [await p.inputValue("[data-dname]"), hash().get("dv")]);
   await p.click("[data-dsave]", { timeout: 3000 }).catch(() => {});
   await p.waitForFunction(() => /Сохранено/.test(document.querySelector("[data-dact]")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
   const got = (await mine()).find((d) => d.id === made?.id);
-  check("сохранено на сервере: имя, как стоит, ракурсы, сдвиг, величина, отражение", got?.name === `${tag} Лис` && got.facing === "camera" && got.views.front?.sprite === sprite.id && got.views.front.dx === 1 && got.views.front.scale === 2 && got.views.right?.sprite === sprite.id && got.views.left?.mirror === "right" && !hash().get("dd"), got);
+  check("сохранено на сервере: имя, как стоит, ракурсы, сдвиг, величина, отражение", got?.name === `${tag} Лис` && got.facing === "camera" && got.width === 4.8 && got.tags.join() === "снеговик,зима" && got.views.front?.sprite === sprite.id && got.views.front.dx === 1 && got.views.front.scale === 2 && got.views.right?.sprite === sprite.id && got.views.left?.mirror === "right" && !hash().get("dd"), got);
   if (shot) await p.screenshot({ path: shot, fullPage: true });
   // ВСТРОЕННАЯ: только смотреть, копия
   await p.click("[data-dback]");

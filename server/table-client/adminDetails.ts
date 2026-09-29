@@ -1,10 +1,11 @@
-// ПАНЕЛЬ «ДЕТАЛИ» НА СТРАНИЦЕ ХОЗЯИНА — как библиотека спрайтов, только единица здесь — деталь (`details.ts`):
-// голова, причёска, тело, ноги, руки. Галерея деталей → страница детали:
+// ПАНЕЛЬ «ДЕТАЛИ» НА СТРАНИЦЕ ХОЗЯИНА — как библиотека спрайтов, только единица здесь — деталь (`details.ts`): вещь из
+// картинок, без вида — шар годится и в головы, и в ком снеговика, кем встанет — решает фигура. Галерея деталей
+// (поиск по имени и тегам) → страница детали:
 //
 //   сцена   — деталь одна, в объёме: крутишь пальцем, и видна та её сторона, что к тебе (как за столом: ракурса нет —
 //             ближайший из есть); оси детали и клетка в единицу стола — слоями;
 //   ракурсы — лицо, бок, спина, левый бок, верх, низ: у каждого картинка из библиотеки (или отражение другого), свои
-//             сдвиг и величина от середины детали. Выбор картинки — библиотека, отфильтрованная по детали и стороне;
+//             сдвиг и величина от середины детали. Выбор картинки — любые картинки библиотеки этой стороны;
 //   встроенные детали каталога (`skins.ts`) — только смотреть; «Сделать своей копией» — своя деталь с теми же
 //             картинками.
 //
@@ -13,9 +14,9 @@
 import { PALETTES } from "../src/table/dolls.js";
 import { PARTS, type Facing } from "../src/table/skins.js";
 import { partName } from "../src/table/tunes.js";
-import { DETAIL_LIMITS, DETAIL_SLOTS, DETAIL_VIEWS, FACINGS, type Detail, type DetailSlot, type DetailView, type ViewSetup } from "../src/table/details.js";
+import { DETAIL_LIMITS, DETAIL_VIEWS, DETAIL_WIDTH, FACINGS, type Detail, type DetailView, type ViewSetup } from "../src/table/details.js";
 import { partSprite } from "./dollSprites.js";
-import { unitSize, UNIT_WIDTH, type V3 } from "./spriteAxes.js";
+import { UNIT_WIDTH, type V3 } from "./spriteAxes.js";
 import { HOST } from "./host.js";
 import { go, onRoute, put, route, routeNum, routeOne } from "./adminRoute.js";
 
@@ -25,7 +26,8 @@ interface Shown { key: string; own: boolean; detail: Detail }
 /** Картинка для выбора: своя из библиотеки или сторона встроенной детали. */
 interface Pic { ref: string; name: string; slot: string; side: string | null; tags: string[] }
 
-const SLOT_NAMES: Record<DetailSlot, [string, string]> = { head: ["голова", "Головы"], hair: ["причёска", "Причёски"], body: ["тело", "Тела"], legs: ["ноги", "Ноги"], hands: ["руки", "Руки"] };
+/** Кем встроенная деталь служит в каталоге — её тег, не вид: своя копия годится куда угодно. */
+const SLOT_TAG: Record<string, string> = { head: "голова", hair: "причёска", body: "тело", legs: "ноги", hands: "руки", other: "другое" };
 const VIEW_NAMES: Record<string, string> = { front: "лицо", right: "бок", back: "спина", left: "левый бок", top: "верх", bottom: "низ" };
 /** Куда повернуть деталь, чтобы к тебе была эта сторона: наклон и поворот, градусы. */
 const VIEW_POSE: Record<DetailView, [number, number]> = { front: [0, 0], right: [0, 90], back: [0, 180], left: [0, -90], top: [-80, 0], bottom: [80, 0] };
@@ -131,14 +133,14 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
 
   // ——— детали ———
   /** Встроенная деталь каталога — как деталь: ракурсы из её нарисованных сторон и отражений. */
-  const builtIn = (): Shown[] => PARTS.filter((p) => p.art.kind !== "none" && (DETAIL_SLOTS as readonly string[]).includes(p.slot)).map((p) => {
+  const builtIn = (): Shown[] => PARTS.filter((p) => p.art.kind !== "none").map((p) => {
     const views: Detail["views"] = {};
     for (const v of DETAIL_VIEWS) {
       const drawn = p.views.includes(v) ? v : RING_SIDE[v] && p.views.includes(RING_SIDE[v]!) ? RING_SIDE[v]! : null;
       if (drawn) views[v] = { sprite: `b:${p.id}:${drawn}`, dx: 0, dy: 0, scale: 1 };
       else if (p.mirror?.[v] && p.views.includes(p.mirror[v]!)) views[v] = { mirror: p.mirror[v] as DetailView, dx: 0, dy: 0, scale: 1 };
     }
-    return { key: `b:${p.id}`, own: false, detail: { id: p.id, name: partName(p.id), slot: p.slot as DetailSlot, facing: p.facing, views, at: 0 } };
+    return { key: `b:${p.id}`, own: false, detail: { id: p.id, name: partName(p.id), tags: [SLOT_TAG[p.slot] ?? p.slot], width: UNIT_WIDTH[p.slot] ?? DETAIL_WIDTH, facing: p.facing, views, at: 0 } };
   });
   const all = (): Shown[] => [...mine.map((d) => ({ key: d.id, own: true, detail: d })), ...builtIn()];
   const face = (d: Detail): { ref?: string; flip: boolean } => {
@@ -166,17 +168,13 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
   let frame = 0;
   const later = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; if (!listBox.hidden) drawCells(); }); };
   function drawList(): void {
-    const kind = route("dk") ?? "";
-    listBox.innerHTML = `<div class="bar"><button class="chip${kind ? "" : " on"}" data-dk="">Все</button>${DETAIL_SLOTS.map((k) => `<button class="chip${kind === k ? " on" : ""}" data-dk="${k}">${SLOT_NAMES[k][1]}</button>`).join("")}</div>
-      <div class="bar"><input type="search" data-dq placeholder="Найти деталь" value="${esc(route("dq") ?? "")}" style="flex:1 1 180px;min-width:0;font:inherit;font-size:15px;color:var(--ink);background:#0f1213;border:1px solid var(--line);border-radius:8px;padding:6px 8px"><button class="add" data-new>+ Новая деталь</button></div>
+    listBox.innerHTML = `<div class="bar"><input type="search" data-dq placeholder="Имя или тег" value="${esc(route("dq") ?? "")}" style="flex:1 1 180px;min-width:0;font:inherit;font-size:15px;color:var(--ink);background:#0f1213;border:1px solid var(--line);border-radius:8px;padding:6px 8px"><button class="add" data-new>+ Новая деталь</button></div>
       <div class="said" data-dsaid>${esc(said)}</div>
       <div class="grid" data-dgrid></div>`;
-    for (const b of listBox.querySelectorAll<HTMLElement>("[data-dk]")) b.onclick = () => { put({ dk: b.dataset.dk || null }); drawList(); };
     const q = listBox.querySelector<HTMLInputElement>("[data-dq]")!;
     q.oninput = () => { put({ dq: q.value || null }); drawCells(); };
     listBox.querySelector<HTMLElement>("[data-new]")!.onclick = async () => {
-      const slot = (DETAIL_SLOTS as readonly string[]).includes(kind) ? kind : "head";
-      const res = await fetch(`${HOST}/table/admin/details`, { method: "POST", headers: json, body: JSON.stringify({ name: "Новая деталь", slot, facing: "tilt", views: {} }) }).catch(() => null);
+      const res = await fetch(`${HOST}/table/admin/details`, { method: "POST", headers: json, body: JSON.stringify({ name: "Новая деталь", tags: [], width: DETAIL_WIDTH, facing: "tilt", views: {} }) }).catch(() => null);
       if (!res?.ok) { said = `Не создалась (${res?.status ?? "нет связи"}).`; drawList(); return; }
       const made = (await res.json()) as Detail;
       mine = [made, ...mine];
@@ -186,13 +184,13 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
     drawCells();
   }
   function drawCells(): void {
-    const kind = route("dk") ?? "", q = route("dq") ?? "";
-    const shown = all().filter((s) => (!kind || s.detail.slot === kind) && (!q || fits(`${s.detail.name} ${SLOT_NAMES[s.detail.slot][0]} ${s.own ? "своя" : "встроенная"}`, q)));
+    const q = route("dq") ?? "";
+    const shown = all().filter((s) => !q || q.split(/\s+/).every((w) => fits(`${s.detail.name} ${s.detail.tags.join(" ")} ${s.own ? "своя" : "встроенная"}`, w)));
     const grid = listBox.querySelector<HTMLElement>("[data-dgrid]");
     if (!grid) return;
     grid.innerHTML = shown.map((s) => {
       const f = face(s.detail), src = srcOf(f.ref, later), n = Object.keys(s.detail.views).length;
-      return `<button class="cell${s.own ? " own" : ""}" data-detail="${esc(s.key)}">${src ? `<img src="${esc(src)}" alt=""${f.flip ? ' style="transform:scaleX(-1)"' : ""}>` : `<div class="wait">${f.ref ? "…" : "пусто"}</div>`}<b>${esc(s.detail.name)}</b><i>${SLOT_NAMES[s.detail.slot][0]} · ${n} ${n === 1 ? "ракурс" : n > 1 && n < 5 ? "ракурса" : "ракурсов"}</i><i>${s.own ? "своя" : "встроенная"}</i></button>`;
+      return `<button class="cell${s.own ? " own" : ""}" data-detail="${esc(s.key)}">${src ? `<img src="${esc(src)}" alt=""${f.flip ? ' style="transform:scaleX(-1)"' : ""}>` : `<div class="wait">${f.ref ? "…" : "пусто"}</div>`}<b>${esc(s.detail.name)}</b><i>${esc(s.detail.tags.join(", ") || "без тегов")} · ${n} ${n === 1 ? "ракурс" : n > 1 && n < 5 ? "ракурса" : "ракурсов"}</i><i>${s.own ? "своя" : "встроенная"}</i></button>`;
     }).join("") || `<div class="said" style="grid-column:1/-1">Ничего не найдено.</div>`;
     for (const b of grid.querySelectorAll<HTMLElement>("[data-detail]")) b.onclick = () => { go({ detail: b.dataset.detail, dv: "front", drx: null, dry: null, dd: null }); follow(); };
   }
@@ -213,12 +211,13 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
     openKey = s.key;
     const saved = s.detail;
     let draft: Omit<Detail, "id" | "at">;
-    try { draft = s.own && route("dd") ? { ...saved, ...(JSON.parse(route("dd")!) as object) } : structuredClone({ name: saved.name, slot: saved.slot, facing: saved.facing, views: saved.views }); }
-    catch { draft = structuredClone({ name: saved.name, slot: saved.slot, facing: saved.facing, views: saved.views }); }
+    const fields = (d: Omit<Detail, "id" | "at">) => ({ name: d.name, tags: d.tags, width: d.width, facing: d.facing, views: d.views });
+    try { draft = s.own && route("dd") ? { ...fields(saved), ...(JSON.parse(route("dd")!) as object) } : structuredClone(fields(saved)); }
+    catch { draft = structuredClone(fields(saved)); }
     let view: DetailView = routeOne("dv", DETAIL_VIEWS, "front");
     let rx = routeNum("drx", 0), ry = routeNum("dry", 0);
     const layers = { axes: route("dax") !== "0", grid: route("dgr") !== "0" };
-    const dirty = () => JSON.stringify({ name: draft.name, slot: draft.slot, facing: draft.facing, views: draft.views }) !== JSON.stringify({ name: saved.name, slot: saved.slot, facing: saved.facing, views: saved.views });
+    const dirty = () => JSON.stringify(fields(draft)) !== JSON.stringify(fields(saved));
     const keep = () => put({ dv: view, drx: Math.round(rx) || null, dry: Math.round(ry) || null, dax: layers.axes ? null : "0", dgr: layers.grid ? null : "0", dd: s.own && dirty() ? JSON.stringify(draft) : null });
 
     const draw = () => {
@@ -235,8 +234,10 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
         <div class="ed" data-ed></div>
         <h3>Как стоит к камере</h3>
         <div class="facing">${FACINGS.map((f) => `<button data-facing="${f}" class="${draft.facing === f ? "on" : ""}"${s.own ? "" : " disabled"}>${FACING_WORDS[f][0]} <code>${f}</code><small>${FACING_WORDS[f][1]}</small></button>`).join("")}</div>
-        <h3>Что за деталь</h3>
-        <div class="bar">${DETAIL_SLOTS.map((k) => `<button class="chip${draft.slot === k ? " on" : ""}" data-dslot="${k}"${s.own ? "" : " disabled"}>${SLOT_NAMES[k][0]}</button>`).join("")}</div>
+        <h3>Размер и теги</h3>
+        <div class="ed"><div class="bar"><label class="num">ширина, ед. стола <input type="number" data-dwidth step="0.1" min="${DETAIL_LIMITS.width[0]}" max="${DETAIL_LIMITS.width[1]}" value="${draft.width}"${s.own ? "" : " disabled"}></label></div>
+          <div class="said">Сколько деталь шириной за столом при величине ×1: голова карты — 2.4, тело — 5.2.</div>
+          ${s.own ? `<input data-dtags value="${esc(draft.tags.join(", "))}" placeholder="Теги через запятую: снеговик, зима" style="width:100%;box-sizing:border-box;font:inherit;font-size:15px;color:var(--ink);background:#0f1213;border:1px solid var(--line);border-radius:8px;padding:6px 8px">` : `<div class="said">Теги: ${esc(draft.tags.join(", "))}</div>`}</div>
       </div>`;
       wire();
     };
@@ -258,7 +259,7 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
       for (const v of DETAIL_VIEWS) { if (!draft.views[v]) continue; const k = zOf(NORMAL[v]); if (k > z) { z = k; best = v; } }
       return { side: best, z };
     };
-    const ppu = () => 260 / ((UNIT_WIDTH[draft.slot] ?? 3) * 2.2);
+    const ppu = () => 260 / (draft.width * 2.2);
 
     function pose(): void {
       const st = stage();
@@ -287,7 +288,7 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
       if (src && one) {
         if (pic.getAttribute("src") !== src) pic.src = src;
         const aspect = pic.naturalWidth ? pic.naturalHeight / pic.naturalWidth : 1;
-        const size = unitSize(draft.slot, aspect, one.scale) ?? { w: 3 * one.scale, h: 3 * one.scale * aspect };
+        const size = { w: draft.width * one.scale, h: draft.width * one.scale * aspect };
         const w = size.w * u, h = size.h * u;
         Object.assign(pic.style, { width: `${w}px`, height: `${h}px`, left: `${130 + one.dx * u - w / 2}px`, top: `${130 - one.dy * u - h / 2}px` });
         // Как деталь стоит к камере: бумажная и плоскость сужаются по углу к своей стороне, остальные — лицом всегда.
@@ -371,7 +372,10 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
       if (nameIn) nameIn.oninput = () => { draft.name = nameIn.value; touched(); };
       if (s.own) {
         for (const b of pageBox.querySelectorAll<HTMLElement>("[data-facing]")) b.onclick = () => { draft.facing = b.dataset.facing as Facing; for (const x of pageBox.querySelectorAll("[data-facing]")) x.classList.toggle("on", x === b); pose(); touched(); };
-        for (const b of pageBox.querySelectorAll<HTMLElement>("[data-dslot]")) b.onclick = () => { draft.slot = b.dataset.dslot as DetailSlot; for (const x of pageBox.querySelectorAll("[data-dslot]")) x.classList.toggle("on", x === b); pose(); touched(); };
+        const wIn = pageBox.querySelector<HTMLInputElement>("[data-dwidth]")!;
+        wIn.oninput = () => { const v = Number(wIn.value); if (wIn.value === "" || !Number.isFinite(v)) return; draft.width = Math.min(DETAIL_LIMITS.width[1], Math.max(DETAIL_LIMITS.width[0], v)); pose(); touched(); };
+        const tIn = pageBox.querySelector<HTMLInputElement>("[data-dtags]")!;
+        tIn.oninput = () => { draft.tags = [...new Set(tIn.value.split(",").map((t) => t.trim()).filter(Boolean))]; touched(); };
       }
       const act = pageBox.querySelector<HTMLElement>("[data-dact]")!;
       pageBox.querySelector<HTMLElement>("[data-dsave]")?.addEventListener("click", async () => {
@@ -411,16 +415,15 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
       const over = document.createElement("div");
       over.className = "pick-over";
       over.dataset.picker = "";
-      let anySide = false, anySlot = false, q = "";
+      let anySide = false, q = "";
       const drawPick = () => {
-        const list = pics().filter((p) => (anySlot || p.slot === draft.slot) && (anySide || p.side === view) && (!q || fits(`${p.name} ${p.tags.join(" ")}`, q)));
-        over.innerHTML = `<div class="pick-sheet"><div class="bar"><b>${VIEW_NAMES[view]} · ${SLOT_NAMES[draft.slot][0]}</b><button class="chip" data-pclose style="margin-left:auto">Закрыть</button></div>
-          <div class="bar"><input type="search" data-pq placeholder="Имя или тег" value="${esc(q)}"><button class="chip${anySide ? " on" : ""}" data-pside>любая сторона</button><button class="chip${anySlot ? " on" : ""}" data-pslot>любая деталь</button></div>
-          <div class="grid">${list.map((p) => { const src = srcOf(p.ref, () => { if (over.isConnected) drawCellsOnly(); }); return `<button class="cell${p.ref.startsWith("b:") ? "" : " own"}" data-pref="${esc(p.ref)}">${src ? `<img src="${esc(src)}" alt="">` : `<div class="wait">…</div>`}<b>${esc(p.name)}</b><i>${p.ref.startsWith("b:") ? "встроенная" : "своя"}${p.side ? ` · ${VIEW_NAMES[p.side] ?? p.side}` : ""}</i></button>`; }).join("") || `<div class="said" style="grid-column:1/-1">Таких картинок нет — шире: «любая сторона» / «любая деталь».</div>`}</div></div>`;
+        const list = pics().filter((p) => (anySide || p.side === view) && (!q || q.split(/\s+/).every((w) => fits(`${p.name} ${p.tags.join(" ")} ${SLOT_TAG[p.slot] ?? ""}`, w))));
+        over.innerHTML = `<div class="pick-sheet"><div class="bar"><b>${anySide ? "любая сторона" : VIEW_NAMES[view]} · любые картинки</b><button class="chip" data-pclose style="margin-left:auto">Закрыть</button></div>
+          <div class="bar"><input type="search" data-pq placeholder="Имя или тег" value="${esc(q)}"><button class="chip${anySide ? " on" : ""}" data-pside>любая сторона</button></div>
+          <div class="grid">${list.map((p) => { const src = srcOf(p.ref, () => { if (over.isConnected) drawCellsOnly(); }); return `<button class="cell${p.ref.startsWith("b:") ? "" : " own"}" data-pref="${esc(p.ref)}">${src ? `<img src="${esc(src)}" alt="">` : `<div class="wait">…</div>`}<b>${esc(p.name)}</b><i>${p.ref.startsWith("b:") ? "встроенная" : "своя"}${p.side ? ` · ${VIEW_NAMES[p.side] ?? p.side}` : ""}</i></button>`; }).join("") || `<div class="said" style="grid-column:1/-1">Таких картинок нет — шире: «любая сторона».</div>`}</div></div>`;
         const qi = over.querySelector<HTMLInputElement>("[data-pq]")!;
         qi.oninput = () => { q = qi.value; const at = qi.selectionStart; drawPick(); const again = over.querySelector<HTMLInputElement>("[data-pq]")!; again.focus(); again.setSelectionRange(at, at); };
         over.querySelector<HTMLElement>("[data-pside]")!.onclick = () => { anySide = !anySide; drawPick(); };
-        over.querySelector<HTMLElement>("[data-pslot]")!.onclick = () => { anySlot = !anySlot; drawPick(); };
         over.querySelector<HTMLElement>("[data-pclose]")!.onclick = () => over.remove();
         for (const b of over.querySelectorAll<HTMLElement>("[data-pref]")) b.onclick = () => { over.remove(); take(b.dataset.pref!); };
       };

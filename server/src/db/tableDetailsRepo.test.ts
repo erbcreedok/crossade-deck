@@ -13,7 +13,7 @@ const fresh = () => {
 describe("детали хозяина", () => {
   it("из сети — только допустимое: ссылки на картинки, отражение ракурса с картинкой, числа в границах", () => {
     expect(cleanDetail({
-      name: "  Лис  ", slot: "head", facing: "nope",
+      name: "  Лис  ", tags: " звери, Лис ,звери", width: 99, facing: "nope",
       views: {
         front: { sprite: "0123456789ab", dx: 9, dy: -0.12345, scale: 0.01 },
         right: { sprite: "b:king:head:front" },
@@ -24,20 +24,20 @@ describe("детали хозяина", () => {
         side: { sprite: "0123456789ab" },
       },
     })).toEqual({
-      name: "Лис", slot: "head", facing: "tilt",
+      name: "Лис", tags: ["звери", "Лис"], width: 20, facing: "tilt",
       views: {
         front: { sprite: "0123456789ab", dx: 5, dy: -0.123, scale: 0.2 },
         right: { sprite: "b:king:head:front", dx: 0, dy: 0, scale: 1 },
         left: { mirror: "right", dx: 0, dy: 0, scale: 2 },
       },
     });
-    expect(cleanDetail({ name: " ", slot: "head" })).toBeNull();
-    expect(cleanDetail({ name: "Лис", slot: "other" })).toBeNull();
+    expect(cleanDetail({ name: " " })).toBeNull();
+    expect(cleanDetail({ name: "Шар" })).toEqual({ name: "Шар", tags: [], width: 2.4, facing: "tilt", views: {} });
   });
 
   it("пишется, переписывается, читается, удаляется", () => {
     const d = fresh();
-    const one = { id: "d1", name: "Лис", slot: "head" as const, facing: "tilt" as const, views: { front: { sprite: "0123456789ab", dx: 0, dy: 0, scale: 1 } }, at: 10 };
+    const one = { id: "d1", name: "Лис", tags: ["звери"], width: 3, facing: "tilt" as const, views: { front: { sprite: "0123456789ab", dx: 0, dy: 0, scale: 1 } }, at: 10 };
     putDetail(one, d);
     putDetail({ ...one, name: "Лиса", at: 20 }, d);
     expect(allDetails(d)).toEqual([{ ...one, name: "Лиса", at: 20 }]);

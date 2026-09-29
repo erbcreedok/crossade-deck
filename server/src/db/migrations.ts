@@ -502,4 +502,16 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 29,
+    up(db) {
+      // У ДЕТАЛИ НЕТ ВИДА — шар и голова, и ком снеговика; кем встанет, решает фигура. Вместо вида — теги и своя
+      // ширина в единицах стола (`details.ts`).
+      db.exec(`
+        ALTER TABLE table_details DROP COLUMN slot;
+        ALTER TABLE table_details ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';
+        ALTER TABLE table_details ADD COLUMN width REAL NOT NULL DEFAULT 2.4;
+      `);
+    },
+  },
 ];
