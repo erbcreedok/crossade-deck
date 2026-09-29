@@ -122,6 +122,10 @@ try {
   await p.locator(".sg .cell").first().click();
   await p.waitForSelector("[data-sprite-page] [data-big][src]");
   check("тап — страница спрайта вместо галереи", (await p.locator("[data-list]").isHidden()) && (await p.locator("[data-sprite-page]").count()) === 1, null);
+  // ГДЕ И КАК ЛЕЖИТ: своя — запись, файл на сервере, адрес, вес, рисунок
+  const factsOf = async () => { await p.waitForFunction(() => /байт/.test(document.querySelector("[data-facts]")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {}); return p.evaluate(() => document.querySelector("[data-facts]")?.textContent ?? ""); };
+  const ownFacts = await factsOf();
+  check("своя: видно запись, файл, адрес, вес и рисунок", ownFacts.includes(`table_sprites · ${mine[0].id}`) && ownFacts.includes(`data/sprite-lib/${mine[0].id}.svg`) && ownFacts.includes(`/table/lib/${mine[0].id}.svg`) && /\d+ байт/.test(ownFacts) && /viewBox/.test(ownFacts) && /ставится в «Деталях»/.test(ownFacts), ownFacts);
   const st = await p.locator("[data-stage3d]").boundingBox();
   const ry0 = await p.getAttribute("[data-stage3d]", "data-ry");
   await p.mouse.move(st.x + st.width / 2, st.y + st.height / 2);
@@ -188,11 +192,15 @@ try {
   await p.waitForFunction(() => !document.querySelector("[data-c]")?.disabled, null, { timeout: 5000 }).catch(() => {});
   await p.fill('[data-c="1"]', "#00ffaa", { timeout: 3000 }).catch(() => {});
   check("рисунок кода (бочонок) красится своими цветами", decodeURIComponent((await p.getAttribute("[data-big]", "src")) ?? "").includes("#00ffaa"), await p.textContent("[data-own3-said]"));
+  const barrelFacts = await factsOf();
+  check("рисунок кода: где функция и какой рисунок", barrelFacts.includes("table-client/skinArt.ts") && barrelFacts.includes("barrel") && barrelFacts.includes("barrel:body") && /повёрнута на \d+°/.test(barrelFacts), barrelFacts);
   await p.goBack();
   await clear();
   await filt('откуда:колода деталь:голова сторона:лицо тег:"Король треф"');
   await p.locator(".sg .cell").first().click();
   await p.waitForSelector("[data-sprite-page] h2");
+  const kingFacts = await factsOf();
+  check("колода: из какой карты, каким куском, куда смотрит, как стоит к камере, подстройка", kingFacts.includes("table-client/sprites/club-K.svg") && kingFacts.includes("28, 0, 70, 58") && /бумажный/.test(kingFacts) && /масштаб ×1/.test(kingFacts) && /2\.40 ×/.test(kingFacts) && /king:head|club-K:head/.test(kingFacts), kingFacts);
   // СЛОИ: оси фигуры, клетка в единицу стола, размер — каждый включается сам
   const axT = (k) => p.getAttribute(`[data-ax="${k}"]`, "style");
   check("оси у «лица»: перед — к зрителю, верх — вверх, право фигуры — влево по картинке", /rotateY\(-90deg\)/.test(await axT("front")) && /rotateZ\(-90deg\)/.test(await axT("up")) && /rotateZ\(180deg\)/.test(await axT("right")) && (await p.locator("[data-axes]").isVisible()), [await axT("front"), await axT("up"), await axT("right")]);

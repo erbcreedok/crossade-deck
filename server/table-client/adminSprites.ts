@@ -14,7 +14,7 @@
 import { PALETTES } from "../src/table/dolls.js";
 import { PARTS } from "../src/table/skins.js";
 import { partName } from "../src/table/tunes.js";
-import { paintPart, partSprite } from "./dollSprites.js";
+import { ART, paintPart, partSprite } from "./dollSprites.js";
 import { drawArt } from "./skinArt.js";
 import { axesFor, unitSize, type V3 } from "./spriteAxes.js";
 import { tuneOf } from "../src/table/tunes.js";
@@ -109,6 +109,11 @@ const CSS = `
 .sg button:focus-visible, .sg input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .sp-page h2 { font-size: 17px; margin: 0; }
 .sp-page h3 { font-size: 14px; color: var(--dim); font-weight: 500; margin: 16px 0 8px; }
+.sp-facts { display: grid; grid-template-columns: minmax(96px, max-content) 1fr; gap: 4px 12px; margin: 0 0 6px; font-size: 13px; }
+.sp-facts dt { color: var(--dim); }
+.sp-facts dd { margin: 0; overflow-wrap: anywhere; }
+.sp-facts code { font-size: 12px; background: #22282a; border-radius: 4px; padding: 1px 4px; }
+.sp-facts a { color: var(--gold); }
 .sp-top { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
 .sp-top input, .sp-page input.wide { flex: 1; min-width: 0; box-sizing: border-box; font: inherit; font-size: 15px; color: var(--ink); background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
 .sp-page input.wide { width: 100%; }
@@ -442,6 +447,71 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     return one("перед", "front", a.front) + one("верх", "up", a.up) + one("право", "right", a.right);
   }
 
+  /**
+   * ГДЕ И КАК ЛЕЖИТ — всё, что известно о картинке, строками «что — значение»: запись и файл (где на сервере, по
+   * какому адресу отдаётся, сколько весит, какой рисунок внутри), из чего сделана, и как стоит на фигуре (деталь,
+   * сторона, оси, как повёрнута к камере, ракурсы, размер за столом, подстройка). Вес и рисунок дописываются, когда
+   * файл пришёл.
+   */
+  const AXIS_WORDS: Record<string, string> = { "0,0,1": "к зрителю", "0,0,-1": "от зрителя", "1,0,0": "вправо", "-1,0,0": "влево", "0,-1,0": "вверх", "0,1,0": "вниз" };
+  const FACING_WORDS: Record<string, string> = {
+    camera: "всегда лицом в камеру, по углу меняется только рисунок",
+    box: "настоящая коробка — видно до трёх граней сразу",
+    view: "плоскость ровно по своему ракурсу, сверху — плашмя",
+    tilt: "бумажный: лицом в камеру, по ширине сужается по углу к ракурсу",
+  };
+  function factsHtml(s: Shown): { html: string; url: string | null } {
+    const row = (k: string, v: string) => `<dt>${k}</dt><dd>${v}</dd>`;
+    const code = (t: string) => `<code>${esc(t)}</code>`;
+    const where: string[] = [], how: string[] = [];
+    let url: string | null = null, looks = "";
+    const part = s.built ? PARTS.find((x) => x.id === s.built!.part) : undefined;
+    if (s.own) {
+      const o = s.own;
+      url = `/table/lib/${o.id}.${o.ext}`;
+      where.push(row("Запись", `${code(`table_sprites · ${o.id}`)} — база стола`));
+      where.push(row("Файл", `${code(`server/data/sprite-lib/${o.id}.${o.ext}`)}`));
+      where.push(row("Откуда", `${ORIGIN_NAMES[o.origin]} · ${new Date(o.at).toLocaleString("ru-RU")}`));
+    } else if (part) {
+      const v = s.built!.view, art = part.art;
+      where.push(row("Запись", `${code(`server/src/table/skins.ts`)} → деталь ${code(part.id)}`));
+      if (art.kind === "court") {
+        const box = ART[art.card], cutBox = part.slot === "head" ? box?.head : box?.body;
+        url = `/table/sprites/${art.card}.svg`;
+        where.push(row("Файл", `${code(`server/table-client/sprites/${art.card}.svg`)} — вся карта`));
+        where.push(row("Как сделана", `кусок карты ${code((cutBox ?? []).join(", "))} (x, y, ширина, высота в единицах рисунка карты)${part.slot === "head" && box?.oval ? ", обрезан овалом" : ""}; бумага вокруг — прозрачная${v === "back" ? "; спина — лицо, отражённое и затемнённое" : ""}`));
+        if (box) looks = row("Лицо смотрит", box.looks < 0 ? "влево по картинке" : "вправо по картинке");
+      } else if (art.kind === "file") {
+        url = `/table/skins/${art.dir}/${part.mirror?.[v] ?? v}-${part.slot}.svg`;
+        where.push(row("Файл", code(`server/table-client/skins/${art.dir}/${part.mirror?.[v] ?? v}-${part.slot}.svg`)));
+      } else if (art.kind === "draw") {
+        where.push(row("Файл", `нет — рисует функция ${code(`server/table-client/skinArt.ts`)}, рисунок ${code(art.art)}, ракурс ${code(v)}`));
+      } else if (art.kind === "png") {
+        url = `/table/sprites/${art.file}.png`;
+        where.push(row("Файл", code(`server/table-client/sprites/${art.file}.png`)));
+      }
+    }
+    if (url) where.push(row("Адрес", `<a href="${esc(HOST + url)}" target="_blank" rel="noopener">${esc(url)}</a>`));
+    where.push(row("Вес и рисунок", `<span data-fact-file>${url || s.built?.art === "draw" ? "…" : "—"}</span>`));
+    where.push(row("На экране", `<span data-fact-px>…</span>`));
+    const ax = axesFor(s.side), w3 = (v: V3) => AXIS_WORDS[v.map((n) => Math.round(n)).join()] ?? v.join();
+    how.push(row("Деталь · сторона", `${KIND_ONE[s.slot]} · ${s.side ? SIDE_NAMES[s.side] ?? s.side : "без стороны"}`));
+    const around = /^a(\d+)$/.exec(s.side ?? "");
+    how.push(row("Оси фигуры на картинке", around ? `ракурс по кругу: фигура повёрнута на ${around[1]}° от лица к зрителю, верх — вверх` : `перед — ${w3(ax.front)}, верх — ${w3(ax.up)}, право — ${w3(ax.right)}`));
+    if (looks) how.push(looks);
+    if (part) {
+      const t = tuneOf(part.id);
+      how.push(row("К камере", `${code(part.facing)} — ${FACING_WORDS[part.facing] ?? ""}`));
+      how.push(row("Ракурсы детали", `нарисованы: ${part.views.map((x) => SIDE_NAMES[x] ?? x).join(", ")}${part.mirror && Object.keys(part.mirror).length ? `; отражением: ${Object.entries(part.mirror).map(([a, b]) => `${SIDE_NAMES[a] ?? a} ← ${SIDE_NAMES[b] ?? b}`).join(", ")}` : ""}`));
+      how.push(row("Подстройка", `масштаб ×${t.scale}, сдвиг вправо ${t.dx} ед., вверх ${t.dy} ед.${part.slot === "body" ? `, плечи ${t.shoulder ?? "по умолчанию"}` : ""} — правится в «Деталях»`));
+      how.push(row("Красится", part.recolor ? "да — три краски колоды меняет расцветка" : "нет"));
+    } else {
+      how.push(row("В деталях", "пока ни в одной — картинка ставится в «Деталях»"));
+    }
+    how.push(row("За столом", `<span data-fact-units>…</span>`));
+    return { html: `<h3>Где лежит</h3><dl class="sp-facts">${where.join("")}</dl><h3>Как лежит на фигуре</h3><dl class="sp-facts">${how.join("")}</dl>`, url };
+  }
+
   function openPage(s: Shown, push = true): void {
     current = s;
     // Открыть спрайт — новая запись истории; его настройки начинаются с чистого листа. Пришли по адресу — из адреса.
@@ -472,6 +542,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
       }
       return srcOf(s, pal, () => { if (current === s) drawBig(); });
     };
+    const facts = factsHtml(s);
     pageBox.innerHTML = `<div class="sp-page" data-sprite-page="${esc(s.key)}">
       <div class="sp-top"><button class="chip" data-back>← Все спрайты</button>${s.own ? `<input data-name value="${esc(s.own.name)}" maxlength="40" aria-label="Имя">` : `<h2>${esc(s.name)}</h2>`}</div>
       <div class="bar sp-acts">${s.own
@@ -483,6 +554,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
       <div class="bar"><button class="chip" data-flip>Отразить</button><button class="chip" data-spin>Крутить само</button><button class="chip" data-reset>Сброс</button>
         <label class="num">Масштаб <input type="number" data-zoom min="0.3" max="4" step="0.1" value="${zoom}"></label></div>
       <div class="bar">${(["felt", "light", "check"] as const).map((k) => `<button class="chip${k === bg ? " on" : ""}" data-bg="${k}">${{ felt: "на сукне", light: "на светлом", check: "прозрачность" }[k]}</button>`).join("")}</div>
+      <div data-facts>${facts.html}</div>
       <h3>Расцветки</h3>
       <div class="sp-pals" data-pals16>${PALETTES.map((p, k) => `<button class="sp-pal${k === pal ? " on" : ""}" data-pal16="${k}" title="${esc(p.name)}"><img alt=""><span>${esc(p.name)}</span></button>`).join("")}</div>
       <h3>Свои цвета</h3>
@@ -510,6 +582,9 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
       layerEls.cells.style.backgroundSize = `${cell}px ${u ? H / u.h : cell}px`;
       layerEls.size.textContent = layers.size ? (u ? `за столом ≈ ${u.w.toFixed(2)} × ${u.h.toFixed(2)} ед. (${KIND_ONE[s.slot]}), клетка — 1 ед.` : "у «другого» размера за столом нет — клетка на четверть ширины") : "";
       stage.dataset.units = u ? `${u.w.toFixed(2)}x${u.h.toFixed(2)}` : "";
+      const px = pageBox.querySelector("[data-fact-px]"), un = pageBox.querySelector("[data-fact-units]");
+      if (px) px.textContent = `${nw} × ${nh} точек${s.built ? " (испечено, с обводкой)" : ""}`;
+      if (un) un.textContent = u ? `≈ ${u.w.toFixed(2)} × ${u.h.toFixed(2)} ед. стола (ширина ${KIND_ONE[s.slot]} — ${(u.w / (s.built ? tuneOf(s.built.part).scale : 1)).toFixed(2)} ед.)` : "у «другого» размера за столом нет";
     };
     const showLayers = () => {
       layerEls.axes.hidden = !layers.axes;
@@ -519,6 +594,24 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
       fit();
     };
     big.onload = fit;
+    // Вес и рисунок — из самого файла (рисунок кода — из текста, что вернула функция).
+    const fileBox = pageBox.querySelector<HTMLElement>("[data-fact-file]")!;
+    void (async () => {
+      const bytes = facts.url ? await fetch(`${HOST}${facts.url}${s.own ? `?v=${bust.get(s.own.id) ?? 0}` : ""}`).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null)
+        : s.built?.art === "draw" ? new TextEncoder().encode((await svgOf(s)) ?? "").buffer : null;
+      if (!bytes || current !== s) { if (current === s) fileBox.textContent = "—"; return; }
+      const size = bytes.byteLength, head = new Uint8Array(bytes.slice(0, 24));
+      let drawing: string;
+      if (head[0] === 0x89 && head[1] === 0x50) {
+        const dv = new DataView(bytes);
+        drawing = `PNG ${dv.getUint32(16)} × ${dv.getUint32(20)} точек`;
+      } else {
+        const root = /<svg\b[^>]*>/i.exec(new TextDecoder().decode(bytes))?.[0] ?? "";
+        const vb = /viewBox="([^"]+)"/.exec(root)?.[1], w = /\swidth="([^"]+)"/.exec(root)?.[1], h = /\sheight="([^"]+)"/.exec(root)?.[1];
+        drawing = `SVG, viewBox ${vb ?? "нет"}${w || h ? `, width ${w ?? "—"} height ${h ?? "—"}` : ""}`;
+      }
+      fileBox.textContent = `${size.toLocaleString("ru-RU")} байт · ${drawing}`;
+    })();
     for (const b of pageBox.querySelectorAll<HTMLElement>("[data-layer]")) b.onclick = () => { const k = b.dataset.layer as keyof typeof layers; layers[k] = !layers[k]; showLayers(); keep(); };
     const pose = () => {
       card.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg) scale(${zoom}) scaleX(${flip ? -1 : 1})`;
