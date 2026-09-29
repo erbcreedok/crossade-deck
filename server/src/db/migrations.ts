@@ -7,6 +7,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { inkFor } from "../profileInks.js";
 import { readFileSync, existsSync } from "fs";
 import { legacyAccountsFile } from "./paths.js";
+import { layersFromViews } from "../table/details.js";
 
 export interface Migration {
   readonly version: number;
@@ -519,6 +520,25 @@ export const MIGRATIONS: readonly Migration[] = [
     up(db) {
       // НАБОР РАКУРСОВ ДЕТАЛИ: шесть сторон (пусто) или N по кругу — как бочка (`details.ts`).
       db.exec(`ALTER TABLE table_details ADD COLUMN ring INTEGER;`);
+    },
+  },
+  {
+    version: 31,
+    up(db) {
+      // ДЕТАЛЬ — СПИСОК КАРТИНОК (слоёв) со своими углом, местом, «когда» и «как стоит» (`details.ts`). Прежние ракурсы
+      // (шесть сторон или по кругу) и «как стоит к камере» переезжают в слои; прежние столбцы уходят.
+      db.exec(`ALTER TABLE table_details ADD COLUMN layers TEXT NOT NULL DEFAULT '[]';`);
+      const rows = db.prepare("SELECT id, facing, views FROM table_details").all() as unknown as { id: string; facing: string; views: string }[];
+      const put = db.prepare("UPDATE table_details SET layers = ? WHERE id = ?");
+      for (const r of rows) {
+        const facing = (["camera", "box", "view", "tilt"] as const).find((f) => f === r.facing) ?? "tilt";
+        put.run(JSON.stringify(layersFromViews(JSON.parse(r.views) as Parameters<typeof layersFromViews>[0], facing)), r.id);
+      }
+      db.exec(`
+        ALTER TABLE table_details DROP COLUMN facing;
+        ALTER TABLE table_details DROP COLUMN ring;
+        ALTER TABLE table_details DROP COLUMN views;
+      `);
     },
   },
 ];
