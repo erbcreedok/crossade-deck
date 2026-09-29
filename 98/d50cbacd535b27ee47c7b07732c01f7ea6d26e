@@ -1,0 +1,38 @@
+server/src/table/spriteJobs.ts
+  s_12c15dae591e76::t_2d69f55721d31f 175
+server/src/db/migrations.ts
+  s_12c15dae591e76::t_2d69f55721d31f 477-488
+server/src/db/tableSpritesRepo.ts
+  s_12c15dae591e76::t_2d69f55721d31f 1-2,7-10,17-22,25-28,30,34-35,39,42-48
+server/src/table/routes.ts
+  s_12c15dae591e76::t_2d69f55721d31f 29-30,412,417-420
+server/src/table/spriteJobs.test.ts
+  s_12c15dae591e76::t_2d69f55721d31f 9,39,42-43
+server/src/table/spriteLib.ts
+  s_12c15dae591e76::t_2d69f55721d31f 11,36-51,53,56
+server/scripts/tableAdminAgy.mjs
+  s_12c15dae591e76::t_cb1280dacf968a 49,52
+server/scripts/tableAdminGallery.mjs
+  s_12c15dae591e76::t_12ff8fc4c72dd7 58
+  s_12c15dae591e76::t_cb1280dacf968a 34-47,53,66-68,71-74
+server/table-client/adminSprites.ts
+  s_12c15dae591e76::t_26f1b04c9e26df 15
+  s_12c15dae591e76::t_10ed6d4a84be3d 4-8,20,27-29,36-38,45-48,67-74,97-99,107-108,126-130,139-140,163-164,173-186,188-189,197,213-215,217,219,223-227
+  s_12c15dae591e76::t_35f081528a17bd 190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "98d50cbacd535b27ee47c7b07732c01f7ea6d26e",
+  "prompts": {},
+  "sessions": {
+    "s_12c15dae591e76": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0fe1da9a-8ecb-4b09-99b9-1b4963d888e6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
