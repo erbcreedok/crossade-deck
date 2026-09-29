@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { cleanDetail, fillViews } from "../table/details.js";
+import { cleanDetail, fillViews, outOf } from "../table/details.js";
 import { MIGRATIONS } from "./migrations.js";
 import { allDetails, dropDetail, nameTaken, oneDetail, putDetail } from "./tableDetailsRepo.js";
 
@@ -15,7 +15,7 @@ describe("детали хозяина", () => {
     expect(cleanDetail({
       name: "  Лис  ", tags: " звери, Лис ,звери", width: 99, facing: "nope",
       views: {
-        front: { sprite: "0123456789ab", dx: 9, dy: -0.12345, scale: 0.01 },
+        front: { sprite: "0123456789ab", dx: 9, dy: -0.12345, scale: 0.01, out: 99 },
         right: { sprite: "b:king:head:front" },
         left: { mirror: "right", scale: 2 },
         back: { mirror: "top" },
@@ -26,7 +26,7 @@ describe("детали хозяина", () => {
     })).toEqual({
       name: "Лис", tags: ["звери", "Лис"], width: 20, facing: "tilt",
       views: {
-        front: { sprite: "0123456789ab", dx: 5, dy: -0.123, scale: 0.2 },
+        front: { sprite: "0123456789ab", dx: 5, dy: -0.123, scale: 0.2, out: 10 },
         right: { sprite: "b:king:head:front", dx: 0, dy: 0, scale: 1 },
         left: { mirror: "right", dx: 0, dy: 0, scale: 2 },
       },
@@ -62,5 +62,11 @@ describe("детали хозяина", () => {
     expect(nameTaken(" еж · ГОЛОВА ", null, d)).toBe(true);
     expect(nameTaken("Ёж · голова", "d1", d)).toBe(false);
     expect(nameTaken("Ёж · тело", null, d)).toBe(false);
+  });
+
+  it("сторона отстоит от середины: своё «наружу» — или коробка на полширины, лист — 0", () => {
+    expect(outOf({ facing: "box", width: 2.4 }, {})).toBe(1.2);
+    expect(outOf({ facing: "tilt", width: 2.4 }, {})).toBe(0);
+    expect(outOf({ facing: "box", width: 2.4 }, { out: 0.5 })).toBe(0.5);
   });
 });

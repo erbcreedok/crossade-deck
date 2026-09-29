@@ -14,7 +14,7 @@
 import { PALETTES } from "../src/table/dolls.js";
 import { partOf, PARTS, type Facing } from "../src/table/skins.js";
 import { partName } from "../src/table/tunes.js";
-import { DETAIL_LIMITS, DETAIL_VIEWS, DETAIL_WIDTH, FACINGS, NEW_DETAIL, type Detail, type DetailView, type ViewSetup } from "../src/table/details.js";
+import { DETAIL_LIMITS, DETAIL_VIEWS, DETAIL_WIDTH, FACINGS, NEW_DETAIL, outOf, type Detail, type DetailView, type ViewSetup } from "../src/table/details.js";
 import { paintPart, partSprite } from "./dollSprites.js";
 import { UNIT_WIDTH, type V3 } from "./spriteAxes.js";
 import { HOST } from "./host.js";
@@ -31,6 +31,8 @@ const SLOT_TAG: Record<string, string> = { head: "голова", hair: "прич
 const VIEW_NAMES: Record<string, string> = { front: "лицо", right: "бок", back: "спина", left: "левый бок", top: "верх", bottom: "низ" };
 /** Куда повернуть деталь, чтобы к тебе была эта сторона: наклон и поворот, градусы. */
 const VIEW_POSE: Record<DetailView, [number, number]> = { front: [0, 0], right: [0, 90], back: [0, 180], left: [0, -90], top: [-80, 0], bottom: [80, 0] };
+/** Как повернуть плоскость стороны, чтобы она смотрела наружу своей стороной (право детали — влево сцены). */
+const FACE: Record<DetailView, string> = { front: "", back: "rotateY(180deg)", right: "rotateY(-90deg)", left: "rotateY(90deg)", top: "rotateX(90deg)", bottom: "rotateX(-90deg)" };
 /** Наружу от каждой стороны — в осях сцены (x вправо, y вниз, z к тебе), когда деталь стоит лицом. Право детали — влево. */
 const NORMAL: Record<DetailView, V3> = { front: [0, 0, 1], back: [0, 0, -1], right: [-1, 0, 0], left: [1, 0, 0], top: [0, -1, 0], bottom: [0, 1, 0] };
 const FACING_WORDS: Record<Facing, [string, string]> = {
@@ -64,7 +66,8 @@ const CSS = `
 .dt .dt-world { position: relative; width: 260px; height: 260px; transform-style: preserve-3d; }
 .dt .dt-cells { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.28) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.28) 1px, transparent 1px); pointer-events: none; }
 .dt .dt-mid { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border: 1.5px solid rgba(242,193,78,.9); border-radius: 50%; pointer-events: none; transform: translateZ(3px); }
-.dt .dt-pic { position: absolute; pointer-events: none; user-select: none; transform-origin: 50% 50%; }
+.dt .dt-body { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-style: preserve-3d; pointer-events: none; }
+.dt .dt-plane { position: absolute; pointer-events: none; user-select: none; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .dt .dt-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); font-size: 13px; text-align: center; padding: 20px; }
 .dt .dt-axes { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-style: preserve-3d; pointer-events: none; }
 .dt .dt-axes .ax { position: absolute; left: 0; top: -2px; width: 80px; height: 4px; transform-origin: 0 50%; border-radius: 2px; }
@@ -275,7 +278,7 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
           ? `<button class="add" data-dsave ${dirty() ? "" : "disabled"}>Сохранить</button><button class="chip" data-dcopy>Сохранить как новую</button><button class="chip" data-dagy>Заказать у agy</button><button class="chip drop" data-ddrop>Удалить</button>`
           : `<button class="add" data-dcopy>Сделать своей копией</button>`}</div>
         <div class="said" data-dact>${s.own ? (dirty() ? "Есть несохранённое." : "") : "Встроенную не изменить — копия ляжет в «Свои» с теми же картинками."}</div>
-        <div class="sp-stage bg-felt" data-dstage><div class="dt-world" data-world><div class="dt-cells" data-dcells></div><img class="dt-pic" data-dpic alt=""><div class="dt-empty" data-dempty hidden></div><div class="dt-mid"></div><div class="dt-axes" data-daxes></div></div></div>
+        <div class="sp-stage bg-felt" data-dstage><div class="dt-world" data-world><div class="dt-cells" data-dcells></div><div class="dt-body" data-dbody></div><div class="dt-empty" data-dempty hidden>Сторон нет — выбери картинку для лица ниже.</div><div class="dt-mid"></div><div class="dt-axes" data-daxes></div></div></div>
         <div class="bar">${(["axes", "grid"] as const).map((k) => `<button class="chip${layers[k] ? " on" : ""}" data-dlayer="${k}">${{ axes: "Оси", grid: "Клетка" }[k]}</button>`).join("")}<span class="said" data-dseen></span></div>
         <h3>Расцветки</h3>
         <div class="bar" data-dpals>${PALETTES.map((p, k) => `<button class="chip${!paint.own3 && k === paint.pal ? " on" : ""}" data-dpal="${k}" title="${esc(p.name)}"><span style="display:inline-flex;gap:2px;vertical-align:middle">${[p.red, p.blue, p.gold].map((c) => `<i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${c}"></i>`).join("")}</span></button>`).join("")}</div>
@@ -284,7 +287,8 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
         <h3>Ракурсы</h3>
         <div class="views" data-views></div>
         <div class="ed" data-ed></div>
-        <h3>Как стоит к камере</h3>
+        <h3>Как стоит к камере за столом</h3>
+        <div class="said">Здесь деталь всегда в объёме — все стороны на своих местах. За столом — так, как выбрано; у коробки стороны по умолчанию на полширины от середины.</div>
         <div class="facing">${FACINGS.map((f) => `<button data-facing="${f}" class="${draft.facing === f ? "on" : ""}"${s.own ? "" : " disabled"}>${FACING_WORDS[f][0]} <code>${f}</code><small>${FACING_WORDS[f][1]}</small></button>`).join("")}</div>
         <h3>Размер и теги</h3>
         <div class="ed"><div class="bar"><label class="num">ширина, ед. стола <input type="number" data-dwidth step="0.1" min="${DETAIL_LIMITS.width[0]}" max="${DETAIL_LIMITS.width[1]}" value="${draft.width}"${s.own ? "" : " disabled"}></label></div>
@@ -303,53 +307,57 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
       for (const v of DETAIL_VIEWS) { const k = zOf(NORMAL[v]); if (k > z) { z = k; best = v; } }
       return { side: best, z };
     };
-    /** Что видно: сторона к тебе, а нет её — ближайшая из заданных. */
-    const seen = (): { side: DetailView | null; z: number } => {
-      const a = (rx * Math.PI) / 180, b = (ry * Math.PI) / 180;
-      const zOf = (n: V3) => Math.sin(a) * n[1] + Math.cos(a) * (-n[0] * Math.sin(b) + n[2] * Math.cos(b));
-      let best: DetailView | null = null, z = -2;
-      for (const v of DETAIL_VIEWS) { if (!draft.views[v]) continue; const k = zOf(NORMAL[v]); if (k > z) { z = k; best = v; } }
-      return { side: best, z };
-    };
     const ppu = () => 260 / (draft.width * 2.2);
 
+    /** Каждая сторона — плоскость на своём месте: лицо спереди, бок справа детали, верх сверху; вся деталь крутится. */
     function pose(): void {
       const st = stage();
       st.dataset.rx = String(Math.round(rx));
       st.dataset.ry = String(Math.round(ry));
+      const turn = `rotateX(${rx}deg) rotateY(${ry}deg)`;
       const axes = pageBox.querySelector<HTMLElement>("[data-daxes]")!;
       axes.hidden = !layers.axes;
-      axes.style.transform = `translateZ(4px) rotateX(${rx}deg) rotateY(${ry}deg)`;
+      axes.style.transform = `translateZ(0) ${turn}`;
       const cells = pageBox.querySelector<HTMLElement>("[data-dcells]")!, u = ppu();
       cells.hidden = !layers.grid;
       cells.style.backgroundSize = `${u}px ${u}px`;
       cells.style.backgroundPosition = `${(130 % u) - 0.5}px ${(130 % u) - 0.5}px`;
-      const now = facingNow(), got = seen();
+      const now = facingNow();
       st.dataset.toward = now.side;
-      st.dataset.seen = got.side ?? "";
-      const pic = pageBox.querySelector<HTMLImageElement>("[data-dpic]")!, empty = pageBox.querySelector<HTMLElement>("[data-dempty]")!;
-      const one = got.side ? draft.views[got.side] : undefined;
-      const ref = one?.sprite ?? (one?.mirror ? draft.views[one.mirror]?.sprite : undefined);
-      const src = srcOf(ref, () => { if (openKey === s.key) pose(); }, paint) ?? (ref && pic.dataset.ref === ref ? pic.getAttribute("src") : null);
-      pic.dataset.ref = ref ?? "";
-      pic.hidden = !src;
-      empty.hidden = !!src;
-      empty.textContent = got.side ? "…" : "Ракурсов нет — выбери картинку для лица ниже.";
-      pageBox.querySelector<HTMLElement>("[data-dseen]")!.textContent = got.side
-        ? `к тебе — ${VIEW_NAMES[now.side]}${got.side === now.side ? "" : `; его нет, видно ближайшее — ${VIEW_NAMES[got.side]}`}`
-        : "";
-      if (src && one) {
-        if (pic.getAttribute("src") !== src) pic.src = src;
-        const aspect = pic.naturalWidth ? pic.naturalHeight / pic.naturalWidth : 1;
-        const size = { w: draft.width * one.scale, h: draft.width * one.scale * aspect };
-        const w = size.w * u, h = size.h * u;
-        Object.assign(pic.style, { width: `${w}px`, height: `${h}px`, left: `${130 + one.dx * u - w / 2}px`, top: `${130 - one.dy * u - h / 2}px` });
-        // Как деталь стоит к камере: бумажная и плоскость сужаются по углу к своей стороне, остальные — лицом всегда.
-        const squeeze = draft.facing === "tilt" || draft.facing === "view" ? Math.max(0.15, got.z) : 1;
-        pic.style.transform = `translateZ(2px) scaleX(${(one.mirror ? -1 : 1) * squeeze})`;
-        pic.dataset.flip = one.mirror ? "1" : "";
+      const body = pageBox.querySelector<HTMLElement>("[data-dbody]")!;
+      body.style.transform = turn;
+      let shown = 0;
+      for (const v of DETAIL_VIEWS) {
+        const one = draft.views[v];
+        let img = body.querySelector<HTMLImageElement>(`[data-plane="${v}"]`);
+        if (!one) { img?.remove(); continue; }
+        const ref = one.sprite ?? (one.mirror ? draft.views[one.mirror]?.sprite : undefined);
+        const src = srcOf(ref, () => { if (openKey === s.key) pose(); }, paint) ?? (img && img.dataset.ref === ref ? img.getAttribute("src") : null);
+        if (!img) {
+          img = document.createElement("img");
+          img.className = "dt-plane";
+          img.alt = "";
+          img.dataset.plane = v;
+          img.onload = () => pose();
+          body.append(img);
+        }
+        img.dataset.ref = ref ?? "";
+        img.hidden = !src;
+        if (!src) continue;
+        shown += 1;
+        if (img.getAttribute("src") !== src) img.src = src;
+        const aspect = img.naturalWidth ? img.naturalHeight / img.naturalWidth : 1;
+        const w = draft.width * one.scale * u, h = w * aspect, out = outOf(draft, one);
+        Object.assign(img.style, { width: `${w}px`, height: `${h}px`, left: `${-w / 2}px`, top: `${-h / 2}px`, transformOrigin: `${w / 2}px ${h / 2}px` });
+        img.style.transform = `${FACE[v]} translate3d(${one.dx * u}px, ${-one.dy * u}px, ${out * u}px)${one.mirror ? " scaleX(-1)" : ""}`;
+        img.dataset.out = String(out);
+        img.dataset.flip = one.mirror ? "1" : "";
       }
-      for (const b of pageBox.querySelectorAll<HTMLElement>("[data-vw]")) b.classList.toggle("seen", b.dataset.vw === got.side);
+      const empty = pageBox.querySelector<HTMLElement>("[data-dempty]")!;
+      empty.hidden = Object.keys(draft.views).length > 0;
+      pageBox.querySelector<HTMLElement>("[data-dseen]")!.textContent = `к тебе — ${VIEW_NAMES[now.side]}${draft.views[now.side] ? "" : " (этой стороны нет)"}`;
+      st.dataset.planes = String(shown);
+      for (const b of pageBox.querySelectorAll<HTMLElement>("[data-vw]")) b.classList.toggle("seen", b.dataset.vw === now.side);
     }
 
     function axesHtml(): string {
@@ -386,8 +394,8 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
         ${s.own ? `<div class="bar"><button class="add" data-dpick>Выбрать из библиотеки</button>
           <select data-dmirror><option value="">Отражением от…</option>${others.map((v) => `<option value="${v}"${one?.mirror === v ? " selected" : ""}>${VIEW_NAMES[v]}</option>`).join("")}</select>
           ${one ? `<button class="chip" data-dclear>Убрать</button>` : ""}</div>` : ""}
-        ${one ? `<div class="bar">${(["dx", "dy", "scale"] as const).map((k) => `<label class="num">${{ dx: "вправо", dy: "вверх", scale: "величина ×" }[k]}<input type="number" data-dnum="${k}" step="${k === "scale" ? 0.05 : 0.1}" min="${DETAIL_LIMITS[k][0]}" max="${DETAIL_LIMITS[k][1]}" value="${one[k]}"${s.own ? "" : " disabled"}></label>`).join("")}</div>
-          <div class="said">Сдвиг — от середины детали (жёлтый кружок), в единицах стола: клетка — 1 ед.</div>` : ""}`;
+        ${one ? `<div class="bar">${(["dx", "dy", "scale", "out"] as const).map((k) => `<label class="num">${{ dx: "вправо", dy: "вверх", scale: "величина ×", out: "наружу" }[k]}<input type="number" data-dnum="${k}" step="${k === "scale" ? 0.05 : 0.1}" min="${DETAIL_LIMITS[k][0]}" max="${DETAIL_LIMITS[k][1]}" value="${one[k] ?? ""}"${k === "out" ? ` placeholder="${outOf(draft, {})}"` : ""}${s.own ? "" : " disabled"}></label>`).join("")}</div>
+          <div class="said">Всё — в единицах стола (клетка — 1 ед.). Вправо и вверх — по этой стороне; наружу — как далеко сторона от середины детали (жёлтый кружок): у кубика — полширины, у карты — 0. Пусто — по тому, как деталь стоит к камере.</div>` : ""}`;
       const touched = () => { const b = pageBox.querySelector<HTMLButtonElement>("[data-dsave]"); if (b) b.disabled = !dirty(); pageBox.querySelector<HTMLElement>("[data-dact]")!.textContent = s.own && dirty() ? "Есть несохранённое." : ""; keep(); };
       ed.querySelector<HTMLElement>("[data-dpick]")?.addEventListener("click", () => openPicker((ref) => {
         draft.views[view] = { sprite: ref, dx: draft.views[view]?.dx ?? 0, dy: draft.views[view]?.dy ?? 0, scale: draft.views[view]?.scale ?? 1 };
@@ -405,7 +413,8 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
         drawViews(); drawEditor(); pose(); touched();
       });
       for (const inp of ed.querySelectorAll<HTMLInputElement>("[data-dnum]")) inp.oninput = () => {
-        const k = inp.dataset.dnum as "dx" | "dy" | "scale", v = Number(inp.value), cur = draft.views[view];
+        const k = inp.dataset.dnum as "dx" | "dy" | "scale" | "out", v = Number(inp.value), cur = draft.views[view];
+        if (cur && k === "out" && inp.value === "") { delete cur.out; pose(); touched(); return; }
         if (!cur || inp.value === "" || !Number.isFinite(v)) return;
         (cur as ViewSetup)[k] = Math.min(DETAIL_LIMITS[k][1], Math.max(DETAIL_LIMITS[k][0], v));
         pose(); touched();
@@ -414,7 +423,6 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
 
     function wire(): void {
       pageBox.querySelector<HTMLElement>("[data-daxes]")!.innerHTML = axesHtml();
-      pageBox.querySelector<HTMLImageElement>("[data-dpic]")!.onload = () => pose();
       // Всегда в галерею деталей: на страницу можно прийти и из заказа agy, «назад» по истории увёл бы туда.
       pageBox.querySelector<HTMLElement>("[data-dback]")!.onclick = () => { go({ detail: null, dd: null }); follow(); };
       const st = stage();
@@ -431,7 +439,7 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
         if (taken(draft.name, s.key)) act.textContent = "Такое имя уже у другой детали.";
       };
       if (s.own) {
-        for (const b of pageBox.querySelectorAll<HTMLElement>("[data-facing]")) b.onclick = () => { draft.facing = b.dataset.facing as Facing; for (const x of pageBox.querySelectorAll("[data-facing]")) x.classList.toggle("on", x === b); pose(); touched(); };
+        for (const b of pageBox.querySelectorAll<HTMLElement>("[data-facing]")) b.onclick = () => { draft.facing = b.dataset.facing as Facing; for (const x of pageBox.querySelectorAll("[data-facing]")) x.classList.toggle("on", x === b); drawEditor(); pose(); touched(); };
         const wIn = pageBox.querySelector<HTMLInputElement>("[data-dwidth]")!;
         wIn.oninput = () => { const v = Number(wIn.value); if (wIn.value === "" || !Number.isFinite(v)) return; draft.width = Math.min(DETAIL_LIMITS.width[1], Math.max(DETAIL_LIMITS.width[0], v)); pose(); touched(); };
         const tIn = pageBox.querySelector<HTMLInputElement>("[data-dtags]")!;

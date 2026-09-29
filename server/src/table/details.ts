@@ -23,6 +23,11 @@ export interface ViewSetup {
   dy: number;
   /** Во сколько раз больше обычной ширины детали. */
   scale: number;
+  /**
+   * Насколько сторона отстоит от середины детали наружу, в единицах стола: у кубика — половина ширины, у карты — 0
+   * (лицо и спина — один лист). Нет — по тому, как деталь стоит к камере: коробка — половина ширины, прочие — 0.
+   */
+  out?: number;
 }
 
 export interface Detail {
@@ -37,7 +42,7 @@ export interface Detail {
   at: number;
 }
 
-export const DETAIL_LIMITS = { dx: [-5, 5], dy: [-5, 5], scale: [0.2, 5], width: [0.2, 20] } as const;
+export const DETAIL_LIMITS = { dx: [-5, 5], dy: [-5, 5], scale: [0.2, 5], width: [0.2, 20], out: [-10, 10] } as const;
 export const DETAIL_WIDTH = 2.4;
 /** Имя, с которым деталь заводится кнопкой; пустая деталь с ним берёт имя заказа agy. */
 export const NEW_DETAIL = "Новая деталь";
@@ -73,7 +78,7 @@ export function cleanDetail(raw: unknown): Omit<Detail, "id" | "at"> | null {
   for (const v of DETAIL_VIEWS) {
     const one = given[v] as Record<string, unknown> | undefined;
     if (!one || typeof one !== "object") continue;
-    const place = { dx: num(one.dx, DETAIL_LIMITS.dx, 0), dy: num(one.dy, DETAIL_LIMITS.dy, 0), scale: num(one.scale, DETAIL_LIMITS.scale, 1) };
+    const place = { dx: num(one.dx, DETAIL_LIMITS.dx, 0), dy: num(one.dy, DETAIL_LIMITS.dy, 0), scale: num(one.scale, DETAIL_LIMITS.scale, 1), ...(typeof one.out === "number" && Number.isFinite(one.out) ? { out: num(one.out, DETAIL_LIMITS.out, 0) } : {}) };
     if (drawn.has(v)) views[v] = { sprite: one.sprite as string, ...place };
     else if (typeof one.mirror === "string" && one.mirror !== v && drawn.has(one.mirror as DetailView)) views[v] = { mirror: one.mirror as DetailView, ...place };
   }
@@ -93,3 +98,6 @@ export function fillViews(views: Detail["views"], drawn: readonly (readonly [sid
   if (!out.left && out.right?.sprite) out.left = { mirror: "right", dx: 0, dy: 0, scale: 1 };
   return out;
 }
+
+/** Насколько сторона отстоит от середины: своё — или по тому, как деталь стоит к камере. */
+export const outOf = (d: Pick<Detail, "facing" | "width">, one: Pick<ViewSetup, "out">): number => one.out ?? (d.facing === "box" ? d.width / 2 : 0);

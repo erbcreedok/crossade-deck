@@ -2,7 +2,8 @@
 // нет вида (голова, тело…): ширина в единицах стола и теги; картинка ракурса — любая этой стороны. Деталь одна в объёме, крутится
 // пальцем, к тебе — нужная сторона (нет её — ближайшая); у каждого ракурса картинка из библиотеки (выбор — по детали
 // и стороне) или отражение другого, свои сдвиг и величина; как стоит к камере; сохранить, копия, удалить. Всё — в
-// адресе, несохранённое переживает обновление. Встроенные — только смотреть и «Сделать своей копией».
+// адресе, несохранённое переживает обновление. Деталь — вещь в объёме: каждая сторона — плоскость на своём месте
+// (у кубика — на полширины от середины), поворот показывает все стороны сразу. Встроенные — только смотреть и «Сделать своей копией».
 //   node scripts/tableAdminDetails.mjs [base] [secret] [shot.png]
 import { rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -57,24 +58,32 @@ try {
   const offered = await p.locator("[data-picker] [data-pref] i").allTextContents();
   check("выбор картинки: любые картинки этой стороны — и головы, и тела", offered.length > 0 && offered.every((t) => /лицо$/.test(t)) && (await p.locator(`[data-picker] [data-pref="${sprite.id}"]`).count()) === 1 && (await p.locator('[data-picker] [data-pref="b:king:body:front"]').count()) === 1 && (await p.locator('[data-picker] [data-pref="b:cube:head:front"]').count()) === 1, offered.slice(0, 5));
   await p.click(`[data-picker] [data-pref="${sprite.id}"]`);
-  await p.waitForFunction(() => document.querySelector("[data-dpic]")?.naturalWidth > 0, null, { timeout: 5000 }).catch(() => {});
-  check("лицо поставлено: в клетке ракурса и на сцене", (await p.locator('[data-vw="front"] img').count()) === 1 && (await p.getAttribute("[data-dstage]", "data-seen")) === "front" && await p.locator("[data-dpic]").isVisible(), await p.getAttribute("[data-dstage]", "data-seen"));
+  await p.waitForFunction(() => document.querySelector("[data-plane=front]")?.naturalWidth > 0, null, { timeout: 5000 }).catch(() => {});
+  check("лицо поставлено: в клетке стороны и на сцене", (await p.locator('[data-vw="front"] img').count()) === 1 && (await p.getAttribute("[data-dstage]", "data-planes")) === "1" && await p.locator('[data-plane="front"]').isVisible(), await p.getAttribute("[data-dstage]", "data-planes"));
   // сдвиг и величина
-  const box0 = await p.locator("[data-dpic]").boundingBox();
+  const box0 = await p.locator('[data-plane="front"]').boundingBox();
   await p.fill('[data-dnum="dx"]', "1");
   await p.fill('[data-dnum="scale"]', "2");
-  const box1 = await p.locator("[data-dpic]").boundingBox();
+  const box1 = await p.locator('[data-plane="front"]').boundingBox();
   check("сдвиг вправо и величина двигают картинку на сцене", box1.width > box0.width * 1.8 && box1.x + box1.width / 2 > box0.x + box0.width / 2 + 5, [box0, box1]);
   // бок: из библиотеки «любая сторона»; левый бок — отражение бока
   await p.click('[data-vw="right"]');
   check("тап по ракурсу — деталь повернулась к тебе этим боком", (await p.getAttribute("[data-dstage]", "data-toward")) === "right", await p.getAttribute("[data-dstage]", "data-toward"));
-  check("бока нет — видно ближайшее, и так и сказано", (await p.getAttribute("[data-dstage]", "data-seen")) === "front" && /его нет/.test(await p.textContent("[data-dseen]")), await p.textContent("[data-dseen]"));
+  check("бока нет — так и сказано; лицо видно сбоку, на своём месте", /этой стороны нет/.test(await p.textContent("[data-dseen]")) && (await p.getAttribute("[data-dstage]", "data-planes")) === "1", await p.textContent("[data-dseen]"));
   await p.click("[data-dpick]");
   await p.click("[data-picker] [data-pside]");
   await p.click(`[data-picker] [data-pref="${sprite.id}"]`);
   await p.click('[data-vw="left"]');
   await p.selectOption("[data-dmirror]", "right");
-  check("левый бок — отражением бока", (await p.locator('[data-vw="left"] img.flip').count()) === 1 && (await p.getAttribute("[data-dpic]", "data-flip")) === "1", null);
+  check("левый бок — отражением бока", (await p.locator('[data-vw="left"] img.flip').count()) === 1 && (await p.getAttribute('[data-plane="left"]', "data-flip")) === "1", null);
+  const faceOf = (v) => p.getAttribute(`[data-plane="${v}"]`, "style");
+  check("в объёме: три стороны — три плоскости, каждая повёрнута к своей стороне", (await p.getAttribute("[data-dstage]", "data-planes")) === "3" && /rotateY\(-90deg\)/.test(await faceOf("right")) && /rotateY\(90deg\)/.test(await faceOf("left")) && !/rotate/.test(await faceOf("front")), [await faceOf("right"), await faceOf("left")]);
+  check("лист: стороны в середине (наружу 0)", (await p.getAttribute('[data-plane="right"]', "data-out")) === "0", await p.getAttribute('[data-plane="right"]', "data-out"));
+  await p.click('[data-facing="box"]');
+  check("коробка: стороны на полширины от середины", (await p.getAttribute('[data-plane="right"]', "data-out")) === "1.2", await p.getAttribute('[data-plane="right"]', "data-out"));
+  await p.fill('[data-dnum="out"]', "0.5");
+  check("своё «наружу» у стороны", (await p.getAttribute('[data-plane="left"]', "data-out")) === "0.5", await p.getAttribute('[data-plane="left"]', "data-out"));
+  await p.fill('[data-dnum="out"]', "");
   // крутить пальцем
   await p.locator("[data-dstage]").scrollIntoViewIfNeeded();
   const st = await p.locator("[data-dstage]").boundingBox();
@@ -100,12 +109,12 @@ try {
   const got = (await mine()).find((d) => d.id === made?.id);
   check("сохранено на сервере: имя, как стоит, ракурсы, сдвиг, величина, отражение", got?.name === `${tag} Лис` && got.facing === "camera" && got.width === 4.8 && got.tags.join() === "снеговик,зима" && got.views.front?.sprite === sprite.id && got.views.front.dx === 1 && got.views.front.scale === 2 && got.views.right?.sprite === sprite.id && got.views.left?.mirror === "right" && !hash().get("dd"), got);
   // РАСЦВЕТКИ: шестнадцать и свои три — на сцене и в ракурсах, в адресе
-  const pic0 = await p.getAttribute("[data-dpic]", "src");
+  const pic0 = await p.getAttribute('[data-plane="front"]', "src");
   await p.click('[data-dpal="5"]');
-  const pic5 = await p.getAttribute("[data-dpic]", "src");
+  const pic5 = await p.getAttribute('[data-plane="front"]', "src");
   check("расцветка перекрашивает деталь, и в адресе", pic5 !== pic0 && hash().get("dp") === "5" && (await p.locator('[data-dpal="5"].on').count()) === 1, null);
   await p.fill('[data-dc="0"]', "#ff00aa");
-  check("свои три цвета — на сцене и в клетке ракурса", decodeURIComponent(await p.getAttribute("[data-dpic]", "src")).includes("#ff00aa") && decodeURIComponent(await p.getAttribute('[data-vw="front"] img', "src")).includes("#ff00aa") && hash().get("dc")?.startsWith("ff00aa"), null);
+  check("свои три цвета — на сцене и в клетке ракурса", decodeURIComponent(await p.getAttribute('[data-plane="front"]', "src")).includes("#ff00aa") && decodeURIComponent(await p.getAttribute('[data-vw="front"] img', "src")).includes("#ff00aa") && hash().get("dc")?.startsWith("ff00aa"), null);
   await p.click("[data-dcoff]");
   // PNG не красится — так и сказано
   await p.click('[data-vw="back"]');
