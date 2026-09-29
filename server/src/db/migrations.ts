@@ -7,7 +7,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { inkFor } from "../profileInks.js";
 import { readFileSync, existsSync } from "fs";
 import { legacyAccountsFile } from "./paths.js";
-import { layersFromViews } from "../table/details.js";
+import { cleanDetail, layersFromViews, upgradeLayers } from "../table/details.js";
 
 export interface Migration {
   readonly version: number;
@@ -539,6 +539,16 @@ export const MIGRATIONS: readonly Migration[] = [
         ALTER TABLE table_details DROP COLUMN ring;
         ALTER TABLE table_details DROP COLUMN views;
       `);
+    },
+  },
+  {
+    version: 32,
+    up(db) {
+      // СЛОЙ ДЕТАЛИ — В ПРОСТРАНСТВЕ: угол и «вправо / вверх / наружу» становятся местом x, y, z и поворотом по трём
+      // осям, отражение — по двум (`details.ts`, `upgradeLayers`).
+      const rows = db.prepare("SELECT id, width, layers FROM table_details").all() as unknown as { id: string; width: number; layers: string }[];
+      const put = db.prepare("UPDATE table_details SET layers = ? WHERE id = ?");
+      for (const r of rows) put.run(JSON.stringify(cleanDetail({ name: "x", width: r.width, layers: upgradeLayers(JSON.parse(r.layers) as unknown[], r.width) })!.layers), r.id);
     },
   },
 ];
