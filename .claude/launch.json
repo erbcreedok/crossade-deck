@@ -208,6 +208,17 @@
         "TABLE_OWNERS": "tg:7"
       },
       "port": 2597
+    },
+    {
+      "name": "table3d",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "table3d",
+        "run",
+        "dev"
+      ],
+      "port": 9590
     }
   ]
 }
