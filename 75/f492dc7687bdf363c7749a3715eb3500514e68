@@ -1,0 +1,22 @@
+server/scripts/tableAdminGallery.mjs
+  s_12c15dae591e76::t_83438c2a172b08 66-67
+  s_12c15dae591e76::t_6d8e7019512854 2,55-56
+server/table-client/adminSprites.ts
+  s_12c15dae591e76::t_ea9ed18161da5b 165,397-398
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "75f492dc7687bdf363c7749a3715eb3500514e68",
+  "prompts": {},
+  "sessions": {
+    "s_12c15dae591e76": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0fe1da9a-8ecb-4b09-99b9-1b4963d888e6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
