@@ -51,6 +51,11 @@ const KIND_ONE: Record<Kind, string> = { head: "голова", hair: "причё
 const SIDES = ["front", "back", "right", "left", "top", "bottom"];
 /** Свои цвета применяются, когда выбор цвета затих столько: тянешь мышью по палитре — печётся один раз, в конце. */
 const OWN3_WAIT_MS = 200;
+/**
+ * КАМЕРА СЦЕН — как близко к картинке (точек): чуть больше сцены, чтобы ближнее было заметно крупнее дальнего. Дальше
+ * (700) рёбра шли почти параллельно, и объёма не было видно. Им же живёт сцена деталей (`adminDetails.ts`).
+ */
+export const STAGE_PERSPECTIVE = 380;
 const ART_NAMES = { court: "колода", file: "файлы", draw: "код", png: "картинка", none: "" } as const;
 
 const CSS = `
@@ -119,7 +124,7 @@ const CSS = `
 .sp-top { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
 .sp-top input, .sp-page input.wide { flex: 1; min-width: 0; box-sizing: border-box; font: inherit; font-size: 15px; color: var(--ink); background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
 .sp-page input.wide { width: 100%; }
-.sp-stage { height: 300px; border: 1px solid var(--line); border-radius: 12px; display: grid; place-items: center; perspective: 700px; touch-action: none; cursor: grab; overflow: hidden; margin-bottom: 8px; }
+.sp-stage { height: 300px; border: 1px solid var(--line); border-radius: 12px; display: grid; place-items: center; perspective: ${STAGE_PERSPECTIVE}px; touch-action: none; cursor: grab; overflow: hidden; margin-bottom: 8px; }
 .sp-stage.bg-felt { background: radial-gradient(#1b4835, #0a2117); }
 .sp-stage.bg-light { background: #efe6d2; }
 .sp-stage.bg-check { background: repeating-conic-gradient(#8a8f8c 0 25%, #c8ccc9 0 50%) 0 0 / 20px 20px; }

@@ -116,6 +116,8 @@ interface Paint { pal: number; own3: readonly [string, string, string] | null }
 const PLAIN: Paint = { pal: 0, own3: null };
 /** Свои цвета применяются, когда выбор цвета затих столько: тянешь мышью по палитре — печётся один раз, в конце. */
 const OWN3_WAIT_MS = 200;
+/** Камера у стола — близко, как глаз игрока над столом: ближний край стола заметно шире дальнего. */
+const TABLE_PERSPECTIVE = 280;
 
 /** `orderAgy` — заказать у agy для этой детали: нарисованное встанет в её пустые ракурсы (форма — в «Спрайтах»). */
 export function mountDetails(root: HTMLElement, auth: Record<string, string>, orderAgy: (d: { id: string; name: string }) => void): { refresh(): Promise<void> } {
@@ -298,7 +300,7 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
         <div class="said" data-dfsaid></div>
         <div class="bar">${(["axes", "grid"] as const).map((k) => `<button class="chip${layers[k] ? " on" : ""}" data-dlayer="${k}">${{ axes: "Оси", grid: "Клетка" }[k]}</button>`).join("")}<span class="said" data-dseen></span></div>
         <h3>У стола</h3>
-        <div class="sp-stage bg-felt" data-tstage style="perspective:900px"><div class="tb-world" data-tworld>
+        <div class="sp-stage bg-felt" data-tstage style="perspective:${TABLE_PERSPECTIVE}px"><div class="tb-world" data-tworld>
           <div class="tb-table" style="--rim:${RIM * TABLE_PPU}px;width:${2 * (R + RIM) * TABLE_PPU}px;height:${2 * (R + RIM) * TABLE_PPU}px;left:${-(R + RIM) * TABLE_PPU}px;top:${-(R + RIM) * TABLE_PPU}px;transform:rotateX(90deg)"></div>
           <div class="tb-foot" data-tfoot></div><div class="tb-pole" data-tpole></div>
           <div class="tb-anchor" data-tanchor><div data-tbody></div><div data-tflat></div></div>

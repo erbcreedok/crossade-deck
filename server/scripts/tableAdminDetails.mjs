@@ -110,6 +110,8 @@ try {
     if (key) await p.keyboard.up(key);
   };
   const at0 = await tst.getAttribute("data-at");
+  const persp = await p.evaluate(() => ["[data-dstage]", "[data-tstage]"].map((q) => parseFloat(getComputedStyle(document.querySelector(q)).perspective)));
+  check("сцены в перспективе: камера близко (деталь ≤ 400, стол ≤ 300 точек) — ближнее крупнее дальнего", persp[0] <= 400 && persp[1] <= 300, persp);
   check("у стола: деталь стоит на месте игрока, нарисована", at0 === "0,7.4,5.5" && Number(await tst.getAttribute("data-planes")) >= 1, [at0, await tst.getAttribute("data-planes")]);
   await tdrag(null, 80, 0);
   check("тянешь — крутится стол, деталь на месте", (await hash()).get("tcy") !== null && (await tst.getAttribute("data-at")) === at0, [(await hash()).get("tcy"), await tst.getAttribute("data-at")]);
