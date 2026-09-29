@@ -32,18 +32,32 @@ try {
   const cells = await p.locator(".sg .cell").count();
   check("встроенные на месте и испечены", cells >= 60 && (await p.locator(".sg .cell .wait").count()) === 0, cells);
   // ПОЛКИ: деталь, сторона, тег — у встроенных из каталога
-  await p.click('[data-kind="legs"]');
-  const legs = await p.locator(".sg .cell i").allTextContents();
+  await p.click('[data-facet="gk"][data-v="legs"]');
+  const legs = await p.locator(".sg .cell i:not(.fmt)").allTextContents();
   check("полка «Ноги» — только ноги", legs.length > 0 && legs.every((t) => t.startsWith("ноги")), legs);
-  await p.click('[data-kind="head"]');
-  await p.click('[data-side="back"]');
-  const backs = await p.locator(".sg .cell i").allTextContents();
+  await p.click('[data-facet="gk"][data-v="head"]');
+  await p.click('[data-facet="gs"][data-v="back"]');
+  const backs = await p.locator(".sg .cell i:not(.fmt)").allTextContents();
   check("голова + спина — только затылки голов", backs.length > 0 && backs.every((t) => t.startsWith("голова · спина")), backs);
   await p.selectOption("[data-tag]", "Король треф");
   const kings = await p.locator(".sg .cell b").allTextContents();
   check("тег «Король треф» — только его картинки", kings.length === 1 && kings[0].startsWith("Король треф"), kings);
   await p.selectOption("[data-tag]", "");
-  await p.click('[data-side="front"]');
+  await p.click('[data-facet="gs"][data-v="all"]');
+  await p.click('[data-facet="gk"][data-v="all"]');
+  await p.click('[data-facet="gf"][data-v="svg"]');
+  const svgs = await p.locator(".sg .cell i.fmt").allTextContents();
+  check("формат: SVG — только SVG (файлы деталей)", svgs.length > 0 && svgs.every((t) => t.startsWith("SVG")), svgs.slice(0, 5));
+  await p.click('[data-facet="gf"][data-v="png"]');
+  const pngs = await p.locator(".sg .cell i.fmt").allTextContents();
+  check("формат: PNG — только PNG, и они не красятся", pngs.length > 0 && pngs.every((t) => t === "PNG · не красится"), pngs);
+  await p.click('[data-facet="gc"][data-v="no"]');
+  const png2 = await p.locator(".sg .cell").count();
+  await p.click('[data-facet="gf"][data-v="all"]');
+  check("счётчик чипа = сколько покажет: «не красится»", Number(await p.locator('[data-facet="gc"][data-v="no"] small').innerText()) === (await p.locator(".sg .cell").count()) && png2 > 0, null);
+  await p.click('[data-facet="gc"][data-v="all"]');
+  await p.click('[data-facet="gk"][data-v="head"]');
+  await p.click('[data-facet="gs"][data-v="front"]');
   check("загрузка ляжет туда, что выбрано", /голова · лицо/.test(await p.textContent("[data-into]")), await p.textContent("[data-into]"));
   await p.setInputFiles("[data-file]", [good, evil]);
   await p.waitForFunction(() => /Загружено/.test(document.querySelector("[data-said]")?.textContent ?? ""), null, { timeout: 8000 }).catch(() => {});
@@ -53,9 +67,9 @@ try {
   check("в библиотеке — одна картинка, имя из файла, деталь и сторона — из полок", mine.length === 1 && mine[0].name === `${tag}-лис` && mine[0].origin === "upload" && mine[0].slot === "head" && mine[0].side === "front", mine);
   const file = await fetch(`${base}/table/lib/${mine[0].id}.svg`);
   check("файл отдаётся всем, открытый напрямую ничего не исполняет", file.status === 200 && /default-src 'none'/.test(file.headers.get("content-security-policy") ?? ""), file.headers.get("content-security-policy"));
-  await p.click('[data-which="own"]');
+  await p.click('[data-facet="gw"][data-v="upload"]');
   await p.fill("[data-q]", tag);
-  check("«Свои» и поиск — только она", (await p.locator(".sg .cell").count()) === 1 && (await p.locator(".sg .cell i").innerText()) === "голова · лицо · загружен", await p.locator(".sg .grid").innerText());
+  check("«Свои» и поиск — только она", (await p.locator(".sg .cell").count()) === 1 && (await p.locator(".sg .cell i").first().innerText()) === "голова · лицо · загружен", await p.locator(".sg .grid").innerText());
   // СТРАНИЦА СПРАЙТА: своя картинка
   await p.locator(".sg .cell").first().click();
   await p.waitForSelector("[data-sprite-page] [data-big][src]");
@@ -101,9 +115,9 @@ try {
   check("удалить — назад к галерее, файла больше нет", (await own()).length === 0 && (await fetch(`${base}/table/lib/${mine[0].id}.svg`)).status === 404 && (await p.locator("[data-list]").isVisible()), await own());
   // встроенная: король треф, лицо — похожие по тегу, свои цвета недоступны
   await p.fill("[data-q]", "");
-  await p.click('[data-which="built"]');
-  await p.click('[data-kind="head"]');
-  await p.click('[data-side="front"]');
+  await p.click('[data-facet="gw"][data-v="court"]');
+  await p.click('[data-facet="gk"][data-v="head"]');
+  await p.click('[data-facet="gs"][data-v="front"]');
   await p.selectOption("[data-tag]", "Король треф");
   await p.locator(".sg .cell").first().click();
   await p.waitForSelector("[data-sprite-page]");

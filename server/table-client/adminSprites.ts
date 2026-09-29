@@ -38,7 +38,7 @@ interface Shown {
   side: string | null;
   tags: string[];
   own?: LibSprite;
-  built?: { part: string; view: string };
+  built?: { part: string; view: string; art: "court" | "file" | "draw" | "png" | "none"; recolor: boolean };
 }
 
 const SIDE_NAMES: Record<string, string> = { front: "лицо", back: "спина", right: "бок", left: "левый бок", top: "верх", bottom: "низ" };
@@ -67,6 +67,8 @@ const CSS = `
 .sg .cell b { font-size: 11.5px; font-weight: 500; text-align: center; line-height: 1.25; overflow-wrap: anywhere; }
 .sg .cell i { font-size: 10.5px; color: var(--dim); font-style: normal; text-align: center; }
 .sg .chip small { opacity: .7; margin-left: 3px; }
+.sg .flabel { font-size: 12px; color: var(--dim); min-width: 64px; }
+.sg .cell i.fmt { font-size: 10px; opacity: .8; }
 .sg select { font: inherit; font-size: 13.5px; color: var(--ink); background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; max-width: 100%; }
 .sg .into { font-size: 12.5px; color: var(--dim); }
 .sg-look .pick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -109,14 +111,26 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   const style = document.createElement("style");
   style.textContent = CSS;
   document.head.append(style);
-  // Полки, поиск, расцветка — из адреса (`adminRoute.ts`) и обратно в него.
-  let which = routeOne("gw", ["all", "own", "built"] as const, "all");
-  let kind = routeOne("gk", ["all", ...KINDS.map(([k]) => k)] as const, "all") as Kind | "all";
-  let side = routeOne("gs", ["all", ...SIDES], "all");
+  /** ПОЛКИ — разрезы библиотеки: у каждой картинки одно значение в каждом. Выбранное — в адресе (`adminRoute.ts`). */
+  const FACETS: { id: string; label: string; values: [string, string][]; of: (s: Shown) => string }[] = [
+    { id: "gk", label: "Деталь", values: KINDS, of: (s) => s.slot },
+    { id: "gs", label: "Сторона", values: [...SIDES.map((k): [string, string] => [k, SIDE_NAMES[k]!]), ["none", "без стороны"]], of: (s) => s.side ?? "none" },
+    { id: "gf", label: "Формат", values: [["svg", "SVG"], ["png", "PNG"], ["baked", "рисует код"]], of: (s) => (s.own ? s.own.ext : s.built!.art === "file" ? "svg" : s.built!.art === "png" ? "png" : "baked") },
+    { id: "gw", label: "Откуда", values: [["upload", "загружены"], ["agy", "agy"], ["court", "колода"], ["file", "файлы"], ["draw", "код"], ["png", "картинки стола"]], of: (s) => (s.own ? s.own.origin : s.built!.art) },
+    { id: "gc", label: "Красится", values: [["yes", "перекрашивается"], ["no", "не красится"]], of: (s) => (paints(s) ? "yes" : "no") },
+  ];
+  const chosen: Record<string, string> = Object.fromEntries(FACETS.map((f) => [f.id, routeOne(f.id, ["all", ...f.values.map(([v]) => v)], "all")]));
   let tag = route("gt") ?? "";
   let query = route("gq") ?? "";
   let palette = Math.max(0, Math.min(PALETTES.length - 1, Math.round(routeNum("gp", 0))));
-  const remember = () => put({ gw: which === "all" ? null : which, gk: kind === "all" ? null : kind, gs: side === "all" ? null : side, gt: tag, gq: query, gp: palette || null });
+  const remember = () => put({ ...Object.fromEntries(FACETS.map((f) => [f.id, chosen[f.id] === "all" ? null : chosen[f.id]])), gt: tag, gq: query, gp: palette || null });
+  /** Перекрашивается ли расцветкой: PNG — нет; SVG — если в нём есть цвета колоды; встроенная — как её деталь. */
+  const paints = (s: Shown): boolean => {
+    if (s.built) return s.built.recolor && s.built.art !== "png";
+    if (s.own!.ext === "png") return false;
+    const t = texts.get(s.own!.id);
+    return !t || /#b3221f|#1d4f80|#f2c14e/i.test(t);
+  };
   let own: LibSprite[] = [];
   let said = "", bad = false;
   /** SVG своих — текстом: перекрашиваются здесь. PNG — как есть. */
@@ -124,7 +138,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   /** Заменили файл — новый адрес картинки, чтобы браузер не показал прежнюю из памяти. */
   const bust = new Map<string, number>();
 
-  const built = (): Shown[] => PARTS.filter((p) => p.art.kind !== "none").flatMap((p) => p.views.map((view) => ({ key: `b:${p.id}:${view}`, name: `${partName(p.id)} · ${SIDE_NAMES[view] ?? view}`, slot: p.slot as Kind, side: view, tags: [partName(p.id), ART_NAMES[p.art.kind]].filter(Boolean), built: { part: p.id, view } })));
+  const built = (): Shown[] => PARTS.filter((p) => p.art.kind !== "none").flatMap((p) => p.views.map((view) => ({ key: `b:${p.id}:${view}`, name: `${partName(p.id)} · ${SIDE_NAMES[view] ?? view}`, slot: p.slot as Kind, side: view, tags: [partName(p.id), ART_NAMES[p.art.kind]].filter(Boolean), built: { part: p.id, view, art: p.art.kind, recolor: p.recolor } })));
   const mine = (): Shown[] => own.map((o) => ({ key: `o:${o.id}`, name: o.name, slot: o.slot, side: o.side, tags: o.tags, own: o }));
 
   let frame = 0;
@@ -145,9 +159,8 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   root.innerHTML = `<div class="sg"><div data-list>
     <div class="bar"><input type="search" data-q placeholder="Поиск по имени и тегам" aria-label="Поиск"><button class="add" data-add>Загрузить</button><input type="file" data-file accept=".svg,image/svg+xml,image/png" multiple hidden></div>
     <div class="bar into" data-into></div>
-    <div class="bar" data-kinds></div>
-    <div class="bar" data-sides></div>
-    <div class="bar"><select data-tag aria-label="Тег"></select>${(["all", "own", "built"] as const).map((k) => `<button class="chip${which === k ? " on" : ""}" data-which="${k}">${{ all: "Все", own: "Свои", built: "Встроенные" }[k]}</button>`).join("")}</div>
+    <div data-facets></div>
+    <div class="bar"><span class="flabel">Тег</span><select data-tag aria-label="Тег"></select></div>
     <div class="bar" data-pals></div>
     <div class="said" data-said></div>
     <div class="count" data-count></div>
@@ -159,11 +172,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   q.oninput = () => { query = q.value.trim().toLowerCase(); drawGrid(); };
   const tagSel = root.querySelector<HTMLSelectElement>("[data-tag]")!;
   tagSel.onchange = () => { tag = tagSel.value; drawGrid(); };
-  for (const b of root.querySelectorAll<HTMLElement>("[data-which]")) b.onclick = () => {
-    which = b.dataset.which as typeof which;
-    for (const x of root.querySelectorAll<HTMLElement>("[data-which]")) x.classList.toggle("on", x === b);
-    drawGrid();
-  };
+
   const pals = root.querySelector<HTMLElement>("[data-pals]")!;
   const drawPals = () => {
     pals.innerHTML = PALETTES.slice(0, 8).map((p, k) => `<button class="chip pal${k === palette ? " on" : ""}" data-gpal="${k}" title="${esc(p.name)}"><i style="background:${p.red}"></i><i style="background:${p.blue}"></i><i style="background:${p.gold}"></i></button>`).join("");
@@ -181,7 +190,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     for (const f of files) {
       const name = f.name.replace(/\.(svg|png)$/i, "").slice(0, 40) || "картинка";
       const type = f.type || (/\.svg$/i.test(f.name) ? "image/svg+xml" : "image/png");
-      const meta = new URLSearchParams({ name, slot: kind === "all" ? "other" : kind, ...(side === "all" ? {} : { side }), ...(tag ? { tags: tag } : {}) });
+      const meta = new URLSearchParams({ name, slot: chosen.gk === "all" ? "other" : chosen.gk!, ...(chosen.gs === "all" || chosen.gs === "none" ? {} : { side: chosen.gs! }), ...(tag && tag !== NO_TAG ? { tags: tag } : {}) });
       const res = await fetch(`${HOST}/table/admin/lib?${meta}`, { method: "POST", headers: { ...auth, "content-type": type }, body: f }).catch(() => null);
       if (res?.ok) ok += 1;
       else fails.push(`${f.name}: ${res ? ((await res.json().catch(() => ({}))) as { error?: string }).error ?? res.status : "нет связи"}`);
@@ -191,33 +200,42 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     await refresh();
   };
 
-  /** Полки — фильтры со счётчиками: сколько картинок будет, если нажать. */
+  const NO_TAG = "~";
+  const byTag = (s: Shown) => !tag || (tag === NO_TAG ? s.tags.length === 0 : s.tags.includes(tag));
+  const byQuery = (s: Shown) => !query || s.name.toLowerCase().includes(query) || s.tags.some((t) => t.toLowerCase().includes(query));
+  /** Проходит ли картинка все выбранные полки, кроме `skip`. */
+  const passes = (s: Shown, skip = "") => FACETS.every((f) => f.id === skip || chosen[f.id] === "all" || f.of(s) === chosen[f.id]) && (skip === "gt" || byTag(s)) && byQuery(s);
+
+  /** Полки — строка чипов на разрез, со счётчиками: сколько картинок будет, если нажать (при прочих выбранных). */
   function drawShelves(pool: Shown[]): void {
-    const count = (f: (s: Shown) => boolean) => pool.filter(f).length;
-    const kinds = root.querySelector<HTMLElement>("[data-kinds]")!, sides = root.querySelector<HTMLElement>("[data-sides]")!;
-    kinds.innerHTML = [["all", "Все детали"] as const, ...KINDS].map(([k, n]) => `<button class="chip${kind === k ? " on" : ""}" data-kind="${k}">${n}<small>${count((s) => (k === "all" || s.slot === k) && (side === "all" || s.side === side))}</small></button>`).join("");
-    sides.innerHTML = ["all", ...SIDES].map((k) => `<button class="chip${side === k ? " on" : ""}" data-side="${k}">${k === "all" ? "Любая сторона" : SIDE_NAMES[k]}<small>${count((s) => (kind === "all" || s.slot === kind) && (k === "all" || s.side === k))}</small></button>`).join("");
-    for (const b of kinds.querySelectorAll<HTMLElement>("[data-kind]")) b.onclick = () => { kind = b.dataset.kind as typeof kind; drawGrid(); };
-    for (const b of sides.querySelectorAll<HTMLElement>("[data-side]")) b.onclick = () => { side = b.dataset.side!; drawGrid(); };
+    const box = root.querySelector<HTMLElement>("[data-facets]")!;
+    box.innerHTML = FACETS.map((f) => {
+      const rest = pool.filter((s) => passes(s, f.id));
+      const n = (v: string) => rest.filter((s) => f.of(s) === v).length;
+      return `<div class="bar"><span class="flabel">${f.label}</span>${[["all", "все"] as [string, string], ...f.values].map(([v, label]) => `<button class="chip${chosen[f.id] === v ? " on" : ""}" data-facet="${f.id}" data-v="${v}">${esc(label)}<small>${v === "all" ? rest.length : n(v)}</small></button>`).join("")}</div>`;
+    }).join("");
+    for (const b of box.querySelectorAll<HTMLElement>("[data-facet]")) b.onclick = () => { chosen[b.dataset.facet!] = b.dataset.v!; drawGrid(); };
+    const tagged = pool.filter((s) => passes(s, "gt"));
     const tags = new Map<string, number>();
-    for (const s of pool) for (const t of s.tags) tags.set(t, (tags.get(t) ?? 0) + 1);
-    tagSel.innerHTML = `<option value="">Все теги</option>` + [...tags].sort((a, b) => a[0].localeCompare(b[0], "ru")).map(([t, n]) => `<option value="${esc(t)}"${t === tag ? " selected" : ""}>${esc(t)} (${n})</option>`).join("");
-    root.querySelector<HTMLElement>("[data-into]")!.textContent = `Загрузка ляжет как: ${kind === "all" ? "другое" : KIND_ONE[kind]}${side === "all" ? "" : ` · ${SIDE_NAMES[side]}`}${tag ? ` · #${tag}` : ""} — поправить можно в карточке картинки.`;
+    for (const s of tagged) for (const t of s.tags) tags.set(t, (tags.get(t) ?? 0) + 1);
+    tagSel.innerHTML = `<option value="">все (${tagged.length})</option><option value="${NO_TAG}"${tag === NO_TAG ? " selected" : ""}>без тегов (${tagged.filter((s) => !s.tags.length).length})</option>` + [...tags].sort((a, b) => a[0].localeCompare(b[0], "ru")).map(([t, n]) => `<option value="${esc(t)}"${t === tag ? " selected" : ""}>${esc(t)} (${n})</option>`).join("");
+    const k = chosen.gk as Kind | "all", sd = chosen.gs!;
+    root.querySelector<HTMLElement>("[data-into]")!.textContent = `Загрузка ляжет как: ${k === "all" ? "другое" : KIND_ONE[k]}${sd === "all" || sd === "none" ? "" : ` · ${SIDE_NAMES[sd]}`}${tag && tag !== NO_TAG ? ` · #${tag}` : ""} — поправить можно на странице картинки.`;
   }
 
   function drawGrid(): void {
     remember();
-    for (const x of root.querySelectorAll<HTMLElement>("[data-which]")) x.classList.toggle("on", x.dataset.which === which);
-    const pool = [...(which === "built" ? [] : mine()), ...(which === "own" ? [] : built())];
+    const pool = [...mine(), ...built()];
     drawShelves(pool);
-    const list = pool.filter((s) => (kind === "all" || s.slot === kind) && (side === "all" || s.side === side) && (!tag || s.tags.includes(tag)) && (!query || s.name.toLowerCase().includes(query) || s.tags.some((t) => t.toLowerCase().includes(query))));
-    root.querySelector<HTMLElement>("[data-count]")!.textContent = `Картинок: ${list.length}${which === "all" ? ` (своих ${own.length})` : ""}`;
+    const list = pool.filter((s) => passes(s));
+    root.querySelector<HTMLElement>("[data-count]")!.textContent = `Картинок: ${list.length} из ${pool.length} (своих ${own.length})`;
     const s0 = root.querySelector<HTMLElement>("[data-said]")!;
     s0.textContent = said;
     s0.classList.toggle("bad", bad);
     grid.innerHTML = list.map((s) => {
       const src = srcOf(s, palette, later);
-      return `<button class="cell${s.own ? " own" : ""}" data-sprite="${esc(s.key)}">${src ? `<img src="${esc(src)}" alt="">` : `<div class="wait">…</div>`}<b>${esc(s.name)}</b><i>${KIND_ONE[s.slot]}${s.side ? ` · ${SIDE_NAMES[s.side] ?? s.side}` : ""} · ${s.own ? ORIGIN_NAMES[s.own.origin] : "встроенный"}</i></button>`;
+      const fmt = FACETS[2]!.of(s);
+      return `<button class="cell${s.own ? " own" : ""}" data-sprite="${esc(s.key)}">${src ? `<img src="${esc(src)}" alt="">` : `<div class="wait">…</div>`}<b>${esc(s.name)}</b><i>${KIND_ONE[s.slot]}${s.side ? ` · ${SIDE_NAMES[s.side] ?? s.side}` : ""} · ${s.own ? ORIGIN_NAMES[s.own.origin] : "встроенный"}</i><i class="fmt">${fmt === "baked" ? "код" : fmt.toUpperCase()}${paints(s) ? "" : " · не красится"}</i></button>`;
     }).join("") || `<div class="said" style="grid-column:1/-1">Ничего не найдено.</div>`;
     const byKey = new Map(list.map((s) => [s.key, s]));
     for (const b of grid.querySelectorAll<HTMLElement>("[data-sprite]")) b.onclick = () => openPage(byKey.get(b.dataset.sprite!)!);
