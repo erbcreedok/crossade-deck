@@ -8,24 +8,22 @@
 //   exit       код выхода — появляется, когда скрипт кончил
 //   <id>-sheet.png   лист: все стороны в трёх расцветках
 //
-// Рисунки ложатся в `design/persona/skins/<id>/` (как у `/sprite` из чата); «В каталог» копирует их к столу
-// (`table-client/skins/<id>/`) и дописывает часть в каталог (`table_parts`, `addParts`) — без выката.
+// Рисунки ложатся в `design/persona/skins/<id>/` (как у `/sprite` из чата); «В библиотеку» кладёт каждую сторону
+// отдельной картинкой в библиотеку спрайтов (`spriteLib.ts`).
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { keepPart } from "../db/tableTunesRepo.js";
-import { addParts, partOf, type Part, type Slot } from "./skins.js";
+import { keepSprite } from "./spriteLib.js";
 
 const SERVER = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ROOT = resolve(SERVER, "..");
 export const JOBS = process.env.TABLE_SPRITE_JOBS ?? join(SERVER, "data", "sprite-jobs");
 const PHOTOS = join(JOBS, "_photos");
 const DRAWN = join(ROOT, "design", "persona", "skins");
-const SHIPPED = join(SERVER, "table-client", "skins");
 
 export const JOB_SLOTS = ["head", "hair", "body", "legs"] as const;
 const SIDES: Record<string, string[]> = { "1": ["front"], "2": ["front", "back"], "4": ["front", "back", "right"], "6": ["front", "back", "right", "top", "bottom"] };
@@ -46,8 +44,8 @@ export interface Job extends JobAsk {
   views: string[];
   at: number;
   pid?: number;
-  /** Принят в каталог — id части. */
-  part?: string;
+  /** Принят в библиотеку — id картинок. */
+  lib?: string[];
 }
 
 export type JobState = "running" | "good" | "bad" | "broken";
@@ -163,37 +161,27 @@ export async function oneJob(job: string): Promise<JobView | null> {
 
 export const sheetOf = (job: JobView): string => join(JOBS, job.job, `${job.id}-sheet.png`);
 
-/** Как часть стоит к камере — по нарисованным сторонам (как в `skins.ts`): одна — к камере, с верхом — по ракурсу, иначе — бумажная. */
-export function partFor(job: Job): Part {
-  const facing = job.views.length === 1 ? "camera" : job.views.includes("top") ? "view" : "tilt";
-  return {
-    id: `${job.id}:${job.slot}`,
-    slot: job.slot as Slot,
-    name: job.name ?? job.id,
-    art: { kind: "file", dir: job.id },
-    views: job.views,
-    ...(job.views.includes("right") ? { mirror: { left: "right" } } : {}),
-    facing,
-    recolor: true,
-  };
-}
+const SIDE_NAMES: Record<string, string> = { front: "лицо", back: "спина", right: "бок", top: "верх", bottom: "низ" };
 
-/** В КАТАЛОГ: рисунки — к столу, часть — в базу и в каталог этого процесса. Экраны узнают её с правками. */
-export async function acceptJob(job: JobView, now = Date.now()): Promise<Part | { error: string }> {
+/**
+ * В БИБЛИОТЕКУ: каждая нарисованная сторона — отдельной картинкой библиотеки (`spriteLib.ts`), с именем
+ * «<имя> · <сторона>». Какой ракурс какой детали она станет — решается в «Деталях».
+ */
+export async function acceptJob(job: JobView, now = Date.now()): Promise<{ sprites: string[] } | { error: string }> {
   if (job.state !== "good") return { error: "not_good" };
-  const part = partFor(job);
-  if (partOf(part.id) && !job.part) return { error: "taken" };
-  await mkdir(join(SHIPPED, job.id), { recursive: true });
-  for (const v of job.views) await copyFile(join(DRAWN, job.id, `${v}-${job.slot}.svg`), join(SHIPPED, job.id, `${v}-${job.slot}.svg`));
-  keepPart(part, now);
-  addParts([part]);
-  await writeFile(join(JOBS, job.job, "job.json"), JSON.stringify({ ...job, state: undefined, out: undefined, sheet: undefined, part: part.id }, null, 2));
-  return part;
+  if (job.lib?.length) return { error: "already" };
+  const ids: string[] = [];
+  for (const v of job.views) {
+    const got = await keepSprite(await readFile(join(DRAWN, job.id, `${v}-${job.slot}.svg`)), `${job.name ?? job.id} · ${SIDE_NAMES[v] ?? v}`, "agy", now);
+    if ("error" in got) return got;
+    ids.push(got.id);
+  }
+  await writeFile(join(JOBS, job.job, "job.json"), JSON.stringify({ ...job, state: undefined, out: undefined, sheet: undefined, lib: ids }, null, 2));
+  return { sprites: ids };
 }
 
-/** Убрать попытку: папку заказа и её рисунки. Принятую в каталог — нельзя. Работающую — сначала остановить. */
+/** Убрать попытку: папку заказа и её рисунки (принятые картинки в библиотеке остаются). Работающую — сначала остановить. */
 export async function dropJob(job: JobView): Promise<{ ok: true } | { error: string }> {
-  if (job.part) return { error: "in_catalogue" };
   if (job.state === "running" && job.pid) {
     try {
       process.kill(-job.pid, "SIGTERM");
@@ -216,29 +204,3 @@ export async function likeDirs(): Promise<string[]> {
   return dirs.filter((n): n is string => n !== null).sort();
 }
 
-/**
- * ФАЙЛЫ СПРАЙТОВ — для панели «Спрайты»: что нарисовано (`design/persona/skins`, туда пишет agy) и что отдано столу
- * (`table-client/skins`). По папкам, только SVG вида `<ракурс>-<часть>.svg`.
- */
-export async function spriteFiles(): Promise<Record<"drawn" | "shipped", Record<string, string[]>>> {
-  const scan = async (root: string): Promise<Record<string, string[]>> => {
-    const out: Record<string, string[]> = {};
-    if (!existsSync(root)) return out;
-    for (const dir of (await readdir(root)).sort()) {
-      if (!/^[a-z0-9-]+$/.test(dir) || !(await stat(join(root, dir))).isDirectory()) continue;
-      const files = (await readdir(join(root, dir))).filter((f) => SPRITE_FILE.test(f)).sort();
-      if (files.length) out[dir] = files;
-    }
-    return out;
-  };
-  return { drawn: await scan(DRAWN), shipped: await scan(SHIPPED) };
-}
-
-const SPRITE_FILE = /^[a-z0-9]+-(head|hair|body|legs)\.svg$/;
-
-/** Путь к файлу спрайта — только из двух папок и только имя по образцу: из адреса наружу не выйти. */
-export function spritePath(where: string, dir: string, file: string): string | null {
-  if (!/^[a-z0-9-]+$/.test(dir) || !SPRITE_FILE.test(file)) return null;
-  const root = where === "drawn" ? DRAWN : where === "shipped" ? SHIPPED : null;
-  return root ? join(root, dir, file) : null;
-}

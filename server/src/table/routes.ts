@@ -25,7 +25,9 @@ import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomInJournal, roomsOfJou
 import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
 import { allTunes, extraParts, putTune } from "../db/tableTunesRepo.js";
-import { acceptJob, cleanAsk, dropJob, keepPhoto, likeDirs, listJobs, oneJob, sheetOf, spriteFiles, spritePath, startJob } from "./spriteJobs.js";
+import { acceptJob, cleanAsk, dropJob, keepPhoto, likeDirs, listJobs, oneJob, sheetOf, startJob } from "./spriteJobs.js";
+import { cleanName, dropSprite, keepSprite, libFile, LIB_MAX_BYTES } from "./spriteLib.js";
+import { libSprite, libSprites, renameLibSprite } from "../db/tableSpritesRepo.js";
 import { cleanTune } from "./tunes.js";
 import { myRooms } from "./mine.js";
 import { carryTableProfile, saveTableProfile, tableProfile } from "../db/tableProfilesRepo.js";
@@ -399,14 +401,38 @@ export function tableRoutes(): Router {
   r.get("/table/admin/sprites", owner, async (_req, res) => {
     res.json({ jobs: await listJobs(), like: await likeDirs() });
   });
-  r.get("/table/admin/sprites/files", owner, async (_req, res) => {
-    res.json(await spriteFiles());
+  // БИБЛИОТЕКА СПРАЙТОВ (`spriteLib.ts`) — картинки со своим именем. Править — хозяину, смотреть файлы — всем: по ним
+  // будут рисовать столы.
+  r.get("/table/admin/lib", owner, (_req, res) => {
+    res.json({ sprites: libSprites() });
   });
-  r.get("/table/admin/sprites/files/:where/:dir/:file", owner, (req, res) => {
-    const path = spritePath(req.params.where, req.params.dir, req.params.file);
+  r.post("/table/admin/lib", owner, express.raw({ type: ["image/svg+xml", "image/png", "application/octet-stream"], limit: LIB_MAX_BYTES }), async (req, res) => {
+    const name = cleanName(req.query.name);
+    if (!Buffer.isBuffer(req.body) || !name) return void res.status(400).json({ error: "no_image_or_name" });
+    const got = await keepSprite(req.body, name, "upload");
+    if ("error" in got) return void res.status(400).json(got);
+    res.json(got);
+  });
+  r.patch("/table/admin/lib/:id", owner, (req, res) => {
+    const name = cleanName((req.body as { name?: unknown } | undefined)?.name);
+    if (!name) return void res.status(400).json({ error: "no_name" });
+    if (!renameLibSprite(req.params.id, name)) return void res.status(404).json({ error: "not_found" });
+    res.json(libSprite(req.params.id));
+  });
+  r.delete("/table/admin/lib/:id", owner, async (req, res) => {
+    const one = libSprite(req.params.id);
+    if (!one) return void res.status(404).json({ error: "not_found" });
+    await dropSprite(one);
+    res.json({ ok: true });
+  });
+  r.get("/table/lib/:file", (req, res) => {
+    const m = /^([a-f0-9]{12})\.(svg|png)$/.exec(req.params.file);
+    const path = m ? libFile(m[1]!, m[2]!) : null;
     if (!path || !existsSync(path)) return void res.status(404).end();
-    res.header("Cache-Control", "no-store");
-    res.type("image/svg+xml").sendFile(path);
+    // Открытый напрямую SVG ничего не исполняет и ничего не тянет.
+    res.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'");
+    res.header("Cache-Control", "public, max-age=31536000, immutable");
+    res.sendFile(path);
   });
   r.post("/table/admin/sprites/photo", owner, express.raw({ type: "image/*", limit: "8mb" }), async (req, res) => {
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) return void res.status(400).json({ error: "no_photo" });

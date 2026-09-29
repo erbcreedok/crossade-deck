@@ -205,7 +205,7 @@ interface JobView {
   keep?: string;
   views: string[];
   at: number;
-  part?: string;
+  lib?: string[];
   state: "running" | "good" | "bad" | "broken";
   out: string;
   sheet: boolean;
@@ -262,16 +262,16 @@ function agyTab(root: HTMLElement): void {
   const api = (path: string, init: RequestInit = {}) => fetch(`${HOST}/table/admin/sprites${path}`, { ...init, headers: { ...auth, ...(init.headers ?? {}) } });
 
   const jobHtml = (j: JobView) => {
-    const badge = j.part ? `<span class="badge part">в каталоге</span>` : `<span class="badge ${j.state}">${STATE_SAID[j.state]}</span>`;
+    const badge = j.lib?.length ? `<span class="badge part">в библиотеке</span>` : `<span class="badge ${j.state}">${STATE_SAID[j.state]}</span>`;
     const when = new Date(j.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
     const more = open?.job === j.job
       ? `<pre data-log>${esc(open.out || "пока тихо…")}</pre>`
         + (sheetUrl ? `<img class="sheet" src="${sheetUrl}" alt="лист ${esc(j.id)}">` : "")
         + `<div class="acts">`
-        + (j.state === "good" && !j.part ? `<button class="main" data-accept="${j.job}">В каталог</button>` : "")
+        + (j.state === "good" && !j.lib?.length ? `<button class="main" data-accept="${j.job}">В библиотеку</button>` : "")
         + (j.state !== "running" ? `<button data-again="${j.job}">Другую</button>` : "")
         + (j.state === "good" ? `<button data-based="${j.job}">По ней — ещё часть</button>` : "")
-        + (!j.part ? `<button data-drop="${j.job}">${j.state === "running" ? "Остановить и удалить" : "Удалить"}</button>` : "")
+        + `<button data-drop="${j.job}">${j.state === "running" ? "Остановить и удалить" : "Удалить"}</button>`
         + `</div>`
       : "";
     return `<div class="card job" data-job="${j.job}"><div class="top"><span class="what">${esc(j.name ?? j.id)} · ${esc(JOB_SLOTS.find(([s]) => s === j.slot)![1])}</span>${badge}<span class="when">${when} · ${j.views.length} стор.</span></div><div class="brief">${esc(j.brief)}</div>${more}</div>`;
@@ -366,9 +366,8 @@ function agyTab(root: HTMLElement): void {
     const pick = (job: string) => jobs.find((j) => j.job === job)!;
     for (const b of root.querySelectorAll<HTMLElement>("[data-accept]")) b.onclick = async () => {
       const res = await api(`/${b.dataset.accept}/accept`, { method: "POST" }).catch(() => null);
-      said = res?.ok ? "В каталоге. Во вкладке «Детали» её можно подкрутить." : `Не принято (${res?.status ?? "нет связи"}${res?.status === 409 ? ": такая часть уже есть" : ""}).`;
+      said = res?.ok ? "Каждая сторона — картинкой в библиотеке («Все спрайты»). Какой ракурс какой детали — в «Деталях»." : `Не принято (${res?.status ?? "нет связи"}).`;
       bad = !res?.ok;
-      await pullTunes();
       await refresh();
       gallery.refresh();
       drawForm();

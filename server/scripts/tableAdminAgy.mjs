@@ -1,5 +1,5 @@
-// СТРАНИЦА ХОЗЯИНА — «Спрайты» → «Заказать у agy»: заказ уходит, видно «рисует…» и ход в логе, потом «годно» с листом; «В каталог» —
-// часть появляется в каталоге (`/table/tunes`) и во вкладке «Спрайты»; «Другую» заполняет форму тем же; «Удалить»
+// СТРАНИЦА ХОЗЯИНА — «Спрайты» → «Заказать у agy»: заказ уходит, видно «рисует…» и ход в логе, потом «годно» с листом;
+// «В библиотеку» — каждая сторона картинкой в библиотеке спрайтов; «Другую» заполняет форму тем же; «Удалить»
 // убирает попытку и её рисунки. Стол должен брать заглушку вместо agy (стенд table-probe: TABLE_SPRITE_SCRIPT).
 //   node scripts/tableAdminAgy.mjs [base] [secret] [shot.png]
 import { existsSync } from "node:fs";
@@ -45,14 +45,12 @@ try {
   if (shot) await p.screenshot({ path: shot, fullPage: true });
   await card.locator("[data-accept]").click();
   await card.locator(".badge.part").waitFor({ timeout: 5000 }).catch(() => {});
-  const tunes = await (await fetch(`${base}/table/tunes`)).json();
-  check("«В каталог» — часть в каталоге стола", (tunes.extra ?? []).some((x) => x.id === `${ID}:head` && x.name === "Лис" && x.facing === "tilt"), tunes.extra);
-  check("рисунки легли к столу", (await fetch(`${base}/table/skins/${ID}/front-head.svg`)).status === 200, null);
-  await p.click('[data-tab="parts"]');
-  await p.click('[data-pane="parts"] [data-slot="hair"]');
-  await p.click('[data-pane="parts"] [data-slot="head"]');
-  check("во вкладке «Детали» — новая часть с именем", (await p.locator(`[data-part="${ID}:head"]`).innerText().catch(() => "")) === "Лис", null);
-  await p.click('[data-tab="sprites"]');
+  const lib = (await (await fetch(`${base}/table/admin/lib`, { headers: { "x-table-secret": secret } })).json()).sprites.filter((x) => x.name.startsWith("Лис · "));
+  check("«В библиотеку» — каждая сторона отдельной картинкой с именем", lib.map((x) => x.name).sort().join() === "Лис · лицо,Лис · спина" && lib.every((x) => x.origin === "agy"), lib);
+  await p.click('[data-sub="gallery"]');
+  await p.click('[data-which="own"]');
+  check("в «Все спрайты» → «Свои» — обе", (await p.locator(".sg .cell", { hasText: "Лис · " }).count()) === 2, await p.locator(".sg").innerText());
+  await p.click('[data-sub="agy"]');
   await card.locator("[data-again]").click();
   check("«Другую» — форма заполнена той же заявкой", (await p.inputValue('[data-a="brief"]')) === "лис в очках" && (await p.inputValue('[data-a="id"]')) === ID, [await p.inputValue('[data-a="brief"]'), await p.inputValue('[data-a="id"]')]);
   await p.click("[data-go]");
@@ -68,8 +66,10 @@ try {
   check("без ошибок на странице", errors.length === 0, errors);
 } finally {
   await browser.close();
-  // принятое в каталог прогона — убрать с диска (база прогона в памяти)
-  for (const dir of [join(ROOT, "design/persona/skins", ID), join(ROOT, "design/persona/skins", `${ID}-2`), join(ROOT, "server/table-client/skins", ID)]) await rm(dir, { recursive: true, force: true });
+  // рисунки прогона — убрать с диска; картинки библиотеки — через стол
+  for (const dir of [join(ROOT, "design/persona/skins", ID), join(ROOT, "design/persona/skins", `${ID}-2`)]) await rm(dir, { recursive: true, force: true });
+  const left = (await (await fetch(`${base}/table/admin/lib`, { headers: { "x-table-secret": secret } })).json()).sprites.filter((x) => x.name.startsWith("Лис · "));
+  for (const x of left) await fetch(`${base}/table/admin/lib/${x.id}`, { method: "DELETE", headers: { "x-table-secret": secret } });
 }
 for (const c of checks) console.log(`${c.ok ? "✓" : "✗"} ${c.name}${c.ok ? "" : ` — ${JSON.stringify(c.got)}`}`);
 const bad = checks.filter((c) => !c.ok).length;

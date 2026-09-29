@@ -155,7 +155,8 @@
         "TELEGRAM_BOT_TOKEN": "test",
         "CROSSADE_DB_FILE": ":memory:",
         "TABLE_SPRITE_SCRIPT": "server/scripts/spriteFake.mjs",
-        "TABLE_SPRITE_JOBS": "/tmp/crossade-probe-sprite-jobs"
+        "TABLE_SPRITE_JOBS": "/tmp/crossade-probe-sprite-jobs",
+        "TABLE_SPRITE_LIB": "/tmp/crossade-probe-sprite-lib"
       },
       "port": 2611
     },

@@ -458,4 +458,20 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 26,
+    up(db) {
+      // БИБЛИОТЕКА СПРАЙТОВ — картинки сами по себе, со своим именем (`spriteLib.ts`): загруженные хозяином и принятые
+      // от agy. Файл лежит в папке библиотеки, здесь — имя и вид файла.
+      db.exec(`
+        CREATE TABLE table_sprites (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          ext TEXT NOT NULL,
+          origin TEXT NOT NULL,
+          at INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];
