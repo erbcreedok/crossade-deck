@@ -2,10 +2,12 @@
 // картинок, без вида — шар годится и в головы, и в ком снеговика, кем встанет — решает фигура. Галерея деталей
 // (поиск по имени и тегам) → страница детали:
 //
-//   сцена   — деталь одна, в объёме: крутишь пальцем, и видна та её сторона, что к тебе (как за столом: ракурса нет —
-//             ближайший из есть); оси детали и клетка в единицу стола — слоями;
-//   ракурсы — лицо, бок, спина, левый бок, верх, низ: у каждого картинка из библиотеки (или отражение другого), свои
-//             сдвиг и величина от середины детали. Выбор картинки — любые картинки библиотеки этой стороны;
+//   сцена   — деталь одна, крутишь пальцем; показана так, как выбрано переключателем под ней (он же — как деталь
+//             стоит за столом): коробка — все стороны в объёме, каждая на своём месте; всегда лицом / бумажный /
+//             плоскость — к тебе ближайший по углу ракурс; оси детали и клетка в единицу стола — слоями;
+//   ракурсы — набор: шесть сторон (лицо, бок, спина, левый бок, верх, низ) или N по кругу (бочка); у каждого картинка
+//             из библиотеки (или отражение другого), свои сдвиг, величина и «наружу» от середины детали. Сменил набор —
+//             картинки переехали на ближайшие углы. Выбор картинки — любые картинки библиотеки этой стороны;
 //   встроенные детали каталога (`skins.ts`) — только смотреть; «Сделать своей копией» — своя деталь с теми же
 //             картинками.
 //
@@ -14,7 +16,7 @@
 import { PALETTES } from "../src/table/dolls.js";
 import { partOf, PARTS, type Facing } from "../src/table/skins.js";
 import { partName } from "../src/table/tunes.js";
-import { DETAIL_LIMITS, DETAIL_VIEWS, DETAIL_WIDTH, FACINGS, NEW_DETAIL, outOf, type Detail, type DetailView, type ViewSetup } from "../src/table/details.js";
+import { DETAIL_LIMITS, DETAIL_WIDTH, FACINGS, moveViews, nearestView, NEW_DETAIL, outOf, RING_LIMITS, viewAngle, viewDir, viewsOf, type Detail, type DetailView, type ViewSetup } from "../src/table/details.js";
 import { paintPart, partSprite } from "./dollSprites.js";
 import { UNIT_WIDTH, type V3 } from "./spriteAxes.js";
 import { HOST } from "./host.js";
@@ -29,20 +31,20 @@ interface Pic { ref: string; name: string; slot: string; side: string | null; ta
 /** Кем встроенная деталь служит в каталоге — её тег, не вид: своя копия годится куда угодно. */
 const SLOT_TAG: Record<string, string> = { head: "голова", hair: "причёска", body: "тело", legs: "ноги", hands: "руки", other: "другое" };
 const VIEW_NAMES: Record<string, string> = { front: "лицо", right: "бок", back: "спина", left: "левый бок", top: "верх", bottom: "низ" };
-/** Куда повернуть деталь, чтобы к тебе была эта сторона: наклон и поворот, градусы. */
-const VIEW_POSE: Record<DetailView, [number, number]> = { front: [0, 0], right: [0, 90], back: [0, 180], left: [0, -90], top: [-80, 0], bottom: [80, 0] };
-/** Как повернуть плоскость стороны, чтобы она смотрела наружу своей стороной (право детали — влево сцены). */
-const FACE: Record<DetailView, string> = { front: "", back: "rotateY(180deg)", right: "rotateY(-90deg)", left: "rotateY(90deg)", top: "rotateX(90deg)", bottom: "rotateX(-90deg)" };
-/** Наружу от каждой стороны — в осях сцены (x вправо, y вниз, z к тебе), когда деталь стоит лицом. Право детали — влево. */
-const NORMAL: Record<DetailView, V3> = { front: [0, 0, 1], back: [0, 0, -1], right: [-1, 0, 0], left: [1, 0, 0], top: [0, -1, 0], bottom: [0, 1, 0] };
+/** Имя ракурса: сторона — словом, по кругу — углом. */
+const viewName = (v: string): string => VIEW_NAMES[v] ?? `${viewAngle(v).yaw}°`;
+const signed = (yaw: number) => (yaw > 180 ? yaw - 360 : yaw);
+/** Куда повернуть деталь, чтобы к тебе был этот ракурс: наклон и поворот, градусы. */
+const poseOf = (v: string): [number, number] => { const { yaw, pitch } = viewAngle(v); return pitch > 45 ? [-80, 0] : pitch < -45 ? [80, 0] : [0, signed(yaw)]; };
+/** Как повернуть плоскость ракурса, чтобы она смотрела наружу своей стороной (право детали — влево сцены). */
+const faceOf = (v: string): string => { const { yaw, pitch } = viewAngle(v); return pitch > 45 ? "rotateX(90deg)" : pitch < -45 ? "rotateX(-90deg)" : signed(yaw) ? `rotateY(${-signed(yaw)}deg)` : ""; };
+const dot = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
 const FACING_WORDS: Record<Facing, [string, string]> = {
-  tilt: ["бумажный", "лицом в камеру, по ширине сужается по углу к ракурсу — карты, звери"],
-  camera: ["всегда лицом", "всегда лицом в камеру, по углу меняется только рисунок — шар, бочонок"],
-  view: ["плоскость", "плоскость ровно по своему ракурсу, сверху — плашмя"],
-  box: ["коробка", "настоящая коробка — видно до трёх граней сразу, как кубик"],
+  box: ["коробка", "все стороны в объёме, каждая на своём месте — видно до трёх сразу, как у кубика"],
+  camera: ["всегда лицом", "к тебе — ближайший по углу ракурс, всегда лицом; по углу меняется только рисунок — шар, бочка"],
+  tilt: ["бумажный", "к тебе — ближайший ракурс, лицом, но по ширине сужается по углу — карты, звери"],
+  view: ["плоскость", "ближайший ракурс лежит ровно в своей плоскости, сверху — плашмя"],
 };
-/** Ракурсы по кругу встроенных деталей (`a0…a340`) — ближайшие к шести сторонам. */
-const RING_SIDE: Partial<Record<DetailView, string>> = { front: "a0", right: "a80", back: "a180", left: "a280" };
 
 const esc = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const fits = (hay: string, q: string) => hay.toLowerCase().replaceAll("ё", "е").includes(q.toLowerCase().replaceAll("ё", "е").trim());
@@ -67,6 +69,7 @@ const CSS = `
 .dt .dt-cells { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.28) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.28) 1px, transparent 1px); pointer-events: none; }
 .dt .dt-mid { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border: 1.5px solid rgba(242,193,78,.9); border-radius: 50%; pointer-events: none; transform: translateZ(3px); }
 .dt .dt-body { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-style: preserve-3d; pointer-events: none; }
+.dt .dt-flat { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; transform: translateZ(1px); }
 .dt .dt-plane { position: absolute; pointer-events: none; user-select: none; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .dt .dt-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); font-size: 13px; text-align: center; padding: 20px; }
 .dt .dt-axes { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-style: preserve-3d; pointer-events: none; }
@@ -154,27 +157,28 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
     if (ref.startsWith("b:")) { const m = /^b:(.+):[a-z0-9]+$/.exec(ref); return !!m && !!partOf(m[1]!)?.recolor; }
     return picOf.get(ref)?.ext === "svg";
   };
-  const stiff = (d: Omit<Detail, "id" | "at">): DetailView[] => DETAIL_VIEWS.filter((v) => d.views[v]?.sprite && !paints(d.views[v]!.sprite));
+  const stiff = (d: Omit<Detail, "id" | "at">): DetailView[] => viewsOf(d).filter((v) => d.views[v]?.sprite && !paints(d.views[v]!.sprite));
   const picName = (ref: string | undefined): string => {
     if (!ref) return "";
-    if (ref.startsWith("b:")) { const m = /^b:(.+):([a-z0-9]+)$/.exec(ref); return m ? `${partName(m[1]!)} · ${VIEW_NAMES[m[2]!] ?? m[2]}` : ref; }
+    if (ref.startsWith("b:")) { const m = /^b:(.+):([a-z0-9]+)$/.exec(ref); return m ? `${partName(m[1]!)} · ${viewName(m[2]!)}` : ref; }
     return picOf.get(ref)?.name ?? "нет в библиотеке";
   };
   const pics = (): Pic[] => [
     ...lib.map((o) => ({ ref: o.id, name: o.name, slot: o.slot, side: o.side, tags: o.tags })),
-    ...PARTS.filter((p) => p.art.kind !== "none").flatMap((p) => p.views.map((v) => ({ ref: `b:${p.id}:${v}`, name: `${partName(p.id)} · ${VIEW_NAMES[v] ?? v}`, slot: p.slot, side: VIEW_NAMES[v] ? v : null, tags: [partName(p.id)] }))),
+    ...PARTS.filter((p) => p.art.kind !== "none").flatMap((p) => p.views.map((v) => ({ ref: `b:${p.id}:${v}`, name: `${partName(p.id)} · ${viewName(v)}`, slot: p.slot, side: v, tags: [partName(p.id)] }))),
   ];
 
   // ——— детали ———
   /** Встроенная деталь каталога — как деталь: ракурсы из её нарисованных сторон и отражений. */
   const builtIn = (): Shown[] => PARTS.filter((p) => p.art.kind !== "none").map((p) => {
     const views: Detail["views"] = {};
-    for (const v of DETAIL_VIEWS) {
-      const drawn = p.views.includes(v) ? v : RING_SIDE[v] && p.views.includes(RING_SIDE[v]!) ? RING_SIDE[v]! : null;
-      if (drawn) views[v] = { sprite: `b:${p.id}:${drawn}`, dx: 0, dy: 0, scale: 1 };
+    // Ракурсы по кругу (бочка: a0…a340) — набор «по кругу» из стольких же; иначе — шесть сторон и отражения.
+    const ring = p.views.every((v) => /^a\d+$/.test(v)) ? p.views.length : undefined;
+    for (const v of viewsOf({ ring })) {
+      if (p.views.includes(v)) views[v] = { sprite: `b:${p.id}:${v}`, dx: 0, dy: 0, scale: 1 };
       else if (p.mirror?.[v] && p.views.includes(p.mirror[v]!)) views[v] = { mirror: p.mirror[v] as DetailView, dx: 0, dy: 0, scale: 1 };
     }
-    return { key: `b:${p.id}`, own: false, detail: { id: p.id, name: `${partName(p.id)} · ${SLOT_TAG[p.slot] ?? p.slot}`, tags: [SLOT_TAG[p.slot] ?? p.slot], width: UNIT_WIDTH[p.slot] ?? DETAIL_WIDTH, facing: p.facing, views, at: 0 } };
+    return { key: `b:${p.id}`, own: false, detail: { id: p.id, name: `${partName(p.id)} · ${SLOT_TAG[p.slot] ?? p.slot}`, tags: [SLOT_TAG[p.slot] ?? p.slot], width: UNIT_WIDTH[p.slot] ?? DETAIL_WIDTH, facing: p.facing, ...(ring ? { ring } : {}), views, at: 0 } };
   });
   const all = (): Shown[] => [...mine.map((d) => ({ key: d.id, own: true, detail: d })), ...builtIn()];
   // ИМЯ — ОДНО НА ДЕТАЛЬ, среди своих и встроенных: иначе в фигурах не разобрать, какая «Дама бубен» где.
@@ -183,7 +187,7 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
   /** Свободное имя: как есть, а занято — с номером («… 2», «… 3»). */
   const freeName = (base: string): string => { const b = base.trim().slice(0, 36); if (!taken(b)) return b; let k = 2; while (taken(`${b} ${k}`)) k += 1; return `${b} ${k}`; };
   const face = (d: Detail): { ref?: string; flip: boolean } => {
-    for (const v of DETAIL_VIEWS) {
+    for (const v of viewsOf(d)) {
       const one = d.views[v];
       if (one?.sprite) return { ref: one.sprite, flip: false };
       if (one?.mirror) return { ref: d.views[one.mirror]?.sprite, flip: true };
@@ -260,10 +264,10 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
     openKey = s.key;
     const saved = s.detail;
     let draft: Omit<Detail, "id" | "at">;
-    const fields = (d: Omit<Detail, "id" | "at">) => ({ name: d.name, tags: d.tags, width: d.width, facing: d.facing, views: d.views });
+    const fields = (d: Omit<Detail, "id" | "at">) => ({ name: d.name, tags: d.tags, width: d.width, facing: d.facing, ring: d.ring, views: d.views });
     try { draft = s.own && route("dd") ? { ...fields(saved), ...(JSON.parse(route("dd")!) as object) } : structuredClone(fields(saved)); }
     catch { draft = structuredClone(fields(saved)); }
-    let view: DetailView = routeOne("dv", DETAIL_VIEWS, "front");
+    let view: DetailView = routeOne("dv", viewsOf(draft), viewsOf(draft)[0]!);
     let rx = routeNum("drx", 0), ry = routeNum("dry", 0);
     const layers = { axes: route("dax") !== "0", grid: route("dgr") !== "0" };
     const c3 = (route("dc") ?? "").split(",").filter((c) => /^[0-9a-f]{6}$/i.test(c)).map((c) => `#${c}`);
@@ -278,18 +282,18 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
           ? `<button class="add" data-dsave ${dirty() ? "" : "disabled"}>Сохранить</button><button class="chip" data-dcopy>Сохранить как новую</button><button class="chip" data-dagy>Заказать у agy</button><button class="chip drop" data-ddrop>Удалить</button>`
           : `<button class="add" data-dcopy>Сделать своей копией</button>`}</div>
         <div class="said" data-dact>${s.own ? (dirty() ? "Есть несохранённое." : "") : "Встроенную не изменить — копия ляжет в «Свои» с теми же картинками."}</div>
-        <div class="sp-stage bg-felt" data-dstage><div class="dt-world" data-world><div class="dt-cells" data-dcells></div><div class="dt-body" data-dbody></div><div class="dt-empty" data-dempty hidden>Сторон нет — выбери картинку для лица ниже.</div><div class="dt-mid"></div><div class="dt-axes" data-daxes></div></div></div>
+        <div class="sp-stage bg-felt" data-dstage><div class="dt-world" data-world><div class="dt-cells" data-dcells></div><div class="dt-body" data-dbody></div><div class="dt-flat" data-dflat></div><div class="dt-empty" data-dempty hidden>Сторон нет — выбери картинку для лица ниже.</div><div class="dt-mid"></div><div class="dt-axes" data-daxes></div></div></div>
+        <div class="bar" data-dshow>${FACINGS.map((f) => `<button class="chip${draft.facing === f ? " on" : ""}" data-facing="${f}">${FACING_WORDS[f][0]}</button>`).join("")}</div>
+        <div class="said" data-dfsaid></div>
         <div class="bar">${(["axes", "grid"] as const).map((k) => `<button class="chip${layers[k] ? " on" : ""}" data-dlayer="${k}">${{ axes: "Оси", grid: "Клетка" }[k]}</button>`).join("")}<span class="said" data-dseen></span></div>
         <h3>Расцветки</h3>
         <div class="bar" data-dpals>${PALETTES.map((p, k) => `<button class="chip${!paint.own3 && k === paint.pal ? " on" : ""}" data-dpal="${k}" title="${esc(p.name)}"><span style="display:inline-flex;gap:2px;vertical-align:middle">${[p.red, p.blue, p.gold].map((c) => `<i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${c}"></i>`).join("")}</span></button>`).join("")}</div>
         <div class="bar">${["основной", "второй", "акцент"].map((n, i) => `<label class="num">${n} <input type="color" data-dc="${i}" value="${paint.own3?.[i] ?? [PALETTES[paint.pal]!.red, PALETTES[paint.pal]!.blue, PALETTES[paint.pal]!.gold][i]}"></label>`).join("")}<button class="chip" data-dcoff>Как в расцветке</button></div>
         <div class="said" data-dpaint></div>
         <h3>Ракурсы</h3>
+        <div class="bar" data-dsets>${s.own ? `<button class="chip${draft.ring ? "" : " on"}" data-dset="sides">6 сторон</button><button class="chip${draft.ring ? " on" : ""}" data-dset="ring">по кругу</button><label class="num" data-dringbox${draft.ring ? "" : " hidden"}>ракурсов <input type="number" data-dring min="${RING_LIMITS[0]}" max="${RING_LIMITS[1]}" step="1" value="${draft.ring ?? 16}"></label>` : `<span class="said" style="margin:0">${draft.ring ? `${draft.ring} ракурсов по кругу` : "6 сторон"}</span>`}</div>
         <div class="views" data-views></div>
         <div class="ed" data-ed></div>
-        <h3>Как стоит к камере за столом</h3>
-        <div class="said">Здесь деталь всегда в объёме — все стороны на своих местах. За столом — так, как выбрано; у коробки стороны по умолчанию на полширины от середины.</div>
-        <div class="facing">${FACINGS.map((f) => `<button data-facing="${f}" class="${draft.facing === f ? "on" : ""}"${s.own ? "" : " disabled"}>${FACING_WORDS[f][0]} <code>${f}</code><small>${FACING_WORDS[f][1]}</small></button>`).join("")}</div>
         <h3>Размер и теги</h3>
         <div class="ed"><div class="bar"><label class="num">ширина, ед. стола <input type="number" data-dwidth step="0.1" min="${DETAIL_LIMITS.width[0]}" max="${DETAIL_LIMITS.width[1]}" value="${draft.width}"${s.own ? "" : " disabled"}></label></div>
           <div class="said">Сколько деталь шириной за столом при величине ×1: голова карты — 2.4, тело — 5.2.</div>
@@ -299,17 +303,22 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
     };
 
     const stage = () => pageBox.querySelector<HTMLElement>("[data-dstage]")!;
-    /** Какая сторона к тебе при этом повороте — и насколько (косинус угла). */
-    const facingNow = (): { side: DetailView; z: number } => {
-      const a = (rx * Math.PI) / 180, b = (ry * Math.PI) / 180;
-      const zOf = (n: V3) => Math.sin(a) * n[1] + Math.cos(a) * (-n[0] * Math.sin(b) + n[2] * Math.cos(b));
-      let best: DetailView = "front", z = -2;
-      for (const v of DETAIL_VIEWS) { const k = zOf(NORMAL[v]); if (k > z) { z = k; best = v; } }
-      return { side: best, z };
+    // ИСПЕКЛАСЬ КАРТИНКА — одна перерисовка на кадр, и подписка одна и та же: пекарь хранит ждущих множеством, и новая
+    // функция на каждую перерисовку множила бы перерисовки на число ещё не испечённых (у бочки их 18 — страница висла).
+    let soonFrame = 0;
+    const soon = () => { if (!soonFrame) soonFrame = requestAnimationFrame(() => { soonFrame = 0; if (openKey === s.key && pageBox.isConnected) { drawViews(); pose(); } }); };
+    /** Откуда ты смотришь на деталь — направлением в её осях (x — к правому боку, y — вверх, z — к лицу). */
+    const viewer = (): [number, number, number] => {
+      const a = (ry * Math.PI) / 180, b = (-rx * Math.PI) / 180;
+      return [Math.sin(a) * Math.cos(b), Math.sin(b), Math.cos(a) * Math.cos(b)];
     };
     const ppu = () => 260 / (draft.width * 2.2);
 
-    /** Каждая сторона — плоскость на своём месте: лицо спереди, бок справа детали, верх сверху; вся деталь крутится. */
+    /**
+     * СЦЕНА — как деталь стоит за столом (`facing`): коробка — каждая сторона плоскостью на своём месте, вся деталь
+     * крутится; всегда лицом и бумажный — к тебе ближайший по углу из заданных ракурсов (бумажный сужается по углу);
+     * плоскость — этот ракурс в своей плоскости, в объёме.
+     */
     function pose(): void {
       const st = stage();
       st.dataset.rx = String(Math.round(rx));
@@ -322,42 +331,60 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
       cells.hidden = !layers.grid;
       cells.style.backgroundSize = `${u}px ${u}px`;
       cells.style.backgroundPosition = `${(130 % u) - 0.5}px ${(130 % u) - 0.5}px`;
-      const now = facingNow();
-      st.dataset.toward = now.side;
-      const body = pageBox.querySelector<HTMLElement>("[data-dbody]")!;
+      const keys = viewsOf(draft), me = viewer();
+      const toward = nearestView(keys, me)!;
+      const defined = keys.filter((k) => draft.views[k]);
+      const mode = draft.facing, single = mode === "box" ? null : nearestView(defined, me);
+      st.dataset.toward = toward;
+      st.dataset.mode = mode;
+      st.dataset.shown = single ?? "";
+      const body = pageBox.querySelector<HTMLElement>("[data-dbody]")!, flat = pageBox.querySelector<HTMLElement>("[data-dflat]")!;
       body.style.transform = turn;
+      const inBody = mode === "box" ? defined : mode === "view" && single ? [single] : [];
+      const inFlat = mode === "camera" || mode === "tilt" ? (single ? [single] : []) : [];
+      for (const img of [...body.querySelectorAll<HTMLImageElement>("[data-plane]")]) if (!inBody.includes(img.dataset.plane!)) img.remove();
+      for (const img of [...flat.querySelectorAll<HTMLImageElement>("[data-plane]")]) if (!inFlat.includes(img.dataset.plane!)) img.remove();
       let shown = 0;
-      for (const v of DETAIL_VIEWS) {
-        const one = draft.views[v];
-        let img = body.querySelector<HTMLImageElement>(`[data-plane="${v}"]`);
-        if (!one) { img?.remove(); continue; }
+      const place = (box: HTMLElement, v: string, lay: (one: ViewSetup, w: number, h: number) => string) => {
+        const one = draft.views[v]!;
+        let img = box.querySelector<HTMLImageElement>(`[data-plane="${v}"]`);
         const ref = one.sprite ?? (one.mirror ? draft.views[one.mirror]?.sprite : undefined);
-        const src = srcOf(ref, () => { if (openKey === s.key) pose(); }, paint) ?? (img && img.dataset.ref === ref ? img.getAttribute("src") : null);
+        const src = srcOf(ref, soon, paint) ?? (img && img.dataset.ref === ref ? img.getAttribute("src") : null);
         if (!img) {
           img = document.createElement("img");
           img.className = "dt-plane";
           img.alt = "";
           img.dataset.plane = v;
-          img.onload = () => pose();
-          body.append(img);
+          img.onload = soon;
+          box.append(img);
         }
         img.dataset.ref = ref ?? "";
         img.hidden = !src;
-        if (!src) continue;
+        if (!src) return;
         shown += 1;
         if (img.getAttribute("src") !== src) img.src = src;
         const aspect = img.naturalWidth ? img.naturalHeight / img.naturalWidth : 1;
-        const w = draft.width * one.scale * u, h = w * aspect, out = outOf(draft, one);
+        const w = draft.width * one.scale * u, h = w * aspect;
         Object.assign(img.style, { width: `${w}px`, height: `${h}px`, left: `${-w / 2}px`, top: `${-h / 2}px`, transformOrigin: `${w / 2}px ${h / 2}px` });
-        img.style.transform = `${FACE[v]} translate3d(${one.dx * u}px, ${-one.dy * u}px, ${out * u}px)${one.mirror ? " scaleX(-1)" : ""}`;
-        img.dataset.out = String(out);
+        img.style.transform = lay(one, w, h);
         img.dataset.flip = one.mirror ? "1" : "";
-      }
+      };
+      for (const v of inBody) place(body, v, (one) => {
+        const out = outOf(draft, one);
+        pageBox.querySelector<HTMLElement>(`[data-dbody] [data-plane="${v}"]`)?.setAttribute("data-out", String(out));
+        return `${faceOf(v)} translate3d(${one.dx * u}px, ${-one.dy * u}px, ${out * u}px)${one.mirror ? " scaleX(-1)" : ""}`;
+      });
+      for (const v of inFlat) place(flat, v, (one) => {
+        // Бумажный сужается по углу между тобой и ракурсом; всегда лицом — нет.
+        const squeeze = mode === "tilt" ? Math.max(0.15, dot(viewDir(v), me)) : 1;
+        return `translate(${one.dx * u}px, ${-one.dy * u}px) scaleX(${(one.mirror ? -1 : 1) * squeeze})`;
+      });
       const empty = pageBox.querySelector<HTMLElement>("[data-dempty]")!;
-      empty.hidden = Object.keys(draft.views).length > 0;
-      pageBox.querySelector<HTMLElement>("[data-dseen]")!.textContent = `к тебе — ${VIEW_NAMES[now.side]}${draft.views[now.side] ? "" : " (этой стороны нет)"}`;
+      empty.hidden = defined.length > 0;
+      pageBox.querySelector<HTMLElement>("[data-dseen]")!.textContent = `к тебе — ${viewName(toward)}${draft.views[toward] ? "" : ` (этой стороны нет${single ? `, видно ближайшее — ${viewName(single)}` : ""})`}`;
+      pageBox.querySelector<HTMLElement>("[data-dfsaid]")!.textContent = `${FACING_WORDS[mode][1]}. Так деталь стоит и за столом.`;
       st.dataset.planes = String(shown);
-      for (const b of pageBox.querySelectorAll<HTMLElement>("[data-vw]")) b.classList.toggle("seen", b.dataset.vw === now.side);
+      for (const b of pageBox.querySelectorAll<HTMLElement>("[data-vw]")) b.classList.toggle("seen", b.dataset.vw === (single ?? toward));
     }
 
     function axesHtml(): string {
@@ -371,17 +398,18 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
 
     function drawViews(): void {
       const box = pageBox.querySelector<HTMLElement>("[data-views]")!;
-      box.innerHTML = DETAIL_VIEWS.map((v) => {
+      box.style.gridTemplateColumns = draft.ring ? "repeat(auto-fill, minmax(76px, 1fr))" : "";
+      box.innerHTML = viewsOf(draft).map((v) => {
         const one = draft.views[v], ref = one?.sprite ?? (one?.mirror ? draft.views[one.mirror]?.sprite : undefined);
-        const src = srcOf(ref, () => { if (openKey === s.key) drawViews(); }, paint);
-        const note = one?.sprite ? esc(picName(one.sprite)) : one?.mirror ? `отражение: ${VIEW_NAMES[one.mirror]}` : "нет";
-        return `<button class="vw${v === view ? " on" : ""}" data-vw="${v}">${src ? `<img src="${esc(src)}" alt=""${one?.mirror ? ' class="flip"' : ""}>` : `<span class="none">${ref ? "…" : "—"}</span>`}<b>${VIEW_NAMES[v]}</b><i>${note}</i></button>`;
+        const src = srcOf(ref, soon, paint);
+        const note = one?.sprite ? esc(picName(one.sprite)) : one?.mirror ? `отражение: ${viewName(one.mirror)}` : "нет";
+        return `<button class="vw${v === view ? " on" : ""}" data-vw="${v}">${src ? `<img src="${esc(src)}" alt=""${one?.mirror ? ' class="flip"' : ""}>` : `<span class="none">${ref ? "…" : "—"}</span>`}<b>${viewName(v)}</b><i>${note}</i></button>`;
       }).join("");
       const no = stiff(draft), said = pageBox.querySelector<HTMLElement>("[data-dpaint]");
-      if (said) said.textContent = no.length ? `Не красятся (PNG): ${no.map((v) => VIEW_NAMES[v]).join(", ")}.` : "Красятся три краски рисунка: основной, второй, акцент.";
+      if (said) said.textContent = no.length ? `Не красятся (PNG): ${no.map(viewName).join(", ")}.` : "Красятся три краски рисунка: основной, второй, акцент.";
       for (const b of box.querySelectorAll<HTMLElement>("[data-vw]")) b.onclick = () => {
         view = b.dataset.vw as DetailView;
-        [rx, ry] = VIEW_POSE[view];
+        [rx, ry] = poseOf(view);
         drawViews(); drawEditor(); pose(); keep();
       };
     }
@@ -389,10 +417,10 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
     function drawEditor(): void {
       const ed = pageBox.querySelector<HTMLElement>("[data-ed]")!;
       const one = draft.views[view];
-      const others = DETAIL_VIEWS.filter((v) => v !== view && draft.views[v]?.sprite);
-      ed.innerHTML = `<div class="bar" style="margin-bottom:6px"><b>${VIEW_NAMES[view]}</b><span class="said" style="margin:0">${one?.sprite ? esc(picName(one.sprite)) : one?.mirror ? `отражение ракурса «${VIEW_NAMES[one.mirror]}»` : "не задан — за столом возьмётся ближайший"}</span></div>
+      const others = viewsOf(draft).filter((v) => v !== view && draft.views[v]?.sprite);
+      ed.innerHTML = `<div class="bar" style="margin-bottom:6px"><b>${viewName(view)}</b><span class="said" style="margin:0">${one?.sprite ? esc(picName(one.sprite)) : one?.mirror ? `отражение ракурса «${viewName(one.mirror)}»` : "не задан — за столом возьмётся ближайший"}</span></div>
         ${s.own ? `<div class="bar"><button class="add" data-dpick>Выбрать из библиотеки</button>
-          <select data-dmirror><option value="">Отражением от…</option>${others.map((v) => `<option value="${v}"${one?.mirror === v ? " selected" : ""}>${VIEW_NAMES[v]}</option>`).join("")}</select>
+          <select data-dmirror><option value="">Отражением от…</option>${others.map((v) => `<option value="${v}"${one?.mirror === v ? " selected" : ""}>${viewName(v)}</option>`).join("")}</select>
           ${one ? `<button class="chip" data-dclear>Убрать</button>` : ""}</div>` : ""}
         ${one ? `<div class="bar">${(["dx", "dy", "scale", "out"] as const).map((k) => `<label class="num">${{ dx: "вправо", dy: "вверх", scale: "величина ×", out: "наружу" }[k]}<input type="number" data-dnum="${k}" step="${k === "scale" ? 0.05 : 0.1}" min="${DETAIL_LIMITS[k][0]}" max="${DETAIL_LIMITS[k][1]}" value="${one[k] ?? ""}"${k === "out" ? ` placeholder="${outOf(draft, {})}"` : ""}${s.own ? "" : " disabled"}></label>`).join("")}</div>
           <div class="said">Всё — в единицах стола (клетка — 1 ед.). Вправо и вверх — по этой стороне; наружу — как далеко сторона от середины детали (жёлтый кружок): у кубика — полширины, у карты — 0. Пусто — по тому, как деталь стоит к камере.</div>` : ""}`;
@@ -409,7 +437,7 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
       };
       ed.querySelector<HTMLElement>("[data-dclear]")?.addEventListener("click", () => {
         delete draft.views[view];
-        for (const v of DETAIL_VIEWS) if (draft.views[v]?.mirror === view) delete draft.views[v];
+        for (const v of viewsOf(draft)) if (draft.views[v]?.mirror === view) delete draft.views[v];
         drawViews(); drawEditor(); pose(); touched();
       });
       for (const inp of ed.querySelectorAll<HTMLInputElement>("[data-dnum]")) inp.oninput = () => {
@@ -438,8 +466,22 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
         touched();
         if (taken(draft.name, s.key)) act.textContent = "Такое имя уже у другой детали.";
       };
+      // Как показывать — у своей это её правка; встроенную можно так посмотреть, сохранить — копией.
+      for (const b of pageBox.querySelectorAll<HTMLElement>("[data-facing]")) b.onclick = () => { draft.facing = b.dataset.facing as Facing; for (const x of pageBox.querySelectorAll("[data-facing]")) x.classList.toggle("on", x === b); drawEditor(); pose(); if (s.own) touched(); };
       if (s.own) {
-        for (const b of pageBox.querySelectorAll<HTMLElement>("[data-facing]")) b.onclick = () => { draft.facing = b.dataset.facing as Facing; for (const x of pageBox.querySelectorAll("[data-facing]")) x.classList.toggle("on", x === b); drawEditor(); pose(); touched(); };
+        // НАБОР: шесть сторон ↔ по кругу; картинки переезжают на ближайшие углы.
+        const setTo = (ring: number | undefined) => {
+          draft.views = moveViews(draft.views, { ring });
+          if (ring) draft.ring = ring; else delete draft.ring;
+          view = viewsOf(draft)[0]!;
+          [rx, ry] = poseOf(view);
+          for (const x of pageBox.querySelectorAll<HTMLElement>("[data-dset]")) x.classList.toggle("on", (x.dataset.dset === "ring") === !!ring);
+          pageBox.querySelector<HTMLElement>("[data-dringbox]")!.hidden = !ring;
+          drawViews(); drawEditor(); pose(); touched();
+        };
+        const ringIn = pageBox.querySelector<HTMLInputElement>("[data-dring]")!;
+        for (const b of pageBox.querySelectorAll<HTMLElement>("[data-dset]")) b.onclick = () => setTo(b.dataset.dset === "ring" ? Math.round(Number(ringIn.value)) || 16 : undefined);
+        ringIn.onchange = () => { const n = Math.round(Number(ringIn.value)); if (n >= RING_LIMITS[0] && n <= RING_LIMITS[1]) setTo(n); };
         const wIn = pageBox.querySelector<HTMLInputElement>("[data-dwidth]")!;
         wIn.oninput = () => { const v = Number(wIn.value); if (wIn.value === "" || !Number.isFinite(v)) return; draft.width = Math.min(DETAIL_LIMITS.width[1], Math.max(DETAIL_LIMITS.width[0], v)); pose(); touched(); };
         const tIn = pageBox.querySelector<HTMLInputElement>("[data-dtags]")!;
@@ -501,19 +543,22 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
       over.dataset.picker = "";
       let anySide = false, q = "";
       const drawPick = () => {
-        const list = pics().filter((p) => (anySide || p.side === view) && (!q || q.split(/\s+/).every((w) => fits(`${p.name} ${p.tags.join(" ")} ${SLOT_TAG[p.slot] ?? ""}`, w))));
-        over.innerHTML = `<div class="pick-sheet"><div class="bar"><b>${anySide ? "любая сторона" : VIEW_NAMES[view]} · любые картинки</b><button class="chip" data-pclose style="margin-left:auto">Закрыть</button></div>
+        // Эта сторона — картинки, нарисованные с того же угла (сторона или ракурс по кругу рядом, в пределах ~18°).
+        const list = pics().filter((p) => (anySide || (!!p.side && dot(viewDir(p.side), viewDir(view)) > 0.95)) && (!q || q.split(/\s+/).every((w) => fits(`${p.name} ${p.tags.join(" ")} ${SLOT_TAG[p.slot] ?? ""}`, w))));
+        over.innerHTML = `<div class="pick-sheet"><div class="bar"><b>${anySide ? "любая сторона" : viewName(view)} · любые картинки</b><button class="chip" data-pclose style="margin-left:auto">Закрыть</button></div>
           <div class="bar"><input type="search" data-pq placeholder="Имя или тег" value="${esc(q)}"><button class="chip${anySide ? " on" : ""}" data-pside>любая сторона</button></div>
-          <div class="grid">${list.map((p) => { const src = srcOf(p.ref, () => { if (over.isConnected) drawCellsOnly(); }); return `<button class="cell${p.ref.startsWith("b:") ? "" : " own"}" data-pref="${esc(p.ref)}">${src ? `<img src="${esc(src)}" alt="">` : `<div class="wait">…</div>`}<b>${esc(p.name)}</b><i>${p.ref.startsWith("b:") ? "встроенная" : "своя"}${p.side ? ` · ${VIEW_NAMES[p.side] ?? p.side}` : ""}</i></button>`; }).join("") || `<div class="said" style="grid-column:1/-1">Таких картинок нет — шире: «любая сторона».</div>`}</div></div>`;
+          <div class="grid">${list.map((p) => { const src = srcOf(p.ref, pickSoon); return `<button class="cell${p.ref.startsWith("b:") ? "" : " own"}" data-pref="${esc(p.ref)}">${src ? `<img src="${esc(src)}" alt="">` : `<div class="wait">…</div>`}<b>${esc(p.name)}</b><i>${p.ref.startsWith("b:") ? "встроенная" : "своя"}${p.side ? ` · ${viewName(p.side)}` : ""}</i></button>`; }).join("") || `<div class="said" style="grid-column:1/-1">Таких картинок нет — шире: «любая сторона».</div>`}</div></div>`;
         const qi = over.querySelector<HTMLInputElement>("[data-pq]")!;
         qi.oninput = () => { q = qi.value; const at = qi.selectionStart; drawPick(); const again = over.querySelector<HTMLInputElement>("[data-pq]")!; again.focus(); again.setSelectionRange(at, at); };
         over.querySelector<HTMLElement>("[data-pside]")!.onclick = () => { anySide = !anySide; drawPick(); };
         over.querySelector<HTMLElement>("[data-pclose]")!.onclick = () => over.remove();
         for (const b of over.querySelectorAll<HTMLElement>("[data-pref]")) b.onclick = () => { over.remove(); take(b.dataset.pref!); };
       };
+      let pickFrame = 0;
+      const pickSoon = () => { if (!pickFrame) pickFrame = requestAnimationFrame(() => { pickFrame = 0; if (over.isConnected) drawCellsOnly(); }); };
       const drawCellsOnly = () => {
         for (const b of over.querySelectorAll<HTMLElement>("[data-pref]")) {
-          const src = srcOf(b.dataset.pref, () => {});
+          const src = srcOf(b.dataset.pref, pickSoon);
           const wait = b.querySelector(".wait");
           if (src && wait) { const img = document.createElement("img"); img.src = src; img.alt = ""; wait.replaceWith(img); }
         }

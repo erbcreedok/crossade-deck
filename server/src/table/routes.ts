@@ -500,7 +500,7 @@ export function tableRoutes(): Router {
     const d = job.detail ? oneDetail(job.detail) : null;
     if (d) {
       const fresh = Object.keys(d.views).length === 0 && d.name.startsWith(NEW_DETAIL) && !nameTaken(job.name ?? job.id, d.id);
-      putDetail({ ...d, name: fresh ? job.name ?? job.id : d.name, views: fillViews(d.views, job.views.map((v, k) => [v, got.sprites[k]!] as const)), at: Date.now() });
+      putDetail({ ...d, name: fresh ? job.name ?? job.id : d.name, views: fillViews(d.views, job.views.map((v, k) => [v, got.sprites[k]!] as const), d.ring), at: Date.now() });
     }
     res.json({ ...got, ...(d ? { detail: d.id } : {}) });
   });

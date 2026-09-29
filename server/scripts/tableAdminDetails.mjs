@@ -56,7 +56,7 @@ try {
   await p.click("[data-dpick]");
   await p.waitForSelector("[data-picker] [data-pref]");
   const offered = await p.locator("[data-picker] [data-pref] i").allTextContents();
-  check("выбор картинки: любые картинки этой стороны — и головы, и тела", offered.length > 0 && offered.every((t) => /лицо$/.test(t)) && (await p.locator(`[data-picker] [data-pref="${sprite.id}"]`).count()) === 1 && (await p.locator('[data-picker] [data-pref="b:king:body:front"]').count()) === 1 && (await p.locator('[data-picker] [data-pref="b:cube:head:front"]').count()) === 1, offered.slice(0, 5));
+  check("выбор картинки: любые картинки этой стороны — и головы, и тела", offered.length > 0 && offered.every((t) => /(лицо|0°)$/.test(t)) && (await p.locator(`[data-picker] [data-pref="${sprite.id}"]`).count()) === 1 && (await p.locator('[data-picker] [data-pref="b:king:body:front"]').count()) === 1 && (await p.locator('[data-picker] [data-pref="b:cube:head:front"]').count()) === 1, offered.slice(0, 5));
   await p.click(`[data-picker] [data-pref="${sprite.id}"]`);
   await p.waitForFunction(() => document.querySelector("[data-plane=front]")?.naturalWidth > 0, null, { timeout: 5000 }).catch(() => {});
   check("лицо поставлено: в клетке стороны и на сцене", (await p.locator('[data-vw="front"] img').count()) === 1 && (await p.getAttribute("[data-dstage]", "data-planes")) === "1" && await p.locator('[data-plane="front"]').isVisible(), await p.getAttribute("[data-dstage]", "data-planes"));
@@ -76,13 +76,14 @@ try {
   await p.click('[data-vw="left"]');
   await p.selectOption("[data-dmirror]", "right");
   check("левый бок — отражением бока", (await p.locator('[data-vw="left"] img.flip').count()) === 1 && (await p.getAttribute('[data-plane="left"]', "data-flip")) === "1", null);
-  const faceOf = (v) => p.getAttribute(`[data-plane="${v}"]`, "style");
-  check("в объёме: три стороны — три плоскости, каждая повёрнута к своей стороне", (await p.getAttribute("[data-dstage]", "data-planes")) === "3" && /rotateY\(-90deg\)/.test(await faceOf("right")) && /rotateY\(90deg\)/.test(await faceOf("left")) && !/rotate/.test(await faceOf("front")), [await faceOf("right"), await faceOf("left")]);
-  check("лист: стороны в середине (наружу 0)", (await p.getAttribute('[data-plane="right"]', "data-out")) === "0", await p.getAttribute('[data-plane="right"]', "data-out"));
   await p.click('[data-facing="box"]');
-  check("коробка: стороны на полширины от середины", (await p.getAttribute('[data-plane="right"]', "data-out")) === "1.2", await p.getAttribute('[data-plane="right"]', "data-out"));
+  const faceOf = (v) => p.getAttribute(`[data-dbody] [data-plane="${v}"]`, "style");
+  check("в объёме: три стороны — три плоскости, каждая повёрнута к своей стороне", (await p.getAttribute("[data-dstage]", "data-planes")) === "3" && /rotateY\(-90deg\)/.test(await faceOf("right")) && /rotateY\(90deg\)/.test(await faceOf("left")) && !/rotate/.test(await faceOf("front")), [await faceOf("right"), await faceOf("left")]);
+  check("коробка: стороны на полширины от середины", (await p.getAttribute('[data-dbody] [data-plane="right"]', "data-out")) === "1.2", await p.getAttribute('[data-dbody] [data-plane="right"]', "data-out"));
   await p.fill('[data-dnum="out"]', "0.5");
-  check("своё «наружу» у стороны", (await p.getAttribute('[data-plane="left"]', "data-out")) === "0.5", await p.getAttribute('[data-plane="left"]', "data-out"));
+  check("своё «наружу» у стороны", (await p.getAttribute('[data-dbody] [data-plane="left"]', "data-out")) === "0.5", await p.getAttribute('[data-dbody] [data-plane="left"]', "data-out"));
+  await p.click('[data-facing="view"]');
+  check("переключатель: плоскость — одна сторона к тебе, в своей плоскости", (await p.getAttribute("[data-dstage]", "data-planes")) === "1" && (await p.getAttribute("[data-dstage]", "data-shown")) === "left" && (await p.locator("[data-dbody] [data-plane]").count()) === 1, await p.getAttribute("[data-dstage]", "data-planes"));
   await p.fill('[data-dnum="out"]', "");
   // крутить пальцем
   await p.locator("[data-dstage]").scrollIntoViewIfNeeded();
@@ -142,6 +143,32 @@ try {
   const lib = (await (await fetch(`${base}/table/admin/lib`, { headers: H })).json()).sprites;
   const back = lib.find((x) => x.id === filled?.views.back?.sprite);
   check("принято — спина из agy встала в пустой ракурс, заданное лицо не тронуто, открыта деталь", back?.origin === "agy" && filled.views.front?.sprite === sprite.id && filled.views.front.dx === 1 && hash().get("detail") === made.id && hash().get("tab") === "details", filled?.views);
+  // БОЧКА: 18 ракурсов по кругу, всегда лицом — к тебе ближайший по углу; коробкой — все 18 в объёме
+  await p.click("[data-dback]");
+  await p.waitForSelector(".dt [data-detail]");
+  await p.locator('.dt [data-detail="b:barrel:body"]').click();
+  await p.waitForSelector("[data-detail-page] h2");
+  check("бочка: набор — 18 ракурсов по кругу, показ — всегда лицом", (await p.locator("[data-vw]").count()) === 18 && (await p.getAttribute("[data-dstage]", "data-mode")) === "camera", await p.locator("[data-vw]").count());
+  await p.click('[data-vw="a100"]');
+  await p.waitForFunction(() => document.querySelector("[data-dstage]")?.dataset.planes === "1", null, { timeout: 10_000 }).catch(() => {});
+  check("повернул на 100° — к тебе ракурс 100°, одна картинка", (await p.getAttribute("[data-dstage]", "data-shown")) === "a100" && (await p.getAttribute("[data-dstage]", "data-planes")) === "1", await p.getAttribute("[data-dstage]", "data-shown"));
+  await p.click('[data-facing="box"]');
+  await p.waitForFunction(() => document.querySelector("[data-dstage]")?.dataset.planes === "18", null, { timeout: 15_000 }).catch(() => {});
+  check("встроенную можно посмотреть коробкой — все 18 в объёме", (await p.getAttribute("[data-dstage]", "data-planes")) === "18", await p.getAttribute("[data-dstage]", "data-planes"));
+  await p.click("[data-dcopy]");
+  await p.waitForSelector("[data-detail-page] [data-dname]");
+  const barrel = (await mine()).find((d) => d.name === "Бочонок · тело 2");
+  check("копия бочки — своя: 18 по кругу, показ — как выбран (коробка)", barrel?.ring === 18 && barrel.facing === "box" && Object.keys(barrel.views).length === 18, barrel && { ring: barrel.ring, facing: barrel.facing });
+  await p.click('[data-dset="sides"]');
+  check("сменил набор на 6 сторон — картинки на ближайших углах", (await p.locator("[data-vw]").count()) === 6 && (await p.locator('[data-vw="right"] img').count()) === 1 && (await p.locator('[data-vw="top"] img').count()) === 0, await p.locator("[data-vw]").count());
+  await p.click("[data-dsave]");
+  await p.waitForFunction(() => /Сохранено/.test(document.querySelector("[data-dact]")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+  const six = (await mine()).find((d) => d.id === barrel?.id);
+  check("сохранено: шесть сторон, лицо — 0°, спина — 180°", !six?.ring && six?.views.front?.sprite === "b:barrel:body:a0" && six.views.back?.sprite === "b:barrel:body:a180" && /:a(80|100)$/.test(six.views.right?.sprite ?? ""), six?.views && Object.fromEntries(Object.entries(six.views).map(([k, v]) => [k, v.sprite])));
+  await p.click('[data-dset="ring"]');
+  await p.fill("[data-dring]", "8");
+  await p.dispatchEvent("[data-dring]", "change");
+  check("и обратно по кругу, 8 ракурсов", (await p.locator("[data-vw]").count()) === 8 && (await p.locator('[data-vw="a0"] img').count()) === 1 && (await p.locator('[data-vw="a90"] img').count()) === 1, await p.locator("[data-vw]").count());
   // ВСТРОЕННАЯ: только смотреть, копия
   await p.click("[data-dback]");
   await p.waitForSelector(".dt [data-detail]");
@@ -176,7 +203,7 @@ try {
   for (const j of (await (await fetch(`${base}/table/admin/sprites`, { headers: H })).json()).jobs ?? []) if (j.id === AGY) await fetch(`${base}/table/admin/sprites/${j.job}`, { method: "DELETE", headers: H });
   await fetch(`${base}/table/admin/lib/${sprite.id}`, { method: "DELETE", headers: H });
 }
-for (const c of checks) console.log(`${c.ok ? "✓" : "✗"} ${c.name}${c.ok ? "" : ` — ${JSON.stringify(c.got).slice(0, 400)}`}`);
+for (const c of checks) console.log(`${c.ok ? "✓" : "✗"} ${c.name}${c.ok ? "" : ` — ${String(JSON.stringify(c.got)).slice(0, 400)}`}`);
 const bad = checks.filter((c) => !c.ok).length;
 console.log(`${checks.length - bad}/${checks.length}`);
 process.exit(bad ? 1 : 0);

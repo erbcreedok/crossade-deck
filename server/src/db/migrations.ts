@@ -514,4 +514,11 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 30,
+    up(db) {
+      // НАБОР РАКУРСОВ ДЕТАЛИ: шесть сторон (пусто) или N по кругу — как бочка (`details.ts`).
+      db.exec(`ALTER TABLE table_details ADD COLUMN ring INTEGER;`);
+    },
+  },
 ];
