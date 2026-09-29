@@ -1,5 +1,5 @@
 // СТРАНИЦА ХОЗЯИНА — «Спрайты» → «Все спрайты»: плоская библиотека картинок. Загрузить SVG / PNG — картинка в «Своих»
-// со своим именем; SVG со скриптом не берётся; поиск по имени; встроенные (колода, файлы, код) — рядом, испечены;
+// со своим именем; SVG со скриптом не берётся; поиск по имени; встроенные (колода, файлы, код — все SVG) — рядом, испечены;
 // тап — крупно в трёх расцветках, влезает в телефон; свою — переименовать и удалить. Без ключа библиотека закрыта.
 //   node scripts/tableAdminGallery.mjs [base] [secret] [shot.png]
 import { writeFile } from "node:fs/promises";
@@ -52,6 +52,8 @@ try {
   await filt("формат:svg");
   const svgs = await p.locator(".sg .cell i.fmt").allTextContents();
   check("«формат:svg» — только SVG", svgs.length > 0 && svgs.every((t) => t.startsWith("SVG")), svgs.slice(0, 5));
+  const svgNames = await p.locator(".sg .cell b").allTextContents();
+  check("колода и рисунки кода — тоже SVG: форматов только два", svgNames.some((t) => t.startsWith("Король треф")) && svgNames.some((t) => t.startsWith("Шар")) && !svgs.some((t) => /код/.test(t)), svgNames.slice(0, 8));
   await clear();
   await filt("формат:png");
   const pngs = await p.locator(".sg .cell i.fmt").allTextContents();
@@ -61,6 +63,8 @@ try {
   await p.click("[data-q]");
   const heads = await p.locator("[data-qlist] .qh").allTextContents();
   check("одно поле: в фокусе видно все группы вариантов — угадывать нечего", heads.join() === "деталь,сторона,формат,откуда,красится,тег" && (await p.locator("[data-drop]").count()) === 0, heads);
+  const fmts = await p.locator('[data-qi^="gf|"]').evaluateAll((els) => els.map((e) => e.dataset.qi));
+  check("в списке формата — только svg и png", fmts.join() === "gf|svg,gf|png", fmts);
   await p.fill("[data-q]", "не");
   const noItem = p.locator('[data-qi="gc|no"]');
   const sugN = Number(await noItem.locator("small").innerText());

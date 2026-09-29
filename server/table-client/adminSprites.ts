@@ -162,7 +162,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   const KEYS: { id: string; key: string; values: [string, string][] | null; of: (s: Shown) => string[] }[] = [
     { id: "gk", key: "деталь", values: KINDS.map(([k]) => [k, KIND_ONE[k]]), of: (s) => [s.slot] },
     { id: "gs", key: "сторона", values: [...SIDES.map((k): [string, string] => [k, SIDE_NAMES[k]!]), ["none", "без-стороны"]], of: (s) => [s.side ?? "none"] },
-    { id: "gf", key: "формат", values: [["svg", "svg"], ["png", "png"], ["baked", "код"]], of: (s) => [s.own ? s.own.ext : s.built!.art === "file" ? "svg" : s.built!.art === "png" ? "png" : "baked"] },
+    { id: "gf", key: "формат", values: [["svg", "svg"], ["png", "png"]], of: (s) => (s.own ? [s.own.ext] : s.built!.art === "png" ? ["png"] : s.built!.art === "none" ? [] : ["svg"]) },
     { id: "gw", key: "откуда", values: [["upload", "загружены"], ["agy", "agy"], ["court", "колода"], ["file", "файлы"], ["draw", "код"], ["png", "картинки-стола"]], of: (s) => [s.own ? s.own.origin : s.built!.art] },
     { id: "gc", key: "красится", values: [["yes", "да"], ["no", "нет"]], of: (s) => [paints(s) ? "yes" : "no"] },
     { id: "gt", key: "тег", values: null, of: (s) => (s.tags.length ? s.tags : ["~"]) },
@@ -394,8 +394,8 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     s0.classList.toggle("bad", bad);
     grid.innerHTML = list.map((s) => {
       const src = srcOf(s, palette, later);
-      const fmt = keyOf("gf").of(s)[0]!;
-      return `<button class="cell${s.own ? " own" : ""}" data-sprite="${esc(s.key)}">${src ? `<img src="${esc(src)}" alt="">` : `<div class="wait">…</div>`}<b>${esc(s.name)}</b><i>${KIND_ONE[s.slot]}${s.side ? ` · ${SIDE_NAMES[s.side] ?? s.side}` : ""} · ${s.own ? ORIGIN_NAMES[s.own.origin] : "встроенный"}</i><i class="fmt">${fmt === "baked" ? "код" : fmt.toUpperCase()}${paints(s) ? "" : " · не красится"}</i></button>`;
+      const fmt = keyOf("gf").of(s)[0] ?? "";
+      return `<button class="cell${s.own ? " own" : ""}" data-sprite="${esc(s.key)}">${src ? `<img src="${esc(src)}" alt="">` : `<div class="wait">…</div>`}<b>${esc(s.name)}</b><i>${KIND_ONE[s.slot]}${s.side ? ` · ${SIDE_NAMES[s.side] ?? s.side}` : ""} · ${s.own ? ORIGIN_NAMES[s.own.origin] : "встроенный"}</i><i class="fmt">${fmt.toUpperCase()}${paints(s) ? "" : `${fmt ? " · " : ""}не красится`}</i></button>`;
     }).join("") || `<div class="said" style="grid-column:1/-1">Ничего не найдено.</div>`;
     const byKey = new Map(list.map((s) => [s.key, s]));
     for (const b of grid.querySelectorAll<HTMLElement>("[data-sprite]")) b.onclick = () => openPage(byKey.get(b.dataset.sprite!)!);
