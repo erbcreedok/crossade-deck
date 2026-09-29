@@ -186,6 +186,25 @@
       ],
       "port": 9585,
       "url": "http://localhost:9585"
+    },
+    {
+      "name": "table-probe-owner",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "--prefix",
+        "server",
+        "tsx",
+        "server/src/index.ts"
+      ],
+      "env": {
+        "PORT": "2597",
+        "TABLE_SECRET": "probe",
+        "TABLE_GUESTS": "1",
+        "TELEGRAM_BOT_TOKEN": "test",
+        "CROSSADE_DB_FILE": ":memory:",
+        "TABLE_OWNERS": "tg:7"
+      },
+      "port": 2597
     }
   ]
 }

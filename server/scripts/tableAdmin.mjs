@@ -1,61 +1,100 @@
-// СТРАНИЦА ХОЗЯИНА — вкладка «Спрайты»: фигура на сцене, правка части видна сразу (голова выросла — занятое на сцене
-// выросло), «Сохранить» кладёт правку на стол (`/table/tunes`), «Как в каталоге» снимает. Без ключа — отказ.
+// «ВСЕ СТОЛЫ» — страница хозяина: хозяин по подписи Telegram видит столы, кто сидел и записи партий,
+// и «Смотреть» открывает запись; не хозяин — отказ.
+//   TABLE_OWNERS=tg:7 TABLE_SECRET=probe TABLE_GUESTS=1 TELEGRAM_BOT_TOKEN=test CROSSADE_DB_FILE=":memory:" PORT=2597 npx tsx src/index.ts
 //   node scripts/tableAdmin.mjs [base] [secret] [shot.png]
+import { createHmac, randomBytes } from "crypto";
 import { createRequire } from "module";
 const require = createRequire(process.env.PW_FROM ?? import.meta.url);
 const { chromium } = require("playwright");
 
-const base = process.argv[2] ?? "http://localhost:2611";
+const base = process.argv[2] ?? "http://localhost:2597";
 const secret = process.argv[3] ?? "probe";
-const shot = process.argv[4];
+const TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? "test";
+const body = randomBytes(8).toString("base64url");
+const room = body + createHmac("sha256", secret).update(body).digest("base64url").slice(0, 12);
 const checks = [];
 const check = (name, ok, got) => checks.push({ name, ok, got });
+const ask = (p, i = {}) => fetch(base + p, { ...i, headers: { "x-table-secret": secret, "content-type": "application/json" } });
+function initData(id, name) {
+  const f = { auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id, first_name: name, username: name.toLowerCase() }) };
+  const sum = Object.keys(f).sort().map((k) => `${k}=${f[k]}`).join("\n");
+  const key = createHmac("sha256", "WebAppData").update(TOKEN).digest();
+  return new URLSearchParams({ ...f, hash: createHmac("sha256", key).update(sum).digest("hex") }).toString();
+}
 
+await ask("/table/rooms", { method: "POST", body: JSON.stringify({ by: "tg:7", home: { kind: "inline", message: "m" }, kind: "krest", room }) });
 const browser = await chromium.launch();
-const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
+const open = async (id, name) => {
+  const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  p.on("pageerror", (e) => console.log(name, "ERROR", e.message));
+  await p.addInitScript((d) => {
+    const a = {};
+    Object.defineProperty(a, "WebApp", { value: { initData: d, initDataUnsafe: {}, ready() {}, expand() {} } });
+    Object.defineProperty(window, "Telegram", { value: a });
+  }, initData(id, name));
+  await p.goto(`${base}/table/?room=${room}&name=${name}`);
+  await p.waitForSelector("[data-section]");
+  await p.waitForSelector(".crossade-loading", { state: "detached" });
+  await p.waitForTimeout(500);
+  return p;
+};
+const Ye = await open(7, "Ye");
+const Bo = await open(8, "Bo");
+const state = (p) => p.evaluate(() => JSON.parse(JSON.stringify(window.__tableState())));
+
+// ПАРТИЯ ИЗ ДВУХ ХОДОВ: по карте каждому, оба кладут в круг — руки пусты, партия кончилась.
+const seats = (await state(Ye)).chairs.filter((c) => c.owner === "tg:7" || c.owner === "tg:8").map((c) => c.id);
+check("раздача принята", (await (await ask(`/table/rooms/${room}/run`, { method: "POST", body: JSON.stringify({ by: "tg:7", command: { t: "deal", rule: "each", n: 1, seats, force: true } }) })).json()).ok === true);
+await Ye.waitForTimeout(2500);
+for (let i = 0; i < 2; i += 1) {
+  const s = await state(Ye);
+  const turn = s.play?.turn;
+  const page = turn === "tg:7" ? Ye : Bo;
+  const card = s.chairs.find((c) => c.owner === turn)?.hand[0]?.id;
+  await page.evaluate((id) => {
+    window.__tableSend({ t: "grab", id });
+    window.__tableSend({ t: "drop", id, to: { in: "deck", pile: "ring" } });
+  }, card);
+  await page.waitForTimeout(800);
+}
+await Ye.waitForTimeout(2500); // журнал уходит в базу пачкой раз в две секунды
+
+
+/** Страница хозяина, открытая «из Telegram» — с подписью этого человека. */
+const admin = async (id) => {
+  const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  p.on("pageerror", (e) => console.log("admin ERROR", e.message));
+  await p.route("https://telegram.org/**", (r) => r.abort());
+  await p.addInitScript((d) => {
+    window.Telegram = { WebApp: { initData: d, initDataUnsafe: {}, ready() {}, expand() {} } };
+  }, initData(id, "Кто-то"));
+  await p.goto(`${base}/table/admin`);
+  await p.click('[data-tab="rooms"]');
+  await p.waitForTimeout(1500);
+  return p;
+};
+const stranger = await admin(99);
+check("не хозяину — отказ", /только хозяевам/.test(await stranger.textContent("#итог")), await stranger.textContent("#итог"));
+
+const A = await admin(7);
+const card = A.locator(".стол", { hasText: "Ye" }).first();
+check("хозяин видит стол, за которым играли", (await card.count()) === 1, await A.textContent("#список"));
+const text = await card.textContent();
+check("в нём — кто бывал и сколько партий", /Бывали:.*Ye.*Bo/.test(text) && /партий сыграно:\s*1/.test(text), text);
+await card.locator("summary").click();
+const watch = card.locator("a.главная").first();
+check("у партии — «Смотреть» глазами крупье и глазами каждого игрока", (await watch.count()) === 1 && (await card.locator(".глаза a").count()) === 3, await card.locator(".глаза a").allTextContents());
+await A.screenshot({ path: process.argv[4] ?? "admin.png" });
+const href = await watch.getAttribute("href");
+const R = await browser.newPage({ viewport: { width: 1000, height: 800 } });
 const errors = [];
-p.on("pageerror", (e) => errors.push(e.message));
-await p.goto(`${base}/table/admin#key=${encodeURIComponent(secret)}`);
-await p.waitForSelector("[data-stage] canvas");
-await p.waitForFunction(() => /head:(?!-)/.test(document.querySelector("[data-stage]")?.dataset.views ?? ""), null, { timeout: 8000 });
-await p.waitForTimeout(600);
+R.on("pageerror", (e) => errors.push(e.message));
+await R.goto(href);
+await R.waitForTimeout(2500);
+const eyes = await R.evaluate(() => [...document.querySelectorAll("#eyes option")].find((o) => o.selected)?.textContent ?? null);
+check("«Смотреть» открывает запись этой партии глазами крупье", errors.length === 0 && eyes?.includes("крупье") === true, [errors, eyes]);
 
-/** Сколько строк сцены заняты рисунком — высота фигуры в пикселях холста. */
-const height = () => p.evaluate(() => {
-  const cv = document.querySelector("[data-stage] canvas");
-  const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
-  let top = -1, bottom = -1;
-  for (let y = 0; y < cv.height; y += 2) {
-    let any = false;
-    for (let x = 0; x < cv.width; x += 3) if (d[(y * cv.width + x) * 4 + 3] > 200 && d[(y * cv.width + x) * 4] + d[(y * cv.width + x) * 4 + 1] > 120) { any = true; break; }
-    if (any) { if (top < 0) top = y; bottom = y; }
-  }
-  return bottom - top;
-});
-// сцена крутится сама (дыхание, взгляд) — замер по кадру с остановленным временем не нужен, хватит разницы в разы
-const before = await height();
-await p.fill('[data-f="scale"]', "2.5");
-await p.waitForTimeout(300);
-const after = await height();
-check("правка величины видна на сцене сразу — фигура выше", after > before * 1.12, { before, after });
-check("кнопка «Сохранить» ожила", await p.isEnabled("[data-save]"), null);
-await p.fill('[data-f="name"]', "Царь");
-await p.click("[data-save]");
-await p.waitForFunction(() => /Сохранено/.test(document.querySelector("[data-said]")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
-const tunes = await (await fetch(`${base}/table/tunes`)).json();
-check("правка на столе", tunes.parts["king:head"]?.scale === 2.5 && tunes.parts["king:head"]?.name === "Царь", tunes.parts);
-check("в списке частей — новое имя с отметкой правки", (await p.locator('[data-part="king:head"].tuned').innerText()).includes("Царь"), await p.locator('[data-part="king:head"]').innerText());
-if (shot) await p.screenshot({ path: shot });
-await p.click("[data-reset]");
-await p.click("[data-save]");
-await p.waitForTimeout(400);
-check("«Как в каталоге» + «Сохранить» снимает правку", !(await (await fetch(`${base}/table/tunes`)).json()).parts["king:head"], null);
-const denied = await fetch(`${base}/table/admin/tunes/king:head`, { method: "PUT", headers: { "content-type": "application/json" }, body: "{}" });
-check("без ключа стол не пускает", denied.status === 403, denied.status);
-check("без ошибок на странице", errors.length === 0, errors);
 await browser.close();
-
-for (const c of checks) console.log(`${c.ok ? "✓" : "✗"} ${c.name}${c.ok ? "" : ` — ${JSON.stringify(c.got)}`}`);
-const bad = checks.filter((c) => !c.ok).length;
-console.log(`${checks.length - bad}/${checks.length}`);
-process.exit(bad ? 1 : 0);
+for (const one of checks) console.log(one.ok ? "✓" : "✗", one.name, one.ok ? "" : JSON.stringify(one.got));
+console.log(`${checks.filter((one) => one.ok).length}/${checks.length}`);
+if (checks.some((one) => !one.ok)) process.exitCode = 1;
