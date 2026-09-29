@@ -33,7 +33,8 @@ const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errors = [];
 p.on("pageerror", (e) => errors.push(e.message));
 p.on("dialog", (d) => d.accept());
-const hash = () => new URLSearchParams(new URL(p.url()).hash.slice(1));
+// Адрес — со страницы: Playwright узнаёт о смене якоря (replaceState) с запозданием.
+const hash = async () => new URLSearchParams(await p.evaluate(() => location.hash.slice(1)));
 try {
   await p.goto(`${base}/table/admin#key=${encodeURIComponent(secret)}`);
   await p.click('[data-tab="details"]');
@@ -44,13 +45,13 @@ try {
   check("полок по виду нет — одно поле поиска", (await p.locator(".dt [data-dk]").count()) === 0 && (await p.locator(".dt [data-dq]").count()) === 1, null);
   await p.fill(".dt [data-dq]", "ноги");
   const legs = await p.locator(".dt [data-detail] i:first-of-type").allTextContents();
-  check("поиск по тегу «ноги» — только они, в адресе", legs.length > 0 && legs.every((t) => t.startsWith("ноги")) && hash().get("dq") === "ноги", legs);
+  check("поиск по тегу «ноги» — только они, в адресе", legs.length > 0 && legs.every((t) => t.startsWith("ноги")) && (await hash()).get("dq") === "ноги", legs);
   await p.fill(".dt [data-dq]", "");
   // НОВАЯ
   await p.click(".dt [data-new]");
   await p.waitForSelector("[data-detail-page] [data-dname]");
   const made = (await mine()).find((d) => !before.has(d.id));
-  check("«+ Новая деталь» — на сервере, без вида: ширина 2.4, тегов нет; открыта её страница", made && !("slot" in made) && made.width === 2.4 && made.tags.length === 0 && hash().get("detail") === made.id, made);
+  check("«+ Новая деталь» — на сервере, без вида: ширина 2.4, тегов нет; открыта её страница", made && !("slot" in made) && made.width === 2.4 && made.tags.length === 0 && (await hash()).get("detail") === made.id, made);
   await p.fill("[data-dname]", `${tag} Лис`);
   // лицо: выбрать из библиотеки — там только головы-лица
   await p.click("[data-dpick]");
@@ -58,13 +59,13 @@ try {
   const offered = await p.locator("[data-picker] [data-pref] i").allTextContents();
   check("выбор картинки: любые картинки этой стороны — и головы, и тела", offered.length > 0 && offered.every((t) => /(лицо|0°)$/.test(t)) && (await p.locator(`[data-picker] [data-pref="${sprite.id}"]`).count()) === 1 && (await p.locator('[data-picker] [data-pref="b:king:body:front"]').count()) === 1 && (await p.locator('[data-picker] [data-pref="b:cube:head:front"]').count()) === 1, offered.slice(0, 5));
   await p.click(`[data-picker] [data-pref="${sprite.id}"]`);
-  await p.waitForFunction(() => document.querySelector("[data-plane=front]")?.naturalWidth > 0, null, { timeout: 5000 }).catch(() => {});
-  check("лицо поставлено: в клетке стороны и на сцене", (await p.locator('[data-vw="front"] img').count()) === 1 && (await p.getAttribute("[data-dstage]", "data-planes")) === "1" && await p.locator('[data-plane="front"]').isVisible(), await p.getAttribute("[data-dstage]", "data-planes"));
+  await p.waitForFunction(() => document.querySelector("[data-dstage] [data-plane=front]")?.naturalWidth > 0, null, { timeout: 5000 }).catch(() => {});
+  check("лицо поставлено: в клетке стороны и на сцене", (await p.locator('[data-vw="front"] img').count()) === 1 && (await p.getAttribute("[data-dstage]", "data-planes")) === "1" && await p.locator('[data-dstage] [data-plane="front"]').isVisible(), await p.getAttribute("[data-dstage]", "data-planes"));
   // сдвиг и величина
-  const box0 = await p.locator('[data-plane="front"]').boundingBox();
+  const box0 = await p.locator('[data-dstage] [data-plane="front"]').boundingBox();
   await p.fill('[data-dnum="dx"]', "1");
   await p.fill('[data-dnum="scale"]', "2");
-  const box1 = await p.locator('[data-plane="front"]').boundingBox();
+  const box1 = await p.locator('[data-dstage] [data-plane="front"]').boundingBox();
   check("сдвиг вправо и величина двигают картинку на сцене", box1.width > box0.width * 1.8 && box1.x + box1.width / 2 > box0.x + box0.width / 2 + 5, [box0, box1]);
   // бок: из библиотеки «любая сторона»; левый бок — отражение бока
   await p.click('[data-vw="right"]');
@@ -75,15 +76,15 @@ try {
   await p.click(`[data-picker] [data-pref="${sprite.id}"]`);
   await p.click('[data-vw="left"]');
   await p.selectOption("[data-dmirror]", "right");
-  check("левый бок — отражением бока", (await p.locator('[data-vw="left"] img.flip').count()) === 1 && (await p.getAttribute('[data-plane="left"]', "data-flip")) === "1", null);
+  check("левый бок — отражением бока", (await p.locator('[data-vw="left"] img.flip').count()) === 1 && (await p.getAttribute('[data-dstage] [data-plane="left"]', "data-flip")) === "1", null);
   await p.click('[data-facing="box"]');
-  const faceOf = (v) => p.getAttribute(`[data-dbody] [data-plane="${v}"]`, "style");
+  const faceOf = (v) => p.getAttribute(`[data-dstage] [data-dbody] [data-plane="${v}"]`, "style");
   check("в объёме: три стороны — три плоскости, каждая повёрнута к своей стороне", (await p.getAttribute("[data-dstage]", "data-planes")) === "3" && /rotateY\(-90deg\)/.test(await faceOf("right")) && /rotateY\(90deg\)/.test(await faceOf("left")) && !/rotate/.test(await faceOf("front")), [await faceOf("right"), await faceOf("left")]);
-  check("коробка: стороны на полширины от середины", (await p.getAttribute('[data-dbody] [data-plane="right"]', "data-out")) === "1.2", await p.getAttribute('[data-dbody] [data-plane="right"]', "data-out"));
+  check("коробка: стороны на полширины от середины", (await p.getAttribute('[data-dstage] [data-dbody] [data-plane="right"]', "data-out")) === "1.2", await p.getAttribute('[data-dstage] [data-dbody] [data-plane="right"]', "data-out"));
   await p.fill('[data-dnum="out"]', "0.5");
-  check("своё «наружу» у стороны", (await p.getAttribute('[data-dbody] [data-plane="left"]', "data-out")) === "0.5", await p.getAttribute('[data-dbody] [data-plane="left"]', "data-out"));
+  check("своё «наружу» у стороны", (await p.getAttribute('[data-dstage] [data-dbody] [data-plane="left"]', "data-out")) === "0.5", await p.getAttribute('[data-dstage] [data-dbody] [data-plane="left"]', "data-out"));
   await p.click('[data-facing="view"]');
-  check("переключатель: плоскость — одна сторона к тебе, в своей плоскости", (await p.getAttribute("[data-dstage]", "data-planes")) === "1" && (await p.getAttribute("[data-dstage]", "data-shown")) === "left" && (await p.locator("[data-dbody] [data-plane]").count()) === 1, await p.getAttribute("[data-dstage]", "data-planes"));
+  check("переключатель: плоскость — одна сторона к тебе, в своей плоскости", (await p.getAttribute("[data-dstage]", "data-planes")) === "1" && (await p.getAttribute("[data-dstage]", "data-shown")) === "left" && (await p.locator("[data-dstage] [data-dbody] [data-plane]").count()) === 1, await p.getAttribute("[data-dstage]", "data-planes"));
   await p.fill('[data-dnum="out"]', "");
   // крутить пальцем
   await p.locator("[data-dstage]").scrollIntoViewIfNeeded();
@@ -93,6 +94,32 @@ try {
   await p.mouse.move(st.x + st.width / 2 + 160, st.y + st.height / 2, { steps: 6 });
   await p.mouse.up();
   check("крутится пальцем — к тебе другая сторона", (await p.getAttribute("[data-dstage]", "data-toward")) !== "left", await p.getAttribute("[data-dstage]", "data-toward"));
+  // У СТОЛА: тянешь — стол; Ctrl — двигать деталь; Shift — крутить её; всё в адресе
+  const tst = p.locator("[data-tstage]");
+  await tst.scrollIntoViewIfNeeded();
+  const tdrag = async (key, ddx, ddy) => {
+    // Место стола — перед каждым движением: картинки выше догружаются и сдвигают страницу.
+    await tst.scrollIntoViewIfNeeded();
+    await p.waitForTimeout(250);
+    const tb = await tst.boundingBox();
+    if (key) await p.keyboard.down(key);
+    await p.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2);
+    await p.mouse.down();
+    await p.mouse.move(tb.x + tb.width / 2 + ddx, tb.y + tb.height / 2 + ddy, { steps: 6 });
+    await p.mouse.up();
+    if (key) await p.keyboard.up(key);
+  };
+  const at0 = await tst.getAttribute("data-at");
+  check("у стола: деталь стоит на месте игрока, нарисована", at0 === "0,7.4,5.5" && Number(await tst.getAttribute("data-planes")) >= 1, [at0, await tst.getAttribute("data-planes")]);
+  await tdrag(null, 80, 0);
+  check("тянешь — крутится стол, деталь на месте", (await hash()).get("tcy") !== null && (await tst.getAttribute("data-at")) === at0, [(await hash()).get("tcy"), await tst.getAttribute("data-at")]);
+  await tdrag("Control", 60, -40);
+  const at1 = await tst.getAttribute("data-at");
+  check("Ctrl + тянуть — деталь сдвинулась (вправо и вверх по экрану)", at1 !== at0 && Number(at1.split(",")[2]) > 5.5 && (await hash()).get("th") !== null, at1);
+  await tdrag("Shift", 50, 0);
+  check("Shift + тянуть — деталь повернулась, стоит там же", Number((await hash()).get("tyw")) !== 0 && (await hash()).get("tyw") !== null && (await tst.getAttribute("data-at")) === at1, [(await hash()).get("tyw"), await tst.getAttribute("data-at")]);
+  await p.fill('[data-tnum="h"]', "8");
+  check("числом — точно: вверх 8", (await tst.getAttribute("data-at")).endsWith(",8"), await tst.getAttribute("data-at"));
   // несохранённое переживает обновление
   await p.click('[data-vw="front"]');
   await p.click('[data-facing="camera"]');
@@ -104,18 +131,20 @@ try {
   await p.fill("[data-dtags]", "снеговик, зима");
   await p.reload();
   await p.waitForSelector("[data-detail-page] [data-dname]");
-  check("обновил страницу — та же деталь, тот же ракурс, несохранённое на месте", (await p.inputValue("[data-dname]")) === `${tag} Лис` && (await p.locator('[data-vw="front"].on').count()) === 1 && (await p.inputValue('[data-dnum="dx"]')) === "1" && !(await p.locator("[data-dsave]").isDisabled()), [await p.inputValue("[data-dname]"), hash().get("dv")]);
+  check("обновил — у стола деталь там же", (await p.getAttribute("[data-tstage]", "data-at"))?.endsWith(",8"), await p.getAttribute("[data-tstage]", "data-at"));
+  check("обновил страницу — та же деталь, тот же ракурс, несохранённое на месте", (await p.inputValue("[data-dname]")) === `${tag} Лис` && (await p.locator('[data-vw="front"].on').count()) === 1 && (await p.inputValue('[data-dnum="dx"]')) === "1" && !(await p.locator("[data-dsave]").isDisabled()), [await p.inputValue("[data-dname]"), (await hash()).get("dv")]);
   await p.click("[data-dsave]", { timeout: 3000 }).catch(() => {});
   await p.waitForFunction(() => /Сохранено/.test(document.querySelector("[data-dact]")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
   const got = (await mine()).find((d) => d.id === made?.id);
-  check("сохранено на сервере: имя, как стоит, ракурсы, сдвиг, величина, отражение", got?.name === `${tag} Лис` && got.facing === "camera" && got.width === 4.8 && got.tags.join() === "снеговик,зима" && got.views.front?.sprite === sprite.id && got.views.front.dx === 1 && got.views.front.scale === 2 && got.views.right?.sprite === sprite.id && got.views.left?.mirror === "right" && !hash().get("dd"), got);
+  check("сохранено на сервере: имя, как стоит, ракурсы, сдвиг, величина, отражение", got?.name === `${tag} Лис` && got.facing === "camera" && got.width === 4.8 && got.tags.join() === "снеговик,зима" && got.views.front?.sprite === sprite.id && got.views.front.dx === 1 && got.views.front.scale === 2 && got.views.right?.sprite === sprite.id && got.views.left?.mirror === "right" && !(await hash()).get("dd"), got);
   // РАСЦВЕТКИ: шестнадцать и свои три — на сцене и в ракурсах, в адресе
-  const pic0 = await p.getAttribute('[data-plane="front"]', "src");
+  const pic0 = await p.getAttribute('[data-dstage] [data-plane="front"]', "src");
   await p.click('[data-dpal="5"]');
-  const pic5 = await p.getAttribute('[data-plane="front"]', "src");
-  check("расцветка перекрашивает деталь, и в адресе", pic5 !== pic0 && hash().get("dp") === "5" && (await p.locator('[data-dpal="5"].on').count()) === 1, null);
+  const pic5 = await p.getAttribute('[data-dstage] [data-plane="front"]', "src");
+  check("расцветка перекрашивает деталь, и в адресе", pic5 !== pic0 && (await hash()).get("dp") === "5" && (await p.locator('[data-dpal="5"].on').count()) === 1, null);
   await p.fill('[data-dc="0"]', "#ff00aa");
-  check("свои три цвета — на сцене и в клетке ракурса", decodeURIComponent(await p.getAttribute('[data-plane="front"]', "src")).includes("#ff00aa") && decodeURIComponent(await p.getAttribute('[data-vw="front"] img', "src")).includes("#ff00aa") && hash().get("dc")?.startsWith("ff00aa"), null);
+  await p.waitForFunction(() => decodeURIComponent(document.querySelector('[data-dstage] [data-plane="front"]')?.getAttribute("src") ?? "").includes("#ff00aa"), null, { timeout: 3000 }).catch(() => {});
+  check("свои три цвета — на сцене и в клетке ракурса", decodeURIComponent(await p.getAttribute('[data-dstage] [data-plane="front"]', "src")).includes("#ff00aa") && decodeURIComponent(await p.getAttribute('[data-vw="front"] img', "src")).includes("#ff00aa") && (await hash()).get("dc")?.startsWith("ff00aa"), null);
   await p.click("[data-dcoff]");
   // PNG не красится — так и сказано
   await p.click('[data-vw="back"]');
@@ -128,7 +157,7 @@ try {
   // ЗАКАЗ У AGY ДЛЯ ДЕТАЛИ: форма помнит деталь, принятое встаёт в её пустые ракурсы
   await p.click("[data-dagy]");
   await p.waitForSelector("[data-agy] [data-for-detail]");
-  check("«Заказать у agy» — форма заказа для этой детали", /Лис/.test(await p.textContent("[data-for-detail]")) && hash().get("sub") === "agy", await p.textContent("[data-for-detail]"));
+  check("«Заказать у agy» — форма заказа для этой детали", /Лис/.test(await p.textContent("[data-for-detail]")) && (await hash()).get("sub") === "agy", await p.textContent("[data-for-detail]"));
   await p.click('[data-agy] [data-sides="2"]');
   await p.fill('[data-a="brief"]', "лис в очках");
   await p.fill('[data-a="id"]', AGY);
@@ -142,7 +171,7 @@ try {
   const filled = (await mine()).find((d) => d.id === made?.id);
   const lib = (await (await fetch(`${base}/table/admin/lib`, { headers: H })).json()).sprites;
   const back = lib.find((x) => x.id === filled?.views.back?.sprite);
-  check("принято — спина из agy встала в пустой ракурс, заданное лицо не тронуто, открыта деталь", back?.origin === "agy" && filled.views.front?.sprite === sprite.id && filled.views.front.dx === 1 && hash().get("detail") === made.id && hash().get("tab") === "details", filled?.views);
+  check("принято — спина из agy встала в пустой ракурс, заданное лицо не тронуто, открыта деталь", back?.origin === "agy" && filled.views.front?.sprite === sprite.id && filled.views.front.dx === 1 && (await hash()).get("detail") === made.id && (await hash()).get("tab") === "details", filled?.views);
   // БОЧКА: 18 ракурсов по кругу, всегда лицом — к тебе ближайший по углу; коробкой — все 18 в объёме
   await p.click("[data-dback]");
   await p.waitForSelector(".dt [data-detail]");

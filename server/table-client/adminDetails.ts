@@ -20,6 +20,8 @@ import { DETAIL_LIMITS, DETAIL_WIDTH, FACINGS, moveViews, nearestView, NEW_DETAI
 import { paintPart, partSprite } from "./dollSprites.js";
 import { UNIT_WIDTH, type V3 } from "./spriteAxes.js";
 import { HOST } from "./host.js";
+import { R, RIM } from "./felt.js";
+import { SHOULDERS, SHOULDER_H } from "../src/table/bodies.js";
 import { go, onRoute, put, route, routeNum, routeOne } from "./adminRoute.js";
 
 interface LibSprite { id: string; name: string; ext: "svg" | "png"; slot: string; side: string | null; tags: string[] }
@@ -70,6 +72,13 @@ const CSS = `
 .dt .dt-mid { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border: 1.5px solid rgba(242,193,78,.9); border-radius: 50%; pointer-events: none; transform: translateZ(3px); }
 .dt .dt-body { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-style: preserve-3d; pointer-events: none; }
 .dt .dt-flat { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; transform: translateZ(1px); }
+.dt .tb-world { position: relative; width: 0; height: 0; transform-style: preserve-3d; }
+.dt .tb-world > * { position: absolute; left: 0; top: 0; transform-style: preserve-3d; }
+.dt .tb-table { border-radius: 50%; background: radial-gradient(#1b5a3f, #0c2c1f 70%); box-shadow: inset 0 0 0 var(--rim) #6b4d2c, inset 0 0 0 calc(var(--rim) + 2px) #0b0704; }
+.dt .tb-foot { width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: rgba(0,0,0,.45); border: 1.5px solid rgba(242,193,78,.9); }
+.dt .tb-pole { width: 2px; margin-left: -1px; background: repeating-linear-gradient(rgba(242,193,78,.9) 0 4px, transparent 4px 8px); transform-origin: 50% 0; }
+.dt .tb-anchor, .dt .tb-anchor > div { width: 0; height: 0; transform-style: preserve-3d; }
+.dt .tb-anchor > div { position: absolute; left: 0; top: 0; }
 .dt .dt-plane { position: absolute; pointer-events: none; user-select: none; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .dt .dt-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); font-size: 13px; text-align: center; padding: 20px; }
 .dt .dt-axes { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-style: preserve-3d; pointer-events: none; }
@@ -105,6 +114,8 @@ const CSS = `
 /** Краски: одна из шестнадцати расцветок — или свои три цвета вместо красной, синей и золота рисунка. */
 interface Paint { pal: number; own3: readonly [string, string, string] | null }
 const PLAIN: Paint = { pal: 0, own3: null };
+/** Свои цвета применяются, когда выбор цвета затих столько: тянешь мышью по палитре — печётся один раз, в конце. */
+const OWN3_WAIT_MS = 200;
 
 /** `orderAgy` — заказать у agy для этой детали: нарисованное встанет в её пустые ракурсы (форма — в «Спрайтах»). */
 export function mountDetails(root: HTMLElement, auth: Record<string, string>, orderAgy: (d: { id: string; name: string }) => void): { refresh(): Promise<void> } {
@@ -286,6 +297,14 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
         <div class="bar" data-dshow>${FACINGS.map((f) => `<button class="chip${draft.facing === f ? " on" : ""}" data-facing="${f}">${FACING_WORDS[f][0]}</button>`).join("")}</div>
         <div class="said" data-dfsaid></div>
         <div class="bar">${(["axes", "grid"] as const).map((k) => `<button class="chip${layers[k] ? " on" : ""}" data-dlayer="${k}">${{ axes: "Оси", grid: "Клетка" }[k]}</button>`).join("")}<span class="said" data-dseen></span></div>
+        <h3>У стола</h3>
+        <div class="sp-stage bg-felt" data-tstage style="perspective:900px"><div class="tb-world" data-tworld>
+          <div class="tb-table" style="--rim:${RIM * TABLE_PPU}px;width:${2 * (R + RIM) * TABLE_PPU}px;height:${2 * (R + RIM) * TABLE_PPU}px;left:${-(R + RIM) * TABLE_PPU}px;top:${-(R + RIM) * TABLE_PPU}px;transform:rotateX(90deg)"></div>
+          <div class="tb-foot" data-tfoot></div><div class="tb-pole" data-tpole></div>
+          <div class="tb-anchor" data-tanchor><div data-tbody></div><div data-tflat></div></div>
+        </div></div>
+        <div class="said">Тянешь — крутится стол вместе с деталью. <b>Ctrl</b> + тянуть — двигать деталь (по экрану: вглубь — поверни стол), <b>Shift</b> + тянуть — поворачивать её.</div>
+        <div class="bar">${([["x", "вправо"], ["y", "к тебе"], ["h", "вверх"], ["yaw", "поворот °"], ["tilt", "наклон °"]] as const).map(([k, n]) => `<label class="num">${n} <input type="number" data-tnum="${k}" step="${k === "yaw" || k === "tilt" ? 5 : 0.1}" value="${r1(at[k])}"></label>`).join("")}<button class="chip" data-treset>Сброс</button></div>
         <h3>Расцветки</h3>
         <div class="bar" data-dpals>${PALETTES.map((p, k) => `<button class="chip${!paint.own3 && k === paint.pal ? " on" : ""}" data-dpal="${k}" title="${esc(p.name)}"><span style="display:inline-flex;gap:2px;vertical-align:middle">${[p.red, p.blue, p.gold].map((c) => `<i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${c}"></i>`).join("")}</span></button>`).join("")}</div>
         <div class="bar">${["основной", "второй", "акцент"].map((n, i) => `<label class="num">${n} <input type="color" data-dc="${i}" value="${paint.own3?.[i] ?? [PALETTES[paint.pal]!.red, PALETTES[paint.pal]!.blue, PALETTES[paint.pal]!.gold][i]}"></label>`).join("")}<button class="chip" data-dcoff>Как в расцветке</button></div>
@@ -314,38 +333,23 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
     };
     const ppu = () => 260 / (draft.width * 2.2);
 
-    /**
-     * СЦЕНА — как деталь стоит за столом (`facing`): коробка — каждая сторона плоскостью на своём месте, вся деталь
-     * крутится; всегда лицом и бумажный — к тебе ближайший по углу из заданных ракурсов (бумажный сужается по углу);
-     * плоскость — этот ракурс в своей плоскости, в объёме.
-     */
-    function pose(): void {
-      const st = stage();
-      st.dataset.rx = String(Math.round(rx));
-      st.dataset.ry = String(Math.round(ry));
-      const turn = `rotateX(${rx}deg) rotateY(${ry}deg)`;
-      const axes = pageBox.querySelector<HTMLElement>("[data-daxes]")!;
-      axes.hidden = !layers.axes;
-      axes.style.transform = `translateZ(0) ${turn}`;
-      const cells = pageBox.querySelector<HTMLElement>("[data-dcells]")!, u = ppu();
-      cells.hidden = !layers.grid;
-      cells.style.backgroundSize = `${u}px ${u}px`;
-      cells.style.backgroundPosition = `${(130 % u) - 0.5}px ${(130 % u) - 0.5}px`;
-      const keys = viewsOf(draft), me = viewer();
-      const toward = nearestView(keys, me)!;
-      const defined = keys.filter((k) => draft.views[k]);
+    /** Что рисовать при этом взгляде: коробка — все заданные в объёме; плоскость — ближайший в объёме; лицом и бумажный — ближайший плашкой к тебе. */
+    const pick = (me: readonly [number, number, number]) => {
+      const defined = viewsOf(draft).filter((k) => draft.views[k]);
       const mode = draft.facing, single = mode === "box" ? null : nearestView(defined, me);
-      st.dataset.toward = toward;
-      st.dataset.mode = mode;
-      st.dataset.shown = single ?? "";
-      const body = pageBox.querySelector<HTMLElement>("[data-dbody]")!, flat = pageBox.querySelector<HTMLElement>("[data-dflat]")!;
-      body.style.transform = turn;
-      const inBody = mode === "box" ? defined : mode === "view" && single ? [single] : [];
-      const inFlat = mode === "camera" || mode === "tilt" ? (single ? [single] : []) : [];
+      return { defined, single, inBody: mode === "box" ? defined : mode === "view" && single ? [single] : [], inFlat: mode === "camera" || mode === "tilt" ? (single ? [single] : []) : [] };
+    };
+    /**
+     * НАРИСОВАТЬ ДЕТАЛЬ в `body` (крутится вместе с деталью: стороны на своих местах) и `flat` (плашка к зрителю:
+     * `billboard` — обратный поворот, чтобы плашка смотрела в камеру). `me` — откуда смотрят, в осях детали; `u` —
+     * точек на единицу стола. Сколько картинок нарисовано.
+     */
+    function renderDetail(body: HTMLElement, flat: HTMLElement, inBody: string[], inFlat: string[], me: readonly [number, number, number], u: number, billboard: string): number {
       for (const img of [...body.querySelectorAll<HTMLImageElement>("[data-plane]")]) if (!inBody.includes(img.dataset.plane!)) img.remove();
       for (const img of [...flat.querySelectorAll<HTMLImageElement>("[data-plane]")]) if (!inFlat.includes(img.dataset.plane!)) img.remove();
+      flat.style.transform = billboard;
       let shown = 0;
-      const place = (box: HTMLElement, v: string, lay: (one: ViewSetup, w: number, h: number) => string) => {
+      const place = (box: HTMLElement, v: string, lay: (one: ViewSetup) => string) => {
         const one = draft.views[v]!;
         let img = box.querySelector<HTMLImageElement>(`[data-plane="${v}"]`);
         const ref = one.sprite ?? (one.mirror ? draft.views[one.mirror]?.sprite : undefined);
@@ -366,25 +370,90 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
         const aspect = img.naturalWidth ? img.naturalHeight / img.naturalWidth : 1;
         const w = draft.width * one.scale * u, h = w * aspect;
         Object.assign(img.style, { width: `${w}px`, height: `${h}px`, left: `${-w / 2}px`, top: `${-h / 2}px`, transformOrigin: `${w / 2}px ${h / 2}px` });
-        img.style.transform = lay(one, w, h);
+        img.style.transform = lay(one);
         img.dataset.flip = one.mirror ? "1" : "";
       };
       for (const v of inBody) place(body, v, (one) => {
         const out = outOf(draft, one);
-        pageBox.querySelector<HTMLElement>(`[data-dbody] [data-plane="${v}"]`)?.setAttribute("data-out", String(out));
+        body.querySelector<HTMLElement>(`[data-plane="${v}"]`)?.setAttribute("data-out", String(out));
         return `${faceOf(v)} translate3d(${one.dx * u}px, ${-one.dy * u}px, ${out * u}px)${one.mirror ? " scaleX(-1)" : ""}`;
       });
       for (const v of inFlat) place(flat, v, (one) => {
-        // Бумажный сужается по углу между тобой и ракурсом; всегда лицом — нет.
-        const squeeze = mode === "tilt" ? Math.max(0.15, dot(viewDir(v), me)) : 1;
+        // Бумажный сужается по углу между зрителем и ракурсом; всегда лицом — нет.
+        const squeeze = draft.facing === "tilt" ? Math.max(0.15, dot(viewDir(v), me)) : 1;
         return `translate(${one.dx * u}px, ${-one.dy * u}px) scaleX(${(one.mirror ? -1 : 1) * squeeze})`;
       });
+      return shown;
+    }
+
+    // ——— У СТОЛА: деталь рядом со столом; тянешь — крутится стол вместе с ней, Ctrl — двигать деталь, Shift — крутить ———
+    const R3 = (ax: "x" | "y", deg: number): number[][] => {
+      const c = Math.cos((deg * Math.PI) / 180), n = Math.sin((deg * Math.PI) / 180);
+      return ax === "x" ? [[1, 0, 0], [0, c, -n], [0, n, c]] : [[c, 0, n], [0, 1, 0], [-n, 0, c]];
+    };
+    const mul = (a: number[][], b: number[][]) => a.map((row) => [0, 1, 2].map((j) => row[0]! * b[0]![j]! + row[1]! * b[1]![j]! + row[2]! * b[2]![j]!));
+    const TABLE_PPU = 300 / (2 * (R + 3.5));
+    const at = { x: routeNum("tx", 0), y: routeNum("ty", SHOULDERS), h: routeNum("th", SHOULDER_H.sit + 1.5), yaw: routeNum("tyw", 0), tilt: routeNum("tpt", 0) };
+    const cam = { yaw: routeNum("tcy", 25), pitch: routeNum("tcp", -28) };
+    const keepTable = () => put({ tx: at.x || null, ty: at.y === SHOULDERS ? null : at.y, th: at.h === SHOULDER_H.sit + 1.5 ? null : at.h, tyw: at.yaw || null, tpt: at.tilt || null, tcy: cam.yaw === 25 ? null : cam.yaw, tcp: cam.pitch === -28 ? null : cam.pitch });
+    const r1 = (n: number) => Math.round(n * 100) / 100;
+    function tablePose(): void {
+      const st = pageBox.querySelector<HTMLElement>("[data-tstage]");
+      if (!st) return;
+      const u = TABLE_PPU;
+      pageBox.querySelector<HTMLElement>("[data-tworld]")!.style.transform = `rotateX(${cam.pitch}deg) rotateY(${cam.yaw}deg)`;
+      const anchor = pageBox.querySelector<HTMLElement>("[data-tanchor]")!;
+      anchor.style.transform = `translate3d(${at.x * u}px, ${-at.h * u}px, ${at.y * u}px) rotateY(${at.yaw}deg) rotateX(${at.tilt}deg)`;
+      const foot = pageBox.querySelector<HTMLElement>("[data-tfoot]")!;
+      foot.style.transform = `translate3d(${at.x * u}px, 0px, ${at.y * u}px) rotateX(90deg)`;
+      const pole = pageBox.querySelector<HTMLElement>("[data-tpole]")!;
+      Object.assign(pole.style, { height: `${Math.max(0, at.h) * u}px`, transform: `translate3d(${at.x * u}px, ${-at.h * u}px, ${at.y * u}px) rotateY(${-cam.yaw}deg)` });
+      // Откуда камера смотрит на деталь, в её осях: (камера · деталь)ᵀ · к зрителю, право детали — влево сцены, верх — вверх.
+      const M = mul(mul(R3("x", cam.pitch), R3("y", cam.yaw)), mul(R3("y", at.yaw), R3("x", at.tilt)));
+      const me: [number, number, number] = [-M[2]![0]!, -M[2]![1]!, M[2]![2]!];
+      const { inBody, inFlat, single } = pick(me);
+      const body = pageBox.querySelector<HTMLElement>("[data-tbody]")!, flat = pageBox.querySelector<HTMLElement>("[data-tflat]")!;
+      const n = renderDetail(body, flat, inBody, inFlat, me, u, `rotateX(${-at.tilt}deg) rotateY(${-at.yaw}deg) rotateY(${-cam.yaw}deg) rotateX(${-cam.pitch}deg)`);
+      st.dataset.planes = String(n);
+      st.dataset.shown = single ?? "";
+      st.dataset.at = [at.x, at.y, at.h].map(r1).join(",");
+      for (const inp of pageBox.querySelectorAll<HTMLInputElement>("[data-tnum]")) if (document.activeElement !== inp) inp.value = String(r1(at[inp.dataset.tnum as keyof typeof at]));
+    }
+
+    /**
+     * СЦЕНА — как деталь стоит за столом (`facing`): коробка — каждая сторона плоскостью на своём месте, вся деталь
+     * крутится; всегда лицом и бумажный — к тебе ближайший по углу из заданных ракурсов (бумажный сужается по углу);
+     * плоскость — этот ракурс в своей плоскости, в объёме.
+     */
+    function pose(): void {
+      const st = stage();
+      st.dataset.rx = String(Math.round(rx));
+      st.dataset.ry = String(Math.round(ry));
+      const turn = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+      const axes = pageBox.querySelector<HTMLElement>("[data-daxes]")!;
+      axes.hidden = !layers.axes;
+      axes.style.transform = `translateZ(0) ${turn}`;
+      const cells = pageBox.querySelector<HTMLElement>("[data-dcells]")!, u = ppu();
+      cells.hidden = !layers.grid;
+      cells.style.backgroundSize = `${u}px ${u}px`;
+      cells.style.backgroundPosition = `${(130 % u) - 0.5}px ${(130 % u) - 0.5}px`;
+      const keys = viewsOf(draft), me = viewer();
+      const toward = nearestView(keys, me)!;
+      const { defined, single, inBody, inFlat } = pick(me);
+      const mode = draft.facing;
+      st.dataset.toward = toward;
+      st.dataset.mode = mode;
+      st.dataset.shown = single ?? "";
+      const body = pageBox.querySelector<HTMLElement>("[data-dbody]")!, flat = pageBox.querySelector<HTMLElement>("[data-dflat]")!;
+      body.style.transform = turn;
+      const shown = renderDetail(body, flat, inBody, inFlat, me, u, "");
       const empty = pageBox.querySelector<HTMLElement>("[data-dempty]")!;
       empty.hidden = defined.length > 0;
       pageBox.querySelector<HTMLElement>("[data-dseen]")!.textContent = `к тебе — ${viewName(toward)}${draft.views[toward] ? "" : ` (этой стороны нет${single ? `, видно ближайшее — ${viewName(single)}` : ""})`}`;
       pageBox.querySelector<HTMLElement>("[data-dfsaid]")!.textContent = `${FACING_WORDS[mode][1]}. Так деталь стоит и за столом.`;
       st.dataset.planes = String(shown);
       for (const b of pageBox.querySelectorAll<HTMLElement>("[data-vw]")) b.classList.toggle("seen", b.dataset.vw === (single ?? toward));
+      tablePose();
     }
 
     function axesHtml(): string {
@@ -458,6 +527,33 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
       st.onpointerdown = (e) => { drag = { x: e.clientX, y: e.clientY }; st.setPointerCapture(e.pointerId); };
       st.onpointermove = (e) => { if (!drag) return; ry += (e.clientX - drag.x) * 0.8; rx = Math.max(-85, Math.min(85, rx - (e.clientY - drag.y) * 0.6)); drag = { x: e.clientX, y: e.clientY }; pose(); };
       st.onpointerup = st.onpointercancel = () => { if (drag) keep(); drag = null; };
+      // У СТОЛА: тянешь — стол; Ctrl — двигать деталь в плоскости экрана; Shift — крутить деталь. Клавиши читаются на
+      // каждом шаге: зажал посреди движения — сразу другое действие.
+      const ts = pageBox.querySelector<HTMLElement>("[data-tstage]")!;
+      let tdrag: { x: number; y: number } | null = null;
+      ts.oncontextmenu = (e) => e.preventDefault();
+      ts.onpointerdown = (e) => { tdrag = { x: e.clientX, y: e.clientY }; ts.setPointerCapture(e.pointerId); e.preventDefault(); };
+      ts.onpointermove = (e) => {
+        if (!tdrag) return;
+        const dx = e.clientX - tdrag.x, dy = e.clientY - tdrag.y;
+        tdrag = { x: e.clientX, y: e.clientY };
+        if (e.ctrlKey || e.metaKey) {
+          // Шаг по экрану — в оси стола: обратный поворот камеры.
+          const M = mul(R3("x", cam.pitch), R3("y", cam.yaw));
+          const w = [0, 1, 2].map((j) => (M[0]![j]! * dx + M[1]![j]! * dy) / TABLE_PPU);
+          at.x += w[0]!; at.h -= w[1]!; at.y += w[2]!;
+        } else if (e.shiftKey) {
+          at.yaw += dx * 0.8;
+          at.tilt = Math.max(-90, Math.min(90, at.tilt - dy * 0.6));
+        } else {
+          cam.yaw += dx * 0.5;
+          cam.pitch = Math.max(-89, Math.min(10, cam.pitch - dy * 0.4));
+        }
+        tablePose();
+      };
+      ts.onpointerup = ts.onpointercancel = () => { if (tdrag) keepTable(); tdrag = null; };
+      for (const inp of pageBox.querySelectorAll<HTMLInputElement>("[data-tnum]")) inp.oninput = () => { const v = Number(inp.value); if (inp.value === "" || !Number.isFinite(v)) return; at[inp.dataset.tnum as keyof typeof at] = v; tablePose(); keepTable(); };
+      pageBox.querySelector<HTMLElement>("[data-treset]")!.onclick = () => { Object.assign(at, { x: 0, y: SHOULDERS, h: SHOULDER_H.sit + 1.5, yaw: 0, tilt: 0 }); Object.assign(cam, { yaw: 25, pitch: -28 }); tablePose(); keepTable(); };
       for (const b of pageBox.querySelectorAll<HTMLElement>("[data-dlayer]")) b.onclick = () => { const k = b.dataset.dlayer as keyof typeof layers; layers[k] = !layers[k]; b.classList.toggle("on", layers[k]); pose(); keep(); };
       const touched = () => { const b = pageBox.querySelector<HTMLButtonElement>("[data-dsave]"); if (b) b.disabled = !dirty(); pageBox.querySelector<HTMLElement>("[data-dact]")!.textContent = dirty() ? "Есть несохранённое." : ""; keep(); };
       const nameIn = pageBox.querySelector<HTMLInputElement>("[data-dname]");
@@ -529,7 +625,9 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
         showPaint();
       };
       const cs = [...pageBox.querySelectorAll<HTMLInputElement>("[data-dc]")];
-      for (const c of cs) c.oninput = () => { paint.own3 = [cs[0]!.value, cs[1]!.value, cs[2]!.value]; showPaint(); };
+      // Свои цвета — когда мышь в выборе цвета остановилась: каждый шаг по палитре иначе пёк бы все ракурсы заново.
+      let own3Wait = 0;
+      for (const c of cs) c.oninput = () => { clearTimeout(own3Wait); own3Wait = window.setTimeout(() => { paint.own3 = [cs[0]!.value, cs[1]!.value, cs[2]!.value]; showPaint(); }, OWN3_WAIT_MS); };
       pageBox.querySelector<HTMLElement>("[data-dcoff]")!.onclick = () => { paint.own3 = null; showPaint(); };
       pageBox.querySelector<HTMLElement>("[data-dagy]")?.addEventListener("click", () => orderAgy({ id: saved.id, name: draft.name }));
       drawEditor();

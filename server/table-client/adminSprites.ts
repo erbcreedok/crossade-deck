@@ -49,6 +49,8 @@ const ORIGIN_NAMES = { upload: "загружен", agy: "agy" } as const;
 const KINDS: [Kind, string][] = [["head", "Головы"], ["hair", "Причёски"], ["body", "Тела"], ["legs", "Ноги"], ["hands", "Руки"], ["other", "Другое"]];
 const KIND_ONE: Record<Kind, string> = { head: "голова", hair: "причёска", body: "тело", legs: "ноги", hands: "руки", other: "другое" };
 const SIDES = ["front", "back", "right", "left", "top", "bottom"];
+/** Свои цвета применяются, когда выбор цвета затих столько: тянешь мышью по палитре — печётся один раз, в конце. */
+const OWN3_WAIT_MS = 200;
 const ART_NAMES = { court: "колода", file: "файлы", draw: "код", png: "картинка", none: "" } as const;
 
 const CSS = `
@@ -531,16 +533,20 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     let svg: string | null = null;
     const court = s.built?.art === "court";
     const paints3 = new Map<string, string | null>();
+    // ИСПЕКЛАСЬ КАРТИНКА — одна перерисовка на кадр одной и той же подпиской: пекарь хранит ждущих множеством, и
+    // новая функция на каждую перерисовку множила бы перерисовки на число ещё не испечённых расцветок.
+    let soonFrame = 0;
+    const soon = () => { if (!soonFrame) soonFrame = requestAnimationFrame(() => { soonFrame = 0; if (current === s) drawBig(); }); };
     const paintSrc = (): string | null => {
       if (own3 && svg) return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/#b3221f/gi, own3[0]).replace(/#1d4f80/gi, own3[1]).replace(/#f2c14e/gi, own3[2]))}`;
       if (own3 && court) {
         const k = own3.join();
         if (paints3.has(k)) return paints3.get(k) ?? null;
         paints3.set(k, null);
-        void paintPart(s.built!.part, s.built!.view, own3, PALETTES[pal]!.ink, HOST).then((src) => { paints3.set(k, src); if (current === s && own3?.join() === k) drawBig(); });
+        void paintPart(s.built!.part, s.built!.view, own3, PALETTES[pal]!.ink, HOST).then((src) => { paints3.set(k, src); if (own3?.join() === k) soon(); });
         return big.getAttribute("src");
       }
-      return srcOf(s, pal, () => { if (current === s) drawBig(); });
+      return srcOf(s, pal, soon);
     };
     const facts = factsHtml(s);
     pageBox.innerHTML = `<div class="sp-page" data-sprite-page="${esc(s.key)}">
@@ -622,7 +628,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
       const src = paintSrc();
       if (src && big.getAttribute("src") !== src) big.src = src;
       for (const b of pageBox.querySelectorAll<HTMLElement>("[data-pal16]")) {
-        const k = Number(b.dataset.pal16), img = b.querySelector("img")!, one = srcOf(s, k, () => { if (current === s) drawBig(); });
+        const k = Number(b.dataset.pal16), img = b.querySelector("img")!, one = srcOf(s, k, soon);
         if (one && img.getAttribute("src") !== one) img.src = one;
         b.classList.toggle("on", !own3 && k === pal);
       }
@@ -665,7 +671,12 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
       own3Said.textContent = can ? "Красятся три цвета рисунка: основной, второй, акцент." : "Эта картинка не красится: PNG — какой нарисован.";
       if (own3) drawBig();
     });
-    for (const c of inputs) c.oninput = () => { own3 = [inputs[0]!.value, inputs[1]!.value, inputs[2]!.value]; drawBig(); keep(); };
+    // Свои цвета — когда мышь в выборе цвета остановилась: каждый шаг по палитре иначе пёк бы колоду заново.
+    let own3Wait = 0;
+    for (const c of inputs) c.oninput = () => {
+      clearTimeout(own3Wait);
+      own3Wait = window.setTimeout(() => { own3 = [inputs[0]!.value, inputs[1]!.value, inputs[2]!.value]; drawBig(); keep(); }, OWN3_WAIT_MS);
+    };
     own3Box.querySelector<HTMLElement>("[data-own3-off]")!.onclick = () => { own3 = null; drawBig(); keep(); };
     // Похожие
     const sim = similar(s), simBox = pageBox.querySelector<HTMLElement>("[data-similar]")!;

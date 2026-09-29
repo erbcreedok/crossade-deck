@@ -138,7 +138,20 @@ try {
   const src1 = await p.getAttribute("[data-big]", "src");
   check("расцветка меняет картинку; все 16 — рядом", src1 !== src0 && (await p.locator("[data-pal16] img[src]").count()) === 16, null);
   await p.waitForFunction(() => !document.querySelector("[data-c]")?.disabled, null, { timeout: 5000 }).catch(() => {});
+  // Нативный выбор цвета шлёт изменение на каждое движение мыши — картинка пересчитывается один раз, когда он затих.
+  const bigSrcs = await p.evaluate(async () => {
+    const big = document.querySelector("[data-big]"), inp = document.querySelector('[data-c="0"]');
+    let n = 0;
+    const mo = new MutationObserver(() => (n += 1));
+    mo.observe(big, { attributes: true, attributeFilter: ["src"] });
+    for (let k = 0; k < 30; k += 1) { inp.value = `#${(0x100000 + k * 0x050505).toString(16).slice(-6)}`; inp.dispatchEvent(new Event("input", { bubbles: true })); await new Promise((r) => setTimeout(r, 15)); }
+    await new Promise((r) => setTimeout(r, 500));
+    mo.disconnect();
+    return n;
+  });
+  check("провёл мышью по палитре браузера (30 шагов) — картинка пересчитана раз, а не 30", bigSrcs === 1, bigSrcs);
   await p.fill('[data-c="0"]', "#ff00aa");
+  await p.waitForFunction(() => decodeURIComponent(document.querySelector("[data-big]")?.getAttribute("src") ?? "").includes("#ff00aa"), null, { timeout: 3000 }).catch(() => {});
   check("свои цвета красят SVG", decodeURIComponent(await p.getAttribute("[data-big]", "src")).includes("#ff00aa"), null);
   if (shot) await p.screenshot({ path: shot, fullPage: true });
   // CRUD НА СТРАНИЦЕ: «как новый» — копия с покраской; «заменить файл» — та же запись, новая картинка
@@ -173,6 +186,7 @@ try {
   await p.waitForFunction(() => !document.querySelector("[data-c]")?.disabled, null, { timeout: 5000 }).catch(() => {});
   const kingSrc = await p.getAttribute("[data-big]", "src");
   await p.fill('[data-c="0"]', "#ff00aa", { timeout: 3000 }).catch(() => {});
+  await p.waitForTimeout(400);
   await p.waitForFunction((was) => { const src = document.querySelector("[data-big]")?.getAttribute("src"); return src && src !== was; }, kingSrc, { timeout: 5000 }).catch(() => {});
   check("встроенную не удалить; колода красится своими цветами", (await p.locator("[data-sprite-page] [data-drop]").count()) === 0 && (await p.getAttribute("[data-big]", "src")) !== kingSrc, await p.textContent("[data-own3-said]"));
   await p.click('[data-pal16="1"]');
@@ -191,6 +205,7 @@ try {
   await p.locator(".sg .cell").first().click();
   await p.waitForFunction(() => !document.querySelector("[data-c]")?.disabled, null, { timeout: 5000 }).catch(() => {});
   await p.fill('[data-c="1"]', "#00ffaa", { timeout: 3000 }).catch(() => {});
+  await p.waitForFunction(() => decodeURIComponent(document.querySelector("[data-big]")?.getAttribute("src") ?? "").includes("#00ffaa"), null, { timeout: 3000 }).catch(() => {});
   check("рисунок кода (бочонок) красится своими цветами", decodeURIComponent((await p.getAttribute("[data-big]", "src")) ?? "").includes("#00ffaa"), await p.textContent("[data-own3-said]"));
   const barrelFacts = await factsOf();
   check("рисунок кода: где функция и какой рисунок", barrelFacts.includes("table-client/skinArt.ts") && barrelFacts.includes("barrel") && barrelFacts.includes("barrel:body") && /повёрнута на \d+°/.test(barrelFacts), barrelFacts);
