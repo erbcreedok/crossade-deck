@@ -3189,7 +3189,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const holding = store.carries.some((c) => c.by === body.by);
     return [{ body, angle: chair.angle, ink: person.ink, name: person.name, holding, ...dollOf(person), ...(person.photo ? { photo: person.photo } : {}) }];
     });
-    return bodiesHtml(looks, (p, h) => lens.toGlass(p, h), { black: T.black, ink: T.ink, danger: PALETTE.danger }, spriteUrl, dollSource);
+    return bodiesHtml(looks, (p, h) => lens.toGlass(p, h), { black: T.black, ink: T.ink, danger: PALETTE.danger }, spriteUrl, dollSource, (p) => lens.ahead(p, p.h));
   }
 
   /** Кем сидит: из его профиля (`Person.doll`), а у старого сервера — по ключу. */

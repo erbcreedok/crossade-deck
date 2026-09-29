@@ -21,6 +21,8 @@ type Point = { x: number; y: number };
  * ближе к плоскому сжатию. На 1.6 дальний край стола при наклоне в 45° примерно на треть уже ближнего.
  */
 export const FOCAL = 1.6;
+/** Ближе этой доли фокуса к глазу — уже «вплотную»: раздуто вчетверо и больше. */
+const AHEAD = 0.25;
 
 export interface Lens {
   /** Точка стола (и её высота над сукном, в единицах) → точка стекла. */
@@ -31,6 +33,11 @@ export interface Lens {
   near(p: Point): Transform;
   /** Пикселей стекла в единице стола в этой точке — дальше мельче. */
   kAt(p: Point): number;
+  /**
+   * Точка перед глазом, а не за спиной или вплотную. За глазом у точки нет честного места на стекле — её
+   * прижимают к глазу, и она раздувается на весь экран: так рисовать можно сукно, но не того, кто сидит за спиной.
+   */
+  ahead(p: Point, height?: number): boolean;
 }
 
 /**
@@ -115,5 +122,9 @@ export function lens(view: Transform, pitch: number, k: number, frame: { w: numb
     const { y: v } = flat(p);
     return (f * k * D) / Math.max(D * 0.05, D - v * sin);
   };
-  return { toGlass, toDesk, near, kAt };
+  const ahead = (p: Point, height = 0): boolean => {
+    const { y: v } = flat(p);
+    return D - v * sin - height * k * cos > D * AHEAD;
+  };
+  return { toGlass, toDesk, near, kAt, ahead };
 }

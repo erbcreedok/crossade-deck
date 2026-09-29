@@ -9,7 +9,7 @@ const look = (k: number, e: number, rotation: number): Look => ({
   squash: 1,
   rotation,
   rise: 0,
-  lens: { toGlass: (p) => ({ x: p.x * k + e, y: p.y * k }), toDesk: (q) => ({ x: (q.x - e) / k, y: q.y / k }), near: () => ({ a: k, b: 0, c: 0, d: k, e, f: 0 }), kAt: () => k },
+  lens: { toGlass: (p) => ({ x: p.x * k + e, y: p.y * k }), toDesk: (q) => ({ x: (q.x - e) / k, y: q.y / k }), near: () => ({ a: k, b: 0, c: 0, d: k, e, f: 0 }), kAt: () => k, ahead: () => true },
 });
 
 describe("ar-blend.entry-glides", () => {

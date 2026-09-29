@@ -39,6 +39,7 @@ export function blendLook<A extends Look>(flat: Look, ar: A, t: number): Look | 
     toDesk: (q) => (t < 0.5 ? flat.lens.toDesk(q) : ar.lens.toDesk(q)),
     near: (p) => mixT(flat.lens.near(p), ar.lens.near(p), t),
     kAt: (p) => mix(flat.lens.kAt(p), ar.lens.kAt(p), t),
+    ahead: (p, h) => flat.lens.ahead(p, h) && ar.lens.ahead(p, h),
   };
   return {
     view: mixT(flat.view, ar.view, t),

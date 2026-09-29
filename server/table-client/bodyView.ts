@@ -60,7 +60,10 @@ const DOLL = { spine: 0.42, bar: 1.4, arm: 0.26, hand: 1.5, seat: 0.8, reach: 5 
 const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 /** Разметка тел: `toGlass` — точка стола на стекле, `sprite` — адрес картинки руки. */
-export function bodiesHtml(all: readonly BodyLook[], toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string, dolls?: DollSource): string {
+export function bodiesHtml(all: readonly BodyLook[], toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string, dolls?: DollSource, ahead?: (p: Point3) => boolean): string {
+  // ЗА СПИНОЙ КАМЕРЫ ТЕЛО НЕ РИСУЕТСЯ: у такой точки нет места на стекле, линза прижимает её к глазу, и спрайт
+  // раздувается на весь экран — чужое тело «мелькает под столом».
+  if (ahead) all = all.filter((one) => { const s = shoulders3(one.angle, one.body.stance); return ahead(s) && ahead({ ...s, h: s.h + 3 }) && ahead({ ...s, h: 0 }); });
   if (all.length === 0) return "";
   const behind = behindTable(toGlass);
   const eye = towardEye(toGlass, { x: 0, y: 0, h: 0 });

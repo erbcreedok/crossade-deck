@@ -97,6 +97,8 @@ export interface FeltView {
   /** Точка стола (и её высота над сукном, в единицах) → точка стекла. */
   toGlass(p: { x: number; y: number }, height?: number): { x: number; y: number };
   toDesk(p: { x: number; y: number }): { x: number; y: number };
+  /** Точка стола (с высотой) перед глазом, а не за спиной (`Lens.ahead`). */
+  ahead(p: { x: number; y: number }, height?: number): boolean;
   /** Где на столе нарисована i-я карта стопки `pile` из n — со сдвигом стопки и её высотой. */
   deckAt(pile: string, i: number, n: number): { x: number; y: number };
   /** На какой угол повёрнута i-я карта стопки — в круге у каждой он свой. */
@@ -1018,5 +1020,5 @@ export function drawFelt(canvas: HTMLCanvasElement, o: FeltScene): FeltView {
     });
   });
 
-  return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk, deckAt, deckFacing, feltAt, drew, arrows, rings };
+  return { spots, k: o.k, squash: o.squash, rotation: o.rotation, toGlass, toDesk, ahead: (p: Point, h = 0) => o.lens.ahead(p, h), deckAt, deckFacing, feltAt, drew, arrows, rings };
 }

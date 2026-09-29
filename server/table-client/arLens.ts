@@ -62,6 +62,8 @@ export interface ArLens extends Lens {
 /** Потолок наклона для высоты стопок — тот же, что у пальцевой камеры (`camera.ts`). */
 const MAX_LEAN = 60;
 const NEAR = 0.02;
+/** Ближе этого к глазу (метры) тело не рисуется: за спиной или вплотную. */
+const AHEAD_M = 0.05;
 
 export function arLens(eye: ArView, place: ArPlace, turn: number, zoom: number, frame: { w: number; h: number }): ArLens {
   const cx = frame.w / 2, cy = frame.h / 2;
@@ -131,6 +133,8 @@ export function arLens(eye: ArView, place: ArPlace, turn: number, zoom: number, 
   const eyeAt: Point3 = { x: cosT * ox + sinT * oy, y: -sinT * ox + cosT * oy, h: (dot(fromAt, up) * side) / u };
   return {
     toGlass, toDesk, near, kAt, project, view, toWorld: (p) => world(p), eye: eyeAt,
+    // Перед глазом и не вплотную (метры): ближе — раздувается на весь экран.
+    ahead: (p, height = 0) => -seen(world(p, height))[2] > AHEAD_M,
     k: kAt({ x: 0, y: 0 }),
     rotation: (Math.atan2(b, a) * 180) / Math.PI,
     squash: big > 0 ? small / big : 1,
