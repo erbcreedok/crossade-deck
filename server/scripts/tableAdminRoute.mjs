@@ -20,14 +20,14 @@ try {
   await p.goto(`${base}/table/admin#key=${encodeURIComponent(secret)}`);
   await p.waitForSelector(".sg .cell");
   // ГАЛЕРЕЯ
-  await p.click('[data-facet="gk"][data-v="head"]');
-  await p.click('[data-facet="gs"][data-v="back"]');
+  await p.fill("[data-q]", "деталь:голова сторона:спина");
+  await p.press("[data-q]", "Enter");
   await p.click('[data-gpal="3"]');
   await p.fill("[data-q]", "король");
   const before = await p.locator(".sg .cell b").allTextContents();
   await reload();
   const after = await p.locator(".sg .cell b").allTextContents();
-  check("полки, поиск и расцветка галереи переживают обновление", (await p.locator('[data-facet="gk"][data-v="head"].on').count()) === 1 && (await p.locator('[data-facet="gs"][data-v="back"].on').count()) === 1 && (await p.locator('[data-gpal="3"].on').count()) === 1 && (await p.inputValue("[data-q]")) === "король" && after.join() === before.join() && after.length > 0, { before, after });
+  check("полки, поиск и расцветка галереи переживают обновление", (await p.locator('[data-chip="gk"] [data-chip-v="head"]').count()) === 1 && (await p.locator('[data-chip="gs"] [data-chip-v="back"]').count()) === 1 && (await p.locator('[data-gpal="3"].on').count()) === 1 && (await p.inputValue("[data-q]")) === "король" && after.join() === before.join() && after.length > 0, { before, after });
   // СТРАНИЦА СПРАЙТА
   await p.locator(".sg .cell").first().click();
   await p.waitForSelector("[data-sprite-page]");
@@ -49,7 +49,7 @@ try {
   check("и с той же расцветкой, фоном, масштабом, отражением", (await p.locator('[data-pal16="7"].on').count()) === 1 && /bg-check/.test(await p.getAttribute("[data-stage3d]", "class")) && (await p.inputValue("[data-zoom]")) === "1.6" && /scaleX\(-1\)/.test(await p.getAttribute("[data-card]", "style")), await p.getAttribute("[data-card]", "style"));
   await p.goBack();
   await p.waitForTimeout(400);
-  check("«назад» — галерея с теми же полками", (await p.locator("[data-list]").isVisible()) && (await p.locator('[data-facet="gk"][data-v="head"].on').count()) === 1, null);
+  check("«назад» — галерея с теми же полками", (await p.locator("[data-list]").isVisible()) && (await p.locator('[data-chip="gk"] [data-chip-v="head"]').count()) === 1, null);
   await p.goForward();
   await p.waitForTimeout(400);
   check("«вперёд» — снова спрайт", (await p.locator("[data-sprite-page] h2").innerText().catch(() => "")) === name, null);

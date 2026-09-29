@@ -67,7 +67,15 @@ const CSS = `
 .sg .cell b { font-size: 11.5px; font-weight: 500; text-align: center; line-height: 1.25; overflow-wrap: anywhere; }
 .sg .cell i { font-size: 10.5px; color: var(--dim); font-style: normal; text-align: center; }
 .sg .chip small { opacity: .7; margin-left: 3px; }
-.sg .flabel { font-size: 12px; color: var(--dim); min-width: 64px; }
+.sg .qbox { flex: 1 1 220px; min-width: 0; display: flex; }
+.sg .qbox input { flex: 1; min-width: 0; font: inherit; font-size: 15px; color: var(--ink); background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.sg .suggest { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 8px; }
+.sg .suggest:empty { display: none; }
+.sg .fchip { display: inline-flex; align-items: center; gap: 4px; background: #22282a; border: 1px solid var(--gold); border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 13px; }
+.sg .fchip b { font-weight: 500; color: var(--dim); }
+.sg .fchip button { font: inherit; font-size: 13px; color: var(--ink); background: none; border: 0; cursor: pointer; padding: 2px 5px; border-radius: 999px; }
+.sg .fchip .fval { background: #0f1213; }
+.sg .fchip .fx { color: var(--dim); }
 .sg .cell i.fmt { font-size: 10px; opacity: .8; }
 .sg select { font: inherit; font-size: 13.5px; color: var(--ink); background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; max-width: 100%; }
 .sg .into { font-size: 12.5px; color: var(--dim); }
@@ -111,19 +119,38 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   const style = document.createElement("style");
   style.textContent = CSS;
   document.head.append(style);
-  /** ПОЛКИ — разрезы библиотеки: у каждой картинки одно значение в каждом. Выбранное — в адресе (`adminRoute.ts`). */
-  const FACETS: { id: string; label: string; values: [string, string][]; of: (s: Shown) => string }[] = [
-    { id: "gk", label: "Деталь", values: KINDS, of: (s) => s.slot },
-    { id: "gs", label: "Сторона", values: [...SIDES.map((k): [string, string] => [k, SIDE_NAMES[k]!]), ["none", "без стороны"]], of: (s) => s.side ?? "none" },
-    { id: "gf", label: "Формат", values: [["svg", "SVG"], ["png", "PNG"], ["baked", "рисует код"]], of: (s) => (s.own ? s.own.ext : s.built!.art === "file" ? "svg" : s.built!.art === "png" ? "png" : "baked") },
-    { id: "gw", label: "Откуда", values: [["upload", "загружены"], ["agy", "agy"], ["court", "колода"], ["file", "файлы"], ["draw", "код"], ["png", "картинки стола"]], of: (s) => (s.own ? s.own.origin : s.built!.art) },
-    { id: "gc", label: "Красится", values: [["yes", "перекрашивается"], ["no", "не красится"]], of: (s) => (paints(s) ? "yes" : "no") },
+  /**
+   * ФИЛЬТР — ОДНО ПОЛЕ: «деталь:голова,тело формат:svg тег:Лис» и просто слова. Условие — ключ, двоеточие, значения
+   * через запятую (внутри ключа — «или», между ключами — «и»); каждое становится чипом под полем, крестик — убрать.
+   * Слова без двоеточия — поиск по имени и тегам. Значение из нескольких слов — через дефис или в кавычках.
+   */
+  const KEYS: { id: string; key: string; values: [string, string][] | null; of: (s: Shown) => string[] }[] = [
+    { id: "gk", key: "деталь", values: KINDS.map(([k]) => [k, KIND_ONE[k]]), of: (s) => [s.slot] },
+    { id: "gs", key: "сторона", values: [...SIDES.map((k): [string, string] => [k, SIDE_NAMES[k]!]), ["none", "без-стороны"]], of: (s) => [s.side ?? "none"] },
+    { id: "gf", key: "формат", values: [["svg", "svg"], ["png", "png"], ["baked", "код"]], of: (s) => [s.own ? s.own.ext : s.built!.art === "file" ? "svg" : s.built!.art === "png" ? "png" : "baked"] },
+    { id: "gw", key: "откуда", values: [["upload", "загружены"], ["agy", "agy"], ["court", "колода"], ["file", "файлы"], ["draw", "код"], ["png", "картинки-стола"]], of: (s) => [s.own ? s.own.origin : s.built!.art] },
+    { id: "gc", key: "красится", values: [["yes", "да"], ["no", "нет"]], of: (s) => [paints(s) ? "yes" : "no"] },
+    { id: "gt", key: "тег", values: null, of: (s) => (s.tags.length ? s.tags : ["~"]) },
   ];
-  const chosen: Record<string, string> = Object.fromEntries(FACETS.map((f) => [f.id, routeOne(f.id, ["all", ...f.values.map(([v]) => v)], "all")]));
-  let tag = route("gt") ?? "";
+  const keyOf = (id: string) => KEYS.find((k) => k.id === id)!;
+  /** Подпись значения; у тегов значение и есть подпись («~» — без тегов). */
+  const labelOf = (id: string, v: string) => (id === "gt" ? (v === "~" ? "без-тегов" : v) : keyOf(id).values!.find(([code]) => code === v)?.[1] ?? v);
+  const norm = (t: string) => t.toLowerCase().replace(/ё/g, "е").replace(/[\s_]+/g, "-");
+  /** Значение из слова: код или подпись (регистр, пробел/дефис — не важны). */
+  const valueOf = (id: string, word: string, pool: Shown[]): string | null => {
+    const w = norm(word.replace(/^"|"$/g, ""));
+    if (id === "gt") {
+      if (w === "без-тегов" || w === "~") return "~";
+      return [...new Set(pool.flatMap((s) => s.tags))].find((t) => norm(t) === w) ?? null;
+    }
+    return keyOf(id).values!.find(([code, label]) => norm(code) === w || norm(label) === w)?.[0] ?? null;
+  };
+  /** Выбранное: ключ → значения. В адресе — как написал бы человек: `gf=деталь:голова,тело формат:svg`. */
+  const chosen = new Map<string, Set<string>>();
   let query = route("gq") ?? "";
   let palette = Math.max(0, Math.min(PALETTES.length - 1, Math.round(routeNum("gp", 0))));
-  const remember = () => put({ ...Object.fromEntries(FACETS.map((f) => [f.id, chosen[f.id] === "all" ? null : chosen[f.id]])), gt: tag, gq: query, gp: palette || null });
+  const filterText = () => [...chosen].filter(([, v]) => v.size).map(([id, v]) => `${keyOf(id).key}:${[...v].map((x) => (labelOf(id, x).includes(" ") ? `"${labelOf(id, x)}"` : labelOf(id, x))).join(",")}`).join(" ");
+  const remember = () => put({ gf: filterText(), gq: query, gp: palette || null });
   /** Перекрашивается ли расцветкой: PNG — нет; SVG — если в нём есть цвета колоды; встроенная — как её деталь. */
   const paints = (s: Shown): boolean => {
     if (s.built) return s.built.recolor && s.built.art !== "png";
@@ -157,10 +184,10 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   };
 
   root.innerHTML = `<div class="sg"><div data-list>
-    <div class="bar"><input type="search" data-q placeholder="Поиск по имени и тегам" aria-label="Поиск"><button class="add" data-add>Загрузить</button><input type="file" data-file accept=".svg,image/svg+xml,image/png" multiple hidden></div>
+    <div class="bar"><div class="qbox"><input type="search" data-q placeholder="деталь:голова,тело формат:svg тег:Лис — или имя" aria-label="Фильтр и поиск" autocapitalize="off" autocomplete="off" spellcheck="false"></div><button class="add" data-add>Загрузить</button><input type="file" data-file accept=".svg,image/svg+xml,image/png" multiple hidden></div>
+    <div class="suggest" data-suggest></div>
+    <div class="bar" data-chips></div>
     <div class="bar into" data-into></div>
-    <div data-facets></div>
-    <div class="bar"><span class="flabel">Тег</span><select data-tag aria-label="Тег"></select></div>
     <div class="bar" data-pals></div>
     <div class="said" data-said></div>
     <div class="count" data-count></div>
@@ -168,11 +195,36 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   </div><div data-page hidden></div></div>`;
   const grid = root.querySelector<HTMLElement>("[data-grid]")!;
   const q = root.querySelector<HTMLInputElement>("[data-q]")!;
+  const suggestBox = root.querySelector<HTMLElement>("[data-suggest]")!;
+  /** Разобрать написанное: условия — в чипы, остальное — поиск. `keepLast` — последнее слово ещё набирается. */
+  const take = (text: string, keepLast: boolean): string => {
+    const words = text.match(/[^\s"]*"[^"]*"\S*|\S+/g) ?? [];
+    const tail = keepLast && !/\s$/.test(text) ? words.pop() ?? "" : "";
+    const rest: string[] = [];
+    const pool = [...mine(), ...built()];
+    for (const w of words) {
+      const m = /^([^:]+):(.+)$/.exec(w);
+      const k = m && KEYS.find((x) => norm(x.key).startsWith(norm(m[1]!)) && norm(m[1]!).length >= 2);
+      if (!m || !k) { rest.push(w); continue; }
+      const vals = (m[2]!.match(/"[^"]*"|[^,]+/g) ?? []).map((v) => valueOf(k.id, v, pool)).filter((v): v is string => v !== null);
+      if (!vals.length) { rest.push(w); continue; }
+      const set = chosen.get(k.id) ?? new Set<string>();
+      for (const v of vals) set.add(v);
+      chosen.set(k.id, set);
+    }
+    return [...rest, tail].filter(Boolean).join(" ") + (tail ? "" : rest.length ? " " : "");
+  };
+  // Из адреса — выбранное и поиск.
+  take(route("gf") ?? "", false);
   q.value = query;
-  q.oninput = () => { query = q.value.trim().toLowerCase(); drawGrid(); };
-  const tagSel = root.querySelector<HTMLSelectElement>("[data-tag]")!;
-  tagSel.onchange = () => { tag = tagSel.value; drawGrid(); };
-
+  const apply = (keepLast: boolean) => {
+    const left = take(q.value, keepLast);
+    if (left !== q.value) q.value = left;
+    query = q.value.split(/\s+/).filter((w) => w && !w.includes(":")).join(" ").toLowerCase();
+    drawGrid();
+  };
+  q.oninput = () => apply(true);
+  q.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); apply(false); } };
   const pals = root.querySelector<HTMLElement>("[data-pals]")!;
   const drawPals = () => {
     pals.innerHTML = PALETTES.slice(0, 8).map((p, k) => `<button class="chip pal${k === palette ? " on" : ""}" data-gpal="${k}" title="${esc(p.name)}"><i style="background:${p.red}"></i><i style="background:${p.blue}"></i><i style="background:${p.gold}"></i></button>`).join("");
@@ -190,7 +242,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     for (const f of files) {
       const name = f.name.replace(/\.(svg|png)$/i, "").slice(0, 40) || "картинка";
       const type = f.type || (/\.svg$/i.test(f.name) ? "image/svg+xml" : "image/png");
-      const meta = new URLSearchParams({ name, slot: chosen.gk === "all" ? "other" : chosen.gk!, ...(chosen.gs === "all" || chosen.gs === "none" ? {} : { side: chosen.gs! }), ...(tag && tag !== NO_TAG ? { tags: tag } : {}) });
+      const meta = new URLSearchParams({ name, slot: one("gk") ?? "other", ...(one("gs") && one("gs") !== "none" ? { side: one("gs")! } : {}), ...(chosen.get("gt")?.size ? { tags: [...chosen.get("gt")!].filter((t) => t !== "~").join(",") } : {}) });
       const res = await fetch(`${HOST}/table/admin/lib?${meta}`, { method: "POST", headers: { ...auth, "content-type": type }, body: f }).catch(() => null);
       if (res?.ok) ok += 1;
       else fails.push(`${f.name}: ${res ? ((await res.json().catch(() => ({}))) as { error?: string }).error ?? res.status : "нет связи"}`);
@@ -200,28 +252,58 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     await refresh();
   };
 
-  const NO_TAG = "~";
-  const byTag = (s: Shown) => !tag || (tag === NO_TAG ? s.tags.length === 0 : s.tags.includes(tag));
-  const byQuery = (s: Shown) => !query || s.name.toLowerCase().includes(query) || s.tags.some((t) => t.toLowerCase().includes(query));
-  /** Проходит ли картинка все выбранные полки, кроме `skip`. */
-  const passes = (s: Shown, skip = "") => FACETS.every((f) => f.id === skip || chosen[f.id] === "all" || f.of(s) === chosen[f.id]) && (skip === "gt" || byTag(s)) && byQuery(s);
+  /** Выбрано ровно одно значение ключа — какое (для загрузки). */
+  const one = (id: string): string | null => { const v = chosen.get(id); return v && v.size === 1 ? [...v][0]! : null; };
+  const byQuery = (s: Shown) => !query || query.split(" ").every((w) => s.name.toLowerCase().includes(w) || s.tags.some((t) => t.toLowerCase().includes(w)));
+  /** Проходит ли картинка все условия, кроме ключа `skip`. */
+  const passes = (s: Shown, skip = "") => KEYS.every((k) => { const v = chosen.get(k.id); return k.id === skip || !v?.size || k.of(s).some((x) => v.has(x)); }) && byQuery(s);
 
-  /** Полки — строка чипов на разрез, со счётчиками: сколько картинок будет, если нажать (при прочих выбранных). */
+  /** Чипы выбранного и подсказки к тому, что набирается: ключи — а после двоеточия значения со счётчиками. */
   function drawShelves(pool: Shown[]): void {
-    const box = root.querySelector<HTMLElement>("[data-facets]")!;
-    box.innerHTML = FACETS.map((f) => {
-      const rest = pool.filter((s) => passes(s, f.id));
-      const n = (v: string) => rest.filter((s) => f.of(s) === v).length;
-      return `<div class="bar"><span class="flabel">${f.label}</span>${[["all", "все"] as [string, string], ...f.values].map(([v, label]) => `<button class="chip${chosen[f.id] === v ? " on" : ""}" data-facet="${f.id}" data-v="${v}">${esc(label)}<small>${v === "all" ? rest.length : n(v)}</small></button>`).join("")}</div>`;
-    }).join("");
-    for (const b of box.querySelectorAll<HTMLElement>("[data-facet]")) b.onclick = () => { chosen[b.dataset.facet!] = b.dataset.v!; drawGrid(); };
-    const tagged = pool.filter((s) => passes(s, "gt"));
-    const tags = new Map<string, number>();
-    for (const s of tagged) for (const t of s.tags) tags.set(t, (tags.get(t) ?? 0) + 1);
-    tagSel.innerHTML = `<option value="">все (${tagged.length})</option><option value="${NO_TAG}"${tag === NO_TAG ? " selected" : ""}>без тегов (${tagged.filter((s) => !s.tags.length).length})</option>` + [...tags].sort((a, b) => a[0].localeCompare(b[0], "ru")).map(([t, n]) => `<option value="${esc(t)}"${t === tag ? " selected" : ""}>${esc(t)} (${n})</option>`).join("");
-    const k = chosen.gk as Kind | "all", sd = chosen.gs!;
-    root.querySelector<HTMLElement>("[data-into]")!.textContent = `Загрузка ляжет как: ${k === "all" ? "другое" : KIND_ONE[k]}${sd === "all" || sd === "none" ? "" : ` · ${SIDE_NAMES[sd]}`}${tag && tag !== NO_TAG ? ` · #${tag}` : ""} — поправить можно на странице картинки.`;
+    const chips = root.querySelector<HTMLElement>("[data-chips]")!;
+    chips.innerHTML = [...chosen].filter(([, v]) => v.size).map(([id, v]) => `<span class="fchip" data-chip="${id}"><b>${keyOf(id).key}:</b>${[...v].map((x) => `<button class="fval" data-chip-v="${esc(x)}" title="убрать">${esc(labelOf(id, x))} ×</button>`).join("")}<button class="fx" data-x title="убрать условие">×</button></span>`).join("")
+      + ([...chosen.values()].some((v) => v.size) ? `<button class="chip" data-clear>сбросить всё</button>` : "");
+    for (const c of chips.querySelectorAll<HTMLElement>("[data-chip]")) {
+      const id = c.dataset.chip!;
+      c.querySelector<HTMLElement>("[data-x]")!.onclick = () => { chosen.delete(id); drawGrid(); };
+      for (const b of c.querySelectorAll<HTMLElement>("[data-chip-v]")) b.onclick = () => { chosen.get(id)?.delete(b.dataset.chipV!); drawGrid(); };
+    }
+    const clear = chips.querySelector<HTMLElement>("[data-clear]");
+    if (clear) clear.onclick = () => { chosen.clear(); drawGrid(); };
+    // ПОДСКАЗКИ: по последнему слову поля
+    const last = (q.value.match(/\S+$/) ?? [""])[0]!;
+    const m = /^([^:]*):(.*)$/.exec(last);
+    let items: { text: string; label: string; n?: number }[] = [];
+    if (m) {
+      const k = KEYS.find((x) => norm(x.key).startsWith(norm(m[1]!)) && m[1]!.length > 0);
+      if (k) {
+        const rest = pool.filter((s) => passes(s, k.id));
+        const done = (m[2]!.split(",").slice(0, -1)).join(",");
+        const typed = norm(m[2]!.split(",").pop() ?? "");
+        const vals = k.values ? k.values.map(([v]) => v) : ["~", ...[...new Set(pool.flatMap((s) => s.tags))].sort((a, b) => a.localeCompare(b, "ru"))];
+        items = vals.map((v) => ({ v, label: labelOf(k.id, v), n: rest.filter((s) => k.of(s).includes(v)).length }))
+          .filter((x) => norm(x.label).startsWith(typed) && x.n > 0 && !chosen.get(k.id)?.has(x.v))
+          .slice(0, 30)
+          .map((x) => ({ text: `${k.key}:${done ? `${done},` : ""}${x.label.includes(" ") ? `"${x.label}"` : x.label}`, label: x.label, n: x.n }));
+      }
+    } else if (last && document.activeElement === q) {
+      // Ключи — только когда что-то набирается: пустое поле подсказками не мигает, и вёрстка под пальцем не прыгает.
+      items = KEYS.filter((k) => norm(k.key).startsWith(norm(last))).map((k) => ({ text: `${k.key}:`, label: `${k.key}:` }));
+    }
+    suggestBox.innerHTML = items.map((x, i) => `<button class="chip" data-sug="${i}">${esc(x.label)}${x.n !== undefined ? `<small>${x.n}</small>` : ""}</button>`).join("");
+    for (const b of suggestBox.querySelectorAll<HTMLElement>("[data-sug]")) b.onmousedown = (e) => {
+      e.preventDefault();
+      const x = items[Number(b.dataset.sug)]!;
+      q.value = q.value.replace(/\S*$/, x.text) + (x.text.endsWith(":") ? "" : " ");
+      apply(x.text.endsWith(":"));
+      q.focus();
+    };
+    const k1 = one("gk") as Kind | null, sd = one("gs");
+    const tags = [...(chosen.get("gt") ?? [])].filter((t) => t !== "~");
+    root.querySelector<HTMLElement>("[data-into]")!.textContent = `Загрузка ляжет как: ${k1 ? KIND_ONE[k1] : "другое"}${sd && sd !== "none" ? ` · ${SIDE_NAMES[sd]}` : ""}${tags.length ? ` · #${tags.join(" #")}` : ""} — поправить можно на странице картинки.`;
   }
+  q.onfocus = () => drawShelves([...mine(), ...built()]);
+  q.onblur = () => setTimeout(() => { if (document.activeElement !== q) suggestBox.innerHTML = ""; }, 200);
 
   function drawGrid(): void {
     remember();
@@ -234,7 +316,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     s0.classList.toggle("bad", bad);
     grid.innerHTML = list.map((s) => {
       const src = srcOf(s, palette, later);
-      const fmt = FACETS[2]!.of(s);
+      const fmt = keyOf("gf").of(s)[0]!;
       return `<button class="cell${s.own ? " own" : ""}" data-sprite="${esc(s.key)}">${src ? `<img src="${esc(src)}" alt="">` : `<div class="wait">…</div>`}<b>${esc(s.name)}</b><i>${KIND_ONE[s.slot]}${s.side ? ` · ${SIDE_NAMES[s.side] ?? s.side}` : ""} · ${s.own ? ORIGIN_NAMES[s.own.origin] : "встроенный"}</i><i class="fmt">${fmt === "baked" ? "код" : fmt.toUpperCase()}${paints(s) ? "" : " · не красится"}</i></button>`;
     }).join("") || `<div class="said" style="grid-column:1/-1">Ничего не найдено.</div>`;
     const byKey = new Map(list.map((s) => [s.key, s]));
