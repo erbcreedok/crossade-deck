@@ -148,6 +148,21 @@ try {
   if (kingCopy) await fetch(`${base}/table/admin/lib/${kingCopy.id}`, { method: "DELETE", headers: { "x-table-secret": secret } });
   await p.goBack();
   await p.waitForSelector("[data-sprite-page] h2");
+  // СЛОИ: оси фигуры, клетка в единицу стола, размер — каждый включается сам
+  const axT = (k) => p.getAttribute(`[data-ax="${k}"]`, "style");
+  check("оси у «лица»: перед — к зрителю, верх — вверх, право фигуры — влево по картинке", /rotateY\(-90deg\)/.test(await axT("front")) && /rotateZ\(-90deg\)/.test(await axT("up")) && /rotateZ\(180deg\)/.test(await axT("right")) && (await p.locator("[data-axes]").isVisible()), [await axT("front"), await axT("up"), await axT("right")]);
+  await p.waitForFunction(() => document.querySelector("[data-stage3d]")?.dataset.units, null, { timeout: 5000 }).catch(() => {});
+  check("размер за столом — в единицах, по детали", /^2\.40x/.test(await p.getAttribute("[data-stage3d]", "data-units")) && /2\.40 ×/.test(await p.textContent("[data-size]")), await p.textContent("[data-size]"));
+  await p.click('[data-layer="axes"]');
+  await p.click('[data-layer="grid"]');
+  await p.click('[data-layer="size"]');
+  const cellBg = await p.evaluate(() => getComputedStyle(document.querySelector("[data-cells]")).backgroundSize);
+  check("каждый слой выключается и включается сам: оси — нет, клетка — да, размер — нет", (await p.locator("[data-axes]").isHidden()) && (await p.locator("[data-cells]").isVisible()) && (await p.textContent("[data-size]")) === "" && /px/.test(cellBg), cellBg);
+  await p.reload();
+  await p.waitForSelector("[data-sprite-page]");
+  await p.waitForTimeout(800);
+  check("слои переживают обновление", (await p.locator("[data-axes]").isHidden()) && (await p.locator("[data-cells]").isVisible()) && (await p.locator('[data-layer="size"].on').count()) === 0, null);
+  for (const k of ["axes", "grid", "size"]) await p.click(`[data-layer="${k}"]`);
   const sims = await p.locator("[data-similar] .cell b").allTextContents();
   check("похожие по тегам — вторая сторона того же короля", sims.includes("Король треф · спина"), sims);
   await p.locator("[data-similar] .cell", { hasText: "Король треф · спина" }).first().click();

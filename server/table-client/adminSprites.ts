@@ -15,6 +15,8 @@ import { PALETTES } from "../src/table/dolls.js";
 import { PARTS } from "../src/table/skins.js";
 import { partName } from "../src/table/tunes.js";
 import { partSprite } from "./dollSprites.js";
+import { axesFor, unitSize, type V3 } from "./spriteAxes.js";
+import { tuneOf } from "../src/table/tunes.js";
 import { HOST } from "./host.js";
 import { go, onRoute, put, route, routeNum, routeOne } from "./adminRoute.js";
 
@@ -106,7 +108,21 @@ const CSS = `
 .sp-stage.bg-light { background: #efe6d2; }
 .sp-stage.bg-check { background: repeating-conic-gradient(#8a8f8c 0 25%, #c8ccc9 0 50%) 0 0 / 20px 20px; }
 .sp-card { width: 220px; height: 220px; transform-style: preserve-3d; }
+.sp-card { position: relative; }
 .sp-card img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; }
+.sp-box { position: absolute; pointer-events: none; transform: translateZ(1px); }
+.sp-box.sized { outline: 1.5px dashed rgba(242,193,78,.8); }
+.sp-cells { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.35) 1px, transparent 1px); background-position: -0.5px -0.5px; }
+.sp-axes { position: absolute; inset: 0; transform-style: preserve-3d; pointer-events: none; }
+.sp-axes .ax { position: absolute; left: 0; top: -2px; width: 92px; height: 4px; transform-origin: 0 50%; border-radius: 2px; }
+.sp-axes .ax::after { content: ""; position: absolute; right: -10px; top: -5px; border-left: 12px solid currentColor; border-top: 7px solid transparent; border-bottom: 7px solid transparent; }
+.sp-axes .ax-front { background: #f2c14e; color: #f2c14e; }
+.sp-axes .ax-up { background: #6fd0ff; color: #6fd0ff; }
+.sp-axes .ax-right { background: #ff7ab8; color: #ff7ab8; }
+.sp-axes .axl { position: absolute; left: 0; top: 0; font: 600 12px/1 system-ui, sans-serif; padding: 2px 5px; border-radius: 6px; background: rgba(11,7,4,.75); white-space: nowrap; }
+.sp-axes .axl.ax-front { color: #f2c14e; }
+.sp-axes .axl.ax-up { color: #6fd0ff; }
+.sp-axes .axl.ax-right { color: #ff7ab8; }
 .sp-page .num { font-size: 13px; color: var(--dim); display: inline-flex; gap: 6px; align-items: center; }
 .sp-page .num input { width: 70px; font: inherit; color: var(--ink); background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 5px 7px; }
 .sp-pals { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; }
@@ -376,6 +392,17 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     .slice(0, 24)
     .map((x) => x.o);
 
+  /** Стрелки осей фигуры в осях картинки: из середины, в объёме — крутятся вместе с картинкой. */
+  function axesHtml(a: { front: V3; up: V3; right: V3 }): string {
+    const L = 92;
+    const one = (name: string, key: string, v: V3) => {
+      const turn = v[2] > 0.5 ? "rotateY(-90deg)" : v[2] < -0.5 ? "rotateY(90deg)" : `rotateZ(${(Math.atan2(v[1], v[0]) * 180) / Math.PI}deg)`;
+      return `<div class="ax ax-${key}" data-ax="${key}" style="transform:translate3d(110px,110px,2px) ${turn}"></div>`
+        + `<span class="axl ax-${key}" style="transform:translate3d(${110 + v[0] * (L + 16)}px,${110 + v[1] * (L + 16)}px,${2 + v[2] * (L + 16)}px) translate(-50%,-50%)">${name}</span>`;
+    };
+    return one("перед", "front", a.front) + one("верх", "up", a.up) + one("право", "right", a.right);
+  }
+
   function openPage(s: Shown, push = true): void {
     current = s;
     // Открыть спрайт — новая запись истории; его настройки начинаются с чистого листа. Пришли по адресу — из адреса.
@@ -388,8 +415,10 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     let own3: [string, string, string] | null = c3.length === 3 ? (c3 as [string, string, string]) : null;
     let rx = routeNum("srx", -12), ry = routeNum("sry", 24), zoom = Math.max(0.3, Math.min(4, routeNum("sz", 1))), flip = route("sf") === "1", spin = false;
     let bg = routeOne("sbg", ["felt", "light", "check"] as const, "felt");
+    /** Слои поверх картинки — каждый включается сам: оси фигуры, клетка в единицу стола, размер за столом. */
+    const layers = { axes: route("sax") !== "0", grid: route("sgr") === "1", size: route("ssz") !== "0" };
     /** Настройки страницы — в адрес: обновил страницу — тот же поворот, краски, фон. */
-    const keep = () => put({ sp: pal, sc: own3 ? own3.map((c) => c.slice(1)).join(",") : null, sbg: bg === "felt" ? null : bg, sz: zoom === 1 ? null : zoom, sf: flip, srx: Math.round(rx), sry: Math.round(ry) });
+    const keep = () => put({ sax: layers.axes ? null : "0", sgr: layers.grid ? "1" : null, ssz: layers.size ? null : "0", sp: pal, sc: own3 ? own3.map((c) => c.slice(1)).join(",") : null, sbg: bg === "felt" ? null : bg, sz: zoom === 1 ? null : zoom, sf: flip, srx: Math.round(rx), sry: Math.round(ry) });
     let svg: string | null = null;
     const paintSrc = (): string | null => {
       if (own3 && svg) return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/#b3221f/gi, own3[0]).replace(/#1d4f80/gi, own3[1]).replace(/#f2c14e/gi, own3[2]))}`;
@@ -401,7 +430,8 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
         ? `<button class="add" data-save>Сохранить</button><button class="chip" data-copy>Сохранить как новый</button><button class="chip" data-replace>Заменить файл</button><input type="file" data-replace-file accept=".svg,image/svg+xml,image/png" hidden><button class="chip drop" data-drop>Удалить</button>`
         : `<button class="add" data-copy>Сделать своей копией</button>`}</div>
       <div class="said" data-act-said>${s.own ? "«Сохранить» — имя, деталь, сторона, теги. «Как новый» — копия с нынешней покраской и отражением." : "Встроенную не изменить — копия ляжет в «Свои» с нынешней покраской и отражением."}</div>
-      <div class="sp-stage bg-${bg}" data-stage3d><div class="sp-card" data-card><img data-big alt=""></div></div>
+      <div class="sp-stage bg-${bg}" data-stage3d><div class="sp-card" data-card><img data-big alt=""><div class="sp-box" data-box><div class="sp-cells" data-cells></div></div><div class="sp-axes" data-axes>${axesHtml(axesFor(s.side))}</div></div></div>
+      <div class="bar">${(["axes", "grid", "size"] as const).map((k) => `<button class="chip${layers[k] ? " on" : ""}" data-layer="${k}" aria-pressed="${layers[k]}">${{ axes: "Оси", grid: "Клетка", size: "Размер" }[k]}</button>`).join("")}<span class="said" data-size></span></div>
       <div class="bar"><button class="chip" data-flip>Отразить</button><button class="chip" data-spin>Крутить само</button><button class="chip" data-reset>Сброс</button>
         <label class="num">Масштаб <input type="number" data-zoom min="0.3" max="4" step="0.1" value="${zoom}"></label></div>
       <div class="bar">${(["felt", "light", "check"] as const).map((k) => `<button class="chip${k === bg ? " on" : ""}" data-bg="${k}">${{ felt: "на сукне", light: "на светлом", check: "прозрачность" }[k]}</button>`).join("")}</div>
@@ -420,6 +450,28 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
       <div class="grid" data-similar></div>
     </div>`;
     const card = pageBox.querySelector<HTMLElement>("[data-card]")!, big = pageBox.querySelector<HTMLImageElement>("[data-big]")!, stage = pageBox.querySelector<HTMLElement>("[data-stage3d]")!;
+    const layerEls = { axes: pageBox.querySelector<HTMLElement>("[data-axes]")!, box: pageBox.querySelector<HTMLElement>("[data-box]")!, cells: pageBox.querySelector<HTMLElement>("[data-cells]")!, size: pageBox.querySelector<HTMLElement>("[data-size]")! };
+    /** Клетка и размер — по нарисованному прямоугольнику картинки (она вписана в квадрат сцены). */
+    const fit = () => {
+      const nw = big.naturalWidth, nh = big.naturalHeight, S = card.clientWidth;
+      if (!nw || !nh) return;
+      const aspect = nh / nw, W = aspect <= 1 ? S : S / aspect, H = aspect <= 1 ? S * aspect : S;
+      Object.assign(layerEls.box.style, { left: `${(S - W) / 2}px`, top: `${(S - H) / 2}px`, width: `${W}px`, height: `${H}px` });
+      const u = unitSize(s.slot, aspect, s.built ? tuneOf(s.built.part).scale : 1);
+      const cell = u ? W / u.w : W / 4;
+      layerEls.cells.style.backgroundSize = `${cell}px ${u ? H / u.h : cell}px`;
+      layerEls.size.textContent = layers.size ? (u ? `за столом ≈ ${u.w.toFixed(2)} × ${u.h.toFixed(2)} ед. (${KIND_ONE[s.slot]}), клетка — 1 ед.` : "у «другого» размера за столом нет — клетка на четверть ширины") : "";
+      stage.dataset.units = u ? `${u.w.toFixed(2)}x${u.h.toFixed(2)}` : "";
+    };
+    const showLayers = () => {
+      layerEls.axes.hidden = !layers.axes;
+      layerEls.cells.hidden = !layers.grid;
+      layerEls.box.classList.toggle("sized", layers.size);
+      for (const b of pageBox.querySelectorAll<HTMLElement>("[data-layer]")) { const on = layers[b.dataset.layer as keyof typeof layers]; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); }
+      fit();
+    };
+    big.onload = fit;
+    for (const b of pageBox.querySelectorAll<HTMLElement>("[data-layer]")) b.onclick = () => { const k = b.dataset.layer as keyof typeof layers; layers[k] = !layers[k]; showLayers(); keep(); };
     const pose = () => {
       card.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg) scale(${zoom}) scaleX(${flip ? -1 : 1})`;
       stage.dataset.rx = String(Math.round(rx));
@@ -565,6 +617,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     pageBox.querySelector<HTMLElement>("[data-back]")!.onclick = () => history.back();
     pose();
     drawBig();
+    showLayers();
     tgBack(true);
   }
 

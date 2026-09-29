@@ -251,11 +251,11 @@ export function partSprite(id: string, palette: number, view: string, ink: strin
   const key = `${id}|${palette}|${view}|${ink}`;
   const got = urls.get(key);
   if (got) return got;
-  // ГОТОВО — СКАЗАТЬ ВСЕМ, кто спрашивал, пока пеклось: и превью, и галерее, а не только первому.
+  // ГОТОВО — СКАЗАТЬ ВСЕМ, кто спрашивал, пока пеклось: и превью, и галерее, а не только первому. Печь могла начать
+  // и не эта функция (заранее — `warmParts`): тогда первый спросивший подписывает ожидающих на ту же печь.
   let asked = waiting.get(key);
-  if (!asked) waiting.set(key, (asked = new Set()));
-  asked.add(ready);
-  if (making.has(key)) return null;
+  if (asked) { asked.add(ready); return null; }
+  waiting.set(key, (asked = new Set([ready])));
   void make(id, palette, view, ink, base).then(() => {
     const all = waiting.get(key);
     waiting.delete(key);

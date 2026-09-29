@@ -28,6 +28,12 @@ try {
   await reload();
   const after = await p.locator(".sg .cell b").allTextContents();
   check("полки, поиск и расцветка галереи переживают обновление", (await p.locator('[data-chip="gk"] [data-chip-v="head"]').count()) === 1 && (await p.locator('[data-chip="gs"] [data-chip-v="back"]').count()) === 1 && (await p.locator('[data-gpal="3"].on').count()) === 1 && (await p.inputValue("[data-q]")) === "король" && after.join() === before.join() && after.length > 0, { before, after });
+  // ОТКРЫТО ПО ССЫЛКЕ С ФИЛЬТРОМ: сцена «Деталей» уже печёт тот же спрайт — галерея всё равно дожидается картинки
+  const P2 = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await P2.goto(`${base}/table/admin#key=${encodeURIComponent(secret)}&part=king%3Ahead&pset=king&gf=${encodeURIComponent('тег:"Король треф" деталь:голова сторона:лицо')}`);
+  const baked = await P2.waitForSelector(".sg .cell img", { timeout: 10_000 }).then(() => true).catch(() => false);
+  check("по ссылке с фильтром картинка испекается, а не висит «…»", baked && (await P2.locator(".sg .cell").count()) === 1, await P2.locator("[data-grid]").innerHTML().catch(() => null));
+  await P2.close();
   // СТРАНИЦА СПРАЙТА
   await p.locator(".sg .cell").first().click();
   await p.waitForSelector("[data-sprite-page]");
