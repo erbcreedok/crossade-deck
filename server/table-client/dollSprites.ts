@@ -161,8 +161,8 @@ function outlined(img: HTMLCanvasElement, ink: string, w = 11): HTMLCanvasElemen
 }
 
 /** Все нарисованные стороны части в расцветке: ракурс → холст (без обводки). */
-async function bake(part: Part, palette: number, base: string): Promise<Map<string, HTMLCanvasElement>> {
-  const pal = PALETTES[palette] ?? PALETTES[0]!;
+async function bake(part: Part, palette: number, base: string, own?: Palette): Promise<Map<string, HTMLCanvasElement>> {
+  const pal = own ?? PALETTES[palette] ?? PALETTES[0]!;
   const out = new Map<string, HTMLCanvasElement>();
   const art = part.art, extend = part.slot === "body" ? { extend: EXTEND } : {};
   if (art.kind === "court") {
@@ -262,4 +262,25 @@ export function partSprite(id: string, palette: number, view: string, ink: strin
     if (urls.has(key)) for (const fn of all ?? []) fn();
   });
   return null;
+}
+
+const painted = new Map<string, Promise<string | null>>();
+/**
+ * СВОИ ТРИ КРАСКИ — не из шестнадцати расцветок: сторона `view` части `id`, испечённая с цветами `colors`
+ * (вместо красной, синей, золота рисунка) и обведённая `ink`. Страница хозяина красит так колоду.
+ */
+export function paintPart(id: string, view: string, colors: readonly [string, string, string], ink: string, base: string): Promise<string | null> {
+  const key = `${id}|${view}|${colors.join()}|${ink}`;
+  let got = painted.get(key);
+  if (!got) {
+    const part = partOf(id);
+    got = !part || part.art.kind === "none" ? Promise.resolve(null) : bake(part, PALETTES.length, base, { name: "", red: colors[0], blue: colors[1], gold: colors[2], ink }).then(async (all) => {
+      const canvas = all.get(view);
+      if (!canvas) return null;
+      const blob = await new Promise<Blob | null>((ok) => outlined(canvas, ink).toBlob(ok, "image/png"));
+      return blob ? URL.createObjectURL(blob) : null;
+    }).catch(() => null);
+    painted.set(key, got);
+  }
+  return got;
 }

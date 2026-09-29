@@ -14,7 +14,8 @@
 import { PALETTES } from "../src/table/dolls.js";
 import { PARTS } from "../src/table/skins.js";
 import { partName } from "../src/table/tunes.js";
-import { partSprite } from "./dollSprites.js";
+import { paintPart, partSprite } from "./dollSprites.js";
+import { drawArt } from "./skinArt.js";
 import { axesFor, unitSize, type V3 } from "./spriteAxes.js";
 import { tuneOf } from "../src/table/tunes.js";
 import { HOST } from "./host.js";
@@ -408,10 +409,15 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   const listBox = root.querySelector<HTMLElement>("[data-list]")!, pageBox = root.querySelector<HTMLElement>("[data-page]")!;
   let current: Shown | null = null;
   const svgs = new Map<string, Promise<string | null>>();
-  /** Рисунок SVG текстом — если он есть: свой SVG или файл встроенной детали. Колоду и код печёт пекарь стола. */
+  /**
+   * Рисунок SVG текстом — если он есть: свой SVG, файл встроенной детали, рисунок кода. Колоду (кусок карты с
+   * прозрачной бумагой) своими красками печёт пекарь стола — `paintPart`.
+   */
   const svgOf = (s: Shown): Promise<string | null> => {
+    const p = s.built ? PARTS.find((x) => x.id === s.built!.part) : undefined;
+    if (p?.art.kind === "draw") return Promise.resolve(drawArt(p.art.art, s.built!.view) || null);
     const url = s.own ? (s.own.ext === "svg" ? `${HOST}/table/lib/${s.own.id}.svg?v=${bust.get(s.own.id) ?? 0}` : null)
-      : (() => { const p = PARTS.find((x) => x.id === s.built!.part); return p?.art.kind === "file" ? `${HOST}/table/skins/${p.art.dir}/${s.built!.view}-${p.slot}.svg` : null; })();
+      : p?.art.kind === "file" ? `${HOST}/table/skins/${p.art.dir}/${s.built!.view}-${p.slot}.svg` : null;
     if (!url) return Promise.resolve(null);
     let got = svgs.get(url);
     if (!got) svgs.set(url, (got = fetch(url).then((r) => (r.ok ? r.text() : null)).catch(() => null)));
@@ -453,8 +459,17 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     /** Настройки страницы — в адрес: обновил страницу — тот же поворот, краски, фон. */
     const keep = () => put({ sax: layers.axes ? null : "0", sgr: layers.grid ? "1" : null, ssz: layers.size ? null : "0", sp: pal, sc: own3 ? own3.map((c) => c.slice(1)).join(",") : null, sbg: bg === "felt" ? null : bg, sz: zoom === 1 ? null : zoom, sf: flip, srx: Math.round(rx), sry: Math.round(ry) });
     let svg: string | null = null;
+    const court = s.built?.art === "court";
+    const paints3 = new Map<string, string | null>();
     const paintSrc = (): string | null => {
       if (own3 && svg) return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/#b3221f/gi, own3[0]).replace(/#1d4f80/gi, own3[1]).replace(/#f2c14e/gi, own3[2]))}`;
+      if (own3 && court) {
+        const k = own3.join();
+        if (paints3.has(k)) return paints3.get(k) ?? null;
+        paints3.set(k, null);
+        void paintPart(s.built!.part, s.built!.view, own3, PALETTES[pal]!.ink, HOST).then((src) => { paints3.set(k, src); if (current === s && own3?.join() === k) drawBig(); });
+        return big.getAttribute("src");
+      }
       return srcOf(s, pal, () => { if (current === s) drawBig(); });
     };
     pageBox.innerHTML = `<div class="sp-page" data-sprite-page="${esc(s.key)}">
@@ -545,15 +560,16 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
       drawBig();
       keep();
     };
-    // СВОИ ЦВЕТА — только у SVG: у колоды и нарисованного кодом краски вшиты в пекаря стола.
+    // СВОИ ЦВЕТА — у всего, что красится: у SVG (свои, файлы, код) — в самом рисунке, колоду печёт пекарь стола.
     const own3Box = pageBox.querySelector<HTMLElement>("[data-own3]")!, own3Said = pageBox.querySelector<HTMLElement>("[data-own3-said]")!;
     const inputs = [...pageBox.querySelectorAll<HTMLInputElement>("[data-c]")];
     for (const c of inputs) c.disabled = true;
     own3Said.textContent = "Смотрю рисунок…";
     void svgOf(s).then((t) => {
       svg = t;
-      for (const c of inputs) c.disabled = !t;
-      own3Said.textContent = t ? "Красятся три цвета рисунка: основной, второй, акцент." : "У этой картинки свои цвета не выбрать: она не SVG (колода, код или PNG) — только расцветки.";
+      const can = !!t || (court && paints(s));
+      for (const c of inputs) c.disabled = !can;
+      own3Said.textContent = can ? "Красятся три цвета рисунка: основной, второй, акцент." : "Эта картинка не красится: PNG — какой нарисован.";
       if (own3) drawBig();
     });
     for (const c of inputs) c.oninput = () => { own3 = [inputs[0]!.value, inputs[1]!.value, inputs[2]!.value]; drawBig(); keep(); };

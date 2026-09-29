@@ -147,8 +147,11 @@ try {
   await filt('откуда:колода деталь:голова сторона:лицо тег:"Король треф"');
   await p.locator(".sg .cell").first().click();
   await p.waitForSelector("[data-sprite-page]");
-  await p.waitForFunction(() => /не SVG/.test(document.querySelector("[data-own3-said]")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
-  check("встроенную не удалить; у колоды свои цвета не выбрать, и сказано почему", (await p.locator("[data-sprite-page] [data-drop]").count()) === 0 && (await p.locator("[data-c]").first().isDisabled()), await p.textContent("[data-own3-said]"));
+  await p.waitForFunction(() => !document.querySelector("[data-c]")?.disabled, null, { timeout: 5000 }).catch(() => {});
+  const kingSrc = await p.getAttribute("[data-big]", "src");
+  await p.fill('[data-c="0"]', "#ff00aa", { timeout: 3000 }).catch(() => {});
+  await p.waitForFunction((was) => { const src = document.querySelector("[data-big]")?.getAttribute("src"); return src && src !== was; }, kingSrc, { timeout: 5000 }).catch(() => {});
+  check("встроенную не удалить; колода красится своими цветами", (await p.locator("[data-sprite-page] [data-drop]").count()) === 0 && (await p.getAttribute("[data-big]", "src")) !== kingSrc, await p.textContent("[data-own3-said]"));
   await p.click('[data-pal16="1"]');
   await p.click("[data-sprite-page] [data-copy]");
   await p.waitForSelector("[data-sprite-page] [data-name]", { timeout: 5000 }).catch(() => {});
@@ -156,6 +159,20 @@ try {
   check("встроенную — «Сделать своей копией»: PNG с покраской, та же деталь, сторона, теги", kingCopy?.ext === "png" && kingCopy.slot === "head" && kingCopy.side === "front" && kingCopy.tags.includes("Король треф") && (await fetch(`${base}/table/lib/${kingCopy.id}.png`)).status === 200, kingCopy);
   if (kingCopy) await fetch(`${base}/table/admin/lib/${kingCopy.id}`, { method: "DELETE", headers: { "x-table-secret": secret } });
   await p.goBack();
+  await p.waitForSelector("[data-sprite-page] h2");
+  // нарисованное кодом — тоже SVG: свои цвета прямо в рисунке
+  await p.goBack();
+  await p.waitForSelector("[data-list]:not([hidden])").catch(() => {});
+  await clear();
+  await filt("Бочонок");
+  await p.locator(".sg .cell").first().click();
+  await p.waitForFunction(() => !document.querySelector("[data-c]")?.disabled, null, { timeout: 5000 }).catch(() => {});
+  await p.fill('[data-c="1"]', "#00ffaa", { timeout: 3000 }).catch(() => {});
+  check("рисунок кода (бочонок) красится своими цветами", decodeURIComponent((await p.getAttribute("[data-big]", "src")) ?? "").includes("#00ffaa"), await p.textContent("[data-own3-said]"));
+  await p.goBack();
+  await clear();
+  await filt('откуда:колода деталь:голова сторона:лицо тег:"Король треф"');
+  await p.locator(".sg .cell").first().click();
   await p.waitForSelector("[data-sprite-page] h2");
   // СЛОИ: оси фигуры, клетка в единицу стола, размер — каждый включается сам
   const axT = (k) => p.getAttribute(`[data-ax="${k}"]`, "style");
