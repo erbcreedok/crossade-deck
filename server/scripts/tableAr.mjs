@@ -43,8 +43,8 @@ await settle();
 check("удержал компас — AR не включился: вход кнопкой сверху", !(await floor()));
 await p.locator("[data-ar-enter]").click();
 await settle();
-check("кнопка AR справа сверху — AR включился, на её месте выход", (await floor()) && (await p.locator("[data-ar-enter]").count()) === 0);
-check("компас в AR — «Выровнять», сверху кнопка выхода", (await p.locator("[data-home][data-ar]").count()) === 1 && (await p.locator('[data-ar-do="exit"]').count()) === 1);
+check("кнопка AR справа сверху — AR включился, она горит, выход из AR — внизу справа", (await floor()) && (await p.locator("[data-ar-enter]").count()) === 0);
+check("компас в AR — «Выровнять», есть кнопка выхода из AR", (await p.locator("[data-home][data-ar]").count()) === 1 && (await p.locator('[data-ar-do="exit"]').count()) === 1);
 await orient(0, 50);
 // Вход в AR — переездом из обычного вида (`arBlend.ts`, 700 мс): стол читается, когда доехал.
 await p.waitForTimeout(900);
@@ -180,7 +180,7 @@ await settle();
 check("удержание компаса в AR — не выход: AR остался", await floor());
 await p.locator('[data-ar-do="exit"]').click();
 await settle();
-check("кнопка выхода сверху — обычный стол", !(await floor()));
+check("кнопка выхода из AR — обычный стол", !(await floor()));
 
 check("без ошибок на странице", errors.length === 0, errors.slice(0, 2).join(" | "));
 await browser.close();

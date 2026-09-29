@@ -1665,6 +1665,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     const geom = mineGeom(handOf(s, mine(s)).length + gapsIn(s, mine(s)).length);
     const inset = Math.round((glass().w - handWide()) / 2);
     const top = thumbTopOf(geom, side);
+    // КНОПКИ AR — столбиком над 💬 (`arHud.ts` читает место из переменных).
+    const arRight = `${Math.round(inset + 12 + (side - 40) / 2)}px`, arTop = `${Math.round(top - 52)}px`;
+    const root = document.documentElement.style;
+    if (root.getPropertyValue("--ar-right") !== arRight) root.setProperty("--ar-right", arRight);
+    if (root.getPropertyValue("--ar-top") !== arTop) root.setProperty("--ar-top", arTop);
     return `<div data-g="thumb-chat" style="position:absolute;right:${inset + 12}px;top:${Math.round(top)}px;width:${side}px;height:${side}px;z-index:40">`
       + barButton("sec-say", talk.open, side, 0) + `</div>`
       // ПОЗА ТЕЛА — над компасом: компас ведёт камеру, поза решает, как далеко она от стола. В баре ей места нет:
@@ -3626,36 +3631,34 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
    */
   const RIM_LEFT = 28;
 
-  /** НАСТРОЙКИ — шестерёнка сверху; окно — своим слоем (`settings.ts`). */
+  /**
+   * ВЕРХНИЙ РЯД: слева — выход из комнаты и рядом её имя; справа — настройки, журнал и AR. Кнопки AR-режима (якорь
+   * и выход из AR) — не здесь, а внизу справа над 💬 (`arHud.ts`, место — `--ar-right`/`--ar-top` от `thumbHtml`).
+   */
   function settingsHtml(): string {
     const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
-    const gear = `<button data-settings aria-label="Настройки" aria-expanded="${settings.open}" style="position:absolute;left:${RIM_LEFT}px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:40px;height:40px;border:0;padding:0;z-index:61;`
-      + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">`
-      + `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
-      + `<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`;
-    // ЖУРНАЛ ПАРТИИ — рядом с шестерёнкой: кто что когда сделал, словами и только то, что видно.
-    const book = `<button data-journal aria-label="Журнал партии" aria-expanded="${local.journal}" style="position:absolute;left:${RIM_LEFT + 48}px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:40px;height:40px;border:0;padding:0;z-index:61;`
-      + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">`
-      + `<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="${local.journal ? T.gold : "white"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
-      + `<path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h7M8 11h7M8 15h4"/></svg></button>`;
-    // ПЛАШКА С ИМЕНЕМ КОМНАТЫ — шапку Telegram не поменять, она из BotFather; имя стола висит своей плашкой.
-    //
-    // ОТСТУПЫ СИММЕТРИЧНЫ, и это не вкусовщина: слева две кнопки по 40, справа компас на 52, и имя,
-    // центрованное по остатку, уезжало вбок. Центр плашки должен быть центром ЭКРАНА, а не центром
-    // того, что осталось между кнопками.
-    // ИМЯ — ПО ЦЕНТРУ ЭКРАНА: поля с обеих сторон одинаковые, по большему из двух (кнопки слева, компас справа).
-    const aside = Math.max(RIM_LEFT + 96, 108);
-    // В ПРИЛОЖЕНИИ имя стола — ещё и «назад» к «Моим комнатам»: системной кнопки «назад», как у Telegram, там нет.
-    const back = nativeShell() !== null;
-    const name = `<div data-table-name style="position:absolute;left:${aside}px;right:${aside}px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));height:40px;z-index:60;`
-      + `display:flex;align-items:center;justify-content:center;pointer-events:none"><span ${back ? `data-rooms-back role="button" aria-label="К списку столов" ` : ""}style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`
-      + `padding:0 12px;border-radius:12px;font:400 13px Tiny5,monospace;color:${T.ink};line-height:28px;${back ? "pointer-events:auto;cursor:pointer;" : ""}${plate}">${back ? "‹ " : ""}${escape(store.title)}</span></div>`;
-    // ВХОД В AR — кнопкой справа сверху, там же, где в AR живут якорь и выход: вошёл — на её месте выход.
-    const enter = ar ? "" : `<button data-ar-enter aria-label="AR — стол в комнате" style="position:absolute;right:${RIM_LEFT}px;top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px));width:40px;height:40px;border:0;padding:0;z-index:61;`
-      + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">`
-      + `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
-      + `<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></button>`;
-    return gear + book + name + enter;
+    const top = "top:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px))";
+    const round = (attrs: string, at: string, inner: string) =>
+      `<button ${attrs} style="position:absolute;${at};${top};width:40px;height:40px;border:0;padding:0;z-index:61;`
+      + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">${inner}</button>`;
+    const icon = (body: string, stroke = "white", size = 22) =>
+      `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+    // ВЫХОД ИЗ КОМНАТЫ — слева сверху, всегда на виду: дверь со стрелкой наружу. Ведёт к «Моим комнатам».
+    const exit = round(`data-rooms-back aria-label="Выйти из комнаты"`, `left:${RIM_LEFT}px`,
+      icon(`<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 16l-4-4 4-4"/><path d="M5 12h10"/>`));
+    // ИМЯ КОМНАТЫ — рядом с выходом; длинное обрезается, не доходя до кнопок справа.
+    const name = `<div data-table-name style="position:absolute;left:${RIM_LEFT + 48}px;right:${RIM_LEFT + 144}px;${top};height:40px;z-index:60;`
+      + `display:flex;align-items:center;justify-content:flex-start;pointer-events:none"><span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`
+      + `padding:0 12px;border-radius:12px;font:400 13px Tiny5,monospace;color:${T.ink};line-height:28px;${plate}">${escape(store.title)}</span></div>`;
+    const gear = round(`data-settings aria-label="Настройки" aria-expanded="${settings.open}"`, `right:${RIM_LEFT + 96}px`,
+      icon(`<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>`));
+    // ЖУРНАЛ ПАРТИИ — кто что когда сделал, словами и только то, что видно.
+    const book = round(`data-journal aria-label="Журнал партии" aria-expanded="${local.journal}"`, `right:${RIM_LEFT + 48}px`,
+      icon(`<path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h7M8 11h7M8 15h4"/>`, local.journal ? T.gold : "white", 21));
+    // AR — крайняя справа. В AR она горит золотом; выйти — кнопкой внизу справа (или ею же).
+    const arBtn = round(`${ar ? "data-ar-on" : "data-ar-enter"} aria-label="${ar ? "AR включён" : "AR — стол в комнате"}"`, `right:${RIM_LEFT}px`,
+      icon(`<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>`, ar ? T.gold : "white"));
+    return exit + name + gear + book + arBtn;
   }
 
   // ── ЧУЖИЕ РУКИ В ВОЗДУХЕ И ПЕРЕЛЁТЫ ────────────────────────────────────────────────────────────
@@ -4700,10 +4703,10 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         location.href = menuUrl();
       };
     }
-    for (const el of over.querySelectorAll<HTMLElement>("[data-ar-enter]")) {
+    for (const el of over.querySelectorAll<HTMLElement>("[data-ar-enter],[data-ar-on]")) {
       el.onclick = (e) => {
         e.stopPropagation();
-        if (!ar) toggleAr();
+        toggleAr();
       };
     }
     for (const el of over.querySelectorAll<HTMLElement>("[data-settings]")) {

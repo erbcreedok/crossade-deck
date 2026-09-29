@@ -1,11 +1,14 @@
-// HUD AR-СТОЛА — две круглые кнопки справа в верхнем ряду и окно якоря. Только разметка и кнопки: что
+// HUD AR-СТОЛА — две круглые кнопки внизу справа, столбиком над 💬, и окно якоря. Только разметка и кнопки: что
 // они делают, решает `ar.ts`.
 //
-//   ( ⚙ )( ☰ )     [ имя стола ]     ( якорь )( выход )
+//   ( якорь )
+//   ( выход из AR )
+//   ( 💬 )
 //
-// Кнопки — того же вида, что шестерёнка и журнал, и зеркально им: тот же отступ от края, тот же ряд;
-// имя стола остаётся по центру экрана. Значок якоря говорит, за что держится стол: белый — перед собой,
-// золотой — предмет виден, тусклый — предмет не виден; точка — камера смотрит на предмет.
+// Кнопки — того же вида, что шестерёнка и журнал. Место — `--ar-right`/`--ar-top` от экрана (над 💬; без стула —
+// у правого края внизу). Значок якоря говорит, за что держится стол: белый — перед собой, золотой — предмет виден,
+// тусклый — предмет не виден; точка — камера смотрит на предмет. Выход из AR — куб, перечёркнутый крестом: это
+// выход из режима, а не из комнаты (выход из комнаты — дверь слева сверху).
 //
 // Окно якоря — того же вида, что «Настройки»: строка «сейчас» (за что держится стол, что с камерой),
 // предметы, «плашмя», «подогнать». Съёмка, сборка метки и подгонка — плашкой под
@@ -55,8 +58,9 @@ export interface HudActions {
 }
 
 /** Правый край ряда — как левый у шестерёнки (`RIM_LEFT` экрана): у края телефон забирает касания себе. */
-const RIM = 28;
-const ROW_TOP = "calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px))";
+const RIGHT = "var(--ar-right, 28px)";
+/** Верх нижней кнопки (выход); якорь — над ней. */
+const LOW_TOP = "var(--ar-top, calc(100dvh - 240px))";
 const DIM = "#cdb98f";
 const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
 const panelLook = `background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 10px 0 rgba(11,7,4,.5)`;
@@ -73,7 +77,8 @@ export function captureBox(w: number, h: number): { x: number; y: number; side: 
 }
 
 const ANCHOR_ICON = `<circle cx="12" cy="5" r="2"/><path d="M12 7v14"/><path d="M8 11h8"/><path d="M5 13a7 7 0 0 0 14 0"/>`;
-const EXIT_ICON = `<path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M15 16l4-4-4-4"/><path d="M19 12H9"/>`;
+/** Выход из AR: куб режима AR, перечёркнутый крестом. */
+const EXIT_ICON = `<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" opacity=".55"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" opacity=".55"/><path d="M7 7l10 10M17 7L7 17" stroke-width="2.6"/>`;
 
 export function mountHud(on: HudActions): { render(s: HudState): void; quality(q: Quality, side: number): void; dispose(): void } {
   const bar = document.createElement("div");
@@ -150,13 +155,13 @@ export function mountHud(on: HudActions): { render(s: HudState): void; quality(q
     state = s;
     // ── кнопки ряда ─────────────────────────────────────────────────────────────────────────────
     const colour = s.anchor === "marker" ? (s.seen === "seen" ? T.gold : "rgba(255,255,255,.45)") : "white";
-    const round = (right: number, what: string, label: string, icon: string, stroke: string, extra = ""): string =>
-      `<button data-ar-do="${what}" aria-label="${label}" style="position:absolute;right:${right}px;top:${ROW_TOP};width:40px;height:40px;border:0;padding:0;`
+    const round = (up: number, what: string, label: string, icon: string, stroke: string, extra = ""): string =>
+      `<button data-ar-do="${what}" aria-label="${label}" style="position:absolute;right:${RIGHT};top:calc(${LOW_TOP} - ${up}px);width:40px;height:40px;border:0;padding:0;`
       + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;pointer-events:auto;${plate}">`
       + `<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>${extra}</button>`;
     const dot = s.camera === "on" ? `<span data-ar-cam-dot style="position:absolute;right:6px;bottom:6px;width:8px;height:8px;border-radius:50%;background:${T.gold};box-shadow:0 0 0 2px ${T.black}"></span>` : "";
     const anchorSays = s.anchor === "gravity" ? "перед собой" : s.seen === "seen" ? "предмет виден" : "предмет не виден";
-    put(bar, "bar", round(RIM + 48, "menu", `Якорь стола: ${anchorSays}`, ANCHOR_ICON, colour, dot) + round(RIM, "exit", "Выйти из AR", EXIT_ICON, "white"));
+    put(bar, "bar", round(52, "menu", `Якорь стола: ${anchorSays}`, ANCHOR_ICON, colour, dot) + round(0, "exit", "Выйти из AR", EXIT_ICON, "white"));
 
     // ── окно якоря ──────────────────────────────────────────────────────────────────────────────
     const section = (title: string): string => `<div style="font:400 11px Tiny5,monospace;color:${DIM};padding:14px 0 4px;letter-spacing:.04em">${title}</div>`;

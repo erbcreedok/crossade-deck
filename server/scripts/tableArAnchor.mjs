@@ -117,17 +117,17 @@ await p.evaluate(() => { try { localStorage.removeItem("crossade.table.ar.seats"
 await enterAr();
 await orient(0, 50);
 await settle();
-check("AR: в верхнем ряду справа две кнопки — якорь и выход", (await p.locator("[data-ar-bar] button").count()) === 2);
-const gear = await box("[data-settings]"), anc = await box('[data-ar-do="menu"]'), ex = await box('[data-ar-do="exit"]');
-check("они зеркальны шестерёнке и журналу: тот же ряд, тот же размер, тот же отступ от края",
-  Math.abs(anc.y - gear.y) < 1 && Math.abs(ex.y - gear.y) < 1 && anc.width === gear.width && Math.abs(W - (ex.x + ex.width) - gear.x) < 1 && Math.abs(ex.x - anc.x - 48) < 1,
-  `шестерёнка ${gear.x},${gear.y}; якорь ${anc.x},${anc.y}; выход ${ex.x},${ex.y}`);
+check("AR: внизу справа две кнопки — якорь и выход из AR", (await p.locator("[data-ar-bar] button").count()) === 2);
+const chat = await box('[data-g="thumb-chat"]'), anc = await box('[data-ar-do="menu"]'), ex = await box('[data-ar-do="exit"]');
+check("они столбиком над 💬: выход прямо над ней, якорь над выходом, одна ось",
+  Math.abs(ex.x + ex.width / 2 - (chat.x + chat.width / 2)) < 1.5 && Math.abs(anc.x - ex.x) < 1 && ex.y + ex.height <= chat.y && ex.y + ex.height > chat.y - 20 && Math.abs(ex.y - anc.y - 52) < 1,
+  `💬 ${chat.x},${chat.y}; выход ${ex.x},${ex.y}; якорь ${anc.x},${anc.y}`);
 const hits = [];
-for (const sel of ["[data-home]", "[data-settings]", "[data-journal]", "[data-table-name] span"]) {
+for (const sel of ["[data-home]", "[data-settings]", "[data-journal]", "[data-table-name] span", '[data-g="thumb-chat"]', "[data-rooms-back]"]) {
   const o = await box(sel).catch(() => null);
   for (const bb of [anc, ex]) if (o && bb.x < o.x + o.width && o.x < bb.x + bb.width && bb.y < o.y + o.height && o.y < bb.y + bb.height) hits.push(sel);
 }
-check("кнопки ни на что не наезжают — компас, шестерёнка, журнал, имя стола", hits.length === 0, hits.join(" "));
+check("кнопки ни на что не наезжают — компас, шестерёнка, журнал, имя стола, 💬, выход", hits.length === 0, hits.join(" "));
 check("якорь по умолчанию — перед собой, камера не тронута", (await anchor()) === "gravity:search" && (await p.evaluate(() => window.__fake.gum)) === 0, await anchor());
 await shot("0-ar-bar");
 
