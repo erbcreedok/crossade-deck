@@ -9,6 +9,7 @@ import { PARTS, SETS, SLOT_NAMES, partOf, type Parts, type Slot } from "../src/t
 import { TUNE_LIMITS, cleanTune, partName, setTunes, tunes, type PartTune, type Tunes } from "../src/table/tunes.js";
 import { HOST } from "./host.js";
 import { mountSkinStage, type SkinStage } from "./skinStage.js";
+import { mountTableStage, type TableStage } from "./tableStage.js";
 import { pullTunes } from "./tunesNet.js";
 
 type TelegramApp = { initData?: string; ready?: () => void; expand?: () => void };
@@ -30,7 +31,7 @@ const CSS = `
 .sp { max-width: 980px; margin: 0 auto; padding: 12px 16px 40px; display: grid; gap: 14px; }
 .sp .stage-col { position: sticky; top: var(--tabs-h, 52px); z-index: 3; background: var(--felt); padding-bottom: 6px; }
 @media (min-width: 820px) { .sp { grid-template-columns: 420px 1fr; align-items: start; } .sp .stage-col { top: calc(var(--tabs-h, 52px) + 12px); } .sp .stage { height: 420px !important; } }
-.sp .stage { height: 250px; background: #0f1f18; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.sp .stage { height: 290px; background: #0f1f18; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .sp .btn { font: inherit; font-size: 12.5px; color: var(--ink); background: #22282a; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
 .sp .btn.on { background: var(--gold); color: #0b0704; border-color: var(--gold); }
 .sp .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -75,6 +76,9 @@ function spritesTab(root: HTMLElement): void {
   let saved: Tunes = { parts: {}, at: 0 };
   let draft: PartTune = {};
   let stage: SkinStage | null = null;
+  let table: TableStage | null = null;
+  /** Какая сцена: фигура одна (как в профиле) или за столом на четырёх местах. */
+  let scene: "figure" | "table" = "figure";
   let said = "", bad = false;
 
   const figure = (): Parts => ({ ...(SETS.find((s) => s.id === setId) ?? SETS[0]!).parts, [slot]: partId });
@@ -93,6 +97,7 @@ function spritesTab(root: HTMLElement): void {
     const parts = PARTS.filter((p) => p.slot === slot);
     root.innerHTML = `<div class="sp">
       <div class="stage-col">
+        <div class="row scenes" style="margin:0 0 6px">${([["figure", "Фигура"], ["table", "За столом"]] as const).map(([k, n]) => `<button class="btn${scene === k ? " on" : ""}" data-scene="${k}">${n}</button>`).join("")}</div>
         <div class="stage" data-stage></div>
       </div>
       <div>
@@ -113,7 +118,10 @@ function spritesTab(root: HTMLElement): void {
     </div>`;
     const box = root.querySelector<HTMLElement>("[data-stage]")!;
     stage?.destroy();
-    stage = mountSkinStage(box, HOST, look());
+    table?.destroy();
+    stage = table = null;
+    if (scene === "figure") stage = mountSkinStage(box, HOST, look());
+    else table = mountTableStage(box, HOST, look());
     wire();
   };
 
@@ -128,6 +136,7 @@ function spritesTab(root: HTMLElement): void {
   function wire(): void {
     for (const b of root.querySelectorAll<HTMLElement>("[data-slot]")) b.onclick = () => { slot = b.dataset.slot as Slot; pick(PARTS.find((p) => p.slot === slot)!.id); };
     for (const b of root.querySelectorAll<HTMLElement>("[data-part]")) b.onclick = () => pick(b.dataset.part!);
+    for (const b of root.querySelectorAll<HTMLElement>("[data-scene]")) b.onclick = () => { scene = b.dataset.scene as typeof scene; render(); };
     for (const b of root.querySelectorAll<HTMLElement>("[data-set]")) b.onclick = () => { setId = b.dataset.set!; render(); };
     for (const b of root.querySelectorAll<HTMLElement>("[data-pal]")) b.onclick = () => { palette = Number(b.dataset.pal); render(); };
     const save = root.querySelector<HTMLButtonElement>("[data-save]")!;
@@ -139,6 +148,7 @@ function spritesTab(root: HTMLElement): void {
         else if (v === "" || !Number.isFinite(Number(v))) delete draft[k];
         else draft[k] = Number(v);
         preview();
+        table?.draw();
         save.disabled = !dirty();
       };
     }
@@ -174,3 +184,221 @@ tg?.expand?.();
 const tabs = document.querySelector<HTMLElement>("[data-tabs]");
 if (tabs) new ResizeObserver(() => document.documentElement.style.setProperty("--tabs-h", `${tabs.offsetHeight}px`)).observe(tabs);
 spritesTab(document.querySelector<HTMLElement>('[data-pane="sprites"]')!);
+
+// ВКЛАДКА «agy» — заказы спрайтов (`spriteJobs.ts`): форма, как у `/sprite` в чате, и список заказов с ходом работы,
+// листом и кнопками «В каталог», «Другую», «По ней — ещё часть», «Удалить».
+
+interface JobView {
+  job: string;
+  id: string;
+  slot: "head" | "hair" | "body" | "legs";
+  sides: "1" | "2" | "4" | "6";
+  brief: string;
+  name?: string;
+  like?: string;
+  keep?: string;
+  views: string[];
+  at: number;
+  part?: string;
+  state: "running" | "good" | "bad" | "broken";
+  out: string;
+  sheet: boolean;
+}
+
+const AGY_CSS = `
+.agy { max-width: 720px; margin: 0 auto; padding: 12px 16px 40px; }
+.agy .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+.agy label { display: block; font-size: 13px; color: var(--dim); margin: 10px 0 4px; }
+.agy label:first-child { margin-top: 0; }
+.agy input, .agy textarea, .agy select { font: inherit; font-size: 15px; color: var(--ink); background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; width: 100%; box-sizing: border-box; }
+.agy textarea { min-height: 88px; resize: vertical; }
+.agy .row { display: flex; flex-wrap: wrap; gap: 6px; }
+.agy .chip { font: inherit; font-size: 13.5px; color: var(--ink); background: #22282a; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.agy .chip.on { background: var(--gold); color: #0b0704; border-color: var(--gold); font-weight: 600; }
+.agy .go { margin-top: 12px; width: 100%; font: inherit; font-weight: 600; border-radius: 10px; padding: 11px; cursor: pointer; background: var(--gold); color: #0b0704; border: 1px solid var(--gold); }
+.agy .go:disabled { opacity: .45; }
+.agy .said { min-height: 1.3em; font-size: 13px; color: var(--dim); margin-top: 8px; }
+.agy .said.bad { color: var(--hurt); }
+.agy .job { cursor: pointer; }
+.agy .job .top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.agy .job .what { font-weight: 600; }
+.agy .job .when { font-size: 12px; color: var(--dim); font-family: ui-monospace, Menlo, monospace; }
+.agy .job .brief { font-size: 13.5px; color: var(--dim); margin-top: 4px; }
+.agy .badge { font-size: 12px; border-radius: 999px; padding: 1px 8px; border: 1px solid var(--line); }
+.agy .badge.running { color: var(--gold); border-color: var(--gold); }
+.agy .badge.good { color: var(--live); border-color: var(--live); }
+.agy .badge.bad, .agy .badge.broken { color: var(--hurt); border-color: var(--hurt); }
+.agy .badge.part { color: #0b0704; background: var(--live); border-color: var(--live); }
+.agy pre { white-space: pre-wrap; word-break: break-word; font: 12px/1.45 ui-monospace, Menlo, monospace; background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 8px; max-height: 280px; overflow: auto; margin: 10px 0 0; }
+.agy .sheet { width: 100%; border-radius: 8px; margin-top: 10px; display: block; }
+.agy .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.agy .acts button { font: inherit; font-size: 13.5px; border-radius: 8px; padding: 7px 11px; cursor: pointer; border: 1px solid var(--line); background: #22282a; color: var(--ink); }
+.agy .acts .main { background: var(--gold); color: #0b0704; border-color: var(--gold); font-weight: 600; }
+.agy button:focus-visible, .agy input:focus-visible, .agy textarea:focus-visible, .agy select:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+`;
+
+const JOB_SLOTS = [["head", "Голова"], ["hair", "Шапка / причёска"], ["body", "Тело"], ["legs", "Ноги"]] as const;
+const LOOKS = [["2", "2D — лицо и спина"], ["6", "3D — 6 сторон"], ["1", "1 сторона"], ["4", "4 — без верха и низа"]] as const;
+const STATE_SAID: Record<JobView["state"], string> = { running: "рисует…", good: "годно", bad: "не годно", broken: "оборвался" };
+
+function agyTab(root: HTMLElement): void {
+  const style = document.createElement("style");
+  style.textContent = AGY_CSS;
+  document.head.append(style);
+  const form = { id: "", slot: "head" as JobView["slot"], sides: "6" as JobView["sides"], brief: "", name: "", like: "", keep: "" };
+  let photo: File | null = null;
+  let jobs: JobView[] = [];
+  let like: string[] = [];
+  let open: JobView | null = null;
+  let sheetUrl = "";
+  let said = "", bad = false, busy = false;
+
+  const api = (path: string, init: RequestInit = {}) => fetch(`${HOST}/table/admin/sprites${path}`, { ...init, headers: { ...auth, ...(init.headers ?? {}) } });
+
+  const jobHtml = (j: JobView) => {
+    const badge = j.part ? `<span class="badge part">в каталоге</span>` : `<span class="badge ${j.state}">${STATE_SAID[j.state]}</span>`;
+    const when = new Date(j.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    const more = open?.job === j.job
+      ? `<pre data-log>${esc(open.out || "пока тихо…")}</pre>`
+        + (sheetUrl ? `<img class="sheet" src="${sheetUrl}" alt="лист ${esc(j.id)}">` : "")
+        + `<div class="acts">`
+        + (j.state === "good" && !j.part ? `<button class="main" data-accept="${j.job}">В каталог</button>` : "")
+        + (j.state !== "running" ? `<button data-again="${j.job}">Другую</button>` : "")
+        + (j.state === "good" ? `<button data-based="${j.job}">По ней — ещё часть</button>` : "")
+        + (!j.part ? `<button data-drop="${j.job}">${j.state === "running" ? "Остановить и удалить" : "Удалить"}</button>` : "")
+        + `</div>`
+      : "";
+    return `<div class="card job" data-job="${j.job}"><div class="top"><span class="what">${esc(j.name ?? j.id)} · ${esc(JOB_SLOTS.find(([s]) => s === j.slot)![1])}</span>${badge}<span class="when">${when} · ${j.views.length} стор.</span></div><div class="brief">${esc(j.brief)}</div>${more}</div>`;
+  };
+
+  root.innerHTML = `<div class="agy"><div data-form-box></div><div data-jobs></div></div>`;
+  const formBox = root.querySelector<HTMLElement>("[data-form-box]")!, jobsBox = root.querySelector<HTMLElement>("[data-jobs]")!;
+  /** Форма и список рисуются порознь: список обновляется сам, пока agy рисует, — набранный бриф не сбивается. */
+  const render = () => { drawForm(); drawJobs(); };
+  const drawForm = () => {
+    formBox.innerHTML = `
+      <div class="card" data-order>
+        <label>Часть</label><div class="row">${JOB_SLOTS.map(([s, n]) => `<button class="chip${form.slot === s ? " on" : ""}" data-slot="${s}">${n}</button>`).join("")}</div>
+        <label>Вид</label><div class="row">${LOOKS.map(([k, n]) => `<button class="chip${form.sides === k ? " on" : ""}" data-sides="${k}">${n}</button>`).join("")}</div>
+        <label for="a-brief">Что нарисовать</label><textarea id="a-brief" data-a="brief" placeholder="пират в треуголке, с повязкой на глазу">${esc(form.brief)}</textarea>
+        <label for="a-id">Папка (латиница)</label><input id="a-id" data-a="id" value="${esc(form.id)}" placeholder="pirate" autocapitalize="off" autocomplete="off">
+        <label for="a-name">Имя в конструкторе</label><input id="a-name" data-a="name" value="${esc(form.name)}" placeholder="как папка" maxlength="24">
+        <label for="a-like">На основе готовой части</label><select id="a-like" data-a="like"><option value="">— с нуля —</option>${like.map((d) => `<option${d === form.like ? " selected" : ""}>${esc(d)}</option>`).join("")}</select>
+        <label for="a-photo">Фото-референс</label><input id="a-photo" type="file" accept="image/*" data-photo>
+        <label for="a-keep">Свои цвета, не перекрашиваются</label><input id="a-keep" data-a="keep" value="${esc(form.keep)}" placeholder="#c98a4b, #6b4a2b" autocapitalize="off">
+        <button class="go" data-go ${busy ? "disabled" : ""}>Заказать agy</button>
+        <div class="said${bad ? " bad" : ""}">${esc(said)}</div>
+      </div>`;
+    wireForm();
+  };
+  const drawJobs = () => {
+    jobsBox.innerHTML = jobs.length ? jobs.map(jobHtml).join("") : `<div class="said">Заказов пока нет.</div>`;
+    wireJobs();
+    const log = jobsBox.querySelector<HTMLElement>("[data-log]");
+    if (log) log.scrollTop = log.scrollHeight;
+  };
+
+  const refresh = async () => {
+    const res = await api("").catch(() => null);
+    if (!res?.ok) { said = res?.status === 403 ? "Стол не узнал хозяина — открой страницу из бота или по ссылке с ключом." : "Стол не отвечает."; bad = true; drawForm(); return; }
+    const was = like.join();
+    ({ jobs, like } = (await res.json()) as { jobs: JobView[]; like: string[] });
+    if (open) await openJob(open.job, false);
+    if (like.join() !== was) drawForm();
+    drawJobs();
+  };
+
+  async function openJob(job: string, draw = true): Promise<void> {
+    const res = await api(`/${job}`).catch(() => null);
+    if (!res?.ok) { open = null; return; }
+    const was = open;
+    open = (await res.json()) as JobView;
+    if (open.sheet && (!sheetUrl || was?.job !== open.job)) {
+      const png = await api(`/${job}/sheet.png`).catch(() => null);
+      if (sheetUrl) URL.revokeObjectURL(sheetUrl);
+      sheetUrl = png?.ok ? URL.createObjectURL(await png.blob()) : "";
+    } else if (!open.sheet) sheetUrl = "";
+    if (draw) drawJobs();
+  }
+
+  function wireForm(): void {
+    for (const b of root.querySelectorAll<HTMLElement>("[data-slot]")) b.onclick = () => { form.slot = b.dataset.slot as JobView["slot"]; render(); };
+    for (const b of root.querySelectorAll<HTMLElement>("[data-sides]")) b.onclick = () => { form.sides = b.dataset.sides as JobView["sides"]; render(); };
+    for (const el of root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("[data-a]")) el.oninput = el.onchange = () => { (form as Record<string, string>)[el.dataset.a!] = el.value; };
+    const file = root.querySelector<HTMLInputElement>("[data-photo]")!;
+    file.onchange = () => { photo = file.files?.[0] ?? null; };
+    root.querySelector<HTMLElement>("[data-go]")!.onclick = async () => {
+      if (!/^[a-z0-9-]+$/.test(form.id) || !form.brief.trim()) { said = "Нужны папка латиницей (a-z, 0-9, -) и что нарисовать."; bad = true; return render(); }
+      busy = true; said = "Отправляю…"; bad = false; render();
+      let photoName: string | undefined;
+      if (photo) {
+        const up = await api("/photo", { method: "POST", headers: { "content-type": photo.type || "image/jpeg" }, body: photo }).catch(() => null);
+        if (!up?.ok) { busy = false; said = "Фото не загрузилось."; bad = true; return render(); }
+        photoName = ((await up.json()) as { photo: string }).photo;
+      }
+      const body = { id: form.id, slot: form.slot, sides: form.sides, brief: form.brief, ...(form.name ? { name: form.name } : {}), ...(form.like ? { like: form.like } : {}), ...(form.keep ? { keep: form.keep } : {}), ...(photoName ? { photo: photoName } : {}) };
+      const res = await api("", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
+      busy = false;
+      if (res?.ok) {
+        const job = (await res.json()) as JobView;
+        said = `agy рисует «${job.id}» — это минуты, до получаса. Ход виден в заказе ниже.`;
+        bad = false;
+        photo = null;
+        await refresh();
+        await openJob(job.job);
+      } else { said = `Не принято (${res?.status ?? "нет связи"}).`; bad = true; render(); }
+    };
+  }
+
+  function wireJobs(): void {
+    for (const card of root.querySelectorAll<HTMLElement>("[data-job]")) {
+      card.onclick = (e) => {
+        if ((e.target as Element).closest("button, pre, img")) return;
+        if (open?.job === card.dataset.job) { open = null; drawJobs(); } else void openJob(card.dataset.job!);
+      };
+    }
+    const pick = (job: string) => jobs.find((j) => j.job === job)!;
+    for (const b of root.querySelectorAll<HTMLElement>("[data-accept]")) b.onclick = async () => {
+      const res = await api(`/${b.dataset.accept}/accept`, { method: "POST" }).catch(() => null);
+      said = res?.ok ? "В каталоге. Во вкладке «Спрайты» её можно подкрутить; выдать игрокам — во вкладке «Игроки»." : `Не принято (${res?.status ?? "нет связи"}${res?.status === 409 ? ": такая часть уже есть" : ""}).`;
+      bad = !res?.ok;
+      await pullTunes();
+      await refresh();
+      drawForm();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    for (const b of root.querySelectorAll<HTMLElement>("[data-again]")) b.onclick = () => {
+      const j = pick(b.dataset.again!);
+      Object.assign(form, { id: j.id.replace(/-\d+$/, ""), slot: j.slot, sides: j.sides, brief: j.brief, name: j.name ?? "", like: j.like ?? "", keep: j.keep ?? "" });
+      said = "Та же заявка — поправь бриф, если нужно, и закажи: ляжет в новую папку, прежняя останется.";
+      bad = false;
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    for (const b of root.querySelectorAll<HTMLElement>("[data-based]")) b.onclick = () => {
+      const j = pick(b.dataset.based!);
+      Object.assign(form, { id: j.id, slot: j.slot === "head" ? "body" : "head", sides: j.sides, brief: "", name: j.name ?? "", like: j.id, keep: j.keep ?? "" });
+      said = `Основа — «${j.id}». Выбери часть и опиши её.`;
+      bad = false;
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    for (const b of root.querySelectorAll<HTMLElement>("[data-drop]")) b.onclick = async () => {
+      if (!confirm("Удалить эту попытку и её рисунки?")) return;
+      await api(`/${b.dataset.drop}`, { method: "DELETE" }).catch(() => null);
+      if (open?.job === b.dataset.drop) open = null;
+      await refresh();
+    };
+  }
+
+  // Пока что-то рисуется — список и открытый заказ обновляются сами.
+  setInterval(() => {
+    const pane = root.closest<HTMLElement>("[data-pane]");
+    if (pane?.hidden || busy) return;
+    if (jobs.some((j) => j.state === "running") || open?.state === "running") void refresh();
+  }, 4_000);
+  render();
+  void refresh();
+}
+
+agyTab(document.querySelector<HTMLElement>('[data-pane="agy"]')!);

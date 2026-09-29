@@ -445,4 +445,17 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 25,
+    up(db) {
+      // ЧАСТИ, ПРИНЯТЫЕ В КАТАЛОГ со страницы хозяина (нарисовал agy): описание части JSON-ом (`skins.ts`, `addParts`).
+      db.exec(`
+        CREATE TABLE table_parts (
+          id TEXT PRIMARY KEY,
+          part TEXT NOT NULL,
+          at INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];

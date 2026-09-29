@@ -80,7 +80,7 @@ const SIDE_MIRROR = { left: "right" } as const;
 const BOT_HEADS = [["bot-hoarder", "Копитель"], ["bot-closer", "Закрывала"], ["bot-aggressor", "Агрессор"], ["bot-rookie", "Новичок"]] as const;
 const SIX = ["front", "back", "right", "top", "bottom"] as const;
 
-export const PARTS: readonly Part[] = [
+const CATALOGUE: Part[] = [
   ...COURTS.flatMap(([id, card, name]) => (["head", "body"] as const).map((slot): Part => ({ id: `${id}:${slot}`, slot, name, art: { kind: "court", card }, views: ["front", "back"], facing: "tilt", recolor: true }))),
   ...BEASTS.flatMap(([id, name, views]) => (["head", "body"] as const).map((slot): Part => ({ id: `${id}:${slot}`, slot, name, art: { kind: "file", dir: id }, views, mirror: SIDE_MIRROR, facing: id === "crusader" ? "view" : "tilt", recolor: true }))),
   { id: "bot:body", slot: "body", name: "Робот", art: { kind: "file", dir: "bot" }, views: [...SIX], mirror: SIDE_MIRROR, facing: "view", recolor: true },
@@ -99,6 +99,20 @@ export const PARTS: readonly Part[] = [
   { id: "legs-card:legs", slot: "legs", name: "Двор", art: { kind: "file", dir: "legs-card" }, views: ["front", "back", "right"], mirror: SIDE_MIRROR, facing: "tilt", recolor: true },
   { id: "legs-beast:legs", slot: "legs", name: "Лапы", art: { kind: "file", dir: "legs-beast" }, views: ["front", "back", "right"], mirror: SIDE_MIRROR, facing: "tilt", recolor: true },
 ];
+
+/** Каталог частей: нарисованные в коде и принятые со страницы хозяина (`addParts`). */
+export const PARTS: readonly Part[] = CATALOGUE;
+
+/**
+ * ЧАСТИ ИЗ БАЗЫ — нарисованные agy и принятые хозяином (`table_parts`, вкладка «agy» на `/table/admin`): дописываются
+ * к каталогу и на сервере, и у каждого экрана (`tunes.ts`). Часть с уже известным id не трогается — код главнее.
+ */
+export function addParts(extra: readonly Part[]): void {
+  for (const p of extra) {
+    const ok = typeof p?.id === "string" && (SLOTS as readonly string[]).includes(p.slot) && p.art?.kind === "file" && /^[a-z0-9-]+$/.test(p.art.dir) && Array.isArray(p.views) && p.views.length > 0;
+    if (ok && !partOf(p.id)) CATALOGUE.push(p);
+  }
+}
 
 const set = (id: string, name: string, head: string, body: string, legs: string, hair = "none:hair"): SkinSet => ({ id, name, parts: { head, hair, body, hands: "hand:hands", legs } });
 export const SETS: readonly SkinSet[] = [

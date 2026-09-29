@@ -1,6 +1,8 @@
 // ПРАВКИ ЧАСТЕЙ СКИНА — строка на часть, правка лежит JSON-ом (`tunes.ts`). Пустая правка — строки нет.
+// Рядом — части, принятые в каталог со страницы хозяина (`table_parts`): едут к экранам тем же ответом.
 
 import type { DatabaseSync } from "node:sqlite";
+import type { Part } from "../table/skins.js";
 import { cleanTune, type PartTune, type Tunes } from "../table/tunes.js";
 import { db } from "./open.js";
 
@@ -13,7 +15,18 @@ export function allTunes(at: DatabaseSync = db()): Tunes {
     if (t) parts[r.part] = t;
     last = Math.max(last, r.at);
   }
-  return { parts, at: last };
+  const extra = extraParts(at);
+  const partsAt = (at.prepare("SELECT MAX(at) AS at FROM table_parts").get() as { at: number | null }).at ?? 0;
+  return { parts, at: Math.max(last, partsAt), ...(extra.length ? { extra } : {}) };
+}
+
+/** Части, принятые в каталог, — по порядку приёма. */
+export function extraParts(at: DatabaseSync = db()): Part[] {
+  return (at.prepare("SELECT part FROM table_parts ORDER BY at").all() as unknown as { part: string }[]).map((r) => JSON.parse(r.part) as Part);
+}
+
+export function keepPart(part: Part, now = Date.now(), at: DatabaseSync = db()): void {
+  at.prepare("INSERT INTO table_parts (id, part, at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET part = excluded.part, at = excluded.at").run(part.id, JSON.stringify(part), now);
 }
 
 /** Записать правку части; `null` — снять её, часть снова как в каталоге. */

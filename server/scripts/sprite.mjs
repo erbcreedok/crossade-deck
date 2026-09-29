@@ -9,14 +9,15 @@
 //   --like   папка готовой части: та же фигура — черты, цвета, детали (голова понравилась → по ней тело и ноги)
 //   --photo  картинка-референс (лицо и т.п.): agy смотрит на неё, в репо она не попадает
 //   --keep   свои цвета, которые не перекрашиваются палитрой (шерсть, кожа), через запятую
+//   --work   папка заказа (лог, фото, лист); без неё — новая во временной. Так её ведёт страница хозяина.
 //
 // Что делает: пишет задание (формат — как у колоды, крестоносца и ботов), запускает agy без терминала, проверяет
 // каждую сторону (есть ли, viewBox, цвета, без <text>/<image>/градиентов), при ошибках — ещё один круг с их списком.
 // В конце — лист `<id>-sheet.png` (все стороны в трёх расцветках) рядом с логом. В каталог (`skins.ts`) не пишет:
 // это решение — после того, как лист посмотрели.
 
-import { copyFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { copyFile, mkdir, readdir, readFile } from "node:fs/promises";
+import { createWriteStream, existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { basename, extname, join, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
@@ -92,12 +93,15 @@ export function problemsOf(files, { slot, views, keep }) {
   return out;
 }
 
+/** Лог agy пишется по мере вывода — страница хозяина показывает его, пока он рисует. */
 const run = (prompt, extra, log) => new Promise((done) => {
   const child = spawn(AGY, ["-p", prompt, "--mode", "accept-edits", "--print-timeout", "1800s", ...extra], { cwd: ROOT });
+  const file = createWriteStream(log, { flags: "a" });
   let text = "";
-  child.stdout.on("data", (d) => (text += d));
-  child.stderr.on("data", (d) => (text += d));
-  child.on("close", async (code) => { await writeFile(log, text, { flag: "a" }); done({ code, text }); });
+  const put = (d) => { text += d; file.write(d); };
+  child.stdout.on("data", put);
+  child.stderr.on("data", put);
+  child.on("close", (code) => file.end(() => done({ code, text })));
 });
 
 async function sheet(dir, id, slot, views, out) {
@@ -128,7 +132,7 @@ async function main() {
   }
   const dir = join(SKINS, id);
   await mkdir(dir, { recursive: true });
-  const work = join(tmpdir(), `sprite-${id}-${Date.now()}`);
+  const work = a.work ? resolve(a.work) : join(tmpdir(), `sprite-${id}-${Date.now()}`);
   await mkdir(work, { recursive: true });
   const log = join(work, "agy.log");
   // Фото — рядом с заданием, вне репо: agy видит его через --add-dir, в git оно не попадает.

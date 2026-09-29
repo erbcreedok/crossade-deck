@@ -4,7 +4,7 @@
 //
 // Одно место на сервер и клиент: разбор правки и чтение текущих — здесь, больше нигде.
 
-import { partOf } from "./skins.js";
+import { addParts, partOf, type Part } from "./skins.js";
 
 export interface PartTune {
   /** Во сколько раз больше обычного. */
@@ -23,6 +23,8 @@ export interface Tunes {
   parts: Record<string, PartTune>;
   /** Когда менялись последний раз: клиент по нему видит, что пора перерисовать. */
   at: number;
+  /** Части, принятые в каталог со страницы хозяина (`addParts`). */
+  extra?: Part[];
 }
 
 /** Границы каждого поля: правка за ними обрезается, а не отвергается. */
@@ -45,12 +47,13 @@ let current: Tunes = { parts: {}, at: 0 };
 
 /** Поставить правки, что пришли со стола (или из базы). Правки неизвестных частей отбрасываются. */
 export function setTunes(next: Tunes): void {
+  addParts(next.extra ?? []);
   const parts: Record<string, PartTune> = {};
   for (const [id, raw] of Object.entries(next.parts ?? {})) {
     const t = partOf(id) ? cleanTune(raw) : null;
     if (t) parts[id] = t;
   }
-  current = { parts, at: next.at ?? 0 };
+  current = { parts, at: next.at ?? 0, extra: next.extra ?? current.extra };
 }
 
 export const tunes = (): Tunes => current;

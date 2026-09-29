@@ -23,7 +23,8 @@ import { mintRoom, roomIsSigned } from "./roomIds.js";
 import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomInJournal, roomsOfJournal, roomsSeen } from "../db/eventsRepo.js";
 import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
-import { allTunes, putTune } from "../db/tableTunesRepo.js";
+import { allTunes, extraParts, putTune } from "../db/tableTunesRepo.js";
+import { acceptJob, cleanAsk, dropJob, keepPhoto, likeDirs, listJobs, oneJob, sheetOf, startJob } from "./spriteJobs.js";
 import { cleanTune } from "./tunes.js";
 import { myRooms } from "./mine.js";
 import { carryTableProfile, saveTableProfile, tableProfile } from "../db/tableProfilesRepo.js";
@@ -33,7 +34,7 @@ import { grantDue } from "./gifts.js";
 import { faceOf, type Face } from "./avatars.js";
 import { avatarsOf } from "../db/tableAvatarsRepo.js";
 import { cleanDoll, dollFor, ownParts } from "./dolls.js";
-import { cleanParts, partOf, partsFor } from "./skins.js";
+import { addParts, cleanParts, partOf, partsFor } from "./skins.js";
 import { INKS, inkFor } from "../profileInks.js";
 import { verifyTelegramInitData, verifyTelegramLogin } from "../telegramAuth.js";
 
@@ -151,6 +152,8 @@ function isOwner(req: express.Request): boolean {
 
 export function tableRoutes(): Router {
   const r = express.Router();
+  // Части, принятые в каталог со страницы хозяина, — к каталогу этого процесса (`addParts`).
+  addParts(extraParts());
 
   r.get("/table/health", (_req, res) => res.json({ boot: BOOT }));
 
@@ -388,6 +391,46 @@ export function tableRoutes(): Router {
   r.get("/table/tunes", (_req, res) => {
     res.header("Cache-Control", "no-store");
     res.json(allTunes());
+  });
+
+  // ЗАКАЗЫ СПРАЙТОВ (`spriteJobs.ts`) — вкладка «agy» на странице хозяина. Всё — только хозяевам.
+  const owner: express.RequestHandler = (req, res, next) => (isOwner(req) ? next() : void res.status(403).json({ error: "not_owner" }));
+  r.get("/table/admin/sprites", owner, async (_req, res) => {
+    res.json({ jobs: await listJobs(), like: await likeDirs() });
+  });
+  r.post("/table/admin/sprites/photo", owner, express.raw({ type: "image/*", limit: "8mb" }), async (req, res) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) return void res.status(400).json({ error: "no_photo" });
+    res.json({ photo: await keepPhoto(req.body, req.header("content-type") ?? "") });
+  });
+  r.post("/table/admin/sprites", owner, async (req, res) => {
+    const ask = cleanAsk(req.body);
+    if (!ask) return void res.status(400).json({ error: "bad_ask" });
+    res.json(await startJob(ask));
+  });
+  r.get("/table/admin/sprites/:job", owner, async (req, res) => {
+    const job = await oneJob(req.params.job);
+    if (!job) return void res.status(404).json({ error: "not_found" });
+    res.json(job);
+  });
+  r.get("/table/admin/sprites/:job/sheet.png", owner, async (req, res) => {
+    const job = await oneJob(req.params.job);
+    if (!job?.sheet) return void res.status(404).end();
+    res.header("Cache-Control", "no-store");
+    res.sendFile(sheetOf(job));
+  });
+  r.post("/table/admin/sprites/:job/accept", owner, async (req, res) => {
+    const job = await oneJob(req.params.job);
+    if (!job) return void res.status(404).json({ error: "not_found" });
+    const got = await acceptJob(job);
+    if ("error" in got) return void res.status(409).json(got);
+    res.json(got);
+  });
+  r.delete("/table/admin/sprites/:job", owner, async (req, res) => {
+    const job = await oneJob(req.params.job);
+    if (!job) return void res.status(404).json({ error: "not_found" });
+    const got = await dropJob(job);
+    if ("error" in got) return void res.status(409).json(got);
+    res.json(got);
   });
 
   /** Поправить часть — только хозяевам; пустая правка снимает её. */
