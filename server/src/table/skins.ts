@@ -155,12 +155,26 @@ export function pickView(part: Pick<Part, "views" | "mirror">, toViewer: Dir, wa
     const d = VIEW_DIRS[name];
     return d ? d[0] * v[0]! + d[1] * v[1]! + d[2] * v[2]! : -Infinity;
   };
-  const all = shownViews(part as Part);
+  let all = shownViews(part as Part);
+  // ВЕРХ И НИЗ — С ЗОНОЙ ТОЛЕРАНТНОСТИ. В изометрии бок читается лучше верха, поэтому верх включается, только когда
+  // смотрят почти отвесно (`POLE_IN`), а включившись, держится, пока взгляд не опустится заметно в бок (`POLE_OUT`).
+  // Между порогами остаётся тот вид, что был: поднялся по диагонали — всё ещё бок; вернулся с отвеса в диагональ —
+  // всё ещё верх.
+  if (all.includes("top") || all.includes("bottom")) {
+    const pole = v[2]! >= 0 ? "top" : "bottom";
+    const fromPole = was === "top" || was === "bottom";
+    if (all.includes(pole) && Math.abs(v[2]!) > (fromPole ? POLE_OUT : POLE_IN)) return pole;
+    all = all.filter((name) => name !== "top" && name !== "bottom");
+  }
   let best = all[0]!;
   for (const name of all) if (score(name) > score(best)) best = name;
   if (was && all.includes(was) && score(was) >= score(best) - VIEW_HOLD) return was;
   return best;
 }
+
+/** Верх (низ) включается, когда взгляд круче 70° над горизонтом, и держится, пока не станет положе 35°. */
+export const POLE_IN = Math.sin((70 * Math.PI) / 180);
+export const POLE_OUT = Math.sin((35 * Math.PI) / 180);
 
 /** Картинка ракурса: какой нарисованный ракурс брать и отражать ли его. */
 export function drawnView(part: Pick<Part, "mirror">, view: string): { view: string; mirror: boolean } {

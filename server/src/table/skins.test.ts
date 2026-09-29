@@ -27,6 +27,17 @@ describe("ракурсы частей — как спрайты в Doom", () => 
     expect(pickView(part("cube:head"), [0.1, 0.2, 1])).toBe("top");
   });
 
+  it("верх — только почти отвесно сверху; в изометрии — бок; между — держится прежний (зона толерантности)", () => {
+    const at = (deg: number): [number, number, number] => { const e = (deg * Math.PI) / 180; return [Math.cos(e), 0, Math.sin(e)]; };
+    const bot = part("crusader:body");
+    expect(pickView(bot, at(45)), "изометрия — бок, не верх").toBe("right");
+    expect(pickView(bot, at(65), "right"), "поднялся по диагонали — всё ещё бок").toBe("right");
+    expect(pickView(bot, at(80), "right"), "встал почти отвесно — верх").toBe("top");
+    expect(pickView(bot, at(50), "top"), "вернулся в диагональ — верх держится").toBe("top");
+    expect(pickView(bot, at(25), "top"), "опустился в бок — бок").toBe("right");
+    expect(pickView(bot, at(-80), "right"), "снизу — так же").toBe("bottom");
+  });
+
   it("бочонок — 18 ракурсов по кругу: повёрнут на 140° — показан 140°", () => {
     expect(part("barrel:body").views).toHaveLength(18);
     const a = (140 * Math.PI) / 180;

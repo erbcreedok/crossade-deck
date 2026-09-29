@@ -69,7 +69,7 @@ export function bodiesHtml(all: readonly BodyLook[], toGlass: ToGlass, T: BodyCo
   const eye = towardEye(toGlass, { x: 0, y: 0, h: 0 });
   // Сидит ближе к камере, чем середина стола, — рисуется перед столом; дальше — стол его перекрывает.
   const clipOf = (one: BodyLook) => (nearerThanTable(eye, shouldersOf(one.angle)) ? "" : behind);
-  return all.map((one) => (dolls && dollHtml(one, toGlass, T, sprite, dolls, clipOf(one))) || avatarHtml(one, toGlass, T, sprite, clipOf(one))).join("");
+  return all.map((one) => (dolls && dollHtml(one, toGlass, T, sprite, dolls, clipOf(one), behind)) || avatarHtml(one, toGlass, T, sprite, clipOf(one))).join("");
 }
 
 /**
@@ -222,7 +222,7 @@ const LEGS_H = 3.8;
 /** Свет на кубике: сверху-спереди — верх светлее, бока темнее. */
 const LIGHT = (() => { const v = { x: -0.4, y: 0.5, h: 0.9 }, n = Math.hypot(v.x, v.y, v.h); return { x: v.x / n, y: v.y / n, h: v.h / n }; })();
 
-function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo }: BodyLook, toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string, src: DollSource, clip = ""): string | null {
+function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo }: BodyLook, toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string, src: DollSource, clip = "", tableClip = clip): string | null {
   if (isStick(parts)) return null;
   const bodyPart = partOf(parts.body), headPart = partOf(parts.head);
   if (!bodyPart || !headPart) return null;
@@ -398,7 +398,8 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo
   const tag = `<span data-g="name" style="position:absolute;left:${H.x.toFixed(1)}px;top:${(H.y - pose.headH * lift * hk - fs - 6).toFixed(1)}px;transform:translateX(-50%);white-space:nowrap;padding:1px 6px;border-radius:6px;`
     + `background:${T.black};box-shadow:inset 0 0 0 1.5px ${ink};font:400 ${fs.toFixed(0)}px Tiny5,monospace;color:${T.ink}">${esc(name)}</span>`;
   return `<div data-g="body" data-model="${esc(doll)}" data-parts="${esc(Object.values(parts).join(" "))}" data-palette="${palette}" data-by="${esc(body.by)}" data-name="${esc(name)}" data-stance="${body.stance}" data-yaw="${body.yaw}" data-stretch="${body.stretch.toFixed(2)}" data-away="${pose.away ? 1 : 0}" data-behind="${behind ? 1 : 0}" data-view="${bodyView}" data-head-view="${headView}" data-head-h="${pose.head.h.toFixed(2)}" style="position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:24">`
-    + underTable(clip, (behind ? "" : chairBack)
+    // Вид сверху — тело лежит плашмя и всегда ПОД столом, даже на ближнем месте: поверх сукна оно читается ковром.
+    + underTable(bodyFace.flat ? tableClip : clip, (behind ? "" : chairBack)
     + legs
     + (bodyFace.flat
       // плашмя — серединой нарисованного (ниже него пустое место, `EXTEND`) на плечах, без среза
