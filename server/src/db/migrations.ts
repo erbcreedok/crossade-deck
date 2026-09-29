@@ -432,4 +432,17 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 24,
+    up(db) {
+      // ПРАВКИ ЧАСТЕЙ СКИНА со страницы хозяина (`tunes.ts`): величина, сдвиг, плечи, имя — по части.
+      db.exec(`
+        CREATE TABLE table_tunes (
+          part TEXT PRIMARY KEY,
+          tune TEXT NOT NULL,
+          at INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];

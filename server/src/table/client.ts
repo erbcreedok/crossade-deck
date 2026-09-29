@@ -26,17 +26,15 @@ export function clientRoutes(source: ClientSource = fromEnv()): Router {
   const pages: Array<[string, ClientPage, ClientScript]> = [
     ["/table/", "index", "app"],
     ["/table/replay", "replay", "replay"],
+    // СТРАНИЦА ХОЗЯИНА — спрайты, столы. Сама ничего не знает: стол пускает по подписи Telegram или по секрету
+    // стола, которые она приносит (`isOwner` в `routes.ts`).
+    ["/table/admin", "admin", "admin"],
   ];
   // СМОТРЕЛКА ЗА БОТАМИ — страница без своего бандла: весь её код в ней самой, потому что она
   // только спрашивает одну дверь и рисует список. Сама по себе не показывает ничего: комнату и
   // пропуск ей дают адресом, а дверь их проверяет.
   r.get("/table/bots", fresh, async (_req, res) => {
     res.type("html").send(await source.page("bots"));
-  });
-  // «ВСЕ СТОЛЫ» — страница хозяина, тоже без бандла. Сама ничего не знает: стол пускает по подписи
-  // Telegram, которую она приносит (`/table/admin/rooms`).
-  r.get("/table/admin", fresh, async (_req, res) => {
-    res.type("html").send(await source.page("admin"));
   });
 
   // СКРИПТ — ПО ОТПЕЧАТКУ СОДЕРЖИМОГО. Страница (всегда свежая) зовёт `app.js?v=<отпечаток>`, и по этому

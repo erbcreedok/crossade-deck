@@ -23,6 +23,8 @@ import { mintRoom, roomIsSigned } from "./roomIds.js";
 import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomInJournal, roomsOfJournal, roomsSeen } from "../db/eventsRepo.js";
 import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
+import { allTunes, putTune } from "../db/tableTunesRepo.js";
+import { cleanTune } from "./tunes.js";
 import { myRooms } from "./mine.js";
 import { carryTableProfile, saveTableProfile, tableProfile } from "../db/tableProfilesRepo.js";
 import { carryOwned, ownedParts } from "../db/tableOwnedRepo.js";
@@ -31,7 +33,7 @@ import { grantDue } from "./gifts.js";
 import { faceOf, type Face } from "./avatars.js";
 import { avatarsOf } from "../db/tableAvatarsRepo.js";
 import { cleanDoll, dollFor, ownParts } from "./dolls.js";
-import { cleanParts, partsFor } from "./skins.js";
+import { cleanParts, partOf, partsFor } from "./skins.js";
 import { INKS, inkFor } from "../profileInks.js";
 import { verifyTelegramInitData, verifyTelegramLogin } from "../telegramAuth.js";
 
@@ -134,6 +136,17 @@ export function readCommand(raw: unknown): TableCommand | null {
     };
   }
   return null;
+}
+
+/**
+ * ХОЗЯИН ЛИ СПРАШИВАЕТ (`TABLE_OWNERS`). Из Mini App — по подписи Telegram в заголовке, из браузера на маке и из
+ * прогонов — по секрету стола.
+ */
+function isOwner(req: express.Request): boolean {
+  const config = tableConfig();
+  const signed = req.header(TELEGRAM_HEADER);
+  const user = signed && config.botToken ? verifyTelegramInitData(signed, config.botToken) : null;
+  return sameSecret(req.header(SECRET_HEADER), config.secret) || (user !== null && config.owners.includes(`tg:${user.id}`));
 }
 
 export function tableRoutes(): Router {
@@ -365,13 +378,24 @@ export function tableRoutes(): Router {
    */
   r.get("/table/admin/rooms", (req, res) => {
     const config = tableConfig();
-    const signed = req.header(TELEGRAM_HEADER);
-    const user = signed && config.botToken ? verifyTelegramInitData(signed, config.botToken) : null;
-    const owner = sameSecret(req.header(SECRET_HEADER), config.secret) || (user !== null && config.owners.includes(`tg:${user.id}`));
-    if (!owner) return void res.status(403).json({ error: "not_owner" });
+    if (!isOwner(req)) return void res.status(403).json({ error: "not_owner" });
     const until = Date.now() + KEEP_DAYS * 24 * 60 * 60 * 1000;
     const rooms = roomsReport(roomsSeen(200), allEntries(), (room) => deedsOfKinds(room, RECORD_KINDS)).map((one) => ({ ...one, pass: mintPass(one.room, config.secret!, until) }));
     res.json({ rooms, until });
+  });
+
+  /** ПРАВКИ ЧАСТЕЙ СКИНА (`tunes.ts`) — открыто всем: по ним рисует каждый стол. */
+  r.get("/table/tunes", (_req, res) => {
+    res.header("Cache-Control", "no-store");
+    res.json(allTunes());
+  });
+
+  /** Поправить часть — только хозяевам; пустая правка снимает её. */
+  r.put("/table/admin/tunes/:part", (req, res) => {
+    if (!isOwner(req)) return void res.status(403).json({ error: "not_owner" });
+    if (!partOf(req.params.part)) return void res.status(404).json({ error: "no_part" });
+    putTune(req.params.part, cleanTune(req.body));
+    res.json(allTunes());
   });
 
   r.get("/table/rooms/:room", guarded, (req, res) => {

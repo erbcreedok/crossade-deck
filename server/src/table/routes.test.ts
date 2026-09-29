@@ -493,3 +493,16 @@ describe("/table/profile — кем сижу и мой цвет", () => {
     expect(bad).toMatchObject({ doll: "queen", palette: 12, color: "#e0483f" });
   });
 });
+
+describe("/table/tunes — правки частей скина", () => {
+  it("читать может каждый, править — только хозяин; пустая правка снимает", async () => {
+    expect((await call("/table/admin/tunes/king:head", { method: "PUT", json: { scale: 1.5 }, secret: null })).status, "без секрета").toBe(403);
+    expect((await call("/table/admin/tunes/nope:head", { method: "PUT", json: { scale: 1.5 } })).status, "нет такой части").toBe(404);
+    const put = await call("/table/admin/tunes/king:head", { method: "PUT", json: { scale: 1.5, dy: 0.4 } });
+    expect(put.status).toBe(200);
+    const got = (await (await call("/table/tunes", { secret: null })).json()) as { parts: Record<string, unknown>; at: number };
+    expect(got.parts["king:head"]).toEqual({ scale: 1.5, dy: 0.4 });
+    await call("/table/admin/tunes/king:head", { method: "PUT", json: {} });
+    expect(((await (await call("/table/tunes", { secret: null })).json()) as { parts: Record<string, unknown> }).parts["king:head"]).toBeUndefined();
+  });
+});

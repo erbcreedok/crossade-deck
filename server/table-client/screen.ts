@@ -57,6 +57,7 @@ const CARRY_SHADOW = 0.3;
 import { baseZoom, freshNeck, headAt, neckStep, risesAt } from "./neck.js";
 import { bodiesHtml, dollPose, isStick } from "./bodyView.js";
 import { partSprite, warmParts } from "./dollSprites.js";
+import { pullTunes, TUNES_EVERY_MS } from "./tunesNet.js";
 import { dollFor, type Doll, type DollLook } from "../src/table/dolls.js";
 import { AVATAR, partOf, partsFor, type Parts } from "../src/table/skins.js";
 import { Aim, BAR, BAR_LOOK, CARRY_CLEAR, CUE_HAPTIC, DOUBLE_TAP_MS, Drag, FLIGHT_MS, GRIP, GUESS_MS, Gap, Geom, HUD_MARGIN, Laid, MENTION_INK, MINE_MS, Place, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, SLAM, SLING, Slot, T, TABLE_BUILD, TAP_MS, TAP_PX, VOICE_OPEN, TIP_TUCK, TURN_MS, TipBox, VOICE_MUTED_KEY, readMuted, writeMuted } from "./screenConst.js";
@@ -5362,8 +5363,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   });
   // И КУКЛЫ ВСЕХ В КОМНАТЕ — испечены до конца заставки (`dollSprites.ts`).
   const dolls = figuresOn ? store.state.people.map((p) => { const d = dollOf(p); return warmParts(d.parts, d.palette, p.ink, HOST); }) : [];
+  // ПРАВКИ ХОЗЯИНА (`tunesNet.ts`) — к входу и дальше раз в пятнадцать секунд: поменялись — фигуры перерисованы.
+  const tuned = pullTunes().then((changed) => { if (changed) redraw(); });
+  setInterval(() => void pullTunes().then((changed) => { if (changed) redraw(); }), TUNES_EVERY_MS);
   return {
-    ready: Promise.all([art.warm(store.state.rules), document.fonts?.ready, ...photos, ...dolls]).then(() => {}),
+    ready: Promise.all([art.warm(store.state.rules), document.fonts?.ready, ...photos, ...dolls, tuned]).then(() => {}),
     // ОКОШКО ДЛЯ ЖУРНАЛА: правда о звуке и о дошедшем голосе. Экран её не отправляет и о журнале не
     // знает — только отвечает, когда спросят.
     health: { sound: () => sound.health, voice: () => mesh.stats(), links: () => mesh.links() },

@@ -7,6 +7,7 @@ import { PALETTES } from "../src/table/dolls.js";
 import { AVATAR, drawnView, partOf, pickView, SLOTS, VIEW_DIRS, type Part, type Parts, type Slot } from "../src/table/skins.js";
 import { partGeom, partSprite, warmParts } from "./dollSprites.js";
 import { PIP_AT } from "./skinArt.js";
+import { tuneOf } from "../src/table/tunes.js";
 
 type V = [number, number, number];
 const add = (a: V, b: V): V => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -150,6 +151,11 @@ export function mountSkinStage(box: HTMLElement, base: string, first: SkinLook):
     const place = (slot: Slot, center: V, w: number, h: number | null, pivotTop: number, cutAt = -Infinity, yaw = 0) => {
       const p = partOf(look.parts[slot]);
       if (!p || p.art.kind === "none") return;
+      // ПРАВКИ ХОЗЯИНА (`tunes.ts`): величина и сдвиг — вправо от лица части и вверх.
+      const tn = tuneOf(p.id);
+      w *= tn.scale;
+      if (h !== null) h *= tn.scale;
+      center = add(add(center, mul(turnZ([1, 0, 0], -yaw), tn.dx)), [0, 0, tn.dy]);
       const view = pickView(p, turnZ(toEye, yaw), held[slot]);
       held[slot] = view;
       views[slot] = p.facing === "box" ? "box" : view;
@@ -295,9 +301,10 @@ export function mountSkinStage(box: HTMLElement, base: string, first: SkinLook):
       }
       drawProjected(g, dpr, q.img!, (u, v) => proj(lerp3(u, v)), q.vMax ?? 1);
     }
-    const face = look.parts.head === AVATAR && look.photo ? proj([0, 0, headZ]) : null;
+    const ht = tuneOf(look.parts.head), headAt: V = add(add([0, 0, headZ], mul(turnZ([1, 0, 0], -look0), ht.dx)), [0, 0, ht.dy]);
+    const face = look.parts.head === AVATAR && look.photo ? proj(headAt) : null;
     if (face && look.photo) {
-      const z = dot(sub([0, 0, headZ], eye), fw), d = (2.5 * 0.74 * f) / z;
+      const z = dot(sub(headAt, eye), fw), d = (2.5 * ht.scale * 0.74 * f) / z;
       if (photo.getAttribute("src") !== look.photo) photo.src = look.photo;
       Object.assign(photo.style, { display: "block", width: `${d}px`, height: `${d}px`, transform: `translate(${face.x - d / 2}px,${face.y - d / 2}px)` });
     } else photo.style.display = "none";

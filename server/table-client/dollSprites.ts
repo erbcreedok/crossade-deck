@@ -11,6 +11,7 @@
 import { PALETTES, type Palette } from "../src/table/dolls.js";
 import { partOf, SLOTS, type Part, type Parts } from "../src/table/skins.js";
 import { drawArt } from "./skinArt.js";
+import { tuneOf } from "../src/table/tunes.js";
 
 /** Как вырезать фигуру из рисунка карты: куски в единицах его viewBox, где на туловище линия плеч, куда смотрит лицо. */
 export const ART: Record<string, { head: [number, number, number, number]; body: [number, number, number, number]; shoulder: number; looks: -1 | 1; oval?: boolean }> = {
@@ -56,8 +57,9 @@ function solidOf(c: HTMLCanvasElement): number {
  */
 export function partGeom(id: string): { shoulder: number; aspect: number; looks: -1 | 0 | 1 } {
   const part = partOf(id), art = part?.art.kind === "court" ? ART[part.art.card] : undefined;
-  if (art) return { shoulder: art.shoulder / (1 + EXTEND), aspect: art.head[3] / art.head[2], looks: art.looks };
-  return { shoulder: FILE_SHOULDER / (1 + EXTEND), aspect: 1, looks: 0 };
+  const own = tuneOf(id).shoulder;
+  if (art) return { shoulder: (own ?? art.shoulder) / (1 + EXTEND), aspect: art.head[3] / art.head[2], looks: art.looks };
+  return { shoulder: (own ?? FILE_SHOULDER) / (1 + EXTEND), aspect: 1, looks: 0 };
 }
 /** Линия плеч на туловище рисунков (`file`, `draw`) — договорённость с художником: y≈18 из 100. */
 const FILE_SHOULDER = 0.18;

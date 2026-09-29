@@ -17,7 +17,7 @@ const SOURCES = join(HERE, "..", "..", "table-client");
 const BAKED_CARDS = join(HERE, "..", "..", "..", "game-presets", "cards", "src", "decks", "baked");
 
 /** Страницы клиента: адрес скрипта на странице → входной файл в `table-client/`. */
-export const CLIENT_SCRIPTS = { app: "main", replay: "replay" } as const;
+export const CLIENT_SCRIPTS = { app: "main", replay: "replay", admin: "admin" } as const;
 export type ClientScript = keyof typeof CLIENT_SCRIPTS;
 export const CLIENT_PAGES = { index: "index.html", replay: "replay.html", bots: "bots.html", admin: "admin.html" } as const;
 export type ClientPage = keyof typeof CLIENT_PAGES;

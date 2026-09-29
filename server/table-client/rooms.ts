@@ -18,6 +18,8 @@ import { partSprite } from "./dollSprites.js";
 import { mountSkinStage, type SkinStage } from "./skinStage.js";
 import { mountGround } from "./ground.js";
 import { HOST } from "./host.js";
+import { partName } from "../src/table/tunes.js";
+import { pullTunes } from "./tunesNet.js";
 
 interface TelegramApp {
   initData?: string;
@@ -172,6 +174,8 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
   const style = document.createElement("style");
   style.textContent = CSS;
   document.head.append(style);
+  // Правки хозяина (`tunes.ts`) — к сцене профиля: имена и величины частей.
+  void pullTunes();
   const page = document.createElement("div");
   page.dataset.rooms = "";
   host.append(page);
@@ -322,10 +326,10 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
         + `<div class="label">Части — у каждой свои стороны</div>`
         + `<div class="tabs">${SLOTS.map((slot) => `<button class="btn${tab === slot ? " on" : ""}" data-tab="${slot}">${SLOT_NAMES[slot]}</button>`).join("")}</div>`
         + `<div class="parts">${parts.map((part) => {
-          const plain = card(part.name, partThumb(part, p), p.parts[tab] === part.id, `data-part="${part.id}"`, part.art.kind === "none" ? "" : String(shownViews(part).length), part.art.kind === "none" ? "" : FACING_SAID[part.facing]);
+          const plain = card(partName(part.id), partThumb(part, p), p.parts[tab] === part.id, `data-part="${part.id}"`, part.art.kind === "none" ? "" : String(shownViews(part).length), part.art.kind === "none" ? "" : FACING_SAID[part.facing]);
           // АВАТАР — ПО СНИМКУ: каждое фото, что было в Telegram, — своя голова.
           if (part.id !== AVATAR || !p.avatars?.length) return plain;
-          return p.avatars.map((a) => card(p.avatars!.length > 1 ? `${part.name} ${a.n}` : part.name, `<img class="face" src="${esc(a.photo)}" alt="" style="border-radius:50%;object-fit:cover">`, p.parts.head === AVATAR && p.avatar === a.n, `data-part="${AVATAR}" data-avatar="${a.n}"`, "1", FACING_SAID[part.facing])).join("");
+          return p.avatars.map((a) => card(p.avatars!.length > 1 ? `${partName(part.id)} ${a.n}` : partName(part.id), `<img class="face" src="${esc(a.photo)}" alt="" style="border-radius:50%;object-fit:cover">`, p.parts.head === AVATAR && p.avatar === a.n, `data-part="${AVATAR}" data-avatar="${a.n}"`, "1", FACING_SAID[part.facing])).join("");
         }).join("")}</div>`
         + `<div class="lead" style="margin-top:12px">${p.telegram ? "Новые фигуры и части приходят наградой — бот напишет в личку." : "Привяжи Telegram — придут подарки: твой аватар и фигура колоды."}</div>`
         + `</div>`;

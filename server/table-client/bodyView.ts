@@ -13,6 +13,7 @@ import type { Body } from "../src/table/bodies.js";
 import { HEAD, NECK, SHOULDERS, awayOf, gazeOf, headOf, leftHandOf, shoulders3, shouldersOf, type Point3 } from "../src/table/bodies.js";
 import type { Doll } from "../src/table/dolls.js";
 import { EXTEND, partGeom, partSprite, type DollSprite } from "./dollSprites.js";
+import { tuneOf } from "../src/table/tunes.js";
 import { AVATAR, VIEW_DIRS, drawnView, partOf, pickView, type Part, type Parts } from "../src/table/skins.js";
 import { PIP_AT } from "./skinArt.js";
 import { DISC, R, RIM, SEAT, TABLE_THICK } from "./felt.js";
@@ -160,7 +161,7 @@ export function dollPose(body: Body, angle: number, parts: Parts, toGlass: ToGla
   const up = { x: (s.x / r) * Math.cos(q), y: (s.y / r) * Math.cos(q), h: Math.sin(q) };
   const g = gazeOf(body.yaw);
   const headUp = { x: -g.x * Math.cos(q), y: -g.y * Math.cos(q), h: Math.sin(q) };
-  const headH = DOLL_SIZE.head * partGeom(parts.head).aspect;
+  const headH = DOLL_SIZE.head * tuneOf(parts.head).scale * partGeom(parts.head).aspect;
   const lift = headH * 0.45 + 0.2;
   const dollHead = away ? head : { x: s.x + up.x * lift + head.x - rest.x, y: s.y + up.y * lift + head.y - rest.y, h: s.h + up.h * lift + head.h - rest.h };
   return { shoulders: s, head: dollHead, left: leftHandOf(dollHead, body.yaw), up, headUp, away, headH };
@@ -241,6 +242,11 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo
     shownView.set(key, v);
     return v;
   };
+  // ПРАВКИ ХОЗЯИНА (`tunes.ts`): часть сдвинута вправо от своего лица (`f`) и вверх по своему верху (`up`).
+  const moved = (P: Point3, id: string, f: Point, up: Point3): Point3 => {
+    const t = tuneOf(id);
+    return { x: P.x - f.y * t.dx + up.x * t.dy, y: P.y + f.x * t.dx + up.y * t.dy, h: P.h + up.h * t.dy };
+  };
   const standing = body.stance === "stand";
   const bodyView = view("body", bodyPart, pose.shoulders, inward), headView = view("head", headPart, pose.head, g);
   const behind = bodyView === "back" || bodyView === "a180";
@@ -304,7 +310,9 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo
   const chairBack = rise > 0.12 ? plane(chairBackOf(ink), backAt, { x: 0, y: 0, h: 1 }, backW, CHAIR_BACK.h, [0.5, 1], false, "chair-back", 0, { x: -inward.y, y: inward.x, h: 0 }) : "";
   // ТУЛОВИЩЕ СТОИТ ЗА СТОЛОМ: линия плеч — на высоте плеч; ниже уровня стола (стоя — ниже пояса, там ноги) срезано.
   const bodyFace = facingOf(bodyPart, bodyView, inward, pose.shoulders);
-  const tw = DOLL_SIZE.torso * bodyFace.squeeze, th = ((DOLL_SIZE.torso * torso.h) / torso.w) * DOLL_SIZE.stretch;
+  const bodyScale = tuneOf(bodyPart.id).scale;
+  const tw = DOLL_SIZE.torso * bodyScale * bodyFace.squeeze, th = ((DOLL_SIZE.torso * bodyScale * torso.h) / torso.w) * DOLL_SIZE.stretch;
+  const bodyAt = moved(pose.shoulders, bodyPart.id, inward, bodyFace.flat ?? pose.up);
   const py = geom.shoulder;
   // Видно от плеч вниз, пока туловище не ушло под стол: ниже уровня сукна (стоя — пояса) — или (сверху, когда
   // кукла лежит за кромкой) за край стола. Что раньше, там и срез.
@@ -321,7 +329,8 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo
     const lv = view("legs", legsPart, { ...P, h: LEGS_H / 2 }, inward), ld = drawnView(legsPart, lv);
     const img = partSprite(legsPart.id, palette, ld.view, ink, src.base, src.ready);
     const lf = facingOf(legsPart, lv, inward, { ...P, h: LEGS_H / 2 });
-    if (img) legs = plane(img, P, pose.up, 3.4 * lf.squeeze, LEGS_H, [0.5, 1], ld.mirror, "doll-legs", 0, lf.across);
+    const ls = tuneOf(legsPart.id).scale;
+    if (img) legs = plane(img, moved(P, legsPart.id, inward, pose.up), pose.up, 3.4 * ls * lf.squeeze, LEGS_H * ls, [0.5, 1], ld.mirror, "doll-legs", 0, lf.across);
   }
   // Голова: лицо, нарисованное вполоборота (фигуры колоды), смотрит в свою сторону — взгляд в другую сторону
   // экрана зеркалит его. Боковой ракурс зеркалится, только если он взят отражением (левый из правого).
@@ -330,22 +339,24 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo
   const flip = turnedFace ? (headGeom.looks < 0) === looksRight : headDrawn.mirror;
   const headUp = pose.away ? pose.headUp : pose.up;
   const headFace = facingOf(headPart, headView, g, pose.head);
-  const hw = DOLL_SIZE.head;
-  const head = headPart.facing === "box" ? cubeSvg(pose.head, hw * 0.9, g, palette) : plane(face, pose.head, headFace.flat ?? headUp, hw * headFace.squeeze, pose.headH, [0.5, 0.5], flip, "doll-head", 0, headFace.across);
+  const hw = DOLL_SIZE.head * tuneOf(headPart.id).scale;
+  const headAt = moved(pose.head, headPart.id, g, headUp), HA = at(headAt);
+  const head = headPart.facing === "box" ? cubeSvg(headAt, hw * 0.9, g, palette) : plane(face, headAt, headFace.flat ?? headUp, hw * headFace.squeeze, pose.headH, [0.5, 0.5], flip, "doll-head", 0, headFace.across);
   // ГОЛОВА-АВАТАР: шар, а в нём — фото человека, кружком поверх.
-  const photoD = hw * 0.74 * local(toGlass, pose.head);
+  const photoD = hw * 0.74 * local(toGlass, headAt);
   const avatar = parts.head === AVATAR && photo
-    ? `<img data-g="doll-photo" src="${esc(photo)}" alt="" draggable="false" style="position:absolute;left:${(H.x - photoD / 2).toFixed(1)}px;top:${(H.y - photoD / 2).toFixed(1)}px;width:${photoD.toFixed(1)}px;height:${photoD.toFixed(1)}px;border-radius:50%;object-fit:cover;pointer-events:none">`
+    ? `<img data-g="doll-photo" src="${esc(photo)}" alt="" draggable="false" style="position:absolute;left:${(HA.x - photoD / 2).toFixed(1)}px;top:${(HA.y - photoD / 2).toFixed(1)}px;width:${photoD.toFixed(1)}px;height:${photoD.toFixed(1)}px;border-radius:50%;object-fit:cover;pointer-events:none">`
     : "";
   // ПРИЧЁСКА — на макушке, в осях головы.
   let hair = "";
   const hairPart = partOf(parts.hair);
   if (hairPart && hairPart.art.kind !== "none") {
-    const P = { x: pose.head.x + headUp.x * pose.headH * 0.55, y: pose.head.y + headUp.y * pose.headH * 0.55, h: pose.head.h + headUp.h * pose.headH * 0.55 };
+    const P = moved({ x: headAt.x + headUp.x * pose.headH * 0.55, y: headAt.y + headUp.y * pose.headH * 0.55, h: headAt.h + headUp.h * pose.headH * 0.55 }, hairPart.id, g, headUp);
+    const hs = tuneOf(hairPart.id).scale;
     const hv = view("hair", hairPart, P, g), hd = drawnView(hairPart, hv);
     const img = partSprite(hairPart.id, palette, hd.view, ink, src.base, src.ready);
     const hf = facingOf(hairPart, hv, g, P);
-    if (img) hair = plane(img, P, headUp, hw * 1.05 * hf.squeeze, hw * 1.05, [0.5, 0.75], hd.mirror, "doll-hair", 0, hf.across);
+    if (img) hair = plane(img, P, headUp, hw * hs * 1.05 * hf.squeeze, hw * hs * 1.05, [0.5, 0.75], hd.mirror, "doll-hair", 0, hf.across);
   }
   /** КУБИК-ГОЛОВА — настоящая коробка: грани, что смотрят на камеру, в проекции; очки — кругами на гранях. */
   function cubeSvg(C: Point3, size: number, f: Point, pal: number): string {
@@ -403,8 +414,8 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo
     + legs
     + (bodyFace.flat
       // плашмя — серединой нарисованного (ниже него пустое место, `EXTEND`) на плечах, без среза
-      ? plane(torso, pose.shoulders, bodyFace.flat, tw, th / DOLL_SIZE.stretch, [0.5, 0.5 / (1 + EXTEND)], bodyDrawn.mirror, "doll-body", 0, bodyFace.across)
-      : plane(torso, pose.shoulders, pose.up, tw, th, [0.5, py], bodyDrawn.mirror, "doll-body", below, bodyFace.across))
+      ? plane(torso, bodyAt, bodyFace.flat, tw, th / DOLL_SIZE.stretch, [0.5, 0.5 / (1 + EXTEND)], bodyDrawn.mirror, "doll-body", 0, bodyFace.across)
+      : plane(torso, bodyAt, pose.up, tw, th, [0.5, py], bodyDrawn.mirror, "doll-body", below, bodyFace.across))
     + (behind ? chairBack : "")
     + svg)
     + head
