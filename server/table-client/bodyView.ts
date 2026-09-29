@@ -10,7 +10,7 @@
 // будет на странице аватара.
 
 import type { Body } from "../src/table/bodies.js";
-import { HEAD, NECK, SHOULDERS, awayOf, gazeOf, headOf, leftHandOf, shoulders3, type Point3 } from "../src/table/bodies.js";
+import { HEAD, NECK, SHOULDERS, awayOf, gazeOf, headOf, leftHandOf, shoulders3, shouldersOf, type Point3 } from "../src/table/bodies.js";
 import type { Doll } from "../src/table/dolls.js";
 import { EXTEND, partGeom, partSprite, type DollSprite } from "./dollSprites.js";
 import { AVATAR, VIEW_DIRS, drawnView, partOf, pickView, type Part, type Parts } from "../src/table/skins.js";
@@ -63,14 +63,28 @@ const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", 
 export function bodiesHtml(all: readonly BodyLook[], toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string, dolls?: DollSource): string {
   if (all.length === 0) return "";
   const behind = behindTable(toGlass);
-  return all.map((one) => (dolls && dollHtml(one, toGlass, T, sprite, dolls, behind)) || avatarHtml(one, toGlass, T, sprite, behind)).join("");
+  const eye = towardEye(toGlass, { x: 0, y: 0, h: 0 });
+  // Сидит ближе к камере, чем середина стола, — рисуется перед столом; дальше — стол его перекрывает.
+  const clipOf = (one: BodyLook) => (nearerThanTable(eye, shouldersOf(one.angle)) ? "" : behind);
+  return all.map((one) => (dolls && dollHtml(one, toGlass, T, sprite, dolls, clipOf(one))) || avatarHtml(one, toGlass, T, sprite, clipOf(one))).join("");
 }
 
 /**
- * СТОЛ ВСЕГДА ПЕРЕКРЫВАЕТ ТЕЛА — тело никогда не лежит поверх стола. Слой тел — над холстом, поэтому всё, что от
- * тела (туловище, голова, ноги, спинка стула, левая рука с картами), обрезается по силуэту стола на экране: верх
- * столешницы с кромкой и её бок. Поверх стола остаются только правая рука (куда человек показывает на столе) и
- * табличка имени. Отдаёт стиль `clip-path` для такой обёртки.
+ * ТЕЛО ПЕРЕД СТОЛОМ ИЛИ ЗА НИМ — ближе ли его место к камере, чем середина стола: по направлению на глаз из середины
+ * (`eye`, в осях стола). Сверху (глаз над серединой) все за столом; наклонил камеру — места с ближней стороны выходят
+ * вперёд. Порог — чтобы при почти отвесном взгляде тела не прыгали туда-сюда.
+ */
+export function nearerThanTable(eye: Point3, seat: Point): boolean {
+  const r = Math.hypot(seat.x, seat.y) || 1;
+  return (eye.x * seat.x + eye.y * seat.y) / r > NEARER;
+}
+/** Во сколько горизонт взгляда (синус наклона) × косинус угла к месту должен быть больше, чтобы тело было впереди. */
+const NEARER = 0.15;
+
+/**
+ * СТОЛ ПЕРЕКРЫВАЕТ ТЕЛА, ЧТО ЗА НИМ — тело за столом никогда не лежит поверх стола. Слой тел — над холстом, поэтому
+ * всё, что от тела ниже головы (туловище, ноги, спинка стула, палка), обрезается по силуэту стола на экране: верх
+ * столешницы с кромкой и её бок. Голова, причёска, обе руки и табличка имени видны ВСЕГДА. Тело перед столом (`nearerThanTable`) не обрезается. Отдаёт стиль `clip-path`.
  */
 function behindTable(toGlass: ToGlass): string {
   const pts: Point[] = [];
@@ -388,11 +402,11 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo
       ? plane(torso, pose.shoulders, bodyFace.flat, tw, th / DOLL_SIZE.stretch, [0.5, 0.5 / (1 + EXTEND)], bodyDrawn.mirror, "doll-body", 0, bodyFace.across)
       : plane(torso, pose.shoulders, pose.up, tw, th, [0.5, py], bodyDrawn.mirror, "doll-body", below, bodyFace.across))
     + (behind ? chairBack : "")
-    + svg
+    + svg)
     + head
     + avatar
     + hair
-    + hand(pose.left, "hand-closed", "left-hand", !behind))
+    + hand(pose.left, "hand-closed", "left-hand", !behind)
     + (right ? hand(right, holding ? "hand-closed" : "hand-open", "right-hand", behind) : "")
     + tag
     + `</div>`;
@@ -447,7 +461,8 @@ function avatarHtml({ body, angle, ink, name, holding }: BodyLook, toGlass: ToGl
     return `<img data-g="${g}" src="${sprite(img)}" alt="" draggable="false" style="position:absolute;left:${(q.x - w / 2).toFixed(1)}px;top:${(q.y - w / 2).toFixed(1)}px;width:${w.toFixed(1)}px;height:${w.toFixed(1)}px;pointer-events:none${mirror ? ";transform:scaleX(-1)" : ""}">`;
   };
   return `<div data-g="body" data-model="avatar" data-by="${esc(body.by)}" data-name="${esc(name)}" data-stance="${body.stance}" data-yaw="${body.yaw}" data-stretch="${body.stretch.toFixed(2)}" data-away="${away ? 1 : 0}" data-head-h="${head.h.toFixed(2)}" style="position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:24">`
-    + underTable(clip, svg + hand(left, "hand-closed", "left-hand", true))
+    + underTable(clip, svg)
+    + hand(left, "hand-closed", "left-hand", true)
     + (right ? hand(right, holding ? "hand-closed" : "hand-open", "right-hand", false) : "")
     + `</div>`;
 }
