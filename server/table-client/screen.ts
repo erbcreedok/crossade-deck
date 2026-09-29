@@ -46,6 +46,7 @@ import { BarKey, FOLDS, GLYPH, GrabMode, RIGHTS, SECTIONS, SECTION_MS, SUBS, Sec
 import { lens } from "./lens.js";
 import { mountMeters } from "./meters.js";
 import { readRecording, writeRecording } from "./watch.js";
+import { readFigures, writeFigures } from "./figures.js";
 import { buzzEvery, charged, onRelease, spring, tensed } from "./sling.js";
 import { PALETTE } from "../../look/src/palette.js";
 import { BODY_EVERY_MS, HEAD, headOf, leftHandOf, restHead, shoulders3, type Point3, type Stance } from "../src/table/bodies.js";
@@ -129,6 +130,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   let замок: string | null = null;
   /** Переход в приложение — адрес с пропуском, что пришёл со стола последним. */
   let переход: string | null = null;
+  /** Фигуры за столом — выключатель этого устройства (`figures.ts`). */
+  let figuresOn = readFigures();
   const settings = mountSettings(document.body, {
     sound, haptic, motion, look,
     lookChanged: () => {
@@ -163,6 +166,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     // Измерители заводятся ниже, вместе с камерой: окно спрашивает их только когда открыто.
     meters: { on: () => meters.on, toggle: () => meters.toggle() },
     record: { on: () => readRecording(), toggle: () => writeRecording(!readRecording()) },
+    figures: { on: () => figuresOn, toggle: () => { figuresOn = !figuresOn; writeFigures(figuresOn); redraw(); } },
     /**
      * СТРОКА О ГОЛОСЕ — ПО ЧЕЛОВЕКУ И ПО СТОРОНАМ, а не числом.
      *
@@ -3184,7 +3188,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
 
   /** Чужие тела — у их стульев (`bodyView.ts`). Своё не рисуется: своя голова — камера. */
   function othersBodiesHtml(s: Snapshot): string {
-    if (!view) return "";
+    if (!view || !figuresOn) return "";
     const lens = view;
     const looks = store.bodies.flatMap((body) => {
       const person = s.people.find((p) => p.key === body.by);
@@ -3253,12 +3257,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
         // ЧЕМ ДУМАЕТ ИГРОК БЕЗ ЧЕЛОВЕКА — прямо на табличке: играя против машины, надо видеть, против какой.
         ...(sitter?.brain ? { brain: sitter.brain } : {}),
         // ФОТО В КРУЖКЕ — только у головы-аватара (награда за Telegram, `rewards.ts`) и у крупье; шар — просто шар.
-        ...(sitter?.photo && (sitter.bot || dollOf(sitter).parts.head === AVATAR) ? { face: face(sitter) } : {}),
+        // Фигуры выключены — фото на кружке у всех, как было до фигур.
+        ...(sitter?.photo && (!figuresOn || sitter.bot || dollOf(sitter).parts.head === AVATAR) ? { face: face(sitter) } : {}),
         // ОТ КОГО ЖДУТ ХОДА — стрелка перед его стулом. Читается из судьи (`Snapshot.play`), гасится
         // правилом стола: за столом, где ходы считают сами, подсказка мешает.
         ...(s.rules.turnMark && s.play?.turn !== null && s.play?.turn === sitter?.key ? { awaited: true } : {}),
         // ТЕЛО: голова — его аватар там, где голова; карты руки — в левой руке у неё (`bodies.ts`). Своё — нет.
         ...(() => {
+          if (!figuresOn) return {};
           const body = sitter && sitter.key !== me() ? store.bodies.find((b) => b.by === sitter.key) : undefined;
           if (!body || !sitter) return {};
           // КУКЛА: голова пришита к вороту по её верху (`dollPose`) — веер у левой руки и тап по голове там же,
@@ -5355,7 +5361,7 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     return settled(images[p.key]!);
   });
   // И КУКЛЫ ВСЕХ В КОМНАТЕ — испечены до конца заставки (`dollSprites.ts`).
-  const dolls = store.state.people.map((p) => { const d = dollOf(p); return warmParts(d.parts, d.palette, p.ink, HOST); });
+  const dolls = figuresOn ? store.state.people.map((p) => { const d = dollOf(p); return warmParts(d.parts, d.palette, p.ink, HOST); }) : [];
   return {
     ready: Promise.all([art.warm(store.state.rules), document.fonts?.ready, ...photos, ...dolls]).then(() => {}),
     // ОКОШКО ДЛЯ ЖУРНАЛА: правда о звуке и о дошедшем голосе. Экран её не отправляет и о журнале не

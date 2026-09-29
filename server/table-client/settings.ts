@@ -59,6 +59,8 @@ export interface SettingsWorld {
   };
   /** Измерители поверх стола: пинг, кадры, камера (`meters.ts`). */
   meters: { on(): boolean; toggle(): void };
+  /** Фигуры за столом (`figures.ts`): выключены — кружки на стульях, как до фигур; для слабых телефонов. */
+  figures: { on(): boolean; toggle(): void };
   /** ВИД АВАТАРА — как меня видят за столом (`bodies.ts`, `MODELS`): стул или спрайты короля. */
   /** Выбор вида аватара; нет — раздела нет (пока у всех один вид). */
   avatar?: { model(): string; set(model: string): void };
@@ -166,7 +168,8 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + `background:${INK.well};box-shadow:inset 0 0 0 3px ${INK.black},inset 0 0 0 5px ${INK.wood},0 10px 0 rgba(11,7,4,.5)">`
       + `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><span style="font:400 18px Tiny5,monospace;color:${INK.ink}">Настройки</span>`
       + `<button data-settings-close aria-label="Закрыть" style="width:40px;height:40px;border:0;border-radius:10px;cursor:pointer;color:${INK.ink};font:400 18px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${INK.rim}">✕</button></div>`
-      + (fullscreenable() ? section("Экран") + toggle("fullscreen", "Полный экран", app()?.isFullscreen === true) : "")
+      + section("Экран") + (fullscreenable() ? toggle("fullscreen", "Полный экран", app()?.isFullscreen === true) : "")
+      + toggle("figures", "Фигуры за столом", world.figures.on())
       + (world.replay.may() ? section("Запись партии") + replayHtml() : "")
       + toggle("record", "Записывать мой экран", world.record.on())
       + (world.app.may() ? section("Приложение Crossade") + appHtml() : "")
@@ -217,6 +220,9 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       }
       case "meters":
         world.meters.toggle();
+        break;
+      case "figures":
+        world.figures.toggle();
         break;
       case "avatar-seat":
       case "avatar-king":

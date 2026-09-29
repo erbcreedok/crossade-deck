@@ -188,6 +188,15 @@ if (shots) await B.screenshot({ path: `${shots}/body-5-away.png` });
 const peek = await until(async () => { const n = await facesOf(); return n > 0 && n; });
 check("из-за спины (стул не скрыт) — её карты у Бори лицом", peek >= 3, { faces: await facesOf(), spot: await spotOf(B, "Аня"), hide: await A.evaluate(() => window.__tableState?.().chairs.map((c) => [c.owner, c.hide, c.hand.length])) });
 
+// ФИГУРЫ ВЫКЛЮЧЕНЫ (настройки → «Фигуры за столом», для слабых телефонов): стол как до фигур — тел нет, кружки на стульях.
+await B.evaluate(() => localStorage.setItem("crossade.table.figures", "off"));
+await B.reload();
+await B.waitForSelector("[data-section]");
+await B.waitForTimeout(1500);
+const bare = await B.evaluate(() => ({ bodies: document.querySelectorAll('[data-g="body"]').length, toggle: !!document.querySelector("[data-settings]") }));
+check("фигуры выключены — за столом ни одного тела, стол как раньше", bare.bodies === 0 && bare.toggle, bare);
+await B.evaluate(() => localStorage.removeItem("crossade.table.figures"));
+
 const bad = checks.filter((c) => !c.ok);
 for (const c of checks) console.log(c.ok ? "✓" : "✗", c.name, c.ok ? "" : JSON.stringify(c.got));
 console.log(`tableBody ${checks.length - bad.length}/${checks.length}`);
