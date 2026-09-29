@@ -26,7 +26,7 @@ import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
 import { allTunes, extraParts, putTune } from "../db/tableTunesRepo.js";
 import { acceptJob, cleanAsk, dropJob, keepPhoto, likeDirs, listJobs, oneJob, sheetOf, startJob } from "./spriteJobs.js";
-import { cleanMeta, cleanName, dropSprite, keepSprite, libFile, LIB_MAX_BYTES } from "./spriteLib.js";
+import { cleanMeta, cleanName, dropSprite, keepSprite, libFile, LIB_MAX_BYTES, replaceSprite } from "./spriteLib.js";
 import { editLibSprite, libSprite, libSprites } from "../db/tableSpritesRepo.js";
 import { cleanTune } from "./tunes.js";
 import { myRooms } from "./mine.js";
@@ -420,6 +420,14 @@ export function tableRoutes(): Router {
     if (!editLibSprite(req.params.id, { ...(name ? { name } : {}), ...cleanMeta(body) })) return void res.status(404).json({ error: "not_found" });
     res.json(libSprite(req.params.id));
   });
+  r.put("/table/admin/lib/:id/file", owner, express.raw({ type: ["image/svg+xml", "image/png", "application/octet-stream"], limit: LIB_MAX_BYTES }), async (req, res) => {
+    const one = libSprite(req.params.id);
+    if (!one) return void res.status(404).json({ error: "not_found" });
+    if (!Buffer.isBuffer(req.body)) return void res.status(400).json({ error: "no_image" });
+    const got = await replaceSprite(one, req.body);
+    if ("error" in got) return void res.status(400).json(got);
+    res.json(got);
+  });
   r.delete("/table/admin/lib/:id", owner, async (req, res) => {
     const one = libSprite(req.params.id);
     if (!one) return void res.status(404).json({ error: "not_found" });
@@ -432,7 +440,8 @@ export function tableRoutes(): Router {
     if (!path || !existsSync(path)) return void res.status(404).end();
     // Открытый напрямую SVG ничего не исполняет и ничего не тянет.
     res.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'");
-    res.header("Cache-Control", "public, max-age=31536000, immutable");
+    // Файл можно заменить под тем же именем — хранить можно, но каждый раз сверяясь (ETag).
+    res.header("Cache-Control", "no-cache");
     res.sendFile(path);
   });
   r.post("/table/admin/sprites/photo", owner, express.raw({ type: "image/*", limit: "8mb" }), async (req, res) => {

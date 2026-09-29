@@ -75,6 +75,19 @@ try {
   await p.fill('[data-c="0"]', "#ff00aa");
   check("свои цвета красят SVG", decodeURIComponent(await p.getAttribute("[data-big]", "src")).includes("#ff00aa"), null);
   if (shot) await p.screenshot({ path: shot, fullPage: true });
+  // CRUD НА СТРАНИЦЕ: «как новый» — копия с покраской; «заменить файл» — та же запись, новая картинка
+  await p.click("[data-sprite-page] [data-copy]");
+  await p.waitForFunction((t) => document.querySelector("[data-sprite-page] [data-name]")?.value.includes("(копия)"), tag, { timeout: 5000 }).catch(() => {});
+  const copy = (await own()).find((x) => x.name.endsWith("(копия)"));
+  const copyText = copy ? await (await fetch(`${base}/table/lib/${copy.id}.svg`)).text() : "";
+  check("«Сохранить как новый» — копия с нынешней покраской, открыта её страница", !!copy && copyText.toLowerCase().includes("#ff00aa") && copy.slot === "head" && copy.side === "front", copy);
+  await p.setInputFiles("[data-sprite-page] [data-replace-file]", { name: "new.svg", mimeType: "image/svg+xml", buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="80" height="80" x="10" y="10" fill="#1d4f80"/></svg>') });
+  await p.waitForFunction(() => /заменён/.test(document.querySelector("[data-act-said]")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+  const replaced = copy ? await (await fetch(`${base}/table/lib/${copy.id}.svg`)).text() : "";
+  check("«Заменить файл» — та же запись, новая картинка", replaced.includes("<rect") && (await own()).some((x) => x.id === copy?.id && x.name === copy.name), replaced.slice(0, 80));
+  await p.click("[data-sprite-page] [data-drop]");
+  await p.waitForTimeout(600);
+  check("удалить копию — «назад» к спрайту, с которого её сделали", (await p.inputValue("[data-sprite-page] [data-name]").catch(() => "")) === `${tag}-лис` && !(await own()).some((x) => x.id === copy?.id), await p.inputValue("[data-sprite-page] [data-name]").catch(() => null));
   await p.fill("[data-sprite-page] [data-name]", `${tag} Лис`);
   await p.click('[data-sprite-page] [data-pick-kind] [data-v="hair"]');
   await p.click('[data-sprite-page] [data-pick-side] [data-v=""]');
@@ -96,6 +109,14 @@ try {
   await p.waitForSelector("[data-sprite-page]");
   await p.waitForFunction(() => /не SVG/.test(document.querySelector("[data-own3-said]")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
   check("встроенную не удалить; у колоды свои цвета не выбрать, и сказано почему", (await p.locator("[data-sprite-page] [data-drop]").count()) === 0 && (await p.locator("[data-c]").first().isDisabled()), await p.textContent("[data-own3-said]"));
+  await p.click('[data-pal16="1"]');
+  await p.click("[data-sprite-page] [data-copy]");
+  await p.waitForSelector("[data-sprite-page] [data-name]", { timeout: 5000 }).catch(() => {});
+  const kingCopy = (await (await fetch(`${base}/table/admin/lib`, { headers: { "x-table-secret": secret } })).json()).sprites.find((x) => x.name === "Король треф · лицо");
+  check("встроенную — «Сделать своей копией»: PNG с покраской, та же деталь, сторона, теги", kingCopy?.ext === "png" && kingCopy.slot === "head" && kingCopy.side === "front" && kingCopy.tags.includes("Король треф") && (await fetch(`${base}/table/lib/${kingCopy.id}.png`)).status === 200, kingCopy);
+  if (kingCopy) await fetch(`${base}/table/admin/lib/${kingCopy.id}`, { method: "DELETE", headers: { "x-table-secret": secret } });
+  await p.goBack();
+  await p.waitForSelector("[data-sprite-page] h2");
   const sims = await p.locator("[data-similar] .cell b").allTextContents();
   check("похожие по тегам — вторая сторона того же короля", sims.includes("Король треф · спина"), sims);
   await p.locator("[data-similar] .cell", { hasText: "Король треф · спина" }).first().click();

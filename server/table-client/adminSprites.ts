@@ -121,6 +121,8 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   let said = "", bad = false;
   /** SVG своих — текстом: перекрашиваются здесь. PNG — как есть. */
   const texts = new Map<string, string>();
+  /** Заменили файл — новый адрес картинки, чтобы браузер не показал прежнюю из памяти. */
+  const bust = new Map<string, number>();
 
   const built = (): Shown[] => PARTS.filter((p) => p.art.kind !== "none").flatMap((p) => p.views.map((view) => ({ key: `b:${p.id}:${view}`, name: `${partName(p.id)} · ${SIDE_NAMES[view] ?? view}`, slot: p.slot as Kind, side: view, tags: [partName(p.id), ART_NAMES[p.art.kind]].filter(Boolean), built: { part: p.id, view } })));
   const mine = (): Shown[] => own.map((o) => ({ key: `o:${o.id}`, name: o.name, slot: o.slot, side: o.side, tags: o.tags, own: o }));
@@ -130,11 +132,11 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   const srcOf = (s: Shown, k: number, ready: () => void): string | null => {
     if (s.built) return partSprite(s.built.part, k, s.built.view, PALETTES[k]!.ink, HOST, ready)?.src ?? null;
     const o = s.own!;
-    if (o.ext === "png") return `${HOST}/table/lib/${o.id}.png`;
+    if (o.ext === "png") return `${HOST}/table/lib/${o.id}.png?v=${bust.get(o.id) ?? 0}`;
     const text = texts.get(o.id);
     if (text === undefined) {
       texts.set(o.id, "");
-      void fetch(`${HOST}/table/lib/${o.id}.svg`).then((r) => (r.ok ? r.text() : "")).then((t) => { texts.set(o.id, t); ready(); });
+      void fetch(`${HOST}/table/lib/${o.id}.svg?v=${bust.get(o.id) ?? 0}`).then((r) => (r.ok ? r.text() : "")).then((t) => { texts.set(o.id, t); ready(); });
       return null;
     }
     return text ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(recolor(text, k))}` : null;
@@ -230,7 +232,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   const svgs = new Map<string, Promise<string | null>>();
   /** Рисунок SVG текстом — если он есть: свой SVG или файл встроенной детали. Колоду и код печёт пекарь стола. */
   const svgOf = (s: Shown): Promise<string | null> => {
-    const url = s.own ? (s.own.ext === "svg" ? `${HOST}/table/lib/${s.own.id}.svg` : null)
+    const url = s.own ? (s.own.ext === "svg" ? `${HOST}/table/lib/${s.own.id}.svg?v=${bust.get(s.own.id) ?? 0}` : null)
       : (() => { const p = PARTS.find((x) => x.id === s.built!.part); return p?.art.kind === "file" ? `${HOST}/table/skins/${p.art.dir}/${s.built!.view}-${p.slot}.svg` : null; })();
     if (!url) return Promise.resolve(null);
     let got = svgs.get(url);
@@ -266,6 +268,10 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     };
     pageBox.innerHTML = `<div class="sp-page" data-sprite-page="${esc(s.key)}">
       <div class="sp-top"><button class="chip" data-back>← Все спрайты</button>${s.own ? `<input data-name value="${esc(s.own.name)}" maxlength="40" aria-label="Имя">` : `<h2>${esc(s.name)}</h2>`}</div>
+      <div class="bar sp-acts">${s.own
+        ? `<button class="add" data-save>Сохранить</button><button class="chip" data-copy>Сохранить как новый</button><button class="chip" data-replace>Заменить файл</button><input type="file" data-replace-file accept=".svg,image/svg+xml,image/png" hidden><button class="chip drop" data-drop>Удалить</button>`
+        : `<button class="add" data-copy>Сделать своей копией</button>`}</div>
+      <div class="said" data-act-said>${s.own ? "«Сохранить» — имя, деталь, сторона, теги. «Как новый» — копия с нынешней покраской и отражением." : "Встроенную не изменить — копия ляжет в «Свои» с нынешней покраской и отражением."}</div>
       <div class="sp-stage bg-${bg}" data-stage3d><div class="sp-card" data-card><img data-big alt=""></div></div>
       <div class="bar"><button class="chip" data-flip>Отразить</button><button class="chip" data-spin>Крутить само</button><button class="chip" data-reset>Сброс</button>
         <label class="num">Масштаб <input type="number" data-zoom min="0.3" max="4" step="0.1" value="${zoom}"></label></div>
@@ -279,8 +285,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
       ${s.own ? `<div class="pick" data-pick-kind>${KINDS.map(([k]) => `<button data-v="${k}" class="${s.own!.slot === k ? "on" : ""}">${KIND_ONE[k]}</button>`).join("")}</div>
       <div class="pick" data-pick-side><button data-v="" class="${s.own.side ? "" : "on"}">без стороны</button>${SIDES.map((k) => `<button data-v="${k}" class="${s.own!.side === k ? "on" : ""}">${SIDE_NAMES[k]}</button>`).join("")}</div>
       <label class="lbl" for="sp-tags">Теги, через запятую</label><input id="sp-tags" class="wide" data-tags value="${esc(s.own.tags.join(", "))}" placeholder="Лис, звери">
-      <div class="said">${s.own.ext.toUpperCase()} · ${ORIGIN_NAMES[s.own.origin]} · ${new Date(s.own.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
-      <div class="bar"><button class="add" data-save>Сохранить</button><button class="chip drop" data-drop>Удалить</button></div>`
+      <div class="said">${s.own.ext.toUpperCase()} · ${ORIGIN_NAMES[s.own.origin]} · ${new Date(s.own.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>`
       : `<div class="said">${KIND_ONE[s.slot]}${s.side ? ` · ${SIDE_NAMES[s.side] ?? s.side}` : ""} · теги: ${esc(s.tags.join(", "))}<br>встроенный — живёт в коде (${esc(s.built!.part)}), не удаляется</div>`}
       <h3>Похожие</h3>
       <div class="grid" data-similar></div>
@@ -369,6 +374,65 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
       history.back();
       await refresh();
     };
+    // СОЗДАТЬ ИЗ ТОГО, ЧТО НА ЭКРАНЕ: копия с нынешней покраской и отражением. SVG остаётся SVG (цвета и отражение —
+    // в самом рисунке), остальное — PNG с испечённой картинки.
+    const actSaid = pageBox.querySelector<HTMLElement>("[data-act-said]")!;
+    const baked = async (): Promise<{ body: Blob; type: string } | null> => {
+      if (svg) {
+        const c = own3 ?? (() => { const p = PALETTES[pal]!; return [p.red, p.blue, p.gold]; })();
+        let text = svg.replace(/#b3221f/gi, c[0]!).replace(/#1d4f80/gi, c[1]!).replace(/#f2c14e/gi, c[2]!);
+        if (flip) {
+          const [x, , w] = (/viewBox="([^"]+)"/.exec(text)?.[1] ?? "0 0 100 100").trim().split(/[\s,]+/).map(Number) as [number, number, number, number];
+          text = text.replace(/<svg\b[^>]*>/, (root) => `${root}<g transform="matrix(-1 0 0 1 ${2 * x + w} 0)">`).replace(/<\/svg>\s*$/, "</g></svg>");
+        }
+        return { body: new Blob([text], { type: "image/svg+xml" }), type: "image/svg+xml" };
+      }
+      const src = paintSrc();
+      if (!src) return null;
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = src;
+      await img.decode();
+      const cv = document.createElement("canvas");
+      cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+      const g = cv.getContext("2d")!;
+      if (flip) { g.translate(cv.width, 0); g.scale(-1, 1); }
+      g.drawImage(img, 0, 0);
+      const body = await new Promise<Blob | null>((ok) => cv.toBlob(ok, "image/png"));
+      return body ? { body, type: "image/png" } : null;
+    };
+    pageBox.querySelector<HTMLElement>("[data-copy]")!.onclick = async () => {
+      const got = await baked().catch(() => null);
+      if (!got) { actSaid.textContent = "Картинка ещё не готова — секунду."; return; }
+      const name = (s.own ? `${pageBox.querySelector<HTMLInputElement>("[data-name]")!.value.trim() || s.name} (копия)` : s.name).slice(0, 40);
+      const meta = new URLSearchParams({ name, slot: s.slot, ...(s.side ? { side: s.side } : {}), ...(s.tags.length ? { tags: s.tags.join(",") } : {}) });
+      const res = await fetch(`${HOST}/table/admin/lib?${meta}`, { method: "POST", headers: { ...auth, "content-type": got.type }, body: got.body }).catch(() => null);
+      if (!res?.ok) { actSaid.textContent = `Не сохранилось (${res?.status ?? "нет связи"}).`; return; }
+      const made = (await res.json()) as LibSprite;
+      said = `Новый спрайт «${made.name}» — в «Своих».`;
+      bad = false;
+      await refresh();
+      const next = mine().find((o) => o.own!.id === made.id);
+      if (next) openPage(next);
+    };
+    const replaceBtn = pageBox.querySelector<HTMLElement>("[data-replace]"), replaceFile = pageBox.querySelector<HTMLInputElement>("[data-replace-file]");
+    if (replaceBtn && replaceFile) {
+      replaceBtn.onclick = () => replaceFile.click();
+      replaceFile.onchange = async () => {
+        const f = replaceFile.files?.[0];
+        replaceFile.value = "";
+        if (!f) return;
+        const res = await fetch(`${HOST}/table/admin/lib/${s.own!.id}/file`, { method: "PUT", headers: { ...auth, "content-type": f.type || (/\.svg$/i.test(f.name) ? "image/svg+xml" : "image/png") }, body: f }).catch(() => null);
+        if (!res?.ok) { actSaid.textContent = `Не заменилось: ${res ? ((await res.json().catch(() => ({}))) as { error?: string }).error ?? res.status : "нет связи"}.`; return; }
+        texts.delete(s.own!.id);
+        bust.set(s.own!.id, Date.now());
+        for (const k of [...svgs.keys()]) if (k.includes(s.own!.id)) svgs.delete(k);
+        await refresh();
+        const again = mine().find((o) => o.own!.id === s.own!.id);
+        if (again) openPage(again, false);
+        pageBox.querySelector<HTMLElement>("[data-act-said]")!.textContent = "Файл заменён — имя, деталь и теги те же.";
+      };
+    }
     pageBox.querySelector<HTMLElement>("[data-back]")!.onclick = () => history.back();
     pose();
     drawBig();

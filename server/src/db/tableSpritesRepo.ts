@@ -48,6 +48,11 @@ export function editLibSprite(id: string, patch: Partial<Pick<LibSprite, "name" 
   return true;
 }
 
+/** Файл картинки заменён — вид файла мог смениться (svg ↔ png). */
+export function setLibExt(id: string, ext: LibSprite["ext"], at: DatabaseSync = db()): void {
+  at.prepare("UPDATE table_sprites SET ext = ? WHERE id = ?").run(ext, id);
+}
+
 export function dropLibSprite(id: string, at: DatabaseSync = db()): boolean {
   return Number(at.prepare("DELETE FROM table_sprites WHERE id = ?").run(id).changes) > 0;
 }

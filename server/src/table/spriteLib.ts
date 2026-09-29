@@ -8,7 +8,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { addLibSprite, dropLibSprite, SPRITE_SIDES, SPRITE_SLOTS, type LibSprite, type SpriteSlot } from "../db/tableSpritesRepo.js";
+import { addLibSprite, dropLibSprite, setLibExt, SPRITE_SIDES, SPRITE_SLOTS, type LibSprite, type SpriteSlot } from "../db/tableSpritesRepo.js";
 
 const SERVER = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const LIB = process.env.TABLE_SPRITE_LIB ?? join(SERVER, "data", "sprite-lib");
@@ -58,6 +58,18 @@ export async function keepSprite(bytes: Buffer, name: string, origin: LibSprite[
   await writeFile(libFile(one.id, one.ext)!, bytes);
   addLibSprite(one);
   return one;
+}
+
+/** Заменить картинку, оставив имя, деталь, сторону и теги. */
+export async function replaceSprite(one: LibSprite, bytes: Buffer): Promise<LibSprite | { error: string }> {
+  const kind = kindOf(bytes);
+  if ("error" in kind) return kind;
+  await writeFile(libFile(one.id, kind.ext)!, bytes);
+  if (kind.ext !== one.ext) {
+    await rm(libFile(one.id, one.ext)!, { force: true });
+    setLibExt(one.id, kind.ext);
+  }
+  return { ...one, ext: kind.ext };
 }
 
 export async function dropSprite(one: LibSprite): Promise<void> {
