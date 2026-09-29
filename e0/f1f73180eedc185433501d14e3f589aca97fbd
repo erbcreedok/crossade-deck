@@ -1,0 +1,42 @@
+server/src/db/migrations.ts
+  s_12c15dae591e76::t_10f56907b837d0 461-476
+server/src/table/spriteJobs.test.ts
+  s_12c15dae591e76::t_66106c99602461 7-10,28-44
+server/src/db/tableSpritesRepo.ts
+  s_12c15dae591e76::t_10f56907b837d0 1-33
+server/src/table/spriteLib.ts
+  s_12c15dae591e76::t_531d8b69c35ddb 1-55
+server/src/table/spriteJobs.ts
+  s_12c15dae591e76::t_016044ef2b41ef 11-12,20,47-48,164,166-170,172-180,183
+  s_12c15dae591e76::t_0e233f0e182ccd 16
+server/scripts/tableAdminGallery.mjs
+  s_12c15dae591e76::t_aff1f651041854 1-3,5-7,15-18,21,27,33-44,46,49,51-62,64,68
+server/scripts/tableAdminAgy.mjs
+  s_12c15dae591e76::t_7628ca44903e77 1-2,48-53,69-72
+server/src/table/routes.ts
+  s_12c15dae591e76::t_9b16c955dbc6d3 28-30,404-407,409-430,432-435
+.claude/launch.json
+  s_12c15dae591e76::t_aff1f651041854 158-159
+server/table-client/admin.ts
+  s_12c15dae591e76::t_2e325166ee2357 208,265,271,369
+  s_12c15dae591e76::t_c8f9c7d8b1b3e1 274
+server/table-client/adminSprites.ts
+  s_12c15dae591e76::t_3b4a07d1218658 1-8,11,16-22,24-29,32-34,37-38,41,44-49,51-54,59-64,74-75,77-80,82-83,85-97,100-121,123-153,156-157,162,164-167,169-171,173-186,194-197,200
+  s_12c15dae591e76::t_f845816436744e 172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e0f1f73180eedc185433501d14e3f589aca97fbd",
+  "prompts": {},
+  "sessions": {
+    "s_12c15dae591e76": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0fe1da9a-8ecb-4b09-99b9-1b4963d888e6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
