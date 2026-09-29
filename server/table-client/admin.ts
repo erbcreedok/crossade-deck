@@ -14,6 +14,7 @@ import { mountSkinStage, type SkinStage } from "./skinStage.js";
 import { mountTableStage, type TableStage } from "./tableStage.js";
 import { pullTunes } from "./tunesNet.js";
 import { mountSpriteGallery } from "./adminSprites.js";
+import { onRoute, put, route, routeNum, routeOne } from "./adminRoute.js";
 
 type TelegramApp = { initData?: string; ready?: () => void; expand?: () => void };
 const tg = (globalThis as { Telegram?: { WebApp?: TelegramApp } }).Telegram?.WebApp;
@@ -22,15 +23,18 @@ const auth: Record<string, string> = tg?.initData ? { "x-telegram-init-data": tg
 
 const esc = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-// ВКЛАДКИ — и подвкладки «Спрайтов»: все картинки или заказ новых у agy.
-for (const [btn, pane, key] of [["tab", "pane", "tab"], ["sub", "subpane", "sub"]] as const) {
-  for (const b of document.querySelectorAll<HTMLButtonElement>(`[data-${btn}]`)) {
-    b.onclick = () => {
-      for (const x of document.querySelectorAll<HTMLButtonElement>(`[data-${btn}]`)) x.classList.toggle("on", x === b);
-      for (const p of document.querySelectorAll<HTMLElement>(`[data-${pane}]`)) p.hidden = p.dataset[pane] !== b.dataset[key];
-    };
+// ВКЛАДКИ — и подвкладки «Спрайтов»: все картинки или заказ новых у agy. Какая открыта — в адресе (`adminRoute.ts`).
+const TABS = [["tab", "pane", ["sprites", "parts", "rooms"]], ["sub", "subpane", ["gallery", "agy"]]] as const;
+const showTabs = () => {
+  for (const [btn, pane, all] of TABS) {
+    const on = routeOne(btn, all, all[0]);
+    for (const x of document.querySelectorAll<HTMLButtonElement>(`[data-${btn}]`)) x.classList.toggle("on", x.dataset[btn] === on);
+    for (const p of document.querySelectorAll<HTMLElement>(`[data-${pane}]`)) p.hidden = p.dataset[pane] !== on;
   }
-}
+};
+for (const [btn] of TABS) for (const b of document.querySelectorAll<HTMLButtonElement>(`[data-${btn}]`)) b.onclick = () => { put({ [btn]: b.dataset[btn] }); showTabs(); };
+showTabs();
+onRoute(showTabs);
 
 const CSS = `
 .sp { max-width: 980px; margin: 0 auto; padding: 12px 16px 40px; display: grid; gap: 14px; }
@@ -73,17 +77,27 @@ function partsTab(root: HTMLElement): void {
   const style = document.createElement("style");
   style.textContent = CSS;
   document.head.append(style);
-  let slot: Slot = "head";
-  let partId = PARTS.find((p) => p.slot === slot)!.id;
-  let setId = "king";
-  let palette = 0;
+  // Выбор — из адреса (`adminRoute.ts`): деталь, на ком примерить, расцветка, сцена, камера стола, несохранённая правка.
+  let partId = partOf(route("part") ?? "")?.id ?? PARTS.find((p) => p.slot === "head")!.id;
+  let slot: Slot = partOf(partId)!.slot;
+  let setId = SETS.some((s) => s.id === route("pset")) ? route("pset")! : "king";
+  let palette = Math.max(0, Math.min(PALETTES.length - 1, Math.round(routeNum("pp", 0))));
+  let cam = { yaw: routeNum("cy", 20), pitch: routeNum("cp", 38) };
+  // Несохранённая правка из адреса — читается сразу: первая отрисовка перепишет адрес раньше, чем придут правки стола.
+  let kept: PartTune | null = null;
+  try { kept = cleanTune(JSON.parse(route("pd") ?? "null")); } catch { kept = null; }
+  const remember = () => {
+    if (kept) return;
+    const d = cleanTune(draft);
+    put({ part: partId, pset: setId, pp: palette || null, scene: scene === "table" ? "table" : null, pd: dirty() && d ? JSON.stringify(d) : null });
+  };
   /** Что сохранено на столе — правка на экране сравнивается с этим. */
   let saved: Tunes = { parts: {}, at: 0 };
   let draft: PartTune = {};
   let stage: SkinStage | null = null;
   let table: TableStage | null = null;
   /** Какая сцена: фигура одна (как в профиле) или за столом на четырёх местах. */
-  let scene: "figure" | "table" = "figure";
+  let scene: "figure" | "table" = routeOne("scene", ["figure", "table"], "figure");
   let said = "", bad = false;
 
   const figure = (): Parts => ({ ...(SETS.find((s) => s.id === setId) ?? SETS[0]!).parts, [slot]: partId });
@@ -126,8 +140,9 @@ function partsTab(root: HTMLElement): void {
     table?.destroy();
     stage = table = null;
     if (scene === "figure") stage = mountSkinStage(box, HOST, look());
-    else table = mountTableStage(box, HOST, look());
+    else table = mountTableStage(box, HOST, look(), { ...cam, onView: (yaw, pitch) => { cam = { yaw, pitch }; put({ cy: Math.round(yaw), cp: Math.round(pitch) }); } });
     wire();
+    remember();
   };
 
   const pick = (id: string) => {
@@ -155,6 +170,7 @@ function partsTab(root: HTMLElement): void {
         preview();
         table?.draw();
         save.disabled = !dirty();
+        remember();
       };
     }
     root.querySelector<HTMLElement>("[data-reset]")!.onclick = () => { draft = {}; preview(); render(); };
@@ -177,7 +193,10 @@ function partsTab(root: HTMLElement): void {
 
   void pullTunes().then(() => {
     saved = tunes();
-    draft = { ...(saved.parts[partId] ?? {}) };
+    // Несохранённая правка из адреса — поверх сохранённой: обновил страницу посреди подкрутки — она на месте.
+    draft = kept ?? { ...(saved.parts[partId] ?? {}) };
+    kept = null;
+    preview();
     render();
   });
   render();
@@ -252,6 +271,10 @@ function agyTab(root: HTMLElement): void {
   style.textContent = AGY_CSS;
   document.head.append(style);
   const form = { id: "", slot: "head" as JobView["slot"], sides: "6" as JobView["sides"], brief: "", name: "", like: "", keep: "" };
+  // НЕДОПИСАННЫЙ ЗАКАЗ — в памяти этого браузера: обновил страницу — бриф на месте. Раскрытый заказ — в адресе.
+  const DRAFT = "crossade.admin.agyDraft";
+  try { Object.assign(form, JSON.parse(localStorage.getItem(DRAFT) ?? "{}") as Partial<typeof form>); } catch { /* нет памяти — пустая форма */ }
+  const keepDraft = () => { try { localStorage.setItem(DRAFT, JSON.stringify(form)); } catch { /* нет памяти */ } };
   let photo: File | null = null;
   let jobs: JobView[] = [];
   let like: string[] = [];
@@ -316,9 +339,10 @@ function agyTab(root: HTMLElement): void {
 
   async function openJob(job: string, draw = true): Promise<void> {
     const res = await api(`/${job}`).catch(() => null);
-    if (!res?.ok) { open = null; return; }
+    if (!res?.ok) { open = null; put({ job: null }); return; }
     const was = open;
     open = (await res.json()) as JobView;
+    put({ job: open.job });
     if (open.sheet && (!sheetUrl || was?.job !== open.job)) {
       const png = await api(`/${job}/sheet.png`).catch(() => null);
       if (sheetUrl) URL.revokeObjectURL(sheetUrl);
@@ -328,9 +352,9 @@ function agyTab(root: HTMLElement): void {
   }
 
   function wireForm(): void {
-    for (const b of root.querySelectorAll<HTMLElement>("[data-slot]")) b.onclick = () => { form.slot = b.dataset.slot as JobView["slot"]; render(); };
-    for (const b of root.querySelectorAll<HTMLElement>("[data-sides]")) b.onclick = () => { form.sides = b.dataset.sides as JobView["sides"]; render(); };
-    for (const el of root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("[data-a]")) el.oninput = el.onchange = () => { (form as Record<string, string>)[el.dataset.a!] = el.value; };
+    for (const b of root.querySelectorAll<HTMLElement>("[data-slot]")) b.onclick = () => { form.slot = b.dataset.slot as JobView["slot"]; keepDraft(); render(); };
+    for (const b of root.querySelectorAll<HTMLElement>("[data-sides]")) b.onclick = () => { form.sides = b.dataset.sides as JobView["sides"]; keepDraft(); render(); };
+    for (const el of root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("[data-a]")) el.oninput = el.onchange = () => { (form as Record<string, string>)[el.dataset.a!] = el.value; keepDraft(); };
     const file = root.querySelector<HTMLInputElement>("[data-photo]")!;
     file.onchange = () => { photo = file.files?.[0] ?? null; };
     root.querySelector<HTMLElement>("[data-go]")!.onclick = async () => {
@@ -350,6 +374,8 @@ function agyTab(root: HTMLElement): void {
         said = `agy рисует «${job.id}» — это минуты, до получаса. Ход виден в заказе ниже.`;
         bad = false;
         photo = null;
+        form.brief = "";
+        keepDraft();
         await refresh();
         await openJob(job.job);
       } else { said = `Не принято (${res?.status ?? "нет связи"}).`; bad = true; render(); }
@@ -360,7 +386,7 @@ function agyTab(root: HTMLElement): void {
     for (const card of root.querySelectorAll<HTMLElement>("[data-job]")) {
       card.onclick = (e) => {
         if ((e.target as Element).closest("button, pre, img")) return;
-        if (open?.job === card.dataset.job) { open = null; drawJobs(); } else void openJob(card.dataset.job!);
+        if (open?.job === card.dataset.job) { open = null; put({ job: null }); drawJobs(); } else void openJob(card.dataset.job!);
       };
     }
     const pick = (job: string) => jobs.find((j) => j.job === job)!;
@@ -403,7 +429,8 @@ function agyTab(root: HTMLElement): void {
     if (jobs.some((j) => j.state === "running") || open?.state === "running") void refresh();
   }, 4_000);
   render();
-  void refresh();
+  const asked = route("job");
+  void refresh().then(() => (asked && !open ? openJob(asked) : undefined));
 }
 
 agyTab(document.querySelector<HTMLElement>("[data-agy]")!);

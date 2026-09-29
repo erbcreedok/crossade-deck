@@ -32,9 +32,10 @@ const SEATS = [0, 90, 180, 270];
 const NAMES = ["1", "2", "3", "4"];
 const FELT = { hi: "#1b4835", lo: "#0a2117", wood: "#3a2a1d", woodSide: "#4e3823", under: "#1d1409" };
 
-export function mountTableStage(box: HTMLElement, base: string, first: TableLook): TableStage {
+/** `opts` — откуда смотреть сначала и кого звать, когда камеру повернули (страница хозяина пишет её в адрес). */
+export function mountTableStage(box: HTMLElement, base: string, first: TableLook, opts: { yaw?: number; pitch?: number; onView?: (yaw: number, pitch: number) => void } = {}): TableStage {
   let look = first;
-  let yaw = 20, pitch = 38, dist = 36;
+  let yaw = opts.yaw ?? 20, pitch = opts.pitch ?? 38, dist = 36;
   box.style.position = "relative";
   box.style.touchAction = "none";
   box.style.overflow = "hidden";
@@ -59,6 +60,7 @@ export function mountTableStage(box: HTMLElement, base: string, first: TableLook
     pitch = Math.max(-89, Math.min(89, p));
     box.dataset.yaw = String(Math.round(yaw));
     box.dataset.pitch = String(Math.round(pitch));
+    opts.onView?.(yaw, pitch);
     draw();
   }
 

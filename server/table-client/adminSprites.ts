@@ -16,6 +16,7 @@ import { PARTS } from "../src/table/skins.js";
 import { partName } from "../src/table/tunes.js";
 import { partSprite } from "./dollSprites.js";
 import { HOST } from "./host.js";
+import { go, onRoute, put, route, routeNum, routeOne } from "./adminRoute.js";
 
 type Kind = "head" | "hair" | "body" | "legs" | "hands" | "other";
 interface LibSprite {
@@ -108,12 +109,14 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   const style = document.createElement("style");
   style.textContent = CSS;
   document.head.append(style);
-  let which: "all" | "own" | "built" = "all";
-  let kind: Kind | "all" = "all";
-  let side: string | "all" = "all";
-  let tag = "";
-  let query = "";
-  let palette = 0;
+  // Полки, поиск, расцветка — из адреса (`adminRoute.ts`) и обратно в него.
+  let which = routeOne("gw", ["all", "own", "built"] as const, "all");
+  let kind = routeOne("gk", ["all", ...KINDS.map(([k]) => k)] as const, "all") as Kind | "all";
+  let side = routeOne("gs", ["all", ...SIDES], "all");
+  let tag = route("gt") ?? "";
+  let query = route("gq") ?? "";
+  let palette = Math.max(0, Math.min(PALETTES.length - 1, Math.round(routeNum("gp", 0))));
+  const remember = () => put({ gw: which === "all" ? null : which, gk: kind === "all" ? null : kind, gs: side === "all" ? null : side, gt: tag, gq: query, gp: palette || null });
   let own: LibSprite[] = [];
   let said = "", bad = false;
   /** SVG своих — текстом: перекрашиваются здесь. PNG — как есть. */
@@ -150,6 +153,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   </div><div data-page hidden></div></div>`;
   const grid = root.querySelector<HTMLElement>("[data-grid]")!;
   const q = root.querySelector<HTMLInputElement>("[data-q]")!;
+  q.value = query;
   q.oninput = () => { query = q.value.trim().toLowerCase(); drawGrid(); };
   const tagSel = root.querySelector<HTMLSelectElement>("[data-tag]")!;
   tagSel.onchange = () => { tag = tagSel.value; drawGrid(); };
@@ -200,6 +204,8 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   }
 
   function drawGrid(): void {
+    remember();
+    for (const x of root.querySelectorAll<HTMLElement>("[data-which]")) x.classList.toggle("on", x.dataset.which === which);
     const pool = [...(which === "built" ? [] : mine()), ...(which === "own" ? [] : built())];
     drawShelves(pool);
     const list = pool.filter((s) => (kind === "all" || s.slot === kind) && (side === "all" || s.side === side) && (!tag || s.tags.includes(tag)) && (!query || s.name.toLowerCase().includes(query) || s.tags.some((t) => t.toLowerCase().includes(query))));
@@ -241,13 +247,18 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
 
   function openPage(s: Shown, push = true): void {
     current = s;
-    if (push) history.pushState({ sprite: s.key }, "");
+    // Открыть спрайт — новая запись истории; его настройки начинаются с чистого листа. Пришли по адресу — из адреса.
+    if (push) go({ sprite: s.key, sp: null, sc: null, sbg: null, sz: null, sf: null, srx: null, sry: null });
     listBox.hidden = true;
     pageBox.hidden = false;
     window.scrollTo(0, 0);
-    let pal = palette;
-    let own3: [string, string, string] | null = null;
-    let rx = -12, ry = 24, zoom = 1, flip = false, spin = false, bg: "felt" | "light" | "check" = "felt";
+    let pal = route("sp") === null ? palette : Math.max(0, Math.min(PALETTES.length - 1, Math.round(routeNum("sp", 0))));
+    const c3 = (route("sc") ?? "").split(",").filter((c) => /^[0-9a-f]{6}$/i.test(c)).map((c) => `#${c}`);
+    let own3: [string, string, string] | null = c3.length === 3 ? (c3 as [string, string, string]) : null;
+    let rx = routeNum("srx", -12), ry = routeNum("sry", 24), zoom = Math.max(0.3, Math.min(4, routeNum("sz", 1))), flip = route("sf") === "1", spin = false;
+    let bg = routeOne("sbg", ["felt", "light", "check"] as const, "felt");
+    /** Настройки страницы — в адрес: обновил страницу — тот же поворот, краски, фон. */
+    const keep = () => put({ sp: pal, sc: own3 ? own3.map((c) => c.slice(1)).join(",") : null, sbg: bg === "felt" ? null : bg, sz: zoom === 1 ? null : zoom, sf: flip, srx: Math.round(rx), sry: Math.round(ry) });
     let svg: string | null = null;
     const paintSrc = (): string | null => {
       if (own3 && svg) return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/#b3221f/gi, own3[0]).replace(/#1d4f80/gi, own3[1]).replace(/#f2c14e/gi, own3[2]))}`;
@@ -255,14 +266,14 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     };
     pageBox.innerHTML = `<div class="sp-page" data-sprite-page="${esc(s.key)}">
       <div class="sp-top"><button class="chip" data-back>← Все спрайты</button>${s.own ? `<input data-name value="${esc(s.own.name)}" maxlength="40" aria-label="Имя">` : `<h2>${esc(s.name)}</h2>`}</div>
-      <div class="sp-stage bg-felt" data-stage3d><div class="sp-card" data-card><img data-big alt=""></div></div>
+      <div class="sp-stage bg-${bg}" data-stage3d><div class="sp-card" data-card><img data-big alt=""></div></div>
       <div class="bar"><button class="chip" data-flip>Отразить</button><button class="chip" data-spin>Крутить само</button><button class="chip" data-reset>Сброс</button>
-        <label class="num">Масштаб <input type="number" data-zoom min="0.3" max="4" step="0.1" value="1"></label></div>
-      <div class="bar">${(["felt", "light", "check"] as const).map((k) => `<button class="chip${k === "felt" ? " on" : ""}" data-bg="${k}">${{ felt: "на сукне", light: "на светлом", check: "прозрачность" }[k]}</button>`).join("")}</div>
+        <label class="num">Масштаб <input type="number" data-zoom min="0.3" max="4" step="0.1" value="${zoom}"></label></div>
+      <div class="bar">${(["felt", "light", "check"] as const).map((k) => `<button class="chip${k === bg ? " on" : ""}" data-bg="${k}">${{ felt: "на сукне", light: "на светлом", check: "прозрачность" }[k]}</button>`).join("")}</div>
       <h3>Расцветки</h3>
       <div class="sp-pals" data-pals16>${PALETTES.map((p, k) => `<button class="sp-pal${k === pal ? " on" : ""}" data-pal16="${k}" title="${esc(p.name)}"><img alt=""><span>${esc(p.name)}</span></button>`).join("")}</div>
       <h3>Свои цвета</h3>
-      <div class="bar" data-own3><label class="col">основной <input type="color" data-c="0" value="${PALETTES[pal]!.red}"></label><label class="col">второй <input type="color" data-c="1" value="${PALETTES[pal]!.blue}"></label><label class="col">акцент <input type="color" data-c="2" value="${PALETTES[pal]!.gold}"></label><button class="chip" data-own3-off>Как в расцветке</button></div>
+      <div class="bar" data-own3><label class="col">основной <input type="color" data-c="0" value="${own3?.[0] ?? PALETTES[pal]!.red}"></label><label class="col">второй <input type="color" data-c="1" value="${own3?.[1] ?? PALETTES[pal]!.blue}"></label><label class="col">акцент <input type="color" data-c="2" value="${own3?.[2] ?? PALETTES[pal]!.gold}"></label><button class="chip" data-own3-off>Как в расцветке</button></div>
       <div class="said" data-own3-said></div>
       <h3>Для чего</h3>
       ${s.own ? `<div class="pick" data-pick-kind>${KINDS.map(([k]) => `<button data-v="${k}" class="${s.own!.slot === k ? "on" : ""}">${KIND_ONE[k]}</button>`).join("")}</div>
@@ -293,18 +304,19 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     let drag: { x: number; y: number } | null = null;
     stage.onpointerdown = (e) => { drag = { x: e.clientX, y: e.clientY }; stage.setPointerCapture(e.pointerId); spin = false; spinBtn.classList.remove("on"); };
     stage.onpointermove = (e) => { if (!drag) return; ry += (e.clientX - drag.x) * 0.8; rx = Math.max(-80, Math.min(80, rx - (e.clientY - drag.y) * 0.6)); drag = { x: e.clientX, y: e.clientY }; pose(); };
-    stage.onpointerup = stage.onpointercancel = () => (drag = null);
+    stage.onpointerup = stage.onpointercancel = () => { if (drag) keep(); drag = null; };
     const spinBtn = pageBox.querySelector<HTMLElement>("[data-spin]")!;
     spinBtn.onclick = () => { spin = !spin; spinBtn.classList.toggle("on", spin); if (spin) turn(); };
     const turn = () => { if (!spin || current !== s || !pageBox.isConnected) return; ry += 1.2; pose(); requestAnimationFrame(turn); };
-    pageBox.querySelector<HTMLElement>("[data-flip]")!.onclick = () => { flip = !flip; pose(); };
-    pageBox.querySelector<HTMLElement>("[data-reset]")!.onclick = () => { rx = -12; ry = 24; zoom = 1; flip = false; (pageBox.querySelector("[data-zoom]") as HTMLInputElement).value = "1"; pose(); };
+    pageBox.querySelector<HTMLElement>("[data-flip]")!.onclick = () => { flip = !flip; pose(); keep(); };
+    pageBox.querySelector<HTMLElement>("[data-reset]")!.onclick = () => { rx = -12; ry = 24; zoom = 1; flip = false; (pageBox.querySelector("[data-zoom]") as HTMLInputElement).value = "1"; pose(); keep(); };
     const zoomIn = pageBox.querySelector<HTMLInputElement>("[data-zoom]")!;
-    zoomIn.oninput = () => { const v = Number(zoomIn.value); if (Number.isFinite(v) && v > 0) { zoom = Math.max(0.3, Math.min(4, v)); pose(); } };
+    zoomIn.oninput = () => { const v = Number(zoomIn.value); if (Number.isFinite(v) && v > 0) { zoom = Math.max(0.3, Math.min(4, v)); pose(); keep(); } };
     for (const b of pageBox.querySelectorAll<HTMLElement>("[data-bg]")) b.onclick = () => {
       bg = b.dataset.bg as typeof bg;
       stage.className = `sp-stage bg-${bg}`;
       for (const x of pageBox.querySelectorAll<HTMLElement>("[data-bg]")) x.classList.toggle("on", x === b);
+      keep();
     };
     for (const b of pageBox.querySelectorAll<HTMLElement>("[data-pal16]")) b.onclick = () => {
       pal = Number(b.dataset.pal16);
@@ -312,6 +324,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
       const p = PALETTES[pal]!;
       pageBox.querySelectorAll<HTMLInputElement>("[data-c]").forEach((c, i) => (c.value = [p.red, p.blue, p.gold][i]!));
       drawBig();
+      keep();
     };
     // СВОИ ЦВЕТА — только у SVG: у колоды и нарисованного кодом краски вшиты в пекаря стола.
     const own3Box = pageBox.querySelector<HTMLElement>("[data-own3]")!, own3Said = pageBox.querySelector<HTMLElement>("[data-own3-said]")!;
@@ -322,9 +335,10 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
       svg = t;
       for (const c of inputs) c.disabled = !t;
       own3Said.textContent = t ? "Красятся три цвета рисунка: основной, второй, акцент." : "У этой картинки свои цвета не выбрать: она не SVG (колода, код или PNG) — только расцветки.";
+      if (own3) drawBig();
     });
-    for (const c of inputs) c.oninput = () => { own3 = [inputs[0]!.value, inputs[1]!.value, inputs[2]!.value]; drawBig(); };
-    own3Box.querySelector<HTMLElement>("[data-own3-off]")!.onclick = () => { own3 = null; drawBig(); };
+    for (const c of inputs) c.oninput = () => { own3 = [inputs[0]!.value, inputs[1]!.value, inputs[2]!.value]; drawBig(); keep(); };
+    own3Box.querySelector<HTMLElement>("[data-own3-off]")!.onclick = () => { own3 = null; drawBig(); keep(); };
     // Похожие
     const sim = similar(s), simBox = pageBox.querySelector<HTMLElement>("[data-similar]")!;
     const drawSimilar = () => {
@@ -369,12 +383,14 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     tgBack(false);
     drawGrid();
   }
-  addEventListener("popstate", (e) => {
-    const key = (e.state as { sprite?: string } | null)?.sprite;
+  /** Спрайт из адреса — открыть его страницу (или закрыть, если в адресе его нет). */
+  const follow = () => {
+    const key = route("sprite");
     const s = key ? [...mine(), ...built()].find((o) => o.key === key) : null;
-    if (s) openPage(s, false);
+    if (s) { if (current?.key !== s.key) openPage(s, false); }
     else if (current) closePage();
-  });
+  };
+  onRoute(follow);
   /** Кнопка «назад» Telegram — пока открыта страница спрайта. */
   const tgBtn = (globalThis as { Telegram?: { WebApp?: { BackButton?: { show(): void; hide(): void; onClick(f: () => void): void } } } }).Telegram?.WebApp?.BackButton;
   tgBtn?.onClick(() => history.back());
@@ -388,6 +404,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
   }
 
   drawGrid();
-  void refresh();
+  // Свои спрайты приходят со стола — открыть спрайт из адреса можно только после них.
+  void refresh().then(follow);
   return { refresh: () => void refresh() };
 }
