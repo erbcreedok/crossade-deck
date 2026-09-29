@@ -26,3 +26,9 @@ export function putDetail(one: Detail, at: DatabaseSync = db()): void {
 export function dropDetail(id: string, at: DatabaseSync = db()): boolean {
   return Number(at.prepare("DELETE FROM table_details WHERE id = ?").run(id).changes) > 0;
 }
+
+/** Имя уже у другой детали — без разницы в регистре, пробелах по краям и «ё». */
+export function nameTaken(name: string, except: string | null = null, at: DatabaseSync = db()): boolean {
+  const norm = (t: string) => t.trim().toLowerCase().replaceAll("ё", "е");
+  return allDetails(at).some((d) => d.id !== except && norm(d.name) === norm(name));
+}

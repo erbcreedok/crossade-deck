@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { cleanDetail, fillViews } from "../table/details.js";
 import { MIGRATIONS } from "./migrations.js";
-import { allDetails, dropDetail, oneDetail, putDetail } from "./tableDetailsRepo.js";
+import { allDetails, dropDetail, nameTaken, oneDetail, putDetail } from "./tableDetailsRepo.js";
 
 const fresh = () => {
   const d = new DatabaseSync(":memory:");
@@ -54,5 +54,13 @@ describe("детали хозяина", () => {
       right: { sprite: "333333333333", dx: 0, dy: 0, scale: 1 },
       left: { mirror: "right", dx: 0, dy: 0, scale: 1 },
     });
+  });
+
+  it("имя детали одно на деталь: занято — без разницы в регистре и «ё»; своё имя себе не мешает", () => {
+    const d = fresh();
+    putDetail({ id: "d1", name: "Ёж · голова", tags: [], width: 2.4, facing: "tilt", views: {}, at: 1 }, d);
+    expect(nameTaken(" еж · ГОЛОВА ", null, d)).toBe(true);
+    expect(nameTaken("Ёж · голова", "d1", d)).toBe(false);
+    expect(nameTaken("Ёж · тело", null, d)).toBe(false);
   });
 });

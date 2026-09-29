@@ -38,7 +38,7 @@ try {
   await p.click('[data-tab="details"]');
   await p.waitForSelector(".dt [data-detail]");
   const names = await p.locator(".dt [data-detail] b").allTextContents();
-  check("галерея деталей: встроенные на месте", names.includes("Король треф") && names.length >= 10, names.slice(0, 6));
+  check("галерея деталей: встроенные на месте — голова и тело карты различимы по имени, имён-двойников нет", names.includes("Король треф · голова") && names.includes("Король треф · тело") && new Set(names).size === names.length && names.length >= 10, names.filter((n, i) => names.indexOf(n) !== i));
   check("старая вкладка — «Подгонка», рядом", (await p.locator('[data-tab="parts"]').innerText()) === "Подгонка", null);
   check("полок по виду нет — одно поле поиска", (await p.locator(".dt [data-dk]").count()) === 0 && (await p.locator(".dt [data-dq]").count()) === 1, null);
   await p.fill(".dt [data-dq]", "ноги");
@@ -136,7 +136,7 @@ try {
   // ВСТРОЕННАЯ: только смотреть, копия
   await p.click("[data-dback]");
   await p.waitForSelector(".dt [data-detail]");
-  await p.fill(".dt [data-dq]", "Король треф");
+  await p.fill(".dt [data-dq]", "Король треф голова");
   await p.locator('.dt [data-detail="b:king:head"]').click();
   await p.waitForSelector("[data-detail-page] h2");
   await p.waitForSelector('[data-vw="back"] img', { timeout: 10_000 }).catch(() => {});
@@ -144,7 +144,13 @@ try {
   await p.click("[data-dcopy]");
   await p.waitForSelector("[data-detail-page] [data-dname]");
   const copy = (await mine()).find((d) => !before.has(d.id) && d.id !== made?.id);
-  check("«Сделать своей копией» — своя деталь с теми же картинками", copy?.name === "Король треф" && copy.views.front?.sprite === "b:king:head:front" && copy.views.back?.sprite === "b:king:head:back", copy);
+  check("«Сделать своей копией» — своя деталь с теми же картинками и своим именем («… 2»)", copy?.name === "Король треф · голова 2" && copy.views.front?.sprite === "b:king:head:front" && copy.views.back?.sprite === "b:king:head:back", copy);
+  // ИМЯ ЗАНЯТО — не сохранить
+  await p.fill("[data-dname]", "король треф · ГОЛОВА");
+  await p.click("[data-dsave]", { timeout: 3000 }).catch(() => {});
+  await p.waitForTimeout(300);
+  check("имя другой детали — не сохранить, и сказано почему", /уже у другой детали/.test(await p.textContent("[data-dact]")) && (await mine()).find((d) => d.id === copy?.id)?.name === "Король треф · голова 2", await p.textContent("[data-dact]"));
+  check("и сервер не пустит двойника", (await fetch(`${base}/table/admin/details`, { method: "POST", headers: { ...H, "content-type": "application/json" }, body: JSON.stringify({ name: "Король треф · голова 2" }) })).status === 409, null);
   // УДАЛИТЬ
   await p.click("[data-ddrop]");
   await p.waitForSelector(".dt [data-dgrid]");

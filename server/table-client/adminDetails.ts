@@ -171,9 +171,14 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
       if (drawn) views[v] = { sprite: `b:${p.id}:${drawn}`, dx: 0, dy: 0, scale: 1 };
       else if (p.mirror?.[v] && p.views.includes(p.mirror[v]!)) views[v] = { mirror: p.mirror[v] as DetailView, dx: 0, dy: 0, scale: 1 };
     }
-    return { key: `b:${p.id}`, own: false, detail: { id: p.id, name: partName(p.id), tags: [SLOT_TAG[p.slot] ?? p.slot], width: UNIT_WIDTH[p.slot] ?? DETAIL_WIDTH, facing: p.facing, views, at: 0 } };
+    return { key: `b:${p.id}`, own: false, detail: { id: p.id, name: `${partName(p.id)} · ${SLOT_TAG[p.slot] ?? p.slot}`, tags: [SLOT_TAG[p.slot] ?? p.slot], width: UNIT_WIDTH[p.slot] ?? DETAIL_WIDTH, facing: p.facing, views, at: 0 } };
   });
   const all = (): Shown[] => [...mine.map((d) => ({ key: d.id, own: true, detail: d })), ...builtIn()];
+  // ИМЯ — ОДНО НА ДЕТАЛЬ, среди своих и встроенных: иначе в фигурах не разобрать, какая «Дама бубен» где.
+  const norm = (t: string) => t.trim().toLowerCase().replaceAll("ё", "е");
+  const taken = (name: string, except: string | null = null) => all().some((x) => x.key !== except && norm(x.detail.name) === norm(name));
+  /** Свободное имя: как есть, а занято — с номером («… 2», «… 3»). */
+  const freeName = (base: string): string => { const b = base.trim().slice(0, 36); if (!taken(b)) return b; let k = 2; while (taken(`${b} ${k}`)) k += 1; return `${b} ${k}`; };
   const face = (d: Detail): { ref?: string; flip: boolean } => {
     for (const v of DETAIL_VIEWS) {
       const one = d.views[v];
@@ -205,7 +210,7 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
     const q = listBox.querySelector<HTMLInputElement>("[data-dq]")!;
     q.oninput = () => { put({ dq: q.value || null }); drawCells(); };
     const create = async (): Promise<Detail | null> => {
-      const res = await fetch(`${HOST}/table/admin/details`, { method: "POST", headers: json, body: JSON.stringify({ name: NEW_DETAIL, tags: [], width: DETAIL_WIDTH, facing: "tilt", views: {} }) }).catch(() => null);
+      const res = await fetch(`${HOST}/table/admin/details`, { method: "POST", headers: json, body: JSON.stringify({ name: freeName(NEW_DETAIL), tags: [], width: DETAIL_WIDTH, facing: "tilt", views: {} }) }).catch(() => null);
       if (!res?.ok) { said = `Не создалась (${res?.status ?? "нет связи"}).`; drawList(); return null; }
       const made = (await res.json()) as Detail;
       mine = [made, ...mine];
@@ -420,7 +425,11 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
       for (const b of pageBox.querySelectorAll<HTMLElement>("[data-dlayer]")) b.onclick = () => { const k = b.dataset.dlayer as keyof typeof layers; layers[k] = !layers[k]; b.classList.toggle("on", layers[k]); pose(); keep(); };
       const touched = () => { const b = pageBox.querySelector<HTMLButtonElement>("[data-dsave]"); if (b) b.disabled = !dirty(); pageBox.querySelector<HTMLElement>("[data-dact]")!.textContent = dirty() ? "Есть несохранённое." : ""; keep(); };
       const nameIn = pageBox.querySelector<HTMLInputElement>("[data-dname]");
-      if (nameIn) nameIn.oninput = () => { draft.name = nameIn.value; touched(); };
+      if (nameIn) nameIn.oninput = () => {
+        draft.name = nameIn.value;
+        touched();
+        if (taken(draft.name, s.key)) act.textContent = "Такое имя уже у другой детали.";
+      };
       if (s.own) {
         for (const b of pageBox.querySelectorAll<HTMLElement>("[data-facing]")) b.onclick = () => { draft.facing = b.dataset.facing as Facing; for (const x of pageBox.querySelectorAll("[data-facing]")) x.classList.toggle("on", x === b); pose(); touched(); };
         const wIn = pageBox.querySelector<HTMLInputElement>("[data-dwidth]")!;
@@ -430,8 +439,10 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
       }
       const act = pageBox.querySelector<HTMLElement>("[data-dact]")!;
       pageBox.querySelector<HTMLElement>("[data-dsave]")?.addEventListener("click", async () => {
+        if (!draft.name.trim()) { act.textContent = "Нужно имя."; return; }
+        if (taken(draft.name, s.key)) { act.textContent = `Имя «${draft.name.trim()}» уже у другой детали — дай другое.`; return; }
         const res = await fetch(`${HOST}/table/admin/details/${saved.id}`, { method: "PUT", headers: json, body: JSON.stringify(draft) }).catch(() => null);
-        if (!res?.ok) { act.textContent = `Не сохранилось (${res?.status ?? "нет связи"}).`; return; }
+        if (!res?.ok) { act.textContent = res?.status === 409 ? "Имя уже у другой детали — дай другое." : `Не сохранилось (${res?.status ?? "нет связи"}).`; return; }
         const next = (await res.json()) as Detail;
         mine = mine.map((d) => (d.id === next.id ? next : d));
         put({ dd: null });
@@ -439,7 +450,7 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
         pageBox.querySelector<HTMLElement>("[data-dact]")!.textContent = "Сохранено.";
       });
       pageBox.querySelector<HTMLElement>("[data-dcopy]")!.onclick = async () => {
-        const body = { ...draft, name: `${draft.name}${s.own ? " (копия)" : ""}`.slice(0, 40) };
+        const body = { ...draft, name: freeName(draft.name) };
         const res = await fetch(`${HOST}/table/admin/details`, { method: "POST", headers: json, body: JSON.stringify(body) }).catch(() => null);
         if (!res?.ok) { act.textContent = `Не сохранилось (${res?.status ?? "нет связи"}).`; return; }
         const made = (await res.json()) as Detail;

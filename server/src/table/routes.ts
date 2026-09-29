@@ -39,7 +39,7 @@ import { avatarsOf } from "../db/tableAvatarsRepo.js";
 import { cleanDoll, dollFor, ownParts } from "./dolls.js";
 import { addParts, cleanParts, partOf, partsFor } from "./skins.js";
 import { cleanDetail, fillViews, NEW_DETAIL, type Detail } from "./details.js";
-import { allDetails, dropDetail, oneDetail, putDetail } from "../db/tableDetailsRepo.js";
+import { allDetails, dropDetail, nameTaken, oneDetail, putDetail } from "../db/tableDetailsRepo.js";
 import { INKS, inkFor } from "../profileInks.js";
 import { verifyTelegramInitData, verifyTelegramLogin } from "../telegramAuth.js";
 
@@ -443,6 +443,7 @@ export function tableRoutes(): Router {
   r.post("/table/admin/details", owner, (req, res) => {
     const got = cleanDetail(req.body);
     if (!got) return void res.status(400).json({ error: "bad_detail" });
+    if (nameTaken(got.name)) return void res.status(409).json({ error: "name_taken" });
     const one: Detail = { id: randomBytes(6).toString("hex"), ...got, at: Date.now() };
     putDetail(one);
     res.json(one);
@@ -451,6 +452,7 @@ export function tableRoutes(): Router {
     if (!oneDetail(req.params.id)) return void res.status(404).json({ error: "not_found" });
     const got = cleanDetail(req.body);
     if (!got) return void res.status(400).json({ error: "bad_detail" });
+    if (nameTaken(got.name, req.params.id)) return void res.status(409).json({ error: "name_taken" });
     const one: Detail = { id: req.params.id, ...got, at: Date.now() };
     putDetail(one);
     res.json(one);
@@ -497,7 +499,7 @@ export function tableRoutes(): Router {
     // Заказ для детали — нарисованные стороны встают в её пустые ракурсы; пустая «Новая деталь» берёт имя заказа.
     const d = job.detail ? oneDetail(job.detail) : null;
     if (d) {
-      const fresh = Object.keys(d.views).length === 0 && d.name === NEW_DETAIL;
+      const fresh = Object.keys(d.views).length === 0 && d.name.startsWith(NEW_DETAIL) && !nameTaken(job.name ?? job.id, d.id);
       putDetail({ ...d, name: fresh ? job.name ?? job.id : d.name, views: fillViews(d.views, job.views.map((v, k) => [v, got.sprites[k]!] as const)), at: Date.now() });
     }
     res.json({ ...got, ...(d ? { detail: d.id } : {}) });
