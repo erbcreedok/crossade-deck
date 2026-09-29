@@ -9,7 +9,7 @@
 //   встроенные — уже нарисованное до библиотеки (колода, файлы, код), испечённое пекарем стола (`dollSprites.ts`);
 //                их не удалить и не переименовать — они живут в коде.
 //
-// Тап — крупно в трёх расцветках (перекрашиваются три цвета колоды: #b3221f, #1d4f80, #f2c14e).
+// Тап — страница спрайта: крутить, красить (расцветки и свои три цвета: #b3221f, #1d4f80, #f2c14e), похожие по тегам.
 
 import { PALETTES } from "../src/table/dolls.js";
 import { PARTS } from "../src/table/skins.js";
@@ -74,16 +74,31 @@ const CSS = `
 .sg-look label { display: block; font-size: 12.5px; color: var(--dim); margin-top: 10px; }
 .sg .cell.own { border-color: #3c4a3c; }
 .sg button:focus-visible, .sg input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-.sg-look { position: fixed; inset: 0; z-index: 20; background: rgba(5,8,7,.86); display: grid; place-items: center; padding: 16px; box-sizing: border-box; overflow: auto; }
-.sg-look .box { box-sizing: border-box; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; max-width: 640px; width: 100%; }
-.sg-look .big { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
-.sg-look .big img { width: 100%; aspect-ratio: 1; object-fit: contain; background: #0f1f18; border-radius: 10px; }
-.sg-look input { box-sizing: border-box; width: 100%; font: inherit; font-size: 15px; color: var(--ink); background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
-.sg-look .meta { font-size: 13px; color: var(--dim); margin: 6px 0 0; }
-.sg-look .acts { display: flex; gap: 8px; margin-top: 12px; }
-.sg-look .acts button { flex: 1; font: inherit; font-weight: 600; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: #22282a; color: var(--ink); cursor: pointer; }
-.sg-look .acts .save { background: var(--gold); color: #0b0704; border-color: var(--gold); }
-.sg-look .acts .drop { color: var(--hurt); }
+.sp-page h2 { font-size: 17px; margin: 0; }
+.sp-page h3 { font-size: 14px; color: var(--dim); font-weight: 500; margin: 16px 0 8px; }
+.sp-top { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.sp-top input, .sp-page input.wide { flex: 1; min-width: 0; box-sizing: border-box; font: inherit; font-size: 15px; color: var(--ink); background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+.sp-page input.wide { width: 100%; }
+.sp-stage { height: 300px; border: 1px solid var(--line); border-radius: 12px; display: grid; place-items: center; perspective: 700px; touch-action: none; cursor: grab; overflow: hidden; margin-bottom: 8px; }
+.sp-stage.bg-felt { background: radial-gradient(#1b4835, #0a2117); }
+.sp-stage.bg-light { background: #efe6d2; }
+.sp-stage.bg-check { background: repeating-conic-gradient(#8a8f8c 0 25%, #c8ccc9 0 50%) 0 0 / 20px 20px; }
+.sp-card { width: 220px; height: 220px; transform-style: preserve-3d; }
+.sp-card img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; }
+.sp-page .num { font-size: 13px; color: var(--dim); display: inline-flex; gap: 6px; align-items: center; }
+.sp-page .num input { width: 70px; font: inherit; color: var(--ink); background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 5px 7px; }
+.sp-pals { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; }
+.sp-pal { font: inherit; color: var(--dim); background: #0f1f18; border: 1px solid var(--line); border-radius: 10px; padding: 4px; cursor: pointer; display: flex; flex-direction: column; align-items: center; font-size: 11px; }
+.sp-pal img { width: 56px; height: 56px; object-fit: contain; }
+.sp-pal.on { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); color: var(--ink); }
+.sp-page .col { font-size: 12.5px; color: var(--dim); display: inline-flex; flex-direction: column; gap: 3px; align-items: center; }
+.sp-page .col input { width: 48px; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: none; padding: 2px; }
+.sp-page .pick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.sp-page .pick button { font: inherit; font-size: 12.5px; color: var(--ink); background: #22282a; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+.sp-page .pick button.on { background: var(--gold); color: #0b0704; border-color: var(--gold); font-weight: 600; }
+.sp-page .lbl { display: block; font-size: 12.5px; color: var(--dim); margin: 6px 0 4px; }
+.sp-page .drop { color: var(--hurt); }
+.sp-page button:focus-visible, .sp-page input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 `;
 
 const esc = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -122,7 +137,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     return text ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(recolor(text, k))}` : null;
   };
 
-  root.innerHTML = `<div class="sg">
+  root.innerHTML = `<div class="sg"><div data-list>
     <div class="bar"><input type="search" data-q placeholder="Поиск по имени и тегам" aria-label="Поиск"><button class="add" data-add>Загрузить</button><input type="file" data-file accept=".svg,image/svg+xml,image/png" multiple hidden></div>
     <div class="bar into" data-into></div>
     <div class="bar" data-kinds></div>
@@ -132,7 +147,7 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     <div class="said" data-said></div>
     <div class="count" data-count></div>
     <div class="grid" data-grid></div>
-  </div>`;
+  </div><div data-page hidden></div></div>`;
   const grid = root.querySelector<HTMLElement>("[data-grid]")!;
   const q = root.querySelector<HTMLInputElement>("[data-q]")!;
   q.oninput = () => { query = q.value.trim().toLowerCase(); drawGrid(); };
@@ -195,54 +210,175 @@ export function mountSpriteGallery(root: HTMLElement, auth: Record<string, strin
     grid.innerHTML = list.map((s) => {
       const src = srcOf(s, palette, later);
       return `<button class="cell${s.own ? " own" : ""}" data-sprite="${esc(s.key)}">${src ? `<img src="${esc(src)}" alt="">` : `<div class="wait">…</div>`}<b>${esc(s.name)}</b><i>${KIND_ONE[s.slot]}${s.side ? ` · ${SIDE_NAMES[s.side] ?? s.side}` : ""} · ${s.own ? ORIGIN_NAMES[s.own.origin] : "встроенный"}</i></button>`;
-    }).join("") || `<div class="said">Ничего не найдено.</div>`;
+    }).join("") || `<div class="said" style="grid-column:1/-1">Ничего не найдено.</div>`;
     const byKey = new Map(list.map((s) => [s.key, s]));
-    for (const b of grid.querySelectorAll<HTMLElement>("[data-sprite]")) b.onclick = () => look(byKey.get(b.dataset.sprite!)!);
+    for (const b of grid.querySelectorAll<HTMLElement>("[data-sprite]")) b.onclick = () => openPage(byKey.get(b.dataset.sprite!)!);
   }
 
-  /** Крупно: три расцветки; свою — переименовать и удалить. */
-  function look(s: Shown): void {
-    const layer = document.createElement("div");
-    layer.className = "sg-look";
-    layer.dataset.look = "";
-    const paint = () => {
-      const imgs = [0, 1, 5].map((k) => srcOf(s, k, paint));
-      layer.innerHTML = `<div class="box" role="dialog" aria-label="Спрайт">
-        ${s.own ? `<input data-name value="${esc(s.own.name)}" maxlength="40" aria-label="Имя">` : `<b>${esc(s.name)}</b>`}
-        <div class="big">${imgs.map((src) => (src ? `<img src="${esc(src)}" alt="">` : `<div class="wait">…</div>`)).join("")}</div>
-        ${s.own ? `<label>Для какой детали</label><div class="pick" data-pick-kind>${KINDS.map(([k]) => `<button data-v="${k}" class="${s.own!.slot === k ? "on" : ""}">${KIND_ONE[k]}</button>`).join("")}</div>
-        <label>Сторона</label><div class="pick" data-pick-side><button data-v="" class="${s.own.side ? "" : "on"}">без стороны</button>${SIDES.map((k) => `<button data-v="${k}" class="${s.own!.side === k ? "on" : ""}">${SIDE_NAMES[k]}</button>`).join("")}</div>
-        <label for="sg-tags">Теги, через запятую</label><input id="sg-tags" data-tags value="${esc(s.own.tags.join(", "))}" placeholder="Лис, звери">` : `<div class="meta">${KIND_ONE[s.slot]} · ${SIDE_NAMES[s.side ?? ""] ?? s.side ?? ""} · ${esc(s.tags.join(", "))}</div>`}
-        <div class="meta">${s.own ? `${s.own.ext.toUpperCase()} · ${ORIGIN_NAMES[s.own.origin]} · ${new Date(s.own.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : `встроенный — живёт в коде (${esc(s.built!.part)}), не удаляется`}</div>
-        <div class="acts">${s.own ? `<button class="drop" data-drop>Удалить</button><button class="save" data-save>Сохранить</button>` : ""}<button data-close>Закрыть</button></div></div>`;
-      layer.querySelector<HTMLElement>("[data-close]")!.onclick = () => layer.remove();
-      for (const box of layer.querySelectorAll<HTMLElement>(".pick")) for (const b of box.querySelectorAll<HTMLElement>("button")) b.onclick = () => { for (const x of box.querySelectorAll("button")) x.classList.toggle("on", x === b); };
-      const save = layer.querySelector<HTMLElement>("[data-save]");
-      if (save) save.onclick = async () => {
-        const name = layer.querySelector<HTMLInputElement>("[data-name]")!.value.trim();
-        const slot = layer.querySelector<HTMLElement>("[data-pick-kind] .on")?.dataset.v;
-        const sideNow = layer.querySelector<HTMLElement>("[data-pick-side] .on")?.dataset.v ?? "";
-        const tags = layer.querySelector<HTMLInputElement>("[data-tags]")!.value;
-        const res = await fetch(`${HOST}/table/admin/lib/${s.own!.id}`, { method: "PATCH", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ name, slot, side: sideNow, tags }) }).catch(() => null);
-        said = res?.ok ? "Сохранено." : "Не сохранилось.";
-        bad = !res?.ok;
-        layer.remove();
-        await refresh();
-      };
-      const drop = layer.querySelector<HTMLElement>("[data-drop]");
-      if (drop) drop.onclick = async () => {
-        if (!confirm(`Удалить «${s.own!.name}» из библиотеки?`)) return;
-        const res = await fetch(`${HOST}/table/admin/lib/${s.own!.id}`, { method: "DELETE", headers: auth }).catch(() => null);
-        said = res?.ok ? "Удалено." : "Не удалилось.";
-        bad = !res?.ok;
-        layer.remove();
-        await refresh();
-      };
+  // СТРАНИЦА СПРАЙТА — вместо галереи, «назад» (и кнопка Telegram, и браузера) возвращает к ней.
+  //   сцена: картинку крутят пальцем в объёме (как лист бумаги), отражают, приближают, ставят на разный фон;
+  //   краски: любая из шестнадцати расцветок или свои три цвета (у SVG, где цвета — в самом рисунке);
+  //   похожие: у кого общие теги (и та же деталь — выше), тап — их страница.
+  const listBox = root.querySelector<HTMLElement>("[data-list]")!, pageBox = root.querySelector<HTMLElement>("[data-page]")!;
+  let current: Shown | null = null;
+  const svgs = new Map<string, Promise<string | null>>();
+  /** Рисунок SVG текстом — если он есть: свой SVG или файл встроенной детали. Колоду и код печёт пекарь стола. */
+  const svgOf = (s: Shown): Promise<string | null> => {
+    const url = s.own ? (s.own.ext === "svg" ? `${HOST}/table/lib/${s.own.id}.svg` : null)
+      : (() => { const p = PARTS.find((x) => x.id === s.built!.part); return p?.art.kind === "file" ? `${HOST}/table/skins/${p.art.dir}/${s.built!.view}-${p.slot}.svg` : null; })();
+    if (!url) return Promise.resolve(null);
+    let got = svgs.get(url);
+    if (!got) svgs.set(url, (got = fetch(url).then((r) => (r.ok ? r.text() : null)).catch(() => null)));
+    return got;
+  };
+  const similar = (s: Shown): Shown[] => [...mine(), ...built()]
+    .filter((o) => o.key !== s.key)
+    .map((o) => ({ o, n: o.tags.filter((t) => s.tags.includes(t)).length * 2 + (o.slot === s.slot ? 1 : 0) }))
+    .filter((x) => x.n >= 2)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 24)
+    .map((x) => x.o);
+
+  function openPage(s: Shown, push = true): void {
+    current = s;
+    if (push) history.pushState({ sprite: s.key }, "");
+    listBox.hidden = true;
+    pageBox.hidden = false;
+    window.scrollTo(0, 0);
+    let pal = palette;
+    let own3: [string, string, string] | null = null;
+    let rx = -12, ry = 24, zoom = 1, flip = false, spin = false, bg: "felt" | "light" | "check" = "felt";
+    let svg: string | null = null;
+    const paintSrc = (): string | null => {
+      if (own3 && svg) return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/#b3221f/gi, own3[0]).replace(/#1d4f80/gi, own3[1]).replace(/#f2c14e/gi, own3[2]))}`;
+      return srcOf(s, pal, () => { if (current === s) drawBig(); });
     };
-    layer.onclick = (e) => { if (e.target === layer) layer.remove(); };
-    paint();
-    document.body.append(layer);
+    pageBox.innerHTML = `<div class="sp-page" data-sprite-page="${esc(s.key)}">
+      <div class="sp-top"><button class="chip" data-back>← Все спрайты</button>${s.own ? `<input data-name value="${esc(s.own.name)}" maxlength="40" aria-label="Имя">` : `<h2>${esc(s.name)}</h2>`}</div>
+      <div class="sp-stage bg-felt" data-stage3d><div class="sp-card" data-card><img data-big alt=""></div></div>
+      <div class="bar"><button class="chip" data-flip>Отразить</button><button class="chip" data-spin>Крутить само</button><button class="chip" data-reset>Сброс</button>
+        <label class="num">Масштаб <input type="number" data-zoom min="0.3" max="4" step="0.1" value="1"></label></div>
+      <div class="bar">${(["felt", "light", "check"] as const).map((k) => `<button class="chip${k === "felt" ? " on" : ""}" data-bg="${k}">${{ felt: "на сукне", light: "на светлом", check: "прозрачность" }[k]}</button>`).join("")}</div>
+      <h3>Расцветки</h3>
+      <div class="sp-pals" data-pals16>${PALETTES.map((p, k) => `<button class="sp-pal${k === pal ? " on" : ""}" data-pal16="${k}" title="${esc(p.name)}"><img alt=""><span>${esc(p.name)}</span></button>`).join("")}</div>
+      <h3>Свои цвета</h3>
+      <div class="bar" data-own3><label class="col">основной <input type="color" data-c="0" value="${PALETTES[pal]!.red}"></label><label class="col">второй <input type="color" data-c="1" value="${PALETTES[pal]!.blue}"></label><label class="col">акцент <input type="color" data-c="2" value="${PALETTES[pal]!.gold}"></label><button class="chip" data-own3-off>Как в расцветке</button></div>
+      <div class="said" data-own3-said></div>
+      <h3>Для чего</h3>
+      ${s.own ? `<div class="pick" data-pick-kind>${KINDS.map(([k]) => `<button data-v="${k}" class="${s.own!.slot === k ? "on" : ""}">${KIND_ONE[k]}</button>`).join("")}</div>
+      <div class="pick" data-pick-side><button data-v="" class="${s.own.side ? "" : "on"}">без стороны</button>${SIDES.map((k) => `<button data-v="${k}" class="${s.own!.side === k ? "on" : ""}">${SIDE_NAMES[k]}</button>`).join("")}</div>
+      <label class="lbl" for="sp-tags">Теги, через запятую</label><input id="sp-tags" class="wide" data-tags value="${esc(s.own.tags.join(", "))}" placeholder="Лис, звери">
+      <div class="said">${s.own.ext.toUpperCase()} · ${ORIGIN_NAMES[s.own.origin]} · ${new Date(s.own.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
+      <div class="bar"><button class="add" data-save>Сохранить</button><button class="chip drop" data-drop>Удалить</button></div>`
+      : `<div class="said">${KIND_ONE[s.slot]}${s.side ? ` · ${SIDE_NAMES[s.side] ?? s.side}` : ""} · теги: ${esc(s.tags.join(", "))}<br>встроенный — живёт в коде (${esc(s.built!.part)}), не удаляется</div>`}
+      <h3>Похожие</h3>
+      <div class="grid" data-similar></div>
+    </div>`;
+    const card = pageBox.querySelector<HTMLElement>("[data-card]")!, big = pageBox.querySelector<HTMLImageElement>("[data-big]")!, stage = pageBox.querySelector<HTMLElement>("[data-stage3d]")!;
+    const pose = () => {
+      card.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg) scale(${zoom}) scaleX(${flip ? -1 : 1})`;
+      stage.dataset.rx = String(Math.round(rx));
+      stage.dataset.ry = String(Math.round(ry));
+    };
+    function drawBig(): void {
+      const src = paintSrc();
+      if (src && big.getAttribute("src") !== src) big.src = src;
+      for (const b of pageBox.querySelectorAll<HTMLElement>("[data-pal16]")) {
+        const k = Number(b.dataset.pal16), img = b.querySelector("img")!, one = srcOf(s, k, () => { if (current === s) drawBig(); });
+        if (one && img.getAttribute("src") !== one) img.src = one;
+        b.classList.toggle("on", !own3 && k === pal);
+      }
+    }
+    // Крутить пальцем: вбок — вокруг вертикали, вверх-вниз — наклон.
+    let drag: { x: number; y: number } | null = null;
+    stage.onpointerdown = (e) => { drag = { x: e.clientX, y: e.clientY }; stage.setPointerCapture(e.pointerId); spin = false; spinBtn.classList.remove("on"); };
+    stage.onpointermove = (e) => { if (!drag) return; ry += (e.clientX - drag.x) * 0.8; rx = Math.max(-80, Math.min(80, rx - (e.clientY - drag.y) * 0.6)); drag = { x: e.clientX, y: e.clientY }; pose(); };
+    stage.onpointerup = stage.onpointercancel = () => (drag = null);
+    const spinBtn = pageBox.querySelector<HTMLElement>("[data-spin]")!;
+    spinBtn.onclick = () => { spin = !spin; spinBtn.classList.toggle("on", spin); if (spin) turn(); };
+    const turn = () => { if (!spin || current !== s || !pageBox.isConnected) return; ry += 1.2; pose(); requestAnimationFrame(turn); };
+    pageBox.querySelector<HTMLElement>("[data-flip]")!.onclick = () => { flip = !flip; pose(); };
+    pageBox.querySelector<HTMLElement>("[data-reset]")!.onclick = () => { rx = -12; ry = 24; zoom = 1; flip = false; (pageBox.querySelector("[data-zoom]") as HTMLInputElement).value = "1"; pose(); };
+    const zoomIn = pageBox.querySelector<HTMLInputElement>("[data-zoom]")!;
+    zoomIn.oninput = () => { const v = Number(zoomIn.value); if (Number.isFinite(v) && v > 0) { zoom = Math.max(0.3, Math.min(4, v)); pose(); } };
+    for (const b of pageBox.querySelectorAll<HTMLElement>("[data-bg]")) b.onclick = () => {
+      bg = b.dataset.bg as typeof bg;
+      stage.className = `sp-stage bg-${bg}`;
+      for (const x of pageBox.querySelectorAll<HTMLElement>("[data-bg]")) x.classList.toggle("on", x === b);
+    };
+    for (const b of pageBox.querySelectorAll<HTMLElement>("[data-pal16]")) b.onclick = () => {
+      pal = Number(b.dataset.pal16);
+      own3 = null;
+      const p = PALETTES[pal]!;
+      pageBox.querySelectorAll<HTMLInputElement>("[data-c]").forEach((c, i) => (c.value = [p.red, p.blue, p.gold][i]!));
+      drawBig();
+    };
+    // СВОИ ЦВЕТА — только у SVG: у колоды и нарисованного кодом краски вшиты в пекаря стола.
+    const own3Box = pageBox.querySelector<HTMLElement>("[data-own3]")!, own3Said = pageBox.querySelector<HTMLElement>("[data-own3-said]")!;
+    const inputs = [...pageBox.querySelectorAll<HTMLInputElement>("[data-c]")];
+    for (const c of inputs) c.disabled = true;
+    own3Said.textContent = "Смотрю рисунок…";
+    void svgOf(s).then((t) => {
+      svg = t;
+      for (const c of inputs) c.disabled = !t;
+      own3Said.textContent = t ? "Красятся три цвета рисунка: основной, второй, акцент." : "У этой картинки свои цвета не выбрать: она не SVG (колода, код или PNG) — только расцветки.";
+    });
+    for (const c of inputs) c.oninput = () => { own3 = [inputs[0]!.value, inputs[1]!.value, inputs[2]!.value]; drawBig(); };
+    own3Box.querySelector<HTMLElement>("[data-own3-off]")!.onclick = () => { own3 = null; drawBig(); };
+    // Похожие
+    const sim = similar(s), simBox = pageBox.querySelector<HTMLElement>("[data-similar]")!;
+    const drawSimilar = () => {
+      simBox.innerHTML = sim.map((o) => { const src = srcOf(o, pal, drawSimilar); return `<button class="cell${o.own ? " own" : ""}" data-sim="${esc(o.key)}">${src ? `<img src="${esc(src)}" alt="">` : `<div class="wait">…</div>`}<b>${esc(o.name)}</b><i>${KIND_ONE[o.slot]}${o.side ? ` · ${SIDE_NAMES[o.side] ?? o.side}` : ""}</i></button>`; }).join("") || `<div class="said" style="grid-column:1/-1">Похожих по тегам нет.</div>`;
+      for (const b of simBox.querySelectorAll<HTMLElement>("[data-sim]")) b.onclick = () => openPage(sim.find((o) => o.key === b.dataset.sim)!);
+    };
+    drawSimilar();
+    // Своё — править и удалить
+    for (const box of pageBox.querySelectorAll<HTMLElement>(".pick")) for (const b of box.querySelectorAll<HTMLElement>("button")) b.onclick = () => { for (const x of box.querySelectorAll("button")) x.classList.toggle("on", x === b); };
+    const save = pageBox.querySelector<HTMLElement>("[data-save]");
+    if (save) save.onclick = async () => {
+      const name = pageBox.querySelector<HTMLInputElement>("[data-name]")!.value.trim();
+      const slot = pageBox.querySelector<HTMLElement>("[data-pick-kind] .on")?.dataset.v;
+      const sideNow = pageBox.querySelector<HTMLElement>("[data-pick-side] .on")?.dataset.v ?? "";
+      const tags = pageBox.querySelector<HTMLInputElement>("[data-tags]")!.value;
+      const res = await fetch(`${HOST}/table/admin/lib/${s.own!.id}`, { method: "PATCH", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ name, slot, side: sideNow, tags }) }).catch(() => null);
+      said = res?.ok ? "Сохранено." : "Не сохранилось.";
+      bad = !res?.ok;
+      await refresh();
+      if (res?.ok) { const again = mine().find((o) => o.own!.id === s.own!.id); if (again) openPage(again, false); }
+    };
+    const drop = pageBox.querySelector<HTMLElement>("[data-drop]");
+    if (drop) drop.onclick = async () => {
+      if (!confirm(`Удалить «${s.own!.name}» из библиотеки?`)) return;
+      const res = await fetch(`${HOST}/table/admin/lib/${s.own!.id}`, { method: "DELETE", headers: auth }).catch(() => null);
+      said = res?.ok ? "Удалено." : "Не удалилось.";
+      bad = !res?.ok;
+      history.back();
+      await refresh();
+    };
+    pageBox.querySelector<HTMLElement>("[data-back]")!.onclick = () => history.back();
+    pose();
+    drawBig();
+    tgBack(true);
   }
+
+  function closePage(): void {
+    current = null;
+    pageBox.hidden = true;
+    pageBox.innerHTML = "";
+    listBox.hidden = false;
+    tgBack(false);
+    drawGrid();
+  }
+  addEventListener("popstate", (e) => {
+    const key = (e.state as { sprite?: string } | null)?.sprite;
+    const s = key ? [...mine(), ...built()].find((o) => o.key === key) : null;
+    if (s) openPage(s, false);
+    else if (current) closePage();
+  });
+  /** Кнопка «назад» Telegram — пока открыта страница спрайта. */
+  const tgBtn = (globalThis as { Telegram?: { WebApp?: { BackButton?: { show(): void; hide(): void; onClick(f: () => void): void } } } }).Telegram?.WebApp?.BackButton;
+  tgBtn?.onClick(() => history.back());
+  const tgBack = (on: boolean) => (on ? tgBtn?.show() : tgBtn?.hide());
 
   async function refresh(): Promise<void> {
     const res = await fetch(`${HOST}/table/admin/lib`, { headers: auth }).catch(() => null);
