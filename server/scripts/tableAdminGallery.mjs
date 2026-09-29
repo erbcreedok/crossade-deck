@@ -57,16 +57,25 @@ try {
   const pngs = await p.locator(".sg .cell i.fmt").allTextContents();
   check("«формат:png» — только PNG, и они не красятся", pngs.length > 0 && pngs.every((t) => t === "PNG · не красится"), pngs);
   await clear();
-  // подсказки: ключ → значения со счётчиками; тап — условие
-  await p.click("[data-q]");
-  await p.fill("[data-q]", "крас");
-  check("подсказка ключа по началу слова", (await p.locator("[data-sug]").allTextContents()).includes("красится:"), await p.locator("[data-sug]").allTextContents());
-  await p.fill("[data-q]", "красится:");
-  const sugNo = p.locator("[data-sug]", { hasText: "нет" });
-  const sugN = Number(await sugNo.locator("small").innerText());
-  await sugNo.dispatchEvent("mousedown");
+  // ВЫПАДАШКИ: кнопка на ключ, внутри — все значения галочками со счётчиками
+  check("кнопки всех ключей на виду", (await p.locator("[data-drop]").allTextContents()).map((t) => t.replace(" ▾", "")).join() === "Деталь,Сторона,Формат,Откуда,Красится,Тег", await p.locator("[data-drop]").allTextContents());
+  await p.click('[data-drop="gc"]');
+  const rows = await p.locator("[data-dmenu] .drow span").allTextContents();
+  const inScreen = await p.evaluate(() => { const r = document.querySelector("[data-dmenu]").getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; });
+  check("меню выпадашки целиком в экране телефона", inScreen, await p.evaluate(() => document.querySelector("[data-dmenu]").getBoundingClientRect().toJSON()));
+  check("в выпадашке — все значения, угадывать нечего", rows.join() === "да,нет", rows);
+  const noRow = p.locator("[data-dmenu] .drow", { hasText: "нет" });
+  const sugN = Number(await noRow.locator("small").innerText());
+  await noRow.locator("input").check();
   await p.waitForTimeout(150);
-  check("подсказка значения: счётчик = сколько покажет, тап — условие", sugN > 0 && sugN === (await p.locator(".sg .cell").count()) && (await p.locator('[data-chip="gc"]').count()) === 1, sugN);
+  check("галочка — условие: счётчик = сколько покажет, кнопка и чип говорят, что выбрано", sugN > 0 && sugN === (await p.locator(".sg .cell").count()) && (await p.locator('[data-chip="gc"]').count()) === 1 && /Красится: нет/.test(await p.locator('[data-drop="gc"]').innerText()) && (await p.locator("[data-dmenu]").count()) === 1, sugN);
+  await p.click('[data-drop="gt"]');
+  await p.fill("[data-dfind]", "корол");
+  const kingsTags = await p.locator("[data-dmenu] .drow span").allTextContents();
+  check("у тегов — поиск внутри выпадашки", kingsTags.length >= 4 && kingsTags.every((t) => /король/i.test(t)), kingsTags);
+  await p.click("h1, .count", { force: true }).catch(() => {});
+  await p.locator(".count").click();
+  check("тап мимо — выпадашка закрыта", (await p.locator("[data-dmenu]").count()) === 0, null);
   await clear();
   await filt("деталь:голова сторона:лицо");
   check("загрузка ляжет туда, что выбрано", /голова · лицо/.test(await p.textContent("[data-into]")), await p.textContent("[data-into]"));
