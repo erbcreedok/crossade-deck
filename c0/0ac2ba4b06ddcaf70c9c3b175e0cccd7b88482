@@ -1,0 +1,33 @@
+server/scripts/tableAdminGallery.mjs
+  s_12c15dae591e76::t_379f2783179b53 89-90
+  s_12c15dae591e76::t_3c18ad32faa1f9 78-88,112-119
+server/src/table/routes.ts
+  s_12c15dae591e76::t_f7a5fd32b113f6 443-444
+  s_12c15dae591e76::t_1619404277477a 29,423-429
+  s_12c15dae591e76::t_39458c73dcd805 430
+server/src/db/tableSpritesRepo.ts
+  s_12c15dae591e76::t_1619404277477a 51-55
+server/table-client/adminSprites.ts
+  s_12c15dae591e76::t_d0eb7dbf61d7ce 425
+  s_12c15dae591e76::t_3c18ad32faa1f9 124-125,135,139,235,428
+  s_12c15dae591e76::t_ecd51b1086a96f 271-274,288,377-424,426-427,429-435
+server/src/table/spriteLib.ts
+  s_12c15dae591e76::t_1619404277477a 11,63-72
+  s_12c15dae591e76::t_2c6e585e14a1b1 73-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c00ac2ba4b06ddcaf70c9c3b175e0cccd7b88482",
+  "prompts": {},
+  "sessions": {
+    "s_12c15dae591e76": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0fe1da9a-8ecb-4b09-99b9-1b4963d888e6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
