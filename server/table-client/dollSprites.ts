@@ -84,38 +84,76 @@ const decode = async (src: string): Promise<HTMLImageElement> => {
 
 const recolor = (svg: string, pal: Palette): string => svg.replace(/#b3221f/gi, pal.red).replace(/#1d4f80/gi, pal.blue).replace(/#f2c14e/gi, pal.gold);
 
+/** Щели в контуре уже этого (в точках холста) бумага не проходит: иначе она затекает внутрь лица и оно прозрачное. */
+const SEAL = 7;
+
+/** Маска `m` (ширина `W`), сжатая (`grow = false`) или расширенная на `r` точек квадратом — по строкам, потом по столбцам. */
+function morph(m: Uint8Array, W: number, H: number, r: number, grow: boolean): Uint8Array {
+  const t = new Uint8Array(m.length), out = new Uint8Array(m.length);
+  const pass = (from: Uint8Array, to: Uint8Array, along: 1 | typeof W, len: number) => {
+    for (let i = 0; i < m.length; i += 1) {
+      const at = along === 1 ? i % W : (i - (i % W)) / W;
+      let hit = !grow;
+      for (let k = -r; k <= r && hit === !grow; k += 1) {
+        const q = at + k;
+        if (q >= 0 && q < len && (from[i + k * along] === 1) === grow) hit = grow;
+      }
+      to[i] = hit ? 1 : 0;
+    }
+  };
+  pass(m, t, 1, W);
+  pass(t, out, W, H);
+  return out;
+}
+
+/**
+ * Бумага снаружи фигуры — прозрачная. Заливка от краёв ВСЕЙ карты (у куска край режет фигуру) и только сквозь
+ * проходы шире `SEAL`: лицо и прочее белое внутри — это та же бумага, отделённая от поля тонкими щелями контура.
+ */
+function clearPaper(g: CanvasRenderingContext2D, W: number, H: number): void {
+  const d = g.getImageData(0, 0, W, H), px = d.data, N = W * H;
+  const paper = new Uint8Array(N);
+  for (let i = 0; i < N; i += 1) paper[i] = Math.abs(px[i * 4]! - 0xf7) + Math.abs(px[i * 4 + 1]! - 0xf1) + Math.abs(px[i * 4 + 2]! - 0xe6) < 60 && px[i * 4 + 3]! > 0 ? 1 : 0;
+  const open = morph(paper, W, H, SEAL, false), field = new Uint8Array(N), stack: number[] = [];
+  for (let i = 0; i < W; i += 1) stack.push(i, (H - 1) * W + i);
+  for (let j = 0; j < H; j += 1) stack.push(j * W, j * W + W - 1);
+  while (stack.length) {
+    const p = stack.pop()!;
+    if (field[p] || !open[p]) continue;
+    field[p] = 1;
+    const x0 = p % W;
+    if (x0 > 0) stack.push(p - 1);
+    if (x0 < W - 1) stack.push(p + 1);
+    if (p >= W) stack.push(p - W);
+    if (p < N - W) stack.push(p + W);
+  }
+  const gone = morph(field, W, H, SEAL + 1, true);
+  for (let i = 0; i < N; i += 1) if (gone[i] && paper[i]) px[i * 4 + 3] = 0;
+  g.putImageData(d, 0, 0);
+}
+
 /** Кусок `box` рисунка на холсте; `paper` — бумага снаружи силуэта становится прозрачной; `extend` — пустое место ниже. */
 async function cut(svg: string, box: [number, number, number, number] | null, red: string, opts: { extend?: number; oval?: boolean; paper?: boolean } = {}): Promise<HTMLCanvasElement> {
   const vb = /viewBox="([\d.\s-]+)"/.exec(svg)![1]!.trim().split(/\s+/).map(Number) as [number, number, number, number];
   // Свой размер у корня рисунка снимается: второй `width` сделал бы SVG невалидным, и он бы не испёкся.
   const full = svg.replace(/<svg\b[^>]*>/, (root) => root.replace(/\s(width|height|color)="[^"]*"/g, "").replace("<svg", `<svg width="${vb[2] * K}" height="${vb[3] * K}" color="${red}"`));
   const img = await decode("data:image/svg+xml;charset=utf-8," + encodeURIComponent(full));
+  let from: CanvasImageSource = img;
+  if (opts.paper) {
+    const sheet = document.createElement("canvas");
+    sheet.width = Math.round(vb[2] * K); sheet.height = Math.round(vb[3] * K);
+    const sg = sheet.getContext("2d", { willReadFrequently: true })!;
+    sg.fillStyle = PAPER; sg.fillRect(0, 0, sheet.width, sheet.height);
+    sg.drawImage(img, 0, 0);
+    clearPaper(sg, sheet.width, sheet.height);
+    from = sheet;
+  }
   const [x, y, w, h] = box ?? vb;
   const W = Math.round(w * K), H = Math.round(h * K);
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
-  const g = c.getContext("2d", { willReadFrequently: true })!;
-  if (opts.paper) { g.fillStyle = PAPER; g.fillRect(0, 0, W, H); }
-  g.drawImage(img, -(x - vb[0]) * K, -(y - vb[1]) * K);
-  if (opts.paper) {
-    // Бумага снаружи силуэта — прозрачная: заливка от краёв по цвету бумаги.
-    const d = g.getImageData(0, 0, W, H), px = d.data;
-    const paperAt = (i: number) => Math.abs(px[i]! - 0xf7) + Math.abs(px[i + 1]! - 0xf1) + Math.abs(px[i + 2]! - 0xe6) < 60 && px[i + 3]! > 0;
-    const stack: number[] = [];
-    for (let i = 0; i < W; i += 1) stack.push(i, (H - 1) * W + i);
-    for (let j = 0; j < H; j += 1) stack.push(j * W, j * W + W - 1);
-    while (stack.length) {
-      const p = stack.pop()!, i = p * 4;
-      if (!paperAt(i)) continue;
-      px[i + 3] = 0;
-      const x0 = p % W, y0 = (p - x0) / W;
-      if (x0 > 0) stack.push(p - 1);
-      if (x0 < W - 1) stack.push(p + 1);
-      if (y0 > 0) stack.push(p - W);
-      if (y0 < H - 1) stack.push(p + W);
-    }
-    g.putImageData(d, 0, 0);
-  }
+  const g = c.getContext("2d")!;
+  g.drawImage(from, -(x - vb[0]) * K, -(y - vb[1]) * K);
   if (opts.oval) {
     // Голова дамы срезана краем карты и перечёркнута лентой — овал оставляет лицо и волосы.
     g.globalCompositeOperation = "destination-in";

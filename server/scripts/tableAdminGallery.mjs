@@ -59,6 +59,25 @@ try {
   const pngs = await p.locator(".sg .cell i.fmt").allTextContents();
   check("«формат:png» — только PNG, и они не красятся", pngs.length > 0 && pngs.every((t) => t === "PNG · не красится"), pngs);
   await clear();
+  // ЛИЦА КОЛОДЫ: бумага вокруг фигуры прозрачная, а лицо — нет (бумага не протекает внутрь сквозь щели контура)
+  await filt("откуда:колода деталь:голова сторона:лицо");
+  await p.waitForFunction(() => document.querySelectorAll(".sg .cell img").length === 12, null, { timeout: 15000 }).catch(() => {});
+  const holes = await p.locator(".sg .cell").evaluateAll(async (cells) => Promise.all(cells.map(async (c) => {
+    const img = c.querySelector("img");
+    if (!img) return [c.querySelector("b").textContent, 1];
+    await img.decode();
+    const cv = document.createElement("canvas");
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    const g = cv.getContext("2d");
+    g.drawImage(img, 0, 0);
+    const [x, y, w, h] = [cv.width * 0.3, cv.height * 0.3, cv.width * 0.4, cv.height * 0.35].map(Math.round);
+    const d = g.getImageData(x, y, w, h).data;
+    let clear = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] < 128) clear += 1;
+    return [c.querySelector("b").textContent, Math.round((clear / (w * h)) * 1000) / 1000];
+  })));
+  check("лица колоды целые: посреди лица нет дыр насквозь", holes.length === 12 && holes.every(([, f]) => f < 0.01), holes.filter(([, f]) => f >= 0.01));
+  await clear();
   // ОДНО ПОЛЕ: в фокусе — все варианты по группам со счётчиками; набранное сужает и сразу ищет по всему
   await p.click("[data-q]");
   const heads = await p.locator("[data-qlist] .qh").allTextContents();
