@@ -38,6 +38,8 @@ import { faceOf, type Face } from "./avatars.js";
 import { avatarsOf } from "../db/tableAvatarsRepo.js";
 import { cleanDoll, dollFor, ownParts } from "./dolls.js";
 import { addParts, cleanParts, partOf, partsFor } from "./skins.js";
+import { cleanDetail, type Detail } from "./details.js";
+import { allDetails, dropDetail, oneDetail, putDetail } from "../db/tableDetailsRepo.js";
 import { INKS, inkFor } from "../profileInks.js";
 import { verifyTelegramInitData, verifyTelegramLogin } from "../telegramAuth.js";
 
@@ -432,6 +434,29 @@ export function tableRoutes(): Router {
     const one = libSprite(req.params.id);
     if (!one) return void res.status(404).json({ error: "not_found" });
     await dropSprite(one);
+    res.json({ ok: true });
+  });
+  // ДЕТАЛИ (`details.ts`) — собранные хозяином из картинок библиотеки. Пока их видит только страница хозяина.
+  r.get("/table/admin/details", owner, (_req, res) => {
+    res.json({ details: allDetails() });
+  });
+  r.post("/table/admin/details", owner, (req, res) => {
+    const got = cleanDetail(req.body);
+    if (!got) return void res.status(400).json({ error: "bad_detail" });
+    const one: Detail = { id: randomBytes(6).toString("hex"), ...got, at: Date.now() };
+    putDetail(one);
+    res.json(one);
+  });
+  r.put("/table/admin/details/:id", owner, (req, res) => {
+    if (!oneDetail(req.params.id)) return void res.status(404).json({ error: "not_found" });
+    const got = cleanDetail(req.body);
+    if (!got) return void res.status(400).json({ error: "bad_detail" });
+    const one: Detail = { id: req.params.id, ...got, at: Date.now() };
+    putDetail(one);
+    res.json(one);
+  });
+  r.delete("/table/admin/details/:id", owner, (req, res) => {
+    if (!dropDetail(req.params.id)) return void res.status(404).json({ error: "not_found" });
     res.json({ ok: true });
   });
   r.get("/table/lib/:file", (req, res) => {

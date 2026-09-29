@@ -486,4 +486,20 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 28,
+    up(db) {
+      // ДЕТАЛИ ХОЗЯИНА — собранные из картинок библиотеки: ракурсы, их сдвиги и величины (`details.ts`).
+      db.exec(`
+        CREATE TABLE table_details (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          slot TEXT NOT NULL,
+          facing TEXT NOT NULL,
+          views TEXT NOT NULL,
+          at INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];

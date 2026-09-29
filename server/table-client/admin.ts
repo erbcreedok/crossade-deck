@@ -14,6 +14,7 @@ import { mountSkinStage, type SkinStage } from "./skinStage.js";
 import { mountTableStage, type TableStage } from "./tableStage.js";
 import { pullTunes } from "./tunesNet.js";
 import { mountSpriteGallery } from "./adminSprites.js";
+import { mountDetails } from "./adminDetails.js";
 import { onRoute, put, route, routeNum, routeOne } from "./adminRoute.js";
 
 type TelegramApp = { initData?: string; ready?: () => void; expand?: () => void };
@@ -24,7 +25,7 @@ const auth: Record<string, string> = tg?.initData ? { "x-telegram-init-data": tg
 const esc = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 // ВКЛАДКИ — и подвкладки «Спрайтов»: все картинки или заказ новых у agy. Какая открыта — в адресе (`adminRoute.ts`).
-const TABS = [["tab", "pane", ["sprites", "parts", "rooms"]], ["sub", "subpane", ["gallery", "agy"]]] as const;
+const TABS = [["tab", "pane", ["sprites", "details", "parts", "rooms"]], ["sub", "subpane", ["gallery", "agy"]]] as const;
 const showTabs = () => {
   for (const [btn, pane, all] of TABS) {
     const on = routeOne(btn, all, all[0]);
@@ -32,7 +33,12 @@ const showTabs = () => {
     for (const p of document.querySelectorAll<HTMLElement>(`[data-${pane}]`)) p.hidden = p.dataset[pane] !== on;
   }
 };
-for (const [btn] of TABS) for (const b of document.querySelectorAll<HTMLButtonElement>(`[data-${btn}]`)) b.onclick = () => { put({ [btn]: b.dataset[btn] }); showTabs(); };
+for (const [btn] of TABS) for (const b of document.querySelectorAll<HTMLButtonElement>(`[data-${btn}]`)) b.onclick = () => {
+  put({ [btn]: b.dataset[btn] });
+  showTabs();
+  // Библиотека могла пополниться, пока были в «Спрайтах», — деталям свежий список картинок.
+  if (b.dataset[btn] === "details") void details.refresh();
+};
 showTabs();
 onRoute(showTabs);
 
@@ -209,6 +215,7 @@ const tabs = document.querySelector<HTMLElement>("[data-tabs]");
 if (tabs) new ResizeObserver(() => document.documentElement.style.setProperty("--tabs-h", `${tabs.offsetHeight}px`)).observe(tabs);
 partsTab(document.querySelector<HTMLElement>('[data-pane="parts"]')!);
 const gallery = mountSpriteGallery(document.querySelector<HTMLElement>('[data-subpane="gallery"]')!, auth);
+const details = mountDetails(document.querySelector<HTMLElement>('[data-pane="details"]')!, auth);
 
 // ВКЛАДКА «agy» — заказы спрайтов (`spriteJobs.ts`): форма, как у `/sprite` в чате, и список заказов с ходом работы,
 // листом и кнопками «В каталог», «Другую», «По ней — ещё часть», «Удалить».
