@@ -26,8 +26,8 @@ import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
 import { allTunes, extraParts, putTune } from "../db/tableTunesRepo.js";
 import { acceptJob, cleanAsk, dropJob, keepPhoto, likeDirs, listJobs, oneJob, sheetOf, startJob } from "./spriteJobs.js";
-import { cleanName, dropSprite, keepSprite, libFile, LIB_MAX_BYTES } from "./spriteLib.js";
-import { libSprite, libSprites, renameLibSprite } from "../db/tableSpritesRepo.js";
+import { cleanMeta, cleanName, dropSprite, keepSprite, libFile, LIB_MAX_BYTES } from "./spriteLib.js";
+import { editLibSprite, libSprite, libSprites } from "../db/tableSpritesRepo.js";
 import { cleanTune } from "./tunes.js";
 import { myRooms } from "./mine.js";
 import { carryTableProfile, saveTableProfile, tableProfile } from "../db/tableProfilesRepo.js";
@@ -409,14 +409,15 @@ export function tableRoutes(): Router {
   r.post("/table/admin/lib", owner, express.raw({ type: ["image/svg+xml", "image/png", "application/octet-stream"], limit: LIB_MAX_BYTES }), async (req, res) => {
     const name = cleanName(req.query.name);
     if (!Buffer.isBuffer(req.body) || !name) return void res.status(400).json({ error: "no_image_or_name" });
-    const got = await keepSprite(req.body, name, "upload");
+    const got = await keepSprite(req.body, name, "upload", cleanMeta({ slot: req.query.slot, side: req.query.side, tags: req.query.tags }));
     if ("error" in got) return void res.status(400).json(got);
     res.json(got);
   });
   r.patch("/table/admin/lib/:id", owner, (req, res) => {
-    const name = cleanName((req.body as { name?: unknown } | undefined)?.name);
-    if (!name) return void res.status(400).json({ error: "no_name" });
-    if (!renameLibSprite(req.params.id, name)) return void res.status(404).json({ error: "not_found" });
+    const body = (req.body ?? {}) as { name?: unknown; slot?: unknown; side?: unknown; tags?: unknown };
+    const name = body.name === undefined ? undefined : cleanName(body.name);
+    if (name === null) return void res.status(400).json({ error: "no_name" });
+    if (!editLibSprite(req.params.id, { ...(name ? { name } : {}), ...cleanMeta(body) })) return void res.status(404).json({ error: "not_found" });
     res.json(libSprite(req.params.id));
   });
   r.delete("/table/admin/lib/:id", owner, async (req, res) => {

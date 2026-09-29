@@ -172,7 +172,7 @@ export async function acceptJob(job: JobView, now = Date.now()): Promise<{ sprit
   if (job.lib?.length) return { error: "already" };
   const ids: string[] = [];
   for (const v of job.views) {
-    const got = await keepSprite(await readFile(join(DRAWN, job.id, `${v}-${job.slot}.svg`)), `${job.name ?? job.id} · ${SIDE_NAMES[v] ?? v}`, "agy", now);
+    const got = await keepSprite(await readFile(join(DRAWN, job.id, `${v}-${job.slot}.svg`)), `${job.name ?? job.id} · ${SIDE_NAMES[v] ?? v}`, "agy", { slot: job.slot, side: v, tags: [job.name ?? job.id] }, now);
     if ("error" in got) return got;
     ids.push(got.id);
   }

@@ -8,7 +8,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { addLibSprite, dropLibSprite, type LibSprite } from "../db/tableSpritesRepo.js";
+import { addLibSprite, dropLibSprite, SPRITE_SIDES, SPRITE_SLOTS, type LibSprite, type SpriteSlot } from "../db/tableSpritesRepo.js";
 
 const SERVER = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const LIB = process.env.TABLE_SPRITE_LIB ?? join(SERVER, "data", "sprite-lib");
@@ -33,11 +33,27 @@ export function kindOf(bytes: Buffer): { ext: "svg" | "png" } | { error: string 
 
 export const cleanName = (raw: unknown): string | null => (typeof raw === "string" && raw.trim() ? raw.trim().slice(0, NAME_MAX) : null);
 
+/** Для чего картинка — из сети: деталь из списка, сторона из списка, теги — до десяти коротких, без повторов. */
+export interface SpriteMeta {
+  slot: SpriteSlot;
+  side: string | null;
+  tags: string[];
+}
+export function cleanMeta(raw: { slot?: unknown; side?: unknown; tags?: unknown }): Partial<SpriteMeta> {
+  const out: Partial<SpriteMeta> = {};
+  if (SPRITE_SLOTS.includes(raw.slot as SpriteSlot)) out.slot = raw.slot as SpriteSlot;
+  if (raw.side === null || raw.side === "") out.side = null;
+  else if ((SPRITE_SIDES as readonly string[]).includes(raw.side as string)) out.side = raw.side as string;
+  const list = Array.isArray(raw.tags) ? raw.tags : typeof raw.tags === "string" ? raw.tags.split(",") : null;
+  if (list) out.tags = [...new Set(list.filter((t): t is string => typeof t === "string").map((t) => t.trim().slice(0, 24)).filter(Boolean))].slice(0, 10);
+  return out;
+}
+
 /** Положить картинку в библиотеку. */
-export async function keepSprite(bytes: Buffer, name: string, origin: LibSprite["origin"], now = Date.now()): Promise<LibSprite | { error: string }> {
+export async function keepSprite(bytes: Buffer, name: string, origin: LibSprite["origin"], meta: Partial<SpriteMeta> = {}, now = Date.now()): Promise<LibSprite | { error: string }> {
   const kind = kindOf(bytes);
   if ("error" in kind) return kind;
-  const one: LibSprite = { id: randomBytes(6).toString("hex"), name, ext: kind.ext, origin, at: now };
+  const one: LibSprite = { id: randomBytes(6).toString("hex"), name, ext: kind.ext, origin, at: now, slot: meta.slot ?? "other", side: meta.side ?? null, tags: meta.tags ?? [] };
   await mkdir(LIB, { recursive: true });
   await writeFile(libFile(one.id, one.ext)!, bytes);
   addLibSprite(one);

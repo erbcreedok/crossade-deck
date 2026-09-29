@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 process.env.TABLE_SPRITE_JOBS = mkdtempSync(join(tmpdir(), "sprite-jobs-"));
 process.env.TABLE_SPRITE_LIB = mkdtempSync(join(tmpdir(), "sprite-lib-"));
 const { cleanAsk, freeId, listJobs, oneJob, startJob } = await import("./spriteJobs.js");
-const { dropSprite, keepSprite, kindOf } = await import("./spriteLib.js");
+const { cleanMeta, dropSprite, keepSprite, kindOf } = await import("./spriteLib.js");
 const { libSprites } = await import("../db/tableSpritesRepo.js");
 
 describe("заказы спрайтов со страницы хозяина", () => {
@@ -36,10 +36,11 @@ describe("заказы спрайтов со страницы хозяина", (
   });
 
   it("картинка ложится в библиотеку со своим именем и уходит из неё", async () => {
-    const one = await keepSprite(Buffer.from('<svg viewBox="0 0 1 1"/>'), "Лис · лицо", "upload", 5);
+    const one = await keepSprite(Buffer.from('<svg viewBox="0 0 1 1"/>'), "Лис · лицо", "upload", cleanMeta({ slot: "head", side: "front", tags: "Лис, лис , звери" }), 5);
     expect("error" in one).toBe(false);
     if ("error" in one) return;
-    expect(libSprites().map((s) => s.name)).toContain("Лис · лицо");
+    expect(libSprites().find((s) => s.name === "Лис · лицо")).toMatchObject({ slot: "head", side: "front", tags: ["Лис", "лис", "звери"] });
+    expect(cleanMeta({ slot: "wings", side: "diagonal" }), "чужая деталь и сторона не берутся").toEqual({});
     await dropSprite(one);
     expect(libSprites().some((s) => s.id === one.id)).toBe(false);
   });

@@ -474,4 +474,16 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 27,
+    up(db) {
+      // ДЛЯ ЧЕГО КАРТИНКА: деталь (голова, тело…), сторона (лицо, спина…) и теги (набор, персонаж) — чтобы библиотеку
+      // можно было разобрать по полкам (`spriteLib.ts`).
+      db.exec(`
+        ALTER TABLE table_sprites ADD COLUMN slot TEXT NOT NULL DEFAULT 'other';
+        ALTER TABLE table_sprites ADD COLUMN side TEXT;
+        ALTER TABLE table_sprites ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';
+      `);
+    },
+  },
 ];

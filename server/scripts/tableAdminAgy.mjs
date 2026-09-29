@@ -46,9 +46,10 @@ try {
   await card.locator("[data-accept]").click();
   await card.locator(".badge.part").waitFor({ timeout: 5000 }).catch(() => {});
   const lib = (await (await fetch(`${base}/table/admin/lib`, { headers: { "x-table-secret": secret } })).json()).sprites.filter((x) => x.name.startsWith("Лис · "));
-  check("«В библиотеку» — каждая сторона отдельной картинкой с именем", lib.map((x) => x.name).sort().join() === "Лис · лицо,Лис · спина" && lib.every((x) => x.origin === "agy"), lib);
+  check("«В библиотеку» — каждая сторона отдельной картинкой с именем, деталью, стороной и тегом", lib.map((x) => x.name).sort().join() === "Лис · лицо,Лис · спина" && lib.every((x) => x.origin === "agy" && x.slot === "head" && x.tags.includes("Лис")) && lib.map((x) => x.side).sort().join() === "back,front", lib);
   await p.click('[data-sub="gallery"]');
   await p.click('[data-which="own"]');
+  await p.click('[data-kind="head"]');
   check("в «Все спрайты» → «Свои» — обе", (await p.locator(".sg .cell", { hasText: "Лис · " }).count()) === 2, await p.locator(".sg").innerText());
   await p.click('[data-sub="agy"]');
   await card.locator("[data-again]").click();
