@@ -62,6 +62,13 @@ let seen = await until(() => bodyOf(B, "Аня"));
 check("Б видит тело Ани", !!seen, seen);
 check("Аня сидит", seen?.stance === "sit", seen);
 check("вид — кукла: король или дама, и левая рука-хват", ["king", "queen"].includes(seen?.model) && !!seen.left, seen);
+// СТОЛ ПЕРЕКРЫВАЕТ ТЕЛА: туловище, голова и левая рука — под обрезкой по силуэту стола; правая рука и имя — поверх.
+const under = await B.evaluate(() => {
+  const el = [...document.querySelectorAll('[data-g="body"]')].find((x) => x.dataset.name === "Аня");
+  const clipped = (g) => { const n = el?.querySelector(`[data-g="${g}"]`); const w = n?.closest('[data-g="behind-table"]'); return n ? !!w && /path\(evenodd/.test(w.style.clipPath) : null; };
+  return { body: clipped("doll-body"), head: clipped("doll-head"), left: clipped("left-hand"), name: clipped("name") };
+});
+check("стол перекрывает тело: туловище, голова, левая рука обрезаны по столу; имя — нет", under.body && under.head && under.left && under.name === false, under);
 const loaded = await B.evaluate(() => [...document.querySelectorAll('[data-g="body"] img')].every((i) => i.complete && i.naturalWidth > 0));
 check("руки-хваты загрузились", loaded, loaded);
 check("камеру не трогала — голова не ушла, пустого стула нет", seen && !seen.away && !seen.empty, seen);

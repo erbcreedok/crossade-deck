@@ -15,7 +15,7 @@ import type { Doll } from "../src/table/dolls.js";
 import { EXTEND, partGeom, partSprite, type DollSprite } from "./dollSprites.js";
 import { AVATAR, VIEW_DIRS, drawnView, partOf, pickView, type Part, type Parts } from "../src/table/skins.js";
 import { PIP_AT } from "./skinArt.js";
-import { DISC, R, RIM, SEAT } from "./felt.js";
+import { DISC, R, RIM, SEAT, TABLE_THICK } from "./felt.js";
 import { seatPoint } from "../src/table/ring.js";
 import { PALETTES } from "../src/table/dolls.js";
 
@@ -61,8 +61,45 @@ const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", 
 
 /** Разметка тел: `toGlass` — точка стола на стекле, `sprite` — адрес картинки руки. */
 export function bodiesHtml(all: readonly BodyLook[], toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string, dolls?: DollSource): string {
-  return all.map((one) => (dolls && dollHtml(one, toGlass, T, sprite, dolls)) || avatarHtml(one, toGlass, T, sprite)).join("");
+  if (all.length === 0) return "";
+  const behind = behindTable(toGlass);
+  return all.map((one) => (dolls && dollHtml(one, toGlass, T, sprite, dolls, behind)) || avatarHtml(one, toGlass, T, sprite, behind)).join("");
 }
+
+/**
+ * СТОЛ ВСЕГДА ПЕРЕКРЫВАЕТ ТЕЛА — тело никогда не лежит поверх стола. Слой тел — над холстом, поэтому всё, что от
+ * тела (туловище, голова, ноги, спинка стула, левая рука с картами), обрезается по силуэту стола на экране: верх
+ * столешницы с кромкой и её бок. Поверх стола остаются только правая рука (куда человек показывает на столе) и
+ * табличка имени. Отдаёт стиль `clip-path` для такой обёртки.
+ */
+function behindTable(toGlass: ToGlass): string {
+  const pts: Point[] = [];
+  const edge = R + RIM;
+  for (let i = 0; i < 96; i += 1) {
+    const a = (i / 96) * Math.PI * 2, p = { x: Math.cos(a) * edge, y: Math.sin(a) * edge };
+    pts.push(toGlass(p, 0), toGlass(p, -TABLE_THICK));
+  }
+  // Силуэт — выпуклая оболочка верха и низа столешницы (монотонная цепь).
+  pts.sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (o: Point, a: Point, b: Point) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const half = (list: Point[]) => {
+    const out: Point[] = [];
+    for (const q of list) {
+      while (out.length >= 2 && cross(out[out.length - 2]!, out[out.length - 1]!, q) <= 0) out.pop();
+      out.push(q);
+    }
+    out.pop();
+    return out;
+  };
+  const hull = [...half(pts), ...half([...pts].reverse())];
+  if (hull.length < 3 || hull.some((q) => !Number.isFinite(q.x) || !Number.isFinite(q.y))) return "";
+  const B = 100000;
+  const table = hull.map((q, i) => `${i ? "L" : "M"}${q.x.toFixed(1)} ${q.y.toFixed(1)}`).join(" ") + " Z";
+  return `clip-path:path(evenodd,'M${-B} ${-B} H${B} V${B} H${-B} Z ${table}')`;
+}
+
+/** Обёртка того, что стол перекрывает. */
+const underTable = (clip: string, html: string): string => (clip ? `<div data-g="behind-table" style="position:absolute;left:0;top:0;width:0;height:0;${clip}">${html}</div>` : html);
 
 // ── КУКЛА: король или дама — как утверждено на стенде `design/persona`. ────────────────────────────────
 /** Кукла в единицах стола: ширина головы, туловища, во сколько туловище вытянуто по высоте. */
@@ -168,7 +205,7 @@ const LEGS_H = 3.8;
 /** Свет на кубике: сверху-спереди — верх светлее, бока темнее. */
 const LIGHT = (() => { const v = { x: -0.4, y: 0.5, h: 0.9 }, n = Math.hypot(v.x, v.y, v.h); return { x: v.x / n, y: v.y / n, h: v.h / n }; })();
 
-function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo }: BodyLook, toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string, src: DollSource): string | null {
+function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo }: BodyLook, toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string, src: DollSource, clip = ""): string | null {
   if (isStick(parts)) return null;
   const bodyPart = partOf(parts.body), headPart = partOf(parts.head);
   if (!bodyPart || !headPart) return null;
@@ -344,7 +381,7 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo
   const tag = `<span data-g="name" style="position:absolute;left:${H.x.toFixed(1)}px;top:${(H.y - pose.headH * lift * hk - fs - 6).toFixed(1)}px;transform:translateX(-50%);white-space:nowrap;padding:1px 6px;border-radius:6px;`
     + `background:${T.black};box-shadow:inset 0 0 0 1.5px ${ink};font:400 ${fs.toFixed(0)}px Tiny5,monospace;color:${T.ink}">${esc(name)}</span>`;
   return `<div data-g="body" data-model="${esc(doll)}" data-parts="${esc(Object.values(parts).join(" "))}" data-palette="${palette}" data-by="${esc(body.by)}" data-name="${esc(name)}" data-stance="${body.stance}" data-yaw="${body.yaw}" data-stretch="${body.stretch.toFixed(2)}" data-away="${pose.away ? 1 : 0}" data-behind="${behind ? 1 : 0}" data-view="${bodyView}" data-head-view="${headView}" data-head-h="${pose.head.h.toFixed(2)}" style="position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:24">`
-    + (behind ? "" : chairBack)
+    + underTable(clip, (behind ? "" : chairBack)
     + legs
     + (bodyFace.flat
       // плашмя — серединой нарисованного (ниже него пустое место, `EXTEND`) на плечах, без среза
@@ -355,13 +392,13 @@ function dollHtml({ body, angle, ink, name, holding, doll, palette, parts, photo
     + head
     + avatar
     + hair
-    + hand(pose.left, "hand-closed", "left-hand", !behind)
+    + hand(pose.left, "hand-closed", "left-hand", !behind))
     + (right ? hand(right, holding ? "hand-closed" : "hand-open", "right-hand", behind) : "")
     + tag
     + `</div>`;
 }
 
-function avatarHtml({ body, angle, ink, name, holding }: BodyLook, toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string): string {
+function avatarHtml({ body, angle, ink, name, holding }: BodyLook, toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string, clip = ""): string {
   const at = (p: Point3): Point => toGlass(p, p.h);
   // МЕСТНЫЙ МАСШТАБ — пикселей в единице стола в этой точке и на этой высоте: дальше и ниже — мельче.
   const kAt = (p: Point3): number => {
@@ -410,8 +447,7 @@ function avatarHtml({ body, angle, ink, name, holding }: BodyLook, toGlass: ToGl
     return `<img data-g="${g}" src="${sprite(img)}" alt="" draggable="false" style="position:absolute;left:${(q.x - w / 2).toFixed(1)}px;top:${(q.y - w / 2).toFixed(1)}px;width:${w.toFixed(1)}px;height:${w.toFixed(1)}px;pointer-events:none${mirror ? ";transform:scaleX(-1)" : ""}">`;
   };
   return `<div data-g="body" data-model="avatar" data-by="${esc(body.by)}" data-name="${esc(name)}" data-stance="${body.stance}" data-yaw="${body.yaw}" data-stretch="${body.stretch.toFixed(2)}" data-away="${away ? 1 : 0}" data-head-h="${head.h.toFixed(2)}" style="position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;z-index:24">`
-    + svg
-    + hand(left, "hand-closed", "left-hand", true)
+    + underTable(clip, svg + hand(left, "hand-closed", "left-hand", true))
     + (right ? hand(right, holding ? "hand-closed" : "hand-open", "right-hand", false) : "")
     + `</div>`;
 }
