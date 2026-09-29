@@ -37,6 +37,8 @@ export interface JobAsk {
   like?: string;
   keep?: string;
   photo?: string;
+  /** Для какой детали (`details.ts`): принятые стороны встанут в её пустые ракурсы. */
+  detail?: string;
 }
 
 export interface Job extends JobAsk {
@@ -57,11 +59,12 @@ export function cleanAsk(raw: unknown): JobAsk | null {
   const id = str(o.id, 40), brief = str(o.brief, 2000);
   if (!id || !/^[a-z0-9-]+$/.test(id) || !brief) return null;
   if (!JOB_SLOTS.includes(o.slot as JobAsk["slot"]) || !(typeof o.sides === "string" && o.sides in SIDES)) return null;
-  const like = str(o.like, 40), keep = str(o.keep, 200), photo = str(o.photo, 80), name = str(o.name, 24);
+  const like = str(o.like, 40), keep = str(o.keep, 200), photo = str(o.photo, 80), name = str(o.name, 24), detail = str(o.detail, 12);
+  if (detail && !/^[a-f0-9]{12}$/.test(detail)) return null;
   if (like && !/^[a-z0-9-]+$/.test(like)) return null;
   if (photo && !/^[a-f0-9]{16}\.(jpg|png|webp)$/.test(photo)) return null;
   if (keep && !/^#[0-9a-fA-F]{6}(\s*,\s*#[0-9a-fA-F]{6})*$/.test(keep)) return null;
-  return { id, slot: o.slot as JobAsk["slot"], sides: o.sides as JobAsk["sides"], brief, ...(name ? { name } : {}), ...(like ? { like } : {}), ...(keep ? { keep } : {}), ...(photo ? { photo } : {}) };
+  return { id, slot: o.slot as JobAsk["slot"], sides: o.sides as JobAsk["sides"], brief, ...(name ? { name } : {}), ...(like ? { like } : {}), ...(keep ? { keep } : {}), ...(photo ? { photo } : {}), ...(detail ? { detail } : {}) };
 }
 
 /** Папка скина, где этой части ещё нет: `pirate`, занято — `pirate-2`, `pirate-3`… Прежнюю попытку можно сравнить. */

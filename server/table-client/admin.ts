@@ -15,7 +15,7 @@ import { mountTableStage, type TableStage } from "./tableStage.js";
 import { pullTunes } from "./tunesNet.js";
 import { mountSpriteGallery } from "./adminSprites.js";
 import { mountDetails } from "./adminDetails.js";
-import { onRoute, put, route, routeNum, routeOne } from "./adminRoute.js";
+import { go, onRoute, put, route, routeNum, routeOne } from "./adminRoute.js";
 
 type TelegramApp = { initData?: string; ready?: () => void; expand?: () => void };
 const tg = (globalThis as { Telegram?: { WebApp?: TelegramApp } }).Telegram?.WebApp;
@@ -215,7 +215,7 @@ const tabs = document.querySelector<HTMLElement>("[data-tabs]");
 if (tabs) new ResizeObserver(() => document.documentElement.style.setProperty("--tabs-h", `${tabs.offsetHeight}px`)).observe(tabs);
 partsTab(document.querySelector<HTMLElement>('[data-pane="parts"]')!);
 const gallery = mountSpriteGallery(document.querySelector<HTMLElement>('[data-subpane="gallery"]')!, auth);
-const details = mountDetails(document.querySelector<HTMLElement>('[data-pane="details"]')!, auth);
+const details = mountDetails(document.querySelector<HTMLElement>('[data-pane="details"]')!, auth, (d) => agy.prefill(d));
 
 // ВКЛАДКА «agy» — заказы спрайтов (`spriteJobs.ts`): форма, как у `/sprite` в чате, и список заказов с ходом работы,
 // листом и кнопками «В каталог», «Другую», «По ней — ещё часть», «Удалить».
@@ -232,6 +232,8 @@ interface JobView {
   views: string[];
   at: number;
   lib?: string[];
+  /** Для какой детали: принятые стороны встанут в её пустые ракурсы. */
+  detail?: string;
   state: "running" | "good" | "bad" | "broken";
   out: string;
   sheet: boolean;
@@ -273,11 +275,11 @@ const JOB_SLOTS = [["head", "Голова"], ["hair", "Шапка / причёс
 const LOOKS = [["2", "2D — лицо и спина"], ["6", "3D — 6 сторон"], ["1", "1 сторона"], ["4", "4 — без верха и низа"]] as const;
 const STATE_SAID: Record<JobView["state"], string> = { running: "рисует…", good: "годно", bad: "не годно", broken: "оборвался" };
 
-function agyTab(root: HTMLElement): void {
+function agyTab(root: HTMLElement): { prefill(d: { id: string; name: string }): void } {
   const style = document.createElement("style");
   style.textContent = AGY_CSS;
   document.head.append(style);
-  const form = { id: "", slot: "head" as JobView["slot"], sides: "6" as JobView["sides"], brief: "", name: "", like: "", keep: "" };
+  const form = { id: "", slot: "head" as JobView["slot"], sides: "6" as JobView["sides"], brief: "", name: "", like: "", keep: "", detail: "", detailName: "" };
   // НЕДОПИСАННЫЙ ЗАКАЗ — в памяти этого браузера: обновил страницу — бриф на месте. Раскрытый заказ — в адресе.
   const DRAFT = "crossade.admin.agyDraft";
   try { Object.assign(form, JSON.parse(localStorage.getItem(DRAFT) ?? "{}") as Partial<typeof form>); } catch { /* нет памяти — пустая форма */ }
@@ -304,7 +306,7 @@ function agyTab(root: HTMLElement): void {
         + `<button data-drop="${j.job}">${j.state === "running" ? "Остановить и удалить" : "Удалить"}</button>`
         + `</div>`
       : "";
-    return `<div class="card job" data-job="${j.job}"><div class="top"><span class="what">${esc(j.name ?? j.id)} · ${esc(JOB_SLOTS.find(([s]) => s === j.slot)![1])}</span>${badge}<span class="when">${when} · ${j.views.length} стор.</span></div><div class="brief">${esc(j.brief)}</div>${more}</div>`;
+    return `<div class="card job" data-job="${j.job}"><div class="top"><span class="what">${esc(j.name ?? j.id)} · ${esc(JOB_SLOTS.find(([s]) => s === j.slot)![1])}</span>${badge}<span class="when">${when} · ${j.views.length} стор.${j.detail ? " · в деталь" : ""}</span></div><div class="brief">${esc(j.brief)}</div>${more}</div>`;
   };
 
   root.innerHTML = `<div class="agy"><div data-form-box></div><div data-jobs></div></div>`;
@@ -314,7 +316,8 @@ function agyTab(root: HTMLElement): void {
   const drawForm = () => {
     formBox.innerHTML = `
       <div class="card" data-order>
-        <label>Часть</label><div class="row">${JOB_SLOTS.map(([s, n]) => `<button class="chip${form.slot === s ? " on" : ""}" data-slot="${s}">${n}</button>`).join("")}</div>
+        ${form.detail ? `<div class="said" data-for-detail style="margin:0 0 8px">Для детали «${esc(form.detailName || form.detail)}» — нарисованное встанет в её пустые ракурсы. <button class="chip" data-unlink>не для детали</button></div>` : ""}
+        <label>Как рисовать</label><div class="row">${JOB_SLOTS.map(([s, n]) => `<button class="chip${form.slot === s ? " on" : ""}" data-slot="${s}">${n}</button>`).join("")}</div>
         <label>Вид</label><div class="row">${LOOKS.map(([k, n]) => `<button class="chip${form.sides === k ? " on" : ""}" data-sides="${k}">${n}</button>`).join("")}</div>
         <label for="a-brief">Что нарисовать</label><textarea id="a-brief" data-a="brief" placeholder="пират в треуголке, с повязкой на глазу">${esc(form.brief)}</textarea>
         <label for="a-id">Папка (латиница)</label><input id="a-id" data-a="id" value="${esc(form.id)}" placeholder="pirate" autocapitalize="off" autocomplete="off">
@@ -360,6 +363,7 @@ function agyTab(root: HTMLElement): void {
 
   function wireForm(): void {
     for (const b of root.querySelectorAll<HTMLElement>("[data-slot]")) b.onclick = () => { form.slot = b.dataset.slot as JobView["slot"]; keepDraft(); render(); };
+    root.querySelector<HTMLElement>("[data-unlink]")?.addEventListener("click", () => { form.detail = form.detailName = ""; keepDraft(); drawForm(); });
     for (const b of root.querySelectorAll<HTMLElement>("[data-sides]")) b.onclick = () => { form.sides = b.dataset.sides as JobView["sides"]; keepDraft(); render(); };
     for (const el of root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("[data-a]")) el.oninput = el.onchange = () => { (form as Record<string, string>)[el.dataset.a!] = el.value; keepDraft(); };
     const file = root.querySelector<HTMLInputElement>("[data-photo]")!;
@@ -373,7 +377,7 @@ function agyTab(root: HTMLElement): void {
         if (!up?.ok) { busy = false; said = "Фото не загрузилось."; bad = true; return render(); }
         photoName = ((await up.json()) as { photo: string }).photo;
       }
-      const body = { id: form.id, slot: form.slot, sides: form.sides, brief: form.brief, ...(form.name ? { name: form.name } : {}), ...(form.like ? { like: form.like } : {}), ...(form.keep ? { keep: form.keep } : {}), ...(photoName ? { photo: photoName } : {}) };
+      const body = { id: form.id, slot: form.slot, sides: form.sides, brief: form.brief, ...(form.name ? { name: form.name } : {}), ...(form.like ? { like: form.like } : {}), ...(form.keep ? { keep: form.keep } : {}), ...(photoName ? { photo: photoName } : {}), ...(form.detail ? { detail: form.detail } : {}) };
       const res = await api("", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
       busy = false;
       if (res?.ok) {
@@ -382,6 +386,7 @@ function agyTab(root: HTMLElement): void {
         bad = false;
         photo = null;
         form.brief = "";
+        form.detail = form.detailName = "";
         keepDraft();
         await refresh();
         await openJob(job.job);
@@ -399,16 +404,20 @@ function agyTab(root: HTMLElement): void {
     const pick = (job: string) => jobs.find((j) => j.job === job)!;
     for (const b of root.querySelectorAll<HTMLElement>("[data-accept]")) b.onclick = async () => {
       const res = await api(`/${b.dataset.accept}/accept`, { method: "POST" }).catch(() => null);
-      said = res?.ok ? "Каждая сторона — картинкой в библиотеке («Все спрайты»). Какой ракурс какой детали — в «Деталях»." : `Не принято (${res?.status ?? "нет связи"}).`;
+      const got = res?.ok ? ((await res.json()) as { detail?: string }) : null;
+      said = !res?.ok ? `Не принято (${res?.status ?? "нет связи"}).` : got?.detail ? "Каждая сторона — картинкой в библиотеке и в пустом ракурсе детали." : "Каждая сторона — картинкой в библиотеке («Все спрайты»). Какой ракурс какой детали — в «Деталях».";
       bad = !res?.ok;
       await refresh();
       gallery.refresh();
+      await details.refresh();
+      // Заказ был для детали — сразу её страница, с нарисованным в ракурсах.
+      if (got?.detail) { go({ tab: "details", detail: got.detail, dv: "front", dd: null }); showTabs(); await details.refresh(); return; }
       drawForm();
       window.scrollTo({ top: 0, behavior: "smooth" });
     };
     for (const b of root.querySelectorAll<HTMLElement>("[data-again]")) b.onclick = () => {
       const j = pick(b.dataset.again!);
-      Object.assign(form, { id: j.id.replace(/-\d+$/, ""), slot: j.slot, sides: j.sides, brief: j.brief, name: j.name ?? "", like: j.like ?? "", keep: j.keep ?? "" });
+      Object.assign(form, { id: j.id.replace(/-\d+$/, ""), slot: j.slot, sides: j.sides, brief: j.brief, name: j.name ?? "", like: j.like ?? "", keep: j.keep ?? "", detail: j.detail ?? "", detailName: "" });
       said = "Та же заявка — поправь бриф, если нужно, и закажи: ляжет в новую папку, прежняя останется.";
       bad = false;
       render();
@@ -438,6 +447,18 @@ function agyTab(root: HTMLElement): void {
   render();
   const asked = route("job");
   void refresh().then(() => (asked && !open ? openJob(asked) : undefined));
+  return {
+    /** Заказ для детали: форма помнит деталь, имя — её; открыта вкладка заказа. */
+    prefill(d) {
+      Object.assign(form, { detail: d.id, detailName: d.name, name: d.name.slice(0, 24) });
+      said = ""; bad = false;
+      keepDraft();
+      go({ tab: "sprites", sub: "agy", job: null });
+      showTabs();
+      drawForm();
+      window.scrollTo({ top: 0 });
+    },
+  };
 }
 
-agyTab(document.querySelector<HTMLElement>("[data-agy]")!);
+const agy = agyTab(document.querySelector<HTMLElement>("[data-agy]")!);

@@ -12,10 +12,10 @@
 // Всё выбранное (деталь, ракурс, поворот, слои, несохранённая правка) — в адресе (`adminRoute.ts`).
 
 import { PALETTES } from "../src/table/dolls.js";
-import { PARTS, type Facing } from "../src/table/skins.js";
+import { partOf, PARTS, type Facing } from "../src/table/skins.js";
 import { partName } from "../src/table/tunes.js";
-import { DETAIL_LIMITS, DETAIL_VIEWS, DETAIL_WIDTH, FACINGS, type Detail, type DetailView, type ViewSetup } from "../src/table/details.js";
-import { partSprite } from "./dollSprites.js";
+import { DETAIL_LIMITS, DETAIL_VIEWS, DETAIL_WIDTH, FACINGS, NEW_DETAIL, type Detail, type DetailView, type ViewSetup } from "../src/table/details.js";
+import { paintPart, partSprite } from "./dollSprites.js";
 import { UNIT_WIDTH, type V3 } from "./spriteAxes.js";
 import { HOST } from "./host.js";
 import { go, onRoute, put, route, routeNum, routeOne } from "./adminRoute.js";
@@ -96,7 +96,12 @@ const CSS = `
 .dt .pick-sheet input[type=search] { flex: 1 1 180px; min-width: 0; font: inherit; font-size: 15px; color: var(--ink); background: #0f1213; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
 `;
 
-export function mountDetails(root: HTMLElement, auth: Record<string, string>): { refresh(): Promise<void> } {
+/** Краски: одна из шестнадцати расцветок — или свои три цвета вместо красной, синей и золота рисунка. */
+interface Paint { pal: number; own3: readonly [string, string, string] | null }
+const PLAIN: Paint = { pal: 0, own3: null };
+
+/** `orderAgy` — заказать у agy для этой детали: нарисованное встанет в её пустые ракурсы (форма — в «Спрайтах»). */
+export function mountDetails(root: HTMLElement, auth: Record<string, string>, orderAgy: (d: { id: string; name: string }) => void): { refresh(): Promise<void> } {
   const style = document.createElement("style");
   style.textContent = CSS;
   document.head.append(style);
@@ -112,15 +117,41 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
   // ——— картинки ———
   const picOf = new Map<string, LibSprite>();
   /** Адрес картинки по ссылке: своя — файл библиотеки, встроенная — испечённая пекарем стола (первая расцветка). */
-  const srcOf = (ref: string | undefined, ready: () => void): string | null => {
+  const svgText = new Map<string, string | null>(), painted = new Map<string, string | null>();
+  /** Адрес картинки в красках: встроенная — пекарь стола (свои три — `paintPart`), своя SVG — краски в самом рисунке, PNG — как есть. */
+  const srcOf = (ref: string | undefined, ready: () => void, paint: Paint = PLAIN): string | null => {
     if (!ref) return null;
+    const ink = PALETTES[paint.pal]!.ink;
     if (ref.startsWith("b:")) {
       const m = /^b:(.+):([a-z0-9]+)$/.exec(ref);
-      return m ? partSprite(m[1]!, 0, m[2]!, PALETTES[0]!.ink, HOST, ready)?.src ?? null : null;
+      if (!m) return null;
+      if (!paint.own3) return partSprite(m[1]!, paint.pal, m[2]!, ink, HOST, ready)?.src ?? null;
+      const key = `${ref}|${paint.own3.join()}|${ink}`;
+      if (painted.has(key)) return painted.get(key) ?? null;
+      painted.set(key, null);
+      void paintPart(m[1]!, m[2]!, paint.own3, ink, HOST).then((src) => { painted.set(key, src); ready(); });
+      return null;
     }
     const one = picOf.get(ref);
-    return one ? `${HOST}/table/lib/${one.id}.${one.ext}` : null;
+    if (!one) return null;
+    if (one.ext === "png") return `${HOST}/table/lib/${one.id}.png`;
+    const text = svgText.get(one.id);
+    if (text === undefined) {
+      svgText.set(one.id, null);
+      void fetch(`${HOST}/table/lib/${one.id}.svg`).then((r) => (r.ok ? r.text() : null)).catch(() => null).then((t) => { svgText.set(one.id, t); ready(); });
+      return null;
+    }
+    if (!text) return null;
+    const p = PALETTES[paint.pal]!, c = paint.own3 ?? [p.red, p.blue, p.gold];
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text.replace(/#b3221f/gi, c[0]).replace(/#1d4f80/gi, c[1]).replace(/#f2c14e/gi, c[2]))}`;
   };
+  /** Меняет ли картинку расцветка: PNG — нет, встроенная — как в каталоге. */
+  const paints = (ref: string | undefined): boolean => {
+    if (!ref) return true;
+    if (ref.startsWith("b:")) { const m = /^b:(.+):[a-z0-9]+$/.exec(ref); return !!m && !!partOf(m[1]!)?.recolor; }
+    return picOf.get(ref)?.ext === "svg";
+  };
+  const stiff = (d: Omit<Detail, "id" | "at">): DetailView[] => DETAIL_VIEWS.filter((v) => d.views[v]?.sprite && !paints(d.views[v]!.sprite));
   const picName = (ref: string | undefined): string => {
     if (!ref) return "";
     if (ref.startsWith("b:")) { const m = /^b:(.+):([a-z0-9]+)$/.exec(ref); return m ? `${partName(m[1]!)} · ${VIEW_NAMES[m[2]!] ?? m[2]}` : ref; }
@@ -168,18 +199,28 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
   let frame = 0;
   const later = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; if (!listBox.hidden) drawCells(); }); };
   function drawList(): void {
-    listBox.innerHTML = `<div class="bar"><input type="search" data-dq placeholder="Имя или тег" value="${esc(route("dq") ?? "")}" style="flex:1 1 180px;min-width:0;font:inherit;font-size:15px;color:var(--ink);background:#0f1213;border:1px solid var(--line);border-radius:8px;padding:6px 8px"><button class="add" data-new>+ Новая деталь</button></div>
+    listBox.innerHTML = `<div class="bar"><input type="search" data-dq placeholder="Имя или тег" value="${esc(route("dq") ?? "")}" style="flex:1 1 180px;min-width:0;font:inherit;font-size:15px;color:var(--ink);background:#0f1213;border:1px solid var(--line);border-radius:8px;padding:6px 8px"><button class="add" data-new>+ Новая деталь</button><button class="chip" data-dagynew>+ Заказать у agy</button></div>
       <div class="said" data-dsaid>${esc(said)}</div>
       <div class="grid" data-dgrid></div>`;
     const q = listBox.querySelector<HTMLInputElement>("[data-dq]")!;
     q.oninput = () => { put({ dq: q.value || null }); drawCells(); };
-    listBox.querySelector<HTMLElement>("[data-new]")!.onclick = async () => {
-      const res = await fetch(`${HOST}/table/admin/details`, { method: "POST", headers: json, body: JSON.stringify({ name: "Новая деталь", tags: [], width: DETAIL_WIDTH, facing: "tilt", views: {} }) }).catch(() => null);
-      if (!res?.ok) { said = `Не создалась (${res?.status ?? "нет связи"}).`; drawList(); return; }
+    const create = async (): Promise<Detail | null> => {
+      const res = await fetch(`${HOST}/table/admin/details`, { method: "POST", headers: json, body: JSON.stringify({ name: NEW_DETAIL, tags: [], width: DETAIL_WIDTH, facing: "tilt", views: {} }) }).catch(() => null);
+      if (!res?.ok) { said = `Не создалась (${res?.status ?? "нет связи"}).`; drawList(); return null; }
       const made = (await res.json()) as Detail;
       mine = [made, ...mine];
+      return made;
+    };
+    listBox.querySelector<HTMLElement>("[data-new]")!.onclick = async () => {
+      const made = await create();
+      if (!made) return;
       go({ detail: made.id, dv: "front", drx: null, dry: null, dd: null });
       follow();
+    };
+    // Сразу у agy: пустая деталь, заказ для неё; принятое встанет в ракурсы, а деталь возьмёт имя заказа.
+    listBox.querySelector<HTMLElement>("[data-dagynew]")!.onclick = async () => {
+      const made = await create();
+      if (made) orderAgy({ id: made.id, name: "" });
     };
     drawCells();
   }
@@ -190,7 +231,7 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
     if (!grid) return;
     grid.innerHTML = shown.map((s) => {
       const f = face(s.detail), src = srcOf(f.ref, later), n = Object.keys(s.detail.views).length;
-      return `<button class="cell${s.own ? " own" : ""}" data-detail="${esc(s.key)}">${src ? `<img src="${esc(src)}" alt=""${f.flip ? ' style="transform:scaleX(-1)"' : ""}>` : `<div class="wait">${f.ref ? "…" : "пусто"}</div>`}<b>${esc(s.detail.name)}</b><i>${esc(s.detail.tags.join(", ") || "без тегов")} · ${n} ${n === 1 ? "ракурс" : n > 1 && n < 5 ? "ракурса" : "ракурсов"}</i><i>${s.own ? "своя" : "встроенная"}</i></button>`;
+      return `<button class="cell${s.own ? " own" : ""}" data-detail="${esc(s.key)}">${src ? `<img src="${esc(src)}" alt=""${f.flip ? ' style="transform:scaleX(-1)"' : ""}>` : `<div class="wait">${f.ref ? "…" : "пусто"}</div>`}<b>${esc(s.detail.name)}</b><i>${esc(s.detail.tags.join(", ") || "без тегов")} · ${n} ${n === 1 ? "ракурс" : n > 1 && n < 5 ? "ракурса" : "ракурсов"}</i><i>${s.own ? "своя" : "встроенная"}${stiff(s.detail).length ? " · не красится" : ""}</i></button>`;
     }).join("") || `<div class="said" style="grid-column:1/-1">Ничего не найдено.</div>`;
     for (const b of grid.querySelectorAll<HTMLElement>("[data-detail]")) b.onclick = () => { go({ detail: b.dataset.detail, dv: "front", drx: null, dry: null, dd: null }); follow(); };
   }
@@ -217,18 +258,24 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
     let view: DetailView = routeOne("dv", DETAIL_VIEWS, "front");
     let rx = routeNum("drx", 0), ry = routeNum("dry", 0);
     const layers = { axes: route("dax") !== "0", grid: route("dgr") !== "0" };
+    const c3 = (route("dc") ?? "").split(",").filter((c) => /^[0-9a-f]{6}$/i.test(c)).map((c) => `#${c}`);
+    const paint: { pal: number; own3: [string, string, string] | null } = { pal: Math.max(0, Math.min(PALETTES.length - 1, Math.round(routeNum("dp", 0)))), own3: c3.length === 3 ? (c3 as [string, string, string]) : null };
     const dirty = () => JSON.stringify(fields(draft)) !== JSON.stringify(fields(saved));
-    const keep = () => put({ dv: view, drx: Math.round(rx) || null, dry: Math.round(ry) || null, dax: layers.axes ? null : "0", dgr: layers.grid ? null : "0", dd: s.own && dirty() ? JSON.stringify(draft) : null });
+    const keep = () => put({ dv: view, drx: Math.round(rx) || null, dry: Math.round(ry) || null, dax: layers.axes ? null : "0", dgr: layers.grid ? null : "0", dp: paint.pal || null, dc: paint.own3 ? paint.own3.map((c) => c.slice(1)).join(",") : null, dd: s.own && dirty() ? JSON.stringify(draft) : null });
 
     const draw = () => {
       pageBox.innerHTML = `<div class="sp-page" data-detail-page="${esc(s.key)}">
         <div class="sp-top"><button class="chip" data-dback>← Все детали</button>${s.own ? `<input class="dt-name" data-dname maxlength="40" value="${esc(draft.name)}" aria-label="Имя">` : `<h2>${esc(draft.name)}</h2>`}</div>
         <div class="bar">${s.own
-          ? `<button class="add" data-dsave ${dirty() ? "" : "disabled"}>Сохранить</button><button class="chip" data-dcopy>Сохранить как новую</button><button class="chip drop" data-ddrop>Удалить</button>`
+          ? `<button class="add" data-dsave ${dirty() ? "" : "disabled"}>Сохранить</button><button class="chip" data-dcopy>Сохранить как новую</button><button class="chip" data-dagy>Заказать у agy</button><button class="chip drop" data-ddrop>Удалить</button>`
           : `<button class="add" data-dcopy>Сделать своей копией</button>`}</div>
         <div class="said" data-dact>${s.own ? (dirty() ? "Есть несохранённое." : "") : "Встроенную не изменить — копия ляжет в «Свои» с теми же картинками."}</div>
         <div class="sp-stage bg-felt" data-dstage><div class="dt-world" data-world><div class="dt-cells" data-dcells></div><img class="dt-pic" data-dpic alt=""><div class="dt-empty" data-dempty hidden></div><div class="dt-mid"></div><div class="dt-axes" data-daxes></div></div></div>
         <div class="bar">${(["axes", "grid"] as const).map((k) => `<button class="chip${layers[k] ? " on" : ""}" data-dlayer="${k}">${{ axes: "Оси", grid: "Клетка" }[k]}</button>`).join("")}<span class="said" data-dseen></span></div>
+        <h3>Расцветки</h3>
+        <div class="bar" data-dpals>${PALETTES.map((p, k) => `<button class="chip${!paint.own3 && k === paint.pal ? " on" : ""}" data-dpal="${k}" title="${esc(p.name)}"><span style="display:inline-flex;gap:2px;vertical-align:middle">${[p.red, p.blue, p.gold].map((c) => `<i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${c}"></i>`).join("")}</span></button>`).join("")}</div>
+        <div class="bar">${["основной", "второй", "акцент"].map((n, i) => `<label class="num">${n} <input type="color" data-dc="${i}" value="${paint.own3?.[i] ?? [PALETTES[paint.pal]!.red, PALETTES[paint.pal]!.blue, PALETTES[paint.pal]!.gold][i]}"></label>`).join("")}<button class="chip" data-dcoff>Как в расцветке</button></div>
+        <div class="said" data-dpaint></div>
         <h3>Ракурсы</h3>
         <div class="views" data-views></div>
         <div class="ed" data-ed></div>
@@ -278,7 +325,8 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
       const pic = pageBox.querySelector<HTMLImageElement>("[data-dpic]")!, empty = pageBox.querySelector<HTMLElement>("[data-dempty]")!;
       const one = got.side ? draft.views[got.side] : undefined;
       const ref = one?.sprite ?? (one?.mirror ? draft.views[one.mirror]?.sprite : undefined);
-      const src = srcOf(ref, () => { if (openKey === s.key) pose(); });
+      const src = srcOf(ref, () => { if (openKey === s.key) pose(); }, paint) ?? (ref && pic.dataset.ref === ref ? pic.getAttribute("src") : null);
+      pic.dataset.ref = ref ?? "";
       pic.hidden = !src;
       empty.hidden = !!src;
       empty.textContent = got.side ? "…" : "Ракурсов нет — выбери картинку для лица ниже.";
@@ -312,10 +360,12 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
       const box = pageBox.querySelector<HTMLElement>("[data-views]")!;
       box.innerHTML = DETAIL_VIEWS.map((v) => {
         const one = draft.views[v], ref = one?.sprite ?? (one?.mirror ? draft.views[one.mirror]?.sprite : undefined);
-        const src = srcOf(ref, () => { if (openKey === s.key) drawViews(); });
+        const src = srcOf(ref, () => { if (openKey === s.key) drawViews(); }, paint);
         const note = one?.sprite ? esc(picName(one.sprite)) : one?.mirror ? `отражение: ${VIEW_NAMES[one.mirror]}` : "нет";
         return `<button class="vw${v === view ? " on" : ""}" data-vw="${v}">${src ? `<img src="${esc(src)}" alt=""${one?.mirror ? ' class="flip"' : ""}>` : `<span class="none">${ref ? "…" : "—"}</span>`}<b>${VIEW_NAMES[v]}</b><i>${note}</i></button>`;
       }).join("");
+      const no = stiff(draft), said = pageBox.querySelector<HTMLElement>("[data-dpaint]");
+      if (said) said.textContent = no.length ? `Не красятся (PNG): ${no.map((v) => VIEW_NAMES[v]).join(", ")}.` : "Красятся три краски рисунка: основной, второй, акцент.";
       for (const b of box.querySelectorAll<HTMLElement>("[data-vw]")) b.onclick = () => {
         view = b.dataset.vw as DetailView;
         [rx, ry] = VIEW_POSE[view];
@@ -360,7 +410,8 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
     function wire(): void {
       pageBox.querySelector<HTMLElement>("[data-daxes]")!.innerHTML = axesHtml();
       pageBox.querySelector<HTMLImageElement>("[data-dpic]")!.onload = () => pose();
-      pageBox.querySelector<HTMLElement>("[data-dback]")!.onclick = () => { if (history.length > 1) history.back(); else { put({ detail: null }); follow(); } };
+      // Всегда в галерею деталей: на страницу можно прийти и из заказа agy, «назад» по истории увёл бы туда.
+      pageBox.querySelector<HTMLElement>("[data-dback]")!.onclick = () => { go({ detail: null, dd: null }); follow(); };
       const st = stage();
       let drag: { x: number; y: number } | null = null;
       st.onpointerdown = (e) => { drag = { x: e.clientX, y: e.clientY }; st.setPointerCapture(e.pointerId); };
@@ -405,9 +456,23 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>): {
         put({ detail: null, dd: null });
         follow();
       });
-      drawViews();
+      // Краски: расцветка или свои три цвета — на сцене и в ракурсах; что не красится, сказано.
+      const showPaint = () => {
+        for (const b of pageBox.querySelectorAll<HTMLElement>("[data-dpal]")) b.classList.toggle("on", !paint.own3 && Number(b.dataset.dpal) === paint.pal);
+        drawViews(); pose(); keep();
+      };
+      for (const b of pageBox.querySelectorAll<HTMLElement>("[data-dpal]")) b.onclick = () => {
+        paint.pal = Number(b.dataset.dpal); paint.own3 = null;
+        const p = PALETTES[paint.pal]!;
+        pageBox.querySelectorAll<HTMLInputElement>("[data-dc]").forEach((c, i) => (c.value = [p.red, p.blue, p.gold][i]!));
+        showPaint();
+      };
+      const cs = [...pageBox.querySelectorAll<HTMLInputElement>("[data-dc]")];
+      for (const c of cs) c.oninput = () => { paint.own3 = [cs[0]!.value, cs[1]!.value, cs[2]!.value]; showPaint(); };
+      pageBox.querySelector<HTMLElement>("[data-dcoff]")!.onclick = () => { paint.own3 = null; showPaint(); };
+      pageBox.querySelector<HTMLElement>("[data-dagy]")?.addEventListener("click", () => orderAgy({ id: saved.id, name: draft.name }));
       drawEditor();
-      pose();
+      showPaint();
     }
 
     /** ВЫБРАТЬ ИЗ БИБЛИОТЕКИ — картинки этой детали и этой стороны; можно шире: любая сторона, любая деталь, поиск. */

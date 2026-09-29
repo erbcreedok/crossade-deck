@@ -4,7 +4,11 @@
 // и стороне) или отражение другого, свои сдвиг и величина; как стоит к камере; сохранить, копия, удалить. Всё — в
 // адресе, несохранённое переживает обновление. Встроенные — только смотреть и «Сделать своей копией».
 //   node scripts/tableAdminDetails.mjs [base] [secret] [shot.png]
+import { rm } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createRequire } from "module";
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const require = createRequire(process.env.PW_FROM ?? import.meta.url);
 const { chromium } = require("playwright");
 
@@ -12,6 +16,7 @@ const base = process.argv[2] ?? "http://localhost:2611";
 const secret = process.argv[3] ?? "probe";
 const shot = process.argv[4];
 const tag = `zz${Date.now().toString(36)}`;
+const AGY = `${tag}-agy`;
 const H = { "x-table-secret": secret };
 const checks = [];
 const check = (name, ok, got) => checks.push({ name, ok, got });
@@ -71,6 +76,7 @@ try {
   await p.selectOption("[data-dmirror]", "right");
   check("левый бок — отражением бока", (await p.locator('[data-vw="left"] img.flip').count()) === 1 && (await p.getAttribute("[data-dpic]", "data-flip")) === "1", null);
   // крутить пальцем
+  await p.locator("[data-dstage]").scrollIntoViewIfNeeded();
   const st = await p.locator("[data-dstage]").boundingBox();
   await p.mouse.move(st.x + st.width / 2, st.y + st.height / 2);
   await p.mouse.down();
@@ -93,13 +99,47 @@ try {
   await p.waitForFunction(() => /Сохранено/.test(document.querySelector("[data-dact]")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
   const got = (await mine()).find((d) => d.id === made?.id);
   check("сохранено на сервере: имя, как стоит, ракурсы, сдвиг, величина, отражение", got?.name === `${tag} Лис` && got.facing === "camera" && got.width === 4.8 && got.tags.join() === "снеговик,зима" && got.views.front?.sprite === sprite.id && got.views.front.dx === 1 && got.views.front.scale === 2 && got.views.right?.sprite === sprite.id && got.views.left?.mirror === "right" && !hash().get("dd"), got);
+  // РАСЦВЕТКИ: шестнадцать и свои три — на сцене и в ракурсах, в адресе
+  const pic0 = await p.getAttribute("[data-dpic]", "src");
+  await p.click('[data-dpal="5"]');
+  const pic5 = await p.getAttribute("[data-dpic]", "src");
+  check("расцветка перекрашивает деталь, и в адресе", pic5 !== pic0 && hash().get("dp") === "5" && (await p.locator('[data-dpal="5"].on').count()) === 1, null);
+  await p.fill('[data-dc="0"]', "#ff00aa");
+  check("свои три цвета — на сцене и в клетке ракурса", decodeURIComponent(await p.getAttribute("[data-dpic]", "src")).includes("#ff00aa") && decodeURIComponent(await p.getAttribute('[data-vw="front"] img', "src")).includes("#ff00aa") && hash().get("dc")?.startsWith("ff00aa"), null);
+  await p.click("[data-dcoff]");
+  // PNG не красится — так и сказано
+  await p.click('[data-vw="back"]');
+  await p.click("[data-dpick]");
+  await p.click("[data-picker] [data-pside]");
+  await p.click('[data-picker] [data-pref="b:hand:hands:front"]');
+  check("PNG в ракурсе — «не красится», сказано какой", /Не красятся \(PNG\): спина/.test(await p.textContent("[data-dpaint]")), await p.textContent("[data-dpaint]"));
+  await p.click("[data-dclear]");
   if (shot) await p.screenshot({ path: shot, fullPage: true });
+  // ЗАКАЗ У AGY ДЛЯ ДЕТАЛИ: форма помнит деталь, принятое встаёт в её пустые ракурсы
+  await p.click("[data-dagy]");
+  await p.waitForSelector("[data-agy] [data-for-detail]");
+  check("«Заказать у agy» — форма заказа для этой детали", /Лис/.test(await p.textContent("[data-for-detail]")) && hash().get("sub") === "agy", await p.textContent("[data-for-detail]"));
+  await p.click('[data-agy] [data-sides="2"]');
+  await p.fill('[data-a="brief"]', "лис в очках");
+  await p.fill('[data-a="id"]', AGY);
+  await p.click("[data-go]");
+  const card = p.locator(".job", { hasText: AGY }).first();
+  await card.waitFor();
+  check("в заказе видно, что он в деталь", /в деталь/.test(await card.innerText()), await card.innerText());
+  await card.locator(".badge.good").waitFor({ timeout: 25_000 });
+  await card.locator("[data-accept]").click();
+  await p.waitForSelector("[data-detail-page]", { timeout: 8000 }).catch(() => {});
+  const filled = (await mine()).find((d) => d.id === made?.id);
+  const lib = (await (await fetch(`${base}/table/admin/lib`, { headers: H })).json()).sprites;
+  const back = lib.find((x) => x.id === filled?.views.back?.sprite);
+  check("принято — спина из agy встала в пустой ракурс, заданное лицо не тронуто, открыта деталь", back?.origin === "agy" && filled.views.front?.sprite === sprite.id && filled.views.front.dx === 1 && hash().get("detail") === made.id && hash().get("tab") === "details", filled?.views);
   // ВСТРОЕННАЯ: только смотреть, копия
   await p.click("[data-dback]");
   await p.waitForSelector(".dt [data-detail]");
   await p.fill(".dt [data-dq]", "Король треф");
   await p.locator('.dt [data-detail="b:king:head"]').click();
   await p.waitForSelector("[data-detail-page] h2");
+  await p.waitForSelector('[data-vw="back"] img', { timeout: 10_000 }).catch(() => {});
   check("встроенная: ракурсы из каталога, править нельзя", (await p.locator('[data-vw="front"] img').count()) === 1 && (await p.locator('[data-vw="back"] img').count()) === 1 && (await p.locator("[data-dsave]").count()) === 0 && (await p.locator("[data-dpick]").count()) === 0, null);
   await p.click("[data-dcopy]");
   await p.waitForSelector("[data-detail-page] [data-dname]");
@@ -115,6 +155,10 @@ try {
 } finally {
   await browser.close();
   for (const d of await mine()) if (!before.has(d.id)) await fetch(`${base}/table/admin/details/${d.id}`, { method: "DELETE", headers: H });
+  // заказ agy: рисунки с диска, картинки — через стол, сам заказ — тоже
+  await rm(join(ROOT, "design/persona/skins", AGY), { recursive: true, force: true });
+  for (const x of (await (await fetch(`${base}/table/admin/lib`, { headers: H })).json()).sprites) if (x.tags.includes(`${tag} Лис`) || x.name.startsWith(`${tag} Лис`)) await fetch(`${base}/table/admin/lib/${x.id}`, { method: "DELETE", headers: H });
+  for (const j of (await (await fetch(`${base}/table/admin/sprites`, { headers: H })).json()).jobs ?? []) if (j.id === AGY) await fetch(`${base}/table/admin/sprites/${j.job}`, { method: "DELETE", headers: H });
   await fetch(`${base}/table/admin/lib/${sprite.id}`, { method: "DELETE", headers: H });
 }
 for (const c of checks) console.log(`${c.ok ? "✓" : "✗"} ${c.name}${c.ok ? "" : ` — ${JSON.stringify(c.got).slice(0, 400)}`}`);

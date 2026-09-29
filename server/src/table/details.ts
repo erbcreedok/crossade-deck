@@ -39,6 +39,8 @@ export interface Detail {
 
 export const DETAIL_LIMITS = { dx: [-5, 5], dy: [-5, 5], scale: [0.2, 5], width: [0.2, 20] } as const;
 export const DETAIL_WIDTH = 2.4;
+/** Имя, с которым деталь заводится кнопкой; пустая деталь с ним берёт имя заказа agy. */
+export const NEW_DETAIL = "Новая деталь";
 const NAME_MAX = 40;
 const SPRITE_REF = /^(?:[a-f0-9]{12}|b:[a-z0-9-]+:(?:head|hair|body|legs|hands):[a-z0-9]+)$/;
 
@@ -76,4 +78,18 @@ export function cleanDetail(raw: unknown): Omit<Detail, "id" | "at"> | null {
     else if (typeof one.mirror === "string" && one.mirror !== v && drawn.has(one.mirror as DetailView)) views[v] = { mirror: one.mirror as DetailView, ...place };
   }
   return { name, tags, width, facing, views };
+}
+
+/**
+ * НАРИСОВАННОЕ — В ПУСТЫЕ РАКУРСЫ: сторона встаёт туда, где ракурса ещё нет (заданное хозяином не трогается);
+ * левый бок, если пуст, — отражение бока. Стороны не из шести пропускаются.
+ */
+export function fillViews(views: Detail["views"], drawn: readonly (readonly [side: string, sprite: string])[]): Detail["views"] {
+  const out = { ...views };
+  for (const [side, sprite] of drawn) {
+    if (!(DETAIL_VIEWS as readonly string[]).includes(side) || out[side as DetailView]) continue;
+    out[side as DetailView] = { sprite, dx: 0, dy: 0, scale: 1 };
+  }
+  if (!out.left && out.right?.sprite) out.left = { mirror: "right", dx: 0, dy: 0, scale: 1 };
+  return out;
 }

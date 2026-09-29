@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { cleanDetail } from "../table/details.js";
+import { cleanDetail, fillViews } from "../table/details.js";
 import { MIGRATIONS } from "./migrations.js";
 import { allDetails, dropDetail, oneDetail, putDetail } from "./tableDetailsRepo.js";
 
@@ -44,5 +44,15 @@ describe("детали хозяина", () => {
     expect(oneDetail("d1", d)?.views.front?.sprite).toBe("0123456789ab");
     expect(dropDetail("d1", d)).toBe(true);
     expect(oneDetail("d1", d)).toBeNull();
+  });
+
+  it("нарисованное agy встаёт только в пустые ракурсы; левый бок — отражение бока", () => {
+    const mine = { front: { sprite: "aaaaaaaaaaaa", dx: 1, dy: 0, scale: 2 } };
+    expect(fillViews(mine, [["front", "111111111111"], ["back", "222222222222"], ["right", "333333333333"], ["a40", "444444444444"]])).toEqual({
+      front: { sprite: "aaaaaaaaaaaa", dx: 1, dy: 0, scale: 2 },
+      back: { sprite: "222222222222", dx: 0, dy: 0, scale: 1 },
+      right: { sprite: "333333333333", dx: 0, dy: 0, scale: 1 },
+      left: { mirror: "right", dx: 0, dy: 0, scale: 1 },
+    });
   });
 });

@@ -38,7 +38,7 @@ import { faceOf, type Face } from "./avatars.js";
 import { avatarsOf } from "../db/tableAvatarsRepo.js";
 import { cleanDoll, dollFor, ownParts } from "./dolls.js";
 import { addParts, cleanParts, partOf, partsFor } from "./skins.js";
-import { cleanDetail, type Detail } from "./details.js";
+import { cleanDetail, fillViews, NEW_DETAIL, type Detail } from "./details.js";
 import { allDetails, dropDetail, oneDetail, putDetail } from "../db/tableDetailsRepo.js";
 import { INKS, inkFor } from "../profileInks.js";
 import { verifyTelegramInitData, verifyTelegramLogin } from "../telegramAuth.js";
@@ -494,7 +494,13 @@ export function tableRoutes(): Router {
     if (!job) return void res.status(404).json({ error: "not_found" });
     const got = await acceptJob(job);
     if ("error" in got) return void res.status(409).json(got);
-    res.json(got);
+    // Заказ для детали — нарисованные стороны встают в её пустые ракурсы; пустая «Новая деталь» берёт имя заказа.
+    const d = job.detail ? oneDetail(job.detail) : null;
+    if (d) {
+      const fresh = Object.keys(d.views).length === 0 && d.name === NEW_DETAIL;
+      putDetail({ ...d, name: fresh ? job.name ?? job.id : d.name, views: fillViews(d.views, job.views.map((v, k) => [v, got.sprites[k]!] as const)), at: Date.now() });
+    }
+    res.json({ ...got, ...(d ? { detail: d.id } : {}) });
   });
   r.delete("/table/admin/sprites/:job", owner, async (req, res) => {
     const job = await oneJob(req.params.job);
