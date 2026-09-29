@@ -120,6 +120,18 @@ try {
   check("Ctrl + тянуть — деталь сдвинулась (вправо и вверх по экрану)", at1 !== at0 && Number(at1.split(",")[2]) > 5.5 && (await hash()).get("th") !== null, at1);
   await tdrag("Shift", 50, 0);
   check("Shift + тянуть — деталь повернулась, стоит там же", Number((await hash()).get("tyw")) !== 0 && (await hash()).get("tyw") !== null && (await tst.getAttribute("data-at")) === at1, [(await hash()).get("tyw"), await tst.getAttribute("data-at")]);
+  // стороны света и клетка — слоями; дно тёмное, под стол можно заглянуть
+  check("у стола: подписаны север и юг, клетка по сукну выключена", (await p.locator('[data-tcard="n"]').innerText()) === "С" && (await p.locator('[data-tcard="s"]').innerText()) === "Ю" && await p.locator('[data-tcard="n"]').isVisible() && (await p.locator("[data-tcells]").isHidden()), null);
+  const northZ = await p.evaluate(() => { const m = /translate3d\(0px, 0px, (-?[\d.]+)px\)/.exec(document.querySelector('[data-tcard="n"]').style.transform); return m ? Number(m[1]) : null; });
+  check("север — от середины прочь от южного места (где деталь)", northZ < 0, northZ);
+  await p.click('[data-tlayer="compass"]');
+  await p.click('[data-tlayer="grid"]');
+  check("слои включаются по одному, в адресе", (await p.locator('[data-tcard="n"]').isHidden()) && (await p.locator("[data-tcells]").isVisible()) && (await hash()).get("tlc") === "0" && (await hash()).get("tlg") === "1", null);
+  await p.click('[data-tlayer="compass"]');
+  const under = await p.evaluate(() => getComputedStyle(document.querySelector("[data-tunder]")).backgroundImage);
+  await tdrag(null, 0, -200);
+  check("тянешь вверх — камера под столом, дно тёмное", (await tst.getAttribute("data-under")) === "1" && /rgb\(26, 19, 12\)|#1a130c/.test(under), [await tst.getAttribute("data-under"), under]);
+  await tdrag(null, 0, 200);
   await p.fill('[data-tnum="h"]', "8");
   check("числом — точно: вверх 8", (await tst.getAttribute("data-at")).endsWith(",8"), await tst.getAttribute("data-at"));
   // несохранённое переживает обновление

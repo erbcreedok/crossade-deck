@@ -20,7 +20,7 @@ import { DETAIL_LIMITS, DETAIL_WIDTH, FACINGS, moveViews, nearestView, NEW_DETAI
 import { paintPart, partSprite } from "./dollSprites.js";
 import { UNIT_WIDTH, type V3 } from "./spriteAxes.js";
 import { HOST } from "./host.js";
-import { R, RIM } from "./felt.js";
+import { R, RIM, TABLE_THICK } from "./felt.js";
 import { SHOULDERS, SHOULDER_H } from "../src/table/bodies.js";
 import { go, onRoute, put, route, routeNum, routeOne } from "./adminRoute.js";
 
@@ -75,6 +75,13 @@ const CSS = `
 .dt .tb-world { position: relative; width: 0; height: 0; transform-style: preserve-3d; }
 .dt .tb-world > * { position: absolute; left: 0; top: 0; transform-style: preserve-3d; }
 .dt .tb-table { border-radius: 50%; background: radial-gradient(#1b5a3f, #0c2c1f 70%); box-shadow: inset 0 0 0 var(--rim) #6b4d2c, inset 0 0 0 calc(var(--rim) + 2px) #0b0704; }
+.dt .tb-under { border-radius: 50%; background: radial-gradient(#1a130c, #070503 75%); box-shadow: inset 0 0 0 2px #0b0704; }
+.dt .tb-table, .dt .tb-under { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.dt .tb-cells { border-radius: 50%; pointer-events: none; background-image: linear-gradient(rgba(255,255,255,.22) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.22) 1px, transparent 1px); backface-visibility: hidden; }
+.dt [data-tcompass] > * { position: absolute; left: 0; top: 0; }
+.dt .tb-north { height: 4px; margin-top: -2px; background: #f2c14e; border-radius: 2px; transform-origin: 0 50%; }
+.dt .tb-north::after { content: ""; position: absolute; right: -10px; top: -5px; border-left: 12px solid #f2c14e; border-top: 7px solid transparent; border-bottom: 7px solid transparent; }
+.dt .tb-cardinal { font: 700 15px/1 system-ui, sans-serif; color: #f2c14e; background: rgba(11,7,4,.8); border: 1.5px solid #f2c14e; border-radius: 8px; padding: 3px 6px; white-space: nowrap; }
 .dt .tb-foot { width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: rgba(0,0,0,.45); border: 1.5px solid rgba(242,193,78,.9); }
 .dt .tb-pole { width: 2px; margin-left: -1px; background: repeating-linear-gradient(rgba(242,193,78,.9) 0 4px, transparent 4px 8px); transform-origin: 50% 0; }
 .dt .tb-anchor, .dt .tb-anchor > div { width: 0; height: 0; transform-style: preserve-3d; }
@@ -302,10 +309,14 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
         <h3>У стола</h3>
         <div class="sp-stage bg-felt" data-tstage style="perspective:${TABLE_PERSPECTIVE}px"><div class="tb-world" data-tworld>
           <div class="tb-table" style="--rim:${RIM * TABLE_PPU}px;width:${2 * (R + RIM) * TABLE_PPU}px;height:${2 * (R + RIM) * TABLE_PPU}px;left:${-(R + RIM) * TABLE_PPU}px;top:${-(R + RIM) * TABLE_PPU}px;transform:rotateX(90deg)"></div>
+          <div class="tb-under" data-tunder style="width:${2 * (R + RIM) * TABLE_PPU}px;height:${2 * (R + RIM) * TABLE_PPU}px;left:${-(R + RIM) * TABLE_PPU}px;top:${-(R + RIM) * TABLE_PPU}px;transform:translateY(${TABLE_THICK * TABLE_PPU}px) rotateX(-90deg)"></div>
+          <div class="tb-cells" data-tcells style="width:${2 * R * TABLE_PPU}px;height:${2 * R * TABLE_PPU}px;left:${-R * TABLE_PPU}px;top:${-R * TABLE_PPU}px;background-size:${TABLE_PPU}px ${TABLE_PPU}px;background-position:${((R * TABLE_PPU) % TABLE_PPU) - 0.5}px ${((R * TABLE_PPU) % TABLE_PPU) - 0.5}px;transform:translateY(-1px) rotateX(90deg)"></div>
+          <div data-tcompass><div class="tb-north" style="width:${(R - 1.2) * TABLE_PPU}px;transform:translateY(-2px) rotateX(90deg) rotateZ(-90deg)"></div><span class="tb-cardinal" data-tcard="n">С</span><span class="tb-cardinal" data-tcard="s">Ю</span></div>
           <div class="tb-foot" data-tfoot></div><div class="tb-pole" data-tpole></div>
           <div class="tb-anchor" data-tanchor><div data-tbody></div><div data-tflat></div></div>
         </div></div>
-        <div class="said">Тянешь — крутится стол вместе с деталью. <b>Ctrl</b> + тянуть — двигать деталь (по экрану: вглубь — поверни стол), <b>Shift</b> + тянуть — поворачивать её.</div>
+        <div class="bar">${(["compass", "grid"] as const).map((k) => `<button class="chip${tlayers[k] ? " on" : ""}" data-tlayer="${k}">${{ compass: "Стороны света", grid: "Клетка" }[k]}</button>`).join("")}</div>
+        <div class="said">Тянешь — крутится стол вместе с деталью; вверх — заглянешь под стол. <b>Ctrl</b> + тянуть — двигать деталь (по экрану: вглубь — поверни стол), <b>Shift</b> + тянуть — поворачивать её.</div>
         <div class="bar">${([["x", "вправо"], ["y", "к тебе"], ["h", "вверх"], ["yaw", "поворот °"], ["tilt", "наклон °"]] as const).map(([k, n]) => `<label class="num">${n} <input type="number" data-tnum="${k}" step="${k === "yaw" || k === "tilt" ? 5 : 0.1}" value="${r1(at[k])}"></label>`).join("")}<button class="chip" data-treset>Сброс</button></div>
         <h3>Расцветки</h3>
         <div class="bar" data-dpals>${PALETTES.map((p, k) => `<button class="chip${!paint.own3 && k === paint.pal ? " on" : ""}" data-dpal="${k}" title="${esc(p.name)}"><span style="display:inline-flex;gap:2px;vertical-align:middle">${[p.red, p.blue, p.gold].map((c) => `<i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${c}"></i>`).join("")}</span></button>`).join("")}</div>
@@ -397,13 +408,23 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
     const TABLE_PPU = 300 / (2 * (R + 3.5));
     const at = { x: routeNum("tx", 0), y: routeNum("ty", SHOULDERS), h: routeNum("th", SHOULDER_H.sit + 1.5), yaw: routeNum("tyw", 0), tilt: routeNum("tpt", 0) };
     const cam = { yaw: routeNum("tcy", 25), pitch: routeNum("tcp", -28) };
-    const keepTable = () => put({ tx: at.x || null, ty: at.y === SHOULDERS ? null : at.y, th: at.h === SHOULDER_H.sit + 1.5 ? null : at.h, tyw: at.yaw || null, tpt: at.tilt || null, tcy: cam.yaw === 25 ? null : cam.yaw, tcp: cam.pitch === -28 ? null : cam.pitch });
+    /** Слои у стола: стороны света (С и Ю, стрелка на север по сукну) и клетка по сукну в единицу стола. */
+    const tlayers = { compass: route("tlc") !== "0", grid: route("tlg") === "1" };
+    const keepTable = () => put({ tx: at.x || null, ty: at.y === SHOULDERS ? null : at.y, th: at.h === SHOULDER_H.sit + 1.5 ? null : at.h, tyw: at.yaw || null, tpt: at.tilt || null, tcy: cam.yaw === 25 ? null : cam.yaw, tcp: cam.pitch === -28 ? null : cam.pitch, tlc: tlayers.compass ? null : "0", tlg: tlayers.grid ? "1" : null });
     const r1 = (n: number) => Math.round(n * 100) / 100;
     function tablePose(): void {
       const st = pageBox.querySelector<HTMLElement>("[data-tstage]");
       if (!st) return;
       const u = TABLE_PPU;
       pageBox.querySelector<HTMLElement>("[data-tworld]")!.style.transform = `rotateX(${cam.pitch}deg) rotateY(${cam.yaw}deg)`;
+      // Север стола — от середины прочь от южного места (там по умолчанию деталь): взгляд с поворотом 0 смотрит туда.
+      const compass = pageBox.querySelector<HTMLElement>("[data-tcompass]")!;
+      compass.hidden = !tlayers.compass;
+      const face = `rotateY(${-cam.yaw}deg) rotateX(${-cam.pitch}deg)`, far = (R + RIM + 1.1) * u;
+      compass.querySelector<HTMLElement>('[data-tcard="n"]')!.style.transform = `translate3d(0, 0, ${-far}px) ${face} translate(-50%, -50%)`;
+      compass.querySelector<HTMLElement>('[data-tcard="s"]')!.style.transform = `translate3d(0, 0, ${far}px) ${face} translate(-50%, -50%)`;
+      pageBox.querySelector<HTMLElement>("[data-tcells]")!.hidden = !tlayers.grid;
+      st.dataset.under = cam.pitch > 0 ? "1" : "";
       const anchor = pageBox.querySelector<HTMLElement>("[data-tanchor]")!;
       anchor.style.transform = `translate3d(${at.x * u}px, ${-at.h * u}px, ${at.y * u}px) rotateY(${at.yaw}deg) rotateX(${at.tilt}deg)`;
       const foot = pageBox.querySelector<HTMLElement>("[data-tfoot]")!;
@@ -549,11 +570,12 @@ export function mountDetails(root: HTMLElement, auth: Record<string, string>, or
           at.tilt = Math.max(-90, Math.min(90, at.tilt - dy * 0.6));
         } else {
           cam.yaw += dx * 0.5;
-          cam.pitch = Math.max(-89, Math.min(10, cam.pitch - dy * 0.4));
+          cam.pitch = Math.max(-89, Math.min(60, cam.pitch - dy * 0.4));
         }
         tablePose();
       };
       ts.onpointerup = ts.onpointercancel = () => { if (tdrag) keepTable(); tdrag = null; };
+      for (const b of pageBox.querySelectorAll<HTMLElement>("[data-tlayer]")) b.onclick = () => { const k = b.dataset.tlayer as keyof typeof tlayers; tlayers[k] = !tlayers[k]; b.classList.toggle("on", tlayers[k]); tablePose(); keepTable(); };
       for (const inp of pageBox.querySelectorAll<HTMLInputElement>("[data-tnum]")) inp.oninput = () => { const v = Number(inp.value); if (inp.value === "" || !Number.isFinite(v)) return; at[inp.dataset.tnum as keyof typeof at] = v; tablePose(); keepTable(); };
       pageBox.querySelector<HTMLElement>("[data-treset]")!.onclick = () => { Object.assign(at, { x: 0, y: SHOULDERS, h: SHOULDER_H.sit + 1.5, yaw: 0, tilt: 0 }); Object.assign(cam, { yaw: 25, pitch: -28 }); tablePose(); keepTable(); };
       for (const b of pageBox.querySelectorAll<HTMLElement>("[data-dlayer]")) b.onclick = () => { const k = b.dataset.dlayer as keyof typeof layers; layers[k] = !layers[k]; b.classList.toggle("on", layers[k]); pose(); keep(); };
