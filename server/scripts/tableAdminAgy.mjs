@@ -1,4 +1,4 @@
-// СТРАНИЦА ХОЗЯИНА — вкладка «agy»: заказ уходит, видно «рисует…» и ход в логе, потом «годно» с листом; «В каталог» —
+// СТРАНИЦА ХОЗЯИНА — «Спрайты» → «Заказать у agy»: заказ уходит, видно «рисует…» и ход в логе, потом «годно» с листом; «В каталог» —
 // часть появляется в каталоге (`/table/tunes`) и во вкладке «Спрайты»; «Другую» заполняет форму тем же; «Удалить»
 // убирает попытку и её рисунки. Стол должен брать заглушку вместо agy (стенд table-probe: TABLE_SPRITE_SCRIPT).
 //   node scripts/tableAdminAgy.mjs [base] [secret] [shot.png]
@@ -24,10 +24,10 @@ p.on("pageerror", (e) => errors.push(e.message));
 p.on("dialog", (d) => d.accept());
 try {
   await p.goto(`${base}/table/admin#key=${encodeURIComponent(secret)}`);
-  await p.click('[data-tab="agy"]');
+  await p.click('[data-sub="agy"]');
   await p.waitForSelector("[data-order]");
-  await p.click('[data-pane="agy"] [data-slot="head"]');
-  await p.click('[data-pane="agy"] [data-sides="2"]');
+  await p.click('[data-agy] [data-slot="head"]');
+  await p.click('[data-agy] [data-sides="2"]');
   await p.fill('[data-a="brief"]', "лис в очках");
   await p.fill('[data-a="id"]', ID);
   await p.fill('[data-a="name"]', "Лис");
@@ -48,11 +48,11 @@ try {
   const tunes = await (await fetch(`${base}/table/tunes`)).json();
   check("«В каталог» — часть в каталоге стола", (tunes.extra ?? []).some((x) => x.id === `${ID}:head` && x.name === "Лис" && x.facing === "tilt"), tunes.extra);
   check("рисунки легли к столу", (await fetch(`${base}/table/skins/${ID}/front-head.svg`)).status === 200, null);
+  await p.click('[data-tab="parts"]');
+  await p.click('[data-pane="parts"] [data-slot="hair"]');
+  await p.click('[data-pane="parts"] [data-slot="head"]');
+  check("во вкладке «Детали» — новая часть с именем", (await p.locator(`[data-part="${ID}:head"]`).innerText().catch(() => "")) === "Лис", null);
   await p.click('[data-tab="sprites"]');
-  await p.click('[data-pane="sprites"] [data-slot="hair"]');
-  await p.click('[data-pane="sprites"] [data-slot="head"]');
-  check("во вкладке «Спрайты» — новая часть с именем", (await p.locator(`[data-part="${ID}:head"]`).innerText().catch(() => "")) === "Лис", null);
-  await p.click('[data-tab="agy"]');
   await card.locator("[data-again]").click();
   check("«Другую» — форма заполнена той же заявкой", (await p.inputValue('[data-a="brief"]')) === "лис в очках" && (await p.inputValue('[data-a="id"]')) === ID, [await p.inputValue('[data-a="brief"]'), await p.inputValue('[data-a="id"]')]);
   await p.click("[data-go]");

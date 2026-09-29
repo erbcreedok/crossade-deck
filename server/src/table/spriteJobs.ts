@@ -215,3 +215,30 @@ export async function likeDirs(): Promise<string[]> {
   const dirs = await Promise.all(names.map(async (n) => ((await stat(join(DRAWN, n))).isDirectory() ? n : null)));
   return dirs.filter((n): n is string => n !== null).sort();
 }
+
+/**
+ * ФАЙЛЫ СПРАЙТОВ — для панели «Спрайты»: что нарисовано (`design/persona/skins`, туда пишет agy) и что отдано столу
+ * (`table-client/skins`). По папкам, только SVG вида `<ракурс>-<часть>.svg`.
+ */
+export async function spriteFiles(): Promise<Record<"drawn" | "shipped", Record<string, string[]>>> {
+  const scan = async (root: string): Promise<Record<string, string[]>> => {
+    const out: Record<string, string[]> = {};
+    if (!existsSync(root)) return out;
+    for (const dir of (await readdir(root)).sort()) {
+      if (!/^[a-z0-9-]+$/.test(dir) || !(await stat(join(root, dir))).isDirectory()) continue;
+      const files = (await readdir(join(root, dir))).filter((f) => SPRITE_FILE.test(f)).sort();
+      if (files.length) out[dir] = files;
+    }
+    return out;
+  };
+  return { drawn: await scan(DRAWN), shipped: await scan(SHIPPED) };
+}
+
+const SPRITE_FILE = /^[a-z0-9]+-(head|hair|body|legs)\.svg$/;
+
+/** Путь к файлу спрайта — только из двух папок и только имя по образцу: из адреса наружу не выйти. */
+export function spritePath(where: string, dir: string, file: string): string | null {
+  if (!/^[a-z0-9-]+$/.test(dir) || !SPRITE_FILE.test(file)) return null;
+  const root = where === "drawn" ? DRAWN : where === "shipped" ? SHIPPED : null;
+  return root ? join(root, dir, file) : null;
+}

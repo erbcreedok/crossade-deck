@@ -1,6 +1,6 @@
-// СТРАНИЦА ХОЗЯИНА — вкладка «Спрайты»: фигура на сцене, правка части видна сразу (голова выросла — занятое на сцене
+// СТРАНИЦА ХОЗЯИНА — вкладка «Детали»: фигура на сцене, правка части видна сразу (голова выросла — занятое на сцене
 // выросло), «Сохранить» кладёт правку на стол (`/table/tunes`), «Как в каталоге» снимает. Без ключа — отказ.
-//   node scripts/tableAdminSprites.mjs [base] [secret] [shot.png]
+//   node scripts/tableAdminParts.mjs [base] [secret] [shot.png]
 import { createRequire } from "module";
 const require = createRequire(process.env.PW_FROM ?? import.meta.url);
 const { chromium } = require("playwright");
@@ -16,6 +16,7 @@ const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errors = [];
 p.on("pageerror", (e) => errors.push(e.message));
 await p.goto(`${base}/table/admin#key=${encodeURIComponent(secret)}`);
+await p.click('[data-tab="parts"]');
 await p.waitForSelector("[data-stage] canvas");
 await p.waitForFunction(() => /head:(?!-)/.test(document.querySelector("[data-stage]")?.dataset.views ?? ""), null, { timeout: 8000 });
 await p.waitForTimeout(600);

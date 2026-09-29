@@ -1,6 +1,8 @@
-// СТРАНИЦА ХОЗЯИНА — вкладки. «Спрайты»: живая фигура (та же сцена, что в профиле, `skinStage.ts`) и правки части
-// (`tunes.ts`) — величина, сдвиг, плечи, имя. Правка видна на сцене сразу, «Сохранить» кладёт её на стол, и столы
-// подхватывают её сами (`tunesNet.ts`). «Столы» — прежний список комнат (в самой странице).
+// СТРАНИЦА ХОЗЯИНА — вкладки:
+//   «Спрайты» — сами картинки (`adminSprites.ts`) и заказ новых у agy (`spriteJobs.ts`);
+//   «Детали»  — живая фигура (сцена профиля `skinStage.ts` или за столом `tableStage.ts`) и правки детали (`tunes.ts`):
+//               величина, сдвиг, плечи, имя; видно сразу, «Сохранить» кладёт на стол, столы подхватывают сами (`tunesNet.ts`);
+//   «Столы»   — прежний список комнат (в самой странице).
 //
 // Пускает стол, а не страница: она лишь приносит подпись Telegram или секрет стола из якоря ссылки (`#key=…`).
 
@@ -11,6 +13,7 @@ import { HOST } from "./host.js";
 import { mountSkinStage, type SkinStage } from "./skinStage.js";
 import { mountTableStage, type TableStage } from "./tableStage.js";
 import { pullTunes } from "./tunesNet.js";
+import { mountSpriteGallery } from "./adminSprites.js";
 
 type TelegramApp = { initData?: string; ready?: () => void; expand?: () => void };
 const tg = (globalThis as { Telegram?: { WebApp?: TelegramApp } }).Telegram?.WebApp;
@@ -19,12 +22,14 @@ const auth: Record<string, string> = tg?.initData ? { "x-telegram-init-data": tg
 
 const esc = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-// ВКЛАДКИ
-for (const b of document.querySelectorAll<HTMLButtonElement>("[data-tab]")) {
-  b.onclick = () => {
-    for (const x of document.querySelectorAll<HTMLButtonElement>("[data-tab]")) x.classList.toggle("on", x === b);
-    for (const pane of document.querySelectorAll<HTMLElement>("[data-pane]")) pane.hidden = pane.dataset.pane !== b.dataset.tab;
-  };
+// ВКЛАДКИ — и подвкладки «Спрайтов»: все картинки или заказ новых у agy.
+for (const [btn, pane, key] of [["tab", "pane", "tab"], ["sub", "subpane", "sub"]] as const) {
+  for (const b of document.querySelectorAll<HTMLButtonElement>(`[data-${btn}]`)) {
+    b.onclick = () => {
+      for (const x of document.querySelectorAll<HTMLButtonElement>(`[data-${btn}]`)) x.classList.toggle("on", x === b);
+      for (const p of document.querySelectorAll<HTMLElement>(`[data-${pane}]`)) p.hidden = p.dataset[pane] !== b.dataset[key];
+    };
+  }
 }
 
 const CSS = `
@@ -64,7 +69,7 @@ const FIELDS: { k: keyof typeof TUNE_LIMITS; name: string; hint: string; step: n
   { k: "shoulder", name: "Линия плеч", hint: "доля высоты рисунка сверху", step: 0.01, def: (id) => (partOf(id)?.art.kind === "court" ? 0.12 : 0.18), only: "body" },
 ];
 
-function spritesTab(root: HTMLElement): void {
+function partsTab(root: HTMLElement): void {
   const style = document.createElement("style");
   style.textContent = CSS;
   document.head.append(style);
@@ -183,7 +188,8 @@ tg?.expand?.();
 // Сцена прилипает под вкладками — их высота в Telegram больше на отступ под его шапку.
 const tabs = document.querySelector<HTMLElement>("[data-tabs]");
 if (tabs) new ResizeObserver(() => document.documentElement.style.setProperty("--tabs-h", `${tabs.offsetHeight}px`)).observe(tabs);
-spritesTab(document.querySelector<HTMLElement>('[data-pane="sprites"]')!);
+partsTab(document.querySelector<HTMLElement>('[data-pane="parts"]')!);
+const gallery = mountSpriteGallery(document.querySelector<HTMLElement>('[data-subpane="gallery"]')!, auth);
 
 // ВКЛАДКА «agy» — заказы спрайтов (`spriteJobs.ts`): форма, как у `/sprite` в чате, и список заказов с ходом работы,
 // листом и кнопками «В каталог», «Другую», «По ней — ещё часть», «Удалить».
@@ -360,10 +366,11 @@ function agyTab(root: HTMLElement): void {
     const pick = (job: string) => jobs.find((j) => j.job === job)!;
     for (const b of root.querySelectorAll<HTMLElement>("[data-accept]")) b.onclick = async () => {
       const res = await api(`/${b.dataset.accept}/accept`, { method: "POST" }).catch(() => null);
-      said = res?.ok ? "В каталоге. Во вкладке «Спрайты» её можно подкрутить; выдать игрокам — во вкладке «Игроки»." : `Не принято (${res?.status ?? "нет связи"}${res?.status === 409 ? ": такая часть уже есть" : ""}).`;
+      said = res?.ok ? "В каталоге. Во вкладке «Детали» её можно подкрутить." : `Не принято (${res?.status ?? "нет связи"}${res?.status === 409 ? ": такая часть уже есть" : ""}).`;
       bad = !res?.ok;
       await pullTunes();
       await refresh();
+      gallery.refresh();
       drawForm();
       window.scrollTo({ top: 0, behavior: "smooth" });
     };
@@ -393,12 +400,11 @@ function agyTab(root: HTMLElement): void {
 
   // Пока что-то рисуется — список и открытый заказ обновляются сами.
   setInterval(() => {
-    const pane = root.closest<HTMLElement>("[data-pane]");
-    if (pane?.hidden || busy) return;
+    if (root.hidden || root.closest<HTMLElement>("[data-pane]")?.hidden || busy) return;
     if (jobs.some((j) => j.state === "running") || open?.state === "running") void refresh();
   }, 4_000);
   render();
   void refresh();
 }
 
-agyTab(document.querySelector<HTMLElement>('[data-pane="agy"]')!);
+agyTab(document.querySelector<HTMLElement>("[data-agy]")!);

@@ -12,6 +12,7 @@
 
 import { appKeyBearer, KEY_DAYS, mintAppKey } from "./appPass.js";
 import { randomBytes, timingSafeEqual } from "crypto";
+import { existsSync } from "fs";
 import express, { type Router } from "express";
 import { tableConfig } from "./config.js";
 import { DOWN_PAGE, hostPage } from "./hostPage.js";
@@ -24,7 +25,7 @@ import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomInJournal, roomsOfJou
 import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
 import { allTunes, extraParts, putTune } from "../db/tableTunesRepo.js";
-import { acceptJob, cleanAsk, dropJob, keepPhoto, likeDirs, listJobs, oneJob, sheetOf, startJob } from "./spriteJobs.js";
+import { acceptJob, cleanAsk, dropJob, keepPhoto, likeDirs, listJobs, oneJob, sheetOf, spriteFiles, spritePath, startJob } from "./spriteJobs.js";
 import { cleanTune } from "./tunes.js";
 import { myRooms } from "./mine.js";
 import { carryTableProfile, saveTableProfile, tableProfile } from "../db/tableProfilesRepo.js";
@@ -397,6 +398,15 @@ export function tableRoutes(): Router {
   const owner: express.RequestHandler = (req, res, next) => (isOwner(req) ? next() : void res.status(403).json({ error: "not_owner" }));
   r.get("/table/admin/sprites", owner, async (_req, res) => {
     res.json({ jobs: await listJobs(), like: await likeDirs() });
+  });
+  r.get("/table/admin/sprites/files", owner, async (_req, res) => {
+    res.json(await spriteFiles());
+  });
+  r.get("/table/admin/sprites/files/:where/:dir/:file", owner, (req, res) => {
+    const path = spritePath(req.params.where, req.params.dir, req.params.file);
+    if (!path || !existsSync(path)) return void res.status(404).end();
+    res.header("Cache-Control", "no-store");
+    res.type("image/svg+xml").sendFile(path);
   });
   r.post("/table/admin/sprites/photo", owner, express.raw({ type: "image/*", limit: "8mb" }), async (req, res) => {
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) return void res.status(400).json({ error: "no_photo" });
