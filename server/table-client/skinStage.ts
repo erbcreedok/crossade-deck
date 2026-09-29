@@ -144,12 +144,13 @@ export function mountSkinStage(box: HTMLElement, base: string, first: SkinLook):
     const f = (Math.min(W, H) * 0.5) / Math.tan((40 * Math.PI) / 360);
     const proj = (P: V) => { const v = sub(P, eye), z = dot(v, fw); return z < 0.1 ? null : { x: W / 2 + (dot(v, cr) * f) / z, y: H * 0.55 - (dot(v, cu) * f) / z }; };
     const shoulderZ = (standing ? 7.2 : 4.2) + breath * 0.06, headZ = shoulderZ + 1.35 + breath * 0.04;
-    type Quad = { tl: V; tr: V; bl: V; at: V; img?: HTMLImageElement; slot?: Slot; face?: string; shade?: number; chair?: boolean; vMax?: number };
+    type Quad = { tl: V; tr: V; bl: V; at: V; img?: HTMLImageElement; slot?: Slot; face?: string; shade?: number; chair?: boolean; card?: boolean; vMax?: number };
     const quads: Quad[] = [];
-    const place = (slot: Slot, center: V, w: number, h: number | null, pivotTop: number, cutAt = -Infinity) => {
+    /** Часть в `center`; `yaw` — повёрнута на столько градусов от «лицом вперёд» (голова водит взглядом). */
+    const place = (slot: Slot, center: V, w: number, h: number | null, pivotTop: number, cutAt = -Infinity, yaw = 0) => {
       const p = partOf(look.parts[slot]);
       if (!p || p.art.kind === "none") return;
-      const view = pickView(p, turnZ(toEye, 0), held[slot]);
+      const view = pickView(p, turnZ(toEye, yaw), held[slot]);
       held[slot] = view;
       views[slot] = p.facing === "box" ? "box" : view;
       if (p.facing === "box") return box3(p, center, w);
@@ -160,15 +161,15 @@ export function mountSkinStage(box: HTMLElement, base: string, first: SkinLook):
       if (img) last[slot] = { img, id: p.id };
       else if (last[slot]?.id === p.id) img = last[slot]!.img;
       if (!img) return;
-      const fwd: V = [0, 1, 0];
+      const fwd: V = turnZ([0, 1, 0], -yaw);
       let n: V, upv: V, across: V, squeeze = 1;
       if (p.facing === "camera") ({ up: upv, across } = basis((n = toEye), fwd));
       else if (p.facing === "tilt") {
         // бумажный спрайт: лицом в камеру, по ширине сужается по углу между ракурсом и взглядом
-        const dv = VIEW_DIRS[view] ?? VIEW_DIRS.front!, flatD = norm([dv[0], dv[1], 0]), lean = Math.hypot(toEye[0], toEye[1]);
+        const dv = turnZ(VIEW_DIRS[view] ?? VIEW_DIRS.front!, -yaw), flatD = norm([dv[0], dv[1], 0]), lean = Math.hypot(toEye[0], toEye[1]);
         ({ up: upv, across } = basis((n = toEye), fwd));
         squeeze = lean < 1e-3 ? 1 : Math.max(0.12, Math.abs(dot(flatD, [toEye[0] / lean, toEye[1] / lean, 0])) * lean + (1 - lean));
-      } else ({ up: upv, across } = basis((n = [...(VIEW_DIRS[view] ?? VIEW_DIRS.front!)] as V), fwd));
+      } else ({ up: upv, across } = basis((n = turnZ(VIEW_DIRS[view] ?? VIEW_DIRS.front!, -yaw)), fwd));
       const flat = p.facing === "view" && Math.abs(n[2]) > 0.9;
       const hh = h ?? (w * img.naturalHeight) / img.naturalWidth, top = add(center, mul(upv, hh * (flat ? 0.5 : pivotTop)));
       const ac = mul(across, d.mirror ? -1 : 1), ws = w * squeeze;
@@ -188,13 +189,64 @@ export function mountSkinStage(box: HTMLElement, base: string, first: SkinLook):
         quads.push({ tl, tr: add(tl, mul(across, w)), bl: add(tl, mul(upv, -w)), at: c, face: name, shade });
       }
     };
+    /**
+     * РУКИ, ВЕЕР И КОЛОДА — как на стенде `design/persona`: в левой руке веер карт рубашкой к камере, правая раз в
+     * 4,5 с тянется к колоде перед фигурой, берёт карту (кисть сжата) и несёт её в левую, потом возвращается.
+     */
+    function cardsAndHands(): void {
+      const handsPart = partOf(look.parts.hands);
+      if (!handsPart || handsPart.art.kind === "none") return;
+      const open = imageOf(`${base}/table/sprites/${handsPart.art.kind === "png" ? handsPart.art.file : "hand-open"}.png`, draw);
+      const closed = imageOf(`${base}/table/sprites/hand-closed.png`, draw);
+      const { up: cu3, across: ca3 } = basis(toEye, [0, 1, 0]);
+      const card = (bottom: V, dir: V, perp: V, w: number, h: number, at: V) => {
+        const tl = add(add(bottom, mul(dir, h)), mul(perp, -w / 2));
+        quads.push({ card: true, tl, tr: add(tl, mul(perp, w)), bl: add(bottom, mul(perp, -w / 2)), at });
+      };
+      const hand = (img: HTMLImageElement | null, at: V, mirror: boolean) => {
+        if (!img) return;
+        const s = 1.3, ac = mul(ca3, mirror ? -1 : 1);
+        const tl = add(add(at, mul(cu3, s / 2)), mul(ac, -s / 2));
+        quads.push({ img, tl, tr: add(tl, mul(ac, s)), bl: add(tl, mul(cu3, -s)), at: add(at, mul(toEye, 0.3)) });
+      };
+      // левая рука с веером — перед грудью слева
+      const L: V = [-1.3, 1.4, headZ - 1.8];
+      for (let k = 0; k < 5; k += 1) {
+        const ang = ((k - 2) * 14 * Math.PI) / 180;
+        const dir = add(mul(cu3, Math.cos(ang)), mul(ca3, Math.sin(ang))), perp = add(mul(ca3, Math.cos(ang)), mul(cu3, -Math.sin(ang)));
+        card(L, dir, perp, 1.0, 1.4, add(add(L, mul(dir, 0.7)), mul(toEye, 0.02 * k)));
+      }
+      hand(closed, L, true);
+      // колода — стопкой перед фигурой, на высоте стола (плечи сидящего — на 4 выше сукна)
+      const D: V = [0.5, 2.2, shoulderZ - 2.5];
+      for (let k = 0; k < 4; k += 1) {
+        const z = D[2] + 0.07 * k;
+        quads.push({ card: true, tl: [D[0] - 0.5, D[1] + 0.7, z], tr: [D[0] + 0.5, D[1] + 0.7, z], bl: [D[0] - 0.5, D[1] - 0.7, z], at: [D[0], D[1], z] });
+      }
+      // правая рука — к колоде и обратно
+      const rest: V = [1.8, 0.4, shoulderZ - 1.8], deck: V = add(D, [0, 0, 0.5]);
+      const c = still ? 0.9 : ((t / 4.5) % 1 + 1) % 1;
+      const ease = (u: number) => u * u * (3 - 2 * u);
+      const lerp = (p0: V, p1: V, u: number): V => add(p0, mul(sub(p1, p0), u));
+      const arc = (u: number): V => [0, 0, Math.sin(Math.PI * u) * 1.4];
+      let R: V = rest, grip = false, carry = false;
+      if (c < 0.35) R = add(lerp(rest, deck, ease(c / 0.35)), arc(ease(c / 0.35)));
+      else if (c < 0.45) { R = deck; grip = true; }
+      else if (c < 0.8) { const u = ease((c - 0.45) / 0.35); R = add(lerp(deck, L, u), arc(u)); grip = true; carry = true; }
+      else R = lerp(L, rest, ease((c - 0.8) / 0.2));
+      box.dataset.grab = c < 0.35 ? "reach" : c < 0.45 ? "grip" : c < 0.8 ? "carry" : "back";
+      if (carry) card(add(R, mul(cu3, -0.2)), cu3, ca3, 1.0, 1.4, add(R, mul(toEye, -0.05)));
+      hand(grip ? closed : open, R, false);
+    }
     const body = partOf(look.parts.body);
     const sh = body ? partGeom(body.id).shoulder : 0.08;
     if (standing) place("legs", [0, -0.05, 0], 3.4, 4.3, 1);
     place("body", [0, 0, shoulderZ], 5.2, null, sh, standing ? 3.9 : 0);
-    place("head", [0, 0, headZ], 2.5, null, 0.5);
-    place("hair", [0, 0, headZ + 0.9], 2.6, null, 0.6);
-    for (const x of [-2, 2]) place("hands", [x, 0.6, shoulderZ - 1.6], 1.3, 1.3, 0.5);
+    // ВЗГЛЯД ВОДИТ ПО СТОЛУ — голова поворачивается то влево, то вправо (как на стенде `design/persona`).
+    const look0 = still ? 0 : Math.sin(t * 0.7) * 40;
+    place("head", [0, 0, headZ], 2.5, null, 0.5, -Infinity, look0);
+    place("hair", [0, 0, headZ + 0.9], 2.6, null, 0.6, -Infinity, look0);
+    cardsAndHands();
     // пол — сетка, чтобы виден был наклон
     g.strokeStyle = "rgba(242,193,78,.18)"; g.lineWidth = 1;
     for (let i = -6; i <= 6; i += 1) for (const [p0, p1] of [[[i, -6, 0], [i, 6, 0]], [[-6, i, 0], [6, i, 0]]] as V[][]) {
@@ -212,6 +264,16 @@ export function mountSkinStage(box: HTMLElement, base: string, first: SkinLook):
     for (const q of quads) {
       const lerp3 = (u: number, v: number): V => add(add(q.tl, mul(sub(q.tr, q.tl), u)), mul(sub(q.bl, q.tl), v));
       const poly = (pts: { x: number; y: number }[]) => { g.beginPath(); pts.forEach((c, k) => (k ? g.lineTo(c.x, c.y) : g.moveTo(c.x, c.y))); g.closePath(); };
+      if (q.card) {
+        // КАРТА — рубашкой: бумага, в ней поле расцветки, чёрный край.
+        const corner = [lerp3(0, 0), lerp3(1, 0), lerp3(1, 1), lerp3(0, 1)].map(proj);
+        const inner = [lerp3(0.14, 0.1), lerp3(0.86, 0.1), lerp3(0.86, 0.9), lerp3(0.14, 0.9)].map(proj);
+        if (corner.some((c) => !c) || inner.some((c) => !c)) continue;
+        poly(corner as { x: number; y: number }[]); g.fillStyle = PAPER; g.fill();
+        poly(inner as { x: number; y: number }[]); g.fillStyle = pal.blue; g.fill();
+        poly(corner as { x: number; y: number }[]); g.lineJoin = "round"; g.lineWidth = 2; g.strokeStyle = BLACK; g.stroke();
+        continue;
+      }
       if (q.chair || q.face) {
         const corner = [lerp3(0, 0), lerp3(1, 0), lerp3(1, 1), lerp3(0, 1)].map(proj);
         if (corner.some((c) => !c)) continue;

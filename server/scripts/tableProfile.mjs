@@ -50,6 +50,10 @@ const frameOf = () => p.evaluate(() => document.querySelector("[data-doll-previe
 const f1 = await frameOf();
 await p.waitForTimeout(700);
 check("фигура в профиле живая: дышит (кадры меняются)", f1 !== (await frameOf()), f1);
+// КАК НА СТЕНДЕ `design/persona`: правая рука тянется к колоде, берёт карту и несёт её в левую, к вееру.
+const phases = new Set();
+for (let i = 0; i < 26; i += 1) { phases.add(await p.evaluate(() => document.querySelector("[data-doll-preview]")?.dataset.grab)); await p.waitForTimeout(200); }
+check("рука берёт карту с колоды и несёт к вееру (за 5 с: тянется, хват, несёт)", ["reach", "grip", "carry"].every((ph) => phases.has(ph)), [...phases]);
 check("расцветок сразу 5, по «ещё» — 16", (await p.locator("[data-pal]").count()) <= 6, await p.locator("[data-pal]").count());
 await p.click("[data-more]");
 check("…по «ещё» — все 16", (await p.locator("[data-pal]").count()) === 16, await p.locator("[data-pal]").count());
