@@ -30,7 +30,7 @@ const DEG = Math.PI / 180;
 const R = TABLE_RADIUS, RIM = 0.45, THICK = 0.6;
 const CARD_W = 1, CARD_H = 1.4;
 /** Каждую карту стопки — чуть выше предыдущей; каждую карту сукна — выше лёгшей раньше. */
-const PILE_STEP = 0.012, FELT_STEP = 0.004;
+const FELT_STEP = 0.004;
 /** Сколько держать карту без «держу» — меньше `LOCK_TTL_MS` стола. */
 const HOLD_MS = 1500;
 /** Двойной тап — два тапа по одной карте за столько. */
@@ -86,16 +86,51 @@ function fingerTexture(id: string): THREE.CanvasTexture {
 }
 
 /** Карта: лицо (+z) и рубашка (−z) спиной к спине, со скруглёнными углами. */
-const cardShape = (() => {
+const cardOutline = (() => {
   const w = CARD_W / 2, h = CARD_H / 2, r = 0.09;
   const s = new THREE.Shape();
   s.moveTo(-w + r, -h); s.lineTo(w - r, -h); s.quadraticCurveTo(w, -h, w, -h + r); s.lineTo(w, h - r); s.quadraticCurveTo(w, h, w - r, h);
   s.lineTo(-w + r, h); s.quadraticCurveTo(-w, h, -w, h - r); s.lineTo(-w, -h + r); s.quadraticCurveTo(-w, -h, -w + r, -h);
-  const g = new THREE.ShapeGeometry(s, 4);
+  return s;
+})();
+const cardShape = (() => {
+  const g = new THREE.ShapeGeometry(cardOutline, 4);
   const pos = g.getAttribute("position") as THREE.BufferAttribute, uv = g.getAttribute("uv") as THREE.BufferAttribute;
   for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / CARD_W + 0.5, pos.getY(i) / CARD_H + 0.5);
   return g;
 })();
+/**
+ * БОК КОЛОДЫ. Карта здесь — плоский лист, и сбоку стопка листов была сплошной белой плитой. Настоящая колода сбоку — не белая:
+ * срез бумаги кремовый, серее лица, с тонкой тёмной линией на стыке каждой карты, а у основания темнее (тень между картами).
+ * Тело стопки — выдавленный контур карты, без крышек: видны только стенки; листы лежат внутри и чуть выступают кромкой.
+ */
+const PILE_STEP = 0.012;
+const pileSideTexture = (() => {
+  const t = canvasTexture(8, 64, (g) => {
+    g.fillStyle = "#d1c6ab"; g.fillRect(0, 0, 8, 64);
+    g.fillStyle = "#e2d9c1"; g.fillRect(0, 0, 8, 9);
+    g.fillStyle = "#978b74"; g.fillRect(0, 55, 8, 9);
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(1, 1 / PILE_STEP);
+  t.anisotropy = 8;
+  return t;
+})();
+const pileBodyMat = [new THREE.MeshBasicMaterial({ visible: false }), new THREE.MeshBasicMaterial({ map: pileSideTexture, vertexColors: true })];
+const pileBodyGeoms = new Map<number, THREE.BufferGeometry>();
+/** Тело стопки из `n` карт: стенки по контуру карты, темнее к основанию. */
+function pileBodyGeom(n: number): THREE.BufferGeometry {
+  let g = pileBodyGeoms.get(n);
+  if (!g) {
+    const depth = (n - 1) * PILE_STEP;
+    g = new THREE.ExtrudeGeometry(cardOutline, { depth, bevelEnabled: false, curveSegments: 4 });
+    const pos = g.getAttribute("position") as THREE.BufferAttribute, col = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) { const k = 0.45 + 0.45 * Math.min(1, pos.getZ(i) / Math.max(depth, 1e-6)); col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = k; }
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    pileBodyGeoms.set(n, g);
+  }
+  return g;
+}
 interface CardObj { group: THREE.Group; front: THREE.Mesh; back: THREE.Mesh; ring: THREE.LineLoop; target: Place; faceUrl: string; backUrl: string }
 const cardEdge = (() => {
   const w = CARD_W / 2 + 0.04, h = CARD_H / 2 + 0.04;
@@ -618,6 +653,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     armPose();
     placeTabs();
+    placeBodies();
     // Своя рука у глаза — вторым проходом поверх всего: борт стола, подошедший к камере вплотную, её не закрывает.
     camera.layers.set(0);
     renderer.render(scene, camera);
@@ -704,6 +740,30 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       t.mesh.scale.setScalar(k);
     }
     for (const [id, t] of tabs) if (!seen.has(id)) { scene.remove(t.mesh); (t.mesh.material as THREE.Material).dispose(); t.tex.dispose(); tabs.delete(id); }
+  }
+
+  // ——— бок колоды: тело стопки под картами ———
+  const bodies = new Map<string, THREE.Mesh>();
+  /** Тело у каждой стопки из двух и больше карт — от нижней карты вверх на её высоту; несомую сверху карту в него не считают. */
+  function placeBodies(): void {
+    const seen = new Set<string>();
+    for (const p of store.state.piles) {
+      const base = p.pose === "ring" ? undefined : cards.get(p.cards[0]?.id ?? "");
+      const n = p.cards.length - (drag?.moved && drag.id === p.cards.at(-1)?.id ? 1 : 0);
+      if (!base || !base.group.visible || n < 2) continue;
+      seen.add(p.id);
+      let m = bodies.get(p.id);
+      if (!m) { m = new THREE.Mesh(pileBodyGeom(n), pileBodyMat); scene.add(m); bodies.set(p.id, m); }
+      const g = pileBodyGeom(n);
+      if (m.geometry !== g) m.geometry = g;
+      m.userData.layers = n;
+      base.group.updateMatrixWorld(true);
+      const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.scale.x * 0.985;
+      m.position.copy(at);
+      m.rotation.set(-Math.PI / 2, -pileAngle(p) * DEG, 0, "YXZ");
+      m.scale.set(k, k, base.group.scale.x);
+    }
+    for (const [id, m] of bodies) if (!seen.has(id)) { scene.remove(m); bodies.delete(id); }
   }
 
   // ——— палец ———
@@ -915,6 +975,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return { pile: p.id, count: p.cards.length, ...c, cardPx: Math.hypot(e.x - c.x, e.y - c.y) };
     });
   (window as unknown as { __t3d: unknown }).__t3d = {
+    /** Тела стопок (бок колоды): чья стопка и сколько карт в теле. */
+    pileBodies: () => [...bodies.entries()].map(([pile, m]) => ({ pile, layers: m.userData.layers as number })),
     /** Чем нарисовано лицо каждой карты: адрес картинки или `finger:<оттенок>` — скрытая лицом ко мне. */
     arts: () => [...cards.entries()].map(([id, o]) => ({ id, face: o.faceUrl })),
     /** Язычки на экране: чья стопка, середина и размер, сколько карт, приколота ли. */

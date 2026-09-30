@@ -518,6 +518,23 @@ try {
     check("тот же палец у той же карты при повторном открытии (по id, не мигает)", JSON.stringify(again) === JSON.stringify(first), { first, again });
   }
 
+  // БОК КОЛОДЫ — не белая плита: срез бумаги кремовый и темнее лица, у стопки есть тело на все её карты.
+  {
+    await p.goto(`${base}/?stand`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const layers = await t(() => ({ bodies: window.__t3d.pileBodies(), n: window.__t3d.state().piles[0].cards.length }));
+    check("у стопки из карт есть тело на все её карты (бок колоды)", layers.bodies.length === 1 && layers.bodies[0].layers === layers.n, layers);
+    await p.mouse.move(300, 600); await p.mouse.down(); await p.mouse.move(300, 525, { steps: 10 }); await p.mouse.up();
+    for (let i = 0; i < 2; i++) await p.mouse.wheel(0, -300);
+    await frames();
+    const a = await tabInfo(), vals = [];
+    const lum = async (x, y) => { const png = await p.screenshot({ clip: { x: Math.round(x), y: Math.round(y), width: 1, height: 1 } }); const { inflateSync } = await import("zlib"); const raw = inflateSync(Buffer.concat(pngChunks(png, "IDAT"))); return 0.2126 * raw[1] + 0.7152 * raw[2] + 0.0722 * raw[3]; };
+    for (const dy of [-9, -7, -5, -3]) for (const dx of [-12, -6, 0, 6, 12]) vals.push(await lum(a.x + dx, a.y + dy));
+    const mean = vals.reduce((m, v) => m + v, 0) / vals.length, max = Math.max(...vals);
+    check("бок колоды сбоку не белый: срез кремовый, темнее лица (средняя яркость < 175, самая яркая точка < 215)", mean < 175 && max < 215, { mean: Math.round(mean), max: Math.round(max) });
+  }
+
   // МОЯ РУКА ВСЕГДА ВИДНА: камера низко и вплотную — борт стола подходит к глазу, но веер поверх него, а не под ним.
   {
     await p.goto(`${base}/?stand`);
