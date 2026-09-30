@@ -888,9 +888,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     carryPile(pile, at) {
       const p = store.state.piles.find((x) => x.id === pile);
       if (!at && pileCarry && p) pileLanding = { ...pileCarry, was: { x: p.x, y: p.y }, until: performance.now() + 1500 };
-      pileCarry = at ? { pile, ...at } : null;
+      // Стопку несут только по сукну: за край стола она не уходит ни в тяге, ни при посадке — как карта, которую кладут (`aim`).
+      const len = at ? Math.hypot(at.x, at.y) : 0, max = R - 0.8, k = len > max ? max / len : 1;
+      pileCarry = at ? { pile, x: at.x * k, y: at.y * k } : null;
       // Несу стопку — рука остальным под ней.
-      restRight = at;
+      restRight = pileCarry ? { x: pileCarry.x, y: pileCarry.y } : null;
       sendBody(!at);
       layout(store.state);
     },

@@ -369,6 +369,25 @@ try {
   await p.click("[data-deck-shut]");
   }
 
+  // СТОПКУ ЗА КРАЙ СТОЛА НЕ УНЕСТИ: тянешь колоду к краю экрана — она идёт по сукну до борта и дальше не уходит.
+  {
+    await p.goto(`${base}/?stand`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const grip = await p.locator('[data-g="deck-grip"]').boundingBox();
+    const topId = await t(() => window.__t3d.state().piles[0].cards.at(-1).id);
+    await p.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await p.mouse.down();
+    await p.mouse.move(8, 260, { steps: 14 });
+    await frames();
+    const far = await t((id) => { const w = window.__t3d.world(id); return Math.hypot(w.x, w.y); }, topId);
+    await p.mouse.up();
+    await frames();
+    check("колоду тянут за край стола — несомая стопка не дальше борта (радиус сукна 6.4)", far < 6.0, far);
+    const rest = await t(() => { const q = window.__t3d.state().piles[0]; return Math.hypot(q.x, q.y); });
+    check("отпустили за краем — стопка легла на сукно", rest < 6.0, rest);
+  }
+
   // МОЯ РУКА ВСЕГДА ВИДНА: камера низко и вплотную — борт стола подходит к глазу, но веер поверх него, а не под ним.
   {
     await p.goto(`${base}/?stand`);
