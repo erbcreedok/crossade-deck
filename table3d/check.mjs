@@ -255,56 +255,67 @@ try {
   check("тап по голове — окно стула: имя и флаги", (await p.locator('[data-g="tip"]').innerText().catch(() => "")).includes("Алия") && (await p.locator('[data-g="tip"] [data-status="lock"], [data-g="tip"] [data-flag="lock"]').count()) === 1, await p.locator('[data-g="tip"]').innerText().catch(() => ""));
   if (shot) await p.screenshot({ path: shot.replace(/\.png$/, "-hud.png") });
 
-  // ОКНО СТОПКИ — три способа держаться: по экрану, прибито к стопке, на месте (переносится, помнится).
+  {
+  // ОКНО СТОПКИ — два независимых выбора: размер (по экрану / по стопке) и место (у стопки / своё, переносится).
   if (await p.locator("[data-tip-close]").count()) await p.click("[data-tip-close]");
   await p.click('[data-home]');
   await frames();
   await p.click('[data-g="deck-grip"]');
   await frames();
-  const tipBox0 = await p.locator('[data-g="deck-tip"]').boundingBox();
-  await p.mouse.move(195, 200); await p.mouse.wheel(0, -400);
+  const tipRect = () => p.locator('[data-g="deck-tip"]').boundingBox();
+  const zoom = async (dy) => { await p.mouse.move(195, 250); await p.mouse.wheel(0, dy); await frames(); };
+  const turn = async (dx) => drag({ x: 60, y: 250 }, { x: 60 + dx, y: 250 });
+  const frameAttr = (a) => p.getAttribute('[data-g="deck-tip-frame"]', a);
+  check("по умолчанию: размер — экран, место — у стопки", (await frameAttr("data-size")) === "screen" && (await frameAttr("data-place")) === "stack", [await frameAttr("data-size"), await frameAttr("data-place")]);
+  const w0 = (await tipRect()).width;
+  await zoom(-400);
+  check("размер «экран» — зум не меняет окно", Math.abs((await tipRect()).width - w0) < 1, [w0, (await tipRect()).width]);
+  const g0 = await p.locator('[data-g="deck-grip"]').boundingBox(), t0 = await tipRect();
+  await turn(60);
+  const g1 = await p.locator('[data-g="deck-grip"]').boundingBox(), t1 = await tipRect();
+  check("место «у стопки» — повернул стол, окно едет за стопкой", Math.hypot(g1.x - g0.x, g1.y - g0.y) > 10 && Math.hypot(t1.x - t0.x, t1.y - t0.y) > 5, { grip: [g0.x, g0.y, g1.x, g1.y], tip: [t0.x, t0.y, t1.x, t1.y] });
+  await p.click("[data-tip-size]");
   await frames();
-  const tipBoxZoom = await p.locator('[data-g="deck-tip"]').boundingBox();
-  check("окно «экран» — размер по экрану: камера ближе, окно той же ширины", Math.abs(tipBoxZoom.width - tipBox0.width) < 1, [tipBox0.width, tipBoxZoom.width]);
-  await p.click("[data-tip-mode]");
-  await frames();
-  const k1 = Number(await p.getAttribute('[data-g="deck-tip-frame"]', "data-k")), el1 = await p.locator('[data-g="deck-tip"]').boundingBox();
-  await p.mouse.move(195, 200); await p.mouse.wheel(0, 500);
-  await frames();
-  const k2 = Number(await p.getAttribute('[data-g="deck-tip-frame"]', "data-k")), el2 = await p.locator('[data-g="deck-tip"]').boundingBox();
-  check("окно «к стопке» — камера дальше, окно меньше вместе со стопкой", (await p.getAttribute('[data-g="deck-tip-frame"]', "data-mode")) === "element" && k2 < k1 - 0.05 && el2.width < el1.width - 5, { k1, k2, w1: el1.width, w2: el2.width });
-  const gripA = await p.locator('[data-g="deck-grip"]').boundingBox();
-  await drag({ x: 60, y: 200 }, { x: 160, y: 200 });
-  const gripB = await p.locator('[data-g="deck-grip"]').boundingBox(), el3 = await p.locator('[data-g="deck-tip"]').boundingBox();
-  check("окно «к стопке» — повернул стол, окно едет за стопкой", Math.abs((el3.x + el3.width / 2) - (gripB.x + gripB.width / 2)) < 3 && Math.hypot(gripB.x - gripA.x, gripB.y - gripA.y) > 10, { grip: [gripA.x, gripB.x], tip: el3.x + el3.width / 2 });
-  // Карта в окно «к стопке» (масштаб не 1) — всё ещё в щель, на своё место.
-  const toTip = (await my()).hand.at(-1).id, hc2 = await t((id) => window.__t3d.screenOf(id), toTip);
+  const s1 = (await tipRect()).width;
+  await zoom(500);
+  const s2 = (await tipRect()).width;
+  await zoom(-700);
+  const s3 = (await tipRect()).width;
+  check("размер «стопки» — зум меняет окно: дальше — меньше, ближе — больше", (await frameAttr("data-size")) === "stack" && s2 < s1 - 5 && s3 > s2 + 5, [s1, s2, s3]);
+  // Карта в окно с масштабом не 1 — всё ещё в щель, на своё место.
+  const tb2 = await tipRect(), toTip = (await my()).hand.at(-1).id, hc2 = await t((id) => window.__t3d.screenOf(id), toTip);
   await p.mouse.move(hc2.x, hc2.y); await p.mouse.down();
-  await p.mouse.move(el3.x + el3.width * 0.35, el3.y + el3.height * 0.75, { steps: 12 });
+  await p.mouse.move(tb2.x + tb2.width * 0.35, tb2.y + tb2.height * 0.75, { steps: 12 });
   await frames();
   const z2 = await t(() => window.__t3d.zone());
   await p.mouse.up();
   await frames();
-  check("окно «к стопке»: карта в щель — ложится на это место", z2 && (await t((id) => window.__t3d.state().piles[0].cards.findIndex((c) => c.id === id), toTip)) === z2.i, z2);
-  await p.click("[data-tip-mode]");
+  check("окно в масштабе стопки: карта в щель — ложится на это место", z2 && (await t((id) => window.__t3d.state().piles[0].cards.findIndex((c) => c.id === id), toTip)) === z2.i, z2);
+  await p.click("[data-tip-place]");
   await frames();
-  const pin1 = await p.locator('[data-g="deck-tip"]').boundingBox();
-  await drag({ x: 60, y: 200 }, { x: 200, y: 200 });
-  const pin2 = await p.locator('[data-g="deck-tip"]').boundingBox();
-  check("окно «на месте» — повернул стол, окно стоит, где открылось", (await p.getAttribute('[data-g="deck-tip-frame"]', "data-mode")) === "pinned" && Math.abs(pin2.x - pin1.x) < 1 && Math.abs(pin2.y - pin1.y) < 1, [pin1, pin2]);
-  const hd = await p.locator("[data-tip-drag]").boundingBox();
-  await drag({ x: hd.x + 20, y: hd.y + hd.height / 2 }, { x: hd.x + 20 - 30, y: hd.y + hd.height / 2 - 90 });
-  const pin3 = await p.locator('[data-g="deck-tip"]').boundingBox();
-  check("окно «на месте» — переносится за заголовок", Math.abs(pin3.x - (pin2.x - 30)) < 2 && Math.abs(pin3.y - (pin2.y - 90)) < 2, [pin2, pin3]);
+  const f1 = await tipRect();
+  await turn(120);
+  const f2 = await tipRect();
+  check("место «своё» — повернул стол, окно стоит, где было (верх посередине на месте; размер — от стопки)", (await frameAttr("data-place")) === "free" && Math.abs((f2.x + f2.width / 2) - (f1.x + f1.width / 2)) < 1 && Math.abs(f2.y - f1.y) < 1, [f1, f2]);
+  await zoom(400);
+  const f3 = await tipRect();
+  check("место «своё» и размер «стопки» — зум меняет размер, а окно не уезжает (верх посередине на месте)", f3.width < f2.width - 5 && Math.abs((f3.x + f3.width / 2) - (f2.x + f2.width / 2)) < 2 && Math.abs(f3.y - f2.y) < 2, [f2, f3]);
+  await p.click("[data-tip-size]");
+  await frames();
+  const hd = await p.locator("[data-tip-drag]").boundingBox(), f4 = await tipRect();
+  await drag({ x: hd.x + 10, y: hd.y + hd.height / 2 }, { x: hd.x + 10 - 30, y: hd.y + hd.height / 2 - 90 });
+  const f5 = await tipRect();
+  check("место «своё» — окно переносится за заголовок", Math.abs(f5.x - (f4.x - 30)) < 2 && Math.abs(f5.y - (f4.y - 90)) < 2, [f4, f5]);
   await p.reload();
   await p.waitForFunction(() => window.__t3d && document.querySelector('[data-g="deck-grip"]'));
   await frames();
   await p.click('[data-g="deck-grip"]');
   await frames();
-  const pin4 = await p.locator('[data-g="deck-tip"]').boundingBox();
-  check("обновил — окно «на месте» там же (способ и место помнит устройство)", Math.abs(pin4.x - pin3.x) < 2 && Math.abs(pin4.y - pin3.y) < 2, [pin3, pin4]);
-  await p.click("[data-tip-mode]");
+  const f6 = await tipRect();
+  check("обновил — место своё и там же, размер экран (оба выбора помнит устройство)", (await frameAttr("data-place")) === "free" && (await frameAttr("data-size")) === "screen" && Math.abs(f6.x - f5.x) < 2 && Math.abs(f6.y - f5.y) < 2, [f5, f6]);
+  await p.click("[data-tip-place]");
   await p.click("[data-deck-shut]");
+  }
 
   if (net) {
     // Подписанный id комнаты — как у бота: тело и подпись ключом стола.
