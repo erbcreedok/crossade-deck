@@ -22,7 +22,7 @@ import { AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK
 import { CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
 import { ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../../server/src/table/ring.js";
 import { artUrl, readLook, type DeckLook } from "../../server/table-client/deckArt.js";
-import { blendOf, handPlanBlend, mineGeomOf, tuckOf, type PoseBlend } from "../../server/table-client/handGeom.js";
+import { blendOf, handPlanBlend, mineGeomOf, snapPose, tuckOf, type PoseBlend } from "../../server/table-client/handGeom.js";
 import { BAR_LOOK, T, type Geom } from "../../server/table-client/screenConst.js";
 import { drawFingerCard, fingerKind } from "./finger.js";
 import type { TableStore } from "../../server/table-client/store.js";
@@ -154,6 +154,7 @@ export interface SceneApi {
   setCamMode(m: CamMode): void;
   lookBy(dyaw: number, dpitch: number): void;
   zoomBy(k: number): void;
+  opticsBy(k: number): void;
   /** С какой стороны стола камера (угол места, как у стула) и насколько поднята, градусы. */
   azimuth(): number;
   elevation(): number;
@@ -301,7 +302,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
 
   // ——— модели камеры (`camera.ts`): орбита вокруг стола, голова на месте с наклоном, голова на месте с оптикой ———
-  let camMode: CamMode = "orbit";
+  let camMode: CamMode = ((m) => (m === "orbit" || m === "top" ? m : "head"))(new URLSearchParams(location.search).get("cam"));
   const rig = { yaw: 0, pitch: -40, lean: 0, fov: CAM.fov.base as number };
   const neck = neckNew();
   const sideYaw = (ch: Chair) => -ch.angle;
@@ -315,9 +316,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // Голова сидит на месте и смотрит куда хочет; остальным шлём поворот в пределах своей стороны: дальше они сочли бы голову ушедшей.
     const yaw = rig.yaw, lim = AWAY_DEG - 1, sent = sideYaw(ch) + Math.max(-lim, Math.min(lim, wrap(yaw - sideYaw(ch))));
     if (camMode === "top") { const head = headAt(sh, rig.lean); return { head, yaw, away: false, sent, hand: leftHandOf(head, yaw) }; }
-    // В `head` и `fov` рука с картами — в кадре, чуть ниже и левее середины: камера едет с головой, и рука с ней, не уплывая при наклоне взгляда.
-    const at = new THREE.Vector3(0, -0.8, -2.3).applyQuaternion(camera.quaternion).add(camera.position);
-    return { head: { x: camera.position.x, y: camera.position.z, h: camera.position.y }, yaw, away: false, sent, hand: { x: at.x, y: at.z, h: at.y } };
+    // В `head` рука с картами — в кадре внизу: камера едет с головой, и рука с ней, не уплывая при наклоне взгляда.
+    const head = { x: camera.position.x, y: camera.position.z, h: camera.position.y };
+    return { head, yaw, away: false, sent, hand: camHandPoint(head, yaw, rig.pitch) };
   }
   /** Поставить камеру по состоянию: голова от плеч стула (с наклоном шеи в `head`), взгляд — yaw и pitch. */
   function applyRig(): void {
@@ -336,8 +337,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return;
     }
     camera.up.set(0, 1, 0);
-    const pos = headAt(sh, camMode === "head" ? rig.lean : 0);
-    const fov = camMode === "fov" ? rig.fov : CAM.fov.base;
+    const pos = headAt(sh, rig.lean);
+    const fov = rig.fov;
     if (Math.abs(camera.fov - fov) > 1e-3) { camera.fov = fov; camera.updateProjectionMatrix(); }
     const y = rig.yaw * DEG, p = rig.pitch * DEG;
     camera.position.set(pos.x, pos.h, pos.y);
@@ -365,10 +366,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
   /** Намерение: приблизить (`k` > 1) или отдалить. В `head` — наклон к столу, в `fov` — поле зрения. */
   function zoomBy(k: number): void {
-    if (camMode === "head" || camMode === "top") rig.lean = Math.max(0, Math.min(1, rig.lean + Math.log(k) * 0.5 * (neck.rest > 0 ? 0 : 1)));
-    else if (camMode === "fov") rig.fov = Math.max(CAM.fov.min, Math.min(CAM.fov.base, rig.fov / k));
-    else return;
+    if (camMode === "orbit") return;
+    rig.lean = Math.max(0, Math.min(1, rig.lean + Math.log(k) * 0.5 * (neck.rest > 0 ? 0 : 1)));
     applyRig(); draw(); sendBody();
+  }
+  /** Намерение: оптический зум (`k` > 1 — уже поле зрения). Тело не двигается, рука в кадре остаётся того же размера. Вид «голова». */
+  function opticsBy(k: number): void {
+    if (camMode !== "head") return;
+    rig.fov = Math.max(CAM.fov.min, Math.min(CAM.fov.base, rig.fov / k));
+    applyRig(); draw();
   }
   function setCamMode(m: CamMode): void {
     camMode = m;
@@ -380,27 +386,37 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     touched = false;
     draw(); sendBody(true);
   }
-  // Ввод для головы: один палец или мышь — взгляд, два пальца — щипок и вертикаль (приблизить), колесо, стрелки и +/-.
+  const rigPtrs = new Map<number, { x: number; y: number; right: boolean }>();
+  // Ввод для головы: один палец или левая кнопка — взгляд; щипок и колесо — приближение (наклон к столу); два пальца вверх-вниз
+  // или правая кнопка вверх-вниз — оптический зум (в виде «сверху» оптики нет, там это тоже приближение); стрелки, +/-, `[`/`]`, Home.
   {
-    const dom = renderer.domElement, ptrs = new Map<number, { x: number; y: number }>();
-    const pinch = () => { const [a, b] = [...ptrs.values()]; return a && b ? { d: Math.hypot(a.x - b.x, a.y - b.y), y: (a.y + b.y) / 2 } : null; };
+    const dom = renderer.domElement, ptrs = rigPtrs;
+    const pair = () => { const [a, b] = [...ptrs.values()]; return a && b ? { d: Math.hypot(a.x - b.x, a.y - b.y), y: (a.y + b.y) / 2 } : null; };
+    const optics = (k: number) => (camMode === "head" ? opticsBy(k) : zoomBy(k));
     dom.addEventListener("pointerdown", (e) => {
       if (camMode === "orbit" || drag) return;
-      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, right: e.button === 2 });
       try { dom.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
     });
     dom.addEventListener("pointermove", (e) => {
       const was = ptrs.get(e.pointerId);
       if (!was || camMode === "orbit" || drag) return;
-      const before = pinch();
-      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (ptrs.size === 1) lookBy(-(e.clientX - was.x) * CAM.look, (e.clientY - was.y) * CAM.look);
-      else if (ptrs.size === 2 && before) { const now = pinch()!; zoomBy((now.d / Math.max(1, before.d)) * Math.exp(-(now.y - before.y) * CAM.scroll)); }
+      const before = pair();
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, right: was.right });
+      if (ptrs.size === 1) {
+        if (was.right) optics(Math.exp(-(e.clientY - was.y) * CAM.scroll));
+        else lookBy(-(e.clientX - was.x) * CAM.look, (e.clientY - was.y) * CAM.look);
+      } else if (ptrs.size === 2 && before) {
+        const now = pair()!;
+        if (camMode === "top") zoomBy((now.d / Math.max(1, before.d)) * Math.exp(-(now.y - before.y) * CAM.scroll));
+        else { zoomBy(now.d / Math.max(1, before.d)); opticsBy(Math.exp(-(now.y - before.y) * CAM.scroll)); }
+      }
     });
     const up = (e: PointerEvent) => { ptrs.delete(e.pointerId); };
     dom.addEventListener("pointerup", up);
     dom.addEventListener("pointercancel", up);
-    dom.addEventListener("wheel", (e) => { if (camMode === "orbit") return; e.preventDefault(); zoomBy(Math.exp(-e.deltaY * CAM.wheel * 2)); }, { passive: false });
+    dom.addEventListener("contextmenu", (e) => { if (camMode !== "orbit") e.preventDefault(); });
+    dom.addEventListener("wheel", (e) => { if (camMode === "orbit") return; e.preventDefault(); if (e.shiftKey) optics(Math.exp(-e.deltaY * CAM.wheel * 2)); else zoomBy(Math.exp(-e.deltaY * CAM.wheel * 2)); }, { passive: false });
     addEventListener("keydown", (e) => {
       if (camMode === "orbit" || e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement | null)?.closest("input, textarea, [contenteditable]")) return;
       if (host.closest(".screen")?.classList.contains("off")) return;
@@ -411,6 +427,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       else if (k === "ArrowDown") lookBy(0, -CAM.key);
       else if (k === "+" || k === "=") zoomBy(1.15);
       else if (k === "-" || k === "_") zoomBy(1 / 1.15);
+      else if (k === "]") optics(1.15);
+      else if (k === "[") optics(1 / 1.15);
       else if (k === "Home") { home(); draw(); sendBody(true); }
       else return;
       e.preventDefault();
@@ -448,7 +466,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   scene.add(new THREE.HemisphereLight(0xfff4e0, 0x2a3a32, 0.62), sun);
   /** Тело сидящего: пришедшее из комнаты — или в покое: сидит, смотрит в середину стола. */
   const bodyOf = (by: string, angle: number): Body => store.bodies.find((b) => b.by === by) ?? { by, stance: "sit", model: "seat", eye: { x: 0, y: 0, h: restHead("sit") }, stretch: 0, yaw: -angle, right: null };
-  interface Pose { by: string; s: Point3; head: Point3; left: Point3; away: boolean; yaw: number; right: Point3 | null; ink: string; name: string; strained: boolean }
+  interface Pose { by: string; s: Point3; head: Point3; left: Point3; away: boolean; yaw: number; pitch?: number; gaze?: number; right: Point3 | null; ink: string; name: string; strained: boolean }
   /** Где у сидящего за стулом `ch` плечи, голова и руки — общей геометрией стола (`bodies.ts`). Своё тело — нет: своя голова — камера. */
   const poseOf = (ch: Chair, s: Snapshot): Pose | null => {
     const who = s.people.find((p) => p.key === ch.owner);
@@ -457,7 +475,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const sh = shoulders3(ch.angle, b.stance);
     const head = headOf(sh, b.eye, b.stretch, b.yaw);
     const holding = store.carries.some((c) => c.by === who.key);
-    return { by: who.key, s: sh, head, left: leftHandOf(head, b.yaw), away: awayOf(sh, b.yaw), yaw: b.yaw, right: b.right ? { ...b.right, h: holding ? HEAD.lift * head.h : restH(b.right, ch.id) } : null, ink: who.ink, name: who.name, strained: b.stretch > NECK.free };
+    return { by: who.key, s: sh, head, left: b.pitch === undefined ? leftHandOf(head, b.yaw) : camHandPoint(head, b.gaze ?? b.yaw, b.pitch), away: awayOf(sh, b.yaw), yaw: b.yaw, pitch: b.pitch, gaze: b.gaze, right: b.right ? { ...b.right, h: holding ? HEAD.lift * head.h : restH(b.right, ch.id) } : null, ink: who.ink, name: who.name, strained: b.stretch > NECK.free };
   };
   const V = (p: Point3) => new THREE.Vector3(p.x, p.h, p.y);
   /** На какой высоте лежит свободная правая рука в точке `at`: на верху стопки, у левой руки сидящего — на её высоте, иначе над сукном. */
@@ -477,7 +495,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!who) return null;
     if (who.key === store.me.key) return myHeadNow(ch).hand;
     const b = bodyOf(who.key, ch.angle), head = headOf(shoulders3(ch.angle, b.stance), b.eye, b.stretch, b.yaw);
-    return leftHandOf(head, b.yaw);
+    return b.pitch === undefined ? leftHandOf(head, b.yaw) : camHandPoint(head, b.gaze ?? b.yaw, b.pitch);
   }
   const inkMat = new Map<string, THREE.Material>();
   const inkOf = (ink: string) => { let m = inkMat.get(ink); if (!m) { m = new THREE.MeshLambertMaterial({ color: ink }); inkMat.set(ink, m); } return m; };
@@ -519,7 +537,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       poses.set(ch.id, pose);
       const body = new THREE.Group();
       body.userData.by = pose.by;
-      const mat = inkOf(pose.ink), S = V(pose.s), H = V(pose.head), L = V(handRest(pose.left, ch.pose.tuck ? 1 : 0, ch.hand.length)), base = V({ ...pose.s, h: -7 });
+      const mat = inkOf(pose.ink), S = V(pose.s), H = V(pose.head), L = V(handRest(pose.left, ch, ch.pose.tuck ? 1 : 0, ch.hand.length)), base = V({ ...pose.s, h: -7 });
       // Правое плечо — справа от взгляда в середину стола.
       const r = Math.hypot(pose.s.x, pose.s.y) || 1, rightDir = new THREE.Vector3(pose.s.y / r, 0, -pose.s.x / r);
       const shL = S.clone().addScaledVector(rightDir, -DOLL.bar), shR = S.clone().addScaledVector(rightDir, DOLL.bar);
@@ -618,14 +636,51 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return { pos: new THREE.Vector3((sp.x / g.w - 0.5) * vw, -(sp.y / g.h - 0.5) * vh, -D), quat: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -sp.angle * DEG), scale: ((sp.w / g.w) * vw * HOVER.grow) / CARD_W, onCamera: true };
   };
   /**
-   * РУКА В МИРЕ — одна на всех: карты держит левая рука тела (`leftHandOf`), лицом к хозяину, а поза стула считается от неё
-   * той же раскладкой, что и у 2D (`handPlanBlend`): веер, ряд, стопкой; спрятана — рука ложится на сукно и стопка с ней,
-   * рубашкой вверх (вывернутая рубашкой к себе — лицом вверх). Камера двигается — рука с головой.
+   * РУКА В МИРЕ — одна на всех: карты держит левая рука тела, лицом к хозяину, а поза стула считается от неё той же
+   * раскладкой, что и у 2D (`handPlanBlend`): веер, ряд, стопкой. Два места руки:
+   *   в кадре головы (`pitch` прислан: вид «голова») — карты стоят в осях взгляда, внизу кадра, и куда бы голова ни
+   *     смотрела, они на том же месте экрана; остальные видят ту же руку там же, где она у головы;
+   *   у тела (вид «орбита», старый клиент) — рядом с левой рукой тела, лицом к хозяину.
+   * Положена (`tuck`): рука ложится на сукно у своего места, стопка с ней — рубашкой вверх (вывернутая — лицом), и с взглядом
+   * она больше не двигается.
    */
   interface HandBody { yaw: number; left: Point3 }
   const HAND = { room: 6, size: 0.85, lean: -22, lift: 0.55, pop: 1.3 } as const;
+  /** Рука в кадре: где перед глазом (оси камеры), какого размера карты и насколько наклонены. */
+  const CAMHAND = { at: new THREE.Vector3(0, -0.8, -2.3), size: 0.165, tilt: -12, pop: 0.5, near: 0.45 } as const;
+  const camBasis = (yaw: number, pitch: number): THREE.Matrix4 => {
+    const y = yaw * DEG, p = pitch * DEG, f = new THREE.Vector3(Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)), r = new THREE.Vector3(Math.cos(y), 0, Math.sin(y));
+    return new THREE.Matrix4().makeBasis(r, r.clone().cross(f), f.clone().negate());
+  };
+  /** Точка руки в кадре головы `head`, взгляд `yaw`, `pitch`. */
+  const camHandPoint = (head: Point3, yaw: number, pitch: number): Point3 => { const at = CAMHAND.at.clone().applyMatrix4(camBasis(yaw, pitch)); return { x: head.x + at.x, y: head.y + at.z, h: head.h + at.y }; };
+  /** Место в осях камеры: карта `k` из `n` руки стула `ch`. `fovK` — во сколько раз поле зрения уже обычного: рука на экране не растёт. */
+  const camHandLocal = (ch: Chair, k: number, n: number, up: boolean, b: PoseBlend, fovK: number): Place => {
+    const plan = handPlanBlend(b, ch.pose.fan, n, CARD_W, CARD_H, HAND.room)[k] ?? { x: 0, y: 0, angle: 0 }, s = CAMHAND.size * fovK;
+    const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), CAMHAND.tilt * DEG).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -plan.angle * DEG));
+    if (up) quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
+    return { pos: new THREE.Vector3(CAMHAND.at.x + plan.x * s, CAMHAND.at.y * fovK - plan.y * s, CAMHAND.at.z + k * 0.004), quat, scale: s, onCamera: true };
+  };
+  /** То же место в мире: голова `head` смотрит `yaw`, `pitch`. */
+  const camHandWorld = (local: Place, head: Point3, yaw: number, pitch: number): Place => {
+    const m = camBasis(yaw, pitch), q = new THREE.Quaternion().setFromRotationMatrix(m);
+    return { pos: local.pos.clone().applyMatrix4(m).add(V(head)), quat: q.multiply(local.quat), scale: local.scale };
+  };
+  /** Где лежит стопка положенной руки: у своего места на сукне, слева от середины — не там, где рука у головы: с взглядом она не ходит. */
+  function stackSpot(ch: Chair): { x: number; y: number } {
+    const s = seatPoint(ch.angle, R - 4.2), r = Math.hypot(s.x, s.y) || 1;
+    return seatOnFelt({ x: s.x - (s.y / r) * 1.5, y: s.y + (s.x / r) * 1.5 });
+  }
+  /** Карта `k` положенной руки на сукне. */
+  const stackPlace = (ch: Chair, k: number, up: boolean): Place => { const at = stackSpot(ch); return lying(at.x, at.y, 0.03 + k * PILE_STEP, ((-ch.angle % 360) + 360) % 360, up); };
+  /** Между рукой у головы и стопкой на сукне: `down` 0 — в руке, 1 — лежит. */
+  const laid = (held: Place, ch: Chair, k: number, up: boolean, down: number): Place => {
+    if (down <= 0) return held;
+    const lie = stackPlace(ch, k, up);
+    return { pos: held.pos.clone().lerp(lie.pos, down), quat: held.quat.clone().slerp(lie.quat, down), scale: held.scale + (1 - held.scale) * down, over: held.over };
+  };
   const myHandBody = (ch: Chair): HandBody => { const m = myHeadNow(ch); return { yaw: m.yaw, left: m.hand }; };
-  /** Чья-то рука: место `k` из `n` на руке стула `ch`; `up` — карта вывернута рубашкой к хозяину. */
+  /** Рука у тела: место `k` из `n` на руке стула `ch` рядом с левой рукой тела; `up` — карта вывернута рубашкой к хозяину. */
   const handPlace = (hb: HandBody, ch: Chair, k: number, n: number, up: boolean, b: PoseBlend, over?: true, lean: number = HAND.lean, size: number = HAND.size): Place => {
     const g = gazeOf(hb.yaw), normal = new THREE.Vector3(-g.x, 0, -g.y).normalize(), upv = new THREE.Vector3(0, 1, 0);
     const right = upv.clone().cross(normal).normalize();
@@ -634,46 +689,73 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const basis = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, upv, normal));
     const held = basis.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), lean * DEG)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -plan.angle * DEG));
     if (up) held.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
-    const down = tuckOf(b);
-    if (down <= 0) return { pos, quat: held, scale: size, over };
-    // Спрятана: стопка на сукне под рукой (ближе к столу — не дальше бортов), рубашкой вверх; вывернутая — лицом.
-    const at = seatOnFelt({ x: hb.left.x, y: hb.left.y }), lie = lying(at.x, at.y, 0.03 + k * PILE_STEP, ((-ch.angle % 360) + 360) % 360, up);
-    return { pos: pos.lerp(lie.pos, down), quat: held.slerp(lie.quat, down), scale: size + (1 - size) * down, over };
+    return laid({ pos, quat: held, scale: size, over }, ch, k, up, tuckOf(b));
   };
-  /** Где кисть левой руки: у головы — а когда карты спрятаны (`down` 0…1), она ложится на стопку на сукне, сверху. */
-  function handRest(left: Point3, down: number, cards: number): Point3 {
+  /** Чужая рука: в кадре его головы, если он прислал взгляд вверх-вниз, иначе — у его тела. */
+  const othersHand = (pose: Pose, ch: Chair, k: number, n: number, up: boolean): Place => {
+    const b = blendOf(ch.pose);
+    if (pose.pitch === undefined) return handPlace({ yaw: pose.yaw, left: pose.left }, ch, k, n, up, b);
+    return laid(camHandWorld(camHandLocal(ch, k, n, up, b, 1), pose.head, pose.gaze ?? pose.yaw, pose.pitch), ch, k, up, tuckOf(b));
+  };
+  /** Где кисть левой руки: у головы — а когда рука положена (`down` 0…1), она на стопке на сукне, сверху. */
+  function handRest(left: Point3, ch: Chair, down: number, cards: number): Point3 {
     if (down <= 0) return left;
-    const at = seatOnFelt({ x: left.x, y: left.y }), h = 0.03 + cards * PILE_STEP + 0.3;
+    const at = stackSpot(ch), h = 0.03 + cards * PILE_STEP + 0.3;
     return { x: left.x + (at.x - left.x) * down, y: left.y + (at.y - left.y) * down, h: left.h + (h - left.h) * down };
   }
   /** Поза моей руки под пальцем (плавная) или ступенью стула. */
   const mineBlend = (ch: Chair): PoseBlend => blend ?? blendOf(ch.pose);
-  /** Места моих карт: по камере — каждый кадр, пока она едет с головой; несомая над рукой стоит в щели, выше соседей и ближе к глазу. */
+  /** Вид «сверху»: рука у края экрана, как у 2D-стола (`mineGeomOf`), а не на столе — так её удобнее брать. */
+  const inHand = (k: number, geom: Geom): Place => {
+    const g = glass(), sl = geom.slots[k]!, D = 5, vh = 2 * D * Math.tan((camera.fov * DEG) / 2), vw = vh * (g.w / g.h);
+    const pos = new THREE.Vector3((sl.x / g.w - 0.5) * vw, -(sl.y / g.h - 0.5) * vh, -D + k * 0.004);
+    return { pos, quat: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -sl.angle * DEG), scale: ((geom.w / g.w) * vw) / CARD_W, onCamera: true };
+  };
+  /** Места моих карт каждый кадр: несомая над рукой стоит в щели, выше соседей и ближе к глазу. */
   function retargetMine(): void {
     const ch = myChair();
     if (!ch) return;
-    const list = handCards(), gap = drag?.moved && !drag.group ? drag.gap : null, n = list.length + (gap !== null ? 1 : 0), hb = myHandBody(ch), b = mineBlend(ch);
-    // Сверху карты руки ложатся лицом вверх, к камере над столом; в остальных видах стоят наклонно, как их видят остальные.
-    const lean = camMode === "top" ? -80 : camMode === "orbit" ? HAND.lean : -Math.max(15, Math.min(80, Math.atan2(camera.position.y - hb.left.h - HAND.lift, Math.hypot(camera.position.x - hb.left.x, camera.position.z - hb.left.y)) / DEG));
-    // Рука в кадре (`head`, `fov`) — во всю ширину кадра: карты такого размера, чтобы веер влез на расстоянии от глаза до руки.
-    let size: number = HAND.size;
-    if (camMode === "head" || camMode === "fov") {
-      const D = Math.hypot(camera.position.x - hb.left.x, camera.position.y - hb.left.h, camera.position.z - hb.left.y), hfov = 2 * Math.atan(Math.tan((camera.fov * DEG) / 2) * camera.aspect);
-      size = Math.min(HAND.size, (2 * D * Math.tan(hfov / 2) * 0.78) / HAND.room);
-    }
-    for (const c of ch.hand) {
-      const o = cards.get(c.id), k = list.indexOf(c);
-      if (!o || k < 0) continue;
-      o.target = handPlace(hb, ch, gap !== null && k >= gap ? k + 1 : k, n, !!c.up, b, true, lean, size);
-    }
-    if (gap !== null && drag) {
-      const o = cards.get(drag.id);
+    const list = handCards(), gap = drag?.moved && !drag.group ? drag.gap : null, n = list.length + (gap !== null ? 1 : 0), b = mineBlend(ch);
+    const slotOf = (k: number) => (gap !== null && k >= gap ? k + 1 : k);
+    const flip = (p: Place, up: boolean) => { if (up) p.quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)); return p; };
+    if (camMode === "top") {
+      const geom = handGeom();
+      if (!geom) return;
+      for (const c of ch.hand) { const o = cards.get(c.id), k = list.indexOf(c); if (o && k >= 0) o.target = flip(inHand(slotOf(k), geom), !!c.up); }
+      const o = gap !== null && drag ? cards.get(drag.id) : undefined;
       if (o) {
-        const t = handPlace(hb, ch, gap, n, false, b, true, lean, size), toEye = camera.position.clone().sub(t.pos).setLength(HOVER.near);
-        t.pos.add(toEye).y += HAND.pop;
+        // Ближе к глазу — не ниже на экране: место по экрану сохраняется (всё ×r), и только потом — выше соседей.
+        const t = inHand(gap!, geom), r = (-t.pos.z - HOVER.near) / -t.pos.z;
+        t.pos.x *= r; t.pos.y = (t.pos.y + HOVER.up * CARD_H * t.scale) * r; t.pos.z += HOVER.near; t.scale *= r * HOVER.grow;
+        o.target = t;
+      }
+      return;
+    }
+    if (camMode === "head") {
+      const down = tuckOf(b), fovK = Math.tan((rig.fov * DEG) / 2) / Math.tan((CAM.fov.base * DEG) / 2), head = { x: camera.position.x, y: camera.position.z, h: camera.position.y };
+      const place = (k: number, up: boolean): Place => {
+        const local = camHandLocal(ch, k, n, up, b, fovK);
+        return down <= 0 ? local : { ...laid(camHandWorld(local, head, rig.yaw, rig.pitch), ch, k, up, down), over: true };
+      };
+      for (const c of ch.hand) { const o = cards.get(c.id), k = list.indexOf(c); if (o && k >= 0) o.target = place(slotOf(k), !!c.up); }
+      const o = gap !== null && drag ? cards.get(drag.id) : undefined;
+      if (o) {
+        const t = place(gap!, false);
+        if (t.onCamera) { t.pos.y += CAMHAND.pop * fovK; t.pos.z += CAMHAND.near; } else t.pos.y += CAMHAND.pop;
         t.scale *= HOVER.grow;
         o.target = t;
       }
+      return;
+    }
+    // Орбита: рука рядом с левой рукой тела; свой вид — лицом к камере.
+    const hb = myHandBody(ch), lean = -Math.max(15, Math.min(80, Math.atan2(camera.position.y - hb.left.h - HAND.lift, Math.hypot(camera.position.x - hb.left.x, camera.position.z - hb.left.y)) / DEG));
+    for (const c of ch.hand) { const o = cards.get(c.id), k = list.indexOf(c); if (o && k >= 0) o.target = handPlace(hb, ch, slotOf(k), n, !!c.up, b, true, lean); }
+    const o = gap !== null && drag ? cards.get(drag.id) : undefined;
+    if (o) {
+      const t = handPlace(hb, ch, gap!, n, false, b, true, lean), toEye = camera.position.clone().sub(t.pos).setLength(HOVER.near);
+      t.pos.add(toEye).y += HAND.pop;
+      t.scale *= HOVER.grow;
+      o.target = t;
     }
   }
   const pileAngle = (p: Pile) => (p as Pile & { angle?: number }).angle ?? 0;
@@ -705,7 +787,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const o = cardObj(c.id);
       dress(o, c, s);
       const pose = poses.get(ch.id);
-      if (pose) o.target = handPlace({ yaw: pose.yaw, left: pose.left }, ch, i, ch.hand.length, !!c.up, blendOf(ch.pose));
+      if (pose) o.target = othersHand(pose, ch, i, ch.hand.length, !!c.up);
       else if (ch.id !== mine) { o.target = fanned(ch.angle, i, ch.hand.length, false); if (c.up) o.target.quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)); }
       fromOf.set(c.id, { in: "hand", chair: ch.id, mine: ch.id === mine, i });
       seen.add(c.id);
@@ -922,7 +1004,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     myBodySig = sig;
     myBody.clear();
     const sh = shoulders3(ch.angle, stanceNow()), m = myHeadNow(ch), head = m.head, left = m.hand, away = m.away;
-    const mat = inkOf(who.ink), S = V(sh), H = V(head), L = V(handRest(left, down, ch.hand.length)), base = V({ ...sh, h: -7 });
+    const mat = inkOf(who.ink), S = V(sh), H = V(head), L = V(handRest(left, ch, down, ch.hand.length)), base = V({ ...sh, h: -7 });
     myHandDrawn = { x: L.x, y: L.z, h: L.y };
     const r = Math.hypot(sh.x, sh.y) || 1, rightDir = new THREE.Vector3(sh.y / r, 0, -sh.x / r);
     const shL = S.clone().addScaledVector(rightDir, -DOLL.bar), shR = S.clone().addScaledVector(rightDir, DOLL.bar);
@@ -1064,7 +1146,49 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   };
   const mine = (id: string) => store.state.picks[id] === store.me.key;
   let lastTap = { id: "", at: 0 };
+  // ——— два пальца на руке: шире и уже (щипок), выше и ниже (в ряд, веер, положить) — поза руки под пальцами, отпустил — легла ———
+  const POSE_PX = { wide: 100, lift: 120 };
+  const live = new Map<number, { x: number; y: number; onHand: boolean }>();
+  let poseG: { ids: [number, number]; d0: number; y0: number; b0: PoseBlend } | null = null;
+  const onMineHand = (id: string | null): boolean => { const f = id ? fromOf.get(id) : undefined; return !!f && f.in === "hand" && !!f.mine; };
+  const poseNow = (g: NonNullable<typeof poseG>): PoseBlend => {
+    const a = live.get(g.ids[0])!, b = live.get(g.ids[1])!, clamp = (v: number) => Math.max(0, Math.min(1, v));
+    return { wide: clamp(g.b0.wide + (Math.hypot(a.x - b.x, a.y - b.y) - g.d0) / POSE_PX.wide), lift: clamp(g.b0.lift - ((a.y + b.y) / 2 - g.y0) / POSE_PX.lift) };
+  };
+  renderer.domElement.addEventListener("pointermove", (e) => {
+    const was = live.get(e.pointerId);
+    if (!was) return;
+    live.set(e.pointerId, { ...was, x: e.clientX, y: e.clientY });
+    if (!poseG || !poseG.ids.includes(e.pointerId)) return;
+    e.stopImmediatePropagation();
+    blend = poseNow(poseG);
+    layout(store.state);
+  }, { capture: true });
+  const liftFinger = (e: PointerEvent) => {
+    live.delete(e.pointerId);
+    if (!poseG || !poseG.ids.includes(e.pointerId)) return;
+    const ch = myChair();
+    poseG = null;
+    const b = blend;
+    blend = undefined;
+    if (ch && b) store.send({ t: "pose", chair: ch.id, pose: snapPose(b, ch.pose) });
+    layout(store.state);
+  };
+  renderer.domElement.addEventListener("pointerup", liftFinger, { capture: true });
+  renderer.domElement.addEventListener("pointercancel", liftFinger, { capture: true });
   renderer.domElement.addEventListener("pointerdown", (e) => {
+    live.set(e.pointerId, { x: e.clientX, y: e.clientY, onHand: onMineHand(hitCard(e)) });
+    if (live.size === 2 && !poseG && !lasso.on && [...live.values()].some((p) => p.onHand)) {
+      const ids = [...live.keys()] as [number, number], a = live.get(ids[0])!, b = live.get(ids[1])!, ch = myChair();
+      if (ch) {
+        // Первый палец мог уже взять карту или крутить взгляд — теперь они оба держат руку.
+        if (drag && !drag.moved) { clearInterval(drag.hold); drag = null; orbit.enabled = camMode === "orbit"; }
+        rigPtrs.clear();
+        poseG = { ids, d0: Math.hypot(a.x - b.x, a.y - b.y), y0: (a.y + b.y) / 2, b0: mineBlend(ch) };
+        e.stopImmediatePropagation();
+        return;
+      }
+    }
     // Язычок — первым: он лежит у самой кромки стопки и перекрыл бы её верхнюю карту.
     const pile = tabFn ? hitTab(e) : null;
     if (pile) { e.stopImmediatePropagation(); tabFn!(pile, e); return; }
@@ -1210,10 +1334,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const now = performance.now();
     if (!force && now - sentAt < BODY_EVERY_MS) return;
     sentAt = now;
-    const ch = myChair(), yaw = ch ? myHeadNow(ch).sent : 0;
+    const ch = myChair(), yaw = ch ? myHeadNow(ch).sent : 0, pitchOut = camMode === "head" ? { pitch: Math.round(rig.pitch * 10) / 10, gaze: Math.round(rig.yaw * 10) / 10 } : {};
     const eye = ch && camMode === "top" ? (() => { const h = myHeadNow(ch).head; return { x: h.x, y: h.y, h: h.h }; })() : { x: camera.position.x, y: camera.position.z, h: Math.max(0, camera.position.y) };
-    lastBody = { stance: stanceNow(), model: "seat", eye, stretch: camMode === "head" || camMode === "top" ? rig.lean : 0, yaw, right: drag?.moved ? rightAt : restRight };
-    store.body({ stance: stanceNow(), model: "seat", eye, stretch: camMode === "head" || camMode === "top" ? rig.lean : 0, yaw, right: drag?.moved ? rightAt : restRight });
+    lastBody = { stance: stanceNow(), model: "seat", eye, stretch: camMode === "head" || camMode === "top" ? rig.lean : 0, yaw, ...pitchOut, right: drag?.moved ? rightAt : restRight };
+    store.body({ stance: stanceNow(), model: "seat", eye, stretch: camMode === "head" || camMode === "top" ? rig.lean : 0, yaw, ...pitchOut, right: drag?.moved ? rightAt : restRight });
   }
   orbit.addEventListener("change", () => sendBody());
 
@@ -1289,6 +1413,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setCamMode,
     lookBy,
     zoomBy,
+    opticsBy,
     turnBy(deg) {
       if (camMode !== "orbit") { const ch = myChair(); if (ch) { rig.yaw = wrap(rig.yaw + deg); applyRig(); touched = true; draw(); sendBody(); } return; }
       const p = camera.position.clone().sub(orbit.target);
@@ -1406,6 +1531,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let touched = false;
   orbit.addEventListener("start", () => { touched = true; });
   new ResizeObserver(() => { if (!touched) home(); draw(); }).observe(host);
+  orbit.enabled = camMode === "orbit";
+  camera.fov = camMode === "orbit" ? 50 : camMode === "top" ? TOP.fov : CAM.fov.base;
+  camera.updateProjectionMatrix();
   home();
   sendBody(true);
   layout(store.state);

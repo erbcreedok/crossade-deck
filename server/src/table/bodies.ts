@@ -48,6 +48,10 @@ export interface BodyOut {
   eye: Point3;
   stretch: number;
   yaw: number;
+  /** Взгляд вверх-вниз, градусы (вниз — минус): рука с картами стоит в кадре головы, и остальные видят её там же. Старый клиент не шлёт. */
+  pitch?: number;
+  /** Куда голова смотрит на самом деле, градусы; `yaw` держат в пределах своей стороны стола, чтобы голова не считалась ушедшей. Старый клиент не шлёт. */
+  gaze?: number;
   right: { x: number; y: number } | null;
 }
 
@@ -178,9 +182,13 @@ export function cleanBody(raw: unknown): BodyOut | null {
   if (!eye || eyeH === null || stretch === null || yaw === null) return null;
   const right = b.right === null || b.right === undefined ? null : point(b.right);
   if (b.right !== null && b.right !== undefined && !right) return null;
+  const pitch = b.pitch === undefined ? undefined : num(b.pitch, -90, 90);
+  if (pitch === null) return null;
+  const gaze = b.gaze === undefined ? undefined : num(b.gaze, -360, 360);
+  if (gaze === null) return null;
   // Незнакомый вид — первый: старый клиент вида не шлёт, новый вид старому не страшен.
   const model: Model = (MODELS as readonly unknown[]).includes(b.model) ? (b.model as Model) : "seat";
-  return { stance: b.stance as Stance, model, eye: { ...eye, h: eyeH }, stretch, yaw, right };
+  return { stance: b.stance as Stance, model, eye: { ...eye, h: eyeH }, stretch, yaw, ...(pitch === undefined ? {} : { pitch }), ...(gaze === undefined ? {} : { gaze }), right };
 }
 
 export class Bodies {

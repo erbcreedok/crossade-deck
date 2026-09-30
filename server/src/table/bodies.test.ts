@@ -18,6 +18,20 @@ describe("bodies.read-whole-or-nothing", () => {
     expect(cleanBody(old)!.model).toBe("seat");
   });
 
+  it("взгляд вверх-вниз (pitch): не прислан — поля нет, прислан — в пределах -90…90, мусор — отказ", () => {
+    expect("pitch" in cleanBody(body)!).toBe(false);
+    expect(cleanBody({ ...body, pitch: -40 })!.pitch).toBe(-40);
+    expect(cleanBody({ ...body, pitch: -500 })!.pitch).toBe(-90);
+    expect(cleanBody({ ...body, pitch: "low" })).toBeNull();
+  });
+
+  it("куда голова смотрит на самом деле (gaze): не прислан — поля нет, прислан — в пределах -360…360, мусор — отказ", () => {
+    expect("gaze" in cleanBody(body)!).toBe(false);
+    expect(cleanBody({ ...body, gaze: 75 })!.gaze).toBe(75);
+    expect(cleanBody({ ...body, gaze: 9999 })!.gaze).toBe(360);
+    expect(cleanBody({ ...body, gaze: null })).toBeNull();
+  });
+
   it("мусор — отказ целиком, числа — в пределах", () => {
     expect(cleanBody({ ...body, stance: "lie" })).toBeNull();
     expect(cleanBody({ ...body, eye: { x: "1", y: 0, h: 3 } })).toBeNull();

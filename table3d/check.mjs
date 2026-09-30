@@ -33,7 +33,7 @@ const drag = async (from, to) => {
   await frames();
 };
 try {
-  await p.goto(`${base}/?stand`);
+  await p.goto(`${base}/?stand&cam=orbit`);
   await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
   await frames();
   const s0 = await t(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return { felt: s.felt.length, pile: s.piles[0].cards.length, top: s.piles[0].cards.at(-1).id, hand: s.chairs.find((c) => c.id === seat).hand.map((c) => c.id) }; });
@@ -120,8 +120,8 @@ try {
   if (shot) await p.screenshot({ path: shot });
   // HUD — как у стола 2D.
   const my = () => t(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat); });
-  const hudHas = await p.evaluate(() => ["[data-rooms-back]", "[data-table-name]", "[data-settings]", "[data-journal]", '[data-section="chair"]', '[data-section="lasso"]', "[data-home]", "[data-stance-toggle]", '[data-section="say"]', "[data-pose-handle]"].filter((q) => !document.querySelector(q)));
-  check("HUD стола: верх (выход, имя, настройки, журнал), бар «стул» и «лассо», компас, поза, диалог, ручка позы", hudHas.length === 0, hudHas);
+  const hudHas = await p.evaluate(() => ["[data-rooms-back]", "[data-table-name]", "[data-settings]", "[data-journal]", '[data-section="chair"]', '[data-section="lasso"]', "[data-home]", "[data-stance-toggle]", '[data-section="say"]', "[data-hand-btn]"].filter((q) => !document.querySelector(q)));
+  check("HUD стола: верх (выход, имя, настройки, журнал), бар «стул» и «лассо», компас, поза, диалог, левая рука", hudHas.length === 0, hudHas);
   await p.click('[data-section="chair"]');
   await p.click('[data-bar="lock"]');
   await frames();
@@ -131,18 +131,31 @@ try {
   check("«Встать» — сперва вопрос «Покинуть стул?»", (await p.locator("[data-confirm]").innerText()).includes("Покинуть стул?"), null);
   await p.click('[data-bar="leave"]');
   await p.click('[data-section="chair"]');
-  // Ручка позы: вниз — спрятать; тап — меню руки.
-  const hb = await rectOf('[data-g="pose-handle"] [data-pose-handle]');
-  await drag({ x: hb.x + hb.width / 2, y: hb.y + hb.height / 2 }, { x: hb.x + hb.width / 2, y: hb.y + hb.height / 2 + 160 });
-  check("ручка позы вниз — рука спрятана (поза стула), ручка ушла в бар", (await my()).pose.tuck === true && (await p.locator(".screen:not(.off) [data-pose-handle][data-in-bar]").count()) === 1, (await my()).pose);
-  await p.click(".screen:not(.off) [data-pose-handle][data-in-bar]");
-  await p.click('[data-hand-do="rank"]');
+  // Левая рука — самая левая кнопка бара, видна всегда: панель (поза и порядок) открывается кнопкой; «Положить» — рука на стол, кнопка поднимает.
+  const handBtn = ".screen:not(.off) [data-hand-btn]", menu = ".screen:not(.off) [data-hand-menu]";
+  const barXs = await p.evaluate(() => [...document.querySelectorAll('.screen:not(.off) [data-g="bar"] button')].map((e) => e.getBoundingClientRect().x));
+  const hbx = await rectOf("[data-hand-btn]");
+  check("левая рука — самая левая кнопка бара и видна всегда", !!hbx && hbx.x <= Math.min(...barXs) + 1, { hbx, barXs });
+  check("рука поднята — панели нет, пока кнопку не нажали", (await p.locator(menu).count()) === 0, null);
+  await p.click(handBtn); await frames();
+  check("кнопка левой руки → панель: поза (веер, ужать, положить) и порядок (масть, номинал, …)", (await p.locator(`${menu} [data-hand-pose]`).count()) === 3 && (await p.locator(`${menu} [data-hand-do]`).count()) === 5, null);
+  await p.click(`${menu} [data-hand-pose="fan"]`); await frames();
+  const row = (await my()).pose;
+  await p.click(`${menu} [data-hand-pose="fan"]`);
+  check("панель → «В ряд»: веер выключен, повторно — включён", row.fan === false && (await my()).pose.fan === true, { row, now: (await my()).pose });
+  await p.click(`${menu} [data-hand-pose="shrink"]`); await frames();
+  const shr = (await my()).pose.shrink;
+  await p.click(`${menu} [data-hand-pose="shrink"]`);
+  check("панель → «Ужать» и обратно «Разжать»", shr === true && (await my()).pose.shrink === false, { shr });
+  await p.click(`${menu} [data-hand-pose="tuck"]`); await frames();
+  check("панель → «Положить»: рука на стол, панель скрылась", (await my()).pose.tuck === true && (await p.locator(menu).count()) === 0, (await my()).pose);
+  check("рука положена — кнопка левой руки по-прежнему на месте", (await p.locator(handBtn).count()) === 1, null);
+  await p.click(handBtn); await frames();
+  check("кнопка левой руки при положенной руке — рука поднимается и панель открыта", (await my()).pose.tuck === false && (await p.locator(menu).count()) === 1, (await my()).pose);
+  await p.click(`${menu} [data-hand-do="rank"]`);
   await frames();
   const ranks = (await my()).hand.map((c) => c.face?.rank);
-  check("меню руки → «По номиналу»: рука разложена", ranks.length > 1, ranks);
-  const ib = await rectOf("[data-pose-handle][data-in-bar]");
-  await drag({ x: ib.x + ib.width / 2, y: ib.y + ib.height / 2 }, { x: ib.x + ib.width / 2, y: ib.y - 70 });
-  check("ручка из бара вверх — рука снова видна", (await my()).pose.tuck === false, (await my()).pose);
+  check("панель → «По номиналу»: рука разложена", ranks.length > 1, ranks);
   // Поза тела, журнал, настройки.
   await p.click("[data-stance-toggle]");
   await frames();
@@ -375,7 +388,7 @@ try {
 
   // КОЛОДУ ЗА КРАЙ НЕСТИ МОЖНО, ДРОПНУТЬ НЕЛЬЗЯ — как карту: тянется за пальцем хоть за борт, отпустили — в ближайшую точку сукна.
   {
-    await p.goto(`${base}/?stand`);
+    await p.goto(`${base}/?stand&cam=orbit`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const grip = await gripBox();
@@ -396,7 +409,7 @@ try {
   // ЯЗЫЧОК ПРИЖАТ К СТОЛУ, А НЕ К ЭКРАНУ: лежит у нижней кромки колоды в той же позе, облёт камеры его от колоды не отрывает;
   // тап по нему — окно колоды, камера не трогается; тянешь — колода и язычок под пальцем, как несомая карта.
   {
-    await p.goto(`${base}/?stand`);
+    await p.goto(`${base}/?stand&cam=orbit`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const at = async () => { const a = await tabInfo(), top = await t(() => { const s = window.__t3d.state(), q = s.piles[0]; return { id: q.cards[0].id, x: q.x, y: q.y }; }); const w = await t((id) => window.__t3d.world(id), top.id); return { a, w, top, d: Math.hypot(a.at.x - w.x, a.at.y - w.y), dh: a.y3 - w.h }; };
@@ -437,7 +450,7 @@ try {
   // КАРТЫ В ОКНАХ: чужая рука под локом — тянуть нельзя вовсе; несомая карта уходит из окна (на её месте пустой контур);
   // отпустили за столом — легла на край сукна.
   {
-    await p.goto(`${base}/?stand`);
+    await p.goto(`${base}/?stand&cam=orbit`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const alia = (await t(() => window.__t3d.bodies())).find((b) => b.by === "alia");
@@ -470,7 +483,7 @@ try {
 
   // ОКНО ЧУЖОЙ РУКИ — ЗОНА ДЛЯ НЕСОМОЙ КАРТЫ: рука принимает — карта встаёт в щель веера и ложится в неё; под замком щели нет.
   {
-    await p.goto(`${base}/?stand`);
+    await p.goto(`${base}/?stand&cam=orbit`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const alia = (await t(() => window.__t3d.bodies())).find((b) => b.by === "alia");
@@ -499,7 +512,7 @@ try {
 
   // СКРЫТАЯ КАРТА ЛИЦОМ КО МНЕ — не рубашка, а нарисованная рука с пальцем (не эмодзи), цвета разные и не по масти; у одной карты — всегда один и тот же.
   {
-    await p.goto(`${base}/?stand`);
+    await p.goto(`${base}/?stand&cam=orbit`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const arts = await t(() => window.__t3d.arts());
@@ -521,7 +534,7 @@ try {
 
   // БОК КОЛОДЫ — не белая плита: срез бумаги кремовый и темнее лица, у стопки есть тело на все её карты.
   {
-    await p.goto(`${base}/?stand`);
+    await p.goto(`${base}/?stand&cam=orbit`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const layers = await t(() => ({ bodies: window.__t3d.pileBodies(), n: window.__t3d.state().piles[0].cards.length }));
@@ -539,7 +552,7 @@ try {
   // СТУЛЬЯ: четыре места — два занято (мной и Алией, цветом хозяина), два свободных (серые); встал — стул отодвинут назад;
   // тап по свободному стулу — окно «Пустой стул» с «Сесть»; пересел — старый стул свободен, у меня руки нового.
   {
-    await p.goto(`${base}/?stand`);
+    await p.goto(`${base}/?stand&cam=orbit`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const chairs = await t(() => window.__t3d.chairs());
@@ -568,7 +581,7 @@ try {
 
   // ТОЛЬКО ДЛЯ РАЗРАБОТКИ, только на стенде: стать Алией и обратно — стол её глазами, её стул, её карты, камера у её места.
   {
-    await p.goto(`${base}/?stand`);
+    await p.goto(`${base}/?stand&cam=orbit`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const as = () => t(() => { const s = window.__t3d.state(), key = window.__t3d.me(), seat = s.people.find((x) => x.key === key)?.seat; return { me: key, seat, hand: s.chairs.find((ch) => ch.id === seat)?.hand.length, yaw: Math.round(window.__t3d.view().yaw), chip: [...document.querySelectorAll("[data-dev-switch]")].find((e) => e.offsetParent !== null)?.textContent }; });
@@ -600,7 +613,7 @@ try {
 
   // ДВА ЭКРАНА (dev): мой и Алии живут оба, всё время; Tab прыгает между ними. Каждый помнит всё своё: камеру, окна, карту в пальце.
   {
-    await p.goto(`${base}/?stand`);
+    await p.goto(`${base}/?stand&cam=orbit`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const meNow = () => t(() => window.__t3d.me());
@@ -649,7 +662,7 @@ try {
   // ОКНО «ГЛАЗАМИ ДРУГОГО» (dev): по кнопке второй экран показывается рядом — вид неактивного игрока, его камерой и столом не управляю;
   // выключил — скрыт. Tab меняет экраны местами: тот, что был окном, становится моим, мой — окном.
   {
-    await p.goto(`${base}/?stand`);
+    await p.goto(`${base}/?stand&cam=orbit`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const aside = () => p.locator(".screen.aside").count();
@@ -679,7 +692,7 @@ try {
 
   // МОЁ ТЕЛО: плечи, шея и рука на моём стуле, цвет — мой; кружок головы с именем — только когда камера ушла на другую сторону стола.
   {
-    await p.goto(`${base}/?stand`);
+    await p.goto(`${base}/?stand&cam=orbit`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const near = await t(() => window.__t3d.myBody());
@@ -696,7 +709,7 @@ try {
 
   // МОЯ РУКА ПОВЕРХ ВСЕГО: карты руки нарисованы вторым проходом — моё тело, стул и борт стола, оказавшиеся на линии взгляда, их не закрывают.
   {
-    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.goto(`${base}/?stand&cam=orbit&host=http://localhost:9591`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const mid = await t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat, h = s.chairs.find((c) => c.id === seat).hand; return window.__t3d.screenOf(h[Math.floor(h.length / 2)].id); });
@@ -751,7 +764,7 @@ try {
 
   // РУКА В МИРЕ: то, что в руке, держит левая рука тела — не осей камеры; камера едет, карты с головой; «спрятать» — стопкой на сукно.
   {
-    await p.goto(`${base}/?stand`);
+    await p.goto(`${base}/?stand&cam=orbit`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const mineIds = () => t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat).hand.map((c) => c.id); });
@@ -763,55 +776,98 @@ try {
     await drag({ x: 60, y: 200 }, { x: 200, y: 200 });
     const moved = await around();
     check("камера повернулась — рука с картами поехала вместе с головой (и осталась у левой руки)", Math.hypot(moved.ws[0].x - home.ws[0].x, moved.ws[0].y - home.ws[0].y) > 0.5 && moved.far < 3.5, { home: home.ws[0], moved: moved.ws[0], far: moved.far });
-    await p.goto(`${base}/?stand&host=http://localhost:9591`); await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas")); await frames();
+    await p.goto(`${base}/?stand&cam=orbit&host=http://localhost:9591`); await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas")); await frames();
     // Перевёрнутая рубашкой к себе (двойной тап) и обычная: «спрятать» кладёт обычную рубашкой вверх, перевёрнутую — лицом вверх.
     const ids = await mineIds(), rev = ids.at(-1);
     const rp = await t((id) => window.__t3d.screenOf(id), rev);
     await p.mouse.click(rp.x, rp.y); await p.mouse.click(rp.x, rp.y); await frames();
     const before = await t(() => window.__t3d.handFaces());
-    const hb = await rectOf('[data-g="pose-handle"] [data-pose-handle]');
-    await drag({ x: hb.x + hb.width / 2, y: hb.y + hb.height / 2 }, { x: hb.x + hb.width / 2, y: hb.y + hb.height / 2 + 160 });
+    await p.click(".screen:not(.off) [data-hand-btn]"); await p.click('.screen:not(.off) [data-hand-pose="tuck"]');
     await p.waitForTimeout(900); await frames();
     const tucked = await around();
     const faces = await t(() => window.__t3d.handFaces());
-    check("«спрятать»: левая рука опустилась, карты стопкой на сукне", tucked.low < 0.6 && Math.max(...tucked.ws.map((w) => w.h)) < 0.8 && tucked.ws.every((w) => Math.hypot(w.x - tucked.ws[0].x, w.y - tucked.ws[0].y) < 0.6), tucked);
+    check("«положить»: левая рука опустилась, карты стопкой на сукне", tucked.low < 0.6 && Math.max(...tucked.ws.map((w) => w.h)) < 0.8 && tucked.ws.every((w) => Math.hypot(w.x - tucked.ws[0].x, w.y - tucked.ws[0].y) < 0.6), tucked);
     const handOn = await t(() => window.__t3d.myBody().hand), stackAt = tucked.ws[0];
-    check("спрятана: левая рука лежит на стопке сверху (кисть над картами, а не у головы)", !!handOn && Math.hypot(handOn.x - stackAt.x, handOn.y - stackAt.y) < 0.8 && handOn.h > stackAt.h && handOn.h < stackAt.h + 1.2, { handOn, stackAt });
-    check("спрятана: сверху рубашки (а перевёрнутая рубашкой к себе — лицом вверх)", faces.filter((f) => f.id !== rev).every((f) => f.drawn === "back") && faces.find((f) => f.id === rev).drawn !== "back", { before, faces });
+    check("положена: левая рука лежит на стопке сверху (кисть над картами, а не у головы)", !!handOn && Math.hypot(handOn.x - stackAt.x, handOn.y - stackAt.y) < 0.8 && handOn.h > stackAt.h && handOn.h < stackAt.h + 1.2, { handOn, stackAt });
+    check("положена: сверху рубашки (а перевёрнутая рубашкой к себе — лицом вверх)", faces.filter((f) => f.id !== rev).every((f) => f.drawn === "back") && faces.find((f) => f.id === rev).drawn !== "back", { before, faces });
   }
 
-  // МОДЕЛИ КАМЕРЫ (dev-переключатель): орбита, голова, оптика, сверху. Взгляд, приближение, рука в кадре, шея и штраф стоя.
+  // МОДЕЛИ КАМЕРЫ: «голова» по умолчанию (с оптикой), «сверху» (2D) и «орбита» — dev-переключателем. Взгляд, приближение, рука в кадре, шея, штраф стоя.
   {
     await p.goto(`${base}/?stand&host=http://localhost:9591`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const cam = () => t(() => window.__t3d.cam());
     const cycle = async (to) => { for (let i = 0; i < 4 && (await cam()).mode !== to; i++) { await p.click("[data-dev-cam]:visible"); await p.waitForTimeout(600); } await frames(); };
-    const firstCard = () => t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return window.__t3d.screenOf(s.chairs.find((c) => c.id === seat).hand[0].id); });
-    const dragLook = async (dx, dy) => { await p.mouse.move(195, 300); await p.mouse.down(); await p.mouse.move(195 + dx, 300 + dy, { steps: 8 }); await p.mouse.up(); await frames(); };
-    check("камера по умолчанию — орбита", (await cam()).mode === "orbit", await cam());
-    await cycle("head");
+    const myIds = () => t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat).hand.map((c) => c.id); });
+    const firstCard = async () => t((id) => window.__t3d.screenOf(id), (await myIds())[0]);
+    const dragLook = async (dx, dy, button = "left") => { await p.mouse.move(40, 250); await p.mouse.down({ button }); await p.mouse.move(40 + dx, 250 + dy, { steps: 8 }); await p.mouse.up({ button }); await p.waitForTimeout(250); };
     const h0 = await cam(), c0 = await firstCard();
-    check("голова: камера у головы тела (над плечами стула, не на орбите)", h0.mode === "head" && h0.pos[1] < 8 && Math.hypot(h0.pos[0], h0.pos[2]) < 8 && h0.pitch < -20, h0);
+    check("по умолчанию камера — голова: у плеч стула, не на орбите", h0.mode === "head" && h0.pos[1] < 8 && Math.hypot(h0.pos[0], h0.pos[2]) < 8 && h0.pitch < -20, h0);
     await dragLook(120, 0);
     const h1 = await cam(), c1 = await firstCard();
     check("голова: палец по пустому крутит взгляд на месте — камера стоит, поворот другой", Math.abs(h1.yaw - h0.yaw) > 10 && Math.hypot(h1.pos[0] - h0.pos[0], h1.pos[2] - h0.pos[2]) < 0.01, { h0, h1 });
-    check("голова: рука с картами в кадре стоит на месте, куда ни смотри (не плывёт)", Math.hypot(c1.x - c0.x, c1.y - c0.y) < 6 && c0.x > 0 && c0.x < 390 && c0.y > 300 && c0.y < 844, { c0, c1 });
+    await dragLook(0, 150);
+    const h2 = await cam(), c2 = await firstCard();
+    check("голова: взгляд вверх-вниз меняет наклон", Math.abs(h2.pitch - h1.pitch) > 10, { h1: h1.pitch, h2: h2.pitch });
+    check("голова: рука с картами стоит на одном месте экрана, куда и как ни смотри (не бегает снизу вверх)", c0.x > 0 && c0.x < 390 && c0.y > 450 && Math.hypot(c1.x - c0.x, c1.y - c0.y) < 5 && Math.hypot(c2.x - c0.x, c2.y - c0.y) < 5, { c0, c1, c2 });
+    // Остальные видят ту же руку там же: она в кадре головы (взгляд вверх-вниз идёт по сети).
+    const both = await t(async () => { const id = window.__t3d.state().chairs.find((c) => c.id === window.__t3d.state().people.find((x) => x.key === window.__t3d.me()).seat).hand[0].id; await new Promise((r) => setTimeout(r, 500)); return window.__t3dScreens.map((sc) => sc.world(id)); });
+    check("остальным моя рука — там же, где у меня: один рисунок на двоих", !!both[0] && !!both[1] && Math.hypot(both[0].x - both[1].x, both[0].y - both[1].y) < 0.6 && Math.abs(both[0].h - both[1].h) < 0.6, both);
+    await p.keyboard.press("Home"); await frames();
     await p.mouse.move(195, 300); await p.mouse.wheel(0, -300); await p.waitForTimeout(150);
     const z1 = await cam();
-    check("голова: колесо приближает — шея наклонилась, камера ниже и дальше к столу", z1.lean > 0.1 && z1.pos[1] < h1.pos[1], { h1, z1 });
+    check("голова: колесо приближает — шея наклонилась, камера ниже и дальше к столу", z1.lean > 0.1 && z1.pos[1] < h0.pos[1], { h0: h0.pos, z1 });
     await p.waitForFunction(() => window.__t3d.cam().lean <= 0.06, null, { timeout: 15000 }).catch(() => {});
     const z2 = await cam();
     check("голова: натяг держат долго — шея сама возвращается и отдыхает", z1.lean > 0.1 && z2.lean <= 0.06, { z1: z1.lean, z2 });
+    // Оптика: Shift+колесо или правая кнопка вверх-вниз — поле зрения уже, тело и рука на месте.
+    const f0 = await cam(), cf0 = await firstCard();
+    await p.keyboard.down("Shift"); await p.mouse.move(195, 300); await p.mouse.wheel(0, -500); await p.keyboard.up("Shift"); await p.waitForTimeout(900);
+    const f1 = await cam(), cf1 = await firstCard();
+    check("оптика (Shift+колесо): поле зрения уже, камера на месте, шея не тянется, рука того же размера на том же месте", f1.fov < f0.fov - 3 && f1.lean === 0 && Math.hypot(f1.pos[0] - f0.pos[0], f1.pos[2] - f0.pos[2]) < 0.01 && Math.hypot(cf1.x - cf0.x, cf1.y - cf0.y) < 12, { f0: f0.fov, f1: f1.fov, cf0, cf1 });
     await p.keyboard.press("Home"); await frames();
-    await cycle("fov");
-    const f0 = await cam();
-    await p.mouse.move(195, 300); await p.mouse.wheel(0, -500); await frames();
-    const f1 = await cam();
-    check("оптика: колесо уже поле зрения, камера на месте, шея не тянется", f1.fov < f0.fov - 3 && f1.lean === 0 && Math.hypot(f1.pos[0] - f0.pos[0], f1.pos[2] - f0.pos[2]) < 0.01, { f0, f1 });
+    const r0 = await cam();
+    await dragLook(0, -120, "right");
+    const r1 = await cam();
+    check("оптика (правая кнопка вверх-вниз): поле зрения меняется, взгляд не крутится", Math.abs(r1.fov - r0.fov) > 3 && Math.abs(r1.yaw - r0.yaw) < 0.5, { r0, r1 });
+    await p.keyboard.press("Home"); await frames();
+    // Положена на стол — рука и стопка остаются на месте, куда бы голова ни смотрела; поднял кнопкой — снова в кадре.
+    const ids0 = await myIds(), handBtnSel = ".screen:not(.off) [data-hand-btn]";
+    await p.click(handBtnSel); await p.click('.screen:not(.off) [data-hand-pose="tuck"]'); await p.waitForTimeout(2600);
+    const w0 = await t((id) => window.__t3d.world(id), ids0[0]);
+    await dragLook(130, 0); await dragLook(0, 110);
+    const w1 = await t((id) => window.__t3d.world(id), ids0[0]);
+    check("положена на стол: рука со стопкой не двигается за взглядом (влево-вправо, вверх-вниз)", Math.hypot(w1.x - w0.x, w1.y - w0.y) < 0.05 && Math.abs(w1.h - w0.h) < 0.05 && w0.h < 0.8, { w0, w1 });
+    await p.keyboard.press("Home"); await p.click(handBtnSel); await p.waitForTimeout(1300);
+    const cUp = await firstCard();
+    check("кнопка левой руки — рука поднимается перед лицом, на прежнее место кадра", Math.hypot(cUp.x - c0.x, cUp.y - c0.y) < 10, { c0, cUp });
+    await p.click(handBtnSel);
+    // Два пальца на руке: вверх — в ряд (выровнять), щипок — шире и уже; отпустил — поза легла.
+    const cdp = await p.context().newCDPSession(p);
+    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+    const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map((q, i) => ({ x: q.x, y: q.y, id: i })) });
+    const poseOf = () => t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat).pose; });
+    const p0 = await poseOf(), cc = await firstCard();
+    await touch("touchStart", [{ x: cc.x + 40, y: cc.y }, { x: cc.x + 110, y: cc.y }]);
+    for (let i = 1; i <= 8; i++) await touch("touchMove", [{ x: cc.x + 40, y: cc.y - i * 14 }, { x: cc.x + 110, y: cc.y - i * 14 }]);
+    await touch("touchEnd", []);
+    await p.waitForTimeout(500);
+    const p1 = await poseOf();
+    check("два пальца на руке, вверх — рука выровнялась в ряд", p0.fan === true && p1.fan === false, { p0, p1 });
+    const cs = await firstCard();
+    await touch("touchStart", [{ x: cs.x + 20, y: cs.y }, { x: cs.x + 140, y: cs.y }]);
+    for (let i = 1; i <= 8; i++) await touch("touchMove", [{ x: cs.x + 20 + i * 6, y: cs.y }, { x: cs.x + 140 - i * 6, y: cs.y }]);
+    await touch("touchEnd", []);
+    await p.waitForTimeout(500);
+    const p2 = await poseOf();
+    check("два пальца на руке, щипок — рука ужалась стопкой", p2.shrink === true, { p1, p2 });
+    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await p.click(handBtnSel); await p.click('.screen:not(.off) [data-hand-pose="shrink"]'); await p.click('.screen:not(.off) [data-hand-pose="fan"]'); await p.click(handBtnSel);
     await cycle("top");
     const t0 = await cam(), tc = await firstCard();
-    check("сверху: камера над серединой стола и смотрит вниз, рука на стуле в кадре", t0.mode === "top" && t0.pos[1] > 15 && Math.abs(t0.pos[0]) < 0.01 && Math.abs(t0.pos[2]) < 0.01 && t0.pitch === -90 && tc.x > 0 && tc.x < 390 && tc.y > 0 && tc.y < 844, { t0, tc });
+    check("сверху: камера над серединой стола и смотрит вниз", t0.mode === "top" && t0.pos[1] > 15 && Math.abs(t0.pos[0]) < 0.01 && Math.abs(t0.pos[2]) < 0.01 && t0.pitch === -90, t0);
+    check("сверху: рука — на худе внизу экрана (как у 2D-стола), а не на столе", tc.y > 650 && tc.x > 0 && tc.x < 390, tc);
     await dragLook(120, 0);
     const t1 = await cam();
     check("сверху: палец крутит стол (поворот вида), камера не сдвинулась", Math.abs(t1.yaw - t0.yaw) > 10 && Math.abs(t1.pos[0]) < 0.01, { t0, t1 });
@@ -833,10 +889,10 @@ try {
     const cb = await rectOf("[data-home]");
     await drag({ x: cb.x + cb.width / 2, y: cb.y + cb.height / 2 }, { x: cb.x + cb.width / 2 + 60, y: cb.y + cb.height / 2 });
     const k1 = await cam();
-    check("компас: поворачивает взгляд и в модели «голова»; тап — домой", Math.abs(k1.yaw - k0.yaw) > 10, { k0, k1 });
+    check("компас: поворачивает взгляд и в модели «голова»", Math.abs(k1.yaw - k0.yaw) > 10, { k0, k1 });
     await p.click("[data-home]"); await frames();
     check("компас: тап — взгляд домой, на свою сторону", Math.abs((await cam()).yaw - k0.yaw) < 0.5, await cam());
-    await cycle("orbit");
+    await cycle("head");
   }
   check("без ошибок", errors.length === 0, errors);
 } finally {
