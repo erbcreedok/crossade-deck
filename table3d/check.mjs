@@ -34,6 +34,14 @@ try {
   const s0 = await t(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return { felt: s.felt.length, pile: s.piles[0].cards.length, top: s.piles[0].cards.at(-1).id, hand: s.chairs.find((c) => c.id === seat).hand.map((c) => c.id) }; });
   check("стол собран: стопка, моя рука из 7, на сукне пусто, надпись загрузки спрятана", s0.pile > 0 && s0.hand.length === 7 && s0.felt === 0 && await p.locator("#note").isHidden(), s0);
 
+  // ТЕЛА: у Алии — тело у стула, голова на экране, её карты — в её левой руке; ушедший Тимур и я — без тела.
+  const bodies = await t(() => window.__t3d.bodies());
+  const alia = bodies.find((b) => b.by === "alia");
+  const aliaHand = await t(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === "alia").seat; return s.chairs.find((c) => c.id === seat).hand.map((c) => window.__t3d.world(c.id)); });
+  const nearLeft = alia && aliaHand.every((w) => Math.hypot(w.x - alia.left.x, w.y - alia.left.y) < 1.6 && Math.abs(w.h - alia.left.h) < 1.5);
+  check("тело Алии: голова на экране, её карты — веером в её левой руке", !!alia && !alia.away && alia.head.x > 0 && alia.head.x < 390 && alia.head.y > 0 && alia.head.y < 844 && nearLeft, { alia, aliaHand });
+  check("ушедший Тимур — без тела, своё тело не рисуется (своя голова — камера)", bodies.length === 1 && !bodies.some((b) => b.by === "timur" || b.by === "me"), bodies.map((b) => b.by));
+
   // Из стопки на сукно: верхняя карта — в середину стола.
   const topAt = await t((id) => window.__t3d.screenOf(id), s0.top);
   await drag(topAt, { x: 195, y: 470 });
@@ -91,6 +99,12 @@ try {
     await frames();
     const people = await t(() => window.__t3d.state().people.map((x) => x.name));
     check("по сети: песочница в живой комнате, за столом и сосед из 2D", people.includes("Боря") && people.includes("Ерж"), people);
+    const boria = await t(() => window.__t3d.state().people.find((x) => x.name === "Боря")?.key);
+    await p.waitForFunction((k) => window.__t3d.bodies().some((b) => b.by === k), boria, { timeout: 5000 }).catch(() => {});
+    check("по сети: у соседа из 2D — тело в 3D", await t((k) => window.__t3d.bodies().some((b) => b.by === k), boria), await t(() => window.__t3d.bodies()));
+    await drag({ x: 60, y: 300 }, { x: 200, y: 300 });
+    await flat.waitForFunction(() => !!document.querySelector('[data-g="body"][data-name="Ерж"]'), null, { timeout: 5000 }).catch(() => {});
+    check("по сети: моё тело из 3D — у соседа в 2D (голова туда, куда смотрит камера)", await flat.evaluate(() => !!document.querySelector('[data-g="body"][data-name="Ерж"]')), await flat.evaluate(() => [...document.querySelectorAll('[data-g="body"]')].map((e) => e.dataset.name)));
     const top = await t(() => window.__t3d.state().piles[0].cards.at(-1).id);
     await drag(await t((id) => window.__t3d.screenOf(id), top), { x: 200, y: 440 });
     await p.waitForFunction((id) => window.__t3d.state().felt.some((c) => c.id === id), top, { timeout: 5000 }).catch(() => {});
