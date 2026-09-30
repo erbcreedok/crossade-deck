@@ -3,6 +3,7 @@
 // Стенд не отдельная копия клиента: это клиент без сети. Правила, блокировки и дифы здесь те же
 // самые, что у живой комнаты, — жест, настроенный на стенде, ведёт себя в игре так же.
 
+import type { Body } from "../src/table/bodies.js";
 import { DEAL_PRESETS, type DealRule, type Face, type Intent, type Op, type Person, type Refusal, type Suit } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { Table } from "../src/table/table.js";
@@ -53,6 +54,8 @@ export function localStore(opts: { freeChair?: boolean } = {}): TableStore {
 
   // Кто я сейчас: на стенде им можно стать — Алией и обратно (`dev.switchTo`), чтобы проверить стол её глазами и её правами.
   let who: Person = me;
+  /** Последнее тело каждого, за кого сидели: ушёл на другого — его голова и руки остаются там, где были. */
+  const bodyOf = new Map<string, Body>();
   let state = table.seenBy(who.key);
   const changed: (() => void)[] = [];
   const refused: ((intent: Intent, why: Refusal) => void)[] = [];
@@ -103,8 +106,12 @@ export function localStore(opts: { freeChair?: boolean } = {}): TableStore {
     carries: [],
     eyes: [],
     watch: () => {},
-    bodies: [],
-    body: () => {},
+    get bodies() {
+      return [...bodyOf.values()].filter((b) => b.by !== who.key);
+    },
+    body(out) {
+      bodyOf.set(who.key, { ...out, by: who.key });
+    },
     command: () => {},
     log: () => {},
     rtc: () => {},

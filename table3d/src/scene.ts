@@ -140,6 +140,10 @@ const cardEdge = (() => {
 /** Что сцена даёт HUD (`hud.ts`): камеру, руку, стопки и головы на экране, выделение. */
 export interface SceneApi {
   home(): void;
+  /** Запомнить, откуда смотрит камера игрока `key` (поза и облёт), — вернуться туда же (dev-переключатель игроков). */
+  stashView(key: string): void;
+  /** Вернуть камеру игрока `key` туда, где её оставили; не бывал — `false`, и камеру ставят домой. */
+  recallView(key: string): boolean;
   /** Повернуть камеру вокруг стола на столько градусов. */
   turnBy(deg: number): void;
   /** С какой стороны стола камера (угол места, как у стула) и насколько поднята, градусы. */
@@ -230,6 +234,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const frameHeard: (() => void)[] = [];
   /** Поза тела этого экрана; правило стола «играть стоя» сильнее её. */
   let stance: "sit" | "stand" = "sit";
+  /** Где оставили камеру каждого, за кого сидели (`stashView`) — у каждого своя, между ними прыгают. */
+  const views = new Map<string, { pos: THREE.Vector3; target: THREE.Vector3; stance: "sit" | "stand" }>();
   const stanceNow = () => (store.state.rules.stand ? "stand" : stance);
   let look = readLook();
   let lasso = { on: false, grab: "collect" as "collect" | "keep" };
@@ -1115,6 +1121,21 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setBlend(b) { blend = b; layout(store.state); },
     stance: stanceNow,
     setStance(st) { stance = st; home(); sendBody(true); draw(); },
+    stashView(key) {
+      sendBody(true);
+      views.set(key, { pos: camera.position.clone(), target: orbit.target.clone(), stance });
+    },
+    recallView(key) {
+      const v = views.get(key);
+      if (!v) return false;
+      stance = v.stance;
+      camera.position.copy(v.pos);
+      orbit.target.copy(v.target);
+      orbit.update();
+      sendBody(true);
+      draw();
+      return true;
+    },
     setFigures(on) { heads.visible = on; chairRoot.visible = on; draw(); },
     setLook(l) { look = l; layout(store.state); },
     heads: () => [...poses.values()].map((pose) => {

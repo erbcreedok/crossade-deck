@@ -577,7 +577,24 @@ try {
     await p.click("[data-dev-switch]"); await p.waitForTimeout(800); await frames();
     const back = await as();
     check("dev: стал Алией — её стул, её пять карт, камера у её места (yaw 180), на кнопке «→ Ye»", before.me === "me" && alia.me === "alia" && alia.seat === "c2" && alia.hand === 5 && alia.yaw === 180 && alia.chip.includes("Ye"), { before, alia });
-    check("dev: и обратно — мой стул, мои семь карт, камера у моего места", back.me === "me" && back.seat === "c1" && back.hand === 7 && back.yaw === 0, back);
+    check("dev: и обратно — мой стул, мои семь карт", back.me === "me" && back.seat === "c1" && back.hand === 7, back);
+    // ДВЕ КАМЕРЫ: между ними прыгают, у каждой своё место; голова того, кого оставили, стоит там, где камера была.
+    const orbit = async (dx) => { await p.mouse.move(40, 330); await p.mouse.down(); await p.mouse.move(40 + dx, 330, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(500); };
+    const view = () => t(() => window.__t3d.view());
+    const near = (u, v) => Math.abs(u.yaw - v.yaw) < 0.6 && Math.abs(u.pitch - v.pitch) < 0.6;
+    await orbit(220);
+    const mineA = await view();
+    await p.click("[data-dev-switch]"); await p.waitForTimeout(800); await frames();
+    const aliaHome = await view();
+    const leftMe = (await t(() => window.__t3d.bodies())).find((b) => b.by === "me");
+    check("dev: оставил свою камеру в стороне — моё тело остаётся с головой там, где она была (а не возвращается на плечи)", !!leftMe && leftMe.away === true && !near(mineA, aliaHome), { mineA, aliaHome, leftMe: leftMe && leftMe.away });
+    await orbit(-160);
+    const aliaB = await view();
+    await p.click("[data-dev-switch]"); await p.waitForTimeout(800); await frames();
+    const meAgain = await view();
+    await p.click("[data-dev-switch]"); await p.waitForTimeout(800); await frames();
+    const aliaAgain = await view();
+    check("dev: возвращаюсь — камера там, где я её оставил; к Алии — там, где оставил её", near(meAgain, mineA) && near(aliaAgain, aliaB), { mineA, meAgain, aliaB, aliaAgain });
   }
 
   // МОЁ ТЕЛО: плечи, шея и рука на моём стуле, цвет — мой; кружок головы с именем — только когда камера ушла на другую сторону стола.

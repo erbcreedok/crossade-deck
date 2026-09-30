@@ -561,7 +561,13 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-rooms-back]")) location.href = `${HOST}/table/?rooms`;
     else if (q("[data-settings]")) { if (settings.open) settings.hide(); else settings.show(); }
     else if (q("[data-journal]")) local.journal = !local.journal;
-    else if ((b = q("[data-dev-switch]"))) { store.dev?.switchTo(b.dataset.as!); local.tip = null; local.deckTip = null; local.handMenu = false; scene.home(); }
+    else if ((b = q("[data-dev-switch]"))) {
+      // Две камеры, между ними прыгают: свою оставляю там, где она стоит (и тело с головой остаётся видно), чужую — где её оставили.
+      scene.stashView(me());
+      store.dev?.switchTo(b.dataset.as!);
+      local.tip = null; local.deckTip = null; local.handMenu = false;
+      if (!scene.recallView(me())) scene.home();
+    }
     else if ((b = q("[data-sit]"))) { store.send({ t: "sit", chair: b.dataset.sit! }); local.tip = null; }
     else if ((b = q("[data-deck-do]")) && local.deckTip) store.send({ t: "deckDo", pile: local.deckTip, how: b.dataset.deckDo as "shuffle" | "sort" | "flip" });
     else if (q("[data-deck-shut]")) local.deckTip = null;
