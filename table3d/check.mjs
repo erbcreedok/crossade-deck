@@ -87,6 +87,78 @@ try {
   await frames();
   check("«Моя сторона» — камера снова за своим стулом", Math.abs((await t(() => window.__t3d.view())).yaw - v0.yaw) < 1, null);
   if (shot) await p.screenshot({ path: shot });
+  // HUD — как у стола 2D.
+  const my = () => t(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat); });
+  const hudHas = await p.evaluate(() => ["[data-rooms-back]", "[data-table-name]", "[data-settings]", "[data-journal]", '[data-section="chair"]', '[data-section="lasso"]', "[data-home]", "[data-stance-toggle]", '[data-section="say"]', "[data-pose-handle]", '[data-g="deck-grip"]'].filter((q) => !document.querySelector(q)));
+  check("HUD стола: верх (выход, имя, настройки, журнал), бар «стул» и «лассо», компас, поза, диалог, ручка позы, индикатор стопки", hudHas.length === 0, hudHas);
+  await p.click('[data-section="chair"]');
+  await p.click('[data-bar="lock"]');
+  await frames();
+  check("«Стул» → замок: рука заперта, кнопка горит", (await my()).lock === true && (await p.getAttribute('[data-bar="lock"]', "aria-pressed")) === "true", (await my()).lock);
+  await p.click('[data-bar="lock"]');
+  await p.click('[data-bar="leave"]');
+  check("«Встать» — сперва вопрос «Покинуть стул?»", (await p.locator("[data-confirm]").innerText()).includes("Покинуть стул?"), null);
+  await p.click('[data-bar="leave"]');
+  await p.click('[data-section="chair"]');
+  // Ручка позы: вниз — спрятать; тап — меню руки.
+  const hb = await p.locator('[data-g="pose-handle"] [data-pose-handle]').boundingBox();
+  await drag({ x: hb.x + hb.width / 2, y: hb.y + hb.height / 2 }, { x: hb.x + hb.width / 2, y: hb.y + hb.height / 2 + 160 });
+  check("ручка позы вниз — рука спрятана (поза стула), ручка ушла в бар", (await my()).pose.tuck === true && (await p.locator("[data-pose-handle][data-in-bar]").count()) === 1, (await my()).pose);
+  await p.click("[data-pose-handle][data-in-bar]");
+  await p.click('[data-hand-do="rank"]');
+  await frames();
+  const ranks = (await my()).hand.map((c) => c.face?.rank);
+  check("меню руки → «По номиналу»: рука разложена", ranks.length > 1, ranks);
+  const ib = await p.locator("[data-pose-handle][data-in-bar]").boundingBox();
+  await drag({ x: ib.x + ib.width / 2, y: ib.y + ib.height / 2 }, { x: ib.x + ib.width / 2, y: ib.y - 70 });
+  check("ручка из бара вверх — рука снова видна", (await my()).pose.tuck === false, (await my()).pose);
+  // Поза тела, журнал, настройки.
+  await p.click("[data-stance-toggle]");
+  await frames();
+  check("поза тела — стоя (кнопка горит)", (await p.getAttribute("[data-stance-toggle]", "aria-pressed")) === "true", null);
+  await p.click("[data-stance-toggle]");
+  await p.click("[data-journal]");
+  await frames();
+  check("журнал партии — записи о том, что делали", (await p.locator('[data-g="journal"] [data-deed]').count()) > 0, await p.locator('[data-g="journal"]').innerText().catch(() => ""));
+  await p.click("[data-journal]");
+  await p.click("[data-settings]");
+  await frames();
+  check("настройки стола — открылись", await p.locator("[data-settings-panel]").isVisible(), null);
+  await p.click("[data-settings-close]");
+  // Индикатор стопки: число — как в стопке, тап — меню, «Перемешать».
+  const pile0 = await t(() => window.__t3d.state().piles[0]);
+  check("индикатор стопки — сколько карт", (await p.getAttribute('[data-g="deck-grip"]', "data-count")) === String(pile0.cards.length), pile0.cards.length);
+  await p.click('[data-g="deck-grip"]');
+  await p.click('[data-deck-do="shuffle"]');
+  await frames();
+  check("индикатор → «Перемешать»: стопка перемешана", (await t(() => window.__t3d.state().piles[0].shuffles)) > pile0.shuffles, null);
+  // Лассо: обвёл карты на сукне — выделены; «Перевернуть» — перевернулись.
+  const feltIds = await t(() => window.__t3d.state().felt.map((c) => c.id));
+  await p.click('[data-section="lasso"]');
+  await p.click('[data-bar="lasso"]');
+  const pts = await Promise.all(feltIds.map((id) => t((i) => window.__t3d.screenOf(i), id)));
+  const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
+  const box = { l: Math.min(...xs) - 40, r: Math.max(...xs) + 40, t: Math.min(...ys) - 40, b: Math.max(...ys) + 40 };
+  await p.mouse.move(box.l, box.t); await p.mouse.down();
+  for (const [x, y] of [[box.r, box.t], [box.r, box.b], [box.l, box.b], [box.l, box.t + 2]]) await p.mouse.move(x, y, { steps: 6 });
+  await p.mouse.up();
+  await frames();
+  const picked = await t(() => Object.keys(window.__t3d.state().picks));
+  check("лассо: обвёл — карты сукна выделены", feltIds.length > 0 && feltIds.every((id) => picked.includes(id)), { feltIds, picked });
+  const ups0 = await t(() => window.__t3d.state().felt.map((c) => c.up));
+  await p.click('[data-lasso-act="flip"]');
+  await frames();
+  check("полоса лассо → «Перевернуть»: все выделенные перевёрнуты", (await t(() => window.__t3d.state().felt.map((c) => c.up))).every((u, i) => u !== ups0[i]), null);
+  await p.click('[data-lasso-act="cancel"]');
+  await p.click('[data-section="lasso"]');
+  await frames();
+  // Тап по голове — окно стула.
+  const alia2 = (await t(() => window.__t3d.bodies())).find((b) => b.by === "alia");
+  await p.mouse.click(alia2.head.x, alia2.head.y);
+  await frames();
+  check("тап по голове — окно стула: имя и флаги", (await p.locator('[data-g="tip"]').innerText().catch(() => "")).includes("Алия") && (await p.locator('[data-g="tip"] [data-status="lock"], [data-g="tip"] [data-flag="lock"]').count()) === 1, await p.locator('[data-g="tip"]').innerText().catch(() => ""));
+  if (shot) await p.screenshot({ path: shot.replace(/\.png$/, "-hud.png") });
+
   if (net) {
     // Подписанный id комнаты — как у бота: тело и подпись ключом стола.
     const body = randomBytes(8).toString("base64url");

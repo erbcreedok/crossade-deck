@@ -16,8 +16,10 @@ try {
     ? await (await import("../../server/table-client/netStore.js")).netStore({ room, client: "table3d", door: "guest", name: params.get("name") ?? "Гость 3D" })
     : (await import("../../server/table-client/localStore.js")).localStore();
   const { mountScene } = await import("./scene.js");
+  const { mountHud } = await import("./hud.js");
   note.hidden = true;
-  mountScene(document.getElementById("stage")!, document.getElementById("hud")!, store);
+  const stage = document.getElementById("stage")!;
+  mountHud(document.getElementById("hud")!, stage, store, mountScene(stage, store));
 } catch (e) {
   note.textContent = `Стол не открылся: ${e instanceof Error ? e.message : String(e)}`;
   throw e;

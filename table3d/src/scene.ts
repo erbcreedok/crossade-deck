@@ -17,7 +17,9 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
 import { awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, restHead, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
 import { ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../../server/src/table/ring.js";
-import { artUrl } from "../../server/table-client/deckArt.js";
+import { artUrl, readLook, type DeckLook } from "../../server/table-client/deckArt.js";
+import { mineGeomOf, type PoseBlend } from "../../server/table-client/handGeom.js";
+import type { Geom } from "../../server/table-client/screenConst.js";
 import type { TableStore } from "../../server/table-client/store.js";
 
 const DEG = Math.PI / 180;
@@ -70,9 +72,45 @@ const cardShape = (() => {
   for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / CARD_W + 0.5, pos.getY(i) / CARD_H + 0.5);
   return g;
 })();
-interface CardObj { group: THREE.Group; front: THREE.Mesh; back: THREE.Mesh; target: Place; faceUrl: string; backUrl: string }
+interface CardObj { group: THREE.Group; front: THREE.Mesh; back: THREE.Mesh; ring: THREE.LineLoop; target: Place; faceUrl: string; backUrl: string }
+const cardEdge = (() => {
+  const w = CARD_W / 2 + 0.04, h = CARD_H / 2 + 0.04;
+  return new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-w, -h, 0.003), new THREE.Vector3(w, -h, 0.003), new THREE.Vector3(w, h, 0.003), new THREE.Vector3(-w, h, 0.003)]);
+})();
 
-export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStore): void {
+/** Что сцена даёт HUD (`hud.ts`): камеру, руку, стопки и головы на экране, выделение. */
+export interface SceneApi {
+  home(): void;
+  /** Повернуть камеру вокруг стола на столько градусов. */
+  turnBy(deg: number): void;
+  /** С какой стороны стола камера (угол места, как у стула) и насколько поднята, градусы. */
+  azimuth(): number;
+  elevation(): number;
+  glass(): { w: number; h: number };
+  /** Моя рука на экране — геометрия 2D-стола (`handGeom.ts`); нет стула — `null`. */
+  handGeom(): Geom | null;
+  /** Поза руки под пальцем, пока тянут ручку позы. */
+  setBlend(b: PoseBlend | undefined): void;
+  stance(): "sit" | "stand";
+  setStance(st: "sit" | "stand"): void;
+  setFigures(on: boolean): void;
+  setLook(look: DeckLook): void;
+  /** Головы сидящих на экране (для строк чата). */
+  heads(): { key: string; x: number; y: number; r: number; ink: string }[];
+  pickAt(x: number, y: number): { t: "card"; id: string } | { t: "who"; key: string } | null;
+  /** Стопки на экране: где и сколько. */
+  pileSpots(): { pile: string; count: number; x: number; y: number }[];
+  /** Карты, чья середина на экране внутри многоугольника. */
+  cardsIn(poly: { x: number; y: number }[]): string[];
+  /** Лассо открыто — тап по карте выделяет, выделенные несут вместе; `grab` — как несут. */
+  setLasso(on: boolean, grab: "collect" | "keep"): void;
+  /** Точка сукна под пальцем. */
+  feltAt(x: number, y: number): { x: number; y: number } | null;
+  /** После каждого кадра — HUD переставляет то, что стоит по сцене. */
+  onFrame(fn: () => void): void;
+}
+
+export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.setClearColor(0x0a1511);
@@ -87,6 +125,12 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
   scene.add(camera);
   let frame = 0;
   const draw = () => { if (!frame) frame = requestAnimationFrame(tick); };
+  const frameHeard: (() => void)[] = [];
+  /** Поза тела этого экрана; правило стола «играть стоя» сильнее её. */
+  let stance: "sit" | "stand" = "sit";
+  const stanceNow = () => (store.state.rules.stand ? "stand" : stance);
+  let look = readLook();
+  let lasso = { on: false, grab: "collect" as "collect" | "keep" };
 
   // ——— стол ———
   const feltTex = canvasTexture(1024, 1024, (c) => {
@@ -124,7 +168,8 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
     const a = (myChair()?.angle ?? 0) * DEG;
     const aspect = host.clientWidth / Math.max(1, host.clientHeight);
     const half = Math.atan(Math.tan((camera.fov * DEG) / 2) * aspect);
-    const d = Math.max(R + 5, ((R + RIM) / Math.tan(half)) * 0.8);
+    // Стоя голова выше — камера дальше от стола (`STANCE_ZOOM`).
+    const d = Math.max(R + 5, ((R + RIM) / Math.tan(half)) * 0.8) * (stanceNow() === "stand" ? 1.25 : 1);
     const pitch = 52 * DEG;
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
@@ -256,15 +301,21 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
     back.rotation.y = Math.PI;
     back.position.z = -0.001;
     front.userData.card = back.userData.card = id;
-    group.add(front, back);
-    o = { group, front, back, target: { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), scale: 1 }, faceUrl: "", backUrl: "" };
+    // Выделена лассо — рамка цвета выделившего.
+    const ring = new THREE.LineLoop(cardEdge, new THREE.LineBasicMaterial({ color: 0xf2c14e, linewidth: 2 }));
+    ring.visible = false;
+    group.add(front, back, ring);
+    o = { group, front, back, ring, target: { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), scale: 1 }, faceUrl: "", backUrl: "" };
     cards.set(id, o);
     cardRoot.add(group);
     return o;
   }
   /** Лицо и рубашка по снимку: лица не видно — с обеих сторон рубашка. */
   function dress(o: CardObj, c: SeenCard, s: Snapshot): void {
-    const backUrl = artUrl(s.rules, undefined), faceUrl = c.face ? artUrl(s.rules, c.face) : backUrl;
+    const backUrl = artUrl(s.rules, undefined, look), faceUrl = c.face ? artUrl(s.rules, c.face, look) : backUrl;
+    const by = s.picks[c.id];
+    o.ring.visible = !!by;
+    if (by) (o.ring.material as THREE.LineBasicMaterial).color.set(s.people.find((p) => p.key === by)?.ink ?? "#f2c14e");
     if (o.faceUrl !== faceUrl) { o.faceUrl = faceUrl; (o.front.material as THREE.MeshBasicMaterial).map = texture(faceUrl, draw); (o.front.material as THREE.MeshBasicMaterial).needsUpdate = true; }
     if (o.backUrl !== backUrl) { o.backUrl = backUrl; (o.back.material as THREE.MeshBasicMaterial).map = texture(backUrl, draw); (o.back.material as THREE.MeshBasicMaterial).needsUpdate = true; }
   }
@@ -284,13 +335,17 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
     const roll = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -s * (mine ? 3 : 5) * DEG);
     return { pos: c, quat: basis.multiply(lean).multiply(roll), scale: mine ? 1.1 : 0.8 };
   };
-  /** Своя рука: веер внизу экрана, лицом к тебе, по ширине кадра. */
-  const inHand = (k: number, n: number): Place => {
-    const D = 5, vh = 2 * D * Math.tan((camera.fov * DEG) / 2), vw = vh * camera.aspect;
-    const sc = Math.min((0.24 * vh) / CARD_H, (vw * 0.3) / CARD_W), s = k - (n - 1) / 2;
-    const step = n > 1 ? Math.min(sc * CARD_W * 0.62, (vw * 0.94 - sc * CARD_W) / (n - 1)) : 0;
-    const pos = new THREE.Vector3(s * step, -vh / 2 + sc * CARD_H * 0.45 - s * s * 0.004 * sc, -D + k * 0.004);
-    return { pos, quat: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -s * 2.5 * DEG), scale: sc, onCamera: true };
+  /**
+   * СВОЯ РУКА — там же, где у 2D-стола: места карт на экране считает его же раскладка (`mineGeomOf`: веер, ряд,
+   * стопка, спрятана — поза стула), а здесь экранная точка переводится в оси камеры на глубине `D`.
+   */
+  let blend: PoseBlend | undefined;
+  const glass = () => ({ w: Math.max(1, host.clientWidth), h: Math.max(1, host.clientHeight) });
+  const handGeom = (): Geom | null => { const ch = myChair(); return ch ? mineGeomOf(glass(), ch.pose, ch.hand.length, ch.id, blend) : null; };
+  const inHand = (k: number, geom: Geom): Place => {
+    const g = glass(), sl = geom.slots[k]!, D = 5, vh = 2 * D * Math.tan((camera.fov * DEG) / 2), vw = vh * (g.w / g.h);
+    const pos = new THREE.Vector3((sl.x / g.w - 0.5) * vw, -(sl.y / g.h - 0.5) * vh, -D + k * 0.004);
+    return { pos, quat: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -sl.angle * DEG), scale: ((geom.w / g.w) * vw) / CARD_W, onCamera: true };
   };
   /** Чужая рука — веером в его левой руке, лицом к нему (нам — рубашками). */
   const held = (pose: Pose, k: number, n: number): Place => {
@@ -309,6 +364,7 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
     const seen = new Set<string>();
     fromOf.clear();
     const mine = myChair()?.id;
+    const geom = handGeom();
     s.felt.forEach((c, i) => {
       const o = cardObj(c.id);
       dress(o, c, s);
@@ -328,7 +384,7 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
       const o = cardObj(c.id);
       dress(o, c, s);
       const pose = poses.get(ch.id);
-      o.target = ch.id === mine ? inHand(i, ch.hand.length) : pose && !pose.away ? held(pose, i, ch.hand.length) : fanned(ch.angle, i, ch.hand.length, false);
+      o.target = ch.id === mine && geom ? inHand(i, geom) : pose && !pose.away ? held(pose, i, ch.hand.length) : fanned(ch.angle, i, ch.hand.length, false);
       // Перевёрнутая в руке — лицом наружу, к остальным: хозяину — рубашкой.
       if (c.up) o.target.quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
       fromOf.set(c.id, { in: "hand", chair: ch.id, mine: ch.id === mine, i });
@@ -364,6 +420,7 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
       }
     }
     renderer.render(scene, camera);
+    for (const f of frameHeard) f();
     host.dataset.cards = String(cards.size);
     host.dataset.felt = String(store.state.felt.length);
     const hand = myChair()?.hand.length ?? 0;
@@ -383,10 +440,13 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
   /** Можно ли взять: с сукна, верхнюю из стопки, из своей руки — и не под чужим пальцем. */
   const takeable = (id: string): boolean => {
     const f = fromOf.get(id), lock = store.state.locks[id];
-    if (!f || (lock && lock !== store.me.key) || (store.state.picks[id] && store.state.picks[id] !== store.me.key)) return false;
+    if (!f || (lock && lock !== store.me.key) || (store.state.picks[id] && !mine(id))) return false;
+    if (lasso.on && mine(id)) return true;
     return f.in === "felt" || (f.in === "pile" && f.top) || (f.in === "hand" && f.mine);
   };
-  let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number } | null = null;
+  /** `group` — несут выделенное лассо: отпустил — все выделенные туда же (`moveMany`), одним намерением. */
+  let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; group: boolean } | null = null;
+  const mine = (id: string) => store.state.picks[id] === store.me.key;
   let lastTap = { id: "", at: 0 };
   renderer.domElement.addEventListener("pointerdown", (e) => {
     const id = hitCard(e);
@@ -398,14 +458,14 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
     const f = fromOf.get(id)!;
     const c = f.in === "felt" ? store.state.felt.find((x) => x.id === id) : undefined;
     const my = myChair()?.angle ?? 0;
-    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? true : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: c ? c.angle : ((-my % 360) + 360) % 360 };
+    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? true : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: c ? c.angle : ((-my % 360) + 360) % 360, group: lasso.on && mine(id) };
   }, { capture: true });
   renderer.domElement.addEventListener("pointermove", (e) => {
     if (!drag) return;
     if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
     if (!drag.moved) {
       drag.moved = true;
-      store.send({ t: "grab", id: drag.id });
+      if (!drag.group) store.send({ t: "grab", id: drag.id });
       drag.hold = window.setInterval(() => { if (drag) store.send({ t: "hold", id: drag.id }); }, HOLD_MS);
     }
     const at = onFelt(e);
@@ -429,6 +489,18 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
     clearInterval(d.hold);
     rightAt = null;
     sendBody(true);
+    if (!d.moved && lasso.on) {
+      // Лассо: тап выделяет карту или снимает выделение.
+      store.send({ t: "pick", ids: [d.id], on: !mine(d.id) });
+      draw();
+      return;
+    }
+    if (d.group) {
+      store.send({ t: "moveMany", moves: groupMoves(target(e, d), d.id) });
+      store.send({ t: "unpick" });
+      draw();
+      return;
+    }
     if (!d.moved) {
       // Тап: второй подряд по той же карте — перевернуть.
       const now = performance.now();
@@ -443,11 +515,31 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
   renderer.domElement.addEventListener("pointerup", end);
   renderer.domElement.addEventListener("pointercancel", end);
 
+  /**
+   * ВЫДЕЛЕННОЕ — ТУДА ЖЕ: на сукно — «как лежат» (все сдвинуты на тот же шаг, что несомая) или «к пальцу» (все в
+   * точку, чуть веером); в руку — подряд с этого места; в стопку — все в неё.
+   */
+  function groupMoves(to: Where, lead: string): { id: string; to: Where }[] {
+    const ids = Object.entries(store.state.picks).filter(([, by]) => by === store.me.key).map(([id]) => id);
+    if (!ids.includes(lead)) ids.unshift(lead);
+    const from = store.state.felt.find((f) => f.id === lead);
+    return ids.map((id, k) => {
+      if (to.in === "hand") return { id, to: { ...to, i: to.i + k } };
+      if (to.in === "deck") return { id, to };
+      const f = store.state.felt.find((x) => x.id === id);
+      if (lasso.grab === "keep" && f && from) return { id, to: { in: "felt", x: f.x + to.x - from.x, y: f.y + to.y - from.y, up: f.up, angle: f.angle } };
+      return { id, to: { ...to, x: to.x + k * 0.12, y: to.y + k * 0.06, up: f ? f.up : to.up } };
+    });
+  }
+
   /** Куда кладут: над своей рукой — в руку, на это место; у стопки — в неё; иначе — на сукно, внутри стола. */
   function target(e: PointerEvent, d: { id: string; up: boolean; angle: number }): Where {
     const chair = myChair();
     const r = renderer.domElement.getBoundingClientRect();
-    if (chair && e.clientY > r.top + r.height * 0.76) {
+    // Над своей рукой — от верха её карт (раскладка 2D) и ниже.
+    const geom = handGeom();
+    const handTop = geom && geom.slots.length ? Math.min(...geom.slots.map((sl) => sl.y - geom.h / 2)) - 20 : r.height * 0.8;
+    if (chair && e.clientY - r.top > Math.min(handTop, r.height * 0.8)) {
       const others = chair.hand.filter((c) => c.id !== d.id);
       const xs = others.map((c) => screenOf(c.id)?.x ?? 0);
       return { in: "hand", chair: chair.id, i: xs.filter((x) => x < e.clientX).length };
@@ -468,7 +560,7 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
     if (!force && now - sentAt < BODY_EVERY_MS) return;
     sentAt = now;
     const f = camera.getWorldDirection(new THREE.Vector3());
-    store.body({ stance: store.state.rules.stand ? "stand" : "sit", model: "seat", eye: { x: camera.position.x, y: camera.position.z, h: Math.max(0, camera.position.y) }, stretch: 0, yaw: Math.atan2(f.x, -f.z) / DEG, right: rightAt });
+    store.body({ stance: stanceNow(), model: "seat", eye: { x: camera.position.x, y: camera.position.z, h: Math.max(0, camera.position.y) }, stretch: 0, yaw: Math.atan2(f.x, -f.z) / DEG, right: rightAt });
   }
   orbit.addEventListener("change", () => sendBody());
 
@@ -478,17 +570,6 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
     const p = o.group.getWorldPosition(new THREE.Vector3()).project(camera);
     const r = renderer.domElement.getBoundingClientRect();
     return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
-  }
-
-  // ——— над столом: что умеет крупье, камера домой ———
-  function drawHud(): void {
-    // Дела крупье — под одной кнопкой: на телефоне их ряд закрыл бы полстола.
-    const crew = store.crew.length ? `<details class="crew"><summary>Крупье</summary><div>${store.crew.map((c) => `<button data-crew="${c.id}">${c.name}</button>`).join("")}</div></details>` : "";
-    // Подсказка — под «?»: строкой сверху она закрывала головы тех, кто сидит напротив.
-    document.title = `${store.title} · 3D`;
-    hud.innerHTML = `<button data-home>Моя сторона</button>${crew}<details class="crew"><summary>?</summary><div><span class="said">${store.title} · ${store.me.name}. Тянешь карту — несёшь: над своей рукой — в руку, у стопки — в стопку, иначе — на сукно. Двойной тап — перевернуть. Тянешь по пустому — облёт стола.</span></div></details>`;
-    hud.querySelector<HTMLElement>("[data-home]")!.onclick = () => { home(); draw(); };
-    for (const b of hud.querySelectorAll<HTMLElement>("[data-crew]")) b.onclick = () => { store.send({ t: "crew", act: b.dataset.crew! }); hud.querySelector("details")?.removeAttribute("open"); };
   }
 
   (window as unknown as { __t3d: unknown }).__t3d = {
@@ -512,6 +593,47 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
     world: (id: string) => { const o = cards.get(id); if (!o) return null; const p = o.group.getWorldPosition(new THREE.Vector3()); return { x: p.x, y: p.z, h: p.y }; },
     view: () => { const p = camera.position.clone().sub(orbit.target); return { yaw: Math.atan2(p.x, p.z) / DEG, pitch: Math.asin(p.y / p.length()) / DEG }; },
   };
+  const project = (v: THREE.Vector3) => { const p = v.clone().project(camera), r = renderer.domElement.getBoundingClientRect(); return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height }; };
+  const api: SceneApi = {
+    home: () => { home(); draw(); sendBody(true); },
+    turnBy(deg) {
+      const p = camera.position.clone().sub(orbit.target);
+      p.applyAxisAngle(new THREE.Vector3(0, 1, 0), deg * DEG);
+      camera.position.copy(orbit.target).add(p);
+      orbit.update();
+      touched = true;
+    },
+    azimuth: () => { const p = camera.position.clone().sub(orbit.target); return Math.atan2(p.x, p.z) / DEG; },
+    elevation: () => { const p = camera.position.clone().sub(orbit.target); return Math.asin(p.y / p.length()) / DEG; },
+    glass,
+    handGeom,
+    setBlend(b) { blend = b; layout(store.state); },
+    stance: stanceNow,
+    setStance(st) { stance = st; home(); sendBody(true); draw(); },
+    setFigures(on) { heads.visible = on; draw(); },
+    setLook(l) { look = l; layout(store.state); },
+    heads: () => [...poses.values()].map((pose) => {
+      const c = project(V(pose.head)), edge = project(V(pose.head).add(new THREE.Vector3(0, 1, 0)));
+      return { key: pose.by, x: c.x, y: c.y, r: Math.hypot(edge.x - c.x, edge.y - c.y), ink: pose.ink };
+    }),
+    pickAt(x, y) {
+      // Голова — первой: веер в его руке висит у самого лица и перекрывал бы её.
+      const e = { clientX: x, clientY: y } as PointerEvent;
+      ray.setFromCamera(ndc(e), camera);
+      const head = heads.visible ? ray.intersectObjects(heads.children, true).find((h) => h.object.userData.head) : undefined;
+      if (head) return { t: "who", key: head.object.userData.head as string };
+      const id = hitCard(e);
+      return id ? { t: "card", id } : null;
+    },
+    pileSpots: () => store.state.piles.filter((p) => p.pose !== "ring" && p.cards.length).map((p) => ({ pile: p.id, count: p.cards.length, ...project(new THREE.Vector3(p.x, 0.02 + p.cards.length * PILE_STEP, p.y)) })),
+    cardsIn(poly) {
+      const inside = (q: { x: number; y: number }) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i]!, b = poly[j]!; if (a.y > q.y !== b.y > q.y && q.x < ((b.x - a.x) * (q.y - a.y)) / (b.y - a.y) + a.x) c = !c; } return c; };
+      return store.state.felt.filter((f) => { const q = screenOf(f.id); return q && inside(q); }).map((f) => f.id);
+    },
+    setLasso(on, grab) { lasso = { on, grab }; },
+    feltAt: (x, y) => { const at = onFelt({ clientX: x, clientY: y }); return at ? { x: at.x, y: at.z } : null; },
+    onFrame: (fn) => void frameHeard.push(fn),
+  };
   store.onChange(() => layout(store.state));
   // Размер окна сменился (поворот телефона) — домой заново, пока камеру не трогали.
   let touched = false;
@@ -519,6 +641,6 @@ export function mountScene(host: HTMLElement, hud: HTMLElement, store: TableStor
   new ResizeObserver(() => { if (!touched) home(); draw(); }).observe(host);
   home();
   sendBody(true);
-  drawHud();
   layout(store.state);
+  return api;
 }
