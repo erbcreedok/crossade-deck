@@ -519,7 +519,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       poses.set(ch.id, pose);
       const body = new THREE.Group();
       body.userData.by = pose.by;
-      const mat = inkOf(pose.ink), S = V(pose.s), H = V(pose.head), L = V(pose.left), base = V({ ...pose.s, h: -7 });
+      const mat = inkOf(pose.ink), S = V(pose.s), H = V(pose.head), L = V(handRest(pose.left, ch.pose.tuck ? 1 : 0, ch.hand.length)), base = V({ ...pose.s, h: -7 });
       // Правое плечо — справа от взгляда в середину стола.
       const r = Math.hypot(pose.s.x, pose.s.y) || 1, rightDir = new THREE.Vector3(pose.s.y / r, 0, -pose.s.x / r);
       const shL = S.clone().addScaledVector(rightDir, -DOLL.bar), shR = S.clone().addScaledVector(rightDir, DOLL.bar);
@@ -640,6 +640,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const at = seatOnFelt({ x: hb.left.x, y: hb.left.y }), lie = lying(at.x, at.y, 0.03 + k * PILE_STEP, ((-ch.angle % 360) + 360) % 360, up);
     return { pos: pos.lerp(lie.pos, down), quat: held.slerp(lie.quat, down), scale: size + (1 - size) * down, over };
   };
+  /** Где кисть левой руки: у головы — а когда карты спрятаны (`down` 0…1), она ложится на стопку на сукне, сверху. */
+  function handRest(left: Point3, down: number, cards: number): Point3 {
+    if (down <= 0) return left;
+    const at = seatOnFelt({ x: left.x, y: left.y }), h = 0.03 + cards * PILE_STEP + 0.3;
+    return { x: left.x + (at.x - left.x) * down, y: left.y + (at.y - left.y) * down, h: left.h + (h - left.h) * down };
+  }
   /** Поза моей руки под пальцем (плавная) или ступенью стула. */
   const mineBlend = (ch: Chair): PoseBlend => blend ?? blendOf(ch.pose);
   /** Места моих карт: по камере — каждый кадр, пока она едет с головой; несомая над рукой стоит в щели, выше соседей и ближе к глазу. */
@@ -904,24 +910,25 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   // ——— моё тело: то же, что видят другие; голова — камера, поэтому кружок с именем только когда камера ушла на другую сторону стола ———
   const myBody = new THREE.Group();
   scene.add(myBody);
-  let myBodySig = "", myHead = { shown: false, s: { x: 0, y: 0, h: 0 } };
+  let myBodySig = "", myHead = { shown: false, s: { x: 0, y: 0, h: 0 } }, myHandDrawn: Point3 | null = null;
   /** Тело на моём стуле — плечи, шея, левая рука — от моей камеры; правую рисует `armPose`. Пересобирается, когда что-то сдвинулось. */
   function placeMyBody(): void {
     const ch = myChair(), who = store.state.people.find((p) => p.key === store.me.key);
     myBody.visible = heads.visible;
     if (!ch || !who || !heads.visible) { if (myBodySig) myBody.clear(); myBodySig = ""; return; }
     const f = camera.getWorldDirection(new THREE.Vector3()), yaw = Math.atan2(f.x, -f.z) / DEG, c = camera.position;
-    const sig = [ch.angle, stanceNow(), who.ink, who.name, c.x.toFixed(3), c.y.toFixed(3), c.z.toFixed(3), yaw.toFixed(2)].join("|");
+    const down = tuckOf(mineBlend(ch)), sig = [ch.angle, stanceNow(), down.toFixed(2), ch.hand.length, who.ink, who.name, c.x.toFixed(3), c.y.toFixed(3), c.z.toFixed(3), yaw.toFixed(2)].join("|");
     if (sig === myBodySig) return;
     myBodySig = sig;
     myBody.clear();
     const sh = shoulders3(ch.angle, stanceNow()), m = myHeadNow(ch), head = m.head, left = m.hand, away = m.away;
-    const mat = inkOf(who.ink), S = V(sh), H = V(head), L = V(left), base = V({ ...sh, h: -7 });
+    const mat = inkOf(who.ink), S = V(sh), H = V(head), L = V(handRest(left, down, ch.hand.length)), base = V({ ...sh, h: -7 });
+    myHandDrawn = { x: L.x, y: L.z, h: L.y };
     const r = Math.hypot(sh.x, sh.y) || 1, rightDir = new THREE.Vector3(sh.y / r, 0, -sh.x / r);
     const shL = S.clone().addScaledVector(rightDir, -DOLL.bar), shR = S.clone().addScaledVector(rightDir, DOLL.bar);
     myBody.add(stick(base, S, DOLL.spine, mat), stick(shL, shR, DOLL.spine, mat), ball(shL, DOLL.spine, mat), ball(shR, DOLL.spine, mat));
     // Рука в кадре (`head`, `fov`) — перед самым глазом: кисть и предплечье там закрыли бы весь вид, рисуются только карты.
-    if (camMode === "orbit" || camMode === "top") myBody.add(stick(shL, L, DOLL.arm * farK(L), mat), ball(L, DOLL.hand * farK(L), mat));
+    if (camMode === "orbit" || camMode === "top" || down > 0.3) myBody.add(stick(shL, L, DOLL.arm * farK(L), mat), ball(L, DOLL.hand * farK(L), mat));
     if (away) {
       // Камера ушла на другую сторону стола — голова с ней: ниточка к ней и кружок с именем, как у других.
       const tether = new THREE.Line(new THREE.BufferGeometry().setFromPoints([S, H]), new THREE.LineDashedMaterial({ color: who.ink, dashSize: 0.35, gapSize: 0.3, transparent: true, opacity: 0.6 }));
@@ -1226,7 +1233,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     });
   const test = {
     /** Моё тело: есть ли, где плечи (стул, высота), нарисована ли голова-кружок. */
-    myBody: () => ({ parts: myBody.children.length, head: myHead.shown, shoulders: myHead.s, visible: myBody.visible }),
+    myBody: () => ({ hand: myHandDrawn, parts: myBody.children.length, head: myHead.shown, shoulders: myHead.s, visible: myBody.visible }),
     /** Стулья: чей, цвет (0 — серый), где на столе (радиус, угол) и где на экране. */
     chairs: () => [...chairObjs.entries()].map(([id, one]) => { const c = project(one.group.position.clone().setY(CHAIR.seatY)), ch = store.state.chairs.find((x) => x.id === id)!; return { id, owner: ch.owner, ink: one.ink, color: (one.mats[0]!.color.getHexString()), r: Math.hypot(one.group.position.x, one.group.position.z), x: c.x, y: c.y }; }),
     /** Тела стопок (бок колоды): чья стопка и сколько карт в теле. */

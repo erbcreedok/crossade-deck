@@ -775,6 +775,8 @@ try {
     const tucked = await around();
     const faces = await t(() => window.__t3d.handFaces());
     check("«спрятать»: левая рука опустилась, карты стопкой на сукне", tucked.low < 0.6 && Math.max(...tucked.ws.map((w) => w.h)) < 0.8 && tucked.ws.every((w) => Math.hypot(w.x - tucked.ws[0].x, w.y - tucked.ws[0].y) < 0.6), tucked);
+    const handOn = await t(() => window.__t3d.myBody().hand), stackAt = tucked.ws[0];
+    check("спрятана: левая рука лежит на стопке сверху (кисть над картами, а не у головы)", !!handOn && Math.hypot(handOn.x - stackAt.x, handOn.y - stackAt.y) < 0.8 && handOn.h > stackAt.h && handOn.h < stackAt.h + 1.2, { handOn, stackAt });
     check("спрятана: сверху рубашки (а перевёрнутая рубашкой к себе — лицом вверх)", faces.filter((f) => f.id !== rev).every((f) => f.drawn === "back") && faces.find((f) => f.id === rev).drawn !== "back", { before, faces });
   }
 
