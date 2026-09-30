@@ -535,6 +535,36 @@ try {
     check("бок колоды сбоку не белый: срез кремовый, темнее лица (средняя яркость < 175, самая яркая точка < 215)", mean < 175 && max < 215, { mean: Math.round(mean), max: Math.round(max) });
   }
 
+  // СТУЛЬЯ: четыре места — два занято (мной и Алией, цветом хозяина), два свободных (серые); встал — стул отодвинут назад;
+  // тап по свободному стулу — окно «Пустой стул» с «Сесть»; пересел — старый стул свободен, у меня руки нового.
+  {
+    await p.goto(`${base}/?stand`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const chairs = await t(() => window.__t3d.chairs());
+    const ink = await t(() => Object.fromEntries(window.__t3d.state().people.map((x) => [x.key, x.ink.slice(1)])));
+    const free = chairs.filter((ch) => ch.owner === null);
+    check("за столом четыре стула: два занято, два свободных", chairs.length === 4 && free.length === 2, chairs.map((ch) => [ch.id, ch.owner]));
+    check("стул занятого — цвета его аватара, у свободного — серый, не цвет игрока", chairs.filter((ch) => ch.owner).every((ch) => ch.color === ink[ch.owner]) && free.every((ch) => !Object.values(ink).includes(ch.color)), chairs.map((ch) => [ch.id, ch.color]));
+    for (let i = 0; i < 8; i++) await p.mouse.wheel(0, 300);
+    await p.waitForTimeout(700); await frames();
+    const seatTo = (await t(() => window.__t3d.chairs())).find((ch) => ch.owner === null && ch.id === "c4");
+    await p.mouse.click(seatTo.x, seatTo.y); await frames();
+    const sitBtn = await p.locator("[data-sit]").count(), label = await p.locator('[data-panel^="chair:"]').innerText().catch(() => "");
+    check("тап по свободному стулу — окно «Пустой стул» с кнопкой «Сесть»", sitBtn === 1 && label.includes("Пустой стул"), { sitBtn, label: label.slice(0, 40) });
+    await p.click("[data-sit]"); await frames();
+    const after = await t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === "me").seat; return { seat, c1: s.chairs.find((ch) => ch.id === "c1").owner, mine: s.chairs.find((ch) => ch.id === seat).hand.length, c1hand: s.chairs.find((ch) => ch.id === "c1").hand.length }; });
+    check("пересел на свободный стул: старый свободен со своими картами, у меня — руки нового", after.seat === "c4" && after.c1 === null && after.c1hand === 7 && after.mine === 0, after);
+    const mine = (await t(() => window.__t3d.chairs())).find((ch) => ch.owner === "me");
+    await p.click("[data-stance-toggle]");
+    await p.waitForTimeout(600); await frames();
+    const stood = (await t(() => window.__t3d.chairs())).find((ch) => ch.owner === "me");
+    await p.click("[data-stance-toggle]");
+    await p.waitForTimeout(600); await frames();
+    const sat = (await t(() => window.__t3d.chairs())).find((ch) => ch.owner === "me");
+    check("встал — стул отодвинут назад, сел — вернулся", stood.r > mine.r + 1 && Math.abs(sat.r - mine.r) < 0.05, { sit: mine.r, stand: stood.r, again: sat.r });
+  }
+
   // МОЯ РУКА ВСЕГДА ВИДНА: камера низко и вплотную — борт стола подходит к глазу, но веер поверх него, а не под ним.
   {
     await p.goto(`${base}/?stand`);

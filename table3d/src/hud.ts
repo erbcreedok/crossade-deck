@@ -127,7 +127,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       const s = store.state, all = [...s.felt, ...s.piles.flatMap((p) => p.cards), ...s.chairs.flatMap((c) => c.hand)];
       return cardLabel(all.find((c) => c.id === id)?.face);
     },
-    pick: (x, y) => scene.pickAt(x, y),
+    pick: (x, y) => { const hit = scene.pickAt(x, y); return hit?.t === "chair" ? null : hit; },
     hand: () => (myChair()?.hand ?? []).map((c) => c.id),
     muted: (key) => muted.has(key),
     stickerUrl: (by, id) => `${HOST}/table/stickers/${encodeURIComponent(by)}/${encodeURIComponent(id)}`,
@@ -427,7 +427,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const who = sitter
       ? `<span style="flex:none;width:30px;height:30px;border-radius:50%;background:${sitter.ink};box-shadow:inset 0 0 0 3px ${T.black};display:flex;align-items:center;justify-content:center;font:400 14px Tiny5,monospace;color:${T.black}">${esc([...sitter.name][0] ?? "?")}</span><span data-panel-drag style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;align-self:stretch;display:flex;align-items:center;touch-action:none;cursor:move">${esc(sitter.name)}</span>`
         + (sitter.key !== me() ? `<span data-mute="${esc(sitter.key)}" role="button" aria-pressed="${muted.has(sitter.key)}" style="cursor:pointer;flex:none;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 8px;${muted.has(sitter.key) ? `${gold};color:${T.black}` : `box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}`}">${muted.has(sitter.key) ? "Читать" : "Не читать"}</span>` : "")
-      : `<span data-panel-drag style="font:400 14px Tiny5,monospace;color:${T.inkDim};flex:1;touch-action:none;cursor:move">Пустой стул</span>`;
+      : `<span data-panel-drag style="font:400 14px Tiny5,monospace;color:${T.inkDim};flex:1;touch-action:none;cursor:move">Пустой стул</span>`
+        + `<span data-sit="${chair.id}" role="button" style="flex:none;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo});color:${T.black}">Сесть</span>`;
     const admin = s.rights.includes("table.croupier");
     // Чужую руку под замком не берут: тем же разбором, что и сервер (`access.ts`) — тянуть из неё нельзя вовсе, а не «потянул — вернулось».
     const mayTake = allowed(mayDo("hand.take", { locks: { lock: chair.lock, reject: chair.reject }, mine: chair.owner === me(), granted: s.rights }));
@@ -553,6 +554,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-rooms-back]")) location.href = `${HOST}/table/?rooms`;
     else if (q("[data-settings]")) { if (settings.open) settings.hide(); else settings.show(); }
     else if (q("[data-journal]")) local.journal = !local.journal;
+    else if ((b = q("[data-sit]"))) { store.send({ t: "sit", chair: b.dataset.sit! }); local.tip = null; }
     else if ((b = q("[data-deck-do]")) && local.deckTip) store.send({ t: "deckDo", pile: local.deckTip, how: b.dataset.deckDo as "shuffle" | "sort" | "flip" });
     else if (q("[data-deck-shut]")) local.deckTip = null;
     else if ((b = q("[data-deck-pin]")) && local.deckTip) { const p = s.piles.find((x) => x.id === local.deckTip); if (p) store.send({ t: "deckPin", pile: p.id, on: !p.pin }); }
@@ -709,13 +711,18 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     addEventListener("pointerup", u);
     addEventListener("pointercancel", u);
   }
-  // Тап по голове на сцене — окно стула.
+  // Тап по голове или по стулу на сцене — окно стула (тап, а не облёт камеры: палец почти не сдвинулся).
+  let downAt: { x: number; y: number } | null = null;
+  stage.addEventListener("pointerdown", (e) => { downAt = { x: e.clientX, y: e.clientY }; });
   stage.addEventListener("pointerup", (e) => {
     if ((e.target as HTMLElement).closest("[data-panel]")) return;
+    if (downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_PX) return;
     const hit = scene.pickAt(e.clientX, e.clientY);
-    if (hit?.t !== "who") return;
-    const chair = store.state.chairs.find((c) => c.owner === hit.key);
-    local.tip = chair && local.tip !== chair.id ? chair.id : null;
+    if (hit?.t === "who") {
+      const chair = store.state.chairs.find((c) => c.owner === hit.key);
+      local.tip = chair && local.tip !== chair.id ? chair.id : null;
+    } else if (hit?.t === "chair") local.tip = local.tip === hit.id ? null : hit.id;
+    else return;
     draw();
   });
   draw();

@@ -156,7 +156,7 @@ export interface SceneApi {
   setLook(look: DeckLook): void;
   /** Головы сидящих на экране (для строк чата). */
   heads(): { key: string; x: number; y: number; r: number; ink: string; wx: number; wy: number }[];
-  pickAt(x: number, y: number): { t: "card"; id: string } | { t: "who"; key: string } | null;
+  pickAt(x: number, y: number): { t: "card"; id: string } | { t: "who"; key: string } | { t: "chair"; id: string } | null;
   /** Стопки на экране: где и сколько; `cardPx` — ширина верхней карты в точках (по ней окно «к стопке» меряет размер). */
   pileSpots(): { pile: string; count: number; x: number; y: number; cardPx: number }[];
   /** Карты, чья середина на экране внутри многоугольника. */
@@ -386,15 +386,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     for (const ch of s.chairs) {
       if (ch.owner === store.me.key) continue;
       const pose = poseOf(ch, s);
-      if (!pose) {
-        // Пустой стул — серое кольцо на своём месте.
-        const at = seatPoint(ch.angle, R + 1.9);
-        const ring = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.75, 40), new THREE.MeshBasicMaterial({ color: 0x5b6663, side: THREE.DoubleSide }));
-        ring.position.set(at.x, 1.6, at.y);
-        ring.lookAt(0, 1.6, 0);
-        heads.add(ring);
-        continue;
-      }
+      if (!pose) continue;
       poses.set(ch.id, pose);
       const body = new THREE.Group();
       body.userData.by = pose.by;
@@ -654,6 +646,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     armPose();
     placeTabs();
     placeBodies();
+    if (placeChairs(dt)) moving = true;
     // Своя рука у глаза — вторым проходом поверх всего: борт стола, подошедший к камере вплотную, её не закрывает.
     camera.layers.set(0);
     renderer.render(scene, camera);
@@ -740,6 +733,56 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       t.mesh.scale.setScalar(k);
     }
     for (const [id, t] of tabs) if (!seen.has(id)) { scene.remove(t.mesh); (t.mesh.material as THREE.Material).dispose(); t.tex.dispose(); tabs.delete(id); }
+  }
+
+  // ——— стулья: место за столом, цвет — хозяина ———
+  /**
+   * СТУЛ — место игрока: на нём сидит его аватар, а встал — стоит рядом (стул отодвинут назад). Покинуть стул нельзя, можно
+   * пересесть на свободный. Цвет — цвет хозяина, у свободного — серый. У крупье стула нет: он всегда стоит.
+   * Размеры — в единицах стола (пол на -7, стол на человеческой высоте: одна единица — примерно 12 см).
+   */
+  const CHAIR = { seat: 3.4, thick: 0.35, seatY: -3.3, back: 3.8, leg: 0.32, floor: -7, radius: 7.9, pushed: 1.6, free: 0x7d8a86 };
+  interface ChairObj { group: THREE.Group; mats: THREE.MeshLambertMaterial[]; ink: string; k: number }
+  const chairRoot = new THREE.Group();
+  scene.add(chairRoot);
+  const chairObjs = new Map<string, ChairObj>();
+  function makeChair(id: string): ChairObj {
+    const group = new THREE.Group(), mat = new THREE.MeshLambertMaterial({ color: CHAIR.free });
+    const part = (w: number, h: number, d: number, x: number, y: number, z: number) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat), o = new THREE.Mesh(new THREE.BoxGeometry(w + 0.16, h + 0.16, d + 0.16), outlineMat);
+      m.position.set(x, y, z); o.position.copy(m.position);
+      m.castShadow = true; m.userData.chair = id; o.userData.chair = id;
+      group.add(o, m);
+    };
+    const { seat, thick, seatY, back, leg, floor } = CHAIR, half = seat / 2 - leg / 2 - 0.1, legH = seatY - thick / 2 - floor;
+    part(seat, thick, seat, 0, seatY, 0);
+    part(seat, back, leg, 0, seatY + thick / 2 + back / 2, seat / 2 - leg / 2);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(leg, legH, leg, sx * half, floor + legH / 2, sz * half);
+    chairRoot.add(group);
+    return { group, mats: [mat], ink: "", k: 0 };
+  }
+  /** Стулья на местах: цвет хозяина, у вставшего — отодвинут назад. Возвращает, движется ли ещё что-то. */
+  function placeChairs(dt: number): boolean {
+    let moving = false;
+    const seen = new Set<string>();
+    for (const ch of store.state.chairs) {
+      if (ch.croupier) continue;
+      seen.add(ch.id);
+      const one = chairObjs.get(ch.id) ?? (chairObjs.set(ch.id, makeChair(ch.id)), chairObjs.get(ch.id)!);
+      const who = ch.owner ? store.state.people.find((p) => p.key === ch.owner) : undefined;
+      const ink = who?.ink ?? "";
+      if (one.ink !== ink) { one.ink = ink; for (const m of one.mats) m.color.set(ink || CHAIR.free); }
+      const stands = ch.owner ? (ch.owner === store.me.key ? stanceNow() : bodyOf(ch.owner, ch.angle).stance) === "stand" : false, want = stands ? 1 : 0;
+      const first = one.group.userData.placed !== true;
+      one.k = first ? want : one.k + (want - one.k) * Math.min(1, dt * 9);
+      if (Math.abs(want - one.k) > 0.002) moving = true; else one.k = want;
+      const at = seatPoint(ch.angle, CHAIR.radius + CHAIR.pushed * one.k), dir = seatPoint(ch.angle, 1);
+      one.group.position.set(at.x, 0, at.y);
+      one.group.rotation.y = Math.atan2(dir.x, dir.y);
+      one.group.userData.placed = true;
+    }
+    for (const [id, one] of chairObjs) if (!seen.has(id)) { chairRoot.remove(one.group); chairObjs.delete(id); }
+    return moving;
   }
 
   // ——— бок колоды: тело стопки под картами ———
@@ -975,6 +1018,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return { pile: p.id, count: p.cards.length, ...c, cardPx: Math.hypot(e.x - c.x, e.y - c.y) };
     });
   (window as unknown as { __t3d: unknown }).__t3d = {
+    /** Стулья: чей, цвет (0 — серый), где на столе (радиус, угол) и где на экране. */
+    chairs: () => [...chairObjs.entries()].map(([id, one]) => { const c = project(one.group.position.clone().setY(CHAIR.seatY)), ch = store.state.chairs.find((x) => x.id === id)!; return { id, owner: ch.owner, ink: one.ink, color: (one.mats[0]!.color.getHexString()), r: Math.hypot(one.group.position.x, one.group.position.z), x: c.x, y: c.y }; }),
     /** Тела стопок (бок колоды): чья стопка и сколько карт в теле. */
     pileBodies: () => [...bodies.entries()].map(([pile, m]) => ({ pile, layers: m.userData.layers as number })),
     /** Чем нарисовано лицо каждой карты: адрес картинки или `finger:<оттенок>` — скрытая лицом ко мне. */
@@ -1034,7 +1079,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setBlend(b) { blend = b; layout(store.state); },
     stance: stanceNow,
     setStance(st) { stance = st; home(); sendBody(true); draw(); },
-    setFigures(on) { heads.visible = on; draw(); },
+    setFigures(on) { heads.visible = on; chairRoot.visible = on; draw(); },
     setLook(l) { look = l; layout(store.state); },
     heads: () => [...poses.values()].map((pose) => {
       const c = project(V(pose.head)), edge = project(V(pose.head).add(new THREE.Vector3(0, 1, 0)));
@@ -1047,7 +1092,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const head = heads.visible ? ray.intersectObjects(heads.children, true).find((h) => h.object.userData.head) : undefined;
       if (head) return { t: "who", key: head.object.userData.head as string };
       const id = hitCard(e);
-      return id ? { t: "card", id } : null;
+      if (id) return { t: "card", id };
+      const seat = chairRoot.visible ? ray.intersectObject(chairRoot, true).find((h) => h.object.userData.chair) : undefined;
+      return seat ? { t: "chair", id: seat.object.userData.chair as string } : null;
     },
     pileSpots,
     cardsIn(poly) {

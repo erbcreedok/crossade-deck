@@ -19,7 +19,11 @@ function deal(): { id: string; face: Face }[] {
   return cards;
 }
 
-export function localStore(): TableStore {
+/**
+ * `freeChair` — четвёртый стул, свободный: за столом двое сидят, один стул брошен с картами, а ещё один пуст. Без него —
+ * стенд, каким он был у стола на холсте.
+ */
+export function localStore(opts: { freeChair?: boolean } = {}): TableStore {
   const me: Person = { key: "me", name: "Ye", ink: "#f2c14e", door: "guest" };
   // На стенде админ — я: иначе флаги чужих стульев не проверить.
   const table = new Table(deal(), me.key);
@@ -45,6 +49,7 @@ export function localStore(): TableStore {
   table.act("alia", { t: "flag", chair: seatOf("alia"), flag: "lock", on: true }, 0);
   // ТИМУР ВСТАЛ ИЗ-ЗА СТОЛА — стенд показывает покинутый стул с картами: его открывают, на него садятся.
   table.leave("timur");
+  if (opts.freeChair) table.addChair();
 
   let state = table.seenBy(me.key);
   const changed: (() => void)[] = [];

@@ -14,7 +14,7 @@ try {
   const room = params.get("room");
   const store = room
     ? await (await import("../../server/table-client/netStore.js")).netStore({ room, client: "table3d", door: "guest", name: params.get("name") ?? "Гость 3D" })
-    : (await import("../../server/table-client/localStore.js")).localStore();
+    : (await import("../../server/table-client/localStore.js")).localStore({ freeChair: true });
   const { mountScene } = await import("./scene.js");
   const { mountHud } = await import("./hud.js");
   note.hidden = true;
