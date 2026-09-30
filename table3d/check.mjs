@@ -19,7 +19,7 @@ const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errors = [];
 p.on("pageerror", (e) => errors.push(e.message));
 const t = (fn, arg) => p.evaluate(fn, arg);
-const frames = () => p.evaluate(() => new Promise((r) => { let k = 0; const f = () => (++k > 20 ? r() : requestAnimationFrame(f)); f(); }));
+const frames = () => p.evaluate(() => new Promise((r) => { let k = 0; const f = () => (++k > 40 ? r() : requestAnimationFrame(f)); f(); }));
 const drag = async (from, to) => {
   await p.mouse.move(from.x, from.y);
   await p.mouse.down();
@@ -77,6 +77,32 @@ try {
   await frames();
   const hf = await t(() => window.__t3d.handFaces());
   check("двойной тап в руке — карта лицом наружу, мне — рубашкой", hf.find((x) => x.id === last)?.drawn === "back" && hf.filter((x) => x.drawn === "face").length === 6, hf);
+
+  // КАРТА В ПАЛЬЦЕ: под курсором, на высоте от камеры; моя рука с ней; над рукой — щель и правая рука у левой.
+  const feltNow = await t(() => window.__t3d.state().felt[0].id);
+  const fp = await t((id) => window.__t3d.screenOf(id), feltNow);
+  await p.mouse.move(fp.x, fp.y); await p.mouse.down(); await p.mouse.move(200, 430, { steps: 8 });
+  await frames();
+  const held = await t(() => window.__t3d.held());
+  const heldAt = await t((id) => window.__t3d.screenOf(id), feltNow);
+  check("несомая над столом — ровно под курсором, на высоте от камеры (доля высоты глаза), с моей рукой", held && Math.abs(held.h - held.lift) < 0.2 && Math.abs(held.lift - 0.3 * held.camY) < 0.05 && Math.hypot(heldAt.x - 200, heldAt.y - 430) < 30 && held.arm, { held, heldAt });
+  const bodyFelt = await t(() => window.__t3d.lastBody());
+  await p.mouse.move(150, 800, { steps: 8 });
+  await frames();
+  const over = await t(() => window.__t3d.held());
+  const handZ = await t(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat).hand.map((c) => c.id); });
+  const body = await t(() => window.__t3d.lastBody()), left = await t(() => window.__t3d.leftHand());
+  const handYs = await Promise.all(handZ.map((id) => t((i) => window.__t3d.screenOf(i).y, id)));
+  const heldY = await t((id) => window.__t3d.screenOf(id).y, feltNow);
+  check("над своей рукой — в щели руки, выше соседей на экране и ближе к глазу, моей руки над столом нет", over && over.gap !== null && over.onCamera && over.near > -4.9 && !over.arm && heldY < Math.min(...handYs) - 25, { over, heldY, handYs });
+  check("остальным: правая рука с картой — у левой руки (над столом была у карты)", body.right && Math.hypot(body.right.x - left.x, body.right.y - left.y) < 0.01 && Math.hypot(bodyFelt.right.x - body.right.x, bodyFelt.right.y - body.right.y) > 1, { felt: bodyFelt.right, hand: body.right, left });
+  await p.mouse.move(200, 430, { steps: 8 });
+  await p.mouse.up();
+  // Пружина: отпущенная не встаёт мгновенно, а долетает.
+  const trace = await p.evaluate((id) => new Promise((r) => { const out = []; const f = () => { out.push(window.__t3d.world(id)); out.length < 50 ? requestAnimationFrame(f) : r(out); }; f(); }), feltNow);
+  const settled = trace.at(-1);
+  check("отпустил — карта опускается пружиной (не мгновенно) и ложится на сукно, не проваливаясь", trace[1].h > 0.1 && settled.h < 0.05 && trace.every((q) => q.h >= 0.0) , trace.filter((_, i) => i % 10 === 0).map((q) => q.h.toFixed(2)));
+  check("тени: включены, солнце отбрасывает, сукно принимает", Object.values(await t(() => window.__t3d.shadows())).every(Boolean), null);
 
   // Облёт.
   const v0 = await t(() => window.__t3d.view());
