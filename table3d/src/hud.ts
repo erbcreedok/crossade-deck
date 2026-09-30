@@ -21,7 +21,7 @@ import { CAM_LABEL, CAM_MODES } from "./camera.js";
 import { artUrl, readLook, writeLook } from "../../server/table-client/deckArt.js";
 import { BAR_LOOK, BAR, MENTION_INK, T } from "../../server/table-client/screenConst.js";
 import { GLYPH, RIGHTS, SUBS, type BarKey, type GrabMode, type Section } from "../../server/table-client/glyphs.js";
-import { barHeightU, handPlan, handWideOf, hudUnitOf } from "../../server/table-client/handGeom.js";
+import { barHeightU, blendOf, handPlan, handWideOf, hudUnitOf, snapPose } from "../../server/table-client/handGeom.js";
 import { journal } from "../../server/table-client/journal.js";
 import { mountSettings } from "../../server/table-client/settings.js";
 import { tableSound } from "../../server/table-client/sound.js";
@@ -230,6 +230,14 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         + `<span style="font:400 12px Tiny5,monospace;color:${T.ink}">Покинуть стул?</span>`
         + `<button data-stand style="align-self:flex-start;border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:5px 10px;${gold};color:${T.black}">Встать</button>`
         + `<span style="position:absolute;left:${arrow - 7}px;bottom:-7px;width:14px;height:14px;background:${T.well};transform:rotate(45deg);box-shadow:3px 3px 0 0 ${T.black}"></span></div>`;
+    }
+    // Рамка руки: видимые границы, за которые берутся двумя пальцами (шире-уже, в ряд-веер); верхняя кромка тянется вниз — положить.
+    const fr = chair && count ? scene.handFrame() : null;
+    if (fr) {
+      const gripDots = `<svg viewBox="0 0 28 8" width="28" height="8"><g fill="${BAR_LOOK.goldHi}"><circle cx="5" cy="4" r="2"/><circle cx="14" cy="4" r="2"/><circle cx="23" cy="4" r="2"/></g></svg>`;
+      html += `<div data-g="hand-frame" style="position:absolute;left:${Math.round(fr.x)}px;top:${Math.round(fr.y)}px;width:${Math.round(fr.w)}px;height:${Math.round(fr.h)}px;box-sizing:border-box;z-index:31;pointer-events:none;border:2px dashed ${BAR_LOOK.goldHi}99;border-radius:16px">`
+        + `<div data-hand-edge aria-label="Потяни вниз — положить карты" style="position:absolute;left:-2px;right:-2px;top:-2px;height:${fr.edge}px;pointer-events:auto;touch-action:none;cursor:grab;display:flex;align-items:center;justify-content:center;border-radius:16px 16px 0 0;background:linear-gradient(${T.panel},${T.well});box-shadow:inset 0 0 0 2px ${T.black}">${gripDots}`
+        + `<button data-hand-lay aria-label="Положить карты" style="position:absolute;right:6px;top:2px;width:${fr.edge - 4}px;height:${fr.edge - 4}px;border:0;padding:0;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black}"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button></div></div>`;
     }
     // Панель левой руки — над кнопкой: только пока есть карты и рука поднята (положенная — панели нет).
     if (chair && count && !chair.pose.tuck && local.handMenu) html += handMenuHtml(chair, inset + rowLeft, barTop - 8);
@@ -552,6 +560,9 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         if (chair.pose.tuck) { store.send({ t: "pose", chair: chair.id, pose: { ...chair.pose, tuck: false } }); local.handMenu = true; }
         else local.handMenu = !local.handMenu;
       }
+    } else if (q("[data-hand-lay]") && chair) {
+      store.send({ t: "pose", chair: chair.id, pose: { ...chair.pose, tuck: true } });
+      local.handMenu = false;
     } else if ((b = q("[data-hand-pose]")) && chair) {
       const what = b.dataset.handPose as "fan" | "shrink" | "tuck";
       store.send({ t: "pose", chair: chair.id, pose: { ...chair.pose, [what]: !chair.pose[what] } });
@@ -623,6 +634,20 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   const onDown = (e: PointerEvent): void => {
     if (panels.press(e)) return;
     const t = e.target as HTMLElement, chair = myChair();
+    if (t.closest("[data-hand-lay]")) return;
+    if (t.closest("[data-hand-edge]") && chair) {
+      // Верхнюю кромку рамки тянут вниз: рука опускается на стол вслед за пальцем; дотянул — положена, не дотянул — вернулась.
+      e.preventDefault();
+      const b0 = blendOf(chair.pose), EDGE_PX = 70;
+      let dy = 0;
+      follow(e, (ev) => { dy = Math.max(0, ev.clientY - e.clientY); if (dy >= TAP_PX) scene.setBlend({ wide: b0.wide, lift: Math.max(0, b0.lift * (1 - dy / EDGE_PX)) }); draw(); }, () => {
+        scene.setBlend(undefined);
+        const c = myChair();
+        if (c && dy >= EDGE_PX * 0.85) store.send({ t: "pose", chair: c.id, pose: { ...snapPose({ wide: b0.wide, lift: 0 }, c.pose), tuck: true } });
+        draw();
+      });
+      return;
+    }
     if (t.closest("[data-home]")) {
       e.preventDefault();
       let x = e.clientX, moved = false;

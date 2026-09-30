@@ -825,7 +825,7 @@ try {
     const f0 = await cam(), cf0 = await firstCard();
     await p.keyboard.down("Shift"); await p.mouse.move(195, 300); await p.mouse.wheel(0, -500); await p.keyboard.up("Shift"); await p.waitForTimeout(900);
     const f1 = await cam(), cf1 = await firstCard();
-    check("оптика (Shift+колесо): поле зрения уже, камера на месте, шея не тянется, рука того же размера на том же месте", f1.fov < f0.fov - 3 && f1.lean === 0 && Math.hypot(f1.pos[0] - f0.pos[0], f1.pos[2] - f0.pos[2]) < 0.01 && Math.hypot(cf1.x - cf0.x, cf1.y - cf0.y) < 12, { f0: f0.fov, f1: f1.fov, cf0, cf1 });
+    check("оптика (Shift+колесо): поле зрения уже, камера на месте, шея не тянется, рука того же размера на том же месте", f1.fov < f0.fov - 3 && f1.lean === 0 && Math.hypot(f1.pos[0] - f0.pos[0], f1.pos[2] - f0.pos[2]) < 0.01 && Math.hypot(cf1.x - cf0.x, cf1.y - cf0.y) < 24, { f0: f0.fov, f1: f1.fov, cf0, cf1 });
     await p.keyboard.press("Home"); await frames();
     const r0 = await cam();
     await dragLook(0, -120, "right");
@@ -862,6 +862,26 @@ try {
     await p.waitForTimeout(500);
     const p2 = await poseOf();
     check("два пальца на руке, щипок — рука ужалась стопкой", p2.shrink === true, { p1, p2 });
+    // Рамка руки: видимые границы шириной не меньше 250, за них берутся двумя пальцами, даже мимо карты; вниз двумя пальцами рука не ложится.
+    const fr = await t(() => window.__t3d.handFrame());
+    check("рамка руки: видна, не уже 250 и целиком в кадре", !!fr && fr.w >= 250 && fr.x >= 0 && fr.x + fr.w <= 390 && fr.y > 300, fr);
+    const pBefore = await poseOf();
+    await touch("touchStart", [{ x: fr.x + 14, y: fr.y + fr.h - 12 }, { x: fr.x + fr.w - 14, y: fr.y + fr.h - 12 }]);
+    for (let i = 1; i <= 8; i++) await touch("touchMove", [{ x: fr.x + 14, y: fr.y + fr.h - 12 + i * 12 }, { x: fr.x + fr.w - 14, y: fr.y + fr.h - 12 + i * 12 }]);
+    await touch("touchEnd", []);
+    await p.waitForTimeout(500);
+    const pAfter = await poseOf();
+    check("два пальца за рамку (мимо карт) берут руку, но вниз она не ложится", pAfter.tuck === false, { pBefore, pAfter });
+    const fr2 = await t(() => window.__t3d.handFrame());
+    await p.mouse.move(fr2.x + fr2.w / 2 - 30, fr2.y + fr2.edge / 2); await p.mouse.down(); await p.mouse.move(fr2.x + fr2.w / 2 - 30, fr2.y + fr2.edge / 2 + 100, { steps: 8 }); await p.mouse.up();
+    await p.waitForTimeout(700);
+    check("верхнюю кромку рамки потянули вниз — карты положены на стол", (await poseOf()).tuck === true, await poseOf());
+    check("положена — рамки нет", (await t(() => window.__t3d.handFrame())) === null, null);
+    await p.click(handBtnSel); await p.waitForTimeout(700); await p.click(handBtnSel);
+    const fr3 = await t(() => window.__t3d.handFrame());
+    await p.click(`.screen:not(.off) [data-hand-lay]`); await p.waitForTimeout(500);
+    check("кнопка со стрелкой на рамке — положить; кнопка левой руки — поднять", !!fr3 && (await poseOf()).tuck === true, await poseOf());
+    await p.click(handBtnSel); await p.waitForTimeout(700); await p.click(handBtnSel);
     await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
     await p.click(handBtnSel); await p.click('.screen:not(.off) [data-hand-pose="shrink"]'); await p.click('.screen:not(.off) [data-hand-pose="fan"]'); await p.click(handBtnSel);
     await cycle("top");
