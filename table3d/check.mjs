@@ -255,6 +255,57 @@ try {
   check("тап по голове — окно стула: имя и флаги", (await p.locator('[data-g="tip"]').innerText().catch(() => "")).includes("Алия") && (await p.locator('[data-g="tip"] [data-status="lock"], [data-g="tip"] [data-flag="lock"]').count()) === 1, await p.locator('[data-g="tip"]').innerText().catch(() => ""));
   if (shot) await p.screenshot({ path: shot.replace(/\.png$/, "-hud.png") });
 
+  // ОКНО СТОПКИ — три способа держаться: по экрану, прибито к стопке, на месте (переносится, помнится).
+  if (await p.locator("[data-tip-close]").count()) await p.click("[data-tip-close]");
+  await p.click('[data-home]');
+  await frames();
+  await p.click('[data-g="deck-grip"]');
+  await frames();
+  const tipBox0 = await p.locator('[data-g="deck-tip"]').boundingBox();
+  await p.mouse.move(195, 200); await p.mouse.wheel(0, -400);
+  await frames();
+  const tipBoxZoom = await p.locator('[data-g="deck-tip"]').boundingBox();
+  check("окно «экран» — размер по экрану: камера ближе, окно той же ширины", Math.abs(tipBoxZoom.width - tipBox0.width) < 1, [tipBox0.width, tipBoxZoom.width]);
+  await p.click("[data-tip-mode]");
+  await frames();
+  const k1 = Number(await p.getAttribute('[data-g="deck-tip-frame"]', "data-k")), el1 = await p.locator('[data-g="deck-tip"]').boundingBox();
+  await p.mouse.move(195, 200); await p.mouse.wheel(0, 500);
+  await frames();
+  const k2 = Number(await p.getAttribute('[data-g="deck-tip-frame"]', "data-k")), el2 = await p.locator('[data-g="deck-tip"]').boundingBox();
+  check("окно «к стопке» — камера дальше, окно меньше вместе со стопкой", (await p.getAttribute('[data-g="deck-tip-frame"]', "data-mode")) === "element" && k2 < k1 - 0.05 && el2.width < el1.width - 5, { k1, k2, w1: el1.width, w2: el2.width });
+  const gripA = await p.locator('[data-g="deck-grip"]').boundingBox();
+  await drag({ x: 60, y: 200 }, { x: 160, y: 200 });
+  const gripB = await p.locator('[data-g="deck-grip"]').boundingBox(), el3 = await p.locator('[data-g="deck-tip"]').boundingBox();
+  check("окно «к стопке» — повернул стол, окно едет за стопкой", Math.abs((el3.x + el3.width / 2) - (gripB.x + gripB.width / 2)) < 3 && Math.hypot(gripB.x - gripA.x, gripB.y - gripA.y) > 10, { grip: [gripA.x, gripB.x], tip: el3.x + el3.width / 2 });
+  // Карта в окно «к стопке» (масштаб не 1) — всё ещё в щель, на своё место.
+  const toTip = (await my()).hand.at(-1).id, hc2 = await t((id) => window.__t3d.screenOf(id), toTip);
+  await p.mouse.move(hc2.x, hc2.y); await p.mouse.down();
+  await p.mouse.move(el3.x + el3.width * 0.35, el3.y + el3.height * 0.75, { steps: 12 });
+  await frames();
+  const z2 = await t(() => window.__t3d.zone());
+  await p.mouse.up();
+  await frames();
+  check("окно «к стопке»: карта в щель — ложится на это место", z2 && (await t((id) => window.__t3d.state().piles[0].cards.findIndex((c) => c.id === id), toTip)) === z2.i, z2);
+  await p.click("[data-tip-mode]");
+  await frames();
+  const pin1 = await p.locator('[data-g="deck-tip"]').boundingBox();
+  await drag({ x: 60, y: 200 }, { x: 200, y: 200 });
+  const pin2 = await p.locator('[data-g="deck-tip"]').boundingBox();
+  check("окно «на месте» — повернул стол, окно стоит, где открылось", (await p.getAttribute('[data-g="deck-tip-frame"]', "data-mode")) === "pinned" && Math.abs(pin2.x - pin1.x) < 1 && Math.abs(pin2.y - pin1.y) < 1, [pin1, pin2]);
+  const hd = await p.locator("[data-tip-drag]").boundingBox();
+  await drag({ x: hd.x + 20, y: hd.y + hd.height / 2 }, { x: hd.x + 20 - 30, y: hd.y + hd.height / 2 - 90 });
+  const pin3 = await p.locator('[data-g="deck-tip"]').boundingBox();
+  check("окно «на месте» — переносится за заголовок", Math.abs(pin3.x - (pin2.x - 30)) < 2 && Math.abs(pin3.y - (pin2.y - 90)) < 2, [pin2, pin3]);
+  await p.reload();
+  await p.waitForFunction(() => window.__t3d && document.querySelector('[data-g="deck-grip"]'));
+  await frames();
+  await p.click('[data-g="deck-grip"]');
+  await frames();
+  const pin4 = await p.locator('[data-g="deck-tip"]').boundingBox();
+  check("обновил — окно «на месте» там же (способ и место помнит устройство)", Math.abs(pin4.x - pin3.x) < 2 && Math.abs(pin4.y - pin3.y) < 2, [pin3, pin4]);
+  await p.click("[data-tip-mode]");
+  await p.click("[data-deck-shut]");
+
   if (net) {
     // Подписанный id комнаты — как у бота: тело и подпись ключом стола.
     const body = randomBytes(8).toString("base64url");

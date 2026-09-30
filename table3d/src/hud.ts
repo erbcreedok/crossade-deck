@@ -333,38 +333,77 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
    * перемешать, отсортировать, перевернуть; пин, лок, приёмка, склейка и вечность — значками (что нельзя — погашено).
    */
   /** Где окно стопки и его веер: одно на рисование и на прицел несомой карты. `n` — сколько мест в веере. */
+  /**
+   * ГДЕ ОКНО СТОПКИ И ЕГО ВЕЕР — одно на рисование и на прицел несомой карты. Три способа (`tipMode`, помнит устройство):
+   *   screen  — размер по экрану, место — у стопки (прижато к краям кадра);
+   *   element — прибито к стопке: под ней и её размера — ближе камера, крупнее окно (масштаб `k` от ширины её карты);
+   *   pinned  — там, где открылось (или куда его перенесли за заголовок), и не двигается с камерой.
+   * Всё внутри считается без масштаба; `k` и точка `o` переводят в экран: экран = o + (точка − o)·k.
+   */
   function tipLayout(s: Snapshot) {
     const pile = s.piles.find((p) => p.id === local.deckTip), spot = scene.pileSpots().find((p) => p.pile === local.deckTip);
     if (!pile || !spot) return null;
-    const g = glass(), w = Math.min(g.w - 24, 340), left = Math.round(Math.max(12, Math.min(g.w - w - 12, spot.x - w / 2)));
+    const g = glass(), w = Math.min(g.w - 24, 340);
     const cw = 44, room = w - 24 - cw, drop = fanDrop(pile.cards.length + 1, cw, room), h = 12 + 38 + 30 + cw * 1.4 + drop + 16;
-    const top = Math.round(Math.min(g.h - h - 8, spot.y + 36)), rowTop = top + 12 + 38 + 30, mid = left + w / 2;
+    let left: number, top: number, k = 1, o = { x: 0, y: 0 };
+    if (tipMode === "element") {
+      k = Math.max(0.35, Math.min(2.2, spot.cardPx / cw));
+      o = { x: spot.x, y: spot.y };
+      left = Math.round(spot.x - w / 2);
+      top = Math.round(spot.y + 36);
+    } else if (tipMode === "pinned") {
+      const at = tipAt(pile.id) ?? { left: Math.round(Math.max(12, Math.min(g.w - w - 12, spot.x - w / 2))), top: Math.round(Math.min(g.h - h - 8, spot.y + 36)) };
+      if (!tipAt(pile.id)) saveTipAt(pile.id, at);
+      left = at.left;
+      top = at.top;
+    } else {
+      left = Math.round(Math.max(12, Math.min(g.w - w - 12, spot.x - w / 2)));
+      top = Math.round(Math.min(g.h - h - 8, spot.y + 36));
+    }
+    const rowTop = top + 12 + 38 + 30, mid = left + w / 2;
     const slots = (n: number) => handPlan({ fan: true, shrink: false, tuck: false }, n, 1, 1.4, room / cw).map((p) => ({ x: mid + p.x * cw, y: rowTop + p.y * cw + (cw * 1.4) / 2, angle: p.angle }));
-    return { pile, left, top, w, h, cw, room, rowTop, mid, slots };
+    const toScreen = (q: { x: number; y: number }) => ({ x: o.x + (q.x - o.x) * k, y: o.y + (q.y - o.y) * k });
+    const fromScreen = (q: { x: number; y: number }) => ({ x: o.x + (q.x - o.x) / k, y: o.y + (q.y - o.y) / k });
+    return { pile, left, top, w, h, cw, room, rowTop, mid, slots, k, o, toScreen, fromScreen };
   }
+  const TIP_MODES = ["screen", "element", "pinned"] as const;
+  type TipMode = (typeof TIP_MODES)[number];
+  const TIP_MODE_WORDS: Record<TipMode, string> = { screen: "экран", element: "к стопке", pinned: "на месте" };
+  const readStored = <T,>(key: string, or: T): T => { try { const v = localStorage.getItem(key); return v === null ? or : (JSON.parse(v) as T); } catch { return or; } };
+  const writeStored = (key: string, v: unknown) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* нет хранилища — живёт, пока открыта вкладка */ } };
+  let tipMode: TipMode = TIP_MODES.includes(readStored<TipMode>("table3d.tipMode", "screen")) ? readStored<TipMode>("table3d.tipMode", "screen") : "screen";
+  const tipAts: Record<string, { left: number; top: number }> = readStored("table3d.tipAt", {});
+  const tipAt = (pile: string) => tipAts[pile] ?? null;
+  const saveTipAt = (pile: string, at: { left: number; top: number } | null) => { if (at) tipAts[pile] = at; else delete tipAts[pile]; writeStored("table3d.tipAt", tipAts); };
   // ОКНО СТОПКИ — ЗОНА ДЛЯ НЕСОМОЙ КАРТЫ: палец над окном — карта встаёт в щель веера и ляжет в стопку на это место.
   scene.setZone((x, y) => {
     const L = tipLayout(store.state);
-    if (!L || L.pile.lock || L.pile.shut || x < L.left || x > L.left + L.w || y < L.top || y > L.top + L.h) return null;
-    const i = L.slots(L.pile.cards.length).filter((sl) => sl.x < x).length, sl = L.slots(L.pile.cards.length + 1)[i]!;
-    return { where: { in: "deck", pile: L.pile.id, i }, spot: { x: sl.x, y: sl.y - L.cw * 0.35, w: L.cw, angle: sl.angle } };
+    if (!L) return null;
+    const q = L.fromScreen({ x, y });
+    if (L.pile.lock || L.pile.shut || q.x < L.left || q.x > L.left + L.w || q.y < L.top || q.y > L.top + L.h) return null;
+    const i = L.slots(L.pile.cards.length).filter((sl) => sl.x < q.x).length, sl = L.slots(L.pile.cards.length + 1)[i]!;
+    const on = L.toScreen({ x: sl.x, y: sl.y - L.cw * 0.35 });
+    return { where: { in: "deck", pile: L.pile.id, i }, spot: { x: on.x, y: on.y, w: L.cw * L.k, angle: sl.angle } };
   });
   function deckTipHtml(s: Snapshot): string {
     const L = tipLayout(s);
     if (!L) { local.deckTip = null; return ""; }
-    const { pile, left, w, h, top, cw, room } = L;
+    const { pile, left, w, h, top, cw, room, k, o } = L;
     const zone = scene.heldZone();
     const gapAt = zone && zone.pile === pile.id ? zone.i : null;
     // Несомая над окном — сама карта в щели, выше соседей, поверх окна.
     const held = zone && zone.pile === pile.id ? (() => {
       const all = [...s.felt, ...s.piles.flatMap((p) => p.cards), ...s.chairs.flatMap((c) => c.hand)], c = all.find((x) => x.id === zone.id);
-      const face = c && (s.chairs.some((ch) => ch.hand.includes(c)) ? c.face : c.up ? c.face : undefined), hw = cw * 1.15;
-      return `<div data-g="tip-held" data-card="${zone.id}" style="position:absolute;left:${Math.round(zone.spot.x - hw / 2)}px;top:${Math.round(zone.spot.y - (hw * 1.4) / 2)}px;width:${Math.round(hw)}px;height:${Math.round(hw * 1.4)}px;transform:rotate(${zone.spot.angle}deg);z-index:90;pointer-events:none;filter:drop-shadow(0 6px 0 rgba(11,7,4,.45))">${cardImg(s, face, hw)}</div>`;
+      const face = c && (s.chairs.some((ch) => ch.hand.includes(c)) ? c.face : c.up ? c.face : undefined), hw = cw * 1.15, at = L.fromScreen(zone.spot);
+      return `<div data-g="tip-held" data-card="${zone.id}" style="position:absolute;left:${Math.round(at.x - hw / 2)}px;top:${Math.round(at.y - (hw * 1.4) / 2)}px;width:${Math.round(hw)}px;height:${Math.round(hw * 1.4)}px;transform:rotate(${zone.spot.angle}deg);z-index:90;pointer-events:none;filter:drop-shadow(0 6px 0 rgba(11,7,4,.45))">${cardImg(s, face, hw)}</div>`;
     })() : "";
     const admin = s.rights.includes("pile.guard"), topId = pile.cards.at(-1)?.id;
     const acts: [string, string, string][] = [["shuffle", GLYPH.shuffle, "Перемешать"], ["sort", GLYPH.suit, "Отсортировать"], ["flip", GLYPH.reverse, "Перевернуть"]];
-    return `<div data-g="deck-tip" data-pile="${pile.id}" data-lock="${pile.lock}" style="position:absolute;left:${left}px;top:${top}px;width:${w}px;height:${h}px;box-sizing:border-box;z-index:40;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
-      + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px"><span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1">${esc(pile.name ?? "Колода")} · ${pile.cards.length}</span>`
+    // Всё окно — в одной обёртке с масштабом (у «к стопке» он от размера стопки на экране, у прочих — 1).
+    return `<div data-g="deck-tip-frame" data-mode="${tipMode}" data-k="${k.toFixed(3)}" style="position:absolute;left:0;top:0;width:0;height:0;transform-origin:${o.x}px ${o.y}px;transform:scale(${k.toFixed(4)});z-index:40">`
+      + `<div data-g="deck-tip" data-pile="${pile.id}" data-lock="${pile.lock}" style="position:absolute;left:${left}px;top:${top}px;width:${w}px;height:${h}px;box-sizing:border-box;z-index:40;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
+      + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px"><span data-tip-drag style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1;align-self:stretch;display:flex;align-items:center;touch-action:none;cursor:${tipMode === "pinned" ? "move" : "default"}">${esc(pile.name ?? "Колода")} · ${pile.cards.length}</span>`
+      + `<span data-tip-mode role="button" title="Как держится окно: по экрану, прибито к стопке или на месте (переносится за заголовок)" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 8px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.gold}">${TIP_MODE_WORDS[tipMode]}</span>`
       + `<span data-deck-shut role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
       + `<div style="display:flex;align-items:center;gap:4px;height:26px">`
       + acts.map(([how, glyph, label]) => deckChip(`data-deck-do="${how}"`, glyph, label, false, !pile.lock)).join("")
@@ -375,7 +414,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       + deckChip("data-deck-seal", GLYPH.seal, "Мерж закрыт", pile.seal, admin)
       + deckChip("data-deck-forever", GLYPH.forever, "Вечная", pile.forever) + `</div></div>`
       + fanHtml(s, pile.cards, (c) => (c.up ? c.face : undefined), left + w / 2, top + 12 + 38 + 30, cw, room, 42, (c) => `data-from="pile" data-take="${pile.shut || (pile.lock && c.id !== topId) ? "0" : "1"}"`, gapAt)
-      + held;
+      + held + `</div>`;
   }
   /** Окно стула по тапу на голову: кто, флаги (свой — кнопками), «не читать»; у крупье — его дела. */
   function tipHtml(s: Snapshot): string {
@@ -506,6 +545,12 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-journal]")) local.journal = !local.journal;
     else if ((b = q("[data-deck-do]")) && local.deckTip) store.send({ t: "deckDo", pile: local.deckTip, how: b.dataset.deckDo as "shuffle" | "sort" | "flip" });
     else if (q("[data-deck-shut]")) local.deckTip = null;
+    else if (q("[data-tip-mode]")) {
+      tipMode = TIP_MODES[(TIP_MODES.indexOf(tipMode) + 1) % TIP_MODES.length]!;
+      writeStored("table3d.tipMode", tipMode);
+      // «На месте» — там, где окно стоит сейчас.
+      if (tipMode === "pinned" && local.deckTip) saveTipAt(local.deckTip, null);
+    }
     else if ((b = q("[data-deck-pin]")) && local.deckTip) { const p = s.piles.find((x) => x.id === local.deckTip); if (p) store.send({ t: "deckPin", pile: p.id, on: !p.pin }); }
     else if ((b = q("[data-deck-forever]")) && local.deckTip) { const p = s.piles.find((x) => x.id === local.deckTip); if (p) store.send({ t: "deckForever", pile: p.id, on: !p.forever }); }
     else if ((b = q("[data-deck-lock], [data-deck-accept], [data-deck-seal]")) && local.deckTip) {
@@ -614,6 +659,15 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         scene.carryPile(pile, null);
         draw();
       });
+      return;
+    }
+    // «На месте» — окно переносят за заголовок; место запоминается.
+    const head = t.closest<HTMLElement>("[data-tip-drag]");
+    if (head && tipMode === "pinned" && local.deckTip) {
+      e.preventDefault();
+      const pile = local.deckTip, from = tipAt(pile);
+      if (!from) return;
+      follow(e, (ev) => { saveTipAt(pile, { left: Math.round(from.left + ev.clientX - e.clientX), top: Math.round(from.top + ev.clientY - e.clientY) }); draw(); }, () => draw());
       return;
     }
     // Карта из окна (стопки, стула) — её несут, как со стола.

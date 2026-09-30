@@ -107,7 +107,7 @@ export interface SceneApi {
   heads(): { key: string; x: number; y: number; r: number; ink: string }[];
   pickAt(x: number, y: number): { t: "card"; id: string } | { t: "who"; key: string } | null;
   /** Стопки на экране: где и сколько. */
-  pileSpots(): { pile: string; count: number; x: number; y: number }[];
+  pileSpots(): { pile: string; count: number; x: number; y: number; cardPx: number }[];
   /** Карты, чья середина на экране внутри многоугольника. */
   cardsIn(poly: { x: number; y: number }[]): string[];
   /** Лассо открыто — тап по карте выделяет, выделенные несут вместе; `grab` — как несут. */
@@ -805,7 +805,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const id = hitCard(e);
       return id ? { t: "card", id } : null;
     },
-    pileSpots: () => store.state.piles.filter((p) => p.pose !== "ring" && p.cards.length).map((p) => ({ pile: p.id, count: p.cards.length, ...project(new THREE.Vector3(p.x, 0.02 + p.cards.length * PILE_STEP, p.y)) })),
+    pileSpots: () => store.state.piles.filter((p) => p.pose !== "ring" && p.cards.length).map((p) => {
+      const h = 0.02 + p.cards.length * PILE_STEP, c = project(new THREE.Vector3(p.x, h, p.y));
+      // Ширина карты стопки на экране: по ней окно «к стопке» меряет свой размер.
+      const r = camera.matrixWorld.elements, right = new THREE.Vector3(r[0], r[1], r[2]).setLength(CARD_W), e = project(new THREE.Vector3(p.x, h, p.y).add(right));
+      return { pile: p.id, count: p.cards.length, ...c, cardPx: Math.hypot(e.x - c.x, e.y - c.y) };
+    }),
     cardsIn(poly) {
       const inside = (q: { x: number; y: number }) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i]!, b = poly[j]!; if (a.y > q.y !== b.y > q.y && q.x < ((b.x - a.x) * (q.y - a.y)) / (b.y - a.y) + a.x) c = !c; } return c; };
       return store.state.felt.filter((f) => { const q = screenOf(f.id); return q && inside(q); }).map((f) => f.id);
