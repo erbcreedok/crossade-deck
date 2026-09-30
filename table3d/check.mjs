@@ -691,7 +691,7 @@ try {
     for (let k = 0; k < 3; k++) { await p.mouse.move(40, 300); await p.mouse.down(); await p.mouse.move(360, 300, { steps: 10 }); await p.mouse.up(); }
     await p.waitForTimeout(700); await frames();
     const far = await t(() => window.__t3d.myBody());
-    check("камера на другой стороне стола — у моего тела голова-кружок с ниточкой, как у других", far.head === true && far.parts >= 3, far);
+    check("камера на другой стороне стола — у моего тела голова-кружок с ниточкой, как у других, и левая рука с картами не пропала", far.head === true && far.parts >= 7, far);
   }
 
   // МОЯ РУКА ПОВЕРХ ВСЕГО: карты руки нарисованы вторым проходом — моё тело, стул и борт стола, оказавшиеся на линии взгляда, их не закрывают.

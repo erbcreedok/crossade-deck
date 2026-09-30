@@ -384,8 +384,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return g;
   };
   /** Кукла в единицах стола — как у стола в 2D (`bodyView.ts`): толщина палки, полуширина плеч, руки, досягаемость. */
-  const DOLL = { spine: 0.21, bar: 1.4, arm: 0.13, hand: 0.32, reach: 2 * TABLE_RADIUS + 2 } as const;
+  const DOLL = { spine: 0.21, bar: 1.4, arm: 0.13, hand: 0.32, reach: 2 * TABLE_RADIUS + 2, ref: 12, max: 4 } as const;
+  /** Во сколько раз толще шея, рука и кисть от дальности до камеры: издалека тонкая рука пропадает — дальше камера, шире линия. */
+  const farK = (p: THREE.Vector3): number => Math.max(1, Math.min(DOLL.max, camera.position.distanceTo(p) / DOLL.ref));
   const poses = new Map<string, Pose>();
+  let bodiesCam = "";
   function drawBodies(s: Snapshot): void {
     heads.clear();
     poses.clear();
@@ -401,16 +404,18 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const r = Math.hypot(pose.s.x, pose.s.y) || 1, rightDir = new THREE.Vector3(pose.s.y / r, 0, -pose.s.x / r);
       const shL = S.clone().addScaledVector(rightDir, -DOLL.bar), shR = S.clone().addScaledVector(rightDir, DOLL.bar);
       body.add(stick(base, S, DOLL.spine, mat), stick(shL, shR, DOLL.spine, mat), ball(shL, DOLL.spine, mat), ball(shR, DOLL.spine, mat));
+      // Левая рука с картами — всегда: и с головой у тела, и когда голова ушла на ту сторону стола (рука с ней).
+      body.add(stick(shL, L, DOLL.arm * farK(L), mat), ball(L, DOLL.hand * farK(L), mat));
       if (pose.away) {
         // Ушёл головой на ту сторону стола — к голове ниточка его цвета, руки ушли с головой.
         const tether = new THREE.Line(new THREE.BufferGeometry().setFromPoints([S, H]), new THREE.LineDashedMaterial({ color: pose.ink, dashSize: 0.35, gapSize: 0.3, transparent: true, opacity: 0.6 }));
         tether.computeLineDistances();
         body.add(tether);
       } else {
-        body.add(stick(S, H, DOLL.spine, pose.strained ? inkOf("#e0413a") : mat), stick(shL, L, DOLL.arm, mat), ball(L, DOLL.hand, mat));
+        body.add(stick(S, H, DOLL.spine * farK(H), pose.strained ? inkOf("#e0413a") : mat));
         if (pose.right && Math.hypot(pose.right.x - (pose.s.x + rightDir.x * DOLL.bar), pose.right.y - (pose.s.y + rightDir.z * DOLL.bar)) <= DOLL.reach) {
           const Rh = V(pose.right);
-          body.add(stick(shR, Rh, DOLL.arm, mat), ball(Rh, DOLL.hand, mat));
+          body.add(stick(shR, Rh, DOLL.arm * farK(Rh), mat), ball(Rh, DOLL.hand * farK(Rh), mat));
           body.userData.right = Rh;
         }
       }
@@ -623,7 +628,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       grip = new THREE.Vector3(at.x, restH(at, ch.id), at.y);
     }
     const mat = inkOf(store.me.ink);
-    myArm.add(stick(shR, grip, DOLL.arm, mat), ball(grip, DOLL.hand, mat));
+    myArm.add(stick(shR, grip, DOLL.arm * farK(grip), mat), ball(grip, DOLL.hand * farK(grip), mat));
     myArm.userData.grip = grip;
   }
   function tick(): void {
@@ -671,6 +676,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (d.lengthSq() < 1e-6 && v.lengthSq() < 1e-6 && Math.abs(ds) < 1e-4 && g.quaternion.angleTo(t.quat) < 1e-3) { g.position.copy(t.pos); g.quaternion.copy(t.quat); g.scale.setScalar(t.scale); v.set(0, 0, 0); g.userData.sv = 0; }
       else moving = true;
     }
+    // Камера сдвинулась — толщина шеи и рук чужих тел пересчитана под новую дальность.
+    const camSig = camera.position.toArray().map((v) => v.toFixed(1)).join();
+    if (camSig !== bodiesCam) { bodiesCam = camSig; drawBodies(store.state); }
     retargetMine();
     armPose();
     placeTabs();
@@ -784,6 +792,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const r = Math.hypot(sh.x, sh.y) || 1, rightDir = new THREE.Vector3(sh.y / r, 0, -sh.x / r);
     const shL = S.clone().addScaledVector(rightDir, -DOLL.bar), shR = S.clone().addScaledVector(rightDir, DOLL.bar);
     myBody.add(stick(base, S, DOLL.spine, mat), stick(shL, shR, DOLL.spine, mat), ball(shL, DOLL.spine, mat), ball(shR, DOLL.spine, mat));
+    myBody.add(stick(shL, L, DOLL.arm * farK(L), mat), ball(L, DOLL.hand * farK(L), mat));
     if (away) {
       // Камера ушла на другую сторону стола — голова с ней: ниточка к ней и кружок с именем, как у других.
       const tether = new THREE.Line(new THREE.BufferGeometry().setFromPoints([S, H]), new THREE.LineDashedMaterial({ color: who.ink, dashSize: 0.35, gapSize: 0.3, transparent: true, opacity: 0.6 }));
@@ -794,7 +803,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       sprite.center.set(0.5, 1 - 128 / 320);
       sprite.position.copy(H);
       myBody.add(sprite);
-    } else myBody.add(stick(S, H, DOLL.spine, mat), stick(shL, L, DOLL.arm, mat), ball(L, DOLL.hand, mat));
+    } else myBody.add(stick(S, H, DOLL.spine * farK(H), mat));
     myHead = { shown: away, s: sh };
   }
 
