@@ -398,9 +398,9 @@ try {
     await p.goto(`${base}/?stand`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
-    const at = async () => { const a = await tabInfo(), top = await t(() => { const s = window.__t3d.state(), q = s.piles[0]; return { id: q.cards.at(-1).id, x: q.x, y: q.y }; }); const w = await t((id) => window.__t3d.world(id), top.id); return { a, w, top, d: Math.hypot(a.at.x - w.x, a.at.y - w.y), dh: a.y3 - w.h }; };
+    const at = async () => { const a = await tabInfo(), top = await t(() => { const s = window.__t3d.state(), q = s.piles[0]; return { id: q.cards[0].id, x: q.x, y: q.y }; }); const w = await t((id) => window.__t3d.world(id), top.id); return { a, w, top, d: Math.hypot(a.at.x - w.x, a.at.y - w.y), dh: a.y3 - w.h }; };
     const rest = await at();
-    check("язычок лежит на столе у кромки колоды: рядом с ней, на высоте её верха, плашмя", rest.d > 0.7 && rest.d < 1.2 && Math.abs(rest.dh) < 0.05, { d: rest.d, dh: rest.dh });
+    check("язычок лежит на столе у кромки колоды: торчит из нижней карты, на высоте сукна, плашмя", rest.d > 0.7 && rest.d < 1.2 && Math.abs(rest.dh) < 0.02 && rest.a.y3 < 0.05, { d: rest.d, dh: rest.dh, y3: rest.a.y3 });
     await p.mouse.move(195, 300); await p.mouse.down();
     for (let i = 0; i < 30; i++) { await p.mouse.move(195 + i * 5, 300 + (i % 3)); await p.waitForTimeout(16); }
     await p.mouse.up(); await frames();
@@ -411,14 +411,25 @@ try {
     const viewAfter = await t(() => window.__t3d.view());
     check("тап по язычку — окно колоды, камера не поехала", (await p.locator('[data-g="deck-tip"]').count()) === 1 && Math.abs(viewBefore.yaw - viewAfter.yaw) < 0.01 && Math.abs(viewBefore.pitch - viewAfter.pitch) < 0.01, { viewBefore, viewAfter });
     await p.click("[data-deck-shut]"); await frames();
-    // Тянем: колода и язычок под пальцем.
-    const a0 = await tabInfo();
+    // Верхнюю карту потянули — язычок остался с колодой, а не поехал за картой.
+    const still = await at();
+    const topId = await t(() => window.__t3d.state().piles[0].cards.at(-1).id);
+    const tp = await t((id) => window.__t3d.screenOf(id), topId);
+    await p.mouse.move(tp.x, tp.y - 6); await p.mouse.down();
+    await p.mouse.move(tp.x + 70, tp.y - 90, { steps: 10 });
+    await frames(); await p.waitForTimeout(300);
+    const cardDragged = await t(() => window.__t3d.held());
+    const during = await at();
+    check("тянут верхнюю карту колоды — язычок остаётся у колоды, а не едет за картой", !!cardDragged && Math.hypot(during.a.at.x - still.a.at.x, during.a.at.y - still.a.at.y) < 0.02 && Math.abs(during.a.y3 - still.a.y3) < 0.02, { cardDragged: !!cardDragged, moved: Math.hypot(during.a.at.x - still.a.at.x, during.a.at.y - still.a.at.y) });
+    await p.mouse.up(); await frames();
+    // Тянем за язычок: он ровно под пальцем, колода — с ним, на том же месте относительно него.
+    const a0 = await tabInfo(), s0 = await at();
     await p.mouse.move(a0.x, a0.y); await p.mouse.down();
     await p.mouse.move(a0.x + 90, a0.y - 60, { steps: 12 });
     await frames(); await p.waitForTimeout(400);
-    const held = await t(() => { const s = window.__t3d.state(), q = s.piles[0], sc = window.__t3d.screenOf(q.cards.at(-1).id), tb = window.__t3d.tabs()[0], w = window.__t3d.world(q.cards.at(-1).id); return { top: sc, tab: tb, d: Math.hypot(tb.at.x - w.x, tb.at.y - w.y), dh: tb.y3 - w.h }; });
-    check("тянут за язычок — верх колоды ровно под пальцем", Math.hypot(held.top.x - (a0.x + 90), held.top.y - (a0.y - 60)) < 8, { top: held.top, finger: [a0.x + 90, a0.y - 60] });
-    check("тянут за язычок — язычок держится у кромки колоды и поднят вместе с ней", held.d > 0.7 && held.d < 1.2 && Math.abs(held.dh) < 0.05, { d: held.d, dh: held.dh });
+    const held = await at(), tab = await tabInfo();
+    check("тянут за язычок — язычок ровно под пальцем (не колода и не карта)", Math.hypot(tab.x - (a0.x + 90), tab.y - (a0.y - 60)) < 8, { tab: [tab.x, tab.y], finger: [a0.x + 90, a0.y - 60] });
+    check("тянут за язычок — колода при нём на прежнем расстоянии и поднята вместе с ним", Math.abs(held.d - s0.d) < 0.03 && held.a.y3 > 0.3, { d: held.d, was: s0.d, y3: held.a.y3 });
     await p.mouse.up(); await frames();
   }
 

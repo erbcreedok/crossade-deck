@@ -641,6 +641,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
    */
   function tabDown(pile: string, e: PointerEvent): void {
     e.preventDefault();
+    scene.grabPile(pile, { x: e.clientX, y: e.clientY });
     const pinned = !!store.state.piles.find((x) => x.id === pile)?.pin;
     let moved = false, hold = 0;
     follow(e, (ev) => {
@@ -663,7 +664,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       const a = scene.aim(ev.clientX, ev.clientY, pile);
       if (a.in === "hand") store.send({ t: "pileDrop", pile, to: a });
       else if (a.in === "deck") store.send({ t: "pileDrop", pile, to: a });
-      else store.send({ t: "deckMove", pile, x: a.x, y: a.y, angle: ((-(myChair()?.angle ?? 0) % 360) + 360) % 360 });
+      else { const at = scene.pileAt(pile) ?? a; store.send({ t: "deckMove", pile, x: at.x, y: at.y, angle: ((-(myChair()?.angle ?? 0) % 360) + 360) % 360 }); }
       scene.carryPile(pile, null);
       draw();
     });

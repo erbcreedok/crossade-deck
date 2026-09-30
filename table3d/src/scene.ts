@@ -126,6 +126,10 @@ export interface SceneApi {
   carry(id: string, e: PointerEvent): void;
   /** Несут стопку: `screen` — где палец на экране (верх стопки встаёт ровно под него, как несомая карта); `null` — отпустили. */
   carryPile(pile: string, screen: { x: number; y: number } | null): void;
+  /** Взялись за язычок стопки в точке экрана: запомнить, где палец относительно стопки — дальше её несут за это же место. */
+  grabPile(pile: string, screen: { x: number; y: number }): void;
+  /** Где несомая стопка лежит на сукне, если отпустить (в пределах борта); не несут — `null`. */
+  pileAt(pile: string): { x: number; y: number } | null;
   /** Куда ляжет то, что отпустят здесь: в мою руку (на место `i`), в стопку, на сукно. */
   aim(x: number, y: number, skipPile?: string): { in: "hand"; chair: string; i: number } | { in: "deck"; pile: string; i?: number } | { in: "felt"; x: number; y: number };
   /**
@@ -621,6 +625,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   // ——— язычки стопок: лежат на столе у нижней кромки верхней карты, в той же позе ———
   /** Размер язычка в ширинах карты. Нарисован на холсте, лежит плашмя; тапнуть можно и рядом (`hit`). */
   const TAB = { w: 1, l: 0.5, hit: 1.4 };
+  let pileGrab: { pile: string; dx: number; dy: number } | null = null;
+  /** Ближайшая к точке `q` точка сукна: за борт стопку положить нельзя (как карту, `aim`). */
+  const seatOnFelt = (q: { x: number; y: number }) => { const len = Math.hypot(q.x, q.y), max = R - 0.8, k = len > max ? max / len : 1; return { x: q.x * k, y: q.y * k }; };
   interface TabObj { mesh: THREE.Mesh; hit: THREE.Mesh; cv: HTMLCanvasElement; tex: THREE.CanvasTexture; key: string }
   const tabs = new Map<string, TabObj>();
   let litTabs = new Set<string>();
@@ -661,19 +668,20 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     scene.add(mesh);
     return { mesh, hit, cv, tex, key: "" };
   }
-  /** Язычок каждой стопки — у нижней (к её хозяину) кромки верхней карты, плашмя, в той же позе, что карта: несут карту — несут и его. */
+  /** Язычок каждой стопки — у нижней (к её хозяину) кромки её нижней карты, плашмя на столе, в той же позе, что стопка: несут стопку — несут и его. */
   function placeTabs(): void {
     const seen = new Set<string>();
     for (const p of store.state.piles) {
-      const top = p.pose === "ring" ? undefined : cards.get(p.cards.at(-1)?.id ?? "");
-      if (!top || !top.group.visible) continue;
+      // Язычок — стопки, а не верхней карты: торчит из нижней, лежит на столе; верхнюю потянули — он остался.
+      const base = p.pose === "ring" ? undefined : cards.get(p.cards[0]?.id ?? "");
+      if (!base || !base.group.visible || (drag?.moved && drag.id === p.cards[0]!.id)) continue;
       seen.add(p.id);
       let t = tabs.get(p.id);
       if (!t) { t = makeTab(); t.hit.userData.pile = p.id; tabs.set(p.id, t); }
       const key = `${p.cards.length}|${p.pin}|${litTabs.has(p.id)}`;
       if (t.key !== key) { t.key = key; drawTab(t.cv, p.cards.length, !!p.pin, litTabs.has(p.id)); t.tex.needsUpdate = true; }
-      top.group.updateMatrixWorld(true);
-      const at = top.group.getWorldPosition(new THREE.Vector3()), k = top.group.scale.x, a = -pileAngle(p) * DEG, d = k * (CARD_H / 2 + TAB.l / 2);
+      base.group.updateMatrixWorld(true);
+      const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.scale.x, a = -pileAngle(p) * DEG, d = k * (CARD_H / 2 + TAB.l / 2);
       t.mesh.position.set(at.x + d * Math.sin(a), at.y + 0.004, at.z + d * Math.cos(a));
       t.mesh.rotation.set(-Math.PI / 2, a, 0, "YXZ");
       t.mesh.scale.setScalar(k);
@@ -970,23 +978,33 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     feltAt: (x, y) => { const at = onFelt({ clientX: x, clientY: y }); return at ? { x: at.x, y: at.z } : null; },
     onFrame: (fn) => void frameHeard.push(fn),
     carry(id, e) { if (fromOf.has(id)) startDrag(id, e); },
+    grabPile(pile, screen) {
+      const p = store.state.piles.find((x) => x.id === pile), base = p && cards.get(p.cards[0]?.id ?? "");
+      if (!p || !base) return;
+      ray.setFromCamera(ndc({ clientX: screen.x, clientY: screen.y }), camera);
+      const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(base.group.getWorldPosition(new THREE.Vector3()).y + 0.004)), new THREE.Vector3());
+      pileGrab = hit ? { pile, dx: p.x - hit.x, dy: p.y - hit.z } : null;
+    },
+    pileAt: (pile) => (pileCarry?.pile === pile ? seatOnFelt(pileCarry) : null),
     carryPile(pile, screen) {
       const p = store.state.piles.find((x) => x.id === pile);
-      let at: { x: number; y: number } | null = null;
+      let at: { x: number; y: number } | null = null, finger: { x: number; y: number } | null = null;
       if (screen) {
-        // Верх стопки — на высоте несомой, на луче из глаза через палец: ровно под ним, как несомая карта (`heldAt`).
+        // Язычок — на высоте несомой стопки, на луче из глаза через палец: ровно под ним; стопка — на том же расстоянии от него, что и при захвате.
         if (!p) return;
         ray.setFromCamera(ndc({ clientX: screen.x, clientY: screen.y }), camera);
-        const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(0.01 + 0.6 + (p.cards.length - 1) * PILE_STEP)), new THREE.Vector3());
+        const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(0.01 + 0.6 + 0.004)), new THREE.Vector3());
         if (!hit) return;
-        at = { x: hit.x, y: hit.z };
+        const g = pileGrab?.pile === pile ? pileGrab : { dx: 0, dy: 0 };
+        at = { x: hit.x + g.dx, y: hit.z + g.dy };
+        finger = { x: hit.x, y: hit.z };
       }
       // Несут где угодно, хоть за краем; кладут — только на сукно: посадка идёт в ближайшую точку у борта (как у карты, `aim`).
-      const seat = (q: { x: number; y: number }) => { const len = Math.hypot(q.x, q.y), max = R - 0.8, k = len > max ? max / len : 1; return { x: q.x * k, y: q.y * k }; };
-      if (!at && pileCarry && p) pileLanding = { pile, ...seat(pileCarry), was: { x: p.x, y: p.y }, until: performance.now() + 1500 };
+      if (!at && pileCarry && p) pileLanding = { pile, ...seatOnFelt(pileCarry), was: { x: p.x, y: p.y }, until: performance.now() + 1500 };
       pileCarry = at ? { pile, ...at } : null;
-      // Несу стопку — рука остальным под ней.
-      restRight = at;
+      if (!at) pileGrab = null;
+      // Несу стопку — рука остальным на язычке, где палец.
+      restRight = finger;
       sendBody(!at);
       layout(store.state);
     },
