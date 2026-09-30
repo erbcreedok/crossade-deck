@@ -14,6 +14,7 @@
 //            тап по голове — окно стула: флаги, «не читать», у крупье — его дела.
 
 import { DEAL_PRESETS, type Chair, type ChairFlag, type DealDir, type DealRule, type Face, type GatherSide, type PileGuard, type SeenCard, type Snapshot } from "../../server/src/table/contract.js";
+import { fingerHtml } from "./finger.js";
 import { allowed, may as mayDo } from "../../server/src/table/access.js";
 import { SUITS } from "../../server/table-client/felt.js";
 import { artUrl, readLook, writeLook } from "../../server/table-client/deckArt.js";
@@ -313,7 +314,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     `<img src="${artUrl(s.rules, face, look)}" alt="" draggable="false" style="width:100%;height:100%;display:block;border-radius:${Math.round(w * 0.12)}px;box-shadow:0 0 0 1px ${T.black};pointer-events:none">`;
   /** Карты веером в окне: `left` — середина веера, `top` — верх ряда; ширина карты `cw`, веер во `room` точек. */
   /** `gap` — щель на этом месте: туда встанет несомая карта (соседи расступаются). */
-  function fanHtml(s: Snapshot, cards: SeenCard[], faceOf: (c: SeenCard) => Face | undefined, left: number, top: number, cw: number, room: number, z: number, attrs: (c: SeenCard) => string, gap: number | null = null, ghost: string | null = null): string {
+  function fanHtml(s: Snapshot, cards: SeenCard[], faceOf: (c: SeenCard) => Face | undefined, left: number, top: number, cw: number, room: number, z: number, attrs: (c: SeenCard) => string, gap: number | null = null, ghost: string | null = null, hidden: "back" | "finger" = "back"): string {
     const plan = handPlan({ fan: true, shrink: false, tuck: false }, cards.length + (gap === null ? 0 : 1), 1, 1.4, room / cw), ch = cw * 1.4;
     // Щель — шире самого места: соседи по обе стороны отходят ещё, чтобы её было видно и в длинном веере.
     const part = (i: number) => (gap === null ? 0 : i < gap ? -cw * 0.35 : cw * 0.35);
@@ -321,7 +322,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       const p = plan[gap !== null && i >= gap ? i + 1 : i]!;
       // Карту несут — в окне на её месте пустой контур (поверх соседей, чтобы был виден целиком): она ушла из окна, а не лежит в нём и на столе сразу; не примут — вернётся сюда.
       if (c.id === ghost) return `<div data-tip-slot="${c.id}" style="position:absolute;left:${Math.round(left + p.x * cw - cw / 2 + part(i))}px;top:${Math.round(top + p.y * cw)}px;width:${Math.round(cw)}px;height:${Math.round(ch)}px;box-sizing:border-box;transform:rotate(${p.angle}deg);z-index:${z + cards.length + 1};border-radius:${Math.round(cw * 0.12)}px;border:2px dashed ${BAR_LOOK.goldHi};background:rgba(11,7,4,.6);pointer-events:none"></div>`;
-      return `<div data-tip-card="${c.id}" ${attrs(c)} style="position:absolute;left:${Math.round(left + p.x * cw - cw / 2 + part(i))}px;top:${Math.round(top + p.y * cw)}px;width:${Math.round(cw)}px;height:${Math.round(ch)}px;transform:rotate(${p.angle}deg);z-index:${z + i}">${cardImg(s, faceOf(c), cw)}</div>`;
+      return `<div data-tip-card="${c.id}" ${attrs(c)} style="position:absolute;left:${Math.round(left + p.x * cw - cw / 2 + part(i))}px;top:${Math.round(top + p.y * cw)}px;width:${Math.round(cw)}px;height:${Math.round(ch)}px;transform:rotate(${p.angle}deg);z-index:${z + i}">${hidden === "finger" && !faceOf(c) ? fingerHtml(c.id, cw) : cardImg(s, faceOf(c), cw)}</div>`;
     }).join("");
   }
   const fanDrop = (n: number, cw: number, room: number) => handPlan({ fan: true, shrink: false, tuck: false }, n, 1, 1.4, room / cw).reduce((m, p) => Math.max(m, p.y), 0) * cw;
@@ -420,7 +421,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       + (fan ? `<div style="height:${Math.round(fan)}px"></div>` : "")
       + (crew.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:10px">${crew.map((one) => `<button ${one.data} style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:8px 10px;background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};color:${T.ink}">${esc(one.name)}</button>`).join("")}</div>` : "")
       + `</div>`
-      + (fan ? fanHtml(s, chair.hand, (c) => c.face, w / 2, 12 + 38 + 30 + 8, cw, room, 42, () => `data-from="hand" data-take="${mayTake ? "1" : "0"}"`, null, scene.carrying()) : "");
+      + (fan ? fanHtml(s, chair.hand, (c) => c.face, w / 2, 12 + 38 + 30 + 8, cw, room, 42, () => `data-from="hand" data-take="${mayTake ? "1" : "0"}"`, null, scene.carrying(), "finger") : "");
     const wx = head ? head.wx * 0.7 : 0, wy = head ? head.wy * 0.7 : 0;
     panels.show(`chair:${chair.id}`, "chair", html, w, h, { screen: { x: head?.x ?? g.w / 2, y: (head?.y ?? 84) + (head?.r ?? 20) - 28 }, world: { x: wx, y: wy } });
     shown.push(`chair:${chair.id}`);

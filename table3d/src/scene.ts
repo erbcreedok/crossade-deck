@@ -23,6 +23,7 @@ import { ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../../server/s
 import { artUrl, readLook, type DeckLook } from "../../server/table-client/deckArt.js";
 import { mineGeomOf, type PoseBlend } from "../../server/table-client/handGeom.js";
 import { BAR_LOOK, T, type Geom } from "../../server/table-client/screenConst.js";
+import { drawFingerCard, fingerKind } from "./finger.js";
 import type { TableStore } from "../../server/table-client/store.js";
 
 const DEG = Math.PI / 180;
@@ -68,6 +69,19 @@ function canvasTexture(w: number, h: number, draw: (g: CanvasRenderingContext2D)
   draw(c.getContext("2d")!);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Лицо скрытой карты, повёрнутой ко мне: рука с пальцем, оттенков несколько — по id карты (`finger.ts`). */
+const fingerTextures: THREE.CanvasTexture[] = [];
+function fingerTexture(id: string): THREE.CanvasTexture {
+  const kind = fingerKind(id);
+  let t = fingerTextures[kind];
+  if (!t) {
+    t = canvasTexture(256, 358, (g) => drawFingerCard(g, 256, 358, kind));
+    t.anisotropy = 8;
+    fingerTextures[kind] = t;
+  }
   return t;
 }
 
@@ -404,11 +418,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
   /** Лицо и рубашка по снимку: лица не видно — с обеих сторон рубашка. */
   function dress(o: CardObj, c: SeenCard, s: Snapshot): void {
-    const backUrl = artUrl(s.rules, undefined, look), faceUrl = c.face ? artUrl(s.rules, c.face, look) : backUrl;
+    // Лицо от меня закрыто, а карта лицом ко мне (моя рука, вывернутая наружу) — не рубашка, а «палец» (`finger.ts`).
+    const backUrl = artUrl(s.rules, undefined, look), faceUrl = c.face ? artUrl(s.rules, c.face, look) : `finger:${fingerKind(c.id)}`;
     const by = s.picks[c.id];
     o.ring.visible = !!by;
     if (by) (o.ring.material as THREE.LineBasicMaterial).color.set(s.people.find((p) => p.key === by)?.ink ?? "#f2c14e");
-    if (o.faceUrl !== faceUrl) { o.faceUrl = faceUrl; (o.front.material as THREE.MeshBasicMaterial).map = texture(faceUrl, draw); (o.front.material as THREE.MeshBasicMaterial).needsUpdate = true; }
+    if (o.faceUrl !== faceUrl) { o.faceUrl = faceUrl; (o.front.material as THREE.MeshBasicMaterial).map = c.face ? texture(faceUrl, draw) : fingerTexture(c.id); (o.front.material as THREE.MeshBasicMaterial).needsUpdate = true; }
     if (o.backUrl !== backUrl) { o.backUrl = backUrl; (o.back.material as THREE.MeshBasicMaterial).map = texture(backUrl, draw); (o.back.material as THREE.MeshBasicMaterial).needsUpdate = true; }
   }
   /** Лежит на сукне: лицом вверх (`up`) или рубашкой, повёрнута по часовой на `angle`. */
@@ -899,6 +914,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return { pile: p.id, count: p.cards.length, ...c, cardPx: Math.hypot(e.x - c.x, e.y - c.y) };
     });
   (window as unknown as { __t3d: unknown }).__t3d = {
+    /** Чем нарисовано лицо каждой карты: адрес картинки или `finger:<оттенок>` — скрытая лицом ко мне. */
+    arts: () => [...cards.entries()].map(([id, o]) => ({ id, face: o.faceUrl })),
     /** Язычки на экране: чья стопка, середина и размер, сколько карт, приколота ли. */
     tabs: () => [...tabs.entries()].map(([pile, t]) => {
       const c = project(t.mesh.position), w = new THREE.Vector3(TAB.w / 2 * t.mesh.scale.x, 0, 0).applyQuaternion(t.mesh.quaternion), e = project(t.mesh.position.clone().add(w));
@@ -914,7 +931,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (!o) return { id: c.id, face: !!c.face, drawn: "none" };
       const n = new THREE.Vector3(0, 0, 1).applyQuaternion(o.group.getWorldQuaternion(new THREE.Quaternion()));
       const toCam = camera.position.clone().sub(o.group.getWorldPosition(new THREE.Vector3()));
-      return { id: c.id, face: !!c.face, drawn: n.dot(toCam) > 0 ? (o.faceUrl === o.backUrl ? "back-art" : "face") : "back" };
+      return { id: c.id, face: !!c.face, drawn: n.dot(toCam) > 0 ? (o.faceUrl.startsWith("finger:") ? "finger" : "face") : "back" };
     }),
     /** Чужие тела: чьё, где голова на экране, ушёл ли головой, где левая рука и сколько в ней карт. */
     bodies: () => [...poses.entries()].map(([chair, pose]) => {
