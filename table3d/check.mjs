@@ -389,6 +389,37 @@ try {
     check("отпустили за краем — стопка в ближайшей точке сукна, а не за столом", rest.r > 5 && rest.r < 6.0 && landed < 6.4, { rest, landed });
   }
 
+  // ЯЗЫЧОК СТОПКИ ВИСИТ НА КРОМКЕ И НЕ ДРОЖИТ: пока камера облетает стол, он в том же кадре там, где нижняя кромка стопки,
+  // его элемент — один и тот же (не пересоздаётся), и он не перескакивает с места на место.
+  {
+    await p.goto(`${base}/?stand`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    await t(() => {
+      const el0 = document.querySelector('[data-g="deck-grip"]');
+      window.__tab = { el0, off: [], jump: 0, swapped: 0, prevX: null };
+      const f = () => {
+        const el = document.querySelector('[data-g="deck-grip"]'), sp = window.__t3d.pileSpots()[0], m = window.__tab;
+        if (el !== el0) m.swapped++;
+        if (el && sp) {
+          const r = el.getBoundingClientRect(), x = r.left + r.width / 2;
+          m.off.push(Math.hypot(x - sp.edge.x, r.top - sp.edge.y));
+          if (m.prevX !== null) m.jump = Math.max(m.jump, Math.abs(x - m.prevX));
+          m.prevX = x;
+        }
+      };
+      window.__t3d.onFrame(f);
+    });
+    await p.mouse.move(195, 300);
+    await p.mouse.down();
+    for (let i = 0; i < 40; i++) { await p.mouse.move(195 + i * 4, 300 + (i % 3)); await p.waitForTimeout(16); }
+    await p.mouse.up();
+    await frames();
+    const m = await t(() => ({ swapped: window.__tab.swapped, jump: window.__tab.jump, off: Math.max(...window.__tab.off), n: window.__tab.off.length }));
+    check("язычок стопки: в том же кадре на кромке стопки, пока камера облетает (уход не больше 1.5 px)", m.n > 30 && m.off < 1.5, m);
+    check("язычок стопки: один и тот же элемент, не пересоздаётся; за кадр не скачет дальше 12 px", m.swapped === 0 && m.jump < 12, m);
+  }
+
   // МОЯ РУКА ВСЕГДА ВИДНА: камера низко и вплотную — борт стола подходит к глазу, но веер поверх него, а не под ним.
   {
     await p.goto(`${base}/?stand`);

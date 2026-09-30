@@ -67,6 +67,10 @@ const CSS = `
 `;
 
 export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStore, scene: SceneApi): void {
+  // Два слоя без своей коробки: общая перерисовка (`view`) и язычки стопок (`tabs`) — их не пересоздают, а двигают.
+  const view = document.createElement("div"), tabs = document.createElement("div");
+  view.style.display = tabs.style.display = "contents";
+  root.replaceChildren(view, tabs);
   const style = document.createElement("style");
   style.textContent = CSS;
   document.head.append(style);
@@ -305,18 +309,49 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       + `<div style="padding:9px 14px;color:${T.inkDim};font-size:11px;position:sticky;top:0;${plate};border-radius:14px 14px 0 0">Журнал · видно только то, что видно за столом</div>${rows}</div>`;
   }
 
-  // ——— на столе: индикатор стопки, окно стула ———
-  /** Индикатор стопки — ручка: сколько карт; тап — окно стопки, двойной — перевернуть, тянуть — несёшь стопку. */
-  function gripsHtml(s: Snapshot): string {
-    return scene.pileSpots().map((p) => {
-      const pile = s.piles.find((x) => x.id === p.pile)!, lit = local.deckTip === p.pile || local.deckCarry === p.pile;
-      return `<div data-g="deck-grip" data-pile="${p.pile}" data-count="${p.count}" data-pin="${pile.pin}" role="button" aria-label="Колода" style="position:absolute;left:${Math.round(p.x)}px;top:${Math.round(p.y + 6)}px;transform:translateX(-50%);height:24px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:0 7px 0 5px;border-radius:12px;white-space:nowrap;touch-action:none;cursor:${pile.pin ? "pointer" : "grab"};z-index:20;user-select:none;`
-        + (lit ? `${gold};box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.6);` : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${BAR_LOOK.rim},0 2px 0 rgba(11,7,4,.6);`)
-        + `"><svg viewBox="0 0 24 20" width="22" height="17" fill="none" stroke="${T.black}" stroke-width="1.6" stroke-linejoin="round" style="pointer-events:none"><g fill="${lit ? T.ink : BAR_LOOK.goldHi}">${GLYPH.deck}</g></svg>`
-        + `<span style="font:400 12px Tiny5,monospace;color:${lit ? T.black : T.ink};pointer-events:none">${pile.cards.length}</span>`
-        + (pile.pin ? `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="${lit ? T.black : BAR_LOOK.goldHi}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none">${GLYPH.pin}</svg>` : "")
-        + `</div>`;
-    }).join("");
+  // ——— на столе: язычок стопки, окно стула ———
+  /**
+   * ЯЗЫЧОК СТОПКИ — висит на её нижней кромке, как закладка на стопке карт: сколько в ней карт; тап — окно стопки, двойной —
+   * перевернуть, тянуть — несёшь стопку. Не крупнее стопки (но не мельче, чем в него попасть пальцем). Живёт отдельно от
+   * общей перерисовки: элемент один на стопку, его только двигают — в том же кадре, что и сцену, а не следом за ней.
+   */
+  const TAB = { h: 22, most: 0.5, least: 0.7 };
+  const tabEls = new Map<string, { el: HTMLElement; key: string; at: string }>();
+  function placeTabs(): void {
+    const s = store.state, seen = new Set<string>();
+    for (const sp of scene.pileSpots()) {
+      const pile = s.piles.find((x) => x.id === sp.pile);
+      if (!pile) continue;
+      seen.add(sp.pile);
+      const lit = local.deckTip === sp.pile || local.deckCarry === sp.pile;
+      const key = `${pile.cards.length}|${pile.pin}|${lit}`;
+      let one = tabEls.get(sp.pile);
+      if (!one) {
+        const el = document.createElement("div");
+        el.dataset.g = "deck-grip";
+        el.dataset.pile = sp.pile;
+        el.setAttribute("role", "button");
+        el.setAttribute("aria-label", "Колода");
+        tabs.append(el);
+        one = { el, key: "", at: "" };
+        tabEls.set(sp.pile, one);
+      }
+      if (one.key !== key) {
+        one.key = key;
+        one.at = "";
+        one.el.dataset.count = String(pile.cards.length);
+        one.el.dataset.pin = String(pile.pin);
+        one.el.style.cssText = `position:absolute;left:0;top:0;transform-origin:50% 0;height:${TAB.h}px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:0 8px 0 6px;border-radius:0 0 ${TAB.h / 2}px ${TAB.h / 2}px;white-space:nowrap;touch-action:none;cursor:${pile.pin ? "pointer" : "grab"};z-index:20;user-select:none;will-change:transform;`
+          + (lit ? `${gold};box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.6);` : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${BAR_LOOK.rim},0 2px 0 rgba(11,7,4,.6);`);
+        one.el.innerHTML = `<svg viewBox="0 0 24 20" width="22" height="17" fill="none" stroke="${T.black}" stroke-width="1.6" stroke-linejoin="round" style="pointer-events:none"><g fill="${lit ? T.ink : BAR_LOOK.goldHi}">${GLYPH.deck}</g></svg>`
+          + `<span style="font:400 12px Tiny5,monospace;color:${lit ? T.black : T.ink};pointer-events:none">${pile.cards.length}</span>`
+          + (pile.pin ? `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="${lit ? T.black : BAR_LOOK.goldHi}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none">${GLYPH.pin}</svg>` : "");
+      }
+      const scale = Math.min(1, Math.max(TAB.least, (TAB.most * sp.heightPx) / TAB.h));
+      const at = `translate(${sp.edge.x.toFixed(1)}px, ${sp.edge.y.toFixed(1)}px) translateX(-50%) scale(${scale.toFixed(3)})`;
+      if (one.at !== at) { one.at = at; one.el.style.transform = at; }
+    }
+    for (const [id, one] of tabEls) if (!seen.has(id)) { one.el.remove(); tabEls.delete(id); }
   }
   /** Карта в окне — картинка набора стола: лицо, если его видно, иначе рубашка. */
   const cardImg = (s: Snapshot, face: Face | undefined, w: number) =>
@@ -483,12 +518,13 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const open = local.handOn && local.deckTip ? s.piles.find((p) => p.id === local.deckTip) : undefined;
     const chairOpen = local.handOn ? s.chairs.find((c) => c.id === local.tip && c.owner && c.owner !== me()) : undefined;
     if (!local.deckCarry) scene.setRestRight(open ? { x: open.x, y: open.y } : chairOpen ? scene.handOf(chairOpen.id) : null);
-    const html = lassoLayerHtml() + gripsHtml(s) + topHtml() + journalHtml() + bottomHtml(s) + dealHtml(s);
+    const html = lassoLayerHtml() + topHtml() + journalHtml() + bottomHtml(s) + dealHtml(s);
     shown = [];
     pilePanel(s);
     chairPanel(s);
     panels.keep(shown);
-    if (html !== last) { last = html; root.innerHTML = html; }
+    if (html !== last) { last = html; view.innerHTML = html; }
+    placeTabs();
     talk.place(anchors());
     root.dataset.open = local.section ?? "";
   }
@@ -504,6 +540,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   }
   store.onChange(draw);
   scene.onFrame(draw);
+  scene.onFrame(placeTabs);
   new ResizeObserver(draw).observe(document.body);
 
   // ——— нажатия ———

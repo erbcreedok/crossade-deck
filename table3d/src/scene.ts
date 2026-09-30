@@ -109,7 +109,11 @@ export interface SceneApi {
   heads(): { key: string; x: number; y: number; r: number; ink: string; wx: number; wy: number }[];
   pickAt(x: number, y: number): { t: "card"; id: string } | { t: "who"; key: string } | null;
   /** Стопки на экране: где и сколько. */
-  pileSpots(): { pile: string; count: number; x: number; y: number; cardPx: number }[];
+  /**
+   * Где стопка на экране: `x, y` — середина верха; `edge` — середина её нижней (ближней к глазу) кромки, где висит язычок;
+   * `cardPx` — ширина верхней карты на экране, `heightPx` — высота верха стопки на экране.
+   */
+  pileSpots(): { pile: string; count: number; x: number; y: number; cardPx: number; edge: { x: number; y: number }; heightPx: number }[];
   /** Карты, чья середина на экране внутри многоугольника. */
   cardsIn(poly: { x: number; y: number }[]): string[];
   /** Лассо открыто — тап по карте выделяет, выделенные несут вместе; `grab` — как несут. */
@@ -806,7 +810,29 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
   }
 
+  const pileSpots = () => store.state.piles.filter((p) => p.pose !== "ring" && p.cards.length).map((p) => {
+      const h = 0.02 + p.cards.length * PILE_STEP, c = project(new THREE.Vector3(p.x, h, p.y));
+      // Ширина карты стопки на экране: по ней окно «к стопке» меряет свой размер.
+      const r = camera.matrixWorld.elements, right = new THREE.Vector3(r[0], r[1], r[2]).setLength(CARD_W), e = project(new THREE.Vector3(p.x, h, p.y).add(right));
+      // Нижняя кромка верха стопки — по настоящей верхней карте: два её нижних угла на экране, середина между ними.
+      const top = cards.get(p.cards.at(-1)!.id);
+      let edge = { x: c.x, y: c.y }, heightPx = 0;
+      if (top) {
+        top.group.updateMatrixWorld(true);
+        const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy]) => project(top.group.localToWorld(new THREE.Vector3(sx! * CARD_W / 2, sy! * CARD_H / 2, 0)))).sort((u, v) => v.y - u.y);
+        // Плавный низ: углы с весом от того, насколько они ниже всех — ровная кромка держит середину, острый угол — сам угол,
+        // а поворот между ними не даёт скачка (жёсткий выбор «двух нижних» перескакивал с кромки на кромку).
+        heightPx = corners[0]!.y - corners[3]!.y;
+        const tau = 0.06 * heightPx + 2, ws = corners.map((q) => Math.exp((q.y - corners[0]!.y) / tau)), sum = ws.reduce((m, w) => m + w, 0);
+        edge = { x: corners.reduce((m, q, i) => m + q.x * ws[i]!, 0) / sum, y: corners.reduce((m, q, i) => m + q.y * ws[i]!, 0) / sum };
+      }
+      return { pile: p.id, count: p.cards.length, ...c, cardPx: Math.hypot(e.x - c.x, e.y - c.y), edge, heightPx };
+    });
   (window as unknown as { __t3d: unknown }).__t3d = {
+    /** Язычки стопок: где кромка, к которой они привешены. */
+    pileSpots,
+    /** Слушать кадр: вызывается после отрисовки сцены и после того, как HUD расставил язычки. */
+    onFrame: (fn: () => void) => void frameHeard.push(fn),
     screenOf,
     state: () => store.state,
     me: () => store.me.key,
@@ -871,12 +897,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const id = hitCard(e);
       return id ? { t: "card", id } : null;
     },
-    pileSpots: () => store.state.piles.filter((p) => p.pose !== "ring" && p.cards.length).map((p) => {
-      const h = 0.02 + p.cards.length * PILE_STEP, c = project(new THREE.Vector3(p.x, h, p.y));
-      // Ширина карты стопки на экране: по ней окно «к стопке» меряет свой размер.
-      const r = camera.matrixWorld.elements, right = new THREE.Vector3(r[0], r[1], r[2]).setLength(CARD_W), e = project(new THREE.Vector3(p.x, h, p.y).add(right));
-      return { pile: p.id, count: p.cards.length, ...c, cardPx: Math.hypot(e.x - c.x, e.y - c.y) };
-    }),
+    pileSpots,
     cardsIn(poly) {
       const inside = (q: { x: number; y: number }) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i]!, b = poly[j]!; if (a.y > q.y !== b.y > q.y && q.x < ((b.x - a.x) * (q.y - a.y)) / (b.y - a.y) + a.x) c = !c; } return c; };
       return store.state.felt.filter((f) => { const q = screenOf(f.id); return q && inside(q); }).map((f) => f.id);
