@@ -152,9 +152,9 @@ export interface SceneApi {
    * ЗОНА HUD ДЛЯ НЕСОМОЙ КАРТЫ — окно стопки: палец над ним — карта целит в стопку на место `i` и стоит на экране в
    * щели веера (`spot`: середина, ширина, поворот в точках экрана). Спрашивается раньше стола.
    */
-  setZone(fn: ((x: number, y: number) => { where: { in: "deck"; pile: string; i: number }; spot: { x: number; y: number; w: number; angle: number } } | null) | null): void;
+  setZone(fn: ((x: number, y: number) => { where: { in: "deck"; pile: string; i: number } | { in: "hand"; chair: string; i: number }; spot: { x: number; y: number; w: number; angle: number } } | null) | null): void;
   /** Куда сейчас целит несомая карта в зоне HUD — окно рисует под неё щель. */
-  heldZone(): { pile: string; i: number; id: string; spot: { x: number; y: number; w: number; angle: number } } | null;
+  heldZone(): { pile?: string; chair?: string; i: number; id: string; spot: { x: number; y: number; w: number; angle: number } } | null;
   /** Правая рука без карты — на чём она (остальные видят руку на стопке, пока с ней возятся); `null` — без дела. */
   setRestRight(at: { x: number; y: number } | null): void;
   /** Где левая рука (с веером) сидящего за стулом — туда тянется правая, пока вожусь с его рукой; пустой стул — `null`. */
@@ -729,7 +729,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return f.in === "felt" || (f.in === "pile" && f.top) || (f.in === "hand" && f.mine);
   };
   /** `group` — несут выделенное лассо: отпустил — все выделенные туда же (`moveMany`), одним намерением. */
-  let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; group: boolean; gap: number | null; place: Place | null; where: Where | null; spot: { x: number; y: number; w: number; angle: number } | null; zone: { pile: string; i: number } | null } | null = null;
+  let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; group: boolean; gap: number | null; place: Place | null; where: Where | null; spot: { x: number; y: number; w: number; angle: number } | null; zone: { pile?: string; chair?: string; i: number } | null } | null = null;
   let zoneFn: Parameters<SceneApi["setZone"]>[0] = null;
   let restRight: { x: number; y: number } | null = null;
   let carriedAt = 0;
@@ -785,14 +785,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const where = target(e, drag);
     const z = zoneFn?.(e.clientX, e.clientY) ?? null;
     drag.where = where;
-    drag.zone = z && !drag.group ? { pile: z.where.pile, i: z.where.i } : null;
+    drag.zone = z && !drag.group ? (z.where.in === "deck" ? { pile: z.where.pile, i: z.where.i } : { chair: z.where.chair, i: z.where.i }) : null;
     drag.spot = drag.zone ? z!.spot : null;
     drag.gap = where.in === "hand" && !drag.group && where.chair === myChair()?.id ? where.i : null;
     const pile = where.in === "deck" ? store.state.piles.find((p) => p.id === where.pile) : undefined;
     // Над стопкой — карта уже над ней, наверху: видно, куда ляжет; рука остальным — на стопке.
     drag.place = drag.gap !== null || drag.spot ? null : pile && pile.pose !== "ring" ? lying(pile.x, pile.y, 0.25 + pile.cards.length * PILE_STEP, pileAngle(pile), drag.up) : heldAt(e.clientX, e.clientY, drag.angle, drag.up);
-    const zonePile = drag.zone ? store.state.piles.find((p) => p.id === drag!.zone!.pile) : undefined;
-    rightAt = drag.gap !== null ? myLeftHand() : zonePile ? { x: zonePile.x, y: zonePile.y } : pile ? { x: pile.x, y: pile.y } : drag.place ? { x: drag.place.pos.x, y: drag.place.pos.z } : null;
+    const zonePile = drag.zone?.pile ? store.state.piles.find((p) => p.id === drag!.zone!.pile) : undefined;
+    const zoneChair = drag.zone?.chair ? store.state.chairs.find((c) => c.id === drag!.zone!.chair) : undefined, zoneHand = zoneChair ? leftOf(zoneChair) : null;
+    rightAt = drag.gap !== null ? myLeftHand() : zoneHand ? { x: zoneHand.x, y: zoneHand.y } : zonePile ? { x: zonePile.x, y: zonePile.y } : pile ? { x: pile.x, y: pile.y } : drag.place ? { x: drag.place.pos.x, y: drag.place.pos.z } : null;
     sendBody();
     const now = performance.now();
     if (!drag.group && now - carriedAt >= CARRY_EVERY_MS) { carriedAt = now; store.carry({ id: drag.id, over: where }); }

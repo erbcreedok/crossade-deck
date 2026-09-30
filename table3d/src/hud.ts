@@ -343,15 +343,43 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   }
   // ОКНО СТОПКИ — ЗОНА ДЛЯ НЕСОМОЙ КАРТЫ: палец над окном — карта встаёт в щель веера и ляжет в стопку на это место.
   // Точка окна — от панели (`panel.ts`): у экранной — по экрану, у столовой — лучом в её плоскость.
+  // ОКНО ЧУЖОЙ РУКИ — ТАКАЯ ЖЕ ЗОНА: карта встаёт в щель её веера и ляжет в эту руку на это место — если рука принимает (замок, «не принимать»).
   scene.setZone((x, y) => {
-    const pile = store.state.piles.find((p) => p.id === local.deckTip);
-    if (!pile || pile.lock || pile.shut) return null;
-    const q = panels.local(`pile:${pile.id}`, x, y);
-    if (!q) return null;
-    const L = pileLayout(pile);
-    const i = L.slots(pile.cards.length).filter((sl) => sl.x < q.x).length, sl = L.slots(pile.cards.length + 1)[i]!;
-    return { where: { in: "deck", pile: pile.id, i }, spot: { x: sl.x, y: sl.y - L.cw * 0.35, w: L.cw, angle: sl.angle } };
+    const s = store.state;
+    const pile = s.piles.find((p) => p.id === local.deckTip);
+    if (pile && !pile.lock && !pile.shut) {
+      const q = panels.local(`pile:${pile.id}`, x, y);
+      if (q) {
+        const L = pileLayout(pile);
+        const i = L.slots(pile.cards.length).filter((sl) => sl.x < q.x).length, sl = L.slots(pile.cards.length + 1)[i]!;
+        return { where: { in: "deck", pile: pile.id, i }, spot: { x: sl.x, y: sl.y - L.cw * 0.35, w: L.cw, angle: sl.angle } };
+      }
+    }
+    const chair = s.chairs.find((c) => c.id === local.tip && c.owner && c.owner !== me());
+    if (chair && mayDropInto(s, chair)) {
+      const q = panels.local(`chair:${chair.id}`, x, y);
+      if (q) {
+        const L = chairLayout(chair);
+        const i = L.slots(chair.hand.length).filter((sl) => sl.x < q.x).length, sl = L.slots(chair.hand.length + 1)[i]!;
+        return { where: { in: "hand", chair: chair.id, i }, spot: { x: sl.x, y: sl.y - L.cw * 0.35, w: L.cw, angle: sl.angle } };
+      }
+    }
+    return null;
   });
+  /** Чужая рука принимает карту — тем же разбором, что и сервер (`hand.drop`: замок, «не принимать»). */
+  const mayDropInto = (s: Snapshot, chair: Chair) => allowed(mayDo("hand.drop", { locks: { lock: chair.lock, reject: chair.reject }, mine: chair.owner === me(), granted: s.rights }));
+  /** Окно чужой руки в своих точках: ширина, веер (места карт на `n` мест). */
+  function chairLayout(_chair: Chair) {
+    const g = glass(), w = Math.min(g.w - 24, 320), cw = 40, room = w - 24 - cw, rowTop = 12 + 38 + 30 + 8;
+    const slots = (n: number) => handPlan({ fan: true, shrink: false, tuck: false }, n, 1, 1.4, room / cw).map((p) => ({ x: w / 2 + p.x * cw, y: rowTop + p.y * cw + (cw * 1.4) / 2, angle: p.angle }));
+    return { w, cw, room, rowTop, slots };
+  }
+  /** Несомая над окном — сама карта в щели, выше соседей, поверх окна (окно стопки и окно чужой руки). */
+  function heldHtml(s: Snapshot, zone: NonNullable<ReturnType<SceneApi["heldZone"]>>, cw: number): string {
+    const all = [...s.felt, ...s.piles.flatMap((p) => p.cards), ...s.chairs.flatMap((c) => c.hand)], c = all.find((x) => x.id === zone.id);
+    const face = c && (s.chairs.some((ch) => ch.hand.includes(c)) ? c.face : c.up ? c.face : undefined), hw = cw * 1.15;
+    return `<div data-g="tip-held" data-card="${zone.id}" style="position:absolute;left:${Math.round(zone.spot.x - hw / 2)}px;top:${Math.round(zone.spot.y - (hw * 1.4) / 2)}px;width:${Math.round(hw)}px;height:${Math.round(hw * 1.4)}px;transform:rotate(${zone.spot.angle}deg);z-index:90;pointer-events:none;filter:drop-shadow(0 6px 0 rgba(11,7,4,.45))">${cardImg(s, face, hw)}</div>`;
+  }
   /**
    * ОКНО СТОПКИ — стопка картами, как у стола: какой стороной лежит, такой и видно; карту тянут из окна. Кнопки —
    * перемешать, отсортировать, перевернуть; пин, лок, приёмка, склейка и вечность — значками (что нельзя — погашено).
@@ -362,12 +390,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const { w, h, cw, room, rowTop } = pileLayout(pile);
     const zone = scene.heldZone();
     const gapAt = zone && zone.pile === pile.id ? zone.i : null;
-    // Несомая над окном — сама карта в щели, выше соседей, поверх окна.
-    const held = zone && zone.pile === pile.id ? (() => {
-      const all = [...s.felt, ...s.piles.flatMap((p) => p.cards), ...s.chairs.flatMap((c) => c.hand)], c = all.find((x) => x.id === zone.id);
-      const face = c && (s.chairs.some((ch) => ch.hand.includes(c)) ? c.face : c.up ? c.face : undefined), hw = cw * 1.15;
-      return `<div data-g="tip-held" data-card="${zone.id}" style="position:absolute;left:${Math.round(zone.spot.x - hw / 2)}px;top:${Math.round(zone.spot.y - (hw * 1.4) / 2)}px;width:${Math.round(hw)}px;height:${Math.round(hw * 1.4)}px;transform:rotate(${zone.spot.angle}deg);z-index:90;pointer-events:none;filter:drop-shadow(0 6px 0 rgba(11,7,4,.45))">${cardImg(s, face, hw)}</div>`;
-    })() : "";
+    const held = zone && zone.pile === pile.id ? heldHtml(s, zone, cw) : "";
     const admin = s.rights.includes("pile.guard"), topId = pile.cards.at(-1)?.id;
     const acts: [string, string, string][] = [["shuffle", GLYPH.shuffle, "Перемешать"], ["sort", GLYPH.suit, "Отсортировать"], ["flip", GLYPH.reverse, "Перевернуть"]];
     const html = shell + `<div data-g="deck-tip" data-pile="${pile.id}" data-lock="${pile.lock}" style="position:absolute;left:0;top:0;width:${w}px;height:${h}px;box-sizing:border-box;padding:12px">`
@@ -413,7 +436,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       ...store.crew.filter((one) => !one.adminOnly || admin).map((one) => ({ data: `data-crew="${esc(one.id)}"`, name: one.name })),
       ...(admin ? [{ data: `data-croupier="deal"`, name: "Раздать" }, { data: `data-croupier="shuffle"`, name: "Перемешать" }, { data: `data-chair-act="add"`, name: "Ещё стул" }, { data: `data-flip-chair="${chair.id}"`, name: "Перевернуть руку" }] : []),
     ] : [];
-    const cw = 40, room = w - 24 - cw, fan = chair.hand.length ? fanDrop(chair.hand.length, cw, room) + cw * 1.4 + 10 : 0;
+    const zone = scene.heldZone(), gapAt = zone && zone.chair === chair.id ? zone.i : null, shown3 = chair.hand.length + (gapAt === null ? 0 : 1);
+    const cw = 40, room = w - 24 - cw, fan = shown3 ? fanDrop(shown3, cw, room) + cw * 1.4 + 10 : 0;
     const crewRows = crew.length ? Math.ceil(crew.length / 3) * 38 + 10 : 0, h = 12 + 38 + 30 + fan + crewRows + 12;
     const html = shell + `<div data-g="tip" data-tip="${chair.id}" style="position:absolute;left:0;top:0;width:${w}px;box-sizing:border-box;padding:12px">`
       + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px">${who}<button data-tip-close style="flex:none;width:30px;height:30px;border:0;border-radius:8px;cursor:pointer;background:transparent;color:${T.inkDim};box-shadow:inset 0 0 0 2px ${T.wood}">✕</button></div>`
@@ -421,7 +445,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       + (fan ? `<div style="height:${Math.round(fan)}px"></div>` : "")
       + (crew.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:10px">${crew.map((one) => `<button ${one.data} style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:8px 10px;background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};color:${T.ink}">${esc(one.name)}</button>`).join("")}</div>` : "")
       + `</div>`
-      + (fan ? fanHtml(s, chair.hand, (c) => c.face, w / 2, 12 + 38 + 30 + 8, cw, room, 42, () => `data-from="hand" data-take="${mayTake ? "1" : "0"}"`, null, scene.carrying(), "finger") : "");
+      + (fan ? fanHtml(s, chair.hand, (c) => c.face, w / 2, 12 + 38 + 30 + 8, cw, room, 42, () => `data-from="hand" data-take="${mayTake ? "1" : "0"}"`, gapAt, scene.carrying(), "finger") : "") + (zone && zone.chair === chair.id ? heldHtml(s, zone, cw) : "");
     const wx = head ? head.wx * 0.7 : 0, wy = head ? head.wy * 0.7 : 0;
     panels.show(`chair:${chair.id}`, "chair", html, w, h, { screen: { x: head?.x ?? g.w / 2, y: (head?.y ?? 84) + (head?.r ?? 20) - 28 }, world: { x: wx, y: wy } });
     shown.push(`chair:${chair.id}`);

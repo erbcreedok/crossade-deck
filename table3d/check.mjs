@@ -467,6 +467,35 @@ try {
     check("отпустили за столом — карта легла на край сукна, а не вернулась в окно", landed !== null && landed > 5 && landed < 6.0, landed);
   }
 
+  // ОКНО ЧУЖОЙ РУКИ — ЗОНА ДЛЯ НЕСОМОЙ КАРТЫ: рука принимает — карта встаёт в щель веера и ложится в неё; под замком щели нет.
+  {
+    await p.goto(`${base}/?stand`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const alia = (await t(() => window.__t3d.bodies())).find((b) => b.by === "alia");
+    await p.mouse.click(alia.head.x, alia.head.y); await frames();
+    const aliaHand = () => t(() => window.__t3d.state().chairs.find((ch) => ch.owner === "alia").hand.map((x) => x.id));
+    const carryOver = async () => {
+      const mine = await t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((ch) => ch.id === seat).hand.at(-1).id; });
+      const at = await t((id) => window.__t3d.screenOf(id), mine);
+      const box = await p.locator('[data-panel^="chair:"]').boundingBox();
+      await p.mouse.move(at.x, at.y); await p.mouse.down();
+      await p.mouse.move(box.x + box.width / 2, box.y + box.height * 0.5, { steps: 16 });
+      await frames();
+      const seen = { zone: await t(() => window.__t3d.zone()), held: await p.locator('[data-g="tip-held"]').count() };
+      await p.mouse.up(); await frames();
+      return { mine, ...seen };
+    };
+    const before = await aliaHand();
+    const locked = await carryOver();
+    check("чужая рука под замком: над окном щели нет, карта не в окне и в руку не легла", locked.zone === null && locked.held === 0 && (await aliaHand()).length === before.length && !(await aliaHand()).includes(locked.mine), { locked, len: (await aliaHand()).length });
+    await p.click('[data-flag="lock"]'); await frames();
+    const ok = await carryOver();
+    const after = await aliaHand();
+    check("чужая рука принимает: над окном — щель в веере и карта в ней", ok.zone && ok.zone.chair && ok.zone.i >= 0 && ok.zone.i <= before.length && ok.held === 1, ok);
+    check("отпустили над окном — карта легла в чужую руку на это место", after.length === before.length + 1 && after[ok.zone.i] === ok.mine, { after, i: ok.zone?.i, card: ok.mine });
+  }
+
   // СКРЫТАЯ КАРТА ЛИЦОМ КО МНЕ — не рубашка, а нарисованная рука с пальцем (не эмодзи), цвета разные и не по масти; у одной карты — всегда один и тот же.
   {
     await p.goto(`${base}/?stand`);
