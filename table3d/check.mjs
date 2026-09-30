@@ -467,7 +467,7 @@ try {
     check("отпустили за столом — карта легла на край сукна, а не вернулась в окно", landed !== null && landed > 5 && landed < 6.0, landed);
   }
 
-  // СКРЫТАЯ КАРТА ЛИЦОМ КО МНЕ — не рубашка, а рука с пальцем, оттенки разные и не по масти; у одной карты — всегда один и тот же.
+  // СКРЫТАЯ КАРТА ЛИЦОМ КО МНЕ — не рубашка, а нарисованная рука с пальцем (не эмодзи), цвета разные и не по масти; у одной карты — всегда один и тот же.
   {
     await p.goto(`${base}/?stand`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
@@ -480,9 +480,9 @@ try {
     check("3D: у открытых карт лицо своё, а не палец", st.open.length > 0 && st.open.every((id) => !String(byId.get(id)).startsWith("finger:")), st.open.length);
     const alia = (await t(() => window.__t3d.bodies())).find((b) => b.by === "alia");
     await p.mouse.click(alia.head.x, alia.head.y); await frames();
-    const read = () => p.locator('[data-panel^="chair:"] [data-tip-card]').evaluateAll((els) => els.map((e) => [e.getAttribute("data-tip-card"), e.textContent, e.querySelectorAll("img").length]));
+    const read = () => p.locator('[data-panel^="chair:"] [data-tip-card]').evaluateAll((els) => els.map((e) => [e.getAttribute("data-tip-card"), e.querySelector("[data-finger]")?.getAttribute("data-finger") ?? null, e.querySelectorAll("img").length]));
     const first = await read();
-    check("окно чужой руки: скрытые карты — палец, а не рубашка", first.length > 0 && first.every(([, txt, imgs]) => txt.includes("\u{1F595}") && imgs === 0) && new Set(first.map(([, txt]) => txt)).size >= 2, first);
+    check("окно чужой руки: скрытые карты — палец, а не рубашка", first.length > 0 && first.every(([, kind, imgs]) => kind !== null && imgs === 0) && new Set(first.map(([, kind]) => kind)).size >= 2, first);
     await p.click("[data-tip-close]"); await frames();
     await p.mouse.click(alia.head.x, alia.head.y); await frames();
     const again = await read();
