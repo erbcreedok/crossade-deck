@@ -14,6 +14,7 @@ const netAt = process.argv.indexOf("--net");
 const net = netAt > 0 ? { table: process.argv[netAt + 1], secret: process.argv[netAt + 2] } : null;
 const checks = [];
 const check = (name, ok, got) => checks.push({ name, ok, got });
+const pngChunks = (buf, kind) => { const out = []; for (let i = 8; i < buf.length; ) { const n = buf.readUInt32BE(i); if (buf.toString("latin1", i + 4, i + 8) === kind) out.push(buf.subarray(i + 8, i + 8 + n)); i += 12 + n; } return out; };
 const browser = await chromium.launch();
 const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errors = [];
@@ -366,6 +367,25 @@ try {
   await p.click("[data-tip-close]");
   await anchorTo("screen");
   await p.click("[data-deck-shut]");
+  }
+
+  // МОЯ РУКА ВСЕГДА ВИДНА: камера низко и вплотную — борт стола подходит к глазу, но веер поверх него, а не под ним.
+  {
+    await p.goto(`${base}/?stand`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    await p.mouse.move(195, 300);
+    await p.mouse.down();
+    await p.mouse.move(195, 120, { steps: 12 });
+    await p.mouse.up();
+    for (let i = 0; i < 6; i++) await p.mouse.wheel(0, -400);
+    await frames();
+    const mid = await t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat, h = s.chairs.find((c) => c.id === seat).hand; return window.__t3d.screenOf(h[Math.floor(h.length / 2)].id); });
+    const px = async (x, y) => { const png = await p.screenshot({ clip: { x: Math.round(x), y: Math.round(y), width: 1, height: 1 } }); const { inflateSync } = await import("zlib"); const raw = inflateSync(Buffer.concat(pngChunks(png, "IDAT"))); return [raw[1], raw[2], raw[3]]; };
+    // Светлее всего в пятне вокруг середины карты: белая бумага, а не сукно и не борт (у них наименьший канал ниже 40).
+    const seen = [];
+    for (const dx of [-14, -7, 0, 7, 14]) for (const dy of [-12, -4, 4]) seen.push(Math.min(...(await px(mid.x + dx, mid.y + dy))));
+    check("камера низко у борта — карта моей руки видна поверх стола (светлая бумага, а не сукно и не борт)", Math.max(...seen) > 70, { mid, best: Math.max(...seen) });
   }
 
   if (net) {

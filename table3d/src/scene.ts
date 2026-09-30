@@ -161,6 +161,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   scene.fog = new THREE.Fog(0x0a1511, 30, 70);
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
   // Своя рука — в осях камеры: внизу экрана, как бы камеру ни крутили.
+  /** Слой моей руки у глаза: рисуется вторым проходом, после сброса глубины. */
+  const HAND_LAYER = 1;
   const handRoot = new THREE.Group();
   camera.add(handRoot);
   scene.add(camera);
@@ -561,7 +563,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const g = o.group, t = o.target;
       // Сменила место между миром и рукой — пересадить, сохранив, где она на экране, и долететь.
       const parent = t.onCamera ? handRoot : cardRoot;
-      if (g.parent !== parent) { camera.updateMatrixWorld(); parent.attach(g); g.userData.v = new THREE.Vector3(); g.userData.sv = 0; }
+      if (g.parent !== parent) { camera.updateMatrixWorld(); parent.attach(g); g.userData.v = new THREE.Vector3(); g.userData.sv = 0; g.traverse((n) => n.layers.set(t.onCamera ? HAND_LAYER : 0)); }
       // Над окном HUD несомую рисует сам HUD — поверх окна; здесь её нет.
       g.visible = !(drag?.moved && drag.id === id && drag.spot);
       // Своя рука — не отбрасывает тени: она у глаза, её тень легла бы на полстола.
@@ -590,7 +592,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       else moving = true;
     }
     armPose();
+    // Своя рука у глаза — вторым проходом поверх всего: борт стола, подошедший к камере вплотную, её не закрывает.
+    camera.layers.set(0);
     renderer.render(scene, camera);
+    renderer.autoClear = false;
+    renderer.clearDepth();
+    camera.layers.set(HAND_LAYER);
+    renderer.render(scene, camera);
+    renderer.autoClear = true;
+    camera.layers.set(0);
     // Панели «лицом к камере» — повёрнуты, как камера; остальные стоят, как поставлены.
     for (const { obj, at } of panel3d.values()) if (at.tilt === "camera") obj.quaternion.copy(camera.quaternion);
     css.setSize(w, h);
@@ -605,6 +615,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
 
   // ——— палец ———
   const ray = new THREE.Raycaster();
+  ray.layers.enableAll();
   const ndc = (e: { clientX: number; clientY: number }) => { const r = renderer.domElement.getBoundingClientRect(); return new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); };
   const hitCard = (e: PointerEvent): string | null => {
     ray.setFromCamera(ndc(e), camera);
