@@ -51,7 +51,9 @@ export function localStore(opts: { freeChair?: boolean } = {}): TableStore {
   table.leave("timur");
   if (opts.freeChair) table.addChair();
 
-  let state = table.seenBy(me.key);
+  // Кто я сейчас: на стенде им можно стать — Алией и обратно (`dev.switchTo`), чтобы проверить стол её глазами и её правами.
+  let who: Person = me;
+  let state = table.seenBy(who.key);
   const changed: (() => void)[] = [];
   const refused: ((intent: Intent, why: Refusal) => void)[] = [];
 
@@ -61,14 +63,26 @@ export function localStore(opts: { freeChair?: boolean } = {}): TableStore {
   const spread = (ops: Op[]) => {
     if (ops.length === 0) return;
     // Операции режутся под меня ровно как в сети: стенд не должен показывать больше живого стола.
-    const mine = ops.map((op) => table.seenOp(op, me.key));
+    const mine = ops.map((op) => table.seenOp(op, who.key));
     state = applyPatch(state, { v: table.version, ops: mine });
     for (const listener of changed) listener();
     for (const heard of opsHeard) heard(mine);
   };
 
   return {
-    me,
+    get me() {
+      return who;
+    },
+    dev: {
+      players: [me, ...bots.filter((b) => b.key === "alia")],
+      switchTo(key) {
+        const next = [me, ...bots].find((one) => one.key === key);
+        if (!next || next.key === who.key || !table.seenBy(next.key).people.find((p) => p.key === next.key)?.seat) return;
+        who = next;
+        state = table.seenBy(who.key);
+        for (const listener of changed) listener();
+      },
+    },
     crew: [],
     desk: "sandbox",
     deals: Object.keys(DEAL_PRESETS) as DealRule[],
@@ -78,7 +92,7 @@ export function localStore(opts: { freeChair?: boolean } = {}): TableStore {
       return state;
     },
     send(intent) {
-      const result = table.act(me.key, intent, Date.now());
+      const result = table.act(who.key, intent, Date.now());
       if ("refused" in result) {
         for (const listener of refused) listener(intent, result.refused);
         if (result.ops?.length) spread(result.ops);

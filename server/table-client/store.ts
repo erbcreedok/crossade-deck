@@ -11,6 +11,11 @@ import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
 
 export interface TableStore {
   readonly me: Person;
+  /**
+   * ТОЛЬКО ДЛЯ РАЗРАБОТКИ, и только у стенда (стол в этой вкладке): кем я сейчас за столом. Живая комната этого не имеет —
+   * там человек один, и им не становятся. `switchTo` пересаживает на его стул: дальше стол виден и слушается его глазами.
+   */
+  readonly dev?: { readonly players: readonly Person[]; switchTo(key: string): void };
   readonly title: string;
   /** Что умеет крупье этой комнаты (`crews.ts`) — по этому списку рисуются кнопки в его окне. */
   readonly crew: readonly { id: string; name: string; part: string; adminOnly?: true }[];

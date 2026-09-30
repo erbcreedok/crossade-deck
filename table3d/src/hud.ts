@@ -283,6 +283,13 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   }
 
   // ——— верх: выход, имя, настройки, журнал ———
+  /** ТОЛЬКО ДЛЯ РАЗРАБОТКИ (есть лишь у стенда): за кого я сижу; тап — стать другим игроком и обратно. */
+  function devHtml(): string {
+    const dev = store.dev;
+    if (!dev || dev.players.length < 2) return "";
+    const next = dev.players.find((p) => p.key !== me())!;
+    return `<button data-dev-switch data-as="${esc(next.key)}" aria-label="Только для разработки: стать ${esc(next.name)}" style="position:absolute;left:${RIM_LEFT}px;top:calc(60px + env(safe-area-inset-top, 0px));z-index:61;border:0;cursor:pointer;padding:6px 10px;border-radius:9px;font:400 11px Tiny5,monospace;color:${T.ink};background:${T.well};box-shadow:inset 0 0 0 2px ${store.me.ink},0 3px 0 rgba(11,7,4,.5);white-space:nowrap">DEV · ${esc(store.me.name)} → ${esc(next.name)}</button>`;
+  }
   function topHtml(): string {
     const btn = (attrs: string, at: string, inner: string) => `<button ${attrs} style="position:absolute;${at};${TOP};width:40px;height:40px;border:0;padding:0;z-index:61;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">${inner}</button>`;
     const icon = (body: string, stroke = "white", size = 22) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
@@ -504,7 +511,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const open = local.handOn && local.deckTip ? s.piles.find((p) => p.id === local.deckTip) : undefined;
     const chairOpen = local.handOn ? s.chairs.find((c) => c.id === local.tip && c.owner && c.owner !== me()) : undefined;
     if (!local.deckCarry) scene.setRestRight(open ? { x: open.x, y: open.y } : chairOpen ? scene.handOf(chairOpen.id) : null);
-    const html = lassoLayerHtml() + topHtml() + journalHtml() + bottomHtml(s) + dealHtml(s);
+    const html = lassoLayerHtml() + topHtml() + devHtml() + journalHtml() + bottomHtml(s) + dealHtml(s);
     shown = [];
     pilePanel(s);
     chairPanel(s);
@@ -554,6 +561,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-rooms-back]")) location.href = `${HOST}/table/?rooms`;
     else if (q("[data-settings]")) { if (settings.open) settings.hide(); else settings.show(); }
     else if (q("[data-journal]")) local.journal = !local.journal;
+    else if ((b = q("[data-dev-switch]"))) { store.dev?.switchTo(b.dataset.as!); local.tip = null; local.deckTip = null; local.handMenu = false; scene.home(); }
     else if ((b = q("[data-sit]"))) { store.send({ t: "sit", chair: b.dataset.sit! }); local.tip = null; }
     else if ((b = q("[data-deck-do]")) && local.deckTip) store.send({ t: "deckDo", pile: local.deckTip, how: b.dataset.deckDo as "shuffle" | "sort" | "flip" });
     else if (q("[data-deck-shut]")) local.deckTip = null;

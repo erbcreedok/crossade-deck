@@ -565,6 +565,21 @@ try {
     check("встал — стул отодвинут назад, сел — вернулся", stood.r > mine.r + 1 && Math.abs(sat.r - mine.r) < 0.05, { sit: mine.r, stand: stood.r, again: sat.r });
   }
 
+  // ТОЛЬКО ДЛЯ РАЗРАБОТКИ, только на стенде: стать Алией и обратно — стол её глазами, её стул, её карты, камера у её места.
+  {
+    await p.goto(`${base}/?stand`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const as = () => t(() => { const s = window.__t3d.state(), key = window.__t3d.me(), seat = s.people.find((x) => x.key === key)?.seat; return { me: key, seat, hand: s.chairs.find((ch) => ch.id === seat)?.hand.length, yaw: Math.round(window.__t3d.view().yaw), chip: document.querySelector("[data-dev-switch]")?.textContent }; });
+    const before = await as();
+    await p.click("[data-dev-switch]"); await p.waitForTimeout(800); await frames();
+    const alia = await as();
+    await p.click("[data-dev-switch]"); await p.waitForTimeout(800); await frames();
+    const back = await as();
+    check("dev: стал Алией — её стул, её пять карт, камера у её места (yaw 180), на кнопке «→ Ye»", before.me === "me" && alia.me === "alia" && alia.seat === "c2" && alia.hand === 5 && alia.yaw === 180 && alia.chip.includes("Ye"), { before, alia });
+    check("dev: и обратно — мой стул, мои семь карт, камера у моего места", back.me === "me" && back.seat === "c1" && back.hand === 7 && back.yaw === 0, back);
+  }
+
   // МОЁ ТЕЛО: плечи, шея и рука на моём стуле, цвет — мой; кружок головы с именем — только когда камера ушла на другую сторону стола.
   {
     await p.goto(`${base}/?stand`);
