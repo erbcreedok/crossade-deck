@@ -129,9 +129,41 @@ try {
   const pile0 = await t(() => window.__t3d.state().piles[0]);
   check("индикатор стопки — сколько карт", (await p.getAttribute('[data-g="deck-grip"]', "data-count")) === String(pile0.cards.length), pile0.cards.length);
   await p.click('[data-g="deck-grip"]');
+  await frames();
+  const tipCards = await p.locator('[data-g="deck-tip"] ~ [data-tip-card][data-from="pile"], [data-tip-card][data-from="pile"]').evaluateAll((els) => els.map((e) => ({ id: e.dataset.tipCard, src: e.querySelector("img")?.getAttribute("src") ?? "" })));
+  check("тап по индикатору — окно колоды: все её карты веером, рубашкой (как лежат)", tipCards.length === pile0.cards.length && tipCards.every((c) => c.src.includes("/backs/")), tipCards.length);
   await p.click('[data-deck-do="shuffle"]');
   await frames();
-  check("индикатор → «Перемешать»: стопка перемешана", (await t(() => window.__t3d.state().piles[0].shuffles)) > pile0.shuffles, null);
+  check("окно колоды → «Перемешать»: стопка перемешана", (await t(() => window.__t3d.state().piles[0].shuffles)) > pile0.shuffles, null);
+  await p.click("[data-deck-lock]");
+  await frames();
+  check("окно колоды → «Лок»: стопка под локом, кнопка горит", (await t(() => window.__t3d.state().piles[0].lock)) === true && (await p.getAttribute("[data-deck-lock]", "aria-pressed")) === "true", null);
+  await p.click("[data-deck-lock]");
+  await frames();
+  // Карту — из окна на сукно.
+  // Перемешанная колода — новые имена карт: берём, что в окне сейчас.
+  // Крайняя справа — поверх веера, видна целиком.
+  const fromTip = (await p.locator('[data-tip-card][data-from="pile"]').evaluateAll((els) => els.map((e) => e.dataset.tipCard))).at(-1);
+  const tb = await p.locator(`[data-tip-card="${fromTip}"]`).boundingBox();
+  await drag({ x: tb.x + tb.width / 2, y: tb.y + 8 }, { x: 250, y: 470 });
+  check("карта из окна колоды — вытащена на сукно", await t((id) => window.__t3d.state().felt.some((c) => c.id === id), fromTip), null);
+  // Колода — за грипом: едет под пальцем, отпустил — стоит там, не прыгая.
+  if (await p.locator('[data-g="deck-tip"]').count()) await p.click("[data-deck-shut]");
+  const gb = await p.locator('[data-g="deck-grip"]').boundingBox();
+  const topNow = await t(() => window.__t3d.state().piles[0].cards.at(-1).id);
+  await p.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2);
+  await p.mouse.down();
+  await p.mouse.move(200, 430, { steps: 10 });
+  await frames();
+  const under = await t(() => window.__t3d.state().piles[0]);
+  const mid = await t((id) => window.__t3d.screenOf(id), topNow);
+  check("колоду несут — она едет под пальцем (не на старом месте)", Math.hypot(mid.x - 200, mid.y - 430) < 60 && !!under, { mid });
+  await p.mouse.move(210, 450, { steps: 3 });
+  await p.mouse.up();
+  const right = await t((id) => window.__t3d.screenOf(id), topNow);
+  await frames();
+  const after = await t(() => window.__t3d.state().piles[0]);
+  check("отпустил — колода на новом месте сразу, без прыжка назад", Math.hypot(right.x - 210, right.y - 450) < 60 && Math.hypot(after.x - under.x, after.y - under.y) > 0.5, { right, was: [under.x, under.y], now: [after.x, after.y] });
   // Лассо: обвёл карты на сукне — выделены; «Перевернуть» — перевернулись.
   const feltIds = await t(() => window.__t3d.state().felt.map((c) => c.id));
   await p.click('[data-section="lasso"]');

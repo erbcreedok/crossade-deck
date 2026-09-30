@@ -13,12 +13,12 @@
 //   на столе индикатор стопки (сколько карт; тап — перемешать / по масти / перевернуть, тянуть — перенести стопку);
 //            тап по голове — окно стула: флаги, «не читать», у крупье — его дела.
 
-import type { Chair, ChairFlag, Face, GatherSide, Snapshot } from "../../server/src/table/contract.js";
+import { DEAL_PRESETS, type Chair, type ChairFlag, type DealDir, type DealRule, type Face, type GatherSide, type PileGuard, type SeenCard, type Snapshot } from "../../server/src/table/contract.js";
 import { SUITS } from "../../server/table-client/felt.js";
-import { readLook, writeLook } from "../../server/table-client/deckArt.js";
+import { artUrl, readLook, writeLook } from "../../server/table-client/deckArt.js";
 import { BAR_LOOK, BAR, MENTION_INK, T } from "../../server/table-client/screenConst.js";
 import { GLYPH, RIGHTS, SUBS, type BarKey, type GrabMode, type Section } from "../../server/table-client/glyphs.js";
-import { barHeightU, blendOf, handWideOf, hudUnitOf, snapPose, type PoseBlend } from "../../server/table-client/handGeom.js";
+import { barHeightU, blendOf, handPlan, handWideOf, hudUnitOf, snapPose, type PoseBlend } from "../../server/table-client/handGeom.js";
 import { journal } from "../../server/table-client/journal.js";
 import { mountSettings } from "../../server/table-client/settings.js";
 import { tableSound } from "../../server/table-client/sound.js";
@@ -40,7 +40,9 @@ const LASSO_ACTS = [
   ["hand", "В руку", '<path d="M12 3v11"/><path d="M7.5 9.5 12 14l4.5-4.5"/><path d="M4 20h16"/>'],
   ["gather", "Собрать", GLYPH.deck],
 ] as const;
-const DECK_DOS: [string, string][] = [["shuffle", "Перемешать"], ["sort", "По масти"], ["flip", "Перевернуть"]];
+/** Держать стопку в пальце — «держу» чаще, чем истекает лок стола. */
+const HOLD_MS = 1500;
+const DOUBLE_TAP_MS = 350;
 /** Ручка позы — те же числа, что у стола. */
 const HANDLE = { gap: 3, arm: 20, thick: 7, hit: 26, reach: 52 };
 const HIT_LEFT = HANDLE.gap + HANDLE.thick + 8 - HANDLE.reach;
@@ -56,7 +58,8 @@ const CSS = `
 @font-face { font-family: Tiny5; src: url(${HOST}/table/fonts/tiny5-cyrillic.woff2) format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
 @font-face { font-family: Tiny5; src: url(${HOST}/table/fonts/tiny5-latin.woff2) format("woff2"); unicode-range: U+0000-00FF, U+2000-206F, U+2191, U+2193, U+2212; }
 #hud { position: fixed; inset: 0; pointer-events: none; font: 400 13px Tiny5, monospace; color: ${T.ink}; }
-#hud button, #hud [role=button], #hud [data-hand-menu], #hud [data-g=journal], #hud [data-g=tip], #hud [data-croupier-acts], #hud [data-confirm], #hud [data-deck-menu], #hud [data-lasso-layer] { pointer-events: auto; }
+#hud button, #hud [role=button], #hud [data-hand-menu], #hud [data-g=journal], #hud [data-g=tip], #hud [data-g=deck-tip], #hud [data-deal-panel], #hud [data-confirm], #hud [data-lasso-layer], #hud [data-tip-card] { pointer-events: auto; }
+#hud [data-tip-card] { touch-action: none; cursor: grab; }
 #hud button { font: inherit; }
 `;
 
@@ -75,7 +78,9 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     handMenu: false,
     journal: false,
     poseDrag: null as null | { id: number; x0: number; y0: number; b0: PoseBlend; b: PoseBlend; moved: boolean },
-    deckMenu: null as string | null,
+    deckTip: null as string | null,
+    deckCarry: null as string | null,
+    deal: null as null | { rule: DealRule; n: number; all: boolean; seats: string[]; from: string | null; dir: DealDir },
     tip: null as string | null,
     lassoPath: null as { x: number; y: number }[] | null,
   };
@@ -122,6 +127,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     hud: () => { const g = scene.glass(), wide = handWideOf(g); return { left: Math.round((g.w - wide) / 2), width: wide }; },
   });
   let myStickers: string[] = [];
+  let lastGripTap = 0;
   store.onStickers((ids) => { myStickers = ids; talk.refresh(); });
 
   // ——— где что на стекле — как у стола ———
@@ -289,16 +295,60 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   }
 
   // ——— на столе: индикатор стопки, окно стула ———
+  /** Индикатор стопки — ручка: сколько карт; тап — окно стопки, двойной — перевернуть, тянуть — несёшь стопку. */
   function gripsHtml(s: Snapshot): string {
     return scene.pileSpots().map((p) => {
-      const pile = s.piles.find((x) => x.id === p.pile)!, lit = local.deckMenu === p.pile;
-      return `<div data-g="deck-grip" data-pile="${p.pile}" data-count="${p.count}" role="button" aria-label="Колода" style="position:absolute;left:${Math.round(p.x)}px;top:${Math.round(p.y + 6)}px;transform:translateX(-50%);height:24px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:0 7px 0 5px;border-radius:12px;white-space:nowrap;touch-action:none;cursor:grab;z-index:20;user-select:none;`
+      const pile = s.piles.find((x) => x.id === p.pile)!, lit = local.deckTip === p.pile || local.deckCarry === p.pile;
+      return `<div data-g="deck-grip" data-pile="${p.pile}" data-count="${p.count}" data-pin="${pile.pin}" role="button" aria-label="Колода" style="position:absolute;left:${Math.round(p.x)}px;top:${Math.round(p.y + 6)}px;transform:translateX(-50%);height:24px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:0 7px 0 5px;border-radius:12px;white-space:nowrap;touch-action:none;cursor:${pile.pin ? "pointer" : "grab"};z-index:20;user-select:none;`
         + (lit ? `${gold};box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.6);` : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${BAR_LOOK.rim},0 2px 0 rgba(11,7,4,.6);`)
         + `"><svg viewBox="0 0 24 20" width="22" height="17" fill="none" stroke="${T.black}" stroke-width="1.6" stroke-linejoin="round" style="pointer-events:none"><g fill="${lit ? T.ink : BAR_LOOK.goldHi}">${GLYPH.deck}</g></svg>`
-        + `<span style="font:400 12px Tiny5,monospace;color:${lit ? T.black : T.ink};pointer-events:none">${pile.cards.length}</span></div>`
-        + (lit ? `<div data-deck-menu style="position:absolute;left:${Math.round(p.x)}px;top:${Math.round(p.y + 36)}px;transform:translateX(-50%);z-index:70;display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:10px;background:linear-gradient(${T.panel},${T.well});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${BAR_LOOK.rim}">`
-          + DECK_DOS.map(([how, name]) => `<button data-deck-do="${how}" data-pile="${p.pile}" style="border:0;cursor:pointer;text-align:left;white-space:nowrap;font:400 13px Tiny5,monospace;color:${T.ink};padding:9px 14px;border-radius:7px;background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black}">${name}</button>`).join("") + `</div>` : "");
+        + `<span style="font:400 12px Tiny5,monospace;color:${lit ? T.black : T.ink};pointer-events:none">${pile.cards.length}</span>`
+        + (pile.pin ? `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="${lit ? T.black : BAR_LOOK.goldHi}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none">${GLYPH.pin}</svg>` : "")
+        + `</div>`;
     }).join("");
+  }
+  /** Карта в окне — картинка набора стола: лицо, если его видно, иначе рубашка. */
+  const cardImg = (s: Snapshot, face: Face | undefined, w: number) =>
+    `<img src="${artUrl(s.rules, face, look)}" alt="" draggable="false" style="width:100%;height:100%;display:block;border-radius:${Math.round(w * 0.12)}px;box-shadow:0 0 0 1px ${T.black};pointer-events:none">`;
+  /** Карты веером в окне: `left` — середина веера, `top` — верх ряда; ширина карты `cw`, веер во `room` точек. */
+  function fanHtml(s: Snapshot, cards: SeenCard[], faceOf: (c: SeenCard) => Face | undefined, left: number, top: number, cw: number, room: number, z: number, attrs: (c: SeenCard) => string): string {
+    const plan = handPlan({ fan: true, shrink: false, tuck: false }, cards.length, 1, 1.4, room / cw), ch = cw * 1.4;
+    return cards.map((c, i) => {
+      const p = plan[i]!;
+      return `<div data-tip-card="${c.id}" ${attrs(c)} style="position:absolute;left:${Math.round(left + p.x * cw - cw / 2)}px;top:${Math.round(top + p.y * cw)}px;width:${Math.round(cw)}px;height:${Math.round(ch)}px;transform:rotate(${p.angle}deg);z-index:${z + i}">${cardImg(s, faceOf(c), cw)}</div>`;
+    }).join("");
+  }
+  const fanDrop = (n: number, cw: number, room: number) => handPlan({ fan: true, shrink: false, tuck: false }, n, 1, 1.4, room / cw).reduce((m, p) => Math.max(m, p.y), 0) * cw;
+  /** Кнопка окна стопки — как флаг в окне стула. */
+  function deckChip(data: string, glyph: string, label: string, on = false, may = true): string {
+    const lookOf = on ? `${gold};box-shadow:inset 0 0 0 2px ${T.black};` : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};`;
+    return `<button ${may ? data : `${data.replace(/^data-([a-z-]+)/, "data-$1-status")} disabled`} aria-label="${label}" aria-pressed="${on}" style="width:26px;height:26px;border:0;padding:0;border-radius:7px;cursor:${may ? "pointer" : "default"};${may ? "" : `opacity:${on ? 0.8 : 0.4};`}display:flex;align-items:center;justify-content:center;${lookOf}">`
+      + `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="${on ? T.black : "white"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></button>`;
+  }
+  /**
+   * ОКНО СТОПКИ — стопка картами, как у стола: какой стороной лежит, такой и видно; карту тянут из окна. Кнопки —
+   * перемешать, отсортировать, перевернуть; пин, лок, приёмка, склейка и вечность — значками (что нельзя — погашено).
+   */
+  function deckTipHtml(s: Snapshot): string {
+    const pile = s.piles.find((p) => p.id === local.deckTip), spot = scene.pileSpots().find((p) => p.pile === local.deckTip);
+    if (!pile || !spot) { local.deckTip = null; return ""; }
+    const g = glass(), w = Math.min(g.w - 24, 340), left = Math.round(Math.max(12, Math.min(g.w - w - 12, spot.x - w / 2)));
+    const cw = 44, room = w - 24 - cw, drop = fanDrop(pile.cards.length, cw, room), h = 12 + 38 + 30 + cw * 1.4 + drop + 16;
+    const top = Math.round(Math.min(g.h - h - 8, spot.y + 36));
+    const admin = s.rights.includes("pile.guard"), topId = pile.cards.at(-1)?.id;
+    const acts: [string, string, string][] = [["shuffle", GLYPH.shuffle, "Перемешать"], ["sort", GLYPH.suit, "Отсортировать"], ["flip", GLYPH.reverse, "Перевернуть"]];
+    return `<div data-g="deck-tip" data-pile="${pile.id}" data-lock="${pile.lock}" style="position:absolute;left:${left}px;top:${top}px;width:${w}px;height:${h}px;box-sizing:border-box;z-index:40;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
+      + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px"><span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1">${esc(pile.name ?? "Колода")} · ${pile.cards.length}</span>`
+      + `<span data-deck-shut role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
+      + `<div style="display:flex;align-items:center;gap:4px;height:26px">`
+      + acts.map(([how, glyph, label]) => deckChip(`data-deck-do="${how}"`, glyph, label, false, !pile.lock)).join("")
+      + `<span style="flex:1"></span>`
+      + deckChip("data-deck-pin", GLYPH.pin, "Приколоть", pile.pin, !pile.pin || admin)
+      + deckChip("data-deck-lock", GLYPH.lock, "Лок", pile.lock, admin)
+      + deckChip("data-deck-accept", GLYPH.shut, "Приёмка закрыта", pile.shut, admin)
+      + deckChip("data-deck-seal", GLYPH.seal, "Мерж закрыт", pile.seal, admin)
+      + deckChip("data-deck-forever", GLYPH.forever, "Вечная", pile.forever) + `</div></div>`
+      + fanHtml(s, pile.cards, (c) => (c.up ? c.face : undefined), left + w / 2, top + 12 + 38 + 30, cw, room, 42, (c) => `data-from="pile" data-take="${pile.shut || (pile.lock && c.id !== topId) ? "0" : "1"}"`);
   }
   /** Окно стула по тапу на голову: кто, флаги (свой — кнопками), «не читать»; у крупье — его дела. */
   function tipHtml(s: Snapshot): string {
@@ -317,12 +367,52 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       ? `<span style="flex:none;width:30px;height:30px;border-radius:50%;background:${sitter.ink};box-shadow:inset 0 0 0 3px ${T.black};display:flex;align-items:center;justify-content:center;font:400 14px Tiny5,monospace;color:${T.black}">${esc([...sitter.name][0] ?? "?")}</span><span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(sitter.name)}</span>`
         + (sitter.key !== me() ? `<span data-mute="${esc(sitter.key)}" role="button" aria-pressed="${muted.has(sitter.key)}" style="cursor:pointer;flex:none;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 8px;${muted.has(sitter.key) ? `${gold};color:${T.black}` : `box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}`}">${muted.has(sitter.key) ? "Читать" : "Не читать"}</span>` : "")
       : `<span style="font:400 14px Tiny5,monospace;color:${T.inkDim};flex:1">Пустой стул</span>`;
-    const crew = chair.croupier ? store.crew.filter((one) => !one.adminOnly || s.admin === me()) : [];
+    const admin = s.rights.includes("table.croupier");
+    // Дела крупье: набора комнаты — и свои дела экрана распорядителю (раздать, перемешать, ещё стул, перевернуть руку).
+    const crew = chair.croupier ? [
+      ...store.crew.filter((one) => !one.adminOnly || admin).map((one) => ({ data: `data-crew="${esc(one.id)}"`, name: one.name })),
+      ...(admin ? [{ data: `data-croupier="deal"`, name: "Раздать" }, { data: `data-croupier="shuffle"`, name: "Перемешать" }, { data: `data-chair-act="add"`, name: "Ещё стул" }, { data: `data-flip-chair="${chair.id}"`, name: "Перевернуть руку" }] : []),
+    ] : [];
+    const cw = 40, room = w - 24 - cw, fan = chair.hand.length ? fanDrop(chair.hand.length, cw, room) + cw * 1.4 + 10 : 0;
     return `<div data-g="tip" data-tip="${chair.id}" style="position:absolute;left:${left}px;top:${top}px;width:${w}px;box-sizing:border-box;z-index:40;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
       + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px">${who}<button data-tip-close style="flex:none;width:30px;height:30px;border:0;border-radius:8px;cursor:pointer;background:transparent;color:${T.inkDim};box-shadow:inset 0 0 0 2px ${T.wood}">✕</button></div>`
       + `<div style="display:flex;gap:6px;align-items:center">${RIGHTS.map(chip).join("")}<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};margin-left:4px">${chair.hand.length} в руке</span></div>`
-      + (crew.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:10px">${crew.map((one) => `<button data-crew="${esc(one.id)}" style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:8px 10px;background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};color:${T.ink}">${esc(one.name)}</button>`).join("")}</div>` : "")
-      + `</div>`;
+      + (fan ? `<div style="height:${Math.round(fan)}px"></div>` : "")
+      + (crew.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:10px">${crew.map((one) => `<button ${one.data} style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:8px 10px;background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};color:${T.ink}">${esc(one.name)}</button>`).join("")}</div>` : "")
+      + `</div>`
+      + (fan ? fanHtml(s, chair.hand, (c) => c.face, left + w / 2, top + 12 + 38 + 30 + 8, cw, room, 42, () => `data-from="hand" data-take="1"`) : "");
+  }
+  /** Окно раздачи — у распорядителя, из окна крупье. Какие раздачи — из контракта и рода стола. */
+  function dealablePlayers(s: Snapshot, dir: DealDir): { chair: string; name: string; ink: string }[] {
+    const from = s.chairs.find((c) => c.croupier)?.angle ?? 0;
+    const step = (c: Chair) => (dir === "cw" ? (from - c.angle + 360) % 360 : (c.angle - from + 360) % 360);
+    return [...s.chairs].sort((a, b) => step(a) - step(b)).flatMap((c) => {
+      const sitter = !c.croupier && c.owner !== null ? s.people.find((p) => p.key === c.owner) : undefined;
+      return sitter ? [{ chair: c.id, name: sitter.name, ink: sitter.ink }] : [];
+    });
+  }
+  function dealHtml(s: Snapshot): string {
+    const d = local.deal;
+    if (!d) return "";
+    const g = glass(), w = Math.min(320, g.w - 32);
+    const chip = (on: boolean, data: string, label: string) => `<button ${data} aria-pressed="${on}" style="border:0;cursor:pointer;font:400 12px Tiny5,monospace;border-radius:8px;padding:7px 10px;${on ? `${gold};color:${T.black}` : `background:transparent;color:${T.ink};box-shadow:inset 0 0 0 2px ${T.wood}`}">${label}</button>`;
+    const row = (title: string, inner: string) => `<div style="display:flex;flex-direction:column;gap:6px"><span style="font:400 11px Tiny5,monospace;color:${T.inkDim}">${title}</span><div style="display:flex;flex-wrap:wrap;gap:6px">${inner}</div></div>`;
+    const rules = (Object.entries(DEAL_PRESETS) as [DealRule, (typeof DEAL_PRESETS)[DealRule]][]).filter(([r]) => store.deals.includes(r));
+    const players = dealablePlayers(s, d.dir);
+    const dot = (ink: string) => `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${ink};box-shadow:inset 0 0 0 1px ${T.black};margin-right:5px;vertical-align:-1px"></span>`;
+    if (d.from !== null && !d.seats.includes(d.from)) d.from = null;
+    if (d.from === null) d.from = players.find((p) => d.seats.includes(p.chair))?.chair ?? null;
+    const want = DEAL_PRESETS[d.rule].seats, exact = want === 0 || d.seats.length === want;
+    return `<div data-deal-panel role="dialog" aria-label="Раздача" style="position:absolute;left:${Math.round((g.w - w) / 2)}px;top:${Math.round(Math.max(24, g.h * 0.18))}px;width:${w}px;box-sizing:border-box;z-index:70;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 8px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px">`
+      + `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span style="font:400 15px Tiny5,monospace;color:${T.ink}">Раздача</span><button data-deal-shut style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim};background:transparent">Закрыть</button></div>`
+      + row("По пресету", rules.map(([r, preset]) => chip(d.rule === r, `data-deal-rule="${r}"`, preset.name)).join(""))
+      + (DEAL_PRESETS[d.rule].askable ? row("Сколько карт", [1, 2, 3, 5, 6, 8, 10].map((n) => chip(!d.all && d.n === n, `data-deal-n="${n}"`, String(n))).join("") + chip(d.all, "data-deal-all", "Все по одной")) : "")
+      + row("Куда", chip(d.dir === "cw", `data-deal-dir="cw"`, "По часовой") + chip(d.dir === "ccw", `data-deal-dir="ccw"`, "Против часовой"))
+      + row("Кому", players.map((p) => chip(d.seats.includes(p.chair), `data-deal-seat="${p.chair}"`, dot(p.ink) + esc(p.name))).join("") || `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim}">За столом никого</span>`)
+      + row("Кому первым", players.filter((p) => d.seats.includes(p.chair)).map((p) => chip(d.from === p.chair, `data-deal-from="${p.chair}"`, dot(p.ink) + esc(p.name))).join("") || `<span style="font:400 11px Tiny5,monospace;color:${T.inkDim}">Никого не выбрано</span>`)
+      + (exact ? "" : `<span style="font:400 11px Tiny5,monospace;color:${T.gold}">Нужно ровно ${want} игрока — выбрано ${d.seats.length}</span>`)
+      + `<button data-deal-go ${exact ? "" : "disabled"} style="border:0;cursor:pointer;font:400 13px Tiny5,monospace;border-radius:8px;padding:9px 10px;${gold};color:${T.black};${exact ? "" : "opacity:.45;cursor:default"}">Раздать</button>`
+      + `<span style="font:400 10px Tiny5,monospace;color:${T.inkDim}">Раздаёт крупье: его курсор и его метки. Себе не раздаёт.</span></div>`;
   }
   function lassoLayerHtml(): string {
     if (!lassoOn() || local.tool !== "lasso") return "";
@@ -339,7 +429,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     frame = 0;
     const s = store.state;
     scene.setLasso(lassoOn(), local.grab);
-    const html = lassoLayerHtml() + gripsHtml(s) + tipHtml(s) + topHtml() + journalHtml() + bottomHtml(s);
+    const html = lassoLayerHtml() + gripsHtml(s) + deckTipHtml(s) + tipHtml(s) + topHtml() + journalHtml() + bottomHtml(s) + dealHtml(s);
     if (html !== last) { last = html; root.innerHTML = html; }
     talk.place(anchors());
     root.dataset.open = local.section ?? "";
@@ -384,7 +474,34 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-rooms-back]")) location.href = `${HOST}/table/?rooms`;
     else if (q("[data-settings]")) { if (settings.open) settings.hide(); else settings.show(); }
     else if (q("[data-journal]")) local.journal = !local.journal;
-    else if ((b = q("[data-deck-do]"))) { store.send({ t: "deckDo", pile: b.dataset.pile!, how: b.dataset.deckDo as "shuffle" | "sort" | "flip" }); local.deckMenu = null; }
+    else if ((b = q("[data-deck-do]")) && local.deckTip) store.send({ t: "deckDo", pile: local.deckTip, how: b.dataset.deckDo as "shuffle" | "sort" | "flip" });
+    else if (q("[data-deck-shut]")) local.deckTip = null;
+    else if ((b = q("[data-deck-pin]")) && local.deckTip) { const p = s.piles.find((x) => x.id === local.deckTip); if (p) store.send({ t: "deckPin", pile: p.id, on: !p.pin }); }
+    else if ((b = q("[data-deck-forever]")) && local.deckTip) { const p = s.piles.find((x) => x.id === local.deckTip); if (p) store.send({ t: "deckForever", pile: p.id, on: !p.forever }); }
+    else if ((b = q("[data-deck-lock], [data-deck-accept], [data-deck-seal]")) && local.deckTip) {
+      const p = s.piles.find((x) => x.id === local.deckTip), guard: PileGuard = b.hasAttribute("data-deck-lock") ? "lock" : b.hasAttribute("data-deck-accept") ? "shut" : "seal";
+      if (p) store.send({ t: "deckGuard", pile: p.id, guard, on: !p[guard] });
+    }
+    else if ((b = q("[data-croupier]"))) {
+      const what = b.dataset.croupier;
+      if (what === "deal") local.deal = { rule: store.deals[0] ?? "each", n: 6, all: false, seats: dealablePlayers(s, "cw").map((p) => p.chair), from: null, dir: "cw" };
+      else if (what === "shuffle") store.command({ t: "shuffle" });
+      local.tip = null;
+    }
+    else if (q("[data-chair-act]")) store.send({ t: "chair", act: "add" });
+    else if ((b = q("[data-flip-chair]"))) store.send({ t: "flip", chair: b.dataset.flipChair! });
+    else if (q("[data-deal-shut]")) local.deal = null;
+    else if ((b = q("[data-deal-rule]")) && local.deal) local.deal.rule = b.dataset.dealRule as DealRule;
+    else if ((b = q("[data-deal-n]")) && local.deal) { local.deal.n = Number(b.dataset.dealN); local.deal.all = false; }
+    else if (q("[data-deal-all]") && local.deal) local.deal.all = !local.deal.all;
+    else if ((b = q("[data-deal-seat]")) && local.deal) { const c = b.dataset.dealSeat!, d = local.deal; d.seats = d.seats.includes(c) ? d.seats.filter((x) => x !== c) : [...d.seats, c]; }
+    else if ((b = q("[data-deal-from]")) && local.deal) local.deal.from = b.dataset.dealFrom!;
+    else if ((b = q("[data-deal-dir]")) && local.deal) local.deal.dir = b.dataset.dealDir as DealDir;
+    else if (q("[data-deal-go]") && local.deal) {
+      const d = local.deal;
+      store.command({ t: "deal", rule: d.rule, ...(DEAL_PRESETS[d.rule].askable ? (d.all ? { n: 1 } : { n: d.n }) : {}), seats: d.seats, dir: d.dir, ...(d.from !== null ? { from: d.from } : {}), force: true });
+      local.deal = null;
+    }
     else if ((b = q("[data-flag]"))) { const c = s.chairs.find((x) => x.id === b!.dataset.chair); if (c) store.send({ t: "flag", chair: c.id, flag: b.dataset.flag as ChairFlag, on: !c[b.dataset.flag as ChairFlag] }); }
     else if ((b = q("[data-mute]"))) { const k = b.dataset.mute!; if (muted.has(k)) muted.delete(k); else { muted.add(k); talk.muted(k); } }
     else if ((b = q("[data-crew]"))) { store.send({ t: "crew", act: b.dataset.crew!, ...(local.tip ? { chair: local.tip } : {}) }); local.tip = null; }
@@ -436,16 +553,44 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       follow(e, (ev) => { if (!moved && Math.abs(ev.clientX - e.clientX) < TAP_PX) return; moved = true; scene.turnBy(-(ev.clientX - x) * 0.6); x = ev.clientX; draw(); }, () => { if (!moved) scene.home(); draw(); });
       return;
     }
+    // ГРИП: тянешь — стопка под пальцем (`grip`, «держу»), отпустил — в руку, в стопку или на сукно; тап — окно, двойной — перевернуть.
     const grip = t.closest<HTMLElement>('[data-g="deck-grip"]');
     if (grip) {
       e.preventDefault();
-      const pile = grip.dataset.pile!;
-      let moved = false;
-      follow(e, (ev) => { moved ||= Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) >= TAP_PX; }, (ev) => {
-        if (!moved) { local.deckMenu = local.deckMenu === pile ? null : pile; draw(); return; }
+      const pile = grip.dataset.pile!, pinned = grip.dataset.pin === "true";
+      let moved = false, hold = 0;
+      follow(e, (ev) => {
+        if (pinned) return;
+        if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < TAP_PX) return;
+        if (!moved) { moved = true; local.deckTip = null; local.deckCarry = pile; store.send({ t: "grip", pile }); hold = window.setInterval(() => store.send({ t: "hold", id: pile }), HOLD_MS); }
         const at = scene.feltAt(ev.clientX, ev.clientY);
-        if (at) store.send({ t: "deckMove", pile, x: Math.round(at.x * 100) / 100, y: Math.round(at.y * 100) / 100 });
+        if (at) scene.carryPile(pile, at);
+        draw();
+      }, (ev) => {
+        clearInterval(hold);
+        if (!moved) {
+          const now = performance.now();
+          if (now - lastGripTap < DOUBLE_TAP_MS) { lastGripTap = 0; const p = store.state.piles.find((x) => x.id === pile); if (p && !p.lock) store.send({ t: "deckDo", pile, how: "flip" }); }
+          else { lastGripTap = now; local.deckTip = local.deckTip === pile ? null : pile; }
+          draw();
+          return;
+        }
+        local.deckCarry = null;
+        store.send({ t: "release", id: pile });
+        const a = scene.aim(ev.clientX, ev.clientY, pile);
+        if (a.in === "hand") store.send({ t: "pileDrop", pile, to: a });
+        else if (a.in === "deck") store.send({ t: "pileDrop", pile, to: a });
+        else store.send({ t: "deckMove", pile, x: a.x, y: a.y, angle: ((-(myChair()?.angle ?? 0) % 360) + 360) % 360 });
+        scene.carryPile(pile, null);
+        draw();
       });
+      return;
+    }
+    // Карта из окна (стопки, стула) — её несут, как со стола.
+    const tipCard = t.closest<HTMLElement>("[data-tip-card]");
+    if (tipCard && tipCard.dataset.take === "1") {
+      e.preventDefault();
+      scene.carry(tipCard.dataset.tipCard!, e);
       return;
     }
     if (t.closest("[data-lasso-layer]")) {
