@@ -810,6 +810,8 @@ try {
     await dragLook(0, 150);
     const h2 = await cam(), c2 = await firstCard();
     check("голова: взгляд вверх-вниз меняет наклон", Math.abs(h2.pitch - h1.pitch) > 10, { h1: h1.pitch, h2: h2.pitch });
+    const widths = await t(() => { const st = window.__t3d.state(), seat = st.people.find((x) => x.key === window.__t3d.me()).seat, hand = st.chairs.find((c) => c.id === seat).hand, top = st.piles[0].cards.at(-1).id; return { hand: window.__t3d.cardWidth(hand[0].id), theirs: window.__t3dScreens[1].cardWidth(hand[0].id), table: window.__t3d.cardWidth(top) }; });
+    check("размер руки не зависит от карты на столе: в руке 0.29 (у меня и у остальных на экране), на столе 1.3", Math.abs(widths.hand - 0.2925) < 0.02 && Math.abs(widths.theirs - 0.2925) < 0.02 && Math.abs(widths.table - 1.3) < 0.02, widths);
     check("голова: рука с картами стоит на одном месте экрана, куда и как ни смотри (не бегает снизу вверх)", c0.x > 0 && c0.x < 390 && c0.y > 450 && Math.hypot(c1.x - c0.x, c1.y - c0.y) < 5 && Math.hypot(c2.x - c0.x, c2.y - c0.y) < 5, { c0, c1, c2 });
     // Остальные видят ту же руку там же: она в кадре головы (взгляд вверх-вниз идёт по сети).
     const both = await t(async () => { const id = window.__t3d.state().chairs.find((c) => c.id === window.__t3d.state().people.find((x) => x.key === window.__t3d.me()).seat).hand[0].id; await new Promise((r) => setTimeout(r, 500)); return window.__t3dScreens.map((sc) => sc.world(id)); });
@@ -823,8 +825,10 @@ try {
     check("голова: натяг держат долго — шея сама возвращается и отдыхает", z1.lean > 0.1 && z2.lean <= 0.06, { z1: z1.lean, z2 });
     // Оптика: Shift+колесо или правая кнопка вверх-вниз — поле зрения уже, тело и рука на месте.
     const f0 = await cam(), cf0 = await firstCard();
-    await p.keyboard.down("Shift"); await p.mouse.move(195, 300); await p.mouse.wheel(0, -500); await p.keyboard.up("Shift"); await p.waitForTimeout(900);
-    const f1 = await cam(), cf1 = await firstCard();
+    await p.keyboard.down("Shift"); await p.mouse.move(195, 300); await p.mouse.wheel(0, -500); await p.keyboard.up("Shift"); await p.waitForTimeout(600);
+    let cf1 = await firstCard();
+    for (let i = 0; i < 12; i++) { await p.waitForTimeout(300); const n = await firstCard(); const still = Math.hypot(n.x - cf1.x, n.y - cf1.y) < 0.5; cf1 = n; if (still) break; }
+    const f1 = await cam();
     check("оптика (Shift+колесо): поле зрения уже, камера на месте, шея не тянется, рука того же размера на том же месте", f1.fov < f0.fov - 3 && f1.lean === 0 && Math.hypot(f1.pos[0] - f0.pos[0], f1.pos[2] - f0.pos[2]) < 0.01 && Math.hypot(cf1.x - cf0.x, cf1.y - cf0.y) < 24, { f0: f0.fov, f1: f1.fov, cf0, cf1 });
     await p.keyboard.press("Home"); await frames();
     const r0 = await cam();

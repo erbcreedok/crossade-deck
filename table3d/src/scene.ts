@@ -648,8 +648,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    */
   interface HandBody { yaw: number; left: Point3 }
   const HAND = { room: 6, size: 0.85, lean: -22, lift: 0.55, pop: 1.3 } as const;
-  /** Рука в кадре: где перед глазом (оси камеры), какого размера карты и насколько наклонены. */
-  const CAMHAND = { at: new THREE.Vector3(0, -0.8, -2.3), size: 0.225, room: 3.1, tilt: -12, pop: 0.5, near: 0.45 } as const;
+  /**
+   * Рука в кадре: где перед глазом (оси камеры), какой ширины карта (`card`, в единицах стола на этом расстоянии) и насколько наклонена.
+   * Размер руки не зависит от размера карты на столе (`CARD_W`): рука привязана к худу и всем рисуется одинаково.
+   */
+  const CAMHAND = { at: new THREE.Vector3(0, -0.8, -2.3), card: 0.2925, room: 3.1, tilt: -12, pop: 0.5, near: 0.45 } as const;
   const camBasis = (yaw: number, pitch: number): THREE.Matrix4 => {
     const y = yaw * DEG, p = pitch * DEG, f = new THREE.Vector3(Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)), r = new THREE.Vector3(Math.cos(y), 0, Math.sin(y));
     return new THREE.Matrix4().makeBasis(r, r.clone().cross(f), f.clone().negate());
@@ -658,7 +661,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const camHandPoint = (head: Point3, yaw: number, pitch: number): Point3 => { const at = CAMHAND.at.clone().applyMatrix4(camBasis(yaw, pitch)); return { x: head.x + at.x, y: head.y + at.z, h: head.h + at.y }; };
   /** Место в осях камеры: карта `k` из `n` руки стула `ch`. `fovK` — во сколько раз поле зрения уже обычного: рука на экране не растёт. */
   const camHandLocal = (ch: Chair, k: number, n: number, up: boolean, b: PoseBlend, fovK: number): Place => {
-    const plan = handPlanBlend(b, ch.pose.fan, n, 1, 1.4, CAMHAND.room)[k] ?? { x: 0, y: 0, angle: 0 }, s = CAMHAND.size * fovK, u = s * CARD_W;
+    const plan = handPlanBlend(b, ch.pose.fan, n, 1, 1.4, CAMHAND.room)[k] ?? { x: 0, y: 0, angle: 0 }, s = (CAMHAND.card / CARD_W) * fovK, u = CAMHAND.card * fovK;
     const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), CAMHAND.tilt * DEG).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -plan.angle * DEG));
     if (up) quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
     return { pos: new THREE.Vector3(CAMHAND.at.x + plan.x * u, CAMHAND.at.y * fovK - plan.y * u, CAMHAND.at.z + k * 0.004), quat, scale: s, onCamera: true };
@@ -1430,6 +1433,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     /** Где лежит карта в мире (x, y — сукно, h — высота). */
     world: (id: string) => { const o = cards.get(id); if (!o) return null; const p = o.group.getWorldPosition(new THREE.Vector3()); return { x: p.x, y: p.z, h: p.y }; },
     handFrame: () => handFrame(),
+    /** Ширина карты в мире: сколько единиц стола она занимает (рука — в осях камеры, стол — свой размер). */
+    cardWidth: (id: string) => { const o = cards.get(id); return o ? o.group.getWorldScale(new THREE.Vector3()).x * CARD_W : null; },
     cam: () => ({ mode: camMode, yaw: rig.yaw, pitch: rig.pitch, lean: rig.lean, fov: camera.fov, pos: camera.position.toArray(), neck: { ...neck } }),
     view: () => { const p = camera.position.clone().sub(orbit.target); return { yaw: Math.atan2(p.x, p.z) / DEG, pitch: Math.asin(p.y / p.length()) / DEG }; },
   };
