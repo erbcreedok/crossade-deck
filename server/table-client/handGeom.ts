@@ -75,7 +75,7 @@ export function snapPose(b: PoseBlend, was: Pose): Pose {
 }
 
 /** Насколько рука ушла вниз: 1 — спрятана, 0 — стоит. */
-const tuckOf = (b: PoseBlend): number => Math.max(0, Math.min(1, 1 - b.lift / 0.5));
+export const tuckOf = (b: PoseBlend): number => Math.max(0, Math.min(1, 1 - b.lift / 0.5));
 
 /** Места карт между ступенями: стопка ↔ (ряд ↔ веер) по двум осям. `fanBelow` — веер ли под спрятанной рукой. */
 export function handPlanBlend(b: PoseBlend, fanBelow: boolean, n: number, w: number, h: number, roomU: number): Slot[] {
