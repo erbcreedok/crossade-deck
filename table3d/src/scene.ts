@@ -235,6 +235,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Поза тела этого экрана; правило стола «играть стоя» сильнее её. */
   let stance: "sit" | "stand" = "sit";
   /** Где оставили камеру каждого, за кого сидели (`stashView`) — у каждого своя, между ними прыгают. */
+  /** Карта в пальце у того, кого оставили (`stashView`): держит ли ещё — узнаётся, когда к нему вернулись. */
+  const parked = new Map<string, { drag: NonNullable<typeof drag>; released: boolean }>();
   const views = new Map<string, { pos: THREE.Vector3; target: THREE.Vector3; stance: "sit" | "stand" }>();
   const stanceNow = () => (store.state.rules.stand ? "stand" : stance);
   let look = readLook();
@@ -1123,16 +1125,43 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setStance(st) { stance = st; home(); sendBody(true); draw(); },
     stashView(key) {
       sendBody(true);
+      // Карта в пальце: уходя, её не роняю — рука с ней остаётся, как была (другим видно, где она), а палец «отпускаю» только отсюда.
+      if (drag?.moved) {
+        const d = drag, entry = { drag: { ...d }, released: false };
+        clearInterval(d.hold);
+        orbit.enabled = true;
+        parked.set(key, entry);
+        const up = () => { entry.released = true; removeEventListener("pointerup", up); removeEventListener("pointercancel", up); };
+        addEventListener("pointerup", up);
+        addEventListener("pointercancel", up);
+        drag = null;
+        layout(store.state);
+      }
       views.set(key, { pos: camera.position.clone(), target: orbit.target.clone(), stance });
     },
     recallView(key) {
+      // Вернулся к тому, кто держал карту: держу ещё — беру её обратно там же; отпустил, пока был на другой камере, — стёрлось: карта свободна.
+      const pk = parked.get(key);
+      parked.delete(key);
+      if (pk) {
+        const id = pk.drag.id;
+        if (pk.released) store.send({ t: "release", id });
+        else {
+          if (!pk.drag.group) store.send({ t: "grab", id });
+          if (pk.drag.group || store.state.locks[id] === store.me.key) {
+            drag = { ...pk.drag, hold: window.setInterval(() => { if (drag) store.send({ t: "hold", id: drag.id }); }, HOLD_MS) };
+            orbit.enabled = false;
+          }
+        }
+      }
       const v = views.get(key);
-      if (!v) return false;
+      if (!v) { layout(store.state); return false; }
       stance = v.stance;
       camera.position.copy(v.pos);
       orbit.target.copy(v.target);
       orbit.update();
       sendBody(true);
+      layout(store.state);
       draw();
       return true;
     },

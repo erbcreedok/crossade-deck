@@ -561,13 +561,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-rooms-back]")) location.href = `${HOST}/table/?rooms`;
     else if (q("[data-settings]")) { if (settings.open) settings.hide(); else settings.show(); }
     else if (q("[data-journal]")) local.journal = !local.journal;
-    else if ((b = q("[data-dev-switch]"))) {
-      // Две камеры, между ними прыгают: свою оставляю там, где она стоит (и тело с головой остаётся видно), чужую — где её оставили.
-      scene.stashView(me());
-      store.dev?.switchTo(b.dataset.as!);
-      local.tip = null; local.deckTip = null; local.handMenu = false;
-      if (!scene.recallView(me())) scene.home();
-    }
+    else if (q("[data-dev-switch]")) devSwitch();
     else if ((b = q("[data-sit]"))) { store.send({ t: "sit", chair: b.dataset.sit! }); local.tip = null; }
     else if ((b = q("[data-deck-do]")) && local.deckTip) store.send({ t: "deckDo", pile: local.deckTip, how: b.dataset.deckDo as "shuffle" | "sort" | "flip" });
     else if (q("[data-deck-shut]")) local.deckTip = null;
@@ -683,6 +677,28 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   for (const el of [panelOverlay, scene.panelLayer()]) for (const ev of ["pointerdown", "pointermove"]) el.addEventListener(ev, handTouch);
 
   /**
+   * ТОЛЬКО ДЛЯ РАЗРАБОТКИ: перейти к другому игроку стенда — кнопкой или клавишей Tab. Две камеры, между ними прыгают: свою
+   * оставляю там, где она стоит (тело с головой и рука остаются видны), чужую — где её оставили. Что несла рука: карта в пальце
+   * ждёт возвращения (`scene.stashView`), стопку за язычок кладу на место — её несёт HUD, а не сцена.
+   */
+  function devSwitch(): void {
+    const dev = store.dev;
+    const next = dev?.players.find((p) => p.key !== me());
+    if (!dev || !next) return;
+    if (local.deckCarry) { const pile = local.deckCarry; local.deckCarry = null; scene.carryPile(pile, null); store.send({ t: "release", id: pile }); }
+    scene.stashView(me());
+    dev.switchTo(next.key);
+    local.tip = null; local.deckTip = null; local.handMenu = false;
+    if (!scene.recallView(me())) scene.home();
+    draw();
+  }
+  addEventListener("keydown", (e) => {
+    if (e.key !== "Tab" || e.repeat || !store.dev) return;
+    if ((e.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable]")) return;
+    e.preventDefault();
+    devSwitch();
+  });
+  /**
    * ЯЗЫЧОК СТОПКИ (лежит на столе, рисует сцена — `scene.onTab`): тянешь — стопка и язычок под пальцем, как несомая карта;
    * отпустил — в руку, в стопку или на сукно; тап — окно, двойной — перевернуть.
    */
@@ -694,11 +710,13 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     follow(e, (ev) => {
       if (pinned) return;
       if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < TAP_PX) return;
-      if (!moved) { moved = true; local.deckTip = null; local.deckCarry = pile; store.send({ t: "grip", pile }); hold = window.setInterval(() => store.send({ t: "hold", id: pile }), HOLD_MS); }
+      if (!moved) { moved = true; local.deckTip = null; local.deckCarry = pile; store.send({ t: "grip", pile }); hold = window.setInterval(() => { if (local.deckCarry === pile) store.send({ t: "hold", id: pile }); else clearInterval(hold); }, HOLD_MS); }
+      if (moved && local.deckCarry !== pile) return;
       scene.carryPile(pile, { x: ev.clientX, y: ev.clientY });
       draw();
     }, (ev) => {
       clearInterval(hold);
+      if (moved && local.deckCarry !== pile) return;
       if (!moved) {
         const now = performance.now();
         if (now - lastGripTap < DOUBLE_TAP_MS) { lastGripTap = 0; const p = store.state.piles.find((x) => x.id === pile); if (p && !p.lock) store.send({ t: "deckDo", pile, how: "flip" }); }
