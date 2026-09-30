@@ -67,10 +67,6 @@ const CSS = `
 `;
 
 export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStore, scene: SceneApi): void {
-  // Два слоя без своей коробки: общая перерисовка (`view`) и язычки стопок (`tabs`) — их не пересоздают, а двигают.
-  const view = document.createElement("div"), tabs = document.createElement("div");
-  view.style.display = tabs.style.display = "contents";
-  root.replaceChildren(view, tabs);
   const style = document.createElement("style");
   style.textContent = CSS;
   document.head.append(style);
@@ -309,50 +305,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       + `<div style="padding:9px 14px;color:${T.inkDim};font-size:11px;position:sticky;top:0;${plate};border-radius:14px 14px 0 0">Журнал · видно только то, что видно за столом</div>${rows}</div>`;
   }
 
-  // ——— на столе: язычок стопки, окно стула ———
-  /**
-   * ЯЗЫЧОК СТОПКИ — висит на её нижней кромке, как закладка на стопке карт: сколько в ней карт; тап — окно стопки, двойной —
-   * перевернуть, тянуть — несёшь стопку. Не крупнее стопки (но не мельче, чем в него попасть пальцем). Живёт отдельно от
-   * общей перерисовки: элемент один на стопку, его только двигают — в том же кадре, что и сцену, а не следом за ней.
-   */
-  const TAB = { h: 22, most: 0.5, least: 0.7 };
-  const tabEls = new Map<string, { el: HTMLElement; key: string; at: string }>();
-  function placeTabs(): void {
-    const s = store.state, seen = new Set<string>();
-    for (const sp of scene.pileSpots()) {
-      const pile = s.piles.find((x) => x.id === sp.pile);
-      if (!pile) continue;
-      seen.add(sp.pile);
-      const lit = local.deckTip === sp.pile || local.deckCarry === sp.pile;
-      const key = `${pile.cards.length}|${pile.pin}|${lit}`;
-      let one = tabEls.get(sp.pile);
-      if (!one) {
-        const el = document.createElement("div");
-        el.dataset.g = "deck-grip";
-        el.dataset.pile = sp.pile;
-        el.setAttribute("role", "button");
-        el.setAttribute("aria-label", "Колода");
-        tabs.append(el);
-        one = { el, key: "", at: "" };
-        tabEls.set(sp.pile, one);
-      }
-      if (one.key !== key) {
-        one.key = key;
-        one.at = "";
-        one.el.dataset.count = String(pile.cards.length);
-        one.el.dataset.pin = String(pile.pin);
-        one.el.style.cssText = `position:absolute;left:0;top:0;transform-origin:50% 0;height:${TAB.h}px;box-sizing:border-box;display:flex;align-items:center;gap:3px;padding:0 8px 0 6px;border-radius:0 0 ${TAB.h / 2}px ${TAB.h / 2}px;white-space:nowrap;touch-action:none;cursor:${pile.pin ? "pointer" : "grab"};z-index:20;user-select:none;will-change:transform;`
-          + (lit ? `${gold};box-shadow:inset 0 0 0 2px ${T.black},0 2px 0 rgba(11,7,4,.6);` : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${BAR_LOOK.rim},0 2px 0 rgba(11,7,4,.6);`);
-        one.el.innerHTML = `<svg viewBox="0 0 24 20" width="22" height="17" fill="none" stroke="${T.black}" stroke-width="1.6" stroke-linejoin="round" style="pointer-events:none"><g fill="${lit ? T.ink : BAR_LOOK.goldHi}">${GLYPH.deck}</g></svg>`
-          + `<span style="font:400 12px Tiny5,monospace;color:${lit ? T.black : T.ink};pointer-events:none">${pile.cards.length}</span>`
-          + (pile.pin ? `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="${lit ? T.black : BAR_LOOK.goldHi}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none">${GLYPH.pin}</svg>` : "");
-      }
-      const scale = Math.min(1, Math.max(TAB.least, (TAB.most * sp.heightPx) / TAB.h));
-      const at = `translate(${sp.edge.x.toFixed(1)}px, ${sp.edge.y.toFixed(1)}px) translateX(-50%) scale(${scale.toFixed(3)})`;
-      if (one.at !== at) { one.at = at; one.el.style.transform = at; }
-    }
-    for (const [id, one] of tabEls) if (!seen.has(id)) { one.el.remove(); tabEls.delete(id); }
-  }
+  // ——— на столе: окно стопки, окно стула ———
   /** Карта в окне — картинка набора стола: лицо, если его видно, иначе рубашка. */
   const cardImg = (s: Snapshot, face: Face | undefined, w: number) =>
     `<img src="${artUrl(s.rules, face, look)}" alt="" draggable="false" style="width:100%;height:100%;display:block;border-radius:${Math.round(w * 0.12)}px;box-shadow:0 0 0 1px ${T.black};pointer-events:none">`;
@@ -513,6 +466,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     frame = 0;
     const s = store.state;
     scene.setLasso(lassoOn(), local.grab);
+    scene.setTabLit(new Set([local.deckTip, local.deckCarry].filter((x): x is string => !!x)));
     // Работаю с окном стопки — я с ней вожусь: моя правая рука на ней (и её видят остальные). Открыто, но не тронуто — рука свободна.
     // Работаю с окном чужого стула — моя правая рука у его левой руки (с веером).
     const open = local.handOn && local.deckTip ? s.piles.find((p) => p.id === local.deckTip) : undefined;
@@ -523,8 +477,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     pilePanel(s);
     chairPanel(s);
     panels.keep(shown);
-    if (html !== last) { last = html; view.innerHTML = html; }
-    placeTabs();
+    if (html !== last) { last = html; root.innerHTML = html; }
     talk.place(anchors());
     root.dataset.open = local.section ?? "";
   }
@@ -540,7 +493,6 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   }
   store.onChange(draw);
   scene.onFrame(draw);
-  scene.onFrame(placeTabs);
   new ResizeObserver(draw).observe(document.body);
 
   // ——— нажатия ———
@@ -652,39 +604,6 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       follow(e, (ev) => { if (!moved && Math.abs(ev.clientX - e.clientX) < TAP_PX) return; moved = true; scene.turnBy(-(ev.clientX - x) * 0.6); x = ev.clientX; draw(); }, () => { if (!moved) scene.home(); draw(); });
       return;
     }
-    // ГРИП: тянешь — стопка под пальцем (`grip`, «держу»), отпустил — в руку, в стопку или на сукно; тап — окно, двойной — перевернуть.
-    const grip = t.closest<HTMLElement>('[data-g="deck-grip"]');
-    if (grip) {
-      e.preventDefault();
-      const pile = grip.dataset.pile!, pinned = grip.dataset.pin === "true";
-      let moved = false, hold = 0;
-      follow(e, (ev) => {
-        if (pinned) return;
-        if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < TAP_PX) return;
-        if (!moved) { moved = true; local.deckTip = null; local.deckCarry = pile; store.send({ t: "grip", pile }); hold = window.setInterval(() => store.send({ t: "hold", id: pile }), HOLD_MS); }
-        const at = scene.feltAt(ev.clientX, ev.clientY);
-        if (at) scene.carryPile(pile, at);
-        draw();
-      }, (ev) => {
-        clearInterval(hold);
-        if (!moved) {
-          const now = performance.now();
-          if (now - lastGripTap < DOUBLE_TAP_MS) { lastGripTap = 0; const p = store.state.piles.find((x) => x.id === pile); if (p && !p.lock) store.send({ t: "deckDo", pile, how: "flip" }); }
-          else { lastGripTap = now; local.deckTip = local.deckTip === pile ? null : pile; }
-          draw();
-          return;
-        }
-        local.deckCarry = null;
-        store.send({ t: "release", id: pile });
-        const a = scene.aim(ev.clientX, ev.clientY, pile);
-        if (a.in === "hand") store.send({ t: "pileDrop", pile, to: a });
-        else if (a.in === "deck") store.send({ t: "pileDrop", pile, to: a });
-        else store.send({ t: "deckMove", pile, x: a.x, y: a.y, angle: ((-(myChair()?.angle ?? 0) % 360) + 360) % 360 });
-        scene.carryPile(pile, null);
-        draw();
-      });
-      return;
-    }
     // Карта из окна (стопки, стула) — её несут, как со стола.
     const tipCard = t.closest<HTMLElement>("[data-tip-card]");
     if (tipCard && tipCard.dataset.take === "1") {
@@ -715,6 +634,41 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     if (!local.handOn) { local.handOn = true; draw(); }
   };
   for (const el of [panelOverlay, scene.panelLayer()]) for (const ev of ["pointerdown", "pointermove"]) el.addEventListener(ev, handTouch);
+
+  /**
+   * ЯЗЫЧОК СТОПКИ (лежит на столе, рисует сцена — `scene.onTab`): тянешь — стопка и язычок под пальцем, как несомая карта;
+   * отпустил — в руку, в стопку или на сукно; тап — окно, двойной — перевернуть.
+   */
+  function tabDown(pile: string, e: PointerEvent): void {
+    e.preventDefault();
+    const pinned = !!store.state.piles.find((x) => x.id === pile)?.pin;
+    let moved = false, hold = 0;
+    follow(e, (ev) => {
+      if (pinned) return;
+      if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < TAP_PX) return;
+      if (!moved) { moved = true; local.deckTip = null; local.deckCarry = pile; store.send({ t: "grip", pile }); hold = window.setInterval(() => store.send({ t: "hold", id: pile }), HOLD_MS); }
+      scene.carryPile(pile, { x: ev.clientX, y: ev.clientY });
+      draw();
+    }, (ev) => {
+      clearInterval(hold);
+      if (!moved) {
+        const now = performance.now();
+        if (now - lastGripTap < DOUBLE_TAP_MS) { lastGripTap = 0; const p = store.state.piles.find((x) => x.id === pile); if (p && !p.lock) store.send({ t: "deckDo", pile, how: "flip" }); }
+        else { lastGripTap = now; local.deckTip = local.deckTip === pile ? null : pile; }
+        draw();
+        return;
+      }
+      local.deckCarry = null;
+      store.send({ t: "release", id: pile });
+      const a = scene.aim(ev.clientX, ev.clientY, pile);
+      if (a.in === "hand") store.send({ t: "pileDrop", pile, to: a });
+      else if (a.in === "deck") store.send({ t: "pileDrop", pile, to: a });
+      else store.send({ t: "deckMove", pile, x: a.x, y: a.y, angle: ((-(myChair()?.angle ?? 0) % 360) + 360) % 360 });
+      scene.carryPile(pile, null);
+      draw();
+    });
+  }
+  scene.onTab(tabDown);
 
   function follow(e: PointerEvent, move: (ev: PointerEvent) => void, up: (ev: PointerEvent) => void): void {
     const m = (ev: PointerEvent) => { if (ev.pointerId === e.pointerId) move(ev); };

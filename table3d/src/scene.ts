@@ -22,7 +22,7 @@ import { awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, restHead
 import { ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../../server/src/table/ring.js";
 import { artUrl, readLook, type DeckLook } from "../../server/table-client/deckArt.js";
 import { mineGeomOf, type PoseBlend } from "../../server/table-client/handGeom.js";
-import type { Geom } from "../../server/table-client/screenConst.js";
+import { BAR_LOOK, T, type Geom } from "../../server/table-client/screenConst.js";
 import type { TableStore } from "../../server/table-client/store.js";
 
 const DEG = Math.PI / 180;
@@ -108,24 +108,24 @@ export interface SceneApi {
   /** Головы сидящих на экране (для строк чата). */
   heads(): { key: string; x: number; y: number; r: number; ink: string; wx: number; wy: number }[];
   pickAt(x: number, y: number): { t: "card"; id: string } | { t: "who"; key: string } | null;
-  /** Стопки на экране: где и сколько. */
-  /**
-   * Где стопка на экране: `x, y` — середина верха; `edge` — середина её нижней (ближней к глазу) кромки, где висит язычок;
-   * `cardPx` — ширина верхней карты на экране, `heightPx` — высота верха стопки на экране.
-   */
-  pileSpots(): { pile: string; count: number; x: number; y: number; cardPx: number; edge: { x: number; y: number }; heightPx: number }[];
+  /** Стопки на экране: где и сколько; `cardPx` — ширина верхней карты в точках (по ней окно «к стопке» меряет размер). */
+  pileSpots(): { pile: string; count: number; x: number; y: number; cardPx: number }[];
   /** Карты, чья середина на экране внутри многоугольника. */
   cardsIn(poly: { x: number; y: number }[]): string[];
   /** Лассо открыто — тап по карте выделяет, выделенные несут вместе; `grab` — как несут. */
   setLasso(on: boolean, grab: "collect" | "keep"): void;
+  /** Язычок стопки — на столе, у нижней кромки её верхней карты: тронули — сообщить, чья стопка (окно, переворот, тяга). */
+  onTab(fn: (pile: string, e: PointerEvent) => void): void;
+  /** Какие язычки горят: у кого открыто окно или кого несут. */
+  setTabLit(piles: Set<string>): void;
   /** Точка сукна под пальцем. */
   feltAt(x: number, y: number): { x: number; y: number } | null;
   /** После каждого кадра — HUD переставляет то, что стоит по сцене. */
   onFrame(fn: () => void): void;
   /** Взять карту пальцем из окна HUD (окно стопки, окно стула): дальше её несут, как со стола. */
   carry(id: string, e: PointerEvent): void;
-  /** Стопку несут за грип: её карты — под пальцем над сукном; `null` — положили. */
-  carryPile(pile: string, at: { x: number; y: number } | null): void;
+  /** Несут стопку: `screen` — где палец на экране (верх стопки встаёт ровно под него, как несомая карта); `null` — отпустили. */
+  carryPile(pile: string, screen: { x: number; y: number } | null): void;
   /** Куда ляжет то, что отпустят здесь: в мою руку (на место `i`), в стопку, на сукно. */
   aim(x: number, y: number, skipPile?: string): { in: "hand"; chair: string; i: number } | { in: "deck"; pile: string; i?: number } | { in: "felt"; x: number; y: number };
   /**
@@ -596,6 +596,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       else moving = true;
     }
     armPose();
+    placeTabs();
     // Своя рука у глаза — вторым проходом поверх всего: борт стола, подошедший к камере вплотную, её не закрывает.
     camera.layers.set(0);
     renderer.render(scene, camera);
@@ -617,6 +618,69 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (moving) draw();
   }
 
+  // ——— язычки стопок: лежат на столе у нижней кромки верхней карты, в той же позе ———
+  /** Размер язычка в ширинах карты. Нарисован на холсте, лежит плашмя; тапнуть можно и рядом (`hit`). */
+  const TAB = { w: 1, l: 0.5, hit: 1.4 };
+  interface TabObj { mesh: THREE.Mesh; hit: THREE.Mesh; cv: HTMLCanvasElement; tex: THREE.CanvasTexture; key: string }
+  const tabs = new Map<string, TabObj>();
+  let litTabs = new Set<string>();
+  let tabFn: ((pile: string, e: PointerEvent) => void) | null = null;
+  const tabGeom = new THREE.PlaneGeometry(TAB.w, TAB.l), tabHitGeom = new THREE.PlaneGeometry(TAB.w * TAB.hit, TAB.l * 2);
+  function drawTab(cv: HTMLCanvasElement, count: number, pin: boolean, lit: boolean): void {
+    const c = cv.getContext("2d")!, W = cv.width, H = cv.height, r = H * 0.42, line = H * 0.08;
+    c.clearRect(0, 0, W, H);
+    // Плоский край — к стопке, скруглённый — наружу: закладка, торчащая из стопки.
+    c.beginPath();
+    c.moveTo(0, 0); c.lineTo(W, 0); c.lineTo(W, H - r); c.quadraticCurveTo(W, H, W - r, H); c.lineTo(r, H); c.quadraticCurveTo(0, H, 0, H - r); c.closePath();
+    const g = c.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, lit ? BAR_LOOK.goldHi : BAR_LOOK.plateHi);
+    g.addColorStop(1, lit ? BAR_LOOK.goldLo : BAR_LOOK.plateLo);
+    c.fillStyle = g; c.fill();
+    c.lineJoin = "round"; c.lineWidth = line; c.strokeStyle = T.black; c.stroke();
+    // Две карты веером, число, кнопка-булавка.
+    const ink = lit ? T.ink : BAR_LOOK.goldHi, cy = H * 0.5;
+    for (const [dx, a] of [[-0.05, -0.28], [0.05, 0.2]] as const) {
+      c.save(); c.translate(W * 0.2 + dx * W, cy); c.rotate(a);
+      c.fillStyle = ink; c.strokeStyle = T.black; c.lineWidth = line * 0.7;
+      c.beginPath(); c.roundRect(-H * 0.17, -H * 0.27, H * 0.34, H * 0.54, H * 0.05); c.fill(); c.stroke(); c.restore();
+    }
+    c.fillStyle = lit ? T.black : T.ink; c.textBaseline = "middle"; c.textAlign = "left";
+    c.font = `${Math.round(H * 0.5)}px Tiny5, monospace`;
+    c.fillText(String(count), W * 0.38, cy + H * 0.03);
+    if (pin) { c.fillStyle = lit ? T.black : BAR_LOOK.goldHi; c.beginPath(); c.arc(W * 0.9, cy, H * 0.09, 0, Math.PI * 2); c.fill(); }
+  }
+  function makeTab(): TabObj {
+    const cv = document.createElement("canvas");
+    cv.width = 340; cv.height = Math.round(340 * (TAB.l / TAB.w));
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const mesh = new THREE.Mesh(tabGeom, new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05 }));
+    const hit = new THREE.Mesh(tabHitGeom, new THREE.MeshBasicMaterial({ visible: false }));
+    hit.position.y = -TAB.l * 0.25;
+    mesh.add(hit);
+    scene.add(mesh);
+    return { mesh, hit, cv, tex, key: "" };
+  }
+  /** Язычок каждой стопки — у нижней (к её хозяину) кромки верхней карты, плашмя, в той же позе, что карта: несут карту — несут и его. */
+  function placeTabs(): void {
+    const seen = new Set<string>();
+    for (const p of store.state.piles) {
+      const top = p.pose === "ring" ? undefined : cards.get(p.cards.at(-1)?.id ?? "");
+      if (!top || !top.group.visible) continue;
+      seen.add(p.id);
+      let t = tabs.get(p.id);
+      if (!t) { t = makeTab(); t.hit.userData.pile = p.id; tabs.set(p.id, t); }
+      const key = `${p.cards.length}|${p.pin}|${litTabs.has(p.id)}`;
+      if (t.key !== key) { t.key = key; drawTab(t.cv, p.cards.length, !!p.pin, litTabs.has(p.id)); t.tex.needsUpdate = true; }
+      top.group.updateMatrixWorld(true);
+      const at = top.group.getWorldPosition(new THREE.Vector3()), k = top.group.scale.x, a = -pileAngle(p) * DEG, d = k * (CARD_H / 2 + TAB.l / 2);
+      t.mesh.position.set(at.x + d * Math.sin(a), at.y + 0.004, at.z + d * Math.cos(a));
+      t.mesh.rotation.set(-Math.PI / 2, a, 0, "YXZ");
+      t.mesh.scale.setScalar(k);
+    }
+    for (const [id, t] of tabs) if (!seen.has(id)) { scene.remove(t.mesh); (t.mesh.material as THREE.Material).dispose(); t.tex.dispose(); tabs.delete(id); }
+  }
+
   // ——— палец ———
   const ray = new THREE.Raycaster();
   ray.layers.enableAll();
@@ -625,6 +689,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     ray.setFromCamera(ndc(e), camera);
     const hit = ray.intersectObjects([...cards.values()].flatMap((o) => [o.front, o.back]), false)[0];
     return (hit?.object.userData.card as string | undefined) ?? null;
+  };
+  const hitTab = (e: PointerEvent): string | null => {
+    ray.setFromCamera(ndc(e), camera);
+    const hit = ray.intersectObjects([...tabs.values()].map((t) => t.hit), false)[0];
+    return (hit?.object.userData.pile as string | undefined) ?? null;
   };
   const onFelt = (e: { clientX: number; clientY: number }): THREE.Vector3 | null => { ray.setFromCamera(ndc(e), camera); return ray.ray.intersectPlane(feltPlane, new THREE.Vector3()); };
   /** Можно ли взять: с сукна, верхнюю из стопки, из своей руки — и не под чужим пальцем. */
@@ -662,6 +731,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const mine = (id: string) => store.state.picks[id] === store.me.key;
   let lastTap = { id: "", at: 0 };
   renderer.domElement.addEventListener("pointerdown", (e) => {
+    // Язычок — первым: он лежит у самой кромки стопки и перекрыл бы её верхнюю карту.
+    const pile = tabFn ? hitTab(e) : null;
+    if (pile) { e.stopImmediatePropagation(); tabFn!(pile, e); return; }
     const id = hitCard(e);
     if (!id || !takeable(id)) return;
     // Карту — пальцем; облёт — только по пустому.
@@ -814,25 +886,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const h = 0.02 + p.cards.length * PILE_STEP, c = project(new THREE.Vector3(p.x, h, p.y));
       // Ширина карты стопки на экране: по ней окно «к стопке» меряет свой размер.
       const r = camera.matrixWorld.elements, right = new THREE.Vector3(r[0], r[1], r[2]).setLength(CARD_W), e = project(new THREE.Vector3(p.x, h, p.y).add(right));
-      // Нижняя кромка верха стопки — по настоящей верхней карте: два её нижних угла на экране, середина между ними.
-      const top = cards.get(p.cards.at(-1)!.id);
-      let edge = { x: c.x, y: c.y }, heightPx = 0;
-      if (top) {
-        top.group.updateMatrixWorld(true);
-        const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy]) => project(top.group.localToWorld(new THREE.Vector3(sx! * CARD_W / 2, sy! * CARD_H / 2, 0)))).sort((u, v) => v.y - u.y);
-        // Плавный низ: углы с весом от того, насколько они ниже всех — ровная кромка держит середину, острый угол — сам угол,
-        // а поворот между ними не даёт скачка (жёсткий выбор «двух нижних» перескакивал с кромки на кромку).
-        heightPx = corners[0]!.y - corners[3]!.y;
-        const tau = 0.06 * heightPx + 2, ws = corners.map((q) => Math.exp((q.y - corners[0]!.y) / tau)), sum = ws.reduce((m, w) => m + w, 0);
-        edge = { x: corners.reduce((m, q, i) => m + q.x * ws[i]!, 0) / sum, y: corners.reduce((m, q, i) => m + q.y * ws[i]!, 0) / sum };
-      }
-      return { pile: p.id, count: p.cards.length, ...c, cardPx: Math.hypot(e.x - c.x, e.y - c.y), edge, heightPx };
+      return { pile: p.id, count: p.cards.length, ...c, cardPx: Math.hypot(e.x - c.x, e.y - c.y) };
     });
   (window as unknown as { __t3d: unknown }).__t3d = {
-    /** Язычки стопок: где кромка, к которой они привешены. */
-    pileSpots,
-    /** Слушать кадр: вызывается после отрисовки сцены и после того, как HUD расставил язычки. */
-    onFrame: (fn: () => void) => void frameHeard.push(fn),
+    /** Язычки на экране: чья стопка, середина и размер, сколько карт, приколота ли. */
+    tabs: () => [...tabs.entries()].map(([pile, t]) => {
+      const c = project(t.mesh.position), w = new THREE.Vector3(TAB.w / 2 * t.mesh.scale.x, 0, 0).applyQuaternion(t.mesh.quaternion), e = project(t.mesh.position.clone().add(w));
+      const p = store.state.piles.find((x) => x.id === pile);
+      return { pile, x: c.x, y: c.y, w: 2 * Math.hypot(e.x - c.x, e.y - c.y), h: (2 * Math.hypot(e.x - c.x, e.y - c.y) * TAB.l) / TAB.w, count: p?.cards.length ?? 0, pin: !!p?.pin, y3: t.mesh.position.y, at: { x: t.mesh.position.x, y: t.mesh.position.z } };
+    }),
     screenOf,
     state: () => store.state,
     me: () => store.me.key,
@@ -903,11 +965,22 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return store.state.felt.filter((f) => { const q = screenOf(f.id); return q && inside(q); }).map((f) => f.id);
     },
     setLasso(on, grab) { lasso = { on, grab }; },
+    onTab(fn) { tabFn = fn; },
+    setTabLit(piles) { litTabs = piles; },
     feltAt: (x, y) => { const at = onFelt({ clientX: x, clientY: y }); return at ? { x: at.x, y: at.z } : null; },
     onFrame: (fn) => void frameHeard.push(fn),
     carry(id, e) { if (fromOf.has(id)) startDrag(id, e); },
-    carryPile(pile, at) {
+    carryPile(pile, screen) {
       const p = store.state.piles.find((x) => x.id === pile);
+      let at: { x: number; y: number } | null = null;
+      if (screen) {
+        // Верх стопки — на высоте несомой, на луче из глаза через палец: ровно под ним, как несомая карта (`heldAt`).
+        if (!p) return;
+        ray.setFromCamera(ndc({ clientX: screen.x, clientY: screen.y }), camera);
+        const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(0.01 + 0.6 + (p.cards.length - 1) * PILE_STEP)), new THREE.Vector3());
+        if (!hit) return;
+        at = { x: hit.x, y: hit.z };
+      }
       // Несут где угодно, хоть за краем; кладут — только на сукно: посадка идёт в ближайшую точку у борта (как у карты, `aim`).
       const seat = (q: { x: number; y: number }) => { const len = Math.hypot(q.x, q.y), max = R - 0.8, k = len > max ? max / len : 1; return { x: q.x * k, y: q.y * k }; };
       if (!at && pileCarry && p) pileLanding = { pile, ...seat(pileCarry), was: { x: p.x, y: p.y }, until: performance.now() + 1500 };

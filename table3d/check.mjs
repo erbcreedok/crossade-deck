@@ -20,6 +20,9 @@ const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const errors = [];
 p.on("pageerror", (e) => errors.push(e.message));
 const t = (fn, arg) => p.evaluate(fn, arg);
+const tabInfo = () => p.evaluate(() => window.__t3d.tabs()[0]);
+const gripBox = async () => { const a = await tabInfo(); return { x: a.x - a.w / 2, y: a.y - a.h / 2, width: a.w, height: a.h }; };
+const clickGrip = async () => { const a = await tabInfo(); await p.mouse.click(a.x, a.y); };
 const frames = () => p.evaluate(() => new Promise((r) => { let k = 0; const f = () => (++k > 40 ? r() : requestAnimationFrame(f)); f(); }));
 const drag = async (from, to) => {
   await p.mouse.move(from.x, from.y);
@@ -116,8 +119,8 @@ try {
   if (shot) await p.screenshot({ path: shot });
   // HUD — как у стола 2D.
   const my = () => t(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat); });
-  const hudHas = await p.evaluate(() => ["[data-rooms-back]", "[data-table-name]", "[data-settings]", "[data-journal]", '[data-section="chair"]', '[data-section="lasso"]', "[data-home]", "[data-stance-toggle]", '[data-section="say"]', "[data-pose-handle]", '[data-g="deck-grip"]'].filter((q) => !document.querySelector(q)));
-  check("HUD стола: верх (выход, имя, настройки, журнал), бар «стул» и «лассо», компас, поза, диалог, ручка позы, индикатор стопки", hudHas.length === 0, hudHas);
+  const hudHas = await p.evaluate(() => ["[data-rooms-back]", "[data-table-name]", "[data-settings]", "[data-journal]", '[data-section="chair"]', '[data-section="lasso"]', "[data-home]", "[data-stance-toggle]", '[data-section="say"]', "[data-pose-handle]"].filter((q) => !document.querySelector(q)));
+  check("HUD стола: верх (выход, имя, настройки, журнал), бар «стул» и «лассо», компас, поза, диалог, ручка позы", hudHas.length === 0, hudHas);
   await p.click('[data-section="chair"]');
   await p.click('[data-bar="lock"]');
   await frames();
@@ -154,8 +157,8 @@ try {
   await p.click("[data-settings-close]");
   // Индикатор стопки: число — как в стопке, тап — меню, «Перемешать».
   const pile0 = await t(() => window.__t3d.state().piles[0]);
-  check("индикатор стопки — сколько карт", (await p.getAttribute('[data-g="deck-grip"]', "data-count")) === String(pile0.cards.length), pile0.cards.length);
-  await p.click('[data-g="deck-grip"]');
+  check("язычок стопки лежит на столе — сколько карт", (await tabInfo()).count === pile0.cards.length, pile0.cards.length);
+  await clickGrip();
   await frames();
   const tipCards = await p.locator('[data-g="deck-tip"] ~ [data-tip-card][data-from="pile"], [data-tip-card][data-from="pile"]').evaluateAll((els) => els.map((e) => ({ id: e.dataset.tipCard, src: e.querySelector("img")?.getAttribute("src") ?? "" })));
   check("тап по индикатору — окно колоды: все её карты веером, рубашкой (как лежат)", tipCards.length === pile0.cards.length && tipCards.every((c) => c.src.includes("/backs/")), tipCards.length);
@@ -180,7 +183,7 @@ try {
   if (await p.locator('[data-g="deck-tip"]').count()) await p.click("[data-deck-shut]");
   await frames();
   const onTable = (await my()).hand.at(-1).id;
-  const gAt = await p.locator('[data-g="deck-grip"]').boundingBox();
+  const gAt = await gripBox();
   const pileTopScreen = { x: gAt.x + gAt.width / 2 + 14, y: gAt.y - 30 };
   await p.mouse.move(...Object.values(await t((id) => window.__t3d.screenOf(id), onTable))); await p.mouse.down();
   await p.mouse.move(pileTopScreen.x, pileTopScreen.y, { steps: 10 });
@@ -191,7 +194,7 @@ try {
   await frames();
   check("в колоду без окна — попал, целясь в край карты: легла наверх; остальным рука на колоде", await t((id) => window.__t3d.state().piles[0].cards.at(-1).id === id, onTable) && Math.hypot(rightOnPile.x - pileNow.x, rightOnPile.y - pileNow.y) < 0.01, { rightOnPile, pile: [pileNow.x, pileNow.y] });
   // Окно колоды открыто — рука остальным на колоде, даже без карты.
-  await p.click('[data-g="deck-grip"]');
+  await clickGrip();
   await frames();
   check("окно колоды открыто, но я его не трогаю — рука не на колоде", (await t(() => window.__t3d.myArm())) === null && !(await t(() => window.__t3d.lastBody().right)), await t(() => window.__t3d.lastBody().right));
   await p.hover('[data-g="deck-tip"]');
@@ -218,7 +221,7 @@ try {
   await frames();
   // Колода — за грипом: едет под пальцем, отпустил — стоит там, не прыгая.
   if (await p.locator('[data-g="deck-tip"]').count()) await p.click("[data-deck-shut]");
-  const gb = await p.locator('[data-g="deck-grip"]').boundingBox();
+  const gb = await gripBox();
   const topNow = await t(() => window.__t3d.state().piles[0].cards.at(-1).id);
   await p.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2);
   await p.mouse.down();
@@ -272,7 +275,7 @@ try {
   if (await p.locator("[data-tip-close]").count()) await p.click("[data-tip-close]");
   await p.click('[data-home]');
   await frames();
-  await p.click('[data-g="deck-grip"]');
+  await clickGrip();
   await frames();
   const panel = '[data-panel^="pile:"]';
   const rect = () => p.locator(panel).boundingBox();
@@ -350,9 +353,9 @@ try {
   const [rf, rs, rc] = [d0.height / d0.width, d1.height / d1.width, d2.height / d2.width];
   check("наклон: лежит и стоит — сжаты перспективой, по-разному; лицом к камере — в своих пропорциях", (await attr("data-tilt")) === "camera" && rf < natural - 0.05 && rs < natural - 0.05 && Math.abs(rf - rs) > 0.03 && Math.abs(rc - natural) < 0.05, { rf, rs, rc, natural });
   await p.reload();
-  await p.waitForFunction(() => window.__t3d && document.querySelector('[data-g="deck-grip"]'));
+  await p.waitForFunction(() => window.__t3d && window.__t3d.tabs().length);
   await frames();
-  await p.click('[data-g="deck-grip"]');
+  await clickGrip();
   await frames();
   check("обновил — панель стопки снова на столе (выбор помнит устройство)", (await attr("data-anchor")) === "table", await attr("data-anchor"));
   await anchorTo("screen");
@@ -374,7 +377,7 @@ try {
     await p.goto(`${base}/?stand`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
-    const grip = await p.locator('[data-g="deck-grip"]').boundingBox();
+    const grip = await gripBox();
     const topId = await t(() => window.__t3d.state().piles[0].cards.at(-1).id);
     await p.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
     await p.mouse.down();
@@ -389,35 +392,34 @@ try {
     check("отпустили за краем — стопка в ближайшей точке сукна, а не за столом", rest.r > 5 && rest.r < 6.0 && landed < 6.4, { rest, landed });
   }
 
-  // ЯЗЫЧОК СТОПКИ ВИСИТ НА КРОМКЕ И НЕ ДРОЖИТ: пока камера облетает стол, он в том же кадре там, где нижняя кромка стопки,
-  // его элемент — один и тот же (не пересоздаётся), и он не перескакивает с места на место.
+  // ЯЗЫЧОК ПРИЖАТ К СТОЛУ, А НЕ К ЭКРАНУ: лежит у нижней кромки колоды в той же позе, облёт камеры его от колоды не отрывает;
+  // тап по нему — окно колоды, камера не трогается; тянешь — колода и язычок под пальцем, как несомая карта.
   {
     await p.goto(`${base}/?stand`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
-    await t(() => {
-      const el0 = document.querySelector('[data-g="deck-grip"]');
-      window.__tab = { el0, off: [], jump: 0, swapped: 0, prevX: null };
-      const f = () => {
-        const el = document.querySelector('[data-g="deck-grip"]'), sp = window.__t3d.pileSpots()[0], m = window.__tab;
-        if (el !== el0) m.swapped++;
-        if (el && sp) {
-          const r = el.getBoundingClientRect(), x = r.left + r.width / 2;
-          m.off.push(Math.hypot(x - sp.edge.x, r.top - sp.edge.y));
-          if (m.prevX !== null) m.jump = Math.max(m.jump, Math.abs(x - m.prevX));
-          m.prevX = x;
-        }
-      };
-      window.__t3d.onFrame(f);
-    });
-    await p.mouse.move(195, 300);
-    await p.mouse.down();
-    for (let i = 0; i < 40; i++) { await p.mouse.move(195 + i * 4, 300 + (i % 3)); await p.waitForTimeout(16); }
-    await p.mouse.up();
-    await frames();
-    const m = await t(() => ({ swapped: window.__tab.swapped, jump: window.__tab.jump, off: Math.max(...window.__tab.off), n: window.__tab.off.length }));
-    check("язычок стопки: в том же кадре на кромке стопки, пока камера облетает (уход не больше 1.5 px)", m.n > 30 && m.off < 1.5, m);
-    check("язычок стопки: один и тот же элемент, не пересоздаётся; за кадр не скачет дальше 12 px", m.swapped === 0 && m.jump < 12, m);
+    const at = async () => { const a = await tabInfo(), top = await t(() => { const s = window.__t3d.state(), q = s.piles[0]; return { id: q.cards.at(-1).id, x: q.x, y: q.y }; }); const w = await t((id) => window.__t3d.world(id), top.id); return { a, w, top, d: Math.hypot(a.at.x - w.x, a.at.y - w.y), dh: a.y3 - w.h }; };
+    const rest = await at();
+    check("язычок лежит на столе у кромки колоды: рядом с ней, на высоте её верха, плашмя", rest.d > 0.7 && rest.d < 1.2 && Math.abs(rest.dh) < 0.05, { d: rest.d, dh: rest.dh });
+    await p.mouse.move(195, 300); await p.mouse.down();
+    for (let i = 0; i < 30; i++) { await p.mouse.move(195 + i * 5, 300 + (i % 3)); await p.waitForTimeout(16); }
+    await p.mouse.up(); await frames();
+    const orbited = await at();
+    check("облёт камеры: язычок остался у той же кромки колоды (прижат к столу, не к экрану)", Math.abs(orbited.d - rest.d) < 0.03 && Math.abs(orbited.dh - rest.dh) < 0.02, { before: rest.d, after: orbited.d });
+    const viewBefore = await t(() => window.__t3d.view());
+    await clickGrip(); await frames();
+    const viewAfter = await t(() => window.__t3d.view());
+    check("тап по язычку — окно колоды, камера не поехала", (await p.locator('[data-g="deck-tip"]').count()) === 1 && Math.abs(viewBefore.yaw - viewAfter.yaw) < 0.01 && Math.abs(viewBefore.pitch - viewAfter.pitch) < 0.01, { viewBefore, viewAfter });
+    await p.click("[data-deck-shut]"); await frames();
+    // Тянем: колода и язычок под пальцем.
+    const a0 = await tabInfo();
+    await p.mouse.move(a0.x, a0.y); await p.mouse.down();
+    await p.mouse.move(a0.x + 90, a0.y - 60, { steps: 12 });
+    await frames(); await p.waitForTimeout(400);
+    const held = await t(() => { const s = window.__t3d.state(), q = s.piles[0], sc = window.__t3d.screenOf(q.cards.at(-1).id), tb = window.__t3d.tabs()[0], w = window.__t3d.world(q.cards.at(-1).id); return { top: sc, tab: tb, d: Math.hypot(tb.at.x - w.x, tb.at.y - w.y), dh: tb.y3 - w.h }; });
+    check("тянут за язычок — верх колоды ровно под пальцем", Math.hypot(held.top.x - (a0.x + 90), held.top.y - (a0.y - 60)) < 8, { top: held.top, finger: [a0.x + 90, a0.y - 60] });
+    check("тянут за язычок — язычок держится у кромки колоды и поднят вместе с ней", held.d > 0.7 && held.d < 1.2 && Math.abs(held.dh) < 0.05, { d: held.d, dh: held.dh });
+    await p.mouse.up(); await frames();
   }
 
   // МОЯ РУКА ВСЕГДА ВИДНА: камера низко и вплотную — борт стола подходит к глазу, но веер поверх него, а не под ним.
@@ -471,7 +473,7 @@ try {
     await q.waitForFunction(() => window.__t3d && window.__t3d.state().piles.length > 0, null, { timeout: 15000 });
     const erzh = await t(() => window.__t3d.me());
     await p.click("[data-home]");
-    await p.click('[data-g="deck-grip"]');
+    await clickGrip();
     const pileAt = await t(() => window.__t3d.state().piles[0]);
     await q.waitForFunction(([k, x, y]) => window.__t3d.bodies().some((b) => b.by === k && b.right && Math.hypot(b.right.x - x, b.right.y - y) < 0.01), [erzh, pileAt.x, pileAt.y], { timeout: 5000 }).catch(() => {});
     const seen = await q.evaluate((k) => window.__t3d.bodies().find((b) => b.by === k), erzh);
