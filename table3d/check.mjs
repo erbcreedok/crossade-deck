@@ -369,7 +369,7 @@ try {
   await p.click("[data-deck-shut]");
   }
 
-  // СТОПКУ ЗА КРАЙ СТОЛА НЕ УНЕСТИ: тянешь колоду к краю экрана — она идёт по сукну до борта и дальше не уходит.
+  // КОЛОДУ ЗА КРАЙ НЕСТИ МОЖНО, ДРОПНУТЬ НЕЛЬЗЯ — как карту: тянется за пальцем хоть за борт, отпустили — в ближайшую точку сукна.
   {
     await p.goto(`${base}/?stand`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
@@ -383,9 +383,10 @@ try {
     const far = await t((id) => { const w = window.__t3d.world(id); return Math.hypot(w.x, w.y); }, topId);
     await p.mouse.up();
     await frames();
-    check("колоду тянут за край стола — несомая стопка не дальше борта (радиус сукна 6.4)", far < 6.0, far);
-    const rest = await t(() => { const q = window.__t3d.state().piles[0]; return Math.hypot(q.x, q.y); });
-    check("отпустили за краем — стопка легла на сукно", rest < 6.0, rest);
+    check("колоду тянут за край стола — идёт за пальцем, за бортом (радиус сукна 6.4)", far > 6.4, far);
+    const rest = await t(() => { const q = window.__t3d.state().piles[0]; return { r: Math.hypot(q.x, q.y), x: q.x, y: q.y }; });
+    const landed = await t((id) => { const w = window.__t3d.world(id); return Math.hypot(w.x, w.y); }, topId);
+    check("отпустили за краем — стопка в ближайшей точке сукна, а не за столом", rest.r > 5 && rest.r < 6.0 && landed < 6.4, { rest, landed });
   }
 
   // МОЯ РУКА ВСЕГДА ВИДНА: камера низко и вплотную — борт стола подходит к глазу, но веер поверх него, а не под ним.

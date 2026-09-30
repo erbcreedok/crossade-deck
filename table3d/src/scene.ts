@@ -887,12 +887,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     carry(id, e) { if (fromOf.has(id)) startDrag(id, e); },
     carryPile(pile, at) {
       const p = store.state.piles.find((x) => x.id === pile);
-      if (!at && pileCarry && p) pileLanding = { ...pileCarry, was: { x: p.x, y: p.y }, until: performance.now() + 1500 };
-      // Стопку несут только по сукну: за край стола она не уходит ни в тяге, ни при посадке — как карта, которую кладут (`aim`).
-      const len = at ? Math.hypot(at.x, at.y) : 0, max = R - 0.8, k = len > max ? max / len : 1;
-      pileCarry = at ? { pile, x: at.x * k, y: at.y * k } : null;
+      // Несут где угодно, хоть за краем; кладут — только на сукно: посадка идёт в ближайшую точку у борта (как у карты, `aim`).
+      const seat = (q: { x: number; y: number }) => { const len = Math.hypot(q.x, q.y), max = R - 0.8, k = len > max ? max / len : 1; return { x: q.x * k, y: q.y * k }; };
+      if (!at && pileCarry && p) pileLanding = { pile, ...seat(pileCarry), was: { x: p.x, y: p.y }, until: performance.now() + 1500 };
+      pileCarry = at ? { pile, ...at } : null;
       // Несу стопку — рука остальным под ней.
-      restRight = pileCarry ? { x: pileCarry.x, y: pileCarry.y } : null;
+      restRight = at;
       sendBody(!at);
       layout(store.state);
     },
