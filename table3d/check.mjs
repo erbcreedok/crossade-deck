@@ -171,8 +171,45 @@ try {
   // Крайняя справа — поверх веера, видна целиком.
   const fromTip = (await p.locator('[data-tip-card][data-from="pile"]').evaluateAll((els) => els.map((e) => e.dataset.tipCard))).at(-1);
   const tb = await p.locator(`[data-tip-card="${fromTip}"]`).boundingBox();
-  await drag({ x: tb.x + tb.width / 2, y: tb.y + 8 }, { x: 250, y: 470 });
+  // Из окна наружу — над окном, на сукно (над самим окном карта целит обратно в колоду).
+  const tipTop = (await p.locator('[data-g="deck-tip"]').boundingBox()).y;
+  await drag({ x: tb.x + tb.width / 2, y: tb.y + 8 }, { x: 250, y: tipTop - 40 });
   check("карта из окна колоды — вытащена на сукно", await t((id) => window.__t3d.state().felt.some((c) => c.id === id), fromTip), null);
+  // В КОЛОДУ: без окна — по месту колоды на экране (с края карты), ложится наверх.
+  if (await p.locator('[data-g="deck-tip"]').count()) await p.click("[data-deck-shut]");
+  await frames();
+  const onTable = (await my()).hand.at(-1).id;
+  const gAt = await p.locator('[data-g="deck-grip"]').boundingBox();
+  const pileTopScreen = { x: gAt.x + gAt.width / 2 + 14, y: gAt.y - 30 };
+  await p.mouse.move(...Object.values(await t((id) => window.__t3d.screenOf(id), onTable))); await p.mouse.down();
+  await p.mouse.move(pileTopScreen.x, pileTopScreen.y, { steps: 10 });
+  await frames();
+  const rightOnPile = await t(() => window.__t3d.lastBody().right);
+  const pileNow = await t(() => window.__t3d.state().piles[0]);
+  await p.mouse.up();
+  await frames();
+  check("в колоду без окна — попал, целясь в край карты: легла наверх; остальным рука на колоде", await t((id) => window.__t3d.state().piles[0].cards.at(-1).id === id, onTable) && Math.hypot(rightOnPile.x - pileNow.x, rightOnPile.y - pileNow.y) < 0.01, { rightOnPile, pile: [pileNow.x, pileNow.y] });
+  // Окно колоды открыто — рука остальным на колоде, даже без карты.
+  await p.click('[data-g="deck-grip"]');
+  await frames();
+  const restBody = await t(() => window.__t3d.lastBody());
+  check("окно колоды открыто — остальным моя рука на колоде (без карты)", restBody.right && Math.hypot(restBody.right.x - pileNow.x, restBody.right.y - pileNow.y) < 0.01, restBody.right);
+  // Над окном колоды — щель в веере, карта ложится на это место (не наверх).
+  const handCard = (await my()).hand.at(-1).id;
+  const tipBox = await p.locator('[data-g="deck-tip"]').boundingBox();
+  const hc = await t((id) => window.__t3d.screenOf(id), handCard);
+  await p.mouse.move(hc.x, hc.y); await p.mouse.down();
+  await p.mouse.move(tipBox.x + tipBox.width * 0.3, tipBox.y + tipBox.height * 0.75, { steps: 12 });
+  await frames();
+  const zone = await t(() => window.__t3d.zone());
+  const gapShown = await p.locator(`[data-g="tip-held"][data-card="${handCard}"]`).count();
+  await p.mouse.up();
+  await frames();
+  const landedAt = await t((id) => window.__t3d.state().piles[0].cards.findIndex((c) => c.id === id), handCard);
+  const n = await t(() => window.__t3d.state().piles[0].cards.length);
+  check("над окном колоды — сама карта в щели веера поверх окна, легла на это место, а не наверх", zone && zone.i < n - 1 && landedAt === zone.i && gapShown > 0, { zone, landedAt, n });
+  if (await p.locator('[data-g="deck-tip"]').count()) await p.click("[data-deck-shut]");
+  await frames();
   // Колода — за грипом: едет под пальцем, отпустил — стоит там, не прыгая.
   if (await p.locator('[data-g="deck-tip"]').count()) await p.click("[data-deck-shut]");
   const gb = await p.locator('[data-g="deck-grip"]').boundingBox();
@@ -182,8 +219,9 @@ try {
   await p.mouse.move(200, 430, { steps: 10 });
   await frames();
   const under = await t(() => window.__t3d.state().piles[0]);
+  const gripRight = await t(() => window.__t3d.lastBody().right);
   const mid = await t((id) => window.__t3d.screenOf(id), topNow);
-  check("колоду несут — она едет под пальцем (не на старом месте)", Math.hypot(mid.x - 200, mid.y - 430) < 60 && !!under, { mid });
+  check("колоду несут — она едет под пальцем (не на старом месте), остальным — рука под ней", Math.hypot(mid.x - 200, mid.y - 430) < 60 && !!under && gripRight && Math.hypot(gripRight.x - under.x, gripRight.y - under.y) > 0.5, { mid, gripRight });
   await p.mouse.move(210, 450, { steps: 3 });
   await p.mouse.up();
   const right = await t((id) => window.__t3d.screenOf(id), topNow);

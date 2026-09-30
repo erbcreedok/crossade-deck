@@ -121,7 +121,16 @@ export interface SceneApi {
   /** Стопку несут за грип: её карты — под пальцем над сукном; `null` — положили. */
   carryPile(pile: string, at: { x: number; y: number } | null): void;
   /** Куда ляжет то, что отпустят здесь: в мою руку (на место `i`), в стопку, на сукно. */
-  aim(x: number, y: number, skipPile?: string): { in: "hand"; chair: string; i: number } | { in: "deck"; pile: string } | { in: "felt"; x: number; y: number };
+  aim(x: number, y: number, skipPile?: string): { in: "hand"; chair: string; i: number } | { in: "deck"; pile: string; i?: number } | { in: "felt"; x: number; y: number };
+  /**
+   * ЗОНА HUD ДЛЯ НЕСОМОЙ КАРТЫ — окно стопки: палец над ним — карта целит в стопку на место `i` и стоит на экране в
+   * щели веера (`spot`: середина, ширина, поворот в точках экрана). Спрашивается раньше стола.
+   */
+  setZone(fn: ((x: number, y: number) => { where: { in: "deck"; pile: string; i: number }; spot: { x: number; y: number; w: number; angle: number } } | null) | null): void;
+  /** Куда сейчас целит несомая карта в зоне HUD — окно рисует под неё щель. */
+  heldZone(): { pile: string; i: number; id: string; spot: { x: number; y: number; w: number; angle: number } } | null;
+  /** Правая рука без карты — на чём она (остальные видят руку на стопке, пока с ней возятся); `null` — без дела. */
+  setRestRight(at: { x: number; y: number } | null): void;
 }
 
 export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
@@ -380,6 +389,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    */
   const handCards = () => { const ch = myChair(); return ch ? ch.hand.filter((c) => !(drag?.moved && c.id === drag.id)) : []; };
   const handGeom = (): Geom | null => { const ch = myChair(); return ch ? mineGeomOf(glass(), ch.pose, handCards().length + (drag?.moved && drag.gap !== null ? 1 : 0), ch.id, blend) : null; };
+  /** Карта у глаза в точке экрана (середина `x, y`, ширина `w`, поворот) — поверх всего, чуть крупнее: в окне HUD. */
+  const screenPlace = (sp: { x: number; y: number; w: number; angle: number }): Place => {
+    const g = glass(), D = 3, vh = 2 * D * Math.tan((camera.fov * DEG) / 2), vw = vh * (g.w / g.h);
+    return { pos: new THREE.Vector3((sp.x / g.w - 0.5) * vw, -(sp.y / g.h - 0.5) * vh, -D), quat: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -sp.angle * DEG), scale: ((sp.w / g.w) * vw * HOVER.grow) / CARD_W, onCamera: true };
+  };
   const inHand = (k: number, geom: Geom): Place => {
     const g = glass(), sl = geom.slots[k]!, D = 5, vh = 2 * D * Math.tan((camera.fov * DEG) / 2), vw = vh * (g.w / g.h);
     const pos = new THREE.Vector3((sl.x / g.w - 0.5) * vw, -(sl.y / g.h - 0.5) * vh, -D + k * 0.004);
@@ -455,7 +469,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         t.pos.z += HOVER.near;
         t.scale *= r * HOVER.grow;
         o.target = t;
-      } else if (o && drag.place) o.target = drag.place;
+      } else if (o && drag.spot) o.target = screenPlace(drag.spot);
+      else if (o && drag.place) o.target = drag.place;
     }
     // Отпущенная — ждёт ответа стола там, куда легла.
     if (landing && performance.now() < landing.until && fromKey(landing.id) === landing.key) { const o = cards.get(landing.id); if (o) o.target = landing.place; }
@@ -499,6 +514,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       // Сменила место между миром и рукой — пересадить, сохранив, где она на экране, и долететь.
       const parent = t.onCamera ? handRoot : cardRoot;
       if (g.parent !== parent) { camera.updateMatrixWorld(); parent.attach(g); g.userData.v = new THREE.Vector3(); g.userData.sv = 0; }
+      // Над окном HUD несомую рисует сам HUD — поверх окна; здесь её нет.
+      g.visible = !(drag?.moved && drag.id === id && drag.spot);
       // Своя рука — не отбрасывает тени: она у глаза, её тень легла бы на полстола.
       o.front.castShadow = o.back.castShadow = !t.onCamera;
       if (!g.userData.placed) { g.position.copy(t.pos); g.quaternion.copy(t.quat); g.scale.setScalar(t.scale); g.userData.placed = true; g.userData.v = new THREE.Vector3(); g.userData.sv = 0; continue; }
@@ -551,7 +568,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return f.in === "felt" || (f.in === "pile" && f.top) || (f.in === "hand" && f.mine);
   };
   /** `group` — несут выделенное лассо: отпустил — все выделенные туда же (`moveMany`), одним намерением. */
-  let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; group: boolean; gap: number | null; place: Place | null; where: Where | null } | null = null;
+  let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; group: boolean; gap: number | null; place: Place | null; where: Where | null; spot: { x: number; y: number; w: number; angle: number } | null; zone: { pile: string; i: number } | null } | null = null;
+  let zoneFn: Parameters<SceneApi["setZone"]>[0] = null;
+  let restRight: { x: number; y: number } | null = null;
   let carriedAt = 0;
   /** Высота несомой карты над сукном — доля высоты головы (камеры), как у стола: камера выше — и карта выше. */
   const liftH = () => Math.max(0.4, Math.min(8, HEAD.lift * camera.position.y));
@@ -588,7 +607,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const f = fromOf.get(id)!;
     const c = f.in === "felt" ? store.state.felt.find((x) => x.id === id) : undefined;
     const my = myChair()?.angle ?? 0;
-    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? true : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: c ? c.angle : ((-my % 360) + 360) % 360, group: lasso.on && mine(id), gap: null, place: null, where: null };
+    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? true : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: c ? c.angle : ((-my % 360) + 360) % 360, group: lasso.on && mine(id), gap: null, place: null, where: null, spot: null, zone: null };
   }
   renderer.domElement.addEventListener("pointermove", (e) => {
     if (!drag) return;
@@ -600,10 +619,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     // Куда целит палец: над своей рукой — щель в руке и правая рука у левой; иначе — карта под пальцем над столом.
     const where = target(e, drag);
+    const z = zoneFn?.(e.clientX, e.clientY) ?? null;
     drag.where = where;
+    drag.zone = z && !drag.group ? { pile: z.where.pile, i: z.where.i } : null;
+    drag.spot = drag.zone ? z!.spot : null;
     drag.gap = where.in === "hand" && !drag.group && where.chair === myChair()?.id ? where.i : null;
-    drag.place = drag.gap === null ? heldAt(e.clientX, e.clientY, drag.angle, drag.up) : null;
-    rightAt = drag.gap !== null ? myLeftHand() : drag.place ? { x: drag.place.pos.x, y: drag.place.pos.z } : null;
+    const pile = where.in === "deck" ? store.state.piles.find((p) => p.id === where.pile) : undefined;
+    // Над стопкой — карта уже над ней, наверху: видно, куда ляжет; рука остальным — на стопке.
+    drag.place = drag.gap !== null || drag.spot ? null : pile && pile.pose !== "ring" ? lying(pile.x, pile.y, 0.25 + pile.cards.length * PILE_STEP, pileAngle(pile), drag.up) : heldAt(e.clientX, e.clientY, drag.angle, drag.up);
+    rightAt = drag.gap !== null ? myLeftHand() : pile ? { x: pile.x, y: pile.y } : drag.place ? { x: drag.place.pos.x, y: drag.place.pos.z } : null;
     sendBody();
     const now = performance.now();
     if (!drag.group && now - carriedAt >= CARRY_EVERY_MS) { carriedAt = now; store.carry({ id: drag.id, over: where }); }
@@ -672,8 +696,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (ringPile) return { in: "deck", pile: ringPile.id, turn: ((Math.atan2(a.x - ringPile.x, -(a.y - ringPile.y)) / DEG) + 360) % 360 };
     return { ...a, up: d.up, angle: d.angle };
   }
-  function aim(x: number, y: number, skipPile?: string, skipCard?: string): { in: "hand"; chair: string; i: number } | { in: "deck"; pile: string } | { in: "felt"; x: number; y: number } {
+  function aim(x: number, y: number, skipPile?: string, skipCard?: string): { in: "hand"; chair: string; i: number } | { in: "deck"; pile: string; i?: number } | { in: "felt"; x: number; y: number } {
     const e = { clientX: x, clientY: y };
+    const z = zoneFn?.(x, y);
+    if (z) return z.where;
     const chair = myChair();
     const r = renderer.domElement.getBoundingClientRect();
     // Над своей рукой — от верха её карт (раскладка 2D) и ниже.
@@ -685,7 +711,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return { in: "hand", chair: chair.id, i: xs.filter((q) => q < e.clientX).length };
     }
     const at = onFelt(e) ?? new THREE.Vector3();
-    const pile = store.state.piles.find((p) => p.id !== skipPile && Math.hypot(p.x - at.x, p.y - at.z) < 0.9 && p.pose !== "ring");
+    // В СТОПКУ — по её месту НА ЭКРАНЕ: палец в пределах карты верха стопки (с запасом), а не в узкой точке сукна.
+    const pile = store.state.piles.find((p) => {
+      if (p.id === skipPile || p.pose === "ring") return false;
+      const topH = 0.02 + p.cards.length * PILE_STEP, c = project(new THREE.Vector3(p.x, topH, p.y)), edge = project(new THREE.Vector3(p.x + CARD_H / 2, topH, p.y));
+      return Math.hypot(x - c.x, y - c.y) < Math.max(40, Math.hypot(edge.x - c.x, edge.y - c.y) * 2) || Math.hypot(p.x - at.x, p.y - at.z) < 1.1;
+    });
     if (pile) return { in: "deck", pile: pile.id };
     const len = Math.hypot(at.x, at.z), max = R - 0.8, k = len > max ? max / len : 1;
     return { in: "felt", x: Math.round(at.x * k * 100) / 100, y: Math.round(at.z * k * 100) / 100 };
@@ -698,8 +729,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!force && now - sentAt < BODY_EVERY_MS) return;
     sentAt = now;
     const f = camera.getWorldDirection(new THREE.Vector3());
-    lastBody = { stance: stanceNow(), model: "seat", eye: { x: camera.position.x, y: camera.position.z, h: Math.max(0, camera.position.y) }, stretch: 0, yaw: Math.atan2(f.x, -f.z) / DEG, right: rightAt };
-    store.body({ stance: stanceNow(), model: "seat", eye: { x: camera.position.x, y: camera.position.z, h: Math.max(0, camera.position.y) }, stretch: 0, yaw: Math.atan2(f.x, -f.z) / DEG, right: rightAt });
+    lastBody = { stance: stanceNow(), model: "seat", eye: { x: camera.position.x, y: camera.position.z, h: Math.max(0, camera.position.y) }, stretch: 0, yaw: Math.atan2(f.x, -f.z) / DEG, right: drag?.moved ? rightAt : restRight };
+    store.body({ stance: stanceNow(), model: "seat", eye: { x: camera.position.x, y: camera.position.z, h: Math.max(0, camera.position.y) }, stretch: 0, yaw: Math.atan2(f.x, -f.z) / DEG, right: drag?.moved ? rightAt : restRight });
   }
   orbit.addEventListener("change", () => sendBody());
 
@@ -730,6 +761,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }),
     /** Несомая карта: чья, щель в руке, у глаза ли, на какой высоте и какая высота камеры; моя рука видна ли. */
     held: () => { const o = drag?.moved ? cards.get(drag.id) : undefined; if (!drag || !o) return null; const p = o.group.getWorldPosition(new THREE.Vector3()); return { id: drag.id, gap: drag.gap, onCamera: !!o.target.onCamera, h: p.y, lift: liftH(), camY: camera.position.y, arm: myArm.children.length > 0, near: o.group.position.z }; },
+    /** Куда целит несомая карта в окне HUD. */
+    zone: () => (drag?.moved ? drag.zone : null),
     /** Последнее тело, что я отослал. */
     lastBody: () => lastBody,
     /** Где моя левая рука с веером — туда тянется правая, когда несу карту в руку. */
@@ -785,9 +818,19 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const p = store.state.piles.find((x) => x.id === pile);
       if (!at && pileCarry && p) pileLanding = { ...pileCarry, was: { x: p.x, y: p.y }, until: performance.now() + 1500 };
       pileCarry = at ? { pile, ...at } : null;
+      // Несу стопку — рука остальным под ней.
+      restRight = at;
+      sendBody(!at);
       layout(store.state);
     },
     aim: (x, y, skipPile) => aim(x, y, skipPile),
+    setZone(fn) { zoneFn = fn; },
+    heldZone: () => (drag?.moved && drag.zone && drag.spot ? { ...drag.zone, id: drag.id, spot: drag.spot } : null),
+    setRestRight(at) {
+      if (JSON.stringify(at) === JSON.stringify(restRight)) return;
+      restRight = at;
+      sendBody(true);
+    },
   };
   store.onChange(() => layout(store.state));
   // Размер окна сменился (поворот телефона) — домой заново, пока камеру не трогали.

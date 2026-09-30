@@ -311,11 +311,14 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   const cardImg = (s: Snapshot, face: Face | undefined, w: number) =>
     `<img src="${artUrl(s.rules, face, look)}" alt="" draggable="false" style="width:100%;height:100%;display:block;border-radius:${Math.round(w * 0.12)}px;box-shadow:0 0 0 1px ${T.black};pointer-events:none">`;
   /** Карты веером в окне: `left` — середина веера, `top` — верх ряда; ширина карты `cw`, веер во `room` точек. */
-  function fanHtml(s: Snapshot, cards: SeenCard[], faceOf: (c: SeenCard) => Face | undefined, left: number, top: number, cw: number, room: number, z: number, attrs: (c: SeenCard) => string): string {
-    const plan = handPlan({ fan: true, shrink: false, tuck: false }, cards.length, 1, 1.4, room / cw), ch = cw * 1.4;
+  /** `gap` — щель на этом месте: туда встанет несомая карта (соседи расступаются). */
+  function fanHtml(s: Snapshot, cards: SeenCard[], faceOf: (c: SeenCard) => Face | undefined, left: number, top: number, cw: number, room: number, z: number, attrs: (c: SeenCard) => string, gap: number | null = null): string {
+    const plan = handPlan({ fan: true, shrink: false, tuck: false }, cards.length + (gap === null ? 0 : 1), 1, 1.4, room / cw), ch = cw * 1.4;
+    // Щель — шире самого места: соседи по обе стороны отходят ещё, чтобы её было видно и в длинном веере.
+    const part = (i: number) => (gap === null ? 0 : i < gap ? -cw * 0.35 : cw * 0.35);
     return cards.map((c, i) => {
-      const p = plan[i]!;
-      return `<div data-tip-card="${c.id}" ${attrs(c)} style="position:absolute;left:${Math.round(left + p.x * cw - cw / 2)}px;top:${Math.round(top + p.y * cw)}px;width:${Math.round(cw)}px;height:${Math.round(ch)}px;transform:rotate(${p.angle}deg);z-index:${z + i}">${cardImg(s, faceOf(c), cw)}</div>`;
+      const p = plan[gap !== null && i >= gap ? i + 1 : i]!;
+      return `<div data-tip-card="${c.id}" ${attrs(c)} style="position:absolute;left:${Math.round(left + p.x * cw - cw / 2 + part(i))}px;top:${Math.round(top + p.y * cw)}px;width:${Math.round(cw)}px;height:${Math.round(ch)}px;transform:rotate(${p.angle}deg);z-index:${z + i}">${cardImg(s, faceOf(c), cw)}</div>`;
     }).join("");
   }
   const fanDrop = (n: number, cw: number, room: number) => handPlan({ fan: true, shrink: false, tuck: false }, n, 1, 1.4, room / cw).reduce((m, p) => Math.max(m, p.y), 0) * cw;
@@ -329,12 +332,35 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
    * ОКНО СТОПКИ — стопка картами, как у стола: какой стороной лежит, такой и видно; карту тянут из окна. Кнопки —
    * перемешать, отсортировать, перевернуть; пин, лок, приёмка, склейка и вечность — значками (что нельзя — погашено).
    */
-  function deckTipHtml(s: Snapshot): string {
+  /** Где окно стопки и его веер: одно на рисование и на прицел несомой карты. `n` — сколько мест в веере. */
+  function tipLayout(s: Snapshot) {
     const pile = s.piles.find((p) => p.id === local.deckTip), spot = scene.pileSpots().find((p) => p.pile === local.deckTip);
-    if (!pile || !spot) { local.deckTip = null; return ""; }
+    if (!pile || !spot) return null;
     const g = glass(), w = Math.min(g.w - 24, 340), left = Math.round(Math.max(12, Math.min(g.w - w - 12, spot.x - w / 2)));
-    const cw = 44, room = w - 24 - cw, drop = fanDrop(pile.cards.length, cw, room), h = 12 + 38 + 30 + cw * 1.4 + drop + 16;
-    const top = Math.round(Math.min(g.h - h - 8, spot.y + 36));
+    const cw = 44, room = w - 24 - cw, drop = fanDrop(pile.cards.length + 1, cw, room), h = 12 + 38 + 30 + cw * 1.4 + drop + 16;
+    const top = Math.round(Math.min(g.h - h - 8, spot.y + 36)), rowTop = top + 12 + 38 + 30, mid = left + w / 2;
+    const slots = (n: number) => handPlan({ fan: true, shrink: false, tuck: false }, n, 1, 1.4, room / cw).map((p) => ({ x: mid + p.x * cw, y: rowTop + p.y * cw + (cw * 1.4) / 2, angle: p.angle }));
+    return { pile, left, top, w, h, cw, room, rowTop, mid, slots };
+  }
+  // ОКНО СТОПКИ — ЗОНА ДЛЯ НЕСОМОЙ КАРТЫ: палец над окном — карта встаёт в щель веера и ляжет в стопку на это место.
+  scene.setZone((x, y) => {
+    const L = tipLayout(store.state);
+    if (!L || L.pile.lock || L.pile.shut || x < L.left || x > L.left + L.w || y < L.top || y > L.top + L.h) return null;
+    const i = L.slots(L.pile.cards.length).filter((sl) => sl.x < x).length, sl = L.slots(L.pile.cards.length + 1)[i]!;
+    return { where: { in: "deck", pile: L.pile.id, i }, spot: { x: sl.x, y: sl.y - L.cw * 0.35, w: L.cw, angle: sl.angle } };
+  });
+  function deckTipHtml(s: Snapshot): string {
+    const L = tipLayout(s);
+    if (!L) { local.deckTip = null; return ""; }
+    const { pile, left, w, h, top, cw, room } = L;
+    const zone = scene.heldZone();
+    const gapAt = zone && zone.pile === pile.id ? zone.i : null;
+    // Несомая над окном — сама карта в щели, выше соседей, поверх окна.
+    const held = zone && zone.pile === pile.id ? (() => {
+      const all = [...s.felt, ...s.piles.flatMap((p) => p.cards), ...s.chairs.flatMap((c) => c.hand)], c = all.find((x) => x.id === zone.id);
+      const face = c && (s.chairs.some((ch) => ch.hand.includes(c)) ? c.face : c.up ? c.face : undefined), hw = cw * 1.15;
+      return `<div data-g="tip-held" data-card="${zone.id}" style="position:absolute;left:${Math.round(zone.spot.x - hw / 2)}px;top:${Math.round(zone.spot.y - (hw * 1.4) / 2)}px;width:${Math.round(hw)}px;height:${Math.round(hw * 1.4)}px;transform:rotate(${zone.spot.angle}deg);z-index:90;pointer-events:none;filter:drop-shadow(0 6px 0 rgba(11,7,4,.45))">${cardImg(s, face, hw)}</div>`;
+    })() : "";
     const admin = s.rights.includes("pile.guard"), topId = pile.cards.at(-1)?.id;
     const acts: [string, string, string][] = [["shuffle", GLYPH.shuffle, "Перемешать"], ["sort", GLYPH.suit, "Отсортировать"], ["flip", GLYPH.reverse, "Перевернуть"]];
     return `<div data-g="deck-tip" data-pile="${pile.id}" data-lock="${pile.lock}" style="position:absolute;left:${left}px;top:${top}px;width:${w}px;height:${h}px;box-sizing:border-box;z-index:40;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
@@ -348,7 +374,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       + deckChip("data-deck-accept", GLYPH.shut, "Приёмка закрыта", pile.shut, admin)
       + deckChip("data-deck-seal", GLYPH.seal, "Мерж закрыт", pile.seal, admin)
       + deckChip("data-deck-forever", GLYPH.forever, "Вечная", pile.forever) + `</div></div>`
-      + fanHtml(s, pile.cards, (c) => (c.up ? c.face : undefined), left + w / 2, top + 12 + 38 + 30, cw, room, 42, (c) => `data-from="pile" data-take="${pile.shut || (pile.lock && c.id !== topId) ? "0" : "1"}"`);
+      + fanHtml(s, pile.cards, (c) => (c.up ? c.face : undefined), left + w / 2, top + 12 + 38 + 30, cw, room, 42, (c) => `data-from="pile" data-take="${pile.shut || (pile.lock && c.id !== topId) ? "0" : "1"}"`, gapAt)
+      + held;
   }
   /** Окно стула по тапу на голову: кто, флаги (свой — кнопками), «не читать»; у крупье — его дела. */
   function tipHtml(s: Snapshot): string {
@@ -429,6 +456,9 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     frame = 0;
     const s = store.state;
     scene.setLasso(lassoOn(), local.grab);
+    // Окно стопки открыто — я с ней вожусь: остальные видят мою правую руку на ней.
+    const open = local.deckTip ? s.piles.find((p) => p.id === local.deckTip) : undefined;
+    if (!local.deckCarry) scene.setRestRight(open ? { x: open.x, y: open.y } : null);
     const html = lassoLayerHtml() + gripsHtml(s) + deckTipHtml(s) + tipHtml(s) + topHtml() + journalHtml() + bottomHtml(s) + dealHtml(s);
     if (html !== last) { last = html; root.innerHTML = html; }
     talk.place(anchors());
