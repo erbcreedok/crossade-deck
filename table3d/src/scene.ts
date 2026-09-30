@@ -14,6 +14,8 @@
 
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { CSS3DObject, CSS3DRenderer } from "three/addons/renderers/CSS3DRenderer.js";
+import type { PanelWorld, WorldPlace } from "./panel.js";
 import type { Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
 import { CARRY_EVERY_MS } from "../../server/src/table/contract.js";
 import { awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, restHead, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
@@ -104,7 +106,7 @@ export interface SceneApi {
   setFigures(on: boolean): void;
   setLook(look: DeckLook): void;
   /** Головы сидящих на экране (для строк чата). */
-  heads(): { key: string; x: number; y: number; r: number; ink: string }[];
+  heads(): { key: string; x: number; y: number; r: number; ink: string; wx: number; wy: number }[];
   pickAt(x: number, y: number): { t: "card"; id: string } | { t: "who"; key: string } | null;
   /** Стопки на экране: где и сколько. */
   pileSpots(): { pile: string; count: number; x: number; y: number; cardPx: number }[];
@@ -131,7 +133,12 @@ export interface SceneApi {
   heldZone(): { pile: string; i: number; id: string; spot: { x: number; y: number; w: number; angle: number } } | null;
   /** Правая рука без карты — на чём она (остальные видят руку на стопке, пока с ней возятся); `null` — без дела. */
   setRestRight(at: { x: number; y: number } | null): void;
+  /** Панели HUD на столе — слой CSS3D (`panel.ts`); и сам слой: нажатия по панелям ловит HUD. */
+  panels: Pick<PanelWorld, "place3d" | "local3d">;
+  panelLayer(): HTMLElement;
 }
+/** Сколько точек панели в единице стола, когда она стоит на столе. */
+const PANEL_PX = 60;
 
 export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -141,6 +148,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.setClearColor(0x0a1511);
   host.append(renderer.domElement);
+  // ПАНЕЛИ НА СТОЛЕ — слой CSS3D поверх холста: живые окна HUD в пространстве сцены, той же камерой.
+  const css = new CSS3DRenderer();
+  Object.assign(css.domElement.style, { position: "absolute", inset: "0", pointerEvents: "none" });
+  host.append(css.domElement);
+  const cssScene = new THREE.Scene();
+  const panel3d = new Map<HTMLElement, { obj: CSS3DObject; at: WorldPlace }>();
   Object.assign(renderer.domElement.style, { width: "100%", height: "100%", display: "block", touchAction: "none" });
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x0a1511, 30, 70);
@@ -543,6 +556,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     armPose();
     renderer.render(scene, camera);
+    // Панели «лицом к камере» — повёрнуты, как камера; остальные стоят, как поставлены.
+    for (const { obj, at } of panel3d.values()) if (at.tilt === "camera") obj.quaternion.copy(camera.quaternion);
+    css.setSize(w, h);
+    css.render(cssScene, camera);
     for (const f of frameHeard) f();
     host.dataset.cards = String(cards.size);
     host.dataset.felt = String(store.state.felt.length);
@@ -794,7 +811,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setLook(l) { look = l; layout(store.state); },
     heads: () => [...poses.values()].map((pose) => {
       const c = project(V(pose.head)), edge = project(V(pose.head).add(new THREE.Vector3(0, 1, 0)));
-      return { key: pose.by, x: c.x, y: c.y, r: Math.hypot(edge.x - c.x, edge.y - c.y), ink: pose.ink };
+      return { key: pose.by, x: c.x, y: c.y, r: Math.hypot(edge.x - c.x, edge.y - c.y), ink: pose.ink, wx: pose.head.x, wy: pose.head.y };
     }),
     pickAt(x, y) {
       // Голова — первой: веер в его руке висит у самого лица и перекрывал бы её.
@@ -831,6 +848,33 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     aim: (x, y, skipPile) => aim(x, y, skipPile),
     setZone(fn) { zoneFn = fn; },
     heldZone: () => (drag?.moved && drag.zone && drag.spot ? { ...drag.zone, id: drag.id, spot: drag.spot } : null),
+    panels: {
+      place3d(el, at) {
+        let one = panel3d.get(el);
+        if (!at) { if (one) { cssScene.remove(one.obj); panel3d.delete(el); } draw(); return; }
+        if (!one) { one = { obj: new CSS3DObject(el), at }; panel3d.set(el, one); cssScene.add(one.obj); }
+        one.at = at;
+        const o = one.obj, a = (myChair()?.angle ?? 0) * DEG, hu = at.h / PANEL_PX;
+        o.scale.setScalar(1 / PANEL_PX);
+        if (at.tilt === "flat") { o.position.set(at.x, 0.05, at.y); o.rotation.set(-Math.PI / 2, a, 0, "YXZ"); }
+        else if (at.tilt === "stand") { o.position.set(at.x, hu / 2 + 0.02, at.y); o.rotation.set(0, a, 0, "YXZ"); }
+        else { o.position.set(at.x, hu / 2 + 0.6, at.y); o.quaternion.copy(camera.quaternion); }
+        draw();
+      },
+      local3d(el, x, y) {
+        const one = panel3d.get(el);
+        if (!one) return null;
+        const o = one.obj;
+        o.updateMatrixWorld();
+        const n = new THREE.Vector3(0, 0, 1).applyQuaternion(o.getWorldQuaternion(new THREE.Quaternion()));
+        ray.setFromCamera(ndc({ clientX: x, clientY: y }), camera);
+        const hit = ray.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(n, o.getWorldPosition(new THREE.Vector3())), new THREE.Vector3());
+        if (!hit) return null;
+        const l = o.worldToLocal(hit);
+        return { x: l.x + one.at.w / 2, y: one.at.h / 2 - l.y };
+      },
+    },
+    panelLayer: () => css.domElement,
     setRestRight(at) {
       if (JSON.stringify(at) === JSON.stringify(restRight)) return;
       restRight = at;

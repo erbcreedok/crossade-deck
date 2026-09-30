@@ -29,6 +29,7 @@ import { HOST } from "../../server/table-client/host.js";
 import type { TableStore } from "../../server/table-client/store.js";
 import type { Geom } from "../../server/table-client/screenConst.js";
 import type { SceneApi } from "./scene.js";
+import { mountPanels } from "./panel.js";
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 /** Секции бара — как у стола: поза, порядок и диалог живут не в баре. */
@@ -59,7 +60,9 @@ const CSS = `
 @font-face { font-family: Tiny5; src: url(${HOST}/table/fonts/tiny5-latin.woff2) format("woff2"); unicode-range: U+0000-00FF, U+2000-206F, U+2191, U+2193, U+2212; }
 #hud { position: fixed; inset: 0; pointer-events: none; font: 400 13px Tiny5, monospace; color: ${T.ink}; }
 #hud button, #hud [role=button], #hud [data-hand-menu], #hud [data-g=journal], #hud [data-g=tip], #hud [data-g=deck-tip], #hud [data-deal-panel], #hud [data-confirm], #hud [data-lasso-layer], #hud [data-tip-card] { pointer-events: auto; }
-#hud [data-tip-card] { touch-action: none; cursor: grab; }
+#hud [data-tip-card], [data-panel] [data-tip-card] { touch-action: none; cursor: grab; }
+[data-panel] { font: 400 13px Tiny5, monospace; color: ${T.ink}; user-select: none; -webkit-user-select: none; }
+#panels { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
 #hud button { font: inherit; }
 `;
 
@@ -128,6 +131,12 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   });
   let myStickers: string[] = [];
   let lastGripTap = 0;
+  // Окна вещей — панели (`panel.ts`): свой слой поверх экрана и слой CSS3D сцены для тех, что на столе.
+  const panelOverlay = document.createElement("div");
+  panelOverlay.id = "panels";
+  document.body.append(panelOverlay);
+  const panels = mountPanels(panelOverlay, { ...scene.panels, feltAt: scene.feltAt, glass: scene.glass }, () => draw());
+  let shown: string[] = [];
   store.onStickers((ids) => { myStickers = ids; talk.refresh(); });
 
   // ——— где что на стекле — как у стола ———
@@ -328,79 +337,46 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     return `<button ${may ? data : `${data.replace(/^data-([a-z-]+)/, "data-$1-status")} disabled`} aria-label="${label}" aria-pressed="${on}" style="width:26px;height:26px;border:0;padding:0;border-radius:7px;cursor:${may ? "pointer" : "default"};${may ? "" : `opacity:${on ? 0.8 : 0.4};`}display:flex;align-items:center;justify-content:center;${lookOf}">`
       + `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="${on ? T.black : "white"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></button>`;
   }
+  /** Рамка окна — как у окон стола: колодец, кант дерева. Рисуется первым слоем панели. */
+  const shell = `<div style="position:absolute;inset:0;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px"></div>`;
+  /** Окно стопки в своих точках: размер, веер (места карт на `n` мест). */
+  function pileLayout(pile: Snapshot["piles"][number]) {
+    const g = glass(), w = Math.min(g.w - 24, 340), cw = 44, room = w - 24 - cw, drop = fanDrop(pile.cards.length + 1, cw, room);
+    const rowTop = 12 + 38 + 30, h = rowTop + cw * 1.4 + drop + 16;
+    const slots = (n: number) => handPlan({ fan: true, shrink: false, tuck: false }, n, 1, 1.4, room / cw).map((p) => ({ x: w / 2 + p.x * cw, y: rowTop + p.y * cw + (cw * 1.4) / 2, angle: p.angle }));
+    return { w, h, cw, room, rowTop, slots };
+  }
+  // ОКНО СТОПКИ — ЗОНА ДЛЯ НЕСОМОЙ КАРТЫ: палец над окном — карта встаёт в щель веера и ляжет в стопку на это место.
+  // Точка окна — от панели (`panel.ts`): у экранной — по экрану, у столовой — лучом в её плоскость.
+  scene.setZone((x, y) => {
+    const pile = store.state.piles.find((p) => p.id === local.deckTip);
+    if (!pile || pile.lock || pile.shut) return null;
+    const q = panels.local(`pile:${pile.id}`, x, y);
+    if (!q) return null;
+    const L = pileLayout(pile);
+    const i = L.slots(pile.cards.length).filter((sl) => sl.x < q.x).length, sl = L.slots(pile.cards.length + 1)[i]!;
+    return { where: { in: "deck", pile: pile.id, i }, spot: { x: sl.x, y: sl.y - L.cw * 0.35, w: L.cw, angle: sl.angle } };
+  });
   /**
    * ОКНО СТОПКИ — стопка картами, как у стола: какой стороной лежит, такой и видно; карту тянут из окна. Кнопки —
    * перемешать, отсортировать, перевернуть; пин, лок, приёмка, склейка и вечность — значками (что нельзя — погашено).
    */
-  /** Где окно стопки и его веер: одно на рисование и на прицел несомой карты. `n` — сколько мест в веере. */
-  /**
-   * ГДЕ ОКНО СТОПКИ И ЕГО ВЕЕР — одно на рисование и на прицел несомой карты. Два независимых выбора (помнит устройство):
-   *   размер  «по экрану» — окно своего размера, зум его не меняет;
-   *           «по стопке» — окно растёт и мельчает вместе со стопкой на экране (зум меняет его масштаб: во сколько раз
-   *           стопка стала крупнее или мельче с тех пор, как окно открыли);
-   *   место   «у стопки» — окно прибито к стопке, едет за ней с камерой;
-   *           «свободно» — стоит на той точке экрана, где открылось, камера его не двигает; переносится за заголовок.
-   * Всё внутри считается без масштаба; `k` и точка `o` переводят в экран: экран = o + (точка − o)·k.
-   */
-  function tipLayout(s: Snapshot) {
+  function pilePanel(s: Snapshot): void {
     const pile = s.piles.find((p) => p.id === local.deckTip), spot = scene.pileSpots().find((p) => p.pile === local.deckTip);
-    if (!pile || !spot) return null;
-    const g = glass(), w = Math.min(g.w - 24, 340);
-    const cw = 44, room = w - 24 - cw, drop = fanDrop(pile.cards.length + 1, cw, room), h = 12 + 38 + 30 + cw * 1.4 + drop + 16;
-    // Размер — от стопки на экране в миг открытия окна.
-    if (tipOpenedPx === null) tipOpenedPx = spot.cardPx;
-    const k = tipSize === "stack" ? Math.max(0.25, Math.min(5, spot.cardPx / Math.max(1, tipOpenedPx))) : 1;
-    // У стопки — под ней (по экрану ещё и прижато к краям кадра); свободно — где стоит.
-    const near = { left: Math.round(spot.x - w / 2), top: Math.round(spot.y + 36) };
-    const fit = { left: Math.round(Math.max(12, Math.min(g.w - w - 12, near.left))), top: Math.round(Math.min(g.h - h - 8, near.top)) };
-    let at = tipSize === "screen" ? fit : near;
-    if (tipPlace === "free") { at = tipAt(pile.id) ?? at; if (!tipAt(pile.id)) saveTipAt(pile.id, at); }
-    const { left, top } = at;
-    const o = tipPlace === "free" ? { x: left + w / 2, y: top } : { x: spot.x, y: spot.y + 36 };
-    const rowTop = top + 12 + 38 + 30, mid = left + w / 2;
-    const slots = (n: number) => handPlan({ fan: true, shrink: false, tuck: false }, n, 1, 1.4, room / cw).map((p) => ({ x: mid + p.x * cw, y: rowTop + p.y * cw + (cw * 1.4) / 2, angle: p.angle }));
-    const toScreen = (q: { x: number; y: number }) => ({ x: o.x + (q.x - o.x) * k, y: o.y + (q.y - o.y) * k });
-    const fromScreen = (q: { x: number; y: number }) => ({ x: o.x + (q.x - o.x) / k, y: o.y + (q.y - o.y) / k });
-    return { pile, left, top, w, h, cw, room, rowTop, mid, slots, k, o, toScreen, fromScreen };
-  }
-  const readStored = <T,>(key: string, or: T): T => { try { const v = localStorage.getItem(key); return v === null ? or : (JSON.parse(v) as T); } catch { return or; } };
-  const writeStored = (key: string, v: unknown) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* нет хранилища — живёт, пока открыта вкладка */ } };
-  let tipSize: "screen" | "stack" = readStored<string>("table3d.tipSize", "screen") === "stack" ? "stack" : "screen";
-  let tipPlace: "stack" | "free" = readStored<string>("table3d.tipPlace", "stack") === "free" ? "free" : "stack";
-  let tipOpenedPx: number | null = null;
-  const tipAts: Record<string, { left: number; top: number }> = readStored("table3d.tipAt", {});
-  const tipAt = (pile: string) => tipAts[pile] ?? null;
-  const saveTipAt = (pile: string, at: { left: number; top: number } | null) => { if (at) tipAts[pile] = at; else delete tipAts[pile]; writeStored("table3d.tipAt", tipAts); };
-  // ОКНО СТОПКИ — ЗОНА ДЛЯ НЕСОМОЙ КАРТЫ: палец над окном — карта встаёт в щель веера и ляжет в стопку на это место.
-  scene.setZone((x, y) => {
-    const L = tipLayout(store.state);
-    if (!L) return null;
-    const q = L.fromScreen({ x, y });
-    if (L.pile.lock || L.pile.shut || q.x < L.left || q.x > L.left + L.w || q.y < L.top || q.y > L.top + L.h) return null;
-    const i = L.slots(L.pile.cards.length).filter((sl) => sl.x < q.x).length, sl = L.slots(L.pile.cards.length + 1)[i]!;
-    const on = L.toScreen({ x: sl.x, y: sl.y - L.cw * 0.35 });
-    return { where: { in: "deck", pile: L.pile.id, i }, spot: { x: on.x, y: on.y, w: L.cw * L.k, angle: sl.angle } };
-  });
-  function deckTipHtml(s: Snapshot): string {
-    const L = tipLayout(s);
-    if (!L) { local.deckTip = null; return ""; }
-    const { pile, left, w, h, top, cw, room, k, o } = L;
+    if (!pile || !spot) { local.deckTip = null; return; }
+    const { w, h, cw, room, rowTop } = pileLayout(pile);
     const zone = scene.heldZone();
     const gapAt = zone && zone.pile === pile.id ? zone.i : null;
     // Несомая над окном — сама карта в щели, выше соседей, поверх окна.
     const held = zone && zone.pile === pile.id ? (() => {
       const all = [...s.felt, ...s.piles.flatMap((p) => p.cards), ...s.chairs.flatMap((c) => c.hand)], c = all.find((x) => x.id === zone.id);
-      const face = c && (s.chairs.some((ch) => ch.hand.includes(c)) ? c.face : c.up ? c.face : undefined), hw = cw * 1.15, at = L.fromScreen(zone.spot);
-      return `<div data-g="tip-held" data-card="${zone.id}" style="position:absolute;left:${Math.round(at.x - hw / 2)}px;top:${Math.round(at.y - (hw * 1.4) / 2)}px;width:${Math.round(hw)}px;height:${Math.round(hw * 1.4)}px;transform:rotate(${zone.spot.angle}deg);z-index:90;pointer-events:none;filter:drop-shadow(0 6px 0 rgba(11,7,4,.45))">${cardImg(s, face, hw)}</div>`;
+      const face = c && (s.chairs.some((ch) => ch.hand.includes(c)) ? c.face : c.up ? c.face : undefined), hw = cw * 1.15;
+      return `<div data-g="tip-held" data-card="${zone.id}" style="position:absolute;left:${Math.round(zone.spot.x - hw / 2)}px;top:${Math.round(zone.spot.y - (hw * 1.4) / 2)}px;width:${Math.round(hw)}px;height:${Math.round(hw * 1.4)}px;transform:rotate(${zone.spot.angle}deg);z-index:90;pointer-events:none;filter:drop-shadow(0 6px 0 rgba(11,7,4,.45))">${cardImg(s, face, hw)}</div>`;
     })() : "";
     const admin = s.rights.includes("pile.guard"), topId = pile.cards.at(-1)?.id;
     const acts: [string, string, string][] = [["shuffle", GLYPH.shuffle, "Перемешать"], ["sort", GLYPH.suit, "Отсортировать"], ["flip", GLYPH.reverse, "Перевернуть"]];
-    // Всё окно — в одной обёртке с масштабом (у «к стопке» он от размера стопки на экране, у прочих — 1).
-    return `<div data-g="deck-tip-frame" data-size="${tipSize}" data-place="${tipPlace}" data-k="${k.toFixed(3)}" style="position:absolute;left:0;top:0;width:0;height:0;transform-origin:${o.x}px ${o.y}px;transform:scale(${k.toFixed(4)});z-index:40">`
-      + `<div data-g="deck-tip" data-pile="${pile.id}" data-lock="${pile.lock}" style="position:absolute;left:${left}px;top:${top}px;width:${w}px;height:${h}px;box-sizing:border-box;z-index:40;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
-      + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px"><span data-tip-drag style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1;min-width:0;overflow:hidden;white-space:nowrap;align-self:stretch;display:flex;align-items:center;touch-action:none;cursor:${tipPlace === "free" ? "move" : "default"}">${esc(pile.name ?? "Колода")} · ${pile.cards.length}</span>`
-      + `<span data-tip-size role="button" title="Размер окна: по экрану (зум не меняет) или по стопке (растёт и мельчает вместе с ней)" style="cursor:pointer;font:400 10px Tiny5,monospace;border-radius:8px;padding:6px 6px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.gold};white-space:nowrap">${tipSize === "stack" ? "размер: стопки" : "размер: экран"}</span>`
-      + `<span data-tip-place role="button" title="Место окна: у стопки (едет за ней) или свободно (стоит, где открылось; переносится за заголовок)" style="cursor:pointer;font:400 10px Tiny5,monospace;border-radius:8px;padding:6px 6px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.gold};white-space:nowrap">${tipPlace === "free" ? "место: своё" : "место: у стопки"}</span>`
+    const html = shell + `<div data-g="deck-tip" data-pile="${pile.id}" data-lock="${pile.lock}" style="position:absolute;left:0;top:0;width:${w}px;height:${h}px;box-sizing:border-box;padding:12px">`
+      + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px"><span data-panel-drag data-tip-drag style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1;min-width:0;overflow:hidden;white-space:nowrap;align-self:stretch;display:flex;align-items:center;touch-action:none;cursor:move">${esc(pile.name ?? "Колода")} · ${pile.cards.length}</span>`
       + `<span data-deck-shut role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`
       + `<div style="display:flex;align-items:center;gap:4px;height:26px">`
       + acts.map(([how, glyph, label]) => deckChip(`data-deck-do="${how}"`, glyph, label, false, !pile.lock)).join("")
@@ -410,15 +386,19 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       + deckChip("data-deck-accept", GLYPH.shut, "Приёмка закрыта", pile.shut, admin)
       + deckChip("data-deck-seal", GLYPH.seal, "Мерж закрыт", pile.seal, admin)
       + deckChip("data-deck-forever", GLYPH.forever, "Вечная", pile.forever) + `</div></div>`
-      + fanHtml(s, pile.cards, (c) => (c.up ? c.face : undefined), left + w / 2, top + 12 + 38 + 30, cw, room, 42, (c) => `data-from="pile" data-take="${pile.shut || (pile.lock && c.id !== topId) ? "0" : "1"}"`, gapAt)
-      + held + `</div>`;
+      + fanHtml(s, pile.cards, (c) => (c.up ? c.face : undefined), w / 2, rowTop, cw, room, 42, (c) => `data-from="pile" data-take="${pile.shut || (pile.lock && c.id !== topId) ? "0" : "1"}"`, gapAt)
+      + held;
+    // На столе — на полпути от стопки к середине, ближе ко мне: целиком в кадре.
+    const a = ((myChair(s)?.angle ?? 0) * Math.PI) / 180, toward = { x: Math.sin(a), y: Math.cos(a) };
+    panels.show(`pile:${pile.id}`, "pile", html, w, h, { screen: { x: spot.x, y: spot.y }, world: { x: pile.x * 0.5 + toward.x * 1.5, y: pile.y * 0.5 + toward.y * 1.5 } });
+    shown.push(`pile:${pile.id}`);
   }
-  /** Окно стула по тапу на голову: кто, флаги (свой — кнопками), «не читать»; у крупье — его дела. */
-  function tipHtml(s: Snapshot): string {
+  /** Окно стула по тапу на голову: кто, флаги (свой — кнопками), «не читать», его рука; у крупье — его дела. */
+  function chairPanel(s: Snapshot): void {
     const chair = s.chairs.find((c) => c.id === local.tip);
-    if (!chair) return "";
+    if (!chair) return;
     const sitter = s.people.find((p) => p.key === chair.owner), head = scene.heads().find((h) => h.key === chair.owner);
-    const g = glass(), w = Math.min(g.w - 24, 320), left = Math.round(Math.max(12, Math.min(g.w - w - 12, (head?.x ?? g.w / 2) - w / 2))), top = Math.round(Math.max(64, (head?.y ?? 120) + (head?.r ?? 20) + 8));
+    const g = glass(), w = Math.min(g.w - 24, 320);
     const may = chair.id === myChair(s)?.id || s.rights.includes("table.seats") || s.admin === me();
     const chip = (flag: ChairFlag) => {
       const on = chair[flag], lookOf = on ? `${gold};box-shadow:inset 0 0 0 2px ${T.black};` : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};`;
@@ -427,9 +407,9 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         : `<span data-status="${flag}" style="width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;opacity:${on ? 1 : 0.45};${lookOf}">${icon.replace(/width="16" height="16"/, 'width="12" height="12"')}</span>`;
     };
     const who = sitter
-      ? `<span style="flex:none;width:30px;height:30px;border-radius:50%;background:${sitter.ink};box-shadow:inset 0 0 0 3px ${T.black};display:flex;align-items:center;justify-content:center;font:400 14px Tiny5,monospace;color:${T.black}">${esc([...sitter.name][0] ?? "?")}</span><span style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(sitter.name)}</span>`
+      ? `<span style="flex:none;width:30px;height:30px;border-radius:50%;background:${sitter.ink};box-shadow:inset 0 0 0 3px ${T.black};display:flex;align-items:center;justify-content:center;font:400 14px Tiny5,monospace;color:${T.black}">${esc([...sitter.name][0] ?? "?")}</span><span data-panel-drag style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;align-self:stretch;display:flex;align-items:center;touch-action:none;cursor:move">${esc(sitter.name)}</span>`
         + (sitter.key !== me() ? `<span data-mute="${esc(sitter.key)}" role="button" aria-pressed="${muted.has(sitter.key)}" style="cursor:pointer;flex:none;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 8px;${muted.has(sitter.key) ? `${gold};color:${T.black}` : `box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}`}">${muted.has(sitter.key) ? "Читать" : "Не читать"}</span>` : "")
-      : `<span style="font:400 14px Tiny5,monospace;color:${T.inkDim};flex:1">Пустой стул</span>`;
+      : `<span data-panel-drag style="font:400 14px Tiny5,monospace;color:${T.inkDim};flex:1;touch-action:none;cursor:move">Пустой стул</span>`;
     const admin = s.rights.includes("table.croupier");
     // Дела крупье: набора комнаты — и свои дела экрана распорядителю (раздать, перемешать, ещё стул, перевернуть руку).
     const crew = chair.croupier ? [
@@ -437,13 +417,17 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       ...(admin ? [{ data: `data-croupier="deal"`, name: "Раздать" }, { data: `data-croupier="shuffle"`, name: "Перемешать" }, { data: `data-chair-act="add"`, name: "Ещё стул" }, { data: `data-flip-chair="${chair.id}"`, name: "Перевернуть руку" }] : []),
     ] : [];
     const cw = 40, room = w - 24 - cw, fan = chair.hand.length ? fanDrop(chair.hand.length, cw, room) + cw * 1.4 + 10 : 0;
-    return `<div data-g="tip" data-tip="${chair.id}" style="position:absolute;left:${left}px;top:${top}px;width:${w}px;box-sizing:border-box;z-index:40;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:12px">`
+    const crewRows = crew.length ? Math.ceil(crew.length / 3) * 38 + 10 : 0, h = 12 + 38 + 30 + fan + crewRows + 12;
+    const html = shell + `<div data-g="tip" data-tip="${chair.id}" style="position:absolute;left:0;top:0;width:${w}px;box-sizing:border-box;padding:12px">`
       + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px">${who}<button data-tip-close style="flex:none;width:30px;height:30px;border:0;border-radius:8px;cursor:pointer;background:transparent;color:${T.inkDim};box-shadow:inset 0 0 0 2px ${T.wood}">✕</button></div>`
       + `<div style="display:flex;gap:6px;align-items:center">${RIGHTS.map(chip).join("")}<span style="font:400 11px Tiny5,monospace;color:${T.inkDim};margin-left:4px">${chair.hand.length} в руке</span></div>`
       + (fan ? `<div style="height:${Math.round(fan)}px"></div>` : "")
       + (crew.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:10px">${crew.map((one) => `<button ${one.data} style="border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:8px 10px;background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim};color:${T.ink}">${esc(one.name)}</button>`).join("")}</div>` : "")
       + `</div>`
-      + (fan ? fanHtml(s, chair.hand, (c) => c.face, left + w / 2, top + 12 + 38 + 30 + 8, cw, room, 42, () => `data-from="hand" data-take="1"`) : "");
+      + (fan ? fanHtml(s, chair.hand, (c) => c.face, w / 2, 12 + 38 + 30 + 8, cw, room, 42, () => `data-from="hand" data-take="1"`) : "");
+    const wx = head ? head.wx * 0.7 : 0, wy = head ? head.wy * 0.7 : 0;
+    panels.show(`chair:${chair.id}`, "chair", html, w, h, { screen: { x: head?.x ?? g.w / 2, y: (head?.y ?? 84) + (head?.r ?? 20) - 28 }, world: { x: wx, y: wy } });
+    shown.push(`chair:${chair.id}`);
   }
   /** Окно раздачи — у распорядителя, из окна крупье. Какие раздачи — из контракта и рода стола. */
   function dealablePlayers(s: Snapshot, dir: DealDir): { chair: string; name: string; ink: string }[] {
@@ -495,7 +479,11 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     // Окно стопки открыто — я с ней вожусь: остальные видят мою правую руку на ней.
     const open = local.deckTip ? s.piles.find((p) => p.id === local.deckTip) : undefined;
     if (!local.deckCarry) scene.setRestRight(open ? { x: open.x, y: open.y } : null);
-    const html = lassoLayerHtml() + gripsHtml(s) + deckTipHtml(s) + tipHtml(s) + topHtml() + journalHtml() + bottomHtml(s) + dealHtml(s);
+    const html = lassoLayerHtml() + gripsHtml(s) + topHtml() + journalHtml() + bottomHtml(s) + dealHtml(s);
+    shown = [];
+    pilePanel(s);
+    chairPanel(s);
+    panels.keep(shown);
     if (html !== last) { last = html; root.innerHTML = html; }
     talk.place(anchors());
     root.dataset.open = local.section ?? "";
@@ -515,7 +503,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   new ResizeObserver(draw).observe(document.body);
 
   // ——— нажатия ———
-  root.addEventListener("click", (e) => {
+  const onClick = (e: MouseEvent): void => {
+    if (panels.click(e)) return;
     const t = e.target as HTMLElement, s = store.state, chair = myChair(s);
     const q = (sel: string) => t.closest<HTMLElement>(sel);
     let b: HTMLElement | null;
@@ -542,18 +531,6 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-journal]")) local.journal = !local.journal;
     else if ((b = q("[data-deck-do]")) && local.deckTip) store.send({ t: "deckDo", pile: local.deckTip, how: b.dataset.deckDo as "shuffle" | "sort" | "flip" });
     else if (q("[data-deck-shut]")) local.deckTip = null;
-    else if (q("[data-tip-size]")) {
-      tipSize = tipSize === "screen" ? "stack" : "screen";
-      writeStored("table3d.tipSize", tipSize);
-      // По стопке — от того, какая она сейчас: окно не прыгает при переключении.
-      tipOpenedPx = null;
-    }
-    else if (q("[data-tip-place]")) {
-      tipPlace = tipPlace === "stack" ? "free" : "stack";
-      writeStored("table3d.tipPlace", tipPlace);
-      // Свободно — там, где окно стоит сейчас.
-      if (tipPlace === "free" && local.deckTip) saveTipAt(local.deckTip, null);
-    }
     else if ((b = q("[data-deck-pin]")) && local.deckTip) { const p = s.piles.find((x) => x.id === local.deckTip); if (p) store.send({ t: "deckPin", pile: p.id, on: !p.pin }); }
     else if ((b = q("[data-deck-forever]")) && local.deckTip) { const p = s.piles.find((x) => x.id === local.deckTip); if (p) store.send({ t: "deckForever", pile: p.id, on: !p.forever }); }
     else if ((b = q("[data-deck-lock], [data-deck-accept], [data-deck-seal]")) && local.deckTip) {
@@ -586,7 +563,9 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-tip-close]")) local.tip = null;
     else return;
     draw();
-  });
+  };
+  // Нажатия — на HUD, на экранных панелях и на панелях на столе (слой CSS3D сцены).
+  for (const el of [root, panelOverlay, scene.panelLayer()]) el.addEventListener("click", onClick);
   function lassoAct(act: (typeof LASSO_ACTS)[number][0]): void {
     const s = store.state, ids = myPicks(s), chair = myChair(s);
     if (act === "cancel") { store.send({ t: "unpick" }); return; }
@@ -602,7 +581,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   }
 
   // Тянуть: ручку позы, компас, индикатор стопки, лассо. Тап без сдвига — их тап.
-  root.addEventListener("pointerdown", (e) => {
+  const onDown = (e: PointerEvent): void => {
+    if (panels.press(e)) return;
     const t = e.target as HTMLElement, chair = myChair();
     if (t.closest("[data-pose-handle]") && chair) {
       e.preventDefault();
@@ -649,7 +629,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         if (!moved) {
           const now = performance.now();
           if (now - lastGripTap < DOUBLE_TAP_MS) { lastGripTap = 0; const p = store.state.piles.find((x) => x.id === pile); if (p && !p.lock) store.send({ t: "deckDo", pile, how: "flip" }); }
-          else { lastGripTap = now; local.deckTip = local.deckTip === pile ? null : pile; tipOpenedPx = null; }
+          else { lastGripTap = now; local.deckTip = local.deckTip === pile ? null : pile; }
           draw();
           return;
         }
@@ -662,15 +642,6 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         scene.carryPile(pile, null);
         draw();
       });
-      return;
-    }
-    // «На месте» — окно переносят за заголовок; место запоминается.
-    const head = t.closest<HTMLElement>("[data-tip-drag]");
-    if (head && tipPlace === "free" && local.deckTip) {
-      e.preventDefault();
-      const pile = local.deckTip, from = tipAt(pile);
-      if (!from) return;
-      follow(e, (ev) => { saveTipAt(pile, { left: Math.round(from.left + ev.clientX - e.clientX), top: Math.round(from.top + ev.clientY - e.clientY) }); draw(); }, () => draw());
       return;
     }
     // Карта из окна (стопки, стула) — её несут, как со стола.
@@ -691,7 +662,9 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         draw();
       });
     }
-  });
+  };
+  for (const el of [root, panelOverlay, scene.panelLayer()]) el.addEventListener("pointerdown", onDown);
+
   function follow(e: PointerEvent, move: (ev: PointerEvent) => void, up: (ev: PointerEvent) => void): void {
     const m = (ev: PointerEvent) => { if (ev.pointerId === e.pointerId) move(ev); };
     const u = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) return; removeEventListener("pointermove", m); removeEventListener("pointerup", u); removeEventListener("pointercancel", u); up(ev); };
@@ -701,6 +674,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   }
   // Тап по голове на сцене — окно стула.
   stage.addEventListener("pointerup", (e) => {
+    if ((e.target as HTMLElement).closest("[data-panel]")) return;
     const hit = scene.pickAt(e.clientX, e.clientY);
     if (hit?.t !== "who") return;
     const chair = store.state.chairs.find((c) => c.owner === hit.key);
