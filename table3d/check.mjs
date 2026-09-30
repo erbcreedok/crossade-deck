@@ -192,10 +192,13 @@ try {
   // Окно колоды открыто — рука остальным на колоде, даже без карты.
   await p.click('[data-g="deck-grip"]');
   await frames();
+  check("окно колоды открыто, но я его не трогаю — рука не на колоде", (await t(() => window.__t3d.myArm())) === null && !(await t(() => window.__t3d.lastBody().right)), await t(() => window.__t3d.lastBody().right));
+  await p.hover('[data-g="deck-tip"]');
+  await frames();
   const restBody = await t(() => window.__t3d.lastBody());
-  check("окно колоды открыто — остальным моя рука на колоде (без карты)", restBody.right && Math.hypot(restBody.right.x - pileNow.x, restBody.right.y - pileNow.y) < 0.01, restBody.right);
+  check("работаю с окном колоды — остальным моя рука на колоде (без карты)", restBody.right && Math.hypot(restBody.right.x - pileNow.x, restBody.right.y - pileNow.y) < 0.01, restBody.right);
   const myArmPile = await t(() => window.__t3d.myArm());
-  check("окно колоды открыто — и мне видна моя правая рука на колоде, над её верхом", myArmPile && Math.hypot(myArmPile.x - pileNow.x, myArmPile.y - pileNow.y) < 0.01 && myArmPile.h > 0.15, myArmPile);
+  check("работаю с окном колоды — и мне видна моя правая рука на колоде, над её верхом", myArmPile && Math.hypot(myArmPile.x - pileNow.x, myArmPile.y - pileNow.y) < 0.01 && myArmPile.h > 0.15, myArmPile);
   // Над окном колоды — щель в веере, карта ложится на это место (не наверх).
   const handCard = (await my()).hand.at(-1).id;
   const tipBox = await p.locator('[data-g="deck-tip"]').boundingBox();
@@ -255,6 +258,8 @@ try {
   await p.mouse.click(alia2.head.x, alia2.head.y);
   await frames();
   check("тап по голове — окно стула: имя и флаги", (await p.locator('[data-g="tip"]').innerText().catch(() => "")).includes("Алия") && (await p.locator('[data-g="tip"] [data-status="lock"], [data-g="tip"] [data-flag="lock"]').count()) === 1, await p.locator('[data-g="tip"]').innerText().catch(() => ""));
+  await p.hover('[data-g="tip"]');
+  await frames();
   {
     const aliaHand = (await t(() => window.__t3d.bodies())).find((b) => b.by === "alia").left, mine = await t(() => window.__t3d.myArm()), sent = await t(() => window.__t3d.lastBody().right);
     check("окно чужого стула — моя правая рука у его левой руки (с веером): вижу я, видят остальные", mine && sent && Math.hypot(mine.x - aliaHand.x, mine.y - aliaHand.y) < 0.01 && Math.abs(mine.h - aliaHand.h) < 0.01 && Math.hypot(sent.x - aliaHand.x, sent.y - aliaHand.y) < 0.01, { mine, sent, aliaHand });

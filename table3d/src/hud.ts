@@ -82,6 +82,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     journal: false,
     poseDrag: null as null | { id: number; x0: number; y0: number; b0: PoseBlend; b: PoseBlend; moved: boolean },
     deckTip: null as string | null,
+    /** Палец или курсор сейчас в окне (стопки, чужого стула) — только тогда моя рука лежит на том, с чем вожусь. */
+    handOn: false,
     deckCarry: null as string | null,
     deal: null as null | { rule: DealRule; n: number; all: boolean; seats: string[]; from: string | null; dir: DealDir },
     tip: null as string | null,
@@ -476,10 +478,10 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     frame = 0;
     const s = store.state;
     scene.setLasso(lassoOn(), local.grab);
-    // Окно стопки открыто — я с ней вожусь: остальные видят мою правую руку на ней.
-    // Окно чужого стула открыто — моя правая рука у его левой руки (с веером).
-    const open = local.deckTip ? s.piles.find((p) => p.id === local.deckTip) : undefined;
-    const chairOpen = s.chairs.find((c) => c.id === local.tip && c.owner && c.owner !== me());
+    // Работаю с окном стопки — я с ней вожусь: моя правая рука на ней (и её видят остальные). Открыто, но не тронуто — рука свободна.
+    // Работаю с окном чужого стула — моя правая рука у его левой руки (с веером).
+    const open = local.handOn && local.deckTip ? s.piles.find((p) => p.id === local.deckTip) : undefined;
+    const chairOpen = local.handOn ? s.chairs.find((c) => c.id === local.tip && c.owner && c.owner !== me()) : undefined;
     if (!local.deckCarry) scene.setRestRight(open ? { x: open.x, y: open.y } : chairOpen ? scene.handOf(chairOpen.id) : null);
     const html = lassoLayerHtml() + gripsHtml(s) + topHtml() + journalHtml() + bottomHtml(s) + dealHtml(s);
     shown = [];
@@ -666,6 +668,16 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     }
   };
   for (const el of [root, panelOverlay, scene.panelLayer()]) el.addEventListener("pointerdown", onDown);
+  // Рука ложится на стопку или на руку соседа, пока работаю с окном, и через HAND_LINGER_MS после последнего касания уходит.
+  const HAND_LINGER_MS = 1200;
+  let handOff = 0;
+  const handTouch = (e: Event) => {
+    if (!(e.target as HTMLElement).closest("[data-panel]")) return;
+    window.clearTimeout(handOff);
+    handOff = window.setTimeout(() => { local.handOn = false; draw(); }, HAND_LINGER_MS);
+    if (!local.handOn) { local.handOn = true; draw(); }
+  };
+  for (const el of [panelOverlay, scene.panelLayer()]) for (const ev of ["pointerdown", "pointermove"]) el.addEventListener(ev, handTouch);
 
   function follow(e: PointerEvent, move: (ev: PointerEvent) => void, up: (ev: PointerEvent) => void): void {
     const m = (ev: PointerEvent) => { if (ev.pointerId === e.pointerId) move(ev); };
