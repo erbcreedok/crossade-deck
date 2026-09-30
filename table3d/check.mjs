@@ -645,6 +645,37 @@ try {
     check("dev: отпустил, пока был на экране Алии, — на моём экране не застряла тяга: карта легла там, где её держали", after2.held === null && after2.felt && after2.lock === null, after2);
   }
 
+  // ОКНО «ГЛАЗАМИ ДРУГОГО» (dev): по кнопке второй экран показывается рядом — вид неактивного игрока, его камерой и столом не управляю;
+  // выключил — скрыт. Tab меняет экраны местами: тот, что был окном, становится моим, мой — окном.
+  {
+    await p.goto(`${base}/?stand`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const aside = () => p.locator(".screen.aside").count();
+    const other = () => t(() => ({ me: window.__t3dScreens[1].me(), view: window.__t3dScreens[1].view() }));
+    const before = await aside();
+    await p.click("[data-dev-peek]:visible"); await p.waitForTimeout(800); await frames();
+    const box = await p.evaluate(() => { const e = document.querySelector(".screen.aside"), r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), events: getComputedStyle(e).pointerEvents, inner: innerWidth }; });
+    const o1 = await other();
+    check("окно глазами другого: по кнопке появилось рядом (≈38% экрана), сквозное для пальца, там Алия", before === 0 && (await aside()) === 1 && box.w > box.inner * 0.3 && box.w < box.inner * 0.5 && box.events === "none" && o1.me === "alia", { before, box, o1 });
+    // Мой экран крутится, окно — нет: чужой камерой не управляю.
+    const mineBefore = await t(() => window.__t3d.view());
+    await p.mouse.move(40, 330); await p.mouse.down(); await p.mouse.move(200, 330, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(400);
+    const mineAfter = await t(() => window.__t3d.view()), o2 = await other();
+    check("окно глазами другого: камера окна стоит на месте, когда кручу свой экран", Math.abs(mineAfter.yaw - mineBefore.yaw) > 5 && Math.abs(o2.view.yaw - o1.view.yaw) < 0.01, { mineBefore, mineAfter, o1: o1.view, o2: o2.view });
+    // Свайп прямо по окну не «попадает» в него: он идёт в мой экран (в окне нет ни рук, ни камеры).
+    const r = await p.evaluate(() => { const r = document.querySelector(".screen.aside").getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+    await p.mouse.move(r.x, r.y); await p.mouse.down(); await p.mouse.move(r.x - 60, r.y, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(300);
+    const o3 = await other();
+    check("окно глазами другого: жест по окну камеру окна не двигает", Math.abs(o3.view.yaw - o1.view.yaw) < 0.01, { o1: o1.view, o3: o3.view });
+    await p.keyboard.press("Tab"); await p.waitForTimeout(500);
+    const swapped = await t(() => ({ active: window.__t3d.me(), asideWho: document.querySelector(".screen.aside")?.dataset.who }));
+    check("окно глазами другого: Tab меняет экраны — управляю Алией, окном стал мой", swapped.active === "alia" && swapped.asideWho === "Ye", swapped);
+    await p.keyboard.press("Tab"); await p.waitForTimeout(400);
+    await p.click("[data-dev-peek]:visible"); await p.waitForTimeout(400);
+    check("окно глазами другого: кнопка ещё раз — окно скрыто", (await aside()) === 0, await aside());
+  }
+
   // МОЁ ТЕЛО: плечи, шея и рука на моём стуле, цвет — мой; кружок головы с именем — только когда камера ушла на другую сторону стола.
   {
     await p.goto(`${base}/?stand`);

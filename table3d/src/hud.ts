@@ -70,10 +70,11 @@ const CSS = `
 `;
 
 /**
- * `dev` — ТОЛЬКО ДЛЯ РАЗРАБОТКИ, есть лишь у стенда: экранов на странице два (мой и Алии), и кнопка `label` прыгает на другой.
+ * `dev` — ТОЛЬКО ДЛЯ РАЗРАБОТКИ, есть лишь у стенда: экранов на странице два (мой и Алии); `onSwitch` меняет их местами (управляю
+ * другим), `peek` — окно рядом с видом глазами другого: только смотреть.
  * `screen` — коробка этого экрана: всё, что HUD кладёт поверх страницы (окна, настройки), лежит в ней, а не в общей странице.
  */
-export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStore, scene: SceneApi, dev?: { label: string; onSwitch(): void }, screen: HTMLElement = document.body): void {
+export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStore, scene: SceneApi, dev?: { label: string; onSwitch(): void; peek: { label: string; on(): boolean; onToggle(): void } }, screen: HTMLElement = document.body): void {
   const style = document.createElement("style");
   style.textContent = CSS;
   document.head.append(style);
@@ -290,7 +291,10 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   /** ТОЛЬКО ДЛЯ РАЗРАБОТКИ (есть лишь у стенда): за кого я сижу; тап — стать другим игроком и обратно. */
   function devHtml(): string {
     if (!dev) return "";
-    return `<button data-dev-switch aria-label="Только для разработки: перейти на другой экран (клавиша Tab)" style="position:absolute;left:${RIM_LEFT}px;top:calc(60px + env(safe-area-inset-top, 0px));z-index:61;border:0;cursor:pointer;padding:6px 10px;border-radius:9px;font:400 11px Tiny5,monospace;color:${T.ink};background:${T.well};box-shadow:inset 0 0 0 2px ${store.me.ink},0 3px 0 rgba(11,7,4,.5);white-space:nowrap">DEV · ${esc(dev.label)} · Tab</button>`;
+    const chip = (attrs: string, top: number, aria: string, text: string, on = false) =>
+      `<button ${attrs} aria-label="${aria}" style="position:absolute;left:${RIM_LEFT}px;top:calc(${top}px + env(safe-area-inset-top, 0px));z-index:61;border:0;cursor:pointer;padding:6px 10px;border-radius:9px;font:400 11px Tiny5,monospace;color:${on ? T.black : T.ink};background:${on ? `linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo})` : T.well};box-shadow:inset 0 0 0 2px ${store.me.ink},0 3px 0 rgba(11,7,4,.5);white-space:nowrap">${text}</button>`;
+    return chip("data-dev-switch", 60, "Только для разработки: управлять другим экраном (клавиша Tab)", `DEV · ${esc(dev.label)} · Tab`)
+      + chip("data-dev-peek", 94, "Только для разработки: окно с видом глазами другого", `DEV · окно: ${esc(dev.peek.label)} ${dev.peek.on() ? "вкл" : "выкл"}`, dev.peek.on());
   }
   function topHtml(): string {
     const btn = (attrs: string, at: string, inner: string) => `<button ${attrs} style="position:absolute;${at};${TOP};width:40px;height:40px;border:0;padding:0;z-index:61;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">${inner}</button>`;
@@ -564,6 +568,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-settings]")) { if (settings.open) settings.hide(); else settings.show(); }
     else if (q("[data-journal]")) local.journal = !local.journal;
     else if (q("[data-dev-switch]")) dev?.onSwitch();
+    else if (q("[data-dev-peek]")) { dev?.peek.onToggle(); draw(); }
     else if ((b = q("[data-sit]"))) { store.send({ t: "sit", chair: b.dataset.sit! }); local.tip = null; }
     else if ((b = q("[data-deck-do]")) && local.deckTip) store.send({ t: "deckDo", pile: local.deckTip, how: b.dataset.deckDo as "shuffle" | "sort" | "flip" });
     else if (q("[data-deck-shut]")) local.deckTip = null;

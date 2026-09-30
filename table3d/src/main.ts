@@ -32,30 +32,44 @@ try {
     note.hidden = true;
     mountHud(box.hud, box.stage, store, mountScene(box.stage, store), undefined, box.screen);
   } else {
-    // СТЕНД: один стол и два стенда на странице — мой экран и экран Алии. Оба живут всё время; Tab (или кнопка DEV) прыгает между ними,
-    // и каждый помнит всё своё: камеру, окна, карту в пальце. Чей экран не на виду, тот только не рисуется поверх.
+    // СТЕНД: один стол и два стенда на странице — мой экран и экран Алии. Оба живут всё время; управляю тем, что на весь экран (Tab
+    // или кнопка DEV меняют их местами). Второй — либо скрыт, либо окном рядом: вид глазами другого, его камерой и столом не
+    // управляют — только смотреть (кнопка «окно»).
     const { localTable } = await import("../../server/table-client/localStore.js");
     const table = localTable({ freeChair: true });
-    const who = [{ key: "me", name: "Ye" }, { key: "alia", name: "Алия" }];
-    const screens = who.map((one, k) => {
-      const box = screenBox(k === 0), store = table.view(one.key), scene = mountScene(box.stage, store);
-      return { ...box, scene, mount: () => mountHud(box.hud, box.stage, store, scene, { label: `${one.name} → ${who[1 - k]!.name}`, onSwitch: () => show(1 - shown) }, box.screen) };
-    });
-    let shown = 0;
-    const show = (k: number): void => {
-      shown = k;
-      screens.forEach((one, i) => one.screen.classList.toggle("off", i !== k));
-      (window as unknown as { __t3d: unknown }).__t3d = screens[k]!.scene.test;
+    const who = [{ key: "me", name: "Ye", ink: "#f2c14e" }, { key: "alia", name: "Алия", ink: "#7fd1b9" }];
+    let shown = 0, peek = false;
+    const apply = (): void => {
+      screens.forEach((one, i) => {
+        one.screen.classList.toggle("aside", i !== shown && peek);
+        one.screen.classList.toggle("off", i !== shown && !peek);
+      });
+      (window as unknown as { __t3d: unknown }).__t3d = screens[shown]!.scene.test;
       (document.activeElement as HTMLElement | null)?.blur?.();
     };
+    const swap = (): void => { shown = 1 - shown; apply(); };
+    const screens = who.map((one, k) => {
+      const box = screenBox(k === 0), store = table.view(one.key), scene = mountScene(box.stage, store);
+      box.screen.dataset.who = one.name;
+      box.screen.style.setProperty("--who", one.ink);
+      const other = who[1 - k]!;
+      return {
+        ...box, scene,
+        mount: () => mountHud(box.hud, box.stage, store, scene, {
+          label: `${one.name} → ${other.name}`, onSwitch: swap,
+          peek: { label: other.name, on: () => peek, onToggle: () => { peek = !peek; apply(); } },
+        }, box.screen),
+      };
+    });
+    (window as unknown as { __t3dScreens: unknown }).__t3dScreens = screens.map((one) => one.scene.test);
     for (const one of screens) one.mount();
     note.hidden = true;
-    show(0);
+    apply();
     addEventListener("keydown", (e) => {
       if (e.key !== "Tab" || e.repeat) return;
       if ((e.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable]")) return;
       e.preventDefault();
-      show(1 - shown);
+      swap();
     });
   }
 } catch (e) {
