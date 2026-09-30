@@ -477,8 +477,10 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const s = store.state;
     scene.setLasso(lassoOn(), local.grab);
     // Окно стопки открыто — я с ней вожусь: остальные видят мою правую руку на ней.
+    // Окно чужого стула открыто — моя правая рука у его левой руки (с веером).
     const open = local.deckTip ? s.piles.find((p) => p.id === local.deckTip) : undefined;
-    if (!local.deckCarry) scene.setRestRight(open ? { x: open.x, y: open.y } : null);
+    const chairOpen = s.chairs.find((c) => c.id === local.tip && c.owner && c.owner !== me());
+    if (!local.deckCarry) scene.setRestRight(open ? { x: open.x, y: open.y } : chairOpen ? scene.handOf(chairOpen.id) : null);
     const html = lassoLayerHtml() + gripsHtml(s) + topHtml() + journalHtml() + bottomHtml(s) + dealHtml(s);
     shown = [];
     pilePanel(s);

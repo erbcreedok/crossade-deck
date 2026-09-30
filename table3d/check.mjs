@@ -194,6 +194,8 @@ try {
   await frames();
   const restBody = await t(() => window.__t3d.lastBody());
   check("окно колоды открыто — остальным моя рука на колоде (без карты)", restBody.right && Math.hypot(restBody.right.x - pileNow.x, restBody.right.y - pileNow.y) < 0.01, restBody.right);
+  const myArmPile = await t(() => window.__t3d.myArm());
+  check("окно колоды открыто — и мне видна моя правая рука на колоде, над её верхом", myArmPile && Math.hypot(myArmPile.x - pileNow.x, myArmPile.y - pileNow.y) < 0.01 && myArmPile.h > 0.15, myArmPile);
   // Над окном колоды — щель в веере, карта ложится на это место (не наверх).
   const handCard = (await my()).hand.at(-1).id;
   const tipBox = await p.locator('[data-g="deck-tip"]').boundingBox();
@@ -253,6 +255,10 @@ try {
   await p.mouse.click(alia2.head.x, alia2.head.y);
   await frames();
   check("тап по голове — окно стула: имя и флаги", (await p.locator('[data-g="tip"]').innerText().catch(() => "")).includes("Алия") && (await p.locator('[data-g="tip"] [data-status="lock"], [data-g="tip"] [data-flag="lock"]').count()) === 1, await p.locator('[data-g="tip"]').innerText().catch(() => ""));
+  {
+    const aliaHand = (await t(() => window.__t3d.bodies())).find((b) => b.by === "alia").left, mine = await t(() => window.__t3d.myArm()), sent = await t(() => window.__t3d.lastBody().right);
+    check("окно чужого стула — моя правая рука у его левой руки (с веером): вижу я, видят остальные", mine && sent && Math.hypot(mine.x - aliaHand.x, mine.y - aliaHand.y) < 0.01 && Math.abs(mine.h - aliaHand.h) < 0.01 && Math.hypot(sent.x - aliaHand.x, sent.y - aliaHand.y) < 0.01, { mine, sent, aliaHand });
+  }
   if (shot) await p.screenshot({ path: shot.replace(/\.png$/, "-hud.png") });
 
   {
@@ -383,6 +389,18 @@ try {
     await flat.waitForFunction((id) => globalThis.__tableState?.().felt.some((c) => c.id === id), top, { timeout: 5000 }).catch(() => {});
     const seenFlat = await flat.evaluate((id) => !!globalThis.__tableState?.().felt.some((c) => c.id === id), top);
     check("по сети: карта из стопки на сукно в 3D — на сукне у стола, и сосед в 2D её видит", onFelt && seenFlat, { onFelt, seenFlat });
+    // Второй игрок в 3D: я открываю окно колоды — у него моя правая рука на колоде, через весь стол.
+    const q = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await q.goto(`${base}/?room=${room}&host=${encodeURIComponent(net.table)}&name=Вика`);
+    await q.waitForFunction(() => window.__t3d && window.__t3d.state().piles.length > 0, null, { timeout: 15000 });
+    const erzh = await t(() => window.__t3d.me());
+    await p.click("[data-home]");
+    await p.click('[data-g="deck-grip"]');
+    const pileAt = await t(() => window.__t3d.state().piles[0]);
+    await q.waitForFunction(([k, x, y]) => window.__t3d.bodies().some((b) => b.by === k && b.right && Math.hypot(b.right.x - x, b.right.y - y) < 0.01), [erzh, pileAt.x, pileAt.y], { timeout: 5000 }).catch(() => {});
+    const seen = await q.evaluate((k) => window.__t3d.bodies().find((b) => b.by === k), erzh);
+    check("по сети: открыл окно колоды — второй игрок в 3D видит мою правую руку на колоде", !!seen?.right && Math.hypot(seen.right.x - pileAt.x, seen.right.y - pileAt.y) < 0.01, seen);
+    await q.close();
     if (shot) await p.screenshot({ path: shot.replace(/\.png$/, "-net.png") });
     await flat.close();
   }
