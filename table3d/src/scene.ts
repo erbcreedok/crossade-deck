@@ -647,6 +647,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     placeTabs();
     placeBodies();
     if (placeChairs(dt)) moving = true;
+    placeMyBody();
     // Своя рука у глаза — вторым проходом поверх всего: борт стола, подошедший к камере вплотную, её не закрывает.
     camera.layers.set(0);
     renderer.render(scene, camera);
@@ -733,6 +734,39 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       t.mesh.scale.setScalar(k);
     }
     for (const [id, t] of tabs) if (!seen.has(id)) { scene.remove(t.mesh); (t.mesh.material as THREE.Material).dispose(); t.tex.dispose(); tabs.delete(id); }
+  }
+
+  // ——— моё тело: то же, что видят другие; голова — камера, поэтому кружок с именем только когда камера ушла на другую сторону стола ———
+  const myBody = new THREE.Group();
+  scene.add(myBody);
+  let myBodySig = "", myHead = { shown: false, s: { x: 0, y: 0, h: 0 } };
+  /** Тело на моём стуле — плечи, шея, левая рука — от моей камеры; правую рисует `armPose`. Пересобирается, когда что-то сдвинулось. */
+  function placeMyBody(): void {
+    const ch = myChair(), who = store.state.people.find((p) => p.key === store.me.key);
+    myBody.visible = heads.visible;
+    if (!ch || !who || !heads.visible) { if (myBodySig) myBody.clear(); myBodySig = ""; return; }
+    const f = camera.getWorldDirection(new THREE.Vector3()), yaw = Math.atan2(f.x, -f.z) / DEG, c = camera.position;
+    const sig = [ch.angle, stanceNow(), who.ink, who.name, c.x.toFixed(3), c.y.toFixed(3), c.z.toFixed(3), yaw.toFixed(2)].join("|");
+    if (sig === myBodySig) return;
+    myBodySig = sig;
+    myBody.clear();
+    const sh = shoulders3(ch.angle, stanceNow()), head = headOf(sh, { x: c.x, y: c.z, h: c.y }, 0, yaw), left = leftHandOf(head, yaw), away = awayOf(sh, yaw);
+    const mat = inkOf(who.ink), S = V(sh), H = V(head), L = V(left), base = V({ ...sh, h: -7 });
+    const r = Math.hypot(sh.x, sh.y) || 1, rightDir = new THREE.Vector3(sh.y / r, 0, -sh.x / r);
+    const shL = S.clone().addScaledVector(rightDir, -DOLL.bar), shR = S.clone().addScaledVector(rightDir, DOLL.bar);
+    myBody.add(stick(base, S, DOLL.spine, mat), stick(shL, shR, DOLL.spine, mat), ball(shL, DOLL.spine, mat), ball(shR, DOLL.spine, mat));
+    if (away) {
+      // Камера ушла на другую сторону стола — голова с ней: ниточка к ней и кружок с именем, как у других.
+      const tether = new THREE.Line(new THREE.BufferGeometry().setFromPoints([S, H]), new THREE.LineDashedMaterial({ color: who.ink, dashSize: 0.35, gapSize: 0.3, transparent: true, opacity: 0.6 }));
+      tether.computeLineDistances();
+      myBody.add(tether);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: headTex(who.name, who.ink) }));
+      sprite.scale.set(2, 2.5, 1);
+      sprite.center.set(0.5, 1 - 128 / 320);
+      sprite.position.copy(H);
+      myBody.add(sprite);
+    } else myBody.add(stick(S, H, DOLL.spine, mat), stick(shL, L, DOLL.arm, mat), ball(L, DOLL.hand, mat));
+    myHead = { shown: away, s: sh };
   }
 
   // ——— стулья: место за столом, цвет — хозяина ———
@@ -1018,6 +1052,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return { pile: p.id, count: p.cards.length, ...c, cardPx: Math.hypot(e.x - c.x, e.y - c.y) };
     });
   (window as unknown as { __t3d: unknown }).__t3d = {
+    /** Моё тело: есть ли, где плечи (стул, высота), нарисована ли голова-кружок. */
+    myBody: () => ({ parts: myBody.children.length, head: myHead.shown, shoulders: myHead.s, visible: myBody.visible }),
     /** Стулья: чей, цвет (0 — серый), где на столе (радиус, угол) и где на экране. */
     chairs: () => [...chairObjs.entries()].map(([id, one]) => { const c = project(one.group.position.clone().setY(CHAIR.seatY)), ch = store.state.chairs.find((x) => x.id === id)!; return { id, owner: ch.owner, ink: one.ink, color: (one.mats[0]!.color.getHexString()), r: Math.hypot(one.group.position.x, one.group.position.z), x: c.x, y: c.y }; }),
     /** Тела стопок (бок колоды): чья стопка и сколько карт в теле. */

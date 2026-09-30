@@ -565,6 +565,23 @@ try {
     check("встал — стул отодвинут назад, сел — вернулся", stood.r > mine.r + 1 && Math.abs(sat.r - mine.r) < 0.05, { sit: mine.r, stand: stood.r, again: sat.r });
   }
 
+  // МОЁ ТЕЛО: плечи, шея и рука на моём стуле, цвет — мой; кружок головы с именем — только когда камера ушла на другую сторону стола.
+  {
+    await p.goto(`${base}/?stand`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const near = await t(() => window.__t3d.myBody());
+    check("вижу своё тело: плечи, шея, рука на моём стуле; голова-кружок не мешает, пока камера на своей стороне", near.visible && near.parts >= 5 && near.head === false && near.shoulders.h === 4, near);
+    await p.click("[data-stance-toggle]"); await p.waitForTimeout(500); await frames();
+    const stood = await t(() => window.__t3d.myBody());
+    check("встал — плечи выше (стоя семь, сидя четыре)", stood.shoulders.h === 7, stood);
+    await p.click("[data-stance-toggle]"); await p.waitForTimeout(500); await frames();
+    for (let k = 0; k < 3; k++) { await p.mouse.move(40, 300); await p.mouse.down(); await p.mouse.move(360, 300, { steps: 10 }); await p.mouse.up(); }
+    await p.waitForTimeout(700); await frames();
+    const far = await t(() => window.__t3d.myBody());
+    check("камера на другой стороне стола — у моего тела голова-кружок с ниточкой, как у других", far.head === true && far.parts >= 3, far);
+  }
+
   // МОЯ РУКА ВСЕГДА ВИДНА: камера низко и вплотную — борт стола подходит к глазу, но веер поверх него, а не под ним.
   {
     await p.goto(`${base}/?stand`);
