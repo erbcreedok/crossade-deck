@@ -854,8 +854,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         if (!at) { if (one) { cssScene.remove(one.obj); panel3d.delete(el); } draw(); return; }
         if (!one) { one = { obj: new CSS3DObject(el), at }; panel3d.set(el, one); cssScene.add(one.obj); }
         one.at = at;
-        const o = one.obj, a = (myChair()?.angle ?? 0) * DEG, hu = at.h / PANEL_PX;
-        o.scale.setScalar(1 / PANEL_PX);
+        const o = one.obj, a = (myChair()?.angle ?? 0) * DEG, hu = (at.h * at.scale) / PANEL_PX;
+        o.scale.setScalar(at.scale / PANEL_PX);
         if (at.tilt === "flat") { o.position.set(at.x, 0.05, at.y); o.rotation.set(-Math.PI / 2, a, 0, "YXZ"); }
         else if (at.tilt === "stand") { o.position.set(at.x, hu / 2 + 0.02, at.y); o.rotation.set(0, a, 0, "YXZ"); }
         else { o.position.set(at.x, hu / 2 + 0.6, at.y); o.quaternion.copy(camera.quaternion); }

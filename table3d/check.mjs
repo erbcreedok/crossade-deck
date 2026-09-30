@@ -267,6 +267,9 @@ try {
   const zoom = async (dy) => { await p.mouse.move(40, 250); await p.mouse.wheel(0, dy); await frames(); };
   const turn = async (dx) => drag({ x: 40, y: 250 }, { x: 40 + dx, y: 250 });
   const attr = (a) => p.getAttribute(panel, a);
+  // Кнопки строки стенда — окно на столе может уйти краем за кадр: жмём прямо.
+  const tilt = (x) => p.evaluate(([q, v]) => document.querySelector(`${q} [data-panel-tilt="${v}"]`).click(), [panel, x]);
+  const anchorTo = (x) => p.evaluate(([q, v]) => document.querySelector(`${q} [data-panel-anchor="${v}"]`).click(), [panel, x]);
   const dragHead = async (dx, dy) => { const hd = await p.locator(`${panel} [data-panel-drag]`).boundingBox(); await drag({ x: hd.x + 10, y: hd.y + hd.height / 2 }, { x: hd.x + 10 + dx, y: hd.y + hd.height / 2 + dy }); };
   check("панель стопки: по умолчанию привязка к экрану; внизу строка стенда (привязка)", (await attr("data-anchor")) === "screen" && (await p.locator(`${panel} [data-panel-anchor]`).count()) === 2, await attr("data-anchor"));
   const a0 = await rect();
@@ -277,8 +280,26 @@ try {
   await dragHead(-20, -60);
   const a2 = await rect();
   check("к экрану — двигается за заголовок", Math.abs(a2.x - (a1.x - 20)) < 2 && Math.abs(a2.y - (a1.y - 60)) < 2, [a1, a2]);
-  await p.click(`${panel} [data-panel-anchor="table"]`);
+  // Язычок масштаба: от середины — крупнее, к ней — мельче; карта в щель — по-прежнему на своё место.
+  const tongue = async (dx, dy) => { const tg = await p.locator(`${panel} [data-panel-scale]`).boundingBox(); await drag({ x: tg.x + tg.width / 2, y: tg.y + tg.height / 2 }, { x: tg.x + tg.width / 2 + dx, y: tg.y + tg.height / 2 + dy }); };
+  await tongue(-60, -60);
+  const sm = await rect();
+  check("язычок (на экране) — к середине: окно мельче", sm.width < a2.width - 20, [a2.width, sm.width]);
+  const toS = (await my()).hand.at(-1).id, hs = await t((id) => window.__t3d.screenOf(id), toS);
+  await p.mouse.move(hs.x, hs.y); await p.mouse.down();
+  await p.mouse.move(sm.x + sm.width * 0.4, sm.y + sm.height * 0.6, { steps: 12 });
   await frames();
+  const zs = await t(() => window.__t3d.zone());
+  await p.mouse.up();
+  await frames();
+  check("окно мельче — карта в щель ложится на своё место", zs && (await t((id) => window.__t3d.state().piles[0].cards.findIndex((c) => c.id === id), toS)) === zs.i, zs);
+  await p.click("[data-home]");
+  await anchorTo("table");
+  await frames();
+  const tb0 = await rect();
+  await tongue(40, 40);
+  const tb1 = await rect();
+  check("на столе — по умолчанию меньше экранной; язычок от середины — крупнее", tb0.width < a2.width * 0.7 && tb1.width > tb0.width + 10, [a2.width, tb0.width, tb1.width]);
   const b0 = await rect();
   await zoom(400);
   const b1 = await rect();
@@ -302,14 +323,14 @@ try {
   await frames();
   check("к столу: карта в щель её веера — ложится на это место", z2 && (await t((id) => window.__t3d.state().piles[0].cards.findIndex((c) => c.id === id), toTip)) === z2.i, z2);
   await zoom(500);
-  await p.locator(`${panel} [data-panel-tilt="flat"]`).scrollIntoViewIfNeeded().catch(() => {});
-  await p.click(`${panel} [data-panel-tilt="flat"]`);
+  // Кнопки наклона — строка стенда; окно на столе может уйти краем за кадр — жмём прямо.
+  await tilt("flat");
   await frames();
   const d0 = await rect();
-  await p.click(`${panel} [data-panel-tilt="stand"]`);
+  await tilt("stand");
   await frames();
   const d1 = await rect();
-  await p.click(`${panel} [data-panel-tilt="camera"]`);
+  await tilt("camera");
   await frames();
   const d2 = await rect();
   // Камера сверху под углом: и лежащая, и стоящая сжаты перспективой (каждая по-своему), лицом к камере — в своих пропорциях.
@@ -322,12 +343,17 @@ try {
   await p.click('[data-g="deck-grip"]');
   await frames();
   check("обновил — панель стопки снова на столе (выбор помнит устройство)", (await attr("data-anchor")) === "table", await attr("data-anchor"));
+  await anchorTo("screen");
+  await frames();
+  check("масштаб помнит устройство, у экрана и стола — свой: на экране — всё ещё мельче", Math.abs((await rect()).width - sm.width) < 2, [(await rect()).width, sm.width]);
+  await anchorTo("table");
+  await frames();
   const alia3 = (await t(() => window.__t3d.bodies())).find((x) => x.by === "alia");
   await p.mouse.click(alia3.head.x, alia3.head.y);
   await frames();
   check("панель стула — свой выбор: к экрану, хотя панель стопки на столе", (await p.getAttribute('[data-panel^="chair:"]', "data-anchor")) === "screen", await p.getAttribute('[data-panel^="chair:"]', "data-anchor"));
   await p.click("[data-tip-close]");
-  await p.click(`${panel} [data-panel-anchor="screen"]`);
+  await anchorTo("screen");
   await p.click("[data-deck-shut]");
   }
 
