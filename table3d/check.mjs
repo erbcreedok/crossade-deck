@@ -777,6 +777,65 @@ try {
     check("«спрятать»: левая рука опустилась, карты стопкой на сукне", tucked.low < 0.6 && Math.max(...tucked.ws.map((w) => w.h)) < 0.8 && tucked.ws.every((w) => Math.hypot(w.x - tucked.ws[0].x, w.y - tucked.ws[0].y) < 0.6), tucked);
     check("спрятана: сверху рубашки (а перевёрнутая рубашкой к себе — лицом вверх)", faces.filter((f) => f.id !== rev).every((f) => f.drawn === "back") && faces.find((f) => f.id === rev).drawn !== "back", { before, faces });
   }
+
+  // МОДЕЛИ КАМЕРЫ (dev-переключатель): орбита, голова, оптика, сверху. Взгляд, приближение, рука в кадре, шея и штраф стоя.
+  {
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const cam = () => t(() => window.__t3d.cam());
+    const cycle = async (to) => { for (let i = 0; i < 4 && (await cam()).mode !== to; i++) { await p.click("[data-dev-cam]:visible"); await p.waitForTimeout(600); } await frames(); };
+    const firstCard = () => t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return window.__t3d.screenOf(s.chairs.find((c) => c.id === seat).hand[0].id); });
+    const dragLook = async (dx, dy) => { await p.mouse.move(195, 300); await p.mouse.down(); await p.mouse.move(195 + dx, 300 + dy, { steps: 8 }); await p.mouse.up(); await frames(); };
+    check("камера по умолчанию — орбита", (await cam()).mode === "orbit", await cam());
+    await cycle("head");
+    const h0 = await cam(), c0 = await firstCard();
+    check("голова: камера у головы тела (над плечами стула, не на орбите)", h0.mode === "head" && h0.pos[1] < 8 && Math.hypot(h0.pos[0], h0.pos[2]) < 8 && h0.pitch < -20, h0);
+    await dragLook(120, 0);
+    const h1 = await cam(), c1 = await firstCard();
+    check("голова: палец по пустому крутит взгляд на месте — камера стоит, поворот другой", Math.abs(h1.yaw - h0.yaw) > 10 && Math.hypot(h1.pos[0] - h0.pos[0], h1.pos[2] - h0.pos[2]) < 0.01, { h0, h1 });
+    check("голова: рука с картами в кадре стоит на месте, куда ни смотри (не плывёт)", Math.hypot(c1.x - c0.x, c1.y - c0.y) < 6 && c0.x > 0 && c0.x < 390 && c0.y > 300 && c0.y < 844, { c0, c1 });
+    await p.mouse.move(195, 300); await p.mouse.wheel(0, -300); await p.waitForTimeout(150);
+    const z1 = await cam();
+    check("голова: колесо приближает — шея наклонилась, камера ниже и дальше к столу", z1.lean > 0.1 && z1.pos[1] < h1.pos[1], { h1, z1 });
+    await p.waitForFunction(() => window.__t3d.cam().lean <= 0.06, null, { timeout: 15000 }).catch(() => {});
+    const z2 = await cam();
+    check("голова: натяг держат долго — шея сама возвращается и отдыхает", z1.lean > 0.1 && z2.lean <= 0.06, { z1: z1.lean, z2 });
+    await p.keyboard.press("Home"); await frames();
+    await cycle("fov");
+    const f0 = await cam();
+    await p.mouse.move(195, 300); await p.mouse.wheel(0, -500); await frames();
+    const f1 = await cam();
+    check("оптика: колесо уже поле зрения, камера на месте, шея не тянется", f1.fov < f0.fov - 3 && f1.lean === 0 && Math.hypot(f1.pos[0] - f0.pos[0], f1.pos[2] - f0.pos[2]) < 0.01, { f0, f1 });
+    await cycle("top");
+    const t0 = await cam(), tc = await firstCard();
+    check("сверху: камера над серединой стола и смотрит вниз, рука на стуле в кадре", t0.mode === "top" && t0.pos[1] > 15 && Math.abs(t0.pos[0]) < 0.01 && Math.abs(t0.pos[2]) < 0.01 && t0.pitch === -90 && tc.x > 0 && tc.x < 390 && tc.y > 0 && tc.y < 844, { t0, tc });
+    await dragLook(120, 0);
+    const t1 = await cam();
+    check("сверху: палец крутит стол (поворот вида), камера не сдвинулась", Math.abs(t1.yaw - t0.yaw) > 10 && Math.abs(t1.pos[0]) < 0.01, { t0, t1 });
+    await p.mouse.move(195, 300); await p.mouse.wheel(0, -300); await p.waitForTimeout(150);
+    const t2 = await cam();
+    check("сверху: приближение — камера ниже (тот же наклон шеи), держать можно ненадолго", t2.lean > 0.1 && t2.pos[1] < t1.pos[1] - 2, { t1, t2 });
+    await p.waitForFunction(() => window.__t3d.cam().lean <= 0.06, null, { timeout: 15000 }).catch(() => {});
+    check("сверху: натяг не держится — камера возвращается к покою", t2.lean > 0.1 && (await cam()).lean <= 0.06, await cam());
+    // Стоя: голова выше — сверху камера дальше, а приблизить можно только ненадолго (тот же штраф, что и у головы).
+    await p.keyboard.press("Home"); await frames();
+    const sit = await cam();
+    await p.click("[data-stance-toggle]"); await p.waitForTimeout(700); await frames();
+    const stand = await cam();
+    check("стоя: сверху камера выше, чем сидя (штраф — мелкий масштаб стола, приближать придётся шеей)", stand.pos[1] > sit.pos[1] + 5, { sit: sit.pos[1], stand: stand.pos[1] });
+    await p.click("[data-stance-toggle]"); await p.waitForTimeout(400);
+    // Компас: поворот относительно стола в любой модели; тап по нему — домой.
+    await cycle("head");
+    const k0 = await cam();
+    const cb = await rectOf("[data-home]");
+    await drag({ x: cb.x + cb.width / 2, y: cb.y + cb.height / 2 }, { x: cb.x + cb.width / 2 + 60, y: cb.y + cb.height / 2 });
+    const k1 = await cam();
+    check("компас: поворачивает взгляд и в модели «голова»; тап — домой", Math.abs(k1.yaw - k0.yaw) > 10, { k0, k1 });
+    await p.click("[data-home]"); await frames();
+    check("компас: тап — взгляд домой, на свою сторону", Math.abs((await cam()).yaw - k0.yaw) < 0.5, await cam());
+    await cycle("orbit");
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();

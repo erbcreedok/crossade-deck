@@ -17,6 +17,7 @@ import { DEAL_PRESETS, type Chair, type ChairFlag, type DealDir, type DealRule, 
 import { fingerHtml } from "./finger.js";
 import { allowed, may as mayDo } from "../../server/src/table/access.js";
 import { SUITS } from "../../server/table-client/felt.js";
+import { CAM_LABEL, CAM_MODES } from "./camera.js";
 import { artUrl, readLook, writeLook } from "../../server/table-client/deckArt.js";
 import { BAR_LOOK, BAR, MENTION_INK, T } from "../../server/table-client/screenConst.js";
 import { GLYPH, RIGHTS, SUBS, type BarKey, type GrabMode, type Section } from "../../server/table-client/glyphs.js";
@@ -294,6 +295,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const chip = (attrs: string, top: number, aria: string, text: string, on = false) =>
       `<button ${attrs} aria-label="${aria}" style="position:absolute;left:${RIM_LEFT}px;top:calc(${top}px + env(safe-area-inset-top, 0px));z-index:61;border:0;cursor:pointer;padding:6px 10px;border-radius:9px;font:400 11px Tiny5,monospace;color:${on ? T.black : T.ink};background:${on ? `linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo})` : T.well};box-shadow:inset 0 0 0 2px ${store.me.ink},0 3px 0 rgba(11,7,4,.5);white-space:nowrap">${text}</button>`;
     return chip("data-dev-switch", 60, "Только для разработки: управлять другим экраном (клавиша Tab)", `DEV · ${esc(dev.label)} · Tab`)
+      + chip("data-dev-cam", 128, "Только для разработки: модель камеры — орбита, голова, оптика, сверху", `DEV · камера: ${CAM_LABEL[scene.camMode()]}`, scene.camMode() !== "orbit")
       + chip("data-dev-peek", 94, "Только для разработки: окно с видом глазами другого", `DEV · окно: ${esc(dev.peek.label)} ${dev.peek.on() ? "вкл" : "выкл"}`, dev.peek.on());
   }
   function topHtml(): string {
@@ -568,6 +570,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-settings]")) { if (settings.open) settings.hide(); else settings.show(); }
     else if (q("[data-journal]")) local.journal = !local.journal;
     else if (q("[data-dev-switch]")) dev?.onSwitch();
+    else if (q("[data-dev-cam]")) { scene.setCamMode(CAM_MODES[(CAM_MODES.indexOf(scene.camMode()) + 1) % CAM_MODES.length]!); draw(); }
     else if (q("[data-dev-peek]")) { dev?.peek.onToggle(); draw(); }
     else if ((b = q("[data-sit]"))) { store.send({ t: "sit", chair: b.dataset.sit! }); local.tip = null; }
     else if ((b = q("[data-deck-do]")) && local.deckTip) store.send({ t: "deckDo", pile: local.deckTip, how: b.dataset.deckDo as "shuffle" | "sort" | "flip" });
