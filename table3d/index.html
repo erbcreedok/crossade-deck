@@ -6,14 +6,15 @@
   <title>Песочница 3D</title>
   <style>
     html, body { margin: 0; height: 100%; background: #0a1511; color: #f5ead0; font: 14px/1.35 system-ui, sans-serif; overflow: hidden; }
-    #stage { position: fixed; inset: 0; touch-action: none; }
+    .screen { position: fixed; inset: 0; }
+    .screen.off { visibility: hidden; pointer-events: none; }
+    .stage { position: fixed; inset: 0; touch-action: none; }
     #note { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; }
     #note[hidden] { display: none; }
   </style>
 </head>
 <body>
-  <div id="stage"></div>
-  <div id="hud"></div>
+  <div id="screens"></div>
   <div id="note">Стол собирается…</div>
   <script type="module" src="/src/main.ts"></script>
 </body>

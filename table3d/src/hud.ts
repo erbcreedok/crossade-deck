@@ -69,7 +69,11 @@ const CSS = `
 #hud button { font: inherit; }
 `;
 
-export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStore, scene: SceneApi): void {
+/**
+ * `dev` — ТОЛЬКО ДЛЯ РАЗРАБОТКИ, есть лишь у стенда: экранов на странице два (мой и Алии), и кнопка `label` прыгает на другой.
+ * `screen` — коробка этого экрана: всё, что HUD кладёт поверх страницы (окна, настройки), лежит в ней, а не в общей странице.
+ */
+export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStore, scene: SceneApi, dev?: { label: string; onSwitch(): void }, screen: HTMLElement = document.body): void {
   const style = document.createElement("style");
   style.textContent = CSS;
   document.head.append(style);
@@ -102,7 +106,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   let look = readLook();
   const sound = tableSound(), haptic = tableHaptic(), motion = tableMotion();
   let figuresOn = true;
-  const settings = mountSettings(document.body, {
+  const settings = mountSettings(screen, {
     sound, haptic, motion, look,
     lookChanged: () => { writeLook(look); scene.setLook({ ...look }); draw(); },
     soundChanged: () => {},
@@ -139,7 +143,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   // Окна вещей — панели (`panel.ts`): свой слой поверх экрана и слой CSS3D сцены для тех, что на столе.
   const panelOverlay = document.createElement("div");
   panelOverlay.id = "panels";
-  document.body.append(panelOverlay);
+  screen.append(panelOverlay);
   const panels = mountPanels(panelOverlay, { ...scene.panels, feltAt: scene.feltAt, glass: scene.glass }, () => draw());
   let shown: string[] = [];
   store.onStickers((ids) => { myStickers = ids; talk.refresh(); });
@@ -285,10 +289,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   // ——— верх: выход, имя, настройки, журнал ———
   /** ТОЛЬКО ДЛЯ РАЗРАБОТКИ (есть лишь у стенда): за кого я сижу; тап — стать другим игроком и обратно. */
   function devHtml(): string {
-    const dev = store.dev;
-    if (!dev || dev.players.length < 2) return "";
-    const next = dev.players.find((p) => p.key !== me())!;
-    return `<button data-dev-switch data-as="${esc(next.key)}" aria-label="Только для разработки: стать ${esc(next.name)}" style="position:absolute;left:${RIM_LEFT}px;top:calc(60px + env(safe-area-inset-top, 0px));z-index:61;border:0;cursor:pointer;padding:6px 10px;border-radius:9px;font:400 11px Tiny5,monospace;color:${T.ink};background:${T.well};box-shadow:inset 0 0 0 2px ${store.me.ink},0 3px 0 rgba(11,7,4,.5);white-space:nowrap">DEV · ${esc(store.me.name)} → ${esc(next.name)}</button>`;
+    if (!dev) return "";
+    return `<button data-dev-switch aria-label="Только для разработки: перейти на другой экран (клавиша Tab)" style="position:absolute;left:${RIM_LEFT}px;top:calc(60px + env(safe-area-inset-top, 0px));z-index:61;border:0;cursor:pointer;padding:6px 10px;border-radius:9px;font:400 11px Tiny5,monospace;color:${T.ink};background:${T.well};box-shadow:inset 0 0 0 2px ${store.me.ink},0 3px 0 rgba(11,7,4,.5);white-space:nowrap">DEV · ${esc(dev.label)} · Tab</button>`;
   }
   function topHtml(): string {
     const btn = (attrs: string, at: string, inner: string) => `<button ${attrs} style="position:absolute;${at};${TOP};width:40px;height:40px;border:0;padding:0;z-index:61;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">${inner}</button>`;
@@ -561,7 +563,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-rooms-back]")) location.href = `${HOST}/table/?rooms`;
     else if (q("[data-settings]")) { if (settings.open) settings.hide(); else settings.show(); }
     else if (q("[data-journal]")) local.journal = !local.journal;
-    else if (q("[data-dev-switch]")) devSwitch();
+    else if (q("[data-dev-switch]")) dev?.onSwitch();
     else if ((b = q("[data-sit]"))) { store.send({ t: "sit", chair: b.dataset.sit! }); local.tip = null; }
     else if ((b = q("[data-deck-do]")) && local.deckTip) store.send({ t: "deckDo", pile: local.deckTip, how: b.dataset.deckDo as "shuffle" | "sort" | "flip" });
     else if (q("[data-deck-shut]")) local.deckTip = null;
@@ -676,28 +678,6 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   };
   for (const el of [panelOverlay, scene.panelLayer()]) for (const ev of ["pointerdown", "pointermove"]) el.addEventListener(ev, handTouch);
 
-  /**
-   * ТОЛЬКО ДЛЯ РАЗРАБОТКИ: перейти к другому игроку стенда — кнопкой или клавишей Tab. Две камеры, между ними прыгают: свою
-   * оставляю там, где она стоит (тело с головой и рука остаются видны), чужую — где её оставили. Что несла рука: карта в пальце
-   * ждёт возвращения (`scene.stashView`), стопку за язычок кладу на место — её несёт HUD, а не сцена.
-   */
-  function devSwitch(): void {
-    const dev = store.dev;
-    const next = dev?.players.find((p) => p.key !== me());
-    if (!dev || !next) return;
-    if (local.deckCarry) { const pile = local.deckCarry; local.deckCarry = null; scene.carryPile(pile, null); store.send({ t: "release", id: pile }); }
-    scene.stashView(me());
-    dev.switchTo(next.key);
-    local.tip = null; local.deckTip = null; local.handMenu = false;
-    if (!scene.recallView(me())) scene.home();
-    draw();
-  }
-  addEventListener("keydown", (e) => {
-    if (e.key !== "Tab" || e.repeat || !store.dev) return;
-    if ((e.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable]")) return;
-    e.preventDefault();
-    devSwitch();
-  });
   /**
    * ЯЗЫЧОК СТОПКИ (лежит на столе, рисует сцена — `scene.onTab`): тянешь — стопка и язычок под пальцем, как несомая карта;
    * отпустил — в руку, в стопку или на сукно; тап — окно, двойной — перевернуть.

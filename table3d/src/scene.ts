@@ -52,14 +52,18 @@ type From = { in: "felt" } | { in: "pile"; pile: string; top: boolean } | { in: 
 const loader = new THREE.TextureLoader();
 loader.setCrossOrigin("anonymous");
 const textures = new Map<string, THREE.Texture>();
+/** Кто ждёт картинку: экранов может быть несколько, и каждый перерисуется, когда она пришла. */
+const waiting = new Map<string, Set<() => void>>();
 function texture(url: string, ready: () => void): THREE.Texture {
   let t = textures.get(url);
   if (!t) {
-    t = loader.load(url, ready);
+    const listeners = new Set<() => void>([ready]);
+    waiting.set(url, listeners);
+    t = loader.load(url, () => { for (const one of listeners) one(); waiting.delete(url); });
     t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = 8;
     textures.set(url, t);
-  }
+  } else waiting.get(url)?.add(ready);
   return t;
 }
 function canvasTexture(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
@@ -140,10 +144,8 @@ const cardEdge = (() => {
 /** Что сцена даёт HUD (`hud.ts`): камеру, руку, стопки и головы на экране, выделение. */
 export interface SceneApi {
   home(): void;
-  /** Запомнить, откуда смотрит камера игрока `key` (поза и облёт), — вернуться туда же (dev-переключатель игроков). */
-  stashView(key: string): void;
-  /** Вернуть камеру игрока `key` туда, где её оставили; не бывал — `false`, и камеру ставят домой. */
-  recallView(key: string): boolean;
+  /** Хук проверок этого экрана: `window.__t3d` у того из экранов, что сейчас на виду (`main.ts`). */
+  test: unknown;
   /** Повернуть камеру вокруг стола на столько градусов. */
   turnBy(deg: number): void;
   /** С какой стороны стола камера (угол места, как у стула) и насколько поднята, градусы. */
@@ -234,10 +236,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const frameHeard: (() => void)[] = [];
   /** Поза тела этого экрана; правило стола «играть стоя» сильнее её. */
   let stance: "sit" | "stand" = "sit";
-  /** Где оставили камеру каждого, за кого сидели (`stashView`) — у каждого своя, между ними прыгают. */
-  /** Карта в пальце у того, кого оставили (`stashView`): держит ли ещё — узнаётся, когда к нему вернулись. */
-  const parked = new Map<string, { drag: NonNullable<typeof drag>; released: boolean }>();
-  const views = new Map<string, { pos: THREE.Vector3; target: THREE.Vector3; stance: "sit" | "stand" }>();
   const stanceNow = () => (store.state.rules.stand ? "stand" : stance);
   let look = readLook();
   let lasso = { on: false, grab: "collect" as "collect" | "keep" };
@@ -981,6 +979,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   };
   renderer.domElement.addEventListener("pointerup", end);
   renderer.domElement.addEventListener("pointercancel", end);
+  // Палец отпустили, пока этот экран не на виду (переключились на другой): его карта ложится там, где была, а не виснет до возвращения.
+  addEventListener("pointerup", end);
+  addEventListener("pointercancel", end);
 
   /**
    * ВЫДЕЛЕННОЕ — ТУДА ЖЕ: на сукно — «как лежат» (все сдвинуты на тот же шаг, что несомая) или «к пальцу» (все в
@@ -1059,7 +1060,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const r = camera.matrixWorld.elements, right = new THREE.Vector3(r[0], r[1], r[2]).setLength(CARD_W), e = project(new THREE.Vector3(p.x, h, p.y).add(right));
       return { pile: p.id, count: p.cards.length, ...c, cardPx: Math.hypot(e.x - c.x, e.y - c.y) };
     });
-  (window as unknown as { __t3d: unknown }).__t3d = {
+  const test = {
     /** Моё тело: есть ли, где плечи (стул, высота), нарисована ли голова-кружок. */
     myBody: () => ({ parts: myBody.children.length, head: myHead.shown, shoulders: myHead.s, visible: myBody.visible }),
     /** Стулья: чей, цвет (0 — серый), где на столе (радиус, угол) и где на экране. */
@@ -1106,8 +1107,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     world: (id: string) => { const o = cards.get(id); if (!o) return null; const p = o.group.getWorldPosition(new THREE.Vector3()); return { x: p.x, y: p.z, h: p.y }; },
     view: () => { const p = camera.position.clone().sub(orbit.target); return { yaw: Math.atan2(p.x, p.z) / DEG, pitch: Math.asin(p.y / p.length()) / DEG }; },
   };
+  // Хук проверок — у последнего смонтированного экрана; когда экранов два, тот, что сейчас перед глазами, выставляет его сам (`test`).
+  (window as unknown as { __t3d: unknown }).__t3d = test;
   const project = (v: THREE.Vector3) => { const p = v.clone().project(camera), r = renderer.domElement.getBoundingClientRect(); return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height }; };
   const api: SceneApi = {
+    test,
     home: () => { home(); draw(); sendBody(true); },
     turnBy(deg) {
       const p = camera.position.clone().sub(orbit.target);
@@ -1123,48 +1127,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setBlend(b) { blend = b; layout(store.state); },
     stance: stanceNow,
     setStance(st) { stance = st; home(); sendBody(true); draw(); },
-    stashView(key) {
-      sendBody(true);
-      // Карта в пальце: уходя, её не роняю — рука с ней остаётся, как была (другим видно, где она), а палец «отпускаю» только отсюда.
-      if (drag?.moved) {
-        const d = drag, entry = { drag: { ...d }, released: false };
-        clearInterval(d.hold);
-        orbit.enabled = true;
-        parked.set(key, entry);
-        const up = () => { entry.released = true; removeEventListener("pointerup", up); removeEventListener("pointercancel", up); };
-        addEventListener("pointerup", up);
-        addEventListener("pointercancel", up);
-        drag = null;
-        layout(store.state);
-      }
-      views.set(key, { pos: camera.position.clone(), target: orbit.target.clone(), stance });
-    },
-    recallView(key) {
-      // Вернулся к тому, кто держал карту: держу ещё — беру её обратно там же; отпустил, пока был на другой камере, — стёрлось: карта свободна.
-      const pk = parked.get(key);
-      parked.delete(key);
-      if (pk) {
-        const id = pk.drag.id;
-        if (pk.released) store.send({ t: "release", id });
-        else {
-          if (!pk.drag.group) store.send({ t: "grab", id });
-          if (pk.drag.group || store.state.locks[id] === store.me.key) {
-            drag = { ...pk.drag, hold: window.setInterval(() => { if (drag) store.send({ t: "hold", id: drag.id }); }, HOLD_MS) };
-            orbit.enabled = false;
-          }
-        }
-      }
-      const v = views.get(key);
-      if (!v) { layout(store.state); return false; }
-      stance = v.stance;
-      camera.position.copy(v.pos);
-      orbit.target.copy(v.target);
-      orbit.update();
-      sendBody(true);
-      layout(store.state);
-      draw();
-      return true;
-    },
     setFigures(on) { heads.visible = on; chairRoot.visible = on; draw(); },
     setLook(l) { look = l; layout(store.state); },
     heads: () => [...poses.values()].map((pose) => {

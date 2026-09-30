@@ -24,7 +24,16 @@ function deal(): { id: string; face: Face }[] {
  * `freeChair` — четвёртый стул, свободный: за столом двое сидят, один стул брошен с картами, а ещё один пуст. Без него —
  * стенд, каким он был у стола на холсте.
  */
-export function localStore(opts: { freeChair?: boolean } = {}): TableStore {
+export interface LocalOpts {
+  freeChair?: boolean;
+}
+
+/**
+ * ОДИН СТОЛ, СКОЛЬКО УГОДНО ЭКРАНОВ. Стол (`Table`) на стенде один, а глаз у него несколько: `view(key)` — хранилище того, кто за
+ * ним сидит; у каждого своё состояние, свои слушатели и своя нарезка операций, а стол общий: что сделал один, увидят остальные.
+ * Так два стенда в одной вкладке — мой экран и экран Алии, — и каждый живёт сам, со своей камерой, окнами и рукой.
+ */
+export function localTable(opts: LocalOpts = {}): { view(key: string): TableStore } {
   const me: Person = { key: "me", name: "Ye", ink: "#f2c14e", door: "guest" };
   // На стенде админ — я: иначе флаги чужих стульев не проверить.
   const table = new Table(deal(), me.key);
@@ -52,83 +61,92 @@ export function localStore(opts: { freeChair?: boolean } = {}): TableStore {
   table.leave("timur");
   if (opts.freeChair) table.addChair();
 
-  // Кто я сейчас: на стенде им можно стать — Алией и обратно (`dev.switchTo`), чтобы проверить стол её глазами и её правами.
-  let who: Person = me;
-  /** Последнее тело каждого, за кого сидели: ушёл на другого — его голова и руки остаются там, где были. */
+  /** Последнее тело каждого, кто за столом: кто бы ни смотрел, чужая голова и руки стоят там, где их оставили. */
   const bodyOf = new Map<string, Body>();
-  let state = table.seenBy(who.key);
-  const changed: (() => void)[] = [];
-  const refused: ((intent: Intent, why: Refusal) => void)[] = [];
 
-  /** Кто слушает поток операций — журнал партии. */
-  const opsHeard: Array<(ops: readonly Op[]) => void> = [];
+  interface View {
+    state: ReturnType<Table["seenBy"]>;
+    changed: (() => void)[];
+    refused: ((intent: Intent, why: Refusal) => void)[];
+    /** Кто слушает поток операций — журнал партии. */
+    opsHeard: Array<(ops: readonly Op[]) => void>;
+  }
+  const views = new Map<string, View>();
+  const person = (key: string): Person => [me, ...bots].find((one) => one.key === key)!;
 
+  /** Операции — всем глазам; режутся под каждого ровно как в сети: стенд не должен показывать больше живого стола. */
   const spread = (ops: Op[]) => {
     if (ops.length === 0) return;
-    // Операции режутся под меня ровно как в сети: стенд не должен показывать больше живого стола.
-    const mine = ops.map((op) => table.seenOp(op, who.key));
-    state = applyPatch(state, { v: table.version, ops: mine });
-    for (const listener of changed) listener();
-    for (const heard of opsHeard) heard(mine);
+    for (const [key, v] of views) {
+      const mine = ops.map((op) => table.seenOp(op, key));
+      v.state = applyPatch(v.state, { v: table.version, ops: mine });
+      for (const listener of v.changed) listener();
+      for (const heard of v.opsHeard) heard(mine);
+    }
   };
 
   return {
-    get me() {
-      return who;
-    },
-    dev: {
-      players: [me, ...bots.filter((b) => b.key === "alia")],
-      switchTo(key) {
-        const next = [me, ...bots].find((one) => one.key === key);
-        if (!next || next.key === who.key || !table.seenBy(next.key).people.find((p) => p.key === next.key)?.seat) return;
-        who = next;
-        state = table.seenBy(who.key);
-        for (const listener of changed) listener();
-      },
-    },
-    crew: [],
-    desk: "sandbox",
-    deals: Object.keys(DEAL_PRESETS) as DealRule[],
-    ice: [],
-    title: "Стенд жеста",
-    get state() {
-      return state;
-    },
-    send(intent) {
-      const result = table.act(who.key, intent, Date.now());
-      if ("refused" in result) {
-        for (const listener of refused) listener(intent, result.refused);
-        if (result.ops?.length) spread(result.ops);
-        return;
+    view(key) {
+      let v = views.get(key);
+      if (!v) {
+        v = { state: table.seenBy(key), changed: [], refused: [], opsHeard: [] };
+        views.set(key, v);
       }
-      spread(result.ops);
+      const mine = v;
+      return {
+        me: person(key),
+        crew: [],
+        desk: "sandbox",
+        deals: Object.keys(DEAL_PRESETS) as DealRule[],
+        ice: [],
+        title: "Стенд жеста",
+        get state() {
+          return mine.state;
+        },
+        send(intent) {
+          const result = table.act(key, intent, Date.now());
+          if ("refused" in result) {
+            for (const listener of mine.refused) listener(intent, result.refused);
+            if (result.ops?.length) spread(result.ops);
+            return;
+          }
+          spread(result.ops);
+        },
+        carries: [],
+        eyes: [],
+        watch: () => {},
+        get bodies() {
+          return [...bodyOf.values()].filter((b) => b.by !== key);
+        },
+        body(out) {
+          bodyOf.set(key, { ...out, by: key });
+          // Тело сдвинулось — остальным экранам перерисовать его (в сети это сообщение о чужом теле).
+          for (const [other, v] of views) if (other !== key) for (const listener of v.changed) listener();
+        },
+        command: () => {},
+        log: () => {},
+        rtc: () => {},
+        onRtc: () => {},
+        mic: () => {},
+        onMic: () => {},
+        carry: () => {},
+        say: () => {},
+        onSay: () => {},
+        askStickers: () => {},
+        shoot: () => {},
+        onShot: () => {},
+        onStickers: () => {},
+        now: () => Date.now(),
+        onChange: (listener) => void mine.changed.push(listener),
+        onRefused: (listener) => void mine.refused.push(listener),
+        onOps: (listener) => void mine.opsHeard.push(listener),
+        onGone: () => {},
+      };
     },
-    carries: [],
-    eyes: [],
-    watch: () => {},
-    get bodies() {
-      return [...bodyOf.values()].filter((b) => b.by !== who.key);
-    },
-    body(out) {
-      bodyOf.set(who.key, { ...out, by: who.key });
-    },
-    command: () => {},
-    log: () => {},
-    rtc: () => {},
-    onRtc: () => {},
-    mic: () => {},
-    onMic: () => {},
-    carry: () => {},
-    say: () => {},
-    onSay: () => {},
-    askStickers: () => {},
-    shoot: () => {},
-    onShot: () => {},
-    onStickers: () => {},
-    now: () => Date.now(),
-    onChange: (listener) => void changed.push(listener),
-    onRefused: (listener) => void refused.push(listener),
-    onOps: (listener) => void opsHeard.push(listener),
-    onGone: () => {},
   };
+}
+
+/** Стенд для одного экрана — мой: стол на холсте берёт его. */
+export function localStore(opts: LocalOpts = {}): TableStore {
+  return localTable(opts).view("me");
 }

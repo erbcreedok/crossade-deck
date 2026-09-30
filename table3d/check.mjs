@@ -570,11 +570,11 @@ try {
     await p.goto(`${base}/?stand`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
-    const as = () => t(() => { const s = window.__t3d.state(), key = window.__t3d.me(), seat = s.people.find((x) => x.key === key)?.seat; return { me: key, seat, hand: s.chairs.find((ch) => ch.id === seat)?.hand.length, yaw: Math.round(window.__t3d.view().yaw), chip: document.querySelector("[data-dev-switch]")?.textContent }; });
+    const as = () => t(() => { const s = window.__t3d.state(), key = window.__t3d.me(), seat = s.people.find((x) => x.key === key)?.seat; return { me: key, seat, hand: s.chairs.find((ch) => ch.id === seat)?.hand.length, yaw: Math.round(window.__t3d.view().yaw), chip: [...document.querySelectorAll("[data-dev-switch]")].find((e) => e.offsetParent !== null)?.textContent }; });
     const before = await as();
-    await p.click("[data-dev-switch]"); await p.waitForTimeout(800); await frames();
+    await p.click("[data-dev-switch]:visible"); await p.waitForTimeout(800); await frames();
     const alia = await as();
-    await p.click("[data-dev-switch]"); await p.waitForTimeout(800); await frames();
+    await p.click("[data-dev-switch]:visible"); await p.waitForTimeout(800); await frames();
     const back = await as();
     check("dev: стал Алией — её стул, её пять карт, камера у её места (yaw 180), на кнопке «→ Ye»", before.me === "me" && alia.me === "alia" && alia.seat === "c2" && alia.hand === 5 && alia.yaw === 180 && alia.chip.includes("Ye"), { before, alia });
     check("dev: и обратно — мой стул, мои семь карт", back.me === "me" && back.seat === "c1" && back.hand === 7, back);
@@ -584,21 +584,20 @@ try {
     const near = (u, v) => Math.abs(u.yaw - v.yaw) < 0.6 && Math.abs(u.pitch - v.pitch) < 0.6;
     await orbit(220);
     const mineA = await view();
-    await p.click("[data-dev-switch]"); await p.waitForTimeout(800); await frames();
+    await p.click("[data-dev-switch]:visible"); await p.waitForTimeout(800); await frames();
     const aliaHome = await view();
     const leftMe = (await t(() => window.__t3d.bodies())).find((b) => b.by === "me");
     check("dev: оставил свою камеру в стороне — моё тело остаётся с головой там, где она была (а не возвращается на плечи)", !!leftMe && leftMe.away === true && !near(mineA, aliaHome), { mineA, aliaHome, leftMe: leftMe && leftMe.away });
     await orbit(-160);
     const aliaB = await view();
-    await p.click("[data-dev-switch]"); await p.waitForTimeout(800); await frames();
+    await p.click("[data-dev-switch]:visible"); await p.waitForTimeout(800); await frames();
     const meAgain = await view();
-    await p.click("[data-dev-switch]"); await p.waitForTimeout(800); await frames();
+    await p.click("[data-dev-switch]:visible"); await p.waitForTimeout(800); await frames();
     const aliaAgain = await view();
     check("dev: возвращаюсь — камера там, где я её оставил; к Алии — там, где оставил её", near(meAgain, mineA) && near(aliaAgain, aliaB), { mineA, meAgain, aliaB, aliaAgain });
   }
 
-  // ПЕРЕКЛЮЧЕНИЕ ИГРОКА (dev): клавиша Tab то же, что кнопка; карта в пальце не роняется — рука остаётся, а вернулся: держу ещё —
-  // беру обратно там же, отпустил, пока был на другой камере, — стёрлось (карта в руке, замка нет).
+  // ДВА ЭКРАНА (dev): мой и Алии живут оба, всё время; Tab прыгает между ними. Каждый помнит всё своё: камеру, окна, карту в пальце.
   {
     await p.goto(`${base}/?stand`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
@@ -607,7 +606,18 @@ try {
     await p.keyboard.press("Tab"); await p.waitForTimeout(400);
     const afterTab = await meNow();
     await p.keyboard.press("Tab"); await p.waitForTimeout(400);
-    check("dev: клавиша Tab переключает игрока туда и обратно, как кнопка", afterTab === "alia" && (await meNow()) === "me", { afterTab, back: await meNow() });
+    check("dev: клавиша Tab прыгает на другой экран и обратно", afterTab === "alia" && (await meNow()) === "me", { afterTab, back: await meNow() });
+    check("dev: два экрана на странице, на виду один", (await p.locator("canvas").count()) === 2 && (await p.locator(".screen:not(.off)").count()) === 1, null);
+    // Окно на моём экране остаётся открытым, пока я на экране Алии.
+    const alia0 = (await t(() => window.__t3d.bodies())).find((b) => b.by === "alia");
+    await p.mouse.click(alia0.head.x, alia0.head.y); await frames();
+    const openBefore = await p.locator('[data-panel^="chair:"]:visible').count();
+    await p.keyboard.press("Tab"); await p.waitForTimeout(400);
+    const onAlia = await p.locator('[data-panel^="chair:"]:visible').count();
+    await p.keyboard.press("Tab"); await p.waitForTimeout(400);
+    const openAfter = await p.locator('[data-panel^="chair:"]:visible').count();
+    check("dev: окно, открытое на моём экране, там и осталось — на экране Алии его нет, вернулся — оно на месте", openBefore === 1 && onAlia === 0 && openAfter === 1, { openBefore, onAlia, openAfter });
+    await p.click("[data-tip-close]:visible"); await frames();
     const hold = async () => {
       const card = await t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === "me").seat; return s.chairs.find((ch) => ch.id === seat).hand.at(-1).id; });
       const at = await t((id) => window.__t3d.screenOf(id), card);
@@ -618,23 +628,21 @@ try {
     const card1 = await hold();
     const heldBefore = await t(() => window.__t3d.held());
     await p.keyboard.press("Tab"); await p.waitForTimeout(500); await frames();
-    const others = await t(() => window.__t3d.bodies());
-    const meBody = others.find((b) => b.by === "me");
-    const stillLocked = await t((id) => window.__t3d.state().locks[id], card1), carriedAway = await t(() => window.__t3d.held());
-    check("dev: ушёл с картой в пальце — карту не уронил (замок мой), моя правая рука осталась там, где была, а Алия ничего не несёт", !!heldBefore && !!meBody && meBody.right !== null && stillLocked === "me" && carriedAway === null && (await meNow()) === "alia", { heldBefore: !!heldBefore, right: meBody && meBody.right, stillLocked, carriedAway: !!carriedAway });
+    const meBody = (await t(() => window.__t3d.bodies())).find((b) => b.by === "me");
+    const aliaHeld = await t(() => window.__t3d.held());
+    check("dev: с картой в пальце прыгнул на экран Алии — там она ничего не несёт, а моя правая рука осталась там, где была", !!heldBefore && !!meBody && meBody.right !== null && aliaHeld === null && (await meNow()) === "alia", { heldBefore: !!heldBefore, right: meBody && meBody.right, aliaHeld: !!aliaHeld });
     await p.keyboard.press("Tab"); await p.waitForTimeout(500); await frames();
     const resumed = await t(() => window.__t3d.held());
-    check("dev: вернулся, не отпуская, — карта снова в пальце, та же", !!resumed && resumed.id === card1, { resumed: resumed && resumed.id, card1 });
+    check("dev: вернулся, не отпуская, — карта в пальце на моём экране, та же и там же", !!resumed && resumed.id === card1, { resumed: resumed && resumed.id, card1 });
     await p.mouse.up(); await frames();
-    const landed = await t((id) => window.__t3d.state().felt.some((f) => f.id === id), card1);
-    check("dev: отпустил после возвращения — карта легла на сукно, как обычно", landed === true, landed);
-    // Второй заход: отпустил, пока был на другой камере.
+    check("dev: отпустил после возвращения — карта легла на сукно, как обычно", await t((id) => window.__t3d.state().felt.some((f) => f.id === id), card1), null);
+    // Отпустил, пока на виду был экран Алии: мой экран не застревает в тяге — карта легла там, где её держали.
     const card2 = await hold();
     await p.keyboard.press("Tab"); await p.waitForTimeout(500);
-    await p.mouse.up(); await p.waitForTimeout(200);
+    await p.mouse.up(); await p.waitForTimeout(300);
     await p.keyboard.press("Tab"); await p.waitForTimeout(500); await frames();
-    const erased = await t((id) => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === "me").seat; return { held: window.__t3d.held(), inHand: s.chairs.find((ch) => ch.id === seat).hand.some((x) => x.id === id), felt: s.felt.some((x) => x.id === id), lock: s.locks[id] ?? null }; }, card2);
-    check("dev: отпустил, пока был на другой камере, — стёрлось: не держу, карта в руке на месте, замка нет", erased.held === null && erased.inHand && !erased.felt && erased.lock === null, erased);
+    const after2 = await t((id) => { const s = window.__t3d.state(); return { held: window.__t3d.held(), felt: s.felt.some((x) => x.id === id), lock: s.locks[id] ?? null }; }, card2);
+    check("dev: отпустил, пока был на экране Алии, — на моём экране не застряла тяга: карта легла там, где её держали", after2.held === null && after2.felt && after2.lock === null, after2);
   }
 
   // МОЁ ТЕЛО: плечи, шея и рука на моём стуле, цвет — мой; кружок головы с именем — только когда камера ушла на другую сторону стола.

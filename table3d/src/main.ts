@@ -10,16 +10,54 @@ const params = new URLSearchParams(location.search);
 (globalThis as { __TABLE_HOST__?: string }).__TABLE_HOST__ = params.get("host") ?? "http://localhost:2590";
 
 const note = document.getElementById("note")!;
+/** Экран — коробка со своей сценой и своим HUD: у каждого своя камера, свои окна, своя рука в пальце. */
+function screenBox(first: boolean): { screen: HTMLElement; stage: HTMLElement; hud: HTMLElement } {
+  const screen = document.createElement("div"), stage = document.createElement("div"), hud = document.createElement("div");
+  screen.className = "screen";
+  stage.className = "stage";
+  hud.id = "hud";
+  if (first) stage.id = "stage";
+  screen.append(stage, hud);
+  document.getElementById("screens")!.append(screen);
+  return { screen, stage, hud };
+}
 try {
   const room = params.get("room");
-  const store = room
-    ? await (await import("../../server/table-client/netStore.js")).netStore({ room, client: "table3d", door: "guest", name: params.get("name") ?? "Гость 3D" })
-    : (await import("../../server/table-client/localStore.js")).localStore({ freeChair: true });
   const { mountScene } = await import("./scene.js");
   const { mountHud } = await import("./hud.js");
-  note.hidden = true;
-  const stage = document.getElementById("stage")!;
-  mountHud(document.getElementById("hud")!, stage, store, mountScene(stage, store));
+  if (room) {
+    // Живая комната: один экран, один человек.
+    const store = await (await import("../../server/table-client/netStore.js")).netStore({ room, client: "table3d", door: "guest", name: params.get("name") ?? "Гость 3D" });
+    const box = screenBox(true);
+    note.hidden = true;
+    mountHud(box.hud, box.stage, store, mountScene(box.stage, store), undefined, box.screen);
+  } else {
+    // СТЕНД: один стол и два стенда на странице — мой экран и экран Алии. Оба живут всё время; Tab (или кнопка DEV) прыгает между ними,
+    // и каждый помнит всё своё: камеру, окна, карту в пальце. Чей экран не на виду, тот только не рисуется поверх.
+    const { localTable } = await import("../../server/table-client/localStore.js");
+    const table = localTable({ freeChair: true });
+    const who = [{ key: "me", name: "Ye" }, { key: "alia", name: "Алия" }];
+    const screens = who.map((one, k) => {
+      const box = screenBox(k === 0), store = table.view(one.key), scene = mountScene(box.stage, store);
+      return { ...box, scene, mount: () => mountHud(box.hud, box.stage, store, scene, { label: `${one.name} → ${who[1 - k]!.name}`, onSwitch: () => show(1 - shown) }, box.screen) };
+    });
+    let shown = 0;
+    const show = (k: number): void => {
+      shown = k;
+      screens.forEach((one, i) => one.screen.classList.toggle("off", i !== k));
+      (window as unknown as { __t3d: unknown }).__t3d = screens[k]!.scene.test;
+      (document.activeElement as HTMLElement | null)?.blur?.();
+    };
+    for (const one of screens) one.mount();
+    note.hidden = true;
+    show(0);
+    addEventListener("keydown", (e) => {
+      if (e.key !== "Tab" || e.repeat) return;
+      if ((e.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable]")) return;
+      e.preventDefault();
+      show(1 - shown);
+    });
+  }
 } catch (e) {
   note.textContent = `Стол не открылся: ${e instanceof Error ? e.message : String(e)}`;
   throw e;
