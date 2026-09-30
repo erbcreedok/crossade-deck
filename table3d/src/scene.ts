@@ -122,6 +122,8 @@ export interface SceneApi {
   feltAt(x: number, y: number): { x: number; y: number } | null;
   /** После каждого кадра — HUD переставляет то, что стоит по сцене. */
   onFrame(fn: () => void): void;
+  /** Какую карту несут (сдвинулась с места): в окне HUD на её месте пустой контур; никакую — `null`. */
+  carrying(): string | null;
   /** Взять карту пальцем из окна HUD (окно стопки, окно стула): дальше её несут, как со стола. */
   carry(id: string, e: PointerEvent): void;
   /** Несут стопку: `screen` — где палец на экране (верх стопки встаёт ровно под него, как несомая карта); `null` — отпустили. */
@@ -978,6 +980,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     feltAt: (x, y) => { const at = onFelt({ clientX: x, clientY: y }); return at ? { x: at.x, y: at.z } : null; },
     onFrame: (fn) => void frameHeard.push(fn),
     carry(id, e) { if (fromOf.has(id)) startDrag(id, e); },
+    carrying: () => (drag?.moved ? drag.id : null),
     grabPile(pile, screen) {
       const p = store.state.piles.find((x) => x.id === pile), base = p && cards.get(p.cards[0]?.id ?? "");
       if (!p || !base) return;

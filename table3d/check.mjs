@@ -433,6 +433,40 @@ try {
     await p.mouse.up(); await frames();
   }
 
+  // КАРТЫ В ОКНАХ: чужая рука под локом — тянуть нельзя вовсе; несомая карта уходит из окна (на её месте пустой контур);
+  // отпустили за столом — легла на край сукна.
+  {
+    await p.goto(`${base}/?stand`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const alia = (await t(() => window.__t3d.bodies())).find((b) => b.by === "alia");
+    await p.mouse.click(alia.head.x, alia.head.y);
+    await frames();
+    const lockedCards = await p.locator('[data-panel^="chair:"] [data-tip-card]').evaluateAll((els) => els.map((e) => e.getAttribute("data-take")));
+    check("чужая рука под локом: карты в окне помечены «нельзя взять»", lockedCards.length > 0 && lockedCards.every((v) => v === "0"), lockedCards);
+    const lb = await p.locator('[data-panel^="chair:"] [data-tip-card]').first().boundingBox();
+    await p.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2); await p.mouse.down();
+    await p.mouse.move(lb.x + lb.width / 2 + 10, lb.y + lb.height / 2 - 120, { steps: 10 });
+    await frames();
+    const lockedHeld = await t(() => window.__t3d.held());
+    await p.mouse.up(); await frames();
+    check("чужая рука под локом: потянуть карту из окна нельзя (её не несут)", lockedHeld === null, lockedHeld);
+    await p.click("[data-tip-close]"); await frames();
+    // Окно стопки: карту тянут — в окне контур, а не она.
+    await clickGrip(); await frames();
+    const cardEl = p.locator('[data-panel^="pile:"] [data-tip-card]').last();
+    const cid = await cardEl.getAttribute("data-tip-card");
+    const cb = await cardEl.boundingBox();
+    await p.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2); await p.mouse.down();
+    await p.mouse.move(6, 130, { steps: 14 });
+    await frames();
+    const inWindow = await p.locator(`[data-tip-card="${cid}"]`).count(), outline = await p.locator(`[data-tip-slot="${cid}"]`).count(), carried = await t(() => window.__t3d.held()?.id);
+    check("тянут карту из окна стопки — в окне пустой контур, самой карты там нет, а несут её на столе", inWindow === 0 && outline === 1 && carried === cid, { inWindow, outline, carried, cid });
+    await p.mouse.up(); await frames();
+    const landed = await t((id) => { const f = window.__t3d.state().felt.find((x) => x.id === id); return f ? Math.hypot(f.x, f.y) : null; }, cid);
+    check("отпустили за столом — карта легла на край сукна, а не вернулась в окно", landed !== null && landed > 5 && landed < 6.0, landed);
+  }
+
   // МОЯ РУКА ВСЕГДА ВИДНА: камера низко и вплотную — борт стола подходит к глазу, но веер поверх него, а не под ним.
   {
     await p.goto(`${base}/?stand`);
