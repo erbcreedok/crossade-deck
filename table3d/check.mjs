@@ -1130,6 +1130,20 @@ try {
     await p.mouse.up();
     check("взял карту из руки — она на экране не растёт и не мельче той, что в руке (в пределах 25%)", Math.abs(held / inHand - 1) < 0.25, { inHand, held });
   }
+
+  {
+    // Дев-ползунок обзора камеры: тянешь — поле зрения головы шире или уже; на «домой» остаётся.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const fov0 = (await t(() => window.__t3d.cam())).fov;
+    const slider = p.locator(".screen:not(.off) [data-dev-fov] input");
+    await slider.fill("95"); await frames();
+    const fov1 = (await t(() => window.__t3d.cam())).fov;
+    await slider.blur(); await p.keyboard.press("Home"); await frames();
+    const fov2 = (await t(() => window.__t3d.cam())).fov;
+    check("дев-ползунок обзора: поле зрения головы меняется и держится после «домой»", fov0 === 62 && Math.abs(fov1 - 95) < 0.5 && Math.abs(fov2 - 95) < 0.5, { fov0, fov1, fov2 });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();

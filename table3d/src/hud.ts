@@ -147,6 +147,20 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   const panelOverlay = document.createElement("div");
   panelOverlay.id = "panels";
   screen.append(panelOverlay);
+  // Только для разработки: ползунок обзора головы — вне перерисовки HUD, чтобы палец его не терял.
+  if (dev) {
+    const box = document.createElement("div");
+    box.dataset.devFov = "";
+    box.style.cssText = `position:absolute;left:${RIM_LEFT}px;top:calc(162px + env(safe-area-inset-top, 0px));z-index:61;display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:9px;font:400 11px Tiny5,monospace;color:${T.ink};background:${T.well};box-shadow:inset 0 0 0 2px ${T.black}`;
+    const label = document.createElement("span"), range = document.createElement("input");
+    range.type = "range"; range.min = "40"; range.max = "120"; range.step = "1"; range.setAttribute("aria-label", "Только для разработки: обзор камеры");
+    range.style.cssText = "width:120px;touch-action:pan-x";
+    const show = () => { range.value = String(Math.round(scene.baseFov())); label.textContent = `DEV · обзор ${range.value}°`; };
+    range.addEventListener("input", () => { scene.setBaseFov(Number(range.value)); show(); });
+    show();
+    box.append(label, range);
+    screen.append(box);
+  }
   const panels = mountPanels(panelOverlay, { ...scene.panels, feltAt: scene.feltAt, glass: scene.glass }, () => draw());
   let shown: string[] = [];
   store.onStickers((ids) => { myStickers = ids; talk.refresh(); });

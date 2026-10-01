@@ -153,6 +153,9 @@ export interface SceneApi {
   turnBy(deg: number): void;
   /** Модель камеры: орбита, голова, оптика. Намерения: взгляд (yaw, pitch — градусы) и приближение (> 1 — ближе). */
   camMode(): CamMode;
+  /** Только для разработки: обычное поле зрения головы, градусы по вертикали. */
+  baseFov(): number;
+  setBaseFov(deg: number): void;
   setCamMode(m: CamMode): void;
   lookBy(dyaw: number, dpitch: number): void;
   zoomBy(k: number): void;
@@ -319,7 +322,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
 
   // ——— модели камеры (`camera.ts`): орбита вокруг стола, голова на месте с наклоном, голова на месте с оптикой ———
   let camMode: CamMode = ((m) => (m === "orbit" || m === "top" ? m : "head"))(new URLSearchParams(location.search).get("cam"));
-  const rig = { yaw: 0, pitch: -40, lean: 0, fov: CAM.fov.base as number };
+  /** Обычное поле зрения головы; для разработки его двигает ползунок (`setBaseFov`). */
+  let baseFov: number = CAM.fov.base;
+  const rig = { yaw: 0, pitch: -40, lean: 0, fov: baseFov };
   const neck = neckNew();
   /** Рука в кадре (вид «голова») как в FPS: отстаёт от поворота взгляда и чуть поднимается, когда смотришь вниз, опускается, когда вверх. */
   const sway = { x: 0, y: 0, yaw: 0, pitch: 0, home: -40 };
@@ -371,7 +376,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!ch) return;
     rig.yaw = sideYaw(ch);
     rig.lean = 0;
-    rig.fov = CAM.fov.base;
+    rig.fov = baseFov;
     neck.held = neck.back = neck.rest = 0;
     rig.pitch = camMode === "top" ? -90 : pitchToCentre(headAt(shoulders3(ch.angle, stanceNow()), 0));
     sway.home = rig.pitch; sway.yaw = rig.yaw; sway.pitch = rig.pitch; sway.x = sway.y = 0;
@@ -395,14 +400,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Намерение: оптический зум (`k` > 1 — уже поле зрения). Тело не двигается, рука в кадре остаётся того же размера. Вид «голова». */
   function opticsBy(k: number): void {
     if (camMode !== "head") return;
-    rig.fov = Math.max(CAM.fov.min, Math.min(CAM.fov.base, rig.fov / k));
+    rig.fov = Math.max(CAM.fov.min, Math.min(baseFov, rig.fov / k));
     applyRig(); draw();
   }
   function setCamMode(m: CamMode): void {
     camMode = m;
     orbit.enabled = m === "orbit";
     camera.up.set(0, 1, 0);
-    camera.fov = m === "orbit" ? 50 : m === "top" ? TOP.fov : CAM.fov.base;
+    camera.fov = m === "orbit" ? 50 : m === "top" ? TOP.fov : baseFov;
     camera.updateProjectionMatrix();
     home();
     touched = false;
@@ -689,7 +694,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    */
   const WIDTH = { stack: 0.12, rowFrom: 0.7, fanTo: 0.75, px: 220, pinch: 140, rise: 150, defaults: { shrink: 0.05, fan: 0.45, row: 1 }, othersRow: 4.2 };
   let handWidth = 0.45, widthLive: number | null = null, widthOver = 0, widthPendingUntil = 0;
-  const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAM.fov.base * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / CAMHAND.card); };
+  const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((baseFov * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / CAMHAND.card); };
   const roomOf = (f: number): number => 1.2 + (roomMax() - 1.2) * Math.max(0, Math.min(1, (f - WIDTH.stack) / (1 - WIDTH.stack)));
   const smooth = (a: number, b: number, x: number): number => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
   /** Раскладка моей руки из ширины `f` и подъёма `rise` (0…1): сжатость, веер ↔ ряд, комната в ширинах карты. */
@@ -842,7 +847,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return;
     }
     if (camMode === "head") {
-      const down = tuckOf(b), fovK = Math.tan((rig.fov * DEG) / 2) / Math.tan((CAM.fov.base * DEG) / 2), head = { x: camera.position.x, y: camera.position.z, h: camera.position.y }, off = swayOffset();
+      const down = tuckOf(b), fovK = Math.tan((rig.fov * DEG) / 2) / Math.tan((baseFov * DEG) / 2), head = { x: camera.position.x, y: camera.position.z, h: camera.position.y }, off = swayOffset();
       syncWidth(ch);
       const shape = shapeOfWidth(widthLive ?? handWidth, n, Math.max(0, Math.min(1, -nudgePx / WIDTH.rise)), widthOver);
       placeFpsArm(down <= 0 && list.length > 0 && !handCarry, fovK, off);
@@ -1569,6 +1574,13 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     test,
     home: () => { home(); draw(); sendBody(true); },
     camMode: () => camMode,
+    baseFov: () => baseFov,
+    setBaseFov(deg) {
+      baseFov = Math.max(CAM.fov.min + 10, Math.min(120, deg));
+      camera.aspect = host.clientWidth / Math.max(1, host.clientHeight);
+      if (camMode === "head") { rig.fov = baseFov; applyRig(); }
+      layout(store.state); draw();
+    },
     setCamMode,
     lookBy,
     zoomBy,
@@ -1747,7 +1759,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   orbit.addEventListener("start", () => { touched = true; });
   new ResizeObserver(() => { if (!touched) home(); draw(); }).observe(host);
   orbit.enabled = camMode === "orbit";
-  camera.fov = camMode === "orbit" ? 50 : camMode === "top" ? TOP.fov : CAM.fov.base;
+  camera.fov = camMode === "orbit" ? 50 : camMode === "top" ? TOP.fov : baseFov;
   camera.updateProjectionMatrix();
   home();
   sendBody(true);
