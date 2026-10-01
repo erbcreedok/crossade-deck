@@ -1381,19 +1381,30 @@ try {
   }
 
   {
-    // Верхняя ручка влево-вправо раскрывает дистанцию между картами под пальцем, когда карты сильно наплывают; если места хватает — ничего не делает.
+    // Верхний грип: вокруг него карты раздвинуты (номинал и масть видны), влево-вправо он идёт за пальцем и остаётся; начал по горизонтали — вверх-вниз не двигает ничего.
     await p.goto(`${base}/?stand&host=http://localhost:9591`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
-    const pure = await t(() => ({ tight: window.__t3d.peekShiftFor([0, 0.1, 0.2, 0.3], 0.15), roomy: window.__t3d.peekShiftFor([0, 0.6, 1.2], 0.5), none: window.__t3d.peekShiftFor([0, 0.1, 0.2], null) }));
-    check("раздвижка: у тесной руки карты расходятся от пальца (левые влево, правые вправо), у просторной и без пальца — нули", pure.tight[0] < -0.01 && pure.tight[3] > 0.01 && pure.roomy.every((v) => v === 0) && pure.none.every((v) => v === 0), pure);
-    const gaps = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, xs = h.map((c) => T.screenOf(c.id).x), m = Math.floor(h.length / 2); return { mid: xs[m + 1] - xs[m], far: xs[0], x: xs[m] }; });
-    const g0 = await gaps();
-    await t((x) => window.__t3d.setPeekNow(x), g0.x + 5); await p.waitForTimeout(700);
-    const open = await gaps();
-    await t(() => window.__t3d.setPeekNow(null)); await p.waitForTimeout(700);
-    const back = await gaps();
-    check("верхняя ручка влево-вправо: карты под пальцем раздвинулись (в 1.6 раза шире и больше), отпустил — вернулись", open.mid > g0.mid * 1.6 && Math.abs(back.mid - g0.mid) < 2 && Math.abs(back.far - g0.far) < 2, { g0, open, back });
+    const pure = await t(() => ({ tight: window.__t3d.peekShiftFor([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6], 0.3), roomy: window.__t3d.peekShiftFor([0, 0.6, 1.2], 0.5), none: window.__t3d.peekShiftFor([0, 0.1, 0.2], null) }));
+    const gapsAround = (sh) => { const xs = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6].map((x, i) => x + sh[i]); return xs.slice(1).map((x, i) => x - xs[i]); };
+    const gp = gapsAround(pure.tight);
+    check("раздвижка: вокруг грипа все соседние расстояния не меньше 0.4 ширины карты, якорная карта на месте; у просторной руки и без грипа — нули", gp[2] >= 0.4 - 1e-6 && gp[3] >= 0.4 - 1e-6 && Math.abs(pure.tight[3]) < 1e-9 && pure.roomy.every((v) => v === 0) && pure.none.every((v) => v === 0), { pure, gp });
+    const gaps = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, xs = h.map((c) => T.screenOf(c.id).x), g = xs.slice(1).map((x, i) => x - xs[i]); return { left: g[0], mid: g[Math.floor(g.length / 2)], right: g[g.length - 1], all: g.map(Math.round) }; });
+    await t(() => window.__t3d.fillHand(7)); await p.waitForTimeout(2500);
+    await t(() => window.__t3d.setHandWidthNow(0.5)); await p.waitForTimeout(2500);
+    const c0 = await gaps();
+    check("по центру грип раскрывает карты в середине: расстояние в центре больше, чем у краёв веера", c0.mid > c0.left * 1.4 && c0.mid > c0.right * 1.4, c0);
+    await t(() => window.__t3d.setGripNow(120)); await p.waitForTimeout(1500);
+    const c1 = await gaps();
+    check("грип слева — раскрыты карты слева, а не в центре", c1.left > c1.right * 1.2 && c1.left > c0.left * 1.15, { c0, c1 });
+    await t(() => window.__t3d.setGripNow(null)); await p.waitForTimeout(500);
+    // Ось жеста: вправо, потом вниз — высота и поза не меняются, грип остаётся там, где его оставили.
+    const tab = await rectOf('.screen:not(.off) [data-hand-tab="top"]'), x = tab.x + tab.width / 2, y = tab.y + tab.height / 2;
+    await p.mouse.move(x, y); await p.mouse.down(); await p.mouse.move(x + 45, y, { steps: 5 }); await p.mouse.move(x + 45, y + 150, { steps: 8 }); await p.waitForTimeout(300);
+    const h1 = await t(() => ({ h: window.__t3d.handHeightNow(), grip: window.__t3d.gripX?.() }));
+    await p.mouse.up(); await p.waitForTimeout(700);
+    const after = await rectOf('.screen:not(.off) [data-hand-tab="top"]'), tuck = await t(() => { const s2 = window.__t3d.state(), seat = s2.people.find((q) => q.key === window.__t3d.me()).seat; return s2.chairs.find((c) => c.id === seat).pose.tuck; });
+    check("начал влево-вправо — вниз не двигает руку (высота та же, не легла), грип остался справа там, где отпустили", h1.h === 0 && tuck === false && after && Math.abs(after.x + after.width / 2 - (x + 45)) < 8 && Math.abs(after.y - tab.y) < 4, { h1, tuck, tabX: x, afterX: after && after.x + after.width / 2, tabY: tab.y, afterY: after && after.y });
   }
 
   {
@@ -1444,12 +1455,12 @@ try {
     await frames();
     const ids = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat; return st.chairs.find((c) => c.id === seat).hand.map((c) => c.id); });
     const pos = (id) => t((i) => window.__t3d.screenOf(i), id);
-    const mid = ids[ids.length - 1], rest = await pos(mid);
+    const probe = await pos(ids[3]), px = probe.x - 40, py = probe.y + 30, mid = await t(([x, y]) => window.__t3d.cardAt(x, y), [px, py]), rest = await pos(mid);
     const apparent = (id) => t((i) => { const T = window.__t3d, w = T.world(i), c = T.cam().pos; return T.cardWidth(i) / Math.hypot(w.x - c[0], w.h - c[1], w.y - c[2]); }, id);
     const frameTop = () => t(() => window.__t3d.handFrame()?.y ?? null);
     const depthRank = () => t((i) => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, cm = T.cam(), c = cm.pos, yw = (cm.yaw * Math.PI) / 180, pt = (cm.pitch * Math.PI) / 180, f = [Math.sin(yw) * Math.cos(pt), Math.sin(pt), -Math.cos(yw) * Math.cos(pt)], d = (id) => { const w = T.world(id); return (w.x - c[0]) * f[0] + (w.h - c[1]) * f[1] + (w.y - c[2]) * f[2]; }; return { mine: d(i), others: Math.min(...h.filter((q) => q.id !== i).map((q) => d(q.id))) }; }, mid);
     const sizeRest = await apparent(mid), frameRest = await frameTop(), tabRest = await rectOf('.screen:not(.off) [data-hand-tab="top"]');
-    await p.mouse.move(rest.x, rest.y + 30); await p.mouse.down(); await p.waitForTimeout(500);
+    await p.mouse.move(px, py); await p.mouse.down(); await p.waitForTimeout(500);
     const orderP = await t((i) => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand; return { mine: T.cardOrder(i).order, others: Math.max(...h.filter((q) => q.id !== i).map((q) => T.cardOrder(q.id).order)) }; }, mid);
     const pressed = await pos(mid), sizePressed = await apparent(mid), framePressed = await frameTop(), tabPressed = await rectOf('.screen:not(.off) [data-hand-tab="top"]'), depthP = await depthRank();
     await p.mouse.up(); await p.waitForTimeout(700);

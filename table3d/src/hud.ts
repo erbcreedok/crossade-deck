@@ -330,7 +330,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       const x = Math.max(hit / 2, Math.min(g.w - hit / 2, cx)), y = Math.max(hit / 2, Math.min(g.h - hit / 2, cy));
       return pillHtml(which, x, y, pw, ph, 0.62);
     };
-    return grab("top", fr.x + fr.w / 2, fr.y, 40, 5) + grab("left", Math.max(76, fr.x), fr.y + fr.h / 2, 5, 40);
+    return grab("top", Math.max(fr.x + 24, Math.min(fr.x + fr.w - 24, scene.gripX() ?? fr.x + fr.w / 2)), fr.y, 40, 5) + grab("left", Math.max(76, fr.x), fr.y + fr.h / 2, 5, 40);
   }
   /** Ручка с зоной нажатия в палец: полоска `pw`×`ph` в точке `x, y`. */
   function pillHtml(which: string, x: number, y: number, pw: number, ph: number, alpha: number): string {
@@ -751,17 +751,24 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       // Ручка у стопки после подъёма руки — та же верхняя ручка: ход считается от места, где рука поднялась (`baseY`, `hBase`).
       let lastY = y0, baseY = y0, hBase = h0;
       let dx = 0, dy = 0, moved = false, carrying = false, lifted = !fromStack;
+      // Ось жеста верхнего грипа решается раз и навсегда: начал влево-вправо — вверх-вниз больше нельзя (и наоборот).
+      let axis: "h" | "v" | null = null;
       const t0 = performance.now(), lift = () => { if (!lifted) { lifted = true; baseY = lastY; hBase = scene.handHeight(); showLines(); const c = myChair(); if (c) store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: false } }); } };
       follow(e, (ev) => {
         dx = ev.clientX - e.clientX; dy = ev.clientY - e.clientY; lastY = ev.clientY; moved ||= Math.hypot(dx, dy) >= TAP_PX;
         const dist = Math.hypot(dx, dy);
+        if (which === "top" && axis === null && Math.max(Math.abs(dx), Math.abs(dy)) >= PEEK.min) axis = Math.abs(dx) >= Math.abs(dy) ? "h" : "v";
         if (fromStack && !lifted && dist >= TAB_PX.pull) lift();
-        local.grabOff = moved || fromStack ? { which, x: fromStack || which === "left" ? x0 + dx : x0, y: y0 + dy, ...(fromStack ? { from: "stack" as const } : {}), morph: fromStack ? Math.max(0, Math.min(1, (dist - TAB_PX.pull) / 40)) : 1 } : null;
+        local.grabOff = moved || fromStack ? { which, x: fromStack || which === "left" || axis === "h" ? x0 + dx : x0, y: axis === "h" ? y0 : y0 + dy, ...(fromStack ? { from: "stack" as const } : {}), morph: fromStack ? Math.max(0, Math.min(1, (dist - TAB_PX.pull) / 40)) : 1 } : null;
         if (fromStack && !lifted) { draw(); return; }
         if (which === "left") {
           // К краю экрана — шире. За пределом ручка продолжает идти за пальцем, а карты натягиваются и перестают расти.
           // Вверх — веер выпрямляется, вниз — загибается сильнее (края карт идут вниз вслед за пальцем, как в руке).
           if (moved) { scene.setHandWidth(w0 - dx / TAB_PX.width); scene.setHandCurl(c0 + dy / TAB_PX.curl); }
+        } else if (axis === "h") {
+          // Влево-вправо: грип идёт за пальцем и остаётся там, где его оставили; вокруг него карты раздвинуты, вверх-вниз в этом жесте не двигается ничего.
+          const fr = scene.handFrame();
+          scene.setGrip(fr ? Math.max(fr.x + 24, Math.min(fr.x + fr.w - 24, ev.clientX)) : ev.clientX);
         } else {
           // Высоко вверх — левая рука несёт всю руку стопкой над столом, как колоду; вернул вниз, не отпуская, — карты назад в руку.
           const dyB = ev.clientY - baseY;
@@ -771,15 +778,12 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
           }
           // Иначе рука следует за ручкой по высоте и остаётся там, где отпустили: вверх — выпрямляется веер, вниз — вслед за пальцем до оранжевой линии, дальше карты собираются и опускается на стол.
           if (moved) scene.setHandHeight(hBase - Math.min(dyB, Math.max(0, collectY - baseY)));
-          // Влево-вправо — раздвигает карты под пальцем, если они сильно наплывают друг на друга (большая стопка); хватает ли места — ничего не делает.
-          scene.setPeek(Math.abs(dx) >= PEEK.min ? ev.clientX : null);
           // Карты не трогаются, пока палец не пересёк оранжевую линию; от неё до красной собираются в стопку, на красной — собраны.
           scene.setBlend(moved && ev.clientY > collectY ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - (ev.clientY - collectY) / Math.max(1, layY - collectY))) } : undefined);
         }
         draw();
       }, () => {
         local.grabLines = null;
-        scene.setPeek(null);
         local.grabOff = null;
         scene.setBlend(undefined);
         // Тап по ручке стопки поднимает руку; держал или потянул и вернул — остаётся на столе.
@@ -787,7 +791,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         if (carrying) { scene.carryHand(null); draw(); return; }
         const c = myChair();
         if (which === "left") scene.setHandWidth(null);
-        else if (c && moved && lastY - baseY > 20 && lastY >= collectY) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); scene.setHandHeight(0); local.handMenu = false; local.handPop = null; }
+        else if (c && moved && axis !== "h" && lastY - baseY > 20 && lastY >= collectY) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); scene.setHandHeight(0); scene.setGrip(null); local.handMenu = false; local.handPop = null; }
         draw();
       });
       return;

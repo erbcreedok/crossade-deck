@@ -82,18 +82,28 @@ export function topHeight(aspect: number, fovDeg: number, restScale: number): nu
 }
 
 /**
- * РАЗДВИЖКА КАРТ ПОД ПАЛЬЦЕМ — верхняя ручка влево-вправо раскрывает дистанцию между картами под ней, когда карты сильно наплывают друг на друга
- * (большая стопка). Если между всеми соседними картами и так не меньше `gap` (ширин карты) — раздвигать нечего.
- *   `xs` — места карт по ширине руки (в ширинах карты), `f` — где палец (там же), `null` — раздвижки нет.
- * Карты по обе стороны от пальца расходятся на недостающее до `gap`, влияние гаснет за `reach` от пальца.
+ * РАЗДВИЖКА КАРТ ПОД ВЕРХНИМ ГРИПОМ — вокруг грипа карты раздвинуты так, чтобы были видны номинал и масть, пока они не стоят и так свободно.
+ *   `xs` — места карт по ширине руки (в ширинах карты), `f` — где грип (там же), `gap` — расстояние между соседними картами у грипа,
+ *   `core` — сколько промежутков по обе стороны от грипа раздвинуты полностью, `fall` — на скольких промежутках раздвижка потом сходит на нет.
+ * Считается по номерам карт, а не по расстоянию: густая стопка раскрывается в несколько карт вокруг грипа, а не на весь экран.
+ * Карта, ближайшая к грипу, остаётся на месте, остальные расходятся от неё; между картами, которым и так хватает места, ничего не меняется.
  */
-export const PEEK = { gap: 0.45, reach: 1.1, min: 10 } as const;
-export function peekShift(xs: readonly number[], f: number | null, gap: number = PEEK.gap, reach: number = PEEK.reach): number[] {
+export const PEEK = { gap: 0.42, core: 2.5, fall: 2, min: 10 } as const;
+export function peekShift(xs: readonly number[], f: number | null, gap: number = PEEK.gap, core: number = PEEK.core, fall: number = PEEK.fall): number[] {
   const none = xs.map(() => 0);
   if (f === null || xs.length < 2) return none;
-  let tight = Infinity;
-  for (let i = 1; i < xs.length; i += 1) tight = Math.min(tight, Math.abs(xs[i]! - xs[i - 1]!));
-  const open = gap - tight;
-  if (open <= 0) return none;
-  return xs.map((x) => Math.tanh((x - f) / 0.15) * (open / 2) * Math.max(0, 1 - Math.abs(x - f) / reach));
+  const n = xs.length;
+  let at = 0;
+  while (at < n - 2 && xs[at + 1]! < f) at += 1;
+  const span = xs[at + 1]! - xs[at]!, jf = Math.max(0, Math.min(n - 1, at + (span > 1e-9 ? (f - xs[at]!) / span : 0)));
+  const space = Array.from({ length: n - 1 }, (_, i) => {
+    const s = xs[i + 1]! - xs[i]!, w = Math.max(0, Math.min(1, 1 - Math.max(0, Math.abs(i + 0.5 - jf) - core) / fall));
+    return s + (Math.max(gap, s) - s) * w;
+  });
+  let anchor = 0;
+  for (let i = 1; i < n; i += 1) if (Math.abs(xs[i]! - f) < Math.abs(xs[anchor]! - f)) anchor = i;
+  const out = [...xs];
+  for (let i = anchor; i < n - 1; i += 1) out[i + 1] = out[i]! + space[i]!;
+  for (let i = anchor; i > 0; i -= 1) out[i - 1] = out[i]! - space[i - 1]!;
+  return out.map((x, i) => x - xs[i]!);
 }
