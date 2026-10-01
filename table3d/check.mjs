@@ -1100,7 +1100,7 @@ try {
     await p.mouse.move(topAt.x, topAt.y); await p.mouse.down(); await p.mouse.move(topAt.x - 150, topAt.y - 120, { steps: 10 }); await p.waitForTimeout(300);
     const during = await rectOf('[data-hand-tab="stack"]').catch(() => null);
     await p.mouse.up();
-    check("тяну верхнюю карту стопки: ручка остаётся у стопки", !during || Math.hypot(during.x - before.x, during.y - before.y) < 60, { before, during });
+    check("тяну верхнюю карту стопки: ручка остаётся у стопки", !!during && Math.hypot(during.x - before.x, during.y - before.y) < 60, { before, during });
   }
   check("без ошибок", errors.length === 0, errors);
 } finally {
