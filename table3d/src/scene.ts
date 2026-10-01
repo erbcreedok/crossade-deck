@@ -204,6 +204,8 @@ export interface SceneApi {
   handHeight(): number;
   /** Верхняя ручка схвачена в точке `y` экрана (рука на текущей высоте): зона несения мерится от неё; `null` — отпустили. */
   setCarryZone(y: number | null): void;
+  /** Линия экрана, выше которой несётся рука стопкой (пока схвачена верхняя ручка), — для подсказки; нет — `null`. */
+  carryLine(): number | null;
   setHandHeight(px: number): void;
   /** Где на экране лежит моя положенная стопка (охват верхней карты) — ручка у неё привязана к стопке на столе; рука не положена или стопки не видно — `null`. */
   stackScreen(): { x: number; y: number; w: number; h: number } | null;
@@ -1670,6 +1672,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     handFrame,
     fanFits: () => fanFitsNow(),
     handHeight: () => heightPx,
+    carryLine: () => (carryZone === null ? null : carryZone - 60),
     setCarryZone(y) {
       if (y === null) { carryZone = null; return; }
       camera.updateMatrixWorld();

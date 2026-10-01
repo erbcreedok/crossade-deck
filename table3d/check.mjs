@@ -1234,6 +1234,22 @@ try {
     const hp2 = await t(() => window.__t3d.handHeightNow()), y2 = await firstY();
     check("верхняя ручка чуть вниз — рука ниже и тоже остаётся (не легла на стол)", hp2 < hp1 - 15 && y2 > y1 + 6 && (await t(() => { const x = window.__t3d.state(), seat = x.people.find((q) => q.key === window.__t3d.me()).seat; return x.chairs.find((c) => c.id === seat).pose.tuck; })) === false, { hp1, hp2, y1, y2 });
   }
+
+  {
+    // Пока тянешь верхнюю ручку, видны две линии: где рука ложится на стол и где несётся стопкой; отпустил — пропали.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const tab = await rectOf('.screen:not(.off) [data-hand-tab="top"]');
+    const tx = tab.x + tab.width / 2, ty = tab.y + tab.height / 2;
+    const before = await p.locator("#hud [data-grab-lines], .screen:not(.off) [data-grab-lines]").count();
+    await p.mouse.move(tx, ty); await p.mouse.down(); await p.mouse.move(tx, ty + 10, { steps: 3 }); await p.waitForTimeout(200);
+    const lines = await p.evaluate(() => [...document.querySelectorAll(".screen:not(.off) [data-grab-line]")].map((e) => ({ k: e.getAttribute("data-grab-line"), y: e.getBoundingClientRect().y })));
+    await p.mouse.up(); await p.waitForTimeout(200);
+    const after = await p.locator(".screen:not(.off) [data-grab-line]").count();
+    const lay = lines.find((l) => l.k === "lay"), carry = lines.find((l) => l.k === "carry");
+    check("верхняя ручка: пока тянут, видны линии «положить» (ниже ручки) и «нести стопкой» (выше), отпустил — пропали", before === 0 && !!lay && !!carry && lay.y > ty && carry.y < ty && after === 0, { before, lines, ty, after });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();

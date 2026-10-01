@@ -89,6 +89,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     /** Какой список открыт из сабменю руки: порядок (`sort`) или поза (`pose`). */
     handPop: null as null | "sort" | "pose",
     /** Ручка тянется за пальцем: её место на экране, пока её держат (левая идёт по горизонтали, верхняя — по вертикали), независимо от того, куда рука сдвигает охват. */
+    /** Пока тянут верхнюю ручку: на каких линиях экрана рука ложится на стол и несётся стопкой. */
+    grabLines: null as null | { lay: number | null; carry: number },
     grabOff: null as null | { which: "top" | "left"; x: number; y: number; from?: "stack"; morph: number },
     journal: false,
     deckTip: null as string | null,
@@ -280,6 +282,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const fr = chair && count && !chair.pose.tuck ? scene.handFrame() : null;
     const held = local.grabOff;
     if (fr) html += handGrabsHtml(fr, held?.which ?? null);
+    if (local.grabLines) html += grabLinesHtml(local.grabLines);
     if (held) html += heldGrabHtml(held);
     // Рука положена: у стопки на столе — своя ручка (боковая); потянул — рука поднимается и ручка становится верхней ручкой руки.
     const st = chair && count && chair.pose.tuck ? scene.stackScreen() : null;
@@ -342,6 +345,11 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const lerp = (a: number, b: number) => Math.round(a + (b - a) * o.morph);
     const [pw, ph] = o.which === "left" ? [5, 40] : o.from === "stack" ? [lerp(5, 40), lerp(40, 5)] : [40, 5];
     return pillHtml(o.which, x, y, pw, ph, 0.95);
+  }
+  /** Линии хода верхней ручки: за красную рука ложится на стол, за золотую несётся стопкой над столом. Видны, пока ручку тянут. */
+  function grabLinesHtml(l: { lay: number | null; carry: number }): string {
+    const line = (k: string, y: number, color: string, text: string) => `<div data-grab-line="${k}" style="position:absolute;left:0;right:0;top:${Math.round(y)}px;height:0;border-top:2px dashed ${color};z-index:32;pointer-events:none"><span style="position:absolute;left:72px;top:-20px;padding:2px 6px;border-radius:6px;font:400 11px Tiny5,monospace;color:${T.black};background:${color}">${text}</span></div>`;
+    return line("carry", l.carry, "#f2c14e", "нести стопкой") + (l.lay === null ? "" : line("lay", l.lay, "#e0654b", "положить на стол"));
   }
   /** Компас стола: стрелка — к своему стулу, диск лежит под наклоном камеры. */
   function compassHtml(chair: Chair, at: { left: number; top: number }): string {
@@ -730,7 +738,12 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       const box = tab.getBoundingClientRect(), x0 = box.x + box.width / 2, y0 = box.y + box.height / 2;
       // Ручка у стопки не исчезает вместе со стопкой: сразу становится ручкой в пальце, идёт под ним и разворачивается в верхнюю.
       if (fromStack) local.grabOff = { which: "top", x: x0, y: y0, from: "stack", morph: 0 };
-      if (!fromStack && which === "top") scene.setCarryZone(y0);
+      if (!fromStack && which === "top") {
+        scene.setCarryZone(y0);
+        // Рука ложится, когда ручка ушла вниз настолько, что веер сжался до четверти: считаем линию так же, как ниже на отпускании.
+        const layDy = b0.lift > 0.25 ? TAB_PX.dead + (TAB_PX.lay - TAB_PX.dead) * (1 - 0.25 / b0.lift) : null;
+        local.grabLines = { lay: layDy === null ? null : y0 + layDy, carry: Math.min(y0 - TAB_PX.carry, scene.carryLine() ?? Infinity) };
+      }
       let dx = 0, dy = 0, moved = false, carrying = false, lifted = !fromStack;
       const t0 = performance.now(), lift = () => { if (!lifted) { lifted = true; const c = myChair(); if (c) store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: false } }); } };
       follow(e, (ev) => {
@@ -758,6 +771,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         draw();
       }, () => {
         scene.setCarryZone(null);
+        local.grabLines = null;
         local.grabOff = null;
         scene.setBlend(undefined);
         // Тап по ручке стопки поднимает руку; держал или потянул и вернул — остаётся на столе.
