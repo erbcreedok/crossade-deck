@@ -1250,6 +1250,22 @@ try {
     const lay = lines.find((l) => l.k === "lay"), carry = lines.find((l) => l.k === "carry");
     check("верхняя ручка: пока тянут, видны линии «положить» (ниже ручки) и «нести стопкой» (выше), отпустил — пропали", before === 0 && !!lay && !!carry && lay.y > ty && carry.y < ty && after === 0, { before, lines, ty, after });
   }
+
+  {
+    // Кнопки у пальцев (чат, стойка, компас) стоят на месте, что бы ни делала поза руки: сжали, положили, подняли.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const spots = () => p.evaluate(() => ["[data-g=thumb-chat]", "[data-g=thumb-stance]", "[data-home]"].map((q) => { const r = document.querySelector(`.screen:not(.off) ${q}`).getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y)]; }));
+    const s0 = await spots();
+    await t(() => window.__t3d.setHandWidthNow(0.05)); await p.waitForTimeout(500);
+    const s1 = await spots();
+    await t(() => window.__t3d.setHandWidthNow(1)); await p.waitForTimeout(500);
+    const s2 = await spots();
+    await p.click(".screen:not(.off) [data-hand-btn]"); await p.click('.screen:not(.off) [data-hand-sub="release"]'); await p.waitForTimeout(2200);
+    const s3 = await spots();
+    check("кнопки у пальцев (чат, стойка, компас) не прыгают от позы руки: сжата, широко, положена", JSON.stringify(s0) === JSON.stringify(s1) && JSON.stringify(s0) === JSON.stringify(s2) && JSON.stringify(s0) === JSON.stringify(s3), { s0, s1, s2, s3 });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();

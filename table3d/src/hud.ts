@@ -179,10 +179,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   const geomNow = (): Geom | null => scene.handGeom();
   const barTopOf = (g: Geom | null) => g?.barTop ?? glass().h - barHeightU() * hudUnit();
   const handTopOf = (g: Geom): number => (g.slots.length ? Math.min(...g.slots.map((sl) => sl.y - g.h / 2)) : g.barTop!);
-  const thumbTopOf = (g: Geom | null, side: number): number => {
-    const base = g && g.slots.length ? handTopOf(g) : barTopOf(g);
-    return base - side - 10;
-  };
+  /** Кнопки у пальцев стоят над баром и от позы карт не зависят: рука подняли, положили, сжали — они на месте. */
+  const thumbTopOf = (g: Geom | null, side: number): number => barTopOf(g) - side - 10;
 
   // ——— кнопки бара — вид стола ———
   function barButton(what: BarKey | `sec-${Section}`, lit: boolean, px: number, left = 0): string {
