@@ -1135,7 +1135,7 @@ try {
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const mid = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, id = h.at(-1).id; return { id, at: T.screenOf(id) }; });
-    const apparent = (id) => t((i) => { const T = window.__t3d, w = T.world(i), c = T.cam().pos; return T.cardWidth(i) / Math.hypot(w.x - c[0], w.h - c[1], w.y - c[2]); }, id);
+    const apparent = (id) => t((i) => { const T = window.__t3d, w = T.world(i), c = T.cam().pos; return T.cardWidth(i) / T.depthOf(i); }, id);
     const inHand = await apparent(mid.id);
     await p.mouse.move(mid.at.x, mid.at.y); await p.mouse.down(); await p.mouse.move(mid.at.x, mid.at.y - 150, { steps: 10 }); await p.waitForTimeout(500);
     const held = await apparent(mid.id);
@@ -1498,7 +1498,7 @@ try {
     const ids = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat; return st.chairs.find((c) => c.id === seat).hand.map((c) => c.id); });
     const pos = (id) => t((i) => window.__t3d.screenOf(i), id);
     const probe = await pos(ids[3]), px = probe.x - 40, py = probe.y + 30, mid = await t(([x, y]) => window.__t3d.cardAt(x, y), [px, py]), rest = await pos(mid);
-    const apparent = (id) => t((i) => { const T = window.__t3d, w = T.world(i), c = T.cam().pos; return T.cardWidth(i) / Math.hypot(w.x - c[0], w.h - c[1], w.y - c[2]); }, id);
+    const apparent = (id) => t((i) => { const T = window.__t3d, w = T.world(i), c = T.cam().pos; return T.cardWidth(i) / T.depthOf(i); }, id);
     const frameTop = () => t(() => window.__t3d.handFrame()?.y ?? null);
     const depthRank = () => t((i) => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, cm = T.cam(), c = cm.pos, yw = (cm.yaw * Math.PI) / 180, pt = (cm.pitch * Math.PI) / 180, f = [Math.sin(yw) * Math.cos(pt), Math.sin(pt), -Math.cos(yw) * Math.cos(pt)], d = (id) => { const w = T.world(id); return (w.x - c[0]) * f[0] + (w.h - c[1]) * f[1] + (w.y - c[2]) * f[2]; }; return { mine: d(i), others: Math.min(...h.filter((q) => q.id !== i).map((q) => d(q.id))) }; }, mid);
     const sizeRest = await apparent(mid), frameRest = await frameTop(), tabRest = await rectOf('.screen:not(.off) [data-hand-tab="top"]');
@@ -1534,6 +1534,9 @@ try {
     const wide = Math.max(...gaps(xs1)) > Math.max(...gaps(xs0)) * 1.5 && Math.max(...gaps(xs1)) < 200;
     check("стопка над столом — в руку не целит; над рукой — в щели руки, как одиночная карта", far === null && over && over.pile === pile.id && over.ids.length === pile.n, { far, over });
     check("над рукой карты руки расступились под неё (одна щель), а карта стопки встала ровно к экрану (не лежит)", wide && Math.abs(flat) < 0.15, { flat, g0: gaps(xs0).map(Math.round), g1: gaps(xs1).map(Math.round) });
+    const appear = (id) => t((i) => { const T = window.__t3d, w = T.world(i), c = T.cam().pos; return T.cardWidth(i) / T.depthOf(i); }, id);
+    const ratio = (await appear(pile.ids.at(-1))) / (await appear(hand[Math.floor(hand.length / 2)]));
+    check("стопка над рукой на экране не крупнее карты руки больше чем на 7% (и не мельче)", ratio > 0.99 && ratio < 1.07, { ratio });
     await t((a) => window.__t3d.carryPileNow(a.id, { x: a.x, y: a.y }), { id: pile.id, x: box.x + box.width / 2, y: box.y + box.height * 0.2 });
     await p.waitForTimeout(1500);
     const xs2 = await t((ids) => ids.map((id) => window.__t3d.screenOf(id).x), hand);

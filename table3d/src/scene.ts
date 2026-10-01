@@ -42,7 +42,7 @@ const DOUBLE_MS = 350;
  */
 const SPRING = { k: 170, damp: 0.62 }, SPRING_HELD = { k: 900, damp: 0.9 };
 /** Над своей рукой несомая карта — выше соседей на эту долю своей высоты, ближе к глазу и чуть крупнее. */
-const HOVER = { up: 0.55, near: 0.6, grow: 1.15 };
+const HOVER = { up: 0.55, near: 0.6, grow: 1.05 };
 /** Тронутая карта руки: чуть выше соседей и чуть ближе к глазу (единицы кадра руки). */
 const TOUCH = { up: 0.07, z: 0.12 };
 
@@ -895,6 +895,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     fpsArm.add(stick(from, at, 0.05 * fovK, mat), ball(at, 0.085 * fovK, mat));
     fpsArm.traverse((n) => { n.layers.set(HAND_LAYER); if ((n as THREE.Mesh).isMesh) (n as THREE.Mesh).castShadow = false; });
   }
+  /** Несомая над рукой: ближе к глазу (выше соседей по глубине), но на экране — того же размера и места, что в руке (всё ×r), плюс подъём. */
+  const hoverNear = (t: Place, up: number): void => { const d = -t.pos.z, r = (d - CAMHAND.near) / d; t.pos.x *= r; t.pos.y = (t.pos.y + up) * r; t.pos.z += CAMHAND.near; t.scale *= r; };
   /** Места моих карт каждый кадр: несомая над рукой стоит в щели, выше соседей и ближе к глазу. */
   function retargetMine(): void {
     const ch = myChair();
@@ -967,7 +969,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const o = gap !== null && drag ? cards.get(drag.id) : undefined;
       if (o) {
         const t = place(gap!, false);
-        if (t.onCamera) { t.pos.y += CAMHAND.pop * fovK; t.pos.z += CAMHAND.near; } else t.pos.y += CAMHAND.pop;
+        if (t.onCamera) hoverNear(t, CAMHAND.pop * fovK); else t.pos.y += CAMHAND.pop;
         t.scale *= HOVER.grow;
         o.target = t;
       }
@@ -975,7 +977,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         const q = cards.get(c.id);
         if (!q) return;
         const t = place(ins!, false), thick = Math.min(1, j / Math.max(1, m - 1)) * 0.05;
-        if (t.onCamera) { t.pos.y += (CAMHAND.pop + thick) * fovK; t.pos.z += CAMHAND.near; } else t.pos.y += CAMHAND.pop + thick;
+        if (t.onCamera) hoverNear(t, (CAMHAND.pop + thick) * fovK); else t.pos.y += CAMHAND.pop + thick;
         t.scale *= HOVER.grow;
         q.target = t;
       });
@@ -1746,6 +1748,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     cardBend: (id: string) => (cards.get(id)?.group.userData.bend as number | undefined) ?? 0,
     handCurl: () => handCurl,
     setHandCurl: (c: number) => { handCurl = Math.max(0, Math.min(1, c)); layout(store.state); sendBody(); },
+    depthOf: (id: string) => { const o = cards.get(id); if (!o) return null; camera.updateMatrixWorld(); return -o.group.getWorldPosition(new THREE.Vector3()).applyMatrix4(camera.matrixWorldInverse).z; },
     cardWidth: (id: string) => { const o = cards.get(id); return o ? o.group.getWorldScale(new THREE.Vector3()).x * CARD_W : null; },
     cam: () => ({ mode: camMode, yaw: rig.yaw, pitch: rig.pitch, lean: rig.lean, fov: camera.fov, pos: camera.position.toArray(), neck: { ...neck } }),
     view: () => { const p = camera.position.clone().sub(orbit.target); return { yaw: Math.atan2(p.x, p.z) / DEG, pitch: Math.asin(p.y / p.length()) / DEG }; },
