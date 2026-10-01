@@ -330,13 +330,13 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       const x = Math.max(hit / 2, Math.min(g.w - hit / 2, cx)), y = Math.max(hit / 2, Math.min(g.h - hit / 2, cy));
       return pillHtml(which, x, y, pw, ph, 0.62);
     };
-    return grab("top", Math.max(fr.x + 24, Math.min(fr.x + fr.w - 24, scene.gripX() ?? fr.x + fr.w / 2)), fr.y, 40, 5) + grab("left", Math.max(76, fr.x), fr.y + fr.h / 2, 5, 40);
+    return grab("top", Math.max(fr.x + 24, Math.min(fr.x + fr.w - 24, scene.gripX() ?? fr.x + fr.w / 2)), fr.y, Math.round(40 + 26 * scene.gripAmount()), Math.round(5 - 2 * scene.gripAmount())) + grab("left", Math.max(76, fr.x), fr.y + fr.h / 2, 5, 40);
   }
   /** Ручка с зоной нажатия в палец: полоска `pw`×`ph` в точке `x, y`. */
   function pillHtml(which: string, x: number, y: number, pw: number, ph: number, alpha: number): string {
     const hit = 48;
     return `<div data-hand-tab="${which}" aria-label="${which === "left" ? "Ширина руки" : which === "top" ? "Высота руки" : "Поднять руку"}" style="position:absolute;left:${Math.round(x - hit / 2)}px;top:${Math.round(y - hit / 2)}px;width:${hit}px;height:${hit}px;z-index:31;touch-action:none;cursor:grab;display:flex;align-items:center;justify-content:center">`
-      + `<span style="width:${pw}px;height:${ph}px;border-radius:${Math.round(Math.min(pw, ph) / 2)}px;background:rgba(255,255,255,${alpha});box-shadow:0 0 0 1.5px rgba(11,7,4,.55),0 2px 4px rgba(11,7,4,.4)"></span></div>`;
+      + `<span style="flex:none;width:${pw}px;height:${ph}px;border-radius:${Math.round(Math.min(pw, ph) / 2)}px;background:rgba(255,255,255,${alpha});box-shadow:0 0 0 1.5px rgba(11,7,4,.55),0 2px 4px rgba(11,7,4,.4)"></span></div>`;
   }
   /**
    * Ручка в пальце: одна и та же ручка, пока её держат, — всегда под пальцем и не зависит от того, куда рука сдвигает охват или
@@ -345,7 +345,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   function heldGrabHtml(o: { which: "top" | "left"; x: number; y: number; from?: "stack"; morph: number }): string {
     const g = glass(), x = Math.max(24, Math.min(g.w - 24, o.x)), y = Math.max(24, Math.min(g.h - 24, o.y));
     const lerp = (a: number, b: number) => Math.round(a + (b - a) * o.morph);
-    const [pw, ph] = o.which === "left" ? [5, 40] : o.from === "stack" ? [lerp(5, 40), lerp(40, 5)] : [40, 5];
+    const gripA = scene.gripAmount(), [pw, ph] = o.which === "left" ? [5, 40] : o.from === "stack" ? [lerp(5, 40), lerp(40, 5)] : [Math.round(40 + 26 * gripA), Math.round(5 - 2 * gripA)];
     return pillHtml(o.which, x, y, pw, ph, 0.95);
   }
   /** Линии хода верхней ручки: за оранжевую карты начинают собираться в стопку, за красную рука ложится на стол, за золотую несётся стопкой над столом. Видны, пока ручку тянут. */
@@ -595,6 +595,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   // ——— перерисовка: раз в кадр, и только если что-то поменялось ———
   let frame = 0, last = "";
   function draw(): void { if (!frame) frame = requestAnimationFrame(render); }
+  // Грип ползёт назад и сужается/растёт — ему нужна перерисовка, пока раздвижка не сошла.
+  setInterval(() => { if (scene.gripAmount() > 0.001) draw(); }, 50);
   function render(): void {
     frame = 0;
     const s = store.state;
@@ -752,7 +754,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       let lastY = y0, baseY = y0, hBase = h0;
       let dx = 0, dy = 0, moved = false, carrying = false, lifted = !fromStack;
       // Ось жеста верхнего грипа решается раз и навсегда: начал влево-вправо — вверх-вниз больше нельзя (и наоборот).
-      let axis: "h" | "v" | null = null;
+      let axis: "h" | "v" | null = null, gripOn = false;
       const t0 = performance.now(), lift = () => { if (!lifted) { lifted = true; baseY = lastY; hBase = scene.handHeight(); showLines(); const c = myChair(); if (c) store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: false } }); } };
       follow(e, (ev) => {
         dx = ev.clientX - e.clientX; dy = ev.clientY - e.clientY; lastY = ev.clientY; moved ||= Math.hypot(dx, dy) >= TAP_PX;
@@ -768,7 +770,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         } else if (axis === "h") {
           // Влево-вправо: грип идёт за пальцем и остаётся там, где его оставили; вокруг него карты раздвинуты, вверх-вниз в этом жесте не двигается ничего.
           const fr = scene.handFrame();
-          scene.setGrip(fr ? Math.max(fr.x + 24, Math.min(fr.x + fr.w - 24, ev.clientX)) : ev.clientX);
+          if (!gripOn) { gripOn = true; scene.gripBegin(); }
+          scene.gripMove(fr ? Math.max(fr.x + 24, Math.min(fr.x + fr.w - 24, ev.clientX)) : ev.clientX);
         } else {
           // Высоко вверх — левая рука несёт всю руку стопкой над столом, как колоду; вернул вниз, не отпуская, — карты назад в руку.
           const dyB = ev.clientY - baseY;
@@ -784,6 +787,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         draw();
       }, () => {
         local.grabLines = null;
+        if (gripOn) scene.gripEnd();
         local.grabOff = null;
         scene.setBlend(undefined);
         // Тап по ручке стопки поднимает руку; держал или потянул и вернул — остаётся на столе.
@@ -791,7 +795,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         if (carrying) { scene.carryHand(null); draw(); return; }
         const c = myChair();
         if (which === "left") scene.setHandWidth(null);
-        else if (c && moved && axis !== "h" && lastY - baseY > 20 && lastY >= collectY) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); scene.setHandHeight(0); scene.setGrip(null); local.handMenu = false; local.handPop = null; }
+        else if (c && moved && axis !== "h" && lastY - baseY > 20 && lastY >= collectY) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); scene.setHandHeight(0); local.handMenu = false; local.handPop = null; }
         draw();
       });
       return;

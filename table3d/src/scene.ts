@@ -19,7 +19,7 @@ import type { PanelWorld, WorldPlace } from "./panel.js";
 import type { Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
 import { CARRY_EVERY_MS } from "../../server/src/table/contract.js";
 import { AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
-import { peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
+import { PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
 import { ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../../server/src/table/ring.js";
 import { artUrl, readLook, type DeckLook } from "../../server/table-client/deckArt.js";
 import { blendOf, handPlanBlend, mineGeomOf, snapPose, tuckOf, type PoseBlend } from "../../server/table-client/handGeom.js";
@@ -207,7 +207,12 @@ export interface SceneApi {
   handHeight(): number;
   /** Верхний грип влево-вправо: где он стоит по ширине экрана (остаётся там, где оставили; `null` — по центру); вокруг него карты раздвинуты. */
   gripX(): number | null;
-  setGrip(sx: number | null): void;
+  /** Насколько сейчас раздвинуто грипом, 0…1 (0 — не двигали или уже вернулось). */
+  gripAmount(): number;
+  /** Грип взяли за ход влево-вправо / повели в точку `sx` / отпустили: после отпускания он ползёт назад, пока карты не встанут как были. */
+  gripBegin(): void;
+  gripMove(sx: number): void;
+  gripEnd(): void;
   setHandHeight(px: number): void;
   /** Где на экране лежит моя положенная стопка (охват верхней карты) — ручка у неё привязана к стопке на столе; рука не положена или стопки не видно — `null`. */
   stackScreen(): { x: number; y: number; w: number; h: number } | null;
@@ -381,6 +386,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let liftedId: string | null = null;
   /** Где стоит верхний грип по ширине экрана (его двигают влево-вправо и он остаётся); `null` — по центру. Вокруг него карты раздвинуты (`peekShift`). */
   let gripSx: number | null = null;
+  /** Раздвижка включается движением грипа, а не его наличием: `gripAmt` 0…1 растёт, пока грип ведут влево-вправо, и после отпускания плавно сходит на нет за `peekReturnMs`,
+   *  пока сам грип ползёт обратно в центр. */
+  let gripAmt = 0, gripDrag = false, gripRelAt = 0, gripRelX = 0, gripAmt0 = 0, peekReturnMs: number = PEEK.returnMs;
   const HEIGHT = { min: -400, max: 150 };
   /** Пиксель экрана в единицах кадра руки: рука идёт за язычком один к одному. */
   const pxUnit = (): number => (2 * -CAMHAND.at.z * Math.tan((camera.fov * DEG) / 2)) / Math.max(1, renderer.domElement.getBoundingClientRect().height);
@@ -925,10 +933,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const u = CAMHAND.card * fovK, curlMine = handCurl * mineCurlK(n);
       const xsPlan = Array.from({ length: n }, (_, i) => (camHandLocal(i, n, false, shape, fovK, 1, off, curlMine).pos.x - CAMHAND.at.x - off.x * fovK) / u);
       const rectW = renderer.domElement.getBoundingClientRect(), fPeek = ((gripSx ?? rectW.left + rectW.width / 2) - (rectW.left + rectW.width / 2)) * (pxUnit() / u);
-      // Ужатая рука не раскидывается; грип помнит место, только пока картам тесно, — иначе он снова в центре.
+      // Ужатая рука не раскидывается, не тесно — тоже: грип тогда сразу в центре. Само наличие грипа карты не двигает: только его ход влево-вправо (`gripAmt`).
       const tight = shape.wide >= 1 && peekTight(xsPlan);
-      if (!tight && gripSx !== null) gripSx = null;
-      const peek = tight ? peekShift(xsPlan, fPeek) : xsPlan.map(() => 0);
+      if (!tight && !gripDrag && (gripSx !== null || gripAmt > 0)) { gripSx = null; gripAmt = 0; gripRelAt = 0; }
+      const peek = tight && gripAmt > 0 ? peekShift(xsPlan, fPeek).map((v) => v * gripAmt) : xsPlan.map(() => 0);
       const place = (k: number, up: boolean): Place => {
         const local = camHandLocal(k, n, up, shape, fovK, 1, off, curlMine);
         local.pos.x += (peek[k] ?? 0) * u;
@@ -1032,6 +1040,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
 
   // ——— кадр: карты догоняют свои места ———
   let lastTick = performance.now();
+  function updateGrip(dt: number, now: number): void {
+    if (gripDrag) { gripAmt = Math.min(1, gripAmt + dt * 6); return; }
+    if (!gripRelAt) return;
+    const r = Math.min(1, (now - gripRelAt) / peekReturnMs), e = r * r * (3 - 2 * r), rect = renderer.domElement.getBoundingClientRect(), centre = rect.left + rect.width / 2;
+    gripAmt = gripAmt0 * (1 - e);
+    gripSx = gripRelX + (centre - gripRelX) * e;
+    if (r >= 1) { gripRelAt = 0; gripAmt = 0; gripSx = null; }
+  }
   // ——— моя правая рука — пока несу карту над столом: от правого плеча к карте ———
   const myArm = new THREE.Group();
   scene.add(myArm);
@@ -1080,6 +1096,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (Math.abs(lag.yaw) > 0.002 || Math.abs(lag.pitch) > 0.002) moving = true;
     } else { lag.yaw = lag.pitch = 0; lag.prevYaw = rig.yaw; lag.prevPitch = rig.pitch; }
     handRoot.rotation.set(lag.pitch, lag.yaw, 0);
+    updateGrip(dt, now);
+    if (gripAmt > 0.001 || gripDrag) moving = true;
     retargetMine();
     for (const [id, o] of cards) {
       const g = o.group, t = o.target;
@@ -1691,7 +1709,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     cardOrder: (id: string) => { const o = cards.get(id); return o ? { order: o.front.renderOrder, write: (o.front.material as THREE.Material).depthWrite } : null; },
     handHeightNow: () => heightPx,
     gripXNow: () => gripSx,
-    setGripNow: (sx: number | null) => { gripSx = sx; layout(store.state); draw(); },
+    gripAmtNow: () => gripAmt,
+    gripPressNow: (sx: number) => { gripDrag = true; gripRelAt = 0; gripSx = sx; layout(store.state); draw(); },
+    gripReleaseNow: () => { if (!gripDrag) return; gripDrag = false; gripRelAt = performance.now(); gripRelX = gripSx ?? gripRelX; gripAmt0 = gripAmt; draw(); },
+    peekReturnMsNow: (ms: number) => { peekReturnMs = ms; },
     peekShiftFor: (xs: number[], f: number | null) => peekShift(xs, f),
     setHandHeightNow: (px: number) => { heightPx = Math.max(HEIGHT.min, Math.min(HEIGHT.max, px)); layout(store.state); sendBody(true); draw(); },
     cardNormalY: (id: string) => { const o = cards.get(id); return o ? new THREE.Vector3(0, 0, 1).applyQuaternion(o.group.getWorldQuaternion(new THREE.Quaternion())).y : null; },
@@ -1742,7 +1763,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     fanFits: () => fanFitsNow(),
     handHeight: () => heightPx,
     gripX: () => gripSx,
-    setGrip(sx) { gripSx = sx; layout(store.state); draw(); },
+    gripAmount: () => gripAmt,
+    gripBegin() { gripDrag = true; gripRelAt = 0; draw(); },
+    gripMove(sx) { gripSx = sx; layout(store.state); draw(); },
+    gripEnd() { if (!gripDrag) return; gripDrag = false; gripRelAt = performance.now(); gripRelX = gripSx ?? gripRelX; gripAmt0 = gripAmt; draw(); },
     setHandHeight(px) { heightPx = Math.max(HEIGHT.min, Math.min(HEIGHT.max, px)); layout(store.state); sendBody(); draw(); },
     handWidth: () => handWidth,
     handCurl: () => handCurl,

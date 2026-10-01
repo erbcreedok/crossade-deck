@@ -89,7 +89,8 @@ export function topHeight(aspect: number, fovDeg: number, restScale: number): nu
  * Крайние карты руки остаются на своих местах (ширина руки та же): места не хватает — остальные промежутки сжимаются.
  * Между картами, которым и так хватает места, ничего не меняется.
  */
-export const PEEK = { gap: 0.42, core: 2.5, fall: 2, min: 10 } as const;
+/** `returnMs` — за сколько грип, отпущенный в стороне, плавно возвращается на место, а карты встают на обычные расстояния. */
+export const PEEK = { gap: 0.42, core: 2.5, fall: 2, min: 10, returnMs: 5000 } as const;
 /** Тесно ли картам: в среднем промежуток меньше `gap` (с запасом на сжатие краёв дуги). */
 export const peekTight = (xs: readonly number[], gap: number = PEEK.gap): boolean => xs.length > 1 && (xs[xs.length - 1]! - xs[0]!) / (xs.length - 1) < gap * 0.92;
 export function peekShift(xs: readonly number[], f: number | null, gap: number = PEEK.gap, core: number = PEEK.core, fall: number = PEEK.fall): number[] {
