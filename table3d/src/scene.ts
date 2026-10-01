@@ -20,6 +20,7 @@ import type { Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/ta
 import { CARRY_EVERY_MS } from "../../server/src/table/contract.js";
 import { AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
 import { PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
+import { createAr } from "./ar.js";
 import { RING_SPREAD, ringLanding, ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../../server/src/table/ring.js";
 import { artUrl, readLook, type DeckLook } from "../../server/table-client/deckArt.js";
 import { blendOf, handPlanBlend, mineGeomOf, snapPose, tuckOf, type PoseBlend } from "../../server/table-client/handGeom.js";
@@ -199,6 +200,8 @@ export interface SceneApi {
   handCurl(): number;
   setHandCurl(c: number): void;
   setCamMode(m: CamMode): void;
+  /** AR: телефон — камера, стол перед ним. `toggle` — из жеста; ответ — что не вышло (камера, датчик). */
+  ar: { toggle(): Promise<string | null>; on(): boolean; recenter(): void };
   lookBy(dyaw: number, dpitch: number): void;
   zoomBy(k: number): void;
   opticsBy(k: number): void;
@@ -289,7 +292,7 @@ export interface SceneApi {
 const PANEL_PX = 60;
 
 export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   // ТЕНИ — от солнца над столом: карты в воздухе, тела и руки ложатся тенью на сукно.
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -477,9 +480,47 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     rig.fov = Math.max(CAM.fov.min, Math.min(baseFov, rig.fov / k));
     applyRig(); draw();
   }
+  // ——— AR: телефон — камера, стол стоит перед ним (`ar.ts`) ———
+  const ar = createAr(() => draw());
+  let arWas: CamMode = "head";
+  /** Камера сцены — по датчику: поворот телефона и место глаза в осях стола. Пока датчик молчит, стоит там, где стояла. */
+  function applyAr(): void {
+    if (!ar.on()) return;
+    const ch = myChair();
+    const p = ar.pose(ch?.angle ?? 0, host.clientHeight);
+    if (!p) return;
+    if (Math.abs(camera.fov - p.fov) > 1e-3) { camera.fov = p.fov; camera.updateProjectionMatrix(); }
+    camera.position.copy(p.pos);
+    camera.quaternion.copy(p.quat);
+    camera.updateMatrixWorld();
+  }
+  function arLook(on: boolean): void {
+    renderer.setClearColor(on ? 0x000000 : 0x0a1511, on ? 0 : 1);
+    scene.fog = on ? null : new THREE.Fog(0x0a1511, 30, 70);
+    floor.visible = !on;
+    // Видео камеры — позиционированный элемент под холстом: холст без позиции оказался бы под ним.
+    renderer.domElement.style.position = on ? "relative" : "";
+  }
+  /** Вкл/выкл AR. Включать — из жеста пальца. Ответ — что не получилось (сам AR при этом работает, чем может). */
+  async function arToggle(): Promise<string | null> {
+    if (ar.on()) {
+      ar.stop();
+      arLook(false);
+      setCamMode(arWas);
+      return null;
+    }
+    arWas = camMode;
+    const asked = ar.start(host, renderer.domElement);
+    arLook(true);
+    setCamMode("orbit");
+    orbit.enabled = false;
+    const note = await asked;
+    draw();
+    return note;
+  }
   function setCamMode(m: CamMode): void {
     camMode = m;
-    orbit.enabled = m === "orbit";
+    orbit.enabled = m === "orbit" && !ar.on();
     camera.up.set(0, 1, 0);
     camera.fov = m === "orbit" ? 50 : m === "top" ? TOP.fov : baseFov;
     camera.updateProjectionMatrix();
@@ -1163,6 +1204,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const now = performance.now(), dt = Math.min(0.05, Math.max(0.001, (now - lastTick) / 1000));
     const sinceMs = Math.min(250, now - lastTick);
     lastTick = now;
+    applyAr();
     // Камера и моя рука — до пружин: рука едет с головой, и пружины догоняют уже новое место.
     if (camMode === "head" || camMode === "top") { const was = rig.lean; rig.lean = neckStep(neck, rig.lean, sinceMs); if (rig.lean !== was || neck.back > 0 || rig.lean > NECK.free || neck.rest > 0) { applyRig(); sendBody(); moving = true; } }
     // Рука целиком отстаёт от поворота взгляда и возвращается: поворот вправо — рука левее, взгляд вверх — рука ниже.
@@ -1553,7 +1595,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const ids = [...live.keys()] as [number, number], a = live.get(ids[0])!, b = live.get(ids[1])!, ch = myChair();
       if (ch) {
         // Первый палец мог уже взять карту или крутить взгляд — теперь они оба держат руку.
-        if (drag && !drag.moved) { clearInterval(drag.hold); drag = null; orbit.enabled = camMode === "orbit"; }
+        if (drag && !drag.moved) { clearInterval(drag.hold); drag = null; orbit.enabled = camMode === "orbit" && !ar.on(); }
         rigPtrs.clear();
         poseG = { ids, d0: Math.hypot(a.x - b.x, a.y - b.y), f0: handWidth };
         widthLive = handWidth;
@@ -1612,7 +1654,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const d = drag;
     drag = null;
     if (d.moved) liftedId = null;
-    orbit.enabled = camMode === "orbit";
+    orbit.enabled = camMode === "orbit" && !ar.on();
     clearInterval(d.hold);
     rightAt = null;
     sendBody(true);
@@ -1854,6 +1896,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       layout(store.state); draw();
     },
     setCamMode,
+    ar: { toggle: arToggle, on: () => ar.on(), recenter: () => ar.recenter() },
     lookBy,
     zoomBy,
     opticsBy,

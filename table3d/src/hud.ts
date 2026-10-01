@@ -97,6 +97,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     grabLines: null as null | { lay: number | null; collect: number | null; carry: number },
     grabOff: null as null | { which: "top" | "left"; x: number; y: number; from?: "stack"; morph: number },
     journal: false,
+    /** Что сказал AR при включении (камера не дала, датчик молчит) — строкой под полосой, пока не уйдёт. */
+    arNote: "",
     deckTip: null as string | null,
     /** Палец или курсор сейчас в окне (стопки, чужого стула) — только тогда моя рука лежит на том, с чем вожусь. */
     handOn: false,
@@ -390,9 +392,13 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const btn = (attrs: string, at: string, inner: string) => `<button ${attrs} style="position:absolute;${at};${TOP};width:40px;height:40px;border:0;padding:0;z-index:61;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">${inner}</button>`;
     const icon = (body: string, stroke = "white", size = 22) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
     return btn(`data-rooms-back aria-label="Выйти из комнаты"`, `left:${RIM_LEFT}px`, icon(`<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 16l-4-4 4-4"/><path d="M5 12h10"/>`))
-      + `<div data-table-name style="position:absolute;left:${RIM_LEFT + 48}px;right:${RIM_LEFT + 96}px;${TOP};height:40px;z-index:60;display:flex;align-items:center;pointer-events:none"><span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 12px;border-radius:12px;font:400 13px Tiny5,monospace;color:${T.ink};line-height:28px;${plate}">${esc(store.title)}</span></div>`
+      + `<div data-table-name style="position:absolute;left:${RIM_LEFT + 48}px;right:${RIM_LEFT + 144}px;${TOP};height:40px;z-index:60;display:flex;align-items:center;pointer-events:none"><span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 12px;border-radius:12px;font:400 13px Tiny5,monospace;color:${T.ink};line-height:28px;${plate}">${esc(store.title)}</span></div>`
+      + btn(`data-ar aria-label="${scene.ar.on() ? "Выйти из AR" : "AR: стол перед камерой телефона"}" aria-pressed="${scene.ar.on()}"`, `right:${RIM_LEFT + 96}px`, `<span style="font:400 13px Tiny5,monospace;color:${scene.ar.on() ? T.gold : "white"}">AR</span>`)
       + btn(`data-settings aria-label="Настройки" aria-expanded="${settings.open}"`, `right:${RIM_LEFT + 48}px`, icon(`<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>`))
       + btn(`data-journal aria-label="Журнал партии" aria-expanded="${local.journal}"`, `right:${RIM_LEFT}px`, icon(`<path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h7M8 11h7M8 15h4"/>`, local.journal ? T.gold : "white", 21));
+  }
+  function arNoteHtml(): string {
+    return local.arNote ? `<div data-ar-note style="position:absolute;left:12px;right:12px;top:calc(60px + var(--safe-top));z-index:62;padding:8px 12px;border-radius:12px;font:400 12px Tiny5,monospace;color:${T.ink};text-align:center;${plate};pointer-events:none">${esc(local.arNote)}</div>` : "";
   }
   function journalHtml(): string {
     if (!local.journal) return "";
@@ -609,7 +615,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const open = local.handOn && local.deckTip ? s.piles.find((p) => p.id === local.deckTip) : undefined;
     const chairOpen = local.handOn ? s.chairs.find((c) => c.id === local.tip && c.owner && c.owner !== me()) : undefined;
     if (!local.deckCarry) scene.setRestRight(open ? { x: open.x, y: open.y } : chairOpen ? scene.handOf(chairOpen.id) : null);
-    const html = lassoLayerHtml() + topHtml() + devHtml() + journalHtml() + bottomHtml(s) + dealHtml(s);
+    const html = lassoLayerHtml() + topHtml() + arNoteHtml() + devHtml() + journalHtml() + bottomHtml(s) + dealHtml(s);
     shown = [];
     pilePanel(s);
     chairPanel(s);
@@ -674,6 +680,11 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-rooms-back]")) location.href = `${HOST}/table/?rooms`;
     else if (q("[data-settings]")) { if (settings.open) settings.hide(); else settings.show(); }
     else if (q("[data-journal]")) local.journal = !local.journal;
+    else if (q("[data-ar]")) {
+      // Из жеста: iOS даёт датчик только так.
+      void scene.ar.toggle().then((note) => { local.arNote = note ?? ""; draw(); if (note) setTimeout(() => { local.arNote = ""; draw(); }, 4000); });
+      draw();
+    }
     else if (q("[data-dev-switch]")) dev?.onSwitch();
     else if (q("[data-dev-cam]")) { scene.setCamMode(CAM_MODES[(CAM_MODES.indexOf(scene.camMode()) + 1) % CAM_MODES.length]!); draw(); }
     else if (q("[data-dev-peek]")) { dev?.peek.onToggle(); draw(); }
