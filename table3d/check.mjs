@@ -1324,6 +1324,17 @@ try {
     await p.mouse.up();
     check("рука идёт за язычком вниз один к одному (до оранжевой линии)", y1 - y0 > 85 && y1 - y0 < 115, { y0, y1 });
   }
+
+  {
+    // Чем ниже карты на моём экране, тем ниже рука и карты видят остальные, и тем прямее они: лицо уходит в сторону тела.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const seenByOthers = () => t(async () => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, id = h[Math.floor(h.length / 2)].id; await new Promise((r) => setTimeout(r, 900)); const S = window.__t3dScreens[1]; return { h: S.world(id).h, ny: S.cardNormalY(id) }; });
+    const high = await seenByOthers();
+    await t(() => window.__t3d.setHandHeightNow(-150)); const low = await seenByOthers();
+    check("ниже карты у меня на экране — ниже они и у остальных, и прямее (лицо в сторону тела)", low.h < high.h - 0.2 && low.ny < high.ny - 0.08, { high, low });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();

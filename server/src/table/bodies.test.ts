@@ -31,6 +31,12 @@ describe("bodies.read-whole-or-nothing", () => {
     expect(cleanBody({ ...body, curl: 7 })!.curl).toBe(1);
     expect(cleanBody({ ...body, curl: null })).toBeNull();
   });
+  it("высота руки (handY): не прислана — поля нет, прислана — в пределах -3…3, мусор — отказ", () => {
+    expect("handY" in cleanBody(body)!).toBe(false);
+    expect(cleanBody({ ...body, handY: -0.8 })!.handY).toBe(-0.8);
+    expect(cleanBody({ ...body, handY: -99 })!.handY).toBe(-3);
+    expect(cleanBody({ ...body, handY: "низко" })).toBeNull();
+  });
   it("куда голова смотрит на самом деле (gaze): не прислан — поля нет, прислан — в пределах -360…360, мусор — отказ", () => {
     expect("gaze" in cleanBody(body)!).toBe(false);
     expect(cleanBody({ ...body, gaze: 75 })!.gaze).toBe(75);
