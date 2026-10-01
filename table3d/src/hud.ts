@@ -741,7 +741,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       // Линии хода верхней ручки: «положить» — на уровне кнопок чата и компаса (по их центру), «нести стопкой» — на нижней границе оптического зума,
       // но не ближе `carry` над местом хвата (выше — диапазон высоты руки). Рука ложится, если отпустить ниже красной линии; несётся стопкой, пока палец выше золотой (вернул к месту хвата — снова в руке).
       // Линии — якоря экрана: доли его высоты, снятые с кнопок и зума как они стоят сейчас; кнопки и зум переедут — линии останутся.
-      // Нести стопкой можно, лишь потянув вверх не меньше `carry` (выше — диапазон высоты руки).
+      // Золотая линия — граница несения: палец выше неё — вся рука несётся стопкой туда, куда указал, ниже (с запасом) — снова в руке.
       const H = glass().h, layY = H * LINES.lay, collectY = H * LINES.collect;
       const carryY = !fromStack && which === "top" ? H * LINES.carry : -Infinity;
       if (!fromStack && which === "top") local.grabLines = { lay: b0.lift > 0.25 ? layY : null, collect: b0.lift > 0.25 ? collectY : null, carry: carryY };
@@ -760,8 +760,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
           if (moved) { scene.setHandWidth(w0 - dx / TAB_PX.width); scene.setHandCurl(c0 - dy / TAB_PX.curl); }
         } else {
           // Высоко вверх — левая рука несёт всю руку стопкой над столом, как колоду; вернул вниз, не отпуская, — карты назад в руку.
-          if (fromStack ? dy <= -TAB_PX.carry || carrying : (ev.clientY <= carryY && dy <= -TAB_PX.carry) || carrying) {
-            carrying = scene.carryHand({ x: ev.clientX, y: ev.clientY }, fromStack ? undefined : { enter: carryY, exit: y0 - 10 });
+          if (fromStack ? dy <= -TAB_PX.carry || carrying : (ev.clientY <= carryY && dy <= -TAB_PX.pull) || carrying) {
+            carrying = scene.carryHand({ x: ev.clientX, y: ev.clientY }, fromStack ? undefined : { enter: carryY, exit: carryY + 20 });
             if (carrying) { scene.setBlend(undefined); draw(); return; }
           }
           // Иначе рука следует за ручкой по высоте и остаётся там, где отпустили: вверх — выпрямляется веер, вниз — до пола руки, дальше опускается на стол.

@@ -956,14 +956,14 @@ try {
     // Не отпуская: вытянул карты на стол — и вернул обратно вниз; карты снова в руке.
     await p.mouse.move(tx, ty - 235, { steps: 8 }); await p.waitForTimeout(250);
     const carried = await t(() => window.__t3d.carrying());
-    await p.mouse.move(tx, ty + 12, { steps: 10 }); await p.waitForTimeout(300);
+    await p.mouse.move(tx, ty + 100, { steps: 10 }); await p.waitForTimeout(300);
     // На границе худа стопка не дрожит: палец ползёт сквозь границу — состояние меняется не больше двух раз.
     let flips = 0, prev = carried;
     for (let k = 0; k <= 40; k++) { await p.mouse.move(tx, ty - 150 + k * 3); await p.waitForTimeout(25); const now = await t(() => window.__t3d.carrying()); if (now !== prev) flips++; prev = now; }
     for (let k = 40; k >= 0; k--) { await p.mouse.move(tx, ty - 150 + k * 3); await p.waitForTimeout(25); const now = await t(() => window.__t3d.carrying()); if (now !== prev) flips++; prev = now; }
     check("на границе худа стопка не дрожит: туда-обратно палец — не больше двух переключений", flips <= 2, { flips });
     await p.mouse.move(tx, ty - 235, { steps: 6 });
-    await p.mouse.move(tx, ty + 12, { steps: 10 }); await p.waitForTimeout(300);
+    await p.mouse.move(tx, ty + 100, { steps: 10 }); await p.waitForTimeout(300);
     const back = await t(() => window.__t3d.carrying());
     await p.mouse.up(); await p.waitForTimeout(500);
     check("верхняя ручка: вверх — карты на столе, обратно вниз не отпуская — вернулись в руку (удержание возвращает, как и дроп)", carried === true && back === false && (await poseOf()).tuck === false, { carried, back });
@@ -972,7 +972,7 @@ try {
     // Диапазон верхней ручки широкий: небольшой ход вниз руку не прячет, небольшой ход вверх не вытягивает на стол.
     await tdrag("top", 0, 60);
     const small = await poseOf(), smallUp = await t(() => window.__t3d.carrying());
-    await tdrag("top", 0, -45);
+    await tdrag("top", 0, -30);
     check("короткий ход ручки вниз не прячет руку, короткий вверх не вытягивает на стол", small.tuck === false && smallUp === false && (await t(() => window.__t3d.carrying())) === false && (await poseOf()).tuck === false, { small });
     const chatC = await rectOf(".screen:not(.off) [data-g=thumb-chat]"), tabC = await tabBox("top");
     await tdrag("top", 0, chatC.y + chatC.height / 2 + 12 - (tabC.y + tabC.height / 2));
@@ -1053,7 +1053,7 @@ try {
     await p.waitForTimeout(400);
     const mid = await t((id) => ({ carrying: window.__t3d.carrying(), w: window.__t3d.world(id) }), start.hand[0]);
     check("верхний язычок высоко вверх: левая рука несёт все карты стопкой над столом", mid.carrying === true && mid.w.h > 0.5 && mid.w.h < 1.2, mid);
-    await p.mouse.move(sx, sy + 20, { steps: 10 }); await p.mouse.up(); await p.waitForTimeout(800);
+    await p.mouse.move(sx, sy + 110, { steps: 10 }); await p.mouse.up(); await p.waitForTimeout(800);
     const back = await info();
     check("вернул на худ и отпустил — рука как была: те же карты, стопок не прибавилось", back.hand.length === start.hand.length && back.piles.length === start.piles.length && back.felt === start.felt, { start, back });
     // Отпустили на сукне — новая стопка из всей руки.
