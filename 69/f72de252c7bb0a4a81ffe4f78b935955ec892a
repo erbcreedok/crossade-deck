@@ -1,0 +1,24 @@
+table3d/lag.mjs
+  s_ad8a8a5b5d0419::t_e43e7d9055f1cb 1-35
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_0898f0b8f867b0 683
+  s_ad8a8a5b5d0419::t_191b55ecc4f186 1653
+  s_ad8a8a5b5d0419::t_e686a6d66ce8bd 23,678-682,684-694,1065-1066
+  s_ad8a8a5b5d0419::t_b1c142f0d1f64b 766-776,780-783,974,1008,1043,1643-1652,1654-1655
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "69f72de252c7bb0a4a81ffe4f78b935955ec892a",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
