@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Иконки худа — галерея</title>
+<link href="https://fonts.googleapis.com/css2?family=Tiny5&display=swap" rel="stylesheet">
+<script src="icons.js"></script>
+<style>
+  :root { --ic: #f5ead0; --ac: #f2c14e; --dm: #8a7a5c; --rd: #e0483f; --bg: #1c120b; }
+  body { margin: 0; padding: 16px; background: #173d2d; font: 400 12px 'Tiny5', monospace; color: #cdb98f; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+  .cell { background: #3a2a1d; padding: 10px 6px; text-align: center; box-shadow: inset 0 0 0 2px #0b0704, inset 0 0 0 4px #6b4d2c; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .p-i { fill: var(--ic); } .p-a { fill: var(--ac); } .p-d { fill: var(--dm); } .p-r { fill: var(--rd); } .p-bg { fill: var(--bg); }
+  .small .ic { width: 24px; height: 24px; }
+</style></head>
+<body>
+<div class="grid" id="g"></div>
+<script>
+  const g = document.getElementById("g");
+  for (const n of PixelIcons.names) g.insertAdjacentHTML("beforeend", `<div class="cell">${PixelIcons.icon(n, { size: 4 })}<div class="small">${PixelIcons.icon(n, { size: 2 })}</div>${n}</div>`);
+</script></body></html>

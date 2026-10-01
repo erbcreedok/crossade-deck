@@ -219,6 +219,16 @@
         "dev"
       ],
       "port": 9590
+    },
+    {
+      "name": "hud3d-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "design/serve.py",
+        "9586",
+        "design/hud3d"
+      ],
+      "port": 9586
     }
   ]
 }

@@ -1983,6 +1983,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setHandCurl: (c: number) => { handCurl = Math.max(0, Math.min(1, c)); layout(store.state); sendBody(); },
     depthOf: (id: string) => { const o = cards.get(id); if (!o) return null; camera.updateMatrixWorld(); return -o.group.getWorldPosition(new THREE.Vector3()).applyMatrix4(camera.matrixWorldInverse).z; },
     cardWidth: (id: string) => { const o = cards.get(id); return o ? o.group.getWorldScale(new THREE.Vector3()).x * CARD_W : null; },
+    /** Для снимков фона дизайна: спрятать мои карты (чужие и стол остаются). */
+    hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     headToward: (x: number, y: number) => headToward(x, y),
     feltAt: (cx: number, cy: number) => { const r = renderer.domElement.getBoundingClientRect(), v = onFelt({ clientX: cx, clientY: cy }); return v ? { x: v.x, y: v.z } : null; },
