@@ -17,7 +17,7 @@ import { DEAL_PRESETS, type Chair, type ChairFlag, type DealDir, type DealRule, 
 import { fingerHtml } from "./finger.js";
 import { allowed, may as mayDo } from "../../server/src/table/access.js";
 import { SUITS } from "../../server/table-client/felt.js";
-import { CAM, CAM_LABEL, CAM_MODES } from "./camera.js";
+import { CAM, CAM_LABEL, CAM_MODES, PEEK } from "./camera.js";
 import { artUrl, readLook, writeLook } from "../../server/table-client/deckArt.js";
 import { BAR_LOOK, BAR, MENTION_INK, T } from "../../server/table-client/screenConst.js";
 import { GLYPH, RIGHTS, SUBS, type BarKey, type GrabMode, type Section } from "../../server/table-client/glyphs.js";
@@ -743,11 +743,13 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       // Линии — якоря экрана: доли его высоты, снятые с кнопок и зума как они стоят сейчас; кнопки и зум переедут — линии останутся.
       // Золотая линия — граница несения: палец выше неё — вся рука несётся стопкой туда, куда указал, ниже (с запасом) — снова в руке.
       const H = glass().h, layY = H * LINES.lay, collectY = H * LINES.collect;
-      const carryY = !fromStack && which === "top" ? H * LINES.carry : -Infinity;
-      if (!fromStack && which === "top") local.grabLines = { lay: b0.lift > 0.25 ? layY : null, collect: b0.lift > 0.25 ? collectY : null, carry: carryY };
-      let lastY = y0;
+      const carryY = which === "top" ? H * LINES.carry : -Infinity;
+      const showLines = () => { local.grabLines = { lay: b0.lift > 0.25 ? layY : null, collect: b0.lift > 0.25 ? collectY : null, carry: carryY }; };
+      if (!fromStack && which === "top") showLines();
+      // Ручка у стопки после подъёма руки — та же верхняя ручка: ход считается от места, где рука поднялась (`baseY`, `hBase`).
+      let lastY = y0, baseY = y0, hBase = h0;
       let dx = 0, dy = 0, moved = false, carrying = false, lifted = !fromStack;
-      const t0 = performance.now(), lift = () => { if (!lifted) { lifted = true; const c = myChair(); if (c) store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: false } }); } };
+      const t0 = performance.now(), lift = () => { if (!lifted) { lifted = true; baseY = lastY; hBase = scene.handHeight(); showLines(); const c = myChair(); if (c) store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: false } }); } };
       follow(e, (ev) => {
         dx = ev.clientX - e.clientX; dy = ev.clientY - e.clientY; lastY = ev.clientY; moved ||= Math.hypot(dx, dy) >= TAP_PX;
         const dist = Math.hypot(dx, dy);
@@ -760,18 +762,22 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
           if (moved) { scene.setHandWidth(w0 - dx / TAB_PX.width); scene.setHandCurl(c0 + dy / TAB_PX.curl); }
         } else {
           // Высоко вверх — левая рука несёт всю руку стопкой над столом, как колоду; вернул вниз, не отпуская, — карты назад в руку.
-          if (fromStack ? dy <= -TAB_PX.carry || carrying : (ev.clientY <= carryY && dy <= -TAB_PX.pull) || carrying) {
-            carrying = scene.carryHand({ x: ev.clientX, y: ev.clientY }, fromStack ? undefined : { enter: carryY, exit: carryY + 20 });
+          const dyB = ev.clientY - baseY;
+          if ((ev.clientY <= carryY && dyB <= -TAB_PX.pull) || carrying) {
+            carrying = scene.carryHand({ x: ev.clientX, y: ev.clientY }, { enter: carryY, exit: carryY + 20 });
             if (carrying) { scene.setBlend(undefined); draw(); return; }
           }
           // Иначе рука следует за ручкой по высоте и остаётся там, где отпустили: вверх — выпрямляется веер, вниз — вслед за пальцем до оранжевой линии, дальше карты собираются и опускается на стол.
-          if (moved) scene.setHandHeight(h0 - Math.min(dy, Math.max(0, collectY - y0)));
+          if (moved) scene.setHandHeight(hBase - Math.min(dyB, Math.max(0, collectY - baseY)));
+          // Влево-вправо — раздвигает карты под пальцем, если они сильно наплывают друг на друга (большая стопка); хватает ли места — ничего не делает.
+          scene.setPeek(Math.abs(dx) >= PEEK.min ? ev.clientX : null);
           // Карты не трогаются, пока палец не пересёк оранжевую линию; от неё до красной собираются в стопку, на красной — собраны.
           scene.setBlend(moved && ev.clientY > collectY ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - (ev.clientY - collectY) / Math.max(1, layY - collectY))) } : undefined);
         }
         draw();
       }, () => {
         local.grabLines = null;
+        scene.setPeek(null);
         local.grabOff = null;
         scene.setBlend(undefined);
         // Тап по ручке стопки поднимает руку; держал или потянул и вернул — остаётся на столе.
@@ -779,7 +785,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         if (carrying) { scene.carryHand(null); draw(); return; }
         const c = myChair();
         if (which === "left") scene.setHandWidth(null);
-        else if (c && moved && dy > 20 && lastY >= collectY) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); scene.setHandHeight(0); local.handMenu = false; local.handPop = null; }
+        else if (c && moved && lastY - baseY > 20 && lastY >= collectY) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); scene.setHandHeight(0); local.handMenu = false; local.handPop = null; }
         draw();
       });
       return;

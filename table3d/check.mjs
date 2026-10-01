@@ -1379,6 +1379,41 @@ try {
     const k = await t(() => [2, 3, 5, 7, 10, 14].map((n) => window.__t3d.curlFor(n)));
     check("загиб своего вида растёт с числом карт: 3 < 5 < 7 < 10, не больше 1", k[1] < k[2] && k[2] < k[3] && k[3] < k[4] && k[5] <= 1 && k[1] < 0.2, k);
   }
+
+  {
+    // Верхняя ручка влево-вправо раскрывает дистанцию между картами под пальцем, когда карты сильно наплывают; если места хватает — ничего не делает.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const pure = await t(() => ({ tight: window.__t3d.peekShiftFor([0, 0.1, 0.2, 0.3], 0.15), roomy: window.__t3d.peekShiftFor([0, 0.6, 1.2], 0.5), none: window.__t3d.peekShiftFor([0, 0.1, 0.2], null) }));
+    check("раздвижка: у тесной руки карты расходятся от пальца (левые влево, правые вправо), у просторной и без пальца — нули", pure.tight[0] < -0.01 && pure.tight[3] > 0.01 && pure.roomy.every((v) => v === 0) && pure.none.every((v) => v === 0), pure);
+    const gaps = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, xs = h.map((c) => T.screenOf(c.id).x), m = Math.floor(h.length / 2); return { mid: xs[m + 1] - xs[m], far: xs[0], x: xs[m] }; });
+    const g0 = await gaps();
+    await t((x) => window.__t3d.setPeekNow(x), g0.x + 5); await p.waitForTimeout(700);
+    const open = await gaps();
+    await t(() => window.__t3d.setPeekNow(null)); await p.waitForTimeout(700);
+    const back = await gaps();
+    check("верхняя ручка влево-вправо: карты под пальцем раздвинулись (в 1.6 раза шире и больше), отпустил — вернулись", open.mid > g0.mid * 1.6 && Math.abs(back.mid - g0.mid) < 2 && Math.abs(back.far - g0.far) < 2, { g0, open, back });
+  }
+
+  {
+    // Ручка сложенной руки — та же верхняя ручка: после подъёма видны линии хода, рука в границах, ниже оранжевой отпущена снова ложится.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    await p.click(".screen:not(.off) [data-hand-btn]"); await p.click('.screen:not(.off) [data-hand-sub="release"]'); await p.waitForTimeout(2600);
+    await p.mouse.move(40, 420); await p.mouse.down(); await p.mouse.move(40, 250, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(900);
+    const stk = await rectOf('.screen:not(.off) [data-hand-tab="stack"]'), sx = stk.x + stk.width / 2, sy = stk.y + stk.height / 2;
+    const Hs = await p.evaluate(() => document.querySelector(".screen:not(.off)").getBoundingClientRect().height);
+    await p.mouse.move(sx, sy); await p.mouse.down(); await p.mouse.move(sx, sy - 80, { steps: 8 }); await p.waitForTimeout(400);
+    const lines = await p.locator(".screen:not(.off) [data-grab-line]").count(), h1 = await t(() => window.__t3d.handHeightNow());
+    await p.mouse.move(sx, Hs * 0.95, { steps: 12 }); await p.waitForTimeout(500);
+    const h2 = await t(() => window.__t3d.handHeightNow());
+    const frame = await t(() => window.__t3d.handFrame());
+    await p.mouse.up(); await p.waitForTimeout(900);
+    const tuck = await t(() => { const x = window.__t3d.state(), seat = x.people.find((q) => q.key === window.__t3d.me()).seat; return x.chairs.find((c) => c.id === seat).pose.tuck; });
+    check("ручка сложенной руки: после подъёма видны три линии хода, рука в границах высоты, отпустил ниже оранжевой — снова на столе", lines === 3 && h1 >= -400 && h1 <= 150 && h2 >= -400 && h2 <= 150 && (!frame || frame.y + frame.h <= Hs + 20) && tuck === true, { lines, h1, h2, frame, tuck, Hs });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();

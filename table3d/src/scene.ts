@@ -19,7 +19,7 @@ import type { PanelWorld, WorldPlace } from "./panel.js";
 import type { Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
 import { CARRY_EVERY_MS } from "../../server/src/table/contract.js";
 import { AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
-import { CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
+import { peekShift, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
 import { ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../../server/src/table/ring.js";
 import { artUrl, readLook, type DeckLook } from "../../server/table-client/deckArt.js";
 import { blendOf, handPlanBlend, mineGeomOf, snapPose, tuckOf, type PoseBlend } from "../../server/table-client/handGeom.js";
@@ -203,6 +203,8 @@ export interface SceneApi {
   /** Рука в кадре следует за верхней ручкой по высоте, пока её тянут (`px` вверх — минус); `null` — отпустили, вернулась (временно). */
   /** Высота руки в кадре, пиксели (вверх — плюс): верхняя ручка ставит, рука остаётся на ней. */
   handHeight(): number;
+  /** Верхняя ручка влево-вправо: палец на этом x экрана раздвигает карты под ним, если они сильно наплывают; `null` — отпустили. */
+  setPeek(sx: number | null): void;
   setHandHeight(px: number): void;
   /** Где на экране лежит моя положенная стопка (охват верхней карты) — ручка у неё привязана к стопке на столе; рука не положена или стопки не видно — `null`. */
   stackScreen(): { x: number; y: number; w: number; h: number } | null;
@@ -372,6 +374,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const LAG = { gain: 0.9, decay: 6, max: 0.2 };
   /** Высота руки в кадре, пиксели (вверх — плюс): её ставит верхняя ручка, и она остаётся; рука едет с камерой жёстко, как одна точка. */
   let heightPx = 0;
+  /** Где палец на верхней ручке по ширине экрана, пока ею раздвигают карты (`peekShift`); `null` — не раздвигают. */
+  let peekSx: number | null = null;
   const HEIGHT = { min: -400, max: 150 };
   /** Пиксель экрана в единицах кадра руки: рука идёт за язычком один к одному. */
   const pxUnit = (): number => (2 * -CAMHAND.at.z * Math.tan((camera.fov * DEG) / 2)) / Math.max(1, renderer.domElement.getBoundingClientRect().height);
@@ -905,8 +909,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       syncWidth(ch);
       const shape = shapeOfWidth(widthLive ?? handWidth, n, Math.max(0, Math.min(1, heightPx / WIDTH.rise)), widthOver);
       placeFpsArm(down <= 0 && list.length > 0 && !handCarry, fovK, off);
+      // Раздвижка: места карт по ширине руки (в ширинах карты) и сдвиг от пальца на верхней ручке.
+      const u = CAMHAND.card * fovK, curlMine = handCurl * mineCurlK(n);
+      const xsPlan = Array.from({ length: n }, (_, i) => (camHandLocal(i, n, false, shape, fovK, 1, off, curlMine).pos.x - CAMHAND.at.x - off.x * fovK) / u);
+      const rectW = renderer.domElement.getBoundingClientRect(), fPeek = peekSx === null ? null : (peekSx - (rectW.left + rectW.width / 2)) * (pxUnit() / u);
+      const peek = peekShift(xsPlan, fPeek);
       const place = (k: number, up: boolean): Place => {
-        const local = camHandLocal(k, n, up, shape, fovK, 1, off, handCurl * mineCurlK(n));
+        const local = camHandLocal(k, n, up, shape, fovK, 1, off, curlMine);
+        local.pos.x += (peek[k] ?? 0) * u;
         return down <= 0 ? local : { ...laid(camHandWorld(local, head, rig.yaw, rig.pitch), ch, k, up, down), over: true };
       };
       for (const c of ch.hand) { const o = cards.get(c.id), k = list.indexOf(c); if (o && k >= 0) o.target = place(slotOf(k), !!c.up); }
@@ -1637,6 +1647,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setHandWidthNow: (raw: number) => { widthLive = Math.max(0, Math.min(1, raw)); widthOver = Math.max(0, raw - 1); layout(store.state); },
     cardOrder: (id: string) => { const o = cards.get(id); return o ? { order: o.front.renderOrder, write: (o.front.material as THREE.Material).depthWrite } : null; },
     handHeightNow: () => heightPx,
+    setPeekNow: (sx: number | null) => { peekSx = sx; layout(store.state); draw(); },
+    peekShiftFor: (xs: number[], f: number | null) => peekShift(xs, f),
     setHandHeightNow: (px: number) => { heightPx = Math.max(HEIGHT.min, Math.min(HEIGHT.max, px)); layout(store.state); sendBody(true); draw(); },
     cardNormalY: (id: string) => { const o = cards.get(id); return o ? new THREE.Vector3(0, 0, 1).applyQuaternion(o.group.getWorldQuaternion(new THREE.Quaternion())).y : null; },
     setBaseFovNow: (deg: number) => {
@@ -1680,6 +1692,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     handFrame,
     fanFits: () => fanFitsNow(),
     handHeight: () => heightPx,
+    setPeek(sx) { peekSx = sx; layout(store.state); draw(); },
     setHandHeight(px) { heightPx = Math.max(HEIGHT.min, Math.min(HEIGHT.max, px)); layout(store.state); sendBody(); draw(); },
     handWidth: () => handWidth,
     handCurl: () => handCurl,

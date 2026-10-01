@@ -80,3 +80,20 @@ export function topHeight(aspect: number, fovDeg: number, restScale: number): nu
   const half = Math.tan((fovDeg * Math.PI) / 360) * Math.min(1, Math.max(0.2, aspect));
   return (TOP.reach / half) * restScale;
 }
+
+/**
+ * РАЗДВИЖКА КАРТ ПОД ПАЛЬЦЕМ — верхняя ручка влево-вправо раскрывает дистанцию между картами под ней, когда карты сильно наплывают друг на друга
+ * (большая стопка). Если между всеми соседними картами и так не меньше `gap` (ширин карты) — раздвигать нечего.
+ *   `xs` — места карт по ширине руки (в ширинах карты), `f` — где палец (там же), `null` — раздвижки нет.
+ * Карты по обе стороны от пальца расходятся на недостающее до `gap`, влияние гаснет за `reach` от пальца.
+ */
+export const PEEK = { gap: 0.45, reach: 1.1, min: 10 } as const;
+export function peekShift(xs: readonly number[], f: number | null, gap: number = PEEK.gap, reach: number = PEEK.reach): number[] {
+  const none = xs.map(() => 0);
+  if (f === null || xs.length < 2) return none;
+  let tight = Infinity;
+  for (let i = 1; i < xs.length; i += 1) tight = Math.min(tight, Math.abs(xs[i]! - xs[i - 1]!));
+  const open = gap - tight;
+  if (open <= 0) return none;
+  return xs.map((x) => Math.tanh((x - f) / 0.15) * (open / 2) * Math.max(0, 1 - Math.abs(x - f) / reach));
+}
