@@ -1249,7 +1249,7 @@ try {
     await p.mouse.up(); await p.waitForTimeout(200);
     const after = await p.locator(".screen:not(.off) [data-grab-line]").count();
     const lay = lines.find((l) => l.k === "lay"), carry = lines.find((l) => l.k === "carry");
-    check("верхняя ручка: пока тянут, видны линии «положить» (ниже ручки) и «нести стопкой» (выше), отпустил — пропали", before === 0 && !!lay && !!carry && lay.y > ty && carry.y < ty && after === 0, { before, lines, ty, after });
+    check("верхняя ручка: пока тянут, видны линии «положить», «собираются» и «нести стопкой», отпустил — пропали", before === 0 && !!lay && !!carry && lay.y > ty && after === 0, { before, lines, ty, after });
     // Карты собираются только после оранжевой линии: на полпути к красной веер стоит, за оранжевой начинает сжиматься.
     {
       const collect = lines.find((l) => l.k === "collect");
@@ -1264,7 +1264,8 @@ try {
       check("оранжевая линия между ручкой и красной; до неё веер стоит, после — собирается", !!collect && collect.y > ty && collect.y < lay.y && Math.abs(before - base) < 6 && after < base * 0.85, { collect, lay, base, before, after });
     }
     const chat = await rectOf(".screen:not(.off) [data-g=thumb-chat]"), zoomR = await rectOf(".screen:not(.off) [data-zoom-slider]");
-    check("красная линия — по центру кнопок чата и компаса, золотая — не ниже нижней границы оптического зума", Math.abs(lay.y - (chat.y + chat.height / 2)) < 3 && carry.y <= zoomR.y + zoomR.height + 1, { lay, chat, carry, zoomR });
+    const Hs = await p.evaluate(() => document.querySelector(".screen:not(.off)").getBoundingClientRect().height), linesAt = (k) => lines.find((l) => l.k === k).y;
+    check("линии — якоря экрана (доли высоты): золотая 62.6%, оранжевая 82.5%, красная 86.6%, и стоят там, где сейчас кнопки и зум", Math.abs(linesAt("carry") - Hs * 0.626) < 2 && Math.abs(linesAt("collect") - Hs * 0.825) < 2 && Math.abs(linesAt("lay") - Hs * 0.866) < 2 && Math.abs(lay.y - (chat.y + chat.height / 2)) < 6 && Math.abs(carry.y - (zoomR.y + zoomR.height + 6)) < 6, { lay, chat, carry, zoomR, Hs });
     const myTuck = () => t(() => { const x = window.__t3d.state(), seat = x.people.find((q) => q.key === window.__t3d.me()).seat; return x.chairs.find((c) => c.id === seat).pose.tuck; });
     const t2 = await rectOf('.screen:not(.off) [data-hand-tab="top"]');
     await p.mouse.move(t2.x + t2.width / 2, t2.y + t2.height / 2); await p.mouse.down(); await p.mouse.move(t2.x + t2.width / 2, lay.y - 20, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(900);

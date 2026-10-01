@@ -49,7 +49,9 @@ const HOLD_MS = 1500;
 const DOUBLE_TAP_MS = 350;
 const TAP_PX = 8;
 /** Сколько пикселей пальца на всю ось язычка: опустить и положить, сжать, веер ↔ ряд. */
-const TAB_PX = { collect: 0.1, carryAt: 0.38, dead: 50, lay: 190, width: 220, curl: 160, carry: 150, pull: 40, tapMs: 300 };
+/** Линии хода верхней ручки, доли высоты экрана (390×844): нести стопкой — под нижним краем зума, собираются — по низу кнопки «стоять/сидеть», положить — по центру чата и компаса. */
+const LINES = { carry: 0.626, collect: 0.825, lay: 0.866 };
+const TAB_PX = { dead: 50, lay: 190, width: 220, curl: 160, carry: 150, pull: 40, tapMs: 300 };
 const RIM_LEFT = 28;
 const SIDES: GatherSide[] = ["keep", "down", "up"];
 const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
@@ -738,11 +740,10 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       if (fromStack) local.grabOff = { which: "top", x: x0, y: y0, from: "stack", morph: 0 };
       // Линии хода верхней ручки: «положить» — на уровне кнопок чата и компаса (по их центру), «нести стопкой» — на нижней границе оптического зума,
       // но не ближе `carry` над местом хвата (выше — диапазон высоты руки). Рука ложится, если отпустить ниже красной линии; несётся стопкой, пока палец выше золотой (вернул к месту хвата — снова в руке).
-      const chatBox = screen.querySelector<HTMLElement>("[data-g=thumb-chat]")?.getBoundingClientRect(), zoomBox = zoom.getBoundingClientRect();
-      // Линии стоят на экране сами по себе и от позы руки не зависят: красная — по центру кнопок, оранжевая — выше неё на `collect` высоты экрана,
-      // золотая — на нижней границе зума, но не ниже `carry` высоты экрана от верха.
-      const H = glass().h, layY = chatBox ? chatBox.top + chatBox.height / 2 : H * 0.86, collectY = layY - TAB_PX.collect * H;
-      const carryY = !fromStack && which === "top" ? Math.min(scene.camMode() === "head" && zoomBox.height ? zoomBox.bottom : H * 0.45, H * TAB_PX.carryAt) : -Infinity;
+      // Линии — якоря экрана: доли его высоты, снятые с кнопок и зума как они стоят сейчас; кнопки и зум переедут — линии останутся.
+      // Нести стопкой можно, лишь потянув вверх не меньше `carry` (выше — диапазон высоты руки).
+      const H = glass().h, layY = H * LINES.lay, collectY = H * LINES.collect;
+      const carryY = !fromStack && which === "top" ? H * LINES.carry : -Infinity;
       if (!fromStack && which === "top") local.grabLines = { lay: b0.lift > 0.25 ? layY : null, collect: b0.lift > 0.25 ? collectY : null, carry: carryY };
       let lastY = y0;
       let dx = 0, dy = 0, moved = false, carrying = false, lifted = !fromStack;
@@ -759,7 +760,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
           if (moved) { scene.setHandWidth(w0 - dx / TAB_PX.width); scene.setHandCurl(c0 - dy / TAB_PX.curl); }
         } else {
           // Высоко вверх — левая рука несёт всю руку стопкой над столом, как колоду; вернул вниз, не отпуская, — карты назад в руку.
-          if (fromStack ? dy <= -TAB_PX.carry || carrying : ev.clientY <= carryY || carrying) {
+          if (fromStack ? dy <= -TAB_PX.carry || carrying : (ev.clientY <= carryY && dy <= -TAB_PX.carry) || carrying) {
             carrying = scene.carryHand({ x: ev.clientX, y: ev.clientY }, fromStack ? undefined : { enter: carryY, exit: y0 - 10 });
             if (carrying) { scene.setBlend(undefined); draw(); return; }
           }
