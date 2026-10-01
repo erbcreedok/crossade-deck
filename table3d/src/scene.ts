@@ -47,7 +47,7 @@ const HOVER = { up: 0.55, near: 0.6, grow: 1.15 };
 /** Место карты: в мире (`over` — моя рука: место в мире, но рисуется поверх всего) — или в осях камеры (`onCamera`: над окном HUD). */
 /** Раскладка руки: сжатость (0 — стопкой), веер ↔ ряд (0.5 — веер, 1 — ряд), комната в ширинах карты. */
 type Shape = { wide: number; lift: number; room: number };
-type Place = { pos: THREE.Vector3; quat: THREE.Quaternion; scale: number; onCamera?: true; over?: true };
+type Place = { pos: THREE.Vector3; quat: THREE.Quaternion; scale: number; onCamera?: true; over?: true; /** Кривизна самой карты вокруг её вертикали (1/радиус в единицах карты, + к лицу): карта согнута, как в пальцах. */ bend?: number };
 /** Где карта сейчас по снимку: откуда её можно взять. */
 type From = { in: "felt" } | { in: "pile"; pile: string; top: boolean } | { in: "hand"; chair: string; mine: boolean; i: number };
 
@@ -106,6 +106,35 @@ const cardShape = (() => {
   for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / CARD_W + 0.5, pos.getY(i) / CARD_H + 0.5);
   return g;
 })();
+/** Карта, которую можно согнуть: та же рамка, но сетка вдоль ширины — изгиб считает вершинный шейдер, углы закруглены отсечением по контуру. */
+const cardBendShape = (() => {
+  const g = new THREE.PlaneGeometry(CARD_W, CARD_H, 20, 1);
+  const pos = g.getAttribute("position") as THREE.BufferAttribute, uv = g.getAttribute("uv") as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / CARD_W + 0.5, pos.getY(i) / CARD_H + 0.5);
+  return g;
+})();
+const CARD_CORNER = 0.09;
+/** Материал карты с изгибом: `userData.bend.value` — кривизна (1/радиус), изгиб — вершинным шейдером по цилиндру вокруг вертикали карты. */
+function bendMaterial(): THREE.MeshBasicMaterial {
+  const m = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.05 });
+  const bend = { value: 0 };
+  m.userData.bend = bend;
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uBend = bend;
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nuniform float uBend;\nvarying vec2 vFlat;")
+      .replace("#include <begin_vertex>", `#include <begin_vertex>
+        vFlat = position.xy;
+        if (abs(uBend) > 1e-5) { float a = position.x * uBend; transformed.x = sin(a) / uBend; transformed.z = (1.0 - cos(a)) / uBend; }`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", `#include <common>
+        varying vec2 vFlat;`)
+      .replace("#include <alphatest_fragment>", `vec2 cq = abs(vFlat) - vec2(${(CARD_W / 2).toFixed(4)}, ${(CARD_H / 2).toFixed(4)}) + ${CARD_CORNER.toFixed(4)};
+        if (length(max(cq, 0.0)) > ${CARD_CORNER.toFixed(4)}) discard;
+        #include <alphatest_fragment>`);
+  };
+  return m;
+}
 /**
  * БОК КОЛОДЫ. Карта здесь — плоский лист, и сбоку стопка листов была сплошной белой плитой. Настоящая колода сбоку — не белая:
  * срез бумаги кремовый, серее лица, с тонкой тёмной линией на стыке каждой карты, а у основания темнее (тень между картами).
@@ -612,8 +641,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     let o = cards.get(id);
     if (o) return o;
     const group = new THREE.Group();
-    const front = new THREE.Mesh(cardShape, new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.05 }));
-    const back = new THREE.Mesh(cardShape, new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.05 }));
+    const front = new THREE.Mesh(cardShape, bendMaterial());
+    const back = new THREE.Mesh(cardShape, bendMaterial());
     back.rotation.y = Math.PI;
     back.position.z = -0.001;
     front.castShadow = back.castShadow = true;
@@ -698,11 +727,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    *   пока карты не перестанут сжиматься (или не кончится экран). Высота тоже влияет на веер: поднял руку ручкой — веер выпрямляется в ряд.
    * Остальным уходят только флаги позы (стопкой, веер, в ряд): ширину они видят стандартную для позы.
    */
-  const WIDTH = { stack: 0.12, rowFrom: 0.7, fanTo: 0.75, px: 220, pinch: 140, rise: 150, defaults: { shrink: 0.05, fan: 0.45, row: 1 }, othersRow: 4.2 };
+  const WIDTH = { stack: 0.12, rowFrom: 0.7, fanTo: 0.75, px: 220, pinch: 140, rise: 150, defaults: { shrink: 0.05, fan: 0.68, row: 1 }, othersRow: 4.2 };
   /** Загиб веера по умолчанию, 0…1. */
   const CURL = { rest: 0.7 };
   let handCurl: number = CURL.rest;
-  let handWidth = 0.45, widthLive: number | null = null, widthOver = 0, widthPendingUntil = 0;
+  let handWidth = 0.68, widthLive: number | null = null, widthOver = 0, widthPendingUntil = 0;
   const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((baseFov * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / CAMHAND.card); };
   const roomOf = (f: number): number => 1.2 + (roomMax() - 1.2) * Math.max(0, Math.min(1, (f - WIDTH.stack) / (1 - WIDTH.stack)));
   const smooth = (a: number, b: number, x: number): number => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
@@ -755,12 +784,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -theta).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), CAMHAND.tilt * DEG)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -plan.angle * DEG));
     if (up) quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
     const along = arc ? arc * Math.sin(theta) : plan.x, toward = arc ? arc * (1 - Math.cos(theta)) : 0;
-    return { pos: new THREE.Vector3(CAMHAND.at.x + off.x * fovK + along * u, (CAMHAND.at.y + off.y) * fovK - plan.y * u, CAMHAND.at.z + toward * u + k * 0.004), quat, scale: s, onCamera: true };
+    return { pos: new THREE.Vector3(CAMHAND.at.x + off.x * fovK + along * u, (CAMHAND.at.y + off.y) * fovK - plan.y * u, CAMHAND.at.z + toward * u + k * 0.004), quat, scale: s, onCamera: true, bend: arc ? (up ? -1 : 1) / (arc * CARD_W) : 0 };
   };
   /** То же место в мире: голова `head` смотрит `yaw`, `pitch`. */
   const camHandWorld = (local: Place, head: Point3, yaw: number, pitch: number): Place => {
     const m = camBasis(yaw, pitch), q = new THREE.Quaternion().setFromRotationMatrix(m);
-    return { pos: local.pos.clone().applyMatrix4(m).add(V(head)), quat: q.multiply(local.quat), scale: local.scale };
+    return { pos: local.pos.clone().applyMatrix4(m).add(V(head)), quat: q.multiply(local.quat), scale: local.scale, bend: local.bend };
   };
   /** Где лежит стопка положенной руки: у самого борта у своего места, чуть слева от аватара — не там, где рука у головы: с взглядом она не ходит. */
   function stackSpot(ch: Chair): { x: number; y: number } {
@@ -773,7 +802,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const laid = (held: Place, ch: Chair, k: number, up: boolean, down: number): Place => {
     if (down <= 0) return held;
     const lie = stackPlace(ch, k, up);
-    return { pos: held.pos.clone().lerp(lie.pos, down), quat: held.quat.clone().slerp(lie.quat, down), scale: held.scale + (1 - held.scale) * down, over: held.over };
+    return { pos: held.pos.clone().lerp(lie.pos, down), quat: held.quat.clone().slerp(lie.quat, down), scale: held.scale + (1 - held.scale) * down, over: held.over, bend: (held.bend ?? 0) * (1 - down) };
   };
   const myHandBody = (ch: Chair): HandBody => { const m = myHeadNow(ch); return { yaw: m.yaw, left: m.hand }; };
   /** Рука у тела: место `k` из `n` на руке стула `ch` рядом с левой рукой тела; `up` — карта вывернута рубашкой к хозяину. */
@@ -999,6 +1028,13 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     for (const [id, o] of cards) {
       const g = o.group, t = o.target;
       // Сменила место между миром и рукой — пересадить, сохранив, где она на экране, и долететь.
+      // Изгиб самой карты догоняет цель плавно; сетка нужна, только пока карта согнута.
+      const bendWas = (g.userData.bend as number | undefined) ?? 0, bendWant = t.bend ?? 0, bendNow = Math.abs(bendWant - bendWas) < 1e-4 ? bendWant : bendWas + (bendWant - bendWas) * (1 - Math.exp(-dt * 14));
+      if (bendNow !== bendWas) { g.userData.bend = bendNow; moving = true; }
+      (o.front.material as THREE.Material).userData.bend.value = bendNow;
+      (o.back.material as THREE.Material).userData.bend.value = -bendNow;
+      const want = Math.abs(bendNow) > 1e-5 ? cardBendShape : cardShape;
+      if (o.front.geometry !== want) o.front.geometry = o.back.geometry = want;
       const parent = t.onCamera ? handRoot : cardRoot;
       if (g.parent !== parent) { camera.updateMatrixWorld(); parent.attach(g); g.userData.v = new THREE.Vector3(); g.userData.sv = 0; }
       const layer = t.onCamera || t.over ? HAND_LAYER : 0;
@@ -1575,6 +1611,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     handShape: () => { const ch = myChair(); return ch ? { f: widthLive ?? handWidth, ...shapeOfWidth(widthLive ?? handWidth, ch.hand.length, Math.max(0, Math.min(1, -nudgePx / WIDTH.rise)), widthOver) } : null; },
     fanFitsN,
     /** Ширина карты в мире: сколько единиц стола она занимает (рука — в осях камеры, стол — свой размер). */
+    setHandWidthNow: (raw: number) => { widthLive = Math.max(0, Math.min(1, raw)); widthOver = Math.max(0, raw - 1); layout(store.state); },
+    cardBend: (id: string) => (cards.get(id)?.group.userData.bend as number | undefined) ?? 0,
     handCurl: () => handCurl,
     setHandCurl: (c: number) => { handCurl = Math.max(0, Math.min(1, c)); layout(store.state); sendBody(); },
     cardWidth: (id: string) => { const o = cards.get(id); return o ? o.group.getWorldScale(new THREE.Vector3()).x * CARD_W : null; },

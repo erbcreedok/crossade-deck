@@ -1175,10 +1175,16 @@ try {
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const sag = (screen) => t((sc) => { const T = window.__t3d, S = sc === 0 ? T : window.__t3dScreens[sc], st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, cm = T.cam(), c = cm.pos, yw = (cm.yaw * Math.PI) / 180, pt = (cm.pitch * Math.PI) / 180, f = [Math.sin(yw) * Math.cos(pt), Math.sin(pt), -Math.cos(yw) * Math.cos(pt)], d = (id) => { const w = S.world(id); return (w.x - c[0]) * f[0] + (w.h - c[1]) * f[1] + (w.y - c[2]) * f[2]; }; const mid = h[Math.floor(h.length / 2)].id; return { n: h.length, edge: Math.min(d(h[0].id), d(h.at(-1).id)), mid: d(mid) }; }, screen);
+    const bendOf = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand; return Math.abs(T.cardBend(h[Math.floor(h.length / 2)].id)); });
+    await p.waitForTimeout(600);
+    const bent = await bendOf();
+    const arcY = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, y = (c) => T.screenOf(c.id).y; return { edge: Math.max(y(h[0]), y(h.at(-1))), mid: y(h[Math.floor(h.length / 2)]), spread: Math.abs(T.screenOf(h[0].id).x - T.screenOf(h.at(-1).id).x) }; });
+    check("веер по умолчанию дугой в плоскости (по Y): крайние карты ниже середины, веер раскрыт, а не стопкой", arcY.edge - arcY.mid > 5 && arcY.spread > 90, arcY);
     const a0 = await sag(0);
     check("веер загнут по Z: крайние карты ближе к держащему, чем середина", a0.n >= 5 && a0.mid - a0.edge > 0.015, a0);
     await t(() => window.__t3d.setHandCurl(0)); await p.waitForTimeout(900);
-    const flat = await sag(0);
+    const flat = await sag(0), bentFlat = await bendOf();
+    check("сама карта согнута, пока веер загнут, и разгибается в плоскую при загибе 0", bent > 0.02 && bentFlat < 0.005, { bent, bentFlat });
     check("загиб 0 убирает загиб по Z: края отходят назад к середине", (a0.mid - a0.edge) - (flat.mid - flat.edge) > 0.01, { flat, a0 });
     await t(() => window.__t3d.setHandCurl(1)); await p.waitForTimeout(1200);
     const mine = await sag(0), theirs = await sag(1);
