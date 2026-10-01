@@ -1,0 +1,22 @@
+design/hud3d/index.html
+  s_ad8a8a5b5d0419::t_bf619354946e92 153,179,213-230,246-255,257,259,261-262,272,279,308-309,311,321,330,335,338-340,396-400,405,408,410-411,417-418,432,502-503
+  s_ad8a8a5b5d0419::t_ba2821b0c58f05 210-211
+design/hud3d/icons.js
+  s_ad8a8a5b5d0419::t_bf619354946e92 84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c1076bb3e9ded039593b41a448e7653eae0ee8f5",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
