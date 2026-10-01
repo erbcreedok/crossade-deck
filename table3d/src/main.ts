@@ -1,13 +1,14 @@
+import "./uuid-polyfill";
 // ПЕСОЧНИЦА НА THREE.JS — тот же стол, что `server/table-client`, другой экран. Стол и сеть — те же самые (`TableStore`:
 // `localStore` — стол в этой вкладке с ботами, `netStore` — живая комната); рисует и ловит палец — `scene.ts`.
 //
 //   ?stand (или без параметров)      стол в этой вкладке, за ним боты — как `?stand` у стола
 //   ?room=<подписанный id>&name=…    живая комната, дверь `guest` (сервер должен пускать гостей: `TABLE_GUESTS=1`)
-//   &host=http://localhost:2611      чей это стол: оттуда комната и картинки карт (по умолчанию — стол на :2590)
+//   &host=http://localhost:2611      чей это стол: оттуда комната и картинки карт (по умолчанию — 3D-стол на :2591)
 
 const params = new URLSearchParams(location.search);
 // Адрес стола — до того, как код стола прочтёт его (`host.ts` читает при загрузке), поэтому всё остальное — после.
-(globalThis as { __TABLE_HOST__?: string }).__TABLE_HOST__ = params.get("host") ?? "http://localhost:2590";
+(globalThis as { __TABLE_HOST__?: string }).__TABLE_HOST__ = params.get("host") ?? `http://${location.hostname}:2591`;
 
 const note = document.getElementById("note")!;
 /** Экран — коробка со своей сценой и своим HUD: у каждого своя камера, свои окна, своя рука в пальце. */

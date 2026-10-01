@@ -4,6 +4,7 @@ build/
 
 # Локальные данные и настройки — не для коммита
 server/data/
+server/data3d/
 **/.env*
 !**/.env.example
 .claude/settings.local.json
