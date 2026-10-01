@@ -1,0 +1,38 @@
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_e15da890ffbdd4 1986-1987
+.claude/launch.json
+  s_ad8a8a5b5d0419::t_94bb722fdd4d27 222-231
+design/hud3d/gallery.html
+  s_ad8a8a5b5d0419::t_c9e6e78abc271b 1-19
+design/hud3d/index.html
+  s_ad8a8a5b5d0419::t_7c6d9f60d42142 384
+  s_ad8a8a5b5d0419::t_13c97ef2339f9b 23
+  s_ad8a8a5b5d0419::t_8f87395d6a3600 22,24,27,62,91-92,94-95,98-99,196,275,357,374-375,413
+  s_ad8a8a5b5d0419::t_f4bfdd6dd4e152 70,141-146,341,372,397
+  s_ad8a8a5b5d0419::t_a67f0176191613 121,197-199,263
+  s_ad8a8a5b5d0419::t_4537296bd62dae 1-21,25-26,28-61,63-69,71-90,93,96-97,100-120,122-140,147-195,200-262,264-274,276-280,282-340,342-356,358-371,373,376-383,385-396,398-412,414-456
+  s_ad8a8a5b5d0419::t_6d32b342b459d4 281
+design/hud3d/icons.js
+  s_ad8a8a5b5d0419::t_30bebd5ba88163 1-63,67-73,76-79,81-141
+  s_ad8a8a5b5d0419::t_40600bdeb6cc57 64-66
+  s_ad8a8a5b5d0419::t_a67f0176191613 80
+  s_ad8a8a5b5d0419::t_f4bfdd6dd4e152 74-75
+CLAUDE.md
+  s_ad8a8a5b5d0419::t_ae2737cb7355c6 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8ea346ba4ffd690784e3c41d337c217c95d8d30e",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
