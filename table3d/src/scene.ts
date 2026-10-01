@@ -19,7 +19,7 @@ import type { PanelWorld, WorldPlace } from "./panel.js";
 import type { Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
 import { CARRY_EVERY_MS } from "../../server/src/table/contract.js";
 import { AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
-import { peekShift, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
+import { peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
 import { ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../../server/src/table/ring.js";
 import { artUrl, readLook, type DeckLook } from "../../server/table-client/deckArt.js";
 import { blendOf, handPlanBlend, mineGeomOf, snapPose, tuckOf, type PoseBlend } from "../../server/table-client/handGeom.js";
@@ -925,7 +925,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const u = CAMHAND.card * fovK, curlMine = handCurl * mineCurlK(n);
       const xsPlan = Array.from({ length: n }, (_, i) => (camHandLocal(i, n, false, shape, fovK, 1, off, curlMine).pos.x - CAMHAND.at.x - off.x * fovK) / u);
       const rectW = renderer.domElement.getBoundingClientRect(), fPeek = ((gripSx ?? rectW.left + rectW.width / 2) - (rectW.left + rectW.width / 2)) * (pxUnit() / u);
-      const peek = peekShift(xsPlan, fPeek);
+      // Ужатая рука не раскидывается; грип помнит место, только пока картам тесно, — иначе он снова в центре.
+      const tight = shape.wide >= 1 && peekTight(xsPlan);
+      if (!tight && gripSx !== null) gripSx = null;
+      const peek = tight ? peekShift(xsPlan, fPeek) : xsPlan.map(() => 0);
       const place = (k: number, up: boolean): Place => {
         const local = camHandLocal(k, n, up, shape, fovK, 1, off, curlMine);
         local.pos.x += (peek[k] ?? 0) * u;
@@ -1687,6 +1690,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setHandWidthNow: (raw: number) => { widthLive = Math.max(0, Math.min(1, raw)); widthOver = Math.max(0, raw - 1); layout(store.state); },
     cardOrder: (id: string) => { const o = cards.get(id); return o ? { order: o.front.renderOrder, write: (o.front.material as THREE.Material).depthWrite } : null; },
     handHeightNow: () => heightPx,
+    gripXNow: () => gripSx,
     setGripNow: (sx: number | null) => { gripSx = sx; layout(store.state); draw(); },
     peekShiftFor: (xs: number[], f: number | null) => peekShift(xs, f),
     setHandHeightNow: (px: number) => { heightPx = Math.max(HEIGHT.min, Math.min(HEIGHT.max, px)); layout(store.state); sendBody(true); draw(); },

@@ -86,24 +86,31 @@ export function topHeight(aspect: number, fovDeg: number, restScale: number): nu
  *   `xs` — места карт по ширине руки (в ширинах карты), `f` — где грип (там же), `gap` — расстояние между соседними картами у грипа,
  *   `core` — сколько промежутков по обе стороны от грипа раздвинуты полностью, `fall` — на скольких промежутках раздвижка потом сходит на нет.
  * Считается по номерам карт, а не по расстоянию: густая стопка раскрывается в несколько карт вокруг грипа, а не на весь экран.
- * Карта, ближайшая к грипу, остаётся на месте, остальные расходятся от неё; между картами, которым и так хватает места, ничего не меняется.
+ * Крайние карты руки остаются на своих местах (ширина руки та же): места не хватает — остальные промежутки сжимаются.
+ * Между картами, которым и так хватает места, ничего не меняется.
  */
 export const PEEK = { gap: 0.42, core: 2.5, fall: 2, min: 10 } as const;
+/** Тесно ли картам: в среднем промежуток меньше `gap` (с запасом на сжатие краёв дуги). */
+export const peekTight = (xs: readonly number[], gap: number = PEEK.gap): boolean => xs.length > 1 && (xs[xs.length - 1]! - xs[0]!) / (xs.length - 1) < gap * 0.92;
 export function peekShift(xs: readonly number[], f: number | null, gap: number = PEEK.gap, core: number = PEEK.core, fall: number = PEEK.fall): number[] {
   const none = xs.map(() => 0);
-  if (f === null || xs.length < 2) return none;
+  if (f === null || !peekTight(xs, gap)) return none;
   const n = xs.length;
   let at = 0;
   while (at < n - 2 && xs[at + 1]! < f) at += 1;
   const span = xs[at + 1]! - xs[at]!, jf = Math.max(0, Math.min(n - 1, at + (span > 1e-9 ? (f - xs[at]!) / span : 0)));
-  const space = Array.from({ length: n - 1 }, (_, i) => {
+  const weight: number[] = [], space = Array.from({ length: n - 1 }, (_, i) => {
     const s = xs[i + 1]! - xs[i]!, w = Math.max(0, Math.min(1, 1 - Math.max(0, Math.abs(i + 0.5 - jf) - core) / fall));
+    weight.push(w);
     return s + (Math.max(gap, s) - s) * w;
   });
-  let anchor = 0;
-  for (let i = 1; i < n; i += 1) if (Math.abs(xs[i]! - f) < Math.abs(xs[anchor]! - f)) anchor = i;
-  const out = [...xs];
-  for (let i = anchor; i < n - 1; i += 1) out[i + 1] = out[i]! + space[i]!;
-  for (let i = anchor; i > 0; i -= 1) out[i - 1] = out[i]! - space[i - 1]!;
+  const whole = xs[n - 1]! - xs[0]!;
+  let full = 0, rest = 0;
+  space.forEach((v, i) => { if (weight[i]! >= 1) full += v; else rest += v; });
+  // Крайние карты стоят на местах (ширина руки та же): полностью раздвинутые промежутки держат `gap`, пока хватает ширины, а остальные сжимаются;
+  // не хватает — раздвинутым достаётся не больше 85% ширины руки, остальным остаток.
+  const room = full < whole * 0.85 ? full : whole * 0.85, kFull = full > 0 ? room / full : 0, kRest = rest > 1e-9 ? (whole - room) / rest : 0;
+  const out = [xs[0]!];
+  for (let i = 0; i < n - 1; i += 1) out.push(out[i]! + space[i]! * (weight[i]! >= 1 ? kFull : kRest));
   return out.map((x, i) => x - xs[i]!);
 }

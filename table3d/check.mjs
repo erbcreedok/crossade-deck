@@ -1381,30 +1381,48 @@ try {
   }
 
   {
-    // Верхний грип: вокруг него карты раздвинуты (номинал и масть видны), влево-вправо он идёт за пальцем и остаётся; начал по горизонтали — вверх-вниз не двигает ничего.
+    // Верхний грип: вокруг него карты раздвинуты (номинал и масть видны), крайние карты стоят на местах, ужатая рука не раскидывается, грип помнит место, только пока картам тесно;
+    // влево-вправо он идёт за пальцем и остаётся; начал по горизонтали — вверх-вниз не двигает ничего.
     await p.goto(`${base}/?stand&host=http://localhost:9591`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
-    const pure = await t(() => ({ tight: window.__t3d.peekShiftFor([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6], 0.3), roomy: window.__t3d.peekShiftFor([0, 0.6, 1.2], 0.5), none: window.__t3d.peekShiftFor([0, 0.1, 0.2], null) }));
-    const gapsAround = (sh) => { const xs = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6].map((x, i) => x + sh[i]); return xs.slice(1).map((x, i) => x - xs[i]); };
-    const gp = gapsAround(pure.tight);
-    check("раздвижка: вокруг грипа все соседние расстояния не меньше 0.4 ширины карты, якорная карта на месте; у просторной руки и без грипа — нули", gp[2] >= 0.4 - 1e-6 && gp[3] >= 0.4 - 1e-6 && Math.abs(pure.tight[3]) < 1e-9 && pure.roomy.every((v) => v === 0) && pure.none.every((v) => v === 0), { pure, gp });
-    const gaps = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, xs = h.map((c) => T.screenOf(c.id).x), g = xs.slice(1).map((x, i) => x - xs[i]); return { left: g[0], mid: g[Math.floor(g.length / 2)], right: g[g.length - 1], all: g.map(Math.round) }; });
+    const xs14 = Array.from({ length: 14 }, (_, i) => i * 0.3);
+    const pure = await t((xs) => ({ tight: window.__t3d.peekShiftFor(xs, 1.95), farLeft: window.__t3d.peekShiftFor(xs, -3), farRight: window.__t3d.peekShiftFor(xs, 9), roomy: window.__t3d.peekShiftFor([0, 0.6, 1.2], 0.5), none: window.__t3d.peekShiftFor([0, 0.1, 0.2], null) }), xs14);
+    const gp = (sh) => { const x = xs14.map((v, i) => v + sh[i]); return x.slice(1).map((v, i) => v - x[i]); };
+    const g1 = gp(pure.tight), gl = gp(pure.farLeft), gr = gp(pure.farRight);
+    check("раздвижка: вокруг грипа соседние расстояния не меньше 0.4, крайние карты на местах (и при грипе далеко влево и вправо), у просторной руки и без грипа — нули",
+      g1[6] >= 0.4 - 1e-6 && g1[7] >= 0.4 - 1e-6 && Math.abs(pure.tight[0]) < 1e-9 && Math.abs(pure.tight[13]) < 1e-9 && Math.abs(pure.farLeft[0]) < 1e-9 && Math.abs(pure.farLeft[13]) < 1e-9 && Math.abs(pure.farRight[0]) < 1e-9 && Math.abs(pure.farRight[13]) < 1e-9 && Math.min(...gl) >= 0 && Math.min(...gr) >= 0 && pure.roomy.every((v) => v === 0) && pure.none.every((v) => v === 0), { g1, pure: { t0: pure.tight[0], t13: pure.tight[13], l0: pure.farLeft[0], l13: pure.farLeft[13], r0: pure.farRight[0], r13: pure.farRight[13] } });
+    const xsNow = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand; return h.map((c) => T.screenOf(c.id).x); });
+    // Не тесно: обычная рука — грип не запоминает место, возвращается в центр.
+    await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand; for (let i = 0; i < 5; i++) T.dropFeltAt(h[i].id, -1 + i * 0.5, 2.5); }); await p.waitForTimeout(2500);
+    await t(() => window.__t3d.setGripNow(120)); await p.waitForTimeout(800);
+    const gripLoose = await t(() => window.__t3d.gripXNow());
+    check("картам не тесно (в руке 2 карты) — грип не остаётся сбоку, а возвращается в центр", gripLoose === null, { gripLoose });
     await t(() => window.__t3d.fillHand(7)); await p.waitForTimeout(2500);
-    await t(() => window.__t3d.setHandWidthNow(0.5)); await p.waitForTimeout(2500);
-    const c0 = await gaps();
-    check("по центру грип раскрывает карты в середине: расстояние в центре больше, чем у краёв веера", c0.mid > c0.left * 1.4 && c0.mid > c0.right * 1.4, c0);
-    await t(() => window.__t3d.setGripNow(120)); await p.waitForTimeout(1500);
-    const c1 = await gaps();
-    check("грип слева — раскрыты карты слева, а не в центре", c1.left > c1.right * 1.2 && c1.left > c0.left * 1.15, { c0, c1 });
-    await t(() => window.__t3d.setGripNow(null)); await p.waitForTimeout(500);
-    // Ось жеста: вправо, потом вниз — высота и поза не меняются, грип остаётся там, где его оставили.
+    await t(() => window.__t3d.setHandWidthNow(1)); await p.waitForTimeout(2200);
+    await t(() => window.__t3d.setGripNow(null)); await p.waitForTimeout(800);
+    const x0 = await xsNow();
+    await t(() => window.__t3d.setGripNow(60)); await p.waitForTimeout(1500);
+    const xl = await xsNow(), gripTight = await t(() => window.__t3d.gripXNow());
+    await t(() => window.__t3d.setGripNow(370)); await p.waitForTimeout(1500);
+    const xr = await xsNow();
+    check("тесно (9 карт, рука широко): грип запоминает место; при грипе у самого края крайние карты не сдвинулись (±4 px), никуда не уходят",
+      gripTight === 60 && Math.abs(xl[0] - x0[0]) < 4 && Math.abs(xl[xl.length - 1] - x0[x0.length - 1]) < 4 && Math.abs(xr[0] - x0[0]) < 4 && Math.abs(xr[xr.length - 1] - x0[x0.length - 1]) < 4, { n: x0.length, x0f: x0[0], x0l: x0[x0.length - 1], xlf: xl[0], xll: xl[xl.length - 1], xrf: xr[0], xrl: xr[xr.length - 1], gripTight });
+    // Ужатая рука не раскидывается.
+    await t(() => window.__t3d.setHandWidthNow(0.05)); await p.waitForTimeout(2200);
+    await t(() => window.__t3d.setGripNow(null)); await p.waitForTimeout(800);
+    const s0 = await xsNow();
+    await t(() => window.__t3d.setGripNow(120)); await p.waitForTimeout(1200);
+    const s1 = await xsNow();
+    check("ужатая рука: верхний грип ничего не раскидывает (карты на тех же местах)", s0.every((v, i) => Math.abs(v - s1[i]) < 2), { s0: s0.map(Math.round), s1: s1.map(Math.round) });
+    await t(() => window.__t3d.setHandWidthNow(0.68)); await p.waitForTimeout(1500);
+    // Ось жеста: вправо, потом вниз — высота и поза не меняются.
     const tab = await rectOf('.screen:not(.off) [data-hand-tab="top"]'), x = tab.x + tab.width / 2, y = tab.y + tab.height / 2;
     await p.mouse.move(x, y); await p.mouse.down(); await p.mouse.move(x + 45, y, { steps: 5 }); await p.mouse.move(x + 45, y + 150, { steps: 8 }); await p.waitForTimeout(300);
-    const h1 = await t(() => ({ h: window.__t3d.handHeightNow(), grip: window.__t3d.gripX?.() }));
+    const h1 = await t(() => window.__t3d.handHeightNow());
     await p.mouse.up(); await p.waitForTimeout(700);
-    const after = await rectOf('.screen:not(.off) [data-hand-tab="top"]'), tuck = await t(() => { const s2 = window.__t3d.state(), seat = s2.people.find((q) => q.key === window.__t3d.me()).seat; return s2.chairs.find((c) => c.id === seat).pose.tuck; });
-    check("начал влево-вправо — вниз не двигает руку (высота та же, не легла), грип остался справа там, где отпустили", h1.h === 0 && tuck === false && after && Math.abs(after.x + after.width / 2 - (x + 45)) < 8 && Math.abs(after.y - tab.y) < 4, { h1, tuck, tabX: x, afterX: after && after.x + after.width / 2, tabY: tab.y, afterY: after && after.y });
+    const tuck = await t(() => { const s2 = window.__t3d.state(), seat = s2.people.find((q) => q.key === window.__t3d.me()).seat; return s2.chairs.find((c) => c.id === seat).pose.tuck; });
+    check("начал влево-вправо — вниз не двигает руку (высота та же, рука не легла)", h1 === 0 && tuck === false, { h1, tuck });
   }
 
   {
