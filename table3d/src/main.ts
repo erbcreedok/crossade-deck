@@ -4,11 +4,11 @@ import "./uuid-polyfill";
 //
 //   ?stand (или без параметров)      стол в этой вкладке, за ним боты — как `?stand` у стола
 //   ?room=<подписанный id>&name=…    живая комната, дверь `guest` (сервер должен пускать гостей: `TABLE_GUESTS=1`)
-//   &host=http://localhost:2611      чей это стол: оттуда комната и картинки карт (по умолчанию — 3D-стол на :2591)
+//   &host=http://localhost:2611      чей это стол: оттуда комната и картинки карт (по умолчанию — тот сервер, что раздал страницу /table/3d; на стенде Vite — :2591)
 
 const params = new URLSearchParams(location.search);
 // Адрес стола — до того, как код стола прочтёт его (`host.ts` читает при загрузке), поэтому всё остальное — после.
-(globalThis as { __TABLE_HOST__?: string }).__TABLE_HOST__ = params.get("host") ?? `http://${location.hostname}:2591`;
+(globalThis as { __TABLE_HOST__?: string }).__TABLE_HOST__ = params.get("host") ?? (location.pathname.startsWith("/table/") ? location.origin : `http://${location.hostname}:2591`);
 
 const note = document.getElementById("note")!;
 /** Экран — коробка со своей сценой и своим HUD: у каждого своя камера, свои окна, своя рука в пальце. */
@@ -23,12 +23,22 @@ function screenBox(first: boolean): { screen: HTMLElement; stage: HTMLElement; h
   return { screen, stage, hud };
 }
 try {
-  const room = params.get("room");
+  const tgStart = (globalThis as { Telegram?: { WebApp?: { initDataUnsafe?: { start_param?: string } } } }).Telegram?.WebApp?.initDataUnsafe?.start_param;
+  const room = params.get("room") || tgStart || new URLSearchParams(new URLSearchParams(location.hash.slice(1)).get("tgWebAppData") ?? "").get("start_param");
   const { mountScene } = await import("./scene.js");
   const { mountHud } = await import("./hud.js");
   if (room) {
     // Живая комната: один экран, один человек.
-    const store = await (await import("../../server/table-client/netStore.js")).netStore({ room, client: "table3d", door: "guest", name: params.get("name") ?? "Гость 3D" });
+    // Двери — те же, что у обычного клиента: Telegram (подпись Mini App), пропуск приложения, гость.
+    await Promise.race([(globalThis as { __tg?: Promise<void> }).__tg, new Promise((r) => setTimeout(r, 1500))]);
+    const tg = (globalThis as { Telegram?: { WebApp?: { initData?: string; ready(): void; expand(): void } } }).Telegram?.WebApp;
+    tg?.ready(); tg?.expand();
+    const initData = tg?.initData || new URLSearchParams(location.hash.slice(1)).get("tgWebAppData") || "";
+    const pass = params.get("pass"), key = params.get("key");
+    const door = initData ? { door: "telegram" as const, initData }
+      : key || pass ? { door: "app" as const, ...(key ? { key } : { pass: pass! }) }
+      : { door: "guest" as const, name: params.get("name") ?? "Гость 3D" };
+    const store = await (await import("../../server/table-client/netStore.js")).netStore({ room, client: "table3d", ...door });
     const box = screenBox(true);
     note.hidden = true;
     mountHud(box.hud, box.stage, store, mountScene(box.stage, store), undefined, box.screen);

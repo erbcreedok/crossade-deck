@@ -8,10 +8,11 @@ import { describe, expect, it } from "vitest";
 //   ../src/table/        общее со столом на сервере: контракт, патч, чистые правила
 //   ../../look/src/      вид Crossade
 //   ../../game-kit/src/  кит
+//   ../../table3d/src/   3D-вид стола (`three.ts` — единственный, кто туда ходит)
 // Внутренности приложений (`apps/*`) и остальной сервер (`../src/` мимо `table/`) — не его дело.
 
 const CLIENT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "table-client");
-const ALLOWED = ["../src/table/", "../../look/src/", "../../game-kit/src/"];
+const ALLOWED = ["../src/table/", "../../look/src/", "../../game-kit/src/", "../../table3d/src/"];
 
 describe("клиент стола выходит из своей папки только в библиотеки", () => {
   it("table-client.imports-only-libraries", () => {

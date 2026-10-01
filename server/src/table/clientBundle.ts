@@ -17,10 +17,12 @@ const SOURCES = join(HERE, "..", "..", "table-client");
 const BAKED_CARDS = join(HERE, "..", "..", "..", "game-presets", "cards", "src", "decks", "baked");
 
 /** Страницы клиента: адрес скрипта на странице → входной файл в `table-client/`. */
-export const CLIENT_SCRIPTS = { app: "main", replay: "replay", admin: "admin" } as const;
+export const CLIENT_SCRIPTS = { app: "main", replay: "replay", admin: "admin", three: "three" } as const;
 export type ClientScript = keyof typeof CLIENT_SCRIPTS;
 export const CLIENT_PAGES = { index: "index.html", replay: "replay.html", bots: "bots.html", admin: "admin.html" } as const;
-export type ClientPage = keyof typeof CLIENT_PAGES;
+/** Страница 3D-вида: пишется из `table3d/index.html` (стили те же), скрипт — наш `three.js`, а ещё SDK Telegram — как у обычной. */
+export type ClientPage = keyof typeof CLIENT_PAGES | "three";
+const THREE_PAGE = "three.html";
 
 export interface ClientSource {
   page(name: ClientPage): Promise<string>;
@@ -34,6 +36,12 @@ export interface ClientSource {
   /** Рисунки скинов по ракурсам (`skins.ts`): `<скин>/<ракурс>-<часть>.svg`. */
   readonly skins: string;
   readonly cards: string;
+}
+
+async function threePage(): Promise<string> {
+  const [three, index] = await Promise.all([readFile(join(HERE, "..", "..", "..", "table3d", "index.html"), "utf8"), readFile(join(SOURCES, CLIENT_PAGES.index), "utf8")]);
+  const sdk = index.match(/<script>\s*window\.__tg[\s\S]*?<\/script>/)?.[0] ?? "";
+  return three.replace('<script type="module" src="/src/main.ts"></script>', `${sdk}\n  <script type="module" src="three.js"></script>`);
 }
 
 async function bundle(name: ClientScript): Promise<{ js: string; map: string }> {
@@ -69,7 +77,7 @@ async function bundle(name: ClientScript): Promise<{ js: string; map: string }> 
 export function liveSource(): ClientSource {
   const built: Partial<Record<ClientScript, Promise<{ js: string; map: string }>>> = {};
   return {
-    page: (name) => readFile(join(SOURCES, CLIENT_PAGES[name]), "utf8"),
+    page: (name) => (name === "three" ? threePage() : readFile(join(SOURCES, CLIENT_PAGES[name]), "utf8")),
     script: (name) =>
       (built[name] ??= bundle(name).catch((err) => {
         delete built[name];
@@ -86,7 +94,7 @@ export function liveSource(): ClientSource {
 /** Папка, которую оставил `buildClient`: читается с диска, в памяти не держится ничего. */
 export function builtSource(dir: string): ClientSource {
   return {
-    page: (name) => readFile(join(dir, CLIENT_PAGES[name]), "utf8"),
+    page: (name) => readFile(join(dir, name === "three" ? THREE_PAGE : CLIENT_PAGES[name]), "utf8"),
     script: async (name) => ({
       js: await readFile(join(dir, `${name}.js`), "utf8"),
       map: await readFile(join(dir, `${name}.js.map`), "utf8"),
@@ -102,6 +110,7 @@ export function builtSource(dir: string): ClientSource {
 export async function buildClient(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true });
   for (const page of Object.values(CLIENT_PAGES)) await cp(join(SOURCES, page), join(dir, page));
+  await writeFile(join(dir, THREE_PAGE), await threePage());
   for (const name of Object.keys(CLIENT_SCRIPTS) as ClientScript[]) {
     const { js, map } = await bundle(name);
     await writeFile(join(dir, `${name}.js`), js);

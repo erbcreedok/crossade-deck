@@ -12,6 +12,9 @@ import { VOLUME_STEP, type TableSound } from "./sound.js";
 
 const INK = { black: "#0b0704", ink: "#f5ead0", dim: "#cdb98f", off: "#6f6452", well: "#1c120b", wood: "#6b4d2c", plateHi: "#25321f", plateLo: "#16210f", rim: "#6b4d2c", goldHi: "#f8d885", goldLo: "#b08a26", gold: "#f0c86a" };
 
+/** Открыт 3D-вид (`/table/3d`), а не обычный. */
+const in3d = (): boolean => /\/3d\/?$/.test(location.pathname);
+
 interface TelegramApp {
   isVersionAtLeast?(v: string): boolean;
   isFullscreen?: boolean;
@@ -204,6 +207,8 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + (world.avatar ? section("Аватар")
         + toggle("avatar-seat", "Стул", world.avatar.model() === "seat")
         + toggle("avatar-king", "Король треф", world.avatar.model() === "king") : "")
+      + section("Вид стола")
+      + toggle("view3d", "3D-вид (вместо обычного)", in3d())
       + section("Колода")
       + toggle("fourColour", "4 цвета", look.fourColour) + toggle("cyrillic", "Кириллица", look.cyrillic)
       + section("Отладка")
@@ -275,6 +280,10 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       case "reduce":
         motion.setReduce(!motion.reduce);
         break;
+      case "view3d":
+        // Та же комната, тот же вход: меняется только экран. Адрес с `#` (подпись Telegram) уходит целиком.
+        location.href = `${location.pathname.replace(/\/3d\/?$/, "/").replace(/\/?$/, in3d() ? "" : "/3d")}${location.search}${location.hash}`;
+        return;
       case "fourColour":
       case "cyrillic":
         look[el.dataset.look] = !look[el.dataset.look];
