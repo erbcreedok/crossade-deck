@@ -42,6 +42,8 @@ const DOUBLE_MS = 350;
  */
 const SPRING = { k: 170, damp: 0.62 }, SPRING_HELD = { k: 900, damp: 0.9 };
 /** Над своей рукой несомая карта — выше соседей на эту долю своей высоты, ближе к глазу и чуть крупнее. */
+/** Размер своих карт в руке относительно обычного: предел ползунка в настройках. */
+const HAND_SIZE = { min: 0.5, max: 2 };
 const HOVER = { up: 0.55, near: 0.6, grow: 1.05 };
 /** Тронутая карта руки: чуть выше соседей и чуть ближе к глазу (единицы кадра руки). */
 const TOUCH = { up: 0.07, z: 0.12 };
@@ -186,6 +188,9 @@ export interface SceneApi {
   camMode(): CamMode;
   /** Обычное поле зрения головы, градусы по вертикали (настройки). */
   baseFov(): number;
+  /** Размер карт в своей руке: 0.5…2 от обычного (настройки). */
+  handSize(): number;
+  setHandSize(k: number): void;
   setBaseFov(deg: number): void;
   /** Оптический зум головы: 0 — обычный обзор, 1 — самый узкий. */
   optics(): number;
@@ -375,6 +380,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let camMode: CamMode = ((m) => (m === "orbit" || m === "top" ? m : "head"))(new URLSearchParams(location.search).get("cam"));
   /** Обычное поле зрения головы; для разработки его двигает ползунок (`setBaseFov`). */
   let baseFov: number = CAM.fov.base;
+  /** Размер карт в своей руке от обычного (настройки): 1 — как есть, от половины до вдвое. */
+  let handSize = 1;
   const rig = { yaw: 0, pitch: -40, lean: 0, fov: baseFov };
   const neck = neckNew();
   /**
@@ -937,15 +944,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const shape = shapeOfWidth(widthLive ?? handWidth, n, Math.max(0, Math.min(1, heightPx / WIDTH.rise)), widthOver);
       placeFpsArm(down <= 0 && list.length > 0 && !handCarry, fovK, off);
       // Раздвижка: места карт по ширине руки (в ширинах карты) и сдвиг от пальца на верхней ручке.
-      const u = CAMHAND.card * fovK, curlMine = handCurl * mineCurlK(n);
-      const xsPlan = Array.from({ length: n }, (_, i) => (camHandLocal(i, n, false, shape, fovK, 1, off, curlMine).pos.x - CAMHAND.at.x - off.x * fovK) / u);
+      const u = CAMHAND.card * fovK * handSize, curlMine = handCurl * mineCurlK(n);
+      const xsPlan = Array.from({ length: n }, (_, i) => (camHandLocal(i, n, false, shape, fovK, handSize, off, curlMine).pos.x - CAMHAND.at.x - off.x * fovK) / u);
       const rectW = renderer.domElement.getBoundingClientRect(), fPeek = ((gripSx ?? rectW.left + rectW.width / 2) - (rectW.left + rectW.width / 2)) * (pxUnit() / u);
       // Ужатая рука не раскидывается, не тесно — тоже: грип тогда сразу в центре. Само наличие грипа карты не двигает: только его ход влево-вправо (`gripAmt`).
       const tight = shape.wide >= 1 && peekTight(xsPlan);
       if (!tight && !gripDrag && (gripSx !== null || gripAmt > 0)) { gripSx = null; gripAmt = 0; gripRelAt = 0; }
       const peek = tight && gripAmt > 0 ? peekShift(xsPlan, fPeek).map((v) => v * gripAmt) : xsPlan.map(() => 0);
       const place = (k: number, up: boolean): Place => {
-        const local = camHandLocal(k, n, up, shape, fovK, 1, off, curlMine);
+        const local = camHandLocal(k, n, up, shape, fovK, handSize, off, curlMine);
         local.pos.x += (peek[k] ?? 0) * u;
         return down <= 0 ? local : { ...laid(camHandWorld(local, head, rig.yaw, rig.pitch), ch, k, up, down), over: true };
       };
@@ -969,7 +976,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const o = gap !== null && drag ? cards.get(drag.id) : undefined;
       if (o) {
         const t = place(gap!, false);
-        if (t.onCamera) hoverNear(t, CAMHAND.pop * fovK); else t.pos.y += CAMHAND.pop;
+        if (t.onCamera) hoverNear(t, CAMHAND.pop * fovK * handSize); else t.pos.y += CAMHAND.pop;
         t.scale *= HOVER.grow;
         o.target = t;
       }
@@ -977,7 +984,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         const q = cards.get(c.id);
         if (!q) return;
         const t = place(ins!, false), thick = Math.min(1, j / Math.max(1, m - 1)) * 0.05;
-        if (t.onCamera) hoverNear(t, (CAMHAND.pop + thick) * fovK); else t.pos.y += CAMHAND.pop + thick;
+        if (t.onCamera) hoverNear(t, (CAMHAND.pop + thick) * fovK * handSize); else t.pos.y += CAMHAND.pop + thick;
         t.scale *= HOVER.grow;
         q.target = t;
       });
@@ -1733,6 +1740,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     peekShiftFor: (xs: number[], f: number | null) => peekShift(xs, f),
     setHandHeightNow: (px: number) => { heightPx = Math.max(HEIGHT.min, Math.min(HEIGHT.max, px)); layout(store.state); sendBody(true); draw(); },
     cardNormalY: (id: string) => { const o = cards.get(id); return o ? new THREE.Vector3(0, 0, 1).applyQuaternion(o.group.getWorldQuaternion(new THREE.Quaternion())).y : null; },
+    setHandSizeNow: (k: number) => api.setHandSize(k),
     setBaseFovNow: (deg: number) => {
       baseFov = Math.max(CAM.fov.view.min, Math.min(CAM.fov.view.max, deg));
       camera.aspect = host.clientWidth / Math.max(1, host.clientHeight);
@@ -1767,6 +1775,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       rig.fov = baseFov * Math.pow(CAM.fov.min / baseFov, Math.max(0, Math.min(1, t)));
       applyRig(); layout(store.state); draw();
     },
+    handSize: () => handSize,
+    setHandSize(k) { handSize = Math.max(HAND_SIZE.min, Math.min(HAND_SIZE.max, k)); layout(store.state); draw(); },
     setBaseFov(deg) {
       baseFov = Math.max(CAM.fov.view.min, Math.min(CAM.fov.view.max, deg));
       camera.aspect = host.clientWidth / Math.max(1, host.clientHeight);

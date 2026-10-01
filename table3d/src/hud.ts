@@ -124,10 +124,12 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     meters: { on: () => false, toggle: () => {} },
     record: { on: () => false, toggle: () => {} },
     view: { min: CAM.fov.view.min, max: CAM.fov.view.max, get: () => scene.baseFov(), set: (deg) => { scene.setBaseFov(deg); try { localStorage.setItem("t3d.fov", String(scene.baseFov())); } catch { /* без памяти — обзор на эту сессию */ } } },
+    cardSize: { min: 50, max: 200, get: () => Math.round(scene.handSize() * 100), set: (pct) => { scene.setHandSize(pct / 100); try { localStorage.setItem("t3d.handSize", String(scene.handSize())); } catch { /* без памяти — размер на эту сессию */ } } },
     figures: { on: () => figuresOn, toggle: () => { figuresOn = !figuresOn; scene.setFigures(figuresOn); } },
     footer: () => "песочница 3D · three.js",
     changed: () => draw(),
   });
+  try { const saved = Number(localStorage.getItem("t3d.handSize")); if (saved) scene.setHandSize(saved); } catch { /* без памяти — обычный размер */ }
   try { const saved = Number(localStorage.getItem("t3d.fov")); if (saved) scene.setBaseFov(saved); } catch { /* без памяти — обзор по умолчанию */ }
   const book = journal();
   store.onOps?.((ops) => { if (book.take(ops, store.state, store.now())) draw(); });

@@ -1543,6 +1543,30 @@ try {
     check("ушла от руки — карты руки встали на прежние места", xs2.every((v, i) => Math.abs(v - xs0[i]) < 3) && (await t(() => window.__t3d.pileOverNow())) === null, { xs0, xs2 });
     await t((id) => window.__t3d.carryPileNow(id, null), pile.id);
   }
+  {
+    // Размер карт в руке — ползунок в настройках: 100% как есть, от 50% до 200%; несомая над рукой — на 5% крупнее своей руки при любом размере.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    await t(() => window.__t3d.fillHand(5)); await p.waitForTimeout(2500);
+    const hand = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat; return st.chairs.find((c) => c.id === seat).hand.map((c) => c.id); });
+    const mid = hand[Math.floor(hand.length / 2)];
+    const width = () => t((id) => window.__t3d.cardWidth(id), mid);
+    const w100 = await width();
+    const setPct = async (v) => { await p.click(".screen:not(.off) [data-settings]"); await frames(); await p.locator("[data-settings-layer] [data-card-size]").evaluate((el, x) => { el.value = String(x); el.dispatchEvent(new Event("input", { bubbles: true })); }, v); await frames(); await p.click("[data-settings-layer] [data-settings-close]"); await p.waitForTimeout(1500); };
+    await setPct(200); const w200 = await width();
+    const pile = await t(() => { const pl = window.__t3d.state().piles[0]; return { id: pl.id, top: pl.cards.at(-1).id }; });
+    const box = await rectOf("#stage canvas");
+    await t((a) => window.__t3d.carryPileNow(a.id, { x: a.x, y: a.y }), { id: pile.id, x: box.x + box.width / 2, y: box.y + box.height * 0.88 });
+    await p.waitForTimeout(4000);
+    const appear = (id) => t((i) => window.__t3d.cardWidth(i) / window.__t3d.depthOf(i), id);
+    const r200 = (await appear(pile.top)) / (await appear(mid));
+    await t((id) => window.__t3d.carryPileNow(id, null), pile.id);
+    await setPct(50); const w50 = await width();
+    await setPct(500); const wMax = await width();
+    check("размер карт в руке: 50% — вдвое меньше обычного, 200% — вдвое больше, выше 200% не пускает", Math.abs(w50 / w100 - 0.5) < 0.03 && Math.abs(w200 / w100 - 2) < 0.06 && Math.abs(wMax / w100 - 2) < 0.06, { w50, w100, w200, wMax });
+    check("при 200% несомая над рукой стопка всё равно ровно на 5% крупнее своей руки (1.00…1.07)", r200 > 0.99 && r200 < 1.07, { r200 });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();
