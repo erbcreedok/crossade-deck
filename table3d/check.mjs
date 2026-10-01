@@ -1347,6 +1347,15 @@ try {
     await p.mouse.up(); await p.waitForTimeout(300);
     check("стопка в левой руке не уходит за край стола, даже если палец у самого верха экрана", away.carrying === true && away.r < 7.4, away);
   }
+
+  {
+    // Рука при первой загрузке стоит в границах: её верх не выше золотой линии (62.6% высоты), низ не глубже бара.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const f = await t(() => window.__t3d.handFrame()), Hs = await p.evaluate(() => document.querySelector(".screen:not(.off)").getBoundingClientRect().height);
+    check("рука при первой загрузке не выше золотой линии", f.y >= Hs * 0.626 - 3, { top: f.y, line: Hs * 0.626 });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();

@@ -724,7 +724,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * Рука в кадре: где перед глазом (оси камеры), какой ширины карта (`card`, в единицах стола на этом расстоянии) и насколько наклонена.
    * Размер руки не зависит от размера карты на столе (`CARD_W`): рука привязана к худу и всем рисуется одинаково.
    */
-  const CAMHAND = { at: new THREE.Vector3(0, -0.65, -2.3), card: 0.54, room: 3.1, tilt: -12, pop: 0.5, near: 0.45, others: 1.7, curl: 1, tiltLow: 20 } as const;
+  const CAMHAND = { at: new THREE.Vector3(0, -0.92, -2.3), card: 0.54, room: 3.1, tilt: -12, pop: 0.5, near: 0.45, others: 1.7, curl: 1, tiltLow: 20 } as const;
   const camBasis = (yaw: number, pitch: number): THREE.Matrix4 => {
     const y = yaw * DEG, p = pitch * DEG, f = new THREE.Vector3(Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)), r = new THREE.Vector3(Math.cos(y), 0, Math.sin(y));
     return new THREE.Matrix4().makeBasis(r, r.clone().cross(f), f.clone().negate());
