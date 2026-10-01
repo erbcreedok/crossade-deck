@@ -1333,8 +1333,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const ndc = (e: { clientX: number; clientY: number }) => { const r = renderer.domElement.getBoundingClientRect(); return new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); };
   const hitCard = (e: PointerEvent): string | null => {
     ray.setFromCamera(ndc(e), camera);
-    const hit = ray.intersectObjects([...cards.values()].flatMap((o) => [o.front, o.back]), false)[0];
-    return (hit?.object.userData.card as string | undefined) ?? null;
+    const hits = ray.intersectObjects([...cards.values()].flatMap((o) => [o.front, o.back]), false);
+    // Карты руки лежат слоями: берётся та, что поверх на экране (справа поверх слева, несомая выше всех), а не ближайшая по глубине: изогнутые карты пересекаются.
+    let best: THREE.Intersection | undefined;
+    for (const h of hits) if (!best || h.object.renderOrder > best.object.renderOrder) best = h;
+    return (best?.object.userData.card as string | undefined) ?? null;
   };
   const hitTab = (e: PointerEvent): string | null => {
     ray.setFromCamera(ndc(e), camera);
@@ -1670,6 +1673,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       layout(store.state); draw();
     },
     curlFor: (n: number) => mineCurlK(n),
+    fillHand: (n: number) => { const ch = myChair(); if (!ch) return; const deck = store.state.piles[0]; for (const c of deck.cards.slice(-n)) { store.send({ t: "grab", id: c.id }); store.send({ t: "drop", id: c.id, to: { in: "hand", chair: ch.id, i: ch.hand.length } }); } },
+    cardAt: (x: number, y: number) => hitCard({ clientX: x, clientY: y } as PointerEvent),
     dropFeltAt: (id: string, x: number, y: number) => { store.send({ t: "grab", id }); store.send({ t: "drop", id, to: { in: "felt", x, y, angle: 0, up: false } }); },
     tabInfo: (pile: string) => { const t = tabs.get(pile); return t ? { y: t.mesh.position.y, x: t.mesh.position.x, z: t.mesh.position.z, screen: project(t.mesh.position.clone()) } : null; },
     shadeCount: () => [...cards.values()].filter((o) => o.shades.every((m) => m.receiveShadow && m.material instanceof THREE.ShadowMaterial)).length,

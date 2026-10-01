@@ -1426,6 +1426,16 @@ try {
     const after = await t(() => { const T = window.__t3d, st = T.state(); return { tab: T.tabInfo(st.piles[0].id), felt: st.felt.map((c) => T.world(c.id)).filter(Boolean).map((w) => w.h), shades: T.shadeCount() }; });
     check("язычок колоды выше карт, что легли рядом на сукно (не тонет под ними); у карт есть слой для тени", after.felt.length >= 1 && after.tab.y > Math.max(...after.felt) && after.shades > 20, { before, after });
   }
+
+  {
+    // Клик по карте веера берёт ту, что видна сверху в точке нажатия (справа поверх слева): идя пальцем слева направо по веерy, видишь карты по порядку, без перескоков к дальним соседям.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    await t(() => window.__t3d.fillHand(7)); await p.waitForTimeout(2500);
+    const scan = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, sc = h.map((c) => T.screenOf(c.id)), y = sc.reduce((m, q) => m + q.y, 0) / sc.length + 20, x0 = Math.min(...sc.map((q) => q.x)) - 80, x1 = Math.max(...sc.map((q) => q.x)) + 80, seq = []; for (let x = x0; x <= x1; x += 2) { const id = T.cardAt(x, y), i = id ? h.findIndex((c) => c.id === id) : -1; if (i >= 0 && seq[seq.length - 1] !== i) seq.push(i); } return { n: h.length, seq }; });
+    check("клик по веерy слева направо: карты идут по порядку (справа поверх слева), без скачков к дальним соседям", scan.seq.length === scan.n && scan.seq.every((v, i) => i === 0 || v > scan.seq[i - 1]), scan);
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();
