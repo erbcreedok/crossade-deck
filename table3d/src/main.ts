@@ -23,6 +23,10 @@ function screenBox(first: boolean): { screen: HTMLElement; stage: HTMLElement; h
   document.getElementById("screens")!.append(screen);
   return { screen, stage, hud };
 }
+// СВАЙП ВНИЗ НЕ ЗАКРЫВАЕТ СТОЛ — как у обычного клиента, в три слоя: Telegram не ловит жест (`disableVerticalSwipes`, ниже, когда SDK
+// пришёл), `touchmove` отменяется у документа (слушатель НЕ пассивный, иначе отмена молча не работает; окна с собственной прокруткой —
+// `[data-scroll]` — исключение), а страница в `index.html` не прокручивается и резинки не тянет.
+document.addEventListener("touchmove", (e) => { if (!(e.target as Element | null)?.closest?.("[data-scroll]")) e.preventDefault(); }, { passive: false });
 const lag = lagFromUrl(location.search);
 try {
   const tgStart = (globalThis as { Telegram?: { WebApp?: { initDataUnsafe?: { start_param?: string } } } }).Telegram?.WebApp?.initDataUnsafe?.start_param;
@@ -35,6 +39,7 @@ try {
     await Promise.race([(globalThis as { __tg?: Promise<void> }).__tg, new Promise((r) => setTimeout(r, 1500))]);
     const tg = (globalThis as { Telegram?: { WebApp?: { initData?: string; ready(): void; expand(): void } } }).Telegram?.WebApp;
     tg?.ready(); tg?.expand();
+    (tg as { disableVerticalSwipes?(): void } | undefined)?.disableVerticalSwipes?.();
     const initData = tg?.initData || new URLSearchParams(location.hash.slice(1)).get("tgWebAppData") || "";
     const pass = params.get("pass"), key = params.get("key");
     const door = initData ? { door: "telegram" as const, initData }
