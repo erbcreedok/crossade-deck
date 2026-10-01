@@ -153,9 +153,12 @@ export interface SceneApi {
   turnBy(deg: number): void;
   /** Модель камеры: орбита, голова, оптика. Намерения: взгляд (yaw, pitch — градусы) и приближение (> 1 — ближе). */
   camMode(): CamMode;
-  /** Только для разработки: обычное поле зрения головы, градусы по вертикали. */
+  /** Обычное поле зрения головы, градусы по вертикали (настройки). */
   baseFov(): number;
   setBaseFov(deg: number): void;
+  /** Оптический зум головы: 0 — обычный обзор, 1 — самый узкий. */
+  optics(): number;
+  setOptics(t: number): void;
   setCamMode(m: CamMode): void;
   lookBy(dyaw: number, dpitch: number): void;
   zoomBy(k: number): void;
@@ -1575,8 +1578,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     home: () => { home(); draw(); sendBody(true); },
     camMode: () => camMode,
     baseFov: () => baseFov,
+    optics: () => (camMode === "head" ? Math.max(0, Math.min(1, Math.log(rig.fov / baseFov) / Math.log(CAM.fov.min / baseFov))) : 0),
+    setOptics(t) {
+      if (camMode !== "head") return;
+      rig.fov = baseFov * Math.pow(CAM.fov.min / baseFov, Math.max(0, Math.min(1, t)));
+      applyRig(); layout(store.state); draw();
+    },
     setBaseFov(deg) {
-      baseFov = Math.max(CAM.fov.min + 10, Math.min(120, deg));
+      baseFov = Math.max(CAM.fov.view.min, Math.min(CAM.fov.view.max, deg));
       camera.aspect = host.clientWidth / Math.max(1, host.clientHeight);
       if (camMode === "head") { rig.fov = baseFov; applyRig(); }
       layout(store.state); draw();

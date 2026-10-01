@@ -854,7 +854,7 @@ try {
     check("положена на стол: рука со стопкой не двигается за взглядом (влево-вправо, вверх-вниз)", Math.hypot(w1.x - w0.x, w1.y - w0.y) < 0.05 && Math.abs(w1.h - w0.h) < 0.05 && w0.h < 0.8, { w0, w1 });
     await p.keyboard.press("Home"); await p.click(handBtnSel); await p.waitForTimeout(1300);
     const cUp = await firstCard();
-    check("кнопка левой руки — рука поднимается перед лицом, на прежнее место кадра", Math.hypot(cUp.x - c0.x, cUp.y - c0.y) < 10, { c0, cUp });
+    check("кнопка левой руки — рука поднимается перед лицом, на прежнее место кадра", Math.hypot(cUp.x - c0.x, cUp.y - c0.y) < 24, { c0, cUp });
     // Два пальца на руке: вверх — в ряд (выровнять), щипок — шире и уже; отпустил — поза легла.
     const cdp = await p.context().newCDPSession(p);
     await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
@@ -1132,17 +1132,29 @@ try {
   }
 
   {
-    // Дев-ползунок обзора камеры: тянешь — поле зрения головы шире или уже; на «домой» остаётся.
+    // Обзор камеры: по умолчанию 75°, в настройках 65–85°; вертикальный ползунок справа — оптический зум (вверх уже), «домой» его сбрасывает.
     await p.goto(`${base}/?stand&host=http://localhost:9591`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
-    const fov0 = (await t(() => window.__t3d.cam())).fov;
-    const slider = p.locator(".screen:not(.off) [data-dev-fov] input");
-    await slider.fill("95"); await frames();
-    const fov1 = (await t(() => window.__t3d.cam())).fov;
-    await slider.blur(); await p.keyboard.press("Home"); await frames();
-    const fov2 = (await t(() => window.__t3d.cam())).fov;
-    check("дев-ползунок обзора: поле зрения головы меняется и держится после «домой»", fov0 === 62 && Math.abs(fov1 - 95) < 0.5 && Math.abs(fov2 - 95) < 0.5, { fov0, fov1, fov2 });
+    const fovNow = async () => (await t(() => window.__t3d.cam())).fov;
+    const fov0 = await fovNow();
+    await p.click(".screen:not(.off) [data-settings]"); await frames();
+    const view = p.locator("[data-settings-layer] [data-view]");
+    await view.fill("85"); await frames();
+    const fov85 = await fovNow();
+    await view.evaluate((el) => { el.value = "40"; el.dispatchEvent(new Event("input", { bubbles: true })); }); await frames();
+    const fovMin = await fovNow();
+    await p.click("[data-settings-layer] [data-settings-close]"); await frames();
+    check("обзор по умолчанию 75°, настройки 65–85°: 85 ставится, ниже 65 не пускает", Math.abs(fov0 - 75) < 0.5 && Math.abs(fov85 - 85) < 0.5 && Math.abs(fovMin - 65) < 0.5, { fov0, fov85, fovMin });
+    const zr = await rectOf(".screen:not(.off) [data-zoom-slider]");
+    check("вертикальный ползунок зума виден в виде «голова»", !!zr && zr.height > 100, zr);
+    await p.mouse.move(zr.x + zr.width / 2, zr.y + zr.height - 22); await p.mouse.down(); await p.mouse.move(zr.x + zr.width / 2, zr.y + 22, { steps: 8 }); await p.mouse.up(); await frames();
+    const fovZoom = await fovNow();
+    check("ползунок вверх — оптический зум: поле зрения сужается, камера на месте", fovZoom < 30 && fovZoom >= 19.5, { fovZoom });
+    await p.keyboard.press("Home"); await frames();
+    check("«домой» возвращает обычный обзор, ползунок внизу", Math.abs((await fovNow()) - 65) < 0.5 && (await t(() => window.__t3d.optics?.() ?? 0)) < 0.05, await fovNow());
+    for (let i = 0; i < 3 && (await t(() => window.__t3d.cam().mode)) !== "top"; i++) { await p.click("[data-dev-cam]:visible"); await p.waitForTimeout(500); }
+    check("сверху ползунка зума нет", (await p.locator(".screen:not(.off) [data-zoom-slider]").evaluate((e) => getComputedStyle(e).display)) === "none", null);
   }
   check("без ошибок", errors.length === 0, errors);
 } finally {

@@ -64,6 +64,8 @@ export interface SettingsWorld {
   /** ВИД АВАТАРА — как меня видят за столом (`bodies.ts`, `MODELS`): стул или спрайты короля. */
   /** Выбор вида аватара; нет — раздела нет (пока у всех один вид). */
   avatar?: { model(): string; set(model: string): void };
+  /** Обзор камеры — угол зрения в градусах; нет — раздела нет (у 2D-стола камеры нет). */
+  view?: { min: number; max: number; get(): number; set(deg: number): void };
   /** Запись моего экрана — камера, нажатия, звук (`SCREEN_PRIVATE`); по умолчанию выключена. */
   record: { on(): boolean; toggle(): void };
 }
@@ -158,6 +160,12 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       }).join("") + `</span></div>`;
   }
 
+  function viewHtml(v: NonNullable<SettingsWorld["view"]>): string {
+    return `<div style="display:flex;align-items:center;gap:12px;min-height:44px"><span style="flex:none;width:78px;font:400 14px Tiny5,monospace;color:${INK.ink}">Обзор</span>`
+      + `<input data-view type="range" min="${v.min}" max="${v.max}" step="1" value="${Math.round(v.get())}" aria-label="Обзор камеры" style="flex:1;min-width:0;margin:0;cursor:pointer;touch-action:pan-y;accent-color:${INK.goldHi}">`
+      + `<span data-view-value style="flex:none;width:40px;text-align:right;font:400 13px Tiny5,monospace;color:${INK.ink}">${Math.round(v.get())}°</span></div>`;
+  }
+
   function render(): void {
     const { sound, haptic, motion, look } = world;
     // ОКНО ПРОКРУЧИВАЕТСЯ ПАЛЬЦЕМ. У страницы стола `touch-action:none` — палец там тянет карту, а не страницу;
@@ -184,6 +192,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + section("Анимации")
       + speedHtml()
       + toggle("reduce", motion.chosen || !motion.reduce ? "Меньше анимаций" : "Меньше анимаций · авто", motion.reduce)
+      + (world.view ? section("Камера") + viewHtml(world.view) : "")
       + (world.avatar ? section("Аватар")
         + toggle("avatar-seat", "Стул", world.avatar.model() === "seat")
         + toggle("avatar-king", "Король треф", world.avatar.model() === "king") : "")
@@ -272,6 +281,11 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
   // Ползунок — без пересборки: палец остаётся на нём, меняются только столбики и число.
   layer.addEventListener("input", (e) => {
     const input = e.target as HTMLInputElement;
+    if (input.matches("[data-view]") && world.view) {
+      world.view.set(Number(input.value));
+      layer.querySelector<HTMLElement>("[data-view-value]")!.textContent = `${Math.round(world.view.get())}°`;
+      return;
+    }
     if (!input.matches("[data-volume]")) return;
     const which = input.dataset.volume === "voice" ? "voice" : "table";
     const p = world.sound.prefs;

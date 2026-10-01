@@ -17,7 +17,7 @@ import { DEAL_PRESETS, type Chair, type ChairFlag, type DealDir, type DealRule, 
 import { fingerHtml } from "./finger.js";
 import { allowed, may as mayDo } from "../../server/src/table/access.js";
 import { SUITS } from "../../server/table-client/felt.js";
-import { CAM_LABEL, CAM_MODES } from "./camera.js";
+import { CAM, CAM_LABEL, CAM_MODES } from "./camera.js";
 import { artUrl, readLook, writeLook } from "../../server/table-client/deckArt.js";
 import { BAR_LOOK, BAR, MENTION_INK, T } from "../../server/table-client/screenConst.js";
 import { GLYPH, RIGHTS, SUBS, type BarKey, type GrabMode, type Section } from "../../server/table-client/glyphs.js";
@@ -117,10 +117,12 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     app: { may: () => false, ask: () => {}, link: () => null, open: () => {} },
     meters: { on: () => false, toggle: () => {} },
     record: { on: () => false, toggle: () => {} },
+    view: { min: CAM.fov.view.min, max: CAM.fov.view.max, get: () => scene.baseFov(), set: (deg) => { scene.setBaseFov(deg); try { localStorage.setItem("t3d.fov", String(scene.baseFov())); } catch { /* без памяти — обзор на эту сессию */ } } },
     figures: { on: () => figuresOn, toggle: () => { figuresOn = !figuresOn; scene.setFigures(figuresOn); } },
     footer: () => "песочница 3D · three.js",
     changed: () => draw(),
   });
+  try { const saved = Number(localStorage.getItem("t3d.fov")); if (saved) scene.setBaseFov(saved); } catch { /* без памяти — обзор по умолчанию */ }
   const book = journal();
   store.onOps?.((ops) => { if (book.take(ops, store.state, store.now())) draw(); });
   const cardLabel = (face: Face | undefined): { label: string; ink: string } => {
@@ -147,20 +149,24 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   const panelOverlay = document.createElement("div");
   panelOverlay.id = "panels";
   screen.append(panelOverlay);
-  // Только для разработки: ползунок обзора головы — вне перерисовки HUD, чтобы палец его не терял.
-  if (dev) {
-    const box = document.createElement("div");
-    box.dataset.devFov = "";
-    box.style.cssText = `position:absolute;left:${RIM_LEFT}px;top:calc(162px + env(safe-area-inset-top, 0px));z-index:61;display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:9px;font:400 11px Tiny5,monospace;color:${T.ink};background:${T.well};box-shadow:inset 0 0 0 2px ${T.black}`;
-    const label = document.createElement("span"), range = document.createElement("input");
-    range.type = "range"; range.min = "40"; range.max = "120"; range.step = "1"; range.setAttribute("aria-label", "Только для разработки: обзор камеры");
-    range.style.cssText = "width:120px;touch-action:pan-x";
-    const show = () => { range.value = String(Math.round(scene.baseFov())); label.textContent = `DEV · обзор ${range.value}°`; };
-    range.addEventListener("input", () => { scene.setBaseFov(Number(range.value)); show(); });
-    show();
-    box.append(label, range);
-    screen.append(box);
-  }
+  // Вертикальный ползунок оптики (вид «голова»): вверх — поле зрения уже, рука в кадре остаётся того же размера. Вне перерисовки HUD, чтобы палец его не терял.
+  const zoom = document.createElement("div");
+  zoom.dataset.zoomSlider = "";
+  zoom.style.cssText = `position:absolute;right:${RIM_LEFT - 6}px;top:50%;transform:translateY(-50%);z-index:41;width:44px;height:200px;touch-action:none;cursor:ns-resize;display:none`;
+  zoom.innerHTML = `<span style="position:absolute;left:19px;top:6px;bottom:6px;width:6px;border-radius:3px;background:rgba(255,255,255,.35);box-shadow:0 0 0 1.5px rgba(11,7,4,.55)"></span>`
+    + `<span data-zoom-knob style="position:absolute;left:8px;width:28px;height:28px;margin-top:-14px;border-radius:50%;background:rgba(255,255,255,.92);box-shadow:0 0 0 2px rgba(11,7,4,.6),0 2px 4px rgba(11,7,4,.4)"></span>`;
+  const zoomKnob = zoom.querySelector<HTMLElement>("[data-zoom-knob]")!;
+  const zoomPad = 20;
+  const zoomSync = () => {
+    const on = scene.camMode() === "head";
+    if (zoom.style.display !== (on ? "block" : "none")) zoom.style.display = on ? "block" : "none";
+    if (on) zoomKnob.style.top = `${zoomPad + (200 - 2 * zoomPad) * (1 - scene.optics())}px`;
+  };
+  const zoomTo = (e: PointerEvent) => { const r = zoom.getBoundingClientRect(); scene.setOptics(1 - (e.clientY - r.top - zoomPad) / (r.height - 2 * zoomPad)); zoomSync(); };
+  zoom.addEventListener("pointerdown", (e) => { e.stopPropagation(); e.preventDefault(); zoom.setPointerCapture(e.pointerId); zoomTo(e); });
+  zoom.addEventListener("pointermove", (e) => { if (zoom.hasPointerCapture(e.pointerId)) zoomTo(e); });
+  screen.append(zoom);
+  setInterval(zoomSync, 200);
   const panels = mountPanels(panelOverlay, { ...scene.panels, feltAt: scene.feltAt, glass: scene.glass }, () => draw());
   let shown: string[] = [];
   store.onStickers((ids) => { myStickers = ids; talk.refresh(); });
