@@ -938,11 +938,11 @@ try {
     // Высота влияет на веер: поднял руку верхней ручкой — веер выпрямляется.
     const fanBefore = await t(() => window.__t3d.handShape());
     const gt = await tabBox("top"), tx = gt.x + gt.width / 2, ty = gt.y + gt.height / 2;
-    await p.mouse.move(tx, ty); await p.mouse.down(); await p.mouse.move(tx, ty - 45, { steps: 6 }); await p.waitForTimeout(300);
+    await p.mouse.move(tx, ty); await p.mouse.down(); await p.mouse.move(tx, ty - 100, { steps: 6 }); await p.waitForTimeout(300);
     const fanRaised = await t(() => window.__t3d.handShape());
     check("верхняя ручка вверх: рука поднялась и веер выпрямляется в ряд (высота влияет на веер)", fanRaised.lift > fanBefore.lift + 0.2, { fanBefore: fanBefore.lift, fanRaised: fanRaised.lift });
     // Не отпуская: вытянул карты на стол — и вернул обратно вниз; карты снова в руке.
-    await p.mouse.move(tx, ty - 150, { steps: 6 }); await p.waitForTimeout(250);
+    await p.mouse.move(tx, ty - 235, { steps: 8 }); await p.waitForTimeout(250);
     const carried = await t(() => window.__t3d.carrying());
     await p.mouse.move(tx, ty + 12, { steps: 10 }); await p.waitForTimeout(300);
     const back = await t(() => window.__t3d.carrying());
@@ -950,13 +950,21 @@ try {
     check("верхняя ручка: вверх — карты на столе, обратно вниз не отпуская — вернулись в руку (удержание возвращает, как и дроп)", carried === true && back === false && (await poseOf()).tuck === false, { carried, back });
     check("веер помещается у обычной руки и не помещается, когда разлёт слишком широкий", (await t(() => window.__t3d.fanFitsN(7, 3.1))) === true && (await t(() => window.__t3d.fanFitsN(40, 25))) === false, null);
     // Верхний язычок вниз — рука опускается и ложится; кнопка левой руки — поднимает.
-    await tdrag("top", 0, 100);
+    // Диапазон верхней ручки широкий: небольшой ход вниз руку не прячет, небольшой ход вверх не вытягивает на стол.
+    await tdrag("top", 0, 60);
+    const small = await poseOf(), smallUp = await t(() => window.__t3d.carrying());
+    await tdrag("top", 0, -45);
+    check("короткий ход ручки вниз не прячет руку, короткий вверх не вытягивает на стол", small.tuck === false && smallUp === false && (await t(() => window.__t3d.carrying())) === false && (await poseOf()).tuck === false, { small });
+    await tdrag("top", 0, 240);
     await p.waitForTimeout(400);
-    check("верхняя ручка вниз: карты положены на стол, остаётся только ручка у стопки", (await poseOf()).tuck === true && (await tabsOn()) === 1, await poseOf());
+    check("верхняя ручка длинным ходом вниз: карты положены на стол, ручек руки нет", (await poseOf()).tuck === true && (await p.locator(".screen:not(.off) [data-hand-tab=top], .screen:not(.off) [data-hand-tab=left]").count()) === 0, await poseOf());
     // Положенная рука: у стопки на столе своя боковая ручка — потянул, и рука поднялась, а ручка стала верхней ручкой руки.
     await p.waitForTimeout(700);
     const laidSt = await t(() => ({ tabs: [...document.querySelectorAll('.screen:not(.off) [data-hand-tab]')].map((e) => e.dataset.handTab), pose: (() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat).pose; })() }));
-    check("положена: у стопки одна боковая ручка вместо верхней и левой", laidSt.pose.tuck === true && laidSt.tabs.length === 1 && laidSt.tabs[0] === "stack", laidSt);
+    check("положена: пока стопки не видно на экране, ручки нет (она привязана к стопке, а не к камере)", laidSt.pose.tuck === true && laidSt.tabs.length === 0, laidSt);
+    await dragLook(0, -170);
+    const seen = await t(() => [...document.querySelectorAll('.screen:not(.off) [data-hand-tab]')].map((e) => e.dataset.handTab));
+    check("посмотрел вниз — у стопки на столе одна боковая ручка", seen.length === 1 && seen[0] === "stack", seen);
     const sg = await tabBox("stack");
     await p.mouse.move(sg.x + sg.width / 2, sg.y + sg.height / 2); await p.mouse.down(); await p.mouse.move(sg.x + sg.width / 2, sg.y + sg.height / 2 - 50, { steps: 6 });
     await p.waitForTimeout(500);

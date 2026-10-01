@@ -49,7 +49,7 @@ const HOLD_MS = 1500;
 const DOUBLE_TAP_MS = 350;
 const TAP_PX = 8;
 /** Сколько пикселей пальца на всю ось язычка: опустить и положить, сжать, веер ↔ ряд. */
-const TAB_PX = { lay: 70, width: 220, carry: 60 };
+const TAB_PX = { dead: 50, lay: 190, width: 220, carry: 150 };
 const RIM_LEFT = 28;
 const SIDES: GatherSide[] = ["keep", "down", "up"];
 const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
@@ -261,7 +261,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     if (fr) html += handGrabsHtml(fr);
     // Рука положена: у стопки на столе — своя ручка (боковая); потянул — рука поднимается и ручка становится верхней ручкой руки.
     const st = chair && count && chair.pose.tuck ? scene.stackScreen() : null;
-    if (st) html += handStackGrabHtml(st, barTop);
+    if (st) html += handStackGrabHtml(st);
     // Списки сабменю руки — над своей кнопкой.
     if (chair && handOpenNow(chair) && local.handPop) html += handPopHtml(chair, inset + rowLeft + (local.handPop === "sort" ? 1 : 2) * step + 4, barTop - 8);
     // У пальцев: поза тела и компас слева, диалог справа.
@@ -274,11 +274,11 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     if (lassoOn()) html += lassoActsHtml(s, barTop);
     return html;
   }
-  /** Ручка у положенной стопки — сбоку от неё, на виду (стопка бывает у нижнего края — тогда ручка встаёт над баром). */
-  function handStackGrabHtml(at: { x: number; y: number }, barTop: number): string {
-    const g = glass(), hit = 48, x = Math.max(76, Math.min(g.w - 76, at.x + 44)), y = Math.max(140, Math.min(barTop - 40, at.y));
+  /** Ручка у положенной стопки — сбоку от неё, привязана к стопке на столе: ездит с ней по экрану, растёт и уменьшается вместе с ней, а стопки не видно — нет и ручки. */
+  function handStackGrabHtml(box: { x: number; y: number; w: number; h: number }): string {
+    const g = glass(), hit = 48, ph = Math.round(Math.max(24, Math.min(56, box.h * 0.7))), x = Math.min(g.w - 14, box.x + box.w + 10), y = box.y + box.h / 2;
     return `<div data-hand-tab="stack" aria-label="Поднять руку" style="position:absolute;left:${Math.round(x - hit / 2)}px;top:${Math.round(y - hit / 2)}px;width:${hit}px;height:${hit}px;z-index:31;touch-action:none;cursor:grab;display:flex;align-items:center;justify-content:center">`
-      + `<span style="width:5px;height:40px;border-radius:3px;background:rgba(255,255,255,.62);box-shadow:0 0 0 1.5px rgba(11,7,4,.55),0 2px 4px rgba(11,7,4,.4)"></span></div>`;
+      + `<span style="width:5px;height:${ph}px;border-radius:3px;background:rgba(255,255,255,.7);box-shadow:0 0 0 1.5px rgba(11,7,4,.55),0 2px 4px rgba(11,7,4,.4)"></span></div>`;
   }
   /** Список из сабменю: порядок карт или поза руки. */
   function handPopHtml(chair: Chair, left: number, bottom: number): string {
@@ -707,7 +707,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
           }
           // Иначе рука следует за ручкой по высоте (временно): вверх — выпрямляется веер, вниз — опускается на стол.
           scene.setHandNudge(moved ? Math.min(dy, 0) : 0);
-          scene.setBlend(moved && dy > 0 ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - dy / TAB_PX.lay)) } : undefined);
+          scene.setBlend(moved && dy > TAB_PX.dead ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - (dy - TAB_PX.dead) / (TAB_PX.lay - TAB_PX.dead))) } : undefined);
         }
         draw();
       }, () => {
@@ -717,7 +717,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         if (carrying) { scene.carryHand(null); draw(); return; }
         const c = myChair();
         if (which === "left") scene.setHandWidth(null);
-        else if (c && moved && dy > 0 && b0.lift * (1 - dy / TAB_PX.lay) <= 0.25) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); local.handMenu = false; local.handPop = null; }
+        else if (c && moved && dy > TAB_PX.dead && b0.lift * (1 - (dy - TAB_PX.dead) / (TAB_PX.lay - TAB_PX.dead)) <= 0.25) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); local.handMenu = false; local.handPop = null; }
         draw();
       });
       return;

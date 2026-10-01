@@ -163,8 +163,8 @@ export interface SceneApi {
   carryHand(screen: { x: number; y: number } | null): boolean;
   /** Рука в кадре следует за верхней ручкой по высоте, пока её тянут (`px` вверх — минус); `null` — отпустили, вернулась (временно). */
   setHandNudge(px: number | null): void;
-  /** Где на экране лежит моя положенная стопка (середина) — за ручку у неё поднимают руку; рука не положена или стопки не видно как места — `null`. */
-  stackScreen(): { x: number; y: number } | null;
+  /** Где на экране лежит моя положенная стопка (охват верхней карты) — ручка у неё привязана к стопке на столе; рука не положена или стопки не видно — `null`. */
+  stackScreen(): { x: number; y: number; w: number; h: number } | null;
   /** Ширина моей руки 0…1 (стопкой → веер → в ряд, предел — экран). */
   handWidth(): number;
   /** Пока тянут левую ручку: ширина `raw` (за пределом — карты натягиваются и не растут); `null` — отпустили, поза легла. */
@@ -687,7 +687,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    *   пока карты не перестанут сжиматься (или не кончится экран). Высота тоже влияет на веер: поднял руку ручкой — веер выпрямляется в ряд.
    * Остальным уходят только флаги позы (стопкой, веер, в ряд): ширину они видят стандартную для позы.
    */
-  const WIDTH = { stack: 0.12, rowFrom: 0.7, fanTo: 0.75, px: 220, pinch: 140, rise: 60, defaults: { shrink: 0.05, fan: 0.45, row: 1 }, othersRow: 4.2 };
+  const WIDTH = { stack: 0.12, rowFrom: 0.7, fanTo: 0.75, px: 220, pinch: 140, rise: 150, defaults: { shrink: 0.05, fan: 0.45, row: 1 }, othersRow: 4.2 };
   let handWidth = 0.45, widthLive: number | null = null, widthOver = 0, widthPendingUntil = 0;
   const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAM.fov.base * DEG) / 2) * camera.aspect); return Math.max(3.9, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / CAMHAND.card); };
   const roomOf = (f: number): number => 1.2 + (roomMax() - 1.2) * Math.max(0, Math.min(1, (f - WIDTH.stack) / (1 - WIDTH.stack)));
@@ -1580,8 +1580,21 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     stackScreen() {
       const ch = myChair();
       if (!ch || camMode === "orbit" || !ch.hand.length || tuckOf(mineBlend(ch)) < 0.95) return null;
-      const at = stackSpot(ch);
-      return project(new THREE.Vector3(at.x, 0.03 + ch.hand.length * PILE_STEP, at.y));
+      const top = cards.get(ch.hand[ch.hand.length - 1]!.id);
+      if (!top) return null;
+      top.group.updateMatrixWorld(true);
+      camera.updateMatrixWorld();
+      const r = renderer.domElement.getBoundingClientRect();
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+        const w = top.group.localToWorld(new THREE.Vector3(sx * CARD_W / 2, sy * CARD_H / 2, 0));
+        if (w.clone().applyMatrix4(camera.matrixWorldInverse).z > -0.1) return null;
+        const p = project(w);
+        x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
+      }
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return null;
+      return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
     },
     setHandWidth(raw) {
       if (raw === null) { commitWidth(); return; }
