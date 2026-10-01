@@ -315,6 +315,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let lasso = { on: false, grab: "collect" as "collect" | "keep" };
   /** Стопку несут за грип — где она сейчас под пальцем. */
   let pileCarry: { pile: string; x: number; y: number } | null = null;
+  /** Несомая стопка над своей рукой (вид «голова»): стоит в щели руки, как одна карта, а карты руки расступаются под неё. */
+  const pileOverIds = new Map<string, number>();
+  let pileOver: { pile: string; gap: number } | null = null;
   /**
    * ОТПУЩЕННАЯ СТОПКА ЖДЁТ ОТВЕТА НА МЕСТЕ, КУДА ЛЕГЛА: пока стол не подтвердил перенос, её старое место в снимке —
    * это прошлое, и без этого она на миг прыгала бы назад. Держится, пока место в снимке прежнее, но не дольше `until`.
@@ -896,8 +899,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   function retargetMine(): void {
     const ch = myChair();
     if (!ch) return;
-    const list = handCards(), gap = drag?.moved && !drag.group ? drag.gap : null, n = list.length + (gap !== null ? 1 : 0), b = mineBlend(ch);
-    const slotOf = (k: number) => (gap !== null && k >= gap ? k + 1 : k);
+    const list = handCards(), gap = drag?.moved && !drag.group ? drag.gap : null, b = mineBlend(ch);
+    const overPile = pileOver && camMode === "head" ? store.state.piles.find((x) => x.id === pileOver!.pile) : undefined, m = overPile ? overPile.cards.length : 0;
+    const ins = gap !== null ? gap : overPile ? pileOver!.gap : null, wide = 1, n = list.length + (ins !== null ? wide : 0);
+    const slotOf = (k: number) => (ins !== null && k >= ins ? k + wide : k);
     const flip = (p: Place, up: boolean) => { if (up) p.quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)); return p; };
     // Левая рука держит всю руку стопкой над столом — её несут, как колоду.
     if (handCarry) {
@@ -966,6 +971,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         t.scale *= HOVER.grow;
         o.target = t;
       }
+      overPile?.cards.forEach((c, j) => {
+        const q = cards.get(c.id);
+        if (!q) return;
+        const t = place(ins!, false), thick = Math.min(1, j / Math.max(1, m - 1)) * 0.05;
+        if (t.onCamera) { t.pos.y += (CAMHAND.pop + thick) * fovK; t.pos.z += CAMHAND.near; } else t.pos.y += CAMHAND.pop + thick;
+        t.scale *= HOVER.grow;
+        q.target = t;
+      });
       return;
     }
     // Орбита: рука рядом с левой рукой тела; свой вид — лицом к камере.
@@ -1109,10 +1122,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       (o.back.material as THREE.Material).userData.bend.value = -bendNow;
       // ПОРЯДОК КАРТ В РУКЕ — по правилу, а не по глубине: карта справа всегда поверх карты слева (если смотреть со стороны держащего), несомая — выше всех.
       // Изогнутые карты пересекаются, и глубина дала бы торчащие углы; слои друг в друга не пишут, порядок задан.
-      const from = fromOf.get(id), carried = ((!!drag?.moved && drag.id === id) || id === liftedId) && !!from && from.in === "hand";
+      const from = fromOf.get(id), hovered = pileOverIds.get(id), carried = hovered !== undefined || (((!!drag?.moved && drag.id === id) || id === liftedId) && !!from && from.in === "hand");
       const layered = carried || (!!from && from.in === "hand" && (!!t.onCamera || !!t.stagger));
       const above = t.onCamera || !t.stagger || t.stagger.dot(camera.position.clone().sub(g.position)) > 0, slot = from && from.in === "hand" ? from.i : 0;
-      const order = carried ? 300 : layered ? 100 + (above ? slot : 99 - slot) : 0;
+      const order = carried ? 300 + (hovered ?? 0) : layered ? 100 + (above ? slot : 99 - slot) : 0;
       for (const m of [o.front.material, o.back.material] as THREE.Material[]) m.depthWrite = !layered;
       o.front.renderOrder = o.back.renderOrder = order;
       for (const m of o.shades) m.visible = !t.onCamera && !t.over && Math.abs(bendNow) < 1e-4;
@@ -1713,6 +1726,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     gripPressNow: (sx: number) => { gripDrag = true; gripRelAt = 0; gripSx = sx; layout(store.state); draw(); },
     gripReleaseNow: () => { if (!gripDrag) return; gripDrag = false; gripRelAt = performance.now(); gripRelX = gripSx ?? gripRelX; gripAmt0 = gripAmt; draw(); },
     peekReturnMsNow: (ms: number) => { peekReturnMs = ms; },
+    carryPileNow: (pile: string, at: { x: number; y: number } | null) => api.carryPile(pile, at),
+    pileOverNow: () => (pileOver ? { ...pileOver, ids: [...pileOverIds.keys()] } : null),
     peekShiftFor: (xs: number[], f: number | null) => peekShift(xs, f),
     setHandHeightNow: (px: number) => { heightPx = Math.max(HEIGHT.min, Math.min(HEIGHT.max, px)); layout(store.state); sendBody(true); draw(); },
     cardNormalY: (id: string) => { const o = cards.get(id); return o ? new THREE.Vector3(0, 0, 1).applyQuaternion(o.group.getWorldQuaternion(new THREE.Quaternion())).y : null; },
@@ -1899,6 +1914,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       // Несут где угодно, хоть за краем; кладут — только на сукно: посадка идёт в ближайшую точку у борта (как у карты, `aim`).
       if (!at && pileCarry && p) pileLanding = { pile, ...seatOnFelt(pileCarry), was: { x: p.x, y: p.y }, until: performance.now() + 1500 };
       pileCarry = at ? { pile, ...at } : null;
+      const a = screen && p ? aim(screen.x, screen.y, pile) : null;
+      pileOver = a && a.in === "hand" && a.chair === myChair()?.id && camMode === "head" && p && p.cards.length > 0 ? { pile, gap: a.i } : null;
+      pileOverIds.clear();
+      if (pileOver && p) p.cards.forEach((c, j) => pileOverIds.set(c.id, j));
       if (!at) pileGrab = null;
       // Несу стопку — рука остальным на язычке, где палец.
       restRight = finger;

@@ -1511,6 +1511,35 @@ try {
     const dropped = await pos(mid);
     check("касание карты чуть поднимает её сразу (до движения), тап оставляет, тап мимо опускает; размер на экране тот же, рамка руки и верхний грип не двигаются, карта ближе всех по глубине и нарисована поверх всех (в том числе правых)", rest.y - pressed.y > 3 && rest.y - pressed.y < 24 && rest.y - afterTap.y > 3 && Math.abs(dropped.y - rest.y) < 4 && Math.abs(sizePressed / sizeRest - 1) < 0.03 && Math.abs(framePressed - frameRest) < 2 && Math.abs(tabPressed.y - tabRest.y) < 2 && depthP.mine < depthP.others - 0.005 && orderP.mine > orderP.others, { orderP, frameRest, framePressed, tabRest: tabRest.y, tabPressed: tabPressed.y, depthP, rest: rest.y, pressed: pressed.y, afterTap: afterTap.y, dropped: dropped.y, sizeRest, sizePressed });
   }
+  {
+    // Колоду/стопку несут над своей рукой — как одиночную карту: каждая её карта встаёт ровно к экрану в щель руки, карты руки расступаются;
+    // ушла от руки — всё на местах.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    await t(() => window.__t3d.fillHand(5)); await p.waitForTimeout(2500);
+    const hand = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat; return st.chairs.find((c) => c.id === seat).hand.map((c) => c.id); });
+    const pile = await t(() => { const pl = window.__t3d.state().piles[0]; return { id: pl.id, ids: pl.cards.slice(-3).map((c) => c.id), n: pl.cards.length }; });
+    const xs0 = await t((ids) => ids.map((id) => window.__t3d.screenOf(id).x), hand);
+    const box = await rectOf("#stage canvas");
+    await t((a) => window.__t3d.carryPileNow(a.id, { x: a.x, y: a.y }), { id: pile.id, x: box.x + box.width / 2, y: box.y + box.height * 0.2 });
+    await p.waitForTimeout(800);
+    const far = await t(() => window.__t3d.pileOverNow());
+    await t((a) => window.__t3d.carryPileNow(a.id, { x: a.x, y: a.y }), { id: pile.id, x: box.x + box.width / 2, y: box.y + box.height * 0.88 });
+    await p.waitForTimeout(1500);
+    const over = await t(() => window.__t3d.pileOverNow());
+    const xs1 = await t((ids) => ids.map((id) => window.__t3d.screenOf(id).x), hand);
+    const flat = await t((a) => window.__t3d.cardNormalY(a.top) - window.__t3d.cardNormalY(a.hand), { top: pile.ids.at(-1), hand: hand[0] });
+    const gaps = (a) => a.slice(1).map((v, i) => v - a[i]);
+    const wide = Math.max(...gaps(xs1)) > Math.max(...gaps(xs0)) * 1.5 && Math.max(...gaps(xs1)) < 200;
+    check("стопка над столом — в руку не целит; над рукой — в щели руки, как одиночная карта", far === null && over && over.pile === pile.id && over.ids.length === pile.n, { far, over });
+    check("над рукой карты руки расступились под неё (одна щель), а карта стопки встала ровно к экрану (не лежит)", wide && Math.abs(flat) < 0.15, { flat, g0: gaps(xs0).map(Math.round), g1: gaps(xs1).map(Math.round) });
+    await t((a) => window.__t3d.carryPileNow(a.id, { x: a.x, y: a.y }), { id: pile.id, x: box.x + box.width / 2, y: box.y + box.height * 0.2 });
+    await p.waitForTimeout(1500);
+    const xs2 = await t((ids) => ids.map((id) => window.__t3d.screenOf(id).x), hand);
+    check("ушла от руки — карты руки встали на прежние места", xs2.every((v, i) => Math.abs(v - xs0[i]) < 3) && (await t(() => window.__t3d.pileOverNow())) === null, { xs0, xs2 });
+    await t((id) => window.__t3d.carryPileNow(id, null), pile.id);
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();
