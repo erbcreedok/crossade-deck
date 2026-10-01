@@ -263,7 +263,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     if (held) html += heldGrabHtml(held);
     // Рука положена: у стопки на столе — своя ручка (боковая); потянул — рука поднимается и ручка становится верхней ручкой руки.
     const st = chair && count && chair.pose.tuck ? scene.stackScreen() : null;
-    if (st && !held) html += handStackGrabHtml(st);
+    if (st && !held) html += handStackGrabHtml(st, barTop);
     // Списки сабменю руки — над своей кнопкой.
     if (chair && handOpenNow(chair) && local.handPop) html += handPopHtml(chair, inset + rowLeft + (local.handPop === "sort" ? 1 : 2) * step + 4, barTop - 8);
     // У пальцев: поза тела и компас слева, диалог справа.
@@ -277,9 +277,11 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     return html;
   }
   /** Ручка у положенной стопки — сбоку от неё, привязана к стопке на столе: ездит с ней по экрану, растёт и уменьшается вместе с ней, а стопки не видно — нет и ручки. */
-  function handStackGrabHtml(box: { x: number; y: number; w: number; h: number }): string {
-    const g = glass(), ph = Math.round(Math.max(24, Math.min(56, box.h * 0.7)));
-    return pillHtml("stack", Math.min(g.w - 14, box.x + box.w + 10), box.y + box.h / 2, 5, ph, 0.7);
+  function handStackGrabHtml(box: { x: number; y: number; w: number; h: number }, barTop: number): string {
+    const g = glass(), ph = Math.round(Math.max(24, Math.min(56, box.h * 0.7))), cy = box.y + box.h / 2;
+    // Нижний HUD ручку не перекрывает: стопка ушла под него — ручки нет, у самой кромки — ручка над ним.
+    if (cy > barTop) return "";
+    return pillHtml("stack", Math.min(g.w - 14, box.x + box.w + 10), Math.min(cy, barTop - 24 - 4), 5, ph, 0.7);
   }
   /** Список из сабменю: порядок карт или поза руки. */
   function handPopHtml(chair: Chair, left: number, bottom: number): string {
@@ -617,9 +619,9 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-stance-toggle]")) scene.setStance(scene.stance() === "stand" ? "sit" : "stand");
     else if (q("[data-hand-btn]")) {
       if (chair && chair.hand.length) {
-        // Рука лежала — поднимается; сабменю раскрывается (нажал ещё раз — сворачивается).
+        // Рука лежала — нажатие только поднимает её; сабменю раскрывается следующим нажатием (ещё раз — сворачивается).
         local.handPop = null;
-        if (chair.pose.tuck) { store.send({ t: "pose", chair: chair.id, pose: { ...chair.pose, tuck: false } }); local.handMenu = true; local.section = null; }
+        if (chair.pose.tuck) { store.send({ t: "pose", chair: chair.id, pose: { ...chair.pose, tuck: false } }); local.handMenu = false; local.section = null; }
         else { local.handMenu = !local.handMenu; if (local.handMenu) local.section = null; }
       }
     } else if ((b = q("[data-hand-sub]")) && chair) {

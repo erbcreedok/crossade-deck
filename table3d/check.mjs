@@ -159,7 +159,9 @@ try {
   check("сабменю → «Отпустить»: рука на стол, сабменю свернулось", (await my()).pose.tuck === true && (await p.locator(".screen:not(.off) [data-hand-sub]").count()) === 0, (await my()).pose);
   check("рука положена — кнопка левой руки по-прежнему на месте", (await p.locator(handBtn).count()) === 1, null);
   await p.click(handBtn); await frames();
-  check("кнопка левой руки при положенной руке — рука поднимается и сабменю раскрыто", (await my()).pose.tuck === false && (await p.locator(".screen:not(.off) [data-hand-sub]").count()) === 3, (await my()).pose);
+  check("кнопка левой руки при положенной руке — только поднимает руку, сабменю не раскрывается", (await my()).pose.tuck === false && (await p.locator(".screen:not(.off) [data-hand-sub]").count()) === 0, (await my()).pose);
+  await p.click(handBtn); await frames();
+  check("следующее нажатие раскрывает сабменю", (await p.locator(".screen:not(.off) [data-hand-sub]").count()) === 3, null);
   await p.click(handBtn); await frames();
   // Поза тела, журнал, настройки.
   await p.click("[data-stance-toggle]");
@@ -853,7 +855,6 @@ try {
     await p.keyboard.press("Home"); await p.click(handBtnSel); await p.waitForTimeout(1300);
     const cUp = await firstCard();
     check("кнопка левой руки — рука поднимается перед лицом, на прежнее место кадра", Math.hypot(cUp.x - c0.x, cUp.y - c0.y) < 10, { c0, cUp });
-    await p.click(handBtnSel);
     // Два пальца на руке: вверх — в ряд (выровнять), щипок — шире и уже; отпустил — поза легла.
     const cdp = await p.context().newCDPSession(p);
     await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
@@ -1086,6 +1087,19 @@ try {
     const stk = await rectOf('[data-hand-tab="stack"]');
     await p.mouse.click(stk.x + stk.width / 2, stk.y + stk.height / 2); await p.waitForTimeout(700);
     check("тап по ручке положенной стопки поднимает руку", (await t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat).pose.tuck; })) === false, null);
+    await p.click(".screen:not(.off) [data-hand-btn]"); await p.click('.screen:not(.off) [data-hand-sub="release"]'); await p.waitForTimeout(2600);
+    let seen = 0;
+    for (let k = 0; k < 8; k++) {
+      await p.keyboard.press("ArrowUp"); await p.waitForTimeout(350);
+      const g = await rectOf('[data-hand-tab="stack"]').catch(() => null), bar = await rectOf('.screen:not(.off) [data-g="bar"]');
+      if (!g) continue;
+      seen++;
+      check(`ручка стопки не наплывает на нижний HUD (взгляд вверх ×${k + 1})`, g.y + g.height <= bar.y + 1, { g, bar });
+    }
+    check("стопка была видна, пока взгляд уходил вверх", seen >= 3, seen);
+    const myTuck = () => t(() => { const x = window.__t3d.state(), seat = x.people.find((q) => q.key === window.__t3d.me()).seat; return x.chairs.find((c) => c.id === seat).pose.tuck; });
+    await p.click(".screen:not(.off) [data-hand-btn]"); await p.waitForTimeout(700);
+    check("кнопка руки при положенной стопке: поднимает руку и не раскрывает сабменю", (await myTuck()) === false && (await p.locator(".screen:not(.off) [data-hand-sub]").count()) === 0, null);
   }
 
   {
