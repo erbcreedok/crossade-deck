@@ -200,7 +200,11 @@ export interface SceneApi {
   /** Рука-стопка: левая рука несёт все карты над столом под пальцем (`screen`); `null` — отпустили: на колоду, новой стопкой на сукно или — над худом руки — всё как было. */
   carryHand(screen: { x: number; y: number } | null): boolean;
   /** Рука в кадре следует за верхней ручкой по высоте, пока её тянут (`px` вверх — минус); `null` — отпустили, вернулась (временно). */
-  setHandNudge(px: number | null): void;
+  /** Высота руки в кадре, пиксели (вверх — плюс): верхняя ручка ставит, рука остаётся на ней. */
+  handHeight(): number;
+  /** Верхняя ручка схвачена в точке `y` экрана (рука на текущей высоте): зона несения мерится от неё; `null` — отпустили. */
+  setCarryZone(y: number | null): void;
+  setHandHeight(px: number): void;
   /** Где на экране лежит моя положенная стопка (охват верхней карты) — ручка у неё привязана к стопке на столе; рука не положена или стопки не видно — `null`. */
   stackScreen(): { x: number; y: number; w: number; h: number } | null;
   /** Ширина моей руки 0…1 (стопкой → веер → в ряд, предел — экран). */
@@ -361,11 +365,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let baseFov: number = CAM.fov.base;
   const rig = { yaw: 0, pitch: -40, lean: 0, fov: baseFov };
   const neck = neckNew();
-  /** Рука в кадре (вид «голова») как в FPS: отстаёт от поворота взгляда и чуть поднимается, когда смотришь вниз, опускается, когда вверх. */
-  const sway = { x: 0, y: 0, yaw: 0, pitch: 0, home: -40 };
-  const SWAY = { lag: 0.018, pitchLift: 0.006, decay: 7, max: 0.3 };
-  let nudgePx = 0;
-  const swayOffset = () => ({ x: sway.x, y: sway.y - (rig.pitch - sway.home) * SWAY.pitchLift - nudgePx * 0.0033 });
+  /** Высота руки в кадре, пиксели (вверх — плюс): её ставит верхняя ручка, и она остаётся; рука едет с камерой жёстко, как одна точка. */
+  let heightPx = 0;
+  const HEIGHT = { min: -50, max: 150 };
+  /** Верх зоны несения (пиксели экрана) от места руки, пока ручку не тронули: подняли руку ручкой — зона не уезжает за ней, а мерится по пальцу в начале хода. */
+  let carryZone: number | null = null;
+  const handOffset = () => ({ x: 0, y: heightPx * 0.0033 });
   const sideYaw = (ch: Chair) => -ch.angle;
   /** Моя голова: где она, куда смотрит, ушла ли на другую сторону и какой поворот слать остальным. */
   function myHeadNow(ch: Chair): { head: Point3; yaw: number; away: boolean; sent: number; hand: Point3 } {
@@ -414,7 +419,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     rig.fov = baseFov;
     neck.held = neck.back = neck.rest = 0;
     rig.pitch = camMode === "top" ? -90 : pitchToCentre(headAt(shoulders3(ch.angle, stanceNow()), 0));
-    sway.home = rig.pitch; sway.yaw = rig.yaw; sway.pitch = rig.pitch; sway.x = sway.y = 0;
     camera.aspect = host.clientWidth / Math.max(1, host.clientHeight);
     applyRig();
   }
@@ -889,9 +893,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return;
     }
     if (camMode === "head") {
-      const down = tuckOf(b), fovK = 1, head = { x: camera.position.x, y: camera.position.z, h: camera.position.y }, off = swayOffset();
+      const down = tuckOf(b), fovK = 1, head = { x: camera.position.x, y: camera.position.z, h: camera.position.y }, off = handOffset();
       syncWidth(ch);
-      const shape = shapeOfWidth(widthLive ?? handWidth, n, Math.max(0, Math.min(1, -nudgePx / WIDTH.rise)), widthOver);
+      const shape = shapeOfWidth(widthLive ?? handWidth, n, Math.max(0, Math.min(1, heightPx / WIDTH.rise)), widthOver);
       placeFpsArm(down <= 0 && list.length > 0 && !handCarry, fovK, off);
       const place = (k: number, up: boolean): Place => {
         const local = camHandLocal(k, n, up, shape, fovK, 1, off, handCurl);
@@ -1018,13 +1022,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     lastTick = now;
     // Камера и моя рука — до пружин: рука едет с головой, и пружины догоняют уже новое место.
     if (camMode === "head" || camMode === "top") { const was = rig.lean; rig.lean = neckStep(neck, rig.lean, sinceMs); if (rig.lean !== was || neck.back > 0 || rig.lean > NECK.free || neck.rest > 0) { applyRig(); sendBody(); moving = true; } }
-    if (camMode === "head") {
-      // Рука отстаёт от взгляда: повернул — она чуть позади и возвращается; взгляд вниз — рука выше, вверх — ниже.
-      const dyaw = wrap(rig.yaw - sway.yaw), dpitch = rig.pitch - sway.pitch, lim = (v: number) => Math.max(-SWAY.max, Math.min(SWAY.max, v)), k = Math.exp((-sinceMs / 1000) * SWAY.decay);
-      sway.yaw = rig.yaw; sway.pitch = rig.pitch;
-      sway.x = lim(sway.x - dyaw * SWAY.lag) * k; sway.y = lim(sway.y - dpitch * SWAY.lag) * k;
-      if (Math.abs(sway.x) > 0.004 || Math.abs(sway.y) > 0.004) moving = true;
-    }
     retargetMine();
     for (const [id, o] of cards) {
       const g = o.group, t = o.target;
@@ -1617,11 +1614,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     handFrame: () => handFrame(),
     carrying: () => !!handCarry,
     /** Раскладка моей руки сейчас: ширина 0…1, сжатость, веер ↔ ряд, комната. */
-    handShape: () => { const ch = myChair(); return ch ? { f: widthLive ?? handWidth, ...shapeOfWidth(widthLive ?? handWidth, ch.hand.length, Math.max(0, Math.min(1, -nudgePx / WIDTH.rise)), widthOver) } : null; },
+    handShape: () => { const ch = myChair(); return ch ? { f: widthLive ?? handWidth, ...shapeOfWidth(widthLive ?? handWidth, ch.hand.length, Math.max(0, Math.min(1, heightPx / WIDTH.rise)), widthOver) } : null; },
     fanFitsN,
     /** Ширина карты в мире: сколько единиц стола она занимает (рука — в осях камеры, стол — свой размер). */
     setHandWidthNow: (raw: number) => { widthLive = Math.max(0, Math.min(1, raw)); widthOver = Math.max(0, raw - 1); layout(store.state); },
     cardOrder: (id: string) => { const o = cards.get(id); return o ? { order: o.front.renderOrder, write: (o.front.material as THREE.Material).depthWrite } : null; },
+    handHeightNow: () => heightPx,
     cardBend: (id: string) => (cards.get(id)?.group.userData.bend as number | undefined) ?? 0,
     handCurl: () => handCurl,
     setHandCurl: (c: number) => { handCurl = Math.max(0, Math.min(1, c)); layout(store.state); sendBody(); },
@@ -1655,7 +1653,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     opticsBy,
     handFrame,
     fanFits: () => fanFitsNow(),
-    setHandNudge(px) { nudgePx = px ?? 0; draw(); },
+    handHeight: () => heightPx,
+    setCarryZone(y) {
+      if (y === null) { carryZone = null; return; }
+      camera.updateMatrixWorld();
+      const at = (h: number) => project(new THREE.Vector3(0, h * 0.0033, CAMHAND.at.z).applyMatrix4(camera.matrixWorld)).y;
+      carryZone = y + (at(0) - at(heightPx)) - 10;
+    },
+    setHandHeight(px) { heightPx = Math.max(HEIGHT.min, Math.min(HEIGHT.max, px)); layout(store.state); draw(); },
     handWidth: () => handWidth,
     handCurl: () => handCurl,
     setHandCurl(c) { handCurl = Math.max(0, Math.min(1, c)); layout(store.state); sendBody(); },
@@ -1690,14 +1695,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (screen) {
         // Вернул палец на худ руки, не отпуская, — стопка возвращается в руку (и можно снова вытянуть вверх). Вход и выход с запасом
         // (вход — заметно выше худа, выход — ниже его верха): на границе стопка не дрожит туда-сюда.
-        const was = handCarry as { zoneTop: number } | null, fr0 = handFrame(), zoneTop0 = was?.zoneTop ?? (fr0 ? fr0.y - 10 : renderer.domElement.getBoundingClientRect().height * 0.7);
+        const was = handCarry as { zoneTop: number } | null, fr0 = handFrame(), zoneTop0 = was?.zoneTop ?? carryZone ?? (fr0 ? fr0.y - 10 : renderer.domElement.getBoundingClientRect().height * 0.7);
         if (was && screen.y > zoneTop0 + 20) { handCarry = null; layout(store.state); return false; }
         if (!was && screen.y > zoneTop0 - 60) return false;
         ray.setFromCamera(ndc({ clientX: screen.x, clientY: screen.y }), camera);
         const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -CARRY_H), new THREE.Vector3());
         if (!hit) return !!was;
         const fr = handFrame();
-        handCarry = { x: hit.x, y: hit.z, sx: screen.x, sy: screen.y, zoneTop: was?.zoneTop ?? (fr ? fr.y - 10 : renderer.domElement.getBoundingClientRect().height * 0.7) };
+        handCarry = { x: hit.x, y: hit.z, sx: screen.x, sy: screen.y, zoneTop: was?.zoneTop ?? carryZone ?? (fr ? fr.y - 10 : renderer.domElement.getBoundingClientRect().height * 0.7) };
         layout(store.state);
         return true;
       }

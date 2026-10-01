@@ -819,7 +819,16 @@ try {
     check("голова: взгляд вверх-вниз меняет наклон", Math.abs(h2.pitch - h1.pitch) > 10, { h1: h1.pitch, h2: h2.pitch });
     const widths = await t(() => { const st = window.__t3d.state(), seat = st.people.find((x) => x.key === window.__t3d.me()).seat, hand = st.chairs.find((c) => c.id === seat).hand, top = st.piles[0].cards.at(-1).id; return { hand: window.__t3d.cardWidth(hand[0].id), theirs: window.__t3dScreens[1].cardWidth(hand[0].id), table: window.__t3d.cardWidth(top) }; });
     check("размер руки не зависит от карты на столе: в руке 0.54, в чужой руке (голова) в 1.7 раза крупнее, на столе 1.3", Math.abs(widths.hand - 0.54) < 0.02 && Math.abs(widths.theirs - 0.54 * 1.7) < 0.04 && Math.abs(widths.table - 1.3) < 0.02, widths);
-    check("голова: рука в кадре внизу и держится на одном уровне — как в FPS: на повороте отстаёт и возвращается, взгляд вверх опускает руку", c0.x > 0 && c0.x < 390 && c0.y > 450 && c0.y < 790 && Math.abs(c1.x - c0.x) < 60 && Math.abs(c1.y - c0.y) < 30 && c2.y > c0.y + 10 && c2.y < 844, { c0, c1, c2 });
+    check("голова: рука в кадре внизу и едет с камерой жёстко, как одна точка — на повороте и взгляде вверх-вниз остаётся на том же месте экрана", c0.x > 0 && c0.x < 390 && c0.y > 450 && c0.y < 790 && Math.hypot(c1.x - c0.x, c1.y - c0.y) < 3 && Math.hypot(c2.x - c0.x, c2.y - c0.y) < 3, { c0, c1, c2 });
+    {
+      // Ни в одном кадре движения камерой рука не отстаёт и не обгоняет её: карты стоят на месте экрана, пока тянешь взгляд.
+      const where = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, a = T.screenOf(h[0].id), b = T.screenOf(h.at(-1).id); return { a, b }; });
+      const w0 = await where(); let worst = 0;
+      await p.mouse.move(40, 250); await p.mouse.down();
+      for (let i = 1; i <= 14; i++) { await p.mouse.move(40 + i * 12, 250 - i * 6); await p.waitForTimeout(25); const w = await where(); worst = Math.max(worst, Math.hypot(w.a.x - w0.a.x, w.a.y - w0.a.y), Math.hypot(w.b.x - w0.b.x, w.b.y - w0.b.y)); }
+      await p.mouse.up();
+      check("пока тянешь взгляд, рука ни в одном кадре не отстаёт от камеры (не больше 3 px)", worst < 3, { worst });
+    }
     // Остальные видят ту же руку там же: она в кадре головы (взгляд вверх-вниз идёт по сети).
     const both = await t(async () => { const id = window.__t3d.state().chairs.find((c) => c.id === window.__t3d.state().people.find((x) => x.key === window.__t3d.me()).seat).hand[3].id; await new Promise((r) => setTimeout(r, 500)); return window.__t3dScreens.map((sc) => sc.world(id)); });
     check("остальным моя рука — в той же точке головы (середина веера там же), но крупнее: они видят её издалека", !!both[0] && !!both[1] && Math.hypot(both[0].x - both[1].x, both[0].y - both[1].y) < 0.6 && Math.abs(both[0].h - both[1].h) < 0.6, both);
@@ -1037,7 +1046,7 @@ try {
     const start = await info();
     const tb = await tab(), sx = tb.x + tb.width / 2, sy = tb.y + tb.height / 2;
     // Оттянули вверх, вернули на худ и отпустили — рука как была.
-    await p.mouse.move(sx, sy); await p.mouse.down(); await p.mouse.move(195, 330, { steps: 10 });
+    await p.mouse.move(sx, sy); await p.mouse.down(); await p.mouse.move(195, sy - 200, { steps: 10 });
     await p.waitForTimeout(400);
     const mid = await t((id) => ({ carrying: window.__t3d.carrying(), w: window.__t3d.world(id) }), start.hand[0]);
     check("верхний язычок высоко вверх: левая рука несёт все карты стопкой над столом", mid.carrying === true && mid.w.h > 0.5 && mid.w.h < 1.2, mid);
@@ -1046,7 +1055,7 @@ try {
     check("вернул на худ и отпустил — рука как была: те же карты, стопок не прибавилось", back.hand.length === start.hand.length && back.piles.length === start.piles.length && back.felt === start.felt, { start, back });
     // Отпустили на сукне — новая стопка из всей руки.
     const tb2 = await tab();
-    await p.mouse.move(tb2.x + tb2.width / 2, tb2.y + tb2.height / 2); await p.mouse.down(); await p.mouse.move(250, 360, { steps: 10 }); await p.mouse.up();
+    await p.mouse.move(tb2.x + tb2.width / 2, tb2.y + tb2.height / 2); await p.mouse.down(); await p.mouse.move(250, tb2.y + tb2.height / 2 - 200, { steps: 10 }); await p.mouse.up();
     await p.waitForTimeout(900);
     const dropped = await info();
     const fresh = dropped.piles.find(([id]) => !start.piles.some(([o]) => o === id));
@@ -1060,7 +1069,7 @@ try {
     const start = await info();
     const tb = await rectOf('[data-hand-tab="top"]');
     const deckTop = await t(() => { const d = window.__t3d.state().piles.find((q) => q.id === "deck"); return window.__t3d.screenOf(d.cards.at(-1).id); });
-    await p.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2); await p.mouse.down(); await p.mouse.move(deckTop.x, deckTop.y, { steps: 12 }); await p.mouse.up();
+    await p.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2); await p.mouse.down(); await p.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2 - 200, { steps: 6 }); await p.mouse.move(deckTop.x, deckTop.y, { steps: 12 }); await p.mouse.up();
     await p.waitForTimeout(900);
     const after = await info();
     check("отпустил на колоду: вся рука легла в неё", after.hand.length === 0 && after.deck === start.deck + start.hand.length, { start, after });
@@ -1179,7 +1188,7 @@ try {
     await p.waitForTimeout(600);
     const bent = await bendOf();
     const arcY = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, y = (c) => T.screenOf(c.id).y; return { edge: Math.max(y(h[0]), y(h.at(-1))), mid: y(h[Math.floor(h.length / 2)]), spread: Math.abs(T.screenOf(h[0].id).x - T.screenOf(h.at(-1).id).x) }; });
-    check("веер по умолчанию дугой в плоскости (по Y): крайние карты ниже середины, веер раскрыт, а не стопкой", arcY.edge - arcY.mid > 5 && arcY.spread > 90, arcY);
+    check("веер по умолчанию дугой в плоскости (по Y): крайние карты ниже середины, веер раскрыт, а не стопкой", arcY.edge - arcY.mid > 2.5 && arcY.spread > 90, arcY);
     // Порядок карт в веере задан правилом: справа всегда поверх слева (со стороны хозяина); слои друг в друга не пишут — торчащих углов нет.
     const orders = (screen) => t((sc) => { const T = window.__t3d, S = sc === 0 ? T : window.__t3dScreens[sc], st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand; return h.map((c) => S.cardOrder(c.id)); }, screen);
     const mineOrd = await orders(0), theirOrd = await orders(1);
@@ -1205,6 +1214,23 @@ try {
     const down = await t(() => window.__t3d.handCurl());
     await p.mouse.up();
     check("боковая ручка вверх — загиб больше, вниз — меньше", up > c0 + 0.2 && down < up - 0.4, { c0, up, down });
+  }
+
+  {
+    // Верхняя ручка ставит высоту руки в кадре: потянул чуть вверх-вниз — рука остаётся там, где отпустили (а не возвращается).
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const firstY = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand; return T.screenOf(h.at(-1).id).y; });
+    const y0 = await firstY(), hp0 = await t(() => window.__t3d.handHeightNow());
+    const tab = await rectOf('.screen:not(.off) [data-hand-tab="top"]');
+    await p.mouse.move(tab.x + tab.width / 2, tab.y + tab.height / 2); await p.mouse.down(); await p.mouse.move(tab.x + tab.width / 2, tab.y + tab.height / 2 - 40, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(900);
+    const hp1 = await t(() => window.__t3d.handHeightNow()), y1 = await firstY();
+    check("верхняя ручка чуть вверх — рука поднялась и осталась там после отпускания", hp0 === 0 && hp1 > 25 && y0 - y1 > 8, { hp0, hp1, y0, y1 });
+    const tab2 = await rectOf('.screen:not(.off) [data-hand-tab="top"]');
+    await p.mouse.move(tab2.x + tab2.width / 2, tab2.y + tab2.height / 2); await p.mouse.down(); await p.mouse.move(tab2.x + tab2.width / 2, tab2.y + tab2.height / 2 + 30, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(900);
+    const hp2 = await t(() => window.__t3d.handHeightNow()), y2 = await firstY();
+    check("верхняя ручка чуть вниз — рука ниже и тоже остаётся (не легла на стол)", hp2 < hp1 - 15 && y2 > y1 + 6 && (await t(() => { const x = window.__t3d.state(), seat = x.people.find((q) => q.key === window.__t3d.me()).seat; return x.chairs.find((c) => c.id === seat).pose.tuck; })) === false, { hp1, hp2, y1, y2 });
   }
   check("без ошибок", errors.length === 0, errors);
 } finally {

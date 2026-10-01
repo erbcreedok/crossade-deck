@@ -726,10 +726,11 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       const raw = tab.dataset.handTab as "top" | "left" | "stack", fromStack = raw === "stack", which: "top" | "left" = fromStack ? "top" : raw;
       // Ручка у положенной стопки: тап — рука поднимается; потянул с запасом — поднимается и она же становится верхней ручкой руки;
       // держишь или чуть потянул и вернул — рука остаётся на столе.
-      const b0 = blendOf({ ...chair.pose, tuck: false }), w0 = scene.handWidth(), c0 = scene.handCurl();
+      const b0 = blendOf({ ...chair.pose, tuck: false }), w0 = scene.handWidth(), c0 = scene.handCurl(), h0 = scene.handHeight();
       const box = tab.getBoundingClientRect(), x0 = box.x + box.width / 2, y0 = box.y + box.height / 2;
       // Ручка у стопки не исчезает вместе со стопкой: сразу становится ручкой в пальце, идёт под ним и разворачивается в верхнюю.
       if (fromStack) local.grabOff = { which: "top", x: x0, y: y0, from: "stack", morph: 0 };
+      if (!fromStack && which === "top") scene.setCarryZone(y0);
       let dx = 0, dy = 0, moved = false, carrying = false, lifted = !fromStack;
       const t0 = performance.now(), lift = () => { if (!lifted) { lifted = true; const c = myChair(); if (c) store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: false } }); } };
       follow(e, (ev) => {
@@ -747,24 +748,24 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
           if (dy <= -TAB_PX.carry || carrying) {
             const was = carrying;
             carrying = scene.carryHand({ x: ev.clientX, y: ev.clientY });
-            if (carrying) { scene.setHandNudge(null); scene.setBlend(undefined); draw(); return; }
+            if (carrying) { scene.setBlend(undefined); draw(); return; }
             if (!was && dy <= -TAB_PX.carry) { /* ещё не вошли в зону несения */ }
           }
-          // Иначе рука следует за ручкой по высоте (временно): вверх — выпрямляется веер, вниз — опускается на стол.
-          scene.setHandNudge(moved ? Math.max(-TAB_PX.carry, Math.min(dy, 0)) : 0);
+          // Иначе рука следует за ручкой по высоте и остаётся там, где отпустили: вверх — выпрямляется веер, вниз — до пола руки, дальше опускается на стол.
+          if (moved) scene.setHandHeight(h0 - dy);
           scene.setBlend(moved && dy > TAB_PX.dead ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - (dy - TAB_PX.dead) / (TAB_PX.lay - TAB_PX.dead))) } : undefined);
         }
         draw();
       }, () => {
+        scene.setCarryZone(null);
         local.grabOff = null;
         scene.setBlend(undefined);
-        scene.setHandNudge(null);
         // Тап по ручке стопки поднимает руку; держал или потянул и вернул — остаётся на столе.
         if (fromStack && !lifted) { if (!moved && performance.now() - t0 < TAB_PX.tapMs) lift(); draw(); return; }
         if (carrying) { scene.carryHand(null); draw(); return; }
         const c = myChair();
         if (which === "left") scene.setHandWidth(null);
-        else if (c && moved && dy > TAB_PX.dead && b0.lift * (1 - (dy - TAB_PX.dead) / (TAB_PX.lay - TAB_PX.dead)) <= 0.25) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); local.handMenu = false; local.handPop = null; }
+        else if (c && moved && dy > TAB_PX.dead && b0.lift * (1 - (dy - TAB_PX.dead) / (TAB_PX.lay - TAB_PX.dead)) <= 0.25) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); scene.setHandHeight(0); local.handMenu = false; local.handPop = null; }
         draw();
       });
       return;
