@@ -297,7 +297,7 @@
     // язычок: тянуть вверх — вынести всю руку на стол стопкой, вниз — спустить перед собой
     let grip = handLayer.querySelector(".grip");
     if (!grip) { grip = document.createElement("div"); grip.className = "plate grip"; grip.setAttribute("aria-label", "Язычок руки: вверх — вынести на стол, вниз — положить перед собой"); grip.innerHTML = "<i></i><i></i><i></i><i></i>"; handLayer.append(grip); bindGrip(grip); }
-    grip.style.left = `${(W - 84) / 2}px`; grip.style.top = `${Math.min(handBottom() - chH() - 20, trayTop() - 24)}px`; grip.style.display = away || !hand.length || stackDrag || pick ? "none" : "flex";
+    grip.style.left = `${(W - 84) / 2}px`; grip.style.top = `${Math.min(handBottom() - chH() - 26, trayTop() - 30)}px`; grip.style.display = away || !hand.length || stackDrag || pick ? "none" : "flex";
     grip.classList.toggle("on", !!gripDrag);
     if (stackDrag) {
       const cnt = document.createElement("div"); cnt.className = "plate count"; cnt.style.left = `${Math.max(8, Math.min(W - 70, stackDrag.x + 40))}px`; cnt.style.top = `${stackDrag.y - 20}px`; cnt.innerHTML = `${I("cards", { size: 1 })}<span>${hand.length}</span>`; handLayer.append(cnt);
