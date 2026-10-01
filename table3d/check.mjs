@@ -1087,6 +1087,21 @@ try {
     await p.mouse.click(stk.x + stk.width / 2, stk.y + stk.height / 2); await p.waitForTimeout(700);
     check("тап по ручке положенной стопки поднимает руку", (await t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat).pose.tuck; })) === false, null);
   }
+
+  {
+    // Потянул одну верхнюю карту из положенной стопки — ручка остаётся у стопки, а не уезжает с картой.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    await p.click(".screen:not(.off) [data-hand-btn]"); await p.click('.screen:not(.off) [data-hand-sub="release"]'); await p.waitForTimeout(2600);
+    await p.mouse.move(40, 420); await p.mouse.down(); await p.mouse.move(40, 250, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(900);
+    const before = await rectOf('[data-hand-tab="stack"]');
+    const topAt = await t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat, h = s.chairs.find((c) => c.id === seat).hand; return window.__t3d.screenOf(h.at(-1).id); });
+    await p.mouse.move(topAt.x, topAt.y); await p.mouse.down(); await p.mouse.move(topAt.x - 150, topAt.y - 120, { steps: 10 }); await p.waitForTimeout(300);
+    const during = await rectOf('[data-hand-tab="stack"]').catch(() => null);
+    await p.mouse.up();
+    check("тяну верхнюю карту стопки: ручка остаётся у стопки", !during || Math.hypot(during.x - before.x, during.y - before.y) < 60, { before, during });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();

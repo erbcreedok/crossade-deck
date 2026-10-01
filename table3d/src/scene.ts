@@ -1580,7 +1580,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     stackScreen() {
       const ch = myChair();
       if (!ch || camMode === "orbit" || !ch.hand.length || tuckOf(mineBlend(ch)) < 0.95) return null;
-      const top = cards.get(ch.hand[ch.hand.length - 1]!.id);
+      const rest = ch.hand.filter((c) => !(drag?.moved && drag.id === c.id));
+      const top = rest.length ? cards.get(rest[rest.length - 1]!.id) : undefined;
       if (!top) return null;
       top.group.updateMatrixWorld(true);
       camera.updateMatrixWorld();
