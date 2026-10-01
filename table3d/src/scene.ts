@@ -933,14 +933,19 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (liftedId && !ch.hand.some((c) => c.id === liftedId)) liftedId = null;
       for (const c of ch.hand) {
         const o = cards.get(c.id), k = list.indexOf(c);
-        if (!o || k < 0) continue;
-        const t = place(slotOf(k), !!c.up);
-        // Карту, до которой дотронулись, поднимает над остальными сразу, не дожидаясь движения; тап — остаётся приподнятой, пока не тронут другое.
-        if (c.id === liftedId && !(drag?.moved && drag.id === c.id)) {
-          // Чуть выше остальных и чуть ближе к глазу — пересекает их по глубине; размер и место на экране те же (ближе — меньше в тот же раз).
-          if (t.onCamera) { const d = -t.pos.z, kk = (d - TOUCH.z) / d; t.pos.y = (t.pos.y + TOUCH.up * fovK) * kk; t.pos.x *= kk; t.pos.z += TOUCH.z; t.scale *= kk; } else t.pos.y += TOUCH.up;
-        }
-        o.target = t;
+        if (o && k >= 0) o.target = place(slotOf(k), !!c.up);
+      }
+      // Тронутая карта: чуть выше остальных и ближе к глазу, чем ЛЮБАЯ соседка (включая правых, что ближе из-за загиба), — пересекает их по глубине;
+      // размер и место на экране те же (ближе — меньше в тот же раз).
+      const lo = liftedId ? cards.get(liftedId) : undefined;
+      if (lo && !(drag?.moved && drag.id === liftedId)) {
+        const t = lo.target;
+        if (t.onCamera) {
+          let zNear = -Infinity;
+          for (const c of ch.hand) { const q = cards.get(c.id)?.target; if (q && q.onCamera) zNear = Math.max(zNear, q.pos.z); }
+          const d = -t.pos.z, dz = Math.max(TOUCH.z, zNear + TOUCH.z - t.pos.z), kk = (d - dz) / d;
+          t.pos.y = (t.pos.y + TOUCH.up * fovK) * kk; t.pos.x *= kk; t.pos.z += dz; t.scale *= kk;
+        } else t.pos.y += TOUCH.up;
       }
       const o = gap !== null && drag ? cards.get(drag.id) : undefined;
       if (o) {
@@ -1405,7 +1410,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const hw = CARD_W / 2, hh = CARD_H / 2;
     for (const c of ch.hand) {
       const o = cards.get(c.id);
-      if (!o || (drag?.moved && drag.id === c.id)) continue;
+      if (!o || (drag?.moved && drag.id === c.id) || (c.id === liftedId && ch.hand.length > 1)) continue;
       o.group.updateMatrixWorld(true);
       for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
         const p = project(o.group.localToWorld(new THREE.Vector3(sx * hw, sy * hh, 0)));
