@@ -741,6 +741,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Загиб веера по умолчанию, 0…1. */
   const CURL = { rest: 0.7 };
   let handCurl: number = CURL.rest;
+  /** Загиб в МОЁМ виде растёт с числом карт: мало карт — рука почти прямая (свои карты у самых глаз сильно искажаются), много — загиб нужен, чтобы уместить веер. Остальным уходит выбранный загиб. */
+  const mineCurlK = (n: number): number => Math.max(0.15, Math.min(1, (n - 2) / 8));
   let handWidth = 0.68, widthLive: number | null = null, widthOver = 0, widthPendingUntil = 0;
   const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAMHAND.refFov * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / CAMHAND.card); };
   const roomOf = (f: number): number => 1.2 + (roomMax() - 1.2) * Math.max(0, Math.min(1, (f - WIDTH.stack) / (1 - WIDTH.stack)));
@@ -904,7 +906,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const shape = shapeOfWidth(widthLive ?? handWidth, n, Math.max(0, Math.min(1, heightPx / WIDTH.rise)), widthOver);
       placeFpsArm(down <= 0 && list.length > 0 && !handCarry, fovK, off);
       const place = (k: number, up: boolean): Place => {
-        const local = camHandLocal(k, n, up, shape, fovK, 1, off, handCurl);
+        const local = camHandLocal(k, n, up, shape, fovK, 1, off, handCurl * mineCurlK(n));
         return down <= 0 ? local : { ...laid(camHandWorld(local, head, rig.yaw, rig.pitch), ch, k, up, down), over: true };
       };
       for (const c of ch.hand) { const o = cards.get(c.id), k = list.indexOf(c); if (o && k >= 0) o.target = place(slotOf(k), !!c.up); }
@@ -1643,6 +1645,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (camMode === "head") { rig.fov = baseFov; applyRig(); }
       layout(store.state); draw();
     },
+    curlFor: (n: number) => mineCurlK(n),
     cardBend: (id: string) => (cards.get(id)?.group.userData.bend as number | undefined) ?? 0,
     handCurl: () => handCurl,
     setHandCurl: (c: number) => { handCurl = Math.max(0, Math.min(1, c)); layout(store.state); sendBody(); },

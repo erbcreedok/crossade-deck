@@ -756,8 +756,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         if (fromStack && !lifted) { draw(); return; }
         if (which === "left") {
           // К краю экрана — шире. За пределом ручка продолжает идти за пальцем, а карты натягиваются и перестают расти.
-          // Вверх — веер загибается сильнее, вниз — выпрямляется (карты по дуге, как держат пальцами).
-          if (moved) { scene.setHandWidth(w0 - dx / TAB_PX.width); scene.setHandCurl(c0 - dy / TAB_PX.curl); }
+          // Вверх — веер выпрямляется, вниз — загибается сильнее (края карт идут вниз вслед за пальцем, как в руке).
+          if (moved) { scene.setHandWidth(w0 - dx / TAB_PX.width); scene.setHandCurl(c0 + dy / TAB_PX.curl); }
         } else {
           // Высоко вверх — левая рука несёт всю руку стопкой над столом, как колоду; вернул вниз, не отпуская, — карты назад в руку.
           if (fromStack ? dy <= -TAB_PX.carry || carrying : (ev.clientY <= carryY && dy <= -TAB_PX.pull) || carrying) {

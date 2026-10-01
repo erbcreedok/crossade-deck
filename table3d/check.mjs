@@ -1216,7 +1216,7 @@ try {
     await p.mouse.move(tab.x + tab.width / 2, tab.y + tab.height / 2 + 60, { steps: 6 }); await p.waitForTimeout(150);
     const down = await t(() => window.__t3d.handCurl());
     await p.mouse.up();
-    check("боковая ручка вверх — загиб больше, вниз — меньше", up > c0 + 0.2 && down < up - 0.4, { c0, up, down });
+    check("боковая ручка вверх — загиб меньше (веер прямее), вниз — больше", up < c0 - 0.2 && down > up + 0.4, { c0, up, down });
   }
 
   {
@@ -1368,6 +1368,15 @@ try {
     await t(() => window.__t3d.setBaseFovNow(85)); await p.waitForTimeout(700);
     const n85 = await read();
     check("карты руки при обзоре 85° выглядят, как при 65°: тот же размер веера и место на экране", Math.abs(n85.span - n65.span) < 8 && Math.abs(n85.a.x - n65.a.x) < 8 && Math.abs(n85.a.y - n65.a.y) < 12, { n65, n85 });
+  }
+
+  {
+    // Загиб в моём личном виде зависит от числа карт: мало — почти прямая рука, много — загиб полный.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const k = await t(() => [2, 3, 5, 7, 10, 14].map((n) => window.__t3d.curlFor(n)));
+    check("загиб своего вида растёт с числом карт: 3 < 5 < 7 < 10, не больше 1", k[1] < k[2] && k[2] < k[3] && k[3] < k[4] && k[5] <= 1 && k[1] < 0.2, k);
   }
   check("без ошибок", errors.length === 0, errors);
 } finally {
