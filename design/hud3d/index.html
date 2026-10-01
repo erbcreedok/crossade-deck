@@ -147,7 +147,7 @@
     <h1>HUD 3D — дизайн</h1>
     <div class="notes">Экран 390×844, iPhone-first. Сверху — стол и выход, справа — камера (меняется от вида), снизу — рука и пять вкладок. Всё живое: <b>проведи пальцем по руке</b> (линза и подсказка карты), <b>вытяни карту вверх</b> на стол, нажимай вкладки. Цвета — палитра стола, шрифт — Tiny5, значки — свои пиксельные (<a href="gallery.html" style="color:var(--gold)">галерея</a>).</div>
     <div class="sec"><h2>Как устроено</h2><div class="notes">
-      <b>Рука.</b> Всегда один ряд: сколько бы карт ни было, лента сжимается по ширине экрана. Палец по руке — приподнимается одна карта, та, что под пальцем. Потяни её вверх — она оторвётся и пойдёт за пальцем: над рукой остальные раздвигаются щелью (отпустишь — карта встанет туда, это перестановка), выше — ляжет на стол.<br>
+      <b>Рука.</b> Всегда один ряд: сколько бы карт ни было, лента сжимается по ширине экрана. Палец по руке — приподнимается одна карта, та, что под пальцем. Тап по карте оставляет её поднятой, как будто держишь (ещё тап — опустить). Потяни её вверх — она оторвётся и пойдёт за пальцем: над рукой остальные раздвигаются щелью (отпустишь — карта встанет туда, это перестановка), выше — ляжет на стол.<br>
       <b>Язычок</b> над рукой: потяни вверх — вся рука соберётся в стопку под пальцем и ляжет на стол там, где отпустишь; потяни вниз — рука ляжет перед тобой (её видят сверху). Пока тянешь, две полосы подсказывают, где что.<br>
       <b>Нижняя строка.</b> Пять вкладок со словами: Рука (веер, в ряд, сложить на стол), Порядок (масть, номинал, наоборот, мешать), Стул (замок, скрыть, не брать, закрепить, выйти), Выбор (рука или лассо, хват, сторона), Чат. Одна вкладка открыта за раз, рука поднимается над её листом. Тумблеры горят золотом и квадратом-огоньком.<br>
       <b>Рейка справа — камера, и только то, что нужно виду.</b> Голова: вид, гиро, стойка, зум обзора. Вокруг: вид, компас «К стулу», дальность. Сверху (2D): вид и плюс/минус, ни компаса, ни стойки.<br>
@@ -230,7 +230,7 @@
     const { list, n } = slotsOf(), pos = new Map(), { base, x0 } = geomOf(n);
     const fan = n <= 9, step = Math.max(2.2, Math.min(5.5, 30 / Math.max(1, n)));
     list.forEach((c, i) => {
-      const slot = gapAt !== null && i >= gapAt ? i + 1 : i, t = slot - (n - 1) / 2, up = focus && focus.i === i && !pick;
+      const slot = gapAt !== null && i >= gapAt ? i + 1 : i, t = slot - (n - 1) / 2, up = !pick && (focus ? focus.i === i : latched === c.id);
       pos.set(c.id, {
         x: x0 + slot * base + (S.sortedBy === "suit" && i > 0 && list[i - 1].s !== c.s ? 0 : 0),
         y: handBottom() - chH() + (fan ? t * t * 1.6 : 0) - (up ? S.lift : 0),
@@ -243,7 +243,7 @@
   // ——— отрисовка ———
   const hud = $("hud"), handLayer = $("handLayer"), scene = $("scene");
   const cardEls = new Map();
-  let focus = null, pick = null, stackDrag = null;
+  let focus = null, pick = null, stackDrag = null, latched = null;
 
   function renderHand() {
     handLayer.querySelectorAll(".hint,.drop,.count,.shelfs,.guide,.piled").forEach((e) => e.remove());
@@ -287,7 +287,7 @@
       cnt.innerHTML = `${I("cards", { size: 1 })}<span>${hand.length}</span>`;
       handLayer.append(cnt);
       if (S.sortedBy) { const tag = document.createElement("div"); tag.className = "plate count"; tag.style.left = "74px"; tag.style.top = cnt.style.top; tag.innerHTML = `<span style="font-size:11px;color:var(--inkDim)">${S.sortedBy === "suit" ? "по масти" : "по номиналу"}</span>`; handLayer.append(tag); }
-      if (hand.length > 9) { const hint = document.createElement("div"); hint.className = "hint"; hint.style.top = `${handBottom() - chH() - (rows.length - 1) * ROW_STEP - 30}px`; hint.textContent = "веди пальцем по руке"; hint.style.opacity = focus ? 0 : 1; hint.style.left = "90px"; hint.style.right = "90px"; hint.style.textAlign = "left"; handLayer.append(hint); }
+      if (hand.length > 9) { const hint = document.createElement("div"); hint.className = "hint"; hint.style.top = `${handBottom() - chH() - (rows.length - 1) * ROW_STEP - 30}px`; hint.textContent = "веди пальцем · тап — поднять"; hint.style.opacity = focus ? 0 : 1; hint.style.left = "90px"; hint.style.right = "90px"; hint.style.textAlign = "left"; handLayer.append(hint); }
     }
     if (piled) { const pl = document.createElement("div"); pl.className = "piled"; pl.dataset.act = "unpile"; pl.style.left = `${S.piled.x}px`; pl.style.top = `${S.piled.y}px`; pl.innerHTML = `<b>${hand.length}</b>`; handLayer.append(pl); }
     // язычок: тянуть вверх — вынести всю руку на стол стопкой, вниз — спустить перед собой
@@ -326,14 +326,15 @@
     hit.addEventListener("pointerdown", (e) => {
       hit.setPointerCapture(e.pointerId);
       const p = local(e), f = indexAt(p.x); if (!f) return;
-      down = { x: p.x, y: p.y };
+      down = { x: p.x, y: p.y, t: performance.now(), far: 0 };
       focus = { i: f.i }; renderHand();
     });
     hit.addEventListener("pointermove", (e) => {
       if (!down) return;
       const p = local(e);
+      down.far = Math.max(down.far, Math.hypot(p.x - down.x, p.y - down.y));
       // Потянул карту вверх, за её верхний край, — она оторвалась от ленты и идёт за пальцем.
-      if (!pick && focus && p.y < handBottom() - chH() - S.lift - 4 && down.y - p.y > 14) { const c = hand[focus.i]; if (c) { pick = { id: c.id }; focus = null; } }
+      if (!pick && focus && p.y < handBottom() - chH() - S.lift - 4 && down.y - p.y > 14) { const c = hand[focus.i]; if (c) { pick = { id: c.id }; if (latched === c.id) latched = null; focus = null; } }
       if (pick) {
         const el = cardEls.get(pick.id);
         if (el) { el.style.left = `${p.x - S.cw / 2}px`; el.style.top = `${p.y - chH() * 0.6}px`; el.style.transform = "scale(1.1) rotate(-2deg)"; el.style.zIndex = 99; }
@@ -351,10 +352,15 @@
       const p = local(e);
       if (pick) {
         const c = hand.find((x) => x.id === pick.id);
-        if (p.y < 560) { hand = hand.filter((x) => x.id !== pick.id); S.n = hand.length; say("Карта легла на стол. Вернуть — потяни её обратно в руку."); }
+        if (p.y < 560) { if (latched === pick.id) latched = null; hand = hand.filter((x) => x.id !== pick.id); S.n = hand.length; say("Карта легла на стол. Вернуть — потяни её обратно в руку."); }
         else if (gapAt !== null && c) { hand = hand.filter((x) => x.id !== pick.id); hand.splice(gapAt, 0, c); S.sortedBy = null; say("Карта встала на новое место в руке."); }
         else say("Карта вернулась на место.");
         pick = null; gapAt = null;
+      }
+      else if (focus && down.far < 10 && performance.now() - down.t < 380) {
+        // ТАП: карта остаётся поднятой, как будто её держат; ещё тап по ней — опускается, тап по другой — поднимается та.
+        const c = hand[focus.i];
+        if (c) { latched = latched === c.id ? null : c.id; say(latched ? "Карта поднята — потяни вверх, чтобы взять. Ещё тап — опустить." : "Карта опущена."); }
       }
       down = null; focus = null; renderAll();
     };
