@@ -21,6 +21,8 @@ import { CARRY_EVERY_MS } from "../../server/src/table/contract.js";
 import { AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
 import { PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
 import { createGyro } from "./gyro.js";
+import { ringArrowFromMiddle, SEAT, turnMark } from "../../server/table-client/felt.js";
+import { ringTurnOfSeat } from "../../server/src/table/bots/view.js";
 import { RING_SPREAD, ringLanding, ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../../server/src/table/ring.js";
 import { artUrl, readLook, type DeckLook } from "../../server/table-client/deckArt.js";
 import { blendOf, handPlanBlend, mineGeomOf, snapPose, tuckOf, type PoseBlend } from "../../server/table-client/handGeom.js";
@@ -710,18 +712,53 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * ПОЛЕ КРУГА ХОДА — тёмный диск на сукне, как у обычного стола: поле очерчено заливкой, а не линией. Он под картами и на месте
    * всегда, с картами и без: меняется только то, что в нём лежит.
    */
-  const ringFields = new Map<string, THREE.Mesh>();
-  const RING_FIELD = { alpha: 0.28, lift: 0.003 };
-  function ringFieldFor(p: Pile): void {
-    let m = ringFields.get(p.id);
-    if (!m) {
-      m = new THREE.Mesh(new THREE.CircleGeometry(RING_SPREAD, 96), new THREE.MeshBasicMaterial({ color: 0x0b0704, transparent: true, opacity: RING_FIELD.alpha, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
-      m.rotation.x = -Math.PI / 2;
-      m.renderOrder = 1;
-      scene.add(m);
-      ringFields.set(p.id, m);
+  /**
+   * ПОЛЕ ДВУХ СТРЕЛОК на нём — тех же, что рисует обычный стол (`felt.ts`): луч из середины на первую вошедшую карту и знак «ждут
+   * его» на кромке, в секторе того, чей ход, и в его цвете. Рисуются теми же функциями на прозрачной текстуре и лежат на сукне
+   * над диском, под картами.
+   */
+  interface RingField { field: THREE.Mesh; marks: THREE.Mesh; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; key: string }
+  const ringFields = new Map<string, RingField>();
+  const RING_FIELD = { alpha: 0.28, lift: 0.003, markLift: 0.006, px: 110 };
+  /** Сторона текстуры стрелок в единицах стола: круг, его знак «ждут» снаружи и поля. */
+  const MARKS_SIDE = 2 * (RING_SPREAD + 1.6);
+  function ringFieldFor(p: Pile, s: Snapshot): void {
+    let f = ringFields.get(p.id);
+    if (!f) {
+      const field = new THREE.Mesh(new THREE.CircleGeometry(RING_SPREAD, 96), new THREE.MeshBasicMaterial({ color: 0x0b0704, transparent: true, opacity: RING_FIELD.alpha, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+      field.rotation.x = -Math.PI / 2;
+      field.renderOrder = 1;
+      const side = Math.round(MARKS_SIDE * RING_FIELD.px), canvas = document.createElement("canvas");
+      canvas.width = canvas.height = side;
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      const marks = new THREE.Mesh(new THREE.PlaneGeometry(MARKS_SIDE, MARKS_SIDE), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+      marks.rotation.x = -Math.PI / 2;
+      marks.renderOrder = 2;
+      scene.add(field, marks);
+      f = { field, marks, ctx: canvas.getContext("2d")!, tex, key: "" };
+      ringFields.set(p.id, f);
     }
-    m.position.set(p.x, RING_FIELD.lift, p.y);
+    f.field.position.set(p.x, RING_FIELD.lift, p.y);
+    f.marks.position.set(p.x, RING_FIELD.markLift, p.y);
+    // Первая вошедшая карта и тот, кого ждут: перерисовка — только когда одно из двух поменялось.
+    const first = p.cards[0]?.turn;
+    const awaited = s.rules.turnMark && s.play?.turn ? s.people.find((x) => x.key === s.play!.turn) : undefined;
+    const seat = awaited?.seat ? s.chairs.find((c) => c.id === awaited.seat) : undefined;
+    const waiting = seat && !seat.croupier ? { turn: ringTurnOfSeat(seat.angle), ink: awaited!.ink } : null;
+    const key = JSON.stringify([first ?? null, waiting]);
+    if (key === f.key) return;
+    f.key = key;
+    const g = f.ctx, side = g.canvas.width;
+    g.clearRect(0, 0, side, side);
+    g.save();
+    g.translate(side / 2, side / 2);
+    g.scale(RING_FIELD.px, RING_FIELD.px);
+    if (first !== undefined) ringArrowFromMiddle(g, first);
+    if (waiting) { g.rotate((waiting.turn * Math.PI) / 180); turnMark(g, waiting.ink ?? SEAT.ink, RING_SPREAD); }
+    g.restore();
+    f.tex.needsUpdate = true;
   }
   const fromOf = new Map<string, From>();
   function cardObj(id: string): CardObj {
@@ -1093,8 +1130,13 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       fromOf.set(c.id, { in: "felt" });
       seen.add(c.id);
     });
-    for (const [id, m] of ringFields) if (!s.piles.some((p) => p.id === id && p.pose === "ring")) { scene.remove(m); m.geometry.dispose(); (m.material as THREE.Material).dispose(); ringFields.delete(id); }
-    for (const p of s.piles) if (p.pose === "ring") ringFieldFor(p);
+    for (const [id, f] of ringFields) {
+      if (s.piles.some((p) => p.id === id && p.pose === "ring")) continue;
+      for (const m of [f.field, f.marks]) { scene.remove(m); m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
+      f.tex.dispose();
+      ringFields.delete(id);
+    }
+    for (const p of s.piles) if (p.pose === "ring") ringFieldFor(p, s);
     for (const p of s.piles) p.cards.forEach((c, i) => {
       const o = cardObj(c.id);
       dress(o, c, s);

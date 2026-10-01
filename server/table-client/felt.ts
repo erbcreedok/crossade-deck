@@ -240,7 +240,7 @@ function posePlan(pose: Pose, n: number): { at: Point; angle: number }[] {
  * Позже рядом встанет вторая стрелка — «чей ход», — и разметка направления круга. Тогда эта
  * останется той, что помнит начало, а та будет вести игру.
  */
-function ringArrowFromMiddle(g: CanvasRenderingContext2D, turn: number): void {
+export function ringArrowFromMiddle(g: CanvasRenderingContext2D, turn: number): void {
   const rad = (turn * Math.PI) / 180;
   const point = (away: number) => ({ x: away * Math.sin(rad), y: -away * Math.cos(rad) });
   // Луч не достаёт до карты: он показывает на неё, а не упирается в неё.
@@ -545,7 +545,7 @@ const TURN_MARK = { base: 1.9, stem: 0.5, w: 0.95, h: 0.52, line: 0.17 };
  * же рода, что подсветка карт в руке: стол проговаривает вслух то, о чём за живым столом спрашивают
  * соседа. Гасится правилом стола (`TableRules.turnMark`).
  */
-function turnMark(g: CanvasRenderingContext2D, ink: string, r: number): void {
+export function turnMark(g: CanvasRenderingContext2D, ink: string, r: number): void {
   const { base, stem, w, h, line } = TURN_MARK;
   g.save();
   // ЗНАК СТОИТ НА ОБОДЕ, А НЕ РЯДОМ С НИМ. Три части, и каждая нужна:
