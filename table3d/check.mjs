@@ -1250,6 +1250,19 @@ try {
     const after = await p.locator(".screen:not(.off) [data-grab-line]").count();
     const lay = lines.find((l) => l.k === "lay"), carry = lines.find((l) => l.k === "carry");
     check("верхняя ручка: пока тянут, видны линии «положить» (ниже ручки) и «нести стопкой» (выше), отпустил — пропали", before === 0 && !!lay && !!carry && lay.y > ty && carry.y < ty && after === 0, { before, lines, ty, after });
+    // Карты собираются только после оранжевой линии: на полпути к красной веер стоит, за оранжевой начинает сжиматься.
+    {
+      const collect = lines.find((l) => l.k === "collect");
+      const liftNow = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand; return Math.abs(T.screenOf(h.at(-1).id).x - T.screenOf(h[0].id).x); });
+      const tt = await rectOf('.screen:not(.off) [data-hand-tab="top"]'), sx = tt.x + tt.width / 2, sy = tt.y + tt.height / 2;
+      const base = await liftNow();
+      await p.mouse.move(sx, sy); await p.mouse.down(); await p.mouse.move(sx, sy + (collect.y - sy) * 0.9, { steps: 8 }); await p.waitForTimeout(300);
+      const before = await liftNow();
+      await p.mouse.move(sx, collect.y + (lay.y - collect.y) * 0.6, { steps: 8 }); await p.waitForTimeout(300);
+      const after = await liftNow();
+      await p.mouse.up(); await p.waitForTimeout(600);
+      check("оранжевая линия между ручкой и красной; до неё веер стоит, после — собирается", !!collect && collect.y > ty && collect.y < lay.y && Math.abs(before - base) < 6 && after < base * 0.85, { collect, lay, base, before, after });
+    }
     const chat = await rectOf(".screen:not(.off) [data-g=thumb-chat]"), zoomR = await rectOf(".screen:not(.off) [data-zoom-slider]");
     check("красная линия — по центру кнопок чата и компаса, золотая — не ниже нижней границы оптического зума", Math.abs(lay.y - (chat.y + chat.height / 2)) < 3 && carry.y <= zoomR.y + zoomR.height + 1, { lay, chat, carry, zoomR });
     const myTuck = () => t(() => { const x = window.__t3d.state(), seat = x.people.find((q) => q.key === window.__t3d.me()).seat; return x.chairs.find((c) => c.id === seat).pose.tuck; });

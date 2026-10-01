@@ -49,7 +49,7 @@ const HOLD_MS = 1500;
 const DOUBLE_TAP_MS = 350;
 const TAP_PX = 8;
 /** Сколько пикселей пальца на всю ось язычка: опустить и положить, сжать, веер ↔ ряд. */
-const TAB_PX = { dead: 50, lay: 190, width: 220, curl: 160, carry: 150, pull: 40, tapMs: 300 };
+const TAB_PX = { collect: 0.6, dead: 50, lay: 190, width: 220, curl: 160, carry: 150, pull: 40, tapMs: 300 };
 const RIM_LEFT = 28;
 const SIDES: GatherSide[] = ["keep", "down", "up"];
 const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
@@ -90,7 +90,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     handPop: null as null | "sort" | "pose",
     /** Ручка тянется за пальцем: её место на экране, пока её держат (левая идёт по горизонтали, верхняя — по вертикали), независимо от того, куда рука сдвигает охват. */
     /** Пока тянут верхнюю ручку: на каких линиях экрана рука ложится на стол и несётся стопкой. */
-    grabLines: null as null | { lay: number | null; carry: number },
+    grabLines: null as null | { lay: number | null; collect: number | null; carry: number },
     grabOff: null as null | { which: "top" | "left"; x: number; y: number; from?: "stack"; morph: number },
     journal: false,
     deckTip: null as string | null,
@@ -344,10 +344,10 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const [pw, ph] = o.which === "left" ? [5, 40] : o.from === "stack" ? [lerp(5, 40), lerp(40, 5)] : [40, 5];
     return pillHtml(o.which, x, y, pw, ph, 0.95);
   }
-  /** Линии хода верхней ручки: за красную рука ложится на стол, за золотую несётся стопкой над столом. Видны, пока ручку тянут. */
-  function grabLinesHtml(l: { lay: number | null; carry: number }): string {
+  /** Линии хода верхней ручки: за оранжевую карты начинают собираться в стопку, за красную рука ложится на стол, за золотую несётся стопкой над столом. Видны, пока ручку тянут. */
+  function grabLinesHtml(l: { lay: number | null; collect: number | null; carry: number }): string {
     const line = (k: string, y: number, color: string, text: string) => `<div data-grab-line="${k}" style="position:absolute;left:0;right:0;top:${Math.round(y)}px;height:0;border-top:2px dashed ${color};z-index:32;pointer-events:none"><span style="position:absolute;left:72px;top:-20px;padding:2px 6px;border-radius:6px;font:400 11px Tiny5,monospace;color:${T.black};background:${color}">${text}</span></div>`;
-    return line("carry", l.carry, "#f2c14e", "нести стопкой") + (l.lay === null ? "" : line("lay", l.lay, "#e0654b", "положить на стол"));
+    return line("carry", l.carry, "#f2c14e", "нести стопкой") + (l.collect === null ? "" : line("collect", l.collect, "#f08a24", "карты собираются")) + (l.lay === null ? "" : line("lay", l.lay, "#e0654b", "положить на стол"));
   }
   /** Компас стола: стрелка — к своему стулу, диск лежит под наклоном камеры. */
   function compassHtml(chair: Chair, at: { left: number; top: number }): string {
@@ -741,8 +741,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       const chatBox = screen.querySelector<HTMLElement>("[data-g=thumb-chat]")?.getBoundingClientRect(), zoomBox = zoom.getBoundingClientRect();
       const layY = chatBox ? chatBox.top + chatBox.height / 2 : y0 + 120;
       const carryY = !fromStack && which === "top" ? Math.min(scene.camMode() === "head" && zoomBox.height ? zoomBox.bottom : glass().h * 0.45, y0 - TAB_PX.carry) : -Infinity;
-      const layDy = Math.max(TAB_PX.dead + 20, layY - y0);
-      if (!fromStack && which === "top") local.grabLines = { lay: b0.lift > 0.25 ? layY : null, carry: carryY };
+      const layDy = Math.max(TAB_PX.dead + 20, layY - y0), collectDy = layDy * TAB_PX.collect;
+      if (!fromStack && which === "top") local.grabLines = { lay: b0.lift > 0.25 ? layY : null, collect: b0.lift > 0.25 ? y0 + collectDy : null, carry: carryY };
       let lastY = y0;
       let dx = 0, dy = 0, moved = false, carrying = false, lifted = !fromStack;
       const t0 = performance.now(), lift = () => { if (!lifted) { lifted = true; const c = myChair(); if (c) store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: false } }); } };
@@ -764,7 +764,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
           }
           // Иначе рука следует за ручкой по высоте и остаётся там, где отпустили: вверх — выпрямляется веер, вниз — до пола руки, дальше опускается на стол.
           if (moved) scene.setHandHeight(h0 - dy);
-          scene.setBlend(moved && dy > TAB_PX.dead ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - (dy - TAB_PX.dead) / (layDy - TAB_PX.dead))) } : undefined);
+          // Карты не трогаются, пока палец не пересёк оранжевую линию; от неё до красной собираются в стопку, на красной — собраны.
+          scene.setBlend(moved && dy > collectDy ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - (dy - collectDy) / (layDy - collectDy))) } : undefined);
         }
         draw();
       }, () => {
