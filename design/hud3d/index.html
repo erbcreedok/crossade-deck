@@ -20,7 +20,12 @@
   .page { display: flex; flex-wrap: wrap; gap: 36px; align-items: flex-start; padding: 28px; }
   .stage { position: relative; flex: none; width: 390px; height: 844px; }
   .phone { position: absolute; left: 0; top: 0; width: 390px; height: 844px; overflow: hidden; border-radius: 44px; background: var(--black); box-shadow: inset 0 0 0 3px var(--black), 0 0 0 3px var(--black); transform-origin: 0 0; touch-action: none; user-select: none; -webkit-user-select: none; }
-  .scene { position: absolute; left: 0; top: 0; width: 390px; height: 844px; background-size: 390px 844px; background-position: 0 0; }
+  .scene { position: absolute; inset: 0; background: var(--black); overflow: hidden; }
+  /* МАКЕТ СТОЛА — плоские фигуры, без картинок и без 3D: только чтобы было видно, как худ ложится на стол. */
+  .tbl { position: absolute; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #1b4835, var(--felt) 60%, var(--feltDark)); box-shadow: 0 0 0 10px var(--wood), 0 0 0 13px var(--black), 0 14px 0 13px #1d1409; }
+  .seat { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; background: var(--panel); box-shadow: 0 0 0 3px var(--black), inset 0 0 0 3px var(--wood); display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--ink); }
+  .seat.mine { background: var(--mine); color: var(--black); }
+  .pile { position: absolute; width: 38px; height: 55px; margin: -27px 0 0 -19px; background: url(cards/back.webp) center/100% 100%; box-shadow: 0 0 0 2px var(--black), 0 3px 0 2px rgba(11,7,4,.55); }
   .ref { position: absolute; inset: 0; background-size: cover; background-position: center; }
   .ref { opacity: 0; pointer-events: none; z-index: 90; }
   .ref.on { opacity: .92; }
@@ -128,7 +133,6 @@
   <div class="stage" id="stage">
     <div class="phone" id="phone">
       <div class="scene" id="scene"></div>
-      <div class="scrimT"></div><div class="scrim"></div>
       <div class="hand" id="handLayer"></div>
       <div id="hud"></div>
       <div class="ref" id="ref"></div>
@@ -381,7 +385,16 @@
     hud.innerHTML = html;
   }
 
-  function renderAll() { renderHud(); renderHand(); scene.style.backgroundImage = `url(scene-${S.cam}.jpg)`; scene.style.height = S.cam === "orbit" ? "496px" : "844px"; $("ref").style.backgroundImage = "url(current-18.jpg)"; $("ref").classList.toggle("on", S.ref); syncPanel(); }
+  /** Стол-макет под худ: из головы — большой круг сверху вниз, вокруг — овал, сверху — круг. Места игроков на кромке. */
+  function drawScene() {
+    const seats = (cx, cy, rx, ry, extra = "") => [["А", -0.55], ["Т", 0.55], ["Д", 0]].map(([l, a]) => `<i class="seat" style="left:${cx + Math.sin(a) * rx}px;top:${cy - Math.cos(a) * ry}px">${l}</i>`).join("") + extra;
+    let h = "";
+    if (S.cam === "head") h = `<div class="tbl" style="left:-170px;top:330px;width:730px;height:730px"></div>${seats(195, 360, 300, 20)}<i class="pile" style="left:92px;top:480px"></i>`;
+    else if (S.cam === "orbit") h = `<div class="tbl" style="left:20px;top:230px;width:350px;height:190px"></div>${seats(195, 262, 140, 20)}<i class="seat mine" style="left:195px;top:430px">Я</i><i class="pile" style="left:130px;top:322px"></i>`;
+    else h = `<div class="tbl" style="left:25px;top:170px;width:340px;height:340px"></div>${seats(195, 190, 120, 10)}<i class="seat mine" style="left:195px;top:524px">Я</i><i class="pile" style="left:110px;top:340px"></i>`;
+    scene.innerHTML = h;
+  }
+  function renderAll() { renderHud(); renderHand(); drawScene(); if (S.ref && !$("ref").style.backgroundImage) $("ref").style.backgroundImage = "url(current-18.jpg)"; $("ref").classList.toggle("on", S.ref); syncPanel(); }
 
   // ——— действия ———
   const ORDER_S = { s: 0, h: 1, d: 2, c: 3 };
