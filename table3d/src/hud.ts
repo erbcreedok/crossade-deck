@@ -49,7 +49,7 @@ const HOLD_MS = 1500;
 const DOUBLE_TAP_MS = 350;
 const TAP_PX = 8;
 /** Сколько пикселей пальца на всю ось язычка: опустить и положить, сжать, веер ↔ ряд. */
-const TAB_PX = { collect: 0.6, dead: 50, lay: 190, width: 220, curl: 160, carry: 150, pull: 40, tapMs: 300 };
+const TAB_PX = { collect: 0.1, carryAt: 0.38, dead: 50, lay: 190, width: 220, curl: 160, carry: 150, pull: 40, tapMs: 300 };
 const RIM_LEFT = 28;
 const SIDES: GatherSide[] = ["keep", "down", "up"];
 const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
@@ -739,10 +739,11 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       // Линии хода верхней ручки: «положить» — на уровне кнопок чата и компаса (по их центру), «нести стопкой» — на нижней границе оптического зума,
       // но не ближе `carry` над местом хвата (выше — диапазон высоты руки). Рука ложится, если отпустить ниже красной линии; несётся стопкой, пока палец выше золотой (вернул к месту хвата — снова в руке).
       const chatBox = screen.querySelector<HTMLElement>("[data-g=thumb-chat]")?.getBoundingClientRect(), zoomBox = zoom.getBoundingClientRect();
-      const layY = chatBox ? chatBox.top + chatBox.height / 2 : y0 + 120;
-      const carryY = !fromStack && which === "top" ? Math.min(scene.camMode() === "head" && zoomBox.height ? zoomBox.bottom : glass().h * 0.45, y0 - TAB_PX.carry) : -Infinity;
-      const layDy = Math.max(TAB_PX.dead + 20, layY - y0), collectDy = layDy * TAB_PX.collect;
-      if (!fromStack && which === "top") local.grabLines = { lay: b0.lift > 0.25 ? layY : null, collect: b0.lift > 0.25 ? y0 + collectDy : null, carry: carryY };
+      // Линии стоят на экране сами по себе и от позы руки не зависят: красная — по центру кнопок, оранжевая — выше неё на `collect` высоты экрана,
+      // золотая — на нижней границе зума, но не ниже `carry` высоты экрана от верха.
+      const H = glass().h, layY = chatBox ? chatBox.top + chatBox.height / 2 : H * 0.86, collectY = layY - TAB_PX.collect * H;
+      const carryY = !fromStack && which === "top" ? Math.min(scene.camMode() === "head" && zoomBox.height ? zoomBox.bottom : H * 0.45, H * TAB_PX.carryAt) : -Infinity;
+      if (!fromStack && which === "top") local.grabLines = { lay: b0.lift > 0.25 ? layY : null, collect: b0.lift > 0.25 ? collectY : null, carry: carryY };
       let lastY = y0;
       let dx = 0, dy = 0, moved = false, carrying = false, lifted = !fromStack;
       const t0 = performance.now(), lift = () => { if (!lifted) { lifted = true; const c = myChair(); if (c) store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: false } }); } };
@@ -765,7 +766,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
           // Иначе рука следует за ручкой по высоте и остаётся там, где отпустили: вверх — выпрямляется веер, вниз — до пола руки, дальше опускается на стол.
           if (moved) scene.setHandHeight(h0 - dy);
           // Карты не трогаются, пока палец не пересёк оранжевую линию; от неё до красной собираются в стопку, на красной — собраны.
-          scene.setBlend(moved && dy > collectDy ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - (dy - collectDy) / (layDy - collectDy))) } : undefined);
+          scene.setBlend(moved && ev.clientY > collectY ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - (ev.clientY - collectY) / Math.max(1, layY - collectY))) } : undefined);
         }
         draw();
       }, () => {

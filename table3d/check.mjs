@@ -1290,6 +1290,26 @@ try {
     const s3 = await spots();
     check("кнопки у пальцев (чат, стойка, компас) не прыгают от позы руки: сжата, широко, положена", JSON.stringify(s0) === JSON.stringify(s1) && JSON.stringify(s0) === JSON.stringify(s2) && JSON.stringify(s0) === JSON.stringify(s3), { s0, s1, s2, s3 });
   }
+
+  {
+    // Линии хода верхней ручки стоят на месте, что бы ни делала поза руки (ширина, загиб, высота): они привязаны к экрану.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const readLines = async () => {
+      const tab = await rectOf('.screen:not(.off) [data-hand-tab="top"]'), x = tab.x + tab.width / 2, y = tab.y + tab.height / 2;
+      await p.mouse.move(x, y); await p.mouse.down(); await p.mouse.move(x, y + 8, { steps: 3 }); await p.waitForTimeout(200);
+      const l = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll(".screen:not(.off) [data-grab-line]")].map((e) => [e.getAttribute("data-grab-line"), Math.round(e.getBoundingClientRect().y)])));
+      await p.mouse.up(); await p.waitForTimeout(300);
+      return l;
+    };
+    const l0 = await readLines();
+    await t(() => { window.__t3d.setHandWidthNow(0.2); window.__t3d.setHandCurl(0); window.__t3d.setHandHeight?.(0); }); await p.waitForTimeout(700);
+    const l1 = await readLines();
+    await t(() => window.__t3d.setHandWidthNow(1)); await p.waitForTimeout(700);
+    const l2 = await readLines();
+    check("жёлтая, оранжевая и красная линии стоят на месте при любой позе руки (ширина, загиб)", !!l0.carry && !!l0.collect && !!l0.lay && JSON.stringify(l0) === JSON.stringify(l1) && JSON.stringify(l0) === JSON.stringify(l2), { l0, l1, l2 });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();
