@@ -471,6 +471,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Намерение: повернуть взгляд (в орбите — обойти стол). */
   function lookBy(dyaw: number, dpitch: number): void {
     if (camMode === "orbit") return;
+    headGoal = null;
     // С гиро палец поправляет курс (телефон сам взгляд держит): сдвигаем «ноль» датчика, а не сам взгляд.
     if (gyro.on() && camMode === "head") { gyroOff = wrap((gyroOff ?? 0) + dyaw); applyGyro(); draw(); return; }
     rig.yaw = wrap(rig.yaw + dyaw);
@@ -480,13 +481,55 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Намерение: приблизить (`k` > 1) или отдалить. В `head` — наклон к столу, в `fov` — поле зрения. */
   function zoomBy(k: number): void {
     if (camMode === "orbit") return;
+    headGoal = null;
     // Отъезд (`k` < 1) — голова откидывается назад, как приближение двигает её вперёд: та же шея, тот же натяг.
     rig.lean = Math.max(-1, Math.min(1, rig.lean + Math.log(k) * 0.5 * (neck.rest > 0 ? 0 : 1)));
     applyRig(); draw(); sendBody();
   }
+  /**
+   * ДВОЙНОЙ ТАП ПО СТОЛУ — голова едет в ту сторону и смотрит туда: зум не оптикой, а шеей. Место берётся из пары (наклон, сдвиг), ближайшей
+   * к точке «на `HEAD_STEP` пути до тапа»; дальше всё по обычной шее: натянулась — подержалась и сама вернулась.
+   */
+  const HEAD_STEP = 0.6;
+  let headGoal: { lean: number; side: number; yaw: number | null; pitch: number | null } | null = null;
+  function headToward(px: number, py: number): void {
+    const ch = myChair();
+    if (!ch || camMode !== "head" || neck.rest > 0 || neck.back > 0) return;
+    const sh = shoulders3(ch.angle, stanceNow()), now = headAt(sh, rig.lean, rig.side);
+    const tx = now.x + (px - now.x) * HEAD_STEP, ty = now.y + (py - now.y) * HEAD_STEP;
+    let best = { lean: rig.lean, side: rig.side, d: Infinity };
+    for (let i = -20; i <= 20; i += 1) for (let j = -20; j <= 20; j += 1) {
+      const lean = i / 20, side = j / 20;
+      if (Math.hypot(lean, side) > 1) continue;
+      const h = headAt(sh, lean, side), d = Math.hypot(h.x - tx, h.y - ty);
+      if (d < best.d) best = { lean, side, d };
+    }
+    const head = headAt(sh, best.lean, best.side);
+    // Смотрит на точку тапа из новой головы — если телефон взгляд не ведёт сам (гиро).
+    const look = !gyro.on();
+    const yawTo = (Math.atan2(px - head.x, -(py - head.y)) / DEG) - best.side * BACK.max;
+    const pitchTo = -Math.atan2(head.h, Math.hypot(px - head.x, py - head.y) || 1) / DEG;
+    headGoal = { lean: best.lean, side: best.side, yaw: look ? wrap(yawTo) : null, pitch: look ? Math.max(CAM.pitch.min, Math.min(CAM.pitch.max, pitchTo)) : null };
+    draw();
+  }
+  /** Шаг к цели двойного тапа за кадр: плавно, а не прыжком. Шея вернулась или человек взялся сам — цель снимается. */
+  function headGoalStep(dt: number): boolean {
+    const g = headGoal;
+    if (!g) return false;
+    if (neck.back > 0) { headGoal = null; return false; }
+    const k = 1 - Math.exp(-dt * 9);
+    rig.lean += (g.lean - rig.lean) * k;
+    rig.side += (g.side - rig.side) * k;
+    let near = Math.abs(g.lean - rig.lean) < 2e-3 && Math.abs(g.side - rig.side) < 2e-3;
+    if (g.yaw !== null) { rig.yaw = wrap(rig.yaw + wrap(g.yaw - rig.yaw) * k); near = near && Math.abs(wrap(g.yaw - rig.yaw)) < 0.05; }
+    if (g.pitch !== null) { rig.pitch += (g.pitch - rig.pitch) * k; near = near && Math.abs(g.pitch - rig.pitch) < 0.05; }
+    if (near) headGoal = null;
+    return true;
+  }
   /** Намерение: сдвинуть голову вбок, по кругу вокруг стола (`d` — доля предела, + вправо от взгляда). Шея — та же. */
   function sideBy(d: number): void {
     if (camMode !== "head") return;
+    headGoal = null;
     const ch = myChair();
     if (!ch) return;
     // Вправо от взгляда — в какую сторону по кругу: считаем по тому, где голова и куда она смотрит.
@@ -562,7 +605,23 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         else { zoomBy(now.d / Math.max(1, before.d)); opticsBy(Math.exp(-(now.y - before.y) * CAM.scroll)); sideBy((now.x - before.x) * CAM.side); }
       }
     });
-    const up = (e: PointerEvent) => { ptrs.delete(e.pointerId); };
+    // Двойной тап по пустому месту (не по карте, не по кнопке): голова едет туда.
+    const taps = new Map<number, { x: number; y: number; at: number }>();
+    let lastEmpty = { x: 0, y: 0, at: 0 };
+    dom.addEventListener("pointerdown", (e) => { if (ptrs.has(e.pointerId) && ptrs.size === 1) taps.set(e.pointerId, { x: e.clientX, y: e.clientY, at: performance.now() }); else taps.clear(); });
+    const up = (e: PointerEvent) => {
+      const t = taps.get(e.pointerId), one = ptrs.size === 1;
+      taps.delete(e.pointerId);
+      ptrs.delete(e.pointerId);
+      if (!t || !one || e.type !== "pointerup" || camMode !== "head") return;
+      const now = performance.now();
+      if (Math.hypot(e.clientX - t.x, e.clientY - t.y) > 10 || now - t.at > 300) return;
+      if (now - lastEmpty.at < DOUBLE_MS && Math.hypot(e.clientX - lastEmpty.x, e.clientY - lastEmpty.y) < 40) {
+        lastEmpty = { x: 0, y: 0, at: 0 };
+        const at = onFelt(e);
+        if (at) headToward(at.x, at.z);
+      } else lastEmpty = { x: e.clientX, y: e.clientY, at: now };
+    };
     dom.addEventListener("pointerup", up);
     dom.addEventListener("pointercancel", up);
     dom.addEventListener("contextmenu", (e) => { if (camMode !== "orbit") e.preventDefault(); });
@@ -1256,9 +1315,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // Камера и моя рука — до пружин: рука едет с головой, и пружины догоняют уже новое место.
     if (camMode === "head" || camMode === "top") {
       // ШЕЯ ТЯНЕТСЯ ВПЕРЁД, НАЗАД И ВБОК одним натягом: считаем по длине вектора (наклон, сдвиг), и возвращается он тоже вместе.
+      const goalMoved = camMode === "head" && headGoalStep(dt);
       const was = rig.lean, wasSide = rig.side, m = Math.hypot(rig.lean, rig.side), m2 = neckStep(neck, m, sinceMs);
       if (m2 !== m) { const k = m > 0 ? m2 / m : 0; rig.lean *= k; rig.side *= k; }
-      if (rig.lean !== was || rig.side !== wasSide || neck.back > 0 || m2 > NECK.free || neck.rest > 0) { applyRig(); sendBody(); moving = true; }
+      if (goalMoved || rig.lean !== was || rig.side !== wasSide || neck.back > 0 || m2 > NECK.free || neck.rest > 0) { applyRig(); sendBody(); moving = true; }
     }
     // Рука целиком отстаёт от поворота взгляда и возвращается: поворот вправо — рука левее, взгляд вверх — рука ниже.
     if (camMode === "head") {
@@ -1924,6 +1984,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     depthOf: (id: string) => { const o = cards.get(id); if (!o) return null; camera.updateMatrixWorld(); return -o.group.getWorldPosition(new THREE.Vector3()).applyMatrix4(camera.matrixWorldInverse).z; },
     cardWidth: (id: string) => { const o = cards.get(id); return o ? o.group.getWorldScale(new THREE.Vector3()).x * CARD_W : null; },
     zoomBy: (k: number) => zoomBy(k),
+    headToward: (x: number, y: number) => headToward(x, y),
+    feltAt: (cx: number, cy: number) => { const r = renderer.domElement.getBoundingClientRect(), v = onFelt({ clientX: cx, clientY: cy }); return v ? { x: v.x, y: v.z } : null; },
     sideBy: (d: number) => sideBy(d),
     cam: () => ({ mode: camMode, yaw: rig.yaw, pitch: rig.pitch, lean: rig.lean, side: rig.side, fov: camera.fov, pos: camera.position.toArray(), neck: { ...neck } }),
     view: () => { const p = camera.position.clone().sub(orbit.target); return { yaw: Math.atan2(p.x, p.z) / DEG, pitch: Math.asin(p.y / p.length()) / DEG }; },
