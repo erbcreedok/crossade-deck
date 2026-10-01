@@ -128,7 +128,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     view: { min: CAM.fov.view.min, max: CAM.fov.view.max, get: () => scene.baseFov(), set: (deg) => { scene.setBaseFov(deg); try { localStorage.setItem("t3d.fov", String(scene.baseFov())); } catch { /* без памяти — обзор на эту сессию */ } } },
     cardSize: { min: 50, max: 200, get: () => Math.round(scene.handSize() * 100), set: (pct) => { scene.setHandSize(pct / 100); try { localStorage.setItem("t3d.handSize", String(scene.handSize())); } catch { /* без памяти — размер на эту сессию */ } } },
     figures: { on: () => figuresOn, toggle: () => { figuresOn = !figuresOn; scene.setFigures(figuresOn); } },
-    footer: () => `build ${TABLE_BUILD} · песочница 3D · three.js`,
+    footer: () => `build ${TABLE_BUILD} · песочница 3D · three.js${scene.gyro.on() ? ` · ${scene.gyro.info()}` : ""}`,
     changed: () => draw(),
   });
   try { const saved = Number(localStorage.getItem("t3d.handSize")); if (saved) scene.setHandSize(saved); } catch { /* без памяти — обычный размер */ }

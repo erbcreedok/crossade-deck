@@ -34,8 +34,10 @@ export interface Gyro {
   /** Включить — из жеста пальца. Строка — что не вышло (датчик не разрешили). */
   start(): Promise<string | null>;
   stop(): void;
-  /** Куда смотрит телефон; `null` — датчик ещё не сказал ни слова. */
+  /** Куда смотрит телефон СЕЙЧАС (шаг фильтра — по кадру, зовут раз за кадр); `null` — датчик ещё не сказал ни слова. */
   look(): Look | null;
+  /** Откуда слова и как часто — строкой для настроек (диагностика на телефоне, где консоли нет). */
+  info(): string;
 }
 
 const screenAngle = (): number => screen.orientation?.angle ?? (globalThis as { orientation?: number }).orientation ?? 0;
@@ -77,26 +79,45 @@ export class OneEuro {
 
 const wrapDeg = (a: number): number => ((a + 540) % 360) - 180;
 
+/**
+ * ОДИН ИСТОЧНИК, А НЕ ДВА. В Telegram у телефона два датчика сразу — его собственный (`DeviceOrientation`) и браузерный, — и
+ * нулевой курс у них разный: если кормить фильтр обоими вперемешку, курс скачет между двумя нулями, и стол трясётся на приличное
+ * расстояние. Берём БРАУЗЕРНЫЙ, если он заговорил за `BROWSER_WAIT_MS` (он есть и в обычном браузере, и в приложении), иначе — Telegram.
+ */
+const BROWSER_WAIT_MS = 600;
+
 export function createGyro(changed: () => void): Gyro {
   let on = false;
-  let last: Look | null = null;
   let off: Array<() => void> = [];
+  let source: "browser" | "tg" | null = null;
+  let startedAt = 0;
+  let raw: Look | null = null;
+  let yawF = new OneEuro(), pitchF = new OneEuro();
+  let rawPrev: number | null = null, unrolled = 0;
+  let count = 0, since = 0, hz = 0;
 
-  // Курс гладится «развёрнутым» (без скачка через ±180), наклон — как есть.
-  let yawF = new OneEuro(), pitchF = new OneEuro(), unrolled = 0, rawPrev: number | null = null;
-  const hear = (alpha: number, beta: number, gamma: number): void => {
-    const raw = lookOf(deviceQuat(alpha, beta, gamma, screenAngle())), t = performance.now() / 1000;
-    unrolled = rawPrev === null ? raw.yaw : unrolled + wrapDeg(raw.yaw - rawPrev);
-    rawPrev = raw.yaw;
-    last = { yaw: wrapDeg(yawF.filter(unrolled, t)), pitch: pitchF.filter(raw.pitch, t) };
+  const hear = (src: "browser" | "tg", alpha: number, beta: number, gamma: number): void => {
+    const now = performance.now();
+    if (source === null) {
+      // Браузерный — сразу; Telegram — только если браузерный молчит.
+      if (src === "tg" && now - startedAt < BROWSER_WAIT_MS) return;
+      source = src;
+    }
+    if (src !== source) return;
+    const l = lookOf(deviceQuat(alpha, beta, gamma, screenAngle()));
+    unrolled = rawPrev === null ? l.yaw : unrolled + wrapDeg(l.yaw - rawPrev);
+    rawPrev = l.yaw;
+    raw = { yaw: unrolled, pitch: l.pitch };
+    count += 1;
+    if (now - since >= 1000) { hz = Math.round((count * 1000) / (now - since)); count = 0; since = now; }
     changed();
   };
 
   async function start(): Promise<string | null> {
     if (on) return null;
     on = true;
-    last = null;
-    yawF = new OneEuro(); pitchF = new OneEuro(); rawPrev = null;
+    source = null; raw = null; rawPrev = null; startedAt = performance.now(); since = startedAt; count = 0; hz = 0;
+    yawF = new OneEuro(); pitchF = new OneEuro();
     let note: string | null = null;
     // Разрешение на iOS — первым делом и без пауз до него: жест пальца живёт недолго.
     const perm = (globalThis as { DeviceOrientationEvent?: { requestPermission?: () => Promise<string> } }).DeviceOrientationEvent?.requestPermission;
@@ -107,14 +128,15 @@ export function createGyro(changed: () => void): Gyro {
     const tg = (globalThis as { Telegram?: { WebApp?: TelegramApp } }).Telegram?.WebApp;
     const tgo = tg?.DeviceOrientation;
     if (tgo?.start && tg?.onEvent) {
-      const read = (): void => { if (tgo.beta != null) hear((tgo.alpha ?? 0) * DEG, tgo.beta * DEG, (tgo.gamma ?? 0) * DEG); };
+      const read = (): void => { if (tgo.beta != null) hear("tg", (tgo.alpha ?? 0) * DEG, tgo.beta * DEG, (tgo.gamma ?? 0) * DEG); };
       tg.onEvent("deviceOrientationChanged", read);
       tgo.start({ refresh_rate: 20, need_absolute: false });
       off.push(() => { tg.offEvent?.("deviceOrientationChanged", read); tgo.stop?.(); });
     }
-    const onBrowser = (e: DeviceOrientationEvent): void => { if (e.beta != null) hear(e.alpha ?? 0, e.beta, e.gamma ?? 0); };
+    const onBrowser = (e: DeviceOrientationEvent): void => { if (e.beta != null) hear("browser", e.alpha ?? 0, e.beta, e.gamma ?? 0); };
     addEventListener("deviceorientation", onBrowser);
     off.push(() => removeEventListener("deviceorientation", onBrowser));
+    startedAt = performance.now();
     return note;
   }
 
@@ -122,8 +144,19 @@ export function createGyro(changed: () => void): Gyro {
     on = false;
     for (const fn of off) fn();
     off = [];
-    last = null;
+    raw = null;
+    source = null;
   }
 
-  return { on: () => on, start, stop, look: () => last };
+  // Фильтр шагает по КАДРУ, а не по слову датчика: у Telegram слова приходят пачками и с разным интервалом, и фильтр, считавший по ним
+  // время, принимал разрыв между пачками за скорость и пропускал шум.
+  function look(): Look | null {
+    if (!raw) return null;
+    const t = performance.now() / 1000;
+    return { yaw: wrapDeg(yawF.filter(raw.yaw, t)), pitch: pitchF.filter(raw.pitch, t) };
+  }
+
+  const info = (): string => (!on ? "" : source === null ? "гиро: датчик молчит" : `гиро: ${source === "tg" ? "Telegram" : "браузер"}, ${hz} Гц`);
+
+  return { on: () => on, start, stop, look, info };
 }

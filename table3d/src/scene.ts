@@ -201,7 +201,7 @@ export interface SceneApi {
   setHandCurl(c: number): void;
   setCamMode(m: CamMode): void;
   /** Гиро: поворот телефона — поворот головы. `toggle` — из жеста; ответ — что не вышло (датчик не разрешили). */
-  gyro: { toggle(): Promise<string | null>; on(): boolean };
+  gyro: { toggle(): Promise<string | null>; on(): boolean; info(): string };
   lookBy(dyaw: number, dpitch: number): void;
   zoomBy(k: number): void;
   opticsBy(k: number): void;
@@ -1886,7 +1886,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       layout(store.state); draw();
     },
     setCamMode,
-    gyro: { toggle: gyroToggle, on: () => gyro.on() },
+    gyro: { toggle: gyroToggle, on: () => gyro.on(), info: () => gyro.info() },
     lookBy,
     zoomBy,
     opticsBy,

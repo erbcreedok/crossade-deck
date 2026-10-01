@@ -52,6 +52,29 @@ await p.waitForTimeout(200);
 await turn(300, 90);
 const off = await cam();
 check("выключили — датчик взгляд не двигает", Math.abs(dyaw(off.yaw, down2.yaw)) < 0.5 && Math.abs(off.pitch - down2.pitch) < 0.5, { down2, off });
+// В TELEGRAM ДАТЧИКА ДВА (свой и браузерный) с разным нулём курса: стол слушает один, иначе курс прыгает между нулями.
+const q = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+q.on("pageerror", (e) => errors.push(e.message));
+await q.addInitScript(() => {
+  const o = { alpha: 0, beta: 0, gamma: 0, start() {}, stop() {} };
+  window.Telegram = { WebApp: { DeviceOrientation: o, onEvent(name, fn) { window.__tgfn = fn; }, offEvent() {}, ready() {}, expand() {}, initData: "", initDataUnsafe: {} } };
+});
+await q.goto(`${base}/?stand`);
+await q.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+await q.waitForTimeout(600);
+const qhome = await q.evaluate(() => window.__t3d.cam().yaw);
+await q.locator("[data-gyro]").first().click();
+await q.evaluate(() => {
+  const rad = Math.PI / 180;
+  // Два источника в разное время (7 и 11 мс): кадр видит то один, то другой.
+  window.__both = [
+    setInterval(() => dispatchEvent(Object.assign(new Event("deviceorientation"), { alpha: 140, beta: 80, gamma: 0 })), 7),
+    setInterval(() => { const o = window.Telegram.WebApp.DeviceOrientation; o.alpha = 230 * rad; o.beta = 80 * rad; o.gamma = 0; window.__tgfn?.(); }, 11),
+  ];
+});
+await q.waitForTimeout(1200);
+const both = await q.evaluate(() => new Promise((r) => { const ys = []; const t0 = performance.now(); const f = () => { ys.push(window.__t3d.cam().yaw); performance.now() - t0 < 1200 ? requestAnimationFrame(f) : r({ range: Math.max(...ys) - Math.min(...ys), mean: ys.reduce((a, b) => a + b, 0) / ys.length }); }; f(); }));
+check("два датчика с разным нулём — слушаем один: взгляд не дрожит и не уезжает к среднему между нулями", both.range <= 0.25 && Math.abs(dyaw(both.mean, qhome)) < 1, { ...both, qhome });
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
