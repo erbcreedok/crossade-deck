@@ -365,6 +365,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let baseFov: number = CAM.fov.base;
   const rig = { yaw: 0, pitch: -40, lean: 0, fov: baseFov };
   const neck = neckNew();
+  /**
+   * Рука с картами едет за камерой с запозданием, как в FPS: повернул взгляд — вся рука целиком (карты и кисть — один слой `handRoot`) чуть позади и догоняет.
+   * Это только отрисовка на клиенте: на сервер уходит одна точка камеры, и остальные собирают руку из неё же.
+   */
+  const lag = { yaw: 0, pitch: 0, prevYaw: 0, prevPitch: 0 };
+  const LAG = { gain: 0.9, decay: 6, max: 0.2 };
   /** Высота руки в кадре, пиксели (вверх — плюс): её ставит верхняя ручка, и она остаётся; рука едет с камерой жёстко, как одна точка. */
   let heightPx = 0;
   const HEIGHT = { min: -50, max: 150 };
@@ -419,6 +425,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     rig.fov = baseFov;
     neck.held = neck.back = neck.rest = 0;
     rig.pitch = camMode === "top" ? -90 : pitchToCentre(headAt(shoulders3(ch.angle, stanceNow()), 0));
+    lag.yaw = lag.pitch = 0; lag.prevYaw = rig.yaw; lag.prevPitch = rig.pitch;
     camera.aspect = host.clientWidth / Math.max(1, host.clientHeight);
     applyRig();
   }
@@ -1022,6 +1029,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     lastTick = now;
     // Камера и моя рука — до пружин: рука едет с головой, и пружины догоняют уже новое место.
     if (camMode === "head" || camMode === "top") { const was = rig.lean; rig.lean = neckStep(neck, rig.lean, sinceMs); if (rig.lean !== was || neck.back > 0 || rig.lean > NECK.free || neck.rest > 0) { applyRig(); sendBody(); moving = true; } }
+    // Рука целиком отстаёт от поворота взгляда и возвращается: поворот вправо — рука левее, взгляд вверх — рука ниже.
+    if (camMode === "head") {
+      const k = Math.exp((-sinceMs / 1000) * LAG.decay), lim = (v: number) => Math.max(-LAG.max, Math.min(LAG.max, v));
+      lag.yaw = lim((lag.yaw + LAG.gain * wrap(rig.yaw - lag.prevYaw) * DEG) * k);
+      lag.pitch = lim((lag.pitch - LAG.gain * (rig.pitch - lag.prevPitch) * DEG) * k);
+      lag.prevYaw = rig.yaw; lag.prevPitch = rig.pitch;
+      if (Math.abs(lag.yaw) > 0.002 || Math.abs(lag.pitch) > 0.002) moving = true;
+    } else { lag.yaw = lag.pitch = 0; lag.prevYaw = rig.yaw; lag.prevPitch = rig.pitch; }
+    handRoot.rotation.set(lag.pitch, lag.yaw, 0);
     retargetMine();
     for (const [id, o] of cards) {
       const g = o.group, t = o.target;

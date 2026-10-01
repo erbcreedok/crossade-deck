@@ -819,15 +819,17 @@ try {
     check("голова: взгляд вверх-вниз меняет наклон", Math.abs(h2.pitch - h1.pitch) > 10, { h1: h1.pitch, h2: h2.pitch });
     const widths = await t(() => { const st = window.__t3d.state(), seat = st.people.find((x) => x.key === window.__t3d.me()).seat, hand = st.chairs.find((c) => c.id === seat).hand, top = st.piles[0].cards.at(-1).id; return { hand: window.__t3d.cardWidth(hand[0].id), theirs: window.__t3dScreens[1].cardWidth(hand[0].id), table: window.__t3d.cardWidth(top) }; });
     check("размер руки не зависит от карты на столе: в руке 0.54, в чужой руке (голова) в 1.7 раза крупнее, на столе 1.3", Math.abs(widths.hand - 0.54) < 0.02 && Math.abs(widths.theirs - 0.54 * 1.7) < 0.04 && Math.abs(widths.table - 1.3) < 0.02, widths);
-    check("голова: рука в кадре внизу и едет с камерой жёстко, как одна точка — на повороте и взгляде вверх-вниз остаётся на том же месте экрана", c0.x > 0 && c0.x < 390 && c0.y > 450 && c0.y < 790 && Math.hypot(c1.x - c0.x, c1.y - c0.y) < 3 && Math.hypot(c2.x - c0.x, c2.y - c0.y) < 3, { c0, c1, c2 });
+    check("голова: рука в кадре внизу и после поворота возвращается на то же место экрана", c0.x > 0 && c0.x < 390 && c0.y > 450 && c0.y < 790 && Math.hypot(c1.x - c0.x, c1.y - c0.y) < 12 && Math.hypot(c2.x - c0.x, c2.y - c0.y) < 12, { c0, c1, c2 });
     {
-      // Ни в одном кадре движения камерой рука не отстаёт и не обгоняет её: карты стоят на месте экрана, пока тянешь взгляд.
-      const where = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, a = T.screenOf(h[0].id), b = T.screenOf(h.at(-1).id); return { a, b }; });
-      const w0 = await where(); let worst = 0;
+      // Камера едет, а рука с картами целиком поспевает за ней с запозданием (отстаёт и догоняет) — одной точкой камеры, без отдельных догонялок у карт и кисти.
+      const where = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, a = T.screenOf(h[0].id), b = T.screenOf(h.at(-1).id); return { a, b, span: Math.hypot(b.x - a.x, b.y - a.y) }; });
+      await p.keyboard.press("Home"); await p.waitForTimeout(900);
+      const w0 = await where(); let worst = 0, spanDrift = 0;
       await p.mouse.move(40, 250); await p.mouse.down();
-      for (let i = 1; i <= 14; i++) { await p.mouse.move(40 + i * 12, 250 - i * 6); await p.waitForTimeout(25); const w = await where(); worst = Math.max(worst, Math.hypot(w.a.x - w0.a.x, w.a.y - w0.a.y), Math.hypot(w.b.x - w0.b.x, w.b.y - w0.b.y)); }
-      await p.mouse.up();
-      check("пока тянешь взгляд, рука ни в одном кадре не отстаёт от камеры (не больше 3 px)", worst < 3, { worst });
+      for (let i = 1; i <= 14; i++) { await p.mouse.move(40 + i * 12, 250 - i * 6); await p.waitForTimeout(25); const w = await where(); worst = Math.max(worst, Math.hypot(w.a.x - w0.a.x, w.a.y - w0.a.y)); spanDrift = Math.max(spanDrift, Math.abs(w.span - w0.span)); }
+      await p.mouse.up(); await p.waitForTimeout(1200);
+      const wEnd = await where();
+      check("камера едет — рука с картами отстаёт (видно смещение), как одно целое (карты не разъезжаются), и догоняет", worst > 6 && spanDrift < 4 && Math.hypot(wEnd.a.x - w0.a.x, wEnd.a.y - w0.a.y) < 8, { worst, spanDrift, end: Math.hypot(wEnd.a.x - w0.a.x, wEnd.a.y - w0.a.y) });
     }
     // Остальные видят ту же руку там же: она в кадре головы (взгляд вверх-вниз идёт по сети).
     const both = await t(async () => { const id = window.__t3d.state().chairs.find((c) => c.id === window.__t3d.state().people.find((x) => x.key === window.__t3d.me()).seat).hand[3].id; await new Promise((r) => setTimeout(r, 500)); return window.__t3dScreens.map((sc) => sc.world(id)); });
