@@ -1356,6 +1356,19 @@ try {
     const f = await t(() => window.__t3d.handFrame()), Hs = await p.evaluate(() => document.querySelector(".screen:not(.off)").getBoundingClientRect().height);
     check("рука при первой загрузке не выше золотой линии", f.y >= Hs * 0.626 - 3, { top: f.y, line: Hs * 0.626 });
   }
+
+  {
+    // Обзор камеры 65…85°: карты руки на экране выглядят, как для 65° — того же размера и в том же месте, а не уменьшаются с широким обзором.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const read = () => t(() => { const T = window.__t3d, s = T.state(), seat = s.people.find((x) => x.key === T.me()).seat, h = s.chairs.find((c) => c.id === seat).hand, a = T.screenOf(h[0].id), z = T.screenOf(h.at(-1).id); return { a, z, span: Math.abs(z.x - a.x) }; });
+    await t(() => window.__t3d.setBaseFovNow(65)); await p.waitForTimeout(700);
+    const n65 = await read();
+    await t(() => window.__t3d.setBaseFovNow(85)); await p.waitForTimeout(700);
+    const n85 = await read();
+    check("карты руки при обзоре 85° выглядят, как при 65°: тот же размер веера и место на экране", Math.abs(n85.span - n65.span) < 8 && Math.abs(n85.a.x - n65.a.x) < 8 && Math.abs(n85.a.y - n65.a.y) < 12, { n65, n85 });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();

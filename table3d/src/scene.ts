@@ -375,7 +375,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const HEIGHT = { min: -400, max: 150 };
   /** Пиксель экрана в единицах кадра руки: рука идёт за язычком один к одному. */
   const pxUnit = (): number => (2 * -CAMHAND.at.z * Math.tan((camera.fov * DEG) / 2)) / Math.max(1, renderer.domElement.getBoundingClientRect().height);
-  const handOffset = () => ({ x: 0, y: heightPx * pxUnit() });
+  const handOffset = () => ({ x: 0, y: (heightPx * pxUnit()) / (Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2)) });
   const sideYaw = (ch: Chair) => -ch.angle;
   /** Моя голова: где она, куда смотрит, ушла ли на другую сторону и какой поворот слать остальным. */
   function myHeadNow(ch: Chair): { head: Point3; yaw: number; away: boolean; sent: number; hand: Point3 } {
@@ -724,7 +724,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * Рука в кадре: где перед глазом (оси камеры), какой ширины карта (`card`, в единицах стола на этом расстоянии) и насколько наклонена.
    * Размер руки не зависит от размера карты на столе (`CARD_W`): рука привязана к худу и всем рисуется одинаково.
    */
-  const CAMHAND = { at: new THREE.Vector3(0, -0.92, -2.3), card: 0.54, room: 3.1, tilt: -12, pop: 0.5, near: 0.45, others: 1.7, curl: 1, tiltLow: 20 } as const;
+  const CAMHAND = { at: new THREE.Vector3(0, -0.92, -2.3), card: 0.54, room: 3.1, tilt: -12, pop: 0.5, near: 0.45, others: 1.7, curl: 1, tiltLow: 20, refFov: 65 } as const;
   const camBasis = (yaw: number, pitch: number): THREE.Matrix4 => {
     const y = yaw * DEG, p = pitch * DEG, f = new THREE.Vector3(Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)), r = new THREE.Vector3(Math.cos(y), 0, Math.sin(y));
     return new THREE.Matrix4().makeBasis(r, r.clone().cross(f), f.clone().negate());
@@ -742,7 +742,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const CURL = { rest: 0.7 };
   let handCurl: number = CURL.rest;
   let handWidth = 0.68, widthLive: number | null = null, widthOver = 0, widthPendingUntil = 0;
-  const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((baseFov * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / CAMHAND.card); };
+  const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAMHAND.refFov * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / CAMHAND.card); };
   const roomOf = (f: number): number => 1.2 + (roomMax() - 1.2) * Math.max(0, Math.min(1, (f - WIDTH.stack) / (1 - WIDTH.stack)));
   const smooth = (a: number, b: number, x: number): number => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
   /** Раскладка моей руки из ширины `f` и подъёма `rise` (0…1): сжатость, веер ↔ ряд, комната в ширинах карты. */
@@ -786,7 +786,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return Math.max(...angles) - Math.min(...angles) <= FAN.maxDeg && Math.max(...plan.map((p) => p.y)) <= FAN.maxDrop;
   }
   const fanFitsNow = (): boolean => { const ch = myChair(); return !ch || fanFitsN(ch.hand.length, CAMHAND.room); };
-  /** Место в осях камеры: карта `k` из `n` руки стула `ch`. `fovK` — масштаб руки в кадре (1: рука стоит на месте перед лицом, а оптический зум увеличивает её вместе со столом, как взгляд). */
+  /** Место в осях камеры: карта `k` из `n` руки стула `ch`. `fovK` — масштаб руки в кадре: с обзором шире `refFov` рука больше в тот же раз, и на экране выглядит, как при `refFov`; оптический зум её увеличивает вместе со столом, как взгляд. */
   const camHandLocal = (k: number, n: number, up: boolean, shape: Shape, fovK: number, sizeK = 1, off = { x: 0, y: 0 }, curl = CURL.rest, tilt: number = CAMHAND.tilt): Place => {
     const plan = handPlanBlend({ wide: shape.wide, lift: shape.lift }, true, n, 1, 1.4, shape.room)[k] ?? { x: 0, y: 0, angle: 0 }, s = (CAMHAND.card / CARD_W) * fovK * sizeK, u = CAMHAND.card * fovK * sizeK;
     // Веер ещё и загнут вокруг вертикали, как карты в пальцах: края ближе к держащему, карты смотрят в центр дуги. Кривизна растёт с загибом `curl` (0…1; 1 — радиус `CAMHAND.curl` ширин карты); в ряду и стопкой загиба нет.
@@ -899,7 +899,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return;
     }
     if (camMode === "head") {
-      const down = tuckOf(b), fovK = 1, head = { x: camera.position.x, y: camera.position.z, h: camera.position.y }, off = handOffset();
+      const down = tuckOf(b), fovK = Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), head = { x: camera.position.x, y: camera.position.z, h: camera.position.y }, off = handOffset();
       syncWidth(ch);
       const shape = shapeOfWidth(widthLive ?? handWidth, n, Math.max(0, Math.min(1, heightPx / WIDTH.rise)), widthOver);
       placeFpsArm(down <= 0 && list.length > 0 && !handCarry, fovK, off);
@@ -1637,6 +1637,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     handHeightNow: () => heightPx,
     setHandHeightNow: (px: number) => { heightPx = Math.max(HEIGHT.min, Math.min(HEIGHT.max, px)); layout(store.state); sendBody(true); draw(); },
     cardNormalY: (id: string) => { const o = cards.get(id); return o ? new THREE.Vector3(0, 0, 1).applyQuaternion(o.group.getWorldQuaternion(new THREE.Quaternion())).y : null; },
+    setBaseFovNow: (deg: number) => {
+      baseFov = Math.max(CAM.fov.view.min, Math.min(CAM.fov.view.max, deg));
+      camera.aspect = host.clientWidth / Math.max(1, host.clientHeight);
+      if (camMode === "head") { rig.fov = baseFov; applyRig(); }
+      layout(store.state); draw();
+    },
     cardBend: (id: string) => (cards.get(id)?.group.userData.bend as number | undefined) ?? 0,
     handCurl: () => handCurl,
     setHandCurl: (c: number) => { handCurl = Math.max(0, Math.min(1, c)); layout(store.state); sendBody(); },
