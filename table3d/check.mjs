@@ -1260,20 +1260,21 @@ try {
       const before = await liftNow();
       await p.mouse.move(sx, collect.y + (lay.y - collect.y) * 0.6, { steps: 8 }); await p.waitForTimeout(300);
       const after = await liftNow();
-      await p.mouse.up(); await p.waitForTimeout(600);
+      await p.mouse.move(sx, collect.y - 30, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(600);
       check("оранжевая линия между ручкой и красной; до неё веер стоит, после — собирается", !!collect && collect.y > ty && collect.y < lay.y && Math.abs(before - base) < 6 && after < base * 0.85, { collect, lay, base, before, after });
     }
     const chat = await rectOf(".screen:not(.off) [data-g=thumb-chat]"), zoomR = await rectOf(".screen:not(.off) [data-zoom-slider]");
     const Hs = await p.evaluate(() => document.querySelector(".screen:not(.off)").getBoundingClientRect().height), linesAt = (k) => lines.find((l) => l.k === k).y;
     check("линии — якоря экрана (доли высоты): золотая 62.6%, оранжевая 82.5%, красная 86.6%, и стоят там, где сейчас кнопки и зум", Math.abs(linesAt("carry") - Hs * 0.626) < 2 && Math.abs(linesAt("collect") - Hs * 0.825) < 2 && Math.abs(linesAt("lay") - Hs * 0.866) < 2 && Math.abs(lay.y - (chat.y + chat.height / 2)) < 6 && Math.abs(carry.y - (zoomR.y + zoomR.height + 6)) < 6, { lay, chat, carry, zoomR, Hs });
     const myTuck = () => t(() => { const x = window.__t3d.state(), seat = x.people.find((q) => q.key === window.__t3d.me()).seat; return x.chairs.find((c) => c.id === seat).pose.tuck; });
+    const collectL = lines.find((l) => l.k === "collect");
     const t2 = await rectOf('.screen:not(.off) [data-hand-tab="top"]');
-    await p.mouse.move(t2.x + t2.width / 2, t2.y + t2.height / 2); await p.mouse.down(); await p.mouse.move(t2.x + t2.width / 2, lay.y - 20, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(900);
+    await p.mouse.move(t2.x + t2.width / 2, t2.y + t2.height / 2); await p.mouse.down(); await p.mouse.move(t2.x + t2.width / 2, collectL.y - 20, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(900);
     const above = await myTuck();
     const t3 = await rectOf('.screen:not(.off) [data-hand-tab="top"]');
-    await p.mouse.move(t3.x + t3.width / 2, t3.y + t3.height / 2); await p.mouse.down(); await p.mouse.move(t3.x + t3.width / 2, lay.y + 8, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(900);
-    const below = await myTuck();
-    check("отпустил выше красной линии — рука не легла; ниже линии — легла на стол", above === false && below === true, { above, below });
+    await p.mouse.move(t3.x + t3.width / 2, t3.y + t3.height / 2); await p.mouse.down(); await p.mouse.move(t3.x + t3.width / 2, (collectL.y + lay.y) / 2, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(900);
+    const between = await myTuck();
+    check("отпустил выше оранжевой линии — рука не легла; между оранжевой и красной — рука отпущена на стол", above === false && between === true, { above, between });
   }
 
   {

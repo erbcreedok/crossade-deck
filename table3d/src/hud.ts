@@ -739,7 +739,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       // Ручка у стопки не исчезает вместе со стопкой: сразу становится ручкой в пальце, идёт под ним и разворачивается в верхнюю.
       if (fromStack) local.grabOff = { which: "top", x: x0, y: y0, from: "stack", morph: 0 };
       // Линии хода верхней ручки: «положить» — на уровне кнопок чата и компаса (по их центру), «нести стопкой» — на нижней границе оптического зума,
-      // но не ближе `carry` над местом хвата (выше — диапазон высоты руки). Рука ложится, если отпустить ниже красной линии; несётся стопкой, пока палец выше золотой (вернул к месту хвата — снова в руке).
+      // но не ближе `carry` над местом хвата (выше — диапазон высоты руки). Рука ложится, если отпустить ниже оранжевой линии (между оранжевой и красной тоже); несётся стопкой, пока палец выше золотой (вернул к месту хвата — снова в руке).
       // Линии — якоря экрана: доли его высоты, снятые с кнопок и зума как они стоят сейчас; кнопки и зум переедут — линии останутся.
       // Золотая линия — граница несения: палец выше неё — вся рука несётся стопкой туда, куда указал, ниже (с запасом) — снова в руке.
       const H = glass().h, layY = H * LINES.lay, collectY = H * LINES.collect;
@@ -779,7 +779,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         if (carrying) { scene.carryHand(null); draw(); return; }
         const c = myChair();
         if (which === "left") scene.setHandWidth(null);
-        else if (c && moved && dy > TAB_PX.dead && lastY >= layY) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); scene.setHandHeight(0); local.handMenu = false; local.handPop = null; }
+        else if (c && moved && dy > 20 && lastY >= collectY) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); scene.setHandHeight(0); local.handMenu = false; local.handPop = null; }
         draw();
       });
       return;
