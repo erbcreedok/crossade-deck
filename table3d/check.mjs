@@ -860,15 +860,16 @@ try {
     const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map((q, i) => ({ x: q.x, y: q.y, id: i })) });
     const poseOf = () => t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat).pose; });
     const p0 = await poseOf(), cc = await firstCard();
-    await touch("touchStart", [{ x: cc.x + 40, y: cc.y }, { x: cc.x + 110, y: cc.y }]);
-    for (let i = 1; i <= 8; i++) await touch("touchMove", [{ x: cc.x + 40, y: cc.y - i * 14 }, { x: cc.x + 110, y: cc.y - i * 14 }]);
+    await touch("touchStart", [{ x: cc.x + 60, y: cc.y }, { x: cc.x + 100, y: cc.y }]);
+    for (let i = 1; i <= 8; i++) await touch("touchMove", [{ x: cc.x + 60 - i * 12, y: cc.y }, { x: cc.x + 100 + i * 12, y: cc.y }]);
     await touch("touchEnd", []);
     await p.waitForTimeout(500);
     const p1 = await poseOf();
-    check("два пальца на руке, вверх — рука выровнялась в ряд", p0.fan === true && p1.fan === false, { p0, p1 });
+    check("два пальца на руке, растянул — рука раскрылась в ряд (самая широкая)", p0.fan === true && p1.fan === false && p1.shrink === false, { p0, p1 });
     const cs = await firstCard();
-    await touch("touchStart", [{ x: cs.x + 20, y: cs.y }, { x: cs.x + 140, y: cs.y }]);
-    for (let i = 1; i <= 8; i++) await touch("touchMove", [{ x: cs.x + 20 + i * 6, y: cs.y }, { x: cs.x + 140 - i * 6, y: cs.y }]);
+    const py = cs.y - 70;
+    await touch("touchStart", [{ x: 100, y: py }, { x: 290, y: py }]);
+    for (let i = 1; i <= 8; i++) await touch("touchMove", [{ x: 100 + i * 11, y: py }, { x: 290 - i * 11, y: py }]);
     await touch("touchEnd", []);
     await p.waitForTimeout(500);
     const p2 = await poseOf();
@@ -887,22 +888,58 @@ try {
     check("два пальца за охват (мимо карт) берут руку, но вниз она не ложится", pAfter.tuck === false, { pBefore, pAfter });
     const tabBox = async (w) => rectOf(`[data-hand-tab="${w}"]`);
     const tdrag = async (w, dx, dy) => { const r = await tabBox(w); const x = r.x + r.width / 2, y = r.y + r.height / 2; await p.mouse.move(x, y); await p.mouse.down(); await p.mouse.move(x + dx, y + dy, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(500); };
-    // Начинаем с обычной руки: веер, не стопкой (после щипка выше рука была стопкой и рядом).
-    await p.click(handBtnSel); await p.click(".screen:not(.off) [data-hand-sub=\"pose\"]"); await p.click('.screen:not(.off) [data-hand-pose="shrink"]');
-    await p.click(".screen:not(.off) [data-hand-sub=\"pose\"]"); await p.click('.screen:not(.off) [data-hand-pose="fan"]'); await p.click(handBtnSel); await p.waitForTimeout(500);
+    // Начинаем с обычной руки: веер, не стопкой — через список «Поза», только то, что надо поменять.
+    const setPose = async (want) => {
+      for (const key of ["shrink", "fan"]) {
+        if ((await poseOf())[key] === want[key]) continue;
+        await p.click(handBtnSel); await p.click('.screen:not(.off) [data-hand-sub="pose"]'); await p.click(`.screen:not(.off) [data-hand-pose="${key}"]`); await p.waitForTimeout(250);
+        await p.click(handBtnSel); await p.waitForTimeout(150);
+      }
+      await p.waitForTimeout(300);
+    };
+    await setPose({ shrink: false, fan: true });
     const base0 = await poseOf();
     check("перед язычками рука обычная: веер, не стопкой", base0.fan === true && base0.shrink === false && base0.tuck === false, base0);
-    // Левая ручка — одна ось ширины: к краю шире, от края уже: стопка (одна карта) → веер → в ряд (самая широкая).
+    // Левая ручка — одна ось ширины: к краю шире, от края уже: стопка → веер (до 75%) → в ряд (самая широкая). Ручка идёт за пальцем всегда, а карты за краем экрана натягиваются и не растут.
     const side0 = await poseOf();
     await tdrag("left", -170, 0);
-    const wide1 = await poseOf();
-    check("левая ручка к краю экрана: веер → в ряд (самый широкий размер)", side0.fan === true && side0.shrink === false && wide1.fan === false && wide1.shrink === false, { side0, wide1 });
-    await tdrag("left", 170, 0);
+    const wide1 = await poseOf(), shapeRow = await t(() => window.__t3d.handShape());
+    check("левая ручка к краю экрана: веер → в ряд (самый широкий размер)", side0.fan === true && side0.shrink === false && wide1.fan === false && wide1.shrink === false && shapeRow.f >= 0.99, { side0, wide1, shapeRow });
+    const frRow = await t(() => window.__t3d.handFrame());
+    check("в ряд рука раскрыта почти на весь экран: карты максимально не сжаты", frRow.w >= 320, frRow);
+    // Ручка идёт за пальцем, даже когда дальше расширять нельзя; карты в этот момент натягиваются, но почти не растут.
+    const gl = await tabBox("left"), gx = gl.x + gl.width / 2, gy = gl.y + gl.height / 2, wRow0 = (await t(() => window.__t3d.handFrame())).w;
+    await p.mouse.move(gx, gy); await p.mouse.down(); await p.mouse.move(gx - 50, gy, { steps: 8 });
+    await p.waitForTimeout(300);
+    const wB = (await t(() => window.__t3d.handFrame())).w, gB = await tabBox("left");
+    check("ручка идёт за пальцем и за пределом ширины: ручка сместилась, а рука почти не выросла (натяжение)", gB.x < gl.x - 20 && wB <= wRow0 * 1.08, { g0: gl.x, gB: gB.x, wRow0, wB });
+    await p.mouse.up(); await p.waitForTimeout(400);
+    await tdrag("left", 210, 0);
     const narrow = await poseOf();
     check("левая ручка от края: в ряд → ужато, видна одна карта", narrow.shrink === true, narrow);
     await tdrag("left", -90, 0);
     const mid = await poseOf();
     check("левая ручка на середину: из стопки — веер (второй по ширине размер)", mid.shrink === false && mid.fan === true, mid);
+    // Веер держится до 75% ширины, выше — рука встаёт в ряд.
+    await tdrag("left", -40, 0);
+    const f70 = await t(() => window.__t3d.handShape()), pose70 = await poseOf();
+    await tdrag("left", -60, 0);
+    const f85 = await t(() => window.__t3d.handShape()), pose85 = await poseOf();
+    check("веер до 75% ширины, выше — в ряд", f70.f < 0.75 && pose70.fan === true && f85.f > 0.75 && pose85.fan === false, { f70: f70.f, pose70, f85: f85.f, pose85 });
+    await tdrag("left", 90, 0);
+    // Высота влияет на веер: поднял руку верхней ручкой — веер выпрямляется.
+    const fanBefore = await t(() => window.__t3d.handShape());
+    const gt = await tabBox("top"), tx = gt.x + gt.width / 2, ty = gt.y + gt.height / 2;
+    await p.mouse.move(tx, ty); await p.mouse.down(); await p.mouse.move(tx, ty - 45, { steps: 6 }); await p.waitForTimeout(300);
+    const fanRaised = await t(() => window.__t3d.handShape());
+    check("верхняя ручка вверх: рука поднялась и веер выпрямляется в ряд (высота влияет на веер)", fanRaised.lift > fanBefore.lift + 0.2, { fanBefore: fanBefore.lift, fanRaised: fanRaised.lift });
+    // Не отпуская: вытянул карты на стол — и вернул обратно вниз; карты снова в руке.
+    await p.mouse.move(tx, ty - 150, { steps: 6 }); await p.waitForTimeout(250);
+    const carried = await t(() => window.__t3d.carrying());
+    await p.mouse.move(tx, ty + 12, { steps: 10 }); await p.waitForTimeout(300);
+    const back = await t(() => window.__t3d.carrying());
+    await p.mouse.up(); await p.waitForTimeout(500);
+    check("верхняя ручка: вверх — карты на столе, обратно вниз не отпуская — вернулись в руку (удержание возвращает, как и дроп)", carried === true && back === false && (await poseOf()).tuck === false, { carried, back });
     check("веер помещается у обычной руки и не помещается, когда разлёт слишком широкий", (await t(() => window.__t3d.fanFitsN(7, 3.1))) === true && (await t(() => window.__t3d.fanFitsN(40, 25))) === false, null);
     // Верхний язычок вниз — рука опускается и ложится; кнопка левой руки — поднимает.
     await tdrag("top", 0, 100);

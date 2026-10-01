@@ -45,6 +45,8 @@ const SPRING = { k: 170, damp: 0.62 }, SPRING_HELD = { k: 900, damp: 0.9 };
 const HOVER = { up: 0.55, near: 0.6, grow: 1.15 };
 
 /** Место карты: в мире (`over` — моя рука: место в мире, но рисуется поверх всего) — или в осях камеры (`onCamera`: над окном HUD). */
+/** Раскладка руки: сжатость (0 — стопкой), веер ↔ ряд (0.5 — веер, 1 — ряд), комната в ширинах карты. */
+type Shape = { wide: number; lift: number; room: number };
 type Place = { pos: THREE.Vector3; quat: THREE.Quaternion; scale: number; onCamera?: true; over?: true };
 /** Где карта сейчас по снимку: откуда её можно взять. */
 type From = { in: "felt" } | { in: "pile"; pile: string; top: boolean } | { in: "hand"; chair: string; mine: boolean; i: number };
@@ -158,9 +160,13 @@ export interface SceneApi {
   /** Рамка моей руки на экране (охват карт с полями, не уже 250 пикселей); нет карт или рука положена — `null`. `edge` — высота верхней кромки. */
   handFrame(): { x: number; y: number; w: number; h: number; edge: number } | null;
   /** Рука-стопка: левая рука несёт все карты над столом под пальцем (`screen`); `null` — отпустили: на колоду, новой стопкой на сукно или — над худом руки — всё как было. */
-  carryHand(screen: { x: number; y: number } | null): void;
+  carryHand(screen: { x: number; y: number } | null): boolean;
   /** Рука в кадре следует за верхней ручкой по высоте, пока её тянут (`px` вверх — минус); `null` — отпустили, вернулась (временно). */
   setHandNudge(px: number | null): void;
+  /** Ширина моей руки 0…1 (стопкой → веер → в ряд, предел — экран). */
+  handWidth(): number;
+  /** Пока тянут левую ручку: ширина `raw` (за пределом — карты натягиваются и не растут); `null` — отпустили, поза легла. */
+  setHandWidth(raw: number | null): void;
   /** Помещается ли веер моей руки: угол разлёта и подъём краёв в пределах. Нет — рука в ряд, веер выбрать нельзя. */
   fanFits(): boolean;
   /** С какой стороны стола камера (угол места, как у стула) и насколько поднята, градусы. */
@@ -673,6 +679,50 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   };
   /** Точка руки в кадре головы `head`, взгляд `yaw`, `pitch`. */
   const camHandPoint = (head: Point3, yaw: number, pitch: number): Point3 => { const at = CAMHAND.at.clone().applyMatrix4(camBasis(yaw, pitch)); return { x: head.x + at.x, y: head.y + at.z, h: head.h + at.y }; };
+  /**
+   * ШИРИНА МОЕЙ РУКИ — одна непрерывная ось `handWidth` (0…1), её тянет левая ручка и щипок двух пальцев; свой предел — экран:
+   *   до `stack` — стопкой (карты сходятся в одну), дальше — веер, и он держится до `fanTo`; выше — рука встаёт в ряд и просто расширяется,
+   *   пока карты не перестанут сжиматься (или не кончится экран). Высота тоже влияет на веер: поднял руку ручкой — веер выпрямляется в ряд.
+   * Остальным уходят только флаги позы (стопкой, веер, в ряд): ширину они видят стандартную для позы.
+   */
+  const WIDTH = { stack: 0.12, rowFrom: 0.7, fanTo: 0.75, px: 220, pinch: 140, rise: 60, defaults: { shrink: 0.05, fan: 0.45, row: 1 }, othersRow: 4.2 };
+  let handWidth = 0.45, widthLive: number | null = null, widthOver = 0, widthPendingUntil = 0;
+  const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAM.fov.base * DEG) / 2) * camera.aspect); return Math.max(3.9, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / CAMHAND.card); };
+  const roomOf = (f: number): number => 1.2 + (roomMax() - 1.2) * Math.max(0, Math.min(1, (f - WIDTH.stack) / (1 - WIDTH.stack)));
+  const smooth = (a: number, b: number, x: number): number => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+  /** Раскладка моей руки из ширины `f` и подъёма `rise` (0…1): сжатость, веер ↔ ряд, комната в ширинах карты. */
+  function shapeOfWidth(f: number, n: number, rise: number, over = 0): Shape {
+    const room = roomOf(f) * (1 + 0.07 * (1 - Math.exp(-over * 6)));
+    let lift = 0.5 + 0.5 * smooth(WIDTH.rowFrom, WIDTH.fanTo + 0.05, f);
+    if (!fanFitsN(n, room)) lift = 1;
+    return { wide: Math.min(1, f / WIDTH.stack), lift: lift + (1 - lift) * rise, room };
+  }
+  /** Флаги позы, в которые ложится ширина `f` (их и шлём остальным). */
+  function flagsOfWidth(f: number, n: number, was: { fan: boolean }): { shrink: boolean; fan: boolean } {
+    if (f < WIDTH.stack) return { shrink: true, fan: was.fan };
+    return { shrink: false, fan: f < WIDTH.fanTo && fanFitsN(n, roomOf(f)) };
+  }
+  /** Раскладка чужой руки по флагам позы. */
+  const shapeOfPose = (p: { fan: boolean; shrink: boolean }, n: number): Shape => ({ wide: p.shrink ? 0 : 1, lift: p.fan && fanFitsN(n, CAMHAND.room) ? 0.5 : 1, room: p.fan ? CAMHAND.room : WIDTH.othersRow });
+  /** Ширину поменяли не мы (кнопки «поза», другой экран) — встаёт в обычную для позы; своё решение ждёт ответа стола. */
+  function syncWidth(ch: Chair): void {
+    if (widthLive !== null) return;
+    const d = flagsOfWidth(handWidth, ch.hand.length, ch.pose);
+    if (d.shrink === ch.pose.shrink && (d.shrink || d.fan === ch.pose.fan)) { widthPendingUntil = 0; return; }
+    if (performance.now() < widthPendingUntil) return;
+    handWidth = ch.pose.shrink ? WIDTH.defaults.shrink : ch.pose.fan ? WIDTH.defaults.fan : WIDTH.defaults.row;
+  }
+  /** Отпустили ручку или пальцы: ширина осталась, поза ушла столу. */
+  function commitWidth(): void {
+    const ch = myChair();
+    if (widthLive === null) return;
+    handWidth = widthLive; widthLive = null; widthOver = 0;
+    if (!ch) return;
+    const flags = flagsOfWidth(handWidth, ch.hand.length, ch.pose);
+    widthPendingUntil = performance.now() + 2000;
+    if (flags.shrink !== ch.pose.shrink || flags.fan !== ch.pose.fan || ch.pose.tuck) store.send({ t: "pose", chair: ch.id, pose: { ...ch.pose, ...flags, tuck: false } });
+    layout(store.state);
+  }
   /** Помещается ли веер на `n` карт в комнате `room`: угол разлёта и опускание краёв в пределах — иначе рука в ряд, веер выбрать нельзя. */
   const FAN = { maxDeg: 70, maxDrop: 1.6 };
   function fanFitsN(n: number, room: number): boolean {
@@ -682,8 +732,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
   const fanFitsNow = (): boolean => { const ch = myChair(); return !ch || fanFitsN(ch.hand.length, CAMHAND.room); };
   /** Место в осях камеры: карта `k` из `n` руки стула `ch`. `fovK` — во сколько раз поле зрения уже обычного: рука на экране не растёт. */
-  const camHandLocal = (ch: Chair, k: number, n: number, up: boolean, b: PoseBlend, fovK: number, sizeK = 1, off = { x: 0, y: 0 }): Place => {
-    const plan = handPlanBlend(b, ch.pose.fan && fanFitsN(n, CAMHAND.room), n, 1, 1.4, CAMHAND.room)[k] ?? { x: 0, y: 0, angle: 0 }, s = (CAMHAND.card / CARD_W) * fovK * sizeK, u = CAMHAND.card * fovK * sizeK;
+  const camHandLocal = (k: number, n: number, up: boolean, shape: Shape, fovK: number, sizeK = 1, off = { x: 0, y: 0 }): Place => {
+    const plan = handPlanBlend({ wide: shape.wide, lift: shape.lift }, true, n, 1, 1.4, shape.room)[k] ?? { x: 0, y: 0, angle: 0 }, s = (CAMHAND.card / CARD_W) * fovK * sizeK, u = CAMHAND.card * fovK * sizeK;
     const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), CAMHAND.tilt * DEG).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -plan.angle * DEG));
     if (up) quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
     return { pos: new THREE.Vector3(CAMHAND.at.x + off.x * fovK + plan.x * u, (CAMHAND.at.y + off.y) * fovK - plan.y * u, CAMHAND.at.z + k * 0.004), quat, scale: s, onCamera: true };
@@ -722,7 +772,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const othersHand = (pose: Pose, ch: Chair, k: number, n: number, up: boolean): Place => {
     const b = blendOf(ch.pose);
     if (pose.pitch === undefined) return handPlace({ yaw: pose.yaw, left: pose.left }, ch, k, n, up, b);
-    return laid(camHandWorld(camHandLocal(ch, k, n, up, b, 1, CAMHAND.others), pose.head, pose.gaze ?? pose.yaw, pose.pitch), ch, k, up, tuckOf(b));
+    return laid(camHandWorld(camHandLocal(k, n, up, shapeOfPose(ch.pose, n), 1, CAMHAND.others), pose.head, pose.gaze ?? pose.yaw, pose.pitch), ch, k, up, tuckOf(b));
   };
   /** Где кисть левой руки: у головы — а когда рука положена (`down` 0…1), она на стопке на сукне, сверху. */
   function handRest(left: Point3, ch: Chair, down: number, cards: number): Point3 {
@@ -791,9 +841,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     if (camMode === "head") {
       const down = tuckOf(b), fovK = Math.tan((rig.fov * DEG) / 2) / Math.tan((CAM.fov.base * DEG) / 2), head = { x: camera.position.x, y: camera.position.z, h: camera.position.y }, off = swayOffset();
+      syncWidth(ch);
+      const shape = shapeOfWidth(widthLive ?? handWidth, n, Math.max(0, Math.min(1, -nudgePx / WIDTH.rise)), widthOver);
       placeFpsArm(down <= 0 && list.length > 0 && !handCarry, fovK, off);
       const place = (k: number, up: boolean): Place => {
-        const local = camHandLocal(ch, k, n, up, b, fovK, 1, off);
+        const local = camHandLocal(k, n, up, shape, fovK, 1, off);
         return down <= 0 ? local : { ...laid(camHandWorld(local, head, rig.yaw, rig.pitch), ch, k, up, down), over: true };
       };
       for (const c of ch.hand) { const o = cards.get(c.id), k = list.indexOf(c); if (o && k >= 0) o.target = place(slotOf(k), !!c.up); }
@@ -1244,37 +1296,29 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       seen++;
     }
     if (!seen) return null;
-    const cx = (x0 + x1) / 2, w = Math.max(FRAME.minW, x1 - x0 + 2 * FRAME.pad), h = Math.max(FRAME.minH, y1 - y0 + 2 * FRAME.pad);
+    const cx = (x0 + x1) / 2, w = Math.min(r.width - 8, Math.max(FRAME.minW, x1 - x0 + 2 * FRAME.pad)), h = Math.max(FRAME.minH, y1 - y0 + 2 * FRAME.pad);
     const x = Math.max(r.left + 4, Math.min(r.right - 4 - w, cx - w / 2)), y = (y0 + y1) / 2 - h / 2 - FRAME.edge / 2;
     return { x, y: y - FRAME.edge / 2, w, h: h + FRAME.edge, edge: FRAME.edge };
   }
-  // ——— два пальца на руке: шире и уже (щипок), выше и ниже (в ряд, веер, положить) — поза руки под пальцами, отпустил — легла ———
-  const POSE_PX = { wide: 100, lift: 120 };
+  // ——— два пальца на руке: щипок — ширина руки (стопкой ↔ веер ↔ в ряд), отпустил — легла ———
   const live = new Map<number, { x: number; y: number; onHand: boolean }>();
-  let poseG: { ids: [number, number]; d0: number; y0: number; b0: PoseBlend } | null = null;
+  let poseG: { ids: [number, number]; d0: number; f0: number } | null = null;
   const onMineHand = (id: string | null): boolean => { const f = id ? fromOf.get(id) : undefined; return !!f && f.in === "hand" && !!f.mine; };
-  const poseNow = (g: NonNullable<typeof poseG>): PoseBlend => {
-    const a = live.get(g.ids[0])!, b = live.get(g.ids[1])!, clamp = (v: number) => Math.max(0, Math.min(1, v));
-    return { wide: clamp(g.b0.wide + (Math.hypot(a.x - b.x, a.y - b.y) - g.d0) / POSE_PX.wide), lift: Math.max(0.5, clamp(g.b0.lift - ((a.y + b.y) / 2 - g.y0) / POSE_PX.lift)) };
-  };
   renderer.domElement.addEventListener("pointermove", (e) => {
     const was = live.get(e.pointerId);
     if (!was) return;
     live.set(e.pointerId, { ...was, x: e.clientX, y: e.clientY });
     if (!poseG || !poseG.ids.includes(e.pointerId)) return;
     e.stopImmediatePropagation();
-    blend = poseNow(poseG);
+    const a = live.get(poseG.ids[0])!, b = live.get(poseG.ids[1])!, raw = poseG.f0 + (Math.hypot(a.x - b.x, a.y - b.y) - poseG.d0) / WIDTH.pinch;
+    widthLive = Math.max(0, Math.min(1, raw)); widthOver = Math.max(0, raw - 1);
     layout(store.state);
   }, { capture: true });
   const liftFinger = (e: PointerEvent) => {
     live.delete(e.pointerId);
     if (!poseG || !poseG.ids.includes(e.pointerId)) return;
-    const ch = myChair();
     poseG = null;
-    const b = blend;
-    blend = undefined;
-    if (ch && b) store.send({ t: "pose", chair: ch.id, pose: snapPose(b, ch.pose) });
-    layout(store.state);
+    commitWidth();
   };
   renderer.domElement.addEventListener("pointerup", liftFinger, { capture: true });
   renderer.domElement.addEventListener("pointercancel", liftFinger, { capture: true });
@@ -1287,7 +1331,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         // Первый палец мог уже взять карту или крутить взгляд — теперь они оба держат руку.
         if (drag && !drag.moved) { clearInterval(drag.hold); drag = null; orbit.enabled = camMode === "orbit"; }
         rigPtrs.clear();
-        poseG = { ids, d0: Math.hypot(a.x - b.x, a.y - b.y), y0: (a.y + b.y) / 2, b0: mineBlend(ch) };
+        poseG = { ids, d0: Math.hypot(a.x - b.x, a.y - b.y), f0: handWidth };
+        widthLive = handWidth;
         e.stopImmediatePropagation();
         return;
       }
@@ -1507,6 +1552,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     world: (id: string) => { const o = cards.get(id); if (!o) return null; const p = o.group.getWorldPosition(new THREE.Vector3()); return { x: p.x, y: p.z, h: p.y }; },
     handFrame: () => handFrame(),
     carrying: () => !!handCarry,
+    /** Раскладка моей руки сейчас: ширина 0…1, сжатость, веер ↔ ряд, комната. */
+    handShape: () => { const ch = myChair(); return ch ? { f: widthLive ?? handWidth, ...shapeOfWidth(widthLive ?? handWidth, ch.hand.length, Math.max(0, Math.min(1, -nudgePx / WIDTH.rise)), widthOver) } : null; },
     fanFitsN,
     /** Ширина карты в мире: сколько единиц стола она занимает (рука — в осях камеры, стол — свой размер). */
     cardWidth: (id: string) => { const o = cards.get(id); return o ? o.group.getWorldScale(new THREE.Vector3()).x * CARD_W : null; },
@@ -1527,26 +1574,36 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     handFrame,
     fanFits: () => fanFitsNow(),
     setHandNudge(px) { nudgePx = px ?? 0; draw(); },
+    handWidth: () => handWidth,
+    setHandWidth(raw) {
+      if (raw === null) { commitWidth(); return; }
+      widthLive = Math.max(0, Math.min(1, raw)); widthOver = Math.max(0, raw - 1);
+      layout(store.state);
+    },
     carryHand(screen) {
       const ch = myChair();
-      if (!ch) return;
+      if (!ch) return false;
       if (screen) {
+        // Вернул палец на худ руки, не отпуская, — стопка возвращается в руку (и можно снова вытянуть вверх).
+        const was = handCarry as { zoneTop: number } | null;
+        if (was && screen.y > was.zoneTop) { handCarry = null; layout(store.state); return false; }
         ray.setFromCamera(ndc({ clientX: screen.x, clientY: screen.y }), camera);
         const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -CARRY_H), new THREE.Vector3());
-        if (!hit) return;
-        const fr = handFrame(), was = handCarry as { zoneTop: number } | null;
+        if (!hit) return !!was;
+        const fr = handFrame();
         handCarry = { x: hit.x, y: hit.z, sx: screen.x, sy: screen.y, zoneTop: was?.zoneTop ?? (fr ? fr.y - 10 : renderer.domElement.getBoundingClientRect().height * 0.7) };
         layout(store.state);
-        return;
+        return true;
       }
       const c = handCarry as { sx: number; sy: number } | null;
-      if (!c) return;
+      if (!c) return false;
       const where = aim(c.sx, c.sy);
       handCarry = null;
       const ids = ch.hand.map((x) => x.id);
       if (where.in === "deck") store.send({ t: "gather", ids, side: "keep", to: { pile: where.pile } });
       else if (where.in === "felt") store.send({ t: "gather", ids, side: "keep", to: { x: where.x, y: where.y, angle: ((-ch.angle % 360) + 360) % 360 } });
       layout(store.state);
+      return false;
     },
     turnBy(deg) {
       if (camMode !== "orbit") { const ch = myChair(); if (ch) { rig.yaw = wrap(rig.yaw + deg); applyRig(); touched = true; draw(); sendBody(); } return; }
