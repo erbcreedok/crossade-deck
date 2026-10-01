@@ -736,16 +736,18 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       const box = tab.getBoundingClientRect(), x0 = box.x + box.width / 2, y0 = box.y + box.height / 2;
       // Ручка у стопки не исчезает вместе со стопкой: сразу становится ручкой в пальце, идёт под ним и разворачивается в верхнюю.
       if (fromStack) local.grabOff = { which: "top", x: x0, y: y0, from: "stack", morph: 0 };
-      if (!fromStack && which === "top") {
-        scene.setCarryZone(y0);
-        // Рука ложится, когда ручка ушла вниз настолько, что веер сжался до четверти: считаем линию так же, как ниже на отпускании.
-        const layDy = b0.lift > 0.25 ? TAB_PX.dead + (TAB_PX.lay - TAB_PX.dead) * (1 - 0.25 / b0.lift) : null;
-        local.grabLines = { lay: layDy === null ? null : y0 + layDy, carry: Math.min(y0 - TAB_PX.carry, scene.carryLine() ?? Infinity) };
-      }
+      // Линии хода верхней ручки: «положить» — на уровне кнопок чата и компаса (по их центру), «нести стопкой» — на нижней границе оптического зума,
+      // но не ближе `carry` над местом хвата (выше — диапазон высоты руки). Рука ложится, если отпустить ниже красной линии; несётся стопкой, пока палец выше золотой (вернул к месту хвата — снова в руке).
+      const chatBox = screen.querySelector<HTMLElement>("[data-g=thumb-chat]")?.getBoundingClientRect(), zoomBox = zoom.getBoundingClientRect();
+      const layY = chatBox ? chatBox.top + chatBox.height / 2 : y0 + 120;
+      const carryY = !fromStack && which === "top" ? Math.min(scene.camMode() === "head" && zoomBox.height ? zoomBox.bottom : glass().h * 0.45, y0 - TAB_PX.carry) : -Infinity;
+      const layDy = Math.max(TAB_PX.dead + 20, layY - y0);
+      if (!fromStack && which === "top") local.grabLines = { lay: b0.lift > 0.25 ? layY : null, carry: carryY };
+      let lastY = y0;
       let dx = 0, dy = 0, moved = false, carrying = false, lifted = !fromStack;
       const t0 = performance.now(), lift = () => { if (!lifted) { lifted = true; const c = myChair(); if (c) store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: false } }); } };
       follow(e, (ev) => {
-        dx = ev.clientX - e.clientX; dy = ev.clientY - e.clientY; moved ||= Math.hypot(dx, dy) >= TAP_PX;
+        dx = ev.clientX - e.clientX; dy = ev.clientY - e.clientY; lastY = ev.clientY; moved ||= Math.hypot(dx, dy) >= TAP_PX;
         const dist = Math.hypot(dx, dy);
         if (fromStack && !lifted && dist >= TAB_PX.pull) lift();
         local.grabOff = moved || fromStack ? { which, x: fromStack || which === "left" ? x0 + dx : x0, y: y0 + dy, ...(fromStack ? { from: "stack" as const } : {}), morph: fromStack ? Math.max(0, Math.min(1, (dist - TAB_PX.pull) / 40)) : 1 } : null;
@@ -756,19 +758,16 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
           if (moved) { scene.setHandWidth(w0 - dx / TAB_PX.width); scene.setHandCurl(c0 - dy / TAB_PX.curl); }
         } else {
           // Высоко вверх — левая рука несёт всю руку стопкой над столом, как колоду; вернул вниз, не отпуская, — карты назад в руку.
-          if (dy <= -TAB_PX.carry || carrying) {
-            const was = carrying;
-            carrying = scene.carryHand({ x: ev.clientX, y: ev.clientY });
+          if (fromStack ? dy <= -TAB_PX.carry || carrying : ev.clientY <= carryY || carrying) {
+            carrying = scene.carryHand({ x: ev.clientX, y: ev.clientY }, fromStack ? undefined : { enter: carryY, exit: y0 - 10 });
             if (carrying) { scene.setBlend(undefined); draw(); return; }
-            if (!was && dy <= -TAB_PX.carry) { /* ещё не вошли в зону несения */ }
           }
           // Иначе рука следует за ручкой по высоте и остаётся там, где отпустили: вверх — выпрямляется веер, вниз — до пола руки, дальше опускается на стол.
           if (moved) scene.setHandHeight(h0 - dy);
-          scene.setBlend(moved && dy > TAB_PX.dead ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - (dy - TAB_PX.dead) / (TAB_PX.lay - TAB_PX.dead))) } : undefined);
+          scene.setBlend(moved && dy > TAB_PX.dead ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - (dy - TAB_PX.dead) / (layDy - TAB_PX.dead))) } : undefined);
         }
         draw();
       }, () => {
-        scene.setCarryZone(null);
         local.grabLines = null;
         local.grabOff = null;
         scene.setBlend(undefined);
@@ -777,7 +776,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         if (carrying) { scene.carryHand(null); draw(); return; }
         const c = myChair();
         if (which === "left") scene.setHandWidth(null);
-        else if (c && moved && dy > TAB_PX.dead && b0.lift * (1 - (dy - TAB_PX.dead) / (TAB_PX.lay - TAB_PX.dead)) <= 0.25) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); scene.setHandHeight(0); local.handMenu = false; local.handPop = null; }
+        else if (c && moved && dy > TAB_PX.dead && lastY >= layY) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); scene.setHandHeight(0); local.handMenu = false; local.handPop = null; }
         draw();
       });
       return;

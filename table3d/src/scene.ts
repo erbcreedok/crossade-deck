@@ -198,14 +198,11 @@ export interface SceneApi {
   /** Рамка моей руки на экране (охват карт с полями, не уже 250 пикселей); нет карт или рука положена — `null`. `edge` — высота верхней кромки. */
   handFrame(): { x: number; y: number; w: number; h: number; edge: number } | null;
   /** Рука-стопка: левая рука несёт все карты над столом под пальцем (`screen`); `null` — отпустили: на колоду, новой стопкой на сукно или — над худом руки — всё как было. */
-  carryHand(screen: { x: number; y: number } | null): boolean;
+  /** Несёт ли левая рука стопку над столом; `lines` — линии экрана: несётся, пока палец выше `enter`, выходит ниже `exit`; без них — зона от худа руки. */
+  carryHand(screen: { x: number; y: number } | null, lines?: { enter: number; exit: number }): boolean;
   /** Рука в кадре следует за верхней ручкой по высоте, пока её тянут (`px` вверх — минус); `null` — отпустили, вернулась (временно). */
   /** Высота руки в кадре, пиксели (вверх — плюс): верхняя ручка ставит, рука остаётся на ней. */
   handHeight(): number;
-  /** Верхняя ручка схвачена в точке `y` экрана (рука на текущей высоте): зона несения мерится от неё; `null` — отпустили. */
-  setCarryZone(y: number | null): void;
-  /** Линия экрана, выше которой несётся рука стопкой (пока схвачена верхняя ручка), — для подсказки; нет — `null`. */
-  carryLine(): number | null;
   setHandHeight(px: number): void;
   /** Где на экране лежит моя положенная стопка (охват верхней карты) — ручка у неё привязана к стопке на столе; рука не положена или стопки не видно — `null`. */
   stackScreen(): { x: number; y: number; w: number; h: number } | null;
@@ -376,8 +373,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Высота руки в кадре, пиксели (вверх — плюс): её ставит верхняя ручка, и она остаётся; рука едет с камерой жёстко, как одна точка. */
   let heightPx = 0;
   const HEIGHT = { min: -50, max: 150 };
-  /** Верх зоны несения (пиксели экрана) от места руки, пока ручку не тронули: подняли руку ручкой — зона не уезжает за ней, а мерится по пальцу в начале хода. */
-  let carryZone: number | null = null;
   const handOffset = () => ({ x: 0, y: heightPx * 0.0033 });
   const sideYaw = (ch: Chair) => -ch.angle;
   /** Моя голова: где она, куда смотрит, ушла ли на другую сторону и какой поворот слать остальным. */
@@ -1672,13 +1667,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     handFrame,
     fanFits: () => fanFitsNow(),
     handHeight: () => heightPx,
-    carryLine: () => (carryZone === null ? null : carryZone - 60),
-    setCarryZone(y) {
-      if (y === null) { carryZone = null; return; }
-      camera.updateMatrixWorld();
-      const at = (h: number) => project(new THREE.Vector3(0, h * 0.0033, CAMHAND.at.z).applyMatrix4(camera.matrixWorld)).y;
-      carryZone = y + (at(0) - at(heightPx)) - 10;
-    },
     setHandHeight(px) { heightPx = Math.max(HEIGHT.min, Math.min(HEIGHT.max, px)); layout(store.state); draw(); },
     handWidth: () => handWidth,
     handCurl: () => handCurl,
@@ -1708,20 +1696,26 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       widthLive = Math.max(0, Math.min(1, raw)); widthOver = Math.max(0, raw - 1);
       layout(store.state);
     },
-    carryHand(screen) {
+    carryHand(screen, lines) {
       const ch = myChair();
       if (!ch) return false;
       if (screen) {
         // Вернул палец на худ руки, не отпуская, — стопка возвращается в руку (и можно снова вытянуть вверх). Вход и выход с запасом
         // (вход — заметно выше худа, выход — ниже его верха): на границе стопка не дрожит туда-сюда.
-        const was = handCarry as { zoneTop: number } | null, fr0 = handFrame(), zoneTop0 = was?.zoneTop ?? carryZone ?? (fr0 ? fr0.y - 10 : renderer.domElement.getBoundingClientRect().height * 0.7);
-        if (was && screen.y > zoneTop0 + 20) { handCarry = null; layout(store.state); return false; }
-        if (!was && screen.y > zoneTop0 - 60) return false;
+        const was = handCarry as { zoneTop: number } | null;
+        if (lines) {
+          if (was && screen.y > lines.exit) { handCarry = null; layout(store.state); return false; }
+          if (!was && screen.y > lines.enter) return false;
+        } else {
+          const fr0 = handFrame(), zoneTop0 = was?.zoneTop ?? (fr0 ? fr0.y - 10 : renderer.domElement.getBoundingClientRect().height * 0.7);
+          if (was && screen.y > zoneTop0 + 20) { handCarry = null; layout(store.state); return false; }
+          if (!was && screen.y > zoneTop0 - 60) return false;
+        }
         ray.setFromCamera(ndc({ clientX: screen.x, clientY: screen.y }), camera);
         const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -CARRY_H), new THREE.Vector3());
         if (!hit) return !!was;
         const fr = handFrame();
-        handCarry = { x: hit.x, y: hit.z, sx: screen.x, sy: screen.y, zoneTop: was?.zoneTop ?? carryZone ?? (fr ? fr.y - 10 : renderer.domElement.getBoundingClientRect().height * 0.7) };
+        handCarry = { x: hit.x, y: hit.z, sx: screen.x, sy: screen.y, zoneTop: was?.zoneTop ?? lines?.enter ?? (fr ? fr.y - 10 : renderer.domElement.getBoundingClientRect().height * 0.7) };
         layout(store.state);
         return true;
       }
