@@ -327,6 +327,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let camMode: CamMode = ((m) => (m === "orbit" || m === "top" ? m : "head"))(new URLSearchParams(location.search).get("cam"));
   /** Обычное поле зрения головы; для разработки его двигает ползунок (`setBaseFov`). */
   let baseFov: number = CAM.fov.base;
+  /** Во сколько раз поле зрения уже обычного в прошлом кадре: рука в кадре при зуме не двигается, а масштабируется вместе с ним. */
+  let fovKPrev = 1;
   const rig = { yaw: 0, pitch: -40, lean: 0, fov: baseFov };
   const neck = neckNew();
   /** Рука в кадре (вид «голова») как в FPS: отстаёт от поворота взгляда и чуть поднимается, когда смотришь вниз, опускается, когда вверх. */
@@ -987,6 +989,19 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (Math.abs(sway.x) > 0.004 || Math.abs(sway.y) > 0.004) moving = true;
     }
     retargetMine();
+    // Взгляд приблизили или отдалили — рука в кадре тут же остаётся там же и того же размера (пружина её не тянет следом за углом).
+    const fovKNow = camMode === "head" ? Math.tan((rig.fov * DEG) / 2) / Math.tan((baseFov * DEG) / 2) : 1, fovRatio = fovKNow / fovKPrev;
+    fovKPrev = fovKNow;
+    if (Math.abs(fovRatio - 1) > 1e-9) {
+      for (const o of cards.values()) {
+        const g = o.group;
+        if (g.parent !== handRoot || !g.userData.placed) continue;
+        g.position.x *= fovRatio; g.position.y *= fovRatio; g.scale.multiplyScalar(fovRatio);
+        const v = g.userData.v as THREE.Vector3 | undefined;
+        if (v) { v.x *= fovRatio; v.y *= fovRatio; }
+        g.userData.sv = ((g.userData.sv as number) || 0) * fovRatio;
+      }
+    }
     for (const [id, o] of cards) {
       const g = o.group, t = o.target;
       // Сменила место между миром и рукой — пересадить, сохранив, где она на экране, и долететь.
