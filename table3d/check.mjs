@@ -1335,6 +1335,18 @@ try {
     await t(() => window.__t3d.setHandHeightNow(-150)); const low = await seenByOthers();
     check("ниже карты у меня на экране — ниже они и у остальных, и прямее (лицо в сторону тела)", low.h < high.h - 0.2 && low.ny < high.ny - 0.08, { high, low });
   }
+
+  {
+    // Стопка в левой руке над столом не уходит за край стола, как бы высоко ни увёл палец.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const tab = await rectOf('.screen:not(.off) [data-hand-tab="top"]'), x = tab.x + tab.width / 2, y = tab.y + tab.height / 2;
+    await p.mouse.move(x, y); await p.mouse.down(); await p.mouse.move(x, y - 200, { steps: 8 }); await p.mouse.move(x, 25, { steps: 8 }); await p.waitForTimeout(600);
+    const away = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((q) => q.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, w = T.world(h[0].id); return { carrying: T.carrying(), r: Math.hypot(w.x, w.y) }; });
+    await p.mouse.up(); await p.waitForTimeout(300);
+    check("стопка в левой руке не уходит за край стола, даже если палец у самого верха экрана", away.carrying === true && away.r < 7.4, away);
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();

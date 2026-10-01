@@ -1719,7 +1719,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -CARRY_H), new THREE.Vector3());
         if (!hit) return !!was;
         const fr = handFrame();
-        handCarry = { x: hit.x, y: hit.z, sx: screen.x, sy: screen.y, zoneTop: was?.zoneTop ?? lines?.enter ?? (fr ? fr.y - 10 : renderer.domElement.getBoundingClientRect().height * 0.7) };
+        // Стопка в руке не уходит за стол: дальше края сукна она скользит вдоль него.
+        const reach = Math.hypot(hit.x, hit.z), edge = TABLE_RADIUS - 0.7, kEdge = reach > edge ? edge / reach : 1;
+        handCarry = { x: hit.x * kEdge, y: hit.z * kEdge, sx: screen.x, sy: screen.y, zoneTop: was?.zoneTop ?? lines?.enter ?? (fr ? fr.y - 10 : renderer.domElement.getBoundingClientRect().height * 0.7) };
         layout(store.state);
         return true;
       }
