@@ -1792,7 +1792,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   renderer.domElement.addEventListener("pointerdown", (e) => {
     const fr = handFrame();
     live.set(e.pointerId, { x: e.clientX, y: e.clientY, onHand: onMineHand(hitCard(e)) || (!!fr && e.clientX >= fr.x && e.clientX <= fr.x + fr.w && e.clientY >= fr.y && e.clientY <= fr.y + fr.h) });
-    if (live.size === 2 && !poseG && !lasso.on && [...live.values()].some((p) => p.onHand)) {
+    // Щипок двух пальцев по руке (ширина) — старая ручка; с язычком руки поза идёт по его высоте, и ширину щипком не тянут.
+    if (live.size === 2 && !poseG && !lasso.on && !levelOn && [...live.values()].some((p) => p.onHand)) {
       const ids = [...live.keys()] as [number, number], a = live.get(ids[0])!, b = live.get(ids[1])!, ch = myChair();
       if (ch) {
         // Первый палец мог уже взять карту или крутить взгляд — теперь они оба держат руку.
