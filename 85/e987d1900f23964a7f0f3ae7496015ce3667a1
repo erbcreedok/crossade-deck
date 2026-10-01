@@ -1,0 +1,26 @@
+table3d/index.html
+  s_ad8a8a5b5d0419::t_3fa1d191b3d323 10
+table3d/swipe-check.mjs
+  s_ad8a8a5b5d0419::t_836316fd9c8152 1-23
+table3d/src/main.ts
+  s_ad8a8a5b5d0419::t_3fa1d191b3d323 26-29
+  s_ad8a8a5b5d0419::t_fc753e5ceed89e 42
+table3d/src/hud.ts
+  s_ad8a8a5b5d0419::t_3fa1d191b3d323 416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "85e987d1900f23964a7f0f3ae7496015ce3667a1",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
