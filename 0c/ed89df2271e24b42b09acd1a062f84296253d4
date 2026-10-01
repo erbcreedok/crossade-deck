@@ -1,0 +1,24 @@
+table3d/src/gyro.ts
+  s_ad8a8a5b5d0419::t_55299500cf00fb 52-60,62-79,85-86,88-91,99
+  s_ad8a8a5b5d0419::t_ecfff4019bb6f3 61
+table3d/src/hud.ts
+  s_ad8a8a5b5d0419::t_94877cf04fe37f 604-609,623,628-629,735-756
+table3d/gyro-check.mjs
+  s_ad8a8a5b5d0419::t_4cec54c4a893a6 14-15,33-50,54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0ced89df2271e24b42b09acd1a062f84296253d4",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
