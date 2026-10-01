@@ -83,8 +83,11 @@
   .shelf { position: absolute; left: 0; right: 0; z-index: 36; pointer-events: none; }
   .shelf i { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(var(--panel), var(--well)); box-shadow: 0 -2px 0 0 var(--black), inset 0 2px 0 0 var(--wood); }
   .count { position: absolute; z-index: 40; height: 26px; padding: 0 9px; display: flex; align-items: center; gap: 6px; font-size: 13px; pointer-events: none; }
-  .grip { position: absolute; z-index: 38; width: 112px; height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; pointer-events: auto; touch-action: none; cursor: grab; }
-  .grip.on { background: linear-gradient(var(--goldLight), var(--goldDark)); }
+  /* ЯЗЫЧОК — ушко-ручка на кромке руки: четыре насечки, без стрелок и слов. Тянешь — насечки золотые. */
+  .grip { position: absolute; z-index: 38; width: 84px; height: 20px; display: flex; align-items: center; justify-content: center; gap: 6px; pointer-events: auto; touch-action: none; cursor: grab; background: linear-gradient(var(--panelLight), var(--panel)); }
+  .grip i { display: block; width: 4px; height: 10px; background: var(--inkDim); box-shadow: 2px 0 0 0 var(--black); }
+  .grip.on i { background: var(--gold); }
+  .grip::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: -6px; height: 4px; background: var(--black); opacity: .35; }
   .guide { position: absolute; left: 12px; right: 80px; z-index: 46; height: 34px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--inkDim); background: rgba(11,7,4,.55); box-shadow: inset 0 0 0 2px var(--wood); pointer-events: none; text-align: center; padding: 0 8px; line-height: 1.15; }
   .guide.lit { color: var(--black); background: var(--gold); box-shadow: inset 0 0 0 2px var(--goldLight); }
   .piled { position: absolute; z-index: 40; width: 64px; height: 93px; margin: -46px 0 0 -32px; background: url(cards/back.webp) center/100% 100%; box-shadow: 0 0 0 2px var(--black), 0 3px 0 2px rgba(11,7,4,.55), 3px -3px 0 0 var(--black), 6px -6px 0 0 var(--black); pointer-events: auto; cursor: pointer; }
@@ -290,19 +293,13 @@
       cnt.innerHTML = `${I("cards", { size: 1 })}<span>${hand.length}</span>`;
       handLayer.append(cnt);
       if (S.sortedBy) { const tag = document.createElement("div"); tag.className = "plate count"; tag.style.left = "74px"; tag.style.top = cnt.style.top; tag.innerHTML = `<span style="font-size:11px;color:var(--inkDim)">${S.sortedBy === "suit" ? "по масти" : "по номиналу"}</span>`; handLayer.append(tag); }
-      if (hand.length > 9) { const hint = document.createElement("div"); hint.className = "hint"; hint.style.top = `${handBottom() - chH() - (rows.length - 1) * ROW_STEP - 30}px`; hint.textContent = "веди пальцем · тап — поднять"; hint.style.opacity = focus ? 0 : 1; hint.style.left = "90px"; hint.style.right = "90px"; hint.style.textAlign = "left"; handLayer.append(hint); }
     }
     if (piled) { const pl = document.createElement("div"); pl.className = "piled"; pl.dataset.act = "unpile"; pl.style.left = `${S.piled.x}px`; pl.style.top = `${S.piled.y}px`; pl.innerHTML = `<b>${hand.length}</b>`; handLayer.append(pl); }
     // язычок: тянуть вверх — вынести всю руку на стол стопкой, вниз — спустить перед собой
     let grip = handLayer.querySelector(".grip");
-    if (!grip) { grip = document.createElement("div"); grip.className = "plate grip"; grip.setAttribute("aria-label", "Язычок руки: вверх — вынести на стол, вниз — положить перед собой"); grip.innerHTML = `${I("arrowUp", { size: 2 })}${I("gripLines", { size: 2 })}${I("arrowDown", { size: 2 })}`; handLayer.append(grip); bindGrip(grip); }
-    grip.style.left = `${(W - 112) / 2}px`; grip.style.top = `${Math.min(handBottom() - chH() - S.lift - 52, trayTop() - 38)}px`; grip.style.display = away || !hand.length || stackDrag || pick ? "none" : "flex";
-    grip.classList.toggle("on", false);
-    if (gripDrag) {
-      const upLit = !!stackDrag && stackDrag.y < 520, dnLit = !stackDrag && hiddenHand();
-      const g1 = document.createElement("div"); g1.className = `guide ${upLit ? "lit" : ""}`; g1.style.top = "520px"; g1.textContent = "Вытяни сюда — вся рука стопкой ляжет на стол"; handLayer.append(g1);
-      const g2 = document.createElement("div"); g2.className = `guide ${dnLit ? "lit" : ""}`; g2.style.top = `${trayTop() - 82}px`; g2.textContent = "Опусти до конца — рука спрячется"; handLayer.append(g2);
-    }
+    if (!grip) { grip = document.createElement("div"); grip.className = "plate grip"; grip.setAttribute("aria-label", "Язычок руки: вверх — вынести на стол, вниз — положить перед собой"); grip.innerHTML = "<i></i><i></i><i></i><i></i>"; handLayer.append(grip); bindGrip(grip); }
+    grip.style.left = `${(W - 84) / 2}px`; grip.style.top = `${Math.min(handBottom() - chH() - S.lift - 36, trayTop() - 30)}px`; grip.style.display = away || !hand.length || stackDrag || pick ? "none" : "flex";
+    grip.classList.toggle("on", !!gripDrag);
     if (stackDrag) {
       const cnt = document.createElement("div"); cnt.className = "plate count"; cnt.style.left = `${Math.max(8, Math.min(W - 70, stackDrag.x + 40))}px`; cnt.style.top = `${stackDrag.y - 20}px`; cnt.innerHTML = `${I("cards", { size: 1 })}<span>${hand.length}</span>`; handLayer.append(cnt);
     }
@@ -358,15 +355,14 @@
       const p = local(e);
       if (pick) {
         const c = hand.find((x) => x.id === pick.id);
-        if (p.y < 560) { if (latched === pick.id) latched = null; hand = hand.filter((x) => x.id !== pick.id); S.n = hand.length; say("Карта легла на стол. Вернуть — потяни её обратно в руку."); }
-        else if (gapAt !== null && c) { hand = hand.filter((x) => x.id !== pick.id); hand.splice(gapAt, 0, c); S.sortedBy = null; say("Карта встала на новое место в руке."); }
-        else say("Карта вернулась на место.");
+        if (p.y < 560) { if (latched === pick.id) latched = null; hand = hand.filter((x) => x.id !== pick.id); S.n = hand.length; }
+        else if (gapAt !== null && c) { hand = hand.filter((x) => x.id !== pick.id); hand.splice(gapAt, 0, c); S.sortedBy = null; }
         pick = null; gapAt = null;
       }
       else if (focus && down.far < 10 && performance.now() - down.t < 380) {
         // ТАП: карта остаётся поднятой, как будто её держат; ещё тап по ней — опускается, тап по другой — поднимается та.
         const c = hand[focus.i];
-        if (c) { latched = latched === c.id ? null : c.id; say(latched ? "Карта поднята — потяни вверх, чтобы взять. Ещё тап — опустить." : "Карта опущена."); }
+        if (c) latched = latched === c.id ? null : c.id;
       }
       down = null; focus = null; renderAll();
     };
@@ -394,8 +390,8 @@
     const end = () => {
       if (!gripDrag) return;
       const d = gripDrag, stacked = stackDrag; gripDrag = null; stackDrag = null;
-      if (stacked && d.y < 520) { S.piled = { x: Math.max(60, Math.min(W - 60, d.x)), y: Math.max(190, Math.min(500, d.y)) }; S.handDy = d.dy0 > 0 ? d.dy0 : 0; say(`Вся рука (${hand.length}) лежит стопкой на столе. Коснись стопки — заберёшь обратно.`); }
-      else if (hiddenHand() || S.handDy < minDy() * 0.6) { S.handDy = minDy(); say("Рука спрятана. Потяни язычок вверх — вернётся."); }
+      if (stacked && d.y < 520) { S.piled = { x: Math.max(60, Math.min(W - 60, d.x)), y: Math.max(190, Math.min(500, d.y)) }; S.handDy = d.dy0 > 0 ? d.dy0 : 0; }
+      else if (hiddenHand() || S.handDy < minDy() * 0.6) { S.handDy = minDy(); }
       else if (Math.abs(S.handDy) < 5) S.handDy = 0;
       renderAll();
     };
