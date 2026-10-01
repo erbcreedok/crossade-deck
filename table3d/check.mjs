@@ -1445,13 +1445,15 @@ try {
     const ids = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat; return st.chairs.find((c) => c.id === seat).hand.map((c) => c.id); });
     const pos = (id) => t((i) => window.__t3d.screenOf(i), id);
     const mid = ids[ids.length - 1], rest = await pos(mid);
+    const apparent = (id) => t((i) => { const T = window.__t3d, w = T.world(i), c = T.cam().pos; return T.cardWidth(i) / Math.hypot(w.x - c[0], w.h - c[1], w.y - c[2]); }, id);
+    const sizeRest = await apparent(mid);
     await p.mouse.move(rest.x, rest.y + 30); await p.mouse.down(); await p.waitForTimeout(500);
-    const pressed = await pos(mid);
+    const pressed = await pos(mid), sizePressed = await apparent(mid);
     await p.mouse.up(); await p.waitForTimeout(700);
     const afterTap = await pos(mid);
     await p.mouse.click(200, 300); await p.waitForTimeout(700);
     const dropped = await pos(mid);
-    check("касание карты поднимает её сразу (до движения), тап оставляет приподнятой, тап мимо опускает", rest.y - pressed.y > 25 && rest.y - afterTap.y > 25 && Math.abs(dropped.y - rest.y) < 8, { rest: rest.y, pressed: pressed.y, afterTap: afterTap.y, dropped: dropped.y });
+    check("касание карты чуть поднимает её сразу (до движения), тап оставляет, тап мимо опускает; размер на экране тот же", rest.y - pressed.y > 3 && rest.y - pressed.y < 24 && rest.y - afterTap.y > 3 && Math.abs(dropped.y - rest.y) < 4 && Math.abs(sizePressed / sizeRest - 1) < 0.03, { rest: rest.y, pressed: pressed.y, afterTap: afterTap.y, dropped: dropped.y, sizeRest, sizePressed });
   }
   check("без ошибок", errors.length === 0, errors);
 } finally {

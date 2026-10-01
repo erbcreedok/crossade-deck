@@ -43,6 +43,8 @@ const DOUBLE_MS = 350;
 const SPRING = { k: 170, damp: 0.62 }, SPRING_HELD = { k: 900, damp: 0.9 };
 /** Над своей рукой несомая карта — выше соседей на эту долю своей высоты, ближе к глазу и чуть крупнее. */
 const HOVER = { up: 0.55, near: 0.6, grow: 1.15 };
+/** Тронутая карта руки: чуть выше соседей и чуть ближе к глазу (единицы кадра руки). */
+const TOUCH = { up: 0.07, z: 0.12 };
 
 /** Место карты: в мире (`over` — моя рука: место в мире, но рисуется поверх всего) — или в осях камеры (`onCamera`: над окном HUD). */
 /** Раскладка руки: сжатость (0 — стопкой), веер ↔ ряд (0.5 — веер, 1 — ряд), комната в ширинах карты. */
@@ -934,7 +936,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         if (!o || k < 0) continue;
         const t = place(slotOf(k), !!c.up);
         // Карту, до которой дотронулись, поднимает над остальными сразу, не дожидаясь движения; тап — остаётся приподнятой, пока не тронут другое.
-        if (c.id === liftedId && !(drag?.moved && drag.id === c.id)) { if (t.onCamera) { t.pos.y += CAMHAND.pop * fovK; t.pos.z += CAMHAND.near; } else t.pos.y += CAMHAND.pop; t.scale *= HOVER.grow; }
+        if (c.id === liftedId && !(drag?.moved && drag.id === c.id)) {
+          // Чуть выше остальных и чуть ближе к глазу — пересекает их по глубине; размер и место на экране те же (ближе — меньше в тот же раз).
+          if (t.onCamera) { const d = -t.pos.z, kk = (d - TOUCH.z) / d; t.pos.y = (t.pos.y + TOUCH.up * fovK) * kk; t.pos.x *= kk; t.pos.z += TOUCH.z; t.scale *= kk; } else t.pos.y += TOUCH.up;
+        }
         o.target = t;
       }
       const o = gap !== null && drag ? cards.get(drag.id) : undefined;
