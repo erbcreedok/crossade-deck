@@ -1,0 +1,31 @@
+table3d/vite.config.ts
+  s_ad8a8a5b5d0419::t_15a1c696cf2e68 1,4-6,10
+table3d/index.html
+  s_ad8a8a5b5d0419::t_90b60eabfb7036 8-9,15
+table3d/src/hud.ts
+  s_ad8a8a5b5d0419::t_15a1c696cf2e68 22,129
+  s_ad8a8a5b5d0419::t_90b60eabfb7036 61,186,384,410
+server/table-client/settings.ts
+  s_ad8a8a5b5d0419::t_8fccddca41aeb2 285
+server/table-client/rooms.ts
+  s_ad8a8a5b5d0419::t_8fccddca41aeb2 150,245-246,270
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_90b60eabfb7036 1904
+  s_ad8a8a5b5d0419::t_935b2b563346d5 234-235,737-744,763,947
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "363a32cb49b9dd6161286b165d5a8c3cc89f53ac",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
