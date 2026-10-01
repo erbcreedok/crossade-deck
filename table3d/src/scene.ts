@@ -1087,7 +1087,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       (o.back.material as THREE.Material).userData.bend.value = -bendNow;
       // ПОРЯДОК КАРТ В РУКЕ — по правилу, а не по глубине: карта справа всегда поверх карты слева (если смотреть со стороны держащего), несомая — выше всех.
       // Изогнутые карты пересекаются, и глубина дала бы торчащие углы; слои друг в друга не пишут, порядок задан.
-      const from = fromOf.get(id), carried = !!drag?.moved && drag.id === id && !!from && from.in === "hand";
+      const from = fromOf.get(id), carried = ((!!drag?.moved && drag.id === id) || id === liftedId) && !!from && from.in === "hand";
       const layered = carried || (!!from && from.in === "hand" && (!!t.onCamera || !!t.stagger));
       const above = t.onCamera || !t.stagger || t.stagger.dot(camera.position.clone().sub(g.position)) > 0, slot = from && from.in === "hand" ? from.i : 0;
       const order = carried ? 300 : layered ? 100 + (above ? slot : 99 - slot) : 0;
