@@ -83,6 +83,12 @@
   .shelf { position: absolute; left: 0; right: 0; z-index: 36; pointer-events: none; }
   .shelf i { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(var(--panel), var(--well)); box-shadow: 0 -2px 0 0 var(--black), inset 0 2px 0 0 var(--wood); }
   .count { position: absolute; z-index: 40; height: 26px; padding: 0 9px; display: flex; align-items: center; gap: 6px; font-size: 13px; pointer-events: none; }
+  .grip { position: absolute; z-index: 38; width: 112px; height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; pointer-events: auto; touch-action: none; cursor: grab; }
+  .grip.on { background: linear-gradient(var(--goldLight), var(--goldDark)); }
+  .guide { position: absolute; left: 12px; right: 80px; z-index: 46; height: 34px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--inkDim); background: rgba(11,7,4,.55); box-shadow: inset 0 0 0 2px var(--wood); pointer-events: none; text-align: center; padding: 0 8px; line-height: 1.15; }
+  .guide.lit { color: var(--black); background: var(--gold); box-shadow: inset 0 0 0 2px var(--goldLight); }
+  .piled { position: absolute; z-index: 40; width: 64px; height: 93px; margin: -46px 0 0 -32px; background: url(cards/back.webp) center/100% 100%; box-shadow: 0 0 0 2px var(--black), 0 3px 0 2px rgba(11,7,4,.55), 3px -3px 0 0 var(--black), 6px -6px 0 0 var(--black); pointer-events: auto; cursor: pointer; }
+  .piled b { position: absolute; right: -8px; bottom: -8px; min-width: 24px; height: 22px; padding: 0 5px; background: var(--gold); color: var(--black); font-weight: 400; font-size: 13px; line-height: 22px; text-align: center; box-shadow: 0 0 0 2px var(--black); }
   .hint { position: absolute; z-index: 45; left: 0; right: 0; text-align: center; font-size: 12px; color: var(--inkDim); text-shadow: 0 2px 0 var(--black); pointer-events: none; }
   .drop { position: absolute; z-index: 44; left: 40px; right: 40px; height: 120px; display: none; align-items: center; justify-content: center; font-size: 14px; color: var(--gold); pointer-events: none; background: rgba(245,234,208,.06); box-shadow: inset 0 0 0 2px var(--gold); }
 
@@ -142,6 +148,7 @@
     <div class="notes">Экран 390×844, iPhone-first. Сверху — стол и выход, справа — камера (меняется от вида), снизу — рука и пять вкладок. Всё живое: <b>проведи пальцем по руке</b> (линза и подсказка карты), <b>вытяни карту вверх</b> на стол, нажимай вкладки. Цвета — палитра стола, шрифт — Tiny5, значки — свои пиксельные (<a href="gallery.html" style="color:var(--gold)">галерея</a>).</div>
     <div class="sec"><h2>Как устроено</h2><div class="notes">
       <b>Рука.</b> Всегда один ряд: сколько бы карт ни было, лента сжимается по ширине экрана. Палец по руке — приподнимается одна карта, та, что под пальцем. Потяни её вверх — она оторвётся и пойдёт за пальцем: над рукой остальные раздвигаются щелью (отпустишь — карта встанет туда, это перестановка), выше — ляжет на стол.<br>
+      <b>Язычок</b> над рукой: потяни вверх — вся рука соберётся в стопку под пальцем и ляжет на стол там, где отпустишь; потяни вниз — рука ляжет перед тобой (её видят сверху). Пока тянешь, две полосы подсказывают, где что.<br>
       <b>Нижняя строка.</b> Пять вкладок со словами: Рука (веер, в ряд, сложить на стол), Порядок (масть, номинал, наоборот, мешать), Стул (замок, скрыть, не брать, закрепить, выйти), Выбор (рука или лассо, хват, сторона), Чат. Одна вкладка открыта за раз, рука поднимается над её листом. Тумблеры горят золотом и квадратом-огоньком.<br>
       <b>Рейка справа — камера, и только то, что нужно виду.</b> Голова: вид, гиро, стойка, зум обзора. Вокруг: вид, компас «К стулу», дальность. Сверху (2D): вид и плюс/минус, ни компаса, ни стойки.<br>
       <b>Подсказки.</b> Каждое нажатие отвечает строкой: что включилось и что это значит.<br>
@@ -167,7 +174,7 @@
   const $ = (id) => document.getElementById(id);
   const I = PixelIcons.icon, P = PixelIcons.pip;
   const W = 390, H = 844, SAFE_B = 34;
-  const DEFAULT = { n: 18, cam: "head", stance: "sit", turn: "me", tab: null, lift: 22, grow: 1.08, cw: 64, ref: false, flags: { lock: false, hide: true, reject: false, forever: false }, pose: "fan", sortedBy: null, tool: "cursor", grab: "collect", side: "keep", selected: 0, gyro: false, zoom: 0.25, viewMenu: false, chatUnread: 2, tucked: false };
+  const DEFAULT = { n: 18, cam: "head", stance: "sit", turn: "me", tab: null, lift: 22, grow: 1.08, cw: 64, ref: false, flags: { lock: false, hide: true, reject: false, forever: false }, pose: "fan", sortedBy: null, tool: "cursor", grab: "collect", side: "keep", selected: 0, gyro: false, zoom: 0.25, viewMenu: false, chatUnread: 2, tucked: false, piled: null };
   const S = JSON.parse(JSON.stringify(DEFAULT));
   const SUITS = ["s", "h", "d", "c"], FILE = { s: "spade", h: "heart", d: "diamond", c: "club" }, RANKS = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"];
   const RNAME = { J: "Валет", Q: "Дама", K: "Король", A: "Туз" }, SNAME = { s: "пик", h: "червей", d: "бубен", c: "треф" };
@@ -236,20 +243,28 @@
   // ——— отрисовка ———
   const hud = $("hud"), handLayer = $("handLayer"), scene = $("scene");
   const cardEls = new Map();
-  let focus = null, pick = null;
+  let focus = null, pick = null, stackDrag = null;
 
   function renderHand() {
-    handLayer.querySelectorAll(".hint,.drop,.count,.shelfs").forEach((e) => e.remove());
+    handLayer.querySelectorAll(".hint,.drop,.count,.shelfs,.guide,.piled").forEach((e) => e.remove());
     const { rows, pos } = layout(focus);
     const live = new Set(hand.map((c) => c.id));
     for (const [id, el] of cardEls) if (!live.has(id)) { el.remove(); cardEls.delete(id); }
-    const tucked = S.tucked || S.pose === "tuck";
-    for (const c of hand) {
+    const tucked = S.tucked || S.pose === "tuck", piled = !!S.piled, away = tucked || piled;
+    const nH = hand.length;
+    for (const [ci, c] of hand.entries()) {
       let el = cardEls.get(c.id);
       if (!el) { el = document.createElement("div"); el.className = "card"; el.style.backgroundImage = `url(${face(c)})`; handLayer.append(el); cardEls.set(c.id, el); }
       const p = pos.get(c.id);
-      el.style.display = tucked ? "none" : "block";
+      el.style.display = away ? "none" : "block";
       el.style.width = `${S.cw}px`; el.style.height = `${chH()}px`;
+      if (stackDrag) {
+        // Рука собралась в стопку под пальцем: язычок потянули.
+        el.classList.add("live"); el.classList.remove("pick");
+        el.style.left = `${stackDrag.x - S.cw / 2 + (ci - (nH - 1) / 2) * 0.7}px`; el.style.top = `${stackDrag.y - chH() / 2 - ci * 0.4}px`;
+        el.style.transform = "rotate(0deg) scale(1)"; el.style.zIndex = 60 + ci; el.style.filter = ""; el.style.boxShadow = "";
+        continue;
+      }
       if (pick && pick.id === c.id) { el.classList.add("pick"); continue; }
       el.classList.remove("pick");
       el.classList.toggle("live", !!focus);
@@ -263,9 +278,9 @@
     const shelfTop = trayTop();
     const shelf = document.createElement("div"); shelf.className = "shelf shelfs"; shelf.style.top = `${shelfTop}px`; shelf.style.height = `${H - shelfTop}px`; shelf.innerHTML = "<i style='top:0'></i>";
     handLayer.append(shelf);
-    if (tucked) {
+    if (tucked || piled) {
       const t = document.createElement("div"); t.className = "plate shelfs"; t.style.cssText = `left:12px;right:12px;top:${handBottom() - 62}px;height:58px;z-index:40;display:flex;align-items:center;gap:12px;padding:0 12px;pointer-events:auto`;
-      t.innerHTML = `${I("cards", { size: 3 })}<div style="flex:1;font-size:14px;color:var(--ink)">Рука на столе<div style="font-size:12px;color:var(--inkDim)">${hand.length} карт · видят все, кто рядом</div></div><button class="plate btn" data-act="untuck" style="position:relative;width:96px;height:42px"><span class="lb" style="font-size:13px">Взять</span></button>`;
+      t.innerHTML = `${I("cards", { size: 3 })}<div style="flex:1;font-size:14px;color:var(--ink)">${piled ? "Рука стопкой на столе" : "Рука перед тобой"}<div style="font-size:12px;color:var(--inkDim)">${hand.length} карт · ${piled ? "коснись стопки" : "видят сверху"}</div></div><button class="plate btn" data-act="${piled ? "unpile" : "untuck"}" style="position:relative;width:96px;height:42px"><span class="lb" style="font-size:13px">Взять</span></button>`;
       handLayer.append(t);
     } else if (hand.length) {
       const cnt = document.createElement("div"); cnt.className = "plate count"; cnt.style.left = "14px"; cnt.style.top = `${handBottom() - chH() - (rows.length - 1) * ROW_STEP - 34}px`;
@@ -274,11 +289,23 @@
       if (S.sortedBy) { const tag = document.createElement("div"); tag.className = "plate count"; tag.style.left = "74px"; tag.style.top = cnt.style.top; tag.innerHTML = `<span style="font-size:11px;color:var(--inkDim)">${S.sortedBy === "suit" ? "по масти" : "по номиналу"}</span>`; handLayer.append(tag); }
       if (hand.length > 9) { const hint = document.createElement("div"); hint.className = "hint"; hint.style.top = `${handBottom() - chH() - (rows.length - 1) * ROW_STEP - 30}px`; hint.textContent = "веди пальцем по руке"; hint.style.opacity = focus ? 0 : 1; hint.style.left = "90px"; hint.style.right = "90px"; hint.style.textAlign = "left"; handLayer.append(hint); }
     }
+    if (piled) { const pl = document.createElement("div"); pl.className = "piled"; pl.dataset.act = "unpile"; pl.style.left = `${S.piled.x}px`; pl.style.top = `${S.piled.y}px`; pl.innerHTML = `<b>${hand.length}</b>`; handLayer.append(pl); }
+    // язычок: тянуть вверх — вынести всю руку на стол стопкой, вниз — спустить перед собой
+    let grip = handLayer.querySelector(".grip");
+    if (!grip) { grip = document.createElement("div"); grip.className = "plate grip"; grip.setAttribute("aria-label", "Язычок руки: вверх — вынести на стол, вниз — положить перед собой"); grip.innerHTML = `${I("arrowUp", { size: 2 })}${I("gripLines", { size: 2 })}${I("arrowDown", { size: 2 })}`; handLayer.append(grip); bindGrip(grip); }
+    grip.style.left = `${(W - 112) / 2}px`; grip.style.top = `${handBottom() - chH() - S.lift - 52}px`; grip.style.display = away || !hand.length || stackDrag || pick ? "none" : "flex";
+    grip.classList.toggle("on", false);
+    if (stackDrag) {
+      const upLit = stackDrag.over === "up", dnLit = stackDrag.over === "down";
+      const g1 = document.createElement("div"); g1.className = `guide ${upLit ? "lit" : ""}`; g1.style.top = "520px"; g1.textContent = "Выше — вся рука ляжет стопкой на стол"; handLayer.append(g1);
+      const g2 = document.createElement("div"); g2.className = `guide ${dnLit ? "lit" : ""}`; g2.style.top = `${trayTop() - 44}px`; g2.textContent = "Ниже — рука ляжет перед тобой"; handLayer.append(g2);
+      const cnt = document.createElement("div"); cnt.className = "plate count"; cnt.style.left = `${Math.max(8, Math.min(W - 70, stackDrag.x + 40))}px`; cnt.style.top = `${stackDrag.y - 20}px`; cnt.innerHTML = `${I("cards", { size: 1 })}<span>${hand.length}</span>`; handLayer.append(cnt);
+    }
     // зона касаний: все ряды сразу
     let hit = handLayer.querySelector(".hit");
     if (!hit) { hit = document.createElement("div"); hit.className = "hit"; hit.style.pointerEvents = "auto"; handLayer.append(hit); bindHit(hit); }
     const top = handBottom() - chH() - (rows.length - 1) * ROW_STEP - 24;
-    hit.style.top = `${top}px`; hit.style.height = `${trayTop() - top + 6}px`; hit.style.display = tucked ? "none" : "block";
+    hit.style.top = `${top}px`; hit.style.height = `${trayTop() - top + 6}px`; hit.style.display = away || stackDrag ? "none" : "block";
     // зона «положить на стол» — видна, пока карта в пальце
     const dz = document.createElement("div"); dz.className = "drop"; dz.style.top = "300px"; dz.textContent = "Отпусти — карта ляжет на стол"; dz.style.display = "none"; handLayer.append(dz);
   }
@@ -332,6 +359,27 @@
       down = null; focus = null; renderAll();
     };
     hit.addEventListener("pointerup", end); hit.addEventListener("pointercancel", end);
+  }
+
+  function bindGrip(grip) {
+    const local = (e) => { const r = phone.getBoundingClientRect(), k = r.width / W; return { x: (e.clientX - r.left) / k, y: (e.clientY - r.top) / k }; };
+    let raf = 0;
+    const later = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; renderHand(); }); };
+    grip.addEventListener("pointerdown", (e) => { grip.setPointerCapture(e.pointerId); const p = local(e); stackDrag = { x: p.x, y: p.y, y0: p.y, over: null }; focus = null; renderHand(); });
+    grip.addEventListener("pointermove", (e) => {
+      if (!stackDrag) return;
+      const p = local(e);
+      stackDrag.x = p.x; stackDrag.y = p.y; stackDrag.over = p.y < 520 ? "up" : p.y > stackDrag.y0 + 52 ? "down" : null;
+      later();
+    });
+    const end = () => {
+      if (!stackDrag) return;
+      const d = stackDrag; stackDrag = null;
+      if (d.over === "up") { S.piled = { x: Math.max(60, Math.min(W - 60, d.x)), y: Math.max(190, Math.min(500, d.y)) }; say(`Вся рука (${hand.length}) лежит стопкой на столе. Коснись стопки — заберёшь обратно.`); }
+      else if (d.over === "down") { S.pose = "tuck"; S.tucked = true; say("Рука спущена на стол перед тобой: остальные видят её сверху."); }
+      renderAll();
+    };
+    grip.addEventListener("pointerup", end); grip.addEventListener("pointercancel", end);
   }
 
   // ——— интерфейс ———
@@ -414,6 +462,7 @@
     else if (a === "home") say("Камера вернулась к твоему стулу.");
     else if (a === "pose") { S.pose = v; S.tucked = v === "tuck"; say(v === "fan" ? "Веер: карты расходятся дугой." : v === "row" ? "В ряд: карты ровной лентой, больше читается." : "Рука сложена на стол: остальные видят её сверху, ты ею не играешь."); }
     else if (a === "untuck") { S.pose = "fan"; S.tucked = false; }
+    else if (a === "unpile") { S.piled = null; say("Рука вернулась к тебе."); }
     else if (a === "sort") { doSort(v); say(v === "suit" ? "Отсортировано по масти." : "Отсортировано по номиналу."); }
     else if (a === "reverse") { hand.reverse(); S.sortedBy = null; say("Порядок руки перевёрнут."); }
     else if (a === "shuffle") { hand.sort(() => Math.random() - 0.5); S.sortedBy = null; say("Рука перемешана."); }
