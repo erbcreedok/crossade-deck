@@ -1,4 +1,5 @@
 import "./uuid-polyfill";
+import { lagFromUrl, slowed } from "../../server/table-client/lag.js";
 // ПЕСОЧНИЦА НА THREE.JS — тот же стол, что `server/table-client`, другой экран. Стол и сеть — те же самые (`TableStore`:
 // `localStore` — стол в этой вкладке с ботами, `netStore` — живая комната); рисует и ловит палец — `scene.ts`.
 //
@@ -22,6 +23,7 @@ function screenBox(first: boolean): { screen: HTMLElement; stage: HTMLElement; h
   document.getElementById("screens")!.append(screen);
   return { screen, stage, hud };
 }
+const lag = lagFromUrl(location.search);
 try {
   const tgStart = (globalThis as { Telegram?: { WebApp?: { initDataUnsafe?: { start_param?: string } } } }).Telegram?.WebApp?.initDataUnsafe?.start_param;
   const room = params.get("room") || tgStart || new URLSearchParams(new URLSearchParams(location.hash.slice(1)).get("tgWebAppData") ?? "").get("start_param");
@@ -60,7 +62,7 @@ try {
     };
     const swap = (): void => { shown = 1 - shown; apply(); };
     const screens = who.map((one, k) => {
-      const box = screenBox(k === 0), store = table.view(one.key), scene = mountScene(box.stage, store);
+      const box = screenBox(k === 0), store = slowed(table.view(one.key), lag), scene = mountScene(box.stage, store);
       box.screen.dataset.who = one.name;
       box.screen.style.setProperty("--who", one.ink);
       const other = who[1 - k]!;

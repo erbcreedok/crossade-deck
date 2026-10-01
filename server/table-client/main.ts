@@ -17,6 +17,7 @@ import { mountRooms } from "./rooms.js";
 import type { TableStore } from "./store.js";
 import type { Intent } from "../src/table/contract.js";
 import { watchScreen, witnessed, type ScreenHealth } from "./watch.js";
+import { lagFromUrl, slowed } from "./lag.js";
 
 interface TelegramWebApp extends FullscreenApp {
   BackButton?: { show(): void; onClick(fn: () => void): void };
@@ -140,7 +141,7 @@ function bootStages(): Record<string, unknown> {
 }
 
 async function open(): Promise<TableStore> {
-  if (params.has("stand")) return localStore();
+  if (params.has("stand")) return slowed(localStore(), lagFromUrl(location.search));
   const room = roomAsked;
   if (!room) throw new Error("Нет комнаты. Открой стол по ссылке из чата.");
   // Пропуск в адресе — стол открыт в приложении Crossade (`appPass.ts`): подписи Telegram там нет.

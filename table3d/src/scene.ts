@@ -736,7 +736,20 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * Моя рука на экране: несомую карту в ней не считают (её место — у пальца), а если её держат над рукой — в руке
    * щель под неё (`drag.gap`): соседи расступаются, как у стола.
    */
-  const handCards = () => { const ch = myChair(); return ch ? ch.hand.filter((c) => !(drag?.moved && c.id === drag.id)) : []; };
+  /** Отпущенная в своей руке карта стоит в щели, куда её положили, пока стол не ответил: порядок руки по снимку тянул бы её обратно. */
+  let reordering: { id: string; i: number; key: string; until: number } | null = null;
+  const handCards = () => {
+    const ch = myChair();
+    if (!ch) return [];
+    const list = ch.hand.filter((c) => !(drag?.moved && c.id === drag.id));
+    const r = reordering;
+    if (!r || performance.now() >= r.until || fromKey(r.id) !== r.key) return list;
+    const c = list.find((x) => x.id === r.id);
+    if (!c) return list;
+    const rest = list.filter((x) => x !== c);
+    rest.splice(Math.min(r.i, rest.length), 0, c);
+    return rest;
+  };
   const handGeom = (): Geom | null => { const ch = myChair(); return ch ? mineGeomOf(glass(), ch.pose, handCards().length + (drag?.moved && drag.gap !== null ? 1 : 0), ch.id, blend) : null; };
   /** Карта у глаза в точке экрана (середина `x, y`, ширина `w`, поворот) — поверх всего, чуть крупнее: в окне HUD. */
   const screenPlace = (sp: { x: number; y: number; w: number; angle: number }): Place => {
@@ -1052,13 +1065,19 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       else if (o && drag.place) o.target = drag.place;
     }
     // Отпущенная — ждёт ответа стола там, куда легла.
-    if (landing && performance.now() < landing.until && fromKey(landing.id) === landing.key) { const o = cards.get(landing.id); if (o) o.target = landing.place; }
+    holdLanding();
     for (const [id, o] of cards) if (!seen.has(id)) { cardRoot.remove(o.group); cards.delete(id); }
     draw();
   }
   /** Где карта по снимку — ключом: поменялся — стол ответил, и ждать ответа на месте больше нечего. */
   const fromKey = (id: string) => { const f = store.state.felt.find((c) => c.id === id); return JSON.stringify(fromOf.get(id) ?? null) + (f ? `${f.x},${f.y},${f.up}` : ""); };
   let landing: { id: string; place: Place; key: string; until: number } | null = null;
+  /** Отпущенная карта стоит там, куда её положили, пока стол не ответил (или не вышло время). Зовётся и после раскладки, и после руки каждый кадр: рука карту по снимку тянула бы обратно в щель. */
+  function holdLanding(): void {
+    if (!landing || performance.now() >= landing.until || fromKey(landing.id) !== landing.key) return;
+    const o = cards.get(landing.id);
+    if (o) o.target = landing.place;
+  }
 
   // ——— кадр: карты догоняют свои места ———
   let lastTick = performance.now();
@@ -1121,6 +1140,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     updateGrip(dt, now);
     if (gripAmt > 0.001 || gripDrag) moving = true;
     retargetMine();
+    holdLanding();
     for (const [id, o] of cards) {
       const g = o.group, t = o.target;
       // Сменила место между миром и рукой — пересадить, сохранив, где она на экране, и долететь.
@@ -1583,6 +1603,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // Легла — ждёт ответа стола там, куда её положили (над сукном — опускается на сукно, в руку — в щель).
     const o = cards.get(d.id), to = target(e, d);
     if (o && to.in === "felt") landing = { id: d.id, place: lying(to.x, to.y, 0.01 + store.state.felt.length * FELT_STEP, to.angle, to.up), key: fromKey(d.id), until: performance.now() + 1500 };
+    if (to.in === "hand" && to.chair === myChair()?.id && fromOf.get(d.id)?.in === "hand") reordering = { id: d.id, i: to.i, key: fromKey(d.id), until: performance.now() + 1500 };
     store.send({ t: "drop", id: d.id, to });
     layout(store.state);
   };
