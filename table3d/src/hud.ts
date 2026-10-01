@@ -49,7 +49,7 @@ const HOLD_MS = 1500;
 const DOUBLE_TAP_MS = 350;
 const TAP_PX = 8;
 /** Сколько пикселей пальца на всю ось язычка: опустить и положить, сжать, веер ↔ ряд. */
-const TAB_PX = { dead: 50, lay: 190, width: 220, carry: 150 };
+const TAB_PX = { dead: 50, lay: 190, width: 220, carry: 150, pull: 40, tapMs: 300 };
 const RIM_LEFT = 28;
 const SIDES: GatherSide[] = ["keep", "down", "up"];
 const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
@@ -89,7 +89,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     /** Какой список открыт из сабменю руки: порядок (`sort`) или поза (`pose`). */
     handPop: null as null | "sort" | "pose",
     /** Ручка тянется за пальцем: её место на экране, пока её держат (левая идёт по горизонтали, верхняя — по вертикали), независимо от того, куда рука сдвигает охват. */
-    grabOff: null as null | { which: "top" | "left"; x: number; y: number },
+    grabOff: null as null | { which: "top" | "left"; x: number; y: number; from?: "stack"; morph: number },
     journal: false,
     deckTip: null as string | null,
     /** Палец или курсор сейчас в окне (стопки, чужого стула) — только тогда моя рука лежит на том, с чем вожусь. */
@@ -258,10 +258,12 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     }
     // Язычки руки — по центру краёв, каждый за свою ось: сверху — поднять и отпустить, по бокам — сжать и разжать, по углам — веер и не веер.
     const fr = chair && count && !chair.pose.tuck ? scene.handFrame() : null;
-    if (fr) html += handGrabsHtml(fr);
+    const held = local.grabOff;
+    if (fr) html += handGrabsHtml(fr, held?.which ?? null);
+    if (held) html += heldGrabHtml(held);
     // Рука положена: у стопки на столе — своя ручка (боковая); потянул — рука поднимается и ручка становится верхней ручкой руки.
     const st = chair && count && chair.pose.tuck ? scene.stackScreen() : null;
-    if (st) html += handStackGrabHtml(st);
+    if (st && !held) html += handStackGrabHtml(st);
     // Списки сабменю руки — над своей кнопкой.
     if (chair && handOpenNow(chair) && local.handPop) html += handPopHtml(chair, inset + rowLeft + (local.handPop === "sort" ? 1 : 2) * step + 4, barTop - 8);
     // У пальцев: поза тела и компас слева, диалог справа.
@@ -276,9 +278,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   }
   /** Ручка у положенной стопки — сбоку от неё, привязана к стопке на столе: ездит с ней по экрану, растёт и уменьшается вместе с ней, а стопки не видно — нет и ручки. */
   function handStackGrabHtml(box: { x: number; y: number; w: number; h: number }): string {
-    const g = glass(), hit = 48, ph = Math.round(Math.max(24, Math.min(56, box.h * 0.7))), x = Math.min(g.w - 14, box.x + box.w + 10), y = box.y + box.h / 2;
-    return `<div data-hand-tab="stack" aria-label="Поднять руку" style="position:absolute;left:${Math.round(x - hit / 2)}px;top:${Math.round(y - hit / 2)}px;width:${hit}px;height:${hit}px;z-index:31;touch-action:none;cursor:grab;display:flex;align-items:center;justify-content:center">`
-      + `<span style="width:5px;height:${ph}px;border-radius:3px;background:rgba(255,255,255,.7);box-shadow:0 0 0 1.5px rgba(11,7,4,.55),0 2px 4px rgba(11,7,4,.4)"></span></div>`;
+    const g = glass(), ph = Math.round(Math.max(24, Math.min(56, box.h * 0.7)));
+    return pillHtml("stack", Math.min(g.w - 14, box.x + box.w + 10), box.y + box.h / 2, 5, ph, 0.7);
   }
   /** Список из сабменю: порядок карт или поза руки. */
   function handPopHtml(chair: Chair, left: number, bottom: number): string {
@@ -295,15 +296,30 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
    *   слева  — ширина руки: к краю экрана шире, от него уже: стопкой (одна карта) → веер → в ряд (самая широкая, карты не сжаты).
    * Вокруг каждой — зона нажатия не меньше пальца.
    */
-  function handGrabsHtml(fr: { x: number; y: number; w: number; h: number }): string {
+  function handGrabsHtml(fr: { x: number; y: number; w: number; h: number }, skip: "top" | "left" | null): string {
     const g = glass(), hit = 48;
     const grab = (which: "top" | "left", cx: number, cy: number, pw: number, ph: number) => {
-      const off = local.grabOff?.which === which ? local.grabOff : null, held = !!off;
-      const x = Math.max(hit / 2, Math.min(g.w - hit / 2, off ? off.x : cx)), y = Math.max(hit / 2, Math.min(g.h - hit / 2, off ? off.y : cy));
-      return `<div data-hand-tab="${which}" aria-label="${which === "top" ? "Высота руки" : "Ширина руки"}" style="position:absolute;left:${Math.round(x - hit / 2)}px;top:${Math.round(y - hit / 2)}px;width:${hit}px;height:${hit}px;z-index:31;touch-action:none;cursor:grab;display:flex;align-items:center;justify-content:center">`
-        + `<span style="width:${pw}px;height:${ph}px;border-radius:${Math.round(Math.min(pw, ph) / 2)}px;background:rgba(255,255,255,${held ? 0.95 : 0.62});box-shadow:0 0 0 1.5px rgba(11,7,4,.55),0 2px 4px rgba(11,7,4,.4)"></span></div>`;
+      if (skip === which) return "";
+      const x = Math.max(hit / 2, Math.min(g.w - hit / 2, cx)), y = Math.max(hit / 2, Math.min(g.h - hit / 2, cy));
+      return pillHtml(which, x, y, pw, ph, 0.62);
     };
     return grab("top", fr.x + fr.w / 2, fr.y, 40, 5) + grab("left", Math.max(76, fr.x), fr.y + fr.h / 2, 5, 40);
+  }
+  /** Ручка с зоной нажатия в палец: полоска `pw`×`ph` в точке `x, y`. */
+  function pillHtml(which: string, x: number, y: number, pw: number, ph: number, alpha: number): string {
+    const hit = 48;
+    return `<div data-hand-tab="${which}" aria-label="${which === "left" ? "Ширина руки" : which === "top" ? "Высота руки" : "Поднять руку"}" style="position:absolute;left:${Math.round(x - hit / 2)}px;top:${Math.round(y - hit / 2)}px;width:${hit}px;height:${hit}px;z-index:31;touch-action:none;cursor:grab;display:flex;align-items:center;justify-content:center">`
+      + `<span style="width:${pw}px;height:${ph}px;border-radius:${Math.round(Math.min(pw, ph) / 2)}px;background:rgba(255,255,255,${alpha});box-shadow:0 0 0 1.5px rgba(11,7,4,.55),0 2px 4px rgba(11,7,4,.4)"></span></div>`;
+  }
+  /**
+   * Ручка в пальце: одна и та же ручка, пока её держат, — всегда под пальцем и не зависит от того, куда рука сдвигает охват или
+   * как пропадает рамка. Та, что была боковой у стопки, разворачивается в верхнюю ручку руки (`morph` 0 → 1) и не прыгает.
+   */
+  function heldGrabHtml(o: { which: "top" | "left"; x: number; y: number; from?: "stack"; morph: number }): string {
+    const g = glass(), x = Math.max(24, Math.min(g.w - 24, o.x)), y = Math.max(24, Math.min(g.h - 24, o.y));
+    const lerp = (a: number, b: number) => Math.round(a + (b - a) * o.morph);
+    const [pw, ph] = o.which === "left" ? [5, 40] : o.from === "stack" ? [lerp(5, 40), lerp(40, 5)] : [40, 5];
+    return pillHtml(o.which, x, y, pw, ph, 0.95);
   }
   /** Компас стола: стрелка — к своему стулу, диск лежит под наклоном камеры. */
   function compassHtml(chair: Chair, at: { left: number; top: number }): string {
@@ -685,15 +701,21 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     if (tab && chair) {
       // Ручку тянут: сама ручка идёт за пальцем, рука меняется по своей оси, отпустил — поза легла.
       e.preventDefault();
-      let which = tab.dataset.handTab as "top" | "left" | "stack";
-      // Ручка у положенной стопки: потянул — рука поднимается и она же становится верхней ручкой руки.
-      if (which === "stack") { store.send({ t: "pose", chair: chair.id, pose: { ...chair.pose, tuck: false } }); which = "top"; }
+      const raw = tab.dataset.handTab as "top" | "left" | "stack", fromStack = raw === "stack", which: "top" | "left" = fromStack ? "top" : raw;
+      // Ручка у положенной стопки: тап — рука поднимается; потянул с запасом — поднимается и она же становится верхней ручкой руки;
+      // держишь или чуть потянул и вернул — рука остаётся на столе.
       const b0 = blendOf({ ...chair.pose, tuck: false }), w0 = scene.handWidth();
       const box = tab.getBoundingClientRect(), x0 = box.x + box.width / 2, y0 = box.y + box.height / 2;
-      let dx = 0, dy = 0, moved = false, carrying = false;
+      // Ручка у стопки не исчезает вместе со стопкой: сразу становится ручкой в пальце, идёт под ним и разворачивается в верхнюю.
+      if (fromStack) local.grabOff = { which: "top", x: x0, y: y0, from: "stack", morph: 0 };
+      let dx = 0, dy = 0, moved = false, carrying = false, lifted = !fromStack;
+      const t0 = performance.now(), lift = () => { if (!lifted) { lifted = true; const c = myChair(); if (c) store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: false } }); } };
       follow(e, (ev) => {
         dx = ev.clientX - e.clientX; dy = ev.clientY - e.clientY; moved ||= Math.hypot(dx, dy) >= TAP_PX;
-        local.grabOff = moved ? { which, x: which === "left" ? x0 + dx : x0, y: which === "top" ? y0 + dy : y0 } : null;
+        const dist = Math.hypot(dx, dy);
+        if (fromStack && !lifted && dist >= TAB_PX.pull) lift();
+        local.grabOff = moved || fromStack ? { which, x: fromStack || which === "left" ? x0 + dx : x0, y: fromStack || which === "top" ? y0 + dy : y0, ...(fromStack ? { from: "stack" as const } : {}), morph: fromStack ? Math.max(0, Math.min(1, (dist - TAB_PX.pull) / 40)) : 1 } : null;
+        if (fromStack && !lifted) { draw(); return; }
         if (which === "left") {
           // К краю экрана — шире. За пределом ручка продолжает идти за пальцем, а карты натягиваются и перестают расти.
           if (moved) scene.setHandWidth(w0 - dx / TAB_PX.width);
@@ -706,7 +728,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
             if (!was && dy <= -TAB_PX.carry) { /* ещё не вошли в зону несения */ }
           }
           // Иначе рука следует за ручкой по высоте (временно): вверх — выпрямляется веер, вниз — опускается на стол.
-          scene.setHandNudge(moved ? Math.min(dy, 0) : 0);
+          scene.setHandNudge(moved ? Math.max(-TAB_PX.carry, Math.min(dy, 0)) : 0);
           scene.setBlend(moved && dy > TAB_PX.dead ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - (dy - TAB_PX.dead) / (TAB_PX.lay - TAB_PX.dead))) } : undefined);
         }
         draw();
@@ -714,6 +736,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         local.grabOff = null;
         scene.setBlend(undefined);
         scene.setHandNudge(null);
+        // Тап по ручке стопки поднимает руку; держал или потянул и вернул — остаётся на столе.
+        if (fromStack && !lifted) { if (!moved && performance.now() - t0 < TAB_PX.tapMs) lift(); draw(); return; }
         if (carrying) { scene.carryHand(null); draw(); return; }
         const c = myChair();
         if (which === "left") scene.setHandWidth(null);

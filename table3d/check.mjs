@@ -945,6 +945,13 @@ try {
     await p.mouse.move(tx, ty - 235, { steps: 8 }); await p.waitForTimeout(250);
     const carried = await t(() => window.__t3d.carrying());
     await p.mouse.move(tx, ty + 12, { steps: 10 }); await p.waitForTimeout(300);
+    // На границе худа стопка не дрожит: палец ползёт сквозь границу — состояние меняется не больше двух раз.
+    let flips = 0, prev = carried;
+    for (let k = 0; k <= 40; k++) { await p.mouse.move(tx, ty - 150 + k * 3); await p.waitForTimeout(25); const now = await t(() => window.__t3d.carrying()); if (now !== prev) flips++; prev = now; }
+    for (let k = 40; k >= 0; k--) { await p.mouse.move(tx, ty - 150 + k * 3); await p.waitForTimeout(25); const now = await t(() => window.__t3d.carrying()); if (now !== prev) flips++; prev = now; }
+    check("на границе худа стопка не дрожит: туда-обратно палец — не больше двух переключений", flips <= 2, { flips });
+    await p.mouse.move(tx, ty - 235, { steps: 6 });
+    await p.mouse.move(tx, ty + 12, { steps: 10 }); await p.waitForTimeout(300);
     const back = await t(() => window.__t3d.carrying());
     await p.mouse.up(); await p.waitForTimeout(500);
     check("верхняя ручка: вверх — карты на столе, обратно вниз не отпуская — вернулись в руку (удержание возвращает, как и дроп)", carried === true && back === false && (await poseOf()).tuck === false, { carried, back });
@@ -966,7 +973,19 @@ try {
     const seen = await t(() => [...document.querySelectorAll('.screen:not(.off) [data-hand-tab]')].map((e) => e.dataset.handTab));
     check("посмотрел вниз — у стопки на столе одна боковая ручка", seen.length === 1 && seen[0] === "stack", seen);
     const sg = await tabBox("stack");
-    await p.mouse.move(sg.x + sg.width / 2, sg.y + sg.height / 2); await p.mouse.down(); await p.mouse.move(sg.x + sg.width / 2, sg.y + sg.height / 2 - 50, { steps: 6 });
+    const sx0 = sg.x + sg.width / 2, sy0 = sg.y + sg.height / 2;
+    // Тап по ручке стопки поднимает руку; держать или чуть потянуть и вернуть — нет (рука остаётся на столе).
+    await p.mouse.move(sx0, sy0); await p.mouse.down(); await p.waitForTimeout(600); await p.mouse.up(); await p.waitForTimeout(500);
+    const afterHold = (await poseOf()).tuck;
+    await p.mouse.move(sx0, sy0); await p.mouse.down(); await p.mouse.move(sx0, sy0 - 25, { steps: 5 }); await p.mouse.move(sx0, sy0, { steps: 5 }); await p.mouse.up(); await p.waitForTimeout(500);
+    const afterShort = (await poseOf()).tuck;
+    check("ручка у стопки: держать или чуть потянуть и вернуть — рука остаётся на столе", afterHold === true && afterShort === true, { afterHold, afterShort });
+    await p.mouse.move(sx0, sy0); await p.mouse.down();
+    // Ручка у стопки превращается в верхнюю ручку руки под пальцем: не прыгает, разворачивается из вертикальной в горизонтальную.
+    let worstHeld = 0;
+    for (let k = 1; k <= 12; k++) { await p.mouse.move(sx0, sy0 - k * 9); await p.waitForTimeout(70); const gh = await tabBox("top"); if (gh) worstHeld = Math.max(worstHeld, Math.abs(gh.x + gh.width / 2 - sx0), Math.abs(gh.y + gh.height / 2 - (sy0 - k * 9))); else worstHeld = 999; }
+    const pill = await t(() => { const e = document.querySelector('.screen:not(.off) [data-hand-tab="top"] span'); const r = e?.getBoundingClientRect(); return r ? { w: r.width, h: r.height } : null; });
+    check("ручка у стопки при подъёме руки — та же ручка под пальцем: не убегает и разворачивается в верхнюю (горизонтальную)", worstHeld < 4 && !!pill && pill.w > pill.h, { worstHeld, pill });
     await p.waitForTimeout(500);
     const liftedMid = await poseOf(), tabsMid = await tabsOn();
     await p.mouse.up(); await p.waitForTimeout(700);
@@ -1055,6 +1074,18 @@ try {
     const laidTop = await t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat, ids = s.chairs.find((c) => c.id === seat).hand.map((c) => c.id); return { ws: ids.map((id) => window.__t3d.world(id)), body: window.__t3d.myBody() }; });
     check("сверху: положенная рука — стопка карт на столе, не пустота", laidTop.ws.length > 0 && laidTop.ws.every((w) => w.h < 0.8 && Math.hypot(w.x - laidTop.ws[0].x, w.y - laidTop.ws[0].y) < 0.6), laidTop.ws.slice(0, 2));
     check("сверху: моя голова видна (кружок с именем), рука на столе", laidTop.body.head === true && !!laidTop.body.hand, laidTop.body);
+  }
+
+  {
+    // Тап по ручке положенной стопки поднимает руку (а удержание и короткое потягивание — нет, это в блоке выше).
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    await p.click(".screen:not(.off) [data-hand-btn]"); await p.click('.screen:not(.off) [data-hand-sub="release"]'); await p.waitForTimeout(2600);
+    await p.mouse.move(40, 420); await p.mouse.down(); await p.mouse.move(40, 250, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(900);
+    const stk = await rectOf('[data-hand-tab="stack"]');
+    await p.mouse.click(stk.x + stk.width / 2, stk.y + stk.height / 2); await p.waitForTimeout(700);
+    check("тап по ручке положенной стопки поднимает руку", (await t(() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat).pose.tuck; })) === false, null);
   }
   check("без ошибок", errors.length === 0, errors);
 } finally {

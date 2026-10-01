@@ -1605,9 +1605,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const ch = myChair();
       if (!ch) return false;
       if (screen) {
-        // Вернул палец на худ руки, не отпуская, — стопка возвращается в руку (и можно снова вытянуть вверх).
-        const was = handCarry as { zoneTop: number } | null;
-        if (was && screen.y > was.zoneTop) { handCarry = null; layout(store.state); return false; }
+        // Вернул палец на худ руки, не отпуская, — стопка возвращается в руку (и можно снова вытянуть вверх). Вход и выход с запасом
+        // (вход — заметно выше худа, выход — ниже его верха): на границе стопка не дрожит туда-сюда.
+        const was = handCarry as { zoneTop: number } | null, fr0 = handFrame(), zoneTop0 = was?.zoneTop ?? (fr0 ? fr0.y - 10 : renderer.domElement.getBoundingClientRect().height * 0.7);
+        if (was && screen.y > zoneTop0 + 20) { handCarry = null; layout(store.state); return false; }
+        if (!was && screen.y > zoneTop0 - 60) return false;
         ray.setFromCamera(ndc({ clientX: screen.x, clientY: screen.y }), camera);
         const hit = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -CARRY_H), new THREE.Vector3());
         if (!hit) return !!was;
