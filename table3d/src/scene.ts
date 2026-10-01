@@ -20,7 +20,7 @@ import type { Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/ta
 import { CARRY_EVERY_MS } from "../../server/src/table/contract.js";
 import { AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
 import { PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
-import { ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../../server/src/table/ring.js";
+import { RING_SPREAD, ringLanding, ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../../server/src/table/ring.js";
 import { artUrl, readLook, type DeckLook } from "../../server/table-client/deckArt.js";
 import { blendOf, handPlanBlend, mineGeomOf, snapPose, tuckOf, type PoseBlend } from "../../server/table-client/handGeom.js";
 import { BAR_LOOK, T, type Geom } from "../../server/table-client/screenConst.js";
@@ -675,6 +675,23 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const cards = new Map<string, CardObj>();
   const cardRoot = new THREE.Group();
   scene.add(cardRoot);
+  /**
+   * ПОЛЕ КРУГА ХОДА — тёмный диск на сукне, как у обычного стола: поле очерчено заливкой, а не линией. Он под картами и на месте
+   * всегда, с картами и без: меняется только то, что в нём лежит.
+   */
+  const ringFields = new Map<string, THREE.Mesh>();
+  const RING_FIELD = { alpha: 0.28, lift: 0.003 };
+  function ringFieldFor(p: Pile): void {
+    let m = ringFields.get(p.id);
+    if (!m) {
+      m = new THREE.Mesh(new THREE.CircleGeometry(RING_SPREAD, 96), new THREE.MeshBasicMaterial({ color: 0x0b0704, transparent: true, opacity: RING_FIELD.alpha, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+      m.rotation.x = -Math.PI / 2;
+      m.renderOrder = 1;
+      scene.add(m);
+      ringFields.set(p.id, m);
+    }
+    m.position.set(p.x, RING_FIELD.lift, p.y);
+  }
   const fromOf = new Map<string, From>();
   function cardObj(id: string): CardObj {
     let o = cards.get(id);
@@ -746,16 +763,24 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * Моя рука на экране: несомую карту в ней не считают (её место — у пальца), а если её держат над рукой — в руке
    * щель под неё (`drag.gap`): соседи расступаются, как у стола.
    */
-  /** Отпущенная в своей руке карта стоит в щели, куда её положили, пока стол не ответил: порядок руки по снимку тянул бы её обратно. */
-  let reordering: { id: string; i: number; key: string; until: number } | null = null;
+  /**
+   * ОТПУЩЕННАЯ В СВОЮ РУКУ карта стоит в щели, куда её положили, пока стол не ответил: порядок руки по снимку тянул бы её обратно —
+   * в старую щель или туда, откуда взяли (с сукна, из стопки), и она летела бы дважды.
+   */
+  let incoming: { id: string; i: number; key: string; until: number; card: SeenCard } | null = null;
+  const incomingNow = () => (incoming && performance.now() < incoming.until && fromKey(incoming.id) === incoming.key ? incoming : null);
+  /** Моя рука со всем, что в неё уже положили, а стол ещё не подтвердил. */
+  const handAll = (ch: Chair): SeenCard[] => {
+    const r = incomingNow();
+    return r && !ch.hand.some((c) => c.id === r.id) ? [...ch.hand, r.card] : ch.hand;
+  };
   const handCards = () => {
     const ch = myChair();
     if (!ch) return [];
-    const list = ch.hand.filter((c) => !(drag?.moved && c.id === drag.id));
-    const r = reordering;
-    if (!r || performance.now() >= r.until || fromKey(r.id) !== r.key) return list;
-    const c = list.find((x) => x.id === r.id);
-    if (!c) return list;
+    const list = handAll(ch).filter((c) => !(drag?.moved && c.id === drag.id));
+    const r = incomingNow();
+    const c = r ? list.find((x) => x.id === r.id) : undefined;
+    if (!r || !c) return list;
     const rest = list.filter((x) => x !== c);
     rest.splice(Math.min(r.i, rest.length), 0, c);
     return rest;
@@ -946,7 +971,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       // Рука на худе внизу экрана; положена — карты на столе стопкой (а не пусто), как в виде «голова».
       const geom = mineGeomOf(glass(), ch.pose, n, ch.id, { wide: b.wide, lift: Math.max(0.5, b.lift) }, safeBottom()), down = tuckOf(b);
       const world = (p: Place): Place => { camera.updateMatrixWorld(); return { pos: p.pos.clone().applyMatrix4(camera.matrixWorld), quat: camera.quaternion.clone().multiply(p.quat), scale: p.scale }; };
-      for (const c of ch.hand) {
+      for (const c of handAll(ch)) {
         const o = cards.get(c.id), k = list.indexOf(c);
         if (!o || k < 0) continue;
         const hud = flip(inHand(slotOf(k), geom), !!c.up);
@@ -980,7 +1005,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         return down <= 0 ? local : { ...laid(camHandWorld(local, head, rig.yaw, rig.pitch), ch, k, up, down), over: true };
       };
       if (liftedId && !ch.hand.some((c) => c.id === liftedId)) liftedId = null;
-      for (const c of ch.hand) {
+      for (const c of handAll(ch)) {
         const o = cards.get(c.id), k = list.indexOf(c);
         if (o && k >= 0) o.target = place(slotOf(k), !!c.up);
       }
@@ -1015,7 +1040,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     // Орбита: рука рядом с левой рукой тела; свой вид — лицом к камере.
     const hb = myHandBody(ch), lean = -Math.max(15, Math.min(80, Math.atan2(camera.position.y - hb.left.h - HAND.lift, Math.hypot(camera.position.x - hb.left.x, camera.position.z - hb.left.y)) / DEG));
-    for (const c of ch.hand) { const o = cards.get(c.id), k = list.indexOf(c); if (o && k >= 0) o.target = handPlace(hb, ch, slotOf(k), n, !!c.up, b, true, lean); }
+    for (const c of handAll(ch)) { const o = cards.get(c.id), k = list.indexOf(c); if (o && k >= 0) o.target = handPlace(hb, ch, slotOf(k), n, !!c.up, b, true, lean); }
     const o = gap !== null && drag ? cards.get(drag.id) : undefined;
     if (o) {
       const t = handPlace(hb, ch, gap!, n, false, b, true, lean), toEye = camera.position.clone().sub(t.pos).setLength(HOVER.near);
@@ -1037,6 +1062,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       fromOf.set(c.id, { in: "felt" });
       seen.add(c.id);
     });
+    for (const [id, m] of ringFields) if (!s.piles.some((p) => p.id === id && p.pose === "ring")) { scene.remove(m); m.geometry.dispose(); (m.material as THREE.Material).dispose(); ringFields.delete(id); }
+    for (const p of s.piles) if (p.pose === "ring") ringFieldFor(p);
     for (const p of s.piles) p.cards.forEach((c, i) => {
       const o = cardObj(c.id);
       dress(o, c, s);
@@ -1613,7 +1640,19 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // Легла — ждёт ответа стола там, куда её положили (над сукном — опускается на сукно, в руку — в щель).
     const o = cards.get(d.id), to = target(e, d);
     if (o && to.in === "felt") landing = { id: d.id, place: lying(to.x, to.y, 0.01 + store.state.felt.length * FELT_STEP, to.angle, to.up), key: fromKey(d.id), until: performance.now() + 1500 };
-    if (to.in === "hand" && to.chair === myChair()?.id && fromOf.get(d.id)?.in === "hand") reordering = { id: d.id, i: to.i, key: fromKey(d.id), until: performance.now() + 1500 };
+    // В свою руку (из руки, с сукна, из стопки) — в щель. В стопку и в круг — туда, где карта ляжет: ответ стола даст то же место.
+    const now = performance.now();
+    if (to.in === "hand" && to.chair === myChair()?.id) {
+      const st = store.state, card = st.felt.find((c) => c.id === d.id) ?? st.piles.flatMap((p) => p.cards).find((c) => c.id === d.id) ?? st.chairs.flatMap((c) => c.hand).find((c) => c.id === d.id);
+      if (card) incoming = { id: d.id, i: to.i, key: fromKey(d.id), until: now + 1500, card };
+    } else if (to.in === "deck") {
+      const pile = store.state.piles.find((p) => p.id === to.pile);
+      if (pile?.pose === "ring" && to.turn !== undefined) {
+        const busy = pile.cards.filter((c) => c.id !== d.id && c.turn !== undefined).map((c) => c.turn!);
+        const at = ringTurned({ x: pile.x, y: pile.y }, ringLanding(to.turn, busy));
+        landing = { id: d.id, place: lying(at.x, at.y, 0.01 + pile.cards.filter((c) => c.id !== d.id).length * FELT_STEP, at.angle, d.up), key: fromKey(d.id), until: now + 1500 };
+      } else if (pile && o) landing = { id: d.id, place: lying(pile.x, pile.y, 0.01 + pile.cards.filter((c) => c.id !== d.id).length * PILE_STEP, pileAngle(pile), d.up), key: fromKey(d.id), until: now + 1500 };
+    }
     store.send({ t: "drop", id: d.id, to });
     layout(store.state);
   };
