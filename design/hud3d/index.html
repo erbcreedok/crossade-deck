@@ -206,8 +206,8 @@
   const trayTop = () => (S.tab ? dockTop() - 8 - sheetH() : dockTop()) - 4;
   /** Карты чуть уходят под полку: нижние 14 px спрятаны, рука «лежит в лотке» над баром. */
   const handBottom = () => trayTop() + 14 - S.handDy;
-  /** Высота руки, которую задаёт язычок: от «спрятана за полкой» до `MAXUP` над обычным местом. */
-  const MAXUP = 120, minDy = () => -(S.cw * 243 / 167 + 18);
+  /** Высота руки, которую задаёт язычок: от «спрятана за полкой» до `MAXUP` над обычным местом — выше нельзя: нижняя кромка карт лишь чуть выглядывает над полкой. */
+  const MAXUP = 18, minDy = () => -(S.cw * 243 / 167 + 18);
   /** Рука — всегда ОДИН ряд: сколько бы карт ни было, лента сжимается, а читают её пальцем (карта выползает). */
   function rowsOf() { return hand.length ? [hand] : []; }
   const chH = () => Math.round(S.cw * 243 / 167);
@@ -396,7 +396,7 @@
       const d = gripDrag, stacked = stackDrag; gripDrag = null; stackDrag = null;
       if (stacked && d.y < 520) { S.piled = { x: Math.max(60, Math.min(W - 60, d.x)), y: Math.max(190, Math.min(500, d.y)) }; S.handDy = d.dy0 > 0 ? d.dy0 : 0; say(`Вся рука (${hand.length}) лежит стопкой на столе. Коснись стопки — заберёшь обратно.`); }
       else if (hiddenHand() || S.handDy < minDy() * 0.6) { S.handDy = minDy(); say("Рука спрятана. Потяни язычок вверх — вернётся."); }
-      else if (Math.abs(S.handDy) < 12) S.handDy = 0;
+      else if (Math.abs(S.handDy) < 5) S.handDy = 0;
       renderAll();
     };
     grip.addEventListener("pointerup", end); grip.addEventListener("pointercancel", end);
