@@ -147,7 +147,7 @@ const CSS = `
 `;
 
 /** Адрес стола — соседний с этой страницей: под реле `/t/?room=…`, на маке `/table/?room=…`. */
-const tableUrl = (room: string): string => `?room=${encodeURIComponent(room)}&from=rooms${appKey() ? `&key=${encodeURIComponent(appKey()!)}` : ""}`;
+const tableUrl = (room: string, view3d = false): string => `${view3d ? "/table/3d" : ""}?room=${encodeURIComponent(room)}&from=rooms${appKey() ? `&key=${encodeURIComponent(appKey()!)}` : ""}`;
 /** Ключ приложения Crossade из адреса (`appPass.ts`) — там, где нет подписи Telegram. */
 const appKey = (): string | null => new URLSearchParams(location.search).get("key");
 const replayUrl = (room: string, r: NonNullable<MyClosed["replay"]>): string =>
@@ -242,6 +242,8 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
   const body = (html: string): void => {
     scroll.innerHTML = `<div class="wrap">${html}</div>`;
     for (const el of scroll.querySelectorAll<HTMLElement>("[data-room]")) el.onclick = () => void (location.href = tableUrl(el.dataset.room!));
+    // В 3D — тем же входом, но на страницу 3D-вида: под реле она проходит насквозь (`/table/…`), подпись Telegram едет в `#`.
+    for (const el of scroll.querySelectorAll<HTMLElement>("[data-room3d]")) el.onclick = () => void (location.href = tableUrl(el.dataset.room3d!, true) + location.hash);
     if (native) wireLogin(scroll, native, key);
   };
 
@@ -265,7 +267,7 @@ export function mountRooms(host: HTMLElement, app: TelegramApp | undefined): voi
         const tags = r.why.map((w) => `<span class="tag">${WHY[w]}${w === "chat" && r.chat ? ` «${esc(r.chat)}»` : ""}</span>`).join("");
         const who = r.now.length ? `за столом: ${esc(r.now.join(", "))}` : "за столом никого";
         return `<div class="card${r.now.length ? " hot" : ""}"><span class="title">${esc(r.title)}</span><span class="meta">${tags}<span>${who}</span></span>`
-          + `<span class="acts"><button class="btn gold" data-room="${esc(r.room)}">${r.why.includes("visited") ? "Вернуться" : "Войти"}</button></span></div>`;
+          + `<span class="acts"><button class="btn gold" data-room="${esc(r.room)}">${r.why.includes("visited") ? "Вернуться" : "Войти"}</button><button class="btn" data-room3d="${esc(r.room)}">В 3D</button></span></div>`;
       };
       const mine = rooms.filter((r) => !r.why.includes("chat") || r.why.length > 1);
       const chats = rooms.filter((r) => r.why.length === 1 && r.why[0] === "chat");

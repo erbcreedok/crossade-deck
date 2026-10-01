@@ -231,6 +231,8 @@ export interface SceneApi {
   azimuth(): number;
   elevation(): number;
   glass(): { w: number; h: number };
+  /** Системный отступ снизу (полоса «домой»), px. */
+  safeBottom(): number;
   /** Моя рука на экране — геометрия 2D-стола (`handGeom.ts`); нет стула — `null`. */
   handGeom(): Geom | null;
   /** Поза руки под пальцем, пока тянут ручку позы. */
@@ -733,6 +735,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let blend: PoseBlend | undefined;
   const glass = () => ({ w: Math.max(1, host.clientWidth), h: Math.max(1, host.clientHeight) });
   /**
+   * СИСТЕМНЫЙ ОТСТУП СНИЗУ — полоса «домой» айфона: сколько скажет устройство или Telegram, и ни пикселя сверх.
+   * Меряется живым элементом: CSS знает, JS — нет. Нижняя панель и рука встают выше него.
+   */
+  const safeProbe = document.createElement("div");
+  safeProbe.style.cssText = "position:fixed;left:0;bottom:0;width:0;visibility:hidden;pointer-events:none;height:max(env(safe-area-inset-bottom,0px),var(--tg-safe-area-inset-bottom,0px))";
+  document.body.append(safeProbe);
+  const safeBottom = (): number => safeProbe.offsetHeight;
+  /**
    * Моя рука на экране: несомую карту в ней не считают (её место — у пальца), а если её держат над рукой — в руке
    * щель под неё (`drag.gap`): соседи расступаются, как у стола.
    */
@@ -750,7 +760,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     rest.splice(Math.min(r.i, rest.length), 0, c);
     return rest;
   };
-  const handGeom = (): Geom | null => { const ch = myChair(); return ch ? mineGeomOf(glass(), ch.pose, handCards().length + (drag?.moved && drag.gap !== null ? 1 : 0), ch.id, blend) : null; };
+  const handGeom = (): Geom | null => { const ch = myChair(); return ch ? mineGeomOf(glass(), ch.pose, handCards().length + (drag?.moved && drag.gap !== null ? 1 : 0), ch.id, blend, safeBottom()) : null; };
   /** Карта у глаза в точке экрана (середина `x, y`, ширина `w`, поворот) — поверх всего, чуть крупнее: в окне HUD. */
   const screenPlace = (sp: { x: number; y: number; w: number; angle: number }): Place => {
     const g = glass(), D = 3, vh = 2 * D * Math.tan((camera.fov * DEG) / 2), vw = vh * (g.w / g.h);
@@ -934,7 +944,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     if (camMode === "top") {
       // Рука на худе внизу экрана; положена — карты на столе стопкой (а не пусто), как в виде «голова».
-      const geom = mineGeomOf(glass(), ch.pose, n, ch.id, { wide: b.wide, lift: Math.max(0.5, b.lift) }), down = tuckOf(b);
+      const geom = mineGeomOf(glass(), ch.pose, n, ch.id, { wide: b.wide, lift: Math.max(0.5, b.lift) }, safeBottom()), down = tuckOf(b);
       const world = (p: Place): Place => { camera.updateMatrixWorld(); return { pos: p.pos.clone().applyMatrix4(camera.matrixWorld), quat: camera.quaternion.clone().multiply(p.quat), scale: p.scale }; };
       for (const c of ch.hand) {
         const o = cards.get(c.id), k = list.indexOf(c);
@@ -1891,6 +1901,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     azimuth: () => { if (camMode !== "orbit") return sideOf(rig.yaw); const p = camera.position.clone().sub(orbit.target); return Math.atan2(p.x, p.z) / DEG; },
     elevation: () => { if (camMode !== "orbit") return -rig.pitch; const p = camera.position.clone().sub(orbit.target); return Math.asin(p.y / p.length()) / DEG; },
     glass,
+    safeBottom,
     handGeom,
     setBlend(b) { blend = b; layout(store.state); },
     stance: stanceNow,

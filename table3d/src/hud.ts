@@ -19,7 +19,7 @@ import { allowed, may as mayDo } from "../../server/src/table/access.js";
 import { SUITS } from "../../server/table-client/felt.js";
 import { CAM, CAM_LABEL, CAM_MODES, PEEK } from "./camera.js";
 import { artUrl, readLook, writeLook } from "../../server/table-client/deckArt.js";
-import { BAR_LOOK, BAR, MENTION_INK, T } from "../../server/table-client/screenConst.js";
+import { BAR_LOOK, BAR, MENTION_INK, T, TABLE_BUILD } from "../../server/table-client/screenConst.js";
 import { GLYPH, RIGHTS, SUBS, type BarKey, type GrabMode, type Section } from "../../server/table-client/glyphs.js";
 import { barHeightU, blendOf, handPlan, handWideOf, hudUnitOf, snapPose, type PoseBlend } from "../../server/table-client/handGeom.js";
 import { journal } from "../../server/table-client/journal.js";
@@ -58,7 +58,7 @@ const RIM_LEFT = 28;
 const SIDES: GatherSide[] = ["keep", "down", "up"];
 const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
 const gold = `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo})`;
-const TOP = "top:calc(12px + env(safe-area-inset-top, 0px))";
+const TOP = "top:calc(12px + var(--safe-top))";
 
 const CSS = `
 @font-face { font-family: Tiny5; src: url(${HOST}/table/fonts/tiny5-cyrillic.woff2) format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
@@ -126,7 +126,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     view: { min: CAM.fov.view.min, max: CAM.fov.view.max, get: () => scene.baseFov(), set: (deg) => { scene.setBaseFov(deg); try { localStorage.setItem("t3d.fov", String(scene.baseFov())); } catch { /* без памяти — обзор на эту сессию */ } } },
     cardSize: { min: 50, max: 200, get: () => Math.round(scene.handSize() * 100), set: (pct) => { scene.setHandSize(pct / 100); try { localStorage.setItem("t3d.handSize", String(scene.handSize())); } catch { /* без памяти — размер на эту сессию */ } } },
     figures: { on: () => figuresOn, toggle: () => { figuresOn = !figuresOn; scene.setFigures(figuresOn); } },
-    footer: () => "песочница 3D · three.js",
+    footer: () => `build ${TABLE_BUILD} · песочница 3D · three.js`,
     changed: () => draw(),
   });
   try { const saved = Number(localStorage.getItem("t3d.handSize")); if (saved) scene.setHandSize(saved); } catch { /* без памяти — обычный размер */ }
@@ -183,7 +183,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   const glass = () => scene.glass();
   const hudUnit = () => hudUnitOf(glass());
   const geomNow = (): Geom | null => scene.handGeom();
-  const barTopOf = (g: Geom | null) => g?.barTop ?? glass().h - barHeightU() * hudUnit();
+  const barTopOf = (g: Geom | null) => g?.barTop ?? glass().h - scene.safeBottom() - barHeightU() * hudUnit();
   const handTopOf = (g: Geom): number => (g.slots.length ? Math.min(...g.slots.map((sl) => sl.y - g.h / 2)) : g.barTop!);
   /** Кнопки у пальцев стоят над баром и от позы карт не зависят: рука подняли, положили, сжали — они на месте. */
   const thumbTopOf = (g: Geom | null, side: number): number => barTopOf(g) - side - 10;
@@ -381,7 +381,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   function devHtml(): string {
     if (!dev) return "";
     const chip = (attrs: string, top: number, aria: string, text: string, on = false) =>
-      `<button ${attrs} aria-label="${aria}" style="position:absolute;left:${RIM_LEFT}px;top:calc(${top}px + env(safe-area-inset-top, 0px));z-index:61;border:0;cursor:pointer;padding:6px 10px;border-radius:9px;font:400 11px Tiny5,monospace;color:${on ? T.black : T.ink};background:${on ? `linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo})` : T.well};box-shadow:inset 0 0 0 2px ${store.me.ink},0 3px 0 rgba(11,7,4,.5);white-space:nowrap">${text}</button>`;
+      `<button ${attrs} aria-label="${aria}" style="position:absolute;left:${RIM_LEFT}px;top:calc(${top}px + var(--safe-top));z-index:61;border:0;cursor:pointer;padding:6px 10px;border-radius:9px;font:400 11px Tiny5,monospace;color:${on ? T.black : T.ink};background:${on ? `linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo})` : T.well};box-shadow:inset 0 0 0 2px ${store.me.ink},0 3px 0 rgba(11,7,4,.5);white-space:nowrap">${text}</button>`;
     return chip("data-dev-switch", 60, "Только для разработки: управлять другим экраном (клавиша Tab)", `DEV · ${esc(dev.label)} · Tab`)
       + chip("data-dev-cam", 128, "Только для разработки: модель камеры — орбита, голова, оптика, сверху", `DEV · камера: ${CAM_LABEL[scene.camMode()]}`, scene.camMode() !== "orbit")
       + chip("data-dev-peek", 94, "Только для разработки: окно с видом глазами другого", `DEV · окно: ${esc(dev.peek.label)} ${dev.peek.on() ? "вкл" : "выкл"}`, dev.peek.on());
@@ -407,7 +407,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       ? `<div style="padding:18px 14px;color:${T.inkDim};text-align:center">Пока ничего не происходило.</div>`
       : deeds.map((one) => `<div data-deed style="padding:7px 14px;border-top:1px solid ${BAR_LOOK.rim};display:flex;gap:8px;align-items:baseline"><span style="color:${T.inkDim};font:400 11px Tiny5,monospace;flex:0 0 auto">${hour(one.at)}</span>`
         + `<span style="flex:1 1 auto;min-width:0">${one.who ? `<b style="color:${one.ink ?? T.ink};font-weight:600">${esc(one.who)}</b> ` : ""}${esc(one.says)}${one.deal ? ` <span style="color:${T.inkDim}">${esc(one.deal.map((d) => `${d.hand} ${d.n}`).join(", "))}</span>` : one.cards ? (one.cards.length > 8 ? ` <span style="color:${T.inkDim}">${one.cards.length} шт.</span>` : ` ${one.cards.map(card).join(" ")}`) : one.count !== undefined ? ` <span style="color:${T.inkDim}">${one.count} шт.</span>` : ""}</span></div>`).join("");
-    return `<div data-g="journal" style="position:absolute;left:12px;right:12px;top:calc(60px + env(safe-area-inset-top, 0px));max-height:min(52vh,420px);overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:contain;z-index:62;border-radius:14px;font:400 13px/1.45 Tiny5,monospace;color:${T.ink};${plate}">`
+    return `<div data-g="journal" style="position:absolute;left:12px;right:12px;top:calc(60px + var(--safe-top));max-height:min(52vh,420px);overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:contain;z-index:62;border-radius:14px;font:400 13px/1.45 Tiny5,monospace;color:${T.ink};${plate}">`
       + `<div style="padding:9px 14px;color:${T.inkDim};font-size:11px;position:sticky;top:0;${plate};border-radius:14px 14px 0 0">Журнал · видно только то, что видно за столом</div>${rows}</div>`;
   }
 

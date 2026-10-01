@@ -282,7 +282,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
         break;
       case "view3d":
         // Та же комната, тот же вход: меняется только экран. Адрес с `#` (подпись Telegram) уходит целиком.
-        location.href = `${location.pathname.replace(/\/3d\/?$/, "/").replace(/\/?$/, in3d() ? "" : "/3d")}${location.search}${location.hash}`;
+        location.href = `${in3d() ? "/table/" : "/table/3d"}${location.search}${location.hash}`;
         return;
       case "fourColour":
       case "cyrillic":

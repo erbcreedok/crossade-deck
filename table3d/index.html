@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Песочница 3D</title>
   <style>
+    /* Чёлка: у браузера — `env`, у Telegram во весь экран — его переменные (своя шапка поверх чёлки). */
+    :root { --safe-top: calc(max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px)) + var(--tg-content-safe-area-inset-top, 0px)); }
     html, body { margin: 0; height: 100%; background: #0a1511; color: #f5ead0; font: 14px/1.35 system-ui, sans-serif; overflow: hidden; }
     .screen { position: fixed; inset: 0; }
     .screen.off { visibility: hidden; pointer-events: none; }
     .stage { position: absolute; inset: 0; touch-action: none; }
     /* Окно «глазами другого»: тот экран, которым сейчас не управляю, — рядом с моим, только смотреть. */
-    .screen.aside { inset: auto; top: calc(64px + env(safe-area-inset-top, 0px)); right: 8px; width: 38vw; height: 38vh; z-index: 20; overflow: hidden; pointer-events: none;
+    .screen.aside { inset: auto; top: calc(64px + var(--safe-top)); right: 8px; width: 38vw; height: 38vh; z-index: 20; overflow: hidden; pointer-events: none;
       border-radius: 12px; border: 3px solid var(--who, #888); box-shadow: 0 6px 0 rgba(11,7,4,.5); background: #0a1511; }
     .screen.aside > :not(.stage) { display: none; }
     .screen.aside::before { content: attr(data-who); position: absolute; left: 6px; top: 6px; z-index: 5; padding: 3px 7px; border-radius: 7px;
