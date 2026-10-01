@@ -26,18 +26,40 @@ export const CAM = {
   /** Насколько колесо и щипок приближают. */
   wheel: 0.0015,
   scroll: 0.004,
+  /** Доля предела бокового сдвига головы на пиксель, на который сошлись два пальца вбок. */
+  side: 0.004,
 } as const;
 
 /** Угол к диапазону `-180…180`. */
 export const wrap = (a: number): number => ((((a + 180) % 360) + 360) % 360) - 180;
 
-/** Где голова, когда шея наклонена на `lean` (0 — в покое, 1 — на пределе): от плеч к середине стола и ниже. */
-export function headAt(sh: Point3, lean: number): Point3 {
+/** Насколько голова откидывается назад и вбок. `reach` — единиц стола назад от покоя при `lean = −1`, `up` — насколько при этом выше; `max` — на сколько градусов по кругу сдвигается голова при `side = ±1`. */
+export const BACK = { reach: 3, up: 0.9, max: 40 } as const;
+
+/**
+ * Где голова, когда шея наклонена на `lean` и сдвинута на `side`.
+ *
+ *   lean  от −1 до 1: 0 — в покое; больше нуля — к середине стола и ниже; меньше — назад, от стола, и чуть выше. Голова идёт по
+ *         радиусу (по линии «плечи — середина стола»);
+ *   side  от −1 до 1: голова идёт по кругу вокруг середины стола, на том же расстоянии от неё, не дальше `BACK.max` градусов.
+ */
+export function headAt(sh: Point3, lean: number, side = 0): Point3 {
   const r = Math.hypot(sh.x, sh.y) || 1, inward = { x: -sh.x / r, y: -sh.y / r };
-  const t = Math.max(0, Math.min(1, lean));
-  const h = sh.h + NECK_LEN.up + (HEAD.min - (sh.h + NECK_LEN.up)) * t, len = NECK_LEN.rest + NECK_LEN.reach * t, up = h - sh.h;
-  const d = Math.sqrt(Math.max(0, len * len - up * up));
-  return { x: sh.x + inward.x * d, y: sh.y + inward.y * d, h };
+  const t = Math.max(-1, Math.min(1, lean));
+  const up0 = NECK_LEN.up, d0 = Math.sqrt(Math.max(0, NECK_LEN.rest * NECK_LEN.rest - up0 * up0));
+  let h: number, d: number;
+  if (t >= 0) {
+    h = sh.h + up0 + (HEAD.min - (sh.h + up0)) * t;
+    const len = NECK_LEN.rest + NECK_LEN.reach * t, up = h - sh.h;
+    d = Math.sqrt(Math.max(0, len * len - up * up));
+  } else {
+    const u = -t;
+    h = sh.h + up0 + BACK.up * u;
+    d = d0 - (d0 + BACK.reach) * u;
+  }
+  const at = { x: sh.x + inward.x * d, y: sh.y + inward.y * d };
+  const a = (Math.max(-1, Math.min(1, side)) * BACK.max * Math.PI) / 180, c = Math.cos(a), sn = Math.sin(a);
+  return { x: at.x * c - at.y * sn, y: at.x * sn + at.y * c, h };
 }
 
 /** Взгляд из `from` в середину стола: угол вниз, градусы. */
