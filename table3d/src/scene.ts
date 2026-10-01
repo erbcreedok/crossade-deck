@@ -195,6 +195,9 @@ export interface SceneApi {
   handSize(): number;
   setHandSize(k: number): void;
   setBaseFov(deg: number): void;
+  /** Расстояние камеры «вокруг стола» до стола: 0 — дальше всего, 1 — ближе всего. */
+  orbitZoom(): number;
+  setOrbitZoom(t: number): void;
   /** Оптический зум головы: 0 — обычный обзор, 1 — самый узкий. */
   optics(): number;
   setOptics(t: number): void;
@@ -228,6 +231,19 @@ export interface SceneApi {
   setHandHeight(px: number): void;
   /** Где на экране лежит моя положенная стопка (охват верхней карты) — ручка у неё привязана к стопке на столе; рука не положена или стопки не видно — `null`. */
   stackScreen(): { x: number; y: number; w: number; h: number } | null;
+  /** Несёт ли левая рука всю руку стопкой над столом сейчас. */
+  carryingHand(): boolean;
+  /** ВЫСОТА РУКИ 0…1 (язычок над рукой): на столе — корешок — веер — в ряд; ставит позу и подъём вместе. */
+  handLevel(): number;
+  setHandLevel(h: number): void;
+  /** Ступень руки по высоте `h`. */
+  handPoseAt(h: number): "tuck" | "spine" | "fan" | "row";
+  /** Высота, на которую кнопки позы ставят язычок. */
+  poseLevels: Record<"tuck" | "spine" | "fan" | "row", number>;
+  /** Верх карт моей руки на экране, px (без поднятой карты); нет карт или рука на столе — `null`. */
+  handTopPx(): number | null;
+  /** Нижняя строка HUD: её верх на экране и на сколько пол руки приподнят над ней (лист вкладки). */
+  setDock(top: number, extra: number): void;
   /** Ширина моей руки 0…1 (стопкой → веер → в ряд, предел — экран). */
   handWidth(): number;
   /** Пока тянут левую ручку: ширина `raw` (за пределом — карты натягиваются и не растут); `null` — отпустили, поза легла. */
@@ -1067,7 +1083,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return { x: left.x + (at.x - left.x) * down, y: left.y + (at.y - left.y) * down, h: left.h + (h - left.h) * down };
   }
   /** Поза моей руки под пальцем (плавная) или ступенью стула. */
-  const mineBlend = (ch: Chair): PoseBlend => blend ?? blendOf(ch.pose);
+  const mineBlend = (ch: Chair): PoseBlend => blend ?? (levelOn ? levelBlend() : blendOf(ch.pose));
   /** Вид «сверху»: рука у края экрана, как у 2D-стола (`mineGeomOf`), а не на столе — так её удобнее брать. */
   const inHand = (k: number, geom: Geom): Place => {
     const g = glass(), sl = geom.slots[k]!, D = 5, vh = 2 * D * Math.tan((camera.fov * DEG) / 2), vw = vh * (g.w / g.h);
@@ -1096,6 +1112,65 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Несомая над рукой: ближе к глазу (выше соседей по глубине), но на экране — того же размера и места, что в руке (всё ×r), плюс подъём. */
   const hoverNear = (t: Place, up: number): void => { const d = -t.pos.z, r = (d - CAMHAND.near) / d; t.pos.x *= r; t.pos.y = (t.pos.y + up) * r; t.pos.z += CAMHAND.near; t.scale *= r; };
   /** Места моих карт каждый кадр: несомая над рукой стоит в щели, выше соседей и ближе к глазу. */
+  // ——— ВЫСОТА РУКИ — ОДНА РУЧКА (язычок над рукой, `design/hud3d`): поза и подъём вместе ———
+  //   0 …3%   рука на столе: карт не видно, они легли стопкой перед стулом (`tuck`);
+  //   3 …30%  корешок: рука рядом, но опущена за нижнюю строку — торчит только верх карт; ряд;
+  //   30…60%  веер — всегда веером (предел «веер не помещается» здесь не работает: карты просто теснее);
+  //   60…100% в ряд; на самом верху нижняя кромка карт лишь чуть выглядывает над нижней строкой.
+  // Кнопки позы ставят ту же ручку в своё место. Остальным уходят только флаги позы (веер, на столе); высота руки идёт телом (`handY`).
+  type LevelPose = "tuck" | "spine" | "fan" | "row";
+  const LEVEL = { tuck: 0.03, spine: 0.3, fan: 0.6 };
+  const POSE_LEVEL: Record<LevelPose, number> = { row: 0.8, fan: 0.45, spine: 0.12, tuck: 0 };
+  const levelPose = (h: number): LevelPose => (h < LEVEL.tuck ? "tuck" : h < LEVEL.spine ? "spine" : h < LEVEL.fan ? "fan" : "row");
+  /** Какая доля высоты карты видна над нижней строкой на высоте руки `h`. */
+  const visFrac = (h: number): number => {
+    const pose = levelPose(h);
+    if (pose === "tuck") return 0;
+    if (pose === "spine") return 0.09 + (Math.min(h, 0.2) / 0.2) * 0.3;
+    if (pose === "fan") return 0.47 + ((h - LEVEL.spine) / (LEVEL.fan - LEVEL.spine)) * 0.38;
+    return 0.85 + ((h - LEVEL.fan) / (1 - LEVEL.fan)) * 0.19;
+  };
+  let handLevel = POSE_LEVEL.row, levelOn = false;
+  /** Нижняя строка HUD: где её верх на экране и на сколько приподнят над ней пол руки (лист вкладки). `null` — по умолчанию. */
+  let dockTopPx: number | null = null, dockExtraPx = 0;
+  const trayTopPx = (): number => (dockTopPx ?? host.clientHeight - safeBottom() - 80) - dockExtraPx - 4;
+  const levelBlend = (): PoseBlend => ({ wide: 1, lift: levelPose(handLevel) === "tuck" ? 0 : levelPose(handLevel) === "fan" ? 0.5 : 1 });
+  /** Верх и низ средней карты руки на экране, px, при высоте руки `hp` пикселей — для подгонки руки под нижнюю строку. */
+  function handCardBox(n: number, shape: Shape, fovK: number, curl: number, hp: number): { top: number; bottom: number } {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const off = { x: 0, y: (hp * pxUnit()) / (Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2)) };
+    const pl = camHandLocal(Math.floor((n - 1) / 2), n, false, shape, fovK, handSize, off, curl);
+    const half = new THREE.Vector3(0, (CARD_H / 2) * pl.scale, 0).applyQuaternion(pl.quat);
+    const y = (v: THREE.Vector3) => ((1 - v.clone().applyMatrix4(camera.projectionMatrix).y) * rect.height) / 2;
+    return { top: y(pl.pos.clone().add(half)), bottom: y(pl.pos.clone().sub(half)) };
+  }
+  /** Высота руки в кадре (px вверх), при которой видна нужная доля карт над нижней строкой. */
+  function levelHeightPx(n: number, fovK: number, curl: number): number {
+    if (n <= 0 || levelPose(handLevel) === "tuck") return 0;
+    const shape = shapeOfWidth(handWidth, n, 0, 0);
+    shape.lift = levelPose(handLevel) === "fan" ? 0.5 : 1;
+    const box = handCardBox(n, shape, fovK, curl, 0), cardPx = Math.abs(box.bottom - box.top);
+    return box.bottom - (trayTopPx() + cardPx * (1 - visFrac(handLevel)));
+  }
+  /** Поставить высоту руки (и вместе с ней позу): `commit` — отдать флаги позы столу (при смене ступени всегда). */
+  function setHandLevel(h: number): void {
+    const was = levelPose(handLevel), next = Math.max(0, Math.min(1, h)), pose = levelPose(next), ch = myChair();
+    levelOn = true;
+    handLevel = next;
+    if (pose !== was) {
+      handWidth = pose === "fan" ? WIDTH.defaults.fan : WIDTH.defaults.row;
+      if (ch) { const flags = { fan: pose === "fan", shrink: false, tuck: pose === "tuck" }; if (flags.fan !== ch.pose.fan || flags.shrink !== ch.pose.shrink || flags.tuck !== ch.pose.tuck) store.send({ t: "pose", chair: ch.id, pose: flags }); }
+    }
+    layout(store.state); sendBody(); draw();
+  }
+  /** Ручка по позе стула — при входе (и пока стула нет, пробуем снова). */
+  function levelFromPose(): void {
+    const ch = myChair();
+    if (!ch) return;
+    levelOn = true;
+    handLevel = ch.pose.tuck ? POSE_LEVEL.tuck : ch.pose.fan ? POSE_LEVEL.fan : POSE_LEVEL.row;
+    handWidth = ch.pose.fan && !ch.pose.tuck ? WIDTH.defaults.fan : WIDTH.defaults.row;
+  }
   function retargetMine(): void {
     const ch = myChair();
     if (!ch) return;
@@ -1130,9 +1205,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return;
     }
     if (camMode === "head") {
-      const down = tuckOf(b), fovK = Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), head = { x: camera.position.x, y: camera.position.z, h: camera.position.y }, off = handOffset();
+      const down = tuckOf(b), fovK = Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), head = { x: camera.position.x, y: camera.position.z, h: camera.position.y };
+      if (levelOn) heightPx = levelHeightPx(n, fovK, handCurl * mineCurlK(n));
+      const off = handOffset();
       syncWidth(ch);
       const shape = shapeOfWidth(widthLive ?? handWidth, n, Math.max(0, Math.min(1, heightPx / WIDTH.rise)), widthOver);
+      if (levelOn) shape.lift = levelPose(handLevel) === "fan" ? 0.5 : 1;
       placeFpsArm(down <= 0 && list.length > 0 && !handCarry, fovK, off);
       // Раздвижка: места карт по ширине руки (в ширинах карты) и сдвиг от пальца на верхней ручке.
       const u = CAMHAND.card * fovK * handSize, curlMine = handCurl * mineCurlK(n);
@@ -1629,7 +1707,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return f.in === "felt" || (f.in === "pile" && f.top) || (f.in === "hand" && f.mine);
   };
   /** `group` — несут выделенное лассо: отпустил — все выделенные туда же (`moveMany`), одним намерением. */
-  let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; group: boolean; gap: number | null; place: Place | null; where: Where | null; spot: { x: number; y: number; w: number; angle: number } | null; zone: { pile?: string; chair?: string; i: number } | null } | null = null;
+  let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; group: boolean; gap: number | null; place: Place | null; where: Where | null; spot: { x: number; y: number; w: number; angle: number } | null; zone: { pile?: string; chair?: string; i: number } | null; fingerHand: boolean; latch0: string | null; scrubbed: boolean } | null = null;
   let zoneFn: Parameters<SceneApi["setZone"]>[0] = null;
   let restRight: { x: number; y: number } | null = null;
   let carriedAt = 0;
@@ -1727,17 +1805,45 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }, { capture: true });
   function startDrag(id: string, e: PointerEvent): void {
     const fromHand = fromOf.get(id);
+    const latch0 = liftedId, fingerHand = !!fromHand && fromHand.in === "hand" && fromHand.mine && camMode === "head" && levelOn;
     liftedId = fromHand && fromHand.in === "hand" && fromHand.mine && camMode === "head" ? id : null;
     orbit.enabled = false;
     renderer.domElement.setPointerCapture(e.pointerId);
     const f = fromOf.get(id)!;
     const c = f.in === "felt" ? store.state.felt.find((x) => x.id === id) : undefined;
     const my = myChair()?.angle ?? 0;
-    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? true : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: c ? c.angle : ((-my % 360) + 360) % 360, group: lasso.on && mine(id), gap: null, place: null, where: null, spot: null, zone: null };
+    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? true : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: c ? c.angle : ((-my % 360) + 360) % 360, group: lasso.on && mine(id), gap: null, place: null, where: null, spot: null, zone: null, fingerHand, latch0, scrubbed: false };
     layout(store.state);
   }
+  /** Моя карта ближе всего к пальцу по горизонтали — та, что поднимется под ним. */
+  const handCardNearX = (x: number): string | null => {
+    const ch = myChair();
+    let best: string | null = null, d = Infinity;
+    for (const c of ch?.hand ?? []) {
+      const o = cards.get(c.id);
+      if (!o) continue;
+      o.group.updateMatrixWorld(true);
+      const dx = Math.abs(project(o.group.localToWorld(new THREE.Vector3(0, 0, 0))).x - x);
+      if (dx < d) { d = dx; best = c.id; }
+    }
+    return best;
+  };
+  const PULL_PX = 18;
   renderer.domElement.addEventListener("pointermove", (e) => {
     if (!drag) return;
+    // ПАЛЕЦ ПО РУКЕ: пока он не потянул вверх, карту не берут — под пальцем поднимается та, над которой он стоит (одна), и палец может
+    // скользить вдоль руки; потянул вверх — берёт ту, что поднята. (Только в виде «голова» и с новым язычком руки.)
+    if (!drag.moved && drag.fingerHand && !drag.group) {
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (dy > -PULL_PX) {
+        if (Math.abs(dx) >= 4 || drag.scrubbed) {
+          const id = handCardNearX(e.clientX);
+          drag.scrubbed = true;
+          if (id && id !== drag.id) { drag.id = id; liftedId = id; layout(store.state); draw(); }
+        }
+        return;
+      }
+    }
     if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
     if (!drag.moved) {
       drag.moved = true;
@@ -1785,10 +1891,16 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return;
     }
     if (!d.moved) {
-      // Тап: второй подряд по той же карте — перевернуть.
+      // Скользил по руке (не тап): поднятая под пальцем карта опускается — остаётся поднятой только та, что была поднята тапом.
+      if (d.fingerHand && d.scrubbed) { liftedId = d.latch0; layout(store.state); draw(); return; }
+      // Тап: второй подряд по той же карте — перевернуть (и остаться поднятой); иначе тап поднимает карту и оставляет её поднятой,
+      // как под пальцем, а ещё тап по ней (не сразу) — опускает.
       const now = performance.now();
       if (lastTap.id === d.id && now - lastTap.at < DOUBLE_MS) { store.send({ t: "turn", id: d.id }); lastTap = { id: "", at: 0 }; }
-      else lastTap = { id: d.id, at: now };
+      else {
+        lastTap = { id: d.id, at: now };
+        if (d.fingerHand && d.latch0 === d.id) { liftedId = null; layout(store.state); }
+      }
       draw();
       return;
     }
@@ -1986,6 +2098,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     /** Для снимков фона дизайна: спрятать мои карты (чужие и стол остаются). */
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
+    lifted: () => liftedId,
+    dragNow: () => (drag ? { moved: drag.moved, gap: drag.gap, where: drag.where, fingerHand: drag.fingerHand } : null),
+    handLevel: () => handLevel,
+    setHandLevel: (h: number) => setHandLevel(h),
+    handTopPx: () => api.handTopPx(),
     headToward: (x: number, y: number) => headToward(x, y),
     feltAt: (cx: number, cy: number) => { const r = renderer.domElement.getBoundingClientRect(), v = onFelt({ clientX: cx, clientY: cy }); return v ? { x: v.x, y: v.z } : null; },
     sideBy: (d: number) => sideBy(d),
@@ -2021,6 +2138,30 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     sideBy,
     opticsBy,
     handFrame,
+    carryingHand: () => !!handCarry,
+    orbitZoom: () => { const d = camera.position.distanceTo(orbit.target); return Math.max(0, Math.min(1, (orbit.maxDistance - d) / (orbit.maxDistance - orbit.minDistance))); },
+    setOrbitZoom: (t: number) => {
+      if (camMode !== "orbit") return;
+      const d = orbit.maxDistance - Math.max(0, Math.min(1, t)) * (orbit.maxDistance - orbit.minDistance), dir = camera.position.clone().sub(orbit.target).normalize();
+      camera.position.copy(orbit.target).addScaledVector(dir, d); orbit.update(); draw();
+    },
+    handLevel: () => { if (!levelOn) levelFromPose(); return handLevel; },
+    setHandLevel,
+    handPoseAt: levelPose,
+    poseLevels: POSE_LEVEL,
+    handTopPx: () => {
+      const ch = myChair();
+      if (!ch || !ch.hand.length || levelPose(handLevel) === "tuck" || handCarry) return null;
+      let y0 = Infinity;
+      for (const c of ch.hand) {
+        const o = cards.get(c.id);
+        if (!o || (drag?.moved && drag.id === c.id) || c.id === liftedId) continue;
+        o.group.updateMatrixWorld(true);
+        for (const [sx, sy] of [[-1, 1], [1, 1]] as const) y0 = Math.min(y0, project(o.group.localToWorld(new THREE.Vector3(sx * (CARD_W / 2), sy * (CARD_H / 2), 0))).y);
+      }
+      return Number.isFinite(y0) ? y0 - renderer.domElement.getBoundingClientRect().top : null;
+    },
+    setDock: (top: number, extra: number) => { if (top === dockTopPx && extra === dockExtraPx) return; dockTopPx = top; dockExtraPx = extra; layout(store.state); draw(); },
     fanFits: () => fanFitsNow(),
     handHeight: () => heightPx,
     gripX: () => gripSx,

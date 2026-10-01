@@ -33,6 +33,8 @@ import type { TableStore } from "../../server/table-client/store.js";
 import type { Geom } from "../../server/table-client/screenConst.js";
 import type { SceneApi } from "./scene.js";
 import { mountPanels } from "./panel.js";
+import { pixelIcon } from "./pixel.js";
+import { CHROME_CSS, DOCK_PX, SHEET_GAP, SHEET_PX, TABS } from "./chrome.js";
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 /** Секции бара — как у стола: поза, порядок и диалог живут не в баре. */
@@ -70,6 +72,7 @@ const CSS = `
 [data-panel] { font: 400 13px Tiny5, monospace; color: ${T.ink}; user-select: none; -webkit-user-select: none; }
 #panels { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
 #hud button { font: inherit; }
+${CHROME_CSS}
 `;
 
 /**
@@ -97,6 +100,10 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     grabLines: null as null | { lay: number | null; collect: number | null; carry: number },
     grabOff: null as null | { which: "top" | "left"; x: number; y: number; from?: "stack"; morph: number },
     journal: false,
+    /** Открыто меню вида камеры (рейка справа). */
+    viewMenu: false,
+    /** Язычок руки тянут. */
+    gripDrag: false,
     /** Что сказало гиро при включении (датчик не разрешили) — строкой под полосой, пока не уйдёт. */
     gyroNote: "",
     deckTip: null as string | null,
@@ -159,23 +166,29 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   const panelOverlay = document.createElement("div");
   panelOverlay.id = "panels";
   screen.append(panelOverlay);
-  // Вертикальный ползунок оптики (вид «голова»): вверх — поле зрения уже, рука в кадре остаётся того же размера. Вне перерисовки HUD, чтобы палец его не терял.
+  // Ползунок зума справа под кнопками рейки: «голова» — оптика (рука в кадре того же размера), «вокруг» — расстояние до стола. Вне перерисовки HUD, чтобы палец его не терял.
   const zoom = document.createElement("div");
   zoom.dataset.zoomSlider = "";
-  zoom.style.cssText = `position:absolute;right:${RIM_LEFT - 6}px;top:50%;transform:translateY(-50%);z-index:41;width:44px;height:200px;touch-action:none;cursor:ns-resize;display:none`;
-  zoom.innerHTML = `<span style="position:absolute;left:19px;top:6px;bottom:6px;width:6px;border-radius:3px;background:rgba(255,255,255,.35);box-shadow:0 0 0 1.5px rgba(11,7,4,.55)"></span>`
-    + `<span data-zoom-knob style="position:absolute;left:8px;width:28px;height:28px;margin-top:-14px;border-radius:50%;background:rgba(255,255,255,.92);box-shadow:0 0 0 2px rgba(11,7,4,.6),0 2px 4px rgba(11,7,4,.4)"></span>`;
-  const zoomKnob = zoom.querySelector<HTMLElement>("[data-zoom-knob]")!;
-  const zoomPad = 20;
+  zoom.className = "cp";
+  zoom.style.cssText = "touch-action:none;cursor:ns-resize;display:none";
+  zoom.innerHTML = '<span class="tt"></span><div class="track">' + Array.from({ length: 7 }, (_, k) => `<i class="seg" style="top:${((k + 1) / 8) * 100}%"></i>`).join("") + '<i class="fill"></i><i class="knob2" data-zoom-knob></i></div><span class="val"></span>';
+  const zoomKnob = zoom.querySelector<HTMLElement>("[data-zoom-knob]")!, zoomFill = zoom.querySelector<HTMLElement>(".fill")!, zoomTrack = zoom.querySelector<HTMLElement>(".track")!;
+  const zoomTitle = zoom.querySelector<HTMLElement>(".tt")!, zoomVal = zoom.querySelector<HTMLElement>(".val")!;
+  const zoomVal01 = (): number => (scene.camMode() === "orbit" ? scene.orbitZoom() : scene.optics());
   const zoomSync = () => {
-    const on = scene.camMode() === "head";
+    const mode = scene.camMode(), on = (mode === "head" || mode === "orbit") && !local.section && !!myChair();
     if (zoom.style.display !== (on ? "block" : "none")) zoom.style.display = on ? "block" : "none";
-    if (on) zoomKnob.style.top = `${zoomPad + (200 - 2 * zoomPad) * (1 - scene.optics())}px`;
+    if (!on) return;
+    const v = zoomVal01();
+    zoomKnob.style.bottom = `calc(${v * 100}% - 6px)`; zoomFill.style.height = `${v * 100}%`;
+    zoomTitle.textContent = mode === "head" ? "Обзор" : "Даль";
+    zoomVal.textContent = mode === "head" ? `×${(1 + v * 3).toFixed(1)}` : `${Math.round(8 + (1 - v) * 22)} м`;
+    zoom.style.top = `calc(var(--safe-top) + 103px + ${mode === "head" ? 3 : 2} * 68px)`;
   };
-  const zoomTo = (e: PointerEvent) => { const r = zoom.getBoundingClientRect(); scene.setOptics(1 - (e.clientY - r.top - zoomPad) / (r.height - 2 * zoomPad)); zoomSync(); };
+  const zoomTo = (e: PointerEvent) => { const r = zoomTrack.getBoundingClientRect(), t = 1 - (e.clientY - r.top) / r.height; if (scene.camMode() === "orbit") scene.setOrbitZoom(t); else scene.setOptics(t); zoomSync(); };
   zoom.addEventListener("pointerdown", (e) => { e.stopPropagation(); e.preventDefault(); zoom.setPointerCapture(e.pointerId); zoomTo(e); });
   zoom.addEventListener("pointermove", (e) => { if (zoom.hasPointerCapture(e.pointerId)) zoomTo(e); });
-  screen.append(zoom);
+  root.append(zoom);
   setInterval(zoomSync, 200);
   const panels = mountPanels(panelOverlay, { ...scene.panels, feltAt: scene.feltAt, glass: scene.glass }, () => draw());
   let shown: string[] = [];
@@ -190,192 +203,98 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   /** Кнопки у пальцев стоят над баром и от позы карт не зависят: рука подняли, положили, сжали — они на месте. */
   const thumbTopOf = (g: Geom | null, side: number): number => barTopOf(g) - side - 10;
 
-  // ——— кнопки бара — вид стола ———
-  function barButton(what: BarKey | `sec-${Section}`, lit: boolean, px: number, left = 0): string {
-    const glyphOf = what === "grab" ? GLYPH[`grab-${local.grab}`] : what === "side" ? GLYPH[`side-${local.side}`] : undefined;
-    const mode = what === "grab" ? ` data-mode="${local.grab}"` : what === "side" ? ` data-mode="${local.side}"` : "";
-    const side = Math.round(px), section = what.startsWith("sec-");
-    const data = section ? `data-section="${what.slice(4)}"` : `data-bar="${what}"${mode}`;
-    const lookOf = section
-      ? `border-radius:50%;background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});`
-        + (lit ? `box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 5px ${BAR_LOOK.goldHi},0 0 0 2px ${T.black};` : `box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim};`)
-      : `border-radius:${Math.round((side * BAR.radius) / BAR.size)}px;`
-        + (lit ? `${gold};box-shadow:inset 0 0 0 3px ${T.black};` : `${plate};`);
-    const glyph = section && lit ? GLYPH.back : (glyphOf ?? GLYPH[what as keyof typeof GLYPH]);
-    const ink = !section && lit ? T.black : section && lit ? BAR_LOOK.goldHi : "white";
-    return `<button ${data} aria-pressed="${lit}" style="position:absolute;left:${Math.round(left)}px;top:0;width:${side}px;height:${side}px;border:0;padding:0;`
-      + `cursor:pointer;display:flex;align-items:center;justify-content:center;${lookOf}`
-      + `"><svg viewBox="0 0 24 24" width="${Math.round(side * 0.5)}" height="${Math.round(side * 0.5)}" fill="none" `
-      + `stroke="${ink}" stroke-width="${section && lit ? 2.6 : 2}" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></button>`;
-  }
-  function barLit(s: Snapshot, what: BarKey): boolean {
-    const seat = myChair(s);
-    if ((RIGHTS as readonly string[]).includes(what)) return !!seat?.[what as ChairFlag];
-    if (what === "leave") return local.confirmLeave;
-    if (what === "cursor" || what === "lasso") return local.tool === what;
-    return false;
-  }
-  /**
-   * ЛЕВАЯ РУКА — самая левая кнопка бара, видна всегда, как будто левая рука. Нажал — рука поднялась (если лежала) и раскрылось
-   * сабменю, как у остальных секций: «порядок» (сорт), «поза», «отпустить» (положить на стол). Карт нет — кнопка тусклая.
-   */
-  const handOpenNow = (chair: Chair | undefined): boolean => !!chair && chair.hand.length > 0 && local.handMenu && !chair.pose.tuck;
-  function handButton(chair: Chair | undefined, side: number): string {
-    const has = !!chair && chair.hand.length > 0, open = handOpenNow(chair);
-    const lookOf = `border-radius:50%;background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});`
-      + (open ? `box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 5px ${BAR_LOOK.goldHi},0 0 0 2px ${T.black};` : `box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim};`);
-    return `<button data-hand-btn aria-label="Левая рука" aria-pressed="${open}" style="position:absolute;left:0;top:0;width:${Math.round(side)}px;height:${Math.round(side)}px;border:0;padding:0;cursor:pointer;`
-      + `display:flex;align-items:center;justify-content:center;opacity:${has ? 1 : 0.4};${lookOf}">`
-      + `<svg viewBox="0 0 24 24" width="${Math.round(side * 0.5)}" height="${Math.round(side * 0.5)}" fill="none" stroke="${open ? BAR_LOOK.goldHi : "white"}" stroke-width="${open ? 2.6 : 2}" stroke-linecap="round" stroke-linejoin="round">${open ? GLYPH.back : GLYPH.deck}</svg></button>`;
-  }
-  /** Кнопка сабменю руки: квадратная плашка, как у подкнопок секций. */
-  const HAND_SUBS = [
-    ["sort", "Порядок карт", GLYPH.suit],
-    ["pose", "Поза руки", '<path d="M12 20V8"/><path d="M12 20 5 10"/><path d="M12 20l7-10"/><path d="M4 8c2.5-2 5-3 8-3s5.500 1 8 3"/>'],
-    ["release", "Отпустить карты на стол", '<path d="M12 4v11"/><path d="M7.5 10.5 12 15l4.500-4.500"/><path d="M4 20h16"/>'],
-  ] as const;
-  function handSubButton(what: (typeof HAND_SUBS)[number], lit: boolean, side: number, left: number): string {
-    const [key, label, glyph] = what;
-    return `<button data-hand-sub="${key}" aria-label="${label}" aria-pressed="${lit}" style="position:absolute;left:${Math.round(left)}px;top:0;width:${Math.round(side)}px;height:${Math.round(side)}px;border:0;padding:0;cursor:pointer;`
-      + `display:flex;align-items:center;justify-content:center;border-radius:${Math.round((side * BAR.radius) / BAR.size)}px;${lit ? `${gold};box-shadow:inset 0 0 0 3px ${T.black};` : `${plate};`}">`
-      + `<svg viewBox="0 0 24 24" width="${Math.round(side * 0.5)}" height="${Math.round(side * 0.5)}" fill="none" stroke="${lit ? T.black : "white"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg></button>`;
-  }
-  function barRow(s: Snapshot, side: number, step: number): string {
-    const open = local.section, chair = myChair(s);
-    let row = handButton(chair, side);
-    const divider = (at: number) => `<span data-g="divider" style="position:absolute;left:${Math.round(at + side + (step - side) / 2 - 1)}px;top:${Math.round(side * 0.15)}px;width:2px;height:${Math.round(side * 0.7)}px;border-radius:1px;background:${BAR_LOOK.rim}"></span>`;
-    if (handOpenNow(chair)) {
-      row += divider(0);
-      HAND_SUBS.forEach((sub, j) => (row += handSubButton(sub, local.handPop === sub[0], side, (j + 1) * step + 4)));
-      return row;
+  // ——— нижняя строка, лист вкладки, рука и её язычок ———
+  const ic = (name: string, size = 2) => pixelIcon(name, size);
+  /** Кнопка листа и рейки: значок, подпись, огонёк у тумблера. */
+  const cbtn = (attrs: string, icon: string, label: string, o: { on?: boolean; dis?: boolean; led?: boolean; style?: string } = {}) =>
+    `<button ${attrs} class="cp cb${o.on ? " on" : ""}${o.dis ? " dis" : ""}"${o.dis ? ' aria-disabled="true"' : ""} aria-pressed="${!!o.on}" style="position:relative;${o.style ?? ""}">${o.led === undefined ? "" : `<i class="led${o.led ? " lit" : ""}"></i>`}${icon}<span class="lb">${label}</span></button>`;
+  const flagLit = (s: Snapshot, what: ChairFlag): boolean => !!myChair(s)?.[what];
+  const POSE_NAME: Record<string, string> = { row: "В ряд", fan: "Веер", spine: "Корешок", tuck: "На стол" };
+  const POSE_ICON: Record<string, string> = { row: "row", fan: "fan", spine: "spine", tuck: "tuck" };
+  /** Лист вкладки: ряд кнопок над нижней строкой. */
+  function sheetHtml(s: Snapshot): string {
+    const sec = local.section, chair = myChair(s);
+    if (!sec || sec === "say" || !chair) return "";
+    const sep = '<span class="sep"></span>';
+    let cap = "", body = "";
+    if (sec === "pose") {
+      const now = scene.handPoseAt(scene.handLevel());
+      cap = "Как лежит рука — то же, что высота язычка";
+      body = (["row", "fan", "spine", "tuck"] as const).map((k) => cbtn(`data-hand-pose2="${k}"`, ic(POSE_ICON[k]!), POSE_NAME[k]!, { on: now === k })).join("") + sep + cbtn('data-hand-do="flip"', ic("flip"), "Лицом");
+    } else if (sec === "order") {
+      cap = "Порядок карт в руке";
+      body = cbtn('data-hand-do="suit"', ic("suit"), "Масть") + cbtn('data-hand-do="rank"', ic("rank"), "Номинал") + cbtn('data-hand-do="reverse"', ic("reverse"), "Наоборот") + cbtn('data-hand-do="shuffle"', ic("shuffle"), "Мешать");
+    } else if (sec === "chair") {
+      cap = "Твой стул";
+      const flag = (k: ChairFlag, icon: string, label: string) => cbtn(`data-bar="${k}"`, ic(icon), label, { on: flagLit(s, k), led: flagLit(s, k) });
+      body = flag("lock", "lock", "Замок") + flag("hide", "hide", "Скрыть") + flag("reject", "reject", "Не брать") + flag("forever", "keep", "Закрепить") + sep + cbtn('data-bar="leave"', ic("leave"), "Выйти", { on: local.confirmLeave });
+    } else if (sec === "lasso") {
+      const n = myPicks(s).length;
+      if (local.tool === "lasso" && n > 0) {
+        cap = `Выбрано карт: ${n}`;
+        body = cbtn('data-lasso-act="cancel"', ic("cancel"), "Отмена") + cbtn('data-lasso-act="flip"', ic("flip"), "Перевернуть") + cbtn('data-lasso-act="hand"', ic("toHand"), "В руку") + cbtn('data-lasso-act="gather"', ic("gather"), "Собрать");
+      } else {
+        cap = "Что делает палец на столе";
+        const sideIcon = local.side === "keep" ? "sideKeep" : local.side === "down" ? "sideDown" : "sideUp", sideName = local.side === "keep" ? "Как есть" : local.side === "down" ? "Рубашкой" : "Лицом";
+        body = cbtn('data-bar="cursor"', ic("cursor"), "Рука", { on: local.tool === "cursor" }) + cbtn('data-bar="lasso"', ic("lasso"), "Лассо", { on: local.tool === "lasso" }) + sep
+          + cbtn('data-bar="grab"', ic(local.grab === "collect" ? "collect" : "asis"), local.grab === "collect" ? "К пальцу" : "Как лежат") + cbtn('data-bar="side"', ic(sideIcon), sideName);
+      }
     }
-    if (open) {
-      row += barButton(`sec-${open}`, true, side, step);
-      row += divider(step);
-      SUBS[open].forEach((what, j) => (row += barButton(what, barLit(s, what), side, (j + 2) * step)));
-      return row;
-    }
-    return row + BAR_SECTIONS.map((sec, j) => barButton(`sec-${sec}`, false, side, (j + 1) * step)).join("");
-  }
-  // ——— низ: бар, рука, ручка позы, у пальцев — поза тела, компас, диалог ———
-  function bottomHtml(s: Snapshot): string {
-    const g = glass(), chair = myChair(s), geom = geomNow(), u = hudUnit();
-    const wide = handWideOf(g), inset = Math.round((g.w - wide) / 2);
-    const count = chair?.hand.length ?? 0;
-    if (!count) { local.handMenu = false; local.handPop = null; }
-    const most = 2 + Math.max(...BAR_SECTIONS.map((sec) => SUBS[sec].length));
-    const need = most * BAR.size + (most - 1) * BAR.gap + 2 * BAR.margin;
-    const fit = wide / u > 0 && need > wide / u ? Math.max(0.5, wide / u / need) : 1;
-    const side = BAR.size * u * fit, step = side + BAR.gap * u * fit, margin = BAR.margin * u * fit;
-    const rowW = (need - 2 * BAR.margin) * u * fit, rowLeft = Math.max(margin, Math.round((wide - rowW) / 2));
-    const barTop = barTopOf(geom), tray = inset > 0, round = Math.round(BAR.radius * u * 2);
-    const edge = tray ? `border-radius:${round}px ${round}px 0 0;box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}` : `box-shadow:inset 0 3px 0 -1px ${T.black}`;
-    let html = (tray ? "" : `<div data-g="fade" style="position:absolute;left:0;right:0;top:${barTop - BAR.fade * u}px;height:${BAR.fade * u}px;background:linear-gradient(to top, rgba(11,7,4,.85), rgba(11,7,4,0));pointer-events:none"></div>`)
-      + `<div data-g="bar" style="position:absolute;left:${inset}px;right:${inset}px;top:${barTop}px;height:${barHeightU() * u + 40}px;z-index:30;background:linear-gradient(${T.panel},${T.well});${edge}">`
-      + `<div style="position:absolute;left:${rowLeft}px;right:${rowLeft}px;top:${(barHeightU() * u - side) / 2}px;height:${side}px">`
-      + barRow(s, side, step)
-      + `</div></div>`;
-    // Встать — вопрос над кнопкой, как у стола.
-    if (local.confirmLeave && local.section === "chair") {
-      const w = 176, h = 64, centre = inset + rowLeft + SUBS.chair.indexOf("leave") * step + 2 * step + side / 2;
-      const left = Math.max(8, Math.min(g.w - w - 8, centre - w / 2)), arrow = Math.max(12, Math.min(w - 12, centre - left));
-      html += `<div data-confirm style="position:absolute;left:${left}px;top:${barTop - h - 12}px;width:${w}px;height:${h}px;box-sizing:border-box;z-index:59;background:${T.well};box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${T.wood},0 6px 0 rgba(11,7,4,.5);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px">`
+    let html = `<div class="cp c-sheet" data-sheet="${sec}"><span class="cap">${cap}</span>${body}</div>`;
+    // Выйти — вопрос над листом, как у стола.
+    if (local.confirmLeave && sec === "chair") {
+      html += `<div data-confirm class="cp" style="right:12px;bottom:calc(var(--safe-bottom) + ${88 + SHEET_PX + 10}px);width:176px;height:64px;z-index:59;padding:10px 12px;display:flex;flex-direction:column;gap:6px;box-sizing:border-box">`
         + `<span style="font:400 12px Tiny5,monospace;color:${T.ink}">Покинуть стул?</span>`
-        + `<button data-stand style="align-self:flex-start;border:0;cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:5px 10px;${gold};color:${T.black}">Встать</button>`
-        + `<span style="position:absolute;left:${arrow - 7}px;bottom:-7px;width:14px;height:14px;background:${T.well};transform:rotate(45deg);box-shadow:3px 3px 0 0 ${T.black}"></span></div>`;
+        + `<button data-stand class="cp on" style="position:relative;align-self:flex-start;border:0;cursor:pointer;font:400 11px Tiny5,monospace;padding:5px 10px">Встать</button></div>`;
     }
-    // Язычки руки — по центру краёв, каждый за свою ось: сверху — поднять и отпустить, по бокам — сжать и разжать, по углам — веер и не веер.
-    const fr = chair && count && !chair.pose.tuck ? scene.handFrame() : null;
-    const held = local.grabOff;
-    if (fr) html += handGrabsHtml(fr, held?.which ?? null);
-    if (local.grabLines && SHOW_LINES) html += grabLinesHtml(local.grabLines);
-    if (held) html += heldGrabHtml(held);
-    // Рука положена: у стопки на столе — своя ручка (боковая); потянул — рука поднимается и ручка становится верхней ручкой руки.
-    const st = chair && count && chair.pose.tuck ? scene.stackScreen() : null;
-    if (st && !held) html += handStackGrabHtml(st, barTop);
-    // Списки сабменю руки — над своей кнопкой.
-    if (chair && handOpenNow(chair) && local.handPop) html += handPopHtml(chair, inset + rowLeft + (local.handPop === "sort" ? 1 : 2) * step + 4, barTop - 8);
-    // У пальцев: поза тела и компас слева, диалог справа.
-    if (chair) {
-      const top = thumbTopOf(geom, side);
-      html += `<div data-g="thumb-chat" style="position:absolute;right:${inset + 12}px;top:${Math.round(top)}px;width:${side}px;height:${side}px;z-index:40">${barButton("sec-say", talk.open, side, 0)}</div>`
-        + `<div data-g="thumb-stance" style="position:absolute;left:${inset + 12 + (52 - side) / 2}px;top:${Math.round(top - side - 12)}px;width:${side}px;height:${side}px;z-index:40">${barButton("stance", scene.stance() === "stand", side, 0).replace('data-bar="stance"', "data-stance-toggle")}</div>`
-        + compassHtml(chair, { left: inset + 12, top: Math.round(top + (side - 52) / 2) });
-    }
-    if (lassoOn()) html += lassoActsHtml(s, barTop);
     return html;
   }
-  /** Ручка у положенной стопки — сбоку от неё, привязана к стопке на столе: ездит с ней по экрану, растёт и уменьшается вместе с ней, а стопки не видно — нет и ручки. */
-  function handStackGrabHtml(box: { x: number; y: number; w: number; h: number }, barTop: number): string {
-    const g = glass(), ph = Math.round(Math.max(24, Math.min(56, box.h * 0.7))), cy = box.y + box.h / 2;
-    // Нижний HUD ручку не перекрывает: стопка ушла под него — ручки нет, у самой кромки — ручка над ним.
-    if (cy > barTop) return "";
-    return pillHtml("stack", Math.min(g.w - 14, box.x + box.w + 10), Math.min(cy, barTop - 24 - 4), 5, ph, 0.7);
+  function dockHtml(): string {
+    const tabs = TABS.map(([k, icon, label]) => {
+      const on = k === "say" ? talk.open : local.section === k;
+      return `<button data-section="${k}" aria-pressed="${on}" class="cp cb c-tab${on ? " on open" : ""}">${ic(icon)}<span class="lb">${label}</span></button>`;
+    }).join("");
+    return `<div class="c-dockbg"></div><div class="c-dock">${tabs}</div>`;
   }
-  /** Список из сабменю: порядок карт или поза руки. */
-  function handPopHtml(chair: Chair, left: number, bottom: number): string {
-    const g = glass(), p = chair.pose, fits = scene.fanFits();
-    const btn = (attrs: string, name: string, lit = false, off = false) => `<button ${attrs}${off ? " disabled" : ""} style="border:0;cursor:${off ? "default" : "pointer"};text-align:left;white-space:nowrap;font:400 13px Tiny5,monospace;color:${lit ? T.black : T.ink};opacity:${off ? 0.4 : 1};padding:9px 14px;border-radius:7px;${lit ? gold : `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo})`};box-shadow:inset 0 0 0 2px ${T.black}">${name}</button>`;
-    const items = local.handPop === "sort"
-      ? HAND_DOS.map(([what, name]) => btn(`data-hand-do="${what}"`, name)).join("")
-      : btn(`data-hand-pose="fan"`, p.fan ? "В ряд" : "Веер", false, !p.fan && !fits) + btn(`data-hand-pose="shrink"`, p.shrink ? "Разжать" : "Ужать");
-    return `<div data-hand-menu style="position:absolute;left:${Math.round(Math.max(8, Math.min(g.w - 170, left)))}px;bottom:${Math.round(g.h - bottom)}px;z-index:70;display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:10px;background:linear-gradient(${T.panel},${T.well});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${BAR_LOOK.rim}">${items}</div>`;
+  /** Язычок над самым верхом карт руки и счётчик слева от него. Рука на столе — язычок над нижней строкой. */
+  function gripHtml(s: Snapshot): string {
+    const chair = myChair(s);
+    if (!chair || !chair.hand.length || scene.carryingHand()) return "";
+    const level = scene.handLevel(), pose = scene.handPoseAt(level), floor = glass().h - scene.safeBottom() - DOCK_PX - (local.section && local.section !== "say" ? SHEET_PX + SHEET_GAP : 0) - 4;
+    const top = pose === "tuck" ? floor : scene.handTopPx() ?? floor;
+    const y = Math.round(top - 26);
+    const label = pose === "tuck" ? `<span>рука на столе · ${chair.hand.length}</span>` : `<span>${chair.hand.length}</span>`;
+    return `<div class="cp c-grip${local.gripDrag ? " drag" : ""}" data-grip aria-label="Язычок руки: вверх — поднять, вниз — опустить; за самый верх — вся рука стопкой на стол" style="left:calc(50% - 42px);top:${y}px"><i></i><i></i><i></i><i></i></div>`
+      + `<div class="cp c-count flat" style="left:14px;top:${y - 6}px">${ic("cards", 1)}${label}</div>`;
   }
-  /**
-   * РУЧКИ РУКИ — две обычные ручки, как у шторок на телефоне, без значков: тонкая полоска, за которую тянут.
-   *   сверху — высота руки от камеры: потянул вниз — рука опускается и ложится на стол; высоко вверх — левая рука несёт стопку над столом;
-   *   слева  — ширина руки: к краю экрана шире, от него уже: стопкой (одна карта) → веер → в ряд (самая широкая, карты не сжаты).
-   * Вокруг каждой — зона нажатия не меньше пальца.
-   */
-  function handGrabsHtml(fr: { x: number; y: number; w: number; h: number }, skip: "top" | "left" | null): string {
-    const g = glass(), hit = 48;
-    const grab = (which: "top" | "left", cx: number, cy: number, pw: number, ph: number) => {
-      if (skip === which) return "";
-      const x = Math.max(hit / 2, Math.min(g.w - hit / 2, cx)), y = Math.max(hit / 2, Math.min(g.h - hit / 2, cy));
-      return pillHtml(which, x, y, pw, ph, 0.62);
-    };
-    return grab("top", Math.max(fr.x + 24, Math.min(fr.x + fr.w - 24, scene.gripX() ?? fr.x + fr.w / 2)), fr.y, Math.round(40 + 26 * scene.gripAmount()), Math.round(5 - 2 * scene.gripAmount())) + grab("left", Math.max(76, fr.x), fr.y + fr.h / 2, 5, 40);
+  /** Рейка камеры справа: только то, что нужно этому виду. */
+  function railHtml(s: Snapshot): string {
+    const mode = scene.camMode(), chair = myChair(s);
+    const view = cbtn("data-view", ic(mode === "head" ? "view" : mode === "orbit" ? "orbit" : "topdown"), mode === "head" ? "Голова" : mode === "orbit" ? "Вокруг" : "Сверху");
+    let items = view;
+    if (mode === "head") {
+      items += cbtn(`data-gyro aria-label="${scene.gyro.on() ? "Выключить гиро" : "Гиро: поворот телефона — поворот головы"}"`, ic("gyro"), "Гиро", { on: scene.gyro.on(), led: scene.gyro.on() })
+        + cbtn('data-stance-toggle', ic(scene.stance() === "stand" ? "stand" : "sit"), scene.stance() === "stand" ? "Стоя" : "Сидя");
+    } else if (mode === "orbit" && chair) {
+      const turn = chair.angle - scene.azimuth();
+      items += cbtn("data-home aria-label=\"К своему стулу\"", `<span class="c-needle" style="transform:rotate(${turn.toFixed(1)}deg)">${ic("compass")}</span>`, "К стулу");
+    } else if (mode === "top") {
+      items += cbtn('data-zoom="in"', ic("zoomIn"), "Ближе") + cbtn('data-zoom="out"', ic("zoomOut"), "Дальше");
+    }
+    let html = `<div class="c-rail">${items}</div>`;
+    if (local.viewMenu) {
+      const opt = (c: "head" | "orbit" | "top", icon: string, label: string) => cbtn(`data-cam="${c}"`, ic(icon), label, { on: mode === c });
+      html += `<div class="cp c-view">${opt("head", "view", "Голова")}${opt("orbit", "orbit", "Вокруг")}${opt("top", "topdown", "Сверху")}</div>`;
+    }
+    return html;
   }
-  /** Ручка с зоной нажатия в палец: полоска `pw`×`ph` в точке `x, y`. */
-  function pillHtml(which: string, x: number, y: number, pw: number, ph: number, alpha: number): string {
-    const hit = 48;
-    return `<div data-hand-tab="${which}" aria-label="${which === "left" ? "Ширина руки" : which === "top" ? "Высота руки" : "Поднять руку"}" style="position:absolute;left:${Math.round(x - hit / 2)}px;top:${Math.round(y - hit / 2)}px;width:${hit}px;height:${hit}px;z-index:31;touch-action:none;cursor:grab;display:flex;align-items:center;justify-content:center">`
-      + `<span style="flex:none;width:${pw}px;height:${ph}px;border-radius:${Math.round(Math.min(pw, ph) / 2)}px;background:rgba(255,255,255,${alpha});box-shadow:0 0 0 1.5px rgba(11,7,4,.55),0 2px 4px rgba(11,7,4,.4)"></span></div>`;
-  }
-  /**
-   * Ручка в пальце: одна и та же ручка, пока её держат, — всегда под пальцем и не зависит от того, куда рука сдвигает охват или
-   * как пропадает рамка. Та, что была боковой у стопки, разворачивается в верхнюю ручку руки (`morph` 0 → 1) и не прыгает.
-   */
-  function heldGrabHtml(o: { which: "top" | "left"; x: number; y: number; from?: "stack"; morph: number }): string {
-    const g = glass(), x = Math.max(24, Math.min(g.w - 24, o.x)), y = Math.max(24, Math.min(g.h - 24, o.y));
-    const lerp = (a: number, b: number) => Math.round(a + (b - a) * o.morph);
-    const gripA = scene.gripAmount(), [pw, ph] = o.which === "left" ? [5, 40] : o.from === "stack" ? [lerp(5, 40), lerp(40, 5)] : [Math.round(40 + 26 * gripA), Math.round(5 - 2 * gripA)];
-    return pillHtml(o.which, x, y, pw, ph, 0.95);
-  }
-  /** Линии хода верхней ручки: за оранжевую карты начинают собираться в стопку, за красную рука ложится на стол, за золотую несётся стопкой над столом. Видны, пока ручку тянут. */
-  function grabLinesHtml(l: { lay: number | null; collect: number | null; carry: number }): string {
-    const line = (k: string, y: number, color: string, text: string) => `<div data-grab-line="${k}" style="position:absolute;left:0;right:0;top:${Math.round(y)}px;height:0;border-top:2px dashed ${color};z-index:32;pointer-events:none"><span style="position:absolute;left:72px;top:-20px;padding:2px 6px;border-radius:6px;font:400 11px Tiny5,monospace;color:${T.black};background:${color}">${text}</span></div>`;
-    return line("carry", l.carry, "#f2c14e", "нести стопкой") + (l.collect === null ? "" : line("collect", l.collect, "#f08a24", "карты собираются")) + (l.lay === null ? "" : line("lay", l.lay, "#e0654b", "положить на стол"));
-  }
-  /** Компас стола: стрелка — к своему стулу, диск лежит под наклоном камеры. */
-  function compassHtml(chair: Chair, at: { left: number; top: number }): string {
-    const turn = chair.angle - scene.azimuth(), lean = 90 - scene.elevation();
-    return `<button data-home aria-label="К своему стулу" style="position:absolute;left:${at.left}px;top:${at.top}px;width:52px;height:52px;border:0;padding:0;z-index:45;touch-action:none;`
-      + `border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">`
-      + `<svg viewBox="0 0 52 52" width="52" height="52" style="position:absolute;left:0;top:0;transform:rotate(${turn.toFixed(1)}deg);pointer-events:none">`
-      + `<path d="M26 5 L30 14 L22 14 Z" fill="${T.gold}"/><path d="M26 47 L22 38 L30 38 Z" fill="${BAR_LOOK.rim}"/>`
-      + `<circle cx="7" cy="26" r="2" fill="${T.inkDim}" opacity=".7"/><circle cx="45" cy="26" r="2" fill="${T.inkDim}" opacity=".7"/></svg>`
-      + `<span data-lean style="position:relative;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;pointer-events:none;`
-      + `box-shadow:inset 0 0 0 2px ${T.black};transform:perspective(90px) rotateX(${lean.toFixed(1)}deg);background:linear-gradient(${T.panelLight},${T.panel});color:${T.inkDim}">`
-      + `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2.5" y="7" width="12.5" height="10" rx="2.5"/><path d="M15 10.5 L21.5 7 v10 L15 13.5 Z"/></svg></span></button>`;
-  }
-  function lassoActsHtml(s: Snapshot, barTop: number): string {
-    const n = myPicks(s).length, g = glass(), w = Math.min(g.w - 16, 360), geom = geomNow();
-    const top = (geom && geom.slots.length ? handTopOf(geom) : barTop) - 50;
-    return `<div data-g="lasso-acts" data-n="${n}" style="position:absolute;left:${(g.w - w) / 2}px;top:${top}px;width:${w}px;height:42px;z-index:57;display:flex;gap:6px;box-sizing:border-box;padding:4px;border-radius:12px;background:${T.well};box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 4px ${T.wood},0 4px 0 rgba(11,7,4,.5)">`
-      + LASSO_ACTS.map(([act, label, glyph]) => `<button data-lasso-act="${act}" aria-disabled="${n === 0}" style="flex:1 1 0;min-width:0;border:0;border-radius:8px;cursor:${n ? "pointer" : "default"};display:flex;align-items:center;justify-content:center;gap:4px;padding:0 4px;opacity:${n ? 1 : 0.45};color:${T.ink};font:400 11px Tiny5,monospace;white-space:nowrap;background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 2px ${T.black},inset 0 0 0 3px ${BAR_LOOK.rim}">`
-        + `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none">${glyph}</svg><span style="overflow:hidden;text-overflow:ellipsis">${label}</span></button>`).join("")
-      + `</div>`;
+  function bottomHtml(s: Snapshot): string {
+    const chair = myChair(s);
+    // Рука стоит над нижней строкой и над листом открытой вкладки.
+    const sheetOn = !!local.section && local.section !== "say" && !!chair, g = glass();
+    scene.setDock(g.h - scene.safeBottom() - DOCK_PX, sheetOn ? SHEET_PX + SHEET_GAP : 0);
+    if (!chair) return dockHtml();
+    return gripHtml(s) + sheetHtml(s) + dockHtml() + (lassoOn() ? "" : "");
   }
 
   // ——— верх: выход, имя, настройки, журнал ———
@@ -383,19 +302,20 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   function devHtml(): string {
     if (!dev) return "";
     const chip = (attrs: string, top: number, aria: string, text: string, on = false) =>
-      `<button ${attrs} aria-label="${aria}" style="position:absolute;left:${RIM_LEFT}px;top:calc(${top}px + var(--safe-top));z-index:61;border:0;cursor:pointer;padding:6px 10px;border-radius:9px;font:400 11px Tiny5,monospace;color:${on ? T.black : T.ink};background:${on ? `linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo})` : T.well};box-shadow:inset 0 0 0 2px ${store.me.ink},0 3px 0 rgba(11,7,4,.5);white-space:nowrap">${text}</button>`;
+      `<button ${attrs} aria-label="${aria}" style="position:absolute;left:14px;top:calc(${top + 90}px + var(--safe-top));z-index:61;border:0;cursor:pointer;padding:6px 10px;border-radius:9px;font:400 11px Tiny5,monospace;color:${on ? T.black : T.ink};background:${on ? `linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo})` : T.well};box-shadow:inset 0 0 0 2px ${store.me.ink},0 3px 0 rgba(11,7,4,.5);white-space:nowrap">${text}</button>`;
     return chip("data-dev-switch", 60, "Только для разработки: управлять другим экраном (клавиша Tab)", `DEV · ${esc(dev.label)} · Tab`)
       + chip("data-dev-cam", 128, "Только для разработки: модель камеры — орбита, голова, оптика, сверху", `DEV · камера: ${CAM_LABEL[scene.camMode()]}`, scene.camMode() !== "orbit")
       + chip("data-dev-peek", 94, "Только для разработки: окно с видом глазами другого", `DEV · окно: ${esc(dev.peek.label)} ${dev.peek.on() ? "вкл" : "выкл"}`, dev.peek.on());
   }
-  function topHtml(): string {
-    const btn = (attrs: string, at: string, inner: string) => `<button ${attrs} style="position:absolute;${at};${TOP};width:40px;height:40px;border:0;padding:0;z-index:61;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;${plate}">${inner}</button>`;
-    const icon = (body: string, stroke = "white", size = 22) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
-    return btn(`data-rooms-back aria-label="Выйти из комнаты"`, `left:${RIM_LEFT}px`, icon(`<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 16l-4-4 4-4"/><path d="M5 12h10"/>`))
-      + `<div data-table-name style="position:absolute;left:${RIM_LEFT + 48}px;right:${RIM_LEFT + 144}px;${TOP};height:40px;z-index:60;display:flex;align-items:center;pointer-events:none"><span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 12px;border-radius:12px;font:400 13px Tiny5,monospace;color:${T.ink};line-height:28px;${plate}">${esc(store.title)}</span></div>`
-      + btn(`data-gyro aria-label="${scene.gyro.on() ? "Выключить гиро" : "Гиро: поворот телефона — поворот головы"}" aria-pressed="${scene.gyro.on()}"`, `right:${RIM_LEFT + 96}px`, `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="${scene.gyro.on() ? T.gold : "white"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 9v6M21 9v6"/></svg>`)
-      + btn(`data-settings aria-label="Настройки" aria-expanded="${settings.open}"`, `right:${RIM_LEFT + 48}px`, icon(`<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>`))
-      + btn(`data-journal aria-label="Журнал партии" aria-expanded="${local.journal}"`, `right:${RIM_LEFT}px`, icon(`<path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h7M8 11h7M8 15h4"/>`, local.journal ? T.gold : "white", 21));
+  function topHtml(s: Snapshot): string {
+    const tb = (attrs: string, side: string, icon: string, aria: string) => `<button ${attrs} class="cp cb c-t" aria-label="${aria}" style="${side}">${icon}</button>`;
+    const turnKey = s.rules.turnMark ? s.play?.turn ?? null : null, turnMan = turnKey ? s.people.find((p) => p.key === turnKey) : undefined;
+    const turn = turnKey ? `<div class="cp c-turn${turnKey === me() ? " on" : ""}" data-turn>${ic("turn", 1)}<span>${turnKey === me() ? "Твой ход" : `Ход: ${esc(turnMan?.name ?? "")}`}</span></div>` : "";
+    return tb("data-rooms-back", "left:14px", ic("exit"), "Выйти из комнаты")
+      + `<div class="cp c-name" data-table-name><span>${esc(store.title)}</span><span class="who">${ic("people", 1)}${s.people.length}</span></div>`
+      + tb(`data-settings aria-expanded="${settings.open}"`, "right:66px", ic("gear"), "Настройки")
+      + tb(`data-journal aria-expanded="${local.journal}"`, "right:14px", ic("journal"), "Журнал партии")
+      + turn;
   }
   function gyroNoteHtml(): string {
     return local.gyroNote ? `<div data-gyro-note style="position:absolute;left:12px;right:12px;top:calc(60px + var(--safe-top));z-index:62;padding:8px 12px;border-radius:12px;font:400 12px Tiny5,monospace;color:${T.ink};text-align:center;${plate};pointer-events:none">${esc(local.gyroNote)}</div>` : "";
@@ -604,9 +524,9 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   let frame = 0;
   // ДВА СЛОЯ, и у каждого своя сверка: полоса сверху (кнопки) не пересобирается, пока сама не поменялась. Под гиро камера крутится
   // всё время, и всё, что стоит от неё, меняется каждый кадр, — а кнопка, пересобранная между нажатием и отпусканием, нажатием не считалась.
-  const layerTop = document.createElement("div"), layerRest = document.createElement("div");
-  root.append(layerTop, layerRest);
-  let lastTop = "", lastRest = "";
+  const layerTop = document.createElement("div"), layerRail = document.createElement("div"), layerRest = document.createElement("div");
+  root.append(layerTop, layerRail, layerRest);
+  let lastTop = "", lastRail = "", lastRest = "";
   function draw(): void { if (!frame) frame = requestAnimationFrame(render); }
   // Грип ползёт назад и сужается/растёт — ему нужна перерисовка, пока раздвижка не сошла.
   setInterval(() => { if (scene.gripAmount() > 0.001) draw(); }, 50);
@@ -620,12 +540,13 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const open = local.handOn && local.deckTip ? s.piles.find((p) => p.id === local.deckTip) : undefined;
     const chairOpen = local.handOn ? s.chairs.find((c) => c.id === local.tip && c.owner && c.owner !== me()) : undefined;
     if (!local.deckCarry) scene.setRestRight(open ? { x: open.x, y: open.y } : chairOpen ? scene.handOf(chairOpen.id) : null);
-    const top = topHtml() + gyroNoteHtml() + devHtml() + journalHtml(), rest = lassoLayerHtml() + bottomHtml(s) + dealHtml(s);
+    const top = topHtml(s) + gyroNoteHtml() + devHtml() + journalHtml(), railS = railHtml(s), rest = lassoLayerHtml() + bottomHtml(s) + dealHtml(s);
     shown = [];
     pilePanel(s);
     chairPanel(s);
     panels.keep(shown);
     if (top !== lastTop) { lastTop = top; layerTop.innerHTML = top; }
+    if (railS !== lastRail) { lastRail = railS; layerRail.innerHTML = railS; }
     if (rest !== lastRest) { lastRest = rest; layerRest.innerHTML = rest; }
     talk.place(anchors());
     root.dataset.open = local.section ?? "";
@@ -652,6 +573,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     let b: HTMLElement | null;
     if ((b = q("[data-section]"))) {
       const sec = b.dataset.section as Section;
+      local.viewMenu = false;
       if (sec === "say") talk.toggle();
       else { local.section = local.section === sec ? null : sec; local.handMenu = false; local.handPop = null; local.confirmLeave = false; if (sec === "lasso" && !local.section) { local.tool = "cursor"; if (myPicks(s).length) store.send({ t: "unpick" }); } }
     } else if ((b = q("[data-bar]"))) {
@@ -663,22 +585,11 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       else if (what === "side") local.side = SIDES[(SIDES.indexOf(local.side) + 1) % SIDES.length]!;
     } else if (q("[data-stand]")) { store.send({ t: "stand" }); local.confirmLeave = false; }
     else if (q("[data-stance-toggle]")) scene.setStance(scene.stance() === "stand" ? "sit" : "stand");
-    else if (q("[data-hand-btn]")) {
-      if (chair && chair.hand.length) {
-        // Рука лежала — нажатие только поднимает её; сабменю раскрывается следующим нажатием (ещё раз — сворачивается).
-        local.handPop = null;
-        if (chair.pose.tuck) { store.send({ t: "pose", chair: chair.id, pose: { ...chair.pose, tuck: false } }); local.handMenu = false; local.section = null; }
-        else { local.handMenu = !local.handMenu; if (local.handMenu) local.section = null; }
-      }
-    } else if ((b = q("[data-hand-sub]")) && chair) {
-      const what = b.dataset.handSub as "sort" | "pose" | "release";
-      if (what === "release") { store.send({ t: "pose", chair: chair.id, pose: { ...chair.pose, tuck: true } }); local.handMenu = false; local.handPop = null; }
-      else local.handPop = local.handPop === what ? null : what;
-    } else if ((b = q("[data-hand-pose]")) && chair) {
-      const what = b.dataset.handPose as "fan" | "shrink";
-      store.send({ t: "pose", chair: chair.id, pose: { ...chair.pose, [what]: !chair.pose[what] } });
-      local.handPop = null;
-    } else if ((b = q("[data-hand-do]")) && chair) {
+    else if ((b = q("[data-hand-pose2]"))) { scene.setHandLevel(scene.poseLevels[b.dataset.handPose2 as "row" | "fan" | "spine" | "tuck"]); }
+    else if (q("[data-view]")) local.viewMenu = !local.viewMenu;
+    else if ((b = q("[data-cam]"))) { scene.setCamMode(b.dataset.cam as "head" | "orbit" | "top"); local.viewMenu = false; }
+    else if ((b = q("[data-zoom]"))) scene.zoomBy(b.dataset.zoom === "in" ? 1.3 : 1 / 1.3);
+    else if ((b = q("[data-hand-do]")) && chair) {
       const what = b.dataset.handDo!;
       store.send(what === "flip" ? { t: "flip", chair: chair.id } : { t: "arrange", how: what as "suit" | "rank" | "shuffle" | "reverse" });
       local.handPop = null;
@@ -772,71 +683,25 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   const onDown = (e: PointerEvent): void => {
     if (panels.press(e)) return;
     const t = e.target as HTMLElement, chair = myChair();
-    const tab = t.closest<HTMLElement>("[data-hand-tab]");
-    if (tab && chair) {
-      // Ручку тянут: сама ручка идёт за пальцем, рука меняется по своей оси, отпустил — поза легла.
+    // ЯЗЫЧОК РУКИ: палец ведёт высоту руки, а вместе с ней и позу (на столе — корешок — веер — в ряд). За самый верх — вся рука стопкой
+    // над столом, отпустил над столом — стопка легла там; вернул палец вниз, не отпуская, — карты назад в руку.
+    if (t.closest("[data-grip]") && chair) {
       e.preventDefault();
-      const raw = tab.dataset.handTab as "top" | "left" | "stack", fromStack = raw === "stack", which: "top" | "left" = fromStack ? "top" : raw;
-      // Ручка у положенной стопки: тап — рука поднимается; потянул с запасом — поднимается и она же становится верхней ручкой руки;
-      // держишь или чуть потянул и вернул — рука остаётся на столе.
-      const b0 = blendOf({ ...chair.pose, tuck: false }), w0 = scene.handWidth(), c0 = scene.handCurl(), h0 = scene.handHeight();
-      const box = tab.getBoundingClientRect(), x0 = box.x + box.width / 2, y0 = box.y + box.height / 2;
-      // Ручка у стопки не исчезает вместе со стопкой: сразу становится ручкой в пальце, идёт под ним и разворачивается в верхнюю.
-      if (fromStack) local.grabOff = { which: "top", x: x0, y: y0, from: "stack", morph: 0 };
-      // Линии хода верхней ручки: «положить» — на уровне кнопок чата и компаса (по их центру), «нести стопкой» — на нижней границе оптического зума,
-      // но не ближе `carry` над местом хвата (выше — диапазон высоты руки). Рука ложится, если отпустить ниже оранжевой линии (между оранжевой и красной тоже); несётся стопкой, пока палец выше золотой (вернул к месту хвата — снова в руке).
-      // Линии — якоря экрана: доли его высоты, снятые с кнопок и зума как они стоят сейчас; кнопки и зум переедут — линии останутся.
-      // Золотая линия — граница несения: палец выше неё — вся рука несётся стопкой туда, куда указал, ниже (с запасом) — снова в руке.
-      const H = glass().h, layY = H * LINES.lay, collectY = H * LINES.collect;
-      const carryY = which === "top" ? H * LINES.carry : -Infinity;
-      const showLines = () => { local.grabLines = { lay: b0.lift > 0.25 ? layY : null, collect: b0.lift > 0.25 ? collectY : null, carry: carryY }; };
-      if (!fromStack && which === "top") showLines();
-      // Ручка у стопки после подъёма руки — та же верхняя ручка: ход считается от места, где рука поднялась (`baseY`, `hBase`).
-      let lastY = y0, baseY = y0, hBase = h0;
-      let dx = 0, dy = 0, moved = false, carrying = false, lifted = !fromStack;
-      // Ось жеста верхнего грипа решается раз и навсегда: начал влево-вправо — вверх-вниз больше нельзя (и наоборот).
-      let axis: "h" | "v" | null = null, gripOn = false;
-      const t0 = performance.now(), lift = () => { if (!lifted) { lifted = true; baseY = lastY; hBase = scene.handHeight(); showLines(); const c = myChair(); if (c) store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: false } }); } };
+      const h0 = scene.handLevel(), y0 = e.clientY, GRIP_PX = 150, CARRY_AT = 1.22, carryY = y0 - (CARRY_AT - h0) * GRIP_PX;
+      let carrying = false;
+      local.gripDrag = true;
       follow(e, (ev) => {
-        dx = ev.clientX - e.clientX; dy = ev.clientY - e.clientY; lastY = ev.clientY; moved ||= Math.hypot(dx, dy) >= TAP_PX;
-        const dist = Math.hypot(dx, dy);
-        if (which === "top" && axis === null && Math.max(Math.abs(dx), Math.abs(dy)) >= PEEK.min) axis = Math.abs(dx) >= Math.abs(dy) ? "h" : "v";
-        if (fromStack && !lifted && dist >= TAB_PX.pull) lift();
-        local.grabOff = moved || fromStack ? { which, x: fromStack || which === "left" || axis === "h" ? x0 + dx : x0, y: axis === "h" ? y0 : y0 + dy, ...(fromStack ? { from: "stack" as const } : {}), morph: fromStack ? Math.max(0, Math.min(1, (dist - TAB_PX.pull) / 40)) : 1 } : null;
-        if (fromStack && !lifted) { draw(); return; }
-        if (which === "left") {
-          // К краю экрана — шире. За пределом ручка продолжает идти за пальцем, а карты натягиваются и перестают расти.
-          // Вверх — веер выпрямляется, вниз — загибается сильнее (края карт идут вниз вслед за пальцем, как в руке).
-          if (moved) { scene.setHandWidth(w0 - dx / TAB_PX.width); scene.setHandCurl(c0 + dy / TAB_PX.curl); }
-        } else if (axis === "h") {
-          // Влево-вправо: грип идёт за пальцем и остаётся там, где его оставили; вокруг него карты раздвинуты, вверх-вниз в этом жесте не двигается ничего.
-          const fr = scene.handFrame();
-          if (!gripOn) { gripOn = true; scene.gripBegin(); }
-          scene.gripMove(fr ? Math.max(fr.x + 24, Math.min(fr.x + fr.w - 24, ev.clientX)) : ev.clientX);
-        } else {
-          // Высоко вверх — левая рука несёт всю руку стопкой над столом, как колоду; вернул вниз, не отпуская, — карты назад в руку.
-          const dyB = ev.clientY - baseY;
-          if ((ev.clientY <= carryY && dyB <= -TAB_PX.pull) || carrying) {
-            carrying = scene.carryHand({ x: ev.clientX, y: ev.clientY }, { enter: carryY, exit: carryY + 20 });
-            if (carrying) { scene.setBlend(undefined); draw(); return; }
-          }
-          // Иначе рука следует за ручкой по высоте и остаётся там, где отпустили: вверх — выпрямляется веер, вниз — вслед за пальцем до оранжевой линии, дальше карты собираются и опускается на стол.
-          if (moved) scene.setHandHeight(hBase - Math.min(dyB, Math.max(0, collectY - baseY)));
-          // Карты не трогаются, пока палец не пересёк оранжевую линию; от неё до красной собираются в стопку, на красной — собраны.
-          scene.setBlend(moved && ev.clientY > collectY ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - (ev.clientY - collectY) / Math.max(1, layY - collectY))) } : undefined);
+        const target = h0 + (y0 - ev.clientY) / GRIP_PX;
+        if (target > CARRY_AT || carrying) {
+          carrying = scene.carryHand({ x: ev.clientX, y: ev.clientY }, { enter: carryY, exit: carryY + 20 });
+          if (carrying) { draw(); return; }
         }
+        scene.setHandLevel(Math.max(0, Math.min(1, target)));
         draw();
       }, () => {
-        local.grabLines = null;
-        if (gripOn) scene.gripEnd();
-        local.grabOff = null;
-        scene.setBlend(undefined);
-        // Тап по ручке стопки поднимает руку; держал или потянул и вернул — остаётся на столе.
-        if (fromStack && !lifted) { if (!moved && performance.now() - t0 < TAB_PX.tapMs) lift(); draw(); return; }
-        if (carrying) { scene.carryHand(null); draw(); return; }
-        const c = myChair();
-        if (which === "left") scene.setHandWidth(null);
-        else if (c && moved && axis !== "h" && lastY - baseY > 20 && lastY >= collectY) { store.send({ t: "pose", chair: c.id, pose: { ...c.pose, tuck: true } }); scene.setHandHeight(0); local.handMenu = false; local.handPop = null; }
+        local.gripDrag = false;
+        if (carrying) scene.carryHand(null);
+        else if (scene.handLevel() < 0.06) scene.setHandLevel(0);
         draw();
       });
       return;
