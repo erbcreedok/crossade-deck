@@ -29,7 +29,7 @@ import type { TableStore } from "../../server/table-client/store.js";
 
 const DEG = Math.PI / 180;
 const R = TABLE_RADIUS, RIM = 0.45, THICK = 0.6;
-const CARD_W = 1.3, CARD_H = 1.82;
+const CARD_W = 1.17, CARD_H = 1.638;
 /** Каждую карту стопки — чуть выше предыдущей; каждую карту сукна — выше лёгшей раньше. */
 const FELT_STEP = 0.004;
 /** Сколько держать карту без «держу» — меньше `LOCK_TTL_MS` стола. */
@@ -94,7 +94,7 @@ function fingerTexture(id: string): THREE.CanvasTexture {
 
 /** Карта: лицо (+z) и рубашка (−z) спиной к спине, со скруглёнными углами. */
 const cardOutline = (() => {
-  const w = CARD_W / 2, h = CARD_H / 2, r = 0.09;
+  const w = CARD_W / 2, h = CARD_H / 2, r = 0.081;
   const s = new THREE.Shape();
   s.moveTo(-w + r, -h); s.lineTo(w - r, -h); s.quadraticCurveTo(w, -h, w, -h + r); s.lineTo(w, h - r); s.quadraticCurveTo(w, h, w - r, h);
   s.lineTo(-w + r, h); s.quadraticCurveTo(-w, h, -w, h - r); s.lineTo(-w, -h + r); s.quadraticCurveTo(-w, -h, -w + r, -h);
@@ -113,7 +113,7 @@ const cardBendShape = (() => {
   for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / CARD_W + 0.5, pos.getY(i) / CARD_H + 0.5);
   return g;
 })();
-const CARD_CORNER = 0.09;
+const CARD_CORNER = 0.081;
 /** Материал карты с изгибом: `userData.bend.value` — кривизна (1/радиус), изгиб — вершинным шейдером по цилиндру вокруг вертикали карты. */
 function bendMaterial(): THREE.MeshBasicMaterial {
   const m = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.05 });
@@ -724,7 +724,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * Рука в кадре: где перед глазом (оси камеры), какой ширины карта (`card`, в единицах стола на этом расстоянии) и насколько наклонена.
    * Размер руки не зависит от размера карты на столе (`CARD_W`): рука привязана к худу и всем рисуется одинаково.
    */
-  const CAMHAND = { at: new THREE.Vector3(0, -0.92, -2.3), card: 0.54, room: 3.1, tilt: -12, pop: 0.5, near: 0.45, others: 1.7, curl: 1, tiltLow: 20, refFov: 65 } as const;
+  const CAMHAND = { at: new THREE.Vector3(0, -0.92, -2.3), card: 0.486, room: 3.1, tilt: -12, pop: 0.5, near: 0.45, others: 1.7, curl: 1, tiltLow: 20, refFov: 65 } as const;
   const camBasis = (yaw: number, pitch: number): THREE.Matrix4 => {
     const y = yaw * DEG, p = pitch * DEG, f = new THREE.Vector3(Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)), r = new THREE.Vector3(Math.cos(y), 0, Math.sin(y));
     return new THREE.Matrix4().makeBasis(r, r.clone().cross(f), f.clone().negate());

@@ -818,7 +818,7 @@ try {
     const h2 = await cam(), c2 = await firstCard();
     check("голова: взгляд вверх-вниз меняет наклон", Math.abs(h2.pitch - h1.pitch) > 10, { h1: h1.pitch, h2: h2.pitch });
     const widths = await t(() => { const st = window.__t3d.state(), seat = st.people.find((x) => x.key === window.__t3d.me()).seat, hand = st.chairs.find((c) => c.id === seat).hand, top = st.piles[0].cards.at(-1).id; return { hand: window.__t3d.cardWidth(hand[0].id), theirs: window.__t3dScreens[1].cardWidth(hand[0].id), table: window.__t3d.cardWidth(top) }; });
-    check("размер руки не зависит от карты на столе: в руке 0.54, в чужой руке (голова) в 1.7 раза крупнее, на столе 1.3", Math.abs(widths.hand - 0.54) < 0.02 && Math.abs(widths.theirs - 0.54 * 1.7) < 0.04 && Math.abs(widths.table - 1.3) < 0.02, widths);
+    check("размер руки не зависит от карты на столе: в руке 0.486 (на обзоре 75° рисуется как для 65°: ×1.2), в чужой руке (голова) в 1.7 раза крупнее, на столе 1.17", Math.abs(widths.hand - 0.486 * (Math.tan((75 * Math.PI) / 360) / Math.tan((65 * Math.PI) / 360))) < 0.02 && Math.abs(widths.theirs - 0.486 * 1.7) < 0.04 && Math.abs(widths.table - 1.17) < 0.02, widths);
     check("голова: рука в кадре внизу и после поворота возвращается на то же место экрана", c0.x > 0 && c0.x < 390 && c0.y > 450 && c0.y < 790 && Math.hypot(c1.x - c0.x, c1.y - c0.y) < 12 && Math.hypot(c2.x - c0.x, c2.y - c0.y) < 12, { c0, c1, c2 });
     {
       // Камера едет, а рука с картами целиком поспевает за ней с запозданием (отстаёт и догоняет) — одной точкой камеры, без отдельных догонялок у карт и кисти.
