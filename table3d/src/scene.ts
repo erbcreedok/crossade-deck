@@ -674,7 +674,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * Рука в кадре: где перед глазом (оси камеры), какой ширины карта (`card`, в единицах стола на этом расстоянии) и насколько наклонена.
    * Размер руки не зависит от размера карты на столе (`CARD_W`): рука привязана к худу и всем рисуется одинаково.
    */
-  const CAMHAND = { at: new THREE.Vector3(0, -0.8, -2.3), card: 0.2925, room: 3.1, tilt: -12, pop: 0.5, near: 0.45, others: 1.7 } as const;
+  const CAMHAND = { at: new THREE.Vector3(0, -0.65, -2.3), card: 0.54, room: 3.1, tilt: -12, pop: 0.5, near: 0.45, others: 1.7 } as const;
   const camBasis = (yaw: number, pitch: number): THREE.Matrix4 => {
     const y = yaw * DEG, p = pitch * DEG, f = new THREE.Vector3(Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)), r = new THREE.Vector3(Math.cos(y), 0, Math.sin(y));
     return new THREE.Matrix4().makeBasis(r, r.clone().cross(f), f.clone().negate());
@@ -689,7 +689,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    */
   const WIDTH = { stack: 0.12, rowFrom: 0.7, fanTo: 0.75, px: 220, pinch: 140, rise: 150, defaults: { shrink: 0.05, fan: 0.45, row: 1 }, othersRow: 4.2 };
   let handWidth = 0.45, widthLive: number | null = null, widthOver = 0, widthPendingUntil = 0;
-  const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAM.fov.base * DEG) / 2) * camera.aspect); return Math.max(3.9, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / CAMHAND.card); };
+  const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAM.fov.base * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / CAMHAND.card); };
   const roomOf = (f: number): number => 1.2 + (roomMax() - 1.2) * Math.max(0, Math.min(1, (f - WIDTH.stack) / (1 - WIDTH.stack)));
   const smooth = (a: number, b: number, x: number): number => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
   /** Раскладка моей руки из ширины `f` и подъёма `rise` (0…1): сжатость, веер ↔ ряд, комната в ширинах карты. */

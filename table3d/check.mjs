@@ -818,7 +818,7 @@ try {
     const h2 = await cam(), c2 = await firstCard();
     check("голова: взгляд вверх-вниз меняет наклон", Math.abs(h2.pitch - h1.pitch) > 10, { h1: h1.pitch, h2: h2.pitch });
     const widths = await t(() => { const st = window.__t3d.state(), seat = st.people.find((x) => x.key === window.__t3d.me()).seat, hand = st.chairs.find((c) => c.id === seat).hand, top = st.piles[0].cards.at(-1).id; return { hand: window.__t3d.cardWidth(hand[0].id), theirs: window.__t3dScreens[1].cardWidth(hand[0].id), table: window.__t3d.cardWidth(top) }; });
-    check("размер руки не зависит от карты на столе: в руке 0.29, в чужой руке (голова) в 1.7 раза крупнее, на столе 1.3", Math.abs(widths.hand - 0.2925) < 0.02 && Math.abs(widths.theirs - 0.2925 * 1.7) < 0.03 && Math.abs(widths.table - 1.3) < 0.02, widths);
+    check("размер руки не зависит от карты на столе: в руке 0.54, в чужой руке (голова) в 1.7 раза крупнее, на столе 1.3", Math.abs(widths.hand - 0.54) < 0.02 && Math.abs(widths.theirs - 0.54 * 1.7) < 0.04 && Math.abs(widths.table - 1.3) < 0.02, widths);
     check("голова: рука в кадре внизу и держится на одном уровне — как в FPS: на повороте отстаёт и возвращается, взгляд вверх опускает руку", c0.x > 0 && c0.x < 390 && c0.y > 450 && c0.y < 790 && Math.abs(c1.x - c0.x) < 60 && Math.abs(c1.y - c0.y) < 30 && c2.y > c0.y + 10 && c2.y < 844, { c0, c1, c2 });
     // Остальные видят ту же руку там же: она в кадре головы (взгляд вверх-вниз идёт по сети).
     const both = await t(async () => { const id = window.__t3d.state().chairs.find((c) => c.id === window.__t3d.state().people.find((x) => x.key === window.__t3d.me()).seat).hand[3].id; await new Promise((r) => setTimeout(r, 500)); return window.__t3dScreens.map((sc) => sc.world(id)); });
@@ -1115,6 +1115,20 @@ try {
     const during = await rectOf('[data-hand-tab="stack"]').catch(() => null);
     await p.mouse.up();
     check("тяну верхнюю карту стопки: ручка остаётся у стопки", !!during && Math.hypot(during.x - before.x, during.y - before.y) < 60, { before, during });
+  }
+
+  {
+    // Карта из руки не растёт, когда её берут: на экране она того же размера, что и в руке (а не мельче карт на столе).
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const mid = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, id = h.at(-1).id; return { id, at: T.screenOf(id) }; });
+    const apparent = (id) => t((i) => { const T = window.__t3d, w = T.world(i), c = T.cam().pos; return T.cardWidth(i) / Math.hypot(w.x - c[0], w.h - c[1], w.y - c[2]); }, id);
+    const inHand = await apparent(mid.id);
+    await p.mouse.move(mid.at.x, mid.at.y); await p.mouse.down(); await p.mouse.move(mid.at.x, mid.at.y - 150, { steps: 10 }); await p.waitForTimeout(500);
+    const held = await apparent(mid.id);
+    await p.mouse.up();
+    check("взял карту из руки — она на экране не растёт и не мельче той, что в руке (в пределах 25%)", Math.abs(held / inHand - 1) < 0.25, { inHand, held });
   }
   check("без ошибок", errors.length === 0, errors);
 } finally {
