@@ -26,6 +26,11 @@ export interface Links {
    * `null` — кнопки нет (имя бота ещё не узнано).
    */
   native(room: string): string | null;
+  /**
+   * «В 3D» — тот же стол в 3D-виде, отдельной кнопкой: не вместо обычного входа и не вместо приложения. Нет — кнопки нет
+   * (старые Links её не знают).
+   */
+  threeD?(room: string): string;
 }
 
 export const DOWN = "Комнаты сейчас недоступны: сервер выключен. Попробуй позже.";
@@ -38,7 +43,10 @@ export function enter(room: string, links: Links, inPrivate: boolean, text = "И
 /** Вход и рядом «В приложении», если оно есть. */
 export function enterAll(room: string, links: Links, inPrivate: boolean, text = "Играть"): Button[] {
   const native = links.native(room);
-  return native ? [enter(room, links, inPrivate, text), { text: "В приложении", url: native }] : [enter(room, links, inPrivate, text)];
+  const row: Button[] = [enter(room, links, inPrivate, text)];
+  if (links.threeD) row.push({ text: "В 3D", url: links.threeD(room) });
+  if (native) row.push({ text: "В приложении", url: native });
+  return row;
 }
 
 const who = (card: RoomCard) => (card.people.length ? ` · внутри: ${card.people.map((p) => p.name).join(", ")}` : "");

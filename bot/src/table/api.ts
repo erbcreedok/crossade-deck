@@ -83,6 +83,11 @@ export class TableApi {
     return `${this.env.relayUrl ?? this.env.serverUrl}/${this.env.relayUrl ? "t" : "table"}/?room=${encodeURIComponent(room)}`;
   }
 
+  /** 3D-вид стола в браузере: страница `/table/3d` реле пропускает насквозь, как и остальные адреса стола. */
+  openUrl3d(room: string): string {
+    return `${this.env.relayUrl ?? this.env.serverUrl}/table/3d?room=${encodeURIComponent(room)}`;
+  }
+
   /** Мини-апп без стола — «Мои комнаты»: тот же постоянный адрес, только без комнаты. */
   roomsUrl(): string {
     return `${this.env.relayUrl ?? this.env.serverUrl}/${this.env.relayUrl ? "t" : "table"}/`;

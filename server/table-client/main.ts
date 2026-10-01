@@ -61,6 +61,14 @@ const params = new URLSearchParams(location.search);
  * ещё помнит параметр запуска (`start_param`) той ссылки, с которой мини-апп открыли. `?rooms` — назад
  * к списку, даже если мини-апп открыли ссылкой на стол.
  */
+/** Приставка 3D-входа в `startapp` (кнопка бота «В 3D»): за ней — обычное имя комнаты. */
+const THREE_D = "3d_";
+const startAsked = startParam ?? params.get("tgWebAppStartParam") ?? "";
+if (!params.has("room") && startAsked.startsWith(THREE_D)) {
+  // Тот же вход, другой экран: адрес с `#` (подпись Telegram) уходит целиком, а 3D-вид сам снимет приставку.
+  location.replace(`/table/3d${location.search}${location.hash}`);
+  await new Promise(() => {});
+}
 const roomAsked = params.has("rooms") ? null : params.get("room") || startParam || params.get("tgWebAppStartParam");
 
 /**

@@ -7,6 +7,18 @@ const links = { anywhere: (r: string) => `https://t.me/bot/table?startapp=${r}`,
 const withApp = { ...links, native: (r: string) => `https://t.me/bot?start=app-${r}` };
 const card = (room: string, title: string, by = "tg:1"): RoomCard => ({ room, title, by, home: { kind: "chat", chat: "-1" }, people: [], seats: [], deck: { size: 36, jokers: false }, createdAt: 0, kind: "sandbox", crew: "sandbox", admins: [] });
 
+describe("вход в 3D — отдельной кнопкой", () => {
+  const with3d = { ...withApp, threeD: (r: string) => `https://t.me/bot/table?startapp=3d_${r}` };
+  it("рядом с «Играть» и «В приложении» — «В 3D»: своя ссылка, не подмена обычного входа", () => {
+    expect(cardRows("r1", with3d, false)[0]!.map((b) => b.text)).toEqual(["Играть", "В 3D", "В приложении", "Меню"]);
+    expect(cardRows("r1", with3d, false)[0]![1]).toEqual({ text: "В 3D", url: "https://t.me/bot/table?startapp=3d_r1" });
+    expect(cardRows("r1", with3d, false)[0]![0]).toEqual({ text: "Играть", url: "https://t.me/bot/table?startapp=r1" });
+  });
+  it("без `threeD` кнопки нет: прежние карточки не меняются", () => {
+    expect(cardRows("r1", withApp, false)[0]!.map((b) => b.text)).toEqual(["Играть", "В приложении", "Меню"]);
+  });
+});
+
 describe("слова бота про комнаты", () => {
   it("рядом с каждым «Играть» — «В приложении»: ведёт в личку с ботом, пропуск он выдаст там лично", () => {
     const native = { text: "В приложении", url: "https://t.me/bot?start=app-r1" };

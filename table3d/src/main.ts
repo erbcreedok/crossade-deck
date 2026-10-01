@@ -26,7 +26,7 @@ function screenBox(first: boolean): { screen: HTMLElement; stage: HTMLElement; h
 const lag = lagFromUrl(location.search);
 try {
   const tgStart = (globalThis as { Telegram?: { WebApp?: { initDataUnsafe?: { start_param?: string } } } }).Telegram?.WebApp?.initDataUnsafe?.start_param;
-  const room = params.get("room") || tgStart || new URLSearchParams(new URLSearchParams(location.hash.slice(1)).get("tgWebAppData") ?? "").get("start_param");
+  const room = (params.get("room") || tgStart || new URLSearchParams(new URLSearchParams(location.hash.slice(1)).get("tgWebAppData") ?? "").get("start_param") || new URLSearchParams(location.hash.slice(1)).get("tgWebAppStartParam"))?.replace(/^3d_/, "") || null;
   const { mountScene } = await import("./scene.js");
   const { mountHud } = await import("./hud.js");
   if (room) {

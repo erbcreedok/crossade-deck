@@ -42,6 +42,8 @@ export function installTable(bot: Bot, api: TableApi, watch: Watch, registry: Re
   const links: Links = {
     anywhere: (room) => (api.appName && botName ? `https://t.me/${botName}/${api.appName}?startapp=${room}` : api.openUrl(room)),
     app: (room) => api.openUrl(room),
+    // «3d_» перед комнатой в `startapp`: обычная страница видит приставку и уходит на 3D-вид (`server/table-client/main.ts`).
+    threeD: (room) => (api.appName && botName && `3d_${room}`.length <= 64 ? `https://t.me/${botName}/${api.appName}?startapp=3d_${room}` : api.openUrl3d(room)),
     native: (room) => (botName && `app-${room}`.length <= 64 ? `https://t.me/${botName}?start=app-${room}` : null),
   };
   /** Кто сейчас переименовывает какой стол: `чат:человек` → комната. */
