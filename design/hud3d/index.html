@@ -141,7 +141,7 @@
     <h1>HUD 3D — дизайн</h1>
     <div class="notes">Экран 390×844, iPhone-first. Сверху — стол и выход, справа — камера (меняется от вида), снизу — рука и пять вкладок. Всё живое: <b>проведи пальцем по руке</b> (линза и подсказка карты), <b>вытяни карту вверх</b> на стол, нажимай вкладки. Цвета — палитра стола, шрифт — Tiny5, значки — свои пиксельные (<a href="gallery.html" style="color:var(--gold)">галерея</a>).</div>
     <div class="sec"><h2>Как устроено</h2><div class="notes">
-      <b>Рука.</b> Всегда один ряд: сколько бы карт ни было, лента сжимается по ширине экрана. Палец по руке — карта под ним выползает из ленты вверх и растёт, соседи чуть ниже, плавно перекатываются за пальцем. Потяни выползшую карту выше — она оторвётся и ляжет на стол.<br>
+      <b>Рука.</b> Всегда один ряд: сколько бы карт ни было, лента сжимается по ширине экрана. Палец по руке — приподнимается одна карта, та, что под пальцем. Потяни её вверх — она оторвётся и пойдёт за пальцем: над рукой остальные раздвигаются щелью (отпустишь — карта встанет туда, это перестановка), выше — ляжет на стол.<br>
       <b>Нижняя строка.</b> Пять вкладок со словами: Рука (веер, в ряд, сложить на стол), Порядок (масть, номинал, наоборот, мешать), Стул (замок, скрыть, не брать, закрепить, выйти), Выбор (рука или лассо, хват, сторона), Чат. Одна вкладка открыта за раз, рука поднимается над её листом. Тумблеры горят золотом и квадратом-огоньком.<br>
       <b>Рейка справа — камера, и только то, что нужно виду.</b> Голова: вид, гиро, стойка, зум обзора. Вокруг: вид, компас «К стулу», дальность. Сверху (2D): вид и плюс/минус, ни компаса, ни стойки.<br>
       <b>Подсказки.</b> Каждое нажатие отвечает строкой: что включилось и что это значит.<br>
@@ -154,9 +154,8 @@
       <div class="seg3" id="quick"></div>
     </div>
     <div class="sec"><h2>Рука: настройка</h2>
-      <div class="row"><label>Выползает на</label><input type="range" id="lift" min="0" max="140" step="2"><span class="val" id="liftv"></span></div>
-      <div class="row"><label>Растёт в</label><input type="range" id="grow" min="1" max="2.2" step="0.05"><span class="val" id="growv"></span></div>
-      <div class="row"><label>Сколько карт тянется</label><input type="range" id="reach" min="0.3" max="1.6" step="0.05"><span class="val" id="reachv"></span></div>
+      <div class="row"><label>Приподнята на</label><input type="range" id="lift" min="0" max="60" step="1"><span class="val" id="liftv"></span></div>
+      <div class="row"><label>Растёт в</label><input type="range" id="grow" min="1" max="1.4" step="0.01"><span class="val" id="growv"></span></div>
       <div class="row"><label>Ширина карты</label><input type="range" id="cw" min="52" max="76" step="1"><span class="val" id="cwv"></span></div>
       <div class="seg3" id="refSeg"></div>
     </div>
@@ -168,7 +167,7 @@
   const $ = (id) => document.getElementById(id);
   const I = PixelIcons.icon, P = PixelIcons.pip;
   const W = 390, H = 844, SAFE_B = 34;
-  const DEFAULT = { n: 18, cam: "head", stance: "sit", turn: "me", tab: null, lift: 84, grow: 1.5, reach: 0.6, cw: 64, ref: false, flags: { lock: false, hide: true, reject: false, forever: false }, pose: "fan", sortedBy: null, tool: "cursor", grab: "collect", side: "keep", selected: 0, gyro: false, zoom: 0.25, viewMenu: false, chatUnread: 2, tucked: false };
+  const DEFAULT = { n: 18, cam: "head", stance: "sit", turn: "me", tab: null, lift: 22, grow: 1.08, cw: 64, ref: false, flags: { lock: false, hide: true, reject: false, forever: false }, pose: "fan", sortedBy: null, tool: "cursor", grab: "collect", side: "keep", selected: 0, gyro: false, zoom: 0.25, viewMenu: false, chatUnread: 2, tucked: false };
   const S = JSON.parse(JSON.stringify(DEFAULT));
   const SUITS = ["s", "h", "d", "c"], FILE = { s: "spade", h: "heart", d: "diamond", c: "club" }, RANKS = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"];
   const RNAME = { J: "Валет", Q: "Дама", K: "Король", A: "Туз" }, SNAME = { s: "пик", h: "червей", d: "бубен", c: "треф" };
@@ -207,33 +206,31 @@
 
   /** Места карт: ряд за рядом, задний — выше и темнее; ряд из ≤ 9 карт — веером, длиннее — ровной лентой. */
   /**
-   * Места карт: ряд за рядом, задний — выше и темнее; ряд из ≤ 9 карт — веером, длиннее — ровной лентой.
-   * ВЫПОЛЗАНИЕ: палец стоит между картами на дробном месте `fi`; каждая карта поднимается из ленты и растёт по колоколу вокруг
-   * него — под пальцем целиком вылезшая крупная карта, рядом соседи ниже, дальше — ровно в ленте. Двигаешь палец — карты
-   * плавно перекатываются, а не прыгают с номера на номер.
+   * Места карт — одной лентой; ряд из ≤ 9 карт — веером, длиннее — ровно.
+   * ПАЛЕЦ: карта под пальцем (одна!) чуть выше остальных и крупнее на `grow` — остаётся там же, под пальцем, чтобы её можно было взять.
+   * НЕСУ КАРТУ НАД РУКОЙ: она вынута из ленты, а на месте `gapAt` остальные раздвинуты щелью — сюда карта встанет при отпускании.
    */
+  let gapAt = null;
+  function slotsOf() {
+    const list = pick ? hand.filter((c) => c.id !== pick.id) : hand;
+    return { list, n: list.length + (gapAt !== null ? 1 : 0) };
+  }
+  function geomOf(n) {
+    const cw = S.cw, usable = W - 24, base = n > 1 ? Math.min(cw * 0.62, (usable - cw) / (n - 1)) : 0;
+    return { base, x0: (W - (cw + base * (n - 1))) / 2 };
+  }
   function layout(focus) {
-    const rows = rowsOf(), pos = new Map(), cw = S.cw, usable = W - 24;
-    rows.forEach((row, r) => {
-      const m = row.length, front = rows.length - 1 - r;
-      const base = m > 1 ? Math.min(cw * 0.62, (usable - cw) / (m - 1)) : 0;
-      const gaps = [];
-      for (let i = 1; i < m; i += 1) gaps.push(base + (S.sortedBy === "suit" && row[i - 1].s !== row[i].s ? 8 : 0));
-      const baseTotal = base * (m - 1), gapTotal = gaps.reduce((a, b) => a + b, 0), k = gapTotal ? baseTotal / gapTotal : 1;
-      let x = (W - (cw + baseTotal)) / 2;
-      const fi = focus && focus.row === r ? focus.fi : null;
-      const fan = rows.length === 1 && m <= 9, step = Math.max(2.2, Math.min(5.5, 30 / Math.max(1, m)));
-      row.forEach((c, i) => {
-        if (i > 0) x += gaps[i - 1] * k;
-        const t = i - (m - 1) / 2, d = fi === null ? 99 : i - fi, w = fi === null ? 0 : Math.exp(-((d / S.reach) ** 2));
-        pos.set(c.id, {
-          x, y: handBottom() - chH() - front * ROW_STEP + (fan ? t * t * 1.6 : 0) - S.lift * w,
-          rot: fan ? t * step * (1 - w) : 0, scale: (1 - 0.05 * front) * (1 + (S.grow - 1) * w), dim: front * 0.16 * (1 - w), w,
-          z: fi === null ? 10 + i : 10 + Math.round(w * 80), row: r, i,
-        });
+    const { list, n } = slotsOf(), pos = new Map(), { base, x0 } = geomOf(n);
+    const fan = n <= 9, step = Math.max(2.2, Math.min(5.5, 30 / Math.max(1, n)));
+    list.forEach((c, i) => {
+      const slot = gapAt !== null && i >= gapAt ? i + 1 : i, t = slot - (n - 1) / 2, up = focus && focus.i === i && !pick;
+      pos.set(c.id, {
+        x: x0 + slot * base + (S.sortedBy === "suit" && i > 0 && list[i - 1].s !== c.s ? 0 : 0),
+        y: handBottom() - chH() + (fan ? t * t * 1.6 : 0) - (up ? S.lift : 0),
+        rot: fan ? t * step * (up ? 0.4 : 1) : 0, scale: up ? S.grow : 1, dim: 0, w: up ? 1 : 0, z: up ? 90 : 10 + i, i,
       });
     });
-    return { rows, pos };
+    return { rows: rowsOf(), pos };
   }
 
   // ——— отрисовка ———
@@ -260,7 +257,7 @@
       el.style.transform = `rotate(${p.rot}deg) scale(${p.scale})`;
       el.style.transformOrigin = "50% 100%";
       el.style.filter = p.dim ? `brightness(${1 - p.dim})` : "";
-      el.style.boxShadow = p.w > 0.9 ? "0 0 0 3px var(--black), 0 0 0 5px var(--gold), 0 9px 0 4px rgba(11,7,4,.6)" : "";
+      el.style.boxShadow = p.w ? "0 0 0 3px var(--black), 0 0 0 5px var(--gold), 0 9px 0 4px rgba(11,7,4,.6)" : "";
     }
     // полка под нижним рядом: рука «лежит в ней», нижняя треть карты спрятана
     const shelfTop = trayTop();
@@ -283,49 +280,54 @@
     const top = handBottom() - chH() - (rows.length - 1) * ROW_STEP - 24;
     hit.style.top = `${top}px`; hit.style.height = `${trayTop() - top + 6}px`; hit.style.display = tucked ? "none" : "block";
     // зона «положить на стол» — видна, пока карта в пальце
-    const dz = document.createElement("div"); dz.className = "drop"; dz.style.top = "300px"; dz.textContent = "Отпусти — карта ляжет на стол"; dz.style.display = pick ? "flex" : "none"; handLayer.append(dz);
+    const dz = document.createElement("div"); dz.className = "drop"; dz.style.top = "300px"; dz.textContent = "Отпусти — карта ляжет на стол"; dz.style.display = "none"; handLayer.append(dz);
   }
 
-  /** Где палец на ленте: дробный номер карты `fi` (линейно по ширине ленты) и ближайшая карта. */
-  function indexAt(x) {
-    const row = rowsOf()[0]; if (!row) return null;
-    const cw = S.cw, usable = W - 24, m = row.length, base = m > 1 ? Math.min(cw * 0.62, (usable - cw) / (m - 1)) : 0, x0 = (W - (cw + base * (m - 1))) / 2 + cw / 2;
-    const fi = m > 1 ? Math.max(0, Math.min(m - 1, (x - x0) / base)) : 0, i = Math.round(fi);
-    return { row: 0, i, fi, card: row[i] };
+  /** Где палец на ленте: номер ближайшей карты (из тех, что в ленте) и дробный номер. */
+  function indexAt(x, count = hand.length) {
+    if (!count) return null;
+    const { base, x0 } = geomOf(count), cx = x0 + S.cw / 2;
+    const fi = count > 1 ? Math.max(0, Math.min(count - 1, (x - cx) / base)) : 0;
+    return { i: Math.round(fi), fi };
   }
   function bindHit(hit) {
     let down = null, raf = 0;
     const local = (e) => { const r = phone.getBoundingClientRect(), k = r.width / W; return { x: (e.clientX - r.left) / k, y: (e.clientY - r.top) / k }; };
     const later = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; renderHand(); }); };
+    /** Над рукой — вставляем в ленту (щель), выше — это уже стол. */
+    const handZoneTop = () => handBottom() - chH() - 46;
     hit.addEventListener("pointerdown", (e) => {
       hit.setPointerCapture(e.pointerId);
       const p = local(e), f = indexAt(p.x); if (!f) return;
       down = { x: p.x, y: p.y };
-      focus = { row: 0, i: f.i, fi: f.fi }; renderHand();
+      focus = { i: f.i }; renderHand();
     });
     hit.addEventListener("pointermove", (e) => {
       if (!down) return;
       const p = local(e);
-      // Карта выползла — потянул ещё выше её середины: она оторвалась от ленты и идёт за пальцем.
-      const takeY = handBottom() - S.lift - chH() * S.grow * 0.6;
-      if (!pick && focus && p.y < takeY && Math.abs(p.y - down.y) > 30) {
-        const c = rowsOf()[0][focus.i]; pick = c ? { id: c.id } : null; if (pick) focus = null;
-      }
+      // Потянул карту вверх, за её верхний край, — она оторвалась от ленты и идёт за пальцем.
+      if (!pick && focus && p.y < handBottom() - chH() - S.lift - 4 && down.y - p.y > 14) { const c = hand[focus.i]; if (c) { pick = { id: c.id }; focus = null; } }
       if (pick) {
-        const el = cardEls.get(pick.id); if (el) { el.style.left = `${p.x - S.cw / 2}px`; el.style.top = `${p.y - chH() / 2}px`; el.style.transform = "scale(1.12) rotate(-3deg)"; el.style.zIndex = 99; }
-        handLayer.querySelector(".drop").style.display = "flex";
+        const el = cardEls.get(pick.id);
+        if (el) { el.style.left = `${p.x - S.cw / 2}px`; el.style.top = `${p.y - chH() * 0.6}px`; el.style.transform = "scale(1.1) rotate(-2deg)"; el.style.zIndex = 99; }
+        const inHand = p.y >= handZoneTop();
+        const gap = inHand ? indexAt(p.x, hand.length) : null, nextGap = gap ? Math.min(gap.i, hand.length - 1) : null;
+        if (nextGap !== gapAt) { gapAt = nextGap; later(); }
+        handLayer.querySelector(".drop").style.display = p.y < 560 ? "flex" : "none";
         return;
       }
       const f = indexAt(p.x); if (!f) return;
-      focus = { row: 0, i: f.i, fi: f.fi }; later();
+      if (!focus || focus.i !== f.i) { focus = { i: f.i }; later(); }
     });
     const end = (e) => {
       if (!down) return;
       const p = local(e);
       if (pick) {
-        const dropped = p.y < 560;
-        if (dropped) { hand = hand.filter((c) => c.id !== pick.id); S.n = hand.length; say("Карта легла на стол. Вернуть — потяни её обратно в руку."); } else say("Карта вернулась в руку.");
-        pick = null;
+        const c = hand.find((x) => x.id === pick.id);
+        if (p.y < 560) { hand = hand.filter((x) => x.id !== pick.id); S.n = hand.length; say("Карта легла на стол. Вернуть — потяни её обратно в руку."); }
+        else if (gapAt !== null && c) { hand = hand.filter((x) => x.id !== pick.id); hand.splice(gapAt, 0, c); S.sortedBy = null; say("Карта встала на новое место в руке."); }
+        else say("Карта вернулась на место.");
+        pick = null; gapAt = null;
       }
       down = null; focus = null; renderAll();
     };
@@ -439,7 +441,7 @@
   function seg(box, items, get, set) { box.innerHTML = items.map(([k, label]) => `<button class="${get() === k ? "on" : ""}" data-k="${k}">${label}</button>`).join(""); box.onclick = (e) => { const b = e.target.closest("button"); if (!b) return; set(b.dataset.k); renderAll(); }; }
   function syncPanel() {
     $("n").value = hand.length; $("nv").textContent = hand.length;
-    $("lift").value = S.lift; $("liftv").textContent = S.lift; $("grow").value = S.grow; $("growv").textContent = `×${S.grow.toFixed(2)}`; $("reach").value = S.reach; $("reachv").textContent = S.reach.toFixed(1); $("cw").value = S.cw; $("cwv").textContent = S.cw;
+    $("lift").value = S.lift; $("liftv").textContent = S.lift; $("grow").value = S.grow; $("growv").textContent = `×${S.grow.toFixed(2)}`; $("cw").value = S.cw; $("cwv").textContent = S.cw;
     seg($("camSeg"), [["head", "камера: голова"], ["orbit", "свободная"], ["top", "сверху (2D)"]], () => S.cam, (k) => { S.cam = k; });
     seg($("stanceSeg"), [["sit", "сидя"], ["stand", "стоя"]], () => S.stance, (k) => { S.stance = k; });
     seg($("turnSeg"), [["me", "ход мой"], ["alia", "ход Алии"], ["", "хода нет"]], () => S.turn || "", (k) => { S.turn = k || null; });
@@ -449,7 +451,6 @@
   $("n").oninput = (e) => { const n = +e.target.value; if (n > hand.length) { const have = new Set(hand.map((c) => c.id)); hand.push(...deck.filter((c) => !have.has(c.id)).slice(0, n - hand.length)); } else hand = hand.slice(0, n); S.n = hand.length; renderAll(); };
   $("lift").oninput = (e) => { S.lift = +e.target.value; renderAll(); };
   $("grow").oninput = (e) => { S.grow = +e.target.value; renderAll(); };
-  $("reach").oninput = (e) => { S.reach = +e.target.value; renderAll(); };
   $("cw").oninput = (e) => { S.cw = +e.target.value; renderAll(); };
   $("reset").onclick = () => { Object.assign(S, JSON.parse(JSON.stringify(DEFAULT))); setHand(S.n); renderAll(); };
   $("knob").onclick = () => $("panel").classList.toggle("open");
