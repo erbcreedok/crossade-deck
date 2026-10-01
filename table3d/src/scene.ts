@@ -47,7 +47,7 @@ const HOVER = { up: 0.55, near: 0.6, grow: 1.15 };
 /** Место карты: в мире (`over` — моя рука: место в мире, но рисуется поверх всего) — или в осях камеры (`onCamera`: над окном HUD). */
 /** Раскладка руки: сжатость (0 — стопкой), веер ↔ ряд (0.5 — веер, 1 — ряд), комната в ширинах карты. */
 type Shape = { wide: number; lift: number; room: number };
-type Place = { pos: THREE.Vector3; quat: THREE.Quaternion; scale: number; onCamera?: true; over?: true; /** Кривизна самой карты вокруг её вертикали (1/радиус в единицах карты, + к лицу): карта согнута, как в пальцах. */ bend?: number };
+type Place = { pos: THREE.Vector3; quat: THREE.Quaternion; scale: number; onCamera?: true; over?: true; /** Куда в мире складывается рука к держащему: чей слой выше, решает, с какой стороны на неё смотрят. */ stagger?: THREE.Vector3; /** Кривизна самой карты вокруг её вертикали (1/радиус в единицах карты, + к лицу): карта согнута, как в пальцах. */ bend?: number };
 /** Где карта сейчас по снимку: откуда её можно взять. */
 type From = { in: "felt" } | { in: "pile"; pile: string; top: boolean } | { in: "hand"; chair: string; mine: boolean; i: number };
 
@@ -789,7 +789,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** То же место в мире: голова `head` смотрит `yaw`, `pitch`. */
   const camHandWorld = (local: Place, head: Point3, yaw: number, pitch: number): Place => {
     const m = camBasis(yaw, pitch), q = new THREE.Quaternion().setFromRotationMatrix(m);
-    return { pos: local.pos.clone().applyMatrix4(m).add(V(head)), quat: q.multiply(local.quat), scale: local.scale, bend: local.bend };
+    const stagger = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+    return { pos: local.pos.clone().applyMatrix4(m).add(V(head)), quat: q.multiply(local.quat), scale: local.scale, bend: local.bend, stagger };
   };
   /** Где лежит стопка положенной руки: у самого борта у своего места, чуть слева от аватара — не там, где рука у головы: с взглядом она не ходит. */
   function stackSpot(ch: Chair): { x: number; y: number } {
@@ -1033,6 +1034,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (bendNow !== bendWas) { g.userData.bend = bendNow; moving = true; }
       (o.front.material as THREE.Material).userData.bend.value = bendNow;
       (o.back.material as THREE.Material).userData.bend.value = -bendNow;
+      // ПОРЯДОК КАРТ В РУКЕ — по правилу, а не по глубине: карта справа всегда поверх карты слева (если смотреть со стороны держащего), несомая — выше всех.
+      // Изогнутые карты пересекаются, и глубина дала бы торчащие углы; слои друг в друга не пишут, порядок задан.
+      const from = fromOf.get(id), carried = !!drag?.moved && drag.id === id && !!from && from.in === "hand";
+      const layered = carried || (!!from && from.in === "hand" && (!!t.onCamera || !!t.stagger));
+      const above = t.onCamera || !t.stagger || t.stagger.dot(camera.position.clone().sub(g.position)) > 0, slot = from && from.in === "hand" ? from.i : 0;
+      const order = carried ? 300 : layered ? 100 + (above ? slot : 99 - slot) : 0;
+      for (const m of [o.front.material, o.back.material] as THREE.Material[]) m.depthWrite = !layered;
+      o.front.renderOrder = o.back.renderOrder = order;
       const want = Math.abs(bendNow) > 1e-5 ? cardBendShape : cardShape;
       if (o.front.geometry !== want) o.front.geometry = o.back.geometry = want;
       const parent = t.onCamera ? handRoot : cardRoot;
@@ -1612,6 +1621,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     fanFitsN,
     /** Ширина карты в мире: сколько единиц стола она занимает (рука — в осях камеры, стол — свой размер). */
     setHandWidthNow: (raw: number) => { widthLive = Math.max(0, Math.min(1, raw)); widthOver = Math.max(0, raw - 1); layout(store.state); },
+    cardOrder: (id: string) => { const o = cards.get(id); return o ? { order: o.front.renderOrder, write: (o.front.material as THREE.Material).depthWrite } : null; },
     cardBend: (id: string) => (cards.get(id)?.group.userData.bend as number | undefined) ?? 0,
     handCurl: () => handCurl,
     setHandCurl: (c: number) => { handCurl = Math.max(0, Math.min(1, c)); layout(store.state); sendBody(); },

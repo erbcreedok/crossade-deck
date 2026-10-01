@@ -1180,6 +1180,12 @@ try {
     const bent = await bendOf();
     const arcY = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, y = (c) => T.screenOf(c.id).y; return { edge: Math.max(y(h[0]), y(h.at(-1))), mid: y(h[Math.floor(h.length / 2)]), spread: Math.abs(T.screenOf(h[0].id).x - T.screenOf(h.at(-1).id).x) }; });
     check("веер по умолчанию дугой в плоскости (по Y): крайние карты ниже середины, веер раскрыт, а не стопкой", arcY.edge - arcY.mid > 5 && arcY.spread > 90, arcY);
+    // Порядок карт в веере задан правилом: справа всегда поверх слева (со стороны хозяина); слои друг в друга не пишут — торчащих углов нет.
+    const orders = (screen) => t((sc) => { const T = window.__t3d, S = sc === 0 ? T : window.__t3dScreens[sc], st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand; return h.map((c) => S.cardOrder(c.id)); }, screen);
+    const mineOrd = await orders(0), theirOrd = await orders(1);
+    const rising = (a) => a.every((v, i) => i === 0 || v.order > a[i - 1].order), falling = (a) => a.every((v, i) => i === 0 || v.order < a[i - 1].order);
+    check("карты в веере: справа всегда поверх слева, слои не пишут глубину", rising(mineOrd) && mineOrd.every((v) => v.write === false), mineOrd);
+    check("чужой экран: порядок слоёв задан правилом (монотонный), без глубины", (rising(theirOrd) || falling(theirOrd)) && theirOrd.every((v) => v.write === false), theirOrd);
     const a0 = await sag(0);
     check("веер загнут по Z: крайние карты ближе к держащему, чем середина", a0.n >= 5 && a0.mid - a0.edge > 0.015, a0);
     await t(() => window.__t3d.setHandCurl(0)); await p.waitForTimeout(900);
