@@ -163,6 +163,8 @@ export interface SceneApi {
   carryHand(screen: { x: number; y: number } | null): boolean;
   /** Рука в кадре следует за верхней ручкой по высоте, пока её тянут (`px` вверх — минус); `null` — отпустили, вернулась (временно). */
   setHandNudge(px: number | null): void;
+  /** Где на экране лежит моя положенная стопка (середина) — за ручку у неё поднимают руку; рука не положена или стопки не видно как места — `null`. */
+  stackScreen(): { x: number; y: number } | null;
   /** Ширина моей руки 0…1 (стопкой → веер → в ряд, предел — экран). */
   handWidth(): number;
   /** Пока тянут левую ручку: ширина `raw` (за пределом — карты натягиваются и не растут); `null` — отпустили, поза легла. */
@@ -1575,6 +1577,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     fanFits: () => fanFitsNow(),
     setHandNudge(px) { nudgePx = px ?? 0; draw(); },
     handWidth: () => handWidth,
+    stackScreen() {
+      const ch = myChair();
+      if (!ch || camMode === "orbit" || !ch.hand.length || tuckOf(mineBlend(ch)) < 0.95) return null;
+      const at = stackSpot(ch);
+      return project(new THREE.Vector3(at.x, 0.03 + ch.hand.length * PILE_STEP, at.y));
+    },
     setHandWidth(raw) {
       if (raw === null) { commitWidth(); return; }
       widthLive = Math.max(0, Math.min(1, raw)); widthOver = Math.max(0, raw - 1);

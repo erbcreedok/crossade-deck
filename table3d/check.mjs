@@ -914,6 +914,14 @@ try {
     const wB = (await t(() => window.__t3d.handFrame())).w, gB = await tabBox("left");
     check("ручка идёт за пальцем и за пределом ширины: ручка сместилась, а рука почти не выросла (натяжение)", gB.x < gl.x - 20 && wB <= wRow0 * 1.08, { g0: gl.x, gB: gB.x, wRow0, wB });
     await p.mouse.up(); await p.waitForTimeout(400);
+    // Ручка не вылетает из-под пальца, пока меняется поза: от стопки до ряда она всё время под пальцем.
+    const gj = await tabBox("left"), jx = gj.x + gj.width / 2, jy = gj.y + gj.height / 2;
+    await p.mouse.move(jx, jy); await p.mouse.down();
+    let worst = 0;
+    for (let k = 1; k <= 14; k++) { const fx = jx + k * 12; await p.mouse.move(fx, jy); await p.waitForTimeout(60); const gb = await tabBox("left"); worst = Math.max(worst, Math.abs(gb.x + gb.width / 2 - fx), Math.abs(gb.y + gb.height / 2 - jy)); }
+    await p.mouse.up(); await p.waitForTimeout(400);
+    check("боковая ручка идёт ровно под пальцем всё время, пока меняется поза и охват руки (не прыгает ни по горизонтали, ни по вертикали)", worst < 3, { worst });
+    await tdrag("left", 0, 0);
     await tdrag("left", 210, 0);
     const narrow = await poseOf();
     check("левая ручка от края: в ряд → ужато, видна одна карта", narrow.shrink === true, narrow);
@@ -944,7 +952,17 @@ try {
     // Верхний язычок вниз — рука опускается и ложится; кнопка левой руки — поднимает.
     await tdrag("top", 0, 100);
     await p.waitForTimeout(400);
-    check("верхняя ручка вниз: карты положены на стол, ручек нет", (await poseOf()).tuck === true && (await tabsOn()) === 0, await poseOf());
+    check("верхняя ручка вниз: карты положены на стол, остаётся только ручка у стопки", (await poseOf()).tuck === true && (await tabsOn()) === 1, await poseOf());
+    // Положенная рука: у стопки на столе своя боковая ручка — потянул, и рука поднялась, а ручка стала верхней ручкой руки.
+    await p.waitForTimeout(700);
+    const laidSt = await t(() => ({ tabs: [...document.querySelectorAll('.screen:not(.off) [data-hand-tab]')].map((e) => e.dataset.handTab), pose: (() => { const s = window.__t3d.state(), seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat).pose; })() }));
+    check("положена: у стопки одна боковая ручка вместо верхней и левой", laidSt.pose.tuck === true && laidSt.tabs.length === 1 && laidSt.tabs[0] === "stack", laidSt);
+    const sg = await tabBox("stack");
+    await p.mouse.move(sg.x + sg.width / 2, sg.y + sg.height / 2); await p.mouse.down(); await p.mouse.move(sg.x + sg.width / 2, sg.y + sg.height / 2 - 50, { steps: 6 });
+    await p.waitForTimeout(500);
+    const liftedMid = await poseOf(), tabsMid = await tabsOn();
+    await p.mouse.up(); await p.waitForTimeout(700);
+    check("потянул ручку у стопки: рука поднялась, ручки руки (верхняя и левая) на месте", liftedMid.tuck === false && (await poseOf()).tuck === false && (await tabsOn()) === 2, { liftedMid, tabsMid });
     await p.click(handBtnSel); await p.waitForTimeout(700); await p.click(handBtnSel);
     check("кнопка левой руки подняла руку — ручки снова на месте", (await poseOf()).tuck === false && (await tabsOn()) === 2, await tabsOn());
     await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
