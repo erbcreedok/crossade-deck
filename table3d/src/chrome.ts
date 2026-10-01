@@ -17,6 +17,7 @@ export const CHROME_CSS = `
   --panel: ${P.panel}; --panelLight: ${P.panelLight}; --well: ${P.well}; --ink: ${P.ink}; --inkDim: ${P.inkDim}; --gold: ${P.gold};
   --goldLight: ${P.goldLight}; --goldDark: ${P.goldDark}; --danger: ${P.danger}; --black: ${P.black}; --wood: ${P.wood}; --mine: #7fd1b9;
 }
+#hud .cp, #hud .cp * { box-sizing: border-box; }
 /* ПИКСЕЛЬНАЯ ПЛАШКА: контур со срезанными углами (тень-ступеньки), дерево внутри, жёсткая тень снизу. */
 #hud .cp { position: absolute; background: linear-gradient(var(--panel), var(--well)); color: var(--ink);
   box-shadow: 0 -2px 0 0 var(--black), 0 2px 0 0 var(--black), -2px 0 0 0 var(--black), 2px 0 0 0 var(--black), inset 0 0 0 2px var(--wood), 0 6px 0 0 rgba(11,7,4,.6); }

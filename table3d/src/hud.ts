@@ -263,7 +263,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const level = scene.handLevel(), pose = scene.handPoseAt(level), floor = glass().h - scene.safeBottom() - DOCK_PX - (local.section && local.section !== "say" ? SHEET_PX + SHEET_GAP : 0) - 4;
     const top = pose === "tuck" ? floor : scene.handTopPx() ?? floor;
     const y = Math.round(top - 26);
-    const label = pose === "tuck" ? `<span>рука на столе · ${chair.hand.length}</span>` : `<span>${chair.hand.length}</span>`;
+    const label = pose === "tuck" ? `<span>на столе · ${chair.hand.length}</span>` : `<span>${chair.hand.length}</span>`;
     return `<div class="cp c-grip${local.gripDrag ? " drag" : ""}" data-grip aria-label="Язычок руки: вверх — поднять, вниз — опустить; за самый верх — вся рука стопкой на стол" style="left:calc(50% - 42px);top:${y}px"><i></i><i></i><i></i><i></i></div>`
       + `<div class="cp c-count flat" style="left:14px;top:${y - 6}px">${ic("cards", 1)}${label}</div>`;
   }

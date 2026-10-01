@@ -65,6 +65,18 @@ const click = async (sel) => { const r = await t((q) => { const e = [...document
 check("вкладка «Рука» открывается", await click('[data-section="pose"]'), null);
 check("кнопка «Веер» ставит веер", (await click('[data-hand-pose2="fan"]')) && (await pose()).fan === true, await pose());
 check("кнопка «На стол» кладёт руку на стол", (await click('[data-hand-pose2="tuck"]')) && (await pose()).tuck === true, await pose());
+// ЯЗЫЧОК ЗА САМЫЙ ВЕРХ — вся рука стопкой на стол
+const q = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+q.on("pageerror", (e) => errors.push(e.message));
+await q.goto(`${base}/?stand`);
+await q.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+await q.waitForTimeout(900);
+await q.evaluate(() => window.__t3d.setHandLevel(0.8)); await q.waitForTimeout(1800);
+const g2 = await q.evaluate(() => { const e = [...document.querySelectorAll("[data-grip]")].find((x) => x.getBoundingClientRect().width > 0 && !x.closest(".screen.off")); const r = e?.getBoundingClientRect(); return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null; });
+const n0 = await q.evaluate(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat).hand.length; });
+await q.mouse.move(g2.x, g2.y); await q.mouse.down(); await q.mouse.move(g2.x, g2.y - 120, { steps: 6 }); await q.mouse.move(195, 380, { steps: 8 }); await q.waitForTimeout(300); await q.mouse.up(); await q.waitForTimeout(700);
+const after = await q.evaluate(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return { hand: s.chairs.find((c) => c.id === seat).hand.length, pile: Math.max(0, ...s.piles.map((p) => p.cards.length)), felt: s.felt.length }; });
+check("язычок за самый верх — вся рука ушла на стол стопкой", n0 > 0 && after.hand === 0 && (after.pile >= n0 || after.felt >= n0), { n0, after });
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));

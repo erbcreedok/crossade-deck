@@ -944,7 +944,17 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     rest.splice(Math.min(r.i, rest.length), 0, c);
     return rest;
   };
-  const handGeom = (): Geom | null => { const ch = myChair(); return ch ? mineGeomOf(glass(), ch.pose, handCards().length + (drag?.moved && drag.gap !== null ? 1 : 0), ch.id, blend, safeBottom()) : null; };
+  /**
+   * ГЕОМЕТРИЯ РУКИ ВИДА «СВЕРХУ» с учётом высоты руки (язычок): пол — верх нижней строки (и лист вкладки над ней), низ средней карты — так,
+   * чтобы над полкой торчала нужная доля карты (`visFrac`); на столе — обычная раскладка.
+   */
+  const topGeom = (ch: Chair, n: number, bl: PoseBlend | undefined): Geom => {
+    const g0 = mineGeomOf(glass(), ch.pose, n, ch.id, bl, safeBottom());
+    if (!levelOn || n === 0 || levelPose(handLevel) === "tuck") return g0;
+    const k = Math.floor((n - 1) / 2), bottom0 = g0.slots[k]!.y + g0.h / 2, target = trayTopPx() + g0.h * (1 - visFrac(handLevel));
+    return mineGeomOf(glass(), ch.pose, n, ch.id, bl, safeBottom() - (target - bottom0));
+  };
+  const handGeom = (): Geom | null => { const ch = myChair(); return ch ? topGeom(ch, handCards().length + (drag?.moved && drag.gap !== null ? 1 : 0), blend) : null; };
   /** Карта у глаза в точке экрана (середина `x, y`, ширина `w`, поворот) — поверх всего, чуть крупнее: в окне HUD. */
   const screenPlace = (sp: { x: number; y: number; w: number; angle: number }): Place => {
     const g = glass(), D = 3, vh = 2 * D * Math.tan((camera.fov * DEG) / 2), vw = vh * (g.w / g.h);
@@ -1187,7 +1197,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     if (camMode === "top") {
       // Рука на худе внизу экрана; положена — карты на столе стопкой (а не пусто), как в виде «голова».
-      const geom = mineGeomOf(glass(), ch.pose, n, ch.id, { wide: b.wide, lift: Math.max(0.5, b.lift) }, safeBottom()), down = tuckOf(b);
+      const geom = topGeom(ch, n, { wide: b.wide, lift: Math.max(0.5, b.lift) }), down = tuckOf(b);
       const world = (p: Place): Place => { camera.updateMatrixWorld(); return { pos: p.pos.clone().applyMatrix4(camera.matrixWorld), quat: camera.quaternion.clone().multiply(p.quat), scale: p.scale }; };
       for (const c of handAll(ch)) {
         const o = cards.get(c.id), k = list.indexOf(c);
