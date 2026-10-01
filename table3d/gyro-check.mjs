@@ -1,0 +1,40 @@
+// ГИРО — стенд с поддельным датчиком: первое слово датчика не дёргает взгляд (ноль — там, где смотрел), дальше поворот телефона
+// крутит голову на столько же градусов (влево у телефона — это против часовой), наклон телефона вниз — взгляд вниз, выключили — датчик не слушается.
+//   node gyro-check.mjs [base]     (стенд: `npm run dev`, порт 9590)
+import { createRequire } from "module";
+const require = createRequire(new URL("../server/scripts/x.mjs", import.meta.url));
+const { chromium } = require("playwright");
+const base = process.argv[2] ?? "http://localhost:9590";
+const browser = await chromium.launch();
+const p = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+const errors = [];
+p.on("pageerror", (e) => errors.push(e.message));
+const checks = [];
+const check = (name, ok, got) => checks.push({ name, ok, got });
+const turn = (a, b, g = 0) => p.evaluate(([a, b, g]) => dispatchEvent(Object.assign(new Event("deviceorientation"), { alpha: a, beta: b, gamma: g })), [a, b, g]).then(() => p.waitForTimeout(250));
+const cam = () => p.evaluate(() => { const c = window.__t3d.cam(); return { mode: c.mode, yaw: c.yaw, pitch: c.pitch }; });
+const dyaw = (a, b) => ((a - b + 540) % 360) - 180;
+await p.goto(`${base}/?stand`);
+await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+await p.waitForTimeout(600);
+const home = await cam();
+await p.click("[data-gyro]");
+await p.waitForTimeout(300);
+await turn(100, 90);
+const first = await cam();
+check("первое слово датчика не дёргает взгляд", Math.abs(dyaw(first.yaw, home.yaw)) < 1, { home, first });
+await turn(140, 90);
+const left = await cam();
+check("телефон повернули на 40° влево — голова повернулась влево на 40°", Math.abs(dyaw(left.yaw, first.yaw) + 40) < 2, { first, left });
+await turn(140, 60);
+const down = await cam();
+check("телефон наклонили вниз на 30° — взгляд вниз на 30°", Math.abs(down.pitch + 30) < 2, down);
+await p.click("[data-gyro]");
+await p.waitForTimeout(200);
+await turn(300, 90);
+const off = await cam();
+check("выключили — датчик взгляд не двигает", Math.abs(dyaw(off.yaw, down.yaw)) < 0.5 && Math.abs(off.pitch - down.pitch) < 0.5, { down, off });
+await browser.close();
+check("без ошибок страницы", errors.length === 0, errors);
+for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
+process.exit(checks.every((c) => c.ok) ? 0 : 1);
