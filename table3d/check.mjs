@@ -838,7 +838,7 @@ try {
     let cf1 = await firstCard();
     for (let i = 0; i < 12; i++) { await p.waitForTimeout(300); const n = await firstCard(); const still = Math.hypot(n.x - cf1.x, n.y - cf1.y) < 0.5; cf1 = n; if (still) break; }
     const f1 = await cam();
-    check("оптика (Shift+колесо): поле зрения уже, камера на месте, шея не тянется, рука того же размера на том же месте", f1.fov < f0.fov - 3 && f1.lean === f0.lean && Math.hypot(f1.pos[0] - f0.pos[0], f1.pos[2] - f0.pos[2]) < 0.01 && Math.hypot(cf1.x - cf0.x, cf1.y - cf0.y) < 24, { f0: f0.fov, f1: f1.fov, l: f1.lean, p0: f0.pos, p1: f1.pos, cf0, cf1 });
+    check("оптика (Shift+колесо): поле зрения уже, камера на месте, шея не тянется", f1.fov < f0.fov - 3 && f1.lean === f0.lean && Math.hypot(f1.pos[0] - f0.pos[0], f1.pos[2] - f0.pos[2]) < 0.01, { f0: f0.fov, f1: f1.fov, l: f1.lean, p0: f0.pos, p1: f1.pos, cf0, cf1 });
     await p.keyboard.press("Home"); await frames();
     const r0 = await cam();
     await dragLook(0, -120, "right");
@@ -1151,21 +1151,16 @@ try {
     await p.mouse.move(zr.x + zr.width / 2, zr.y + zr.height - 22); await p.mouse.down(); await p.mouse.move(zr.x + zr.width / 2, zr.y + 22, { steps: 8 }); await p.mouse.up(); await frames();
     const fovZoom = await fovNow();
     check("ползунок вверх — оптический зум: поле зрения сужается, камера на месте", fovZoom < 30 && fovZoom >= 19.5, { fovZoom });
-    // Рука при зуме не двигается: пока тянешь ползунок, карты в руке стоят на экране на месте в каждом кадре, а не догоняют пружиной.
+    // Зум — как взгляд, а не голова: рука и голова стоят на месте (в мире ничего не двигается), на экране карты руки растут вместе со столом.
     {
       await p.keyboard.press("Home"); await frames();
       const z = await rectOf(".screen:not(.off) [data-zoom-slider]");
-      const where = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, a = T.screenOf(h[0].id), b = T.screenOf(h.at(-1).id); return { a, b }; });
-      const w0 = await where(); let worst = 0;
-      await p.mouse.move(z.x + z.width / 2, z.y + z.height - 22); await p.mouse.down();
-      for (let i = 1; i <= 12; i++) {
-        await p.mouse.move(z.x + z.width / 2, z.y + z.height - 22 - i * ((z.height - 44) / 12));
-        await p.waitForTimeout(30);
-        const w = await where();
-        worst = Math.max(worst, Math.hypot(w.a.x - w0.a.x, w.a.y - w0.a.y), Math.hypot(w.b.x - w0.b.x, w.b.y - w0.b.y));
-      }
+      const state = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, id = h.at(-1).id, w = T.world(id), s0 = T.screenOf(h[0].id), s1 = T.screenOf(id); return { w, width: T.cardWidth(id), span: Math.hypot(s1.x - s0.x, s1.y - s0.y), cam: T.cam().pos, body: T.myBody() }; });
+      const s0 = await state();
+      await p.mouse.move(z.x + z.width / 2, z.y + z.height - 22); await p.mouse.down(); await p.mouse.move(z.x + z.width / 2, z.y + z.height / 2, { steps: 8 }); await p.waitForTimeout(700);
+      const s1 = await state();
       await p.mouse.up();
-      check("зум ползунком: рука стоит на месте в каждом кадре (не больше 4 px), как будто увеличивает взгляд", worst < 4, { worst });
+      check("зум ползунком: рука и голова не двигаются (карта в руке на месте, того же размера, камера та же), а на экране рука растёт", Math.hypot(s1.w.x - s0.w.x, s1.w.y - s0.w.y, s1.w.h - s0.w.h) < 0.02 && Math.abs(s1.width - s0.width) < 0.01 && Math.hypot(...s1.cam.map((v, i) => v - s0.cam[i])) < 0.01 && s1.span > s0.span * 1.5, { s0, s1 });
       await p.keyboard.press("Home"); await frames();
     }
     await p.keyboard.press("Home"); await frames();
