@@ -275,7 +275,7 @@
       el.style.transform = `rotate(${p.rot}deg) scale(${p.scale})`;
       el.style.transformOrigin = "50% 100%";
       el.style.filter = p.dim ? `brightness(${1 - p.dim})` : "";
-      el.style.boxShadow = p.w ? "0 0 0 3px var(--black), 0 0 0 5px var(--gold), 0 9px 0 4px rgba(11,7,4,.6)" : "";
+      el.style.boxShadow = p.w ? "0 0 0 2px var(--black), 0 8px 0 2px rgba(11,7,4,.6)" : "";
     }
     // полка под нижним рядом: рука «лежит в ней», нижняя треть карты спрятана
     const shelfTop = trayTop();
