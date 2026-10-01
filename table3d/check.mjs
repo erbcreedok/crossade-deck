@@ -836,7 +836,7 @@ try {
     let cf1 = await firstCard();
     for (let i = 0; i < 12; i++) { await p.waitForTimeout(300); const n = await firstCard(); const still = Math.hypot(n.x - cf1.x, n.y - cf1.y) < 0.5; cf1 = n; if (still) break; }
     const f1 = await cam();
-    check("оптика (Shift+колесо): поле зрения уже, камера на месте, шея не тянется, рука того же размера на том же месте", f1.fov < f0.fov - 3 && f1.lean === 0 && Math.hypot(f1.pos[0] - f0.pos[0], f1.pos[2] - f0.pos[2]) < 0.01 && Math.hypot(cf1.x - cf0.x, cf1.y - cf0.y) < 24, { f0: f0.fov, f1: f1.fov, cf0, cf1 });
+    check("оптика (Shift+колесо): поле зрения уже, камера на месте, шея не тянется, рука того же размера на том же месте", f1.fov < f0.fov - 3 && f1.lean === f0.lean && Math.hypot(f1.pos[0] - f0.pos[0], f1.pos[2] - f0.pos[2]) < 0.01 && Math.hypot(cf1.x - cf0.x, cf1.y - cf0.y) < 24, { f0: f0.fov, f1: f1.fov, l: f1.lean, p0: f0.pos, p1: f1.pos, cf0, cf1 });
     await p.keyboard.press("Home"); await frames();
     const r0 = await cam();
     await dragLook(0, -120, "right");
@@ -873,11 +873,11 @@ try {
     await p.waitForTimeout(500);
     const p2 = await poseOf();
     check("два пальца на руке, щипок — рука ужалась стопкой", p2.shrink === true, { p1, p2 });
-    // Язычки руки: сверху — опустить (положить), по бокам — сжать и разжать, по углам — в ряд и веер; вокруг — охват карт не уже 250, за него берутся двумя пальцами.
+    // Ручки руки: сверху — высота (вниз — положить, высоко вверх — рука-стопка), слева — ширина (стопкой, веер, в ряд); вокруг — охват карт не уже 250, за него берутся двумя пальцами.
     const fr = await t(() => window.__t3d.handFrame());
     check("охват руки: не уже 250 и целиком в кадре", !!fr && fr.w >= 250 && fr.x >= 0 && fr.x + fr.w <= 390 && fr.y > 300, fr);
     const tabsOn = () => p.locator(".screen:not(.off) [data-hand-tab]").count();
-    check("язычки руки: семь — сверху, слева, справа и четыре угла; самой рамки нет", (await tabsOn()) === 7 && (await p.locator(".screen:not(.off) [data-g=\"hand-frame\"]").count()) === 0, await tabsOn());
+    check("у руки две ручки, как у шторок: сверху и слева, без значков и без рамки", (await tabsOn()) === 2 && (await p.locator(".screen:not(.off) [data-hand-tab] svg").count()) === 0 && (await p.locator('.screen:not(.off) [data-g="hand-frame"]').count()) === 0, await tabsOn());
     const pBefore = await poseOf();
     await touch("touchStart", [{ x: fr.x + 14, y: fr.y + fr.h - 12 }, { x: fr.x + fr.w - 14, y: fr.y + fr.h - 12 }]);
     for (let i = 1; i <= 8; i++) await touch("touchMove", [{ x: fr.x + 14, y: fr.y + fr.h - 12 + i * 12 }, { x: fr.x + fr.w - 14, y: fr.y + fr.h - 12 + i * 12 }]);
@@ -892,26 +892,24 @@ try {
     await p.click(".screen:not(.off) [data-hand-sub=\"pose\"]"); await p.click('.screen:not(.off) [data-hand-pose="fan"]'); await p.click(handBtnSel); await p.waitForTimeout(500);
     const base0 = await poseOf();
     check("перед язычками рука обычная: веер, не стопкой", base0.fan === true && base0.shrink === false && base0.tuck === false, base0);
-    // Боковой язычок к середине — стопкой, от середины — разжать.
+    // Левая ручка — одна ось ширины: к краю шире, от края уже: стопка (одна карта) → веер → в ряд (самая широкая).
     const side0 = await poseOf();
-    await tdrag("left", 110, 0);
-    const side1 = await poseOf();
-    check("боковой язычок к середине: рука ужалась стопкой", side0.shrink === false && side1.shrink === true, { side0, side1 });
-    await tdrag("right", 110, 0);
-    check("боковой язычок от середины: рука разжалась", (await poseOf()).shrink === false, await poseOf());
-    // Угловой язычок к середине — в ряд, от середины — веер.
-    await tdrag("tl", 70, 70);
-    const corner1 = await poseOf();
-    await tdrag("tl", -90, -90);
-    const corner2 = await poseOf();
-    check("угловой язычок по диагонали: к середине — в ряд, от середины — веер", corner1.fan === false && corner2.fan === true, { corner1, corner2 });
+    await tdrag("left", -170, 0);
+    const wide1 = await poseOf();
+    check("левая ручка к краю экрана: веер → в ряд (самый широкий размер)", side0.fan === true && side0.shrink === false && wide1.fan === false && wide1.shrink === false, { side0, wide1 });
+    await tdrag("left", 170, 0);
+    const narrow = await poseOf();
+    check("левая ручка от края: в ряд → ужато, видна одна карта", narrow.shrink === true, narrow);
+    await tdrag("left", -90, 0);
+    const mid = await poseOf();
+    check("левая ручка на середину: из стопки — веер (второй по ширине размер)", mid.shrink === false && mid.fan === true, mid);
     check("веер помещается у обычной руки и не помещается, когда разлёт слишком широкий", (await t(() => window.__t3d.fanFitsN(7, 3.1))) === true && (await t(() => window.__t3d.fanFitsN(40, 25))) === false, null);
     // Верхний язычок вниз — рука опускается и ложится; кнопка левой руки — поднимает.
     await tdrag("top", 0, 100);
     await p.waitForTimeout(400);
-    check("верхний язычок вниз: карты положены на стол, язычков нет", (await poseOf()).tuck === true && (await tabsOn()) === 0, await poseOf());
+    check("верхняя ручка вниз: карты положены на стол, ручек нет", (await poseOf()).tuck === true && (await tabsOn()) === 0, await poseOf());
     await p.click(handBtnSel); await p.waitForTimeout(700); await p.click(handBtnSel);
-    check("кнопка левой руки подняла руку — язычки снова на месте", (await poseOf()).tuck === false && (await tabsOn()) === 7, await tabsOn());
+    check("кнопка левой руки подняла руку — ручки снова на месте", (await poseOf()).tuck === false && (await tabsOn()) === 2, await tabsOn());
     await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
     
     await cycle("top");

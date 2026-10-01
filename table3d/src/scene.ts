@@ -159,6 +159,8 @@ export interface SceneApi {
   handFrame(): { x: number; y: number; w: number; h: number; edge: number } | null;
   /** Рука-стопка: левая рука несёт все карты над столом под пальцем (`screen`); `null` — отпустили: на колоду, новой стопкой на сукно или — над худом руки — всё как было. */
   carryHand(screen: { x: number; y: number } | null): void;
+  /** Рука в кадре следует за верхней ручкой по высоте, пока её тянут (`px` вверх — минус); `null` — отпустили, вернулась (временно). */
+  setHandNudge(px: number | null): void;
   /** Помещается ли веер моей руки: угол разлёта и подъём краёв в пределах. Нет — рука в ряд, веер выбрать нельзя. */
   fanFits(): boolean;
   /** С какой стороны стола камера (угол места, как у стула) и насколько поднята, градусы. */
@@ -314,7 +316,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Рука в кадре (вид «голова») как в FPS: отстаёт от поворота взгляда и чуть поднимается, когда смотришь вниз, опускается, когда вверх. */
   const sway = { x: 0, y: 0, yaw: 0, pitch: 0, home: -40 };
   const SWAY = { lag: 0.018, pitchLift: 0.006, decay: 7, max: 0.3 };
-  const swayOffset = () => ({ x: sway.x, y: sway.y - (rig.pitch - sway.home) * SWAY.pitchLift });
+  let nudgePx = 0;
+  const swayOffset = () => ({ x: sway.x, y: sway.y - (rig.pitch - sway.home) * SWAY.pitchLift - nudgePx * 0.0033 });
   const sideYaw = (ch: Chair) => -ch.angle;
   /** Моя голова: где она, куда смотрит, ушла ли на другую сторону и какой поворот слать остальным. */
   function myHeadNow(ch: Chair): { head: Point3; yaw: number; away: boolean; sent: number; hand: Point3 } {
@@ -1523,6 +1526,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     opticsBy,
     handFrame,
     fanFits: () => fanFitsNow(),
+    setHandNudge(px) { nudgePx = px ?? 0; draw(); },
     carryHand(screen) {
       const ch = myChair();
       if (!ch) return;
