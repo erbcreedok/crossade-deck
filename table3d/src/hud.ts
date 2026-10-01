@@ -50,6 +50,8 @@ const DOUBLE_TAP_MS = 350;
 const TAP_PX = 8;
 /** Сколько пикселей пальца на всю ось язычка: опустить и положить, сжать, веер ↔ ряд. */
 /** Линии хода верхней ручки, доли высоты экрана (390×844): нести стопкой — под нижним краем зума, собираются — по низу кнопки «стоять/сидеть», положить — по центру чата и компаса. */
+/** Линии хода ручки рисуются только для настройки: `?lines` в адресе стенда. */
+const SHOW_LINES = new URLSearchParams(location.search).has("lines");
 const LINES = { carry: 0.626, collect: 0.825, lay: 0.866 };
 const TAB_PX = { dead: 50, lay: 190, width: 220, curl: 160, carry: 150, pull: 40, tapMs: 300 };
 const RIM_LEFT = 28;
@@ -282,7 +284,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const fr = chair && count && !chair.pose.tuck ? scene.handFrame() : null;
     const held = local.grabOff;
     if (fr) html += handGrabsHtml(fr, held?.which ?? null);
-    if (local.grabLines) html += grabLinesHtml(local.grabLines);
+    if (local.grabLines && SHOW_LINES) html += grabLinesHtml(local.grabLines);
     if (held) html += heldGrabHtml(held);
     // Рука положена: у стопки на столе — своя ручка (боковая); потянул — рука поднимается и ручка становится верхней ручкой руки.
     const st = chair && count && chair.pose.tuck ? scene.stackScreen() : null;

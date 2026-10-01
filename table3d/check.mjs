@@ -1238,7 +1238,7 @@ try {
 
   {
     // Пока тянешь верхнюю ручку, видны две линии: где рука ложится на стол и где несётся стопкой; отпустил — пропали.
-    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.goto(`${base}/?stand&lines&host=http://localhost:9591`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const tab = await rectOf('.screen:not(.off) [data-hand-tab="top"]');
@@ -1295,7 +1295,7 @@ try {
 
   {
     // Линии хода верхней ручки стоят на месте, что бы ни делала поза руки (ширина, загиб, высота): они привязаны к экрану.
-    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.goto(`${base}/?stand&lines&host=http://localhost:9591`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     const readLines = async () => {
@@ -1398,7 +1398,7 @@ try {
 
   {
     // Ручка сложенной руки — та же верхняя ручка: после подъёма видны линии хода, рука в границах, ниже оранжевой отпущена снова ложится.
-    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.goto(`${base}/?stand&lines&host=http://localhost:9591`);
     await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
     await frames();
     await p.click(".screen:not(.off) [data-hand-btn]"); await p.click('.screen:not(.off) [data-hand-sub="release"]'); await p.waitForTimeout(2600);
