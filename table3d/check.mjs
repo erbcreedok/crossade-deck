@@ -1436,6 +1436,23 @@ try {
     const scan = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, sc = h.map((c) => T.screenOf(c.id)), y = sc.reduce((m, q) => m + q.y, 0) / sc.length + 20, x0 = Math.min(...sc.map((q) => q.x)) - 80, x1 = Math.max(...sc.map((q) => q.x)) + 80, seq = []; for (let x = x0; x <= x1; x += 2) { const id = T.cardAt(x, y), i = id ? h.findIndex((c) => c.id === id) : -1; if (i >= 0 && seq[seq.length - 1] !== i) seq.push(i); } return { n: h.length, seq }; });
     check("клик по веерy слева направо: карты идут по порядку (справа поверх слева), без скачков к дальним соседям", scan.seq.length === scan.n && scan.seq.every((v, i) => i === 0 || v > scan.seq[i - 1]), scan);
   }
+
+  {
+    // Касание карты в руке поднимает её над остальными сразу, до движения; тап — остаётся приподнятой, пока не тронут другое.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const ids = await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat; return st.chairs.find((c) => c.id === seat).hand.map((c) => c.id); });
+    const pos = (id) => t((i) => window.__t3d.screenOf(i), id);
+    const mid = ids[ids.length - 1], rest = await pos(mid);
+    await p.mouse.move(rest.x, rest.y + 30); await p.mouse.down(); await p.waitForTimeout(500);
+    const pressed = await pos(mid);
+    await p.mouse.up(); await p.waitForTimeout(700);
+    const afterTap = await pos(mid);
+    await p.mouse.click(200, 300); await p.waitForTimeout(700);
+    const dropped = await pos(mid);
+    check("касание карты поднимает её сразу (до движения), тап оставляет приподнятой, тап мимо опускает", rest.y - pressed.y > 25 && rest.y - afterTap.y > 25 && Math.abs(dropped.y - rest.y) < 8, { rest: rest.y, pressed: pressed.y, afterTap: afterTap.y, dropped: dropped.y });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();

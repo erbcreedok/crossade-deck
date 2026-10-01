@@ -374,6 +374,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const LAG = { gain: 0.9, decay: 6, max: 0.2 };
   /** Высота руки в кадре, пиксели (вверх — плюс): её ставит верхняя ручка, и она остаётся; рука едет с камерой жёстко, как одна точка. */
   let heightPx = 0;
+  /** Карта моей руки, которую тронули: приподнята над остальными (сразу, не дожидаясь движения; после тапа так и остаётся, пока не тронут другое). */
+  let liftedId: string | null = null;
   /** Где палец на верхней ручке по ширине экрана, пока ею раздвигают карты (`peekShift`); `null` — не раздвигают. */
   let peekSx: number | null = null;
   const HEIGHT = { min: -400, max: 150 };
@@ -926,7 +928,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         local.pos.x += (peek[k] ?? 0) * u;
         return down <= 0 ? local : { ...laid(camHandWorld(local, head, rig.yaw, rig.pitch), ch, k, up, down), over: true };
       };
-      for (const c of ch.hand) { const o = cards.get(c.id), k = list.indexOf(c); if (o && k >= 0) o.target = place(slotOf(k), !!c.up); }
+      if (liftedId && !ch.hand.some((c) => c.id === liftedId)) liftedId = null;
+      for (const c of ch.hand) {
+        const o = cards.get(c.id), k = list.indexOf(c);
+        if (!o || k < 0) continue;
+        const t = place(slotOf(k), !!c.up);
+        // Карту, до которой дотронулись, поднимает над остальными сразу, не дожидаясь движения; тап — остаётся приподнятой, пока не тронут другое.
+        if (c.id === liftedId && !(drag?.moved && drag.id === c.id)) { if (t.onCamera) { t.pos.y += CAMHAND.pop * fovK; t.pos.z += CAMHAND.near; } else t.pos.y += CAMHAND.pop; t.scale *= HOVER.grow; }
+        o.target = t;
+      }
       const o = gap !== null && drag ? cards.get(drag.id) : undefined;
       if (o) {
         const t = place(gap!, false);
@@ -1444,18 +1454,21 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const pile = tabFn ? hitTab(e) : null;
     if (pile) { e.stopImmediatePropagation(); tabFn!(pile, e); return; }
     const id = hitCard(e);
-    if (!id || !takeable(id)) return;
+    if (!id || !takeable(id)) { if (liftedId) { liftedId = null; layout(store.state); } return; }
     // Карту — пальцем; облёт — только по пустому.
     e.stopImmediatePropagation();
     startDrag(id, e);
   }, { capture: true });
   function startDrag(id: string, e: PointerEvent): void {
+    const fromHand = fromOf.get(id);
+    liftedId = fromHand && fromHand.in === "hand" && fromHand.mine && camMode === "head" ? id : null;
     orbit.enabled = false;
     renderer.domElement.setPointerCapture(e.pointerId);
     const f = fromOf.get(id)!;
     const c = f.in === "felt" ? store.state.felt.find((x) => x.id === id) : undefined;
     const my = myChair()?.angle ?? 0;
     drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? true : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: c ? c.angle : ((-my % 360) + 360) % 360, group: lasso.on && mine(id), gap: null, place: null, where: null, spot: null, zone: null };
+    layout(store.state);
   }
   renderer.domElement.addEventListener("pointermove", (e) => {
     if (!drag) return;
@@ -1487,6 +1500,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!drag) return;
     const d = drag;
     drag = null;
+    if (d.moved) liftedId = null;
     orbit.enabled = camMode === "orbit";
     clearInterval(d.hold);
     rightAt = null;
