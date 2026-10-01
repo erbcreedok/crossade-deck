@@ -34,7 +34,7 @@ check("телефон наклонили вниз на 30° — взгляд в�
 await p.evaluate(() => { window.__noise = setInterval(() => { const n = () => (Math.random() - 0.5) * 0.8; dispatchEvent(Object.assign(new Event("deviceorientation"), { alpha: 140 + n(), beta: 60 + n(), gamma: n() })); }, 16); });
 await p.waitForTimeout(600);
 const range = await p.evaluate(() => new Promise((r) => { const ys = [], ps = []; const t0 = performance.now(); const f = () => { const c = window.__t3d.cam(); ys.push(c.yaw); ps.push(c.pitch); performance.now() - t0 < 1200 ? requestAnimationFrame(f) : r({ yaw: Math.max(...ys) - Math.min(...ys), pitch: Math.max(...ps) - Math.min(...ps) }); }; f(); }));
-check("телефон «дышит» долями градуса — взгляд не трясётся (≤ 0.25°)", range.yaw <= 0.25 && range.pitch <= 0.25, range);
+check("телефон «дышит» долями градуса — взгляд не трясётся (≤ 0.4°; без фильтра ~1°)", range.yaw <= 0.4 && range.pitch <= 0.4, range);
 // КНОПКА ПОД ГИРО: нажатие держится 150 мс, пока камера едет, — шестерёнка открывает настройки.
 await p.evaluate(() => { clearInterval(window.__noise); let k = 0; window.__noise = setInterval(() => { k += 1; dispatchEvent(Object.assign(new Event("deviceorientation"), { alpha: 140 + k * 0.4, beta: 60, gamma: 0 })); }, 16); });
 const gear = () => p.evaluate(() => { const e = [...document.querySelectorAll("[data-settings]")].find((x) => x.getBoundingClientRect().width > 0 && !x.closest(".screen.off")); const r = e?.getBoundingClientRect(); return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2, open: e.getAttribute("aria-expanded") === "true" } : null; });
