@@ -764,8 +764,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
             carrying = scene.carryHand({ x: ev.clientX, y: ev.clientY }, fromStack ? undefined : { enter: carryY, exit: carryY + 20 });
             if (carrying) { scene.setBlend(undefined); draw(); return; }
           }
-          // Иначе рука следует за ручкой по высоте и остаётся там, где отпустили: вверх — выпрямляется веер, вниз — до пола руки, дальше опускается на стол.
-          if (moved) scene.setHandHeight(h0 - dy);
+          // Иначе рука следует за ручкой по высоте и остаётся там, где отпустили: вверх — выпрямляется веер, вниз — вслед за пальцем до оранжевой линии, дальше карты собираются и опускается на стол.
+          if (moved) scene.setHandHeight(h0 - Math.min(dy, Math.max(0, collectY - y0)));
           // Карты не трогаются, пока палец не пересёк оранжевую линию; от неё до красной собираются в стопку, на красной — собраны.
           scene.setBlend(moved && ev.clientY > collectY ? { wide: b0.wide, lift: Math.max(0, b0.lift * (1 - (ev.clientY - collectY) / Math.max(1, layY - collectY))) } : undefined);
         }

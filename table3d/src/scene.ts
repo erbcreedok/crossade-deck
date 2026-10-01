@@ -372,8 +372,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const LAG = { gain: 0.9, decay: 6, max: 0.2 };
   /** Высота руки в кадре, пиксели (вверх — плюс): её ставит верхняя ручка, и она остаётся; рука едет с камерой жёстко, как одна точка. */
   let heightPx = 0;
-  const HEIGHT = { min: -50, max: 150 };
-  const handOffset = () => ({ x: 0, y: heightPx * 0.0033 });
+  const HEIGHT = { min: -400, max: 150 };
+  /** Пиксель экрана в единицах кадра руки: рука идёт за язычком один к одному. */
+  const pxUnit = (): number => (2 * -CAMHAND.at.z * Math.tan((camera.fov * DEG) / 2)) / Math.max(1, renderer.domElement.getBoundingClientRect().height);
+  const handOffset = () => ({ x: 0, y: heightPx * pxUnit() });
   const sideYaw = (ch: Chair) => -ch.angle;
   /** Моя голова: где она, куда смотрит, ушла ли на другую сторону и какой поворот слать остальным. */
   function myHeadNow(ch: Chair): { head: Point3; yaw: number; away: boolean; sent: number; hand: Point3 } {

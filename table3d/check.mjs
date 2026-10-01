@@ -1311,6 +1311,19 @@ try {
     const l2 = await readLines();
     check("жёлтая, оранжевая и красная линии стоят на месте при любой позе руки (ширина, загиб)", !!l0.carry && !!l0.collect && !!l0.lay && JSON.stringify(l0) === JSON.stringify(l1) && JSON.stringify(l0) === JSON.stringify(l2), { l0, l1, l2 });
   }
+
+  {
+    // Рука идёт за язычком вниз один к одному — до оранжевой линии; дальше карты собираются.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const topY = () => t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand; return T.screenOf(h.at(-1).id).y; });
+    const y0 = await topY(), tab = await rectOf('.screen:not(.off) [data-hand-tab="top"]'), x = tab.x + tab.width / 2, y = tab.y + tab.height / 2;
+    await p.mouse.move(x, y); await p.mouse.down(); await p.mouse.move(x, y + 100, { steps: 8 }); await p.waitForTimeout(500);
+    const y1 = await topY();
+    await p.mouse.up();
+    check("рука идёт за язычком вниз один к одному (до оранжевой линии)", y1 - y0 > 85 && y1 - y0 < 115, { y0, y1 });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();
