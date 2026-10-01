@@ -1414,6 +1414,18 @@ try {
     const tuck = await t(() => { const x = window.__t3d.state(), seat = x.people.find((q) => q.key === window.__t3d.me()).seat; return x.chairs.find((c) => c.id === seat).pose.tuck; });
     check("ручка сложенной руки: после подъёма видны три линии хода, рука в границах высоты, отпустил ниже оранжевой — снова на столе", lines === 3 && h1 >= -400 && h1 <= 150 && h2 >= -400 && h2 <= 150 && (!frame || frame.y + frame.h <= Hs + 20) && tuck === true, { lines, h1, h2, frame, tuck, Hs });
   }
+
+  {
+    // Язычок колоды не тонет под картами, что легли на сукно рядом: после того как карты положили на него, он выше их; у карт есть слой для тени.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const before = await t(() => { const T = window.__t3d; return T.tabInfo(T.state().piles[0].id); });
+    await t(() => { const T = window.__t3d, st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, tb = T.tabInfo(st.piles[0].id); for (let i = 0; i < 3; i++) T.dropFeltAt(h[i].id, tb.x + 0.2 * i, tb.z + 0.3); });
+    await p.waitForTimeout(1500);
+    const after = await t(() => { const T = window.__t3d, st = T.state(); return { tab: T.tabInfo(st.piles[0].id), felt: st.felt.map((c) => T.world(c.id)).filter(Boolean).map((w) => w.h), shades: T.shadeCount() }; });
+    check("язычок колоды выше карт, что легли рядом на сукно (не тонет под ними); у карт есть слой для тени", after.felt.length >= 1 && after.tab.y > Math.max(...after.felt) && after.shades > 20, { before, after });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();

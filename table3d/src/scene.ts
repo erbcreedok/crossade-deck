@@ -167,7 +167,7 @@ function pileBodyGeom(n: number): THREE.BufferGeometry {
   }
   return g;
 }
-interface CardObj { group: THREE.Group; front: THREE.Mesh; back: THREE.Mesh; ring: THREE.LineLoop; target: Place; faceUrl: string; backUrl: string }
+interface CardObj { group: THREE.Group; front: THREE.Mesh; back: THREE.Mesh; shades: THREE.Mesh[]; ring: THREE.LineLoop; target: Place; faceUrl: string; backUrl: string }
 const cardEdge = (() => {
   const w = CARD_W / 2 + 0.04, h = CARD_H / 2 + 0.04;
   return new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-w, -h, 0.003), new THREE.Vector3(w, -h, 0.003), new THREE.Vector3(w, h, 0.003), new THREE.Vector3(-w, h, 0.003)]);
@@ -664,8 +664,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // Выделена лассо — рамка цвета выделившего.
     const ring = new THREE.LineLoop(cardEdge, new THREE.LineBasicMaterial({ color: 0xf2c14e, linewidth: 2 }));
     ring.visible = false;
-    group.add(front, back, ring);
-    o = { group, front, back, ring, target: { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), scale: 1 }, faceUrl: "", backUrl: "" };
+    // Тень на карте: прозрачный слой над каждой стороной — рисует только тень от несомых карт и рук (сама карта без света, поэтому тень принимать не может).
+    const shades = [0, 1].map((side) => {
+      const m = new THREE.Mesh(cardShape, new THREE.ShadowMaterial({ opacity: 0.34, depthWrite: false }));
+      m.receiveShadow = true; m.raycast = () => {};
+      if (side) { m.rotation.y = Math.PI; m.position.z = -0.0035; } else m.position.z = 0.0025;
+      return m;
+    });
+    group.add(front, back, ring, ...shades);
+    o = { group, front, back, shades, ring, target: { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), scale: 1 }, faceUrl: "", backUrl: "" };
     cards.set(id, o);
     cardRoot.add(group);
     return o;
@@ -1066,6 +1073,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const order = carried ? 300 : layered ? 100 + (above ? slot : 99 - slot) : 0;
       for (const m of [o.front.material, o.back.material] as THREE.Material[]) m.depthWrite = !layered;
       o.front.renderOrder = o.back.renderOrder = order;
+      for (const m of o.shades) m.visible = !t.onCamera && !t.over && Math.abs(bendNow) < 1e-4;
       const want = Math.abs(bendNow) > 1e-5 ? cardBendShape : cardShape;
       if (o.front.geometry !== want) o.front.geometry = o.back.geometry = want;
       const parent = t.onCamera ? handRoot : cardRoot;
@@ -1188,7 +1196,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (t.key !== key) { t.key = key; drawTab(t.cv, p.cards.length, !!p.pin, litTabs.has(p.id)); t.tex.needsUpdate = true; }
       base.group.updateMatrixWorld(true);
       const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.scale.x, a = -pileAngle(p) * DEG, d = k * (CARD_H / 2 + TAB.l / 2);
-      t.mesh.position.set(at.x + d * Math.sin(a), at.y + 0.004, at.z + d * Math.cos(a));
+      const tx = at.x + d * Math.sin(a), tz = at.z + d * Math.cos(a);
+      // Язычок не тонет под картами, что легли рядом на сукно: он выше самой высокой из них, лежащей под ним.
+      let ty = at.y + 0.004;
+      store.state.felt.forEach((fc, i) => { if (Math.hypot(fc.x - tx, fc.y - tz) < CARD_H / 2 + CARD_W / 2 + TAB.w * k) ty = Math.max(ty, 0.01 + i * FELT_STEP + 0.006); });
+      t.mesh.position.set(tx, ty, tz);
       t.mesh.rotation.set(-Math.PI / 2, a, 0, "YXZ");
       t.mesh.scale.setScalar(k);
     }
@@ -1658,6 +1670,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       layout(store.state); draw();
     },
     curlFor: (n: number) => mineCurlK(n),
+    dropFeltAt: (id: string, x: number, y: number) => { store.send({ t: "grab", id }); store.send({ t: "drop", id, to: { in: "felt", x, y, angle: 0, up: false } }); },
+    tabInfo: (pile: string) => { const t = tabs.get(pile); return t ? { y: t.mesh.position.y, x: t.mesh.position.x, z: t.mesh.position.z, screen: project(t.mesh.position.clone()) } : null; },
+    shadeCount: () => [...cards.values()].filter((o) => o.shades.every((m) => m.receiveShadow && m.material instanceof THREE.ShadowMaterial)).length,
     cardBend: (id: string) => (cards.get(id)?.group.userData.bend as number | undefined) ?? 0,
     handCurl: () => handCurl,
     setHandCurl: (c: number) => { handCurl = Math.max(0, Math.min(1, c)); layout(store.state); sendBody(); },
