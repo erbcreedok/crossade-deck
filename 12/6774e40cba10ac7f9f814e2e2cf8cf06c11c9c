@@ -1,0 +1,24 @@
+table3d/src/main.ts
+  s_ad8a8a5b5d0419::t_22a8e65152360c 7,11
+  s_ad8a8a5b5d0419::t_e2308bf503127b 1
+.gitignore
+  s_ad8a8a5b5d0419::t_22a8e65152360c 7
+table3d/src/uuid-polyfill.ts
+  s_ad8a8a5b5d0419::t_e2308bf503127b 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "126774e40cba10ac7f9f814e2e2cf8cf06c11c9c",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
