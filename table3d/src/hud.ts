@@ -601,7 +601,12 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   }
 
   // ——— перерисовка: раз в кадр, и только если что-то поменялось ———
-  let frame = 0, last = "";
+  let frame = 0;
+  // ДВА СЛОЯ, и у каждого своя сверка: полоса сверху (кнопки) не пересобирается, пока сама не поменялась. Под гиро камера крутится
+  // всё время, и всё, что стоит от неё, меняется каждый кадр, — а кнопка, пересобранная между нажатием и отпусканием, нажатием не считалась.
+  const layerTop = document.createElement("div"), layerRest = document.createElement("div");
+  root.append(layerTop, layerRest);
+  let lastTop = "", lastRest = "";
   function draw(): void { if (!frame) frame = requestAnimationFrame(render); }
   // Грип ползёт назад и сужается/растёт — ему нужна перерисовка, пока раздвижка не сошла.
   setInterval(() => { if (scene.gripAmount() > 0.001) draw(); }, 50);
@@ -615,12 +620,13 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const open = local.handOn && local.deckTip ? s.piles.find((p) => p.id === local.deckTip) : undefined;
     const chairOpen = local.handOn ? s.chairs.find((c) => c.id === local.tip && c.owner && c.owner !== me()) : undefined;
     if (!local.deckCarry) scene.setRestRight(open ? { x: open.x, y: open.y } : chairOpen ? scene.handOf(chairOpen.id) : null);
-    const html = lassoLayerHtml() + topHtml() + gyroNoteHtml() + devHtml() + journalHtml() + bottomHtml(s) + dealHtml(s);
+    const top = topHtml() + gyroNoteHtml() + devHtml() + journalHtml(), rest = lassoLayerHtml() + bottomHtml(s) + dealHtml(s);
     shown = [];
     pilePanel(s);
     chairPanel(s);
     panels.keep(shown);
-    if (html !== last) { last = html; root.innerHTML = html; }
+    if (top !== lastTop) { lastTop = top; layerTop.innerHTML = top; }
+    if (rest !== lastRest) { lastRest = rest; layerRest.innerHTML = rest; }
     talk.place(anchors());
     root.dataset.open = local.section ?? "";
   }
@@ -726,6 +732,28 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   };
   // Нажатия — на HUD, на экранных панелях и на панелях на столе (слой CSS3D сцены).
   for (const el of [root, panelOverlay, scene.panelLayer()]) el.addEventListener("click", onClick);
+  // НАЖАТИЕ, У КОТОРОГО КНОПКУ ПЕРЕСОБРАЛИ ПОД ПАЛЬЦЕМ, всё равно нажатие: браузер `click` не шлёт (нажали на одну кнопку, отпустили на её
+  // копию), а человек нажал именно её. Сверяем кнопку по её data-атрибутам и нажимаем копию сами.
+  const buttonKey = (el: Element | null): string | null => {
+    const b = el?.closest("button, [role=button]");
+    return b ? b.getAttributeNames().filter((n) => n.startsWith("data-")).map((n) => `${n}=${b.getAttribute(n)}`).join("|") || null : null;
+  };
+  for (const el of [root, panelOverlay, scene.panelLayer()]) {
+    let downKey: string | null = null, clicked = false;
+    el.addEventListener("pointerdown", (e) => { downKey = buttonKey(e.target as Element); clicked = false; });
+    el.addEventListener("click", () => { clicked = true; }, true);
+    el.addEventListener("pointerup", (e) => {
+      const key = downKey;
+      downKey = null;
+      if (!key) return;
+      const x = e.clientX, y = e.clientY;
+      setTimeout(() => {
+        if (clicked) return;
+        const under = document.elementFromPoint(x, y);
+        if (buttonKey(under) === key) (under!.closest("button, [role=button]") as HTMLElement).click();
+      }, 60);
+    });
+  }
   function lassoAct(act: (typeof LASSO_ACTS)[number][0]): void {
     const s = store.state, ids = myPicks(s), chair = myChair(s);
     if (act === "cancel") { store.send({ t: "unpick" }); return; }

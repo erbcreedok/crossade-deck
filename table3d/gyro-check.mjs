@@ -11,7 +11,8 @@ const errors = [];
 p.on("pageerror", (e) => errors.push(e.message));
 const checks = [];
 const check = (name, ok, got) => checks.push({ name, ok, got });
-const turn = (a, b, g = 0) => p.evaluate(([a, b, g]) => dispatchEvent(Object.assign(new Event("deviceorientation"), { alpha: a, beta: b, gamma: g })), [a, b, g]).then(() => p.waitForTimeout(250));
+// Датчик говорит без умолку: держим одно положение 0.8 с (фильтр сглаживает, ему нужно время дойти).
+const turn = (a, b, g = 0) => p.evaluate(([a, b, g]) => new Promise((r) => { const t0 = performance.now(); const id = setInterval(() => { dispatchEvent(Object.assign(new Event("deviceorientation"), { alpha: a, beta: b, gamma: g })); if (performance.now() - t0 > 800) { clearInterval(id); r(); } }, 16); }), [a, b, g]);
 const cam = () => p.evaluate(() => { const c = window.__t3d.cam(); return { mode: c.mode, yaw: c.yaw, pitch: c.pitch }; });
 const dyaw = (a, b) => ((a - b + 540) % 360) - 180;
 await p.goto(`${base}/?stand`);
@@ -29,11 +30,28 @@ check("телефон повернули на 40° влево — голова �
 await turn(140, 60);
 const down = await cam();
 check("телефон наклонили вниз на 30° — взгляд вниз на 30°", Math.abs(down.pitch + 30) < 2, down);
-await p.click("[data-gyro]");
+// ДРОЖЬ: телефон лежит в руке и «дышит» ±0.4° — взгляд не должен трястись сильнее 0.25°.
+await p.evaluate(() => { window.__noise = setInterval(() => { const n = () => (Math.random() - 0.5) * 0.8; dispatchEvent(Object.assign(new Event("deviceorientation"), { alpha: 140 + n(), beta: 60 + n(), gamma: n() })); }, 16); });
+await p.waitForTimeout(600);
+const range = await p.evaluate(() => new Promise((r) => { const ys = [], ps = []; const t0 = performance.now(); const f = () => { const c = window.__t3d.cam(); ys.push(c.yaw); ps.push(c.pitch); performance.now() - t0 < 1200 ? requestAnimationFrame(f) : r({ yaw: Math.max(...ys) - Math.min(...ys), pitch: Math.max(...ps) - Math.min(...ps) }); }; f(); }));
+check("телефон «дышит» долями градуса — взгляд не трясётся (≤ 0.25°)", range.yaw <= 0.25 && range.pitch <= 0.25, range);
+// КНОПКА ПОД ГИРО: нажатие держится 150 мс, пока камера едет, — шестерёнка открывает настройки.
+await p.evaluate(() => { clearInterval(window.__noise); let k = 0; window.__noise = setInterval(() => { k += 1; dispatchEvent(Object.assign(new Event("deviceorientation"), { alpha: 140 + k * 0.4, beta: 60, gamma: 0 })); }, 16); });
+const gear = () => p.evaluate(() => { const e = [...document.querySelectorAll("[data-settings]")].find((x) => x.getBoundingClientRect().width > 0 && !x.closest(".screen.off")); const r = e?.getBoundingClientRect(); return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2, open: e.getAttribute("aria-expanded") === "true" } : null; });
+const g = await gear();
+await p.mouse.move(g.x, g.y); await p.mouse.down(); await p.waitForTimeout(150); await p.mouse.up();
+await p.waitForTimeout(300);
+check("пока камера едет под гиро, нажатие на шестерёнку открывает настройки", (await gear()).open, null);
+await p.evaluate(() => clearInterval(window.__noise));
+await p.evaluate(() => document.querySelector("[data-settings-close]")?.click());
+await p.waitForTimeout(200);
+await turn(140, 60);
+const down2 = await cam();
+await p.locator("[data-gyro]").first().click();
 await p.waitForTimeout(200);
 await turn(300, 90);
 const off = await cam();
-check("выключили — датчик взгляд не двигает", Math.abs(dyaw(off.yaw, down.yaw)) < 0.5 && Math.abs(off.pitch - down.pitch) < 0.5, { down, off });
+check("выключили — датчик взгляд не двигает", Math.abs(dyaw(off.yaw, down2.yaw)) < 0.5 && Math.abs(off.pitch - down2.pitch) < 0.5, { down2, off });
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
