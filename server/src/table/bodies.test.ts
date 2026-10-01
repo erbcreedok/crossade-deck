@@ -25,6 +25,12 @@ describe("bodies.read-whole-or-nothing", () => {
     expect(cleanBody({ ...body, pitch: "low" })).toBeNull();
   });
 
+  it("загиб веера (curl): не прислан — поля нет, прислан — в пределах 0…1, мусор — отказ", () => {
+    expect("curl" in cleanBody(body)!).toBe(false);
+    expect(cleanBody({ ...body, curl: 0.4 })!.curl).toBe(0.4);
+    expect(cleanBody({ ...body, curl: 7 })!.curl).toBe(1);
+    expect(cleanBody({ ...body, curl: null })).toBeNull();
+  });
   it("куда голова смотрит на самом деле (gaze): не прислан — поля нет, прислан — в пределах -360…360, мусор — отказ", () => {
     expect("gaze" in cleanBody(body)!).toBe(false);
     expect(cleanBody({ ...body, gaze: 75 })!.gaze).toBe(75);

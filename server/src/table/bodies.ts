@@ -52,6 +52,8 @@ export interface BodyOut {
   pitch?: number;
   /** Куда голова смотрит на самом деле, градусы; `yaw` держат в пределах своей стороны стола, чтобы голова не считалась ушедшей. Старый клиент не шлёт. */
   gaze?: number;
+  /** Загиб веера в руке, 0…1 (0 — плоский): остальные видят карты по дуге, как их держат пальцами. Старый клиент не шлёт. */
+  curl?: number;
   right: { x: number; y: number } | null;
 }
 
@@ -186,9 +188,11 @@ export function cleanBody(raw: unknown): BodyOut | null {
   if (pitch === null) return null;
   const gaze = b.gaze === undefined ? undefined : num(b.gaze, -360, 360);
   if (gaze === null) return null;
+  const curl = b.curl === undefined ? undefined : num(b.curl, 0, 1);
+  if (curl === null) return null;
   // Незнакомый вид — первый: старый клиент вида не шлёт, новый вид старому не страшен.
   const model: Model = (MODELS as readonly unknown[]).includes(b.model) ? (b.model as Model) : "seat";
-  return { stance: b.stance as Stance, model, eye: { ...eye, h: eyeH }, stretch, yaw, ...(pitch === undefined ? {} : { pitch }), ...(gaze === undefined ? {} : { gaze }), right };
+  return { stance: b.stance as Stance, model, eye: { ...eye, h: eyeH }, stretch, yaw, ...(pitch === undefined ? {} : { pitch }), ...(gaze === undefined ? {} : { gaze }), ...(curl === undefined ? {} : { curl }), right };
 }
 
 export class Bodies {

@@ -49,7 +49,7 @@ const HOLD_MS = 1500;
 const DOUBLE_TAP_MS = 350;
 const TAP_PX = 8;
 /** Сколько пикселей пальца на всю ось язычка: опустить и положить, сжать, веер ↔ ряд. */
-const TAB_PX = { dead: 50, lay: 190, width: 220, carry: 150, pull: 40, tapMs: 300 };
+const TAB_PX = { dead: 50, lay: 190, width: 220, curl: 160, carry: 150, pull: 40, tapMs: 300 };
 const RIM_LEFT = 28;
 const SIDES: GatherSide[] = ["keep", "down", "up"];
 const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
@@ -726,7 +726,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       const raw = tab.dataset.handTab as "top" | "left" | "stack", fromStack = raw === "stack", which: "top" | "left" = fromStack ? "top" : raw;
       // Ручка у положенной стопки: тап — рука поднимается; потянул с запасом — поднимается и она же становится верхней ручкой руки;
       // держишь или чуть потянул и вернул — рука остаётся на столе.
-      const b0 = blendOf({ ...chair.pose, tuck: false }), w0 = scene.handWidth();
+      const b0 = blendOf({ ...chair.pose, tuck: false }), w0 = scene.handWidth(), c0 = scene.handCurl();
       const box = tab.getBoundingClientRect(), x0 = box.x + box.width / 2, y0 = box.y + box.height / 2;
       // Ручка у стопки не исчезает вместе со стопкой: сразу становится ручкой в пальце, идёт под ним и разворачивается в верхнюю.
       if (fromStack) local.grabOff = { which: "top", x: x0, y: y0, from: "stack", morph: 0 };
@@ -736,11 +736,12 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         dx = ev.clientX - e.clientX; dy = ev.clientY - e.clientY; moved ||= Math.hypot(dx, dy) >= TAP_PX;
         const dist = Math.hypot(dx, dy);
         if (fromStack && !lifted && dist >= TAB_PX.pull) lift();
-        local.grabOff = moved || fromStack ? { which, x: fromStack || which === "left" ? x0 + dx : x0, y: fromStack || which === "top" ? y0 + dy : y0, ...(fromStack ? { from: "stack" as const } : {}), morph: fromStack ? Math.max(0, Math.min(1, (dist - TAB_PX.pull) / 40)) : 1 } : null;
+        local.grabOff = moved || fromStack ? { which, x: fromStack || which === "left" ? x0 + dx : x0, y: y0 + dy, ...(fromStack ? { from: "stack" as const } : {}), morph: fromStack ? Math.max(0, Math.min(1, (dist - TAB_PX.pull) / 40)) : 1 } : null;
         if (fromStack && !lifted) { draw(); return; }
         if (which === "left") {
           // К краю экрана — шире. За пределом ручка продолжает идти за пальцем, а карты натягиваются и перестают расти.
-          if (moved) scene.setHandWidth(w0 - dx / TAB_PX.width);
+          // Вверх — веер загибается сильнее, вниз — выпрямляется (карты по дуге, как держат пальцами).
+          if (moved) { scene.setHandWidth(w0 - dx / TAB_PX.width); scene.setHandCurl(c0 - dy / TAB_PX.curl); }
         } else {
           // Высоко вверх — левая рука несёт всю руку стопкой над столом, как колоду; вернул вниз, не отпуская, — карты назад в руку.
           if (dy <= -TAB_PX.carry || carrying) {

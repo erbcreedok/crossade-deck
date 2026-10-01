@@ -1168,6 +1168,32 @@ try {
     for (let i = 0; i < 3 && (await t(() => window.__t3d.cam().mode)) !== "top"; i++) { await p.click("[data-dev-cam]:visible"); await p.waitForTimeout(500); }
     check("сверху ползунка зума нет", (await p.locator(".screen:not(.off) [data-zoom-slider]").evaluate((e) => getComputedStyle(e).display)) === "none", null);
   }
+
+  {
+    // Загиб веера по оси Z: края ближе к держащему, чем середина; боковая ручка вверх-вниз меняет загиб; чужие экраны видят то же.
+    await p.goto(`${base}/?stand&host=http://localhost:9591`);
+    await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await frames();
+    const sag = (screen) => t((sc) => { const T = window.__t3d, S = sc === 0 ? T : window.__t3dScreens[sc], st = T.state(), seat = st.people.find((x) => x.key === T.me()).seat, h = st.chairs.find((c) => c.id === seat).hand, cm = T.cam(), c = cm.pos, yw = (cm.yaw * Math.PI) / 180, pt = (cm.pitch * Math.PI) / 180, f = [Math.sin(yw) * Math.cos(pt), Math.sin(pt), -Math.cos(yw) * Math.cos(pt)], d = (id) => { const w = S.world(id); return (w.x - c[0]) * f[0] + (w.h - c[1]) * f[1] + (w.y - c[2]) * f[2]; }; const mid = h[Math.floor(h.length / 2)].id; return { n: h.length, edge: Math.min(d(h[0].id), d(h.at(-1).id)), mid: d(mid) }; }, screen);
+    const a0 = await sag(0);
+    check("веер загнут по Z: крайние карты ближе к держащему, чем середина", a0.n >= 5 && a0.mid - a0.edge > 0.015, a0);
+    await t(() => window.__t3d.setHandCurl(0)); await p.waitForTimeout(900);
+    const flat = await sag(0);
+    check("загиб 0 убирает загиб по Z: края отходят назад к середине", (a0.mid - a0.edge) - (flat.mid - flat.edge) > 0.01, { flat, a0 });
+    await t(() => window.__t3d.setHandCurl(1)); await p.waitForTimeout(1200);
+    const mine = await sag(0), theirs = await sag(1);
+    check("остальные видят тот же загиб: крайние карты ближе к хозяину, чем середина", theirs.mid - theirs.edge > 0.1 && mine.mid - mine.edge > a0.mid - a0.edge, { mine, theirs });
+    // Боковая ручка вверх-вниз — загиб.
+    await t(() => window.__t3d.setHandCurl(0.5)); await frames();
+    const tab = await rectOf('.screen:not(.off) [data-hand-tab="left"]');
+    const c0 = await t(() => window.__t3d.handCurl());
+    await p.mouse.move(tab.x + tab.width / 2, tab.y + tab.height / 2); await p.mouse.down(); await p.mouse.move(tab.x + tab.width / 2, tab.y + tab.height / 2 - 60, { steps: 6 }); await p.waitForTimeout(150);
+    const up = await t(() => window.__t3d.handCurl());
+    await p.mouse.move(tab.x + tab.width / 2, tab.y + tab.height / 2 + 60, { steps: 6 }); await p.waitForTimeout(150);
+    const down = await t(() => window.__t3d.handCurl());
+    await p.mouse.up();
+    check("боковая ручка вверх — загиб больше, вниз — меньше", up > c0 + 0.2 && down < up - 0.4, { c0, up, down });
+  }
   check("без ошибок", errors.length === 0, errors);
 } finally {
   await browser.close();
