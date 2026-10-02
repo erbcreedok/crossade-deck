@@ -1013,7 +1013,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const CURL = { rest: 0.7 };
   let handCurl: number = CURL.rest;
   /** Загиб в МОЁМ виде растёт с числом карт: мало карт — рука почти прямая (свои карты у самых глаз сильно искажаются), много — загиб нужен, чтобы уместить веер. Остальным уходит выбранный загиб. */
-  const mineCurlK = (n: number): number => Math.max(0.15, Math.min(1, (n - 2) / 8));
+  /** Загиб моего веера мягче, чем видят остальные: им шлётся прежний `handCurl`, у меня он умножен на `MINE_CURL`. */
+  const MINE_CURL = 0.55;
+  const mineCurlK = (n: number): number => MINE_CURL * Math.max(0.15, Math.min(1, (n - 2) / 8));
   let handWidth = 0.68, widthLive: number | null = null, widthOver = 0, widthPendingUntil = 0;
   const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAMHAND.refFov * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / (CAMHAND.card * handSize)); };
   const roomOf = (f: number): number => 1.2 + (roomMax() - 1.2) * Math.max(0, Math.min(1, (f - WIDTH.stack) / (1 - WIDTH.stack)));
