@@ -67,33 +67,63 @@ export function headAt(sh: Point3, lean: number, side = 0): Point3 {
 /** Взгляд из `from` в середину стола: угол вниз, градусы. */
 export const pitchToCentre = (from: Point3): number => (-Math.atan2(from.h, Math.hypot(from.x, from.y) || 1) * 180) / Math.PI;
 
-/** Шея: сколько держится натяг, сколько камера ещё возвращается и сколько шея отдыхает, мс. */
-export interface Neck {
-  held: number;
-  back: number;
-  rest: number;
-}
-export const neckNew = (): Neck => ({ held: 0, back: 0, rest: 0 });
-
 /**
- * Шаг шеи за `dt` мс. Натяг дольше `NECK.free` держится `NECK.holdMs`, потом камера сама возвращается за `NECK.backMs`,
- * и `NECK.restMs` шея отдыхает: снова натянуть её нельзя. Возвращает новый наклон.
+ * ШЕЯ — ЗОНЫ И ЗАПАС. Натяг `m` (длина вектора наклона и сдвига головы, 0…1):
+ *   зелёная  до `NECK.free`      — сколько угодно;
+ *   жёлтая   до `yellow`         — долго, и тем короче, чем сильнее натяг (от `slow` до `mid`);
+ *   красная  до 1                — коротко (от `mid` до `fast`).
+ * Время считается запасом: каждый кадр тратится `dt / holdOf(m)`, запас дошёл до 1 — шею оттягивают на ступень ниже (красная — на границу
+ * жёлтой, жёлтая — в зелёную) за `pullMs`; ниже `free` запас восстанавливается за `refillMs`.
+ * Второй вид возврата — по простою (`idleReturn`): `idleMs` после последнего касания камеры или стола голова плавно едет на плечи.
  */
-export function neckStep(n: Neck, lean: number, dt: number): number {
-  if (n.rest > 0) {
-    n.rest = Math.max(0, n.rest - dt);
-    return Math.min(lean, NECK.free);
-  }
+export const STRAIN = { yellow: 0.5, slow: 15000, mid: 4000, fast: 800, pullMs: 400, refillMs: 6000, idleMs: 3000, idleRate: 3 } as const;
+
+/** Сколько мс можно держать натяг `m`. */
+export function holdOf(m: number): number {
+  if (m <= NECK.free) return Infinity;
+  if (m <= STRAIN.yellow) return STRAIN.slow * (STRAIN.mid / STRAIN.slow) ** ((m - NECK.free) / (STRAIN.yellow - NECK.free));
+  return STRAIN.mid * (STRAIN.fast / STRAIN.mid) ** ((Math.min(1, m) - STRAIN.yellow) / (1 - STRAIN.yellow));
+}
+
+export type Zone = 0 | 1 | 2;
+export const zoneOf = (m: number): Zone => (m <= NECK.free ? 0 : m <= STRAIN.yellow ? 1 : 2);
+
+/** `spent` — вытерпленный запас 0…1; `back` — сколько мс ещё оттягивают, из `from` в `to`; `idle` — мс с последнего касания. */
+export interface Neck {
+  spent: number;
+  back: number;
+  from: number;
+  to: number;
+  idle: number;
+}
+export const neckNew = (): Neck => ({ spent: 0, back: 0, from: 0, to: 0, idle: 0 });
+
+/** Шаг шеи за `dt` мс при натяге `m`. Возвращает новый натяг. */
+export function neckStep(n: Neck, m: number, dt: number, idleReturn: boolean): number {
   if (n.back > 0) {
     n.back = Math.max(0, n.back - dt);
-    const next = Math.max(0, lean - (dt / NECK.backMs));
-    if (next <= NECK.free || n.back === 0) { n.back = 0; n.held = 0; n.rest = NECK.restMs; return Math.min(next, NECK.free); }
-    return next;
+    const t = 1 - n.back / STRAIN.pullMs, e = 1 - (1 - t) ** 3;
+    return Math.min(m, n.from + (n.to - n.from) * e);
   }
-  if (lean <= NECK.free) { n.held = 0; return lean; }
-  n.held += dt;
-  if (n.held >= NECK.holdMs) n.back = NECK.backMs;
-  return lean;
+  if (idleReturn) {
+    n.spent = 0;
+    n.idle += dt;
+    if (m <= NECK.free || n.idle < STRAIN.idleMs) return m;
+    const next = m * Math.exp((-dt / 1000) * STRAIN.idleRate);
+    return next < 0.01 ? 0 : next;
+  }
+  if (m <= NECK.free) {
+    n.spent = Math.max(0, n.spent - dt / STRAIN.refillMs);
+    return m;
+  }
+  n.spent += dt / holdOf(m);
+  if (n.spent >= 1) {
+    n.spent = 0;
+    n.from = m;
+    n.to = m > STRAIN.yellow ? STRAIN.yellow * 0.9 : NECK.free;
+    n.back = STRAIN.pullMs;
+  }
+  return m;
 }
 
 /** Насколько поле зрения сверху берёт стол, единиц стола от середины до края кадра по короткой стороне. */

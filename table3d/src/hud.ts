@@ -136,12 +136,14 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     record: { on: () => false, toggle: () => {} },
     view: { min: CAM.fov.view.min, max: CAM.fov.view.max, get: () => scene.baseFov(), set: (deg) => { scene.setBaseFov(deg); try { localStorage.setItem("t3d.fov", String(scene.baseFov())); } catch { /* без памяти — обзор на эту сессию */ } } },
     cardSize: { min: 50, max: 200, get: () => Math.round(scene.handSize() * 100), set: (pct) => { scene.setHandSize(pct / 100); try { localStorage.setItem("t3d.handSize", String(scene.handSize())); } catch { /* без памяти — размер на эту сессию */ } } },
+    neckViz: Object.fromEntries((["vignette", "gauge"] as const).map((k) => [k, { on: () => scene.neckViz(k), toggle: () => { scene.setNeckViz(k, !scene.neckViz(k)); try { localStorage.setItem(`t3d.${k}`, scene.neckViz(k) ? "1" : "0"); } catch { /* без памяти — на эту сессию */ } } }])) as never,
     figures: { on: () => figuresOn, toggle: () => { figuresOn = !figuresOn; scene.setFigures(figuresOn); } },
     footer: () => `build ${TABLE_BUILD} · песочница 3D · three.js${scene.gyro.on() ? ` · ${scene.gyro.info()}` : ""}`,
     changed: () => draw(),
   });
   try { const saved = Number(localStorage.getItem("t3d.handSize")); if (saved) scene.setHandSize(saved); } catch { /* без памяти — обычный размер */ }
   try { const saved = Number(localStorage.getItem("t3d.fov")); if (saved) scene.setBaseFov(saved); } catch { /* без памяти — обзор по умолчанию */ }
+  for (const k of ["vignette", "gauge"] as const) { try { if (localStorage.getItem(`t3d.${k}`) === "0") scene.setNeckViz(k, false); } catch { /* без памяти — включено */ } }
   const book = journal();
   store.onOps?.((ops) => { if (book.take(ops, store.state, store.now())) draw(); });
   const cardLabel = (face: Face | undefined): { label: string; ink: string } => {

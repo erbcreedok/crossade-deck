@@ -19,7 +19,7 @@ import type { PanelWorld, WorldPlace } from "./panel.js";
 import type { Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
 import { CARRY_EVERY_MS } from "../../server/src/table/contract.js";
 import { SEAT_PULL, AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
-import { BACK, PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
+import { STRAIN, BACK, PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
 import { createGyro } from "./gyro.js";
 import { ringArrowFromMiddle, SEAT, turnMark } from "../../server/table-client/felt.js";
 import { ringTurnOfSeat } from "../../server/src/table/bots/view.js";
@@ -210,6 +210,9 @@ export interface SceneApi {
   lookBy(dyaw: number, dpitch: number): void;
   zoomBy(k: number): void;
   seatBy(d: number): void;
+  /** Показ натяжения шеи: виньетка и датчик. */
+  neckViz(kind: "vignette" | "gauge"): boolean;
+  setNeckViz(kind: "vignette" | "gauge", on: boolean): void;
   /** Сдвинуть голову вбок по кругу вокруг стола: `d` — доля предела, + вправо от взгляда. */
   sideBy(d: number): void;
   opticsBy(k: number): void;
@@ -479,7 +482,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     rig.lean = 0;
     rig.side = 0;
     rig.fov = baseFov;
-    neck.held = neck.back = neck.rest = 0;
+    Object.assign(neck, neckNew());
     rig.pitch = camMode === "top" ? -90 : pitchToCentre(headAt(shoulders3(ch.angle, stanceNow(), seatPull), 0));
     lag.yaw = lag.pitch = 0; lag.prevYaw = rig.yaw; lag.prevPitch = rig.pitch;
     camera.aspect = host.clientWidth / Math.max(1, host.clientHeight);
@@ -488,6 +491,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   function home(): void { if (camMode === "orbit") homeOrbit(); else rigHome(); }
   /** Намерение: повернуть взгляд (в орбите — обойти стол). */
   function lookBy(dyaw: number, dpitch: number): void {
+    neck.idle = 0;
     if (camMode === "orbit") return;
     headGoal = null;
     // С гиро палец поправляет курс (телефон сам взгляд держит): сдвигаем «ноль» датчика, а не сам взгляд.
@@ -499,6 +503,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Посадка: на сколько стул придвинут к столу, единицы стола. Не шея: сама не возвращается, плечи едут вместе с головой. */
   let seatPull = 0;
   function seatBy(d: number): void {
+    neck.idle = 0;
     if (camMode !== "head" && camMode !== "top") return;
     headGoal = null;
     const next = Math.max(SEAT_PULL.min, Math.min(SEAT_PULL.max, seatPull + d));
@@ -508,10 +513,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
   /** Намерение: приблизить (`k` > 1) или отдалить. В `head` — наклон к столу, в `fov` — поле зрения. */
   function zoomBy(k: number): void {
+    neck.idle = 0;
     if (camMode === "orbit") return;
     headGoal = null;
     // Отъезд (`k` < 1) — голова откидывается назад, как приближение двигает её вперёд: та же шея, тот же натяг.
-    rig.lean = Math.max(-1, Math.min(1, rig.lean + Math.log(k) * 0.5 * (neck.rest > 0 ? 0 : 1)));
+    rig.lean = Math.max(-1, Math.min(1, rig.lean + Math.log(k) * 0.5 * (neck.back > 0 ? 0 : 1)));
     applyRig(); draw(); sendBody();
   }
   /**
@@ -522,7 +528,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let headGoal: { lean: number; side: number; yaw: number | null; pitch: number | null } | null = null;
   function headToward(px: number, py: number): void {
     const ch = myChair();
-    if (!ch || camMode !== "head" || neck.rest > 0 || neck.back > 0) return;
+    if (!ch || camMode !== "head" || neck.back > 0) return;
     const sh = shoulders3(ch.angle, stanceNow(), seatPull), now = headAt(sh, rig.lean, rig.side);
     const tx = now.x + (px - now.x) * HEAD_STEP, ty = now.y + (py - now.y) * HEAD_STEP;
     let best = { lean: rig.lean, side: rig.side, d: Infinity };
@@ -556,6 +562,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
   /** Намерение: сдвинуть голову вбок, по кругу вокруг стола (`d` — доля предела, + вправо от взгляда). Шея — та же. */
   function sideBy(d: number): void {
+    neck.idle = 0;
     if (camMode !== "head") return;
     headGoal = null;
     const ch = myChair();
@@ -563,7 +570,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // Вправо от взгляда — в какую сторону по кругу: считаем по тому, где голова и куда она смотрит.
     const p = headAt(shoulders3(ch.angle, stanceNow(), seatPull), rig.lean, rig.side), y = (rig.yaw + rig.side * BACK.max) * DEG;
     const along = -p.y * Math.cos(y) + p.x * Math.sin(y);
-    rig.side = Math.max(-1, Math.min(1, rig.side + d * (along >= 0 ? 1 : -1) * (neck.rest > 0 ? 0 : 1)));
+    rig.side = Math.max(-1, Math.min(1, rig.side + d * (along >= 0 ? 1 : -1) * (neck.back > 0 ? 0 : 1)));
     applyRig(); draw(); sendBody();
   }
   /** Намерение: оптический зум (`k` > 1 — уже поле зрения). Тело не двигается, рука в кадре остаётся того же размера. Вид «голова». */
@@ -704,7 +711,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   scene.add(new THREE.HemisphereLight(0xfff4e0, 0x2a3a32, 0.62), sun);
   /** Тело сидящего: пришедшее из комнаты — или в покое: сидит, смотрит в середину стола. */
   const bodyOf = (by: string, angle: number): Body => store.bodies.find((b) => b.by === by) ?? { by, stance: "sit", model: "seat", eye: { x: 0, y: 0, h: restHead("sit") }, stretch: 0, yaw: -angle, right: null };
-  interface Pose { by: string; s: Point3; head: Point3; left: Point3; away: boolean; yaw: number; pitch?: number; gaze?: number; curl?: number; handY?: number; right: Point3 | null; ink: string; name: string; strained: boolean }
+  interface Pose { by: string; s: Point3; head: Point3; left: Point3; away: boolean; yaw: number; pitch?: number; gaze?: number; curl?: number; handY?: number; right: Point3 | null; ink: string; name: string; strained: boolean; stretch: number }
   /** Где у сидящего за стулом `ch` плечи, голова и руки — общей геометрией стола (`bodies.ts`). Своё тело — нет: своя голова — камера. */
   const poseOf = (ch: Chair, s: Snapshot): Pose | null => {
     const who = s.people.find((p) => p.key === ch.owner);
@@ -713,7 +720,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const sh = shoulders3(ch.angle, b.stance, b.seat ?? 0);
     const head = headOf(sh, b.eye, b.stretch, b.yaw);
     const holding = store.carries.some((c) => c.by === who.key);
-    return { by: who.key, s: sh, head, left: b.pitch === undefined ? leftHandOf(head, b.yaw) : camHandPoint(head, b.gaze ?? b.yaw, b.pitch, b.handY ?? 0), away: awayOf(sh, b.yaw), yaw: b.yaw, pitch: b.pitch, gaze: b.gaze, curl: b.curl, handY: b.handY, right: b.right ? { ...b.right, h: holding ? HEAD.lift * head.h : restH(b.right, ch.id) } : null, ink: who.ink, name: who.name, strained: b.stretch > NECK.free };
+    return { by: who.key, s: sh, head, left: b.pitch === undefined ? leftHandOf(head, b.yaw) : camHandPoint(head, b.gaze ?? b.yaw, b.pitch, b.handY ?? 0), away: awayOf(sh, b.yaw), yaw: b.yaw, pitch: b.pitch, gaze: b.gaze, curl: b.curl, handY: b.handY, right: b.right ? { ...b.right, h: holding ? HEAD.lift * head.h : restH(b.right, ch.id) } : null, ink: who.ink, name: who.name, strained: b.stretch > NECK.free, stretch: b.stretch };
   };
   const V = (p: Point3) => new THREE.Vector3(p.x, p.h, p.y);
   /** На какой высоте лежит свободная правая рука в точке `at`: на верху стопки, у левой руки сидящего — на её высоте, иначе над сукном. */
@@ -790,7 +797,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         tether.computeLineDistances();
         body.add(tether);
       } else {
-        body.add(stick(S, H, DOLL.spine * farK(H), pose.strained ? inkOf("#e0413a") : mat));
+        for (const part of neckParts(S, H, DOLL.spine * farK(H), pose.stretch, mat)) body.add(part);
         if (pose.right && Math.hypot(pose.right.x - (pose.s.x + rightDir.x * DOLL.bar), pose.right.y - (pose.s.y + rightDir.z * DOLL.bar)) <= DOLL.reach) {
           const Rh = V(pose.right);
           body.add(stick(shR, Rh, DOLL.arm * farK(Rh), mat), ball(Rh, DOLL.hand * farK(Rh), mat));
@@ -1422,6 +1429,49 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     myArm.add(stick(shR, grip, DOLL.arm * farK(grip), mat), ball(grip, DOLL.hand * farK(grip), mat));
     myArm.userData.grip = grip;
   }
+  /** ШЕЯ ПРИ НАТЯГЕ — у этой модели она рвётся пунктиром (чем сильнее натяг, тем реже штрихи) и тончает. Цвет не меняется. Другая модель по тому же `stretch` решит сама. */
+  function neckParts(S: THREE.Vector3, H: THREE.Vector3, r: number, stretch: number, mat: THREE.Material): THREE.Object3D[] {
+    if (stretch <= NECK.free) return [stick(S, H, r, mat)];
+    const k = Math.min(1, (stretch - NECK.free) / (1 - NECK.free)), n = 7, gap = 0.12 + 0.6 * k, out: THREE.Object3D[] = [];
+    for (let i = 0; i < n; i++) {
+      const a = i / n, b = a + (1 - gap) / n;
+      out.push(stick(S.clone().lerp(H, a), S.clone().lerp(H, b), r * (1 - 0.45 * k), mat));
+    }
+    return out;
+  }
+  // ——— ЧТО ИГРОК ВИДИТ О НАТЯГЕ: виньетка по краям и датчик у рейки (оба выключаются в настройках) ———
+  const viz = { vignette: true, gauge: true };
+  let vigEl: HTMLDivElement | null = null, gaugeEl: HTMLDivElement | null = null;
+  function neckViz(m: number): void {
+    const show = m > NECK.free + 1e-3 || neck.back > 0;
+    if (!vigEl) {
+      const css = document.createElement("style");
+      css.textContent = "@keyframes neckpulse{0%,100%{opacity:1}50%{opacity:.55}}";
+      document.head.appendChild(css);
+      vigEl = document.createElement("div");
+      vigEl.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:2;opacity:0;transition:opacity .25s";
+      gaugeEl = document.createElement("div");
+      gaugeEl.style.cssText = "position:absolute;right:3px;top:calc(var(--safe-top,0px) + 103px);width:12px;height:150px;pointer-events:none;z-index:2;display:none";
+      gaugeEl.innerHTML = `<div data-g=track style="position:absolute;right:0;top:0;bottom:0;width:8px;background:linear-gradient(to top,#3f8f4a 0 ${NECK.free * 100}%,#c9a227 ${NECK.free * 100}% ${STRAIN.yellow * 100}%,#b3322c ${STRAIN.yellow * 100}% 100%);opacity:.35;box-shadow:0 0 0 2px #0b0704"></div>`
+        + `<div data-g=fill style="position:absolute;right:0;bottom:0;width:8px;height:0"></div><div data-g=mark style="position:absolute;right:-2px;width:12px;height:3px;background:#f5ead0;box-shadow:0 0 0 1px #0b0704"></div>`
+        + `<div data-g=left style="position:absolute;left:0;bottom:0;width:3px;height:0;background:#f5ead0;box-shadow:0 0 0 1px #0b0704"></div>`;
+      host.append(vigEl, gaugeEl);
+    }
+    const idleMode = stanceNow() === "sit", worn = idleMode ? 0 : neck.spent;
+    const k = Math.min(1, Math.max(0, (m - NECK.free) / (1 - NECK.free))), col = m > STRAIN.yellow ? "224,65,58" : "240,190,60";
+    vigEl.style.opacity = viz.vignette && show ? "1" : "0";
+    if (viz.vignette && show) {
+      vigEl.style.boxShadow = `inset 0 0 ${60 + 120 * k}px ${10 + 50 * k}px rgba(${col},${0.25 + 0.55 * k})`;
+      vigEl.style.animation = idleMode ? "none" : `neckpulse ${(2.4 * (1 - worn) + 0.3).toFixed(2)}s ease-in-out infinite`;
+    }
+    gaugeEl!.style.display = viz.gauge && show ? "block" : "none";
+    if (viz.gauge && show) {
+      const fill = gaugeEl!.querySelector<HTMLElement>("[data-g=fill]")!, mark = gaugeEl!.querySelector<HTMLElement>("[data-g=mark]")!, left = gaugeEl!.querySelector<HTMLElement>("[data-g=left]")!;
+      fill.style.height = `${m * 100}%`; fill.style.background = m > STRAIN.yellow ? "#e0413a" : "#f2c14e";
+      mark.style.bottom = `calc(${m * 100}% - 1px)`;
+      left.style.height = idleMode ? "0" : `${(1 - worn) * 100}%`;
+    }
+  }
   function tick(): void {
     frame = 0;
     const w = host.clientWidth, h = host.clientHeight;
@@ -1438,11 +1488,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // Камера и моя рука — до пружин: рука едет с головой, и пружины догоняют уже новое место.
     if (camMode === "head" || camMode === "top") {
       // ШЕЯ ТЯНЕТСЯ ВПЕРЁД, НАЗАД И ВБОК одним натягом: считаем по длине вектора (наклон, сдвиг), и возвращается он тоже вместе.
+      if (drag || rigPtrs.size > 0 || live.size > 0) neck.idle = 0;
       const goalMoved = camMode === "head" && headGoalStep(dt);
-      const was = rig.lean, wasSide = rig.side, m = Math.hypot(rig.lean, rig.side), m2 = neckStep(neck, m, sinceMs);
+      const was = rig.lean, wasSide = rig.side, m = Math.hypot(rig.lean, rig.side), m2 = neckStep(neck, m, sinceMs, stanceNow() === "sit");
+      if (m2 < m - 1e-6) headGoal = null;
       if (m2 !== m) { const k = m > 0 ? m2 / m : 0; rig.lean *= k; rig.side *= k; }
-      if (goalMoved || rig.lean !== was || rig.side !== wasSide || neck.back > 0 || m2 > NECK.free || neck.rest > 0) { applyRig(); sendBody(); moving = true; }
-    }
+      if (goalMoved || rig.lean !== was || rig.side !== wasSide || neck.back > 0 || m2 > NECK.free) { applyRig(); sendBody(); moving = true; }
+      neckViz(m2);
+    } else neckViz(0);
     // Рука целиком отстаёт от поворота взгляда и возвращается: поворот вправо — рука левее, взгляд вверх — рука ниже.
     if (camMode === "head") {
       const k = Math.exp((-sinceMs / 1000) * LAG.decay), lim = (v: number) => Math.max(-LAG.max, Math.min(LAG.max, v));
@@ -1639,7 +1692,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       sprite.position.copy(H);
       myBody.add(sprite);
     } else if (camMode === "orbit" || camMode === "top") {
-      myBody.add(stick(S, H, DOLL.spine * farK(H), mat));
+      for (const part of neckParts(S, H, DOLL.spine * farK(H), camMode === "top" ? Math.max(0, rig.lean) : 0, mat)) myBody.add(part);
       // Сверху голова видна: кружок с именем — как у остальных.
       if (camMode === "top") {
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: headTex(who.name, who.ink) }));
@@ -2145,6 +2198,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    neckNow: () => ({ ...neck }),
     seatBy: (d: number) => seatBy(d),
     lifted: () => liftedId,
     handWidthNow: () => widthLive ?? handWidth,
@@ -2185,6 +2239,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     lookBy,
     zoomBy,
     seatBy,
+    neckViz: (kind) => viz[kind],
+    setNeckViz: (kind, on) => { viz[kind] = on; neckViz(0); },
     sideBy,
     opticsBy,
     handFrame,

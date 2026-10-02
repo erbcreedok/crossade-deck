@@ -64,6 +64,8 @@ export interface SettingsWorld {
   meters: { on(): boolean; toggle(): void };
   /** Фигуры за столом (`figures.ts`): выключены — кружки на стульях, как до фигур; для слабых телефонов. */
   figures: { on(): boolean; toggle(): void };
+  /** Показ натяжения шеи в 3D: виньетка по краям экрана и датчик у рейки камеры; у остальных видов нет. */
+  neckViz?: { vignette: { on(): boolean; toggle(): void }; gauge: { on(): boolean; toggle(): void } };
   /** ВИД АВАТАРА — как меня видят за столом (`bodies.ts`, `MODELS`): стул или спрайты короля. */
   /** Выбор вида аватара; нет — раздела нет (пока у всех один вид). */
   avatar?: { model(): string; set(model: string): void };
@@ -203,6 +205,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + speedHtml()
       + toggle("reduce", motion.chosen || !motion.reduce ? "Меньше анимаций" : "Меньше анимаций · авто", motion.reduce)
       + (world.view ? section("Камера") + viewHtml(world.view) : "")
+      + (world.neckViz ? toggle("neck-vignette", "Виньетка натяжения шеи", world.neckViz.vignette.on()) + toggle("neck-gauge", "Датчик натяжения у рейки", world.neckViz.gauge.on()) : "")
       + (world.cardSize ? section("Карты в руке") + cardSizeHtml(world.cardSize) : "")
       + (world.avatar ? section("Аватар")
         + toggle("avatar-seat", "Стул", world.avatar.model() === "seat")
@@ -245,6 +248,12 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
         break;
       case "figures":
         world.figures.toggle();
+        break;
+      case "neck-vignette":
+        world.neckViz?.vignette.toggle();
+        break;
+      case "neck-gauge":
+        world.neckViz?.gauge.toggle();
         break;
       case "avatar-seat":
       case "avatar-king":
