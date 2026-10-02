@@ -1,0 +1,33 @@
+deploy/failover/com.crossade.failover-bot.plist
+  s_783a0cc3ed910b::t_09c3610ceb5c80 1-17
+deploy/failover/decide.mjs
+  s_783a0cc3ed910b::t_7a80a36e90b9a4 1-49
+deploy/failover/decide.test.mjs
+  s_783a0cc3ed910b::t_7a80a36e90b9a4 1-58
+deploy/failover/com.crossade.failover-table.plist
+  s_783a0cc3ed910b::t_09c3610ceb5c80 1-17
+deploy/failover/com.crossade.failover.plist
+  s_783a0cc3ed910b::t_09c3610ceb5c80 1-18
+deploy/failover/supervisor.mjs
+  s_783a0cc3ed910b::t_09c3610ceb5c80 1-136
+server/scripts/snapshotDb.mjs
+  s_783a0cc3ed910b::t_e1c7fec6b48e3d 1-25
+deploy/failover/README.md
+  s_783a0cc3ed910b::t_cb1cb033ee369c 1-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "deb9df36bd4928fba0a578b190dee596f9d34bc1",
+  "prompts": {},
+  "sessions": {
+    "s_783a0cc3ed910b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "961f95bc-95fa-4b4a-8d9b-d0901f13a448",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
