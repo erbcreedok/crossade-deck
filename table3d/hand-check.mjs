@@ -65,6 +65,28 @@ const click = async (sel) => { const r = await t((q) => { const e = [...document
 check("вкладка «Рука» открывается", await click('[data-section="pose"]'), null);
 check("кнопка «Веер» ставит веер", (await click('[data-hand-pose2="fan"]')) && (await pose()).fan === true, await pose());
 check("кнопка «На стол» кладёт руку на стол", (await click('[data-hand-pose2="tuck"]')) && (await pose()).tuck === true, await pose());
+// ЯЗЫЧОК ВБОК — ширина руки: влево теснее (самый край — стопкой, видна одна карта), вправо шире
+{
+  const w = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  w.on("pageerror", (e) => errors.push(e.message));
+  await w.goto(`${base}/?stand`);
+  await w.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await w.waitForTimeout(900);
+  await w.evaluate(() => window.__t3d.setHandLevel(0.8)); await w.waitForTimeout(1800);
+  const gripOf = () => w.evaluate(() => { const e = [...document.querySelectorAll("[data-grip]")].find((x) => x.getBoundingClientRect().width > 0 && !x.closest(".screen.off")); const r = e?.getBoundingClientRect(); return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null; });
+  const spread = () => w.evaluate(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; const xs = s.chairs.find((c) => c.id === seat).hand.map((c) => window.__t3d.screenOf(c.id).x); return Math.max(...xs) - Math.min(...xs); });
+  const poseNow = () => w.evaluate(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat).pose; });
+  const wide0 = await spread(), g0 = await gripOf();
+  await w.mouse.move(g0.x, g0.y); await w.mouse.down(); await w.mouse.move(g0.x - 40, g0.y, { steps: 4 }); await w.mouse.move(g0.x - 260, g0.y, { steps: 10 }); await w.mouse.up(); await w.waitForTimeout(1600);
+  const narrow = await spread(), pn = await poseNow(), wn = await w.evaluate(() => window.__t3d.handWidthNow());
+  check("язычок влево до края — рука стопкой: ширина ≈ 0, видна одна карта, остальным ушла поза «стопкой»", wn < 0.12 && narrow < 20 && pn.shrink === true, { wn, narrow, pn });
+  await w.waitForTimeout(800);
+  const g1 = await gripOf();
+  await w.mouse.move(g1.x, g1.y); await w.mouse.down(); await w.mouse.move(g1.x + 40, g1.y, { steps: 4 }); await w.mouse.move(g1.x + 300, g1.y, { steps: 10 }); await w.mouse.up(); await w.waitForTimeout(1600);
+  const wide1 = await spread(), pw = await poseNow(), ww = await w.evaluate(() => window.__t3d.handWidthNow());
+  check("язычок вправо — рука шире: ширина растёт, карты разошлись шире прежнего, «стопкой» снято", ww > 0.9 && wide1 > Math.max(narrow + 80, wide0 * 0.9) && pw.shrink === false, { ww, wide1, wide0, pw });
+  await w.close();
+}
 // ЯЗЫЧОК ЗА САМЫЙ ВЕРХ — вся рука стопкой на стол
 const q = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
 q.on("pageerror", (e) => errors.push(e.message));

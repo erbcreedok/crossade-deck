@@ -1014,7 +1014,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const shapeOfPose = (p: { fan: boolean; shrink: boolean }, n: number): Shape => ({ wide: p.shrink ? 0 : 1, lift: p.fan && fanFitsN(n, CAMHAND.room) ? 0.5 : 1, room: p.fan ? CAMHAND.room : WIDTH.othersRow });
   /** Ширину поменяли не мы (кнопки «поза», другой экран) — встаёт в обычную для позы; своё решение ждёт ответа стола. */
   function syncWidth(ch: Chair): void {
-    if (widthLive !== null) return;
+    if (widthLive !== null || levelOn) return;
     const d = flagsOfWidth(handWidth, ch.hand.length, ch.pose);
     if (d.shrink === ch.pose.shrink && (d.shrink || d.fan === ch.pose.fan)) { widthPendingUntil = 0; return; }
     if (performance.now() < widthPendingUntil) return;
@@ -1026,6 +1026,13 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (widthLive === null) return;
     handWidth = widthLive; widthLive = null; widthOver = 0;
     if (!ch) return;
+    if (levelOn) {
+      // С язычком руки поза идёт по высоте (веер / в ряд / на столе), а ширина — только «стопкой» (левый край) или нет.
+      const pose = levelPose(handLevel), flags = { fan: pose === "fan", shrink: handWidth < WIDTH.stack, tuck: pose === "tuck" };
+      if (flags.fan !== ch.pose.fan || flags.shrink !== ch.pose.shrink || flags.tuck !== ch.pose.tuck) store.send({ t: "pose", chair: ch.id, pose: flags });
+      layout(store.state);
+      return;
+    }
     const flags = flagsOfWidth(handWidth, ch.hand.length, ch.pose);
     widthPendingUntil = performance.now() + 2000;
     if (flags.shrink !== ch.pose.shrink || flags.fan !== ch.pose.fan || ch.pose.tuck) store.send({ t: "pose", chair: ch.id, pose: { ...ch.pose, ...flags, tuck: false } });
@@ -1157,7 +1164,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Высота руки в кадре (px вверх), при которой видна нужная доля карт над нижней строкой. */
   function levelHeightPx(n: number, fovK: number, curl: number): number {
     if (n <= 0 || levelPose(handLevel) === "tuck") return 0;
-    const shape = shapeOfWidth(handWidth, n, 0, 0);
+    const shape = shapeOfWidth(widthLive ?? handWidth, n, 0, 0);
     shape.lift = levelPose(handLevel) === "fan" ? 0.5 : 1;
     const box = handCardBox(n, shape, fovK, curl, 0), cardPx = Math.abs(box.bottom - box.top);
     return box.bottom - (trayTopPx() + cardPx * (1 - visFrac(handLevel)));
@@ -1167,9 +1174,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const was = levelPose(handLevel), next = Math.max(0, Math.min(1, h)), pose = levelPose(next), ch = myChair();
     levelOn = true;
     handLevel = next;
-    if (pose !== was) {
-      handWidth = pose === "fan" ? WIDTH.defaults.fan : WIDTH.defaults.row;
-      if (ch) { const flags = { fan: pose === "fan", shrink: false, tuck: pose === "tuck" }; if (flags.fan !== ch.pose.fan || flags.shrink !== ch.pose.shrink || flags.tuck !== ch.pose.tuck) store.send({ t: "pose", chair: ch.id, pose: flags }); }
+    if (pose !== was && ch) {
+      const flags = { fan: pose === "fan", shrink: handWidth < WIDTH.stack, tuck: pose === "tuck" };
+      if (flags.fan !== ch.pose.fan || flags.shrink !== ch.pose.shrink || flags.tuck !== ch.pose.tuck) store.send({ t: "pose", chair: ch.id, pose: flags });
     }
     layout(store.state); sendBody(); draw();
   }
@@ -1179,7 +1186,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!ch) return;
     levelOn = true;
     handLevel = ch.pose.tuck ? POSE_LEVEL.tuck : ch.pose.fan ? POSE_LEVEL.fan : POSE_LEVEL.row;
-    handWidth = ch.pose.fan && !ch.pose.tuck ? WIDTH.defaults.fan : WIDTH.defaults.row;
+    handWidth = ch.pose.shrink ? WIDTH.defaults.shrink : ch.pose.fan && !ch.pose.tuck ? WIDTH.defaults.fan : WIDTH.defaults.row;
   }
   function retargetMine(): void {
     const ch = myChair();
@@ -2110,6 +2117,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     lifted: () => liftedId,
+    handWidthNow: () => widthLive ?? handWidth,
     dragNow: () => (drag ? { moved: drag.moved, gap: drag.gap, where: drag.where, fingerHand: drag.fingerHand } : null),
     handLevel: () => handLevel,
     setHandLevel: (h: number) => setHandLevel(h),

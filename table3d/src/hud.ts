@@ -104,6 +104,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     viewMenu: false,
     /** Язычок руки тянут. */
     gripDrag: false,
+    /** Где по ширине экрана язычок, пока ширину руки тянут вбок; `null` — по центру. */
+    gripX: null as number | null,
     /** Что сказало гиро при включении (датчик не разрешили) — строкой под полосой, пока не уйдёт. */
     gyroNote: "",
     deckTip: null as string | null,
@@ -264,7 +266,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const top = pose === "tuck" ? floor : scene.handTopPx() ?? floor;
     const y = Math.round(top - 26);
     const label = pose === "tuck" ? `<span>на столе · ${chair.hand.length}</span>` : `<span>${chair.hand.length}</span>`;
-    return `<div class="cp c-grip${local.gripDrag ? " drag" : ""}" data-grip aria-label="Язычок руки: вверх — поднять, вниз — опустить; за самый верх — вся рука стопкой на стол" style="left:calc(50% - 42px);top:${y}px"><i></i><i></i><i></i><i></i></div>`
+    return `<div class="cp c-grip${local.gripDrag ? " drag" : ""}" data-grip aria-label="Язычок руки: вверх-вниз — высота и поза, за самый верх — вся рука стопкой на стол; влево-вправо — ширина руки" style="left:${local.gripX === null ? "calc(50% - 42px)" : `${Math.max(8, Math.min(glass().w - 92, local.gripX - 42))}px`};top:${y}px"><i></i><i></i><i></i><i></i></div>`
       + `<div class="cp c-count flat" style="left:14px;top:${y - 6}px">${ic("cards", 1)}${label}</div>`;
   }
   /** Рейка камеры справа: только то, что нужно этому виду. */
@@ -683,14 +685,20 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   const onDown = (e: PointerEvent): void => {
     if (panels.press(e)) return;
     const t = e.target as HTMLElement, chair = myChair();
-    // ЯЗЫЧОК РУКИ: палец ведёт высоту руки, а вместе с ней и позу (на столе — корешок — веер — в ряд). За самый верх — вся рука стопкой
-    // над столом, отпустил над столом — стопка легла там; вернул палец вниз, не отпуская, — карты назад в руку.
+    // ЯЗЫЧОК РУКИ — две оси, и ось решается раз и навсегда с первого движения:
+    //   вверх-вниз — высота руки, а вместе с ней поза (на столе — корешок — веер — в ряд); за самый верх — вся рука стопкой над столом,
+    //   отпустил над столом — стопка легла там, вернул палец вниз, не отпуская, — карты назад в руку;
+    //   влево-вправо — ширина руки: левее — теснее (самый левый край — стопкой, видна одна карта), правее — шире, до максимума.
     if (t.closest("[data-grip]") && chair) {
       e.preventDefault();
-      const h0 = scene.handLevel(), y0 = e.clientY, GRIP_PX = 150, CARRY_AT = 1.22, carryY = y0 - (CARRY_AT - h0) * GRIP_PX;
-      let carrying = false;
+      const h0 = scene.handLevel(), w0 = scene.handWidth(), x0 = e.clientX, y0 = e.clientY, GRIP_PX = 150, WIDE_PX = 220, CARRY_AT = 1.22, carryY = y0 - (CARRY_AT - h0) * GRIP_PX;
+      let carrying = false, axis: "h" | "v" | null = null;
       local.gripDrag = true;
       follow(e, (ev) => {
+        const dx = ev.clientX - x0, dy = ev.clientY - y0;
+        if (axis === null && Math.max(Math.abs(dx), Math.abs(dy)) >= TAP_PX + 2) axis = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+        if (axis === "h") { local.gripX = ev.clientX; scene.setHandWidth(w0 + dx / WIDE_PX); draw(); return; }
+        if (axis !== "v") return;
         const target = h0 + (y0 - ev.clientY) / GRIP_PX;
         if (target > CARRY_AT || carrying) {
           carrying = scene.carryHand({ x: ev.clientX, y: ev.clientY }, { enter: carryY, exit: carryY + 20 });
@@ -700,8 +708,10 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
         draw();
       }, () => {
         local.gripDrag = false;
-        if (carrying) scene.carryHand(null);
-        else if (scene.handLevel() < 0.06) scene.setHandLevel(0);
+        local.gripX = null;
+        if (axis === "h") scene.setHandWidth(null);
+        else if (carrying) scene.carryHand(null);
+        else if (axis === "v" && scene.handLevel() < 0.06) scene.setHandLevel(0);
         draw();
       });
       return;
