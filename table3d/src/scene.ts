@@ -633,12 +633,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const before = pair();
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, right: was.right });
       if (ptrs.size === 1) {
-        if (was.right) seatBy(-(e.clientY - was.y) * CAM.seat);
+        if (was.right) seatBy((e.clientY - was.y) * CAM.seat);
         else lookBy(-(e.clientX - was.x) * CAM.look, (e.clientY - was.y) * CAM.look);
       } else if (ptrs.size === 2 && before) {
         const now = pair()!;
         if (camMode === "top") zoomBy((now.d / Math.max(1, before.d)) * Math.exp(-(now.y - before.y) * CAM.scroll));
-        else { zoomBy(now.d / Math.max(1, before.d)); seatBy(-(now.y - before.y) * CAM.seat); sideBy((now.x - before.x) * CAM.side); }
+        else { zoomBy(now.d / Math.max(1, before.d)); seatBy((now.y - before.y) * CAM.seat); sideBy((now.x - before.x) * CAM.side); }
       }
     });
     // Двойной тап по пустому месту (не по карте, не по кнопке): голова едет туда.
@@ -661,7 +661,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     dom.addEventListener("pointerup", up);
     dom.addEventListener("pointercancel", up);
     dom.addEventListener("contextmenu", (e) => { if (camMode !== "orbit") e.preventDefault(); });
-    dom.addEventListener("wheel", (e) => { if (camMode === "orbit") return; e.preventDefault(); if (e.shiftKey) seatBy(-e.deltaY * CAM.seat); else zoomBy(Math.exp(-e.deltaY * CAM.wheel * 2)); }, { passive: false });
+    dom.addEventListener("wheel", (e) => { if (camMode === "orbit") return; e.preventDefault(); if (e.shiftKey) seatBy(e.deltaY * CAM.seat); else zoomBy(Math.exp(-e.deltaY * CAM.wheel * 2)); }, { passive: false });
     addEventListener("keydown", (e) => {
       if (camMode === "orbit" || e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement | null)?.closest("input, textarea, [contenteditable]")) return;
       if (host.closest(".screen")?.classList.contains("off")) return;

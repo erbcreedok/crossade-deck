@@ -70,6 +70,16 @@ check("запас: 0.1 > 0.4 > 0.7 > 1 по времени", sim.hold[1] > sim.h
 check("красная зона у предела оттягивает меньше чем за 2 с — и в жёлтую, а не в ноль", sim.red.first !== null && sim.red.first < 2000 && sim.red.after > 0.3 && sim.red.after < 0.6, sim.red);
 check("слабый натяг 0.1 за 8 с не оттягивают", sim.weak.first === null, sim.weak);
 check("простой: до 3 с голова стоит, потом плавно едет к плечам", sim.idleHalf.end > 0.45 && sim.idleLate.end < 0.1, { idleHalf: sim.idleHalf, idleLate: sim.idleLate });
+// ЖЕСТ ПОСАДКИ: вниз по экрану — ближе к столу, вверх — дальше (правая кнопка мыши — тот же жест, что два пальца).
+{
+  const rb = radius(await cam());
+  await p.mouse.move(195, 400); await p.mouse.down({ button: "right" }); await p.mouse.move(195, 470, { steps: 6 }); await p.mouse.up({ button: "right" });
+  const down = radius(await cam());
+  check("вниз по экрану — посадка ближе к столу", down < rb - 0.3, { rb, down });
+  await p.mouse.move(195, 470); await p.mouse.down({ button: "right" }); await p.mouse.move(195, 380, { steps: 6 }); await p.mouse.up({ button: "right" });
+  const up = radius(await cam());
+  check("вверх по экрану — посадка дальше от стола", up > down + 0.3, { down, up });
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
