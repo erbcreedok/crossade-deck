@@ -832,6 +832,25 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     g.position.copy(at);
     return g;
   };
+  /**
+   * РУКА С ЛОКТЕМ: от плеча к локтю и от локтя к кисти, а не одной палкой. Локоть уведён от тела наружу и вниз — плечо чуть наклонено, а не вдоль туловища;
+   * сегменты равны и чуть длиннее половины расстояния, поэтому рука никогда не вытягивается в струну. `side`: −1 левая, +1 правая; `out` — вправо от тела.
+   */
+  const armParts = (shoulder: THREE.Vector3, hand: THREE.Vector3, side: -1 | 1, out: THREE.Vector3, r: number, mat: THREE.Material): THREE.Object3D[] => {
+    const d = Math.max(1e-3, shoulder.distanceTo(hand)), seg = Math.max(d * 0.56, 1.1), axis = hand.clone().sub(shoulder).divideScalar(d);
+    const pole = out.clone().multiplyScalar(side).add(new THREE.Vector3(0, -0.7, 0));
+    pole.addScaledVector(axis, -pole.dot(axis));
+    if (pole.lengthSq() < 1e-6) pole.set(side * out.x, -1, side * out.z);
+    pole.normalize();
+    const bend = Math.sqrt(Math.max(0, seg * seg - (d / 2) * (d / 2)));
+    const elbow = shoulder.clone().addScaledVector(axis, d / 2).addScaledVector(pole, bend);
+    return [stick(shoulder, elbow, r, mat), stick(elbow, hand, r, mat), ball(elbow, r * 1.25, mat)];
+  };
+  /** Где правая рука отдыхает на столе, когда ничего не делает: на сукне перед своим плечом, чуть вправо. */
+  const restRightOf = (sh: Point3): Point3 => {
+    const r = Math.hypot(sh.x, sh.y) || 1, k = DOLL.bar * 1.15;
+    return { x: sh.x - (sh.x / r) * 2.4 + (sh.y / r) * k, y: sh.y - (sh.y / r) * 2.4 - (sh.x / r) * k, h: 0.3 };
+  };
   /** Кукла в единицах стола — как у стола в 2D (`bodyView.ts`): толщина палки, полуширина плеч, руки, досягаемость. */
   const DOLL = { spine: 0.21, bar: 1.4, arm: 0.13, hand: 0.32, reach: 2 * TABLE_RADIUS + 2, ref: 12, max: 4 } as const;
   /** Во сколько раз толще шея, рука и кисть от дальности до камеры: издалека тонкая рука пропадает — дальше камера, шире линия. */
@@ -854,7 +873,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const shL = S.clone().addScaledVector(rightDir, -DOLL.bar), shR = S.clone().addScaledVector(rightDir, DOLL.bar);
       body.add(stick(base, S, DOLL.spine, mat), stick(shL, shR, DOLL.spine, mat), ball(shL, DOLL.spine, mat), ball(shR, DOLL.spine, mat));
       // Левая рука с картами — всегда: и с головой у тела, и когда голова ушла на ту сторону стола (рука с ней).
-      body.add(stick(shL, L, DOLL.arm * farK(L), mat), ball(L, DOLL.hand * farK(L), mat));
+      body.add(...armParts(shL, L, -1, rightDir, DOLL.arm * farK(L), mat), ball(L, DOLL.hand * farK(L), mat));
       if (pose.away) {
         // Ушёл головой на ту сторону стола — к голове ниточка его цвета, руки ушли с головой.
         const tether = new THREE.Line(new THREE.BufferGeometry().setFromPoints([S, H]), new THREE.LineDashedMaterial({ color: pose.ink, dashSize: 0.35, gapSize: 0.3, transparent: true, opacity: 0.6 }));
@@ -862,9 +881,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         body.add(tether);
       } else {
         for (const part of neckParts(S, H, DOLL.spine * farK(H), pose.stretch, mat)) body.add(part);
-        if (pose.right && Math.hypot(pose.right.x - (pose.s.x + rightDir.x * DOLL.bar), pose.right.y - (pose.s.y + rightDir.z * DOLL.bar)) <= DOLL.reach) {
-          const Rh = V(pose.right);
-          body.add(stick(shR, Rh, DOLL.arm * farK(Rh), mat), ball(Rh, DOLL.hand * farK(Rh), mat));
+        // Правая рука в покое лежит на столе перед плечом (`restRightOf`); ведёт карту — идёт к ней.
+        const rightAt = pose.right ?? restRightOf(pose.s);
+        if (Math.hypot(rightAt.x - (pose.s.x + rightDir.x * DOLL.bar), rightAt.y - (pose.s.y + rightDir.z * DOLL.bar)) <= DOLL.reach) {
+          const Rh = V(pose.right ? pose.right : { x: rightAt.x, y: rightAt.y, h: restH(rightAt, ch.id) });
+          body.add(...armParts(shR, Rh, 1, rightDir, DOLL.arm * farK(Rh), mat), ball(Rh, DOLL.hand * farK(Rh), mat));
           body.userData.right = Rh;
         }
       }
@@ -1071,7 +1092,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * Рука в кадре: где перед глазом (оси камеры), какой ширины карта (`card`, в единицах стола на этом расстоянии) и насколько наклонена.
    * Размер руки не зависит от размера карты на столе (`CARD_W`): рука привязана к худу и всем рисуется одинаково.
    */
-  const CAMHAND = { at: new THREE.Vector3(0, -0.92, -2.3), card: 0.486, room: 3.1, tilt: -12, pop: 0.5, near: 0.45, others: 1.7, curl: 1, tiltLow: 20, refFov: 65 } as const;
+  const CAMHAND = { at: new THREE.Vector3(0, -0.92, -2.3), card: 0.486, room: 3.1, tilt: -12, pop: 0.5, near: 0.45, others: 1.15, curl: 1, tiltLow: 20, refFov: 65 } as const;
   const camBasis = (yaw: number, pitch: number): THREE.Matrix4 => {
     const y = yaw * DEG, p = pitch * DEG, f = new THREE.Vector3(Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)), r = new THREE.Vector3(Math.cos(y), 0, Math.sin(y));
     return new THREE.Matrix4().makeBasis(r, r.clone().cross(f), f.clone().negate());
@@ -1096,7 +1117,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const t = Math.max(0, Math.min(1, (handLevel - LEVEL.spine) / (LEVEL.fan - LEVEL.spine))), flat = Math.max(0, Math.min(1, (handLevel - LEVEL.spine) / 0.06));
     return handCurl * mineCurlK(n) * (levelOn ? (1 + 0.4 * (1 - t)) * flat : 1);
   };
-  const mineCurlK = (n: number): number => MINE_CURL * Math.max(0.15, Math.min(1, (n - 2) / 8));
+  /** Загиб от числа карт: мало карт — почти прямая рука, много — загиб полный. Так же — у чужих рук (иначе две-три карты у соседа кривятся). */
+  const curlOfCount = (n: number): number => Math.max(0.15, Math.min(1, (n - 2) / 8));
+  const mineCurlK = (n: number): number => MINE_CURL * curlOfCount(n);
   let handWidth = 0.68, widthLive: number | null = null, widthOver = 0, widthPendingUntil = 0;
   const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAMHAND.refFov * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / (CAMHAND.card * handSize)); };
   const roomOf = (f: number): number => 1.2 + (roomMax() - 1.2) * Math.max(0, Math.min(1, (f - WIDTH.stack) / (1 - WIDTH.stack)));
@@ -1206,7 +1229,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const othersHand = (pose: Pose, ch: Chair, k: number, n: number, up: boolean): Place => {
     const b = blendOf(ch.pose);
     if (pose.pitch === undefined) return handPlace({ yaw: pose.yaw, left: pose.left }, ch, k, n, up, b);
-    return laid(camHandWorld(camHandLocal(k, n, up, shapeOfPose(ch.pose, n), 1, CAMHAND.others, { x: 0, y: pose.handY ?? 0 }, pose.curl ?? CURL.rest, CAMHAND.tilt + Math.max(0, Math.min(1, -(pose.handY ?? 0) / 0.7)) * CAMHAND.tiltLow), pose.head, pose.gaze ?? pose.yaw, pose.pitch), ch, k, up, tuckOf(b));
+    return laid(camHandWorld(camHandLocal(k, n, up, shapeOfPose(ch.pose, n), 1, CAMHAND.others, { x: 0, y: pose.handY ?? 0 }, (pose.curl ?? CURL.rest) * curlOfCount(n), CAMHAND.tilt + Math.max(0, Math.min(1, -(pose.handY ?? 0) / 0.7)) * CAMHAND.tiltLow), pose.head, pose.gaze ?? pose.yaw, pose.pitch), ch, k, up, tuckOf(b));
   };
   /** Где кисть левой руки: у головы — а когда рука положена (`down` 0…1), она на стопке на сукне, сверху. */
   function handRest(left: Point3, ch: Chair, down: number, cards: number): Point3 {
@@ -1508,12 +1531,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       grip = at.clone().add(new THREE.Vector3(sh.x - at.x, 0, sh.y - at.z).setLength(CARD_H * 0.45)).add(new THREE.Vector3(0, -0.12, 0));
     } else {
       // Без карты над столом — рука на том, с чем вожусь: та же точка, что видят остальные. Несу в свою руку — она у глаза, рука не нужна.
-      const at = drag?.moved ? (drag.gap === null ? rightAt : null) : restRight;
-      if (!at) return;
+      // Правая рука в покое — на столе перед плечом.
+      const at = (drag?.moved ? (drag.gap === null ? rightAt : null) : restRight) ?? restRightOf(sh);
       grip = new THREE.Vector3(at.x, restH(at, ch.id), at.y);
     }
     const mat = inkOf(store.me.ink);
-    myArm.add(stick(shR, grip, DOLL.arm * farK(grip), mat), ball(grip, DOLL.hand * farK(grip), mat));
+    myArm.add(...armParts(shR, grip, 1, new THREE.Vector3(sh.y / r, 0, -sh.x / r), DOLL.arm * farK(grip), mat), ball(grip, DOLL.hand * farK(grip), mat));
     myArm.userData.grip = grip;
   }
   /** ШЕЯ ПРИ НАТЯГЕ — у этой модели она рвётся пунктиром (чем сильнее натяг, тем реже штрихи) и тончает. Цвет не меняется. Другая модель по тому же `stretch` решит сама. */
@@ -1793,7 +1816,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const shL = S.clone().addScaledVector(rightDir, -DOLL.bar), shR = S.clone().addScaledVector(rightDir, DOLL.bar);
     myBody.add(stick(base, S, DOLL.spine, mat), stick(shL, shR, DOLL.spine, mat), ball(shL, DOLL.spine, mat), ball(shR, DOLL.spine, mat));
     // Рука в кадре (`head`, `fov`) — перед самым глазом: кисть и предплечье там закрыли бы весь вид, рисуются только карты.
-    if (camMode === "orbit" || camMode === "top" || down > 0.3 || handCarry) myBody.add(stick(shL, L, DOLL.arm * farK(L), mat), ball(L, DOLL.hand * farK(L), mat));
+    if (camMode === "orbit" || camMode === "top" || down > 0.3 || handCarry) myBody.add(...armParts(shL, L, -1, rightDir, DOLL.arm * farK(L), mat), ball(L, DOLL.hand * farK(L), mat));
     if (away) {
       // Камера ушла на другую сторону стола — голова с ней: ниточка к ней и кружок с именем, как у других.
       const tether = new THREE.Line(new THREE.BufferGeometry().setFromPoints([S, H]), new THREE.LineDashedMaterial({ color: who.ink, dashSize: 0.35, gapSize: 0.3, transparent: true, opacity: 0.6 }));
@@ -2323,6 +2346,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       layout(store.state); draw();
     },
     curlFor: (n: number) => mineCurlK(n),
+    trimHand: (n: number) => { const ch = myChair(); if (!ch) return; ch.hand.slice(n).forEach((c, k) => { store.send({ t: "grab", id: c.id }); store.send({ t: "drop", id: c.id, to: { in: "felt", x: -2 + k * 0.6, y: 1.5, up: false, angle: 0 } }); }); },
     fillHand: (n: number) => { const ch = myChair(); if (!ch) return; const deck = store.state.piles[0]; for (const c of deck.cards.slice(-n)) { store.send({ t: "grab", id: c.id }); store.send({ t: "drop", id: c.id, to: { in: "hand", chair: ch.id, i: ch.hand.length } }); } },
     cardAt: (x: number, y: number) => hitCard({ clientX: x, clientY: y } as PointerEvent),
     dropFeltAt: (id: string, x: number, y: number) => { store.send({ t: "grab", id }); store.send({ t: "drop", id, to: { in: "felt", x, y, angle: 0, up: false } }); },
@@ -2343,6 +2367,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     reseatInfo: () => ({ on: reseat !== null, heads: heads.visible, chairs: chairRoot.visible, handShown: store.state.chairs.flatMap((c) => c.hand).filter((c) => cards.get(c.id)?.group.visible).length, felt: store.state.felt.filter((c) => cards.get(c.id)?.group.visible).length, chair: (() => { const o = chairObjs.get(myChair()?.id ?? ""); return o ? { color: o.mats[0]!.color.getHexString(), emissive: o.mats[0]!.emissive.getHexString(), halo: (o.halo.material as THREE.MeshBasicMaterial).color.getHexString() } : null; })(), tags: [...chairObjs.entries()].filter(([, o]) => o.tag).map(([id]) => id), glow: [...chairObjs.entries()].filter(([, o]) => o.halo.visible).map(([id]) => id) }),
     feltScreen: (x: number, y: number) => project(new THREE.Vector3(x, 0, y)),
     ringLit: () => [...ringFields.entries()].map(([id, f]) => ({ id, zone: f.zone.visible, glow: f.glow.visible, slot: f.slot.visible })),
+    cardQuat: (id: string) => { const o = cards.get(id); return o ? new THREE.Euler().setFromQuaternion(o.target.quat, "ZXY").toArray().slice(0, 3).map((v) => Math.round(((v as number) * 180) / Math.PI * 10) / 10) : null; },
     cardTarget: (id: string) => { const o = cards.get(id); return o ? o.target.pos.toArray() : null; },
     neckNow: () => ({ ...neck }),
     seatBy: (d: number) => seatBy(d),

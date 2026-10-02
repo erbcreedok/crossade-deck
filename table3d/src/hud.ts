@@ -187,7 +187,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     zoomKnob.style.bottom = `calc(${v * 100}% - 6px)`; zoomFill.style.height = `${v * 100}%`;
     zoomTitle.textContent = mode === "head" ? "Посадка" : "Даль";
     zoomVal.textContent = mode === "head" ? (v > 0.995 ? "у стола" : `−${((1 - v) * 2.5).toFixed(1)}`) : `${Math.round(8 + (1 - v) * 22)} м`;
-    zoom.style.top = `calc(var(--safe-top) + 103px + ${mode === "head" ? 3 : 2} * 68px)`;
+    zoom.style.top = `calc(var(--safe-top) + 103px + ${mode === "head" ? 4 : 3} * 68px)`;
   };
   const zoomTo = (e: PointerEvent) => { const r = zoomTrack.getBoundingClientRect(), t = 1 - (e.clientY - r.top) / r.height; if (scene.camMode() === "orbit") scene.setOrbitZoom(t); else scene.setSeat(t); zoomSync(); };
   zoom.addEventListener("pointerdown", (e) => { e.stopPropagation(); e.preventDefault(); zoom.setPointerCapture(e.pointerId); zoomTo(e); });

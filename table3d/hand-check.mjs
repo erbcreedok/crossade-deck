@@ -130,6 +130,17 @@ check("язычок за самый верх — вся рука ушла на �
   check("пустой стул: карты руки лежат стопкой на столе", spread !== null && spread.dx < 0.3 && spread.dz < 0.3 && spread.y < 1, spread);
   await c.close();
 }
+{
+  // ПРАВАЯ РУКА В ПОКОЕ ВСЕГДА НА СТОЛЕ (у остальных и у меня), и рука с локтем: у чужой руки локоть — два отрезка и шар.
+  const c = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await c.goto(`${base}/?stand&cam=head`);
+  await c.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await c.waitForTimeout(1500);
+  const arms = await c.evaluate(() => ({ others: window.__t3d.bodies().map((b) => ({ by: b.by, right: b.right })), mine: window.__t3d.myArm() }));
+  check("правая рука соседа в покое нарисована и лежит на столе", arms.others.length > 0 && arms.others.every((b) => b.right && b.right.h < 0.6), arms.others);
+  check("моя правая рука в покое лежит на столе", arms.mine !== null && arms.mine.h < 0.6, arms.mine);
+  await c.close();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
