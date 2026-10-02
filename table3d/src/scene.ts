@@ -1015,6 +1015,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Загиб в МОЁМ виде растёт с числом карт: мало карт — рука почти прямая (свои карты у самых глаз сильно искажаются), много — загиб нужен, чтобы уместить веер. Остальным уходит выбранный загиб. */
   /** Загиб моего веера мягче, чем видят остальные: им шлётся прежний `handCurl`, у меня он умножен на `MINE_CURL`. */
   const MINE_CURL = 0.55;
+  /** Чем ниже рука, тем сильнее загиб — слегка (до +40% у самого корешка); корешок и ниже — всегда ровно. */
+  const mineCurl = (n: number): number => {
+    const t = Math.max(0, Math.min(1, (handLevel - LEVEL.spine) / (LEVEL.fan - LEVEL.spine))), flat = Math.max(0, Math.min(1, (handLevel - LEVEL.spine) / 0.06));
+    return handCurl * mineCurlK(n) * (levelOn ? (1 + 0.4 * (1 - t)) * flat : 1);
+  };
   const mineCurlK = (n: number): number => MINE_CURL * Math.max(0.15, Math.min(1, (n - 2) / 8));
   let handWidth = 0.68, widthLive: number | null = null, widthOver = 0, widthPendingUntil = 0;
   const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAMHAND.refFov * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / (CAMHAND.card * handSize)); };
@@ -1259,7 +1264,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     if (camMode === "head") {
       const down = tuckOf(b), fovK = Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), head = { x: camera.position.x, y: camera.position.z, h: camera.position.y };
-      if (levelOn) heightPx = levelHeightPx(n, fovK, handCurl * mineCurlK(n));
+      if (levelOn) heightPx = levelHeightPx(n, fovK, mineCurl(n));
       const off = handOffset();
       syncWidth(ch);
       const shape = shapeOfWidth(widthLive ?? handWidth, n, Math.max(0, Math.min(1, heightPx / WIDTH.rise)), widthOver);
@@ -1267,7 +1272,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       off.x = handOverhang(shape, n) * CAMHAND.card * handSize;
       placeFpsArm(down <= 0 && list.length > 0 && !handCarry, fovK, off);
       // Раздвижка: места карт по ширине руки (в ширинах карты) и сдвиг от пальца на верхней ручке.
-      const u = CAMHAND.card * fovK * handSize, curlMine = handCurl * mineCurlK(n);
+      const u = CAMHAND.card * fovK * handSize, curlMine = mineCurl(n);
       const xsPlan = Array.from({ length: n }, (_, i) => (camHandLocal(i, n, false, shape, fovK, handSize, off, curlMine).pos.x - CAMHAND.at.x - off.x * fovK) / u);
       const rectW = renderer.domElement.getBoundingClientRect(), fPeek = ((gripSx ?? rectW.left + rectW.width / 2) - (rectW.left + rectW.width / 2)) * (pxUnit() / u);
       // Ужатая рука не раскидывается, не тесно — тоже: грип тогда сразу в центре. Само наличие грипа карты не двигает: только его ход влево-вправо (`gripAmt`).
