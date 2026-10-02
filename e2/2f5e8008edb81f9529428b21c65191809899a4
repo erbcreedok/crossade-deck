@@ -1,0 +1,32 @@
+table3d/loader-check.mjs
+  s_783a0cc3ed910b::t_2dbc20d241b10a 17
+  s_ad8a8a5b5d0419::t_7e3d76d9e5c69f 1-16,18-38
+table3d/src/loader.ts
+  s_ad8a8a5b5d0419::t_b31f383fed22f6 8,55
+table3d/src/main.ts
+  s_783a0cc3ed910b::t_2dbc20d241b10a 41-43,99,110-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e22f5e8008edb81f9529428b21c65191809899a4",
+  "prompts": {},
+  "sessions": {
+    "s_783a0cc3ed910b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "961f95bc-95fa-4b4a-8d9b-d0901f13a448",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
