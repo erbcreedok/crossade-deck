@@ -298,7 +298,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   /** Язычок над самым верхом карт руки и счётчик слева от него. Рука на столе — язычок над нижней строкой. */
   function gripHtml(s: Snapshot): string {
     const chair = myChair(s);
-    if (!chair || !chair.hand.length || scene.carryingHand()) return "";
+    if (!chair || !chair.hand.length || scene.carryingHand() || scene.reseatOn()) return "";
     const level = scene.handLevel(), pose = scene.handPoseAt(level), floor = glass().h - scene.safeBottom() - DOCK_PX - (local.section && local.section !== "say" ? SHEET_PX + SHEET_GAP : 0) - 4;
     const top = pose === "tuck" ? floor : scene.handTopPx() ?? floor;
     const y = Math.round(top - 26);

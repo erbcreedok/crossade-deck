@@ -524,9 +524,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       setCamMode("orbit");
       camera.fov = 50; camera.updateProjectionMatrix();
       orbit.enablePan = true;
-      orbit.minDistance = 3; orbit.maxDistance = 45;
+      orbit.minDistance = 3; orbit.maxDistance = 60;
       orbit.minPolarAngle = orbit.maxPolarAngle = 0.0001;
-      camera.position.set(0, 24, 0.01);
+      camera.position.set(0, 36, 0.01);
       orbit.target.set(0, 0, 0);
       orbit.update();
     } else {
@@ -1809,7 +1809,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * Размеры — в единицах стола (пол на -7, стол на человеческой высоте: одна единица — примерно 12 см).
    */
   const CHAIR = { seat: 3.4, thick: 0.35, seatY: -3.3, back: 3.8, leg: 0.32, floor: -7, radius: 7.9, pushed: 1.6, free: 0x7d8a86 };
-  interface ChairObj { group: THREE.Group; mats: THREE.MeshLambertMaterial[]; ink: string; k: number }
+  interface ChairObj { group: THREE.Group; mats: THREE.MeshLambertMaterial[]; ink: string; k: number; halo: THREE.Mesh }
   const chairRoot = new THREE.Group();
   scene.add(chairRoot);
   const chairObjs = new Map<string, ChairObj>();
@@ -1825,8 +1825,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     part(seat, thick, seat, 0, seatY, 0);
     part(seat, back, leg, 0, seatY + thick / 2 + back / 2, seat / 2 - leg / 2);
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(leg, legH, leg, sx * half, floor + legH / 2, sz * half);
+    // Свечение под пересадкой: кольцо на уровне сиденья (светится сложением, не красит стул).
+    const halo = new THREE.Mesh(new THREE.RingGeometry(seat * 0.62, seat * 0.95, 48), new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    halo.rotation.x = -Math.PI / 2; halo.position.y = seatY + thick / 2 + 0.06; halo.visible = false; halo.renderOrder = 5;
+    group.add(halo);
     chairRoot.add(group);
-    return { group, mats: [mat], ink: "", k: 0 };
+    return { group, mats: [mat], ink: "", k: 0, halo };
   }
   /** Стулья на местах: цвет хозяина, у вставшего — отодвинут назад. Возвращает, движется ли ещё что-то. */
   function placeChairs(dt: number): boolean {
@@ -1849,6 +1853,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       one.group.position.set(at.x, 0, at.y);
       one.group.rotation.y = Math.atan2(dir.x, dir.y);
       one.group.userData.placed = true;
+      // Свой стул при пересадке светится: не другим цветом, а мягким свечением (подсветка стула и кольцо), оно дышит.
+      const glow = !!reseat && ch.id === myChair()?.id, pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260);
+      for (const m of one.mats) { m.emissive.set(glow ? 0xffe9a0 : 0x000000); m.emissiveIntensity = glow ? 0.25 + 0.25 * pulse : 0; }
+      one.halo.visible = glow;
+      if (glow) { (one.halo.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.35 * pulse; moving = true; }
     }
     for (const [id, one] of chairObjs) if (!seen.has(id)) { chairRoot.remove(one.group); chairObjs.delete(id); }
     return moving;
@@ -2297,7 +2306,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     eyeNow: () => eyeY(),
     setViewHeight: (t: number) => { viewH = VIEW_H.min + Math.max(0, Math.min(1, t)) * (VIEW_H.max - VIEW_H.min); applyRig(); layout(store.state); draw(); },
     chairAt: (id: string) => chairObjs.get(id)?.group.position.toArray() ?? null,
-    reseatInfo: () => ({ on: reseat !== null, heads: heads.visible, chairs: chairRoot.visible, handShown: store.state.chairs.flatMap((c) => c.hand).filter((c) => cards.get(c.id)?.group.visible).length, felt: store.state.felt.filter((c) => cards.get(c.id)?.group.visible).length }),
+    reseatInfo: () => ({ on: reseat !== null, heads: heads.visible, chairs: chairRoot.visible, handShown: store.state.chairs.flatMap((c) => c.hand).filter((c) => cards.get(c.id)?.group.visible).length, felt: store.state.felt.filter((c) => cards.get(c.id)?.group.visible).length, glow: [...chairObjs.entries()].filter(([, o]) => o.halo.visible).map(([id]) => id) }),
     feltScreen: (x: number, y: number) => project(new THREE.Vector3(x, 0, y)),
     ringLit: () => [...ringFields.entries()].map(([id, f]) => ({ id, zone: f.zone.visible, glow: f.glow.visible, slot: f.slot.visible })),
     cardTarget: (id: string) => { const o = cards.get(id); return o ? o.target.pos.toArray() : null; },

@@ -22,6 +22,7 @@ await p.locator("[data-reseat]:visible").first().click();
 await p.waitForTimeout(800);
 const on = await info();
 check("пересадка: вид сверху, голов нет, карты в руках скрыты, стулья видны", on.on && !on.heads && on.chairs && on.handShown === 0, on);
+check("свой стул светится, и только он", on.glow.length === 1 && on.glow[0] === seat0.id, on.glow);
 check("камера смотрит сверху (орбита)", (await p.evaluate(() => window.__t3d.cam().mode)) === "orbit", null);
 // Тянем свой стул: его экранное место — из хука `chairs()`.
 const chair = await p.evaluate((id) => window.__t3d.chairs().find((c) => c.id === id), seat0.id);
@@ -35,7 +36,7 @@ check("свой стул уехал по кругу на другой угол",
 await p.locator("[data-reseat-no]:visible").click();
 await p.waitForTimeout(600);
 const off = await info();
-check("«Отмена»: всё вернулось, стул на прежнем месте", !off.on && off.heads && (await mine()).angle === seat0.angle, { off, now: await mine() });
+check("«Отмена»: всё вернулось, свечения нет, стул на прежнем месте", !off.on && off.heads && off.glow.length === 0 && (await mine()).angle === seat0.angle, { off, now: await mine() });
 await p.locator("[data-reseat]:visible").first().click();
 await p.waitForTimeout(600);
 const c2 = await p.evaluate((id) => window.__t3d.chairs().find((c) => c.id === id), seat0.id);
