@@ -99,6 +99,27 @@ const n0 = await q.evaluate(() => { const s = window.__t3d.state(); const seat =
 await q.mouse.move(g2.x, g2.y); await q.mouse.down(); await q.mouse.move(g2.x, g2.y - 120, { steps: 6 }); await q.mouse.move(195, 380, { steps: 8 }); await q.waitForTimeout(300); await q.mouse.up(); await q.waitForTimeout(700);
 const after = await q.evaluate(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return { hand: s.chairs.find((c) => c.id === seat).hand.length, pile: Math.max(0, ...s.piles.map((p) => p.cards.length)), felt: s.felt.length }; });
 check("язычок за самый верх — вся рука ушла на стол стопкой", n0 > 0 && after.hand === 0 && (after.pile >= n0 || after.felt >= n0), { n0, after });
+{
+  // ЦЕНТР ПО УМОЛЧАНИЮ: сдвиг вправо появляется только когда игрок сам растянул руку шире экрана, и сам уходит, когда ширина меньше.
+  const c = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await c.goto(`${base}/?stand&cam=head`);
+  await c.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await c.waitForTimeout(800);
+  const mid = () => c.evaluate(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; const xs = s.chairs.find((k) => k.id === seat).hand.map((k) => window.__t3d.screenOf(k.id).x); return xs.length ? (Math.max(...xs) + Math.min(...xs)) / 2 : null; });
+  await c.evaluate(() => { window.__t3d.fillHand(24); window.__t3d.setHandWidthNow(1); });
+  await c.waitForTimeout(1800);
+  const full = await mid();
+  check("рука во всю ширину экрана — по центру", full !== null && Math.abs(full - 195) < 25, full);
+  await c.evaluate(() => window.__t3d.setHandWidthNow(1.5));
+  await c.waitForTimeout(1800);
+  const over = await mid();
+  check("игрок растянул шире экрана — рука растёт вправо от левого края", over !== null && over > full + 30, { full, over });
+  await c.evaluate(() => window.__t3d.setHandWidthNow(1));
+  await c.waitForTimeout(1800);
+  const back = await mid();
+  check("ширину вернули — рука снова по центру", back !== null && Math.abs(back - full) < 15, { full, back });
+  await c.close();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));

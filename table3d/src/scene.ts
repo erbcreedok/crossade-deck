@@ -989,7 +989,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    *   пока карты не перестанут сжиматься (или не кончится экран). Высота тоже влияет на веер: поднял руку ручкой — веер выпрямляется в ряд.
    * Остальным уходят только флаги позы (стопкой, веер, в ряд): ширину они видят стандартную для позы.
    */
-  const WIDTH = { stack: 0.12, rowFrom: 0.7, fanTo: 0.75, px: 220, pinch: 140, rise: 150, defaults: { shrink: 0.05, fan: 0.68, row: 1 }, othersRow: 4.2 };
+  const WIDTH = { stack: 0.12, rowFrom: 0.7, fanTo: 0.75, max: 1.5, px: 220, pinch: 140, rise: 150, defaults: { shrink: 0.05, fan: 0.68, row: 1 }, othersRow: 4.2 };
   /** Загиб веера по умолчанию, 0…1. */
   const CURL = { rest: 0.7 };
   let handCurl: number = CURL.rest;
@@ -1001,19 +1001,20 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const smooth = (a: number, b: number, x: number): number => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
   /** Раскладка моей руки из ширины `f` и подъёма `rise` (0…1): сжатость, веер ↔ ряд, комната в ширинах карты. */
   /**
-   * Сколько карт рука может выпустить за правый край экрана: карт много — правая (она выше всех) уходит за экран, пока видна её левая часть
-   * (чуть больше половины), и вся рука на столько же шире и смещена вправо ровно настолько, насколько надо (`handOverhang`): мало карт — стоят по центру.
+   * ШИРИНА 0…`WIDTH.max`: до 1 — рука по центру и умещается в экран; ЗА единицу (игрок сам тянет шире) предел растёт дальше экрана: рука
+   * не от центра в обе стороны, а от левого края вправо — до тех пор, пока у самой правой карты виден хотя бы край (центр карты у правого
+   * края). Мало карт — разлёт не упирается в предел, и рука по центру; карт стало меньше — смещение само убывает (`handOverhang`).
    */
   const OVERHANG = 0.55;
   function shapeOfWidth(f: number, n: number, rise: number, over = 0): Shape {
-    const base = roomOf(f) * (1 + 0.07 * (1 - Math.exp(-over * 6))), room = base + OVERHANG * Math.max(0, Math.min(1, (f - WIDTH.stack) / (1 - WIDTH.stack)));
-    let lift = 0.5 + 0.5 * smooth(WIDTH.rowFrom, WIDTH.fanTo + 0.05, f);
+    const base = roomOf(Math.min(1, f)) * (1 + 0.07 * (1 - Math.exp(-over * 6))), room = base + OVERHANG * Math.max(0, Math.min(1, (f - 1) / (WIDTH.max - 1)));
+    let lift = 0.5 + 0.5 * smooth(WIDTH.rowFrom, WIDTH.fanTo + 0.05, Math.min(1, f));
     if (!fanFitsN(n, room)) lift = 1;
     return { wide: Math.min(1, f / WIDTH.stack), lift: lift + (1 - lift) * rise, room, base };
   }
-  /** Сдвиг руки вправо в ширинах карты: настолько, насколько её разлёт вышел за обычную комнату. */
+  /** Сдвиг руки вправо в ширинах карты: настолько, насколько её разлёт вышел за то, что умещается по центру. Нет выхода за единицу — нет сдвига. */
   function handOverhang(shape: Shape, n: number): number {
-    if (n < 2 || shape.base === undefined) return 0;
+    if (n < 2 || shape.base === undefined || shape.room <= shape.base) return 0;
     const span = (room: number): number => { const xs = handPlanBlend({ wide: shape.wide, lift: shape.lift }, true, n, 1, 1.4, room).map((p) => p.x); return Math.max(...xs) - Math.min(...xs); };
     return Math.max(0, span(shape.room) - span(shape.base)) / 2;
   }
@@ -1800,7 +1801,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!poseG || !poseG.ids.includes(e.pointerId)) return;
     e.stopImmediatePropagation();
     const a = live.get(poseG.ids[0])!, b = live.get(poseG.ids[1])!, raw = poseG.f0 + (Math.hypot(a.x - b.x, a.y - b.y) - poseG.d0) / WIDTH.pinch;
-    widthLive = Math.max(0, Math.min(1, raw)); widthOver = Math.max(0, raw - 1);
+    widthLive = Math.max(0, Math.min(WIDTH.max, raw)); widthOver = 0;
     layout(store.state);
   }, { capture: true });
   const liftFinger = (e: PointerEvent) => {
@@ -2097,7 +2098,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     handShape: () => { const ch = myChair(); return ch ? { f: widthLive ?? handWidth, ...shapeOfWidth(widthLive ?? handWidth, ch.hand.length, Math.max(0, Math.min(1, heightPx / WIDTH.rise)), widthOver) } : null; },
     fanFitsN,
     /** Ширина карты в мире: сколько единиц стола она занимает (рука — в осях камеры, стол — свой размер). */
-    setHandWidthNow: (raw: number) => { widthLive = Math.max(0, Math.min(1, raw)); widthOver = Math.max(0, raw - 1); layout(store.state); },
+    setHandWidthNow: (raw: number) => { widthLive = Math.max(0, Math.min(WIDTH.max, raw)); widthOver = 0; layout(store.state); },
     cardOrder: (id: string) => { const o = cards.get(id); return o ? { order: o.front.renderOrder, write: (o.front.material as THREE.Material).depthWrite } : null; },
     handHeightNow: () => heightPx,
     gripXNow: () => gripSx,
@@ -2229,7 +2230,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     },
     setHandWidth(raw) {
       if (raw === null) { commitWidth(); return; }
-      widthLive = Math.max(0, Math.min(1, raw)); widthOver = Math.max(0, raw - 1);
+      widthLive = Math.max(0, Math.min(WIDTH.max, raw)); widthOver = 0;
       layout(store.state);
     },
     carryHand(screen, lines) {
