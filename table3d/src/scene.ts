@@ -1364,8 +1364,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     for (const ch of s.chairs) ch.hand.forEach((c, i) => {
       const o = cardObj(c.id);
       dress(o, c, s);
-      const pose = poses.get(ch.id);
-      if (pose) o.target = othersHand(pose, ch, i, ch.hand.length, !!c.up);
+      const pose = poses.get(ch.id), owner = s.people.find((p) => p.key === ch.owner);
+      // Пустой стул и стул крупье — рука сложена стопкой на стол; у бота — всегда веером; у остальных — как они её держат.
+      if (ch.id !== mine && (!owner || ch.croupier)) o.target = stackPlace(ch, i, !!c.up);
+      else if (pose) o.target = othersHand(pose, owner && (owner.bot || owner.brain) ? { ...ch, pose: { ...ch.pose, fan: true, shrink: false, tuck: false } } : ch, i, ch.hand.length, !!c.up);
       else if (ch.id !== mine) { o.target = fanned(ch.angle, i, ch.hand.length, false); if (c.up) o.target.quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)); }
       fromOf.set(c.id, { in: "hand", chair: ch.id, mine: ch.id === mine, i });
       seen.add(c.id);
@@ -2178,6 +2180,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    cardTarget: (id: string) => { const o = cards.get(id); return o ? o.target.pos.toArray() : null; },
     neckNow: () => ({ ...neck }),
     seatBy: (d: number) => seatBy(d),
     lifted: () => liftedId,

@@ -120,6 +120,16 @@ check("язычок за самый верх — вся рука ушла на �
   check("ширину вернули — рука снова по центру", back !== null && Math.abs(back - full) < 15, { full, back });
   await c.close();
 }
+{
+  // ПУСТОЙ СТУЛ — карты его руки сложены стопкой на стол (все в одном месте), а не веером.
+  const c = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await c.goto(`${base}/?stand&cam=head`);
+  await c.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await c.waitForTimeout(1500);
+  const spread = await c.evaluate(() => { const ch = window.__t3d.state().chairs.find((x) => !x.owner && x.hand.length > 1); if (!ch) return null; const ps = ch.hand.map((k) => window.__t3d.cardTarget(k.id)); const xs = ps.map((q) => q[0]), zs = ps.map((q) => q[2]), ys = ps.map((q) => q[1]); return { dx: Math.max(...xs) - Math.min(...xs), dz: Math.max(...zs) - Math.min(...zs), y: Math.max(...ys) }; });
+  check("пустой стул: карты руки лежат стопкой на столе", spread !== null && spread.dx < 0.3 && spread.dz < 0.3 && spread.y < 1, spread);
+  await c.close();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
