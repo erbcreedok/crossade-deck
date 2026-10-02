@@ -102,6 +102,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     journal: false,
     /** Открыто меню вида камеры (рейка справа). */
     viewMenu: false,
+    hold: null as null | "height" | "seat",
     /** Язычок руки тянут. */
     gripDrag: false,
     /** Где по ширине экрана язычок, пока ширину руки тянут вбок; `null` — по центру. */
@@ -170,7 +171,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   const panelOverlay = document.createElement("div");
   panelOverlay.id = "panels";
   screen.append(panelOverlay);
-  // Ползунок зума справа под кнопками рейки: «голова» — оптика (рука в кадре того же размера), «вокруг» — расстояние до стола. Вне перерисовки HUD, чтобы палец его не терял.
+  // Ползунок зума справа под кнопками рейки — только в виде «вокруг» (расстояние до стола). Вне перерисовки HUD, чтобы палец его не терял.
   const zoom = document.createElement("div");
   zoom.dataset.zoomSlider = "";
   zoom.className = "cp";
@@ -178,45 +179,63 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   zoom.innerHTML = '<span class="tt"></span><div class="track">' + Array.from({ length: 7 }, (_, k) => `<i class="seg" style="top:${((k + 1) / 8) * 100}%"></i>`).join("") + '<i class="fill"></i><i class="knob2" data-zoom-knob></i></div><span class="val"></span>';
   const zoomKnob = zoom.querySelector<HTMLElement>("[data-zoom-knob]")!, zoomFill = zoom.querySelector<HTMLElement>(".fill")!, zoomTrack = zoom.querySelector<HTMLElement>(".track")!;
   const zoomTitle = zoom.querySelector<HTMLElement>(".tt")!, zoomVal = zoom.querySelector<HTMLElement>(".val")!;
-  const zoomVal01 = (): number => (scene.camMode() === "orbit" ? scene.orbitZoom() : scene.seat());
-  const zoomSync = () => {
-    const mode = scene.camMode(), on = (mode === "head" || mode === "orbit") && !local.section && !!myChair();
+    const zoomSync = () => {
+    const on = scene.camMode() === "orbit" && !local.section && !!myChair();
     if (zoom.style.display !== (on ? "block" : "none")) zoom.style.display = on ? "block" : "none";
     if (!on) return;
-    const v = zoomVal01();
+    const v = scene.orbitZoom();
     zoomKnob.style.bottom = `calc(${v * 100}% - 6px)`; zoomFill.style.height = `${v * 100}%`;
-    zoomTitle.textContent = mode === "head" ? "Посадка" : "Даль";
-    zoomVal.textContent = mode === "head" ? (v > 0.995 ? "у стола" : `−${((1 - v) * 2.5).toFixed(1)}`) : `${Math.round(8 + (1 - v) * 22)} м`;
-    zoom.style.top = `calc(var(--safe-top) + 103px + ${mode === "head" ? 4 : 3} * 68px)`;
+    zoomTitle.textContent = "Даль";
+    zoomVal.textContent = `${Math.round(8 + (1 - v) * 22)} м`;
+    zoom.style.top = "calc(var(--safe-top) + 103px + 3 * 68px)";
   };
-  const zoomTo = (e: PointerEvent) => { const r = zoomTrack.getBoundingClientRect(), t = 1 - (e.clientY - r.top) / r.height; if (scene.camMode() === "orbit") scene.setOrbitZoom(t); else scene.setSeat(t); zoomSync(); };
+  const zoomTo = (e: PointerEvent) => { const r = zoomTrack.getBoundingClientRect(), t = 1 - (e.clientY - r.top) / r.height; scene.setOrbitZoom(t); zoomSync(); };
   zoom.addEventListener("pointerdown", (e) => { e.stopPropagation(); e.preventDefault(); zoom.setPointerCapture(e.pointerId); zoomTo(e); });
   zoom.addEventListener("pointermove", (e) => { if (zoom.hasPointerCapture(e.pointerId)) zoomTo(e); });
   root.append(zoom);
   setInterval(zoomSync, 200);
-  // DEV: ползунок высоты обзора (только мой экран; тело, рука и чужие экраны не меняются). Стоит слева от ползунка посадки.
-  const hgt = document.createElement("div");
-  hgt.dataset.zoomSlider = "";
-  hgt.dataset.heightSlider = "";
-  hgt.className = "cp";
-  hgt.style.cssText = "touch-action:none;cursor:ns-resize;display:none;right:76px";
-  hgt.innerHTML = zoom.innerHTML.replace("data-zoom-knob", "data-height-knob");
-  const hgtKnob = hgt.querySelector<HTMLElement>("[data-height-knob]")!, hgtFill = hgt.querySelector<HTMLElement>(".fill")!, hgtTrack = hgt.querySelector<HTMLElement>(".track")!;
-  const hgtSync = () => {
-    const on = scene.camMode() === "head" && !local.section && !!myChair();
-    if (hgt.style.display !== (on ? "block" : "none")) hgt.style.display = on ? "block" : "none";
-    if (!on) return;
-    const v = scene.viewHeight();
-    hgtKnob.style.bottom = `calc(${v * 100}% - 6px)`; hgtFill.style.height = `${v * 100}%`;
-    hgt.querySelector<HTMLElement>(".tt")!.textContent = "Высота";
-    hgt.querySelector<HTMLElement>(".val")!.textContent = `${scene.viewHeightUnits() >= 0 ? "+" : "−"}${Math.abs(scene.viewHeightUnits()).toFixed(1)}`;
-    hgt.style.top = zoom.style.top;
+  // ЗАЖАТЬ «Сидя/Стоя» — вместо рейки появляется ползунок высоты обзора; зажать «Пересесть» — ползунок посадки. Тот же палец тянет его вверх-вниз, отпустил — рейка вернулась.
+  // Короткий тап — как обычно: «Сидя/Стоя» садит и ставит, «Пересесть» открывает вид сверху (там стул тянут и по кругу, и от стола).
+  const hold = document.createElement("div");
+  hold.dataset.zoomSlider = "";
+  hold.dataset.holdSlider = "";
+  hold.className = "cp";
+  hold.style.cssText = "touch-action:none;cursor:ns-resize;display:none;top:calc(var(--safe-top) + 103px);height:230px";
+  hold.innerHTML = zoom.innerHTML.replace("data-zoom-knob", "data-hold-knob");
+  const holdKnob = hold.querySelector<HTMLElement>("[data-hold-knob]")!, holdFill = hold.querySelector<HTMLElement>(".fill")!, holdTrack = hold.querySelector<HTMLElement>(".track")!;
+  let holdUntil = 0;
+  const holdSync = () => {
+    if (!local.hold) return;
+    const height = local.hold === "height", v = height ? scene.viewHeight() : scene.seat();
+    holdKnob.style.bottom = `calc(${v * 100}% - 6px)`; holdFill.style.height = `${v * 100}%`;
+    hold.querySelector<HTMLElement>(".tt")!.textContent = height ? "Высота" : "Посадка";
+    hold.querySelector<HTMLElement>(".val")!.textContent = height ? `${scene.viewHeightUnits() >= 0 ? "+" : "−"}${Math.abs(scene.viewHeightUnits()).toFixed(1)}` : v > 0.995 ? "у стола" : `−${((1 - v) * 2.5).toFixed(1)}`;
   };
-  const hgtTo = (e: PointerEvent) => { const r = hgtTrack.getBoundingClientRect(); scene.setViewHeight(1 - (e.clientY - r.top) / r.height); hgtSync(); };
-  hgt.addEventListener("pointerdown", (e) => { e.stopPropagation(); e.preventDefault(); hgt.setPointerCapture(e.pointerId); hgtTo(e); });
-  hgt.addEventListener("pointermove", (e) => { if (hgt.hasPointerCapture(e.pointerId)) hgtTo(e); });
-  root.append(hgt);
-  setInterval(hgtSync, 200);
+  const holdTo = (e: PointerEvent) => { const r = holdTrack.getBoundingClientRect(), t = 1 - (e.clientY - r.top) / r.height; if (local.hold === "height") scene.setViewHeight(t); else scene.setSeat(t); holdSync(); };
+  const holdEnd = (e: PointerEvent) => { if (!local.hold || !hold.hasPointerCapture(e.pointerId)) return; local.hold = null; hold.style.display = "none"; holdUntil = performance.now() + 600; draw(); };
+  hold.addEventListener("pointermove", (e) => { if (hold.hasPointerCapture(e.pointerId)) holdTo(e); });
+  hold.addEventListener("pointerup", holdEnd);
+  hold.addEventListener("pointercancel", holdEnd);
+  root.append(hold);
+  {
+    let press: { id: number; x: number; y: number; kind: "height" | "seat"; timer: number } | null = null;
+    const cancel = () => { if (press) clearTimeout(press.timer); press = null; };
+    root.addEventListener("pointerdown", (e) => {
+      const b = (e.target as Element).closest?.("[data-stance-toggle], [data-reseat]");
+      if (!b || scene.reseatOn() || local.hold) return;
+      const kind = b.hasAttribute("data-stance-toggle") ? "height" : "seat", id = e.pointerId, x = e.clientX, y = e.clientY;
+      cancel();
+      press = { id, x, y, kind, timer: window.setTimeout(() => {
+        press = null;
+        local.hold = kind; holdUntil = performance.now() + 60000;
+        hold.style.display = "block"; holdSync();
+        try { hold.setPointerCapture(id); } catch { /* палец уже ушёл */ }
+        draw();
+      }, 420) };
+    });
+    root.addEventListener("pointermove", (e) => { if (press && press.id === e.pointerId && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 14) cancel(); });
+    for (const t of ["pointerup", "pointercancel"]) root.addEventListener(t, (e) => { if (press && press.id === (e as PointerEvent).pointerId) cancel(); });
+  }
   const panels = mountPanels(panelOverlay, { ...scene.panels, feltAt: scene.feltAt, glass: scene.glass }, () => draw());
   let shown: string[] = [];
   store.onStickers((ids) => { myStickers = ids; talk.refresh(); });
@@ -239,7 +258,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   const reseatBar = document.createElement("div");
   reseatBar.className = "cp";
   reseatBar.style.cssText = "display:none;position:absolute;left:12px;right:12px;bottom:calc(var(--safe-bottom) + 8px);height:64px;z-index:90;pointer-events:auto;align-items:center;gap:8px;padding:0 8px";
-  reseatBar.innerHTML = `<span style="flex:1;font-size:12px;line-height:1.2;padding-left:6px">Тяни свой стул по кругу. Зум и сдвиг — пальцами.</span>${cbtn("data-reseat-no", ic("cancel"), "Отмена", { style: "width:84px;height:48px" })}${cbtn("data-reseat-ok", ic("keep"), "Готово", { on: true, style: "width:84px;height:48px" })}`;
+  reseatBar.innerHTML = `<span style="flex:1;font-size:12px;line-height:1.2;padding-left:6px">Тяни свой стул: по кругу и от стола или к нему. Зум и сдвиг — пальцами.</span>${cbtn("data-reseat-no", ic("cancel"), "Отмена", { style: "width:84px;height:48px" })}${cbtn("data-reseat-ok", ic("keep"), "Готово", { on: true, style: "width:84px;height:48px" })}`;
   reseatBar.addEventListener("click", (e) => {
     const t = (e.target as HTMLElement).closest("[data-reseat-ok],[data-reseat-no]") as HTMLElement | null;
     if (t) { scene.reseatDone(t.hasAttribute("data-reseat-ok")); e.stopPropagation(); }
@@ -342,7 +361,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     }
     // DEV: пересадить свой стул — вид сверху со свободным зумом; потом кнопке найдём место.
     if (chair && !scene.reseatOn()) items += cbtn('data-reseat', ic("chair"), "Пересесть");
-    let html = scene.reseatOn() ? "" : `<div class="c-rail">${items}</div>`;
+    let html = scene.reseatOn() || local.hold ? "" : `<div class="c-rail">${items}</div>`;
     if (local.viewMenu) {
       const opt = (c: "head" | "orbit" | "top", icon: string, label: string) => cbtn(`data-cam="${c}"`, ic(icon), label, { on: mode === c });
       html += `<div class="cp c-view">${opt("head", "view", "Голова")}${opt("orbit", "orbit", "Вокруг")}${opt("top", "topdown", "Сверху")}</div>`;
@@ -645,7 +664,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       else if (what === "grab") local.grab = local.grab === "collect" ? "keep" : "collect";
       else if (what === "side") local.side = SIDES[(SIDES.indexOf(local.side) + 1) % SIDES.length]!;
     } else if (q("[data-stand]")) { store.send({ t: "stand" }); local.confirmLeave = false; }
-    else if (q("[data-stance-toggle]")) scene.setStance(scene.stance() === "stand" ? "sit" : "stand");
+    else if (q("[data-stance-toggle]")) { if (performance.now() >= holdUntil) scene.setStance(scene.stance() === "stand" ? "sit" : "stand"); }
     else if ((b = q("[data-hand-pose2]"))) { scene.setHandLevel(scene.poseLevels[b.dataset.handPose2 as "row" | "fan" | "spine" | "tuck"]); }
     else if (q("[data-view]")) local.viewMenu = !local.viewMenu;
     else if ((b = q("[data-cam]"))) { scene.setCamMode(b.dataset.cam as "head" | "orbit" | "top"); local.viewMenu = false; }
@@ -656,7 +675,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       local.handPop = null;
     } else if ((b = q("[data-lasso-act]"))) lassoAct(b.dataset.lassoAct as (typeof LASSO_ACTS)[number][0]);
     else if (q("[data-rooms-back]")) location.href = `${HOST}/table/?rooms`;
-    else if (q("[data-reseat]")) { scene.setReseat(true); local.viewMenu = false; local.section = null; }
+    else if (q("[data-reseat]")) { if (performance.now() >= holdUntil) { scene.setReseat(true); local.viewMenu = false; local.section = null; } }
     else if (q("[data-settings]")) { if (settings.open) settings.hide(); else settings.show(); }
     else if (q("[data-journal]")) local.journal = !local.journal;
     else if (q("[data-gyro]")) {

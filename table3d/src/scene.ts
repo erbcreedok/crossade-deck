@@ -527,12 +527,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   };
   const eyeY = (): number => camera.position.y - (camMode === "head" ? viewH : 0);
   /** ПЕРЕСАДКА: вид сверху без тел, рук и голов; свой стул тянут по кругу (`angle` — куда, `null` — пока не тронут), потом «Готово» или «Отмена». */
-  let reseat: { was: CamMode; angle: number | null; pid: number | null } | null = null;
+  let reseat: { was: CamMode; angle: number | null; pull: number | null; pid: number | null } | null = null;
   let figuresOn = true;
   function setReseat(on: boolean): void {
     if (on === (reseat !== null)) return;
     if (on) {
-      reseat = { was: camMode, angle: null, pid: null };
+      reseat = { was: camMode, angle: null, pull: null, pid: null };
       setCamMode("orbit");
       camera.fov = 50; camera.updateProjectionMatrix();
       orbit.enablePan = true;
@@ -568,6 +568,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   function reseatDone(ok: boolean): void {
     const r = reseat, ch = myChair();
     if (ok && r && r.angle !== null && ch && r.angle !== ch.angle) store.send({ t: "reseat", angle: r.angle });
+    if (ok && r && r.pull !== null) setSeatPull(r.pull);
     setReseat(false);
   }
   function setSeatPull(next: number): void {
@@ -1911,7 +1912,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (Math.abs(want - one.k) > 0.002) moving = true; else one.k = want;
       // Стул едет с телом: придвинулся — стул ближе к столу; при пересадке мой стул стоит там, куда его тянут.
       const pull = ch.owner === null ? 0 : ch.owner === store.me.key ? seatPull : bodyOf(ch.owner, ch.angle).seat ?? 0, angle = reseat && reseat.angle !== null && ch.id === myChair()?.id ? reseat.angle : ch.angle;
-      const at = seatPoint(angle, CHAIR.radius + CHAIR.pushed * one.k - pull), dir = seatPoint(angle, 1);
+      const at = seatPoint(angle, CHAIR.radius + CHAIR.pushed * one.k - (reseat && reseat.pull !== null && ch.id === myChair()?.id ? reseat.pull : pull)), dir = seatPoint(angle, 1);
       one.group.position.set(at.x, 0, at.y);
       one.group.rotation.y = Math.atan2(dir.x, dir.y);
       one.group.userData.placed = true;
@@ -2059,6 +2060,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const at = onFelt(e);
     if (!at || Math.hypot(at.x, at.z) < 0.5) return;
     reseat.angle = Math.round(((Math.atan2(at.x, at.z) * 180) / Math.PI + 360) % 360);
+    // Стул тянут не только по кругу, но и от стола / к столу: расстояние от середины — посадка (от «как сидишь» до предела назад).
+    const mineObj = chairObjs.get(reseat.pid !== null ? myChair()?.id ?? "" : "");
+    reseat.pull = Math.max(SEAT_PULL.min, Math.min(SEAT_PULL.max, CHAIR.radius + CHAIR.pushed * (mineObj?.k ?? 0) - Math.hypot(at.x, at.z)));
     layout(store.state); draw();
   }, { capture: true });
   const reseatUp = (e: PointerEvent): void => {
