@@ -268,6 +268,8 @@ export interface SceneApi {
   glass(): { w: number; h: number };
   /** Системный отступ снизу (полоса «домой»), px. */
   safeBottom(): number;
+  /** Пока несут карту над своей рукой (она упадёт в руку): полоса руки на экране, px от верха сцены; иначе `null`. */
+  handDropZone(): { top: number; bottom: number } | null;
   /** Моя рука на экране — геометрия 2D-стола (`handGeom.ts`); нет стула — `null`. */
   handGeom(): Geom | null;
   /** Поза руки под пальцем, пока тянут ручку позы. */
@@ -2523,6 +2525,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     elevation: () => { if (camMode !== "orbit") return -rig.pitch; const p = camera.position.clone().sub(orbit.target); return Math.asin(p.y / p.length()) / DEG; },
     glass,
     safeBottom,
+    handDropZone() { const d = drag, ch = myChair(); if (!d?.moved || d.group || d.gap === null || !ch) return null; return { top: handTop(ch, d.id), bottom: dockTopPx ?? host.clientHeight - safeBottom() - 80 }; },
     handGeom,
     setBlend(b) { blend = b; layout(store.state); },
     stance: stanceNow,

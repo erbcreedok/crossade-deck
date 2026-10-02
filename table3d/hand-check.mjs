@@ -141,6 +141,35 @@ check("язычок за самый верх — вся рука ушла на �
   check("моя правая рука в покое лежит на столе", arms.mine !== null && arms.mine.h < 0.6, arms.mine);
   await c.close();
 }
+{
+  // КАРТУ ТЯНУТ В РУКУ СО СТОЛА — рука подсвечена («В руку»), даже когда рука пуста и щели нет; ушёл от руки или отпустил — подсветки нет.
+  const c = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await c.goto(`${base}/?stand&cam=head`);
+  await c.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await c.waitForTimeout(1200);
+  await c.evaluate(() => window.__t3d.trimHand(0));
+  await c.waitForTimeout(1200);
+  const felt = await c.evaluate(() => { const s = window.__t3d.state(); const id = s.felt.at(-1)?.id; return id ? { id, at: window.__t3d.screenOf(id) } : null; });
+  const lit = () => c.evaluate(() => { const e = document.querySelector("[data-hand-drop]"); return !!e && e.style.display !== "none"; });
+  check("до: подсветки руки нет", !(await lit()), null);
+  if (felt?.at) {
+    await c.mouse.move(felt.at.x, felt.at.y); await c.mouse.down(); await c.mouse.move(felt.at.x, felt.at.y - 40, { steps: 4 });
+    await c.waitForTimeout(150);
+    check("несут со стола, пока над сукном — руку не подсвечивают", !(await lit()), null);
+    await c.mouse.move(195, 700, { steps: 8 });
+    await c.waitForTimeout(250);
+    check("над своей (пустой) рукой — рука подсвечена", await lit(), null);
+    await c.mouse.move(195, 330, { steps: 8 });
+    await c.waitForTimeout(250);
+    check("ушла обратно на стол — подсветка погасла", !(await lit()), null);
+    await c.mouse.move(195, 700, { steps: 6 });
+    await c.waitForTimeout(150);
+    await c.mouse.up();
+    await c.waitForTimeout(500);
+    check("отпустили — подсветки нет", !(await lit()), null);
+  } else check("на столе есть карта для проверки", false, felt);
+  await c.close();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));

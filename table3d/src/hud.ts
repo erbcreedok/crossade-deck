@@ -247,6 +247,23 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   root.append(reseatBar);
   const reseatSyncBar = () => { const on = scene.reseatOn(); if (reseatBar.style.display !== (on ? "flex" : "none")) { reseatBar.style.display = on ? "flex" : "none"; draw(); } };
   setInterval(reseatSyncBar, 150);
+  // Карту несут над своей рукой — рука подсвечена («В руку»): так понятно, что она упадёт на худ, даже когда рука пуста или в ней одна карта и щели нет.
+  const handDrop = document.createElement("div");
+  handDrop.dataset.handDrop = "";
+  handDrop.style.cssText = "display:none;position:absolute;left:6px;right:6px;z-index:37;pointer-events:none;box-sizing:border-box;border-radius:6px";
+  handDrop.innerHTML = '<span style="position:absolute;left:10px;top:6px;font:400 12px Tiny5,monospace;letter-spacing:.5px;color:#0b0704;padding:2px 7px;border-radius:5px"></span>';
+  root.append(handDrop);
+  const handDropSync = () => {
+    const z = scene.handDropZone();
+    if (!z) { if (handDrop.style.display !== "none") handDrop.style.display = "none"; return; }
+    const ink = store.me.ink, tag = handDrop.firstElementChild as HTMLElement;
+    handDrop.style.display = "block";
+    handDrop.style.top = `${z.top}px`; handDrop.style.height = `${Math.max(24, z.bottom - z.top)}px`;
+    handDrop.style.background = `linear-gradient(color-mix(in srgb, ${ink} 26%, transparent), color-mix(in srgb, ${ink} 10%, transparent))`;
+    handDrop.style.boxShadow = `inset 0 0 0 2px ${ink}, 0 0 14px color-mix(in srgb, ${ink} 70%, transparent)`;
+    tag.textContent = "В руку"; tag.style.background = ink;
+  };
+  setInterval(handDropSync, 50);
   const flagLit = (s: Snapshot, what: ChairFlag): boolean => !!myChair(s)?.[what];
   const POSE_NAME: Record<string, string> = { row: "В ряд", fan: "Веер", spine: "Корешок", tuck: "На стол" };
   const POSE_ICON: Record<string, string> = { row: "row", fan: "fan", spine: "spine", tuck: "tuck" };
