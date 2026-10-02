@@ -1,0 +1,40 @@
+# Запасной узел Crossade на Fly — последняя ступень после Voyager и мака (`deploy/failover/README.md`).
+# Деплой с корня репозитория:
+#   fly deploy . --config deploy/fly-standby/fly.toml --dockerfile deploy/fly-standby/Dockerfile
+#
+# Машина ВСЕГДА включена: решать, когда подхватывать, некому, кроме неё самой (спящую Fly будит только запрос, а бот и маяк запросами не бывают). Неброские переменные
+# (адрес реле, хозяева, имя Mini App) — секретами Fly, чтобы не лежать в публичном репозитории:
+#   fly secrets set -a crossade-deck-server TABLE_RELAY_URL=… TABLE_OWNERS=tg:… TABLE_APP_NAME=… TABLE_MENU_APP=1
+# `TELEGRAM_BOT_TOKEN` и `TABLE_SECRET` там уже есть.
+
+app = "crossade-deck-server"
+primary_region = "fra"
+
+[build]
+
+[env]
+  NODE_ENV = "production"
+  NODE_ID = "fly"
+  NODE_REGION = "fra"
+  PORT = "8080"
+  TABLE_PUBLIC_URL = "https://crossade-deck-server.fly.dev"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+# ДЕНЬГИ: потолок владельца — 3 $/мес. shared-cpu-1x на 256 МБ всегда включённая — порядка 2 $, том 1 ГБ — 0,15 $;
+# IPv4 общий (бесплатный) — выделенный стоил бы ещё 2 $, его не заводить. Когда стол и бот работают вместе, 256 МБ тесны,
+# поэтому подкачка; если и с ней не хватает — бота на Fly не держать, а не поднимать машину до 512 МБ (это уже > 3 $).
+swap_size_mb = 256
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+
+[mounts]
+  source = "crossade_data"
+  destination = "/app/data"

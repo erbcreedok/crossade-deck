@@ -508,6 +508,14 @@ describe("/table/tunes — правки частей скина", () => {
   });
 });
 
+describe("снимок базы для запасного узла", () => {
+  it("только по секрету; в памяти (тесты) файла нет — честный отказ, а не пустой файл", async () => {
+    expect((await call("/table/admin/snapshot", { secret: null })).status).toBe(401);
+    expect((await call("/table/admin/snapshot", { secret: "wrong" })).status).toBe(401);
+    expect((await call("/table/admin/snapshot")).status).toBe(409);
+  });
+});
+
 describe("узлы", () => {
   const report = { id: "mac", role: "bot", region: "home", host: "m", version: "0.2.0", build: "1", startedAt: 1, url: null, rooms: null, people: null, polling: true };
   beforeEach(forgetNodes);

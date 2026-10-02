@@ -1,11 +1,8 @@
-# Сервер столов вместе с HTML-клиентом стола — для хоста, а не для мака.
+# ЗАПАСНОЙ УЗЕЛ НА FLY: стол + бот + надзиратель (`standby.mjs`). Контекст сборки — КОРЕНЬ репозитория:
+#   fly deploy . --config deploy/fly-standby/fly.toml --dockerfile deploy/fly-standby/Dockerfile
 #
-# Контекст сборки — КОРЕНЬ репозитория: клиент стола (`server/table-client`) собирается из кода,
-# который лежит за пределами `server/` — `look`, `game-kit` и растры колоды. Все они
-# тянутся относительными путями и не несут своих npm-зависимостей, поэтому ставится только `server/`.
-#
-# Клиент собирается ЗДЕСЬ, заранее (`build:table-client`), и сервер раздаёт готовую папку
-# (`TABLE_CLIENT_DIR`): в итоговом образе нет ни исходников клиента, ни esbuild, ни tsx.
+# Стол собирается как в `deploy/table.Dockerfile`; бот берёт контракт стола из `server/src`, поэтому
+# исходники сервера кладутся и рядом с ботом. Бот запускается через tsx: у него нет своей сборки в dist.
 
 FROM node:22-alpine AS build
 WORKDIR /app/server
@@ -21,11 +18,6 @@ COPY game-kit/src /app/game-kit/src
 COPY table3d/index.html /app/table3d/index.html
 COPY table3d/src /app/table3d/src
 COPY game-presets/cards/src/decks/baked /app/game-presets/cards/src/decks/baked
-
-ARG APP_BUILD=dev
-ARG APP_COMMIT=dev
-ENV APP_BUILD=${APP_BUILD}
-ENV APP_COMMIT=${APP_COMMIT}
 # `table3d/` лежит рядом с `server/`, а `three` — в node_modules сервера: ссылка в образе, чтобы esbuild нашёл его от исходников 3D.
 RUN ln -s /app/server/node_modules /app/table3d/node_modules && npm run build && npm run build:table-client
 
@@ -35,12 +27,17 @@ ENV NODE_ENV=production
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/server/dist ./dist
-
-ARG APP_BUILD=dev
-ARG APP_COMMIT=dev
-ENV APP_BUILD=${APP_BUILD}
-ENV APP_COMMIT=${APP_COMMIT}
 ENV TABLE_CLIENT_DIR=/app/dist/table-client
 
-EXPOSE 2567
-CMD ["node", "dist/index.js"]
+# Бот и то, что он берёт из сервера.
+COPY server/src /app/server/src
+COPY bot/package.json bot/package-lock.json /app/bot/
+RUN cd /app/bot && NODE_ENV=development npm ci
+COPY bot/src /app/bot/src
+COPY bot/tsconfig.json /app/bot/
+
+# Надзиратель и его решения.
+COPY deploy/failover/decide.mjs /app/failover/decide.mjs
+COPY deploy/fly-standby/standby.mjs /app/fly-standby/standby.mjs
+
+CMD ["node", "/app/fly-standby/standby.mjs"]

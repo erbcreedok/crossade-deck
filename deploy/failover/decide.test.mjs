@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { decide, fresh, FAIL_AFTER, RECOVER_AFTER } from "./decide.mjs";
+import { decide, fresh, readRegistry, FAIL_AFTER, RECOVER_AFTER } from "./decide.mjs";
 
 const alive = { voyagerTable: true, relayUp: true, liveBot: { other: true } };
 const dead = { voyagerTable: false, relayUp: false, liveBot: { other: false } };
@@ -55,4 +55,37 @@ test("бот переключается отдельно от стола", () =>
   const botOnly = { voyagerTable: true, relayUp: true, liveBot: { other: false } };
   const { log } = run(fresh(), Array(FAIL_AFTER).fill(botOnly));
   assert.deepEqual(log.at(-1), { table: null, bot: "start" });
+});
+
+test("последняя ступень ждёт дольше: свои пороги", () => {
+  const slow = { failAfter: 16, recoverAfter: 2 };
+  const out = (n) => run(fresh(), Array(n).fill(dead).map((p) => p)).log;
+  let st = fresh();
+  const acts = [];
+  for (let i = 0; i < 16; i++) { const r = decide(st, dead, slow); st = r.state; acts.push(r.actions.table); }
+  assert.deepEqual(acts.slice(0, 15), Array(15).fill(null));
+  assert.equal(acts[15], "start");
+  assert.equal(out(FAIL_AFTER).at(-1).table, "start", "с порогами по умолчанию тот же ряд проб уже включил бы");
+  const back = decide(decide(st, alive, slow).state, alive, slow);
+  assert.equal(back.actions.table, "stop");
+});
+
+test("реестр: чужой стол жив по свежему сообщению, даже если флаг serving стоит не у него", () => {
+  const nodes = [
+    { id: "fly", role: "table", up: true, serving: true },
+    { id: "voyager", role: "table", up: true, serving: false },
+    { id: "voyager", role: "bot", up: true, polling: true },
+  ];
+  assert.deepEqual(readRegistry(nodes, "fly"), { otherTable: true, liveBot: { other: true } });
+});
+
+test("реестр: свои записи и погасшие чужие не считаются; не ответил — доказательства нет", () => {
+  const nodes = [
+    { id: "fly", role: "table", up: true },
+    { id: "fly", role: "bot", up: true, polling: true },
+    { id: "voyager", role: "table", up: false },
+    { id: "voyager", role: "bot", up: true, polling: false },
+  ];
+  assert.deepEqual(readRegistry(nodes, "fly"), { otherTable: false, liveBot: { other: false } });
+  assert.deepEqual(readRegistry(null, "fly"), { otherTable: false, liveBot: null });
 });

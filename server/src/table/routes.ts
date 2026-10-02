@@ -25,6 +25,10 @@ import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomInJournal, roomsOfJou
 import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
 import os from "node:os";
+import { rmSync } from "fs";
+import path from "path";
+import { dbFile } from "../db/paths.js";
+import { snapshotDb } from "../db/snapshot.js";
 import { cleanReport, describeSelf, NODE_EVERY_MS, nodesList, reportNode } from "./nodes.js";
 import { BUILD_INFO } from "../version.js";
 import { allTunes, extraParts, putTune } from "../db/tableTunesRepo.js";
@@ -412,6 +416,21 @@ export function tableRoutes(): Router {
     if (!report) return void res.status(400).json({ error: "bad_request" });
     reportNode(report);
     res.json({ ok: true });
+  });
+  // СНИМОК БАЗЫ для запасного узла (`deploy/failover`, `deploy/fly-standby`): он забирает его, пока основной жив,
+  // и кладёт на место своей базы, когда подхватывает. Только по секрету стола — в базе люди.
+  r.get("/table/admin/snapshot", guarded, (_req, res) => {
+    const file = dbFile();
+    if (file === ":memory:" || file.startsWith("file:")) return void res.status(409).json({ error: "no_file_db" });
+    const out = path.join(os.tmpdir(), `crossade-snapshot-${process.pid}-${Date.now()}.db`);
+    try {
+      snapshotDb(file, out);
+    } catch (err) {
+      console.warn("снимок базы не вышел:", String(err));
+      return void res.status(500).json({ error: "snapshot_failed" });
+    }
+    res.header("Cache-Control", "no-store");
+    res.download(out, "crossade.db", () => rmSync(out, { force: true }));
   });
   r.get("/table/admin/nodes", owner, (_req, res) => {
     const live = allEntries();
