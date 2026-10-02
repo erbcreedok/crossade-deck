@@ -73,17 +73,25 @@ namespace Crossade.View
                     Door();
                     return;
                 }
-                var rooms = await Account.Rooms(host);
+                List<RoomCard> rooms;
+                try
+                {
+                    rooms = await Account.Rooms(host);
+                }
+                catch (Exception e) when (e.Message.Contains("401"))
+                {
+                    // Адрес стола мог смениться (туннель, другой стол): спрашиваем реле заново и пробуем ещё раз, а ключ не трогаем.
+                    host = await Account.Host();
+                    rooms = await Account.Rooms(host);
+                }
                 Rooms(rooms);
             }
             catch (Exception e)
             {
-                if (status != null) status.text = e.Message.Contains("401") ? "Ключ устарел — войди снова" : e.Message;
-                if (e.Message.Contains("401"))
-                {
-                    Account.Key = null;
-                    Door();
-                }
+                host = null;
+                if (status != null) status.text = e.Message.Contains("401") ? "Стол не узнал ключ — нажми «Играть гостем» или войди заново" : e.Message;
+                // Ключ не стираем: ошибка связи или чужой стол не повод разлогинивать; новый вход заменит его сам.
+                if (e.Message.Contains("401")) Door();
             }
             finally
             {
