@@ -150,23 +150,23 @@ check("язычок за самый верх — вся рука ушла на �
   await c.evaluate(() => window.__t3d.trimHand(0));
   await c.waitForTimeout(1200);
   const felt = await c.evaluate(() => { const s = window.__t3d.state(); const id = s.felt.at(-1)?.id; return id ? { id, at: window.__t3d.screenOf(id) } : null; });
-  const lit = () => c.evaluate(() => { const e = document.querySelector("[data-hand-drop]"); return !!e && e.style.display !== "none"; });
-  check("до: подсветки руки нет", !(await lit()), null);
+  const state = () => c.evaluate(() => { const e = document.querySelector("[data-hand-drop]"); return e && e.style.display !== "none" ? e.dataset.state : null; });
+  check("до: зоны руки не видно", (await state()) === null, await state());
   if (felt?.at) {
     await c.mouse.move(felt.at.x, felt.at.y); await c.mouse.down(); await c.mouse.move(felt.at.x, felt.at.y - 40, { steps: 4 });
     await c.waitForTimeout(150);
-    check("несут со стола, пока над сукном — руку не подсвечивают", !(await lit()), null);
+    check("несут со стола над сукном — зона руки лишь намечена (hint), не горит", (await state()) === "hint", await state());
     await c.mouse.move(195, 700, { steps: 8 });
     await c.waitForTimeout(250);
-    check("над своей (пустой) рукой — рука подсвечена", await lit(), null);
+    check("над своей (пустой) рукой — зона подсвечена (over)", (await state()) === "over", await state());
     await c.mouse.move(195, 330, { steps: 8 });
     await c.waitForTimeout(250);
-    check("ушла обратно на стол — подсветка погасла", !(await lit()), null);
+    check("ушла обратно на стол — снова только намечена", (await state()) === "hint", await state());
     await c.mouse.move(195, 700, { steps: 6 });
     await c.waitForTimeout(150);
     await c.mouse.up();
     await c.waitForTimeout(500);
-    check("отпустили — подсветки нет", !(await lit()), null);
+    check("отпустили — зоны не видно", (await state()) === null, await state());
   } else check("на столе есть карта для проверки", false, felt);
   await c.close();
 }
