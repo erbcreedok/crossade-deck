@@ -1,0 +1,11 @@
+[Unit]
+Description=Crossade design stands (tailnet only)
+
+[Service]
+WorkingDirectory=%h/repo-dev
+ExecStart=/usr/bin/python3 design/serve.py 9585 design
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

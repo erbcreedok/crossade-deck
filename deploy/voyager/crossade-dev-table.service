@@ -1,0 +1,20 @@
+[Unit]
+Description=Crossade DEV table server (tailnet only)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/repo-dev/server
+Environment=PATH=%h/.local/node/bin:/usr/bin:/bin
+Environment=PORT=2591
+# Свои база и секрет: дев не трогает ни базу, ни секреты прода. Без токена Telegram — в комнаты заходят гостем из браузера.
+Environment=CROSSADE_DB_FILE=%h/repo-dev/server/data/crossade-dev.db
+Environment=TABLE_SECRET=dev
+Environment=TABLE_GUESTS=1
+Environment=NODE_ID=voyager-dev
+Environment=NODE_REGION=home
+ExecStart=%h/.local/node/bin/node --import tsx src/index.ts
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

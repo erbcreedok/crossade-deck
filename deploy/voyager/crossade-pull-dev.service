@@ -1,0 +1,6 @@
+[Unit]
+Description=Crossade: pull and redeploy the dev branch
+
+[Service]
+Type=oneshot
+ExecStart=%h/repo/scripts/deploy-voyager.sh dev

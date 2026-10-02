@@ -16,15 +16,19 @@
     "             то есть стенд появится как server/fly.dev.toml — без правок кода",
     "app        — имя приложения на Fly; для окружения ENV к нему приписывается -<ENV>",
     "healthPath — что дёрнуть после выкатки. Хост не хранится: он выводится из app,",
-    "             иначе адрес стенда пришлось бы дублировать в этом файле"
+    "             иначе адрес стенда пришлось бы дублировать в этом файле",
+    "",
+    "server — НЕ игровой сервер, а запасной узел на Fly (deploy/fly-standby): всегда включённая машина с наблюдателем, которая поднимает",
+    "стол и бота, только если лягут Voyager и мак. Прод живёт на Voyager (scripts/deploy-voyager.sh). healthPath `/`: пока основные живы,",
+    "на машине нет веб-сервера — Fly отвечает 502, и это нормально; выкатку проверять по `fly status`, а не по HTTP."
   ],
   "server": {
     "image": "server",
-    "dockerfile": "server/Dockerfile",
-    "context": "server",
-    "fly": "server/fly.toml",
+    "dockerfile": "deploy/fly-standby/Dockerfile",
+    "context": ".",
+    "fly": "deploy/fly-standby/fly.toml",
     "app": "crossade-deck-server",
-    "healthPath": "/health"
+    "healthPath": "/"
   },
   "hub": {
     "image": "hub",

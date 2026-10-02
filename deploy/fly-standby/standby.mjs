@@ -8,6 +8,7 @@
 // База: пока основной жив, раз в две минуты забирает его снимок по HTTP (`/table/admin/snapshot`, под секретом).
 
 import { spawn } from "node:child_process";
+import { createServer } from "node:http";
 import { copyFileSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { decide, fresh, readRegistry } from "../failover/decide.mjs";
@@ -75,7 +76,7 @@ function restoreReplica() {
 }
 
 /** Дочерний процесс, который перезапускается, пока он нужен. */
-function keep(name, cmd, args, opts) {
+function keep(name, cmd, args, opts, { beforeStart = (go) => go(), onStopped = () => {} } = {}) {
   let wanted = false;
   let child = null;
   const run = () => {
@@ -85,21 +86,46 @@ function keep(name, cmd, args, opts) {
       log(`${name} вышел (${code})`);
       child = null;
       if (wanted) setTimeout(run, 5000);
+      else onStopped();
     });
   };
   return {
-    start() { if (wanted) return; wanted = true; run(); },
-    stop() { wanted = false; child?.kill("SIGTERM"); },
+    start() { if (wanted) return; wanted = true; beforeStart(run); },
+    stop() { wanted = false; if (child) child.kill("SIGTERM"); else onStopped(); },
   };
 }
 
-const table = keep("стол", "node", ["dist/index.js"], { cwd: APP, env: { ...process.env, PORT: process.env.PORT || "8080" } });
+/**
+ * ОТВЕТЧИК В ПОКОЕ. Пока стол не запущен, порт 8080 никто не слушает, и Fly отвечает 502 — а `scripts/deploy.sh` после выкатки
+ * проверяет адрес и считал бы выкатку неудачной. Поэтому в покое наблюдатель сам отвечает 200 — и отдаёт порт столу, когда тот
+ * запускается. В реле этот ответ не попадает: маяк шлёт только запущенный стол.
+ */
+let idle = null;
+function listenIdle() {
+  if (idle) return;
+  idle = createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ standby: true, id: ID, table: state.table.on, bot: state.bot.on }));
+  });
+  idle.on("error", (e) => { log("ответчик в покое не слушает:", String(e)); idle = null; });
+  idle.listen(Number(process.env.PORT || 8080));
+}
+function closeIdle(then) {
+  if (!idle) return then();
+  const s = idle;
+  idle = null;
+  s.close(() => then());
+  s.closeAllConnections?.();
+}
+
+const table = keep("стол", "node", ["dist/index.js"], { cwd: APP, env: { ...process.env, PORT: process.env.PORT || "8080" } }, { beforeStart: closeIdle, onStopped: listenIdle });
 const bot = keep("бот", "node", ["--import", "tsx", "src/index.ts"], { cwd: join(APP, "bot"), env: process.env });
 
 for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => { table.stop(); bot.stop(); setTimeout(() => process.exit(0), 3000); });
 
 let state = fresh();
 let lastReplica = 0;
+listenIdle();
 log(`запасной узел Fly «${ID}» запущен: пороги ${LIMITS.failAfter}/${LIMITS.recoverAfter} проб по ${EVERY_MS / 1000} с`);
 while (true) {
   try {

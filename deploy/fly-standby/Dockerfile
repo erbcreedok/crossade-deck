@@ -31,8 +31,9 @@ ENV TABLE_CLIENT_DIR=/app/dist/table-client
 
 # Бот и то, что он берёт из сервера.
 COPY server/src /app/server/src
-COPY bot/package.json bot/package-lock.json /app/bot/
-RUN cd /app/bot && NODE_ENV=development npm ci
+# Лок бота в репозитории намеренно не хранится (`.gitignore`) — ставим без него.
+COPY bot/package.json /app/bot/
+RUN cd /app/bot && NODE_ENV=development npm install --legacy-peer-deps --no-audit --no-fund
 COPY bot/src /app/bot/src
 COPY bot/tsconfig.json /app/bot/
 
