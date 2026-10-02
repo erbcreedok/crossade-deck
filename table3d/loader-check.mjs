@@ -54,6 +54,15 @@ check("done(): лишних экранов не остаётся", (await p.loca
   check("крест на том же месте и того же размера", Math.abs(a.x - b.x) <= 1 && Math.abs(a.y - b.y) <= 1 && a.w === b.w && a.h === b.h, { a, b });
   check("подпись на той же строке и по центру (у стенда текст длиннее: «· spin»)", Math.abs(aSaid.y - bSaid.y) <= 1 && Math.abs(aSaid.x + aSaid.w / 2 - (bSaid.x + bSaid.w / 2)) <= 1, { aSaid, bSaid });
 }
+// ЛОАДЕР НЕ ВЕЧНЫЙ: когда стол собрался, экран загрузки уходит (стенд).
+{
+  const st = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await st.goto(`${base}/?stand`);
+  await st.waitForFunction(() => document.querySelector("#stage canvas"));
+  await st.waitForTimeout(1200);
+  check("стенд: экран загрузки ушёл, когда стол собрался", (await st.locator(".crossade-loader3d").count()) === 0, await st.locator(".crossade-loader3d").count());
+  await st.close();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));

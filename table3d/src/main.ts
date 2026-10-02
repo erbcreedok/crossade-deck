@@ -60,6 +60,7 @@ try {
       : { door: "guest" as const, name: params.get("name") ?? "Гость 3D" };
     const store = await (await import("../../server/table-client/netStore.js")).netStore({ room, client: "table3d", ...door });
     const box = screenBox(true);
+    loading?.done();
     note.hidden = true;
     const scene = mountScene(box.stage, store);
     if (params.has("test")) (window as unknown as { __t3d: unknown }).__t3d = scene.test;

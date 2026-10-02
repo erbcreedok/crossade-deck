@@ -19,6 +19,7 @@ const check = (name, ok, got) => checks.push({ name, ok, got });
 await p.goto(`${base}/table/3d?room=${room}&name=A&test`);
 await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"), null, { timeout: 15000 });
 await p.waitForTimeout(1200);
+check("живая комната: экран загрузки ушёл, когда стол собрался", (await p.locator(".crossade-loader3d").count()) === 0, await p.locator(".crossade-loader3d").count());
 const st = () => p.evaluate(() => { const s = window.__t3d.state(); return { ring: s.piles.find((x) => x.pose === "ring") ?? null, deck: s.piles.find((x) => x.pose !== "ring" && x.cards.length) ?? null }; });
 const { ring, deck } = await st();
 check("на столе есть круг", ring !== null, ring);
