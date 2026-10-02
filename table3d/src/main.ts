@@ -48,7 +48,9 @@ try {
     const store = await (await import("../../server/table-client/netStore.js")).netStore({ room, client: "table3d", ...door });
     const box = screenBox(true);
     note.hidden = true;
-    mountHud(box.hud, box.stage, store, mountScene(box.stage, store), undefined, box.screen);
+    const scene = mountScene(box.stage, store);
+    if (params.has("test")) (window as unknown as { __t3d: unknown }).__t3d = scene.test;
+    mountHud(box.hud, box.stage, store, scene, undefined, box.screen);
   } else {
     // СТЕНД: один стол и два стенда на странице — мой экран и экран Алии. Оба живут всё время; управляю тем, что на весь экран (Tab
     // или кнопка DEV меняют их местами). Второй — либо скрыт, либо окном рядом: вид глазами другого, его камерой и столом не

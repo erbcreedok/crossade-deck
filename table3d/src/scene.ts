@@ -828,8 +828,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * его» на кромке, в секторе того, чей ход, и в его цвете. Рисуются теми же функциями на прозрачной текстуре и лежат на сукне
    * над диском, под картами.
    */
-  interface RingField { field: THREE.Mesh; marks: THREE.Mesh; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; key: string }
+  interface RingField { field: THREE.Mesh; marks: THREE.Mesh; zone: THREE.Line; glow: THREE.Mesh; slot: THREE.LineLoop; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; key: string }
   const ringFields = new Map<string, RingField>();
+  /** Радиус приёмки круга: карта, брошенная в него, ложится в круг. Тот же круг рисуется пунктиром, пока карту несут. */
+  const RING_CATCH = 3.2;
   const RING_FIELD = { alpha: 0.28, lift: 0.003, markLift: 0.006, px: 110 };
   /** Сторона текстуры стрелок в единицах стола: круг, его знак «ждут» снаружи и поля. */
   const MARKS_SIDE = 2 * (RING_SPREAD + 1.6);
@@ -847,10 +849,20 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const marks = new THREE.Mesh(new THREE.PlaneGeometry(MARKS_SIDE, MARKS_SIDE), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
       marks.rotation.x = -Math.PI / 2;
       marks.renderOrder = 2;
-      scene.add(field, marks);
-      f = { field, marks, ctx: canvas.getContext("2d")!, tex, key: "" };
+      // Под прицелом: пунктир приёмки, подсвеченный круг и контур места, куда карта ляжет, — как в обычном столе.
+      const zone = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 96 }, (_, i) => new THREE.Vector3(Math.sin((i / 96) * Math.PI * 2) * RING_CATCH, 0, -Math.cos((i / 96) * Math.PI * 2) * RING_CATCH))), new THREE.LineDashedMaterial({ color: 0xf2c14e, dashSize: 0.22, gapSize: 0.16, transparent: true, depthWrite: false }));
+      zone.computeLineDistances();
+      zone.renderOrder = 3; zone.visible = false;
+      const glow = new THREE.Mesh(new THREE.CircleGeometry(RING_CATCH, 96), new THREE.MeshBasicMaterial({ color: 0xf2c14e, transparent: true, opacity: 0.22, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+      glow.rotation.x = -Math.PI / 2; glow.renderOrder = 1; glow.visible = false;
+      const slot = new THREE.LineLoop(cardEdge, new THREE.LineBasicMaterial({ color: 0xf2c14e, transparent: true, depthWrite: false }));
+      slot.renderOrder = 4; slot.visible = false;
+      scene.add(field, marks, zone, glow, slot);
+      f = { field, marks, zone, glow, slot, ctx: canvas.getContext("2d")!, tex, key: "" };
       ringFields.set(p.id, f);
     }
+    f.zone.position.set(p.x, RING_FIELD.markLift + 0.002, p.y);
+    f.glow.position.set(p.x, RING_FIELD.lift + 0.001, p.y);
     f.field.position.set(p.x, RING_FIELD.lift, p.y);
     f.marks.position.set(p.x, RING_FIELD.markLift, p.y);
     // Первая вошедшая карта и тот, кого ждут: перерисовка — только когда одно из двух поменялось.
@@ -1390,6 +1402,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     // Отпущенная — ждёт ответа стола там, куда легла.
     holdLanding();
+    ringHover();
     for (const [id, o] of cards) if (!seen.has(id)) { cardRoot.remove(o.group); cards.delete(id); }
     draw();
   }
@@ -1483,6 +1496,27 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       fill.style.height = `${m * 100}%`; fill.style.background = m > STRAIN.yellow ? "#e0413a" : "#f2c14e";
       mark.style.bottom = `calc(${m * 100}% - 1px)`;
       left.style.height = idleMode ? "0" : `${(1 - worn) * 100}%`;
+    }
+  }
+  /** Круг под прицелом, пока несут карту: пунктир приёмки; карта над кругом — круг горит и показан контур места, куда она ляжет. */
+  function ringHover(): void {
+    const d = drag, carrying = !!d?.moved && !d.group;
+    for (const [id, f] of ringFields) {
+      const p = store.state.piles.find((x) => x.id === id), here = carrying && d!.where?.in === "deck" && d!.where.pile === id && d!.where.turn !== undefined;
+      f.zone.visible = carrying && !!p;
+      f.glow.visible = here;
+      f.slot.visible = here;
+      if (!carrying || !p) continue;
+      const ink = store.me.ink;
+      (f.zone.material as THREE.LineDashedMaterial).color.set(ink); (f.zone.material as THREE.LineDashedMaterial).opacity = here ? 1 : 0.55;
+      (f.glow.material as THREE.MeshBasicMaterial).color.set(ink);
+      (f.slot.material as THREE.LineBasicMaterial).color.set(ink);
+      if (here) {
+        const busy = p.cards.filter((c) => c.id !== d!.id && c.turn !== undefined).map((c) => c.turn!);
+        const at = ringTurned({ x: p.x, y: p.y }, ringLanding((d!.where as { turn: number }).turn, busy)), place = lying(at.x, at.y, 0.02, at.angle, true);
+        f.slot.position.copy(place.pos);
+        f.slot.quaternion.copy(place.quat);
+      }
     }
   }
   function tick(): void {
@@ -2031,7 +2065,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   function target(e: PointerEvent, d: { id: string; up: boolean; angle: number }): Where {
     const a = aim(e.clientX, e.clientY, undefined, d.id);
     if (a.in !== "felt") return a;
-    const ringPile = store.state.piles.find((p) => p.pose === "ring" && Math.hypot(p.x - a.x, p.y - a.y) < 3.2);
+    const ringPile = store.state.piles.find((p) => p.pose === "ring" && Math.hypot(p.x - a.x, p.y - a.y) < RING_CATCH);
     if (ringPile) return { in: "deck", pile: ringPile.id, turn: ((Math.atan2(a.x - ringPile.x, -(a.y - ringPile.y)) / DEG) + 360) % 360 };
     return { ...a, up: d.up, angle: d.angle };
   }
@@ -2180,6 +2214,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    feltScreen: (x: number, y: number) => project(new THREE.Vector3(x, 0, y)),
+    ringLit: () => [...ringFields.entries()].map(([id, f]) => ({ id, zone: f.zone.visible, glow: f.glow.visible, slot: f.slot.visible })),
     cardTarget: (id: string) => { const o = cards.get(id); return o ? o.target.pos.toArray() : null; },
     neckNow: () => ({ ...neck }),
     seatBy: (d: number) => seatBy(d),

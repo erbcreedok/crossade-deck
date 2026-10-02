@@ -22,7 +22,7 @@ import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as 
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
-import { ringCardStep, ringHour, RING_HOUR, RING_HOURS, RING_SPREAD, ringLanding, ringTurned, ringZoneBox } from "../src/table/ring.js";
+import { ringCardStep, RING_HOUR, RING_HOURS, RING_SPREAD, ringLanding, ringTurned, ringZoneBox } from "../src/table/ring.js";
 import type { RingPlace as Laid3 } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
 import type { ScreenHealth, SeenThrough } from "./watch.js";
@@ -4115,23 +4115,14 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
   };
 
   /**
-   * КУДА ЦЕЛИТСЯ ПАЛЕЦ В КРУГЕ — угол от его середины, прилипший к часам.
-   *
-   * СНЕППИНГ ЖИВЁТ ЗДЕСЬ, и только здесь: человек видит контур в том месте, куда карта ляжет, и стол
-   * принимает этот угол как есть. Снепни ещё раз стол — карта уехала бы с места, которое игрок уже
-   * выбрал глазами.
-   *
-   * Час занят, а палец метит ровно в него — снеппинга нет: карта ляжет туда, куда её ведут, и стол
-   * разведёт её с занятой, чтобы они не прятали друг друга. Так и сказал владелец: «если игрок
-   * именно что на 12 целится, не 11, не 1, то тогда нет снеппинга».
+   * КУДА ЦЕЛИТСЯ ПАЛЕЦ В КРУГЕ — угол от его середины, как есть: к часам карта не прилипает.
+   * Человек видит контур там, куда карта ляжет, и стол принимает этот угол как есть; занято — стол
+   * разведёт карты (`ringLanding`), чтобы они не прятали друг друга.
    */
   function ringAimTurn(pile: Pile, at: { x: number; y: number }): number {
     if (!view) return 0;
     const p = view.toDesk(at);
-    const сырой = ((Math.atan2(p.x - pile.x, pile.y - p.y) * 180) / Math.PI + 360) % 360;
-    const час = ringHour(сырой);
-    const занят = pile.cards.some((one) => one.turn !== undefined && apart(one.turn, час) < ringCardStep());
-    return занят ? сырой : час;
+    return ((Math.atan2(p.x - pile.x, pile.y - p.y) * 180) / Math.PI + 360) % 360;
   }
 
   /** Что под пальцем на сукне: сверху вниз, и с колоды — только верхняя. */
