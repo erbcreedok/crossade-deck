@@ -73,10 +73,10 @@ export const pitchToCentre = (from: Point3): number => (-Math.atan2(from.h, Math
  *   жёлтая   до `yellow`         — долго, и тем короче, чем сильнее натяг (от `slow` до `mid`);
  *   красная  до 1                — коротко (от `mid` до `fast`).
  * Время считается запасом: каждый кадр тратится `dt / holdOf(m)`, запас дошёл до 1 — шею оттягивают на ступень ниже (красная — на границу
- * жёлтой, жёлтая — в зелёную) за `pullMs`; ниже `free` запас восстанавливается за `refillMs`.
+ * жёлтой, жёлтая — в зелёную) со скоростью, растущей с натягом (`pullBase + pullGain·m²` в секунду); ниже `free` запас восстанавливается за `refillMs`.
  * Второй вид возврата — по простою (`idleReturn`): `idleMs` после последнего касания камеры или стола голова плавно едет на плечи.
  */
-export const STRAIN = { yellow: 0.5, slow: 15000, mid: 4000, fast: 800, pullMs: 400, refillMs: 6000, idleMs: 3000, idleRate: 3 } as const;
+export const STRAIN = { yellow: 0.5, slow: 15000, mid: 4000, fast: 800, pullBase: 0.25, pullGain: 4, refillMs: 6000, idleMs: 3000, idleRate: 3 } as const;
 
 /** Сколько мс можно держать натяг `m`. */
 export function holdOf(m: number): number {
@@ -88,7 +88,7 @@ export function holdOf(m: number): number {
 export type Zone = 0 | 1 | 2;
 export const zoneOf = (m: number): Zone => (m <= NECK.free ? 0 : m <= STRAIN.yellow ? 1 : 2);
 
-/** `spent` — вытерпленный запас 0…1; `back` — сколько мс ещё оттягивают, из `from` в `to`; `idle` — мс с последнего касания. */
+/** `spent` — вытерпленный запас 0…1; `back` — 1, пока оттягивают до натяга `to`; `idle` — мс с последнего касания. */
 export interface Neck {
   spent: number;
   back: number;
@@ -101,9 +101,10 @@ export const neckNew = (): Neck => ({ spent: 0, back: 0, from: 0, to: 0, idle: 0
 /** Шаг шеи за `dt` мс при натяге `m`. Возвращает новый натяг. */
 export function neckStep(n: Neck, m: number, dt: number, idleReturn: boolean): number {
   if (n.back > 0) {
-    n.back = Math.max(0, n.back - dt);
-    const t = 1 - n.back / STRAIN.pullMs, e = 1 - (1 - t) ** 3;
-    return Math.min(m, n.from + (n.to - n.from) * e);
+    // Чем дальше от туловища, тем быстрее оттягивают; ближе к цели — медленнее: скорость от самого натяга, без ступенек по времени.
+    const next = m - (STRAIN.pullBase + STRAIN.pullGain * m * m) * (dt / 1000);
+    if (next <= n.to) { n.back = 0; return n.to; }
+    return next;
   }
   if (idleReturn) {
     n.spent = 0;
@@ -121,7 +122,7 @@ export function neckStep(n: Neck, m: number, dt: number, idleReturn: boolean): n
     n.spent = 0;
     n.from = m;
     n.to = m > STRAIN.yellow ? STRAIN.yellow * 0.9 : NECK.free;
-    n.back = STRAIN.pullMs;
+    n.back = 1;
   }
   return m;
 }

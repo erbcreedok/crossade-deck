@@ -1458,11 +1458,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       host.append(vigEl, gaugeEl);
     }
     const idleMode = stanceNow() === "sit", worn = idleMode ? 0 : neck.spent;
-    const k = Math.min(1, Math.max(0, (m - NECK.free) / (1 - NECK.free))), col = m > STRAIN.yellow ? "224,65,58" : "240,190,60";
-    vigEl.style.opacity = viz.vignette && show ? "1" : "0";
-    if (viz.vignette && show) {
-      vigEl.style.boxShadow = `inset 0 0 ${60 + 120 * k}px ${10 + 50 * k}px rgba(${col},${0.25 + 0.55 * k})`;
-      vigEl.style.animation = idleMode ? "none" : `neckpulse ${(2.4 * (1 - worn) + 0.3).toFixed(2)}s ease-in-out infinite`;
+    // Жёлтая — еле заметна; красная заметнее и растёт к самому пределу: сильный вид только на крайней дальности.
+    const k = Math.min(1, Math.max(0, (m - NECK.free) / (1 - NECK.free))), red = m > STRAIN.yellow, kr = red ? (m - STRAIN.yellow) / (1 - STRAIN.yellow) : 0;
+    const alpha = red ? 0.12 + 0.5 * kr * kr : 0.04 * k / STRAIN.yellow, size = red ? 30 + 70 * kr : 30, spread = red ? 4 + 36 * kr : 4;
+    // Сидя виньетки нет совсем: там возврат по простою, и спешить некуда.
+    const vig = viz.vignette && show && !idleMode;
+    vigEl.style.opacity = vig ? "1" : "0";
+    if (vig) {
+      vigEl.style.boxShadow = `inset 0 0 ${size}px ${spread}px rgba(${red ? "224,65,58" : "240,190,60"},${alpha.toFixed(3)})`;
+      vigEl.style.animation = `neckpulse ${(2.4 * (1 - worn) + 0.3).toFixed(2)}s ease-in-out infinite`;
     }
     gaugeEl!.style.display = viz.gauge && show ? "block" : "none";
     if (viz.gauge && show) {

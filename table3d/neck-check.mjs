@@ -61,8 +61,10 @@ const sim = await p.evaluate(async () => {
   const { holdOf, neckNew, neckStep, STRAIN } = await import("/src/camera.ts");
   const hold = [0.04, 0.1, 0.4, 0.7, 1].map(holdOf);
   const run = (m0, idle, secs) => { const n = neckNew(); let m = m0, first = null, after = null; for (let t = 0; t < secs * 1000; t += 16) { const was = m; m = neckStep(n, m, 16, idle); if (first === null && n.back > 0) first = t; if (first !== null && n.back === 0 && after === null) after = m; if (n.back > 0 && m > STRAIN.yellow) { /* оттягивают */ } } return { first, after, end: m }; };
-  return { hold, red: run(0.95, false, 6), weak: run(0.1, false, 8), idleHalf: run(0.5, true, 2), idleLate: run(0.5, true, 6) };
+  const pull = (m0, m1) => { const n = neckNew(); n.back = 1; n.to = 0; let m = m0, t = 0; while (m > m1) { m = neckStep(n, m, 16, false); t += 16; } return (m0 - m1) / (t / 1000); };
+  return { pull: { red: pull(1, 0.8), yellow: pull(0.4, 0.2), near: pull(0.15, 0.1) }, hold, red: run(0.95, false, 6), weak: run(0.1, false, 8), idleHalf: run(0.5, true, 2), idleLate: run(0.5, true, 6) };
 });
+check("возврат: чем дальше от туловища, тем быстрее (скорость, 1/с: красная > жёлтая > у самого тела)", sim.pull.red > sim.pull.yellow && sim.pull.yellow > sim.pull.near, sim.pull);
 check("запас: слабее натяг — дольше можно держать (и в зелёной — бесконечно)", sim.hold[0] === null || sim.hold[0] > 1e9, sim.hold);
 check("запас: 0.1 > 0.4 > 0.7 > 1 по времени", sim.hold[1] > sim.hold[2] && sim.hold[2] > sim.hold[3] && sim.hold[3] > sim.hold[4], sim.hold);
 check("красная зона у предела оттягивает меньше чем за 2 с — и в жёлтую, а не в ноль", sim.red.first !== null && sim.red.first < 2000 && sim.red.after > 0.3 && sim.red.after < 0.6, sim.red);
