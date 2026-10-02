@@ -45,8 +45,8 @@ check("потянул вверх — карта взята и легла на с
 const pose = () => t(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; const c = s.chairs.find((x) => x.id === seat); return { ...c.pose, level: window.__t3d.handLevel() }; });
 await t(() => window.__t3d.setHandLevel(0.45)); await wait(200);
 let ps = await pose(); check("высота 45% — веер", ps.fan && !ps.tuck, ps);
-await t(() => window.__t3d.setHandLevel(0.12)); await wait(200);
-ps = await pose(); check("высота 12% — корешок (в ряд, не на столе)", !ps.fan && !ps.tuck, ps);
+await t(() => window.__t3d.setHandLevel(0.085)); await wait(200);
+ps = await pose(); check("высота 8% — корешок (в ряд, не на столе)", !ps.fan && !ps.tuck, ps);
 await t(() => window.__t3d.setHandLevel(0)); await wait(200);
 ps = await pose(); check("высота 0 — рука на столе", ps.tuck, ps);
 await t(() => window.__t3d.setHandLevel(0.8)); await wait(200);

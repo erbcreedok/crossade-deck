@@ -1130,21 +1130,23 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const hoverNear = (t: Place, up: number): void => { const d = -t.pos.z, r = (d - CAMHAND.near) / d; t.pos.x *= r; t.pos.y = (t.pos.y + up) * r; t.pos.z += CAMHAND.near; t.scale *= r; };
   /** Места моих карт каждый кадр: несомая над рукой стоит в щели, выше соседей и ближе к глазу. */
   // ——— ВЫСОТА РУКИ — ОДНА РУЧКА (язычок над рукой, `design/hud3d`): поза и подъём вместе ———
-  //   0 …3%   рука на столе: карт не видно, они легли стопкой перед стулом (`tuck`);
-  //   3 …30%  корешок: рука рядом, но опущена за нижнюю строку — торчит только верх карт; ряд;
-  //   30…60%  веер — всегда веером (предел «веер не помещается» здесь не работает: карты просто теснее);
-  //   60…100% в ряд; на самом верху нижняя кромка карт лишь чуть выглядывает над нижней строкой.
+  //   0 …5%    рука на столе: карт не видно, они легли стопкой перед стулом (`tuck`);
+  //   5 …12%   корешок: одна неподвижная высота (по высоте не регулируется) — рука опущена за нижнюю строку, торчит лишь верх карт; чуть
+  //            ниже — карты ложатся на стол, чуть выше — сразу веер;
+  //   12…75%   веер — всегда веером, и по высоте регулируется: от «видно меньше половины» до целых карт;
+  //   75…100%  в ряд; на самом верху нижняя кромка карт лишь чуть выглядывает над нижней строкой.
   // Кнопки позы ставят ту же ручку в своё место. Остальным уходят только флаги позы (веер, на столе); высота руки идёт телом (`handY`).
   type LevelPose = "tuck" | "spine" | "fan" | "row";
-  const LEVEL = { tuck: 0.03, spine: 0.3, fan: 0.6 };
-  const POSE_LEVEL: Record<LevelPose, number> = { row: 0.8, fan: 0.45, spine: 0.12, tuck: 0 };
+  const LEVEL = { tuck: 0.05, spine: 0.12, fan: 0.75 };
+  const POSE_LEVEL: Record<LevelPose, number> = { row: 0.88, fan: 0.45, spine: 0.085, tuck: 0 };
   const levelPose = (h: number): LevelPose => (h < LEVEL.tuck ? "tuck" : h < LEVEL.spine ? "spine" : h < LEVEL.fan ? "fan" : "row");
-  /** Какая доля высоты карты видна над нижней строкой на высоте руки `h`. */
+  /** Какая доля высоты карты видна над нижней строкой на высоте руки `h`. Корешок — одна и та же (низкая), веер растёт, ряд — до целой карты. */
+  const SPINE_VIS = 0.14;
   const visFrac = (h: number): number => {
     const pose = levelPose(h);
     if (pose === "tuck") return 0;
-    if (pose === "spine") return 0.09 + (Math.min(h, 0.2) / 0.2) * 0.3;
-    if (pose === "fan") return 0.47 + ((h - LEVEL.spine) / (LEVEL.fan - LEVEL.spine)) * 0.38;
+    if (pose === "spine") return SPINE_VIS;
+    if (pose === "fan") return 0.4 + ((h - LEVEL.spine) / (LEVEL.fan - LEVEL.spine)) * 0.45;
     return 0.85 + ((h - LEVEL.fan) / (1 - LEVEL.fan)) * 0.19;
   };
   let handLevel = POSE_LEVEL.row, levelOn = false;
