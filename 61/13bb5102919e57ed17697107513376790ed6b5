@@ -1,0 +1,22 @@
+table3d/neck-check.mjs
+  s_ad8a8a5b5d0419::t_3c39dc5c463d25 113,129
+  s_ad8a8a5b5d0419::t_e795876a60a067 111-112,114-128,130
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_9ce35e6673c901 590-605
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6113bb5102919e57ed17697107513376790ed6b5",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
