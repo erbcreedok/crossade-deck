@@ -1,0 +1,25 @@
+bot/README.md
+  s_783a0cc3ed910b::t_73f02f464b0e24 3-4,6-10,13-14,21,23-28,31-38
+bot/src/env.ts
+  s_783a0cc3ed910b::t_05a6e09f27bc05 8
+bot/src/index.ts
+  s_783a0cc3ed910b::t_05a6e09f27bc05 1,82
+server/CLAUDE.md
+  s_783a0cc3ed910b::t_73f02f464b0e24 89-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f86867661d25d558de6ad787386b0bdb215ffe54",
+  "prompts": {},
+  "sessions": {
+    "s_783a0cc3ed910b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "961f95bc-95fa-4b4a-8d9b-d0901f13a448",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
