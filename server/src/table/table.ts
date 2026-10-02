@@ -615,6 +615,10 @@ export class Table {
       }
       case "sit":
         return this.sit(by, intent.chair);
+      case "reseat": {
+        const chair = this.seatOf(by);
+        return chair ? { ops: this.turnChair(chair.id, intent.angle) } : { refused: "bad" };
+      }
       case "flag":
         return this.flag(by, intent.chair, intent.flag, intent.on);
       case "deckMove":

@@ -12,6 +12,16 @@ const params = new URLSearchParams(location.search);
 (globalThis as { __TABLE_HOST__?: string }).__TABLE_HOST__ = params.get("host") ?? (location.pathname.startsWith("/table/") ? location.origin : `http://${location.hostname}:2591`);
 
 const note = document.getElementById("note")!;
+// СТЕНД ЛОАДЕРА (`/?loader` или `?loader=flip`): объёмный крест крутится сколько угодно; тап по нему листает варианты анимации — для просмотра.
+if (params.has("loader")) {
+  const { loader3d, LOADER_VARIANTS } = await import("./loader.js");
+  note.hidden = true;
+  const first = LOADER_VARIANTS.find((v) => v === params.get("loader")) ?? "spin";
+  const l = loader3d(document.body, `Стол собирается · ${first}`, first);
+  let k = LOADER_VARIANTS.indexOf(first);
+  addEventListener("pointerdown", () => { k = (k + 1) % LOADER_VARIANTS.length; l.variant(LOADER_VARIANTS[k]!); l.say(`Стол собирается · ${LOADER_VARIANTS[k]}`); });
+  await new Promise(() => {});
+}
 /** Экран — коробка со своей сценой и своим HUD: у каждого своя камера, свои окна, своя рука в пальце. */
 function screenBox(first: boolean): { screen: HTMLElement; stage: HTMLElement; hud: HTMLElement } {
   const screen = document.createElement("div"), stage = document.createElement("div"), hud = document.createElement("div");

@@ -110,6 +110,7 @@ const READERS: { [K in Intent["t"]]: (raw: Raw) => Extract<Intent, { t: K }> | n
   },
   stand: () => ({ t: "stand" }),
   sit: (r) => (name(r.chair) ? { t: "sit", chair: r.chair } : null),
+  reseat: (r) => (typeof r.angle === "number" && Number.isFinite(r.angle) ? { t: "reseat", angle: ((Math.round(r.angle) % 360) + 360) % 360 } : null),
   flag: (r) => (name(r.chair) && oneOf(CHAIR_FLAGS, r.flag) && bool(r.on) ? { t: "flag", chair: r.chair, flag: r.flag, on: r.on } : null),
   deckMove: (r) => {
     if (!name(r.pile) || !num(r.x) || !num(r.y)) return null;

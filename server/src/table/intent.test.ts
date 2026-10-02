@@ -19,7 +19,22 @@ function table(): Table {
 
 describe("readIntent — намерение читается целиком или не читается", () => {
   it("знает каждое намерение контракта", () => {
-    expect(INTENT_KINDS.size).toBe(29);
+    expect(INTENT_KINDS.size).toBe(30);
+  });
+
+  it("пересесть (reseat): угол читается числом по кругу, не число — null; сидящий двигает свой стул, стоящий — нет", () => {
+    expect(readIntent({ t: "reseat", angle: 400 })).toEqual({ t: "reseat", angle: 40 });
+    expect(readIntent({ t: "reseat", angle: -90 })).toEqual({ t: "reseat", angle: 270 });
+    expect(readIntent({ t: "reseat", angle: "ближе" })).toBeNull();
+    expect(readIntent({ t: "reseat", angle: NaN })).toBeNull();
+    const t = table();
+    const mine = t.seatOf("a");
+    expect(mine, "стол стенда сажает a").toBeTruthy();
+    const before = mine!.angle;
+    const res = t.act("a", { t: "reseat", angle: (before + 90) % 360 }, 1);
+    expect("ops" in res && res.ops.length > 0, JSON.stringify(res)).toBe(true);
+    expect(t.seatOf("a")!.angle).toBe((before + 90) % 360);
+    expect("refused" in t.act("nobody", { t: "reseat", angle: 10 }, 1)).toBe(true);
   });
 
   it("мусор вместо намерения — null", () => {
