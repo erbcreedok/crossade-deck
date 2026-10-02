@@ -1812,7 +1812,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * Размеры — в единицах стола (пол на -7, стол на человеческой высоте: одна единица — примерно 12 см).
    */
   const CHAIR = { seat: 3.4, thick: 0.35, seatY: -3.3, back: 3.8, leg: 0.32, floor: -7, radius: 7.9, pushed: 1.6, free: 0x7d8a86 };
-  interface ChairObj { group: THREE.Group; mats: THREE.MeshLambertMaterial[]; ink: string; k: number; halo: THREE.Mesh }
+  /** Мягкий круг свечения: белый, яркий у середины и гаснущий к краю; цвет задаёт материал. */
+  let glowTex: THREE.CanvasTexture | null = null;
+  const glowTexture = (): THREE.CanvasTexture => glowTex ??= canvasTexture(128, 128, (c) => {
+    const g = c.createRadialGradient(64, 64, 14, 64, 64, 64);
+    g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.45, "rgba(255,255,255,.55)"); g.addColorStop(1, "rgba(255,255,255,0)");
+    c.fillStyle = g; c.fillRect(0, 0, 128, 128);
+  });
+  interface ChairObj { group: THREE.Group; mats: THREE.MeshLambertMaterial[]; ink: string; k: number; halo: THREE.Mesh; tag: THREE.Sprite | null; tagKey: string }
   const chairRoot = new THREE.Group();
   scene.add(chairRoot);
   const chairObjs = new Map<string, ChairObj>();
@@ -1829,11 +1836,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     part(seat, back, leg, 0, seatY + thick / 2 + back / 2, seat / 2 - leg / 2);
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(leg, legH, leg, sx * half, floor + legH / 2, sz * half);
     // Свечение под пересадкой: кольцо на уровне сиденья (светится сложением, не красит стул).
-    const halo = new THREE.Mesh(new THREE.RingGeometry(seat * 0.62, seat * 0.95, 48), new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    const halo = new THREE.Mesh(new THREE.PlaneGeometry(seat * 2.8, seat * 2.8), new THREE.MeshBasicMaterial({ map: glowTexture(), color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
     halo.rotation.x = -Math.PI / 2; halo.position.y = seatY + thick / 2 + 0.06; halo.visible = false; halo.renderOrder = 5;
     group.add(halo);
     chairRoot.add(group);
-    return { group, mats: [mat], ink: "", k: 0, halo };
+    return { group, mats: [mat], ink: "", k: 0, halo, tag: null, tagKey: "" };
   }
   /** Стулья на местах: цвет хозяина, у вставшего — отодвинут назад. Возвращает, движется ли ещё что-то. */
   function placeChairs(dt: number): boolean {
@@ -1858,9 +1865,20 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       one.group.userData.placed = true;
       // Свой стул при пересадке светится: не другим цветом, а мягким свечением (подсветка стула и кольцо), оно дышит.
       const glow = !!reseat && ch.id === myChair()?.id, pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260);
-      for (const m of one.mats) { m.emissive.set(glow ? 0xffe9a0 : 0x000000); m.emissiveIntensity = glow ? 0.25 + 0.25 * pulse : 0; }
       one.halo.visible = glow;
-      if (glow) { (one.halo.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.35 * pulse; moving = true; }
+      // При пересадке над каждым занятым стулом — кругляшок аватара его хозяина (цвет и имя), чтобы было ясно, чей стул.
+      const tagKey = reseat && who ? `${who.name}|${who.ink}` : "";
+      if (tagKey !== one.tagKey) {
+        one.tagKey = tagKey;
+        if (one.tag) { one.group.remove(one.tag); (one.tag.material as THREE.SpriteMaterial).dispose(); one.tag = null; }
+        if (tagKey && who) {
+          const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: headTex(who.name, who.ink), depthTest: false, transparent: true }));
+          tag.scale.set(3.4, 4.25, 1); tag.position.set(0, 1.2, 0); tag.renderOrder = 7;
+          one.group.add(tag); one.tag = tag;
+        }
+      }
+      // Свечение — цвета самого игрока; цвет стула остаётся таким, каким был в игре.
+      if (glow) { const hm = one.halo.material as THREE.MeshBasicMaterial; hm.color.set(store.me.ink); hm.opacity = 0.55 + 0.4 * pulse; moving = true; }
     }
     for (const [id, one] of chairObjs) if (!seen.has(id)) { chairRoot.remove(one.group); chairObjs.delete(id); }
     return moving;
@@ -2309,7 +2327,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     eyeNow: () => eyeY(),
     setViewHeight: (t: number) => { viewH = VIEW_H.min + Math.max(0, Math.min(1, t)) * (VIEW_H.max - VIEW_H.min); applyRig(); layout(store.state); draw(); },
     chairAt: (id: string) => chairObjs.get(id)?.group.position.toArray() ?? null,
-    reseatInfo: () => ({ on: reseat !== null, heads: heads.visible, chairs: chairRoot.visible, handShown: store.state.chairs.flatMap((c) => c.hand).filter((c) => cards.get(c.id)?.group.visible).length, felt: store.state.felt.filter((c) => cards.get(c.id)?.group.visible).length, glow: [...chairObjs.entries()].filter(([, o]) => o.halo.visible).map(([id]) => id) }),
+    reseatInfo: () => ({ on: reseat !== null, heads: heads.visible, chairs: chairRoot.visible, handShown: store.state.chairs.flatMap((c) => c.hand).filter((c) => cards.get(c.id)?.group.visible).length, felt: store.state.felt.filter((c) => cards.get(c.id)?.group.visible).length, chair: (() => { const o = chairObjs.get(myChair()?.id ?? ""); return o ? { color: o.mats[0]!.color.getHexString(), emissive: o.mats[0]!.emissive.getHexString(), halo: (o.halo.material as THREE.MeshBasicMaterial).color.getHexString() } : null; })(), tags: [...chairObjs.entries()].filter(([, o]) => o.tag).map(([id]) => id), glow: [...chairObjs.entries()].filter(([, o]) => o.halo.visible).map(([id]) => id) }),
     feltScreen: (x: number, y: number) => project(new THREE.Vector3(x, 0, y)),
     ringLit: () => [...ringFields.entries()].map(([id, f]) => ({ id, zone: f.zone.visible, glow: f.glow.visible, slot: f.slot.visible })),
     cardTarget: (id: string) => { const o = cards.get(id); return o ? o.target.pos.toArray() : null; },
