@@ -339,6 +339,22 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   host.append(css.domElement);
   const cssScene = new THREE.Scene();
   const panel3d = new Map<HTMLElement, { obj: CSS3DObject; at: WorldPlace }>();
+  /** Окно на столе в пространстве сцены. */
+  function placePanel(one: { obj: CSS3DObject; at: WorldPlace }): void {
+    const at = one.at;
+    // `at.x, at.y` — ЛЕВЫЙ ВЕРХНИЙ УГОЛ окна (а не середина): масштаб растёт вправо и вниз, а не во все стороны; стоящее на столе растёт вправо и вверх от своего низа.
+    const o = one.obj, a = (myChair()?.angle ?? 0) * DEG, wu = (at.w * at.scale) / PANEL_PX, hu = (at.h * at.scale) / PANEL_PX, hu0 = (at.h * 0.7) / PANEL_PX;
+    o.scale.setScalar(at.scale / PANEL_PX);
+    if (at.tilt === "flat") o.rotation.set(-Math.PI / 2, a, 0, "YXZ");
+    else if (at.tilt === "stand") o.rotation.set(0, a, 0, "YXZ");
+    else o.quaternion.copy(camera.quaternion);
+    o.updateMatrixWorld();
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(o.quaternion), up = new THREE.Vector3(0, 1, 0).applyQuaternion(o.quaternion);
+    // Середина окна от его угла: на полширины вправо и на полвысоты вниз (в плоскости окна); у стоящего низ на столе, поэтому вверх.
+    const corner = at.tilt === "flat" ? new THREE.Vector3(at.x, 0.05, at.y) : at.tilt === "stand" ? new THREE.Vector3(at.x, 0.02, at.y) : new THREE.Vector3(at.x, 0.6 + hu0, at.y);
+    o.position.copy(corner).addScaledVector(right, wu / 2);
+    if (at.tilt === "stand") o.position.addScaledVector(up, hu / 2); else o.position.addScaledVector(up, -hu / 2);
+  }
   Object.assign(renderer.domElement.style, { width: "100%", height: "100%", display: "block", touchAction: "none" });
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x0a1511, 30, 70);
@@ -912,8 +928,27 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       head.center.set(0.5, 1 - 128 / 320);
       head.position.copy(H);
       head.userData.head = pose.by;
+      head.userData.base = H.clone(); head.userData.shoulder = S.clone(); head.userData.shift = DOLL.spine * farK(H) * 1.6 + 0.2;
       body.add(head);
       heads.add(body);
+    }
+    headsFront();
+  }
+
+  /**
+   * ГОЛОВА СПЕРЕДИ ТЕЛА ПЕРЕКРЫВАЕТ ШЕЮ: когда камера видит голову ближе, чем плечи, кружок выдвинут к камере на толщину шеи — шея не торчит из него «пикселем».
+   * Размер на экране тот же (кружок во столько же раз мельче, во сколько ближе). Голова за телом стоит на месте — тело её закрывает по глубине.
+   */
+  function headsFront(): void {
+    if (!heads.visible) return;
+    for (const body of heads.children) for (const sprite of body.children) {
+      const base = sprite.userData.base as THREE.Vector3 | undefined, shoulder = sprite.userData.shoulder as THREE.Vector3 | undefined;
+      if (!base || !shoulder) continue;
+      const d = camera.position.distanceTo(base), front = d < camera.position.distanceTo(shoulder), shift = front ? Math.min(sprite.userData.shift as number, d * 0.4) : 0;
+      sprite.position.copy(base);
+      if (shift > 0) sprite.position.addScaledVector(camera.position.clone().sub(base).normalize(), shift);
+      const k = d > 0 ? (d - shift) / d : 1;
+      sprite.scale.set(2 * k, 2.5 * k, 1);
     }
   }
 
@@ -1722,6 +1757,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     placeMyBody();
     // Своя рука у глаза — вторым проходом поверх всего: борт стола, подошедший к камере вплотную, её не закрывает.
     camera.layers.set(0);
+    headsFront();
     renderer.render(scene, camera);
     renderer.autoClear = false;
     renderer.clearDepth();
@@ -1730,7 +1766,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     renderer.autoClear = true;
     camera.layers.set(0);
     // Панели «лицом к камере» — повёрнуты, как камера; остальные стоят, как поставлены.
-    for (const { obj, at } of panel3d.values()) if (at.tilt === "camera") obj.quaternion.copy(camera.quaternion);
+    for (const one of panel3d.values()) if (one.at.tilt === "camera") placePanel(one);
     css.setSize(w, h);
     css.render(cssScene, camera);
     for (const f of frameHeard) f();
@@ -1953,10 +1989,23 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (m.geometry !== g) m.geometry = g;
       m.userData.layers = n;
       base.group.updateMatrixWorld(true);
-      const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.scale.x * 0.985;
+      // Тело идёт за нижней картой, куда бы её ни повернули: лежит на столе — вверх по столу; несомую к руке карту повернули лицом ко мне — и ребро повёрнуто с ней.
+      // Куда растёт стопка — от нижней карты к верхней (у лежащей это вверх); длинная ось тела — длинная ось карты.
+      const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.getWorldScale(new THREE.Vector3()).x;
+      const topCard = cards.get(p.cards[n - 1]!.id), baseQ = base.group.getWorldQuaternion(new THREE.Quaternion());
+      const zAxis = topCard ? topCard.group.getWorldPosition(new THREE.Vector3()).sub(at) : new THREE.Vector3();
+      if (zAxis.lengthSq() < 1e-9) zAxis.set(0, 0, 1).applyQuaternion(baseQ).multiplyScalar(base.target.onCamera ? -1 : 1).setY(Math.abs(zAxis.y) > 0 ? zAxis.y : 0);
+      if (zAxis.lengthSq() < 1e-9) zAxis.set(0, 1, 0);
+      zAxis.normalize();
+      const yRef = new THREE.Vector3(0, 1, 0).applyQuaternion(baseQ), xAxis = yRef.clone().cross(zAxis);
+      if (xAxis.lengthSq() < 1e-9) xAxis.set(1, 0, 0);
+      xAxis.normalize();
+      const yAxis = zAxis.clone().cross(xAxis).normalize();
       m.position.copy(at);
-      m.rotation.set(-Math.PI / 2, -pileAngle(p) * DEG, 0, "YXZ");
-      m.scale.set(k, k, base.group.scale.x);
+      m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
+      m.scale.set(k * 0.985, k * 0.985, k);
+      const layer = base.target.onCamera || base.target.over ? HAND_LAYER : 0;
+      if (m.userData.layer !== layer) { m.userData.layer = layer; m.layers.set(layer); }
     }
     for (const [id, m] of bodies) if (!seen.has(id)) { scene.remove(m); bodies.delete(id); }
   }
@@ -2387,6 +2436,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    pileBodyAxis: (pile: string) => { const m = bodies.get(pile), p = store.state.piles.find((x) => x.id === pile); if (!m || !p) return null; const b = cards.get(p.cards[0]!.id), t = cards.get(p.cards.at(-1)!.id); if (!b || !t) return null; const d = t.group.getWorldPosition(new THREE.Vector3()).sub(b.group.getWorldPosition(new THREE.Vector3())).normalize(), z = new THREE.Vector3(0, 0, 1).applyQuaternion(m.quaternion); return { dot: d.dot(z), z: z.toArray().map((v) => Math.round(v * 100) / 100) }; },
+    headFronts: () => heads.children.flatMap((b) => b.children.filter((c) => c.userData.base).map((c) => ({ by: b.userData.by as string, moved: c.position.distanceTo(c.userData.base as THREE.Vector3), scale: c.scale.x }))),
     handDropZone: () => api.handDropZone(),
     handCardPx: () => { const shape = shapeOfWidth(handWidth, 1, 0, 0); shape.lift = 1; const b = handCardBox(1, shape, Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), 0, 0); return Math.abs(b.bottom - b.top); },
     eyeNow: () => eyeY(),
@@ -2551,7 +2602,20 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     elevation: () => { if (camMode !== "orbit") return -rig.pitch; const p = camera.position.clone().sub(orbit.target); return Math.asin(p.y / p.length()) / DEG; },
     glass,
     safeBottom,
-    handDropZone() { const d = drag, ch = myChair(); if (!d?.moved || d.group || !ch || camMode !== "head") return null; return { top: handTop(ch, d.id), bottom: dockTopPx ?? host.clientHeight - safeBottom() - 80, over: d.gap !== null }; },
+    handDropZone() {
+      // Зона руки нужна всему, что можно в неё положить: одной карте и стопке целиком. Что нельзя (запертая или приколотая стопка, рука «не принимает») — не намечается.
+      const ch = myChair();
+      if (!ch || camMode !== "head" || ch.reject) return null;
+      const bottom = dockTopPx ?? host.clientHeight - safeBottom() - 80;
+      if (pileCarry) {
+        const p = store.state.piles.find((x) => x.id === pileCarry!.pile);
+        if (!p || p.cards.length === 0 || p.pin || p.shut || p.seal || p.zone) return null;
+        return { top: handTop(ch), bottom, over: pileOver !== null };
+      }
+      const d = drag;
+      if (!d?.moved || d.group) return null;
+      return { top: handTop(ch, d.id), bottom, over: d.gap !== null };
+    },
     handGeom,
     setBlend(b) { blend = b; layout(store.state); },
     stance: stanceNow,
@@ -2628,11 +2692,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         if (!at) { if (one) { cssScene.remove(one.obj); panel3d.delete(el); } draw(); return; }
         if (!one) { one = { obj: new CSS3DObject(el), at }; panel3d.set(el, one); cssScene.add(one.obj); }
         one.at = at;
-        const o = one.obj, a = (myChair()?.angle ?? 0) * DEG, hu = (at.h * at.scale) / PANEL_PX;
-        o.scale.setScalar(at.scale / PANEL_PX);
-        if (at.tilt === "flat") { o.position.set(at.x, 0.05, at.y); o.rotation.set(-Math.PI / 2, a, 0, "YXZ"); }
-        else if (at.tilt === "stand") { o.position.set(at.x, hu / 2 + 0.02, at.y); o.rotation.set(0, a, 0, "YXZ"); }
-        else { o.position.set(at.x, hu / 2 + 0.6, at.y); o.quaternion.copy(camera.quaternion); }
+        placePanel(one);
         draw();
       },
       local3d(el, x, y) {

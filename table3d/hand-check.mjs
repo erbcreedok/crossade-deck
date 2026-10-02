@@ -192,6 +192,41 @@ check("язычок за самый верх — вся рука ушла на �
     await c.close();
   }
 }
+{
+  // ГОЛОВА СПЕРЕДИ ТЕЛА ПЕРЕКРЫВАЕТ ШЕЮ: кружок соседа выдвинут к камере (тот же вид на экране — чуть мельче в пространстве), шея не торчит из него.
+  const c = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await c.goto(`${base}/?stand&cam=head`);
+  await c.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await c.waitForTimeout(1500);
+  const hf = await c.evaluate(() => window.__t3d.headFronts());
+  check("голова соседа, что спереди тела, выдвинута к камере и мельче на ту же долю", hf.length > 0 && hf.every((h) => h.moved > 0.1 && h.scale < 2), hf);
+  await c.close();
+}
+{
+  // ЗОНА РУКИ — ДЛЯ ВСЕГО, ЧТО В НЕЁ МОЖНО ПОЛОЖИТЬ: несёшь стопку (колоду) за язычок — зона намечена, над рукой подсвечена; нельзя положить (приколота) — не намечается.
+  const c = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await c.goto(`${base}/?stand&cam=head`);
+  await c.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await c.waitForTimeout(1200);
+  const state = () => c.evaluate(() => { const e = document.querySelector("[data-hand-drop]"); return e && e.style.display !== "none" ? e.dataset.state : null; });
+  const tab = await c.evaluate(() => { const t = window.__t3d.tabInfo("deck"); return t ? t.screen : null; });
+  check("у колоды на столе есть язычок", !!tab, tab);
+  if (tab) {
+    await c.mouse.move(tab.x, tab.y); await c.mouse.down(); await c.mouse.move(tab.x + 10, tab.y - 50, { steps: 5 });
+    await c.mouse.move(195, 420, { steps: 6 });
+    await c.waitForTimeout(250);
+    check("несёшь колоду над сукном — зона руки намечена (hint)", (await state()) === "hint", await state());
+    await c.mouse.move(195, 700, { steps: 8 });
+    await c.waitForTimeout(250);
+    check("колода над рукой — зона подсвечена (over)", (await state()) === "over", await state());
+    const axis = await c.evaluate(() => window.__t3d.pileBodyAxis("deck"));
+    check("бок колоды идёт за её картами, повёрнутыми к руке (ось тела вдоль стопки)", axis !== null && axis.dot > 0.98, axis);
+    await c.mouse.up();
+    await c.waitForTimeout(500);
+    check("отпустили — зоны нет", (await state()) === null, await state());
+  }
+  await c.close();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
