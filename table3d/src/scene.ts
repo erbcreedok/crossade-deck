@@ -1008,7 +1008,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    *   пока карты не перестанут сжиматься (или не кончится экран). Высота тоже влияет на веер: поднял руку ручкой — веер выпрямляется в ряд.
    * Остальным уходят только флаги позы (стопкой, веер, в ряд): ширину они видят стандартную для позы.
    */
-  const WIDTH = { stack: 0.12, rowFrom: 0.7, fanTo: 0.75, max: 1.5, px: 220, pinch: 140, rise: 150, defaults: { shrink: 0.05, fan: 0.68, row: 1 }, othersRow: 4.2 };
+  const WIDTH = { stack: 0.12, rowFrom: 0.7, fanTo: 0.75, max: 1.5, px: 220, rise: 150, defaults: { shrink: 0.05, fan: 0.68, row: 1 }, othersRow: 4.2 };
   /** Загиб веера по умолчанию, 0…1. */
   const CURL = { rest: 0.7 };
   let handCurl: number = CURL.rest;
@@ -1855,44 +1855,13 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const x = Math.max(r.left + 4, Math.min(r.right - 4 - w, cx - w / 2)), y = (y0 + y1) / 2 - h / 2 - FRAME.edge / 2;
     return { x, y: y - FRAME.edge / 2, w, h: h + FRAME.edge, edge: FRAME.edge };
   }
-  // ——— два пальца на руке: щипок — ширина руки (стопкой ↔ веер ↔ в ряд), отпустил — легла ———
-  const live = new Map<number, { x: number; y: number; onHand: boolean }>();
-  let poseG: { ids: [number, number]; d0: number; f0: number } | null = null;
-  const onMineHand = (id: string | null): boolean => { const f = id ? fromOf.get(id) : undefined; return !!f && f.in === "hand" && !!f.mine; };
-  renderer.domElement.addEventListener("pointermove", (e) => {
-    const was = live.get(e.pointerId);
-    if (!was) return;
-    live.set(e.pointerId, { ...was, x: e.clientX, y: e.clientY });
-    if (!poseG || !poseG.ids.includes(e.pointerId)) return;
-    e.stopImmediatePropagation();
-    const a = live.get(poseG.ids[0])!, b = live.get(poseG.ids[1])!, raw = poseG.f0 + (Math.hypot(a.x - b.x, a.y - b.y) - poseG.d0) / WIDTH.pinch;
-    widthLive = Math.max(0, Math.min(WIDTH.max, raw)); widthOver = 0;
-    layout(store.state);
-  }, { capture: true });
-  const liftFinger = (e: PointerEvent) => {
-    live.delete(e.pointerId);
-    if (!poseG || !poseG.ids.includes(e.pointerId)) return;
-    poseG = null;
-    commitWidth();
-  };
+  // Пальцы на экране — для простоя шеи: пока хоть один лежит, голова не возвращается.
+  const live = new Set<number>();
+  const liftFinger = (e: PointerEvent) => { live.delete(e.pointerId); };
   renderer.domElement.addEventListener("pointerup", liftFinger, { capture: true });
   renderer.domElement.addEventListener("pointercancel", liftFinger, { capture: true });
   renderer.domElement.addEventListener("pointerdown", (e) => {
-    const fr = handFrame();
-    live.set(e.pointerId, { x: e.clientX, y: e.clientY, onHand: onMineHand(hitCard(e)) || (!!fr && e.clientX >= fr.x && e.clientX <= fr.x + fr.w && e.clientY >= fr.y && e.clientY <= fr.y + fr.h) });
-    // Щипок двух пальцев по руке (ширина) — старая ручка; с язычком руки поза идёт по его высоте, и ширину щипком не тянут.
-    if (live.size === 2 && !poseG && !lasso.on && !levelOn && [...live.values()].some((p) => p.onHand)) {
-      const ids = [...live.keys()] as [number, number], a = live.get(ids[0])!, b = live.get(ids[1])!, ch = myChair();
-      if (ch) {
-        // Первый палец мог уже взять карту или крутить взгляд — теперь они оба держат руку.
-        if (drag && !drag.moved) { clearInterval(drag.hold); drag = null; orbit.enabled = camMode === "orbit"; }
-        rigPtrs.clear();
-        poseG = { ids, d0: Math.hypot(a.x - b.x, a.y - b.y), f0: handWidth };
-        widthLive = handWidth;
-        e.stopImmediatePropagation();
-        return;
-      }
-    }
+    live.add(e.pointerId);
     // Язычок — первым: он лежит у самой кромки стопки и перекрыл бы её верхнюю карту.
     const pile = tabFn ? hitTab(e) : null;
     if (pile) { e.stopImmediatePropagation(); tabFn!(pile, e); return; }
