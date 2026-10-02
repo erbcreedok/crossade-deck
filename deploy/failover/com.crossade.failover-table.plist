@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- ЗАПАСНОЙ СТОЛ на маке. Сам не стартует: его включает и гасит надзиратель (supervisor.mjs, com.crossade.failover). -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.crossade.failover-table</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string><string>-lc</string>
+    <string>export PATH=$HOME/.nvm/versions/node/v22.23.2/bin:/opt/homebrew/bin:$PATH; cd $HOME/Desktop/crossade-deck/server &amp;&amp; TABLE_PUBLIC_URL=https://macbook-pro-giyers.tail5ece90.ts.net PORT=2590 NODE_ENV=production exec node --env-file=.env.table --import tsx src/index.ts</string>
+  </array>
+  <key>RunAtLoad</key><false/>
+  <key>KeepAlive</key><false/>
+  <key>StandardOutPath</key><string>/tmp/crossade-failover-table.log</string>
+  <key>StandardErrorPath</key><string>/tmp/crossade-failover-table.log</string>
+</dict>
+</plist>
