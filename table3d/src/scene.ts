@@ -617,8 +617,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     draw(); sendBody(true);
   }
   const rigPtrs = new Map<number, { x: number; y: number; right: boolean }>();
-  // Ввод для головы: один палец или левая кнопка — взгляд; щипок и колесо — приближение (наклон к столу); два пальца вверх-вниз
-  // или правая кнопка вверх-вниз — посадка (стул ближе-дальше от стола); оптический зум — только ползунок; стрелки, +/-, `[`/`]`, Home.
+  // Ввод для головы: один палец или левая кнопка — взгляд; щипок и колесо — приближение (наклон к столу); правая кнопка вверх-вниз и Shift+колесо — посадка (стул
+  // ближе-дальше от стола; пальцами её не тянут, чтобы не мешать щипку); оптический зум — только ползунок; стрелки, +/-, `[`/`]`, Home.
   {
     const dom = renderer.domElement, ptrs = rigPtrs;
     const pair = () => { const [a, b] = [...ptrs.values()]; return a && b ? { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null; };
@@ -638,7 +638,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       } else if (ptrs.size === 2 && before) {
         const now = pair()!;
         if (camMode === "top") zoomBy((now.d / Math.max(1, before.d)) * Math.exp(-(now.y - before.y) * CAM.scroll));
-        else { zoomBy(now.d / Math.max(1, before.d)); seatBy((now.y - before.y) * CAM.seat); sideBy((now.x - before.x) * CAM.side); }
+        else { zoomBy(now.d / Math.max(1, before.d)); sideBy((now.x - before.x) * CAM.side); }
       }
     });
     // Двойной тап по пустому месту (не по карте, не по кнопке): голова едет туда.

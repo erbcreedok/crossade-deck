@@ -80,6 +80,27 @@ check("простой: до 3 с голова стоит, потом плавн�
   const up = radius(await cam());
   check("вверх по экрану — посадка дальше от стола", up > down + 0.3, { down, up });
 }
+// ЩИПОК ДВУМЯ ПАЛЬЦАМИ работает как зум шеей, а два пальца вверх-вниз посадку не двигают (она — правой кнопкой и Shift+колесом).
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  const t = await ctx.newPage();
+  await t.goto(`${base}/?stand`);
+  await t.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await t.waitForTimeout(800);
+  const cdp = await ctx.newCDPSession(t);
+  const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
+  const lean = () => t.evaluate(() => window.__t3d.cam().lean);
+  await touch("touchStart", [[150, 300], [240, 300]]);
+  for (let i = 1; i <= 10; i++) await touch("touchMove", [[150 - i * 6, 300], [240 + i * 6, 300]]);
+  await touch("touchEnd", []);
+  const spread = await lean();
+  check("щипок врозь двумя пальцами — голова вперёд (зум работает)", spread > 0.2, spread);
+  await touch("touchStart", [[170, 300], [220, 300]]);
+  for (let i = 1; i <= 10; i++) await touch("touchMove", [[170, 300 + i * 8], [220, 300 + i * 8]]);
+  await touch("touchEnd", []);
+  check("два пальца вниз вместе — посадка не двигается", (await t.evaluate(() => window.__t3d.seatNow())) === 0, await t.evaluate(() => window.__t3d.seatNow()));
+  await ctx.close();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
