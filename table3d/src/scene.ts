@@ -2236,8 +2236,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const rr = renderer.domElement.getBoundingClientRect();
     if (handCarry) return handCarry.zoneTop - rr.top;
     const r = rr, ys = chair.hand.filter((c) => c.id !== skipCard).map((c) => screenOf(c.id)?.y).filter((y): y is number => y !== undefined);
-    const hb = myHandBody(chair), at = ys.length ? Math.min(...ys) : project(V(hb.left).add(new THREE.Vector3(0, HAND.lift, 0))).y;
-    return Math.min(at - r.top - 55, r.height * 0.8);
+    // Пустая рука: зона низкая — не выше одной карты над нижней строкой (а не где-то у середины экрана, как выходило из точки кисти на широком экране).
+    if (!ys.length) {
+      const shape = shapeOfWidth(handWidth, 1, 0, 0);
+      shape.lift = 1;
+      const box = handCardBox(1, shape, Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), 0, 0);
+      return trayTopPx() - Math.abs(box.bottom - box.top);
+    }
+    return Math.min(Math.min(...ys) - r.top - 55, r.height * 0.8);
   };
   function aim(x: number, y: number, skipPile?: string, skipCard?: string): { in: "hand"; chair: string; i: number } | { in: "deck"; pile: string; i?: number } | { in: "felt"; x: number; y: number } {
     const e = { clientX: x, clientY: y };
@@ -2377,6 +2383,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    handDropZone: () => api.handDropZone(),
+    handCardPx: () => { const shape = shapeOfWidth(handWidth, 1, 0, 0); shape.lift = 1; const b = handCardBox(1, shape, Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), 0, 0); return Math.abs(b.bottom - b.top); },
     eyeNow: () => eyeY(),
     setViewHeight: (t: number) => { viewHManual = true; viewH = VIEW_H.min + Math.max(0, Math.min(1, t)) * (VIEW_H.max - VIEW_H.min); applyRig(); layout(store.state); draw(); },
     chairAt: (id: string) => chairObjs.get(id)?.group.position.toArray() ?? null,

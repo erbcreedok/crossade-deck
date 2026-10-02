@@ -172,6 +172,26 @@ check("язычок за самый верх — вся рука ушла на �
   } else check("на столе есть карта для проверки", false, felt);
   await c.close();
 }
+{
+  // ПУСТАЯ РУКА: зона «В руку» не выше одной карты над нижней строкой — и на телефоне, и на широком экране (раньше на десктопе выходила почти на середину).
+  for (const [name, vp] of [["телефон", { width: 390, height: 844 }], ["десктоп", { width: 1280, height: 800 }]]) {
+    const c = await browser.newPage({ viewport: vp });
+    await c.goto(`${base}/?stand&cam=head`);
+    await c.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+    await c.waitForTimeout(1200);
+    await c.evaluate(() => window.__t3d.trimHand(0));
+    await c.waitForTimeout(1200);
+    const f = await c.evaluate(() => { const s = window.__t3d.state(); const id = s.felt.at(-1)?.id; return id ? window.__t3d.screenOf(id) : null; });
+    await c.mouse.move(f.x, f.y); await c.mouse.down(); await c.mouse.move(f.x, f.y - 30, { steps: 3 });
+    await c.mouse.move(vp.width / 2, vp.height - 120, { steps: 8 });
+    await c.waitForTimeout(250);
+    const z = await c.evaluate(() => window.__t3d.handDropZone?.() ?? null);
+    const cardPx = await c.evaluate(() => window.__t3d.handCardPx?.() ?? null);
+    check(`пустая рука, ${name}: зона не выше одной карты (${cardPx ? Math.round(cardPx) : "?"} px)`, z !== null && cardPx !== null && Math.abs(z.bottom - z.top - cardPx) < 6, { z, cardPx });
+    await c.mouse.up();
+    await c.close();
+  }
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
