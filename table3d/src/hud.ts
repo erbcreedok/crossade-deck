@@ -194,6 +194,29 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   zoom.addEventListener("pointermove", (e) => { if (zoom.hasPointerCapture(e.pointerId)) zoomTo(e); });
   root.append(zoom);
   setInterval(zoomSync, 200);
+  // DEV: ползунок высоты обзора (только мой экран; тело, рука и чужие экраны не меняются). Стоит слева от ползунка посадки.
+  const hgt = document.createElement("div");
+  hgt.dataset.zoomSlider = "";
+  hgt.dataset.heightSlider = "";
+  hgt.className = "cp";
+  hgt.style.cssText = "touch-action:none;cursor:ns-resize;display:none;right:76px";
+  hgt.innerHTML = zoom.innerHTML.replace("data-zoom-knob", "data-height-knob");
+  const hgtKnob = hgt.querySelector<HTMLElement>("[data-height-knob]")!, hgtFill = hgt.querySelector<HTMLElement>(".fill")!, hgtTrack = hgt.querySelector<HTMLElement>(".track")!;
+  const hgtSync = () => {
+    const on = scene.camMode() === "head" && !local.section && !!myChair();
+    if (hgt.style.display !== (on ? "block" : "none")) hgt.style.display = on ? "block" : "none";
+    if (!on) return;
+    const v = scene.viewHeight();
+    hgtKnob.style.bottom = `calc(${v * 100}% - 6px)`; hgtFill.style.height = `${v * 100}%`;
+    hgt.querySelector<HTMLElement>(".tt")!.textContent = "Высота";
+    hgt.querySelector<HTMLElement>(".val")!.textContent = `${scene.viewHeightUnits() >= 0 ? "+" : "−"}${Math.abs(scene.viewHeightUnits()).toFixed(1)}`;
+    hgt.style.top = zoom.style.top;
+  };
+  const hgtTo = (e: PointerEvent) => { const r = hgtTrack.getBoundingClientRect(); scene.setViewHeight(1 - (e.clientY - r.top) / r.height); hgtSync(); };
+  hgt.addEventListener("pointerdown", (e) => { e.stopPropagation(); e.preventDefault(); hgt.setPointerCapture(e.pointerId); hgtTo(e); });
+  hgt.addEventListener("pointermove", (e) => { if (hgt.hasPointerCapture(e.pointerId)) hgtTo(e); });
+  root.append(hgt);
+  setInterval(hgtSync, 200);
   const panels = mountPanels(panelOverlay, { ...scene.panels, feltAt: scene.feltAt, glass: scene.glass }, () => draw());
   let shown: string[] = [];
   store.onStickers((ids) => { myStickers = ids; talk.refresh(); });

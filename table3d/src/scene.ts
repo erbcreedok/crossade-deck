@@ -200,6 +200,10 @@ export interface SceneApi {
   setOrbitZoom(t: number): void;
   /** Оптический зум головы: 0 — обычный обзор, 1 — самый узкий. */
   /** Посадка 0…1: 0 — стул отодвинут до предела, 1 — как сидишь (ближе нельзя). */
+  /** Высота обзора 0…1 (DEV): только моя камера, тело и руки у других не меняются. */
+  viewHeight(): number;
+  setViewHeight(t: number): void;
+  viewHeightUnits(): number;
   seat(): number;
   setSeat(t: number): void;
   /** Пересадка своего стула: вид сверху со свободным зумом, только стол, стулья и карты на столе; тянут свой стул по кругу. */
@@ -449,7 +453,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const yaw = rig.yaw + rig.side * BACK.max, lim = AWAY_DEG - 1, sent = sideYaw(ch) + Math.max(-lim, Math.min(lim, wrap(yaw - sideYaw(ch))));
     if (camMode === "top") { const head = headAt(sh, rig.lean, rig.side); return { head, yaw, away: false, sent, hand: leftHandOf(head, yaw) }; }
     // В `head` рука с картами — в кадре внизу: камера едет с головой, и рука с ней, не уплывая при наклоне взгляда.
-    const head = { x: camera.position.x, y: camera.position.z, h: camera.position.y };
+    const head = { x: camera.position.x, y: camera.position.z, h: eyeY() };
     return { head, yaw, away: false, sent, hand: camHandPoint(head, yaw, rig.pitch, heightPx * pxUnit()) };
   }
   /** Поставить камеру по состоянию: голова от плеч стула (с наклоном шеи в `head`), взгляд — yaw и pitch. */
@@ -474,8 +478,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (Math.abs(camera.fov - fov) > 1e-3) { camera.fov = fov; camera.updateProjectionMatrix(); }
     // Голова идёт по кругу вокруг стола — и взгляд поворачивается вместе с ней: стол остаётся там же в кадре, а не уплывает вбок.
     const y = (rig.yaw + rig.side * BACK.max) * DEG, p = rig.pitch * DEG;
-    camera.position.set(pos.x, pos.h, pos.y);
-    camera.lookAt(pos.x + Math.sin(y) * Math.cos(p), pos.h + Math.sin(p), pos.y - Math.cos(y) * Math.cos(p));
+    camera.position.set(pos.x, pos.h + viewH, pos.y);
+    camera.lookAt(pos.x + Math.sin(y) * Math.cos(p), pos.h + viewH + Math.sin(p), pos.y - Math.cos(y) * Math.cos(p));
     camera.updateMatrixWorld();
   }
   function rigHome(): void {
@@ -506,6 +510,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
   /** Посадка: на сколько стул придвинут к столу, единицы стола. Не шея: сама не возвращается, плечи едут вместе с головой. */
   let seatPull = 0;
+  /** ВЫСОТА ОБЗОРА (DEV): камера выше или ниже головы, только для моего экрана. Тело, рука и то, что видят остальные, не меняются; карты в кадре стоят как стояли. */
+  let viewH = 0;
+  const VIEW_H = { min: -3, max: 3 };
+  const eyeY = (): number => camera.position.y - (camMode === "head" ? viewH : 0);
   /** ПЕРЕСАДКА: вид сверху без тел, рук и голов; свой стул тянут по кругу (`angle` — куда, `null` — пока не тронут), потом «Готово» или «Отмена». */
   let reseat: { was: CamMode; angle: number | null; pid: number | null } | null = null;
   let figuresOn = true;
@@ -1316,7 +1324,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return;
     }
     if (camMode === "head") {
-      const down = tuckOf(b), fovK = Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), head = { x: camera.position.x, y: camera.position.z, h: camera.position.y };
+      const down = tuckOf(b), fovK = Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), head = { x: camera.position.x, y: camera.position.z, h: eyeY() };
       if (levelOn) heightPx = levelHeightPx(n, fovK, mineCurl(n));
       const off = handOffset();
       syncWidth(ch);
@@ -1372,7 +1380,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return;
     }
     // Орбита: рука рядом с левой рукой тела; свой вид — лицом к камере.
-    const hb = myHandBody(ch), lean = -Math.max(15, Math.min(80, Math.atan2(camera.position.y - hb.left.h - HAND.lift, Math.hypot(camera.position.x - hb.left.x, camera.position.z - hb.left.y)) / DEG));
+    const hb = myHandBody(ch), lean = -Math.max(15, Math.min(80, Math.atan2(eyeY() - hb.left.h - HAND.lift, Math.hypot(camera.position.x - hb.left.x, camera.position.z - hb.left.y)) / DEG));
     for (const c of handAll(ch)) { const o = cards.get(c.id), k = list.indexOf(c); if (o && k >= 0) o.target = handPlace(hb, ch, slotOf(k), n, !!c.up, b, true, lean); }
     const o = gap !== null && drag ? cards.get(drag.id) : undefined;
     if (o) {
@@ -1901,7 +1909,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let restRight: { x: number; y: number } | null = null;
   let carriedAt = 0;
   /** Высота несомой карты над сукном — доля высоты головы (камеры), как у стола: камера выше — и карта выше. */
-  const liftH = () => Math.max(0.4, Math.min(8, HEAD.lift * camera.position.y));
+  const liftH = () => Math.max(0.4, Math.min(8, HEAD.lift * eyeY()));
   /** Карта под пальцем: на высоте `liftH` там, где луч из глаза через палец её пересекает, — ровно под курсором. */
   const heldAt = (x: number, y: number, angle: number, up: boolean): Place | null => {
     ray.setFromCamera(ndc({ clientX: x, clientY: y }), camera);
@@ -2180,7 +2188,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!force && now - sentAt < BODY_EVERY_MS) return;
     sentAt = now;
     const ch = myChair(), yaw = ch ? myHeadNow(ch).sent : 0, pitchOut = camMode === "head" ? { pitch: Math.round(rig.pitch * 10) / 10, gaze: Math.round(rig.yaw * 10) / 10, curl: Math.round(handCurl * 100) / 100, handY: Math.round(heightPx * pxUnit() * 1000) / 1000 } : {};
-    const eye = ch && camMode === "top" ? (() => { const h = myHeadNow(ch).head; return { x: h.x, y: h.y, h: h.h }; })() : { x: camera.position.x, y: camera.position.z, h: Math.max(0, camera.position.y) };
+    const eye = ch && camMode === "top" ? (() => { const h = myHeadNow(ch).head; return { x: h.x, y: h.y, h: h.h }; })() : { x: camera.position.x, y: camera.position.z, h: Math.max(0, eyeY()) };
     lastBody = { stance: stanceNow(), model: "seat", eye, seat: Math.round(seatPull * 100) / 100, stretch: camMode === "head" || camMode === "top" ? Math.max(0, rig.lean) : 0, yaw, ...pitchOut, right: drag?.moved ? rightAt : restRight };
     store.body({ stance: stanceNow(), model: "seat", eye, seat: Math.round(seatPull * 100) / 100, stretch: camMode === "head" || camMode === "top" ? Math.max(0, rig.lean) : 0, yaw, ...pitchOut, right: drag?.moved ? rightAt : restRight });
   }
@@ -2286,6 +2294,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    eyeNow: () => eyeY(),
+    setViewHeight: (t: number) => { viewH = VIEW_H.min + Math.max(0, Math.min(1, t)) * (VIEW_H.max - VIEW_H.min); applyRig(); layout(store.state); draw(); },
     chairAt: (id: string) => chairObjs.get(id)?.group.position.toArray() ?? null,
     reseatInfo: () => ({ on: reseat !== null, heads: heads.visible, chairs: chairRoot.visible, handShown: store.state.chairs.flatMap((c) => c.hand).filter((c) => cards.get(c.id)?.group.visible).length, felt: store.state.felt.filter((c) => cards.get(c.id)?.group.visible).length }),
     feltScreen: (x: number, y: number) => project(new THREE.Vector3(x, 0, y)),
@@ -2313,6 +2323,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     home: () => { home(); draw(); sendBody(true); },
     camMode: () => camMode,
     baseFov: () => baseFov,
+    viewHeight: () => (viewH - VIEW_H.min) / (VIEW_H.max - VIEW_H.min),
+    setViewHeight: (t: number) => { viewH = VIEW_H.min + Math.max(0, Math.min(1, t)) * (VIEW_H.max - VIEW_H.min); applyRig(); layout(store.state); draw(); },
+    viewHeightUnits: () => viewH,
     seat: () => (seatPull - SEAT_PULL.min) / (SEAT_PULL.max - SEAT_PULL.min),
     setSeat: (t: number) => setSeatPull(SEAT_PULL.min + Math.max(0, Math.min(1, t)) * (SEAT_PULL.max - SEAT_PULL.min)),
     reseatOn: () => reseat !== null,

@@ -36,7 +36,7 @@ check("приближение по-прежнему тянет голову вп
 // ДВОЙНОЙ ТАП ПО СТОЛУ: голова едет в ту сторону (ближе к точке), смотрит туда; потом шея сама возвращает.
 await p.waitForTimeout(4200);
 const before = await cam();
-const tapAt = { x: 300, y: 330 };
+const tapAt = { x: 215, y: 330 };
 const felt = await p.evaluate((pt) => window.__t3d.feltAt?.(pt.x, pt.y) ?? null, tapAt);
 await p.mouse.click(tapAt.x, tapAt.y); await p.waitForTimeout(90); await p.mouse.click(tapAt.x, tapAt.y);
 await p.waitForTimeout(900);
@@ -94,6 +94,17 @@ await p.evaluate(() => window.__t3d.seatBy(3));
   await touch("touchEnd", []);
   check("два пальца вниз вместе — посадка не двигается", (await t.evaluate(() => window.__t3d.seatNow())) === 0, await t.evaluate(() => window.__t3d.seatNow()));
   await ctx.close();
+}
+// ВЫСОТА ОБЗОРА (DEV): камера выше, а голова для остальных и карты в кадре — те же.
+{
+  const before = await p.evaluate(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; const id = s.chairs.find((c) => c.id === seat).hand[0].id; return { eye: window.__t3d.eyeNow(), y: window.__t3d.cam().pos[1], card: window.__t3d.screenOf(id), id }; });
+  await p.evaluate(() => window.__t3d.setViewHeight(1));
+  await p.waitForTimeout(500);
+  const after = await p.evaluate((id) => ({ eye: window.__t3d.eyeNow(), y: window.__t3d.cam().pos[1], card: window.__t3d.screenOf(id) }), before.id);
+  check("высота обзора: камера выше на 3", after.y - before.y > 2.5, { before: before.y, after: after.y });
+  check("…а голова для остальных (глаз тела) не сдвинулась", Math.abs(after.eye - before.eye) < 0.05, { before: before.eye, after: after.eye });
+  check("…и карта в руке стоит в кадре там же", Math.hypot(after.card.x - before.card.x, after.card.y - before.card.y) < 3, { before: before.card, after: after.card });
+  await p.evaluate(() => window.__t3d.setViewHeight(0.5));
 }
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
