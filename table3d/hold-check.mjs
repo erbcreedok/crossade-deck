@@ -79,6 +79,13 @@ check("и обратно", (await stance()) === s0, await stance());
   await p.waitForTimeout(700);
   check("«Готово» — посадка осталась (стул отодвинут)", (await p.evaluate(() => window.__t3d.seatNow())) < -0.5, await p.evaluate(() => window.__t3d.seatNow()));
 }
+// БЕЗ ЛУПЫ И ЗУМА СТРАНИЦЫ: на кнопках худа нет выделения и меню зажатия, двойной тап не зумит страницу (как на сцене).
+{
+  const st = await p.evaluate(() => { const b = document.querySelector("[data-stance-toggle]"), c = document.querySelector("#stage canvas"), i = document.querySelector("input, textarea"), cs = (e) => (e ? getComputedStyle(e) : null); const g = (e, k) => cs(e)?.getPropertyValue(k) ?? null; return { btn: { sel: g(b, "user-select"), touch: g(b, "touch-action"), callout: g(b, "-webkit-touch-callout") }, canvas: { touch: g(c, "touch-action") }, input: i ? g(i, "user-select") : "none-found" }; });
+  check("кнопки худа: без выделения (нет лупы), без меню зажатия, двойной тап не зумит", st.btn.sel === "none" && st.btn.touch === "manipulation" && (st.btn.callout === "none" || (st.btn.callout === "" && (await (await fetch(`${base}/`)).text()).includes("-webkit-touch-callout: none"))), st);
+  check("сцена по-прежнему сама ловит жесты (touch-action: none)", st.canvas.touch === "none", st);
+  check("поля ввода выделяются как обычно", st.input === "none-found" || st.input === "text" || st.input === "auto", st.input);
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));

@@ -36,6 +36,8 @@ function screenBox(first: boolean): { screen: HTMLElement; stage: HTMLElement; h
 // СВАЙП ВНИЗ НЕ ЗАКРЫВАЕТ СТОЛ — как у обычного клиента, в три слоя: Telegram не ловит жест (`disableVerticalSwipes`, ниже, когда SDK
 // пришёл), `touchmove` отменяется у документа (слушатель НЕ пассивный, иначе отмена молча не работает; окна с собственной прокруткой —
 // `[data-scroll]` — исключение), а страница в `index.html` не прокручивается и резинки не тянет.
+// Зум страницы щипком или двойным тапом (iOS шлёт `gesturestart`) — не нужен: масштаб у стола свой.
+document.addEventListener("gesturestart", (e) => e.preventDefault());
 document.addEventListener("touchmove", (e) => { if (!(e.target as Element | null)?.closest?.("[data-scroll]")) e.preventDefault(); }, { passive: false });
 const lag = lagFromUrl(location.search);
 // Пока стол собирается и комната отвечает — объёмный крест вместо надписи (`loader.ts`).

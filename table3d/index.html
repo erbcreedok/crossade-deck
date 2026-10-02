@@ -17,6 +17,10 @@
     .screen.aside > :not(.stage) { display: none; }
     .screen.aside::before { content: attr(data-who); position: absolute; left: 6px; top: 6px; z-index: 5; padding: 3px 7px; border-radius: 7px;
       font: 400 11px 'Tiny5', monospace; color: #0b0704; background: var(--who, #888); }
+    /* Ни лупы при зажатии, ни выделения, ни зума страницы двойным тапом — на всём, что поверх сцены (так же, как на самой сцене); поля ввода выделяются как обычно. */
+    html, body, .screen, .screen * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .stage, .stage * { touch-action: none; }
+    input, textarea, [contenteditable] { -webkit-user-select: text; user-select: text; }
     #note { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; }
     #note[hidden] { display: none; }
   </style>
