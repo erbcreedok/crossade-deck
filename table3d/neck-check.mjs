@@ -108,6 +108,26 @@ await p.evaluate(() => window.__t3d.seatBy(3));
   check("…и карта в руке стоит в кадре там же", Math.hypot(after.card.x - before.card.x, after.card.y - before.card.y) < 3, { before: before.card, after: after.card });
   await p.evaluate(() => window.__t3d.setViewHeight(3 / 13));
 }
+// ЗУМ ИДЁТ ТУДА, КУДА СМОТРИТ КАМЕРА: повернул взгляд к соседу и зумишь — голова плывёт по взгляду (не в центр стола), отдаляешь — от него.
+{
+  await p.keyboard.press("Home");
+  await p.waitForTimeout(800);
+  await p.mouse.move(300, 300); await p.mouse.down(); await p.mouse.move(60, 300, { steps: 10 }); await p.mouse.up();
+  await p.waitForTimeout(300);
+  const dirOf = (c) => { const y = ((c.yaw + c.side * 40) * Math.PI) / 180; return [Math.sin(y), -Math.cos(y)]; };
+  const c0 = await cam();
+  await p.evaluate(() => window.__t3d.zoomBy(1.5));
+  await p.waitForTimeout(200);
+  const c1 = await cam();
+  const d1 = [c1.pos[0] - c0.pos[0], c1.pos[2] - c0.pos[2]], g = dirOf(c1), n1 = Math.hypot(...d1) || 1;
+  check("взгляд в сторону соседа + зум: голова плывёт по взгляду, а не в центр", n1 > 0.2 && (d1[0] * g[0] + d1[1] * g[1]) / n1 > 0.85, { yaw: c1.yaw, d1, g });
+  await p.evaluate(() => window.__t3d.zoomBy(1 / 2.4));
+  await p.waitForTimeout(200);
+  const c2 = await cam();
+  const d2 = [c2.pos[0] - c1.pos[0], c2.pos[2] - c1.pos[2]], n2 = Math.hypot(...d2) || 1;
+  check("отдаление — голова уходит от той стороны, куда смотрит камера", n2 > 0.2 && (d2[0] * g[0] + d2[1] * g[1]) / n2 < -0.85, { d2, g });
+  await p.keyboard.press("Home");
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));

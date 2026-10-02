@@ -587,8 +587,22 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     neck.idle = 0;
     if (camMode === "orbit") return;
     headGoal = null;
-    // Отъезд (`k` < 1) — голова откидывается назад, как приближение двигает её вперёд: та же шея, тот же натяг.
-    rig.lean = Math.max(-1, Math.min(1, rig.lean + Math.log(k) * 0.5 * (neck.back > 0 ? 0 : 1)));
+    const dl = Math.log(k) * 0.5 * (neck.back > 0 ? 0 : 1);
+    if (camMode === "head") {
+      // ЗУМ ИДЁТ ТУДА, КУДА СМОТРИТ КАМЕРА: приближение двигает голову по взгляду, отдаление — от него. Взгляд раскладывается на «к середине стола» (наклон)
+      // и «вдоль круга стола» (сдвиг к соседу); смотрел в центр — всё по-старому, повернул влево и зумишь — голова уходит по диагонали к соседу.
+      const ch = myChair();
+      if (ch) {
+        const p = headAt(shoulders3(ch.angle, stanceNow(), seatPull), rig.lean, rig.side), r = Math.hypot(p.x, p.y) || 1, y = (rig.yaw + rig.side * BACK.max) * DEG;
+        const gx = Math.sin(y), gz = -Math.cos(y), inward = gx * (-p.x / r) + gz * (-p.y / r), along = gx * (-p.y / r) + gz * (p.x / r);
+        rig.lean += dl * inward;
+        rig.side += (dl * NECK_LEN.reach * along) / (r * BACK.max * DEG);
+      }
+    } else rig.lean += dl;
+    rig.lean = Math.max(-1, Math.min(1, rig.lean));
+    rig.side = Math.max(-1, Math.min(1, rig.side));
+    const m = Math.hypot(rig.lean, rig.side);
+    if (m > 1) { rig.lean /= m; rig.side /= m; }
     applyRig(); draw(); sendBody();
   }
   /**
