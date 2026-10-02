@@ -6,7 +6,7 @@
 //                          становится только бумага снаружи силуэта (заливка от краёв кадра);
 //   hand-open, hand-closed рука-хват, как курсор grab/grabbing: свободная и держащая.
 //
-//   node scripts/bakeSprites.mjs      → server/table-client/sprites/*.png и unity/Assets/Resources/Sprites/*.png
+//   node scripts/bakeSprites.mjs      → server/table-client/sprites/*.png
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const OUT = [`${root}server/table-client/sprites`, `${root}unity/Assets/Resources/Sprites`];
+const OUT = [`${root}server/table-client/sprites`];
 const PAPER = "#f7f1e6", ACCENT = "#b3221f";
 const king = readFileSync(`${root}game-presets/cards/art/courts/club-K.svg`, "utf8");
 
