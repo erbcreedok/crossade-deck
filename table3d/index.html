@@ -23,7 +23,15 @@
 </head>
 <body>
   <div id="screens"></div>
-  <div id="note">Стол собирается…</div>
+  <!-- Экран загрузки — разметкой, чтобы он был виден до первого скрипта; тот же, что `loader3dMarkup` в src/loader.ts (сверяет loader-check.mjs). -->
+  <style id="crossade-loader3d">
+.crossade-loader3d { position: fixed; inset: 0; z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  background: #173d2d; transition: opacity 220ms ease; touch-action: none; }
+.crossade-loader3d.gone { opacity: 0; pointer-events: none; }
+.crossade-loader3d canvas { width: 132px; height: 132px; display: block; }
+.crossade-loader3d .said { font: 600 13px/1.2 ui-sans-serif, system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #cdb98f; }
+</style><div class="crossade-loader3d" data-baked><svg class="slot" viewBox="-27 -27 154 154" width="132" height="132" aria-hidden="true"><path d="M50 0 L80 0 L66 34 L100 20 L100 80 L66 66 L80 100 L20 100 L34 66 L0 80 L0 20 L34 34 L20 0 Z" fill="#e0483f"/></svg><div class="said">Стол собирается</div></div>
+  <div id="note" hidden></div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

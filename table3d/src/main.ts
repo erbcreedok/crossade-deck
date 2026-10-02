@@ -40,7 +40,7 @@ document.addEventListener("touchmove", (e) => { if (!(e.target as Element | null
 const lag = lagFromUrl(location.search);
 // Пока стол собирается и комната отвечает — объёмный крест вместо надписи (`loader.ts`).
 let loading: { done(): void; say(label: string): void } | null = null;
-if (!params.has("loader")) { const { loader3d } = await import("./loader.js"); loading = loader3d(document.body, "Стол собирается"); note.hidden = true; }
+if (!params.has("loader")) { const { loader3d } = await import("./loader.js"); loading = loader3d(document.body, "Стол собирается"); }
 try {
   const tgStart = (globalThis as { Telegram?: { WebApp?: { initDataUnsafe?: { start_param?: string } } } }).Telegram?.WebApp?.initDataUnsafe?.start_param;
   const room = (params.get("room") || tgStart || new URLSearchParams(new URLSearchParams(location.hash.slice(1)).get("tgWebAppData") ?? "").get("start_param") || new URLSearchParams(location.hash.slice(1)).get("tgWebAppStartParam"))?.replace(/^3d_/, "") || null;

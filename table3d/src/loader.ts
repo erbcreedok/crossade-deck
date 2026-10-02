@@ -19,14 +19,28 @@ export function crossPoints(): THREE.Vector2[] {
 
 const ease = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
-const SHEET = "crossade-loader3d";
-const CSS = `
+export const SHEET = "crossade-loader3d";
+export const CSS = `
 .crossade-loader3d { position: fixed; inset: 0; z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
   background: ${PALETTE.felt}; transition: opacity 220ms ease; touch-action: none; }
 .crossade-loader3d.gone { opacity: 0; pointer-events: none; }
 .crossade-loader3d canvas { width: 132px; height: 132px; display: block; }
 .crossade-loader3d .said { font: 600 13px/1.2 ui-sans-serif, system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: ${PALETTE.inkDim}; }
 `;
+
+/** Сторона холста креста, px. */
+const SIDE = 132;
+
+/**
+ * ТО ЖЕ САМОЕ РАЗМЕТКОЙ — для страницы: она несёт этот экран в своём HTML и показывает его ещё до того, как пришёл хоть один скрипт, — тот же цвет, та же
+ * подпись, тот же размер и место, а крест пока плоский (вид спереди — тот же, что у объёмного в начале оборота). Скрипт ЗАБИРАЕТ эту разметку (`data-baked`) и
+ * вместо плоского креста ставит холст. Страница и модуль сверяются сторожем (`loader-check.mjs`), чтобы копия на странице не разошлась с модулем.
+ */
+export function loader3dMarkup(label: string): string {
+  const said = label.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  return `<style id="${SHEET}">${CSS}</style>`
+    + `<div class="${SHEET}" data-baked><svg class="slot" viewBox="-27 -27 154 154" width="${SIDE}" height="${SIDE}" aria-hidden="true"><path d="${CROSS_PATH}" fill="${PALETTE.danger}"/></svg><div class="said">${said}</div></div>`;
+}
 
 export interface Loader3d {
   done(): void;
@@ -38,19 +52,29 @@ export interface Loader3d {
 
 /** Накрыть `over` загрузкой с вращающимся крестом, пока не позовут `done()`. */
 export function loader3d(over: HTMLElement, label: string, start: LoaderVariant = "spin"): Loader3d {
-  if (!document.getElementById(SHEET)) {
+  // Уже на экране? Страница несёт его в своём HTML (`loader3dMarkup`): берём тот же, без второго поверх и без скачка.
+  const baked = over.querySelector<HTMLElement>(`:scope > .${SHEET}[data-baked]`);
+  if (baked) baked.removeAttribute("data-baked");
+  if (!baked && !document.getElementById(SHEET)) {
     const style = document.createElement("style");
     style.id = SHEET;
     style.textContent = CSS;
     document.head.appendChild(style);
   }
-  const sheet = document.createElement("div"), said = document.createElement("div");
-  sheet.className = "crossade-loader3d";
-  said.className = "said";
-  said.textContent = label;
+  const sheet = baked ?? document.createElement("div");
   const canvas = document.createElement("canvas");
-  sheet.append(canvas, said);
-  over.appendChild(sheet);
+  let said: HTMLElement;
+  if (baked) {
+    said = baked.querySelector<HTMLElement>(".said")!;
+    baked.querySelector(".slot")!.replaceWith(canvas);
+  } else {
+    said = document.createElement("div");
+    sheet.className = SHEET;
+    said.className = "said";
+    sheet.append(canvas, said);
+    over.appendChild(sheet);
+  }
+  said.textContent = label;
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
@@ -105,7 +129,7 @@ export function loader3d(over: HTMLElement, label: string, start: LoaderVariant 
       up = false;
       cancelAnimationFrame(raf);
       sheet.classList.add("gone");
-      setTimeout(() => { sheet.remove(); renderer.dispose(); geometry.dispose(); }, 240);
+      setTimeout(() => { sheet.remove(); document.getElementById(SHEET)?.remove(); renderer.dispose(); geometry.dispose(); }, 240);
     },
     showing: () => up,
     say(next) { said.textContent = next; },
