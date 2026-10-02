@@ -1,0 +1,23 @@
+native/ios-table/project.yml
+  s_ad8a8a5b5d0419::t_8eeff2077b3dd1 10-11
+CLAUDE.md
+  s_ad8a8a5b5d0419::t_72dea3665961b6 14
+server/scripts/bakeSprites.mjs
+  s_ad8a8a5b5d0419::t_72dea3665961b6 9,17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "06db04fa4545d19efa12060d5d98a38f34a35861",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
