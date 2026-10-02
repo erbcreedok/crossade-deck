@@ -64,7 +64,7 @@ const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", 
 export function bodiesHtml(all: readonly BodyLook[], toGlass: ToGlass, T: BodyColors, sprite: (name: string) => string, dolls?: DollSource, ahead?: (p: Point3) => boolean): string {
   // ЗА СПИНОЙ КАМЕРЫ ТЕЛО НЕ РИСУЕТСЯ: у такой точки нет места на стекле, линза прижимает её к глазу, и спрайт
   // раздувается на весь экран — чужое тело «мелькает под столом».
-  if (ahead) all = all.filter((one) => { const s = shoulders3(one.angle, one.body.stance); return ahead(s) && ahead({ ...s, h: s.h + 3 }) && ahead({ ...s, h: 0 }); });
+  if (ahead) all = all.filter((one) => { const s = shoulders3(one.angle, one.body.stance, one.body.seat ?? 0); return ahead(s) && ahead({ ...s, h: s.h + 3 }) && ahead({ ...s, h: 0 }); });
   if (all.length === 0) return "";
   const behind = behindTable(toGlass);
   const eye = towardEye(toGlass, { x: 0, y: 0, h: 0 });
@@ -149,7 +149,7 @@ export interface DollPose {
  * прибавляется поверх. Ушла на другую сторону стола — стоит там сама, верх — по её взгляду.
  */
 export function dollPose(body: Body, angle: number, parts: Parts, toGlass: ToGlass): DollPose {
-  const s = shoulders3(angle, body.stance);
+  const s = shoulders3(angle, body.stance, body.seat ?? 0);
   const away = awayOf(s, body.yaw);
   const head = headOf(s, body.eye, body.stretch, body.yaw);
   const rest = headOf(s, { x: 0, y: 0, h: 1e3 }, 0);
@@ -434,7 +434,7 @@ function avatarHtml({ body, angle, ink, name, holding }: BodyLook, toGlass: ToGl
     const a = at(p), b = toGlass({ x: p.x + 0.5, y: p.y }, p.h);
     return Math.hypot(b.x - a.x, b.y - a.y) * 2;
   };
-  const s = shoulders3(angle, body.stance);
+  const s = shoulders3(angle, body.stance, body.seat ?? 0);
   const away = awayOf(s, body.yaw);
   const head = headOf(s, body.eye, body.stretch, body.yaw);
   const left = leftHandOf(head, body.yaw);

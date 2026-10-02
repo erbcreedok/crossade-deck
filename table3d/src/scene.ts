@@ -18,7 +18,7 @@ import { CSS3DObject, CSS3DRenderer } from "three/addons/renderers/CSS3DRenderer
 import type { PanelWorld, WorldPlace } from "./panel.js";
 import type { Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
 import { CARRY_EVERY_MS } from "../../server/src/table/contract.js";
-import { AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
+import { SEAT_PULL, AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
 import { BACK, PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
 import { createGyro } from "./gyro.js";
 import { ringArrowFromMiddle, SEAT, turnMark } from "../../server/table-client/felt.js";
@@ -209,6 +209,7 @@ export interface SceneApi {
   gyro: { toggle(): Promise<string | null>; on(): boolean; info(): string };
   lookBy(dyaw: number, dpitch: number): void;
   zoomBy(k: number): void;
+  seatBy(d: number): void;
   /** Сдвинуть голову вбок по кругу вокруг стола: `d` — доля предела, + вправо от взгляда. */
   sideBy(d: number): void;
   opticsBy(k: number): void;
@@ -432,7 +433,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const sideYaw = (ch: Chair) => -ch.angle;
   /** Моя голова: где она, куда смотрит, ушла ли на другую сторону и какой поворот слать остальным. */
   function myHeadNow(ch: Chair): { head: Point3; yaw: number; away: boolean; sent: number; hand: Point3 } {
-    const f = camera.getWorldDirection(new THREE.Vector3()), sh = shoulders3(ch.angle, stanceNow());
+    const f = camera.getWorldDirection(new THREE.Vector3()), sh = shoulders3(ch.angle, stanceNow(), seatPull);
     if (camMode === "orbit") {
       const yaw = Math.atan2(f.x, -f.z) / DEG, head = headOf(sh, { x: camera.position.x, y: camera.position.z, h: camera.position.y }, 0, yaw);
       return { head, yaw, away: awayOf(sh, yaw), sent: yaw, hand: leftHandOf(head, yaw) };
@@ -448,7 +449,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   function applyRig(): void {
     const ch = myChair();
     if (!ch || camMode === "orbit") return;
-    const sh = shoulders3(ch.angle, stanceNow());
+    const sh = shoulders3(ch.angle, stanceNow(), seatPull);
     if (camMode === "top") {
       // Сверху: камера над серединой стола, вверху кадра — куда смотрит `yaw`; выше стоя и в покое, ниже — когда шея наклонена.
       if (Math.abs(camera.fov - TOP.fov) > 1e-3) { camera.fov = TOP.fov; camera.updateProjectionMatrix(); }
@@ -479,7 +480,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     rig.side = 0;
     rig.fov = baseFov;
     neck.held = neck.back = neck.rest = 0;
-    rig.pitch = camMode === "top" ? -90 : pitchToCentre(headAt(shoulders3(ch.angle, stanceNow()), 0));
+    rig.pitch = camMode === "top" ? -90 : pitchToCentre(headAt(shoulders3(ch.angle, stanceNow(), seatPull), 0));
     lag.yaw = lag.pitch = 0; lag.prevYaw = rig.yaw; lag.prevPitch = rig.pitch;
     camera.aspect = host.clientWidth / Math.max(1, host.clientHeight);
     applyRig();
@@ -494,6 +495,16 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     rig.yaw = wrap(rig.yaw + dyaw);
     if (camMode !== "top") rig.pitch = Math.max(CAM.pitch.min, Math.min(CAM.pitch.max, rig.pitch + dpitch));
     applyRig(); touched = true; draw(); sendBody();
+  }
+  /** Посадка: на сколько стул придвинут к столу, единицы стола. Не шея: сама не возвращается, плечи едут вместе с головой. */
+  let seatPull = 0;
+  function seatBy(d: number): void {
+    if (camMode !== "head" && camMode !== "top") return;
+    headGoal = null;
+    const next = Math.max(SEAT_PULL.min, Math.min(SEAT_PULL.max, seatPull + d));
+    if (next === seatPull) return;
+    seatPull = next;
+    applyRig(); layout(store.state); draw(); sendBody();
   }
   /** Намерение: приблизить (`k` > 1) или отдалить. В `head` — наклон к столу, в `fov` — поле зрения. */
   function zoomBy(k: number): void {
@@ -512,7 +523,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   function headToward(px: number, py: number): void {
     const ch = myChair();
     if (!ch || camMode !== "head" || neck.rest > 0 || neck.back > 0) return;
-    const sh = shoulders3(ch.angle, stanceNow()), now = headAt(sh, rig.lean, rig.side);
+    const sh = shoulders3(ch.angle, stanceNow(), seatPull), now = headAt(sh, rig.lean, rig.side);
     const tx = now.x + (px - now.x) * HEAD_STEP, ty = now.y + (py - now.y) * HEAD_STEP;
     let best = { lean: rig.lean, side: rig.side, d: Infinity };
     for (let i = -20; i <= 20; i += 1) for (let j = -20; j <= 20; j += 1) {
@@ -550,7 +561,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const ch = myChair();
     if (!ch) return;
     // Вправо от взгляда — в какую сторону по кругу: считаем по тому, где голова и куда она смотрит.
-    const p = headAt(shoulders3(ch.angle, stanceNow()), rig.lean, rig.side), y = (rig.yaw + rig.side * BACK.max) * DEG;
+    const p = headAt(shoulders3(ch.angle, stanceNow(), seatPull), rig.lean, rig.side), y = (rig.yaw + rig.side * BACK.max) * DEG;
     const along = -p.y * Math.cos(y) + p.x * Math.sin(y);
     rig.side = Math.max(-1, Math.min(1, rig.side + d * (along >= 0 ? 1 : -1) * (neck.rest > 0 ? 0 : 1)));
     applyRig(); draw(); sendBody();
@@ -598,11 +609,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
   const rigPtrs = new Map<number, { x: number; y: number; right: boolean }>();
   // Ввод для головы: один палец или левая кнопка — взгляд; щипок и колесо — приближение (наклон к столу); два пальца вверх-вниз
-  // или правая кнопка вверх-вниз — оптический зум (в виде «сверху» оптики нет, там это тоже приближение); стрелки, +/-, `[`/`]`, Home.
+  // или правая кнопка вверх-вниз — посадка (стул ближе-дальше от стола); оптический зум — только ползунок; стрелки, +/-, `[`/`]`, Home.
   {
     const dom = renderer.domElement, ptrs = rigPtrs;
     const pair = () => { const [a, b] = [...ptrs.values()]; return a && b ? { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null; };
-    const optics = (k: number) => (camMode === "head" ? opticsBy(k) : zoomBy(k));
     dom.addEventListener("pointerdown", (e) => {
       if (camMode === "orbit" || drag) return;
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, right: e.button === 2 });
@@ -614,12 +624,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const before = pair();
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, right: was.right });
       if (ptrs.size === 1) {
-        if (was.right) optics(Math.exp(-(e.clientY - was.y) * CAM.scroll));
+        if (was.right) seatBy(-(e.clientY - was.y) * CAM.seat);
         else lookBy(-(e.clientX - was.x) * CAM.look, (e.clientY - was.y) * CAM.look);
       } else if (ptrs.size === 2 && before) {
         const now = pair()!;
         if (camMode === "top") zoomBy((now.d / Math.max(1, before.d)) * Math.exp(-(now.y - before.y) * CAM.scroll));
-        else { zoomBy(now.d / Math.max(1, before.d)); opticsBy(Math.exp(-(now.y - before.y) * CAM.scroll)); sideBy((now.x - before.x) * CAM.side); }
+        else { zoomBy(now.d / Math.max(1, before.d)); seatBy(-(now.y - before.y) * CAM.seat); sideBy((now.x - before.x) * CAM.side); }
       }
     });
     // Двойной тап по пустому месту (не по карте, не по кнопке): голова едет туда.
@@ -642,7 +652,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     dom.addEventListener("pointerup", up);
     dom.addEventListener("pointercancel", up);
     dom.addEventListener("contextmenu", (e) => { if (camMode !== "orbit") e.preventDefault(); });
-    dom.addEventListener("wheel", (e) => { if (camMode === "orbit") return; e.preventDefault(); if (e.shiftKey) optics(Math.exp(-e.deltaY * CAM.wheel * 2)); else zoomBy(Math.exp(-e.deltaY * CAM.wheel * 2)); }, { passive: false });
+    dom.addEventListener("wheel", (e) => { if (camMode === "orbit") return; e.preventDefault(); if (e.shiftKey) seatBy(-e.deltaY * CAM.seat); else zoomBy(Math.exp(-e.deltaY * CAM.wheel * 2)); }, { passive: false });
     addEventListener("keydown", (e) => {
       if (camMode === "orbit" || e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement | null)?.closest("input, textarea, [contenteditable]")) return;
       if (host.closest(".screen")?.classList.contains("off")) return;
@@ -653,8 +663,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       else if (k === "ArrowDown") lookBy(0, -CAM.key);
       else if (k === "+" || k === "=") zoomBy(1.15);
       else if (k === "-" || k === "_") zoomBy(1 / 1.15);
-      else if (k === "]") optics(1.15);
-      else if (k === "[") optics(1 / 1.15);
+      else if (k === "]") seatBy(0.3);
+      else if (k === "[") seatBy(-0.3);
       else if (k === "Home") { home(); draw(); sendBody(true); }
       else return;
       e.preventDefault();
@@ -698,7 +708,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const who = s.people.find((p) => p.key === ch.owner);
     if (!who || who.key === store.me.key) return null;
     const b = bodyOf(who.key, ch.angle);
-    const sh = shoulders3(ch.angle, b.stance);
+    const sh = shoulders3(ch.angle, b.stance, b.seat ?? 0);
     const head = headOf(sh, b.eye, b.stretch, b.yaw);
     const holding = store.carries.some((c) => c.by === who.key);
     return { by: who.key, s: sh, head, left: b.pitch === undefined ? leftHandOf(head, b.yaw) : camHandPoint(head, b.gaze ?? b.yaw, b.pitch, b.handY ?? 0), away: awayOf(sh, b.yaw), yaw: b.yaw, pitch: b.pitch, gaze: b.gaze, curl: b.curl, handY: b.handY, right: b.right ? { ...b.right, h: holding ? HEAD.lift * head.h : restH(b.right, ch.id) } : null, ink: who.ink, name: who.name, strained: b.stretch > NECK.free };
@@ -720,7 +730,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const who = store.state.people.find((p) => p.key === ch.owner);
     if (!who) return null;
     if (who.key === store.me.key) return myHeadNow(ch).hand;
-    const b = bodyOf(who.key, ch.angle), head = headOf(shoulders3(ch.angle, b.stance), b.eye, b.stretch, b.yaw);
+    const b = bodyOf(who.key, ch.angle), head = headOf(shoulders3(ch.angle, b.stance, b.seat ?? 0), b.eye, b.stretch, b.yaw);
     return b.pitch === undefined ? leftHandOf(head, b.yaw) : camHandPoint(head, b.gaze ?? b.yaw, b.pitch, b.handY ?? 0);
   }
   const flatMat = new Map<string, THREE.Material>();
@@ -1392,7 +1402,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     myArm.clear();
     const ch = myChair();
     if (!ch || !heads.visible) return;
-    const sh = shoulders3(ch.angle, stanceNow()), r = Math.hypot(sh.x, sh.y) || 1;
+    const sh = shoulders3(ch.angle, stanceNow(), seatPull), r = Math.hypot(sh.x, sh.y) || 1;
     const shR = V(sh).addScaledVector(new THREE.Vector3(sh.y / r, 0, -sh.x / r), DOLL.bar);
     const o = drag?.moved ? cards.get(drag.id) : undefined;
     let grip: THREE.Vector3;
@@ -1604,11 +1614,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     myBody.visible = heads.visible;
     if (!ch || !who || !heads.visible) { if (myBodySig) myBody.clear(); myBodySig = ""; return; }
     const f = camera.getWorldDirection(new THREE.Vector3()), yaw = Math.atan2(f.x, -f.z) / DEG, c = camera.position;
-    const down = tuckOf(mineBlend(ch)), carry = handCarry ? `${handCarry.x.toFixed(2)},${handCarry.y.toFixed(2)}` : "", sig = [ch.angle, stanceNow(), down.toFixed(2), ch.hand.length, who.ink, who.name, c.x.toFixed(3), c.y.toFixed(3), c.z.toFixed(3), yaw.toFixed(2), camMode, carry].join("|");
+    const down = tuckOf(mineBlend(ch)), carry = handCarry ? `${handCarry.x.toFixed(2)},${handCarry.y.toFixed(2)}` : "", sig = [ch.angle, stanceNow(), down.toFixed(2), ch.hand.length, who.ink, who.name, c.x.toFixed(3), c.y.toFixed(3), c.z.toFixed(3), yaw.toFixed(2), camMode, carry, seatPull].join("|");
     if (sig === myBodySig) return;
     myBodySig = sig;
     myBody.clear();
-    const sh = shoulders3(ch.angle, stanceNow()), m = myHeadNow(ch), head = m.head, left = m.hand, away = m.away;
+    const sh = shoulders3(ch.angle, stanceNow(), seatPull), m = myHeadNow(ch), head = m.head, left = m.hand, away = m.away;
     const mat = inkOf(who.ink), S = V(sh), H = V(head), L = handCarry ? V({ x: handCarry.x, y: handCarry.y, h: CARRY_H - 0.15 }) : V(handRest(left, ch, down, ch.hand.length)), base = V({ ...sh, h: -7 });
     myHandDrawn = { x: L.x, y: L.z, h: L.y };
     const r = Math.hypot(sh.x, sh.y) || 1, rightDir = new THREE.Vector3(sh.y / r, 0, -sh.x / r);
@@ -2028,8 +2038,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     sentAt = now;
     const ch = myChair(), yaw = ch ? myHeadNow(ch).sent : 0, pitchOut = camMode === "head" ? { pitch: Math.round(rig.pitch * 10) / 10, gaze: Math.round(rig.yaw * 10) / 10, curl: Math.round(handCurl * 100) / 100, handY: Math.round(heightPx * pxUnit() * 1000) / 1000 } : {};
     const eye = ch && camMode === "top" ? (() => { const h = myHeadNow(ch).head; return { x: h.x, y: h.y, h: h.h }; })() : { x: camera.position.x, y: camera.position.z, h: Math.max(0, camera.position.y) };
-    lastBody = { stance: stanceNow(), model: "seat", eye, stretch: camMode === "head" || camMode === "top" ? Math.max(0, rig.lean) : 0, yaw, ...pitchOut, right: drag?.moved ? rightAt : restRight };
-    store.body({ stance: stanceNow(), model: "seat", eye, stretch: camMode === "head" || camMode === "top" ? Math.max(0, rig.lean) : 0, yaw, ...pitchOut, right: drag?.moved ? rightAt : restRight });
+    lastBody = { stance: stanceNow(), model: "seat", eye, seat: Math.round(seatPull * 100) / 100, stretch: camMode === "head" || camMode === "top" ? Math.max(0, rig.lean) : 0, yaw, ...pitchOut, right: drag?.moved ? rightAt : restRight };
+    store.body({ stance: stanceNow(), model: "seat", eye, seat: Math.round(seatPull * 100) / 100, stretch: camMode === "head" || camMode === "top" ? Math.max(0, rig.lean) : 0, yaw, ...pitchOut, right: drag?.moved ? rightAt : restRight });
   }
   orbit.addEventListener("change", () => sendBody());
 
@@ -2132,6 +2142,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     /** Для снимков фона дизайна: спрятать мои карты (чужие и стол остаются). */
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
+    seatNow: () => seatPull,
+    seatBy: (d: number) => seatBy(d),
     lifted: () => liftedId,
     handWidthNow: () => widthLive ?? handWidth,
     dragNow: () => (drag ? { moved: drag.moved, gap: drag.gap, where: drag.where, fingerHand: drag.fingerHand } : null),
@@ -2170,6 +2182,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     gyro: { toggle: gyroToggle, on: () => gyro.on(), info: () => gyro.info() },
     lookBy,
     zoomBy,
+    seatBy,
     sideBy,
     opticsBy,
     handFrame,

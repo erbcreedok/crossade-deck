@@ -1,7 +1,7 @@
 // ТЕЛА — разбор из сети, правило «играть стоя» и шея: одно на все клиенты.
 
 import { describe, expect, it } from "vitest";
-import { AWAY_DEG, Bodies, cleanBody, HEAD, headOf, holdFor, NECK, NECK_LEN, restHead, shoulders3, STANCE_ZOOM, awayOf } from "./bodies.js";
+import { AWAY_DEG, Bodies, cleanBody, HEAD, headOf, holdFor, NECK, NECK_LEN, restHead, SEAT_PULL, shoulders3, STANCE_ZOOM, awayOf } from "./bodies.js";
 
 const body = { stance: "sit", model: "seat", eye: { x: 1, y: -2, h: 12 }, stretch: 0.2, yaw: 30, right: null };
 
@@ -30,6 +30,13 @@ describe("bodies.read-whole-or-nothing", () => {
     expect(cleanBody({ ...body, curl: 0.4 })!.curl).toBe(0.4);
     expect(cleanBody({ ...body, curl: 7 })!.curl).toBe(1);
     expect(cleanBody({ ...body, curl: null })).toBeNull();
+  });
+  it("посадка (seat): не прислана — поля нет, прислана — в пределах, плечи едут по радиусу, мусор — отказ", () => {
+    expect("seat" in cleanBody(body)!).toBe(false);
+    expect(cleanBody({ ...body, seat: 1 })!.seat).toBe(1);
+    expect(cleanBody({ ...body, seat: -99 })!.seat).toBe(SEAT_PULL.min);
+    expect(cleanBody({ ...body, seat: "ближе" })).toBeNull();
+    expect(Math.hypot(shoulders3(0, "sit", 1).x, shoulders3(0, "sit", 1).y)).toBeLessThan(Math.hypot(shoulders3(0, "sit").x, shoulders3(0, "sit").y));
   });
   it("высота руки (handY): не прислана — поля нет, прислана — в пределах -3…3, мусор — отказ", () => {
     expect("handY" in cleanBody(body)!).toBe(false);

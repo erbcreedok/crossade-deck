@@ -56,6 +56,8 @@ export interface BodyOut {
   curl?: number;
   /** Высота руки в кадре головы относительно обычной, единицы стола (вниз — минус): ниже руку опустили — остальные видят её ниже и карты прямее. Старый клиент не шлёт. */
   handY?: number;
+  /** Посадка: на сколько единиц стула придвинут к столу (минус — отодвинут). Плечи едут по радиусу, а не только голова. Старый клиент не шлёт — 0. */
+  seat?: number;
   right: { x: number; y: number } | null;
 }
 
@@ -116,7 +118,9 @@ export const STANCE_ZOOM: Record<Stance, number> = { sit: 1, stand: restHead("si
 export const AWAY_DEG = 14;
 
 /** Плечи с высотой. */
-export const shoulders3 = (angle: number, stance: Stance): Point3 => ({ ...shouldersOf(angle), h: SHOULDER_H[stance] });
+/** Пределы посадки: на сколько стул можно придвинуть к столу (+) и отодвинуть (−). */
+export const SEAT_PULL = { min: -3, max: 1.5 } as const;
+export const shoulders3 = (angle: number, stance: Stance, pull = 0): Point3 => ({ ...seatPoint(angle, SHOULDERS - pull), h: SHOULDER_H[stance] });
 
 /**
  * С КАКОЙ СТОРОНЫ СТОЛА СМОТРИТ КАМЕРА — угол места (как у стула, `seatPoint`) под нижним краем экрана.
@@ -194,9 +198,11 @@ export function cleanBody(raw: unknown): BodyOut | null {
   if (curl === null) return null;
   const handY = b.handY === undefined ? undefined : num(b.handY, -3, 3);
   if (handY === null) return null;
+  const seat = b.seat === undefined ? undefined : num(b.seat, SEAT_PULL.min, SEAT_PULL.max);
+  if (seat === null) return null;
   // Незнакомый вид — первый: старый клиент вида не шлёт, новый вид старому не страшен.
   const model: Model = (MODELS as readonly unknown[]).includes(b.model) ? (b.model as Model) : "seat";
-  return { stance: b.stance as Stance, model, eye: { ...eye, h: eyeH }, stretch, yaw, ...(pitch === undefined ? {} : { pitch }), ...(gaze === undefined ? {} : { gaze }), ...(curl === undefined ? {} : { curl }), ...(handY === undefined ? {} : { handY }), right };
+  return { stance: b.stance as Stance, model, eye: { ...eye, h: eyeH }, stretch, yaw, ...(pitch === undefined ? {} : { pitch }), ...(gaze === undefined ? {} : { gaze }), ...(curl === undefined ? {} : { curl }), ...(handY === undefined ? {} : { handY }), ...(seat === undefined ? {} : { seat }), right };
 }
 
 export class Bodies {

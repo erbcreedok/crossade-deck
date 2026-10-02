@@ -46,6 +46,16 @@ check("двойной тап по столу: голова ближе к том�
 await p.waitForTimeout(3600);
 const back2 = await cam();
 check("и шея вернула голову сама, как после обычного натяга", Math.abs(back2.lean) <= 0.06 && Math.abs(back2.side) <= 0.06, { lean: back2.lean, side: back2.side });
+// ПОСАДКА — два пальца вверх-вниз двигают стул к столу и от него, и это не шея: само не возвращается.
+const r0 = radius(await cam());
+await p.evaluate(() => window.__t3d.seatBy(1));
+await p.waitForTimeout(3500);
+const near = await cam();
+check("посадка ближе — камера ближе к середине и остаётся (шея не возвращает)", radius(near) < r0 - 0.5 && near.neck.rest === 0, { r0, r: radius(near) });
+await p.evaluate(() => window.__t3d.seatBy(-2));
+await p.waitForTimeout(300);
+check("посадка дальше — камера дальше от середины", radius(await cam()) > radius(near) + 1, radius(await cam()));
+await p.evaluate(() => window.__t3d.seatBy(1));
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
