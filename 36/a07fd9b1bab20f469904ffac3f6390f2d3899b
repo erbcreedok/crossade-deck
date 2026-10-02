@@ -1,0 +1,28 @@
+table3d/src/camera.ts
+  s_ad8a8a5b5d0419::t_6c09f586546756 70-91,93,95-97,99,101-102,105-124,126
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_7d7926a13d402c 1695
+  s_ad8a8a5b5d0419::t_1929914cf4801d 22,213-215,485,494,506,516,520,531,565,573,714,723,800,1432-1474,1491,1493-1494,1496-1498,2201,2242-2243
+table3d/neck-check.mjs
+  s_ad8a8a5b5d0419::t_074ed6ed0f928a 29,35,46,54,59-70
+server/table-client/settings.ts
+  s_ad8a8a5b5d0419::t_6c09f586546756 67-68,208,252-257
+table3d/src/hud.ts
+  s_ad8a8a5b5d0419::t_1929914cf4801d 139,146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "36a07fd9b1bab20f469904ffac3f6390f2d3899b",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
