@@ -38,14 +38,8 @@ import { CHROME_CSS, DOCK_PX, SHEET_GAP, SHEET_PX, TABS } from "./chrome.js";
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 /** Секции бара — как у стола: поза, порядок и диалог живут не в баре. */
-const BAR_SECTIONS: Section[] = ["chair", "lasso"];
+const BAR_SECTIONS: Section[] = ["chair"];
 const HAND_DOS: [string, string][] = [["suit", "По масти"], ["rank", "По номиналу"], ["shuffle", "Перемешать"], ["flip", "Перевернуть"], ["reverse", "Наоборот"]];
-const LASSO_ACTS = [
-  ["cancel", "Отменить", '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>'],
-  ["flip", "Перевернуть", GLYPH.reverse],
-  ["hand", "В руку", '<path d="M12 3v11"/><path d="M7.5 9.5 12 14l4.5-4.5"/><path d="M4 20h16"/>'],
-  ["gather", "Собрать", GLYPH.deck],
-] as const;
 /** Держать стопку в пальце — «держу» чаще, чем истекает лок стола. */
 const HOLD_MS = 1500;
 const DOUBLE_TAP_MS = 350;
@@ -57,7 +51,6 @@ const SHOW_LINES = new URLSearchParams(location.search).has("lines");
 const LINES = { carry: 0.626, collect: 0.825, lay: 0.866 };
 const TAB_PX = { dead: 50, lay: 190, width: 220, curl: 160, carry: 150, pull: 40, tapMs: 300 };
 const RIM_LEFT = 28;
-const SIDES: GatherSide[] = ["keep", "down", "up"];
 const plate = `background:linear-gradient(${BAR_LOOK.plateHi},${BAR_LOOK.plateLo});box-shadow:inset 0 0 0 3px ${T.black},inset 0 0 0 5px ${BAR_LOOK.rim}`;
 const gold = `background:linear-gradient(${BAR_LOOK.goldHi},${BAR_LOOK.goldLo})`;
 const TOP = "top:calc(12px + var(--safe-top))";
@@ -66,7 +59,7 @@ const CSS = `
 @font-face { font-family: Tiny5; src: url(${HOST}/table/fonts/tiny5-cyrillic.woff2) format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
 @font-face { font-family: Tiny5; src: url(${HOST}/table/fonts/tiny5-latin.woff2) format("woff2"); unicode-range: U+0000-00FF, U+2000-206F, U+2191, U+2193, U+2212; }
 #hud { position: fixed; inset: 0; pointer-events: none; font: 400 13px Tiny5, monospace; color: ${T.ink}; }
-#hud button, #hud [role=button], #hud [data-hand-tab], #hud [data-hand-menu], #hud [data-g=journal], #hud [data-g=tip], #hud [data-g=deck-tip], #hud [data-deal-panel], #hud [data-confirm], #hud [data-lasso-layer], #hud [data-tip-card] { pointer-events: auto; }
+#hud button, #hud [role=button], #hud [data-hand-tab], #hud [data-hand-menu], #hud [data-g=journal], #hud [data-g=tip], #hud [data-g=deck-tip], #hud [data-deal-panel], #hud [data-confirm], #hud [data-tip-card] { pointer-events: auto; }
 #hud [data-tip-card], [data-panel] [data-tip-card] { touch-action: none; cursor: grab; }
 #hud [data-tip-card][data-take="0"], [data-panel] [data-tip-card][data-take="0"] { touch-action: auto; cursor: not-allowed; }
 [data-panel] { font: 400 13px Tiny5, monospace; color: ${T.ink}; user-select: none; -webkit-user-select: none; }
@@ -89,9 +82,6 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   const local = {
     section: null as Section | null,
     confirmLeave: false,
-    tool: "cursor" as "cursor" | "lasso",
-    grab: "collect" as GrabMode,
-    side: "keep" as GatherSide,
     handMenu: false,
     /** Какой список открыт из сабменю руки: порядок (`sort`) или поза (`pose`). */
     handPop: null as null | "sort" | "pose",
@@ -115,13 +105,10 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     deckCarry: null as string | null,
     deal: null as null | { rule: DealRule; n: number; all: boolean; seats: string[]; from: string | null; dir: DealDir },
     tip: null as string | null,
-    lassoPath: null as { x: number; y: number }[] | null,
   };
   const muted = new Set<string>();
   const me = () => store.me.key;
   const myChair = (s: Snapshot = store.state): Chair | undefined => { const seat = s.people.find((p) => p.key === me())?.seat; return s.chairs.find((c) => c.id === seat); };
-  const lassoOn = () => local.section === "lasso";
-  const myPicks = (s: Snapshot) => Object.entries(s.picks ?? {}).filter(([, by]) => by === me()).map(([id]) => id);
 
   // ——— вещи стола, взятые как есть ———
   let look = readLook();
@@ -306,17 +293,6 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       cap = "Твой стул";
       const flag = (k: ChairFlag, icon: string, label: string) => cbtn(`data-bar="${k}"`, ic(icon), label, { on: flagLit(s, k), led: flagLit(s, k) });
       body = flag("lock", "lock", "Замок") + flag("hide", "hide", "Скрыть") + flag("reject", "reject", "Не брать") + flag("forever", "keep", "Закрепить") + sep + cbtn('data-bar="leave"', ic("leave"), "Выйти", { on: local.confirmLeave });
-    } else if (sec === "lasso") {
-      const n = myPicks(s).length;
-      if (local.tool === "lasso" && n > 0) {
-        cap = `Выбрано карт: ${n}`;
-        body = cbtn('data-lasso-act="cancel"', ic("cancel"), "Отмена") + cbtn('data-lasso-act="flip"', ic("flip"), "Перевернуть") + cbtn('data-lasso-act="hand"', ic("toHand"), "В руку") + cbtn('data-lasso-act="gather"', ic("gather"), "Собрать");
-      } else {
-        cap = "Что делает палец на столе";
-        const sideIcon = local.side === "keep" ? "sideKeep" : local.side === "down" ? "sideDown" : "sideUp", sideName = local.side === "keep" ? "Как есть" : local.side === "down" ? "Рубашкой" : "Лицом";
-        body = cbtn('data-bar="cursor"', ic("cursor"), "Рука", { on: local.tool === "cursor" }) + cbtn('data-bar="lasso"', ic("lasso"), "Лассо", { on: local.tool === "lasso" }) + sep
-          + cbtn('data-bar="grab"', ic(local.grab === "collect" ? "collect" : "asis"), local.grab === "collect" ? "К пальцу" : "Как лежат") + cbtn('data-bar="side"', ic(sideIcon), sideName);
-      }
     }
     let html = `<div class="cp c-sheet" data-sheet="${sec}"><span class="cap">${cap}</span>${body}</div>`;
     // Выйти — вопрос над листом, как у стола.
@@ -329,6 +305,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   }
   function dockHtml(): string {
     const tabs = TABS.map(([k, icon, label]) => {
+      // «В стопку» — не лист с кнопками, а режим стола: включён — кнопка горит, пока выбор не снят.
+      if (k === "stack") { const on = scene.stackMode(), n = scene.stackPicked(); return `<button data-stack aria-pressed="${on}" class="cp cb c-tab${on ? " on open" : ""}">${ic(icon)}<span class="lb">${on && n ? `${label} · ${n}` : label}</span></button>`; }
       const on = k === "say" ? talk.open : local.section === k;
       return `<button data-section="${k}" aria-pressed="${on}" class="cp cb c-tab${on ? " on open" : ""}">${ic(icon)}<span class="lb">${label}</span></button>`;
     }).join("");
@@ -374,7 +352,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const sheetOn = !!local.section && local.section !== "say" && !!chair, g = glass();
     scene.setDock(g.h - scene.safeBottom() - DOCK_PX, sheetOn ? SHEET_PX + SHEET_GAP : 0);
     if (!chair) return dockHtml();
-    return gripHtml(s) + sheetHtml(s) + dockHtml() + (lassoOn() ? "" : "");
+    return gripHtml(s) + sheetHtml(s) + dockHtml();
   }
 
   // ——— верх: выход, имя, настройки, журнал ———
@@ -592,14 +570,6 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       + `<button data-deal-go ${exact ? "" : "disabled"} style="border:0;cursor:pointer;font:400 13px Tiny5,monospace;border-radius:8px;padding:9px 10px;${gold};color:${T.black};${exact ? "" : "opacity:.45;cursor:default"}">Раздать</button>`
       + `<span style="font:400 10px Tiny5,monospace;color:${T.inkDim}">Раздаёт крупье: его курсор и его метки. Себе не раздаёт.</span></div>`;
   }
-  function lassoLayerHtml(): string {
-    if (!lassoOn() || local.tool !== "lasso") return "";
-    const path = local.lassoPath;
-    return `<div data-lasso-layer style="position:absolute;inset:0;z-index:25;touch-action:none;cursor:crosshair">`
-      + (path && path.length > 1 ? `<svg width="100%" height="100%" style="position:absolute;inset:0;pointer-events:none"><polygon points="${path.map((q) => `${q.x.toFixed(0)},${q.y.toFixed(0)}`).join(" ")}" fill="rgba(242,193,78,.12)" stroke="${T.black}" stroke-width="4" stroke-linejoin="round"/><polygon points="${path.map((q) => `${q.x.toFixed(0)},${q.y.toFixed(0)}`).join(" ")}" fill="none" stroke="${T.gold}" stroke-width="2" stroke-dasharray="6 4" stroke-linejoin="round"/></svg>` : "")
-      + `</div>`;
-  }
-
   // ——— перерисовка: раз в кадр, и только если что-то поменялось ———
   let frame = 0;
   // ДВА СЛОЯ, и у каждого своя сверка: полоса сверху (кнопки) не пересобирается, пока сама не поменялась. Под гиро камера крутится
@@ -613,14 +583,13 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   function render(): void {
     frame = 0;
     const s = store.state;
-    scene.setLasso(lassoOn(), local.grab);
     scene.setTabLit(new Set([local.deckTip, local.deckCarry].filter((x): x is string => !!x)));
     // Работаю с окном стопки — я с ней вожусь: моя правая рука на ней (и её видят остальные). Открыто, но не тронуто — рука свободна.
     // Работаю с окном чужого стула — моя правая рука у его левой руки (с веером).
     const open = local.handOn && local.deckTip ? s.piles.find((p) => p.id === local.deckTip) : undefined;
     const chairOpen = local.handOn ? s.chairs.find((c) => c.id === local.tip && c.owner && c.owner !== me()) : undefined;
     if (!local.deckCarry) scene.setRestRight(open ? { x: open.x, y: open.y } : chairOpen ? scene.handOf(chairOpen.id) : null);
-    const top = topHtml(s) + gyroNoteHtml() + devHtml() + journalHtml(), railS = railHtml(s), rest = lassoLayerHtml() + bottomHtml(s) + dealHtml(s);
+    const top = topHtml(s) + gyroNoteHtml() + devHtml() + journalHtml(), railS = railHtml(s), rest = bottomHtml(s) + dealHtml(s);
     shown = [];
     pilePanel(s);
     chairPanel(s);
@@ -655,14 +624,11 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       const sec = b.dataset.section as Section;
       local.viewMenu = false;
       if (sec === "say") talk.toggle();
-      else { local.section = local.section === sec ? null : sec; local.handMenu = false; local.handPop = null; local.confirmLeave = false; if (sec === "lasso" && !local.section) { local.tool = "cursor"; if (myPicks(s).length) store.send({ t: "unpick" }); } }
+      else { local.section = local.section === sec ? null : sec; local.handMenu = false; local.handPop = null; local.confirmLeave = false; }
     } else if ((b = q("[data-bar]"))) {
       const what = b.dataset.bar as BarKey;
       if ((RIGHTS as readonly string[]).includes(what) && chair) store.send({ t: "flag", chair: chair.id, flag: what as ChairFlag, on: !chair[what as ChairFlag] });
       else if (what === "leave") local.confirmLeave = !local.confirmLeave;
-      else if (what === "cursor" || what === "lasso") local.tool = what;
-      else if (what === "grab") local.grab = local.grab === "collect" ? "keep" : "collect";
-      else if (what === "side") local.side = SIDES[(SIDES.indexOf(local.side) + 1) % SIDES.length]!;
     } else if (q("[data-stand]")) { store.send({ t: "stand" }); local.confirmLeave = false; }
     else if (q("[data-stance-toggle]")) { if (performance.now() >= holdUntil) scene.setStance(scene.stance() === "stand" ? "sit" : "stand"); }
     else if ((b = q("[data-hand-pose2]"))) { scene.setHandLevel(scene.poseLevels[b.dataset.handPose2 as "row" | "fan" | "spine" | "tuck"]); }
@@ -673,7 +639,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       const what = b.dataset.handDo!;
       store.send(what === "flip" ? { t: "flip", chair: chair.id } : { t: "arrange", how: what as "suit" | "rank" | "shuffle" | "reverse" });
       local.handPop = null;
-    } else if ((b = q("[data-lasso-act]"))) lassoAct(b.dataset.lassoAct as (typeof LASSO_ACTS)[number][0]);
+    } else if (q("[data-stack]")) { scene.setStackMode(!scene.stackMode()); local.section = null; local.viewMenu = false; }
     else if (q("[data-rooms-back]")) location.href = `${HOST}/table/?rooms`;
     else if (q("[data-reseat]")) { if (performance.now() >= holdUntil) { scene.setReseat(true); local.viewMenu = false; local.section = null; } }
     else if (q("[data-settings]")) { if (settings.open) settings.hide(); else settings.show(); }
@@ -746,20 +712,6 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       }, 60);
     });
   }
-  function lassoAct(act: (typeof LASSO_ACTS)[number][0]): void {
-    const s = store.state, ids = myPicks(s), chair = myChair(s);
-    if (act === "cancel") { store.send({ t: "unpick" }); return; }
-    if (!ids.length) return;
-    if (act === "flip") store.send({ t: "turnMany", ids });
-    else if (act === "hand" && chair) { const staying = chair.hand.filter((c) => !ids.includes(c.id)).length; store.send({ t: "moveMany", moves: ids.map((id, k) => ({ id, to: { in: "hand" as const, chair: chair.id, i: staying + k } })) }); store.send({ t: "unpick" }); }
-    else if (act === "gather") {
-      const felt = s.felt.filter((f) => ids.includes(f.id)), g = glass();
-      const at = felt.length ? { x: felt.reduce((m, f) => m + f.x, 0) / felt.length, y: felt.reduce((m, f) => m + f.y, 0) / felt.length } : scene.feltAt(g.w / 2, g.h / 2) ?? { x: 0, y: 0 };
-      store.send({ t: "gather", ids, side: local.side, to: { ...at, angle: ((-(chair?.angle ?? 0) % 360) + 360) % 360 } });
-      store.send({ t: "unpick" });
-    }
-  }
-
   // Тянуть: ручку позы, компас, индикатор стопки, лассо. Тап без сдвига — их тап.
   const onDown = (e: PointerEvent): void => {
     if (panels.press(e)) return;
@@ -807,17 +759,6 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       e.preventDefault();
       scene.carry(tipCard.dataset.tipCard!, e);
       return;
-    }
-    if (t.closest("[data-lasso-layer]")) {
-      e.preventDefault();
-      local.lassoPath = [{ x: e.clientX, y: e.clientY }];
-      follow(e, (ev) => { local.lassoPath!.push({ x: ev.clientX, y: ev.clientY }); draw(); }, () => {
-        const poly = local.lassoPath ?? [];
-        local.lassoPath = null;
-        const ids = poly.length > 2 ? scene.cardsIn(poly).filter((id) => !store.state.picks[id]) : [];
-        if (ids.length) store.send({ t: "pick", ids, on: true });
-        draw();
-      });
     }
   };
   for (const el of [root, panelOverlay, scene.panelLayer()]) el.addEventListener("pointerdown", onDown);

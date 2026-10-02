@@ -283,10 +283,11 @@ export interface SceneApi {
   pickAt(x: number, y: number): { t: "card"; id: string } | { t: "who"; key: string } | { t: "chair"; id: string } | null;
   /** Стопки на экране: где и сколько; `cardPx` — ширина верхней карты в точках (по ней окно «к стопке» меряет размер). */
   pileSpots(): { pile: string; count: number; x: number; y: number; cardPx: number }[];
-  /** Карты, чья середина на экране внутри многоугольника. */
-  cardsIn(poly: { x: number; y: number }[]): string[];
-  /** Лассо открыто — тап по карте выделяет, выделенные несут вместе; `grab` — как несут. */
-  setLasso(on: boolean, grab: "collect" | "keep"): void;
+  /** Режим «В стопку»: тап или проведение пальцем выделяет карты и стопки на столе; долгий холд на выделенном стягивает все выделенные под палец в одну стопку. */
+  setStackMode(on: boolean): void;
+  stackMode(): boolean;
+  /** Сколько карт на столе сейчас выделено мной. */
+  stackPicked(): number;
   /** Язычок стопки — на столе, у нижней кромки её верхней карты: тронули — сообщить, чья стопка (окно, переворот, тяга). */
   onTab(fn: (pile: string, e: PointerEvent) => void): void;
   /** Какие язычки горят: у кого открыто окно или кого несут. */
@@ -372,7 +373,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let stance: "sit" | "stand" = "sit";
   const stanceNow = () => (store.state.rules.stand ? "stand" : stance);
   let look = readLook();
-  let lasso = { on: false, grab: "collect" as "collect" | "keep" };
+  /** РЕЖИМ «В СТОПКУ» (вместо лассо): выбор — общий с остальными (`picks` стола), сбор — одним намерением `gather` при отпускании. */
+  let stackMode = false;
+  /** Стягивание: id карт по порядку, куда тянем (точка на сукне), когда началось, начался ли ход пальцем (тогда карты летят быстро) и до какого мига держим цель после отпускания. */
+  let gather: { ids: string[]; at: { x: number; y: number }; t0: number; fast: boolean; from: { x: number; y: number }; until: number } | null = null;
+  const GATHER = { holdMs: 450, staggerMs: 40, moveStartPx: 10, settleMs: 900, spring: { k: 120, damp: 0.85 } } as const;
   /** Стопку несут за грип — где она сейчас под пальцем. */
   let pileCarry: { pile: string; x: number; y: number } | null = null;
   /** Несомая стопка над своей рукой (вид «голова»): стоит в щели руки, как одна карта, а карты руки расступаются под неё. */
@@ -1397,9 +1402,13 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   function retargetMine(): void {
     const ch = myChair();
     if (!ch) return;
-    const list = handCards(), gap = drag?.moved && !drag.group ? drag.gap : null, b = mineBlend(ch);
+    const list = handCards(), gap = drag?.moved ? drag.gap : null, b = mineBlend(ch);
     const overPile = pileOver && camMode === "head" ? store.state.piles.find((x) => x.id === pileOver!.pile) : undefined, m = overPile ? overPile.cards.length : 0;
-    const ins = gap !== null ? gap : overPile ? pileOver!.gap : null, wide = 1, n = list.length + (ins !== null ? wide : 0);
+    // ЧУЖАЯ КАРТА НАД МОЕЙ РУКОЙ: сосед несёт карту мне в руку — на моём худе она в щели, куда он целится, и двигается влево-вправо вместе с его прицелом.
+    const fc = store.carries.find((c) => c.by !== store.me.key && c.over.in === "hand" && c.over.chair === ch.id && cards.has(c.id));
+    const fgap = fc ? Math.max(0, Math.min(list.length, (fc.over as { i: number }).i)) : null;
+    const foreign = fgap !== null && gap === null && !overPile ? cards.get(fc!.id) : undefined;
+    const ins = gap !== null ? gap : overPile ? pileOver!.gap : foreign ? fgap : null, wide = 1, n = list.length + (ins !== null ? wide : 0);
     const slotOf = (k: number) => (ins !== null && k >= ins ? k + wide : k);
     const flip = (p: Place, up: boolean) => { if (up) p.quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)); return p; };
     // Левая рука держит всю руку стопкой над столом — её несут, как колоду.
@@ -1424,6 +1433,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         const t = inHand(gap!, geom), r = (-t.pos.z - HOVER.near) / -t.pos.z;
         t.pos.x *= r; t.pos.y = (t.pos.y + HOVER.up * CARD_H * t.scale) * r; t.pos.z += HOVER.near; t.scale *= r * HOVER.grow;
         o.target = t;
+      }
+      if (foreign) {
+        const t = inHand(fgap!, geom), r = (-t.pos.z - HOVER.near) / -t.pos.z;
+        t.pos.x *= r; t.pos.y = (t.pos.y + HOVER.up * CARD_H * t.scale) * r; t.pos.z += HOVER.near; t.scale *= r * HOVER.grow;
+        foreign.target = t;
       }
       return;
     }
@@ -1473,6 +1487,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         t.scale *= HOVER.grow;
         o.target = t;
       }
+      if (foreign) {
+        const t = place(fgap!, false);
+        if (t.onCamera) hoverNear(t, CAMHAND.pop * fovK * handSize); else t.pos.y += CAMHAND.pop;
+        t.scale *= HOVER.grow;
+        foreign.target = t;
+      }
       overPile?.cards.forEach((c, j) => {
         const q = cards.get(c.id);
         if (!q) return;
@@ -1492,6 +1512,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       t.pos.add(toEye).y += HAND.pop;
       t.scale *= HOVER.grow;
       o.target = t;
+    }
+    if (foreign) {
+      const t = handPlace(hb, ch, fgap!, n, false, b, true, lean), toEye = camera.position.clone().sub(t.pos).setLength(HOVER.near);
+      t.pos.add(toEye).y += HAND.pop;
+      t.scale *= HOVER.grow;
+      foreign.target = t;
     }
   }
   const pileAngle = (p: Pile) => (p as Pile & { angle?: number }).angle ?? 0;
@@ -1557,6 +1583,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     holdLanding();
     ringHover();
     if (reseat) reseatSync();
+    applyGather();
     for (const [id, o] of cards) if (!seen.has(id)) { cardRoot.remove(o.group); cards.delete(id); }
     draw();
   }
@@ -1654,7 +1681,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
   /** Круг под прицелом, пока несут карту: пунктир приёмки; карта над кругом — круг горит и показан контур места, куда она ляжет. */
   function ringHover(): void {
-    const d = drag, carrying = !!d?.moved && !d.group;
+    const d = drag, carrying = !!d?.moved;
     for (const [id, f] of ringFields) {
       const p = store.state.piles.find((x) => x.id === id), here = carrying && d!.where?.in === "deck" && d!.where.pile === id && d!.where.turn !== undefined;
       f.zone.visible = carrying && !!p;
@@ -1711,6 +1738,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (gripAmt > 0.001 || gripDrag) moving = true;
     retargetMine();
     holdLanding();
+    const gathering = applyGather() ? gatherSet() : null;
+    if (gathering) moving = true;
     for (const [id, o] of cards) {
       const g = o.group, t = o.target;
       // Сменила место между миром и рукой — пересадить, сохранив, где она на экране, и долететь.
@@ -1741,7 +1770,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (!g.userData.placed) { g.position.copy(t.pos); g.quaternion.copy(t.quat); g.scale.setScalar(t.scale); g.userData.placed = true; g.userData.v = new THREE.Vector3(); g.userData.sv = 0; continue; }
       // ПРУЖИНА: ускорение к месту, затухание скоростью; поворот догоняет плавно.
       // Мелкими шагами: жёсткая пружина на целом кадре разлетается.
-      const sp = drag?.id === id ? SPRING_HELD : SPRING, c = 2 * Math.sqrt(sp.k) * sp.damp;
+      const sp = drag?.id === id ? SPRING_HELD : gathering?.has(id) ? (gather!.fast ? SPRING_HELD : GATHER.spring) : SPRING, c = 2 * Math.sqrt(sp.k) * sp.damp;
       const v = g.userData.v as THREE.Vector3, steps = Math.ceil(dt * 240), h = dt / steps, d = new THREE.Vector3();
       let sc = g.scale.x, sv = g.userData.sv as number;
       for (let i = 0; i < steps; i++) {
@@ -2046,11 +2075,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const takeable = (id: string): boolean => {
     const f = fromOf.get(id), lock = store.state.locks[id];
     if (!f || (lock && lock !== store.me.key) || (store.state.picks[id] && !mine(id))) return false;
-    if (lasso.on && mine(id)) return true;
     return f.in === "felt" || (f.in === "pile" && f.top) || (f.in === "hand" && f.mine);
   };
   /** `group` — несут выделенное лассо: отпустил — все выделенные туда же (`moveMany`), одним намерением. */
-  let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; group: boolean; gap: number | null; place: Place | null; where: Where | null; spot: { x: number; y: number; w: number; angle: number } | null; zone: { pile?: string; chair?: string; i: number } | null; fingerHand: boolean; latch0: string | null; scrubbed: boolean } | null = null;
+  let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; gap: number | null; place: Place | null; where: Where | null; spot: { x: number; y: number; w: number; angle: number } | null; zone: { pile?: string; chair?: string; i: number } | null; fingerHand: boolean; latch0: string | null; scrubbed: boolean } | null = null;
   let zoneFn: Parameters<SceneApi["setZone"]>[0] = null;
   let restRight: { x: number; y: number } | null = null;
   let carriedAt = 0;
@@ -2135,6 +2163,115 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   };
   renderer.domElement.addEventListener("pointerup", reseatUp, { capture: true });
   renderer.domElement.addEventListener("pointercancel", reseatUp, { capture: true });
+  // ——— РЕЖИМ «В СТОПКУ» ———
+  // Выбор: тап по карте или стопке на столе выделяет (повторный — снимает), проведение пальцем выделяет всё, что под ним; выбор общий (`picks`), его видят все.
+  // Сбор: долгий холд на выделенном — все выделенные карты неспешно слетаются под палец в одну стопку; двинул палец — летят быстро и идут за ним; отпустил — одно
+  // намерение `gather` (стопка там, где палец, стороны как лежали), выбор снят. Карты в руках (своих и чужих) выбору не подчиняются.
+  const isTableCard = (id: string): boolean => { const f = fromOf.get(id); return !!f && (f.in === "felt" || f.in === "pile"); };
+  function myTablePicks(): string[] { return Object.entries(store.state.picks).filter(([id, by]) => by === store.me.key && isTableCard(id)).map(([id]) => id); }
+  /** Что выделяет нажатие на карту: свободная — её саму; карта стопки — всю стопку (круг хода — одну карту; закрытая стопка и руки — ничего). */
+  function stackTargets(id: string): string[] {
+    const f = fromOf.get(id);
+    if (!f || f.in === "hand") return [];
+    if (f.in === "felt") return [id];
+    const pile = store.state.piles.find((p) => p.id === f.pile);
+    if (!pile || pile.shut || pile.seal) return [];
+    return pile.pose === "ring" ? [id] : pile.cards.map((c) => c.id);
+  }
+  function setStackMode(on: boolean): void {
+    if (on === stackMode) return;
+    stackMode = on;
+    stackPress = null;
+    gather = null;
+    if (!on && Object.values(store.state.picks).some((by) => by === store.me.key)) store.send({ t: "unpick" });
+    layout(store.state); draw();
+  }
+  function pickIds(ids: string[], on: boolean): void {
+    const todo = ids.filter((id) => (on ? !store.state.picks[id] : mine(id)));
+    if (todo.length) store.send({ t: "pick", ids: todo, on });
+  }
+  let stackPress: { pid: number; x: number; y: number; ids: string[]; moved: boolean; timer: number; seen: Set<string> } | null = null;
+  const gatherSet = (): Set<string> => new Set(gather?.ids ?? []);
+  const cardUp = (id: string): boolean => store.state.felt.find((c) => c.id === id)?.up ?? !!store.state.piles.flatMap((p) => p.cards).find((c) => c.id === id)?.up;
+  /** Цели летящих карт: после старта (с разносом) — стопка в точке пальца, лицом как лежали. Возвращает, идёт ли ещё сбор. */
+  function applyGather(): boolean {
+    const g = gather;
+    if (!g) return false;
+    const now = performance.now();
+    if (now > g.until) { gather = null; layout(store.state); return false; }
+    const angle = ((-(myChair()?.angle ?? 0) % 360) + 360) % 360;
+    g.ids.forEach((id, i) => {
+      const o = cards.get(id);
+      if (!o || (!g.fast && now < g.t0 + i * GATHER.staggerMs)) return;
+      o.target = lying(g.at.x, g.at.y, 0.03 + i * PILE_STEP, angle, cardUp(id));
+    });
+    return true;
+  }
+  function startGather(): void {
+    const pr = stackPress;
+    if (!pr || pr.moved) return;
+    pr.timer = 0;
+    // Холд — на выделенном: нажатое, что выделено не было, ничего не стягивает.
+    if (!pr.ids.some((id) => mine(id))) return;
+    const ids = myTablePicks();
+    if (!ids.length) return;
+    const at = onFelt({ clientX: pr.x, clientY: pr.y });
+    if (!at) return;
+    gather = { ids, at: seatOnFelt({ x: at.x, y: at.z }), t0: performance.now(), fast: false, from: { x: pr.x, y: pr.y }, until: Infinity };
+    layout(store.state); draw();
+  }
+  function finishGather(): void {
+    const g = gather;
+    if (!g) return;
+    const ids = g.ids.filter(isTableCard), angle = ((-(myChair()?.angle ?? 0) % 360) + 360) % 360;
+    if (ids.length) store.send({ t: "gather", ids, side: "keep", to: { x: g.at.x, y: g.at.y, angle } });
+    store.send({ t: "unpick" });
+    g.until = performance.now() + GATHER.settleMs;
+    draw();
+  }
+  renderer.domElement.addEventListener("pointerdown", (e) => {
+    if (!stackMode || reseat) return;
+    const pile = hitTab(e), top = pile ? store.state.piles.find((p) => p.id === pile)?.cards.at(-1)?.id : hitCard(e);
+    const ids = top ? stackTargets(top) : [];
+    if (!ids.length) return; // мимо — камера и взгляд как обычно
+    e.stopImmediatePropagation();
+    live.add(e.pointerId);
+    orbit.enabled = false;
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
+    stackPress = { pid: e.pointerId, x: e.clientX, y: e.clientY, ids, moved: false, timer: window.setTimeout(startGather, GATHER.holdMs), seen: new Set(ids) };
+  }, { capture: true });
+  renderer.domElement.addEventListener("pointermove", (e) => {
+    const pr = stackPress;
+    if (!pr || pr.pid !== e.pointerId) return;
+    e.stopImmediatePropagation();
+    if (gather) {
+      const at = onFelt(e);
+      if (at) gather.at = seatOnFelt({ x: at.x, y: at.z });
+      if (!gather.fast && Math.hypot(e.clientX - gather.from.x, e.clientY - gather.from.y) > GATHER.moveStartPx) gather.fast = true;
+      applyGather(); draw();
+      return;
+    }
+    if (!pr.moved && Math.hypot(e.clientX - pr.x, e.clientY - pr.y) < 8) return;
+    if (!pr.moved) { pr.moved = true; clearTimeout(pr.timer); pickIds(pr.ids, true); }
+    // Проведение пальцем выделяет всё, что под ним.
+    const pile = hitTab(e), top = pile ? store.state.piles.find((p) => p.id === pile)?.cards.at(-1)?.id : hitCard(e);
+    const fresh = (top ? stackTargets(top) : []).filter((id) => !pr.seen.has(id));
+    for (const id of fresh) pr.seen.add(id);
+    pickIds(fresh, true);
+  }, { capture: true });
+  const stackUp = (e: PointerEvent): void => {
+    const pr = stackPress;
+    if (!pr || pr.pid !== e.pointerId) return;
+    e.stopImmediatePropagation();
+    stackPress = null;
+    clearTimeout(pr.timer);
+    live.delete(e.pointerId);
+    orbit.enabled = camMode === "orbit";
+    if (gather) { finishGather(); return; }
+    if (!pr.moved) pickIds(pr.ids, !pr.ids.every(mine));
+  };
+  renderer.domElement.addEventListener("pointerup", stackUp, { capture: true });
+  renderer.domElement.addEventListener("pointercancel", stackUp, { capture: true });
   renderer.domElement.addEventListener("pointerdown", (e) => {
     if (reseat) return;
     live.add(e.pointerId);
@@ -2156,7 +2293,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const f = fromOf.get(id)!;
     const c = f.in === "felt" ? store.state.felt.find((x) => x.id === id) : undefined;
     const my = myChair()?.angle ?? 0;
-    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? true : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: c ? c.angle : ((-my % 360) + 360) % 360, group: lasso.on && mine(id), gap: null, place: null, where: null, spot: null, zone: null, fingerHand, latch0, scrubbed: false };
+    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? true : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: c ? c.angle : ((-my % 360) + 360) % 360, gap: null, place: null, where: null, spot: null, zone: null, fingerHand, latch0, scrubbed: false };
     layout(store.state);
   }
   /** Моя карта ближе всего к пальцу по горизонтали — та, что поднимется под ним. */
@@ -2177,7 +2314,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!drag) return;
     // ПАЛЕЦ ПО РУКЕ: пока он не потянул вверх, карту не берут — под пальцем поднимается та, над которой он стоит (одна), и палец может
     // скользить вдоль руки; потянул вверх — берёт ту, что поднята. (Только в виде «голова» и с новым язычком руки.)
-    if (!drag.moved && drag.fingerHand && !drag.group) {
+    if (!drag.moved && drag.fingerHand) {
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       if (dy > -PULL_PX) {
         if (Math.abs(dx) >= 4 || drag.scrubbed) {
@@ -2191,16 +2328,16 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
     if (!drag.moved) {
       drag.moved = true;
-      if (!drag.group) store.send({ t: "grab", id: drag.id });
+      store.send({ t: "grab", id: drag.id });
       drag.hold = window.setInterval(() => { if (drag) store.send({ t: "hold", id: drag.id }); }, HOLD_MS);
     }
     // Куда целит палец: над своей рукой — щель в руке и правая рука у левой; иначе — карта под пальцем над столом.
     const where = target(e, drag);
     const z = zoneFn?.(e.clientX, e.clientY) ?? null;
     drag.where = where;
-    drag.zone = z && !drag.group ? (z.where.in === "deck" ? { pile: z.where.pile, i: z.where.i } : { chair: z.where.chair, i: z.where.i }) : null;
+    drag.zone = z ? (z.where.in === "deck" ? { pile: z.where.pile, i: z.where.i } : { chair: z.where.chair, i: z.where.i }) : null;
     drag.spot = drag.zone ? z!.spot : null;
-    drag.gap = where.in === "hand" && !drag.group && where.chair === myChair()?.id ? where.i : null;
+    drag.gap = where.in === "hand" && where.chair === myChair()?.id ? where.i : null;
     const pile = where.in === "deck" ? store.state.piles.find((p) => p.id === where.pile) : undefined;
     // Над стопкой — карта уже над ней, наверху: видно, куда ляжет; рука остальным — на стопке.
     drag.place = drag.gap !== null || drag.spot ? null : pile && pile.pose !== "ring" ? lying(pile.x, pile.y, 0.25 + pile.cards.length * PILE_STEP, pileAngle(pile), drag.up) : heldAt(e.clientX, e.clientY, drag.angle, drag.up);
@@ -2209,7 +2346,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     rightAt = drag.gap !== null ? myLeftHand() : zoneHand ? { x: zoneHand.x, y: zoneHand.y } : zonePile ? { x: zonePile.x, y: zonePile.y } : pile ? { x: pile.x, y: pile.y } : drag.place ? { x: drag.place.pos.x, y: drag.place.pos.z } : null;
     sendBody();
     const now = performance.now();
-    if (!drag.group && now - carriedAt >= CARRY_EVERY_MS) { carriedAt = now; store.carry({ id: drag.id, over: where }); }
+    if (now - carriedAt >= CARRY_EVERY_MS) { carriedAt = now; store.carry({ id: drag.id, over: where }); }
     layout(store.state);
   });
   const end = (e: PointerEvent) => {
@@ -2221,19 +2358,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     clearInterval(d.hold);
     rightAt = null;
     sendBody(true);
-    if (!d.moved && lasso.on) {
-      // Лассо: тап выделяет карту или снимает выделение.
-      store.send({ t: "pick", ids: [d.id], on: !mine(d.id) });
-      draw();
-      return;
-    }
-    if (d.group) {
-      layout(store.state);
-      store.send({ t: "moveMany", moves: groupMoves(target(e, d), d.id) });
-      store.send({ t: "unpick" });
-      draw();
-      return;
-    }
     if (!d.moved) {
       // Скользил по руке (не тап): поднятая под пальцем карта опускается — остаётся поднятой только та, что была поднята тапом.
       if (d.fingerHand && d.scrubbed) { liftedId = d.latch0; layout(store.state); draw(); return; }
@@ -2272,23 +2396,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   // Палец отпустили, пока этот экран не на виду (переключились на другой): его карта ложится там, где была, а не виснет до возвращения.
   addEventListener("pointerup", end);
   addEventListener("pointercancel", end);
-
-  /**
-   * ВЫДЕЛЕННОЕ — ТУДА ЖЕ: на сукно — «как лежат» (все сдвинуты на тот же шаг, что несомая) или «к пальцу» (все в
-   * точку, чуть веером); в руку — подряд с этого места; в стопку — все в неё.
-   */
-  function groupMoves(to: Where, lead: string): { id: string; to: Where }[] {
-    const ids = Object.entries(store.state.picks).filter(([, by]) => by === store.me.key).map(([id]) => id);
-    if (!ids.includes(lead)) ids.unshift(lead);
-    const from = store.state.felt.find((f) => f.id === lead);
-    return ids.map((id, k) => {
-      if (to.in === "hand") return { id, to: { ...to, i: to.i + k } };
-      if (to.in === "deck") return { id, to };
-      const f = store.state.felt.find((x) => x.id === id);
-      if (lasso.grab === "keep" && f && from) return { id, to: { in: "felt", x: f.x + to.x - from.x, y: f.y + to.y - from.y, up: f.up, angle: f.angle } };
-      return { id, to: { ...to, x: to.x + k * 0.12, y: to.y + k * 0.06, up: f ? f.up : to.up } };
-    });
-  }
 
   /** Куда кладут: над своей рукой — в руку, на это место; у стопки — в неё; иначе — на сукно, внутри стола. */
   function target(e: PointerEvent, d: { id: string; up: boolean; angle: number }): Where {
@@ -2450,6 +2557,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    carryTo: (id: string, chair: string, i: number) => { if (!store.state.locks[id]) store.send({ t: "grab", id }); store.carry({ id, over: { in: "hand", chair, i } }); },
+    cardOnHud: (id: string) => { const o = cards.get(id); return o ? { onCamera: !!o.target.onCamera, x: o.target.pos.x } : null; },
+    stackMode: () => stackMode,
+    turnCard: (id: string) => { store.send({ t: "turn", id }); },
+    gatherNow: () => (gather ? { n: gather.ids.length, fast: gather.fast } : null),
     wideK: () => wideK(),
     pileBodyAxis: (pile: string) => { const m = bodies.get(pile), p = store.state.piles.find((x) => x.id === pile); if (!m || !p) return null; const b = cards.get(p.cards[0]!.id), t = cards.get(p.cards.at(-1)!.id); if (!b || !t) return null; const d = t.group.getWorldPosition(new THREE.Vector3()).sub(b.group.getWorldPosition(new THREE.Vector3())).normalize(), z = new THREE.Vector3(0, 0, 1).applyQuaternion(m.quaternion); return { dot: d.dot(z), z: z.toArray().map((v) => Math.round(v * 100) / 100) }; },
     headFronts: () => heads.children.flatMap((b) => b.children.filter((c) => c.userData.base).map((c) => ({ by: b.userData.by as string, moved: c.position.distanceTo(c.userData.base as THREE.Vector3), scale: c.scale.x }))),
@@ -2628,7 +2740,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         return { top: handTop(ch), bottom, over: pileOver !== null };
       }
       const d = drag;
-      if (!d?.moved || d.group) return null;
+      if (!d?.moved) return null;
       return { top: handTop(ch, d.id), bottom, over: d.gap !== null };
     },
     handGeom,
@@ -2653,11 +2765,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return seat ? { t: "chair", id: seat.object.userData.chair as string } : null;
     },
     pileSpots,
-    cardsIn(poly) {
-      const inside = (q: { x: number; y: number }) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i]!, b = poly[j]!; if (a.y > q.y !== b.y > q.y && q.x < ((b.x - a.x) * (q.y - a.y)) / (b.y - a.y) + a.x) c = !c; } return c; };
-      return store.state.felt.filter((f) => { const q = screenOf(f.id); return q && inside(q); }).map((f) => f.id);
-    },
-    setLasso(on, grab) { lasso = { on, grab }; },
+    setStackMode(on) { setStackMode(on); },
+    stackMode: () => stackMode,
+    stackPicked: () => myTablePicks().length,
     onTab(fn) { tabFn = fn; },
     setTabLit(piles) { litTabs = piles; },
     feltAt: (x, y) => { const at = onFelt({ clientX: x, clientY: y }); return at ? { x: at.x, y: at.z } : null; },

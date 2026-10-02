@@ -120,7 +120,7 @@ try {
   if (shot) await p.screenshot({ path: shot });
   // HUD — как у стола 2D.
   const my = () => t(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat); });
-  const hudHas = await p.evaluate(() => ["[data-rooms-back]", "[data-table-name]", "[data-settings]", "[data-journal]", '[data-section="chair"]', '[data-section="lasso"]', "[data-home]", "[data-stance-toggle]", '[data-section="say"]', "[data-hand-btn]"].filter((q) => !document.querySelector(q)));
+  const hudHas = await p.evaluate(() => ["[data-rooms-back]", "[data-table-name]", "[data-settings]", "[data-journal]", '[data-section="chair"]', '[data-stack]', "[data-home]", "[data-stance-toggle]", '[data-section="say"]', "[data-hand-btn]"].filter((q) => !document.querySelector(q)));
   check("HUD стола: верх (выход, имя, настройки, журнал), бар «стул» и «лассо», компас, поза, диалог, левая рука", hudHas.length === 0, hudHas);
   await p.click('[data-section="chair"]');
   await p.click('[data-bar="lock"]');
@@ -258,26 +258,6 @@ try {
   await frames();
   const after = await t(() => window.__t3d.state().piles[0]);
   check("отпустил — колода на новом месте сразу, без прыжка назад", Math.hypot(right.x - 210, right.y - 450) < 60 && Math.hypot(after.x - under.x, after.y - under.y) > 0.5, { right, was: [under.x, under.y], now: [after.x, after.y] });
-  // Лассо: обвёл карты на сукне — выделены; «Перевернуть» — перевернулись.
-  const feltIds = await t(() => window.__t3d.state().felt.map((c) => c.id));
-  await p.click('[data-section="lasso"]');
-  await p.click('[data-bar="lasso"]');
-  const pts = await Promise.all(feltIds.map((id) => t((i) => window.__t3d.screenOf(i), id)));
-  const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
-  const box = { l: Math.min(...xs) - 40, r: Math.max(...xs) + 40, t: Math.min(...ys) - 40, b: Math.max(...ys) + 40 };
-  await p.mouse.move(box.l, box.t); await p.mouse.down();
-  for (const [x, y] of [[box.r, box.t], [box.r, box.b], [box.l, box.b], [box.l, box.t + 2]]) await p.mouse.move(x, y, { steps: 6 });
-  await p.mouse.up();
-  await frames();
-  const picked = await t(() => Object.keys(window.__t3d.state().picks));
-  check("лассо: обвёл — карты сукна выделены", feltIds.length > 0 && feltIds.every((id) => picked.includes(id)), { feltIds, picked });
-  const ups0 = await t(() => window.__t3d.state().felt.map((c) => c.up));
-  await p.click('[data-lasso-act="flip"]');
-  await frames();
-  check("полоса лассо → «Перевернуть»: все выделенные перевёрнуты", (await t(() => window.__t3d.state().felt.map((c) => c.up))).every((u, i) => u !== ups0[i]), null);
-  await p.click('[data-lasso-act="cancel"]');
-  await p.click('[data-section="lasso"]');
-  await frames();
   // Тап по голове — окно стула.
   const alia2 = (await t(() => window.__t3d.bodies())).find((b) => b.by === "alia");
   await p.mouse.click(alia2.head.x, alia2.head.y);
