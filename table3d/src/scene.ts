@@ -473,6 +473,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return;
     }
     camera.up.set(0, 1, 0);
+    if (!viewHManual) viewH = autoViewH(rig.fov, camera.aspect);
     const pos = headAt(sh, rig.lean, rig.side);
     const fov = rig.fov;
     if (Math.abs(camera.fov - fov) > 1e-3) { camera.fov = fov; camera.updateProjectionMatrix(); }
@@ -511,8 +512,16 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Посадка: на сколько стул придвинут к столу, единицы стола. Не шея: сама не возвращается, плечи едут вместе с головой. */
   let seatPull = 0;
   /** ВЫСОТА ОБЗОРА (DEV): камера выше или ниже головы, только для моего экрана. Тело, рука и то, что видят остальные, не меняются; карты в кадре стоят как стояли. */
-  let viewH = innerWidth < 500 ? 3 : 0; // на телефоне удобно +3, на десктопе 0
+  let viewH = 0, viewHManual = false;
   const VIEW_H = { min: -3, max: 3 };
+  /**
+   * ВЫСОТА ОБЗОРА САМА — от того, сколько стола видно по ширине: широкий обзор (десктоп, ≥ 100° по горизонтали) — 0; узкий (телефон в портрете, ≈ 39°) — +3,
+   * между ними плавно. От устройства не зависит: окно сузили, повернули или поменяли обзор в настройках — высота пересчитывается, пока ползунок не трогали.
+   */
+  const autoViewH = (vfovDeg: number, aspect: number): number => {
+    const hfov = (2 * Math.atan(Math.tan((vfovDeg * DEG) / 2) * aspect)) / DEG;
+    return 3 * Math.max(0, Math.min(1, (100 - hfov) / 60));
+  };
   const eyeY = (): number => camera.position.y - (camMode === "head" ? viewH : 0);
   /** ПЕРЕСАДКА: вид сверху без тел, рук и голов; свой стул тянут по кругу (`angle` — куда, `null` — пока не тронут), потом «Готово» или «Отмена». */
   let reseat: { was: CamMode; angle: number | null; pid: number | null } | null = null;
@@ -1581,6 +1590,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      if (camMode === "head") applyRig();
     }
     let moving = false;
     const now = performance.now(), dt = Math.min(0.05, Math.max(0.001, (now - lastTick) / 1000));
@@ -2327,7 +2337,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
     eyeNow: () => eyeY(),
-    setViewHeight: (t: number) => { viewH = VIEW_H.min + Math.max(0, Math.min(1, t)) * (VIEW_H.max - VIEW_H.min); applyRig(); layout(store.state); draw(); },
+    setViewHeight: (t: number) => { viewHManual = true; viewH = VIEW_H.min + Math.max(0, Math.min(1, t)) * (VIEW_H.max - VIEW_H.min); applyRig(); layout(store.state); draw(); },
     chairAt: (id: string) => chairObjs.get(id)?.group.position.toArray() ?? null,
     reseatInfo: () => ({ on: reseat !== null, heads: heads.visible, chairs: chairRoot.visible, handShown: store.state.chairs.flatMap((c) => c.hand).filter((c) => cards.get(c.id)?.group.visible).length, felt: store.state.felt.filter((c) => cards.get(c.id)?.group.visible).length, chair: (() => { const o = chairObjs.get(myChair()?.id ?? ""); return o ? { color: o.mats[0]!.color.getHexString(), emissive: o.mats[0]!.emissive.getHexString(), halo: (o.halo.material as THREE.MeshBasicMaterial).color.getHexString() } : null; })(), tags: [...chairObjs.entries()].filter(([, o]) => o.tag).map(([id]) => id), glow: [...chairObjs.entries()].filter(([, o]) => o.halo.visible).map(([id]) => id) }),
     feltScreen: (x: number, y: number) => project(new THREE.Vector3(x, 0, y)),
@@ -2356,7 +2366,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     camMode: () => camMode,
     baseFov: () => baseFov,
     viewHeight: () => (viewH - VIEW_H.min) / (VIEW_H.max - VIEW_H.min),
-    setViewHeight: (t: number) => { viewH = VIEW_H.min + Math.max(0, Math.min(1, t)) * (VIEW_H.max - VIEW_H.min); applyRig(); layout(store.state); draw(); },
+    setViewHeight: (t: number) => { viewHManual = true; viewH = VIEW_H.min + Math.max(0, Math.min(1, t)) * (VIEW_H.max - VIEW_H.min); applyRig(); layout(store.state); draw(); },
     viewHeightUnits: () => viewH,
     seat: () => (seatPull - SEAT_PULL.min) / (SEAT_PULL.max - SEAT_PULL.min),
     setSeat: (t: number) => setSeatPull(SEAT_PULL.min + Math.max(0, Math.min(1, t)) * (SEAT_PULL.max - SEAT_PULL.min)),

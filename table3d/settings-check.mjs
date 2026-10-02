@@ -1,4 +1,4 @@
-// НАСТРОЙКИ 3D: «Полный экран» есть в обычном браузере (Fullscreen API) и работает; высота обзора по умолчанию — на телефоне +3, на десктопе 0.
+// НАСТРОЙКИ 3D: «Полный экран» есть в обычном браузере (Fullscreen API) и работает; высота обзора сама зависит от ширины обзора (узкий — +3, широкий — 0), а не от устройства.
 //   node settings-check.mjs [base]     (стенд: `npm run dev`, порт 9590)
 import { createRequire } from "module";
 const require = createRequire(new URL("../server/scripts/x.mjs", import.meta.url));
@@ -28,6 +28,25 @@ const open = async (viewport) => {
   await phone.waitForTimeout(500);
   check("второй тап выходит из полного экрана", await phone.evaluate(() => !document.fullscreenElement), null);
   await phone.close();
+}
+{
+  // Планшет в портрете (обзор шире телефона, уже десктопа) — высота между; окно сузили/расширили — пересчитывается; тронули ползунок — остаётся.
+  const pad = await open({ width: 768, height: 1024 });
+  const h = () => pad.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow());
+  const mid = await h();
+  check("планшет: высота между телефоном и десктопом", mid > 1.2 && mid < 2.8, mid);
+  await pad.setViewportSize({ width: 1280, height: 800 });
+  await pad.waitForTimeout(600);
+  check("окно расширили — высота сама стала 0", Math.abs(await h()) < 0.05, await h());
+  await pad.setViewportSize({ width: 390, height: 844 });
+  await pad.waitForTimeout(600);
+  check("окно сузили — высота сама стала +3", Math.abs((await h()) - 3) < 0.05, await h());
+  await pad.evaluate(() => window.__t3d.setViewHeight(0.5));
+  await pad.setViewportSize({ width: 1280, height: 800 });
+  await pad.setViewportSize({ width: 390, height: 844 });
+  await pad.waitForTimeout(600);
+  check("ползунок тронули — высота остаётся ручной", Math.abs(await h()) < 0.05, await h());
+  await pad.close();
 }
 {
   const desk = await open({ width: 1280, height: 800 });
