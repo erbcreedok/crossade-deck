@@ -1,0 +1,33 @@
+table3d/neck-check.mjs
+  s_ad8a8a5b5d0419::t_8008968c810d89 49-58
+server/table-client/bodyView.ts
+  s_ad8a8a5b5d0419::t_dd55179ffd353f 67,152,437
+server/src/table/bodies.test.ts
+  s_ad8a8a5b5d0419::t_14c201ba1402fc 34-40
+  s_ad8a8a5b5d0419::t_6f66e065187cbf 4
+server/src/table/bodies.ts
+  s_ad8a8a5b5d0419::t_dd55179ffd353f 59-60,121-123,201-202,205
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_4954c8717414ea 2146
+  s_ad8a8a5b5d0419::t_14c201ba1402fc 666-667
+  s_ad8a8a5b5d0419::t_5c11124c5553fd 212,612,1617,2041-2042,2145,2185
+  s_ad8a8a5b5d0419::t_dd55179ffd353f 21,436,452,483,499-508,526,564,627,632,655,711,733,1405,1621
+table3d/src/camera.ts
+  s_ad8a8a5b5d0419::t_dd55179ffd353f 22-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4ab8ddd4025ec040463ef9ac430d3fbcd32a780d",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
