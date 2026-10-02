@@ -5,6 +5,7 @@
 import * as THREE from "three";
 import { PALETTE } from "../../look/src/palette.js";
 import { CROSS_PATH, LOADING_MS } from "../../look/src/loading.js";
+export { CROSS_PATH };
 
 export const LOADER_VARIANTS = ["spin", "flip", "build"] as const;
 export type LoaderVariant = (typeof LOADER_VARIANTS)[number];
@@ -51,7 +52,7 @@ export function loader3d(over: HTMLElement, label: string, start: LoaderVariant 
   sheet.append(canvas, said);
   over.appendChild(sheet);
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
   renderer.setSize(132, 132, false);
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(32, 1, 0.1, 20);
