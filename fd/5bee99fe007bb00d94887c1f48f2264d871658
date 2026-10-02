@@ -1,0 +1,48 @@
+server/src/table/routes.test.ts
+  s_783a0cc3ed910b::t_dfc8b1d02d5fc6 511-518
+deploy/failover/README.md
+  s_783a0cc3ed910b::t_335be0627ca657 38-53,56-57
+deploy/failover/decide.test.mjs
+  s_783a0cc3ed910b::t_133a249607c8a5 3,71-91
+  s_783a0cc3ed910b::t_582ec0cef257cb 59-70
+deploy/fly-standby/fly.toml
+  s_783a0cc3ed910b::t_064c68bfe22809 5,29-33,36
+  s_783a0cc3ed910b::t_95bd7aff6382d7 1-4,6-28,34-35,37-40
+deploy/fly-standby/standby.mjs
+  s_783a0cc3ed910b::t_95bd7aff6382d7 1-12,14-43,46-137
+  s_783a0cc3ed910b::t_133a249607c8a5 13,44-45
+server/src/db/snapshot.test.ts
+  s_783a0cc3ed910b::t_dfc8b1d02d5fc6 1-27
+deploy/table.Dockerfile
+  s_783a0cc3ed910b::t_2cb654f87f9dcd 20-22
+  s_783a0cc3ed910b::t_57947259282904 29-30
+server/src/table/routes.ts
+  s_783a0cc3ed910b::t_dfc8b1d02d5fc6 28-31,420-433
+  s_783a0cc3ed910b::t_73ba409b55e4f5 434
+server/src/db/snapshot.ts
+  s_783a0cc3ed910b::t_dfc8b1d02d5fc6 1-22
+deploy/fly-standby/Dockerfile
+  s_783a0cc3ed910b::t_2cb654f87f9dcd 17-19
+  s_783a0cc3ed910b::t_57947259282904 21-22
+  s_783a0cc3ed910b::t_95bd7aff6382d7 1-16,20,23-43
+deploy/failover/decide.mjs
+  s_783a0cc3ed910b::t_582ec0cef257cb 15-22,30,35,40,46,50,55-56
+  s_783a0cc3ed910b::t_133a249607c8a5 59-73
+  s_783a0cc3ed910b::t_f86f4ad89c4b61 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fd5bee99fe007bb00d94887c1f48f2264d871658",
+  "prompts": {},
+  "sessions": {
+    "s_783a0cc3ed910b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "961f95bc-95fa-4b4a-8d9b-d0901f13a448",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
