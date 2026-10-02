@@ -1159,6 +1159,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    */
   const WIDTH = { stack: 0.12, rowFrom: 0.7, fanTo: 0.75, max: 1.5, px: 220, rise: 150, defaults: { shrink: 0.05, fan: 0.68, row: 1 }, othersRow: 4.2 };
   /** Загиб веера по умолчанию, 0…1. */
+  /** Самый крутой наклон края веера на широком экране, рад (≈ 26°). */
+  const FAN_EDGE = 0.45;
   const CURL = { rest: 0.7 };
   let handCurl: number = CURL.rest;
   /** Загиб в МОЁМ виде растёт с числом карт: мало карт — рука почти прямая (свои карты у самых глаз сильно искажаются), много — загиб нужен, чтобы уместить веер. Остальным уходит выбранный загиб. */
@@ -1173,7 +1175,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const curlOfCount = (n: number): number => Math.max(0.15, Math.min(1, (n - 2) / 8));
   const mineCurlK = (n: number): number => MINE_CURL * curlOfCount(n);
   let handWidth = 0.68, widthLive: number | null = null, widthOver = 0, widthPendingUntil = 0;
-  const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAMHAND.refFov * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / (CAMHAND.card * handSize)); };
+  /** Насколько обзор «широкий» (0 — телефон в портрете, 1 — десктоп): по горизонтальному полю зрения 60…90°. На узком ничего не меняется. */
+  const wideK = (): number => { const hfov = (2 * Math.atan(Math.tan((baseFov * DEG) / 2) * camera.aspect)) / DEG; return Math.max(0, Math.min(1, (hfov - 60) / 30)); };
+  const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAMHAND.refFov * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * (0.94 - 0.14 * wideK())) / (CAMHAND.card * handSize)); };
   const roomOf = (f: number): number => 1.2 + (roomMax() - 1.2) * Math.max(0, Math.min(1, (f - WIDTH.stack) / (1 - WIDTH.stack)));
   const smooth = (a: number, b: number, x: number): number => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
   /** Раскладка моей руки из ширины `f` и подъёма `rise` (0…1): сжатость, веер ↔ ряд, комната в ширинах карты. */
@@ -1238,9 +1242,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const fanFitsNow = (): boolean => { const ch = myChair(); return !ch || fanFitsN(ch.hand.length, CAMHAND.room); };
   /** Место в осях камеры: карта `k` из `n` руки стула `ch`. `fovK` — масштаб руки в кадре: с обзором шире `refFov` рука больше в тот же раз, и на экране выглядит, как при `refFov`; оптический зум её увеличивает вместе со столом, как взгляд. */
   const camHandLocal = (k: number, n: number, up: boolean, shape: Shape, fovK: number, sizeK = 1, off = { x: 0, y: 0 }, curl = CURL.rest, tilt: number = CAMHAND.tilt): Place => {
-    const plan = handPlanBlend({ wide: shape.wide, lift: shape.lift }, true, n, 1, 1.4, shape.room)[k] ?? { x: 0, y: 0, angle: 0 }, s = (CAMHAND.card / CARD_W) * fovK * sizeK, u = CAMHAND.card * fovK * sizeK;
+    const plans = handPlanBlend({ wide: shape.wide, lift: shape.lift }, true, n, 1, 1.4, shape.room), plan = plans[k] ?? { x: 0, y: 0, angle: 0 }, s = (CAMHAND.card / CARD_W) * fovK * sizeK, u = CAMHAND.card * fovK * sizeK;
     // Веер ещё и загнут вокруг вертикали, как карты в пальцах: края ближе к держащему, карты смотрят в центр дуги. Кривизна растёт с загибом `curl` (0…1; 1 — радиус `CAMHAND.curl` ширин карты); в ряду и стопкой загиба нет.
-    const bend = Math.max(0, Math.min(1, 2 * (1 - shape.lift))) * Math.max(0, Math.min(1, curl)), arc = bend > 1e-3 ? CAMHAND.curl / bend : 0, theta = arc ? plan.x / arc : 0;
+    const bend = Math.max(0, Math.min(1, 2 * (1 - shape.lift))) * Math.max(0, Math.min(1, curl)), arc0 = bend > 1e-3 ? CAMHAND.curl / bend : 0;
+    // ШИРОКИЙ ЭКРАН (обзор шире ~60° по горизонтали; телефон в портрете — нет, там всё как было): края веера не заворачиваются круче `FAN_EDGE` — иначе в широкую комнату
+    // они ложатся почти боком и уходят под нижнюю строку. Плавно по ширине обзора.
+    const wk = wideK(), reach = plans.reduce((m, q) => Math.max(m, Math.abs(q.x)), 0), arc = arc0 && wk > 0 ? arc0 + wk * (Math.max(arc0, reach / FAN_EDGE) - arc0) : arc0, theta = arc ? plan.x / arc : 0;
     const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -theta).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), tilt * DEG)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -plan.angle * DEG));
     if (up) quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
     const along = arc ? arc * Math.sin(theta) : plan.x, toward = arc ? arc * (1 - Math.cos(theta)) : 0;
@@ -2436,6 +2443,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    wideK: () => wideK(),
     pileBodyAxis: (pile: string) => { const m = bodies.get(pile), p = store.state.piles.find((x) => x.id === pile); if (!m || !p) return null; const b = cards.get(p.cards[0]!.id), t = cards.get(p.cards.at(-1)!.id); if (!b || !t) return null; const d = t.group.getWorldPosition(new THREE.Vector3()).sub(b.group.getWorldPosition(new THREE.Vector3())).normalize(), z = new THREE.Vector3(0, 0, 1).applyQuaternion(m.quaternion); return { dot: d.dot(z), z: z.toArray().map((v) => Math.round(v * 100) / 100) }; },
     headFronts: () => heads.children.flatMap((b) => b.children.filter((c) => c.userData.base).map((c) => ({ by: b.userData.by as string, moved: c.position.distanceTo(c.userData.base as THREE.Vector3), scale: c.scale.x }))),
     handDropZone: () => api.handDropZone(),

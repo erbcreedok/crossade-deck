@@ -227,6 +227,27 @@ check("язычок за самый верх — вся рука ушла на �
   }
   await c.close();
 }
+{
+  // ШИРОКИЙ ЭКРАН: веер не заворачивается круче ~30° по краям и не выходит за экран; телефон не затронут (обзор узкий — поправка 0).
+  const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await phone.goto(`${base}/?stand&cam=head`);
+  await phone.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  check("телефон: поправка широкого экрана равна 0 (веер как был)", (await phone.evaluate(() => window.__t3d.wideK())) === 0, await phone.evaluate(() => window.__t3d.wideK()));
+  await phone.close();
+  const d = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await d.goto(`${base}/?stand&cam=head`);
+  await d.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await d.waitForTimeout(1000);
+  await d.evaluate(() => window.__t3d.fillHand(20));
+  await d.waitForTimeout(1500);
+  await d.evaluate(() => window.__t3d.setHandLevel(0.45));
+  await d.waitForTimeout(1800);
+  const info = await d.evaluate(() => { const s = window.__t3d.state(); const ch = s.chairs.find((c) => c.owner === window.__t3d.me()); const rolls = ch.hand.map((c) => Math.abs(window.__t3d.cardQuat(c.id)[2])); const xs = ch.hand.map((c) => window.__t3d.screenOf(c.id)?.x ?? 0); return { n: ch.hand.length, wide: window.__t3d.wideK(), maxRoll: Math.max(...rolls), left: Math.min(...xs), right: Math.max(...xs) }; });
+  check("десктоп: поправка широкого экрана 1", info.wide === 1, info);
+  check("десктоп: края веера наклонены не круче ~30°", info.maxRoll <= 31, info);
+  check("десктоп: веер в пределах 80% ширины экрана", info.left > 1280 * 0.1 && info.right < 1280 * 0.9, info);
+  await d.close();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
