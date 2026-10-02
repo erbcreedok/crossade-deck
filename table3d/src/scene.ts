@@ -474,7 +474,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   function rigHome(): void {
     const ch = myChair();
     if (!ch) return;
-    gyroOff = null;
+    gyroOff = null; gyroTilt = 0;
     rig.yaw = sideYaw(ch);
     rig.lean = 0;
     rig.side = 0;
@@ -491,7 +491,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (camMode === "orbit") return;
     headGoal = null;
     // С гиро палец поправляет курс (телефон сам взгляд держит): сдвигаем «ноль» датчика, а не сам взгляд.
-    if (gyro.on() && camMode === "head") { gyroOff = wrap((gyroOff ?? 0) + dyaw); applyGyro(); draw(); return; }
+    if (gyro.on() && camMode === "head") { gyroOff = wrap((gyroOff ?? 0) + dyaw); gyroTilt = Math.max(-60, Math.min(60, gyroTilt + dpitch)); applyGyro(); draw(); return; }
     rig.yaw = wrap(rig.yaw + dyaw);
     if (camMode !== "top") rig.pitch = Math.max(CAM.pitch.min, Math.min(CAM.pitch.max, rig.pitch + dpitch));
     applyRig(); touched = true; draw(); sendBody();
@@ -576,12 +576,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const gyro = createGyro(() => draw());
   /** Курс сцены минус курс телефона: первое слово датчика (или «домой») ставит его так, что взгляд остаётся там, где был. */
   let gyroOff: number | null = null;
+  /** Поправка наклона пальцем поверх датчика, градусы: как `gyroOff` для курса. */
+  let gyroTilt = 0;
   function applyGyro(): void {
     if (!gyro.on() || camMode !== "head") return;
     const l = gyro.look();
     if (!l) return;
     if (gyroOff === null) gyroOff = wrap(rig.yaw - l.yaw);
-    const yaw = wrap(l.yaw + gyroOff), pitch = Math.max(CAM.pitch.min, Math.min(CAM.pitch.max, l.pitch));
+    const yaw = wrap(l.yaw + gyroOff), pitch = Math.max(CAM.pitch.min, Math.min(CAM.pitch.max, l.pitch + gyroTilt));
     if (Math.abs(wrap(yaw - rig.yaw)) < 1e-3 && Math.abs(pitch - rig.pitch) < 1e-3) return;
     rig.yaw = yaw;
     rig.pitch = pitch;
@@ -589,10 +591,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
   /** Вкл/выкл гиро. Включать — из жеста пальца (iOS даёт датчик только так). Ответ — что не вышло. */
   async function gyroToggle(): Promise<string | null> {
-    if (gyro.on()) { gyro.stop(); gyroOff = null; return null; }
+    if (gyro.on()) { gyro.stop(); gyroOff = null; gyroTilt = 0; return null; }
     const asked = gyro.start();
     if (camMode !== "head") setCamMode("head");
-    gyroOff = null;
+    gyroOff = null; gyroTilt = 0;
     const note = await asked;
     draw();
     return note;

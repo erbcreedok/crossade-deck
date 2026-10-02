@@ -30,6 +30,13 @@ check("телефон повернули на 40° влево — голова �
 await turn(140, 60);
 const down = await cam();
 check("телефон наклонили вниз на 30° — взгляд вниз на 30°", Math.abs(down.pitch + 30) < 2, down);
+// ПАЛЕЦ ВВЕРХ-ВНИЗ ПОД ГИРО поправляет наклон, как вбок — курс: телефон держит взгляд, палец сдвигает «ноль».
+await p.mouse.move(195, 300); await p.mouse.down(); await p.mouse.move(195, 360, { steps: 6 }); await p.mouse.up();
+await turn(140, 60);
+const tilted = await cam();
+check("палец вверх-вниз под гиро двигает взгляд, как без гиро: вниз по экрану — взгляд выше (не только лево-право)", tilted.pitch > down.pitch + 5, { down, tilted });
+await p.mouse.move(195, 360); await p.mouse.down(); await p.mouse.move(195, 300, { steps: 6 }); await p.mouse.up();
+await turn(140, 60);
 // ДРОЖЬ: телефон лежит в руке и «дышит» ±0.4° — взгляд не должен трястись сильнее 0.25°.
 await p.evaluate(() => { window.__noise = setInterval(() => { const n = () => (Math.random() - 0.5) * 0.8; dispatchEvent(Object.assign(new Event("deviceorientation"), { alpha: 140 + n(), beta: 60 + n(), gamma: n() })); }, 16); });
 await p.waitForTimeout(600);
