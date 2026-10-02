@@ -1,0 +1,45 @@
+server/src/table/routes.ts
+  s_783a0cc3ed910b::t_af12efe169e5f1 29,57,407-429
+  s_783a0cc3ed910b::t_c5400ca9f84d93 28,786-809
+  s_783a0cc3ed910b::t_ec53eda36b0a7c 27,810-811
+server/src/index.ts
+  s_783a0cc3ed910b::t_c5400ca9f84d93 3
+  s_783a0cc3ed910b::t_c15cf184278a2f 16,21
+server/src/table/routes.test.ts
+  s_783a0cc3ed910b::t_55d26d1c34e31a 17,510-529
+  s_783a0cc3ed910b::t_b56233b129560d 530
+server/src/table/nodes.test.ts
+  s_783a0cc3ed910b::t_e71ebbf597476f 52-60
+  s_783a0cc3ed910b::t_e775733c88a754 1-51,61-68
+bot/src/table/node.ts
+  s_783a0cc3ed910b::t_1157bab559a032 1-29
+server/table-client/adminNodes.test.ts
+  s_783a0cc3ed910b::t_130b87db7f54a1 1-26
+bot/src/index.ts
+  s_783a0cc3ed910b::t_1157bab559a032 8,211-215
+server/src/table/nodes.ts
+  s_783a0cc3ed910b::t_e71ebbf597476f 47-49,81,91
+  s_783a0cc3ed910b::t_c670ae179d9e61 1-46,50-80,82-90,92-111
+server/table-client/admin.html
+  s_783a0cc3ed910b::t_3ed0137599124c 54,63
+server/table-client/admin.ts
+  s_783a0cc3ed910b::t_3ed0137599124c 5-6,19,30,43,221
+server/table-client/adminNodes.ts
+  s_783a0cc3ed910b::t_3ed0137599124c 1-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b4bbd26a6e80899ee66940563a6309092fe72fd8",
+  "prompts": {},
+  "sessions": {
+    "s_783a0cc3ed910b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "961f95bc-95fa-4b4a-8d9b-d0901f13a448",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
