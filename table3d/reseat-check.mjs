@@ -23,6 +23,9 @@ await p.waitForTimeout(800);
 const on = await info();
 check("пересадка: вид сверху, голов нет, карты в руках скрыты, стулья видны", on.on && !on.heads && on.chairs && on.handShown === 0, on);
 check("свой стул светится, и только он", on.glow.length === 1 && on.glow[0] === seat0.id, on.glow);
+const fitOf = () => p.evaluate(() => { const w = innerWidth, h = innerHeight; return window.__t3d.chairs().map((c) => ({ id: c.id, in: c.x > 12 && c.x < w - 12 && c.y > 60 && c.y < h - 80, x: Math.round(c.x), y: Math.round(c.y) })); });
+const fit = await fitOf();
+check("при входе стол и все стулья влезают в кадр (портрет)", fit.length > 1 && fit.every((c) => c.in), fit);
 check("камера смотрит сверху (орбита)", (await p.evaluate(() => window.__t3d.cam().mode)) === "orbit", null);
 // Тянем свой стул: его экранное место — из хука `chairs()`.
 const chair = await p.evaluate((id) => window.__t3d.chairs().find((c) => c.id === id), seat0.id);

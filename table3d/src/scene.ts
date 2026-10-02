@@ -524,9 +524,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       setCamMode("orbit");
       camera.fov = 50; camera.updateProjectionMatrix();
       orbit.enablePan = true;
-      orbit.minDistance = 3; orbit.maxDistance = 60;
+      orbit.minDistance = 3;
       orbit.minPolarAngle = orbit.maxPolarAngle = 0.0001;
-      camera.position.set(0, 36, 0.01);
+      // Стол вместе со стульями влезает и в ширину, и в высоту кадра (с запасом под верх и низ худа).
+      const fit = CHAIR.radius + CHAIR.seat / 2 + CHAIR.pushed * 0.5, aspect = host.clientWidth / Math.max(1, host.clientHeight), dist = (fit * 1.12) / (Math.tan((camera.fov * DEG) / 2) * Math.min(1, aspect));
+      orbit.maxDistance = Math.max(60, dist * 1.4);
+      camera.position.set(0, dist, 0.01);
       orbit.target.set(0, 0, 0);
       orbit.update();
     } else {
