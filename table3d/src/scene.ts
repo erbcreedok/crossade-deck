@@ -296,6 +296,10 @@ export interface SceneApi {
   feltAt(x: number, y: number): { x: number; y: number } | null;
   /** После каждого кадра — HUD переставляет то, что стоит по сцене. */
   onFrame(fn: () => void): void;
+  /** Точка стола на экране (px сцены) — по ней звук берёт, слева он или справа. */
+  feltToScreen(x: number, y: number): { x: number; y: number } | null;
+  /** Палец оторвал карту (пошёл тянуть): вибрация «взял». */
+  onGrab(fn: () => void): void;
   /** Какую карту несут (сдвинулась с места): в окне HUD на её месте пустой контур; никакую — `null`. */
   carrying(): string | null;
   /** Взять карту пальцем из окна HUD (окно стопки, окно стула): дальше её несут, как со стола. */
@@ -375,6 +379,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let look = readLook();
   /** РЕЖИМ «В СТОПКУ» (вместо лассо): выбор — общий с остальными (`picks` стола), сбор — одним намерением `gather` при отпускании. */
   let stackMode = false;
+  let grabFn: (() => void) | null = null;
   /** Стягивание: id карт по порядку, куда тянем (точка на сукне), когда началось, начался ли ход пальцем (тогда карты летят быстро) и до какого мига держим цель после отпускания. */
   let gather: { ids: string[]; at: { x: number; y: number }; t0: number; fast: boolean; from: { x: number; y: number }; until: number } | null = null;
   const GATHER = { holdMs: 450, staggerMs: 40, moveStartPx: 10, settleMs: 900, spring: { k: 120, damp: 0.85 } } as const;
@@ -2329,6 +2334,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!drag.moved) {
       drag.moved = true;
       store.send({ t: "grab", id: drag.id });
+      grabFn?.();
       drag.hold = window.setInterval(() => { if (drag) store.send({ t: "hold", id: drag.id }); }, HOLD_MS);
     }
     // Куда целит палец: над своей рукой — щель в руке и правая рука у левой; иначе — карта под пальцем над столом.
@@ -2771,6 +2777,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     onTab(fn) { tabFn = fn; },
     setTabLit(piles) { litTabs = piles; },
     feltAt: (x, y) => { const at = onFelt({ clientX: x, clientY: y }); return at ? { x: at.x, y: at.z } : null; },
+    feltToScreen(x, y) { const q = project(new THREE.Vector3(x, 0, y)), r = renderer.domElement.getBoundingClientRect(); return { x: q.x - r.left, y: q.y - r.top }; },
+    onGrab(fn) { grabFn = fn; },
     onFrame: (fn) => void frameHeard.push(fn),
     carry(id, e) { if (fromOf.has(id)) startDrag(id, e); },
     carrying: () => (drag?.moved ? drag.id : null),

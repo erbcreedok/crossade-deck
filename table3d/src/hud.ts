@@ -19,7 +19,8 @@ import { allowed, may as mayDo } from "../../server/src/table/access.js";
 import { SUITS } from "../../server/table-client/felt.js";
 import { CAM, CAM_LABEL, CAM_MODES, PEEK } from "./camera.js";
 import { artUrl, readLook, writeLook } from "../../server/table-client/deckArt.js";
-import { BAR_LOOK, BAR, MENTION_INK, T, TABLE_BUILD } from "../../server/table-client/screenConst.js";
+import { BAR_LOOK, BAR, CUE_HAPTIC, FLIGHT_MS, MENTION_INK, MINE_MS, SHUFFLE_CARDS, SHUFFLE_MS, SHUFFLE_STAGGER_MS, SHUFFLE_TICK_MS, T, TABLE_BUILD } from "../../server/table-client/screenConst.js";
+import { cuesBetween, spots as cueSpots, type CueAt, type Spot as CueSpot } from "../../server/src/table/cues.js";
 import { GLYPH, RIGHTS, SUBS, type BarKey, type GrabMode, type Section } from "../../server/table-client/glyphs.js";
 import { barHeightU, blendOf, handPlan, handWideOf, hudUnitOf, snapPose, type PoseBlend } from "../../server/table-client/handGeom.js";
 import { journal } from "../../server/table-client/journal.js";
@@ -132,6 +133,40 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   try { const saved = Number(localStorage.getItem("t3d.handSize")); if (saved) scene.setHandSize(saved); } catch { /* без памяти — обычный размер */ }
   try { const saved = Number(localStorage.getItem("t3d.fov")); if (saved) scene.setBaseFov(saved); } catch { /* без памяти — обзор по умолчанию */ }
   for (const k of ["vignette", "gauge"] as const) { try { if (localStorage.getItem(`t3d.${k}`) === "0") scene.setNeckViz(k, false); } catch { /* без памяти — включено */ } }
+  // ——— ЗВУКИ И ВИБРАЦИИ: те же поводы, что у обычного стола (`cues.ts`) — что поменялось между двумя кадрами, там, где это на экране ———
+  let touchedAt = -Infinity;
+  addEventListener("pointerdown", () => (touchedAt = performance.now()), { capture: true });
+  addEventListener("pointerup", () => (touchedAt = performance.now()), { capture: true });
+  const knownCue = new Map<string, CueSpot>();
+  let prevCue: Snapshot = store.state;
+  function soundCues(prev: Snapshot, next: Snapshot): void {
+    const g = scene.glass(), own = performance.now() - touchedAt < MINE_MS, seat = next.people.find((p) => p.key === me())?.seat;
+    const where = (at: CueAt): { x: number; y: number } | null => {
+      if ("felt" in at) return scene.feltToScreen(at.felt.x, at.felt.y);
+      if ("pile" in at) { const p = next.piles.find((x) => x.id === at.pile) ?? prev.piles.find((x) => x.id === at.pile); return p ? scene.feltToScreen(p.x, p.y) : null; }
+      if (at.chair === seat) return { x: g.w / 2, y: g.h };
+      const hand = scene.handOf(at.chair);
+      return hand ? scene.feltToScreen(hand.x, hand.y) : null;
+    };
+    for (const [id, spot] of cueSpots(prev)) knownCue.set(id, spot);
+    for (const cue of cuesBetween(prev, next, knownCue)) {
+      // Мерж и шафл звучат, пока идёт их анимация.
+      const cut = cue.kind === "merge" ? Math.max(60, FLIGHT_MS) : cue.kind === "shuffle" ? SHUFFLE_MS + (SHUFFLE_CARDS - 1) * SHUFFLE_STAGGER_MS : undefined;
+      const p = where(cue.at);
+      if (p) sound.play(cue.kind, (p.x - g.w / 2) / (g.w / 2), (p.y - g.h / 2) / (g.h / 2), own, cut);
+      // Вибрация — только своё: моё действие или что-то в моей руке, на моём стуле.
+      if (own || ("chair" in cue.at && cue.at.chair === seat)) {
+        if (cue.kind === "shuffle") { for (let t = 0; t < (cut ?? 0); t += SHUFFLE_TICK_MS) window.setTimeout(() => haptic.buzz("light"), t); }
+        else haptic.buzz(CUE_HAPTIC[cue.kind]);
+      }
+    }
+  }
+  store.onChange(() => { const next = store.state; if (next === prevCue) return; const prev = prevCue; prevCue = next; soundCues(prev, next); });
+  // Вибрация на нажатие кнопок худа и на «взял карту».
+  addEventListener("click", (e) => { if ((e.target as Element | null)?.closest?.("#hud button, #hud [role=button]")) haptic.buzz("light"); }, { capture: true });
+  scene.onGrab(() => haptic.buzz("light"));
+  // Отказ стола — вибрация ошибки.
+  store.onRefused(() => haptic.buzz("error"));
   const book = journal();
   store.onOps?.((ops) => { if (book.take(ops, store.state, store.now())) draw(); });
   const cardLabel = (face: Face | undefined): { label: string; ink: string } => {
