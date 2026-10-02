@@ -260,9 +260,11 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     handDrop.style.display = "block";
     handDrop.dataset.state = z.over ? "over" : "hint";
     handDrop.style.top = `${z.top}px`; handDrop.style.height = `${Math.max(24, z.bottom - z.top)}px`;
-    handDrop.style.background = `linear-gradient(color-mix(in srgb, ${ink} ${z.over ? 15 : 6}%, transparent), color-mix(in srgb, ${ink} ${z.over ? 6 : 2}%, transparent))`;
+    handDrop.style.background = `linear-gradient(color-mix(in srgb, ${ink} ${z.over ? 17 : 10}%, transparent), color-mix(in srgb, ${ink} ${z.over ? 7 : 3}%, transparent))`;
     handDrop.style.boxShadow = z.over ? `inset 0 12px 22px -14px color-mix(in srgb, ${ink} 40%, transparent)` : "none";
-    tag.textContent = "В руку"; tag.style.color = ink; tag.style.opacity = z.over ? "0.75" : "0";
+    // Контурный пунктир сверху зоны — и пока несут, и над рукой (над рукой плотнее).
+    handDrop.style.borderTop = `2px dashed color-mix(in srgb, ${ink} ${z.over ? 75 : 50}%, transparent)`;
+    tag.textContent = "В руку"; tag.style.color = ink; tag.style.opacity = z.over ? "0.85" : "0.6";
   };
   setInterval(handDropSync, 50);
   const flagLit = (s: Snapshot, what: ChairFlag): boolean => !!myChair(s)?.[what];

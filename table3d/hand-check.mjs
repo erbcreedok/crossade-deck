@@ -155,7 +155,9 @@ check("язычок за самый верх — вся рука ушла на �
   if (felt?.at) {
     await c.mouse.move(felt.at.x, felt.at.y); await c.mouse.down(); await c.mouse.move(felt.at.x, felt.at.y - 40, { steps: 4 });
     await c.waitForTimeout(150);
-    check("несут со стола над сукном — зона руки лишь намечена (hint), не горит", (await state()) === "hint", await state());
+    check("несут со стола над сукном — зона руки намечена (hint), не горит", (await state()) === "hint", await state());
+    const look = await c.evaluate(() => { const e = document.querySelector("[data-hand-drop]"); return { text: e.firstElementChild.textContent, op: Number(getComputedStyle(e.firstElementChild).opacity), dashed: getComputedStyle(e).borderTopStyle, w: getComputedStyle(e).borderTopWidth }; });
+    check("пока несут: надпись «В руку» видна и сверху контурный пунктир", look.text === "В руку" && look.op >= 0.5 && look.dashed === "dashed" && look.w !== "0px", look);
     await c.mouse.move(195, 700, { steps: 8 });
     await c.waitForTimeout(250);
     check("над своей (пустой) рукой — зона подсвечена (over)", (await state()) === "over", await state());
