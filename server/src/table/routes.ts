@@ -24,6 +24,9 @@ import { mintRoom, roomIsSigned } from "./roomIds.js";
 import { deeds, deedsBetween, deedsOfKinds, KEEP_DAYS, roomInJournal, roomsOfJournal, roomsSeen } from "../db/eventsRepo.js";
 import { RECORD_KINDS, recordsOf } from "./records.js";
 import { roomsReport } from "./admin.js";
+import os from "node:os";
+import { cleanReport, describeSelf, NODE_EVERY_MS, nodesList, reportNode } from "./nodes.js";
+import { BUILD_INFO } from "../version.js";
 import { allTunes, extraParts, putTune } from "../db/tableTunesRepo.js";
 import { acceptJob, cleanAsk, dropJob, keepPhoto, likeDirs, listJobs, oneJob, sheetOf, startJob } from "./spriteJobs.js";
 import { cleanMeta, cleanName, dropSprite, keepSprite, libFile, LIB_MAX_BYTES, replaceSprite } from "./spriteLib.js";
@@ -51,6 +54,7 @@ import { mintPass, passRoom, PASS_HOURS } from "./pass.js";
 
 /** Этот запуск. Новый процесс — новый `boot`: по нему бот понимает, что прежних столов нет. */
 export const BOOT = randomBytes(6).toString("hex");
+const PROCESS_STARTED_AT = Date.now();
 
 function sameSecret(given: unknown, secret: string | undefined): boolean {
   if (!secret || typeof given !== "string") return false;
@@ -400,6 +404,29 @@ export function tableRoutes(): Router {
 
   // ЗАКАЗЫ СПРАЙТОВ (`spriteJobs.ts`) — вкладка «agy» на странице хозяина. Всё — только хозяевам.
   const owner: express.RequestHandler = (req, res, next) => (isOwner(req) ? next() : void res.status(403).json({ error: "not_owner" }));
+
+  // УЗЛЫ (`nodes.ts`) — кто сейчас обслуживает Crossade. Узлы (бот, запасные столы) сообщают о себе сюда по секрету
+  // стола — через реле, на постоянный адрес; хозяин смотрит на странице «Узлы». Отвечающий стол описывает себя сам.
+  r.post("/table/nodes", guarded, (req, res) => {
+    const report = cleanReport(req.body);
+    if (!report) return void res.status(400).json({ error: "bad_request" });
+    reportNode(report);
+    res.json({ ok: true });
+  });
+  r.get("/table/admin/nodes", owner, (_req, res) => {
+    const live = allEntries();
+    const self = describeSelf("table", {
+      version: BUILD_INFO.version,
+      build: BUILD_INFO.build,
+      startedAt: PROCESS_STARTED_AT,
+      url: tableConfig().publicUrl ?? null,
+      rooms: live.length,
+      people: live.reduce((n, room) => n + room.people.filter((p) => !p.bot).length, 0),
+      polling: null,
+    }, os.hostname(), process.env);
+    res.header("Cache-Control", "no-store");
+    res.json({ nodes: nodesList(self) });
+  });
   r.get("/table/admin/sprites", owner, async (_req, res) => {
     res.json({ jobs: await listJobs(), like: await likeDirs() });
   });
@@ -754,5 +781,31 @@ export function startBeacon(send: typeof fetch = fetch, doorDead: () => void = (
   };
   void beat();
   timer = setInterval(beat, BEACON_EVERY_MS);
+  return () => clearInterval(timer);
+}
+
+
+// ── УЗЕЛ СООБЩАЕТ О СЕБЕ ──────────────────────────────────────────────────────────────────────
+
+/**
+ * СТОЛ СООБЩАЕТ РЕЕСТРУ УЗЛОВ, ЧТО ОН ЖИВ — отдельно от маяка: маяк говорит «обслуживай меня», это — «я есть».
+ * Если на постоянном адресе сейчас отвечает другой стол, этот виден ему запасным (страница «Узлы»).
+ */
+export function startNodeReport(send: typeof fetch = fetch): () => void {
+  const { publicUrl, relayUrl, secret } = tableConfig();
+  if (!relayUrl || !secret) return () => {};
+  const tell = async () => {
+    const report = describeSelf("table", { version: BUILD_INFO.version, build: BUILD_INFO.build, startedAt: PROCESS_STARTED_AT, url: publicUrl ?? null, rooms: allEntries().length, people: null, polling: null }, os.hostname(), process.env);
+    for (const relay of relayUrl.split(",").map((u) => u.trim().replace(/\/+$/, "")).filter(Boolean)) {
+      await send(`${relay}/table/nodes`, {
+        method: "POST",
+        headers: { "content-type": "application/json", [SECRET_HEADER]: secret },
+        body: JSON.stringify(report),
+        signal: AbortSignal.timeout(10_000),
+      }).catch(() => {});
+    }
+  };
+  void tell();
+  const timer = setInterval(tell, NODE_EVERY_MS);
   return () => clearInterval(timer);
 }

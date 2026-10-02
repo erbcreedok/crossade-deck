@@ -2,7 +2,8 @@
 //   «Спрайты» — сами картинки (`adminSprites.ts`) и заказ новых у agy (`spriteJobs.ts`);
 //   «Детали»  — живая фигура (сцена профиля `skinStage.ts` или за столом `tableStage.ts`) и правки детали (`tunes.ts`):
 //               величина, сдвиг, плечи, имя; видно сразу, «Сохранить» кладёт на стол, столы подхватывают сами (`tunesNet.ts`);
-//   «Столы»   — прежний список комнат (в самой странице).
+//   «Столы»   — прежний список комнат (в самой странице);
+//   «Узлы»    — какие машины обслуживают Crossade и кто что делает (`adminNodes.ts`).
 //
 // Пускает стол, а не страница: она лишь приносит подпись Telegram или секрет стола из якоря ссылки (`#key=…`).
 
@@ -15,6 +16,7 @@ import { mountTableStage, type TableStage } from "./tableStage.js";
 import { pullTunes } from "./tunesNet.js";
 import { mountSpriteGallery } from "./adminSprites.js";
 import { mountDetails } from "./adminDetails.js";
+import { mountNodes } from "./adminNodes.js";
 import { go, onRoute, put, route, routeNum, routeOne } from "./adminRoute.js";
 
 type TelegramApp = { initData?: string; ready?: () => void; expand?: () => void };
@@ -25,7 +27,7 @@ const auth: Record<string, string> = tg?.initData ? { "x-telegram-init-data": tg
 const esc = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 // ВКЛАДКИ — и подвкладки «Спрайтов»: все картинки или заказ новых у agy. Какая открыта — в адресе (`adminRoute.ts`).
-const TABS = [["tab", "pane", ["sprites", "details", "parts", "rooms"]], ["sub", "subpane", ["gallery", "agy"]]] as const;
+const TABS = [["tab", "pane", ["sprites", "details", "parts", "rooms", "nodes"]], ["sub", "subpane", ["gallery", "agy"]]] as const;
 const showTabs = () => {
   for (const [btn, pane, all] of TABS) {
     const on = routeOne(btn, all, all[0]);
@@ -38,6 +40,7 @@ for (const [btn] of TABS) for (const b of document.querySelectorAll<HTMLButtonEl
   showTabs();
   // Библиотека могла пополниться, пока были в «Спрайтах», — деталям свежий список картинок.
   if (b.dataset[btn] === "details") void details.refresh();
+  if (b.dataset[btn] === "nodes") void nodes.refresh();
 };
 showTabs();
 onRoute(showTabs);
@@ -215,6 +218,7 @@ const tabs = document.querySelector<HTMLElement>("[data-tabs]");
 if (tabs) new ResizeObserver(() => document.documentElement.style.setProperty("--tabs-h", `${tabs.offsetHeight}px`)).observe(tabs);
 partsTab(document.querySelector<HTMLElement>('[data-pane="parts"]')!);
 const gallery = mountSpriteGallery(document.querySelector<HTMLElement>('[data-subpane="gallery"]')!, auth);
+const nodes = mountNodes(document.querySelector<HTMLElement>('[data-pane="nodes"]')!, auth);
 const details = mountDetails(document.querySelector<HTMLElement>('[data-pane="details"]')!, auth, (d) => agy.prefill(d));
 
 // ВКЛАДКА «agy» — заказы спрайтов (`spriteJobs.ts`): форма, как у `/sprite` в чате, и список заказов с ходом работы,

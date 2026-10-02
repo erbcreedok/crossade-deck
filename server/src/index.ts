@@ -1,6 +1,6 @@
 import { createApp } from "./app.js";
 import { formatVersion } from "./version.js";
-import { startBeacon } from "./table/routes.js";
+import { startBeacon, startNodeReport } from "./table/routes.js";
 import { closeDb } from "./db/open.js";
 import { sweepJournal } from "./db/eventsRepo.js";
 import { runStop } from "./shutdown.js";
@@ -13,10 +13,12 @@ httpServer.listen(PORT, () => {
   // Туннель наружу умер — процесс уходит целиком (комнаты дописываются в базу), и кто его держит
   // (launchd, супервизор хоста) поднимает заново уже с новой дверью.
   const stopBeacon = startBeacon(fetch, () => void gameServer.gracefullyShutdown(true, new Error("своя дверь не отвечает")));
+  const stopNodeReport = startNodeReport();
   sweepJournal();
   gameServer.onShutdown(() =>
     runStop([
       { name: "маяк", run: stopBeacon },
+      { name: "реестр узлов", run: stopNodeReport },
       { name: "база", run: closeDb },
     ]),
   );

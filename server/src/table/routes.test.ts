@@ -14,6 +14,7 @@ import { BOOT, DOOR_DEAD_AFTER, forgetBeacon, readCommand, relayRoutes, relaySta
 import { hostPage } from "./hostPage.js";
 import { grantParts } from "../db/tableOwnedRepo.js";
 import { partsFor } from "./skins.js";
+import { forgetNodes } from "./nodes.js";
 
 process.env.TABLE_SECRET = "s3cret";
 
@@ -504,5 +505,26 @@ describe("/table/tunes — правки частей скина", () => {
     expect(got.parts["king:head"]).toEqual({ scale: 1.5, dy: 0.4 });
     await call("/table/admin/tunes/king:head", { method: "PUT", json: {} });
     expect(((await (await call("/table/tunes", { secret: null })).json()) as { parts: Record<string, unknown> }).parts["king:head"]).toBeUndefined();
+  });
+});
+
+describe("узлы", () => {
+  const report = { id: "mac", role: "bot", region: "home", host: "m", version: "0.2.0", build: "1", startedAt: 1, url: null, rooms: null, people: null, polling: true };
+  beforeEach(forgetNodes);
+  const nodes = async () => ((await (await call("/table/admin/nodes")).json()) as { nodes: { id: string; role: string; up: boolean; serving: boolean; polling: boolean | null }[] }).nodes;
+
+  it("узел сообщает о себе по секрету, без секрета и с мусором его не слушают", async () => {
+    expect((await call("/table/nodes", { method: "POST", json: report, secret: null })).status).toBe(401);
+    expect((await call("/table/nodes", { method: "POST", json: { ...report, id: "<x>" } })).status).toBe(400);
+    expect((await call("/table/nodes", { method: "POST", json: report })).status).toBe(200);
+  });
+
+  it("хозяину виден отвечающий стол и бот, остальным нет", async () => {
+    await call("/table/nodes", { method: "POST", json: report });
+    const list = await nodes();
+    expect(list.find((n) => n.role === "table")).toMatchObject({ up: true, serving: true });
+    expect(list.find((n) => n.id === "mac")).toMatchObject({ role: "bot", up: true, serving: false, polling: true });
+    expect((await call("/table/admin/nodes", { secret: "wrong" })).status).toBe(403);
+    expect((await call("/table/admin/nodes", { secret: null })).status).toBe(403);
   });
 });

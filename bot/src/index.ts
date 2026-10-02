@@ -5,6 +5,7 @@ import { askFor, buttonsFor, cleanName, linkedSaid, nextSaid, stopWaiting, waiti
 import { readStart, sourceFor, sourcesOf } from "./sources.js";
 import { profilePhoto, pickPhoto } from "./photo.js";
 import { TableApi, tableEnv } from "./table/api.js";
+import { startNodeBeat } from "./table/node.js";
 import { installTable } from "./table/tableBot.js";
 import { Registry } from "./table/registry.js";
 import { Watch } from "./table/watch.js";
@@ -207,7 +208,11 @@ async function main(): Promise<void> {
   await table?.start(me.username, (chat, text) => bot.api.sendMessage(chat, text));
   console.log(`бот @${me.username} запущен, long polling`);
   // ВЫБРАННАЯ INLINE-КАРТОЧКА ПРИХОДИТ, ТОЛЬКО ЕСЛИ ЕЁ ПОПРОСИТЬ: по умолчанию Telegram её не шлёт.
-  await bot.start(table ? { allowed_updates: ["message", "callback_query", "inline_query", "chosen_inline_result"] } : {});
+  // Страница «Узлы» у хозяина стола: какая машина держит бота. «Держит» — только после того, как Telegram ответил.
+  let polling = false;
+  const tenv = tableEnv();
+  if (tenv) startNodeBeat(tenv, () => polling);
+  await bot.start({ ...(table ? { allowed_updates: ["message", "callback_query", "inline_query", "chosen_inline_result"] as const } : {}), onStart: () => void (polling = true) });
 }
 
 main().catch((err) => {
