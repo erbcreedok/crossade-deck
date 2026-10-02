@@ -1,0 +1,31 @@
+table3d/loader-check.mjs
+  s_783a0cc3ed910b::t_e5adf316faad18 57-65
+table3d/ring-check.mjs
+  s_783a0cc3ed910b::t_e5adf316faad18 22
+table3d/src/main.ts
+  s_ad8a8a5b5d0419::t_39691e7f5fc771 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7335b5993713fe6c310c28c1f3485a670b51a1f6",
+  "prompts": {},
+  "sessions": {
+    "s_783a0cc3ed910b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "961f95bc-95fa-4b4a-8d9b-d0901f13a448",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
