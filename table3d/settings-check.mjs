@@ -17,12 +17,12 @@ const open = async (viewport) => {
 {
   const phone = await open({ width: 390, height: 844 });
   check("телефон: высота обзора по умолчанию +3", Math.abs((await phone.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow())) - 3) < 0.05, await phone.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow()));
-  // Стоя высота обзора пропорционально выше (голова выше: (7+2)/(4+2) = 1.5 раза).
+  // Стоя высота обзора выше на 6: телефон +3 → +9, десктоп 0 → 6.
   const h0 = await phone.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow());
   await phone.locator("[data-stance-toggle]:visible").first().click();
   await phone.waitForTimeout(700);
   const hs = await phone.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow());
-  check("стоя высота обзора выше в 1.5 раза (пропорционально высоте головы)", Math.abs(hs / h0 - 1.5) < 0.05, { h0, hs });
+  check("телефон стоя: высота обзора +9 (сидя +3)", Math.abs(hs - 9) < 0.05, { h0, hs });
   await phone.locator("[data-stance-toggle]:visible").first().click();
   await phone.waitForTimeout(700);
   check("и сидя снова +3", Math.abs((await phone.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow())) - 3) < 0.05, null);
@@ -50,7 +50,7 @@ const open = async (viewport) => {
   await pad.setViewportSize({ width: 390, height: 844 });
   await pad.waitForTimeout(600);
   check("окно сузили — высота сама стала +3", Math.abs((await h()) - 3) < 0.05, await h());
-  await pad.evaluate(() => window.__t3d.setViewHeight(1 / 3));
+  await pad.evaluate(() => window.__t3d.setViewHeight(3 / 13));
   await pad.setViewportSize({ width: 1280, height: 800 });
   await pad.setViewportSize({ width: 390, height: 844 });
   await pad.waitForTimeout(600);
@@ -59,7 +59,11 @@ const open = async (viewport) => {
 }
 {
   const desk = await open({ width: 1280, height: 800 });
-  check("десктоп: высота обзора по умолчанию 0", Math.abs(await desk.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow())) < 0.05, await desk.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow()));
+  const dh = () => desk.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow());
+  check("десктоп: высота обзора по умолчанию 0", Math.abs(await dh()) < 0.05, await dh());
+  await desk.locator("[data-stance-toggle]:visible").first().click();
+  await desk.waitForTimeout(700);
+  check("десктоп стоя: высота обзора 6", Math.abs((await dh()) - 6) < 0.05, await dh());
   await desk.close();
 }
 await browser.close();
