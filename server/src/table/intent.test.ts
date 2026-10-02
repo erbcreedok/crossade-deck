@@ -28,12 +28,12 @@ describe("readIntent — намерение читается целиком ил
     expect(readIntent({ t: "reseat", angle: "ближе" })).toBeNull();
     expect(readIntent({ t: "reseat", angle: NaN })).toBeNull();
     const t = table();
-    const mine = t.seatOf("a");
-    expect(mine, "стол стенда сажает a").toBeTruthy();
-    const before = mine!.angle;
+    const mine = () => t.seenBy("a").chairs.find((c) => c.owner === "a");
+    expect(mine(), "стол стенда сажает a").toBeTruthy();
+    const before = mine()!.angle;
     const res = t.act("a", { t: "reseat", angle: (before + 90) % 360 }, 1);
-    expect("ops" in res && res.ops.length > 0, JSON.stringify(res)).toBe(true);
-    expect(t.seatOf("a")!.angle).toBe((before + 90) % 360);
+    expect("ops" in res && (res.ops?.length ?? 0) > 0, JSON.stringify(res)).toBe(true);
+    expect(mine()!.angle).toBe((before + 90) % 360);
     expect("refused" in t.act("nobody", { t: "reseat", angle: 10 }, 1)).toBe(true);
   });
 

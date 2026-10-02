@@ -87,7 +87,18 @@ export interface Settings {
 
 export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings {
   const app = () => (globalThis as { Telegram?: { WebApp?: TelegramApp } }).Telegram?.WebApp;
-  const fullscreenable = () => canFullscreen(app());
+  // Полный экран: в Telegram — его собственный (`requestFullscreen` Bot API), в обычном браузере — Fullscreen API страницы (на айфоне в Safari его нет — тумблера тогда нет).
+  type FsDoc = Document & { webkitFullscreenElement?: Element | null; webkitExitFullscreen?(): void };
+  type FsEl = HTMLElement & { webkitRequestFullscreen?(): void };
+  const pageFs = (): boolean => !!document.documentElement && (typeof document.documentElement.requestFullscreen === "function" || typeof (document.documentElement as FsEl).webkitRequestFullscreen === "function");
+  const pageFsOn = (): boolean => !!(document.fullscreenElement ?? (document as FsDoc).webkitFullscreenElement);
+  const fullscreenable = () => canFullscreen(app()) || pageFs();
+  const fullscreenIs = (): boolean => (canFullscreen(app()) ? app()?.isFullscreen === true : pageFsOn());
+  const fullscreenFlip = (): void => {
+    if (canFullscreen(app())) { if (app()?.isFullscreen) app()?.exitFullscreen?.(); else app()?.requestFullscreen?.(); return; }
+    if (pageFsOn()) { if (document.exitFullscreen) void document.exitFullscreen(); else (document as FsDoc).webkitExitFullscreen?.(); }
+    else { const el = document.documentElement as FsEl; if (el.requestFullscreen) void el.requestFullscreen().catch(() => {}); else el.webkitRequestFullscreen?.(); }
+  };
 
   const layer = document.createElement("div");
   layer.dataset.settingsLayer = "";
@@ -188,7 +199,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + `background:${INK.well};box-shadow:inset 0 0 0 3px ${INK.black},inset 0 0 0 5px ${INK.wood},0 10px 0 rgba(11,7,4,.5)">`
       + `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><span style="font:400 18px Tiny5,monospace;color:${INK.ink}">Настройки</span>`
       + `<button data-settings-close aria-label="Закрыть" style="width:40px;height:40px;border:0;border-radius:10px;cursor:pointer;color:${INK.ink};font:400 18px Tiny5,monospace;background:transparent;box-shadow:inset 0 0 0 2px ${INK.rim}">✕</button></div>`
-      + section("Экран") + (fullscreenable() ? toggle("fullscreen", "Полный экран", app()?.isFullscreen === true) : "")
+      + section("Экран") + (fullscreenable() ? toggle("fullscreen", "Полный экран", fullscreenIs()) : "")
       + toggle("figures", "Фигуры за столом", world.figures.on())
       + (world.replay.may() ? section("Запись партии") + replayHtml() : "")
       + toggle("record", "Записывать мой экран", world.record.on())
@@ -263,8 +274,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
         world.record.toggle();
         break;
       case "fullscreen":
-        if (app()?.isFullscreen) app()?.exitFullscreen?.();
-        else app()?.requestFullscreen?.();
+        fullscreenFlip();
         break;
       case "mute":
         sound.prefs.muted = !sound.prefs.muted;
@@ -357,6 +367,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
     tg.SettingsButton.show();
   }
   tg?.onEvent?.("fullscreenChanged", () => settings.open && render());
+  document.addEventListener("fullscreenchange", () => settings.open && render());
   world.motion.onChange(() => settings.open && render());
   return settings;
 }
