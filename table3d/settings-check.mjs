@@ -17,6 +17,15 @@ const open = async (viewport) => {
 {
   const phone = await open({ width: 390, height: 844 });
   check("телефон: высота обзора по умолчанию +3", Math.abs((await phone.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow())) - 3) < 0.05, await phone.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow()));
+  // Стоя высота обзора пропорционально выше (голова выше: (7+2)/(4+2) = 1.5 раза).
+  const h0 = await phone.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow());
+  await phone.locator("[data-stance-toggle]:visible").first().click();
+  await phone.waitForTimeout(700);
+  const hs = await phone.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow());
+  check("стоя высота обзора выше в 1.5 раза (пропорционально высоте головы)", Math.abs(hs / h0 - 1.5) < 0.05, { h0, hs });
+  await phone.locator("[data-stance-toggle]:visible").first().click();
+  await phone.waitForTimeout(700);
+  check("и сидя снова +3", Math.abs((await phone.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow())) - 3) < 0.05, null);
   await phone.locator("[data-settings]:visible").first().click();
   await phone.waitForSelector("[data-look=fullscreen]");
   check("в настройках есть «Полный экран»", true, null);
@@ -41,7 +50,7 @@ const open = async (viewport) => {
   await pad.setViewportSize({ width: 390, height: 844 });
   await pad.waitForTimeout(600);
   check("окно сузили — высота сама стала +3", Math.abs((await h()) - 3) < 0.05, await h());
-  await pad.evaluate(() => window.__t3d.setViewHeight(0.5));
+  await pad.evaluate(() => window.__t3d.setViewHeight(1 / 3));
   await pad.setViewportSize({ width: 1280, height: 800 });
   await pad.setViewportSize({ width: 390, height: 844 });
   await pad.waitForTimeout(600);
