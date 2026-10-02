@@ -1,0 +1,26 @@
+table3d/loader-check.mjs
+  s_ad8a8a5b5d0419::t_3023d526d66aa3 23,35-55
+  s_ad8a8a5b5d0419::t_4f3502774e89f7 56
+table3d/src/loader.ts
+  s_ad8a8a5b5d0419::t_6b8ce71795d2ef 22-23,31-44,55-58,64,66-77,132
+table3d/index.html
+  s_ad8a8a5b5d0419::t_9c0e4f79e9a2df 26-34
+table3d/src/main.ts
+  s_ad8a8a5b5d0419::t_9c0e4f79e9a2df 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a78e805d55f44ee46c0d2ff3083d7ff1ea2dfe36",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
