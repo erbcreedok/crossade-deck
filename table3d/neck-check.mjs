@@ -16,6 +16,8 @@ const radius = (c) => Math.hypot(c.pos[0], c.pos[2]);
 await p.goto(`${base}/?stand`);
 await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
 await p.waitForTimeout(600);
+await p.evaluate(() => window.__t3d.setViewHeight(0.5)); // высота обзора 0: по умолчанию на телефоне +3, а проверки меряют голову
+await p.waitForTimeout(300);
 const rest = await cam();
 await p.evaluate(() => { for (let i = 0; i < 6; i++) window.__t3d.zoomBy(0.6); });
 await p.waitForTimeout(200);
