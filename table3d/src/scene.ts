@@ -1161,6 +1161,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Загиб веера по умолчанию, 0…1. */
   /** Самый крутой наклон края веера на широком экране, рад (≈ 26°). */
   const FAN_EDGE = 0.45;
+  /** Размах (в ширинах карты от середины до крайней), до которого край веера наклонён на `FAN_EDGE`; шире рука — край кладётся положе (веер выпрямляется), чтобы уголок крайней карты оставался над нижней строкой. */
+  const FAN_REACH = 2.4;
+  /** Размах, при котором на широком экране веер распрямлён наполовину; шире — ещё положе. */
+  const FAN_FLAT_REACH = 2.7;
   const CURL = { rest: 0.7 };
   let handCurl: number = CURL.rest;
   /** Загиб в МОЁМ виде растёт с числом карт: мало карт — рука почти прямая (свои карты у самых глаз сильно искажаются), много — загиб нужен, чтобы уместить веер. Остальным уходит выбранный загиб. */
@@ -1247,11 +1251,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const bend = Math.max(0, Math.min(1, 2 * (1 - shape.lift))) * Math.max(0, Math.min(1, curl)), arc0 = bend > 1e-3 ? CAMHAND.curl / bend : 0;
     // ШИРОКИЙ ЭКРАН (обзор шире ~60° по горизонтали; телефон в портрете — нет, там всё как было): края веера не заворачиваются круче `FAN_EDGE` — иначе в широкую комнату
     // они ложатся почти боком и уходят под нижнюю строку. Плавно по ширине обзора.
-    const wk = wideK(), reach = plans.reduce((m, q) => Math.max(m, Math.abs(q.x)), 0), arc = arc0 && wk > 0 ? arc0 + wk * (Math.max(arc0, reach / FAN_EDGE) - arc0) : arc0, theta = arc ? plan.x / arc : 0;
-    const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -theta).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), tilt * DEG)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -plan.angle * DEG));
+    const wk = wideK(), reach = plans.reduce((m, q) => Math.max(m, Math.abs(q.x)), 0), edge = FAN_EDGE * Math.min(1, FAN_REACH / Math.max(1e-3, reach)), arc = arc0 && wk > 0 ? arc0 + wk * (Math.max(arc0, reach / edge) - arc0) : arc0, theta = arc ? plan.x / arc : 0;
+    // Рука расставлена шире, чем крайние карты влезают в кадр, — веер ВЫПРЯМЛЯЕТСЯ: крайние карты ложатся положе и не уходят под нижнюю строку; шире рука — прямее.
+    // Только на широком обзоре; на телефоне `wk` = 0 и всё как было.
+    const ff = 1 - wk * (1 - Math.max(0.2, 0.5 * Math.min(1, FAN_FLAT_REACH / Math.max(1e-3, reach)))), planY = plan.y * ff, planAngle = plan.angle * ff;
+    const quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -theta).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), tilt * DEG)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -planAngle * DEG));
     if (up) quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
     const along = arc ? arc * Math.sin(theta) : plan.x, toward = arc ? arc * (1 - Math.cos(theta)) : 0;
-    return { pos: new THREE.Vector3(CAMHAND.at.x + off.x * fovK + along * u, (CAMHAND.at.y + off.y) * fovK - plan.y * u, CAMHAND.at.z + toward * u + k * 0.004), quat, scale: s, onCamera: true, bend: arc ? (up ? -1 : 1) / (arc * CARD_W) : 0 };
+    return { pos: new THREE.Vector3(CAMHAND.at.x + off.x * fovK + along * u, (CAMHAND.at.y + off.y) * fovK - planY * u, CAMHAND.at.z + toward * u + k * 0.004), quat, scale: s, onCamera: true, bend: arc ? (up ? -1 : 1) / (arc * CARD_W) : 0 };
   };
   /** То же место в мире: голова `head` смотрит `yaw`, `pitch`. */
   const camHandWorld = (local: Place, head: Point3, yaw: number, pitch: number): Place => {

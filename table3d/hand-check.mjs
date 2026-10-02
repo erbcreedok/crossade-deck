@@ -246,6 +246,13 @@ check("язычок за самый верх — вся рука ушла на �
   check("десктоп: поправка широкого экрана 1", info.wide === 1, info);
   check("десктоп: края веера наклонены не круче ~30°", info.maxRoll <= 31, info);
   check("десктоп: веер в пределах 80% ширины экрана", info.left > 1280 * 0.1 && info.right < 1280 * 0.9, info);
+  // Шесть карт, рука широко: уголок самой левой и самой правой карты виден над нижней строкой (веер выпрямляется, а не уходит вниз).
+  await d.evaluate(() => window.__t3d.trimHand(6));
+  await d.waitForTimeout(1000);
+  await d.evaluate(() => window.__t3d.setHandWidthNow(1.5));
+  await d.waitForTimeout(1800);
+  const corner = await d.evaluate(() => { const s = window.__t3d.state(); const ch = s.chairs.find((c) => c.owner === window.__t3d.me()); const ys = ch.hand.map((c) => window.__t3d.screenOf(c.id).y); return { n: ch.hand.length, edgeY: Math.max(ys[0], ys.at(-1)), midY: Math.min(...ys), dock: innerHeight - 80 }; });
+  check("шесть карт, рука широко: крайние карты не провалились под нижнюю строку (центр карты ≤ 60 px ниже её верха)", corner.n === 6 && corner.edgeY - corner.midY <= 75, corner);
   await d.close();
 }
 await browser.close();
