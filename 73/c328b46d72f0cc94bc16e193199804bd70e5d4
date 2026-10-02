@@ -1,0 +1,40 @@
+deploy/voyager/install.sh
+  s_783a0cc3ed910b::t_765f41b9415388 1-16
+deploy/voyager/crossade-dev-table.service
+  s_783a0cc3ed910b::t_765f41b9415388 1-20
+deploy/voyager/crossade-pull-dev.timer
+  s_783a0cc3ed910b::t_765f41b9415388 1-9
+scripts/deploy-voyager.sh
+  s_783a0cc3ed910b::t_765f41b9415388 1-53
+deploy/components.json
+  s_783a0cc3ed910b::t_d2ff53bbd273a3 19-23,27-29,31
+deploy/fly-standby/standby.mjs
+  s_783a0cc3ed910b::t_9e01f95c2ceaa4 11,79,89,93-94,98-121,128
+deploy/voyager/README.md
+  s_783a0cc3ed910b::t_765f41b9415388 1-14
+scripts/dev-expose.sh
+  s_783a0cc3ed910b::t_d2ff53bbd273a3 1-38
+deploy/fly-standby/Dockerfile
+  s_783a0cc3ed910b::t_0ae41b741b3053 36
+  s_783a0cc3ed910b::t_8361159b617dc2 34-35
+deploy/voyager/crossade-pull-dev.service
+  s_783a0cc3ed910b::t_765f41b9415388 1-6
+deploy/voyager/crossade-dev-stands.service
+  s_783a0cc3ed910b::t_765f41b9415388 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "73c328b46d72f0cc94bc16e193199804bd70e5d4",
+  "prompts": {},
+  "sessions": {
+    "s_783a0cc3ed910b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "961f95bc-95fa-4b4a-8d9b-d0901f13a448",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
