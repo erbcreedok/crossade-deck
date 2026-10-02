@@ -178,18 +178,18 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   zoom.innerHTML = '<span class="tt"></span><div class="track">' + Array.from({ length: 7 }, (_, k) => `<i class="seg" style="top:${((k + 1) / 8) * 100}%"></i>`).join("") + '<i class="fill"></i><i class="knob2" data-zoom-knob></i></div><span class="val"></span>';
   const zoomKnob = zoom.querySelector<HTMLElement>("[data-zoom-knob]")!, zoomFill = zoom.querySelector<HTMLElement>(".fill")!, zoomTrack = zoom.querySelector<HTMLElement>(".track")!;
   const zoomTitle = zoom.querySelector<HTMLElement>(".tt")!, zoomVal = zoom.querySelector<HTMLElement>(".val")!;
-  const zoomVal01 = (): number => (scene.camMode() === "orbit" ? scene.orbitZoom() : scene.optics());
+  const zoomVal01 = (): number => (scene.camMode() === "orbit" ? scene.orbitZoom() : scene.seat());
   const zoomSync = () => {
     const mode = scene.camMode(), on = (mode === "head" || mode === "orbit") && !local.section && !!myChair();
     if (zoom.style.display !== (on ? "block" : "none")) zoom.style.display = on ? "block" : "none";
     if (!on) return;
     const v = zoomVal01();
     zoomKnob.style.bottom = `calc(${v * 100}% - 6px)`; zoomFill.style.height = `${v * 100}%`;
-    zoomTitle.textContent = mode === "head" ? "Обзор" : "Даль";
-    zoomVal.textContent = mode === "head" ? `×${(1 + v * 3).toFixed(1)}` : `${Math.round(8 + (1 - v) * 22)} м`;
+    zoomTitle.textContent = mode === "head" ? "Посадка" : "Даль";
+    zoomVal.textContent = mode === "head" ? (v > 0.995 ? "у стола" : `−${((1 - v) * 2.5).toFixed(1)}`) : `${Math.round(8 + (1 - v) * 22)} м`;
     zoom.style.top = `calc(var(--safe-top) + 103px + ${mode === "head" ? 3 : 2} * 68px)`;
   };
-  const zoomTo = (e: PointerEvent) => { const r = zoomTrack.getBoundingClientRect(), t = 1 - (e.clientY - r.top) / r.height; if (scene.camMode() === "orbit") scene.setOrbitZoom(t); else scene.setOptics(t); zoomSync(); };
+  const zoomTo = (e: PointerEvent) => { const r = zoomTrack.getBoundingClientRect(), t = 1 - (e.clientY - r.top) / r.height; if (scene.camMode() === "orbit") scene.setOrbitZoom(t); else scene.setSeat(t); zoomSync(); };
   zoom.addEventListener("pointerdown", (e) => { e.stopPropagation(); e.preventDefault(); zoom.setPointerCapture(e.pointerId); zoomTo(e); });
   zoom.addEventListener("pointermove", (e) => { if (zoom.hasPointerCapture(e.pointerId)) zoomTo(e); });
   root.append(zoom);
@@ -212,6 +212,18 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   /** Кнопка листа и рейки: значок, подпись, огонёк у тумблера. */
   const cbtn = (attrs: string, icon: string, label: string, o: { on?: boolean; dis?: boolean; led?: boolean; style?: string } = {}) =>
     `<button ${attrs} class="cp cb${o.on ? " on" : ""}${o.dis ? " dis" : ""}"${o.dis ? ' aria-disabled="true"' : ""} aria-pressed="${!!o.on}" style="position:relative;${o.style ?? ""}">${o.led === undefined ? "" : `<i class="led${o.led ? " lit" : ""}"></i>`}${icon}<span class="lb">${label}</span></button>`;
+  // Панель пересадки: подсказка и «Отмена» / «Готово» — поверх нижней строки, пока тянут свой стул.
+  const reseatBar = document.createElement("div");
+  reseatBar.className = "cp";
+  reseatBar.style.cssText = "display:none;position:absolute;left:12px;right:12px;bottom:calc(var(--safe-bottom) + 8px);height:64px;z-index:90;pointer-events:auto;align-items:center;gap:8px;padding:0 8px";
+  reseatBar.innerHTML = `<span style="flex:1;font-size:12px;line-height:1.2;padding-left:6px">Тяни свой стул по кругу. Зум и сдвиг — пальцами.</span>${cbtn("data-reseat-no", ic("cancel"), "Отмена", { style: "width:84px;height:48px" })}${cbtn("data-reseat-ok", ic("keep"), "Готово", { on: true, style: "width:84px;height:48px" })}`;
+  reseatBar.addEventListener("click", (e) => {
+    const t = (e.target as HTMLElement).closest("[data-reseat-ok],[data-reseat-no]") as HTMLElement | null;
+    if (t) { scene.reseatDone(t.hasAttribute("data-reseat-ok")); e.stopPropagation(); }
+  });
+  root.append(reseatBar);
+  const reseatSyncBar = () => { const on = scene.reseatOn(); if (reseatBar.style.display !== (on ? "flex" : "none")) { reseatBar.style.display = on ? "flex" : "none"; draw(); } };
+  setInterval(reseatSyncBar, 150);
   const flagLit = (s: Snapshot, what: ChairFlag): boolean => !!myChair(s)?.[what];
   const POSE_NAME: Record<string, string> = { row: "В ряд", fan: "Веер", spine: "Корешок", tuck: "На стол" };
   const POSE_ICON: Record<string, string> = { row: "row", fan: "fan", spine: "spine", tuck: "tuck" };
@@ -285,7 +297,9 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     } else if (mode === "top") {
       items += cbtn('data-zoom="in"', ic("zoomIn"), "Ближе") + cbtn('data-zoom="out"', ic("zoomOut"), "Дальше");
     }
-    let html = `<div class="c-rail">${items}</div>`;
+    // DEV: пересадить свой стул — вид сверху со свободным зумом; потом кнопке найдём место.
+    if (chair && !scene.reseatOn()) items += cbtn('data-reseat', ic("chair"), "Пересесть");
+    let html = scene.reseatOn() ? "" : `<div class="c-rail">${items}</div>`;
     if (local.viewMenu) {
       const opt = (c: "head" | "orbit" | "top", icon: string, label: string) => cbtn(`data-cam="${c}"`, ic(icon), label, { on: mode === c });
       html += `<div class="cp c-view">${opt("head", "view", "Голова")}${opt("orbit", "orbit", "Вокруг")}${opt("top", "topdown", "Сверху")}</div>`;
@@ -599,6 +613,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       local.handPop = null;
     } else if ((b = q("[data-lasso-act]"))) lassoAct(b.dataset.lassoAct as (typeof LASSO_ACTS)[number][0]);
     else if (q("[data-rooms-back]")) location.href = `${HOST}/table/?rooms`;
+    else if (q("[data-reseat]")) { scene.setReseat(true); local.viewMenu = false; local.section = null; }
     else if (q("[data-settings]")) { if (settings.open) settings.hide(); else settings.show(); }
     else if (q("[data-journal]")) local.journal = !local.journal;
     else if (q("[data-gyro]")) {

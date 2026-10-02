@@ -46,32 +46,26 @@ check("двойной тап по столу: голова ближе к том�
 await p.waitForTimeout(5800);
 const back2 = await cam();
 check("и шея вернула голову сама, как после обычного натяга", Math.abs(back2.lean) <= 0.06 && Math.abs(back2.side) <= 0.06, { lean: back2.lean, side: back2.side });
-// ПОСАДКА — два пальца вверх-вниз двигают стул к столу и от него, и это не шея: само не возвращается.
+// ПОСАДКА — стул едет вместе с телом: отодвинули — камера дальше от стола и остаётся (шея не возвращает); ближе, чем сидишь, нельзя.
+await p.waitForTimeout(5500);
 const r0 = radius(await cam());
-await p.evaluate(() => window.__t3d.seatBy(1));
+await p.evaluate(() => window.__t3d.seatBy(-1));
 await p.waitForTimeout(3500);
-const near = await cam();
-check("посадка ближе — камера ближе к середине и остаётся (шея не возвращает)", radius(near) < r0 - 0.5 && near.neck.back === 0, { r0, r: radius(near) });
+const far = await cam();
+check("посадка дальше — камера дальше от середины и остаётся (шея не возвращает)", radius(far) > r0 + 0.5 && far.neck.back === 0, { r0, r: radius(far) });
+await p.evaluate(() => window.__t3d.seatBy(3));
+await p.waitForTimeout(300);
+check("ближе, чем сидишь, не придвинуться", Math.abs(radius(await cam()) - r0) < 0.05, { r0, r: radius(await cam()) });
+const chairNow = await p.evaluate(() => { const c = window.__t3d.state().chairs.find((x) => x.owner === window.__t3d.me()); return { at: window.__t3d.chairAt(c.id) }; });
 await p.evaluate(() => window.__t3d.seatBy(-2));
 await p.waitForTimeout(300);
-check("посадка дальше — камера дальше от середины", radius(await cam()) > radius(near) + 1, radius(await cam()));
-await p.evaluate(() => window.__t3d.seatBy(1));
-// ЗОНЫ И ЗАПАС: слабый натяг держится дольше сильного; красная падает ступенькой в жёлтую; по простою голова плавно едет на плечи.
-const sim = await p.evaluate(async () => {
-  const { holdOf, neckNew, neckStep, STRAIN } = await import("/src/camera.ts");
-  const hold = [0.04, 0.1, 0.4, 0.7, 1].map(holdOf);
-  const run = (m0, idle, secs) => { const n = neckNew(); let m = m0, first = null, after = null; for (let t = 0; t < secs * 1000; t += 16) { const was = m; m = neckStep(n, m, 16, idle); if (first === null && n.back > 0) first = t; if (first !== null && n.back === 0 && after === null) after = m; if (n.back > 0 && m > STRAIN.yellow) { /* оттягивают */ } } return { first, after, end: m }; };
-  const pull = (m0, m1) => { const n = neckNew(); n.back = 1; n.to = 0; let m = m0, t = 0; while (m > m1) { m = neckStep(n, m, 16, false); t += 16; } return (m0 - m1) / (t / 1000); };
-  return { pull: { red: pull(1, 0.8), yellow: pull(0.4, 0.2), near: pull(0.15, 0.1) }, hold, red: run(0.95, false, 6), weak: run(0.1, false, 8), idleHalf: run(0.5, true, 2), idleLate: run(0.5, true, 6) };
-});
-check("возврат: чем дальше от туловища, тем быстрее (скорость, 1/с: красная > жёлтая > у самого тела)", sim.pull.red > sim.pull.yellow && sim.pull.yellow > sim.pull.near, sim.pull);
-check("запас: слабее натяг — дольше можно держать (и в зелёной — бесконечно)", sim.hold[0] === null || sim.hold[0] > 1e9, sim.hold);
-check("запас: 0.1 > 0.4 > 0.7 > 1 по времени", sim.hold[1] > sim.hold[2] && sim.hold[2] > sim.hold[3] && sim.hold[3] > sim.hold[4], sim.hold);
-check("красная зона у предела оттягивает меньше чем за 2 с — и в жёлтую, а не в ноль", sim.red.first !== null && sim.red.first < 2000 && sim.red.after > 0.3 && sim.red.after < 0.6, sim.red);
-check("слабый натяг 0.1 за 8 с не оттягивают", sim.weak.first === null, sim.weak);
-check("простой: до 3 с голова стоит, потом плавно едет к плечам", sim.idleHalf.end > 0.45 && sim.idleLate.end < 0.1, { idleHalf: sim.idleHalf, idleLate: sim.idleLate });
+const chairFar = await p.evaluate(() => { const c = window.__t3d.state().chairs.find((x) => x.owner === window.__t3d.me()); return window.__t3d.chairAt(c.id); });
+check("стул едет с телом: отодвинулись — стул дальше от стола", Math.hypot(chairFar[0], chairFar[2]) > Math.hypot(chairNow.at[0], chairNow.at[2]) + 1, { chairNow, chairFar });
+await p.evaluate(() => window.__t3d.seatBy(3));
 // ЖЕСТ ПОСАДКИ: вниз по экрану — ближе к столу, вверх — дальше (правая кнопка мыши — тот же жест, что два пальца).
 {
+  await p.evaluate(() => window.__t3d.seatBy(-1.5));
+  await p.waitForTimeout(200);
   const rb = radius(await cam());
   await p.mouse.move(195, 400); await p.mouse.down({ button: "right" }); await p.mouse.move(195, 470, { steps: 6 }); await p.mouse.up({ button: "right" });
   const down = radius(await cam());

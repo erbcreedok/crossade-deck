@@ -199,8 +199,13 @@ export interface SceneApi {
   orbitZoom(): number;
   setOrbitZoom(t: number): void;
   /** Оптический зум головы: 0 — обычный обзор, 1 — самый узкий. */
-  optics(): number;
-  setOptics(t: number): void;
+  /** Посадка 0…1: 0 — стул отодвинут до предела, 1 — как сидишь (ближе нельзя). */
+  seat(): number;
+  setSeat(t: number): void;
+  /** Пересадка своего стула: вид сверху со свободным зумом, только стол, стулья и карты на столе; тянут свой стул по кругу. */
+  reseatOn(): boolean;
+  setReseat(on: boolean): void;
+  reseatDone(ok: boolean): void;
   /** Загиб веера в моей руке, 0…1: боковая ручка вверх-вниз. */
   handCurl(): number;
   setHandCurl(c: number): void;
@@ -215,7 +220,6 @@ export interface SceneApi {
   setNeckViz(kind: "vignette" | "gauge", on: boolean): void;
   /** Сдвинуть голову вбок по кругу вокруг стола: `d` — доля предела, + вправо от взгляда. */
   sideBy(d: number): void;
-  opticsBy(k: number): void;
   /** Рамка моей руки на экране (охват карт с полями, не уже 250 пикселей); нет карт или рука положена — `null`. `edge` — высота верхней кромки. */
   handFrame(): { x: number; y: number; w: number; h: number; edge: number } | null;
   /** Рука-стопка: левая рука несёт все карты над столом под пальцем (`screen`); `null` — отпустили: на колоду, новой стопкой на сукно или — над худом руки — всё как было. */
@@ -502,14 +506,56 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
   /** Посадка: на сколько стул придвинут к столу, единицы стола. Не шея: сама не возвращается, плечи едут вместе с головой. */
   let seatPull = 0;
+  /** ПЕРЕСАДКА: вид сверху без тел, рук и голов; свой стул тянут по кругу (`angle` — куда, `null` — пока не тронут), потом «Готово» или «Отмена». */
+  let reseat: { was: CamMode; angle: number | null; pid: number | null } | null = null;
+  let figuresOn = true;
+  function setReseat(on: boolean): void {
+    if (on === (reseat !== null)) return;
+    if (on) {
+      reseat = { was: camMode, angle: null, pid: null };
+      setCamMode("orbit");
+      camera.fov = 50; camera.updateProjectionMatrix();
+      orbit.enablePan = true;
+      orbit.minDistance = 3; orbit.maxDistance = 45;
+      orbit.minPolarAngle = orbit.maxPolarAngle = 0.0001;
+      camera.position.set(0, 24, 0.01);
+      orbit.target.set(0, 0, 0);
+      orbit.update();
+    } else {
+      const was = reseat!.was;
+      reseat = null;
+      orbit.enablePan = false;
+      orbit.minDistance = 5; orbit.maxDistance = 40;
+      orbit.minPolarAngle = 0; orbit.maxPolarAngle = 85 * DEG;
+      setCamMode(was);
+    }
+    reseatSync();
+    layout(store.state); draw();
+  }
+  /** Что видно при пересадке: стол, стулья, карты на столе — и всё; тела, руки, головы и карты в руках скрыты. */
+  function reseatSync(): void {
+    const on = reseat !== null;
+    heads.visible = figuresOn && !on;
+    chairRoot.visible = figuresOn || on;
+    myBody.visible = heads.visible; myArm.visible = heads.visible;
+    for (const [id, o] of cards) o.group.visible = !(on && (fromOf.get(id)?.in === "hand" || o.target.onCamera));
+  }
+  function reseatDone(ok: boolean): void {
+    const r = reseat, ch = myChair();
+    if (ok && r && r.angle !== null && ch && r.angle !== ch.angle) store.command({ t: "seat", do: "place", chairs: [{ chair: ch.id, angle: r.angle }] });
+    setReseat(false);
+  }
+  function setSeatPull(next: number): void {
+    next = Math.max(SEAT_PULL.min, Math.min(SEAT_PULL.max, next));
+    if (next === seatPull) return;
+    headGoal = null;
+    seatPull = next;
+    applyRig(); layout(store.state); draw(); sendBody();
+  }
   function seatBy(d: number): void {
     neck.idle = 0;
     if (camMode !== "head" && camMode !== "top") return;
-    headGoal = null;
-    const next = Math.max(SEAT_PULL.min, Math.min(SEAT_PULL.max, seatPull + d));
-    if (next === seatPull) return;
-    seatPull = next;
-    applyRig(); layout(store.state); draw(); sendBody();
+    setSeatPull(seatPull + d);
   }
   /** Намерение: приблизить (`k` > 1) или отдалить. В `head` — наклон к столу, в `fov` — поле зрения. */
   function zoomBy(k: number): void {
@@ -527,6 +573,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const HEAD_STEP = 0.6;
   let headGoal: { lean: number; side: number; yaw: number | null; pitch: number | null } | null = null;
   function headToward(px: number, py: number): void {
+    neck.idle = 0;
     const ch = myChair();
     if (!ch || camMode !== "head" || neck.back > 0) return;
     const sh = shoulders3(ch.angle, stanceNow(), seatPull), now = headAt(sh, rig.lean, rig.side);
@@ -572,12 +619,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const along = -p.y * Math.cos(y) + p.x * Math.sin(y);
     rig.side = Math.max(-1, Math.min(1, rig.side + d * (along >= 0 ? 1 : -1) * (neck.back > 0 ? 0 : 1)));
     applyRig(); draw(); sendBody();
-  }
-  /** Намерение: оптический зум (`k` > 1 — уже поле зрения). Тело не двигается, рука в кадре остаётся того же размера. Вид «голова». */
-  function opticsBy(k: number): void {
-    if (camMode !== "head") return;
-    rig.fov = Math.max(CAM.fov.min, Math.min(baseFov, rig.fov / k));
-    applyRig(); draw();
   }
   // ——— ГИРО: поворот телефона — поворот головы (`gyro.ts`) ———
   const gyro = createGyro(() => draw());
@@ -1403,6 +1444,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // Отпущенная — ждёт ответа стола там, куда легла.
     holdLanding();
     ringHover();
+    if (reseat) reseatSync();
     for (const [id, o] of cards) if (!seen.has(id)) { cardRoot.remove(o.group); cards.delete(id); }
     draw();
   }
@@ -1580,7 +1622,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const layer = t.onCamera || t.over ? HAND_LAYER : 0;
       if (g.userData.layer !== layer) { g.userData.layer = layer; g.traverse((n) => n.layers.set(layer)); }
       // Над окном HUD несомую рисует сам HUD — поверх окна; здесь её нет.
-      g.visible = !(drag?.moved && drag.id === id && drag.spot);
+      g.visible = !(drag?.moved && drag.id === id && drag.spot) && !(reseat && (fromOf.get(id)?.in === "hand" || t.onCamera));
       // Своя рука — не отбрасывает тени: она у глаза, её тень легла бы на полстола.
       o.front.castShadow = o.back.castShadow = !t.onCamera && !t.over;
       if (!g.userData.placed) { g.position.copy(t.pos); g.quaternion.copy(t.quat); g.scale.setScalar(t.scale); g.userData.placed = true; g.userData.v = new THREE.Vector3(); g.userData.sv = 0; continue; }
@@ -1793,7 +1835,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const first = one.group.userData.placed !== true;
       one.k = first ? want : one.k + (want - one.k) * Math.min(1, dt * 9);
       if (Math.abs(want - one.k) > 0.002) moving = true; else one.k = want;
-      const at = seatPoint(ch.angle, CHAIR.radius + CHAIR.pushed * one.k), dir = seatPoint(ch.angle, 1);
+      // Стул едет с телом: придвинулся — стул ближе к столу; при пересадке мой стул стоит там, куда его тянут.
+      const pull = ch.owner === null ? 0 : ch.owner === store.me.key ? seatPull : bodyOf(ch.owner, ch.angle).seat ?? 0, angle = reseat && reseat.angle !== null && ch.id === myChair()?.id ? reseat.angle : ch.angle;
+      const at = seatPoint(angle, CHAIR.radius + CHAIR.pushed * one.k - pull), dir = seatPoint(angle, 1);
       one.group.position.set(at.x, 0, at.y);
       one.group.rotation.y = Math.atan2(dir.x, dir.y);
       one.group.userData.placed = true;
@@ -1907,7 +1951,35 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const liftFinger = (e: PointerEvent) => { live.delete(e.pointerId); };
   renderer.domElement.addEventListener("pointerup", liftFinger, { capture: true });
   renderer.domElement.addEventListener("pointercancel", liftFinger, { capture: true });
+  // ПЕРЕСАДКА: палец на своём стуле тянет его по кругу (орбита при этом спит); на остальном — вращает, двигает и зумит вид.
   renderer.domElement.addEventListener("pointerdown", (e) => {
+    if (!reseat || reseat.pid !== null) return;
+    const mineId = myChair()?.id;
+    ray.setFromCamera(ndc(e), camera);
+    const hit = mineId ? ray.intersectObject(chairRoot, true).find((h) => h.object.userData.chair === mineId) : undefined;
+    if (!hit) return;
+    e.stopImmediatePropagation();
+    reseat.pid = e.pointerId;
+    orbit.enabled = false;
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
+  }, { capture: true });
+  renderer.domElement.addEventListener("pointermove", (e) => {
+    if (!reseat || reseat.pid !== e.pointerId) return;
+    e.stopImmediatePropagation();
+    const at = onFelt(e);
+    if (!at || Math.hypot(at.x, at.z) < 0.5) return;
+    reseat.angle = Math.round(((Math.atan2(at.x, at.z) * 180) / Math.PI + 360) % 360);
+    layout(store.state); draw();
+  }, { capture: true });
+  const reseatUp = (e: PointerEvent): void => {
+    if (!reseat || reseat.pid !== e.pointerId) return;
+    reseat.pid = null;
+    orbit.enabled = true;
+  };
+  renderer.domElement.addEventListener("pointerup", reseatUp, { capture: true });
+  renderer.domElement.addEventListener("pointercancel", reseatUp, { capture: true });
+  renderer.domElement.addEventListener("pointerdown", (e) => {
+    if (reseat) return;
     live.add(e.pointerId);
     // Язычок — первым: он лежит у самой кромки стопки и перекрыл бы её верхнюю карту.
     const pile = tabFn ? hitTab(e) : null;
@@ -2214,6 +2286,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    chairAt: (id: string) => chairObjs.get(id)?.group.position.toArray() ?? null,
+    reseatInfo: () => ({ on: reseat !== null, heads: heads.visible, chairs: chairRoot.visible, handShown: store.state.chairs.flatMap((c) => c.hand).filter((c) => cards.get(c.id)?.group.visible).length, felt: store.state.felt.filter((c) => cards.get(c.id)?.group.visible).length }),
     feltScreen: (x: number, y: number) => project(new THREE.Vector3(x, 0, y)),
     ringLit: () => [...ringFields.entries()].map(([id, f]) => ({ id, zone: f.zone.visible, glow: f.glow.visible, slot: f.slot.visible })),
     cardTarget: (id: string) => { const o = cards.get(id); return o ? o.target.pos.toArray() : null; },
@@ -2239,12 +2313,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     home: () => { home(); draw(); sendBody(true); },
     camMode: () => camMode,
     baseFov: () => baseFov,
-    optics: () => (camMode === "head" ? Math.max(0, Math.min(1, Math.log(rig.fov / baseFov) / Math.log(CAM.fov.min / baseFov))) : 0),
-    setOptics(t) {
-      if (camMode !== "head") return;
-      rig.fov = baseFov * Math.pow(CAM.fov.min / baseFov, Math.max(0, Math.min(1, t)));
-      applyRig(); layout(store.state); draw();
-    },
+    seat: () => (seatPull - SEAT_PULL.min) / (SEAT_PULL.max - SEAT_PULL.min),
+    setSeat: (t: number) => setSeatPull(SEAT_PULL.min + Math.max(0, Math.min(1, t)) * (SEAT_PULL.max - SEAT_PULL.min)),
+    reseatOn: () => reseat !== null,
+    setReseat,
+    reseatDone,
     handSize: () => handSize,
     setHandSize(k) { handSize = Math.max(HAND_SIZE.min, Math.min(HAND_SIZE.max, k)); layout(store.state); draw(); },
     setBaseFov(deg) {
@@ -2261,7 +2334,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     neckViz: (kind) => viz[kind],
     setNeckViz: (kind, on) => { viz[kind] = on; neckViz(0); },
     sideBy,
-    opticsBy,
     handFrame,
     carryingHand: () => !!handCarry,
     orbitZoom: () => { const d = camera.position.distanceTo(orbit.target); return Math.max(0, Math.min(1, (orbit.maxDistance - d) / (orbit.maxDistance - orbit.minDistance))); },
@@ -2374,7 +2446,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setBlend(b) { blend = b; layout(store.state); },
     stance: stanceNow,
     setStance(st) { stance = st; home(); sendBody(true); draw(); },
-    setFigures(on) { heads.visible = on; chairRoot.visible = on; draw(); },
+    setFigures(on) { figuresOn = on; reseatSync(); draw(); },
     setLook(l) { look = l; layout(store.state); },
     heads: () => [...poses.values()].map((pose) => {
       const c = project(V(pose.head)), edge = project(V(pose.head).add(new THREE.Vector3(0, 1, 0)));

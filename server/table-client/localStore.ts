@@ -123,7 +123,10 @@ export function localTable(opts: LocalOpts = {}): { view(key: string): TableStor
           // Тело сдвинулось — остальным экранам перерисовать его (в сети это сообщение о чужом теле).
           for (const [other, v] of views) if (other !== key) for (const listener of v.changed) listener();
         },
-        command: () => {},
+        command: (c) => {
+          // Рассадка рукой — единственная команда, которую у стенда есть чем исполнить.
+          if (c.t === "seat" && c.do === "place") for (const one of c.chairs) spread(table.turnChair(one.chair, one.angle));
+        },
         log: () => {},
         rtc: () => {},
         onRtc: () => {},

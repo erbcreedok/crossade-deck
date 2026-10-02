@@ -118,8 +118,8 @@ export const STANCE_ZOOM: Record<Stance, number> = { sit: 1, stand: restHead("si
 export const AWAY_DEG = 14;
 
 /** Плечи с высотой. */
-/** Пределы посадки: на сколько стул можно придвинуть к столу (+) и отодвинуть (−). */
-export const SEAT_PULL = { min: -3, max: 1.5 } as const;
+/** Пределы посадки: ближе, чем сидишь, не придвинуться (0), назад — до `min` единиц стола вместе со стулом. */
+export const SEAT_PULL = { min: -2.5, max: 0 } as const;
 export const shoulders3 = (angle: number, stance: Stance, pull = 0): Point3 => ({ ...seatPoint(angle, SHOULDERS - pull), h: SHOULDER_H[stance] });
 
 /**

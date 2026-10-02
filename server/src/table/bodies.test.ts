@@ -33,10 +33,11 @@ describe("bodies.read-whole-or-nothing", () => {
   });
   it("посадка (seat): не прислана — поля нет, прислана — в пределах, плечи едут по радиусу, мусор — отказ", () => {
     expect("seat" in cleanBody(body)!).toBe(false);
-    expect(cleanBody({ ...body, seat: 1 })!.seat).toBe(1);
+    expect(cleanBody({ ...body, seat: -1 })!.seat).toBe(-1);
+    expect(cleanBody({ ...body, seat: 5 })!.seat).toBe(SEAT_PULL.max);
     expect(cleanBody({ ...body, seat: -99 })!.seat).toBe(SEAT_PULL.min);
     expect(cleanBody({ ...body, seat: "ближе" })).toBeNull();
-    expect(Math.hypot(shoulders3(0, "sit", 1).x, shoulders3(0, "sit", 1).y)).toBeLessThan(Math.hypot(shoulders3(0, "sit").x, shoulders3(0, "sit").y));
+    expect(Math.hypot(shoulders3(0, "sit", -1).x, shoulders3(0, "sit", -1).y)).toBeGreaterThan(Math.hypot(shoulders3(0, "sit").x, shoulders3(0, "sit").y));
   });
   it("высота руки (handY): не прислана — поля нет, прислана — в пределах -3…3, мусор — отказ", () => {
     expect("handY" in cleanBody(body)!).toBe(false);
