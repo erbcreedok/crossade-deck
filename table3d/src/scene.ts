@@ -53,7 +53,7 @@ const TOUCH = { up: 0.07, z: 0.12 };
 
 /** Место карты: в мире (`over` — моя рука: место в мире, но рисуется поверх всего) — или в осях камеры (`onCamera`: над окном HUD). */
 /** Раскладка руки: сжатость (0 — стопкой), веер ↔ ряд (0.5 — веер, 1 — ряд), комната в ширинах карты. */
-type Shape = { wide: number; lift: number; room: number };
+type Shape = { wide: number; lift: number; room: number; base?: number };
 type Place = { pos: THREE.Vector3; quat: THREE.Quaternion; scale: number; onCamera?: true; over?: true; /** Куда в мире складывается рука к держащему: чей слой выше, решает, с какой стороны на неё смотрят. */ stagger?: THREE.Vector3; /** Кривизна самой карты вокруг её вертикали (1/радиус в единицах карты, + к лицу): карта согнута, как в пальцах. */ bend?: number };
 /** Где карта сейчас по снимку: откуда её можно взять. */
 type From = { in: "felt" } | { in: "pile"; pile: string; top: boolean } | { in: "hand"; chair: string; mine: boolean; i: number };
@@ -406,7 +406,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Обычное поле зрения головы; для разработки его двигает ползунок (`setBaseFov`). */
   let baseFov: number = CAM.fov.base;
   /** Размер карт в своей руке от обычного (настройки): 1 — как есть, от половины до вдвое. */
-  let handSize = 1;
+  /** Размер карт моей руки: на телефоне по умолчанию 85% — крупнее они загораживают стол; в настройках меняется (и запоминается). */
+  let handSize = innerWidth < 500 ? 0.85 : 1;
   const rig = { yaw: 0, pitch: -40, lean: 0, side: 0, fov: baseFov };
   const neck = neckNew();
   /**
@@ -995,15 +996,26 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Загиб в МОЁМ виде растёт с числом карт: мало карт — рука почти прямая (свои карты у самых глаз сильно искажаются), много — загиб нужен, чтобы уместить веер. Остальным уходит выбранный загиб. */
   const mineCurlK = (n: number): number => Math.max(0.15, Math.min(1, (n - 2) / 8));
   let handWidth = 0.68, widthLive: number | null = null, widthOver = 0, widthPendingUntil = 0;
-  const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAMHAND.refFov * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / CAMHAND.card); };
+  const roomMax = (): number => { const hfov = 2 * Math.atan(Math.tan((CAMHAND.refFov * DEG) / 2) * camera.aspect); return Math.max(1.8, (2 * -CAMHAND.at.z * Math.tan(hfov / 2) * 0.94) / (CAMHAND.card * handSize)); };
   const roomOf = (f: number): number => 1.2 + (roomMax() - 1.2) * Math.max(0, Math.min(1, (f - WIDTH.stack) / (1 - WIDTH.stack)));
   const smooth = (a: number, b: number, x: number): number => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
   /** Раскладка моей руки из ширины `f` и подъёма `rise` (0…1): сжатость, веер ↔ ряд, комната в ширинах карты. */
+  /**
+   * Сколько карт рука может выпустить за правый край экрана: карт много — правая (она выше всех) уходит за экран, пока видна её левая часть
+   * (чуть больше половины), и вся рука на столько же шире и смещена вправо ровно настолько, насколько надо (`handOverhang`): мало карт — стоят по центру.
+   */
+  const OVERHANG = 0.55;
   function shapeOfWidth(f: number, n: number, rise: number, over = 0): Shape {
-    const room = roomOf(f) * (1 + 0.07 * (1 - Math.exp(-over * 6)));
+    const base = roomOf(f) * (1 + 0.07 * (1 - Math.exp(-over * 6))), room = base + OVERHANG * Math.max(0, Math.min(1, (f - WIDTH.stack) / (1 - WIDTH.stack)));
     let lift = 0.5 + 0.5 * smooth(WIDTH.rowFrom, WIDTH.fanTo + 0.05, f);
     if (!fanFitsN(n, room)) lift = 1;
-    return { wide: Math.min(1, f / WIDTH.stack), lift: lift + (1 - lift) * rise, room };
+    return { wide: Math.min(1, f / WIDTH.stack), lift: lift + (1 - lift) * rise, room, base };
+  }
+  /** Сдвиг руки вправо в ширинах карты: настолько, насколько её разлёт вышел за обычную комнату. */
+  function handOverhang(shape: Shape, n: number): number {
+    if (n < 2 || shape.base === undefined) return 0;
+    const span = (room: number): number => { const xs = handPlanBlend({ wide: shape.wide, lift: shape.lift }, true, n, 1, 1.4, room).map((p) => p.x); return Math.max(...xs) - Math.min(...xs); };
+    return Math.max(0, span(shape.room) - span(shape.base)) / 2;
   }
   /** Флаги позы, в которые ложится ширина `f` (их и шлём остальным). */
   function flagsOfWidth(f: number, n: number, was: { fan: boolean }): { shrink: boolean; fan: boolean } {
@@ -1230,6 +1242,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       syncWidth(ch);
       const shape = shapeOfWidth(widthLive ?? handWidth, n, Math.max(0, Math.min(1, heightPx / WIDTH.rise)), widthOver);
       if (levelOn) shape.lift = levelPose(handLevel) === "fan" ? 0.5 : 1;
+      off.x = handOverhang(shape, n) * CAMHAND.card * handSize;
       placeFpsArm(down <= 0 && list.length > 0 && !handCarry, fovK, off);
       // Раздвижка: места карт по ширине руки (в ширинах карты) и сдвиг от пальца на верхней ручке.
       const u = CAMHAND.card * fovK * handSize, curlMine = handCurl * mineCurlK(n);
