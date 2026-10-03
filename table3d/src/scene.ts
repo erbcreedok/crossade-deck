@@ -979,13 +979,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       poses.set(ch.id, pose);
       const body = new THREE.Group();
       body.userData.by = pose.by;
-      const mat = inkOf(pose.ink), { S, H, base } = dollBody(pose.s, pose.head), L = V(handRest(pose.left, ch, ch.pose.tuck ? 1 : 0, ch.hand.length));
+      body.userData.chair = ch.id;
+      const mat = inkOf(pose.ink), { S, H, base } = dollBody(pose.s, pose.head), L = V(handRest(pose.left, ch, ch.pose.tuck || ch.croupier ? 1 : 0, ch.hand.length));
       // Правое плечо — справа от взгляда в середину стола.
       const r = Math.hypot(pose.s.x, pose.s.y) || 1, rightDir = new THREE.Vector3(pose.s.y / r, 0, -pose.s.x / r);
       const shL = S.clone().addScaledVector(rightDir, -DOLL.bar), shR = S.clone().addScaledVector(rightDir, DOLL.bar);
       body.add(stick(base, S, DOLL.spine, mat), stick(shL, shR, DOLL.spine, mat), ball(shL, DOLL.spine, mat), ball(shR, DOLL.spine, mat));
       // Левая рука с картами — всегда: и с головой у тела, и когда голова ушла на ту сторону стола (рука с ней).
       body.add(...armParts(shL, L, -1, rightDir, DOLL.arm * farK(L), mat), ball(L, DOLL.hand * farK(L), mat));
+      body.userData.left = L;
       if (pose.away) {
         // Ушёл головой на ту сторону стола — к голове ниточка его цвета, руки ушли с головой.
         const tether = new THREE.Line(new THREE.BufferGeometry().setFromPoints([S, H]), new THREE.LineDashedMaterial({ color: pose.ink, dashSize: 0.35, gapSize: 0.3, transparent: true, opacity: 0.6 }));
@@ -2818,6 +2820,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     dollParts: () => { const b = heads.children[0]?.children.find((c) => c.userData.base)?.userData as { base?: THREE.Vector3 } | undefined; const ch = [...chairObjs.values()][0]; return { headY: b?.base?.y ?? null, chairScale: ch?.group.scale.x ?? null }; },
     pickAtNow: (x: number, y: number) => api.pickAt(x, y),
     dollScaleNow: () => dollK,
+    leftHandOf: (chair: string) => { for (const b of heads.children) if (b.userData.chair === chair && b.userData.left) return (b.userData.left as THREE.Vector3).toArray(); return null; },
     zoneInfo: () => store.state.chairs.filter((c) => !c.croupier).map((c) => ({ id: c.id, owner: c.owner, zone: zones.get(c.id)?.fill.visible ?? false, chair: chairObjs.get(c.id)?.group.visible ?? null, centre: zoneCentre(c.angle), hand: c.hand.map((h) => h.id) })),
     heldAngle: () => (drag?.moved ? drag.angle : null),
     reseatNow: (angle: number) => { store.send({ t: "reseat", angle }); },

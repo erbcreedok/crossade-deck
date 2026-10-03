@@ -32,6 +32,9 @@ await a.mouse.up();
 await b.waitForTimeout(1500);
 const after = await b.evaluate((id) => window.__t3d.cardTarget(id), pile.top);
 check("отпустили — стопка у соседа опустилась на стол", after && after[1] < air[1] - 0.3, { air, after });
+// КРУПЬЕ ДЕРЖИТ СТОПКУ НА СТОЛЕ: его левая рука лежит на ней, а не висит на высоте головы.
+const croupier = await b.evaluate(() => { const c = window.__t3d.state().chairs.find((x) => x.croupier); return c ? { n: c.hand.length, at: window.__t3d.leftHandOf(c.id) } : null; });
+check("у крупье левая рука на столе, а не на уровне головы", !!croupier && !!croupier.at && croupier.at[1] < 1.5, croupier);
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
