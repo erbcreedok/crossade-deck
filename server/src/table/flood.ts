@@ -15,6 +15,7 @@ export const PER_SECOND = {
   carry: Math.ceil((1000 / CARRY_EVERY_MS) * 2),
   say: Math.ceil((1000 / SAY_EVERY_MS) * 2),
   eyes: 20,
+  history: 3,
   command: 5,
   mic: 10,
   body: Math.ceil((1000 / BODY_EVERY_MS) * 2),

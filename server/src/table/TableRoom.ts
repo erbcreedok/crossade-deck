@@ -19,7 +19,7 @@ import { grantDue } from "./gifts.js";
 import { faceOf } from "./avatars.js";
 import { iceServers, tableConfig } from "./config.js";
 import { BOT_KEY, botPerson } from "./botPerson.js";
-import { DEAL_PRESETS, MSG, PROTOCOL, ROOM_CLOSED, STALE_CLIENT, type CarryOut, type DealRule, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type Recording, type AppPass, type SeatCard, type TableCommand, type Welcome, TOLD_OPS } from "./contract.js";
+import { DEAL_PRESETS, MSG, PROTOCOL, ROOM_CLOSED, STALE_CLIENT, type CarryOut, type DealRule, type HistoryAsk, type HistoryNone, type Face, type Intent, type JoinOptions, type Op, type Person, type RunError, type RunResult, type Recording, type AppPass, type SeatCard, type TableCommand, type Welcome, TOLD_OPS } from "./contract.js";
 import { cleanWatch, Eyes } from "./eyes.js";
 import { Bodies, cleanBody, restHead, shouldersOf } from "./bodies.js";
 import { mintPass, PASS_HOURS } from "./pass.js";
@@ -55,6 +55,9 @@ const LAYOUT_RADIUS = 4;
 import { readCommand } from "./routes.js";
 import { roomIsSigned } from "./roomIds.js";
 import { Chronicle } from "./chronicle.js";
+import { PathRecorder, type PathOut } from "./pathTape.js";
+import { historyPage, shownFaces } from "./historyCut.js";
+import { historyRows } from "../db/eventsRepo.js";
 import { cleanWitnessed, Witnesses } from "./witness.js";
 import { Table, type TableDump } from "./table.js";
 import type { Brain, BotView, Move, Profile } from "./bots/brain.js";
@@ -125,6 +128,8 @@ export class TableRoom extends Room {
   private book!: Chronicle;
   /** Записан ли первый кадр. Пишется один раз за жизнь комнаты. */
   private filmed = false;
+  /** Пути пальцев, пока жест идёт: по его концу уходят в журнал сжатыми (`pathTape.ts`), и историю потом можно смотреть «как тащил». */
+  private paths = new PathRecorder();
   private room = "";
   /**
    * СУДЬЯ ПАРТИИ, если у рода стола партия есть (`desks.ts`). Какая это игра, комната не знает: она
@@ -230,7 +235,13 @@ export class TableRoom extends Room {
     this.botTimer?.clear();
     this.botTimer = null;
     if (!this.table.busy) this.keepNow();
+    this.tellPaths(this.paths.all());
     this.book.flush();
+  }
+
+  /** Пути пальцев — в журнал: по одной строке на жест. */
+  private tellPaths(paths: readonly PathOut[]): void {
+    for (const one of paths) this.book.tell("carry.path", one.by, { by: one.by, id: one.id, t0: one.t0, pts: one.pts }, one.t0 + (one.pts.at(-1)?.dt ?? 0));
   }
 
   /** Стол целиком глазами этого человека — при входе и когда у него разошлись версии (`sync`). */
@@ -385,12 +396,26 @@ export class TableRoom extends Room {
     this.onMessage(MSG.carry, (client, out: CarryOut) => {
       const me = this.personOf(client.sessionId);
       if (!me || !this.flood.take(me.key, "carry", Date.now()) || "refused" in this.table.carry(me.key, out, Date.now())) return;
+      this.paths.feed(me.key, out.id, out.over, Date.now());
+      this.tellPaths(this.paths.stale(Date.now()));
       for (const other of this.clients) {
         const key = this.seats.get(other.sessionId);
         if (key === undefined || key === me.key) continue;
         const [seen] = this.table.carriesSeenBy(key, out.id);
         if (seen) other.send(MSG.carry, seen);
       }
+    });
+
+    // ИСТОРИЯ ДО МОЕГО ПРИХОДА — порцией, глазами этого человека: лица карт, которых он не видит сейчас, срезаны (`historyCut.ts`).
+    this.onMessage(MSG.history, (client, ask: HistoryAsk) => {
+      const me = this.personOf(client.sessionId);
+      // Время по сети приходит 64-битным целым — на этой стороне это BigInt, а не number.
+      const asked = Number((ask as { before?: unknown } | undefined)?.before);
+      if (!me || !Number.isFinite(asked) || !this.flood.take(me.key, "history", Date.now())) return;
+      this.book.flush();
+      const before = Math.min(asked, Date.now() + 1000);
+      const page = historyPage(historyRows(this.room, before), before, shownFaces(this.table.seenBy(me.key)));
+      client.send(MSG.history, page ?? ({ before, none: true } satisfies HistoryNone));
     });
 
     // СЛОВО У СТУЛА — остальным как есть. Пишет только сидящий: словам негде встать, кроме как у стула.
@@ -1527,6 +1552,7 @@ export class TableRoom extends Room {
   private spread(ops: Op[]): void {
     if (ops.length === 0) return;
     const v = this.table.version;
+    for (const op of ops) if (op.t === "unlock") this.tellPaths([this.paths.end(op.id)].filter((one): one is PathOut => one !== null));
     // ХВОСТ СЛУЧИВШЕГОСЯ — для того, кто обновит страницу или войдёт.
     //
     // КАЖДОМУ ЗАПОМИНАЕТСЯ ТО, ЧТО ОН ВИДЕЛ В ТОТ МИГ, а не то, что видно теперь. Резать хвост

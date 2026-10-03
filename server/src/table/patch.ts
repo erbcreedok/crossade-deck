@@ -21,6 +21,13 @@ export function applyPatch(state: Snapshot, patch: Patch): Snapshot {
   return next;
 }
 
+/** Сложить операции В ТОМ ЖЕ снимке (без копии): для длинных свёрток истории, где копия на каждый диф стоила бы квадрата. Снимок меняется на месте. */
+export function applyOpsInPlace(state: Snapshot, ops: readonly Op[], v?: number): Snapshot {
+  for (const op of ops) applyOp(state, op);
+  if (v !== undefined) state.v = v;
+  return state;
+}
+
 function applyOp(s: Snapshot, op: Op): void {
   switch (op.t) {
     case "join": {

@@ -116,6 +116,19 @@ export function deedsOf(room: string, limit = 5000, at: DatabaseSync = db()): To
  * ЛЕНТА МЕЖДУ ДВУМЯ СОБЫТИЯМИ — запись одной партии: от её начала (`match.start`, с кадром стола) до
  * конца. Номера — те, что журнал выдал событиям; `to` пустой — до последнего.
  */
+/**
+ * СТРОКИ ДЛЯ ИСТОРИИ: последний первый кадр комнаты не позже `before` и всё после него — дифы и пути пальцев — раньше `before`. Остальные виды (экран, звук, голос) истории не нужны.
+ * Предел щедрый: игры в сотни ходов умещаются, а бесконечный стол всё равно читается страницами.
+ */
+export function historyRows(room: string, before: number, limit = 60000, at: DatabaseSync = db()): Told[] {
+  const frame = at.prepare("SELECT id FROM events WHERE room = ? AND kind = 'table.first' AND at <= ? ORDER BY id DESC LIMIT 1").get(room, before) as { id: number } | undefined;
+  if (!frame) return [];
+  const rows = at
+    .prepare("SELECT * FROM events WHERE room = ? AND (id = ? OR (id > ? AND kind IN ('patch', 'carry.path') AND at < ?)) ORDER BY id LIMIT ?")
+    .all(room, frame.id, frame.id, before, limit) as unknown as Row[];
+  return rows.map(told);
+}
+
 export function deedsBetween(room: string, from: number, to: number | null, limit = 20000, at: DatabaseSync = db()): Told[] {
   const rows = at
     .prepare(`SELECT * FROM events WHERE room = ? AND id >= ?${to === null ? "" : " AND id <= ?"} ORDER BY id LIMIT ?`)

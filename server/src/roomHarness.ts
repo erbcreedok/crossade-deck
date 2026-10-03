@@ -25,6 +25,7 @@ export const TEST_PORTS = {
   table: 2675,
   tableRoutes: 2676,
   tableChronicle: 2677,
+  tableHistory: 2678,
 } as const;
 
 export function createGameServer() {
