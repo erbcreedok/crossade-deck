@@ -2590,6 +2590,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (pile) { e.stopImmediatePropagation(); tabFn!(pile, e); return; }
     const id = hitCard(e);
     if (!id || !takeable(id)) { if (liftedId) { liftedId = null; layout(store.state); } return; }
+    // Свободная камера: моя рука — стопка на столе, и тянуть из неё можно только верхнюю карту.
+    if (camMode === "orbit") { const from = fromOf.get(id); if (from?.in === "hand" && from.mine && id !== myChair()?.hand.at(-1)?.id) return; }
     // Карту — пальцем; облёт — только по пустому.
     e.stopImmediatePropagation();
     startDrag(id, e);
@@ -2882,6 +2884,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     leftHandOf: (chair: string) => { for (const b of heads.children) if (b.userData.chair === chair && b.userData.left) return (b.userData.left as THREE.Vector3).toArray(); return null; },
     zoneInfo: () => store.state.chairs.filter((c) => !c.croupier).map((c) => ({ id: c.id, owner: c.owner, zone: zones.get(c.id)?.fill.visible ?? false, chair: chairObjs.get(c.id)?.group.visible ?? null, centre: zoneCentre(c.angle), hand: c.hand.map((h) => h.id) })),
     heldAngle: () => (drag?.moved ? drag.angle : null),
+    draggingId: () => (drag?.moved ? drag.id : null),
     reseatNow: (angle: number) => { store.send({ t: "reseat", angle }); },
     gyroOffNow: () => gyroOff,
     carryTo: (id: string, chair: string, i: number) => { if (!store.state.locks[id]) store.send({ t: "grab", id }); store.carry({ id, over: { in: "hand", chair, i } }); },

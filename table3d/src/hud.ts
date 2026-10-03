@@ -341,12 +341,15 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   function gripHtml(s: Snapshot): string {
     const chair = myChair(s);
     if (!chair || !chair.hand.length || scene.carryingHand() || scene.reseatOn()) return "";
+    // СВОБОДНАЯ КАМЕРА: рука лежит на столе, хвата нет — ни поднять, ни вытащить стопкой; счётчик стоит там же, где при сложенной руке. Верхнюю карту стопки можно потянуть.
+    const free = scene.camMode() === "orbit";
     const level = scene.handLevel(), pose = scene.handPoseAt(level), floor = glass().h - scene.safeBottom() - DOCK_PX - (local.section && local.section !== "say" ? SHEET_PX + SHEET_GAP : 0) - 4;
-    const top = pose === "tuck" ? floor : scene.handTopPx() ?? floor;
+    const tucked = free || pose === "tuck";
+    const top = tucked ? floor : scene.handTopPx() ?? floor;
     const y = Math.round(top - 26);
-    const label = pose === "tuck" ? `<span>на столе · ${chair.hand.length}</span>` : `<span>${chair.hand.length}</span>`;
-    return `<div class="cp c-grip${local.gripDrag ? " drag" : ""}" data-grip aria-label="Язычок руки: вверх-вниз — высота и поза, за самый верх — вся рука стопкой на стол; влево-вправо — ширина руки" style="left:${local.gripX === null ? "calc(50% - 42px)" : `${Math.max(8, Math.min(glass().w - 92, local.gripX - 42))}px`};top:${y}px"><i></i><i></i><i></i><i></i></div>`
-      + `<div class="cp c-count flat" style="left:14px;top:${y - 6}px">${ic("cards", 1)}${label}</div>`;
+    const label = tucked ? `<span>на столе · ${chair.hand.length}</span>` : `<span>${chair.hand.length}</span>`;
+    const grip = free ? "" : `<div class="cp c-grip${local.gripDrag ? " drag" : ""}" data-grip aria-label="Язычок руки: вверх-вниз — высота и поза, за самый верх — вся рука стопкой на стол; влево-вправо — ширина руки" style="left:${local.gripX === null ? "calc(50% - 42px)" : `${Math.max(8, Math.min(glass().w - 92, local.gripX - 42))}px`};top:${y}px"><i></i><i></i><i></i><i></i></div>`;
+    return grip + `<div class="cp c-count flat" style="left:14px;top:${y - 6}px">${ic("cards", 1)}${label}</div>`;
   }
   /** Рейка камеры справа: только то, что нужно этому виду. */
   function railHtml(s: Snapshot): string {
