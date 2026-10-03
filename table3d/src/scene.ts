@@ -2968,6 +2968,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       ray.setFromCamera(ndc(e), camera);
       const head = heads.visible ? ray.intersectObjects(heads.children, true).find((h) => h.object.userData.head) : undefined;
       if (head) return { t: "who", key: head.object.userData.head as string };
+      // Язычок стопки бесхозного стула — тап по нему тоже стул.
+      const tabHit = hitTab(e);
+      if (tabHit && tabHit.startsWith("chair:")) return { t: "chair", id: tabHit.slice(6) };
       const id = hitCard(e);
       // Карта в стопке бесхозного стула — тап открывает окно стула (в зону не надо целиться), а не карту.
       const inHand = id ? fromOf.get(id) : undefined;

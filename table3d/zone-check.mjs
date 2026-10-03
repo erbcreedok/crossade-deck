@@ -26,6 +26,28 @@ check("карты бесхозной руки лежат стопкой в зо�
 // Тап по карте стопки открывает окно стула (в зону целиться не надо).
 const tapped = await p.evaluate(([x, y]) => window.__t3d.pickAtNow(x, y), [(await p.evaluate((i) => window.__t3d.screenOf(i), withCards.hand.at(-1))).x, (await p.evaluate((i) => window.__t3d.screenOf(i), withCards.hand.at(-1))).y]);
 check("тап по карте стопки бесхозного стула — это стул (откроется его окно), а не карта", tapped?.t === "chair" && tapped.id === withCards.id, tapped);
+// Тап по язычку стопки — тоже стул.
+{
+  const tab = await p.evaluate((id) => window.__t3d.tabInfo(`chair:${id}`)?.screen ?? null, withCards.id);
+  const tapTab = tab ? await p.evaluate(([x, y]) => window.__t3d.pickAtNow(x, y), [tab.x, tab.y]) : null;
+  check("тап по язычку стопки бесхозного стула — это стул (откроется его окно)", tapTab?.t === "chair" && tapTab.id === withCards.id, tapTab);
+}
+// Настоящий тап по карте и по язычку открывает окно стула в худе (а не только метод выбора).
+{
+  const card = await p.evaluate((i) => window.__t3d.screenOf(i), withCards.hand.at(-1));
+  await p.mouse.click(card.x, card.y);
+  await p.waitForTimeout(500);
+  const opened1 = await p.locator('[data-g="tip"]').count();
+  check("тап по карте стопки бесхозного стула открыл окно стула", opened1 > 0, opened1);
+  await p.mouse.click(card.x, card.y);
+  await p.waitForTimeout(400);
+  const tabAt = await p.evaluate((id) => window.__t3d.tabInfo(`chair:${id}`)?.screen ?? null, withCards.id);
+  await p.mouse.click(tabAt.x, tabAt.y);
+  await p.waitForTimeout(500);
+  check("тап по язычку открыл окно стула", (await p.locator('[data-g="tip"]').count()) > 0, await p.locator('[data-g="tip"]').count());
+  await p.mouse.click(tabAt.x, tabAt.y);
+  await p.waitForTimeout(300);
+}
 // Верхнюю карту стопки можно взять и унести на стол.
 const topId = withCards.hand.at(-1);
 const from = await p.evaluate((i) => window.__t3d.screenOf(i), topId);

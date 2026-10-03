@@ -868,7 +868,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   }
   // Тап по голове или по стулу на сцене — окно стула (тап, а не облёт камеры: палец почти не сдвинулся).
   let downAt: { x: number; y: number } | null = null;
-  stage.addEventListener("pointerdown", (e) => { downAt = { x: e.clientX, y: e.clientY }; });
+  // В фазе перехвата: карту, язычок и стопку сцена берёт себе и дальше событие не пускает, а тап по ним тоже должен открывать окно стула.
+  stage.addEventListener("pointerdown", (e) => { downAt = { x: e.clientX, y: e.clientY }; }, { capture: true });
   stage.addEventListener("pointerup", (e) => {
     if ((e.target as HTMLElement).closest("[data-panel]")) return;
     if (downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > TAP_PX) return;
