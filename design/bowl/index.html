@@ -143,7 +143,7 @@ const eyeAt = () => new THREE.Vector3(0, 4 * 1 + 2 + P.viewH, SHOULDERS);
 
 // ——— ЧАША ———
 const bowl = new THREE.Group(); scene.add(bowl);
-let lit = false;
+let lit = false, bowlSig = "";
 const dashed = (pts, color, dash = 0.2, gap = 0.14) => { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color, dashSize: dash, gapSize: gap, transparent: true, opacity: 0.95, depthWrite: false })); l.computeLineDistances(); return l; };
 /** Ось руки и чаши — не обязательно голова: плечи, таз или сама кисть; плюс высота якоря. Вокруг этой точки рука качается при повороте и наклоне, и её же центр у чаши. */
 const ANCHORS = { head: () => eyeAt(), chest: () => new THREE.Vector3(0, 4 * P.doll, SHOULDERS), hip: () => new THREE.Vector3(0, -2.5 * P.doll + 1.2, SHOULDERS), hand: () => handWorld() };
@@ -186,6 +186,7 @@ function drawAxis() {
   if (!P.axis) return;
   const c = centre(), Ry = P.R * P.sq, pole = poleY(), mid = handCards[Math.floor(handCards.length / 2)];
   const h = mid ? mid.getWorldPosition(new THREE.Vector3()) : c;
+  void h;
   const sig = [c.x, c.y, c.z, Ry, pole, h.x, h.y, h.z].map((v) => Math.round(v * 50)).join();
   if (sig === axisSig) return;
   axisSig = sig; axisG.clear();
@@ -224,7 +225,7 @@ function placeHand() {
   // Якорь «Кисть» — сама рука: ось в центре карт, она едет с рукой.
   const A = centre(), E = eyeAt(), onHand = P.anchor === "hand";
   const refQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(REF_PITCH * DEG, yawEff, 0, "YXZ"));
-  rig.position.copy(A); rig.rotation.order = "YXZ"; rig.rotation.set(pitchEff, yawEff, 0);
+  rig.position.copy(onHand ? handWorld() : A); rig.rotation.order = "YXZ"; rig.rotation.set(pitchEff, yawEff, 0);
   inner.position.copy(onHand ? new THREE.Vector3() : E.clone().sub(A).applyQuaternion(refQ.clone().invert()));
   inner.scale.setScalar(P.hand === "head" ? 1 : P.R / HAND_DIST);
   const base = onHand ? new THREE.Vector3(0, 0, 0) : new THREE.Vector3(CAMHAND.x + P.hx, CAMHAND.y + P.hy, CAMHAND.z + P.hz);
@@ -252,7 +253,7 @@ function drawArms() {
   const k = P.doll, bar = 1.4 * k, S = new THREE.Vector3(0, 4 * k, SHOULDERS);
   const mid = handCards[Math.floor(handCards.length / 2)];
   // Кисть — под рядом карт и чуть за ними, а не на них: карты остаются видны.
-  const L = mid ? inner.localToWorld(new THREE.Vector3(0, CAMHAND.y - 0.5, CAMHAND.z - 0.4)) : S.clone();
+  const L = P.anchor === "hand" ? handWorld() : mid ? inner.localToWorld(new THREE.Vector3(0, CAMHAND.y - 0.5, CAMHAND.z - 0.4)) : S.clone();
   const R = new THREE.Vector3(1.15 * bar, 0.3, SHOULDERS - 2.4 * k);
   const sig = [k, L.x, L.y, L.z].map((v) => Math.round(v * 20)).join();
   if (sig === armSig) return;
@@ -287,6 +288,8 @@ function frame() {
   headCam.position.copy(e); headCam.rotation.order = "YXZ"; headCam.rotation.set(P.pitch * DEG, -yawOf(), 0);
   headCam.fov = P.fov; headCam.updateProjectionMatrix();
   headBall.position.copy(e); headBall.visible = P.view !== "head";
+  const cs = [...centre().toArray(), P.R, P.sq, P.cut].map((v) => Math.round(v * 50)).join();
+  if (cs !== bowlSig) { bowlSig = cs; buildBowl(); }
   drawArms(); drawAxis();
   if (neck) neck.visible = P.view !== "head";
   const H = new URLSearchParams(location.search).get("hide") ?? ""; armsG.visible = !H.includes("arms"); bodyG.visible = !H.includes("body"); mine.userData.chair.visible = !H.includes("chair");
@@ -350,7 +353,7 @@ for (const [k, v] of new URLSearchParams(location.search)) if (k in P) P[k] = ty
 if (new URLSearchParams(location.search).has("open")) stage.classList.add("open");
 frozenYaw = -yawOf();
 buildUi(); buildBody(); buildHand(); buildBowl(); frame();
-window.__bowl = { P, set(k, v) { P[k] = v; buildUi(); buildBody(); buildBowl(); buildHand(); } };
+window.__bowl = { probe() { const box = new THREE.Box3().setFromObject(bowl), bc = box.getCenter(new THREE.Vector3()), mid = handCards[Math.floor(handCards.length / 2)]; return { centre: centre().toArray(), bowl: [bc.x, box.max.y, bc.z], wrist: handWorld().toArray(), cards: mid.getWorldPosition(new THREE.Vector3()).toArray() }; }, P, set(k, v) { P[k] = v; buildUi(); buildBody(); buildBowl(); buildHand(); } };
 </script>
 </body>
 </html>
