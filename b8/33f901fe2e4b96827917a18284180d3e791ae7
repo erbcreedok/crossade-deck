@@ -1,0 +1,30 @@
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_9679f354308844 1441-1445,1447-1451,1453-1456,1459-1476,1480-1496,1995
+  s_ad8a8a5b5d0419::t_2a6ae0da4e794f 1446,1452,1477-1479
+  s_ad8a8a5b5d0419::t_b03f5396bb8f46 2905,3214
+  s_ad8a8a5b5d0419::t_fca52da8152438 1457-1458
+table3d/bowl-check.mjs
+  s_ad8a8a5b5d0419::t_2a6ae0da4e794f 24,29
+  s_ad8a8a5b5d0419::t_a1c068d4c7e030 1-23,25-28,30-38
+table3d/src/hud.ts
+  s_ad8a8a5b5d0419::t_b03f5396bb8f46 300
+table3d/hand-check.mjs
+  s_ad8a8a5b5d0419::t_2a6ae0da4e794f 163
+  s_ad8a8a5b5d0419::t_7239d241bd9c36 156,162,214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b833f901fe2e4b96827917a18284180d3e791ae7",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
