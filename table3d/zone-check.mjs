@@ -73,6 +73,41 @@ check("свою карту уронил в зону бесхозного сту�
   }
   await q.close();
 }
+// СТОПКУ ТЯНУТ ЗА ЯЗЫЧОК: она сразу лицом ко мне, а язычок встаёт под её низ (со стороны меня), а не остаётся на старом месте с другой стороны.
+{
+  const q = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await q.goto(`${base}/?stand&cam=top`);
+  await q.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await q.waitForTimeout(1200);
+  const z = await q.evaluate(() => window.__t3d.zoneInfo().find((c) => !c.owner && c.hand.length > 1));
+  const tab = await q.evaluate((id) => window.__t3d.tabInfo(`chair:${id}`)?.screen ?? null, z.id);
+  await q.mouse.move(tab.x, tab.y); await q.mouse.down(); await q.mouse.move(tab.x + 4, tab.y - 30, { steps: 4 }); await q.mouse.move(195, 380, { steps: 8 });
+  await q.waitForTimeout(700);
+  const now = await q.evaluate((id) => { const t = window.__t3d.tabInfo(`chair:${id}`)?.screen ?? null; const c = window.__t3d.zoneInfo().find((x) => x.id === id); return { tab: t, hand: c ? c.hand : null }; }, z.id);
+  const pile = now.hand && now.hand.length ? await q.evaluate((i) => window.__t3d.screenOf(i), now.hand[0]) : null;
+  check("несут стопку за язычок: язычок под её низом, ближе ко мне (ниже по экрану), а не на старом месте", now.tab && pile && now.tab.y > pile.y + 5 && Math.abs(now.tab.x - pile.x) < 40, { tab: now.tab, pile });
+  await q.mouse.up();
+  await q.close();
+}
+// СТОПКУ НЕСУТ В РУКУ: над моей рукой её карты встают в руку (как несомая стопка), а не лежат у пальца с кривыми краями.
+{
+  const q = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await q.goto(`${base}/?stand&cam=head`);
+  await q.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await q.waitForTimeout(1200);
+  const z = await q.evaluate(() => window.__t3d.zoneInfo().find((c) => !c.owner && c.hand.length > 1));
+  await q.mouse.move(100, 300); await q.mouse.down(); await q.mouse.move(360, 300, { steps: 8 }); await q.mouse.up();
+  await q.waitForTimeout(400);
+  const tab = await q.evaluate((id) => window.__t3d.tabInfo(`chair:${id}`)?.screen ?? null, z.id);
+  if (tab && tab.x > 0 && tab.x < 390) {
+    await q.mouse.move(tab.x, tab.y); await q.mouse.down(); await q.mouse.move(tab.x, tab.y - 30, { steps: 4 }); await q.mouse.move(195, 720, { steps: 10 });
+    await q.waitForTimeout(500);
+    const on = await q.evaluate((ids) => ids.map((i) => window.__t3d.cardOnHud(i)?.onCamera), z.hand);
+    check("стопку бесхозного стула несут над рукой — все её карты на худе, в руке", on.every(Boolean), on);
+    await q.mouse.up();
+  } else check("язычок виден после поворота головы к бесхозному стулу", false, tab);
+  await q.close();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));

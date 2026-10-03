@@ -383,6 +383,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** РЕЖИМ «В СТОПКУ» (вместо лассо): выбор — общий с остальными (`picks` стола), сбор — одним намерением `gather` при отпускании. */
   let stackMode = false;
   let grabFn: (() => void) | null = null;
+  /** Стопку бесхозного стула несут над моей рукой: её карты — в щели руки (как несомая стопка), а не лежат у пальца. */
+  let chairOver: { ids: string[]; gap: number } | null = null;
   /** Стягивание: id карт по порядку, куда тянем (точка на сукне), когда началось, начался ли ход пальцем (тогда карты летят быстро) и до какого мига держим цель после отпускания. */
   let gather: { ids: string[]; at: { x: number; y: number }; t0: number; fast: boolean; from: { x: number; y: number }; until: number } | null = null;
   const GATHER = { holdMs: 450, staggerMs: 40, moveStartPx: 10, settleMs: 900, spring: { k: 120, damp: 0.85 } } as const;
@@ -1510,12 +1512,13 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const ch = myChair();
     if (!ch) return;
     const list = handCards(), gap = drag?.moved ? drag.gap : null, b = mineBlend(ch);
-    const overPile = pileOver && camMode === "head" ? store.state.piles.find((x) => x.id === pileOver!.pile) : undefined, m = overPile ? overPile.cards.length : 0;
+    const overPile = pileOver && camMode === "head" ? store.state.piles.find((x) => x.id === pileOver!.pile) : undefined;
+    const overCards: { id: string }[] | undefined = overPile ? overPile.cards : chairOver && camMode === "head" ? chairOver.ids.map((id) => ({ id })) : undefined, overGap = overPile ? pileOver!.gap : chairOver?.gap ?? 0, m = overCards ? overCards.length : 0;
     // ЧУЖАЯ КАРТА НАД МОЕЙ РУКОЙ: сосед несёт карту мне в руку — на моём худе она в щели, куда он целится, и двигается влево-вправо вместе с его прицелом.
     const fc = store.carries.find((c) => c.by !== store.me.key && c.over.in === "hand" && c.over.chair === ch.id && cards.has(c.id));
     const fgap = fc ? Math.max(0, Math.min(list.length, (fc.over as { i: number }).i)) : null;
-    const foreign = fgap !== null && gap === null && !overPile ? cards.get(fc!.id) : undefined;
-    const ins = gap !== null ? gap : overPile ? pileOver!.gap : foreign ? fgap : null, wide = 1, n = list.length + (ins !== null ? wide : 0);
+    const foreign = fgap !== null && gap === null && !overCards ? cards.get(fc!.id) : undefined;
+    const ins = gap !== null ? gap : overCards ? overGap : foreign ? fgap : null, wide = 1, n = list.length + (ins !== null ? wide : 0);
     const slotOf = (k: number) => (ins !== null && k >= ins ? k + wide : k);
     const flip = (p: Place, up: boolean) => { if (up) p.quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)); return p; };
     // Левая рука держит всю руку стопкой над столом — её несут, как колоду.
@@ -1600,7 +1603,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         t.scale *= HOVER.grow;
         foreign.target = t;
       }
-      overPile?.cards.forEach((c, j) => {
+      overCards?.forEach((c, j) => {
         const q = cards.get(c.id);
         if (!q) return;
         const t = place(ins!, false), thick = Math.min(1, j / Math.max(1, m - 1)) * 0.05;
@@ -2010,7 +2013,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const sig = `${ch.hand.length}|false|${litTabs.has(key)}`;
       if (t.key !== sig) { t.key = sig; drawTab(t.cv, ch.hand.length, false, litTabs.has(key)); t.tex.needsUpdate = true; }
       base.group.updateMatrixWorld(true);
-      const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.scale.x, a = -(((-ch.angle % 360) + 360) % 360) * DEG + Math.PI, d = k * (CARD_H / 2 + TAB.l / 2);
+      // Пока стопку несут (или она долетает после отпускания), она повёрнута лицом ко мне — язычок встаёт под её низ; лежит на месте — язычок к середине стола.
+      const carried = !!gather && ch.hand.some((h) => gather!.ids.includes(h.id));
+      const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.scale.x, a = -(((-(carried ? (myChair()?.angle ?? 0) : ch.angle) % 360) + 360) % 360) * DEG + (carried ? 0 : Math.PI), d = k * (CARD_H / 2 + TAB.l / 2);
       // Язычок смотрит К СЕРЕДИНЕ стола (а не к стулу): другим игрокам за него удобнее тянуть, а сидящему за стулом язычка нет вовсе.
       t.mesh.position.set(at.x + d * Math.sin(a), at.y + 0.004, at.z + d * Math.cos(a));
       t.mesh.rotation.set(-Math.PI / 2, a, 0, "YXZ");
@@ -2320,13 +2325,22 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         gather = { ids: c2.hand.map((h) => h.id), at: seatOnFelt({ x: at.x, y: at.z }), t0: performance.now(), fast: true, from: { x: cs.x, y: cs.y }, until: Infinity };
         grabFn?.();
       }
-      if (gather) { gather.at = seatOnFelt({ x: at.x, y: at.z }); applyGather(); draw(); }
+      if (gather) {
+        gather.at = seatOnFelt({ x: at.x, y: at.z });
+        // Над моей рукой — карты в щелях руки (стопка «в руку»), иначе у пальца одной стопкой.
+        const a = aim(ev.clientX, ev.clientY), over = a.in === "hand" && a.chair === myChair()?.id && camMode === "head";
+        chairOver = over ? { ids: gather.ids, gap: (a as { i: number }).i } : null;
+        pileOverIds.clear();
+        if (chairOver) chairOver.ids.forEach((id, j) => pileOverIds.set(id, j));
+        layout(store.state); applyGather(); draw();
+      }
     };
     const up = (ev: PointerEvent): void => {
       const cs = chairStack;
       if (!cs || ev.pointerId !== cs.pid) return;
       removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up);
       chairStack = null;
+      chairOver = null; pileOverIds.clear();
       live.delete(ev.pointerId);
       orbit.enabled = camMode === "orbit";
       const g = gather;
@@ -2377,6 +2391,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!g) return false;
     const now = performance.now();
     if (now > g.until) { gather = null; layout(store.state); return false; }
+    if (chairOver) return true; // над моей рукой карты стоят в щелях руки (retargetMine), у пальца их не складываем
     const angle = ((-(myChair()?.angle ?? 0) % 360) + 360) % 360;
     g.ids.forEach((id, i) => {
       const o = cards.get(id);
