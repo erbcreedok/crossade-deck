@@ -35,16 +35,28 @@ const e2 = await probe();
 check("якорь выше кисти на 1.5 — чаша выше, а кисть и карты на месте", Math.abs(e2.centre[1] - e2.wrist[1] - 1.5) < 0.05 && d(e2.cards, e2.wrist) < 0.5, e2);
 // ДИНАМИЧЕСКАЯ ВЫСОТА (1-е лицо): взгляд вниз — чаша выше, вверх — ниже; плоскость полюса и верх чаши идут вместе.
 await set("ay", 0);
-await set("pitch", -80);
+await set("cutDown", 10); await set("cutUp", 35); await set("pitch", -85);
 const lo = await probe();
 await set("pitch", -5);
 const up = await probe();
 const rel = (r) => r.pole - r.spec[1];
-check("динамика: взгляд вниз — срез чаши выше (относительно её центра), чем при взгляде вверх", rel(lo) > rel(up) + 0.2, { down: rel(lo), up: rel(up) });
+check("динамика: взгляд вниз — чаша ниже (10%), взгляд вверх — выше (35%)", rel(up) > rel(lo) + 0.2 && Math.abs(lo.cut - 10) < 0.5 && Math.abs(up.cut - 35) < 0.5, { lo: [rel(lo), lo.cut], up: [rel(up), up.cut] });
 check("и верх нарисованной чаши совпадает с плоскостью полюса", Math.abs(lo.bowl[1] - lo.pole) < 0.1 && Math.abs(up.bowl[1] - up.pole) < 0.1, { lo, up });
+// Диапазон регулируется: сузили до 20…25 — получили их.
+await set("pitch", -80); await set("cutDown", 20); await set("cutUp", 25);
+const r1 = await probe(); await set("pitch", -5); const r2 = await probe();
+check("ручки диапазона: низ 20%, верх 25%", Math.abs(r1.cut - 20) < 0.5 && Math.abs(r2.cut - 25) < 0.5, { r1: r1.cut, r2: r2.cut });
 await set("dyn", false); await set("cut", 22); await set("pitch", -80);
 const s1 = await probe(); await set("pitch", -5); const s2 = await probe();
 check("без динамики высота среза от взгляда не зависит", Math.abs(rel(s1) - rel(s2)) < 0.05, { s1: rel(s1), s2: rel(s2) });
+// ВЫСОТА ПО КАРТАМ: край чаши идёт по верху веера, куда бы ни смотрел и куда бы ни сдвинули кисть.
+await set("dyn", true); await set("byCards", true); await set("hy", 0);
+await set("pitch", -60); const k1 = await probe();
+await set("pitch", -25); const k2 = await probe();
+check("по картам: верх чаши совпадает с верхом карт при любом взгляде", Math.abs(k1.pole - k1.cardsTop) < 0.08 && Math.abs(k2.pole - k2.cardsTop) < 0.08 && Math.abs(k1.cardsTop - k2.cardsTop) > 0.05, { k1: [k1.pole, k1.cardsTop], k2: [k2.pole, k2.cardsTop] });
+await set("hy", 0.8); const k3 = await probe();
+check("по картам: сдвинули кисть вверх — чаша выросла следом", Math.abs(k3.pole - k3.cardsTop) < 0.08 && k3.cardsTop > k2.cardsTop + 0.3, { k2: k2.cardsTop, k3: [k3.pole, k3.cardsTop] });
+await set("byCards", false); await set("hy", 0);
 // 3-Е ЛИЦО: чаша в совсем другом месте — на столе перед стулом, со своими размерами.
 await set("view", "orbit");
 const t = await probe();
