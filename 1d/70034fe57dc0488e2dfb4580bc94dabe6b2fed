@@ -1,0 +1,21 @@
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_fc83ca1d7f6464 2963
+table3d/zone-check.mjs
+  s_ad8a8a5b5d0419::t_652f5146a8442c 129-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1d70034fe57dc0488e2dfb4580bc94dabe6b2fed",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
