@@ -8,6 +8,7 @@ import type { AppPass, IceServer, Carry, CarryOut, DealRule, Intent, Minds, Op, 
 import type { Eye, Spot } from "../src/table/eyes.js";
 import type { Body, BodyOut } from "../src/table/bodies.js";
 import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
+import type { ReplayControl } from "./replayable.js";
 
 export interface TableStore {
   readonly me: Person;
@@ -62,6 +63,8 @@ export interface TableStore {
   shoot(out: ShotOut): void;
   onShot(listener: (shot: Shot) => void): void;
   onStickers(listener: (ids: string[]) => void): void;
+  /** Просмотр прошлого во время игры (`replayable.ts`): пока `replay.on`, стол и пальцы — из ленты, а жесты за столом выключены. Есть у хранилища, обёрнутого лентой. */
+  readonly replay?: ReplayControl;
   /** Снимок сменился (дифом, синком или отказом) или сдвинулся чужой палец в воздухе. */
   onChange(listener: () => void): void;
   /**

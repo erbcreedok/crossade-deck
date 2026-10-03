@@ -66,6 +66,15 @@ const PIPS: Record<string, string[]> = {
 };
 
 
+/** Закрашенный треугольник: остриём вправо (`dir` 1) или влево (−1), по клеткам от x0 до x1, высотой 10. */
+function tri(g: Grid, dir: 1 | -1, x0: number, x1: number, c: Ink): void {
+  const w = x1 - x0 + 1;
+  for (let i = 0; i < w; i++) {
+    const h = Math.max(1, Math.round(10 * (1 - i / w)));
+    g.fill(dir > 0 ? x0 + i : x1 - i, Math.round(5.5 - h / 2), 1, h, c);
+  }
+}
+
 const DEFS: Record<string, (g: Grid) => void> = {
   // — верхняя полоса
   exit: (g: Grid) => { g.poly([[6, 1], [1, 1], [1, 10], [6, 10]]); g.line(4, 5, 10, 5, "i"); g.line(4, 6, 10, 6, "i"); g.line(8, 3, 10, 5); g.line(8, 8, 10, 6); },
@@ -123,6 +132,13 @@ const DEFS: Record<string, (g: Grid) => void> = {
   turn: (g: Grid) => { g.fill(5, 0, 2, 6, "a"); g.line(2, 6, 6, 10, "a"); g.line(9, 6, 6, 10, "a"); g.line(3, 6, 5, 8, "a"); g.line(8, 6, 6, 8, "a"); },
   cards: (g: Grid) => { g.rect(2, 2, 6, 8, "d"); g.rect(4, 1, 6, 8, "i"); },
   close: (g: Grid) => { g.line(2, 2, 9, 9); g.line(9, 2, 2, 9); },
+  // — реплей: часы со стрелкой назад, ход назад/вперёд, воспроизведение в обе стороны, пауза
+  replay: (g: Grid) => { g.circle(6, 6, 4, "i"); g.line(6, 6, 6, 3, "a"); g.line(6, 6, 8, 7, "a"); g.line(0, 5, 2, 7, "a"); g.line(0, 5, 0, 8, "a"); g.line(0, 8, 3, 8, "a"); },
+  rpPrev: (g: Grid) => { g.fill(1, 1, 2, 10, "i"); tri(g, -1, 4, 10, "a"); },
+  rpNext: (g: Grid) => { g.fill(9, 1, 2, 10, "i"); tri(g, 1, 1, 7, "a"); },
+  rpFwd: (g: Grid) => tri(g, 1, 2, 10, "i"),
+  rpBack: (g: Grid) => tri(g, -1, 2, 10, "i"),
+  rpPause: (g: Grid) => { g.fill(2, 1, 3, 10, "i"); g.fill(7, 1, 3, 10, "i"); },
   pick: (g: Grid) => { g.rect(2, 1, 8, 10); g.line(4, 5, 5, 7, "a"); g.line(5, 7, 8, 3, "a"); },
   };
 

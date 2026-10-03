@@ -36,6 +36,7 @@ import type { SceneApi } from "./scene.js";
 import { mountPanels } from "./panel.js";
 import { pixelIcon } from "./pixel.js";
 import { CHROME_CSS, DOCK_PX, SHEET_GAP, SHEET_PX, TABS } from "./chrome.js";
+import { mountReplayBar, REPLAY_CSS } from "./replayBar.js";
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 /** Секции бара — как у стола: поза, порядок и диалог живут не в баре. */
@@ -67,6 +68,7 @@ const CSS = `
 #panels { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
 #hud button { font: inherit; }
 ${CHROME_CSS}
+${REPLAY_CSS}
 `;
 
 /**
@@ -379,8 +381,13 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     } else if (mode === "top") {
       items += cbtn('data-zoom="in"', ic("zoomIn"), "Ближе") + cbtn('data-zoom="out"', ic("zoomOut"), "Дальше");
     }
-    // DEV: пересадить свой стул — вид сверху со свободным зумом; потом кнопке найдём место.
-    if (chair && !scene.reseatOn()) items += cbtn('data-reseat', ic("chair"), "Пересесть");
+    // Реплей: отмотать игру назад (ленту пишет обёртка хранилища). В самом просмотре — только вид и гиро: сесть, встать, двигать стул нельзя.
+    if (store.replay?.on) items = view + (mode === "head" ? cbtn(`data-gyro aria-label="Гиро"`, ic("gyro"), "Гиро", { on: scene.gyro.on(), led: scene.gyro.on() }) : mode === "top" ? cbtn('data-zoom="in"', ic("zoomIn"), "Ближе") + cbtn('data-zoom="out"', ic("zoomOut"), "Дальше") : "");
+    else {
+      if (store.replay) items += cbtn("data-replay aria-label=\"Реплей: отмотать игру назад\"", ic("replay"), "Реплей");
+      // DEV: пересадить свой стул — вид сверху со свободным зумом; потом кнопке найдём место.
+      if (chair && !scene.reseatOn()) items += cbtn('data-reseat', ic("chair"), "Пересесть");
+    }
     let html = scene.reseatOn() || local.hold ? "" : `<div class="c-rail">${items}</div>`;
     if (local.viewMenu) {
       const opt = (c: "head" | "orbit" | "top", icon: string, label: string) => cbtn(`data-cam="${c}"`, ic(icon), label, { on: mode === c });
@@ -631,10 +638,10 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const open = local.handOn && local.deckTip ? s.piles.find((p) => p.id === local.deckTip) : undefined;
     const chairOpen = local.handOn ? s.chairs.find((c) => c.id === local.tip && c.owner && c.owner !== me()) : undefined;
     if (!local.deckCarry) scene.setRestRight(open ? { x: open.x, y: open.y } : chairOpen ? scene.handOf(chairOpen.id) : null);
-    const top = topHtml(s) + gyroNoteHtml() + devHtml() + journalHtml(), railS = railHtml(s), rest = bottomHtml(s) + dealHtml(s);
+    const replaying = store.replay?.on === true;
+    const top = topHtml(s) + gyroNoteHtml() + devHtml() + journalHtml(), railS = railHtml(s), rest = replaying ? "" : bottomHtml(s) + dealHtml(s);
     shown = [];
-    pilePanel(s);
-    chairPanel(s);
+    if (!replaying) { pilePanel(s); chairPanel(s); }
     panels.keep(shown);
     if (top !== lastTop) { lastTop = top; layerTop.innerHTML = top; }
     if (railS !== lastRail) { lastRail = railS; layerRail.innerHTML = railS; }
@@ -653,6 +660,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     });
   }
   store.onChange(draw);
+  store.replay?.onChange(draw);
+  mountReplayBar(root, store, scene);
   scene.onFrame(draw);
   new ResizeObserver(draw).observe(document.body);
 
@@ -683,6 +692,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       local.handPop = null;
     } else if (q("[data-stack]")) { scene.setStackMode(!scene.stackMode()); local.section = null; local.viewMenu = false; }
     else if (q("[data-rooms-back]")) location.href = `${HOST}/table/?rooms`;
+    else if (q("[data-replay]")) { local.viewMenu = false; local.section = null; local.tip = null; local.deckTip = null; settings.hide(); store.replay?.enter(); scene.replay(true); }
     else if (q("[data-reseat]")) { if (performance.now() >= holdUntil) { scene.setReseat(true); local.viewMenu = false; local.section = null; } }
     else if (q("[data-settings]")) { if (settings.open) settings.hide(); else settings.show(); }
     else if (q("[data-journal]")) local.journal = !local.journal;

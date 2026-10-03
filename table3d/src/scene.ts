@@ -211,6 +211,8 @@ export interface SceneApi {
   setSeat(t: number): void;
   /** Пересадка своего стула: вид сверху со свободным зумом, только стол, стулья и карты на столе; тянут свой стул по кругу. */
   reseatOn(): boolean;
+  /** Просмотр прошлого (`store.replay`): включить — вид сверху, стул и жесты за столом выключены; выключить — камера как была. */
+  replay(on: boolean): void;
   setReseat(on: boolean): void;
   reseatDone(ok: boolean): void;
   /** Загиб веера в моей руке, 0…1: боковая ручка вверх-вниз. */
@@ -1686,7 +1688,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     });
     // ЧУЖИЕ КАРТЫ В ВОЗДУХЕ — у них в руке, над тем местом, куда их несут.
     for (const c of store.carries) {
-      if (c.by === store.me.key || !cards.has(c.id)) continue;
+      if ((c.by === store.me.key && !store.replay?.on) || !cards.has(c.id)) continue;
       const o = cards.get(c.id)!;
       dress(o, c.card, s);
       const over = c.over;
@@ -1695,7 +1697,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     // ЧУЖИЕ СТОПКИ В ВОЗДУХЕ ЦЕЛИКОМ (со стола и бесхозные) — у пальца несущего, лицом к нему, как их видит он сам: все карты по порядку, снизу вверх.
     for (const c of store.stacks) {
-      if (c.by === store.me.key || c.over.in !== "felt") continue;
+      if ((c.by === store.me.key && !store.replay?.on) || c.over.in !== "felt") continue;
       const over = c.over, order = [...(c.with ?? []).map((w) => w.card), c.card];
       order.forEach((card, i) => {
         const o = cards.get(card.id);
@@ -2241,6 +2243,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let zoneFn: Parameters<SceneApi["setZone"]>[0] = null;
   let restRight: { x: number; y: number } | null = null;
   let carriedAt = 0;
+  /** Вид, в котором был, пока смотрю реплей — туда возвращаемся. */
+  let replayWas: CamMode | null = null;
   /**
    * НЕСУ СТОПКУ ЦЕЛИКОМ — остальным: где она в воздухе и в какую сторону лицом (ко мне). Тот же поток, что у одной карты (`store.carry`), только ключ — стопка со стола или `chair:<стул>`;
    * шлётся и пока палец стоит на месте: зритель верит такой стопке недолго (`STACK_FRESH_MS`).
@@ -2484,7 +2488,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     draw();
   }
   renderer.domElement.addEventListener("pointerdown", (e) => {
-    if (!stackMode || reseat) return;
+    if (!stackMode || reseat || store.replay?.on) return;
     const pile = hitTab(e), top = pile ? store.state.piles.find((p) => p.id === pile)?.cards.at(-1)?.id : hitCard(e);
     const ids = top ? stackTargets(top) : [];
     if (!ids.length) return; // мимо — камера и взгляд как обычно
@@ -2527,7 +2531,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   renderer.domElement.addEventListener("pointerup", stackUp, { capture: true });
   renderer.domElement.addEventListener("pointercancel", stackUp, { capture: true });
   renderer.domElement.addEventListener("pointerdown", (e) => {
-    if (reseat) return;
+    if (reseat || store.replay?.on) return;
     live.add(e.pointerId);
     // Язычок — первым: он лежит у самой кромки стопки и перекрыл бы её верхнюю карту.
     const pile = tabFn ? hitTab(e) : null;
@@ -2875,6 +2879,20 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     seat: () => (seatPull - SEAT_PULL.min) / (SEAT_PULL.max - SEAT_PULL.min),
     setSeat: (t: number) => setSeatPull(SEAT_PULL.min + Math.max(0, Math.min(1, t)) * (SEAT_PULL.max - SEAT_PULL.min)),
     reseatOn: () => reseat !== null,
+    replay(on) {
+      if (on) {
+        if (reseat) setReseat(false);
+        setStackMode(false);
+        replayWas = camMode;
+        liftedId = null;
+        setCamMode("top");
+      } else if (replayWas) {
+        const was = replayWas;
+        replayWas = null;
+        setCamMode(was);
+      }
+      layout(store.state); draw();
+    },
     setReseat,
     reseatDone,
     handSize: () => handSize,

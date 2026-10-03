@@ -61,7 +61,8 @@ try {
     const door = initData ? { door: "telegram" as const, initData }
       : key || pass ? { door: "app" as const, ...(key ? { key } : { pass: pass! }) }
       : { door: "guest" as const, name: params.get("name") ?? "Гость 3D", guestId: guestIdFor(params.get("name") ?? "Гость 3D") };
-    const store = await (await import("../../server/table-client/netStore.js")).netStore({ room, client: "table3d", ...door });
+    const { replayable } = await import("../../server/table-client/replayable.js");
+    const store = replayable(await (await import("../../server/table-client/netStore.js")).netStore({ room, client: "table3d", ...door }));
     const box = screenBox(true);
     loading?.done();
     note.hidden = true;
@@ -85,8 +86,9 @@ try {
       (document.activeElement as HTMLElement | null)?.blur?.();
     };
     const swap = (): void => { shown = 1 - shown; apply(); };
+    const { replayable } = await import("../../server/table-client/replayable.js");
     const screens = who.map((one, k) => {
-      const box = screenBox(k === 0), store = slowed(table.view(one.key), lag), scene = mountScene(box.stage, store);
+      const box = screenBox(k === 0), store = replayable(slowed(table.view(one.key), lag)), scene = mountScene(box.stage, store);
       box.screen.dataset.who = one.name;
       box.screen.style.setProperty("--who", one.ink);
       const other = who[1 - k]!;
