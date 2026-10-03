@@ -1348,6 +1348,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     return pts;
   }
+  /** Принимает ли рука этого стула карту от чужого: не «не принимает» и не под замком (у пустого стула замок не держит). */
+  const handTakes = (ch: Chair): boolean => !ch.croupier && !ch.reject && (!ch.lock || !ch.owner);
   const zones = new Map<string, { fill: THREE.Mesh; line: THREE.LineLoop; angle: number }>();
   /** Зоны есть у всех стульев без хозяина (и пустых, и с картами): видны только пока там никто не сидит; сел человек — зона гаснет, карты в ней — его рука. */
   function placeZones(): void {
@@ -1370,7 +1372,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         z = { fill, line, angle: ch.angle };
         zones.set(ch.id, z);
       }
-      const free = !ch.owner && !reseat, lit = free && !!drag?.moved && drag.where?.in === "hand" && drag.where.chair === ch.id;
+      // Видна: пока стул пуст и карт в зоне нет (место ждёт), и пока я несу карту, которую в эту руку можно положить (хоть бы там и сидели, если нет замка).
+      const carrying = (!!drag?.moved || !!pileCarry) && ch.id !== myChair()?.id, free = !reseat && ((!ch.owner && ch.hand.length === 0) || (carrying && handTakes(ch)));
+      const lit = free && carrying && !!drag?.moved && drag.where?.in === "hand" && drag.where.chair === ch.id;
       z.fill.visible = z.line.visible = free;
       (z.fill.material as THREE.MeshBasicMaterial).opacity = lit ? 0.3 : 0.08;
       (z.line.material as THREE.LineDashedMaterial).opacity = lit ? 1 : 0.7;
@@ -2610,7 +2614,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const at = onFelt(e) ?? new THREE.Vector3();
     // В зону бесхозного стула — в его руку (в конец стопки); занятый стул зону не принимает.
     for (const c of store.state.chairs) {
-      if (c.owner || c.croupier) continue;
+      if (c.id === chair?.id || !handTakes(c)) continue;
       const zc = zoneCentre(c.angle);
       if (Math.hypot(at.x - zc.x, at.z - zc.y) < ZONE.r) return { in: "hand", chair: c.id, i: c.hand.length };
     }
@@ -2739,6 +2743,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    pickAtNow: (x: number, y: number) => api.pickAt(x, y),
     dollScaleNow: () => dollK,
     zoneInfo: () => store.state.chairs.filter((c) => !c.croupier).map((c) => ({ id: c.id, owner: c.owner, zone: zones.get(c.id)?.fill.visible ?? false, chair: chairObjs.get(c.id)?.group.visible ?? null, centre: zoneCentre(c.angle), hand: c.hand.map((h) => h.id) })),
     heldAngle: () => (drag?.moved ? drag.angle : null),
@@ -2949,6 +2954,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const head = heads.visible ? ray.intersectObjects(heads.children, true).find((h) => h.object.userData.head) : undefined;
       if (head) return { t: "who", key: head.object.userData.head as string };
       const id = hitCard(e);
+      // Карта в стопке бесхозного стула — тап открывает окно стула (в зону не надо целиться), а не карту.
+      const inHand = id ? fromOf.get(id) : undefined;
+      if (id && inHand && inHand.in === "hand" && !store.state.chairs.find((c) => c.id === inHand.chair)?.owner && !inHand.mine) return { t: "chair", id: inHand.chair };
       if (id) return { t: "card", id };
       // Пустой стул не нарисован — на него попадает только его зона (хозяйский стул — сам стул).
       const shown = (o: THREE.Object3D | null): boolean => { for (let q = o; q; q = q.parent) if (!q.visible) return false; return true; };

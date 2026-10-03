@@ -17,16 +17,22 @@ const zi = () => p.evaluate(() => window.__t3d.zoneInfo());
 const z0 = await zi();
 const owned = z0.filter((c) => c.owner), free = z0.filter((c) => !c.owner);
 check("есть и занятые, и бесхозные стулья (стенд)", owned.length >= 2 && free.length >= 2, z0.map((c) => [c.id, !!c.owner]));
-check("бесхозный стул не нарисован, а перед ним видна зона", free.every((c) => c.chair === false && c.zone === true), free);
+check("бесхозный стул не нарисован; зона видна только у пустого (без карт), у стула со стопкой зоны нет — видна сама стопка", free.every((c) => c.chair === false && c.zone === (c.hand.length === 0)), free);
 check("занятый стул нарисован, его зоны нет", owned.every((c) => c.chair === true && c.zone === false), owned);
 // Стопка лежит в зоне впритык: центр карт — в центре зоны.
 const withCards = free.find((c) => c.hand.length > 0);
 const pos = await Promise.all(withCards.hand.map((id) => p.evaluate((i) => window.__t3d.cardTarget(i), id)));
 check("карты бесхозной руки лежат стопкой в зоне (центр зоны ±0.15)", pos.every((q) => Math.hypot(q[0] - withCards.centre.x, q[2] - withCards.centre.y) < 0.15), { pos, centre: withCards.centre });
+// Тап по карте стопки открывает окно стула (в зону целиться не надо).
+const tapped = await p.evaluate(([x, y]) => window.__t3d.pickAtNow(x, y), [(await p.evaluate((i) => window.__t3d.screenOf(i), withCards.hand.at(-1))).x, (await p.evaluate((i) => window.__t3d.screenOf(i), withCards.hand.at(-1))).y]);
+check("тап по карте стопки бесхозного стула — это стул (откроется его окно), а не карта", tapped?.t === "chair" && tapped.id === withCards.id, tapped);
 // Верхнюю карту стопки можно взять и унести на стол.
 const topId = withCards.hand.at(-1);
 const from = await p.evaluate((i) => window.__t3d.screenOf(i), topId);
 await p.mouse.move(from.x, from.y); await p.mouse.down(); await p.mouse.move(from.x, from.y - 40, { steps: 5 });
+// Пока несут карту, зоны видны у тех, кто её примет: бесхозный стул со стопкой — да; занятый и запертый (у Алии замок) — нет; мой — нет.
+const zOn = await p.evaluate(() => window.__t3d.zoneInfo().filter((c) => c.zone).map((c) => c.id));
+check("несу карту — зона видна у бесхозного стула со стопкой, у запертого занятого нет", zOn.includes(withCards.id) && !zOn.includes(owned.find((c) => c.owner === "alia").id), zOn);
 await p.mouse.move(195, 430, { steps: 8 });
 await p.mouse.up();
 await p.waitForTimeout(800);
