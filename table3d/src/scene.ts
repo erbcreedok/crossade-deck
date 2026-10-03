@@ -929,7 +929,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * сегменты равны и чуть длиннее половины расстояния, поэтому рука никогда не вытягивается в струну. `side`: −1 левая, +1 правая; `out` — вправо от тела.
    */
   const armParts = (shoulder: THREE.Vector3, hand: THREE.Vector3, side: -1 | 1, out: THREE.Vector3, r: number, mat: THREE.Material): THREE.Object3D[] => {
-    const d = Math.max(1e-3, shoulder.distanceTo(hand)), seg = Math.max(d * 0.56, 1.1), axis = hand.clone().sub(shoulder).divideScalar(d);
+    const d = Math.max(1e-3, shoulder.distanceTo(hand)), seg = Math.max(d * 0.56, 1.1 * dollK), axis = hand.clone().sub(shoulder).divideScalar(d);
     const pole = out.clone().multiplyScalar(side).add(new THREE.Vector3(0, -0.7, 0));
     pole.addScaledVector(axis, -pole.dot(axis));
     if (pole.lengthSq() < 1e-6) pole.set(side * out.x, -1, side * out.z);
@@ -941,7 +941,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Где правая рука отдыхает на столе, когда ничего не делает: на сукне перед своим плечом, чуть вправо. */
   const restRightOf = (sh: Point3): Point3 => {
     const r = Math.hypot(sh.x, sh.y) || 1, k = DOLL.bar * 1.15;
-    return { x: sh.x - (sh.x / r) * 2.4 + (sh.y / r) * k, y: sh.y - (sh.y / r) * 2.4 - (sh.x / r) * k, h: 0.3 };
+    const f = 2.4 * dollK;
+    return { x: sh.x - (sh.x / r) * f + (sh.y / r) * k, y: sh.y - (sh.y / r) * f - (sh.x / r) * k, h: 0.3 };
   };
   /** Кукла в единицах стола — как у стола в 2D (`bodyView.ts`): толщина палки, полуширина плеч, руки, досягаемость. */
   const DOLL0 = { spine: 0.21, bar: 1.4, arm: 0.13, hand: 0.32 };
