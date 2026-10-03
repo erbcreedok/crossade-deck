@@ -929,7 +929,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * сегменты равны и чуть длиннее половины расстояния, поэтому рука никогда не вытягивается в струну. `side`: −1 левая, +1 правая; `out` — вправо от тела.
    */
   const armParts = (shoulder: THREE.Vector3, hand: THREE.Vector3, side: -1 | 1, out: THREE.Vector3, r: number, mat: THREE.Material): THREE.Object3D[] => {
-    const d = Math.max(1e-3, shoulder.distanceTo(hand)), seg = Math.max(d * 0.52, 1.1 * dollK), axis = hand.clone().sub(shoulder).divideScalar(d);
+    const d = Math.max(1e-3, shoulder.distanceTo(hand)), seg = Math.max(d * 0.505, 1.1 * dollK), axis = hand.clone().sub(shoulder).divideScalar(d);
     const pole = out.clone().multiplyScalar(side).add(new THREE.Vector3(0, -0.7, 0));
     pole.addScaledVector(axis, -pole.dot(axis));
     if (pole.lengthSq() < 1e-6) pole.set(side * out.x, -1, side * out.z);
