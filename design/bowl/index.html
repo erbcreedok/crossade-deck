@@ -61,7 +61,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 const TABLE_R = 6.4, RIM = 0.45, THICK = 0.6, CARD_W = 1.17, CARD_H = 1.638, SHOULDERS = TABLE_R + 1, CHAIR_R = 7.9;
 const CAMHAND = { x: 0, y: -0.92, z: -2.3, card: 0.486 }, REF_PITCH = -40, DEG = Math.PI / 180;
 const CHAIR = { seat: 3.4, thick: 0.35, seatY: -3.3, back: 3.8, leg: 0.32, floor: -7 };
-const P = { view: "head", hand: "yaw", style: "frame", R: 2.3, drop: 0, cards: 9, fov: 85, yaw: 0, pitch: REF_PITCH, carry: false, lift: 4, cap: true, viewH: 3, doll: 0.8, show: true, size: 0.7 };
+const P = { view: "head", hand: "cap", cap: true, capElev: -50, style: "frame", R: 2.3, drop: 0, cards: 9, fov: 85, yaw: 0, pitch: REF_PITCH, carry: false, lift: 4, viewH: 3, doll: 0.8, show: true, size: 0.7 };
 
 const canvas = document.getElementById("gl"), stage = document.getElementById("stage");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -168,31 +168,33 @@ function buildBowl() {
 }
 
 // ——— РУКА ———
-const hand = new THREE.Group(); scene.add(hand);
 let handCards = [], frozenYaw = 0;
 function buildHand() { for (const c of handCards) c.removeFromParent(); handCards = []; for (let i = 0; i < P.cards; i++) handCards.push(mkCard(i)); }
 const yawOf = () => P.yaw * DEG;
 /** Карта в руке на телефоне ≈ 150 px высотой при размере 70% и экране 844 px: во столько же она выходит на расстоянии руки (2.3) от камеры. */
 const HAND_DIST = Math.hypot(CAMHAND.y, CAMHAND.z), CARD_STEP = 0.16;
 const cardScale = () => ((150 * (P.size / 0.7)) / stage.clientHeight) * (2 * HAND_DIST * Math.tan((P.fov * DEG) / 2)) / CARD_H;
+const latOffset = -Math.atan2(-CAMHAND.y, -CAMHAND.z);
+/**
+ * Рука — всегда «головная»: карты стоят перед виртуальной головой так же, как перед камерой в игре. Режимы отличаются только тем, КАК эта голова повёрнута:
+ *   К голове        — как камера (карты едут и вверх тоже);
+ *   Не выше потолка — как камера, но наклон вверх ограничен: поднял взгляд выше — рука остаётся на потолке и уходит из кадра;
+ *   Только поворот  — поворот как у камеры, наклон закреплён на обычном (−40°);
+ *   На месте        — и поворот, и наклон закреплены.
+ */
+const rig = new THREE.Group(); scene.add(rig);
 function placeHand() {
-  const n = handCards.length, e = eyeAt(), c = centre(), sc = cardScale();
-  // Высота руки в мире: на столько ниже горизонта она лежит при обычном наклоне камеры (−40°) — рука на чаше стоит там же и при любом другом наклоне.
-  const lat = (REF_PITCH - Math.atan2(-CAMHAND.y, -CAMHAND.z) / DEG) * DEG;
+  const n = handCards.length, sc = cardScale();
+  const yawEff = P.hand === "world" ? frozenYaw : -yawOf();
+  const pitchEff = P.hand === "head" ? P.pitch * DEG : P.hand === "cap" ? Math.min(P.pitch * DEG, P.capElev * DEG - latOffset) : REF_PITCH * DEG;
+  rig.position.copy(eyeAt()); rig.rotation.order = "YXZ"; rig.rotation.set(pitchEff, yawEff, 0);
+  // На чаше рука лежит на её радиусе: расстояние и карты растут вместе, видимый размер при обычном наклоне тот же.
+  rig.scale.setScalar(P.hand === "head" ? 1 : P.R / HAND_DIST);
   handCards.forEach((card, i) => {
     const k = n === 1 ? 0 : i - (n - 1) / 2;
-    if (P.hand === "head") {
-      // КАК СЕЙЧАС: карты привязаны к камере головы — идут за любым её движением, и вверх тоже.
-      card.parent !== headCam && headCam.add(card);
-      card.position.set(k * CARD_STEP, CAMHAND.y - 0.012 * k * k, CAMHAND.z);
-      card.rotation.set(0.2, 0, -k * 0.05); card.scale.setScalar(sc);
-    } else {
-      card.parent !== hand && hand.add(card);
-      // Азимут — за взглядом (или стоит на месте), высота и расстояние — мир: карты лежат на чаше.
-      const flat = Math.cos(lat) * P.R, az = (P.hand === "world" ? frozenYaw : -yawOf()) + (k * CARD_STEP * (P.R / HAND_DIST)) / flat;
-      card.position.set(c.x - Math.sin(az) * flat, c.y + Math.sin(lat) * P.R, c.z - Math.cos(az) * flat);
-      card.lookAt(e); card.rotateZ(-k * 0.05); card.scale.setScalar(sc * (P.R / HAND_DIST));
-    }
+    card.parent !== rig && rig.add(card);
+    card.position.set(k * CARD_STEP, CAMHAND.y - 0.012 * k * k, CAMHAND.z);
+    card.rotation.set(0.2, 0, -k * 0.05); card.scale.setScalar(sc);
   });
 }
 
@@ -251,9 +253,9 @@ canvas.addEventListener("pointerup", () => { pointerDown = false; });
 // ——— ручки ———
 const views = document.getElementById("views"), knobs = document.getElementById("knobs"), hint = document.getElementById("hint");
 const VIEWS = [["head", "Голова"], ["orbit", "Вокруг"], ["top", "Сверху"]];
-const HANDS = [["head", "К голове (сейчас)"], ["yaw", "На чаше, за взглядом"], ["world", "На чаше, на месте"]];
+const HANDS = [["head", "К голове (сейчас)"], ["cap", "К голове, не выше потолка"], ["yaw", "Только за поворотом"], ["world", "На месте"]];
 const STYLES = [["strip", "Полоса (сейчас)"], ["frame", "Рамка"], ["wire", "Сетка"], ["shell", "Оболочка"]];
-const SLIDERS = [["R", "Радиус чаши", 1, 6, 0.1], ["drop", "Центр ниже глаза", 0, 5, 0.1], ["cards", "Карт в руке", 1, 15, 1], ["size", "Размер карт", 0.5, 1.2, 0.05], ["fov", "Угол обзора", 55, 100, 1], ["viewH", "Высота обзора", 0, 9, 0.5], ["doll", "Размер людей", 0.4, 1.4, 0.05], ["yaw", "Взгляд: поворот", -180, 180, 1], ["pitch", "Взгляд: наклон", -85, 15, 1], ["lift", "Палец: высота", 0, 9, 0.1]];
+const SLIDERS = [["capElev", "Потолок руки, °", -85, 0, 1], ["R", "Радиус чаши", 1, 6, 0.1], ["drop", "Центр ниже глаза", 0, 5, 0.1], ["cards", "Карт в руке", 1, 15, 1], ["size", "Размер карт", 0.5, 1.2, 0.05], ["fov", "Угол обзора", 55, 100, 1], ["viewH", "Высота обзора", 0, 9, 0.5], ["doll", "Размер людей", 0.4, 1.4, 0.05], ["yaw", "Взгляд: поворот", -180, 180, 1], ["pitch", "Взгляд: наклон", -85, 15, 1], ["lift", "Палец: высота", 0, 9, 0.1]];
 function buildUi() {
   views.innerHTML = VIEWS.map(([k, t]) => `<button data-view="${k}" class="${P.view === k ? "on" : ""}">${t}</button>`).join("");
   const seg = (title, list, key) => `<div class="grp">${title}</div><div class="row">${list.map(([k, t]) => `<button data-set="${key}:${k}" class="${P[key] === k ? "on" : ""}">${t}</button>`).join("")}</div>`;
@@ -262,7 +264,7 @@ function buildUi() {
     + `<div class="row" style="margin-top:6px"><button data-tog="show" class="${P.show ? "on" : ""}">Чаша видна</button><button data-reset>Оставить руку здесь</button></div>`
     + `<div class="grp">Числа</div>` + SLIDERS.map(([k, t, lo, hi, st]) => `<div class="k"><span>${t}</span><input type="range" data-k="${k}" min="${lo}" max="${hi}" step="${st}" value="${P[k]}"><b data-v="${k}">${Math.round(P[k] * 100) / 100}</b></div>`).join("")
     + `<small>Нести карту: тяни по экрану, карта идёт за пальцем. Сейчас: вид «${VIEWS.find((v) => v[0] === P.view)[1]}».</small>`;
-  hint.textContent = P.view === "head" ? "Тяни по экрану — вертишь головой. Вверх смотришь — рука на чаше остаётся внизу." : P.view === "orbit" ? "Свободная камера: чаша вокруг головы игрока, рука на ней." : "Сверху: чаша — круг вокруг головы над стулом.";
+  hint.textContent = P.view === "head" ? "Тяни по экрану — вертишь головой. Рука идёт за взглядом, но выше потолка не поднимается: взгляд вверх — рука остаётся внизу." : P.view === "orbit" ? "Свободная камера: чаша вокруг головы игрока, рука на ней." : "Сверху: чаша — круг вокруг головы над стулом.";
 }
 function sync() { for (const [k] of SLIDERS) { const i = knobs.querySelector(`[data-k="${k}"]`); if (i) { i.value = P[k]; knobs.querySelector(`[data-v="${k}"]`).textContent = Math.round(P[k] * 100) / 100; } } }
 document.addEventListener("click", (e) => {
