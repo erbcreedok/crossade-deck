@@ -157,16 +157,33 @@ const centre = () => ANCHORS[P.anchor]().add(new THREE.Vector3(0, P.ay, 0));
  * по наклону головы от −85° до 0°; выключил динамику — берётся `cut`. От третьего лица (вокруг, сверху) чаша стоит в совсем другом месте: на столе перед стулом,
  * со своими размерами (`x3, y3, z3, R3, cut3`) — её видно целиком, а не вокруг головы.
  */
-/** Верх карт на экране — самая высокая точка веера в мире: чаша «по картам» огибает силуэт. */
-const cardsTopY = () => { if (!handCards.length) return 0; const box = new THREE.Box3(); for (const c of handCards) box.expandByObject(c); return box.max.y; };
+/**
+ * ВЫСОТА ПО КАРТАМ — по картинке, а не по миру: край чаши, КАК ЕГО ВИДНО С КАМЕРЫ, идёт по верху веера. Кольцо края шире руки и дальше от глаза, поэтому в мире оно ниже карт:
+ * ищем высоту среза так, чтобы самая высокая на экране точка кольца легла на самую высокую на экране точку карт.
+ */
+const cardCorners = (() => { const g = cardGeo.attributes.position, out = []; for (let i = 0; i < g.count; i++) out.push(new THREE.Vector3(g.getX(i), g.getY(i), 0)); return out; })();
+const ndcTop = (pts) => { let best = -Infinity; for (const w of pts) { const v = w.clone().applyMatrix4(headCam.matrixWorldInverse); if (v.z >= -0.05) continue; best = Math.max(best, v.applyMatrix4(headCam.projectionMatrix).y); } return best; };
+const cardsTopNdc = () => { headCam.updateMatrixWorld(true); const pts = []; for (const c of handCards) { c.updateWorldMatrix(true, false); for (const k of cardCorners) pts.push(k.clone().applyMatrix4(c.matrixWorld)); } return ndcTop(pts); };
+const ringTopNdc = (cutPct) => {
+  const c = centre(), Ry = P.R * P.sq, lat = -Math.asin(Math.max(-1, Math.min(1, 1 - 2 * (cutPct / 100)))), pts = [];
+  for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2; pts.push(new THREE.Vector3(c.x + Math.cos(lat) * P.R * Math.sin(a), c.y + Math.sin(lat) * Ry, c.z + Math.cos(lat) * P.R * Math.cos(a))); }
+  return ndcTop(pts);
+};
+function byCardsCut() {
+  headCam.updateMatrixWorld(true);
+  const want = cardsTopNdc();
+  let lo = 2, hi = 98;
+  if (ringTopNdc(lo) >= want) return lo;
+  if (ringTopNdc(hi) <= want) return hi;
+  for (let i = 0; i < 18; i++) { const mid = (lo + hi) / 2; if (ringTopNdc(mid) < want) lo = mid; else hi = mid; }
+  return (lo + hi) / 2;
+}
 function spec() {
   if (P.view === "head") {
     const c = centre(), Ry = P.R * P.sq;
     let cut = P.cut;
     if (P.byCards) {
-      // Высота чаши = высота карт на камере: край идёт по верху веера. Считается от самих карт, поэтому следует за взглядом и кистью.
-      const sinTop = Math.max(-1, Math.min(1, (cardsTopY() - c.y) / Ry));
-      cut = Math.max(2, Math.min(98, 50 * (1 + sinTop)));
+      cut = byCardsCut();
     } else if (P.dyn) {
       const t = Math.max(0, Math.min(1, (P.pitch - P.pitchLo) / Math.max(1, P.pitchHi - P.pitchLo)));
       cut = P.cutDown + (P.cutUp - P.cutDown) * t;
@@ -186,7 +203,10 @@ function buildBowl() {
   const ring = (lat, n = 72) => { const pts = []; for (let i = 0; i <= n; i++) pts.push(at(lat, (i / n) * Math.PI * 2)); return pts; };
   const meridian = (a, n = 20) => { const pts = []; for (let i = 0; i <= n; i++) pts.push(at(top + (bottom - top) * (i / n), a)); return pts; };
   if (P.style === "frame" || P.style === "wire") {
-    bowl.add(dashed(ring(top), col, 0.24, 0.16));
+    // Край — поверх карт, чтобы было видно, где он идёт по их силуэту.
+    const rimLine = dashed(ring(top), col, 0.24, 0.16); rimLine.material.depthTest = false; rimLine.renderOrder = 9; bowl.add(rimLine);
+    // По картам край — сплошная яркая линия: видно, как он ложится на силуэт веера.
+    if (P.byCards) { const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ring(top, 96), true), 96, 0.025, 6, true), new THREE.MeshBasicMaterial({ color: 0xffe08a, depthTest: false })); tube.renderOrder = 9; bowl.add(tube); }
     const n = P.style === "wire" ? 16 : 8;
     if (P.style === "wire") for (const l of [-0.3, -0.6, -0.9, -1.2].filter((l) => l < top && l > bottom)) bowl.add(dashed(ring(l), col, 0.14, 0.2));
     for (let i = 0; i < n; i++) bowl.add(dashed(meridian((i / n) * Math.PI * 2), col, 0.18, 0.22));
@@ -377,7 +397,7 @@ for (const [k, v] of new URLSearchParams(location.search)) if (k in P) P[k] = ty
 if (new URLSearchParams(location.search).has("open")) stage.classList.add("open");
 frozenYaw = -yawOf();
 buildUi(); buildBody(); buildHand(); buildBowl(); frame();
-window.__bowl = { probe() { const box = new THREE.Box3().setFromObject(bowl), bc = box.getCenter(new THREE.Vector3()), mid = handCards[Math.floor(handCards.length / 2)]; return { spec: spec().c.toArray(), cardsTop: cardsTopY(), cut: spec().cut, pole: poleY(), centre: centre().toArray(), bowl: [bc.x, box.max.y, bc.z], wrist: handWorld().toArray(), cards: mid.getWorldPosition(new THREE.Vector3()).toArray() }; }, P, set(k, v) { P[k] = v; buildUi(); buildBody(); buildBowl(); buildHand(); } };
+window.__bowl = { probe() { const box = new THREE.Box3().setFromObject(bowl), bc = box.getCenter(new THREE.Vector3()), mid = handCards[Math.floor(handCards.length / 2)]; return { spec: spec().c.toArray(), cardsTop: cardsTopNdc(), ringTop: ringTopNdc(spec().cut), cut: spec().cut, pole: poleY(), centre: centre().toArray(), bowl: [bc.x, box.max.y, bc.z], wrist: handWorld().toArray(), cards: mid.getWorldPosition(new THREE.Vector3()).toArray() }; }, P, set(k, v) { P[k] = v; buildUi(); buildBody(); buildBowl(); buildHand(); } };
 </script>
 </body>
 </html>

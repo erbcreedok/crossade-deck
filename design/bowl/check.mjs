@@ -49,13 +49,14 @@ check("ручки диапазона: низ 20%, верх 25%", Math.abs(r1.cut
 await set("dyn", false); await set("cut", 22); await set("pitch", -80);
 const s1 = await probe(); await set("pitch", -5); const s2 = await probe();
 check("без динамики высота среза от взгляда не зависит", Math.abs(rel(s1) - rel(s2)) < 0.05, { s1: rel(s1), s2: rel(s2) });
-// ВЫСОТА ПО КАРТАМ: край чаши идёт по верху веера, куда бы ни смотрел и куда бы ни сдвинули кисть.
+// ВЫСОТА ПО КАРТАМ — по картинке: самая высокая на экране точка края чаши ложится на самую высокую точку карт, куда бы ни смотрел и куда бы ни сдвинули кисть.
 await set("dyn", true); await set("byCards", true); await set("hy", 0);
+const onScreen = (r) => Math.abs(r.ringTop - r.cardsTop) < 0.03;
 await set("pitch", -60); const k1 = await probe();
-await set("pitch", -25); const k2 = await probe();
-check("по картам: верх чаши совпадает с верхом карт при любом взгляде", Math.abs(k1.pole - k1.cardsTop) < 0.08 && Math.abs(k2.pole - k2.cardsTop) < 0.08 && Math.abs(k1.cardsTop - k2.cardsTop) > 0.05, { k1: [k1.pole, k1.cardsTop], k2: [k2.pole, k2.cardsTop] });
+await set("pitch", -35); const k2 = await probe();
+check("по картам: край чаши на экране идёт по верху карт при любом взгляде", onScreen(k1) && onScreen(k2), { k1: [k1.ringTop, k1.cardsTop, k1.cut], k2: [k2.ringTop, k2.cardsTop, k2.cut] });
 await set("hy", 0.8); const k3 = await probe();
-check("по картам: сдвинули кисть вверх — чаша выросла следом", Math.abs(k3.pole - k3.cardsTop) < 0.08 && k3.cardsTop > k2.cardsTop + 0.3, { k2: k2.cardsTop, k3: [k3.pole, k3.cardsTop] });
+check("по картам: сдвинули кисть вверх — край снова по верху карт", onScreen(k3) && k3.cardsTop > k2.cardsTop + 0.02, { k2: k2.cardsTop, k3: [k3.ringTop, k3.cardsTop] });
 await set("byCards", false); await set("hy", 0);
 // 3-Е ЛИЦО: чаша в совсем другом месте — на столе перед стулом, со своими размерами.
 await set("view", "orbit");
