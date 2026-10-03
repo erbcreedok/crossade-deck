@@ -96,7 +96,10 @@ await q.waitForTimeout(900);
 await q.evaluate(() => window.__t3d.setHandLevel(0.8)); await q.waitForTimeout(1800);
 const g2 = await q.evaluate(() => { const e = [...document.querySelectorAll("[data-grip]")].find((x) => x.getBoundingClientRect().width > 0 && !x.closest(".screen.off")); const r = e?.getBoundingClientRect(); return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null; });
 const n0 = await q.evaluate(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return s.chairs.find((c) => c.id === seat).hand.length; });
-await q.mouse.move(g2.x, g2.y); await q.mouse.down(); await q.mouse.move(g2.x, g2.y - 120, { steps: 6 }); await q.mouse.move(195, 380, { steps: 8 }); await q.waitForTimeout(300); await q.mouse.up(); await q.waitForTimeout(700);
+await q.mouse.move(g2.x, g2.y); await q.mouse.down(); await q.mouse.move(g2.x, g2.y - 120, { steps: 6 }); await q.mouse.move(195, 380, { steps: 8 }); await q.waitForTimeout(300);
+const dzHand = await q.evaluate(() => window.__t3d.handDropZone());
+check("тяну руку стопкой вверх — контур «в руку» виден, как у несомой карты", !!dzHand && dzHand.bottom > dzHand.top, dzHand);
+await q.mouse.up(); await q.waitForTimeout(700);
 const after = await q.evaluate(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return { hand: s.chairs.find((c) => c.id === seat).hand.length, pile: Math.max(0, ...s.piles.map((p) => p.cards.length)), felt: s.felt.length }; });
 check("язычок за самый верх — вся рука ушла на стол стопкой", n0 > 0 && after.hand === 0 && (after.pile >= n0 || after.felt >= n0), { n0, after });
 {

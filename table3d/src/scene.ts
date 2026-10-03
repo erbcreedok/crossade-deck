@@ -1386,7 +1386,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         zones.set(ch.id, z);
       }
       // Видна: пока стул пуст и карт в зоне нет (место ждёт), и пока я несу карту, которую в эту руку можно положить (хоть бы там и сидели, если нет замка).
-      const h = held(), carrying = !!h && h.takeable && ch.id !== myChair()?.id, free = !reseat && ((!ch.owner && ch.hand.length === 0) || (carrying && handTakes(ch)));
+      const h = held(), carrying = !!h && h.takeable && h.kind !== "hand" && ch.id !== myChair()?.id, free = !reseat && ((!ch.owner && ch.hand.length === 0) || (carrying && handTakes(ch)));
       const lit = free && carrying && h!.where?.in === "hand" && h!.where.chair === ch.id;
       z.fill.visible = z.line.visible = free;
       (z.fill.material as THREE.MeshBasicMaterial).opacity = lit ? 0.3 : 0.08;
@@ -2355,13 +2355,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * ЧТО Я СЕЙЧАС НЕСУ — одно понятие для карты, стопки со стола и стопки бесхозного стула: какие карты, куда целюсь в руку (`gap`: щель в моей руке или `null`), можно ли это
    * вообще положить в руку (`takeable`), чья это карта в руке (`skip`) и куда её уже нацелили (`where`). Зона руки, подсветка зон стульев и щели руки читают это, а не каждый свой источник.
    */
-  type Held = { kind: "card" | "pile" | "stack"; ids: string[]; gap: number | null; takeable: boolean; skip?: string; where: Where | null };
+  type Held = { kind: "card" | "pile" | "stack" | "hand"; ids: string[]; gap: number | null; takeable: boolean; skip?: string; where: Where | null };
   function held(): Held | null {
     if (pileCarry) {
       const p = store.state.piles.find((x) => x.id === pileCarry!.pile);
       return { kind: "pile", ids: p ? p.cards.map((c) => c.id) : [], gap: pileOver && camMode === "head" ? pileOver.gap : null, takeable: !!p && p.cards.length > 0 && !p.pin && !p.shut && !p.seal && !p.zone, where: null };
     }
     if (chairStack?.moved && gather) return { kind: "stack", ids: gather.ids, gap: chairOver && camMode === "head" ? chairOver.gap : null, takeable: true, where: null };
+    // Тяну свою руку стопкой вверх: вернуть её можно обратно в руку, а отпустить — только на стол, поэтому в чужие зоны она не целится (см. `carrying` у зон стульев).
+    if (handCarry) return { kind: "hand", ids: myChair()?.hand.map((c) => c.id) ?? [], gap: null, takeable: true, where: null };
     if (drag?.moved) return { kind: "card", ids: [drag.id], gap: drag.gap, takeable: true, skip: drag.id, where: drag.where ?? null };
     return null;
   }
