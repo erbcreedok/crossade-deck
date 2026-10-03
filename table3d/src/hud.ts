@@ -297,7 +297,21 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   root.append(reseatBar);
   const reseatSyncBar = () => { const on = scene.reseatOn(); if (reseatBar.style.display !== (on ? "flex" : "none")) { reseatBar.style.display = on ? "flex" : "none"; draw(); } };
   setInterval(reseatSyncBar, 150);
-  // Зона «в руку» от первого лица — чаша в самой сцене (`handBowl` в scene.ts), а не полоса на худе.
+  // Зона «в руку» от первого лица — чаша в самой сцене (`handBowl` в scene.ts), а не полоса на худе; на худе — только подпись под её краем.
+  const handTag = document.createElement("div");
+  handTag.dataset.handTag = "";
+  handTag.textContent = "В руку";
+  handTag.style.cssText = "display:none;position:absolute;left:14px;z-index:37;pointer-events:none;font:400 11px Tiny5,monospace;letter-spacing:.5px;text-shadow:0 1px 0 rgba(0,0,0,.6)";
+  root.append(handTag);
+  const handTagSync = () => {
+    const r = scene.bowlRim();
+    if (!r) { if (handTag.style.display !== "none") handTag.style.display = "none"; return; }
+    handTag.style.display = "block";
+    handTag.style.top = `${Math.round(r.y + 6)}px`;
+    handTag.style.color = r.lit ? T.gold : store.me.ink;
+    handTag.style.opacity = r.lit ? "1" : "0.8";
+  };
+  setInterval(handTagSync, 50);
   const flagLit = (s: Snapshot, what: ChairFlag): boolean => !!myChair(s)?.[what];
   const POSE_NAME: Record<string, string> = { row: "В ряд", fan: "Веер", spine: "Корешок", tuck: "На стол" };
   const POSE_ICON: Record<string, string> = { row: "row", fan: "fan", spine: "spine", tuck: "tuck" };

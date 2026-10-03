@@ -160,7 +160,7 @@ check("язычок за самый верх — вся рука ушла на �
     await c.waitForTimeout(150);
     check("несут со стола над сукном — зона руки намечена (hint), не горит", (await state()) === "hint", await state());
     const look = await c.evaluate(() => window.__t3d.bowlInfo());
-    check("пока несут: чаша «в руку» видна, и её край на экране идёт по верху карт руки", look.visible && Math.abs(look.fitTop - look.cardsTop) < 0.03 && look.ringTop > look.cardsTop && !document.querySelector("[data-hand-drop]"), look);
+    check("пока несут: чаша «в руку» видна, и её край на экране идёт по верху карт руки", look.visible && Math.abs(look.fitTop - look.cardsTop) < 0.03 && look.ringTop >= look.cardsTop - 0.005 && !document.querySelector("[data-hand-drop]"), look);
     await c.mouse.move(195, 700, { steps: 8 });
     await c.waitForTimeout(250);
     check("над своей (пустой) рукой — зона подсвечена (over)", (await state()) === "over", await state());
