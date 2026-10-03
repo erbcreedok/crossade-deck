@@ -1681,22 +1681,13 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       });
       return;
     }
-    // Орбита: рука рядом с левой рукой тела; свой вид — лицом к камере.
-    const hb = myHandBody(ch), lean = -Math.max(15, Math.min(80, Math.atan2(eyeY() - hb.left.h - HAND.lift, Math.hypot(camera.position.x - hb.left.x, camera.position.z - hb.left.y)) / DEG));
-    for (const c of handAll(ch)) { const o = cards.get(c.id), k = list.indexOf(c); if (o && k >= 0) o.target = handPlace(hb, ch, slotOf(k), n, !!c.up, b, true, lean); }
+    // СВОБОДНАЯ КАМЕРА: рука не привязана к экрану и не висит в воздухе — левая рука кладёт её стопкой на стол у стула, как у остальных.
+    // Несомая в руку карта (и чужая, нацеленная в мою руку) повисает над этой стопкой.
+    for (const c of handAll(ch)) { const o = cards.get(c.id), k = list.indexOf(c); if (o && k >= 0) o.target = stackPlace(ch, slotOf(k), !!c.up); }
+    const above = (slot: number): Place => { const t = stackPlace(ch, slot, false); t.pos.y += HAND.pop + 0.6; t.scale *= HOVER.grow; return t; };
     const o = gap !== null && drag ? cards.get(drag.id) : undefined;
-    if (o) {
-      const t = handPlace(hb, ch, gap!, n, false, b, true, lean), toEye = camera.position.clone().sub(t.pos).setLength(HOVER.near);
-      t.pos.add(toEye).y += HAND.pop;
-      t.scale *= HOVER.grow;
-      o.target = t;
-    }
-    if (foreign) {
-      const t = handPlace(hb, ch, fgap!, n, false, b, true, lean), toEye = camera.position.clone().sub(t.pos).setLength(HOVER.near);
-      t.pos.add(toEye).y += HAND.pop;
-      t.scale *= HOVER.grow;
-      foreign.target = t;
-    }
+    if (o) o.target = above(gap!);
+    if (foreign) foreign.target = above(fgap!);
   }
   const pileAngle = (p: Pile) => (p as Pile & { angle?: number }).angle ?? 0;
   function layout(s: Snapshot): void {
@@ -2116,7 +2107,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     myBody.visible = heads.visible;
     if (!ch || !who || !heads.visible) { if (myBodySig) myBody.clear(); myBodySig = ""; return; }
     const f = camera.getWorldDirection(new THREE.Vector3()), yaw = Math.atan2(f.x, -f.z) / DEG, c = camera.position;
-    const down = tuckOf(mineBlend(ch)), carry = handCarry ? `${handCarry.x.toFixed(2)},${handCarry.y.toFixed(2)}` : "", sig = [ch.angle, stanceNow(), down.toFixed(2), ch.hand.length, who.ink, who.name, c.x.toFixed(3), c.y.toFixed(3), c.z.toFixed(3), yaw.toFixed(2), camMode, carry, seatPull].join("|");
+    const down = camMode === "orbit" ? 1 : tuckOf(mineBlend(ch)), carry = handCarry ? `${handCarry.x.toFixed(2)},${handCarry.y.toFixed(2)}` : "", sig = [ch.angle, stanceNow(), down.toFixed(2), ch.hand.length, who.ink, who.name, c.x.toFixed(3), c.y.toFixed(3), c.z.toFixed(3), yaw.toFixed(2), camMode, carry, seatPull].join("|");
     if (sig === myBodySig) return;
     myBodySig = sig;
     myBody.clear();
