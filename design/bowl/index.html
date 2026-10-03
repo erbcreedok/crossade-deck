@@ -61,7 +61,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 const TABLE_R = 6.4, RIM = 0.45, THICK = 0.6, CARD_W = 1.17, CARD_H = 1.638, SHOULDERS = TABLE_R + 1, CHAIR_R = 7.9;
 const CAMHAND = { x: 0, y: -0.92, z: -2.3, card: 0.486 }, REF_PITCH = -40, DEG = Math.PI / 180;
 const CHAIR = { seat: 3.4, thick: 0.35, seatY: -3.3, back: 3.8, leg: 0.32, floor: -7 };
-const P = { view: "head", hand: "cap", cap: true, capElev: -41, style: "frame", R: 1.8, anchor: "hand", ay: 0, hx: 0, hy: 0, hz: 0, moveHand: false, sq: 0.85, cut: 22, cards: 9, fov: 85, yaw: -7.92, pitch: -32.67, carry: false, lift: 4, viewH: 0, doll: 0.8, show: true, axis: true, size: 0.7 };
+const P = { view: "head", hand: "cap", cap: true, capElev: -41, style: "frame", R: 1.8, anchor: "hand", ay: 0, hx: 0, hy: 0, hz: 0, moveHand: false, sq: 0.85, cut: 22, dyn: true, cutDown: 40, cutUp: 14, x3: 0, y3: 3, z3: 3.4, R3: 3.2, cut3: 30, cards: 9, fov: 85, yaw: -7.92, pitch: -32.67, carry: false, lift: 4, viewH: 0, doll: 0.8, show: true, axis: true, size: 0.7 };
 
 const canvas = document.getElementById("gl"), stage = document.getElementById("stage");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -152,13 +152,25 @@ const pitchNow = () => (P.hand === "head" ? P.pitch * DEG : P.hand === "cap" ? M
 /** Где кисть сейчас: перед виртуальной головой на CAMHAND плюс смещение, которое двигают ручками или пальцем. Якорь «Кисть» — это она самая, каждый кадр. */
 const handWorld = () => eyeAt().add(new THREE.Vector3(CAMHAND.x + P.hx, CAMHAND.y + P.hy, CAMHAND.z + P.hz).multiplyScalar(P.hand === "head" ? 1 : P.R / HAND_DIST).applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(pitchNow(), yawNow(), 0, "YXZ"))));
 const centre = () => ANCHORS[P.anchor]().add(new THREE.Vector3(0, P.ay, 0));
+/**
+ * ЧАША ДЛЯ ЭТОГО ВИДА. От первого лица — вокруг якоря (кисти, плеч…), а высота ДИНАМИЧЕСКАЯ: взгляд вниз — чаша высокая (до `cutDown`%), взгляд вверх — низкая (до `cutUp`%),
+ * по наклону головы от −85° до 0°; выключил динамику — берётся `cut`. От третьего лица (вокруг, сверху) чаша стоит в совсем другом месте: на столе перед стулом,
+ * со своими размерами (`x3, y3, z3, R3, cut3`) — её видно целиком, а не вокруг головы.
+ */
+function spec() {
+  if (P.view === "head") {
+    const t = Math.max(0, Math.min(1, (P.pitch + 85) / 85)), cut = P.dyn ? P.cutDown + (P.cutUp - P.cutDown) * t : P.cut;
+    return { c: centre(), R: P.R, Ry: P.R * P.sq, cut };
+  }
+  return { c: new THREE.Vector3(P.x3, P.y3, SHOULDERS - P.z3), R: P.R3, Ry: P.R3 * P.sq, cut: P.cut3 };
+}
 /** Верхний срез чаши: широта края. Чаша — часть эллипсоида от самого дна вверх на `cut`% его высоты: 50% — полусфера, меньше — мельче, дно то же. */
-const latTop = () => -Math.asin(Math.max(-1, Math.min(1, 1 - 2 * (P.cut / 100))));
-const poleY = () => { const c = centre(); return c.y + Math.sin(latTop()) * P.R * P.sq; };
+const latTop = () => -Math.asin(Math.max(-1, Math.min(1, 1 - 2 * (spec().cut / 100))));
+const poleY = () => { const sp = spec(); return sp.c.y + Math.sin(latTop()) * sp.Ry; };
 function buildBowl() {
   bowl.clear();
   if (!P.show || P.style === "strip") return;
-  const c = centre(), col = lit ? 0xf2c14e : 0x7fd1b9, R = P.R, Ry = P.R * P.sq, top = latTop(), bottom = -Math.PI / 2;
+  const { c, R, Ry } = spec(), col = lit ? 0xf2c14e : 0x7fd1b9, top = latTop(), bottom = -Math.PI / 2;
   const at = (lat, a) => new THREE.Vector3(c.x + Math.cos(lat) * R * Math.sin(a), c.y + Math.sin(lat) * Ry, c.z + Math.cos(lat) * R * Math.cos(a));
   const ring = (lat, n = 72) => { const pts = []; for (let i = 0; i <= n; i++) pts.push(at(lat, (i / n) * Math.PI * 2)); return pts; };
   const meridian = (a, n = 20) => { const pts = []; for (let i = 0; i <= n; i++) pts.push(at(top + (bottom - top) * (i / n), a)); return pts; };
@@ -184,7 +196,7 @@ let axisSig = "";
 function drawAxis() {
   axisG.visible = P.axis;
   if (!P.axis) return;
-  const c = centre(), Ry = P.R * P.sq, pole = poleY(), mid = handCards[Math.floor(handCards.length / 2)];
+  const { c, Ry } = spec(), pole = poleY(), mid = handCards[Math.floor(handCards.length / 2)];
   const h = mid ? mid.getWorldPosition(new THREE.Vector3()) : c;
   void h;
   const sig = [c.x, c.y, c.z, Ry, pole, h.x, h.y, h.z].map((v) => Math.round(v * 50)).join();
@@ -195,7 +207,7 @@ function drawAxis() {
   axisG.add(line(new THREE.Vector3(c.x, c.y - Ry, c.z), new THREE.Vector3(c.x, c.y + Ry + 1.5, c.z), 0xff4d4d, false));
   // Центр: шар и крест по горизонтали.
   const dot = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 10), onTop(new THREE.MeshBasicMaterial({ color: 0xff4d4d }))); dot.position.copy(c); dot.renderOrder = 11; axisG.add(dot);
-  const r = Math.min(0.9, P.R * 0.5);
+  const r = Math.min(0.9, spec().R * 0.5);
   axisG.add(line(new THREE.Vector3(c.x - r, c.y, c.z), new THREE.Vector3(c.x + r, c.y, c.z), 0xff4d4d, false), line(new THREE.Vector3(c.x, c.y, c.z - r), new THREE.Vector3(c.x, c.y, c.z + r), 0xff4d4d, false));
   // От оси к руке: плечо рычага, на котором карты качаются.
   axisG.add(line(c, h, 0xf2c14e, true));
@@ -274,7 +286,7 @@ function placeCarried() {
   const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -maxY), hit = new THREE.Vector3();
   if (!ray.ray.intersectPlane(plane, hit)) return;
   carried.position.copy(hit); carried.lookAt(cam.position);
-  const c0 = centre(), Ry = P.R * P.sq, inside = (((hit.x - c0.x) ** 2 + (hit.z - c0.z) ** 2) / P.R ** 2 + ((hit.y - c0.y) / Ry) ** 2) < 1 && hit.y <= pole + 0.01;
+  const sp = spec(), inside = (((hit.x - sp.c.x) ** 2 + (hit.z - sp.c.z) ** 2) / sp.R ** 2 + ((hit.y - sp.c.y) / sp.Ry) ** 2) < 1 && hit.y <= pole + 0.01;
   if (inside !== lit) { lit = inside; buildBowl(); }
 }
 
@@ -288,7 +300,7 @@ function frame() {
   headCam.position.copy(e); headCam.rotation.order = "YXZ"; headCam.rotation.set(P.pitch * DEG, -yawOf(), 0);
   headCam.fov = P.fov; headCam.updateProjectionMatrix();
   headBall.position.copy(e); headBall.visible = P.view !== "head";
-  const cs = [...centre().toArray(), P.R, P.sq, P.cut].map((v) => Math.round(v * 50)).join();
+  const sp = spec(), cs = [...sp.c.toArray(), sp.R, sp.Ry, sp.cut, P.view === "head" ? 1 : 0].map((v) => Math.round(v * 50)).join();
   if (cs !== bowlSig) { bowlSig = cs; buildBowl(); }
   drawArms(); drawAxis();
   if (neck) neck.visible = P.view !== "head";
@@ -324,13 +336,13 @@ const VIEWS = [["head", "Голова"], ["orbit", "Вокруг"], ["top", "С�
 const HANDS = [["head", "К голове (сейчас)"], ["cap", "К голове, не выше потолка"], ["yaw", "Только за поворотом"], ["world", "На месте"]];
 const ANCHOR_BTNS = [["head", "Голова"], ["chest", "Плечи"], ["hip", "Таз"], ["hand", "Кисть"]];
 const STYLES = [["strip", "Полоса (сейчас)"], ["frame", "Рамка"], ["wire", "Сетка"], ["shell", "Оболочка"]];
-const SLIDERS = [["capElev", "Потолок руки, °", -85, 0, 1], ["R", "Радиус чаши", 1, 6, 0.1], ["cut", "Чаша: высота, %", 10, 50, 1], ["sq", "Чаша: сжатие дна ×", 0.2, 1.6, 0.05], ["ay", "Якорь: высота ±", -6, 6, 0.1], ["cards", "Карт в руке", 1, 15, 1], ["size", "Размер карт", 0.5, 1.2, 0.05], ["fov", "Угол обзора", 55, 100, 1], ["viewH", "Высота обзора", 0, 9, 0.5], ["doll", "Размер людей", 0.4, 1.4, 0.05], ["hx", "Кисть: вбок", -3, 3, 0.05], ["hy", "Кисть: вверх", -3, 3, 0.05], ["hz", "Кисть: от себя", -3, 3, 0.05], ["yaw", "Взгляд: поворот", -180, 180, 1], ["pitch", "Взгляд: наклон", -85, 15, 1], ["lift", "Палец: высота", 0, 9, 0.1]];
+const SLIDERS = [["capElev", "Потолок руки, °", -85, 0, 1], ["R", "Радиус чаши", 1, 6, 0.1], ["cut", "Чаша: высота, % (без динамики)", 10, 50, 1], ["cutDown", "Динамика: взгляд вниз, %", 10, 50, 1], ["cutUp", "Динамика: взгляд вверх, %", 10, 50, 1], ["sq", "Чаша: сжатие дна ×", 0.2, 1.6, 0.05], ["ay", "Якорь: высота ±", -6, 6, 0.1], ["cards", "Карт в руке", 1, 15, 1], ["size", "Размер карт", 0.5, 1.2, 0.05], ["fov", "Угол обзора", 55, 100, 1], ["viewH", "Высота обзора", 0, 9, 0.5], ["doll", "Размер людей", 0.4, 1.4, 0.05], ["x3", "3-е лицо: вбок", -6, 6, 0.1], ["y3", "3-е лицо: высота", -2, 8, 0.1], ["z3", "3-е лицо: от стула", -6, 8, 0.1], ["R3", "3-е лицо: радиус", 1, 8, 0.1], ["cut3", "3-е лицо: высота, %", 10, 50, 1], ["hx", "Кисть: вбок", -3, 3, 0.05], ["hy", "Кисть: вверх", -3, 3, 0.05], ["hz", "Кисть: от себя", -3, 3, 0.05], ["yaw", "Взгляд: поворот", -180, 180, 1], ["pitch", "Взгляд: наклон", -85, 15, 1], ["lift", "Палец: высота", 0, 9, 0.1]];
 function buildUi() {
   views.innerHTML = VIEWS.map(([k, t]) => `<button data-view="${k}" class="${P.view === k ? "on" : ""}">${t}</button>`).join("");
   const seg = (title, list, key) => `<div class="grp">${title}</div><div class="row">${list.map(([k, t]) => `<button data-set="${key}:${k}" class="${P[key] === k ? "on" : ""}">${t}</button>`).join("")}</div>`;
   knobs.innerHTML = seg("Рука", HANDS, "hand") + seg("Ось руки и чаши", ANCHOR_BTNS, "anchor") + seg("Зона «в руку»", STYLES, "style")
     + `<div class="grp">Палец</div><div class="row"><button data-tog="carry" class="${P.carry ? "on" : ""}">Нести карту</button><button data-tog="cap" class="${P.cap ? "on" : ""}">Потолок = полюс</button></div>`
-    + `<div class="row" style="margin-top:6px"><button data-tog="show" class="${P.show ? "on" : ""}">Чаша видна</button><button data-tog="axis" class="${P.axis ? "on" : ""}">Ось видна</button><button data-tog="moveHand" class="${P.moveHand ? "on" : ""}">Двигать кисть пальцем</button><button data-reset>Оставить руку здесь</button></div>`
+    + `<div class="row" style="margin-top:6px"><button data-tog="show" class="${P.show ? "on" : ""}">Чаша видна</button><button data-tog="axis" class="${P.axis ? "on" : ""}">Ось видна</button><button data-tog="dyn" class="${P.dyn ? "on" : ""}">Динамичная высота (1-е лицо)</button><button data-tog="moveHand" class="${P.moveHand ? "on" : ""}">Двигать кисть пальцем</button><button data-reset>Оставить руку здесь</button></div>`
     + `<div class="grp">Числа</div>` + SLIDERS.map(([k, t, lo, hi, st]) => `<div class="k"><span>${t}</span><input type="range" data-k="${k}" min="${lo}" max="${hi}" step="${st}" value="${P[k]}"><b data-v="${k}">${Math.round(P[k] * 100) / 100}</b></div>`).join("")
     + `<small>Нести карту: тяни по экрану, карта идёт за пальцем. Сейчас: вид «${VIEWS.find((v) => v[0] === P.view)[1]}».</small>`;
   hint.textContent = P.view === "head" ? "Тяни по экрану — вертишь головой. Рука идёт за взглядом, но выше потолка не поднимается: взгляд вверх — рука остаётся внизу." : P.view === "orbit" ? "Свободная камера: чаша вокруг головы игрока, рука на ней." : "Сверху: чаша — круг вокруг головы над стулом.";
@@ -353,7 +365,7 @@ for (const [k, v] of new URLSearchParams(location.search)) if (k in P) P[k] = ty
 if (new URLSearchParams(location.search).has("open")) stage.classList.add("open");
 frozenYaw = -yawOf();
 buildUi(); buildBody(); buildHand(); buildBowl(); frame();
-window.__bowl = { probe() { const box = new THREE.Box3().setFromObject(bowl), bc = box.getCenter(new THREE.Vector3()), mid = handCards[Math.floor(handCards.length / 2)]; return { centre: centre().toArray(), bowl: [bc.x, box.max.y, bc.z], wrist: handWorld().toArray(), cards: mid.getWorldPosition(new THREE.Vector3()).toArray() }; }, P, set(k, v) { P[k] = v; buildUi(); buildBody(); buildBowl(); buildHand(); } };
+window.__bowl = { probe() { const box = new THREE.Box3().setFromObject(bowl), bc = box.getCenter(new THREE.Vector3()), mid = handCards[Math.floor(handCards.length / 2)]; return { spec: spec().c.toArray(), pole: poleY(), centre: centre().toArray(), bowl: [bc.x, box.max.y, bc.z], wrist: handWorld().toArray(), cards: mid.getWorldPosition(new THREE.Vector3()).toArray() }; }, P, set(k, v) { P[k] = v; buildUi(); buildBody(); buildBowl(); buildHand(); } };
 </script>
 </body>
 </html>
