@@ -1,0 +1,41 @@
+deploy/failover/report.test.mjs
+  s_783a0cc3ed910b::t_2677c9bf8cd738 1-21
+deploy/failover/report.mjs
+  s_783a0cc3ed910b::t_2677c9bf8cd738 1-27
+deploy/failover/supervisor.mjs
+  s_783a0cc3ed910b::t_d8d734d3b84485 19-20,105-108,134-136
+  s_783a0cc3ed910b::t_393cb0d9ed05d8 137-138
+deploy/fly-standby/standby.mjs
+  s_783a0cc3ed910b::t_d8d734d3b84485 15-17,131-133,161-163
+  s_783a0cc3ed910b::t_0e173ce1f5a44c 164-165
+server/src/table/routes.ts
+  s_783a0cc3ed910b::t_2b25c5aefe3000 440,818-819
+server/src/table/nodes.test.ts
+  s_783a0cc3ed910b::t_d8aac8bf45188f 29-44
+server/src/table/nodes.ts
+  s_783a0cc3ed910b::t_d8aac8bf45188f 18,38-41,67,81-82
+  s_783a0cc3ed910b::t_2b25c5aefe3000 106
+server/table-client/adminNodes.test.ts
+  s_783a0cc3ed910b::t_d8aac8bf45188f 13,22-26
+  s_783a0cc3ed910b::t_f9e52cd3bd4203 27-28
+server/table-client/adminNodes.ts
+  s_783a0cc3ed910b::t_d8aac8bf45188f 8,18-19,27,32,51-52,55-56
+deploy/fly-standby/Dockerfile
+  s_783a0cc3ed910b::t_d8d734d3b84485 41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4b9fb302d1213d7f628e9247d78e0e10c535fddd",
+  "prompts": {},
+  "sessions": {
+    "s_783a0cc3ed910b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "961f95bc-95fa-4b4a-8d9b-d0901f13a448",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
