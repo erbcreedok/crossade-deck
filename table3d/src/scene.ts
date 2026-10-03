@@ -1384,8 +1384,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         zones.set(ch.id, z);
       }
       // Видна: пока стул пуст и карт в зоне нет (место ждёт), и пока я несу карту, которую в эту руку можно положить (хоть бы там и сидели, если нет замка).
-      const carrying = (!!drag?.moved || !!pileCarry) && ch.id !== myChair()?.id, free = !reseat && ((!ch.owner && ch.hand.length === 0) || (carrying && handTakes(ch)));
-      const lit = free && carrying && !!drag?.moved && drag.where?.in === "hand" && drag.where.chair === ch.id;
+      const h = held(), carrying = !!h && h.takeable && ch.id !== myChair()?.id, free = !reseat && ((!ch.owner && ch.hand.length === 0) || (carrying && handTakes(ch)));
+      const lit = free && carrying && h!.where?.in === "hand" && h!.where.chair === ch.id;
       z.fill.visible = z.line.visible = free;
       (z.fill.material as THREE.MeshBasicMaterial).opacity = lit ? 0.3 : 0.08;
       (z.line.material as THREE.LineDashedMaterial).opacity = lit ? 1 : 0.7;
@@ -1520,9 +1520,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   function retargetMine(): void {
     const ch = myChair();
     if (!ch) return;
-    const list = handCards(), gap = drag?.moved ? drag.gap : null, b = mineBlend(ch);
-    const overPile = pileOver && camMode === "head" ? store.state.piles.find((x) => x.id === pileOver!.pile) : undefined;
-    const overCards: { id: string }[] | undefined = overPile ? overPile.cards : chairOver && camMode === "head" ? chairOver.ids.map((id) => ({ id })) : undefined, overGap = overPile ? pileOver!.gap : chairOver?.gap ?? 0, m = overCards ? overCards.length : 0;
+    const hd = held(), list = handCards(), gap = hd?.gap ?? null, b = mineBlend(ch);
+    const overCards: { id: string }[] | undefined = hd && hd.kind !== "card" && gap !== null ? hd.ids.map((id) => ({ id })) : undefined, overGap = gap ?? 0, m = overCards ? overCards.length : 0;
     // ЧУЖАЯ КАРТА НАД МОЕЙ РУКОЙ: сосед несёт карту мне в руку — на моём худе она в щели, куда он целится, и двигается влево-вправо вместе с его прицелом.
     const fc = store.carries.find((c) => c.by !== store.me.key && c.over.in === "hand" && c.over.chair === ch.id && cards.has(c.id));
     const fgap = fc ? Math.max(0, Math.min(list.length, (fc.over as { i: number }).i)) : null;
@@ -2317,6 +2316,20 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   renderer.domElement.addEventListener("pointercancel", reseatUp, { capture: true });
   // ——— ЯЗЫЧОК СТОПКИ БЕСХОЗНОГО СТУЛА: вся стопка идёт под палец и ложится туда, куда отпустили ———
   let chairStack: { pid: number; chair: string; x: number; y: number; moved: boolean } | null = null;
+  /**
+   * ЧТО Я СЕЙЧАС НЕСУ — одно понятие для карты, стопки со стола и стопки бесхозного стула: какие карты, куда целюсь в руку (`gap`: щель в моей руке или `null`), можно ли это
+   * вообще положить в руку (`takeable`), чья это карта в руке (`skip`) и куда её уже нацелили (`where`). Зона руки, подсветка зон стульев и щели руки читают это, а не каждый свой источник.
+   */
+  type Held = { kind: "card" | "pile" | "stack"; ids: string[]; gap: number | null; takeable: boolean; skip?: string; where: Where | null };
+  function held(): Held | null {
+    if (pileCarry) {
+      const p = store.state.piles.find((x) => x.id === pileCarry!.pile);
+      return { kind: "pile", ids: p ? p.cards.map((c) => c.id) : [], gap: pileOver && camMode === "head" ? pileOver.gap : null, takeable: !!p && p.cards.length > 0 && !p.pin && !p.shut && !p.seal && !p.zone, where: null };
+    }
+    if (chairStack?.moved && gather) return { kind: "stack", ids: gather.ids, gap: chairOver && camMode === "head" ? chairOver.gap : null, takeable: true, where: null };
+    if (drag?.moved) return { kind: "card", ids: [drag.id], gap: drag.gap, takeable: true, skip: drag.id, where: drag.where ?? null };
+    return null;
+  }
   function chairStackDown(chairId: string, e: PointerEvent): void {
     const ch = store.state.chairs.find((c) => c.id === chairId);
     if (!ch || ch.owner || !ch.hand.length) return;
@@ -2955,15 +2968,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const ch = myChair();
       if (!ch || camMode !== "head" || ch.reject) return null;
       const bottom = dockTopPx ?? host.clientHeight - safeBottom() - 80;
-      if (pileCarry) {
-        const p = store.state.piles.find((x) => x.id === pileCarry!.pile);
-        if (!p || p.cards.length === 0 || p.pin || p.shut || p.seal || p.zone) return null;
-        return { top: handTop(ch), bottom, over: pileOver !== null };
-      }
-      if (chairStack?.moved && gather) return { top: handTop(ch), bottom, over: chairOver !== null };
-      const d = drag;
-      if (!d?.moved) return null;
-      return { top: handTop(ch, d.id), bottom, over: d.gap !== null };
+      const h = held();
+      if (!h || !h.takeable) return null;
+      return { top: handTop(ch, h.skip), bottom, over: h.gap !== null };
     },
     handGeom,
     setBlend(b) { blend = b; layout(store.state); },
