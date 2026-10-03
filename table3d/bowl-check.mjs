@@ -48,6 +48,13 @@ const emptyBowl = await p.evaluate(() => ({ ...window.__t3d.bowlInfo(), bottom: 
 const rimPx = (1 - emptyBowl.ringTop) * 422;
 check("пустая рука: чаша видна", emptyBowl.visible, emptyBowl);
 check("пустая рука: край чаши низко — чуть выше нижней строки, а не на пол-экрана", rimPx > emptyBowl.bottom - 110 && rimPx < emptyBowl.bottom, { rimPx, bottom: emptyBowl.bottom });
+// Один порядок и для пустой руки: приёмка начинается ровно там, где нарисован край; выше — карта не садится в руку, ниже — садится и чаша горит.
+const emptyRim = ((1 - (await p.evaluate(() => window.__t3d.bowlInfo().ringTop))) * 844) / 2;
+check("пустая рука: граница приёмки = край чаши", Math.abs((await p.evaluate(() => window.__t3d.handDropZone().top)) - emptyRim) < 3, emptyRim);
+await p.mouse.move(195, emptyRim - 25, { steps: 6 }); await p.waitForTimeout(250);
+check("пустая рука: палец выше края — не горит, в руку не садится", !(await p.evaluate(() => window.__t3d.bowlInfo().lit)));
+await p.mouse.move(195, emptyRim + 12, { steps: 6 }); await p.waitForTimeout(250);
+check("пустая рука: палец ниже края — горит", await p.evaluate(() => window.__t3d.bowlInfo().lit));
 await p.mouse.up();
 // ЧАША — ЭТО И ЕСТЬ ГРАНИЦА ПРИЁМКИ: палец внутри чаши (даже выше самих карт руки) зажигает её, и карта встаёт в руку; снаружи — нет.
 {

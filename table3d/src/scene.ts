@@ -1447,7 +1447,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * Она в осях камеры, как сама рука. Край чаши лежит по верху веера, КАК ЕГО ВИДНО С КАМЕРЫ: высоту среза подбираем так, чтобы самая высокая на экране точка края
    * легла на самую высокую точку карт. Над зоной (палец над рукой) чаша золотая. Вид «вокруг» и «сверху» чашу не рисуют.
    */
-  const BOWL = { R: 1.8, sq: 0.85, ink: 0x7fd1b9, lit: 0xf2c14e, gap: 0.5, emptyAbove: 34 } as const;
+  const BOWL = { R: 1.8, sq: 0.85, ink: 0x7fd1b9, lit: 0xf2c14e, gap: 0.5 } as const;
   const bowlG = new THREE.Group();
   bowlG.visible = false;
   handRoot.add(bowlG);
@@ -1465,11 +1465,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!ch) return null;
     const places: Place[] = [];
     for (const c of ch.hand) { if (c.id === skip) continue; const t = cards.get(c.id)?.target; if (t?.onCamera) places.push(t); }
-    // РУКА ПУСТА (нет карт, или их уже несут из неё): чаша низкая — край чуть выше нижней строки, а не по несуществующему ряду карт.
+    // РУКА ПУСТА (нет карт, или их уже несут из неё): считаем так же, как для карт, — по виртуальной карте, у которой над нижней строкой выглядывает лишь полоска, как у корешка.
+    // Отдельного правила для пустой руки нет: край — всегда «верх силуэта руки + запас».
     const empty = places.length === 0;
     if (empty) {
       const shape = shapeOfWidth(handWidth, 1, 0, 0); shape.lift = 1;
-      places.push(camHandLocal(0, 1, false, shape, Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), handSize, { x: 0, y: 0 }, 0));
+      const one = camHandLocal(0, 1, false, shape, Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), handSize, { x: 0, y: 0 }, 0);
+      one.pos.y -= (1 - SPINE_VIS) * CARD_H * one.scale;
+      places.push(one);
     }
     const center = new THREE.Vector3(), corners: THREE.Vector3[] = [];
     for (const p of places) {
@@ -1478,15 +1481,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     center.divideScalar(places.length);
     const top = (pts: THREE.Vector3[]): number => { let best = -Infinity; for (const v of pts) if (v.z < -0.05) best = Math.max(best, v.clone().applyMatrix4(camera.projectionMatrix).y); return best; };
-    const rect = renderer.domElement.getBoundingClientRect();
-    const R = BOWL.R, Ry = BOWL.R * BOWL.sq, want = empty ? 1 - (2 * (trayTopPx() - BOWL.emptyAbove)) / rect.height : top(corners);
+    const R = BOWL.R, Ry = BOWL.R * BOWL.sq, want = top(corners);
     const latOf = (cut: number): number => -Math.asin(Math.max(-1, Math.min(1, 1 - 2 * (cut / 100))));
     const ring = (lat: number, n = 48): THREE.Vector3[] => Array.from({ length: n + 1 }, (_, i) => { const a = (i / n) * Math.PI * 2; return new THREE.Vector3(center.x + Math.cos(lat) * R * Math.sin(a), center.y + Math.sin(lat) * Ry, center.z + Math.cos(lat) * R * Math.cos(a)); });
     const ringTop = (cut: number): number => top(ring(latOf(cut)));
     let lo = 2, hi = 98;
     if (ringTop(lo) >= want) hi = lo; else if (ringTop(hi) <= want) lo = hi; else for (let i = 0; i < 18; i++) { const mid = (lo + hi) / 2; if (ringTop(mid) < want) lo = mid; else hi = mid; }
     // Чуть пространства над картами: край поднят на `BOWL.gap` (единицы камеры) над их силуэтом.
-    const fit = (lo + hi) / 2, cut = empty ? fit : Math.min(99, Math.max(2, 50 * (1 + Math.min(0.98, Math.sin(latOf(fit)) + BOWL.gap / Ry)))), lat = latOf(cut);
+    const fit = (lo + hi) / 2, cut = Math.min(99, Math.max(2, 50 * (1 + Math.min(0.98, Math.sin(latOf(fit)) + BOWL.gap / Ry)))), lat = latOf(cut);
     return { center, cut, lat, ringTop: ringTop(cut), fitTop: ringTop(fit), want, empty, ring, R, Ry };
   }
   /** Верх края чаши на экране, px от верха сцены — граница, с которой начинается приёмка в руку. */
