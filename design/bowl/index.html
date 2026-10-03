@@ -100,13 +100,14 @@ const mine = seatAt(0, 0x7fd1b9, 0x7fd1b9, true);
 seatAt(90, 0x7d8a86, 0, false); seatAt(180, 0x7d8a86, 0, false); seatAt(270, 0x7d8a86, 0, false);
 const bodyG = new THREE.Group(); scene.add(bodyG);
 const headBall = new THREE.Mesh(new THREE.SphereGeometry(0.75, 18, 14), new THREE.MeshLambertMaterial({ color: 0x7fd1b9 }));
+let neck = null;
 function buildBody() {
   bodyG.clear();
   const k = P.doll, mat = new THREE.MeshLambertMaterial({ color: 0x7fd1b9 });
   const S = new THREE.Vector3(0, 4 * k, SHOULDERS), base = new THREE.Vector3(0, -7 * k, SHOULDERS), bar = 1.4 * k, r = 0.21 * k;
   bodyG.add(stick(base, S, r, mat), stick(S.clone().add(new THREE.Vector3(-bar, 0, 0)), S.clone().add(new THREE.Vector3(bar, 0, 0)), r, mat));
   for (const sx of [-1, 1]) { const b = new THREE.Mesh(new THREE.SphereGeometry(r * 1.1, 10, 8), mat); b.position.copy(S).add(new THREE.Vector3(sx * bar, 0, 0)); bodyG.add(b); }
-  const E = eyeAt(); bodyG.add(stick(S, E.clone().add(new THREE.Vector3(0, -0.5, 0)), r, mat));
+  const E = eyeAt(); neck = stick(S, E.clone().add(new THREE.Vector3(0, -0.5, 0)), r, mat); bodyG.add(neck);
   mine.userData.chair.scale.setScalar(k); mine.userData.chair.position.set(0, 0, CHAIR_R);
   for (const s of seats) { if (s !== mine) { s.userData.chair.scale.setScalar(k); } }
   // Напротив — второй игрок, для масштаба.
@@ -207,6 +208,31 @@ function placeHand() {
   });
 }
 
+// ——— РУКИ ТЕЛА: левая тянется к картам, правая лежит на столе перед плечом (как в игре) ———
+const armsG = new THREE.Group(); scene.add(armsG);
+let armSig = "";
+/** Рука с локтем: два равных сегмента чуть длиннее половины расстояния — никогда не в струну; локоть уведён наружу и вниз (`armParts` в игре). */
+function arm(shoulder, hand, side, r, mat) {
+  const d = Math.max(1e-3, shoulder.distanceTo(hand)), seg = Math.max(d * 0.505, 1.1 * P.doll), axis = hand.clone().sub(shoulder).divideScalar(d);
+  const pole = new THREE.Vector3(side, -0.7, 0); pole.addScaledVector(axis, -pole.dot(axis)); pole.normalize();
+  const elbow = shoulder.clone().addScaledVector(axis, d / 2).addScaledVector(pole, Math.sqrt(Math.max(0, seg * seg - (d / 2) ** 2)));
+  const out = new THREE.Group(), ball = (at, rr) => { const b = new THREE.Mesh(new THREE.SphereGeometry(rr, 12, 10), mat); b.position.copy(at); return b; };
+  out.add(stick(shoulder, elbow, r, mat), stick(elbow, hand, r, mat), ball(elbow, r * 1.25), ball(hand, 0.32 * P.doll));
+  return out;
+}
+function drawArms() {
+  const k = P.doll, bar = 1.4 * k, S = new THREE.Vector3(0, 4 * k, SHOULDERS);
+  const mid = handCards[Math.floor(handCards.length / 2)];
+  // Кисть — под рядом карт и чуть за ними, а не на них: карты остаются видны.
+  const L = mid ? inner.localToWorld(new THREE.Vector3(0, CAMHAND.y - 0.5, CAMHAND.z - 0.4)) : S.clone();
+  const R = new THREE.Vector3(1.15 * bar, 0.3, SHOULDERS - 2.4 * k);
+  const sig = [k, L.x, L.y, L.z].map((v) => Math.round(v * 20)).join();
+  if (sig === armSig) return;
+  armSig = sig; armsG.clear();
+  const mat = new THREE.MeshLambertMaterial({ color: 0x7fd1b9 }), r = 0.13 * k;
+  armsG.add(arm(S.clone().add(new THREE.Vector3(-bar, 0, 0)), L, -1, r, mat), arm(S.clone().add(new THREE.Vector3(bar, 0, 0)), R, 1, r, mat));
+}
+
 // ——— НЕСОМАЯ КАРТА ———
 const carried = mkCard(0); carried.visible = false; carried.scale.setScalar(0.62); scene.add(carried);
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(0, 0);
@@ -233,8 +259,9 @@ function frame() {
   headCam.position.copy(e); headCam.rotation.order = "YXZ"; headCam.rotation.set(P.pitch * DEG, -yawOf(), 0);
   headCam.fov = P.fov; headCam.updateProjectionMatrix();
   headBall.position.copy(e); headBall.visible = P.view !== "head";
-  // От первого лица своих плеч и стула не видно — только рука и карты.
-  bodyG.visible = P.view !== "head"; mine.userData.chair.visible = P.view !== "head";
+  drawArms();
+  if (neck) neck.visible = P.view !== "head";
+  const H = new URLSearchParams(location.search).get("hide") ?? ""; armsG.visible = !H.includes("arms"); bodyG.visible = !H.includes("body"); mine.userData.chair.visible = !H.includes("chair");
   placeHand(); placeCarried();
   orbit.enabled = P.view === "orbit"; if (P.view === "orbit") orbit.update();
   // «Полоса сейчас» — прежняя зона: горизонталь на экране на высоте верха руки; едет с кадром (экран), а не с миром.
