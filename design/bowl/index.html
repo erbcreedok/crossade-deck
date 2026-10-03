@@ -61,7 +61,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 const TABLE_R = 6.4, RIM = 0.45, THICK = 0.6, CARD_W = 1.17, CARD_H = 1.638, SHOULDERS = TABLE_R + 1, CHAIR_R = 7.9;
 const CAMHAND = { x: 0, y: -0.92, z: -2.3, card: 0.486 }, REF_PITCH = -40, DEG = Math.PI / 180;
 const CHAIR = { seat: 3.4, thick: 0.35, seatY: -3.3, back: 3.8, leg: 0.32, floor: -7 };
-const P = { view: "head", hand: "cap", cap: true, capElev: -41, style: "frame", R: 1.8, anchor: "hand", ay: 0, hx: 0, hy: 0, hz: 0, moveHand: false, sq: 0.85, cut: 22, dyn: true, byCards: false, cutDown: 10, cutUp: 35, pitchLo: -85, pitchHi: -19, x3: 0, y3: 3, z3: 3.4, R3: 3.2, cut3: 30, cards: 9, fov: 85, yaw: -7.92, pitch: -32.67, carry: false, lift: 4, viewH: 0, doll: 0.8, show: true, axis: true, size: 0.7 };
+const P = { view: "head", hand: "cap", cap: true, capElev: -41, style: "frame", R: 1.8, anchor: "hand", ay: 0, hx: 0, hy: 0, hz: 0, moveHand: false, sq: 0.85, cut: 22, dyn: true, byCards: true, cutDown: 10, cutUp: 35, pitchLo: -85, pitchHi: -19, x3: 0, y3: 3, z3: 3.4, R3: 3.2, cut3: 30, cards: 9, fov: 85, yaw: -7.92, pitch: -32.67, carry: false, lift: 4, viewH: 0, doll: 0.8, show: true, axis: true, size: 0.7 };
 
 const canvas = document.getElementById("gl"), stage = document.getElementById("stage");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -203,10 +203,7 @@ function buildBowl() {
   const ring = (lat, n = 72) => { const pts = []; for (let i = 0; i <= n; i++) pts.push(at(lat, (i / n) * Math.PI * 2)); return pts; };
   const meridian = (a, n = 20) => { const pts = []; for (let i = 0; i <= n; i++) pts.push(at(top + (bottom - top) * (i / n), a)); return pts; };
   if (P.style === "frame" || P.style === "wire") {
-    // Край — поверх карт, чтобы было видно, где он идёт по их силуэту.
-    const rimLine = dashed(ring(top), col, 0.24, 0.16); rimLine.material.depthTest = false; rimLine.renderOrder = 9; bowl.add(rimLine);
-    // По картам край — сплошная яркая линия: видно, как он ложится на силуэт веера.
-    if (P.byCards) { const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ring(top, 96), true), 96, 0.025, 6, true), new THREE.MeshBasicMaterial({ color: 0xffe08a, depthTest: false })); tube.renderOrder = 9; bowl.add(tube); }
+    bowl.add(dashed(ring(top), col, 0.24, 0.16));
     const n = P.style === "wire" ? 16 : 8;
     if (P.style === "wire") for (const l of [-0.3, -0.6, -0.9, -1.2].filter((l) => l < top && l > bottom)) bowl.add(dashed(ring(l), col, 0.14, 0.2));
     for (let i = 0; i < n; i++) bowl.add(dashed(meridian((i / n) * Math.PI * 2), col, 0.18, 0.22));

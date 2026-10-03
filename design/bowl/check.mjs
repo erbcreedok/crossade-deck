@@ -34,7 +34,7 @@ await set("ay", 1.5);
 const e2 = await probe();
 check("якорь выше кисти на 1.5 — чаша выше, а кисть и карты на месте", Math.abs(e2.centre[1] - e2.wrist[1] - 1.5) < 0.05 && d(e2.cards, e2.wrist) < 0.5, e2);
 // ДИНАМИЧЕСКАЯ ВЫСОТА (1-е лицо): взгляд вниз — чаша выше, вверх — ниже; плоскость полюса и верх чаши идут вместе.
-await set("ay", 0);
+await set("ay", 0); await set("byCards", false);
 await set("cutDown", 10); await set("cutUp", 35); await set("pitch", -85);
 const lo = await probe();
 await set("pitch", -5);
