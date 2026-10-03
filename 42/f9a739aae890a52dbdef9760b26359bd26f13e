@@ -1,0 +1,48 @@
+table3d/reseat-check.mjs
+  s_ad8a8a5b5d0419::t_df0fccd77deba5 104-119
+  s_ad8a8a5b5d0419::t_841883200c56f9 36,41-42
+  s_ad8a8a5b5d0419::t_1d08906ee6280c 87-103
+server/table-client/screen.ts
+  s_ad8a8a5b5d0419::t_1c012323d5c35a 25,5147-5151
+server/src/table/TableRoom.ts
+  s_ad8a8a5b5d0419::t_64bf2f6c498bfb 48
+  s_ad8a8a5b5d0419::t_c1b064166132d2 663-668
+  s_ad8a8a5b5d0419::t_c8bcbe43f90e3c 669
+server/src/table/table.ts
+  s_ad8a8a5b5d0419::t_d42e0ab2c86c38 57,620-623
+server/src/table/ring.ts
+  s_ad8a8a5b5d0419::t_d42e0ab2c86c38 56-60
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_841883200c56f9 575-591,596,613,2627
+  s_ad8a8a5b5d0419::t_74be3aba5566ed 514-530
+  s_ad8a8a5b5d0419::t_d34a25fc3ff28f 1992,2199,2201-2207
+  s_ad8a8a5b5d0419::t_1d08906ee6280c 743-745,1569,1761,2612-2613
+server/src/table/TableRoom.test.ts
+  s_783a0cc3ed910b::t_733f92f5d0204b 559-560
+server/src/table/intent.test.ts
+  s_ad8a8a5b5d0419::t_5405959433daf3 38-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "42f9a739aae890a52dbdef9760b26359bd26f13e",
+  "prompts": {},
+  "sessions": {
+    "s_783a0cc3ed910b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "961f95bc-95fa-4b4a-8d9b-d0901f13a448",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    },
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
