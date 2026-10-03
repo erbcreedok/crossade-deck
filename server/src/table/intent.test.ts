@@ -35,6 +35,13 @@ describe("readIntent — намерение читается целиком ил
     expect("ops" in res && (res.ops?.length ?? 0) > 0, JSON.stringify(res)).toBe(true);
     expect(mine()!.angle).toBe((before + 90) % 360);
     expect("refused" in t.act("nobody", { t: "reseat", angle: 10 }, 1)).toBe(true);
+    // Стулья не наплывают: рядом с чужим стулом (ближе зазора) — отказ, подальше — можно.
+    t.addChair();
+    const other = t.seenBy("a").chairs.find((c) => c.id !== mine()!.id && !c.croupier)!;
+    const near = t.act("a", { t: "reseat", angle: (other.angle + 10) % 360 }, 1);
+    expect("refused" in near && near.refused === "taken", JSON.stringify(near)).toBe(true);
+    const far = t.act("a", { t: "reseat", angle: (other.angle + 90) % 360 }, 1);
+    expect("ops" in far, JSON.stringify(far)).toBe(true);
   });
 
   it("мусор вместо намерения — null", () => {

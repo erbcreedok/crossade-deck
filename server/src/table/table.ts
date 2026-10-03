@@ -54,7 +54,7 @@ import {
 import { arranged, samePack, shuffled } from "./arrange.js";
 import { allowed, grantedTo, may, mayFlagChair, no, why, type Ask, type Key, type Role, type Verdict } from "./access.js";
 import { SANDBOX, type DeskAsk, type DeskRules, type DeskZone } from "./rules.js";
-import { croupierAngle, deckHome, freeAngle, ringLanding, seatPoint, SEAT_KEEP } from "./ring.js";
+import { angleApart, croupierAngle, deckHome, freeAngle, ringLanding, seatPoint, SEAT_GAP_DEG, SEAT_KEEP } from "./ring.js";
 
 /** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
 export const FELT_REACH = 8 - 0.86;
@@ -617,7 +617,10 @@ export class Table {
         return this.sit(by, intent.chair);
       case "reseat": {
         const chair = this.seatOf(by);
-        return chair ? { ops: this.turnChair(chair.id, intent.angle) } : { refused: "bad" };
+        if (!chair) return { refused: "bad" };
+        // Стулья не наплывают друг на друга: ближе `SEAT_GAP_DEG` к чужому — отказ.
+        if ([...this.chairs.values()].some((c) => c.id !== chair.id && !c.croupier && angleApart(c.angle, intent.angle) < SEAT_GAP_DEG)) return { refused: "taken" };
+        return { ops: this.turnChair(chair.id, intent.angle) };
       }
       case "flag":
         return this.flag(by, intent.chair, intent.flag, intent.on);

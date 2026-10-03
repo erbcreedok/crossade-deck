@@ -33,10 +33,13 @@ check("при входе стол и все стулья влезают в ка�
 check("камера смотрит сверху (орбита)", (await p.evaluate(() => window.__t3d.cam().mode)) === "orbit", null);
 // Тянем свой стул: его экранное место — из хука `chairs()`.
 const chair = await p.evaluate((id) => window.__t3d.chairs().find((c) => c.id === id), seat0.id);
+const chair0 = await p.evaluate((id) => { const a = window.__t3d.chairAt(id); return { x: a[0], z: a[2] }; }, seat0.id);
 await p.mouse.move(chair.x, chair.y); await p.mouse.down();
 await p.mouse.move(chair.x + 120, chair.y - 60, { steps: 8 });
 await p.mouse.up();
 await p.waitForTimeout(400);
+const ghost = await p.evaluate(() => window.__t3d.reseatInfo().ghost);
+check("пока тянут стул, старое место остаётся пунктиром (след на прежнем месте)", ghost !== null && Math.hypot(ghost.x - chair0.x, ghost.z - chair0.z) < 0.3, { ghost, chair0 });
 const chairPos = await p.evaluate((id) => window.__t3d.chairAt(id), seat0.id);
 const angle = ((Math.atan2(chairPos[0], chairPos[2]) * 180) / Math.PI + 360) % 360;
 check("свой стул уехал по кругу на другой угол", Math.abs(((angle - seat0.angle + 540) % 360) - 180) > 8, { angle, was: seat0.angle });
@@ -81,6 +84,39 @@ await t.waitForTimeout(800);
 const a1 = await angleOf();
 check("пальцем: тянем стул и «Готово» — стул пересажен", a1 !== a0, { a0, a1 });
 await ctx.close();
+// ВЗГЛЯД ПРИ ПЕРЕСАДКЕ: стул встал на другой угол — смотришь туда же относительно стола (в центр, хоть и повернул голову вбок), а не «теряешься в пространстве».
+{
+  const c = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await c.goto(`${base}/?stand&cam=head`);
+  await c.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await c.waitForTimeout(1000);
+  await c.mouse.move(300, 300); await c.mouse.down(); await c.mouse.move(180, 300, { steps: 6 }); await c.mouse.up();
+  await c.waitForTimeout(300);
+  // Угол между взглядом и направлением в центр стола, градусы (со знаком).
+  const off = () => c.evaluate(() => { const k = window.__t3d.cam(), y = ((k.yaw + k.side * 40) * Math.PI) / 180, g = [Math.sin(y), -Math.cos(y)], inw = [-k.pos[0], -k.pos[2]], a = Math.atan2(g[0], -g[1]) - Math.atan2(inw[0], -inw[1]); return { off: ((a * 180) / Math.PI + 540) % 360 - 180, r: Math.hypot(k.pos[0], k.pos[2]) }; });
+  const before = await off();
+  await c.evaluate(() => window.__t3d.reseatNow(110));
+  await c.waitForTimeout(500);
+  const after = await off();
+  check("пересадка в голове: взгляд относительно центра стола тот же (стол провернулся, а не ты потерялся)", Math.abs(after.off - before.off) < 3 && Math.abs(after.r - before.r) < 0.3, { before, after });
+  await c.close();
+}
+// СТУЛЬЯ НЕ НАПЛЫВАЮТ: тянешь свой стул на чужой — он останавливается у края, на чужое место не встаёт.
+{
+  const c = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await c.goto(`${base}/?stand&cam=head`);
+  await c.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await c.waitForTimeout(1000);
+  await c.locator("[data-reseat]:visible").first().click();
+  await c.waitForTimeout(900);
+  const info = await c.evaluate(() => { const s = window.__t3d.state(); const me = s.chairs.find((x) => x.owner === window.__t3d.me()); const other = s.chairs.find((x) => x.id !== me.id && !x.croupier && x.owner); const sc = window.__t3d.chairs(); return { me: sc.find((k) => k.id === me.id), other: sc.find((k) => k.id === other.id), otherId: other.id, meId: me.id }; });
+  await c.mouse.move(info.me.x, info.me.y); await c.mouse.down();
+  await c.mouse.move(info.other.x, info.other.y, { steps: 40 });
+  const gap = await c.evaluate(([a, b]) => { const p = window.__t3d.chairAt(a), q = window.__t3d.chairAt(b); return Math.hypot(p[0] - q[0], p[2] - q[2]); }, [info.meId, info.otherId]);
+  await c.mouse.up();
+  check("свой стул, затянутый на чужой, не наплывает: между центрами не меньше ширины сиденья", gap >= 3.4, { gap });
+  await c.close();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));

@@ -556,6 +556,8 @@ describe("TableRoom", () => {
     const [p, q] = after;
     expect(await runIn(room, "tg:11", { t: "seat", do: "place", chairs: [{ chair: p!, angle: 30 }, { chair: q!, angle: 300 }, { chair: "nope", angle: 5 }] })).toEqual({ ok: true });
     expect(await runIn(room, "tg:12", { t: "seat", do: "place", chairs: [{ chair: p!, angle: 90 }] })).toEqual({ error: "not-admin" });
+    // Стулья не наплывают: поставить один на 10° от другого — отказ целиком, прежние углы стоят.
+    expect(await runIn(room, "tg:11", { t: "seat", do: "place", chairs: [{ chair: p!, angle: 300 }, { chair: q!, angle: 310 }] })).toEqual({ error: "bad" });
     void a;
     void b;
   }, 15000);

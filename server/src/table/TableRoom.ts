@@ -45,7 +45,7 @@ import { readIntent } from "./intent.js";
 import { Flood } from "./flood.js";
 import { PULSE_EVERY_MS, type Pulse } from "./freshness.js";
 import type { BotAct, Minds, Play, Where } from "./contract.js";
-import { seatPoint } from "./ring.js";
+import { angleApart, SEAT_GAP_DEG, seatPoint } from "./ring.js";
 
 /**
  * Где крупье выкладывает стопку: перед собой, но НЕ НА МЕСТЕ КОЛОДЫ — колода живёт у него же, и
@@ -660,7 +660,13 @@ export class TableRoom extends Room {
       return { ok: true };
     }
     if (order.do === "place") {
-      const known = new Set(this.table.layout().chairs.filter((c) => !c.croupier).map((c) => c.id));
+      const seats = this.table.layout().chairs.filter((c) => !c.croupier);
+      const known = new Set(seats.map((c) => c.id));
+      // Стулья не наплывают друг на друга: в новой рассадке ни один сдвинутый не ближе зазора к другому — иначе отказ целиком.
+      const next = new Map(seats.map((c) => [c.id, c.angle]));
+      for (const one of order.chairs) if (known.has(one.chair)) next.set(one.chair, ((one.angle % 360) + 360) % 360);
+      const moved = order.chairs.filter((c) => known.has(c.chair)).map((c) => c.chair);
+      for (const id of moved) for (const [other, angle] of next) if (other !== id && angleApart(angle, next.get(id)!) < SEAT_GAP_DEG) return { error: "bad" };
       for (const one of order.chairs) if (known.has(one.chair)) this.spread(this.table.turnChair(one.chair, one.angle));
       return { ok: true };
     }

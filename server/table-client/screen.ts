@@ -22,7 +22,7 @@ import { cuesBetween, spots as cueSpots, type CueAt, type CueKind, type Spot as 
 import { mountTalk, type WordAnchor } from "./talk.js";
 import { LINE_MAX, LINES_MAX } from "../src/table/say.js";
 import { FELT_REACH } from "../src/table/table.js";
-import { ringCardStep, RING_HOUR, RING_HOURS, RING_SPREAD, ringLanding, ringTurned, ringZoneBox } from "../src/table/ring.js";
+import { angleApart, ringCardStep, RING_HOUR, RING_HOURS, RING_SPREAD, ringLanding, ringTurned, ringZoneBox, SEAT_GAP_DEG } from "../src/table/ring.js";
 import type { RingPlace as Laid3 } from "../src/table/ring.js";
 import type { TableStore } from "./store.js";
 import type { ScreenHealth, SeenThrough } from "./watch.js";
@@ -5144,7 +5144,11 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
     if (!r?.drag || r.drag.pid !== e.pointerId || !view) return;
     const at = view.toDesk({ x: e.clientX, y: e.clientY });
     if (Math.hypot(at.x, at.y) < 0.5) return;
-    r.angles[r.drag.chair] = Math.round(((Math.atan2(at.x, at.y) * 180) / Math.PI + 360) % 360);
+    const angle = Math.round(((Math.atan2(at.x, at.y) * 180) / Math.PI + 360) % 360);
+    // СТУЛЬЯ НЕ НАПЛЫВАЮТ: ближе зазора к чужому стулу (с учётом уже сдвинутых в этой пересадке) — стул остаётся на прошлом месте.
+    const drag = r.drag.chair;
+    if (store.state.chairs.some((c) => c.id !== drag && !c.croupier && angleApart(r.angles[c.id] ?? c.angle, angle) < SEAT_GAP_DEG)) return;
+    r.angles[drag] = angle;
     draw();
   };
   const reseatEnd = (e: PointerEvent) => {

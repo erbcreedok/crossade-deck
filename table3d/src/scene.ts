@@ -511,6 +511,23 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     camera.lookAt(pos.x + Math.sin(y) * Math.cos(p), pos.h + viewH + Math.sin(p), pos.y - Math.cos(y) * Math.cos(p));
     camera.updateMatrixWorld();
   }
+  /**
+   * СТУЛ ПЕРЕСЕЛИ — ВЗГЛЯД ОСТАЁТСЯ ТЕМ ЖЕ: свой стул встал на другой угол (пересадка, возвращение в комнату), голова едет к новому месту, а взгляд поворачивается ровно на
+   * этот угол — смотрел в центр стола, так и смотришь; будто стол провернулся перед тобой, а ты не сдвинулся.
+   */
+  let seatAngleSeen: number | null = null;
+  function syncSeatAngle(): void {
+    const ch = myChair();
+    if (!ch) return;
+    if (seatAngleSeen !== null && seatAngleSeen !== ch.angle) {
+      const d = wrap(seatAngleSeen - ch.angle);
+      rig.yaw = wrap(rig.yaw + d);
+      if (gyroOff !== null) gyroOff = wrap(gyroOff + d);
+      lag.prevYaw = rig.yaw;
+      if (camMode !== "orbit") applyRig();
+    }
+    seatAngleSeen = ch.angle;
+  }
   function rigHome(): void {
     const ch = myChair();
     if (!ch) return;
@@ -555,10 +572,28 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** ПЕРЕСАДКА: вид сверху без тел, рук и голов; свой стул тянут по кругу (`angle` — куда, `null` — пока не тронут), потом «Готово» или «Отмена». */
   let reseat: { was: CamMode; angle: number | null; pull: number | null; pid: number | null } | null = null;
   let figuresOn = true;
+  /** Пунктирный след старого места своего стула — пока его пересаживают, видно, откуда начал. */
+  let reseatGhost: THREE.Group | null = null;
+  function makeReseatGhost(): void {
+    const ch = myChair();
+    if (!ch) return;
+    const mat = new THREE.LineDashedMaterial({ color: store.me.ink, dashSize: 0.28, gapSize: 0.2, transparent: true, opacity: 0.95, depthTest: false });
+    const half = CHAIR.seat / 2, y = CHAIR.seatY + CHAIR.thick / 2 + 0.08;
+    // Сиденье квадратом и спинка отрезком — как стоял стул.
+    const line = (pts: number[][]) => { const l = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts.map(([x, z]) => new THREE.Vector3(x, y, z))), mat); l.computeLineDistances(); l.renderOrder = 8; return l; };
+    const g = new THREE.Group();
+    g.add(line([[-half, -half], [half, -half], [half, half], [-half, half]]), line([[-half, half], [half, half], [half, half + 0.05], [-half, half + 0.05]]));
+    const one = chairObjs.get(ch.id), at = seatPoint(ch.angle, CHAIR.radius + CHAIR.pushed * (one?.k ?? 0) - seatPull), dir = seatPoint(ch.angle, 1);
+    g.position.set(at.x, 0, at.y);
+    g.rotation.y = Math.atan2(dir.x, dir.y);
+    scene.add(g);
+    reseatGhost = g;
+  }
   function setReseat(on: boolean): void {
     if (on === (reseat !== null)) return;
     if (on) {
       reseat = { was: camMode, angle: null, pull: null, pid: null };
+      makeReseatGhost();
       setCamMode("orbit");
       camera.fov = 50; camera.updateProjectionMatrix();
       orbit.enablePan = true;
@@ -575,6 +610,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     } else {
       const was = reseat!.was;
       reseat = null;
+      if (reseatGhost) { scene.remove(reseatGhost); reseatGhost = null; }
       orbit.enablePan = false;
       orbit.minDistance = 5; orbit.maxDistance = 40;
       orbit.minPolarAngle = 0; orbit.maxPolarAngle = 85 * DEG;
@@ -704,6 +740,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     applyRig(); touched = true; sendBody();
   }
   /** Вкл/выкл гиро. Включать — из жеста пальца (iOS даёт датчик только так). Ответ — что не вышло. */
+  // Свернул и открыл снова: датчик начинает счёт заново, и курс гиро мог уехать — первое новое слово «обнуляется» под нынешний взгляд, голова не теряется в пространстве.
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) gyroOff = null; });
+  addEventListener("pageshow", () => { gyroOff = null; });
   async function gyroToggle(): Promise<string | null> {
     if (gyro.on()) { gyro.stop(); gyroOff = null; gyroTilt = 0; return null; }
     const asked = gyro.start();
@@ -1527,6 +1566,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
   const pileAngle = (p: Pile) => (p as Pile & { angle?: number }).angle ?? 0;
   function layout(s: Snapshot): void {
+    syncSeatAngle();
     drawBodies(s);
     const seen = new Set<string>();
     fromOf.clear();
@@ -1718,6 +1758,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const now = performance.now(), dt = Math.min(0.05, Math.max(0.001, (now - lastTick) / 1000));
     const sinceMs = Math.min(250, now - lastTick);
     lastTick = now;
+    syncSeatAngle();
     applyGyro();
     // Камера и моя рука — до пружин: рука едет с головой, и пружины догоняют уже новое место.
     if (camMode === "head" || camMode === "top") {
@@ -1948,7 +1989,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * пересесть на свободный. Цвет — цвет хозяина, у свободного — серый. У крупье стула нет: он всегда стоит.
    * Размеры — в единицах стола (пол на -7, стол на человеческой высоте: одна единица — примерно 12 см).
    */
-  const CHAIR = { seat: 3.4, thick: 0.35, seatY: -3.3, back: 3.8, leg: 0.32, floor: -7, radius: 7.9, pushed: 1.6, free: 0x7d8a86 };
+  const CHAIR = { gap: 0.4, seat: 3.4, thick: 0.35, seatY: -3.3, back: 3.8, leg: 0.32, floor: -7, radius: 7.9, pushed: 1.6, free: 0x7d8a86 };
   /** Мягкий круг свечения: белый, яркий у середины и гаснущий к краю; цвет задаёт материал. */
   let glowTex: THREE.CanvasTexture | null = null;
   const glowTexture = (): THREE.CanvasTexture => glowTex ??= canvasTexture(128, 128, (c) => {
@@ -2155,10 +2196,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     e.stopImmediatePropagation();
     const at = onFelt(e);
     if (!at || Math.hypot(at.x, at.z) < 0.5) return;
-    reseat.angle = Math.round(((Math.atan2(at.x, at.z) * 180) / Math.PI + 360) % 360);
+    const angle = Math.round(((Math.atan2(at.x, at.z) * 180) / Math.PI + 360) % 360);
     // Стул тянут не только по кругу, но и от стола / к столу: расстояние от середины — посадка (от «как сидишь» до предела назад).
-    const mineObj = chairObjs.get(reseat.pid !== null ? myChair()?.id ?? "" : "");
-    reseat.pull = Math.max(SEAT_PULL.min, Math.min(SEAT_PULL.max, CHAIR.radius + CHAIR.pushed * (mineObj?.k ?? 0) - Math.hypot(at.x, at.z)));
+    const mineId = myChair()?.id ?? "", mineObj = chairObjs.get(mineId);
+    const pull = Math.max(SEAT_PULL.min, Math.min(SEAT_PULL.max, CHAIR.radius + CHAIR.pushed * (mineObj?.k ?? 0) - Math.hypot(at.x, at.z)));
+    // СТУЛЬЯ НЕ НАПЛЫВАЮТ: на чужое место или впритык к чужому стулу не поставить — стул останавливается у края.
+    const c = seatPoint(angle, CHAIR.radius + CHAIR.pushed * (mineObj?.k ?? 0) - pull);
+    for (const [id, one] of chairObjs) if (id !== mineId && Math.hypot(one.group.position.x - c.x, one.group.position.z - c.y) < CHAIR.seat + CHAIR.gap) return;
+    reseat.angle = angle;
+    reseat.pull = pull;
     layout(store.state); draw();
   }, { capture: true });
   const reseatUp = (e: PointerEvent): void => {
@@ -2563,6 +2609,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    reseatNow: (angle: number) => { store.send({ t: "reseat", angle }); },
+    gyroOffNow: () => gyroOff,
     carryTo: (id: string, chair: string, i: number) => { if (!store.state.locks[id]) store.send({ t: "grab", id }); store.carry({ id, over: { in: "hand", chair, i } }); },
     cardOnHud: (id: string) => { const o = cards.get(id); return o ? { onCamera: !!o.target.onCamera, x: o.target.pos.x } : null; },
     stackMode: () => stackMode,
@@ -2576,7 +2624,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     eyeNow: () => eyeY(),
     setViewHeight: (t: number) => { viewHManual = true; viewH = VIEW_H.min + Math.max(0, Math.min(1, t)) * (VIEW_H.max - VIEW_H.min); applyRig(); layout(store.state); draw(); },
     chairAt: (id: string) => chairObjs.get(id)?.group.position.toArray() ?? null,
-    reseatInfo: () => ({ on: reseat !== null, heads: heads.visible, chairs: chairRoot.visible, handShown: store.state.chairs.flatMap((c) => c.hand).filter((c) => cards.get(c.id)?.group.visible).length, felt: store.state.felt.filter((c) => cards.get(c.id)?.group.visible).length, chair: (() => { const o = chairObjs.get(myChair()?.id ?? ""); return o ? { color: o.mats[0]!.color.getHexString(), emissive: o.mats[0]!.emissive.getHexString(), halo: (o.halo.material as THREE.MeshBasicMaterial).color.getHexString() } : null; })(), tags: [...chairObjs.entries()].filter(([, o]) => o.tag).map(([id]) => id), glow: [...chairObjs.entries()].filter(([, o]) => o.halo.visible).map(([id]) => id) }),
+    reseatInfo: () => ({ on: reseat !== null, heads: heads.visible, chairs: chairRoot.visible, handShown: store.state.chairs.flatMap((c) => c.hand).filter((c) => cards.get(c.id)?.group.visible).length, felt: store.state.felt.filter((c) => cards.get(c.id)?.group.visible).length, ghost: reseatGhost ? { x: reseatGhost.position.x, z: reseatGhost.position.z } : null, chair: (() => { const o = chairObjs.get(myChair()?.id ?? ""); return o ? { color: o.mats[0]!.color.getHexString(), emissive: o.mats[0]!.emissive.getHexString(), halo: (o.halo.material as THREE.MeshBasicMaterial).color.getHexString() } : null; })(), tags: [...chairObjs.entries()].filter(([, o]) => o.tag).map(([id]) => id), glow: [...chairObjs.entries()].filter(([, o]) => o.halo.visible).map(([id]) => id) }),
     feltScreen: (x: number, y: number) => project(new THREE.Vector3(x, 0, y)),
     ringLit: () => [...ringFields.entries()].map(([id, f]) => ({ id, zone: f.zone.visible, glow: f.glow.visible, slot: f.slot.visible })),
     cardQuat: (id: string) => { const o = cards.get(id); return o ? new THREE.Euler().setFromQuaternion(o.target.quat, "ZXY").toArray().slice(0, 3).map((v) => Math.round(((v as number) * 180) / Math.PI * 10) / 10) : null; },
