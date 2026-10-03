@@ -1,0 +1,43 @@
+server/src/table/patch.ts
+  s_ad8a8a5b5d0419::t_6ac2f665177282 24-30
+server/src/table/historyCut.test.ts
+  s_ad8a8a5b5d0419::t_b3ea04d1456622 1-74
+server/src/table/historyCut.ts
+  s_ad8a8a5b5d0419::t_01abaff276f9f9 20-26
+  s_ad8a8a5b5d0419::t_d6c929b1d60a0a 1-19,27-88
+server/src/table/pathTape.test.ts
+  s_ad8a8a5b5d0419::t_b3ea04d1456622 1-45
+server/src/table/historyRoom.test.ts
+  s_ad8a8a5b5d0419::t_c6ba257dfd464d 34
+  s_ad8a8a5b5d0419::t_e655e527e3ef07 1-33,35-71
+server/src/table/pathTape.ts
+  s_ad8a8a5b5d0419::t_9821b2adfd3042 1-113
+server/src/table/TableRoom.ts
+  s_ad8a8a5b5d0419::t_47cc1043c5f04f 412-414,416
+  s_ad8a8a5b5d0419::t_7edb7667e34f03 22,58-60,131-132,238,242-246,399-400,409-411,415,417-420,1555
+server/src/db/eventsRepo.ts
+  s_ad8a8a5b5d0419::t_7edb7667e34f03 119-131
+server/src/table/flood.ts
+  s_ad8a8a5b5d0419::t_558f4022c000d4 18
+server/src/roomHarness.ts
+  s_ad8a8a5b5d0419::t_e655e527e3ef07 28
+server/src/table/contract.ts
+  s_ad8a8a5b5d0419::t_7edb7667e34f03 803-807
+  s_ad8a8a5b5d0419::t_6ac2f665177282 689-690,789-802,808-818
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8dcb0985d2ef34de4c55b1a811c6c13448b3404c",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
