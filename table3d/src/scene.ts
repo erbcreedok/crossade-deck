@@ -1438,6 +1438,62 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const pos = new THREE.Vector3((sl.x / g.w - 0.5) * vw, -(sl.y / g.h - 0.5) * vh, -D + k * 0.004);
     return { pos, quat: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -sl.angle * DEG), scale: ((geom.w / g.w) * vw) / CARD_W, onCamera: true };
   };
+  /**
+   * ЧАША «В РУКУ» — зона руки от первого лица: пока несут карту или стопку, вокруг руки стоит чаша из пунктира (часть эллипсоида, дно ниже веера), а не полоса на экране.
+   * Она в осях камеры, как сама рука. Край чаши лежит по верху веера, КАК ЕГО ВИДНО С КАМЕРЫ: высоту среза подбираем так, чтобы самая высокая на экране точка края
+   * легла на самую высокую точку карт. Над зоной (палец над рукой) чаша золотая. Вид «вокруг» и «сверху» чашу не рисуют.
+   */
+  const BOWL = { R: 1.8, sq: 0.85, ink: 0x7fd1b9, lit: 0xf2c14e, meridians: 8, gap: 0.5 } as const;
+  const bowlG = new THREE.Group();
+  bowlG.visible = false;
+  handRoot.add(bowlG);
+  let bowlSig = "";
+  let handZone: (() => { over: boolean } | null) | null = null;
+  const bowlNow = { visible: false, lit: false, cut: 0, fitTop: 0, ringTop: 0, cardsTop: 0 };
+  function handBowl(): void {
+    const z = camMode === "head" && !store.replay?.on ? handZone?.() ?? null : null;
+    if (!z) { bowlNow.visible = false; if (bowlG.visible) bowlG.visible = false; return; }
+    const ch = myChair(), places: Place[] = [];
+    // Несомая карта в расчёт не идёт: край чаши — по самому ряду, а не по тому, что подняли над ним.
+    if (ch) for (const c of ch.hand) { if (drag?.moved && drag.id === c.id) continue; const t = cards.get(c.id)?.target; if (t?.onCamera) places.push(t); }
+    if (!places.length) {
+      // Пустая рука: зона там, где встала бы одна карта.
+      const shape = shapeOfWidth(handWidth, 1, 0, 0); shape.lift = 1;
+      places.push(camHandLocal(0, 1, false, shape, Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), handSize, { x: 0, y: 0 }, 0));
+    }
+    const center = new THREE.Vector3(), corners: THREE.Vector3[] = [];
+    for (const p of places) {
+      center.add(p.pos);
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) corners.push(new THREE.Vector3((sx * CARD_W * p.scale) / 2, (sy * CARD_H * p.scale) / 2, 0).applyQuaternion(p.quat).add(p.pos));
+    }
+    center.divideScalar(places.length);
+    const top = (pts: THREE.Vector3[]): number => { let best = -Infinity; for (const v of pts) if (v.z < -0.05) best = Math.max(best, v.clone().applyMatrix4(camera.projectionMatrix).y); return best; };
+    const R = BOWL.R, Ry = BOWL.R * BOWL.sq, want = top(corners);
+    const latOf = (cut: number): number => -Math.asin(Math.max(-1, Math.min(1, 1 - 2 * (cut / 100))));
+    const ring = (lat: number, n = 48): THREE.Vector3[] => Array.from({ length: n + 1 }, (_, i) => { const a = (i / n) * Math.PI * 2; return new THREE.Vector3(center.x + Math.cos(lat) * R * Math.sin(a), center.y + Math.sin(lat) * Ry, center.z + Math.cos(lat) * R * Math.cos(a)); });
+    const ringTop = (cut: number): number => top(ring(latOf(cut)));
+    let lo = 2, hi = 98;
+    if (ringTop(lo) >= want) hi = lo; else if (ringTop(hi) <= want) lo = hi; else for (let i = 0; i < 18; i++) { const mid = (lo + hi) / 2; if (ringTop(mid) < want) lo = mid; else hi = mid; }
+    // Чуть пространства над картами: край поднят на `BOWL.gap` (единицы камеры) над их силуэтом.
+    const fit = (lo + hi) / 2, cut = Math.min(99, Math.max(2, 50 * (1 + Math.min(0.98, Math.sin(latOf(fit)) + BOWL.gap / Ry)))), lat = latOf(cut);
+    Object.assign(bowlNow, { visible: true, lit: z.over, cut, fitTop: ringTop(fit), ringTop: ringTop(cut), cardsTop: want });
+    const sig = [center.x, center.y, center.z, cut, z.over ? 1 : 0].map((v) => Math.round(v * 100)).join();
+    bowlG.visible = true;
+    if (sig === bowlSig) return;
+    bowlSig = sig;
+    for (const c of [...bowlG.children]) { bowlG.remove(c); (c as THREE.Line).geometry?.dispose(); }
+    const col = z.over ? BOWL.lit : BOWL.ink, bottom = -Math.PI / 2;
+    const at = (l: number, a: number) => new THREE.Vector3(center.x + Math.cos(l) * R * Math.sin(a), center.y + Math.sin(l) * Ry, center.z + Math.cos(l) * R * Math.cos(a));
+    const dashed = (pts: THREE.Vector3[], dash: number, gap: number): THREE.Line => {
+      const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color: col, dashSize: dash, gapSize: gap, transparent: true, opacity: z.over ? 1 : 0.85, depthWrite: false }));
+      l.computeLineDistances(); l.layers.set(HAND_LAYER); return l;
+    };
+    bowlG.add(dashed(ring(lat, 72), 0.24, 0.16));
+    for (let i = 0; i < BOWL.meridians; i++) bowlG.add(dashed(Array.from({ length: 21 }, (_, k) => at(lat + (bottom - lat) * (k / 20), (i / BOWL.meridians) * Math.PI * 2)), 0.18, 0.22));
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(R * Math.cos(lat), 48), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: z.over ? 0.12 : 0.06, side: THREE.DoubleSide, depthWrite: false }));
+    disc.rotation.x = -Math.PI / 2; disc.position.set(center.x, center.y + Math.sin(lat) * Ry, center.z); disc.layers.set(HAND_LAYER);
+    bowlG.add(disc);
+  }
   // ——— рука-стопка: верхний язычок оттянули вверх — левая рука держит все карты над столом, как колоду ———
   const CARRY_H = 0.6;
   let handCarry: { x: number; y: number; sx: number; sy: number; zoneTop: number } | null = null;
@@ -1936,6 +1992,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (placeChairs(dt)) moving = true;
     placeZones();
     placeMyBody();
+    handBowl();
     // Своя рука у глаза — вторым проходом поверх всего: борт стола, подошедший к камере вплотную, её не закрывает.
     camera.layers.set(0);
     headsFront();
@@ -2845,6 +2902,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     pileBodyAxis: (pile: string) => { const m = bodies.get(pile), p = store.state.piles.find((x) => x.id === pile); if (!m || !p) return null; const b = cards.get(p.cards[0]!.id), t = cards.get(p.cards.at(-1)!.id); if (!b || !t) return null; const d = t.group.getWorldPosition(new THREE.Vector3()).sub(b.group.getWorldPosition(new THREE.Vector3())).normalize(), z = new THREE.Vector3(0, 0, 1).applyQuaternion(m.quaternion); return { dot: d.dot(z), z: z.toArray().map((v) => Math.round(v * 100) / 100) }; },
     headFronts: () => heads.children.flatMap((b) => b.children.filter((c) => c.userData.base).map((c) => ({ by: b.userData.by as string, moved: c.position.distanceTo(c.userData.base as THREE.Vector3), scale: c.scale.x }))),
     handDropZone: () => api.handDropZone(),
+    bowlInfo: () => ({ ...bowlNow }),
     handCardPx: () => { const shape = shapeOfWidth(handWidth, 1, 0, 0); shape.lift = 1; const b = handCardBox(1, shape, Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), 0, 0); return Math.abs(b.bottom - b.top); },
     eyeNow: () => eyeY(),
     setViewHeight: (t: number) => setViewHNorm(t),
@@ -3153,5 +3211,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   home();
   sendBody(true);
   layout(store.state);
+  handZone = () => api.handDropZone();
   return api;
 }

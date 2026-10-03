@@ -297,26 +297,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   root.append(reseatBar);
   const reseatSyncBar = () => { const on = scene.reseatOn(); if (reseatBar.style.display !== (on ? "flex" : "none")) { reseatBar.style.display = on ? "flex" : "none"; draw(); } };
   setInterval(reseatSyncBar, 150);
-  // Пока несут карту, зона руки еле заметна — «такая есть, сюда можно»; наведённая карта зажигает её чуть сильнее. Без рамок и ярких пятен.
-  const handDrop = document.createElement("div");
-  handDrop.dataset.handDrop = "";
-  handDrop.style.cssText = "display:none;position:absolute;left:0;right:0;z-index:37;pointer-events:none;box-sizing:border-box;transition:background .18s,box-shadow .18s";
-  handDrop.innerHTML = '<span style="position:absolute;left:14px;top:8px;font:400 11px Tiny5,monospace;letter-spacing:.5px;opacity:0;transition:opacity .18s"></span>';
-  root.append(handDrop);
-  const handDropSync = () => {
-    const z = scene.handDropZone();
-    if (!z) { if (handDrop.style.display !== "none") { handDrop.style.display = "none"; delete handDrop.dataset.state; } return; }
-    const ink = store.me.ink, tag = handDrop.firstElementChild as HTMLElement;
-    handDrop.style.display = "block";
-    handDrop.dataset.state = z.over ? "over" : "hint";
-    handDrop.style.top = `${z.top}px`; handDrop.style.height = `${Math.max(24, z.bottom - z.top)}px`;
-    handDrop.style.background = `linear-gradient(color-mix(in srgb, ${ink} ${z.over ? 17 : 10}%, transparent), color-mix(in srgb, ${ink} ${z.over ? 7 : 3}%, transparent))`;
-    handDrop.style.boxShadow = z.over ? `inset 0 12px 22px -14px color-mix(in srgb, ${ink} 40%, transparent)` : "none";
-    // Контурный пунктир сверху зоны — и пока несут, и над рукой (над рукой плотнее).
-    handDrop.style.borderTop = `2px dashed color-mix(in srgb, ${ink} ${z.over ? 75 : 50}%, transparent)`;
-    tag.textContent = "В руку"; tag.style.color = ink; tag.style.opacity = z.over ? "0.85" : "0.6";
-  };
-  setInterval(handDropSync, 50);
+  // Зона «в руку» от первого лица — чаша в самой сцене (`handBowl` в scene.ts), а не полоса на худе.
   const flagLit = (s: Snapshot, what: ChairFlag): boolean => !!myChair(s)?.[what];
   const POSE_NAME: Record<string, string> = { row: "В ряд", fan: "Веер", spine: "Корешок", tuck: "На стол" };
   const POSE_ICON: Record<string, string> = { row: "row", fan: "fan", spine: "spine", tuck: "tuck" };

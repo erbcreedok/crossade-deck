@@ -153,14 +153,14 @@ check("язычок за самый верх — вся рука ушла на �
   await c.evaluate(() => window.__t3d.trimHand(0));
   await c.waitForTimeout(1200);
   const felt = await c.evaluate(() => { const s = window.__t3d.state(); const id = s.felt.at(-1)?.id; return id ? { id, at: window.__t3d.screenOf(id) } : null; });
-  const state = () => c.evaluate(() => { const e = document.querySelector("[data-hand-drop]"); return e && e.style.display !== "none" ? e.dataset.state : null; });
+  const state = () => c.evaluate(() => { const b = window.__t3d.bowlInfo(); return b.visible ? (b.lit ? "over" : "hint") : null; });
   check("до: зоны руки не видно", (await state()) === null, await state());
   if (felt?.at) {
     await c.mouse.move(felt.at.x, felt.at.y); await c.mouse.down(); await c.mouse.move(felt.at.x, felt.at.y - 40, { steps: 4 });
     await c.waitForTimeout(150);
     check("несут со стола над сукном — зона руки намечена (hint), не горит", (await state()) === "hint", await state());
-    const look = await c.evaluate(() => { const e = document.querySelector("[data-hand-drop]"); return { text: e.firstElementChild.textContent, op: Number(getComputedStyle(e.firstElementChild).opacity), dashed: getComputedStyle(e).borderTopStyle, w: getComputedStyle(e).borderTopWidth }; });
-    check("пока несут: надпись «В руку» видна и сверху контурный пунктир", look.text === "В руку" && look.op >= 0.5 && look.dashed === "dashed" && look.w !== "0px", look);
+    const look = await c.evaluate(() => window.__t3d.bowlInfo());
+    check("пока несут: чаша «в руку» видна, и её край на экране идёт по верху карт руки", look.visible && Math.abs(look.fitTop - look.cardsTop) < 0.03 && look.ringTop > look.cardsTop && !document.querySelector("[data-hand-drop]"), look);
     await c.mouse.move(195, 700, { steps: 8 });
     await c.waitForTimeout(250);
     check("над своей (пустой) рукой — зона подсвечена (over)", (await state()) === "over", await state());
@@ -211,7 +211,7 @@ check("язычок за самый верх — вся рука ушла на �
   await c.goto(`${base}/?stand&cam=head`);
   await c.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
   await c.waitForTimeout(1200);
-  const state = () => c.evaluate(() => { const e = document.querySelector("[data-hand-drop]"); return e && e.style.display !== "none" ? e.dataset.state : null; });
+  const state = () => c.evaluate(() => { const b = window.__t3d.bowlInfo(); return b.visible ? (b.lit ? "over" : "hint") : null; });
   const tab = await c.evaluate(() => { const t = window.__t3d.tabInfo("deck"); return t ? t.screen : null; });
   check("у колоды на столе есть язычок", !!tab, tab);
   if (tab) {

@@ -1,0 +1,38 @@
+// ЧАША «В РУКУ» (стенд): от первого лица, пока несут карту, вокруг руки стоит чаша; её край на экране идёт по верху карт руки; над рукой она горит; в свободной камере и сверху её нет;
+// старой полосы на худе больше нет.
+//   node bowl-check.mjs [base]
+import { createRequire } from "module";
+const require = createRequire(new URL("../server/scripts/x.mjs", import.meta.url));
+const { chromium } = require("playwright");
+const base = process.argv[2] ?? "http://localhost:9590";
+const browser = await chromium.launch();
+const errors = [];
+const checks = [];
+const check = (name, ok, got) => checks.push({ name, ok, got });
+const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
+p.on("pageerror", (e) => errors.push(e.message));
+await p.goto(`${base}/?stand&cam=head`);
+await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+await p.waitForTimeout(1500);
+const info = () => p.evaluate(() => window.__t3d.bowlInfo());
+check("без переноса чаши нет", (await info()).visible === false);
+const id = await p.evaluate(() => { const s = window.__t3d.state(); const c = s.chairs.find((x) => x.owner === window.__t3d.me()); return c.hand.at(-1).id; });
+const at = await p.evaluate((i) => window.__t3d.screenOf(i), id);
+await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x, at.y - 60, { steps: 5 }); await p.mouse.move(195, 330, { steps: 8 }); await p.waitForTimeout(400);
+const carrying = await info();
+check("несут карту — чаша видна, не горит", carrying.visible && !carrying.lit, carrying);
+check("край чаши на экране идёт по верху карт руки — выше на запас, не вплотную", Math.abs(carrying.fitTop - carrying.cardsTop) < 0.03 && carrying.ringTop > carrying.cardsTop + 0.1, carrying);
+check("старой полосы «В руку» на худе нет", (await p.$("[data-hand-drop]")) === null);
+await p.mouse.move(at.x - 100, at.y - 10, { steps: 8 }); await p.waitForTimeout(400);
+const over = await info();
+check("над рукой чаша горит", over.visible && over.lit, over);
+check("край идёт по верху ряда, а не по несомой карте", Math.abs(over.fitTop - over.cardsTop) < 0.03 && over.cardsTop < -0.45, over);
+await p.evaluate(() => window.__t3d.setCamMode("orbit")); await p.waitForTimeout(400);
+check("свободная камера — чаши нет", (await info()).visible === false, await info());
+await p.evaluate(() => window.__t3d.setCamMode("top")); await p.waitForTimeout(400);
+check("вид сверху — чаши нет", (await info()).visible === false, await info());
+await p.mouse.up();
+await browser.close();
+check("без ошибок страницы", errors.length === 0, errors);
+for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
+process.exit(checks.every((c) => c.ok) ? 0 : 1);
