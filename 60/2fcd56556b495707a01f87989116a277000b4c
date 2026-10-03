@@ -1,0 +1,35 @@
+bot/src/table/api.ts
+  s_783a0cc3ed910b::t_c29b0cf425257b 14-18,30,76,90,95,100-110,161,167
+table3d/vite.config.ts
+  s_783a0cc3ed910b::t_13a82e2803b17b 17-18
+deploy/voyager/crossade-dev-table.service
+  s_783a0cc3ed910b::t_76b23f85d0fc29 13-14
+deploy/voyager/install.sh
+  s_783a0cc3ed910b::t_76b23f85d0fc29 9-12,15-16
+scripts/deploy-voyager.sh
+  s_783a0cc3ed910b::t_76b23f85d0fc29 21
+  s_783a0cc3ed910b::t_bc707787a528f2 47-50
+scripts/dev-expose.sh
+  s_783a0cc3ed910b::t_cdee3e679dd9ab 27-28
+  s_783a0cc3ed910b::t_614e2bc3784083 2-3,9-15,19-20,23,29-30,32-34,38
+deploy/voyager/crossade-dev-bot.service
+  s_783a0cc3ed910b::t_76b23f85d0fc29 1-15
+bot/src/table/api.test.ts
+  s_783a0cc3ed910b::t_c29b0cf425257b 39-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "602fcd56556b495707a01f87989116a277000b4c",
+  "prompts": {},
+  "sessions": {
+    "s_783a0cc3ed910b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "961f95bc-95fa-4b4a-8d9b-d0901f13a448",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
