@@ -61,7 +61,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 const TABLE_R = 6.4, RIM = 0.45, THICK = 0.6, CARD_W = 1.17, CARD_H = 1.638, SHOULDERS = TABLE_R + 1, CHAIR_R = 7.9;
 const CAMHAND = { x: 0, y: -0.92, z: -2.3, card: 0.486 }, REF_PITCH = -40, DEG = Math.PI / 180;
 const CHAIR = { seat: 3.4, thick: 0.35, seatY: -3.3, back: 3.8, leg: 0.32, floor: -7 };
-const P = { view: "head", hand: "cap", cap: true, capElev: -41, style: "frame", R: 1.8, anchor: "head", ay: 0, sq: 0.85, cut: 50, cards: 9, fov: 85, yaw: -7.92, pitch: -32.67, carry: false, lift: 4, viewH: 0, doll: 0.8, show: true, size: 0.7 };
+const P = { view: "head", hand: "cap", cap: true, capElev: -41, style: "frame", R: 1.8, anchor: "head", ay: 0, sq: 0.85, cut: 50, cards: 9, fov: 85, yaw: -7.92, pitch: -32.67, carry: false, lift: 4, viewH: 0, doll: 0.8, show: true, axis: true, size: 0.7 };
 
 const canvas = document.getElementById("gl"), stage = document.getElementById("stage");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -175,6 +175,31 @@ function buildBowl() {
   disc.rotation.x = -Math.PI / 2; disc.position.set(c.x, c.y + Math.sin(top) * Ry, c.z); bowl.add(disc);
 }
 
+// ——— ОСЬ: центр чаши — он же точка, вокруг которой качается рука; вертикаль через него; линия к руке ———
+const axisG = new THREE.Group(); scene.add(axisG);
+const onTop = (m) => { m.depthTest = false; m.transparent = true; return m; };
+let axisSig = "";
+function drawAxis() {
+  axisG.visible = P.axis;
+  if (!P.axis) return;
+  const c = centre(), Ry = P.R * P.sq, pole = poleY(), mid = handCards[Math.floor(handCards.length / 2)];
+  const h = mid ? mid.getWorldPosition(new THREE.Vector3()) : c;
+  const sig = [c.x, c.y, c.z, Ry, pole, h.x, h.y, h.z].map((v) => Math.round(v * 50)).join();
+  if (sig === axisSig) return;
+  axisSig = sig; axisG.clear();
+  const line = (a, b, color, dash) => { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), dash ? new THREE.LineDashedMaterial({ color, dashSize: 0.18, gapSize: 0.12 }) : new THREE.LineBasicMaterial({ color })); onTop(l.material); l.computeLineDistances(); l.renderOrder = 10; return l; };
+  // Вертикаль от дна до верха эллипсоида.
+  axisG.add(line(new THREE.Vector3(c.x, c.y - Ry, c.z), new THREE.Vector3(c.x, c.y + Ry + 1.5, c.z), 0xff4d4d, false));
+  // Центр: шар и крест по горизонтали.
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 10), onTop(new THREE.MeshBasicMaterial({ color: 0xff4d4d }))); dot.position.copy(c); dot.renderOrder = 11; axisG.add(dot);
+  const r = Math.min(0.9, P.R * 0.5);
+  axisG.add(line(new THREE.Vector3(c.x - r, c.y, c.z), new THREE.Vector3(c.x + r, c.y, c.z), 0xff4d4d, false), line(new THREE.Vector3(c.x, c.y, c.z - r), new THREE.Vector3(c.x, c.y, c.z + r), 0xff4d4d, false));
+  // От оси к руке: плечо рычага, на котором карты качаются.
+  axisG.add(line(c, h, 0xf2c14e, true));
+  // Плоскость полюса: короткая засечка у оси.
+  axisG.add(line(new THREE.Vector3(c.x - 0.5, pole, c.z), new THREE.Vector3(c.x + 0.5, pole, c.z), 0xf2c14e, false));
+}
+
 // ——— РУКА ———
 let handCards = [], frozenYaw = 0;
 function buildHand() { for (const c of handCards) c.removeFromParent(); handCards = []; for (let i = 0; i < P.cards; i++) handCards.push(mkCard(i)); }
@@ -260,7 +285,7 @@ function frame() {
   headCam.position.copy(e); headCam.rotation.order = "YXZ"; headCam.rotation.set(P.pitch * DEG, -yawOf(), 0);
   headCam.fov = P.fov; headCam.updateProjectionMatrix();
   headBall.position.copy(e); headBall.visible = P.view !== "head";
-  drawArms();
+  drawArms(); drawAxis();
   if (neck) neck.visible = P.view !== "head";
   const H = new URLSearchParams(location.search).get("hide") ?? ""; armsG.visible = !H.includes("arms"); bodyG.visible = !H.includes("body"); mine.userData.chair.visible = !H.includes("chair");
   placeHand(); placeCarried();
@@ -299,7 +324,7 @@ function buildUi() {
   const seg = (title, list, key) => `<div class="grp">${title}</div><div class="row">${list.map(([k, t]) => `<button data-set="${key}:${k}" class="${P[key] === k ? "on" : ""}">${t}</button>`).join("")}</div>`;
   knobs.innerHTML = seg("Рука", HANDS, "hand") + seg("Ось руки и чаши", ANCHOR_BTNS, "anchor") + seg("Зона «в руку»", STYLES, "style")
     + `<div class="grp">Палец</div><div class="row"><button data-tog="carry" class="${P.carry ? "on" : ""}">Нести карту</button><button data-tog="cap" class="${P.cap ? "on" : ""}">Потолок = полюс</button></div>`
-    + `<div class="row" style="margin-top:6px"><button data-tog="show" class="${P.show ? "on" : ""}">Чаша видна</button><button data-reset>Оставить руку здесь</button></div>`
+    + `<div class="row" style="margin-top:6px"><button data-tog="show" class="${P.show ? "on" : ""}">Чаша видна</button><button data-tog="axis" class="${P.axis ? "on" : ""}">Ось видна</button><button data-reset>Оставить руку здесь</button></div>`
     + `<div class="grp">Числа</div>` + SLIDERS.map(([k, t, lo, hi, st]) => `<div class="k"><span>${t}</span><input type="range" data-k="${k}" min="${lo}" max="${hi}" step="${st}" value="${P[k]}"><b data-v="${k}">${Math.round(P[k] * 100) / 100}</b></div>`).join("")
     + `<small>Нести карту: тяни по экрану, карта идёт за пальцем. Сейчас: вид «${VIEWS.find((v) => v[0] === P.view)[1]}».</small>`;
   hint.textContent = P.view === "head" ? "Тяни по экрану — вертишь головой. Рука идёт за взглядом, но выше потолка не поднимается: взгляд вверх — рука остаётся внизу." : P.view === "orbit" ? "Свободная камера: чаша вокруг головы игрока, рука на ней." : "Сверху: чаша — круг вокруг головы над стулом.";
