@@ -10,7 +10,9 @@ const read = (): URLSearchParams => new URLSearchParams(location.hash.slice(1));
 
 /** Значение из адреса — или запасное. */
 export function route(name: string): string | null {
-  return read().get(name);
+  // Якорь главнее. Но Telegram при запуске мини-аппа сам пишет в якорь свои параметры, и ссылка, которая несёт выбор ТОЛЬКО в нём
+  // (`#tab=nodes`), может его потерять — поэтому для первого чтения годится и обычный запрос (`?tab=nodes`), его Telegram не трогает.
+  return read().get(name) ?? new URLSearchParams(location.search).get(name);
 }
 export const routeNum = (name: string, or: number): number => { const v = Number(route(name)); return route(name) !== null && Number.isFinite(v) ? v : or; };
 export const routeOne = <T extends string>(name: string, allowed: readonly T[], or: T): T => { const v = route(name); return v !== null && (allowed as readonly string[]).includes(v) ? (v as T) : or; };

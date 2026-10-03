@@ -63,6 +63,7 @@ async function main(): Promise<void> {
           { command: "records", description: "Записи сыгранных партий — смотрит любой" },
           { command: "app", description: "Открыть комнату в приложении Crossade (в личке)" },
           { command: "admin", description: "Все комнаты — для хозяина (в личке)" },
+          { command: "health", description: "Где что запущено — для хозяина (в личке)" },
           { command: "sticker", description: "Добавить стикеры в свой набор (в личке)" },
           { command: "stickers", description: "Мой набор стикеров (в личке)" },
           { command: "menu", description: "Меню комнаты: колода, раздача, рассадка" },

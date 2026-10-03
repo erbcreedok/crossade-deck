@@ -49,6 +49,11 @@ describe("ссылки для людей, когда бот ходит к сер
     expect(await api.publicUrl()).toBe("https://dev.ts.net:8443");
   });
 
+  it("ссылка на «где что запущено» — вкладка «Узлы» страницы хозяина", () => {
+    expect(api.healthUrl()).toBe("https://dev.ts.net:8443/table/admin?tab=nodes");
+    expect(new TableApi({ secret: "s", relayUrl: "https://fly" }).healthUrl()).toBe("https://fly/t/admin?tab=nodes");
+  });
+
   it("без него — как раньше: через реле `/t/`, без реле `/table/` на сервере", () => {
     expect(new TableApi({ secret: "s", relayUrl: "https://fly" }).openUrl3d("r")).toBe("https://fly/table/3d?room=r");
     expect(new TableApi({ secret: "s", relayUrl: "https://fly" }).adminUrl()).toBe("https://fly/t/admin");

@@ -161,6 +161,14 @@ export class TableApi {
     return `${this.pages()}/admin`;
   }
 
+  /**
+   * «Где что запущено» — вкладка «Узлы» той же страницы хозяина. Выбор вкладки едет в запросе, а не в якоре: Telegram при запуске
+   * мини-аппа пишет в якорь свои параметры.
+   */
+  healthUrl(): string {
+    return `${this.adminUrl()}?tab=nodes`;
+  }
+
   /** Постоянная ссылка на запись одной партии — через реле, как и сам стол. По умолчанию глазами крупье. */
   replayUrl(room: string, pass: string, from: number, to: number | null): string {
     const q = new URLSearchParams({ room, pass, from: String(from), ...(to === null ? {} : { to: String(to) }) });
