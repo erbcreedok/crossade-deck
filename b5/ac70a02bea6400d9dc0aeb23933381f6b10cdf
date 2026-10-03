@@ -1,0 +1,20 @@
+design/bowl/index.html
+  s_ad8a8a5b5d0419::t_c081d06d05a42e 149-150,197-200
+  s_ad8a8a5b5d0419::t_c2fbafff0f3998 64,147-148,151,155-158,165,169-170,191,196,201,204,222,266,268,272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b5ac70a02bea6400d9dc0aeb23933381f6b10cdf",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
