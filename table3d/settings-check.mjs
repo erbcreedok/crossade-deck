@@ -23,9 +23,19 @@ const open = async (viewport) => {
   await phone.waitForTimeout(700);
   const hs = await phone.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow());
   check("телефон стоя: высота обзора +9 (сидя +3)", Math.abs(hs - 9) < 0.05, { h0, hs });
+  // Смена позы возвращает исходную высоту, а не ту, что оставил пользователь: ручное значение сбрасывается.
+  const hNow = () => phone.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow());
+  await phone.evaluate(() => window.__t3d.setViewHeight(0.1));
   await phone.locator("[data-stance-toggle]:visible").first().click();
   await phone.waitForTimeout(700);
-  check("и сидя снова +3", Math.abs((await phone.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow())) - 3) < 0.05, null);
+  check("сел после ручной высоты стоя — исходная сидя +3, а не оставленная", Math.abs((await hNow()) - 3) < 0.05, await hNow());
+  await phone.evaluate(() => window.__t3d.setViewHeight(1));
+  await phone.locator("[data-stance-toggle]:visible").first().click();
+  await phone.waitForTimeout(700);
+  check("встал после ручной высоты сидя — исходная стоя +9", Math.abs((await hNow()) - 9) < 0.05, await hNow());
+  await phone.locator("[data-stance-toggle]:visible").first().click();
+  await phone.waitForTimeout(700);
+  check("и сидя снова +3", Math.abs((await hNow()) - 3) < 0.05, await hNow());
   await phone.locator("[data-settings]:visible").first().click();
   await phone.waitForSelector("[data-look=fullscreen]");
   check("в настройках есть «Полный экран»", true, null);
@@ -72,7 +82,7 @@ const open = async (viewport) => {
   check("стоя: ползунок на максимуме — 12", Math.abs((await dh()) - 12) < 0.05, await dh());
   await desk.locator("[data-stance-toggle]:visible").first().click();
   await desk.waitForTimeout(700);
-  check("сел: ручное значение зажато в пределы сидя (12 → 10), пределы сидя те же", Math.abs((await dh()) - 10) < 0.05, await dh());
+  check("сел: ручное значение сброшено в исходное сидя (десктоп 0)", Math.abs(await dh()) < 0.05, await dh());
   await desk.evaluate(() => window.__t3d.setViewHeight(0));
   await desk.waitForTimeout(300);
   check("сидя: минимум по-прежнему −3", Math.abs((await dh()) + 3) < 0.05, await dh());

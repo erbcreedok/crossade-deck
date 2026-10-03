@@ -1597,7 +1597,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const landing = pileLanding?.pile === p.id && p.x === pileLanding.was.x && p.y === pileLanding.was.y && performance.now() < pileLanding.until ? pileLanding : null;
       const held = pileCarry?.pile === p.id ? pileCarry : landing;
       o.target = held
-        ? lying(held.x, held.y, 0.01 + (held === pileCarry ? 0.6 : 0) + i * PILE_STEP, pileAngle(p), !!c.up)
+        ? lying(held.x, held.y, 0.01 + (held === pileCarry ? 0.6 : 0) + i * PILE_STEP, held === pileCarry ? ((-(myChair()?.angle ?? 0) % 360) + 360) % 360 : pileAngle(p), !!c.up)
         : ring ? lying(ring.x, ring.y, 0.01 + i * FELT_STEP, ring.angle, !!c.up) : lying(p.x, p.y, 0.01 + i * PILE_STEP, pileAngle(p), !!c.up);
       fromOf.set(c.id, { in: "pile", pile: p.id, top: i === p.cards.length - 1 || !!ring });
       seen.add(c.id);
@@ -2349,7 +2349,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const f = fromOf.get(id)!;
     const c = f.in === "felt" ? store.state.felt.find((x) => x.id === id) : undefined;
     const my = myChair()?.angle ?? 0;
-    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? true : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: c ? c.angle : ((-my % 360) + 360) % 360, gap: null, place: null, where: null, spot: null, zone: null, fingerHand, latch0, scrubbed: false };
+    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? true : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: ((-my % 360) + 360) % 360, gap: null, place: null, where: null, spot: null, zone: null, fingerHand, latch0, scrubbed: false };
     layout(store.state);
   }
   /** Моя карта ближе всего к пальцу по горизонтали — та, что поднимется под ним. */
@@ -2614,6 +2614,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    heldAngle: () => (drag?.moved ? drag.angle : null),
     reseatNow: (angle: number) => { store.send({ t: "reseat", angle }); },
     gyroOffNow: () => gyroOff,
     carryTo: (id: string, chair: string, i: number) => { if (!store.state.locks[id]) store.send({ t: "grab", id }); store.carry({ id, over: { in: "hand", chair, i } }); },
@@ -2805,7 +2806,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     handGeom,
     setBlend(b) { blend = b; layout(store.state); },
     stance: stanceNow,
-    setStance(st) { stance = st; home(); sendBody(true); draw(); },
+    setStance(st) { stance = st; viewHManual = false; home(); sendBody(true); draw(); },
     setFigures(on) { figuresOn = on; reseatSync(); draw(); },
     setLook(l) { look = l; layout(store.state); },
     heads: () => [...poses.values()].map((pose) => {

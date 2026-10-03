@@ -117,6 +117,35 @@ await ctx.close();
   check("свой стул, затянутый на чужой, не наплывает: между центрами не меньше ширины сиденья", gap >= 3.4, { gap });
   await c.close();
 }
+// УДЕРЖИВАЕМАЯ КАРТА И СТОПКА СМОТРЯТ НА МЕНЯ СРАЗУ, как только их подняли (а не поворачиваются при дропе): стол провернули — «лицом ко мне» = угол от моего стула.
+{
+  const c = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await c.goto(`${base}/?stand&cam=head`);
+  await c.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await c.waitForTimeout(1000);
+  await c.evaluate(() => window.__t3d.reseatNow(110));
+  await c.waitForTimeout(600);
+  const facing = await c.evaluate(() => { const ch = window.__t3d.state().chairs.find((x) => x.owner === window.__t3d.me()); return ((-ch.angle % 360) + 360) % 360; });
+  await c.evaluate(() => window.__t3d.trimHand(6));
+  await c.waitForTimeout(1200);
+  // Карта на сукне лежит под другим углом (как её положили раньше).
+  const felt = await c.evaluate(() => { const s = window.__t3d.state(); const f = s.felt.at(-1); return { id: f.id, at: window.__t3d.screenOf(f.id) }; });
+  await c.mouse.move(felt.at.x, felt.at.y); await c.mouse.down(); await c.mouse.move(felt.at.x + 5, felt.at.y - 45, { steps: 5 });
+  const held = await c.evaluate(() => window.__t3d.heldAngle());
+  check("карту со стола подняли — она сразу лицом ко мне (угол от моего стула), не со своим старым углом", held !== null && Math.abs(((held - facing + 540) % 360) - 180) < 1, { held, facing });
+  await c.mouse.up();
+  await c.waitForTimeout(600);
+  // Колода: взяли за язычок — угол стопки на столе стал «лицом ко мне» сразу (событием стола).
+  const tab = await c.evaluate(() => window.__t3d.tabInfo("deck")?.screen ?? null);
+  if (tab) {
+    await c.mouse.move(tab.x, tab.y); await c.mouse.down(); await c.mouse.move(tab.x + 12, tab.y - 55, { steps: 6 });
+    await c.waitForTimeout(400);
+    const ang = await c.evaluate(() => window.__t3d.state().piles.find((q) => q.id === "deck").angle);
+    check("колоду взяли — её угол на столе сразу «лицом ко мне», у всех на экранах", Math.abs(((ang - facing + 540) % 360) - 180) < 1, { ang, facing });
+    await c.mouse.up();
+  }
+  await c.close();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));

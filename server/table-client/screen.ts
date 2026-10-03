@@ -5085,6 +5085,8 @@ export function mountScreen(stage: HTMLElement, store: TableStore, witness?: Wit
       }
       gripPress.hold = window.setInterval(() => store.send({ t: "hold", id: gripPress!.pile }), HOLD_EVERY_MS);
       store.send({ t: "grip", pile: gripPress.pile });
+      // ВЗЯЛИ — стопка сразу поворачивается так, как ляжет (лицом ко мне): событием стола, у всех на экранах разом.
+      if (held && !held.zone && !held.pin) guessDeckMove(held.id, held.x, held.y, dropAngle());
     }
     // ПРИКОЛОТА — не едет: палец увёл — это уже не тап, но и не перенос.
     if (pileOf(truth(), gripPress.pile)?.pin) return;

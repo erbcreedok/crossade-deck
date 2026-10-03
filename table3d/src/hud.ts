@@ -816,6 +816,12 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
    * ЯЗЫЧОК СТОПКИ (лежит на столе, рисует сцена — `scene.onTab`): тянешь — стопка и язычок под пальцем, как несомая карта;
    * отпустил — в руку, в стопку или на сукно; тап — окно, двойной — перевернуть.
    */
+  /** Взяли стопку — она сразу поворачивается лицом ко мне (как ляжет при отпускании): событием стола, поэтому у всех на экранах разом. Зону-круг не трогаем. */
+  function turnPileToMe(pile: string): void {
+    const pl = store.state.piles.find((x) => x.id === pile);
+    if (!pl || pl.zone || pl.pin) return;
+    store.send({ t: "deckMove", pile, x: pl.x, y: pl.y, angle: ((-(myChair()?.angle ?? 0) % 360) + 360) % 360 });
+  }
   function tabDown(pile: string, e: PointerEvent): void {
     e.preventDefault();
     scene.grabPile(pile, { x: e.clientX, y: e.clientY });
@@ -824,7 +830,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     follow(e, (ev) => {
       if (pinned) return;
       if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < TAP_PX) return;
-      if (!moved) { moved = true; local.deckTip = null; local.deckCarry = pile; store.send({ t: "grip", pile }); hold = window.setInterval(() => { if (local.deckCarry === pile) store.send({ t: "hold", id: pile }); else clearInterval(hold); }, HOLD_MS); }
+      if (!moved) { moved = true; local.deckTip = null; local.deckCarry = pile; store.send({ t: "grip", pile }); turnPileToMe(pile); hold = window.setInterval(() => { if (local.deckCarry === pile) store.send({ t: "hold", id: pile }); else clearInterval(hold); }, HOLD_MS); }
       if (moved && local.deckCarry !== pile) return;
       scene.carryPile(pile, { x: ev.clientX, y: ev.clientY });
       draw();
