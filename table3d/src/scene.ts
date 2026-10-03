@@ -1320,11 +1320,51 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const stagger = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
     return { pos: local.pos.clone().applyMatrix4(m).add(V(head)), quat: q.multiply(local.quat), scale: local.scale, bend: local.bend, stagger };
   };
-  /** Где лежит стопка положенной руки: у самого борта у своего места, чуть слева от аватара — не там, где рука у головы: с взглядом она не ходит. */
-  function stackSpot(ch: Chair): { x: number; y: number } {
-    const s = seatPoint(ch.angle, R - 1.0), r = Math.hypot(s.x, s.y) || 1;
-    return seatOnFelt({ x: s.x - (s.y / r) * 1.4, y: s.y + (s.x / r) * 1.4 });
+  /**
+   * ЗОНА СТОПКИ БЕСХОЗНОГО СТУЛА — маленький «ноготок», срезанный краем стола: круг радиуса `r` с центром чуть внутри кромки на месте стула, обрезанный кромкой. Карта (1 × 1.4,
+   * длинной стороной от стула к середине) лежит в нём впритык: углы карты внутри круга, внешний край — внутри стола.
+   */
+  const ZONE = { inset: 0.78, r: 1.02, y: 0.012 };
+  const zoneCentre = (angle: number): { x: number; y: number } => seatPoint(angle, R - ZONE.inset);
+  function zonePolygon(angle: number): { x: number; y: number }[] {
+    const c = zoneCentre(angle), pts: { x: number; y: number }[] = [];
+    for (let i = 0; i < 72; i++) {
+      const a = (i / 72) * Math.PI * 2, x = c.x + Math.cos(a) * ZONE.r, y = c.y + Math.sin(a) * ZONE.r, len = Math.hypot(x, y), k = len > R ? R / len : 1;
+      pts.push({ x: x * k, y: y * k });
+    }
+    return pts;
   }
+  const zones = new Map<string, { fill: THREE.Mesh; line: THREE.LineLoop; angle: number }>();
+  /** Зоны есть у всех стульев без хозяина (и пустых, и с картами): видны только пока там никто не сидит; сел человек — зона гаснет, карты в ней — его рука. */
+  function placeZones(): void {
+    const seen = new Set<string>();
+    for (const ch of store.state.chairs) {
+      if (ch.croupier) continue;
+      seen.add(ch.id);
+      let z = zones.get(ch.id);
+      if (z && z.angle !== ch.angle) { chairRoot.remove(z.fill, z.line); zones.delete(ch.id); z = undefined; }
+      if (!z) {
+        const poly = zonePolygon(ch.angle), c = zoneCentre(ch.angle), pos: number[] = [];
+        for (let i = 0; i < poly.length; i++) { const a = poly[i]!, b = poly[(i + 1) % poly.length]!; pos.push(c.x, ZONE.y, c.y, a.x, ZONE.y, a.y, b.x, ZONE.y, b.y); }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+        const fill = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xcdb98f, transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+        fill.userData.chair = ch.id; fill.renderOrder = 1;
+        const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(poly.map((q) => new THREE.Vector3(q.x, ZONE.y + 0.002, q.y))), new THREE.LineDashedMaterial({ color: 0xcdb98f, dashSize: 0.16, gapSize: 0.12, transparent: true, opacity: 0.7, depthWrite: false }));
+        line.computeLineDistances(); line.renderOrder = 2;
+        chairRoot.add(fill, line);
+        z = { fill, line, angle: ch.angle };
+        zones.set(ch.id, z);
+      }
+      const free = !ch.owner && !reseat, lit = free && !!drag?.moved && drag.where?.in === "hand" && drag.where.chair === ch.id;
+      z.fill.visible = z.line.visible = free;
+      (z.fill.material as THREE.MeshBasicMaterial).opacity = lit ? 0.3 : 0.08;
+      (z.line.material as THREE.LineDashedMaterial).opacity = lit ? 1 : 0.7;
+    }
+    for (const [id, z] of zones) if (!seen.has(id)) { chairRoot.remove(z.fill, z.line); zones.delete(id); }
+  }
+  /** Где лежит стопка положенной руки: у самого борта у своего места, чуть слева от аватара — не там, где рука у головы: с взглядом она не ходит. */
+  function stackSpot(ch: Chair): { x: number; y: number } { return zoneCentre(ch.angle); }
   /** Карта `k` положенной руки на сукне. */
   const stackPlace = (ch: Chair, k: number, up: boolean): Place => { const at = stackSpot(ch); return lying(at.x, at.y, 0.03 + k * PILE_STEP, ((-ch.angle % 360) + 360) % 360, up); };
   /** Между рукой у головы и стопкой на сукне: `down` 0 — в руке, 1 — лежит. */
@@ -1848,6 +1888,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     placeTabs();
     placeBodies();
     if (placeChairs(dt)) moving = true;
+    placeZones();
     placeMyBody();
     // Своя рука у глаза — вторым проходом поверх всего: борт стола, подошедший к камере вплотную, её не закрывает.
     camera.layers.set(0);
@@ -2046,6 +2087,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       one.group.position.set(at.x, 0, at.y);
       one.group.rotation.y = Math.atan2(dir.x, dir.y);
       one.group.userData.placed = true;
+      // Пустой стул не рисуется (только зона перед ним); при пересадке видны все.
+      one.group.visible = !!ch.owner || !!reseat;
       // Свой стул при пересадке светится: не другим цветом, а мягким свечением (подсветка стула и кольцо), оно дышит.
       const glow = !!reseat && ch.id === myChair()?.id, pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260);
       one.halo.visible = glow;
@@ -2126,7 +2169,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const takeable = (id: string): boolean => {
     const f = fromOf.get(id), lock = store.state.locks[id];
     if (!f || (lock && lock !== store.me.key) || (store.state.picks[id] && !mine(id))) return false;
-    return f.in === "felt" || (f.in === "pile" && f.top) || (f.in === "hand" && f.mine);
+    // Из бесхозной руки (за стулом никто не сидит) берёт любой: это стопка перед пустым стулом.
+    return f.in === "felt" || (f.in === "pile" && f.top) || (f.in === "hand" && (f.mine || !store.state.chairs.find((c) => c.id === f.chair)?.owner));
   };
   /** `group` — несут выделенное лассо: отпустил — все выделенные туда же (`moveMany`), одним намерением. */
   let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; gap: number | null; place: Place | null; where: Where | null; spot: { x: number; y: number; w: number; angle: number } | null; zone: { pile?: string; chair?: string; i: number } | null; fingerHand: boolean; latch0: string | null; scrubbed: boolean } | null = null;
@@ -2189,7 +2233,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!reseat || reseat.pid !== null) return;
     const mineId = myChair()?.id;
     ray.setFromCamera(ndc(e), camera);
-    const hit = mineId ? ray.intersectObject(chairRoot, true).find((h) => h.object.userData.chair === mineId) : undefined;
+    const hit = mineId ? ray.intersectObject(chairRoot, true).find((h) => h.object.userData.chair === mineId && h.object.visible && h.object.parent?.visible !== false) : undefined;
     if (!hit) return;
     e.stopImmediatePropagation();
     reseat.pid = e.pointerId;
@@ -2349,7 +2393,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const f = fromOf.get(id)!;
     const c = f.in === "felt" ? store.state.felt.find((x) => x.id === id) : undefined;
     const my = myChair()?.angle ?? 0;
-    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? true : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: ((-my % 360) + 360) % 360, gap: null, place: null, where: null, spot: null, zone: null, fingerHand, latch0, scrubbed: false };
+    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? (f.mine ? true : !!store.state.chairs.find((q) => q.id === f.chair)?.hand.find((x) => x.id === id)?.up) : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: ((-my % 360) + 360) % 360, gap: null, place: null, where: null, spot: null, zone: null, fingerHand, latch0, scrubbed: false };
     layout(store.state);
   }
   /** Моя карта ближе всего к пальцу по горизонтали — та, что поднимется под ним. */
@@ -2489,6 +2533,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return { in: "hand", chair: chair.id, i: xs.filter((q) => q < e.clientX).length };
     }
     const at = onFelt(e) ?? new THREE.Vector3();
+    // В зону бесхозного стула — в его руку (в конец стопки); занятый стул зону не принимает.
+    for (const c of store.state.chairs) {
+      if (c.owner || c.croupier) continue;
+      const zc = zoneCentre(c.angle);
+      if (Math.hypot(at.x - zc.x, at.z - zc.y) < ZONE.r) return { in: "hand", chair: c.id, i: c.hand.length };
+    }
     // В СТОПКУ — по её месту НА ЭКРАНЕ: палец в пределах карты верха стопки (с запасом), а не в узкой точке сукна.
     const pile = store.state.piles.find((p) => {
       if (p.id === skipPile || p.pose === "ring") return false;
@@ -2614,6 +2664,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    zoneInfo: () => store.state.chairs.filter((c) => !c.croupier).map((c) => ({ id: c.id, owner: c.owner, zone: zones.get(c.id)?.fill.visible ?? false, chair: chairObjs.get(c.id)?.group.visible ?? null, centre: zoneCentre(c.angle), hand: c.hand.map((h) => h.id) })),
     heldAngle: () => (drag?.moved ? drag.angle : null),
     reseatNow: (angle: number) => { store.send({ t: "reseat", angle }); },
     gyroOffNow: () => gyroOff,
@@ -2821,7 +2872,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (head) return { t: "who", key: head.object.userData.head as string };
       const id = hitCard(e);
       if (id) return { t: "card", id };
-      const seat = chairRoot.visible ? ray.intersectObject(chairRoot, true).find((h) => h.object.userData.chair) : undefined;
+      // Пустой стул не нарисован — на него попадает только его зона (хозяйский стул — сам стул).
+      const shown = (o: THREE.Object3D | null): boolean => { for (let q = o; q; q = q.parent) if (!q.visible) return false; return true; };
+      const seat = chairRoot.visible ? ray.intersectObject(chairRoot, true).find((h) => h.object.userData.chair && shown(h.object)) : undefined;
       return seat ? { t: "chair", id: seat.object.userData.chair as string } : null;
     },
     pileSpots,

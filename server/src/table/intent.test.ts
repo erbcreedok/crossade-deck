@@ -44,6 +44,24 @@ describe("readIntent — намерение читается целиком ил
     expect("ops" in far, JSON.stringify(far)).toBe(true);
   });
 
+  it("бесхозная рука (стул пуст): замок её не держит — любой берёт карту; пока хозяин сидит, замок держит", () => {
+    const t = table();
+    const mineChair = t.seenBy("b").chairs.find((c) => c.owner === "b")!;
+    const top = t.seenBy("b").piles[0]!.cards.at(-1)!.id;
+    t.act("b", { t: "grab", id: top }, 0);
+    t.act("b", { t: "drop", id: top, to: { in: "hand", chair: mineChair.id, i: 0 } }, 0);
+    t.act("b", { t: "flag", chair: mineChair.id, flag: "lock", on: true }, 0);
+    // Хозяин сидит и запер руку — чужому не взять.
+    t.act("a", { t: "grab", id: top }, 0);
+    const refused = t.act("a", { t: "drop", id: top, to: { in: "felt", x: 0, y: 0, up: false, angle: 0 } }, 0);
+    expect("refused" in refused, JSON.stringify(refused)).toBe(true);
+    t.leave("b");
+    // Стул пуст — рука бесхозная, замок больше не при чём: a берёт карту на сукно.
+    t.act("a", { t: "grab", id: top }, 0);
+    const took = t.act("a", { t: "drop", id: top, to: { in: "felt", x: 0, y: 0, up: false, angle: 0 } }, 0);
+    expect("ops" in took && (took.ops?.length ?? 0) > 0, JSON.stringify(took)).toBe(true);
+  });
+
   it("мусор вместо намерения — null", () => {
     for (const raw of [...JUNK, { t: "nope" }, { t: 5 }]) expect(readIntent(raw), JSON.stringify(raw)).toBeNull();
   });

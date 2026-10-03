@@ -1349,7 +1349,8 @@ export class Table {
   private handAsk(by: string, chairId: string, key: Key): Verdict {
     const chair = this.chairs.get(chairId);
     if (!chair) return no("not-yours");
-    return this.asks(by, key, { locks: { lock: chair.lock, reject: chair.reject }, mine: chair.owner === by });
+    // БЕСХОЗНАЯ РУКА (за стулом никто не сидит) — как своя для любого: стопку на сукне перед пустым стулом можно взять и положить в неё; замок стережёт чужого, а чужих здесь нет.
+    return this.asks(by, key, { locks: { lock: chair.lock, reject: chair.reject }, mine: chair.owner === by || chair.owner === null });
   }
 
   /**
