@@ -229,6 +229,16 @@
         "design/hud3d"
       ],
       "port": 9586
+    },
+    {
+      "name": "bowl-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "design/serve.py",
+        "9587",
+        "design/bowl"
+      ],
+      "port": 9587
     }
   ]
 }
