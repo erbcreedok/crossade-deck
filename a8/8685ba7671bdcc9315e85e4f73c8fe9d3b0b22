@@ -1,0 +1,47 @@
+server/src/table/contract.ts
+  s_ad8a8a5b5d0419::t_fb23b9f270ebb8 21,787-788
+  s_ad8a8a5b5d0419::t_868d7134047e62 782-783
+server/src/table/table.ts
+  s_ad8a8a5b5d0419::t_868d7134047e62 155,702-703,717-744,749-760
+server/table-client/netStore.ts
+  s_ad8a8a5b5d0419::t_a6051cc33b1dd3 14
+  s_ad8a8a5b5d0419::t_2e48fe2004d691 60-61,67,206-211,240-241,330-332
+  s_ad8a8a5b5d0419::t_94e7eb7289ca69 333
+server/table-client/store.ts
+  s_ad8a8a5b5d0419::t_2e48fe2004d691 27-28
+server/src/table/wholeCarry.test.ts
+  s_ad8a8a5b5d0419::t_f861fc967d9820 18-19,21,23
+  s_ad8a8a5b5d0419::t_f741a16cea517b 1-15,24-57,59-69
+  s_ad8a8a5b5d0419::t_1b49303007fc05 16-17,20,22,58
+server/table-client/localStore.ts
+  s_ad8a8a5b5d0419::t_2e48fe2004d691 116
+server/table-client/replayStore.ts
+  s_ad8a8a5b5d0419::t_95cb4d40a5feb7 192
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_d06f9a3906d6eb 2256-2263
+  s_ad8a8a5b5d0419::t_6443eb1d028046 2242-2255
+  s_ad8a8a5b5d0419::t_0167112a9de514 1694-1704
+table3d/stack-carry-check.mjs
+  s_ad8a8a5b5d0419::t_7b4355799d2057 28,30,34
+  s_ad8a8a5b5d0419::t_e96227dc1a2052 1-27,29,31-33,35-38
+server/table-client/watch.test.ts
+  s_ad8a8a5b5d0419::t_f08db6044971fd 18
+server/table-client/watch.ts
+  s_ad8a8a5b5d0419::t_f08db6044971fd 57-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a88685ba7671bdcc9315e85e4f73c8fe9d3b0b22",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
