@@ -189,6 +189,7 @@ export function replayStore(all: readonly Told[], me: Person): Replay {
     // ЗАПИСЬ НЕ ИГРАЕТСЯ. Всё, чем стол меняют, здесь пусто: прошлое не переигрывают, а смотрят.
     send: () => {},
     carries: [],
+    stacks: [],
     eyes: [],
     watch: () => {},
     bodies: [],

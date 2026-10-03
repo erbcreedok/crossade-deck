@@ -113,6 +113,7 @@ export function localTable(opts: LocalOpts = {}): { view(key: string): TableStor
           spread(result.ops);
         },
         carries: [],
+        stacks: [],
         eyes: [],
         watch: () => {},
         get bodies() {

@@ -1691,6 +1691,17 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const at = over.in === "felt" ? { x: over.x, y: over.y } : over.in === "deck" ? s.piles.find((p) => p.id === over.pile) : (() => { const ch = s.chairs.find((x) => x.id === over.chair); return ch ? seatPoint(ch.angle, R - 1.2) : null; })();
       if (at) o.target = lying(at.x, at.y, 1.4, over.in === "felt" ? over.angle : 0, over.in === "felt" ? over.up : !!c.card.up);
     }
+    // ЧУЖИЕ СТОПКИ В ВОЗДУХЕ ЦЕЛИКОМ (со стола и бесхозные) — у пальца несущего, лицом к нему, как их видит он сам: все карты по порядку, снизу вверх.
+    for (const c of store.stacks) {
+      if (c.by === store.me.key || c.over.in !== "felt") continue;
+      const over = c.over, order = [...(c.with ?? []).map((w) => w.card), c.card];
+      order.forEach((card, i) => {
+        const o = cards.get(card.id);
+        if (!o) return;
+        dress(o, card, s);
+        o.target = lying(over.x, over.y, 0.01 + 0.6 + i * PILE_STEP, over.angle, !!card.up);
+      });
+    }
     // НЕСОМАЯ МНОЙ — у пальца: над рукой — в щели руки (`retargetMine`); над столом — там, где решил палец.
     retargetMine();
     if (drag?.moved && drag.gap === null) {
@@ -2228,6 +2239,28 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let zoneFn: Parameters<SceneApi["setZone"]>[0] = null;
   let restRight: { x: number; y: number } | null = null;
   let carriedAt = 0;
+  /**
+   * НЕСУ СТОПКУ ЦЕЛИКОМ — остальным: где она в воздухе и в какую сторону лицом (ко мне). Тот же поток, что у одной карты (`store.carry`), только ключ — стопка со стола или `chair:<стул>`;
+   * шлётся и пока палец стоит на месте: зритель верит такой стопке недолго (`STACK_FRESH_MS`).
+   */
+  let stackSent: { key: string; x: number; y: number; at: number } | null = null;
+  function streamStack(): void {
+    const key = pileCarry ? pileCarry.pile : chairStack?.moved && gather ? `chair:${chairStack.chair}` : null;
+    if (!key) { stackSent = null; return; }
+    const at = pileCarry ? seatOnFelt(pileCarry) : gather!.at, now = performance.now();
+    const same = stackSent && stackSent.key === key && stackSent.x === at.x && stackSent.y === at.y;
+    if (stackSent && now - stackSent.at < (same ? CARRY_EVERY_MS * 5 : CARRY_EVERY_MS)) return;
+    stackSent = { key, x: at.x, y: at.y, at: now };
+    store.carry({ id: key, over: { in: "felt", x: at.x, y: at.y, angle: ((-(myChair()?.angle ?? 0) % 360) + 360) % 360, up: false } });
+  }
+  let foreignStacks = false;
+  setInterval(() => {
+    streamStack();
+    // Чужая стопка перестала приходить (отпустили, ушёл) — карты возвращаются на свои места, не ждут чужого события.
+    const some = store.stacks.length > 0;
+    if (!some && foreignStacks) { layout(store.state); draw(); }
+    foreignStacks = some;
+  }, CARRY_EVERY_MS);
   /** Высота несомой карты над сукном — доля высоты головы (камеры), как у стола: камера выше — и карта выше. */
   const liftH = () => Math.max(0.4, Math.min(8, HEAD.lift * eyeY()));
   /** Карта под пальцем: на высоте `liftH` там, где луч из глаза через палец её пересекает, — ровно под курсором. */

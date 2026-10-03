@@ -152,7 +152,7 @@ export class Table {
   /** Выделение лассо: id карты → кто выделил (`Snapshot.picks`). */
   private picks = new Map<string, string>();
   /** Последнее «над чем карта», пока её держат. Живёт не дольше блокировки (`carriesSeenBy`). */
-  private carries = new Map<string, { by: string; over: Where; auto?: true; with?: string[] }>();
+  private carries = new Map<string, { by: string; over: Where; auto?: true; with?: string[]; whole?: string }>();
   private rules: TableRules = { ...DEFAULT_RULES };
   private trails = new Map<string, Trail>();
   /** Перевёрнутые карты в колоде и в руках. У карты на сукне сторона лежит в ней самой (`felt[].up`). */
@@ -699,6 +699,8 @@ export class Table {
    * иначе чужая рука, которой нет, пришла бы остальным. Версия не растёт. Блокировку продлевает.
    */
   carry(by: string, out: CarryOut, now: number, auto = false): { refused: Refusal } | { ok: true } {
+    const whole = this.wholeOf(out?.id);
+    if (whole) return this.carryWhole(by, out, whole, now);
     const lock = this.locks.get(out?.id);
     if (!lock || lock.by !== by) return { refused: "not-held" };
     const over = this.clean(out.over);
@@ -712,10 +714,50 @@ export class Table {
     return { ok: true };
   }
 
+  /**
+   * ЦЕЛАЯ СТОПКА В ВОЗДУХЕ: стопка со стола (ключ — её id, она взята за грип) или стопка бесхозного стула (ключ `chair:<id>`, за ним никто не сидит). Это то же «над чем палец»,
+   * что у одной карты, только несёт её целиком: зритель видит всю стопку у чужого пальца, повёрнутую к тому, кто несёт.
+   */
+  private wholeOf(key: unknown): { kind: "pile" | "chair"; id: string } | null {
+    if (typeof key !== "string") return null;
+    if (this.piles.has(key)) return { kind: "pile", id: key };
+    if (key.startsWith("chair:") && this.chairs.has(key.slice(6))) return { kind: "chair", id: key.slice(6) };
+    return null;
+  }
+  private cardsOfWhole(w: { kind: "pile" | "chair"; id: string }): string[] {
+    return w.kind === "pile" ? [...(this.piles.get(w.id)?.cards ?? [])] : [...(this.chairs.get(w.id)?.hand ?? [])];
+  }
+  private carryWhole(by: string, out: CarryOut, w: { kind: "pile" | "chair"; id: string }, now: number): { refused: Refusal } | { ok: true } {
+    const over = this.clean(out.over);
+    if (!over) return { refused: "bad" };
+    if (w.kind === "pile") {
+      const lock = this.locks.get(w.id);
+      if (!lock || lock.by !== by) return { refused: "not-held" };
+      lock.until = now + LOCK_TTL_MS;
+    } else {
+      const chair = this.chairs.get(w.id)!;
+      if (chair.owner !== null || chair.hand.length === 0 || !allowed(this.handAsk(by, w.id, "hand.take"))) return { refused: "chair-locked" };
+    }
+    this.carries.set(out.id, { by, over, whole: this.cardsOfWhole(w).join(",") });
+    return { ok: true };
+  }
+
   /** Что в воздухе у других, глазами зрителя. Своё не отдаётся: свой палец у зрителя и так под рукой. */
   carriesSeenBy(viewer: string, only?: string): Carry[] {
     const out: Carry[] = [];
     for (const [id, c] of this.carries) {
+      if (c.whole !== undefined) {
+        const w = this.wholeOf(id);
+        const ids = w ? this.cardsOfWhole(w) : [];
+        // Стопку несут, пока её держат (замок) или пока в бесхозной руке те же карты; сложили или разобрали — в воздухе её больше нет.
+        const alive = w && ids.length > 0 && ids.join(",") === c.whole && (w.kind === "pile" ? this.locks.get(id)?.by === c.by : this.chairs.get(w.id)!.owner === null);
+        if (!alive || !w) { this.carries.delete(id); continue; }
+        if (c.by === viewer || (only !== undefined && only !== id)) continue;
+        const at = (one: string): Where => (w.kind === "pile" ? { in: "deck", pile: w.id } : { in: "hand", chair: w.id, i: ids.indexOf(one) });
+        const top = ids[ids.length - 1]!;
+        out.push({ id, by: c.by, over: c.over, from: at(top), card: this.seen(top, viewer, at(top)), whole: true, with: ids.slice(0, -1).map((one) => ({ card: this.seen(one, viewer, at(one)), from: at(one) })) });
+        continue;
+      }
       const lock = this.locks.get(id);
       const from = this.whereIs(id);
       if (!lock || lock.by !== c.by || !from) {

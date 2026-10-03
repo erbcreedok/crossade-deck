@@ -15,7 +15,7 @@ const getters = [...readFileSync(new URL("./netStore.ts", import.meta.url), "utf
 
 describe("watch.live-getters-stay-live", () => {
   it("у сетевого хранилища есть живые геттеры", () => {
-    expect(getters).toEqual(expect.arrayContaining(["state", "carries", "eyes", "bodies"]));
+    expect(getters).toEqual(expect.arrayContaining(["state", "carries", "stacks", "eyes", "bodies"]));
   });
 
   it("обёртка отдаёт свежее значение каждого из них", () => {

@@ -54,6 +54,9 @@ export function witnessed(store: TableStore, w: Witness): TableStore {
     get carries() {
       return store.carries;
     },
+    get stacks() {
+      return store.stacks;
+    },
     get eyes() {
       return store.eyes;
     },

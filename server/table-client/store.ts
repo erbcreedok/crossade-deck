@@ -24,6 +24,8 @@ export interface TableStore {
   send(intent: Intent): void;
   /** Что сейчас в воздухе у других — только то, что ещё держат (по `state.locks`). */
   readonly carries: readonly Carry[];
+  /** Чужие стопки в воздухе целиком: со стола (по id стопки) и бесхозные у пустого стула (`chair:<id>`). */
+  readonly stacks: readonly Carry[];
   /** Кто на что смотрит сейчас — со своим глазом; свой отсеивает экран. */
   readonly eyes: readonly Eye[];
   /** Что открыто у меня — остальным. Без ответа, как палец. */

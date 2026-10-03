@@ -11,7 +11,7 @@
 // Хранилище при этом одно и то же: слушатели живут в нём, а не на сокете, и сокет под ним меняется.
 
 import { Client, type Room } from "colyseus.js";
-import { DEAL_PRESETS, MSG, PROTOCOL, TABLE_ROOM, type Carry, type DealRule, type CarryOut, type Intent, type JoinOptions, type Minds, type Op, type Patch, type Recording, type AppPass, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
+import { DEAL_PRESETS, MSG, PROTOCOL, STACK_FRESH_MS, TABLE_ROOM, type Carry, type DealRule, type CarryOut, type Intent, type JoinOptions, type Minds, type Op, type Patch, type Recording, type AppPass, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
 import { Freshness, type Pulse } from "../src/table/freshness.js";
 import { applyPatch, needsSync } from "../src/table/patch.js";
 import type { Eye } from "../src/table/eyes.js";
@@ -57,11 +57,14 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
   const early: Patch[] = [];
   /** Чужие пальцы в воздухе — по id карты. Держится, пока карта заблокирована тем же человеком. */
   let carries = new Map<string, Carry>();
+  /** Чужие СТОПКИ в воздухе целиком (`Carry.whole`) — отдельно от карт: у стопки своего замка по карте нет, живёт, пока шлют (`STACK_FRESH_MS`) и пока её держат. */
+  let stacks = new Map<string, { c: Carry; at: number }>();
   let eyes: Eye[] = [];
   let bodies = new Map<string, Body>();
   const stillHeld = () => {
     if (!state) return;
     for (const [id, c] of carries) if (state.locks[id] !== c.by) carries.delete(id);
+    for (const [id, one] of stacks) if (id.startsWith("chair:") ? Date.now() - one.at > STACK_FRESH_MS : state.locks[id] !== one.c.by) stacks.delete(id);
   };
 
   const tell = () => {
@@ -200,6 +203,12 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
   });
   listen<Carry>(MSG.carry, (c) => {
     // Пришёл раньше своей блокировки или позже её снятия — не показывается.
+    if (c.whole) {
+      if (!state || (!c.id.startsWith("chair:") && state.locks[c.id] !== c.by)) return;
+      stacks.set(c.id, { c, at: Date.now() });
+      tell();
+      return;
+    }
     if (!state || state.locks[c.id] !== c.by) return;
     carries.set(c.id, c);
     tell();
@@ -228,7 +237,8 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     logLink("welcome");
     if (Number.isFinite(msg.now)) skew = msg.now - Date.now();
     state = msg.snapshot;
-    carries = new Map((msg.carries ?? []).map((c) => [c.id, c]));
+    carries = new Map((msg.carries ?? []).filter((c) => !c.whole).map((c) => [c.id, c]));
+    stacks = new Map((msg.carries ?? []).filter((c) => c.whole).map((c) => [c.id, { c, at: Date.now() }]));
     eyes = msg.eyes ?? [];
     bodies = new Map((msg.bodies ?? []).map((b) => [b.by, b]));
     stillHeld();
@@ -316,6 +326,10 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     send: (intent) => post(MSG.intent, intent),
     get carries() {
       return [...carries.values()];
+    },
+    get stacks() {
+      stillHeld();
+      return [...stacks.values()].map((one) => one.c);
     },
     get eyes() {
       return eyes;
