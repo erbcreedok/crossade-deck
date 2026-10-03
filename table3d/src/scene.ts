@@ -1456,16 +1456,18 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let handCeilRot = 0;
   let handZone: (() => { over: boolean } | null) | null = null;
   const bowlNow = { visible: false, lit: false, cut: 0, fitTop: 0, ringTop: 0, cardsTop: 0, parts: 0 };
-  function handBowl(): void {
-    const z = camMode === "head" && !store.replay?.on ? handZone?.() ?? null : null;
-    if (!z) { bowlNow.visible = false; if (bowlG.visible) bowlG.visible = false; return; }
-    const ch = myChair(), places: Place[] = [];
-    // Несомая карта в расчёт не идёт: край чаши — по самому ряду, а не по тому, что подняли над ним.
-    if (ch) for (const c of ch.hand) { if (drag?.moved && drag.id === c.id) continue; const t = cards.get(c.id)?.target; if (t?.onCamera) places.push(t); }
-    // РУКА ПУСТА (нет карт, или их уже несут из неё): чаша низкая — край чуть выше нижней строки, а не по несуществующему веру карт.
+  /**
+   * ГДЕ СТОИТ ЧАША: центр, срез и верх края на экране (NDC). Считается не только для рисования: верх её края — и есть БАУНД ПРИЁМКИ В РУКУ (`handTop`): палец внутри чаши —
+   * карта или стопка встают в руку (щель, горит чаша), снаружи — на стол. Несомую карту `skip` в расчёт не берём: край — по самому ряду.
+   */
+  function bowlFit(skip?: string): { center: THREE.Vector3; cut: number; lat: number; ringTop: number; fitTop: number; want: number; empty: boolean; ring: (lat: number, n?: number) => THREE.Vector3[]; R: number; Ry: number } | null {
+    const ch = myChair();
+    if (!ch) return null;
+    const places: Place[] = [];
+    for (const c of ch.hand) { if (c.id === skip) continue; const t = cards.get(c.id)?.target; if (t?.onCamera) places.push(t); }
+    // РУКА ПУСТА (нет карт, или их уже несут из неё): чаша низкая — край чуть выше нижней строки, а не по несуществующему ряду карт.
     const empty = places.length === 0;
     if (empty) {
-      // Пустая рука: зона там, где встала бы одна карта.
       const shape = shapeOfWidth(handWidth, 1, 0, 0); shape.lift = 1;
       places.push(camHandLocal(0, 1, false, shape, Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), handSize, { x: 0, y: 0 }, 0));
     }
@@ -1485,7 +1487,17 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (ringTop(lo) >= want) hi = lo; else if (ringTop(hi) <= want) lo = hi; else for (let i = 0; i < 18; i++) { const mid = (lo + hi) / 2; if (ringTop(mid) < want) lo = mid; else hi = mid; }
     // Чуть пространства над картами: край поднят на `BOWL.gap` (единицы камеры) над их силуэтом.
     const fit = (lo + hi) / 2, cut = empty ? fit : Math.min(99, Math.max(2, 50 * (1 + Math.min(0.98, Math.sin(latOf(fit)) + BOWL.gap / Ry)))), lat = latOf(cut);
-    Object.assign(bowlNow, { visible: true, lit: z.over, cut, fitTop: ringTop(fit), ringTop: ringTop(cut), cardsTop: want, parts: bowlG.children.length });
+    return { center, cut, lat, ringTop: ringTop(cut), fitTop: ringTop(fit), want, empty, ring, R, Ry };
+  }
+  /** Верх края чаши на экране, px от верха сцены — граница, с которой начинается приёмка в руку. */
+  const bowlRimPx = (skip?: string): number | null => { const f = bowlFit(skip); return f ? ((1 - f.ringTop) * renderer.domElement.getBoundingClientRect().height) / 2 : null; };
+  function handBowl(): void {
+    const z = camMode === "head" && !store.replay?.on ? handZone?.() ?? null : null;
+    if (!z) { bowlNow.visible = false; if (bowlG.visible) bowlG.visible = false; return; }
+    const f = bowlFit(drag?.moved ? drag.id : undefined);
+    if (!f) { bowlNow.visible = false; if (bowlG.visible) bowlG.visible = false; return; }
+    const { center, cut, lat, ring, R, Ry } = f;
+    Object.assign(bowlNow, { visible: true, lit: z.over, cut, fitTop: f.fitTop, ringTop: f.ringTop, cardsTop: f.want, parts: bowlG.children.length });
     const sig = [center.x, center.y, center.z, cut, z.over ? 1 : 0].map((v) => Math.round(v * 100)).join();
     bowlG.visible = true;
     if (sig === bowlSig) return;
@@ -2740,6 +2752,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const handTop = (chair: Chair, skipCard?: string): number => {
     const rr = renderer.domElement.getBoundingClientRect();
     if (handCarry) return handCarry.zoneTop - rr.top;
+    // Граница приёмки в руку — верх чаши: палец внутри неё — карта встаёт в руку, а не только горит контур.
+    if (camMode === "head") { const rim = bowlRimPx(skipCard); if (rim !== null) return rim; }
     const r = rr, ys = chair.hand.filter((c) => c.id !== skipCard).map((c) => screenOf(c.id)?.y).filter((y): y is number => y !== undefined);
     // Пустая рука: зона низкая — не выше одной карты над нижней строкой (а не где-то у середины экрана, как выходило из точки кисти на широком экране).
     if (!ys.length) {

@@ -49,6 +49,32 @@ const rimPx = (1 - emptyBowl.ringTop) * 422;
 check("пустая рука: чаша видна", emptyBowl.visible, emptyBowl);
 check("пустая рука: край чаши низко — чуть выше нижней строки, а не на пол-экрана", rimPx > emptyBowl.bottom - 110 && rimPx < emptyBowl.bottom, { rimPx, bottom: emptyBowl.bottom });
 await p.mouse.up();
+// ЧАША — ЭТО И ЕСТЬ ГРАНИЦА ПРИЁМКИ: палец внутри чаши (даже выше самих карт руки) зажигает её, и карта встаёт в руку; снаружи — нет.
+{
+  const q = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  q.on("pageerror", (e) => errors.push(e.message));
+  await q.goto(`${base}/?stand&cam=head`);
+  await q.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await q.waitForTimeout(1500);
+  const mineHand = () => q.evaluate(() => { const s = window.__t3d.state(); return s.chairs.find((c) => c.owner === window.__t3d.me()).hand.length; });
+  const full = await mineHand();
+  const first = await q.evaluate(() => window.__t3d.state().chairs.find((c) => c.owner === window.__t3d.me()).hand[0].id);
+  await q.evaluate((id) => window.__t3d.dropFeltAt(id, 0, 0), first); await q.waitForTimeout(900);
+  const at = await q.evaluate((id) => window.__t3d.screenOf(id), first);
+  await q.mouse.move(at.x, at.y); await q.mouse.down(); await q.mouse.move(at.x, at.y - 40, { steps: 4 }); await q.mouse.move(195, 360, { steps: 6 }); await q.waitForTimeout(300);
+  const rim = await q.evaluate(() => ((1 - window.__t3d.bowlInfo().ringTop) * 844) / 2);
+  const tops = await q.evaluate(() => window.__t3d.handDropZone().top);
+  check("граница приёмки в руку — это верх чаши", Math.abs(tops - rim) < 3, { zone: tops, rim });
+  await q.mouse.move(195, rim - 25, { steps: 5 }); await q.waitForTimeout(250);
+  check("палец над чашей — не горит", !(await q.evaluate(() => window.__t3d.bowlInfo().lit)));
+  await q.mouse.move(195, rim + 12, { steps: 5 }); await q.waitForTimeout(250);
+  check("палец внутри чаши, выше самих карт, — чаша горит", await q.evaluate(() => window.__t3d.bowlInfo().lit));
+  const slot = await q.evaluate((id) => window.__t3d.zoneInfo ? null : null, first);
+  void slot;
+  await q.mouse.up(); await q.waitForTimeout(1200);
+  check("отпустил внутри чаши — карта в руке", (await mineHand()) === full, { full, now: await mineHand() });
+  await q.close();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
