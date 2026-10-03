@@ -4,7 +4,7 @@
 // (`localStore`, стенд). Он читает снимок, шлёт намерения и слушает, когда снимок сменился. Отказ
 // сервера приходит тем же путём: снимок снова тот, что был, — и экран просто рисует его.
 
-import type { AppPass, IceServer, Carry, CarryOut, DealRule, Intent, Minds, Op, Person, Recording, Refusal, Seen, Snapshot, TableCommand } from "../src/table/contract.js";
+import type { AppPass, IceServer, Carry, CarryOut, History, DealRule, Intent, Minds, Op, Person, Recording, Refusal, Seen, Snapshot, TableCommand } from "../src/table/contract.js";
 import type { Eye, Spot } from "../src/table/eyes.js";
 import type { Body, BodyOut } from "../src/table/bodies.js";
 import type { Say, SayOut, Shot, ShotOut } from "../src/table/say.js";
@@ -63,6 +63,8 @@ export interface TableStore {
   shoot(out: ShotOut): void;
   onShot(listener: (shot: Shot) => void): void;
   onStickers(listener: (ids: string[]) => void): void;
+  /** Попросить у сервера прошлое до этого времени (мс, часы сервера): порцию истории с диска — кадр в её начале и события; `null` — раньше ничего нет. Есть только у сетевого стола. */
+  history?(before: number): Promise<History | null>;
   /** Просмотр прошлого во время игры (`replayable.ts`): пока `replay.on`, стол и пальцы — из ленты, а жесты за столом выключены. Есть у хранилища, обёрнутого лентой. */
   readonly replay?: ReplayControl;
   /** Снимок сменился (дифом, синком или отказом) или сдвинулся чужой палец в воздухе. */

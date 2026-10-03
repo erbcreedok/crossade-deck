@@ -9,7 +9,8 @@
 
 import type { Carry, Snapshot } from "../src/table/contract.js";
 import type { Body } from "../src/table/bodies.js";
-import { anchor, locate, Tape, type Moment } from "./tape.js";
+import { anchor, carryOf, Tape, type Moment } from "./tape.js";
+import { maskFaces, shownNow } from "./fakeFace.js";
 import type { TableStore } from "./store.js";
 import { STACK_FRESH_MS } from "../src/table/contract.js";
 
@@ -44,6 +45,12 @@ export interface ReplayControl {
   jump(dir: -1 | 1): void;
   /** Стол на любое время (плитки ленты) — не двигая просмотр. */
   stateAt(t: number): Snapshot;
+  /** Идёт запрос истории к серверу. */
+  readonly loading: boolean;
+  /** Есть ли ещё старше то, что можно подгрузить. */
+  readonly more: boolean;
+  /** Подгрузить следующую порцию прошлого (если ещё есть и не идёт запрос). */
+  loadOlder(): Promise<void>;
   /** Просмотр что-то поменял: включился, выключился, сдвинулся. */
   onChange(listener: () => void): void;
 }
@@ -67,7 +74,17 @@ export function replayable(store: TableStore, clock: ReplayClock = realClock, ta
   const controlListeners: Listener[] = [];
 
   let on = false, cursor = 0, dir: -1 | 0 | 1 = 0, speed = 1, news = false, stop: (() => void) | null = null;
-  let view: { t: number; state: Snapshot; flow: ReturnType<Tape["flowAt"]> } | null = null;
+  let view: { t: number; raw?: Snapshot; state: Snapshot; flow: ReturnType<Tape["flowAt"]> } | null = null;
+  /** Подставные лица считаются раз на пару «прошлый кадр — стол сейчас». */
+  let masked: { past: Snapshot; live: Snapshot; out: Snapshot } | null = null;
+  const faced = (past: Snapshot): Snapshot => {
+    const live = store.state;
+    if (!masked || masked.past !== past || masked.live !== live) masked = { past, live, out: maskFaces(past, shownNow(live)) };
+    return masked.out;
+  };
+  let loading = false, more = typeof store.history === "function";
+  /** Часы сервера впереди часов экрана на столько мс: события истории приходят серверными. */
+  const skew = (): number => store.now() - clock.now();
 
   const mine = (): string => store.me.key;
   const ownLive = (state: Snapshot): { carries: Carry[]; stacks: Carry[] } => {
@@ -106,8 +123,9 @@ export function replayable(store: TableStore, clock: ReplayClock = realClock, ta
     for (const l of sceneListeners) l();
     for (const l of controlListeners) l();
   };
-  const seeing = (): { t: number; state: Snapshot; flow: ReturnType<Tape["flowAt"]> } => {
-    if (!view || view.t !== cursor) view = { t: cursor, state: tape.stateAt(cursor), flow: tape.flowAt(cursor) };
+  const seeing = (): { t: number; raw?: Snapshot; state: Snapshot; flow: ReturnType<Tape["flowAt"]> } => {
+    const raw = tape.stateAt(cursor);
+    if (!view || view.t !== cursor || view.raw !== raw) view = { t: cursor, raw, state: faced(raw), flow: tape.flowAt(cursor) };
     return view;
   };
   const halt = (): void => {
@@ -181,7 +199,26 @@ export function replayable(store: TableStore, clock: ReplayClock = realClock, ta
       else if (d > 0) cursor = nowEdge();
       notify();
     },
-    stateAt: (t) => tape.stateAt(t),
+    get loading() { return loading; },
+    get more() { return more; },
+    async loadOlder() {
+      if (loading || !more || !store.history) return;
+      loading = true;
+      notify();
+      try {
+        const shift = skew(), page = await store.history(tape.from + shift);
+        if (!page) more = false;
+        else {
+          tape.prepend(page.start, page.events, shift);
+          more = page.more;
+        }
+      } catch {
+        more = false;
+      }
+      loading = false;
+      notify();
+    },
+    stateAt: (t) => faced(tape.stateAt(t)),
     onChange: (l) => void controlListeners.push(l),
   };
 
@@ -200,17 +237,8 @@ export function replayable(store: TableStore, clock: ReplayClock = realClock, ta
       if (key === "carry") {
         return (out: Parameters<TableStore["carry"]>[0]) => {
           if (on) return;
-          const st = target.state, loc = locate(st, out.id);
-          if (loc) own.set(out.id, { at: clock.now(), c: { id: out.id, by: mine(), over: out.over, from: loc.where, card: loc.card } });
-          else {
-            const pile = st.piles.find((p) => p.id === out.id);
-            const chair = out.id.startsWith("chair:") ? st.chairs.find((c) => c.id === out.id.slice(6)) : undefined;
-            const cards = pile ? pile.cards : chair ? chair.hand : null;
-            if (cards && cards.length > 0) {
-              const where = (i: number) => (pile ? ({ in: "deck", pile: pile.id, i } as const) : ({ in: "hand", chair: chair!.id, i } as const));
-              own.set(out.id, { at: clock.now(), c: { id: out.id, by: mine(), over: out.over, from: where(cards.length - 1), card: cards.at(-1)!, whole: true, with: cards.slice(0, -1).map((card, i) => ({ card, from: where(i) })) } });
-            }
-          }
+          const one = carryOf(target.state, out.id, mine(), out.over);
+          if (one) own.set(out.id, { at: clock.now(), c: one });
           target.carry(out);
           snap();
         };

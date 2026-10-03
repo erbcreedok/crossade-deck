@@ -11,7 +11,7 @@
 // Хранилище при этом одно и то же: слушатели живут в нём, а не на сокете, и сокет под ним меняется.
 
 import { Client, type Room } from "colyseus.js";
-import { DEAL_PRESETS, MSG, PROTOCOL, STACK_FRESH_MS, TABLE_ROOM, type Carry, type DealRule, type CarryOut, type Intent, type JoinOptions, type Minds, type Op, type Patch, type Recording, type AppPass, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
+import { DEAL_PRESETS, MSG, PROTOCOL, STACK_FRESH_MS, TABLE_ROOM, type Carry, type DealRule, type History, type HistoryNone, type CarryOut, type Intent, type JoinOptions, type Minds, type Op, type Patch, type Recording, type AppPass, type Refused, type Snapshot, type Welcome } from "../src/table/contract.js";
 import { Freshness, type Pulse } from "../src/table/freshness.js";
 import { applyPatch, needsSync } from "../src/table/patch.js";
 import type { Eye } from "../src/table/eyes.js";
@@ -213,6 +213,14 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
     carries.set(c.id, c);
     tell();
   });
+  /** Запрос истории: один в воздухе; ответ приходит тем же сообщением. */
+  let askedHistory: { before: number; done: (page: History | null) => void } | null = null;
+  listen<History | HistoryNone>(MSG.history, (msg) => {
+    const ask = askedHistory;
+    if (!ask) return;
+    askedHistory = null;
+    ask.done("none" in msg ? null : msg);
+  });
   listen<Body>(MSG.body, (b) => {
     if (!b?.by) return;
     bodies.set(b.by, b);
@@ -324,6 +332,13 @@ export async function netStore(options: JoinOptions): Promise<TableStore> {
       return state!;
     },
     send: (intent) => post(MSG.intent, intent),
+    history: (before: number) =>
+      new Promise<History | null>((resolve) => {
+        if (askedHistory) return resolve(null);
+        const timer = setTimeout(() => { if (askedHistory?.before === before) { askedHistory = null; resolve(null); } }, 10_000);
+        askedHistory = { before, done: (page) => { clearTimeout(timer); resolve(page); } };
+        post(MSG.history, { before });
+      }),
     get carries() {
       return [...carries.values()];
     },

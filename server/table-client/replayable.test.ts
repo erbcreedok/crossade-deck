@@ -86,3 +86,44 @@ describe("реплей во время игры", () => {
     expect(store.replay!.cursor).toBe(store.replay!.now);
   });
 });
+
+describe("реплей: подгрузка истории", () => {
+  it("уходит влево — просим у сервера прошлое, лента растёт, подгруженное можно смотреть; дальше ничего — more=false", async () => {
+    const { Table } = await import("../src/table/table.js");
+    const { deal } = await import("../src/table/deal.js");
+    const { historyPage } = await import("../src/table/historyCut.js");
+    const { MAIN_PILE } = await import("../src/table/contract.js");
+    const t = new Table(deal(), "a");
+    for (const k of ["a", "b"]) t.join({ key: k, name: k, ink: "#fff", door: "guest" });
+    const c = t.seenBy("a").piles.find((p) => p.id === MAIN_PILE)!.cards.map((x) => x.id);
+    const rows: Array<{ id: number; at: number; side: "table"; kind: string; who?: string; what?: unknown }> = [{ id: 0, at: 1000, side: "table", kind: "table.first", what: { snapshot: t.seenBy("", true) } }];
+    let id = 1, now = 1000;
+    for (let i = 0; i < 3; i++) for (const intent of [{ t: "grab", id: c.at(-1 - i)! }, { t: "drop", id: c.at(-1 - i)!, to: { in: "felt", x: i, y: 1, up: true, angle: 0 } }] as const) {
+      const out = t.act("a", intent, now); if ("refused" in out) throw new Error(out.refused);
+      rows.push({ id: id++, at: (now += 1000), side: "table", kind: "patch", what: { v: t.version, ops: out.ops.map((op) => t.seenOp(op, "", true)) } });
+    }
+    const clk = clock();
+    const live = localTable({ freeChair: true }).view("me");
+    const asked: number[] = [];
+    // Часы сервера впереди часов экрана на 7 минут; вход в самый конец партии.
+    const server = new Proxy(live, { get: (target, key) => (key === "now" ? () => clk.now() + 420_000 : key === "history" ? async (before: number) => { asked.push(before); return historyPage(rows as never, before, new Set()); } : Reflect.get(target, key)) });
+    const store = replayable(server, clk);
+    clk.at = 5_000_000;
+    now = 0;
+    store.replay!.enter();
+    expect(store.replay!.more).toBe(true);
+    const sky = store.replay!.moments.length;
+    // Просят «до начала ленты» в серверных часах: сдвиг учтён.
+    const p = store.replay!.loadOlder();
+    expect(store.replay!.loading).toBe(true);
+    await p;
+    expect(asked).toHaveLength(1);
+    expect(asked[0]! - 420_000).toBeLessThanOrEqual(5_000_000);
+    expect(store.replay!.loading).toBe(false);
+    // История на сервере из 6 патчей кончилась одной порцией, раньше ничего: more=false, повторный запрос не уходит.
+    expect(store.replay!.more).toBe(false);
+    await store.replay!.loadOlder();
+    expect(asked).toHaveLength(1);
+    expect(store.replay!.moments.length).toBeGreaterThan(sky);
+  });
+});

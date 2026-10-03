@@ -7,7 +7,7 @@
 // Лента хранит ТОЛЬКО то, что пришло этому экрану: операции уже прорезаны сервером под зрителя (`seenOp`), чужих лиц в них нет.
 // Чистая логика: ни экрана, ни сети, время приходит снаружи (тестируется без браузера).
 
-import type { Carry, Op, Snapshot, Where } from "../src/table/contract.js";
+import type { Carry, HistoryEvent, Op, SeenCard, Snapshot, Where } from "../src/table/contract.js";
 import type { Body } from "../src/table/bodies.js";
 import { applyPatch } from "../src/table/patch.js";
 
@@ -69,6 +69,8 @@ export class Tape {
   private moms: Moment[] = [];
   private lockedAt = new Map<string, { t: number; by: string }>();
   private cache: { key: Key; t: number; state: Snapshot; next: number } | null = null;
+  /** Всё, что старше этого времени, подгружено явно (история с сервера) и не срезается по часу. */
+  private pinned = Infinity;
 
   constructor(private readonly keep: number = TAPE_KEEP_MS, private readonly keyEvery: number = TAPE_KEY_MS) {}
 
@@ -80,6 +82,7 @@ export class Tape {
     this.moms = [];
     this.lockedAt.clear();
     this.cache = null;
+    this.pinned = Infinity;
     this.keys = [{ t, at: 0, state: structuredClone(state) }];
   }
 
@@ -101,6 +104,51 @@ export class Tape {
   /** События ленты — ходы, перевороты, раздачи, по порядку. */
   get moments(): readonly Moment[] {
     return this.moms;
+  }
+
+  /**
+   * ПОДГРУЗИТЬ ПРОШЛОЕ — порцию истории с сервера: кадр стола в её начале (`start`, без лиц, которых игрок не видит сейчас) и события по порядку (дифы и пути пальцев).
+   * Они встают перед тем, что лента уже знает, — со своим опорным кадром, чтобы любой момент собирался из них же. Подгруженное в память насовсем (не срезается по часу).
+   * Возвращает, сколько событий встало. `shift` — на сколько часы клиента отстают от часов сервера (время событий приходит серверное).
+   */
+  prepend(start: Snapshot, events: readonly HistoryEvent[], shift = 0): number {
+    if (this.keys.length === 0 || events.length === 0) return 0;
+    const ops = events.flatMap((e) => ("ops" in e ? [{ t: e.at - shift, ops: e.ops as readonly Op[] }] : []));
+    const paths = events.flatMap((e) => ("path" in e ? [{ at: e.at - shift, by: e.path.by, id: e.path.id, pts: e.path.pts }] : []));
+    const firstT = Math.min(ops[0]?.t ?? Infinity, paths[0]?.at ?? Infinity);
+    // События — после первого кадра, но не позже того, что лента уже знает.
+    const oldest = this.entries[0]?.t ?? this.keys[0]!.t;
+    const fresh = ops.filter((e) => e.t <= oldest);
+    // Моменты порции собираем отдельной лентой, чтобы «думал» и «взял» считались по её же событиям.
+    const sub = new Tape(Infinity, Infinity);
+    sub.begin(start, firstT - 1);
+    for (const e of fresh) sub.push(e.t, e.ops, start);
+    const key: Key = { t: firstT - 1, at: this.base, state: structuredClone(start) };
+    const n = fresh.length;
+    this.entries = [...fresh, ...this.entries];
+    for (const k of this.keys) k.at += n;
+    this.keys.unshift(key);
+    this.cache = null;
+    this.pinned = Math.min(this.pinned, key.t);
+    if (sub.moms.length) {
+      const next = this.moms[0];
+      if (next) next.think = Math.max(0, next.t0 - sub.moms[sub.moms.length - 1]!.t);
+      this.moms = [...sub.moms, ...this.moms];
+    }
+    // Пути пальцев → потоки для просмотра. Для каждого нужны карта и место, где она была, — их даёт стол на тот момент.
+    const flows: Flow[] = [];
+    const live = new Map<string, Carry>();
+    const steps = paths.flatMap((p) => p.pts.map((pt, i) => ({ t: p.at + pt.dt, p, over: pt.over as Where, last: i === p.pts.length - 1 }))).sort((a, b) => a.t - b.t);
+    for (const st of steps) {
+      const state = this.stateAt(st.t);
+      const one = carryOf(state, st.p.id, st.p.by, st.over);
+      if (one) live.set(st.p.id, one);
+      const carries = [...live.values()].filter((c) => !c.whole), stacks = [...live.values()].filter((c) => c.whole);
+      flows.push({ t: st.t, carries, stacks, bodies: [] });
+      if (st.last) { live.delete(st.p.id); flows.push({ t: st.t + 1, carries: [...live.values()].filter((c) => !c.whole), stacks: [...live.values()].filter((c) => c.whole), bodies: [] }); }
+    }
+    this.flows = [...flows, ...this.flows].sort((a, b) => a.t - b.t);
+    return n + paths.length;
   }
 
   /** Операции пришли: `state` — стол ПОСЛЕ них. */
@@ -191,7 +239,7 @@ export class Tape {
   }
 
   private trim(now: number): void {
-    const cut = now - this.keep;
+    const cut = Math.min(now - this.keep, this.pinned);
     while (this.keys.length > 1 && this.keys[1]!.t <= cut) this.keys.shift();
     const first = this.keys[0]!;
     const drop = first.at - this.base;
@@ -221,4 +269,19 @@ export function locate(state: Snapshot, id: string): { where: Where; card: impor
   }
   const f = state.felt.find((c) => c.id === id);
   return f ? { where: { in: "felt", x: f.x, y: f.y, up: f.up, angle: f.angle }, card: f } : null;
+}
+
+/**
+ * Что видят другие, когда `by` несёт `id` над `over`: одну карту (откуда и какая) или стопку целиком (`whole`: стопка со стола или `chair:<стул>`). `null` — такой вещи в этот момент нет.
+ * Один разбор на всех: и собственные жесты (`replayable.ts`), и пути из истории.
+ */
+export function carryOf(state: Snapshot, id: string, by: string, over: Where): Carry | null {
+  const loc = locate(state, id);
+  if (loc) return { id, by, over, from: loc.where, card: loc.card };
+  const pile = state.piles.find((p) => p.id === id);
+  const chair = id.startsWith("chair:") ? state.chairs.find((c) => c.id === id.slice(6)) : undefined;
+  const cards: readonly SeenCard[] | null = pile ? pile.cards : chair ? chair.hand : null;
+  if (!cards || cards.length === 0) return null;
+  const where = (i: number): Where => (pile ? { in: "deck", pile: pile.id, i } : { in: "hand", chair: chair!.id, i });
+  return { id, by, over, from: where(cards.length - 1), card: cards.at(-1)!, whole: true, with: cards.slice(0, -1).map((card, i) => ({ card, from: where(i) })) };
 }

@@ -74,13 +74,13 @@ export const clock = (ms: number): string => {
 };
 
 /** Ленту плиток из событий. `time` — режим «Время» (ширина по длительности, паузы свёрнуты), иначе «Шаги». Чистая: тестируется без браузера. */
-export function stripItems(moments: readonly Moment[], from: number, now: number, time: boolean): Item[] {
+export function stripItems(moments: readonly Moment[], from: number, now: number, time: boolean, edge = "начало"): Item[] {
   const items: Item[] = [];
   let x = 0;
   const push = (it: Omit<Item, "x0">): void => { items.push({ ...it, x0: x }); x += it.w + (it.kind === "gap" ? 0 : GAP); };
   const anchors = moments.map((m) => anchor(m, from));
   for (let i = 1; i < anchors.length; i++) anchors[i] = Math.max(anchors[i]!, anchors[i - 1]!);
-  push({ kind: "edge", t0: from, t1: anchors[0] ?? now, w: EDGE, label: "начало" });
+  push({ kind: "edge", t0: from, t1: anchors[0] ?? now, w: EDGE, label: edge });
   if (!time) {
     moments.forEach((m, i) => push({ kind: "moment", m, t0: anchors[i]!, t1: anchors[i + 1] ?? now, w: TILE }));
     return items;
@@ -165,8 +165,8 @@ export function mountReplayBar(root: HTMLElement, store: TableStore, scene: Scen
 
   const who = (s: Snapshot, key: string | null) => s.people.find((p) => p.key === key);
   const refresh = (): void => {
-    const now = ctrl.now, moms = ctrl.moments, key = `${time}|${moms.length}|${moms.at(-1)?.t ?? 0}|${Math.floor(now / (time ? 1000 : 1e12))}|${ctrl.from}`;
-    if (key !== sig) { sig = key; items = stripItems(moms, ctrl.from, now, time); }
+    const now = ctrl.now, moms = ctrl.moments, edge = ctrl.loading ? "грузим…" : ctrl.more ? "раньше…" : "начало", key = `${time}|${moms.length}|${moms.at(-1)?.t ?? 0}|${Math.floor(now / (time ? 1000 : 1e12))}|${ctrl.from}|${edge}`;
+    if (key !== sig) { sig = key; items = stripItems(moms, ctrl.from, now, time, edge); }
   };
   const make = (it: Item, i: number): HTMLElement => {
     const el = document.createElement("div");
@@ -192,12 +192,14 @@ export function mountReplayBar(root: HTMLElement, store: TableStore, scene: Scen
     refresh();
     const w = strip.clientWidth || 390, center = w / 2, x = posOf(items, drag ? drag.t : ctrl.cursor);
     pxLeft = center - x;
+    // Ушёл к левому краю — просим у сервера прошлое (то, что было до входа или до часа назад); тянуть дальше можно бесконечно, пока оно есть.
+    if (ctrl.more && !ctrl.loading && x < w * 1.5) void ctrl.loadOlder();
     track.style.transform = `translateX(${pxLeft.toFixed(1)}px)`;
     // Только плитки в кадре и рядом: лента может быть длиной в тысячи событий.
     const lo = -pxLeft - 40, hi = -pxLeft + w + 40, want = new Set<string>();
     items.forEach((it, i) => {
       if (it.kind === "gap" || it.x0 + it.w < lo || it.x0 > hi) return;
-      const k = `${time ? "t" : "s"}${i}:${it.kind}:${Math.round(it.w)}`;
+      const k = `${time ? "t" : "s"}${i}:${it.kind}:${Math.round(it.w)}:${it.label ?? ""}`;
       want.add(k);
       if (!tiles.has(k)) { const el = make(it, i); tiles.set(k, el); track.append(el); }
     });

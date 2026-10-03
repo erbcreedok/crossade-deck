@@ -104,3 +104,38 @@ describe("лента партии", () => {
     expect(locate(t.seenBy("a"), "нет")).toBeNull();
   });
 });
+
+describe("подгрузка прошлого в ленту", () => {
+  it("порция истории встаёт перед тем, что лента знает: свой кадр, моменты, пути пальцев; прошлое собирается", async () => {
+    const { historyPage } = await import("../src/table/historyCut.js");
+    // Партия: журнал как его пишет комната — первый кадр правдой и дифы правдой.
+    const t = table();
+    const c = t.seenBy("a").piles.find((p) => p.id === MAIN_PILE)!.cards.map((x) => x.id);
+    const rows: Array<{ id: number; at: number; side: "table"; kind: string; who?: string; what?: unknown }> = [{ id: 0, at: 1000, side: "table", kind: "table.first", what: { snapshot: t.seenBy("", true) } }];
+    let id = 1, now = 1000;
+    const say = (out: Op[]) => rows.push({ id: id++, at: (now += 1000), side: "table", kind: "patch", what: { v: t.version, ops: out.map((op) => t.seenOp(op, "", true)) } });
+    for (let i = 0; i < 4; i++) { say(opsOf(t.act("a", { t: "grab", id: c.at(-1 - i)! }, now))); say(opsOf(t.act("a", { t: "drop", id: c.at(-1 - i)!, to: { ...felt, x: i } }, now))); }
+    rows.push({ id: id++, at: 2500, side: "table", kind: "carry.path", who: "a", what: { by: "a", id: c.at(-1)!, t0: 2100, pts: [{ dt: 0, over: { in: "felt", x: 0, y: 0, up: false, angle: 0 } }, { dt: 400, over: { in: "felt", x: 2, y: 1, up: false, angle: 0 } }] } });
+    // Новая вкладка зашла в самый конец: лента начинается с нынешнего стола.
+    const tape = new Tape();
+    const joinedAt = now + 5000;
+    tape.begin(t.seenBy("a"), joinedAt);
+    expect(tape.moments).toHaveLength(0);
+    const page = historyPage(rows as never, joinedAt, new Set(c))!;
+    const n = tape.prepend(page.start, page.events);
+    expect(n).toBeGreaterThan(0);
+    // Моменты старого — вперёд, и у них есть автор и «думал».
+    expect(tape.moments.length).toBeGreaterThanOrEqual(4);
+    expect(tape.moments[0]).toMatchObject({ kind: "move", by: "a" });
+    expect(tape.from).toBeLessThan(2000);
+    // Прошлое собирается: до первого хода сукно пусто, после — карты лежат.
+    expect(tape.stateAt(tape.from).felt).toEqual([]);
+    expect(tape.stateAt(joinedAt - 1).felt.length).toBeGreaterThan(0);
+    // Путь пальца стал потоком: в середине жеста карта «в воздухе» у зрителя.
+    const mid = tape.flowAt(2300);
+    expect(mid?.carries.map((x) => x.id)).toContain(c.at(-1));
+    // Подгруженное не срезается по часу.
+    tape.push(joinedAt + 4 * 3600_000, [], t.seenBy("a"));
+    expect(tape.from).toBeLessThan(2000);
+  });
+});
