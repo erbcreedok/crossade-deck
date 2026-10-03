@@ -63,7 +63,19 @@ const open = async (viewport) => {
   check("десктоп: высота обзора по умолчанию 0", Math.abs(await dh()) < 0.05, await dh());
   await desk.locator("[data-stance-toggle]:visible").first().click();
   await desk.waitForTimeout(700);
-  check("десктоп стоя: высота обзора 6", Math.abs((await dh()) - 6) < 0.05, await dh());
+  check("десктоп стоя: высота обзора по умолчанию не ниже предела стоя (7.5)", Math.abs((await dh()) - 7.5) < 0.05, await dh());
+  await desk.evaluate(() => window.__t3d.setViewHeight(0));
+  await desk.waitForTimeout(300);
+  check("стоя: ползунок на минимуме — 7.5", Math.abs((await dh()) - 7.5) < 0.05, await dh());
+  await desk.evaluate(() => window.__t3d.setViewHeight(1));
+  await desk.waitForTimeout(300);
+  check("стоя: ползунок на максимуме — 12", Math.abs((await dh()) - 12) < 0.05, await dh());
+  await desk.locator("[data-stance-toggle]:visible").first().click();
+  await desk.waitForTimeout(700);
+  check("сел: ручное значение зажато в пределы сидя (12 → 10), пределы сидя те же", Math.abs((await dh()) - 10) < 0.05, await dh());
+  await desk.evaluate(() => window.__t3d.setViewHeight(0));
+  await desk.waitForTimeout(300);
+  check("сидя: минимум по-прежнему −3", Math.abs((await dh()) + 3) < 0.05, await dh());
   await desk.close();
 }
 await browser.close();

@@ -502,6 +502,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     camera.up.set(0, 1, 0);
     if (!viewHManual) viewH = autoViewH(rig.fov, camera.aspect);
+    else viewH = clampViewH(viewH);
     const pos = headAt(sh, rig.lean, rig.side);
     const fov = rig.fov;
     if (Math.abs(camera.fov - fov) > 1e-3) { camera.fov = fov; camera.updateProjectionMatrix(); }
@@ -558,7 +559,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let seatPull = 0;
   /** ВЫСОТА ОБЗОРА (DEV): камера выше или ниже головы, только для моего экрана. Тело, рука и то, что видят остальные, не меняются; карты в кадре стоят как стояли. */
   let viewH = 0, viewHManual = false;
-  const VIEW_H = { min: -3, max: 10 };
+  /** Пределы высоты обзора: сидя — −3…+10; стоя — 7.5…12 (ниже стоя уже не «стоя»). */
+  const viewHRange = (): { min: number; max: number } => (stanceNow() === "stand" ? { min: 7.5, max: 12 } : { min: -3, max: 10 });
+  const clampViewH = (v: number): number => { const r = viewHRange(); return Math.max(r.min, Math.min(r.max, v)); };
+  const setViewHNorm = (t: number): void => { const r = viewHRange(); viewHManual = true; viewH = r.min + Math.max(0, Math.min(1, t)) * (r.max - r.min); applyRig(); layout(store.state); draw(); };
   /**
    * ВЫСОТА ОБЗОРА САМА — от того, сколько стола видно по ширине: широкий обзор (десктоп, ≥ 100° по горизонтали) — 0; узкий (телефон в портрете, ≈ 39°) — +3,
    * между ними плавно; стоя — ещё на 6 выше (десктоп 6, телефон 9). От устройства не зависит: окно сузили, повернули или поменяли обзор в настройках — высота пересчитывается, пока ползунок не трогали.
@@ -566,7 +570,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const autoViewH = (vfovDeg: number, aspect: number): number => {
     const hfov = (2 * Math.atan(Math.tan((vfovDeg * DEG) / 2) * aspect)) / DEG;
     // Стоя обзор выше ещё на 6: десктоп 0 → 6, телефон +3 → +9.
-    return 3 * Math.max(0, Math.min(1, (100 - hfov) / 60)) + (stanceNow() === "stand" ? 6 : 0);
+    const sit = 3 * Math.max(0, Math.min(1, (100 - hfov) / 60));
+    return stanceNow() === "stand" ? clampViewH(sit + 6) : sit;
   };
   const eyeY = (): number => camera.position.y - (camMode === "head" ? viewH : 0);
   /** ПЕРЕСАДКА: вид сверху без тел, рук и голов; свой стул тянут по кругу (`angle` — куда, `null` — пока не тронут), потом «Готово» или «Отмена». */
@@ -2622,7 +2627,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     handDropZone: () => api.handDropZone(),
     handCardPx: () => { const shape = shapeOfWidth(handWidth, 1, 0, 0); shape.lift = 1; const b = handCardBox(1, shape, Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), 0, 0); return Math.abs(b.bottom - b.top); },
     eyeNow: () => eyeY(),
-    setViewHeight: (t: number) => { viewHManual = true; viewH = VIEW_H.min + Math.max(0, Math.min(1, t)) * (VIEW_H.max - VIEW_H.min); applyRig(); layout(store.state); draw(); },
+    setViewHeight: (t: number) => setViewHNorm(t),
     chairAt: (id: string) => chairObjs.get(id)?.group.position.toArray() ?? null,
     reseatInfo: () => ({ on: reseat !== null, heads: heads.visible, chairs: chairRoot.visible, handShown: store.state.chairs.flatMap((c) => c.hand).filter((c) => cards.get(c.id)?.group.visible).length, felt: store.state.felt.filter((c) => cards.get(c.id)?.group.visible).length, ghost: reseatGhost ? { x: reseatGhost.position.x, z: reseatGhost.position.z } : null, chair: (() => { const o = chairObjs.get(myChair()?.id ?? ""); return o ? { color: o.mats[0]!.color.getHexString(), emissive: o.mats[0]!.emissive.getHexString(), halo: (o.halo.material as THREE.MeshBasicMaterial).color.getHexString() } : null; })(), tags: [...chairObjs.entries()].filter(([, o]) => o.tag).map(([id]) => id), glow: [...chairObjs.entries()].filter(([, o]) => o.halo.visible).map(([id]) => id) }),
     feltScreen: (x: number, y: number) => project(new THREE.Vector3(x, 0, y)),
@@ -2651,8 +2656,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     home: () => { home(); draw(); sendBody(true); },
     camMode: () => camMode,
     baseFov: () => baseFov,
-    viewHeight: () => (viewH - VIEW_H.min) / (VIEW_H.max - VIEW_H.min),
-    setViewHeight: (t: number) => { viewHManual = true; viewH = VIEW_H.min + Math.max(0, Math.min(1, t)) * (VIEW_H.max - VIEW_H.min); applyRig(); layout(store.state); draw(); },
+    viewHeight: () => { const r = viewHRange(); return (viewH - r.min) / (r.max - r.min); },
+    setViewHeight: (t: number) => setViewHNorm(t),
     viewHeightUnits: () => viewH,
     seat: () => (seatPull - SEAT_PULL.min) / (SEAT_PULL.max - SEAT_PULL.min),
     setSeat: (t: number) => setSeatPull(SEAT_PULL.min + Math.max(0, Math.min(1, t)) * (SEAT_PULL.max - SEAT_PULL.min)),
