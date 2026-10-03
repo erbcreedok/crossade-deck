@@ -449,10 +449,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   // ——— модели камеры (`camera.ts`): орбита вокруг стола, голова на месте с наклоном, голова на месте с оптикой ———
   let camMode: CamMode = ((m) => (m === "orbit" || m === "top" ? m : "head"))(new URLSearchParams(location.search).get("cam"));
   /** Обычное поле зрения головы; для разработки его двигает ползунок (`setBaseFov`). */
-  let baseFov: number = CAM.fov.base;
+  let baseFov: number = innerWidth < 500 ? 85 : CAM.fov.base;
   /** Размер карт в своей руке от обычного (настройки): 1 — как есть, от половины до вдвое. */
   /** Размер карт моей руки: на телефоне по умолчанию 85% — крупнее они загораживают стол; в настройках меняется (и запоминается). */
-  let handSize = innerWidth < 500 ? 0.85 : 1;
+  let handSize = innerWidth < 500 ? 0.7 : 1;
   const rig = { yaw: 0, pitch: -40, lean: 0, side: 0, fov: baseFov };
   const neck = neckNew();
   /**
@@ -575,7 +575,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const autoViewH = (vfovDeg: number, aspect: number): number => {
     const hfov = (2 * Math.atan(Math.tan((vfovDeg * DEG) / 2) * aspect)) / DEG;
     // Стоя обзор выше ещё на 6: десктоп 0 → 6, телефон +3 → +9.
-    const sit = 3 * Math.max(0, Math.min(1, (100 - hfov) / 60));
+    const sit = 3 * Math.max(0, Math.min(1, (100 - hfov) / 54));
     return stanceNow() === "stand" ? clampViewH(sit + 6) : sit;
   };
   const eyeY = (): number => camera.position.y - (camMode === "head" ? viewH : 0);
@@ -950,6 +950,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let dollK = 0.8;
   DOLL.spine = DOLL0.spine * dollK; DOLL.bar = DOLL0.bar * dollK; DOLL.arm = DOLL0.arm * dollK; DOLL.hand = DOLL0.hand * dollK;
   const headW = (): number => 2 * dollK, headH = (): number => 2.5 * dollK;
+  /**
+   * ТЕЛО ЦЕЛИКОМ УМЕНЬШАЕТСЯ (не только толщина палок): плечи, шея, голова и низ позвоночника — от точки, где тело привязано к столу (у плеча, на уровне сукна). Центр остаётся на
+   * месте, голова и плечи опускаются; руки тянутся к тем же картам (их места — на столе), поэтому локти сами подстраиваются.
+   */
+  function dollBody(sh: Point3, head: Point3): { S: THREE.Vector3; H: THREE.Vector3; base: THREE.Vector3 } {
+    const A = new THREE.Vector3(sh.x, 0, sh.y), sc = (p: Point3) => A.clone().add(new THREE.Vector3(p.x, p.h, p.y).sub(A).multiplyScalar(dollK));
+    return { S: sc(sh), H: sc(head), base: sc({ ...sh, h: -7 }) };
+  }
   function setDollScale(k: number): void {
     dollK = Math.max(0.4, Math.min(1.4, k));
     DOLL.spine = DOLL0.spine * dollK; DOLL.bar = DOLL0.bar * dollK; DOLL.arm = DOLL0.arm * dollK; DOLL.hand = DOLL0.hand * dollK;
@@ -970,7 +978,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       poses.set(ch.id, pose);
       const body = new THREE.Group();
       body.userData.by = pose.by;
-      const mat = inkOf(pose.ink), S = V(pose.s), H = V(pose.head), L = V(handRest(pose.left, ch, ch.pose.tuck ? 1 : 0, ch.hand.length)), base = V({ ...pose.s, h: -7 });
+      const mat = inkOf(pose.ink), { S, H, base } = dollBody(pose.s, pose.head), L = V(handRest(pose.left, ch, ch.pose.tuck ? 1 : 0, ch.hand.length));
       // Правое плечо — справа от взгляда в середину стола.
       const r = Math.hypot(pose.s.x, pose.s.y) || 1, rightDir = new THREE.Vector3(pose.s.y / r, 0, -pose.s.x / r);
       const shL = S.clone().addScaledVector(rightDir, -DOLL.bar), shR = S.clone().addScaledVector(rightDir, DOLL.bar);
@@ -2039,7 +2047,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     myBodySig = sig;
     myBody.clear();
     const sh = shoulders3(ch.angle, stanceNow(), seatPull), m = myHeadNow(ch), head = m.head, left = m.hand, away = m.away;
-    const mat = inkOf(who.ink), S = V(sh), H = V(head), L = handCarry ? V({ x: handCarry.x, y: handCarry.y, h: CARRY_H - 0.15 }) : V(handRest(left, ch, down, ch.hand.length)), base = V({ ...sh, h: -7 });
+    const mat = inkOf(who.ink), { S, H, base } = dollBody(sh, head), L = handCarry ? V({ x: handCarry.x, y: handCarry.y, h: CARRY_H - 0.15 }) : V(handRest(left, ch, down, ch.hand.length));
     myHandDrawn = { x: L.x, y: L.z, h: L.y };
     const r = Math.hypot(sh.x, sh.y) || 1, rightDir = new THREE.Vector3(sh.y / r, 0, -sh.x / r);
     const shL = S.clone().addScaledVector(rightDir, -DOLL.bar), shR = S.clone().addScaledVector(rightDir, DOLL.bar);
@@ -2130,6 +2138,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       one.group.userData.placed = true;
       // Пустой стул не рисуется (только зона перед ним); при пересадке видны все.
       one.group.visible = !!ch.owner || !!reseat;
+      // Стул уменьшается вместе с человеком — от уровня сукна: сиденье поднимается, ножки укорачиваются.
+      one.group.scale.setScalar(dollK);
       // Свой стул при пересадке светится: не другим цветом, а мягким свечением (подсветка стула и кольцо), оно дышит.
       const glow = !!reseat && ch.id === myChair()?.id, pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260);
       one.halo.visible = glow;
@@ -2758,6 +2768,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    dollParts: () => { const b = heads.children[0]?.children.find((c) => c.userData.base)?.userData as { base?: THREE.Vector3 } | undefined; const ch = [...chairObjs.values()][0]; return { headY: b?.base?.y ?? null, chairScale: ch?.group.scale.x ?? null }; },
     pickAtNow: (x: number, y: number) => api.pickAt(x, y),
     dollScaleNow: () => dollK,
     zoneInfo: () => store.state.chairs.filter((c) => !c.croupier).map((c) => ({ id: c.id, owner: c.owner, zone: zones.get(c.id)?.fill.visible ?? false, chair: chairObjs.get(c.id)?.group.visible ?? null, centre: zoneCentre(c.angle), hand: c.hand.map((h) => h.id) })),

@@ -38,6 +38,18 @@ const open = async (viewport) => {
   check("и сидя снова +3", Math.abs((await hNow()) - 3) < 0.05, await hNow());
   await phone.locator("[data-settings]:visible").first().click();
   // DEV-ползунок размера людей — на локальном адресе есть, по умолчанию люди чуть меньше (80%).
+  // Умолчания на телефоне: карты в руке 70%, обзор 85 (шкала до 100, низ 65 не тронут).
+  await phone.waitForSelector("[data-card-size]");
+  check("телефон: карты в руке по умолчанию 70%", (await phone.inputValue("[data-card-size]")) === "70", await phone.inputValue("[data-card-size]"));
+  const view = await phone.evaluate(() => { const e = document.querySelector("input[data-view]"); return { v: e.value, min: e.min, max: e.max }; });
+  check("телефон: обзор по умолчанию 85, шкала 65…100", view.v === "85" && view.min === "65" && view.max === "100", view);
+  // Люди уменьшаются целиком (не только палки): голова опускается, стул уменьшается и поднимается от сукна.
+  const big = await phone.evaluate(() => window.__t3d.dollParts());
+  await phone.locator("[data-doll-size]").fill("60");
+  await phone.waitForTimeout(500);
+  const small = await phone.evaluate(() => window.__t3d.dollParts());
+  check("люди целиком меньше: голова ниже примерно в 0.75 раза (80% → 60%), стул мельче", big.headY !== null && small.headY < big.headY * 0.85 && small.chairScale < big.chairScale, { big, small });
+  await phone.locator("[data-doll-size]").fill("80");
   await phone.waitForSelector("[data-doll-size]");
   check("DEV-ползунок «Размер людей» есть на локальном адресе, по умолчанию 80%", (await phone.inputValue("[data-doll-size]")) === "80", await phone.inputValue("[data-doll-size]"));
   await phone.locator("[data-doll-size]").fill("60");

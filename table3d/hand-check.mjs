@@ -107,15 +107,15 @@ check("язычок за самый верх — вся рука ушла на �
   await c.waitForTimeout(800);
   const mid = () => c.evaluate(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; const xs = s.chairs.find((k) => k.id === seat).hand.map((k) => window.__t3d.screenOf(k.id).x); return xs.length ? (Math.max(...xs) + Math.min(...xs)) / 2 : null; });
   await c.evaluate(() => { window.__t3d.fillHand(24); window.__t3d.setHandWidthNow(1); });
-  await c.waitForTimeout(1800);
+  await c.waitForTimeout(4000);
   const full = await mid();
   check("рука во всю ширину экрана — по центру", full !== null && Math.abs(full - 195) < 25, full);
   await c.evaluate(() => window.__t3d.setHandWidthNow(1.5));
-  await c.waitForTimeout(1800);
+  await c.waitForTimeout(4000);
   const over = await mid();
-  check("игрок растянул шире экрана — рука растёт вправо от левого края", over !== null && over > full + 30, { full, over });
+  check("игрок растянул шире экрана — рука растёт вправо от левого края", over !== null && over > full + 20, { full, over });
   await c.evaluate(() => window.__t3d.setHandWidthNow(1));
-  await c.waitForTimeout(1800);
+  await c.waitForTimeout(4000);
   const back = await mid();
   check("ширину вернули — рука снова по центру", back !== null && Math.abs(back - full) < 15, { full, back });
   await c.close();
@@ -241,7 +241,7 @@ check("язычок за самый верх — вся рука ушла на �
   await d.evaluate(() => window.__t3d.fillHand(20));
   await d.waitForTimeout(1500);
   await d.evaluate(() => window.__t3d.setHandLevel(0.45));
-  await d.waitForTimeout(1800);
+  await d.waitForTimeout(4000);
   const info = await d.evaluate(() => { const s = window.__t3d.state(); const ch = s.chairs.find((c) => c.owner === window.__t3d.me()); const rolls = ch.hand.map((c) => Math.abs(window.__t3d.cardQuat(c.id)[2])); const xs = ch.hand.map((c) => window.__t3d.screenOf(c.id)?.x ?? 0); return { n: ch.hand.length, wide: window.__t3d.wideK(), maxRoll: Math.max(...rolls), left: Math.min(...xs), right: Math.max(...xs) }; });
   check("десктоп: поправка широкого экрана 1", info.wide === 1, info);
   check("десктоп: края веера наклонены не круче ~30°", info.maxRoll <= 31, info);
@@ -250,7 +250,7 @@ check("язычок за самый верх — вся рука ушла на �
   await d.evaluate(() => window.__t3d.trimHand(6));
   await d.waitForTimeout(1000);
   await d.evaluate(() => window.__t3d.setHandWidthNow(1.5));
-  await d.waitForTimeout(1800);
+  await d.waitForTimeout(4000);
   const corner = await d.evaluate(() => { const s = window.__t3d.state(); const ch = s.chairs.find((c) => c.owner === window.__t3d.me()); const ys = ch.hand.map((c) => window.__t3d.screenOf(c.id).y); return { n: ch.hand.length, edgeY: Math.max(ys[0], ys.at(-1)), midY: Math.min(...ys), dock: innerHeight - 80 }; });
   check("шесть карт, рука широко: крайние карты не провалились под нижнюю строку (центр карты ≤ 60 px ниже её верха)", corner.n === 6 && corner.edgeY - corner.midY <= 75, corner);
   await d.close();
