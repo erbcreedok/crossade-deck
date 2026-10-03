@@ -10,6 +10,8 @@ Environment=PORT=2591
 Environment=CROSSADE_DB_FILE=%h/repo-dev/server/data/crossade-dev.db
 Environment=TABLE_SECRET=dev
 Environment=TABLE_GUESTS=1
+# Токен дев-бота и хозяева: файл вне git, его создаёт владелец (в него же смотрит `crossade-dev-bot`). Нет файла — стол без Telegram.
+EnvironmentFile=-%h/repo-dev/server/.env.dev
 Environment=NODE_ID=voyager-dev
 Environment=NODE_REGION=home
 ExecStart=%h/.local/node/bin/node --import tsx src/index.ts

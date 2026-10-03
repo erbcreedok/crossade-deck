@@ -11,6 +11,11 @@ export interface TableEnv {
   secret: string;
   relayUrl?: string;
   serverUrl?: string;
+  /**
+   * Адрес стола, который видит ЧЕЛОВЕК, если он не тот, по которому бот ходит к серверу сам: у дева бот зовёт стол по
+   * `127.0.0.1`, а телефон открывает его по имени из tailnet. Ссылки строятся от него и ведут прямо на стол (`/table/`).
+   */
+  linksUrl?: string;
   /** Короткое имя Mini App стола в BotFather: `t.me/<бот>/<app>?startapp=<комната>`. */
   appName?: string;
 }
@@ -22,6 +27,7 @@ export function tableEnv(source: NodeJS.ProcessEnv = process.env): TableEnv | un
     secret,
     ...(source.TABLE_RELAY_URL ? { relayUrl: trim(source.TABLE_RELAY_URL) } : {}),
     ...(source.TABLE_SERVER_URL ? { serverUrl: trim(source.TABLE_SERVER_URL) } : {}),
+    ...(source.TABLE_LINKS_URL ? { linksUrl: trim(source.TABLE_LINKS_URL) } : {}),
     ...(source.TABLE_APP_NAME ? { appName: source.TABLE_APP_NAME } : {}),
   };
 }
@@ -67,6 +73,7 @@ export class TableApi {
    * столу по `serverUrl` (127.0.0.1), но в ссылку человеку годится только адрес туннеля, а его знает реле.
    */
   async publicUrl(): Promise<string | null> {
+    if (this.env.linksUrl) return this.env.linksUrl;
     if (!this.env.relayUrl) return this.env.serverUrl ?? null;
     try {
       const res = await this.http(`${this.env.relayUrl}/relay/table`);
@@ -80,17 +87,27 @@ export class TableApi {
 
   /** Постоянный адрес стола в браузере — через реле, чтобы ссылка пережила смену адреса мака. */
   openUrl(room: string): string {
-    return `${this.env.relayUrl ?? this.env.serverUrl}/${this.env.relayUrl ? "t" : "table"}/?room=${encodeURIComponent(room)}`;
+    return `${this.pages()}/?room=${encodeURIComponent(room)}`;
   }
 
   /** 3D-вид стола в браузере: страница `/table/3d` реле пропускает насквозь, как и остальные адреса стола. */
   openUrl3d(room: string): string {
-    return `${this.env.relayUrl ?? this.env.serverUrl}/table/3d?room=${encodeURIComponent(room)}`;
+    return `${this.base()}/table/3d?room=${encodeURIComponent(room)}`;
   }
 
   /** Мини-апп без стола — «Мои комнаты»: тот же постоянный адрес, только без комнаты. */
   roomsUrl(): string {
-    return `${this.env.relayUrl ?? this.env.serverUrl}/${this.env.relayUrl ? "t" : "table"}/`;
+    return `${this.pages()}/`;
+  }
+
+  /** Откуда строятся ссылки для людей: адрес для людей, иначе реле, иначе сам сервер. */
+  private base(): string | undefined {
+    return this.env.linksUrl ?? this.env.relayUrl ?? this.env.serverUrl;
+  }
+
+  /** Корень страниц стола: через реле это `/t/`, напрямую — `/table/`. */
+  private pages(): string {
+    return `${this.base()}/${this.env.relayUrl && !this.env.linksUrl ? "t" : "table"}`;
   }
 
   get appName(): string | undefined {
@@ -141,13 +158,13 @@ export class TableApi {
 
   /** «Все столы» — страница хозяина, на постоянном адресе: оттуда Telegram отдаёт мини-аппу подпись. */
   adminUrl(): string {
-    return `${this.env.relayUrl ?? this.env.serverUrl}/${this.env.relayUrl ? "t" : "table"}/admin`;
+    return `${this.pages()}/admin`;
   }
 
   /** Постоянная ссылка на запись одной партии — через реле, как и сам стол. По умолчанию глазами крупье. */
   replayUrl(room: string, pass: string, from: number, to: number | null): string {
     const q = new URLSearchParams({ room, pass, from: String(from), ...(to === null ? {} : { to: String(to) }) });
-    return `${this.env.relayUrl ?? this.env.serverUrl}/${this.env.relayUrl ? "t" : "table"}/replay?${q}`;
+    return `${this.pages()}/replay?${q}`;
   }
 
   list(chat: string) {

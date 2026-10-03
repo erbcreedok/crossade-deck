@@ -36,3 +36,26 @@ describe("бот ищет сервер стола через реле", () => {
     expect(new TableApi({ secret: "s", relayUrl: "https://fly" }).roomsUrl()).toBe("https://fly/t/");
   });
 });
+
+describe("ссылки для людей, когда бот ходит к серверу не по тому адресу, что видит телефон", () => {
+  const env = { secret: "s", serverUrl: "http://127.0.0.1:2591", linksUrl: "https://dev.ts.net:8443" };
+  const api = new TableApi(env);
+
+  it("все ссылки строятся от адреса для людей и ведут прямо на стол", async () => {
+    expect(api.openUrl("r1")).toBe("https://dev.ts.net:8443/table/?room=r1");
+    expect(api.openUrl3d("r1")).toBe("https://dev.ts.net:8443/table/3d?room=r1");
+    expect(api.roomsUrl()).toBe("https://dev.ts.net:8443/table/");
+    expect(api.adminUrl()).toBe("https://dev.ts.net:8443/table/admin");
+    expect(await api.publicUrl()).toBe("https://dev.ts.net:8443");
+  });
+
+  it("без него — как раньше: через реле `/t/`, без реле `/table/` на сервере", () => {
+    expect(new TableApi({ secret: "s", relayUrl: "https://fly" }).openUrl3d("r")).toBe("https://fly/table/3d?room=r");
+    expect(new TableApi({ secret: "s", relayUrl: "https://fly" }).adminUrl()).toBe("https://fly/t/admin");
+  });
+
+  it("переменная окружения подхватывается и чистится от косой черты", () => {
+    expect(tableEnv({ TABLE_SECRET: "s", TABLE_SERVER_URL: "http://x", TABLE_LINKS_URL: "https://dev/" })?.linksUrl).toBe("https://dev");
+  });
+});
+

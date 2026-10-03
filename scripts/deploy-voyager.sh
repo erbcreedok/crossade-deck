@@ -18,7 +18,7 @@ case "$ENV" in
   dev)
     DIR="$HOME/repo-dev"
     BRANCH="${2:-$(cat "$HOME/.crossade-dev-branch" 2>/dev/null || echo main)}"
-    SERVICES=(crossade-dev-table crossade-dev-stands); HEALTH="http://127.0.0.1:2591/health" ;;
+    SERVICES=(crossade-dev-table crossade-dev-stands crossade-dev-bot); HEALTH="http://127.0.0.1:2591/health" ;;
   *) echo "usage: $0 prod|dev [ветка]" >&2; exit 2 ;;
 esac
 [[ "$ENV" == dev && -n "${2:-}" ]] && echo "$2" > "$HOME/.crossade-dev-branch"
@@ -44,7 +44,10 @@ for pkg in server bot table3d; do
   fi
 done
 
-for s in "${SERVICES[@]}"; do systemctl --user restart "$s"; done
+for s in "${SERVICES[@]}"; do
+  # Дев-бот необязателен: нет юнита или файла окружения с токеном — это не повод ронять выкатку.
+  systemctl --user restart "$s" || { [[ "$s" == crossade-dev-bot ]] && echo "[$ENV] $s не перезапущен (нет юнита или bot/.env)" || exit 1; }
+done
 for i in $(seq 1 30); do
   out="$(curl -fsS --max-time 3 "$HEALTH" 2>/dev/null)" && { echo "[$ENV] ${NEW:0:8} выкачен: $out"; exit 0; }
   sleep 1

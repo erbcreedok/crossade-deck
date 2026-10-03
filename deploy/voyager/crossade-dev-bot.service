@@ -1,0 +1,15 @@
+[Unit]
+Description=Crossade DEV Telegram bot (own test bot, talks to the dev table)
+After=network-online.target crossade-dev-table.service
+
+[Service]
+WorkingDirectory=%h/repo-dev/bot
+# Файл вне git: токен ДЕВ-бота, секрет дева, адрес стола и адрес для людей (`TABLE_LINKS_URL`).
+EnvironmentFile=%h/repo-dev/bot/.env
+Environment=PATH=%h/.local/node/bin:/usr/bin:/bin
+ExecStart=%h/.local/node/bin/node --import tsx src/index.ts
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

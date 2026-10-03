@@ -14,6 +14,8 @@ export default defineConfig({
     host: true,
     port: 9590,
     strictPort: true,
+    // Телефон ходит по имени из tailnet (`scripts/dev-expose.sh`): без этого Vite отвечает 403 на чужой Host.
+    allowedHosts: [".ts.net"],
     fs: { allow: [".."] },
   },
 });
