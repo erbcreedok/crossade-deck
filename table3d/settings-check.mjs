@@ -37,6 +37,12 @@ const open = async (viewport) => {
   await phone.waitForTimeout(700);
   check("и сидя снова +3", Math.abs((await hNow()) - 3) < 0.05, await hNow());
   await phone.locator("[data-settings]:visible").first().click();
+  // DEV-ползунок размера людей — на локальном адресе есть, по умолчанию люди чуть меньше (80%).
+  await phone.waitForSelector("[data-doll-size]");
+  check("DEV-ползунок «Размер людей» есть на локальном адресе, по умолчанию 80%", (await phone.inputValue("[data-doll-size]")) === "80", await phone.inputValue("[data-doll-size]"));
+  await phone.locator("[data-doll-size]").fill("60");
+  await phone.waitForTimeout(200);
+  check("ползунок меняет размер людей", Math.abs((await phone.evaluate(() => window.__t3d.dollScaleNow())) - 0.6) < 0.01, await phone.evaluate(() => window.__t3d.dollScaleNow()));
   await phone.waitForSelector("[data-look=fullscreen]");
   check("в настройках есть «Полный экран»", true, null);
   await phone.locator("[data-look=fullscreen]").click();

@@ -200,6 +200,9 @@ export interface SceneApi {
   setOrbitZoom(t: number): void;
   /** Оптический зум головы: 0 — обычный обзор, 1 — самый узкий. */
   /** Посадка 0…1: 0 — стул отодвинут до предела, 1 — как сидишь (ближе нельзя). */
+  /** Размер людей, множитель (DEV): толщина палок, кисти, плечи, кружок головы. */
+  dollScale(): number;
+  setDollScale(k: number): void;
   /** Высота обзора 0…1 (DEV): только моя камера, тело и руки у других не меняются. */
   viewHeight(): number;
   setViewHeight(t: number): void;
@@ -939,7 +942,18 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return { x: sh.x - (sh.x / r) * 2.4 + (sh.y / r) * k, y: sh.y - (sh.y / r) * 2.4 - (sh.x / r) * k, h: 0.3 };
   };
   /** Кукла в единицах стола — как у стола в 2D (`bodyView.ts`): толщина палки, полуширина плеч, руки, досягаемость. */
-  const DOLL = { spine: 0.21, bar: 1.4, arm: 0.13, hand: 0.32, reach: 2 * TABLE_RADIUS + 2, ref: 12, max: 4 } as const;
+  const DOLL0 = { spine: 0.21, bar: 1.4, arm: 0.13, hand: 0.32 };
+  const DOLL = { ...DOLL0, reach: 2 * TABLE_RADIUS + 2, ref: 12, max: 4 };
+  /** РАЗМЕР ЛЮДЕЙ (толщина палок, кисти, ширина плеч, кружок головы) — множитель; DEV-ползунок в настройках (только локально). */
+  let dollK = 0.8;
+  DOLL.spine = DOLL0.spine * dollK; DOLL.bar = DOLL0.bar * dollK; DOLL.arm = DOLL0.arm * dollK; DOLL.hand = DOLL0.hand * dollK;
+  const headW = (): number => 2 * dollK, headH = (): number => 2.5 * dollK;
+  function setDollScale(k: number): void {
+    dollK = Math.max(0.4, Math.min(1.4, k));
+    DOLL.spine = DOLL0.spine * dollK; DOLL.bar = DOLL0.bar * dollK; DOLL.arm = DOLL0.arm * dollK; DOLL.hand = DOLL0.hand * dollK;
+    bodiesCam = ""; myBodySig = "";
+    layout(store.state); draw();
+  }
   /** Во сколько раз толще шея, рука и кисть от дальности до камеры: издалека тонкая рука пропадает — дальше камера, шире линия. */
   const farK = (p: THREE.Vector3): number => Math.max(1, Math.min(DOLL.max, camera.position.distanceTo(p) / DOLL.ref));
   const poses = new Map<string, Pose>();
@@ -978,7 +992,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       }
       // Голова — кружок его цвета с именем, всегда к камере; глубина честная — стол её перекрывает.
       const head = new THREE.Sprite(new THREE.SpriteMaterial({ map: headTex(pose.name, pose.ink) }));
-      head.scale.set(2, 2.5, 1);
+      head.scale.set(headW(), headH(), 1);
       head.center.set(0.5, 1 - 128 / 320);
       head.position.copy(H);
       head.userData.head = pose.by;
@@ -1002,7 +1016,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       sprite.position.copy(base);
       if (shift > 0) sprite.position.addScaledVector(camera.position.clone().sub(base).normalize(), shift);
       const k = d > 0 ? (d - shift) / d : 1;
-      sprite.scale.set(2 * k, 2.5 * k, 1);
+      sprite.scale.set(headW() * k, headH() * k, 1);
     }
   }
 
@@ -1980,6 +1994,23 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       t.mesh.rotation.set(-Math.PI / 2, a, 0, "YXZ");
       t.mesh.scale.setScalar(k);
     }
+    // Язычок и у стопки бесхозного стула: потянул — вся стопка под палец (ключ `chair:<id>`).
+    for (const ch of store.state.chairs) {
+      if (ch.owner || ch.croupier || !ch.hand.length) continue;
+      const base = cards.get(ch.hand[0]!.id);
+      if (!base || !base.group.visible) continue;
+      const key = `chair:${ch.id}`;
+      seen.add(key);
+      let t = tabs.get(key);
+      if (!t) { t = makeTab(); t.hit.userData.pile = key; tabs.set(key, t); }
+      const sig = `${ch.hand.length}|false|${litTabs.has(key)}`;
+      if (t.key !== sig) { t.key = sig; drawTab(t.cv, ch.hand.length, false, litTabs.has(key)); t.tex.needsUpdate = true; }
+      base.group.updateMatrixWorld(true);
+      const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.scale.x, a = -(((-ch.angle % 360) + 360) % 360) * DEG, d = k * (CARD_H / 2 + TAB.l / 2);
+      t.mesh.position.set(at.x + d * Math.sin(a), at.y + 0.004, at.z + d * Math.cos(a));
+      t.mesh.rotation.set(-Math.PI / 2, a, 0, "YXZ");
+      t.mesh.scale.setScalar(k);
+    }
     for (const [id, t] of tabs) if (!seen.has(id)) { scene.remove(t.mesh); (t.mesh.material as THREE.Material).dispose(); t.tex.dispose(); tabs.delete(id); }
   }
 
@@ -2011,7 +2042,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       tether.computeLineDistances();
       myBody.add(tether);
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: headTex(who.name, who.ink) }));
-      sprite.scale.set(2, 2.5, 1);
+      sprite.scale.set(headW(), headH(), 1);
       sprite.center.set(0.5, 1 - 128 / 320);
       sprite.position.copy(H);
       myBody.add(sprite);
@@ -2020,7 +2051,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       // Сверху голова видна: кружок с именем — как у остальных.
       if (camMode === "top") {
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: headTex(who.name, who.ink) }));
-        sprite.scale.set(2, 2.5, 1);
+        sprite.scale.set(headW(), headH(), 1);
         sprite.center.set(0.5, 1 - 128 / 320);
         sprite.position.copy(H);
         myBody.add(sprite);
@@ -2263,6 +2294,48 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   };
   renderer.domElement.addEventListener("pointerup", reseatUp, { capture: true });
   renderer.domElement.addEventListener("pointercancel", reseatUp, { capture: true });
+  // ——— ЯЗЫЧОК СТОПКИ БЕСХОЗНОГО СТУЛА: вся стопка идёт под палец и ложится туда, куда отпустили ———
+  let chairStack: { pid: number; chair: string; x: number; y: number; moved: boolean } | null = null;
+  function chairStackDown(chairId: string, e: PointerEvent): void {
+    const ch = store.state.chairs.find((c) => c.id === chairId);
+    if (!ch || ch.owner || !ch.hand.length) return;
+    orbit.enabled = false;
+    live.add(e.pointerId);
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
+    chairStack = { pid: e.pointerId, chair: chairId, x: e.clientX, y: e.clientY, moved: false };
+    const move = (ev: PointerEvent): void => {
+      const cs = chairStack;
+      if (!cs || ev.pointerId !== cs.pid) return;
+      if (!cs.moved && Math.hypot(ev.clientX - cs.x, ev.clientY - cs.y) < 8) return;
+      const c2 = store.state.chairs.find((c) => c.id === cs.chair);
+      const at = onFelt(ev);
+      if (!c2 || !at) return;
+      if (!cs.moved) {
+        cs.moved = true;
+        gather = { ids: c2.hand.map((h) => h.id), at: seatOnFelt({ x: at.x, y: at.z }), t0: performance.now(), fast: true, from: { x: cs.x, y: cs.y }, until: Infinity };
+        grabFn?.();
+      }
+      if (gather) { gather.at = seatOnFelt({ x: at.x, y: at.z }); applyGather(); draw(); }
+    };
+    const up = (ev: PointerEvent): void => {
+      const cs = chairStack;
+      if (!cs || ev.pointerId !== cs.pid) return;
+      removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up);
+      chairStack = null;
+      live.delete(ev.pointerId);
+      orbit.enabled = camMode === "orbit";
+      const g = gather;
+      if (!cs.moved || !g) return;
+      const ids = g.ids, to = aim(ev.clientX, ev.clientY), angle = ((-(myChair()?.angle ?? 0) % 360) + 360) % 360;
+      if (to.in === "hand") store.send({ t: "moveMany", moves: ids.map((id, k) => ({ id, to: { in: "hand" as const, chair: to.chair, i: to.i + k } })) });
+      else if (to.in === "deck") store.send({ t: "gather", ids, side: "keep", to: { pile: to.pile } });
+      else store.send({ t: "gather", ids, side: "keep", to: { x: g.at.x, y: g.at.y, angle } });
+      g.until = performance.now() + GATHER.settleMs;
+      draw();
+    };
+    addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
+  }
+
   // ——— РЕЖИМ «В СТОПКУ» ———
   // Выбор: тап по карте или стопке на столе выделяет (повторный — снимает), проведение пальцем выделяет всё, что под ним; выбор общий (`picks`), его видят все.
   // Сбор: долгий холд на выделенном — все выделенные карты неспешно слетаются под палец в одну стопку; двинул палец — летят быстро и идут за ним; отпустил — одно
@@ -2377,6 +2450,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     live.add(e.pointerId);
     // Язычок — первым: он лежит у самой кромки стопки и перекрыл бы её верхнюю карту.
     const pile = tabFn ? hitTab(e) : null;
+    if (pile && pile.startsWith("chair:")) { e.stopImmediatePropagation(); chairStackDown(pile.slice(6), e); return; }
     if (pile) { e.stopImmediatePropagation(); tabFn!(pile, e); return; }
     const id = hitCard(e);
     if (!id || !takeable(id)) { if (liftedId) { liftedId = null; layout(store.state); } return; }
@@ -2664,6 +2738,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     seatNow: () => seatPull,
+    dollScaleNow: () => dollK,
     zoneInfo: () => store.state.chairs.filter((c) => !c.croupier).map((c) => ({ id: c.id, owner: c.owner, zone: zones.get(c.id)?.fill.visible ?? false, chair: chairObjs.get(c.id)?.group.visible ?? null, centre: zoneCentre(c.angle), hand: c.hand.map((h) => h.id) })),
     heldAngle: () => (drag?.moved ? drag.angle : null),
     reseatNow: (angle: number) => { store.send({ t: "reseat", angle }); },
@@ -2710,6 +2785,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     baseFov: () => baseFov,
     viewHeight: () => { const r = viewHRange(); return (viewH - r.min) / (r.max - r.min); },
     setViewHeight: (t: number) => setViewHNorm(t),
+    dollScale: () => dollK,
+    setDollScale: (k: number) => setDollScale(k),
     viewHeightUnits: () => viewH,
     seat: () => (seatPull - SEAT_PULL.min) / (SEAT_PULL.max - SEAT_PULL.min),
     setSeat: (t: number) => setSeatPull(SEAT_PULL.min + Math.max(0, Math.min(1, t)) * (SEAT_PULL.max - SEAT_PULL.min)),

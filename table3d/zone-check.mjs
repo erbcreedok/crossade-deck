@@ -44,6 +44,24 @@ await p.mouse.up();
 await p.waitForTimeout(900);
 const st2 = await p.evaluate(([cid, id]) => ({ inHand: window.__t3d.state().chairs.find((c) => c.id === cid).hand.some((h) => h.id === id) }), [target.id, mine]);
 check("свою карту уронил в зону бесхозного стула — она в его руке", st2.inHand, st2);
+// ЯЗЫЧОК СТОПКИ БЕСХОЗНОГО СТУЛА: потянул — вся стопка идёт под палец и ложится на сукно новой стопкой (или в руку, если отпустил над ней).
+{
+  const q = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await q.goto(`${base}/?stand&cam=top`);
+  await q.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await q.waitForTimeout(1200);
+  const z = await q.evaluate(() => window.__t3d.zoneInfo().find((c) => !c.owner && c.hand.length > 1));
+  const tab = await q.evaluate((id) => window.__t3d.tabInfo(`chair:${id}`)?.screen ?? null, z.id);
+  check("у стопки бесхозного стула есть язычок", !!tab, tab);
+  if (tab) {
+    await q.mouse.move(tab.x, tab.y); await q.mouse.down(); await q.mouse.move(tab.x + 6, tab.y - 40, { steps: 5 }); await q.mouse.move(195, 420, { steps: 8 });
+    await q.mouse.up();
+    await q.waitForTimeout(1000);
+    const st = await q.evaluate((id) => ({ left: window.__t3d.state().chairs.find((c) => c.id === id)?.hand.length ?? 0, piles: window.__t3d.state().piles.map((p) => p.cards.length) }), z.id);
+    check("потянули за язычок — вся стопка унесена на сукно новой стопкой", st.left === 0 && st.piles.some((n) => n === z.hand.length), { z: z.hand.length, st });
+  }
+  await q.close();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));

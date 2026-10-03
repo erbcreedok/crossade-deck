@@ -73,6 +73,8 @@ export interface SettingsWorld {
   view?: { min: number; max: number; get(): number; set(deg: number): void };
   /** Размер карт в своей руке, в процентах от обычного. */
   cardSize?: { min: number; max: number; get(): number; set(pct: number): void };
+  /** DEV, только локально: размер людей за столом в 3D, проценты. */
+  dollSize?: { min: number; max: number; get(): number; set(pct: number): void };
   /** Запись моего экрана — камера, нажатия, звук (`SCREEN_PRIVATE`); по умолчанию выключена. */
   record: { on(): boolean; toggle(): void };
 }
@@ -183,6 +185,11 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + `<input data-card-size type="range" min="${v.min}" max="${v.max}" step="5" value="${Math.round(v.get())}" aria-label="Размер карт в руке" style="flex:1;min-width:0;margin:0;cursor:pointer;touch-action:pan-y;accent-color:${INK.goldHi}">`
       + `<span data-card-size-value style="flex:none;width:48px;text-align:right;font:400 13px Tiny5,monospace;color:${INK.ink}">${Math.round(v.get())}%</span></div>`;
   }
+  function dollSizeHtml(v: NonNullable<SettingsWorld["dollSize"]>): string {
+    return `<div style="display:flex;align-items:center;gap:10px;padding:6px 2px">`
+      + `<input data-doll-size type="range" min="${v.min}" max="${v.max}" step="5" value="${Math.round(v.get())}" aria-label="Размер людей (DEV)" style="flex:1;min-width:0;margin:0;cursor:pointer;touch-action:pan-y;accent-color:${INK.goldHi}">`
+      + `<span data-doll-size-value style="flex:none;width:48px;text-align:right;font:400 13px Tiny5,monospace;color:${INK.ink}">${Math.round(v.get())}%</span></div>`;
+  }
   function viewHtml(v: NonNullable<SettingsWorld["view"]>): string {
     return `<div style="display:flex;align-items:center;gap:12px;min-height:44px"><span style="flex:none;width:78px;font:400 14px Tiny5,monospace;color:${INK.ink}">Обзор</span>`
       + `<input data-view type="range" min="${v.min}" max="${v.max}" step="1" value="${Math.round(v.get())}" aria-label="Обзор камеры" style="flex:1;min-width:0;margin:0;cursor:pointer;touch-action:pan-y;accent-color:${INK.goldHi}">`
@@ -218,6 +225,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + (world.view ? section("Камера") + viewHtml(world.view) : "")
       + (world.neckViz ? toggle("neck-vignette", "Виньетка натяжения шеи", world.neckViz.vignette.on()) + toggle("neck-gauge", "Датчик натяжения у рейки", world.neckViz.gauge.on()) : "")
       + (world.cardSize ? section("Карты в руке") + cardSizeHtml(world.cardSize) : "")
+      + (world.dollSize ? section("Люди за столом (DEV)") + dollSizeHtml(world.dollSize) : "")
       + (world.avatar ? section("Аватар")
         + toggle("avatar-seat", "Стул", world.avatar.model() === "seat")
         + toggle("avatar-king", "Король треф", world.avatar.model() === "king") : "")
@@ -320,6 +328,11 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
     if (input.matches("[data-card-size]") && world.cardSize) {
       world.cardSize.set(Number(input.value));
       layer.querySelector<HTMLElement>("[data-card-size-value]")!.textContent = `${Math.round(world.cardSize.get())}%`;
+      return;
+    }
+    if (input.matches("[data-doll-size]") && world.dollSize) {
+      world.dollSize.set(Number(input.value));
+      layer.querySelector<HTMLElement>("[data-doll-size-value]")!.textContent = `${Math.round(world.dollSize.get())}%`;
       return;
     }
     if (input.matches("[data-view]") && world.view) {
