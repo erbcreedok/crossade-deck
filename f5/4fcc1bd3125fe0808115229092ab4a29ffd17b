@@ -1,0 +1,33 @@
+table3d/rejoin-check.mjs
+  s_ad8a8a5b5d0419::t_d20e89b452a0fb 1-17,19-25,27-37
+  s_ad8a8a5b5d0419::t_29d66cd2c92a75 18,26
+table3d/src/main.ts
+  s_ad8a8a5b5d0419::t_88428a94c821d6 3
+  s_ad8a8a5b5d0419::t_73fb137ece443c 63
+server/table-client/main.ts
+  s_ad8a8a5b5d0419::t_88428a94c821d6 7,162
+server/src/table/identity.test.ts
+  s_ad8a8a5b5d0419::t_3a102698dab5a6 1-15
+server/src/table/contract.ts
+  s_ad8a8a5b5d0419::t_73fb137ece443c 69-70
+server/table-client/guestId.ts
+  s_ad8a8a5b5d0419::t_88428a94c821d6 1-19
+server/src/table/identity.ts
+  s_ad8a8a5b5d0419::t_73fb137ece443c 41-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f54fcc1bd3125fe0808115229092ab4a29ffd17b",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
