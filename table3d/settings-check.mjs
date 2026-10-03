@@ -55,6 +55,12 @@ const open = async (viewport) => {
   await phone.locator("[data-doll-size]").fill("60");
   await phone.waitForTimeout(200);
   check("ползунок меняет размер людей", Math.abs((await phone.evaluate(() => window.__t3d.dollScaleNow())) - 0.6) < 0.01, await phone.evaluate(() => window.__t3d.dollScaleNow()));
+  // МОЁ ТЕЛО: правое плечо на высоте тела, а не над ним — и в свободном виде, и в первом лице.
+  for (const mode of ["orbit", "head"]) {
+    await phone.evaluate((m) => window.__t3d.setCamMode(m), mode); await phone.waitForTimeout(600);
+    const sh = await phone.evaluate(() => window.__t3d.myShoulders());
+    check(`размер 60%: правое плечо на высоте тела (${mode})`, !!sh.body && !!sh.arm && Math.abs(sh.body[1] - sh.arm[1]) < 0.02, sh);
+  }
   await phone.waitForSelector("[data-look=fullscreen]");
   check("в настройках есть «Полный экран»", true, null);
   await phone.locator("[data-look=fullscreen]").click();
