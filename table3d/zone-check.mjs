@@ -126,6 +126,8 @@ check("свою карту уронил в зону бесхозного сту�
     await q.waitForTimeout(500);
     const on = await q.evaluate((ids) => ids.map((i) => window.__t3d.cardOnHud(i)?.onCamera), z.hand);
     check("стопку бесхозного стула несут над рукой — все её карты на худе, в руке", on.every(Boolean), on);
+    const dz = await q.evaluate(() => window.__t3d.handDropZone?.() ?? window.__t3d.dropZone?.() ?? null);
+    check("стопку бесхозного стула несут над рукой — зона руки горит, как у любой стопки", !!dz && dz.over === true, dz);
     await q.mouse.up();
   } else check("язычок виден после поворота головы к бесхозному стулу", false, tab);
   await q.close();

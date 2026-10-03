@@ -2960,6 +2960,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         if (!p || p.cards.length === 0 || p.pin || p.shut || p.seal || p.zone) return null;
         return { top: handTop(ch), bottom, over: pileOver !== null };
       }
+      if (chairStack?.moved && gather) return { top: handTop(ch), bottom, over: chairOver !== null };
       const d = drag;
       if (!d?.moved) return null;
       return { top: handTop(ch, d.id), bottom, over: d.gap !== null };
