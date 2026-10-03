@@ -53,6 +53,11 @@ check("свою карту уронил в зону бесхозного сту�
   const z = await q.evaluate(() => window.__t3d.zoneInfo().find((c) => !c.owner && c.hand.length > 1));
   const tab = await q.evaluate((id) => window.__t3d.tabInfo(`chair:${id}`)?.screen ?? null, z.id);
   check("у стопки бесхозного стула есть язычок", !!tab, tab);
+  // Язычок — со стороны середины стола, а не со стороны стула: он ближе к центру, чем сама стопка.
+  const dist = await q.evaluate((id) => { const t = window.__t3d.tabInfo(`chair:${id}`), c = window.__t3d.zoneInfo().find((x) => x.id === id).centre; return { tab: Math.hypot(t.x, t.z), stack: Math.hypot(c.x, c.y) }; }, z.id);
+  const ownedTab = await q.evaluate(() => window.__t3d.zoneInfo().filter((c) => c.owner).map((c) => window.__t3d.tabInfo(`chair:${c.id}`)));
+  check("у занятого стула язычка нет", ownedTab.every((t) => t === null), ownedTab);
+  check("язычок стоит к центру стола: ближе к середине, чем стопка", dist.tab < dist.stack - 0.3, dist);
   if (tab) {
     await q.mouse.move(tab.x, tab.y); await q.mouse.down(); await q.mouse.move(tab.x + 6, tab.y - 40, { steps: 5 }); await q.mouse.move(195, 420, { steps: 8 });
     await q.mouse.up();

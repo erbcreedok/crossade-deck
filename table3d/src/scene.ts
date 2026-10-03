@@ -2006,7 +2006,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const sig = `${ch.hand.length}|false|${litTabs.has(key)}`;
       if (t.key !== sig) { t.key = sig; drawTab(t.cv, ch.hand.length, false, litTabs.has(key)); t.tex.needsUpdate = true; }
       base.group.updateMatrixWorld(true);
-      const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.scale.x, a = -(((-ch.angle % 360) + 360) % 360) * DEG, d = k * (CARD_H / 2 + TAB.l / 2);
+      const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.scale.x, a = -(((-ch.angle % 360) + 360) % 360) * DEG + Math.PI, d = k * (CARD_H / 2 + TAB.l / 2);
+      // Язычок смотрит К СЕРЕДИНЕ стола (а не к стулу): другим игрокам за него удобнее тянуть, а сидящему за стулом язычка нет вовсе.
       t.mesh.position.set(at.x + d * Math.sin(a), at.y + 0.004, at.z + d * Math.cos(a));
       t.mesh.rotation.set(-Math.PI / 2, a, 0, "YXZ");
       t.mesh.scale.setScalar(k);
