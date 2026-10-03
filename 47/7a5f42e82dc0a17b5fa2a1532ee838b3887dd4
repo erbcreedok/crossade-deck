@@ -1,0 +1,55 @@
+table3d/replay-check.mjs
+  s_ad8a8a5b5d0419::t_4b13304d0cb873 1-22,26-28,32-37,40-41,44,46,48-54,57-60
+  s_ad8a8a5b5d0419::t_534925e704be69 23-25,38-39,55
+  s_ad8a8a5b5d0419::t_8060e736778234 29-31,45,56
+  s_ad8a8a5b5d0419::t_85f2d73740a352 42-43,47
+table3d/src/replayBar.ts
+  s_ad8a8a5b5d0419::t_4b13304d0cb873 178
+  s_ad8a8a5b5d0419::t_b2895e107f3237 185
+  s_ad8a8a5b5d0419::t_bb2a0c60698c61 1-177,179-184,186-268
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_646bac655949df 214-215,1691,1700,2246-2247,2491,2534,2882-2895
+server/table-client/tape.ts
+  s_ad8a8a5b5d0419::t_bca30ad41d702b 1-19,22-28,30-56,61-69,71-153,155-156,158-159,161-165,174-180,182-224
+  s_ad8a8a5b5d0419::t_a7559e04318605 20-21,29,70,166-173,181
+  s_ad8a8a5b5d0419::t_c3e055a6fbd054 57-60,154,157,160
+table3d/replay-live-check.mjs
+  s_ad8a8a5b5d0419::t_b2895e107f3237 1-44
+table3d/src/hud.ts
+  s_ad8a8a5b5d0419::t_a0ccd7b676a387 39,71,384-390,641-642,644,663-664,695
+server/table-client/store.ts
+  s_ad8a8a5b5d0419::t_fd4cd1fb548a8a 11,66-67
+server/table-client/replayable.ts
+  s_ad8a8a5b5d0419::t_389fa541416f1a 1-117,119,123-162,164-227,230-237
+  s_ad8a8a5b5d0419::t_b102c6ccd19851 118,120-122,163
+  s_ad8a8a5b5d0419::t_280b9c969131a0 228-229
+table3d/src/pixel.ts
+  s_ad8a8a5b5d0419::t_d1fa40d87173a4 69-77,137-140
+  s_ad8a8a5b5d0419::t_552d181a90275c 135-136,141
+server/table-client/replayable.test.ts
+  s_ad8a8a5b5d0419::t_716c44ef9d88bd 55
+  s_ad8a8a5b5d0419::t_b102c6ccd19851 80,82-86
+  s_ad8a8a5b5d0419::t_fd4cd1fb548a8a 1-54,56-79,81,87-88
+server/table-client/tape.test.ts
+  s_ad8a8a5b5d0419::t_c9b2bf2ebca4cf 1-4,6-57,60,62-91,100-106
+  s_ad8a8a5b5d0419::t_c3e055a6fbd054 5,58-59,61
+  s_ad8a8a5b5d0419::t_a7559e04318605 92-99
+table3d/src/main.ts
+  s_ad8a8a5b5d0419::t_a0ccd7b676a387 64-65,89,91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "477a5f42e82dc0a17b5fa2a1532ee838b3887dd4",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
