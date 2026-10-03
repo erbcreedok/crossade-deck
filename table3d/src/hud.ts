@@ -226,6 +226,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   hold.innerHTML = zoom.innerHTML.replace("data-zoom-knob", "data-hold-knob");
   const holdKnob = hold.querySelector<HTMLElement>("[data-hold-knob]")!, holdFill = hold.querySelector<HTMLElement>(".fill")!, holdTrack = hold.querySelector<HTMLElement>(".track")!;
   let holdUntil = 0;
+  /** Откуда палец взялся за ползунок и каким было значение: ползунок идёт на сдвиг пальца от точки хвата, а не прыгает под палец. */
+  let holdRef: { y: number; v: number } | null = null;
   const holdSync = () => {
     if (!local.hold) return;
     const height = local.hold === "height", v = height ? scene.viewHeight() : scene.seat();
@@ -233,29 +235,31 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     hold.querySelector<HTMLElement>(".tt")!.textContent = height ? "Высота" : "Посадка";
     hold.querySelector<HTMLElement>(".val")!.textContent = height ? `${scene.viewHeightUnits() >= 0 ? "+" : "−"}${Math.abs(scene.viewHeightUnits()).toFixed(1)}` : v > 0.995 ? "у стола" : `−${((1 - v) * 2.5).toFixed(1)}`;
   };
-  const holdTo = (e: PointerEvent) => { const r = holdTrack.getBoundingClientRect(), t = 1 - (e.clientY - r.top) / r.height; if (local.hold === "height") scene.setViewHeight(t); else scene.setSeat(t); holdSync(); };
-  const holdEnd = (e: PointerEvent) => { if (!local.hold || !hold.hasPointerCapture(e.pointerId)) return; local.hold = null; hold.style.display = "none"; holdUntil = performance.now() + 600; draw(); };
+  const holdTo = (e: PointerEvent) => { if (!holdRef) return; const r = holdTrack.getBoundingClientRect(), t = Math.max(0, Math.min(1, holdRef.v + (holdRef.y - e.clientY) / r.height)); if (local.hold === "height") scene.setViewHeight(t); else scene.setSeat(t); holdSync(); };
+  const holdEnd = (e: PointerEvent) => { if (!local.hold || !hold.hasPointerCapture(e.pointerId)) return; holdRef = null; local.hold = null; hold.style.display = "none"; holdUntil = performance.now() + 600; draw(); };
   hold.addEventListener("pointermove", (e) => { if (hold.hasPointerCapture(e.pointerId)) holdTo(e); });
   hold.addEventListener("pointerup", holdEnd);
   hold.addEventListener("pointercancel", holdEnd);
   root.append(hold);
   {
-    let press: { id: number; x: number; y: number; kind: "height" | "seat"; timer: number } | null = null;
+    let press: { id: number; x: number; y: number; cy: number; kind: "height" | "seat"; timer: number } | null = null;
     const cancel = () => { if (press) clearTimeout(press.timer); press = null; };
     root.addEventListener("pointerdown", (e) => {
       const b = (e.target as Element).closest?.("[data-stance-toggle], [data-reseat]");
       if (!b || scene.reseatOn() || local.hold) return;
       const kind = b.hasAttribute("data-stance-toggle") ? "height" : "seat", id = e.pointerId, x = e.clientX, y = e.clientY;
       cancel();
-      press = { id, x, y, kind, timer: window.setTimeout(() => {
+      press = { id, x, y, cy: y, kind, timer: window.setTimeout(() => {
+        const cy = press ? press.cy : y;
         press = null;
         local.hold = kind; holdUntil = performance.now() + 60000;
+        holdRef = { y: cy, v: kind === "height" ? scene.viewHeight() : scene.seat() };
         hold.style.display = "block"; holdSync();
         try { hold.setPointerCapture(id); } catch { /* палец уже ушёл */ }
         draw();
       }, 420) };
     });
-    root.addEventListener("pointermove", (e) => { if (press && press.id === e.pointerId && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 14) cancel(); });
+    root.addEventListener("pointermove", (e) => { if (press && press.id === e.pointerId) { press.cy = e.clientY; if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 14) cancel(); } });
     for (const t of ["pointerup", "pointercancel"]) root.addEventListener(t, (e) => { if (press && press.id === (e as PointerEvent).pointerId) cancel(); });
   }
   const panels = mountPanels(panelOverlay, { ...scene.panels, feltAt: scene.feltAt, glass: scene.glass }, () => draw());

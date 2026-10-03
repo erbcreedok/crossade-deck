@@ -29,35 +29,38 @@ check("тап «Сидя/Стоя» меняет позу", s0 !== s1, { s0, s1 
 await p.locator("[data-stance-toggle]:visible").first().click();
 await p.waitForTimeout(500);
 check("и обратно", (await stance()) === s0, await stance());
-// ЗАЖАТЬ «Сидя» — ползунок высоты вместо рейки.
+// ЗАЖАТЬ «Сидя» — ползунок высоты вместо рейки; он идёт на сдвиг пальца от точки хвата, а не прыгает под палец.
 {
   const c = centre(await box("[data-stance-toggle]"));
   const h0 = await p.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow());
   await p.mouse.move(c.x, c.y); await p.mouse.down(); await p.waitForTimeout(650);
   check("зажали «Сидя» — появился ползунок «Высота»", (await holdOn()) === "Высота", await holdOn());
   check("…а кнопки рейки (гиро, голова, пересесть) скрылись", !(await railOn()), null);
-  const tr = await p.evaluate(() => { const r = document.querySelector("[data-hold-slider] .track").getBoundingClientRect(); return { x: r.x + r.width / 2, top: r.top, h: r.height }; });
-  await p.mouse.move(tr.x, tr.top + tr.h * 0.5, { steps: 4 });
-  await p.mouse.move(tr.x, tr.top + tr.h * 0.1, { steps: 6 });
-  const h1 = await p.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow());
-  check("тот же палец тянет вверх — высота обзора растёт", h1 > h0 + 2, { h0, h1 });
+  const hHold = await p.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow());
+  check("зажали и не двигаем — высота не прыгнула под палец", Math.abs(hHold - h0) < 0.05, { h0, hHold });
+  await p.mouse.move(c.x, c.y - 70, { steps: 8 });
+  const hUp = await p.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow());
+  check("палец вверх от точки хвата — высота растёт относительно прежней", hUp > h0 + 0.8, { h0, hUp });
+  await p.mouse.move(c.x, c.y + 40, { steps: 8 });
+  const hDown = await p.evaluate(() => window.__t3d.cam().pos[1] - window.__t3d.eyeNow());
+  check("вниз от точки хвата — ниже прежней", hDown < h0 - 0.4, { h0, hDown });
   await p.mouse.up();
   await p.waitForTimeout(300);
   check("отпустили — рейка вернулась, ползунка нет", (await railOn()) && !(await holdOn()), null);
   check("и поза не поменялась (отпускание — не тап)", (await stance()) === s0, await stance());
   await p.evaluate(() => window.__t3d.setViewHeight(3 / 13));
 }
-// ЗАЖАТЬ «Пересесть» — ползунок посадки; вниз — дальше от стола.
+// ЗАЖАТЬ «Пересесть» — ползунок посадки; вниз от точки хвата — дальше от стола.
 {
   const c = centre(await box("[data-reseat]"));
   const a0 = await p.evaluate(() => window.__t3d.seatNow());
   await p.mouse.move(c.x, c.y); await p.mouse.down(); await p.waitForTimeout(650);
   check("зажали «Пересесть» — ползунок «Посадка»", (await holdOn()) === "Посадка", await holdOn());
-  const tr = await p.evaluate(() => { const r = document.querySelector("[data-hold-slider] .track").getBoundingClientRect(); return { x: r.x + r.width / 2, top: r.top, h: r.height }; });
-  await p.mouse.move(tr.x, tr.top + tr.h * 0.3, { steps: 4 });
-  await p.mouse.move(tr.x, tr.top + tr.h * 0.9, { steps: 6 });
+  const aHold = await p.evaluate(() => window.__t3d.seatNow());
+  check("зажали и не двигаем — посадка не прыгнула под палец", Math.abs(aHold - a0) < 0.05, { a0, aHold });
+  await p.mouse.move(c.x, c.y + 90, { steps: 8 });
   const a1 = await p.evaluate(() => window.__t3d.seatNow());
-  check("тянем вниз — стул отодвигается от стола", a1 < a0 - 1, { a0, a1 });
+  check("тянем вниз от точки хвата — стул отодвигается от стола", a1 < a0 - 0.5, { a0, a1 });
   await p.mouse.up();
   await p.waitForTimeout(300);
   check("после отпускания вид сверху не открылся", !(await p.evaluate(() => window.__t3d.reseatInfo().on)), null);
