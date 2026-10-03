@@ -4,6 +4,7 @@
 //   в Telegram (Mini App)          дверь `telegram`, комната — `start_param` (или `?room=`)
 //   в браузере                     дверь `guest`: пустит, только если серверу это разрешено
 
+import { guestIdFor } from "./guestId.js";
 import { mountLogin } from "./login.js";
 import { menuUrl, nativeShell } from "./arNative.js";
 import { ROOM_CLOSED, STALE_CLIENT, type JoinOptions } from "../src/table/contract.js";
@@ -158,7 +159,7 @@ async function open(): Promise<TableStore> {
     ? { room, client: "html", door: "telegram", initData }
     : key || pass
       ? { room, client: nativeShell() ? "ios" : "html", door: "app", ...(key ? { key } : { pass: pass! }) }
-      : { room, client: "html", door: "guest", name: params.get("name") ?? "Гость" };
+      : { room, client: "html", door: "guest", name: params.get("name") ?? "Гость", guestId: guestIdFor(params.get("name") ?? "Гость") };
   return netStore(options);
 }
 

@@ -1,5 +1,6 @@
 import "./uuid-polyfill";
 import { lagFromUrl, slowed } from "../../server/table-client/lag.js";
+import { guestIdFor } from "../../server/table-client/guestId.js";
 // ПЕСОЧНИЦА НА THREE.JS — тот же стол, что `server/table-client`, другой экран. Стол и сеть — те же самые (`TableStore`:
 // `localStore` — стол в этой вкладке с ботами, `netStore` — живая комната); рисует и ловит палец — `scene.ts`.
 //
@@ -59,7 +60,7 @@ try {
     const pass = params.get("pass"), key = params.get("key");
     const door = initData ? { door: "telegram" as const, initData }
       : key || pass ? { door: "app" as const, ...(key ? { key } : { pass: pass! }) }
-      : { door: "guest" as const, name: params.get("name") ?? "Гость 3D" };
+      : { door: "guest" as const, name: params.get("name") ?? "Гость 3D", guestId: guestIdFor(params.get("name") ?? "Гость 3D") };
     const store = await (await import("../../server/table-client/netStore.js")).netStore({ room, client: "table3d", ...door });
     const box = screenBox(true);
     loading?.done();

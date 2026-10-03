@@ -38,7 +38,9 @@ export function whoIs(options: Partial<JoinOptions>, session: string, doors: Doo
   }
   if (options.door === "guest" && doors.guests) {
     const name = typeof options.name === "string" && options.name.trim() ? options.name.trim().slice(0, 24) : "Гость";
-    return { key: `guest:${session}`, name, door: "guest" };
+    // Постоянный id браузера (`guestId`) — тот же гость после перезагрузки; нет или не годится — ключ живёт, пока живёт соединение.
+    const id = typeof options.guestId === "string" && /^[A-Za-z0-9_-]{16,64}$/.test(options.guestId) ? options.guestId : session;
+    return { key: `guest:${id}`, name, door: "guest" };
   }
   return null;
 }
