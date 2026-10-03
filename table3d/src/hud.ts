@@ -349,7 +349,10 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const y = Math.round(top - 26);
     const label = tucked ? `<span>на столе · ${chair.hand.length}</span>` : `<span>${chair.hand.length}</span>`;
     const grip = free ? "" : `<div class="cp c-grip${local.gripDrag ? " drag" : ""}" data-grip aria-label="Язычок руки: вверх-вниз — высота и поза, за самый верх — вся рука стопкой на стол; влево-вправо — ширина руки" style="left:${local.gripX === null ? "calc(50% - 42px)" : `${Math.max(8, Math.min(glass().w - 92, local.gripX - 42))}px`};top:${y}px"><i></i><i></i><i></i><i></i></div>`;
-    return grip + `<div class="cp c-count flat" style="left:14px;top:${y - 6}px">${ic("cards", 1)}${label}</div>`;
+    const count = `<div class="cp c-count flat" style="left:14px;top:${y - 6}px">${ic("cards", 1)}${label}</div>`;
+    // Потолок руки: взгляд вверх — рука уезжает вниз, и язычок со счётчиком с ней; прячутся за нижней строкой (обрезка по её верху).
+    const shift = free ? 0 : Math.round(scene.handShiftPx());
+    return `<div class="c-handclip" style="position:absolute;left:0;right:0;top:0;height:${floor}px;overflow:hidden;pointer-events:none;z-index:38"><div style="position:absolute;inset:0;transform:translateY(${shift}px)">${grip}${count}</div></div>`;
   }
   /** Рейка камеры справа: только то, что нужно этому виду. */
   function railHtml(s: Snapshot): string {

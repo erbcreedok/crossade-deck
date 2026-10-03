@@ -19,7 +19,7 @@ import type { PanelWorld, WorldPlace } from "./panel.js";
 import type { Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
 import { CARRY_EVERY_MS } from "../../server/src/table/contract.js";
 import { SEAT_PULL, AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
-import { STRAIN, BACK, PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
+import { HAND_CEIL, STRAIN, BACK, PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
 import { createGyro } from "./gyro.js";
 import { ringArrowFromMiddle, SEAT, turnMark } from "../../server/table-client/felt.js";
 import { ringTurnOfSeat } from "../../server/src/table/bots/view.js";
@@ -211,6 +211,8 @@ export interface SceneApi {
   setSeat(t: number): void;
   /** Пересадка своего стула: вид сверху со свободным зумом, только стол, стулья и карты на столе; тянут свой стул по кругу. */
   reseatOn(): boolean;
+  /** На сколько px вниз ушла рука из-за потолка (взгляд выше `HAND_CEIL`): худ руки — язычок и счётчик — уезжает на столько же. */
+  handShiftPx(): number;
   /** Просмотр прошлого (`store.replay`): включить — вид сверху, стул и жесты за столом выключены; выключить — камера как была. */
   replay(on: boolean): void;
   setReseat(on: boolean): void;
@@ -1448,6 +1450,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   bowlG.visible = false;
   handRoot.add(bowlG);
   let bowlSig = "";
+  /** На сколько руку опустил потолок (рад): отрицательное — вниз. */
+  let handCeilRot = 0;
   let handZone: (() => { over: boolean } | null) | null = null;
   const bowlNow = { visible: false, lit: false, cut: 0, fitTop: 0, ringTop: 0, cardsTop: 0 };
   function handBowl(): void {
@@ -1917,7 +1921,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       lag.prevYaw = rig.yaw; lag.prevPitch = rig.pitch;
       if (Math.abs(lag.yaw) > 0.002 || Math.abs(lag.pitch) > 0.002) moving = true;
     } else { lag.yaw = lag.pitch = 0; lag.prevYaw = rig.yaw; lag.prevPitch = rig.pitch; }
-    handRoot.rotation.set(lag.pitch, lag.yaw, 0);
+    // Потолок руки: взгляд выше `HAND_CEIL` — рука не поднимается следом, а остаётся на месте в мире (в осях камеры уезжает вниз).
+    handCeilRot = camMode === "head" ? -Math.max(0, rig.pitch - HAND_CEIL.pitch) * DEG : 0;
+    handRoot.rotation.set(lag.pitch + handCeilRot, lag.yaw, 0);
     updateGrip(dt, now);
     if (gripAmt > 0.001 || gripDrag) moving = true;
     retargetMine();
@@ -2897,6 +2903,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     headFronts: () => heads.children.flatMap((b) => b.children.filter((c) => c.userData.base).map((c) => ({ by: b.userData.by as string, moved: c.position.distanceTo(c.userData.base as THREE.Vector3), scale: c.scale.x }))),
     handDropZone: () => api.handDropZone(),
     bowlInfo: () => ({ ...bowlNow }),
+    handShift: () => api.handShiftPx(),
+    setLook: (pitch: number) => { rig.pitch = pitch; applyRig(); draw(); },
     handCardPx: () => { const shape = shapeOfWidth(handWidth, 1, 0, 0); shape.lift = 1; const b = handCardBox(1, shape, Math.tan((baseFov * DEG) / 2) / Math.tan((CAMHAND.refFov * DEG) / 2), 0, 0); return Math.abs(b.bottom - b.top); },
     eyeNow: () => eyeY(),
     setViewHeight: (t: number) => setViewHNorm(t),
@@ -3076,6 +3084,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     elevation: () => { if (camMode !== "orbit") return -rig.pitch; const p = camera.position.clone().sub(orbit.target); return Math.asin(p.y / p.length()) / DEG; },
     glass,
     safeBottom,
+    handShiftPx() {
+      if (!handCeilRot) return 0;
+      const rect = renderer.domElement.getBoundingClientRect(), p0 = new THREE.Vector3(0, CAMHAND.at.y, CAMHAND.at.z), p1 = p0.clone().applyAxisAngle(new THREE.Vector3(1, 0, 0), handCeilRot);
+      const y = (v: THREE.Vector3) => ((1 - v.clone().applyMatrix4(camera.projectionMatrix).y) * rect.height) / 2;
+      return Math.max(0, y(p1) - y(p0));
+    },
     handDropZone() {
       // Зона руки нужна всему, что можно в неё положить: одной карте и стопке целиком. Что нельзя (запертая или приколотая стопка, рука «не принимает») — не намечается.
       const ch = myChair();
