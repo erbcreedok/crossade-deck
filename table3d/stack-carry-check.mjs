@@ -32,6 +32,16 @@ await a.mouse.up();
 await b.waitForTimeout(1500);
 const after = await b.evaluate((id) => window.__t3d.cardTarget(id), pile.top);
 check("отпустили — стопка у соседа опустилась на стол", after && after[1] < air[1] - 0.3, { air, after });
+// ЧУЖАЯ КАРТА ИЗ КОЛОДЫ: A тянет верхнюю карту, у B ребро колоды стоит прямо и без неё — не убегает за летящей картой.
+await b.waitForTimeout(800);
+const n0 = await b.evaluate((id) => window.__t3d.state().piles.find((p) => p.id === id).cards.length, pile.id);
+const topNow = await a.evaluate((id) => { const p = window.__t3d.state().piles.find((q) => q.id === id); return p.cards.at(-1).id; }, pile.id);
+const topAt = await a.evaluate((id) => window.__t3d.screenOf(id), topNow);
+await a.mouse.move(topAt.x, topAt.y); await a.mouse.down(); await a.mouse.move(topAt.x + 4, topAt.y - 30, { steps: 4 });
+const seenEdge = [];
+for (let i = 0; i < 10; i++) { await a.mouse.move(120 + i * 12, 330 + (i % 3) * 20); await b.waitForTimeout(80); seenEdge.push(await b.evaluate((id) => window.__t3d.bodyInfo(id), pile.id)); }
+check("чужую карту тянут из колоды — у соседа ребро без неё и стоит прямо", seenEdge.every((e) => e && e.n === n0 - 1 && Math.abs(e.axis[1]) > 0.95), seenEdge.map((e) => e && [e.n, e.axis.map((v) => Math.round(v * 100) / 100)]).slice(0, 3));
+await a.mouse.up();
 // КРУПЬЕ ДЕРЖИТ СТОПКУ НА СТОЛЕ: его левая рука лежит на ней, а не висит на высоте головы.
 const croupier = await b.evaluate(() => { const c = window.__t3d.state().chairs.find((x) => x.croupier); return c ? { n: c.hand.length, at: window.__t3d.leftHandOf(c.id) } : null; });
 check("у крупье левая рука на столе, а не на уровне головы", !!croupier && !!croupier.at && croupier.at[1] < 1.5, croupier);

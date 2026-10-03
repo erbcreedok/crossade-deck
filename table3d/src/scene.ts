@@ -2243,9 +2243,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Тело у каждой стопки из двух и больше карт — от нижней карты вверх на её высоту; несомую сверху карту в него не считают. */
   function placeBodies(): void {
     const seen = new Set<string>();
+    const flying = new Set<string>();
+    if (drag?.moved) flying.add(drag.id);
+    for (const c of store.carries) { flying.add(c.id); for (const w of c.with ?? []) flying.add(w.card.id); }
     for (const p of store.state.piles) {
       const base = p.pose === "ring" ? undefined : cards.get(p.cards[0]?.id ?? "");
-      const n = p.cards.length - (drag?.moved && drag.id === p.cards.at(-1)?.id ? 1 : 0);
+      // Унесённые сверху (моим пальцем или чужим) в тело не входят: они ещё числятся в стопке, но летят отдельно, и ребро не должно за ними тянуться.
+      let n = p.cards.length;
+      while (n > 0 && flying.has(p.cards[n - 1]!.id)) n--;
       if (!base || !base.group.visible || n < 2) continue;
       seen.add(p.id);
       let m = bodies.get(p.id);
@@ -2254,14 +2259,16 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (m.geometry !== g) m.geometry = g;
       m.userData.layers = n;
       base.group.updateMatrixWorld(true);
-      // Тело идёт за нижней картой, куда бы её ни повернули: лежит на столе — вверх по столу; несомую к руке карту повернули лицом ко мне — и ребро повёрнуто с ней.
-      // Куда растёт стопка — от нижней карты к верхней (у лежащей это вверх); длинная ось тела — длинная ось карты.
+      // Тело идёт за нижней картой, куда бы её ни повернули: растёт по нормали нижней карты — вверх у лежащей, к глазу у несомой лицом ко мне. Сторону выбирает верхняя карта,
+      // но только пока она рядом: улетевшую или отставшую на пружине в расчёт не берём (иначе ребро «убегает» за ней), а держим последнюю хорошую сторону.
       const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.getWorldScale(new THREE.Vector3()).x;
       const topCard = cards.get(p.cards[n - 1]!.id), baseQ = base.group.getWorldQuaternion(new THREE.Quaternion());
-      const zAxis = topCard ? topCard.group.getWorldPosition(new THREE.Vector3()).sub(at) : new THREE.Vector3();
-      if (zAxis.lengthSq() < 1e-9) zAxis.set(0, 0, 1).applyQuaternion(baseQ).multiplyScalar(base.target.onCamera ? -1 : 1).setY(Math.abs(zAxis.y) > 0 ? zAxis.y : 0);
-      if (zAxis.lengthSq() < 1e-9) zAxis.set(0, 1, 0);
-      zAxis.normalize();
+      const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(baseQ).normalize(), expect = Math.max(1e-3, n * PILE_STEP * k);
+      const along = topCard ? topCard.group.getWorldPosition(new THREE.Vector3()).sub(at).dot(normal) : 0;
+      let sign = (m.userData.sign as number | undefined) ?? (base.target.onCamera ? -1 : normal.y >= 0 ? 1 : -1);
+      if (Math.abs(along) > 0.4 * expect && Math.abs(along) < 4 * expect + 0.2) sign = Math.sign(along);
+      m.userData.sign = sign;
+      const zAxis = normal.clone().multiplyScalar(sign);
       const yRef = new THREE.Vector3(0, 1, 0).applyQuaternion(baseQ), xAxis = yRef.clone().cross(zAxis);
       if (xAxis.lengthSq() < 1e-9) xAxis.set(1, 0, 0);
       xAxis.normalize();
@@ -2890,6 +2897,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     dollParts: () => { const b = heads.children[0]?.children.find((c) => c.userData.base)?.userData as { base?: THREE.Vector3 } | undefined; const ch = [...chairObjs.values()][0]; return { headY: b?.base?.y ?? null, chairScale: ch?.group.scale.x ?? null }; },
     pickAtNow: (x: number, y: number) => api.pickAt(x, y),
     dollScaleNow: () => dollK,
+    bodyInfo: (pile: string) => { const m = bodies.get(pile); if (!m) return null; const base = cards.get(store.state.piles.find((p) => p.id === pile)?.cards[0]?.id ?? ""); const up = new THREE.Vector3(0, 0, 1).applyQuaternion(m.quaternion); return { n: m.userData.layers as number, axis: up.toArray(), at: m.position.toArray(), base: base?.group.getWorldPosition(new THREE.Vector3()).toArray() ?? null, normal: base ? new THREE.Vector3(0, 0, 1).applyQuaternion(base.group.getWorldQuaternion(new THREE.Quaternion())).toArray() : null }; },
     setCamMode: (m: CamMode) => setCamMode(m),
     myShoulders: () => ({ body: (myBody.userData.shoulder as THREE.Vector3 | undefined)?.toArray() ?? null, arm: (myArm.userData.shoulder as THREE.Vector3 | undefined)?.toArray() ?? null }),
     leftHandOf: (chair: string) => { for (const b of heads.children) if (b.userData.chair === chair && b.userData.left) return (b.userData.left as THREE.Vector3).toArray(); return null; },
