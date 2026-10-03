@@ -26,6 +26,22 @@ describe("cleanReport", () => {
   });
 });
 
+describe("запасной узел в реестре", () => {
+  it("принимается как отдельная роль с пояснением, лишнее обрезается", () => {
+    const got = cleanReport({ id: "mac", role: "standby", note: "x".repeat(500), commit: "abcdef1234567890" });
+    expect(got).toMatchObject({ role: "standby" });
+    expect(got?.note?.length).toBe(120);
+    expect(got?.commit).toBe("abcdef123456");
+    expect(cleanReport({ id: "mac", role: "watcher" })).toBeNull();
+  });
+
+  it("запасной и стол с одним именем — два узла", () => {
+    const self = describeSelf("table", facts, "mac-host", {});
+    reportNode({ ...bot({ id: self.id }), role: "standby", note: "в запасе" }, 1000);
+    expect(nodesList(self, 1000).map((n) => n.role).sort()).toEqual(["standby", "table"]);
+  });
+});
+
 describe("nodesList", () => {
   const self = describeSelf("table", facts, "voyager-host", { NODE_ID: "voyager", NODE_REGION: "home" });
 

@@ -437,6 +437,7 @@ export function tableRoutes(): Router {
     const self = describeSelf("table", {
       version: BUILD_INFO.version,
       build: BUILD_INFO.build,
+      commit: BUILD_INFO.commit,
       startedAt: PROCESS_STARTED_AT,
       url: tableConfig().publicUrl ?? null,
       rooms: live.length,
@@ -814,7 +815,8 @@ export function startNodeReport(send: typeof fetch = fetch): () => void {
   const { publicUrl, relayUrl, secret } = tableConfig();
   if (!relayUrl || !secret) return () => {};
   const tell = async () => {
-    const report = describeSelf("table", { version: BUILD_INFO.version, build: BUILD_INFO.build, startedAt: PROCESS_STARTED_AT, url: publicUrl ?? null, rooms: allEntries().length, people: null, polling: null }, os.hostname(), process.env);
+    const report = describeSelf("table", { version: BUILD_INFO.version, build: BUILD_INFO.build,
+      commit: BUILD_INFO.commit, startedAt: PROCESS_STARTED_AT, url: publicUrl ?? null, rooms: allEntries().length, people: null, polling: null }, os.hostname(), process.env);
     for (const relay of relayUrl.split(",").map((u) => u.trim().replace(/\/+$/, "")).filter(Boolean)) {
       await send(`${relay}/table/nodes`, {
         method: "POST",

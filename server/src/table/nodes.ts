@@ -15,7 +15,7 @@ export const NODE_EVERY_MS = 30_000;
 /** Столько реестр верит узлу после последнего сообщения. */
 export const NODE_TTL_MS = 90_000;
 
-export type NodeRole = "table" | "bot";
+export type NodeRole = "table" | "bot" | "standby";
 
 export interface NodeReport {
   /** Устойчивое имя узла: `NODE_ID` или имя машины. */
@@ -35,6 +35,10 @@ export interface NodeReport {
   people: number | null;
   /** Бот: держит ли он Telegram (long polling). */
   polling: boolean | null;
+  /** Короткое пояснение узла человеку: что он делает сейчас («стол в запасе, снимок базы 40 с назад»). */
+  note?: string | null;
+  /** Коммит, из которого запущен узел. */
+  commit?: string;
 }
 
 export interface NodeView extends NodeReport {
@@ -60,7 +64,7 @@ export function cleanReport(raw: unknown): NodeReport | null {
   const r = (raw ?? {}) as Record<string, unknown>;
   const id = text(r.id, 48);
   if (!id || !/^[\w.:-]+$/.test(id)) return null;
-  if (r.role !== "table" && r.role !== "bot") return null;
+  if (r.role !== "table" && r.role !== "bot" && r.role !== "standby") return null;
   const url = text(r.url, 200);
   return {
     id,
@@ -74,6 +78,8 @@ export function cleanReport(raw: unknown): NodeReport | null {
     rooms: count(r.rooms),
     people: count(r.people),
     polling: typeof r.polling === "boolean" ? r.polling : null,
+    note: text(r.note, 120) || null,
+    commit: text(r.commit, 12),
   };
 }
 
@@ -97,7 +103,7 @@ export function nodesList(self: NodeReport, now = Date.now()): NodeView[] {
 /** Описание этого процесса: имя узла и регион из окружения (`NODE_ID`, `NODE_REGION`), иначе имя машины и «home». Имя машины даёт вызывающий: общий код не знает Node. */
 export function describeSelf(
   role: NodeRole,
-  facts: { version: string; build: string; startedAt: number; url: string | null; rooms: number | null; people: number | null; polling: boolean | null },
+  facts: { version: string; build: string; startedAt: number; url: string | null; rooms: number | null; people: number | null; polling: boolean | null; note?: string | null; commit?: string },
   host: string,
   env: Record<string, string | undefined> = {},
 ): NodeReport {

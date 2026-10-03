@@ -38,7 +38,7 @@ COPY bot/src /app/bot/src
 COPY bot/tsconfig.json /app/bot/
 
 # Надзиратель и его решения.
-COPY deploy/failover/decide.mjs /app/failover/decide.mjs
+COPY deploy/failover/decide.mjs deploy/failover/report.mjs /app/failover/
 COPY deploy/fly-standby/standby.mjs /app/fly-standby/standby.mjs
 
 CMD ["node", "/app/fly-standby/standby.mjs"]

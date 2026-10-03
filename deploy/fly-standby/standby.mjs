@@ -12,6 +12,9 @@ import { createServer } from "node:http";
 import { copyFileSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { decide, fresh, readRegistry } from "../failover/decide.mjs";
+import { sendReport, standbyNote, standbyReport } from "../failover/report.mjs";
+import { statSync } from "node:fs";
+import { hostname } from "node:os";
 
 const EVERY_MS = 15_000;
 const REPLICA_EVERY_MS = 120_000;
@@ -125,6 +128,9 @@ for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => { table.stop(); b
 
 let state = fresh();
 let lastReplica = 0;
+let lastReport = 0;
+const STARTED = Date.now();
+const replicaAge = () => { try { return (Date.now() - statSync(REPLICA).mtimeMs) / 1000; } catch { return null; } };
 listenIdle();
 log(`запасной узел Fly «${ID}» запущен: пороги ${LIMITS.failAfter}/${LIMITS.recoverAfter} проб по ${EVERY_MS / 1000} с`);
 while (true) {
@@ -150,6 +156,11 @@ while (true) {
     if (out.actions.bot === "stop") {
       bot.stop();
       await notify("✅ Бот вернулся на основном узле: бот на Fly остановлен.");
+    }
+
+    if (Date.now() - lastReport >= 30_000) {
+      lastReport = Date.now();
+      await sendReport(RELAY, SECRET, standbyReport({ id: ID, host: hostname(), region: process.env.NODE_REGION || "fra", startedAt: STARTED, note: standbyNote({ tableOn: state.table.on, botOn: state.bot.on, replicaAgeSec: replicaAge() }) }));
     }
 
     if (!state.table.on && p.voyagerTable && Date.now() - lastReplica >= REPLICA_EVERY_MS) {

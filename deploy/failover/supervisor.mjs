@@ -16,6 +16,8 @@ import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { decide, fresh } from "./decide.mjs";
+import { sendReport, standbyNote, standbyReport } from "./report.mjs";
+import { statSync } from "node:fs";
 
 const execFile = promisify(execFileCb);
 const ROOT = join(homedir(), "Desktop", "crossade-deck");
@@ -100,6 +102,10 @@ state.bot.on = await loaded(LABELS.bot);
 log(`надзиратель запущен: стол на маке ${state.table.on ? "включён" : "выключен"}, бот на маке ${state.bot.on ? "включён" : "выключен"}`);
 
 let lastReplica = 0;
+let lastReport = 0;
+const STARTED = Date.now();
+const COMMIT = await execFile("git", ["-C", ROOT, "rev-parse", "--short", "HEAD"]).then((r) => r.stdout.trim(), () => "");
+const replicaAge = () => { try { return (Date.now() - statSync(REPLICA).mtimeMs) / 1000; } catch { return null; } };
 while (true) {
   try {
     const p = await probe();
@@ -123,6 +129,11 @@ while (true) {
     if (out.actions.bot === "stop") {
       await stop(LABELS.bot);
       await notify("✅ Бот на Voyager вернулся: бот на маке остановлен.");
+    }
+
+    if (Date.now() - lastReport >= 30_000) {
+      lastReport = Date.now();
+      await sendReport(RELAY, SECRET, standbyReport({ id: MAC_ID, host: hostname(), startedAt: STARTED, commit: COMMIT, note: standbyNote({ tableOn: state.table.on, botOn: state.bot.on, replicaAgeSec: replicaAge() }) }));
     }
 
     if (!state.table.on && p.voyagerTable && Date.now() - lastReplica >= REPLICA_EVERY_MS) {
