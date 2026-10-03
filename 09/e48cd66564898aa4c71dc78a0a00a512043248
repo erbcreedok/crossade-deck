@@ -1,0 +1,42 @@
+server/table-client/fakeFace.ts
+  s_ad8a8a5b5d0419::t_72804de975e296 1-38
+server/table-client/store.ts
+  s_ad8a8a5b5d0419::t_2e73a50a9fa6b6 7,66-67
+server/table-client/tape.test.ts
+  s_ad8a8a5b5d0419::t_788fb9947585b2 107-113,115-123,125-141
+  s_ad8a8a5b5d0419::t_68fd3e5b1d587f 114,124
+server/table-client/tape.ts
+  s_ad8a8a5b5d0419::t_eae3539c8483c0 10,72-73,85,109-153,242,273-286
+  s_ad8a8a5b5d0419::t_0a1024c084aa29 287
+table3d/src/replayBar.ts
+  s_ad8a8a5b5d0419::t_e91a3e0006b021 77,83,168-169,195-196,202
+server/table-client/replayable.ts
+  s_ad8a8a5b5d0419::t_788fb9947585b2 127-128
+  s_ad8a8a5b5d0419::t_2e73a50a9fa6b6 12-13,48-53,77-87,126,202-221,240-241
+table3d/replay-history-check.mjs
+  s_ad8a8a5b5d0419::t_afbc1daa690c36 1-40,42-59
+  s_ad8a8a5b5d0419::t_cd39c7d2c4e3a8 41
+server/table-client/netStore.ts
+  s_ad8a8a5b5d0419::t_2e73a50a9fa6b6 14,216-223,335-341
+server/table-client/replayable.test.ts
+  s_ad8a8a5b5d0419::t_ddfaddc36b99c3 89-98,100-108,110-129
+  s_ad8a8a5b5d0419::t_68fd3e5b1d587f 99,109
+server/table-client/fakeFace.test.ts
+  s_ad8a8a5b5d0419::t_72804de975e296 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "09e48cd66564898aa4c71dc78a0a00a512043248",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
