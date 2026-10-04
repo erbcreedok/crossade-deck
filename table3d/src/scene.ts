@@ -35,7 +35,7 @@ import { lockTouch } from "./touchLock.js";
 const DEG = Math.PI / 180;
 /** Насколько далеко от середины стола можно увести камеру сверху, долей радиуса стола. */
 const PAN_LIMIT = 1;
-/** Несу карту и держу палец у края сцены (сверху, слева, справа): камера едет в ту сторону, чем ближе к самому краю — тем быстрее. У низа, пока есть рука, полоса уже: карту в неё кладут чуть выше самой кромки; нет руки (стул не принимает карты) — как у остальных краёв. */
+/** Несу карту и держу палец у края сцены (сверху, слева, справа): камера едет в ту сторону, чем ближе к самому краю — тем быстрее. Над рукой камера стоит (туда кладут карты), ниже самой нижней её карты и без руки — едет как у остальных краёв. */
 const EDGE_SCROLL = { band: 44, bottom: 18, panPx: 520, turnDeg: 80 };
 const R = TABLE_RADIUS, RIM = 0.45, THICK = 0.6;
 const CARD_W = 1.17, CARD_H = 1.638;
@@ -2038,9 +2038,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     lastTick = now;
     // КРАЙ ЭКРАНА ПРИ ПЕРЕНОСЕ: палец с картой у верха, левого или правого края — камера едет, а карта остаётся под пальцем.
     if (drag?.moved && dragPid !== null && !camLocked && (camMode === "top" || camMode === "head")) {
-      const r = visibleRect(), b = EDGE_SCROLL.band, ch = myChair(), bb = ch && !ch.reject ? EDGE_SCROLL.bottom : b;
+      const r = visibleRect(), b = EDGE_SCROLL.band, ch = myChair(), hf = ch && !ch.reject ? handFrame() : null;
+      // Над рукой камера стоит (карту в неё кладут); ниже самой нижней карты руки — едет, как у остальных краёв. Без рамки руки — узкая полоса у кромки.
+      const lowest = ch && !ch.reject ? (hf ? hf.y + hf.h : r.bottom - EDGE_SCROLL.bottom) : -Infinity, bb = lastFinger.y > lowest ? b : 0;
       const near = (d: number) => Math.max(0, Math.min(1, (b - d) / b));
-      const vx = near(lastFinger.x - r.left) * -1 + near(r.right - lastFinger.x), vy = near(lastFinger.y - r.top) - Math.max(0, Math.min(1, (bb - (r.bottom - lastFinger.y)) / bb));
+      const vx = near(lastFinger.x - r.left) * -1 + near(r.right - lastFinger.x), vy = near(lastFinger.y - r.top) - Math.max(0, Math.min(1, bb ? (bb - (r.bottom - lastFinger.y)) / bb : 0));
       if (vx || vy) {
         if (camMode === "top") panBy({ x: r.left + r.width / 2, y: r.top + r.height / 2 }, { clientX: r.left + r.width / 2 - vx * EDGE_SCROLL.panPx * dt, clientY: r.top + r.height / 2 + vy * EDGE_SCROLL.panPx * dt });
         else lookBy(vx * EDGE_SCROLL.turnDeg * dt, vy * EDGE_SCROLL.turnDeg * dt);
