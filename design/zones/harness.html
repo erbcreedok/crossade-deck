@@ -143,7 +143,8 @@ if (q.has("live")) {
   // Кадры во время жеста: где палец и где несомая карта на экране (и сколько мс между кадрами) — видно, откуда карта прилетает и не залипает ли страница.
   addEventListener("error", (e) => rec("error", { msg: String(e.message).slice(0, 200) }));
   addEventListener("unhandledrejection", (e) => rec("rejection", { msg: String(e.reason).slice(0, 200) }));
-  { let last = performance.now(), n = 0; const frame = () => { const now = performance.now(), id = scene.test.draggingId(); if (id) { const a = scene.test.screenOf(id); if (n++ % 2 === 0) rec("frame", { dt: Math.round(now - last), card: a ? [Math.round(a.x), Math.round(a.y)] : null, finger: finger ? [Math.round(finger.x), Math.round(finger.y)] : null, id }); } else n = 0; last = now; requestAnimationFrame(frame); }; requestAnimationFrame(frame); }
+  { let last = performance.now(), n = 0, down = null; addEventListener("pointerdown", (e) => { if (e.isTrusted) down = scene.test.cardAt(e.clientX, e.clientY); }, true); addEventListener("pointerup", () => { setTimeout(() => { down = null; }, 600); }, true);
+    const frame = () => { const now = performance.now(), id = scene.test.draggingId() ?? down; if (id) { const a = scene.test.screenOf(id), tg = scene.test.cardTarget(id); if (n++ % 2 === 0) rec("frame", { dt: Math.round(now - last), card: a ? [Math.round(a.x), Math.round(a.y)] : null, tgt: tg ? tg.map((v) => Math.round(v * 100) / 100) : null, drag: !!scene.test.draggingId(), finger: finger ? [Math.round(finger.x), Math.round(finger.y)] : null, id }); } else n = 0; last = now; requestAnimationFrame(frame); }; requestAnimationFrame(frame); }
   { const send = store.send.bind(store); store.send = (m) => { rec("send", { m: JSON.parse(JSON.stringify(m)) }); return send(m); }; }
   // ОТЛАДКА ВЗЯТИЯ: что видит игра в момент нажатия — по этой строке видно, почему карту не берёт.
   addEventListener("pointerdown", (e) => {
