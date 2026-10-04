@@ -205,14 +205,20 @@ if (q.has("live")) {
       const ph = Math.floor(performance.now() / 280) % 3;
       for (let i = 0; i < 3; i++) { g.fillStyle = i === ph ? "#f5ead0" : "rgba(245,234,208,.3)"; g.fillRect(bx + 9 + i * 12, by + 6, 6, 6); }
     }
-    // Запретная стопка: знак «нельзя» (круг с чертой) прямо на колоде, цвета бумаги — не свечение и не красный (красный — цвет игрока). Знак поверх карты: он про запрет, его должно быть видно.
+    // Запретная стопка: знак «нельзя» (круг с чертой) над колодой, цвета бумаги — не свечение и не красный (красный — цвет игрока). Лежит под несомой картой, как и вся подсветка.
     if (r && deny) {
-      g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
-      g.lineCap = "round"; g.strokeStyle = "#0b0704"; g.lineWidth = 9; g.beginPath(); g.arc(r.x, r.y, 21, 0, Math.PI * 2); g.moveTo(r.x - 15, r.y - 15); g.lineTo(r.x + 15, r.y + 15); g.stroke();
-      g.strokeStyle = "#f5ead0"; g.lineWidth = 5; g.beginPath(); g.arc(r.x, r.y, 21, 0, Math.PI * 2); g.moveTo(r.x - 15, r.y - 15); g.lineTo(r.x + 15, r.y + 15); g.stroke();
+      g.globalCompositeOperation = "source-over"; g.globalAlpha = 1; g.lineCap = "round";
+      const ix = r.x, iy = r.y - r.h / 2 - 16, ir = 13, d = 9;
+      g.strokeStyle = "#0b0704"; g.lineWidth = 8; g.beginPath(); g.arc(ix, iy, ir, 0, Math.PI * 2); g.moveTo(ix - d, iy - d); g.lineTo(ix + d, iy + d); g.stroke();
+      g.strokeStyle = "#f5ead0"; g.lineWidth = 4; g.beginPath(); g.arc(ix, iy, ir, 0, Math.PI * 2); g.moveTo(ix - d, iy - d); g.lineTo(ix + d, iy + d); g.stroke();
+      const held = scene.test.draggingId();
+      if (held) {
+        const at = scene.test.screenOf(held), cw = scene.test.cardWidth(held), dz = scene.test.depthOf(held), k = (stage.clientHeight / 2 / Math.tan(25 * Math.PI / 180)) / dz, w = cw * k + 2, h = cw * 1.4 * k + 2;
+        g.globalCompositeOperation = "destination-out"; g.fillStyle = "#000"; g.save(); g.translate(at.x, at.y); g.rotate((scene.test.heldAngle() ?? 0) * Math.PI / 180); g.beginPath(); g.roundRect(-w / 2, -h / 2, w, h, 8); g.fill(); g.restore(); g.globalCompositeOperation = "source-over";
+      }
     }
     zone.style.clipPath = "none";
-    if (r) { Object.assign(zone.style, { left: r.x - r.w / 2 + "px", top: r.y - r.h / 2 + "px", width: r.w + "px", height: r.h + "px" }); Object.assign(say.style, { left: r.x + "px", top: r.y - r.h / 2 - 24 - (frozen ? 80 : 0) + "px", display: msg ? "block" : "none" }); say.textContent = msg; }
+    if (r) { Object.assign(zone.style, { left: r.x - r.w / 2 + "px", top: r.y - r.h / 2 + "px", width: r.w + "px", height: r.h + "px" }); Object.assign(say.style, { left: r.x + "px", top: r.y - r.h / 2 - 24 - (frozen ? 80 : 0) - (deny ? 32 : 0) + "px", display: msg ? "block" : "none" }); say.textContent = msg; }
     requestAnimationFrame(tick);
   };
   tick();
