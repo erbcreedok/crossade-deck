@@ -2012,6 +2012,18 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       }
     }
   }
+  /** Видимая часть сцены на экране: холст, обрезанный всеми родителями с `overflow` и окном браузера (на стенде сцена больше своего кадра — края у кадра). */
+  function visibleRect(): { left: number; right: number; top: number; bottom: number; width: number; height: number } {
+    const c = renderer.domElement.getBoundingClientRect();
+    let left = Math.max(0, c.left), right = Math.min(innerWidth, c.right), top = Math.max(0, c.top), bottom = Math.min(innerHeight, c.bottom);
+    for (let el = host.parentElement; el; el = el.parentElement) {
+      const st = getComputedStyle(el);
+      if (st.overflowX === "visible" && st.overflowY === "visible") continue;
+      const r = el.getBoundingClientRect();
+      left = Math.max(left, r.left); right = Math.min(right, r.right); top = Math.max(top, r.top); bottom = Math.min(bottom, r.bottom);
+    }
+    return { left, right, top, bottom, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
+  }
   function tick(): void {
     const w = host.clientWidth, h = host.clientHeight;
     if (renderer.domElement.width !== Math.round(w * renderer.getPixelRatio()) || renderer.domElement.height !== Math.round(h * renderer.getPixelRatio())) {
@@ -2026,7 +2038,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     lastTick = now;
     // КРАЙ ЭКРАНА ПРИ ПЕРЕНОСЕ: палец с картой у верха, левого или правого края — камера едет, а карта остаётся под пальцем.
     if (drag?.moved && dragPid !== null && !camLocked && (camMode === "top" || camMode === "head")) {
-      const r = renderer.domElement.getBoundingClientRect(), b = EDGE_SCROLL.band;
+      const r = visibleRect(), b = EDGE_SCROLL.band;
       const near = (d: number) => Math.max(0, Math.min(1, (b - d) / b));
       const vx = near(lastFinger.x - r.left) * -1 + near(r.right - lastFinger.x), vy = near(lastFinger.y - r.top);
       if (vx || vy) {

@@ -62,6 +62,17 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
     check(`несут в «${from === "__top" ? "сверху" : "от первого лица"}» — у зрителя ${tilted ? "наклонена" : "плашмя"}`, tilted ? t.fromUp > 8 : t.fromUp < 3, t);
   }
 }
+// Край — это край кадра сцены на странице, а не холста (он больше кадра): тянем карту к правому краю кадра верхней сцены — камера едет.
+{
+  const id = await f.evaluate(() => window.__me.state.felt[0].id);
+  const fr = await f.evaluate(() => { const r = document.getElementById("f-top").getBoundingClientRect(); return { r: r.right, y: r.top + r.height / 2 }; });
+  const at = await f.evaluate((i) => window.__top.test.screenOf(i), id);
+  const pan0 = await f.evaluate(() => window.__top.test.panInfo());
+  await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x + 12, at.y, { steps: 3 }); await p.mouse.move(fr.r - 8, at.y, { steps: 5 }); await p.waitForTimeout(500);
+  const pan1 = await f.evaluate(() => window.__top.test.panInfo());
+  await p.mouse.up();
+  check("карта у края кадра сцены (не окна браузера) — камера едет", Math.hypot(pan1.x - pan0.x, pan1.z - pan0.z) > 0.3, { pan0, pan1 });
+}
 // «На весь экран» у каждой сцены: кадр занимает окно, сцена растягивается под него, повторное нажатие возвращает.
 for (const [which, fr, st] of [["top", "f-top", "s-top"], ["first", "f-first", "s-first"]]) {
   const size = () => f.evaluate(([a, b]) => { const r = document.getElementById(a).getBoundingClientRect(), c = document.querySelector("#" + b + " canvas").getBoundingClientRect(); return { fw: Math.round(r.width), fh: Math.round(r.height), cw: Math.round(c.width), ch: Math.round(c.height), vw: innerWidth, vh: innerHeight }; }, [fr, st]);
