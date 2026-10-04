@@ -87,7 +87,7 @@ if (q.has("live")) {
   window.__live = true;
   await window.__setup({ mode: "top", noHands: true, felt: [{ up: true, x: -1.9, y: 1.2, angle: -12 }, { up: false, x: 1.9, y: 1.2, angle: 10 }], all: { n: 34, x: 0, y: -0.5 } });
   // Без стула у меня нет «своей руки»: ниже её границы игра кладёт карту в руку, а стенду нужен только стол.
-  store.send({ t: "stand" }); await wait(500);
+  store.send({ t: "stand" }); scene.test.setPileSnap(false); await wait(500);
 }
 
 if (q.has("live")) {

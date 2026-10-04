@@ -2653,6 +2653,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     return best;
   };
+  /** Несомая карта над стопкой садится ровно на неё. Стенд дизайна выключает это: карта остаётся на весу под пальцем (`test.setPileSnap`). */
+  let pileSnap = true;
   const PULL_PX = 18;
   renderer.domElement.addEventListener("pointermove", (e) => {
     if (!drag) return;
@@ -2685,7 +2687,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     drag.gap = where.in === "hand" && where.chair === myChair()?.id ? where.i : null;
     const pile = where.in === "deck" ? store.state.piles.find((p) => p.id === where.pile) : undefined;
     // Над стопкой — карта уже над ней, наверху: видно, куда ляжет; рука остальным — на стопке.
-    drag.place = drag.gap !== null || drag.spot ? null : pile && pile.pose !== "ring" ? lying(pile.x, pile.y, 0.25 + pile.cards.length * PILE_STEP, pileAngle(pile), drag.up) : heldAt(e.clientX, e.clientY, drag.angle, drag.up);
+    drag.place = drag.gap !== null || drag.spot ? null : pile && pile.pose !== "ring" && pileSnap ? lying(pile.x, pile.y, 0.25 + pile.cards.length * PILE_STEP, pileAngle(pile), drag.up) : heldAt(e.clientX, e.clientY, drag.angle, drag.up);
     const zonePile = drag.zone?.pile ? store.state.piles.find((p) => p.id === drag!.zone!.pile) : undefined;
     const zoneChair = drag.zone?.chair ? store.state.chairs.find((c) => c.id === drag!.zone!.chair) : undefined, zoneHand = zoneChair ? leftOf(zoneChair) : null;
     rightAt = drag.gap !== null ? myLeftHand() : zoneHand ? { x: zoneHand.x, y: zoneHand.y } : zonePile ? { x: zonePile.x, y: zonePile.y } : pile ? { x: pile.x, y: pile.y } : drag.place ? { x: drag.place.pos.x, y: drag.place.pos.z } : null;
@@ -2909,6 +2911,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     /** Для снимков фона дизайна: спрятать мои карты (чужие и стол остаются). */
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
+    setPileSnap: (on: boolean) => { pileSnap = on; },
     seatNow: () => seatPull,
     dollParts: () => { const b = heads.children[0]?.children.find((c) => c.userData.base)?.userData as { base?: THREE.Vector3 } | undefined; const ch = [...chairObjs.values()][0]; return { headY: b?.base?.y ?? null, chairScale: ch?.group.scale.x ?? null }; },
     pickAtNow: (x: number, y: number) => api.pickAt(x, y),
