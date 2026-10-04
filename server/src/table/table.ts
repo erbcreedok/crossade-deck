@@ -152,7 +152,7 @@ export class Table {
   /** Выделение лассо: id карты → кто выделил (`Snapshot.picks`). */
   private picks = new Map<string, string>();
   /** Последнее «над чем карта», пока её держат. Живёт не дольше блокировки (`carriesSeenBy`). */
-  private carries = new Map<string, { by: string; over: Where; auto?: true; with?: string[]; whole?: string }>();
+  private carries = new Map<string, { by: string; over: Where; auto?: true; with?: string[]; whole?: string; flip?: number }>();
   private rules: TableRules = { ...DEFAULT_RULES };
   private trails = new Map<string, Trail>();
   /** Перевёрнутые карты в колоде и в руках. У карты на сукне сторона лежит в ней самой (`felt[].up`). */
@@ -710,7 +710,8 @@ export class Table {
     const flock = Array.isArray(out.with)
       ? [...new Set(out.with)].filter((id) => typeof id === "string" && id !== out.id && this.picks.get(id) === by && this.whereIs(id) && (!this.locks.get(id) || this.locks.get(id)!.by === by))
       : [];
-    this.carries.set(out.id, { by, over, ...(auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}) });
+    const flip = typeof out.flip === "number" && Number.isFinite(out.flip) ? Math.max(-180, Math.min(180, Math.round(out.flip))) : 0;
+    this.carries.set(out.id, { by, over, ...(auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}), ...(flip ? { flip } : {}) });
     return { ok: true };
   }
 
@@ -769,7 +770,7 @@ export class Table {
         const at = this.picks.get(one) === c.by ? this.whereIs(one) : null;
         return at ? [{ card: this.seen(one, viewer, at), from: at }] : [];
       });
-      out.push({ id, by: c.by, over: c.over, from, card: this.seen(id, viewer, from), ...(c.auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}) });
+      out.push({ id, by: c.by, over: c.over, from, card: this.seen(id, viewer, from), ...(c.auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}), ...(c.flip ? { flip: c.flip } : {}) });
     }
     return out;
   }

@@ -25,6 +25,7 @@ import { ringArrowFromMiddle, SEAT, turnMark } from "../../server/table-client/f
 import { ringTurnOfSeat } from "../../server/src/table/bots/view.js";
 import { RING_SPREAD, ringLanding, ringTurned, seatPoint, SEAT_RADIUS, TABLE_RADIUS } from "../../server/src/table/ring.js";
 import { artUrl, readLook, type DeckLook } from "../../server/table-client/deckArt.js";
+import { CardFlip } from "../../server/table-client/cardFlip.js";
 import { blendOf, handPlanBlend, mineGeomOf, snapPose, tuckOf, type PoseBlend } from "../../server/table-client/handGeom.js";
 import { BAR_LOOK, T, type Geom } from "../../server/table-client/screenConst.js";
 import { drawFingerCard, fingerKind } from "./finger.js";
@@ -1765,7 +1766,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       dress(o, c.card, s);
       const over = c.over;
       const at = over.in === "felt" ? { x: over.x, y: over.y } : over.in === "deck" ? s.piles.find((p) => p.id === over.pile) : (() => { const ch = s.chairs.find((x) => x.id === over.chair); return ch ? seatPoint(ch.angle, R - 1.2) : null; })();
-      if (at) o.target = lying(at.x, at.y, 1.4, over.in === "felt" ? over.angle : 0, over.in === "felt" ? over.up : !!c.card.up);
+      if (at) {
+        o.target = lying(at.x, at.y, 1.4, over.in === "felt" ? over.angle : 0, over.in === "felt" ? over.up : !!c.card.up);
+        if (c.flip) o.target.quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), c.flip * DEG));
+      }
     }
     // ЧУЖИЕ СТОПКИ В ВОЗДУХЕ ЦЕЛИКОМ (со стола и бесхозные) — у пальца несущего, лицом к нему, как их видит он сам: все карты по порядку, снизу вверх.
     for (const c of store.stacks) {
@@ -1783,7 +1787,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (drag?.moved && drag.gap === null) {
       const o = cards.get(drag.id);
       if (o && drag.spot) o.target = screenPlace(drag.spot);
-      else if (o && drag.place) o.target = drag.place;
+      else if (o && drag.place) o.target = flipped(drag.place);
     }
     // Отпущенная — ждёт ответа стола там, куда легла.
     holdLanding();
@@ -2423,7 +2427,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return { x: l.x, y: l.y };
   };
   const mine = (id: string) => store.state.picks[id] === store.me.key;
-  let lastTap = { id: "", at: 0 };
   /**
    * РАМКА РУКИ — видимые границы, за которые можно взяться двумя пальцами, даже если карта одна: охват карт руки с полями и не уже
    * `FRAME.minW`. Нет карт или рука положена — рамки нет.
@@ -2669,6 +2672,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   renderer.domElement.addEventListener("pointercancel", stackUp, { capture: true });
   renderer.domElement.addEventListener("pointerdown", (e) => {
     if (reseat || store.replay?.on) return;
+    // ВТОРОЙ ПАЛЕЦ при несомой карте — переворот: ведёт карту вбок (`cardFlip.ts`); камеру и всё остальное это касание не трогает.
+    if (drag?.moved && dragPid !== null && e.pointerId !== dragPid && !flipTouch) {
+      e.stopImmediatePropagation();
+      try { renderer.domElement.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
+      const fl = new CardFlip();
+      fl.begin(e.clientX);
+      flipTouch = { pid: e.pointerId, fl };
+      return;
+    }
     live.add(e.pointerId);
     // Язычок — первым: он лежит у самой кромки стопки и перекрыл бы её верхнюю карту.
     const pile = tabFn ? hitTab(e) : null;
@@ -2694,6 +2706,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const c = f.in === "felt" ? store.state.felt.find((x) => x.id === id) : undefined;
     const my = myChair()?.angle ?? 0;
     drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? (f.mine ? true : !!store.state.chairs.find((q) => q.id === f.chair)?.hand.find((x) => x.id === id)?.up) : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: ((-my % 360) + 360) % 360, gap: null, place: null, where: null, spot: null, zone: null, fingerHand, latch0, scrubbed: false };
+    dragPid = e.pointerId; flipDeg = 0; flipTouch = null; lastFinger = { x: e.clientX, y: e.clientY };
     layout(store.state);
   }
   /** Моя карта ближе всего к пальцу по горизонтали — та, что поднимется под ним. */
@@ -2714,9 +2727,40 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let camLocked = false;
   /** Несомая карта над стопкой садится ровно на неё. Стенд дизайна выключает это: карта остаётся на весу под пальцем (`test.setPileSnap`). */
   let pileSnap = true;
+  // ——— ПЕРЕВОРОТ КАРТЫ В РУКЕ: F (комп) или второй палец вбок (телефон); логика жеста — `cardFlip.ts` ———
+  let dragPid: number | null = null, lastFinger = { x: 0, y: 0 }, flipDeg = 0, flipTouch: { pid: number; fl: CardFlip } | null = null;
+  /** Карта, которую несу, с поворотом «в воздухе»: вокруг её длинной оси на `flipDeg`. */
+  const flipped = (p: Place): Place => (flipDeg ? { ...p, quat: p.quat.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), flipDeg * DEG)) } : p);
+  const dragPlace = (x: number, y: number): Place | null => {
+    const d = drag!, w = d.where, pile = w && w.in === "deck" ? store.state.piles.find((q) => q.id === w.pile) : undefined;
+    return d.gap !== null || d.spot ? null : pile && pile.pose !== "ring" && pileSnap ? lying(pile.x, pile.y, 0.25 + pile.cards.length * PILE_STEP, pileAngle(pile), d.up) : heldAt(x, y, d.angle, d.up);
+  };
+  /** Поток «несу» — с углом переворота: остальные видят карту в движении (не чаще `CARRY_EVERY_MS`). */
+  const pushCarry = (): void => {
+    const now = performance.now();
+    if (!drag?.where || now - carriedAt < CARRY_EVERY_MS) return;
+    carriedAt = now;
+    store.carry({ id: drag.id, over: drag.where, ...(flipDeg ? { flip: Math.round(flipDeg) } : {}) });
+  };
+  /** Щёлкнуло: сторона сменилась, карта доворачивается сама (пружина), угол в воздухе сброшен. */
+  const flipClick = (): void => {
+    const d = drag;
+    if (!d?.moved) return;
+    d.up = !d.up;
+    // Стол сам помнит, какой стороной карту положат: при броске он берёт сторону карты, а не метку жеста, поэтому переворот — обычное намерение «перевернуть» над удерживаемой картой.
+    store.send({ t: "turn", id: d.id });
+    flipDeg = 0;
+    d.where = target({ clientX: lastFinger.x, clientY: lastFinger.y }, d);
+    d.place = dragPlace(lastFinger.x, lastFinger.y);
+    carriedAt = 0;
+    pushCarry();
+    layout(store.state);
+  };
   const PULL_PX = 18;
   renderer.domElement.addEventListener("pointermove", (e) => {
     if (!drag) return;
+    if (dragPid !== null && e.pointerId !== dragPid) return;
+    lastFinger = { x: e.clientX, y: e.clientY };
     // ПАЛЕЦ ПО РУКЕ: пока он не потянул вверх, карту не берут — под пальцем поднимается та, над которой он стоит (одна), и палец может
     // скользить вдоль руки; потянул вверх — берёт ту, что поднята. (Только в виде «голова» и с новым язычком руки.)
     if (!drag.moved && drag.fingerHand) {
@@ -2746,19 +2790,21 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     drag.gap = where.in === "hand" && where.chair === myChair()?.id ? where.i : null;
     const pile = where.in === "deck" ? store.state.piles.find((p) => p.id === where.pile) : undefined;
     // Над стопкой — карта уже над ней, наверху: видно, куда ляжет; рука остальным — на стопке.
-    drag.place = drag.gap !== null || drag.spot ? null : pile && pile.pose !== "ring" && pileSnap ? lying(pile.x, pile.y, 0.25 + pile.cards.length * PILE_STEP, pileAngle(pile), drag.up) : heldAt(e.clientX, e.clientY, drag.angle, drag.up);
+    drag.place = dragPlace(e.clientX, e.clientY);
     const zonePile = drag.zone?.pile ? store.state.piles.find((p) => p.id === drag!.zone!.pile) : undefined;
     const zoneChair = drag.zone?.chair ? store.state.chairs.find((c) => c.id === drag!.zone!.chair) : undefined, zoneHand = zoneChair ? leftOf(zoneChair) : null;
     rightAt = drag.gap !== null ? myLeftHand() : zoneHand ? { x: zoneHand.x, y: zoneHand.y } : zonePile ? { x: zonePile.x, y: zonePile.y } : pile ? { x: pile.x, y: pile.y } : drag.place ? { x: drag.place.pos.x, y: drag.place.pos.z } : null;
     sendBody();
-    const now = performance.now();
-    if (now - carriedAt >= CARRY_EVERY_MS) { carriedAt = now; store.carry({ id: drag.id, over: where }); }
+    pushCarry();
     layout(store.state);
   });
   const end = (e: PointerEvent) => {
     if (!drag) return;
+    if (dragPid !== null && e.pointerId !== dragPid) return;
     const d = drag;
     drag = null;
+    // Первый палец отпустил: щёлкнуло — переворот остался (`d.up` уже сменён), не щёлкнуло — обрыв, как дроп без переворота.
+    flipTouch = null; flipDeg = 0; dragPid = null;
     if (d.moved) liftedId = null;
     orbit.enabled = camMode === "orbit";
     clearInterval(d.hold);
@@ -2767,14 +2813,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!d.moved) {
       // Скользил по руке (не тап): поднятая под пальцем карта опускается — остаётся поднятой только та, что была поднята тапом.
       if (d.fingerHand && d.scrubbed) { liftedId = d.latch0; layout(store.state); draw(); return; }
-      // Тап: второй подряд по той же карте — перевернуть (и остаться поднятой); иначе тап поднимает карту и оставляет её поднятой,
+      // Тап: тап поднимает карту и оставляет её поднятой,
       // как под пальцем, а ещё тап по ней (не сразу) — опускает.
-      const now = performance.now();
-      if (lastTap.id === d.id && now - lastTap.at < DOUBLE_MS) { store.send({ t: "turn", id: d.id }); lastTap = { id: "", at: 0 }; }
-      else {
-        lastTap = { id: d.id, at: now };
-        if (d.fingerHand && d.latch0 === d.id) { liftedId = null; layout(store.state); }
-      }
+      if (d.fingerHand && d.latch0 === d.id) { liftedId = null; layout(store.state); }
       draw();
       return;
     }
@@ -2797,6 +2838,54 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     store.send({ t: "drop", id: d.id, to });
     layout(store.state);
   };
+  // Второй палец ведёт переворот; поднят до щелчка — карта откатывается, после щелчка переворот остаётся.
+  renderer.domElement.addEventListener("pointermove", (e) => {
+    if (!flipTouch || e.pointerId !== flipTouch.pid) return;
+    e.stopImmediatePropagation();
+    const r = flipTouch.fl.move(e.clientX);
+    if (r.click) flipClick();
+    else if (!flipTouch.fl.clicked) flipDeg = r.angle;
+    pushCarry();
+    layout(store.state);
+  }, { capture: true });
+  const flipUp = (e: PointerEvent): void => {
+    if (!flipTouch || e.pointerId !== flipTouch.pid) return;
+    e.stopImmediatePropagation();
+    const t = flipTouch;
+    flipTouch = null;
+    if (!t.fl.clicked) flipDeg = 0;
+    carriedAt = 0;
+    pushCarry();
+    layout(store.state);
+  };
+  renderer.domElement.addEventListener("pointerup", flipUp, { capture: true });
+  renderer.domElement.addEventListener("pointercancel", flipUp, { capture: true });
+  // F: пока держу карту — перевернуть (на компьютере).
+  addEventListener("keydown", (e) => {
+    if (e.code !== "KeyF" || e.repeat || !drag?.moved || flipTouch || e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable]")) return;
+    e.preventDefault();
+    flipClick();
+  });
+  // Правая кнопка по карте — меню «Перевернуть».
+  let cardMenu: HTMLElement | null = null;
+  const closeMenu = (): void => { cardMenu?.remove(); cardMenu = null; };
+  renderer.domElement.addEventListener("contextmenu", (e) => {
+    const id = drag?.moved ? null : hitCard(e);
+    if (!id || !takeable(id)) return;
+    e.preventDefault();
+    closeMenu();
+    const m = document.createElement("div");
+    m.style.cssText = `position:fixed;z-index:60;left:${e.clientX}px;top:${e.clientY}px;background:#3a2a1d;box-shadow:0 0 0 2px #0b0704,inset 0 0 0 2px #6b4d2c;padding:4px;font:400 13px 'Tiny5',monospace`;
+    const b = document.createElement("button");
+    b.textContent = "Перевернуть";
+    b.style.cssText = "display:block;font:inherit;color:#f5ead0;background:transparent;border:0;padding:6px 10px;cursor:pointer;text-align:left";
+    b.onclick = () => { closeMenu(); store.send({ t: "turn", id }); };
+    m.append(b);
+    document.body.append(m);
+    cardMenu = m;
+  });
+  addEventListener("pointerdown", (e) => { if (cardMenu && !cardMenu.contains(e.target as Node)) closeMenu(); }, true);
+  addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
   renderer.domElement.addEventListener("pointerup", end);
   renderer.domElement.addEventListener("pointercancel", end);
   // Палец отпустили, пока этот экран не на виду (переключились на другой): его карта ложится там, где была, а не виснет до возвращения.
@@ -2804,7 +2893,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   addEventListener("pointercancel", end);
 
   /** Куда кладут: над своей рукой — в руку, на это место; у стопки — в неё; иначе — на сукно, внутри стола. */
-  function target(e: PointerEvent, d: { id: string; up: boolean; angle: number }): Where {
+  function target(e: { clientX: number; clientY: number }, d: { id: string; up: boolean; angle: number }): Where {
     const a = aim(e.clientX, e.clientY, undefined, d.id);
     if (a.in !== "felt") return a;
     const ringPile = store.state.piles.find((p) => p.pose === "ring" && Math.hypot(p.x - a.x, p.y - a.y) < RING_CATCH);
@@ -2973,6 +3062,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     zoomBy: (k: number) => zoomBy(k),
     setPileSnap: (on: boolean) => { pileSnap = on; },
     fovDeg: () => camera.fov,
+    flipInfo: () => ({ deg: flipDeg, up: drag?.moved ? drag.up : null, second: !!flipTouch }),
     setPileGlow: (pile: string | null, level: "hint" | "hot" = "hint") => { const was = glowFor; glowFor = pile ? { pile, level } : null; if (was?.pile !== glowFor?.pile || was?.level !== glowFor?.level) draw(); },
     setBareTable: (on: boolean) => { bareTable = on; },
     setCamLocked: (on: boolean) => { camLocked = on; },

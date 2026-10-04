@@ -1,5 +1,5 @@
 // ПРОВЕРКА ПЕСОЧНИЦЫ НА THREE.JS — стол в вкладке с ботами (`?stand`), палец мышью по сцене:
-// из стопки на сукно, из руки на сукно, с сукна в руку, двойной тап — перевернуть, облёт камеры.
+// из стопки на сукно, из руки на сукно, с сукна в руку, правая кнопка → «Перевернуть», облёт камеры.
 // С `--net <стол> <ключ>` — ещё и живая комната на том столе (он должен пускать гостей, `TABLE_GUESTS=1`): песочница и
 // обычный стол (2D) за одним столом, карта, положенная в 3D, — у соседа в 2D.
 //   node check.mjs [base] [shot.png] [--net http://localhost:2611 probe]
@@ -59,12 +59,12 @@ try {
   const s2 = await t(() => window.__t3d.state());
   check("из руки на сукно — лицом вверх", s2.felt.find((c) => c.id === card)?.up === true, s2.felt.find((c) => c.id === card));
 
-  // Двойной тап — перевернуть.
+  // Правая кнопка → «Перевернуть» (двойной тап больше не переворачивает).
   const at = await t((id) => window.__t3d.screenOf(id), card);
-  await p.mouse.click(at.x, at.y);
-  await p.mouse.click(at.x, at.y);
+  await p.mouse.click(at.x, at.y, { button: "right" });
+  await p.getByText("Перевернуть").click();
   await frames();
-  check("двойной тап — карта перевернулась рубашкой", (await t((id) => window.__t3d.state().felt.find((c) => c.id === id)?.up, card)) === false, null);
+  check("«Перевернуть» — карта перевернулась рубашкой", (await t((id) => window.__t3d.state().felt.find((c) => c.id === id)?.up, card)) === false, null);
 
   // С сукна в руку: несёшь вниз экрана, в свою руку.
   await drag(await t((id) => window.__t3d.screenOf(id), s0.top), { x: 120, y: 800 });
@@ -74,14 +74,14 @@ try {
   const shown = await t(() => window.__t3d.handFaces());
   check("своя рука — все лицом к тебе, и рисунок — лицо", shown.length === 7 && shown.every((x) => x.face && x.drawn === "face"), shown);
 
-  // Двойной тап по карте в руке — лицом наружу: мне — рубашкой.
+  // «Перевернуть» по карте в руке — лицом наружу: мне — рубашкой.
   const last = s3.at(-1);
   const lp = await t((id) => window.__t3d.screenOf(id), last);
-  await p.mouse.click(lp.x, lp.y);
-  await p.mouse.click(lp.x, lp.y);
+  await p.mouse.click(lp.x, lp.y, { button: "right" });
+  await p.getByText("Перевернуть").click();
   await frames();
   const hf = await t(() => window.__t3d.handFaces());
-  check("двойной тап в руке — карта лицом наружу, мне — рубашкой", hf.find((x) => x.id === last)?.drawn === "back" && hf.filter((x) => x.drawn === "face").length === 6, hf);
+  check("«Перевернуть» в руке — карта лицом наружу, мне — рубашкой", hf.find((x) => x.id === last)?.drawn === "back" && hf.filter((x) => x.drawn === "face").length === 6, hf);
 
   // КАРТА В ПАЛЬЦЕ: под курсором, на высоте от камеры; моя рука с ней; над рукой — щель и правая рука у левой.
   const feltNow = await t(() => window.__t3d.state().felt[0].id);
