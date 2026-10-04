@@ -1,0 +1,20 @@
+design/zones/index.html
+  s_ad8a8a5b5d0419::t_b9c6065436d265 84-92,102-110
+  s_ad8a8a5b5d0419::t_b1a69241a9713e 111-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80a2f5cc357d91cf93395a064d493172b5612825",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
