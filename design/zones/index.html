@@ -133,11 +133,7 @@ const carry = (x, y, img = "club-K") => `<img class="carry" src="cards/${img}.we
 const have = ["в игре", "have"], plan = ["план", "plan"], upd = ["меняем", "new"];
 
 const slides = [
-  slide(1, "ЯЗЫЧОК", upd, `<div class="view gv" style="height:auto;margin:0 6px 14px"><img src="shots/scene-all.png" style="display:block;width:100%"></div><div class="shots">
-    ${shot(snap("shots/tab-25.png", { ink: "alia", seat: "А" }), "нет замка", ["язычок есть", "c-yes"])}
-    ${shot(snap("shots/tab-12.png", { ink: "timur", seat: "Т" }), "замок", ["язычка нет", "c-no"])}
-    ${shot(snap("shots/tab-9.png", { ink: "free", seat: "·" }), "бесхозный", ["язычок есть", "c-yes"])}
-  </div>`),
+  slide(1, "СЦЕНА", have, `<div class="view gv" style="height:auto;margin:0 6px"><img src="shots/scene-one.png" style="display:block;width:100%"></div><div class="cap" style="margin-top:10px">стопка 34 · карта лицом · карта рубашкой</div>`),
   slide(2, "КОНТУР = ПРИЁМКА", upd, `<div class="shots">
     ${shot(scene({ ink: "alia", seat: "А", zone: "hint", extra: carry(4, 62) }), "несу рядом", ["подсказка", "c-yes"])}
     ${shot(scene({ ink: "alia", seat: "А", zone: "hot", extra: carry(36, 28) }), "над зоной", ["горит", "c-hot"])}

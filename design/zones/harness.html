@@ -22,7 +22,7 @@ const { localTable } = await import(`${GAME}/@fs/Users/giyers/Desktop/crossade-d
 const q = new URLSearchParams(location.search);
 const table = localTable({ freeChair: true }), store = table.view("me");
 const scene = mountScene(document.getElementById("stage"), store);
-window.__scene = scene; window.__store = store;
+window.__scene = scene; window.__store = store; window.__table = table;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 /** Сложить `n` карт в руку этого стула: сперва из колоды, потом из своей руки (бесхозный стул принимает от любого). */
 function stackAt(chair, n) {
@@ -35,6 +35,20 @@ function stackAt(chair, n) {
 window.__setup = async (spec) => {
   scene.setCamMode(spec.mode ?? "orbit");
   for (const [chair, n] of Object.entries(spec.stacks ?? {})) stackAt(chair, n);
+  for (const [i, c] of (spec.felt ?? []).entries()) {
+    const mine = store.state.chairs.find((x) => x.owner === store.me.key).hand;
+    const id = mine[i].id;
+    store.send({ t: "grab", id }); store.send({ t: "drop", id, to: { in: "felt", x: c.x, y: c.y, up: c.up, angle: c.angle ?? 0 } });
+    if (store.state.felt.find((f) => f.id === id)?.up !== c.up) store.send({ t: "turn", id });
+  }
+  if (spec.all) {
+    const alia = table.view("alia");
+    for (const c of [...alia.state.chairs.find((x) => x.owner === alia.me.key).hand]) { alia.send({ t: "grab", id: c.id }); alia.send({ t: "drop", id: c.id, to: { in: "deck", pile: "deck" } }); }
+    const ids = [];
+    for (const p of store.state.piles) for (const c of p.cards) ids.push(c.id);
+    for (const ch of store.state.chairs) for (const c of ch.hand) ids.push(c.id);
+    store.send({ t: "gather", ids: ids.slice(0, spec.all.n), side: "down", to: { x: spec.all.x, y: spec.all.y, angle: 0 } });
+  }
   if (spec.pile) {
     const ids = store.state.piles[0].cards.slice(-spec.pile.n).map((c) => c.id);
     store.send({ t: "gather", ids, side: "down", to: { x: spec.pile.x, y: spec.pile.y, angle: 0 } });
