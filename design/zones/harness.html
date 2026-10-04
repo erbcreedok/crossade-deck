@@ -131,17 +131,19 @@ if (q.has("live")) {
     } else inside = false;
     zone.className = st;
     // Подсветка — на сукне ПОД колодой, как в Tabletop Simulator: рисуется отдельным слоем, из него вырезаны сама колода и несомая карта.
-    const cv = document.getElementById("zcv"), dpr = devicePixelRatio || 1;
+    const PW = 64, PH = 90, cv = document.getElementById("zcv"), dpr = devicePixelRatio || 1;
     if (cv.width !== Math.round(innerWidth * dpr) || cv.height !== Math.round(innerHeight * dpr)) { cv.width = Math.round(innerWidth * dpr); cv.height = Math.round(innerHeight * dpr); }
     const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, innerWidth, innerHeight);
     if (r && st) {
       const rr = (x, y, w, h, k) => { g.beginPath(); g.roundRect(x - w / 2, y - h / 2, w, h, k); };
-      const gold = st === "ask", pulse = gold && Math.floor(performance.now() / 500) % 2 ? 0.45 : 1, col = gold ? "242,193,78" : "127,209,185";
-      rr(r.x, r.y, r.w + 12, r.h + 12, 12);
-      if (st !== "hint") { g.fillStyle = `rgba(${col},${st === "hot" ? 0.3 : 0.2})`; g.globalAlpha = pulse; g.fill(); }
-      g.globalAlpha = (st === "hint" ? 0.85 : 1) * pulse; g.strokeStyle = `rgb(${col})`; g.lineWidth = st === "hint" ? 2 : 3; g.setLineDash(st === "hint" ? [7, 5] : []); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+      const gold = st === "ask", pulse = gold && Math.floor(performance.now() / 500) % 2 ? 0.5 : 1, col = gold ? "242,193,78" : "127,209,185";
+      // Свечение по периметру колоды: сама форма колоды светится наружу (тень), потом её тело вырезается — остаётся только ореол.
+      const blur = st === "hint" ? 12 : 20, passes = st === "hint" ? 2 : 3;
+      g.globalAlpha = (st === "hint" ? 0.7 : 1) * pulse; g.shadowColor = `rgb(${col})`; g.shadowBlur = blur; g.fillStyle = `rgb(${col})`;
+      for (let i = 0; i < passes; i++) { rr(r.x, r.y, PW, PH, 6); g.fill(); }
+      g.shadowBlur = 0; g.globalAlpha = 1;
       g.globalCompositeOperation = "destination-out"; g.fillStyle = "#000";
-      rr(r.x, r.y, r.w - 8, r.h - 8, 8); g.fill();
+      rr(r.x, r.y, PW, PH, 6); g.fill();
       const did = scene.test.draggingId();
       if (did) {
         const at = scene.test.screenOf(did), cw = scene.test.cardWidth(did), dz = scene.test.depthOf(did);
