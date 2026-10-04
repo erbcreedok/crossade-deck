@@ -4,9 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Зоны, язычки, контуры — стенд</title>
-<link href="https://fonts.googleapis.com/css2?family=Tiny5&display=swap" rel="stylesheet">
+<link href="fonts/tiny5.css" rel="stylesheet">
 <script src="icons.js"></script>
-<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
 <style>
   /* ПАЛИТРА — та же, что у стола (`look/src/palette.ts`): ни одного нового цвета. */
   :root { --felt: #173d2d; --feltDark: #0f2e22; --panel: #3a2a1d; --panelLight: #4a3627; --well: #1c120b; --ink: #f5ead0; --inkDim: #cdb98f; --gold: #f2c14e; --goldLight: #f8d885; --goldDark: #b08a26; --danger: #e0483f; --black: #0b0704; --wood: #6b4d2c; --mine: #7fd1b9; --alia: #f2c14e; --timur: #e06c75; --free: #8d9a94; }
@@ -62,7 +61,6 @@
   <div id="slides"></div>
 </div>
 <script type="module">
-import * as THREE from "three";
 const I = (n, s = 1) => PixelIcons.icon(n, s);
 const C = { mine: "var(--mine)", alia: "var(--alia)", timur: "var(--timur)", free: "var(--free)", gold: "var(--gold)" };
 
@@ -78,52 +76,6 @@ function scene({ ink = "mine", zone = "none", n = 5, tab = true, tabLit = false,
   return `<div class="view">${s}${z}${st}${t}${b}${h}${extra}</div>`;
 }
 
-// ——— КАРТИНКА ИЗ ТЕХ ЖЕ ДЕТАЛЕЙ, ЧТО В ИГРЕ: настоящие размеры (карта 1.17×1.638, шаг стопки 0.012, язычок 1×0.5 плашмя у нижней кромки), рубашка plaid, язычок рисуется тем же `drawTab`. ———
-const CARD_W = 1.17, CARD_H = 1.638, STEP = 0.012, TAB = { w: 1, l: 0.5 };
-const GV = { w: 300, h: 300, renderer: null, back: null };
-/** Текстура боковины стопки — та же, что в игре (`pileSideTexture`): светлая кромка сверху листа, тёмная снизу, повтор на каждый лист. */
-let gvSideTex = null;
-function gvSide() {
-  if (gvSideTex) return gvSideTex;
-  const c = document.createElement("canvas"); c.width = 8; c.height = 64; const g = c.getContext("2d");
-  g.fillStyle = "#d1c6ab"; g.fillRect(0, 0, 8, 64); g.fillStyle = "#e2d9c1"; g.fillRect(0, 0, 8, 9); g.fillStyle = "#978b74"; g.fillRect(0, 55, 8, 9);
-  gvSideTex = new THREE.CanvasTexture(c); gvSideTex.colorSpace = THREE.SRGBColorSpace; gvSideTex.wrapS = gvSideTex.wrapT = THREE.RepeatWrapping; gvSideTex.repeat.set(1, 1 / STEP); gvSideTex.anisotropy = 8;
-  return gvSideTex;
-}
-function gvInit() {
-  const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-  r.setPixelRatio(2); r.setSize(GV.w, GV.h, false); GV.renderer = r;
-  GV.back = new THREE.TextureLoader().load("cards/back.webp", () => GV.onBack && GV.onBack()); GV.back.colorSpace = THREE.SRGBColorSpace; GV.back.anisotropy = 8;
-}
-/** Снимок сцены: стопка из `n` карт на сукне, язычок (если есть) плашмя у нижней кромки; вид — как у свободной камеры игры, сверху-сзади. */
-function gvShot({ n = 6, tab = true, lit = false }) {
-  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a1511);
-  const felt = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ color: 0x14402a })); felt.rotation.x = -Math.PI / 2; scene.add(felt);
-  // Тело стопки — как в игре (`pileBodyGeom`): выдавленный контур карты со скруглёнными углами, без крышек; стенки в полоску «лист за листом», темнее к основанию.
-  const depth = Math.max(0.001, (n - 1) * STEP), w = CARD_W / 2, hh = CARD_H / 2, r = 0.081, sh = new THREE.Shape();
-  sh.moveTo(-w + r, -hh); sh.lineTo(w - r, -hh); sh.quadraticCurveTo(w, -hh, w, -hh + r); sh.lineTo(w, hh - r); sh.quadraticCurveTo(w, hh, w - r, hh); sh.lineTo(-w + r, hh); sh.quadraticCurveTo(-w, hh, -w, hh - r); sh.lineTo(-w, -hh + r); sh.quadraticCurveTo(-w, -hh, -w + r, -hh);
-  const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false, curveSegments: 4 }), pos = g.getAttribute("position"), col = new Float32Array(pos.count * 3);
-  for (let i = 0; i < pos.count; i++) { const k = 0.45 + 0.45 * Math.min(1, pos.getZ(i) / depth); col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = k; }
-  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
-  const body = new THREE.Mesh(g, [new THREE.MeshBasicMaterial({ visible: false }), new THREE.MeshBasicMaterial({ map: gvSide(), vertexColors: true })]);
-  body.rotation.x = -Math.PI / 2; body.position.y = 0.01; body.scale.set(0.985, 0.985, 1); scene.add(body);
-  const h = 0.01 + depth;
-  const sg = new THREE.ShapeGeometry(sh, 4), sp = sg.getAttribute("position"), su = sg.getAttribute("uv");
-  for (let i = 0; i < sp.count; i++) su.setXY(i, sp.getX(i) / CARD_W + 0.5, sp.getY(i) / CARD_H + 0.5);
-  const top = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ map: GV.back })); top.rotation.x = -Math.PI / 2; top.position.y = h + 0.002; scene.add(top);
-  if (tab) {
-    const cv = document.createElement("canvas"); cv.width = 340; cv.height = 170; cv.dataset.n = n; cv.dataset.lit = lit ? 1 : 0; drawTab(cv);
-    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(TAB.w, TAB.l), new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05 }));
-    m.rotation.x = -Math.PI / 2; m.position.set(0, 0.004, CARD_H / 2 + TAB.l / 2); scene.add(m);
-  }
-  const cam = new THREE.PerspectiveCamera(36, GV.w / GV.h, 0.1, 100); cam.position.set(0, 3.7, 2.9); cam.lookAt(0, 0, 0.62);
-  GV.renderer.render(scene, cam);
-  return GV.renderer.domElement.toDataURL("image/png");
-}
-/** Шот по описанию: картинка из игровых деталей плюс значок места и (если нужен) значок замка поверх. */
-const gvView = ({ ink = "mine", seat = "", lock = false, ...spec }) => `<div class="view gv"><img class="gvimg" data-gv='${JSON.stringify(spec)}'>${seat ? `<div class="seat" style="background:${C[ink]}">${seat}</div>` : ""}${lock ? `<div class="lockic">${I("lock", 2)}</div>` : ""}</div>`;
-window.__gv = (spec) => { if (!GV.renderer) gvInit(); return gvShot(spec); };
 /** Настоящий снимок игры (`shoot.mjs` + `harness.html`): сцена и язычок — те, что рисует игра, не мои. */
 const snap = (src, { ink = "mine", seat = "", lock = false } = {}) => `<div class="view gv"><img class="gvimg" src="${src}">${seat ? `<div class="seat" style="background:${C[ink]}">${seat}</div>` : ""}${lock ? `<div class="lockic" style="top:auto;bottom:6px">${I("lock", 2)}</div>` : ""}</div>`;
 const chip = (txt, cls) => `<span class="chip ${cls}">${txt}</span>`;
@@ -182,7 +134,7 @@ function drawTab(cv) {
   for (const [dx, a] of [[-0.05, -0.28], [0.05, 0.2]]) { c.save(); c.translate(W * 0.2 + dx * W, cy); c.rotate(a); c.fillStyle = ink; c.strokeStyle = T.black; c.lineWidth = line * 0.7; c.beginPath(); c.roundRect(-H * 0.17, -H * 0.27, H * 0.34, H * 0.54, H * 0.05); c.fill(); c.stroke(); c.restore(); }
   c.fillStyle = lit ? T.black : T.ink; c.textBaseline = "middle"; c.textAlign = "left"; c.font = `${Math.round(H * 0.5)}px Tiny5, monospace`; c.fillText(String(count), W * 0.38, cy + H * 0.03);
 }
-document.fonts.load("40px Tiny5").then(() => { document.querySelectorAll("canvas.tabc").forEach(drawTab); gvInit(); const draw = () => document.querySelectorAll("img[data-gv]").forEach((im) => { if (!im.src.startsWith("data:")) im.src = gvShot(JSON.parse(im.dataset.gv)); }); GV.onBack = draw; if (GV.back.image) draw(); });
+document.fonts.load("40px Tiny5").then(() => { document.querySelectorAll("canvas.tabc").forEach(drawTab); });
 
 </script>
 </body>

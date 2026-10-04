@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>harness — настоящая сцена игры для снимков стенда</title>
-<link href="https://fonts.googleapis.com/css2?family=Tiny5&display=swap" rel="stylesheet">
+<link href="/@fs/Users/giyers/Desktop/crossade-deck/design/zones/fonts/tiny5.css" rel="stylesheet">
 <style>
   html, body { margin: 0; background: #0a1511; }
   #stage { position: relative; width: 390px; height: 844px; overflow: hidden; }
@@ -131,7 +131,7 @@ if (q.has("live")) {
   const sid = Date.now().toString(36), buf = [];
   const rec = (k, d) => buf.push(JSON.stringify({ t: Math.round(performance.now()), k, ...d }));
   const flush = () => { if (!buf.length) return; const body = buf.splice(0).join("\n"); fetch(`http://${location.hostname}:9589/log?sid=${sid}`, { method: "POST", body, keepalive: true }).catch(() => {}); };
-  setInterval(flush, 700); addEventListener("pagehide", flush);
+  setInterval(flush, 700); addEventListener("pagehide", () => { if (buf.length) navigator.sendBeacon(`http://${location.hostname}:9589/log?sid=${sid}`, new Blob([buf.splice(0).join("\n")], { type: "text/plain" })); });
   rec("start", { ua: navigator.userAgent, w: innerWidth, h: innerHeight });
   const snap = () => { const t = scene.test, s = store.state, pl = s.piles.find((x) => x.id === restRect?.id); return { n: pl?.cards.length, top: pl?.cards.at(-1)?.id, locks: s.locks, drag: t.draggingId(), wait: waiting.length, policy, felt: s.felt.length }; };
   for (const ty of ["pointerdown", "pointerup", "pointercancel"]) addEventListener(ty, (e) => {
