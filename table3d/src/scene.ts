@@ -1810,7 +1810,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let landing: { id: string; place: Place; key: string; until: number } | null = null;
   /** Отпущенная карта стоит там, куда её положили, пока стол не ответил (или не вышло время). Зовётся и после раскладки, и после руки каждый кадр: рука карту по снимку тянула бы обратно в щель. */
   function holdLanding(): void {
-    if (!landing || floats.has(landing.id) || performance.now() >= landing.until || fromKey(landing.id) !== landing.key) return;
+    if (!landing || floats.has(landing.id) || (drag?.moved && drag.id === landing.id) || performance.now() >= landing.until || fromKey(landing.id) !== landing.key) return;
     const o = cards.get(landing.id);
     if (o) o.target = landing.place;
   }
@@ -2644,6 +2644,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     startDrag(id, e);
   }, { capture: true });
   function startDrag(id: string, e: PointerEvent): void {
+    // Карту взяли снова, пока она «садилась» после броска: посадка кончена, держит палец, а не прежнее место.
+    if (landing?.id === id) landing = null;
     const fromHand = fromOf.get(id);
     const latch0 = liftedId, fingerHand = !!fromHand && fromHand.in === "hand" && fromHand.mine && camMode === "head" && levelOn;
     liftedId = fromHand && fromHand.in === "hand" && fromHand.mine && camMode === "head" ? id : null;
