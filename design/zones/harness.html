@@ -85,7 +85,7 @@ window.__setup = async (spec) => {
 window.__ready = true;
 if (q.has("live")) {
   window.__live = true;
-  await window.__setup({ mode: "top", noHands: true, felt: [{ up: true, x: -1.9, y: 2.4, angle: -12 }, { up: false, x: 1.9, y: 2.4, angle: 10 }], all: { n: 34, x: 0, y: 0.8 } });
+  await window.__setup({ mode: "top", noHands: true, felt: [{ up: true, x: -1.9, y: 1.9, angle: -12 }, { up: false, x: 1.9, y: 1.9, angle: 10 }], all: { n: 34, x: 0, y: 0.8 } });
   // Без стула у меня нет «своей руки»: ниже её границы игра кладёт карту в руку, а стенду нужен только стол.
   store.send({ t: "stand" }); scene.test.setPileSnap(false); await wait(500);
 }
