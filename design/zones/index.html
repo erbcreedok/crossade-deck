@@ -124,6 +124,8 @@ function gvShot({ n = 6, tab = true, lit = false }) {
 /** Шот по описанию: картинка из игровых деталей плюс значок места и (если нужен) значок замка поверх. */
 const gvView = ({ ink = "mine", seat = "", lock = false, ...spec }) => `<div class="view gv"><img class="gvimg" data-gv='${JSON.stringify(spec)}'>${seat ? `<div class="seat" style="background:${C[ink]}">${seat}</div>` : ""}${lock ? `<div class="lockic">${I("lock", 2)}</div>` : ""}</div>`;
 window.__gv = (spec) => { if (!GV.renderer) gvInit(); return gvShot(spec); };
+/** Настоящий снимок игры (`shoot.mjs` + `harness.html`): сцена и язычок — те, что рисует игра, не мои. */
+const snap = (src, { ink = "mine", seat = "", lock = false } = {}) => `<div class="view gv"><img class="gvimg" src="${src}">${seat ? `<div class="seat" style="background:${C[ink]}">${seat}</div>` : ""}${lock ? `<div class="lockic" style="top:auto;bottom:6px">${I("lock", 2)}</div>` : ""}</div>`;
 const chip = (txt, cls) => `<span class="chip ${cls}">${txt}</span>`;
 const shot = (sceneHtml, cap, c) => `<div class="shot">${sceneHtml}<div class="cap">${cap}${c ? chip(c[0], c[1]) : ""}</div></div>`;
 const slide = (n, title, badge, body) => `<div class="plate"><div class="head"><div class="n">${n}</div><div class="t">${title}</div><div class="badge ${badge[1]}">${badge[0]}</div></div>${body}</div>`;
@@ -132,9 +134,9 @@ const have = ["в игре", "have"], plan = ["план", "plan"], upd = ["ме�
 
 const slides = [
   slide(1, "ЯЗЫЧОК", upd, `<div class="shots">
-    ${shot(gvView({ ink: "alia", seat: "А", n: 25, tab: true }), "нет замка", ["язычок есть", "c-yes"])}
-    ${shot(gvView({ ink: "timur", seat: "Т", n: 12, tab: false, lock: true }), "замок", ["язычка нет", "c-no"])}
-    ${shot(gvView({ ink: "free", seat: "·", n: 9, tab: true }), "бесхозный", ["язычок есть", "c-yes"])}
+    ${shot(snap("shots/tab-25.png", { ink: "alia", seat: "А" }), "нет замка", ["язычок есть", "c-yes"])}
+    ${shot(snap("shots/tab-12.png", { ink: "timur", seat: "Т", lock: true }), "замок", ["язычка нет", "c-no"])}
+    ${shot(snap("shots/tab-9.png", { ink: "free", seat: "·" }), "бесхозный", ["язычок есть", "c-yes"])}
   </div>`),
   slide(2, "КОНТУР = ПРИЁМКА", upd, `<div class="shots">
     ${shot(scene({ ink: "alia", seat: "А", zone: "hint", extra: carry(4, 62) }), "несу рядом", ["подсказка", "c-yes"])}

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>harness — настоящая сцена игры для снимков стенда</title>
+<link href="https://fonts.googleapis.com/css2?family=Tiny5&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; background: #0a1511; }
+  #stage { position: relative; width: 390px; height: 844px; overflow: hidden; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script type="module">
+// СЦЕНА ИГРЫ ДЛЯ СНИМКОВ. Здесь нет ничего нарисованного руками: подтягивается НАСТОЯЩИЙ `scene.ts` и локальный стол с dev-сервера игры (порт 9590, только читаем), стол приводится в нужное состояние теми же
+// намерениями, что у игрока, и `shoot.mjs` снимает кадр. Страница стенда потом показывает эти снимки — один в один как в игре.
+const GAME = "http://localhost:9590", HOST = "http://localhost:2591";
+globalThis.__TABLE_HOST__ = HOST;
+await document.fonts.load("20px Tiny5");
+const { mountScene } = await import(`${GAME}/src/scene.ts`);
+const { localTable } = await import(`${GAME}/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/localStore.ts`);
+const q = new URLSearchParams(location.search);
+const table = localTable({ freeChair: true }), store = table.view("me");
+const scene = mountScene(document.getElementById("stage"), store);
+window.__scene = scene; window.__store = store;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Сложить `n` карт в руку этого стула: сперва из колоды, потом из своей руки (бесхозный стул принимает от любого). */
+function stackAt(chair, n) {
+  for (let i = 0; i < n; i++) {
+    const s = store.state, deck = s.piles[0].cards, mine = s.chairs.find((c) => c.owner === store.me.key).hand;
+    const id = deck.length ? deck.at(-1).id : mine.at(-1).id, hand = s.chairs.find((c) => c.id === chair).hand.length;
+    store.send({ t: "grab", id }); store.send({ t: "drop", id, to: { in: "hand", chair, i: hand } });
+  }
+}
+window.__setup = async (spec) => {
+  scene.setCamMode("orbit");
+  for (const [chair, n] of Object.entries(spec.stacks ?? {})) stackAt(chair, n);
+  await wait(200);
+  scene.setOrbitZoom(spec.zoom ?? 0.85);
+  if (spec.look) { const ch = store.state.chairs.find((c) => c.id === spec.look); scene.turnBy(ch.angle + (spec.far ? 180 : 0) - scene.azimuth()); }
+  if (spec.turn) scene.turnBy(spec.turn);
+  if (spec.centre) {
+    const idOf = () => store.state.chairs.find((c) => c.id === spec.centre).hand[0].id;
+    await wait(900); const x0 = scene.test.screenOf(idOf()).x; scene.turnBy(5); await wait(700); const x1 = scene.test.screenOf(idOf()).x, k = (x1 - x0) / 5;
+    scene.turnBy(k ? -(x1 - 195) / k : 0); await wait(900);
+  }
+  await wait(1200);
+  return true;
+};
+window.__ready = true;
+</script>
+</body>
+</html>
