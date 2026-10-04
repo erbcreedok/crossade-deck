@@ -83,19 +83,25 @@ await wait(900);
 }
 await wait(300);
 
-// В первом лице камеру крутить нельзя: касание пустого места (кроме карт и язычка) до сцены не доходит.
-for (const type of ["pointerdown", "touchstart"]) $("s-first").addEventListener(type, (e) => {
-  const x = e.clientX ?? e.touches?.[0]?.clientX, y = e.clientY ?? e.touches?.[0]?.clientY;
-  const pid = me.state.piles[0]?.id, tab = pid ? first.test.tabInfo(pid)?.screen : null;
-  if (first.test.cardAt(x, y) || (tab && Math.abs(tab.x - x) < 42 && Math.abs(tab.y - y) < 30)) return;
-  e.stopImmediatePropagation(); e.preventDefault();
-}, true);
-$("s-first").addEventListener("wheel", (e) => { e.stopImmediatePropagation(); e.preventDefault(); }, { capture: true, passive: false });
+// Камера: по умолчанию её крутить нельзя — касание пустого места (кроме карт и язычка колоды) до сцены не доходит, колесо и щипок тоже. Тумблер «камера» в панели включает управление камерой на обеих сценах.
+let cameraOn = false;
+for (const [el, sc] of [[$("s-top"), top], [$("s-first"), first]]) {
+  for (const type of ["pointerdown", "touchstart"]) el.addEventListener(type, (e) => {
+    if (cameraOn) return;
+    const x = e.clientX ?? e.touches?.[0]?.clientX, y = e.clientY ?? e.touches?.[0]?.clientY;
+    const pid = me.state.piles[0]?.id, tab = pid ? sc.test.tabInfo(pid)?.screen : null;
+    if (sc.test.cardAt(x, y) || (tab && Math.abs(tab.x - x) < 42 && Math.abs(tab.y - y) < 30)) return;
+    e.stopImmediatePropagation(); e.preventDefault();
+  }, true);
+  el.addEventListener("wheel", (e) => { if (cameraOn) return; e.stopImmediatePropagation(); e.preventDefault(); }, { capture: true, passive: false });
+}
 
 // ПРИЁМКА СТОПКИ — общая для обеих сцен.
 let policy = "accept", finger = null, pid = 1, note = "", noteAt = 0;
 const waiting = [];
 const bar = $("bar");
+const camBtn = document.createElement("button"); camBtn.textContent = "камера: выкл"; camBtn.style.marginLeft = "auto"; camBtn.onclick = () => { cameraOn = !cameraOn; camBtn.textContent = cameraOn ? "камера: вкл" : "камера: выкл"; camBtn.className = cameraOn ? "on" : ""; };
+setTimeout(() => bar.append(camBtn), 0);
 for (const [k, t] of [["accept", "принимает"], ["refuse", "не принимает"], ["ask", "нужен апрув"]]) {
   const b = document.createElement("button"); b.textContent = t; b.dataset.p = k; if (k === policy) b.className = "on";
   b.onclick = () => { policy = k; for (const x of bar.children) x.className = x.dataset.p === k ? "on" : ""; };
