@@ -107,7 +107,8 @@ if (q.has("live")) {
     return restRect;
   };
   // Над стопкой — и над её ждущими картами: они веером шире самой стопки, и бросить назад на любую из них значит бросить на стопку.
-  const hit = (r) => finger && (Math.abs(finger.x - r.x) < r.w / 2 + 6 && Math.abs(finger.y - r.y) < r.h / 2 + 6 || waiting.some((id) => { const a = scene.test.screenOf(id); return a && Math.abs(finger.x - a.x) < 38 && Math.abs(finger.y - a.y) < 52; }));
+  // «Над стопкой» — ровно по решению игры (`aim`): иначе у игры зона шире моей рамки, и бросок рядом со стопкой клал карту в неё мимо апрува.
+  const hit = (r) => { if (!finger) return false; const a = scene.aim(finger.x, finger.y); return (a.in === "deck" && a.pile === restRect?.id) || waiting.some((id) => { const c = scene.test.screenOf(id); return c && Math.abs(finger.x - c.x) < 38 && Math.abs(finger.y - c.y) < 52; }); };
   addEventListener("pointermove", (e) => { pid = e.pointerId; if (e.isTrusted) finger = { x: e.clientX, y: e.clientY }; }, true);
   const fire = (type, x, y) => dispatchEvent(new PointerEvent(type, { pointerId: pid, clientX: x, clientY: y, bubbles: true, isPrimary: true, pointerType: "mouse", buttons: type === "pointerup" ? 0 : 1 }));
   /** Карты, что ждут ответа: висят над стопкой, покачиваются, каждая в своей позе; реально лежат на сукне сбоку. */
