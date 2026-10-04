@@ -1187,6 +1187,16 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     p.pos.y = Math.max(p.pos.y, low);
     return p;
   }
+  /** Лежащую позу `p` наклоняет к точке `at` (по сукну) на `deg` градусов вокруг центра карты; низ не уходит под сукно. */
+  function tiltToward(p: Place, at: THREE.Vector3, deg: number): Place {
+    const to = at.clone().sub(p.pos).setY(0);
+    if (to.lengthSq() < 1e-6) return p;
+    to.normalize();
+    p.quat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0).cross(to).normalize(), deg * DEG).multiply(p.quat);
+    const flat = Math.abs(new THREE.Vector3(0, 0, 1).applyQuaternion(p.quat).y);
+    p.pos.y = Math.max(p.pos.y, (CARD_H / 2) * Math.sqrt(Math.max(0, 1 - flat * flat)) * p.scale + CARRY_TILT.floor);
+    return p;
+  }
   /** Лежит на сукне: лицом вверх (`up`) или рубашкой, повёрнута по часовой на `angle`. */
   const lying = (x: number, y: number, h: number, angle: number, up: boolean): Place => {
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, -angle * DEG, 0, "YXZ"));
@@ -1811,8 +1821,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const at = over.in === "felt" ? { x: over.x, y: over.y } : over.in === "deck" ? s.piles.find((p) => p.id === over.pile) : (() => { const ch = s.chairs.find((x) => x.id === over.chair); return ch ? seatPoint(ch.angle, R - 1.2) : null; })();
       if (at) {
         o.target = lying(at.x, at.y, 1.4, over.in === "felt" ? over.angle : 0, over.in === "felt" ? over.up : !!c.card.up);
-        const head = over.in === "felt" ? poses.get(s.chairs.find((x) => x.owner === c.by)?.id ?? "")?.head : undefined;
-        if (head) faceEye(o.target, V(head));
+        // Наклон — тот же, что у несущего (он его прислал): к его голове, а не к моему глазу.
+        const carrier = s.chairs.find((x) => x.owner === c.by), head = poses.get(carrier?.id ?? "")?.head, seatAt = carrier ? seatPoint(carrier.angle, R) : null;
+        const from = head ? { x: head.x, y: head.y } : seatAt;
+        if (over.in === "felt" && c.tilt && from) tiltToward(o.target, new THREE.Vector3(from.x, 0, from.y), c.tilt);
         if (c.flip) o.target.quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), c.flip * DEG));
       }
     }
@@ -2800,7 +2812,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const now = performance.now();
     if (!drag?.where || now - carriedAt < CARRY_EVERY_MS) return;
     carriedAt = now;
-    store.carry({ id: drag.id, over: drag.where, ...(flipDeg ? { flip: Math.round(flipDeg) } : {}) });
+    const tilt = drag.place && drag.where.in === "felt" ? Math.round(Math.acos(Math.min(1, Math.abs(new THREE.Vector3(0, 0, 1).applyQuaternion(drag.place.quat).y))) / DEG) : 0;
+    store.carry({ id: drag.id, over: drag.where, ...(flipDeg ? { flip: Math.round(flipDeg) } : {}), ...(tilt ? { tilt } : {}) });
   };
   /** Щёлкнуло: сторона сменилась, карта доворачивается сама (пружина), угол в воздухе сброшен. */
   const flipClick = (): void => {

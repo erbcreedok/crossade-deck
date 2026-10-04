@@ -45,6 +45,19 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   await p.mouse.up(); await p.waitForTimeout(700);
   check("отпустил — свечение погасло", !(await halo("__first")).on);
 }
+// Наклон несомой карты у зрителя — тот, что у несущего: несут сверху — у зрителя плашмя; несут от первого лица — наклонена.
+{
+  const id = await f.evaluate(() => window.__me.state.felt[0].id);
+  await f.evaluate(() => document.querySelector('#who-first [data-k="red"]').click());
+  for (const [from, to, tilted] of [["__top", "__first", false], ["__first", "__top", true]]) {
+    const at = await f.evaluate(([w, i]) => window[w].test.screenOf(i), [from, id]);
+    await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x + 14, at.y - 20, { steps: 4 });
+    for (let i = 0; i < 12; i++) { await p.mouse.move(at.x + 14 + (i % 2) * 6, at.y - 20, { steps: 2 }); await p.waitForTimeout(60); }
+    const t = await f.evaluate(([w, i]) => window[w].test.cardTilt(i), [to, id]);
+    await p.mouse.up(); await p.waitForTimeout(800);
+    check(`несут в «${from === "__top" ? "сверху" : "от первого лица"}» — у зрителя ${tilted ? "наклонена" : "плашмя"}`, tilted ? t.fromUp > 8 : t.fromUp < 3, t);
+  }
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));

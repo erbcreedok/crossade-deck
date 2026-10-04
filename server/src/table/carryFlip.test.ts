@@ -30,3 +30,19 @@ describe("carry.flip", () => {
     expect(t.carriesSeenBy("b")[0]!.flip).toBeUndefined();
   });
 });
+
+describe("carry.tilt", () => {
+  it("наклон к глазу несущего доходит до остальных, лишнее обрезается", () => {
+    const t = seated();
+    const id = t.seenBy("a").piles[0]!.cards.at(-1)!.id;
+    t.act("a", { t: "grab", id }, 0);
+    t.carry("a", { id, over: felt, tilt: 40 }, 1);
+    expect(t.carriesSeenBy("b")[0]!.tilt).toBe(40);
+    t.carry("a", { id, over: felt, tilt: 500 }, 2);
+    expect(t.carriesSeenBy("b")[0]!.tilt).toBe(90);
+    t.carry("a", { id, over: felt, tilt: -5 }, 3);
+    expect(t.carriesSeenBy("b")[0]!.tilt).toBeUndefined();
+    t.carry("a", { id, over: felt }, 4);
+    expect(t.carriesSeenBy("b")[0]!.tilt).toBeUndefined();
+  });
+});
