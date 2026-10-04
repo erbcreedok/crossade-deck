@@ -1,0 +1,24 @@
+design/zones/rec/.gitignore
+  s_ad8a8a5b5d0419::t_6afb852c0d3e86 1-2
+design/zones/rec.py
+  s_ad8a8a5b5d0419::t_6afb852c0d3e86 1,3,5-27
+  s_ad8a8a5b5d0419::t_921c043d2f9afa 2,4,28
+design/zones/harness.html
+  s_ad8a8a5b5d0419::t_921c043d2f9afa 129-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6bc28fb3a31275695ca2af3e0d039d06919b4c4f",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
