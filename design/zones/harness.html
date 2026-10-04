@@ -23,7 +23,7 @@
 </head>
 <body>
 <div id="stage"></div>
-<div id="zone"></div><div id="say"></div><div id="ans"><button data-a=yes>принять</button><button data-a=no>отозвать</button></div><div id="bar"></div>
+<canvas id="zcv" style="position:absolute;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:5"></canvas><div id="zone" style="display:none"></div><div id="say"></div><div id="ans"><button data-a=yes>принять</button><button data-a=no>отозвать</button></div><div id="bar"></div>
 <script type="module">
 // СЦЕНА ИГРЫ ДЛЯ СНИМКОВ. Здесь нет ничего нарисованного руками: подтягивается НАСТОЯЩИЙ `scene.ts` и локальный стол с dev-сервера игры (порт 9590, только читаем), стол приводится в нужное состояние теми же
 // намерениями, что у игрока, и `shoot.mjs` снимает кадр. Страница стенда потом показывает эти снимки — один в один как в игре.
@@ -92,8 +92,8 @@ if (q.has("live")) {
 
 if (q.has("live")) {
   // ПРИЁМКА СТОПКИ — предложение для стенда: игра сама карту в стопку кладёт всегда, поэтому здесь поверх настоящей игры подсветка и «апрув» ведутся этой страницей.
-  const zone = document.getElementById("zone"), say = document.getElementById("say"), ans = document.getElementById("ans"), bar = document.getElementById("bar");
-  let policy = "accept", finger = null, pid = 1, frozen = false, inside = false, note = "", noteAt = 0;
+  const stage = document.getElementById("stage"), zone = document.getElementById("zone"), say = document.getElementById("say"), ans = document.getElementById("ans"), bar = document.getElementById("bar");
+  let restRect = null, policy = "accept", finger = null, pid = 1, frozen = false, inside = false, note = "", noteAt = 0;
   for (const [k, t] of [["accept", "принимает"], ["refuse", "не принимает"], ["ask", "нужен апрув"]]) {
     const b = document.createElement("button"); b.textContent = t; b.dataset.p = k; if (k === policy) b.className = "on";
     b.onclick = () => { policy = k; for (const x of bar.children) x.className = x.dataset.p === k ? "on" : ""; };
@@ -101,14 +101,16 @@ if (q.has("live")) {
   }
   const pileRect = () => {
     const p = store.state.piles.find((x) => x.id !== "deck"); if (!p) return null;
-    const at = scene.test.screenOf(p.cards.at(-1).id); return { x: at.x, y: at.y, w: 76, h: 104 };
+    // Место стопки берётся с нижней карты и запоминается, пока ничего не несут: верхнюю потянули — подсветка за ней не бежит.
+    if (!scene.test.draggingId() || !restRect || restRect.id !== p.id) { const at = scene.test.screenOf(p.cards[0].id); restRect = { id: p.id, x: at.x, y: at.y, w: 76, h: 104 }; }
+    return restRect;
   };
   const hit = (r) => finger && Math.abs(finger.x - r.x) < r.w / 2 + 6 && Math.abs(finger.y - r.y) < r.h / 2 + 6;
   addEventListener("pointermove", (e) => { pid = e.pointerId; if (frozen && e.isTrusted) { e.stopImmediatePropagation(); return; } if (e.isTrusted) finger = { x: e.clientX, y: e.clientY }; }, true);
   const fire = (type, x, y) => dispatchEvent(new PointerEvent(type, { pointerId: pid, clientX: x, clientY: y, bubbles: true, isPrimary: true, pointerType: "mouse", buttons: type === "pointerup" ? 0 : 1 }));
   addEventListener("pointerup", (e) => {
     if (!e.isTrusted || !scene.test.draggingId()) return;
-    const r = pileRect(); if (!r || !hit(r)) return;
+    const r = pileRect(); if (!r || !hit(r) || store.state.piles.some((p) => p.id === restRect?.id && p.cards.some((c) => c.id === scene.test.draggingId()))) return;
     if (policy === "refuse") { e.stopImmediatePropagation(); fire("pointermove", r.x, r.y + r.h); fire("pointerup", r.x, r.y + r.h); }
     if (policy === "ask") { e.stopImmediatePropagation(); frozen = true; }
   }, true);
@@ -120,7 +122,7 @@ if (q.has("live")) {
     noteAt = performance.now(); inside = false;
   };
   const tick = () => {
-    const r = pileRect(), drag = scene.test.draggingId() || frozen;
+    const r = pileRect(), did0 = scene.test.draggingId(), own = !!did0 && store.state.piles.some((p) => p.id === restRect?.id && p.cards.some((c) => c.id === did0)), drag = (did0 || frozen) && !own;
     let st = "", msg = note && performance.now() - noteAt < 1200 ? note : "";
     if (r && drag && policy !== "refuse") {
       const over = frozen || hit(r);
@@ -128,6 +130,27 @@ if (q.has("live")) {
       else st = over ? "hot" : "hint";
     } else inside = false;
     zone.className = st;
+    // Подсветка — на сукне ПОД колодой, как в Tabletop Simulator: рисуется отдельным слоем, из него вырезаны сама колода и несомая карта.
+    const cv = document.getElementById("zcv"), dpr = devicePixelRatio || 1;
+    if (cv.width !== Math.round(innerWidth * dpr) || cv.height !== Math.round(innerHeight * dpr)) { cv.width = Math.round(innerWidth * dpr); cv.height = Math.round(innerHeight * dpr); }
+    const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, innerWidth, innerHeight);
+    if (r && st) {
+      const rr = (x, y, w, h, k) => { g.beginPath(); g.roundRect(x - w / 2, y - h / 2, w, h, k); };
+      const gold = st === "ask", pulse = gold && Math.floor(performance.now() / 500) % 2 ? 0.45 : 1, col = gold ? "242,193,78" : "127,209,185";
+      rr(r.x, r.y, r.w + 12, r.h + 12, 12);
+      if (st !== "hint") { g.fillStyle = `rgba(${col},${st === "hot" ? 0.3 : 0.2})`; g.globalAlpha = pulse; g.fill(); }
+      g.globalAlpha = (st === "hint" ? 0.85 : 1) * pulse; g.strokeStyle = `rgb(${col})`; g.lineWidth = st === "hint" ? 2 : 3; g.setLineDash(st === "hint" ? [7, 5] : []); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+      g.globalCompositeOperation = "destination-out"; g.fillStyle = "#000";
+      rr(r.x, r.y, r.w - 8, r.h - 8, 8); g.fill();
+      const did = scene.test.draggingId();
+      if (did) {
+        const at = scene.test.screenOf(did), cw = scene.test.cardWidth(did), dz = scene.test.depthOf(did);
+        const k = (stage.clientHeight / 2 / Math.tan(25 * Math.PI / 180)) / dz, w = cw * k + 2, h = cw * 1.4 * k + 2, an = (scene.test.heldAngle() ?? 0) * Math.PI / 180;
+        g.save(); g.translate(at.x, at.y); g.rotate(an); g.beginPath(); g.roundRect(-w / 2, -h / 2, w, h, 8); g.fill(); g.restore();
+      }
+      g.globalCompositeOperation = "source-over";
+    }
+    zone.style.clipPath = "none";
     if (r) { Object.assign(zone.style, { left: r.x - r.w / 2 + "px", top: r.y - r.h / 2 + "px", width: r.w + "px", height: r.h + "px" }); Object.assign(say.style, { left: r.x + "px", top: r.y - r.h / 2 - 24 + "px", display: msg ? "block" : "none" }); say.textContent = msg; Object.assign(ans.style, { left: r.x + "px", top: r.y + r.h / 2 + 26 + "px", display: frozen ? "flex" : "none" }); }
     requestAnimationFrame(tick);
   };
