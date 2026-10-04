@@ -93,6 +93,7 @@ if (q.has("live")) {
 if (q.has("live")) {
   // ПРИЁМКА СТОПКИ — предложение для стенда: игра сама карту в стопку кладёт всегда, поэтому здесь поверх настоящей игры подсветка и «апрув» ведутся этой страницей.
   const stage = document.getElementById("stage"), zone = document.getElementById("zone"), say = document.getElementById("say"), bar = document.getElementById("bar");
+  const waiting = [];
   let restRect = null, policy = "accept", finger = null, pid = 1, frozen = false, inside = false, note = "", noteAt = 0;
   for (const [k, t] of [["accept", "принимает"], ["refuse", "не принимает"], ["ask", "нужен апрув"]]) {
     const b = document.createElement("button"); b.textContent = t; b.dataset.p = k; if (k === policy) b.className = "on";
@@ -105,11 +106,11 @@ if (q.has("live")) {
     if (!scene.test.draggingId() || !restRect || restRect.id !== p.id) { const at = scene.test.screenOf(p.cards[0].id); restRect = { id: p.id, x: at.x, y: at.y, w: 76, h: 104 }; }
     return restRect;
   };
-  const hit = (r) => finger && Math.abs(finger.x - r.x) < r.w / 2 + 6 && Math.abs(finger.y - r.y) < r.h / 2 + 6;
+  // Над стопкой — и над её ждущими картами: они веером шире самой стопки, и бросить назад на любую из них значит бросить на стопку.
+  const hit = (r) => finger && (Math.abs(finger.x - r.x) < r.w / 2 + 6 && Math.abs(finger.y - r.y) < r.h / 2 + 6 || waiting.some((id) => { const a = scene.test.screenOf(id); return a && Math.abs(finger.x - a.x) < 38 && Math.abs(finger.y - a.y) < 52; }));
   addEventListener("pointermove", (e) => { pid = e.pointerId; if (e.isTrusted) finger = { x: e.clientX, y: e.clientY }; }, true);
   const fire = (type, x, y) => dispatchEvent(new PointerEvent(type, { pointerId: pid, clientX: x, clientY: y, bubbles: true, isPrimary: true, pointerType: "mouse", buttons: type === "pointerup" ? 0 : 1 }));
   /** Карты, что ждут ответа: висят над стопкой, покачиваются, каждая в своей позе; реально лежат на сукне сбоку. */
-  const waiting = [];
   // Ждущие карты — в ряд, слева направо; последняя справа и выше всех (по Z к камере). Шаг по высоте больше размаха покачивания, чтобы они не менялись местами.
   const settle = () => waiting.forEach((id, i) => scene.test.floatCard(id, restRect.id, (i - (waiting.length - 1) / 2) * 1.05, 0, 0.12 + 0.22 * i, [-3, 2, -2, 3][i % 4], store.state.felt.find((c) => c.id === id)?.up ?? true));
   addEventListener("pointerup", (e) => {
@@ -121,9 +122,10 @@ if (q.has("live")) {
       e.stopImmediatePropagation();
       const px = r.x + 100 < innerWidth - 40 ? r.x + 100 : r.x - 100, py = r.y + 75;
       fire("pointermove", px, py); fire("pointerup", px, py);
-      waiting.push(id); settle();
+      waiting.splice(waiting.filter((w) => scene.test.screenOf(w).x < finger.x).length, 0, id); settle();
     }
   }, true);
+  window.__dbg = () => ({ finger, waiting: [...waiting], drag: scene.test.draggingId(), r: pileRect() });
   const tick = () => {
     const r = pileRect(), did0 = scene.test.draggingId(), own = !!did0 && store.state.piles.some((p) => p.id === restRect?.id && p.cards.some((c) => c.id === did0)), drag = did0 && !own, frozen = waiting.length > 0;
     // Карту забрали пальцем — запрос отозван: она больше не висит, остальные перестраиваются.
