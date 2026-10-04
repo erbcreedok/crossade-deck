@@ -50,6 +50,7 @@ function stackAt(chair, n) {
 }
 window.__setup = async (spec) => {
   scene.setCamMode(spec.mode ?? "orbit");
+  if (spec.noHands) for (const c of store.state.chairs) store.send({ t: "flag", chair: c.id, flag: "reject", on: true });
   for (const [chair, n] of Object.entries(spec.stacks ?? {})) stackAt(chair, n);
   for (const [i, c] of (spec.felt ?? []).entries()) {
     const mine = store.state.chairs.find((x) => x.owner === store.me.key).hand;
@@ -84,7 +85,9 @@ window.__setup = async (spec) => {
 window.__ready = true;
 if (q.has("live")) {
   window.__live = true;
-  await window.__setup({ mode: "top", felt: [{ up: true, x: -1.9, y: 1.2, angle: -12 }, { up: false, x: 1.9, y: 1.2, angle: 10 }], all: { n: 34, x: 0, y: -0.5 } });
+  await window.__setup({ mode: "top", noHands: true, felt: [{ up: true, x: -1.9, y: 1.2, angle: -12 }, { up: false, x: 1.9, y: 1.2, angle: 10 }], all: { n: 34, x: 0, y: -0.5 } });
+  // Без стула у меня нет «своей руки»: ниже её границы игра кладёт карту в руку, а стенду нужен только стол.
+  store.send({ t: "stand" }); await wait(500);
 }
 
 if (q.has("live")) {
