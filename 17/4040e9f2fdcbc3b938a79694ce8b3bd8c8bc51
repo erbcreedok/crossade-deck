@@ -1,0 +1,21 @@
+table3d/hold-pick-check.mjs
+  s_ad8a8a5b5d0419::t_668d45f90a8b5e 1-41
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_d1d55da4c7169b 43-44,2717-2719,2770-2774,2778-2779,2782,2789,2797-2798,2805,2812-2817,2833-2834
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "174040e9f2fdcbc3b938a79694ce8b3bd8c8bc51",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
