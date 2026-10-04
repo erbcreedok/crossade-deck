@@ -1,0 +1,24 @@
+design/zones/piles-scenes.html
+  s_ad8a8a5b5d0419::t_75f13be1693b2d 19-25,31-33,36,44-52,58-59,78-80,82-87,89-90,93-188
+  s_ad8a8a5b5d0419::t_6b6b085c4c9471 56
+  s_ad8a8a5b5d0419::t_82958bb33c662f 61,71,81
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_75f13be1693b2d 2947
+  s_ad8a8a5b5d0419::t_03d2a1d16246ba 2038-2039,2687,2948
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "693a3b379526042c4b53617cb92b3af5f8508cf0",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
