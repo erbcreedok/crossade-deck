@@ -81,6 +81,15 @@ function scene({ ink = "mine", zone = "none", n = 5, tab = true, tabLit = false,
 // ——— КАРТИНКА ИЗ ТЕХ ЖЕ ДЕТАЛЕЙ, ЧТО В ИГРЕ: настоящие размеры (карта 1.17×1.638, шаг стопки 0.012, язычок 1×0.5 плашмя у нижней кромки), рубашка plaid, язычок рисуется тем же `drawTab`. ———
 const CARD_W = 1.17, CARD_H = 1.638, STEP = 0.012, TAB = { w: 1, l: 0.5 };
 const GV = { w: 300, h: 300, renderer: null, back: null };
+/** Текстура боковины стопки — та же, что в игре (`pileSideTexture`): светлая кромка сверху листа, тёмная снизу, повтор на каждый лист. */
+let gvSideTex = null;
+function gvSide() {
+  if (gvSideTex) return gvSideTex;
+  const c = document.createElement("canvas"); c.width = 8; c.height = 64; const g = c.getContext("2d");
+  g.fillStyle = "#d1c6ab"; g.fillRect(0, 0, 8, 64); g.fillStyle = "#e2d9c1"; g.fillRect(0, 0, 8, 9); g.fillStyle = "#978b74"; g.fillRect(0, 55, 8, 9);
+  gvSideTex = new THREE.CanvasTexture(c); gvSideTex.colorSpace = THREE.SRGBColorSpace; gvSideTex.wrapS = gvSideTex.wrapT = THREE.RepeatWrapping; gvSideTex.repeat.set(1, 1 / STEP); gvSideTex.anisotropy = 8;
+  return gvSideTex;
+}
 function gvInit() {
   const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   r.setPixelRatio(2); r.setSize(GV.w, GV.h, false); GV.renderer = r;
@@ -90,8 +99,18 @@ function gvInit() {
 function gvShot({ n = 6, tab = true, lit = false }) {
   const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a1511);
   const felt = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ color: 0x14402a })); felt.rotation.x = -Math.PI / 2; scene.add(felt);
-  const h = n * STEP, body = new THREE.Mesh(new THREE.BoxGeometry(CARD_W * 0.985, h, CARD_H * 0.985), new THREE.MeshBasicMaterial({ color: 0xd1c6ab })); body.position.y = h / 2; scene.add(body);
-  const top = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W, CARD_H), new THREE.MeshBasicMaterial({ map: GV.back })); top.rotation.x = -Math.PI / 2; top.position.y = h + 0.002; scene.add(top);
+  // Тело стопки — как в игре (`pileBodyGeom`): выдавленный контур карты со скруглёнными углами, без крышек; стенки в полоску «лист за листом», темнее к основанию.
+  const depth = Math.max(0.001, (n - 1) * STEP), w = CARD_W / 2, hh = CARD_H / 2, r = 0.081, sh = new THREE.Shape();
+  sh.moveTo(-w + r, -hh); sh.lineTo(w - r, -hh); sh.quadraticCurveTo(w, -hh, w, -hh + r); sh.lineTo(w, hh - r); sh.quadraticCurveTo(w, hh, w - r, hh); sh.lineTo(-w + r, hh); sh.quadraticCurveTo(-w, hh, -w, hh - r); sh.lineTo(-w, -hh + r); sh.quadraticCurveTo(-w, -hh, -w + r, -hh);
+  const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false, curveSegments: 4 }), pos = g.getAttribute("position"), col = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) { const k = 0.45 + 0.45 * Math.min(1, pos.getZ(i) / depth); col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = k; }
+  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  const body = new THREE.Mesh(g, [new THREE.MeshBasicMaterial({ visible: false }), new THREE.MeshBasicMaterial({ map: gvSide(), vertexColors: true })]);
+  body.rotation.x = -Math.PI / 2; body.position.y = 0.01; body.scale.set(0.985, 0.985, 1); scene.add(body);
+  const h = 0.01 + depth;
+  const sg = new THREE.ShapeGeometry(sh, 4), sp = sg.getAttribute("position"), su = sg.getAttribute("uv");
+  for (let i = 0; i < sp.count; i++) su.setXY(i, sp.getX(i) / CARD_W + 0.5, sp.getY(i) / CARD_H + 0.5);
+  const top = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ map: GV.back })); top.rotation.x = -Math.PI / 2; top.position.y = h + 0.002; scene.add(top);
   if (tab) {
     const cv = document.createElement("canvas"); cv.width = 340; cv.height = 170; cv.dataset.n = n; cv.dataset.lit = lit ? 1 : 0; drawTab(cv);
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
