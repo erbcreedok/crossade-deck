@@ -831,13 +831,13 @@ export class Table {
     if (!this.may(by, "pile.guard")) return { refused: "not-yours" };
     if (typeof id !== "string" || typeof on !== "boolean" || !this.whereIs(id)) return { refused: "gone" };
     const now = this.cardRules.get(id) ?? NO_CARD_RULES;
-    const next: CardRules = { lift: [...now.lift], move: [...now.move], turn: [...now.turn], notice: now.notice };
-    if (rule === "notice") next.notice = on;
+    const next: CardRules = { lift: [...now.lift], move: [...now.move], turn: [...now.turn], notice: { ...now.notice } };
+    if (rule === "notice" && (who === "lift" || who === "move" || who === "turn")) next.notice[who] = on;
     else if ((rule === "lift" || rule === "move" || rule === "turn") && typeof who === "string") {
       const list = next[rule].filter((key) => key !== who);
       next[rule] = on ? [...list, who] : list;
     } else return { refused: "bad" };
-    const clear = !next.lift.length && !next.move.length && !next.turn.length && !next.notice;
+    const clear = !next.lift.length && !next.move.length && !next.turn.length && !next.notice.lift && !next.notice.move && !next.notice.turn;
     if (clear) this.cardRules.delete(id); else this.cardRules.set(id, next);
     return { ops: this.commit([{ t: "cardRules", id, rules: clear ? null : next }]) };
   }

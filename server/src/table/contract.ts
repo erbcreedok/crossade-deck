@@ -279,13 +279,13 @@ export type PileGuard = (typeof PILE_GUARDS)[number];
 
 /**
  * ПРАВИЛА КАРТЫ — что с ней нельзя делать, и кому: `lift` не поднять, `move` не переместить по сукну (поднять и перевернуть можно, а при броске она
- * возвращается туда, откуда её подняли), `turn` не перевернуть. Каждое — список key людей, которым нельзя (пусто — можно всем). `notice` — показывать ли
- * отказ: включён — карта даёт знать «нельзя», выключен — отказ тихий.
+ * возвращается туда, откуда её подняли), `turn` не перевернуть. Каждое — список key людей, которым нельзя (пусто — можно всем). `notice` — по каждому запрету, показывать ли
+ * отказ: включён — карта даёт знать «нельзя» (тряска, контур возврата), выключен — отказ тихий.
  */
 export const CARD_RULES = ["lift", "move", "turn"] as const;
 export type CardRule = (typeof CARD_RULES)[number];
-export interface CardRules { lift: string[]; move: string[]; turn: string[]; notice: boolean }
-export const NO_CARD_RULES: CardRules = { lift: [], move: [], turn: [], notice: false };
+export interface CardRules { lift: string[]; move: string[]; turn: string[]; notice: Record<CardRule, boolean> }
+export const NO_CARD_RULES: CardRules = { lift: [], move: [], turn: [], notice: { lift: false, move: false, turn: false } };
 
 /** Колода стола — стопка команд бота. Остальные стопки собирают игроки (`gather`), и они не вечные. */
 export const MAIN_PILE = "deck";
@@ -530,7 +530,7 @@ export type Intent =
   | { t: "deckDo"; pile: string; how: DeckDo }
   /** Поставить или снять вечность стопки — любой. */
   | { t: "deckForever"; pile: string; on: boolean }
-  /** Правило карты: `rule` — `lift`/`move`/`turn` для человека `who`, или `notice` (показывать отказ) для всех. Ставит админ. */
+  /** Правило карты: `rule` — `lift`/`move`/`turn` для человека `who`, или `notice` — показывать ли отказ по запрету `who` (`lift`/`move`/`turn`), для всех. Ставит админ. */
   | { t: "cardRule"; id: string; rule: CardRule | "notice"; who?: string; on: boolean }
   /** Приколоть стопку — любой; открепить — только админ. */
   | { t: "deckPin"; pile: string; on: boolean }

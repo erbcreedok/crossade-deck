@@ -46,10 +46,10 @@ describe("правила карты", () => {
   it("правило видно в снимке, снимается, а когда пусто — карта без правил", () => {
     const t = seated(), id = onFelt(t);
     t.act("a", { t: "cardRule", id, rule: "lift", who: "b", on: true }, 2);
-    t.act("a", { t: "cardRule", id, rule: "notice", on: true }, 3);
-    expect(t.seenBy("b").cardRules?.[id]).toEqual({ lift: ["b"], move: [], turn: [], notice: true });
+    t.act("a", { t: "cardRule", id, rule: "notice", who: "move", on: true }, 3);
+    expect(t.seenBy("b").cardRules?.[id]).toEqual({ lift: ["b"], move: [], turn: [], notice: { lift: false, move: true, turn: false } });
     t.act("a", { t: "cardRule", id, rule: "lift", who: "b", on: false }, 4);
-    t.act("a", { t: "cardRule", id, rule: "notice", on: false }, 5);
+    t.act("a", { t: "cardRule", id, rule: "notice", who: "move", on: false }, 5);
     expect(t.seenBy("b").cardRules?.[id]).toBeUndefined();
     expect(t.act("b", { t: "grab", id }, 6)).toMatchObject({ ops: expect.any(Array) });
   });

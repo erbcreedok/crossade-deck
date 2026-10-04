@@ -33,7 +33,7 @@
   .rrow button { width: 26px; height: 26px; border: 0; padding: 0; background: var(--c, #3a2a1d); color: var(--ink); box-shadow: 0 0 0 2px var(--black); opacity: .45; cursor: pointer; font: 400 11px 'Tiny5', monospace; }
   .rrow button.on { opacity: 1; box-shadow: 0 0 0 2px var(--black), 0 0 0 4px var(--ink); }
   .rrow button.all { width: 38px; background: #4a3a28; }
-  .rrow button.tg { width: 62px; background: #4a3a28; }
+  .rrow button.tg { width: 78px; background: #4a3a28; }
   #bar { display: flex; gap: 6px; margin: 0 0 12px; font: 400 12px 'Tiny5', monospace; }
   #bar button { font: inherit; padding: 5px 9px; border: 0; background: var(--panel); color: var(--ink); box-shadow: 0 0 0 2px var(--black); cursor: pointer; }
   #bar button.on { background: var(--gold); color: var(--black); }
@@ -135,7 +135,7 @@ for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
 // ПРАВИЛА КАРТЫ: для каждого запрета — «все» и цветные флажки игроков (отмечены — им нельзя); внизу — показывать ли отказ. Ставит админ (синий).
 {
   const id = me.state.felt[0].id;
-  const rules = () => me.state.cardRules?.[id] ?? { lift: [], move: [], turn: [], notice: false };
+  const rules = () => me.state.cardRules?.[id] ?? { lift: [], move: [], turn: [], notice: { lift: false, move: false, turn: false } };
   const send = (intent) => views.blue.send({ t: "cardRule", id, ...intent });
   const body = $("rules-body"), paints = [];
   for (const [rule, label] of [["lift", "Нельзя поднять"], ["move", "Нельзя перемещать по столу (поднять и перевернуть можно, вернётся на место)"], ["turn", "Нельзя перевернуть"]]) {
@@ -145,21 +145,18 @@ for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
     const all = document.createElement("button"); all.className = "all"; all.textContent = "все"; all.title = "всем игрокам";
     all.onclick = () => { const full = PLAYERS.every((pl) => rules()[rule].includes(pl.key)); for (const pl of PLAYERS) if (rules()[rule].includes(pl.key) === full) send({ rule, who: pl.key, on: !full }); };
     chips.append(all);
+    const show = document.createElement("button"); show.className = "tg"; show.dataset.show = rule; show.title = "показывать «нельзя» при отказе (тряска, контур возврата)";
+    show.onclick = () => send({ rule: "notice", who: rule, on: !rules().notice[rule] });
     const mine = {};
     for (const pl of PLAYERS) {
       const b = document.createElement("button"); b.style.setProperty("--c", pl.ink); b.title = pl.name; b.dataset.k = pl.key;
       b.onclick = () => send({ rule, who: pl.key, on: !rules()[rule].includes(pl.key) });
       chips.append(b); mine[pl.key] = b;
     }
+    chips.append(show);
     row.append(lab, chips); body.append(row);
-    paints.push(() => { const r = rules()[rule]; for (const pl of PLAYERS) mine[pl.key].classList.toggle("on", r.includes(pl.key)); all.classList.toggle("on", PLAYERS.every((pl) => r.includes(pl.key))); });
+    paints.push(() => { const r = rules()[rule]; show.classList.toggle("on", rules().notice[rule]); show.textContent = rules().notice[rule] ? "показ: ДА" : "показ: НЕТ"; for (const pl of PLAYERS) mine[pl.key].classList.toggle("on", r.includes(pl.key)); all.classList.toggle("on", PLAYERS.every((pl) => r.includes(pl.key))); });
   }
-  const nrow = document.createElement("div"); nrow.className = "rrow"; nrow.dataset.rule = "notice";
-  const nlab = document.createElement("div"); nlab.className = "rl"; nlab.textContent = "Показывать отказ (тряска карты, контур места возврата). Выключено — отказ тихий";
-  const tg = document.createElement("button"); tg.className = "tg";
-  tg.onclick = () => send({ rule: "notice", on: !rules().notice });
-  const nc = document.createElement("div"); nc.className = "rc"; nc.append(tg); nrow.append(nlab, nc); body.append(nrow);
-  paints.push(() => { tg.classList.toggle("on", rules().notice); tg.textContent = rules().notice ? "ДА" : "НЕТ"; });
   const paint = () => paints.forEach((f) => f());
   me.onChange(paint); paint();
 }

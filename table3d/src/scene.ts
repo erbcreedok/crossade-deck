@@ -2540,16 +2540,16 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Кто действует с этого экрана: на стенде — выбранный игрок (`store.actor`), в игре — я. */
   const actorKey = (): string => (store as { actor?: { key: string } }).actor?.key ?? store.me.key;
   const cardRule = (id: string, rule: "lift" | "move" | "turn"): boolean => store.state.cardRules?.[id]?.[rule].includes(actorKey()) ?? false;
-  const cardNotice = (id: string): boolean => store.state.cardRules?.[id]?.notice === true;
-  /** Карта «отказывает»: кивает в сторону (тряска) и вспыхивает красным — только если у неё включено «показывать отказ». */
+  const cardNotice = (id: string, rule: "lift" | "move" | "turn"): boolean => store.state.cardRules?.[id]?.notice[rule] === true;
+  /** Карта «отказывает»: кивает в сторону (тряска) — только если у этого запрета включено «показывать». */
   const denies = new Map<string, number>();
   const DENY = { ms: 450, shake: 0.12, hz: 16 };
-  function deny(id: string): void {
-    if (!cardNotice(id) || !cards.has(id)) return;
+  function deny(id: string, rule: "lift" | "move" | "turn"): void {
+    if (!cardNotice(id, rule) || !cards.has(id)) return;
     denies.set(id, performance.now());
     draw();
   }
-  /** Тряска и красная рамка отказавших карт; по окончании всё возвращается, как было. */
+  /** Тряска отказавших карт; по окончании всё возвращается, как было. */
   function placeDenies(): boolean {
     if (!denies.size) return false;
     const now = performance.now();
@@ -2559,13 +2559,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (age >= DENY.ms) {
         denies.delete(id);
         o.front.position.x = o.back.position.x = 0;
-        o.ring.visible = !!store.state.picks[id];
-        (o.ring.material as THREE.LineBasicMaterial).color.set(store.state.people.find((p) => p.key === store.state.picks[id])?.ink ?? "#f2c14e");
         continue;
       }
       o.front.position.x = o.back.position.x = Math.sin((age / 1000) * DENY.hz * Math.PI * 2) * DENY.shake * (1 - age / DENY.ms);
-      o.ring.visible = true;
-      (o.ring.material as THREE.LineBasicMaterial).color.set("#e0413a");
     }
     return denies.size > 0;
   }
@@ -2582,7 +2578,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   })();
   function placeHomeMark(): boolean {
     const id = drag?.moved ? drag.id : null, home = id ? store.state.felt.find((f) => f.id === id) : undefined;
-    if (!id || !home || !cardRule(id, "move") || !cardNotice(id)) { homeMark.visible = false; return false; }
+    if (!id || !home || !cardRule(id, "move") || !cardNotice(id, "move")) { homeMark.visible = false; return false; }
     homeMark.position.set(home.x, 0.006, home.y);
     homeMark.rotation.set(-Math.PI / 2, -home.angle * DEG, 0, "YXZ");
     homeMark.visible = true;
@@ -2909,7 +2905,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // ВТОРОЙ ПАЛЕЦ при несомой карте — переворот: ведёт карту вбок (`cardFlip.ts`); камеру и всё остальное это касание не трогает.
     if (drag?.moved && dragPid !== null && e.pointerId !== dragPid && !flipTouch) {
       e.stopImmediatePropagation();
-      if (cardRule(drag.id, "turn")) { deny(drag.id); return; }
+      if (cardRule(drag.id, "turn")) { deny(drag.id, "turn"); return; }
       try { renderer.domElement.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
       const fl = new CardFlip();
       fl.begin(e.clientX);
@@ -2922,7 +2918,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (pile && pile.startsWith("chair:")) { e.stopImmediatePropagation(); chairStackDown(pile.slice(6), e); return; }
     if (pile) { e.stopImmediatePropagation(); tabFn!(pile, e); return; }
     const id = hitCard(e);
-    if (id && cardRule(id, "lift")) { deny(id); return; }
+    if (id && cardRule(id, "lift")) { deny(id, "lift"); return; }
     if (!id || !takeable(id)) { if (liftedId) { liftedId = null; layout(store.state); } return; }
     // Свободная камера: моя рука — стопка на столе, и тянуть из неё можно только верхнюю карту.
     if (camMode === "orbit") { const from = fromOf.get(id); if (from?.in === "hand" && from.mine && id !== myChair()?.hand.at(-1)?.id) return; }
@@ -2987,7 +2983,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const flipClick = (): void => {
     const d = drag;
     if (!d?.moved) return;
-    if (cardRule(d.id, "turn")) { deny(d.id); return; }
+    if (cardRule(d.id, "turn")) { deny(d.id, "turn"); return; }
     d.up = !d.up;
     // Стол сам помнит, какой стороной карту положат: при броске он берёт сторону карты, а не метку жеста, поэтому переворот — обычное намерение «перевернуть» над удерживаемой картой.
     store.send({ t: "turn", id: d.id });
@@ -3129,7 +3125,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const b = document.createElement("button");
     b.textContent = "Перевернуть";
     b.style.cssText = "display:block;font:inherit;color:#f5ead0;background:transparent;border:0;padding:6px 10px;cursor:pointer;text-align:left";
-    b.onclick = () => { closeMenu(); if (cardRule(id, "turn")) deny(id); else store.send({ t: "turn", id }); };
+    b.onclick = () => { closeMenu(); if (cardRule(id, "turn")) deny(id, "turn"); else store.send({ t: "turn", id }); };
     m.append(b);
     document.body.append(m);
     cardMenu = m;
@@ -3385,7 +3381,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     ringLit: () => [...ringFields.entries()].map(([id, f]) => ({ id, zone: f.zone.visible, glow: f.glow.visible, slot: f.slot.visible })),
     cardQuat: (id: string) => { const o = cards.get(id); return o ? new THREE.Euler().setFromQuaternion(o.target.quat, "ZXY").toArray().slice(0, 3).map((v) => Math.round(((v as number) * 180) / Math.PI * 10) / 10) : null; },
     dropShadow: (id: string) => { const d = dropShadows.get(id); if (!d || !d.mesh.visible) return { on: false }; const a = d.pos; return { on: true, x: (a.getX(0) + a.getX(1) + a.getX(2) + a.getX(3)) / 4, z: (a.getZ(0) + a.getZ(1) + a.getZ(2) + a.getZ(3)) / 4 }; },
-    ruleInfo: (id: string) => ({ shaking: denies.has(id), home: homeMark.visible, lift: cardRule(id, "lift"), move: cardRule(id, "move"), turn: cardRule(id, "turn"), notice: cardNotice(id) }),
+    ruleInfo: (id: string) => ({ shaking: denies.has(id), ring: cards.get(id)?.ring.visible === true, home: homeMark.visible, lift: cardRule(id, "lift"), move: cardRule(id, "move"), turn: cardRule(id, "turn"), notice: { lift: cardNotice(id, "lift"), move: cardNotice(id, "move"), turn: cardNotice(id, "turn") } }),
     setNeckFree: (on: boolean) => { neckFree = on; },
     panInfo: () => ({ x: rig.panX, z: rig.panZ }),
     lookBy: (dyaw: number, dpitch: number) => lookBy(dyaw, dpitch),

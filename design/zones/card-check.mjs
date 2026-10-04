@@ -95,19 +95,23 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   check("синему можно — карта поднимается", liftedBlue !== null, liftedBlue);
   await click('[data-rule="lift"] [data-k="red"]');
   // 2. Нельзя перевернуть — синему, отказ показывается: F не переворачивает, карта трясётся.
-  await click('[data-rule="turn"] [data-k="blue"]'); await click('[data-rule="notice"] .tg'); await p.waitForTimeout(300);
+  await click('[data-rule="turn"] [data-k="blue"]'); await click('[data-rule="turn"] .tg'); await p.waitForTimeout(300);
   const up0 = (await spot()).up;
   await grab("__top"); await p.keyboard.press("f"); await p.waitForTimeout(120);
   const shake = await info("__top"); await release();
   check("нельзя перевернуть: F не переворачивает", (await spot()).up === up0, { up0, now: (await spot()).up });
   check("отказ включён — карта трясётся", shake.shaking === true, shake);
-  await click('[data-rule="notice"] .tg'); await p.waitForTimeout(200);
+  check("красного бордера у отказа нет (во время тряски рамка не горит)", shake.shaking === true && shake.ring === false, shake);
+  await click('[data-rule="turn"] .tg'); await p.waitForTimeout(200);
   await grab("__top"); await p.keyboard.press("f"); await p.waitForTimeout(120);
   const quiet = await info("__top"); await release();
   check("отказ выключен — тихо (не трясётся)", quiet.shaking === false, quiet);
   await click('[data-rule="turn"] [data-k="blue"]');
   // 3. Нельзя перемещать — синему: поднять можно, но уронил в другом месте — легла на старое; при включённом отказе виден контур возврата.
-  await click('[data-rule="move"] [data-k="blue"]'); await click('[data-rule="notice"] .tg'); await p.waitForTimeout(300);
+  await click('[data-rule="move"] [data-k="blue"]'); await p.waitForTimeout(300);
+  await grab("__top"); const silent = await info("__top"); await release();
+  check("у «нельзя перемещать» показ выключен — контура нет, хотя у «перевернуть» он выключен отдельно", silent.move === true && silent.home === false, silent);
+  await click('[data-rule="move"] .tg'); await p.waitForTimeout(300);
   const home = await spot();
   const at = await grab("__top"); const carried = await info("__top");
   await p.mouse.move(at.x + 70, at.y + 40, { steps: 6 }); await p.waitForTimeout(250);
@@ -116,7 +120,7 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   check("нельзя перемещать: карта поднимается и ходит за пальцем", carried.move === true, carried);
   check("нельзя перемещать: контур места возврата виден (отказ включён)", mark.home === true, mark);
   check("нельзя перемещать: отпустил в другом месте — легла на старое", Math.hypot(back.x - home.x, back.y - home.y) < 0.05, { home, back });
-  await click('[data-rule="move"] [data-k="blue"]'); await click('[data-rule="notice"] .tg');
+  await click('[data-rule="move"] [data-k="blue"]'); await click('[data-rule="move"] .tg');
 }
 // «На весь экран» у каждой сцены: кадр занимает окно, сцена растягивается под него, повторное нажатие возвращает.
 for (const [which, fr, st] of [["top", "f-top", "s-top"], ["first", "f-first", "s-first"]]) {
