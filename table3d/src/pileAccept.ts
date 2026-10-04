@@ -1,7 +1,7 @@
 // ПРИЁМКА СТОПКИ — что видит игрок, когда несёт карту к колоде. Один модуль и для игры, и для дизайн-страниц: страница не пишет свою копию, а подключает этот.
 //
 // Три правила стопки (`setPolicy`):
-//   accept  — принимает: у колоды мягкое мятное свечение, пока несёшь карту; палец над ней — ярче.
+//   accept  — принимает: под колодой мягкое мятное свечение (рисует сцена, лежит на сукне в позе колоды), пока несёшь карту; палец над ней — ярче.
 //   ask     — нужен апрув: у стопки текст «нужен апрув»; бросил карту — она остаётся висеть над стопкой (покачивается), над ней табличка с бегущими точками;
 //             несколько карт висят в ряд; забрал карту пальцем — запрос отозван.
 //   refuse  — не принимает: над стопкой знак «нельзя» и надпись «сюда нельзя»; брошенная карта ложится рядом.
@@ -19,6 +19,8 @@ export interface AcceptProbe {
   /** Повесить карту над стопкой (`pile` — какая) со сдвигом по столу; `null` — отпустить. */
   floatCard(id: string, pile: string | null, dx: number, dy: number, lift: number, da: number, up: boolean): void;
   setPileSnap(on: boolean): void;
+  /** Свечение под колодой `pile` в её позе (мятное; `hot` ярче) или `null` — погасить. Рисует сцена, в перспективе. */
+  setPileGlow(pile: string | null, level?: "hint" | "hot"): void;
 }
 export interface AcceptScene {
   aim(x: number, y: number): { in: string; pile?: string };
@@ -44,8 +46,6 @@ export interface PileAccept {
   waiting(): number;
   dispose(): void;
 }
-
-const MINT = "127,209,185";
 
 export function mountPileAccept(opts: { table: AcceptTable; views: AcceptView[]; pileId?: () => string | undefined }): PileAccept {
   const { table } = opts;
@@ -132,14 +132,8 @@ export function mountPileAccept(opts: { table: AcceptTable; views: AcceptView[];
       const top = pile?.cards[0] ? p.depthOf(pile.cards[0].id) : null;
       const PW = r && top ? (1.17 * (v.host.clientHeight / 2 / Math.tan((p.fovDeg() * Math.PI) / 360))) / top * 0.99 : 64, PH = PW * 1.4;
       const rr = (x: number, y: number, w: number, h: number, k: number): void => { g.beginPath(); g.roundRect(x - w / 2, y - h / 2, w, h, k); };
-      if (r && st) {
-        g.globalAlpha = st === "hint" ? 0.7 : 1; g.shadowColor = `rgb(${MINT})`; g.shadowBlur = st === "hint" ? 12 : 20; g.fillStyle = `rgb(${MINT})`;
-        for (let i = 0; i < (st === "hint" ? 2 : 3); i++) { rr(r.x, r.y, PW, PH, 6); g.fill(); }
-        g.shadowBlur = 0; g.globalAlpha = 1; g.globalCompositeOperation = "destination-out"; g.fillStyle = "#000"; rr(r.x, r.y, PW, PH, 6); g.fill();
-        for (const id of waiting) cut(g, v, id, false);
-        if (did) cut(g, v, did, true);
-        g.globalCompositeOperation = "source-over";
-      }
+      // Свечение — в самой сцене (под колодой, в её позе); здесь только знаки поверх.
+      p.setPileGlow(r && st ? pileId() ?? null : null, st === "hot" ? "hot" : "hint");
       if (r && pend) {
         const marks = waiting.map((id) => p.screenOf(id)).filter((m): m is { x: number; y: number } => !!m);
         const cx = marks.length ? marks.reduce((q, m) => q + m.x, 0) / marks.length : r.x, topY = marks.length ? Math.min(...marks.map((m) => m.y)) - 62 : r.y - PH / 2 - 22;
@@ -166,7 +160,7 @@ export function mountPileAccept(opts: { table: AcceptTable; views: AcceptView[];
     dispose() {
       alive = false; cancelAnimationFrame(raf);
       removeEventListener("pointermove", onMove, true); removeEventListener("pointerup", onUp, true);
-      for (const v of views) { v.cv.remove(); v.say.remove(); v.scene.probe.setPileSnap(true); }
+      for (const v of views) { v.cv.remove(); v.say.remove(); v.scene.probe.setPileSnap(true); v.scene.probe.setPileGlow(null); }
     },
   };
 }

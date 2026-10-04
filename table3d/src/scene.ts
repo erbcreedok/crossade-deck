@@ -2032,6 +2032,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (camSig !== bodiesCam) { bodiesCam = camSig; drawBodies(store.state); }
     armPose();
     placeTabs();
+    placeGlow();
     placeBodies();
     if (placeChairs(dt)) moving = true;
     placeZones();
@@ -2106,6 +2107,28 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     mesh.add(hit);
     scene.add(mesh);
     return { mesh, hit, cv, tex, key: "" };
+  }
+  // ——— подсветка стопки при приёмке: свечение на сукне ПОД колодой, в её позе и в перспективе (`probe.setPileGlow`) ———
+  const glowMat = new THREE.MeshBasicMaterial({ map: (() => {
+    const cv = document.createElement("canvas"); cv.width = 256; cv.height = 360;
+    const c = cv.getContext("2d")!, iw = (CARD_W / (CARD_W + 1)) * 256, ih = (CARD_H / (CARD_H + 1)) * 360, x = (256 - iw) / 2, y = (360 - ih) / 2;
+    c.shadowColor = "rgb(127,209,185)"; c.shadowBlur = 34; c.fillStyle = "rgb(127,209,185)";
+    for (let i = 0; i < 3; i++) { c.beginPath(); c.roundRect(x, y, iw, ih, 14); c.fill(); }
+    c.shadowBlur = 0; c.globalCompositeOperation = "destination-out"; c.beginPath(); c.roundRect(x, y, iw, ih, 14); c.fill();
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; return tex;
+  })(), transparent: true, depthWrite: false });
+  const glowMesh = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W + 1, CARD_H + 1), glowMat);
+  glowMesh.visible = false; glowMesh.renderOrder = 1; scene.add(glowMesh);
+  let glowFor: { pile: string; level: "hint" | "hot" } | null = null;
+  function placeGlow(): void {
+    const p = glowFor ? store.state.piles.find((x) => x.id === glowFor!.pile) : undefined, base = p ? cards.get(p.cards[0]?.id ?? "") : undefined;
+    if (!glowFor || !p || !base || !base.group.visible) { glowMesh.visible = false; return; }
+    base.group.updateMatrixWorld(true);
+    const at = base.group.getWorldPosition(new THREE.Vector3());
+    glowMesh.position.set(at.x, 0.004, at.z);
+    glowMesh.rotation.set(-Math.PI / 2, -pileAngle(p) * DEG, 0, "YXZ");
+    glowMat.opacity = glowFor.level === "hot" ? 1 : 0.6;
+    glowMesh.visible = true;
   }
   /** Язычок каждой стопки — у нижней (к её хозяину) кромки её нижней карты, плашмя на столе, в той же позе, что стопка: несут стопку — несут и его. */
   function placeTabs(): void {
@@ -2950,6 +2973,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     zoomBy: (k: number) => zoomBy(k),
     setPileSnap: (on: boolean) => { pileSnap = on; },
     fovDeg: () => camera.fov,
+    setPileGlow: (pile: string | null, level: "hint" | "hot" = "hint") => { const was = glowFor; glowFor = pile ? { pile, level } : null; if (was?.pile !== glowFor?.pile || was?.level !== glowFor?.level) draw(); },
     setBareTable: (on: boolean) => { bareTable = on; },
     setCamLocked: (on: boolean) => { camLocked = on; },
     floatCard: (id: string, pile: string | null, dx = 0, dy = 0, lift = 0, da = 0, up = true) => { if (pile) floats.set(id, { pile, dx, dy, lift, da, up, phase: floats.get(id)?.phase ?? Math.random() * 6 }); else floats.delete(id); layout(store.state); },
@@ -3006,7 +3030,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const project = (v: THREE.Vector3) => { const p = v.clone().project(camera), r = renderer.domElement.getBoundingClientRect(); return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height }; };
   const api: SceneApi = {
     test,
-    probe: { draggingId: test.draggingId, screenOf: test.screenOf, cardWidth: test.cardWidth, depthOf: test.depthOf, fovDeg: test.fovDeg, heldAngle: test.heldAngle, floatCard: test.floatCard, setPileSnap: test.setPileSnap },
+    probe: { draggingId: test.draggingId, screenOf: test.screenOf, cardWidth: test.cardWidth, depthOf: test.depthOf, fovDeg: test.fovDeg, heldAngle: test.heldAngle, floatCard: test.floatCard, setPileSnap: test.setPileSnap, setPileGlow: test.setPileGlow },
     home: () => { home(); draw(); sendBody(true); },
     camMode: () => camMode,
     baseFov: () => baseFov,
