@@ -85,7 +85,7 @@ window.__setup = async (spec) => {
 window.__ready = true;
 if (q.has("live")) {
   window.__live = true;
-  await window.__setup({ mode: "top", noHands: true, felt: [{ up: true, x: -1.9, y: 1.2, angle: -12 }, { up: false, x: 1.9, y: 1.2, angle: 10 }], all: { n: 34, x: 0, y: -0.5 } });
+  await window.__setup({ mode: "top", noHands: true, felt: [{ up: true, x: -1.9, y: 2.4, angle: -12 }, { up: false, x: 1.9, y: 2.4, angle: 10 }], all: { n: 34, x: 0, y: 0.8 } });
   // Без стула у меня нет «своей руки»: ниже её границы игра кладёт карту в руку, а стенду нужен только стол.
   store.send({ t: "stand" }); scene.test.setPileSnap(false); await wait(500);
 }
@@ -113,7 +113,7 @@ if (q.has("live")) {
   const fire = (type, x, y) => dispatchEvent(new PointerEvent(type, { pointerId: pid, clientX: x, clientY: y, bubbles: true, isPrimary: true, pointerType: "mouse", buttons: type === "pointerup" ? 0 : 1 }));
   /** Карты, что ждут ответа: висят над стопкой, покачиваются, каждая в своей позе; реально лежат на сукне сбоку. */
   // Ждущие карты — в ряд, слева направо; последняя справа и выше всех (по Z к камере). Шаг по высоте больше размаха покачивания, чтобы они не менялись местами.
-  const settle = () => waiting.forEach((id, i) => scene.test.floatCard(id, restRect.id, (i - (waiting.length - 1) / 2) * 1.05, 0, 0.12 + 0.22 * i, [-3, 2, -2, 3][i % 4], store.state.felt.find((c) => c.id === id)?.up ?? true));
+  const settle = () => waiting.forEach((id, i) => scene.test.floatCard(id, restRect.id, (i - (waiting.length - 1) / 2) * 1.05, -1.4, 0.12 + 0.22 * i, [-3, 2, -2, 3][i % 4], store.state.felt.find((c) => c.id === id)?.up ?? true));
   addEventListener("pointerup", (e) => {
     const id = scene.test.draggingId();
     if (!e.isTrusted || !id) return;
@@ -163,7 +163,7 @@ if (q.has("live")) {
       g.globalCompositeOperation = "source-over";
     }
     zone.style.clipPath = "none";
-    if (r) { Object.assign(zone.style, { left: r.x - r.w / 2 + "px", top: r.y - r.h / 2 + "px", width: r.w + "px", height: r.h + "px" }); Object.assign(say.style, { left: r.x + "px", top: r.y - r.h / 2 - 24 + "px", display: msg ? "block" : "none" }); say.textContent = msg; }
+    if (r) { Object.assign(zone.style, { left: r.x - r.w / 2 + "px", top: r.y - r.h / 2 + "px", width: r.w + "px", height: r.h + "px" }); Object.assign(say.style, { left: r.x + "px", top: r.y - r.h / 2 - 24 - (frozen ? 80 : 0) + "px", display: msg ? "block" : "none" }); say.textContent = msg; }
     requestAnimationFrame(tick);
   };
   tick();
