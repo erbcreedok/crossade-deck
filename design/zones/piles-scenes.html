@@ -56,6 +56,7 @@ const PLAYERS = [
 const table = localTable({ players: PLAYERS });
 const views = Object.fromEntries(PLAYERS.map((p) => [p.key, table.view(p.key)]));
 const me = views.blue, alia = views.red;
+const viewpointOf = { top: "blue", first: "red" };
 const controller = { top: "blue", first: "blue" };
 const CTL_KEYS = new Set(["body", "say", "shoot", "mic", "log", "rtc", "askStickers", "watch"]);
 const { carryOf } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/tape.ts");
@@ -79,7 +80,7 @@ const asPlayer = (viewpoint, which) => { const other = which === "top" ? "first"
   if (k === "command") return (c) => setTimeout(() => views[controller[which]].command(c), lat[which] + Math.random() * jit[which]);
   if (k === "carry") return (out) => note(which, out);
   if (k === "onChange") return (l) => { hear[which].push(l); viewpoint.onChange(l); };
-  if (k === "carries") { const out = heard(which); const c = out ? carryOf(viewpoint.state, out.id, controller[other] !== viewpoint.me.key ? controller[other] : "remote:" + other, out.over) : null; return c ? [{ ...c, ...(out.flip ? { flip: out.flip } : {}), ...(out.tilt ? { tilt: out.tilt } : {}) }] : []; }
+  if (k === "carries") { const out = heard(which); const c = out ? carryOf(viewpoint.state, out.id, controller[other] !== viewpoint.me.key ? controller[other] : views[viewpointOf[other]].me.key, out.over) : null; return c ? [{ ...c, ...(out.flip ? { flip: out.flip } : {}), ...(out.tilt ? { tilt: out.tilt } : {}) }] : []; }
   if (CTL_KEYS.has(k)) return (...a) => views[controller[which]][k](...a);
   return Reflect.get(t, k, t);
 } }); };const wait = (ms) => new Promise((r) => setTimeout(r, ms));

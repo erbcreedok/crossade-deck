@@ -33,6 +33,24 @@ const run = async (cam) => {
   await p.close();
   return out;
 };
+// От первого лица карта стоит к глазу одинаково слева, справа и по центру: наклон только вперёд-назад (без крена), и в зеркальных местах — равный.
+const side = async (px) => {
+  const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  p.on("pageerror", (e) => errors.push(e.message));
+  await p.goto(`${base}/?stand&cam=head`);
+  await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await p.waitForTimeout(1500);
+  await p.evaluate(() => window.__t3d.setCamLocked?.(false));
+  const id = await p.evaluate(([x]) => { const s = window.__t3d.state(); const c = s.chairs.find((q) => q.owner === "me").hand.at(0); const at = window.__t3d.feltAt(x, 540); window.__t3d.dropFeltAt(c.id, at.x, at.y); return c.id; }, [px]);
+  let c = await p.evaluate((i) => window.__t3d.screenOf(i), id);
+  for (let k = 0; k < 40; k++) { await p.waitForTimeout(150); const n = await p.evaluate((i) => window.__t3d.screenOf(i), id); const still = Math.hypot(n.x - c.x, n.y - c.y) < 0.3; c = n; if (still) break; }
+  await p.mouse.move(c.x, c.y); await p.mouse.down(); await p.mouse.move(c.x + 3, c.y - 25, { steps: 6 }); await p.waitForTimeout(900);
+  const t = await p.evaluate((i) => window.__t3d.cardTilt(i), id);
+  await p.mouse.up(); await p.close();
+  return t;
+};
+const L = await side(40), M = await side(195), Rr = await side(350);
+console.log("лево", JSON.stringify(L), "центр", JSON.stringify(M), "право", JSON.stringify(Rr));
 const head = await run("head"), top = await run("top");
 console.log(JSON.stringify(head.ups), JSON.stringify(top.ups));
 check("взята в виде «голова»", head.drag !== null, head);
@@ -43,6 +61,8 @@ const upright = (u) => u && u.dy < 0 && Math.abs(u.dx) < Math.abs(u.dy) * 0.4;
 for (const [name, r] of [["голова", head], ["сверху", top]]) {
   for (const t of r.ups) { const u = t.up ?? t.dropped; check(`${name}: поворот камеры ${t.turn}° — ${t.dropped ? "после броска" : "в руке"} низ карты к низу экрана`, upright(u), t); }
 }
+check("слева, по центру и справа: крена нет (наклон только к глазу)", [L, M, Rr].every((t) => t && t.roll < 3), { L, M, Rr });
+check("слева и справа наклон равный (зеркально)", Math.abs(L.fromUp - Rr.fromUp) < 3, { L, Rr });
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const k of checks) console.log(k.ok ? "ok  " : "FAIL", k.name, k.ok ? "" : JSON.stringify(k.got));
