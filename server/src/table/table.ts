@@ -50,14 +50,14 @@ import {
   type Where,
   CARD_BACKS,
   CARD_FACES,
+  FELT_REACH,
 } from "./contract.js";
+export { FELT_REACH };
 import { arranged, samePack, shuffled } from "./arrange.js";
 import { allowed, grantedTo, may, mayFlagChair, no, why, type Ask, type Key, type Role, type Verdict } from "./access.js";
 import { SANDBOX, type DeskAsk, type DeskRules, type DeskZone } from "./rules.js";
 import { angleApart, croupierAngle, deckHome, freeAngle, ringLanding, seatPoint, SEAT_GAP_DEG, SEAT_KEEP } from "./ring.js";
 
-/** Докуда на сукне может лежать середина карты: радиус стола минус полкарты по диагонали. */
-export const FELT_REACH = 8 - 0.86;
 
 /** Насколько близко середины двух карт, чтобы верхняя считалась ЛЕЖАЩЕЙ НА нижней (`FELT_OVERLAP` клиента). */
 const FELT_OVERLAP = 1.2;

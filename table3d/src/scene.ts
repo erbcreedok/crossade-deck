@@ -17,7 +17,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS3DObject, CSS3DRenderer } from "three/addons/renderers/CSS3DRenderer.js";
 import type { PanelWorld, WorldPlace } from "./panel.js";
 import type { Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
-import { CARRY_EVERY_MS } from "../../server/src/table/contract.js";
+import { CARRY_EVERY_MS, FELT_REACH } from "../../server/src/table/contract.js";
 import { SEAT_PULL, AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
 import { HAND_CEIL, STRAIN, BACK, PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
 import { createGyro } from "./gyro.js";
@@ -1834,6 +1834,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     });
     // ЧУЖИЕ КАРТЫ В ВОЗДУХЕ — у них в руке, над тем местом, куда их несут.
     const glowing = new Map<string, string>();
+    carriedForeign = glowing;
     const inkOf = (by: string) => s.people.find((p) => p.key === by)?.ink ?? "#f2c14e";
     for (const c of store.carries) {
       if ((c.by === store.me.key && !store.replay?.on) || !cards.has(c.id)) continue;
@@ -2050,6 +2051,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         moving = true;
       }
     }
+    // Палец остановился: тот, кто бросал, теперь «положит» — место падения пересчитывается без новых движений.
+    if (drag?.moved && dragPid !== null && lastThrow > 0 && throwWeight() < lastThrow - 0.02) advanceDrag(lastFinger.x, lastFinger.y);
     // Камеру покрутили, а палец стоит: карта в руке доворачивается за экраном.
     if (drag?.moved && dragPid !== null && Math.abs(((carryAngle(lastFinger.x, lastFinger.y) - drag.angle + 540) % 360) - 180) > 0.5) advanceDrag(lastFinger.x, lastFinger.y);
     frame = 0;
@@ -2110,7 +2113,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       // Над окном HUD несомую рисует сам HUD — поверх окна; здесь её нет.
       g.visible = !(drag?.moved && drag.id === id && drag.spot) && !(reseat && (fromOf.get(id)?.in === "hand" || t.onCamera));
       // Своя рука — не отбрасывает тени: она у глаза, её тень легла бы на полстола.
-      o.front.castShadow = o.back.castShadow = !t.onCamera && !t.over;
+      o.front.castShadow = o.back.castShadow = !t.onCamera && !t.over && !flight.has(id);
       if (!g.userData.placed) { g.position.copy(t.pos); g.quaternion.copy(t.quat); g.scale.setScalar(t.scale); g.userData.placed = true; g.userData.v = new THREE.Vector3(); g.userData.sv = 0; continue; }
       // ПРУЖИНА: ускорение к месту, затухание скоростью; поворот догоняет плавно.
       // Мелкими шагами: жёсткая пружина на целом кадре разлетается.
@@ -2156,6 +2159,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     armPose();
     placeTabs();
     placeGlow();
+    if (placeDrops()) moving = true;
     placeBodies();
     if (placeChairs(dt)) moving = true;
     placeZones();
@@ -2230,6 +2234,52 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     mesh.add(hit);
     scene.add(mesh);
     return { mesh, hit, cv, tex, key: "" };
+  }
+  // ——— ТЕНЬ НЕСОМОЙ КАРТЫ: свет строго сверху, только для неё — под картой, вертикально, всегда (и в полёте, и пока падает) ———
+  // Косое солнце у несомой карты выключено: тень одна — та, что показывает, куда карта упадёт, если её выпустить из руки.
+  let carriedForeign = new Map<string, string>();
+  const flight = new Set<string>();
+  const dropShadows = new Map<string, { mesh: THREE.Mesh; pos: THREE.BufferAttribute }>();
+  const dropTex = (() => {
+    const cv = document.createElement("canvas"); cv.width = 128; cv.height = 180;
+    const c = cv.getContext("2d")!, m = 0.3 / (CARD_W + 0.6), mh = 0.3 / (CARD_H + 0.6);
+    c.shadowColor = "#000"; c.shadowBlur = 16; c.fillStyle = "#000";
+    c.beginPath(); c.roundRect(128 * m, 180 * mh, 128 * (1 - 2 * m), 180 * (1 - 2 * mh), 8); c.fill();
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; return tex;
+  })();
+  const DROP_SHADOW = { opacity: 0.42, margin: 0.3, lift: 0.005 };
+  /** Тень каждой несомой (и ещё падающей) карты: четыре угла карты проектируются вертикально вниз на сукно. */
+  function placeDrops(): boolean {
+    let moving = false;
+    if (drag?.moved) flight.add(drag.id);
+    for (const id of carriedForeign.keys()) flight.add(id);
+    for (const id of [...flight]) {
+      const o = cards.get(id);
+      if (!o) { flight.delete(id); const d = dropShadows.get(id); if (d) { scene.remove(d.mesh); dropShadows.delete(id); } continue; }
+      const t = o.target, g = o.group, carried = (drag?.moved && drag.id === id) || carriedForeign.has(id);
+      const hidden = t.onCamera || t.over || !g.visible;
+      if (!carried && (hidden || (Math.abs(g.position.y - t.pos.y) < 0.03 && g.quaternion.angleTo(t.quat) < 0.02))) flight.delete(id);
+      let d = dropShadows.get(id);
+      if (!flight.has(id) || hidden) { if (d) d.mesh.visible = false; continue; }
+      if (!d) {
+        const geo = new THREE.BufferGeometry(), pos = new THREE.BufferAttribute(new Float32Array(12), 3);
+        geo.setAttribute("position", pos);
+        geo.setAttribute("uv", new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), 2));
+        geo.setIndex([0, 1, 2, 0, 2, 3]);
+        const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: dropTex, color: 0x000000, transparent: true, opacity: DROP_SHADOW.opacity, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+        mesh.renderOrder = 1; mesh.frustumCulled = false; mesh.raycast = () => {};
+        scene.add(mesh);
+        d = { mesh, pos };
+        dropShadows.set(id, d);
+      }
+      g.updateMatrixWorld(true);
+      const hw = CARD_W / 2 + DROP_SHADOW.margin, hh = CARD_H / 2 + DROP_SHADOW.margin;
+      [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sy], i) => { const w = g.localToWorld(new THREE.Vector3(sx! * hw, sy! * hh, 0)); d!.pos.setXYZ(i, w.x, DROP_SHADOW.lift, w.z); });
+      d.pos.needsUpdate = true;
+      d.mesh.visible = true;
+      moving = true;
+    }
+    return moving;
   }
   // ——— подсветка стопки при приёмке: свечение на сукне ПОД колодой, в её позе и в перспективе (`probe.setPileGlow`) ———
   const glowMat = new THREE.MeshBasicMaterial({ map: cardGlowTexture(), color: 0x7fd1b9, transparent: true, depthWrite: false });
@@ -2836,6 +2886,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const c = f.in === "felt" ? store.state.felt.find((x) => x.id === id) : undefined;
     const my = myChair()?.angle ?? 0;
     drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? (f.mine ? true : !!store.state.chairs.find((q) => q.id === f.chair)?.hand.find((x) => x.id === id)?.up) : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: carryAngle(e.clientX, e.clientY), gap: null, place: null, where: null, spot: null, zone: null, fingerHand, latch0, scrubbed: false };
+    trail = []; lastThrow = 0;
     dragPid = e.pointerId; flipDeg = 0; flipTouch = null; lastFinger = { x: e.clientX, y: e.clientY };
     // Удержание поднимает карту и без движения пальца.
     const held = drag;
@@ -2918,6 +2969,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       drag.hold = window.setInterval(() => { if (drag) store.send({ t: "hold", id: drag.id }); }, HOLD_MS);
     }
     drag.angle = carryAngle(x, y);
+    trail.push({ x, y, t: performance.now() });
     // Куда целит палец: над своей рукой — щель в руке и правая рука у левой; иначе — карта под пальцем над столом.
     const where = target({ clientX: x, clientY: y }, drag);
     const z = zoneFn?.(x, y) ?? null;
@@ -3034,12 +3086,35 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   addEventListener("pointercancel", end);
 
   /** Куда кладут: над своей рукой — в руку, на это место; у стопки — в неё; иначе — на сукно, внутри стола. */
-  function target(e: { clientX: number; clientY: number }, d: { id: string; up: boolean; angle: number }): Where {
+  /**
+   * ЛОЖИТСЯ КАК ЛЁГ ПАЛЕЦ: быстро тянул и бросил — карта летит дальше по лучу камеры и ложится там, где луч встречает стол; палец стоит (или слегка дрожит) —
+   * карта падает вертикально, ровно под собой. Между — плавно по скорости пальца за последние `THROW.window` мс.
+   */
+  const THROW = { window: 120, still: 100, full: 600 };
+  let trail: { x: number; y: number; t: number }[] = [];
+  let lastThrow = 0;
+  const throwWeight = (): number => {
+    const now = performance.now();
+    trail = trail.filter((s) => now - s.t <= THROW.window);
+    const a = trail[0], b = trail.at(-1);
+    if (!a || !b || b.t - a.t < 16) return 0;
+    const speed = (Math.hypot(b.x - a.x, b.y - a.y) / (b.t - a.t)) * 1000;
+    return Math.max(0, Math.min(1, (speed - THROW.still) / (THROW.full - THROW.still)));
+  };
+  function target(e: { clientX: number; clientY: number }, d: { id: string; up: boolean; angle: number; moved?: boolean }): Where {
     const a = aim(e.clientX, e.clientY, undefined, d.id);
     if (a.in !== "felt") return a;
-    const ringPile = store.state.piles.find((p) => p.pose === "ring" && Math.hypot(p.x - a.x, p.y - a.y) < RING_CATCH);
-    if (ringPile) return { in: "deck", pile: ringPile.id, turn: ((Math.atan2(a.x - ringPile.x, -(a.y - ringPile.y)) / DEG) + 360) % 360 };
-    return { ...a, up: d.up, angle: d.angle };
+    let at = { x: a.x, y: a.y };
+    if (d.moved) {
+      const under = heldAt(e.clientX, e.clientY, d.angle, d.up), w = throwWeight();
+      lastThrow = w;
+      if (under) at = { x: under.pos.x + (a.x - under.pos.x) * w, y: under.pos.z + (a.y - under.pos.z) * w };
+    }
+    const far = Math.hypot(at.x, at.y);
+    if (far > FELT_REACH) at = { x: (at.x / far) * FELT_REACH, y: (at.y / far) * FELT_REACH };
+    const ringPile = store.state.piles.find((p) => p.pose === "ring" && Math.hypot(p.x - at.x, p.y - at.y) < RING_CATCH);
+    if (ringPile) return { in: "deck", pile: ringPile.id, turn: ((Math.atan2(at.x - ringPile.x, -(at.y - ringPile.y)) / DEG) + 360) % 360 };
+    return { in: "felt", x: at.x, y: at.y, up: d.up, angle: d.angle };
   }
   /** Верх моей руки на экране: над самой высокой её картой (пустая — над левой рукой тела) — отсюда и ниже карту кладут в руку. */
   const handTop = (chair: Chair, skipCard?: string): number => {
@@ -3243,6 +3318,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     feltScreen: (x: number, y: number) => project(new THREE.Vector3(x, 0, y)),
     ringLit: () => [...ringFields.entries()].map(([id, f]) => ({ id, zone: f.zone.visible, glow: f.glow.visible, slot: f.slot.visible })),
     cardQuat: (id: string) => { const o = cards.get(id); return o ? new THREE.Euler().setFromQuaternion(o.target.quat, "ZXY").toArray().slice(0, 3).map((v) => Math.round(((v as number) * 180) / Math.PI * 10) / 10) : null; },
+    dropShadow: (id: string) => { const d = dropShadows.get(id); if (!d || !d.mesh.visible) return { on: false }; const a = d.pos; return { on: true, x: (a.getX(0) + a.getX(1) + a.getX(2) + a.getX(3)) / 4, z: (a.getZ(0) + a.getZ(1) + a.getZ(2) + a.getZ(3)) / 4 }; },
     setNeckFree: (on: boolean) => { neckFree = on; },
     panInfo: () => ({ x: rig.panX, z: rig.panZ }),
     lookBy: (dyaw: number, dpitch: number) => lookBy(dyaw, dpitch),
