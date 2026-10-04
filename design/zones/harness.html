@@ -160,13 +160,13 @@ if (q.has("live")) {
     // Карту забрали пальцем — запрос отозван: она больше не висит, остальные перестраиваются.
     const back = waiting.indexOf(did0);
     if (back >= 0) { waiting.splice(back, 1); scene.test.floatCard(did0, null); settle(); note = "запрос отозван"; noteAt = performance.now(); }
-    let st = "", msg = note && performance.now() - noteAt < 1200 ? note : "";
+    let pend = false, st = "", msg = note && performance.now() - noteAt < 1200 ? note : "";
     if (r && drag && policy !== "refuse") {
       const over = hit(r);
-      if (policy === "ask") { st = over ? "ask" : "hint"; if (over && !inside) msg = "запрос ушёл"; if (!over && inside) { msg = "запрос отозван"; note = msg; noteAt = performance.now(); } inside = over; }
+      if (policy === "ask") { st = "hint"; pend = over; if (over && !inside) msg = ""; if (!over && inside) { msg = "запрос отозван"; note = msg; noteAt = performance.now(); } inside = over; }
       else st = over ? "hot" : "hint";
     } else inside = false;
-    if (frozen) { st = "ask"; msg = waiting.length > 1 ? `ждут апрува: ${waiting.length}` : "ждёт апрува"; }
+    if (frozen) { st = ""; pend = true; msg = ""; }
     zone.className = st;
     // Подсветка — на сукне ПОД колодой, как в Tabletop Simulator: рисуется отдельным слоем, из него вырезаны сама колода и несомая карта.
     const PW = 64, PH = 90, cv = document.getElementById("zcv"), dpr = devicePixelRatio || 1;
@@ -190,6 +190,19 @@ if (q.has("live")) {
         g.save(); g.translate(at.x, at.y); g.rotate(an); g.beginPath(); g.roundRect(-w / 2, -h / 2, w, h, 8); g.fill(); g.restore();
       }
       g.globalCompositeOperation = "source-over";
+    }
+    // «Ждёт апрува» — не свечение (оно у приёмки): от каждой висящей карты к стопке тянется пунктирная нить, а над картами — табличка с бегущими точками, как в нашем HUD.
+    if (r && pend) {
+      g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
+      const marks = waiting.map((id) => { const a = scene.test.screenOf(id); return a ? { x: a.x, y: a.y } : null; }).filter(Boolean);
+      g.strokeStyle = "rgba(245,234,208,.75)"; g.lineWidth = 2; g.setLineDash([3, 4]);
+      for (const m of marks) { g.beginPath(); g.moveTo(m.x, m.y + 44); g.lineTo(r.x + (m.x - r.x) * 0.3, r.y - r.h / 2 + 4); g.stroke(); }
+      g.setLineDash([]);
+      const cx = marks.length ? marks.reduce((q, m) => q + m.x, 0) / marks.length : r.x, top = marks.length ? Math.min(...marks.map((m) => m.y)) - 62 : r.y - r.h / 2 - 22;
+      const W = 46, H = 18, bx = cx - W / 2, by = top - H / 2;
+      g.fillStyle = "#0b0704"; g.fillRect(bx - 3, by - 3, W + 6, H + 6); g.fillStyle = "#3a2a1d"; g.fillRect(bx, by, W, H);
+      const ph = Math.floor(performance.now() / 280) % 3;
+      for (let i = 0; i < 3; i++) { g.fillStyle = i === ph ? "#f5ead0" : "rgba(245,234,208,.3)"; g.fillRect(bx + 9 + i * 12, by + 6, 6, 6); }
     }
     zone.style.clipPath = "none";
     if (r) { Object.assign(zone.style, { left: r.x - r.w / 2 + "px", top: r.y - r.h / 2 + "px", width: r.w + "px", height: r.h + "px" }); Object.assign(say.style, { left: r.x + "px", top: r.y - r.h / 2 - 24 - (frozen ? 80 : 0) + "px", display: msg ? "block" : "none" }); say.textContent = msg; }
