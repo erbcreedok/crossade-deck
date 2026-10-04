@@ -135,7 +135,7 @@ addEventListener("pointerup", (e) => {
   if (policy === "refuse") { e.stopImmediatePropagation(); fire("pointermove", r.x, r.y + r.h); fire("pointerup", r.x, r.y + r.h); }
   if (policy === "ask") {
     e.stopImmediatePropagation();
-    const fl = v.frame.getBoundingClientRect(), px = r.x + 100 < fl.right - 40 ? r.x + 100 : r.x - 100, py = r.y + 75;
+    const fl = v.frame.getBoundingClientRect(), px = r.x + 100 < fl.right - 40 ? r.x + 100 : r.x - 100, py = r.y;
     fire("pointermove", px, py); fire("pointerup", px, py);
     waiting.splice(waiting.filter((w) => v.scene.test.screenOf(w).x < finger.x).length, 0, id); settle();
   }
