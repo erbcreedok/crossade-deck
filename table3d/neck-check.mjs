@@ -15,6 +15,7 @@ const cam = () => p.evaluate(() => window.__t3d.cam());
 const radius = (c) => Math.hypot(c.pos[0], c.pos[2]);
 await p.goto(`${base}/?stand`);
 await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+await p.evaluate(() => window.__t3d.setNeckFree(false)); // на стенде шея выключена; здесь проверяется сама шея
 await p.waitForTimeout(600);
 await p.evaluate(() => window.__t3d.setViewHeight(3 / 13)); // высота обзора 0: по умолчанию на телефоне +3, а проверки меряют голову
 await p.waitForTimeout(300);
@@ -82,6 +83,7 @@ await p.evaluate(() => window.__t3d.seatBy(3));
   const t = await ctx.newPage();
   await t.goto(`${base}/?stand`);
   await t.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  await t.evaluate(() => window.__t3d.setNeckFree(false));
   await t.waitForTimeout(800);
   const cdp = await ctx.newCDPSession(t);
   const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });

@@ -33,6 +33,8 @@ import type { TableStore } from "../../server/table-client/store.js";
 import { lockTouch } from "./touchLock.js";
 
 const DEG = Math.PI / 180;
+/** Насколько далеко от середины стола можно увести камеру сверху, долей радиуса стола. */
+const PAN_LIMIT = 1;
 const R = TABLE_RADIUS, RIM = 0.45, THICK = 0.6;
 const CARD_W = 1.17, CARD_H = 1.638;
 /** Каждую карту стопки — чуть выше предыдущей; каждую карту сукна — выше лёгшей раньше. */
@@ -482,7 +484,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Размер карт в своей руке от обычного (настройки): 1 — как есть, от половины до вдвое. */
   /** Размер карт моей руки: на телефоне по умолчанию 85% — крупнее они загораживают стол; в настройках меняется (и запоминается). */
   let handSize = innerWidth < 500 ? 0.7 : 1;
-  const rig = { yaw: 0, pitch: -40, lean: 0, side: 0, fov: baseFov };
+  const rig = { yaw: 0, pitch: -40, lean: 0, side: 0, fov: baseFov, panX: 0, panZ: 0 };
   const neck = neckNew();
   /** Стенд дизайна: шея не устаёт и не возвращается сама — камера стоит там, где её оставили (в игре шея работает как задумано). */
   let neckFree = false;
@@ -531,8 +533,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const rest = topHeight(camera.aspect, TOP.fov, (sh.h + NECK_LEN.up) / (SHOULDER_H.sit + NECK_LEN.up));
       const h = rest * (1 - rig.lean * (1 - HEAD.min / (sh.h + NECK_LEN.up))), y = rig.yaw * DEG;
       camera.up.set(Math.sin(y), 0, -Math.cos(y));
-      camera.position.set(0, h, 0);
-      camera.lookAt(0, 0, 0);
+      camera.position.set(rig.panX, h, rig.panZ);
+      camera.lookAt(rig.panX, 0, rig.panZ);
       camera.updateMatrixWorld();
       return;
     }
@@ -572,6 +574,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     rig.yaw = sideYaw(ch);
     rig.lean = 0;
     rig.side = 0;
+    rig.panX = rig.panZ = 0;
     rig.fov = baseFov;
     Object.assign(neck, neckNew());
     rig.pitch = camMode === "top" ? -90 : pitchToCentre(headAt(shoulders3(ch.angle, stanceNow(), seatPull), 0));
@@ -580,6 +583,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     applyRig();
   }
   function home(): void { if (camMode === "orbit") homeOrbit(); else rigHome(); }
+  /** Сверху: сдвинуть камеру по столу так, чтобы точка сукна под пальцем осталась под ним (из `from` в `to`, экранные точки). */
+  function panBy(from: { x: number; y: number }, to: { clientX: number; clientY: number }): void {
+    if (camMode !== "top") return;
+    const a = onFelt({ clientX: from.x, clientY: from.y }), b = onFelt(to);
+    if (!a || !b) return;
+    const px = rig.panX + a.x - b.x, pz = rig.panZ + a.z - b.z, m = Math.hypot(px, pz), lim = R * PAN_LIMIT;
+    rig.panX = m > lim ? (px / m) * lim : px; rig.panZ = m > lim ? (pz / m) * lim : pz;
+    applyRig(); draw(); sendBody();
+  }
   /** Намерение: повернуть взгляд (в орбите — обойти стол). */
   function lookBy(dyaw: number, dpitch: number): void {
     neck.idle = 0;
@@ -803,28 +815,35 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     touched = false;
     draw(); sendBody(true);
   }
-  const rigPtrs = new Map<number, { x: number; y: number; right: boolean }>();
+  const rigPtrs = new Map<number, { x: number; y: number; right: boolean; turn: boolean }>();
   // Ввод для головы: один палец или левая кнопка — взгляд; щипок и колесо — приближение (наклон к столу); правая кнопка вверх-вниз и Shift+колесо — посадка (стул
   // ближе-дальше от стола; пальцами её не тянут, чтобы не мешать щипку); оптический зум — только ползунок; стрелки, +/-, `[`/`]`, Home.
   {
     const dom = renderer.domElement, ptrs = rigPtrs;
-    const pair = () => { const [a, b] = [...ptrs.values()]; return a && b ? { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null; };
+    const pair = () => { const [a, b] = [...ptrs.values()]; return a && b ? { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, ang: Math.atan2(b.y - a.y, b.x - a.x) / DEG } : null; };
     dom.addEventListener("pointerdown", (e) => {
       if (camMode === "orbit" || drag || camLocked) return;
-      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, right: e.button === 2 });
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, right: e.button === 2, turn: e.button === 2 || e.ctrlKey || e.metaKey });
       try { dom.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
     });
     dom.addEventListener("pointermove", (e) => {
       const was = ptrs.get(e.pointerId);
       if (!was || camMode === "orbit" || drag || camLocked) return;
       const before = pair();
-      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, right: was.right });
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, right: was.right, turn: was.turn });
       if (ptrs.size === 1) {
-        if (was.right) seatBy((e.clientY - was.y) * CAM.seat);
+        // Сверху: палец (левая кнопка) двигает камеру по столу; поворот — правая кнопка или Ctrl/Cmd + левая.
+        if (camMode === "top") { if (was.turn) lookBy(-(e.clientX - was.x) * CAM.look, 0); else panBy(was, e); }
+        else if (was.right) seatBy((e.clientY - was.y) * CAM.seat);
         else lookBy(-(e.clientX - was.x) * CAM.look, (e.clientY - was.y) * CAM.look);
       } else if (ptrs.size === 2 && before) {
         const now = pair()!;
-        if (camMode === "top") zoomBy((now.d / Math.max(1, before.d)) * Math.exp(-(now.y - before.y) * CAM.scroll));
+        // Сверху двумя пальцами: щипок — масштаб, поворот пальцев — поворот камеры, сдвиг середины — движение.
+        if (camMode === "top") {
+          zoomBy(now.d / Math.max(1, before.d));
+          lookBy(-((((now.ang - before.ang) % 360) + 540) % 360 - 180), 0);
+          panBy({ x: before.x, y: before.y }, { clientX: now.x, clientY: now.y });
+        }
         else { zoomBy(now.d / Math.max(1, before.d)); sideBy((now.x - before.x) * CAM.side); }
       }
     });
@@ -3197,6 +3216,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     ringLit: () => [...ringFields.entries()].map(([id, f]) => ({ id, zone: f.zone.visible, glow: f.glow.visible, slot: f.slot.visible })),
     cardQuat: (id: string) => { const o = cards.get(id); return o ? new THREE.Euler().setFromQuaternion(o.target.quat, "ZXY").toArray().slice(0, 3).map((v) => Math.round(((v as number) * 180) / Math.PI * 10) / 10) : null; },
     setNeckFree: (on: boolean) => { neckFree = on; },
+    panInfo: () => ({ x: rig.panX, z: rig.panZ }),
     lookBy: (dyaw: number, dpitch: number) => lookBy(dyaw, dpitch),
     cardTopOnScreen: (id: string) => { const o = cards.get(id); if (!o) return null; o.group.updateMatrixWorld(true); const a = project(o.group.localToWorld(new THREE.Vector3(0, 0, 0))), b = project(o.group.localToWorld(new THREE.Vector3(0, CARD_H / 2, 0))); return { dx: b.x - a.x, dy: b.y - a.y }; },
     cardTilt: (id: string) => { const o = cards.get(id); if (!o) return null; const n = new THREE.Vector3(0, 0, 1).applyQuaternion(o.target.quat), eye = camera.position.clone().sub(o.target.pos).normalize(), s = Math.sign(n.dot(eye)) || 1; return { roll: Math.asin(Math.min(1, Math.abs(new THREE.Vector3(1, 0, 0).applyQuaternion(o.target.quat).y))) / DEG, fromUp: Math.acos(Math.min(1, Math.abs(n.y))) / DEG, towardEye: Math.acos(Math.min(1, Math.abs(n.dot(eye)))) / DEG, minY: (() => { let m = Infinity; for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) m = Math.min(m, new THREE.Vector3(x * CARD_W / 2, y * CARD_H / 2, 0).applyQuaternion(o.target.quat).y + o.target.pos.y); return m; })(), s }; },
