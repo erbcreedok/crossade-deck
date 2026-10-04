@@ -126,6 +126,21 @@ if (q.has("live")) {
       waiting.splice(waiting.filter((w) => scene.test.screenOf(w).x < finger.x).length, 0, id); settle();
     }
   }, true);
+
+  // ЗАПИСЬ СЕССИИ: всё, что видит игра при нажатии, отпускании и изменении стопки, уходит пачками на приёмник (`rec.py`, порт 9589) — по ней разбираются баги, которых не видно глазами.
+  const sid = Date.now().toString(36), buf = [];
+  const rec = (k, d) => buf.push(JSON.stringify({ t: Math.round(performance.now()), k, ...d }));
+  const flush = () => { if (!buf.length) return; const body = buf.splice(0).join("\n"); fetch(`http://${location.hostname}:9589/log?sid=${sid}`, { method: "POST", body, keepalive: true }).catch(() => {}); };
+  setInterval(flush, 700); addEventListener("pagehide", flush);
+  rec("start", { ua: navigator.userAgent, w: innerWidth, h: innerHeight });
+  const snap = () => { const t = scene.test, s = store.state, pl = s.piles.find((x) => x.id === restRect?.id); return { n: pl?.cards.length, top: pl?.cards.at(-1)?.id, locks: s.locks, drag: t.draggingId(), wait: waiting.length, policy, felt: s.felt.length }; };
+  for (const ty of ["pointerdown", "pointerup", "pointercancel"]) addEventListener(ty, (e) => {
+    const t = scene.test, id = t.cardAt(e.clientX, e.clientY), s = store.state;
+    rec(ty, { x: Math.round(e.clientX), y: Math.round(e.clientY), trusted: e.isTrusted, ptr: e.pointerType, hit: id, picks: id ? !!s.picks[id] : null, ...snap() });
+    if (ty === "pointerdown") setTimeout(() => rec("after-down-250ms", snap()), 250);
+    if (ty === "pointerup") for (const ms of [100, 400, 1200]) setTimeout(() => rec(`after-up-${ms}ms`, snap()), ms);
+  }, true);
+  { const send = store.send.bind(store); store.send = (m) => { rec("send", { m: JSON.parse(JSON.stringify(m)) }); return send(m); }; }
   // ОТЛАДКА ВЗЯТИЯ: что видит игра в момент нажатия — по этой строке видно, почему карту не берёт.
   addEventListener("pointerdown", (e) => {
     if (!e.isTrusted) return;
