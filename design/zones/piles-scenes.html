@@ -109,11 +109,13 @@ await wait(600);
 // Рука наблюдателей не принимает карты: карта над её зоной остаётся на столе.
 for (const key of ["blue", "red"]) views[key].send({ t: "flag", chair: views[key].state.chairs.find((c) => c.owner === key).id, flag: "reject", on: true });
 await wait(900);
-// Сдвиг кадра первого лица: колода — в середину кадра.
+// Сдвиг кадра первого лица: центр сцены (карта или колода) — в кадр. Считаем, когда камера встала: на медленном телефоне она ещё едет, и сдвиг по первому замеру выходил неверным.
 {
-  const pile = me.state.piles[0], at = first.test.screenOf(pile.cards[0].id), st = $("s-first").getBoundingClientRect(), fr = $("f-first").getBoundingClientRect();
+  const id = me.state.piles[0].cards[0].id;
+  let prev = null, still = 0;
+  for (let i = 0; i < 80 && still < 6; i++) { const a = first.test.screenOf(id); still = prev && Math.hypot(a.x - prev.x, a.y - prev.y) < 0.4 ? still + 1 : 0; prev = a; await wait(100); }
+  const at = first.test.screenOf(id), st = $("s-first").getBoundingClientRect();
   $("s-first").style.left = (FW / 2 - (at.x - st.left)) + "px"; $("s-first").style.top = (FH * 0.42 - (at.y - st.top)) + "px";
-  void fr;
 }
 await wait(300);
 
@@ -153,6 +155,10 @@ for (const which of ["top", "first"]) {
     b.onclick = () => { controller[which] = pl.key; for (const x of box.children) x.className = x.dataset.k === pl.key ? "on" : ""; };
     box.append(b);
   }
+  // Сброс камеры этой сцены: вернуть, как при загрузке (камеру можно утащить случайным свайпом).
+  const r = document.createElement("button"); r.textContent = "↺"; r.title = "камера в исходное"; r.style.cssText = "width:22px;height:22px;border:0;padding:0;background:#3a2a1d;color:#f5ead0;box-shadow:0 0 0 2px #0b0704;font:inherit;cursor:pointer";
+  r.onclick = () => { (which === "top" ? top : first).home(); };
+  box.append(r);
 }
 window.__top = top; window.__first = first; window.__me = me; window.__alia = alia; window.__ready = true;
 </script>
