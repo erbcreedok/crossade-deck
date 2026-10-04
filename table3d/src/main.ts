@@ -102,6 +102,9 @@ try {
     });
     (window as unknown as { __t3dScreens: unknown }).__t3dScreens = screens.map((one) => one.scene.test);
     for (const one of screens) one.mount();
+    loading?.done();
+    note.hidden = true;
+    apply();
     // Приёмка стопки (свечение / апрув / «нельзя») — тот же модуль, что на дизайн-страницах; на стенде правило стопки переключается тремя кнопками.
     const { mountPileAccept } = await import("./pileAccept.js");
     const accept = mountPileAccept({ table: table.view("me"), views: screens.map((one) => ({ scene: one.scene, host: one.stage, frame: one.stage })) });
@@ -117,9 +120,6 @@ try {
       rules.append(b);
     }
     document.body.append(rules);
-    loading?.done();
-    note.hidden = true;
-    apply();
     addEventListener("keydown", (e) => {
       if (e.key !== "Tab" || e.repeat) return;
       if ((e.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable]")) return;
