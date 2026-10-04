@@ -146,7 +146,8 @@ if (q.has("live")) {
     const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, innerWidth, innerHeight);
     if (r && st) {
       const rr = (x, y, w, h, k) => { g.beginPath(); g.roundRect(x - w / 2, y - h / 2, w, h, k); };
-      const gold = st === "ask", pulse = gold && Math.floor(performance.now() / 500) % 2 ? 0.5 : 1, col = gold ? "242,193,78" : "127,209,185";
+      // Апрув от обычной приёмки цветом и миганием не отличается: свечение одно (мятное, ровное), разница — в поведении карты.
+      const pulse = 1, col = "127,209,185";
       // Свечение по периметру колоды: сама форма колоды светится наружу (тень), потом её тело вырезается — остаётся только ореол.
       const blur = st === "hint" ? 12 : 20, passes = st === "hint" ? 2 : 3;
       g.globalAlpha = (st === "hint" ? 0.7 : 1) * pulse; g.shadowColor = `rgb(${col})`; g.shadowBlur = blur; g.fillStyle = `rgb(${col})`;
