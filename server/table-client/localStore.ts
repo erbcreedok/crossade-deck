@@ -26,6 +26,11 @@ function deal(): { id: string; face: Face }[] {
  */
 export interface LocalOpts {
   freeChair?: boolean;
+  /**
+   * Свой состав стола вместо «я, Алия, Тимур»: голые игроки без раздачи, замков и брошенных стульев — только колода и те, кто за неё берётся.
+   * Первый — админ. Для дизайн-страниц, где важно, КТО двигает карту (цвет, права), а не где он сидит.
+   */
+  players?: { key: string; name: string; ink: string }[];
 }
 
 /**
@@ -36,12 +41,13 @@ export interface LocalOpts {
 export function localTable(opts: LocalOpts = {}): { view(key: string): TableStore } {
   const me: Person = { key: "me", name: "Ye", ink: "#f2c14e", door: "guest" };
   // На стенде админ — я: иначе флаги чужих стульев не проверить.
-  const table = new Table(deal(), me.key);
+  const roster: Person[] = opts.players ? opts.players.map((p) => ({ ...p, door: "guest" as const })) : [];
+  const table = new Table(deal(), roster[0]?.key ?? me.key);
   const bots: Person[] = [
     { key: "alia", name: "Алия", ink: "#7fd1b9", door: "guest" },
     { key: "timur", name: "Тимур", ink: "#e08b3f", door: "guest" },
   ];
-  for (const who of [me, ...bots]) table.join(who);
+  for (const who of opts.players ? roster : [me, ...bots]) table.join(who);
 
   // РАЗДАЧА — ТЕМИ ЖЕ НАМЕРЕНИЯМИ, что шлёт палец: у стенда нет чёрного хода в стол.
   const seatOf = (who: string) => table.seenBy(who).people.find((p) => p.key === who)!.seat!;
@@ -52,14 +58,16 @@ export function localTable(opts: LocalOpts = {}): { view(key: string): TableStor
       table.act(who, { t: "drop", id: top, to: { in: "hand", chair: seatOf(who), i: k } }, 0);
     }
   };
-  hand("me", 7);
-  hand("alia", 5);
-  hand("timur", 3);
-  // АЛИЯ ЗАПЕРЛА СВОЮ РУКУ САМА: флаги стула — дело его хозяина, и на стенде это видно так же.
-  table.act("alia", { t: "flag", chair: seatOf("alia"), flag: "lock", on: true }, 0);
-  // ТИМУР ВСТАЛ ИЗ-ЗА СТОЛА — стенд показывает покинутый стул с картами: его открывают, на него садятся.
-  table.leave("timur");
-  if (opts.freeChair) table.addChair();
+  if (!opts.players) {
+    hand("me", 7);
+    hand("alia", 5);
+    hand("timur", 3);
+    // АЛИЯ ЗАПЕРЛА СВОЮ РУКУ САМА: флаги стула — дело его хозяина, и на стенде это видно так же.
+    table.act("alia", { t: "flag", chair: seatOf("alia"), flag: "lock", on: true }, 0);
+    // ТИМУР ВСТАЛ ИЗ-ЗА СТОЛА — стенд показывает покинутый стул с картами: его открывают, на него садятся.
+    table.leave("timur");
+    if (opts.freeChair) table.addChair();
+  }
 
   /** Последнее тело каждого, кто за столом: кто бы ни смотрел, чужая голова и руки стоят там, где их оставили. */
   const bodyOf = new Map<string, Body>();
@@ -72,7 +80,7 @@ export function localTable(opts: LocalOpts = {}): { view(key: string): TableStor
     opsHeard: Array<(ops: readonly Op[]) => void>;
   }
   const views = new Map<string, View>();
-  const person = (key: string): Person => [me, ...bots].find((one) => one.key === key)!;
+  const person = (key: string): Person => [me, ...bots, ...roster].find((one) => one.key === key)!;
 
   /** Операции — всем глазам; режутся под каждого ровно как в сети: стенд не должен показывать больше живого стола. */
   const spread = (ops: Op[]) => {
