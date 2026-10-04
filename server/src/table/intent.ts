@@ -118,6 +118,7 @@ const READERS: { [K in Intent["t"]]: (raw: Raw) => Extract<Intent, { t: K }> | n
     return { t: "deckMove", pile: r.pile, x: r.x, y: r.y, ...(num(r.angle) ? { angle: r.angle } : {}) };
   },
   deckDo: (r) => (name(r.pile) && oneOf(DECK_DOS, r.how) ? { t: "deckDo", pile: r.pile, how: r.how } : null),
+  cardRule: (r) => (name(r.id) && bool(r.on) && (r.rule === "notice" || (["lift", "move", "turn"].includes(r.rule as string) && name(r.who))) ? { t: "cardRule", id: r.id, rule: r.rule as "lift" | "move" | "turn" | "notice", ...(r.rule === "notice" ? {} : { who: r.who as string }), on: r.on } : null),
   deckForever: (r) => (name(r.pile) && bool(r.on) ? { t: "deckForever", pile: r.pile, on: r.on } : null),
   deckPin: (r) => (name(r.pile) && bool(r.on) ? { t: "deckPin", pile: r.pile, on: r.on } : null),
   deckGuard: (r) => (name(r.pile) && oneOf(PILE_GUARDS, r.guard) && bool(r.on) ? { t: "deckGuard", pile: r.pile, guard: r.guard, on: r.on } : null),

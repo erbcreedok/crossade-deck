@@ -77,6 +77,7 @@ const heard = (who) => { const e = inbox[who]; return e && e.out && performance.
 const OUT = new Set(["send", "command"]);
 const asPlayer = (viewpoint, which) => { const other = which === "top" ? "first" : "top"; return new Proxy(viewpoint, { get: (t, k) => {
   if (k === "send") return (intent) => { if (intent.t === "drop" || intent.t === "unpick") note(which, null); const at = Math.max(sendAt[which] + 1, performance.now() + lat[which] + Math.random() * jit[which]); sendAt[which] = at; setTimeout(() => views[controller[which]].send(intent), at - performance.now()); };
+  if (k === "actor") return views[controller[which]].me;
   if (k === "command") return (c) => setTimeout(() => views[controller[which]].command(c), lat[which] + Math.random() * jit[which]);
   if (k === "carry") return (out) => note(which, out);
   if (k === "onChange") return (l) => { hear[which].push(l); viewpoint.onChange(l); };

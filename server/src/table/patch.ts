@@ -123,6 +123,11 @@ function applyOp(s: Snapshot, op: Op): void {
         else s.picks[id] = op.by;
       }
       return;
+    case "cardRules":
+      s.cardRules ??= {};
+      if (op.rules === null) delete s.cardRules[op.id];
+      else s.cardRules[op.id] = op.rules;
+      return;
     case "rules":
       s.rules = op.rules;
       return;

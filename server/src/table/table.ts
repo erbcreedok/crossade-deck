@@ -51,6 +51,8 @@ import {
   CARD_BACKS,
   CARD_FACES,
   FELT_REACH,
+  NO_CARD_RULES,
+  type CardRules,
 } from "./contract.js";
 export { FELT_REACH };
 import { arranged, samePack, shuffled } from "./arrange.js";
@@ -151,6 +153,8 @@ export class Table {
   private locks = new Map<string, Lock>();
   /** Выделение лассо: id карты → кто выделил (`Snapshot.picks`). */
   private picks = new Map<string, string>();
+  /** Правила отдельных карт (`Snapshot.cardRules`). */
+  private cardRules = new Map<string, CardRules>();
   /** Последнее «над чем карта», пока её держат. Живёт не дольше блокировки (`carriesSeenBy`). */
   private carries = new Map<string, { by: string; over: Where; auto?: true; with?: string[]; whole?: string; flip?: number; tilt?: number }>();
   private rules: TableRules = { ...DEFAULT_RULES };
@@ -628,6 +632,7 @@ export class Table {
         return this.deckMove(intent.pile, intent.x, intent.y, intent.angle);
       case "deckDo":
         return this.deckDo(by, intent.pile, intent.how);
+      case "cardRule": return this.cardRule(by, intent.id, intent.rule, intent.who, intent.on);
       case "deckForever": {
         const pile = this.piles.get(intent.pile);
         if (!pile) return { refused: "gone" };
@@ -818,7 +823,26 @@ export class Table {
     return lock !== undefined && lock.by !== by;
   }
 
+  /** Нельзя ли этому человеку это с этой картой (`CardRules`). */
+  private pinned(by: string, id: string, rule: "lift" | "move" | "turn"): boolean {
+    return this.cardRules.get(id)?.[rule].includes(by) ?? false;
+  }
+  private cardRule(by: string, id: unknown, rule: unknown, who: unknown, on: unknown): Result {
+    if (!this.may(by, "pile.guard")) return { refused: "not-yours" };
+    if (typeof id !== "string" || typeof on !== "boolean" || !this.whereIs(id)) return { refused: "gone" };
+    const now = this.cardRules.get(id) ?? NO_CARD_RULES;
+    const next: CardRules = { lift: [...now.lift], move: [...now.move], turn: [...now.turn], notice: now.notice };
+    if (rule === "notice") next.notice = on;
+    else if ((rule === "lift" || rule === "move" || rule === "turn") && typeof who === "string") {
+      const list = next[rule].filter((key) => key !== who);
+      next[rule] = on ? [...list, who] : list;
+    } else return { refused: "bad" };
+    const clear = !next.lift.length && !next.move.length && !next.turn.length && !next.notice;
+    if (clear) this.cardRules.delete(id); else this.cardRules.set(id, next);
+    return { ops: this.commit([{ t: "cardRules", id, rules: clear ? null : next }]) };
+  }
   private grab(by: string, id: string, now: number, auto = false): Result {
+    if (this.pinned(by, id, "lift")) return { refused: "pinned" };
     const may = this.touchable(by, id);
     if ("refused" in may) return may;
     if (may.at.in === "deck" && this.piles.get(may.at.pile)!.spot.shut && !auto) return { refused: "locked" };
@@ -924,6 +948,7 @@ export class Table {
   }
 
   private turnOps(by: string, id: string, now: number): { ops: Op[] } | { refused: Refusal } {
+    if (this.pinned(by, id, "turn")) return { refused: "pinned" };
     const may = this.touchable(by, id);
     if ("refused" in may) return may;
     const at = may.at;
@@ -992,6 +1017,9 @@ export class Table {
   private dropOps(by: string, id: string, to: Where, now: number, auto = false, thrown = false): { ops: Op[] } | { refused: Refusal } {
     const lock = this.locks.get(id);
     if (!lock || lock.by !== by) return { refused: "not-held" };
+    // НЕЛЬЗЯ ПЕРЕМЕЩАТЬ: брошенная на сукно карта возвращается на своё место, откуда её подняли.
+    const home = this.pinned(by, id, "move") && to.in === "felt" ? this.felt.find((one) => one.id === id) : undefined;
+    if (home) to = { in: "felt", x: home.x, y: home.y, up: home.up, angle: home.angle };
     const target = this.clean(to, auto);
     if (!target) return { refused: "bad" };
     // ЗАМОК РУКИ — ОТ ЧУЖИХ ПАЛЬЦЕВ, А НЕ ОТ КРУПЬЕ. Команда стола (раздача, сбор) кладёт и в
@@ -1934,6 +1962,7 @@ export class Table {
       trails: Object.fromEntries(this.trails),
       locks: Object.fromEntries([...this.locks].map(([id, lock]) => [id, lock.by])),
       picks: Object.fromEntries(this.picks),
+      cardRules: Object.fromEntries(this.cardRules),
       rules: { ...this.rules },
       admin: this.admin,
       dealer: this.dealerKey,

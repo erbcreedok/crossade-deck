@@ -78,6 +78,46 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   check("без руки: у низа кадра (на 30 px выше кромки) камера тоже едет", pc.z - pb.z > 0.3, { pb, pc });
   check("карта у края кадра сцены (не окна браузера) — камера едет", Math.hypot(pan1.x - pan0.x, pan1.z - pan0.z) > 0.3, { pan0, pan1 });
 }
+// ПРАВИЛА КАРТЫ: флажки на странице — запрет «поднять» для красного, «перевернуть» и «переместить» для синего; отказ виден, когда включён «показывать».
+{
+  const id = await f.evaluate(() => window.__me.state.felt[0].id);
+  const click = (sel) => f.evaluate((q) => document.querySelector(q).click(), sel);
+  const info = (w) => f.evaluate(([s, i]) => window[s].test.ruleInfo(i), [w, id]);
+  const grab = async (w) => { const at = await f.evaluate(([s, i]) => window[s].test.screenOf(i), [w, id]); await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x + 14, at.y - 6, { steps: 4 }); await p.waitForTimeout(250); return at; };
+  const release = async () => { await p.mouse.up(); await p.waitForTimeout(400); };
+  const spot = () => f.evaluate((i) => { const c = window.__me.state.felt.find((x) => x.id === i); return { x: c.x, y: c.y, up: c.up }; }, id);
+  // 1. Нельзя поднять — красному (сцена от первого лица, управляет красный): не поднимается; синий в сцене сверху поднимает.
+  await click('[data-rule="lift"] [data-k="red"]'); await p.waitForTimeout(300);
+  check("флажок «нельзя поднять» у красного — сцены знают правило", (await info("__first")).lift && !(await info("__top")).lift, [await info("__first"), await info("__top")]);
+  await grab("__first"); const liftedRed = await f.evaluate(() => window.__first.test.draggingId()); await release();
+  check("красному нельзя поднять — карта не берётся", liftedRed === null, liftedRed);
+  await grab("__top"); const liftedBlue = await f.evaluate(() => window.__top.test.draggingId()); await release();
+  check("синему можно — карта поднимается", liftedBlue !== null, liftedBlue);
+  await click('[data-rule="lift"] [data-k="red"]');
+  // 2. Нельзя перевернуть — синему, отказ показывается: F не переворачивает, карта трясётся.
+  await click('[data-rule="turn"] [data-k="blue"]'); await click('[data-rule="notice"] .tg'); await p.waitForTimeout(300);
+  const up0 = (await spot()).up;
+  await grab("__top"); await p.keyboard.press("f"); await p.waitForTimeout(120);
+  const shake = await info("__top"); await release();
+  check("нельзя перевернуть: F не переворачивает", (await spot()).up === up0, { up0, now: (await spot()).up });
+  check("отказ включён — карта трясётся", shake.shaking === true, shake);
+  await click('[data-rule="notice"] .tg'); await p.waitForTimeout(200);
+  await grab("__top"); await p.keyboard.press("f"); await p.waitForTimeout(120);
+  const quiet = await info("__top"); await release();
+  check("отказ выключен — тихо (не трясётся)", quiet.shaking === false, quiet);
+  await click('[data-rule="turn"] [data-k="blue"]');
+  // 3. Нельзя перемещать — синему: поднять можно, но уронил в другом месте — легла на старое; при включённом отказе виден контур возврата.
+  await click('[data-rule="move"] [data-k="blue"]'); await click('[data-rule="notice"] .tg'); await p.waitForTimeout(300);
+  const home = await spot();
+  const at = await grab("__top"); const carried = await info("__top");
+  await p.mouse.move(at.x + 70, at.y + 40, { steps: 6 }); await p.waitForTimeout(250);
+  const mark = await info("__top"); await release(); await p.waitForTimeout(500);
+  const back = await spot();
+  check("нельзя перемещать: карта поднимается и ходит за пальцем", carried.move === true, carried);
+  check("нельзя перемещать: контур места возврата виден (отказ включён)", mark.home === true, mark);
+  check("нельзя перемещать: отпустил в другом месте — легла на старое", Math.hypot(back.x - home.x, back.y - home.y) < 0.05, { home, back });
+  await click('[data-rule="move"] [data-k="blue"]'); await click('[data-rule="notice"] .tg');
+}
 // «На весь экран» у каждой сцены: кадр занимает окно, сцена растягивается под него, повторное нажатие возвращает.
 for (const [which, fr, st] of [["top", "f-top", "s-top"], ["first", "f-first", "s-first"]]) {
   const size = () => f.evaluate(([a, b]) => { const r = document.getElementById(a).getBoundingClientRect(), c = document.querySelector("#" + b + " canvas").getBoundingClientRect(); return { fw: Math.round(r.width), fh: Math.round(r.height), cw: Math.round(c.width), ch: Math.round(c.height), vw: innerWidth, vh: innerHeight }; }, [fr, st]);

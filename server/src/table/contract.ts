@@ -277,6 +277,16 @@ export const DEFAULT_SPOT: DeckSpot = { x: 0, y: 0, forever: true, pin: false, l
 export const PILE_GUARDS = ["lock", "shut", "seal"] as const;
 export type PileGuard = (typeof PILE_GUARDS)[number];
 
+/**
+ * ПРАВИЛА КАРТЫ — что с ней нельзя делать, и кому: `lift` не поднять, `move` не переместить по сукну (поднять и перевернуть можно, а при броске она
+ * возвращается туда, откуда её подняли), `turn` не перевернуть. Каждое — список key людей, которым нельзя (пусто — можно всем). `notice` — показывать ли
+ * отказ: включён — карта даёт знать «нельзя», выключен — отказ тихий.
+ */
+export const CARD_RULES = ["lift", "move", "turn"] as const;
+export type CardRule = (typeof CARD_RULES)[number];
+export interface CardRules { lift: string[]; move: string[]; turn: string[]; notice: boolean }
+export const NO_CARD_RULES: CardRules = { lift: [], move: [], turn: [], notice: false };
+
 /** Колода стола — стопка команд бота. Остальные стопки собирают игроки (`gather`), и они не вечные. */
 export const MAIN_PILE = "deck";
 
@@ -409,6 +419,8 @@ export interface Snapshot {
    */
   picks: Record<string, string>;
   rules: TableRules;
+  /** Правила отдельных карт (`CardRules`) — только у тех, кому их ставили. */
+  cardRules?: Record<string, CardRules>;
   /** Кто админ — создатель комнаты, пока он за столом. `null` — его нет. */
   admin: string | null;
   /** Кто раздающий этой сессии. `null` — роль никому не выдана. */
@@ -518,6 +530,8 @@ export type Intent =
   | { t: "deckDo"; pile: string; how: DeckDo }
   /** Поставить или снять вечность стопки — любой. */
   | { t: "deckForever"; pile: string; on: boolean }
+  /** Правило карты: `rule` — `lift`/`move`/`turn` для человека `who`, или `notice` (показывать отказ) для всех. Ставит админ. */
+  | { t: "cardRule"; id: string; rule: CardRule | "notice"; who?: string; on: boolean }
   /** Приколоть стопку — любой; открепить — только админ. */
   | { t: "deckPin"; pile: string; on: boolean }
   /** Лок стопки или закрытая приёмка — только админ. */
@@ -582,6 +596,8 @@ export type Op =
   | { t: "spot"; pile: string; spot: DeckSpot | null; top?: true }
   /** Карты выделены (`by`) или выделение с них снято (`null`). */
   | { t: "pick"; ids: string[]; by: string | null }
+  /** Правила карты поменялись; `null` — сняты все. */
+  | { t: "cardRules"; id: string; rules: CardRules | null }
   | { t: "rules"; rules: TableRules }
   | { t: "admin"; key: string | null; rights: string[] }
   /** Роль раздающего перешла. Права зрителя едут вместе с ней: их считает стол, а не экран. */
@@ -645,7 +661,7 @@ import type { Body } from "./bodies.js";
  */
 export type Refusal =
   | "busy" | "locked" | "not-held" | "not-top" | "gone" | "bad" | "chair-locked" | "taken" | "full"
-  | "not-yours" | "rejects" | "not-your-turn" | "beats" | "no-right" | "even-hand";
+  | "not-yours" | "rejects" | "not-your-turn" | "beats" | "no-right" | "even-hand" | "pinned";
 export interface Refused {
   intent: Intent;
   why: Refusal;
@@ -667,6 +683,7 @@ export const REFUSAL_SAYS: Record<Refusal, string> = {
   "no-right": "Нет права на это",
   locked: "Занято",
   "even-hand": "Ровная рука переворачивается целиком",
+  pinned: "Эту карту так нельзя",
   "chair-locked": "Стул закрыт",
   "not-top": "Брать можно только верхнюю",
   taken: "Уже занято",
@@ -881,7 +898,7 @@ export interface IceServer {
 
 /** Сколько живёт блокировка без `hold`. Палец, который держит дольше, шлёт `hold` чаще этого. */
 /** `carry` продлевает блокировку так же, как `hold`: палец, который двигается, её держит. */
-export const LOCK_TTL_MS = 15_000;
+export const LOCK_TTL_MS = 5_000;
 export const HOLD_EVERY_MS = 5_000;
 
 // ── КОМАНДЫ СТОЛА: админ через бота ────────────────────────────────────────────────────────────

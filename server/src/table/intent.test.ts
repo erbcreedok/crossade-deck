@@ -19,7 +19,7 @@ function table(): Table {
 
 describe("readIntent — намерение читается целиком или не читается", () => {
   it("знает каждое намерение контракта", () => {
-    expect(INTENT_KINDS.size).toBe(30);
+    expect(INTENT_KINDS.size).toBe(31);
   });
 
   it("пересесть (reseat): угол читается числом по кругу, не число — null; сидящий двигает свой стул, стоящий — нет", () => {
