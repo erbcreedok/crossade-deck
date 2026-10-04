@@ -15,11 +15,13 @@ await p.waitForFunction(() => window.__t3d && document.querySelector("#stage can
 await p.waitForTimeout(1500);
 const id = await p.evaluate(() => { const s = window.__t3d.state(); const c = s.chairs.find((x) => x.owner === "me").hand.at(0); window.__t3d.dropFeltAt(c.id, -1.2, 0.4); return c.id; });
 await p.waitForTimeout(900);
-const c = await p.evaluate((i) => window.__t3d.screenOf(i), id);
+// Ждём, пока карта осядет (пружина), и только потом целимся.
+let c = await p.evaluate((i) => window.__t3d.screenOf(i), id);
+for (let k = 0; k < 40; k++) { await p.waitForTimeout(150); const n = await p.evaluate((i) => window.__t3d.screenOf(i), id); const still = Math.hypot(n.x - c.x, n.y - c.y) < 0.3; c = n; if (still) break; }
 const info = () => p.evaluate(() => ({ drag: window.__t3d.draggingId(), locks: Object.keys(window.__t3d.state().locks).length }));
 const before = await p.evaluate((i) => JSON.stringify(window.__t3d.state().felt.find((x) => x.id === i)), id);
 // 1. Тап: коротко нажал и отпустил — ничего.
-await p.mouse.move(c.x, c.y); await p.mouse.down(); await p.waitForTimeout(120); const tapMid = await info(); await p.mouse.up(); await p.waitForTimeout(500);
+await p.mouse.move(c.x, c.y); await p.mouse.down(); await p.waitForTimeout(120); const tapMid = await info(); await p.mouse.up(); await p.waitForTimeout(1500);
 check("тап: карта не поднимается", tapMid.drag === null && tapMid.locks === 0, tapMid);
 check("тап: карта на месте и не перевёрнута", (await p.evaluate((i) => JSON.stringify(window.__t3d.state().felt.find((x) => x.id === i)), id)) === before);
 // 2. Удержание: нажал и держу, не двигаясь — карта поднята.
