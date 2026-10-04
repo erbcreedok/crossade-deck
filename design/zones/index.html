@@ -113,9 +113,9 @@ const have = ["в игре", "have"], plan = ["план", "plan"], upd = ["ме�
 
 const slides = [
   slide(1, "ЯЗЫЧОК", upd, `<div class="shots">
-    ${shot(gvView({ ink: "alia", seat: "А", n: 6, tab: true }), "нет замка", ["язычок есть", "c-yes"])}
-    ${shot(gvView({ ink: "timur", seat: "Т", n: 6, tab: false, lock: true }), "замок", ["язычка нет", "c-no"])}
-    ${shot(gvView({ ink: "free", seat: "·", n: 3, tab: true }), "бесхозный", ["язычок есть", "c-yes"])}
+    ${shot(gvView({ ink: "alia", seat: "А", n: 25, tab: true }), "нет замка", ["язычок есть", "c-yes"])}
+    ${shot(gvView({ ink: "timur", seat: "Т", n: 12, tab: false, lock: true }), "замок", ["язычка нет", "c-no"])}
+    ${shot(gvView({ ink: "free", seat: "·", n: 9, tab: true }), "бесхозный", ["язычок есть", "c-yes"])}
   </div>`),
   slide(2, "КОНТУР = ПРИЁМКА", upd, `<div class="shots">
     ${shot(scene({ ink: "alia", seat: "А", zone: "hint", extra: carry(4, 62) }), "несу рядом", ["подсказка", "c-yes"])}
