@@ -2811,7 +2811,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const chair = myChair();
     const r = renderer.domElement.getBoundingClientRect();
     // Над своей рукой — от верха её карт, как они нарисованы в мире, и ниже.
-    if (chair && e.clientY - r.top > handTop(chair, skipCard)) {
+    // Рука, что не принимает карты, их и не ловит: карта над ней остаётся на столе (а не улетает в щель руки и не возвращается).
+    if (chair && !chair.reject && e.clientY - r.top > handTop(chair, skipCard)) {
       const others = chair.hand.filter((c) => c.id !== skipCard);
       const xs = others.map((c) => screenOf(c.id)?.x ?? 0);
       return { in: "hand", chair: chair.id, i: xs.filter((q) => q < e.clientX).length };
