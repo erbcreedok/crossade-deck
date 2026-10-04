@@ -14,6 +14,7 @@ for (const sh of shots) {
   const errs = []; page.on("pageerror", (e) => errs.push(e.message));
   await page.goto("http://localhost:9588/harness.html"); await page.waitForFunction(() => window.__ready, null, { timeout: 30000 });
   await page.evaluate((s) => window.__setup(s), sh.setup);
+  if (sh.full) { await page.screenshot({ path: path.join(out, `${sh.name}.png`), clip: { x: 0, y: sh.y ?? 120, width: 390, height: sh.h ?? 520 } }); console.log(sh.name, errs.join("|")); await page.close(); continue; }
   const at = await page.evaluate(([chair]) => { const st = window.__store.state; const c = st.chairs.find((x) => x.id === chair); const id = c.hand[0]?.id ?? st.piles[0].cards[0].id; return window.__scene.test.screenOf(id); }, [sh.focus]);
   const w = sh.w ?? 180, h = sh.h ?? 180;
   const clip = { x: Math.max(0, Math.min(390 - w, at.x - w / 2)), y: Math.max(0, Math.min(844 - h, at.y - h / 2 + (sh.dy ?? 20))), width: w, height: h };

@@ -33,8 +33,12 @@ function stackAt(chair, n) {
   }
 }
 window.__setup = async (spec) => {
-  scene.setCamMode("orbit");
+  scene.setCamMode(spec.mode ?? "orbit");
   for (const [chair, n] of Object.entries(spec.stacks ?? {})) stackAt(chair, n);
+  if (spec.pile) {
+    const ids = store.state.piles[0].cards.slice(-spec.pile.n).map((c) => c.id);
+    store.send({ t: "gather", ids, side: "down", to: { x: spec.pile.x, y: spec.pile.y, angle: 0 } });
+  }
   await wait(200);
   scene.setOrbitZoom(spec.zoom ?? 0.85);
   if (spec.look) { const ch = store.state.chairs.find((c) => c.id === spec.look); scene.turnBy(ch.angle + (spec.far ? 180 : 0) - scene.azimuth()); }
