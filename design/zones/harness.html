@@ -160,12 +160,13 @@ if (q.has("live")) {
     // Карту забрали пальцем — запрос отозван: она больше не висит, остальные перестраиваются.
     const back = waiting.indexOf(did0);
     if (back >= 0) { waiting.splice(back, 1); scene.test.floatCard(did0, null); settle(); note = "запрос отозван"; noteAt = performance.now(); }
-    let pend = false, st = "", msg = note && performance.now() - noteAt < 1200 ? note : "";
+    let deny = false, pend = false, st = "", msg = note && performance.now() - noteAt < 1200 ? note : "";
     if (r && drag && policy !== "refuse") {
       const over = hit(r);
       if (policy === "ask") { st = "hint"; if (over) msg = "нужен апрув"; if (!over && inside) { msg = "запрос отозван"; note = msg; noteAt = performance.now(); } inside = over; }
       else st = over ? "hot" : "hint";
     } else inside = false;
+    if (r && drag && policy === "refuse" && hit(r)) { deny = true; msg = "сюда нельзя"; }
     if (frozen) { st = ""; pend = true; msg = ""; }
     zone.className = st;
     // Подсветка — на сукне ПОД колодой, как в Tabletop Simulator: рисуется отдельным слоем, из него вырезаны сама колода и несомая карта.
@@ -203,6 +204,12 @@ if (q.has("live")) {
       g.fillStyle = "#0b0704"; g.fillRect(bx - 3, by - 3, W + 6, H + 6); g.fillStyle = "#3a2a1d"; g.fillRect(bx, by, W, H);
       const ph = Math.floor(performance.now() / 280) % 3;
       for (let i = 0; i < 3; i++) { g.fillStyle = i === ph ? "#f5ead0" : "rgba(245,234,208,.3)"; g.fillRect(bx + 9 + i * 12, by + 6, 6, 6); }
+    }
+    // Запретная стопка: знак «нельзя» (круг с чертой) прямо на колоде, цвета бумаги — не свечение и не красный (красный — цвет игрока). Знак поверх карты: он про запрет, его должно быть видно.
+    if (r && deny) {
+      g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
+      g.lineCap = "round"; g.strokeStyle = "#0b0704"; g.lineWidth = 9; g.beginPath(); g.arc(r.x, r.y, 21, 0, Math.PI * 2); g.moveTo(r.x - 15, r.y - 15); g.lineTo(r.x + 15, r.y + 15); g.stroke();
+      g.strokeStyle = "#f5ead0"; g.lineWidth = 5; g.beginPath(); g.arc(r.x, r.y, 21, 0, Math.PI * 2); g.moveTo(r.x - 15, r.y - 15); g.lineTo(r.x + 15, r.y + 15); g.stroke();
     }
     zone.style.clipPath = "none";
     if (r) { Object.assign(zone.style, { left: r.x - r.w / 2 + "px", top: r.y - r.h / 2 + "px", width: r.w + "px", height: r.h + "px" }); Object.assign(say.style, { left: r.x + "px", top: r.y - r.h / 2 - 24 - (frozen ? 80 : 0) + "px", display: msg ? "block" : "none" }); say.textContent = msg; }
