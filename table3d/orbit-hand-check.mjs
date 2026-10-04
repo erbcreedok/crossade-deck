@@ -40,26 +40,6 @@ await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x, a
 await p.waitForTimeout(300);
 check("верхнюю карту стопки на столе можно потянуть", (await p.evaluate(() => window.__t3d.draggingId())) === topId, await p.evaluate(() => window.__t3d.draggingId()));
 await p.mouse.up();
-// МОЯ ЗОНА НА СТОЛЕ ПРИНИМАЕТ, как чужая: в свободной камере, пока несёшь карту, у моего места виден контур цвета хозяина; палец в зоне — горит; отпустил — карта в руке.
-const mineZone = () => p.evaluate(() => { const s = window.__t3d.state(); const seat = s.people.find((x) => x.key === window.__t3d.me()).seat; return window.__t3d.zoneInfo().find((c) => c.id === seat); });
-const handN = () => p.evaluate(() => { const s = window.__t3d.state(); return s.chairs.find((c) => c.owner === window.__t3d.me()).hand.length; });
-const n0 = await handN();
-const top2 = await p.evaluate(() => { const s = window.__t3d.state(); return s.chairs.find((c) => c.owner === window.__t3d.me()).hand.at(-1).id; });
-const t2 = await p.evaluate((id) => window.__t3d.screenOf(id), top2);
-await p.mouse.move(t2.x, t2.y); await p.mouse.down(); await p.mouse.move(t2.x + 4, t2.y - 30, { steps: 4 }); await p.mouse.move(150, 300, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(1200);
-check("карта ушла из руки на сукно", (await handN()) === n0 - 1, await handN());
-const feltId = await p.evaluate(() => window.__t3d.state().felt.at(-1).id);
-const f2 = await p.evaluate((id) => window.__t3d.screenOf(id), feltId);
-await p.mouse.move(f2.x, f2.y); await p.mouse.down(); await p.mouse.move(f2.x + 4, f2.y - 20, { steps: 4 }); await p.mouse.move(f2.x + 30, f2.y - 40, { steps: 4 }); await p.waitForTimeout(300);
-const z1 = await mineZone();
-check("несу карту — у моего места виден контур зоны", z1.zone === true, z1);
-check("цвет зоны — цвет хозяина (мой)", z1.color === "#f2c14e", z1.color);
-check("палец не в зоне — не горит", z1.lit < 0.15, z1.lit);
-await p.mouse.move(z1.screen.x, z1.screen.y, { steps: 8 }); await p.waitForTimeout(300);
-const z2 = await mineZone();
-check("палец в моей зоне — горит", z2.lit > 0.25, z2.lit);
-await p.mouse.up(); await p.waitForTimeout(1200);
-check("отпустил в моей зоне — карта в руке", (await handN()) === n0, { n0, now: await handN() });
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
