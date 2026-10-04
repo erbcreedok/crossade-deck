@@ -28,7 +28,7 @@ describe("правила карты", () => {
     t.act("a", { t: "cardRule", id, rule: "move", who: "b", on: true }, 2);
     expect(t.act("b", { t: "grab", id }, 3)).toMatchObject({ ops: expect.any(Array) });
     t.act("b", { t: "drop", id, to: { in: "felt", x: -3, y: -3, up: true, angle: 40 } }, 4);
-    expect(felt(t, id)).toMatchObject({ x: 1, y: 2, angle: 0 });
+    expect(felt(t, id)).toMatchObject({ x: 1, y: 2, angle: 40 });
   });
   it("не переместить — тем, кому не запрещено, можно", () => {
     const t = seated(), id = onFelt(t);
@@ -47,7 +47,7 @@ describe("правила карты", () => {
     const t = seated(), id = onFelt(t);
     t.act("a", { t: "cardRule", id, rule: "lift", who: "b", on: true }, 2);
     t.act("a", { t: "cardRule", id, rule: "notice", who: "move", on: true }, 3);
-    expect(t.seenBy("b").cardRules?.[id]).toEqual({ lift: ["b"], move: [], turn: [], notice: { lift: false, move: true, turn: false } });
+    expect(t.seenBy("b").cardRules?.[id]).toEqual({ lift: ["b"], move: [], turn: [], rotate: [], notice: { lift: false, move: true, turn: false, rotate: false } });
     t.act("a", { t: "cardRule", id, rule: "lift", who: "b", on: false }, 4);
     t.act("a", { t: "cardRule", id, rule: "notice", who: "move", on: false }, 5);
     expect(t.seenBy("b").cardRules?.[id]).toBeUndefined();
@@ -56,5 +56,39 @@ describe("правила карты", () => {
   it("правила ставит только админ", () => {
     const t = seated(), id = onFelt(t);
     expect(t.act("b", { t: "cardRule", id, rule: "lift", who: "a", on: true }, 2)).toEqual({ refused: "not-yours" });
+  });
+  it("повернуть на месте: угол меняется, место и сторона те же", () => {
+    const t = seated(), id = onFelt(t);
+    expect(t.act("b", { t: "spin", id, angle: 90 }, 2)).toMatchObject({ ops: expect.any(Array) });
+    expect(felt(t, id)).toMatchObject({ x: 1, y: 2, angle: 90 });
+  });
+  it("не вращать — поворот отказывает, остальным можно", () => {
+    const t = seated(), id = onFelt(t);
+    t.act("a", { t: "cardRule", id, rule: "rotate", who: "b", on: true }, 2);
+    expect(t.act("b", { t: "spin", id, angle: 90 }, 3)).toEqual({ refused: "pinned" });
+    expect(felt(t, id).angle).toBe(0);
+    expect(t.act("a", { t: "spin", id, angle: 30 }, 4)).toMatchObject({ ops: expect.any(Array) });
+    expect(felt(t, id).angle).toBe(30);
+  });
+  it("не вращать — перенесённая карта сохраняет прежний угол", () => {
+    const t = seated(), id = onFelt(t);
+    t.act("a", { t: "cardRule", id, rule: "rotate", who: "b", on: true }, 2);
+    t.act("b", { t: "grab", id }, 3);
+    t.act("b", { t: "drop", id, to: { in: "felt", x: -3, y: -3, up: true, angle: 77 } }, 4);
+    expect(felt(t, id)).toMatchObject({ x: -3, y: -3, angle: 0 });
+  });
+  it("нельзя поднять и нельзя переместить поворот не блокируют", () => {
+    const t = seated(), id = onFelt(t);
+    t.act("a", { t: "cardRule", id, rule: "lift", who: "b", on: true }, 2);
+    t.act("a", { t: "cardRule", id, rule: "move", who: "b", on: true }, 3);
+    expect(t.act("b", { t: "spin", id, angle: 45 }, 4)).toMatchObject({ ops: expect.any(Array) });
+    expect(felt(t, id)).toMatchObject({ x: 1, y: 2, angle: 45 });
+  });
+  it("нельзя перемещать, но вращать можно — перенесённая карта возвращается, угол новый", () => {
+    const t = seated(), id = onFelt(t);
+    t.act("a", { t: "cardRule", id, rule: "move", who: "b", on: true }, 2);
+    t.act("b", { t: "grab", id }, 3);
+    t.act("b", { t: "drop", id, to: { in: "felt", x: -3, y: -3, up: true, angle: 77 } }, 4);
+    expect(felt(t, id)).toMatchObject({ x: 1, y: 2, angle: 77 });
   });
 });

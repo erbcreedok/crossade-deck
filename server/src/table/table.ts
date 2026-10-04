@@ -52,6 +52,8 @@ import {
   CARD_FACES,
   FELT_REACH,
   NO_CARD_RULES,
+  CARD_RULES,
+  type CardRule,
   type CardRules,
 } from "./contract.js";
 export { FELT_REACH };
@@ -632,6 +634,7 @@ export class Table {
         return this.deckMove(intent.pile, intent.x, intent.y, intent.angle);
       case "deckDo":
         return this.deckDo(by, intent.pile, intent.how);
+      case "spin": return this.spin(by, intent.id, intent.angle, now);
       case "cardRule": return this.cardRule(by, intent.id, intent.rule, intent.who, intent.on);
       case "deckForever": {
         const pile = this.piles.get(intent.pile);
@@ -824,22 +827,34 @@ export class Table {
   }
 
   /** Нельзя ли этому человеку это с этой картой (`CardRules`). */
-  private pinned(by: string, id: string, rule: "lift" | "move" | "turn"): boolean {
+  private pinned(by: string, id: string, rule: CardRule): boolean {
     return this.cardRules.get(id)?.[rule].includes(by) ?? false;
   }
   private cardRule(by: string, id: unknown, rule: unknown, who: unknown, on: unknown): Result {
     if (!this.may(by, "pile.guard")) return { refused: "not-yours" };
     if (typeof id !== "string" || typeof on !== "boolean" || !this.whereIs(id)) return { refused: "gone" };
     const now = this.cardRules.get(id) ?? NO_CARD_RULES;
-    const next: CardRules = { lift: [...now.lift], move: [...now.move], turn: [...now.turn], notice: { ...now.notice } };
-    if (rule === "notice" && (who === "lift" || who === "move" || who === "turn")) next.notice[who] = on;
-    else if ((rule === "lift" || rule === "move" || rule === "turn") && typeof who === "string") {
+    const next: CardRules = { lift: [...now.lift], move: [...now.move], turn: [...now.turn], rotate: [...now.rotate], notice: { ...now.notice } };
+    const named = (x: unknown): x is CardRule => (CARD_RULES as readonly unknown[]).includes(x);
+    if (rule === "notice" && named(who)) next.notice[who] = on;
+    else if (named(rule) && typeof who === "string") {
       const list = next[rule].filter((key) => key !== who);
       next[rule] = on ? [...list, who] : list;
     } else return { refused: "bad" };
-    const clear = !next.lift.length && !next.move.length && !next.turn.length && !next.notice.lift && !next.notice.move && !next.notice.turn;
+    const clear = !next.lift.length && !next.move.length && !next.turn.length && !next.rotate.length && !CARD_RULES.some((one) => next.notice[one]);
     if (clear) this.cardRules.delete(id); else this.cardRules.set(id, next);
     return { ops: this.commit([{ t: "cardRules", id, rules: clear ? null : next }]) };
+  }
+  /** ПОВЕРНУТЬ НА МЕСТЕ: карта на сукне ложится туда же с новым углом. Не «поднять» и не «переместить», поэтому этих запретов не касается; свой — `rotate`. */
+  private spin(by: string, id: unknown, angle: unknown, now: number): Result {
+    if (typeof id !== "string" || typeof angle !== "number" || !Number.isFinite(angle)) return { refused: "bad" };
+    if (this.pinned(by, id, "rotate")) return { refused: "pinned" };
+    const may = this.touchable(by, id);
+    if ("refused" in may) return may;
+    const one = this.felt.find((f) => f.id === id);
+    if (!one || may.at.in !== "felt") return { refused: "bad" };
+    this.locks.set(id, { by, until: now + LOCK_TTL_MS });
+    return this.drop(by, id, { in: "felt", x: one.x, y: one.y, up: one.up, angle }, now);
   }
   private grab(by: string, id: string, now: number, auto = false): Result {
     if (this.pinned(by, id, "lift")) return { refused: "pinned" };
@@ -1017,9 +1032,10 @@ export class Table {
   private dropOps(by: string, id: string, to: Where, now: number, auto = false, thrown = false): { ops: Op[] } | { refused: Refusal } {
     const lock = this.locks.get(id);
     if (!lock || lock.by !== by) return { refused: "not-held" };
-    // НЕЛЬЗЯ ПЕРЕМЕЩАТЬ: брошенная на сукно карта возвращается на своё место, откуда её подняли.
-    const home = this.pinned(by, id, "move") && to.in === "felt" ? this.felt.find((one) => one.id === id) : undefined;
-    if (home) to = { in: "felt", x: home.x, y: home.y, up: home.up, angle: home.angle };
+    // НЕЛЬЗЯ ПЕРЕМЕЩАТЬ: брошенная на сукно карта возвращается на своё место, откуда её подняли. НЕЛЬЗЯ ВРАЩАТЬ: угол остаётся прежним. Друг другу это не мешает.
+    const moveLocked = this.pinned(by, id, "move"), spinLocked = this.pinned(by, id, "rotate");
+    const home = (moveLocked || spinLocked) && to.in === "felt" ? this.felt.find((one) => one.id === id) : undefined;
+    if (home && to.in === "felt") to = { in: "felt", x: moveLocked ? home.x : to.x, y: moveLocked ? home.y : to.y, up: moveLocked ? home.up : to.up, angle: spinLocked ? home.angle : to.angle };
     const target = this.clean(to, auto);
     if (!target) return { refused: "bad" };
     // ЗАМОК РУКИ — ОТ ЧУЖИХ ПАЛЬЦЕВ, А НЕ ОТ КРУПЬЕ. Команда стола (раздача, сбор) кладёт и в

@@ -279,13 +279,13 @@ export type PileGuard = (typeof PILE_GUARDS)[number];
 
 /**
  * ПРАВИЛА КАРТЫ — что с ней нельзя делать, и кому: `lift` не поднять, `move` не переместить по сукну (поднять и перевернуть можно, а при броске она
- * возвращается туда, откуда её подняли), `turn` не перевернуть. Каждое — список key людей, которым нельзя (пусто — можно всем). `notice` — по каждому запрету, показывать ли
+ * возвращается туда, откуда её подняли), `turn` не перевернуть, `rotate` не повернуть (угол остаётся прежним; поднять и переместить это не мешает и наоборот). Каждое — список key людей, которым нельзя (пусто — можно всем). `notice` — по каждому запрету, показывать ли
  * отказ: включён — карта даёт знать «нельзя» (тряска, контур возврата), выключен — отказ тихий.
  */
-export const CARD_RULES = ["lift", "move", "turn"] as const;
+export const CARD_RULES = ["lift", "move", "turn", "rotate"] as const;
 export type CardRule = (typeof CARD_RULES)[number];
-export interface CardRules { lift: string[]; move: string[]; turn: string[]; notice: Record<CardRule, boolean> }
-export const NO_CARD_RULES: CardRules = { lift: [], move: [], turn: [], notice: { lift: false, move: false, turn: false } };
+export interface CardRules { lift: string[]; move: string[]; turn: string[]; rotate: string[]; notice: Record<CardRule, boolean> }
+export const NO_CARD_RULES: CardRules = { lift: [], move: [], turn: [], rotate: [], notice: { lift: false, move: false, turn: false, rotate: false } };
 
 /** Колода стола — стопка команд бота. Остальные стопки собирают игроки (`gather`), и они не вечные. */
 export const MAIN_PILE = "deck";
@@ -532,6 +532,8 @@ export type Intent =
   | { t: "deckForever"; pile: string; on: boolean }
   /** Правило карты: `rule` — `lift`/`move`/`turn` для человека `who`, или `notice` — показывать ли отказ по запрету `who` (`lift`/`move`/`turn`), для всех. Ставит админ. */
   | { t: "cardRule"; id: string; rule: CardRule | "notice"; who?: string; on: boolean }
+  /** Повернуть карту на сукне на месте: новый угол по часовой, градусы. Брать и переносить её для этого не нужно. */
+  | { t: "spin"; id: string; angle: number }
   /** Приколоть стопку — любой; открепить — только админ. */
   | { t: "deckPin"; pile: string; on: boolean }
   /** Лок стопки или закрытая приёмка — только админ. */

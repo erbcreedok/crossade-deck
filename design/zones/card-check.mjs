@@ -122,6 +122,27 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   check("нельзя перемещать: отпустил в другом месте — легла на старое", Math.hypot(back.x - home.x, back.y - home.y) < 0.05, { home, back });
   await click('[data-rule="move"] [data-k="blue"]'); await click('[data-rule="move"] .tg');
 }
+// 4-й запрет «нельзя вращать»: красному/синему нельзя повернуть — меню «Повернуть» не меняет угол; нельзя поднять и нельзя переместить поворот не мешают.
+{
+  const id = await f.evaluate(() => window.__me.state.felt[0].id);
+  const click = (sel) => f.evaluate((q) => document.querySelector(q).click(), sel);
+  const angle = () => f.evaluate((i) => window.__me.state.felt.find((x) => x.id === i).angle, id);
+  const menuSpin = async (deg) => {
+    const at = await f.evaluate((i) => window.__top.test.screenOf(i), id);
+    await p.mouse.move(at.x, at.y); await p.mouse.click(at.x, at.y, { button: "right" }); await p.waitForTimeout(200);
+    await f.evaluate((d) => [...document.querySelectorAll('div[style*="z-index: 60"] button')].find((b) => b.textContent === `Повернуть на ${d}°`)?.click(), deg);
+    await p.waitForTimeout(300);
+  };
+  const a0 = await angle();
+  await click('[data-rule="lift"] [data-k="blue"]'); await click('[data-rule="move"] [data-k="blue"]'); await p.waitForTimeout(200);
+  await menuSpin(30);
+  check("нельзя поднять и переместить — поворот через меню всё равно работает", Math.abs((((await angle()) - a0 - 30 + 540) % 360) - 180) < 1, { a0, now: await angle() });
+  await click('[data-rule="lift"] [data-k="blue"]'); await click('[data-rule="move"] [data-k="blue"]');
+  await click('[data-rule="rotate"] [data-k="blue"]'); await p.waitForTimeout(200);
+  const a1 = await angle(); await menuSpin(60);
+  check("нельзя вращать — поворот через меню отказывает, угол прежний", (await angle()) === a1, { a1, now: await angle() });
+  await click('[data-rule="rotate"] [data-k="blue"]');
+}
 // «На весь экран» у каждой сцены: кадр занимает окно, сцена растягивается под него, повторное нажатие возвращает.
 for (const [which, fr, st] of [["top", "f-top", "s-top"], ["first", "f-first", "s-first"]]) {
   const size = () => f.evaluate(([a, b]) => { const r = document.getElementById(a).getBoundingClientRect(), c = document.querySelector("#" + b + " canvas").getBoundingClientRect(); return { fw: Math.round(r.width), fh: Math.round(r.height), cw: Math.round(c.width), ch: Math.round(c.height), vw: innerWidth, vh: innerHeight }; }, [fr, st]);

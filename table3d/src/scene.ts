@@ -16,7 +16,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS3DObject, CSS3DRenderer } from "three/addons/renderers/CSS3DRenderer.js";
 import type { PanelWorld, WorldPlace } from "./panel.js";
-import type { Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
+import type { CardRule, Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
 import { CARRY_EVERY_MS, FELT_REACH } from "../../server/src/table/contract.js";
 import { SEAT_PULL, AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
 import { HAND_CEIL, STRAIN, BACK, PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
@@ -1878,6 +1878,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     // Отпущенная — ждёт ответа стола там, куда легла.
     holdLanding();
+    // Правой кнопкой ведут угол лежащей карты — она вращается на месте, пока не отпустили.
+    if (spin?.moved) { const o = cards.get(spin.id), f = store.state.felt.find((c) => c.id === spin!.id); if (o && f) o.target = { ...o.target, quat: lying(f.x, f.y, o.target.pos.y, spin.angle, f.up).quat }; }
     applyFloats(performance.now());
     ringHover();
     if (reseat) reseatSync();
@@ -2054,7 +2056,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // Палец остановился: тот, кто бросал, теперь «положит» — место падения пересчитывается без новых движений.
     if (drag?.moved && dragPid !== null && lastThrow > 0 && throwWeight() < lastThrow - 0.02) advanceDrag(lastFinger.x, lastFinger.y);
     // Камеру покрутили, а палец стоит: карта в руке доворачивается за экраном.
-    if (drag?.moved && dragPid !== null && Math.abs(((carryAngle(lastFinger.x, lastFinger.y) - drag.angle + 540) % 360) - 180) > 0.5) advanceDrag(lastFinger.x, lastFinger.y);
+    if (drag?.moved && dragPid !== null && Math.abs(((heldAngle(drag, lastFinger.x, lastFinger.y) - drag.angle + 540) % 360) - 180) > 0.5) advanceDrag(lastFinger.x, lastFinger.y);
     frame = 0;
     if (floats.size) { applyFloats(now); moving = true; }
     syncSeatAngle();
@@ -2539,12 +2541,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   // ——— ПРАВИЛА КАРТЫ (`CardRules`): что с этой картой нельзя именно мне ———
   /** Кто действует с этого экрана: на стенде — выбранный игрок (`store.actor`), в игре — я. */
   const actorKey = (): string => (store as { actor?: { key: string } }).actor?.key ?? store.me.key;
-  const cardRule = (id: string, rule: "lift" | "move" | "turn"): boolean => store.state.cardRules?.[id]?.[rule].includes(actorKey()) ?? false;
-  const cardNotice = (id: string, rule: "lift" | "move" | "turn"): boolean => store.state.cardRules?.[id]?.notice[rule] === true;
+  const cardRule = (id: string, rule: CardRule): boolean => store.state.cardRules?.[id]?.[rule].includes(actorKey()) ?? false;
+  const cardNotice = (id: string, rule: CardRule): boolean => store.state.cardRules?.[id]?.notice[rule] === true;
   /** Карта «отказывает»: кивает в сторону (тряска) — только если у этого запрета включено «показывать». */
   const denies = new Map<string, number>();
   const DENY = { ms: 450, shake: 0.12, hz: 16 };
-  function deny(id: string, rule: "lift" | "move" | "turn"): void {
+  function deny(id: string, rule: CardRule): void {
     if (!cardNotice(id, rule) || !cards.has(id)) return;
     denies.set(id, performance.now());
     draw();
@@ -2591,7 +2593,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return f.in === "felt" || (f.in === "pile" && f.top) || (f.in === "hand" && (f.mine || !store.state.chairs.find((c) => c.id === f.chair)?.owner));
   };
   /** `group` — несут выделенное лассо: отпустил — все выделенные туда же (`moveMany`), одним намерением. */
-  let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; gap: number | null; place: Place | null; where: Where | null; spot: { x: number; y: number; w: number; angle: number } | null; zone: { pile?: string; chair?: string; i: number } | null; fingerHand: boolean; latch0: string | null; scrubbed: boolean } | null = null;
+  let spin: { id: string; pid: number; cx: number; cy: number; a0: number; base: number; x0: number; y0: number; moved: boolean; angle: number } | null = null;
+  let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; rot: number; gap: number | null; place: Place | null; where: Where | null; spot: { x: number; y: number; w: number; angle: number } | null; zone: { pile?: string; chair?: string; i: number } | null; fingerHand: boolean; latch0: string | null; scrubbed: boolean } | null = null;
   let zoneFn: Parameters<SceneApi["setZone"]>[0] = null;
   let restRight: { x: number; y: number } | null = null;
   let carriedAt = 0;
@@ -2636,6 +2639,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!at) return viewAngle();
     const fx = at.x - camera.position.x, fz = at.z - camera.position.z;
     return Math.hypot(fx, fz) < 1e-3 ? viewAngle() : ((Math.atan2(fx, -fz) / DEG) + 360) % 360;
+  };
+  /** Угол несомой карты: по камере плюс то, на сколько её довернули рукой (Ctrl/Cmd, второй палец); «нельзя вращать» — прежний угол. */
+  const heldAngle = (d: { id: string; rot: number }, x: number, y: number): number => {
+    const home = cardRule(d.id, "rotate") ? store.state.felt.find((f) => f.id === d.id) : undefined;
+    return home ? home.angle : (((carryAngle(x, y) + d.rot) % 360) + 360) % 360;
   };
   /** Высота несомой карты над сукном — доля высоты головы (камеры), как у стола: камера выше — и карта выше. */
   const liftH = () => Math.max(0.4, Math.min(8, HEAD.lift * eyeY()));
@@ -2901,15 +2909,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   renderer.domElement.addEventListener("pointerup", stackUp, { capture: true });
   renderer.domElement.addEventListener("pointercancel", stackUp, { capture: true });
   renderer.domElement.addEventListener("pointerdown", (e) => {
-    if (reseat || store.replay?.on) return;
+    if (reseat || store.replay?.on || e.button === 2) return;
     // ВТОРОЙ ПАЛЕЦ при несомой карте — переворот: ведёт карту вбок (`cardFlip.ts`); камеру и всё остальное это касание не трогает.
     if (drag?.moved && dragPid !== null && e.pointerId !== dragPid && !flipTouch) {
       e.stopImmediatePropagation();
-      if (cardRule(drag.id, "turn")) { deny(drag.id, "turn"); return; }
       try { renderer.domElement.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
       const fl = new CardFlip();
       fl.begin(e.clientX);
-      flipTouch = { pid: e.pointerId, fl };
+      flipTouch = { pid: e.pointerId, fl, x0: e.clientX, y0: e.clientY, mode: "undecided", rot0: drag.rot };
       return;
     }
     live.add(e.pointerId);
@@ -2937,8 +2944,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const f = fromOf.get(id)!;
     const c = f.in === "felt" ? store.state.felt.find((x) => x.id === id) : undefined;
     const my = myChair()?.angle ?? 0;
-    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? (f.mine ? true : !!store.state.chairs.find((q) => q.id === f.chair)?.hand.find((x) => x.id === id)?.up) : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: carryAngle(e.clientX, e.clientY), gap: null, place: null, where: null, spot: null, zone: null, fingerHand, latch0, scrubbed: false };
-    trail = []; lastThrow = 0;
+    drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? (f.mine ? true : !!store.state.chairs.find((q) => q.id === f.chair)?.hand.find((x) => x.id === id)?.up) : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: carryAngle(e.clientX, e.clientY), rot: 0, gap: null, place: null, where: null, spot: null, zone: null, fingerHand, latch0, scrubbed: false };
+    trail = []; lastThrow = 0; ptrX = e.clientX;
     dragPid = e.pointerId; flipDeg = 0; flipTouch = null; lastFinger = { x: e.clientX, y: e.clientY };
     // Удержание поднимает карту и без движения пальца.
     const held = drag;
@@ -2964,7 +2971,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Несомая карта над стопкой садится ровно на неё. Стенд дизайна выключает это: карта остаётся на весу под пальцем (`test.setPileSnap`). */
   let pileSnap = true;
   // ——— ПЕРЕВОРОТ КАРТЫ В РУКЕ: F (комп) или второй палец вбок (телефон); логика жеста — `cardFlip.ts` ———
-  let dragPid: number | null = null, lastFinger = { x: 0, y: 0 }, flipDeg = 0, flipTouch: { pid: number; fl: CardFlip } | null = null;
+  let dragPid: number | null = null, lastFinger = { x: 0, y: 0 }, flipDeg = 0, flipTouch: { pid: number; fl: CardFlip; x0: number; y0: number; mode: "undecided" | "flip" | "turn"; rot0: number } | null = null;
   /** Карта, которую несу, с поворотом «в воздухе»: вокруг её длинной оси на `flipDeg`. */
   const flipped = (p: Place): Place => (flipDeg ? { ...p, quat: p.quat.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), flipDeg * DEG)) } : p);
   const dragPlace = (x: number, y: number): Place | null => {
@@ -3021,7 +3028,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       grabFn?.();
       drag.hold = window.setInterval(() => { if (drag) store.send({ t: "hold", id: drag.id }); }, HOLD_MS);
     }
-    drag.angle = carryAngle(x, y);
+    drag.angle = heldAngle(drag, x, y);
     trail.push({ x, y, t: performance.now() });
     // Куда целит палец: над своей рукой — щель в руке и правая рука у левой; иначе — карта под пальцем над столом.
     const where = target({ clientX: x, clientY: y }, drag);
@@ -3043,6 +3050,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   renderer.domElement.addEventListener("pointermove", (e) => {
     if (!drag) return;
     if (dragPid !== null && e.pointerId !== dragPid) return;
+    // Ctrl/Cmd при переносе: карта стоит на месте и вращается за движением мыши (вправо — по часовой).
+    const dx = e.clientX - ptrX;
+    ptrX = e.clientX;
+    if ((e.ctrlKey || e.metaKey) && drag.moved && e.pointerType === "mouse") {
+      if (cardRule(drag.id, "rotate")) { deny(drag.id, "rotate"); return; }
+      drag.rot += dx * SPIN.perPx;
+      advanceDrag(lastFinger.x, lastFinger.y);
+      return;
+    }
     lastFinger = { x: e.clientX, y: e.clientY };
     advanceDrag(e.clientX, e.clientY);
   });
@@ -3088,9 +3104,26 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   renderer.domElement.addEventListener("pointermove", (e) => {
     if (!flipTouch || e.pointerId !== flipTouch.pid) return;
     e.stopImmediatePropagation();
-    const r = flipTouch.fl.move(e.clientX);
+    const t = flipTouch;
+    // Режим второго пальца выбирается по первому заметному направлению и держится, пока палец не оторван: вбок — переворот, вниз-вверх — поворот.
+    if (t.mode === "undecided") {
+      const dx = Math.abs(e.clientX - t.x0), dy = Math.abs(e.clientY - t.y0);
+      if (Math.max(dx, dy) < SPIN.dead) return;
+      t.mode = dy > dx ? "turn" : "flip";
+      if (t.mode === "flip" && drag && cardRule(drag.id, "turn")) deny(drag.id, "turn");
+      if (t.mode === "turn" && drag && cardRule(drag.id, "rotate")) deny(drag.id, "rotate");
+    }
+    if (!drag) return;
+    if (t.mode === "turn") {
+      if (cardRule(drag.id, "rotate")) return;
+      drag.rot = t.rot0 + (e.clientY - t.y0) * SPIN.perPx;
+      advanceDrag(lastFinger.x, lastFinger.y);
+      return;
+    }
+    if (cardRule(drag.id, "turn")) return;
+    const r = t.fl.move(e.clientX);
     if (r.click) flipClick();
-    else if (!flipTouch.fl.clicked) flipDeg = r.angle;
+    else if (!t.fl.clicked) flipDeg = r.angle;
     pushCarry();
     layout(store.state);
   }, { capture: true });
@@ -3099,7 +3132,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     e.stopImmediatePropagation();
     const t = flipTouch;
     flipTouch = null;
-    if (!t.fl.clicked) flipDeg = 0;
+    if (t.mode === "flip" && !t.fl.clicked) flipDeg = 0;
     carriedAt = 0;
     pushCarry();
     layout(store.state);
@@ -3112,23 +3145,66 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     e.preventDefault();
     flipClick();
   });
-  // Правая кнопка по карте — меню «Перевернуть».
+  // Правая кнопка по карте — меню («Перевернуть», повернуть на 30/60/90 по часовой).
   let cardMenu: HTMLElement | null = null;
   const closeMenu = (): void => { cardMenu?.remove(); cardMenu = null; };
+  const MENU_TURNS = [30, 60, 90] as const;
+  function openCardMenu(x: number, y: number, id: string): void {
+    closeMenu();
+    const m = document.createElement("div");
+    m.style.cssText = `position:fixed;z-index:60;left:${x}px;top:${y}px;background:#3a2a1d;box-shadow:0 0 0 2px #0b0704,inset 0 0 0 2px #6b4d2c;padding:4px;font:400 13px 'Tiny5',monospace`;
+    const item = (label: string, run: () => void): void => {
+      const b = document.createElement("button");
+      b.textContent = label;
+      b.style.cssText = "display:block;width:100%;font:inherit;color:#f5ead0;background:transparent;border:0;padding:6px 10px;cursor:pointer;text-align:left";
+      b.onclick = () => { closeMenu(); run(); };
+      m.append(b);
+    };
+    item("Перевернуть", () => { if (cardRule(id, "turn")) deny(id, "turn"); else store.send({ t: "turn", id }); });
+    const on = store.state.felt.find((f) => f.id === id);
+    if (on) for (const deg of MENU_TURNS) item(`Повернуть на ${deg}°`, () => { if (cardRule(id, "rotate")) deny(id, "rotate"); else store.send({ t: "spin", id, angle: (on.angle + deg) % 360 }); });
+    document.body.append(m);
+    cardMenu = m;
+  }
+  // Правая кнопка по карте на столе: повёл мышью — карта вращается вокруг своего центра следом за мышью; отпустил, не двигая (клик или долгий клик), — меню.
+  renderer.domElement.addEventListener("pointerdown", (e) => {
+    if (e.button !== 2 || drag || reseat || store.replay?.on) return;
+    const id = hitCard(e), f = id ? store.state.felt.find((c) => c.id === id) : undefined, c = id ? screenOf(id) : null;
+    if (!id || !f || !c || !takeable(id)) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
+    spin = { id, pid: e.pointerId, cx: c.x, cy: c.y, a0: Math.atan2(e.clientY - c.y, e.clientX - c.x) / DEG, base: f.angle, x0: e.clientX, y0: e.clientY, moved: false, angle: f.angle };
+  }, { capture: true });
+  renderer.domElement.addEventListener("pointermove", (e) => {
+    const s = spin;
+    if (!s || e.pointerId !== s.pid) return;
+    e.stopImmediatePropagation();
+    if (!s.moved && Math.hypot(e.clientX - s.x0, e.clientY - s.y0) < 6) return;
+    if (!s.moved && cardRule(s.id, "rotate")) deny(s.id, "rotate");
+    s.moved = true;
+    if (cardRule(s.id, "rotate")) return;
+    const turn = Math.atan2(e.clientY - s.cy, e.clientX - s.cx) / DEG - s.a0;
+    s.angle = ((((s.base + turn) % 360) + 360) % 360);
+    layout(store.state); draw();
+  }, { capture: true });
+  const spinUp = (e: PointerEvent): void => {
+    const s = spin;
+    if (!s || e.pointerId !== s.pid) return;
+    e.stopImmediatePropagation();
+    spin = null;
+    if (!s.moved) { openCardMenu(e.clientX, e.clientY, s.id); return; }
+    if (!cardRule(s.id, "rotate")) store.send({ t: "spin", id: s.id, angle: Math.round(s.angle * 100) / 100 });
+    layout(store.state); draw();
+  };
+  renderer.domElement.addEventListener("pointerup", spinUp, { capture: true });
+  renderer.domElement.addEventListener("pointercancel", (e) => { if (spin && e.pointerId === spin.pid) { spin = null; layout(store.state); draw(); } }, { capture: true });
+  // Системное меню по правой кнопке на карте гасим всегда; своё показываем на отпускании (мышь) или здесь (долгое касание пальцем).
   renderer.domElement.addEventListener("contextmenu", (e) => {
     const id = drag?.moved ? null : hitCard(e);
     if (!id || !takeable(id)) return;
     e.preventDefault();
-    closeMenu();
-    const m = document.createElement("div");
-    m.style.cssText = `position:fixed;z-index:60;left:${e.clientX}px;top:${e.clientY}px;background:#3a2a1d;box-shadow:0 0 0 2px #0b0704,inset 0 0 0 2px #6b4d2c;padding:4px;font:400 13px 'Tiny5',monospace`;
-    const b = document.createElement("button");
-    b.textContent = "Перевернуть";
-    b.style.cssText = "display:block;font:inherit;color:#f5ead0;background:transparent;border:0;padding:6px 10px;cursor:pointer;text-align:left";
-    b.onclick = () => { closeMenu(); if (cardRule(id, "turn")) deny(id, "turn"); else store.send({ t: "turn", id }); };
-    m.append(b);
-    document.body.append(m);
-    cardMenu = m;
+    if ((e as PointerEvent).pointerType === "touch" || (e as PointerEvent).pointerType === "pen") openCardMenu(e.clientX, e.clientY, id);
   });
   addEventListener("pointerdown", (e) => { if (cardMenu && !cardMenu.contains(e.target as Node)) closeMenu(); }, true);
   addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
@@ -3143,6 +3219,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * ЛОЖИТСЯ КАК ЛЁГ ПАЛЕЦ: быстро тянул и бросил — карта летит дальше по лучу камеры и ложится там, где луч встречает стол; палец стоит (или слегка дрожит) —
    * карта падает вертикально, ровно под собой. Между — плавно по скорости пальца за последние `THROW.window` мс.
    */
+  /** Вращение рукой: градусов на пиксель движения (мышь с Ctrl/Cmd, второй палец по вертикали, правая кнопка — по углу, там не нужно). */
+  const SPIN = { perPx: 0.45, dead: 10 };
+  let ptrX = 0;
   const THROW = { window: 120, still: 100, full: 600, settle: 40 };
   let trail: { x: number; y: number; t: number }[] = [];
   let lastThrow = 0;
@@ -3159,7 +3238,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (a.in !== "felt") return a;
     // Нельзя перемещать: куда бы ни отпустил — карта вернётся на своё место.
     const home = cardRule(d.id, "move") ? store.state.felt.find((f) => f.id === d.id) : undefined;
-    if (home) return { in: "felt", x: home.x, y: home.y, up: d.up, angle: home.angle };
+    if (home) return { in: "felt", x: home.x, y: home.y, up: d.up, angle: cardRule(d.id, "rotate") ? home.angle : d.angle };
     let at = { x: a.x, y: a.y };
     if (d.moved) {
       const under = heldAt(e.clientX, e.clientY, d.angle, d.up), w = throwWeight();
@@ -3381,7 +3460,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     ringLit: () => [...ringFields.entries()].map(([id, f]) => ({ id, zone: f.zone.visible, glow: f.glow.visible, slot: f.slot.visible })),
     cardQuat: (id: string) => { const o = cards.get(id); return o ? new THREE.Euler().setFromQuaternion(o.target.quat, "ZXY").toArray().slice(0, 3).map((v) => Math.round(((v as number) * 180) / Math.PI * 10) / 10) : null; },
     dropShadow: (id: string) => { const d = dropShadows.get(id); if (!d || !d.mesh.visible) return { on: false }; const a = d.pos; return { on: true, x: (a.getX(0) + a.getX(1) + a.getX(2) + a.getX(3)) / 4, z: (a.getZ(0) + a.getZ(1) + a.getZ(2) + a.getZ(3)) / 4 }; },
-    ruleInfo: (id: string) => ({ shaking: denies.has(id), ring: cards.get(id)?.ring.visible === true, home: homeMark.visible, lift: cardRule(id, "lift"), move: cardRule(id, "move"), turn: cardRule(id, "turn"), notice: { lift: cardNotice(id, "lift"), move: cardNotice(id, "move"), turn: cardNotice(id, "turn") } }),
+    ruleInfo: (id: string) => ({ shaking: denies.has(id), ring: cards.get(id)?.ring.visible === true, home: homeMark.visible, lift: cardRule(id, "lift"), move: cardRule(id, "move"), turn: cardRule(id, "turn"), notice: { lift: cardNotice(id, "lift"), move: cardNotice(id, "move"), turn: cardNotice(id, "turn"), rotate: cardNotice(id, "rotate") }, rotate: cardRule(id, "rotate") }),
     setNeckFree: (on: boolean) => { neckFree = on; },
     panInfo: () => ({ x: rig.panX, z: rig.panZ }),
     lookBy: (dyaw: number, dpitch: number) => lookBy(dyaw, dpitch),
