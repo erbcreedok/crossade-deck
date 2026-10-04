@@ -177,7 +177,21 @@ function pileBodyGeom(n: number): THREE.BufferGeometry {
   }
   return g;
 }
-interface CardObj { group: THREE.Group; front: THREE.Mesh; back: THREE.Mesh; shades: THREE.Mesh[]; ring: THREE.LineLoop; target: Place; faceUrl: string; backUrl: string }
+interface CardObj { group: THREE.Group; front: THREE.Mesh; back: THREE.Mesh; shades: THREE.Mesh[]; ring: THREE.LineLoop; halo: THREE.Mesh; target: Place; faceUrl: string; backUrl: string }
+/** Белое свечение вокруг карты (середина вырезана): красится материалом — подсветка стопки при приёмке и карты в чужих руках. */
+const cardGlowTexture = (() => {
+  let tex: THREE.CanvasTexture | null = null;
+  return (): THREE.CanvasTexture => {
+    if (tex) return tex;
+    const cv = document.createElement("canvas"); cv.width = 256; cv.height = 360;
+    const c = cv.getContext("2d")!, iw = (CARD_W / (CARD_W + 1)) * 256, ih = (CARD_H / (CARD_H + 1)) * 360, x = (256 - iw) / 2, y = (360 - ih) / 2;
+    c.shadowColor = "#fff"; c.shadowBlur = 34; c.fillStyle = "#fff";
+    for (let i = 0; i < 3; i++) { c.beginPath(); c.roundRect(x, y, iw, ih, 14); c.fill(); }
+    c.shadowBlur = 0; c.globalCompositeOperation = "destination-out"; c.beginPath(); c.roundRect(x, y, iw, ih, 14); c.fill();
+    tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  };
+})();
 const cardEdge = (() => {
   const w = CARD_W / 2 + 0.04, h = CARD_H / 2 + 0.04;
   return new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-w, -h, 0.003), new THREE.Vector3(w, -h, 0.003), new THREE.Vector3(w, h, 0.003), new THREE.Vector3(-w, h, 0.003)]);
@@ -1133,8 +1147,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (side) { m.rotation.y = Math.PI; m.position.z = -0.0035; } else m.position.z = 0.0025;
       return m;
     });
-    group.add(front, back, ring, ...shades);
-    o = { group, front, back, shades, ring, target: { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), scale: 1 }, faceUrl: "", backUrl: "" };
+    // Свечение цвета несущего у карты, которую держит чужой палец: лежит в плоскости карты и живёт в её группе — крутится, переворачивается и растёт вместе с ней, с обеих сторон.
+    const halo = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W + 1, CARD_H + 1), new THREE.MeshBasicMaterial({ map: cardGlowTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide, opacity: 0.9 }));
+    halo.visible = false; halo.raycast = () => {}; halo.renderOrder = 5; halo.position.z = -0.0005;
+    group.add(front, back, ring, halo, ...shades);
+    o = { group, front, back, shades, ring, halo, target: { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), scale: 1 }, faceUrl: "", backUrl: "" };
     cards.set(id, o);
     cardRoot.add(group);
     return o;
@@ -1762,9 +1779,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       seen.add(c.id);
     });
     // ЧУЖИЕ КАРТЫ В ВОЗДУХЕ — у них в руке, над тем местом, куда их несут.
+    const glowing = new Map<string, string>();
+    const inkOf = (by: string) => s.people.find((p) => p.key === by)?.ink ?? "#f2c14e";
     for (const c of store.carries) {
       if ((c.by === store.me.key && !store.replay?.on) || !cards.has(c.id)) continue;
       const o = cards.get(c.id)!;
+      glowing.set(c.id, inkOf(c.by));
       dress(o, c.card, s);
       const over = c.over;
       const at = over.in === "felt" ? { x: over.x, y: over.y } : over.in === "deck" ? s.piles.find((p) => p.id === over.pile) : (() => { const ch = s.chairs.find((x) => x.id === over.chair); return ch ? seatPoint(ch.angle, R - 1.2) : null; })();
@@ -1781,8 +1801,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         const o = cards.get(card.id);
         if (!o) return;
         dress(o, card, s);
+        glowing.set(card.id, inkOf(c.by));
         o.target = lying(over.x, over.y, 0.01 + 0.6 + i * PILE_STEP, over.angle, !!card.up);
       });
+    }
+    for (const [id, o] of cards) {
+      const ink = glowing.get(id);
+      o.halo.visible = ink !== undefined;
+      if (ink) (o.halo.material as THREE.MeshBasicMaterial).color.set(ink);
     }
     // НЕСОМАЯ МНОЙ — у пальца: над рукой — в щели руки (`retargetMine`); над столом — там, где решил палец.
     retargetMine();
@@ -2120,14 +2146,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return { mesh, hit, cv, tex, key: "" };
   }
   // ——— подсветка стопки при приёмке: свечение на сукне ПОД колодой, в её позе и в перспективе (`probe.setPileGlow`) ———
-  const glowMat = new THREE.MeshBasicMaterial({ map: (() => {
-    const cv = document.createElement("canvas"); cv.width = 256; cv.height = 360;
-    const c = cv.getContext("2d")!, iw = (CARD_W / (CARD_W + 1)) * 256, ih = (CARD_H / (CARD_H + 1)) * 360, x = (256 - iw) / 2, y = (360 - ih) / 2;
-    c.shadowColor = "rgb(127,209,185)"; c.shadowBlur = 34; c.fillStyle = "rgb(127,209,185)";
-    for (let i = 0; i < 3; i++) { c.beginPath(); c.roundRect(x, y, iw, ih, 14); c.fill(); }
-    c.shadowBlur = 0; c.globalCompositeOperation = "destination-out"; c.beginPath(); c.roundRect(x, y, iw, ih, 14); c.fill();
-    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; return tex;
-  })(), transparent: true, depthWrite: false });
+  const glowMat = new THREE.MeshBasicMaterial({ map: cardGlowTexture(), color: 0x7fd1b9, transparent: true, depthWrite: false });
   const glowMesh = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W + 1, CARD_H + 1), glowMat);
   glowMesh.visible = false; glowMesh.renderOrder = 1; scene.add(glowMesh);
   let glowFor: { pile: string; level: "hint" | "hot" } | null = null;
@@ -3079,6 +3098,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setPileSnap: (on: boolean) => { pileSnap = on; },
     fovDeg: () => camera.fov,
     cardMinY: (id: string) => { const o = cards.get(id); if (!o) return null; o.group.updateMatrixWorld(true); let m = Infinity; for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) m = Math.min(m, o.group.localToWorld(new THREE.Vector3(x * CARD_W / 2, y * CARD_H / 2, 0)).y); return m; },
+    haloInfo: (id: string) => { const o = cards.get(id); return o ? { on: o.halo.visible, color: (o.halo.material as THREE.MeshBasicMaterial).color.getHexString() } : null; },
     flipInfo: () => ({ deg: flipDeg, up: drag?.moved ? drag.up : null, second: !!flipTouch }),
     setPileGlow: (pile: string | null, level: "hint" | "hot" = "hint") => { const was = glowFor; glowFor = pile ? { pile, level } : null; if (was?.pile !== glowFor?.pile || was?.level !== glowFor?.level) draw(); },
     setBareTable: (on: boolean) => { bareTable = on; },

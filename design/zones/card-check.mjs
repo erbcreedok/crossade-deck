@@ -29,6 +29,22 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   await p.mouse.up(); await p.waitForTimeout(500);
   check(`карту можно взять в сцене «${which}»`, !!drag, drag);
 }
+// Свечение цвета несущего: видно в чужой сцене, у несущего его нет; крутится с картой.
+{
+  const id = await f.evaluate(() => window.__me.state.felt[0].id);
+  const at = await f.evaluate((i) => window.__top.test.screenOf(i), id);
+  const halo = (s) => f.evaluate(([w, i]) => window[w].test.haloInfo(i), [s, id]);
+  check("пока карту не несут, свечения нет нигде", !(await halo("__top")).on && !(await halo("__first")).on);
+  await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x + 14, at.y + 9, { steps: 4 });
+  for (let i = 0; i < 10; i++) { await p.mouse.move(at.x + 14 + (i % 2) * 6, at.y + 9, { steps: 2 }); await p.waitForTimeout(60); }
+  const mine = await halo("__top"), other = await halo("__first");
+  check("у несущего свечения нет", mine && !mine.on, mine);
+  check("в чужой сцене карта светится", other && other.on, other);
+  const blue = await f.evaluate(() => window.__me.state.people.find((x) => x.key === "blue").ink.replace("#", "").toLowerCase());
+  check("цвет свечения — цвет несущего (синий, не жёлтый запасной)", other && other.color === blue, { other, blue });
+  await p.mouse.up(); await p.waitForTimeout(700);
+  check("отпустил — свечение погасло", !(await halo("__first")).on);
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
