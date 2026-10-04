@@ -2006,11 +2006,17 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         sv += ((t.scale - sc) * sp.k - sv * c) * h;
         sc += sv * h;
       }
-      // Несомая карта поднимается на высоту вдоль луча камеры через палец: на экране она остаётся под пальцем (а не летит по прямой из места, где лежала, — снизу).
+      // Несомая карта поднимается вдоль луча камеры, а её центр плавно съезжает под палец (по экрану, а не по прямой из места, где лежала): снизу она не стартует и не отстаёт.
       if (t.held && drag?.id === id) {
         const cp = camera.position, up = cp.y - t.pos.y, now = cp.y - g.position.y;
-        if (up > 0.1 && now > 0.05) { const k = now / up; g.position.x = cp.x + (t.pos.x - cp.x) * k; g.position.z = cp.z + (t.pos.z - cp.z) * k; v.x = v.z = 0; }
-      }
+        if (up > 0.1 && now > 0.05) {
+          const goal = t.pos.clone().project(camera), pix = (g.userData.pix as THREE.Vector2 | undefined) ?? (g.userData.pix = g.position.clone().project(camera) as unknown as THREE.Vector2);
+          const k = 1 - Math.exp(-dt * 16);
+          pix.x += (goal.x - pix.x) * k; pix.y += (goal.y - pix.y) * k;
+          const dir = new THREE.Vector3(pix.x, pix.y, 0.5).unproject(camera).sub(cp).normalize();
+          if (dir.y < -1e-3) { const r = now / -dir.y; g.position.x = cp.x + dir.x * r; g.position.z = cp.z + dir.z * r; v.x = v.z = 0; }
+        }
+      } else if (g.userData.pix) g.userData.pix = undefined;
       g.userData.sv = sv;
       g.scale.setScalar(sc);
       d.copy(t.pos).sub(g.position);
