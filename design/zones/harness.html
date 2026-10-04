@@ -16,7 +16,7 @@
   #bar { position: absolute; left: 8px; top: 8px; z-index: 9; display: flex; gap: 6px; font: 400 12px 'Tiny5', monospace; }
   #bar button, #ans button { font: 400 12px "Tiny5", monospace; padding: 4px 8px; border: 0; background: #3a2a1d; color: #f5ead0; box-shadow: 0 0 0 2px #0b0704; cursor: pointer; }
   #bar button.on { background: #f2c14e; color: #0b0704; }
-  #say { position: absolute; z-index: 9; transform: translate(-50%, 0); font: 400 12px 'Tiny5', monospace; color: #0b0704; background: #f2c14e; padding: 2px 7px; box-shadow: 0 0 0 2px #0b0704; pointer-events: none; white-space: nowrap; display: none; }
+  #say { position: absolute; z-index: 9; transform: translate(-50%, 0); font: 400 12px 'Tiny5', monospace; color: #f5ead0; background: #3a2a1d; padding: 3px 8px; box-shadow: 0 0 0 2px #0b0704; pointer-events: none; white-space: nowrap; display: none; }
   #ans { position: absolute; z-index: 9; transform: translate(-50%, 0); display: none; gap: 6px; }
   body.live #stage { position: absolute; width: 820px; height: 820px; left: 50%; top: 50%; margin: -410px 0 0 -410px; }
 </style>
@@ -163,7 +163,7 @@ if (q.has("live")) {
     let pend = false, st = "", msg = note && performance.now() - noteAt < 1200 ? note : "";
     if (r && drag && policy !== "refuse") {
       const over = hit(r);
-      if (policy === "ask") { st = "hint"; pend = over; if (over && !inside) msg = ""; if (!over && inside) { msg = "запрос отозван"; note = msg; noteAt = performance.now(); } inside = over; }
+      if (policy === "ask") { st = "hint"; if (over) msg = "нужен апрув"; if (!over && inside) { msg = "запрос отозван"; note = msg; noteAt = performance.now(); } inside = over; }
       else st = over ? "hot" : "hint";
     } else inside = false;
     if (frozen) { st = ""; pend = true; msg = ""; }
