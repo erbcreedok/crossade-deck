@@ -123,6 +123,7 @@ await wait(300);
 
 top.test.setCamLocked(true); first.test.setCamLocked(true);
 for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
+{ const { addFullscreen } = await import("./frameFull.js"); window.__full = { top: addFullscreen($("f-top"), $("s-top")), first: addFullscreen($("f-first"), $("s-first")) }; }
 // Камера: по умолчанию её крутить нельзя — касание пустого места (кроме карт и язычка колоды) до сцены не доходит, колесо и щипок тоже. Тумблер «камера» в панели включает управление камерой на обеих сценах.
 let cameraOn = false;
 for (const [el, sc] of [[$("s-top"), top], [$("s-first"), first]]) {

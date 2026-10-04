@@ -121,6 +121,7 @@ await wait(900);
 await wait(300);
 
 for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
+{ const { addFullscreen } = await import("./frameFull.js"); window.__full = { top: addFullscreen($("f-top"), $("s-top")), first: addFullscreen($("f-first"), $("s-first")) }; }
 // Камера включена всегда: ничего не блокируется.
 // ВЫБОР ИГРОКА У КАЖДОЙ СЦЕНЫ: по умолчанию синий; смена не трогает камеру.
 for (const which of ["top", "first"]) {

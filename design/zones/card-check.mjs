@@ -62,6 +62,17 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
     check(`несут в «${from === "__top" ? "сверху" : "от первого лица"}» — у зрителя ${tilted ? "наклонена" : "плашмя"}`, tilted ? t.fromUp > 8 : t.fromUp < 3, t);
   }
 }
+// «На весь экран» у каждой сцены: кадр занимает окно, сцена растягивается под него, повторное нажатие возвращает.
+for (const [which, fr, st] of [["top", "f-top", "s-top"], ["first", "f-first", "s-first"]]) {
+  const size = () => f.evaluate(([a, b]) => { const r = document.getElementById(a).getBoundingClientRect(), c = document.querySelector("#" + b + " canvas").getBoundingClientRect(); return { fw: Math.round(r.width), fh: Math.round(r.height), cw: Math.round(c.width), ch: Math.round(c.height), vw: innerWidth, vh: innerHeight }; }, [fr, st]);
+  const before = await size();
+  await f.evaluate((id) => document.getElementById(id).querySelector(".fsbtn").click(), fr); await p.waitForTimeout(400);
+  const on = await size();
+  check(`сцена «${which}»: на весь экран — кадр и холст во всё окно`, on.fw === on.vw && on.fh >= on.vh - 2 && on.cw === on.vw && on.ch >= on.vh - 2, on);
+  await f.evaluate((id) => document.getElementById(id).querySelector(".fsbtn").click(), fr); await p.waitForTimeout(400);
+  const off = await size();
+  check(`сцена «${which}»: повторное нажатие возвращает как было`, off.fh === before.fh && off.cw === before.cw && off.ch === before.ch, { before, off });
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));

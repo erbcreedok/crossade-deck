@@ -41,6 +41,19 @@ const after = await at();
 const ang = (c) => Math.atan2(c.y - 422, c.x - 195);
 const turned = ((((ang(after) - ang(before)) * 180) / Math.PI + 540) % 360) - 180;
 check("двумя пальцами поворот на ~60° по часовой — стол повернулся по часовой", turned > 30 && turned < 90, { turned });
+// 4. Несу карту и держу палец у правого края: камера едет вправо, карта остаётся под пальцем; у низа камера стоит (там рука).
+{
+  const pan0 = await p.evaluate(() => window.__t3d.panInfo()), me = await at();
+  await p.mouse.move(me.x, me.y); await p.mouse.down(); await p.mouse.move(me.x + 20, me.y - 10, { steps: 3 });
+  await p.mouse.move(386, me.y, { steps: 6 }); await p.waitForTimeout(500);
+  const pan1 = await p.evaluate(() => window.__t3d.panInfo()), under = await p.evaluate((i) => window.__t3d.screenOf(i), id);
+  check("палец с картой у правого края — камера едет", Math.hypot(pan1.x - pan0.x, pan1.z - pan0.z) > 0.5, { pan0, pan1 });
+  check("карта осталась под пальцем", Math.hypot(under.x - 386, under.y - me.y) < 40, { under });
+  await p.mouse.move(195, 838, { steps: 4 }); const pb = await p.evaluate(() => window.__t3d.panInfo()); await p.waitForTimeout(400);
+  const pc = await p.evaluate(() => window.__t3d.panInfo());
+  check("у низа камера не едет", Math.hypot(pc.x - pb.x, pc.z - pb.z) < 0.05, { pb, pc });
+  await p.mouse.up();
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const k of checks) console.log(k.ok ? "ok  " : "FAIL", k.name, k.ok ? "" : JSON.stringify(k.got));
