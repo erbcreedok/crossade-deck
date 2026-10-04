@@ -1,0 +1,41 @@
+server/src/table/contract.ts
+  s_ad8a8a5b5d0419::t_33bf597b1cb4d5 773-774
+table3d/check.mjs
+  s_ad8a8a5b5d0419::t_5fc44ec37db59c 2,62,64-65,67,77,80-81,84
+server/table-client/cardFlip.ts
+  s_ad8a8a5b5d0419::t_a94c4caa5a8124 1-47
+design/zones/card-scenes.html
+  s_ad8a8a5b5d0419::t_be5c7f9943f71a 81
+design/zones/piles-scenes.html
+  s_ad8a8a5b5d0419::t_be5c7f9943f71a 82
+server/src/table/table.ts
+  s_ad8a8a5b5d0419::t_33bf597b1cb4d5 155,713-714,773
+server/table-client/cardFlip.test.ts
+  s_ad8a8a5b5d0419::t_a94c4caa5a8124 1-45
+server/src/table/carryFlip.test.ts
+  s_ad8a8a5b5d0419::t_33bf597b1cb4d5 1-32
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_c5b0fcee69471c 2675-2683,2818,2841-2872,2874-2888
+  s_ad8a8a5b5d0419::t_f5415586dbb59d 28,1769-1772,1790,2709,2730-2752,2754-2758,2762-2763,2793,2798,2803,2806-2807,2816,2896
+  s_ad8a8a5b5d0419::t_0905f125c15d0c 2753
+  s_ad8a8a5b5d0419::t_d24af8e7dcfc4e 2873,3065
+table3d/flip-check.mjs
+  s_ad8a8a5b5d0419::t_e43e03c8c489e5 18-94
+  s_ad8a8a5b5d0419::t_84fe980ea7c56f 1-17,95-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "96f7897af3c00e73b5f07dc1479c54b37cb1dfd9",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
