@@ -35,8 +35,8 @@ import { lockTouch } from "./touchLock.js";
 const DEG = Math.PI / 180;
 /** Насколько далеко от середины стола можно увести камеру сверху, долей радиуса стола. */
 const PAN_LIMIT = 1;
-/** Несу карту и держу палец у края сцены (сверху, слева, справа): камера едет в ту сторону, чем ближе к самому краю — тем быстрее. Низ — рука, там камеру не двигаем. */
-const EDGE_SCROLL = { band: 44, panPx: 520, turnDeg: 80 };
+/** Несу карту и держу палец у края сцены (сверху, слева, справа): камера едет в ту сторону, чем ближе к самому краю — тем быстрее. У низа полоса уже: там рука, и карту в неё кладут чуть выше самой кромки. */
+const EDGE_SCROLL = { band: 44, bottom: 18, panPx: 520, turnDeg: 80 };
 const R = TABLE_RADIUS, RIM = 0.45, THICK = 0.6;
 const CARD_W = 1.17, CARD_H = 1.638;
 /** Каждую карту стопки — чуть выше предыдущей; каждую карту сукна — выше лёгшей раньше. */
@@ -2040,7 +2040,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (drag?.moved && dragPid !== null && !camLocked && (camMode === "top" || camMode === "head")) {
       const r = visibleRect(), b = EDGE_SCROLL.band;
       const near = (d: number) => Math.max(0, Math.min(1, (b - d) / b));
-      const vx = near(lastFinger.x - r.left) * -1 + near(r.right - lastFinger.x), vy = near(lastFinger.y - r.top);
+      const vx = near(lastFinger.x - r.left) * -1 + near(r.right - lastFinger.x), vy = near(lastFinger.y - r.top) - Math.max(0, Math.min(1, (EDGE_SCROLL.bottom - (r.bottom - lastFinger.y)) / EDGE_SCROLL.bottom));
       if (vx || vy) {
         if (camMode === "top") panBy({ x: r.left + r.width / 2, y: r.top + r.height / 2 }, { clientX: r.left + r.width / 2 - vx * EDGE_SCROLL.panPx * dt, clientY: r.top + r.height / 2 + vy * EDGE_SCROLL.panPx * dt });
         else lookBy(vx * EDGE_SCROLL.turnDeg * dt, vy * EDGE_SCROLL.turnDeg * dt);

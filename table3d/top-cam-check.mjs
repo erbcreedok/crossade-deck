@@ -51,7 +51,10 @@ check("двумя пальцами поворот на ~60° по часовой
   check("карта осталась под пальцем", Math.hypot(under.x - 386, under.y - me.y) < 40, { under });
   await p.mouse.move(195, 838, { steps: 4 }); const pb = await p.evaluate(() => window.__t3d.panInfo()); await p.waitForTimeout(400);
   const pc = await p.evaluate(() => window.__t3d.panInfo());
-  check("у низа камера не едет", Math.hypot(pc.x - pb.x, pc.z - pb.z) < 0.05, { pb, pc });
+  check("у самой кромки низа камера едет вниз", pc.z - pb.z > 0.3, { pb, pc });
+  await p.mouse.move(195, 760, { steps: 3 }); const pd = await p.evaluate(() => window.__t3d.panInfo()); await p.waitForTimeout(300);
+  const pe = await p.evaluate(() => window.__t3d.panInfo());
+  check("чуть выше кромки (над рукой) камера стоит", Math.hypot(pe.x - pd.x, pe.z - pd.z) < 0.05, { pd, pe });
   await p.mouse.up();
 }
 await browser.close();
