@@ -27,21 +27,22 @@
   .chip { display: inline-block; padding: 1px 6px; font-size: 11px; color: var(--black); }
   .c-no { background: #5a5448; color: var(--inkDim); } .c-yes { background: var(--mine); } .c-hot { background: var(--gold); } .c-bad { background: var(--danger); color: var(--ink); }
   /* зона и стопка */
-  .zone { position: absolute; left: 50%; top: 50%; width: 62px; height: 78px; margin: -39px 0 0 -31px; border-radius: 9px; --ink: var(--mine); }
+  .zone { position: absolute; left: 50%; top: calc(50% - 4px); width: 64px; height: 96px; margin: -48px 0 0 -32px; border-radius: 9px; --ink: var(--mine); }
   .zone.hint { border: 2px dashed var(--ink); opacity: .8; }
   .zone.hot { border: 3px solid var(--ink); background: color-mix(in srgb, var(--ink) 28%, transparent); }
   .zone.ask { border: 2px dashed var(--gold); animation: pulse 1s steps(2) infinite; }
   .zone.decline { border: 3px solid var(--danger); background: color-mix(in srgb, var(--danger) 25%, transparent); animation: shake .5s steps(6) infinite; }
   @keyframes pulse { 50% { opacity: .35; } }
   @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
-  .stack { position: absolute; left: 50%; top: 50%; width: 44px; height: 62px; margin: -31px 0 0 -22px; }
+  .stack { position: absolute; left: 50%; top: calc(50% - 8px); width: 44px; height: 62px; margin: -31px 0 0 -22px; }
   .stack img { position: absolute; width: 44px; height: 62px; box-shadow: 0 0 0 1.5px var(--black); }
   .tab { position: absolute; right: 2px; top: 50%; margin-top: -9px; height: 18px; padding: 0 5px; display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--ink);
     background: linear-gradient(var(--goldLight), var(--goldDark)); color: var(--black); box-shadow: 0 0 0 2px var(--black); }
   .tab .ic { width: 12px; height: 12px; }
-  .lockic { position: absolute; right: 4px; top: 50%; margin-top: -13px; }
+  .lockic { position: absolute; left: 50%; top: calc(50% + 34px); margin-left: -12px; }
+  .tabc { position: absolute; left: 50%; top: calc(50% + 31px); width: 37px; height: 18.5px; margin-left: -18.5px; image-rendering: auto; }
   .seat { position: absolute; left: 6px; top: 6px; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--black); box-shadow: 0 0 0 2px var(--black); }
-  .carry { position: absolute; width: 30px; height: 44px; box-shadow: 0 0 0 1.5px var(--black), 0 4px 0 rgba(11,7,4,.5); animation: bob 1.4s steps(2) infinite; }
+  .carry { position: absolute; width: 31px; height: 43px; box-shadow: 0 0 0 1.5px var(--black), 0 4px 0 rgba(11,7,4,.5); animation: bob 1.4s steps(2) infinite; }
   @keyframes bob { 50% { transform: translateY(-3px); } }
   .arrow { position: absolute; font-size: 18px; color: var(--gold); text-shadow: 0 2px 0 var(--black); }
   .p-i { fill: var(--ink); } .p-a { fill: var(--gold); } .p-d { fill: var(--inkDim); fill-opacity: .55; } .p-r { fill: var(--danger); } .p-bg { fill: var(--well); }
@@ -63,10 +64,10 @@ const I = (n, s = 1) => PixelIcons.icon(n, s);
 const C = { mine: "var(--mine)", alia: "var(--alia)", timur: "var(--timur)", free: "var(--free)", gold: "var(--gold)" };
 
 /** Одна картинка-сцена: зона (состояние), стопка, язычок или замок, значок места, несомое. */
-function scene({ ink = "mine", zone = "none", n = 5, tab = true, lock = false, seat = "", extra = "", hand = false, bowl = false, stack = true }) {
+function scene({ ink = "mine", zone = "none", n = 5, tab = true, tabLit = false, lock = false, seat = "", extra = "", hand = false, bowl = false, stack = true }) {
   const cards = Array.from({ length: Math.min(4, Math.ceil(n / 2)) }, (_, i) => `<img src="cards/back.webp" style="left:${i * 1.2}px;top:${-i * 1.2}px">`).join("");
   const z = zone === "none" ? "" : `<div class="zone ${zone}" style="--ink:${C[ink]}"></div>`;
-  const t = lock ? `<div class="lockic">${I("lock", 2)}</div>` : tab ? `<div class="tab">${I("cards", 1)}${n}</div>` : "";
+  const t = lock ? `<div class="lockic">${I("lock", 2)}</div>` : tab ? `<canvas class="tabc" data-n="${n}" data-lit="${tabLit ? 1 : 0}" width="148" height="74"></canvas>` : "";
   const s = seat ? `<div class="seat" style="background:${C[ink]}">${seat}</div>` : "";
   const st = stack ? `<div class="stack">${cards}</div>` : "";
   const h = hand ? `<div class="hand"><img src="cards/club-A.webp" style="left:6px;transform:rotate(-10deg)"><img src="cards/diamond-10.webp" style="left:25px"><img src="cards/club-K.webp" style="left:44px;transform:rotate(10deg)"></div>` : "";
@@ -121,6 +122,20 @@ const slides = [
   </div>`),
 ];
 document.getElementById("slides").innerHTML = slides.join("");
+/** ЯЗЫЧОК — тот же рисунок, что в игре (`drawTab` в table3d/src/scene.ts): плоский край к стопке, скруглённый наружу, плашка, две карты веером, число. */
+function drawTab(cv) {
+  const count = Number(cv.dataset.n), lit = cv.dataset.lit === "1", c = cv.getContext("2d"), W = cv.width, H = cv.height, r = H * 0.42, line = H * 0.08;
+  const T = { black: "#0b0704", ink: "#f5ead0" }, BAR = { plateHi: "#25321f", plateLo: "#16210f", goldHi: "#f8d885", goldLo: "#b08a26" };
+  c.clearRect(0, 0, W, H);
+  c.beginPath(); c.moveTo(0, 0); c.lineTo(W, 0); c.lineTo(W, H - r); c.quadraticCurveTo(W, H, W - r, H); c.lineTo(r, H); c.quadraticCurveTo(0, H, 0, H - r); c.closePath();
+  const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, lit ? BAR.goldHi : BAR.plateHi); g.addColorStop(1, lit ? BAR.goldLo : BAR.plateLo);
+  c.fillStyle = g; c.fill(); c.lineJoin = "round"; c.lineWidth = line; c.strokeStyle = T.black; c.stroke();
+  const ink = lit ? T.ink : BAR.goldHi, cy = H * 0.5;
+  for (const [dx, a] of [[-0.05, -0.28], [0.05, 0.2]]) { c.save(); c.translate(W * 0.2 + dx * W, cy); c.rotate(a); c.fillStyle = ink; c.strokeStyle = T.black; c.lineWidth = line * 0.7; c.beginPath(); c.roundRect(-H * 0.17, -H * 0.27, H * 0.34, H * 0.54, H * 0.05); c.fill(); c.stroke(); c.restore(); }
+  c.fillStyle = lit ? T.black : T.ink; c.textBaseline = "middle"; c.textAlign = "left"; c.font = `${Math.round(H * 0.5)}px Tiny5, monospace`; c.fillText(String(count), W * 0.38, cy + H * 0.03);
+}
+document.fonts.load("20px Tiny5").then(() => document.querySelectorAll("canvas.tabc").forEach(drawTab));
+
 </script>
 </body>
 </html>
