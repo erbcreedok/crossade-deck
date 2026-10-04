@@ -3147,7 +3147,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * ЛОЖИТСЯ КАК ЛЁГ ПАЛЕЦ: быстро тянул и бросил — карта летит дальше по лучу камеры и ложится там, где луч встречает стол; палец стоит (или слегка дрожит) —
    * карта падает вертикально, ровно под собой. Между — плавно по скорости пальца за последние `THROW.window` мс.
    */
-  const THROW = { window: 120, still: 100, full: 600 };
+  const THROW = { window: 120, still: 100, full: 600, settle: 40 };
   let trail: { x: number; y: number; t: number }[] = [];
   let lastThrow = 0;
   const throwWeight = (): number => {
@@ -3158,7 +3158,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const speed = (Math.hypot(b.x - a.x, b.y - a.y) / (b.t - a.t)) * 1000;
     return Math.max(0, Math.min(1, (speed - THROW.still) / (THROW.full - THROW.still)));
   };
-  function target(e: { clientX: number; clientY: number }, d: { id: string; up: boolean; angle: number; moved?: boolean }): Where {
+  function target(e: { clientX: number; clientY: number }, d: { id: string; up: boolean; angle: number; moved?: boolean; x?: number; y?: number }): Where {
     const a = aim(e.clientX, e.clientY, undefined, d.id);
     if (a.in !== "felt") return a;
     // Нельзя перемещать: куда бы ни отпустил — карта вернётся на своё место.
@@ -3169,6 +3169,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const under = heldAt(e.clientX, e.clientY, d.angle, d.up), w = throwWeight();
       lastThrow = w;
       if (under) at = { x: under.pos.x + (a.x - under.pos.x) * w, y: under.pos.z + (a.y - under.pos.z) * w };
+      // Взял и почти не сдвинул (поднял и опустил): карта поднималась по лучу и сместилась к камере — ложится не под собой, а на своё место; чем дальше палец от места взятия, тем больше «под собой».
+      const start = d.x !== undefined && d.y !== undefined ? store.state.felt.find((f) => f.id === d.id) : undefined;
+      if (start) {
+        const k = Math.max(0, Math.min(1, Math.hypot(e.clientX - d.x!, e.clientY - d.y!) / THROW.settle));
+        at = { x: start.x + (at.x - start.x) * k, y: start.y + (at.y - start.y) * k };
+      }
     }
     const far = Math.hypot(at.x, at.y);
     if (far > FELT_REACH) at = { x: (at.x / far) * FELT_REACH, y: (at.y / far) * FELT_REACH };
