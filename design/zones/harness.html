@@ -140,6 +140,10 @@ if (q.has("live")) {
     if (ty === "pointerdown") setTimeout(() => rec("after-down-250ms", snap()), 250);
     if (ty === "pointerup") for (const ms of [100, 400, 1200]) setTimeout(() => rec(`after-up-${ms}ms`, snap()), ms);
   }, true);
+  // Кадры во время жеста: где палец и где несомая карта на экране (и сколько мс между кадрами) — видно, откуда карта прилетает и не залипает ли страница.
+  addEventListener("error", (e) => rec("error", { msg: String(e.message).slice(0, 200) }));
+  addEventListener("unhandledrejection", (e) => rec("rejection", { msg: String(e.reason).slice(0, 200) }));
+  { let last = performance.now(), n = 0; const frame = () => { const now = performance.now(), id = scene.test.draggingId(); if (id) { const a = scene.test.screenOf(id); if (n++ % 2 === 0) rec("frame", { dt: Math.round(now - last), card: a ? [Math.round(a.x), Math.round(a.y)] : null, finger: finger ? [Math.round(finger.x), Math.round(finger.y)] : null, id }); } else n = 0; last = now; requestAnimationFrame(frame); }; requestAnimationFrame(frame); }
   { const send = store.send.bind(store); store.send = (m) => { rec("send", { m: JSON.parse(JSON.stringify(m)) }); return send(m); }; }
   // ОТЛАДКА ВЗЯТИЯ: что видит игра в момент нажатия — по этой строке видно, почему карту не берёт.
   addEventListener("pointerdown", (e) => {
