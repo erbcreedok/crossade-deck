@@ -133,7 +133,7 @@ const carry = (x, y, img = "club-K") => `<img class="carry" src="cards/${img}.we
 const have = ["в игре", "have"], plan = ["план", "plan"], upd = ["меняем", "new"];
 
 const slides = [
-  slide(1, "СТОПКА И КАРТЫ", have, `<iframe src="harness.html?live=1" style="display:block;width:100%;height:300px;border:0;border-radius:10px;background:#0a1511;touch-action:none"></iframe>`),
+  slide(1, "СТОПКА И КАРТЫ", have, `<iframe src="http://${location.hostname}:9590/@fs/Users/giyers/Desktop/crossade-deck/design/zones/harness.html?live=1" style="display:block;width:100%;height:300px;border:0;border-radius:10px;background:#0a1511;touch-action:none"></iframe>`),
   slide(2, "КОНТУР = ПРИЁМКА", upd, `<div class="shots">
     ${shot(scene({ ink: "alia", seat: "А", zone: "hint", extra: carry(4, 62) }), "несу рядом", ["подсказка", "c-yes"])}
     ${shot(scene({ ink: "alia", seat: "А", zone: "hot", extra: carry(36, 28) }), "над зоной", ["горит", "c-hot"])}
