@@ -23,7 +23,7 @@
 </head>
 <body>
 <div id="stage"></div>
-<canvas id="zcv" style="position:absolute;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:5"></canvas><div id="zone" style="display:none"></div><div id="say"></div><div id="bar"></div>
+<canvas id="zcv" style="position:absolute;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:5"></canvas><div id="zone" style="display:none"></div><div id="say"></div><div id="bar"></div><div id="dbg" style="position:absolute;left:6px;right:6px;bottom:4px;z-index:9;font:10px/1.25 monospace;color:#f5ead0;background:rgba(0,0,0,.55);padding:2px 5px;pointer-events:none;white-space:pre-wrap"></div>
 <script type="module">
 // СЦЕНА ИГРЫ ДЛЯ СНИМКОВ. Здесь нет ничего нарисованного руками: подтягивается НАСТОЯЩИЙ `scene.ts` и локальный стол с dev-сервера игры (порт 9590, только читаем), стол приводится в нужное состояние теми же
 // намерениями, что у игрока, и `shoot.mjs` снимает кадр. Страница стенда потом показывает эти снимки — один в один как в игре.
@@ -125,6 +125,14 @@ if (q.has("live")) {
       fire("pointermove", px, py); fire("pointerup", px, py);
       waiting.splice(waiting.filter((w) => scene.test.screenOf(w).x < finger.x).length, 0, id); settle();
     }
+  }, true);
+  // ОТЛАДКА ВЗЯТИЯ: что видит игра в момент нажатия — по этой строке видно, почему карту не берёт.
+  addEventListener("pointerdown", (e) => {
+    if (!e.isTrusted) return;
+    const t = scene.test, id = t.cardAt(e.clientX, e.clientY), s = store.state, pl = s.piles.find((x) => x.id === restRect?.id);
+    const line = `down hit=${id ?? "—"} ${id && pl ? (pl.cards.at(-1)?.id === id ? "TOP" : pl.cards.some((c) => c.id === id) ? "под верхней" : "не в стопке") : ""} lock=${id ? (s.locks[id] ?? "нет") : "-"} pick=${id ? !!s.picks[id] : "-"} n=${pl?.cards.length}`;
+    const el = document.getElementById("dbg"); el.textContent = line;
+    setTimeout(() => { el.textContent = line + ` → drag=${t.draggingId() ?? "нет"}`; }, 250);
   }, true);
   window.__dbg = () => ({ finger, waiting: [...waiting], drag: scene.test.draggingId(), r: pileRect() });
   const tick = () => {
