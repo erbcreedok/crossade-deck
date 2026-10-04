@@ -1,0 +1,29 @@
+design/zones/frameFull.js
+  s_ad8a8a5b5d0419::t_aa93496506c344 1-32
+design/zones/piles-scenes.html
+  s_ad8a8a5b5d0419::t_aa93496506c344 126
+table3d/top-cam-check.mjs
+  s_ad8a8a5b5d0419::t_562875ee507f8c 44-56
+design/zones/card-check.mjs
+  s_ad8a8a5b5d0419::t_b8a4de30388ee1 65-75
+design/zones/card-scenes.html
+  s_ad8a8a5b5d0419::t_aa93496506c344 124
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_7ef24799286967 38-39,2027-2041
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7894ce180718ce5f53f62bf84736cdc7ed1b3984",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
