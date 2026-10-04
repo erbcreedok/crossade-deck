@@ -47,6 +47,8 @@ const HOLD_PICK_MS = 350;
  * ПРУЖИНА — как карты догоняют свои места: жёсткость и доля затухания от критического (меньше 1 — с лёгким
  * перелётом). Несомая — жёстче и почти без перелёта: она должна быть под пальцем, а не догонять его.
  */
+/** Несомая в свободном месте карта смотрит на глаз несущего: `face` — доля пути от «лежит плашмя» до «лицом к глазу» (остальное — наклон туда, куда ляжет). */
+const CARRY_TILT = { face: 0.65, floor: 0.12 };
 const SPRING = { k: 170, damp: 0.62 }, SPRING_HELD = { k: 900, damp: 0.9 };
 /** Над своей рукой несомая карта — выше соседей на эту долю своей высоты, ближе к глазу и чуть крупнее. */
 /** Размер своих карт в руке относительно обычного: предел ползунка в настройках. */
@@ -1170,6 +1172,21 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (o.faceUrl !== faceUrl) { o.faceUrl = faceUrl; (o.front.material as THREE.MeshBasicMaterial).map = c.face ? texture(faceUrl, draw) : fingerTexture(c.id); (o.front.material as THREE.MeshBasicMaterial).needsUpdate = true; }
     if (o.backUrl !== backUrl) { o.backUrl = backUrl; (o.back.material as THREE.MeshBasicMaterial).map = texture(backUrl, draw); (o.back.material as THREE.MeshBasicMaterial).needsUpdate = true; }
   }
+  /**
+   * Лежащую позу `p` наклоняет к глазу `eye` вокруг центра карты (кратчайшим поворотом, поэтому «верх» карты остаётся к несущему) на долю
+   * `CARRY_TILT.face`; низ карты не уходит под сукно — центр приподнимается.
+   */
+  function faceEye(p: Place, eye: THREE.Vector3): Place {
+    const to = eye.clone().sub(p.pos);
+    if (to.lengthSq() < 1e-6) return p;
+    to.normalize();
+    const full = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), to).multiply(p.quat);
+    p.quat = p.quat.clone().slerp(full, CARRY_TILT.face);
+    const n = new THREE.Vector3(0, 0, 1).applyQuaternion(p.quat), flatness = Math.abs(n.y);
+    const low = (CARD_H / 2) * Math.sqrt(Math.max(0, 1 - flatness * flatness)) * p.scale + CARRY_TILT.floor;
+    p.pos.y = Math.max(p.pos.y, low);
+    return p;
+  }
   /** Лежит на сукне: лицом вверх (`up`) или рубашкой, повёрнута по часовой на `angle`. */
   const lying = (x: number, y: number, h: number, angle: number, up: boolean): Place => {
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, -angle * DEG, 0, "YXZ"));
@@ -1794,6 +1811,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const at = over.in === "felt" ? { x: over.x, y: over.y } : over.in === "deck" ? s.piles.find((p) => p.id === over.pile) : (() => { const ch = s.chairs.find((x) => x.id === over.chair); return ch ? seatPoint(ch.angle, R - 1.2) : null; })();
       if (at) {
         o.target = lying(at.x, at.y, 1.4, over.in === "felt" ? over.angle : 0, over.in === "felt" ? over.up : !!c.card.up);
+        const head = over.in === "felt" ? poses.get(s.chairs.find((x) => x.owner === c.by)?.id ?? "")?.head : undefined;
+        if (head) faceEye(o.target, V(head));
         if (c.flip) o.target.quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), c.flip * DEG));
       }
     }
@@ -2447,7 +2466,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const p = lying(at.x, at.z, at.y, angle, up);
     p.scale = 1.06;
     p.held = true;
-    return p;
+    return camMode === "top" ? p : faceEye(p, camera.position);
   };
   /** Моя левая рука (с веером) — куда тянется правая, когда несу карту в свою руку: так это видят остальные. */
   const myLeftHand = (): { x: number; y: number } | null => {
@@ -3141,6 +3160,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     feltScreen: (x: number, y: number) => project(new THREE.Vector3(x, 0, y)),
     ringLit: () => [...ringFields.entries()].map(([id, f]) => ({ id, zone: f.zone.visible, glow: f.glow.visible, slot: f.slot.visible })),
     cardQuat: (id: string) => { const o = cards.get(id); return o ? new THREE.Euler().setFromQuaternion(o.target.quat, "ZXY").toArray().slice(0, 3).map((v) => Math.round(((v as number) * 180) / Math.PI * 10) / 10) : null; },
+    cardTilt: (id: string) => { const o = cards.get(id); if (!o) return null; const n = new THREE.Vector3(0, 0, 1).applyQuaternion(o.target.quat), eye = camera.position.clone().sub(o.target.pos).normalize(), s = Math.sign(n.dot(eye)) || 1; return { fromUp: Math.acos(Math.min(1, Math.abs(n.y))) / DEG, towardEye: Math.acos(Math.min(1, Math.abs(n.dot(eye)))) / DEG, minY: (() => { let m = Infinity; for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) m = Math.min(m, new THREE.Vector3(x * CARD_W / 2, y * CARD_H / 2, 0).applyQuaternion(o.target.quat).y + o.target.pos.y); return m; })(), s }; },
     cardTarget: (id: string) => { const o = cards.get(id); return o ? o.target.pos.toArray() : null; },
     neckNow: () => ({ ...neck }),
     seatBy: (d: number) => seatBy(d),
