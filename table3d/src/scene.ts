@@ -1785,11 +1785,21 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     // Отпущенная — ждёт ответа стола там, куда легла.
     holdLanding();
+    applyFloats(performance.now());
     ringHover();
     if (reseat) reseatSync();
     applyGather();
     for (const [id, o] of cards) if (!seen.has(id)) { cardRoot.remove(o.group); cards.delete(id); }
     draw();
+  }
+  /** Стенд дизайна: карта, что ждёт ответа стопки, висит над ней и чуть покачивается (`test.floatCard`); в игре таких нет. */
+  const floats = new Map<string, { pile: string; dx: number; dy: number; lift: number; da: number; up: boolean; phase: number }>();
+  function applyFloats(now: number): void {
+    for (const [id, f] of floats) {
+      const o = cards.get(id), pile = store.state.piles.find((p) => p.id === f.pile);
+      if (!o || !pile) continue;
+      o.target = lying(pile.x + f.dx, pile.y + f.dy, 0.35 + pile.cards.length * PILE_STEP + f.lift + Math.sin(now / 420 + f.phase) * 0.05, pileAngle(pile) + f.da, f.up);
+    }
   }
   /** Где карта по снимку — ключом: поменялся — стол ответил, и ждать ответа на месте больше нечего. */
   const fromKey = (id: string) => { const f = store.state.felt.find((c) => c.id === id); return JSON.stringify(fromOf.get(id) ?? null) + (f ? `${f.x},${f.y},${f.up}` : ""); };
@@ -1919,6 +1929,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const now = performance.now(), dt = Math.min(0.05, Math.max(0.001, (now - lastTick) / 1000));
     const sinceMs = Math.min(250, now - lastTick);
     lastTick = now;
+    if (floats.size) { applyFloats(now); moving = true; }
     syncSeatAngle();
     applyGyro();
     // Камера и моя рука — до пружин: рука едет с головой, и пружины догоняют уже новое место.
@@ -2912,6 +2923,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     setPileSnap: (on: boolean) => { pileSnap = on; },
+    floatCard: (id: string, pile: string | null, dx = 0, dy = 0, lift = 0, da = 0, up = true) => { if (pile) floats.set(id, { pile, dx, dy, lift, da, up, phase: Math.random() * 6 }); else floats.delete(id); layout(store.state); },
     seatNow: () => seatPull,
     dollParts: () => { const b = heads.children[0]?.children.find((c) => c.userData.base)?.userData as { base?: THREE.Vector3 } | undefined; const ch = [...chairObjs.values()][0]; return { headY: b?.base?.y ?? null, chairScale: ch?.group.scale.x ?? null }; },
     pickAtNow: (x: number, y: number) => api.pickAt(x, y),

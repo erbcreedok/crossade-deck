@@ -106,29 +106,40 @@ if (q.has("live")) {
     return restRect;
   };
   const hit = (r) => finger && Math.abs(finger.x - r.x) < r.w / 2 + 6 && Math.abs(finger.y - r.y) < r.h / 2 + 6;
-  addEventListener("pointermove", (e) => { pid = e.pointerId; if (frozen && e.isTrusted) { e.stopImmediatePropagation(); return; } if (e.isTrusted) finger = { x: e.clientX, y: e.clientY }; }, true);
+  addEventListener("pointermove", (e) => { pid = e.pointerId; if (e.isTrusted) finger = { x: e.clientX, y: e.clientY }; }, true);
   const fire = (type, x, y) => dispatchEvent(new PointerEvent(type, { pointerId: pid, clientX: x, clientY: y, bubbles: true, isPrimary: true, pointerType: "mouse", buttons: type === "pointerup" ? 0 : 1 }));
+  /** Карты, что ждут ответа: висят над стопкой, покачиваются, каждая в своей позе; реально лежат на сукне сбоку. */
+  const waiting = [];
+  const settle = (id, i) => scene.test.floatCard(id, restRect.id, 0.16 * i - 0.1, -0.12 * i, 0.1 * i, [-4, 3, -2, 5][i % 4], store.state.felt.find((c) => c.id === id)?.up ?? true);
   addEventListener("pointerup", (e) => {
-    if (!e.isTrusted || !scene.test.draggingId()) return;
-    const r = pileRect(); if (!r || !hit(r) || store.state.piles.some((p) => p.id === restRect?.id && p.cards.some((c) => c.id === scene.test.draggingId()))) return;
+    const id = scene.test.draggingId();
+    if (!e.isTrusted || !id) return;
+    const r = pileRect(); if (!r || !hit(r) || store.state.piles.some((p) => p.id === restRect?.id && p.cards.some((c) => c.id === id))) return;
     if (policy === "refuse") { e.stopImmediatePropagation(); fire("pointermove", r.x, r.y + r.h); fire("pointerup", r.x, r.y + r.h); }
-    if (policy === "ask") { e.stopImmediatePropagation(); frozen = true; }
+    if (policy === "ask") {
+      e.stopImmediatePropagation();
+      const px = r.x + 100 < innerWidth - 40 ? r.x + 100 : r.x - 100, py = r.y + 75;
+      fire("pointermove", px, py); fire("pointerup", px, py);
+      waiting.push(id); settle(id, waiting.length - 1);
+    }
   }, true);
   ans.onclick = (e) => {
-    const a = e.target.dataset.a; if (!a || !frozen) return;
-    frozen = false; const r = pileRect();
-    if (a === "yes") { fire("pointermove", finger.x, finger.y); fire("pointerup", finger.x, finger.y); note = "принял"; }
-    else { fire("pointermove", r.x, r.y + r.h + 6); fire("pointerup", r.x, r.y + r.h + 6); note = "отозвано"; }
-    noteAt = performance.now(); inside = false;
+    const a = e.target.dataset.a; if (!a || !waiting.length) return;
+    for (const id of waiting.splice(0)) {
+      scene.test.floatCard(id, null);
+      if (a === "yes") { store.send({ t: "grab", id }); store.send({ t: "drop", id, to: { in: "deck", pile: restRect.id } }); }
+    }
+    note = a === "yes" ? "принял" : "отозвано"; noteAt = performance.now(); inside = false;
   };
   const tick = () => {
-    const r = pileRect(), did0 = scene.test.draggingId(), own = !!did0 && store.state.piles.some((p) => p.id === restRect?.id && p.cards.some((c) => c.id === did0)), drag = (did0 || frozen) && !own;
+    const r = pileRect(), did0 = scene.test.draggingId(), own = !!did0 && store.state.piles.some((p) => p.id === restRect?.id && p.cards.some((c) => c.id === did0)), drag = did0 && !own, frozen = waiting.length > 0;
     let st = "", msg = note && performance.now() - noteAt < 1200 ? note : "";
     if (r && drag && policy !== "refuse") {
-      const over = frozen || hit(r);
-      if (policy === "ask") { st = over ? "ask" : "hint"; if (over && !inside) msg = "запрос ушёл"; if (!over && inside && !frozen) { msg = "запрос отозван"; note = msg; noteAt = performance.now(); } inside = over || frozen; if (frozen) msg = "ждёт апрува"; }
+      const over = hit(r);
+      if (policy === "ask") { st = over ? "ask" : "hint"; if (over && !inside) msg = "запрос ушёл"; if (!over && inside) { msg = "запрос отозван"; note = msg; noteAt = performance.now(); } inside = over; }
       else st = over ? "hot" : "hint";
     } else inside = false;
+    if (frozen) { st = "ask"; msg = waiting.length > 1 ? `ждут апрува: ${waiting.length}` : "ждёт апрува"; }
     zone.className = st;
     // Подсветка — на сукне ПОД колодой, как в Tabletop Simulator: рисуется отдельным слоем, из него вырезаны сама колода и несомая карта.
     const PW = 64, PH = 90, cv = document.getElementById("zcv"), dpr = devicePixelRatio || 1;
@@ -144,10 +155,10 @@ if (q.has("live")) {
       g.shadowBlur = 0; g.globalAlpha = 1;
       g.globalCompositeOperation = "destination-out"; g.fillStyle = "#000";
       rr(r.x, r.y, PW, PH, 6); g.fill();
-      const did = scene.test.draggingId();
-      if (did) {
+      const held = scene.test.draggingId();
+      for (const did of [...waiting, ...(held ? [held] : [])]) {
         const at = scene.test.screenOf(did), cw = scene.test.cardWidth(did), dz = scene.test.depthOf(did);
-        const k = (stage.clientHeight / 2 / Math.tan(25 * Math.PI / 180)) / dz, w = cw * k + 2, h = cw * 1.4 * k + 2, an = (scene.test.heldAngle() ?? 0) * Math.PI / 180;
+        const k = (stage.clientHeight / 2 / Math.tan(25 * Math.PI / 180)) / dz, w = cw * k + 2, h = cw * 1.4 * k + 2, an = did === held ? (scene.test.heldAngle() ?? 0) * Math.PI / 180 : 0;
         g.save(); g.translate(at.x, at.y); g.rotate(an); g.beginPath(); g.roundRect(-w / 2, -h / 2, w, h, 8); g.fill(); g.restore();
       }
       g.globalCompositeOperation = "source-over";
