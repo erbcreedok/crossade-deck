@@ -1,0 +1,28 @@
+table3d/acc-check.mjs
+  s_ad8a8a5b5d0419::t_94d48d66f8f04a 1-38
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_fc8cf71f3e5448 187-188
+  s_ad8a8a5b5d0419::t_99c4cf2a84eb67 3008
+table3d/src/pileAccept.ts
+  s_ad8a8a5b5d0419::t_fc8cf71f3e5448 1-172
+table3d/src/main.ts
+  s_ad8a8a5b5d0419::t_beff97aa8fd55e 105-119
+design/zones/piles-scenes.html
+  s_ad8a8a5b5d0419::t_97bc155cddd232 101-103,106-107,110-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "641796e8745deb31bb69a60fb9fa6ee4a72e167a",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
