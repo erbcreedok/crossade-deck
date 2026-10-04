@@ -2927,7 +2927,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     setPileSnap: (on: boolean) => { pileSnap = on; },
-    floatCard: (id: string, pile: string | null, dx = 0, dy = 0, lift = 0, da = 0, up = true) => { if (pile) floats.set(id, { pile, dx, dy, lift, da, up, phase: Math.random() * 6 }); else floats.delete(id); layout(store.state); },
+    floatCard: (id: string, pile: string | null, dx = 0, dy = 0, lift = 0, da = 0, up = true) => { if (pile) floats.set(id, { pile, dx, dy, lift, da, up, phase: floats.get(id)?.phase ?? Math.random() * 6 }); else floats.delete(id); layout(store.state); },
     seatNow: () => seatPull,
     dollParts: () => { const b = heads.children[0]?.children.find((c) => c.userData.base)?.userData as { base?: THREE.Vector3 } | undefined; const ch = [...chairObjs.values()][0]; return { headY: b?.base?.y ?? null, chairScale: ch?.group.scale.x ?? null }; },
     pickAtNow: (x: number, y: number) => api.pickAt(x, y),

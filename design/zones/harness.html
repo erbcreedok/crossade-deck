@@ -23,7 +23,7 @@
 </head>
 <body>
 <div id="stage"></div>
-<canvas id="zcv" style="position:absolute;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:5"></canvas><div id="zone" style="display:none"></div><div id="say"></div><div id="ans"><button data-a=yes>принять</button><button data-a=no>отозвать</button></div><div id="bar"></div>
+<canvas id="zcv" style="position:absolute;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:5"></canvas><div id="zone" style="display:none"></div><div id="say"></div><div id="bar"></div>
 <script type="module">
 // СЦЕНА ИГРЫ ДЛЯ СНИМКОВ. Здесь нет ничего нарисованного руками: подтягивается НАСТОЯЩИЙ `scene.ts` и локальный стол с dev-сервера игры (порт 9590, только читаем), стол приводится в нужное состояние теми же
 // намерениями, что у игрока, и `shoot.mjs` снимает кадр. Страница стенда потом показывает эти снимки — один в один как в игре.
@@ -92,7 +92,7 @@ if (q.has("live")) {
 
 if (q.has("live")) {
   // ПРИЁМКА СТОПКИ — предложение для стенда: игра сама карту в стопку кладёт всегда, поэтому здесь поверх настоящей игры подсветка и «апрув» ведутся этой страницей.
-  const stage = document.getElementById("stage"), zone = document.getElementById("zone"), say = document.getElementById("say"), ans = document.getElementById("ans"), bar = document.getElementById("bar");
+  const stage = document.getElementById("stage"), zone = document.getElementById("zone"), say = document.getElementById("say"), bar = document.getElementById("bar");
   let restRect = null, policy = "accept", finger = null, pid = 1, frozen = false, inside = false, note = "", noteAt = 0;
   for (const [k, t] of [["accept", "принимает"], ["refuse", "не принимает"], ["ask", "нужен апрув"]]) {
     const b = document.createElement("button"); b.textContent = t; b.dataset.p = k; if (k === policy) b.className = "on";
@@ -110,7 +110,8 @@ if (q.has("live")) {
   const fire = (type, x, y) => dispatchEvent(new PointerEvent(type, { pointerId: pid, clientX: x, clientY: y, bubbles: true, isPrimary: true, pointerType: "mouse", buttons: type === "pointerup" ? 0 : 1 }));
   /** Карты, что ждут ответа: висят над стопкой, покачиваются, каждая в своей позе; реально лежат на сукне сбоку. */
   const waiting = [];
-  const settle = (id, i) => scene.test.floatCard(id, restRect.id, 0.16 * i - 0.1, -0.12 * i, 0.1 * i, [-4, 3, -2, 5][i % 4], store.state.felt.find((c) => c.id === id)?.up ?? true);
+  // Ждущие карты — в ряд, слева направо; последняя справа и выше всех (по Z к камере). Шаг по высоте больше размаха покачивания, чтобы они не менялись местами.
+  const settle = () => waiting.forEach((id, i) => scene.test.floatCard(id, restRect.id, (i - (waiting.length - 1) / 2) * 1.05, 0, 0.12 + 0.22 * i, [-3, 2, -2, 3][i % 4], store.state.felt.find((c) => c.id === id)?.up ?? true));
   addEventListener("pointerup", (e) => {
     const id = scene.test.draggingId();
     if (!e.isTrusted || !id) return;
@@ -120,19 +121,14 @@ if (q.has("live")) {
       e.stopImmediatePropagation();
       const px = r.x + 100 < innerWidth - 40 ? r.x + 100 : r.x - 100, py = r.y + 75;
       fire("pointermove", px, py); fire("pointerup", px, py);
-      waiting.push(id); settle(id, waiting.length - 1);
+      waiting.push(id); settle();
     }
   }, true);
-  ans.onclick = (e) => {
-    const a = e.target.dataset.a; if (!a || !waiting.length) return;
-    for (const id of waiting.splice(0)) {
-      scene.test.floatCard(id, null);
-      if (a === "yes") { store.send({ t: "grab", id }); store.send({ t: "drop", id, to: { in: "deck", pile: restRect.id } }); }
-    }
-    note = a === "yes" ? "принял" : "отозвано"; noteAt = performance.now(); inside = false;
-  };
   const tick = () => {
     const r = pileRect(), did0 = scene.test.draggingId(), own = !!did0 && store.state.piles.some((p) => p.id === restRect?.id && p.cards.some((c) => c.id === did0)), drag = did0 && !own, frozen = waiting.length > 0;
+    // Карту забрали пальцем — запрос отозван: она больше не висит, остальные перестраиваются.
+    const back = waiting.indexOf(did0);
+    if (back >= 0) { waiting.splice(back, 1); scene.test.floatCard(did0, null); settle(); note = "запрос отозван"; noteAt = performance.now(); }
     let st = "", msg = note && performance.now() - noteAt < 1200 ? note : "";
     if (r && drag && policy !== "refuse") {
       const over = hit(r);
@@ -164,7 +160,7 @@ if (q.has("live")) {
       g.globalCompositeOperation = "source-over";
     }
     zone.style.clipPath = "none";
-    if (r) { Object.assign(zone.style, { left: r.x - r.w / 2 + "px", top: r.y - r.h / 2 + "px", width: r.w + "px", height: r.h + "px" }); Object.assign(say.style, { left: r.x + "px", top: r.y - r.h / 2 - 24 + "px", display: msg ? "block" : "none" }); say.textContent = msg; Object.assign(ans.style, { left: r.x + "px", top: r.y + r.h / 2 + 26 + "px", display: frozen ? "flex" : "none" }); }
+    if (r) { Object.assign(zone.style, { left: r.x - r.w / 2 + "px", top: r.y - r.h / 2 + "px", width: r.w + "px", height: r.h + "px" }); Object.assign(say.style, { left: r.x + "px", top: r.y - r.h / 2 - 24 + "px", display: msg ? "block" : "none" }); say.textContent = msg; }
     requestAnimationFrame(tick);
   };
   tick();
