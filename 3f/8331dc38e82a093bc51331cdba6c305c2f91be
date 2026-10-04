@@ -1,0 +1,34 @@
+design/zones/card-check.mjs
+  s_ad8a8a5b5d0419::t_f550335397dfd1 98,105,123
+  s_ad8a8a5b5d0419::t_133226f4878a72 104
+  s_ad8a8a5b5d0419::t_9cf828fa595747 111-114
+server/src/table/intent.ts
+  s_ad8a8a5b5d0419::t_f550335397dfd1 17,122
+server/src/table/contract.ts
+  s_ad8a8a5b5d0419::t_88ae593f65fed4 282-283,287-288,533
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_88ae593f65fed4 2543-2544,2547-2548,2552,2581,2908,2921,2986,3128
+  s_ad8a8a5b5d0419::t_133226f4878a72 3384
+server/src/table/table.ts
+  s_ad8a8a5b5d0419::t_88ae593f65fed4 834-835,840
+server/src/table/cardRules.test.ts
+  s_ad8a8a5b5d0419::t_f550335397dfd1 49-50,52
+design/zones/card-scenes.html
+  s_ad8a8a5b5d0419::t_f550335397dfd1 36,138,148-149,156,158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3f8331dc38e82a093bc51331cdba6c305c2f91be",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
