@@ -2038,11 +2038,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     lastTick = now;
     // КРАЙ ЭКРАНА ПРИ ПЕРЕНОСЕ: палец с картой у верха, левого или правого края — камера едет, а карта остаётся под пальцем.
     if (drag?.moved && dragPid !== null && !camLocked && (camMode === "top" || camMode === "head")) {
-      const r = visibleRect(), b = EDGE_SCROLL.band, ch = myChair(), hf = ch && !ch.reject ? handFrame() : null;
-      // Над рукой камера стоит (карту в неё кладут); ниже самой нижней карты руки — едет, как у остальных краёв. Без рамки руки — узкая полоса у кромки.
-      const lowest = ch && !ch.reject ? (hf ? hf.y + hf.h : r.bottom - EDGE_SCROLL.bottom) : -Infinity, bb = lastFinger.y > lowest ? b : 0;
+      const r = visibleRect(), b = EDGE_SCROLL.band, ch = myChair(), handOn = !!ch && !ch.reject;
+      // Над рукой камера стоит (карту в неё кладут); ниже — на нижнем худе (док со вкладками, под веером), — едет, и тем быстрее, чем ближе к кромке. Без руки — полоса у кромки, как у остальных краёв.
+      const dock = renderer.domElement.getBoundingClientRect().top + trayTopPx(), down = handOn ? Math.max(0, Math.min(1, ((lastFinger.y - dock) / Math.max(20, r.bottom - dock)) * 1.5)) : Math.max(0, Math.min(1, (b - (r.bottom - lastFinger.y)) / b));
       const near = (d: number) => Math.max(0, Math.min(1, (b - d) / b));
-      const vx = near(lastFinger.x - r.left) * -1 + near(r.right - lastFinger.x), vy = near(lastFinger.y - r.top) - Math.max(0, Math.min(1, bb ? (bb - (r.bottom - lastFinger.y)) / bb : 0));
+      const vx = near(lastFinger.x - r.left) * -1 + near(r.right - lastFinger.x), vy = near(lastFinger.y - r.top) - down;
       if (vx || vy) {
         if (camMode === "top") panBy({ x: r.left + r.width / 2, y: r.top + r.height / 2 }, { clientX: r.left + r.width / 2 - vx * EDGE_SCROLL.panPx * dt, clientY: r.top + r.height / 2 + vy * EDGE_SCROLL.panPx * dt });
         else lookBy(vx * EDGE_SCROLL.turnDeg * dt, vy * EDGE_SCROLL.turnDeg * dt);
