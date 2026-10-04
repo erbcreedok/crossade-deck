@@ -7,6 +7,8 @@
 <style>
   html, body { margin: 0; background: #0a1511; }
   #stage { position: relative; width: 390px; height: 844px; overflow: hidden; }
+  body.live { overflow: hidden; height: 100vh; }
+  body.live #stage { position: absolute; width: 820px; height: 820px; left: 50%; top: 50%; margin: -410px 0 0 -410px; }
 </style>
 </head>
 <body>
@@ -20,6 +22,7 @@ await document.fonts.load("20px Tiny5");
 const { mountScene } = await import(`${GAME}/src/scene.ts`);
 const { localTable } = await import(`${GAME}/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/localStore.ts`);
 const q = new URLSearchParams(location.search);
+if (q.has("live")) document.body.classList.add("live");
 const table = localTable({ freeChair: true }), store = table.view("me");
 const scene = mountScene(document.getElementById("stage"), store);
 window.__scene = scene; window.__store = store; window.__table = table;
@@ -66,6 +69,9 @@ window.__setup = async (spec) => {
   return true;
 };
 window.__ready = true;
+if (q.has("live")) {
+  await window.__setup({ mode: "top", felt: [{ up: true, x: -1.9, y: 1.2, angle: -12 }, { up: false, x: 1.9, y: 1.2, angle: 10 }], all: { n: 34, x: 0, y: -0.5 } });
+}
 </script>
 </body>
 </html>
