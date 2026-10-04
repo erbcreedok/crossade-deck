@@ -71,7 +71,7 @@ for (const c of [...alia.state.chairs.find((x) => x.owner === alia.me.key).hand]
   me.send({ t: "deckMove", pile: "deck", x: 0, y: 0.3, angle: 0 });
 }
 await wait(600);
-me.send({ t: "stand" });
+// Я остаюсь за стулом: камера сверху привязана к моему месту, без него ею нечем управлять.
 alia.send({ t: "flag", chair: alia.state.chairs.find((c) => c.owner === alia.me.key).id, flag: "reject", on: true });
 first.zoomBy(2.2);
 await wait(900);
