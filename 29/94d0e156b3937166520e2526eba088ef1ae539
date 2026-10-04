@@ -1,0 +1,22 @@
+design/zones/harness.html
+  s_ad8a8a5b5d0419::t_e1b9fe06f31af0 32-33
+  s_ad8a8a5b5d0419::t_b656d0b2a30a72 30
+design/zones/index.html
+  s_ad8a8a5b5d0419::t_b5ada00487e486 136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2994d0e156b3937166520e2526eba088ef1ae539",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
