@@ -70,7 +70,11 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   const pan0 = await f.evaluate(() => window.__top.test.panInfo());
   await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x + 12, at.y, { steps: 3 }); await p.mouse.move(fr.r - 8, at.y, { steps: 5 }); await p.waitForTimeout(500);
   const pan1 = await f.evaluate(() => window.__top.test.panInfo());
+  const bot = await f.evaluate(() => { const r = document.getElementById("f-top").getBoundingClientRect(); return r.bottom; });
+  await p.mouse.move(fr.r - 60, bot - 30, { steps: 4 }); const pb = await f.evaluate(() => window.__top.test.panInfo()); await p.waitForTimeout(500);
+  const pc = await f.evaluate(() => window.__top.test.panInfo());
   await p.mouse.up();
+  check("без руки: у низа кадра (на 30 px выше кромки) камера тоже едет", pc.z - pb.z > 0.3, { pb, pc });
   check("карта у края кадра сцены (не окна браузера) — камера едет", Math.hypot(pan1.x - pan0.x, pan1.z - pan0.z) > 0.3, { pan0, pan1 });
 }
 // «На весь экран» у каждой сцены: кадр занимает окно, сцена растягивается под него, повторное нажатие возвращает.
