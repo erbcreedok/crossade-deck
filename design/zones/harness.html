@@ -8,11 +8,22 @@
   html, body { margin: 0; background: #0a1511; }
   #stage { position: relative; width: 390px; height: 844px; overflow: hidden; }
   body.live { overflow: hidden; height: 100vh; }
+  #zone { position: absolute; display: none; border-radius: 10px; pointer-events: none; z-index: 5; box-sizing: border-box; }
+  #zone.hint { display: block; border: 2px dashed #7fd1b9; opacity: .85; }
+  #zone.hot { display: block; border: 3px solid #7fd1b9; background: rgba(127,209,185,.28); }
+  #zone.ask { display: block; border: 3px solid #f2c14e; background: rgba(242,193,78,.18); animation: pulse 1s steps(2) infinite; }
+  @keyframes pulse { 50% { opacity: .4; } }
+  #bar { position: absolute; left: 8px; top: 8px; z-index: 9; display: flex; gap: 6px; font: 400 12px 'Tiny5', monospace; }
+  #bar button, #ans button { font: 400 12px "Tiny5", monospace; padding: 4px 8px; border: 0; background: #3a2a1d; color: #f5ead0; box-shadow: 0 0 0 2px #0b0704; cursor: pointer; }
+  #bar button.on { background: #f2c14e; color: #0b0704; }
+  #say { position: absolute; z-index: 9; transform: translate(-50%, 0); font: 400 12px 'Tiny5', monospace; color: #0b0704; background: #f2c14e; padding: 2px 7px; box-shadow: 0 0 0 2px #0b0704; pointer-events: none; white-space: nowrap; display: none; }
+  #ans { position: absolute; z-index: 9; transform: translate(-50%, 0); display: none; gap: 6px; }
   body.live #stage { position: absolute; width: 820px; height: 820px; left: 50%; top: 50%; margin: -410px 0 0 -410px; }
 </style>
 </head>
 <body>
 <div id="stage"></div>
+<div id="zone"></div><div id="say"></div><div id="ans"><button data-a=yes>принять</button><button data-a=no>отозвать</button></div><div id="bar"></div>
 <script type="module">
 // СЦЕНА ИГРЫ ДЛЯ СНИМКОВ. Здесь нет ничего нарисованного руками: подтягивается НАСТОЯЩИЙ `scene.ts` и локальный стол с dev-сервера игры (порт 9590, только читаем), стол приводится в нужное состояние теми же
 // намерениями, что у игрока, и `shoot.mjs` снимает кадр. Страница стенда потом показывает эти снимки — один в один как в игре.
@@ -70,7 +81,52 @@ window.__setup = async (spec) => {
 };
 window.__ready = true;
 if (q.has("live")) {
+  window.__live = true;
   await window.__setup({ mode: "top", felt: [{ up: true, x: -1.9, y: 1.2, angle: -12 }, { up: false, x: 1.9, y: 1.2, angle: 10 }], all: { n: 34, x: 0, y: -0.5 } });
+}
+
+if (q.has("live")) {
+  // ПРИЁМКА СТОПКИ — предложение для стенда: игра сама карту в стопку кладёт всегда, поэтому здесь поверх настоящей игры подсветка и «апрув» ведутся этой страницей.
+  const zone = document.getElementById("zone"), say = document.getElementById("say"), ans = document.getElementById("ans"), bar = document.getElementById("bar");
+  let policy = "accept", finger = null, pid = 1, frozen = false, inside = false, note = "", noteAt = 0;
+  for (const [k, t] of [["accept", "принимает"], ["refuse", "не принимает"], ["ask", "нужен апрув"]]) {
+    const b = document.createElement("button"); b.textContent = t; b.dataset.p = k; if (k === policy) b.className = "on";
+    b.onclick = () => { policy = k; for (const x of bar.children) x.className = x.dataset.p === k ? "on" : ""; };
+    bar.append(b);
+  }
+  const pileRect = () => {
+    const p = store.state.piles.find((x) => x.id !== "deck"); if (!p) return null;
+    const at = scene.test.screenOf(p.cards.at(-1).id); return { x: at.x, y: at.y, w: 76, h: 104 };
+  };
+  const hit = (r) => finger && Math.abs(finger.x - r.x) < r.w / 2 + 6 && Math.abs(finger.y - r.y) < r.h / 2 + 6;
+  addEventListener("pointermove", (e) => { pid = e.pointerId; if (frozen && e.isTrusted) { e.stopImmediatePropagation(); return; } if (e.isTrusted) finger = { x: e.clientX, y: e.clientY }; }, true);
+  const fire = (type, x, y) => dispatchEvent(new PointerEvent(type, { pointerId: pid, clientX: x, clientY: y, bubbles: true, isPrimary: true, pointerType: "mouse", buttons: type === "pointerup" ? 0 : 1 }));
+  addEventListener("pointerup", (e) => {
+    if (!e.isTrusted || !scene.test.draggingId()) return;
+    const r = pileRect(); if (!r || !hit(r)) return;
+    if (policy === "refuse") { e.stopImmediatePropagation(); fire("pointermove", r.x, r.y + r.h); fire("pointerup", r.x, r.y + r.h); }
+    if (policy === "ask") { e.stopImmediatePropagation(); frozen = true; }
+  }, true);
+  ans.onclick = (e) => {
+    const a = e.target.dataset.a; if (!a || !frozen) return;
+    frozen = false; const r = pileRect();
+    if (a === "yes") { fire("pointermove", finger.x, finger.y); fire("pointerup", finger.x, finger.y); note = "принял"; }
+    else { fire("pointermove", r.x, r.y + r.h + 6); fire("pointerup", r.x, r.y + r.h + 6); note = "отозвано"; }
+    noteAt = performance.now(); inside = false;
+  };
+  const tick = () => {
+    const r = pileRect(), drag = scene.test.draggingId() || frozen;
+    let st = "", msg = note && performance.now() - noteAt < 1200 ? note : "";
+    if (r && drag && policy !== "refuse") {
+      const over = frozen || hit(r);
+      if (policy === "ask") { st = over ? "ask" : "hint"; if (over && !inside) msg = "запрос ушёл"; if (!over && inside && !frozen) { msg = "запрос отозван"; note = msg; noteAt = performance.now(); } inside = over || frozen; if (frozen) msg = "ждёт апрува"; }
+      else st = over ? "hot" : "hint";
+    } else inside = false;
+    zone.className = st;
+    if (r) { Object.assign(zone.style, { left: r.x - r.w / 2 + "px", top: r.y - r.h / 2 + "px", width: r.w + "px", height: r.h + "px" }); Object.assign(say.style, { left: r.x + "px", top: r.y - r.h / 2 - 24 + "px", display: msg ? "block" : "none" }); say.textContent = msg; Object.assign(ans.style, { left: r.x + "px", top: r.y + r.h / 2 + 26 + "px", display: frozen ? "flex" : "none" }); }
+    requestAnimationFrame(tick);
+  };
+  tick();
 }
 </script>
 </body>
