@@ -16,6 +16,7 @@ await p.waitForTimeout(2000);
 const checks = [];
 const check = (name, ok, got) => checks.push({ name, ok, got });
 check("на столе одна карта", (await f.evaluate(() => window.__me.state.felt.length)) === 1);
+check("на столе нет ни одной стопки (пустая колода убрана, карта не превратится в стопку)", (await f.evaluate(() => window.__me.state.piles.length)) === 0);
 check("лицом вверх", await f.evaluate(() => window.__me.state.felt[0].up === true));
 const depth = () => f.evaluate(() => window.__top.test.depthOf(window.__me.state.felt[0].id));
 const box = await f.evaluate(() => { const r = document.getElementById("f-top").getBoundingClientRect(); return { x: r.x, y: r.y }; });

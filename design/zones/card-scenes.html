@@ -99,12 +99,12 @@ top.test.setBareTable(true); first.test.setBareTable(true);
 top.test.setNeckFree(true); first.test.setNeckFree(true);
 await wait(800);
 
-// СТОЛ: одна карта на сукне, больше ничего. Опустевшая колода уезжает за стол, чтобы не ловить карты.
+// СТОЛ: одна карта на сукне, больше ничего. Опустевшая колода убирается со стола совсем: ни зоны приёмки, ни язычка.
 {
   const pile = me.state.piles[0], id = pile.cards.at(-1).id;
   me.send({ t: "grab", id }); me.send({ t: "drop", id, to: { in: "felt", x: 0, y: 0.8, up: true, angle: -8 } });
   if (me.state.felt.find((f) => f.id === id)?.up !== true) me.send({ t: "turn", id });
-  me.send({ t: "deckMove", pile: pile.id, x: 40, y: 40, angle: 0 });
+  me.send({ t: "deckForever", pile: pile.id, on: false });
 }
 await wait(600);
 // Рука наблюдателей не принимает карты: карта над её зоной остаётся на столе.
