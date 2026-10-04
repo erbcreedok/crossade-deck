@@ -2003,8 +2003,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const sp = drag?.id === id ? SPRING_HELD : gathering?.has(id) ? (gather!.fast ? SPRING_HELD : GATHER.spring) : SPRING, c = 2 * Math.sqrt(sp.k) * sp.damp;
       const v = g.userData.v as THREE.Vector3, steps = Math.ceil(dt * 240), h = dt / steps, d = new THREE.Vector3();
       let sc = g.scale.x, sv = g.userData.sv as number;
+      // ПЕРЕВОРОТ НА СТОЛЕ: пока карта наклонена, её край уходит вниз на полширины·sin(наклона) — цель поднята на столько, чтобы край не прошёл сквозь стол.
+      const goal = t.pos.clone();
+      if (!t.onCamera && t.pos.y < 0.5 && drag?.id !== id) goal.y += (CARD_W / 2) * Math.sin(Math.acos(Math.min(1, Math.abs(new THREE.Vector3(0, 0, 1).applyQuaternion(g.quaternion).y)))) * g.scale.x;
       for (let i = 0; i < steps; i++) {
-        d.copy(t.pos).sub(g.position);
+        d.copy(goal).sub(g.position);
         v.addScaledVector(d, sp.k * h).addScaledVector(v, -c * h);
         g.position.addScaledVector(v, h);
         // На сукно карта ложится со стуком, а не пружинит сквозь стол.
@@ -2028,6 +2031,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       d.copy(t.pos).sub(g.position);
       const ds = t.scale - sc;
       g.quaternion.slerp(t.quat, 1 - Math.exp(-dt * (drag?.id === id ? 30 : 14)));
+      // Пол по уже повёрнутой карте: край не может оказаться под столом ни в один кадр, даже если пружина запаздывает за поворотом.
+      if (!t.onCamera && t.pos.y < 0.5 && drag?.id !== id) g.position.y = Math.max(g.position.y, t.pos.y + (CARD_W / 2) * Math.sin(Math.acos(Math.min(1, Math.abs(new THREE.Vector3(0, 0, 1).applyQuaternion(g.quaternion).y)))) * g.scale.x);
       if (d.lengthSq() < 1e-6 && v.lengthSq() < 1e-6 && Math.abs(ds) < 1e-4 && g.quaternion.angleTo(t.quat) < 1e-3) { g.position.copy(t.pos); g.quaternion.copy(t.quat); g.scale.setScalar(t.scale); v.set(0, 0, 0); g.userData.sv = 0; }
       else moving = true;
     }
@@ -3062,6 +3067,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     zoomBy: (k: number) => zoomBy(k),
     setPileSnap: (on: boolean) => { pileSnap = on; },
     fovDeg: () => camera.fov,
+    cardMinY: (id: string) => { const o = cards.get(id); if (!o) return null; o.group.updateMatrixWorld(true); let m = Infinity; for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) m = Math.min(m, o.group.localToWorld(new THREE.Vector3(x * CARD_W / 2, y * CARD_H / 2, 0)).y); return m; },
     flipInfo: () => ({ deg: flipDeg, up: drag?.moved ? drag.up : null, second: !!flipTouch }),
     setPileGlow: (pile: string | null, level: "hint" | "hot" = "hint") => { const was = glowFor; glowFor = pile ? { pile, level } : null; if (was?.pile !== glowFor?.pile || was?.level !== glowFor?.level) draw(); },
     setBareTable: (on: boolean) => { bareTable = on; },
