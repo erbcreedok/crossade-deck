@@ -1,0 +1,24 @@
+design/zones/carry.mjs
+  s_ad8a8a5b5d0419::t_074b68465537b9 1-22
+design/zones/harness.html
+  s_ad8a8a5b5d0419::t_4394c2f793ac36 25,40-42,45-46
+  s_ad8a8a5b5d0419::t_15c85785fa5307 38-39,43-44,47-51
+design/zones/index.html
+  s_ad8a8a5b5d0419::t_fd0f943a54bead 136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "32724d743726d792737ae86a0ac5c90c5a315054",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
