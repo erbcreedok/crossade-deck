@@ -1,0 +1,26 @@
+table3d/tilt-check.mjs
+  s_ad8a8a5b5d0419::t_d362dc07dd23a1 17
+  s_ad8a8a5b5d0419::t_91f12b8d3dc928 25
+  s_ad8a8a5b5d0419::t_0941a3c12222cd 22-24
+  s_ad8a8a5b5d0419::t_ec321d28a79ba2 20-21,26-32,34,37,42-45
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_8009b674454f76 1981-1982,2461-2466,2765,2846
+  s_ad8a8a5b5d0419::t_0941a3c12222cd 3172
+  s_ad8a8a5b5d0419::t_46bcd2d923032f 3173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fce9c8596283eb5a0e2c95cf98737be93de6a4e0",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
