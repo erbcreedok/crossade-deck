@@ -1,4 +1,5 @@
 import "./uuid-polyfill";
+import { lockTouch } from "./touchLock.js";
 import { lagFromUrl, slowed } from "../../server/table-client/lag.js";
 import { guestIdFor } from "../../server/table-client/guestId.js";
 // ПЕСОЧНИЦА НА THREE.JS — тот же стол, что `server/table-client`, другой экран. Стол и сеть — те же самые (`TableStore`:
@@ -38,7 +39,7 @@ function screenBox(first: boolean): { screen: HTMLElement; stage: HTMLElement; h
 // пришёл), `touchmove` отменяется у документа (слушатель НЕ пассивный, иначе отмена молча не работает; окна с собственной прокруткой —
 // `[data-scroll]` — исключение), а страница в `index.html` не прокручивается и резинки не тянет.
 // Зум страницы щипком или двойным тапом (iOS шлёт `gesturestart`) — не нужен: масштаб у стола свой.
-document.addEventListener("gesturestart", (e) => e.preventDefault());
+lockTouch();
 document.addEventListener("touchmove", (e) => { if (!(e.target as Element | null)?.closest?.("[data-scroll]")) e.preventDefault(); }, { passive: false });
 const lag = lagFromUrl(location.search);
 // Пока стол собирается и комната отвечает — объёмный крест вместо надписи (`loader.ts`).

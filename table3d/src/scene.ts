@@ -30,6 +30,7 @@ import { blendOf, handPlanBlend, mineGeomOf, snapPose, tuckOf, type PoseBlend } 
 import { BAR_LOOK, T, type Geom } from "../../server/table-client/screenConst.js";
 import { drawFingerCard, fingerKind } from "./finger.js";
 import type { TableStore } from "../../server/table-client/store.js";
+import { lockTouch } from "./touchLock.js";
 
 const DEG = Math.PI / 180;
 const R = TABLE_RADIUS, RIM = 0.45, THICK = 0.6;
@@ -359,6 +360,7 @@ export interface SceneApi {
 const PANEL_PX = 60;
 
 export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
+  lockTouch(host.ownerDocument);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   // ТЕНИ — от солнца над столом: карты в воздухе, тела и руки ложатся тенью на сукно.
   renderer.shadowMap.enabled = true;
