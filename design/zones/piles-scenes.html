@@ -19,6 +19,9 @@
   .who { margin-left: auto; display: flex; gap: 6px; }
   .who button { width: 22px; height: 22px; border: 0; padding: 0; background: var(--c); box-shadow: 0 0 0 2px var(--black); opacity: .55; cursor: pointer; }
   .who button.on { opacity: 1; box-shadow: 0 0 0 2px var(--black), 0 0 0 4px var(--ink); }
+  .lag { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 12px; }
+  .lag input { flex: 1; accent-color: var(--gold); }
+  .lag b { font-weight: 400; min-width: 52px; text-align: right; }
   .frame { opacity: 0; transition: opacity .35s; position: relative; width: 100%; height: 300px; overflow: hidden; border-radius: 10px; background: #0a1511; box-shadow: 0 0 0 3px var(--wood), 0 0 0 5px var(--black); touch-action: none; }
   .frame.ready { opacity: 1; }
   .stage { position: absolute; }
@@ -33,8 +36,8 @@
 <div class="page">
   <h1>СТОПКИ — ПРИЁМКА</h1>
   <div id="bar"></div>
-  <div class="plate"><div class="head"><div class="n">1</div><div class="t">ВИД СВЕРХУ</div><div class="who" id="who-top"></div></div><div class="frame" id="f-top"><div class="stage" id="s-top"></div></div></div>
-  <div class="plate"><div class="head"><div class="n">2</div><div class="t">ВИД ОТ ПЕРВОГО ЛИЦА</div><div class="who" id="who-first"></div></div><div class="frame" id="f-first"><div class="stage" id="s-first"></div></div></div>
+  <div class="plate"><div class="head"><div class="n">1</div><div class="t">ВИД СВЕРХУ</div><div class="who" id="who-top"></div></div><div class="lag"><span>пинг</span><input type="range" id="lag-top" min="0" max="1000" step="50" value="0"><b id="lagv-top">0 мс</b></div><div class="frame" id="f-top"><div class="stage" id="s-top"></div></div></div>
+  <div class="plate"><div class="head"><div class="n">2</div><div class="t">ВИД ОТ ПЕРВОГО ЛИЦА</div><div class="who" id="who-first"></div></div><div class="lag"><span>пинг</span><input type="range" id="lag-first" min="0" max="1000" step="50" value="0"><b id="lagv-first">0 мс</b></div><div class="frame" id="f-first"><div class="stage" id="s-first"></div></div></div>
 </div>
 <script type="module">
 // ЭТА ЖЕ СЦЕНА СТЕНДА (`harness.html`), ДВАЖДЫ. Настоящий `scene.ts` и один локальный стол с dev-сервера игры (порт 9590): я смотрю сверху, Алия — от первого лица, поэтому всё, что делают в одной сцене (взяли карту, бросили, карты ждут апрува), сразу видно в другой. Приёмка стопки (принимает / не принимает / нужен апрув) — та же, что на стенде, общая для обеих.
@@ -54,10 +57,31 @@ const table = localTable({ players: PLAYERS });
 const views = Object.fromEntries(PLAYERS.map((p) => [p.key, table.view(p.key)]));
 const me = views.blue, alia = views.red;
 const controller = { top: "blue", first: "blue" };
-const CTL_KEYS = new Set(["send", "carry", "body", "command", "say", "shoot", "mic", "log", "rtc", "askStickers", "watch"]);
-/** Хранилище сцены: читает стол из места наблюдателя, а намерения шлёт от имени выбранного игрока. */
-const asPlayer = (viewpoint, which) => new Proxy(viewpoint, { get: (t, k) => CTL_KEYS.has(k) ? (...a) => views[controller[which]][k](...a) : Reflect.get(t, k, t) });
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const CTL_KEYS = new Set(["body", "say", "shoot", "mic", "log", "rtc", "askStickers", "watch"]);
+const { carryOf } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/tape.ts");
+const lat = { top: 0, first: 0 };
+// ЖИВОЙ НОСИТЕЛЬ КАРТ: что несёт палец в одной сцене, видно в другой, пока карту несут (поток `carry` идёт через шину страницы, как через сервер), и с задержкой, заданной ползунком у обеих сцен.
+const bus = { top: [], first: [] };
+const hear = { top: [], first: [] };
+const note = (who, out) => {
+  const h = bus[who]; h.push({ t: performance.now(), out }); while (h.length > 80) h.shift();
+  // Сосед перерисует нести-карту, когда слово до него дойдёт.
+  const other = who === "top" ? "first" : "top";
+  setTimeout(() => { for (const l of hear[other]) l(); }, lat[who] + lat[other]);
+};
+/** Что сцена `who` видит у соседа: его последнее слово, дошедшее до неё (задержка = пинг отправителя + пинг получателя). */
+const heard = (who, other) => { const h = bus[other], at = performance.now() - lat[other] - lat[who]; let last = null; for (const e of h) if (e.t <= at) last = e; return last && last.out && at - last.t < 300 ? last.out : null; };
+/** Хранилище сцены: читает стол из места наблюдателя, а намерения шлёт от имени выбранного игрока, через пинг сцены. */
+const OUT = new Set(["send", "command"]);
+const asPlayer = (viewpoint, which) => { const other = which === "top" ? "first" : "top"; return new Proxy(viewpoint, { get: (t, k) => {
+  if (k === "send") return (intent) => { if (intent.t === "drop" || intent.t === "unpick") note(which, null); setTimeout(() => views[controller[which]].send(intent), lat[which]); };
+  if (k === "command") return (c) => setTimeout(() => views[controller[which]].command(c), lat[which]);
+  if (k === "carry") return (out) => note(which, out);
+  if (k === "onChange") return (l) => { hear[which].push(l); viewpoint.onChange(l); };
+  if (k === "carries") { const out = heard(which, other); const c = out ? carryOf(viewpoint.state, out.id, "remote:" + other, out.over) : null; return c ? [c] : []; }
+  if (CTL_KEYS.has(k)) return (...a) => views[controller[which]][k](...a);
+  return Reflect.get(t, k, t);
+} }); };const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const $ = (id) => document.getElementById(id);
 
 // СТЕНД: у кадра свой размер сцены (`SW`×`SH`), в кадре видна только середина — стола с кромкой и стульев не видно.
@@ -118,6 +142,7 @@ for (const [k, t] of [["accept", "принимает"], ["refuse", "не при�
 }
 const camBtn = document.createElement("button"); camBtn.textContent = "камера: выкл"; camBtn.style.marginLeft = "auto"; camBtn.onclick = () => { cameraOn = !cameraOn; top.test.setCamLocked(!cameraOn); first.test.setCamLocked(!cameraOn); camBtn.textContent = cameraOn ? "камера: вкл" : "камера: выкл"; camBtn.className = cameraOn ? "on" : ""; };
 bar.append(camBtn);
+for (const which of ["top", "first"]) { const el = $("lag-" + which); el.oninput = () => { lat[which] = Number(el.value); $("lagv-" + which).textContent = el.value + " мс"; }; }
 // ВЫБОР ИГРОКА У КАЖДОЙ СЦЕНЫ: по умолчанию синий; смена не трогает камеру.
 for (const which of ["top", "first"]) {
   const box = $("who-" + which);
