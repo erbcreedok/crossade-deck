@@ -14,21 +14,35 @@ const run = async (cam) => {
   await p.goto(`${base}/?stand&cam=${cam}`);
   await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
   await p.waitForTimeout(1500);
+  await p.evaluate(() => window.__t3d.setCamLocked?.(false));
   const id = await p.evaluate(() => { const s = window.__t3d.state(); const c = s.chairs.find((x) => x.owner === "me").hand.at(0); window.__t3d.dropFeltAt(c.id, 0, 0); return c.id; });
   await p.waitForTimeout(900);
-  const c = await p.evaluate((i) => window.__t3d.screenOf(i), id);
-  await p.mouse.move(c.x, c.y); await p.mouse.down(); await p.mouse.move(c.x + 30, c.y - 40, { steps: 6 }); await p.waitForTimeout(500);
-  const t = await p.evaluate((i) => ({ drag: window.__t3d.draggingId(), tilt: window.__t3d.cardTilt(i) }), id);
-  await p.mouse.up();
+  const up = () => p.evaluate((i) => window.__t3d.cardTopOnScreen(i), id);
+  const out = { ups: [] };
+  // Камеру крутят (`lookBy`) — и карта в руке, и положенная после броска стоят низом вниз экрана.
+  for (const turn of [0, 25, -50]) {
+    if (turn) { await p.evaluate((d) => window.__t3d.lookBy(d, 0), turn); await p.waitForTimeout(400); }
+    await p.evaluate(([i]) => { const at = window.__t3d.feltAt(195, 520); window.__t3d.dropFeltAt(i, at.x, at.y); }, [id]); await p.waitForTimeout(900);
+    const c = await p.evaluate((i) => window.__t3d.screenOf(i), id);
+    await p.mouse.move(c.x, c.y); await p.mouse.down(); await p.mouse.move(c.x + 20, c.y - 30, { steps: 6 }); await p.waitForTimeout(900);
+    const t = { turn, drag: await p.evaluate(() => window.__t3d.draggingId()), up: await up(), tilt: await p.evaluate((i) => window.__t3d.cardTilt(i), id) };
+    out.ups.push(t); if (turn === 0) out.tilt = t.tilt, out.drag = t.drag;
+    await p.mouse.up(); await p.waitForTimeout(1200);
+    out.ups.push({ turn, dropped: await up() });
+  }
   await p.close();
-  return t;
+  return out;
 };
 const head = await run("head"), top = await run("top");
-console.log("head", JSON.stringify(head.tilt), "top", JSON.stringify(top.tilt));
+console.log(JSON.stringify(head.ups), JSON.stringify(top.ups));
 check("взята в виде «голова»", head.drag !== null, head);
 check("голова: карта наклонена к камере (заметно, но не вся)", head.tilt && head.tilt.fromUp > 8 && head.tilt.fromUp < 85, head.tilt);
 check("голова: низ карты выше сукна", head.tilt && head.tilt.minY > 0.05, head.tilt);
 check("сверху: наклона нет", top.tilt && top.tilt.fromUp < 3, top.tilt);
+const upright = (u) => u && u.dy < 0 && Math.abs(u.dx) < Math.abs(u.dy) * 0.4;
+for (const [name, r] of [["голова", head], ["сверху", top]]) {
+  for (const t of r.ups) { const u = t.up ?? t.dropped; check(`${name}: поворот камеры ${t.turn}° — ${t.dropped ? "после броска" : "в руке"} низ карты к низу экрана`, upright(u), t); }
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const k of checks) console.log(k.ok ? "ok  " : "FAIL", k.name, k.ok ? "" : JSON.stringify(k.got));
