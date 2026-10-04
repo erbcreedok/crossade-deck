@@ -98,101 +98,17 @@ for (const [el, sc] of [[$("s-top"), top], [$("s-first"), first]]) {
   el.addEventListener("wheel", (e) => { if (cameraOn) return; e.stopImmediatePropagation(); e.preventDefault(); }, { capture: true, passive: false });
 }
 
-// ПРИЁМКА СТОПКИ — общая для обеих сцен.
-let policy = "accept", finger = null, pid = 1, note = "", noteAt = 0;
-const waiting = [];
+// ПРИЁМКА СТОПКИ — модуль игры (`table3d/src/pileAccept.ts`), общий для обеих сцен: страница его только подключает.
+const { mountPileAccept } = await import("/src/pileAccept.ts");
+const acc = mountPileAccept({ table: me, views: [{ scene: top, host: $("s-top"), frame: $("f-top") }, { scene: first, host: $("s-first"), frame: $("f-first"), flip: -1 }] });
 const bar = $("bar");
-const camBtn = document.createElement("button"); camBtn.textContent = "камера: выкл"; camBtn.style.marginLeft = "auto"; camBtn.onclick = () => { cameraOn = !cameraOn; top.test.setCamLocked(!cameraOn); first.test.setCamLocked(!cameraOn); camBtn.textContent = cameraOn ? "камера: вкл" : "камера: выкл"; camBtn.className = cameraOn ? "on" : ""; };
-setTimeout(() => bar.append(camBtn), 0);
 for (const [k, t] of [["accept", "принимает"], ["refuse", "не принимает"], ["ask", "нужен апрув"]]) {
-  const b = document.createElement("button"); b.textContent = t; b.dataset.p = k; if (k === policy) b.className = "on";
-  b.onclick = () => { policy = k; for (const x of bar.children) x.className = x.dataset.p === k ? "on" : ""; };
+  const b = document.createElement("button"); b.textContent = t; b.dataset.p = k; if (k === acc.policy()) b.className = "on";
+  b.onclick = () => { acc.setPolicy(k); for (const x of bar.children) if (x.dataset.p) x.className = x.dataset.p === k ? "on" : ""; };
   bar.append(b);
 }
-const pileId = () => me.state.piles[0]?.id;
-const views = [
-  { name: "top", scene: top, frame: $("f-top"), flip: 1, rest: null, inside: false },
-  { name: "first", scene: first, frame: $("f-first"), flip: -1, rest: null, inside: false },
-];
-for (const v of views) {
-  v.cv = document.createElement("canvas"); v.cv.className = "zcv"; v.frame.append(v.cv);
-  v.say = document.createElement("div"); v.say.className = "say"; v.frame.append(v.say);
-  v.stage = v.frame.firstElementChild;
-}
-const draggingView = () => views.find((v) => v.scene.test.draggingId());
-const restOf = (v) => {
-  const p = me.state.piles.find((x) => x.id === pileId()); if (!p) return null;
-  if (!v.scene.test.draggingId() || !v.rest || v.rest.id !== p.id) { const at = v.scene.test.screenOf(p.cards[0].id); v.rest = { id: p.id, x: at.x, y: at.y, w: 76, h: 104 }; }
-  return v.rest;
-};
-const hit = (v) => { if (!finger) return false; const a = v.scene.aim(finger.x, finger.y); return (a.in === "deck" && a.pile === pileId()) || waiting.some((id) => { const c = v.scene.test.screenOf(id); return c && Math.abs(finger.x - c.x) < 38 && Math.abs(finger.y - c.y) < 52; }); };
-const fire = (type, x, y) => dispatchEvent(new PointerEvent(type, { pointerId: pid, clientX: x, clientY: y, bubbles: true, isPrimary: true, pointerType: "mouse", buttons: type === "pointerup" ? 0 : 1 }));
-// Ждущие карты — в ряд над стопкой (по столу, одинаково для обеих сцен); последняя справа и выше. В первом лице порядок слева направо зеркален: стол смотрят с другой стороны.
-const settle = () => { for (const v of views) waiting.forEach((id, i) => v.scene.test.floatCard(id, pileId(), v.flip * (i - (waiting.length - 1) / 2) * 1.05, -1.4, 0.12 + 0.22 * i, [-3, 2, -2, 3][i % 4], me.state.felt.find((c) => c.id === id)?.up ?? true)); };
-addEventListener("pointermove", (e) => { pid = e.pointerId; if (e.isTrusted) finger = { x: e.clientX, y: e.clientY }; }, true);
-addEventListener("pointerup", (e) => {
-  const v = draggingView(); if (!e.isTrusted || !v) return;
-  const id = v.scene.test.draggingId(), r = restOf(v);
-  if (!r || !hit(v) || me.state.piles.some((p) => p.id === r.id && p.cards.some((c) => c.id === id))) return;
-  if (policy === "refuse") { e.stopImmediatePropagation(); fire("pointermove", r.x, r.y + r.h); fire("pointerup", r.x, r.y + r.h); }
-  if (policy === "ask") {
-    e.stopImmediatePropagation();
-    const fl = v.frame.getBoundingClientRect(), px = r.x + 100 < fl.right - 40 ? r.x + 100 : r.x - 100, py = r.y;
-    fire("pointermove", px, py); fire("pointerup", px, py);
-    waiting.splice(waiting.filter((w) => v.scene.test.screenOf(w).x < finger.x).length, 0, id); settle();
-  }
-}, true);
-
-const cut = (g, v, id, held) => {
-  const t = v.scene.test, at = t.screenOf(id), cw = t.cardWidth(id), dz = t.depthOf(id), k = (v.stage.clientHeight / 2 / Math.tan(t.fovDeg() * Math.PI / 360)) / dz, w = cw * k + 2, h = cw * 1.4 * k + 2;
-  g.save(); g.translate(at.x, at.y); g.rotate(held ? (t.heldAngle() ?? 0) * Math.PI / 180 : 0); g.beginPath(); g.roundRect(-w / 2, -h / 2, w, h, 8); g.fill(); g.restore();
-};
-const tick = () => {
-  const dv = draggingView();
-  // Карту забрали пальцем — запрос отозван.
-  if (dv) { const id = dv.scene.test.draggingId(), i = waiting.indexOf(id); if (i >= 0) { waiting.splice(i, 1); for (const v of views) v.scene.test.floatCard(id, null); settle(); note = "запрос отозван"; noteAt = performance.now(); } }
-  for (const v of views) {
-    const r = restOf(v), t = v.scene.test, did = t.draggingId(), fl = v.frame.getBoundingClientRect(), dpr = devicePixelRatio || 1;
-    const own = !!did && me.state.piles.some((p) => p.id === r?.id && p.cards.some((c) => c.id === did));
-    const drag = !!did && !own, frozen = waiting.length > 0;
-    let pend = false, deny = false, st = "", msg = note && performance.now() - noteAt < 1200 ? note : "";
-    const over = r && drag ? hit(v) : false;
-    if (r && drag && policy !== "refuse") {
-      if (policy === "ask") { st = "hint"; if (over) msg = "нужен апрув"; if (!over && v.inside) { msg = "запрос отозван"; note = msg; noteAt = performance.now(); } v.inside = over; } else st = over ? "hot" : "hint";
-    } else v.inside = false;
-    if (r && drag && policy === "refuse" && over) { deny = true; msg = "сюда нельзя"; }
-    if (frozen) { st = ""; pend = true; msg = ""; }
-    // Подсветка и знаки — отдельным слоем над сценой; из него вырезаны колода, висящие карты и несомая карта: они лежат поверх.
-    if (v.cv.width !== Math.round(fl.width * dpr) || v.cv.height !== Math.round(fl.height * dpr)) { v.cv.width = Math.round(fl.width * dpr); v.cv.height = Math.round(fl.height * dpr); }
-    const g = v.cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, -fl.left * dpr, -fl.top * dpr); g.clearRect(fl.left, fl.top, fl.width, fl.height);
-    const k0 = r ? (v.stage.clientHeight / 2 / Math.tan(t.fovDeg() * Math.PI / 360)) / t.depthOf(me.state.piles[0].cards[0].id) : 1, PW = 1.17 * k0 * 0.99, PH = PW * 1.4;
-    const rr = (x, y, w, h, k) => { g.beginPath(); g.roundRect(x - w / 2, y - h / 2, w, h, k); };
-    if (r && st) {
-      const blur = st === "hint" ? 12 : 20, passes = st === "hint" ? 2 : 3;
-      g.globalAlpha = st === "hint" ? 0.7 : 1; g.shadowColor = "rgb(127,209,185)"; g.shadowBlur = blur; g.fillStyle = "rgb(127,209,185)";
-      for (let i = 0; i < passes; i++) { rr(r.x, r.y, PW, PH, 6); g.fill(); }
-      g.shadowBlur = 0; g.globalAlpha = 1; g.globalCompositeOperation = "destination-out"; g.fillStyle = "#000"; rr(r.x, r.y, PW, PH, 6); g.fill();
-      for (const id of waiting) cut(g, v, id, false); if (did) cut(g, v, did, true);
-      g.globalCompositeOperation = "source-over";
-    }
-    if (r && pend) {
-      const marks = waiting.map((id) => t.screenOf(id)).filter(Boolean), cx = marks.length ? marks.reduce((q, m) => q + m.x, 0) / marks.length : r.x, topY = marks.length ? Math.min(...marks.map((m) => m.y)) - 62 : r.y - PH / 2 - 22;
-      const W = 46, H = 18, bx = cx - W / 2, by = topY - H / 2;
-      g.fillStyle = "#0b0704"; g.fillRect(bx - 3, by - 3, W + 6, H + 6); g.fillStyle = "#3a2a1d"; g.fillRect(bx, by, W, H);
-      const ph = Math.floor(performance.now() / 280) % 3;
-      for (let i = 0; i < 3; i++) { g.fillStyle = i === ph ? "#f5ead0" : "rgba(245,234,208,.3)"; g.fillRect(bx + 9 + i * 12, by + 6, 6, 6); }
-    }
-    if (r && deny) {
-      g.lineCap = "round"; const ix = r.x, iy = r.y - PH / 2 - 16, ir = 13, d = 9;
-      g.strokeStyle = "#0b0704"; g.lineWidth = 8; g.beginPath(); g.arc(ix, iy, ir, 0, Math.PI * 2); g.moveTo(ix - d, iy - d); g.lineTo(ix + d, iy + d); g.stroke();
-      g.strokeStyle = "#f5ead0"; g.lineWidth = 4; g.beginPath(); g.arc(ix, iy, ir, 0, Math.PI * 2); g.moveTo(ix - d, iy - d); g.lineTo(ix + d, iy + d); g.stroke();
-      g.globalCompositeOperation = "destination-out"; g.fillStyle = "#000"; if (did) cut(g, v, did, true); g.globalCompositeOperation = "source-over";
-    }
-    if (r) { Object.assign(v.say.style, { left: r.x - fl.left + "px", top: r.y - fl.top - PH / 2 - 24 - (frozen ? 80 : 0) - (deny ? 32 : 0) + "px", display: msg ? "block" : "none" }); v.say.textContent = msg; }
-  }
-  requestAnimationFrame(tick);
-};
-tick();
+const camBtn = document.createElement("button"); camBtn.textContent = "камера: выкл"; camBtn.style.marginLeft = "auto"; camBtn.onclick = () => { cameraOn = !cameraOn; top.test.setCamLocked(!cameraOn); first.test.setCamLocked(!cameraOn); camBtn.textContent = cameraOn ? "камера: вкл" : "камера: выкл"; camBtn.className = cameraOn ? "on" : ""; };
+bar.append(camBtn);
 window.__top = top; window.__first = first; window.__me = me; window.__alia = alia; window.__ready = true;
 </script>
 </body>

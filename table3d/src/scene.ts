@@ -184,6 +184,8 @@ const cardEdge = (() => {
 export interface SceneApi {
   home(): void;
   /** Хук проверок этого экрана: `window.__t3d` у того из экранов, что сейчас на виду (`main.ts`). */
+  /** Что нужно модулю приёмки стопки (`pileAccept.ts`): что несут, где карта на экране, повесить карту над стопкой. */
+  probe: import("./pileAccept.js").AcceptProbe;
   test: unknown;
   /** Повернуть камеру вокруг стола на столько градусов. */
   turnBy(deg: number): void;
@@ -3003,6 +3005,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const project = (v: THREE.Vector3) => { const p = v.clone().project(camera), r = renderer.domElement.getBoundingClientRect(); return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height }; };
   const api: SceneApi = {
     test,
+    probe: { draggingId: test.draggingId, screenOf: test.screenOf, cardWidth: test.cardWidth, depthOf: test.depthOf, fovDeg: test.fovDeg, heldAngle: test.heldAngle, floatCard: test.floatCard, setPileSnap: test.setPileSnap },
     home: () => { home(); draw(); sendBody(true); },
     camMode: () => camMode,
     baseFov: () => baseFov,
