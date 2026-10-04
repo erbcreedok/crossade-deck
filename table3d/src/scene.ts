@@ -1810,7 +1810,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let landing: { id: string; place: Place; key: string; until: number } | null = null;
   /** Отпущенная карта стоит там, куда её положили, пока стол не ответил (или не вышло время). Зовётся и после раскладки, и после руки каждый кадр: рука карту по снимку тянула бы обратно в щель. */
   function holdLanding(): void {
-    if (!landing || performance.now() >= landing.until || fromKey(landing.id) !== landing.key) return;
+    if (!landing || floats.has(landing.id) || performance.now() >= landing.until || fromKey(landing.id) !== landing.key) return;
     const o = cards.get(landing.id);
     if (o) o.target = landing.place;
   }
