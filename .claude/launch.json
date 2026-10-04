@@ -239,6 +239,16 @@
         "design/bowl"
       ],
       "port": 9587
+    },
+    {
+      "name": "zones-stand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "design/serve.py",
+        "9588",
+        "design/zones"
+      ],
+      "port": 9588
     }
   ]
 }

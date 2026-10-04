@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Зоны и язычки — стенд</title>
+<link href="https://fonts.googleapis.com/css2?family=Tiny5&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #0d2118; --panel: #3a2a1d; --well: #1c120b; --ink: #f5ead0; --dim: #cdb98f; --gold: #f2c14e; --black: #0b0704; --wood: #6b4d2c; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #07100b; color: var(--dim); font: 400 12px/1.3 'Tiny5', monospace; overflow: hidden; overscroll-behavior: none; }
+  #wrap { position: fixed; inset: 0; display: flex; justify-content: center; }
+  #app { width: min(100vw, 480px); height: 100%; display: flex; flex-direction: column; background: #0a1a12; }
+  #top { padding: 8px 10px 4px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; color: var(--ink); background: var(--well); border: 0; padding: 8px 9px; box-shadow: inset 0 0 0 2px var(--wood); cursor: pointer; }
+  button.on { color: var(--black); background: linear-gradient(#f8d885, #b08a26); box-shadow: inset 0 0 0 2px #f8d885; }
+  #stage { flex: 1; min-height: 0; position: relative; touch-action: none; }
+  svg { width: 100%; height: 100%; display: block; }
+  #sheet { background: linear-gradient(#25321f, #16210f); box-shadow: 0 -2px 0 #0b0704, inset 0 2px 0 var(--wood); padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
+  .grp { color: var(--gold); margin: 4px 0 3px; }
+  .row { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  td, th { padding: 3px 4px; text-align: left; font-weight: 400; border-top: 1px solid #3a2a1d; }
+  th { color: var(--dim); }
+  .chip { display: inline-block; padding: 1px 6px; color: var(--black); }
+  .no { background: #5a5448; color: #cdb98f; } .yes { background: #7fd1b9; } .hot { background: #f2c14e; }
+  .dot { display: inline-block; width: 10px; height: 10px; margin-right: 5px; vertical-align: -1px; }
+  #hint { padding: 0 10px 4px; color: var(--dim); }
+</style>
+</head>
+<body>
+<div id="wrap"><div id="app">
+  <div id="top"></div>
+  <div id="hint"></div>
+  <div id="stage"><svg id="svg" viewBox="0 0 400 420" preserveAspectRatio="xMidYMid meet"></svg></div>
+  <div id="sheet"></div>
+</div></div>
+<script>
+// СТЕНД ЗОН. Три вещи, которые мы обсуждаем, на одной странице:
+//   язычок   — у стопки, которую я могу ВЗЯТЬ целиком (нет замка);
+//   контур   — рисует только ПРИЁМКА: принимает → подсказка (пока несу) → горит (палец внутри); не принимает → ничего;
+//   зона     — одна для всех мест: хозяин есть или нет, моя или чужая — выглядит одинаково, цвет — хозяина.
+// Две независимые ручки у места: «замок» (стопку не взять) и «не принимает» (в неё не положить).
+
+const NS = "http://www.w3.org/2000/svg";
+const TABLE_R = 150, CX = 200, CY = 210;
+const seats = [
+  { id: "me", name: "Я", ink: "#7fd1b9", owner: true, angle: 180, count: 7, lock: false, reject: false },
+  { id: "al", name: "Алия", ink: "#f2c14e", owner: true, angle: 270, count: 5, lock: false, reject: false },
+  { id: "em", name: "Пустой", ink: "#8d9a94", owner: false, angle: 0, count: 3, lock: false, reject: false },
+  { id: "ti", name: "Тимур", ink: "#e06c75", owner: true, angle: 90, count: 4, lock: true, reject: false },
+];
+const deck = { id: "deck", name: "Колода", ink: "#cdb98f", x: CX, y: CY, count: 21, lock: false, reject: false, isPile: true };
+const S = { carry: "card", always: false, sel: "al", at: null, down: false, view: "free" };
+
+const pos = (a, r) => ({ x: CX + Math.sin((a * Math.PI) / 180) * r, y: CY - Math.cos((a * Math.PI) / 180) * r });
+const zoneOf = (s) => { const p = pos(s.angle, TABLE_R - 38); return { x: p.x, y: p.y, w: 56, h: 40, rot: 180 - s.angle }; };
+const targets = () => [...seats.map((s) => ({ ...s, z: zoneOf(s), kind: "seat" })), { ...deck, z: { x: deck.x, y: deck.y, w: 44, h: 34, rot: 0 }, kind: "pile" }];
+/** МОГУ ВЗЯТЬ целиком (язычок). */
+const canTake = (t) => !t.lock;
+/** ПРИНИМАЕТ то, что я несу (контур). */
+const accepts = (t) => !t.reject;
+const inside = (t, p) => { if (!p) return false; const a = (-t.z.rot * Math.PI) / 180, dx = p.x - t.z.x, dy = p.y - t.z.y, x = dx * Math.cos(a) - dy * Math.sin(a), y = dx * Math.sin(a) + dy * Math.cos(a); return Math.abs(x) <= t.z.w / 2 + 6 && Math.abs(y) <= t.z.h / 2 + 6; };
+const stateOf = (t) => { if (!accepts(t)) return "none"; const carrying = S.carry !== "none" && S.down; if (!carrying && !S.always) return "none"; return carrying && inside(t, S.at) ? "hot" : "hint"; };
+
+const svg = document.getElementById("svg");
+const el = (tag, attrs = {}, parent = svg) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); parent.append(e); return e; };
+
+function draw() {
+  svg.innerHTML = "";
+  el("rect", { x: 0, y: 0, width: 400, height: 420, fill: "#0a1a12" });
+  el("circle", { cx: CX, cy: CY, r: TABLE_R + 12, fill: "#5a3f22" });
+  el("circle", { cx: CX, cy: CY, r: TABLE_R, fill: "#14402a" });
+  for (const t of targets()) {
+    const { x, y, w, h, rot } = t.z, g = el("g", { transform: `translate(${x} ${y}) rotate(${rot})` });
+    const st = stateOf(t), ink = t.ink;
+    // ЗОНА: контур — только если принимает; цвет хозяина.
+    if (st !== "none") el("rect", { x: -w / 2 - 6, y: -h / 2 - 6, width: w + 12, height: h + 12, rx: 8, fill: st === "hot" ? ink : "none", "fill-opacity": st === "hot" ? 0.28 : 0, stroke: ink, "stroke-width": st === "hot" ? 2.5 : 1.5, "stroke-dasharray": st === "hot" ? "0" : "5 4", opacity: st === "hot" ? 1 : 0.75 }, g);
+    // СТОПКА в зоне.
+    for (let i = 0; i < Math.min(5, Math.ceil(t.count / 2)); i++) el("rect", { x: -w / 2 + 6 - i * 0.8, y: -h / 2 + 4 - i * 0.8, width: w - 12, height: h - 8, rx: 3, fill: i % 2 ? "#e2d9c1" : "#f5ead0", stroke: "#0b0704", "stroke-width": 1 }, g);
+    // ЯЗЫЧОК — только если стопку можно взять.
+    if (canTake(t)) { const tab = el("g", { transform: `translate(${w / 2 + 2} 0)` }, g); el("rect", { x: 0, y: -9, width: 22, height: 18, rx: 5, fill: "#2c3a24", stroke: "#6b4d2c" }, tab); el("text", { x: 11, y: 4, "text-anchor": "middle", fill: "#f5ead0", "font-size": 10 }, tab).textContent = String(t.count); }
+    else { el("text", { x: w / 2 + 3, y: 4, fill: "#e06c75", "font-size": 12 }, g).textContent = "⛔"; }
+    // Имя и стул.
+    const tg = el("g", { transform: `rotate(${-rot})` }, g); el("text", { x: 0, y: -h / 2 - 12, "text-anchor": "middle", fill: ink, "font-size": 11 }, tg).textContent = t.name;
+    const chip = el("circle", { cx: 0, cy: 0, r: 0 }, g); void chip;
+  }
+  // Стулья (мебель) — цвет хозяина или серый.
+  for (const s of seats) { const p = pos(s.angle, TABLE_R + 34); el("rect", { x: p.x - 14, y: p.y - 14, width: 28, height: 28, rx: 5, fill: s.owner ? s.ink : "#7d8a86", stroke: "#0b0704", "stroke-width": 2 }); el("text", { x: p.x, y: p.y + 4, "text-anchor": "middle", fill: "#0b0704", "font-size": 12 }).textContent = s.owner ? s.name[0] : "·"; }
+  // Несомое.
+  if (S.down && S.at && S.carry !== "none") {
+    const g = el("g", { transform: `translate(${S.at.x} ${S.at.y})` });
+    const n = S.carry === "pile" ? 4 : 1;
+    for (let i = 0; i < n; i++) el("rect", { x: -12 - i, y: -17 - i, width: 24, height: 34, rx: 3, fill: "#f5ead0", stroke: "#0b0704", "stroke-width": 1.5 }, g);
+    el("text", { x: 0, y: 4, "text-anchor": "middle", fill: "#0b0704", "font-size": 11 }, g).textContent = S.carry === "pile" ? "×4" : "";
+  }
+  // Выбранная цель.
+  const t = targets().find((q) => q.id === S.sel);
+  if (t) el("circle", { cx: t.z.x, cy: t.z.y - 28, r: 3, fill: "#f2c14e" });
+  sheet();
+}
+
+function sheet() {
+  const t = targets().find((q) => q.id === S.sel) ?? targets()[0];
+  const top = document.getElementById("top");
+  top.innerHTML = `<button data-carry="card" class="${S.carry === "card" ? "on" : ""}">Несу карту</button><button data-carry="pile" class="${S.carry === "pile" ? "on" : ""}">Несу стопку</button><button data-always class="${S.always ? "on" : ""}">Подсказки всегда</button><button data-view="free" class="${S.view === "free" ? "on" : ""}">Свободная</button><button data-view="first" class="${S.view === "first" ? "on" : ""}">Первое лицо</button>`;
+  document.getElementById("hint").textContent = S.view === "first" ? "Первое лицо: моя зона — чаша у глаза (то же правило приёмки); у остальных — как на столе." : "Тяни пальцем по столу — несёшь. Тап по зоне — выбрать, ниже её ручки.";
+  const rows = targets().map((q) => {
+    const st = stateOf(q);
+    const tab = canTake(q) ? '<span class="chip yes">есть</span>' : '<span class="chip no">нет</span>';
+    const line = st === "none" ? '<span class="chip no">нет</span>' : st === "hot" ? '<span class="chip hot">горит</span>' : '<span class="chip yes">подсказка</span>';
+    return `<tr data-row="${q.id}" style="${q.id === S.sel ? "background:#2a3a22" : ""}"><td><span class="dot" style="background:${q.ink}"></span>${q.name}${q.kind === "seat" ? (q.owner ? "" : " (бесхозный)") : ""}</td><td>${tab}</td><td>${line}</td></tr>`;
+  }).join("");
+  document.getElementById("sheet").innerHTML = `<table><tr><th>Зона</th><th>Язычок</th><th>Контур</th></tr>${rows}</table>
+    <div class="grp">«${t.name}»: ручки</div>
+    <div class="row">${t.kind === "seat" ? `<button data-flag="owner" class="${t.owner ? "on" : ""}">Есть хозяин</button>` : ""}<button data-flag="lock" class="${t.lock ? "on" : ""}">Замок: не взять</button><button data-flag="reject" class="${t.reject ? "on" : ""}">Не принимает</button></div>`;
+}
+
+const pt = (e) => { const r = svg.getBoundingClientRect(), k = Math.min(r.width / 400, r.height / 420), ox = (r.width - 400 * k) / 2, oy = (r.height - 420 * k) / 2; return { x: (e.clientX - r.left - ox) / k, y: (e.clientY - r.top - oy) / k }; };
+let moved = false, start = null;
+svg.addEventListener("pointerdown", (e) => { svg.setPointerCapture(e.pointerId); S.down = true; moved = false; start = pt(e); S.at = start; draw(); });
+svg.addEventListener("pointermove", (e) => { if (!S.down) return; S.at = pt(e); if (Math.hypot(S.at.x - start.x, S.at.y - start.y) > 6) moved = true; draw(); });
+svg.addEventListener("pointerup", () => {
+  if (!moved) { const hit = targets().find((t) => inside(t, S.at)); if (hit) S.sel = hit.id; }
+  S.down = false; S.at = null; draw();
+});
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button, tr[data-row]"); if (!b) return;
+  if (b.dataset.carry) S.carry = b.dataset.carry;
+  else if (b.dataset.always !== undefined) S.always = !S.always;
+  else if (b.dataset.view) S.view = b.dataset.view;
+  else if (b.dataset.flag) { const t = [...seats, deck].find((q) => q.id === S.sel); t[b.dataset.flag] = !t[b.dataset.flag]; }
+  else if (b.dataset.row) S.sel = b.dataset.row;
+  draw();
+});
+draw();
+window.__zones = { S, seats, deck, stateOf, canTake, accepts, targets };
+</script>
+</body>
+</html>
