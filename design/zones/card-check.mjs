@@ -22,6 +22,10 @@ const box = await f.evaluate(() => { const r = document.getElementById("f-top").
 const d0 = await depth();
 await p.mouse.move(box.x + 190, box.y + 150); for (let i = 0; i < 3; i++) { await p.mouse.wheel(0, -120); await p.waitForTimeout(150); } await p.waitForTimeout(400);
 check("камера включена без тумблера: колесо приближает", (await depth()) < d0 - 1, { d0, d1: await depth() });
+{
+  const d1 = await depth(); await p.waitForTimeout(4500);
+  check("камеру не тянет обратно: после зума и простоя 4,5 с она там же", Math.abs((await depth()) - d1) < 0.05, { d1, d2: await depth() });
+}
 for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   const at = await f.evaluate((s) => window[s].test.screenOf(window.__me.state.felt[0].id), scene);
   await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x + 12, at.y + 8, { steps: 4 }); await p.waitForTimeout(300);

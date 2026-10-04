@@ -484,6 +484,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let handSize = innerWidth < 500 ? 0.7 : 1;
   const rig = { yaw: 0, pitch: -40, lean: 0, side: 0, fov: baseFov };
   const neck = neckNew();
+  /** Стенд дизайна: шея не устаёт и не возвращается сама — камера стоит там, где её оставили (в игре шея работает как задумано). */
+  let neckFree = false;
   /**
    * Рука с картами едет за камерой с запозданием, как в FPS: повернул взгляд — вся рука целиком (карты и кисть — один слой `handRoot`) чуть позади и догоняет.
    * Это только отрисовка на клиенте: на сервер уходит одна точка камеры, и остальные собирают руку из неё же.
@@ -2012,7 +2014,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       // ШЕЯ ТЯНЕТСЯ ВПЕРЁД, НАЗАД И ВБОК одним натягом: считаем по длине вектора (наклон, сдвиг), и возвращается он тоже вместе.
       if (drag || rigPtrs.size > 0 || live.size > 0) neck.idle = 0;
       const goalMoved = camMode === "head" && headGoalStep(dt);
-      const was = rig.lean, wasSide = rig.side, m = Math.hypot(rig.lean, rig.side), m2 = neckStep(neck, m, sinceMs, stanceNow() === "sit");
+      const was = rig.lean, wasSide = rig.side, m = Math.hypot(rig.lean, rig.side), m2 = neckFree ? m : neckStep(neck, m, sinceMs, stanceNow() === "sit");
       if (m2 < m - 1e-6) headGoal = null;
       if (m2 !== m) { const k = m > 0 ? m2 / m : 0; rig.lean *= k; rig.side *= k; }
       if (goalMoved || rig.lean !== was || rig.side !== wasSide || neck.back > 0 || m2 > NECK.free) { applyRig(); sendBody(); moving = true; }
@@ -3194,6 +3196,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     feltScreen: (x: number, y: number) => project(new THREE.Vector3(x, 0, y)),
     ringLit: () => [...ringFields.entries()].map(([id, f]) => ({ id, zone: f.zone.visible, glow: f.glow.visible, slot: f.slot.visible })),
     cardQuat: (id: string) => { const o = cards.get(id); return o ? new THREE.Euler().setFromQuaternion(o.target.quat, "ZXY").toArray().slice(0, 3).map((v) => Math.round(((v as number) * 180) / Math.PI * 10) / 10) : null; },
+    setNeckFree: (on: boolean) => { neckFree = on; },
     lookBy: (dyaw: number, dpitch: number) => lookBy(dyaw, dpitch),
     cardTopOnScreen: (id: string) => { const o = cards.get(id); if (!o) return null; o.group.updateMatrixWorld(true); const a = project(o.group.localToWorld(new THREE.Vector3(0, 0, 0))), b = project(o.group.localToWorld(new THREE.Vector3(0, CARD_H / 2, 0))); return { dx: b.x - a.x, dy: b.y - a.y }; },
     cardTilt: (id: string) => { const o = cards.get(id); if (!o) return null; const n = new THREE.Vector3(0, 0, 1).applyQuaternion(o.target.quat), eye = camera.position.clone().sub(o.target.pos).normalize(), s = Math.sign(n.dot(eye)) || 1; return { roll: Math.asin(Math.min(1, Math.abs(new THREE.Vector3(1, 0, 0).applyQuaternion(o.target.quat).y))) / DEG, fromUp: Math.acos(Math.min(1, Math.abs(n.y))) / DEG, towardEye: Math.acos(Math.min(1, Math.abs(n.dot(eye)))) / DEG, minY: (() => { let m = Infinity; for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) m = Math.min(m, new THREE.Vector3(x * CARD_W / 2, y * CARD_H / 2, 0).applyQuaternion(o.target.quat).y + o.target.pos.y); return m; })(), s }; },
