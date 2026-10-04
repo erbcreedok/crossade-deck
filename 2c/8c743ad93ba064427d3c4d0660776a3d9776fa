@@ -1,0 +1,20 @@
+design/zones/piles-scenes.html
+  s_ad8a8a5b5d0419::t_d1f2159b996187 39-40,62-64,66,69-71,73-74,79,82,146
+  s_ad8a8a5b5d0419::t_679a67479bf4aa 65,78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2c8c743ad93ba064427d3c4d0660776a3d9776fa",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
