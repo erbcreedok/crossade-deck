@@ -1392,7 +1392,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         zones.set(ch.id, z);
       }
       // Видна: пока стул пуст и карт в зоне нет (место ждёт), и пока я несу карту, которую в эту руку можно положить (хоть бы там и сидели, если нет замка).
-      const h = held(), carrying = !!h && h.takeable && h.kind !== "hand" && ch.id !== myChair()?.id, free = !reseat && ((!ch.owner && ch.hand.length === 0) || (carrying && handTakes(ch)));
+      const h = held(), mineHere = ch.id === myChair()?.id, carrying = !!h && h.takeable && h.kind !== "hand" && (!mineHere || camMode === "orbit"), free = !reseat && ((!ch.owner && ch.hand.length === 0) || (carrying && (mineHere || handTakes(ch))));
+      // Одна зона у всех мест — цвет хозяина (у бесхозного серый), а не свой у каждого вида.
+      const zInk = ch.owner ? store.state.people.find((p) => p.key === ch.owner)?.ink ?? "#8d9a94" : "#8d9a94";
+      (z.fill.material as THREE.MeshBasicMaterial).color.set(zInk); (z.line.material as THREE.LineDashedMaterial).color.set(zInk);
       const lit = free && carrying && h!.where?.in === "hand" && h!.where.chair === ch.id;
       z.fill.visible = z.line.visible = free;
       (z.fill.material as THREE.MeshBasicMaterial).opacity = lit ? 0.3 : 0.08;
@@ -2773,15 +2776,16 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const chair = myChair();
     const r = renderer.domElement.getBoundingClientRect();
     // Над своей рукой — от верха её карт, как они нарисованы в мире, и ниже.
-    if (chair && e.clientY - r.top > handTop(chair, skipCard)) {
+    // Свободная камера руки на экране нет: моя зона — на столе, как у остальных (ниже).
+    if (chair && camMode !== "orbit" && e.clientY - r.top > handTop(chair, skipCard)) {
       const others = chair.hand.filter((c) => c.id !== skipCard);
       const xs = others.map((c) => screenOf(c.id)?.x ?? 0);
       return { in: "hand", chair: chair.id, i: xs.filter((q) => q < e.clientX).length };
     }
     const at = onFelt(e) ?? new THREE.Vector3();
-    // В зону бесхозного стула — в его руку (в конец стопки); занятый стул зону не принимает.
+    // В личную зону места — в его руку (в конец стопки): своя зона — только в свободной камере (от первого лица и сверху её роль у руки на экране), чужая — если место принимает.
     for (const c of store.state.chairs) {
-      if (c.id === chair?.id || !handTakes(c)) continue;
+      if (!(c.id === chair?.id ? camMode === "orbit" : handTakes(c))) continue;
       const zc = zoneCentre(c.angle);
       if (Math.hypot(at.x - zc.x, at.z - zc.y) < ZONE.r) return { in: "hand", chair: c.id, i: c.hand.length };
     }
@@ -2917,7 +2921,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setCamMode: (m: CamMode) => setCamMode(m),
     myShoulders: () => ({ body: (myBody.userData.shoulder as THREE.Vector3 | undefined)?.toArray() ?? null, arm: (myArm.userData.shoulder as THREE.Vector3 | undefined)?.toArray() ?? null }),
     leftHandOf: (chair: string) => { for (const b of heads.children) if (b.userData.chair === chair && b.userData.left) return (b.userData.left as THREE.Vector3).toArray(); return null; },
-    zoneInfo: () => store.state.chairs.filter((c) => !c.croupier).map((c) => ({ id: c.id, owner: c.owner, zone: zones.get(c.id)?.fill.visible ?? false, chair: chairObjs.get(c.id)?.group.visible ?? null, centre: zoneCentre(c.angle), hand: c.hand.map((h) => h.id) })),
+    zoneInfo: () => store.state.chairs.filter((c) => !c.croupier).map((c) => ({ id: c.id, owner: c.owner, zone: zones.get(c.id)?.fill.visible ?? false, chair: chairObjs.get(c.id)?.group.visible ?? null, centre: zoneCentre(c.angle), screen: project(new THREE.Vector3(zoneCentre(c.angle).x, 0, zoneCentre(c.angle).y)), color: zones.get(c.id) ? `#${(zones.get(c.id)!.fill.material as THREE.MeshBasicMaterial).color.getHexString()}` : null, lit: (zones.get(c.id)?.fill.material as THREE.MeshBasicMaterial | undefined)?.opacity ?? 0, hand: c.hand.map((h) => h.id) })),
     heldAngle: () => (drag?.moved ? drag.angle : null),
     draggingId: () => (drag?.moved ? drag.id : null),
     reseatNow: (angle: number) => { store.send({ t: "reseat", angle }); },
