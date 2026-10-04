@@ -1,0 +1,21 @@
+server/table-client/localStore.ts
+  s_ad8a8a5b5d0419::t_54cf8566d2d984 29-33,44-45,50,61-70,83
+design/zones/piles-scenes.html
+  s_ad8a8a5b5d0419::t_456ff5704cbb3c 19-21,36-37,46-59,69,76-78,82,84-85,121-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85f17b4f528f3218ae77e791464fbe1ab17d0e33",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
