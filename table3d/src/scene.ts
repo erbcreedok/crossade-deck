@@ -40,6 +40,8 @@ const FELT_STEP = 0.004;
 const HOLD_MS = 1500;
 /** Двойной тап — два тапа по одной карте за столько. */
 const DOUBLE_MS = 350;
+/** Сколько держать палец на карте, чтобы она поднялась без движения, мс. */
+const HOLD_PICK_MS = 350;
 /**
  * ПРУЖИНА — как карты догоняют свои места: жёсткость и доля затухания от критического (меньше 1 — с лёгким
  * перелётом). Несомая — жёстче и почти без перелёта: она должна быть под пальцем, а не догонять его.
@@ -2712,6 +2714,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const my = myChair()?.angle ?? 0;
     drag = { id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: c ? c.up : f.in === "hand" ? (f.mine ? true : !!store.state.chairs.find((q) => q.id === f.chair)?.hand.find((x) => x.id === id)?.up) : !!store.state.piles.find((p) => p.id === (f as { pile: string }).pile)?.cards.find((x) => x.id === id)?.up, angle: ((-my % 360) + 360) % 360, gap: null, place: null, where: null, spot: null, zone: null, fingerHand, latch0, scrubbed: false };
     dragPid = e.pointerId; flipDeg = 0; flipTouch = null; lastFinger = { x: e.clientX, y: e.clientY };
+    // Удержание поднимает карту и без движения пальца.
+    const held = drag;
+    window.setTimeout(() => { if (drag === held && !held.moved && dragPid !== null) advanceDrag(lastFinger.x, lastFinger.y, true); }, HOLD_PICK_MS);
     layout(store.state);
   }
   /** Моя карта ближе всего к пальцу по горизонтали — та, что поднимется под ним. */
@@ -2762,24 +2767,26 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     layout(store.state);
   };
   const PULL_PX = 18;
-  renderer.domElement.addEventListener("pointermove", (e) => {
+  /**
+   * Палец ведёт карту: сдвинулся на 6 пикселей — карта поднята и идёт за ним. `hold` — палец держат на карте дольше `HOLD_PICK_MS` и не двигают:
+   * карта поднимается и без сдвига. Тап (отпустил раньше) карту не трогает.
+   */
+  const advanceDrag = (x: number, y: number, hold = false): void => {
     if (!drag) return;
-    if (dragPid !== null && e.pointerId !== dragPid) return;
-    lastFinger = { x: e.clientX, y: e.clientY };
     // ПАЛЕЦ ПО РУКЕ: пока он не потянул вверх, карту не берут — под пальцем поднимается та, над которой он стоит (одна), и палец может
     // скользить вдоль руки; потянул вверх — берёт ту, что поднята. (Только в виде «голова» и с новым язычком руки.)
-    if (!drag.moved && drag.fingerHand) {
-      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!hold && !drag.moved && drag.fingerHand) {
+      const dx = x - drag.x, dy = y - drag.y;
       if (dy > -PULL_PX) {
         if (Math.abs(dx) >= 4 || drag.scrubbed) {
-          const id = handCardNearX(e.clientX);
+          const id = handCardNearX(x);
           drag.scrubbed = true;
           if (id && id !== drag.id) { drag.id = id; liftedId = id; layout(store.state); draw(); }
         }
         return;
       }
     }
-    if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
+    if (!hold && !drag.moved && Math.hypot(x - drag.x, y - drag.y) < 6) return;
     if (!drag.moved) {
       drag.moved = true;
       store.send({ t: "grab", id: drag.id });
@@ -2787,21 +2794,27 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       drag.hold = window.setInterval(() => { if (drag) store.send({ t: "hold", id: drag.id }); }, HOLD_MS);
     }
     // Куда целит палец: над своей рукой — щель в руке и правая рука у левой; иначе — карта под пальцем над столом.
-    const where = target(e, drag);
-    const z = zoneFn?.(e.clientX, e.clientY) ?? null;
+    const where = target({ clientX: x, clientY: y }, drag);
+    const z = zoneFn?.(x, y) ?? null;
     drag.where = where;
     drag.zone = z ? (z.where.in === "deck" ? { pile: z.where.pile, i: z.where.i } : { chair: z.where.chair, i: z.where.i }) : null;
     drag.spot = drag.zone ? z!.spot : null;
     drag.gap = where.in === "hand" && where.chair === myChair()?.id ? where.i : null;
     const pile = where.in === "deck" ? store.state.piles.find((p) => p.id === where.pile) : undefined;
     // Над стопкой — карта уже над ней, наверху: видно, куда ляжет; рука остальным — на стопке.
-    drag.place = dragPlace(e.clientX, e.clientY);
+    drag.place = dragPlace(x, y);
     const zonePile = drag.zone?.pile ? store.state.piles.find((p) => p.id === drag!.zone!.pile) : undefined;
     const zoneChair = drag.zone?.chair ? store.state.chairs.find((c) => c.id === drag!.zone!.chair) : undefined, zoneHand = zoneChair ? leftOf(zoneChair) : null;
     rightAt = drag.gap !== null ? myLeftHand() : zoneHand ? { x: zoneHand.x, y: zoneHand.y } : zonePile ? { x: zonePile.x, y: zonePile.y } : pile ? { x: pile.x, y: pile.y } : drag.place ? { x: drag.place.pos.x, y: drag.place.pos.z } : null;
     sendBody();
     pushCarry();
     layout(store.state);
+  };
+  renderer.domElement.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    if (dragPid !== null && e.pointerId !== dragPid) return;
+    lastFinger = { x: e.clientX, y: e.clientY };
+    advanceDrag(e.clientX, e.clientY);
   });
   const end = (e: PointerEvent) => {
     if (!drag) return;
@@ -2817,10 +2830,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     sendBody(true);
     if (!d.moved) {
       // Скользил по руке (не тап): поднятая под пальцем карта опускается — остаётся поднятой только та, что была поднята тапом.
-      if (d.fingerHand && d.scrubbed) { liftedId = d.latch0; layout(store.state); draw(); return; }
-      // Тап: тап поднимает карту и оставляет её поднятой,
-      // как под пальцем, а ещё тап по ней (не сразу) — опускает.
-      if (d.fingerHand && d.latch0 === d.id) { liftedId = null; layout(store.state); }
+      // Тап по карте ничего не делает: поднятая под пальцем (по руке) возвращается как была до касания.
+      if (d.fingerHand) { liftedId = d.latch0; layout(store.state); draw(); return; }
       draw();
       return;
     }
