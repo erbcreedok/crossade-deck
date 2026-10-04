@@ -1,0 +1,22 @@
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_825c33ebccbad9 2034-2035
+  s_ad8a8a5b5d0419::t_bbcc95982eeed2 2006-2008,2010,3070
+table3d/flip-lift-check.mjs
+  s_ad8a8a5b5d0419::t_9e4fd51310f375 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "02129fa324991e890a9ef2459bff349190ac8e5e",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
