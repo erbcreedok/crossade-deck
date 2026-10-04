@@ -1798,7 +1798,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     for (const [id, f] of floats) {
       const o = cards.get(id), pile = store.state.piles.find((p) => p.id === f.pile);
       if (!o || !pile) continue;
-      o.target = lying(pile.x + f.dx, pile.y + f.dy, 0.35 + pile.cards.length * PILE_STEP + f.lift + Math.sin(now / 420 + f.phase) * 0.05, pileAngle(pile) + f.da, f.up);
+      // Как в «Балатро»: карта плавает на месте — покачивается вверх-вниз, дрейфует по сукну и клонится в две стороны разными медленными волнами.
+      const t = now / 1000 + f.phase, place = lying(pile.x + f.dx + Math.sin(t * 0.9) * 0.07, pile.y + f.dy + Math.cos(t * 0.7) * 0.07, 0.4 + pile.cards.length * PILE_STEP + f.lift + Math.sin(t * 1.6) * 0.07, pileAngle(pile) + f.da + Math.sin(t * 0.6) * 3, f.up);
+      place.quat.premultiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.sin(t * 1.3) * 0.13, 0, Math.cos(t * 1.1) * 0.1)));
+      place.scale = 1 + Math.sin(t * 1.6) * 0.025;
+      o.target = place;
     }
   }
   /** Где карта по снимку — ключом: поменялся — стол ответил, и ждать ответа на месте больше нечего. */
