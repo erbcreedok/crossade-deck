@@ -2035,6 +2035,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     placeZones();
     placeMyBody();
     handBowl();
+    // Стенд дизайна: без моего тела, рук и чаши руки — только стол и карты (`test.setBareTable`).
+    if (bareTable) { myBody.visible = false; myArm.visible = false; fpsArm.visible = false; bowlG.visible = false; }
     // Своя рука у глаза — вторым проходом поверх всего: борт стола, подошедший к камере вплотную, её не закрывает.
     camera.layers.set(0);
     headsFront();
@@ -2682,6 +2684,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     return best;
   };
+  let bareTable = false;
   /** Несомая карта над стопкой садится ровно на неё. Стенд дизайна выключает это: карта остаётся на весу под пальцем (`test.setPileSnap`). */
   let pileSnap = true;
   const PULL_PX = 18;
@@ -2941,6 +2944,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hideMine: (on: boolean) => { const ch = myChair(); for (const c of ch?.hand ?? []) { const o = cards.get(c.id); if (o) o.group.visible = !on; } draw(); },
     zoomBy: (k: number) => zoomBy(k),
     setPileSnap: (on: boolean) => { pileSnap = on; },
+    fovDeg: () => camera.fov,
+    setBareTable: (on: boolean) => { bareTable = on; },
     floatCard: (id: string, pile: string | null, dx = 0, dy = 0, lift = 0, da = 0, up = true) => { if (pile) floats.set(id, { pile, dx, dy, lift, da, up, phase: floats.get(id)?.phase ?? Math.random() * 6 }); else floats.delete(id); layout(store.state); },
     seatNow: () => seatPull,
     dollParts: () => { const b = heads.children[0]?.children.find((c) => c.userData.base)?.userData as { base?: THREE.Vector3 } | undefined; const ch = [...chairObjs.values()][0]; return { headY: b?.base?.y ?? null, chairScale: ch?.group.scale.x ?? null }; },
