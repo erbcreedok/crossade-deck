@@ -1,0 +1,36 @@
+design/zones/index.html
+  s_ad8a8a5b5d0419::t_eec530cd9c7834 10-11
+table3d/src/main.ts
+  s_ad8a8a5b5d0419::t_822f6db2c178f8 2
+  s_ad8a8a5b5d0419::t_a825b8907edcb0 42
+table3d/index.html
+  s_ad8a8a5b5d0419::t_a825b8907edcb0 5
+table3d/touch-lock-check.mjs
+  s_ad8a8a5b5d0419::t_a7e372db799e06 28
+  s_ad8a8a5b5d0419::t_83d09f05b48472 1-27,29-36
+table3d/src/touchLock.ts
+  s_ad8a8a5b5d0419::t_a825b8907edcb0 1
+  s_ad8a8a5b5d0419::t_0aec947aa45fd3 2-20
+design/zones/card.html
+  s_ad8a8a5b5d0419::t_eec530cd9c7834 8-9
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_a825b8907edcb0 33,363
+design/zones/piles.html
+  s_ad8a8a5b5d0419::t_eec530cd9c7834 8-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d77733d0832bc0f8bc3a82a7d31facf9cc5f644c",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
