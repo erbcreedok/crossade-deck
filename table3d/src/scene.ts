@@ -54,7 +54,7 @@ const TOUCH = { up: 0.07, z: 0.12 };
 /** Место карты: в мире (`over` — моя рука: место в мире, но рисуется поверх всего) — или в осях камеры (`onCamera`: над окном HUD). */
 /** Раскладка руки: сжатость (0 — стопкой), веер ↔ ряд (0.5 — веер, 1 — ряд), комната в ширинах карты. */
 type Shape = { wide: number; lift: number; room: number; base?: number };
-type Place = { pos: THREE.Vector3; quat: THREE.Quaternion; scale: number; onCamera?: true; over?: true; /** Куда в мире складывается рука к держащему: чей слой выше, решает, с какой стороны на неё смотрят. */ stagger?: THREE.Vector3; /** Кривизна самой карты вокруг её вертикали (1/радиус в единицах карты, + к лицу): карта согнута, как в пальцах. */ bend?: number };
+type Place = { pos: THREE.Vector3; quat: THREE.Quaternion; scale: number; onCamera?: true; over?: true; /** Куда в мире складывается рука к держащему: чей слой выше, решает, с какой стороны на неё смотрят. */ stagger?: THREE.Vector3; /** Несомая под пальцем: растёт на высоту вдоль луча камеры через палец, а не по прямой из прежнего места. */ held?: true; /** Кривизна самой карты вокруг её вертикали (1/радиус в единицах карты, + к лицу): карта согнута, как в пальцах. */ bend?: number };
 /** Где карта сейчас по снимку: откуда её можно взять. */
 type From = { in: "felt" } | { in: "pile"; pile: string; top: boolean } | { in: "hand"; chair: string; mine: boolean; i: number };
 
@@ -2006,6 +2006,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         sv += ((t.scale - sc) * sp.k - sv * c) * h;
         sc += sv * h;
       }
+      // Несомая карта поднимается на высоту вдоль луча камеры через палец: на экране она остаётся под пальцем (а не летит по прямой из места, где лежала, — снизу).
+      if (t.held && drag?.id === id) {
+        const cp = camera.position, up = cp.y - t.pos.y, now = cp.y - g.position.y;
+        if (up > 0.1 && now > 0.05) { const k = now / up; g.position.x = cp.x + (t.pos.x - cp.x) * k; g.position.z = cp.z + (t.pos.z - cp.z) * k; v.x = v.z = 0; }
+      }
       g.userData.sv = sv;
       g.scale.setScalar(sc);
       d.copy(t.pos).sub(g.position);
@@ -2374,6 +2379,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!at) return null;
     const p = lying(at.x, at.z, at.y, angle, up);
     p.scale = 1.06;
+    p.held = true;
     return p;
   };
   /** Моя левая рука (с веером) — куда тянется правая, когда несу карту в свою руку: так это видят остальные. */
