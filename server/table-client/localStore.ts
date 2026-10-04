@@ -31,6 +31,8 @@ export interface LocalOpts {
    * Первый — админ. Для дизайн-страниц, где важно, КТО двигает карту (цвет, права), а не где он сидит.
    */
   players?: { key: string; name: string; ink: string }[];
+  /** Сколько карт в колоде (по умолчанию вся: 36). */
+  cards?: number;
 }
 
 /**
@@ -42,7 +44,7 @@ export function localTable(opts: LocalOpts = {}): { view(key: string): TableStor
   const me: Person = { key: "me", name: "Ye", ink: "#f2c14e", door: "guest" };
   // На стенде админ — я: иначе флаги чужих стульев не проверить.
   const roster: Person[] = opts.players ? opts.players.map((p) => ({ ...p, door: "guest" as const })) : [];
-  const table = new Table(deal(), roster[0]?.key ?? me.key);
+  const table = new Table(opts.cards ? deal().slice(0, opts.cards) : deal(), roster[0]?.key ?? me.key);
   const bots: Person[] = [
     { key: "alia", name: "Алия", ink: "#7fd1b9", door: "guest" },
     { key: "timur", name: "Тимур", ink: "#e08b3f", door: "guest" },
