@@ -785,13 +785,13 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const dom = renderer.domElement, ptrs = rigPtrs;
     const pair = () => { const [a, b] = [...ptrs.values()]; return a && b ? { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null; };
     dom.addEventListener("pointerdown", (e) => {
-      if (camMode === "orbit" || drag) return;
+      if (camMode === "orbit" || drag || camLocked) return;
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, right: e.button === 2 });
       try { dom.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
     });
     dom.addEventListener("pointermove", (e) => {
       const was = ptrs.get(e.pointerId);
-      if (!was || camMode === "orbit" || drag) return;
+      if (!was || camMode === "orbit" || drag || camLocked) return;
       const before = pair();
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, right: was.right });
       if (ptrs.size === 1) {
@@ -823,7 +823,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     dom.addEventListener("pointerup", up);
     dom.addEventListener("pointercancel", up);
     dom.addEventListener("contextmenu", (e) => { if (camMode !== "orbit") e.preventDefault(); });
-    dom.addEventListener("wheel", (e) => { if (camMode === "orbit") return; e.preventDefault(); if (e.shiftKey) seatBy(e.deltaY * CAM.seat); else zoomBy(Math.exp(-e.deltaY * CAM.wheel * 2)); }, { passive: false });
+    dom.addEventListener("wheel", (e) => { if (camMode === "orbit" || camLocked) return; e.preventDefault(); if (e.shiftKey) seatBy(e.deltaY * CAM.seat); else zoomBy(Math.exp(-e.deltaY * CAM.wheel * 2)); }, { passive: false });
     addEventListener("keydown", (e) => {
       if (camMode === "orbit" || e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement | null)?.closest("input, textarea, [contenteditable]")) return;
       if (host.closest(".screen")?.classList.contains("off")) return;
@@ -1937,7 +1937,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     syncSeatAngle();
     applyGyro();
     // Камера и моя рука — до пружин: рука едет с головой, и пружины догоняют уже новое место.
-    if (camMode === "head" || camMode === "top") {
+    if (!camLocked && (camMode === "head" || camMode === "top")) {
       // ШЕЯ ТЯНЕТСЯ ВПЕРЁД, НАЗАД И ВБОК одним натягом: считаем по длине вектора (наклон, сдвиг), и возвращается он тоже вместе.
       if (drag || rigPtrs.size > 0 || live.size > 0) neck.idle = 0;
       const goalMoved = camMode === "head" && headGoalStep(dt);
@@ -2685,6 +2685,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return best;
   };
   let bareTable = false;
+  /** Стенд дизайна: камера стоит как поставлена — ни пальцем, ни шеей, ни колесом (`test.setCamLocked`). */
+  let camLocked = false;
   /** Несомая карта над стопкой садится ровно на неё. Стенд дизайна выключает это: карта остаётся на весу под пальцем (`test.setPileSnap`). */
   let pileSnap = true;
   const PULL_PX = 18;
@@ -2946,6 +2948,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setPileSnap: (on: boolean) => { pileSnap = on; },
     fovDeg: () => camera.fov,
     setBareTable: (on: boolean) => { bareTable = on; },
+    setCamLocked: (on: boolean) => { camLocked = on; },
     floatCard: (id: string, pile: string | null, dx = 0, dy = 0, lift = 0, da = 0, up = true) => { if (pile) floats.set(id, { pile, dx, dy, lift, da, up, phase: floats.get(id)?.phase ?? Math.random() * 6 }); else floats.delete(id); layout(store.state); },
     seatNow: () => seatPull,
     dollParts: () => { const b = heads.children[0]?.children.find((c) => c.userData.base)?.userData as { base?: THREE.Vector3 } | undefined; const ch = [...chairObjs.values()][0]; return { headY: b?.base?.y ?? null, chairScale: ch?.group.scale.x ?? null }; },

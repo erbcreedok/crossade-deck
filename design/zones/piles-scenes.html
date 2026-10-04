@@ -16,7 +16,8 @@
   .head { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
   .head .n { width: 22px; height: 22px; background: linear-gradient(var(--goldLight), var(--goldDark)); color: var(--black); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--black); }
   .head .t { font-size: 15px; letter-spacing: .3px; }
-  .frame { position: relative; width: 100%; height: 300px; overflow: hidden; border-radius: 10px; background: #0a1511; box-shadow: 0 0 0 3px var(--wood), 0 0 0 5px var(--black); touch-action: none; }
+  .frame { opacity: 0; transition: opacity .35s; position: relative; width: 100%; height: 300px; overflow: hidden; border-radius: 10px; background: #0a1511; box-shadow: 0 0 0 3px var(--wood), 0 0 0 5px var(--black); touch-action: none; }
+  .frame.ready { opacity: 1; }
   .stage { position: absolute; }
   .zcv { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
   .say { position: absolute; z-index: 9; transform: translate(-50%, 0); font: 400 12px 'Tiny5', monospace; color: var(--ink); background: var(--panel); padding: 3px 8px; box-shadow: 0 0 0 2px var(--black); pointer-events: none; white-space: nowrap; display: none; }
@@ -47,7 +48,7 @@ const $ = (id) => document.getElementById(id);
 const sizeStage = (s, w, h, fw, fh) => Object.assign(s.style, { width: w + "px", height: h + "px", left: (fw - w) / 2 + "px", top: (fh - h) / 2 + "px" });
 const FW = $("f-top").clientWidth, FH = 300;
 sizeStage($("s-top"), 820, 820, FW, FH);
-sizeStage($("s-first"), 760, 760, FW, FH);
+sizeStage($("s-first"), 1000, 1000, FW, FH);
 await wait(200);
 const top = mountScene($("s-top"), me), first = mountScene($("s-first"), alia);
 top.setCamMode("top"); first.setCamMode("head");
@@ -73,7 +74,6 @@ for (const c of [...alia.state.chairs.find((x) => x.owner === alia.me.key).hand]
 await wait(600);
 // Я остаюсь за стулом: камера сверху привязана к моему месту, без него ею нечем управлять.
 alia.send({ t: "flag", chair: alia.state.chairs.find((c) => c.owner === alia.me.key).id, flag: "reject", on: true });
-first.zoomBy(2.2);
 await wait(900);
 // Сдвиг кадра первого лица: колода — в середину кадра.
 {
@@ -83,6 +83,8 @@ await wait(900);
 }
 await wait(300);
 
+top.test.setCamLocked(true); first.test.setCamLocked(true);
+for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
 // Камера: по умолчанию её крутить нельзя — касание пустого места (кроме карт и язычка колоды) до сцены не доходит, колесо и щипок тоже. Тумблер «камера» в панели включает управление камерой на обеих сценах.
 let cameraOn = false;
 for (const [el, sc] of [[$("s-top"), top], [$("s-first"), first]]) {
@@ -100,7 +102,7 @@ for (const [el, sc] of [[$("s-top"), top], [$("s-first"), first]]) {
 let policy = "accept", finger = null, pid = 1, note = "", noteAt = 0;
 const waiting = [];
 const bar = $("bar");
-const camBtn = document.createElement("button"); camBtn.textContent = "камера: выкл"; camBtn.style.marginLeft = "auto"; camBtn.onclick = () => { cameraOn = !cameraOn; camBtn.textContent = cameraOn ? "камера: вкл" : "камера: выкл"; camBtn.className = cameraOn ? "on" : ""; };
+const camBtn = document.createElement("button"); camBtn.textContent = "камера: выкл"; camBtn.style.marginLeft = "auto"; camBtn.onclick = () => { cameraOn = !cameraOn; top.test.setCamLocked(!cameraOn); first.test.setCamLocked(!cameraOn); camBtn.textContent = cameraOn ? "камера: вкл" : "камера: выкл"; camBtn.className = cameraOn ? "on" : ""; };
 setTimeout(() => bar.append(camBtn), 0);
 for (const [k, t] of [["accept", "принимает"], ["refuse", "не принимает"], ["ask", "нужен апрув"]]) {
   const b = document.createElement("button"); b.textContent = t; b.dataset.p = k; if (k === policy) b.className = "on";
