@@ -1,0 +1,22 @@
+table3d/src/scene.ts
+  s_ad8a8a5b5d0419::t_73d503a41b5c83 1395-1398,2779-2780,2786,2788,2924
+table3d/orbit-hand-check.mjs
+  s_ad8a8a5b5d0419::t_51f0b3f540bb6f 43-55,57-62
+  s_ad8a8a5b5d0419::t_76f2fad64b80e6 56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1c0b1d0a5324425f35933f55e394e3abd44c9a11",
+  "prompts": {},
+  "sessions": {
+    "s_ad8a8a5b5d0419": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e51a3d-9ea2-4170-9ace-4951257571c0",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
