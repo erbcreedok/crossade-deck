@@ -19,6 +19,7 @@ const r = await p.evaluate(() => {
   return {
     body: st(document.body), canvas: st(canvas), input: st(input),
     selectstart: ev("selectstart", canvas), dbl: ev("dblclick", canvas), gesture: ev("gesturestart", canvas), typingSelect: ev("selectstart", input),
+    touchstart: ev("touchstart", canvas),
     meta: document.querySelector('meta[name="viewport"]').content,
   };
 });
@@ -29,6 +30,7 @@ check("холст: выделение выключено", r.canvas.sel === "non
 check("холст: двойной тап не зумит (manipulation или none)", ["manipulation", "none"].includes(r.canvas.ta), r.canvas);
 check("поле ввода остаётся текстовым", r.input.sel === "text" && !r.typingSelect, r);
 check("выделение, двойной щелчок и щипок гасятся", r.selectstart && r.dbl && r.gesture, r);
+check("касание холста отменяется на touchstart (иначе iOS успевает вызвать лупу)", r.touchstart, r);
 check("viewport без зума", /user-scalable=no/.test(r.meta) && /maximum-scale=1/.test(r.meta), r.meta);
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);

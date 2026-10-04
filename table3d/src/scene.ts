@@ -843,6 +843,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     };
     dom.addEventListener("pointerup", up);
     dom.addEventListener("pointercancel", up);
+    // iOS решает про лупу, выноску и зум по двойному тапу уже на `touchstart`: одного CSS мало, жест у стола отменяется тут (pointer-события это не трогает).
+    dom.addEventListener("touchstart", (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
     dom.addEventListener("contextmenu", (e) => { if (camMode !== "orbit") e.preventDefault(); });
     dom.addEventListener("wheel", (e) => { if (camMode === "orbit" || camLocked) return; e.preventDefault(); if (e.shiftKey) seatBy(e.deltaY * CAM.seat); else zoomBy(Math.exp(-e.deltaY * CAM.wheel * 2)); }, { passive: false });
     addEventListener("keydown", (e) => {
