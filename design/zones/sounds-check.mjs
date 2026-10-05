@@ -56,6 +56,29 @@ await f.evaluate(() => { document.getElementById("tie").checked = true; });
 await f.evaluate(() => { const t = document.querySelector('.track[data-track="drop-1"]'); const r = [...t.querySelectorAll("input[type=range]")][1]; r.value = 12; r.dispatchEvent(new Event("input")); window.__spec.length = 0; t.querySelector("button").click(); });
 await p.waitForTimeout(500);
 check("ручка «тон» +12 полутонов уходит в голос", (await f.evaluate(() => window.__spec.at(-1)?.pitch)) === 12);
+// Никаких «групп»: в списке выбора только конкретные дорожки; ▶ у звука играет именно его (без синтеза); набор собирается кнопкой «+ ещё звук».
+{
+  const opts = await f.evaluate(() => [...document.querySelectorAll('.ev[data-kind="lay"] select option')].map((o) => o.textContent));
+  check("в выборе звука нет групп: 9 дорожек и «без записи»", opts.length === 10 && !opts.some((t) => /групп/.test(t)), opts);
+  await f.evaluate(() => { window.__spec.length = 0; });
+  await f.evaluate(() => document.querySelector('.ev[data-kind="lay"] .variant[data-variant="0"] button').click());
+  await p.waitForTimeout(400);
+  const one = await f.evaluate(() => window.__spec.at(-1));
+  check("▶ у звука играет только его: дорожка hand-1, без слоёв синтеза", one && one.track === "hand-1" && (one.layers ?? []).length === 0, one);
+  await f.evaluate(() => [...document.querySelectorAll('.ev[data-kind="lay"] > button')].find((b) => /ещё звук/.test(b.textContent)).click());
+  const made = await f.evaluate(() => ({ variants: document.querySelectorAll('.ev[data-kind="lay"] .variant').length, extra: window.__feel.preset.lay.extra?.length }));
+  check("«+ ещё звук в набор» добавляет второй звук со своими настройками", made.variants === 2 && made.extra === 1, made);
+  await f.evaluate(() => { const sel = document.querySelectorAll('.ev[data-kind="lay"] .variant')[1].querySelector("select"); sel.value = "track:turn-1"; sel.dispatchEvent(new Event("change")); });
+  await f.waitForFunction(() => window.__feel.preset.lay.extra?.[0]?.track === "turn-1", null, { timeout: 5000 });
+  await f.evaluate(() => { window.__spec.length = 0; });
+  await f.evaluate(() => document.querySelectorAll('.ev[data-kind="lay"] .variant')[1].querySelector("button").click());
+  await p.waitForTimeout(400);
+  const two = await f.evaluate(() => window.__spec.at(-1));
+  check("▶ у второго звука играет его дорожку turn-1", two && two.track === "turn-1", two);
+  await f.evaluate(() => { document.querySelectorAll('.ev[data-kind="lay"] .variant')[1].querySelectorAll("button")[1].click(); });
+  await p.waitForTimeout(300);
+  check("× убирает звук из набора", await f.evaluate(() => !window.__feel.preset.lay.extra && document.querySelectorAll('.ev[data-kind="lay"] .variant').length === 1));
+}
 // «Загрузить все»: после неё загружены все 9 дорожек и у каждой нарисована волна.
 await f.evaluate(() => document.getElementById("all").click());
 await f.waitForFunction(() => window.__sound.tracks.every((n) => window.__sound.buffer(n)), null, { timeout: 30000 });

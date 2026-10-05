@@ -34,7 +34,23 @@ export interface FeelEvent {
   mine?: boolean;
 }
 
+/** Один звук события: какая дорожка, с какого места, на какой скорости и тоне. У события их может быть несколько — набор, который собирает сам человек. */
+export interface Variant {
+  /** Точная дорожка (`drop-1`…); нет — этот вариант без записи. */
+  track?: string | null;
+  /** С какой миллисекунды играть; нет — автоматический срез тишины в начале. */
+  from?: number | null;
+  /** Скорость; с `tie` ещё и высота (как пластинка). */
+  rate: number;
+  /** Сдвиг высоты, полутона. */
+  pitch?: number;
+  /** Скорость меняет и высоту; по умолчанию да. */
+  tie?: boolean;
+}
+
 export interface FeelSpec {
+  /** ЕЩЁ ЗВУКИ СОБСТВЕННОГО НАБОРА: к основному (его поля `track`, `from`, `rate`, `pitch`, `tie` ниже) добавлены эти; при каждом событии играет случайный из всех, каждый со своими настройками. */
+  extra?: Variant[];
   /** Сдвиг высоты, полутона; нет — 0. */
   pitch?: number;
   /** Скорость `rate` меняет и высоту (как пластинка); нет — по умолчанию да. Выключено — высота своя, скорость отдельно. */
@@ -64,15 +80,15 @@ export interface FeelSpec {
 }
 
 export const FEEL_DEFAULT: Record<FeelKind, FeelSpec> = {
-  grab: { file: "hand", gain: 0.5, rate: 1.25, jitter: 0.06, soft: 1, cutMs: 120, layers: [{ kind: "tick", from: 900, to: 500, ms: 25, gain: 0.2 }], vibe: [8], style: "light" },
-  carry: { file: "hand", gain: 0.25, rate: 1.5, jitter: 0.1, soft: 0.2, cutMs: 90, layers: [], vibe: [], style: "soft" },
+  grab: { file: "hand", track: "hand-1", gain: 0.5, rate: 1.25, jitter: 0.06, soft: 1, cutMs: 120, layers: [{ kind: "tick", from: 900, to: 500, ms: 25, gain: 0.2 }], vibe: [8], style: "light" },
+  carry: { file: "hand", track: "hand-1", gain: 0.25, rate: 1.5, jitter: 0.1, soft: 0.2, cutMs: 90, layers: [], vibe: [], style: "soft" },
   lay: { file: "hand", track: "hand-1", from: 113, gain: 0.8, rate: 0.96, jitter: 0.06, soft: 0.45, cutMs: 0, layers: [], vibe: [14], style: "medium" },
   throw: { file: "hand", track: "hand-1", from: 113, gain: 1.1, rate: 0.82, jitter: 0.05, soft: 0.6, cutMs: 0, layers: [{ kind: "boom", from: 110, to: 60, ms: 90, gain: 0.35 }], vibe: [22], style: "rigid" },
-  slam: { file: "drop", gain: 1.8, rate: 0.72, jitter: 0.03, soft: 1, cutMs: 0, layers: [{ kind: "boom", from: 95, to: 42, ms: 140, gain: 0.9 }, { kind: "noise", from: 180, ms: 90, gain: 0.5, q: 0.8 }], vibe: [40, 30, 60], style: "heavy" },
-  flip: { file: "turn", gain: 0.8, rate: 1, jitter: 0.05, soft: 1, cutMs: 0, layers: [{ kind: "tick", from: 1800, to: 900, ms: 30, gain: 0.25 }], vibe: [10, 20, 10], style: "rigid" },
+  slam: { file: "drop", track: "drop-1", gain: 1.8, rate: 0.72, jitter: 0.03, soft: 1, cutMs: 0, layers: [{ kind: "boom", from: 95, to: 42, ms: 140, gain: 0.9 }, { kind: "noise", from: 180, ms: 90, gain: 0.5, q: 0.8 }], vibe: [40, 30, 60], style: "heavy" },
+  flip: { file: "turn", track: "turn-1", gain: 0.8, rate: 1, jitter: 0.05, soft: 1, cutMs: 0, layers: [{ kind: "tick", from: 1800, to: 900, ms: 30, gain: 0.25 }], vibe: [10, 20, 10], style: "rigid" },
   spin: { file: null, gain: 1, rate: 1, jitter: 0.04, soft: 1, cutMs: 0, layers: [{ kind: "tick", from: 1400, to: 1000, ms: 18, gain: 0.35 }], vibe: [6], style: "selection" },
   deny: { file: null, gain: 1, rate: 1, jitter: 0, soft: 1, cutMs: 0, layers: [{ kind: "boom", from: 160, to: 110, ms: 90, gain: 0.5 }, { kind: "tick", from: 300, to: 200, ms: 60, gain: 0.3 }], vibe: [30, 40, 30], style: "error" },
-  home: { file: "hand", gain: 0.6, rate: 0.8, jitter: 0.05, soft: 1, cutMs: 200, layers: [{ kind: "boom", from: 120, to: 80, ms: 70, gain: 0.25 }], vibe: [15], style: "soft" },
+  home: { file: "hand", track: "hand-1", gain: 0.6, rate: 0.8, jitter: 0.05, soft: 1, cutMs: 200, layers: [{ kind: "boom", from: 120, to: 80, ms: 70, gain: 0.25 }], vibe: [15], style: "soft" },
 };
 
 const KEY = "crossade.feel.v2";
@@ -129,6 +145,8 @@ export interface TableFeel {
   prefs: FeelPrefs;
   /** Сыграть событие. */
   play(e: FeelEvent): void;
+  /** Сыграть ровно один звук события (0 — основной, 1… — из набора) как есть: его дорожка, начало, скорость, тон и громкость события, без слоёв синтеза и вибрации. */
+  playVariant(kind: FeelKind, index: number): void;
   /** Сохранить пресет и настройки в браузере. */
   save(): void;
   /** Вернуть заводской пресет одного события (или всех). */
@@ -141,7 +159,7 @@ export interface TableFeel {
   readonly log: FeelLogged[];
 }
 
-const clone = (spec: FeelSpec): FeelSpec => ({ ...spec, layers: spec.layers.map((l) => ({ ...l })), vibe: [...spec.vibe] });
+const clone = (spec: FeelSpec): FeelSpec => ({ ...spec, ...(spec.extra ? { extra: spec.extra.map((v) => ({ ...v })) } : {}), layers: spec.layers.map((l) => ({ ...l })), vibe: [...spec.vibe] });
 
 /** Один пресет на страницу: звук и вибрация — те, что уже держит экран (`tableSound`, `tableHaptic`). */
 export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
@@ -162,12 +180,14 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
     play(e) {
       const spec = preset[e.kind], energy = Math.max(0, Math.min(1, e.energy ?? 1));
       const gain = spec.gain * (spec.soft + (1 - spec.soft) * energy);
-      const rate = spec.rate * (1 + (Math.random() * 2 - 1) * spec.jitter);
+      // Набор: основной звук и ещё те, что добавил человек, — играет случайный, со своими началом, скоростью и тоном.
+      const pool: Variant[] = [spec, ...(spec.extra ?? [])], pick = pool[Math.floor(Math.random() * pool.length)]!;
+      const rate = pick.rate * (1 + (Math.random() * 2 - 1) * spec.jitter);
       const vibe = e.mine !== false && prefs.vibe && spec.vibe.length ? spec.vibe.map((ms) => Math.max(1, Math.round(ms * (0.5 + 0.5 * energy)))) : [];
       log.push({ kind: e.kind, mine: e.mine !== false, energy: +energy.toFixed(2), gain: prefs.sound ? +gain.toFixed(3) : 0, vibe });
       if (log.length > 60) log.shift();
       if (prefs.sound && gain > 0.001) {
-        const voice: VoiceSpec = { file: spec.file, ...(spec.track ? { track: spec.track } : {}), ...(typeof spec.from === "number" ? { from: spec.from / 1000 } : {}), ...(spec.pitch ? { pitch: spec.pitch } : {}), ...(spec.tie === false ? { tie: false } : {}), rate, gain, mine: e.mine !== false, x: e.x ?? 0, z: e.z ?? 0, layers: spec.layers.map((l) => ({ ...l, gain: l.gain * (spec.soft + (1 - spec.soft) * energy) })), ...(spec.cutMs ? { cutMs: spec.cutMs } : {}) };
+        const voice: VoiceSpec = { file: spec.file, ...(pick.track ? { track: pick.track } : {}), ...(typeof pick.from === "number" ? { from: pick.from / 1000 } : {}), ...(pick.pitch ? { pitch: pick.pitch } : {}), ...(pick.tie === false ? { tie: false } : {}), rate, gain, mine: e.mine !== false, x: e.x ?? 0, z: e.z ?? 0, layers: spec.layers.map((l) => ({ ...l, gain: l.gain * (spec.soft + (1 - spec.soft) * energy) })), ...(spec.cutMs ? { cutMs: spec.cutMs } : {}) };
         sound.voice(voice);
       }
       if (vibe.length) {
@@ -180,6 +200,11 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
           vibe.forEach((ms, i) => { if (i % 2 === 0) { if (at === 0) iosSwitchTick(); else setTimeout(iosSwitchTick, at); } at += ms; });
         }
       }
+    },
+    playVariant(kind, index) {
+      const spec = preset[kind], v: Variant | undefined = index === 0 ? spec : spec.extra?.[index - 1];
+      if (!v || !prefs.sound) return;
+      sound.voice({ file: spec.file, ...(v.track ? { track: v.track } : {}), ...(typeof v.from === "number" ? { from: v.from / 1000 } : {}), ...(v.pitch ? { pitch: v.pitch } : {}), ...(v.tie === false ? { tie: false } : {}), rate: v.rate, gain: spec.gain, mine: true, layers: [] });
     },
     save() {
       // Хранится только то, что отличается от заводского: поменяли заводской пресет — он дойдёт и до тех, кто ничего не трогал.
