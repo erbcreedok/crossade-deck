@@ -25,6 +25,12 @@ check("после нажатия ▶ показана загрузка (поло
 await f.waitForFunction(() => !!window.__sound.buffer("drop-1") && window.__spec?.length, null, { timeout: 15000 });
 const spec = await f.evaluate(() => window.__spec?.at(-1));
 check("после загрузки играет именно эту дорожку на выбранной скорости", spec && spec.track === "drop-1" && Math.abs(spec.rate - 0.5) < 0.01, spec);
+const ph1 = await f.evaluate(() => { const e = document.querySelector('.track[data-track="drop-1"] .ph'); return { shown: e.style.display, left: parseFloat(e.style.left) }; });
+await p.waitForTimeout(250);
+const ph2 = await f.evaluate(() => { const e = document.querySelector('.track[data-track="drop-1"] .ph'); return { shown: e.style.display, left: parseFloat(e.style.left) }; });
+check("бегунок бежит по волне вместе со звуком (виден и сдвигается вправо)", ph1.shown === "block" && ph2.left > ph1.left, { ph1, ph2 });
+await p.waitForTimeout(1600);
+check("после конца звука бегунок исчезает", (await f.evaluate(() => document.querySelector('.track[data-track="drop-1"] .ph').style.display)) === "none");
 const after = await f.evaluate(() => ({ loaded: window.__sound.health.loaded, other: !!window.__sound.buffer("gather-2"), meta: document.querySelector('.track[data-track="drop-1"] .meta').textContent }));
 check("загрузилась только нажатая дорожка, и написано, за сколько", after.loaded === 1 && !after.other && /загружено за \d+ мс/.test(after.meta), after);
 // Выбор дорожки на движение сохраняется в пресете и в хранилище.
